@@ -51,6 +51,9 @@ const STATUS_WORDS: Record<string, { message: string; cause?: string; next?: { k
   "engine.link_insecure": { message: "Your server needs a secure link (https) before it can run your chats.", retryable: true },
   "engine.cli_missing": { message: "The engine is not installed here.", next: [{ key: "connect_ai", label: "Connect an account" }], retryable: true },
   "engine.vault_locked": { message: "Your sign-ins are locked on this server.", cause: "Unlock Vyre to use them.", next: [{ key: "unlock_vault", label: "Unlock" }], retryable: false },
+  "engine.signin_missing": { message: "Your sign-in for this AI is missing.", cause: "Sign in again.", next: [{ key: "connect_ai", label: "Sign in again" }], retryable: false },
+  "engine.cli_unusable": { message: "This engine cannot run on your computer as it is.", cause: "It may not be installed here, or not signed in here, or your computer is not connected.", next: [{ key: "connect_ai", label: "Sign in or pick another AI" }], retryable: false },
+  "engine.closing": { message: "The app was closing, so this waits and runs when it opens again.", retryable: true },
   "engine.vault_unreadable": { message: "Your Vault could not be read just now.", next: [{ key: "open_vault", label: "Open the Vault" }], retryable: true },
   "sandbox.unavailable": { message: "This engine cannot run safely on this computer yet.", cause: "Vyre runs Claude Code, Codex and Grok in a sandbox, and this computer has none it can use. An API key works now.", next: [{ key: "connect_ai", label: "Use an API key" }], retryable: false },
   "sandbox.wsl_off": { message: "Claude Code, Codex and Grok need WSL on Windows.", cause: "Vyre runs them in a Linux sandbox, and WSL is off on this computer. Turn it on once (admin and a restart), or use an API key now.", next: [{ key: "turn_on_wsl", label: "Turn on WSL (needs admin and a restart)" }, { key: "connect_ai", label: "Use an API key" }], retryable: false },
@@ -69,9 +72,11 @@ const STATUS_WORDS: Record<string, { message: string; cause?: string; next?: { k
   "engine.nothing_to_compact": { message: "There is nothing to compact yet.", retryable: false },
   "provider.error": { message: "Your AI provider stopped with an error.", retryable: true },
   "provider.filtered": { message: "Your AI provider declined to answer this.", retryable: false },
+  "engine.no_first_token": { message: "Your AI didn't answer in time", retryable: true },
   "engine.timeout": { message: "The engine did not answer in time.", retryable: true },
   "engine.session_gone": { message: "The engine lost this chat's earlier session.", cause: "Try again: it starts from the chat's summary.", retryable: true },
   "engine.model_unavailable": { message: "That model cannot run here.", next: [{ key: "pick_model", label: "Choose another model" }, { key: "run_on_my_computer", label: "Run it on my computer" }], retryable: false },
+  "engine.no_model_picked": { message: "Pick a model for this account.", next: [{ key: "pick_model", label: "Pick a model" }], retryable: false },
   "engine.no_model_works": { message: "None of your AI accounts can answer right now.", cause: "Check your AI accounts, then try again.", next: [{ key: "connect_ai", label: "Open AI accounts" }], retryable: true },
   "engine.no_account": { message: "Connect your AI to get replies.", cause: "No AI account is saved for this chat yet.", next: [{ key: "connect_ai", label: "Connect your AI" }], retryable: false },
   "engine.account_unavailable": { message: "Your AI account could not be reached just now.", next: [{ key: "connect_ai", label: "Check your AI account" }], retryable: true },
@@ -124,6 +129,7 @@ export function stoppedWords(reason: string): string {
     case "limit": return "Stopped because it reached a spending or turn limit.";
     case "left": return "Stopped because the person it was working for left.";
     case "moved": return "Stopped because the task was handed to someone else.";
+    case "closing": return "Waiting: the app was closing. It runs when the app opens again.";
     case "lease": return "Stopped because the server it was running on went away. Send it again.";
     default: return "Stopped, and no reason was recorded. Send it again.";
   }
@@ -139,11 +145,13 @@ export function statusView(b: MessageBlock): StatusView {
   if (state === "trashed" && str(d.text) !== "" && Array.isArray(d.fileIds)) return { kind: "wait", id: b.id, text: str(d.text), action: { key: `undo_trash:${(d.fileIds as unknown[]).filter((x): x is string => typeof x === "string").join(",")}`, label: "Undo" } };
   // the chat was answered by another account because the person's own sign-in is locked on this server: the one line carries Unlock, which opens the same small sheet as the banner
   if (state === "key_locked" && str(d.text) !== "") return { kind: "wait", id: b.id, text: str(d.text), action: { key: "unlock_vault", label: "Unlock" } };
+  // a reply that was ended so Vyre could update (host/src/daemon): one quiet line, and Continue runs that turn again, with the same message, on the same account
+  if (state === "stopped_for_update" && str(d.text) !== "") return str(d.turnId) !== "" ? { kind: "wait", id: b.id, text: str(d.text), action: { key: `continue_turn:${str(d.turnId)}`, label: "Continue" } } : { kind: "note", id: b.id, text: str(d.text) };
   if (state === "cancelled") return { kind: "note", id: b.id, text: stoppedWords(str(d.reason)) };
   if (state === "waiting" && str(d.taskId) !== "") return { kind: "approval", id: b.id, taskId: str(d.taskId) };
   if (state === "waiting") return { kind: "note", id: b.id, text: "Waiting for your approval." };
   let w = wordsFor(str(d.code));
-  if (str(d.code) === "engine.model_unavailable" && str(d.detail) !== "") w = { ...w, message: str(d.detail) };
+  if ((str(d.code) === "engine.model_unavailable" || str(d.code) === "engine.no_model_picked") && str(d.detail) !== "") w = { ...w, message: str(d.detail) };
   // The engine that is missing is named with one button that installs it, and why the last try did not finish; one that has no build for this computer offers another account only. The reason the
   // Vault refused is the one it gave.
   const engine = Object.hasOwn(ENGINES, str(d.program)) ? ENGINES[str(d.program)] : undefined;
@@ -155,7 +163,18 @@ export function statusView(b: MessageBlock): StatusView {
       w = { message: cause ? `${engine.name} could not be set up here.` : `${engine.name} is not installed here.`, cause: cause ?? "Vyre can set it up for you.", next: [{ key: `install:${str(d.program)}`, label: `Install ${engine.name}` }, ...(w.next ?? [])], retryable: false };
     }
   }
+  // the engine cannot run here: the same plain reasons as the connect card (engine.providers.list), the program is missing or its sign-in needs doing again
+  if (str(d.code) === "engine.cli_unusable" && Object.hasOwn(ENGINES, str(d.cli))) {
+    const name = ENGINES[str(d.cli)]!.name;
+    w = d.cliMissing === true
+      ? { message: `${name} is not installed on this computer. Install it, or pick another AI.`, next: [{ key: `install:${str(d.cli)}`, label: `Install ${name}` }, { key: "connect_ai", label: "Pick another AI" }], retryable: false }
+      : { message: `Sign in to ${name} again.`, next: [{ key: str(d.account) !== "" ? `sign_in:${str(d.account)}` : "connect_ai", label: "Sign in again" }, { key: "connect_ai", label: "Pick another AI" }], retryable: false };
+  }
+  // a missing sign-in opens Settings > Your AI at that account, not the generic connect flow
+  if ((str(d.code) === "engine.signin_missing" || str(d.code) === "provider.auth_failed") && str(d.account) !== "") w = { ...w, next: [{ key: `sign_in:${str(d.account)}`, label: "Sign in again" }] };
   if (str(d.code) === "engine.vault_unreadable" && str(d.reason) !== "") w = { ...w, cause: `The Vault answered: ${str(d.reason)}.` };
+  // the engine process stopped and said nothing a person can use: the sentence never stands alone, the exit code is the reason there is
+  if (str(d.code) === "engine.cli_error") w = { ...w, message: "The engine stopped before it replied.", cause: str(d.exit) !== "" ? `It exited with code ${str(d.exit)}. Try again. If it keeps happening, open Details and send them to your admin.` : "It gave no reason. Try again. If it keeps happening, open Details and send them to your admin." };
   return { kind: "error", block: { ...b, type: "error", data: { code: str(d.code), message: w.message, ...(w.cause ? { cause: w.cause } : {}), next: w.next ?? [], retryable: w.retryable, turnId: str(d.turnId), steps: [...(str(d.code) ? [["Code", str(d.code)]] : []), ["Reply", str(d.turnId)]] } } };
 }
 

@@ -55,11 +55,16 @@ async function mayUseThread(ctx: HooksCtx, threadId: string): Promise<boolean> {
 async function nameOf(ctx: HooksCtx, agentId: string): Promise<string> {
   try { return ((await ctx.call?.("agents.get", { agentId })) as { agent?: { name?: string } } | undefined)?.agent?.name || "Assistant"; } catch { return "Assistant"; }
 }
+/** A person's display name, as the rest of the Space reads it (access.principals.get); undefined when it cannot be read, and the line then keeps its old words. */
+async function personName(ctx: HooksCtx, id: string): Promise<string | undefined> {
+  if (!id.startsWith("usr_")) return undefined;
+  try { const n = ((await ctx.call?.("access.principals.get", { principal: { kind: "person", id } })) as { principal?: { name?: unknown } } | undefined)?.principal?.name; return typeof n === "string" && n.trim() !== "" && n !== id ? n.trim() : undefined; } catch { return undefined; }
+}
 async function tell(ctx: HooksCtx, a: Actor, h: Rec, did: "added" | "changed" | "removed" | "paused" | "resumed", threadId: string | undefined): Promise<void> {
   ctx.emit("hook.changed", h.threadId ?? threadId ?? h.id, { hookId: h.id, scope: h.scope, change: did, by: h.madeBy, line: h.line, ...(h.threadId ? { threadId: h.threadId } : {}), ...(h.agentId ? { agentId: h.agentId } : {}) });
   const where = threadId ?? h.threadId;
   if (!where || !ctx.call) return;
-  const who = a.kind === "agent" ? await nameOf(ctx, a.id) : a.admin && h.scope === "space" ? "An admin" : "Someone";
+  const who = a.kind === "agent" ? await nameOf(ctx, a.id) : (await personName(ctx, a.id)) ?? (a.admin && h.scope === "space" ? "An admin" : "Someone");
   const place = h.scope === "chat" || h.scope === "run" ? " in this chat" : h.scope === "space" ? " for the Space" : h.scope === "agent" ? " for this agent" : " for you";
   const verb = { added: "added a hook", changed: "changed a hook", removed: "removed a hook", paused: "paused a hook", resumed: "turned a hook back on" }[did];
   try { await ctx.call("chat.hook_line", { threadId: where, body: `${who} ${verb}${place}: ${h.line}`, kind: did, hookId: h.id, scope: h.scope, by: h.madeBy, byKind: h.madeByKind }); } catch (e) { ctx.log?.warn("a hook line was not posted", { error: e instanceof Error ? e.message : String(e) }); }

@@ -67,6 +67,14 @@ function viaOf(connection: string, scope: string): string {
   return `${connection === "subscription" ? "Subscription" : "API key"}, ${scope === "mine" ? "yours" : "shared"}`;
 }
 
+/** A subscription account whose item holds neither a credentials nor a setup_token field has nothing to sign in with: it reads "needs sign in" whatever its saved state says, so Settings offers Sign in again. */
+export function hasSignin(item: Row | null): boolean {
+  if (!item) return true;
+  let keys: unknown = [];
+  try { keys = JSON.parse(String(item["fieldKeys"] ?? "[]")); } catch { keys = []; }
+  return Array.isArray(keys) && (keys.includes("credentials") || keys.includes("setup_token"));
+}
+
 function rowOut(ctx: VaultCtx, p: Row, used?: { tokens: number; costCents: number }, spaceKey = spaceKeyProviderId(ctx), older = olderOf(ctx, str(p, "owner"))): Record<string, unknown> {
   const c = entry(ctx, str(p, "providerKey"));
   const item = itemOf(ctx, str(p, "itemId"));
@@ -84,7 +92,7 @@ function rowOut(ctx: VaultCtx, p: Row, used?: { tokens: number; costCents: numbe
     ...(item && str(item, "name") ? { itemName: str(item, "name") } : {}),
     ...(item && str(item, "handle") ? { handle: str(item, "handle") } : {}), agentsUsing: [],
     usage: { tokens: used?.tokens ?? 0, costCents: used?.costCents ?? 0, periodStart: monthStart(ctx.now()) }, engine: c?.engine ?? str(p, "providerKey"),
-    spaceMayUse: num(p, "spaceMayUse") === 1, state: str(p, "state"), keepsNothing: keepsNothingOf(ctx, p),
+    spaceMayUse: num(p, "spaceMayUse") === 1, state: sub && str(p, "state") === "ok" && !hasSignin(item) ? "needs_sign_in" : str(p, "state"), keepsNothing: keepsNothingOf(ctx, p),
     ...(address ? { address: str(address, "address") } : {}), ...(c?.keyless || str(p, "connection") === "local_model" ? { keyless: true } : {}),
     ...(spaceKey !== null && spaceKey === str(p, "id") ? { spaceKey: true } : {}),
   };
@@ -540,4 +548,22 @@ export async function customRemove(ctx: VaultCtx, input: { key: string }) {
   for (const p of using) await remove(ctx, { providerId: str(p, "id") });
   ctx.db.run(`UPDATE vault_provider_def SET "deleted_at" = ? WHERE "key" = ?`, ctx.now(), input.key);
   return { ok: true };
+}
+
+/**
+ * System: a turn found this account's sign-in missing or refused. The person's own subscription account reads "Sign in again" (needs_sign_in) until the sign-in is done;
+ * a key, a Shared account and an account of someone else are never marked here.
+ */
+export function markSigninNeeded(ctx: VaultCtx, input: { handle: string }): { marked: boolean } {
+  ensureProviders(ctx);
+  const want = String(input.handle ?? "").replace(/^#/, "").split(".")[0]!.toLowerCase();
+  if (want === "") return { marked: false };
+  const mine = rowsOf(ctx.db.all(`SELECT * FROM vault_provider WHERE "owner" = ? AND "connection" = 'subscription' AND "scope" = 'mine'`, me(ctx))).filter(live);
+  const p = mine.find((r) => str(first(ctx.db.all(`SELECT * FROM vault_meta WHERE id = ?`, str(r, "itemId"))), "handle").replace(/^#/, "").toLowerCase() === want);
+  if (!p) return { marked: false };
+  if (str(p, "state") !== "needs_sign_in") {
+    ctx.db.run(`UPDATE vault_provider SET "state" = ? WHERE "id" = ?`, "needs_sign_in", str(p, "id"));
+    ctx.emit("provider.updated", `entity/${str(p, "id")}`, { providerId: str(p, "id"), state: "needs_sign_in" }, { vis: "participants" });
+  }
+  return { marked: true };
 }

@@ -210,6 +210,14 @@ test("changeset: a committed one keeps Review but loses the review actions", () 
   assert.equal(changesetOpen("changes_requested"), true);
 });
 
+test("question: a prompt with a second line shows it as the why, under the question", () => {
+  const withWhy: Block = { ...SAMPLE_QUESTION, data: { ...(SAMPLE_QUESTION.data as object), prompt: "Which account?\nIt spends from the one you pick." } };
+  const markup = html(withWhy);
+  assert.ok(markup.includes("blk-question-blk_q1-why"));
+  assert.ok(markup.includes("It spends from the one you pick."));
+  assert.ok(!html(SAMPLE_QUESTION).includes("blk-question-blk_q1-why"), "a one-line prompt has no why");
+});
+
 test("question: single choice shows each option; an answered one shows the answer and no options", () => {
   const markup = html(SAMPLE_QUESTION);
   assert.ok(markup.includes("Which consult length should the form offer?"));

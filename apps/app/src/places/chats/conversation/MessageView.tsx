@@ -6,7 +6,7 @@ import { CrewStrip } from "../crew/strip.tsx";
 import { memberFromBlock, memberOf } from "../crew/status.ts";
 import { holdsOf, mergeStateOf, withTeammates } from "../crew/model.ts";
 import { FROM_THREAD_LINE } from "../crew/also.tsx";
-import { citable, citeBody, citeRender } from "../crew/cite.tsx";
+import { barShows, citable, citeBody, citeRender } from "../crew/cite.tsx";
 import type { CrewMember, CrewStatusOut } from "../crew/model.ts";
 import { useLinkState } from "../../../../../../ui/src/reach/index.tsx";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -136,8 +136,6 @@ export interface MessageActions {
   share?(messageId: string, x: number, y: number): void;
   /** What the turn behind a reply being written is doing: the live line under it (steps, thinking). */
   activityOf?(rowId: string): import("../../../shell/session/turn-streams.ts").ActivityStore | undefined;
-  /** The chat has two or more people in it: an agent's answer is for all of them, and carries the buttons that turn it into work (Make task, Remember). */
-  withPeople?: boolean;
   /** A person's or agent's name for an id; a plain word where there is none. */
   nameOf?(id: string): string;
   /** Open another chat on a message (the line a fork starts with). */
@@ -282,9 +280,9 @@ export function HoverBar({ m, mine, a, onEdit, visible, byAgent = false }: { m: 
     bar.push({ icon: "reply", label: "Reply in thread", run: () => a.openThread(m.messageId) });
     if (a.fork && talk) bar.push({ icon: "fork", label: "Fork from here", run: () => a.fork!(m.messageId) });
     if (talk) bar.push({ icon: "pin", label: m.pinned ? "Unpin" : "Pin", run: () => a.setPinned(m.messageId, !m.pinned) });
-    // an agent's answer in a chat of people can become work or a memory in one tap, from here and from the long-press sheet; nothing of it is drawn at rest
-    if (a.withPeople === true && a.makeTask && talk && m.body.trim() !== "") bar.push({ icon: "task", label: "Make task", run: () => a.makeTask!(m.messageId) });
-    if (a.withPeople === true && memory && talk && m.body.trim() !== "") bar.push({ icon: "remember", label: "Remember", run: () => { void rememberMessage(memory.memory, memory.threadId, { messageId: m.messageId, body: m.body }, memory.flash); } });
+    // an agent's answer, in any chat, can become work or a memory in one tap, from here and from the long-press sheet; nothing of it is drawn at rest
+    if (a.makeTask && talk && m.body.trim() !== "") bar.push({ icon: "task", label: "Make task", run: () => a.makeTask!(m.messageId) });
+    if (memory && talk && m.body.trim() !== "") bar.push({ icon: "remember", label: "Remember", run: () => { void rememberMessage(memory.memory, memory.threadId, { messageId: m.messageId, body: m.body }, memory.flash); } });
   } else if (mine && a.humanChat !== true) {
     bar.push({ icon: "copy", label: "Copy", run: () => a.copy(m.body) });
     if (m.kind === "text") bar.push({ icon: "edit", label: "Edit", run: onEdit });
@@ -304,28 +302,47 @@ export function HoverBar({ m, mine, a, onEdit, visible, byAgent = false }: { m: 
   );
 }
 
-/** A phone has no hover: the bar is not drawn and a long press opens the same actions as a sheet. */
+/** A phone, or any device whose pointer is a finger, has no hover: the bar is not drawn and a long press opens the same actions as a sheet. */
 const PHONE_BELOW = 560;
 const LONG_PRESS_MS = 450;
 
-function useHover(onLong?: () => void): { over: boolean; focus: boolean; phone: boolean; props: Record<string, unknown> } {
+/** A device that cannot hover (a tablet, a phone in a wide window): its pointer is a finger. Read after mount so the first frame matches the server's, and followed live: an iPad that gets a trackpad, or a touch laptop that folds into a tablet, switches without a reload. */
+function useCannotHover(): boolean {
+  const [none, setNone] = useState(false);
+  useEffect(() => {
+    const mm = (globalThis as { matchMedia?: (q: string) => { matches: boolean; addEventListener?: (t: "change", f: () => void) => void; removeEventListener?: (t: "change", f: () => void) => void } }).matchMedia;
+    if (typeof mm !== "function") return undefined;
+    const q = mm("(hover: none)");
+    const read = (): void => setNone(q.matches);
+    read();
+    q.addEventListener?.("change", read);
+    return () => q.removeEventListener?.("change", read);
+  }, []);
+  return none;
+}
+
+function useHover(onLong?: () => void): { over: boolean; focus: boolean; phone: boolean; touch: boolean; props: Record<string, unknown> } {
   const [over, setOver] = useState(false);
   const [focus, setFocus] = useState(false);
   const width = useWindowDimensions().width;
   const phone = width > 0 && width < PHONE_BELOW;
+  const noHover = useCannotHover();
+  const touch = phone || noHover;
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const stop = (): void => { if (timer.current) { clearTimeout(timer.current); timer.current = null; } };
   type Blur = { currentTarget: { contains(n: unknown): boolean }; relatedTarget: unknown };
-  if (phone) {
+  // a long press opens the sheet wherever a finger can touch, a device that can hover too (a touch laptop)
+  const press = { onTouchStart: () => { stop(); timer.current = setTimeout(() => { timer.current = null; onLong?.(); }, LONG_PRESS_MS); }, onTouchMove: stop, onTouchEnd: stop, onTouchCancel: stop };
+  if (touch) {
     return {
-      over: false, focus: false, phone,
-      props: webProps({ onTouchStart: () => { stop(); timer.current = setTimeout(() => { timer.current = null; onLong?.(); }, LONG_PRESS_MS); }, onTouchMove: stop, onTouchEnd: stop, onTouchCancel: stop }),
+      over: false, focus: false, phone, touch,
+      props: webProps(press),
     };
   }
   return {
-    over, focus, phone,
+    over, focus, phone, touch,
     // The row takes focus so the bar can be reached from the keyboard; the bar draws while focus is on the row or inside it.
-    props: webProps({ tabIndex: 0, onMouseEnter: () => setOver(true), onMouseLeave: () => setOver(false), onFocus: () => setFocus(true), onBlur: (e: Blur) => { if (!e.currentTarget.contains(e.relatedTarget)) setFocus(false); } }),
+    props: webProps({ ...press, tabIndex: 0, onMouseEnter: () => setOver(true), onMouseLeave: () => setOver(false), onFocus: () => setFocus(true), onBlur: (e: Blur) => { if (!e.currentTarget.contains(e.relatedTarget)) setFocus(false); } }),
   };
 }
 
@@ -360,7 +377,8 @@ function Mine({ item, actions, sending, mark, replies }: MessageViewProps & { it
   };
   return (
     <View testID={`msg-${m.messageId}`} accessibilityLabel={`You, ${item.time}`} {...h.props} {...menuTrigger((x, y) => actions.showMenu(menuFor(m, true, actions, startEdit, { x, y }), x, y, "Message"))} style={[st.me, item.newgroup && st.gapTop, mark === "match" && st.found, mark === "active" && st.foundActive, mark === "selected" && st.selected]}>
-      {h.phone ? <ActionSheet open={sheet} entries={menuFor(m, true, actions, startEdit)} onClose={() => setSheet(false)} /> : <HoverBar m={m} mine a={actions} onEdit={startEdit} visible={h.over || h.focus} />}
+      {h.touch || sheet ? <ActionSheet open={sheet} entries={menuFor(m, true, actions, startEdit)} onClose={() => setSheet(false)} /> : null}
+      {h.touch ? null : <HoverBar m={m} mine a={actions} onEdit={startEdit} visible={h.over || h.focus} />}
       <TimeTip item={item}><Text style={st.when}>{item.time}</Text></TimeTip>
       {editing ? (
         <View testID={`edit-${m.messageId}`} style={st.editBox}>
@@ -450,7 +468,8 @@ function Theirs({ item, actions, stream, openWork, mark, meId, replies }: Messag
   // the answer that brings helpers together marks each claim with the number of the helper it came from: [1], [2]. Those marks are chips that open that helper.
   const crewRows = actions.crew?.status ? citable(actions.crew.status.members) : [];
   const words = !person && !stream ? citeBody(namedIds(m.body, actions.nameOf), crewRows.length) : namedIds(m.body, actions.nameOf);
-  const citeLink = useMemo(() => (actions.crew ? citeRender(crewRows, (x) => actions.crew!.peek(x.id)) : undefined), [actions.crew, crewRows.length]);  // eslint-disable-line react-hooks/exhaustive-deps
+  const [cardOpen, setCardOpen] = useState(false);   // a citation card is showing: the hover toolbar steps aside
+  const citeLink = useMemo(() => (actions.crew ? citeRender(crewRows, (x) => actions.crew!.peek(x.id), setCardOpen) : undefined), [actions.crew, crewRows.length]);  // eslint-disable-line react-hooks/exhaustive-deps
   const chips = useRefChips(words, actions.files);
   const blocks = stream || crewCard ? null : bodyBlocks(chips.body === words ? m.messageId : `${m.messageId}#${chips.body.length}:${chips.body.slice(-24)}`, chips.body);
   const runCfg = actions.runCode;
@@ -460,7 +479,8 @@ function Theirs({ item, actions, stream, openWork, mark, meId, replies }: Messag
   const withCard = (kids: ReactElement): ReactElement => (!person && actions.details && !stream && !h.phone && !isSystemLine(m) ? <ReplyHover messageId={m.messageId} details={actions.details}>{kids}</ReplyHover> : kids);
   return (
     <View testID={`msg-${m.messageId}`} accessibilityLabel={`${item.who.name}, ${item.time}`} {...h.props} {...menuTrigger((x, y) => actions.showMenu(menuFor(m, false, actions, () => undefined, { x, y }), x, y, "Message"))} style={[st.msg, item.newgroup && st.gapTop, mark === "match" && st.found, mark === "active" && st.foundActive, mark === "selected" && st.selected]}>
-      {h.phone ? <ActionSheet open={sheet} entries={menuFor(m, false, actions, () => undefined)} onClose={() => setSheet(false)} /> : <HoverBar byAgent={!person} m={m} mine={false} a={actions} onEdit={() => undefined} visible={h.over || h.focus} />}
+      {h.touch || sheet ? <ActionSheet open={sheet} entries={menuFor(m, false, actions, () => undefined)} onClose={() => setSheet(false)} /> : null}
+      {h.touch ? null : <HoverBar byAgent={!person} m={m} mine={false} a={actions} onEdit={() => undefined} visible={barShows(h.over || h.focus, cardOpen)} />}
       {item.newgroup ? (
         <View style={st.by}>
           {withCard(

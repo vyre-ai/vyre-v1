@@ -3,6 +3,9 @@
 //
 //   GET  /local/daemon/busy    {turns, sources: [{name, turns}]}   the turns running on this computer now
 //   POST /local/daemon/drain   the same answer, after every source that can hand its turns over has done so
+//   POST /local/daemon/stop-turns   ends every turn still running here, cleanly (each chat keeps what it had written and says it was stopped), and answers the same state: "Stop and update now",
+//                              and the end of the wait when it has run out. A turn is never left running when the app's files are replaced.
+//   busy and drain also name the chats the turns are in: chats: [{id, title}], so the update screen can say which reply it waits for.
 //
 // A source is anything that runs turns here: the engine module's own turns (a Personal Space, or the Space a Mac hosts), and a person's turns for a Team Space that this computer runs over its link
 // (lane l-runson). A source that can hand its turns over to the Space's server (a link: the Space goes on with the same turn there) does so on drain; one that cannot is waited for, and the shell
@@ -17,26 +20,55 @@ export interface LocalWorkSource {
   running(): number;
   /** Hand the running turns to the server, when the source can (its turns go on there). Absent: the turns are waited for. */
   handOver?(): Promise<void> | void;
+  /** The chats those turns are in, by id and title. Absent: the turns are counted and not named. */
+  chats?(): Promise<Array<{ id: string; title: string }>> | Array<{ id: string; title: string }>;
+  /** End the running turns cleanly. Returns how many it ended. Absent: the source cannot be stopped from here. */
+  stopTurns?(): Promise<number> | number;
 }
 
-export interface LocalWorkState { turns: number; sources: Array<{ name: string; turns: number }> }
+export interface LocalWorkState { turns: number; sources: Array<{ name: string; turns: number }>; chats: Array<{ id: string; title: string }> }
 
 export interface LocalWork {
   /** Add a source; returns its removal. */
   add(source: LocalWorkSource): () => void;
   state(): LocalWorkState;
+  /** state() with the chats the turns are in (asking a source for them can take a moment). */
+  named(): Promise<LocalWorkState>;
   drain(): Promise<LocalWorkState>;
+  /** End every running turn; the state after. */
+  stopTurns(): Promise<LocalWorkState>;
 }
 
 export function createLocalWork(): LocalWork {
   const sources = new Set<LocalWorkSource>();
   const state = (): LocalWorkState => {
     const list = [...sources].map((s) => { let n = 0; try { n = Math.max(0, Math.floor(s.running())); } catch { n = 0; } return { name: s.name, turns: n }; });
-    return { turns: list.reduce((a, s) => a + s.turns, 0), sources: list };
+    return { turns: list.reduce((a, s) => a + s.turns, 0), sources: list, chats: [] };
+  };
+  const named = async (): Promise<LocalWorkState> => {
+    const s = state();
+    const seen = new Set<string>();
+    for (const src of sources) {
+      if (!src.chats) continue;
+      let list: Array<{ id: string; title: string }> = [];
+      try { list = await Promise.resolve(src.chats()); } catch { list = []; }
+      for (const c of list) if (!seen.has(c.id)) { seen.add(c.id); s.chats.push({ id: c.id, title: c.title }); }
+    }
+    return s;
   };
   return {
     add(source) { sources.add(source); return () => { sources.delete(source); }; },
     state,
+    named,
+    async stopTurns() {
+      for (const s of sources) {
+        if (!s.stopTurns) continue;
+        let n = 0;
+        try { n = s.running(); } catch { n = 0; }
+        if (n > 0) await Promise.resolve(s.stopTurns()).catch(() => undefined);
+      }
+      return named();
+    },
     async drain() {
       for (const s of sources) {
         if (!s.handOver) continue;
@@ -44,13 +76,14 @@ export function createLocalWork(): LocalWork {
         try { n = s.running(); } catch { n = 0; }
         if (n > 0) await Promise.resolve(s.handOver()).catch(() => undefined);
       }
-      return state();
+      return named();
     },
   };
 }
 
 const BUSY = "/local/daemon/busy";
 const DRAIN = "/local/daemon/drain";
+const STOP = "/local/daemon/stop-turns";
 const LOOPBACK = new Set(["127.0.0.1", "::1", "::ffff:127.0.0.1"]);
 
 function answer(res: http.ServerResponse, status: number, body: unknown): void {
@@ -63,13 +96,14 @@ export function createLocalWorkRoute(d: { token: string; work: LocalWork; sameTo
   return {
     handle(req, res) {
       const path = (req.url ?? "/").split("?")[0];
-      if (path !== BUSY && path !== DRAIN) return false;
+      if (path !== BUSY && path !== DRAIN && path !== STOP) return false;
       const auth = String(req.headers["authorization"] ?? "");
       if (!LOOPBACK.has(req.socket.remoteAddress ?? "") || !auth.startsWith("Bearer ") || !d.sameToken(auth.slice(7).trim(), d.token)) {
         answer(res, 401, { error: { code: "auth.unauthenticated", message: "Authentication is required." } });
         return true;
       }
-      if (path === BUSY && req.method === "GET") { answer(res, 200, { data: d.work.state() }); return true; }
+      if (path === BUSY && req.method === "GET") { void d.work.named().then((s) => answer(res, 200, { data: s }), () => answer(res, 200, { data: d.work.state() })); return true; }
+      if (path === STOP && req.method === "POST") { void d.work.stopTurns().then((s) => answer(res, 200, { data: s }), () => answer(res, 200, { data: d.work.state() })); return true; }
       if (path === DRAIN && req.method === "POST") {
         void d.work.drain().then((s) => answer(res, 200, { data: s }), () => answer(res, 200, { data: d.work.state() }));
         return true;

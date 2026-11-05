@@ -16,6 +16,7 @@ export function internalNames(text: string): string[] {
 
 /** What a helper is doing right now, in words a person reads: never the name of the tool. `detail` is what the call touches (a file, an address), already in safe words. */
 export function stepWords(tool: string, detail?: string): string {
+  tool = tool.replace(/^mcp__.+?__/, "");   // a tool that comes through a server is named server__tool: the tool is what is said
   const d = detail ? ` ${detail.length > 60 ? `${detail.slice(0, 59)}…` : detail}` : "";
   if (/^(Read|Glob|Grep|files_read|files_tree|files_list)/i.test(tool)) return `Reading${d || " files"}`;
   if (/^(Write|Edit|MultiEdit|NotebookEdit|files_create|files_write)/i.test(tool)) return `Editing${d || " a file"}`;
@@ -23,7 +24,35 @@ export function stepWords(tool: string, detail?: string): string {
   if (/^(WebSearch|web_search)/i.test(tool)) return "Searching the web";
   if (/^(WebFetch|read_link)/i.test(tool)) return `Reading${d || " a page"}`;
   if (/^(Agent|Task)$/.test(tool) || /^sub_task/.test(tool)) return "Working with a helper";
+  if (/^tool_search/i.test(tool)) return d !== "" ? `Looking for${d}` : "Looking for the right tool";
   return "Working";
+}
+
+/** The file name a call touched, without its folders: the only part of a tool's input that is ever kept with a step. */
+export function fileBase(detail: string): string {
+  const d = detail.trim().split(/[\\/]/).pop() ?? "";
+  return /^[\w.\- ]{1,60}$/.test(d) ? d : "";
+}
+
+/** The counts of a test run's summary lines in words ("1 passing, 1 failing"), or "" when they carry none. */
+export function testCounts(lines: string): string {
+  const pass = /ℹ\s+pass\s+(\d+)/i.exec(lines)?.[1] ?? /(\d+)\s+(?:passed|passing)\b/i.exec(lines)?.[1];
+  const fail = /ℹ\s+fail\s+(\d+)/i.exec(lines)?.[1] ?? /(\d+)\s+(?:failed|failing)\b/i.exec(lines)?.[1];
+  const parts = [pass !== undefined ? `${pass} passing` : "", fail !== undefined && Number(fail) > 0 ? `${fail} failing` : ""].filter((x) => x !== "");
+  return parts.join(", ");
+}
+
+/** A finished step in words a person reads, from what was kept: "Edited dark-mode.txt", "Ran the tests: 1 passing, 1 failing". */
+export function doneWords(tool: string, label?: string, ran?: string): string {
+  tool = tool.replace(/^mcp__.+?__/, "");
+  if (ran) return `Ran the tests: ${ran}`;
+  if (/^(Read|Glob|Grep|files_read|files_tree|files_list)/i.test(tool)) return label ? `Read ${label}` : "Read files";
+  if (/^(Write|Edit|MultiEdit|NotebookEdit|files_create|files_write)/i.test(tool)) return label ? `Edited ${label}` : "Edited a file";
+  if (/^(Bash|terminal_run|command)/i.test(tool)) return "Ran a command";
+  if (/^(WebSearch|web_search)/i.test(tool)) return "Searched the web";
+  if (/^(WebFetch|read_link)/i.test(tool)) return "Read a page";
+  if (/^(Agent|Task)$/.test(tool) || /^sub_task/.test(tool)) return "Worked with a helper";
+  return "Did a step";
 }
 
 /** One line of what a helper found: the first sentence of its last words, short. */

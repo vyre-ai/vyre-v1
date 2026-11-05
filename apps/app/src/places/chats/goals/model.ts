@@ -4,7 +4,6 @@
 import { dateIn, dayIn, dueText, instantOf, localInput, whenText } from "../../../../../../lib/zones.ts";
 import type { Zones } from "../../../../../../lib/zones.ts";
 /** A dash (hyphen, en or em) left at the end of a line once the deadline is cut off. Built from code points so no dash character sits in the source (no-em-dash lint). */
-const TRAILING_DASH = new RegExp(`\\s*[${String.fromCharCode(0x2014, 0x2013)}-]+\\s*$`);
 
 export type Status = "draft" | "planning" | "active" | "waiting" | "stuck" | "paused" | "done" | "missed" | "stopped";
 export type Tone = "plain" | "need" | "stuck" | "ok" | "dim";
@@ -74,8 +73,7 @@ export function dueWords(at: number, z: Zones): string {
 }
 /** The finish line in words, ending with the real deadline: a date the words carry ("by Friday") is replaced, so the line and the chip never disagree. A dash the agent left before its own date goes with it. */
 export function lineWithDue(line: string, deadline: number, z: Zones): string {
-  const bare = line.replace(/\s+by\s+[^,.]*(,?\s*\d{1,2}:\d{2}(\s*[ap]m)?(\s+[A-Z]{2,5}\b)?)?\.?\s*$/i, "").replace(/\.\s*$/, "").replace(TRAILING_DASH, "").trim();
-  return `${bare} by ${dueWords(deadline, z)}`;
+  return `${stripDue(line)} by ${dueWords(deadline, z)}`;
 }
 /** "4 days left", "18 hours left", "Due now". */
 export function leftWords(deadline: number, now: number): string {
@@ -102,7 +100,8 @@ export function sidebarGoals(goals: readonly GoalLine[], now: number): GoalLine[
   return goals
     .filter((g) => !ENDED.has(g.status) || now - g.updatedAt < 7 * DAY)
     .slice()
-    .sort((a, b) => rank(a) - rank(b) || (a.nextCheckinAt ?? Infinity) - (b.nextCheckinAt ?? Infinity) || b.updatedAt - a.updatedAt);
+    // ties end on the deadline, the title and the id, so two loads of the same goals draw the same list (lane l-polish L5)
+    .sort((a, b) => rank(a) - rank(b) || (a.nextCheckinAt ?? Infinity) - (b.nextCheckinAt ?? Infinity) || b.updatedAt - a.updatedAt || a.deadline - b.deadline || a.title.localeCompare(b.title) || a.id.localeCompare(b.id));
 }
 
 /** "$4.10 of $25 · 38 of 200 turns", and how much is used (0 to 1). */
@@ -209,9 +208,13 @@ export function delta(b: Pick<GoalBlock, "value" | "prev">): string | null {
   return d === 0 ? "no change" : `${d > 0 ? "+" : ""}${fmt(d)}`;
 }
 
+/** The agent's own closing date taken off a finish line ("... by Friday", "... by Wed 11 Nov, 4:16 PM PKT", "... - by Friday."), with the dash that led into it, so the one real deadline is the only date shown. */
+export function stripDue(line: string): string {
+  return line.replace(/\s+by\s+[^,.]*(,?\s*\d{1,2}:\d{2}(\s*[ap]m)?(\s+[A-Z]{2,5}\b)?)?\.?\s*$/i, "").replace(/\.\s*$/, "").replace(/\s*[\u2014\u2013-]+\s*$/, "").trim();
+}
 /** The finish line without a closing "by <date>": the deadline has its own place on the page, so the line never says it a second time. */
 export function bareLine(line: string): string {
-  return line.replace(/\s+by\s+[^,.]*(,\s*\d{1,2}:\d{2})?\.?\s*$/i, "").replace(/\.\s*$/, "").trim();
+  return stripDue(line);
 }
 /** A time as a date-and-time field holds it ("2026-11-07T18:00"), in the Space's zone. */
 export function toLocalInput(at: number, z: Zones): string {

@@ -151,6 +151,8 @@ export interface ProjectFacts {
   manage: boolean;
   /** Edit: pin a file to it. */
   edit: boolean;
+  /** A Space admin who holds no Manage on the project: may still change who is on it, so Add People shows. */
+  roles?: boolean;
 }
 export interface ProjectDo {
   /** Absent on the project's own page: it is open. */
@@ -168,9 +170,9 @@ export function projectMenu(f: ProjectFacts, d: ProjectDo): MenuEntry[] {
   return tidy([
     d.open ? item("Open", d.open, { hint: KEY.enter }) : null,
     f.starred ? item("Remove Star", () => d.star(false), { hint: KEY.star }) : item("Star", () => d.star(true), { hint: KEY.star }),
-    f.manage ? sep : null,
+    f.manage || f.roles === true ? sep : null,
     f.manage ? item(ellipsis("Share"), d.share) : null,
-    f.manage ? item(ellipsis("Add People"), d.addPeople) : null,
+    f.manage || f.roles === true ? item(ellipsis("Add People"), d.addPeople) : null,
     f.edit ? item(ellipsis("Pin File"), d.pinFile) : null,
     f.manage ? sep : null,
     f.manage ? (f.archived ? item("Unarchive", d.unarchive) : item("Archive", d.archive)) : null,

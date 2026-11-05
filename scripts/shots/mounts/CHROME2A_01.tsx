@@ -10,6 +10,9 @@
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { View } from "react-native";
+import { SettingsDataProvider } from "../../../apps/app/src/places/settings/data.tsx";
+import { SettingsPlace } from "../../../apps/app/src/places/settings/SettingsPlace.tsx";
+import { createSampleSettings, northwind } from "../../../apps/app/src/places/settings/sample.ts";
 import Vault from "../../../apps/app/src/places/vault/layout/index.tsx";
 import { createSampleVault } from "../../../apps/app/src/places/vault/layout/sample.ts";
 import { sampleConnectionsCall, sampleConnectionsData } from "../../../apps/app/src/places/vault/connections/sample.ts";
@@ -94,6 +97,22 @@ function Gate({ part }: { part: string }): ReactNode {
   );
 }
 
+// Settings > Your AI with an account whose sign-in ran out: its row offers Sign in again (part=ai-flagged), and the same with that account's sign-in open (part=ai-signin)
+function AiFlagged({ open }: { open: boolean }): ReactNode {
+  const made = useMemo(() => {
+    const sm = createSampleSettings(northwind);
+    sm.replica.put("accounts", [
+      { id: "acc_codex", ref: "#Saqib_Codex", driver: "codex", kind: "subscription", provider: "codex", title: "Codex", name: "Codex, saqib@example.com", mine: true, status: "expired" },
+      { id: "acc_claude", ref: "#Saqib_Claude", driver: "claude_code", kind: "subscription", provider: "claude-code", title: "Claude", name: "Claude, saqib@example.com", mine: true, status: "ok" },
+    ] as never);
+    const base = sm.data.call;
+    return { ...sm.data, call: async (cap: string, input: unknown) => (cap === "providers.subscription_start" ? { flowId: "f1", instruction: "Sign in to Codex in the browser, then come back here.", url: "https://auth.openai.com/codex/device", userCode: "KQ7M-2WXD", needsCode: false } : base(cap, input)) };
+  }, []);
+  // the flagged row sits low on the page: bring it to the middle, as a person scrolling to it would
+  useEffect(() => { const t = setTimeout(() => { (globalThis as { document?: { querySelector(q: string): { scrollIntoView?: (o: unknown) => void } | null } }).document?.querySelector("[data-testid^='account-sign-in-again-']")?.scrollIntoView?.({ block: "center" }); }, 500); return () => clearTimeout(t); }, []);
+  return <SettingsDataProvider value={made as never}><SettingsPlace initialPage="ai" {...(open ? { initialAccount: "#Saqib_Codex" } : {})} /></SettingsDataProvider>;
+}
+
 export default function Mount(): ReactNode {
   const [part, setPart] = useState<string | null>(null);
   useEffect(() => setPart(new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? "").get("part") ?? "conn"), []);
@@ -106,6 +125,7 @@ export default function Mount(): ReactNode {
       </View>
     );
   }
+  if (part === "ai-flagged" || part === "ai-signin") return <View style={{ flex: 1 }}><AiFlagged open={part === "ai-signin"} /></View>;
   if (part.startsWith("gate-")) return <Gate part={part} />;
   return <Chat part={part} />;
 }

@@ -9,7 +9,6 @@ import { Row } from "../../../../../ui/src/Row/index.tsx";
 import { States } from "../../../../../ui/src/States/index.tsx";
 import { VirtualList } from "../../../../../ui/src/VirtualList/index.tsx";
 import type { LiveQuery, QueryState } from "../../../../../client/src/index.ts";
-import { Skeleton } from "../../places/home/sections-a/parts.tsx";
 import { useOptionalShellRuntime } from "./runtime.tsx";
 
 export interface FirstList { screen: string; query: string; state?: Record<string, unknown>; title: string; empty: string; icon: "inbox" | "files" | "records" | "chat" | "search" | "done" }
@@ -71,7 +70,7 @@ export function FirstListLoading({ title }: { title: string }): ReactElement {
   return (
     <View style={styles.page} testID="place-loading">
       <Text accessibilityRole="header" aria-level={1} style={styles.h1}>{title}</Text>
-      <Skeleton rows={8} id="place" />
+      <View testID="place-loading" accessibilityLabel="Loading" style={{ minHeight: 8 * 44 }} />
     </View>
   );
 }

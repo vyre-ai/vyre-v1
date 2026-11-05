@@ -403,6 +403,7 @@ export function stubs(ctx: CallCtx) {
       composer: {
         suggest: call("chat.composer.suggest"),
       },
+      crew_line: call("chat.crew_line"),
       delete_message: call("chat.delete_message"),
       edit: call("chat.edit"),
       flow_card: call("chat.flow_card"),
@@ -892,6 +893,7 @@ export function stubs(ctx: CallCtx) {
       route: {
         preview: call("engine.route.preview"),
       },
+      running_here: call("engine.running_here"),
       runtime: {
         opt_in: call("engine.runtime.opt_in"),
       },
@@ -2234,6 +2236,7 @@ export function stubs(ctx: CallCtx) {
       custom_list: call("providers.custom_list"),
       custom_remove: call("providers.custom_remove"),
       list: call("providers.list"),
+      mark_signin_needed: call("providers.mark_signin_needed"),
       own_people: call("providers.own_people"),
       remove: call("providers.remove"),
       set_keeps_nothing: call("providers.set_keeps_nothing"),

@@ -76,7 +76,6 @@ export function entryFor(place: PlaceId, hash: string): Entry {
   if (t.subject) return { tab: tabOf(place), screen: `${t.subject.type}:${t.subject.id}` };
   if ((TAB_PLACES as readonly string[]).includes(place)) return { tab: place as TabId, screen: place };
   if (place === "settings") return { tab: "you", screen: "you:settings", title: "Settings" };
-  if (place === "home") return { tab: "you", screen: "you:my-work", title: "My work" };
   return { tab: "you", screen: "you" };
 }
 
@@ -108,3 +107,6 @@ export function placeOf(e: Entry): { place: PlaceId; hash: string } | null {
   const place = placeForSubject(kind);
   return place ? { place: place as PlaceId, hash: formatHash({ subject: { type: kind, id: e.screen.slice(i + 1) } }) } : null;
 }
+
+/** Screens that draw their own top bar, so the shell's ("< You") is not drawn above it: an Apps page that is open on something, and Settings (its list has its own title, a page has its back and title). */
+export const ownsHeaderScreen = (screen: string, hash: string | undefined): boolean => (screen.startsWith("apps:") && hash !== "") || screen === "you:settings";

@@ -5,7 +5,9 @@ import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { TextField } from "../../../../ui/src/TextField/index.tsx";
 import type { CapCall } from "../shell/session/caps.ts";
-import { saveInterview } from "./interview.ts";
+import { saveInterviewEdit } from "./interview.ts";
+import type { SavedAnswers } from "./interview.ts";
+import { draftGet, draftSet } from "./drafts.ts";
 import { ToolTile } from "./ProviderLogo.tsx";
 import { Glyph } from "./StepGlyph.tsx";
 import { POPULAR_ROLES, POPULAR_TOOLS, ROLES, TOOLS, suggest } from "./work-kinds.ts";
@@ -18,14 +20,18 @@ const toolKey = (name: string): string | undefined => TOOLS.find((t) => t[0] ===
 
 export function InterviewCard({ call, onSaved, gate }: { call: CapCall; onSaved(count: number): void; /** in the onboarding screen the bar's main button is Next, then Save */ gate?(save: (() => Promise<boolean>) | null, label?: string): void }): ReactElement {
   const run = useRef(globalThis.crypto?.randomUUID?.() ?? String(Date.now()));
-  const [q, setQ] = useState(0);
-  const [work, setWork] = useState<string[]>([]);
-  const [tools, setTools] = useState<string[]>([]);
-  const [style, setStyle] = useState("");
+  // reopened from the rail or Back: the answers already given are shown, editable, and saving corrects the facts made before
+  const was = useRef(draftGet<{ q: number; work: string[]; tools: string[]; style: string; saved: SavedAnswers }>("interview"));
+  const [q, setQ] = useState(was.current?.q ?? 0);
+  const [work, setWork] = useState<string[]>(was.current?.work ?? []);
+  const [tools, setTools] = useState<string[]>(was.current?.tools ?? []);
+  const [style, setStyle] = useState(was.current?.style ?? "");
+  const saved = useRef<SavedAnswers>(was.current?.saved ?? {});
   const [typed, setTyped] = useState("");
   const [hi, setHi] = useState(0);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  useEffect(() => { draftSet("interview", { q, work, tools, style, saved: saved.current }); }, [q, work, tools, style]);
   const picked = q === 0 ? work : tools;
   const setPicked = q === 0 ? setWork : setTools;
   const list = q === 0 ? ROLES : TOOLS;
@@ -50,7 +56,7 @@ export function InterviewCard({ call, onSaved, gate }: { call: CapCall; onSaved(
   const save = async (): Promise<void> => {
     if (busy || !ready) return;
     setBusy(true); setError("");
-    try { onSaved(await saveInterview(call, { work: work.join(", "), tools: tools.join(", "), style }, run.current)); } catch { setError("Could not save to your memory. Try again."); } finally { setBusy(false); }
+    try { const out = await saveInterviewEdit(call, { work: work.join(", "), tools: tools.join(", "), style }, run.current, saved.current); saved.current = out.saved; draftSet("interview", { q, work, tools, style, saved: out.saved }); onSaved(out.count); } catch { setError("Could not save to your memory. Try again."); } finally { setBusy(false); }
   };
 
   // the bar's main button does what Next and Save do here, so the card has no second primary button
@@ -60,7 +66,7 @@ export function InterviewCard({ call, onSaved, gate }: { call: CapCall; onSaved(
     else if (q < 2) gate(async () => { setQ(q + 1); setTyped(""); setHi(0); return false; }, "Next");
     else gate(async () => {
       setError("");
-      try { await saveInterview(call, { work: work.join(", "), tools: tools.join(", "), style }, run.current); return true; } catch { setError("Could not save to your memory. Try again."); return false; }
+      try { const out = await saveInterviewEdit(call, { work: work.join(", "), tools: tools.join(", "), style }, run.current, saved.current); saved.current = out.saved; draftSet("interview", { q, work, tools, style, saved: out.saved }); return true; } catch { setError("Could not save to your memory. Try again."); return false; }
     }, "Save");
     return () => gate(null);
   }, [gate, ready, q, work, tools, style, call]);

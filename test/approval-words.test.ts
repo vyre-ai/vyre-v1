@@ -46,7 +46,7 @@ export const REVIEWER_LINES: ReadonlyArray<readonly [file: string, has: string]>
   ["apps/app/src/places/chats/tasks/moves.ts", 'key: "send_back", label: "Send back"'],
   ["apps/app/src/places/chats/tasks/TaskDetail.tsx", '<Btn label="Looks good" primary testID="task-approve"'],
   ["apps/app/src/places/chats/needsyou/sample.ts", 'const review = [{ key: "review", label: "Looks good" }'],
-  ["apps/app/src/places/home/sections-a/sample.ts", 'const review = [{ key: "review", label: "Review" }'],
+  ["apps/app/src/shell/places-fixture/sample-a.ts", 'const review = [{ key: "review", label: "Looks good" }'],
   ["apps/app/src/places/chats/conversation/crew-card.tsx", "testID={`crew-back-${c.jobId}`}"],
 ];
 

@@ -23,9 +23,9 @@ export function CrewIsland({ status, onPress }: { status: CrewStatusOut; onPress
 }
 
 const st = StyleSheet.create({
-  wrap: { alignItems: "center", paddingBottom: 6 },
-  pill: { flexDirection: "row", alignItems: "center", gap: 8, height: 34, paddingHorizontal: 14, borderRadius: 17, backgroundColor: "var(--raised)" as string, boxShadow: "var(--sh-1)" } as object,
+  wrap: { alignItems: "center", paddingBottom: 6, paddingHorizontal: 12 },
+  pill: { flexDirection: "row", alignItems: "center", gap: 8, height: 34, maxWidth: "100%", minWidth: 0, paddingHorizontal: 14, borderRadius: 17, backgroundColor: "var(--raised)" as string, boxShadow: "var(--sh-1)" } as object,
   dot: { width: 7, height: 7, borderRadius: 4 },
-  text: { fontSize: 13, color: "var(--ink)" as string },
+  text: { flexShrink: 1, minWidth: 0, fontSize: 13, color: "var(--ink)" as string },
   faces: { flexDirection: "row", gap: 4 },
 });

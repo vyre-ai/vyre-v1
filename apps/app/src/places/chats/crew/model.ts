@@ -176,7 +176,8 @@ export function testsWords(t: CrewMember["tests"]): string {
   if (!t) return "";
   if (t.state === "running") return "Tests running";
   if (t.state === "passing") return t.passed !== undefined ? `${t.passed} tests passing` : "Tests passing";
-  return t.failed !== undefined ? `${t.failed} failing` : "Tests failing";
+  if (t.failed !== undefined) return t.passed !== undefined ? `${t.passed} passing, ${t.failed} failing` : `${t.failed} failing`;
+  return "Tests failing";
 }
 
 /** The helpers that wait for a person's yes with a held request to answer: each one's request is drawn as an approval card under the strip. */

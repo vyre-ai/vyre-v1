@@ -261,7 +261,7 @@ jobs:
           docker version --format 'docker server {{.Server.Version}}' || true
           cat /proc/sys/kernel/unprivileged_userns_clone 2>/dev/null || true
           sysctl kernel.apparmor_restrict_unprivileged_userns user.max_user_namespaces 2>/dev/null || true
-          if bwrap --unshare-all --ro-bind /usr /usr --symlink usr/bin /bin --proc /proc --dev /dev /usr/bin/true; then echo "bwrap namespaces: ok"; else echo "bwrap namespaces: FAILED"; fi
+          if bwrap --unshare-all --ro-bind /usr /usr --symlink usr/bin /bin --symlink usr/lib /lib --symlink usr/lib64 /lib64 --proc /proc --dev /dev /usr/bin/true; then echo "bwrap namespaces: ok"; else echo "bwrap namespaces: FAILED"; fi
       - name: Remove sandboxes and networks that earlier heavy runs left behind (the Docker address pools are finite)
         if: steps.scope.outputs.changed == 'true'
         run: |
@@ -277,7 +277,14 @@ jobs:
         env:
           VYRE_HEAVY_DOCKER: "1"
           VYRE_SHOT_DIR: ${{ runner.temp }}/computer-shots
+          # this job's own sandbox image tag: another job on the same dockerd rebuilding vyre/person-sandbox:1 must never replace the image under these containers
+          VYRE_SANDBOX_IMAGE: vyre/person-sandbox:hv${{ github.run_id }}-${{ github.run_attempt }}-${{ strategy.job-index || 0 }}
         run: node --test --test-force-exit --test-timeout=600000 --test-reporter=spec agent/tests/sandbox.heavy.test.ts modules/terminal/tests/tmux.heavy.test.ts modules/engine/tests/sandbox.heavy.test.ts modules/engine/tests/cli.heavy.test.ts golden/steps/07-reply.heavy.test.ts golden/steps/07-gate.heavy.test.ts host/tests/chat.live.test.ts host/tests/computers.live.test.ts host/tests/automations.code.live.test.ts
+      - name: Remove this job's sandbox image tag
+        if: always() && steps.scope.outputs.changed == 'true'
+        env:
+          VYRE_SANDBOX_IMAGE: vyre/person-sandbox:hv${{ github.run_id }}-${{ github.run_attempt }}-${{ strategy.job-index || 0 }}
+        run: docker rmi -f "$VYRE_SANDBOX_IMAGE" || true
       - name: The agent computer desktop frame (P-L2_31)
         if: always() && steps.scope.outputs.changed == 'true'
         uses: actions/upload-artifact@v4

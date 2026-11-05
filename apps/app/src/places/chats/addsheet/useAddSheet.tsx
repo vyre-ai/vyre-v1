@@ -119,7 +119,8 @@ export async function loadAdd(deps: AddSheetDeps, open: AddOpen, copy?: (text: s
   }
   const answers = checks.map((c) => c?.decision.effect === "allow");
   const known = checks.some((c) => c !== null);
-  const maxLevel = known ? maxLevelOf({ manage: answers[0] === true, edit: answers[1] === true, use: answers[2] === true }) : undefined;
+  const adminOnProject = deps.admin === true && kind === "project";
+  const maxLevel = adminOnProject ? "manage" : known ? maxLevelOf({ manage: answers[0] === true, edit: answers[1] === true, use: answers[2] === true }) : undefined;
   const filesName = folderId === undefined ? undefined : (await tryCall<Out<"files.folder.get">>(deps, "files.folder.get", { folderId }))?.folder.name;
   let recordsName: string | undefined;
   if (recordsOf !== undefined) {

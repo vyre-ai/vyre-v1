@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import { candidates, composerLists } from "./chats-data.ts";
 import { mentionable } from "../../places/chats/conversation/model.ts";
 import { popupFor } from "../../../../../ui/src/Composer/index.tsx";
-import type { Principal } from "../../places/home/sections-a/data.tsx";
+import type { Principal } from "../session/runtime-data.ts";
 
 const ME = "usr_irfad", ASSISTANT = { id: "agt_irfad_assistant", name: "Assistant" };
 const principals: Principal[] = [

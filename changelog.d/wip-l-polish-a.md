@@ -1,0 +1,8 @@
+- Recent in the Chats sidebar shows eight chats before "N more". An unread chat, a starred chat and the chat you have open always show, past the cut too.
+- The open chat, project, agent, person or goal is always drawn in the sidebar, so the page you are on has its row selected. A project's row is now selected when its page is open.
+- A goal's chat no longer shows a second time in Now or Recent: its Goal row opens it.
+- Rows keep their place. Reading a message no longer moves a person or an agent, chats sort starred first and then newest, and goals with the same check-in keep one order.
+- The filter narrows every group. Unread shows unread channels, people and agents too. Needs you shows the goals that wait on you. The filter shows everything it keeps, and its counts match: Unread counts unread channels, and Needs you says the Tasks number.
+- A muted chat, channel or person is quiet in the list. It shows no unread, sits at the end of its group and counts toward nothing, including the dot on Chats in the rail.
+- An agent's row shows its chat's unread only when that chat is not already on screen, so one message is counted once.
+- Folded groups stay folded after a reload, on this device.

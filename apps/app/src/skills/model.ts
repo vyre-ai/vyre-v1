@@ -21,6 +21,10 @@ export interface Page {
 export interface Preview { name: string; description: string; text: string; files: Record<string, string>; path: string; source: string; kind: "skill" | "plugin" | "codex"; version?: string; perms: Perms; taken?: string }
 export interface MemberSkill { owner: string; ownerName: string; name: string; shared: boolean; skillId?: string; toSpace: boolean }
 
+/** A built-in skill's id in plain words: "focus-onboarding-member" reads "Focus onboarding member". */
+export const plainName = (id: string): string => { const w = id.replace(/[-_]+/g, " ").trim(); return w.charAt(0).toUpperCase() + w.slice(1); };
+/** The first sentence of a description, short enough for a row; the whole text is on the row's label. */
+export const oneLine = (text: string, max = 110): string => { const first = (text.split(/(?<=[.!?])\s/)[0] ?? text).trim(); return first.length <= max ? first : `${first.slice(0, max - 1).trimEnd()}...`; };
 export const titleOf = (s: { name: string; label?: string | undefined }): string => s.label ?? s.name;
 
 /** What a skill can touch, one line each, in words a person reads. "Nothing outside its own text" when it is only instructions. */

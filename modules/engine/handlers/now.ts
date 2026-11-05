@@ -14,6 +14,18 @@ export function whereOf(holder: string | null | undefined): NowRow["where"] {
   return "space";
 }
 
+/** The turns running now, with their chats and who asked: for the host's own use (the update screen names the reply it waits for, and ends it). Not for people: it names every chat. */
+export async function runningHere(ctx: EngineCtx, _input: Record<string, never>): Promise<{ turns: Array<{ threadId: string; agentId: string; asker: string; turnId?: string }> }> {
+  let rows: Row[] = [];
+  try { rows = ctx.db.all("SELECT thread_id AS thread, agent_id AS agent, from_principal AS asker, qseq AS qseq FROM engine_thread_queue WHERE state = 'running' ORDER BY enqueued_at, thread_id") as Row[]; } catch { return { turns: [] }; }
+  return { turns: rows.filter((r) => String(r["agent"]).startsWith("agt_")).map((r) => {
+    // the turn behind the queue row, so "Continue" after the update can run exactly that turn again
+    let turnId: string | undefined;
+    try { const t = (ctx.db.all("SELECT turn_id FROM engine_turns WHERE thread_id = ? AND qseq = ? ORDER BY started_at DESC LIMIT 1", String(r["thread"]), Number(r["qseq"])) as Row[])[0]; if (t) turnId = String(t["turn_id"]); } catch { /* no turn row yet */ }
+    return { threadId: String(r["thread"]), agentId: String(r["agent"]), asker: String(r["asker"] ?? ""), ...(turnId ? { turnId } : {}) };
+  }) };
+}
+
 export async function now(ctx: EngineCtx, _input: Record<string, never>): Promise<{ working: NowRow[] }> {
   let rows: Row[] = [];
   try {

@@ -17,7 +17,7 @@ import type { CapMap } from "../../../../../../generated/types.ts";
 import { useResume } from "../../../onboarding/resume-context.ts";
 import { SetupRows, setupNote } from "../../../onboarding/SetupRows.tsx";
 import { useInboxSources } from "../../../shell/rail/inbox-sources.ts";
-import { needsRow } from "../../home/sections-a/model.ts";
+import { needsRow } from "./needs-row.ts";
 import { useAddSheet, runAfterStart } from "../addsheet/index.ts";
 import { useAccounts } from "../conversation/brain.tsx";
 import { NewChatBrain, newChatStrip } from "../conversation/new-chat-brain.tsx";

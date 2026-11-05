@@ -6,7 +6,7 @@ import { StyleSheet, Text, View } from "react-native";
 import type { CapCall } from "../shell/session/caps.ts";
 import { ConnectAiCard } from "./ConnectAiCard.tsx";
 import { SpaceAiStatus } from "../ai-signin/SpaceAiStatus.tsx";
-import { ResumeChip, ResumeContext, resumeInfo } from "./ResumeChip.tsx";
+import { ResumeChip, ResumeContext, resumeInfo, startedSetup } from "./ResumeChip.tsx";
 import { detectDevice } from "./device.ts";
 import { FirstWinCard } from "./FirstWinCard.tsx";
 import { ChromeCard } from "./ChromeCard.tsx";
@@ -112,7 +112,7 @@ export function OnboardingHost({ call, space, children, cards, onAddSpace, mac =
     if (card === "connect_ai" && call) return (
       <View style={s.aiCol}>
         {space.kind === "team" ? <SpaceAiStatus call={call} {...(person ? { me: person } : {})} /> : null}
-        <ConnectAiCard home={home} call={call} local={space.kind === "personal"} connected={aiProvider !== null || progress["ai"] === "done"} onConnected={(id) => { setAiProvider(id); ctx.done(); }} />
+        <ConnectAiCard home={home} call={call} local={space.kind === "personal"} connected={aiProvider !== null || progress["ai"] === "done"} onConnected={(id) => { setAiProvider(id); if (progress["ai"] !== "done") ctx.done(); else setHasAi(true); }} onDisconnected={() => { setAiProvider(null); setHasAi(false); onStep("ai", "open"); }} />
       </View>
     );
     if (card === "bridge_team" && onAddSpace) return <TeamBridgeCard mac={mac} onCreate={() => { onAddSpace(); ctx.later(); }} />;
@@ -134,14 +134,14 @@ export function OnboardingHost({ call, space, children, cards, onAddSpace, mac =
     if (card === "org" && call) return <KitPickCard call={call} spaceName={space.kind === "team" ? readableName(space.name) : ""} onName={setTypedName} onInstalled={() => ctx.done()} gate={ctx.gate} />;
     if (card === "interview" && call) return <InterviewCard call={call} onSaved={() => ctx.done()} gate={ctx.gate} />;
     return <Text testID="card-not-set-up" style={s.dim}>This part is not set up yet. You can come back to it later.</Text>;
-  }, [call, cards, aiProvider, hasAi, progress, onAddSpace, mac, address, onGo, personalCall, personName, person, shownName, space.kind, space.name, home]);
+  }, [call, cards, aiProvider, hasAi, progress, onAddSpace, mac, address, onGo, personalCall, personName, person, shownName, space.kind, space.name, home, onStep]);
 
   const info = !shown && flow ? resumeInfo(flow, progress, detectDevice()) : null;
   const device = detectDevice();
   const resume = useMemo(() => (info && flow ? {
     done: info.done, total: info.total, open: () => { setStep(info.step); setShown(true); },
     // the entry itself, for the title bar to draw: it is never a floating pill over the rail or the page
-    pill: <ResumeChip flow={flow} progress={progress} device={device} onOpen={(k) => { setStep(k); setShown(true); }} />,
+    pill: startedSetup(flow, progress, device) ? <ResumeChip flow={flow} progress={progress} device={device} onOpen={(k) => { setStep(k); setShown(true); }} /> : null,
   } : null), [info?.done, info?.total, info?.step, flow, progress, device]);
 
   // the shell stays mounted underneath, so closing the screen returns to exactly where the person was

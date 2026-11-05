@@ -248,7 +248,7 @@ test("write_config keeps the setup code out of arguments and output, at mode 060
   const dirVyre = path.join(dir, "srv");
   const rel = path.join(dirVyre, "releases/1.0.0");
   fs.mkdirSync(rel, { recursive: true });
-  fs.writeFileSync(path.join(rel, "images.lock"), "VYRE_IMAGE=ghcr.io/vyre-ai/vyred@sha256:" + "b".repeat(64) + "\n");
+  fs.writeFileSync(path.join(rel, "images.lock"), "VYRE_IMAGE=ghcr.io/vyre-ai/vyred@sha256:" + "b".repeat(64) + "\nVYRE_AGENT_IMAGE=ghcr.io/vyre-ai/agent-computer@sha256:" + "e".repeat(64) + "\n");
   const body = `DIR="${dirVyre}"; DATA_DIR="${dirVyre}/data"; REL_VERSION=1.0.0; CHANNEL=stable; DOMAIN="vyre.example.com"; RELAY=""; DRY=0; UPDATE_URL=https://vyre.run/server/; write_config`;
   const first = sh(INSTALL, body, { VYRE_CODE: "code-77", VYRE_DIR: dirVyre });
   assert.equal(first.status, 0, first.stderr);
@@ -259,6 +259,7 @@ test("write_config keeps the setup code out of arguments and output, at mode 060
   const compose = read(path.join(dirVyre, "compose.env"));
   assert.match(compose, /^VYRE_IMAGE=ghcr\.io\/vyre-ai\/vyred@sha256:b{64}$/m);
   assert.match(compose, /^VYRE_ADDRESS=vyre\.example\.com$/m);
+  assert.match(compose, /^VYRE_AGENT_COMPUTER_IMAGE=ghcr\.io\/vyre-ai\/agent-computer@sha256:e{64}$/m, "vyred is told the release's agent computer image, by digest");
   assert.match(read(path.join(dirVyre, "compose.override.yml")), /device: .*\/data\/space/);
   assert.equal(fs.statSync(path.join(dirVyre, "data")).mode & 0o777, 0o700);
   fs.appendFileSync(envFile, "MINE=1\n");
@@ -629,7 +630,7 @@ test("a database that will not copy puts the server back and leaves no partial b
 function installFixture(dir: string): void {
   for (const [v, img] of [["1.0.0", "old"], ["1.1.0", "new"]] as const) {
     fs.mkdirSync(path.join(dir, "releases", v), { recursive: true });
-    fs.writeFileSync(path.join(dir, "releases", v, "images.lock"), `VYRE_IMAGE=${img}@sha256:${"a".repeat(64)}\n`);
+    fs.writeFileSync(path.join(dir, "releases", v, "images.lock"), `VYRE_IMAGE=${img}@sha256:${"a".repeat(64)}\nVYRE_AGENT_IMAGE=ghcr.io/vyre-ai/agent-computer@sha256:${(img === "old" ? "1" : "2").repeat(64)}\n`);
     fs.writeFileSync(path.join(dir, "releases", v, ".complete"), "");
     fs.writeFileSync(path.join(dir, "releases", v, "VERSION"), v);
   }
@@ -637,7 +638,7 @@ function installFixture(dir: string): void {
   fs.writeFileSync(path.join(dir, "compose.env"), `VYRE_PORT=8420\nVYRE_IMAGE=new@sha256:${"a".repeat(64)}\nDOCKER_GID=1\n`);
 }
 
-test("sync_image sets only VYRE_IMAGE, from the release current points at", () => {
+test("sync_image sets only VYRE_IMAGE and the agent computer image, from the release current points at (a rollback writes the earlier release's)", () => {
   const dir = tmp();
   try {
     installFixture(dir);
@@ -647,6 +648,8 @@ test("sync_image sets only VYRE_IMAGE, from the release current points at", () =
     assert.equal(r.status, 0, r.stderr);
     const env = read(path.join(dir, "compose.env"));
     assert.match(env, /^VYRE_IMAGE=old@sha256:/m);
+    assert.match(env, /^VYRE_AGENT_COMPUTER_IMAGE=ghcr\.io\/vyre-ai\/agent-computer@sha256:1{64}$/m, "the agent computer image follows the release, by digest");
+    assert.equal(env.match(/^VYRE_AGENT_COMPUTER_IMAGE=/gm)?.length, 1, "one line, never two");
     assert.match(env, /^VYRE_PORT=8420$/m);
     assert.match(env, /^DOCKER_GID=1$/m);
     assert.equal(fs.existsSync(path.join(dir, "compose.env.new")), false);
@@ -818,4 +821,55 @@ test("restore puts the old data back when the server is not healthy on the resto
     assert.equal(read(path.join(dir, "data", "caddy", "cert.pem")), "KEEP");
     assert.deepEqual(fs.readdirSync(path.join(dir, "data")).sort(), ["caddy", "space"]);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+/** A docker on PATH that answers `info`, `version` (the engine API) and `compose version --short`. */
+function fakeDocker(dir: string, api: string, compose: string): Record<string, string> {
+  fs.mkdirSync(path.join(dir, "bin"), { recursive: true });
+  fs.writeFileSync(path.join(dir, "bin/docker"), `#!/bin/sh\ncase "$1" in\n  info) exit 0 ;;\n  version) echo "${api}" ;;\n  compose) echo "${compose}" ;;\nesac\n`, { mode: 0o755 });
+  return { PATH: `${path.join(dir, "bin")}:${process.env["PATH"] ?? ""}` };
+}
+
+test("install.sh stops before changing anything on a Docker Engine older than 28 or a Compose older than 2.33, naming what is needed; a new one passes", () => {
+  const dir = tmp();
+  const run = (api: string, compose: string) => sh(INSTALL, "need_docker; echo passed", fakeDocker(dir, api, compose));
+  const oldEngine = run("1.47", "v2.40.3");
+  assert.notEqual(oldEngine.status, 0);
+  assert.match(oldEngine.stderr + oldEngine.stdout, /Docker Engine 28 or newer \(it runs API 1\.47\)/);
+  assert.match(oldEngine.stderr + oldEngine.stdout, /Nothing was changed/);
+  const oldCompose = run("1.56", "v2.32.4");
+  assert.notEqual(oldCompose.status, 0);
+  assert.match(oldCompose.stderr + oldCompose.stdout, /Docker Compose 2\.33 or newer/);
+  const fine = run("1.48", "v2.33.0");
+  assert.equal(fine.status, 0, fine.stderr);
+  assert.match(fine.stdout, /passed/);
+  assert.equal(run("1.56", "5.7.0").status, 0, "Compose 5.x is newer than 2.33");
+  assert.equal(run("", "v2.40.3").status, 0, "an engine that does not say its version is not guessed at");
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test("vyre-server update checks Docker's versions before unpacking anything; an old engine or Compose stops it with the version needed and leaves the server untouched; a new one and an unreadable one go on", () => {
+  const dir = tmp();
+  const run = (api: string, compose: string) => sh(SERVER, "preflight_docker; echo passed", fakeDocker(dir, api, compose));
+  const oldEngine = run("1.47", "v2.40.3");
+  assert.notEqual(oldEngine.status, 0);
+  assert.match(oldEngine.stderr + oldEngine.stdout, /needs Docker Engine 28 or newer \(this machine runs API 1\.47\).*The running server was not touched/);
+  const oldCompose = run("1.56", "v2.32.4");
+  assert.notEqual(oldCompose.status, 0);
+  assert.match(oldCompose.stderr + oldCompose.stdout, /needs Docker Compose 2\.33 or newer \(this machine runs 2\.32\).*not touched/);
+  assert.equal(run("1.56", "5.7.0").status, 0);
+  assert.equal(run("1.48", "v2.33.0").status, 0);
+  assert.equal(run("", "").status, 0, "versions that cannot be read are not guessed at");
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test("the doctor's Docker finding: a new engine is healthy, an old one is degraded with the fix, a missing one says nothing", () => {
+  const dir = tmp();
+  const run = (api: string) => sh(SERVER, `check_docker_gw; printf '%s\\n' "$FINDINGS"`, fakeDocker(dir, api, "v2.40.3"));
+  assert.match(run("1.56").stdout, /host\.docker_gw\thealthy\t/);
+  assert.match(run("1.48").stdout, /host\.docker_gw\thealthy\t/);
+  const old = run("1.47");
+  assert.match(old.stdout, /host\.docker_gw\tdegraded\t.*older than 1\.48 \(Docker 28\).*vyre-server restart/);
+  assert.doesNotMatch(run("").stdout, /host\.docker_gw/, "no answer, no finding");
+  fs.rmSync(dir, { recursive: true, force: true });
 });

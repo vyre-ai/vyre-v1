@@ -107,7 +107,7 @@ const roots = (person: string, root: string): Roots => ({ work: [root], scratch:
 
 function danaSpec(id: string, over: Partial<SandboxSpec> = {}): SandboxSpec {
   return {
-    id, person: "usr_dana", kind: "docker", mounts: [{ host: site, mode: "rw" }, { host: reference, mode: "ro" }],
+    id, person: "usr_dana", kind: "docker", image: sandboxImageName(), mounts: [{ host: site, mode: "rw" }, { host: reference, mode: "ro" }],
     egressHosts: ["allowed.test", "internal.test", "metadata.test"], limits: { cpus: 1, memoryMb: 512, pids: 128 }, ...over,
   };
 }
@@ -249,16 +249,13 @@ test("the bridge: a process that speaks proxy to 127.0.0.1:3128 reaches the host
 // ---- Docker -----------------------------------------------------------------------------------------------------------------------------------------
 
 const api = createDockerApi(unixSocketHttp(process.env["DOCKER_SOCKET"] ?? "/var/run/docker.sock"));
+import { sandboxImage, sandboxImageName } from "../../test/support/heavy-images.ts";
 const idA = `vyre-sbx-hv${suffix}wa`;
 const idB = `vyre-sbx-hv${suffix}wb`;
 let A: Walled;
 let B: Walled;
 
-async function ensureImage(): Promise<void> {
-  if (await api.imageExists(DEFAULT_IMAGE)) return;
-  const r = await runHost("docker", ["build", "-t", DEFAULT_IMAGE, "--build-arg", "ENGINE_PACKAGES=is-odd@3.0.1", "images/person-sandbox"], { timeoutMs: 600_000 });
-  assert.equal(r.exitCode, 0, `building ${DEFAULT_IMAGE} failed: ${r.stderr.slice(-800)}`);
-}
+async function ensureImage(): Promise<void> { sandboxImage(); }
 
 let dockerStarted: Promise<void> | undefined;
 function dockerUp(): Promise<void> {

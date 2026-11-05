@@ -8,7 +8,7 @@
 // to chat with the id the engine gave it as clientId), written only by the engine's own store, so the two cannot drift (a later edit is copied by the same consumer).
 // No echo: a message.received for a message the engine already holds, or one the bridge posted itself (id prefix BRIDGE_PREFIX), is never fed back to engine.receive.
 import { askedIn, isGoAhead, proposedIn } from "../../../lib/asked.ts";
-import { stepWords } from "../../../lib/plain-words.ts";
+import { fileBase, stepWords, testCounts } from "../../../lib/plain-words.ts";
 import { handleOf } from "../../../lib/person-handle.ts";
 import { linksIn } from "../../../lib/grants.ts";
 import { redact } from "../../../agent/src/transcript/sanitize.ts";
@@ -16,7 +16,8 @@ import { sessionWorkKey, workBlocks } from "../../../agent/src/tools/work-cards.
 import { ALL_AGENTS, route as routeOf } from "../../../lib/route.ts";
 import { localClock, readPublicTime } from "../../../lib/presence.ts";
 import { hasReads } from "../../../host/src/seams/answer-reads.ts";
-import { sqlMessages, withMessageId, mintId } from "../projections.ts";
+import { findProgram } from "../cli-programs.ts";
+import { engineIfBound, sqlMessages, withMessageId, mintId } from "../projections.ts";
 import { setUsing } from "../node-turns.ts";
 import type { EngineCtx } from "../projections.ts";
 import type { TurnEngine } from "../../../agent/src/turn-engine/engine.ts";
@@ -112,6 +113,12 @@ export interface Bridge {
 interface Segment { blocks: PostBlock[]; text: string; mentions: number; t0?: number; /** the call it is inside now, in plain words once asked */ step?: { id: string; name: string; detail?: string }; calls?: Map<string, { name: string; at: number }>; /** its live text goes to the asker only */ private?: boolean }
 interface Ready { blocks: PostBlock[]; text: string; mentions: number; routineOwner: string | null; turnId: string }
 
+const SHELL_STEP = /^(?:bash|shell|terminal_run|exec|run_command|command_execution|command)$/i;
+/** The lines of a command's output that say how a test run went: counts and the names that failed. Nothing else is kept. */
+export function testLines(output: string): string {
+  return output.split("\n").map((l) => l.trim()).filter((l) => /^(?:ℹ\s+(?:pass|fail)\s+\d+|✖\s+\S|not ok\b|FAIL\b|Tests:|\d+\s+(?:passed|passing|failed|failing))/i.test(l) || /\b\d+\s+(?:passed|passing|failed|failing)\b/i.test(l)).slice(-12).join("\n").slice(0, 500);
+}
+
 const str = (v: unknown): string => (typeof v === "string" ? v : "");
 /** What a poked agent is told, after the line that poked it. Only the agent reads this copy. */
 const POKE_NOTE = "\n\n[You were poked: answer the person who poked you, from the last 12 messages and tool calls above. To read further back in this chat, call chat_history_page with the number of the oldest message you can see.]";
@@ -202,8 +209,17 @@ export function createBridge(o: BridgeOptions): Bridge {
       // A Vault that could not be read gives the code it answered with (a fixed word shape, never the text that came with it).
       const reason = e.code === "engine.vault_unreadable" ? /^The Vault could not be read \(([a-z_]+(?:\.[a-z_]+)*)\)\.$/.exec(e.message ?? "")?.[1] : undefined;
       // a picked model nothing can serve: the words name the model and what can run (model-fallback.ts noModelWords), a fixed sentence of Vyre's own
-      const detail = e.code === "engine.model_unavailable" ? e.message : undefined;
-      return { type: "turn_status", v: 1, data: { state: "failed", turnId: e.turnId, code: e.code, ...(detail ? { detail } : {}), ...(program ? { program } : {}), ...(setup ? { setup } : {}), ...(reason ? { reason } : {}) } };
+      const detail = e.code === "engine.model_unavailable" || e.code === "engine.no_model_picked" ? e.message : undefined;
+      // how the engine process ended, when it says (an exit code or a signal): a number is no secret, and it is what a person reads out to get help
+      // the account whose sign-in is missing (its Vault handle, no secret), so the chat's button opens that account
+      const named = e.code === "engine.signin_missing" ? /\[account ([\w.-]{1,60})\]/.exec(e.message ?? "")?.[1] : undefined;
+      const needsSignin = e.code === "engine.signin_missing" || e.code === "provider.auth_failed" || e.code === "engine.cli_unusable";
+      const account = needsSignin ? (named ?? (e.account?.ref && /^[\w.#-]{1,60}$/.test(e.account.ref) ? e.account.ref.replace(/^#/, "") : undefined)) : undefined;
+      // the same plain reasons the connect card shows (engine.providers.list, cliTrouble): the program is not on this computer, or its sign-in needs doing again
+      const cliProgram = e.account ? ({ claude_code: "claude", codex: "codex", grok: "grok" } as Record<string, string>)[e.account.driver] : undefined;
+      const trouble = e.code === "engine.cli_unusable" && cliProgram ? { program: cliProgram, missing: findProgram(cliProgram) === null } : undefined;
+      const exit = e.code === "engine.cli_error" ? /(?:exited|exit(?:ed)? with|code) (?:code )?(-?\d{1,3})\b|signal (SIG[A-Z]+)/i.exec(e.message ?? "") : null;
+      return { type: "turn_status", v: 1, data: { state: "failed", turnId: e.turnId, code: e.code, ...(detail ? { detail } : {}), ...(program ? { program } : {}), ...(setup ? { setup } : {}), ...(reason ? { reason } : {}), ...(exit ? { exit: exit[1] ?? exit[2] } : {}), ...(account ? { account } : {}), ...(trouble ? { cli: trouble.program, cliMissing: trouble.missing } : {}) } };
     }
     return { type: "turn_status", v: 1, data: { state: "cancelled", turnId: e.turnId, ...(e.type === "turn.cancelled" && e.reason ? { reason: e.reason } : {}) } };
   };
@@ -244,6 +260,13 @@ export function createBridge(o: BridgeOptions): Bridge {
         return;
       }
       case "turn.failed": case "turn.cancelled": case "turn.waiting": {
+        if (e.type === "turn.waiting" && e.reason === "hop_limit") {
+          // an agent's mention of another was cut at the hand-off limit: said in the chat once, and logged with the depth, so a drop is never silent
+          warn("an agent's hand-off was cut at the hop limit", { threadId: e.threadId, messageId: e.messageId, depth: e.depth ?? null });
+          const who = engine?.agents(e.threadId).find((a) => a.mode === "lead")?.id ?? engine?.agents(e.threadId)[0]?.id;
+          if (who) enqueuePost(e.threadId, who, { threadId: e.threadId, body: "", blocks: [{ type: "turn_status", v: 1, data: { state: "note", text: "Stopped passing this on after 3 hand-offs between agents." } }], mentions: [], clientId: brgId() }, "");
+          return;
+        }
         if (e.type === "turn.waiting" && e.reason !== "approval") return;
         // a turn a dead host left has no turn.started here: who it ran for comes with the event, so the agent can still say so in the chat
         if (e.type === "turn.failed" && e.asker) askerOf.set(e.threadId, e.asker);
@@ -304,6 +327,9 @@ export function createBridge(o: BridgeOptions): Bridge {
           // a subagent's own one-line description is saved on its call, so the trail names it ("Working with a helper: Check the pricing page") instead of a bare "Using agent"
           const call = typeof p.id === "string" && typeof p.detail === "string" && p.detail !== "" ? seg.blocks.find((x) => x.type === "tool_call" && (x.data as { id?: unknown }).id === p.id) : undefined;
           if (call && /^(Agent|Task)$/.test(String((call.data as { name?: unknown }).name))) call.data = { ...(call.data as Record<string, unknown>), detail: p.detail };
+          // only the file's name is kept with a file step, so a finished helper can say "Edited dark-mode.txt"; the path and the rest of the input stay on the live line
+          const nm = String((call?.data as { name?: unknown } | undefined)?.name ?? "");
+          if (call && /^(Read|Edit|Write|MultiEdit|NotebookEdit|files_read|files_create|files_write)/i.test(nm) && fileBase(String(p.detail)) !== "") call.data = { ...(call.data as Record<string, unknown>), label: fileBase(String(p.detail)) };
         }
         else if (ev.type === "block") {
           afterBlock = true;
@@ -320,9 +346,14 @@ export function createBridge(o: BridgeOptions): Bridge {
             emit({ kind: "step", threadId: input.threadId, turnId: input.turnId, agentId: input.agent.id, phase: "call", id, ...(name ? { name } : {}) });
           } else if (ev.kind === "tool_result" && id !== "") {
             const call = seg.calls?.get(id);
-            if (seg.step?.id === id) delete seg.step;
-            emit({ kind: "step", threadId: input.threadId, turnId: input.turnId, agentId: input.agent.id, phase: "result", id, ...(call?.name ? { name: call.name } : {}), ...(typeof p.ok === "boolean" ? { ok: p.ok } : {}) });
+            // the step stays as the latest one until the next call: a helper that is thinking between calls still shows what it did last (the helper rows and the Island read it)
+            // only the summary lines of a shell command's output travel with the step (a test run says how many passed and which failed); the output itself is never kept in the chat
+            const said = typeof (p as { detail?: unknown }).detail === "string" && call && SHELL_STEP.test(call.name) ? testLines((p as { detail: string }).detail) : "";
+            emit({ kind: "step", threadId: input.threadId, turnId: input.turnId, agentId: input.agent.id, phase: "result", id, ...(call?.name ? { name: call.name } : {}), ...(typeof p.ok === "boolean" ? { ok: p.ok } : {}), ...(said !== "" ? { detail: said } : {}) });
+            if (typeof (p as { detail?: unknown }).detail === "string") { const { detail: _drop, ...rest } = data as Record<string, unknown>; data = rest; }
             if (call) data = { ...data, name: call.name, secs: Math.max(0, Math.round((now - call.at) / 1000)) };
+            // a test run keeps its counts on its call ("1 passing, 1 failing"): the summary lines themselves are not saved
+            if (said !== "" && testCounts(said) !== "") { const blk = seg.blocks.find((x) => x.type === "tool_call" && (x.data as { id?: unknown }).id === id); if (blk) blk.data = { ...(blk.data as Record<string, unknown>), ran: testCounts(said) }; }
           }
           seg.blocks.push({ type: ev.kind, v: 1, data });
         }
@@ -515,7 +546,7 @@ export function createBridge(o: BridgeOptions): Bridge {
     const known = new Set(eng.agents(threadId).map((a) => a.id));
     if (named.length > 0 || toAll || poke !== undefined || dirty.delete(threadId) || withSettings.has(threadId)) {
       try {
-        const now = (await reader(ctx, authorId, threadId)("threads.get", { threadId })) as ThreadGet;
+        const now = (await reader(ctx, readAs, threadId)("threads.get", { threadId })) as ThreadGet;
         withSettings.delete(threadId);
         for (const a of now.thread.agents) {
           if (Object.keys(settingsOf(a)).length > 0) withSettings.add(threadId);
@@ -561,10 +592,16 @@ export function createBridge(o: BridgeOptions): Bridge {
     const job = p["job"] === true ? str(p["actingFor"]) || authorId : undefined;
     // an agent's post speaks for the person it acted for (chat.post's actingFor): a turn it sets off runs for that person, never for the chat's starter; with nobody behind it, it runs for no one
     const speaksFor = a.kind === "agent" && str(p["actingFor"]).startsWith("usr_") ? str(p["actingFor"]) : undefined;
+    // a helper's or teammate's result while others of the crew still work: it is kept in the chat, and nobody is woken. The lead answers once, when the last one is back (owner, 4 Nov 2026).
+    const hold = a.kind === "agent" ? await othersStillWorking(ctx, readAs, threadId, (got.message as { blocks?: Array<{ type?: string; data?: unknown }> }).blocks) : false;
     const res = withMessageId(messageId, () => eng.receive({
+      ...(hold ? { hold: true } : {}),
       threadId, author: { kind: a.kind === "agent" ? "agent" : "person", id: authorId }, mentions, depth: Number(p["depth"] ?? 0), body: got.message.body + note + (poke ? POKE_NOTE : ""), replyToPerson, ...(people ? { people } : {}), ...(job ? { job } : {}), ...(speaksFor ? { asker: speaksFor } : {}),
       ...(poke ? { poke: { agentId: poke.agentId, by: poke.by ?? authorId } } : {}), ...(minutes === undefined ? {} : { minutes }),
     }));
+    // held: look again shortly, because the last two helpers can end together and each sees the other still working; the lead is woken once, for the latest held result, when nobody works any more
+    if (hold) scheduleRelease(ctx, threadId, readAs, res.messageId);
+    else if (res.responders.length > 0) heldNow.delete(threadId);   // this message wakes the lead itself, with the held results already in the chat
     // the person said go in the thread of a task assigned to them, and an agent answers: the task is theirs to do through it, so it moves to Doing and says who is on it for them
     if (a.kind === "person" && res.responders.length > 0) {
       try {
@@ -583,6 +620,34 @@ export function createBridge(o: BridgeOptions): Bridge {
       catch (e) { ctx.log.warn("the hand-off line could not be shown", { threadId, error: e instanceof Error ? e.message : String(e) }); }
     }
     return { receivedAs: res.responders };
+  }
+
+  const heldNow = new Map<string, string[]>();
+  function scheduleRelease(ctx: EngineCtx, threadId: string, readAs: string, messageId: string, tries = 0): void {
+    const list = heldNow.get(threadId) ?? [];
+    if (tries === 0) heldNow.set(threadId, [...list, messageId]);
+    const t = setTimeout(() => {
+      void (async () => {
+        const mine = heldNow.get(threadId) ?? [];
+        if (!mine.includes(messageId) || mine[mine.length - 1] !== messageId) { return; }   // a later held result looks after the wake
+        const still = await othersStillWorking(ctx, readAs, threadId, [{ type: "crew_result", data: { threadId: "" } }]);
+        if (still) { if (tries < 40) scheduleRelease(ctx, threadId, readAs, messageId, tries + 1); return; }
+        heldNow.delete(threadId);
+        try { if (engine) engine.wakeHeld(threadId, messageId); } catch { /* the thread is closed: nothing to wake */ }
+      })();
+    }, 1500);
+    (t as { unref?: () => void }).unref?.();
+  }
+
+  /** True when the message is a helper's result and another member of the crew is still working or waiting for a person. */
+  async function othersStillWorking(ctx: EngineCtx, readAs: string, threadId: string, blocks: ReadonlyArray<{ type?: string; data?: unknown }> | undefined): Promise<boolean> {
+    const done = (blocks ?? []).find((b) => (b.type === "helper" && ((b.data ?? {}) as Record<string, unknown>)["status"] !== undefined) || b.type === "crew_result");
+    if (!done) return false;
+    const own = str(((done.data ?? {}) as Record<string, unknown>)["threadId"]);
+    try {
+      const c = (await reader(ctx, readAs, threadId)("engine.crew.status", { threadId })) as { members: Array<{ id: string; state: string }> };
+      return c.members.some((m) => m.id !== own && (m.state === "working" || m.state === "needs_you"));
+    } catch { return false; }
   }
 
   async function onEdited(ctx: EngineCtx, p: Record<string, unknown>): Promise<{ skipped?: string; receivedAs?: string[] }> {
@@ -641,6 +706,11 @@ export const bridgeConsumers = {
       if (bound && threadId !== "") bound.rosterChanged(threadId);
       return {};
     },
+  },
+  // a person signed in again (a Vault item was saved or changed): the turns parked on a missing sign-in run once. Whose sign-in is not in the event, and a turn whose account is still missing parks again at once.
+  "engine.signin_resume": {
+    on: ["vault.item_updated", "vault.item_created"],
+    run: async (): Promise<{ skipped?: string; resumed?: number }> => { const e = engineIfBound(); return e ? { resumed: e.resumeLocked(undefined, "engine.signin_missing") } : { skipped: "engine_not_running" }; },
   },
   "engine.bridge": {
     on: ["message.received", "message.edited"],

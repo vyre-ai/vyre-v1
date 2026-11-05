@@ -85,6 +85,8 @@ export function createCrewWatcher(o: { db: Db; host: EngineHostSeam; now: () => 
 
   async function handle(e: StreamEvent): Promise<void> {
     ensure(o.db);
+    // each step as it happens (the watcher is fed the raw stream, not the coalesced live line): a test run is read from its call, its command and its result
+    if (e.kind === "step") { try { noteSteps(o.db, e.threadId, [e], o.now()); } catch { /* the test state is best effort */ } return; }
     if (e.kind === "steps") { try { noteSteps(o.db, e.threadId, e.steps, o.now()); } catch { /* the test state is best effort */ } return; }
     if (e.kind === "start") askers.set(e.turnId, e.asker);
     const job = o.db.all("SELECT * FROM engine_crew_job WHERE thread_id = ?", e.threadId)[0] as Row | undefined;

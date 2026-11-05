@@ -13,7 +13,7 @@ import type { DroppedFile } from "../../../../ui/src/FileDrop/index.tsx";
 import { Row } from "../../../../ui/src/Row/index.tsx";
 import { TextField } from "../../../../ui/src/TextField/index.tsx";
 import { Section, Segmented, SmallButton, Switch } from "../places/settings/ui.tsx";
-import { cardLead, folderFiles, keyOf, sharedLine, skillsOfAgent, sourceLine, titleOf, toBase64, touchLines, usedByLine } from "./model.ts";
+import { cardLead, folderFiles, keyOf, oneLine, plainName, sharedLine, skillsOfAgent, sourceLine, titleOf, toBase64, touchLines, usedByLine } from "./model.ts";
 import { checkServer, fileSkillKey } from "./actions.ts";
 import type { Health } from "./actions.ts";
 import type { Call, Card, MemberSkill, Own, Page, Perms, Preview, SpaceSkill } from "./model.ts";
@@ -85,7 +85,7 @@ export function SkillsLists(p: ListsProps): ReactElement {
     onPress={() => p.onOpen({ kind: "space", skillId: s.skillId })}
     trailing={mode === "console" ? <Switch on={s.enabled} label={`${s.name} is on`} testID={`skill-space-on-${s.name}`} onChange={(on) => p.onToggle({ kind: "space", name: s.name }, on)} /> : quietText("For everyone")} />;
   const builtin = <Section title="Built in" testID="skills-builtin">
-    {page.builtin.map((b) => <Row key={b.name} id={`skill-builtin-${b.name}`} title={b.name} note={b.description} onPress={() => p.onView({ name: b.name })} trailing={quietText("Always on")} />)}
+    {page.builtin.map((b) => <Row key={b.name} id={`skill-builtin-${b.name}`} title={plainName(b.name)} note={oneLine(b.description)} tall onPress={() => p.onView({ name: b.name })} trailing={quietText("Always on")} />)}
   </Section>;
 
   if (mode === "console") {

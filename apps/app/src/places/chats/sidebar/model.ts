@@ -65,6 +65,14 @@ export interface ChatRow {
   archived?: boolean;
   /** A chat with no agent is with other people (a direct message): the menu offers Leave chat, not Delete chat. */
   withPeople?: boolean;
+  /** A direct message: no agent and exactly one other person. It lives under People, not in Recent. A people-only group chat is not one. */
+  direct?: boolean;
+  /** A chat with one agent and nobody else: its unread is also the agent row's, so the agent row shows it only while this row is not drawn. */
+  solo?: boolean;
+  /** A goal's own chat: its Goal row opens it, so it is not listed again among the chats. */
+  goalId?: string;
+  /** I muted it: it does not shout (no unread on the row, nothing toward the totals) and it sits at the end of its group. */
+  muted?: boolean;
 }
 
 /** The one person a direct message is with: a chat with no agent and exactly one other person. Null for anything else (an older server that names nobody, too). */
@@ -92,6 +100,10 @@ export function rowOf(item: RecentItem, agentName: (id: string) => string, perso
     lastAt: item.lastAt,
     local: item.threadId.startsWith(LOCAL_PREFIX),
     withPeople: item.agents.length === 0,
+    // an older server that names nobody: a chat with no agent was a direct message there, as before
+    ...(person !== null || (item.kind === "chat" && item.agents.length === 0 && item.people === undefined) ? { direct: true } : {}),
+    ...(item.kind === "chat" && item.agents.length === 1 && !(item.people?.length) ? { solo: true } : {}),
+    ...((item as { goalId?: string }).goalId ? { goalId: (item as { goalId?: string }).goalId } : {}),
   };
 }
 
@@ -147,16 +159,77 @@ export function agentUnread(recent: RecentOut): Map<string, number> {
   return m;
 }
 
+/**
+ * The People list in one stable order (lane l-polish L5): the people I talk with most recently first (my direct message's last activity), then everyone else by name. Reading a message never
+ * moves anyone; an unread one is kept above "N more" by buildEntries instead.
+ */
+export function orderPeople<P extends { id: string; name: string }>(people: readonly P[], unread: ReadonlyMap<string, number>, recent: RecentOut | null): (P & { unread: number })[] {
+  const last = new Map<string, number>();
+  if (recent) for (const i of liveItems(recent)) { const p = dmPerson(i); if (p !== null) last.set(p, Math.max(last.get(p) ?? 0, i.lastAt)); }
+  return people.map((p) => ({ ...p, unread: unread.get(p.id) ?? 0 }))
+    .sort((a, b) => (last.get(b.id) ?? -1) - (last.get(a.id) ?? -1) || a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
+}
+
 /** The People list with each person's unread, the ones with something new first (so "N more" never hides one); otherwise the Space's order. */
 export function peopleWithUnread<P extends { id: string; name: string }>(people: readonly P[], unread: ReadonlyMap<string, number>): (P & { unread: number })[] {
   const all = people.map((p) => ({ ...p, unread: unread.get(p.id) ?? 0 }));
   return [...all.filter((p) => p.unread > 0), ...all.filter((p) => p.unread === 0)];
 }
 
-/** Is anything new for me in Chats: a chat, a channel, or a thread I am in. The rail's Chats dot. */
-export function anyUnread(recent: RecentOut | null, channels: readonly Pick<Channel, "unread">[]): boolean {
-  if (recent && (liveItems(recent).some((i) => i.unread > 0) || ((recent as { threadsUnread?: number }).threadsUnread ?? 0) > 0)) return true;
-  return channels.some((c) => c.unread > 0);
+/** What I muted, as the sidebar asks it: a chat or channel thread, a channel, a person or an agent. Absent: nothing is muted. */
+export type MutedFn = (kind: "thread" | "channel" | "person" | "agent", id: string) => boolean;
+const NONE_MUTED: MutedFn = () => false;
+
+/**
+ * The one unread total (lane l-polish): new messages in my chats, my channels and the replies I follow, each counted once, and nothing from what I muted. The rail's Chats dot, the Unread filter and
+ * the list all read this rule, so no number disagrees with another.
+ */
+export function unreadTotal(recent: RecentOut | null, channels: readonly Pick<Channel, "unread" | "channelId" | "mainThreadId">[], muted: MutedFn = NONE_MUTED): number {
+  let n = 0;
+  if (recent) {
+    for (const i of liveItems(recent)) if (!muted("thread", i.threadId)) n += i.unread + (i.repliesUnread ?? 0);
+  }
+  for (const c of channels) if (!muted("channel", c.channelId) && !muted("thread", c.mainThreadId)) n += c.unread;
+  return n;
+}
+
+/** Is anything new for me in Chats: a chat, a channel, or a thread I am in, not counting what I muted. The rail's Chats dot. */
+export function anyUnread(recent: RecentOut | null, channels: readonly Pick<Channel, "unread">[], muted: MutedFn = NONE_MUTED): boolean {
+  if (recent && ((recent as { threadsUnread?: number }).threadsUnread ?? 0) > 0) return true;
+  return unreadTotal(recent, channels as readonly Pick<Channel, "unread" | "channelId" | "mainThreadId">[], muted) > 0;
+}
+
+/** A muted chat row: quiet (no unread, no replies count), marked, and so never lifted above "N more" for being new. */
+export function quieted(r: ChatRow, muted: MutedFn): ChatRow {
+  return muted("thread", r.threadId) ? { ...r, unread: 0, repliesUnread: undefined, muted: true } : r;
+}
+
+/** One stable order for chats: starred first, then the newest, ties by title and id, so reading a chat never moves it and two loads of the same data draw the same list. */
+export function chatOrder(a: ChatRow, b: ChatRow): number {
+  return Number(b.starred) - Number(a.starred) || Number(a.muted === true) - Number(b.muted === true) || b.lastAt - a.lastAt || a.title.localeCompare(b.title) || a.threadId.localeCompare(b.threadId);
+}
+
+/** The first `cap` of a list, plus every later item `keep` says must show (unread, starred, the open one), in list order; and how many stay behind "N more". */
+export function capped<T>(all: readonly T[], cap: number, keep: (x: T) => boolean): { shown: T[]; hidden: number } {
+  const shown = all.filter((x, n) => n < cap || keep(x));
+  return { shown, hidden: all.length - shown.length };
+}
+
+// ---------------------------------------------------------------- folded groups, remembered per Space
+
+/** Where the folded groups of one Space are kept on this device. */
+export const foldedKey = (space: string): string => `vyre.sidebar.folded.${space}`;
+const SECTIONS: readonly SectionKey[] = ["now", "goals", "projects", "team", "people", "faces", "recent", "channels", "imported", "archived"];
+/** The folded groups read back (Team now starts folded when nothing was kept); anything that is not a group is dropped. */
+export function readFolded(raw: string | null | undefined): Set<SectionKey> {
+  if (!raw) return new Set<SectionKey>(["team"]);
+  try {
+    const v = JSON.parse(raw) as unknown;
+    return new Set<SectionKey>(Array.isArray(v) ? v.filter((x): x is SectionKey => typeof x === "string" && (SECTIONS as readonly string[]).includes(x)) : ["team"]);
+  } catch { return new Set<SectionKey>(["team"]); }
+}
+export function writeFolded(closed: ReadonlySet<SectionKey>): string {
+  return JSON.stringify(SECTIONS.filter((x) => closed.has(x)));
 }
 
 /** The server filters; this is the same rule for rows already on the device (a local row with no agent counts as People). */
@@ -172,14 +245,21 @@ export function matchesQuery(query: string, ...texts: readonly string[]): boolea
   return words.every((w) => hay.includes(w));
 }
 
-/** Counts for the filter menu, from the unfiltered answer. */
-export function filterCounts(rows: readonly ChatRow[]): Record<SideFilter, number> {
+/**
+ * Counts for the filter menu, from the unfiltered answer: what each filter will show. Unread counts unread chats and, when given, unread channels (muted ones neither); Needs you is the Tasks count
+ * when given, the same number the Tasks row and the rail say, so the menu never says 0 beside a 4.
+ */
+export function filterCounts(rows: readonly ChatRow[], o: { channels?: readonly Pick<Channel, "unread" | "channelId" | "mainThreadId">[]; muted?: MutedFn; needs?: number } = {}): Record<SideFilter, number> {
+  const muted = o.muted ?? NONE_MUTED;
   const c: Record<SideFilter, number> = { all: rows.length, unread: 0, needs: 0, running: 0, asks: 0 };
-  for (const r of rows) {
+  for (const r0 of rows) {
+    const r = quieted(r0, muted);
     if (matchesFilter(r, "unread")) c.unread++;
     if (matchesFilter(r, "needs")) c.needs++;
     if (matchesFilter(r, "running")) c.running++;
   }
+  for (const ch of o.channels ?? []) if (ch.unread > 0 && !muted("channel", ch.channelId) && !muted("thread", ch.mainThreadId)) c.unread++;
+  if (o.needs !== undefined) c.needs = Math.max(c.needs, o.needs);
   return c;
 }
 
@@ -304,6 +384,14 @@ export interface SidebarInput {
   personal?: boolean;
   /** The search box has text: a Channels section with no match is left out, not offered as empty. */
   searching?: boolean;
+  /** What the middle shows (`openKeyOf`): its row is always drawn, past any "N more" (lane l-polish L6). */
+  open?: string | null;
+  /** The chats goals own: a goal's chat is its Goal row, never a second row in Now or Recent (lane l-polish L2). */
+  goalThreads?: ReadonlySet<string>;
+  /** What I muted: those rows do not shout and sit at the end of their group. */
+  muted?: MutedFn;
+  /** What I starred beyond chats (agents and channels, from stars.list): starred rows are never hidden behind "N more". */
+  starred?: (kind: "agent" | "channel", id: string) => boolean;
 }
 
 /** The Agents group shows this many agents (the Cmd-1..9 faces); a Space with more has an All agents row for the rest. */
@@ -321,8 +409,8 @@ export function splitChannels(channels: readonly Channel[]): { plain: Channel[];
 
 /** The Goals group shows this many, then "N more". */
 export const GOALS_SHOWN = 5;
-/** Recent shows this many, then "N more". */
-export const RECENT_SHOWN = 3;
+/** Recent shows this many, then "N more"; unread, starred and open rows always show (lane l-polish). */
+export const RECENT_SHOWN = 8;
 /** People and Agents show this many, then "N more". */
 export const LIST_SHOWN = 3;
 
@@ -336,31 +424,38 @@ export function buildEntries(i: SidebarInput): Entry[] {
     out.push({ key: "nav:tasks", type: "nav", to: "tasks", label: "Tasks", count: i.tasksCount ?? 0 });
     if (i.notes) out.push({ key: "nav:notes", type: "nav", to: "notes", label: "Notes", count: 0 });
   }
-  // Goals sit under Tasks: what needs you first. A Space with none shows no group.
-  if (!i.searching && (i.goals?.length ?? 0) > 0) {
-    const goals = i.goals!;
+  const muted = i.muted ?? NONE_MUTED;
+  const starredOf = i.starred ?? (() => false);
+  const filtered = i.filter !== undefined && i.filter !== "all";
+  // a filter narrows every group to what it is about, and shows all of it (no "N more" under a filter)
+  const all = (more: boolean | undefined): boolean => more === true || i.searching === true || filtered;
+  // Goals sit under Tasks: what needs you first. A Space with none shows no group. Under a filter only Needs you keeps goals: the ones waiting on you or stuck.
+  const goals = (i.goals ?? []).filter((g) => !filtered || (i.filter === "needs" && (g.status === "waiting" || g.status === "stuck")));
+  if (!i.searching && goals.length > 0) {
     out.push({ key: "h:goals", type: "head", section: "goals", label: "Goals", count: goals.length, open: open("goals") });
     if (open("goals")) {
-      const shown = i.moreGoals === true ? goals : goals.slice(0, GOALS_SHOWN);
+      const { shown, hidden } = all(i.moreGoals) ? { shown: goals, hidden: 0 } : capped(goals, GOALS_SHOWN, (g) => g.status === "waiting" || g.status === "stuck" || i.open === `g:${g.id}`);
       for (const g of shown) out.push({ key: `g:${g.id}`, type: "goal", goal: g });
-      if (shown.length < goals.length) out.push({ key: "m:goals", type: "more", label: `${goals.length - shown.length} more`, to: "goals" });
+      if (hidden > 0) out.push({ key: "m:goals", type: "more", label: `${hidden} more`, to: "goals" });
     }
   }
-  // Projects sit right after Goals
-  if (!i.searching && (i.projects?.length ?? 0) > 0) {
-    const projects = i.projects!;
-    out.push({ key: "h:projects", type: "head", section: "projects", label: "Projects", count: projects.length, open: open("projects") });
+  // Projects sit right after Goals. They carry no unread or running state, so a filter leaves them out.
+  const projectLines = filtered ? [] : i.projects ?? [];
+  if (!i.searching && projectLines.length > 0) {
+    out.push({ key: "h:projects", type: "head", section: "projects", label: "Projects", count: projectLines.length, open: open("projects") });
     if (open("projects")) {
-      const shown = i.moreProjects === true ? projects : projects.slice(0, PROJECTS_SHOWN);
-      for (const p of shown) out.push({ key: `pj:${p.id}`, type: "project", project: p });
-      if (shown.length < projects.length) out.push({ key: "m:projects", type: "more", label: `${projects.length - shown.length} more`, to: "projects" });
+      const { shown, hidden } = all(i.moreProjects) ? { shown: projectLines, hidden: 0 } : capped(projectLines, PROJECTS_SHOWN, (p) => p.starred || i.open === `p:${p.id}`);
+      for (const p of shown) { const ch = p.recordId === undefined ? undefined : i.channels.find((c) => c.recordId === p.recordId); out.push({ key: `pj:${p.id}`, type: "project", project: ch && ch.unread > 0 ? { ...p, unread: ch.unread } : p }); }
+      if (hidden > 0) out.push({ key: "m:projects", type: "more", label: `${hidden} more`, to: "projects" });
     }
   }
   const rows = i.groups.flatMap((g) => g.rows);
-  const unique = rows.filter((r, n) => rows.findIndex((x) => x.threadId === r.threadId) === n);
+  // each chat once, never a goal's own chat (the Goal row is its door), and a muted one made quiet
+  const unique = rows.filter((r, n) => rows.findIndex((x) => x.threadId === r.threadId) === n && i.goalThreads?.has(r.threadId) !== true && r.goalId === undefined).map((r) => quieted(r, muted));
   const isNow = (r: ChatRow): boolean => r.working || i.waitingThreads?.has(r.threadId) === true;
   const now = unique.filter(isNow);
-  const rest = unique.filter((r) => !isNow(r) && !(r.kind === "person" && r.withPeople === true));
+  // a direct message is the person's row under People; every other chat, a people-only group chat too ("Offsite planning", lane l-polish L9), is in Recent
+  const rest = unique.filter((r) => !isNow(r) && r.direct !== true).sort(chatOrder);
   if (now.length) {
     out.push({ key: "h:now", type: "head", section: "now", label: "Now", count: now.length, open: open("now") });
     if (open("now")) for (const r of now) out.push({ key: `c:${r.threadId}`, type: "chat", row: r });
@@ -378,16 +473,23 @@ export function buildEntries(i: SidebarInput): Entry[] {
   if (open("recent")) {
     out.push(...err("recent"));
     if (!rest.length && !now.length && !i.errors?.recent) out.push({ key: "e:recent", type: "empty", text: i.filter === "all" ? "No chats yet" : "Nothing here" });
-    const shown = i.moreRecent === true || i.searching ? rest : rest.slice(0, RECENT_SHOWN);
+    // unread, starred and the open chat never sit behind "N more"
+    const { shown, hidden } = all(i.moreRecent) ? { shown: rest, hidden: 0 } : capped(rest, RECENT_SHOWN, (r) => r.unread > 0 || (r.repliesUnread ?? 0) > 0 || r.starred || i.open === `t:${r.threadId}`);
     for (const r of shown) out.push({ key: `c:${r.threadId}`, type: "chat", row: r });
-    if (shown.length < rest.length) out.push({ key: "m:recent", type: "more", label: `${rest.length - shown.length} more`, to: "recent" });
+    if (hidden > 0) out.push({ key: "m:recent", type: "more", label: `${hidden} more`, to: "recent" });
   }
-  if (i.filter === "all") {
+  // the chat rows on screen: an agent's own row shows its unread only while its chat is not one of them
+  const drawn = new Set(out.flatMap((e) => (e.type === "chat" ? [e.row.threadId] : [])));
+  {
     // a project's channel belongs to the project (its Chat tab): with the Projects group above, the channel list does not repeat it
     const split = splitChannels(i.channels);
-    const plain = split.plain;
-    const projects = (i.projects?.length ?? 0) > 0 ? [] : split.projects;
-    if (!i.personal && (plain.length || projects.length || i.errors?.channels || !i.searching)) {
+    const chMuted = (c: Channel): boolean => muted("channel", c.channelId) || muted("thread", c.mainThreadId);
+    const keepCh = (c: Channel): boolean => !filtered || (i.filter === "unread" && c.unread > 0 && !chMuted(c));
+    // starred first, muted last, otherwise the Space's order; a muted channel shows no count
+    const chOrder = (list: readonly Channel[]): Channel[] => list.map((c, n) => ({ c, n })).sort((a, b) => Number(starredOf("channel", b.c.channelId)) - Number(starredOf("channel", a.c.channelId)) || Number(chMuted(a.c)) - Number(chMuted(b.c)) || a.n - b.n).map((x) => (chMuted(x.c) ? { ...x.c, unread: 0 } : x.c)).filter(keepCh);
+    const plain = chOrder(split.plain);
+    const projects = (i.projects?.length ?? 0) > 0 ? [] : chOrder(split.projects);
+    if (!i.personal && (plain.length || projects.length || i.errors?.channels || (!i.searching && !filtered))) {
       out.push({ key: "h:channels", type: "head", section: "channels", label: "Channels", count: plain.length + projects.length, open: open("channels") });
       if (open("channels")) {
         out.push(...err("channels"));
@@ -399,31 +501,38 @@ export function buildEntries(i: SidebarInput): Entry[] {
         }
       }
     }
-    const people = i.people ?? [];
+    const people = (i.people ?? []).map((p) => (muted("person", p.id) ? { ...p, unread: 0 } : p)).filter((p) => !filtered || (i.filter === "unread" && (p.unread ?? 0) > 0));
     if (people.length) {
       out.push({ key: "h:people", type: "head", section: "people", label: "People", count: people.length, open: open("people") });
       if (open("people")) {
-        const shown = i.morePeople === true || i.searching ? people : people.slice(0, LIST_SHOWN);
+        const openDm = i.open?.startsWith("t:") ? rows.find((r) => r.direct === true && `t:${r.threadId}` === i.open)?.whoId : undefined;
+        const { shown, hidden } = all(i.morePeople) ? { shown: people, hidden: 0 } : capped(people, LIST_SHOWN, (p) => (p.unread ?? 0) > 0 || p.id === openDm);
         for (const p of shown) { const mark = i.presence?.get(p.id); out.push({ key: `p:${p.id}`, type: "person", id: p.id, name: p.name, unread: p.unread ?? 0, ...(mark ? { presence: mark } : {}) }); }
-        if (shown.length < people.length) out.push({ key: "m:people", type: "more", label: `${people.length - shown.length} more`, to: "people" });
+        if (hidden > 0) out.push({ key: "m:people", type: "more", label: `${hidden} more`, to: "people" });
       }
     }
+    // an agent's unread is its own chats' unread that is not already on a drawn row (one unread, shown once); without the rows (an older caller) the given counts stand
+    const solo = unique.filter((r) => r.solo === true && r.whoId !== undefined);
+    const unreadOfId = (id: string): number => (solo.length || !i.agentUnread ? solo.filter((r) => r.whoId === id && !drawn.has(r.threadId) && !muted("agent", id)).reduce((n, r) => n + r.unread, 0) : (i.agentUnread.get(id) ?? 0));
+    const unreadOf = (id: string): { unread?: number } => { const n = unreadOfId(id); return n > 0 ? { unread: n } : {}; };
+    const faceKeep = (a: Agent): boolean => !filtered || (i.filter === "unread" && unreadOfId(a.agentId) > 0) || (i.filter === "needs" && i.waitingAgents?.has(a.agentId) === true) || (i.filter === "running" && i.workingAgents.has(a.agentId));
+    const faces = i.faces.filter(faceKeep);
+    const assistant = i.assistant && (!filtered || (i.filter === "unread" && unreadOfId(i.assistant.agentId) > 0)) ? i.assistant : undefined;
     // a head with nothing under it says nothing: no agents to show, no Agents head
-    const showFaces = i.assistant !== undefined || i.faces.length > 0 || (i.facesMore ?? 0) > 0 || i.errors?.faces !== undefined;
-    if (showFaces) out.push({ key: "h:faces", type: "head", section: "faces", label: "Agents", count: i.faces.length + (i.assistant ? 1 : 0) + (i.facesMore ?? 0), open: open("faces") });
+    const showFaces = assistant !== undefined || faces.length > 0 || (!filtered && ((i.facesMore ?? 0) > 0 || i.errors?.faces !== undefined));
+    if (showFaces) out.push({ key: "h:faces", type: "head", section: "faces", label: "Agents", count: faces.length + (assistant ? 1 : 0) + (filtered ? 0 : i.facesMore ?? 0), open: open("faces") });
     if (showFaces && open("faces")) {
       out.push(...err("faces"));
-      const unreadOf = (id: string): { unread?: number } => { const n = i.agentUnread?.get(id) ?? 0; return n > 0 ? { unread: n } : {}; };
-      if (i.assistant) out.push({ key: `f:${i.assistant.agentId}`, type: "face", agent: i.assistant as Agent, working: false, waiting: false, assistant: true, ...unreadOf(i.assistant.agentId) });
+      if (assistant) out.push({ key: `f:${assistant.agentId}`, type: "face", agent: assistant as Agent, working: false, waiting: false, assistant: true, ...unreadOf(assistant.agentId) });
       const digits = faceDigits(i.faces);
-      const shown = i.moreAgents === true || i.searching ? i.faces : i.faces.slice(0, LIST_SHOWN);
+      const { shown, hidden: hiddenFaces } = all(i.moreAgents) ? { shown: faces, hidden: 0 } : capped(faces, LIST_SHOWN, (a) => i.waitingAgents?.has(a.agentId) === true || unreadOfId(a.agentId) > 0 || starredOf("agent", a.agentId) || i.open === `a:${a.agentId}`);
       for (const a of shown) {
         const d = digits.get(a.agentId);
         out.push({ key: `f:${a.agentId}`, type: "face", agent: a, ...(d !== undefined ? { digit: d } : {}), working: i.workingAgents.has(a.agentId), waiting: i.waitingAgents?.has(a.agentId) === true, ...unreadOf(a.agentId) });
       }
-      const hidden = i.faces.length - shown.length;
+      const hidden = hiddenFaces;
       if (hidden > 0) out.push({ key: "m:faces", type: "more", label: `${hidden} more`, to: "faces" });
-      if (hidden <= 0 && (i.facesMore ?? 0) > 0) out.push({ key: "m:agents", type: "more", label: `All agents (${(i.facesMore ?? 0) + i.faces.length})`, to: "agents" });
+      if (hidden <= 0 && !filtered && (i.facesMore ?? 0) > 0) out.push({ key: "m:agents", type: "more", label: `All agents (${(i.facesMore ?? 0) + i.faces.length})`, to: "agents" });
     }
   }
   const archivedCount = (i.archived?.length ?? 0) + (i.archivedImported?.length ?? 0);
@@ -451,6 +560,7 @@ export function openEntry(entries: readonly Entry[], open: string | null): strin
   if (open === "artifacts") return "artifacts";
   if (open === "tasks" || open === "notes") return has(`nav:${open}`);
   if (open.startsWith("g:")) return has(open);
+  if (open.startsWith("p:")) return has(`pj:${open.slice(2)}`);
   if (open.startsWith("i:")) return has(open);
   if (open.startsWith("a:")) return has(`f:${open.slice(2)}`);
   if (open.startsWith("t:")) {

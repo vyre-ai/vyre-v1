@@ -9,18 +9,18 @@ const at = (y: number, m: number, d: number, h: number, min: number): number => 
 const NOW = at(2026, 11, 4, 16, 0);
 const A: ArtifactInfo = { id: "sit_1", name: "Pricing comparison", owner: "me", access: "private", updatedAt: at(2026, 11, 4, 3, 53) };
 
-test("the time says 3:53 today, yesterday, the weekday in the week, then the date", () => {
-  assert.equal(whenLabel(at(2026, 11, 4, 3, 53), NOW), "3:53");
-  assert.equal(whenLabel(at(2026, 11, 4, 15, 5), NOW), "15:05");
+test("the time says 3:53 AM today, yesterday, the weekday in the week, then the date", () => {
+  assert.equal(whenLabel(at(2026, 11, 4, 3, 53), NOW), "3:53 AM");
+  assert.equal(whenLabel(at(2026, 11, 4, 15, 5), NOW), "3:05 PM");
   assert.equal(whenLabel(at(2026, 11, 3, 23, 59), NOW), "yesterday");
   assert.equal(whenLabel(at(2026, 11, 2, 9, 0), NOW), "Monday");
-  assert.equal(whenLabel(at(2026, 10, 1, 9, 0), NOW), new Date(at(2026, 10, 1, 9, 0)).toLocaleDateString());
+  assert.equal(whenLabel(at(2026, 10, 1, 9, 0), NOW), "Thu 1 Oct");
   assert.equal(whenLabel(undefined, NOW), "");
 });
 
 test("the quiet line reads Page, who can see it, when it changed", () => {
-  assert.equal(subline(A, "me", NOW), "Page · Private to you · updated 3:53");
-  assert.equal(subline({ ...A, sharedWith: ["Sara", "Omar"] }, "me", NOW), "Page · Shared with Sara and Omar · updated 3:53");
+  assert.equal(subline(A, "me", NOW), "Page · Private to you · updated 3:53 AM");
+  assert.equal(subline({ ...A, sharedWith: ["Sara", "Omar"] }, "me", NOW), "Page · Shared with Sara and Omar · updated 3:53 AM");
   assert.equal(sharingLine({ ...A, sharedWith: ["Aliza"] }, "me"), "Shared with Aliza");
   assert.equal(sharingLine({ ...A, access: "space" }, "me"), "Shared with the Space");
   assert.equal(sharingLine({ ...A, sharedWith: ["Sara"], audience: ["space", "link"] }, "me"), "Shared with Sara, everyone in the Space and anyone with the link");
@@ -56,7 +56,8 @@ test("an address is the full url as given, else the path on this app's origin; a
 test("the card shows the title, the line, Open, Copy link and More, and is one link that opens the artifact", () => {
   const html = renderToStaticMarkup(<ArtifactCard info={A} meId="me" now={NOW} onOpen={() => undefined} onCopyLink={() => undefined} onShare={() => undefined} onBrowser={() => undefined} onDelete={() => undefined} />);
   assert.match(html, /Pricing comparison/);
-  assert.match(html, /Page · Private to you · updated 3:53/);
+  assert.match(html, /Page · Private to you · updated 3:53 AM/);
+  assert.match(html, /data-testid="time-pop"/, "the time line has the hover card");
   assert.match(html, /aria-label="Open Pricing comparison"/);
   for (const w of ["Open", "Copy link", "More"]) assert.match(html, new RegExp(`aria-label="${w}"`));
   assert.match(html, /artifact-thumb-drawn/);
@@ -68,4 +69,15 @@ test("in the grid a card names the chat that made it, and a picture replaces the
   assert.match(html, /From Monthly numbers/);
   assert.match(html, /artifact-thumb/);
   assert.doesNotMatch(html, /artifact-thumb-drawn/);
+});
+
+test("an artifact's time reads in the Space's zone: the same instant is a different clock for a Space in Los Angeles", async () => {
+  const { setCurrentZones } = await import("../../../lib/zones.ts");
+  const when = Date.parse("2026-11-04T23:53:00Z");
+  try {
+    setCurrentZones({ space: "America/Los_Angeles", viewer: "Asia/Karachi" });
+    assert.equal(whenLabel(when, Date.parse("2026-11-05T01:00:00Z")), "3:53 PM");
+    setCurrentZones({ space: "Asia/Karachi", viewer: "Asia/Karachi" });
+    assert.equal(whenLabel(when, Date.parse("2026-11-05T01:00:00Z")), "4:53 AM");
+  } finally { setCurrentZones(null); }
 });

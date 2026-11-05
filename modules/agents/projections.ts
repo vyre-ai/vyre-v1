@@ -1,5 +1,6 @@
 // @reads /modules/agents/migrations/0001_agents.sql
 // @reads /modules/agents/migrations/0012_install.sql
+// @reads /modules/agents/migrations/0013_skill_rev_version.sql
 // Rows of the agents module (the agent, its routines, suggestions, snapshots and the template state), the agent.toml reader and writer, the checks a configuration must pass, the ports to Files
 // (every file of an agent is a file in Agents/<name>), and the small pure helpers the handlers share (status, cron, unified diffs).
 // Every statement names an agents_* table, which is all ctx.db lets a module touch. The migration file is the one source of the schema.
@@ -54,7 +55,7 @@ export const askerOf = (ctx: Pick<AgentsCtx, "principal" | "actingFor">): string
 
 // ---- schema -----------------------------------------------------------------------------------------------------------------------------------------
 
-const SCHEMA = ["0001_agents.sql", "0002_routine_watch.sql", "0003_skills.sql", "0004_plugins.sql", "0005_mcp_hub_auth.sql", "0006_agent_kind.sql", "0007_outside.sql", "0008_skill_scopes.sql", "0009_connections_home.sql", "0010_routine_by.sql", "0011_chat_owned.sql", "0012_install.sql"].map((f) => readFileSync(new URL(`./migrations/${f}`, import.meta.url), "utf8")).join("\n")
+const SCHEMA = ["0001_agents.sql", "0002_routine_watch.sql", "0003_skills.sql", "0004_plugins.sql", "0005_mcp_hub_auth.sql", "0006_agent_kind.sql", "0007_outside.sql", "0008_skill_scopes.sql", "0009_connections_home.sql", "0010_routine_by.sql", "0011_chat_owned.sql", "0012_install.sql", "0013_skill_rev_version.sql"].map((f) => readFileSync(new URL(`./migrations/${f}`, import.meta.url), "utf8")).join("\n")
   .split("\n").filter((l) => !l.trimStart().startsWith("--")).join("\n")
   .split(";").map((s) => s.trim()).filter((s) => s.length > 0);
 const ready = new WeakSet<object>();
@@ -610,7 +611,7 @@ export function nextRun(expr: string, after: number): number | null {
 
 // ---- routines ------------------------------------------------------------------------------------------------------------------------------------------
 
-export interface RoutineRec { watchChannel?: string; setBy?: { kind: "agent" | "person"; id: string }; lastRun?: { runId: string; status: string }; id: string; agentId: string; ownerId: string; title: string; cron: string; prompt: string; channelId?: string; enabled: boolean; lastRunAt?: number; nextRunAt?: number; createdAt: number; updatedAt: number }
+export interface RoutineRec { watchChannel?: string; setBy?: { kind: "agent" | "person"; id: string }; lastRun?: { runId: string; status: string }; pausedReason?: string; id: string; agentId: string; ownerId: string; title: string; cron: string; prompt: string; channelId?: string; enabled: boolean; lastRunAt?: number; nextRunAt?: number; createdAt: number; updatedAt: number }
 export function routineOf(r: Row): RoutineRec {
   const o: RoutineRec = { id: str(r["id"]), agentId: str(r["agentId"]), ownerId: str(r["ownerId"]), title: str(r["title"]), cron: str(r["cron"]), prompt: str(r["prompt"]), enabled: flag(r["enabled"]), createdAt: num(r["createdAt"]), updatedAt: num(r["updatedAt"]) };
   const ch = optStr(r["channelId"]); if (ch !== undefined) o.channelId = ch;
@@ -628,6 +629,8 @@ export function routineBy(db: Db, id: string): RoutineRec | null {
   if (b) rec.setBy = { kind: str(b["byKind"]) === "agent" ? "agent" : "person", id: str(b["byId"]) };
   const l = (db.all("SELECT runId, status FROM agents_routine_last WHERE routineId = ?", id) as Row[])[0];
   if (l) rec.lastRun = { runId: str(l["runId"]), status: str(l["status"]) };
+  // paused by itself after repeated failed runs (modules/agents/routine-guard.ts): why, for the row; the table exists once a routine has failed
+  try { const sp = (db.all("SELECT reason FROM agents_routine_selfpaused WHERE routineId = ?", id) as Row[])[0]; if (sp && !rec.enabled) rec.pausedReason = str(sp["reason"]); } catch { /* no routine has paused itself yet */ }
   return rec;
 }
 export function routineOut(r: RoutineRec): Record<string, unknown> {
@@ -635,6 +638,7 @@ export function routineOut(r: RoutineRec): Record<string, unknown> {
     routineId: r.id, agentId: r.agentId, title: r.title, ...(r.watchChannel === undefined ? { cron: r.cron } : { kind: "watch", watch: { on: "message", channelId: r.watchChannel } }), prompt: r.prompt, ...(r.channelId !== undefined ? { channelId: r.channelId } : {}), enabled: r.enabled, ownerId: r.ownerId,
     ...(r.lastRunAt !== undefined ? { lastRunAt: r.lastRunAt } : {}), ...(r.nextRunAt !== undefined ? { nextRunAt: r.nextRunAt } : {}),
     ...(r.setBy !== undefined ? { setBy: r.setBy } : {}), ...(r.lastRun !== undefined ? { lastRun: r.lastRun } : {}),
+    ...(r.pausedReason !== undefined ? { pausedReason: `Paused after 3 failed runs: ${r.pausedReason}` } : {}),
   };
 }
 /** The line under a message an agent posts because of a routine: "Sent by Intake on a routine Dana set". */

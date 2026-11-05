@@ -56,3 +56,20 @@ test("with the Projects group, a project's channel is not listed a second time u
   const without = buildEntries(base);
   assert.ok(without.some((x) => x.key === "g:projects") && without.some((x) => x.key === "ch:rivera"));
 });
+
+test("a project row carries the unread count of its channel's main thread; the group's + opens the new-project path", async () => {
+  const ch = (id: string, unread: number) => ({ channelId: id, mainThreadId: `thr_${id}`, name: id, visibility: "invite", archived: false, members: [], agents: [], unread, recordId: `rec_${id}` }) as never;
+  const lines = projectLines([row("prj_a", "Alpha", { recordId: "rec_a" }), row("prj_b", "Beta", { recordId: "rec_b" })], new Set());
+  const e = buildEntries({ closed: new Set(), groups: [], faces: [], tasksCount: 0, channels: [ch("a", 3), ch("b", 0)], filter: "all", projects: lines } as never);
+  const unread = e.filter((x) => x.type === "project").map((x) => (x.type === "project" ? x.project.unread ?? 0 : -1));
+  assert.deepEqual(unread, [3, 0], "Alpha's chat has 3 new, Beta's none");
+  const off = installDom();
+  Dimensions.set({ window: { width: 1280, height: 844, scale: 1, fontScale: 1 } });
+  try {
+    const s = createSampleSidebar();
+    const root = await mount(createRoot, <ChatsSidebar data={s.data} window={{ start: 0, end: 500 }} />);
+    await flush(); await flush();
+    await press(find(root, "new-project")); await flush();
+    assert.ok(s.opened.includes("new-project"), "+ opens the new-project path");
+  } finally { off(); }
+});

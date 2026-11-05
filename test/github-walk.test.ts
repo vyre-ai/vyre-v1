@@ -77,7 +77,7 @@ test("walk: connect, reach, a refused repository, Ask me first, the policy and a
     const done = await me.meComplete(g.ctx, { code: frag.get("github_connect_code")!, state: frag.get("github_connect_state")! });
     assert.deepEqual(done, { login: "maya-codes", source: "vyre" });
     await assert.rejects(me.meComplete(g.ctx, { code: "gh-code-1", state: c.state }), (e: any) => e.error.code === "validation.bad_input");   // eslint-disable-line @typescript-eslint/no-explicit-any
-    assert.equal(me.meStatus(g.ctx).connected, true);
+    assert.equal((await me.meStatus(g.ctx)).connected, true);
     assert.equal(gate.linked.length, 1, "connecting also linked the sign-in");
     assert.match(gate.linked[0]!, /^vyre-gh-link\./);
     assert.equal(tickets.takeLink(gate.linked[0]!)?.login, "maya-codes", "the ticket the host minted stands for who GitHub said");
@@ -96,12 +96,14 @@ test("walk: connect, reach, a refused repository, Ask me first, the policy and a
     await assert.rejects(me.token(g.ctx, { repo: "vyre-ai/private-notes", action: "read", consumer: "crew" }), (e: any) => e.error.code === "validation.not_found");   // eslint-disable-line @typescript-eslint/no-explicit-any
 
     // ---- 4. Ask me first holds a card; once approved the token comes, and the filler holds it, not the module
+    me.policySet(g.ctx, { policy: { open_pr: "ask" } });
     await assert.rejects(me.token(g.ctx, { repo: "vyre-ai/website", action: "open_pr", consumer: "crew" }), (e: any) => e.error.code === "permission.needs_approval");   // eslint-disable-line @typescript-eslint/no-explicit-any
     assert.equal(gate.held, 1);
     await me.meApprove(g.ctx, { repo: "vyre-ai/website", action: "open_pr", consumer: "crew" });
     const t = await me.token(g.ctx, { repo: "vyre-ai/website", action: "open_pr", consumer: "crew" });
     assert.match(t.handle, /^#fill_/);
     assert.equal(JSON.stringify(t).includes("ghs_"), false);
+    me.policySet(g.ctx, { policy: { push_default: "never" } });
     await assert.rejects(me.token(g.ctx, { repo: "vyre-ai/website", action: "push_default", consumer: "crew" }), (e: any) => e.error.code === "validation.precondition_failed");   // eslint-disable-line @typescript-eslint/no-explicit-any
 
     // ---- 5. a CLI session: it gets the Space's git address and a proxy token of its own, and no GitHub token is made for it
@@ -129,7 +131,7 @@ test("walk: connect, reach, a refused repository, Ask me first, the policy and a
     g.on("DELETE /applications/Iv1.vyre/grant", { status: 204, body: {} });
     assert.deepEqual(await me.meDisconnect(g.ctx), { disconnected: true });
     assert.equal(v.rows(`SELECT * FROM vault_meta WHERE "owner" = ? AND "deleted_at" IS NULL`, PERSON).length, 0);
-    assert.equal(me.meStatus(g.ctx).connected, false);
+    assert.equal((await me.meStatus(g.ctx)).connected, false);
     assert.ok(sent.some((s) => s.startsWith("DELETE https://api.github.com/applications/Iv1.vyre/grant")), "the grant was revoked at GitHub");
   } finally { v.cleanup(); }
 });
@@ -157,16 +159,16 @@ test("walk: signing in with GitHub through the default Vyre app connects it too,
     // Settings, GitHub, "Sign in with GitHub": the identity module calls resolve(code) and then signedIn(id, person) once the session exists
     const sign = createGithub({ clientId: "Iv1.vyre", clientSecret: "vyre_secret", fetch: f }, tickets, (githubId, person) => me.adoptSignIn(g.ctx, { githubId, person }));
     assert.deepEqual(await sign.resolve("sign-in-code"), { id: "4242", login: "maya-codes" });
-    assert.equal(me.meStatus(g.ctx).connected, false, "not connected until the sign-in finishes");
+    assert.equal((await me.meStatus(g.ctx)).connected, false, "not connected until the sign-in finishes");
     await sign.signedIn!("4242", PERSON);
-    const st = me.meStatus(g.ctx);
+    const st = await me.meStatus(g.ctx);
     assert.equal(st.connected, true);
     assert.equal(st.login, "maya-codes");
     assert.equal(st.source, "vyre", "the default Vyre app");
     const item = v.rows(`SELECT * FROM vault_meta WHERE "owner" = ?`, PERSON)[0]!;
     assert.equal(await u.secretPort(v.ctx.db).secret(`${item.handle}.refresh_token`, "", PERSON), "ghr_signin_1");
     assert.equal(JSON.stringify([v.everything(), g.emitted]).includes("ghr_signin_1"), false);
-    assert.deepEqual(me.policyGet(g.ctx).policy, { read: "always", push_branch: "ask", open_pr: "ask", comment: "ask", merge: "ask", push_default: "never" });
+    assert.deepEqual(me.policyGet(g.ctx).policy, { read: "always", push_branch: "always", open_pr: "always", comment: "always", merge: "ask", push_default: "ask" });
     // a second sign-in does not disturb the connection, and a server with no app says so
     assert.deepEqual(await me.adoptSignIn(g.ctx, { githubId: "4242", person: PERSON }), { adopted: false });
     const none = createGithubHost({ vault: u.secretPort(v.ctx.db) as never, fetch: f, blobs: {} as never, tickets });

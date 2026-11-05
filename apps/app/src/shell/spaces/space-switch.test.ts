@@ -167,7 +167,7 @@ test("a Space that fails to open says so and Try again opens it", async () => {
   hub.retry();
   await hub.whenReady();
   assert.equal(hub.state().error, null);
-  assert.ok(html(hub).includes('data-testid="sample-chats"') || html(hub).includes('data-testid="sample-home"'));
+  assert.ok(html(hub).includes('data-testid="sample-chats"'));
 });
 
 test("the shell owns Shift-Cmd-1..3, Cmd-T, Cmd-W, Cmd-K and Shift-Cmd-/ and leaves Cmd-1..9 to Chats", () => {

@@ -114,15 +114,10 @@ test("the Console assistant reuses the lazy Chats place chunk", () => {
 
 test("optional Plan views share one on-demand renderer instead of the startup common chunk", () => {
   const root = path.join(path.dirname(new URL(import.meta.url).pathname), "..", "..");
-  for (const file of ["apps/app/src/places/home/sections-a/MyWork.tsx", "apps/app/src/places/records/projectpage/ProjectPage.tsx"]) {
+  for (const file of ["apps/app/src/places/records/projectpage/ProjectPage.tsx"]) {
     const src = fs.readFileSync(path.join(root, file), "utf8");
     assert.doesNotMatch(src, /import \{ Plan \} from ["'][^"']*ui\/src\/Plan\/index\.tsx["']/, `${file} must not statically share the optional Plan renderer`);
     assert.match(src, /Plan\/DeferredPlan\.tsx/, `${file} uses the shared deferred Plan boundary`);
-  }
-  for (const file of ["apps/app/src/places/home/sections-a/MyWork.tsx", "apps/app/src/places/home/sections-a/plan.ts"]) {
-    const src = fs.readFileSync(path.join(root, file), "utf8");
-    assert.doesNotMatch(src, /Plan\/logic\.ts/, `${file} may use the tiny date leaf, not the full Plan editor logic`);
-    assert.match(src, /Plan\/dates\.ts/);
   }
   const deferred = fs.readFileSync(path.join(root, "ui/src/Plan/DeferredPlan.tsx"), "utf8");
   assert.match(deferred, /lazy\(\(\) => import\(["']\.\/index\.tsx["']\)/, "the full Plan remains available on demand");
@@ -139,7 +134,7 @@ test("the optional phone dock reuses the lazy Inbox place chunk", () => {
 
 test("places that draw a Composer preload one shared on-demand editor before becoming usable", () => {
   const root = path.join(path.dirname(new URL(import.meta.url).pathname), "..", "..");
-  for (const file of ["apps/app/src/places/home/sections-b/AskBox.tsx", "apps/app/src/places/chats/conversation/Conversation.tsx", "apps/app/src/places/inbox/contacttab/ContactTab.tsx"]) {
+  for (const file of ["apps/app/src/places/chats/conversation/Conversation.tsx", "apps/app/src/places/inbox/contacttab/ContactTab.tsx"]) {
     const src = fs.readFileSync(path.join(root, file), "utf8");
     assert.doesNotMatch(src, /^import \{ Composer \} from ["'][^"']*ui\/src\/Composer\/index\.tsx["'];?$/m, `${file} must not promote the editor into the startup common chunk`);
     assert.match(src, /Composer\/Deferred\.tsx/, `${file} renders the shared deferred editor`);

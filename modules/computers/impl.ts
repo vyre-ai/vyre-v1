@@ -47,6 +47,8 @@ export { maskEvents, maskHar } from "./handlers/record.ts";
 
 // ---- the Docker host -----------------------------------------------------------------------------------------------------------------------------------
 
+/** The plain first line when this server has no agent computer image (an older install, or one that could not fetch it): no system words. The text after "Details:" is for Copy details, never the panel's sentence; the panel adds who can fix it (an admin updates the server from Console > Computers, a member asks their admin). */
+export const IMAGE_MISSING_SENTENCE = "This server can't start agent computers yet.";
 export const DEFAULT_COMPUTER_IMAGE = "vyre/agent-computer:1";
 /** Docker's default seccomp profile plus the namespace calls Chromium's own sandbox needs (images/agent-computer/seccomp.json). Sent inline, since the Engine API takes the profile itself. */
 let seccomp: string | null = null;
@@ -324,12 +326,14 @@ export function createDockerComputerHost(o: DockerHostOptions): ComputerHost & T
       if (wrong.length > 0) throw new Error(`the computer's container config is outside its profile: ${wrong.join(", ")}`);
       if (!(await o.api.imageExists(config.Image))) {
         // a server that has never run one fetches the image itself (the runner allows only this image); without a registry that has it, the reason says what is missing
-        const [repo, tag] = [config.Image.slice(0, config.Image.lastIndexOf(":")), config.Image.slice(config.Image.lastIndexOf(":") + 1)];
+        // a digest reference is pulled whole (fromImage carries it, no tag); a tag reference is repo and tag
+        const byDigest = config.Image.includes("@");
+        const [repo, tag] = byDigest ? [config.Image, ""] : [config.Image.slice(0, config.Image.lastIndexOf(":")), config.Image.slice(config.Image.lastIndexOf(":") + 1)];
         let pulled = false; let why = "";
         if (o.http) {
-          try { const r = await o.http({ method: "POST", path: "/images/create", query: { fromImage: repo, tag }, timeoutMs: 15 * 60_000 }); pulled = r.status === 200 && !/"error"/.test(new TextDecoder().decode(r.body)); if (!pulled) why = bodyText(r.body); } catch (e) { why = e instanceof Error ? e.message.slice(0, 160) : "no answer"; }
+          try { const r = await o.http({ method: "POST", path: "/images/create", query: byDigest ? { fromImage: repo } : { fromImage: repo, tag }, timeoutMs: 15 * 60_000 }); pulled = r.status === 200 && !/"error"/.test(new TextDecoder().decode(r.body)); if (!pulled) why = bodyText(r.body); } catch (e) { why = e instanceof Error ? e.message.slice(0, 160) : "no answer"; }
         }
-        if (!pulled || !(await o.api.imageExists(config.Image))) throw new Error(`the agent computer image ${config.Image} is not on this server${why ? ` and could not be fetched (${why})` : ""}. Load it with docker pull ${config.Image}, or set VYRE_AGENT_COMPUTER_IMAGE to the one you have`);
+        if (!pulled || !(await o.api.imageExists(config.Image))) throw new Error(`${IMAGE_MISSING_SENTENCE}\nDetails: the agent computer image ${config.Image} is not on this server${why ? ` and could not be fetched (${why.slice(0, 80)})` : ""}. Load it with: docker pull ${config.Image}`);
       }
       await makeNetwork(a.computerId);
       try { await o.api.containerCreate(name, config); } catch (e) { await dropNetwork(a.computerId).catch(() => undefined); throw e; }

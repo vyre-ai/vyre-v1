@@ -264,7 +264,12 @@ export function createSampleSidebar(space: SampleSpace = northwind, o: { online?
     "notifications.mute.list": () => ({ mutes: [...menus.mutes].map((k) => { const [kind, ...id] = k.split(":"); return { target: { kind, id: id.join(":") }, until: 0 }; }) }),
     "notifications.mute.set": (i: { target: { kind: string; id: string } }) => { refuse("notifications.mute.set", i); menus.mutes.add(`${i.target.kind}:${i.target.id}`); return { until: 0 }; },
     "notifications.mute.clear": (i: { target: { kind: string; id: string } }) => { refuse("notifications.mute.clear", i); menus.mutes.delete(`${i.target.kind}:${i.target.id}`); return { cleared: true }; },
-    "stars.list": () => ({ stars: [...starredProjects].map((id) => ({ resource: { type: "project", id } })) }),
+    // every star the person holds, as the server lists them: projects, agents and chats
+    "stars.list": () => ({ stars: [
+      ...[...starredProjects].map((id) => ({ resource: { type: "project", id } })),
+      ...(replica.rows("agents") as unknown as { id: string; starred?: boolean }[]).filter((a) => a.starred === true).map((a) => ({ resource: { type: "agent", id: a.id } })),
+      ...threads().filter((x) => x.starred).map((x) => ({ resource: { type: "thread", id: x.threadId } })),
+    ] }),
     "threads.poke": (i: { threadId: string; agentId: string }) => { refuse("threads.poke", i); return { poked: true }; },
     "threads.move": (i: { threadId: string; projectId: string }) => { return { thread: { threadId: i.threadId, kind: "chat", listed: true, planMode: false } }; },
     "goals.list": (i: { scope?: string }) => ({ goals: i.scope === "mine" ? [...(o.goals ?? [])] : [] }),
@@ -311,7 +316,7 @@ export function createSampleSidebar(space: SampleSpace = northwind, o: { online?
     openChat: (id) => void opened.push(`chat:${id}`), openAgentChat: (id) => void opened.push(`agent:${id}`), openChannel: (id) => void opened.push(`channel:${id}`),
     openNeedsYou: (id) => void opened.push(id ? `needs:${id}` : "needs"), openAllAgents: () => void opened.push("all-agents"), openSearch: () => void opened.push("search"),
     openSpaceSwitcher: () => void opened.push("spaces"), openNewChannel: () => void opened.push("new-channel"),
-    openAgent: (id) => void opened.push(`profile:${id}`), openChatTab: (id) => void opened.push(`tab:${id}`), openGoal: (id) => void opened.push(`goal:${id}`), openProject: (id) => void opened.push(`project:${id}`),
+    openAgent: (id) => void opened.push(`profile:${id}`), openChatTab: (id) => void opened.push(`tab:${id}`), openGoal: (id) => void opened.push(`goal:${id}`), openProject: (id) => void opened.push(`project:${id}`), openNewProject: () => void opened.push("new-project"),
   };
   const connection: Connection = { get: () => (online ? "online" : "offline"), subscribe: (l) => { listeners.add(l); return () => void listeners.delete(l); } };
 

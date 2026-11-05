@@ -1,6 +1,6 @@
 // The pages of You that hold your own work: Profile (with Copy from another Space), Notifications, AI (models, how agents work with you, usage, memory) and Connected (Email and calendar is MailPage.tsx).
 import { useConnectionsSummary } from "../vault/connections/summary.ts";
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import type { CapMap } from "../../../../../generated/types.ts";
@@ -9,6 +9,10 @@ import { Bar, RegistrySections, useRead } from "./blocks.tsx";
 import { ContactVerify } from "./ContactVerify.tsx";
 import { CopyFromSpace } from "./CopyFromSpace.tsx";
 import { SignInApps } from "./SignInApps.tsx";
+import { SignInPanel } from "../../ai-signin/SignInPanel.tsx";
+import { startFlow } from "../../ai-signin/flow.ts";
+import type { Flow as SignInFlow } from "../../ai-signin/flow.ts";
+import { isAskedAccount, useAskedAccount } from "./asked-account.ts";
 import { OutsideAgents } from "./OutsideAgents.tsx";
 import { MODELS, NOTIFICATIONS, useIsPersonal, useSettingsData, useScreenQuery } from "./data.tsx";
 import { ROW_HELP, clock, labelOf, moneyLabel, rowHelp, sectionsFor } from "./model.ts";
@@ -60,7 +64,7 @@ export function ProfilePage({ rows, found }: PageProps): ReactElement {
     const items: ReactElement[] = [];
     sec.rows.forEach((r, i) => items.push(<SettingRowFor key={r.key} row={r} first={i === 0} found={found === r.key} />));
     // the Space's own zone sits right under yours, plain text: where shared places read, and that yours follows beside it
-    if (sec.rows.some((r) => r.key === "profile.timezone") && here?.kind !== "personal") items.push(<SettingsRow key="space.timezone" id="space.timezone" label="Space time zone" sub={`${here?.name ?? "This Space"}'s shared places show times in ${zoneName(zones.space)}. Your time follows beside them.`} control={<Value text={`${zoneName(zones.space)}, ${zoneCity(zones.space)}`} testID="space-timezone-readonly" />} />);
+    if (sec.rows.some((r) => r.key === "profile.timezone") && here?.kind !== "personal") items.push(<SettingsRow key="space.timezone" id="space.timezone" label="Space time zone" sub={`${here?.name ?? "This Space"}'s shared places show times in ${zoneName(zones.space)}. Your time follows beside them.`} />);
     before.push(<Section key={sec.title} title={sec.title}>{items}</Section>);
   }
   const rowFor = (r: SettingRow | undefined, i: number, node: ReactElement, label: string, sub?: string): ReactElement | null =>
@@ -127,9 +131,13 @@ export const KIND_LABELS: Readonly<Record<string, string>> = {
   "approval.requested": "Needs you", "unblock.requested": "Someone is blocked on you", "answer.requested": "Needs your answer", "approval.backstop": "Still waiting on you", dm: "Direct messages", mention: "Mentions", "mention.thread": "Mentions in a reply",
   "call.incoming": "Incoming calls", "agent.blocked": "An agent is blocked", "agent.task_finished": "Agent finished a task", "incident.owned": "Incidents you own", "task.assigned": "Tasks given to you", "task.turn": "Your turn on a task", "task.returned": "A task sent back to you",
   "task.finished": "Tasks finished", "task.due": "Tasks due", "reply.followed": "Replies to you", "reply.thread": "Replies in a chat", "digest.away": "While you were away", "run.failed": "Routines that failed", "conflict.needs_you": "Edits that conflict",
-  "access.requested": "Requests for access", "access.decided": "Answers to your access requests", "item.shared": "Things shared with you", "sync.attention": "A device needs attention", "health.degraded": "Something is down", "problem.report": "Problem reports",
+  "access.requested": "Requests for access", "access.decided": "Answers to your access requests", "item.shared": "Things shared with you", "sync.attention": "A device needs attention", "health.degraded": "Something is down", "problem.report": "Problem reports", "hook.asked": "A rule stopped something",
   "member.joined": "People who joined", "member.join_requested": "People asking to join", "limit.hit": "A limit was reached", "vault.rotation_due": "Keys to rotate", "machine.alert": "Machine alerts", "ci.paused": "Builds paused", "space.deletion_scheduled": "Space deletion scheduled", "space.deletion_cancelled": "Space deletion cancelled",
 };
+/** Kinds only a Space's owner or admins are sent: a member does not see them in the list. */
+export const ADMIN_KINDS: ReadonlySet<string> = new Set(["space.deletion_scheduled", "space.deletion_cancelled", "ci.paused", "member.join_requested", "limit.hit", "machine.alert", "vault.rotation_due", "hook.asked"]);
+/** The kinds a person with this role is sent: owners and admins get all, a member none of the admin-only ones. */
+export const kindsFor = <T extends { key: string }>(kinds: readonly T[], role: string): T[] => { const r = role.toLowerCase(); return r === "owner" || r === "admin" ? [...kinds] : kinds.filter((k) => !ADMIN_KINDS.has(k.key)); };
 export const kindLabel = (title: string): string => title.replace(/^Replies in your threads$/, "Replies to you").replace(/:\s*\{\{\w+\}\}$/, "").replace(/\{\{(\w+)\}\}/g, (_, w: string) => WORD[w] ?? "something");
 type MutesOut = CapMap["notifications.mute.list"]["out"];
 
@@ -170,7 +178,7 @@ export function NotificationsPage({ rows, found }: PageProps): ReactElement {
     );
   };
   const list: ReactElement[] = [];
-  (kinds?.kinds ?? []).forEach((k, i) => {
+  kindsFor(kinds?.kinds ?? [], data.spaces.find((x) => x.current)?.role ?? "").forEach((k, i) => {
     const now = chans[k.key] ?? (k.mine?.channels as Channel[] | undefined) ?? levelChannels(k.level);
     list.push(
       <SettingsRow key={k.key} id={`kind.${k.key}`} label={KIND_LABELS[k.key] ?? kindLabel(k.title)} first={i === 0} sub={channelWords(now)} help="Pick where it reaches you. With none picked it adds a dot only."
@@ -284,6 +292,22 @@ export function AiPage({ rows, found }: PageProps): ReactElement {
   const defaults = useScreenQuery<DefaultsOut>(MODELS, "defaults", {});
   const models = useScreenQuery<ModelsOut>(MODELS, "models", {});
   const accounts = useScreenQuery<AccountsOut>(MODELS, "accounts", {});
+  // a link named one account (a failed turn's Sign in again): it is marked and its own sign-in starts here, once
+  const asked = useAskedAccount();
+  const target = accounts.status === "ready" ? accounts.data.accounts.find((a) => isAskedAccount(asked, a)) : undefined;
+  const [flow, setFlow] = useState<SignInFlow | null>(null);
+  const [flowRef, setFlowRef] = useState<string | null>(null);
+  const startedFor = useRef<string | null>(null);
+  const signInAgain = (a: { ref: string; provider?: string | undefined; driver: string }): void => {
+    void startFlow(data.call as never, a.provider ?? a.driver, `again:${a.ref}:${data.clock().now}`).then((f) => { setFlowRef(a.ref); setFlow(f); }).catch((e: unknown) => saved.failed(e instanceof Error ? e.message : "That did not work."));
+  };
+  useEffect(() => {
+    if (!target || target.kind !== "subscription" || startedFor.current === target.ref) return;
+    startedFor.current = target.ref;
+    const doc = (globalThis as { document?: { querySelector(q: string): { scrollIntoView?: (o: unknown) => void } | null } }).document;
+    setTimeout(() => doc?.querySelector(`[data-sid="account.${target.ref}"]`)?.scrollIntoView?.({ block: "center" }), 80);
+    signInAgain(target);
+  }, [target?.ref]);   // eslint-disable-line react-hooks/exhaustive-deps -- once per asked account
   // a Team Space with no Space AI key says so, with who can add one, so AI accounts is never an empty list with nowhere to go
   const personal = useIsPersonal();
   const noSpaceKey = !personal && accounts.status === "ready" && !accounts.data.accounts.some((a) => a.spaceKey === true);
@@ -337,10 +361,11 @@ export function AiPage({ rows, found }: PageProps): ReactElement {
     accounts.data.accounts.filter((a) => a.spaceKey !== true).forEach((a, i) => {
       acc.push(
         <SettingsRow
-          key={a.ref} id={`account.${a.ref}`} label={a.name ?? a.title} first={i === 0 && !line && !noSpaceKey} sub={`${a.kind === "subscription" ? "Sign-in" : "API key"}, ${a.mine ? "yours" : "shared in the Space"}`}
-          control={<Value text={a.status === "ok" ? "Working" : a.status === "expired" ? "Sign in again" : a.status === "failed" ? "Failed" : "Not tested"} accent={a.status !== "ok"} />}
+          key={a.ref} id={`account.${a.ref}`} label={a.name ?? a.title} first={i === 0 && !line && !noSpaceKey} found={target?.ref === a.ref || found === `account.${a.ref}`} sub={`${a.kind === "subscription" ? "Sign-in" : "API key"}, ${a.mine ? "yours" : "shared in the Space"}`}
+          control={a.status === "expired" && a.kind === "subscription" && a.mine ? <SmallButton label="Sign in again" primary testID={`account-sign-in-again-${a.ref}`} onPress={() => signInAgain(a)} /> : <Value text={a.status === "ok" ? "Working" : a.status === "expired" ? "Sign in again" : a.status === "failed" ? "Failed" : "Not tested"} accent={a.status !== "ok"} />}
         />,
       );
+      if (flow && flowRef === a.ref) acc.push(<View key={`${a.ref}-signin`} testID="account-sign-in" style={{ paddingHorizontal: 16, paddingBottom: 12 }}><SignInPanel call={data.call as never} flow={flow} onCancel={() => setFlow(null)} onDone={() => { setFlow(null); saved.saved("Signed in again"); }} /></View>);
       const older = (a.older ?? []).filter((o) => !removed.has(o.providerId));
       const quiet = olderLine(older.length);
       if (!quiet) return;

@@ -19178,6 +19178,21 @@
     },
     {
       "blocks": [],
+      "cap": "engine.running_here",
+      "deferred": false,
+      "description": "System: the turns running now with the chat each is in and who asked, for the desktop update screen to name the reply it waits for and to end it (host/src/daemon, GET /local/daemon/busy)",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "engine_running_here",
+      "planMode": "allowed",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "engine.runtime.opt_in",
       "deferred": false,
       "description": "Let the Space continue my chats when my computer is off, by wrapping my runtime key for the Space; revocable",

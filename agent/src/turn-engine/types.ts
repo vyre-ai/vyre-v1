@@ -76,6 +76,8 @@ export interface IncomingMessage {
   poke?: { agentId: string; by: string } | undefined;
   /** Minutes since midnight where the speaker is, for agents set to answer only inside hours. */
   minutes?: number | undefined;
+  /** Keep the message in the chat's record but wake nobody: a helper's result while the others still work (the lead answers once, after the last one). */
+  hold?: boolean | undefined;
 }
 
 export interface StoredMessage {
@@ -161,16 +163,18 @@ export type EngineEvent =
   | { type: "message.received"; threadId: string; messageId: string; threadSeq: number; authorId: string }
   /** A message is for an outside agent. Nothing runs here; it picks the message up when it next asks. */
   | { type: "agent.outside_asked"; threadId: string; messageId: string; agentId: string; asker: string; body: string }
+  /** a routine's turn was folded into a parked turn: it did not run, and its run ends the way the parked turn failed (the routine counts it, so one that cannot run ever pauses itself) */
+  | { type: "routine.folded"; threadId: string; agentId: string; qseq: number; code: string; asker: string; message?: string }
   | { type: "turn.queued"; threadId: string; qseq: number; agentId: string; kind: QueueKind; priority: number; routine: boolean; steer: boolean }
   | { type: "turn.started"; threadId: string; turnId: string; agentId: string; qseq: number; asker: string }
   | { type: "turn.block"; threadId: string; turnId: string; idx: number; kind: string }
-  | { type: "turn.waiting"; threadId: string; reason: "hop_limit"; messageId: string }
+  | { type: "turn.waiting"; threadId: string; reason: "hop_limit"; messageId: string; depth?: number }
   /** A tool call was held at the Gate (ARCH 6.7): the turn parks on the approval task and a wake continues it once the task is answered. */
   | { type: "turn.waiting"; threadId: string; reason: "approval"; turnId: string; agentId: string; taskId: string; runId?: string }
   /** A parked turn is over: its wake started as a turn of its own. */
   | { type: "turn.resumed"; threadId: string; turnId: string; agentId: string }
   | { type: "turn.completed"; threadId: string; turnId: string; agentId: string }
-  | { type: "turn.failed"; threadId: string; turnId: string; agentId: string; code: string; /** a turn a dead host left (code host_lost): its queue row and whom it ran for */ qseq?: number; asker?: string; /** what the engine knows of the failure, for the log only: never stored in an event, never shown to the person, scrubbed by the bridge before it is written */ message?: string }
+  | { type: "turn.failed"; threadId: string; turnId: string; agentId: string; code: string; /** the account the turn ran on (its reference and engine), so the chat can say which sign-in needs doing */ account?: { ref: string; driver: string }; /** a turn a dead host left (code host_lost): its queue row and whom it ran for */ qseq?: number; asker?: string; /** what the engine knows of the failure, for the log only: never stored in an event, never shown to the person, scrubbed by the bridge before it is written */ message?: string }
   | { type: "turn.cancelled"; threadId: string; turnId: string; agentId: string; /** why it was stopped: interrupt, stop, limit, left, moved, lease */ reason?: string }
   | { type: "agent.handoff"; threadId: string; to: Placement }
   | { type: "queue.consumed"; threadId: string; qseq: number; messageId: string | null };
@@ -301,6 +305,8 @@ export interface SessionSpec {
    * no skills, no saved session. A CLI engine runs its leanest command (CommandOptions.lean); an API driver sends the role alone. Implies tools "none".
    */
   lean?: boolean;
+  /** A one-shot for a person whose chats run on their own computer: its CLI engine process starts there, through the computer's link, never on the Space's server (modules/engine/node-turns.ts). */
+  onDevice?: boolean;
 }
 export type OpenSession = (spec: SessionSpec) => Promise<EngineSession>;
 

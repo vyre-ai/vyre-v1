@@ -62,6 +62,7 @@ const channelRow = t.obj({
 const recentRow = t.obj({
   threadId: id.thread, kind: threadKind, title: t.str(), agents: t.arr(id.agent), unread: t.int(), repliesUnread: t.opt(t.int({ minimum: 1, description: 'New replies, to messages the asker follows, in this chat: its row is bold with this count' })), working: t.bool(), starred: t.bool(),
   lastAt: t.ts(), preview: t.opt(t.str()), people: t.opt(t.arr(id.user, { description: 'The other people in the chat, never the asker: a direct message names the one person it is with' })),
+  goalId: t.opt(t.str({ description: "A goal's own chat names its goal: the sidebar shows it as the Goal row, not again among the chats", examples: ['gol_a1b2c3'] })),
 });
 const mention = t.obj({ kind: t.enm('person', 'agent'), id: t.str({ examples: ['usr_a1b2c3'] }) });
 const screenObject = t.obj({ type: t.str({ examples: ['record'] }), id: t.str({ examples: ['rec_a1b2c3'] }), title: t.opt(t.str()) });
@@ -419,6 +420,10 @@ export default defineManifest({
     }),
     write('chat.hook_resolve', 'Hooks module only: mark a stop line answered (allowed this time, always allowed, or denied), for everyone in the chat', {
       in: { ...threadT, messageId: id.message, resolution: t.enm('allowed', 'always', 'denied'), by: t.str(), what: t.opt(t.str({ maxLength: 200 })) }, out: { ok: t.bool() }, on: ['thread', '/threadId'], level: 'use', errors: ['validation.not_found'],
+      }),
+    write('chat.crew_line', 'The crew only: after Merge lands a teammate\'s branch, leave one quiet line in the chat. The text is built from the merge record ("Merged crew/ember-1 into main · +2 -0"); no words are passed in, only the job, and only the person who merged it can ask. It wakes no agent', {
+      in: { ...threadT, jobId: t.str({ examples: ['crw_01a1b2'] }) },
+      out: { messageId: id.message }, on: ['thread', '/threadId'], level: 'use', agent: false, errors: ['validation.not_found', 'validation.precondition_failed', 'permission.no_grant'],
     }),
     write('chat.note_offer.answer', 'Save or dismiss an offer to keep something from this chat as a note. Save makes the person\'s own private note that links back to the message', {
       in: { ...threadT, blockId: id.block, decision: t.enm('save', 'dismiss') }, out: { state: t.enm('saved', 'dismissed'), noteId: t.opt(t.str()) },

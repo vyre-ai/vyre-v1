@@ -17,7 +17,7 @@ const WATCHER = "agt_watch";
 
 interface ChatRow { messageId: string; threadId: string; threadSeq: number; author: { kind: string; id: string }; body: string; blocks: unknown[]; mentions: unknown[]; via?: { routineOwner: string }; depth: number; attachments?: string[] }
 
-function setup(opts: { thread?: Record<string, unknown>; task?: Record<string, unknown>; account?: () => ResolvedAccount; agentModel?: string; stream?: (e: StreamEvent) => void; addressAsker?: (threadId: string, agentId: string) => boolean; refuse?: (p: AgentPost) => boolean; agents?: Array<{ agentId: string; mode: "lead" | "listen"; watches?: string }>; script: readonly DriverEvent[] | ((i: TurnInput) => readonly DriverEvent[]) }) {
+function setup(opts: { thread?: Record<string, unknown>; task?: Record<string, unknown>; account?: () => ResolvedAccount; agentModel?: string; log?: { warn(m: string, a?: Record<string, unknown>): void }; stream?: (e: StreamEvent) => void; addressAsker?: (threadId: string, agentId: string) => boolean; refuse?: (p: AgentPost) => boolean; agents?: Array<{ agentId: string; mode: "lead" | "listen"; watches?: string }>; script: readonly DriverEvent[] | ((i: TurnInput) => readonly DriverEvent[]) }) {
   const h = harness();
   const chat: ChatRow[] = [];
   const echoes: Array<{ id: string; result: unknown }> = [];
@@ -47,7 +47,7 @@ function setup(opts: { thread?: Record<string, unknown>; task?: Record<string, u
     const result = await bridge.onEvent(ctx, { name: "message.received", payload: { messageId: row.messageId, threadId: T, author: { kind: "agent", id: agentId }, mentions: p.mentions, depth: 1 } });
     echoes.push({ id: row.messageId, result });
   };
-  bridge = createBridge({ postAs, ...(opts.stream ? { stream: opts.stream } : {}), ...(opts.addressAsker ? { addressAsker: opts.addressAsker } : {}) });
+  bridge = createBridge({ postAs, ...(opts.log ? { log: opts.log } : {}), ...(opts.stream ? { stream: opts.stream } : {}), ...(opts.addressAsker ? { addressAsker: opts.addressAsker } : {}) });
   const provider = scriptedProvider({ script: opts.script });
   const open = bridge.tap(provider.openSession);
   const engine = h.runtime({ openSession: (spec) => open(opts.account ? { ...spec, account: opts.account() } : spec), schedule: () => () => {} });
@@ -403,7 +403,8 @@ test("steps and thinking go to the live link as they happen, names only, and the
   assert.ok(!JSON.stringify(steps).includes("file_path") && !JSON.stringify(steps).includes("command"), "names and one short safe detail: no raw input of the step goes out");
   const post = s.chat.find((r) => r.author.id === LEAD && r.blocks.length > 0) as { blocks: Array<{ type: string; data: Record<string, unknown> }> } | undefined;
   assert.deepEqual(post?.blocks.map((b) => b.type), ["tool_call", "tool_result"], "what a call touches is not saved with the reply");
-  assert.ok(!JSON.stringify(post).includes("model.ts"));
+  // a saved step keeps only its short plain label (owner, 5 Nov: "Read model.ts"), never the path, the raw input or the output
+  assert.ok(!/file_path|"command"|\/[\w.-]+\/model\.ts/.test(JSON.stringify(post)), "only the short label is saved, never a path or the raw input");
   assert.equal(post?.blocks[1]?.data["name"], "Read");
   assert.equal(typeof post?.blocks[1]?.data["turnSecs"], "number", "how long the whole turn took rides on the last step");
 });
@@ -538,4 +539,17 @@ test("a copy of a thread message into its chat (Also post to the chat) is read, 
   const res = await s.bridge.onEvent(s.ctx, { name: "message.received", payload: { messageId: "msg_copy1", threadId: T, author: { kind: "person", id: "usr_dana" }, mentions: [], depth: 0, copy: true } });
   assert.deepEqual(res, { skipped: "copy" });
   assert.equal(s.provider.sessions.length, n);
+});
+
+test("an agent's hand-off cut at the hop limit is never silent: one quiet line in the chat and a warn with the depth", async () => {
+  const warns: Array<[string, Record<string, unknown> | undefined]> = [];
+  const s = setup({ agents: [{ agentId: LEAD, mode: "lead" }, { agentId: "agt_docs", mode: "listen" }], script: reply("x"), log: { warn: (m, a) => warns.push([m, a]) } });
+  await s.say("hello");   // opens the thread
+  s.chat.push({ messageId: "msg_agent9", threadId: T, threadSeq: s.chat.length + 1, author: { kind: "agent", id: LEAD }, body: "over to docs", blocks: [], mentions: [{ kind: "agent", id: "agt_docs" }], depth: 6 } as never);
+  await s.bridge.onEvent(s.ctx, { name: "message.received", payload: { messageId: "msg_agent9", threadId: T, author: { kind: "agent", id: LEAD }, mentions: [{ kind: "agent", id: "agt_docs" }], depth: 6, actingFor: "usr_dana" } });
+  await s.bridge.flush();
+  const cut = warns.find(([m]) => /hop limit/.test(m));
+  assert.equal(cut?.[1]?.["depth"], 6);
+  const note = s.chat.flatMap((r) => r.blocks as Array<{ type?: string; data?: { text?: string } }>).find((b) => b.type === "turn_status" && /Stopped passing this on after 3 hand-offs/.test(b.data?.text ?? ""));
+  assert.ok(note, "the chat says so, once");
 });

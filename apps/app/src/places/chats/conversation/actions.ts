@@ -1,7 +1,7 @@
 // What the conversation writes: one capability per action, each through `call` as the signed-in person. Nothing here touches the screen; the components decide what to show while
 // a write is out (the message is already on the page before chat.post answers) and what to say when it fails.
 import { isAssistantRow } from "../../../../../../lib/agent-kind.ts";
-import { installProgram, ranOnText } from "./status.ts";
+import { KNOWN_CODES, installProgram, ranOnText, wordsFor } from "./status.ts";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import type { ConversationData } from "./data.tsx";
 import { exportAs } from "./export.ts";
@@ -119,13 +119,27 @@ export async function setPlanMode(data: ConversationData, planMode: boolean): Pr
   await data.call("threads.set_plan_mode", { threadId: data.threadId, planMode } satisfies CapMap["threads.set_plan_mode"]["in"]);
 }
 
+/** The one sentence a code reads as (the same words the error card says), "" when the code has none. */
+function plainReason(code: string): string {
+  if (!KNOWN_CODES.includes(code)) return "";
+  const w = wordsFor(code);
+  return `${w.message}${w.cause ? ` ${w.cause}` : ""}`.trim();
+}
+/** Text a person cannot read as a sentence: JSON, a stack of braces or a very long body. */
+const looksRaw = (m: string): boolean => /^\s*[{\[]/.test(m) || m.length > 240;
+
 /** What Details shows on a failed turn: what the engine said and where it ran, from the turn itself (engine.turn.get). */
 export async function turnDetail(data: ConversationData, turnId: string): Promise<[string, string][]> {
   const { what } = (await data.call("engine.turn.get", { turnId } satisfies CapMap["engine.turn.get"]["in"])) as CapMap["engine.turn.get"]["out"];
   const t = what.turn;
   const secs = t.endedAt === undefined ? null : Math.max(0, Math.round((t.endedAt - t.startedAt) / 1000));
   const rows: Array<[string, string]> = [];
-  if (t.error?.message) rows.push(["Reason", t.error.message]);
+  // Reason is one plain sentence in Vyre's words; what the provider itself said (often raw JSON) sits in its own row, in Details only
+  if (t.error?.message) {
+    const plain = t.error.code ? plainReason(t.error.code) : "";
+    rows.push(["Reason", plain !== "" ? plain : looksRaw(t.error.message) ? "The provider's answer is under Provider said." : t.error.message]);
+    if (plain !== "" && t.error.message !== plain) rows.push(["Provider said", t.error.message]);
+  }
   if (t.model !== "") rows.push(["Model", t.model]);
   // where it ran, in order: her computer, then the server it went on to when the computer slept
   const ran = t.ranOn ?? [];
@@ -166,7 +180,7 @@ export async function retryTurn(data: ConversationData, turnId: string): Promise
 /** How to turn WSL on, as the chat says it: the same steps as sandbox/src/wsl/wsl.ts TURN_ON_WSL_STEPS (status.test.ts keeps them equal). */
 export const TURN_ON_WSL_TEXT = "To turn on WSL: open the Start menu, type PowerShell, and choose Run as administrator. Run: wsl --install --no-distribution. Then restart the computer. Vyre sets up its sandbox by itself on the next Claude Code, Codex or Grok reply.";
 
-export async function errorAction(data: ConversationData, key: string, turnId: string | undefined, say: (text: string) => void): Promise<void> {
+export async function errorAction(data: ConversationData, key: string, turnId: string | undefined, say: (text: string) => void, open?: { pickModel?: () => void }): Promise<void> {
   // "Run it on the server instead": the next turn of this chat runs on the Space, once; the chat stays where the person chose. A turn that failed for it runs again.
   if (key === "run_on_server") {
     await data.call("engine.placement.set", { threadId: data.threadId, target: "space", once: true } satisfies CapMap["engine.placement.set"]["in"]);
@@ -179,7 +193,10 @@ export async function errorAction(data: ConversationData, key: string, turnId: s
     if (turnId) await retryTurn(data, turnId);
     return;
   }
-  if (key === "pick_model") { say("Choose another model in the composer."); return; }
+  // Continue on "Stopped for an update": that turn runs again, same message and account (engine.turn.retry takes a stopped turn as it takes a failed one)
+  if (key.startsWith("continue_turn:")) { await retryTurn(data, key.slice("continue_turn:".length)); return; }
+  // the Model menu opens (a turn that had no model to run on says "Pick a model for <account>"); without a menu to open it says where it is
+  if (key === "pick_model") { if (open?.pickModel) open.pickModel(); else say("Choose a model in the composer."); return; }
   // Undo on "Moved ... to Vyre's Trash": each file comes back where it was
   if (key.startsWith("undo_trash:")) {
     let back = 0;
@@ -187,6 +204,7 @@ export async function errorAction(data: ConversationData, key: string, turnId: s
     say(back > 0 ? `Brought back ${back === 1 ? "the file" : `${back} files`} from Trash.` : "Those files are not in Trash any more.");
     return;
   }
+  if (key.startsWith("sign_in:")) { const ref = key.slice(8); if (data.nav.openAiAccount) data.nav.openAiAccount(ref); else if (data.nav.openAiSetup) data.nav.openAiSetup(); else say("Open Settings > Your AI and sign in again."); return; }
   if (key === "connect_ai" || key === "open_vault") { if (data.nav.openAiSetup) data.nav.openAiSetup(); else say("Open the Vault and add an AI account."); return; }
   if (installProgram(key) !== undefined) { if (turnId) await retryTurn(data, turnId); else say("Send your message again to set it up."); return; }
   // Windows: WSL needs admin and a restart, which only the person can do; the steps, word for word (sandbox/src/wsl/wsl.ts TURN_ON_WSL_STEPS)

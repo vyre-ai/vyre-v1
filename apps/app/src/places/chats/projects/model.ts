@@ -2,13 +2,13 @@
 import type { CapMap } from "../../../../../../generated/types.ts";
 
 export type Health = "on" | "risk" | "off" | "hold" | "done";
-export interface ProjectLine { id: string; title: string; health?: Health; starred: boolean; archived: boolean }
+export interface ProjectLine { id: string; recordId?: string; unread?: number; title: string; health?: Health; starred: boolean; archived: boolean }
 type ListRow = CapMap["projects.list"]["out"]["projects"][number];
 
 export const PROJECTS_SHOWN = 3;
 
 export function projectLines(rows: readonly ListRow[], starred: ReadonlySet<string>): ProjectLine[] {
-  return rows.map((r) => ({ id: r.projectId, title: r.title, ...(r.health ? { health: r.health } : {}), starred: starred.has(r.projectId), archived: r.archivedAt !== undefined }));
+  return rows.map((r) => ({ id: r.projectId, recordId: r.recordId, title: r.title, ...(r.health ? { health: r.health } : {}), starred: starred.has(r.projectId), archived: r.archivedAt !== undefined }));
 }
 
 /** Starred first, then the order the Space lists them in; an archived project is in no list. */

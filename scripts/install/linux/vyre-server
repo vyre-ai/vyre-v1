@@ -302,6 +302,7 @@ check_all() {
       "") finding host.sites_runner degraded "The sites runner is not running, so sites cannot deploy. Start it: vyre-server start." ;;
       *) finding host.sites_runner degraded "The sites runner is $sr. Read: vyre-server logs sites-runner." ;;
     esac
+    check_docker_gw
     ai=$(lock_get VYRE_AGENT_IMAGE)
     if [ -n "$ai" ]; then
       if docker image inspect "$ai" >/dev/null 2>&1; then finding host.agent_image healthy "The agent computer image is pulled."
@@ -327,6 +328,34 @@ check_all() {
     if systemctl is-enabled vyre-server-update.timer >/dev/null 2>&1; then finding host.update_timer healthy "The daily update check is on."
     else finding host.update_timer degraded "The daily update check is off. Turn it on: systemctl enable --now vyre-server-update.timer."
     fi
+  fi
+}
+
+# ---- Docker's own requirements ------------------------------------------------------------------------------------------------------
+# compose.server.yml sets gw_priority on the default network (Docker Engine 28 = API 1.48, Compose 2.33): it keeps the published ports on that network, so setting up an agent computer does not drop
+# everyone's open connections. An older engine ignores the key, an older Compose rejects it.
+NEED_API="1.48"; NEED_COMPOSE="2.33"
+docker_api() { docker version --format '{{.Server.APIVersion}}' 2>/dev/null || true; }
+docker_compose_ver() { docker compose version --short 2>/dev/null | sed -n 's/^v\{0,1\}\([0-9][0-9]*\.[0-9][0-9]*\).*/\1/p' | head -n 1; }
+# at_least HAVE NEED: 0 when HAVE (major.minor) is NEED or newer, 1 when older, 2 when HAVE is not a version.
+at_least() {
+  hm=${1%%.*}; hn=${1#*.}; hn=${hn%%.*}; nm=${2%%.*}; nn=${2#*.}
+  case "$hm$hn" in ""|*[!0-9]*) return 2 ;; esac
+  [ "$hm" -gt "$nm" ] || { [ "$hm" -eq "$nm" ] && [ "$hn" -ge "$nn" ]; }
+}
+# preflight_docker: before an update unpacks or changes anything. An engine or Compose too old stops it with the version needed and how to upgrade; the running server is not touched. A version that cannot be read is not guessed at.
+preflight_docker() {
+  api=$(docker_api)
+  if [ -n "$api" ] && ! at_least "$api" "$NEED_API"; then die "this update needs Docker Engine 28 or newer (this machine runs API $api). Update Docker (https://docs.docker.com/engine/install/), then run: vyre-server update. The running server was not touched."; fi
+  cv=$(docker_compose_ver)
+  if [ -n "$cv" ] && ! at_least "$cv" "$NEED_COMPOSE"; then die "this update needs Docker Compose 2.33 or newer (this machine runs $cv). Update the docker compose plugin, then run: vyre-server update. The running server was not touched."; fi
+}
+# check_docker_gw: the doctor's finding for the same rule.
+check_docker_gw() {
+  api=$(docker_api)
+  [ -n "$api" ] || return 0
+  if at_least "$api" "$NEED_API"; then finding host.docker_gw healthy "Docker Engine API $api keeps the Space's ports steady when agent computers are set up."
+  elif [ "$?" = 1 ]; then finding host.docker_gw degraded "Docker Engine API $api is older than 1.48 (Docker 28). Each agent computer set up will drop everyone's open connections for a moment. Update Docker, then: vyre-server restart."
   fi
 }
 
@@ -557,8 +586,10 @@ set_current() {
 sync_image() {
   img=$(sed -n 's/^VYRE_IMAGE=//p' "$DIR/current/images.lock" | head -n 1)
   [ -n "$img" ] || return 1
+  # the agent computer image of this release, by digest: vyred asks for exactly this one (compose.server.yml VYRE_AGENT_COMPUTER_IMAGE). A release without one leaves the line out and the default applies.
+  aimg=$(sed -n 's/^VYRE_AGENT_IMAGE=//p' "$DIR/current/images.lock" | head -n 1)
   cp -p "$DIR/compose.env" "$DIR/compose.env.new" || return 1
-  { grep -v '^VYRE_IMAGE=' "$DIR/compose.env" || true; printf 'VYRE_IMAGE=%s\n' "$img"; } >"$DIR/compose.env.new" || { rm -f "$DIR/compose.env.new"; return 1; }
+  { grep -v -e '^VYRE_IMAGE=' -e '^VYRE_AGENT_COMPUTER_IMAGE=' "$DIR/compose.env" || true; printf 'VYRE_IMAGE=%s\n' "$img"; [ -z "$aimg" ] || printf 'VYRE_AGENT_COMPUTER_IMAGE=%s\n' "$aimg"; } >"$DIR/compose.env.new" || { rm -f "$DIR/compose.env.new"; return 1; }
   mv -f "$DIR/compose.env.new" "$DIR/compose.env"
 }
 
@@ -654,6 +685,7 @@ cmd_update() {
   if [ "$c" -le 0 ]; then say "Vyre Server $from is the newest on the $CHANNEL channel."; return 0; fi
   say "Vyre Server $REL_VERSION is available (running $from)."
   [ "$check_only" = 0 ] || return 10
+  preflight_docker
   if [ "$DRY" = 1 ]; then say "Would install $REL_VERSION from the $CHANNEL channel; no images, backups or running services were changed."; return 0; fi
   unpack_release
   [ -n "$(sed -n 's/^VYRE_IMAGE=//p' "$DIR/releases/$REL_VERSION/images.lock")" ] || die "the release names no server image; nothing was changed."

@@ -260,3 +260,27 @@ test("Restricted may be given only to a provider with an account that keeps noth
   assert.equal(list.providers.find((p) => p.driver === "openai")?.allowed, false);
   assert.match(list.providers.find((p) => p.driver === "openai")?.reason ?? "", /restricted records may not go/);
 });
+
+test("a connected CLI engine says in one sentence what is wrong before the first message: not installed, or sign in again; one that works, or is not connected, is left alone", async () => {
+  const { cliTrouble } = await import("../handlers/extra/models.ts");
+  const row = (driver: string, connected: boolean) => ({ driver, kind: "cli", title: driver, connected, allowed: true }) as never;
+  const acct = (state: string) => [{ id: "p1", providerKey: "codex", name: "OpenAI", connection: "subscription", scope: "mine", itemId: "i1", engine: "codex", spaceMayUse: false, state }] as never;
+  const without = { env: { PATH: "" }, platform: "linux" } as never;
+  assert.equal((cliTrouble(row("codex", true), acct("ok"), without) as { reason?: string }).reason, "Codex is not installed on this computer. Install it, or pick another AI.");
+  assert.equal((cliTrouble(row("codex", true), acct("ok"), without) as { allowed: boolean }).allowed, false);
+  assert.equal((cliTrouble(row("codex", false), [], without) as { reason?: string }).reason, undefined, "nothing connected: left as it was");
+  assert.equal((cliTrouble(row("anthropic", true), acct("ok"), without) as { reason?: string }).reason, undefined, "an API engine needs no program");
+});
+
+test("with the Codex program installed, a sign-in that needs doing again says Sign in to Codex again, and a working one says nothing", async () => {
+  const { cliTrouble } = await import("../handlers/extra/models.ts");
+  const fs = await import("node:fs"), os = await import("node:os"), path = await import("node:path");
+  const bin = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-bin-"));
+  fs.writeFileSync(path.join(bin, "codex"), "#!/bin/sh\n", { mode: 0o755 });
+  const probe = { env: { PATH: bin }, platform: "linux" } as never;
+  const row = (connected: boolean) => ({ driver: "codex", kind: "cli", title: "Codex", connected, allowed: true }) as never;
+  const acct = (state: string) => [{ id: "p1", providerKey: "codex", name: "OpenAI", connection: "subscription", scope: "mine", itemId: "i1", engine: "codex", spaceMayUse: false, state }] as never;
+  assert.equal((cliTrouble(row(false), acct("needs_sign_in"), probe) as { reason?: string }).reason, "Sign in to Codex again.");
+  assert.equal((cliTrouble(row(true), acct("ok"), probe) as { reason?: string }).reason, undefined);
+  assert.equal((cliTrouble(row(true), acct("ok"), probe) as { allowed: boolean }).allowed, true);
+});

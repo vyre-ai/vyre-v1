@@ -23,11 +23,7 @@
   "apps/app/src/places/files/memory/know.ts": 1,
   "apps/app/src/places/files/review/model.ts": 1,
   "apps/app/src/places/files/runbook/model.ts": 3,
-  "apps/app/src/places/files/tree/model.ts": 4,
   "apps/app/src/places/files/viewer/redact.tsx": 2,
-  "apps/app/src/places/home/sections-a/model.ts": 3,
-  "apps/app/src/places/home/sections-a/since.ts": 1,
-  "apps/app/src/places/home/sections-b/model.ts": 1,
   "apps/app/src/places/inbox/calendar/Calendar.tsx": 1,
   "apps/app/src/places/inbox/calendar/eventpane/model.ts": 5,
   "apps/app/src/places/inbox/calendar/model.ts": 8,
@@ -37,9 +33,5 @@
   "apps/app/src/places/inbox/sidebar/model.ts": 3,
   "apps/app/src/places/records/projectpage/linked/model.ts": 1,
   "apps/app/src/places/records/projectpage/model.ts": 1,
-  "apps/app/src/places/records/projectpage/overview/Properties.tsx": 1,
-  "apps/app/src/places/records/table/model.ts": 1,
-  "apps/app/src/places/records/typeedit/FieldsPanel.tsx": 1,
-  "ui/src/ArtifactCard/model.ts": 1,
-  "ui/src/HistoryTab/index.tsx": 1
+  "apps/app/src/places/records/typeedit/FieldsPanel.tsx": 1
 }

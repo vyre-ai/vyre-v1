@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
 import type { CapMap } from "../../../../../generated/types.ts";
-import { deviceZone, validZone } from "../../../../../lib/zones.ts";
+import { deviceZone, setCurrentZones, validZone } from "../../../../../lib/zones.ts";
 import { ZonesProvider } from "../../../../../ui/src/Time/index.tsx";
 import type { ShellRuntime } from "../providers/runtime.tsx";
 
@@ -35,5 +35,6 @@ export function ZonesHost({ rt, children }: { rt: ShellRuntime; children: ReactN
   }, [load]);
   const device = useMemo(() => deviceZone(), []);
   const zones = useMemo(() => zonesFrom(state.space, state.person, device), [state, device]);
+  setCurrentZones(zones);
   return <ZonesProvider value={zones}>{children as ReactElement}</ZonesProvider>;
 }

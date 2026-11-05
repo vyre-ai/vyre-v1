@@ -4,7 +4,7 @@ Lane L7a. Kind module. Version 0.1.0.
 
 Requires: access.
 
-## Capabilities (54)
+## Capabilities (55)
 
 - [providers.add](../capabilities/providers.add.md): Connect a provider with a pasted API key (stored once, used by handle) or a local model address
 - [providers.catalog](../capabilities/providers.catalog.md): The provider gallery from the definition files: name, logo, connection kinds, model list source, engine
@@ -12,6 +12,7 @@ Requires: access.
 - [providers.custom_list](../capabilities/providers.custom_list.md): The custom OpenAI-compatible endpoints this Space registered
 - [providers.custom_remove](../capabilities/providers.custom_remove.md): Remove a custom endpoint I registered, and my connections to it
 - [providers.list](../capabilities/providers.list.md): My connected AI providers: logo, how connected, Mine or Shared, agents using it, this month's usage
+- [providers.mark_signin_needed](../capabilities/providers.mark_signin_needed.md): System: the engine found a sign-in missing or refused when a turn ran on this account; the account reads "Sign in again" in Settings until it is signed in (a person's own account only; an API key is never marked here)
 - [providers.own_people](../capabilities/providers.own_people.md): Who runs on their own AI sign-ins: the people with a Mine provider and how many each, for the AI accounts switch (never an account name or a value)
 - [providers.remove](../capabilities/providers.remove.md): Remove a provider and its key or sign-in
 - [providers.set_keeps_nothing](../capabilities/providers.set_keeps_nothing.md): An owner or admin says an AI account shared with the Space keeps nothing of what it is sent. Restricted data may only go to accounts that do. A local model always does

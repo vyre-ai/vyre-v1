@@ -230,19 +230,12 @@ export function buildEntries(b: BuildIn): Entry[] {
 const WEEKDAY = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 const MONTH = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
-/** A due date in the words a person uses, and whether it has passed. In a Space's zone with a person's own beside it when they differ (`title` carries both for hover); a plain number is a fixed offset (a private list, a test). */
-export function dueLabel(due: number | undefined, now: number, z: number | Zones): { text: string; late: boolean; title?: string } {
+/** A due date in the words a person uses, and whether it has passed: the day is the Space's day, `title` carries both zones for hover. */
+export function dueLabel(due: number | undefined, now: number, z: Zones): { text: string; late: boolean; title: string } | { text: ""; late: false; title?: undefined } {
   if (due === undefined) return { text: "", late: false };
-  if (typeof z !== "number") {
-    const days = dayIn(due, z.space) - dayIn(now, z.space);
-    const text = days === 0 ? "Today" : days === 1 ? "Tomorrow" : days === -1 ? "Yesterday" : days > 1 && days < 7 ? WEEKDAY[partsIn(due, z.space).dow]! : dateIn(due, z.space).replace(/^\w+ /, "");
-    return { text, late: days < 0, title: titleOf(due, z) };
-  }
-  const start = dayStart(now, z);
-  const days = Math.floor((dayStart(due, z) - start) / DAY);
-  const d = new Date(due + z * 60_000);
-  const text = days === 0 ? "Today" : days === 1 ? "Tomorrow" : days === -1 ? "Yesterday" : days > 1 && days < 7 ? WEEKDAY[d.getUTCDay()]! : `${d.getUTCDate()} ${MONTH[d.getUTCMonth()]}`;
-  return { text, late: due < start };
+  const days = dayIn(due, z.space) - dayIn(now, z.space);
+  const text = days === 0 ? "Today" : days === 1 ? "Tomorrow" : days === -1 ? "Yesterday" : days > 1 && days < 7 ? WEEKDAY[partsIn(due, z.space).dow]! : dateIn(due, z.space).replace(/^\w+ /, "");
+  return { text, late: days < 0, title: titleOf(due, z) };
 }
 
 export const KIND_TITLE: Record<string, string> = { work: "Work", approve: "Approve", review: "Review", answer: "Answer", unblock: "Unblock", signature: "Signature" };

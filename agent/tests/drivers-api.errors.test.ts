@@ -136,6 +136,29 @@ test("a stream that goes quiet is cut after the idle time and reported", async (
   assert.equal(f.requests[0]?.signal.aborted, true, "the connection was released");
 });
 
+test("a provider that takes the request and never answers ends the turn with one plain line, and the connection is released", async () => {
+  const seen: Array<{ provider: string; model: string; account: string }> = [];
+  const { events, f } = await run(() => ({ latencyMs: 60_000, chunks: [] }), { firstTokenMs: 30, retry: { max: 3 }, onNoFirstToken: (e) => seen.push(e) });
+  assert.equal(f.requests.length, 1, "no retry of a request the provider took");
+  const e = errorOf(events);
+  assert.equal(e.code, "engine.no_first_token");
+  assert.equal(e.message, "Your AI didn't answer in time");
+  assert.equal(seen.length, 1, "logged once");
+  assert.equal(seen[0]?.provider, "openai");
+  assert.ok(seen[0] && seen[0].model.length > 0 && seen[0].account !== undefined);
+  assert.equal(f.requests[0]?.signal.aborted, true, "the connection was released");
+});
+
+test("a stream that opens and sends only pings is cut at the first-token deadline, not kept alive by the pings", async () => {
+  const seen: unknown[] = [];
+  const pings = Array.from({ length: 400 }, () => new TextEncoder().encode(": ping\n\n"));
+  const { events, f } = await run(() => ({ chunks: pings, gapMs: 10 }), { firstTokenMs: 80, idleMs: 5_000, retry: { max: 3 }, onNoFirstToken: (e) => seen.push(e) });
+  assert.equal(f.requests.length, 1, "no retry");
+  assert.equal(errorOf(events).code, "engine.no_first_token");
+  assert.equal(seen.length, 1);
+  assert.equal(f.requests[0]?.signal.aborted, true, "the connection was released");
+});
+
 test("cancel mid-stream ends the send quietly and releases the connection", async () => {
   const g = gate();
   const wire = fixture("openai-text");
