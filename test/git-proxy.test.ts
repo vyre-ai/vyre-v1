@@ -224,19 +224,55 @@ test("when the default branch cannot be learned the push is refused, never guess
   assert.equal(landed(w), 0);
 }));
 
-test("a repository outside the chat is neither fetched nor pushed, and a push is never started under Ask", T, () => withWorld({ modes: { push_branch: "ask" } }, async (w) => {
+test("a repository outside the chat is neither fetched nor pushed", T, () => withWorld({}, async (w) => {
   const other = await w.run(w.tmp, "clone", "https://github.com/other-org/secret.git", path.join(w.tmp, "o"));
   assert.notEqual(other.code, 0);
   assert.match(other.out, /only the repositories of its chat|403/);
   assert.equal(w.gh.seen.some((s) => s.path.includes("other-org")), false, "nothing was sent upstream, with or without a credential");
+}));
+
+test("push a branch on Ask: nothing is asked at the start, the push is held, and it lands after the yes", T, () => withWorld({ modes: { push_branch: "ask" } }, async (w) => {
+  const dir = await w.clone();
+  await w.run(dir, "checkout", "-b", "x");
+  const sha = await w.commit(dir, "x.txt");
+  const push = w.run(dir, "push", "origin", "x");
+  const taskId = await w.waitHeld();
+  assert.equal(w.holds.get(taskId)!.action, "push_branch", "the question is about the push itself");
+  assert.equal(w.holds.size, 1, "nobody was asked at the start of the push");
+  assert.equal(w.gh.writes().length, 0, "no write token has reached GitHub, not even for the advertisement");
+  assert.equal(w.gh.ref(REPO, "refs/heads/x"), null);
+  w.approve(taskId);
+  const r = await push;
+  assert.equal(r.code, 0, r.out);
+  assert.equal(w.gh.ref(REPO, "refs/heads/x"), sha, "landed after the yes");
+  // inside the ten minutes of that approval a second branch push goes without a second question (the repository's window, as for any use)
+  await w.commit(dir, "y.txt");
+  assert.equal((await w.run(dir, "push", "origin", "x:y")).code, 0);
+  assert.equal(w.holds.size, 1);
+}));
+
+test("push a branch on Ask, denied: nothing lands and no write token is made", T, () => withWorld({ modes: { push_branch: "ask" } }, async (w) => {
   const dir = await w.clone();
   await w.run(dir, "checkout", "-b", "x");
   await w.commit(dir, "x.txt");
-  const r = await w.run(dir, "push", "origin", "x");
-  assert.notEqual(r.code, 0);
-  assert.match(r.out, /Set 'Push a branch' to Always/);
-  assert.equal(w.held().length, 0, "nobody was asked at the setup of a push");
+  const push = w.run(dir, "push", "origin", "x");
+  w.deny(await w.waitHeld());
+  assert.notEqual((await push).code, 0);
+  assert.equal(w.gh.ref(REPO, "refs/heads/x"), null);
   assert.equal(w.gh.writes().length, 0);
+}));
+
+test("push on Ask with an empty remote and several refs: the advertisement made from a fetch's is accepted by real git", T, () => withWorld({ modes: { push_branch: "ask", push_default: "ask" } }, async (w) => {
+  const dir = await w.clone();
+  await w.run(dir, "tag", "v1");
+  await w.run(dir, "checkout", "-b", "one");
+  await w.commit(dir, "1.txt");
+  const push = w.run(dir, "push", "origin", "one", "v1");
+  const t = await w.waitHeld();
+  w.approve(t);
+  const r = await push;
+  assert.equal(r.code, 0, r.out);
+  assert.ok(w.gh.ref(REPO, "refs/tags/v1") && w.gh.ref(REPO, "refs/heads/one"));
 }));
 
 test("sessions are capped per person first, and the waiting spool sits in a private folder", T, () => withWorld({}, async (w) => {

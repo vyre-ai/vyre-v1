@@ -18,7 +18,7 @@ import fs from "node:fs";
 import fsp from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { defaultBranchOf, MAX_COMMAND_BYTES, needsOf, oneLine, PktError, readUpdate, refusedReport, remoteLine, repoOfPath } from "../../../lib/git-proxy.ts";
+import { defaultBranchOf, MAX_COMMAND_BYTES, needsOf, oneLine, PktError, readUpdate, receiveAdvert, refusedReport, remoteLine, repoOfPath } from "../../../lib/git-proxy.ts";
 import type { RefNeed, Update } from "../../../lib/git-proxy.ts";
 import type { CtxSeed, InvokeResult } from "../invoke.ts";
 
@@ -236,6 +236,19 @@ export function createGitProxy(d: GitProxyDeps): { port: GitProxyPort; /** The p
       const chunks: Buffer[] = []; let size = 0;
       for await (const c of r) { size += (c as Buffer).length; if (size > max) { r.destroy(); break; } chunks.push(c as Buffer); }
       return { status: r.statusCode ?? 502, body: Buffer.concat(chunks) };
+    } finally { clearTimeout(timer); }
+  }
+
+  /** A whole answer up to `max` bytes; `cut` says it was longer. */
+  async function getWhole(url: URL, headers: http.OutgoingHttpHeaders, max: number, ms = 20_000): Promise<{ status: number; body: Buffer; cut: boolean }> {
+    const { req, response } = open("GET", url, headers);
+    const timer = setTimeout(() => req.destroy(new Error("timeout")), ms);
+    try {
+      req.end();
+      const r = await response;
+      const chunks: Buffer[] = []; let size = 0, cut = false;
+      for await (const c of r) { size += (c as Buffer).length; if (size > max) { cut = true; r.destroy(); break; } chunks.push(c as Buffer); }
+      return { status: r.statusCode ?? 502, body: Buffer.concat(chunks), cut };
     } finally { clearTimeout(timer); }
   }
 
@@ -489,12 +502,24 @@ export function createGitProxy(d: GitProxyDeps): { port: GitProxyPort; /** The p
    */
   async function advertisePush(s: GitSession, repo: string, req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
     if (!s.repos.has(repo.toLowerCase())) return plain(res, 403, `This session can push only to the repositories of its chat. ${repo} is not one of them.`);
-    // GitHub shows a push its advertisement only to a write token, and nobody is asked at this point (the push that follows is the person's question, ref by ref): a kind of use the person's settings let
-    // run without asking makes the token, and if neither does the push is refused here in plain words.
+    // Nobody is asked here (the push that follows is the person's question, ref by ref). A kind of use the settings let run without asking makes a write token for GitHub's own advertisement; otherwise
+    // the advertisement is made from a fetch's, with a read token, and the hold comes at the push itself.
     let modes: Record<string, string> = {};
-    try { const r = await d.invoke("github.me.policy.get", {}, seed(s)); modes = ((r.status === "ok" ? (r.output as { policy?: Record<string, string> } | null)?.policy : undefined) ?? {}); } catch { /* refused below */ }
+    try { const r = await d.invoke("github.me.policy.get", {}, seed(s)); modes = ((r.status === "ok" ? (r.output as { policy?: Record<string, string> } | null)?.policy : undefined) ?? {}); } catch { /* the read below says why */ }
     const pick = (["push_branch", "push_default"] as const).find((k) => modes[k] === "always");
-    if (!pick) return plain(res, 403, "Your GitHub settings ask before a session pushes a branch, so a session cannot start a push. Set 'Push a branch' to Always in Settings, GitHub.");
+    if (!pick) {
+      if ((["push_branch", "push_default"] as const).every((k) => modes[k] === "never")) return plain(res, 403, "You set GitHub to never let anything push. Change it in Settings, GitHub.");
+      const rd = await obtain(s, repo, "read", { title: "Read", phrase: "the read" }, { gone: () => res.destroyed });
+      if (rd.until === "no") return plain(res, 403, rd.message);
+      let got: { status: number; body: Buffer; cut: boolean };
+      try { got = await getWhole(upstreamUrl(repo, "info/refs", "?service=git-upload-pack"), { authorization: basic(rd.token), "user-agent": "git/2.43 vyre-proxy" }, 16 * 1024 * 1024); }
+      catch { return plain(res, 502, "GitHub could not be reached."); }
+      const made = got.status === 200 && !got.cut ? receiveAdvert(got.body) : null;
+      if (!made) return plain(res, 502, "GitHub's answer could not be turned into a push. Try again.");
+      res.writeHead(200, { "content-type": "application/x-git-receive-pack-advertisement", "cache-control": "no-store" });
+      res.end(made);
+      return;
+    }
     const got = await ask(s, repo, pick, false);
     if (!("ok" in got)) return plain(res, 403, "refused" in got ? got.refused : "Your GitHub settings ask before a session pushes. Change them in Settings, GitHub.");
     const { req: up, response } = open("GET", upstreamUrl(repo, "info/refs", "?service=git-receive-pack"), passHeaders(req, got.ok));

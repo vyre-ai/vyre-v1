@@ -272,10 +272,17 @@ export async function token(ctx: GithubCtx, input: { person?: string; repo: stri
 }
 
 /** The Gate released an "Ask me first": remember it for ten minutes. */
-export function meApprove(ctx: GithubCtx, input: { repo: string; action: Action; consumer: string }): { approved: boolean } {
+export async function meApprove(ctx: GithubCtx, input: { repo: string; action: Action; consumer: string }): Promise<{ approved: boolean }> {
   ensureMe(ctx);
   const person = ctx.principal.kind === "person" ? ctx.principal.id : ctx.actingFor;
   if (!person) throw fail("permission.no_grant", ctx.trace.traceId, { message: "An approval belongs to a person." });
+  // Defence in depth: the handler runs only after the Gate released it, and an agent's call is released only by the person. If the Gate would not hold this act for the agent any more (a rule change, a new
+  // way to lift it), refuse here, so an approval can never be recorded by an agent that nobody was asked for.
+  if (ctx.principal.kind === "agent") {
+    let hold: unknown;
+    try { hold = ((await ctx.call("gate.effective_rule", { principal: { kind: "agent", id: ctx.principal.id }, act: "github_approval" })) as { hold?: unknown } | null)?.hold; } catch { hold = undefined; }
+    if (hold !== true) throw fail("permission.no_grant", ctx.trace.traceId, { message: "A GitHub approval is the person's to give. It was not recorded." });
+  }
   // one push: the grant is for that push alone (repo#fingerprint), is not the ten-minute window of the repository, and is used up by the push (allowed)
   const key = ONCE.test(input.consumer) ? `${input.repo}#${input.consumer.slice(input.consumer.indexOf(":") + 1)}` : input.repo;
   put(ctx, "github_grant", { person, repo: key, action: input.action }, { until: ctx.now() + (ONCE.test(input.consumer) ? ONCE_MS : GRANT_MS) });

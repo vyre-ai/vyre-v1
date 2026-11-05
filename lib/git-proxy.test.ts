@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { band, defaultBranchOf, MAX_COMMAND_BYTES, needsOf, pkt, PktError, readUpdate, refusedReport, repoOfPath, FLUSH } from "./git-proxy.ts";
+import { band, receiveAdvert, defaultBranchOf, MAX_COMMAND_BYTES, needsOf, pkt, PktError, readUpdate, refusedReport, repoOfPath, FLUSH } from "./git-proxy.ts";
 
 const A = "a".repeat(40), B = "b".repeat(40), Z = "0".repeat(40);
 const cmds = (...lines: string[]): Buffer => Buffer.concat([...lines.map((l, i) => pkt(i === 0 ? `${l}\0 report-status side-band-64k agent=git/2.43` : l)), FLUSH]);
@@ -89,4 +89,18 @@ test("only owner/repo.git under the three addresses is a repository", () => {
   assert.deepEqual(repoOfPath("vyre-ai/website.git/info/refs"), { repo: "vyre-ai/website", tail: "info/refs" });
   assert.equal(repoOfPath("vyre-ai/website.git/git-receive-pack")!.tail, "git-receive-pack");
   for (const p of ["a/b/c.git/info/refs", "../x.git/info/refs", "a/..git/info/refs", "a/b.git/HEAD", "a/b.git/info/refs/x", "a/b/info/refs", ""]) assert.equal(repoOfPath(p), null, p);
+});
+
+test("a push's advertisement is made from a fetch's: refs under refs/ only, receive-pack capabilities, empty repositories too", () => {
+  const up = Buffer.concat([pkt("# service=git-upload-pack\n"), FLUSH, pkt(`${A} HEAD\0multi_ack symref=HEAD:refs/heads/main agent=git/github\n`), pkt(`${A} refs/heads/main\n`), pkt(`${B} refs/pull/1/head\n`), pkt(`${B} refs/tags/v1\n`), pkt(`${A} refs/tags/v1^{}\n`), FLUSH]);
+  const out = receiveAdvert(up)!.toString("utf8");
+  assert.match(out, /^001f# service=git-receive-pack\n0000/);
+  assert.match(out, /refs\/heads\/main\0report-status report-status-v2 delete-refs side-band-64k quiet atomic ofs-delta agent=git\/github\n/);
+  assert.match(out, /refs\/tags\/v1\n/);
+  assert.doesNotMatch(out, /HEAD|\^\{\}|refs\/pull/);
+  assert.ok(out.endsWith("0000"));
+  const empty = Buffer.concat([pkt("# service=git-upload-pack\n"), FLUSH, pkt(`${Z} capabilities^{}\0agent=git/github\n`), FLUSH]);
+  assert.match(receiveAdvert(empty)!.toString("utf8"), /0{40} capabilities\^\{\}\0report-status/);
+  assert.equal(receiveAdvert(Buffer.from("junk")), null);
+  assert.equal(receiveAdvert(Buffer.concat([pkt("version 2\n"), FLUSH])), null);
 });

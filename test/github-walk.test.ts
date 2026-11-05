@@ -98,7 +98,7 @@ test("walk: connect, reach, a refused repository, Ask me first, the policy and a
     // ---- 4. Ask me first holds a card; once approved the token comes, and the filler holds it, not the module
     await assert.rejects(me.token(g.ctx, { repo: "vyre-ai/website", action: "open_pr", consumer: "crew" }), (e: any) => e.error.code === "permission.needs_approval");   // eslint-disable-line @typescript-eslint/no-explicit-any
     assert.equal(gate.held, 1);
-    me.meApprove(g.ctx, { repo: "vyre-ai/website", action: "open_pr", consumer: "crew" });
+    await me.meApprove(g.ctx, { repo: "vyre-ai/website", action: "open_pr", consumer: "crew" });
     const t = await me.token(g.ctx, { repo: "vyre-ai/website", action: "open_pr", consumer: "crew" });
     assert.match(t.handle, /^#fill_/);
     assert.equal(JSON.stringify(t).includes("ghs_"), false);

@@ -44,7 +44,7 @@ function world() {
   h.on("GET /user/orgs", { status: 200, body: [{ login: "vyre-ai", id: 9 }, { login: "other-org", id: 10 }, { login: "installed-all", id: 11 }] });
   h.tokenEndpoint();
   // the Gate: the first approve is held (needs approval); `release` is the person pressing Approve, which runs the handler
-  const gate = { held: [] as Array<Record<string, unknown>>, linked: [] as string[], releaseNext: false };
+  const gate = { held: [] as Array<Record<string, unknown>>, linked: [] as string[], releaseNext: false, agentHold: true };
   const base = h.ctx.call.bind(h.ctx);
   h.ctx.call = async (cap, input) => {
     if (cap === "github.me.approve") {
@@ -53,6 +53,7 @@ function world() {
       gate.held.push(asked);
       throw fail("permission.needs_approval", "0123456789abcdef0123456789abcdef");
     }
+    if (cap === "gate.effective_rule") return { hold: gate.agentHold };
     if (cap === "identity.github_link") { gate.linked.push(String((input as { code: string }).code)); return { login: "maya-codes" }; }
     return base(cap, input);
   };
@@ -160,7 +161,7 @@ test("policy: Never refuses with the person's own words; Ask me first goes to th
   await refused(token(w.h.ctx, { repo: "vyre-ai/website", action: "open_pr", consumer: "crew" }), "permission.needs_approval");
   assert.deepEqual(w.gate.held, [{ repo: "vyre-ai/website", action: "open_pr", consumer: "crew" }]);
   assert.equal(w.h.withPath("POST", `/app/installations/${INSTALL}/access_tokens`).length, 0, "nothing minted while held");
-  assert.deepEqual(meApprove(w.h.ctx, { repo: "vyre-ai/website", action: "open_pr", consumer: "crew" }), { approved: true });   // the person pressed Approve: the Gate released the call
+  assert.deepEqual(await meApprove(w.h.ctx, { repo: "vyre-ai/website", action: "open_pr", consumer: "crew" }), { approved: true });   // the person pressed Approve: the Gate released the call
   const t = await token(w.h.ctx, { repo: "vyre-ai/website", action: "open_pr", consumer: "crew" });
   assert.deepEqual(t.permissions, { pull_requests: "write", contents: "read", metadata: "read" });
   assert.equal(w.gate.held.length, 1, "no second question inside the ten minutes");
@@ -199,14 +200,14 @@ test("one push: an approval covers exactly that push, once, and is not the repos
   const ask = (consumer: string) => token(w.h.ctx, { repo: "vyre-ai/website", action: "push_default", consumer });
   const A = `git.push:${"a".repeat(48)}`, B = `git.push:${"b".repeat(48)}`;
   await refused(ask(A), "permission.needs_approval");
-  meApprove(w.h.ctx, { repo: "vyre-ai/website", action: "push_default", consumer: A });
+  await meApprove(w.h.ctx, { repo: "vyre-ai/website", action: "push_default", consumer: A });
   await refused(ask(B), "permission.needs_approval");                              // another push is not covered
   await refused(ask("crew"), "permission.needs_approval");                         // the ten-minute window was never opened
   assert.ok((await ask(A)).handle, "that push goes");
   await refused(ask(A), "permission.needs_approval");                              // the same push again asks again
   // under Always nothing is asked, and a left-over approval is used up all the same
   policySet(w.h.ctx, { policy: { push_default: "always" } });
-  meApprove(w.h.ctx, { repo: "vyre-ai/website", action: "push_default", consumer: B });
+  await meApprove(w.h.ctx, { repo: "vyre-ai/website", action: "push_default", consumer: B });
   assert.ok((await ask(B)).handle);
   policySet(w.h.ctx, { policy: { push_default: "ask" } });
   await refused(ask(B), "permission.needs_approval");
@@ -215,7 +216,7 @@ test("one push: an approval covers exactly that push, once, and is not the repos
 test("disconnect: the grant is revoked, the Vault item and approvals are gone, and the status says disconnected", async () => {
   const w = world();
   await w.connect();
-  meApprove(w.h.ctx, { repo: "vyre-ai/website", action: "merge", consumer: "crew" });
+  await meApprove(w.h.ctx, { repo: "vyre-ai/website", action: "merge", consumer: "crew" });
   assert.deepEqual(await meDisconnect(w.h.ctx), { disconnected: true });
   assert.deepEqual(w.revoked, ["ghu_1"]);
   assert.deepEqual(w.forgotten, [MAYA]);
@@ -276,7 +277,18 @@ test("a forced delete of the default branch needs its approval even under Always
   const ask = (consumer: string) => token(w.h.ctx, { repo: "vyre-ai/website", action: "push_default", consumer });
   assert.ok((await ask(`git.push:${"c".repeat(48)}`)).handle, "an ordinary push under Always asks nothing");
   await refused(ask(D), "permission.needs_approval");
-  meApprove(w.h.ctx, { repo: "vyre-ai/website", action: "push_default", consumer: D });
+  await meApprove(w.h.ctx, { repo: "vyre-ai/website", action: "push_default", consumer: D });
   assert.ok((await ask(D)).handle, "the approved delete goes");
   await refused(ask(D), "permission.needs_approval");   // and only once
+});
+
+test("defence in depth: an agent's approval is not recorded when the Gate would not hold the act for it", async () => {
+  const w = world();
+  await w.connect();
+  const agent = w.as({ principal: { kind: "agent", id: "agt_scout" }, actingFor: MAYA });
+  assert.deepEqual(await meApprove(agent, { repo: "vyre-ai/website", action: "push_default", consumer: `git.push:${"d".repeat(48)}` }), { approved: true });
+  w.gate.agentHold = false;
+  await assert.rejects(meApprove(agent, { repo: "vyre-ai/website", action: "merge", consumer: "crew" }), (e: unknown) => codeOf(e) === "permission.no_grant");
+  await refused(token(w.h.ctx, { repo: "vyre-ai/website", action: "merge", consumer: "crew" }), "permission.needs_approval");   // nothing was recorded
+  w.gate.agentHold = true;
 });

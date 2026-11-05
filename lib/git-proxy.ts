@@ -108,6 +108,48 @@ export function defaultBranchOf(advert: Uint8Array): { branch: string } | "empty
   return /\0[^\n]*\bagent=/.test(text) && /capabilities\^\{\}/.test(text) && !/ refs\//.test(text) ? "empty" : "unknown";
 }
 
+/**
+ * The advertisement a push starts with, made from a fetch's: the same refs under refs/ (no HEAD, no peeled tags) with the capabilities a receive-pack offers. It lets a session start a push with a
+ * read token alone, so nobody is asked until the push says which refs it changes. Null when the fetch's advertisement cannot be read exactly (not v0, a line out of shape).
+ */
+export function receiveAdvert(upload: Uint8Array): Buffer | null {
+  const buf = Buffer.from(upload);
+  let at = 0;
+  const lines: string[] = [];
+  let flushes = 0;
+  while (at + 4 <= buf.length) {
+    const head = buf.subarray(at, at + 4).toString("latin1");
+    if (!/^[0-9a-f]{4}$/.test(head)) return null;
+    const len = parseInt(head, 16);
+    if (len === 0) { at += 4; if (++flushes === 2) break; continue; }
+    if (len < 4 || at + len > buf.length) return null;
+    if (flushes === 1) lines.push(buf.subarray(at + 4, at + len).toString("utf8").replace(/\n$/, ""));
+    at += len;
+  }
+  if (flushes < 2 || lines.length === 0) return null;
+  const first = lines[0]!, nul = first.indexOf("\0");
+  if (nul < 0 || /version [12]/.test(first)) return null;
+  const upCaps = first.slice(nul + 1).split(" ");
+  const oidLen = first.indexOf(" ");
+  if (oidLen !== 40 && oidLen !== 64) return null;
+  const refs: string[] = [];
+  for (const [i, l] of lines.entries()) {
+    const line = i === 0 ? l.slice(0, nul) : l;
+    const sp = line.indexOf(" ");
+    if (sp !== oidLen) return null;
+    const ref = line.slice(sp + 1);
+    if (ref === "HEAD" || ref.endsWith("^{}") || !ref.startsWith("refs/")) continue;
+    if (ref.startsWith("refs/pull/") || ref.startsWith("refs/changes/")) continue;
+    refs.push(line);
+  }
+  const caps = ["report-status", "report-status-v2", "delete-refs", "side-band-64k", "quiet", "atomic", "ofs-delta", ...upCaps.filter((c) => c.startsWith("object-format=") || c.startsWith("agent="))];
+  const out: Buffer[] = [pkt("# service=git-receive-pack\n"), FLUSH];
+  if (refs.length === 0) out.push(pkt(`${"0".repeat(oidLen)} capabilities^{}\0${caps.join(" ")}\n`));
+  else refs.forEach((r, i) => out.push(pkt(i === 0 ? `${r}\0${caps.join(" ")}\n` : `${r}\n`)));
+  out.push(FLUSH);
+  return Buffer.concat(out);
+}
+
 // ---- what the proxy writes itself
 
 export const pkt = (s: string | Uint8Array): Buffer => {
