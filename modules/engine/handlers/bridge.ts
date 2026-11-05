@@ -570,6 +570,7 @@ export function createBridge(o: BridgeOptions): Bridge {
     }));
     // held: look again shortly, because the last two helpers can end together and each sees the other still working; the lead is woken once, for the latest held result, when nobody works any more
     if (hold) scheduleRelease(ctx, threadId, readAs, res.messageId);
+    else if (res.responders.length > 0) heldNow.delete(threadId);   // this message wakes the lead itself, with the held results already in the chat
     // the person said go in the thread of a task assigned to them, and an agent answers: the task is theirs to do through it, so it moves to Doing and says who is on it for them
     if (a.kind === "person" && res.responders.length > 0) {
       try {
