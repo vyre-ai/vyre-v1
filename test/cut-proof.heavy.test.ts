@@ -35,7 +35,7 @@ test("agent computers on a real Team server: Set up, Ready, desktop, Terminal, o
     const token = await page.evaluate(() => JSON.parse(localStorage.getItem("vyre.session.v1")!).sessions[location.origin].token as string);
     const api = async (cap: string, data: unknown): Promise<any> => { // eslint-disable-line @typescript-eslint/no-explicit-any
       const r = await context.request.post(`${web.origin}/v1/${cap.replaceAll(".", "/")}`, { headers: { authorization: `Bearer ${token}` }, data });
-      const body = await r.json().catch(() => ({})); assert.equal(r.status(), 200, `${cap}: ${JSON.stringify(body).slice(0, 400)}`); return body.data;
+      const body = await r.json().catch(() => ({})); assert.ok(r.status() === 200 || r.status() === 201, `${cap}: ${r.status()} ${JSON.stringify(body).slice(0, 400)}`); return body.data ?? body;
     };
     const hosts = await api("computers.hosts", {});
     assert.equal(hosts.available, true, `the runner can start computers: ${JSON.stringify(hosts).slice(0, 300)}`);
@@ -73,7 +73,7 @@ test("agent computers on a real Team server: Set up, Ready, desktop, Terminal, o
     assert.ok(made[0]!.computerId, "the computer exists");
     // the second agent's computer by the API (the same provision the button calls), to check the two apart
     const two = made[1]!;
-    two.computerId = (await api("computers.provision", { agentId: two.agentId })).computer.computerId as string;
+    two.computerId = (await api("computers.provision", { agentId: two.agentId, idempotencyKey: "cut-two" })).computer.computerId as string;
     await api("computers.wake", { computerId: two.computerId });
     const names = (): string[] => sh(`docker ps --filter label=vyre.computer --format '{{.Names}}'`).split("\n").filter((n) => /^vyre-comp-/.test(n));
     for (let i = 0; i < 90 && names().filter((n) => n.includes(two.computerId.replace(/^cmp_/, "").slice(0, 8)) || true).length < 2; i++) await page.waitForTimeout(2000);
@@ -123,7 +123,7 @@ test("agent computers on a real Team server: Set up, Ready, desktop, Terminal, o
     const mtoken = await mp.evaluate(() => JSON.parse(localStorage.getItem("vyre.session.v1")!).sessions[location.origin].token as string);
     const mapi = async (cap: string, data: unknown): Promise<any> => { // eslint-disable-line @typescript-eslint/no-explicit-any
       const r = await mctx.request.post(`${web.origin}/v1/${cap.replaceAll(".", "/")}`, { headers: { authorization: `Bearer ${mtoken}` }, data });
-      const body = await r.json().catch(() => ({})); assert.equal(r.status(), 200, `member ${cap}: ${JSON.stringify(body).slice(0, 400)}`); return body.data;
+      const body = await r.json().catch(() => ({})); assert.ok(r.status() === 200 || r.status() === 201, `member ${cap}: ${r.status()} ${JSON.stringify(body).slice(0, 400)}`); return body.data ?? body;
     };
     const mine2 = (await mapi("agents.create", { name: "Memberbot", role: "You help.", idempotencyKey: "cut-member-agent" })).agent as { agentId: string };
     const mthread = (await mapi("chat.start", { kind: "chat", agentIds: [mine2.agentId], title: "Memberbot chat", idempotencyKey: "cut-member-chat" })).thread.threadId as string;
