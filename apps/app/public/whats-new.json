@@ -1,5 +1,5 @@
 {
-  "version": "1.0.0-rc.21",
+  "version": "1.0.0-rc.22",
   "lines": [
     "An agent's email draft is sent exactly as written, to the people it's addressed to, never cut short.",
     "Memory search and recall work again on Spaces made before rc.18.",
