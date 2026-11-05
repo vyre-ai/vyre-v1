@@ -7656,6 +7656,7 @@ export type ChatRecentOut = {
       lastAt: number;
       preview?: string;
       people?: Array<string>;
+      goalId?: string;
     }>;
   today: Array<{
       threadId: string;
@@ -7669,6 +7670,7 @@ export type ChatRecentOut = {
       lastAt: number;
       preview?: string;
       people?: Array<string>;
+      goalId?: string;
     }>;
   yesterday: Array<{
       threadId: string;
@@ -7682,6 +7684,7 @@ export type ChatRecentOut = {
       lastAt: number;
       preview?: string;
       people?: Array<string>;
+      goalId?: string;
     }>;
   earlier: Array<{
       threadId: string;
@@ -7695,6 +7698,7 @@ export type ChatRecentOut = {
       lastAt: number;
       preview?: string;
       people?: Array<string>;
+      goalId?: string;
     }>;
   archived: Array<{
       threadId: string;
@@ -7708,6 +7712,7 @@ export type ChatRecentOut = {
       lastAt: number;
       preview?: string;
       people?: Array<string>;
+      goalId?: string;
     }>;
   nextUnread: string | null;
   threadsUnread?: number;
@@ -35143,6 +35148,7 @@ export type SkillsHistoryOut = {
       by: string;
       authorKind: "person" | "agent";
       summary: string;
+      version?: string;
       undoOf?: number;
       at: number;
     }>;

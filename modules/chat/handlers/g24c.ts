@@ -187,6 +187,8 @@ export async function recent(ctx: ChatCtx, input: { filter?: "all" | "unread" | 
     const row: Record<string, unknown> = { threadId: t.id, kind: t.kind, title, agents, unread: 0, working: false, starred: false, lastAt };
     // a chat's other people (a channel's members are its own list): a direct message is named and counted by the one person it is with
     if (t.kind === "chat") row["people"] = people.filter((p) => p !== asker);
+    // a goal's own chat says so: its door is the Goal row (lane l-polish L2)
+    if (t.scopeType === "goal" && t.scopeId) row["goalId"] = t.scopeId;
     // A sealed thread holds ciphertext: no preview of it.
     if (last && last.body.trim() !== "" && encOf(ctx.db, t) === 0) row["preview"] = last.body.trim().slice(0, PREVIEW);
     rows.push({ lastAt, row, archived: mine.has(t.id) });

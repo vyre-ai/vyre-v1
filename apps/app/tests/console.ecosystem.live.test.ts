@@ -152,6 +152,13 @@ test("production Console: Skills and Plugins add, install, configure and connect
     await setRole("Security reviewer", "Reviewer"); await setRole("Coordinator", "Lead");
     const roleOf = async (name: string): Promise<string | undefined> => ((await api("projects.members.list", { projectId: project.projectId }) as { members: Array<{ principal: string; role: string }> }).members).find((m) => m.principal === made.find((a) => a.name === name)!.agentId)?.role;
     assert.equal(await roleOf("Coordinator"), "lead", "the coordinator leads"); assert.equal(await roleOf("Security reviewer"), "reviewer", "the security reviewer reviews");
+    // the change sticks: reload the page, reopen the people popover, and read the roles off the rows
+    await page.reload({ waitUntil: "load" }); await page.getByTestId("project-page").waitFor({ timeout: 20_000 }); await page.getByTestId("project-members").click(); await page.getByTestId("people-popover").waitFor({ timeout: 15_000 });
+    for (const [name, word] of [["Coordinator", "Lead"], ["Security reviewer", "Reviewer"]] as const) {
+      const id = made.find((x) => x.name === name)!.agentId;
+      assert.equal((await page.getByTestId(`people-role-${id}`).innerText()).trim(), word, `${name} is still ${word} after a reload`);
+    }
+    await guard.check("after the reload"); await page.keyboard.press("Escape");
     const onAgentsPage = ((await api("agents.list", {}) as { agents: Array<{ name: string }> }).agents).map((a) => a.name);
     assert.ok(!onAgentsPage.includes("Coordinator") && !onAgentsPage.includes("Security reviewer"), "teammates are not on the Agents page");
     await shoot("teammates");

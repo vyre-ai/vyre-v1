@@ -439,6 +439,8 @@ write_config() {
   # compose.env: what the compose file reads. Rewritten each install from the release and the choices made here.
   {
     printf 'VYRE_IMAGE=%s\n' "$(lock_get VYRE_IMAGE)"
+    # the agent computer image of this release, by digest: vyred asks for exactly this one
+    [ -z "$(lock_get VYRE_AGENT_IMAGE)" ] || printf 'VYRE_AGENT_COMPUTER_IMAGE=%s\n' "$(lock_get VYRE_AGENT_IMAGE)"
     printf 'VYRE_PORT=8420\n'
     printf 'VYRE_SPACE=%s\n' "$(space_id)"
     [ -z "$DOMAIN" ] || printf 'VYRE_ADDRESS=%s\n' "$DOMAIN"

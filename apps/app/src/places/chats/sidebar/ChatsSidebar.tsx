@@ -26,7 +26,7 @@ import { ChatsSidebarDataProvider, useOnline, useOptionalSidebarData, useScreenQ
 import type { ChatsSidebarData } from "./data.tsx";
 import { chatMenuEntries, importedDeleteConfirm, importedMenuEntries } from "./chat-menu.ts";
 import {
-  FILTERS, NEW_CHAT_MS, agentUnread, buildEntries, dmThreads, faceForDigit, filterCounts, archivedRows, groupRecent, matchesFilter, matchesQuery, openEntry, peopleWithUnread, personUnread, refetch, selectable,
+  FILTERS, NEW_CHAT_MS, agentUnread, buildEntries, capped, foldedKey, orderPeople, readFolded, writeFolded, dmThreads, faceForDigit, filterCounts, archivedRows, groupRecent, matchesFilter, matchesQuery, openEntry, personUnread, refetch, selectable,
   stepKey, waitingAgents,
 } from "./model.ts";
 import type { Agent, ChatRow, Entry, Group, NeedsItem, RecentOut, SectionError, SectionKey, SideFilter } from "./model.ts";
@@ -57,6 +57,11 @@ import { onChannelRequest, takeChannelRequest } from "../channels/request.ts";
 import { usePulse } from "./pulse.ts";
 import { GATE, allows, useOptionalShellRuntime } from "../../../shell/providers/runtime.tsx";
 import type { ChannelSheetKind } from "../channels/request.ts";
+
+/** This device's storage, where there is one (a test renderer or a native shell may have none). */
+const localStore = (): { getItem(k: string): string | null; setItem(k: string, v: string): void } | null => {
+  try { return (globalThis as { localStorage?: { getItem(k: string): string | null; setItem(k: string, v: string): void } }).localStorage ?? null; } catch { return null; }
+};
 
 export const SIDEBAR_SCREEN = "chats.sidebar";
 export const AGENTS_SCREEN = "chats.all-agents";
@@ -125,9 +130,14 @@ function Sidebar({ window, query, slot, open: shown, startFilter }: { window?: V
   // Projects follow Goals: the Space's projects, starred first, each with its health dot
   const projectsQ = useProjects(data.call, data.changes, data.nav.openProject !== undefined);
   const projectRows = useMemo(() => sidebarProjects(projectsQ.lines), [projectsQ.lines]);
+  // every goal's own chat: its Goal row is the door, so the chat is not listed again in Now or Recent (lane l-polish L2)
+  const goalThreads = useMemo(() => new Set(goalsQ.state.status === "ready" ? goalsQ.state.data.flatMap((g) => (g.threadId ? [g.threadId] : [])) : []), [goalsQ.state]);
   const goalRows = useMemo(() => (goalsQ.state.status === "ready" ? sidebarGoals(goalsQ.state.data, data.clock().now) : NO_GOALS), [goalsQ.state, data]);
   // Team now starts folded (owner D24: collapsed in Chats, open in Console); a press opens it
-  const [closed, setClosed] = useState<ReadonlySet<SectionKey>>(new Set<SectionKey>(["team"]));
+  // the folded groups are remembered on this device, per Space and person (lane l-polish L3)
+  const foldStore = foldedKey(`${data.space.name}:${data.me?.id ?? ""}`);
+  const [closed, setClosed] = useState<ReadonlySet<SectionKey>>(() => readFolded(localStore()?.getItem(foldStore)));
+  useEffect(() => { localStore()?.setItem(foldStore, writeFolded(closed)); }, [closed, foldStore]);
   // The imported coding sessions (sessions.list): read on open and again when the chats change, so a continued session shows its chat. A Space that cannot list them shows no group.
   const [archive, setArchive] = useState<ImportedRow[]>([]);
   // null: the group follows its default (open unless long); a press on its head decides.
@@ -195,10 +205,10 @@ function Sidebar({ window, query, slot, open: shown, startFilter }: { window?: V
   const byAgent = useMemo(() => (recentData ? agentUnread(recentData) : new Map<string, number>()), [recentData]);
   const matching: Agent[] = useMemo(() => {
     const own = agents.filter((a) => a.agentId !== data.space.assistant.agentId && matchesQuery(query, a.name));
-    const rank = (a: Agent): number => (waiting.has(a.agentId) ? 0 : (byAgent.get(a.agentId) ?? 0) > 0 ? 1 : 2);
-    return [0, 1, 2].flatMap((n) => own.filter((a) => rank(a) === n));
-  }, [agents, query, waiting, byAgent, data.space.assistant.agentId]);
-  const faces: Agent[] = useMemo(() => matching.slice(0, FACES_SHOWN), [matching]);
+    return own;
+  }, [agents, query, data.space.assistant.agentId]);
+  // the Space's order, never re-ranked by what is new (lane l-polish L5); an agent waiting on you or with something new is kept past the cut instead
+  const faces: Agent[] = useMemo(() => capped(matching, FACES_SHOWN, (a) => waiting.has(a.agentId) || (byAgent.get(a.agentId) ?? 0) > 0).shown, [matching, waiting, byAgent]);
   const facesMore = matching.length - faces.length;
   const recent = recentQ.status === "ready" ? recentQ.data : EMPTY_RECENT;
   const allChannels: Channel[] = channelsQ.status === "ready" ? channelsQ.data.channels : [];
@@ -217,8 +227,39 @@ function Sidebar({ window, query, slot, open: shown, startFilter }: { window?: V
   const pending = (q: { status: string; error?: unknown }): boolean => q.status === "loading" && q.error === undefined;
   const loading = pending(recentQ) || pending(channelsQ) || pending(agentsQ);
 
+  // What the toggles in a row menu say comes from what the server says now: who is muted and starred, and each agent's computer. Read when a menu opens (and kept for a few seconds), so a menu
+  // shows at once from what was read last and the words are right the moment after.
+  const menuApi = useMemo(() => createMenuApi(data), [data]);
+  const facts = useRef<{ at: number; mutes: Set<string>; stars: Set<string>; computers: Map<string, { computerId: string; asleep: boolean }> }>({ at: 0, mutes: new Set(), stars: new Set(), computers: new Map() });
+  const [factsAt, setFactsAt] = useState(0);
+  const readFacts = (force = false): void => {
+    if (!force && data.clock().now - facts.current.at < 5_000 && facts.current.at !== 0) return;
+    facts.current.at = data.clock().now;
+    void Promise.allSettled([menuApi.mutes(), menuApi.stars(), menuApi.computers()]).then(([m, st2, c]) => {
+      if (m.status === "fulfilled") facts.current.mutes = m.value;
+      if (st2.status === "fulfilled") facts.current.stars = st2.value;
+      if (c.status === "fulfilled") facts.current.computers = c.value;
+      setFactsAt(facts.current.at);
+    });
+  };
+  const muted = (kind: "person" | "agent" | "channel" | "thread", id: string): boolean => facts.current.mutes.has(muteKey(kind, id));
+  const starred = (type: string, id: string): boolean => facts.current.stars.has(`${type}:${id}`);
+  // the mutes and stars the list itself shows (lane l-polish): read once when the sidebar opens, then with every menu, so a muted row is quiet and a starred one never hides
+  // (mutes and stars only, and the menus' few-seconds window is left alone: a menu still reads its facts fresh when it opens)
+  useEffect(() => {
+    let on = true;
+    void Promise.allSettled([menuApi.mutes(), menuApi.stars()]).then(([m, st2]) => {
+      if (!on) return;
+      if (m.status === "fulfilled") facts.current.mutes = m.value;
+      if (st2.status === "fulfilled") facts.current.stars = st2.value;
+      setFactsAt((n) => n + 1);
+    });
+    return () => { on = false; };
+  }, [menuApi]);
+  const mutedFn = useCallback((kind: "thread" | "channel" | "person" | "agent", id: string): boolean => facts.current.mutes.has(muteKey(kind, id)), [factsAt]); // eslint-disable-line react-hooks/exhaustive-deps
+  const starredFn = useCallback((kind: "agent" | "channel", id: string): boolean => facts.current.stars.has(`${kind}:${id}`), [factsAt]); // eslint-disable-line react-hooks/exhaustive-deps
   const allGroups: Group[] = useMemo(() => groupRecent(recent, local, agentName, personName).map((g) => ({ ...g, rows: g.rows.map((r) => (waitingThreads.has(r.threadId) ? { ...r, waiting: true } : r)) })), [recent, local, agentName, personName, waitingThreads]);
-  const counts = useMemo(() => filterCounts(allGroups.flatMap((g) => g.rows)), [allGroups]);
+  const counts = useMemo(() => filterCounts(allGroups.flatMap((g) => g.rows), { channels: allChannels, muted: mutedFn, needs: tasksCount }), [allGroups, allChannels, mutedFn, tasksCount]);
   // the Ask history: every Ask pane the person opened beside something in another place, newest first, read when the Asks filter is picked
   const [asks, setAsks] = useState<ChatRow[]>([]);
   useEffect(() => {
@@ -232,8 +273,8 @@ function Sidebar({ window, query, slot, open: shown, startFilter }: { window?: V
     return () => { on = false; };
   }, [filter, data, agentName]);
   const groups: Group[] = useMemo(
-    () => filter === "asks" ? (asks.length ? [{ key: "earlier", label: "Asks", rows: asks.filter((r) => matchesQuery(query, r.title, r.who)) }] : []) : allGroups.map((g) => ({ ...g, rows: g.rows.filter((r) => matchesFilter(r, filter) && matchesQuery(query, r.title, r.who)) })).filter((g) => g.rows.length),
-    [allGroups, filter, query, asks],
+    () => filter === "asks" ? (asks.length ? [{ key: "earlier", label: "Asks", rows: asks.filter((r) => matchesQuery(query, r.title, r.who)) }] : []) : allGroups.map((g) => ({ ...g, rows: g.rows.filter((r) => (matchesFilter(r, filter) || shown === `t:${r.threadId}`) && matchesQuery(query, r.title, r.who)) })).filter((g) => g.rows.length),
+    [allGroups, filter, query, asks, shown],
   );
   // when each chat was last active, for an imported session continued in one: its row says that day, as a chat row would
   const lastAt = useMemo(() => {
@@ -243,7 +284,7 @@ function Sidebar({ window, query, slot, open: shown, startFilter }: { window?: V
   }, [recent]);
   const archivedChats: ChatRow[] = useMemo(() => archivedRows(recent, agentName, personName).filter((r) => matchesFilter(r, filter) && matchesQuery(query, r.title, r.who)), [recent, agentName, personName, filter, query]);
   // Each person's row carries the unread of your direct message with them; a chat with new replies to messages you follow is bold with their count.
-  const people = useMemo(() => peopleWithUnread(peopleQ.filter((p) => matchesQuery(query, p.name)), personUnread(recent)), [peopleQ, query, recent]);
+  const people = useMemo(() => orderPeople(peopleQ.filter((p) => matchesQuery(query, p.name)), personUnread(recent), recentData), [peopleQ, query, recent, recentData]);
   const dms = useMemo(() => dmThreads(recent), [recent]);
   const working = useMemo(() => {
     const set = new Set<string>();
@@ -254,8 +295,8 @@ function Sidebar({ window, query, slot, open: shown, startFilter }: { window?: V
   }, [groups, agents]);
 
   const entries = useMemo(
-    () => buildEntries({ goals: goalRows, moreGoals: more.goals === true, projects: projectRows, moreProjects: more.projects === true, digest: digestCount > 0 ? { count: digestCount } : null, team: pulse.team, presence: pulse.presence, tasksCount, notes: data.nav.openNotes !== undefined, agentUnread: byAgent, waitingThreads, assistant: { agentId: data.space.assistant.agentId, name: data.space.assistant.name }, people, moreRecent: more.recent === true, morePeople: more.people === true, moreAgents: more.faces === true, faces, workingAgents: working, waitingAgents: waiting, groups, channels, filter, archived: archivedChats, archivedOpen, closed: (importedOpen ?? importedStartsOpen(liveImported)) ? closed : new Set([...closed, "imported" as const]), facesMore, errors, imported, archivedImported, personal, searching: query.trim() !== "" }),
-    [goalRows, projectRows, digestCount, pulse.team, pulse.presence, personal, query, tasksCount, data.nav.openNotes, byAgent, waitingThreads, people, more, data.space.assistant.agentId, data.space.assistant.name, faces, facesMore, recentQ, channelsQ, agentsQ, working, waiting, groups, channels, filter, closed, imported, archivedImported, importedOpen, liveImported, archivedChats, archivedOpen],
+    () => buildEntries({ goals: goalRows, moreGoals: more.goals === true, projects: projectRows, moreProjects: more.projects === true, digest: digestCount > 0 ? { count: digestCount } : null, team: pulse.team, presence: pulse.presence, tasksCount, notes: data.nav.openNotes !== undefined, agentUnread: byAgent, waitingThreads, assistant: { agentId: data.space.assistant.agentId, name: data.space.assistant.name }, people, moreRecent: more.recent === true, morePeople: more.people === true, moreAgents: more.faces === true, faces, workingAgents: working, waitingAgents: waiting, groups, channels, filter, archived: archivedChats, archivedOpen, closed: (importedOpen ?? importedStartsOpen(liveImported)) ? closed : new Set([...closed, "imported" as const]), facesMore, errors, imported, archivedImported, personal, searching: query.trim() !== "", open: shown ?? null, goalThreads, muted: mutedFn, starred: starredFn }),
+    [shown, goalThreads, mutedFn, starredFn, goalRows, projectRows, digestCount, pulse.team, pulse.presence, personal, query, tasksCount, data.nav.openNotes, byAgent, waitingThreads, people, more, data.space.assistant.agentId, data.space.assistant.name, faces, facesMore, recentQ, channelsQ, agentsQ, working, waiting, groups, channels, filter, closed, imported, archivedImported, importedOpen, liveImported, archivedChats, archivedOpen],
   );
   const order = useMemo(() => selectable(entries), [entries]);
   const byKey = useMemo(() => new Map(entries.map((e) => [e.key, e])), [entries]);
@@ -315,26 +356,10 @@ function Sidebar({ window, query, slot, open: shown, startFilter }: { window?: V
     menu.show(items, x, y, "other");
   };
   const nextUnread = (): void => { if (recent.nextUnread) { setCursor(`c:${recent.nextUnread}`); data.nav.openChat(recent.nextUnread); leave(); } };
-  // What the toggles in a row menu say comes from what the server says now: who is muted and starred, and each agent's computer. Read when a menu opens (and kept for a few seconds), so a menu
-  // shows at once from what was read last and the words are right the moment after.
-  const menuApi = useMemo(() => createMenuApi(data), [data]);
-  const facts = useRef<{ at: number; mutes: Set<string>; stars: Set<string>; computers: Map<string, { computerId: string; asleep: boolean }> }>({ at: 0, mutes: new Set(), stars: new Set(), computers: new Map() });
-  const [factsAt, setFactsAt] = useState(0);
-  const readFacts = (force = false): void => {
-    if (!force && data.clock().now - facts.current.at < 5_000 && facts.current.at !== 0) return;
-    facts.current.at = data.clock().now;
-    void Promise.allSettled([menuApi.mutes(), menuApi.stars(), menuApi.computers()]).then(([m, st2, c]) => {
-      if (m.status === "fulfilled") facts.current.mutes = m.value;
-      if (st2.status === "fulfilled") facts.current.stars = st2.value;
-      if (c.status === "fulfilled") facts.current.computers = c.value;
-      setFactsAt(facts.current.at);
-    });
-  };
-  const muted = (kind: "person" | "agent" | "channel" | "thread", id: string): boolean => facts.current.mutes.has(muteKey(kind, id));
-  const starred = (type: string, id: string): boolean => facts.current.stars.has(`${type}:${id}`);
   const setMute = (kind: "person" | "agent" | "channel" | "thread", id: string, on: boolean, minutes?: number): void => {
     const next = new Set(facts.current.mutes); if (on) next.add(muteKey(kind, id)); else next.delete(muteKey(kind, id));
     facts.current.mutes = next;
+    setFactsAt((n) => n + 1);   // the list redraws the row quiet (or loud again) at once
     guard(menuApi.setMute(kind, id, on, minutes));
   };
   const manageAgents = allows(rtPerms, "agents.manage"), provisionPc = allows(rtPerms, GATE.provisionComputer);
@@ -396,7 +421,7 @@ function Sidebar({ window, query, slot, open: shown, startFilter }: { window?: V
   });
   const faceMenu = (e: Extract<Entry, { type: "face" }>, x: number, y: number): MenuEntry[] => {
     const a = e.agent, pc = facts.current.computers.get(a.agentId);
-    return agentMenu({ name: e.assistant ? data.space.assistant.name : a.name, assistant: e.assistant === true, starred: starred("agent", a.agentId) || true, status: a.status, hasComputer: a.hasComputer, computer: pc, muted: muted("agent", a.agentId), manage: manageAgents, provision: provisionPc }, {
+    return agentMenu({ name: e.assistant ? data.space.assistant.name : a.name, assistant: e.assistant === true, starred: starred("agent", a.agentId), status: a.status, hasComputer: a.hasComputer, computer: pc, muted: muted("agent", a.agentId), manage: manageAgents, provision: provisionPc }, {
       message: () => { data.nav.openAgentChat(a.agentId); leave(); },
       openProfile: data.nav.openAgent ? () => { data.nav.openAgent?.(a.agentId); leave(); } : undefined,
       openComputer: pc && data.nav.openSubject ? () => { data.nav.openSubject?.({ type: "computer", id: pc.computerId }); leave(); } : undefined,
@@ -405,7 +430,8 @@ function Sidebar({ window, query, slot, open: shown, startFilter }: { window?: V
       giveComputer: () => { again(menuApi.provision(a.agentId)); readFacts(true); },
       pause: () => again(menuApi.pause(a.agentId)),
       resume: () => again(menuApi.resume(a.agentId)),
-      star: (on) => guard(api.star("agent", a.agentId, on)),
+      // the next menu says what was just done, before the read behind it comes back
+      star: (on) => { const next = new Set(facts.current.stars); if (on) next.add(`agent:${a.agentId}`); else next.delete(`agent:${a.agentId}`); facts.current.stars = next; setFactsAt((n) => n + 1); guard(api.star("agent", a.agentId, on)); },
       mute: (on) => setMute("agent", a.agentId, on),
       ...(dmWith(a.agentId) ? { poke: () => { const t = dmWith(a.agentId)!; void menuApi.poke(t.threadId, a.agentId).then(() => say(`Poked ${a.name}`), () => say(`Could not poke ${a.name}. Try again.`)); } } : {}),
       addToChat: () => pickChat(`Add ${a.name} to`, x, y, (threadId) => menuApi.addAgentToChat(threadId, a.agentId)),
@@ -418,7 +444,7 @@ function Sidebar({ window, query, slot, open: shown, startFilter }: { window?: V
     open: () => { data.nav.openChannel(c.channelId); leave(); },
     markRead: () => guard(api.markRead(c.mainThreadId)),
     markUnread: () => guard(api.markUnread(c.mainThreadId)),
-    star: (on) => guard(api.star("channel", c.channelId, on)),
+    star: (on) => { const next = new Set(facts.current.stars); if (on) next.add(`channel:${c.channelId}`); else next.delete(`channel:${c.channelId}`); facts.current.stars = next; setFactsAt((n) => n + 1); guard(api.star("channel", c.channelId, on)); },
     mute: (on) => setMute("channel", c.channelId, on),
     invite: () => add.open({ threadId: c.mainThreadId, name: c.name }),
     notifications: () => notifyMenu("channel", c.channelId, 8, 48),

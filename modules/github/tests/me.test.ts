@@ -61,7 +61,7 @@ function world() {
 
 test("connect: PKCE through the default Vyre app, the refresh token goes to the person's Vault, the same state works once", async () => {
   const w = world();
-  assert.deepEqual(meStatus(w.h.ctx), { connected: false, needsReconnect: false });
+  assert.deepEqual(await meStatus(w.h.ctx), { connected: false, source: "vyre", needsReconnect: false });
   const c = await meConnect(w.h.ctx);
   const url = new URL(c.authUrl);
   assert.equal(url.origin + url.pathname, "https://github.com/login/oauth/authorize");
@@ -72,7 +72,7 @@ test("connect: PKCE through the default Vyre app, the refresh token goes to the 
   assert.equal(url.searchParams.get("code_challenge"), createHash("sha256").update(w.exchanges[0]!.verifier).digest("base64url"), "the challenge is the hash of the verifier the exchange proves");
   assert.equal(w.exchanges[0]!.redirectUri, "https://space.vyre.test/hooks/github/connect");
   assert.equal(w.kept.get(MAYA), "ghr_1");
-  const st = meStatus(w.h.ctx);
+  const st = await meStatus(w.h.ctx);
   assert.equal(st.connected, true);
   assert.equal(st.login, "maya-codes");
   assert.equal(w.h.named("github.me_connected").length, 1);
@@ -105,7 +105,7 @@ test("refresh: the access token is renewed from the Vault's refresh token before
   w.kept.set(MAYA, "revoked");
   w.h.advance(9 * HOUR);
   await refused(token(w.h.ctx, { repo: "vyre-ai/website", action: "read", consumer: "crew" }), "provider.auth_failed");
-  assert.equal(meStatus(w.h.ctx).needsReconnect, true);
+  assert.equal((await meStatus(w.h.ctx)).needsReconnect, true);
 });
 
 test("reach: organisations with their install state and the address to install or ask, and the repositories reached", async () => {
@@ -126,7 +126,7 @@ test("reach: organisations with their install state and the address to install o
 test("policy: sensible defaults, changed per kind of use, and a bad value refused", async () => {
   const w = world();
   await w.connect();
-  assert.deepEqual(policyGet(w.h.ctx).policy, { read: "always", push_branch: "ask", open_pr: "ask", comment: "ask", merge: "ask", push_default: "never" });
+  assert.deepEqual(policyGet(w.h.ctx).policy, { read: "always", push_branch: "always", open_pr: "always", comment: "always", merge: "ask", push_default: "ask" });
   assert.equal(policySet(w.h.ctx, { policy: { comment: "always" } }).policy.comment, "always");
   await refused(Promise.resolve().then(() => policySet(w.h.ctx, { policy: { merge: "maybe" as never } })), "validation.bad_input");
   await refused(Promise.resolve().then(() => policySet(w.h.ctx, { policy: { delete_repo: "always" } as never })), "validation.bad_input");
@@ -154,7 +154,9 @@ test("broker: a token is short-lived, narrowed to one repository and to what the
 test("policy: Never refuses with the person's own words; Ask me first goes to the Gate and a token follows once approved, for ten minutes", async () => {
   const w = world();
   await w.connect();
+  policySet(w.h.ctx, { policy: { push_default: "never" } });
   await assert.rejects(token(w.h.ctx, { repo: "vyre-ai/website", action: "push_default", consumer: "crew" }), (e: unknown) => { assert.equal(codeOf(e), "validation.precondition_failed"); assert.match((e as Error & { error: { message: string } }).error.message, /never let anything push to the default branch/); return true; });
+  policySet(w.h.ctx, { policy: { open_pr: "ask" } });
   await refused(token(w.h.ctx, { repo: "vyre-ai/website", action: "open_pr", consumer: "crew" }), "permission.needs_approval");
   assert.deepEqual(w.gate.held, [{ repo: "vyre-ai/website", action: "open_pr", consumer: "crew" }]);
   assert.equal(w.h.withPath("POST", `/app/installations/${INSTALL}/access_tokens`).length, 0, "nothing minted while held");
@@ -192,8 +194,18 @@ test("session: Claude Code, Codex and Grok get GH_TOKEN as a handle and a creden
   assert.equal(s.env["GH_TOKEN"], s.env["GITHUB_TOKEN"]);
   assert.match(s.gitConfig.join("\n"), /password=\$GH_TOKEN/);
   const mint = w.h.withPath("POST", `/app/installations/${INSTALL}/access_tokens`).at(-1)!;
-  assert.deepEqual(mint.body, { repositories: ["website", "docs"], permissions: { contents: "read", pull_requests: "read", issues: "read", checks: "read", metadata: "read" } }, "only read: everything else asks");
-  policySet(w.h.ctx, { policy: { read: "ask" } });
+  assert.deepEqual(mint.body, { repositories: ["website", "docs"], permissions: { contents: "read", pull_requests: "read", issues: "write", checks: "read", metadata: "read" } }, "no contents or pull request write permission while merge and push to main ask: a write token could do both");
+  // a session's raw `git push origin HEAD:main` can only be held if the token cannot write: GitHub cannot limit a write token to a branch, so contents:write is minted only when Push to main is Always too, and pull_requests:write only when Merge is
+  policySet(w.h.ctx, { policy: { push_default: "always", merge: "always" } });
+  await sessionEnv(agent, { repos: ["vyre-ai/website"], consumer: "session.claude_code" });
+  assert.deepEqual(w.h.withPath("POST", `/app/installations/${INSTALL}/access_tokens`).at(-1)!.body, { repositories: ["website"], permissions: { contents: "write", pull_requests: "write", issues: "write", checks: "read", metadata: "read" } }, "everything Always: a write token");
+  policySet(w.h.ctx, { policy: { push_default: "ask" } });
+  await sessionEnv(agent, { repos: ["vyre-ai/website"], consumer: "session.claude_code" });
+  assert.equal((w.h.withPath("POST", `/app/installations/${INSTALL}/access_tokens`).at(-1)!.body as { permissions: Record<string, string> }).permissions["contents"], "read", "Push to main asks: the token cannot push at all, so a raw push to main is refused by GitHub and the person is asked through github.token");
+  policySet(w.h.ctx, { policy: { push_default: "always", merge: "ask" } });
+  await sessionEnv(agent, { repos: ["vyre-ai/website"], consumer: "session.claude_code" });
+  assert.equal((w.h.withPath("POST", `/app/installations/${INSTALL}/access_tokens`).at(-1)!.body as { permissions: Record<string, string> }).permissions["pull_requests"], "read", "Merge asks: no pull request write, so no merge");
+  policySet(w.h.ctx, { policy: { read: "ask", push_branch: "ask", open_pr: "ask", comment: "ask", merge: "ask", push_default: "ask" } });
   await refused(sessionEnv(agent, { repos: ["vyre-ai/website"], consumer: "session.codex" }), "validation.precondition_failed");
   await refused(sessionEnv(w.as({ principal: { kind: "agent", id: "agt_scout" } }), { repos: ["vyre-ai/website"], consumer: "session.grok" }), "permission.no_grant");
 });
@@ -206,7 +218,7 @@ test("disconnect: the grant is revoked, the Vault item and approvals are gone, a
   assert.deepEqual(w.revoked, ["ghu_1"]);
   assert.deepEqual(w.forgotten, [MAYA]);
   assert.equal(w.kept.has(MAYA), false);
-  assert.equal(meStatus(w.h.ctx).connected, false);
+  assert.equal((await meStatus(w.h.ctx)).connected, false);
   assert.equal(w.h.rows("SELECT * FROM github_grant").length, 0);
   assert.equal(w.h.named("github.me_disconnected").length, 1);
   assert.deepEqual(await meDisconnect(w.h.ctx), { disconnected: false });
@@ -242,7 +254,7 @@ test("one flow: connecting also links the sign-in with the host's ticket (never 
   w2.pending.add("4242");
   assert.deepEqual(await adoptSignIn(other, { githubId: "4242", person: "usr_new0001" }), { adopted: true });
   assert.equal(w2.kept.get("usr_new0001"), "ghr_sign");
-  assert.equal(meStatus(other).login, "maya-codes");
+  assert.equal((await meStatus(other)).login, "maya-codes");
   assert.equal(policyGet(other).policy.read, "always");
   assert.deepEqual(await adoptSignIn(other, { githubId: "4242", person: "usr_new0001" }), { adopted: false }, "already connected: left as is");
   assert.deepEqual(await adoptSignIn(w2.as({}), { githubId: "9", person: "usr_none0001" }), { adopted: false }, "a sign-in that left no tokens connects nothing");
@@ -252,4 +264,18 @@ test("a return address rides in the state and a custom one is kept", async () =>
   const w = world();
   const c = await meConnect(w.h.ctx, { return: "https://space.vyre.test/settings" });
   assert.equal(Buffer.from(c.state.split(".")[1]!, "base64url").toString(), "https://space.vyre.test/settings");
+});
+
+test("a member who is not connected is told which app the sign-in will use, and nothing else new: the exact keys, no client id, app id, token, secret or installation", async () => {
+  const w = world();
+  const vyre = await meStatus(w.h.ctx);
+  assert.deepEqual(Object.keys(vyre).sort(), ["connected", "needsReconnect", "source"]);
+  assert.equal(vyre.source, "vyre");
+  w.h.host.user = { ...w.user, app: async () => ({ clientId: "Iv1.own-secret-client", source: "space" as const }) } as typeof w.user;
+  const own = await meStatus(w.h.ctx);
+  assert.deepEqual(own, { connected: false, source: "space", needsReconnect: false });
+  const text = JSON.stringify(own);
+  for (const leak of ["Iv1", "client", "secret", "ghu_", "ghr_", "installation", "appId", "slug"]) assert.equal(text.includes(leak), false, `the answer does not carry ${leak}`);
+  w.h.host.user = { ...w.user, app: async () => { throw new Error("no app"); } } as typeof w.user;
+  assert.deepEqual(await meStatus(w.h.ctx), { connected: false, needsReconnect: false }, "an app that cannot be read leaves the source out");
 });

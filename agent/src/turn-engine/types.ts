@@ -301,6 +301,8 @@ export interface SessionSpec {
    * no skills, no saved session. A CLI engine runs its leanest command (CommandOptions.lean); an API driver sends the role alone. Implies tools "none".
    */
   lean?: boolean;
+  /** A one-shot for a person whose chats run on their own computer: its CLI engine process starts there, through the computer's link, never on the Space's server (modules/engine/node-turns.ts). */
+  onDevice?: boolean;
 }
 export type OpenSession = (spec: SessionSpec) => Promise<EngineSession>;
 

@@ -7,7 +7,7 @@ import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import type { ConversationData } from "../conversation/data.tsx";
 import { TextButton } from "../conversation/parts.tsx";
 import { Face } from "../needsyou/parts.tsx";
-import { KIND_WORDS, SCOPES, choices, diffRows, doneLine, changedCount, needsLines, pinnedLine, shortOf, titleOf, isOlder } from "./model.ts";
+import { KIND_WORDS, SCOPES, choices, diffRows, doneLine, changedCount, needsLines, pinnedLine, shortOf, titleOf, isOlder, losesWords } from "./model.ts";
 import type { Plan, RunOn, Scope } from "./model.ts";
 
 export type InstallData = Pick<ConversationData, "call"> & { openSkills?(name: string): void; agentId?: string; /** the name of the Assistant whose face heads the card */ agentName?: string; say?(text: string): void };
@@ -135,6 +135,7 @@ export function InstallCard({ id, data, chat, mine = true }: { id: string; data:
               {/* ui-rows-lint: not a list (the lines of one diff) */}
               {diffRows(d).map((r, i) => <Text key={i} style={[st.mono, r.kind === "head" && st.head, r.kind === "add" && st.add, r.kind === "del" && st.del]}>{r.text}</Text>)}
             </View>
+            {isOlder(plan) && losesWords(d) !== "" ? <Text testID={`install-loses-${id}`} style={st.sub}><Text style={st.warn}>Older version:</Text>{` ${losesWords(d)}`}</Text> : null}
             {(d.newAccess ?? []).length > 0 ? <Text testID={`install-newaccess-${id}`} style={st.sub}><Text style={st.warn}>New access:</Text>{` it now also reaches ${(d.newAccess ?? []).join(", ")}. Everything else is the same.`}</Text> : null}
             {mine ? <View style={st.row}>
               <TextButton label={isOlder(plan) ? "Go back to it" : "Update"} primary icon="check" disabled={busy} testID={`install-update-go-${id}`} onPress={() => { void install(); }} />

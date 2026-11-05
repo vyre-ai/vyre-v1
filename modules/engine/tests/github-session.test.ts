@@ -1,7 +1,7 @@
 // GitHub for a CLI engine's process: the broker's token, from the chat's project repositories, in the environment of that process only, and nothing when there is nothing to give.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { githubEnv, reposOfThread, withGithub } from "../github-session.ts";
+import { GITHUB_SESSION_NOTE, githubEnv, reposOfThread, withGithub } from "../github-session.ts";
 import type { GithubSessionPort } from "../github-session.ts";
 
 type Called = { cap: string; input: Record<string, unknown>; as?: string | undefined };
@@ -37,6 +37,9 @@ test("the environment has the token, the same for GITHUB_TOKEN, and git's own co
   assert.equal(env["GH_TOKEN"], "ghs_real");
   assert.equal(env["GITHUB_TOKEN"], "ghs_real");
   assert.equal(env["GIT_CONFIG_COUNT"], "2");
+  assert.equal(env["VYRE_GITHUB_NOTE"], GITHUB_SESSION_NOTE, "the session is told in plain words that it cannot push yet and how to open a pull request");
+  assert.match(env["VYRE_GITHUB_NOTE"]!, /github\.pull_request\.create/, "the tool it is pointed at exists");
+  assert.ok(fs.readFileSync(new URL("../../../manifests/github.ts", import.meta.url), "utf8").includes("'github.pull_request.create'"), "and the capability is in the GitHub manifest");
   assert.equal(env["GIT_CONFIG_KEY_0"], "credential.https://github.com.helper");
   assert.equal(env["GIT_CONFIG_VALUE_0"], "");
   assert.match(env["GIT_CONFIG_VALUE_1"]!, /password=\$GH_TOKEN/);

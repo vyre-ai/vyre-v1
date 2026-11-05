@@ -231,15 +231,15 @@ test("a fresh Personal Space: the first hour works end to end in the real app", 
     await step("Settings: change the theme", async () => {
       await go("settings", "settings-place");
       await page.getByText("Appearance", { exact: true }).first().click({ timeout: 15_000 });
-      await page.getByText("Graphite", { exact: true }).first().click({ timeout: 15_000 });
+      await page.getByTestId("look-all").click({ timeout: 15_000 });   // the gallery shows the skins of the slot's own base until Show all
+      await page.getByTestId("skin-graphite").click({ timeout: 15_000 });
       const marks = async (): Promise<string> => page.evaluate(() => `data-mode=${document.documentElement.getAttribute("data-mode")} data-theme=${document.documentElement.getAttribute("data-theme")}`);
       await page.waitForFunction(() => document.documentElement.getAttribute("data-mode") === "dark", null, { timeout: 10_000 }).catch(async () => { throw new Error(`picked Graphite, the preview went dark but the app did not: ${await marks()}`); });
       assert.equal(await page.evaluate(() => document.documentElement.getAttribute("data-mode")), "dark", "data-mode follows the chosen skin (the preview reads it)");
       assert.notEqual(await page.evaluate(() => document.documentElement.getAttribute("data-theme")), null, "data-theme is set");
-      // choosing the default (Vyre: light by day, black by night) again: the preview follows the mode the document is in, not the one it was in
-      await page.getByText("Vyre", { exact: true }).first().click({ timeout: 10_000 });
-      const mode = await page.evaluate(() => document.documentElement.getAttribute("data-mode"));
-      assert.equal(await page.getByTestId("skin-preview").getAttribute("aria-label"), mode === "dark" ? "Preview of Vyre Black" : "Preview of Vyre Light", `the default preview matches data-mode ${mode}`);
+      // choosing a light skin again follows the mode back
+      await page.getByTestId("skin-paper").click({ timeout: 10_000 });
+      await page.waitForFunction(() => document.documentElement.getAttribute("data-mode") === "light", null, { timeout: 10_000 });
     });
 
     await step("Chats: New agent works in a Personal Space", async () => {

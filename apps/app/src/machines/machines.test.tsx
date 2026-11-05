@@ -3,7 +3,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
 import { Chart } from "./Chart.tsx";
-import { MachineDetail, MachineList, placementOrder } from "./MachinesView.tsx";
+import { MachineDetail, MachineList, placementOrder, removeMessage } from "./MachinesView.tsx";
 import { CHARTS } from "./model.ts";
 import type { MachineOut, MachineRow, MachinesOut, Point } from "./model.ts";
 
@@ -112,4 +112,13 @@ test("the placement order lists the person's computers, their servers, then the 
   const order = placementOrder([berlin, space, mine, { ...mine, serverId: "srv_dev_mini", name: "Irfad's Mac mini" } as MachineRow, maya]);
   assert.deepEqual(order.map((o) => o.label), ["Your desktop", "Your other computers", "The Space server"], "Berlin is the Space's, not mine; Maya's is hers");
   assert.equal(order[0]!.roomN, 0);
+});
+
+test("an added server's page ends with the danger row, and the confirm counts the agent computers (the clause is left out when there are none)", () => {
+  assert.equal(removeMessage("Berlin box", 2), "Remove Berlin box? 2 agent computers on it stop and their local data is wiped. Its access ends at once.");
+  assert.equal(removeMessage("Berlin box", 1), "Remove Berlin box? 1 agent computer on it stop and their local data is wiped. Its access ends at once.");
+  assert.equal(removeMessage("Berlin box", 0), "Remove Berlin box? Its access ends at once.");
+  const out = page(berlin, null, { removal: { word: "Remove this server", pcs: 0, run: async () => undefined } });
+  assert.ok(out.includes("Remove this server…") && out.includes("Its agent computers stop and their local data is wiped. Its access ends at once."), "the danger row with its quiet line");
+  assert.ok(!out.includes("machine-remove-confirm"), "the confirm card waits until it is asked for");
 });

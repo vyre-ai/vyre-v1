@@ -239,3 +239,15 @@ test("open_tab refuses a person, an agent outside the chat, an agent with no per
   assert.equal(await failure(() => g["chat.open_tab"]!(hn.agent(INTAKE, DANA), { ...input, threadId: "thr_none" })), "validation.not_found");
   assert.equal(await failure(() => g["chat.open_tab"]!(hn.agent(INTAKE, DANA), { ...input, targetId: " " })), "validation.bad_input");
 });
+
+test("Recent names a goal's own chat by its goal, so the sidebar shows it once, as the Goal row (lane l-polish L2)", async () => {
+  const hn = harness();
+  const goalChat = (await base["chat.start"]!(hn.ctx, { kind: "chat", agentIds: [INTAKE], scopeType: "goal", scopeId: "gol_launch", title: "Launch page live", idempotencyKey: key() })).thread.threadId as string;
+  const plain = await chat(hn);
+  await say(hn.ctx, plain, "hello");
+  const r = await run(hn, "chat.recent", hn.ctx, {});
+  const rows = [...r.starred, ...r.today, ...r.yesterday, ...r.earlier];
+  assert.equal(rows.find((x: any) => x.threadId === goalChat)?.goalId, "gol_launch");
+  assert.equal(rows.find((x: any) => x.threadId === plain)?.goalId, undefined);
+  assert.deepEqual(contractErrors("chat.recent", "out", r), []);
+});

@@ -156,6 +156,22 @@ test("volumes, images and pulls: only an agent computer's profile volume may be 
   assert.equal((await w.call("POST", "/images/create?fromImage=alpine&tag=latest")).status, 403);
 });
 
+test("the agent computer image by digest: read, pulled and created from only for the two allowed repositories; a digest of any other repository, or a short or odd one, is refused", async (t) => {
+  const w = await world();
+  t.after(w.close);
+  const hex = "d".repeat(64);
+  for (const repo of ["ghcr.io/vyre-ai/agent-computer", "vyre/agent-computer"]) {
+    assert.equal((await w.call("GET", `/images/${repo}@sha256:${hex}/json`)).status, 200, `${repo} read by digest`);
+    assert.equal((await w.call("POST", `/images/create?fromImage=${repo}@sha256:${hex}`)).status, 200, `${repo} pulled by digest`);
+  }
+  for (const bad of [`ghcr.io/evil/agent-computer@sha256:${hex}`, `alpine@sha256:${hex}`, `ghcr.io/vyre-ai/vyred@sha256:${hex}`, `vyre/agent-computer@sha256:${"d".repeat(63)}`, `vyre/agent-computer@sha256:${"G".repeat(64)}`, "vyre/agent-computer@md5:abc"]) {
+    assert.equal((await w.call("GET", `/images/${bad}/json`)).status, 403, `${bad} read`);
+    assert.equal((await w.call("POST", `/images/create?fromImage=${bad}`)).status, 403, `${bad} pulled`);
+  }
+  assert.equal((await w.call("POST", `/containers/create?name=${computerName(A)}`, good(A, { Image: `ghcr.io/vyre-ai/agent-computer@sha256:${hex}` }))).status, 201, "a computer created from the release's digest");
+  assert.equal((await w.call("POST", `/containers/create?name=${computerName(B)}`, good(B, { Image: `ghcr.io/evil/agent-computer@sha256:${hex}` }))).status, 403, "a computer from another repository's digest");
+});
+
 test("the removal helper: only the fixed script on no network, sharing only its own computer's volumes, removing only inside the computer's home", async (t) => {
   const w = await world();
   t.after(w.close);

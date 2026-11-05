@@ -53,6 +53,19 @@ test("a private chat answers to its members and the agents in it, and nobody els
   assert.equal(await failure(() => say(hn.person(LEO), dm, "can I join?")), "validation.not_found");
 });
 
+test("a chat of two people with an agent still tells the other person, though it is not a direct message; three people hear by mention only", async () => {
+  const hn = harness();
+  const two = (await h["chat.start"]!(hn.ctx, { kind: "chat", agentIds: [INTAKE], idempotencyKey: "two" })).thread.threadId as string;
+  await h["threads.members.add"]!(hn.ctx, { threadId: two, personId: MAYA });
+  hn.clear();
+  await say(hn.ctx, two, "Maya, the numbers are in");
+  assert.deepEqual(hn.named("message.direct").map((e) => e.payload["personId"]), [MAYA]);
+  await h["threads.members.add"]!(hn.ctx, { threadId: two, personId: LEO });
+  hn.clear();
+  await say(hn.ctx, two, "now with Leo");
+  assert.equal(hn.named("message.direct").length, 0, "three people: no direct notice");
+});
+
 test("a direct message notifies the other person; a channel message does not", async () => {
   const hn = harness();
   const dm = (await h["chat.start"]!(hn.ctx, { kind: "chat", personId: MAYA, idempotencyKey: "dm" })).thread.threadId as string;
