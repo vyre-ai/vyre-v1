@@ -1,6 +1,7 @@
 // The Crew pane (owner, 4 Nov 2026, prototype p-crew). The overview: one sentence of totals, a Show menu, the helpers sorted needs you first, a token bar, the timeline of who ran when, "Ran together", Stop all and the
 // keys. A row opens that helper's peek: its brief, what it is on, its answer, the notes between it and the agent that started it, cost and time, Ask it something, Open chat and Stop. All of it from engine.crew.status
 // and the helper's own chat; nothing is estimated.
+import { stepWords } from "../../../../../../lib/plain-words.ts";
 import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
 import { Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
@@ -153,7 +154,15 @@ export function CrewPeek({ member, call, nameOfId, onBack, onOpenChat, onRefresh
       void Promise.resolve(call("chat.messages.list", { threadId: member.id })).then((r) => {
         if (dead) return;
         const blocks = ((r as { messages?: Array<{ blocks: Array<{ id: string; type: string; data?: unknown; state?: string }> }> } | undefined)?.messages ?? []).flatMap((m) => m.blocks).filter((b) => !NOT_STEPS.has(b.type));
-        setSteps(blocks.map((b) => { const l = blockLine(b as never); return { id: b.id, title: l.title, sub: l.sub, ...(b.state ? { state: b.state } : {}) }; }));
+        const dat = (b: { data?: unknown }): Record<string, unknown> => (typeof b.data === "object" && b.data !== null ? (b.data as Record<string, unknown>) : {});
+        const ended = new Set(blocks.filter((b) => b.type === "tool_result").map((b) => String(dat(b)["id"] ?? "")));
+        const detail = new Map(blocks.filter((b) => b.type === "tool_input").map((b) => [String(dat(b)["id"] ?? ""), String(dat(b)["detail"] ?? "")] as const));
+        // a tool's call, what it touched and its result are one step, said in plain words ("Reading next-week.ics")
+        setSteps(blocks.filter((b) => b.type !== "tool_input" && b.type !== "tool_result").map((b) => {
+          if (b.type === "tool_call") { const id = String(dat(b)["id"] ?? ""); return { id: b.id, title: stepWords(String(dat(b)["name"] ?? ""), detail.get(id) || undefined), sub: "", state: ended.has(id) ? "done" : "live" }; }
+          const l = blockLine(b as never);
+          return { id: b.id, title: l.title, sub: l.sub, ...(b.state ? { state: b.state } : {}) };
+        }));
       }, () => undefined);
     };
     read();
