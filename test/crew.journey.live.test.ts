@@ -43,7 +43,11 @@ test("a person watches a crew build in the real app: the Crew tab, one result ca
       await waitFor(async () => (fs.existsSync(path.join(work, "README.md")) ? true : null), 20_000);
       fs.writeFileSync(path.join(work, "dark-mode.txt"), "toggle: on\n");
       fs.writeFileSync(path.join(work, "dark-mode.test.txt"), "test: toggle is on\n");
-      yield { type: "text", text: "Added the dark mode toggle and a test. The test passes." };
+      // a test run the way a real engine reports it: the call, the command, and the summary lines of what it printed
+      yield { type: "block", kind: "tool_call", payload: { id: "tst-1", name: "Bash" } };
+      yield { type: "block", kind: "tool_input", payload: { id: "tst-1", detail: "node --test dark-mode.test.js" } };
+      yield { type: "block", kind: "tool_result", payload: { id: "tst-1", ok: false, detail: "✔ toggle is on (1ms)\n✖ toggle survives a reload (2ms)\nℹ pass 1\nℹ fail 1" } };
+      yield { type: "text", text: "Added the dark mode toggle and a test. One test fails: the toggle does not survive a reload." };
       return;
     }
     if (input.agent.id !== lead) return;
@@ -128,7 +132,13 @@ test("a person watches a crew build in the real app: the Crew tab, one result ca
       assert.equal(await page.getByText(/Started a helper/).count(), 0);
       assert.equal(await page.getByText("Working", { exact: true }).count(), 0, "the header is not left on Working");
       await shoot(page, `${mode}-1-strip`);
+      // the coder's row and peek say how its last test run went: counts and the first failing test
+      assert.match(await page.getByTestId(`crew-chip-${((await api("engine.crew.status", { threadId: chat })).members as Array<{ id: string }>)[0]!.id}-tests`).innerText(), /1 passing, 1 failing/);
       if (mode === "light") {
+        await page.getByTestId("crew-strip").first().locator('[data-testid^="crew-chip-"][role="button"]').first().click({ timeout: 15_000 });
+        await page.getByTestId("crew-peek-failing").waitFor({ timeout: 20_000 });
+        assert.match(await page.getByTestId("crew-peek-failing").innerText(), /toggle survives a reload/);
+        await shoot(page, `${mode}-2-code-peek`);
         // Merge in the strip header lands the branch, and the header then says Merged
         await page.getByTestId("crew-strip-merge").click({ timeout: 20_000 });
         await page.getByTestId("crew-strip-merged").waitFor({ timeout: 20_000 });

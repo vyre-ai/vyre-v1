@@ -11345,6 +11345,7 @@ export type EngineCrewStatusOut = {
         state: "running" | "passing" | "failing";
         passed?: number;
         failed?: number;
+        failing?: string;
       };
     }>;
   totals: {

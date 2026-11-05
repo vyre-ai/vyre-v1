@@ -129,6 +129,12 @@ export function createClaudeDecoder(): CliDecoder {
     return out;
   }
 
+  /** The lines of a tool result that say how a test run went (counts, failing names), last twelve at most; nothing else of the output is kept. A result with no such lines has none. */
+  function tail(content: unknown): string {
+    const text = typeof content === "string" ? content : arr(content).map((p) => str(obj(p)?.["text"])).join("\n");
+    return text.split("\n").map((l) => l.trim()).filter((l) => /^(?:ℹ\s+(?:pass|fail)\s+\d+|✖\s+\S|not ok\b|FAIL\b|Tests:)/i.test(l) || /\b\d+\s+(?:passed|passing|failed|failing)\b/i.test(l)).slice(-12).join("\n").slice(0, 500);
+  }
+
   function onUser(j: Json): CliEvent[] {
     const m = obj(j["message"]);
     const out: CliEvent[] = [];
@@ -136,7 +142,7 @@ export function createClaudeDecoder(): CliDecoder {
     if (j["isReplay"] === true) out.push({ type: "read" });
     for (const raw of arr(m?.["content"])) {
       const b = obj(raw);
-      if (b && str(b["type"]) === "tool_result" && str(b["tool_use_id"]) !== "") out.push({ type: "tool", phase: "result", id: str(b["tool_use_id"]), ok: b["is_error"] !== true });
+      if (b && str(b["type"]) === "tool_result" && str(b["tool_use_id"]) !== "") out.push({ type: "tool", phase: "result", id: str(b["tool_use_id"]), ok: b["is_error"] !== true, ...(tail(b["content"]) !== "" ? { output: tail(b["content"]) } : {}) });
     }
     return out;
   }

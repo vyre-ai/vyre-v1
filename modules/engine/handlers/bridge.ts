@@ -112,6 +112,12 @@ export interface Bridge {
 interface Segment { blocks: PostBlock[]; text: string; mentions: number; t0?: number; /** the call it is inside now, in plain words once asked */ step?: { id: string; name: string; detail?: string }; calls?: Map<string, { name: string; at: number }>; /** its live text goes to the asker only */ private?: boolean }
 interface Ready { blocks: PostBlock[]; text: string; mentions: number; routineOwner: string | null; turnId: string }
 
+const SHELL_STEP = /^(?:bash|shell|terminal_run|exec|run_command|command_execution)$/i;
+/** The lines of a command's output that say how a test run went: counts and the names that failed. Nothing else is kept. */
+export function testLines(output: string): string {
+  return output.split("\n").map((l) => l.trim()).filter((l) => /^(?:ℹ\s+(?:pass|fail)\s+\d+|✖\s+\S|not ok\b|FAIL\b|Tests:|\d+\s+(?:passed|passing|failed|failing))/i.test(l) || /\b\d+\s+(?:passed|passing|failed|failing)\b/i.test(l)).slice(-12).join("\n").slice(0, 500);
+}
+
 const str = (v: unknown): string => (typeof v === "string" ? v : "");
 /** What a poked agent is told, after the line that poked it. Only the agent reads this copy. */
 const POKE_NOTE = "\n\n[You were poked: answer the person who poked you, from the last 12 messages and tool calls above. To read further back in this chat, call chat_history_page with the number of the oldest message you can see.]";
@@ -321,7 +327,10 @@ export function createBridge(o: BridgeOptions): Bridge {
           } else if (ev.kind === "tool_result" && id !== "") {
             const call = seg.calls?.get(id);
             // the step stays as the latest one until the next call: a helper that is thinking between calls still shows what it did last (the helper rows and the Island read it)
-            emit({ kind: "step", threadId: input.threadId, turnId: input.turnId, agentId: input.agent.id, phase: "result", id, ...(call?.name ? { name: call.name } : {}), ...(typeof p.ok === "boolean" ? { ok: p.ok } : {}) });
+            // only the summary lines of a shell command's output travel with the step (a test run says how many passed and which failed); the output itself is never kept in the chat
+            const said = typeof (p as { detail?: unknown }).detail === "string" && call && SHELL_STEP.test(call.name) ? testLines((p as { detail: string }).detail) : "";
+            emit({ kind: "step", threadId: input.threadId, turnId: input.turnId, agentId: input.agent.id, phase: "result", id, ...(call?.name ? { name: call.name } : {}), ...(typeof p.ok === "boolean" ? { ok: p.ok } : {}), ...(said !== "" ? { detail: said } : {}) });
+            if (typeof (p as { detail?: unknown }).detail === "string") { const { detail: _drop, ...rest } = data as Record<string, unknown>; data = rest; }
             if (call) data = { ...data, name: call.name, secs: Math.max(0, Math.round((now - call.at) / 1000)) };
           }
           seg.blocks.push({ type: ev.kind, v: 1, data });
