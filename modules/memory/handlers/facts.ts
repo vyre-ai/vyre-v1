@@ -1068,6 +1068,7 @@ export async function capture(ctx: MemCtx, input: { threadId: string; reason: "c
   const sharedAt = typeof (t as { sharedAt?: unknown }).sharedAt === "number" ? (t as { sharedAt: number }).sharedAt : null;
   const unread = page.messages.filter((m) => m.kind !== "system" && m.kind !== "quiet" && !IMPORTED_PREAMBLE.test(String((m as { body?: unknown }).body ?? "")) && !readByTurns(ctx, input.threadId, m.author.id, m.threadSeq, m.messageId)
     && (sharedAt === null || !shared || t.kind === "thread" || Number((m as { createdAt?: unknown }).createdAt ?? sharedAt) >= sharedAt));
+  const joinCut = Math.max(0, ...Object.values((t as { joinedAt?: Record<string, number> }).joinedAt ?? {}).map((n) => Number(n) || 0));
   for (const c of await extractor(unread)) {
     const key = `${input.threadId}:${c.messageId}:${c.index}`;
     if (rowsOf(ctx.db, "SELECT fact_id FROM memory_fact_links WHERE kind = 'capture' AND ref = ?", key)[0]) continue;
@@ -1077,7 +1078,9 @@ export async function capture(ctx: MemCtx, input: { threadId: string; reason: "c
     if (fromRun) { layer = "agent"; status = auto ? "current" : "proposed"; sourceKind = "run"; }
     // when the person said it is for them only it is theirs, in their own layer, in any kind of place
     const said = String(page.messages.find((m) => m.messageId === c.messageId)?.body ?? "");
-    const mine = privateIntent(said);
+    // a line said before a person now in the place joined is not theirs to read: it stays in its author's own layer
+    const early = Number((page.messages.find((m) => m.messageId === c.messageId) as { createdAt?: unknown } | undefined)?.createdAt ?? Infinity) < joinCut;
+    const mine = privateIntent(said) || (early && shared);
     if (mine && !fromRun) { layer = "person"; status = auto || kinds.includes(c.kind) ? "current" : "proposed"; }
     else if (shared) { sourceKind = "channel"; if (projectId) { layer = "project"; status = "current"; } else { layer = agentId ? "agent" : "space"; status = auto ? "current" : "proposed"; } }
     // "Require review for shared memory": a Space or project fact waits in Proposed whatever the mode.
