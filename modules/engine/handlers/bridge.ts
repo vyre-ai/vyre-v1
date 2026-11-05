@@ -246,6 +246,13 @@ export function createBridge(o: BridgeOptions): Bridge {
         return;
       }
       case "turn.failed": case "turn.cancelled": case "turn.waiting": {
+        if (e.type === "turn.waiting" && e.reason === "hop_limit") {
+          // an agent's mention of another was cut at the hand-off limit: said in the chat once, and logged with the depth, so a drop is never silent
+          warn("an agent's hand-off was cut at the hop limit", { threadId: e.threadId, messageId: e.messageId, depth: e.depth ?? null });
+          const who = engine?.agents(e.threadId).find((a) => a.mode === "lead")?.id ?? engine?.agents(e.threadId)[0]?.id;
+          if (who) enqueuePost(e.threadId, who, { threadId: e.threadId, body: "", blocks: [{ type: "turn_status", v: 1, data: { state: "note", text: "Stopped passing this on after 3 hand-offs between agents." } }], mentions: [], clientId: brgId() }, "");
+          return;
+        }
         if (e.type === "turn.waiting" && e.reason !== "approval") return;
         // a turn a dead host left has no turn.started here: who it ran for comes with the event, so the agent can still say so in the chat
         if (e.type === "turn.failed" && e.asker) askerOf.set(e.threadId, e.asker);
@@ -517,7 +524,7 @@ export function createBridge(o: BridgeOptions): Bridge {
     const known = new Set(eng.agents(threadId).map((a) => a.id));
     if (named.length > 0 || toAll || poke !== undefined || dirty.delete(threadId) || withSettings.has(threadId)) {
       try {
-        const now = (await reader(ctx, authorId, threadId)("threads.get", { threadId })) as ThreadGet;
+        const now = (await reader(ctx, readAs, threadId)("threads.get", { threadId })) as ThreadGet;
         withSettings.delete(threadId);
         for (const a of now.thread.agents) {
           if (Object.keys(settingsOf(a)).length > 0) withSettings.add(threadId);

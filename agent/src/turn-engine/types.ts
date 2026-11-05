@@ -164,7 +164,7 @@ export type EngineEvent =
   | { type: "turn.queued"; threadId: string; qseq: number; agentId: string; kind: QueueKind; priority: number; routine: boolean; steer: boolean }
   | { type: "turn.started"; threadId: string; turnId: string; agentId: string; qseq: number; asker: string }
   | { type: "turn.block"; threadId: string; turnId: string; idx: number; kind: string }
-  | { type: "turn.waiting"; threadId: string; reason: "hop_limit"; messageId: string }
+  | { type: "turn.waiting"; threadId: string; reason: "hop_limit"; messageId: string; depth?: number }
   /** A tool call was held at the Gate (ARCH 6.7): the turn parks on the approval task and a wake continues it once the task is answered. */
   | { type: "turn.waiting"; threadId: string; reason: "approval"; turnId: string; agentId: string; taskId: string; runId?: string }
   /** A parked turn is over: its wake started as a turn of its own. */

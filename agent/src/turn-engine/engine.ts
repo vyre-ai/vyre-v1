@@ -296,19 +296,19 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
     // Cut here, a coder started late in a long chat never ran its first turn, and its job ended lost.
     const brief = st.thread.kind === "helper" && !st.messages.some((x) => x.id !== msg.id);
     if (msg.author.kind === "agent" && job === undefined && r.reason === "mention" && responders.length > 0 && !brief) {
-      if ((msg.depth ?? 0) > MENTION_HOPS) { responders = []; emit({ type: "turn.waiting", threadId: st.thread.id, reason: "hop_limit", messageId: msg.id }); }
+      if ((msg.depth ?? 0) > MENTION_HOPS) { responders = []; emit({ type: "turn.waiting", threadId: st.thread.id, reason: "hop_limit", messageId: msg.id, depth: msg.depth ?? 0 }); }
       else {
         const since = st.messages.slice(); let k = since.length - 1;
         while (k >= 0 && since[k]!.author.kind !== "person") k--;
         const run = since.slice(k + 1);
         const bounces = (a: string, b: string): number => run.filter((x) => x.author.kind === "agent" && ((x.author.id === a && x.mentions.some((y) => y.kind === "agent" && y.id === b)) || (x.author.id === b && x.mentions.some((y) => y.kind === "agent" && y.id === a)))).length;
         responders = responders.filter((to) => bounces(msg.author.id, to) <= MAX_PAIR_PASSES);
-        if (responders.length === 0) emit({ type: "turn.waiting", threadId: st.thread.id, reason: "hop_limit", messageId: msg.id });
+        if (responders.length === 0) emit({ type: "turn.waiting", threadId: st.thread.id, reason: "hop_limit", messageId: msg.id, depth: msg.depth ?? 0 });
         else chain = { from: msg.author.id, to: [...responders] };
       }
     }
     let routine = false;
-    if (r.reason === "hop_limit") emit({ type: "turn.waiting", threadId: st.thread.id, reason: "hop_limit", messageId: msg.id });
+    if (r.reason === "hop_limit") emit({ type: "turn.waiting", threadId: st.thread.id, reason: "hop_limit", messageId: msg.id, depth: msg.depth ?? 0 });
     // Whose act this message is: a person's own, a Job's person, or for an agent's message the person it speaks for. An agent's message with nobody behind it is the agent's alone.
     const from = job ?? (msg.author.kind === "agent" && asker !== undefined && asker !== "" ? asker : msg.author.id);
     const personless = msg.author.kind === "agent" && from === msg.author.id;
