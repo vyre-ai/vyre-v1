@@ -39,7 +39,7 @@ const TAURI = `(() => { const S = ${JSON.stringify(SOURCES)}, D = ${JSON.stringi
     if (cmd === "read_session_source") return { source: S.find((x) => x.sessionKey === args.sessionKey), documents: [{ namespace: "main", text: D[args.sessionKey] }] };
     throw new Error("not available in this test"); } } }; })();`;
 
-test("a fresh install: pick Codex, go back, switch to Claude, keep an answer, import sessions", async (t) => {
+for (const SIZE of ["wide", "phone"] as const) test(`a fresh install (${SIZE}): pick Codex, go back, switch to Claude, keep an answer, import sessions`, async (t) => {
   const dist = process.env["VYRE_APP_DIST"];
   if (!dist) { t.skip("VYRE_APP_DIST required for production browser evidence"); return; }
   const { chromium } = await import("playwright-core");
@@ -77,17 +77,18 @@ test("a fresh install: pick Codex, go back, switch to Claude, keep an answer, im
       const guard = guardCrashes(p);
       const shot = async (name: string): Promise<void> => {
         await p.screenshot({ path: path.join(shots, `onboard-${name}-${size}-paper.png`) });
-        await p.evaluate(() => { document.documentElement.setAttribute("data-skin", "graphite"); document.documentElement.setAttribute("data-theme", "graphite"); });
-        await p.waitForTimeout(250);
+        await p.emulateMedia({ colorScheme: "dark" });
+        await p.waitForTimeout(400);
         await p.screenshot({ path: path.join(shots, `onboard-${name}-${size}-graphite.png`) });
-        await p.evaluate(() => { document.documentElement.setAttribute("data-skin", "paper"); document.documentElement.setAttribute("data-theme", "paper"); });
+        await p.emulateMedia({ colorScheme: "light" });
+        await p.waitForTimeout(250);
       };
       const ok = (where: string): Promise<void> => guard.check(`${size} ${where}`);
       const row = (k: string) => p.getByTestId(`row-step-${k}`);
       await p.goto(`${web.origin}/chat`, { waitUntil: "load" });
       // it opened by itself once, in the claim browser, and was left; here it is reopened from "Finish setup", as a person does
-      await p.getByTestId("resume-open").waitFor({ timeout: 40_000 });
-      await p.getByTestId("resume-open").click();
+      if (size === "wide") { await p.getByTestId("resume-open").waitFor({ timeout: 40_000 }); await p.getByTestId("resume-open").click(); }
+      else { await p.getByTestId("tab-you").waitFor({ timeout: 40_000 }); await p.getByTestId("tab-you").click(); await p.getByTestId("row-you-finish-setup").click(); }   // the phone has no title bar: You carries a Finish setup row
       await p.getByTestId("onboarding").waitFor({ timeout: 20_000 });
       await ok("onboarding opens");
       // 1. the AI step: pick the Codex sign-in on this computer
@@ -106,6 +107,7 @@ test("a fresh install: pick Codex, go back, switch to Claude, keep an answer, im
       // 2. back to that step: it shows what was picked and can change it
       if (size === "wide") await row("ai").click(); else { await p.getByTestId("step-back").click(); }
       await p.getByTestId("ai-connected").waitFor({ timeout: 15_000 });
+      await p.getByTestId(`ai-account-${afterCodex[0]!.id}`).waitFor({ timeout: 15_000 });   // the account rows load after the card opens
       assert.match(await p.getByTestId("ai-connected").innerText(), /Codex/);
       await shot("2-reopened-ai");
       // 3. switch to Claude: the Claude sign-in goes in first, then Codex is removed
@@ -119,6 +121,9 @@ test("a fresh install: pick Codex, go back, switch to Claude, keep an answer, im
       assert.match(await p.getByTestId("ai-note").innerText(), /Switched from .*Codex/);
       const afterSwitch = (await call("providers.list", {})).providers as Array<{ providerKey: string }>;
       assert.deepEqual(afterSwitch.map((x) => x.providerKey), ["claude-code"], "Claude is connected and Codex is gone");
+      await p.locator('[data-testid^="ai-account-"]').first().waitFor({ timeout: 10_000 });
+      await p.waitForFunction(() => !/Codex/.test(document.querySelector('[data-testid="ai-connected"]')?.textContent?.replace(/Switched from[^.]*\./, "") ?? ""), null, { timeout: 10_000 });   // the list drops the replaced account
+      assert.equal(await p.locator('[data-testid^="ai-account-"]').count(), 1, "one account is listed after the switch");
       await shot("3-switched-to-claude");
       await ok("switched");
       // 4. the interview keeps an answer across steps
@@ -133,7 +138,15 @@ test("a fresh install: pick Codex, go back, switch to Claude, keep an answer, im
       await p.getByTestId("step-next").click();   // Save
       await p.getByTestId("step-next").waitFor({ timeout: 15_000 });
       await ok("interview saved");
-      // 5. sessions: three found, one holds nothing readable; Select all, Import
+      // 5. sessions: three found, one holds nothing readable; Select all, Import. A phone cannot read its disk, so the step is not offered there and the next one opens.
+      if (size === "phone") {
+        await p.getByText("First win", { exact: true }).first().waitFor({ timeout: 20_000 });
+        assert.equal(await p.getByTestId("sessions-card").count(), 0, "the phone has no sessions step");
+        await shot("5-after-interview");
+        await ok("phone skips sessions");
+        await ctx.close();
+        return;
+      }
       await p.getByTestId("sessions-card").waitFor({ timeout: 20_000 });
       await p.getByTestId("sessions-list").waitFor({ timeout: 15_000 });
       await shot("5-sessions");
@@ -155,11 +168,12 @@ test("a fresh install: pick Codex, go back, switch to Claude, keep an answer, im
         await shot("7-reopened-interview");
         await row("ai").click();
         await p.getByTestId("ai-connected").waitFor({ timeout: 10_000 });
+        await p.locator('[data-testid^="ai-account-"]').first().waitFor({ timeout: 10_000 });
         assert.match(await p.getByTestId("ai-connected").innerText(), /Claude/, "going back and forth, the choice is still Claude");
         await ok("back and forth");
       }
       await ctx.close();
     };
-    await run("wide");
+    await run(SIZE);
   } finally { await browser.close(); web.close(); await space.stop(); }
 });

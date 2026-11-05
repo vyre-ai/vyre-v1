@@ -10,11 +10,12 @@ import type { CapCall } from "../shell/session/caps.ts";
 const CODEX = { id: "prv_codex", providerKey: "codex", name: "OpenAI", scope: "mine" };
 const rec = (opts: { removeFails?: boolean } = {}) => {
   const calls: Array<{ cap: string; input: Record<string, unknown> }> = [];
+  const gone = new Set<string>(); let added = false;
   const call = (async (cap: string, input: unknown) => {
     calls.push({ cap, input: input as Record<string, unknown> });
-    if (cap === "providers.list") return { providers: [CODEX, { id: "prv_team", providerKey: "anthropic", name: "Anthropic", scope: "shared" }] };
-    if (cap === "providers.add") return { provider: { id: "prv_claude" } };
-    if (cap === "providers.remove") { if (opts.removeFails) throw new Error("Only the owner may remove this."); return { ok: true }; }
+    if (cap === "providers.list") return { providers: [...(gone.has("prv_codex") ? [] : [CODEX]), ...(added ? [{ id: "prv_claude", providerKey: "anthropic", name: "Anthropic", scope: "mine" }] : []), { id: "prv_team", providerKey: "anthropic", name: "Anthropic", scope: "shared" }] };
+    if (cap === "providers.add") { added = true; return { provider: { id: "prv_claude" } }; }
+    if (cap === "providers.remove") { if (opts.removeFails) throw new Error("Only the owner may remove this."); gone.add(String((input as { providerId: string }).providerId)); return { ok: true }; }
     throw new Error(`no ${cap}`);
   }) as unknown as CapCall;
   return { calls, call };
@@ -58,6 +59,8 @@ test("switch from Codex to a Claude key: the new account is added, then the old 
     assert.deepEqual(r.calls.filter((c) => c.cap === "providers.add" || c.cap === "providers.remove").map((c) => c.cap), ["providers.add", "providers.remove"], "add first, remove second: a failed sign-in never leaves the person with nothing");
     assert.equal(r.calls.find((c) => c.cap === "providers.remove")!.input["providerId"], "prv_codex");
     assert.ok(textOf(find(root, "ai-note")).includes("Switched from ChatGPT (Codex)"));
+    assert.equal(find(root, "ai-account-prv_codex"), null, "the replaced account is out of the list once it is removed");
+    assert.ok(find(root, "ai-account-prv_claude"), "the new one is in it");
   } finally { restore(); }
 });
 

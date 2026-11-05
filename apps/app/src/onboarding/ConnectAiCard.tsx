@@ -14,6 +14,7 @@ import { checkKey } from "../ai-signin/key-prefix.ts";
 import { CARD } from "./card-style.ts";
 import type { AiHome } from "../ai-signin/own-ai.ts";
 import { accountLine, afterRemoval } from "./connect-change.ts";
+import { refreshPreview } from "./preview.ts";
 import type { AccountRow } from "./connect-change.ts";
 
 export function ConnectAiCard({ call, connected, onConnected, onDisconnected, initialFlow, home = "here", local = false, mac = onMacDevice() }: { call: CapCall; connected?: boolean; onConnected(providerId: string): void; /** The last connected account was disconnected here: the step is open again. */ onDisconnected?(): void; /** Opens with this sign-in showing (screenshots and tests). */ initialFlow?: SignInFlow & { provider: string }; /** where the person's own key can be kept from here, for the words of a refusal (ai-signin/own-ai.ts) */ home?: AiHome; /** A Personal Space: offer the Claude Code or Codex sign-in already on this computer first (owner decision D2). */ local?: boolean; /** On a Mac the Claude button says the Keychain will ask once. */ mac?: boolean }): ReactElement {
@@ -29,12 +30,13 @@ export function ConnectAiCard({ call, connected, onConnected, onDisconnected, in
   const [changing, setChanging] = useState(false);
   const [replacing, setReplacing] = useState<AccountRow | null>(null);
   const [note, setNote] = useState("");
+  const [fresh, setFresh] = useState(0);   // bumped when the accounts changed under the list (a switch removed one), so the list reads them again
   useEffect(() => {
     if (!connected) return undefined;
     let off = false;
     void Promise.resolve(call("providers.list", {})).then((r) => { if (!off) setAccounts(((r as { providers?: AccountRow[] }).providers ?? []).filter((a) => a.scope !== "shared")); }, () => { if (!off) setAccounts([]); });
     return () => { off = true; };
-  }, [call, connected, changing]);
+  }, [call, connected, changing, fresh]);
   // a new account is in: the one it replaces goes, so nothing is left half-connected; if that removal fails the new one stays and the card says so
   // the account is in, but can the engine run here? A sign-in whose program is missing or whose login needs doing again says so now, with the fix, before the first message fails
   const [held, setHeld] = useState<{ id: string; text: string; old: AccountRow | null } | null>(null);
@@ -53,6 +55,7 @@ export function ConnectAiCard({ call, connected, onConnected, onDisconnected, in
     if (old && old.id !== id) {
       try { await call("providers.remove", { providerId: old.id }); setNote(`Switched from ${accountLine(old)}.`); }
       catch (e) { setNote(`The new account is connected. ${accountLine(old)} could not be removed: ${e instanceof Error && e.message ? e.message : "That did not work."}`); }
+      setFresh((n) => n + 1); refreshPreview();
     }
   };
   const connectedNew = async (id: string): Promise<void> => {
@@ -65,7 +68,7 @@ export function ConnectAiCard({ call, connected, onConnected, onDisconnected, in
   const disconnect = (a: AccountRow): void => void run(async () => {
     await call("providers.remove", { providerId: a.id });
     const left = (accounts ?? []).filter((x) => x.id !== a.id);
-    setAccounts(left); setNote(`Disconnected ${accountLine(a)}.`);
+    setAccounts(left); setNote(`Disconnected ${accountLine(a)}.`); refreshPreview();
     if (afterRemoval(left) === "reopen") onDisconnected?.();
   });
   const run = async (work: () => Promise<void>): Promise<void> => {
