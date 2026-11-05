@@ -124,10 +124,27 @@ export type RowModel =
 
 export const isSelectable = (r: RowModel): boolean => r.type === "hit" || r.type === "action" || r.type === "skin" || r.type === "ask" || r.type === "source";
 
+/** The search marks the typed word in a snippet with [ ]: shown as plain text, the marks are not part of what a person wrote. */
+export const plainMarks = (text: string): string => text.replace(/\[([^\[\]]+)\]/g, "$1");
+
+/** One row per thing: the same title twice in a group (a chat's title, then a message hit of that chat) is one row that keeps the first hit and takes a snippet from the later one when it has none. */
+export function oneEach(hits: readonly Hit[]): Hit[] {
+  const at = new Map<string, number>(), out: Hit[] = [];
+  for (const h of hits) {
+    const t = { ...h, title: plainMarks(h.title), ...(h.snippet !== undefined ? { snippet: plainMarks(h.snippet) } : {}) } as Hit;
+    const k = `${t.kind}:${t.title.trim().toLowerCase()}`, seen = at.get(k);
+    if (seen === undefined) { at.set(k, out.length); out.push(t); continue; }
+    const mine = out[seen]!;
+    if (mine.snippet === undefined && t.snippet !== undefined) out[seen] = { ...mine, snippet: t.snippet };
+  }
+  return out;
+}
+
 export function groupRows(hits: readonly Hit[], cap: number): RowModel[] {
   const rows: RowModel[] = [];
+  const clean = oneEach(hits);
   for (const [kind, title] of GROUPS) {
-    const part = hits.filter((h) => h.kind === kind).slice(0, cap);
+    const part = clean.filter((h) => h.kind === kind).slice(0, cap);
     if (!part.length) continue;
     rows.push({ type: "head", key: `h-${kind}`, title });
     for (const hit of part) rows.push({ type: "hit", key: `hit-${keyOf(hit)}`, hit });
