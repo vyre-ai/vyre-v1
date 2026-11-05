@@ -52,7 +52,7 @@ test("the lead asks which account a helper should use before it starts, and the 
       }
       return;
     }
-    await new Promise((r) => setTimeout(r, 12_000));
+    await new Promise((r) => setTimeout(r, 4_000));
     yield { type: "text", text: "Done." };
   });
   const fresh = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "vyre-helper-rows-")));
@@ -108,14 +108,19 @@ test("the lead asks which account a helper should use before it starts, and the 
       if (await later.count()) await later.first().click().catch(() => undefined);
       await page.getByText("Quotes and site", { exact: false }).first().click({ timeout: 30_000 });
       await page.getByText("Which account should Orin use?").first().waitFor({ timeout: 60_000 }).catch(async (e) => { await guard.check("FAILED-ask"); await shoot(page, `FAILED-crewask-${mode}`); throw e; });
-      assert.equal(await page.getByTestId("crew-strip").count(), 0, "no helper starts before the question is answered");
-      await shot(`crewask-question-${mode}-${size}`);
       if (mode === "light") {
+        assert.equal(await page.getByTestId("crew-strip").count(), 0, "no helper starts before the question is answered");
+        await shot(`crewask-question-${mode}-${size}`);
         await page.getByText("My Claude", { exact: false }).first().click({ timeout: 15_000 });
         await page.getByTestId("crew-strip").first().waitFor({ timeout: 60_000 }).catch(async (e) => { await guard.check("FAILED-after"); await shoot(page, `FAILED-crewask-after-${mode}`); throw e; });
+        await shot(`crewask-answered-${mode}-${size}`);
+      } else {
+        await page.getByTestId("crew-strip").first().waitFor({ timeout: 30_000 });
         await shot(`crewask-answered-${mode}-${size}`);
       }
       await ctx.close();
     }
+    // let both helpers finish before the Space closes
+    await waitFor(async () => (((await api("engine.helpers.status", { threadId: chat })).helpers as Array<{ state: string }>).every((h) => h.state !== "working") ? true : null), 60_000, () => hostLog(d));
   } finally { await browser.close(); web.close(); await stop(d); }
 });
