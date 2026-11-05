@@ -137,11 +137,12 @@ test("a fresh install: pick Codex, go back, switch to Claude, keep an answer, im
       await p.getByTestId("sessions-card").waitFor({ timeout: 20_000 });
       await p.getByTestId("sessions-list").waitFor({ timeout: 15_000 });
       await shot("5-sessions");
+      assert.match(await p.getByTestId("sessions-count").innerText(), /0 of 2 selected/, "the session with nothing readable is not in the list");
       await p.getByTestId("sessions-all").click();
       await p.getByTestId("step-next").click();
       await p.getByTestId("sessions-imported").waitFor({ timeout: 30_000 });
       const said = await p.getByTestId("sessions-imported").innerText();
-      assert.match(said, /Imported 2\./); assert.match(said, /1 session had nothing to read and was left out\./);
+      assert.match(said, /Imported 2\./); assert.doesNotMatch(said, /left out/, "nothing junk was picked, so nothing is left out");
       const listed = (await call("sessions.list", {})).sessions as unknown[];
       assert.equal(listed.length, 2, "the two readable sessions are in Chats");
       await shot("6-imported");
