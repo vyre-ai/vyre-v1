@@ -510,6 +510,13 @@ write_units() {
   fi
 }
 
+# userns_setting: Ubuntu 24.04 blocks the user namespaces the engine sandbox needs; the release's own script writes /etc/sysctl.d/60-vyre-userns.conf where the kernel has the setting.
+userns_setting() {
+  if [ "$DRY" = 1 ]; then say "would write /etc/sysctl.d/60-vyre-userns.conf (kernel.apparmor_restrict_unprivileged_userns=0) where the kernel has that setting"; return 0; fi
+  [ "${VYRE_TEST_MODE:-0}" != 1 ] || [ -n "${VYRE_SYSCTL_DIR:-}" ] || return 0
+  VYRE_DIR="$DIR" sh "$DIR/current/bin/vyre-server" fix-userns >/dev/null 2>&1 || true
+}
+
 pull_images() {
   for k in VYRE_IMAGE VYRE_AGENT_IMAGE VYRE_SANDBOX_IMAGE; do
     ref=$(lock_get "$k")
@@ -809,6 +816,7 @@ main() {
   write_config
   link_current
   write_units
+  userns_setting
   pull_images
   start_stack
   wait_green

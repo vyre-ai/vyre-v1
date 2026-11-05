@@ -1,7 +1,7 @@
 // The pure half of the app updating itself: the start's decision, version order, the progress words, the toggle and What's new once per version.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { AUTO_KEY, FROM_KEY, SEEN_KEY, autoUpdateOn, bytes, checkedLabel, decide, fraction, isNewer, markSeen, noteLines, noteUpdateFrom, parseWhatsNew, progressLine, setAutoUpdate, whatsNewToShow } from "./model.ts";
+import { AUTO_KEY, FROM_KEY, SEEN_KEY, autoUpdateOn, bytes, checkedLabel, decide, fraction, installFailureWords, isNoSpace, NEEDS_SPACE, isNewer, markSeen, noteLines, noteUpdateFrom, parseWhatsNew, progressLine, setAutoUpdate, whatsNewToShow } from "./model.ts";
 import type { Store, UpdateCheck } from "./model.ts";
 
 const mem = (init: Record<string, string> = {}): Store & { data: Map<string, string> } => {
@@ -122,4 +122,16 @@ test("the wait: the countdown clock, the chats it names, and the lines for waiti
   assert.equal(fraction({ phase: "waiting", downloaded: 0, total: null, turns: 1 }), null, "no cap known: the quiet indeterminate bar, never full");
   assert.equal(fraction({ phase: "installing", downloaded: 0, total: null }), 1);
   assert.equal(progressLine({ phase: "stopping", downloaded: 0, total: null }), "Getting ready to install");
+});
+
+test("a full disk gets one plain line, whatever way the shell words it; any other failure keeps its own words", () => {
+  const unpack = "The update did not install: failed to unpack `Vyre.app/Contents/Resources/runtime/node_modules/es-toolkit/dist/set/keyBy.js` into `/private/var/folders/x`: No space left on device (os error 28)";
+  assert.equal(NEEDS_SPACE, "Your Mac needs about 1 GB free to update. Free some space and press Update now.");
+  assert.equal(installFailureWords(new Error(unpack), "x"), NEEDS_SPACE);
+  assert.equal(installFailureWords(unpack, "x"), NEEDS_SPACE);
+  assert.equal(installFailureWords("Your Mac needs about 1 GB free to update. Free some space and press Update now.", "x"), NEEDS_SPACE);
+  assert.equal(isNoSpace("ENOSPC"), true);
+  assert.equal(isNoSpace("The update was refused: its signature does not match"), false);
+  assert.equal(installFailureWords("The update was refused: its signature does not match", "x"), "The update was refused: its signature does not match");
+  assert.equal(installFailureWords(undefined, "The update did not install. Try again."), "The update did not install. Try again.");
 });

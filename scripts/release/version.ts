@@ -25,15 +25,77 @@ export function releaseCounter(version: string): number {
 
 /** Files that carry the release version, relative to the repo root. */
 /** apps/app/public/whats-new.json is the release's What's new (scripts/changelog/assemble.ts): stamping it here means its lines are always for the version that ships them. */
-export const VERSION_FILES: readonly string[] = ["package.json", "apps/app/public/whats-new.json"];
+/** The desktop app files too: rc.22 shipped a DMG named rc.21 because the Tauri files were not bumped. */
+export const VERSION_FILES: readonly string[] = [
+  "package.json",
+  "apps/app/public/whats-new.json",
+  "package-lock.json",
+  "apps/desktop/package.json",
+  "apps/desktop/src-tauri/Cargo.toml",
+  "apps/desktop/src-tauri/tauri.conf.json",
+  "apps/desktop/src-tauri/Cargo.lock",
+];
+
+/** One place in a file that holds the version. A plain .json file has one (its top-level version); the lockfiles and Cargo files have their own. */
+interface Slot { label: string; get: (text: string) => string | undefined; set: (text: string, to: string) => string }
+
+const CARGO_PACKAGE = /(\[package\][^[]*?\n\s*version\s*=\s*")([^"]*)(")/;
+const CARGO_LOCK_DESKTOP = /(\[\[package\]\]\nname = "vyre-desktop"\nversion = ")([^"]*)(")/;
+
+function jsonSlot(label: string, pick: (doc: Record<string, unknown>) => Record<string, unknown> | undefined): Slot {
+  return {
+    label,
+    get: (text) => { const v = pick(JSON.parse(text) as Record<string, unknown>)?.["version"]; return typeof v === "string" ? v : undefined; },
+    set: (text, to) => {
+      const doc = JSON.parse(text) as Record<string, unknown>;
+      const target = pick(doc);
+      if (!target) throw new Error(`${label}: not found`);
+      target["version"] = to;
+      const indent = /^\{\n( +)"/.exec(text)?.[1]?.length ?? 2;
+      return `${JSON.stringify(doc, null, indent)}${text.endsWith("\n") ? "\n" : ""}`;
+    },
+  };
+}
+
+function regexSlot(label: string, re: RegExp): Slot {
+  return {
+    label,
+    get: (text) => re.exec(text)?.[2],
+    set: (text, to) => { if (!re.test(text)) throw new Error(`${label}: not found`); return text.replace(re, `$1${to}$3`); },
+  };
+}
+
+const lockPackages = (doc: Record<string, unknown>): Record<string, Record<string, unknown>> => (doc["packages"] ?? {}) as Record<string, Record<string, unknown>>;
+
+function slotsOf(file: string): Slot[] {
+  const base = path.basename(file);
+  if (base === "package-lock.json") {
+    return [
+      jsonSlot("version", (d) => d),
+      jsonSlot('packages[""].version', (d) => lockPackages(d)[""]),
+      ...(file.startsWith("apps/desktop/") || !file.includes("/") ? [jsonSlot('packages["apps/desktop"].version', (d) => lockPackages(d)["apps/desktop"])] : []),
+    ];
+  }
+  if (base === "Cargo.toml") return [regexSlot("[package] version", CARGO_PACKAGE)];
+  if (base === "Cargo.lock") return [regexSlot("vyre-desktop version", CARGO_LOCK_DESKTOP)];
+  return [jsonSlot("version", (d) => d)];
+}
 
 interface Found { file: string; version: string | undefined }
 
+/** Every version a file carries, as one row per place (a lockfile has several). */
+function readSlots(root: string, files: readonly string[]): Found[] {
+  const out: Found[] = [];
+  for (const file of files) {
+    const text = fs.readFileSync(path.join(root, file), "utf8");
+    const slots = slotsOf(file);
+    for (const slot of slots) out.push({ file: slots.length > 1 ? `${file} ${slot.label}` : file, version: slot.get(text) });
+  }
+  return out;
+}
+
 export function readVersions(root: string, files: readonly string[] = VERSION_FILES): Found[] {
-  return files.map((file) => {
-    const v = (JSON.parse(fs.readFileSync(path.join(root, file), "utf8")) as { version?: unknown }).version;
-    return { file, version: typeof v === "string" ? v : undefined };
-  });
+  return readSlots(root, files);
 }
 
 /** What disagrees with the first file. */
@@ -49,11 +111,9 @@ export function bump(root: string, to: string, files: readonly string[] = VERSIO
   const from = readVersions(root, files)[0]?.version;
   for (const file of files) {
     const p = path.join(root, file);
-    const text = fs.readFileSync(p, "utf8");
-    const doc = JSON.parse(text) as Record<string, unknown>;
-    doc["version"] = to;
-    const indent = /^\{\n( +)"/.exec(text)?.[1]?.length ?? 2;
-    fs.writeFileSync(p, `${JSON.stringify(doc, null, indent)}${text.endsWith("\n") ? "\n" : ""}`);
+    let text = fs.readFileSync(p, "utf8");
+    for (const slot of slotsOf(file)) text = slot.set(text, to);
+    fs.writeFileSync(p, text);
   }
   const left = versionProblems(root, files);
   if (left.length > 0) throw new Error(`after the bump: ${left.join("; ")}`);

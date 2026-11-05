@@ -4,7 +4,7 @@
 import { useEffect, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { Opening } from "../../join/kit.tsx";
-import { FROM_KEY, STARTUP_WAIT_MS, autoUpdateOn, decide, noteUpdateFrom } from "./model.ts";
+import { FROM_KEY, STARTUP_WAIT_MS, autoUpdateOn, decide, installFailureWords, isNoSpace, noteUpdateFrom } from "./model.ts";
 import type { Progress, Store, UpdateCheck } from "./model.ts";
 import { desktopUpdates, localStore, setUpdateState } from "./store.ts";
 import type { DesktopUpdates } from "./store.ts";
@@ -32,10 +32,12 @@ export function StartupUpdate(props: { children: ReactNode; updates?: DesktopUpd
   useEffect(() => {
     if (!updates) return undefined;
     let on = true;
-    const failed = (): void => {
+    const failed = (e?: unknown): void => {
       try { store?.removeItem(FROM_KEY); } catch { /* nothing kept */ }
       setUpdateState({ installing: false });
-      if (on) setFailure(INSTALL_FAILED);
+      // only a full disk gets words of its own: any other text from the shell stays the one line
+      const said = installFailureWords(e, "");
+      if (on) setFailure(isNoSpace(said) ? said : INSTALL_FAILED);
     };
     void updates.startup(waitMs).then((check) => {
       if (!on) return;
