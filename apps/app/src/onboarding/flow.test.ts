@@ -44,3 +44,18 @@ test("the screen context names the step and the focus skill for each flow, ids o
   assert.deepEqual(onboardingScreen("member", null, {}).open, []);
   assert.equal(onboardingScreen("member", "mine", {}).focus, "focus-onboarding-member");
 });
+
+test("any step can be reopened whatever its state, and changing a choice keeps the walk consistent: a reopened step is open until it is done again, nothing else moves", async () => {
+  const { stepsOf, stateOf, resumeAt } = await import("./flow.ts");
+  for (const flow of ["personal", "team", "member"] as const) {
+    for (const st of stepsOf(flow)) {
+      for (const was of ["done", "later", "open"] as const) {
+        const all = Object.fromEntries(stepsOf(flow).map((x) => [x.key, "done" as const]));
+        const reopened = { ...Object.fromEntries(Object.entries({ ...all, [st.key]: was }).filter(([, v]) => v !== "open")) };
+        assert.equal(stateOf(reopened, st.key), was);
+        for (const other of stepsOf(flow)) if (other.key !== st.key) assert.equal(stateOf(reopened, other.key), "done", `${flow}/${st.key}: ${other.key} is untouched`);
+        assert.equal(resumeAt(flow, reopened), was === "done" ? null : st.key, `${flow}/${st.key} as ${was}`);
+      }
+    }
+  }
+});

@@ -1,0 +1,91 @@
+// Going back to Connect your AI: the card says who is connected, can switch to another account (the old one is removed once the new one is in) and can disconnect (the step opens again).
+import test from "node:test";
+import assert from "node:assert/strict";
+import { createRoot } from "test-renderer";
+import { find, flush, installDom, mount, press, textOf, typeInto } from "./test-dom.ts";
+import { ConnectAiCard } from "./ConnectAiCard.tsx";
+import { accountLine, afterRemoval } from "./connect-change.ts";
+import type { CapCall } from "../shell/session/caps.ts";
+
+const CODEX = { id: "prv_codex", providerKey: "codex", name: "OpenAI", scope: "mine" };
+const rec = (opts: { removeFails?: boolean } = {}) => {
+  const calls: Array<{ cap: string; input: Record<string, unknown> }> = [];
+  const call = (async (cap: string, input: unknown) => {
+    calls.push({ cap, input: input as Record<string, unknown> });
+    if (cap === "providers.list") return { providers: [CODEX, { id: "prv_team", providerKey: "anthropic", name: "Anthropic", scope: "shared" }] };
+    if (cap === "providers.add") return { provider: { id: "prv_claude" } };
+    if (cap === "providers.remove") { if (opts.removeFails) throw new Error("Only the owner may remove this."); return { ok: true }; }
+    throw new Error(`no ${cap}`);
+  }) as unknown as CapCall;
+  return { calls, call };
+};
+
+test("the words and the rule: an account reads as its name, and with none left the step opens again", () => {
+  assert.equal(accountLine({ providerKey: "codex", name: "OpenAI" }), "ChatGPT (Codex)");
+  assert.equal(accountLine({ providerKey: "claude-code", name: "x", itemName: "Dana Claude Max" }), "Dana Claude Max");
+  assert.equal(afterRemoval([]), "reopen");
+  assert.equal(afterRemoval([CODEX]), "stay");
+});
+
+test("reopened after picking Codex, the card shows it and the shared team key is not listed as mine", async () => {
+  const restore = installDom();
+  try {
+    const r = rec();
+    const root = await mount(createRoot, <ConnectAiCard call={r.call} connected onConnected={() => undefined} />);
+    await flush();
+    assert.ok(textOf(find(root, "ai-account-prv_codex")).includes("ChatGPT (Codex)"));
+    assert.equal(find(root, "ai-account-prv_team"), null, "a shared key is the Space's, not this person's to switch");
+    assert.ok(find(root, "ai-change") && find(root, "ai-switch-prv_codex") && find(root, "ai-remove-prv_codex"));
+  } finally { restore(); }
+});
+
+test("switch from Codex to a Claude key: the new account is added, then the old one is removed, and nothing is left half-connected", async () => {
+  const restore = installDom();
+  try {
+    const r = rec();
+    const got: string[] = [];
+    const root = await mount(createRoot, <ConnectAiCard call={r.call} connected onConnected={(id) => got.push(id)} />);
+    await flush();
+    await press(find(root, "ai-switch-prv_codex"));
+    assert.ok(find(root, "ai-tiles") && find(root, "ai-keep"), "the sign-in choices show, with a way to keep what is there");
+    await press(find(root, "ai-use-key"));
+    await press(find(root, "row-ai-provider-anthropic"));
+    const field = find(root, "ai-key-field");
+    await typeInto(field, "sk-ant-api03-" + "a".repeat(40));
+    await press(find(root, "ai-key-save"));
+    await flush(); await flush();
+    assert.deepEqual(got, ["prv_claude"]);
+    assert.deepEqual(r.calls.filter((c) => c.cap === "providers.add" || c.cap === "providers.remove").map((c) => c.cap), ["providers.add", "providers.remove"], "add first, remove second: a failed sign-in never leaves the person with nothing");
+    assert.equal(r.calls.find((c) => c.cap === "providers.remove")!.input["providerId"], "prv_codex");
+    assert.ok(textOf(find(root, "ai-note")).includes("Switched from ChatGPT (Codex)"));
+  } finally { restore(); }
+});
+
+test("if the old account cannot be removed, the new one stays and the card says why", async () => {
+  const restore = installDom();
+  try {
+    const r = rec({ removeFails: true });
+    const root = await mount(createRoot, <ConnectAiCard call={r.call} connected onConnected={() => undefined} />);
+    await flush();
+    await press(find(root, "ai-switch-prv_codex")); await press(find(root, "ai-use-key")); await press(find(root, "row-ai-provider-anthropic"));
+    await typeInto(find(root, "ai-key-field"), "sk-ant-api03-" + "b".repeat(40));
+    await press(find(root, "ai-key-save")); await flush(); await flush();
+    assert.match(textOf(find(root, "ai-note")), /new account is connected\. ChatGPT \(Codex\) could not be removed: Only the owner may remove this\./);
+  } finally { restore(); }
+});
+
+test("Disconnect removes the account, says so, and with none left tells the step to open again; Keep what I have goes back", async () => {
+  const restore = installDom();
+  try {
+    const r = rec();
+    let reopened = 0;
+    const root = await mount(createRoot, <ConnectAiCard call={r.call} connected onConnected={() => undefined} onDisconnected={() => { reopened++; }} />);
+    await flush();
+    await press(find(root, "ai-switch-prv_codex")); await press(find(root, "ai-keep"));
+    assert.ok(find(root, "ai-account-prv_codex"), "Keep what I have returns to the connected view");
+    await press(find(root, "ai-remove-prv_codex")); await flush();
+    assert.equal(r.calls.find((c) => c.cap === "providers.remove")!.input["providerId"], "prv_codex");
+    assert.equal(reopened, 1);
+    assert.ok(textOf(find(root, "ai-note")).includes("Disconnected ChatGPT (Codex)."));
+  } finally { restore(); }
+});

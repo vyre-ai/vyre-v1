@@ -15,6 +15,7 @@ import { Mark } from "./ProviderLogo.tsx";
 import { failureLine, folderChoices, folderName, folderMenuLabel, importedNote, modifiedAt, newestFirst, relativeDate, rememberImported, selectState, sessionName, whyWords } from "./sessions-model.ts";
 import type { ImportTally } from "./sessions-model.ts";
 import { CARD } from "./card-style.ts";
+import { draftGet, draftSet } from "./drafts.ts";
 
 const label = (src: SessionSource): string => `${src.provider === "codex" ? "Codex" : "Claude Code"}`;
 
@@ -29,8 +30,10 @@ function pointOf(e: unknown): { x: number; y: number } {
 export function SessionsCard({ call, onDone, gate, onOpenChats }: { call: CapCall; onDone(): void; gate?(save: (() => Promise<boolean>) | null, label?: string): void; onOpenChats?(): void }): ReactElement {
   // set once the import is done: the card then says where the sessions are, and Continue (the gate) finishes the step
   const [found, setFound] = useState<SessionSource[] | null>(null);
-  const [on, setOn] = useState<ReadonlySet<string>>(new Set());
-  const [folder, setFolder] = useState("");
+  // reopened from the rail or Back: the ticks and the folder filter are as they were left
+  const [on, setOn] = useState<ReadonlySet<string>>(() => new Set(draftGet<string[]>("sessions-on") ?? []));
+  const [folder, setFolder] = useState(() => draftGet<string>("sessions-folder") ?? "");
+  useEffect(() => { draftSet("sessions-on", [...on]); draftSet("sessions-folder", folder); }, [on, folder]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [imported, setImported] = useState<{ count: number; empty: number } | null>(null);

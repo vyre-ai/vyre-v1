@@ -25,3 +25,28 @@ export async function saveInterview(call: CapCall, answers: Partial<Record<Quest
   }
   return saved;
 }
+
+export interface SavedAnswer { factId: string; text: string }
+export type SavedAnswers = Partial<Record<Question["key"], SavedAnswer>>;
+
+/** Saves answers the first time and, when the step is reopened, corrects only what changed (memory.fact.correct on the fact already made), so editing never leaves the old words beside the new. */
+export async function saveInterviewEdit(call: CapCall, answers: Partial<Record<Question["key"], string>>, runId: string, saved: SavedAnswers = {}): Promise<{ count: number; saved: SavedAnswers }> {
+  const next: SavedAnswers = { ...saved };
+  let count = 0;
+  for (const q of QUESTIONS) {
+    const text = cleanAnswer(answers[q.key] ?? "");
+    if (text === "") continue;
+    const before = saved[q.key];
+    if (before && before.text === text) { count++; continue; }
+    if (before) {
+      await call("memory.fact.correct", { factId: before.factId, text: q.fact(text) });
+      next[q.key] = { factId: before.factId, text };
+    } else {
+      const out = await call("memory.propose_fact", { layer: "person", text: q.fact(text), sourceKind: "manual", sourceRef: "onboarding", kind: "preference", idempotencyKey: `${runId}:${q.key}` }) as { fact: { factId: string; status: string } };
+      if (out.fact.status === "proposed") await call("memory.fact.accept", { factId: out.fact.factId });
+      next[q.key] = { factId: out.fact.factId, text };
+    }
+    count++;
+  }
+  return { count, saved: next };
+}

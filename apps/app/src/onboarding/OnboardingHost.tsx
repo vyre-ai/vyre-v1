@@ -112,7 +112,7 @@ export function OnboardingHost({ call, space, children, cards, onAddSpace, mac =
     if (card === "connect_ai" && call) return (
       <View style={s.aiCol}>
         {space.kind === "team" ? <SpaceAiStatus call={call} {...(person ? { me: person } : {})} /> : null}
-        <ConnectAiCard home={home} call={call} local={space.kind === "personal"} connected={aiProvider !== null || progress["ai"] === "done"} onConnected={(id) => { setAiProvider(id); ctx.done(); }} />
+        <ConnectAiCard home={home} call={call} local={space.kind === "personal"} connected={aiProvider !== null || progress["ai"] === "done"} onConnected={(id) => { setAiProvider(id); if (progress["ai"] !== "done") ctx.done(); else setHasAi(true); }} onDisconnected={() => { setAiProvider(null); setHasAi(false); onStep("ai", "open"); }} />
       </View>
     );
     if (card === "bridge_team" && onAddSpace) return <TeamBridgeCard mac={mac} onCreate={() => { onAddSpace(); ctx.later(); }} />;
@@ -134,7 +134,7 @@ export function OnboardingHost({ call, space, children, cards, onAddSpace, mac =
     if (card === "org" && call) return <KitPickCard call={call} spaceName={space.kind === "team" ? readableName(space.name) : ""} onName={setTypedName} onInstalled={() => ctx.done()} gate={ctx.gate} />;
     if (card === "interview" && call) return <InterviewCard call={call} onSaved={() => ctx.done()} gate={ctx.gate} />;
     return <Text testID="card-not-set-up" style={s.dim}>This part is not set up yet. You can come back to it later.</Text>;
-  }, [call, cards, aiProvider, hasAi, progress, onAddSpace, mac, address, onGo, personalCall, personName, person, shownName, space.kind, space.name, home]);
+  }, [call, cards, aiProvider, hasAi, progress, onAddSpace, mac, address, onGo, personalCall, personName, person, shownName, space.kind, space.name, home, onStep]);
 
   const info = !shown && flow ? resumeInfo(flow, progress, detectDevice()) : null;
   const device = detectDevice();
