@@ -307,7 +307,6 @@ const s = StyleSheet.create({
   head: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 18, paddingTop: 14, paddingBottom: 8 },
   tt: { flex: 1, minWidth: 0, flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" },
   titleBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8, maxWidth: "100%" },
-  chev: { fontSize: 13, color: "var(--ink-3)" as string, marginTop: -4 },
   hover: { backgroundColor: "var(--hover)" as string },
   iconBtn: { width: 28, height: 28, borderRadius: 8, alignItems: "center", justifyContent: "center" },
   star: { fontSize: 16, color: "var(--ink-3)" as string },
