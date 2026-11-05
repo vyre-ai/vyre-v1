@@ -4,7 +4,6 @@ import type { TestContext } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
-import type { Page } from "playwright-core";
 import { bootFreshSpace, claimOnEdge, edge, dismissOnboarding} from "./real-app-harness.test.ts";
 import { openConsolePage } from "./console-nav.ts";
 import { guardCrashes } from "./crash-guard.ts";
@@ -14,10 +13,16 @@ const PASSWORD = "fixture password 123";
 const MATRIX = [["paper", "desktop", 1280, 900], ["graphite", "desktop", 1280, 900], ["paper", "phone", 390, 844], ["graphite", "phone", 390, 844]] as const;
 
 export type AccessPart = "groups" | "roles" | "policies" | "reviews";
-export async function runAccessPages(t: TestContext, parts: readonly AccessPart[]): Promise<void> {
+/** playwright-core, passed in by each test file: it is a dev dependency, which only a *.test.* file may import (boundaries B6). */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type Playwright = { chromium: { executablePath(): string; launch(o: { executablePath: string; args: string[] }): Promise<any> } };
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type Page = any;
+
+export async function runAccessPages(t: TestContext, parts: readonly AccessPart[], pw: Playwright): Promise<void> {
   const dist = process.env["VYRE_APP_DIST"];
   if (!dist) { if (process.env["VYRE_REQUIRE_CHROME"] === "1") assert.fail("VYRE_APP_DIST required"); t.skip("VYRE_APP_DIST required for production browser evidence"); return; }
-  const { chromium } = await import("playwright-core");
+  const { chromium } = pw;
   const exe = process.env["CHROME_BIN"] || chromium.executablePath();
   assert.ok(fs.existsSync(exe), `Chromium is required at ${exe}`);
   const space = await bootFreshSpace();

@@ -3,5 +3,5 @@ import test from "node:test";
 import { runAccessPages } from "./console-access-pages.ts";
 
 test("production Console Access pages: Roles", async (t) => {
-  await runAccessPages(t, ["roles"]);
+  await runAccessPages(t, ["roles"], await import("playwright-core"));
 });
