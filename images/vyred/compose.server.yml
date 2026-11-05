@@ -41,6 +41,12 @@ services:
     depends_on:
       sites-runner:
         condition: service_started
+    # Docker publishes ports through the container's GATEWAY network. Each agent computer joins vyred to a network of its own, and without a priority Docker moves the gateway (and the published ports'
+    # NAT) to the newest of them: every open connection of every person on 80, 443 and the loopback port drops, and a request in flight fails, each time anyone sets up a computer. The default network keeps
+    # the gateway. Needs Docker Engine 28 or later (API 1.48) and Compose 2.33 or later; `vyre-server doctor` says so when the engine is older.
+    networks:
+      default:
+        gw_priority: 100
     cap_drop: [ALL]
     security_opt:
       - no-new-privileges:true

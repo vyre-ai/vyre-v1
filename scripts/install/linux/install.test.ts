@@ -822,3 +822,54 @@ test("restore puts the old data back when the server is not healthy on the resto
     assert.deepEqual(fs.readdirSync(path.join(dir, "data")).sort(), ["caddy", "space"]);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
+
+/** A docker on PATH that answers `info`, `version` (the engine API) and `compose version --short`. */
+function fakeDocker(dir: string, api: string, compose: string): Record<string, string> {
+  fs.mkdirSync(path.join(dir, "bin"), { recursive: true });
+  fs.writeFileSync(path.join(dir, "bin/docker"), `#!/bin/sh\ncase "$1" in\n  info) exit 0 ;;\n  version) echo "${api}" ;;\n  compose) echo "${compose}" ;;\nesac\n`, { mode: 0o755 });
+  return { PATH: `${path.join(dir, "bin")}:${process.env["PATH"] ?? ""}` };
+}
+
+test("install.sh stops before changing anything on a Docker Engine older than 28 or a Compose older than 2.33, naming what is needed; a new one passes", () => {
+  const dir = tmp();
+  const run = (api: string, compose: string) => sh(INSTALL, "need_docker; echo passed", fakeDocker(dir, api, compose));
+  const oldEngine = run("1.47", "v2.40.3");
+  assert.notEqual(oldEngine.status, 0);
+  assert.match(oldEngine.stderr + oldEngine.stdout, /Docker Engine 28 or newer \(it runs API 1\.47\)/);
+  assert.match(oldEngine.stderr + oldEngine.stdout, /Nothing was changed/);
+  const oldCompose = run("1.56", "v2.32.4");
+  assert.notEqual(oldCompose.status, 0);
+  assert.match(oldCompose.stderr + oldCompose.stdout, /Docker Compose 2\.33 or newer/);
+  const fine = run("1.48", "v2.33.0");
+  assert.equal(fine.status, 0, fine.stderr);
+  assert.match(fine.stdout, /passed/);
+  assert.equal(run("1.56", "5.7.0").status, 0, "Compose 5.x is newer than 2.33");
+  assert.equal(run("", "v2.40.3").status, 0, "an engine that does not say its version is not guessed at");
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test("vyre-server update checks Docker's versions before unpacking anything; an old engine or Compose stops it with the version needed and leaves the server untouched; a new one and an unreadable one go on", () => {
+  const dir = tmp();
+  const run = (api: string, compose: string) => sh(SERVER, "preflight_docker; echo passed", fakeDocker(dir, api, compose));
+  const oldEngine = run("1.47", "v2.40.3");
+  assert.notEqual(oldEngine.status, 0);
+  assert.match(oldEngine.stderr + oldEngine.stdout, /needs Docker Engine 28 or newer \(this machine runs API 1\.47\).*The running server was not touched/);
+  const oldCompose = run("1.56", "v2.32.4");
+  assert.notEqual(oldCompose.status, 0);
+  assert.match(oldCompose.stderr + oldCompose.stdout, /needs Docker Compose 2\.33 or newer \(this machine runs 2\.32\).*not touched/);
+  assert.equal(run("1.56", "5.7.0").status, 0);
+  assert.equal(run("1.48", "v2.33.0").status, 0);
+  assert.equal(run("", "").status, 0, "versions that cannot be read are not guessed at");
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test("the doctor's Docker finding: a new engine is healthy, an old one is degraded with the fix, a missing one says nothing", () => {
+  const dir = tmp();
+  const run = (api: string) => sh(SERVER, `check_docker_gw; printf '%s\\n' "$FINDINGS"`, fakeDocker(dir, api, "v2.40.3"));
+  assert.match(run("1.56").stdout, /host\.docker_gw\thealthy\t/);
+  assert.match(run("1.48").stdout, /host\.docker_gw\thealthy\t/);
+  const old = run("1.47");
+  assert.match(old.stdout, /host\.docker_gw\tdegraded\t.*older than 1\.48 \(Docker 28\).*vyre-server restart/);
+  assert.doesNotMatch(run("").stdout, /host\.docker_gw/, "no answer, no finding");
+  fs.rmSync(dir, { recursive: true, force: true });
+});
