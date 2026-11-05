@@ -56,7 +56,8 @@ import { onTurnEnded, resumeTasks } from "./handlers/task-baton.ts";
 import { ensureExtra } from "./handlers/extra/schema.ts";
 import { createKeepAwake } from "./keep-awake.ts";
 import { coalesceLive } from "./live-coalesce.ts";
-import { cliSandboxCode, cliSandboxGap, defaultSandbox, egressPolicyOf, wallEgress, windowsMode } from "./sandbox-default.ts";
+import { cliSandboxCode, cliSandboxGap, defaultSandbox, egressPolicyOf, setGitLocal, wallEgress, windowsMode } from "./sandbox-default.ts";
+import { GIT_LOCAL_HOST } from "./github-session.ts";
 import { wslOn } from "../../sandbox/src/wsl/wsl.ts";
 import { EGRESS_SETTING, recordEgress } from "./egress-log.ts";
 import type { AccessAsked, EgressRule } from "../../sandbox/src/index.ts";
@@ -422,6 +423,8 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
   // the Space's internet setting, read as each engine process starts, and where the process went (the turn's details, and the audit log for a refusal)
   const egress = { rule: () => spaceRule(h.call), record: (where: { person: string; threadId: string }, e: Parameters<typeof recordEgress>[3]) => recordEgress(ctx.db, h.call, where, e, now0, h.log) };
   const access = (asker: string) => engineAccessFor(h.call, asker);
+  // the Space's git address, answered inside the egress proxy of a walled engine (sandbox-default.ts)
+  setGitLocal(h.gitProxy ? { host: GIT_LOCAL_HOST, handle: (req, res) => h.gitProxy!.serve(req, res) } : null);
   const opener = host.openSession ? null : buildOpener({ sessions, egress, access, ...(h.gitProxy ? { gitProxy: h.gitProxy } : {}), ...(h.own ? { own: h.own } : {}), ...(apiTools ? { apiTools } : {}), session: host.session as EngineSessionPorts, call: h.call, ...(host.sandbox ? { sandbox: host.sandbox } : {}), ...(host.cli?.command ? { cliCommand: host.cli.command } : {}), ...(cliProbeOf(host) ? { cliProbe: cliProbeOf(host) as NodeCliProbe } : {}), ...(host.cli?.apiFetch ? { apiFetch: host.cli.apiFetch } : {}), ...(host.dataDir ? { dataDir: host.dataDir, defaultSandbox: defaultPlan(host.dataDir, cliRead(host)) } : {}) });
   // the composer's model menu asks each subscription engine for its own list, through this opener: the person's sandbox and sign-in, as a turn would run (live-models.ts)
   bindModelLister(opener ? (account, asker, o) => opener.models(account, asker, o) : null);

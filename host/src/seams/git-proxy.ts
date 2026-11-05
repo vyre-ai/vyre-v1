@@ -40,6 +40,7 @@ export interface GitProxyPort {
   revoke(token: string): void;
   /** The address the session reaches this Space at, no trailing slash. */
   base(): string;
+  serve(req: http.IncomingMessage, res: http.ServerResponse): boolean;
 }
 
 export interface GitProxyDeps {
@@ -89,6 +90,7 @@ export function createGitProxy(d: GitProxyDeps): { port: GitProxyPort; handle(re
     },
     revoke(token) { sessions.delete(sha(token)); },
     base: () => d.base().replace(/\/+$/, ""),
+    serve: (req, res) => handle(req, res),
   };
 
   /** The person, for the reads that are theirs to make (their name, their settings). */

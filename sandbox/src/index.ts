@@ -3,6 +3,7 @@ export { DEFAULT_LIMITS, SandboxError } from "./types.ts";
 export { hostAllowed, isPrivateAddress, normalizePath, validHostPattern, validateSpec, within } from "./policy.ts";
 export type { Checked, PolicyOptions } from "./policy.ts";
 export { createEgressProxy } from "./egress.ts";
+export type { LocalRoute } from "./egress.ts";
 export { PUBLIC_RULE, RULE_ENV, VYRE_PORTS, addressRefusal, gitSshCommand, inCidr, ownNetworks, ruleFromEnv, spaceTarget, sshConfig, targetOf, toolProxyEnv, validateRule } from "./egress-policy.ts";
 export type { Cidr, EgressRule, ToolSsh } from "./egress-policy.ts";
 export { CONNECT_SOURCE, GUEST_CONNECT } from "./net/guest.ts";

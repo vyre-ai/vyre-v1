@@ -12,6 +12,7 @@ function rig(o: { scope?: string; remotes?: Array<{ url: string }>; connected?: 
     mint: (s) => { minted.push(s as never); return { token: "vgp_session_one", expiresAt: Date.now() + 3_600_000 }; },
     revoke: (t) => { revoked.push(t); },
     base: () => o.base ?? "https://space.vyre.test",
+    serve: () => false,
   };
   const port: GithubSessionPort & { git?: GitProxyPort } = {
     async call(cap, input, as) {
@@ -52,6 +53,15 @@ test("the environment points git at the Space with a proxy token, and holds no G
   assert.deepEqual(r.revoked, []);
   g.end();
   assert.deepEqual(r.revoked, ["vgp_session_one"], "the token ends with the process");
+});
+
+test("behind the wall the session names the git address the wall answers itself, so a loopback-only Space works", async () => {
+  const r = rig({ base: "http://127.0.0.1:41800" });
+  const g = await githubEnv(r.port, "usr_maya", "thr_1", "agt_coder", "socket");
+  assert.equal(g.env["GIT_CONFIG_KEY_0"], "url.http://vyre-git.invalid/git/github/.insteadOf");
+  assert.equal(g.env["GIT_CONFIG_KEY_1"], "credential.http://vyre-git.invalid/git/github/.helper");
+  assert.equal(Object.values(g.env).some((v) => v.includes("127.0.0.1")), false, "the loopback address is never named to the engine");
+  assert.equal((await githubEnv(rig({ base: "" }).port, "usr_maya", "thr_1", "agt_coder", "socket")).env["VYRE_GIT_TOKEN"], "vgp_session_one", "no address is needed to name the wall's own");
 });
 
 test("nothing is given when the chat has no linked repository, GitHub is not connected, or there is no git address", async () => {

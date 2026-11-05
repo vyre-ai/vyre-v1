@@ -32,7 +32,12 @@ export interface GitProxyPort {
   revoke(token: string): void;
   /** The address the session reaches this Space at, no trailing slash. */
   base(): string;
+  /** The git address answered inside a walled engine's egress proxy, so a Space that is reachable only on its own loopback works the same as any other. */
+  serve(req: import("node:http").IncomingMessage, res: import("node:http").ServerResponse): boolean;
 }
+
+/** The name a walled engine's git uses for the Space: the egress proxy answers it itself (sandbox/src/egress.ts LocalRoute) and it is never looked up. */
+export const GIT_LOCAL_HOST = "vyre-git.invalid";
 
 /**
  * The environment a session gets, or empty. Never throws: GitHub missing never stops a turn.
@@ -40,9 +45,9 @@ export interface GitProxyPort {
  *   one request at a time, under the person's own settings. git is sent there by url.<space>/git/github/.insteadOf and reads the proxy token from VYRE_GIT_TOKEN through a credential helper.
  * `end` revokes the proxy token; call it when the process ends.
  */
-export async function githubEnv(port: GithubSessionPort & { git?: GitProxyPort }, person: string, threadId: string, agentId?: string): Promise<{ env: Record<string, string>; end(): void }> {
+export async function githubEnv(port: GithubSessionPort & { git?: GitProxyPort }, person: string, threadId: string, agentId?: string, via: "address" | "socket" = "address"): Promise<{ env: Record<string, string>; end(): void }> {
   const none = { env: {}, end: () => undefined };
-  if (!port.git || !/^https?:\/\//.test(port.git.base())) return none;
+  if (!port.git || (via === "address" && !/^https?:\/\//.test(port.git.base()))) return none;
   const repos = await reposOfThread(port.call, person, threadId);
   if (repos.length === 0) return none;
   try {
@@ -54,7 +59,8 @@ export async function githubEnv(port: GithubSessionPort & { git?: GitProxyPort }
   catch (e) { port.log?.("github: a session gets no git address", { error: e instanceof Error ? e.message : String(e) }); return none; }
   // whatever the process writes back is cleaned of this token, until the token ends (agent/src/drivers/cli/redact.ts)
   holdSecret(minted.token, minted.expiresAt + 5 * 60_000);
-  const base = `${port.git.base()}/git/github/`;
+  // "socket": the engine is behind the wall and reaches the Space only through the wall's proxy, which answers this name itself; "address": the engine can reach the Space's own address
+  const base = via === "socket" ? `http://${GIT_LOCAL_HOST}/git/github/` : `${port.git.base()}/git/github/`;
   const pairs: Array<[string, string]> = [
     [`url.${base}.insteadOf`, "https://github.com/"],
     [`credential.${base}.helper`, ""],

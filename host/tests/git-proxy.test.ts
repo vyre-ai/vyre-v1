@@ -9,7 +9,8 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { createGitProxy } from "../src/seams/git-proxy.ts";
-import { githubEnv } from "../../modules/engine/github-session.ts";
+import { GIT_LOCAL_HOST, githubEnv } from "../../modules/engine/github-session.ts";
+import { createEgressProxy } from "../../sandbox/src/egress.ts";
 import { fakeGithubGit } from "./helpers/fake-github-git.ts";
 import type { FakeGit } from "./helpers/fake-github-git.ts";
 
@@ -24,7 +25,7 @@ interface World {
   commit(cwd: string, file: string, text?: string): Promise<string>; close(): Promise<void>;
 }
 
-async function world(o: { modes?: Partial<Record<string, Mode>>; branch?: string; parkMs?: number; scope?: string[] } = {}): Promise<World> {
+async function world(o: { modes?: Partial<Record<string, Mode>>; branch?: string; parkMs?: number; scope?: string[]; wall?: boolean } = {}): Promise<World> {
   const gh = await fakeGithubGit([REPO], o.branch ?? "main");
   const modes: Record<string, Mode> = { read: "always", push_branch: "always", push_default: "ask", open_pr: "ask", comment: "ask", merge: "ask", ...o.modes };
   const grants = new Set<string>(), holds = new Map<string, { repo: string; action: string; consumer: string }>(), fills = new Map<string, string>();
@@ -70,9 +71,12 @@ async function world(o: { modes?: Partial<Record<string, Mode>>; branch?: string
     if (cap === "github.me.status") return { connected: true, needsReconnect: false };
     throw new Error(`no ${cap}`);
   };
-  const made = await githubEnv({ call, git: proxy.port }, PERSON, "thr_1", "agt_coder");
+  // wall: the engine reaches the Space only through an egress proxy that answers the git name itself (sandbox/src/egress.ts), as a walled engine does through its unix socket; the Space has no public address
+  const wallProxy = o.wall ? createEgressProxy({ allow: [], rule: { egress: "list", allow: [] }, local: () => ({ host: GIT_LOCAL_HOST, handle: (q, r) => proxy.handle(q, r) }) }) : null;
+  const wallPort = wallProxy ? (await wallProxy.listen()).port : 0;
+  const made = await githubEnv({ call, git: proxy.port }, PERSON, "thr_1", "agt_coder", o.wall ? "socket" : "address");
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-gitproxy-"));
-  const env = { PATH: process.env["PATH"] ?? "", HOME: tmp, GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_SYSTEM: "/dev/null", GIT_TERMINAL_PROMPT: "0", GIT_AUTHOR_NAME: "t", GIT_AUTHOR_EMAIL: "t@t", GIT_COMMITTER_NAME: "t", GIT_COMMITTER_EMAIL: "t@t", ...made.env };
+  const env = { PATH: process.env["PATH"] ?? "", HOME: tmp, GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_SYSTEM: "/dev/null", GIT_TERMINAL_PROMPT: "0", GIT_AUTHOR_NAME: "t", GIT_AUTHOR_EMAIL: "t@t", GIT_COMMITTER_NAME: "t", GIT_COMMITTER_EMAIL: "t@t", ...(wallProxy ? { http_proxy: `http://127.0.0.1:${wallPort}`, HTTP_PROXY: `http://127.0.0.1:${wallPort}` } : {}), ...made.env };
   const run = (cwd: string, ...args: string[]) => new Promise<{ code: number; out: string }>((done) => {
     const p = spawn("git", args, { cwd, env });
     let out = "";
@@ -97,7 +101,7 @@ async function world(o: { modes?: Partial<Record<string, Mode>>; branch?: string
       return dir;
     },
     async commit(cwd, file, text = "x\n") { fs.writeFileSync(path.join(cwd, file), text + Math.random()); await run(cwd, "add", "."); const r = await run(cwd, "commit", "-m", `add ${file}`); assert.equal(r.code, 0, r.out); return (await run(cwd, "rev-parse", "HEAD")).out.trim(); },
-    async close() { made.end(); server.closeAllConnections?.(); await new Promise<void>((done) => server.close(() => done())); await gh.close(); fs.rmSync(tmp, { recursive: true, force: true }); },
+    async close() { made.end(); await wallProxy?.close(); server.closeAllConnections?.(); await new Promise<void>((done) => server.close(() => done())); await gh.close(); fs.rmSync(tmp, { recursive: true, force: true }); },
   };
   return w;
 }
@@ -180,6 +184,28 @@ test("an approval is for that one push: the same push asks again, and another pu
   w.approve(t2);
   assert.equal((await second).code, 0);
   assert.equal(landed(w), 2);
+}));
+
+test("behind a wall, on a Space with only a loopback address: clone, branch push, and a held push to main all work through the wall's own answer", T, () => withWorld({ wall: true }, async (w) => {
+  assert.equal(Object.values(w.env).some((v) => v.includes(w.base)), false, "the engine is never told the loopback address");
+  assert.match(w.env["GIT_CONFIG_KEY_0"]!, /vyre-git\.invalid/);
+  const dir = await w.clone();
+  await w.run(dir, "checkout", "-b", "feat");
+  const sha = await w.commit(dir, "a.txt");
+  const r = await w.run(dir, "push", "origin", "feat");
+  assert.equal(r.code, 0, r.out);
+  assert.equal(w.gh.ref(REPO, "refs/heads/feat"), sha);
+  const push = w.run(dir, "push", "origin", "feat:main");
+  const taskId = await w.waitHeld();
+  await new Promise((x) => setTimeout(x, 300));
+  assert.notEqual(w.gh.ref(REPO, "refs/heads/main"), sha, "held through the wall too");
+  w.approve(taskId);
+  const done = await push;
+  assert.equal(done.code, 0, done.out);
+  assert.match(done.out, /Waiting for Maya/);
+  assert.equal(w.gh.ref(REPO, "refs/heads/main"), sha);
+  // and a name that is not the git address is still the wall's to refuse
+  assert.equal(w.proxy.live(), 1);
 }));
 
 test("a no leaves GitHub untouched and git says so", T, () => withWorld({}, async (w) => {

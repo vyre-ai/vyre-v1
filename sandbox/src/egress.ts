@@ -20,7 +20,12 @@ import type { Cidr, EgressRule } from "./egress-policy.ts";
 export type Verdict = "allow" | "deny";
 export interface EgressEvent { verdict: Verdict; host: string; port: number; reason: "ok" | "not_listed" | "bad_port" | "private_address" | "own_network" | "no_address" | "bad_request" | "busy" | "unreachable" }
 
+/** A host name the proxy answers itself instead of dialling out: the Space's own git address for a walled engine (modules/engine/github-session.ts). It never reaches the allow-list or the network. */
+export interface LocalRoute { host: string; handle(req: http.IncomingMessage, res: http.ServerResponse): boolean }
+
 export interface EgressOptions {
+  /** Read at each request. Absent or null: no local host. */
+  local?: () => LocalRoute | null;
   /** Host patterns, or a function so the list can change while the proxy runs (a policy change takes effect on the next connection). */
   allow: readonly string[] | (() => readonly string[]);
   /** The rule (egress-policy.ts). When given it decides, and `allow` is not read. A function lets it change under a running proxy. */
@@ -148,6 +153,12 @@ export function createEgressProxy(o: EgressOptions): EgressProxy {
     if (url.protocol !== "http:") { note({ verdict: "deny", host: url.hostname, port: Number(url.port || 0), reason: "bad_request" }); res.writeHead(400, { connection: "close" }).end(); return; }
     const host = url.hostname.startsWith("[") ? url.hostname.slice(1, -1) : url.hostname;
     const port = Number(url.port || 80);
+    const local = o.local?.();
+    if (local && host === local.host && port === 80) {
+      req.url = `${url.pathname}${url.search}`;
+      if (!local.handle(req, res)) res.writeHead(404, { "content-type": "text/plain", connection: "close" }).end("Not found.\n");
+      return;
+    }
     if (open >= maxConnections) { note({ verdict: "deny", host, port, reason: "busy" }); res.writeHead(503, { connection: "close" }).end("Busy.\n"); return; }
     const v = await admit(host, port);
     if (!v.ok) { note({ verdict: "deny", host, port, reason: v.reason }); res.writeHead(403, { "content-type": "text/plain", connection: "close" }).end(DENIED_BODY); return; }

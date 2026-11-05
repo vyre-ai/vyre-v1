@@ -442,8 +442,12 @@ export function buildOpener(h: OpenerHost): SessionOpener {
         // GitHub for the person whose turn this is: the Space's git address and a token for this process alone (a chat of a project whose Files folder points at GitHub); set last
         let gitEnd: (() => void) | null = null;
         if (h.gitProxy && who) {
-          const g = await githubEnv({ call: h.call, git: h.gitProxy }, who.person, who.threadId, spec.agent.id);
-          ruled = withGithub(withGitHost(ruled, h.gitProxy.base()), g.env);
+          // behind the wall (bubblewrap, Seatbelt) the engine reaches the Space only through the wall's proxy, which answers the git name itself, so a Space reachable on its own loopback works as any other; a
+          // Windows Personal Space engine has the loopback and uses the address (the ruling), and the Windows VM's wall cannot call into this process, so it uses the address too
+          const kind = (await plan()).sandbox.kind;
+          const via = kind === "bwrap" || kind === "seatbelt" ? "socket" : "address";
+          const g = await githubEnv({ call: h.call, git: h.gitProxy }, who.person, who.threadId, spec.agent.id, via);
+          ruled = withGithub(via === "address" ? withGitHost(ruled, h.gitProxy.base()) : ruled, g.env);
           gitEnd = g.end;
         }
         let proc;

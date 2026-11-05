@@ -5,7 +5,7 @@ import fs from "node:fs";
 import { spawnSync } from "node:child_process";
 import path from "node:path";
 import { PUBLIC_RULE, createEgressProxy, startNetWall, validHostPattern } from "../../sandbox/src/index.ts";
-import type { EgressEvent, EgressRule } from "../../sandbox/src/index.ts";
+import type { EgressEvent, EgressRule, LocalRoute } from "../../sandbox/src/index.ts";
 import { DISTRO_PIN } from "../../sandbox/src/wsl/pins.ts";
 import { ensureDistro, startWslAgent, wslOn } from "../../sandbox/src/wsl/wsl.ts";
 import type { AgentOptions } from "../../sandbox/src/wsl/wsl.ts";
@@ -31,6 +31,11 @@ export interface EgressPolicy { mode: "public" | "providers" | "list"; hosts: re
 export const DEFAULT_EGRESS_POLICY: EgressPolicy = Object.freeze({ mode: "public", hosts: Object.freeze([]) as readonly string[] });
 
 /** The wall's egress options: the allow-list and the rule. Plain JSON, so the Windows (WSL2) sandbox sends it into its VM as it is, to the same startNetWall. */
+/** The Space's own git address, answered inside the wall for a walled engine (the egress proxy, sandbox/src/egress.ts). Set by the runtime when the host has a git proxy. */
+let gitLocal: LocalRoute | null = null;
+export const setGitLocal = (r: LocalRoute | null): void => { gitLocal = r; };
+const localRoute = (): LocalRoute | null => gitLocal;
+
 export interface WallEgress { allow: string[]; rule: EgressRule }
 
 /** A setting value read back from the store, or anything: what it says, with every host it lists that is not a host name dropped. Unreadable is the default. */
@@ -246,7 +251,7 @@ export async function defaultSandbox(o: DefaultSandboxOptions): Promise<DefaultS
   const node = o.node ?? process.execPath;
   const unavailable = (reason: string): DefaultSandbox => ({ plan: { sandbox: { kind: "server", reason }, dataDir: o.dataDir, egressHosts: hosts }, close: async () => undefined });
   const done = (sandbox: EngineSandbox, close: () => Promise<void>, openWall: NonNullable<SandboxPlan["openWall"]>): DefaultSandbox => ({ plan: { sandbox, dataDir: o.dataDir, egressHosts: hosts, egressRule: egress.rule, openWall }, close });
-  const watched = (onEvent?: (e: EgressEvent) => void) => (onEvent ? { egress: { onEvent } } : {});
+  const watched = (onEvent?: (e: EgressEvent) => void) => ({ egress: { local: localRoute, ...(onEvent ? { onEvent } : {}) } });
   if (platform === "win32") {
     // Windows: a Personal Space runs engines at Low integrity in a Job Object (E, RULINGS 14); Team Space turns and a Contained computer run them in Vyre's WSL2 Linux (B, RULINGS 15)
     const mode = o.windowsMode ?? windowsMode();
@@ -276,11 +281,11 @@ export async function defaultSandbox(o: DefaultSandboxOptions): Promise<DefaultS
     // git's ssh (no shell, Vyre's config), where the engine may run it and not change it: beside the engines Vyre installed, which are labelled readable
     const ssh = ensureSshShim(helper, path.join(o.dataDir, "engines", "vyre-ssh"));
     const low = (port: number): EngineSandbox => ({ kind: "lowil", helper, proxyPort: port, ssh, keyStores, ...(o.writable ? { writable: o.writable } : {}), ...(bash ? { bash } : {}) });
-    const proxy = createEgressProxy({ ...egress });
+    const proxy = createEgressProxy({ ...egress, local: localRoute });
     const { port } = await proxy.listen();
     // a turn's own proxy: the rule it carries and its own record of where it went, as on a Mac
     const openWall = async (e: WallEgress, onEvent?: (ev: EgressEvent) => void): Promise<OpenedWall> => {
-      const p = createEgressProxy({ ...e, ...(onEvent ? { onEvent } : {}) });
+      const p = createEgressProxy({ ...e, local: localRoute, ...(onEvent ? { onEvent } : {}) });
       const l = await p.listen();
       return { sandbox: low(l.port), close: () => p.close() };
     };
@@ -291,19 +296,19 @@ export async function defaultSandbox(o: DefaultSandboxOptions): Promise<DefaultS
   if (gapHere !== null) return unavailable(gapHere);
   if (platform === "linux") {
     const bw = (dir: string): EngineSandbox => ({ kind: "bwrap", wallDir: dir, node, ...(o.programRead ? { programRead: o.programRead } : {}) });
-    const wall = await startNetWall({ ...egress });
+    const wall = await startNetWall({ ...egress, egress: { local: localRoute } });
     // a turn's own wall: the rule it carries (the Space's choice when it started) and its own record of where it went
     const openWall = async (e: WallEgress, onEvent?: (ev: EgressEvent) => void): Promise<OpenedWall> => { const w = await startNetWall({ ...e, ...watched(onEvent) }); return { sandbox: bw(w.dir), close: () => w.close() }; };
     return done(bw(wall.dir), () => wall.close(), openWall);
   }
   if (platform === "darwin") {
-    const proxy = createEgressProxy({ ...egress });
+    const proxy = createEgressProxy({ ...egress, local: localRoute });
     const { port } = await proxy.listen();
     // Seatbelt denies reads by default: the program being run (this Node, and the CLI's install folders) must be readable.
     const home = process.env["HOME"] ?? "/";
     const programRead = [...(o.programRead ?? []), ...appleDeveloperRoots(), path.dirname(path.dirname(node)), path.join(home, ".local"), "/opt/homebrew", "/usr/local", ...cliInstallRoots({ PATH: enginePath(process.env, home) }, home)].filter((p) => p !== "/");
     const openWall = async (e: WallEgress, onEvent?: (ev: EgressEvent) => void): Promise<OpenedWall> => {
-      const p = createEgressProxy({ ...e, ...(onEvent ? { onEvent } : {}) });
+      const p = createEgressProxy({ ...e, local: localRoute, ...(onEvent ? { onEvent } : {}) });
       const l = await p.listen();
       return { sandbox: { kind: "seatbelt", proxyPort: l.port, programRead }, close: () => p.close() };
     };

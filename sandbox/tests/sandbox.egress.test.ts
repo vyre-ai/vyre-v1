@@ -208,3 +208,25 @@ test("malformed requests are answered with 400 and counted, not crashed on", asy
     assert.match(await rawExchange(port, "CONNECT evil.example.com:443 HTTP/1.1\r\n\r\n", { until: /\r\n\r\n/ }), /^HTTP\/1\.1 403/, "and it still answers");
   } finally { await proxy.close(); }
 });
+
+test("a local route is answered by the proxy itself: never looked up, never dialled, never on the allow-list, and only for its own name on port 80", async () => {
+  const { default: http } = await import("node:http");
+  const seen: string[] = [], lookups: string[] = [];
+  const p = createEgressProxy({
+    allow: [], rule: { egress: "list", allow: [] }, lookup: async (h) => { lookups.push(h); return []; },
+    local: () => ({ host: "vyre-git.invalid", handle: (req, res) => { seen.push(`${req.method} ${req.url}`); if (req.url?.startsWith("/git/")) { res.writeHead(200, { "content-type": "text/plain" }); res.end("ours"); return true; } return false; } }),
+  });
+  const { port } = await p.listen();
+  const ask = (target: string): Promise<{ status: number; text: string }> => new Promise((done, fail) => {
+    const r = http.request({ host: "127.0.0.1", port, method: "GET", path: target, headers: { host: new URL(target).host } }, (res) => { let t = ""; res.on("data", (c) => (t += c)); res.on("end", () => done({ status: res.statusCode ?? 0, text: t })); });
+    r.on("error", fail); r.end();
+  });
+  try {
+    assert.deepEqual(await ask("http://vyre-git.invalid/git/github/a/b.git/info/refs?service=git-upload-pack"), { status: 200, text: "ours" });
+    assert.deepEqual(seen, ["GET /git/github/a/b.git/info/refs?service=git-upload-pack"], "the handler saw the path, not the proxy form");
+    assert.equal((await ask("http://vyre-git.invalid/other")).status, 404, "a path the handler does not take is a plain not found");
+    assert.equal((await ask("http://vyre-git.invalid:8080/git/x")).status, 403, "another port is the wall's to refuse");
+    assert.equal((await ask("http://example.com/git/x")).status, 403, "another name is the wall's to refuse");
+    assert.deepEqual(lookups.filter((h) => h === "vyre-git.invalid"), [], "the name was never looked up");
+  } finally { await p.close(); }
+});
