@@ -97,11 +97,15 @@ export function needsOf(commands: readonly RefCommand[], defaults: readonly stri
   });
 }
 
-/** The default branch a git server advertises: the symref capability on the first line of its upload-pack advertisement. Null when it names none. */
-export function defaultBranchOf(advert: Uint8Array): string | null {
-  const text = Buffer.from(advert.subarray(0, Math.min(advert.length, 16 * 1024))).toString("latin1");
+/**
+ * The default branch a git server advertises: the symref capability on the first line of its upload-pack advertisement, read as UTF-8 like the command list it is compared with. "empty" is a repository
+ * with no refs at all (a first push has no default branch to protect yet); anything else that names no HEAD is "unknown", and a push to it is refused.
+ */
+export function defaultBranchOf(advert: Uint8Array): { branch: string } | "empty" | "unknown" {
+  const text = Buffer.from(advert.subarray(0, Math.min(advert.length, 16 * 1024))).toString("utf8");
   const m = /symref=HEAD:refs\/heads\/([^\s\0]+)/.exec(text);
-  return m ? m[1]! : null;
+  if (m) return { branch: m[1]! };
+  return /\0[^\n]*\bagent=/.test(text) && /capabilities\^\{\}/.test(text) && !/ refs\//.test(text) ? "empty" : "unknown";
 }
 
 // ---- what the proxy writes itself

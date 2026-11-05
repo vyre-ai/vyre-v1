@@ -201,22 +201,26 @@ export function createGitProxy(d: GitProxyDeps): { port: GitProxyPort; handle(re
     return { req, response };
   }
 
-  async function getAll(url: URL, headers: http.OutgoingHttpHeaders, max: number): Promise<{ status: number; body: Buffer }> {
+  async function getAll(url: URL, headers: http.OutgoingHttpHeaders, max: number, ms = 10_000): Promise<{ status: number; body: Buffer }> {
     const { req, response } = open("GET", url, headers);
-    req.end();
-    const r = await response;
-    const chunks: Buffer[] = []; let size = 0;
-    for await (const c of r) { size += (c as Buffer).length; if (size > max) { r.destroy(); break; } chunks.push(c as Buffer); }
-    return { status: r.statusCode ?? 502, body: Buffer.concat(chunks) };
+    const timer = setTimeout(() => req.destroy(new Error("timeout")), ms);
+    try {
+      req.end();
+      const r = await response;
+      const chunks: Buffer[] = []; let size = 0;
+      for await (const c of r) { size += (c as Buffer).length; if (size > max) { r.destroy(); break; } chunks.push(c as Buffer); }
+      return { status: r.statusCode ?? 502, body: Buffer.concat(chunks) };
+    } finally { clearTimeout(timer); }
   }
 
-  /** The branch GitHub calls the default, read from the advertisement of upload-pack. */
-  async function defaultsOf(repo: string, readToken: string): Promise<string[]> {
+  /** The branch GitHub calls the default, read from the advertisement of upload-pack. A repository with no refs yet has none to protect; any other answer that cannot be read is null, and the push is refused. */
+  async function defaultsOf(repo: string, readToken: string): Promise<string[] | null> {
     try {
       const got = await getAll(upstreamUrl(repo, "info/refs", "?service=git-upload-pack"), { authorization: basic(readToken), "user-agent": "git/2.43 vyre-proxy" }, 256 * 1024);
-      const b = got.status === 200 ? defaultBranchOf(got.body) : null;
-      return b ? [b] : ["main", "master"];
-    } catch { return ["main", "master"]; }
+      if (got.status !== 200) return null;
+      const b = defaultBranchOf(got.body);
+      return b === "unknown" ? null : b === "empty" ? ["main", "master"] : [b.branch];
+    } catch { return null; }
   }
 
   function relay(r: http.IncomingMessage, res: http.ServerResponse): void {
@@ -349,7 +353,9 @@ export function createGitProxy(d: GitProxyDeps): { port: GitProxyPort; handle(re
     // the default branch, from a read of the repository, so a ref is judged by what GitHub calls the default and never by what the client says
     const readTok = await obtain(s, repo, "read", { title: "Read", phrase: "the read" }, { gone: () => gone });
     if (readTok.until === "no") return refuse(readTok.message);
-    const needs = needsOf(update.commands, await defaultsOf(repo, readTok.token));
+    const defaults = await defaultsOf(repo, readTok.token);
+    if (!defaults) return refuse("Vyre could not tell which branch is the default branch of this repository, so it did not push. Try again.");
+    const needs = needsOf(update.commands, defaults);
 
     // judged before anything is forwarded: the default branch first (it is the one most likely to wait), then the rest. One no is a no for the whole push.
     let writeToken: string | null = null;

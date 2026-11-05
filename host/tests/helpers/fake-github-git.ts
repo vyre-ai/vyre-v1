@@ -12,6 +12,8 @@ export interface FakeGit {
   root: string;
   seen: Seen[];
   tokens: Map<string, "read" | "write">;
+  /** Answer the upload-pack advertisement of a read token with 503 (a push cannot learn the default branch), when set after the first clone. */
+  failAdvert: { on: boolean };
   gitDir(repo: string): string;
   /** The commit a ref points at in the server's repository, or null. */
   ref(repo: string, ref: string): string | null;
@@ -43,6 +45,7 @@ export async function fakeGithubGit(repos: string[] = ["vyre-ai/website"], branc
   for (const r of repos) seedRepo(root, r, branch);
   const seen: Seen[] = [];
   const tokens = new Map<string, "read" | "write">();
+  const failAdvert = { on: false };
   const server = http.createServer((req, res) => {
     const url = new URL(req.url ?? "/", "http://x");
     const m = /^Basic (.+)$/i.exec(String(req.headers.authorization ?? ""));
@@ -52,6 +55,7 @@ export async function fakeGithubGit(repos: string[] = ["vyre-ai/website"], branc
     const log = (status: number): void => { seen.push({ method: req.method ?? "GET", path: url.pathname, query: url.search, kind, status }); };
     if (kind === "none" || kind === "unknown") { log(401); res.writeHead(401, { "www-authenticate": 'Basic realm="GitHub"' }); res.end("Authentication required\n"); return; }
     if (isPush && kind !== "write") { log(403); res.writeHead(403, { "content-type": "text/plain" }); res.end("Write access to repository not granted.\n"); return; }
+    if (failAdvert.on && url.searchParams.get("service") === "git-upload-pack") { log(503); res.writeHead(503); res.end("down\n"); return; }
     log(200);
     const cgi = spawn("git", ["http-backend"], {
       env: {
@@ -81,7 +85,7 @@ export async function fakeGithubGit(repos: string[] = ["vyre-ai/website"], branc
   await new Promise<void>((ok) => server.listen(0, "127.0.0.1", ok));
   const port = (server.address() as { port: number }).port;
   return {
-    url: `http://127.0.0.1:${port}`, root, seen, tokens,
+    url: `http://127.0.0.1:${port}`, root, seen, tokens, failAdvert,
     gitDir: (repo) => path.join(root, `${repo}.git`),
     ref: (repo, ref) => { try { return git(path.join(root, `${repo}.git`), "rev-parse", "--verify", "-q", ref) || null; } catch { return null; } },
     writes: () => seen.filter((s) => s.kind === "write"),

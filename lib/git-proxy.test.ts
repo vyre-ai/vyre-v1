@@ -63,10 +63,15 @@ test("each ref says what it needs", () => {
   assert.equal(needsOf(readUpdate(cmds(`${A} ${B} refs/heads/Main`))!.commands, ["main"])[0]!.need, "push_branch");
 });
 
-test("the default branch comes from the symref of the advertisement", () => {
+test("the default branch comes from the symref of the advertisement, as UTF-8, and anything unreadable is not guessed", () => {
   const advert = Buffer.concat([pkt("# service=git-upload-pack\n"), FLUSH, pkt(`${A} HEAD\0multi_ack thin-pack symref=HEAD:refs/heads/trunk agent=git/github\n`)]);
-  assert.equal(defaultBranchOf(advert), "trunk");
-  assert.equal(defaultBranchOf(Buffer.from("nothing")), null);
+  assert.deepEqual(defaultBranchOf(advert), { branch: "trunk" });
+  const accented = Buffer.concat([pkt("# service=git-upload-pack\n"), FLUSH, pkt(`${A} HEAD\0symref=HEAD:refs/heads/h\u00e4upt agent=git/github\n`)]);
+  const u = readUpdate(cmds(`${A} ${B} refs/heads/h\u00e4upt`))!;
+  assert.equal(needsOf(u.commands, [(defaultBranchOf(accented) as { branch: string }).branch])[0]!.need, "push_default", "a non-ASCII default branch matches the command list");
+  assert.equal(defaultBranchOf(Buffer.from("nothing")), "unknown");
+  assert.equal(defaultBranchOf(Buffer.concat([pkt("# service=git-upload-pack\n"), FLUSH, pkt(`${Z} capabilities^{}\0report-status agent=git/github\n`)])), "empty");
+  assert.equal(defaultBranchOf(Buffer.concat([pkt("# service=git-upload-pack\n"), FLUSH, pkt(`${A} HEAD\0multi_ack agent=git/github\n`), pkt(`${A} refs/heads/x\n`)])), "unknown", "refs but no HEAD symref");
 });
 
 test("a refusal is a report git understands", () => {

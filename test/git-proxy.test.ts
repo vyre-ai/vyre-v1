@@ -208,6 +208,18 @@ test("behind a wall, on a Space with only a loopback address: clone, branch push
   assert.equal(w.proxy.live(), 1);
 }));
 
+test("when the default branch cannot be learned the push is refused, never guessed", T, () => withWorld({}, async (w) => {
+  const dir = await w.clone();
+  await w.commit(dir, "m.txt");
+  const before = w.gh.ref(REPO, "refs/heads/main");
+  w.gh.failAdvert.on = true;
+  const r = await w.run(dir, "push", "origin", "HEAD:main");
+  assert.notEqual(r.code, 0);
+  assert.match(r.out, /could not tell which branch is the default/);
+  assert.equal(w.gh.ref(REPO, "refs/heads/main"), before);
+  assert.equal(landed(w), 0);
+}));
+
 test("a no leaves GitHub untouched and git says so", T, () => withWorld({}, async (w) => {
   const dir = await w.clone();
   await w.commit(dir, "m.txt");
