@@ -28,7 +28,7 @@ const PAGES: { id: string; title: string; sub: string }[] = [
 ];
 /** GitHub answers as a connected account: the daemon's GitHub egress cannot be faked from a test, so these five reads are answered at the browser's edge; every other call is the real daemon's. */
 const gh = { reconnect: false, connected: true };
-const POLICY = { read: "always", push_branch: "ask", open_pr: "ask", comment: "ask", merge: "ask", push_default: "never" };
+const POLICY = { read: "always", push_branch: "always", open_pr: "always", comment: "always", merge: "ask", push_default: "ask" };   // the server defaults (modules/github/handlers/me.ts DEFAULT_POLICY)
 async function stubGithub(page: import("playwright-core").Page): Promise<void> {
   await page.route(/\/v1\/github\/me\/(status|reach|policy\/get|usage)$/, async (route) => {
     const k = /\/me\/(.+)$/.exec(route.request().url())?.[1];
