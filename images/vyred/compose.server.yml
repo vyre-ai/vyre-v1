@@ -23,6 +23,8 @@ services:
       VYRE_ADDRESS: ${VYRE_ADDRESS:-}
       VYRE_RELAY_URL: ${VYRE_RELAY_URL:-}
       VYRE_SITES_RUNNER: /run/vyre-sites/runner.sock
+      # the agent computer image of this release, by digest (compose.env: the installer and vyre-server update write it from images.lock); the default is for a run without them
+      VYRE_AGENT_COMPUTER_IMAGE: ${VYRE_AGENT_COMPUTER_IMAGE:-vyre/agent-computer:1}
     env_file:
       - path: ./vyre.env
         required: false
