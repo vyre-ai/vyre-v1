@@ -124,6 +124,13 @@ export async function walkSettings(t: TestContext, only: "owner" | "member"): Pr
         assert.ok(phoneText.includes(p.sub), `${who}/${p.id}: the sentence on a phone`);
         await guard.check(`phone-${p.id}`);
         await shoot(me.page, dir, `phone-${p.id}`).then((files) => files.forEach((f) => fs.renameSync(f, f.replace("-desktop.png", "-phone.png"))));
+        if (p.id === "profile") {
+          await me.page.getByText("Availability", { exact: true }).first().scrollIntoViewIfNeeded();
+          await me.page.evaluate(() => window.scrollBy(0, 0));
+          await me.page.waitForTimeout(300);
+          await guard.check("phone-profile-availability");
+          await shoot(me.page, dir, "phone-profile-availability").then((files) => files.forEach((f) => fs.renameSync(f, f.replace("-desktop.png", "-phone.png"))));
+        }
         if (p.id === "github") {
           gh.reconnect = true;
           await open(me, s, "/settings?skin=paper");
