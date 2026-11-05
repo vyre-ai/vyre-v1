@@ -98,6 +98,9 @@ test("clientOnNetwork: a container on the network is a client; the host's own si
   assert.equal(clientOnNetwork("127.0.0.1", "127.0.0.1", computers), false, "Caddy's loopback proxy is the Space's own");
   assert.equal(clientOnNetwork("192.168.48.2", "10.0.0.5", computers), false, "a client outside the subnet is not on it");
   assert.equal(clientOnNetwork("192.168.16.2", "192.168.48.3", computers), false, "a computer reaching the default network's address is not on its own network (it cannot, but the rule is about its own network)");
+  assert.equal(clientOnNetwork("::1", "::1", computers), false, "IPv6 loopback is the Space's own");
+  assert.equal(clientOnNetwork("fd00::2", "fd00::3", computers), false, "an IPv6 pair is no IPv4 computer network (the networks are IPv4)");
+  assert.equal(clientOnNetwork("::ffff:192.168.48.2", "::ffff:192.168.48.3", computers), true, "both ends IPv4-mapped, as a dual-stack socket reports them");
   assert.equal(clientOnNetwork(undefined, undefined, computers), false);
   assert.equal(clientOnNetwork("192.168.48.2", "192.168.48.3", []), false);
 });
