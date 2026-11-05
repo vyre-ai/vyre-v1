@@ -87,7 +87,8 @@ export function modelsLine(members: ReadonlyArray<Pick<CrewMember, "title" | "na
   if (new Set(known.map((m) => modelName(m.model!))).size < 2) return "";
   return known.map((m) => {
     const why = whyWords(m.why).toLowerCase();
-    return `${nameOf(m)} on ${modelName(m.model!)}${why ? ` (${why})` : ""}`;
+    const who = nameOf(m);
+    return `${who.length > 26 ? `${who.slice(0, 25).trimEnd()}…` : who} on ${modelName(m.model!)}${why ? ` (${why})` : ""}`;
   }).join(", ");
 }
 

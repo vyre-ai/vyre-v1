@@ -1,0 +1,25 @@
+{
+  "targets": [
+    {
+      "id": "CREWMODELS_01-strip",
+      "route": "/m/CREWMODELS_01?part=strip",
+      "proto": "crewmodels,{skin}",
+      "waitFor": "[data-testid='crew-strip']",
+      "note": "Both helpers working: the header names who runs on what, each row the model and the account."
+    },
+    {
+      "id": "CREWMODELS_01-done",
+      "route": "/m/CREWMODELS_01?part=done",
+      "proto": "crewmodels,{skin}",
+      "waitFor": "[data-testid='crew-strip']",
+      "note": "Both done, with the lead's answer."
+    },
+    {
+      "id": "CREWMODELS_01-same",
+      "route": "/m/CREWMODELS_01?part=same",
+      "proto": "crewmodels,{skin}",
+      "waitFor": "[data-testid='crew-strip']",
+      "note": "Two helpers on one model: no header line."
+    }
+  ]
+}
