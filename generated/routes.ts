@@ -29197,6 +29197,24 @@ const routes5: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/providers/mark_signin_needed",
+    "cap": "providers.mark_signin_needed",
+    "v": 1,
+    "module": "vault",
+    "effects": "write",
+    "permission": null,
+    "level": "member",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": "online",
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/providers/own_people",
     "cap": "providers.own_people",
     "v": 1,
@@ -33132,7 +33150,10 @@ const routes5: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes6: Route[] = [
   {
     "method": "POST",
     "path": "/v1/sites/table_create",
@@ -33151,10 +33172,7 @@ const routes5: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes6: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/sites/table_promote",
@@ -38637,7 +38655,10 @@ const routes6: Route[] = [
     "offline": "online",
     "teamOnly": false,
     "gate": "secret_export"
-  },
+  }
+];
+
+const routes7: Route[] = [
   {
     "method": "POST",
     "path": "/v1/vault/exports/list",
@@ -38655,10 +38676,7 @@ const routes6: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes7: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/vault/exports/revoke",

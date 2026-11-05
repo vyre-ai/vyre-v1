@@ -403,7 +403,8 @@ test("steps and thinking go to the live link as they happen, names only, and the
   assert.ok(!JSON.stringify(steps).includes("file_path") && !JSON.stringify(steps).includes("command"), "names and one short safe detail: no raw input of the step goes out");
   const post = s.chat.find((r) => r.author.id === LEAD && r.blocks.length > 0) as { blocks: Array<{ type: string; data: Record<string, unknown> }> } | undefined;
   assert.deepEqual(post?.blocks.map((b) => b.type), ["tool_call", "tool_result"], "what a call touches is not saved with the reply");
-  assert.ok(!JSON.stringify(post).includes("model.ts"));
+  // a saved step keeps only its short plain label (owner, 5 Nov: "Read model.ts"), never the path, the raw input or the output
+  assert.ok(!/file_path|"command"|\/[\w.-]+\/model\.ts/.test(JSON.stringify(post)), "only the short label is saved, never a path or the raw input");
   assert.equal(post?.blocks[1]?.data["name"], "Read");
   assert.equal(typeof post?.blocks[1]?.data["turnSecs"], "number", "how long the whole turn took rides on the last step");
 });
