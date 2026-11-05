@@ -99,6 +99,8 @@ jobs:
             echo "boundary violations in files this branch changed:"; cat mine.txt; exit 1
           fi
           echo "no boundary violations in changed files"
+      - name: Typecheck ratchet for apps/app and ui (scripts/typecheck-ratchet.ts); the error count in scripts/typecheck-baseline.json may only fall
+        run: node scripts/typecheck-ratchet.ts
       - name: Lints on the changed files (scripts/lint/run.ts)
         run: |
           git fetch -q origin main
@@ -117,8 +119,6 @@ jobs:
         run: node scripts/lint/no-silent-calls.ts --enforce
       - name: no-noop-opt-out (enforced); the no-dead-buttons gate has no opt-out attribute
         run: node scripts/lint/no-noop-opt-out.ts
-      - name: Typecheck ratchet for apps/app and ui (scripts/typecheck-ratchet.ts); the error count in scripts/typecheck-baseline.json may only fall
-        run: node scripts/typecheck-ratchet.ts
       - name: Typecheck every package that has a tsconfig.json above a changed file
         run: |
           git fetch -q origin main
