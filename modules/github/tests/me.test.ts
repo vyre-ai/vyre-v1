@@ -48,7 +48,9 @@ function world() {
   const base = h.ctx.call.bind(h.ctx);
   h.ctx.call = async (cap, input) => {
     if (cap === "github.me.approve") {
-      gate.held.push(input as Record<string, unknown>);
+      const { idempotencyKey, ...asked } = input as Record<string, unknown>;
+      assert.match(String(idempotencyKey), /^gha-/, "the Gate needs a key, and a new one for each question");
+      gate.held.push(asked);
       throw fail("permission.needs_approval", "0123456789abcdef0123456789abcdef");
     }
     if (cap === "identity.github_link") { gate.linked.push(String((input as { code: string }).code)); return { login: "maya-codes" }; }

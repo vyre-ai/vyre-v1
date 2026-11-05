@@ -237,7 +237,7 @@ async function allowed(ctx: GithubCtx, person: string, repo: string, action: Act
   const key = once ? `${repo}#${consumer.slice(9)}` : repo;
   const g = first(ctx.db.all(`SELECT "until" FROM github_grant WHERE "person" = ? AND "repo" = ? AND "action" = ?`, person, key, action));
   if (once && g) ctx.db.run(`DELETE FROM github_grant WHERE "person" = ? AND "repo" = ? AND "action" = ?`, person, key, action);   // used up, whether or not the settings needed it
-  if (mode === "ask" && (!g || Number(g.until) < ctx.now())) await ctx.call("github.me.approve", { repo, action, consumer });   // the Gate holds this; it throws until the person approves, and the approval records the grant
+  if (mode === "ask" && (!g || Number(g.until) < ctx.now())) await ctx.call("github.me.approve", { repo, action, consumer, idempotencyKey: `gha-${ctx.now()}-${Math.random().toString(36).slice(2, 10)}` });   // a new question each time: the Gate's key is per ask, never a replay of an old answer   // the Gate holds this; it throws until the person approves, and the approval records the grant
 }
 
 /**

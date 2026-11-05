@@ -113,7 +113,7 @@ export function createGitProxy(d: GitProxyDeps): { port: GitProxyPort; handle(re
     if (!s.agentId) return { refused: "This session has no agent to ask for, so GitHub is not available to it." };
     try {
       if (force) {
-        const a = await d.invoke("github.me.approve", { repo, action, consumer }, agentSeed(s));
+        const a = await d.invoke("github.me.approve", { repo, action, consumer, idempotencyKey: `gitp-${crypto.randomUUID()}` }, agentSeed(s));
         if (a.status === "held") return { held: a.taskId };
       }
       const r = await d.invoke("github.token", { repo, action, consumer }, agentSeed(s));
@@ -124,6 +124,7 @@ export function createGitProxy(d: GitProxyDeps): { port: GitProxyPort; handle(re
     } catch (e) {
       const held = (e as { error?: { code?: string; details?: { taskId?: unknown } } })?.error;
       if (held?.code === "permission.needs_approval" && typeof held.details?.taskId === "string") return { held: held.details.taskId };
+      log("git proxy: a call for a token was refused", { cap: force ? "github.me.approve" : "github.token", action, code: held?.code ?? "error" });
       return { refused: messageOf(e) };
     }
   }
