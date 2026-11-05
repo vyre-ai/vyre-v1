@@ -2,6 +2,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  RECENT_SHOWN, capped, chatOrder, foldedKey, openEntry, orderPeople, readFolded, unreadTotal, writeFolded, anyUnread,
   FILTERS, LOCAL_PREFIX, MAX_DIGITS, buildEntries, faceDigits, faceForDigit, filterCounts, groupRecent, matchesFilter, needsKind, newLocalRow, rowOf, selectable, splitChannels, startKey, stepKey, whenLabel,
 } from "./model.ts";
 import type { Agent, Channel, ChatRow, NeedsItem, RecentOut } from "./model.ts";
@@ -72,8 +73,7 @@ test("the list runs Tasks, Now, Recent, Channels with Projects, People, Agents; 
   assert.deepEqual(e.slice(0, 1).map((x) => x.key), ["nav:tasks"], "no Threads row: replies are in the Inbox and on their chats' rows");
   const now = e.slice(e.findIndex((x) => x.key === "h:now") + 1, e.findIndex((x) => x.key === "h:recent")).map((x) => x.key);
   assert.deepEqual(now, ["c:w", "c:n"]);
-  const more = e.find((x) => x.key === "m:recent") as { label: string };
-  assert.equal(more.label, "1 more", "Recent stops at three");
+  assert.equal(e.find((x) => x.key === "m:recent"), undefined, "four chats fit: Recent shows eight before N more (lane l-polish)");
   assert.ok(e.find((x) => x.key === "g:projects"));
   assert.ok(e.findIndex((x) => x.key === "f:me") === e.findIndex((x) => x.key === "h:faces") + 1, "the Assistant leads Agents");
   const none = buildEntries({ ...base, groups: [] });
@@ -159,4 +159,125 @@ test("a people-only group chat is in Recent; only a one-to-one direct message li
   const e = buildEntries({ ...base, groups, moreRecent: true });
   assert.deepEqual(recentKeys(e), ["c:grp", "c:ag"], "the group chat shows, the direct messages do not");
   assert.ok(matchesFilter(rows["grp"]!, "unread"), "and the Unread filter keeps it");
+});
+
+// ---------------------------------------------------------------- lane l-polish, Lane A: what the sidebar shows
+
+const crow = (threadId: string, o: Partial<ChatRow> = {}): ChatRow => ({ threadId, title: threadId, who: "Mira", kind: "agent", unread: 0, working: false, starred: false, lastAt: 1000, local: false, ...o });
+const recentKeys = (e: ReturnType<typeof buildEntries>): string[] => e.slice(e.findIndex((x) => x.key === "h:recent") + 1).filter((x) => x.type === "chat").map((x) => x.key.slice(2));
+const many = (n: number, o: (k: number) => Partial<ChatRow> = () => ({})): ChatRow[] => Array.from({ length: n }, (_, k) => crow(`r${k}`, { lastAt: 1000 - k, ...o(k) }));
+
+test("Recent shows eight, and unread, starred and the open chat never sit behind N more", () => {
+  assert.equal(RECENT_SHOWN, 8);
+  const rows = many(14, (k) => (k === 11 ? { unread: 2 } : k === 12 ? { starred: true } : k === 13 ? { repliesUnread: 1 } : {}));
+  const e = buildEntries({ ...base, groups: [{ key: "today", label: "Today", rows }], open: "t:r10" });
+  const keys = recentKeys(e);
+  assert.deepEqual(keys.slice(0, 1), ["r12"], "the starred chat leads");
+  for (const k of ["r10", "r11", "r12", "r13"]) assert.ok(keys.includes(k), `${k} is drawn past the cut`);
+  assert.equal(keys.length, 8 + 3, "eight, plus the unread, the open and the replies row past them (the starred one is among the first eight once it leads)");
+  assert.equal((e.find((x) => x.key === "m:recent") as { label: string }).label, `${14 - keys.length} more`);
+});
+
+test("a stable order: reading a chat never moves it, and two loads of the same rows draw the same list", () => {
+  const rows = [crow("a", { lastAt: 5 }), crow("b", { lastAt: 9, unread: 3 }), crow("c", { lastAt: 9 }), crow("d", { lastAt: 1, starred: true })];
+  const before = recentKeys(buildEntries({ ...base, groups: [{ key: "today", label: "Today", rows }] }));
+  const after = recentKeys(buildEntries({ ...base, groups: [{ key: "today", label: "Today", rows: rows.map((r) => ({ ...r, unread: 0 })).reverse() }] }));
+  assert.deepEqual(before, ["d", "b", "c", "a"], "starred first, then the newest, ties by title");
+  assert.deepEqual(after, before, "read, and handed over in another order, it draws the same");
+  assert.ok(chatOrder(crow("x", { lastAt: 1 }), crow("y", { lastAt: 1 })) < 0);
+});
+
+test("a goal's own chat is its Goal row: never again in Now or Recent", () => {
+  const rows = [crow("g1"), crow("g2", { working: true }), crow("plain")];
+  const e = buildEntries({ ...base, groups: [{ key: "today", label: "Today", rows }], goalThreads: new Set(["g1", "g2"]) });
+  assert.deepEqual(recentKeys(e), ["plain"]);
+  assert.ok(!e.some((x) => x.key === "c:g2"), "a running goal chat does not rise to Now either");
+  assert.ok(!e.some((x) => x.key === "h:now"));
+  // and before the goals have loaded, the server's row says it is a goal's chat
+  const fromServer = groupRecent({ starred: [], today: [item("g3", "Launch page live", { agents: ["a1"], goalId: "gol_1" } as never), item("x", "X", { agents: ["a1"] })], yesterday: [], earlier: [], nextUnread: null }, [], name);
+  assert.deepEqual(recentKeys(buildEntries({ ...base, groups: fromServer })), ["x"]);
+});
+
+test("a filter narrows every group: Unread keeps unread channels, people and agents; Needs you keeps the goals waiting on you; projects leave", () => {
+  const ch = (id: string, unread: number): Channel => ({ channelId: id, mainThreadId: `th_${id}`, name: id, visibility: "public", archived: false, members: [], agents: [], unread, createdAt: 1 } as Channel);
+  const goal = (id: string, status: string) => ({ id, title: id, status, owner: "me", leadAgentId: "a1", deadline: 1, progress: {}, updatedAt: 1 } as never);
+  const input = { ...base, goals: [goal("w", "waiting"), goal("act", "active")], projects: [{ id: "p1", title: "P", starred: false, archived: false }], channels: [ch("loud", 2), ch("quiet", 0)],
+    people: [{ id: "u1", name: "Ann", unread: 1 }, { id: "u2", name: "Bo", unread: 0 }], groups: [{ key: "today" as const, label: "Today", rows: [crow("s", { solo: true, whoId: "a2", unread: 1 })] }] };
+  const unread = buildEntries({ ...input, filter: "unread" });
+  const keys = unread.map((x) => x.key);
+  assert.ok(keys.includes("ch:loud") && !keys.includes("ch:quiet"), keys.join(" "));
+  assert.ok(keys.includes("p:u1") && !keys.includes("p:u2"));
+  assert.ok(!keys.includes("h:projects") && !keys.includes("h:goals"), "projects and goals carry no unread");
+  assert.ok(!keys.some((k) => k.startsWith("m:")), "a filter shows everything it keeps");
+  const needs = buildEntries({ ...input, filter: "needs", waitingAgents: new Set(["a1"]) });
+  assert.deepEqual(needs.filter((x) => x.type === "goal").map((x) => x.key), ["g:w"]);
+  assert.ok(needs.some((x) => x.key === "f:a1") && !needs.some((x) => x.key === "f:a2"));
+  assert.ok(!needs.some((x) => x.key === "h:channels"), "no channel waits on you: no empty Channels head");
+  const all = buildEntries(input);
+  assert.ok(all.some((x) => x.key === "ch:quiet") && all.some((x) => x.key === "h:projects") && all.some((x) => x.key === "g:act"));
+});
+
+test("a muted chat or channel is quiet: no unread on the row, at the end of its group, never lifted past N more, and nothing toward the totals", () => {
+  const rows = [...many(9), crow("m", { unread: 4, lastAt: 5000 })];
+  const muted = (kind: string, id: string): boolean => (kind === "thread" && id === "m") || (kind === "channel" && id === "c1");
+  const e = buildEntries({ ...base, groups: [{ key: "today", label: "Today", rows }], muted });
+  assert.ok(!recentKeys(e).includes("m"), "muted and past the cut: it waits behind N more though it is newest and unread");
+  const shown = buildEntries({ ...base, groups: [{ key: "today", label: "Today", rows }], muted, moreRecent: true });
+  const keys = recentKeys(shown);
+  assert.equal(keys.at(-1), "m", "at the end of Recent");
+  const row = shown.find((x) => x.key === "c:m") as { row: ChatRow };
+  assert.equal(row.row.unread, 0); assert.equal(row.row.muted, true);
+  const ch = (id: string, unread: number): Channel => ({ channelId: id, mainThreadId: `th_${id}`, name: id, visibility: "public", archived: false, members: [], agents: [], unread, createdAt: 1 } as Channel);
+  const chans = buildEntries({ ...base, channels: [ch("c1", 3), ch("c2", 1)], muted }).filter((x) => x.type === "channel") as { channel: Channel }[];
+  assert.deepEqual(chans.map((x) => [x.channel.channelId, x.channel.unread]), [["c2", 1], ["c1", 0]]);
+  const r: RecentOut = { starred: [], today: [item("m", "M", { agents: ["a1"], unread: 4 }), item("n", "N", { agents: ["a1"], unread: 1 })], yesterday: [], earlier: [], nextUnread: null };
+  assert.equal(unreadTotal(r, [ch("c1", 3), ch("c2", 1)], muted), 2, "one unread total: what is not muted, chats and channels together");
+  assert.equal(unreadTotal(r, [ch("c1", 3), ch("c2", 1)]), 9);
+  assert.equal(anyUnread({ ...r, today: [item("m", "M", { agents: ["a1"], unread: 4 })] }, [ch("c1", 3)], muted), false, "the rail dot stays off for muted things");
+});
+
+test("one unread, shown once: an agent's row shows its chat's unread only while that chat is not drawn", () => {
+  const solo = crow("s", { solo: true, whoId: "a1", unread: 2 });
+  const face = (e: ReturnType<typeof buildEntries>) => e.find((x) => x.key === "f:a1") as { unread?: number };
+  assert.equal(face(buildEntries({ ...base, groups: [{ key: "today", label: "Today", rows: [solo] }] })).unread, undefined, "the chat row carries it");
+  const folded = buildEntries({ ...base, groups: [{ key: "today", label: "Today", rows: [solo] }], closed: new Set(["recent"]) as never });
+  assert.equal(face(folded).unread, 2, "with Recent folded, the agent row says it");
+});
+
+test("the open row is selected for a project too, and an agent, person or goal past the cut is drawn", () => {
+  const projects = Array.from({ length: 6 }, (_, k) => ({ id: `p${k}`, title: `P${k}`, starred: false, archived: false }));
+  const e = buildEntries({ ...base, projects, open: "p:p5" });
+  assert.ok(e.some((x) => x.key === "pj:p5"), "the open project is drawn past N more");
+  assert.equal(openEntry(e, "p:p5"), "pj:p5", "and selected");
+  const faces = Array.from({ length: 6 }, (_, k) => agent(`x${k}`));
+  assert.ok(buildEntries({ ...base, faces, open: "a:x5" }).some((x) => x.key === "f:x5"));
+  assert.ok(buildEntries({ ...base, faces, starred: (k, id) => k === "agent" && id === "x4" }).some((x) => x.key === "f:x4"), "a starred agent is never hidden");
+});
+
+test("People keep one order: who I talked with last, then by name; reading never moves anyone", () => {
+  const r: RecentOut = { starred: [], today: [item("d1", "", { people: ["u3"], lastAt: 50 } as never), item("d2", "", { people: ["u1"], lastAt: 90 } as never)], yesterday: [], earlier: [], nextUnread: null };
+  const ppl = [{ id: "u1", name: "Cy" }, { id: "u2", name: "Al" }, { id: "u3", name: "Bea" }, { id: "u4", name: "Ab" }];
+  const a = orderPeople(ppl, new Map([["u3", 2]]), r).map((p) => p.id);
+  const b = orderPeople(ppl, new Map(), r).map((p) => p.id);
+  assert.deepEqual(a, ["u1", "u3", "u4", "u2"]);
+  assert.deepEqual(b, a, "the same with nothing unread");
+  const e = buildEntries({ ...base, people: orderPeople([...ppl, { id: "u5", name: "Zed" }], new Map([["u5", 1]]), r) });
+  assert.ok(e.some((x) => x.key === "p:u5"), "an unread person past the cut is drawn");
+});
+
+test("folded groups are remembered: read back what was written, Team now folded the first time, junk dropped", () => {
+  assert.equal(foldedKey("Fresh Co:usr_1"), "vyre.sidebar.folded.Fresh Co:usr_1");
+  assert.deepEqual([...readFolded(null)], ["team"]);
+  assert.deepEqual([...readFolded(writeFolded(new Set(["recent", "channels"] as const)))].sort(), ["channels", "recent"]);
+  assert.deepEqual([...readFolded('["recent","nope",3]')], ["recent"]);
+  assert.deepEqual([...readFolded("{bad")], ["team"]);
+  assert.deepEqual([...readFolded("[]")], [], "everything open is kept as everything open");
+});
+
+test("the filter menu counts what each filter shows: Unread counts unread channels too, Needs you says the Tasks number", () => {
+  const ch = { channelId: "c", mainThreadId: "th_c", unread: 2 };
+  const c = filterCounts([crow("a", { unread: 1 }), crow("b")], { channels: [ch], needs: 4 });
+  assert.equal(c.unread, 2); assert.equal(c.needs, 4);
+  assert.equal(filterCounts([crow("a", { unread: 1 })], { muted: (k, id) => k === "thread" && id === "a" }).unread, 0);
+  assert.deepEqual(capped([1, 2, 3, 4], 2, (x) => x === 4), { shown: [1, 2, 4], hidden: 1 });
 });

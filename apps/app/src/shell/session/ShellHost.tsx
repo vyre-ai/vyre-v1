@@ -268,12 +268,15 @@ export function ShellHost({ stored, open, onSignedOut, onHub, hub: given, initia
   useEffect(() => {
     if (!session) return undefined;
     const recent = session.hooks.capQuery<RecentOut>("chat.recent", { filter: "all" });
-    const channels = session.hooks.capQuery<{ channels: readonly { unread: number }[] }>("channels.list", {});
+    const channels = session.hooks.capQuery<{ channels: readonly { unread: number; channelId: string; mainThreadId: string }[] }>("channels.list", {});
+    // what the person muted makes no dot, the same rule the Chats list uses (lane l-polish, one unread total)
+    const mutes = session.hooks.capQuery<{ mutes?: readonly { target: { kind: string; id: string } }[] }>("notifications.mute.list", {});
     const read = (): void => {
-      const r = recent.getSnapshot(), c = channels.getSnapshot();
-      hub.dot("chats", anyUnread(r.status === "ready" ? r.data : null, c.status === "ready" ? c.data.channels : []));
+      const r = recent.getSnapshot(), c = channels.getSnapshot(), m = mutes.getSnapshot();
+      const muted = new Set(m.status === "ready" ? (m.data.mutes ?? []).map((x) => `${x.target.kind}:${x.target.id}`) : []);
+      hub.dot("chats", anyUnread(r.status === "ready" ? r.data : null, c.status === "ready" ? c.data.channels : [], (kind, id) => muted.has(`${kind}:${id}`)));
     };
-    const offs = [recent.subscribe(read), channels.subscribe(read)];
+    const offs = [recent.subscribe(read), channels.subscribe(read), mutes.subscribe(read)];
     read();
     return () => { for (const off of offs) off(); };
   }, [session, hub]);

@@ -62,6 +62,7 @@ const channelRow = t.obj({
 const recentRow = t.obj({
   threadId: id.thread, kind: threadKind, title: t.str(), agents: t.arr(id.agent), unread: t.int(), repliesUnread: t.opt(t.int({ minimum: 1, description: 'New replies, to messages the asker follows, in this chat: its row is bold with this count' })), working: t.bool(), starred: t.bool(),
   lastAt: t.ts(), preview: t.opt(t.str()), people: t.opt(t.arr(id.user, { description: 'The other people in the chat, never the asker: a direct message names the one person it is with' })),
+  goalId: t.opt(t.str({ description: "A goal's own chat names its goal: the sidebar shows it as the Goal row, not again among the chats", examples: ['gol_a1b2c3'] })),
 });
 const mention = t.obj({ kind: t.enm('person', 'agent'), id: t.str({ examples: ['usr_a1b2c3'] }) });
 const screenObject = t.obj({ type: t.str({ examples: ['record'] }), id: t.str({ examples: ['rec_a1b2c3'] }), title: t.opt(t.str()) });

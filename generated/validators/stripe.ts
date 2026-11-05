@@ -80,22 +80,22 @@ if ("cancelAtPeriodEnd" in o159) lf(o159["cancelAtPeriodEnd"], p + "/cancelAtPer
 
 function d_s_50cb1c1a01(v: unknown, p: string, e: string[]): void {
 {
-const x378 = v;
-const g378 = typeOf(x378);
-const b378: string[] = []; lf(x378, p, b378, L0); if (b378.length) e.push(...b378);
-if (g378 === "object") {
-if (g378 === 'object') { const o378 = x378 as Record<string, unknown>;
-if (!("id" in o378)) e.push(p + "/id" + ': required');
-if (!("amount" in o378)) e.push(p + "/amount" + ': required');
-if (!("currency" in o378)) e.push(p + "/currency" + ': required');
-if (!("status" in o378)) e.push(p + "/status" + ': required');
-if ("id" in o378) lf(o378["id"], p + "/id", e, L1);
-if ("amount" in o378) lf(o378["amount"], p + "/amount", e, L17);
-if ("currency" in o378) lf(o378["currency"], p + "/currency", e, L47);
-if ("status" in o378) lf(o378["status"], p + "/status", e, L1);
-if ("customerId" in o378) lf(o378["customerId"], p + "/customerId", e, L1);
-if ("hostedUrl" in o378) lf(o378["hostedUrl"], p + "/hostedUrl", e, L1);
-if ("dueDate" in o378) lf(o378["dueDate"], p + "/dueDate", e, L17);
+const x374 = v;
+const g374 = typeOf(x374);
+const b374: string[] = []; lf(x374, p, b374, L0); if (b374.length) e.push(...b374);
+if (g374 === "object") {
+if (g374 === 'object') { const o374 = x374 as Record<string, unknown>;
+if (!("id" in o374)) e.push(p + "/id" + ': required');
+if (!("amount" in o374)) e.push(p + "/amount" + ': required');
+if (!("currency" in o374)) e.push(p + "/currency" + ': required');
+if (!("status" in o374)) e.push(p + "/status" + ': required');
+if ("id" in o374) lf(o374["id"], p + "/id", e, L1);
+if ("amount" in o374) lf(o374["amount"], p + "/amount", e, L17);
+if ("currency" in o374) lf(o374["currency"], p + "/currency", e, L47);
+if ("status" in o374) lf(o374["status"], p + "/status", e, L1);
+if ("customerId" in o374) lf(o374["customerId"], p + "/customerId", e, L1);
+if ("hostedUrl" in o374) lf(o374["hostedUrl"], p + "/hostedUrl", e, L1);
+if ("dueDate" in o374) lf(o374["dueDate"], p + "/dueDate", e, L17);
 }
 }
 }
