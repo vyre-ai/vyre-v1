@@ -127,7 +127,7 @@ export const isSelectable = (r: RowModel): boolean => r.type === "hit" || r.type
 /** The search marks the typed word in a snippet with [ ]: shown as plain text, the marks are not part of what a person wrote. */
 export const plainMarks = (text: string): string => text.replace(/\[([^\[\]]+)\]/g, "$1");
 
-/** One row per thing: the same title twice in a group (a chat's title, then a message hit of that chat) is one row that keeps the first hit and takes a snippet from the later one when it has none. */
+/** One row per thing: the same title twice in a group (and a channel's own thread beside the channel) (a chat's title, then a message hit of that chat) is one row that keeps the first hit and takes a snippet from the later one when it has none. */
 export function oneEach(hits: readonly Hit[]): Hit[] {
   const at = new Map<string, number>(), out: Hit[] = [];
   for (const h of hits) {
@@ -137,7 +137,14 @@ export function oneEach(hits: readonly Hit[]): Hit[] {
     const mine = out[seen]!;
     if (mine.snippet === undefined && t.snippet !== undefined) out[seen] = { ...mine, snippet: t.snippet };
   }
-  return out;
+  // a channel's own thread is found as a chat too: the channel row is the one that stays, and takes the snippet
+  const chan = new Map(out.filter((h) => h.kind === "channel").map((h) => [h.title.trim().toLowerCase(), h] as const));
+  return out.filter((h) => {
+    const c = h.kind === "chat" ? chan.get(h.title.trim().toLowerCase()) : undefined;
+    if (!c) return true;
+    if (c.snippet === undefined && h.snippet !== undefined) out[out.indexOf(c)] = { ...c, snippet: h.snippet };
+    return false;
+  });
 }
 
 export function groupRows(hits: readonly Hit[], cap: number): RowModel[] {

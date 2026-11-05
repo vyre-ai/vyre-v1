@@ -273,4 +273,7 @@ test("one row per thing, no raw [ ] marks, no group name repeated on the row (po
   const hits = rows.filter((r) => r.type === "hit") as { type: "hit"; hit: { title: string; snippet?: string } }[];
   assert.equal(hits.length, 2, "the chat once, the channel once");
   assert.equal(hits[0]!.hit.snippet, "Review the launch post", "the later hit's snippet fills the row, without the marks");
+  const both = groupRows([hit("chat", "thr_9", "launch", "Review the [launch] post"), hit("channel", "chn_9", "launch")], 8).filter((r) => r.type === "hit") as { hit: { kind: string; snippet?: string } }[];
+  assert.deepEqual(both.map((r) => r.hit.kind), ["channel"], "a channel's own thread is not a second row beside the channel");
+  assert.equal(both[0]!.hit.snippet, "Review the launch post");
 });
