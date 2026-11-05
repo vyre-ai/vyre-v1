@@ -82,10 +82,7 @@ export function maybeRefreshDigest(d: DigestDeps, o: { threadId: string; agentId
       const usage = (await d.call("engine.usage.get", { threadId: o.threadId, agentId: o.agentId, accountRef: resolved.accountRef }, o.asker).catch(() => undefined)) as Obj | undefined;
       if (!limitAllows(usage)) return;
       const listed = (await d.call("engine.models.list", { accountRef: resolved.accountRef, probe: false }, o.asker)) as { models?: Array<{ model: string; allowed: boolean }> };
-      // a list that names nothing (a vendor that serves none): the model the room's agent runs on, or its last turn on this account ran on
-      const lastTurn = (usage as { lastTurn?: { model?: string; account?: { ref?: string } } } | undefined)?.lastTurn;
-      const ran = lastTurn?.model && (!lastTurn.account?.ref || lastTurn.account.ref === resolved.accountRef) ? lastTurn.model : undefined;
-      const model = cheapestModel(listed.models ?? []) ?? (typeof usage?.["model"] === "string" && usage["model"] !== "" ? usage["model"] : undefined) ?? ran;
+      const model = cheapestModel(listed.models ?? []);
       let source = fresh.map((m) => `${o.nameOf(m.author.id)}: ${m.body.replace(/\s+/g, " ").trim()}`).join("\n");
       if (source.length > SOURCE_CHARS) source = source.slice(source.length - SOURCE_CHARS);
       const prompt = `${have ? `Previous digest:\n${have.text}\n\n` : ""}New messages:\n${source}\n\nWrite the updated digest.`;
