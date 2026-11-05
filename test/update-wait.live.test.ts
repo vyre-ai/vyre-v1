@@ -39,6 +39,8 @@ test("a reply is running: the daemon names its chat, stop-turns ends it cleanly,
     await d.hooks?.pump?.();
     const said = ((await call(d, "chat.messages.list", { threadId })).data.messages as Array<{ author?: { kind?: string }; body?: string }>).filter((m) => m.author?.kind === "agent").map((m) => m.body ?? "");
     assert.ok(!said.some((b) => b.includes("never allowed to finish")), "the held reply wrote nothing after it was stopped");
+    const blocks = ((await call(d, "chat.messages.list", { threadId })).data.messages as Array<{ blocks?: Array<{ type: string; data?: { text?: string } }> }>).flatMap((m) => m.blocks ?? []);
+    assert.equal(blocks.filter((b) => b.type === "turn_status" && /Stopped for an update/.test(String(b.data?.text))).length, 1, "the chat says, once and quietly, why the reply stopped");
 
     // the route is the admin token's alone, and a second press has nothing to end
     assert.equal((await fetch(`${d.url}/local/daemon/stop-turns`, { method: "POST" })).status, 401);
