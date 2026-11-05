@@ -8,7 +8,7 @@ import type { CapMap } from "../../../../../../generated/types.ts";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import type { VirtualWindow } from "../../../../../../ui/src/VirtualList/index.tsx";
 import { LiveScreen } from "../computer/LiveScreen.tsx";
-import { copyText, giveBack, provision, signOut, sleep, takeOver, wake, wakeFailure } from "./actions.ts";
+import { computerWords, copyText, giveBack, provision, provisionKey, signOut, sleep, takeOver, wake, wakeFailure } from "./actions.ts";
 import type { PaneDeps } from "./actions.ts";
 import { useOnline, usePaneData, useScreenQuery } from "./data.tsx";
 import { GATE, allows, useOptionalShellRuntime } from "../../../shell/providers/runtime.tsx";
@@ -66,7 +66,7 @@ export function ComputerTab({ deps, window }: { deps: PaneDeps; window?: Virtual
   const name = data.agent.name;
   const computerId = data.agent.computerId ?? "";
   if (computerId === "") return <ComputerNone deps={deps} agentId={data.agent.agentId} name={name} canProvision={canProvision} />;
-  return <ComputerBody deps={deps} computerId={computerId} canTake={allows(rt, GATE.takeOver)} {...(window ? { window } : {})} />;
+  return <ComputerBody deps={deps} computerId={computerId} admin={canProvision} canTake={allows(rt, GATE.takeOver)} {...(window ? { window } : {})} />;
 }
 
 export interface HostRowOut { hostId: string; kind?: string; name: string; online?: boolean; canRun: boolean; reason?: string; detail?: string; room?: { fits: number; freeMb: number; totalMb: number } }
@@ -230,10 +230,25 @@ function useHosts(): HostsAnswer {
 function ComputerNone({ deps, agentId, name, canProvision }: { deps: PaneDeps; agentId: string; name: string; canProvision: boolean }): ReactElement {
   const hosts = useHosts();
   const [picked, setPicked] = useState<string | null>(null);
-  return <NoneBody hosts={hosts} canProvision={canProvision} name={name} picked={picked} onPick={setPicked} onProvision={(nodeId) => void provision(deps, agentId, name, nodeId ?? undefined)} />;
+  const refused = useSyncExternalStore(wakeFailure.subscribe, () => wakeFailure.get(provisionKey(agentId)), () => wakeFailure.get(provisionKey(agentId)));
+  const words = refused !== undefined ? computerWords(refused, canProvision) : null;
+  return (
+    <>
+      {words ? (
+        <View testID="computer-refused" style={st.padded}>
+          <View style={st.fail}>
+            <View style={st.cannotHead}><Icon name="warn" size={14} color="var(--danger)" /><Text style={st.failTitle}>The computer could not be set up</Text></View>
+            <Text testID="computer-refused-reason" style={st.failText}>{words.sentence}</Text>
+          </View>
+          <View style={st.row2}><TextButton label="Copy details" onPress={() => void copyText(deps, `${name}'s computer\nstate: not made\nreason: ${words.details}`)} testID="computer-copy-details" /></View>
+        </View>
+      ) : null}
+      <NoneBody hosts={hosts} canProvision={canProvision} name={name} picked={picked} onPick={setPicked} onProvision={(nodeId) => void provision(deps, agentId, name, nodeId ?? undefined)} />
+    </>
+  );
 }
 
-function ComputerBody({ deps, computerId, window, canTake }: { deps: PaneDeps; computerId: string; window?: VirtualWindow; canTake: boolean }): ReactElement {
+function ComputerBody({ deps, computerId, window, canTake, admin }: { deps: PaneDeps; computerId: string; window?: VirtualWindow; canTake: boolean; admin: boolean }): ReactElement {
   const data = usePaneData();
   const online = useOnline();
   const [sel, setSel] = useState<number | null>(null);
@@ -253,8 +268,10 @@ function ComputerBody({ deps, computerId, window, canTake }: { deps: PaneDeps; c
   const where = c.nodeId ? hostName(hosts, c.nodeId) : hostName(hosts, null);
   // a wake the server refused or failed before it could write the row's own error: the row says Asleep, this says why it did not start
   if (c.state === "error" || (refused !== undefined && c.state === "asleep")) {
-    const reason = c.state === "error" ? (c.error ?? "It could not start. Look at the server's logs for the reason.") : `It did not start: ${refused}`;
-    return <FailedBody name={name} reason={reason} details={`${name}'s computer ${c.computerId}\nstate: ${c.state}\nreason: ${reason}${where ? `\nruns on: ${where}` : ""}`} onCopy={(text) => void copyText(deps, text)} onAgain={() => void wake(deps, c.computerId, name)} />;
+    const raw = c.state === "error" ? (c.error ?? "It could not start. Look at the server's logs for the reason.") : (refused ?? "");
+    const words = computerWords(raw, admin);
+    const reason = words.sentence;
+    return <FailedBody name={name} reason={reason} details={`${name}'s computer ${c.computerId}\nstate: ${c.state}\nreason: ${words.details}${where ? `\nruns on: ${where}` : ""}`} onCopy={(text) => void copyText(deps, text)} onAgain={() => void wake(deps, c.computerId, name)} />;
   }
   if (isSettingUp(c)) return <SettingUp name={name} step={setupStep(c)} {...(where ? { where } : {})} />;
   const view = computerView(c);

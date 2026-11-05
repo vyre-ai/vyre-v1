@@ -177,7 +177,7 @@ export async function provision(ctx: CompCtx, input: { agentId: string; tabLimit
   } catch (e) {
     ctx.log.warn("computer: create failed", { computerId, reason: e instanceof Error ? e.message.slice(0, 200) : "unknown" });
     ctx.db.run("DELETE FROM computers_computers WHERE computer_id = ?", computerId);
-    const reason = e instanceof Error ? e.message.slice(0, 200) : "unknown";
+    const reason = e instanceof Error ? e.message.slice(0, 1000) : "unknown";   // long enough for the Details a host adds after its first line
     raise(ctx, "provider.unavailable", `The computer could not be created: ${reason}`, { reason });
   }
   ctx.emit("computer.provisioned", computerId, { computerId, agentId: input.agentId });
@@ -266,7 +266,7 @@ export async function awaken(ctx: CompCtx, c: ComputerRow, by: string): Promise<
   try {
     await host.start({ computerId: c.computerId, tabLimit: c.tabLimit, agentId: c.agentId });
   } catch (e) {
-    const reason = e instanceof Error ? e.message.slice(0, 200) : "The computer did not start.";
+    const reason = e instanceof Error ? e.message.slice(0, 1000) : "The computer did not start.";
     ctx.log.warn("computer: start failed", { computerId: c.computerId, reason });
     setComputer(ctx.db, c.computerId, { state: "error", error: reason });
     raise(ctx, "internal.unexpected", `The computer did not start: ${reason}`, { reason });
