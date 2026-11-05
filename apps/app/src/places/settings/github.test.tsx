@@ -26,13 +26,13 @@ test("old addresses land on the page that holds them", () => {
 
 test("connected: the account, the reconnect banner, orgs with Install or Change, six permissions and what used it", () => {
   const out = html(createSampleSettings(northwind));
-  for (const n of ["@irfad7","Signs you in to Vyre","the Vyre GitHub app","github-reconnect","Reconnect GitHub once","All repos","2 repos","Not installed","gh-org-irfad7","Opened a pull request","Crews"]) assert.ok(out.includes(n), n);
+  for (const n of ["@irfad7","Signs you in to Vyre","the Vyre GitHub app","github-reconnect","Reconnect GitHub once","All repos","2 repos","Not installed","gh-org-irfad7","vyre-ai/vyre-v1","days ago","Crews"]) assert.ok(out.includes(n), n);
   assert.ok(out.includes("@irfad7") && out.includes("Signs you in to Vyre") && out.includes("the Vyre GitHub app"));
   assert.ok(out.includes('data-testid="github-reconnect"') && out.includes("Reconnect GitHub once"));
   assert.ok(out.includes("All repos") && out.includes("2 repos") && out.includes("Not installed"));
   assert.ok(out.includes('data-testid="gh-org-irfad7"') && !out.includes('data-testid="gh-org-northwind"'), "an org with no link has no button");
   for (const p of GH_PERMS) assert.ok(out.includes(`data-testid="gh-perm-${p.key}"`), p.key);
-  assert.ok(out.includes("Opened a pull request") && out.includes("Crews"));
+  assert.ok(out.includes("vyre-ai/vyre-v1") && out.includes("days ago") && out.includes("Crews"));
 });
 
 test("not connected: one button", () => {
