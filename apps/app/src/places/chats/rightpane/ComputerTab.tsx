@@ -205,6 +205,19 @@ export function FailedBody({ name, reason, details, onCopy, onAgain }: { name: s
   );
 }
 
+/** A provision the server refused, above the Set up button: its own words in one sentence, and Copy details for the rest. */
+export function RefusedBody({ name, sentence, details, onCopy }: { name: string; sentence: string; details: string; onCopy(text: string): void }): ReactElement {
+  return (
+    <View testID="computer-refused" style={st.padded}>
+      <View style={st.fail}>
+        <View style={st.cannotHead}><Icon name="warn" size={14} color="var(--danger)" /><Text style={st.failTitle}>The computer could not be set up</Text></View>
+        <Text testID="computer-refused-reason" style={st.failText}>{sentence}</Text>
+      </View>
+      <View style={st.row2}><TextButton label="Copy details" onPress={() => onCopy(`${name}'s computer\nstate: not made\nreason: ${details}`)} testID="computer-copy-details" /></View>
+    </View>
+  );
+}
+
 /** The name of the machine a computer runs on: the server it was placed on, or the Space's own. */
 export function hostName(h: HostsAnswer, nodeId: string | null): string {
   if (h.state !== "ready") return "";
@@ -234,15 +247,7 @@ function ComputerNone({ deps, agentId, name, canProvision }: { deps: PaneDeps; a
   const words = refused !== undefined ? computerWords(refused, canProvision) : null;
   return (
     <>
-      {words ? (
-        <View testID="computer-refused" style={st.padded}>
-          <View style={st.fail}>
-            <View style={st.cannotHead}><Icon name="warn" size={14} color="var(--danger)" /><Text style={st.failTitle}>The computer could not be set up</Text></View>
-            <Text testID="computer-refused-reason" style={st.failText}>{words.sentence}</Text>
-          </View>
-          <View style={st.row2}><TextButton label="Copy details" onPress={() => void copyText(deps, `${name}'s computer\nstate: not made\nreason: ${words.details}`)} testID="computer-copy-details" /></View>
-        </View>
-      ) : null}
+      {words ? <RefusedBody name={name} sentence={words.sentence} details={words.details} onCopy={(text) => void copyText(deps, text)} /> : null}
       <NoneBody hosts={hosts} canProvision={canProvision} name={name} picked={picked} onPick={setPicked} onProvision={(nodeId) => void provision(deps, agentId, name, nodeId ?? undefined)} />
     </>
   );
