@@ -1,7 +1,7 @@
 // Console > Apps > Connected apps: one list. Every control is pressed by its testID and the capability it calls is read back from the recorded calls.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { AppsPage, otherSignIns, whatItDoes } from "../pages/AppsList.tsx";
+import { AppsPage, appNote, otherSignIns, whatItDoes } from "../pages/AppsList.tsx";
 import { createRoot } from "test-renderer";
 import { mountPage } from "./page-kit.tsx";
 
@@ -80,4 +80,11 @@ test("no label on the page uses the words the Console dropped", async () => {
     assert.doesNotMatch(p.text(), /\b(connector|principal|grant|scope|tenant)s?\b/i);
     assert.doesNotMatch(p.text(), /!/);
   } finally { p.restore(); }
+});
+
+test("a custom app still being built says it is a draft and not connected yet; a live one, or one with sign-ins, says what it does", () => {
+  const base = { mode: "api", syncedTypes: [] as string[] };
+  assert.equal(appNote({ ...base, state: "draft", connections: 0 } as never), "Draft. Not connected yet.");
+  assert.equal(appNote({ ...base, state: "live", connections: 0 } as never), "Connects with an API key");
+  assert.equal(appNote({ ...base, state: "draft", connections: 2 } as never), "Connects with an API key");
 });
