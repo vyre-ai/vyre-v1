@@ -3,6 +3,7 @@
 // agent's tools run through the invoke pipeline. An API-key driver gets the agent's role as its system prompt and no tools yet: running its tools needs the engine's tool runner (callTool),
 // which is a separate packet; until then a chat on an API key answers in words only.
 import { githubEnv, redactTree, withGithub } from "./github-session.ts";
+import type { GitProxyPort } from "./github-session.ts";
 import { LaunchError, createLocalLauncher } from "../../agent/src/drivers/cli/launcher.ts";
 import { ACCESS_ENV, RULE_ENV, SandboxError, WIN_SSH_AGENT_PIPE, accessFromEnv, engineAccess, ruleFromEnv } from "../../sandbox/src/index.ts";
 import type { AccessAsked, EgressEvent, EgressRule, EngineAccess } from "../../sandbox/src/index.ts";
@@ -59,8 +60,8 @@ export interface OpenerHost {
   session: EngineSessionPorts;
   /** Call a capability for a person; used for the agent's role. */
   call(cap: string, input: unknown, as?: string): Promise<unknown>;
-  /** The token behind a filler handle, once (github-session.ts): with it a CLI engine's process gets GitHub for the person's own turn. Absent: none does. */
-  githubFill?: (handle: string) => string | null;
+  /** The Space's git address (github-session.ts): with a token of its own for the session a CLI engine's process pushes and fetches through the Space, never holding a GitHub token. Absent: no process does. */
+  gitProxy?: GitProxyPort;
   /** Where and how a CLI engine is sandboxed (the host decides). Without it a CLI turn fails with sandbox.unavailable: the engine never runs unwrapped. */
   sandbox?: SandboxPlan;
   /** The Space data directory (work folders live under it) and a builder for the default plan, used when the host gave none. Both come from the daemon. */
@@ -338,6 +339,21 @@ export function withRule(spec: LaunchSpec, rule: EgressRule): LaunchSpec {
 }
 
 /**
+ * The Space's own address, where the session's git goes (github-session.ts), is let through a "only these hosts" wall, so a push is not stopped by the wall that keeps the engine to its providers. A
+ * loopback address is never added: the wall exists to keep the engine off this computer's own services.
+ */
+export function withGitHost(spec: LaunchSpec, base: string): LaunchSpec {
+  let host = "";
+  try { host = new URL(base).hostname; } catch { return spec; }
+  if (!host || host === "localhost" || /^(127\.|\[?::1\]?$|0\.0\.0\.0)/.test(host)) return spec;
+  try {
+    const rule = JSON.parse(spec.env[RULE_ENV] ?? "null") as { egress?: string; allow?: string[] } | null;
+    if (rule?.egress !== "list" || !Array.isArray(rule.allow) || rule.allow.includes(host)) return spec;
+    return { ...spec, env: { ...spec.env, [RULE_ENV]: JSON.stringify({ ...rule, allow: [...rule.allow, host] }) } };
+  } catch { return spec; }
+}
+
+/**
  * The opener of a turn pinned to one of the person's servers (node-turns.ts): the same driver, account fill and MCP session as the Space's own, but the CLI engine is started on the server by `launcher`.
  * The server has no Space work folder, no native plugins and no sandbox socket for MCP: the engine works in a folder of the server's and reaches the Space's tools at the address it joined by.
  */
@@ -420,11 +436,18 @@ export function buildOpener(h: OpenerHost): SessionOpener {
         let ruled = h.egress ? withRule(spec, await ruleOf(h.egress)) : spec;
         const who = dataDir ? workOf(dataDir, spec.cwd) : null;
         if (h.access && who) ruled = withAccess(ruled, await h.access(who.person, "space").catch(() => ({ where: "server" as const, folders: [] })));
-        // GitHub for the person whose turn this is, from the one broker (a chat of a project whose Files folder points at GitHub); set last
-        if (h.githubFill && who) ruled = withGithub(ruled, await githubEnv({ call: h.call, fill: h.githubFill }, who.person, who.threadId));
-        const proc = await spawnCli(await plan(), ruled, swap ? [...swap, ...spec.argv.slice(1)] : ownedArgv(spec.argv, h.cliProbe), h.egress?.record ? { onEgress: h.egress.record } : {});
-        // a process that was given a GitHub token leaves none in the files it wrote (a saved environment, a remote with the token in its address): cleaned when it ends
-        if (ruled.env["GH_TOKEN"] && spec.cwd) { const dir = spec.cwd; void proc.exited.then(() => redactTree(dir), () => undefined); }
+        // GitHub for the person whose turn this is: the Space's git address and a token for this process alone (a chat of a project whose Files folder points at GitHub); set last
+        let gitEnd: (() => void) | null = null;
+        if (h.gitProxy && who) {
+          const g = await githubEnv({ call: h.call, git: h.gitProxy }, who.person, who.threadId, spec.agent.id);
+          ruled = withGithub(withGitHost(ruled, h.gitProxy.base()), g.env);
+          gitEnd = g.end;
+        }
+        let proc;
+        try { proc = await spawnCli(await plan(), ruled, swap ? [...swap, ...spec.argv.slice(1)] : ownedArgv(spec.argv, h.cliProbe), h.egress?.record ? { onEgress: h.egress.record } : {}); }
+        catch (e) { gitEnd?.(); throw e; }
+        // a process that was given a git token leaves none in the files it wrote (a saved environment, a remote with the token in its address): cleaned when it ends, and the token ends with it
+        if (gitEnd) { const end = gitEnd; const dir = spec.cwd; void proc.exited.then(() => { end(); if (dir) redactTree(dir); }, () => { end(); }); }
         return proc;
       },
     },

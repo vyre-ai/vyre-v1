@@ -3,6 +3,7 @@
 // its own database from these (modules/engine/runtime.ts); nothing in the host touches a turn.
 import { createGuardedFetch } from "../../../lib/net-guard.ts";
 import type { Invoke } from "../invoke.ts";
+import type { GitProxyPort } from "./git-proxy.ts";
 import { createEngineSessionHost } from "./engine-session.ts";
 import type { EngineSessionHost } from "./engine-session.ts";
 import type { VaultPort } from "./ports.ts";
@@ -116,8 +117,8 @@ export interface EngineHostDeps {
   keyHeld?: (person: string) => boolean;
   /** Whether the person's key is in this host now, on a person's own computer too (keyHeld is only for a Space server, where it chooses the account): a turn parked on a locked Vault resumes by it. */
   keyOpen?: (person: string) => boolean;
-  /** The token behind a filler handle, once (the host's filler): GitHub for a CLI engine's process, for the person's own turn. */
-  githubFill?: (handle: string) => string | null;
+  /** The Space's git address (host/src/seams/git-proxy.ts): a CLI engine's process pushes and fetches through it with a token of its own and never holds a GitHub token. */
+  gitProxy?: GitProxyPort;
   ours?: (db: unknown) => boolean;
   openSession?: unknown;
   onApiTools?: unknown;
@@ -177,5 +178,5 @@ export function createEngineHost(d: EngineHostDeps): EngineHostSeam {
     pub({ t: "turn", turn: turnId, delta: { kind, ...rest } }, (person) => (onlyAsker !== null ? person === onlyAsker : mayRead(e.threadId, person)));
   };
   const session = d.vault ? createEngineSessionHost({ invoke: d.invoke, vault: d.vault, space: d.space, ...(d.log ? { log: d.log } : {}), ...(d.saveSignin ? { saveSignin: d.saveSignin } : {}) }) : undefined;
-  return { ...(d.closing ? { closing: d.closing } : {}), ...(d.turns ? { turns: d.turns } : {}), ...(d.mayAll ? { mayAll: d.mayAll } : {}), holder: `host:${d.space}`, call, postAs, ...(d.putToSlot ? { putToSlot: d.putToSlot } : {}), ...(d.publishTurn ? { stream, forgetReaders: () => { epoch++; seen.clear(); } } : {}), ...(d.now ? { now: d.now } : {}), ...(d.log ? { log: d.log } : {}), ...(session ? { session } : {}), ...(d.sandbox !== undefined ? { sandbox: d.sandbox } : {}), ...(d.dataDir ? { dataDir: d.dataDir } : {}), ...(d.cli !== undefined ? { cli: d.cli } : {}), ...(d.engineInstall ? { engines: { install: true } } : {}), ...(d.openSession !== undefined ? { openSession: d.openSession } : {}), invoke: d.invoke, space: d.space, ...(d.own ? { own: d.own } : {}), ...(d.keyHeld ? { keyHeld: d.keyHeld } : {}), ...(d.keyOpen ? { keyOpen: d.keyOpen } : {}), ...(d.githubFill ? { githubFill: d.githubFill } : {}), ...(d.onApiTools !== undefined ? { onApiTools: d.onApiTools } : {}), ...(d.ours ? { ours: d.ours } : {}), ...(d.nodes ? { nodes: d.nodes } : {}), mcpFetch: d.mcpFetch ?? createGuardedFetch({ own: false }), ...(d.pluginLaunch !== undefined ? { pluginLaunch: d.pluginLaunch } : {}) };
+  return { ...(d.closing ? { closing: d.closing } : {}), ...(d.turns ? { turns: d.turns } : {}), ...(d.mayAll ? { mayAll: d.mayAll } : {}), holder: `host:${d.space}`, call, postAs, ...(d.putToSlot ? { putToSlot: d.putToSlot } : {}), ...(d.publishTurn ? { stream, forgetReaders: () => { epoch++; seen.clear(); } } : {}), ...(d.now ? { now: d.now } : {}), ...(d.log ? { log: d.log } : {}), ...(session ? { session } : {}), ...(d.sandbox !== undefined ? { sandbox: d.sandbox } : {}), ...(d.dataDir ? { dataDir: d.dataDir } : {}), ...(d.cli !== undefined ? { cli: d.cli } : {}), ...(d.engineInstall ? { engines: { install: true } } : {}), ...(d.openSession !== undefined ? { openSession: d.openSession } : {}), invoke: d.invoke, space: d.space, ...(d.own ? { own: d.own } : {}), ...(d.keyHeld ? { keyHeld: d.keyHeld } : {}), ...(d.keyOpen ? { keyOpen: d.keyOpen } : {}), ...(d.gitProxy ? { gitProxy: d.gitProxy } : {}), ...(d.onApiTools !== undefined ? { onApiTools: d.onApiTools } : {}), ...(d.ours ? { ours: d.ours } : {}), ...(d.nodes ? { nodes: d.nodes } : {}), mcpFetch: d.mcpFetch ?? createGuardedFetch({ own: false }), ...(d.pluginLaunch !== undefined ? { pluginLaunch: d.pluginLaunch } : {}) };
 }

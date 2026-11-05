@@ -104,26 +104,26 @@ test("walk: connect, reach, a refused repository, Ask me first, the policy and a
     assert.equal(JSON.stringify(t).includes("ghs_"), false);
     await assert.rejects(me.token(g.ctx, { repo: "vyre-ai/website", action: "push_default", consumer: "crew" }), (e: any) => e.error.code === "validation.precondition_failed");   // eslint-disable-line @typescript-eslint/no-explicit-any
 
-    // ---- 5. a CLI session: the engine asks the broker as the person and takes the token out of the real filler
+    // ---- 5. a CLI session: it gets the Space's git address and a proxy token of its own, and no GitHub token is made for it
+    const mints = g.withPath("POST", `/app/installations/${INSTALL}/access_tokens`).length;
+    const made: unknown[] = [];
     const port = {
-      call: async (cap: string, input: unknown) => {
+      call: async (cap: string) => {
         if (cap === "threads.get") return { thread: { scopeType: "project", scopeId: "prj_site" } };
         if (cap === "projects.get") return { project: { folderId: "fld_site" } };
         if (cap === "git.status") return { remotes: [{ name: "origin", url: "https://github.com/vyre-ai/website.git" }] };
-        if (cap === "github.session_env") return me.sessionEnv(g.ctx, input as never);
+        if (cap === "github.me.status") return me.meStatus(g.ctx);
         throw new Error(`no ${cap}`);
       },
-      fill: (handle: string) => { const ref = `pe_${handle}`; if (!filler.fill(handle, { kind: "process_env", ref }, g.ctx.now())) return null; const x = processEnv.get(ref) ?? null; processEnv.delete(ref); return x; },
+      git: { mint: (x: unknown) => { made.push(x); return { token: "vgp_walk_session", expiresAt: g.ctx.now() + 3_600_000 }; }, revoke: () => undefined, base: () => "https://space.vyre.test" },
     };
-    const env = await githubEnv(port, PERSON, "thr_1");
-    assert.match(env["GH_TOKEN"]!, /^ghs_token_/, "the real token, in the process environment only");
-    assert.equal(env["GITHUB_TOKEN"], env["GH_TOKEN"]);
-    assert.equal(env["GIT_CONFIG_COUNT"], "2");
-    const mint = g.withPath("POST", `/app/installations/${INSTALL}/access_tokens`).at(-1)!;
-    assert.deepEqual(mint.body, { repositories: ["website"], permissions: { contents: "read", pull_requests: "read", issues: "read", checks: "read", metadata: "read" } }, "the session got read only: everything else asks");
-    me.policySet(g.ctx, { policy: { read: "ask" } });
-    assert.deepEqual(await githubEnv(port, PERSON, "thr_1"), {}, "when reading asks first, a session gets no token");
-    assert.deepEqual(me.meUsage(g.ctx).uses.map((x) => x.consumer).sort(), ["crew", "session.engine"]);
+    const session = await githubEnv(port, PERSON, "thr_1", "agt_coder");
+    assert.equal(session.env["VYRE_GIT_TOKEN"], "vgp_walk_session");
+    assert.deepEqual(made, [{ person: PERSON, agentId: "agt_coder", threadId: "thr_1", repos: ["vyre-ai/website"] }]);
+    assert.equal(session.env["GH_TOKEN"], undefined);
+    assert.equal(Object.values(session.env).some((v) => /gh[pousr]_/.test(v)), false, "no GitHub token under any name");
+    assert.equal(g.withPath("POST", `/app/installations/${INSTALL}/access_tokens`).length, mints, "no GitHub token was made for the session");
+    assert.deepEqual(me.meUsage(g.ctx).uses.map((x) => x.consumer).sort(), ["crew"]);
 
     // ---- 6. disconnect: revoked, the Vault item in the Trash, the next ask refused
     g.on("DELETE /applications/Iv1.vyre/grant", { status: 204, body: {} });

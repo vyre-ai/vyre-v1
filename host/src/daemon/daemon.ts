@@ -160,6 +160,8 @@ import { createSpaceAdmin } from "../seams/spaceadmin.ts";
 import { preAuthSession } from "./preauth.ts";
 import { createFiller } from "../seams/filler.ts";
 import { cloneTokens } from "../seams/plugins.ts";
+import { createGitProxy } from "../seams/git-proxy.ts";
+import type { GitProxyPort } from "../seams/git-proxy.ts";
 import { createProviderProbe, createVaultService, refuseModelAddress, resolveVaultItem } from "../seams/vault.ts";
 import type { PostFetch } from "../seams/events-ports.ts";
 import { createPushPort, defaultFetch, wireSeams } from "../seams/index.ts";
@@ -253,6 +255,10 @@ function sealKeyFile(file: string): string {
 }
 
 export interface DaemonOptions {
+  /** Tests: where the git proxy forwards to instead of github.com (host/src/seams/git-proxy.ts). */
+  gitUpstream?: string;
+  /** Tests: how long a push waits for the person's OK; ten minutes when absent. */
+  gitParkMs?: number;
   /** Lets the process entry resolve after an authenticated HTTP shutdown as well as a signal. */
   onStopped?:()=>void;
   /** Tests: how often the computers of a Personal Space sync (host/src/peers/sync.ts); 5 s when absent. */
@@ -495,6 +501,13 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   let capIndex: ReturnType<typeof indexCapabilities> | null = null;
   let boundPort = cfg.port;
   let mcpRuntime: McpRuntime | null = null;
+  // The Space's git address (host/src/seams/git-proxy.ts): made once the invoke pipeline is, handed to CLI engines through this port, which waits for it
+  let gitProxy: ReturnType<typeof createGitProxy> | null = null;
+  const gitPort: GitProxyPort = {
+    mint: (a) => { if (!gitProxy) throw new Error("the git address is not ready"); return gitProxy.port.mint(a); },
+    revoke: (t) => { gitProxy?.port.revoke(t); },
+    base: () => gitProxy?.port.base() ?? "",
+  };
   let startMcpRuntime: ((port: number) => void) | null = null;
   let stopMcpRuntime: (() => void) | null = null;
   let claim: { url: string; expiresAt: number } | null = null;
@@ -1273,6 +1286,18 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         ? invoke(call.cap, call.input, { space: call.space, principal: call.principal, preAuth: true, origin: "schedule", ...(call.traceId ? { trace: { traceId: call.traceId, spanId: "0".repeat(16) } } : {}) }).then(() => undefined)
         : runAsScheduled(call));
       invokeRef = invoke;
+      gitProxy = createGitProxy({
+        space: spaceId, now, invoke: (cap, input, seed) => invokeRef(cap, input, seed), fill: githubFill,
+        ...(o.gitUpstream ? { upstream: o.gitUpstream } : {}),
+        ...(o.gitParkMs ? { parkMs: o.gitParkMs } : {}),
+        base: () => publicOrigin()?.origin ?? `http://127.0.0.1:${boundPort}`,
+        log: (msg, attrs) => sink.log({ space: spaceId, level: 30, msg, place: "git", ...(attrs ? { attrs } : {}) }),
+        gate: {
+          head: async () => (log ? (await log.currentHead()).seq : 0),
+          since: async (seq) => (log ? (await log.read({ type: "gate.*", after: seq, limit: 200 })).map((e) => ({ seq: e.seq, name: e.type, payload: (() => { try { return JSON.parse(new TextDecoder().decode(e.payload)) as Record<string, unknown>; } catch { return {}; } })() })) : []),
+        },
+      });
+      closers.push(() => { gitProxy = null; });
       const mcpExports = loaded.moduleExports.get("mcp");
       const makeMcp = mcpExports?.["createMcpRuntime"];
       if (typeof makeMcp === "function") {
@@ -1781,7 +1806,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           log: (u) => sink.log({ space: spaceId, level: 30, msg: "computers.fill", place: "computers", attrs: { ...u } }),
         }) : null,
         // the turn engine: capabilities run for a person through this pipeline, the agent speaks into chat as itself, and the session opener's ports come from the Vault (P-L2_23)
-        setEngineHost: (d) => (engineSeam = createEngineHost({ space: spaceId, invoke, now, putToSlot, githubFill,
+        setEngineHost: (d) => (engineSeam = createEngineHost({ space: spaceId, invoke, now, putToSlot, gitProxy: gitPort,
           // each person on their own grants, never as anyone's agent: the answer check of a shared chat (gap 6)
           mayAll: (people, action, resource) => people.every((p) => { try { return !staleFor(p) && authorize(access.snap, { principal: p, action, resource, now: now() }).effect === "allow"; } catch { return false; } }), publishTurn: () => hub?.publishTurn ? hub.publishTurn.bind(hub) : null, log: (msg, attrs) => sink.log({ space: spaceId, level: 30, msg, place: "engine", ...(attrs ? { attrs } : {}) }), ...(d.vault ? { vault: d.vault } : {}), dataDir: paths.root, own: ownNode, keyOpen: (p: string) => { const k = keyring.get(p); k?.fill(0); return k !== null; }, ...(cfg.roles.includes("device") ? {} : { keyHeld: (p: string) => { const k = keyring.get(p); k?.fill(0); return k !== null; } }), ours: (x: unknown) => { const r = rawDbOf(x); return r === null || r === db; }, nodes: { spawn: (n, s) => computeStream.spawnProc(n, s), connected: (n) => computeStream.connected(n), secure: (n) => computeStream.secure(n), devices: (p) => computeStream.devices(p), onDevice: (f) => computeStream.onDevice(f) }, ...(o.engineCli !== undefined ? { cli: o.engineCli } : {}), ...(o.engineInstall ? { engineInstall: true } : {}), ...(o.engineOpenSession !== undefined ? { openSession: o.engineOpenSession } : {}), ...(o.engineApiTools !== undefined ? { onApiTools: o.engineApiTools } : {}), ...(o.mcpFetch !== undefined ? { mcpFetch: o.mcpFetch } : {}), ...(o.engineSandbox !== undefined ? { sandbox: o.engineSandbox } : {}), saveSignin: (r) => signinRefresh.save(r), closing: (done) => { engineClosing = done; }, turns: (n) => { engineTurns = n; machinesSync(); } })),
         // Report a problem: the bundle sources (the person's last actions from the log, the versions) and the reports.vyre.run client, signed with a key derived from this Space's seal key
@@ -2341,6 +2366,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     const server = h.server;
     if (hubFactory) server.on("upgrade", (req, socket, head) => { if (computeStream.claims(req)) computeStream.upgrade(req, socket, head); });
     server.removeAllListeners("request");
+    // a push waits for the person's OK for up to ten minutes with its body unfinished (git-proxy.ts): the server's limit on a whole request must be longer than that
+    if (server.requestTimeout > 0 && server.requestTimeout < 25 * 60_000) server.requestTimeout = 25 * 60_000;
     // a site's container reaches this machine only through its own network; a connection on that network's address is a site trying the Space's API, and is closed at once
     server.on("connection", (sock) => { if (siteGuard(sock.localAddress)) sock.destroy(); });
     const listener = requestListener({
@@ -2386,7 +2413,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       if (artifactHostRoute.handle(req, res)) return;
       if (siteHostRoute.handle(req, res)) return;
       if (peerService?.handle(req, res)) return;
-      if (liveTicketRoute.handle(req, res) || publicPath.handle(req, res) || siteSigninPage.handle(req, res) || mcpRoute.handle(req, res) || chromeBridge.handle(req, res) || chromeAgentsRoute.handle(req, res) || githubSignInRoute.handle(req, res) || githubConnectRoute.handle(req, res) || ssoSignInRoute.handle(req, res) || blobRoute?.handle(req, res) || formsPageRoute?.handle(req, res) || unsubscribeRoute.handle(req, res) || shareRoute?.handle(req, res) || portalLinkRoute?.handle(req, res) || exportRoute.handle(req, res) || webhookRoute.handle(req, res) || computeRoute.handle(req, res) || computeStream.handle(req, res) || localWorkRoute.handle(req, res) || teamLinks.handle(req, res) || fillRoute.handle(req, res) || localKeyRoute.handle(req, res) || appFiles.handle(req, res)) return;
+      if (liveTicketRoute.handle(req, res) || publicPath.handle(req, res) || siteSigninPage.handle(req, res) || mcpRoute.handle(req, res) || (gitProxy?.handle(req, res) ?? false) || chromeBridge.handle(req, res) || chromeAgentsRoute.handle(req, res) || githubSignInRoute.handle(req, res) || githubConnectRoute.handle(req, res) || ssoSignInRoute.handle(req, res) || blobRoute?.handle(req, res) || formsPageRoute?.handle(req, res) || unsubscribeRoute.handle(req, res) || shareRoute?.handle(req, res) || portalLinkRoute?.handle(req, res) || exportRoute.handle(req, res) || webhookRoute.handle(req, res) || computeRoute.handle(req, res) || computeStream.handle(req, res) || localWorkRoute.handle(req, res) || teamLinks.handle(req, res) || fillRoute.handle(req, res) || localKeyRoute.handle(req, res) || appFiles.handle(req, res)) return;
       listener(req, res);
     });
     await new Promise<void>((resolve, reject) => {

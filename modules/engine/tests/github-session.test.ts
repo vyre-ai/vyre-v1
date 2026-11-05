@@ -1,27 +1,30 @@
-// GitHub for a CLI engine's process: the broker's token, from the chat's project repositories, in the environment of that process only, and nothing when there is nothing to give.
+// GitHub for a CLI engine's process: the Space's git address and a proxy token for that process alone, never a GitHub token, and nothing when there is nothing to give.
 import test from "node:test";
 import assert from "node:assert/strict";
 import { githubEnv, reposOfThread, withGithub } from "../github-session.ts";
-import type { GithubSessionPort } from "../github-session.ts";
+import type { GithubSessionPort, GitProxyPort } from "../github-session.ts";
+import { withGitHost } from "../session.ts";
 
 type Called = { cap: string; input: Record<string, unknown>; as?: string | undefined };
-function rig(o: { scope?: string; remotes?: Array<{ url: string }>; sessionEnv?: unknown; token?: string | null; fail?: boolean } = {}) {
-  const called: Called[] = [];
-  const port: GithubSessionPort = {
+function rig(o: { scope?: string; remotes?: Array<{ url: string }>; connected?: boolean; needsReconnect?: boolean; noGit?: boolean; base?: string } = {}) {
+  const called: Called[] = [], minted: Array<Record<string, unknown>> = [], revoked: string[] = [];
+  const git: GitProxyPort = {
+    mint: (s) => { minted.push(s as never); return { token: "vgp_session_one", expiresAt: Date.now() + 3_600_000 }; },
+    revoke: (t) => { revoked.push(t); },
+    base: () => o.base ?? "https://space.vyre.test",
+  };
+  const port: GithubSessionPort & { git?: GitProxyPort } = {
     async call(cap, input, as) {
       called.push({ cap, input: input as Record<string, unknown>, as });
       if (cap === "threads.get") return { thread: o.scope === "none" ? { scopeType: "space" } : { scopeType: "project", scopeId: "prj_site" } };
       if (cap === "projects.get") return { project: { folderId: "fld_site" } };
       if (cap === "git.status") return { remotes: o.remotes ?? [{ name: "origin", url: "https://github.com/northwind/site.git" }, { url: "https://gitlab.com/x/y.git" }, { url: "https://github.com/northwind/site" }] };
-      if (cap === "github.session_env") {
-        if (o.fail) throw Object.assign(new Error("no"), { error: { code: "validation.precondition_failed" } });
-        return o.sessionEnv ?? { env: { GH_TOKEN: "#fill_abc", GITHUB_TOKEN: "#fill_abc" }, gitConfig: ["credential.https://github.com.helper=", "credential.https://github.com.helper=!f() { echo password=$GH_TOKEN; }; f"] };
-      }
+      if (cap === "github.me.status") return { connected: o.connected ?? true, needsReconnect: o.needsReconnect ?? false };
       throw new Error(`no ${cap}`);
     },
-    fill: (h) => (o.token === null ? null : h === "#fill_abc" ? (o.token ?? "ghs_real") : null),
+    ...(o.noGit ? {} : { git }),
   };
-  return { port, called };
+  return { port, called, minted, revoked };
 }
 
 test("the repositories are the GitHub remotes of the chat's project folder, once each", async () => {
@@ -31,31 +34,47 @@ test("the repositories are the GitHub remotes of the chat's project folder, once
   assert.deepEqual(await reposOfThread(rig({ scope: "none" }).port.call, "usr_maya", "thr_2"), []);
 });
 
-test("the environment has the token, the same for GITHUB_TOKEN, and git's own config variables for the helper", async () => {
+test("the environment points git at the Space with a proxy token, and holds no GitHub token", async () => {
   const r = rig();
-  const env = await githubEnv(r.port, "usr_maya", "thr_1");
-  assert.equal(env["GH_TOKEN"], "ghs_real");
-  assert.equal(env["GITHUB_TOKEN"], "ghs_real");
-  assert.equal(env["GIT_CONFIG_COUNT"], "2");
-  assert.equal(env["GIT_CONFIG_KEY_0"], "credential.https://github.com.helper");
-  assert.equal(env["GIT_CONFIG_VALUE_0"], "");
-  assert.match(env["GIT_CONFIG_VALUE_1"]!, /password=\$GH_TOKEN/);
-  const call = r.called.find((c) => c.cap === "github.session_env")!;
-  assert.deepEqual(call.input, { repos: ["northwind/site"], consumer: "session.engine" });
-  assert.equal(call.as, "usr_maya", "as the person whose turn it is");
+  const g = await githubEnv(r.port, "usr_maya", "thr_1", "agt_coder");
+  const env = g.env;
+  assert.equal(env["VYRE_GIT_TOKEN"], "vgp_session_one");
+  assert.equal(env["GH_TOKEN"], undefined, "no GitHub token under any name");
+  assert.equal(env["GITHUB_TOKEN"], undefined);
+  assert.equal(Object.values(env).some((v) => /gh[spuor]_/.test(v)), false);
+  assert.equal(env["GIT_CONFIG_COUNT"], "3");
+  assert.equal(env["GIT_CONFIG_KEY_0"], "url.https://space.vyre.test/git/github/.insteadOf");
+  assert.equal(env["GIT_CONFIG_VALUE_0"], "https://github.com/");
+  assert.equal(env["GIT_CONFIG_KEY_1"], "credential.https://space.vyre.test/git/github/.helper");
+  assert.equal(env["GIT_CONFIG_VALUE_1"], "", "the helpers git would try first are cleared for this address only");
+  assert.match(env["GIT_CONFIG_VALUE_2"]!, /password=\$VYRE_GIT_TOKEN/);
+  assert.deepEqual(r.minted, [{ person: "usr_maya", agentId: "agt_coder", threadId: "thr_1", repos: ["northwind/site"] }]);
+  assert.deepEqual(r.revoked, []);
+  g.end();
+  assert.deepEqual(r.revoked, ["vgp_session_one"], "the token ends with the process");
 });
 
-test("nothing is given when the chat has no linked repository, the policy asks first, or the token is gone", async () => {
-  assert.deepEqual(await githubEnv(rig({ scope: "none" }).port, "usr_maya", "thr_1"), {});
-  assert.deepEqual(await githubEnv(rig({ fail: true }).port, "usr_maya", "thr_1"), {});
-  assert.deepEqual(await githubEnv(rig({ token: null }).port, "usr_maya", "thr_1"), {});
-  assert.deepEqual(await githubEnv(rig({ remotes: [{ url: "https://gitlab.com/x/y.git" }] }).port, "usr_maya", "thr_1"), {});
+test("nothing is given when the chat has no linked repository, GitHub is not connected, or there is no git address", async () => {
+  for (const r of [rig({ scope: "none" }), rig({ connected: false }), rig({ needsReconnect: true }), rig({ noGit: true }), rig({ base: "" }), rig({ remotes: [{ url: "https://gitlab.com/x/y.git" }] })]) {
+    const g = await githubEnv(r.port, "usr_maya", "thr_1");
+    assert.deepEqual(g.env, {});
+    assert.deepEqual(r.minted, []);
+  }
 });
 
 test("withGithub sets the variables on the spawn last and leaves a spawn with none alone", () => {
-  const spec = { argv: ["claude"], env: { PATH: "/bin", GH_TOKEN: "stale" } };
+  const spec = { argv: ["claude"], env: { PATH: "/bin", VYRE_GIT_TOKEN: "stale" } };
   assert.equal(withGithub(spec, {}), spec);
-  assert.deepEqual(withGithub(spec, { GH_TOKEN: "new" }).env, { PATH: "/bin", GH_TOKEN: "new" });
+  assert.deepEqual(withGithub(spec, { VYRE_GIT_TOKEN: "new" }).env, { PATH: "/bin", VYRE_GIT_TOKEN: "new" });
+});
+
+test("a wall that lists hosts lets the Space's own address through, and never a loopback one", () => {
+  const rule = (r: unknown) => ({ argv: ["claude"], env: { VYRE_EGRESS_RULE: JSON.stringify(r) } as Record<string, string> });
+  const out = (spec: { env: Record<string, string> }) => JSON.parse(spec.env[Object.keys(spec.env)[0]!]!) as { allow?: string[] };
+  assert.deepEqual(out(withGitHost(rule({ egress: "list", allow: ["api.anthropic.com"] }) as never, "https://space.vyre.test")).allow, ["api.anthropic.com", "space.vyre.test"]);
+  assert.deepEqual(out(withGitHost(rule({ egress: "list", allow: ["space.vyre.test"] }) as never, "https://space.vyre.test")).allow, ["space.vyre.test"]);
+  for (const base of ["http://127.0.0.1:41800", "http://localhost:41800", "http://[::1]:41800", "not a url"]) assert.deepEqual(out(withGitHost(rule({ egress: "list", allow: ["a"] }) as never, base)).allow, ["a"], base);
+  assert.deepEqual(out(withGitHost(rule({ egress: "public" }) as never, "https://space.vyre.test")), { egress: "public" });
 });
 
 import fs from "node:fs";

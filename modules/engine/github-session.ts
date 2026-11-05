@@ -1,6 +1,6 @@
-// GitHub for a CLI engine's session (lane l-ci-runners): Claude Code, Codex and Grok get GH_TOKEN, GITHUB_TOKEN and a git credential helper for the turn that starts them, and for that process only. The token comes from the
-// one broker (github.session_env), as the person whose turn it is, narrowed to the repositories of the chat's project and to the kinds of use the person lets run without asking. It reaches the process in its environment
-// (never a file, never the command line, never a Vault item) and is gone when the process ends. A person with no connected GitHub, a chat with no linked repository, or a policy that asks first gets nothing.
+// GitHub for a CLI engine's session (lane l-ci-runners, then l-hooks-gitproxy): Claude Code, Codex and Grok push and fetch through the Space's own git address, with a proxy token that lives in the process's environment
+// and ends with it. No GitHub token ever reaches the process. The Space decides each push under the person's own settings: a branch goes through, the default branch waits for the person's OK. A person with no connected
+// GitHub, or a chat with no linked repository, gets nothing.
 // DECISION: git reads the helper from GIT_CONFIG_COUNT, GIT_CONFIG_KEY_n and GIT_CONFIG_VALUE_n, so nothing is written to the work folder's config and nothing outlives the process.
 import type { LaunchSpec } from "../../agent/src/drivers/cli/types.ts";
 import fs from "node:fs";
@@ -9,8 +9,6 @@ import { heldSecrets, holdSecret } from "../../agent/src/drivers/cli/redact.ts";
 
 export interface GithubSessionPort {
   call(cap: string, input: unknown, as?: string): Promise<unknown>;
-  /** The token behind a filler handle, once; null when it is gone. The host owns the filler. */
-  fill(handle: string): string | null;
   log?(msg: string, attrs?: Record<string, unknown>): void;
 }
 
@@ -28,23 +26,43 @@ export async function reposOfThread(call: GithubSessionPort["call"], person: str
   } catch { return []; }
 }
 
-/** The environment a session gets, or empty. Never throws: GitHub missing never stops a turn. */
-export async function githubEnv(port: GithubSessionPort, person: string, threadId: string): Promise<Record<string, string>> {
+/** What a session gets to push and fetch through the Space (host/src/seams/git-proxy.ts). */
+export interface GitProxyPort {
+  mint(s: { person: string; agentId?: string; threadId: string; repos: readonly string[] }): { token: string; expiresAt: number };
+  revoke(token: string): void;
+  /** The address the session reaches this Space at, no trailing slash. */
+  base(): string;
+}
+
+/**
+ * The environment a session gets, or empty. Never throws: GitHub missing never stops a turn.
+ * DECISION: the session holds no GitHub token, not in its environment, not in a file. It holds a proxy token that only the Space's git address honours (git-proxy.ts); the Space makes a GitHub token for
+ *   one request at a time, under the person's own settings. git is sent there by url.<space>/git/github/.insteadOf and reads the proxy token from VYRE_GIT_TOKEN through a credential helper.
+ * `end` revokes the proxy token; call it when the process ends.
+ */
+export async function githubEnv(port: GithubSessionPort & { git?: GitProxyPort }, person: string, threadId: string, agentId?: string): Promise<{ env: Record<string, string>; end(): void }> {
+  const none = { env: {}, end: () => undefined };
+  if (!port.git || !/^https?:\/\//.test(port.git.base())) return none;
   const repos = await reposOfThread(port.call, person, threadId);
-  if (repos.length === 0) return {};
-  let got: { env?: Record<string, string>; gitConfig?: string[] };
-  try { got = (await port.call("github.session_env", { repos, consumer: "session.engine" }, person)) as typeof got; }
-  catch (e) { port.log?.("github: a session gets no GitHub token", { code: (e as { error?: { code?: string } })?.error?.code ?? "error" }); return {}; }
-  const handle = got.env?.["GH_TOKEN"];
-  const token = handle ? port.fill(handle) : null;
-  if (!token) return {};
+  if (repos.length === 0) return none;
+  try {
+    const me = (await port.call("github.me.status", {}, person)) as { connected?: boolean; needsReconnect?: boolean };
+    if (!me.connected || me.needsReconnect) return none;
+  } catch { return none; }
+  let minted: { token: string; expiresAt: number };
+  try { minted = port.git.mint({ person, ...(agentId ? { agentId } : {}), threadId, repos }); }
+  catch (e) { port.log?.("github: a session gets no git address", { error: e instanceof Error ? e.message : String(e) }); return none; }
   // whatever the process writes back is cleaned of this token, until the token ends (agent/src/drivers/cli/redact.ts)
-  holdSecret(token, Number((got as { expiresAt?: number }).expiresAt ?? 0) + 5 * 60_000 || Date.now() + 65 * 60_000);
-  const out: Record<string, string> = { GH_TOKEN: token, GITHUB_TOKEN: token };
-  const pairs = (got.gitConfig ?? []).map((l) => { const i = l.indexOf("="); return i > 0 ? [l.slice(0, i), l.slice(i + 1)] as const : null; }).filter((p): p is readonly [string, string] => p !== null);
-  out["GIT_CONFIG_COUNT"] = String(pairs.length);
-  pairs.forEach(([k, v], n) => { out[`GIT_CONFIG_KEY_${n}`] = k; out[`GIT_CONFIG_VALUE_${n}`] = v; });
-  return out;
+  holdSecret(minted.token, minted.expiresAt + 5 * 60_000);
+  const base = `${port.git.base()}/git/github/`;
+  const pairs: Array<[string, string]> = [
+    [`url.${base}.insteadOf`, "https://github.com/"],
+    [`credential.${base}.helper`, ""],
+    [`credential.${base}.helper`, '!f() { echo username=vyre; echo "password=$VYRE_GIT_TOKEN"; }; f'],
+  ];
+  const env: Record<string, string> = { VYRE_GIT_TOKEN: minted.token, GIT_CONFIG_COUNT: String(pairs.length) };
+  pairs.forEach(([k, v], n) => { env[`GIT_CONFIG_KEY_${n}`] = k; env[`GIT_CONFIG_VALUE_${n}`] = v; });
+  return { env, end: () => port.git!.revoke(minted.token) };
 }
 
 /** The spawn with GitHub in its environment, set last so nothing filled before it can name another. */
