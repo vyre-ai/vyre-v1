@@ -1,0 +1,1 @@
+- fix(desktop): an app update checks for about 1 GB free before it downloads, and a full disk during the unpack says "Your Mac needs about 1 GB free to update. Free some space and press Update now." in Settings and at start
