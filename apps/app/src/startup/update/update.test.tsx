@@ -165,7 +165,7 @@ test("while a reply runs the screen names its chat, counts down the wait, and of
   try {
     const root = await mount(createRoot, <StartupUpdate updates={u} store={mem({ [SEEN_KEY]: "1.0.0-rc.16" })}><Lock /></StartupUpdate>);
     assert.equal(find(root, "updating-stop-now"), null, "no button before the wait");
-    await act(async () => { report({ phase: "waiting", downloaded: 0, total: null, turns: 1, chats: ["Rivera intake"], left: 522 }); });
+    await act(async () => { report({ phase: "waiting", downloaded: 0, total: null, turns: 1, chats: ["Rivera intake"], left: 522, of: 600 }); });
     assert.match(textOf(find(root, "updating-line")), /Waiting for the reply in \u201cRivera intake\u201d to finish/);
     assert.match(textOf(find(root, "updating-left")), /8:42 left, then Vyre updates on its own/);
     await act(async () => { report({ phase: "waiting", downloaded: 0, total: null, turns: 1, chats: ["Rivera intake"], left: 0 }); });
@@ -176,6 +176,8 @@ test("while a reply runs the screen names its chat, counts down the wait, and of
     assert.match(textOf(find(root, "updating-stop-now")), /Stopping/);
     await act(async () => { report({ phase: "stopping", downloaded: 0, total: null, turns: 1 }); });
     assert.match(textOf(find(root, "updating-line")), /Stopped the reply cleanly\. Getting ready to install/);
+    await act(async () => { report({ phase: "stopping", downloaded: 0, total: null, turns: 2 }); });
+    assert.match(textOf(find(root, "updating-line")), /Stopped the replies cleanly\./, "two chats: plural");
     assert.equal(find(root, "updating-stop-now"), null, "the button goes once the wait is over");
     assert.equal(find(root, "updating-left"), null);
   } finally { restore(); }

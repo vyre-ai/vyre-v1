@@ -79,6 +79,8 @@ export interface Progress {
   chats?: string[];
   /** Seconds left before the wait ends and the update goes ahead on its own (the wait has a cap), while the shell waits. */
   left?: number;
+  /** The whole wait, in seconds (the cap): the bar drains from full to empty over it. */
+  of?: number;
 }
 
 /** "8:42": minutes and seconds, for the countdown. */
@@ -105,6 +107,8 @@ export function bytes(n: number): string {
 /** 0 to 1 for the bar, or null while the size is not known. Past the download the bar is full. */
 export function fraction(p: Progress | null): number | null {
   if (!p) return 0;
+  // while it waits for a reply the bar is the time that is left, draining; it is never full (full reads as done), and without the cap it is the quiet indeterminate bar
+  if (p.phase === "waiting") return p.left !== undefined && p.of !== undefined && p.of > 0 ? Math.max(0, Math.min(1, p.left / p.of)) : null;
   if (p.phase !== "download") return 1;
   if (!p.total || p.total <= 0) return null;
   return Math.max(0, Math.min(1, p.downloaded / p.total));
@@ -120,7 +124,7 @@ export function progressLine(p: Progress | null): string {
     }
     case "verify": return "Checking the release signature";
     case "waiting": return p.chats && p.chats.length > 0 ? `Waiting for ${chatsWords(p.chats, p.turns)} to finish` : p.turns && p.turns > 1 ? `Waiting for ${p.turns} replies on this computer to finish` : "Waiting for a reply on this computer to finish";
-    case "stopping": return p.turns && p.turns > 0 ? `Stopped ${p.turns === 1 ? "the reply" : `${p.turns} replies`} cleanly. Getting ready to install` : "Getting ready to install";
+    case "stopping": return p.turns && p.turns > 0 ? `Stopped ${p.turns === 1 ? "the reply" : "the replies"} cleanly. Getting ready to install` : "Getting ready to install";
     case "installing": return "Installing";
     case "restarting": return "Opening the new Vyre";
   }

@@ -42,7 +42,7 @@ export function readProgress(v: unknown): Progress | null {
   const chats = Array.isArray(o["chats"]) ? o["chats"].filter((c): c is string => typeof c === "string" && c.trim() !== "").slice(0, 6) : [];
   return {
     phase, downloaded: n(o["downloaded"]), total: typeof o["total"] === "number" && o["total"] > 0 ? o["total"] : null,
-    ...(typeof o["turns"] === "number" ? { turns: o["turns"] } : {}), ...(chats.length > 0 ? { chats } : {}), ...(typeof o["left"] === "number" && o["left"] >= 0 ? { left: o["left"] } : {}),
+    ...(typeof o["turns"] === "number" ? { turns: o["turns"] } : {}), ...(chats.length > 0 ? { chats } : {}), ...(typeof o["left"] === "number" && o["left"] >= 0 ? { left: o["left"] } : {}), ...(typeof o["of"] === "number" && o["of"] > 0 ? { of: o["of"] } : {}),
   };
 }
 

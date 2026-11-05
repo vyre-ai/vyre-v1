@@ -29,6 +29,20 @@
       "note": "After Stop and update now, or at the cap: the reply was ended cleanly and the update goes on."
     },
     {
+      "id": "AUTOUPDATE_01-stopped-one",
+      "route": "/m/AUTOUPDATE_01?part=stopped-one",
+      "proto": "home,{skin}",
+      "waitFor": "[data-testid='updating-screen']",
+      "note": "One reply ended: Stopped the reply cleanly."
+    },
+    {
+      "id": "AUTOUPDATE_01-stopped-chat",
+      "route": "/m/AUTOUPDATE_01?part=stopped-chat",
+      "proto": "home,{skin}",
+      "waitFor": "[data-testid='status-blk_stopped']",
+      "note": "The chat after the update: Stopped for an update. Your message is kept. and Continue."
+    },
+    {
       "id": "AUTOUPDATE_01-failed",
       "route": "/m/AUTOUPDATE_01?part=failed",
       "proto": "home,{skin}",

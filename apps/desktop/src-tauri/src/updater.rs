@@ -185,15 +185,15 @@ pub async fn check_desktop_update(app: AppHandle) -> Result<DesktopUpdate, Strin
 }
 
 #[derive(Clone, Serialize)]
-struct Progress { phase: &'static str, downloaded: u64, total: Option<u64>, turns: u32, chats: Vec<String>, left: Option<u64> }
+struct Progress { phase: &'static str, downloaded: u64, total: Option<u64>, turns: u32, chats: Vec<String>, left: Option<u64>, of: Option<u64> }
 
 fn tell(app: &AppHandle, phase: &'static str, downloaded: u64, total: Option<u64>, turns: u32) {
-    let _ = app.emit(PROGRESS_EVENT, Progress { phase, downloaded, total, turns, chats: Vec::new(), left: None });
+    let _ = app.emit(PROGRESS_EVENT, Progress { phase, downloaded, total, turns, chats: Vec::new(), left: None, of: None });
 }
 
 /// While the update waits for replies: which chats they are in and how long the wait has left before the update goes on by itself.
-fn tell_waiting(app: &AppHandle, turns: u32, chats: &[String], left: Duration) {
-    let _ = app.emit(PROGRESS_EVENT, Progress { phase: "waiting", downloaded: 0, total: None, turns, chats: chats.iter().take(6).cloned().collect(), left: Some(left.as_secs()) });
+fn tell_waiting(app: &AppHandle, turns: u32, chats: &[String], left: Duration, of: Duration) {
+    let _ = app.emit(PROGRESS_EVENT, Progress { phase: "waiting", downloaded: 0, total: None, turns, chats: chats.iter().take(6).cloned().collect(), left: Some(left.as_secs()), of: Some(of.as_secs()) });
 }
 
 /// Words for a download that failed: a bad signature says so plainly.
@@ -389,7 +389,7 @@ async fn install(app: &AppHandle, st: &SharedUpdate) -> Result<(), String> {
         quiet_then_install(
             &services, (TURN_WAIT, Duration::from_secs(1), STOP_WAIT, STOP_TURNS_GRACE),
             &|| asked.stop_now_requested(),
-            &mut |turns, chats, left| tell_waiting(&waiting, turns, chats, left),
+            &mut |turns, chats, left| tell_waiting(&waiting, turns, chats, left, TURN_WAIT),
             &mut |ended| tell(&stopping, "stopping", 0, None, ended),
             &mut || {
                 tell(&installing, "installing", 0, None, 0);
