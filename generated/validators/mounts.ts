@@ -21,13 +21,13 @@ if ("folderId" in o151) lf(o151["folderId"], p + "/folderId", e, L44);
 
 function d_s_2e977f2711(v: unknown, p: string, e: string[]): void {
 {
-const x213 = v;
-const g213 = typeOf(x213);
-const b213: string[] = []; lf(x213, p, b213, L0); if (b213.length) e.push(...b213);
-if (g213 === "object") {
-if (g213 === 'object') { const o213 = x213 as Record<string, unknown>;
-if (!("mount" in o213)) e.push(p + "/mount" + ': required');
-if ("mount" in o213) d_s_a6bb4b0645(o213["mount"], p + "/mount", e);
+const x209 = v;
+const g209 = typeOf(x209);
+const b209: string[] = []; lf(x209, p, b209, L0); if (b209.length) e.push(...b209);
+if (g209 === "object") {
+if (g209 === 'object') { const o209 = x209 as Record<string, unknown>;
+if (!("mount" in o209)) e.push(p + "/mount" + ': required');
+if ("mount" in o209) d_s_a6bb4b0645(o209["mount"], p + "/mount", e);
 }
 }
 }

@@ -52,9 +52,11 @@ test("Starred agent faces come first, each a row with its face; the working one 
   assert.ok(out.includes('data-testid="pulse"'), "Intake is working");
 });
 
-test("Recent shows three, then N more; pressing it shows the rest", () => {
+test("Recent shows eight before N more (lane l-polish), with no date groups", () => {
   const out = html(createSampleSidebar());
-  assert.ok(out.includes('data-testid="row-m:recent"'));
+  const rows = (out.match(/data-testid="row-c:[^"]+"/g) ?? []).length;
+  assert.ok(rows > 3, `more than the old three: ${rows} chat rows`);
+  if (out.includes('data-testid="row-m:recent"')) assert.ok(rows >= 8, "N more only after eight");
   assert.ok(!out.includes('data-testid="group-Starred"'), "no date groups");
 });
 

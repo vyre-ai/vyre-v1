@@ -5,24 +5,24 @@ import type { Check } from './core.ts';
 
 function d_s_47d864e64b(v: unknown, p: string, e: string[]): void {
 {
-const x329 = v;
-const g329 = typeOf(x329);
-const b329: string[] = []; lf(x329, p, b329, L4); if (b329.length) e.push(...b329);
-if (g329 === "array") {
-if (g329 === 'array') { const a329 = x329 as unknown[];
-for (let i329 = 0; i329 < a329.length; i329++) {
+const x325 = v;
+const g325 = typeOf(x325);
+const b325: string[] = []; lf(x325, p, b325, L4); if (b325.length) e.push(...b325);
+if (g325 === "array") {
+if (g325 === 'array') { const a325 = x325 as unknown[];
+for (let i325 = 0; i325 < a325.length; i325++) {
 {
-const x330 = a329[i329];
-const g330 = typeOf(x330);
-const b330: string[] = []; lf(x330, p + '/' + i329, b330, L0); if (b330.length) e.push(...b330);
-if (g330 === "object") {
-if (g330 === 'object') { const o330 = x330 as Record<string, unknown>;
-if (!("resource" in o330)) e.push(p + '/' + i329 + "/resource" + ': required');
-if (!("title" in o330)) e.push(p + '/' + i329 + "/title" + ': required');
-if (!("at" in o330)) e.push(p + '/' + i329 + "/at" + ': required');
-if ("resource" in o330) d_s_f423029e33(o330["resource"], p + '/' + i329 + "/resource", e);
-if ("title" in o330) lf(o330["title"], p + '/' + i329 + "/title", e, L1);
-if ("at" in o330) lf(o330["at"], p + '/' + i329 + "/at", e, L17);
+const x326 = a325[i325];
+const g326 = typeOf(x326);
+const b326: string[] = []; lf(x326, p + '/' + i325, b326, L0); if (b326.length) e.push(...b326);
+if (g326 === "object") {
+if (g326 === 'object') { const o326 = x326 as Record<string, unknown>;
+if (!("resource" in o326)) e.push(p + '/' + i325 + "/resource" + ': required');
+if (!("title" in o326)) e.push(p + '/' + i325 + "/title" + ': required');
+if (!("at" in o326)) e.push(p + '/' + i325 + "/at" + ': required');
+if ("resource" in o326) d_s_f423029e33(o326["resource"], p + '/' + i325 + "/resource", e);
+if ("title" in o326) lf(o326["title"], p + '/' + i325 + "/title", e, L1);
+if ("at" in o326) lf(o326["at"], p + '/' + i325 + "/at", e, L17);
 }
 }
 }

@@ -5,13 +5,13 @@ import type { Check } from './core.ts';
 
 function d_s_3c40d334b2(v: unknown, p: string, e: string[]): void {
 {
-const x270 = v;
-const g270 = typeOf(x270);
-const b270: string[] = []; lf(x270, p, b270, L0); if (b270.length) e.push(...b270);
-if (g270 === "object") {
-if (g270 === 'object') { const o270 = x270 as Record<string, unknown>;
-if (!("hook" in o270)) e.push(p + "/hook" + ': required');
-if ("hook" in o270) d_s_dd5380ebe2(o270["hook"], p + "/hook", e);
+const x266 = v;
+const g266 = typeOf(x266);
+const b266: string[] = []; lf(x266, p, b266, L0); if (b266.length) e.push(...b266);
+if (g266 === "object") {
+if (g266 === 'object') { const o266 = x266 as Record<string, unknown>;
+if (!("hook" in o266)) e.push(p + "/hook" + ': required');
+if ("hook" in o266) d_s_dd5380ebe2(o266["hook"], p + "/hook", e);
 }
 }
 }
@@ -19,16 +19,16 @@ if ("hook" in o270) d_s_dd5380ebe2(o270["hook"], p + "/hook", e);
 
 function d_s_3fdca2a95a(v: unknown, p: string, e: string[]): void {
 {
-const x289 = v;
-const g289 = typeOf(x289);
-const b289: string[] = []; lf(x289, p, b289, L0); if (b289.length) e.push(...b289);
-if (g289 === "object") {
-if (g289 === 'object') { const o289 = x289 as Record<string, unknown>;
-if (!("id" in o289)) e.push(p + "/id" + ': required');
-if (!("threadId" in o289)) e.push(p + "/threadId" + ': required');
-if ("id" in o289) lf(o289["id"], p + "/id", e, L1);
-if ("threadId" in o289) lf(o289["threadId"], p + "/threadId", e, L13);
-if ("messageId" in o289) lf(o289["messageId"], p + "/messageId", e, L87);
+const x285 = v;
+const g285 = typeOf(x285);
+const b285: string[] = []; lf(x285, p, b285, L0); if (b285.length) e.push(...b285);
+if (g285 === "object") {
+if (g285 === 'object') { const o285 = x285 as Record<string, unknown>;
+if (!("id" in o285)) e.push(p + "/id" + ': required');
+if (!("threadId" in o285)) e.push(p + "/threadId" + ': required');
+if ("id" in o285) lf(o285["id"], p + "/id", e, L1);
+if ("threadId" in o285) lf(o285["threadId"], p + "/threadId", e, L13);
+if ("messageId" in o285) lf(o285["messageId"], p + "/messageId", e, L87);
 }
 }
 }
