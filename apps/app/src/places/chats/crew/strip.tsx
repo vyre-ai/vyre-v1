@@ -6,7 +6,7 @@ import { Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from
 import { Glyph } from "../conversation/parts.tsx";
 import { Avatar } from "../../../../../../ui/src/Avatar/index.tsx";
 import { injectCss } from "../../../../../../ui/src/theme/css.ts";
-import { jobLine, clock, isCode, lineOf, modelTag, nameOf, roleOf, stripTitle, stripTone, testsWords, faceSeed } from "./model.ts";
+import { jobLine, clock, isCode, lineOf, modelsLine, nameOf, roleOf, rowModel, stripTitle, stripTone, testsWords, faceSeed, whyWords } from "./model.ts";
 import type { CrewMember, CrewTotals } from "./model.ts";
 
 const web = Platform.OS === "web";
@@ -57,7 +57,8 @@ export function HelperChip({ m, now, selected = false, index = 0, last = false, 
   // below the width of a phone the muted "Assistant's helper" goes first, so the name has the room
   const winW = useWindowDimensions().width;
   const compact = winW > 0 && winW < 640;
-  const tag = m.why ? modelTag(m) : "";
+  // the model and the account that pays, when the helper was given a model on purpose (or says what it ran on); the hover says why it was picked
+  const tag = m.why ? rowModel(m) : "";
   const canRetry = m.state === "failed" || m.state === "stopped";
   return (
     <Pressable
@@ -78,7 +79,7 @@ export function HelperChip({ m, now, selected = false, index = 0, last = false, 
             {code ? <Text numberOfLines={1} testID={`${id}-branch`} style={st.branch}>{m.branch}</Text> : null}
             {code && (m.added !== undefined || m.deleted !== undefined) ? <Text testID={`${id}-diff`} style={st.mono}><Text style={st.add}>+{m.added ?? 0}</Text> <Text style={st.del}>−{m.deleted ?? 0}</Text></Text> : null}
             {code && m.tests ? <Text testID={`${id}-tests`} style={[st.mono, m.tests.state === "passing" && st.add, m.tests.state === "failing" && st.del]}>{testsWords(m.tests)}</Text> : null}
-            {tag ? <Text numberOfLines={1} testID={`${id}-model`} style={st.mono}>{tag}</Text> : null}
+            {tag ? <Text numberOfLines={1} testID={`${id}-model`} style={st.mono} {...(web && whyWords(m.why) ? ({ title: whyWords(m.why) } as object) : {})}>{tag}</Text> : null}
           </View>
         ) : null}
       </View>
@@ -115,6 +116,7 @@ export function CrewStrip({ members, totals, selectedId, parentName, merge, onPe
         {live && onStopAll ? <Pressable accessibilityRole="button" testID="crew-strip-stop-all" onPress={onStopAll} style={st.headBtn}><Text style={st.headBtnText}>Stop all</Text></Pressable> : null}
         {onOpenPane ? <Pressable accessibilityRole="button" accessibilityLabel="Open Crew" testID="crew-strip-pane" onPress={onOpenPane} style={st.headBtn}><Glyph name="pane" size={14} /></Pressable> : null}
       </View>
+      {modelsLine(members) !== "" ? <Text testID="crew-strip-models" style={st.models}>{modelsLine(members)}</Text> : null}
       {merge && merge.state === "ready" && compactHead ? <View testID="crew-strip-actions" style={st.headRow}>{mergeButtons}</View> : null}
       <View style={st.list}>
         {/* ui-rows-lint: not a list (the chips of one strip: each a face in a ring with a state, a name, a line and a clock, drawn together as the prototype p-crew shows them) */}
@@ -131,6 +133,7 @@ const st = StyleSheet.create({
   title: { flex: 1, minWidth: 0, fontSize: 13, color: "var(--ink-2)" as string },
   headBtn: { height: 27, paddingHorizontal: 10, borderRadius: 8, justifyContent: "center" },
   headBtnText: { fontSize: 12.5, color: "var(--ink-2)" as string },
+  models: { paddingHorizontal: 12, paddingBottom: 8, fontSize: 12.5, lineHeight: 17, color: "var(--ink-3)" as string },
   list: { gap: 0 },
   headRow: { flexDirection: "row", gap: 6, paddingHorizontal: 12, paddingBottom: 8 },
   chip: { flexDirection: "row", alignItems: "center", gap: 12, minHeight: 56, paddingVertical: 8, paddingLeft: 12, paddingRight: 12 },

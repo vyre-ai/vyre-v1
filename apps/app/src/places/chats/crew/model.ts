@@ -65,6 +65,32 @@ export function modelTag(m: Pick<CrewMember, "model" | "accountLabel" | "why" | 
   return `${modelName(m.model)}${from}`;
 }
 
+/** The third line of a row: the model that ran and the account that pays, "GPT-6 · Irfad's OpenAI". Without an account, the model alone. */
+export function rowModel(m: Pick<CrewMember, "model" | "accountLabel" | "fellBackFrom">): string {
+  const tag = modelTag(m);
+  const account = accountName(m.accountLabel);
+  return tag === "" ? "" : account === "" ? tag : `${tag} · ${account}`;
+}
+
+/** Why a model was picked, as a person reads it in the row's hover: "You asked", "Cheap reader". */
+export function whyWords(why: string | undefined): string {
+  const t = (why ?? "").replace(/^picked:\s*/i, "").trim();
+  return t === "" ? "" : `${t.charAt(0).toUpperCase()}${t.slice(1)}`;
+}
+
+/**
+ * The line under the strip's header when the helpers run on different models: "Orin on GPT-6 (you asked), Pia on GLM 5.2 (you asked)". One model, or none known, says nothing: the rows
+ * already show it, and a line that repeats them is noise.
+ */
+export function modelsLine(members: ReadonlyArray<Pick<CrewMember, "title" | "name" | "model" | "why" | "kind">>): string {
+  const known = members.filter((m) => m.model);
+  if (new Set(known.map((m) => modelName(m.model!))).size < 2) return "";
+  return known.map((m) => {
+    const why = whyWords(m.why).toLowerCase();
+    return `${nameOf(m)} on ${modelName(m.model!)}${why ? ` (${why})` : ""}`;
+  }).join(", ");
+}
+
 /** The strip's one line: how many, who needs you, how long. */
 export function stripTitle(t: CrewTotals): string {
   if (t.members === 0) return "";

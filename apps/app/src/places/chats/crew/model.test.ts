@@ -1,7 +1,8 @@
 // The crew model: every sentence a person reads about the crew, from the numbers engine.crew.status returns.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mergeStateOf, totalsParts, sortedBy, withTeammates, middle, faceSeed, holdsOf, keyAction, testsWords, clock, counts, isCode, lineOf, modelTag, money, ranTogether, roleOf, shows, sorted, span, stripTitle, stripTone, timeline, tokenSplit, totalsLine, tokens } from "./model.ts";
+import { rowModel, whyWords } from "./model.ts";
+import { mergeStateOf, totalsParts, sortedBy, withTeammates, middle, faceSeed, holdsOf, keyAction, testsWords, clock, counts, isCode, lineOf, modelTag, modelsLine, money, ranTogether, roleOf, shows, sorted, span, stripTitle, stripTone, timeline, tokenSplit, totalsLine, tokens } from "./model.ts";
 import type { CrewMember, CrewTotals } from "./model.ts";
 
 const T = (o: Partial<CrewTotals> = {}): CrewTotals => ({ members: 3, working: 0, done: 3, needsYou: 0, failed: 0, stopped: 0, tokensIn: 0, tokensOut: 0, costMicros: 0, filesChanged: 0, added: 0, deleted: 0, elapsedMs: 41_000, ...o });
@@ -121,4 +122,20 @@ test("Review all and Merge are not offered while any helper of the strip still w
   assert.equal(mergeStateOf([coder("done"), M({ state: "failed" })]), "working", "a failed helper is not done: look at it first");
   assert.equal(mergeStateOf([coder("done"), M({ state: "done" })]), "ready");
   assert.equal(mergeStateOf([coder("done", true), M({ state: "done" })]), "merged");
+});
+
+test("a row says the model and the account that pays; the header names who runs on what only when they differ", () => {
+  assert.equal(rowModel({ model: "gpt-6", accountLabel: "OpenAI · Irfad's OpenAI" }), "GPT-6 · Irfad's OpenAI");
+  assert.equal(rowModel({ model: "glm-5.2", accountLabel: "OpenCode Go · Space OpenCode" }), "GLM 5.2 · Space OpenCode");
+  assert.equal(rowModel({ model: "claude-sonnet-5-5" }), "Sonnet 5.5", "no account known: the model alone");
+  assert.equal(rowModel({}), "");
+  assert.equal(whyWords("you asked"), "You asked");
+  assert.equal(whyWords("Picked: cheap reader"), "Cheap reader");
+  assert.equal(whyWords(undefined), "");
+  const orin = { kind: "helper" as const, title: "Compare quotes", name: "Orin", model: "gpt-6", why: "you asked" };
+  const pia = { kind: "helper" as const, title: "northwind.com", name: "Pia", model: "glm-5.2", why: "you asked" };
+  assert.equal(modelsLine([orin, pia]), "Orin on GPT-6 (you asked), Pia on GLM 5.2 (you asked)");
+  assert.equal(modelsLine([orin, { ...pia, model: "gpt-6" }]), "", "one model: the rows already say it");
+  assert.equal(modelsLine([orin, { ...pia, model: undefined }]), "", "a model not known yet: nothing to compare");
+  assert.equal(modelsLine([orin, { ...pia, why: undefined }]), "Orin on GPT-6 (you asked), Pia on GLM 5.2", "no reason, no brackets");
 });

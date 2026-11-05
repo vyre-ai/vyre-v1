@@ -423,3 +423,14 @@ test("a helper chat line with no words and only the turn's bookkeeping is not dr
   await flush(); await flush();
   assert.equal(find(root, "msg-m_blank"), null);
 });
+
+test("two helpers on two models: the header names who runs on what, each row says the model and the account that pays, and one model says nothing extra", async () => {
+  const orin = M({ id: "thr_o", name: "Orin", title: "Compare quotes", model: "gpt-6", accountLabel: "OpenAI · Irfad's OpenAI", why: "you asked" });
+  const pia = M({ id: "thr_p", name: "Pia", title: "northwind.com", model: "glm-5.2", accountLabel: "OpenCode Go · Space OpenCode", why: "you asked" });
+  const root = await mount(createRoot, <CrewStrip members={[orin, pia]} totals={T({ members: 2, working: 2, done: 0, needsYou: 0 })} onPeek={() => undefined} />);
+  assert.equal(textOf(find(root, "crew-strip-models")), "Orin on GPT-6 (you asked), Pia on GLM 5.2 (you asked)");
+  assert.equal(textOf(find(root, "crew-chip-thr_o-model")), "GPT-6 · Irfad's OpenAI");
+  assert.equal(textOf(find(root, "crew-chip-thr_p-model")), "GLM 5.2 · Space OpenCode");
+  const same = await mount(createRoot, <CrewStrip members={[orin, { ...pia, model: "gpt-6" }]} totals={T({ members: 2, working: 2, done: 0, needsYou: 0 })} onPeek={() => undefined} />);
+  assert.equal(find(same, "crew-strip-models"), null, "the same model on both: no header line");
+});
