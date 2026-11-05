@@ -112,7 +112,7 @@ export interface Bridge {
 interface Segment { blocks: PostBlock[]; text: string; mentions: number; t0?: number; /** the call it is inside now, in plain words once asked */ step?: { id: string; name: string; detail?: string }; calls?: Map<string, { name: string; at: number }>; /** its live text goes to the asker only */ private?: boolean }
 interface Ready { blocks: PostBlock[]; text: string; mentions: number; routineOwner: string | null; turnId: string }
 
-const SHELL_STEP = /^(?:bash|shell|terminal_run|exec|run_command|command_execution)$/i;
+const SHELL_STEP = /^(?:bash|shell|terminal_run|exec|run_command|command_execution|command)$/i;
 /** The lines of a command's output that say how a test run went: counts and the names that failed. Nothing else is kept. */
 export function testLines(output: string): string {
   return output.split("\n").map((l) => l.trim()).filter((l) => /^(?:ℹ\s+(?:pass|fail)\s+\d+|✖\s+\S|not ok\b|FAIL\b|Tests:|\d+\s+(?:passed|passing|failed|failing))/i.test(l) || /\b\d+\s+(?:passed|passing|failed|failing)\b/i.test(l)).slice(-12).join("\n").slice(0, 500);

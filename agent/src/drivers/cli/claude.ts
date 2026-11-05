@@ -13,6 +13,7 @@
 // instructions>", so `/compact <what to keep>` sent as a user message on stdin compacts with those instructions; `--resume <id>` of a session that is not there says "No conversation found with session ID: <id>".
 // With partial messages on, the text of a message arrives twice: as deltas and again in its `assistant` line. The deltas are the ones passed on; the whole message only fills in when no delta
 // was seen for it (an older CLI, or partial messages off).
+import { testLines } from "./test-lines.ts";
 import { arr, num, obj, parseLine, str } from "./json.ts";
 import { toolDetail } from "./detail.ts";
 import { claudeSettings } from "./hooks-config.ts";
@@ -129,10 +130,9 @@ export function createClaudeDecoder(): CliDecoder {
     return out;
   }
 
-  /** The lines of a tool result that say how a test run went (counts, failing names), last twelve at most; nothing else of the output is kept. A result with no such lines has none. */
+  /** A tool result's test-run summary lines (a string, or a list of text parts). */
   function tail(content: unknown): string {
-    const text = typeof content === "string" ? content : arr(content).map((p) => str(obj(p)?.["text"])).join("\n");
-    return text.split("\n").map((l) => l.trim()).filter((l) => /^(?:ℹ\s+(?:pass|fail)\s+\d+|✖\s+\S|not ok\b|FAIL\b|Tests:)/i.test(l) || /\b\d+\s+(?:passed|passing|failed|failing)\b/i.test(l)).slice(-12).join("\n").slice(0, 500);
+    return testLines(typeof content === "string" ? content : arr(content).map((p) => str(obj(p)?.["text"])).join("\n"));
   }
 
   function onUser(j: Json): CliEvent[] {
