@@ -33,6 +33,7 @@ test("running helpers: a held request, Change model, a person messaging a helper
 
   let lead = ""; let chat = ""; let dir = ""; let owner = ""; let decisionThread = "";
   // the restart turn of Change model is held until the person has asked the helper something, so the helper is still at work when they do
+  let answered = false;
   let release!: () => void;
   const restartGate = new Promise<void>((resolve) => { release = resolve; });
   const model = scriptedModel(async function* (input, run) {
@@ -46,7 +47,8 @@ test("running helpers: a held request, Change model, a person messaging a helper
         yield* run("sub_task_model", { threadId: input.threadId, title: "Read the Pine quote", instruction: "Writer job: read the Pine Works quote page.", idempotencyKey: "w-3" });
         yield* run("tool_search", { query: "crew teammate" });
         yield* run("crew_start", { threadId: input.threadId, idempotencyKey: "w-code", title: "Fix the invoice date bug", brief: "Fix the invoice date bug and add a test." });
-      } else if (input.trigger?.author.kind === "agent") {
+      } else if (input.trigger?.author.kind === "agent" && !answered) {
+        answered = true;
         // the engine wakes the lead once, after the last helper is back
         yield { type: "text", text: "Harbor costs more up front but is ready in two weeks [2]. Pine Works is cheaper but takes four [3]. Thursday at 14:00 is free on the calendar [1]." };
       }
@@ -124,6 +126,7 @@ test("running helpers: a held request, Change model, a person messaging a helper
       throw e;
     });
     // the person asks the quotes helper something early (a quiet line in the chat above; it also gets the crew coder going in the scripted world)
+    await waitFor(async () => (((await api("chat.messages.list", { threadId: chat })).messages as Array<{ body: string }>).some((m) => /Three helpers and a coder/.test(m.body)) ? true : null), 30_000, () => hostLog(d));
     { const hs = ((await api("engine.helpers.status", { threadId: chat })).helpers as Array<{ title: string; threadId: string }>).find((h) => h.title === "Compare the quotes")!; await api("chat.helper.steer", { threadId: hs.threadId, body: "Take your time.", idempotencyKey: "w-early-steer" }); }
     const size = phone ? "phone" : "wide";
     for (const [skin, mode] of [["paper", "light"], ["graphite", "dark"]] as const) {
