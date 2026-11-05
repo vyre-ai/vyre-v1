@@ -35,7 +35,6 @@ export function whenLabel(at: number | undefined, now: number): string {
 
 export function SignInPage(): ReactElement {
   const data = useSettingsData();
-  const goTo = useContext(GoToPage);
   const saved = useSaved();
   const q = useScreenQuery<DevicesOut>(DEVICES, "mine", {});
   const [sure, setSure] = useState<string | null>(null);
@@ -82,6 +81,7 @@ export function SignInPage(): ReactElement {
 }
 
 function AccountCard({ sec }: { sec: NonNullable<SettingsData["security"]> }): ReactElement {
+  const goTo = useContext(GoToPage);
   const data = useSettingsData();
   const gh = sec.account.github;
   const first = data.spaces.find((sp) => sp.current)?.id ?? data.space.id;
