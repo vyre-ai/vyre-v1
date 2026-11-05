@@ -443,7 +443,23 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
   });
   // a chat on Auto always runs on a concrete model of the account (modules/engine/auto-model.ts); a stand-in opener a test gives is left as it is
   const baseOpen = host.openSession ? checked : withConcreteModel(checked, {
+    // the saved or shipped list (no vendor call)
     models: async (ref, payer) => (((await h.call("engine.models.list", { accountRef: ref, probe: false }, payer)) as { models?: Array<{ model: string; allowed?: boolean }> }).models ?? []).filter((m) => m.allowed !== false).map((m) => m.model),
+    // last of all, an API key with nothing saved and nothing run on it is read from its vendor once; a model still being checked counts: Auto needs a name, not a verdict. OpenRouter's key check names
+    // no models, but its list is public, so Auto reads that list (nothing is saved and no model is tried)
+    ask: async (ref, payer, provider) => {
+      const rows = (((await h.call("engine.models.list", { accountRef: ref }, payer)) as { models?: Array<{ model: string; allowed?: boolean; reason?: string }> }).models ?? []).filter((m) => m.allowed !== false || m.reason === "checking").map((m) => m.model);
+      if (rows.length > 0 || provider !== "openrouter") return rows;
+      const r = await (host.cli?.apiFetch ?? fetch)("https://openrouter.ai/api/v1/models", { redirect: "error", signal: AbortSignal.timeout(10_000) });
+      if (!r.ok) return [];
+      const j = (await r.json()) as { data?: Array<{ id?: unknown }> };
+      return (j.data ?? []).map((x) => (typeof x.id === "string" ? x.id : "")).filter(Boolean);
+    },
+    // the model the last finished turn on this account ran on (the person's own first, then anyone's on it)
+    recall: async (ref, payer) => {
+      const q = (who: boolean) => ctx.db.all(`SELECT model FROM engine_turns WHERE account_ref = ? AND state = 'completed' AND model IS NOT NULL AND model NOT IN ('', 'unknown', 'auto') ${who ? "AND asker = ?" : ""} ORDER BY started_at DESC, qseq DESC LIMIT 1`, ...(who ? [ref, payer] : [ref])) as Array<{ model: string }>;
+      return q(true)[0]?.model ?? q(false)[0]?.model;
+    },
   });
   // a turn the person pinned to one of their servers opens through that server's opener; everything else opens as before
   const nodeOpeners = new Map<string, ReturnType<typeof buildNodeOpener>>();
