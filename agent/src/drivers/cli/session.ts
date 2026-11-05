@@ -24,6 +24,8 @@ import type { Channel } from "./lines.ts";
 import { defaultPrompt } from "./prompt.ts";
 import type { CliAdapter, CliCheckpoint, CliDecoder, CliEvent, CliProcess, Launcher, McpEndpoint, NativePlugins } from "./types.ts";
 import { TOKEN_ENV } from "./types.ts";
+import { FIRST_TOKEN_CLI_MS, NO_FIRST_TOKEN_CODE, NO_FIRST_TOKEN_LINE, logNoFirstToken } from "../first-token.ts";
+import type { NoFirstTokenLog } from "../first-token.ts";
 
 export interface CliSessionDeps {
   adapter: CliAdapter;
@@ -51,6 +53,12 @@ export interface CliSessionDeps {
   prompt?: (input: TurnInput, ctx: { fresh: boolean }) => string;
   /** No output for this long ends the turn. Default 10 minutes. */
   idleMs?: number;
+  /** No text, thinking or tool event for this long after the prompt is written ends the turn with a plain line. Default FIRST_TOKEN_CLI_MS. */
+  firstTokenMs?: number;
+  /** Told when a turn hit the first-token deadline. Default: one line on stderr. */
+  onNoFirstToken?: NoFirstTokenLog;
+  /** The account the session runs on, for the log line only. */
+  account?: string;
   /** Time a stopped process gets to leave before it is killed. Default 1500 ms. */
   graceMs?: number;
   /** Runs once when the session closes: releases the MCP session token. */
@@ -92,6 +100,7 @@ export function createCliSession(deps: CliSessionDeps, spec: SessionSpec): CliSe
   const a = deps.adapter;
   const graceMs = deps.graceMs ?? GRACE_MS;
   const idleMs = deps.idleMs ?? IDLE_MS;
+  const firstTokenMs = deps.firstTokenMs ?? FIRST_TOKEN_CLI_MS;
   let sessionId = deps.resume;
   /** The id the host holds, so a checkpoint is only written when it changes. */
   let saved = deps.resume;
@@ -196,9 +205,18 @@ export function createCliSession(deps: CliSessionDeps, spec: SessionSpec): CliSe
         try { await r.proc.write(a.encode(text)); } catch { /* read below */ }
       }
       if (!a.persistent) r.proc.endInput();
+      const wroteAt = Date.now();
       for (;;) {
-        const item = await r.chan.next(idleMs, signal);
+        // Until the first text, thinking or tool event the deadline runs from the prompt: session, usage and limit lines do not keep a silent engine alive. A compact has its own pace.
+        const left = said || compacting ? Infinity : firstTokenMs - (Date.now() - wroteAt);
+        const item = await r.chan.next(Math.min(idleMs, Math.max(1, left)), signal);
         if (item === null) return "stop";
+        if (item === "idle" && !said && !compacting && Date.now() - wroteAt >= firstTokenMs) {
+          (deps.onNoFirstToken ?? logNoFirstToken)({ provider: a.id, model: deps.model ?? "", account: deps.account ?? "", waitedMs: Date.now() - wroteAt });
+          yield { type: "error", code: NO_FIRST_TOKEN_CODE, message: NO_FIRST_TOKEN_LINE };
+          await stop(r, false);
+          return "stop";
+        }
         if (item === "idle") {
           yield { type: "error", code: "engine.timeout", message: "The engine stopped answering." };
           await stop(r, false);

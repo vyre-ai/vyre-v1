@@ -6,6 +6,8 @@
 //   cancel     aborts the request in flight and releases any wait for a tool result; the generator ends without an error event
 //   caching    the stable system blocks and the sorted tool list are hashed and marked (prefix.ts); each call notes whether the prefix matched the one before
 import { slimTool } from "./slim.ts";
+import { FIRST_TOKEN_API_MS, NO_FIRST_TOKEN_CODE, NO_FIRST_TOKEN_LINE, logNoFirstToken } from "../first-token.ts";
+import type { NoFirstTokenLog } from "../first-token.ts";
 import { windowFor } from "../../transcript/windows.ts";
 import type { DriverEvent, EngineSession, SessionSpec, StoredMessage, ToolResult, TurnInput } from "../../turn-engine/types.ts";
 import { classify, plainRefusal, retryAfterMs, scrub } from "./errors.ts";
@@ -50,6 +52,10 @@ export interface SessionDeps {
   retry?: Partial<RetryPolicy>;
   /** No bytes for this long ends the call. Default 60 s. */
   idleMs?: number;
+  /** How long a call may go without a first text, thinking or tool event (headers or not) before the turn ends with a plain line. Default FIRST_TOKEN_API_MS. */
+  firstTokenMs?: number;
+  /** Told when a call hit the first-token deadline. Default: one line on stderr. */
+  onNoFirstToken?: NoFirstTokenLog;
   /** Provider calls in one send. Default 40. */
   maxSteps?: number;
   random?: () => number;
@@ -132,8 +138,28 @@ export function createApiSession(deps: SessionDeps, spec: SessionSpec): ApiSessi
       const relay = (): void => att.abort();
       signal.addEventListener("abort", relay, { once: true });
       let res: FetchResponse;
+      const waitMs = deps.firstTokenMs ?? FIRST_TOKEN_API_MS;
+      const startedAt = Date.now();
+      const deadline = startedAt + waitMs;
+      const noFirstToken = (): Decoded => {
+        (deps.onNoFirstToken ?? logNoFirstToken)({ provider: deps.adapter.id, model, account: deps.account.ref, waitedMs: Date.now() - startedAt });
+        return { type: "error", status: 0, code: NO_FIRST_TOKEN_CODE, message: NO_FIRST_TOKEN_LINE };
+      };
       try {
-        res = await deps.fetch(url, { method: "POST", headers: { ...wire.headers, ...opencodeHeaders(deps.base, req.conversation ?? req.prefixHash), ...auth }, body: JSON.stringify(wire.body), signal: att.signal });
+        let waited: ReturnType<typeof setTimeout> | undefined;
+        const silent = new Promise<"silent">((resolve) => { waited = setTimeout(() => resolve("silent"), Math.max(0, deadline - Date.now())); });
+        const got = deps.fetch(url, { method: "POST", headers: { ...wire.headers, ...opencodeHeaders(deps.base, req.conversation ?? req.prefixHash), ...auth }, body: JSON.stringify(wire.body), signal: att.signal });
+        got.catch(() => undefined);   // a request cut below must not surface as an unhandled rejection
+        const first = await Promise.race([got, silent]).finally(() => { if (waited !== undefined) clearTimeout(waited); });
+        if (first === "silent") {
+          // the provider took the request and never answered: the connection is released and the turn says so, plainly (no retry)
+          att.abort();
+          signal.removeEventListener("abort", relay);
+          if (signal.aborted) return;
+          yield noFirstToken();
+          return;
+        }
+        res = first;
       } catch (e) {
         signal.removeEventListener("abort", relay);
         if (signal.aborted) return;
@@ -159,7 +185,10 @@ export function createApiSession(deps: SessionDeps, spec: SessionSpec): ApiSessi
       let failed: Decoded | null = null;
       try {
         for (;;) {
-          const step = await nextWithin(it, deps.idleMs ?? IDLE_MS, () => att.abort());
+          // Until the first text, thinking or tool event the deadline runs from the request: pings and usage lines do not keep a silent call alive.
+          const left = got ? Infinity : deadline - Date.now();
+          const step = await nextWithin(it, Math.min(deps.idleMs ?? IDLE_MS, Math.max(0, left)), () => att.abort());
+          if (step === "idle" && !got && Date.now() >= deadline) { yield noFirstToken(); return; }
           if (step === "idle") { failed = { type: "error", status: 0, code: "provider.unavailable", message: "The provider stopped answering." }; break; }
           if (step.done) break;
           for (const d of dec.push(step.value)) {

@@ -182,6 +182,20 @@ test("a process that goes quiet is cut off after the idle time with engine.timeo
   await session.close();
 });
 
+test("a process that never says anything is ended at the first-token deadline, before the idle limit, and logged", async () => {
+  const spy = newSpy();
+  const seen: Array<{ provider: string; waitedMs: number }> = [];
+  const session = await claude(spy, { idleMs: 60_000, firstTokenMs: 250, onNoFirstToken: (e) => seen.push(e) }).open(specOf());
+  const pid = session.pid;
+  const events = await collect(session.send(turnOf("hang")));
+  assert.deepEqual(events, [{ type: "error", code: "engine.no_first_token", message: "Your AI didn't answer in time" }]);
+  assert.equal(seen.length, 1);
+  assert.equal(seen[0]?.provider, "claude_code");
+  assert.ok(pid !== undefined);
+  await until(() => !alive(pid));
+  await session.close();
+});
+
 test("a second send while one is running is refused, a closed session says so, and close is safe twice", async () => {
   const session = await claude().open(specOf());
   const first = collect(session.send(turnOf("slow 200")));
