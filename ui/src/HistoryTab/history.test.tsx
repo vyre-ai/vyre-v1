@@ -199,3 +199,15 @@ test("no versions says so", () => {
   assert.match(html, /No earlier versions/);
   assert.doesNotMatch(html, /data-testid="history-actions"/);
 });
+
+test("a version's date and stamp read in the Space's zone", async () => {
+  const { shortDate, longStamp } = await import("./index.tsx");
+  const { setCurrentZones } = await import("../../../lib/zones.ts");
+  try {
+    setCurrentZones({ space: "America/Los_Angeles", viewer: "Asia/Karachi" });
+    assert.equal(shortDate("2026-11-05T03:00:00Z"), "Nov 4", "Karachi's 8 AM on the 5th is the evening of the 4th in the Space");
+    assert.equal(longStamp("2026-11-05T03:00:00Z"), "Nov 4 at 7:00 pm");
+    setCurrentZones(null);
+    assert.equal(longStamp("2026-10-20T11:00:00Z"), "Oct 20 at 11:00 am");
+  } finally { setCurrentZones(null); }
+});

@@ -136,7 +136,7 @@ export function sharedTimeLine(at: number, spaceZone: string): string {
   const zone = validZone(spaceZone) ? spaceZone : "UTC";
   const base = timeLine(at, zone);
   const now = base.slice(0, base.indexOf(" The person's time zone is"));
-  return `${now} That is the Space's time zone (${niceZone(zone, at)}), and this place is shared: write every date and time in it, never in one person's own, and name the zone when it could be unclear. Check-ins, due times and anything else the team will see are scheduled in it. Something only for one person (their reminder, their private routine) is in that person's own zone. To move a time between zones, or to turn "tomorrow 2pm PT" into a time, call time_convert; never work out zones, dates or epoch numbers yourself.`;
+  return `${now} That is the Space's time zone (${niceZone(zone, at)}), and this place is shared: write every date and time in it, never in one person's own, and name the zone when it could be unclear. Check-ins, due times and anything else the team will see are scheduled in it. When a card already shows a due date, don't repeat it in the title or summary. Something only for one person (their reminder, their private routine) is in that person's own zone. To move a time between zones, or to turn "tomorrow 2pm PT" into a time, call time_convert; never work out zones, dates or epoch numbers yourself.`;
 }
 
 /** A routine or watcher in one line the agent can act on: kind, title, when, state, id. */

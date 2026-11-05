@@ -1,6 +1,7 @@
 // Every SettingDef of the registry in one row: `SettingControl` draws the right control for the value (a switch, a choice, a number, a field or hours) and saves
 // as it is made through settings.set, which returns the previous value so Undo is one more call. A change the Space's floor refuses says so in a sentence and the control goes back.
 import type { ReactElement } from "react";
+import { View } from "react-native";
 import { ZonePicker } from "../../../../../ui/src/ZonePicker/index.tsx";
 import { deviceZone, validZone, zoneCity } from "../../../../../lib/zones.ts";
 import { refreshZones } from "../../shell/zones/ZonesHost.tsx";
@@ -98,7 +99,12 @@ export function SettingRowFor({ row, first, found = false }: { row: SettingRow; 
   return (
     <SettingsRow
       id={row.key} label={rowLabel(row)} first={first} found={found} inline={c.kind === "switch"} {...(sub ? { sub } : {})} {...(rowHelp(row) ? { help: rowHelp(row)! } : {})}
-      control={<>{changed ? <SmallButton label="Reset" testID={`reset-${row.key}`} onPress={() => void reset()} /> : null}{differs ? <SmallButton label="Use this computer's time zone" testID="use-device-zone" onPress={() => void change(row, device).then(() => refreshZones())} /> : null}<SettingControl row={row} /></>}
+      control={zoneRow ? (
+        <View style={{ alignItems: "flex-end", gap: 8, maxWidth: "100%" }}>
+          <SettingControl row={row} />
+          {differs ? <SmallButton label="Use this computer's time zone" testID="use-device-zone" onPress={() => void change(row, device).then(() => refreshZones())} /> : null}
+        </View>
+      ) : <>{changed ? <SmallButton label="Reset" testID={`reset-${row.key}`} onPress={() => void reset()} /> : null}<SettingControl row={row} /></>}
     />
   );
 }

@@ -30,6 +30,7 @@ import { GoalFolderHead } from "../../chats/goals/GoalFolderHead.tsx";
 import { QuickLook } from "./QuickLook.tsx";
 import { DropZone } from "../../../../../../ui/src/FileDrop/index.tsx";
 import type { DroppedFile } from "../../../../../../ui/src/FileDrop/index.tsx";
+import { TimePop } from "../../../../../../ui/src/Time/index.tsx";
 
 const DOUBLE_MS = 450;
 const lineKey = (l: Line): string => l.key;
@@ -248,7 +249,7 @@ function List(): ReactElement {
         selected={state.selection.includes(l.key)}
         hovered={over === l.key}
         leading={<SourcedLead line={l} gap={10} base={l.type === "file" && l.thumb ? <ThumbTile fileId={l.id} label={tileLabel(l.name, l.kind)} icon={iconOfKind(l.kind)} /> : <TypeTile label={tileLabel(l.name, l.kind)} icon={iconOfKind(l.kind)} folder={l.type === "folder"} />} />}
-        {...(phone ? { note: [whenOf(l), sizeOfLine(l)].filter((x) => x !== "").join(" \u00b7 ") } : { trailing: <RowCells wide={wide} cells={{ when: whenOf(l), by: byOf(l), size: sizeOfLine(l), kind: kindOfLine(l) }} /> })}
+        {...(phone ? { note: [whenOf(l), sizeOfLine(l)].filter((x) => x !== "").join(" \u00b7 ") } : { trailing: l.updatedAt > 0 ? <TimePop at={l.updatedAt}><RowCells wide={wide} cells={{ when: whenOf(l), by: byOf(l), size: sizeOfLine(l), kind: kindOfLine(l) }} /></TimePop> : <RowCells wide={wide} cells={{ when: whenOf(l), by: byOf(l), size: sizeOfLine(l), kind: kindOfLine(l) }} /> })}
         onPress={() => press(l)}
         domProps={{ ...dragAttrs(l.key), ...menuTrigger((x, y) => lineMenu(l, x, y)), style: LINE_STYLE }}
       />

@@ -132,3 +132,21 @@ test("the Space zone and the viewer's: a check-in reads 9:00 AM Pacific with 10:
   const one = { space: "America/Los_Angeles", viewer: "America/Los_Angeles" };
   assert.equal(lineWithDue("Reach 300 by Friday", due, one), "Reach 300 by Sat 7 Nov, 1:00 PM");
 });
+
+test("no date prints twice: the finish line on the page and on the card drops the agent's own closing date, in every form it writes it", async () => {
+  const { bareLine, lineWithDue, dueWords } = await import("./model.ts");
+  const z = { space: "America/Los_Angeles", viewer: "Asia/Karachi" };
+  const due = Date.parse("2026-11-07T21:00:00Z");
+  for (const written of [
+    "Reach 300 registrations by Friday",
+    "Reach 300 registrations by Fri 7 Nov, 18:00.",
+    "Reach 300 registrations by Wed 11 Nov 2026, 4:16 PM PKT",
+    "Reach 300 registrations by Wed 11 Nov, 4:16 PM",
+    "Reach 300 registrations — by Friday",
+    "Reach 300 registrations - by Wed 11 Nov 2026, 04:16 PKT.",
+  ]) {
+    assert.equal(bareLine(written), "Reach 300 registrations", written);
+    assert.equal(lineWithDue(written, due, z), `Reach 300 registrations by ${dueWords(due, z)}`, written);
+    assert.equal((lineWithDue(written, due, z).match(/\bby\b/g) ?? []).length, 1, "one 'by', so one date");
+  }
+});

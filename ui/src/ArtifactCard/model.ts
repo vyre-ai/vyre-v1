@@ -1,3 +1,4 @@
+import { clockIn, currentZones, dateIn, dayIn, partsIn } from "../../../lib/zones.ts";
 // ui/ArtifactCard model: what the artifact card and the Artifacts list say about one artifact, as plain functions (no React). The card, the grid and the viewer header all read these, so
 // the one quiet line ("Page · Private to you · updated 3:53") is the same everywhere.
 
@@ -23,16 +24,15 @@ export const ARTIFACT_FILTERS: readonly ArtifactFilter[] = ["Mine", "Shared with
 
 const DAY = 86_400_000;
 const WEEKDAY = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"] as const;
-const startOfDay = (t: number): number => { const d = new Date(t); d.setHours(0, 0, 0, 0); return d.getTime(); };
-
-/** "3:53" today, "yesterday", the weekday inside a week, else the date. */
+/** "3:53 PM" today, "yesterday", the weekday inside a week, else the date; all in the Space's zone. */
 export function whenLabel(at: number | undefined, now: number): string {
   if (at === undefined) return "";
-  const days = Math.round((startOfDay(now) - startOfDay(at)) / DAY);
-  if (days <= 0) { const d = new Date(at); return `${d.getHours()}:${String(d.getMinutes()).padStart(2, "0")}`; }
+  const zone = currentZones().space;
+  const days = dayIn(now, zone) - dayIn(at, zone);
+  if (days <= 0) return clockIn(at, zone);
   if (days === 1) return "yesterday";
-  if (days < 7) return WEEKDAY[new Date(at).getDay()]!;
-  return new Date(at).toLocaleDateString();
+  if (days < 7) return WEEKDAY[partsIn(at, zone).dow]!;
+  return dateIn(at, zone, now);
 }
 
 const join = (names: readonly string[]): string => (names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]!}` : names[0] ?? "");

@@ -1,15 +1,19 @@
 // The properties row of the Overview: the project's own facts (status, lead, dates, health) as read-only rows, then the fields of the Project record type. A field is edited in place (a pause or Enter
 // saves it as an edit of the page, so it has a version and an Undo); "Add a property" fills a field of the type that is still empty.
 import { useState } from "react";
+import { currentZones, partsIn } from "../../../../../../../lib/zones.ts";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { useProjectPageData } from "../data.tsx";
 import { propertyText, stageWord } from "./model.ts";
 import type { Property } from "./model.ts";
+import { TimePop } from "../../../../../../../ui/src/Time/index.tsx";
 
 export interface Facts { status: string; lead?: string | undefined; start?: number | undefined; due?: number | undefined; health?: string | undefined }
 const HEALTH: Readonly<Record<string, string>> = { on: "On track", risk: "At risk", off: "Off track", hold: "On hold", done: "Done" };
-const day = (ms: number | undefined): string => (ms === undefined ? "" : new Date(ms).toLocaleDateString("en-US", { month: "short", day: "numeric" }));
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+/** "Oct 25", the day in the Space's zone. */
+export const day = (ms: number | undefined): string => { if (ms === undefined) return ""; const p = partsIn(ms, currentZones().space); return `${MONTHS[p.month - 1]} ${p.day}`; };
 
 function Field({ p, canEdit, onSet }: { p: Property; canEdit: boolean; onSet(key: string, text: string): void }): ReactElement {
   const [v, setV] = useState(propertyText(p));
@@ -29,7 +33,7 @@ export function PropertiesRow({ facts, props, canEdit, onSet, onAdd }: { facts: 
   if (facts) {
     rows.push({ k: "Status", node: <Text style={s.val} testID="prop-status">{stageWord(facts.status)}</Text> });
     if (facts.lead) rows.push({ k: "Lead", node: <Text style={s.val} testID="prop-lead">{d.nameOf(facts.lead)}</Text> });
-    if (facts.start !== undefined || facts.due !== undefined) rows.push({ k: "Dates", node: <Text style={s.val} testID="prop-dates">{[day(facts.start), day(facts.due)].filter(Boolean).join(" to ")}</Text> });
+    if (facts.start !== undefined || facts.due !== undefined) rows.push({ k: "Dates", node: <View testID="prop-dates-wrap" style={{ flexDirection: "row", gap: 4 }}>{facts.start !== undefined ? <TimePop at={facts.start}><Text style={s.val} testID="prop-dates">{day(facts.start)}</Text></TimePop> : null}{facts.start !== undefined && facts.due !== undefined ? <Text style={s.val}>to</Text> : null}{facts.due !== undefined ? <TimePop at={facts.due}><Text style={s.val} testID={facts.start === undefined ? "prop-dates" : "prop-dates-due"}>{day(facts.due)}</Text></TimePop> : null}</View> });
     if (facts.health) rows.push({ k: "Health", node: <Text style={s.val} testID="prop-health">{HEALTH[facts.health] ?? facts.health}</Text> });
   }
   // a page being read shows only the properties that have a value

@@ -2,7 +2,8 @@
 // The same picker is the Space's zone in Console and a person's own in Settings. `extra` adds a first row above the list (Settings: "Use this computer's time zone"). It holds no state about what is saved: the caller saves `onChange`.
 import { useMemo, useState } from "react";
 import type { ReactElement } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { TextField } from "../TextField/index.tsx";
 import { Dialog } from "../Dialog/index.tsx";
 import { Row } from "../Row/index.tsx";
 import { clockIn, validZone, zoneChoices, zoneCity, zoneMatches, zoneName } from "../../../lib/zones.ts";
@@ -46,7 +47,7 @@ export function ZonePicker({ value, onChange, now, disabled = false, label = "Ti
       </Pressable>
       {open ? (
         <Dialog title={label} onClose={close} width={460} testID="zone-sheet">
-          <TextInput autoFocus value={query} onChangeText={setQuery} placeholder="Find a city or time zone" placeholderTextColor="var(--ink-4)" accessibilityLabel="Find a city or time zone" testID="zone-search" style={s.search} />
+          <TextField autoFocus value={query} onChangeText={setQuery} placeholder="Find a city or time zone" placeholderTextColor="var(--ink-4)" accessibilityLabel="Find a city or time zone" testID="zone-search" style={s.search} />
           <ScrollView style={s.list} testID="zone-list" keyboardShouldPersistTaps="handled">
             {extra && query.trim() === "" ? <Row id="zone-extra" title={extra.label} onPress={() => { close(); extra.onSelect(); }} /> : null}
             {shown.length === 0 ? <Text testID="zone-none" style={s.none}>Nothing matches.</Text> : null}
@@ -64,7 +65,7 @@ export function ZonePicker({ value, onChange, now, disabled = false, label = "Ti
 }
 
 const s = StyleSheet.create({
-  pick: { flexDirection: "row", alignItems: "center", gap: 8, minHeight: 30, paddingHorizontal: 10, borderRadius: 7, borderWidth: 1, borderColor: "var(--line)" as string, backgroundColor: "var(--win)" as string, maxWidth: 360 },
+  pick: { flexDirection: "row", alignItems: "center", gap: 8, minHeight: 30, paddingHorizontal: 10, borderRadius: 7, borderWidth: 1, borderColor: "var(--line)" as string, backgroundColor: "var(--win)" as string, maxWidth: 300 },
   over: { backgroundColor: "var(--hover)" as string },
   off: { opacity: 0.5 },
   text: { fontSize: 13, color: "var(--ink)" as string, flexShrink: 1 },

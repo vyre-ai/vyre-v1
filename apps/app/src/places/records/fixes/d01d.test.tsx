@@ -78,3 +78,13 @@ test("the sidebar draws the Starred group between the record types and the saved
   assert.ok(!has(plain, 'data-testid="records-starred"'), "the sample runtime answers no stars, so no group");
   assert.ok(has(plain, 'data-testid="sec-views"') && has(plain, 'data-testid="sec-manage"'));
 });
+
+test("a date with a time reads in the Space's zone; a plain date stays the same day for everyone", async () => {
+  const { setCurrentZones } = await import("../../../../../../lib/zones.ts");
+  const now = Date.UTC(2026, 10, 5, 12);
+  try {
+    setCurrentZones({ space: "America/Los_Angeles", viewer: "Asia/Karachi" });
+    assert.equal(dateText(Date.UTC(2026, 10, 5, 3, 0), true, now), "4 Nov, 7:00 PM");
+    assert.equal(dateText(Date.UTC(2026, 10, 5, 0, 0), false, now), "5 Nov", "a calendar date does not move with the zone");
+  } finally { setCurrentZones(null); }
+});
