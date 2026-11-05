@@ -6,7 +6,7 @@
 import {
   LEVEL_OF, addFiled, addLink, addPin, allProjects, allows, buildStages, call, clean, codeOf, dropMember, dropPin, emitP, ensure, isMember, keyed, kindOfPrincipal, linksOf, loadTasks,
   archivedIds, clearArchived, setArchived, me, membersOf, memberOf, newId, page, pinsOf, planTask, plansOf, projectBy, projectByChannel, projectRow, raise, readRecord, remember, replaceStages, saveMember, savePlan, saveProject, saveUpdate,
-  stagesOf, tolerant, updateOf, visible, writeRecord, draftOf, saveDraft, attachesOf, templateBy,
+  isSpaceAdmin, stagesOf, tolerant, updateOf, visible, writeRecord, draftOf, saveDraft, attachesOf, templateBy,
 } from "../projections.ts";
 import { isHostService } from "../../../lib/trust.ts";
 import { seedTemplates, startPage } from "./overview.ts";
@@ -25,7 +25,7 @@ function resourcesOf(p: Project): Array<{ type: string; id: string }> {
 
 /**
  * The grants on the project itself for the people it started with. A new project becomes a resource in access only when the call that made it commits, so projects.create grants on its folder
- * and channel (which exist already) and the host runs this for `project.created` right after the commit. Same keys as applyRole's, so a replay writes nothing twice.
+ * and channel (which exist already) and the host runs this for `project.created` right after the commit. The project resource itself is only ever shared here (applyRole skips it while a project is being made).
  */
 export async function grantOnProject(ctx: ProjectsCtx, projectId: string): Promise<void> {
   const p = projectBy(ctx.db, projectId);
@@ -77,7 +77,7 @@ export async function applyRole(ctx: ProjectsCtx, p: Project, principal: string,
  */
 async function shareRole(ctx: ProjectsCtx, p: Project, r: { type: string; id: string }, member: Member, role: Role): Promise<void> {
   try {
-    await call(ctx, "access.share", { resource: r, subject: subjectOf(member), level: LEVEL_OF[role], source: sourceTag(p.projectId) }, { idempotencyKey: `prj-share:${p.projectId}:${member.principal}:${role}:${r.type}` });
+    await call(ctx, "access.share", { resource: r, subject: subjectOf(member), level: LEVEL_OF[role], source: sourceTag(p.projectId) }, { idempotencyKey: `prj-share:${p.projectId}:${member.principal}:${role}:${r.type}:${ctx.now()}` });
   } catch (e) {
     const code = codeOf(e);
     if (code !== "permission.not_contained" && code !== "permission.no_grant") throw e;
@@ -98,8 +98,14 @@ export async function membersList(ctx: ProjectsCtx, input: In): Promise<unknown>
   return { members: membersOf(ctx.db, p.projectId) };
 }
 
-/** Roles change only for someone who manages the project (its Lead, its owner). Anyone else, a Space admin without Manage included, is told so in one plain line, before anything is written. */
+/**
+ * Roles change for someone who manages the project (its Lead, its owner) and for a Space owner or admin (the Console's own right), whoever leads it. A Space admin holds no grant on the project's
+ * things, so the host writes the grants for them: the daemon runs the access.share and access.unshare of these two calls as the host, and only for a grant with source project:<id> on the
+ * project's own things. Anyone else is told so in one plain line, before anything is written.
+ */
 function manageToChangeRoles(ctx: ProjectsCtx, projectId: string): Project {
+  const known = isSpaceAdmin(ctx) ? projectBy(ctx.db, projectId) : undefined;
+  if (known) return known;
   try { return visible(ctx, projectId, "manage"); } catch (e) {
     if (codeOf(e) === "permission.no_grant") raise(ctx, "permission.no_grant", "You need to manage this project to change roles. Ask its Lead or the Space owner.", { reason: "needs_level", level: "manage" });
     throw e;

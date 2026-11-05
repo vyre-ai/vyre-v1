@@ -132,6 +132,10 @@ export function allows(ctx: ProjectsCtx, level: Level, projectId: string): boole
   if (!ctx.authorize) return false;
   return ctx.authorize({ perm: null, level }, { type: "project", id: projectId }).effect === "allow";
 }
+/** A Space owner or admin (the Console's own right): they may change who is on any project and in what role, whoever leads it, so naming an agent Lead never locks the people out of their own project. */
+export function isSpaceAdmin(ctx: ProjectsCtx): boolean {
+  return ctx.authorize?.({ perm: "console.access", level: "view" }, { type: "space", id: ctx.space }).effect === "allow";
+}
 /** A project the caller may see, or the same answer as for one that is not there (what exists is not leaked). */
 export function visible(ctx: ProjectsCtx, projectId: string, level: Level = "view"): Project {
   ensure(ctx.db);

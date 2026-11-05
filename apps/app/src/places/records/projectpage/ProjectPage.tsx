@@ -85,7 +85,7 @@ export function ProjectPage({ projectId, tab: first = DEFAULT_PROJECT_TAB, planV
   useEffect(() => { void read(); }, [read]);
   // the one Add people and agents sheet for this project: the members count and the Teammates tab both open it
   const [added, setAdded] = useState(0);
-  const add = useAddSheet({ call: d.call, me: d.me ?? { id: "me", name: "You" }, nameOf: d.nameOf, newKey: () => globalThis.crypto.randomUUID(), toast: (text) => setNote(text) }, { onDone: () => { setAdded((n) => n + 1); void read(); } });
+  const add = useAddSheet({ call: d.call, me: d.me ?? { id: "me", name: "You" }, nameOf: d.nameOf, newKey: () => globalThis.crypto.randomUUID(), toast: (text) => setNote(text), ...(d.admin === true ? { admin: true } : {}) }, { onDone: () => { setAdded((n) => n + 1); void read(); } });
   // the people popover of the head (the same component the chats use)
   const [people, setPeople] = useState<{ x: number; y: number; left?: number } | null>(null);
   useEffect(() => {
@@ -115,7 +115,7 @@ export function ProjectPage({ projectId, tab: first = DEFAULT_PROJECT_TAB, planV
   };
 
   const setHealth = (health: "on" | "risk" | "off" | "hold" | "done" | null): void => { void d.call("projects.set", { projectId, health }).then(() => { setNote(health === null ? "Status cleared" : `Status: ${HEALTH_LABEL[health]}`); void read(); }, say); };
-  const projectEntries = (): MenuEntry[] => projectMenu({ title: p.title, starred: mine.starred, archived: p.archivedAt !== undefined, manage: mine.manage, edit: mine.edit }, {
+  const projectEntries = (): MenuEntry[] => projectMenu({ title: p.title, starred: mine.starred, archived: p.archivedAt !== undefined, manage: mine.manage, edit: mine.edit, ...(d.admin === true && !mine.manage ? { roles: true } : {}) }, {
     star: (on) => { void api.projectStar(projectId, on).then(() => { setMine((m) => ({ ...m, starred: on })); setNote(on ? "Starred" : "Star removed"); }, say); },
     share: () => d.nav.openRecordPage(p.type, p.recordId), addPeople: () => add.open({ projectId }),
     pinFile: () => pick("linked"),

@@ -1214,6 +1214,12 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           // handing an agent to another person: ownership of the agent and its folder moves with the host's authority (ruling 88). The call itself was authorized (manage on the agent, and the Gate for a non-person);
           // only this one call from this one capability is widened, and it is the host-only access.transfer_ownership
           if (h && cap === "agents.set_owner") return ((ctx, input) => h({ ...ctx, call: (name: string, callInput: unknown, opts?: unknown) => (name === "access.transfer_ownership" ? hookRunner.call(name, callInput) : (ctx.call as (n: string, i: unknown, o?: unknown) => Promise<unknown>)(name, callInput, opts)) } as typeof ctx, input)) as Handler;
+          // changing a project's roles (a Lead, or a Space owner or admin who holds no grant on the project's things): the call was authorized by projects, which checked the right. The grants it writes or takes back
+          // run as the host, and only a grant that carries this project's own source (project:<id>); the access module then lets the host write it only on the project or on a resource already carrying that source.
+          if (h && (cap === "projects.members.set" || cap === "projects.members.remove")) return ((ctx, input) => {
+            const source = `project:${String((input as { projectId?: unknown } | null)?.projectId ?? "")}`;
+            return h({ ...ctx, call: (name: string, callInput: unknown, opts?: unknown) => ((name === "access.share" || name === "access.unshare") && (callInput as { source?: unknown } | null)?.source === source ? system(name, callInput, ctx.trace) : (ctx.call as (n: string, i: unknown, o?: unknown) => Promise<unknown>)(name, callInput, opts)) } as typeof ctx, input);
+          }) as Handler;
           if (h && peopleExtras?.(mod, {})) return ((ctx, input) => h({ ...ctx, ...peopleExtras!(mod, ctx) } as typeof ctx, input)) as Handler;
           if (!h || !cap.startsWith("devices.")) return h;
           const wrapped: Handler = (ctx, input) => h({ ...ctx, call: (name, callInput, opts) => (name === "sync.epoch.bump" ? system(name, callInput, ctx.trace) : ctx.call(name, callInput, opts)) } as typeof ctx, input);

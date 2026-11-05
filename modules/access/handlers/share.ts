@@ -511,6 +511,17 @@ export async function joinShare(ctx: ShareCtx, input: { resource: ResourceRef; p
   return { grant: grantView(grant) };
 }
 
+/**
+ * The host writing a project's roles is not a person delegating (a Space admin without Manage on the project changes a role through projects.members.set, which checked the right; the host then writes
+ * the grants). It is only that for the project's own things: the grant carries source project:<id>, and the resource is project <id> itself, or one that already carries a grant of that same source
+ * (the project's folder and channel, shared by the person who made the project). A host write labelled project:X on any other resource goes through the delegation check like anyone's.
+ */
+function hostWritesProjectGrant(ctx: ShareCtx, store: AccessStore, res: ResourceRec, source: string | undefined): boolean {
+  if (!isHostService(ctx.principal) || !source?.startsWith("project:")) return false;
+  if (res.type === "project") return res.id === source.slice("project:".length);
+  return [...store.grants.values()].some((g) => g.source === source && g.resource.type === res.type && g.resource.id === res.id);
+}
+
 export async function share(ctx: ShareCtx, input: {
   resource: ResourceRef; subject: SubjectRef; level: Level; conditions?: Cond; source?: string; idempotencyKey?: string; export?: boolean; reshare?: boolean; notify?: { message?: string };
 }) {
@@ -539,7 +550,7 @@ export async function share(ctx: ShareCtx, input: {
   assertFlags(ctx,store,res,cond,grant?.conditions);
   if (input.subject.kind === "group" && input.subject.id === EVERYONE) assertEveryone(ctx, store, res, input.level, grant);
   // the host writing a project's roles for the people it started with (projects.initial_roles, after project.created commits) is not a person delegating: the people it names were vetted when the project was made
-  if (!(isHostService(ctx.principal) && res.type === "project" && sameSource?.startsWith("project:"))) assertDelegation(ctx,store,res,input.subject,input.level,cond,grant?.id);
+  if (!hostWritesProjectGrant(ctx, store, res, sameSource)) assertDelegation(ctx,store,res,input.subject,input.level,cond,grant?.id);
   const created = !grant;
   if (grant) { grant.level = input.level; grant.conditions = cond; }
   else {
@@ -617,6 +628,8 @@ export async function automationSenders(ctx: ShareCtx, input: { automationId: st
 
 /** May this caller take this grant away: Manage on the resource, or the person who gave it and still holds Edit. */
 function mayRemove(ctx: ShareCtx, store: AccessStore, g: GrantRec): boolean {
+  // the host taking back a project role it wrote (a Space admin removed the person through projects.members.remove, which checked the right): only a grant that carries a project source
+  if (isHostService(ctx.principal) && g.source?.startsWith("project:")) return true;
   if (g.resource.id === "*") return !!store.snapshot().info(ctx.principal.id)?.perms.has("access.manage");
   const res = store.resources.get(g.resource.id);
   if (!res) return !!store.snapshot().info(ctx.principal.id)?.perms.has("access.manage");

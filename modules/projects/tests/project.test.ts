@@ -578,11 +578,20 @@ test("a person given a role on a project is added to its invite-only channel (so
   assert.ok(!h.world.channelPeople.get(p.channelId)?.has(MAYA), "and out of it when she leaves the project");
 });
 
-test("someone without Manage (a Space admin included) is told in one plain line to ask the Lead or the owner, and nothing changes: no member, no channel entry", async () => {
+test("a Space owner or admin with no Manage on the project sets and removes roles whoever leads, the grants carry the project as source; a person with no Manage and no Console right is told in one plain line, and nothing changes", async () => {
   const h = harness();
   const p = await mkProject(h);
   await run(h, "projects.members.set", { projectId: p.projectId, principal: BOT, role: "lead" });
-  h.allowOnly((a) => a.perm === "console.access" || a.level === "view" || a.level === "edit");   // a Space admin with no Manage on this project
+  h.allowOnly((a) => a.perm === "console.access" || a.level === "view" || a.level === "edit");   // a Space admin: the Console right, no Manage on this project
+  const set = await run(h, "projects.members.set", { projectId: p.projectId, principal: MAYA, role: "member" });
+  assert.equal(set.member.role, "member", "the admin names a member though an agent leads");
+  const mine = h.world.grants.filter((g) => g.subject.id === MAYA);
+  assert.deepEqual(mine.map((g) => [g.resource.type, g.level, g.source]).sort(), [["channel", "edit", `project:${p.projectId}`], ["folder", "edit", `project:${p.projectId}`], ["project", "edit", `project:${p.projectId}`]], "the grants landed on the project, its folder and its channel");
+  await run(h, "projects.members.set", { projectId: p.projectId, principal: MAYA, role: "reviewer" });
+  assert.ok(h.world.grants.filter((g) => g.subject.id === MAYA).every((g) => g.level === "view"), "a role change replaces the grants");
+  assert.deepEqual(await run(h, "projects.members.remove", { projectId: p.projectId, principal: MAYA }), { removed: true });
+  assert.equal(h.world.grants.filter((g) => g.subject.id === MAYA).length, 0, "and removing takes them all back");
+  h.allowOnly((a) => a.perm === null && (a.level === "view" || a.level === "edit"));   // can open and edit, no Manage, no Console right
   const before = h.world.grants.length;
   const err = await run(h, "projects.members.set", { projectId: p.projectId, principal: MAYA, role: "member" }).then(() => null, (e: unknown) => e);
   assert.equal(codeOf(err), "permission.no_grant");

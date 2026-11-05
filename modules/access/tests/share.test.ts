@@ -250,6 +250,21 @@ test("unshare by grant, by resource and subject, and by source (a project member
   assert.equal(myAccess(r.ctx, "usr_b").filter((x) => x.type === "project").length, 0);
 });
 
+test("the host writes project:X grants on project X's things and takes them back, by source; a grant with no project source is not the host's to remove", async () => {
+  const r = rig();
+  r.item("prj_x", "usr_admin", "project");
+  const folder = (await foldersCreate(r.ctx, { type: "site", name: "X files" })).folder.id;
+  await share(r.ctx, { resource: { type: "folder", id: folder }, subject: { kind: "person", id: "usr_a" }, level: "manage", source: "project:prj_x" });
+  await share(r.ctx, { resource: { type: "folder", id: folder }, subject: { kind: "person", id: "usr_c" }, level: "view" });
+  const host = { ...r.ctx, principal: { kind: "service", id: "svc_host" } } as typeof r.ctx;
+  assert.notEqual(await code(share(r.as("usr_c"), { resource: { type: "folder", id: folder }, subject: { kind: "person", id: "usr_b" }, level: "edit", source: "project:prj_x" })), "no error", "a person who only views the folder is refused the same write");
+  await share(host, { resource: { type: "folder", id: folder }, subject: { kind: "person", id: "usr_b" }, level: "edit", source: "project:prj_x" });
+  assert.equal(myAccess(r.ctx, "usr_b").filter((x) => x.type === "folder" && x.id === folder).length, 1, "the role landed on the folder");
+  assert.deepEqual(await unshare(host, { resource: { type: "folder", id: folder }, subject: { kind: "person", id: "usr_b" }, source: "project:prj_x" }), { revoked: 1 });
+  assert.equal(myAccess(r.ctx, "usr_b").filter((x) => x.type === "folder" && x.id === folder).length, 0, "and the host took it back");
+  assert.notEqual(await code(unshare(host, { resource: { type: "folder", id: folder }, subject: { kind: "person", id: "usr_c" } })), "no error", "a grant with no project source is not the host's to remove");
+});
+
 test("sharing again with the same key does nothing twice; the same subject and source updates in place", async () => {
   const r = rig();
   r.item("sit_x", "usr_a");

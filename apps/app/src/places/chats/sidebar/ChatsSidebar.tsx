@@ -345,7 +345,7 @@ function Sidebar({ window, query, slot, open: shown, startFilter }: { window?: V
   useEffect(() => () => { if (noteTimer.current) clearTimeout(noteTimer.current); }, []);
   const seq = useRef(0);
   const meNow = { id: data.me?.id ?? "me", name: nameOr(names.get(data.me?.id ?? ""), "You") };
-  const add = useAddSheet({ call: data.call, me: meNow, nameOf: agentName, newKey: () => `sb-add-${++seq.current}`, toast: say }, { copy: (t) => copy(t) });
+  const add = useAddSheet({ call: data.call, me: meNow, nameOf: agentName, newKey: () => `sb-add-${++seq.current}`, toast: say, ...(allows(rtPerms, "console.access") ? { admin: true } : {}) }, { copy: (t) => copy(t) });
   const share = useShareSheet({ call: data.call, me: meNow, nameOf: agentName, spaceName: data.space.name, newKey: () => `sb-share-${++seq.current}`, toast: say });
   // a chat's own link, /open/chat/<id> on the Space's web address: it works wherever it is pasted and opens through reach
   const chatLink = (threadId: string): string => itemLink("chat", threadId);
