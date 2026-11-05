@@ -118,7 +118,8 @@ if (dayTwo) {
     await run.waitFor(/page rendered: \d+ chars/, 60_000);
     await sleep(6000);
     shot(`shipped-start-${n}`);
-    console.log(`update-proof: the shipped app, start ${n} on this profile: ${charsOf(run.log())} chars`);
+    const reports = [...run.log().matchAll(/page rendered: (\d+) chars/g)].map((m) => Number(m[1]));
+    console.log(`update-proof: the shipped app, start ${n} on this profile: ${charsOf(run.log())} chars (every report: ${reports.join(", ") || "none"})${reports.at(-1) === 0 ? "  <-- the old app drew nothing here (not a failure of this build)" : ""}`);
     await quit(`shipped-start-${n}`);
   }
   profileListing("after-day-two");
@@ -132,11 +133,14 @@ if (kept) {
   await run.waitFor(/page rendered: [1-9]\d* chars/, 30_000);
   await sleep(4000);
   shot("upgraded-start");
-  // the largest count the page reported after the worker's removal: a report made while the page was still reloading says 0 and is followed by the real one (run 41931328871 failed on the first, 41936626466 passed)
-  const afterAll = [...(run.log().split("page serviceworker")[1] ?? "").matchAll(/page rendered: (\d+) chars/g)].map((m) => Number(m[1]));
-  const after = afterAll.length ? Math.max(...afterAll) : 0;
-  console.log(`update-proof: page reports after the worker was removed: ${afterAll.join(", ") || "none"}`);
-  console.log(`update-proof: first start over the shipped app's profile: worker removed=${removed}, then ${after} chars`);
+  // the page's last report after the worker's removal, which must be nonzero and still nonzero about 3 s later (a page that drew and went blank must not pass); every report is printed
+  const reportsAfter = (): number[] => [...(run.log().split("page serviceworker")[1] ?? "").matchAll(/page rendered: (\d+) chars/g)].map((m) => Number(m[1]));
+  const first = reportsAfter();
+  await sleep(3000);
+  const later = reportsAfter();
+  const after = later.at(-1) ?? 0;
+  console.log(`update-proof: first start over the shipped app's profile: worker removed=${removed}, then ${after} chars (every report after the removal: ${later.join(", ") || "none"}; at the first look: ${first.join(", ") || "none"})`);
+  if (first.length > 0 && first[0] === 0 && after > 0) console.log("update-proof: NOTE the page reported 0 before it drew; a blank flash on the first start over an old profile");
   if (!removed) failures.push("upgrade: the earlier version's service worker was not removed");
   if (after === 0) { failures.push("upgrade: the app draws nothing after removing the earlier worker"); console.log(`update-proof: the shell said, after the worker was removed:\n${(run.log().split("page serviceworker")[1] ?? "").split("\n").slice(0, 40).join("\n")}`); }
   await quit("upgraded-start");
