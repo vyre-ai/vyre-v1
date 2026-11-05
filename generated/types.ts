@@ -12103,6 +12103,7 @@ export type EngineRunningHereOut = {
       threadId: string;
       agentId: string;
       asker: string;
+      turnId?: string;
     }>;
 };
 export type EngineRuntimeOptInIn = {

@@ -35,6 +35,7 @@ type Out = {
       threadId: string;
       agentId: string;
       asker: string;
+      turnId?: string;
     }>;
 };
 ```
@@ -58,7 +59,8 @@ type Out = {
       {
         "agentId": "agt_a1b2c3",
         "asker": "example",
-        "threadId": "thr_a1b2c3"
+        "threadId": "thr_a1b2c3",
+        "turnId": "trn_a1b2c3"
       }
     ]
   }

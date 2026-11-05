@@ -3521,6 +3521,7 @@ if (!("asker" in o2825)) e.push(p + "/turns" + '/' + i2824 + "/asker" + ': requi
 if ("threadId" in o2825) lf(o2825["threadId"], p + "/turns" + '/' + i2824 + "/threadId", e, L13);
 if ("agentId" in o2825) lf(o2825["agentId"], p + "/turns" + '/' + i2824 + "/agentId", e, L10);
 if ("asker" in o2825) lf(o2825["asker"], p + "/turns" + '/' + i2824 + "/asker", e, L1);
+if ("turnId" in o2825) lf(o2825["turnId"], p + "/turns" + '/' + i2824 + "/turnId", e, L269);
 }
 }
 }
