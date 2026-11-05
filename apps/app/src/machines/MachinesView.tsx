@@ -13,6 +13,7 @@ import { machineMenu } from "../places/chats/menus/kinds-b.ts";
 import { copyToClipboard, createMenuApiB, vyreLink } from "../places/chats/menus/actions-b.ts";
 import { Dot, Glyph } from "../console/shell/glyphs.tsx";
 import { Chart } from "./Chart.tsx";
+import { Button } from "../console/pages/shared.tsx";
 import { AddServerSheet, copyText, useAddServer } from "./AddServer.tsx";
 import type { AddScope } from "./AddServer.tsx";
 import { ENGINE_NAMES, PRIVATE_NOTE, RANGES, RANGE_NOTE, canNames, chartsFor, displayName, fmtBytes, kindLine, loadCells, orderLines, ordered, plural, runsLines, statusOf, strip } from "./model.ts";
@@ -243,7 +244,7 @@ function MachinePage(props: MachinesViewProps & { row: MachineRow; width: number
   };
 
   const m = detail?.machine ?? row;
-  const removal = props.scope === "space" && m.kind === "server" ? { word: "Remove this server", pcs: row.pins.length, run: async (): Promise<void> => { await call("network.server_remove", { serverId: row.serverId }); props.onChanged(); props.onBack(); } } : undefined;
+  const removal = props.scope === "space" && m.kind === "server" ? { word: "Remove this server", pcs: m.runs.agentComputers, run: async (): Promise<void> => { await call("network.server_remove", { serverId: row.serverId }); props.onChanged(); props.onBack(); } } : undefined;
   const own = detail ? detail.privacy === "full" : !row.private;
   const colWidth = Math.max(280, Math.min(props.width, 1200) - (narrow ? 32 : 56));
   const chartW = narrow ? colWidth - 28 : Math.floor((colWidth - 14) / 2) - 28;
@@ -322,27 +323,30 @@ export function MachineDetail({ m, detail, own, range, tab, hover, chartW, narro
 /** What the confirm of Stop idle sessions says: how many will stop, and whose. */
 export const stopLine = (n: number, space: boolean): string => (n === 0 ? "No idle engine sessions are open." : `This stops ${n} idle engine session${n === 1 ? "" : "s"}${space ? " on the Space server, whoever they belong to" : " of yours on this computer"}. A turn that is running is not touched.`);
 
-/** Remove this server…: the confirm names what stops and says the access ends at once; Remove calls network.server_remove. */
+/** The confirm names the agent computers that stop (the clause is left out when there are none) and says the access ends at once. */
+export const removeMessage = (name: string, agentComputers: number): string => `Remove ${name}? ${agentComputers > 0 ? `${plural(agentComputers, "agent computer")} on it stop and their local data is wiped. ` : ""}Its access ends at once.`;
+
+/**
+ * The prototype's foot of an added server's page (vyre-console.html 4328, mcfm 4348, .mdanger 934): a card holding the confirm (the message, a real Cancel and a danger Remove) when it is asked,
+ * then the danger row: Remove this server… with its quiet line beside it. Remove calls network.server_remove.
+ */
 function RemoveServer({ m, removal }: { m: MachineRow; removal: NonNullable<MachineDetailProps["removal"]> }): ReactElement {
   const [asking, setAsking] = useState(false), [busy, setBusy] = useState(false), [err, setErr] = useState("");
   const go = (): void => { setBusy(true); setErr(""); void removal.run().catch((e: unknown) => { setErr(e instanceof Error ? e.message : "Couldn't remove it. Try again."); setBusy(false); }); };
   return (
-    <View testID="machine-remove" style={{ marginTop: 14, gap: 8 }}>
+    <View testID="machine-remove">
       {asking ? (
-        <View testID="machine-remove-confirm" style={{ gap: 8 }}>
-          <Text style={s.cellMain}>{`Remove ${displayName(m)}? Its agent computers stop and their local data is wiped. Its access ends at once.`}</Text>
-          <View style={s.inline}>
-            <Pressable accessibilityRole="button" accessibilityLabel="Remove" testID="machine-remove-go" disabled={busy} onPress={go} style={[s.crumb, pointer]}><Text style={[s.crumbText, { color: "var(--danger)" as string }]}>{busy ? "Removing" : "Remove"}</Text></Pressable>
-            <Pressable accessibilityRole="button" accessibilityLabel="Cancel" testID="machine-remove-cancel" onPress={() => setAsking(false)} style={[s.crumb, pointer]}><Text style={s.crumbText}>Cancel</Text></Pressable>
-          </View>
-          {err ? <Text style={s.error} testID="machine-remove-error">{err}</Text> : null}
+        <View testID="machine-remove-confirm" accessibilityRole="alert" style={s.removeCard}>
+          <Text style={[s.cellMain, { flex: 1, minWidth: 220 }]}>{removeMessage(displayName(m), removal.pcs)}</Text>
+          <Button label="Cancel" small testID="machine-remove-cancel" onPress={() => setAsking(false)} />
+          <Button label={busy ? "Removing" : "Remove"} small danger disabled={busy} testID="machine-remove-go" onPress={go} />
         </View>
-      ) : (
-        <View style={s.inline}>
-          <Pressable accessibilityRole="button" accessibilityLabel={`${removal.word}…`} testID="machine-remove-open" onPress={() => setAsking(true)} style={[s.crumb, pointer]}><Text style={[s.crumbText, { color: "var(--danger)" as string }]}>{`${removal.word}…`}</Text></Pressable>
-          <Text style={s.cellSub}>Its agent computers stop and their local data is wiped. Its access ends at once.</Text>
-        </View>
-      )}
+      ) : null}
+      {err ? <Text style={s.error} testID="machine-remove-error">{err}</Text> : null}
+      <View style={s.mdanger}>
+        <Button label={`${removal.word}…`} danger testID="machine-remove-open" onPress={() => setAsking(true)} />
+        <Text style={s.cellSub}>Its agent computers stop and their local data is wiped. Its access ends at once.</Text>
+      </View>
     </View>
   );
 }
@@ -500,6 +504,8 @@ const s = StyleSheet.create({
   chipsBig: { flexDirection: "row", flexWrap: "wrap", gap: 6, padding: 12, paddingBottom: 0 },
   chipBig: { fontSize: 12.5, color: "var(--ink-2)" as string, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 7, backgroundColor: "var(--sunk)" as string, overflow: "hidden" },
   chipNo: { color: "var(--ink-4)" as string, textDecorationLine: "line-through" },
+  removeCard: { flexDirection: "row", alignItems: "center", gap: 10, flexWrap: "wrap", marginTop: 14, padding: 12, borderWidth: 1, borderColor: "var(--line)" as string, borderRadius: 10, backgroundColor: "var(--win)" as string },
+  mdanger: { flexDirection: "row", alignItems: "center", gap: 12, flexWrap: "wrap", marginTop: 18 },
   crumb: { flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "flex-start", marginBottom: 10, paddingVertical: 2 },
   crumbText: { fontSize: 12.5, color: "var(--ink-3)" as string },
   hero: { flexDirection: "row", alignItems: "center", gap: 14, marginBottom: 14 },

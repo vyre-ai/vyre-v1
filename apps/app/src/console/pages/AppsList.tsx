@@ -27,6 +27,11 @@ export function whatItDoes(c: Pick<Connector, "mode" | "syncedTypes">): string {
 /** Goes back to the list once: the page an app stood on is gone (a custom app was removed). */
 function GoBack({ to }: { to: () => void }): null { useEffect(() => { to(); }, []); return null; } // eslint-disable-line react-hooks/exhaustive-deps
 
+/** The quiet line under an app: what it does, or for a custom app still being built that it is a draft and not connected yet. */
+export function appNote(c: Pick<Connector, "mode" | "syncedTypes" | "state" | "connections">): string {
+  return c.state !== "live" && c.connections === 0 ? "Draft. Not connected yet." : whatItDoes(c);
+}
+
 /** The connections that belong to no app on the list. */
 export function otherSignIns<C extends { connector: string }>(connections: readonly C[], apps: readonly { key: string }[]): C[] {
   const keys = new Set(apps.map((a) => a.key));
@@ -115,7 +120,7 @@ export function AppsPage(): ReactElement {
       <Section title="Connected apps" count={count} right={<Button label="Add a custom app" testID="apps-new" onPress={() => setView({ kind: "newapp" })} />}>
         <Group testID="apps-list">
           {apps.map((c) => (
-            <Row key={c.key} id={`app-${c.key}`} title={c.title} note={whatItDoes(c)} leading={<Logo name={c.title} />}
+            <Row key={c.key} id={`app-${c.key}`} title={c.title} note={appNote(c)} leading={<Logo name={c.title} />}
               trailing={c.connections > 0
                 ? <Actions><StatusLabel status="active" /><Button label="Manage" testID={`app-manage-${c.key}`} onPress={() => setView({ kind: "app", key: c.key })} />{!c.builtin ? <Button label="Settings" testID={`app-settings-${c.key}`} onPress={() => setView({ kind: "settings", key: c.key })} /> : null}</Actions>
                 : <Actions>{c.state === "live" ? <Button label="Connect" testID={`app-connect-${c.key}`} onPress={() => setView({ kind: "connect", key: c.key })} /> : null}{!c.builtin ? <Button label="Settings" testID={`app-settings-${c.key}`} onPress={() => setView({ kind: "settings", key: c.key })} /> : null}</Actions>} />
