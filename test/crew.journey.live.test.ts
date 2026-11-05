@@ -37,10 +37,17 @@ test("a person watches a crew build in the real app: the Crew tab, one result ca
   git(repo, "add", "-A"); git(repo, "commit", "--quiet", "-m", "first");
 
   let dir = ""; let owner = ""; let teammate = ""; let project = ""; let lead = "";
+  let openEdit!: () => void;
+  const editGate = new Promise<void>((r) => { openEdit = r; });
   const model = scriptedModel(async function* (input, run) {
     if (input.agent.id === teammate) {
       const work = workFolder(dir, owner, input.threadId, teammate);
       await waitFor(async () => (fs.existsSync(path.join(work, "README.md")) ? true : null), 20_000);
+      // the coder is at work on a file while the person looks: its row says which one
+      yield { type: "block", kind: "tool_call", payload: { id: "edit-1", name: "Edit" } };
+      yield { type: "block", kind: "tool_input", payload: { id: "edit-1", detail: "dark-mode.txt" } };
+      await editGate;
+      yield { type: "block", kind: "tool_result", payload: { id: "edit-1", ok: true } };
       fs.writeFileSync(path.join(work, "dark-mode.txt"), "toggle: on\n");
       fs.writeFileSync(path.join(work, "dark-mode.test.txt"), "test: toggle is on\n");
       // a test run the way a real engine reports it: the call, the command, and the summary lines of what it printed
@@ -116,6 +123,13 @@ test("a person watches a crew build in the real app: the Crew tab, one result ca
       if (mode === "light") {
         // the lead is asked in the chat the way a person asks: the message is posted into the thread
         await api("chat.post", { threadId: chat, body: "build dark mode", mentions: [{ kind: "agent", id: lead }], idempotencyKey: "j-ask" });
+        if (!phone) {
+          // while the coder is editing, its row names the file
+          await page.getByText("Build the site", { exact: false }).first().click({ timeout: 30_000 });
+          await page.getByText("Editing dark-mode.txt").first().waitFor({ timeout: 60_000 }).catch(async (e) => { await shoot(page, `${mode}-FAILED-editing`); throw e; });
+          await shoot(page, `${mode}-0-coder-editing`);
+        }
+        openEdit();
         await waitFor(async () => {
           const jobs = (await api("engine.crew.list", { threadId: chat })).jobs as Array<{ state: string }>;
           return jobs[0] && jobs[0].state !== "working" ? true : null;
