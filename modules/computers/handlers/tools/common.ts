@@ -15,6 +15,8 @@ import { awaken } from "../lifecycle.ts";
 import { spaceBrowser } from "../../sbrowser/port.ts";
 import { profileIdOf } from "../../sbrowser/policy.ts";
 import { takeDownloads } from "../../sbrowser/downloads.ts";
+import { needRoom } from "../../sbrowser/room.ts";
+import { waitingNote } from "../../capacity.ts";
 
 export type ToolArgs = Record<string, unknown>;
 export type ToolAnswer = Record<string, unknown>;
@@ -196,7 +198,7 @@ export async function prepare(ctx: CompCtx, computerId: string | undefined, spec
   if (c.state === "takeover" && !spec.duringTakeover && !atTheControls) raise(ctx, "validation.bad_input", "A person has the controls. The tools wait until they give them back.", { takeoverBy: c.takeoverBy });
   if (c.state === "asleep" && spec.noWake) return null;
   if (c.state === "asleep" || c.state === "error") c = await awaken(ctx, c, actorOf(ctx));
-  if (c.state === "provisioning" || c.state === "waking") raise(ctx, "provider.unavailable", "This computer is still starting.");
+  if (c.state === "provisioning" || c.state === "waking") raise(ctx, "provider.unavailable", waitingNote(ctx.db, c.computerId) ?? "This computer is still starting.");
   return { computer: c, host: toolHost(ctx, c.computerId) };
 }
 
@@ -252,6 +254,8 @@ async function browserCall(ctx: CompCtx, profileId: string, spec: ToolSpec, args
     }
     fill = { url: binding.url(), token: g.token };
   }
+  // a browser that would start needs room on the host first (a claim on a running one is the same ask)
+  if (spec.name !== "chrome_status" && spec.name !== "chrome_stop" && spec.name !== "chrome_resume" && spec.name !== "chrome_plan") await needRoom(ctx, sb, profileId);
   let raw: ToolAnswer;
   try {
     raw = await sb.tool({ profileId, tool: spec.name, args, timeoutMs: Math.min(spec.timeoutMs ?? DEFAULT_TOOL_MS, MAX_TOOL_MS), space: ctx.space, ...(fill ? { fill } : {}) });

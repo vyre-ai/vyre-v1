@@ -201,3 +201,20 @@ test("download preferences keep what the profile's preferences already held", ()
     assert.deepEqual([p.download["extensions_to_open"], p.download["default_directory"], p.download["prompt_for_download"]], ["pdf", "/data/profiles/agt_x/downloads", false]);
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
 });
+
+test("resetChrome stops the browser and empties its Chrome folder for an import, and leaves the downloads and the rest", async () => {
+  const r = rig();
+  try {
+    await r.call("agt_dex");
+    const chrome = path.join(r.root, "profiles", "agt_dex", "chrome");
+    fs.writeFileSync(path.join(chrome, "Cookies"), "old logins");
+    fs.mkdirSync(path.join(r.root, "profiles", "agt_dex", "downloads"), { recursive: true });
+    fs.writeFileSync(path.join(r.root, "profiles", "agt_dex", "downloads", "keep.pdf"), "x");
+    await r.m.resetChrome("agt_dex");
+    assert.equal(r.launched[0]!.stopped, true);
+    assert.ok(!fs.existsSync(chrome));
+    assert.ok(fs.existsSync(path.join(r.root, "profiles", "agt_dex", "downloads", "keep.pdf")));
+    await r.call("agt_dex");
+    assert.equal(r.launched.length, 2, "it starts again, from an empty folder, or from what an import put there");
+  } finally { r.done(); }
+});

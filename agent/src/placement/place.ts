@@ -11,6 +11,7 @@
 //             4. the Space's shared server, when the Space allows it (the default) and the person has not turned off "Let the Space continue my chats when my computer is off" (on by
 //                default, owner ruling 3 Nov, spec b7). A Personal Space has no step 4.
 //           Nothing of theirs is there and step 4 is not allowed: the turn waits, "Your computer is off".
+//   An agent that has a computer or a workspace is placed like any other: the terminal and the browser it uses live on the Space and are reached from wherever the turn runs (owner, 6 Nov).
 //   Never another member's computer or another member's server: the caller passes only the asker's own.
 import type { QueueKind, ThreadKind } from "../turn-engine/types.ts";
 
@@ -73,7 +74,7 @@ export interface PlaceInput {
 }
 
 export type PlaceReason =
-  | "shared_thread" | "routine" | "agent_computer" | "wake_shared" | "crew"
+  | "shared_thread" | "routine" | "agent_computer" /* no longer produced: an agent's workspace is reached over the Space from wherever the turn runs (6 Nov) */ | "wake_shared" | "crew"
   | "device" | "other_device" | "own_server" | "space" | "own_host" | "device_off" | "chosen_device" | "chosen_space" | "chosen_server" | "server_off";
 
 export interface Placement {
@@ -125,7 +126,6 @@ export function placeTurn(i: PlaceInput): Placement {
     if (pick.deviceId === undefined && space.hostIsAsker === true) return { placement: "host", reason: "own_host" };
     return { placement: "wait", reason: "device_off", ...(pick.deviceId !== undefined ? { deviceId: pick.deviceId } : {}), wakeLine: DEVICE_OFF_LINE };
   }
-  if (i.agent.hasComputer) return { placement: "host", reason: "agent_computer" };
 
   // Automatic: the one order, each step skipped for the next when its machine is busy
   const localRuns = i.asker.localRuns !== false;

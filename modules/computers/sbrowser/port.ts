@@ -52,6 +52,8 @@ export interface SpaceBrowser {
   screenshot(profileId: string): Promise<{ bytes: Uint8Array; width: number; height: number }>;
   /** Where the live view of a profile is served from, for a ticket the viewer presents. `ws` is browserd's own WebSocket address on the machine that runs it, for the host's relay, never for a viewer. */
   stream(a: { profileId: string }): Promise<{ transport: "mjpeg"; url: string; ws?: string }>;
+  /** Replace the profile's Chrome data with a tar whose root entry is the folder `chrome` (the old computer's Chrome user-data). The profile's browser is stopped first. */
+  importChrome(profileId: string, tar: Uint8Array): Promise<{ bytes: number }>;
   /** The browser of the profile stops; the folder stays. */
   stop(profileId: string): Promise<void>;
   /** The agent is gone: the browser stops and the folder is deleted. */

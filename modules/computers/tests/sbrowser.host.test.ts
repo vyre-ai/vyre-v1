@@ -151,3 +151,24 @@ test("downloads: listed without starting the container, read and dropped by one 
   const seen = e.execs.map((x) => `${x.cmd[1]} ${JSON.parse(String(x.cmd[2])).name ?? ""}`.trim());
   assert.deepEqual(seen.slice(-3), ["downloads", "download_read a.pdf", "download_ack a.pdf"]);
 });
+
+test("Chrome's data of an old computer replaces the profile's: the folder is emptied inside the service, the tar goes into the profile's own folder, and nothing else is touched", async () => {
+  const e = engine(() => ok({}));
+  const puts: Array<{ id: string; dir: string; bytes: number }> = [];
+  const api = { ...e.api, async putArchive(id: string, dir: string, tar: Uint8Array) { puts.push({ id, dir, bytes: tar.length }); } };
+  const sb = createDockerSpaceBrowser({ api, sleep: async () => {} });
+  const r = await sb.importChrome("agt_dex", new Uint8Array([1, 2, 3]));
+  assert.deepEqual(r, { bytes: 3 });
+  assert.deepEqual(puts, [{ id: "vyre-sbrowser", dir: "/data/profiles/agt_dex", bytes: 3 }]);
+  assert.ok(e.execs.some((x) => x.cmd[1] === "reset_chrome" && JSON.parse(String(x.cmd[2])).profileId === "agt_dex"));
+});
+
+test("the container's limits grow with how many browsers it holds, within what the runner allows", () => {
+  const six = browserContainerConfig({ api: {} as DockerApi });
+  assert.equal(six.HostConfig.Memory, (512 + 6 * 512) * 1024 * 1024);
+  assert.equal(six.HostConfig.NanoCpus, 3e9);
+  const huge = browserContainerConfig({ api: {} as DockerApi, maxRunning: 40 });
+  assert.equal(huge.HostConfig.Memory, 8192 * 1024 * 1024, "never above the runner's cap");
+  assert.equal(huge.HostConfig.NanoCpus, 4e9);
+  assert.deepEqual(reviewComputerConfig(huge), []);
+});

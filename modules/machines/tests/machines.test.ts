@@ -406,3 +406,12 @@ test("a server the Space approved that has not reported yet is listed offline an
   const mine = await w.call("machines.list", {}, maya);
   assert.equal(mine.machines.some((m: any) => m.machineId === "srv_quiet1"), false);
 });
+
+test("machines.rooms carries the most agent computers a machine runs, the same number the list shows, and the Space server's reaches a member", async () => {
+  const w = fleet();
+  const list = (await w.call("machines.list", {}, admin)).machines;
+  const asked = await w.call("machines.rooms", { ids: ["space"] }, { ...admin, id: IRFAD });
+  const room = asked.rooms.find((x: { machineId: string }) => x.machineId === "space");
+  assert.equal(typeof room.maxAgentComputers, "number");
+  assert.equal(room.maxAgentComputers, list.find((m: { machineId: string }) => m.machineId === "space").limits.maxAgentComputers);
+});

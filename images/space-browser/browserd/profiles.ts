@@ -88,6 +88,8 @@ export interface ProfileManager {
   giveBack(id: string): void;
   /** Stop the browser, keep the folder. */
   stop(id: string): Promise<void>;
+  /** Stop the browser and empty the profile's Chrome folder, ready for Chrome's data from an old computer to be put there (migration). */
+  resetChrome(id: string): Promise<void>;
   /** Stop the browser and delete the folder (the agent was removed). */
   forget(id: string): Promise<void>;
   /** One pass of the idle check; returns the profiles it stopped. Called on a timer by main.ts, and by tests. */
@@ -222,6 +224,13 @@ export function createProfileManager(o: ProfileManagerOptions): ProfileManager {
     },
     giveBack(id) { const p = get(id); p.state.takeover = null; p.lastActiveAt = now(); },
     async stop(id) { const p = profiles.get(checkProfileId(id)); if (p) { p.state.takeover = null; await release(p); } },
+    async resetChrome(id) {
+      const p = get(id);
+      p.state.takeover = null;
+      await release(p);
+      rmSync(join(p.dir, "chrome"), { recursive: true, force: true });
+      mkdirSync(p.dir, { recursive: true });
+    },
     async forget(id) {
       const p = profiles.get(checkProfileId(id));
       if (p) { await release(p); profiles.delete(p.id); rmSync(p.dir, { recursive: true, force: true }); }

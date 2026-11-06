@@ -443,6 +443,8 @@ write_config() {
     [ -z "$(lock_get VYRE_AGENT_IMAGE)" ] || printf 'VYRE_AGENT_COMPUTER_IMAGE=%s\n' "$(lock_get VYRE_AGENT_IMAGE)"
     # the Space browser image of this release, by digest (images/space-browser)
     [ -z "$(lock_get VYRE_BROWSER_IMAGE)" ] || printf 'VYRE_SPACE_BROWSER_IMAGE=%s\n' "$(lock_get VYRE_BROWSER_IMAGE)"
+    # the agent workspace image of this release, by digest, the same way
+    [ -z "$(lock_get VYRE_WORKSPACE_IMAGE)" ] || printf 'VYRE_WORKSPACE_IMAGE=%s\n' "$(lock_get VYRE_WORKSPACE_IMAGE)"
     printf 'VYRE_PORT=8420\n'
     printf 'VYRE_SPACE=%s\n' "$(space_id)"
     [ -z "$DOMAIN" ] || printf 'VYRE_ADDRESS=%s\n' "$DOMAIN"
@@ -513,7 +515,7 @@ write_units() {
 }
 
 pull_images() {
-  for k in VYRE_IMAGE VYRE_AGENT_IMAGE VYRE_BROWSER_IMAGE VYRE_SANDBOX_IMAGE; do
+  for k in VYRE_IMAGE VYRE_AGENT_IMAGE VYRE_BROWSER_IMAGE VYRE_WORKSPACE_IMAGE VYRE_SANDBOX_IMAGE; do
     ref=$(lock_get "$k")
     [ -n "$ref" ] || continue
     case "$ref" in *@sha256:*) ;; *) die "the release names $k without a digest ($ref); nothing was started." ;; esac
@@ -664,6 +666,7 @@ node_write_config() {
     printf 'VYRE_IMAGE=%s\n' "$(lock_get VYRE_IMAGE)"
     printf 'VYRE_AGENT_IMAGE=%s\n' "$(lock_get VYRE_AGENT_IMAGE)"
     printf 'VYRE_BROWSER_IMAGE=%s\n' "$(lock_get VYRE_BROWSER_IMAGE)"
+    printf 'VYRE_WORKSPACE_IMAGE=%s\n' "$(lock_get VYRE_WORKSPACE_IMAGE)"
     printf 'DOCKER_GID=%s\n' "$gid"
   } >"$DIR/compose.env"
   cat >"$DIR/compose.node.yml" <<COMPOSE
@@ -681,6 +684,7 @@ services:
     environment:
       VYRE_AGENT_COMPUTER_IMAGE: \${VYRE_AGENT_IMAGE}
       VYRE_SPACE_BROWSER_IMAGE: \${VYRE_BROWSER_IMAGE}
+      VYRE_WORKSPACE_IMAGE: \${VYRE_WORKSPACE_IMAGE}
       VYRE_CADDY_ADMIN: http://127.0.0.1:2019
     volumes:
       - ./data:/data

@@ -3,6 +3,7 @@
 // the agent computer's host talks to agentd (modules/computers/impl.ts). The container is started on the first browser tool and stays up: it holds nothing while no profile runs a browser.
 import type { ContainerConfig, DockerApi, DockerHttp } from "../../../sandbox/src/docker.ts";
 import { computerSeccomp, reviewComputerConfig, toolErrorOf } from "../impl.ts";
+import { LIMITS } from "../capacity.ts";
 import { ToolError } from "../handlers/tools/common.ts";
 import type { BrowserAnswer, BrowserToolCall, ProfileRow, SpaceBrowser } from "./port.ts";
 
@@ -39,7 +40,9 @@ export interface DockerSpaceBrowserOptions {
 
 export function browserContainerConfig(o: DockerSpaceBrowserOptions): ContainerConfig {
   const name = o.name ?? "vyre-sbrowser";
-  const limits = { cpus: 2, memoryMb: 3072, pids: 2048, ...o.limits };
+  // the service holds up to maxRunning browsers; each gets half its cap of the service's memory (a browser bursts to its cap when the host has room, capacity.ts LIMITS.browser) on top of a base for browserd
+  const many = o.maxRunning ?? 6;
+  const limits = { cpus: Math.min(4, Math.max(1, Math.round((many * LIMITS.browser.cpus) / 2))), memoryMb: Math.min(8192, 512 + Math.round((many * LIMITS.browser.memoryMb) / 2)), pids: 2048, ...o.limits };
   const memory = Math.round(limits.memoryMb * 1024 * 1024);
   const uid = o.user?.uid ?? 10001;
   const gid = o.user?.gid ?? 10001;
@@ -172,6 +175,11 @@ export function createDockerSpaceBrowser(o: DockerSpaceBrowserOptions): SpaceBro
     async stream(a) {
       const s = await call("stream", { profileId: a.profileId }) as { url?: string; ws?: string };
       return { transport: "mjpeg", url: s.url ?? "", ...(typeof s.ws === "string" ? { ws: s.ws } : {}) };
+    },
+    async importChrome(profileId, tar) {
+      await call("reset_chrome", { profileId });
+      await o.api.putArchive(name, `/data/profiles/${profileId}`, tar);
+      return { bytes: tar.length };
     },
     async stop(profileId) { if (await o.api.containerRunning(name)) await exec("stop", { profileId }); },
     async forget(profileId) { if (await o.api.containerRunning(name)) await exec("forget", { profileId }); },

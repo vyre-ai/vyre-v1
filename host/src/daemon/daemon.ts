@@ -317,6 +317,8 @@ export interface DaemonOptions {
   computersBaseUrl?: string;
   /** How often an agent computer mirrors its home with Files while it runs (tests set it long and trigger passes by waking and sleeping). Default 3 s. */
   computersHomeIntervalMs?: number;
+  /** How long an agent workspace is idle before it sleeps, in ms (default 10 minutes); tests shorten it. */
+  workspaceIdleMs?: number;
   /** The container engine socket the agent computers module talks to (default: the system one); tests point it somewhere nothing listens. */
   computersSocketPath?: string;
   /** The sites runner's socket (host/src/sites-runner; default VYRE_SITES_RUNNER) and, beside it, its token file. Vyre never holds the Docker socket itself. */
@@ -1836,6 +1838,47 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           roles: cfg.roles, team: cfg.spaceKind !== "personal",
           readAs: async (person, cap, input) => { const r = await invoke(cap, input, { space: spaceId, principal: { kind: "person", id: person }, origin: "terminal" }); return r.status === "ok" ? r.output : null; },
           computerOf: (person) => (db!.all("SELECT id FROM devices_device WHERE person = ? AND revokedAt IS NULL AND deleted_at IS NULL AND class IN ('desktop', 'daemon', 'web') ORDER BY CASE WHEN class = 'web' THEN 1 ELSE 0 END, lastSeenAt DESC, id DESC LIMIT 1", person)[0] as { id?: string } | undefined)?.id,
+          // agent workspaces (6 Nov): a Team server that has a container runtime (the runner beside vyred, or a Docker socket) gives every agent a workspace, made on first use; the same engine as agent computers
+          ...(cfg.spaceKind !== "personal" && (o.computersSocketPath !== undefined || computersRunnerSocket() || fs.existsSync("/var/run/docker.sock")) ? {
+            workspaces: {
+              ...(o.computersSocketPath !== undefined ? { socketPath: o.computersSocketPath } : computersRunnerSocket() ? { runner: { socket: computersRunnerSocket() as string, token: computersRunnerToken } } : {}),
+              ...(o.workspaceIdleMs !== undefined ? { idleMs: o.workspaceIdleMs } : {}),
+              projectsOf: (agentId: string) => (db!.all("SELECT projectId FROM projects_member WHERE principal = ? AND kind = 'agent'", agentId) as Array<{ projectId?: string }>).map((r) => String(r.projectId)),
+              // ~/Vyre in the workspace mirrors the agent's folder in Files: the computers module's home sync, run as the agent principal like any other writer (access, review rules and the scrubber apply)
+              // room on the host: the computers module's capacity, over host calls (this module cannot import that one). A waiting workspace starts by itself when room opens, and a computer that is moved
+              // to the new model gets its workspace made (stopped) by the idle pass.
+              ...((): Record<string, unknown> => {
+                const comp = loaded.moduleExports.get("computers") as { bindWorkspaceStart?: (f: ((agentId: string) => Promise<void>) | null) => void; bindMigrationPort?: (k: "ensureWorkspace", f: (ctx: unknown, a: { agentId: string; computerId: string }) => Promise<{ workspaceId: string }>) => void } | undefined;
+                const term = loaded.moduleExports.get("terminal") as { boundWorkspaces?: () => { ensure(a: string): Promise<unknown>; provision(a: string): Promise<{ workspaceId: string }> } | null } | undefined;
+                if (!comp || !term) return {};
+                const call = (name: string, input: unknown): Promise<unknown> => (hooks ? hooks.call(name, input) : Promise.reject(new Error("The Space is not ready.")));
+                comp.bindWorkspaceStart?.(async (agentId) => { await term.boundWorkspaces?.()?.ensure(agentId); });
+                comp.bindMigrationPort?.("ensureWorkspace", async (_ctx, a) => {
+                  const m = term.boundWorkspaces?.();
+                  if (!m) throw new Error("This Space has no agent workspaces.");
+                  return m.provision(a.agentId);
+                });
+                return { capacity: {
+                  claim: async (agentId: string) => (await call("computers.workspace_claim", { agentId })) as { state: "running" | "waiting"; line?: string },
+                  release: async (agentId: string) => { await call("computers.workspace_release", { agentId }); },
+                } };
+              })(),
+              ...((): Record<string, unknown> => {
+                const comp = loaded.moduleExports.get("computers") as { createHomeSync?: (o: unknown, d: unknown) => { pass(): Promise<{ failed: number }> }; readTar?: (t: Uint8Array) => unknown } | undefined;
+                if (!comp?.createHomeSync || !comp.readTar) return {};
+                const callAs = createAgentHomeCaller({ db: db!, spaceId, invoke });
+                const deps = { callAs, putBytes: (url: string, bytes: Uint8Array) => putToSlot(url, bytes), now: Date.now, log: (level: "info" | "warn", msg: string, attrs?: Record<string, unknown>) => sink.log({ space: spaceId, level: level === "warn" ? 40 : 30, msg, place: "workspaces", ...(attrs ? { attrs } : {}) }) };
+                // a project's shared folder is mirrored with the project's folder in Files; every call is made as the agent that last worked in it, so the file's history says who changed what
+                const syncProject = (x: { projectId: string; agentId: string; fs: unknown; manifest: string }): { pass(): Promise<{ failed: number }> } | null => {
+                  const folder = (db!.all("SELECT folderId FROM projects_project WHERE projectId = ?", x.projectId)[0] as { folderId?: string | null } | undefined)?.folderId;
+                  if (!folder) return null;
+                  return comp.createHomeSync!({ agentId: x.agentId, computerId: `prj_${x.projectId}`, fs: x.fs, manifest: x.manifest, rootFolder: folder, plain: true, reason: "edited in a workspace" }, deps);
+                };
+                return { home: { sync: (x: unknown) => comp.createHomeSync!(x, deps), readTar: comp.readTar, syncProject, projectManifest: (id: string) => path.join(paths.root, "workspaces", "projects", id, "home-manifest.json"), manifest: (a: string) => path.join(paths.root, "workspaces", a, "home-manifest.json"), ...(o.computersHomeIntervalMs !== undefined ? { intervalMs: o.computersHomeIntervalMs } : {}) } };
+              })(),
+              log: (level: "info" | "warn", msg: string, attrs?: Record<string, unknown>) => sink.log({ space: spaceId, level: level === "warn" ? 40 : 30, msg, place: "workspaces", ...(attrs ? { attrs } : {}) }),
+            },
+          } : {}),
         }),
         // the Vault channel of agent computers (P-L2_21): agentd posts one #Handle.field at a time to /computers/fill with its own token; without a Vault the channel is not offered
         setComputersFill: (d) => d.vault ? createComputersFillHost({

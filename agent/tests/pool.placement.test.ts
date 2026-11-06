@@ -52,8 +52,9 @@ test("routines, automations, Journeys and background waits run on the server", (
   }
 });
 
-test("an agent with a computer runs on the server", () => {
-  assert.deepEqual(placeTurn(input({ agent: { hasComputer: true } })), { placement: "host", reason: "agent_computer" });
+test("an agent with a computer is placed like any other: its workspace and browser are reached over the Space, so the turn keeps own-computer-first", () => {
+  assert.deepEqual(placeTurn(input({ agent: { hasComputer: true } })), placeTurn(input({ agent: { hasComputer: false } })));
+  assert.notEqual(placeTurn(input({ agent: { hasComputer: true } })).reason, "agent_computer");
 });
 
 test("a phone or web asker has no computer joined: the chat runs on the Space's server, which is allowed by default", () => {
@@ -134,7 +135,7 @@ test("a chat pinned to a computer runs there and waits for it when it is off, ev
   assert.deepEqual(placeTurn(input({ asker: { chosen: { target: "device" }, devices: [off] } })), { placement: "wait", reason: "device_off", wakeLine: DEVICE_OFF_LINE });
   assert.equal(placeTurn(input({ asker: { devices: [off] } })).placement, "host", "unpinned, Automatic moves it to the Space");
   assert.equal(placeTurn(input({ agent: { hasComputer: true }, asker: { chosen: { target: "device" } } })).placement, "device");
-  assert.equal(placeTurn(input({ agent: { hasComputer: true } })).reason, "agent_computer");
+  assert.notEqual(placeTurn(input({ agent: { hasComputer: true } })).reason, "agent_computer");
   assert.equal(placeTurn(input({ item: { kind: "message", origin: "routine" }, asker: { chosen: { target: "device" } } })).reason, "routine");
   assert.equal(placeTurn(input({ thread: { persons: 2 }, asker: { chosen: { target: "device" } } })).reason, "shared_thread");
 });

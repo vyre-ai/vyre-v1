@@ -29,7 +29,7 @@ function browser(answers: Record<string, (c: BrowserToolCall) => BrowserAnswer> 
     },
     async downloads() { return downloadsNow(); }, async downloadRead(_p, name) { return new TextEncoder().encode(`bytes of ${name}`); }, async downloadAck(_p, name) { acked.push(name); },
     async takeover() {}, async giveBack() {}, async screenshot() { return { bytes: new Uint8Array(), width: 1, height: 1 }; },
-    async stream() { return { transport: "mjpeg", url: "http://x" }; }, async stop() {}, async forget() {},
+    async stream() { return { transport: "mjpeg", url: "http://x" }; }, async importChrome() { return { bytes: 0 }; }, async stop() {}, async forget() {},
     async profiles() { return { profiles: [], maxRunning: 6 }; }, async health() { return { ok: true }; },
   };
   bindSpaceBrowser(sb);

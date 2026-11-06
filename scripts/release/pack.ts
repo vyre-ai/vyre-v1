@@ -18,7 +18,7 @@ export const KITS_TARBALL = "vyre-kits.tgz";
 export const SERVER_FILES: readonly string[] = ["VERSION", "compose.server.yml", "Caddyfile", "images.lock", "bin/vyre-server", "units/vyre-server.service", "units/vyre-server-update.service", "units/vyre-server-update.timer"];
 
 const DIGEST_REF = /^[a-z0-9][a-z0-9./_-]*(:[A-Za-z0-9._-]+)?@sha256:[0-9a-f]{64}$/;
-const IMAGE_KEYS = ["VYRE_IMAGE", "VYRE_AGENT_IMAGE", "VYRE_BROWSER_IMAGE", "VYRE_SANDBOX_IMAGE"] as const;
+const IMAGE_KEYS = ["VYRE_IMAGE", "VYRE_AGENT_IMAGE", "VYRE_BROWSER_IMAGE", "VYRE_WORKSPACE_IMAGE", "VYRE_SANDBOX_IMAGE"] as const;
 export type ImageKey = (typeof IMAGE_KEYS)[number];
 
 export const sha256File = (file: string): string => crypto.createHash("sha256").update(fs.readFileSync(file)).digest("hex");

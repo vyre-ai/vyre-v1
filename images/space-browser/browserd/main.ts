@@ -154,6 +154,7 @@ async function dispatch(action: string, a: Args): Promise<Args> {
       return { transport: "mjpeg", url: views.url(t, "mjpeg"), ws: views.url(t, "ws") };
     }
     case "stop": hubs.delete(checkProfileId(a["profileId"])); await manager.stop(text(a, "profileId")); return {};
+    case "reset_chrome": hubs.delete(checkProfileId(a["profileId"])); await manager.resetChrome(text(a, "profileId")); return {};
     case "forget": hubs.delete(checkProfileId(a["profileId"])); await manager.forget(text(a, "profileId")); return {};
     case "sessions": return sessions(checkProfileId(a["profileId"]));
     case "sign_out": return signOut(checkProfileId(a["profileId"]), text(a, "site"));

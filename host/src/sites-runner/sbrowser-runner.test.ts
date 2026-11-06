@@ -122,7 +122,7 @@ test("the Space browser's network is its own, joined only by its container and t
   assert.equal((await w.call("DELETE", `/networks/${SBROWSER_NET}`)).status, 200);
 });
 
-test("the Space browser's container may be read, started, stopped, removed and run browserd in; never archived or waited on", async (t) => {
+test("the Space browser's container may be read, started, stopped, removed and run browserd in, and take Chrome's data into one profile's folder; never read out or waited on", async (t) => {
   const w = await world();
   t.after(w.close);
   for (const [m, p] of [["GET", `/containers/${SBROWSER_NAME}/json`], ["POST", `/containers/${SBROWSER_NAME}/start`], ["POST", `/containers/${SBROWSER_NAME}/stop?t=10`], ["DELETE", `/containers/${SBROWSER_NAME}`], ["GET", `/containers/${SBROWSER_NAME}/logs?stdout=1&tail=50`]] as const) {
@@ -134,12 +134,16 @@ test("the Space browser's container may be read, started, stopped, removed and r
   assert.equal(exec.status, 201, exec.body);
   const sent = JSON.parse(w.seen.filter((s) => s.url.endsWith("/exec")).at(-1)!.body) as { Tty: boolean; Privileged: boolean };
   assert.deepEqual([sent.Tty, sent.Privileged], [false, false]);
-  assert.equal((await w.call("PUT", `/containers/${SBROWSER_NAME}/archive?path=/data`, {})).status, 403, "no archive");
-  assert.equal((await w.call("GET", `/containers/${SBROWSER_NAME}/archive?path=/data`)).status, 403, "no archive read");
+  assert.equal((await w.call("PUT", `/containers/${SBROWSER_NAME}/archive?path=/data`, {})).status, 403, "no archive over the whole volume");
+  assert.equal((await w.call("PUT", `/containers/${SBROWSER_NAME}/archive?path=/data/profiles/../x`, {})).status, 403);
+  assert.equal((await w.call("PUT", `/containers/${SBROWSER_NAME}/archive?path=/etc`, {})).status, 403);
+  assert.equal((await w.call("GET", `/containers/${SBROWSER_NAME}/archive?path=/data/profiles/agt_dex`)).status, 403, "nothing is read out");
+  assert.equal((await w.call("PUT", `/containers/${SBROWSER_NAME}/archive?path=/data/profiles/agt_dex`, {})).status, 200, "Chrome's data goes into one profile's folder");
   assert.equal((await w.call("POST", `/containers/${SBROWSER_NAME}/wait`)).status, 403, "no wait");
   assert.equal((await w.call("POST", `/containers/other/start`)).status, 403, "a container that is not Vyre's");
   assert.equal(sbrowserAllows("exec", "POST", new URLSearchParams()), true);
-  assert.equal(sbrowserAllows("archive", "GET", new URLSearchParams()), false);
+  assert.equal(sbrowserAllows("archive", "GET", new URLSearchParams("path=/data/profiles/agt_dex")), false);
+  assert.equal(sbrowserAllows("archive", "PUT", new URLSearchParams("path=/data/profiles/agt_dex")), true);
 });
 
 test("the Space browser image may be fetched and read, by tag or by digest, and no other; its volume may be removed and no other", async (t) => {

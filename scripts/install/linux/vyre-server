@@ -302,6 +302,12 @@ check_all() {
       "") finding host.sites_runner degraded "The sites runner is not running, so sites cannot deploy. Start it: vyre-server start." ;;
       *) finding host.sites_runner degraded "The sites runner is $sr. Read: vyre-server logs sites-runner." ;;
     esac
+    wi=$(lock_get VYRE_WORKSPACE_IMAGE)
+    if [ -n "$wi" ]; then
+      if docker image inspect "$wi" >/dev/null 2>&1; then finding host.workspace_image healthy "The agent workspace image is pulled."
+      else finding host.workspace_image degraded "The agent workspace image is not pulled yet; agent terminals cannot start. Run: docker pull $wi"
+      fi
+    fi
     ai=$(lock_get VYRE_AGENT_IMAGE)
     if [ -n "$ai" ]; then
       if docker image inspect "$ai" >/dev/null 2>&1; then finding host.agent_image healthy "The agent computer image is pulled."
@@ -567,8 +573,9 @@ sync_image() {
   aimg=$(sed -n 's/^VYRE_AGENT_IMAGE=//p' "$DIR/current/images.lock" | head -n 1)
   # the Space browser image of this release, by digest (compose.server.yml VYRE_SPACE_BROWSER_IMAGE), the same way
   bimg=$(sed -n 's/^VYRE_BROWSER_IMAGE=//p' "$DIR/current/images.lock" | head -n 1)
+  wimg=$(sed -n 's/^VYRE_WORKSPACE_IMAGE=//p' "$DIR/current/images.lock" | head -n 1)
   cp -p "$DIR/compose.env" "$DIR/compose.env.new" || return 1
-  { grep -v -e '^VYRE_IMAGE=' -e '^VYRE_AGENT_COMPUTER_IMAGE=' -e '^VYRE_SPACE_BROWSER_IMAGE=' "$DIR/compose.env" || true; printf 'VYRE_IMAGE=%s\n' "$img"; [ -z "$aimg" ] || printf 'VYRE_AGENT_COMPUTER_IMAGE=%s\n' "$aimg"; [ -z "$bimg" ] || printf 'VYRE_SPACE_BROWSER_IMAGE=%s\n' "$bimg"; } >"$DIR/compose.env.new" || { rm -f "$DIR/compose.env.new"; return 1; }
+  { grep -v -e '^VYRE_IMAGE=' -e '^VYRE_AGENT_COMPUTER_IMAGE=' -e '^VYRE_SPACE_BROWSER_IMAGE=' -e '^VYRE_WORKSPACE_IMAGE=' "$DIR/compose.env" || true; printf 'VYRE_IMAGE=%s\n' "$img"; [ -z "$aimg" ] || printf 'VYRE_AGENT_COMPUTER_IMAGE=%s\n' "$aimg"; [ -z "$bimg" ] || printf 'VYRE_SPACE_BROWSER_IMAGE=%s\n' "$bimg"; [ -z "$wimg" ] || printf 'VYRE_WORKSPACE_IMAGE=%s\n' "$wimg"; } >"$DIR/compose.env.new" || { rm -f "$DIR/compose.env.new"; return 1; }
   mv -f "$DIR/compose.env.new" "$DIR/compose.env"
 }
 
@@ -611,6 +618,45 @@ prune_releases() {
   ls -1t "$DIR/releases" 2>/dev/null | awk -v k="$KEEP_RELEASES" 'NR > k' | while read -r v; do
     [ "$v" = "$keep" ] || [ "$v" = "$prev" ] || rm -rf "$DIR/releases/$v"
   done
+}
+
+# prune_images: after a healthy update, remove the agent computer, workspace and Space browser images that no kept release names, so each update does not leave the last one behind (MLA had 16.6 GB).
+# An image goes only when all of these hold: it is one of ours (pulled by digest from a repository named agent-computer, workspace or space-browser; or carrying the label ai.vyre.image; or an
+# untagged image whose command is the agent computer's agentd), no kept release or compose.env names it, and no container, running or stopped, was made from it. A kept release is one prune_releases
+# left: the current one and the one a rollback goes to. Images built or tagged by hand (no digest) are never touched. Docker itself refuses to remove an image a container uses, a second guard.
+# A failure never fails the update: it prints what was removed, if anything, and returns 0.
+PRUNE_IMAGE_NAMES=${VYRE_PRUNE_IMAGE_NAMES:-'agent-computer|workspace|space-browser'}
+prune_images() {
+  command -v docker >/dev/null 2>&1 || return 0
+  docker info >/dev/null 2>&1 || return 0
+  keep_ids=""
+  for ref in $( { cat "$DIR"/releases/*/images.lock "$DIR/compose.env"; } 2>/dev/null | sed -n 's/^VYRE_[A-Z_]*IMAGE=//p' | sort -u ); do
+    id=$(docker image inspect -f '{{.Id}}' "$ref" 2>/dev/null) && keep_ids="$keep_ids $id"
+  done
+  listing=$(docker images --no-trunc --format '{{.ID}} {{.Repository}}@{{.Digest}}' 2>/dev/null) || return 0
+  removed=0
+  for id in $(printf '%s\n' "$listing" | awk '{print $1}' | sort -u); do
+    case " $keep_ids " in *" $id "*) continue ;; esac
+    [ -z "$(docker ps -a -q --filter "ancestor=$id" 2>/dev/null)" ] || continue
+    refs=$(printf '%s\n' "$listing" | awk -v i="$id" '$1 == i { print $2 }')
+    # an image someone tagged by hand (a name with no digest) is theirs, even when the same image also carries a digest name
+    ! printf '%s\n' "$refs" | grep -Eq '^[^<].*@<none>$' || continue
+    ours=0
+    case "$(docker image inspect -f '{{index .Config.Labels "ai.vyre.image"}}' "$id" 2>/dev/null)" in ""|"<no value>") ;; *) ours=1 ;; esac
+    case "$(docker image inspect -f '{{join .Config.Cmd " "}}' "$id" 2>/dev/null)" in *"/opt/agentd/main.ts"*) [ "$refs" != "${refs#*<none>@<none>}" ] && ours=1 ;; esac
+    for r in $refs; do
+      case "$r" in *"<none>"*) continue ;; esac
+      printf '%s\n' "$r" | grep -Eq "(^|/)($PRUNE_IMAGE_NAMES)@sha256:" && ours=1
+    done
+    [ "$ours" = 1 ] || continue
+    gone=1; did=0
+    for r in $refs; do
+      case "$r" in *"<none>@<none>"*) if docker rmi "$id" >/dev/null 2>&1; then did=1; else gone=0; fi ;; *"<none>"*) ;; *@sha256:*) if docker rmi "$r" >/dev/null 2>&1; then did=1; else gone=0; fi ;; esac
+    done
+    if [ "$gone" = 1 ] && [ "$did" = 1 ]; then removed=$((removed + 1)); fi
+  done
+  [ "$removed" = 0 ] || say "  Removed $removed old agent computer, workspace or browser $( [ "$removed" = 1 ] && printf image || printf images )."
+  return 0
 }
 
 lock_update_operation() {
@@ -667,7 +713,7 @@ cmd_update() {
   if [ "$DRY" = 1 ]; then say "Would install $REL_VERSION from the $CHANNEL channel; no images, backups or running services were changed."; return 0; fi
   unpack_release
   [ -n "$(sed -n 's/^VYRE_IMAGE=//p' "$DIR/releases/$REL_VERSION/images.lock")" ] || die "the release names no server image; nothing was changed."
-  for k in VYRE_IMAGE VYRE_AGENT_IMAGE VYRE_BROWSER_IMAGE VYRE_SANDBOX_IMAGE; do
+  for k in VYRE_IMAGE VYRE_AGENT_IMAGE VYRE_BROWSER_IMAGE VYRE_WORKSPACE_IMAGE VYRE_SANDBOX_IMAGE; do
     ref=$(sed -n "s/^$k=//p" "$DIR/releases/$REL_VERSION/images.lock" | head -n 1)
     [ -n "$ref" ] || continue
     case "$ref" in *@sha256:*) ;; *) die "the release names $k without a digest; nothing was changed." ;; esac
@@ -696,6 +742,7 @@ cmd_update() {
     rm -f "$DIR/state/update.pending"
     record_update "$from" "$REL_VERSION" ok "$secs" ""
     prune_releases
+    prune_images || true
     say "Updated to $REL_VERSION in $secs s."
     return 0
   fi

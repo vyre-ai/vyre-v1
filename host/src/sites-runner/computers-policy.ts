@@ -146,7 +146,7 @@ export function archiveOk(method: string, query: URLSearchParams): boolean {
 
 // ---- the Space browser (images/space-browser): one container for the Space host, `vyre-sbrowser`, labelled vyre.sbrowser=1, with its profiles on the named volume `vyre-sbrowser-data` and a network of its
 // own, `vyre-sbrowsernet`, so it cannot reach an agent computer or a site and only the ingress that joins it (the one route the Vault channel posts to) can reach it. The same confinement as a computer:
-// every capability dropped, no new privileges, a seccomp profile, caps on CPU, memory and processes, no host folder, device, port or namespace. Exec and logs only; no archive, no wait.
+// every capability dropped, no new privileges, a seccomp profile, caps on CPU, memory and processes, no host folder, device, port or namespace. Exec and logs; one archive, into a profile's folder (migration); no wait.
 
 export const SBROWSER_NAME = "vyre-sbrowser";
 export const SBROWSER_NET = "vyre-sbrowsernet";
@@ -228,7 +228,9 @@ export function sbrowserNetworkBody(body: unknown): { body: Record<string, unkno
   return { body: { Name: SBROWSER_NET, Driver: "bridge", CheckDuplicate: true, Labels: { "vyre.sbrowser": "1" }, ...(body["Internal"] === true ? { Internal: true } : {}) } };
 }
 
-/** What the Space browser's container may be asked: read it, start, stop and remove it, run browserd's control program in it. No archive (no file goes in or out) and no wait. */
-export function sbrowserAllows(action: string, _method: string, _query: URLSearchParams): boolean {
+/** What the Space browser's container may be asked: read it, start, stop and remove it, run browserd's control program in it. Archive only as a PUT into one profile's folder (Chrome's data from an old computer); no wait. */
+export function sbrowserAllows(action: string, method: string, query: URLSearchParams): boolean {
+  // the one archive: Chrome's user-data of an old computer put into one profile's folder (migration), nothing read out and nothing anywhere else
+  if (action === "archive") return method === "PUT" && /^\/data\/profiles\/[A-Za-z0-9][A-Za-z0-9_-]{2,79}$/.test(query.get("path") ?? "");
   return ["json", "logs", "start", "stop", "restart", "remove", "exec"].includes(action);
 }

@@ -23,6 +23,38 @@ export interface TerminalHostSeamShape {
   home: string;
   runsHere(target: Target): boolean;
   place(a: { space: string; threadId?: string; agentId: string; person: string }): Promise<TurnPlaceShape | null>;
+  /** Agent workspaces on this machine, when it can run them (modules/terminal/impl.ts WorkspaceConfig). */
+  workspaces?: WorkspacesConfig;
+}
+
+/** Where Docker is and which image is the agent workspace; the module builds the manager from it (agent workspaces, 6 Nov). */
+export interface WorkspacesConfig {
+  /** The Docker Engine socket. Default /var/run/docker.sock. */
+  socketPath?: string;
+  /** A Team server: the container runner's socket and its token, read again on each call. */
+  runner?: { socket: string; token(): string };
+  /** The workspace image of this release (VYRE_WORKSPACE_IMAGE, from images.lock). Default vyre/agent-workspace:1. */
+  image?: string;
+  /** Minutes of no use before a workspace sleeps, in ms. Default 10 minutes. */
+  idleMs?: number;
+  /** The mirror of each agent's folder in Files onto ~/Vyre in its workspace: the computers module's home sync and tar reader, made by the daemon as the agent principal. Omitted: no mirror. */
+  home?: {
+    sync(o: { agentId: string; computerId: string; fs: never; manifest: string }): { pass(): Promise<{ failed: number }> };
+    readTar(tar: Uint8Array): never;
+    manifest(agentId: string): string;
+    /** The mirror of a project's shared folder with its folder in Files, every call as the named agent; null when the project has no folder. */
+    syncProject?(o: { projectId: string; agentId: string; fs: never; manifest: string }): { pass(): Promise<{ failed: number }> } | null;
+    projectManifest?(projectId: string): string;
+    intervalMs?: number;
+  };
+  /** Room on the host: asked before a workspace starts, told when one stops (the computers module's capacity, over host calls). Omitted: no limit but Docker's. */
+  capacity?: {
+    claim(agentId: string): Promise<{ state: "running" | "waiting"; line?: string }>;
+    release(agentId: string): Promise<void>;
+  };
+  /** The projects an agent is on, so their shared folders are mounted. */
+  projectsOf?(agentId: string): Promise<readonly string[]> | readonly string[];
+  log?(level: "info" | "warn", msg: string, attrs?: Record<string, unknown>): void;
 }
 
 export interface TerminalHostDeps {
@@ -37,6 +69,8 @@ export interface TerminalHostDeps {
   /** Defaults: the environment and home folder of this process's user. */
   env?: NodeJS.ProcessEnv;
   home?: string;
+  /** Agent workspaces on this machine: given when it has a container runtime the Space may use (a Team server's runner or socket). Omitted: agents' commands go where their turn runs. */
+  workspaces?: Omit<WorkspacesConfig, "image"> & { image?: string };
 }
 
 const KEEP = ["HOME", "USER", "LOGNAME", "SHELL", "PATH", "LANG", "LC_ALL", "LC_CTYPE", "TMPDIR", "TZ"];
@@ -64,7 +98,9 @@ export function createTerminalHostSeam(d: TerminalHostDeps): TerminalHostSeamSha
   const env = commandEnv(d.env ?? process.env);
   const home = d.home ?? env["HOME"] ?? os.homedir();
   const device = d.roles.includes("device");
+  const workspaces: WorkspacesConfig | undefined = d.workspaces ? { ...d.workspaces, image: d.workspaces.image ?? (process.env["VYRE_WORKSPACE_IMAGE"] || "vyre/agent-workspace:1") } : undefined;
   return {
+    ...(workspaces ? { workspaces } : {}),
     exec(argv) {
       return new Promise((resolve) => {
         const [file, ...args] = argv;
