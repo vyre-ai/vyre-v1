@@ -40,6 +40,8 @@ type Out = {
     busy: boolean;
     viewers: number;
     lastActiveAt?: number;
+    state: "running" | "asleep" | "waiting" | "error";
+    line?: string;
     takeoverBy?: string;
     paired: boolean;
     access: "owner" | "admin" | "viewer";
@@ -71,8 +73,10 @@ type Out = {
       "agentId": "agt_a1b2c3",
       "busy": true,
       "lastActiveAt": 1760000000000,
+      "line": "example",
       "paired": true,
       "running": true,
+      "state": "running",
       "tabs": 1,
       "takeoverBy": "usr_a1b2c3",
       "viewers": 1

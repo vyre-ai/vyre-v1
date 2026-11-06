@@ -18,6 +18,8 @@ const AGENTS: Record<string, { ownerId: string; class: "private" | "personal" | 
 };
 const row = (profileId: string, over: Partial<ProfileRow> = {}): ProfileRow => ({ profileId, running: true, tabs: 2, busy: false, takeover: false, viewers: 0, lastActiveAt: 1_760_000_000_000, held: 0, paused: false, ...over });
 
+let sessionsNow: () => Array<{ site: string; since: number; lastSeen: number }> = () => [];
+const signedOut: string[] = [];
 function rig() {
   const rows = new Map<string, ProfileRow>([["agt_named", row("agt_named")], ["agt_dana_ast", row("agt_dana_ast")], ["agt_dex", row("agt_dex", { bridge: { connected: 1, hello: true, optin: true } })], ["agt_mine", row("agt_mine")], ["agt_gone", row("agt_gone")]]);
   const seen: string[] = [];
@@ -31,7 +33,7 @@ function rig() {
     async giveBack(id) { const { takeoverBy: _t, ...r } = rows.get(id)!; rows.set(id, { ...r, takeover: false }); seen.push(`give_back ${id}`); },
     async screenshot() { return { bytes: new Uint8Array(), width: 1, height: 1 }; },
     async stream(a) { seen.push(`stream ${a.profileId}`); return { transport: "mjpeg", url: `http://10.0.0.2:7002/stream?t=abc&p=${a.profileId}`, ws: "ws://10.0.0.2:7002/ws?t=abc" }; },
-    async importChrome() { return { bytes: 0 }; }, async stop() {}, async forget() {},
+    async sessions() { return sessionsNow(); }, async signOut(_p, site) { signedOut.push(site); return true; }, async importChrome() { return { bytes: 0 }; }, async stop() {}, async forget() {},
     async profiles() { return { profiles: [...rows.values()], maxRunning: 6 }; }, async health() { return { ok: true }; },
   };
   bindSpaceBrowser(sb);
@@ -138,4 +140,38 @@ test("an agent never uses these, and with no Space browser they say so", async (
   for (const cap of ["computers.browser.profiles", "computers.browser.stream", "computers.browser.take_over", "computers.browser.give_back"]) {
     await assert.rejects(() => tool[cap]!(as(DANA).ctx, { agentId: "agt_dex" }), (e) => codeOf(e) === "provider.unavailable", cap);
   }
+});
+
+test("a profile row says running, asleep or waiting with the line, and a browser waiting for room is listed before it ever started", async () => {
+  const r = rig();
+  r.rows.set("agt_dex", { ...r.rows.get("agt_dex")!, running: false });
+  try {
+    const dana = as(DANA, false);
+    dana.db.run("INSERT INTO computers_claim (claim_key, kind, host, state, since, note) VALUES ('agt_named', 'browser', 'space', 'waiting', 1, 'Waiting for room on the Space server.')");
+    dana.db.run("INSERT INTO computers_claim (claim_key, kind, host, state, since, note) VALUES ('agt_mine', 'browser', 'space', 'waiting', 1, 'Waiting for room on the Space server.')");
+    r.rows.delete("agt_mine");
+    const out = (await tool["computers.browser.profiles"]!(dana.ctx, {})).profiles as Array<{ agentId: string; state: string; line?: string }>;
+    const by = Object.fromEntries(out.map((p) => [p.agentId, [p.state, p.line]]));
+    assert.deepEqual(by["agt_dex"], ["asleep", undefined]);
+    assert.deepEqual(by["agt_dana_ast"], ["running", undefined]);
+    assert.deepEqual(by["agt_named"], ["waiting", "Waiting for room on the Space server."]);
+    assert.deepEqual(by["agt_mine"], ["waiting", "Waiting for room on the Space server."], "listed though the service never saw it");
+  } finally { off(); }
+});
+
+test("the sites a browser is signed in to are listed for people who may watch, and signing out is for the owner and admins", async () => {
+  rig();
+  sessionsNow = () => [{ site: "app.clio.com", since: 5, lastSeen: 6 }];
+  signedOut.length = 0;
+  try {
+    const w = as(WATCHER, false);
+    assert.deepEqual((await tool["computers.browser.sessions"]!(w.ctx, { agentId: "agt_named" })).sessions, [{ site: "app.clio.com", since: 5, lastSeen: 6 }]);
+    await assert.rejects(() => tool["computers.browser.sessions"]!(w.ctx, { agentId: "agt_dex" }), (e) => codeOf(e) === "permission.no_grant");
+    await assert.rejects(() => tool["computers.browser.sign_out"]!(w.ctx, { agentId: "agt_named", site: "app.clio.com" }), (e) => codeOf(e) === "permission.no_grant", "a viewer cannot sign out");
+    assert.equal((await tool["computers.browser.sign_out"]!(as(DANA, false).ctx, { agentId: "agt_named", site: "app.clio.com" })).ok, true);
+    assert.equal((await tool["computers.browser.sign_out"]!(as(OMAR, true).ctx, { agentId: "agt_dex", site: "x.test" })).ok, true, "an admin");
+    await assert.rejects(() => tool["computers.browser.sign_out"]!(as(DANA).ctx, { agentId: "agt_dex", site: "../etc" }), (e) => codeOf(e) === "validation.bad_input");
+    await assert.rejects(() => tool["computers.browser.sign_out"]!(as(OMAR, true).ctx, { agentId: "agt_dana_ast", site: "x.test" }), (e) => codeOf(e) === "permission.no_grant");
+    assert.deepEqual(signedOut, ["app.clio.com", "x.test"]);
+  } finally { sessionsNow = () => []; off(); }
 });

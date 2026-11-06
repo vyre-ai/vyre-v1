@@ -5,6 +5,7 @@ import assert from "node:assert/strict";
 import { bindFill, bindKit, bindPersonalChrome, forgetSecrets } from "../projections.ts";
 import type { PersonalChrome } from "../projections.ts";
 import { bindSpaceBrowser } from "../sbrowser/port.ts";
+import { resetAgentInfo } from "../sbrowser/agentinfo.ts";
 import type { BrowserAnswer, BrowserToolCall, SpaceBrowser } from "../sbrowser/port.ts";
 import { PROFILE_ID as BROWSERD_PROFILE_ID } from "../../../images/space-browser/browserd/profiles.ts";
 import { PROFILE_ID, mayTakeOver, profileAccess, profileIdOf } from "../sbrowser/policy.ts";
@@ -16,6 +17,8 @@ const SCRUB = { createScrubber: (secrets: Array<{ handle: string; value: string 
 
 let downloadsNow: () => Array<{ name: string; size: number; at: number }> = () => [];
 const acked: string[] = [];
+let sessionsNow: () => Array<{ site: string; since: number; lastSeen: number }> = () => [];
+const signedOut: string[] = [];
 function browser(answers: Record<string, (c: BrowserToolCall) => BrowserAnswer> = {}) {
   const calls: BrowserToolCall[] = [];
   let refuse: ToolError | null = null;
@@ -28,15 +31,15 @@ function browser(answers: Record<string, (c: BrowserToolCall) => BrowserAnswer> 
       return (answers[a.tool] ?? (() => ({ url: "https://example.com/", title: "Example", tree: "- page [e1]", truncated: false, ok: true, tabId: "t1", loading: false })))(a);
     },
     async downloads() { return downloadsNow(); }, async downloadRead(_p, name) { return new TextEncoder().encode(`bytes of ${name}`); }, async downloadAck(_p, name) { acked.push(name); },
-    async takeover() {}, async giveBack() {}, async screenshot() { return { bytes: new Uint8Array(), width: 1, height: 1 }; },
-    async stream() { return { transport: "mjpeg", url: "http://x" }; }, async importChrome() { return { bytes: 0 }; }, async stop() {}, async forget() {},
+    async takeover() {}, async giveBack() {}, async screenshot() { return { bytes: new Uint8Array([1, 2, 3]), width: 1, height: 1 }; },
+    async stream() { return { transport: "mjpeg", url: "http://x" }; }, async sessions() { return sessionsNow(); }, async signOut(_p, site) { signedOut.push(site); return true; }, async importChrome() { return { bytes: 0 }; }, async stop() {}, async forget() {},
     async profiles() { return { profiles: [], maxRunning: 6 }; }, async health() { return { ok: true }; },
   };
   bindSpaceBrowser(sb);
   return { calls, refuseWith(e: ToolError | null) { refuse = e; }, setAvailable(v: boolean) { up = v; } };
 }
 const agentCtx = (id: string, person = DANA) => harness({ principal: { kind: "agent", id }, actingFor: person }).ctx;
-const off = (): void => { bindSpaceBrowser(null); bindFill(null); bindKit(null); bindPersonalChrome(null); };
+const off = (): void => { resetAgentInfo(); bindSpaceBrowser(null); bindFill(null); bindKit(null); bindPersonalChrome(null); };
 
 test("an agent with no computer browses in its own profile of the Space browser, named by its id", async () => {
   const b = browser();
@@ -202,7 +205,7 @@ test("what a profile's browser downloaded goes into the agent's Files under Down
     const h = harness({ principal: { kind: "agent", id: "agt_dex" }, actingFor: DANA, respond: { "files.folder.create": () => ({ folder: { folderId: "fld_downloads" } }) } });
     const out = await tool["computers.chrome.click"]!(h.ctx, { ref: "e1" });
     assert.deepEqual(out.downloads.map((d: { name: string; path: string }) => [d.name, d.path]), [["report.pdf", "Downloads/report.pdf"], ["data.csv", "Downloads/data.csv"]]);
-    const made = h.calls("files.create");
+    const made = h.calls("files.create").filter((c) => String(c.input["name"]).startsWith("step-") === false);
     assert.deepEqual(made.map((c) => [c.input["folderId"], c.input["name"], c.input["mime"], c.input["kind"]]), [["fld_downloads", "report.pdf", "application/pdf", "pdf"], ["fld_downloads", "data.csv", "text/csv", "spreadsheet"]]);
     assert.equal(Buffer.from((made[0]!.input["content"] as { base64: string }).base64, "base64").toString(), "bytes of report.pdf");
     assert.deepEqual(acked, ["report.pdf", "data.csv"], "the browser service dropped its copies");
@@ -213,7 +216,7 @@ test("what a profile's browser downloaded goes into the agent's Files under Down
     // a look that does not report downloads leaves them for the next step that does
     downloadsNow = () => [{ name: "later.zip", size: 1, at: 3 }];
     await tool["computers.chrome.snapshot"]!(h.ctx, {});
-    assert.equal(h.calls("files.create").length, 2);
+    assert.equal(h.calls("files.create").filter((c) => !String(c.input["name"]).startsWith("step-")).length, 2);
     assert.equal((await tool["computers.chrome.state"]!(h.ctx, {})).downloads[0].path, "Downloads/later.zip");
     assert.equal(b.calls.length, 4);
   } finally { downloadsNow = () => []; off(); }
@@ -239,4 +242,45 @@ test("a name already in Downloads gets a number, and a file that cannot be made 
     assert.deepEqual(acked, [], "not dropped: it is tried again");
     taken = false;
   } finally { downloadsNow = () => []; off(); }
+});
+
+test("an Assistant's downloads go to its person's own Personal folder, and anyone else's agent to its own folder", async () => {
+  browser();
+  acked.length = 0;
+  downloadsNow = () => [{ name: "tax.pdf", size: 1, at: 1 }];
+  try {
+    const ast = harness({ principal: { kind: "agent", id: "agt_ast" }, actingFor: DANA, respond: {
+      "agents.get": () => ({ agent: { agentId: "agt_ast", name: "Dana's Assistant", face: "dana", kind: "assistant", ownerId: DANA, folderId: "fld_agent_ast" } }),
+      "files.tree": () => ({ roots: [{ key: "space", folderId: "fld_space" }, { key: "personal", folderId: "fld_dana_personal" }] }),
+      "files.folder.create": (i) => ({ folder: { folderId: `made_in_${String(i["parentId"])}` } }),
+    } });
+    const out = await tool["computers.chrome.state"]!(ast.ctx, {});
+    assert.equal(out.downloads[0].path, "Downloads/tax.pdf");
+    assert.equal(ast.calls("files.folder.create")[0]!.input["parentId"], "fld_dana_personal");
+    assert.equal(ast.calls("files.create")[0]!.input["folderId"], "made_in_fld_dana_personal");
+  } finally { downloadsNow = () => []; off(); }
+});
+
+test("each browser step with a caption is a line of the agent's browser timeline with a picture, the chat gets one live card, and the agent's name rides the call", async () => {
+  const b = browser({ chrome_screenshot: () => ({ png: "iVBORw0KGgo=", width: 1, height: 1 }) });
+  try {
+    const h = harness({ principal: { kind: "agent", id: "agt_dex" }, actingFor: DANA, respond: {
+      "agents.get": () => ({ agent: { agentId: "agt_dex", name: "Dex", face: "dex", kind: "agent", ownerId: DANA, folderId: "fld_dex" } }),
+      "chat.post": () => ({ posted: true }),
+    } });
+    h.ctx.thread = "thr_1";
+    await tool["computers.chrome.click"]!(h.ctx, { ref: "e4" });
+    await tool["computers.chrome.type"]!(h.ctx, { ref: "e5", text: "hello" });
+    assert.equal(b.calls[0]!.agent?.name, "Dex");
+    const steps = h.rows("SELECT computer_id, caption, tool, thread_id FROM computers_timeline ORDER BY idx");
+    assert.deepEqual(steps.map((r) => [r["computer_id"], r["caption"], r["tool"], r["thread_id"]]), [["agt_dex", "Clicked element e4", "chrome_click", "thr_1"], ["agt_dex", "Typed into element e5", "chrome_type", "thr_1"]]);
+    assert.equal(h.calls("files.create").length, 2, "a picture each");
+    const cards = h.calls("chat.post");
+    assert.equal(cards.length, 1, "one live card per burst");
+    assert.deepEqual((cards[0]!.input["blocks"] as Array<{ type: string; data: { agentId: string } }>).map((x) => [x.type, x.data.agentId]), [["browser_screenshot", "agt_dex"]]);
+    const mine = await tool["computers.browser.timeline"]!(harness({ principal: { kind: "person", id: DANA }, respond: { "agents.share_class": () => ({ class: "space", ownerId: DANA, people: [] }) } }).ctx, { agentId: "agt_dex" }).catch((e) => e);
+    assert.ok(mine, "the timeline is a capability of its own for people");
+    await tool["computers.chrome.snapshot"]!(h.ctx, {});
+    assert.equal(h.rows("SELECT COUNT(*) AS n FROM computers_timeline")[0]?.["n"], 2, "a look is not a step");
+  } finally { off(); }
 });

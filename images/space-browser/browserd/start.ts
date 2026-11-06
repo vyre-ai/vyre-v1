@@ -9,7 +9,7 @@ import type { Server } from "node:http";
 import { join } from "node:path";
 
 export interface Recent { host: string; url: string; title: string; at: number }
-export interface StartData { name: string; face: string; recent: Recent[] }
+export interface StartData { name: string; face: string; /** The agent's face as an SVG string, drawn once by the host. Without it the page shows the initial. */ faceSvg?: string; recent: Recent[] }
 
 const SKINS = {
   light: { win: "#FFFFFF", side: "#F7F7F6", raised: "#FFFFFF", sunk: "#F2F2F0", ink: "#18181A", ink2: "#4E4E52", ink3: "#8A8A8F", line: "#EFEFF1", accent: "#5B5BD6", glow: "rgba(91,91,214,0.10)", shadow: "0 1px 2px rgba(24,24,26,.06), 0 8px 28px rgba(24,24,26,.07)" },
@@ -22,6 +22,9 @@ const initial = (name: string): string => ([...name.trim()][0] ?? "V").toUpperCa
 
 /** The Vyre V, the mark of the agent computer's wallpaper (images/agent-computer/desktop/wallpaper.svg): one round-ended chevron. */
 const V_PATH = "M0 0 L55 130 L110 0";
+
+/** The face: the drawn SVG as an image (a data address, so nothing is fetched), else the initial. */
+const faceInner = (d: StartData): string => (d.faceSvg && d.faceSvg.startsWith("<svg") ? `<img alt="" src="data:image/svg+xml;base64,${Buffer.from(d.faceSvg).toString("base64")}">` : esc(initial(d.name)));
 
 /** The page. `skin` forces light or graphite; without it the page follows the browser's light or dark. */
 export function startPageHtml(d: StartData, skin?: StartSkin): string {
@@ -40,7 +43,8 @@ body{background:var(--win);color:var(--ink);font:15px/1.45 -apple-system,BlinkMa
 .glow{position:fixed;inset:0;background:radial-gradient(60% 55% at 50% 42%,var(--glow),transparent 70%)}
 .mark{position:fixed;left:50%;top:50%;width:min(112vh,980px);height:auto;transform:translate(-50%,-47%);color:var(--ink);opacity:.055;pointer-events:none}
 main{position:relative;min-height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:48px 24px 96px}
-.face{width:68px;height:68px;border-radius:50%;display:grid;place-items:center;background:var(--raised);color:var(--accent);font-size:28px;font-weight:600;box-shadow:var(--shadow);border:1px solid var(--line)}
+.face{width:68px;height:68px;border-radius:50%;overflow:hidden;display:grid;place-items:center;background:var(--raised);color:var(--accent);font-size:28px;font-weight:600;box-shadow:var(--shadow);border:1px solid var(--line)}
+.face img{width:100%;height:100%;display:block}
 h1{margin-top:18px;font-size:30px;font-weight:600;letter-spacing:-.015em}
 .sub{margin-top:4px;color:var(--ink3);font-size:14px;letter-spacing:.01em}
 form{margin-top:34px;width:min(560px,100%)}
@@ -49,8 +53,8 @@ form{margin-top:34px;width:min(560px,100%)}
 .box svg{flex:none;color:var(--ink3)}
 input{flex:1;min-width:0;border:0;outline:0;background:transparent;color:var(--ink);font:inherit;font-size:16px}
 input::placeholder{color:var(--ink3)}
-.recent{margin-top:40px;display:flex;gap:14px;justify-content:center;flex-wrap:wrap;max-width:640px}
-.tile{display:flex;flex-direction:column;align-items:center;gap:8px;width:104px;padding:12px 6px;border-radius:16px;color:var(--ink2);text-decoration:none;transition:background .15s}
+.recent{margin-top:40px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap;max-width:740px}
+.tile{display:flex;flex-direction:column;align-items:center;gap:8px;width:104px;padding:12px 4px;border-radius:16px;color:var(--ink2);text-decoration:none;transition:background .15s}
 .tile:hover{background:color-mix(in srgb,var(--raised) 70%,transparent)}
 .dot{width:44px;height:44px;border-radius:13px;display:grid;place-items:center;background:var(--raised);border:1px solid var(--line);color:var(--ink2);font-weight:600;font-size:18px;box-shadow:var(--shadow)}
 .host{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12.5px;color:var(--ink3)}
@@ -60,7 +64,7 @@ input::placeholder{color:var(--ink3)}
 <div class="glow"></div>
 <svg class="mark" viewBox="-80 -60 270 250" fill="none" stroke="currentColor" stroke-width="22" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${V_PATH}"/></svg>
 <main>
-<div class="face" aria-hidden="true">${esc(initial(d.name))}</div>
+<div class="face" aria-hidden="true">${faceInner(d)}</div>
 <h1>${esc(d.name)}</h1>
 <div class="sub">Browsing in your Space</div>
 <form id="go" autocomplete="off"><label class="box"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="q" type="text" placeholder="Search or type an address" autofocus spellcheck="false"></label></form>

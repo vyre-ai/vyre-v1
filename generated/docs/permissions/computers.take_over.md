@@ -15,6 +15,7 @@ Area: agents. Risk: high. Applies to: computer.
 ## Capabilities that need it
 
 - computers.browser.give_back
+- computers.browser.sign_out
 - computers.browser.take_over
 - computers.give_back
 - computers.record_start

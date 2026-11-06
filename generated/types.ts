@@ -8537,6 +8537,8 @@ export type ComputersBrowserGiveBackOut = {
     busy: boolean;
     viewers: number;
     lastActiveAt?: number;
+    state: "running" | "asleep" | "waiting" | "error";
+    line?: string;
     takeoverBy?: string;
     paired: boolean;
     access: "owner" | "admin" | "viewer";
@@ -8551,11 +8553,31 @@ export type ComputersBrowserProfilesOut = {
       busy: boolean;
       viewers: number;
       lastActiveAt?: number;
+      state: "running" | "asleep" | "waiting" | "error";
+      line?: string;
       takeoverBy?: string;
       paired: boolean;
       access: "owner" | "admin" | "viewer";
     }>;
   maxRunning: number;
+};
+export type ComputersBrowserSessionsIn = {
+  agentId: string;
+};
+export type ComputersBrowserSessionsOut = {
+  sessions: Array<{
+      site: string;
+      signedInAs?: string;
+      since: number;
+      lastSeen: number;
+    }>;
+};
+export type ComputersBrowserSignOutIn = {
+  agentId: string;
+  site: string;
+};
+export type ComputersBrowserSignOutOut = {
+  ok: boolean;
 };
 export type ComputersBrowserStreamIn = {
   agentId: string;
@@ -8577,10 +8599,33 @@ export type ComputersBrowserTakeOverOut = {
     busy: boolean;
     viewers: number;
     lastActiveAt?: number;
+    state: "running" | "asleep" | "waiting" | "error";
+    line?: string;
     takeoverBy?: string;
     paired: boolean;
     access: "owner" | "admin" | "viewer";
   };
+};
+export type ComputersBrowserTimelineIn = {
+  agentId: string;
+  runId?: string;
+  threadId?: string;
+  cursor?: string;
+  limit?: number;
+};
+export type ComputersBrowserTimelineOut = {
+  steps: Array<{
+      stepId: string;
+      idx: number;
+      at: number;
+      caption: string;
+      tool: string;
+      frameFileId?: string;
+      by: "agent" | "person";
+      runId?: string;
+    }>;
+  next?: string;
+  total?: number;
 };
 export type ComputersChromeActIn = {
   computerId?: string;
@@ -44967,8 +45012,11 @@ export interface CapMap {
   "company.sweep": { in: CompanySweepIn; out: CompanySweepOut };
   "computers.browser.give_back": { in: ComputersBrowserGiveBackIn; out: ComputersBrowserGiveBackOut };
   "computers.browser.profiles": { in: ComputersBrowserProfilesIn; out: ComputersBrowserProfilesOut };
+  "computers.browser.sessions": { in: ComputersBrowserSessionsIn; out: ComputersBrowserSessionsOut };
+  "computers.browser.sign_out": { in: ComputersBrowserSignOutIn; out: ComputersBrowserSignOutOut };
   "computers.browser.stream": { in: ComputersBrowserStreamIn; out: ComputersBrowserStreamOut };
   "computers.browser.take_over": { in: ComputersBrowserTakeOverIn; out: ComputersBrowserTakeOverOut };
+  "computers.browser.timeline": { in: ComputersBrowserTimelineIn; out: ComputersBrowserTimelineOut };
   "computers.chrome.act": { in: ComputersChromeActIn; out: ComputersChromeActOut };
   "computers.chrome.api": { in: ComputersChromeApiIn; out: ComputersChromeApiOut };
   "computers.chrome.batch": { in: ComputersChromeBatchIn; out: ComputersChromeBatchOut };

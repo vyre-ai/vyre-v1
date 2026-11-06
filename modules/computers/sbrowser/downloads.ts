@@ -1,7 +1,7 @@
 // Downloads (owner decision 6 Nov): anything an agent downloads in its Space browser profile lands in that agent's Files under Downloads, never in the browser service only. Chrome saves into the profile's
 // folder inside the service (browserd sets the preference and the DevTools behavior); after a step the host takes each finished file out, creates it in Files as the agent (so Files shows who downloaded it, and
 // the workspace that mirrors the agent's Files folder has it), and lets the browser service drop its copy. The agent is told the path in the tool result.
-import { agentFolder } from "../projections.ts";
+import { agentInfo } from "./agentinfo.ts";
 import type { CompCtx } from "../projections.ts";
 import type { SpaceBrowser } from "./port.ts";
 
@@ -25,7 +25,17 @@ export async function downloadsFolder(ctx: CompCtx, agentId: string): Promise<st
   const key = `${ctx.space}|${agentId}`;
   const have = folders.get(key);
   if (have) return have;
-  const parent = await agentFolder(ctx, agentId);
+  const who = await agentInfo(ctx, agentId);
+  let parent = who?.folderId ?? null;
+  // a person's Assistant saves into that person's own Files (their Personal folder), and everyone else's agent into its own folder
+  if (who?.kind === "assistant" && who.ownerId) {
+    try {
+      // files.tree answers an agent working for a person with that person's own Personal root (the files module's personalHolder)
+      const tree = (await ctx.call("files.tree", {})) as { roots?: Array<{ key?: string; folderId?: string }> };
+      const mine = tree.roots?.find((r) => r.key === "personal" && r.folderId)?.folderId;
+      if (mine) parent = mine;
+    } catch { /* the Assistant's own folder */ }
+  }
   if (!parent) return null;
   let id: string | undefined;
   try {

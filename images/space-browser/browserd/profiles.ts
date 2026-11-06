@@ -55,6 +55,10 @@ export interface ProfileManagerOptions {
   launch?: LaunchFn;
   /** Extra browser flags and environment for one profile, such as its bridge folder (bridge.ts). Called each time the profile's browser starts. */
   extra?: (profileId: string) => ChromeOptions;
+  /** Called when a profile's browser is up: the start page's cookie and first tab (main.ts). */
+  onStarted?: (profileId: string, port: number) => Promise<void>;
+  /** A page the profile's browser opened or looked at, for its start page's recent sites. */
+  onPage?: (profileId: string, url: string, title: string) => void;
   /** What the profile's Vyre for Chrome is doing with the Space, for the profile's row. */
   paired?: (profileId: string) => { connected: number; hello: boolean; optin: boolean };
 }
@@ -71,6 +75,8 @@ export interface Profile {
   viewers: number;
   /** The agent this profile belongs to, as the Space said when it configured it. */
   agentId: string | undefined;
+  /** The agent's name, for its start page. */
+  agentName: string | undefined;
   spaceId: string | undefined;
   starting: Promise<void> | null;
 }
@@ -126,7 +132,7 @@ export function createProfileManager(o: ProfileManagerOptions): ProfileManager {
       p = {
         id, dir, vault: createVault(),
         state: { stopped: false, tabLimit: o.tabLimit ?? 10, takeover: null, busy: 0, caption: undefined },
-        chrome: null, port: null, lastActiveAt: now(), viewers: 0, agentId: undefined, spaceId: undefined, starting: null,
+        chrome: null, port: null, lastActiveAt: now(), viewers: 0, agentId: undefined, agentName: undefined, spaceId: undefined, starting: null,
       };
       profiles.set(id, p);
     }
@@ -178,6 +184,7 @@ export function createProfileManager(o: ProfileManagerOptions): ProfileManager {
         const v = (await (await fetch(`http://127.0.0.1:${port}/json/version`)).json()) as { webSocketDebuggerUrl?: string };
         if (v.webSocketDebuggerUrl) { const b = await connectCdp(v.webSocketDebuggerUrl, 3000); await b.send("Browser.setDownloadBehavior", { behavior: "allow", downloadPath: downloadsOf(p) }).catch(() => undefined); b.close(); }
       } catch { /* the preferences already say it; a fake browser in a test has no DevTools */ }
+      await o.onStarted?.(p.id, port).catch((e: unknown) => o.log(`start page: ${e instanceof Error ? e.message : "failed"}`));
     })();
     try { await p.starting; } finally { p.starting = null; }
     return p;
@@ -209,6 +216,7 @@ export function createProfileManager(o: ProfileManagerOptions): ProfileManager {
       const raw = await within(ms, name, () => c.tool(name, filled.args, prof.state));
       const out = filled.used.length > 0 ? { ...scrubUsed(raw, filled.used), used: filled.used } : raw;
       p.state.caption = name.replace(/_/g, " ");
+      if ((name === "chrome_open" || name === "chrome_state") && typeof out["url"] === "string") o.onPage?.(p.id, out["url"], typeof out["title"] === "string" ? out["title"] : "");
       return out;
     } finally { p.state.busy -= 1; p.lastActiveAt = now(); }
   }

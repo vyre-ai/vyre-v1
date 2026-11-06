@@ -153,7 +153,7 @@ export function createDockerSpaceBrowser(o: DockerSpaceBrowserOptions): SpaceBro
   return {
     available: () => o.api.ping().catch(() => false),
     async tool(a: BrowserToolCall) {
-      return call("tool", { profileId: a.profileId, tool: a.tool, args: a.args, timeoutMs: a.timeoutMs, ...(a.by ? { by: a.by } : {}), ...(a.fill ? { fillUrl: a.fill.url, fillToken: a.fill.token } : {}), ...(a.space ? { spaceId: a.space } : {}) });
+      return call("tool", { profileId: a.profileId, tool: a.tool, args: a.args, timeoutMs: a.timeoutMs, ...(a.by ? { by: a.by } : {}), ...(a.fill ? { fillUrl: a.fill.url, fillToken: a.fill.token } : {}), ...(a.space ? { spaceId: a.space } : {}), ...(a.agent ? { agentName: a.agent.name, ...(a.agent.faceSvg ? { faceSvg: a.agent.faceSvg } : {}) } : {}) });
     },
     async downloads(profileId) {
       if (!(await o.api.containerRunning(name))) return [];
@@ -176,6 +176,11 @@ export function createDockerSpaceBrowser(o: DockerSpaceBrowserOptions): SpaceBro
       const s = await call("stream", { profileId: a.profileId }) as { url?: string; ws?: string };
       return { transport: "mjpeg", url: s.url ?? "", ...(typeof s.ws === "string" ? { ws: s.ws } : {}) };
     },
+    async sessions(profileId) {
+      const r = (await call("sessions", { profileId })) as { sessions?: Array<{ site: string; since: number; lastSeen: number }> };
+      return Array.isArray(r.sessions) ? r.sessions : [];
+    },
+    async signOut(profileId, site) { return ((await call("sign_out", { profileId, site })) as { ok?: boolean }).ok === true; },
     async importChrome(profileId, tar) {
       await call("reset_chrome", { profileId });
       await o.api.putArchive(name, `/data/profiles/${profileId}`, tar);
