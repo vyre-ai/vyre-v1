@@ -10,9 +10,9 @@ test("below 560 px of its own width the controls sit under the field; from 560 u
   assert.equal(isStacked(0), false, "unmeasured: the single row, never a flash of two");
 });
 
-test("the one-line pill keeps its field at least 200 px wide and the model menu fills a composer narrower than 540 px", async () => {
+test("the one-line pill keeps its field at least 120 px wide and the model menu fills a composer narrower than 540 px", async () => {
   const { FIELD_MIN_LINE, PANEL_SIDE_MIN, panelFitsInline } = await import("./index.tsx");
-  assert.equal(FIELD_MIN_LINE, 200);
+  assert.equal(FIELD_MIN_LINE, 120);
   assert.equal(PANEL_SIDE_MIN, 540);
   for (const w of [300, 400, 539]) assert.equal(panelFitsInline(w), true, String(w));
   for (const w of [540, 700]) assert.equal(panelFitsInline(w), false, String(w));

@@ -58,13 +58,15 @@ export default function Mount(): ReactNode {
   const parts = useMemo(() => {
     const q = new URLSearchParams(search ?? "");
     const data = build(part, q.get("name"), q.get("dex") === "1");
+    const typing = q.get("typing");
+    if (typing) data.typing = typing.split(",");   // l-composer: the row above the composer
     const writing = part === "main";
     const live: LiveTurns = {
       turnsOf: (id) => (writing && id === "t_c2" ? turns : none), subscribe: () => () => undefined, settle: () => undefined, seed: () => undefined, onGap: () => () => undefined,
     };
     const turns = [{ turnId: "turn_1", threadId: "t_c2", agentId: "agt_intake", store: undefined as never, state: "writing" as const, startedAt: Date.now() - 23_000 }];
     return { conversation: { ...data, clock: () => ({ now: SAMPLE_NOW, offsetMin: 0 }), live } };
-  }, [part]);
+  }, [part, search]);
   const width = useWindowDimensions().width;
   if (search === null) return <View style={{ flex: 1, backgroundColor: "var(--win)" as string }} />;
   const open = part === "main" || part === "done" ? undefined : "t_c2";

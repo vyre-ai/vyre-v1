@@ -1,3 +1,6 @@
 - Composer: the model chip is gone. One settings (sliders) icon opens the full menu and carries a dot while anything is off its default; the menu names the model and account at its top. No effort bars, context ring, account name or mode chip in the composer.
 - Composer: one 12 px radius (the pill, its buttons, its chips); focus shows on the pill only (an accent hairline and a soft wash).
 - Model menu: the side list opens level with its row, flips when there is no room, and both it and the menu stay 8 px inside the window.
+- Composer: one line when empty at every width (the model chip no longer takes the row); the controls drop to a slim row under the text once a draft takes more than a line.
+- Chats: an agent's open question (a question block still waiting) docks above the composer as the question island: face, question, the first answer as the primary, Other (the other answers, or words), people, dismiss, and "1 of 3" with arrows. The newest open question of the chat shows.
+- Chats: channels keep a fixed 20 px row above the composer for who is typing.

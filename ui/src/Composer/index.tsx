@@ -630,7 +630,7 @@ const CTRL_GAP = 8;
 /** Below this width (the composer's own, not the window's) the field takes a row to itself and the controls sit under it. */
 const STACK_BELOW = 560;
 /** In the one-line pill the field keeps at least this width; the model chip truncates its account name instead of taking the row. */
-export const FIELD_MIN_LINE = 200;
+export const FIELD_MIN_LINE = 120;
 /** Under this composer width the model menu fills the composer's width and its lists open inline: a side list would run out of a narrow pane (the Thread pane). */
 export const PANEL_SIDE_MIN = 540;
 /** True when a composer this wide (its own width, 0 while unmeasured) shows the model menu's lists inline instead of beside it. */
@@ -1190,7 +1190,8 @@ export function Composer(props: ComposerProps): ReactElement {
   const oneLine = props.sendsOutside !== true;
   // below about 560 px the field takes the full width on top and the controls sit under it, so the field is never squeezed to a few words wide
   useEffect(() => { if (state.text === "") setGrown(false); else if (state.text.includes("\n")) setGrown(true); }, [state.text]);
-  const stacked = oneLine && (isStacked(boxW) || grown);
+  // one line when empty at any width (prototype s-chat221): the controls leave the text's row only once a draft takes more than a line
+  const stacked = oneLine && grown;
   const row = oneLine && !stacked;
   // the field's padding, which the token wash behind it takes too: the same box, so a wash sits on its word in the one-line pill, the compact field and the regular one
   const fieldPad: readonly (ViewStyle | false)[] = [styles.padRegular, row && styles.padLine, stacked && styles.padStack, !oneLine && compact && styles.padCompact];
