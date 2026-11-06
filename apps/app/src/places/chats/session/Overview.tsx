@@ -49,11 +49,11 @@ export function OverviewView({ goal, summary, members, context, clock, who = (id
       <Section title="Helpers">
         {members.map((m) => {
           const w = whoOf(m);
-          return <Row key={m.id} id={`overview-helper-${m.id}`} title={w.name} leading={<Avatar name={memberName(m)} seedId={faceSeed(m)} kind="agent" size={20} />} trailing={<Text numberOfLines={1} style={[st.rowEnd, m.state === "needs_you" && st.wait]}>{w.task !== "" ? `${w.task}   ${statusWord(m.state)}` : statusWord(m.state)}</Text>} onPress={() => onHelper(m.id)} />;
+          return <Row key={m.id} id={`overview-helper-${m.id}`} title={w.name} leading={<View style={{ marginRight: 8 }}><Avatar name={memberName(m)} seedId={faceSeed(m)} kind="agent" size={20} /></View>} trailing={<Text numberOfLines={1} style={[st.rowEnd, m.state === "needs_you" && st.wait]}>{w.task !== "" ? `${w.task}   ${statusWord(m.state)}` : statusWord(m.state)}</Text>} onPress={() => onHelper(m.id)} />;
         })}
       </Section>
       <Section title="Files touched">
-        {files.map((f) => <Row key={f.path} id={`overview-file-${f.path}`} title={f.path.split("/").pop() ?? f.path} leading={<Glyph name="file" size={14} />} trailing={<Quiet>{f.by}</Quiet>} inert />)}
+        {files.map((f) => <Row key={f.path} id={`overview-file-${f.path}`} title={f.path.split("/").pop() ?? f.path} leading={<View style={{ marginRight: 8 }}><Glyph name="file" size={14} /></View>} trailing={<Quiet>{f.by}</Quiet>} inert />)}
       </Section>
       <Section title="Decisions">
         {summary.decisions.map((d) => <Row key={d.messageId} id={`overview-decision-${d.messageId}`} title={d.sub} trailing={<Quiet>{d.by !== "" ? `${who(d.by)}, ${clock(d.at)}` : clock(d.at)}</Quiet>} onPress={() => onJump(d.messageId)} />)}

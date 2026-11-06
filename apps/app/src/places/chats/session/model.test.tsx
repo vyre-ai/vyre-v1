@@ -140,14 +140,13 @@ test("the Overview: the first ask, jumps, decisions, open questions, and how lon
   assert.equal(contextWords(null), "");
 });
 
-test("a message with a status card is never folded, and its jump row follows the card instead of replacing it", () => {
+test("a message with a status card is never folded, and no jump row repeats it", () => {
   seq = 500;
   const card = (id: string, type: string, data: Record<string, unknown>) => msg({ id, at: T0 + 2 * H, kind: "system", blocks: [{ id: `b${id}`, type, v: 1, state: "done", data } as never] });
   const merged = card("cm", "result_card", { title: "Merged #893 into main", body: "470 tests passed" });
   const msgs = [me(T0), ...pad(3, T0 + MIN), card("cp", "progress_card", { title: "Release rc.22.1", state: "running", steps: [] }), card("cs", "status_card", { title: "The MLA update could not start", tone: "warn" }), merged, ...pad(4, T0 + 3 * H), me(T0 + 4 * H)];
   const rows = sessionItems(timeline(msgs, ctx), msgs, { meId: "usr_me", clock, nameOf, since: msgs[0]!.threadSeq, openedAt: T0 + 6 * H });
   assert.ok(["cp", "cs", "cm"].every((id) => rows.some((r) => r.kind === "event" && r.message.messageId === id)), "all three cards stay in the timeline");
-  assert.ok(rows.some((r) => r.kind === "jump" && r.label === "PR merged"), "the merge is also a jump point, after its card");
-  const at = (id: string): number => rows.findIndex((r) => r.kind === "event" && r.message.messageId === id);
-  assert.ok(rows.findIndex((r) => r.kind === "jump") > at("cm"));
+  assert.ok(!rows.some((r) => r.kind === "jump"), "the card says it: no jump row repeats it in the transcript");
+  assert.equal(jumpOf(merged)?.label, "PR merged", "but it is still a jump point for the Overview");
 });

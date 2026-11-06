@@ -194,7 +194,8 @@ export function sessionItems(items: readonly Item[], messages: readonly Message[
     // an event that is itself the jump point becomes the jump row; any other message keeps its place and the row follows it
     if (jump && it.kind === "event" && m && !hasCard(m)) { out.push({ kind: "jump", key: `jump-${jump.messageId}`, messageId: jump.messageId, label: jump.label, sub: jump.sub, time: timeWords(jump.at, o.clock) }); continue; }
     out.push(it);
-    if (jump) out.push({ kind: "jump", key: `jump-${jump.messageId}`, messageId: jump.messageId, label: jump.label, sub: jump.sub, time: timeWords(jump.at, o.clock) });
+    // a card says it already: its jump point lives in the Overview, so the transcript does not repeat it under the card
+    if (jump && !(m && hasCard(m))) out.push({ kind: "jump", key: `jump-${jump.messageId}`, messageId: jump.messageId, label: jump.label, sub: jump.sub, time: timeWords(jump.at, o.clock) });
   }
   return out;
 }
