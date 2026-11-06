@@ -79,10 +79,10 @@ export function main(argv: string[]): number {
       }
       case "pack": {
         // pack <dir> <version>: server (needs IMAGE_* env), app web export (APP_DIST), extension and kits, into <dir>; each only when its input is given
-        if (a === undefined || b === undefined) { console.error("usage: pack <dir> <version>   (env: VYRE_IMAGE[, VYRE_AGENT_IMAGE, VYRE_SANDBOX_IMAGE] APP_DIST)"); return 2; }
+        if (a === undefined || b === undefined) { console.error("usage: pack <dir> <version>   (env: VYRE_IMAGE[, VYRE_AGENT_IMAGE, VYRE_WORKSPACE_IMAGE, VYRE_SANDBOX_IMAGE] APP_DIST)"); return 2; }
         fs.mkdirSync(a, { recursive: true });
         const images: Partial<Record<ImageKey, string>> = {};
-        for (const k of ["VYRE_IMAGE", "VYRE_AGENT_IMAGE", "VYRE_SANDBOX_IMAGE"] as const) { const v = process.env[k]; if (v) images[k] = v; }
+        for (const k of ["VYRE_IMAGE", "VYRE_AGENT_IMAGE", "VYRE_WORKSPACE_IMAGE", "VYRE_SANDBOX_IMAGE"] as const) { const v = process.env[k]; if (v) images[k] = v; }
         const made: string[] = [];
         if (images.VYRE_IMAGE) { packServer({ root, outDir: a, version: b, images }); made.push("vyre.tgz"); }
         const dist = process.env["APP_DIST"];

@@ -317,6 +317,8 @@ export interface DaemonOptions {
   computersBaseUrl?: string;
   /** How often an agent computer mirrors its home with Files while it runs (tests set it long and trigger passes by waking and sleeping). Default 3 s. */
   computersHomeIntervalMs?: number;
+  /** How long an agent workspace is idle before it sleeps, in ms (default 10 minutes); tests shorten it. */
+  workspaceIdleMs?: number;
   /** The container engine socket the agent computers module talks to (default: the system one); tests point it somewhere nothing listens. */
   computersSocketPath?: string;
   /** The sites runner's socket (host/src/sites-runner; default VYRE_SITES_RUNNER) and, beside it, its token file. Vyre never holds the Docker socket itself. */
@@ -1836,6 +1838,15 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           roles: cfg.roles, team: cfg.spaceKind !== "personal",
           readAs: async (person, cap, input) => { const r = await invoke(cap, input, { space: spaceId, principal: { kind: "person", id: person }, origin: "terminal" }); return r.status === "ok" ? r.output : null; },
           computerOf: (person) => (db!.all("SELECT id FROM devices_device WHERE person = ? AND revokedAt IS NULL AND deleted_at IS NULL AND class IN ('desktop', 'daemon', 'web') ORDER BY CASE WHEN class = 'web' THEN 1 ELSE 0 END, lastSeenAt DESC, id DESC LIMIT 1", person)[0] as { id?: string } | undefined)?.id,
+          // agent workspaces (6 Nov): a Team server that has a container runtime (the runner beside vyred, or a Docker socket) gives every agent a workspace, made on first use; the same engine as agent computers
+          ...(cfg.spaceKind !== "personal" && (o.computersSocketPath !== undefined || computersRunnerSocket() || fs.existsSync("/var/run/docker.sock")) ? {
+            workspaces: {
+              ...(o.computersSocketPath !== undefined ? { socketPath: o.computersSocketPath } : computersRunnerSocket() ? { runner: { socket: computersRunnerSocket() as string, token: computersRunnerToken } } : {}),
+              ...(o.workspaceIdleMs !== undefined ? { idleMs: o.workspaceIdleMs } : {}),
+              projectsOf: (agentId: string) => (db!.all("SELECT projectId FROM projects_member WHERE principal = ? AND kind = 'agent'", agentId) as Array<{ projectId?: string }>).map((r) => String(r.projectId)),
+              log: (level: "info" | "warn", msg: string, attrs?: Record<string, unknown>) => sink.log({ space: spaceId, level: level === "warn" ? 40 : 30, msg, place: "workspaces", ...(attrs ? { attrs } : {}) }),
+            },
+          } : {}),
         }),
         // the Vault channel of agent computers (P-L2_21): agentd posts one #Handle.field at a time to /computers/fill with its own token; without a Vault the channel is not offered
         setComputersFill: (d) => d.vault ? createComputersFillHost({

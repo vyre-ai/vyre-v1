@@ -99,6 +99,14 @@ export function bindPlace(f: PlaceOf | null): void { placePort = f; }
 export function bindMachinePlace(f: PlaceOf | null): void { machinePlace = f; }
 export const boundPlace = (): PlaceOf | null => placePort ?? machinePlace;
 
+/**
+ * Whether this host has agent workspaces (a container runtime and the workspace image path): an agent's terminal then goes to its workspace, from wherever its turn runs (owner, 6 Nov). The daemon
+ * binds it when it hands over a workspace config (setTerminalHost); a test binds it directly. Unbound: no workspaces, and an agent's commands go where the turn runs, as before.
+ */
+let workspacesOn = false;
+export function bindWorkspaces(on: boolean): void { workspacesOn = on; }
+export const workspacesReady = (): boolean => workspacesOn;
+
 /** Is this a Team Space? Agent computers need one (spec 2.7). The host binds the answer; unbound means team. */
 let teamSpace: (space: string) => boolean = () => true;
 export function bindTeam(f: ((space: string) => boolean) | null): void { teamSpace = f ?? (() => true); }
