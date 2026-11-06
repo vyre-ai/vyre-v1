@@ -259,3 +259,10 @@ test("Starred: starring a conversation shows it under Starred, unstarring takes 
   assert.ok(!has(html({}), 'data-testid="star-marcus"'));
   assert.deepEqual(s.calls.map((c) => c.cap), ["stars.toggle", "stars.toggle"]);
 });
+
+test("a lock on a mailbox row means a private mailbox in a shared group, never a mailbox under Mine", async () => {
+  const { showsLock } = await import("../sidebar/model.ts");
+  assert.equal(showsLock("mine", { lock: true }), false);
+  assert.equal(showsLock("team", { lock: true }), true);
+  assert.equal(showsLock("team", { lock: false }), false);
+});

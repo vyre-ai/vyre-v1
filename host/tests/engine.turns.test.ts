@@ -75,14 +75,14 @@ test("text that is not a Vault handle is never looked up: a sealed record field,
 
 test("a failure of the Vault itself is an error that names the code and never the text that came with it", async () => {
   const w = world(() => Object.assign(new Error(`upstream said: token ${SECRET} rejected`), { code: "provider.unavailable" }));
-  await assert.rejects(w.host.source.lookup("#Dana_Claude.setup_token", WHO), (e: unknown) => e instanceof Error && e.message === "The Vault could not be read (provider.unavailable)." && !e.message.includes(SECRET));
+  await assert.rejects(w.host.source.lookup("#Dana_Claude.setup_token", WHO), (e: unknown) => e instanceof Error && e.message === "The Vault could not read the sign-in Dana_Claude (setup_token): provider.unavailable." && !e.message.includes(SECRET));
 });
 
 test("a failure of the Vault carries a code of its own, so the chat can tell a locked Vault from a broken one", async () => {
   const w = world(() => Object.assign(new Error("boom"), { code: "provider.unavailable" }));
   await assert.rejects(w.host.source.lookup("#Dana_Claude.setup_token", WHO), (e: unknown) => (e as { code?: string }).code === "engine.vault_unreadable");
   const noCode = world(() => new Error("boom"));
-  await assert.rejects(noCode.host.source.lookup("#Dana_Claude.setup_token", WHO), (e: unknown) => (e as { code?: string }).code === "engine.vault_unreadable" && (e as Error).message === "The Vault could not be read.");
+  await assert.rejects(noCode.host.source.lookup("#Dana_Claude.setup_token", WHO), (e: unknown) => (e as { code?: string }).code === "engine.vault_unreadable" && /Dana_Claude/.test((e as Error).message) && /read failed/.test((e as Error).message) && !/^The Vault could not be read\.$/.test((e as Error).message));
 });
 
 test("a locked Vault key is engine.vault_locked, whether the Vault module or the key port says it, and no text from either reaches the message", async () => {
@@ -93,7 +93,7 @@ test("a locked Vault key is engine.vault_locked, whether the Vault module or the
   const invoke: Invoke = async () => ({ status: "ok", output: { handle: "#X", itemId: "vit_1", fields: [] }, traceId: TRACE });
   const vault: VaultPort = { secret: async () => { throw new Error("Your vault key is locked on this computer."); }, signRs256: async () => "" };
   const host = createEngineSessionHost({ invoke, vault, space: SPACE, lockedWaitMs: 0 });
-  await assert.rejects(host.source.lookup("#Dana_Claude.setup_token", WHO), (e: unknown) => (e as { code?: string }).code === "engine.vault_locked" && (e as Error).message === "Your sign-ins are locked on this server. Unlock Vyre to use them.");
+  await assert.rejects(host.source.lookup("#Dana_Claude.setup_token", WHO), (e: unknown) => (e as { code?: string }).code === "engine.vault_locked" && (e as Error).message === "Your Vault key is not on this server, so your sign-in cannot be opened. Your Mine items open while you are signed in: open Vyre on your device and sign in.");
 });
 
 test("a Vault port that fails after access was granted does not leak what it said", async () => {

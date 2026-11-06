@@ -15,7 +15,6 @@ export type ShellKey =
   | { type: "close-tab" }
   | { type: "search" }
   | { type: "report" }
-  | { type: "lock" }
   | { type: "sidebar" };
 
 /** Which shell command a key press is, or null when the shell leaves it alone. */
@@ -32,14 +31,12 @@ export function shellKey(e: KeyLike): ShellKey | null {
   if (k === "t") return { type: "new-tab" };
   if (k === "w") return { type: "close-tab" };
   if (k === "k") return { type: "search" };
-  if (k === "l") return { type: "lock" };
   return null;
 }
 
 /** The keys as the menus and tooltips print them, in one place so the documented table and the handler agree. */
 export const SHELL_KEYS: readonly { keys: string; does: string }[] = [
   { keys: "Cmd-K", does: "Search everything" },
-  { keys: "Cmd-L", does: "Lock Vyre, or unlock it" },
   { keys: "Cmd-T", does: "New tab" },
   { keys: "Cmd-W", does: "Close tab" },
   { keys: "Shift-Cmd-\\", does: "Hide or show the sidebar" },

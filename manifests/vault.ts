@@ -38,6 +38,7 @@ const providerRow = t.obj({
   keepsNothing: t.opt({ ...t.bool(), description: 'An owner or admin said this account keeps nothing of what it is sent. A local model always does; every other account starts as no' }),
   address: t.opt(t.str({ description: 'The address a local model or custom endpoint is reached at' })), keyless: t.opt(t.bool()),
   spaceKey: t.opt(t.bool()),
+  unopenable: t.opt({ ...t.bool(), description: 'The account is signed in but its saved value cannot be opened with the keys this Space has (saved under an older key): it reads "Can\'t be opened, sign in again"' }),
   identity: t.opt(t.str({ description: 'The account a subscription sign-in belongs to, as the provider named it at sign-in (an email, else the organization)', examples: ['dana@example.com'] })),
   displayName: t.opt(t.str({ description: 'What a sign-in reads by in the composer and pickers: the name the person gave it, else the provider and its account. Never a counter', examples: ['Claude Code, dana@example.com'] })),
   aliases: t.opt(t.arr(id.handle, { description: 'Handles of sign-ins of the same account that were folded into this row; they lead here' })),
@@ -248,7 +249,7 @@ export default defineManifest({
       in: {}, out: spaceKeyRow, perm: 'policy.manage', gate: { act: 'delete', when: "actor.kind != 'person'" }, audit: 'always', offline: 'online', emits: ['provider.removed', 'vault.item_deleted'],
     }),
     write('providers.mark_signin_needed', 'System: the engine found a sign-in missing or refused when a turn ran on this account; the account reads "Sign in again" in Settings until it is signed in (a person\'s own account only; an API key is never marked here)', {
-      in: { handle: handleField }, out: { marked: t.bool() }, level: 'member', audit: 'sensitive', offline: 'online', emits: ['provider.updated'],
+      in: { handle: handleField, why: t.opt(t.str({ description: 'unopenable: the saved value could not be opened' })) }, out: { marked: t.bool() }, level: 'member', audit: 'sensitive', offline: 'online', emits: ['provider.updated'],
     }),
     write('providers.space_key.use', 'System: the engine asks to run one turn on the Space AI key for the person it acts for. Answers the handle, never the value; each use is an audit row', {
       in: { handle: handleField }, out: { handle: id.handle, itemId: id.vaultItem }, level: 'member', audit: 'sensitive', offline: 'online', emits: ['vault.used'], errors: ['validation.not_found'],

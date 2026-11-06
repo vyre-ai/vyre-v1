@@ -47,6 +47,7 @@ const ready = new WeakSet<object>();
 export function ensureProviders(ctx: VaultCtx): void {
   ensure(ctx);
   if (ready.has(ctx.db)) return;
+  ctx.db.run(`CREATE TABLE IF NOT EXISTS vault_provider_unopenable ("providerId" TEXT PRIMARY KEY, "at" INTEGER NOT NULL)`);
   try { ctx.db.all(`SELECT "id" FROM vault_provider WHERE "id" = ?`, "probe"); } catch { for (const s of statements(providersSql)) ctx.db.run(s); }
   try { ctx.db.all(`SELECT "key" FROM vault_provider_def WHERE "key" = ?`, "probe"); } catch { for (const s of statements(defsSql)) ctx.db.run(s); }
   try { ctx.db.all(`SELECT "handle" FROM vault_provider_alias WHERE "handle" = ?`, "probe"); ctx.db.all(`SELECT "providerId" FROM vault_provider_identity WHERE "providerId" = ?`, "probe"); } catch { for (const s of statements(identitySql)) ctx.db.run(s); }
@@ -95,6 +96,7 @@ function rowOut(ctx: VaultCtx, p: Row, used?: { tokens: number; costCents: numbe
     spaceMayUse: num(p, "spaceMayUse") === 1, state: sub && str(p, "state") === "ok" && !hasSignin(item) ? "needs_sign_in" : str(p, "state"), keepsNothing: keepsNothingOf(ctx, p),
     ...(address ? { address: str(address, "address") } : {}), ...(c?.keyless || str(p, "connection") === "local_model" ? { keyless: true } : {}),
     ...(spaceKey !== null && spaceKey === str(p, "id") ? { spaceKey: true } : {}),
+    ...(sub && str(p, "state") === "needs_sign_in" && first(ctx.db.all(`SELECT "providerId" FROM vault_provider_unopenable WHERE "providerId" = ?`, str(p, "id"))) ? { unopenable: true } : {}),
   };
 }
 
@@ -363,7 +365,9 @@ async function keepSignin(ctx: VaultCtx, providerKey: string, who: { id: string;
     ? mine.find((p) => identityOf(ctx, str(p, "id"))?.id === who.id)
     : nameless.find((p) => !older.has(str(p, "id"))) ?? nameless[nameless.length - 1];
   if (same) {
-    await itemUpdate(ctx, { itemId: str(same, "itemId"), fieldsSet: fields });
+    // an item no key can open (saved under an older key) is REPLACED by this sign-in: the same item, handle, name and history, under the current key
+    await itemUpdate(ctx, { itemId: str(same, "itemId"), fieldsSet: fields, replaceUnopenable: true });
+    ctx.db.run(`DELETE FROM vault_provider_unopenable WHERE "providerId" = ?`, str(same, "id"));
     if (who) setIdentity(ctx, str(same, "id"), who);
     if (str(same, "state") !== "ok") {
       ctx.db.run(`UPDATE vault_provider SET "state" = ? WHERE "id" = ?`, "ok", str(same, "id"));
@@ -554,13 +558,14 @@ export async function customRemove(ctx: VaultCtx, input: { key: string }) {
  * System: a turn found this account's sign-in missing or refused. The person's own subscription account reads "Sign in again" (needs_sign_in) until the sign-in is done;
  * a key, a Shared account and an account of someone else are never marked here.
  */
-export function markSigninNeeded(ctx: VaultCtx, input: { handle: string }): { marked: boolean } {
+export function markSigninNeeded(ctx: VaultCtx, input: { handle: string; why?: string }): { marked: boolean } {
   ensureProviders(ctx);
   const want = String(input.handle ?? "").replace(/^#/, "").split(".")[0]!.toLowerCase();
   if (want === "") return { marked: false };
-  const mine = rowsOf(ctx.db.all(`SELECT * FROM vault_provider WHERE "owner" = ? AND "connection" = 'subscription' AND "scope" = 'mine'`, me(ctx))).filter(live);
+  const mine = rowsOf(ctx.db.all(`SELECT * FROM vault_provider WHERE "owner" = ? AND "connection" = ? AND "scope" = ?`, me(ctx), "subscription", "mine")).filter(live);
   const p = mine.find((r) => str(first(ctx.db.all(`SELECT * FROM vault_meta WHERE id = ?`, str(r, "itemId"))), "handle").replace(/^#/, "").toLowerCase() === want);
   if (!p) return { marked: false };
+  if (input.why === "unopenable") { ctx.db.run(`DELETE FROM vault_provider_unopenable WHERE "providerId" = ?`, str(p, "id")); ctx.db.run(`INSERT INTO vault_provider_unopenable ("providerId", "at") VALUES (?, ?)`, str(p, "id"), ctx.now()); }
   if (str(p, "state") !== "needs_sign_in") {
     ctx.db.run(`UPDATE vault_provider SET "state" = ? WHERE "id" = ?`, "needs_sign_in", str(p, "id"));
     ctx.emit("provider.updated", `entity/${str(p, "id")}`, { providerId: str(p, "id"), state: "needs_sign_in" }, { vis: "participants" });

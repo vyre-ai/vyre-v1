@@ -142,3 +142,13 @@ test("sections, search and the arrow keys", () => {
   assert.equal(stepIndex(2, 3, 1), 2, "stays inside the list");
   assert.equal(stepIndex(0, 0, 1), -1);
 });
+
+test("an account whose saved item cannot be opened reads 'Can't be opened, sign in again' in the list and in its state words", async () => {
+  const { stateWords } = await import("../providers/model.ts");
+  const it = item({ id: "p", name: "Codex, irfad47@icloud.com", kind: "ai_subscription" });
+  const prov = { via: "Sign in with Codex", scope: "mine", unopenable: true, state: "needs_sign_in" } as never;
+  assert.equal(secondLine(it, prov), "Can't be opened, sign in again");
+  assert.equal(secondLine(it, { via: "Sign in with Codex", scope: "mine", state: "needs_sign_in" } as never), "Sign in with Codex · Mine");
+  assert.equal(stateWords("needs_sign_in", true), "Can't be opened, sign in again");
+  assert.equal(stateWords("needs_sign_in"), "Needs you to sign in again");
+});

@@ -25,11 +25,11 @@ export function rememberPick(db: Db, person: string, agent: string, pick: Pick, 
   for (const a of [agent, ANY]) db.run("INSERT OR REPLACE INTO engine_last_pick (person, agent, model, provider, effort, at) VALUES (?, ?, ?, ?, ?, ?)", person, a, pick.model, pick.provider, pick.effort, now);
 }
 
-/** What a new chat of this agent starts on for this person: their last pick for the agent, else their last pick of any agent. */
+/** What a new chat starts on for this person (owner, 6 Nov): the last pick they made anywhere, whichever agent it was for, so nothing is picked twice; their last pick for this agent only when no pick of any agent is kept. */
 export function recallPick(db: Db, person: string, agent: string): Pick | null {
   ensure(db);
   const rows = db.all("SELECT agent, model, provider, effort FROM engine_last_pick WHERE person = ? AND agent IN (?, ?)", person, agent, ANY) as Array<{ agent: string; model: string; provider: string | null; effort: string | null }>;
-  const r = rows.find((x) => x.agent === agent) ?? rows.find((x) => x.agent === ANY);
+  const r = rows.find((x) => x.agent === ANY) ?? rows.find((x) => x.agent === agent);
   return r ? { model: r.model, provider: r.provider, effort: r.effort } : null;
 }
 
