@@ -228,7 +228,7 @@ export function createBridge(o: BridgeOptions): Bridge {
       const exit = e.code === "engine.cli_error" ? /(?:exited|exit(?:ed)? with|code) (?:code )?(-?\d{1,3})\b|signal (SIG[A-Z]+)/i.exec(e.message ?? "") : null;
       // a server setup cause in the engine's own words (the sandbox could not start, the image is not there): a fixed word, never the text, so the card can say it will keep failing until fixed
       const why = e.code === "engine.cli_error" ? serverCause(e.message ?? "") : undefined;
-      return { type: "turn_status", v: 1, data: { state: "failed", turnId: e.turnId, code: e.code, ...(why ? { why } : {}), ...(detail ? { detail } : {}), ...(program ? { program } : {}), ...(setup ? { setup } : {}), ...(reason ? { reason } : {}), ...(exit ? { exit: exit[1] ?? exit[2] } : {}), ...(account ? { account } : {}), ...(trouble ? { cli: trouble.program, cliMissing: trouble.missing } : {}) } };
+      return { type: "turn_status", v: 1, data: { state: "failed", turnId: e.turnId, code: e.code, ...(why ? { why } : {}), ...(detail ? { detail } : {}), ...(program ? { program } : {}), ...(setup ? { setup } : {}), ...(reason ? { reason } : {}), ...(exit ? { exit: exit[1] ?? exit[2] } : {}), ...(e.code === "provider.rate_limited" && typeof e.resetsAt === "number" && Number.isFinite(e.resetsAt) ? { resetsAt: Math.trunc(e.resetsAt) } : {}), ...(account ? { account } : {}), ...(trouble ? { cli: trouble.program, cliMissing: trouble.missing } : {}) } };
     }
     return { type: "turn_status", v: 1, data: { state: "cancelled", turnId: e.turnId, ...(e.type === "turn.cancelled" && e.reason ? { reason: e.reason } : {}) } };
   };

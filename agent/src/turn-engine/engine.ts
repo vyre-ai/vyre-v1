@@ -471,6 +471,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
     // the provider's dollar figure stands only when every call of the turn reported one
     let usages = 0, priced = 0;
     let lastCode = "";
+    let failResetsAt: number | undefined;
     turnRows.push(turn);
     if (turnRows.length > KEEP_TURNS) turnRows.splice(0, turnRows.length - KEEP_TURNS);
     const run: Running = { turnId: turn.id, agentId: item.agentId, asker, qseq: item.qseq, session: null, cancelled: false, lostLease: false };
@@ -708,6 +709,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
             }
             flush("text");
             turn.error = { code: ev.code, message: ev.message };
+            if (ev.resetsAt !== undefined) failResetsAt = ev.resetsAt;
             ended = true;
             break;
           }
@@ -781,7 +783,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
       const n = streak?.code === code ? streak.n + 1 : 1;
       failStreak.set(pk, { code, n });
       if (PARK_CODES.has(code) || n >= STREAK_PARK) lockedPark.set(pk, { threadId: st.thread.id, agentId: item.agentId, asker, messageId: item.messageId, from: item.from, since: now(), code, ...(turn.error?.message ? { message: turn.error.message.slice(0, 300) } : {}), repeat: !PARK_CODES.has(code) });
-      emit({ type: "turn.failed", threadId: st.thread.id, turnId: turn.id, agentId: turn.agentId, code: turn.error?.code ?? "engine_error", ...(paying ? { account: { ref: paying.ref, driver: paying.driver } } : {}), ...(turn.error?.message ? { message: turn.error.message.slice(0, 300) } : {}) });
+      emit({ type: "turn.failed", threadId: st.thread.id, turnId: turn.id, agentId: turn.agentId, code: turn.error?.code ?? "engine_error", ...(paying ? { account: { ref: paying.ref, driver: paying.driver } } : {}), ...(turn.error?.message ? { message: turn.error.message.slice(0, 300) } : {}), ...(failResetsAt !== undefined && turn.error?.code === "provider.rate_limited" ? { resetsAt: failResetsAt } : {}) });
     }
     // The agent's answer is a message like any other: it can @mention the next agent, which counts a hop.
     // a turn that was stopped by a hook and then said nothing says what happened itself, so the stop is never the last thing in the chat

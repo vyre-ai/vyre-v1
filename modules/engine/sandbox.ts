@@ -140,6 +140,21 @@ export function scratchFolder(dataDir: string, person: string, platform: NodeJS.
   return fs.realpathSync(dir);
 }
 
+/**
+ * Codex starts its own sandbox for the commands it runs (Seatbelt on a Mac, bubblewrap on Linux) and cannot do that inside ours: on a Mac Vyre's profile hides sandbox-exec on purpose, and a bubblewrap
+ * run as root has no right to make the second user namespace ("bwrap: setting up uid map: Operation not permitted", seen on a real Codex 0.166 turn, 6 Nov 2026). Every shell command and file write
+ * of a turn that was to be writable then failed. Where that is so, the Codex run that would be workspace-write is told its own sandbox is off (danger-full-access): it still runs entirely inside
+ * Vyre's wall, which is the one that confines files and network. A read-only run keeps `read-only` (Ask first and Plan stay unable to write: Codex's commands fail rather than run unconfined).
+ * As a normal user on Linux and in WSL the nested sandbox works, and nothing is changed there.
+ */
+export function codexInWall(argv: readonly string[], nested: boolean): readonly string[] {
+  if (nested || (argv[0] ?? "").split(/[\\/]/).pop()!.replace(/\.exe$/i, "") !== "codex") return argv;
+  return argv.map((a) => (a === 'sandbox_mode="workspace-write"' ? 'sandbox_mode="danger-full-access"' : a));
+}
+/** Whether a second sandbox can start inside this one: a Mac's cannot (sandbox-exec is hidden), a root bubblewrap's cannot. */
+export const nestedSandboxWorks = (kind: "bwrap" | "seatbelt" | "wsl" | "lowil" | string, uid: number | null = typeof process.getuid === "function" ? process.getuid() : null): boolean =>
+  kind === "seatbelt" ? false : kind === "bwrap" ? uid !== 0 : true;
+
 const sandboxId = (person: string): string => `vyre-sbx-${part(person).toLowerCase().replace(/_/g, "-")}`;
 
 /**
@@ -148,8 +163,9 @@ const sandboxId = (person: string): string => `vyre-sbx-${part(person).toLowerCa
  * folder is mounted with the chat's shared folder and nothing else of the chat: another agent's folder beside it stays closed.
  */
 export function sandboxWrap(plan: SandboxPlan, o: { homeFromScratch?: boolean; access?: EngineAccess; basePath?: string } = {}): NonNullable<LocalLauncherOptions["wrap"]> {
-  return (argv, start) => {
+  return (argv0, start) => {
     const s = plan.sandbox;
+    const argv = codexInWall(argv0, nestedSandboxWorks(s.kind));
     if (s.kind === "docker" || s.kind === "server") {
       throw new SandboxError("sandbox.unavailable", s.reason ?? "this engine has to run in the person's container, which cannot start a local engine yet");
     }

@@ -98,7 +98,7 @@ export type CliEvent =
   | { type: "read" }
   /** The engine compacted its own context (Claude Code's compact_boundary): the tokens before and, when it said, after. */
   | { type: "compacted"; before?: number; after?: number }
-  | { type: "end"; error?: { code?: string; message: string } };
+  | { type: "end"; error?: { code?: string; message: string; /** A limit refusal that said when the account is usable again (epoch ms). */ resetsAt?: number } };
 
 export interface CliDecoder {
   /** One decoder per process: it may keep state. A line that is not JSON, or of a shape it does not know, yields nothing. */

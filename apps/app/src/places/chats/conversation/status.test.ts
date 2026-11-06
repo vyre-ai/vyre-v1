@@ -235,3 +235,20 @@ test("an AI sign-in that cannot be opened says so and offers the sign-in, not a 
   assert.equal(e.message, "Your AI sign-in can't be opened on this device.");
   assert.deepEqual(e.next, [{ key: "connect_ai", label: "Sign in again" }]);
 });
+
+test("a usage limit that said when it lifts puts the time in the cause", async () => {
+  const { resetWords } = await import("./status.ts");
+  const now = new Date(2026, 10, 6, 10, 0).getTime();
+  assert.match(resetWords(new Date(2026, 10, 6, 15, 12).getTime(), now), /^at 3:12\s?PM$/);
+  assert.match(resetWords(new Date(2026, 10, 9, 3, 12).getTime(), now), /^on Nov 9 at 3:12\s?AM$/);
+});
+
+test("a failed turn that hit a usage limit says when the account is usable again", () => {
+  const v = statusView(block({ state: "failed", code: "provider.rate_limited", turnId: "t1", resetsAt: Date.now() + 3 * 3_600_000 }));
+  assert.equal(v?.kind, "error");
+  const data = (v as { block: { data: { message: string; cause?: string } } }).block.data;
+  assert.equal(data.message, "Your AI account reached its usage limit.");
+  assert.match(data.cause ?? "", /can be used again (at|on) .*another account/);
+  const plain = statusView(block({ state: "failed", code: "provider.rate_limited", turnId: "t1" }));
+  assert.equal((plain as { block: { data: { cause?: string } } }).block.data.cause, "Wait for it to reset, or use another account.");
+});
