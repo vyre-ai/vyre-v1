@@ -35,7 +35,7 @@ export function ThreadsTab({ deps, window }: { deps: PaneDeps; window?: VirtualW
     { label: "Open", onSelect: () => data.nav.openThread(t.threadId, "here") },
     { label: "Open to the Side", onSelect: () => data.nav.openThread(t.threadId, "side") },
     { separator: true as const },
-    { label: "Copy Link", onSelect: () => void copyText(deps, `vyre://thread/${t.threadId}`) },
+    { label: "Copy link", onSelect: () => void copyText(deps, `vyre://thread/${t.threadId}`) },
   ];
   const { add, row: addRow } = usePaneAdd(deps);
   const entries: Entry[] = [addRow];

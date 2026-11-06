@@ -17,8 +17,8 @@ const labels = (e: ReturnType<typeof goalMenuEntries>): string[] => e.map((x) =>
 test("menuStatus maps the goal's states to the menu's; only the owner manages", () => {
   assert.deepEqual((["active", "waiting", "planning", "stuck", "paused", "done", "missed", "stopped", "draft"] as const).map(menuStatus), ["running", "running", "running", "stuck", "paused", "done", "stopped", "stopped", "done"]);
   const d = { run: async () => true, ask: () => undefined };
-  assert.deepEqual(labels(goalMenuEntries({ id: "gol_1", title: "T", status: "active", owner: "usr_me" }, "usr_me", d)).filter((x) => x !== "-"), ["Pause", "Mark Stuck…", "Report Progress…", "Copy Link", "Stop Goal…"]);
-  assert.deepEqual(labels(goalMenuEntries({ id: "gol_1", title: "T", status: "active", owner: "usr_other" }, "usr_me", d)).filter((x) => x !== "-"), ["Copy Link"], "someone else's goal: no changing items; Open is left out without a page to open");
+  assert.deepEqual(labels(goalMenuEntries({ id: "gol_1", title: "T", status: "active", owner: "usr_me" }, "usr_me", d)).filter((x) => x !== "-"), ["Pause", "Mark Stuck…", "Report Progress…", "Copy link", "Stop Goal…"]);
+  assert.deepEqual(labels(goalMenuEntries({ id: "gol_1", title: "T", status: "active", owner: "usr_other" }, "usr_me", d)).filter((x) => x !== "-"), ["Copy link"], "someone else's goal: no changing items; Open is left out without a page to open");
 });
 
 test("a typed answer becomes the capability call: stuck with its reason and two ways on, or a report", () => {

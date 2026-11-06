@@ -366,3 +366,8 @@ export function orderFolders<T extends { folderId: string; name: string }>(folde
 export function openByDefault(f: FolderRow): boolean {
   return f.parentId === undefined && f.subject !== undefined && f.subject.kind !== "space" && f.subject.id === undefined;
 }
+
+/** Where a folder can be moved from its menu: the top of Files, then the folders at the top, never the folder itself. */
+export function moveTargets(folders: readonly { folderId: string; name: string }[], movingId: string): { label: string; to: string | null }[] {
+  return [{ label: "Top of Files", to: null }, ...folders.filter((f) => f.folderId !== movingId).map((f) => ({ label: f.name, to: f.folderId }))];
+}

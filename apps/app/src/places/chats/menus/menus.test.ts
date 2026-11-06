@@ -24,7 +24,7 @@ test("agent: an admin sees the whole menu, in groups, danger last and alone", ()
 });
 
 test("agent: the words follow the state; a member loses Pause, Give a Computer and Delete", () => {
-  assert.ok(labels(agentMenu(agent({ status: "paused", starred: true, muted: true, computer: { computerId: "c", asleep: true } }), agentDo)).join("|").includes("Resume|-|Remove Star|Unmute"));
+  assert.ok(labels(agentMenu(agent({ status: "paused", starred: true, muted: true, computer: { computerId: "c", asleep: true } }), agentDo)).join("|").includes("Resume|-|Remove star|Unmute"));
   assert.ok(labels(agentMenu(agent({ computer: { computerId: "c", asleep: true } }), agentDo)).includes("Wake Its Computer"));
   const m = labels(agentMenu(agent({ manage: false }), agentDo));
   assert.ok(!m.some((x) => /^(Pause|Resume|Delete|Wake|Sleep|Give)/.test(x)), m.join("|"));
@@ -59,7 +59,7 @@ const chatDo: ChatDo = { open: rec("open"), openTab: rec("tab"), rename: rec("re
 const chat = (o: Partial<ChatFacts> = {}): ChatFacts => ({ starred: false, unread: false, local: false, archived: false, withPeople: false, muted: false, ...o });
 test("chat: open, change, archive, then leave or delete last", () => {
   assert.deepEqual(labels(chatMenu(chat(), chatDo)), ["Open", "Open in New Tab", "-", "Rename", "Star", "Mark as Unread", "Mute", "-", "Archive", "-", "Delete chat"]);
-  assert.deepEqual(labels(chatMenu(chat({ withPeople: true, unread: true, starred: true, archived: true, muted: true }), chatDo)), ["Open", "Open in New Tab", "-", "Rename", "Remove Star", "Mark as Read", "Unmute", "-", "Unarchive", "-", "Leave chat"]);
+  assert.deepEqual(labels(chatMenu(chat({ withPeople: true, unread: true, starred: true, archived: true, muted: true }), chatDo)), ["Open", "Open in New Tab", "-", "Rename", "Remove star", "Mark as Read", "Unmute", "-", "Unarchive", "-", "Leave chat"]);
   assert.deepEqual(labels(chatMenu(chat({ local: true }), chatDo)), ["Open", "Open in New Tab", "-", "Star", "-", "Archive"], "a row the server does not know yet has nothing to rename, mark, mute or delete");
   assert.ok(!labels(chatMenu(chat(), { ...chatDo, openTab: undefined })).includes("Open in New Tab"));
   const hints = Object.fromEntries(rows(chatMenu(chat(), chatDo)).map((x) => [x.label, x.hint]));
@@ -69,9 +69,9 @@ test("chat: open, change, archive, then leave or delete last", () => {
 const channelDo: ChannelDo = { open: rec("open"), markRead: rec("read"), markUnread: rec("unread"), star: rec("star"), mute: rec("mute"), copyLink: rec("link"), leave: rec("leave"), archive: rec("archive") };
 test("channel: read state, star, mute, copy link; an admin may archive, a member may leave", () => {
   const f = { name: "launch", unread: true, starred: false, muted: false, member: true, admin: true };
-  assert.deepEqual(labels(channelMenu(f, channelDo)), ["Open", "-", "Mark as Read", "Star", "Mute", "-", "Copy Link", "-", "Archive Channel", "Leave Channel"]);
-  assert.deepEqual(labels(channelMenu({ ...f, unread: false, starred: true, muted: true, admin: false }, channelDo)), ["Open", "-", "Mark as Unread", "Remove Star", "Unmute", "-", "Copy Link", "-", "Leave Channel"]);
-  assert.deepEqual(labels(channelMenu({ ...f, member: false, admin: false }, channelDo)), ["Open", "-", "Mark as Read", "Star", "Mute", "-", "Copy Link"], "someone who is not in it can only look");
+  assert.deepEqual(labels(channelMenu(f, channelDo)), ["Open", "-", "Mark as Read", "Star", "Mute", "-", "Copy link", "-", "Archive Channel", "Leave Channel"]);
+  assert.deepEqual(labels(channelMenu({ ...f, unread: false, starred: true, muted: true, admin: false }, channelDo)), ["Open", "-", "Mark as Unread", "Remove star", "Unmute", "-", "Copy link", "-", "Leave Channel"]);
+  assert.deepEqual(labels(channelMenu({ ...f, member: false, admin: false }, channelDo)), ["Open", "-", "Mark as Read", "Star", "Mute", "-", "Copy link"], "someone who is not in it can only look");
   assert.equal(rows(channelMenu(f, channelDo)).at(-1)!.danger, true);
 });
 
@@ -127,7 +127,7 @@ test("the writes: each item is one capability with its own input", async () => {
   ]);
 });
 
-test("the extra items come with what the sidebar can do: Poke, Add to a Chat, Share, Edit Instructions for an agent; Call, Add to a Chat, Copy @name for a person; Add People, Copy Link, Notifications for a chat and a channel", () => {
+test("the extra items come with what the sidebar can do: Poke, Add to a Chat, Share, Edit Instructions for an agent; Call, Add to a Chat, Copy @name for a person; Add People, Copy link, Notifications for a chat and a channel", () => {
   calls.length = 0;
   const more = { poke: rec("poke"), addToChat: rec("addchat"), share: rec("share"), editInstructions: rec("instr") };
   const a = agentMenu(agent(), { ...agentDo, ...more });
@@ -139,10 +139,10 @@ test("the extra items come with what the sidebar can do: Poke, Add to a Chat, Sh
   const p = personMenu({ name: "Sara", dm: true, unread: false, muted: false }, { ...personDo, call: rec("call"), addToChat: rec("addchat"), copyHandle: rec("copy") });
   assert.deepEqual(labels(p), ["Message Sara", "Call", "-", "Add to a Chat\u2026", "Copy @name", "-", "Mark as Unread", "Mute"]);
   const c = chatMenu(chat(), { ...chatDo, addPeople: rec("addpeople"), copyLink: rec("link"), notifications: rec("notif") });
-  assert.deepEqual(labels(c), ["Open", "Open in New Tab", "-", "Rename", "Star", "Mark as Unread", "Mute", "Notifications\u2026", "-", "Add People\u2026", "Copy Link", "-", "Archive", "-", "Delete chat"]);
-  assert.ok(!labels(chatMenu(chat({ local: true }), { ...chatDo, addPeople: rec("x"), copyLink: rec("x"), notifications: rec("x") })).some((x) => /Add People|Copy Link|Notifications/.test(x)), "a chat the server does not know has none of these");
+  assert.deepEqual(labels(c), ["Open", "Open in New Tab", "-", "Rename", "Star", "Mark as Unread", "Mute", "Notifications\u2026", "-", "Add People\u2026", "Copy link", "-", "Archive", "-", "Delete chat"]);
+  assert.ok(!labels(chatMenu(chat({ local: true }), { ...chatDo, addPeople: rec("x"), copyLink: rec("x"), notifications: rec("x") })).some((x) => /Add People|Copy link|Notifications/.test(x)), "a chat the server does not know has none of these");
   const ch = channelMenu({ name: "launch", unread: false, starred: false, muted: false, member: true, admin: false }, { ...channelDo, invite: rec("invite"), notifications: rec("notif") });
-  assert.deepEqual(labels(ch), ["Open", "-", "Mark as Unread", "Star", "Mute", "Notifications\u2026", "-", "Invite\u2026", "Copy Link", "-", "Leave Channel"]);
+  assert.deepEqual(labels(ch), ["Open", "-", "Mark as Unread", "Star", "Mute", "Notifications\u2026", "-", "Invite\u2026", "Copy link", "-", "Leave Channel"]);
   assert.ok(!labels(channelMenu({ name: "x", unread: false, starred: false, muted: false, member: false, admin: false }, { ...channelDo, invite: rec("invite") })).includes("Invite\u2026"), "only a member invites");
 });
 

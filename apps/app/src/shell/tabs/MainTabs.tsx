@@ -75,13 +75,6 @@ export function MainTabs({ controller, onNavigate, onNewTab, onGoToPlace }: Main
       onPlus={() => (onNewTab === undefined ? controller.newTab(find(state.active)?.place ?? "chats") : onNewTab())}
       plusTitle="New tab (Cmd-T)"
       entries={entries}
-      menu={(key) => {
-        const tab = find(key);
-        if (tab === undefined || tab.hash === undefined || onGoToPlace === undefined) return [];
-        // ui/TabStrip reads onSelect from an extra when present (its frozen type lists label and icon only)
-        const extra = { label: `Open in ${PLACE_TITLE[tab.place]}`, onSelect: () => onGoToPlace(tab.place) };
-        return [extra];
-      }}
     />
   );
 }

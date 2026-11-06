@@ -1,7 +1,7 @@
 // Files > sidebar (spec 3.5, 2.4), drawn inside the shared place sidebar (P-L9_22, which draws the title, the collapse button and the search field): Recent, Starred and Shared with me;
 // Knowledge (Memory, Graph); then Space, holding All files, the Agents folders (each agent's face), the Projects folders and the Space's other top folders. Every row is a ui/Row (a
 // ui/FolderTree SlotRow for the folders); a folder is a drop target; dropping a file or folder on a folder moves it there. The Trash is in the list's more menu.
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Dispatch, ReactElement, SetStateAction } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Avatar } from "../../../../../../ui/src/Avatar/index.tsx";
@@ -12,7 +12,7 @@ import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import { each, matchRows } from "../../../shell/sidebar/model.ts";
 import type { SidebarSlotApi } from "../../../shell/sidebar/index.ts";
 import { useFilesData, useLive, useOptionalFilesData, useSource } from "./data.tsx";
-import { dropMoves, hasAgentFace, openByDefault, orderFolders, parsePayload, rootRank, sameWhere, spaceRoots } from "./model.ts";
+import { dropMoves, hasAgentFace, moveTargets, openByDefault, orderFolders, parsePayload, rootRank, sameWhere, spaceRoots } from "./model.ts";
 import type { FolderRow, TreeRoots, Where } from "./model.ts";
 import { KNOW_ROWS, rowOf } from "../memory/know.ts";
 import { Glyph } from "./parts.tsx";
@@ -89,6 +89,8 @@ export function TreeLoading(): ReactElement {
 
 /** What the folder rows share: which folders are open, the drop highlight, where the list is, and what a click, a drop and the menu do. */
 interface RowCtx {
+  /** Where the folder menu was opened: the Move picker opens there. */
+  menuAt: { current: { x: number; y: number } };
   openF: Record<string, boolean>;
   setOpenF: Dispatch<SetStateAction<Record<string, boolean>>>;
   over: string | null;
@@ -150,7 +152,7 @@ function FolderLine({ f, depth, c, flat = false, within }: { f: FolderRow; depth
         id={`folder-${fid}`} title={f.name} selected={fid === c.folderId} over={c.over === fid}
         leadWidth={depth * DEPTH_PX + 18 + 7 + (face ? 18 : 16) + 6} lead={lead} trail={face ? (c.waiting.has(f.subject?.id ?? "") ? <View style={styles.attn} accessibilityLabel="Waiting for you" testID={`folder-attention-${fid}`} /> : undefined) : dot ? dot : f.fileCount > 0 ? <Text style={styles.count} testID={`folder-count-${fid}`}>{f.fileCount}</Text> : undefined}
         onPress={() => c.goFolder(fid)} dom={drop}
-        onMenu={(x, y) => c.menu.show(folderMenu(node, isOpen, kids > 0, c.handlers), x, y, "context", { label: `Folder ${f.name}` })}
+        onMenu={(x, y) => { c.menuAt.current = { x, y }; c.menu.show(folderMenu(node, isOpen, kids > 0, c.handlers), x, y, "context", { label: `Folder ${f.name}` }); }}
       />
       {isOpen && !flat ? <Kids parent={fid} depth={depth + 1} c={c} query="" within={f.source?.mountId} /> : null}
     </View>
@@ -189,6 +191,7 @@ function Tree({ query, slot }: { query: string; slot?: SidebarSlotApi | undefine
   const [openF, setOpenF] = useState<Record<string, boolean>>({});
   const mounts = useMountStates(data.call);
   const [over, setOver] = useState<string | null>(null);
+  const menuAt = useRef<{ x: number; y: number }>({ x: 8, y: 48 });
   const q = query.trim();
   const rootRows: TreeRoots = roots.status === "ready" ? roots.data.roots : [];
   const virtual = rootRows.filter((r) => r.kind === "virtual");
@@ -209,7 +212,7 @@ function Tree({ query, slot }: { query: string; slot?: SidebarSlotApi | undefine
     for (const m of dropMoves(parsePayload(payload), target, () => null)) void data.call(m.cap, m.input);
   };
   const c: RowCtx = {
-    mounts, openF, setOpenF, over, setOver, folderId, goFolder, menu, onDrop, rank: rootRank(rootRows), allow: spaceRoots(rootRows), waiting,
+    mounts, menuAt, openF, setOpenF, over, setOver, folderId, goFolder, menu, onDrop, rank: rootRank(rootRows), allow: spaceRoots(rootRows), waiting,
     handlers: {
       onSelect: goFolder,
       onToggle: (id, open) => setOpenF((o) => ({ ...o, [id]: open })),
@@ -217,6 +220,14 @@ function Tree({ query, slot }: { query: string; slot?: SidebarSlotApi | undefine
       ...(data.nav.shareFolder ? { onShare: (n: { id: string }) => data.nav.shareFolder?.(n.id) } : {}),
       ...(data.nav.connectFolder ? { onMount: (n: { id: string }) => data.nav.connectFolder?.(n.id) } : {}),
       onRename: (n) => data.nav.renameEntry("folder", n.id, n.name),
+      // Move... lists where the folder can go (the top of Files and the folders at the top) and moves it with folders.move; a folder cannot go into itself
+      onMove: (n) => {
+        const { x, y } = menuAt.current;
+        void Promise.resolve(data.call("files.list", {})).then((out) => {
+          const go = (parentId: string | null): void => { void Promise.resolve(data.call("folders.move", { folderId: n.id, parentId })).catch(() => undefined); };
+          menu.show([{ head: `Move ${n.name} to` }, ...moveTargets((out as { folders?: { folderId: string; name: string }[] } | null)?.folders ?? [], n.id).map((t) => ({ label: t.label, onSelect: () => go(t.to) }))], x, y, "other", { label: "Move" });
+        }, () => undefined);
+      },
       onDelete: (n) => void data.call("folders.delete", { folderId: n.id }),
     },
   };

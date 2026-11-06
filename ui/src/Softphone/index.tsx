@@ -680,7 +680,7 @@ export function CallBar(p: SoftphoneViewProps): ReactElement {
           <IconButton label={p.muted === true ? "Unmute" : "Mute"} icon={p.muted === true ? "micoff" : "mic"} on={p.muted === true} onPress={() => p.onMute?.()} testID="softphone-mute" />
           <IconButton label={held ? "Resume" : "Hold"} icon="pause" on={held} onPress={() => p.onHold?.()} testID="softphone-hold" />
           <IconButton label="Keypad" icon="pad" on={pad} onPress={() => setPad((v) => !v)} testID="softphone-keypad" />
-          <IconButton label="Transfer" icon="xfer" onPress={(x, y) => menu.show(transferMenu(targets, (n) => p.onTransfer?.(n)), x, y, "context", { label: "Transfer call" })} testID="softphone-transfer" />
+          {targets.length > 0 ? <IconButton label="Transfer" icon="xfer" onPress={(x, y) => menu.show(transferMenu(targets, (n) => p.onTransfer?.(n)), x, y, "context", { label: "Transfer call" })} testID="softphone-transfer" /> : null}
           <IconButton label={rec === "off" ? "Record" : "Stop recording"} icon="rec" tone="rec" on={rec !== "off"} onPress={() => p.onRecord?.()} testID="softphone-record" />
         </View>
       )}

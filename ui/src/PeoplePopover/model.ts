@@ -34,7 +34,7 @@ export type MemberAction = "message" | "role" | "remove" | "link" | "poke" | "se
 
 export interface MemberMenuItem { id: MemberAction; label: string; danger?: boolean }
 
-/** The right-click menu of a row: Message (a person who is not you), Change role and Remove (only when permitted, and never on yourself for Remove), Copy Link (always). */
+/** The right-click menu of a row: Message (a person who is not you), Change role and Remove (only when permitted, and never on yourself for Remove), Copy link (always). */
 export function memberMenu(row: MemberRow, perms: MemberPerms, meId: string | undefined): MemberMenuItem[] {
   const out: MemberMenuItem[] = [];
   const me = row.id === meId;

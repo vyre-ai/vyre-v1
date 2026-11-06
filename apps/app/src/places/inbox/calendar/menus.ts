@@ -20,7 +20,7 @@ export interface EventMenuHandlers {
 }
 
 /**
- * The event menu, the same as the event pane offers (lane l-calevents): Open, Edit, Join, Going? (Yes, No, Maybe when you are a guest), Prepare, Ask About This, Copy Link, Open
+ * The event menu, the same as the event pane offers (lane l-calevents): Open, Edit, Join, Going? (Yes, No, Maybe when you are a guest), Prepare, Ask About This, Copy link, Open
  * Record, Open Conversation, Move to a calendar, Duplicate, Delete (spec 3.3 flow 4). What an event does not have is left out.
  */
 export function eventMenuEntries(f: MenuFacts, h: EventMenuHandlers, mine?: "accepted" | "declined" | "tentative" | "needs_action"): MenuEntry[] {
@@ -31,7 +31,7 @@ export function eventMenuEntries(f: MenuFacts, h: EventMenuHandlers, mine?: "acc
     out.push({ separator: true }, { head: "Going?" }, ...([["accepted", "Yes"], ["declined", "No"], ["tentative", "Maybe"]] as const).map(([k, label]) => ({ label, checked: mine === k, onSelect: () => r(k) })), { separator: true });
   }
   if (h.prepare) out.push({ label: "Prepare", onSelect: h.prepare });
-  out.push({ label: "Ask About This", onSelect: h.ask }, { label: "Copy Link", onSelect: h.copyLink });
+  out.push({ label: "Ask About This", onSelect: h.ask }, { label: "Copy link", onSelect: h.copyLink });
   if (f.record) out.push({ label: "Open Record", onSelect: h.openRecord });
   if (f.conversation) out.push({ label: "Open Conversation", onSelect: h.openConversation });
   out.push({ separator: true }, { head: "Move to a calendar" });

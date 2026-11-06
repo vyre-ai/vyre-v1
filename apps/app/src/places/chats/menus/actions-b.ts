@@ -109,7 +109,7 @@ export function createMenuApiB(data: Call): MenuApiB {
   };
 }
 
-/** The address of a thing, in the one spelling every Copy Link uses. */
+/** The address of a thing, in the one spelling every Copy link uses. */
 export const vyreLink = (kind: string, id: string): string => `vyre://${kind}/${id}`;
 /** Put text on the clipboard; a device with none does nothing. */
 export function copyToClipboard(text: string): void {

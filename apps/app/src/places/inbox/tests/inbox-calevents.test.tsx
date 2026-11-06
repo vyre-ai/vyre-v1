@@ -92,7 +92,7 @@ test("a click on an event opens it in the pane: when, how it repeats, calendar, 
   assert.ok(link, "the link in the description is a link");
 });
 
-test("Going?, Prepare, Ask and Copy Link call what they say; Escape closes", async () => {
+test("Going?, Prepare, Ask and Copy link call what they say; Escape closes", async () => {
   const { s, opened, tree } = world();
   const root = await mount(createRoot, tree());
   await press(find(root, "event-body:e_lease_call"));

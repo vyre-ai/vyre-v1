@@ -75,6 +75,10 @@ export const DEFAULT_EMAIL_STYLE: EmailStyle = {
 };
 export const COLOR_LABEL: Readonly<Record<keyof EmailColors, string>> = { page: "Page", email: "Email", text: "Text", muted: "Muted text", links: "Links", button: "Button", buttonText: "Button text" };
 export const isHex = (v: string): boolean => /^#[0-9a-fA-F]{6}$/.test(v);
+/** Use brand: the brand's font, and its colour on links and the button (a colour that is not a six-digit hex is left out). */
+export function brandPatch(style: EmailStyle, brand: { color: string; font: string }): Partial<EmailStyle> {
+  return { font: brand.font, colors: { ...style.colors, ...(isHex(brand.color) ? { links: brand.color, button: brand.color } : {}) } };
+}
 
 /** Applies the Dark frame: it swaps the page, email, text and muted colours, never the brand colours. */
 function resolveStyle(style: EmailStyle | undefined, dark: boolean): EmailStyle {
@@ -560,7 +564,7 @@ export function EmailBuilder(props: EmailBuilderViewProps): ReactElement {
       setBlocks(tp.blocks); setHtml(""); setPlain(""); if (tp.subject !== undefined) setSubject(tp.subject); setSelected(null);
       commit(next, `Applied the ${tp.name} template`); props.onTemplate?.(tp.id);
     } })),
-    { label: "Save as template", onSelect: () => props.onSaveTemplate?.(blocks) },
+    ...(props.onSaveTemplate ? [{ label: "Save as template", onSelect: () => props.onSaveTemplate?.(blocks) }] : []),
   ]);
   const historyMenu = (): void => anchorMenu("history", [
     { head: "Versions" },
@@ -648,9 +652,11 @@ export function EmailBuilder(props: EmailBuilderViewProps): ReactElement {
           <Text style={s.btnText}>{narrow ? "Preview as" : `Preview as ${previewAs ?? "…"}`}</Text><MenuIcon icon={ICON.down} />
         </Pressable>
       ) : null}
-      <Pressable ref={refOf("templates")} accessibilityRole="button" accessibilityLabel="Templates" testID="em-templates" onPress={templatesMenu} style={(state) => [s.btn, (state as { hovered?: boolean }).hovered === true && s.btnOver]}>
-        <MenuIcon icon={ICON.templates} />{narrow ? null : <Text style={s.btnText}>Templates</Text>}
-      </Pressable>
+      {(props.templates?.length ?? 0) > 0 || props.onSaveTemplate ? (
+        <Pressable ref={refOf("templates")} accessibilityRole="button" accessibilityLabel="Templates" testID="em-templates" onPress={templatesMenu} style={(state) => [s.btn, (state as { hovered?: boolean }).hovered === true && s.btnOver]}>
+          <MenuIcon icon={ICON.templates} />{narrow ? null : <Text style={s.btnText}>Templates</Text>}
+        </Pressable>
+      ) : null}
       <Pressable ref={refOf("history")} accessibilityRole="button" accessibilityLabel="Version history" testID="em-history" onPress={historyMenu} style={(state) => [s.btn, (state as { hovered?: boolean }).hovered === true && s.btnOver]}><MenuIcon icon={ICON.history} /></Pressable>
       <Btn label="Comments" icon={ICON.comment} on={commentsOpen} onPress={() => setCommentsOpen((o) => !o)} testID="em-comments" />
       <Btn label="Focus" icon={ICON.focus} onPress={() => setFocusMode(true)} testID="em-focus" />
@@ -821,7 +827,7 @@ export function EmailBuilder(props: EmailBuilderViewProps): ReactElement {
 
   const pane = (
     <View style={[s.pane, narrow && s.paneNarrow]} testID="em-pane">
-      <TabStrip tabs={each(PANE_TABS, (k) => ({ key: k, title: TAB_TITLE[k] }))} active={tab} onSelect={(k) => setTab(k as PaneTab)} />
+      <TabStrip noOptions tabs={each(PANE_TABS, (k) => ({ key: k, title: TAB_TITLE[k] }))} active={tab} onSelect={(k) => setTab(k as PaneTab)} />
       <ScrollView style={s.paneBody} contentContainerStyle={s.paneContent}>
         {tab === "style" ? (
           <View testID="em-style">
@@ -830,7 +836,7 @@ export function EmailBuilder(props: EmailBuilderViewProps): ReactElement {
                 <Text style={s.sec}>Brand</Text>
                 <Row id="brand" title={props.brand.name} note={`${props.brand.color} · ${props.brand.font}`}
                   leading={<View style={[s.brandDot, { backgroundColor: props.brand.color }]}><Text style={s.brandLetter}>{props.brand.name.slice(0, 1)}</Text></View>}
-                  trailing={<Btn label="Use brand" strong onPress={() => props.onUseBrand?.()} testID="em-use-brand" />} />
+                  trailing={<Btn label="Use brand" strong onPress={() => { const b = props.brand; if (b === undefined) return; changeStyle(brandPatch(style, b), `Used the ${b.name} brand`); props.onUseBrand?.(); }} testID="em-use-brand" />} />
               </View>
             ) : null}
             <Text style={s.sec}>Email</Text>

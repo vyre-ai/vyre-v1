@@ -350,7 +350,7 @@ function Tab({ conversationId, contactId, ...props }: ContactTabProps): ReactEle
         <HeadButton icon="mail" label="Email" testID="head-email" on={chan === "email"} disabled={!(options?.channels.includes("email") ?? false)} onPress={() => pickChan("email")} />
         <HeadButton icon="sms" label="Text" testID="head-text" on={chan === "sms"} disabled={!(options?.channels.includes("sms") ?? false)} onPress={() => pickChan("sms")} />
         <HeadButton icon="call" label="Call" testID="head-call" onPress={dial} />
-        {conv.contactId ? <HeadButton icon="star" label={starred ? "Unstar" : "Star"} testID="head-star" on={starred} onPress={() => setStarMine(!starred)} /> : null}
+        {conv.contactId ? <HeadButton icon="star" label={starred ? "Remove star" : "Star"} testID="head-star" on={starred} onPress={() => setStarMine(!starred)} /> : null}
         {conv.contactId ? <HeadButton icon="bell" label={conv.followed ? "Following" : "Follow"} testID="head-follow" on={conv.followed} onPress={showFollow} /> : null}
         {phone ? null : <HeadButton icon="ask" label="Ask" testID="head-ask" text="Ask" onPress={() => props.onAsk?.(conv.contactId, { conversationId: conv.id, title: hdr?.title ?? conv.displayName })} />}
       </View>

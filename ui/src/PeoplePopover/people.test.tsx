@@ -64,7 +64,7 @@ test("a row opens the person or the agent; the footer runs its action; each plac
   } finally { restore(); }
 });
 
-test("the right-click menu: Message for another person, Change role and Remove only when permitted, never Remove on yourself, Copy Link always", () => {
+test("the right-click menu: Message for another person, Change role and Remove only when permitted, never Remove on yourself, Copy link always", () => {
   const ids = (r: MemberRow, perms = all) => memberMenu(r, perms, "usr_me").map((i) => i.id);
   assert.deepEqual(ids(rows[1]!), ["message", "role", "remove", "link"]);
   assert.deepEqual(ids(rows[0]!), ["role", "link"], "yourself: no Message, no Remove");

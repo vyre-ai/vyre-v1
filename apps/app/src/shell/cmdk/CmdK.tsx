@@ -1,6 +1,6 @@
 // Cmd-K (spec 3.0; screens shell.cmdk and shell.new-tab). The sheet is the prototype palette: a veil, a 600 px card with one search field,
 // quiet group headings, shared Rows (28 px, 44 px with a second line), a hint footer. The highlight is the quiet row wash, never a filled box.
-// Type filters live in one header menu with checkmarks and counts (no pill row). Right-click on a result: Open, Open in New Tab, Copy Link.
+// Type filters live in one header menu with checkmarks and counts (no pill row). Right-click on a result: Open, Open in New Tab, Copy link.
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
@@ -142,7 +142,7 @@ export function CmdKBody({ controller, placeholder = "Search agents, chats, peop
       items: [
         { label: "Open", onSelect: () => controller.choose(index, false) },
         { label: "Open in New Tab", onSelect: () => controller.choose(index, true) },
-        { label: "Copy Link", onSelect: () => controller.copyLink(index) },
+        { label: "Copy link", onSelect: () => controller.copyLink(index) },
       ],
       x, y,
     });

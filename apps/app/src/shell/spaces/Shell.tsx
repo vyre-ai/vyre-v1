@@ -291,6 +291,7 @@ export function Shell(props: ShellProps): ReactElement {
             groups={hub.rail()}
             active={state.place}
             onSelect={(place) => hub.go(place)}
+            onOpenInTab={(place) => hub.go(place, undefined, true)}
             {...(props.onPrefetchPlace === undefined ? {} : { onPrefetch: props.onPrefetchPlace })}
             fresh={state.fresh}
             onSettle={hub.settle}
@@ -311,6 +312,7 @@ export function Shell(props: ShellProps): ReactElement {
               groups={hub.rail()}
               active={state.place}
               onSelect={(place) => hub.go(place)}
+              onOpenInTab={(place) => hub.go(place, undefined, true)}
               {...(props.onPrefetchPlace === undefined ? {} : { onPrefetch: props.onPrefetchPlace })}
               header={spaceTile}
             />

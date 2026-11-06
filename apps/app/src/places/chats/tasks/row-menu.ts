@@ -39,7 +39,7 @@ export function taskRowEntries(f: TaskRowFacts, d: TaskRowDo): MenuEntry[] {
     { label: "Snooze…", onSelect: d.snooze },
     ...(d.follow ? [{ label: "Follow", onSelect: d.follow }] : []),
     { separator: true },
-    ...(d.copyLink ? [{ label: "Copy Link", onSelect: d.copyLink }] : []),
+    ...(d.copyLink ? [{ label: "Copy link", onSelect: d.copyLink }] : []),
     { label: "Duplicate", onSelect: d.duplicate },
     { label: "Delete", danger: true, onSelect: d.remove },
   ];

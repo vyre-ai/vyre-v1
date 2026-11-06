@@ -14,7 +14,7 @@ const rightClick = (root: Node, rowId: string): Promise<void> => fireUp(root, ro
 const ids = (root: Node): string[] => { const out: string[] = []; const walk = (n: Node | string): void => { if (typeof n === "string") return; const t = n.props["data-testid"] ?? n.props["testID"]; if (typeof t === "string" && t.startsWith("menu-item-")) out.push(t.slice("menu-item-".length)); (n.children ?? []).forEach(walk as never); }; walk(root as never); return out.filter((x) => x !== "report"); };
 const rowIdOf = (root: Node): string => { let found = ""; const walk = (n: Node | string): void => { if (typeof n === "string" || found) return; const t = n.props["data-testid"] ?? n.props["testID"]; if (typeof t === "string" && t.startsWith("row-auto-")) found = t; (n.children ?? []).forEach(walk as never); }; walk(root as never); return found; };
 
-test("an automation row: Run Now, Turn Off or On by state, Test, Runs, a Personal copy, Copy Link, and Move to Trash last; each calls its capability", async () => {
+test("an automation row: Run Now, Turn Off or On by state, Test, Runs, a Personal copy, Copy link, and Move to Trash last; each calls its capability", async () => {
   const s = createSampleAutomations(northwind);
   const root = await mount(createRoot, <AutomationsDataProvider value={s.data}><AutomationsSidebar shared={s.shared} reasons={s.space.reasons} /></AutomationsDataProvider>);
   await flush();
@@ -24,7 +24,7 @@ test("an automation row: Run Now, Turn Off or On by state, Test, Runs, a Persona
   await rightClick(root as never, row);
   const labels = ids(root as never);
   assert.equal(labels[0], "Open");
-  assert.ok(labels.includes("Run Now") && labels.some((l) => /^Turn (On|Off)$/.test(l)) && labels.includes("Test…") && labels.some((l) => l.startsWith("Runs")) && labels.includes("Copy Link"), labels.join("|"));
+  assert.ok(labels.includes("Run Now") && labels.some((l) => /^Turn (On|Off)$/.test(l)) && labels.includes("Test…") && labels.some((l) => l.startsWith("Runs")) && labels.includes("Copy link"), labels.join("|"));
   assert.equal(labels.at(-1), "Move to Trash…", "danger last");
   await press(find(root as never, "menu-item-Run Now") as never);
   await flush();

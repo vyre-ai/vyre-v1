@@ -97,7 +97,8 @@ function NeedsView({ window, initialSelected }: { window?: VirtualWindow; initia
     for (const m of a.more) out.push({ label: m.label, onSelect: () => void doAct(i, m) });
     if (out.length > 0) out.push({ separator: true });
     for (const c of SNOOZES) out.push({ label: `Snooze: ${c.label}`, onSelect: () => void snooze(deps, i.task, c.key, clock) });
-    out.push({ separator: true }, { label: "Open Source", onSelect: () => { const s = i.task.source; if (s) data.nav.openSource(s.kind, s.id); } });
+    const from = i.task.source;
+    if (from) out.push({ separator: true }, { label: "Open Source", onSelect: () => data.nav.openSource(from.kind, from.id) });
     if (needsTake(i.task, data.me) && fixOf(i.task) === null) out.push({ label: "Take", onSelect: () => void take(deps, i.task) });
     return out;
   };
@@ -219,7 +220,8 @@ function Detail({ item, narrow, compose, draft, onDraft, onBack, onAct, onCancel
   const people = participants(t, (id) => (id.startsWith("usr_") ? "person" : "agent"));
   const peopleMenu = (x: number, y: number): void => {
     const who: MenuEntry[] = [];
-    for (const p of people) who.push({ label: p.kind === "person" ? data.nameOf(p.id) : `${data.nameOf(p.id)}, ${p.role}`, onSelect: () => undefined });
+    // who is on it: lines to read, not buttons
+    for (const p of people) who.push({ head: p.kind === "person" ? data.nameOf(p.id) : `${data.nameOf(p.id)}, ${p.role}` });
     showMenu(who, x, y);
   };
   const blockNodes: ReactElement[] = [];

@@ -24,8 +24,8 @@ test("an agent row: right-click gives the agent menu (not the chat menu), admin 
   assert.ok(ids.some((x) => x.startsWith("Message ")), ids.join("|"));
   assert.ok(!ids.includes("Mark as Unread") && !ids.includes("Archive"), "it is not the chat menu");
   const starredNow = northwind.agents.find((a) => a.agentId === agentId)?.starred === true;
-  // the star item says what the star is now (it said Remove Star for every agent before, lane l-polish L7)
-  assert.ok(ids.includes("Pause") && ids.includes("Mute") && ids.includes(starredNow ? "Remove Star" : "Star"), ids.join("|"));
+  // the star item says what the star is now (it said Remove star for every agent before, lane l-polish L7)
+  assert.ok(ids.includes("Pause") && ids.includes("Mute") && ids.includes(starredNow ? "Remove star" : "Star"), ids.join("|"));
   assert.equal(ids.at(-1), "Delete Agent…", "danger last");
   await press(find(root, "menu-item-Pause"));
   await flush();
@@ -178,18 +178,18 @@ test("a goal row: right-click gives the goal menu for its owner; Pause calls goa
   assert.ok(row, `goal rows: ${rowIds(root, "row-").join(" ")}`);
   await rightClick(root, row);
   const ids = itemIds(root);
-  assert.ok(ids.includes("Open") && ids.includes("Pause") && ids.includes("Copy Link"), ids.join("|"));
+  assert.ok(ids.includes("Open") && ids.includes("Pause") && ids.includes("Copy link"), ids.join("|"));
   await press(find(root, "menu-item-Pause")); await flush();
   assert.deepEqual(caps(s, "goals.pause"), [{ goalId: "gol_a" }]);
   assert.deepEqual(s.rejected, []);
 });
 
-test("an agent row's star item follows the star: Remove Star on a starred agent, Star once it is unstarred, and back (lane l-polish L7)", async () => {
+test("an agent row's star item follows the star: Remove star on a starred agent, Star once it is unstarred, and back (lane l-polish L7)", async () => {
   const { s, root } = await drawn(createRoot, { open: null });
   const face = rowIds(root, "row-f:").find((i) => i !== "row-f:agt_assistant")!;
   const agentId = face.slice("row-f:".length);
   const was = northwind.agents.find((a) => a.agentId === agentId)?.starred === true;
-  const on = was ? "Remove Star" : "Star", off = was ? "Star" : "Remove Star";
+  const on = was ? "Remove star" : "Star", off = was ? "Star" : "Remove star";
   await rightClick(root, face); await flush(); await rightClick(root, face);
   assert.ok(find(root, `menu-item-${on}`) && !find(root, `menu-item-${off}`), itemIds(root).join("|"));
   await press(find(root, `menu-item-${on}`));
@@ -200,7 +200,7 @@ test("an agent row's star item follows the star: Remove Star on a starred agent,
   await press(find(root, `menu-item-${off}`));
   await flush();
   assert.deepEqual(caps(s, "stars.toggle").at(-1), { resource: { type: "agent", id: agentId }, on: was });
-  // and the Assistant, never starred in this Space, says Star (it said Remove Star before)
+  // and the Assistant, never starred in this Space, says Star (it said Remove star before)
   await rightClick(root, "row-f:agt_assistant"); await flush(); await rightClick(root, "row-f:agt_assistant");
   if (!northwind.agents.find((a) => a.agentId === "agt_assistant")?.starred) assert.ok(find(root, "menu-item-Star"), itemIds(root).join("|"));
 });

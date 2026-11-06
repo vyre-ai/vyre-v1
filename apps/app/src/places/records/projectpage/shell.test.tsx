@@ -107,10 +107,10 @@ test("the star toggles with stars.toggle; the name and the more button open the 
     await press(find(root, "project-star")); await flush();
     assert.deepEqual(t.calls.filter((c) => c.cap === "stars.toggle").map((c) => c.input), [{ resource: { type: "project", id: "pj_0" }, on: true }]);
     await press(find(root, "project-menu")); await flush();
-    assert.ok(find(root, "menu-item-Copy Link"), "the name opens the menu");
-    await press(find(root, "menu-item-Copy Link")); await flush();
+    assert.ok(find(root, "menu-item-Copy link"), "the name opens the menu");
+    await press(find(root, "menu-item-Copy link")); await flush();
     await press(find(root, "project-more")); await flush();
-    assert.ok(find(root, "menu-item-Copy Link"), "More opens the same menu");
+    assert.ok(find(root, "menu-item-Copy link"), "More opens the same menu");
   } finally { off(); }
 });
 
@@ -197,7 +197,7 @@ test("the Chat tab's header carries the chat's find and pane, and More is the pr
     const labels: string[] = [];
     const walk = (n: unknown): void => { const x = n as { props?: Record<string, unknown>; children?: unknown[] }; const id = x.props?.["data-testid"]; if (typeof id === "string" && id.startsWith("menu-item-")) labels.push(id.slice(10)); for (const c of x.children ?? []) if (typeof c === "object") walk(c); };
     walk(root);
-    assert.ok(labels.indexOf("Copy Link") >= 0 && labels.indexOf("Plan Mode") > labels.indexOf("Copy Link"), `the project's items first, then the chat's: ${labels.join(", ")}`);
+    assert.ok(labels.indexOf("Copy link") >= 0 && labels.indexOf("Plan Mode") > labels.indexOf("Copy link"), `the project's items first, then the chat's: ${labels.join(", ")}`);
     await press(find(root, "tab-plan")); await flush();
     for (const id of ["find-button", "pane-button", "helpers-button"]) assert.equal(find(root, id), null, `${id} only on the Chat tab`);
   } finally { off(); }

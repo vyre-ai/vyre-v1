@@ -177,7 +177,7 @@ test("Enter opens in place, Cmd-Enter in a new tab, both note the open under Rec
   c.dispose(); d.dispose(); e.dispose();
 });
 
-test("right-click actions: Copy Link copies the item's source link", () => {
+test("right-click actions: Copy link copies the item's source link", () => {
   const { data, calls } = createSampleData();
   const c = new CmdKController(data);
   c.setRaw("referral agreement");

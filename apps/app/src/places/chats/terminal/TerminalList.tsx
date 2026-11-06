@@ -66,7 +66,7 @@ export function TerminalList({ data, x, y, onClose, window }: { data: TerminalDa
       const flip = (): void => { void toggleStar(deps, t.terminalId, !on).then((ok) => { if (!ok) setLine("Could not change the star."); }); };
       const items: MenuEntry[] = [
         { label: "Open", onSelect: () => { data.nav.openTerminal(t.terminalId); onClose(); } },
-        { label: on ? "Remove Star" : "Star", onSelect: flip },
+        { label: on ? "Remove star" : "Star", onSelect: flip },
         { separator: true },
         { label: "Close Session", danger: true, onSelect: () => void closeSession(deps, t.terminalId).then((ok) => { if (!ok) setLine("Could not close it."); }) },
       ];

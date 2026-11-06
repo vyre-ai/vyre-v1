@@ -30,16 +30,16 @@ function world(role: string, starred = false) {
 }
 const mountPage = async (w: ReturnType<typeof world>) => { const root = await mount(createRoot as never, <ProjectPageDataProvider value={w.s.data}><ProjectPage projectId="pj_0" /></ProjectPageDataProvider>); await flush(); await flush(); return root; };
 
-test("a lead: Star, Share, Add People, Pin File, Archive, Copy Link; Star is one stars.toggle, Archive is one projects.archive, and the words follow the state", async () => {
+test("a lead: Star, Share, Add People, Pin File, Archive, Copy link; Star is one stars.toggle, Archive is one projects.archive, and the words follow the state", async () => {
   const w = world("lead");
   const root = await mountPage(w);
   await rightClick(root, "project-head");
   const labels = labelsOf(root);
-  assert.deepEqual(labels, ["Star", "Share…", "Add People…", "Pin File…", "Archive", "Copy Link"], labels.join("|"));
+  assert.deepEqual(labels, ["Star", "Share…", "Add People…", "Pin File…", "Archive", "Copy link"], labels.join("|"));
   await press(find(root as never, "menu-item-Star") as never); await flush();
   assert.deepEqual(w.calls.filter((c) => c.cap === "stars.toggle").map((c) => c.input), [{ resource: { type: "project", id: "pj_0" }, on: true }]);
   await rightClick(root, "project-head");
-  assert.ok(labelsOf(root).includes("Remove Star"), "the words follow the state");
+  assert.ok(labelsOf(root).includes("Remove star"), "the words follow the state");
   await press(find(root as never, "menu-item-Archive") as never); await flush();
   assert.deepEqual(w.calls.filter((c) => c.cap === "projects.archive").map((c) => c.input), [{ projectId: "pj_0" }]);
   await rightClick(root, "project-head");
@@ -50,11 +50,11 @@ test("a lead: Star, Share, Add People, Pin File, Archive, Copy Link; Star is one
   assert.ok(find(root as never, "add-sheet") ?? true, "the add sheet is the people picker (its own tests cover it)");
 });
 
-test("a member pins files and nothing more; someone only looking has Star and Copy Link", async () => {
+test("a member pins files and nothing more; someone only looking has Star and Copy link", async () => {
   const member = await mountPage(world("member"));
   await rightClick(member, "project-head");
-  assert.deepEqual(labelsOf(member), ["Star", "Pin File…", "Copy Link"]);
+  assert.deepEqual(labelsOf(member), ["Star", "Pin File…", "Copy link"]);
   const guest = await mountPage(world("guest", true));
   await rightClick(guest, "project-head");
-  assert.deepEqual(labelsOf(guest), ["Remove Star", "Copy Link"]);
+  assert.deepEqual(labelsOf(guest), ["Remove star", "Copy link"]);
 });

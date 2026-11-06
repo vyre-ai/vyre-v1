@@ -25,7 +25,7 @@ import { tabMenuEntries } from "../TabStrip/index.tsx";
 
 // KitScreenDef.menus entries, shaped as the generated screens carry them.
 const KIT_MENUS: readonly { target: string; items: readonly KitMenuItem[] }[] = [
-  { target: "row", items: [{ label: "Open", icon: "open", action: "open" }, { label: "Copy Link", icon: "link", action: "copy_link" }, { label: "Delete", icon: "trash", action: "delete" }] },
+  { target: "row", items: [{ label: "Open", icon: "open", action: "open" }, { label: "Copy link", icon: "link", action: "copy_link" }, { label: "Delete", icon: "trash", action: "delete" }] },
   { target: "header", items: [{ label: "Star", icon: "star", action: "star" }] },
   { target: "empty", items: [] },
   { target: "bare", items: [{ label: "Rename", icon: "", action: "rename" }, { label: "Move", icon: "", action: "move" }] },
@@ -58,7 +58,7 @@ test("every KitScreenDef.menus entry ends with Report a problem, added by the me
 test("the shared defaults (tab menu) end with Report a problem and no module added it", () => {
   const tabs = [{ key: "a", title: "A" }, { key: "b", title: "B", pinned: true }];
   for (const key of ["a", "b"]) {
-    const shared = tabMenuEntries(tabs, key, [{ label: "Pin Tab", icon: "star" }], () => undefined);
+    const shared = tabMenuEntries(tabs, key, [{ label: "Pin", icon: "star" }], () => undefined);
     assert.ok(!labels(shared).includes(REPORT_A_PROBLEM));
     assertEndsWithReport(menuEntries({ items: shared }), `tab menu ${key}`);
   }

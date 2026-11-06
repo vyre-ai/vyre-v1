@@ -31,9 +31,9 @@ export function recordMenu(f: RecordFacts, d: RecordDo): MenuEntry[] {
   const one = f.single && !f.every;
   return tidy([
     one ? item("Open", d.open, { hint: "Enter" }) : null,
-    one && d.star ? item(f.starred ? "Remove Star" : "Star", () => d.star?.(!f.starred), { hint: "S" }) : null,
+    one && d.star ? item(f.starred ? "Remove star" : "Star", () => d.star?.(!f.starred), { hint: "S" }) : null,
     one && d.share ? item("Share…", d.share) : null,
-    one && d.copyLink ? item("Copy Link", d.copyLink) : null,
+    one && d.copyLink ? item("Copy link", d.copyLink) : null,
     one ? sep : null,
     (f.every || f.nothingPicked) && f.canExport ? item("Export as CSV", d.exportCsv) : null,
     sep,

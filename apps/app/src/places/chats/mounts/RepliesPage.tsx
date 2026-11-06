@@ -1,6 +1,6 @@
 // Replies, in the Inbox: the replies to messages you wrote, replied to, were mentioned in or chose to follow, from the server, newest reply first (audit Threads 4, 6). Each row says which chat it hangs
 // off, the newest line and who wrote it, when, and how many replies are new (bold while any are). The same count makes that chat's row in the chat list bold. The list is live: a new reply moves its row to
-// the top. Right-click a row for Open, Mark as Read, Follow or Mute, Leave and Copy Link; J and K move, Enter opens. More load on request. A task's replies stay with its task.
+// the top. Right-click a row for Open, Mark as Read, Follow or Mute, Leave and Copy link; J and K move, Enter opens. More load on request. A task's replies stay with its task.
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
@@ -57,7 +57,7 @@ export function RepliesPage({ rt, nameOf, openChat, say }: { rt: ShellRuntime; n
     { separator: true },
     ...followMenu(modeOf(t), (mode) => follow(t.threadId, mode)),
     { separator: true },
-    { label: "Copy Link", onSelect: () => copy(`vyre://thread/${t.threadId}`) },
+    { label: "Copy link", onSelect: () => copy(`vyre://thread/${t.threadId}`) },
   ];
 
   // J and K move the selection, Enter opens it; a key typed into a field is the field's

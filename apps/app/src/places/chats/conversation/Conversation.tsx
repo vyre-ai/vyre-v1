@@ -78,10 +78,13 @@ import type { AiReady } from "./ai-ready.ts";
 import { useOpenConnect } from "../../../shell/connect/context.ts";
 import {
   WINDOW, beforeCursor, byOrder, collect, ghostMessages, findMatches, isClosed, lastMessages, leadOf, matchLine, mentionsIn, mergePages, modelLabel, pendingMessage, placeholderFor, queueNote, queuedCount, queuedIds, sendKind, stillPending, stopLabel,
-  directWith, mentionable, muteOfferFor, onBehalfOf, threadKindNote, timeLabel, timeline, titleOf, whoLine, workingAgents, withoutAnswered } from "./model.ts";
+  directWith, mentionable, muteOfferFor, onBehalfOf, threadKindNote, timeLabel, timeline, titleOf, whoLine, workingAgents, withoutAnswered, faceDoor } from "./model.ts";
 import type { Message, Pending, SendKind, Thread } from "./model.ts";
 import { LoadFailed, failureOf } from "../../../../../../ui/src/States/Loads.tsx";
-import { messageLink } from "../../../share/rows.ts";
+import { itemLink, messageLink } from "../../../share/rows.ts";
+import { createMenuApi } from "../menus/actions.ts";
+import { TextAsk } from "../menus/TextAsk.tsx";
+import { chatHeaderEntries } from "./chat-header-menu.ts";
 import { useZones } from "../../../../../../ui/src/Time/index.tsx";
 import { offsetMinAt, zoneName } from "../../../../../../lib/zones.ts";
 
@@ -220,6 +223,16 @@ function ConversationView(): ReactElement {
   }, [data, data.threadId, online]);
   const menu = useMenu();
   const add = useAddSheet({ call: data.call, me: data.me, nameOf: data.nameOf, newKey: data.newKey, toast: data.toast }, { copy: data.copy });
+  // the header "..." carries the chat's own items; what is starred and muted is read when the chat opens and follows what the person does here
+  const menuApi = useMemo(() => createMenuApi(data), [data]);
+  const [hdr, setHdr] = useState({ starred: false, muted: false, archived: false });
+  const [renamingChat, setRenamingChat] = useState(false);
+  const moreAt = useRef<{ x: number; y: number }>({ x: 8, y: 48 });
+  useEffect(() => {
+    let live = true;
+    void Promise.all([menuApi.stars(), menuApi.mutes()]).then(([stars, mutes]) => { if (live) setHdr((h) => ({ ...h, starred: stars.has(`thread:${data.threadId}`), muted: mutes.has(`thread:${data.threadId}`) })); }, () => undefined);
+    return () => { live = false; };
+  }, [menuApi, data.threadId]);
   const memoryEntries = useMemoryEntries();
   const threadQ = useScreenQuery<ThreadOut>(CONVERSATION_SCREEN, "thread", { threadId: data.threadId });
   const messagesQ = useScreenQuery<MessagesOut>(CONVERSATION_SCREEN, "messages", { threadId: data.threadId });
@@ -459,7 +472,10 @@ function ConversationView(): ReactElement {
   };
   const island = islandView(openQs, putAway, islandAt, cardsInView);
   const typingNames: readonly string[] = data.typing ?? [];
-  const peopleMenu = (x: number, y: number): void => add.showPeople({ thread, x, y, onOpenAgent: data.nav.openAgent });
+  // a face or a name opens by what it is: a helper (its thread) opens as the helper chat; a person or an agent goes to the host, which opens a profile or an agent page
+  const allHelpers = helpersQ.status === "loading" ? [] : helpersQ.data.helpers;
+  const openFace = (id: string): void => { if (faceDoor(allHelpers.map((h) => h.threadId), id) === "helper") data.nav.openThread(id); else data.nav.openAgent(id); };
+  const peopleMenu = (x: number, y: number): void => add.showPeople({ thread, x, y, onOpenAgent: openFace });
   const modelMenu = (x: number, y: number): void => {
     if (!lead) return;
     void act.listModels(data).then(
@@ -471,7 +487,20 @@ function ConversationView(): ReactElement {
     );
   };
   const moreEntries = (): MenuEntry[] => {
+    const mine: MenuEntry[] = thread.kind === "chat" ? chatHeaderEntries({ ...hdr, withPeople: thread.agents.length === 0 }, {
+      rename: () => setRenamingChat(true),
+      star: (on) => { setHdr((h) => ({ ...h, starred: on })); void Promise.resolve(data.call("stars.toggle", { resource: { type: "thread", id: data.threadId }, on })).catch(() => { setHdr((h) => ({ ...h, starred: !on })); say("That did not go through."); }); },
+      mute: (on) => { setHdr((h) => ({ ...h, muted: on })); void menuApi.setMute("thread", data.threadId, on).catch(() => { setHdr((h) => ({ ...h, muted: !on })); say("That did not go through."); }); },
+      archive: () => void Promise.resolve(data.call("threads.archive", { threadId: data.threadId })).then(() => { setHdr((h) => ({ ...h, archived: true })); say("Archived. It left your list; an @mention brings it back."); }, fail("Could not archive.")),
+      unarchive: () => void Promise.resolve(data.call("threads.unarchive", { threadId: data.threadId })).then(() => { setHdr((h) => ({ ...h, archived: false })); say("Back in your list."); }, fail("Could not unarchive.")),
+      leave: () => void Promise.resolve(data.call("threads.leave", { threadId: data.threadId })).then(() => say("You left this chat."), fail("Could not leave.")),
+      remove: () => menu.show([{ head: "Delete this chat? It is hidden for you and can be restored for a while." }, { label: "Delete chat", danger: true, onSelect: () => void Promise.resolve(data.call("threads.delete", { threadId: data.threadId })).then(() => say("Chat deleted."), fail("Could not delete.")) }, { label: "Cancel" }], moreAt.current.x, moreAt.current.y, "other"),
+      addPeople: () => add.open({ threadId: data.threadId, name: thread.title ?? "" }),
+      copyLink: () => { data.copy(itemLink("chat", data.threadId)); say("Link copied"); },
+    }) : [];
     const items: MenuEntry[] = [
+      ...mine,
+      ...(mine.length > 0 ? [{ separator: true } as MenuEntry] : []),
       { label: "Find in Chat", hint: "⌘F", onSelect: () => setFinding(true) },
       { separator: true } as MenuEntry,
       { label: "Plan Mode", checked: mode === "plan", onSelect: () => chooseChatMode(mode === "plan" ? "ask" : "plan") },
@@ -488,7 +517,7 @@ function ConversationView(): ReactElement {
     ];
     return items;
   };
-  const moreMenu = (x: number, y: number): void => { menu.show(moreEntries(), x, y, "other", { label: "Chat" }); };
+  const moreMenu = (x: number, y: number): void => { moreAt.current = { x, y }; menu.show(moreEntries(), x, y, "other", { label: "Chat" }); };
   // in a project's frame the page draws these in its own header (conversation/frame.ts). The controls are built here, and a small child hands them over: hooks cannot sit down here, after the early returns above.
   const frameFeed: FrameControls | null = frame ? {
     find: { active: finding, toggle: () => setFinding((f) => !f) },
@@ -531,7 +560,7 @@ function ConversationView(): ReactElement {
     remove: (id) => void act.deleteMessage(data, id).catch(fail("Could not delete it.")),
     ...(data.alsoSent ? { alsoSent: data.alsoSent } : {}),
     ...(thread.kind === "thread" ? { faceInThread: true } : {}),
-    openAgent: data.nav.openAgent,
+    openAgent: openFace,
     openBeside: data.nav.openBeside,
     ...(data.nav.openGoal ? { openGoal: data.nav.openGoal } : {}),
     answer: (blockId, answer) => void act.answerBlock(data, blockId, answer).catch(fail("Could not send the answer.")),
@@ -818,6 +847,7 @@ function ConversationView(): ReactElement {
       {picker ? <ReactionPicker x={picker.x} y={picker.y} onPick={(e) => { actions.react(picker.id, e, false); setPicker(null); }} onClose={() => setPicker(null)} /> : null}
       {menu.element}
       {add.element}
+      {renamingChat ? <TextAsk title="Rename chat" label="Name" action="Rename" initial={thread.title ?? ""} onClose={() => setRenamingChat(false)} onDone={(name) => { setRenamingChat(false); void menuApi.renameThread(data.threadId, name.trim()).then(() => say("Renamed."), fail("Could not rename.")); }} /> : null}
     </View>
     </DropRoute>
   );
