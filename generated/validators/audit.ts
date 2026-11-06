@@ -50,19 +50,19 @@ if ("seq" in o591) lf(o591["seq"], p + "/seq", e, L17);
 
 function d_s_a0ed41fd75(v: unknown, p: string, e: string[]): void {
 {
-const x823 = v;
-const g823 = typeOf(x823);
-const b823: string[] = []; lf(x823, p, b823, L0); if (b823.length) e.push(...b823);
-if (g823 === "object") {
-if (g823 === 'object') { const o823 = x823 as Record<string, unknown>;
-if (!("seq" in o823)) e.push(p + "/seq" + ': required');
-if (!("at" in o823)) e.push(p + "/at" + ': required');
-if (!("hash" in o823)) e.push(p + "/hash" + ': required');
-if (!("signatureOk" in o823)) e.push(p + "/signatureOk" + ': required');
-if ("seq" in o823) lf(o823["seq"], p + "/seq", e, L17);
-if ("at" in o823) lf(o823["at"], p + "/at", e, L17);
-if ("hash" in o823) lf(o823["hash"], p + "/hash", e, L1);
-if ("signatureOk" in o823) lf(o823["signatureOk"], p + "/signatureOk", e, L3);
+const x831 = v;
+const g831 = typeOf(x831);
+const b831: string[] = []; lf(x831, p, b831, L0); if (b831.length) e.push(...b831);
+if (g831 === "object") {
+if (g831 === 'object') { const o831 = x831 as Record<string, unknown>;
+if (!("seq" in o831)) e.push(p + "/seq" + ': required');
+if (!("at" in o831)) e.push(p + "/at" + ': required');
+if (!("hash" in o831)) e.push(p + "/hash" + ': required');
+if (!("signatureOk" in o831)) e.push(p + "/signatureOk" + ': required');
+if ("seq" in o831) lf(o831["seq"], p + "/seq", e, L17);
+if ("at" in o831) lf(o831["at"], p + "/at", e, L17);
+if ("hash" in o831) lf(o831["hash"], p + "/hash", e, L1);
+if ("signatureOk" in o831) lf(o831["signatureOk"], p + "/signatureOk", e, L3);
 }
 }
 }

@@ -272,6 +272,21 @@ export function blockView(b: Task["blocks"][number]): BlockView {
     const source = str(d.file ?? d.name);
     return { type: "quote", lines: lines.length > 0 ? lines : [str(d.text)].filter((x) => x !== ""), ...(source ? { source } : {}) };
   }
+  // a held act (the Gate's doc_excerpt, { act, cap, input }): what it will do, to whom, and the words that go, never the block's type name
+  if (b.type === "doc_excerpt" && isRec(d) && isRec(d.input)) {
+    const i = d.input;
+    const named = (r: unknown): string => (isRec(r) ? (str(r.name) !== "" && str(r.address) !== "" ? `${str(r.name)} <${str(r.address)}>` : str(r.name) || str(r.address) || str(r.handle) || str(r.id)) : str(r));
+    const to = (Array.isArray(i.to) ? i.to.map(named) : [named(i.to ?? i.recipient ?? i.person ?? i.channel)]).filter((x) => x !== "").join(", ");
+    const subject = str(i.subject ?? i.title);
+    const body = str(i.text ?? i.body ?? i.message ?? i.content ?? i.html).replace(/<[^>]*>/g, "").trim();
+    const pairs: [string, string][] = [];
+    if (to) pairs.push(["To", to]);
+    if (subject) pairs.push(["Subject", subject]);
+    if (body) return pairs.length > 0 ? { type: "quote", lines: [...pairs.map(([k, v]) => `${k}: ${v}`), "", ...body.split("\n")] } : { type: "quote", lines: body.split("\n") };
+    if (pairs.length > 0) return { type: "pairs", pairs };
+    const scalars = Object.entries(i).filter(([, v]) => typeof v === "string" || typeof v === "number").slice(0, 5).map(([k, v]): [string, string] => [k.replaceAll("_", " "), str(v).slice(0, 120)]);
+    return scalars.length > 0 ? { type: "pairs", pairs: scalars } : { type: "line", text: "A held act" };
+  }
   const label = isRec(d) ? str(d.title ?? d.name ?? d.caption) : "";
   return { type: "line", text: label ? `${b.type.replaceAll("_", " ")}: ${label}` : b.type.replaceAll("_", " ") };
 }

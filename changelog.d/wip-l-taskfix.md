@@ -1,0 +1,1 @@
+- Task page: a held send shows its recipient, subject and words; an expired request shows when and no Approve; a refused approval ends as Not approved and leaves Needs you; an approval you hold for your own agent says Waiting for your approval instead of You to You. tasks.get now returns expiresAt.

@@ -759,7 +759,7 @@ function Sidebar({ window, query, slot, open: shown, startFilter }: { window?: V
         </View>
       ) : null}
       {inHeader ? portalInto(slot?.actionsOutlet, <>{newChatButton}{newButton}</>) : null}
-      {data.nav.openArtifacts ? <View style={{ height: ROW_H }}><Row id="artifacts" testID="chats-artifacts" title="Artifacts" selected={selected === "artifacts"} hovered={follows && cursor === "artifacts" && selected !== "artifacts"} leading={<LeadGlyph name="project" />} onPress={() => { setCursor("artifacts"); data.nav.openArtifacts?.(); leave(); }} /></View> : null}
+      {data.nav.openArtifacts ? <View style={{ height: ROW_H, flexShrink: 0 }}><Row id="artifacts" testID="chats-artifacts" title="Artifacts" selected={selected === "artifacts"} hovered={follows && cursor === "artifacts" && selected !== "artifacts"} leading={<LeadGlyph name="project" />} onPress={() => { setCursor("artifacts"); data.nav.openArtifacts?.(); leave(); }} /></View> : null}
       <View style={st.list}>
         {loading ? <ChatsSidebarLoading /> : (
           <VirtualList data={entries} rowHeight={ROW_H} heightOf={(e) => (e.type === "goal" ? GOAL_ROW_H : ROW_H)} keyOf={(e) => e.key} renderItem={(e) => renderEntry(e)} {...(window ? { window } : {})} />
@@ -800,7 +800,7 @@ const st = StyleSheet.create({
   undoBtn: { height: 28, paddingHorizontal: 8, justifyContent: "center" },
   undoAct: { fontSize: 13, fontWeight: "600", color: "var(--accent)" as string },
   red: { width: 7, height: 7, borderRadius: 4, backgroundColor: "var(--danger)" as string },
-  list: { flex: 1, minHeight: 0 },
+  list: { flex: 1, minHeight: 0, overflow: "hidden" },
   tools: { flexDirection: "row", alignItems: "center", gap: 6 },
   time: { fontSize: 11, color: "var(--ink-3)" as string },
   renameRow: { height: ROW_H, flexDirection: "row", alignItems: "center", paddingHorizontal: 8 },
