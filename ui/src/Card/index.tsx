@@ -21,9 +21,9 @@ export const CARD_WIDTH = { full: 560, compact: 420 } as const;
 /** The phone width under which the buttons grow to a thumb. */
 export const PHONE_UNDER = 600;
 
-/** The one soft surface every card sits on, and the inset step inside it (a diff, a message, a command): both a mix of the skin's own ink into its window, so a card is a step off the window and its inner panel a further step, in paper and in graphite alike. No border. */
-export const CARD_FILL = "color-mix(in srgb, var(--ink) 5%, var(--win))";
-export const CARD_INSET = "color-mix(in srgb, var(--ink) 9%, var(--win))";
+/** The one soft surface every card sits on (the skin's side step, a little off the window), and the inset inside it (a diff, a message, a command): the skin's own ink wash, so the inset is a step lighter than the card in graphite and a step darker in paper. No border. */
+export const CARD_FILL = "var(--side)";
+export const CARD_INSET = "var(--sel)";
 
 export const CARD_CSS = [
   "@keyframes vyre-card-ring{to{transform:rotate(360deg)}}",
