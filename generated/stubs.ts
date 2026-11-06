@@ -2867,6 +2867,7 @@ export function stubs(ctx: CallCtx) {
       },
       run: call("terminal.run"),
       status: call("terminal.status"),
+      workspace: call("terminal.workspace"),
     },
     threads: {
       add_agent: call("threads.add_agent"),

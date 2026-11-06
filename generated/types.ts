@@ -41816,6 +41816,18 @@ export type TerminalStatusOut = {
       exitCode: number | null;
     }>;
 };
+export type TerminalWorkspaceIn = {
+  agentId: string;
+};
+export type TerminalWorkspaceOut = {
+  state: "running" | "asleep" | "waiting" | "none" | "unavailable";
+  line?: string;
+  host?: "space" | "server";
+  nodeId?: string;
+  projects?: Array<string>;
+  canAttach: boolean;
+  cannotAttach?: string;
+};
 export type ThreadsAddAgentIn = {
   threadId: string;
   agentId: string;
@@ -46711,6 +46723,7 @@ export interface CapMap {
   "terminal.rules.set": { in: TerminalRulesSetIn; out: TerminalRulesSetOut };
   "terminal.run": { in: TerminalRunIn; out: TerminalRunOut };
   "terminal.status": { in: TerminalStatusIn; out: TerminalStatusOut };
+  "terminal.workspace": { in: TerminalWorkspaceIn; out: TerminalWorkspaceOut };
   "threads.add_agent": { in: ThreadsAddAgentIn; out: ThreadsAddAgentOut };
   "threads.agent.configure": { in: ThreadsAgentConfigureIn; out: ThreadsAgentConfigureOut };
   "threads.agent.create": { in: ThreadsAgentCreateIn; out: ThreadsAgentCreateOut };

@@ -2867,6 +2867,7 @@ export function createClient(transport: Transport) {
       },
       run: call("terminal.run", 1),
       status: call("terminal.status", 1),
+      workspace: call("terminal.workspace", 1),
     },
     threads: {
       add_agent: call("threads.add_agent", 1),
