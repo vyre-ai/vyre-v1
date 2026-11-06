@@ -17,6 +17,7 @@ const termState = t.enm('running', 'idle', 'exited');
 const terminalRow = t.obj({
   terminalId: id.terminal, name: t.str({ examples: ['build'] }), host, hostTitle: t.str({ examples: ["Intake's computer"] }), agentId: t.opt(id.agent), computerId: t.opt(id.computer), deviceId: t.opt(id.device),
   cwd: t.str(), state: termState, exitCode: t.nullable(t.int()), named: t.bool(), cols: t.int(), rows: t.int(), createdAt: t.ts(), lastActiveAt: t.ts(), runId: t.opt(id.run),
+  by: t.opt(t.obj({ kind: t.enm('agent', 'helper', 'person'), name: t.opt(t.str({ examples: ['Ember'] })) }, { description: 'Whose tab it is in a workspace: the agent itself, a helper or crew member it started (by name), or a person who opened it' })),
 });
 const command = t.obj({ command: t.str(), exitCode: t.nullable(t.int()), startedAt: t.ts(), durationMs: t.opt(t.int()) });
 const rules = t.obj({ allow: t.arr(t.str()), ask: t.arr(t.str()), deny: t.arr(t.str()), folders: t.arr(id.folder) });
@@ -34,6 +35,14 @@ export default defineManifest({
     read('terminal.list', 'List terminal sessions you can see, including named leftover scripts', {
       in: listIn, out: { terminals: t.arr(terminalRow), ...pageOut }, tool: 'terminal', label: 'filter', cli: 'vyre terminal list',
     }),
+    read('terminal.workspace', 'An agent\'s workspace as the Terminal tab shows it: asleep, running, waiting for room (with the line) or not made yet, where it is, whether you may attach and why not; with no machine to run it, one plain line', {
+      in: { agentId: id.agent },
+      out: {
+        state: t.enm('running', 'asleep', 'waiting', 'none', 'unavailable'), line: t.opt(t.str({ description: 'Waiting: the room line. Unavailable: why, and what to do' })), host: t.opt(t.enm('space', 'server')),
+        nodeId: t.opt(t.str()), projects: t.opt(t.arr(id.project)), canAttach: t.bool(), cannotAttach: t.opt(t.str({ description: 'Why not, as one sentence' })),
+      },
+      tool: 'terminal', label: 'check',
+    }),
     read('terminal.get', 'Read one terminal session: host, state, working folder, last exit code', {
       in: target, out: { terminal: terminalRow }, on: ['terminal', '/terminalId'], tool: 'terminal', errors: ['validation.not_found'],
     }),
@@ -41,9 +50,9 @@ export default defineManifest({
       in: { terminalIds: t.arr(id.terminal, { maxItems: 50 }) }, out: { rows: t.arr(t.obj({ terminalId: id.terminal, state: termState, lastLine: t.opt(t.str()), exitCode: t.nullable(t.int()) })) },
       tool: 'terminal', label: 'filter',
     }),
-    create('terminal.open', 'Open a terminal session on an agent computer or on your own computer (the device daemon)', {
+    create('terminal.open', 'Open a terminal tab: a named tmux session in your workspace (an agent that names no host gets one in its own workspace, or its parent\'s when it is a helper), or on your own computer (the device daemon)', {
       in: {
-        host: t.enm('agent_computer', 'device'), agentId: t.opt(id.agent), computerId: t.opt(id.computer), deviceId: t.opt(id.device), name: t.opt(t.str()),
+        host: t.opt(t.enm('agent_computer', 'device')), agentId: t.opt(id.agent), computerId: t.opt(id.computer), deviceId: t.opt(id.device), name: t.opt(t.str({ description: 'The tab\'s name, such as build or tests; a helper\'s tab is named for the helper when left out' })),
         cwd: t.opt(t.str()), cols: t.opt(t.int({ minimum: 20, maximum: 500 })), rows: t.opt(t.int({ minimum: 5, maximum: 200 })),
       },
       out: { terminal: terminalRow }, perm: 'terminal.use', emits: ['terminal.opened'], tool: 'terminal', errors: ['permission.needs_team', 'provider.unavailable'], cli: 'vyre terminal open',
@@ -77,7 +86,7 @@ export default defineManifest({
     }),
     write('terminal.run', 'Run a command in a session and wait for it (the terminal_run tool); secrets only as #Handle.field; output is scrubbed before it returns', {
       in: {
-        command: t.str(), terminalId: t.opt(id.terminal), host: t.opt(t.enm('agent_computer', 'device')), agentId: t.opt(id.agent), cwd: t.opt(t.str()),
+        command: t.str(), terminalId: t.opt(id.terminal), session: t.opt(t.str({ maxLength: 80, description: 'The name of the tab to run it in; made when there is none. Left out: your own tab (a helper\'s is named for the helper)' })), host: t.opt(t.enm('agent_computer', 'device')), agentId: t.opt(id.agent), cwd: t.opt(t.str()),
         timeoutSec: t.opt(t.int({ minimum: 1, maximum: 3600 })), env: t.opt(t.rec(t.str({ description: 'Literal or a #Handle.field reference' }))),
       },
       out: { terminalId: id.terminal, exitCode: t.nullable(t.int()), output: t.str(), truncated: t.bool(), durationMs: t.int() },

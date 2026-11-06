@@ -25,6 +25,13 @@ const recordingRow = t.obj({
   state: t.enm('recording', 'saved', 'processed'), intents: t.arr(t.str()),
 });
 const sessionRow = t.obj({ site: t.str({ examples: ['app.example.com'] }), signedInAs: t.opt(t.str()), since: t.ts(), lastSeen: t.ts() });
+// The agent browsers of the Space browser (modules/computers/sbrowser): one profile per agent, named by the agent. Only people use these (to watch and take over), never an agent, so none is a tool.
+const browserRow = t.obj({
+  agentId: id.agent, running: t.bool(), tabs: t.int(), busy: t.bool({ description: 'The agent is using it now' }), viewers: t.int({ description: 'People watching its live view' }), lastActiveAt: t.opt(t.ts()),
+  state: t.enm('running', 'asleep', 'waiting', 'error'), line: t.opt(t.str({ description: 'Why it waits (no room on the host) or what went wrong, in a plain line' })),
+  takeoverBy: t.opt(id.user), paired: t.bool({ description: 'Vyre for Chrome in the profile is connected to the Space as this agent, so Vault logins fill' }), access: t.enm('owner', 'admin', 'viewer'),
+});
+const downloadsOut = t.opt(t.arr(t.obj({ name: t.str(), path: t.str({ description: "Where it is in the agent's Files, under Downloads", examples: ['Downloads/report.pdf'] }), fileId: id.file }), { description: 'Files the browser finished downloading since the last step: they are in Files now, and this is where' }));
 const comp = { computerId: id.computer };
 const optComp = { computerId: t.opt(id.computer) };
 const tabId = t.opt(t.str({ description: 'Chrome tab id; omit for the active tab' }));
@@ -121,6 +128,27 @@ export default defineManifest({
     write('computers.session.sign_out', 'Sign out of a site on the profile disk', {
       in: { ...comp, site: t.str() }, out: { ok: t.bool() }, on: ['computer', '/computerId'], perm: 'computers.take_over', emits: ['computer.session_signed_out', 'computer.started'], tool: 'computer', audit: 'sensitive',
     }),
+    read('computers.browser.profiles', "The agent browsers in this Space's browser that you may watch: running or asleep, tabs, whether the agent is using it, and who has the controls", {
+      in: {}, out: { profiles: t.arr(browserRow), maxRunning: t.int({ description: 'How many browsers the Space browser holds at once' }) }, perm: 'computers.watch', label: 'filter', offline: 'online', errors: ['provider.unavailable'],
+    }),
+    read('computers.browser.stream', "Live view of an agent's browser, relayed by the Space: MJPEG or a WebSocket with a ticket that opens once, for one minute; frames are live-only, never stored. Wakes the browser", {
+      in: { agentId: id.agent }, out: { transport: t.enm('mjpeg'), url: t.str({ description: 'The Space\'s own relay path, /browsers/<agent>/stream?ticket=...' }), ws: t.opt(t.str({ description: 'The same view over a WebSocket, which also carries your input once you have taken over' })), width: t.opt(t.int({ description: "The page's real width in pixels: scale pointer positions from this, never from a constant" })), height: t.opt(t.int({ description: "The page's real height in pixels" })), expiresAt: t.ts() }, perm: 'computers.watch', label: 'check', offline: 'online', errors: ['permission.no_grant', 'provider.unavailable', 'validation.not_found'],
+    }),
+    write('computers.browser.take_over', "Take over an agent's browser (\"You're in control\"): its tools wait, your clicks and keys reach the page. An Assistant's or personal agent's browser is its person's alone; a team agent's goes to its owner and admins; one shared with named people may be watched by them but not taken over", {
+      in: { agentId: id.agent }, out: { profile: browserRow }, perm: 'computers.take_over', level: 'use', audit: 'sensitive', idem: 'natural', offline: 'online', errors: ['permission.no_grant', 'provider.unavailable', 'validation.precondition_failed'],
+    }),
+    write('computers.browser.give_back', "Give an agent's browser back to the agent; the person who has the controls or an admin may", {
+      in: { agentId: id.agent }, out: { profile: browserRow }, perm: 'computers.take_over', level: 'use', audit: 'sensitive', idem: 'natural', offline: 'online', errors: ['permission.no_grant', 'provider.unavailable'],
+    }),
+    read('computers.browser.sessions', "The sites an agent's browser is signed in to (cookies the profile holds), by site, never a value. Wakes the browser when it is asleep. Only for a browser you may watch", {
+      in: { agentId: id.agent }, out: { sessions: t.arr(sessionRow) }, perm: 'computers.watch', label: 'check', offline: 'online', errors: ['permission.no_grant', 'provider.unavailable', 'validation.not_found'],
+    }),
+    write('computers.browser.sign_out', "Sign an agent's browser out of a site: its cookies and storage for that site are cleared. The owner and admins only", {
+      in: { agentId: id.agent, site: t.str() }, out: { ok: t.bool() }, perm: 'computers.take_over', level: 'use', audit: 'sensitive', idem: 'natural', offline: 'online', errors: ['permission.no_grant', 'provider.unavailable', 'validation.bad_input'],
+    }),
+    read('computers.browser.timeline', "What an agent did in its Space browser, step by step with a picture each: the same timeline as a computer's, for the agent's profile. Only for a browser you may watch", {
+      in: { agentId: id.agent, runId: t.opt(id.run), threadId: t.opt(id.thread), ...pageIn }, out: { steps: t.arr(stepRow), ...pageOut }, perm: 'computers.watch', label: 'filter', errors: ['permission.no_grant', 'validation.not_found'],
+    }),
     read('computers.health', 'Health of the container runtime and agentd on the host', {
       out: { state: t.enm('healthy', 'degraded', 'down'), detail: t.opt(t.str()), runtime: t.opt(t.enm('ready', 'missing')), latencyMs: t.opt(t.int()), awake: t.int(), asleep: t.int() },
     }),
@@ -132,11 +160,11 @@ export default defineManifest({
     }),
     write('computers.chrome.act', 'Act on an element or key: click, hover, press, select, scroll, check; a send, post or payment is held and returns an id', {
       in: { ...optComp, tabId, ref: t.opt(ref), action: t.enm('click', 'double_click', 'hover', 'press', 'select', 'scroll', 'check', 'uncheck', 'focus'), value: t.opt(t.str()) },
-      out: { ok: t.bool(), heldId: t.opt(t.str()), snapshot: t.opt(t.str()) }, ...local({ mcpName: 'chrome_act', risk: 'medium', idem: 'none' }),
+      out: { ok: t.bool(), heldId: t.opt(t.str()), snapshot: t.opt(t.str()), downloads: downloadsOut }, ...local({ mcpName: 'chrome_act', risk: 'medium', idem: 'none' }),
     }),
     write('computers.chrome.click', 'Click an element by ref or by coordinates', {
       in: { ...optComp, tabId, ref: t.opt(ref), x: t.opt(t.int()), y: t.opt(t.int()), button: t.opt(t.enm('left', 'right', 'middle')) },
-      out: { ok: t.bool(), heldId: t.opt(t.str()) }, ...local({ mcpName: 'chrome_click', risk: 'medium', idem: 'none' }),
+      out: { ok: t.bool(), heldId: t.opt(t.str()), downloads: downloadsOut }, ...local({ mcpName: 'chrome_click', risk: 'medium', idem: 'none' }),
     }),
     write('computers.chrome.type', 'Type text into the focused element or a ref; secrets only as #Handle.field references', {
       in: { ...optComp, tabId, ref: t.opt(ref), text: t.str(), submit: t.opt(t.bool()) }, out: { ok: t.bool(), heldId: t.opt(t.str()) },
@@ -147,7 +175,7 @@ export default defineManifest({
       ...local({ mcpName: 'chrome_fill', risk: 'medium', idem: 'none' }),
     }),
     write('computers.chrome.open', 'Open a URL, reusing the open tab by default (never one tab per step)', {
-      in: { ...optComp, url: t.str({ pattern: '^https?://', examples: ['https://example.com'] }), newTab: t.opt(t.bool()) }, out: { tabId: t.str(), url: t.str(), title: t.str() },
+      in: { ...optComp, url: t.str({ pattern: '^https?://', examples: ['https://example.com'] }), newTab: t.opt(t.bool()) }, out: { tabId: t.str(), url: t.str(), title: t.str(), downloads: downloadsOut },
       ...local({ mcpName: 'chrome_open', idem: 'none' }),
     }),
     write('computers.chrome.tabs', 'List, use, open or close tabs', {
@@ -156,7 +184,7 @@ export default defineManifest({
     }),
     write('computers.chrome.wait', 'Wait for a load, text, selector, network idle or a time', {
       in: { ...optComp, tabId, until: t.enm('load', 'text', 'selector', 'network_idle', 'time'), value: t.opt(t.str()), timeoutMs: t.opt(t.int({ minimum: 100, maximum: 120000 })) },
-      out: { ok: t.bool(), waitedMs: t.int() }, ...local({ mcpName: 'chrome_wait', idem: 'none', risk: 'low' }),
+      out: { ok: t.bool(), waitedMs: t.int(), downloads: downloadsOut }, ...local({ mcpName: 'chrome_wait', idem: 'none', risk: 'low' }),
     }),
     read('computers.chrome.screenshot', 'Screenshot of the tab or one element, stored in the agent folder and rendered as a screenshot block', {
       in: { ...optComp, tabId, ref: t.opt(ref), fullPage: t.opt(t.bool()) }, out: { fileId: id.file, width: t.int(), height: t.int() },
@@ -177,7 +205,7 @@ export default defineManifest({
       in: { ...optComp, tabId, ref }, out: { element: t.rec() }, ...local({ mcpName: 'chrome_inspect' }),
     }),
     read('computers.chrome.state', 'URL, title and load state of a tab', {
-      in: { ...optComp, tabId }, out: { url: t.str(), title: t.str(), loading: t.bool() }, ...local({ mcpName: 'chrome_state' }),
+      in: { ...optComp, tabId }, out: { url: t.str(), title: t.str(), loading: t.bool(), downloads: downloadsOut }, ...local({ mcpName: 'chrome_state' }),
     }),
     read('computers.chrome.status', 'Status of Vyre for Chrome in this computer: connected, paused by Esc, held items', {
       in: { ...optComp }, out: { connected: t.bool(), paused: t.bool(), held: t.arr(t.str()) }, ...local({ mcpName: 'chrome_status' }),
@@ -277,6 +305,11 @@ export default defineManifest({
     }, 'Screenshot: {{caption}}', {
       opens: { tab: 'computer', input: { computerId: '/computerId' } },
       actions: [{ key: 'make_skill', label: 'Make a skill from here', cap: 'computers.skill_from_step', input: { computerId: '/computerId', stepId: '/stepId' } }],
+    }),
+    block('browser_screenshot', {
+      agentId: id.agent, fileId: id.file, caption: t.str(), stepId: t.opt(t.id('stp')), stepIndex: t.opt(t.int()), at: t.ts(), live: t.opt(t.bool()),
+    }, 'Browser: {{caption}}', {
+      opens: { tab: 'computer', input: { agentId: '/agentId' } },
     }),
   ],
   health: [

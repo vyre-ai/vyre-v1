@@ -2137,6 +2137,14 @@ export type AgentsSetOwnerOut = {
     chatOf?: string;
   };
 };
+export type AgentsShareClassIn = {
+  agentId: string;
+};
+export type AgentsShareClassOut = {
+  class: "private" | "personal" | "shared" | "space";
+  ownerId: string;
+  people: Array<string>;
+};
 export type AgentsSnapshotTakeIn = {
   agentId: string;
   runId?: string;
@@ -8518,6 +8526,109 @@ export type CompanySweepOut = {
   gone: Array<string>;
   held?: string;
 };
+export type ComputersBrowserGiveBackIn = {
+  agentId: string;
+};
+export type ComputersBrowserGiveBackOut = {
+  profile: {
+    agentId: string;
+    running: boolean;
+    tabs: number;
+    busy: boolean;
+    viewers: number;
+    lastActiveAt?: number;
+    state: "running" | "asleep" | "waiting" | "error";
+    line?: string;
+    takeoverBy?: string;
+    paired: boolean;
+    access: "owner" | "admin" | "viewer";
+  };
+};
+export type ComputersBrowserProfilesIn = Record<string, unknown>;
+export type ComputersBrowserProfilesOut = {
+  profiles: Array<{
+      agentId: string;
+      running: boolean;
+      tabs: number;
+      busy: boolean;
+      viewers: number;
+      lastActiveAt?: number;
+      state: "running" | "asleep" | "waiting" | "error";
+      line?: string;
+      takeoverBy?: string;
+      paired: boolean;
+      access: "owner" | "admin" | "viewer";
+    }>;
+  maxRunning: number;
+};
+export type ComputersBrowserSessionsIn = {
+  agentId: string;
+};
+export type ComputersBrowserSessionsOut = {
+  sessions: Array<{
+      site: string;
+      signedInAs?: string;
+      since: number;
+      lastSeen: number;
+    }>;
+};
+export type ComputersBrowserSignOutIn = {
+  agentId: string;
+  site: string;
+};
+export type ComputersBrowserSignOutOut = {
+  ok: boolean;
+};
+export type ComputersBrowserStreamIn = {
+  agentId: string;
+};
+export type ComputersBrowserStreamOut = {
+  transport: "mjpeg";
+  url: string;
+  ws?: string;
+  width?: number;
+  height?: number;
+  expiresAt: number;
+};
+export type ComputersBrowserTakeOverIn = {
+  agentId: string;
+};
+export type ComputersBrowserTakeOverOut = {
+  profile: {
+    agentId: string;
+    running: boolean;
+    tabs: number;
+    busy: boolean;
+    viewers: number;
+    lastActiveAt?: number;
+    state: "running" | "asleep" | "waiting" | "error";
+    line?: string;
+    takeoverBy?: string;
+    paired: boolean;
+    access: "owner" | "admin" | "viewer";
+  };
+};
+export type ComputersBrowserTimelineIn = {
+  agentId: string;
+  runId?: string;
+  threadId?: string;
+  cursor?: string;
+  limit?: number;
+};
+export type ComputersBrowserTimelineOut = {
+  steps: Array<{
+      stepId: string;
+      idx: number;
+      at: number;
+      caption: string;
+      tool: string;
+      frameFileId?: string;
+      by: "agent" | "person";
+      runId?: string;
+    }>;
+  next?: string;
+  total?: number;
+};
 export type ComputersChromeActIn = {
   computerId?: string;
   tabId?: string;
@@ -8529,6 +8640,11 @@ export type ComputersChromeActOut = {
   ok: boolean;
   heldId?: string;
   snapshot?: string;
+  downloads?: Array<{
+      name: string;
+      path: string;
+      fileId: string;
+    }>;
 };
 export type ComputersChromeApiIn = {
   computerId?: string;
@@ -8570,6 +8686,11 @@ export type ComputersChromeClickIn = {
 export type ComputersChromeClickOut = {
   ok: boolean;
   heldId?: string;
+  downloads?: Array<{
+      name: string;
+      path: string;
+      fileId: string;
+    }>;
 };
 export type ComputersChromeConsoleIn = {
   computerId?: string;
@@ -8637,6 +8758,11 @@ export type ComputersChromeOpenOut = {
   tabId: string;
   url: string;
   title: string;
+  downloads?: Array<{
+      name: string;
+      path: string;
+      fileId: string;
+    }>;
 };
 export type ComputersChromePlanIn = {
   computerId?: string;
@@ -8703,6 +8829,11 @@ export type ComputersChromeStateOut = {
   url: string;
   title: string;
   loading: boolean;
+  downloads?: Array<{
+      name: string;
+      path: string;
+      fileId: string;
+    }>;
 };
 export type ComputersChromeStatusIn = {
   computerId?: string;
@@ -8754,6 +8885,11 @@ export type ComputersChromeWaitIn = {
 export type ComputersChromeWaitOut = {
   ok: boolean;
   waitedMs: number;
+  downloads?: Array<{
+      name: string;
+      path: string;
+      fileId: string;
+    }>;
 };
 export type ComputersConfigureIn = {
   computerId: string;
@@ -22260,6 +22396,7 @@ export type MachinesRoomsOut = {
       turns: number;
       maxTurns: number;
       draining: boolean;
+      maxAgentComputers?: number;
     }>;
 };
 export type MachinesSetIn = {
@@ -41434,6 +41571,10 @@ export type TerminalGetOut = {
     createdAt: number;
     lastActiveAt: number;
     runId?: string;
+    by?: {
+      kind: "agent" | "helper" | "person";
+      name?: string;
+    };
   };
 };
 export type TerminalHealthIn = Record<string, unknown>;
@@ -41482,12 +41623,16 @@ export type TerminalListOut = {
       createdAt: number;
       lastActiveAt: number;
       runId?: string;
+      by?: {
+        kind: "agent" | "helper" | "person";
+        name?: string;
+      };
     }>;
   next?: string;
   total?: number;
 };
 export type TerminalOpenIn = {
-  host: "agent_computer" | "device";
+  host?: "agent_computer" | "device";
   agentId?: string;
   computerId?: string;
   deviceId?: string;
@@ -41515,6 +41660,10 @@ export type TerminalOpenOut = {
     createdAt: number;
     lastActiveAt: number;
     runId?: string;
+    by?: {
+      kind: "agent" | "helper" | "person";
+      name?: string;
+    };
   };
 };
 export type TerminalOpenServerIn = {
@@ -41542,6 +41691,10 @@ export type TerminalOpenServerOut = {
     createdAt: number;
     lastActiveAt: number;
     runId?: string;
+    by?: {
+      kind: "agent" | "helper" | "person";
+      name?: string;
+    };
   };
 };
 export type TerminalReadIn = {
@@ -41575,6 +41728,10 @@ export type TerminalRenameOut = {
     createdAt: number;
     lastActiveAt: number;
     runId?: string;
+    by?: {
+      kind: "agent" | "helper" | "person";
+      name?: string;
+    };
   };
 };
 export type TerminalRequestIn = {
@@ -41633,6 +41790,7 @@ export type TerminalRulesSetOut = {
 export type TerminalRunIn = {
   command: string;
   terminalId?: string;
+  session?: string;
   host?: "agent_computer" | "device";
   agentId?: string;
   cwd?: string;
@@ -41657,6 +41815,18 @@ export type TerminalStatusOut = {
       lastLine?: string;
       exitCode: number | null;
     }>;
+};
+export type TerminalWorkspaceIn = {
+  agentId: string;
+};
+export type TerminalWorkspaceOut = {
+  state: "running" | "asleep" | "waiting" | "none" | "unavailable";
+  line?: string;
+  host?: "space" | "server";
+  nodeId?: string;
+  projects?: Array<string>;
+  canAttach: boolean;
+  cannotAttach?: string;
 };
 export type ThreadsAddAgentIn = {
   threadId: string;
@@ -44606,6 +44776,7 @@ export interface CapMap {
   "agents.routine.save": { in: AgentsRoutineSaveIn; out: AgentsRoutineSaveOut };
   "agents.routines.list": { in: AgentsRoutinesListIn; out: AgentsRoutinesListOut };
   "agents.set_owner": { in: AgentsSetOwnerIn; out: AgentsSetOwnerOut };
+  "agents.share_class": { in: AgentsShareClassIn; out: AgentsShareClassOut };
   "agents.snapshot.take": { in: AgentsSnapshotTakeIn; out: AgentsSnapshotTakeOut };
   "agents.status": { in: AgentsStatusIn; out: AgentsStatusOut };
   "agents.suggestion.accept": { in: AgentsSuggestionAcceptIn; out: AgentsSuggestionAcceptOut };
@@ -44853,6 +45024,13 @@ export interface CapMap {
   "company.start": { in: CompanyStartIn; out: CompanyStartOut };
   "company.status": { in: CompanyStatusIn; out: CompanyStatusOut };
   "company.sweep": { in: CompanySweepIn; out: CompanySweepOut };
+  "computers.browser.give_back": { in: ComputersBrowserGiveBackIn; out: ComputersBrowserGiveBackOut };
+  "computers.browser.profiles": { in: ComputersBrowserProfilesIn; out: ComputersBrowserProfilesOut };
+  "computers.browser.sessions": { in: ComputersBrowserSessionsIn; out: ComputersBrowserSessionsOut };
+  "computers.browser.sign_out": { in: ComputersBrowserSignOutIn; out: ComputersBrowserSignOutOut };
+  "computers.browser.stream": { in: ComputersBrowserStreamIn; out: ComputersBrowserStreamOut };
+  "computers.browser.take_over": { in: ComputersBrowserTakeOverIn; out: ComputersBrowserTakeOverOut };
+  "computers.browser.timeline": { in: ComputersBrowserTimelineIn; out: ComputersBrowserTimelineOut };
   "computers.chrome.act": { in: ComputersChromeActIn; out: ComputersChromeActOut };
   "computers.chrome.api": { in: ComputersChromeApiIn; out: ComputersChromeApiOut };
   "computers.chrome.batch": { in: ComputersChromeBatchIn; out: ComputersChromeBatchOut };
@@ -46545,6 +46723,7 @@ export interface CapMap {
   "terminal.rules.set": { in: TerminalRulesSetIn; out: TerminalRulesSetOut };
   "terminal.run": { in: TerminalRunIn; out: TerminalRunOut };
   "terminal.status": { in: TerminalStatusIn; out: TerminalStatusOut };
+  "terminal.workspace": { in: TerminalWorkspaceIn; out: TerminalWorkspaceOut };
   "threads.add_agent": { in: ThreadsAddAgentIn; out: ThreadsAddAgentOut };
   "threads.agent.configure": { in: ThreadsAgentConfigureIn; out: ThreadsAgentConfigureOut };
   "threads.agent.create": { in: ThreadsAgentCreateIn; out: ThreadsAgentCreateOut };

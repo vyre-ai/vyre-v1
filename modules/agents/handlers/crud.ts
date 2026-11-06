@@ -45,6 +45,29 @@ export async function list(ctx: AgentsCtx, input: { section?: "personal" | "shar
   return { agents: page.map((a) => agentFor(ctx, a, now)), ...(offset + limit < rows.length ? { next: String(offset + limit) } : {}), total: rows.length };
 }
 
+export type ShareClass = "private" | "personal" | "shared" | "space";
+/**
+ * How an agent is shared, the one rule the Space browser (and anything else that decides who may watch an agent's work) uses: `private` an Assistant or an outside agent (its person only), `space` an agent shared with
+ * the whole Space (the built-in Everyone group holds a grant on it, like Dex), `shared` an agent shared with named people, `personal` an agent nobody else was given. `people` are the named people, without the owner.
+ */
+export async function classifyAgent(ctx: AgentsCtx, a: AgentRec): Promise<{ class: ShareClass; people: string[] }> {
+  if (isPrivateAgent(a)) return { class: "private", people: [] };
+  let subjects: Array<{ kind?: string; id?: string }> = [];
+  try {
+    const r = (await ctx.call?.("access.shares_of", { resource: { type: "agent", id: a.id } })) as { shares?: Array<{ grant?: { subject?: { kind?: string; id?: string } } }> } | undefined;
+    subjects = (r?.shares ?? []).map((s) => s.grant?.subject ?? {});
+  } catch { /* what cannot be read is not shared: the narrower answer */ }
+  if (subjects.some((x) => x.kind === "group" && x.id === "grp_everyone")) return { class: "space", people: [] };
+  const people = [...new Set(subjects.filter((x) => x.kind === "person" && typeof x.id === "string" && x.id !== a.ownerId).map((x) => x.id as string))];
+  return people.length > 0 || subjects.some((x) => x.kind === "group") ? { class: "shared", people } : { class: "personal", people: [] };
+}
+
+export async function shareClass(ctx: AgentsCtx, input: { agentId: string }) {
+  const a = visible(ctx, input.agentId);
+  const c = await classifyAgent(ctx, a);
+  return { class: c.class, ownerId: a.ownerId, people: c.people };
+}
+
 export async function get(ctx: AgentsCtx, input: { agentId: string }) {
   return { agent: agentFor(ctx, visible(ctx, input.agentId), ctx.now()) };
 }

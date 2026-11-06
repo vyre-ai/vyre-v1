@@ -4,11 +4,17 @@
 // is read back with capture-pane. Live frames come from a tmux control-mode client (`%output` lines, decoded here).
 import type { Handler } from "../../host/src/invoke.ts";
 import { handlers as table } from "./handlers/index.ts";
-import { bindHost, bindKit, bindMachineHost, bindMachinePlace, bindPlace, bindTeam, bindValues, boundHost, redeemTicket, scrubberFor, spellingsFor } from "./projections.ts";
+import { bindWorkspaceStatus, bindHost, bindKit, bindMachineHost, bindMachinePlace, bindPlace, bindTeam, bindValues, bindWorkspaces, boundHost, redeemTicket, scrubberFor, spellingsFor } from "./projections.ts";
+import { unixSocketHttp } from "../../sandbox/src/docker.ts";
+import { buildWorkspaceManager, createWorkspaceTerminalHost } from "./workspace.ts";
+import type { WorkspaceManager, WorkspaceOptions, WorkspaceTerminalHost } from "./workspace.ts";
+import { createWorkspaceFleet, remoteDockerHttp } from "./fleet.ts";
+import type { WorkspaceFleet } from "./fleet.ts";
 import type { Db, PlaceOf, Target, TermState, TerminalHost } from "./projections.ts";
 
 export const handlers: Record<string, Handler> = table as unknown as Record<string, Handler>;
 export { fetchesOutside, isDangerCall, outwardOf } from "./handlers/index.ts";
+export { mayEnterWorkspace } from "./handlers/sessions.ts";
 
 // ---- tmux ---------------------------------------------------------------------------------------------------------------------------------------------------
 
@@ -345,10 +351,46 @@ export interface TerminalHostSeam {
   /** A session for this target lives on this machine. Anything else is another machine, which this one cannot reach. */
   runsHere(target: Target): boolean;
   place?: PlaceOf;
+  /** Agent workspaces on this machine (the Space server): where Docker is and which image, and the Files and project folders to mount. Omitted: this host has none. */
+  workspaces?: WorkspaceConfig;
 }
 
+/** What the daemon hands over for agent workspaces (host/src/seams/terminal-host.ts): configuration only. The module builds the Docker managers from it, as agent computers are built. */
+export interface WorkspaceConfig extends Pick<WorkspaceOptions, "image" | "limits" | "idleMs" | "home" | "projectsOf" | "admit" | "capacity" | "log"> {
+  /** The Docker Engine socket of this machine. With no socket and no runner the Space has no runtime of its own, and its workspaces go on servers that joined. */
+  socketPath?: string;
+  /** A Team server: the container runner's socket and its token (read again on each call). vyred holds no Docker socket there. */
+  runner?: { socket: string; token(): string };
+  /** Servers that joined the Space: a question for one over its live socket, and which one (connected, with Docker) an agent's workspace goes on when the Space has no runtime of its own. */
+  nodes?: { ask(nodeId: string, kind: string, input: unknown, timeoutMs?: number): Promise<unknown>; place(agentId: string): Promise<string | null> };
+}
+
+/** The manager of one machine's Docker engine, not yet used: the first terminal command or attach makes the workspace. */
+export function buildWorkspaces(c: WorkspaceConfig): WorkspaceManager {
+  const http = c.runner ? unixSocketHttp(c.runner.socket, undefined, () => ({ authorization: `Bearer ${c.runner!.token()}` })) : unixSocketHttp(c.socketPath);
+  const { socketPath: _s, runner, nodes: _n, ...rest } = c;
+  return buildWorkspaceManager({ ...rest, http, ...(runner ? { runner: true } : {}) } as Omit<WorkspaceOptions, "api">);
+}
+
+/** The managers of every machine an agent's workspace may live on, as the one the terminal sees: the Space's own runtime and each server that joined. */
+export function buildWorkspaceFleet(c: WorkspaceConfig): WorkspaceFleet {
+  const hasRuntime = c.socketPath !== undefined || c.runner !== undefined;
+  const nodes = c.nodes;
+  const { nodes: _n, ...own } = c;
+  return createWorkspaceFleet({
+    space: hasRuntime ? buildWorkspaces(own) : null,
+    node: (nodeId) => {
+      if (!nodes) throw new Error("This Space has no servers to run workspaces on.");
+      const { socketPath: _s, runner: _r, nodes: _x, capacity, ...rest } = c;
+      const http = remoteDockerHttp((input, timeoutMs) => nodes.ask(nodeId, "docker", input, timeoutMs));
+      return buildWorkspaceManager({ ...rest, ...(capacity ? { capacity: { claim: (a: string) => capacity.claim(a, nodeId), release: (a: string) => capacity.release(a, nodeId) } } : {}), http, runner: true } as Omit<WorkspaceOptions, "api">);
+    },
+    place: async (agentId) => (nodes ? nodes.place(agentId) : null),
+  });
+}
 /** The sessions of this machine: tmux when it is installed, else a plain shell. A target on another machine is refused at open. */
-export function createLocalHost(o: Omit<TerminalHostSeam, "place">): TerminalHost {
+export function createLocalHost(o: Omit<TerminalHostSeam, "place" | "workspaces">, workspaces?: WorkspaceManager | WorkspaceTerminalHost): TerminalHost {
+  const ws: WorkspaceTerminalHost | null = workspaces === undefined ? null : "has" in workspaces ? workspaces : createWorkspaceTerminalHost({ manager: workspaces });
   const tmux = createTmuxHost({ exec: o.exec, ...(o.control ? { control: o.control } : {}) });
   const plain = createShellHost({ run: o.shell, home: o.home });
   let tmuxKnown: boolean | null = null;
@@ -356,9 +398,15 @@ export function createLocalHost(o: Omit<TerminalHostSeam, "place">): TerminalHos
   const hasTmux = (): Promise<boolean> => (probe ??= o.exec(["tmux", "-V"]).then((r) => r.code === 0, () => false).then((v) => { tmuxKnown = v; return v; }));
   const owner = new Map<string, TerminalHost>();
   /** Sessions opened before a restart are tmux ones when tmux is here: they outlive the daemon. */
-  const of = async (id: string): Promise<TerminalHost> => owner.get(id) ?? ((await hasTmux()) ? tmux : plain);
+  const of = async (id: string): Promise<TerminalHost> => owner.get(id) ?? (ws && (await ws.has(id)) ? ws : (await hasTmux()) ? tmux : plain);
   return {
     async open(a) {
+      // an agent's workspace is a container on this machine, whatever machine the person is on
+      if (a.target.host === "agent_computer" && ws) {
+        const r = await ws.open(a);
+        owner.set(a.terminalId, ws);
+        return r;
+      }
       if (!o.runsHere(a.target)) throw new Error("that computer is not this one, and this one cannot reach it");
       const h = (await hasTmux()) ? tmux : plain;
       const r = await h.open(a);
@@ -385,13 +433,26 @@ export function createLocalHost(o: Omit<TerminalHostSeam, "place">): TerminalHos
 }
 
 /** The daemon's half: this machine's sessions and where turns run. Null on shutdown. */
+let workspaceManager: WorkspaceManager | null = null;
+/** The workspaces of this machine, for the host's Computer tab and tests: null when there are none. */
+export const boundWorkspaces = (): WorkspaceManager | null => workspaceManager;
+
 export function setTerminalHost(seam: TerminalHostSeam | null): void {
-  bindMachineHost(seam === null ? null : createLocalHost(seam));
+  workspaceManager?.close();
+  const fleet = seam?.workspaces ? buildWorkspaceFleet(seam.workspaces) : null;
+  workspaceManager = fleet;
+  bindMachineHost(seam === null ? null : createLocalHost(seam, workspaceManager ?? undefined));
   bindMachinePlace(seam?.place ?? null);
+  // agent commands go to a workspace when there is a machine for this agent's one right now; with none (no runtime, no server) they go where the turn runs, as before
+  bindWorkspaces(fleet ? (agentId) => fleet.available(agentId) : false);
+  bindWorkspaceStatus(fleet ? (agentId) => fleet.status(agentId) : null);
 }
 
 // Only the setter the daemon wires is a host seam.
 export const hostSeams = { setTerminalHost };
 
-export { bindHost, bindKit, bindPlace, bindTeam, bindValues };
+export { bindHost, bindKit, bindPlace, bindTeam, bindValues, bindWorkspaces };
+export { createWorkspaceFleet, remoteDockerHttp } from "./fleet.ts";
+export { buildWorkspaceManager, createWorkspaceManager, createWorkspaceTerminalHost, reviewWorkspaceConfig, workspaceContainerConfig } from "./workspace.ts";
+export type { WorkspaceManager, WorkspaceRow } from "./workspace.ts";
 export { commandsOf, judge, redeemTicket, rulesOf } from "./projections.ts";

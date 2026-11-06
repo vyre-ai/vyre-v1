@@ -68,7 +68,7 @@ export default defineManifest({
     }),
     read('machines.rooms', 'Room left on the machines you name (ids as machines.list gives them): the number placement skips a busy machine by, and the plain words for why ("4 of 4 turns"). Only machines you may see; used by engine.placement.decide', {
       ...V, in: { ids: t.arr(t.str(), { maxItems: 64 }), agentId: t.opt(id.agent) },
-      out: { pinnedTo: t.opt(t.str({ description: 'The machine this agent is pinned to, when it is one of the ids asked about' })), rooms: t.arr(t.obj({ machineId: t.str(), name: t.str(), score: t.int({ minimum: 0, maximum: 100 }), why: t.str(), turns: t.int({ minimum: 0 }), maxTurns: t.int({ minimum: 1 }), draining: t.bool() })) },
+      out: { pinnedTo: t.opt(t.str({ description: 'The machine this agent is pinned to, when it is one of the ids asked about' })), rooms: t.arr(t.obj({ machineId: t.str(), name: t.str(), score: t.int({ minimum: 0, maximum: 100 }), why: t.str(), turns: t.int({ minimum: 0 }), maxTurns: t.int({ minimum: 1 }), draining: t.bool(), maxAgentComputers: t.opt(t.int({ minimum: 0, description: 'The most agent computers, browser profiles and the like it runs at once: what an admin set, else half its cores (at least one). Read by the computers module before it starts one' })) })) },
     }),
     write('machines.fix', 'Press a Doctor Fix on a machine: clear old caches, stop idle engine sessions, or restart a service. The host runs it; an admin for the Space server and servers, the owner for their own computer. Audited', {
       ...V, in: { machineId: t.str(), fix: t.enm('clear_caches', 'stop_idle', 'restart_service'), service: t.opt(t.str({ pattern: '^[a-z][a-z0-9_.-]{0,40}$' })) },

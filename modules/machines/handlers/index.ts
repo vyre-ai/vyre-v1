@@ -250,7 +250,7 @@ export async function rooms(ctx: MachinesCtx, input: { ids: string[]; agentId?: 
       const x = room[r.machineId]!;
       // another person's machine reveals nothing but a number and the turns: the words for CPU, memory and disk stay with its owner
       const why = restrictedFor(r, v) ? (/^\d+ of \d+ turns$|^draining$|^offline$/.test(x.why) ? x.why : "busy") : x.why;
-      return { machineId: r.machineId, name: x.name, score: x.score, why, turns: x.turns, maxTurns: x.maxTurns, draining: x.draining };
+      return { machineId: r.machineId, name: x.name, score: x.score, why, turns: x.turns, maxTurns: x.maxTurns, draining: x.draining, maxAgentComputers: r.maxAgentComputers ?? (r.kind === "computer" ? 0 : Math.max(1, Math.floor((r.specs?.cores ?? 2) / 2))) };
     }),
   };
 }

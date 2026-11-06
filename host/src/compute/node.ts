@@ -75,7 +75,7 @@ const MAX_PROCS = 16;
 /** Bytes of a response in one frame; base64 of this stays under the Space's frame limit. */
 const PORT_CHUNK = 2 * 1024 * 1024;
 /** The questions the Space may ask this machine over the live socket. Anything else is refused. */
-const ASKS: ReadonlySet<string> = new Set(["siteLogs", "edge"]);
+const ASKS: ReadonlySet<string> = new Set(["siteLogs", "edge", "docker"]);
 
 /**
  * A job that gives an agent computer its Vault channel carries the address to ask, as the Space sees itself (its Docker gateway); from this computer the Space is at the address it joined by.
