@@ -368,8 +368,14 @@ test("an incoming call shows the caller, the number it came in on, Accept and De
   assert.match(unknown, /Unknown caller/);
 });
 
+test("with nobody who can take the call there is no Transfer button (it would open an empty menu)", () => {
+  const html = renderToStaticMarkup(<Softphone {...base} open mode="live" caller={caller} secs={75} />);
+  assert.doesNotMatch(html, /aria-label="Transfer"/);
+  assert.match(html, /aria-label="Hang up"/);
+});
+
 test("a live call shows the clock, mute, hold, keypad, transfer, record and hang up; the pressed ones say so", () => {
-  const html = renderToStaticMarkup(<Softphone {...base} open mode="live" caller={caller} secs={75} muted recording consent />);
+  const html = renderToStaticMarkup(<Softphone {...base} open mode="live" caller={caller} secs={75} muted recording consent transferTargets={[{ name: "Maya Chen", kind: "teammate" }]} />);
   assert.match(html, /data-testid="softphone-bar"/);
   assert.match(html, /01:15 · Recording/);
   assert.match(html, /aria-label="Unmute"/);
