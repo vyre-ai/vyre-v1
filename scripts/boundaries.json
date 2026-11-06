@@ -198,7 +198,8 @@
         "manifests/",
         "tools/gen/",
         "fixtures/",
-        "images/agent-computer/agentd/"
+        "images/agent-computer/agentd/",
+        "images/space-browser/browserd/"
       ]
     },
     "B8": {

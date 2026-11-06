@@ -8,10 +8,12 @@
 //   recording and every answer can be scrubbed; `frame` is the screen after the step (the timeline's picture); `caption` is its words.
 // Errors are only ones the capabilities declare: a person at the controls, a held item and a bad argument are validation.bad_input; Esc, a computer still starting and a silent agentd are provider.unavailable.
 // Handles are never resolved here: "agent computer logins stay on that computer" (ARCH 6.11), agentd substitutes them at the last moment and scrubs its own output. This module scrubs again.
-import { actorOf, addStep, agentFolder, clean, hostFor, ensure, mintId, needComputer, needTeam, raise, rememberSecrets, rowsOf, setComputer } from "../../projections.ts";
+import { actorOf, addStep, agentFolder, boundFill, clean, hostFor, ensure, mintId, needComputer, needTeam, raise, rememberSecrets, rowsOf, setComputer } from "../../projections.ts";
 import { personalChrome } from "../../projections.ts";
 import type { CompCtx, ComputerHost, ComputerRow, PersonalChrome, Secret } from "../../projections.ts";
 import { awaken } from "../lifecycle.ts";
+import { spaceBrowser } from "../../sbrowser/port.ts";
+import { profileIdOf } from "../../sbrowser/policy.ts";
 
 export type ToolArgs = Record<string, unknown>;
 export type ToolAnswer = Record<string, unknown>;
@@ -136,7 +138,11 @@ async function liveCard(ctx: CompCtx, c: ComputerRow, caption: string, fileId: s
   } catch { lastCard.delete(key); }
 }
 
-export interface Resolved { computer: ComputerRow; host: ComputerHost & ToolHost; /** The person's own Chrome, not an agent computer. */ personal?: boolean }
+export interface Resolved {
+  computer: ComputerRow; host: ComputerHost & ToolHost;
+  /** The person's own Chrome, not an agent computer. */ personal?: boolean;
+  /** The agent's profile in the Space browser (sbrowser/): a Chrome of its own on the Space host, no computer needed. */ browser?: { profileId: string };
+}
 
 /** Name this as `computerId` to work in the person's own Chrome. An agent with no computer of its own gets it without naming it, when the person has opened their Chrome to agents. */
 export const MY_CHROME = "my-chrome";
@@ -162,9 +168,16 @@ async function wantsMyChrome(ctx: CompCtx, computerId: string | undefined): Prom
 }
 
 /** Everything before the call: team Space, the computer, the caller's right to it, awake, and the controls with the agent. Returns null when the spec says to leave a sleeping computer alone. */
-export async function prepare(ctx: CompCtx, computerId: string | undefined, spec: Pick<ToolSpec, "noWake" | "duringTakeover">): Promise<Resolved | null> {
+export async function prepare(ctx: CompCtx, computerId: string | undefined, spec: Pick<ToolSpec, "noWake" | "duringTakeover"> & { name?: string }): Promise<Resolved | null> {
   ensure(ctx.db);
   needTeam(ctx);
+  // The Space browser is where an agent browses by default (owner decision 6 Nov): its own profile, on the Space host, whoever asked, so the person's computer is never disturbed and a team agent's logins
+  // outlive the person who asked. Only a call that names a computer (a person working one) or the person's own Chrome (`my-chrome`, on request) goes elsewhere.
+  if (spec.name !== undefined && spec.name.startsWith("chrome_") && computerId === undefined && ctx.principal.kind === "agent" && spaceBrowser()) {
+    const profileId = profileIdOf(ctx.principal.id);
+    if (!profileId) raise(ctx, "validation.bad_input", "This agent cannot have a browser profile: its id is not valid.");
+    return { computer: { computerId: profileId, agentId: ctx.principal.id, state: "working" } as unknown as ComputerRow, host: {} as ComputerHost & ToolHost, browser: { profileId } };
+  }
   if (await wantsMyChrome(ctx, computerId)) return { computer: stub(ctx), host: {} as ComputerHost & ToolHost, personal: true };
   let c = computerFor(ctx, computerId);
   mayUse(ctx, c);
@@ -180,6 +193,7 @@ export async function prepare(ctx: CompCtx, computerId: string | undefined, spec
 /** One call to agentd and everything after it: scrub, remember what was filled, keep the frame, add the step. Returns the capability's output. */
 export async function call(ctx: CompCtx, r: Resolved, spec: ToolSpec, args: ToolArgs): Promise<ToolAnswer> {
   if (r.personal) return personalCall(ctx, spec, args);
+  if (r.browser) return browserCall(ctx, r.browser.profileId, spec, args);
   const c = r.computer;
   let raw: ToolAnswer;
   try {
@@ -203,6 +217,40 @@ export async function call(ctx: CompCtx, r: Resolved, spec: ToolSpec, args: Tool
     await liveCard(ctx, c, words, frameFileId, at);
   }
   return out;
+}
+
+// The Vault channel of an agent's profile: one token per profile and asker, so the Vault logs who asked and a use after the asker changes is checked as the new asker.
+const fillGrants = new Map<string, { token: string; revoke(): void }>();
+const TYPING = new Set(["chrome_type", "chrome_fill", "chrome_act"]);
+
+/** One tool in the agent's profile of the Space browser. What comes back is scrubbed of the Vault values filled for this profile; no desktop frame exists, so there is no timeline step (the live view shows the page). */
+async function browserCall(ctx: CompCtx, profileId: string, spec: ToolSpec, args: ToolArgs): Promise<ToolAnswer> {
+  const sb = spaceBrowser();
+  if (!sb) raise(ctx, "provider.unavailable", "The Space browser is not running on this host.");
+  let fill: { url: string; token: string } | undefined;
+  const binding = boundFill();
+  if (binding && TYPING.has(spec.name)) {
+    const asker = actorOf(ctx);
+    const key = `${profileId}|${asker}`;
+    let g = fillGrants.get(key);
+    if (!g) {
+      for (const [k, old] of fillGrants) if (k.startsWith(`${profileId}|`)) { old.revoke(); fillGrants.delete(k); }
+      const issued = await binding.issue({ computerId: profileId, agentId: ctx.principal.id, asker });
+      g = { token: issued.fillToken, revoke: issued.revoke };
+      fillGrants.set(key, g);
+    }
+    fill = { url: binding.url(), token: g.token };
+  }
+  let raw: ToolAnswer;
+  try {
+    raw = await sb.tool({ profileId, tool: spec.name, args, timeoutMs: Math.min(spec.timeoutMs ?? DEFAULT_TOOL_MS, MAX_TOOL_MS), ...(fill ? { fill } : {}) });
+  } catch (e) {
+    return refuse(ctx, e);
+  }
+  if (!isRecord(raw)) raise(ctx, "provider.unavailable", "The browser answered with something that is not an object.");
+  const { used, frame: _frame, caption: _caption, ...rest } = raw;
+  rememberSecrets(profileId, secretsOf(used));
+  return scrubDeep(profileId, rest) as ToolAnswer;
 }
 
 /** One tool in the person's own Chrome. What comes back is what the extension answered (it already hides secret fields and never holds a value); a held send or post also leaves its card in the chat. */

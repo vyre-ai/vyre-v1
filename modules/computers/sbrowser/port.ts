@@ -1,0 +1,50 @@
+// The Space browser as a port (owner decision 6 Nov, DESIGN-agent-workspaces.md): one browser service per Space host, a persistent Chrome profile per agent and per person's Assistant. The module asks this
+// port; the server binds the Docker adapter (docker.ts). No process starts and no socket opens here. A profile is named by the agent's id: its cookies, logins and tabs are its own.
+export type BrowserAnswer = Record<string, unknown>;
+
+export interface ProfileRow {
+  profileId: string;
+  running: boolean;
+  tabs: number;
+  busy: boolean;
+  /** A person has the controls. */
+  takeover: boolean;
+  /** People watching its live view. */
+  viewers: number;
+  lastActiveAt: number;
+  held: number;
+  paused: boolean;
+}
+
+export interface BrowserToolCall {
+  profileId: string;
+  /** The capability's mcpName: chrome_open, chrome_click ... */
+  tool: string;
+  args: Record<string, unknown>;
+  timeoutMs: number;
+  /** `person` is the person at the controls acting through the live view: browserd lets it through a takeover that holds the agent's tools. */
+  by?: "person";
+  /** The Vault channel of this profile's agent for #Handle.field in the call: held by browserd in memory, for this profile only. */
+  fill?: { url: string; token: string };
+}
+
+export interface SpaceBrowser {
+  /** One browser tool for one profile. Starts the service and the profile's browser when they are not running. Throws an error with a `code` (timeout, paused, not_found, bad_input, held, unavailable). */
+  tool(a: BrowserToolCall): Promise<BrowserAnswer>;
+  takeover(a: { profileId: string; personId: string }): Promise<void>;
+  giveBack(profileId: string): Promise<void>;
+  screenshot(profileId: string): Promise<{ bytes: Uint8Array; width: number; height: number }>;
+  /** Where the live view of a profile is served from, for a ticket the viewer presents. `ws` is browserd's own WebSocket address on the machine that runs it, for the host's relay, never for a viewer. */
+  stream(a: { profileId: string }): Promise<{ transport: "mjpeg"; url: string; ws?: string }>;
+  /** The browser of the profile stops; the folder stays. */
+  stop(profileId: string): Promise<void>;
+  /** The agent is gone: the browser stops and the folder is deleted. */
+  forget(profileId: string): Promise<void>;
+  profiles(): Promise<{ profiles: ProfileRow[]; maxRunning: number }>;
+  health(): Promise<{ ok: boolean; detail?: string }>;
+}
+
+let bound: SpaceBrowser | null = null;
+/** The host binds the Space browser here; unbound, the chrome_* tools keep using the agent's own computer (or the person's Chrome). */
+export function bindSpaceBrowser(b: SpaceBrowser | null): void { bound = b; }
+export const spaceBrowser = (): SpaceBrowser | null => bound;

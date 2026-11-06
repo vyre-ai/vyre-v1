@@ -9,12 +9,28 @@ const GLOBAL = /#([A-Za-z][A-Za-z0-9_]*)\.([A-Za-z0-9_]+)/g;
 export interface Used { handle: string; itemId: string; value: string }
 export interface Filler { url: string; token: string; computerId: string }
 
-let filler: Filler | null = null;
-export function setFiller(url: string | null, token: string | null, computerId: string): void {
-  if (url === null || token === null) { filler = null; return; }
-  if (!/^https?:\/\//.test(url) || token.length < 16) throw badInput("The Vault channel needs an http(s) address and a token of at least 16 characters.");
-  filler = { url, token, computerId };
+/** One Vault channel, held in memory. An agent computer has one (the module-level functions below). The Space browser has one per profile, so a profile fills only as its own agent (createVault). */
+export interface Vault {
+  setFiller(url: string | null, token: string | null, computerId: string): void;
+  fillArgs<T>(args: T): Promise<{ args: T; used: Used[] }>;
+  hasChannel(): boolean;
 }
+
+export function createVault(): Vault {
+  let filler: Filler | null = null;
+  return {
+    setFiller(url, token, computerId) {
+      if (url === null || token === null) { filler = null; return; }
+      if (!/^https?:\/\//.test(url) || token.length < 16) throw badInput("The Vault channel needs an http(s) address and a token of at least 16 characters.");
+      filler = { url, token, computerId };
+    },
+    hasChannel: () => filler !== null,
+    async fillArgs<T>(args: T) { return fillWith(filler, args); },
+  };
+}
+
+const own = createVault();
+export const setFiller = own.setFiller;
 
 async function ask(f: Filler, handle: string, field: string): Promise<{ value: string; itemId: string }> {
   let res: Response;
@@ -29,7 +45,9 @@ async function ask(f: Filler, handle: string, field: string): Promise<{ value: s
   return { value: j.value, itemId: typeof j.itemId === "string" ? j.itemId : `#${handle}.${field}` };
 }
 
-export async function fillArgs<T>(args: T): Promise<{ args: T; used: Used[] }> {
+export const fillArgs = own.fillArgs;
+
+async function fillWith<T>(filler: Filler | null, args: T): Promise<{ args: T; used: Used[] }> {
   const found = [...JSON.stringify(args ?? null).matchAll(GLOBAL)];
   if (found.length === 0) return { args, used: [] };
   if (!filler) throw unavailable("This computer has no channel to the Vault, so it cannot fill a #Handle.field. Nothing was typed.");
