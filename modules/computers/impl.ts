@@ -40,6 +40,7 @@ import { ToolError } from "./handlers/tools/common.ts";
 import type { ToolAnswer, ToolCode, ToolHost } from "./handlers/tools/common.ts";
 import type { ComputerHost, HostKind, Probe, RecordResult, SessionInfo } from "./projections.ts";
 import "./sbrowser/migrate.ts";
+import { browserStreamInput, browserStreamOpen } from "./sbrowser/handlers.ts";
 import "./sbrowser/room.ts";
 import { bindSpaceBrowser } from "./sbrowser/port.ts";
 import type { SpaceBrowser } from "./sbrowser/port.ts";
@@ -580,4 +581,4 @@ export const hostSeams = { setComputersFill, setComputerHost };
 export { nodeRun };
 
 /** What the host asks of this module on behalf of a computer that joined (host/src/routes/compute.ts): never a capability, never reachable from a session. */
-export const hostCalls = { "computers.workspace_claim": workspaceClaim, "computers.workspace_release": workspaceRelease, "computers.workspace_waiting": workspaceWaiting, "computers.node_jobs": nodeJobs, "computers.node_result": nodeResult, "computers.node_home_check": nodeHomeCheck, "computers.stream_open": nodeStreamOpen, "computers.stream_input": nodeStreamInput, "computers.node_recording_check": nodeRecordingCheck };
+export const hostCalls = { "computers.browser_stream_open": browserStreamOpen, "computers.browser_stream_input": browserStreamInput, "computers.workspace_claim": workspaceClaim, "computers.workspace_release": workspaceRelease, "computers.workspace_waiting": workspaceWaiting, "computers.node_jobs": nodeJobs, "computers.node_result": nodeResult, "computers.node_home_check": nodeHomeCheck, "computers.stream_open": nodeStreamOpen, "computers.stream_input": nodeStreamInput, "computers.node_recording_check": nodeRecordingCheck };

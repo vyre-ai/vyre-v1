@@ -3,6 +3,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { bindSpaceBrowser } from "../sbrowser/port.ts";
+import { browserStreamInput, browserStreamOpen } from "../sbrowser/handlers.ts";
 import type { ProfileRow, SpaceBrowser } from "../sbrowser/port.ts";
 import { ToolError } from "../handlers/tools/common.ts";
 import { codeOf, DANA, harness, OMAR } from "../fixtures/harness.ts";
@@ -73,8 +74,9 @@ test("the live view is for the same people, and it gives a ticketed address that
   try {
     const own = await tool["computers.browser.stream"]!(as(DANA, false).ctx, { agentId: "agt_dex" });
     assert.equal(own.transport, "mjpeg");
-    assert.match(own.url, /stream\?t=abc&p=agt_dex/);
-    assert.ok(!JSON.stringify(own).includes("ws://"), "the browser's own WebSocket address is for the host's relay, not for a viewer");
+    assert.match(own.url, /^\/browsers\/agt_dex\/stream\?ticket=cpt_/);
+    assert.match(own.ws, /^\/browsers\/agt_dex\/ws\?ticket=cpt_/);
+    assert.ok(!JSON.stringify(own).includes("10.0.0.2"), "the browser service's own address stays in the Space: the viewer gets the Space's relay");
     assert.ok(own.expiresAt > 1_760_000_000_000);
     await tool["computers.browser.stream"]!(as(OMAR, true).ctx, { agentId: "agt_dex" });
     for (const [who, agentId] of [[OMAR, "agt_dana_ast"], [OMAR, "agt_mine"]] as const) {
@@ -84,6 +86,27 @@ test("the live view is for the same people, and it gives a ticketed address that
     await assert.rejects(() => tool["computers.browser.stream"]!(as(DANA).ctx, { agentId: "agt_nobody" }), (e) => codeOf(e) === "validation.not_found");
     await assert.rejects(() => tool["computers.browser.stream"]!(as(DANA).ctx, { agentId: "../etc" }), (e) => codeOf(e) === "validation.not_found");
     assert.deepEqual(r.seen, ["stream agt_dex", "stream agt_dex"], "refused calls never reached the browser");
+  } finally { off(); }
+});
+
+test("the relay spends a ticket once, for the same agent, and tells whether the person may send input", async () => {
+  const r = rig();
+  try {
+    const dana = as(DANA, false);
+    const view = await tool["computers.browser.stream"]!(dana.ctx, { agentId: "agt_dex" });
+    const ticket = /ticket=(cpt_\w+)/.exec(view.url)![1]!;
+    const open = await browserStreamOpen(dana.ctx, { ticket, agentId: "agt_dex" });
+    assert.deepEqual(open && [open.personId, open.input, open.url.includes("10.0.0.2")], [DANA, false, true], "frames only: nobody holds the controls");
+    assert.equal(await browserStreamOpen(dana.ctx, { ticket, agentId: "agt_dex" }), null, "one use");
+    const again = /ticket=(cpt_\w+)/.exec((await tool["computers.browser.stream"]!(dana.ctx, { agentId: "agt_dex" })).url)![1]!;
+    assert.equal(await browserStreamOpen(dana.ctx, { ticket: again, agentId: "agt_scout" }), null, "another agent's browser");
+    await tool["computers.browser.take_over"]!(dana.ctx, { agentId: "agt_dex" });
+    const mine = /ticket=(cpt_\w+)/.exec((await tool["computers.browser.stream"]!(dana.ctx, { agentId: "agt_dex" })).url)![1]!;
+    const taken = await browserStreamOpen(dana.ctx, { ticket: mine, agentId: "agt_dex" });
+    assert.equal(taken?.input, true, "a take-over ticket for the person who holds the controls");
+    assert.equal(await browserStreamInput(dana.ctx, { agentId: "agt_dex", personId: DANA }), true);
+    assert.equal(await browserStreamInput(dana.ctx, { agentId: "agt_dex", personId: OMAR }), false);
+    assert.ok(r.seen.length > 0);
   } finally { off(); }
 });
 

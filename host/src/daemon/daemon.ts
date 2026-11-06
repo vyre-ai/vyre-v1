@@ -126,6 +126,7 @@ import { createVaultExportRoute } from "../routes/vault-export.ts";
 import { createWebhookRoute } from "../routes/webhooks.ts";
 import { createComputeRoute } from "../routes/compute.ts";
 import { createComputeStream } from "../routes/compute-stream.ts";
+import { createBrowserStream } from "../routes/browser-stream.ts";
 import { createReporter } from "../machines/reporter.ts";
 import type { Report } from "../machines/report.ts";
 import { isFix, runFix } from "./machine-fix.ts";
@@ -606,6 +607,10 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   let computeHome: (nodeId: string, a: { token: string; computerId: string; cap: string; input: unknown }) => Promise<{ ok: true; output: unknown } | null> = () => Promise.resolve(null);
   let computeStreamOpen: (ticket: string, computerId: string) => Promise<{ nodeId: string; personId: string; input: boolean } | null> = () => Promise.resolve(null);
   let computeStreamInput: (computerId: string, personId: string) => Promise<boolean> = () => Promise.resolve(false);
+  // the live view of an agent's browser in the Space browser, relayed (host/src/routes/browser-stream.ts); the computers module spends the ticket
+  let browserOpen: (ticket: string, agentId: string) => Promise<{ url: string; ws: string; personId: string; input: boolean } | null> = () => Promise.resolve(null);
+  let browserInput: (agentId: string, personId: string) => Promise<boolean> = () => Promise.resolve(false);
+  const browserStream = createBrowserStream({ open: (t, a) => browserOpen(t, a), mayInput: (a, p) => browserInput(a, p) });
   // a person's own computer links with their signed-in session (lane l-runson); who it is comes from the same resolver as the gateway, once the Space is open
   let closeIdleSessions: (person?: string) => Promise<number> = () => Promise.resolve(0);
   let idleSessions: (person?: string) => number = () => 0;
@@ -969,6 +974,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         await putToSlot(a.url, a.bytes);
         return true;
       };
+      browserOpen = async (ticket, agentId) => (await hookRunner.call("computers.browser_stream_open", { ticket, agentId })) as { url: string; ws: string; personId: string; input: boolean } | null;
+      browserInput = async (agentId, personId) => (await hookRunner.call("computers.browser_stream_input", { agentId, personId })) === true;
       computeStreamOpen = async (ticket, computerId) => (await hookRunner.call("computers.stream_open", { ticket, computerId })) as { nodeId: string; personId: string; input: boolean } | null;
       const pool = (): { closeIdle?: (p?: string) => Promise<number>; idleCount?: (p?: string) => number } | undefined => (loaded.moduleExports.get("engine") as { openerOf?: () => { pool: { closeIdle?: (p?: string) => Promise<number>; idleCount?: (p?: string) => number } } | null } | undefined)?.openerOf?.()?.pool;
       closeIdleSessions = async (person) => (await pool()?.closeIdle?.(person)) ?? 0;
@@ -2234,7 +2241,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       capIndex = indexCapabilities(caps);
 
       const mkHub = (): LiveHub => createLiveHub({
-        claims: (req) => computeStream.claims(req),
+        claims: (req) => computeStream.claims(req) || browserStream.claims(req),
         // a socket shows its address to the browser console and to logs: a device with no header presents a one-time ticket, never its session token
         session: (h, url) => {
           const ticket = url.searchParams.get("ticket");
@@ -2447,7 +2454,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     o.liveSync?.onHub?.(h);
     syncLive.setHost(h);
     const server = h.server;
-    if (hubFactory) server.on("upgrade", (req, socket, head) => { if (computeStream.claims(req)) computeStream.upgrade(req, socket, head); });
+    if (hubFactory) server.on("upgrade", (req, socket, head) => { if (computeStream.claims(req)) computeStream.upgrade(req, socket, head); else if (browserStream.claims(req)) browserStream.upgrade(req, socket, head); });
     server.removeAllListeners("request");
     // a site's container reaches this machine only through its own network; a connection on that network's address is a site trying the Space's API, and is closed at once
     server.on("connection", (sock) => { if (siteGuard(sock.localAddress, sock.remoteAddress)) sock.destroy(); });
@@ -2494,7 +2501,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       if (artifactHostRoute.handle(req, res)) return;
       if (siteHostRoute.handle(req, res)) return;
       if (peerService?.handle(req, res)) return;
-      if (liveTicketRoute.handle(req, res) || publicPath.handle(req, res) || siteSigninPage.handle(req, res) || mcpRoute.handle(req, res) || (gitProxy?.handle(req, res) ?? false) || chromeBridge.handle(req, res) || chromeAgentsRoute.handle(req, res) || githubSignInRoute.handle(req, res) || githubConnectRoute.handle(req, res) || ssoSignInRoute.handle(req, res) || blobRoute?.handle(req, res) || formsPageRoute?.handle(req, res) || unsubscribeRoute.handle(req, res) || shareRoute?.handle(req, res) || portalLinkRoute?.handle(req, res) || exportRoute.handle(req, res) || webhookRoute.handle(req, res) || computeRoute.handle(req, res) || computeStream.handle(req, res) || localWorkRoute.handle(req, res) || teamLinks.handle(req, res) || fillRoute.handle(req, res) || localKeyRoute.handle(req, res) || appFiles.handle(req, res)) return;
+      if (liveTicketRoute.handle(req, res) || browserStream.handle(req, res) || publicPath.handle(req, res) || siteSigninPage.handle(req, res) || mcpRoute.handle(req, res) || (gitProxy?.handle(req, res) ?? false) || chromeBridge.handle(req, res) || chromeAgentsRoute.handle(req, res) || githubSignInRoute.handle(req, res) || githubConnectRoute.handle(req, res) || ssoSignInRoute.handle(req, res) || blobRoute?.handle(req, res) || formsPageRoute?.handle(req, res) || unsubscribeRoute.handle(req, res) || shareRoute?.handle(req, res) || portalLinkRoute?.handle(req, res) || exportRoute.handle(req, res) || webhookRoute.handle(req, res) || computeRoute.handle(req, res) || computeStream.handle(req, res) || localWorkRoute.handle(req, res) || teamLinks.handle(req, res) || fillRoute.handle(req, res) || localKeyRoute.handle(req, res) || appFiles.handle(req, res)) return;
       listener(req, res);
     });
     await new Promise<void>((resolve, reject) => {

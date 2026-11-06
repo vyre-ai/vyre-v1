@@ -348,6 +348,7 @@ if (!("url" in o2169)) e.push(p + "/url" + ': required');
 if (!("expiresAt" in o2169)) e.push(p + "/expiresAt" + ': required');
 if ("transport" in o2169) lf(o2169["transport"], p + "/transport", e, L606);
 if ("url" in o2169) lf(o2169["url"], p + "/url", e, L1);
+if ("ws" in o2169) lf(o2169["ws"], p + "/ws", e, L1);
 if ("expiresAt" in o2169) lf(o2169["expiresAt"], p + "/expiresAt", e, L17);
 }
 }

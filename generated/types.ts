@@ -8563,6 +8563,7 @@ export type ComputersBrowserStreamIn = {
 export type ComputersBrowserStreamOut = {
   transport: "mjpeg";
   url: string;
+  ws?: string;
   expiresAt: number;
 };
 export type ComputersBrowserTakeOverIn = {

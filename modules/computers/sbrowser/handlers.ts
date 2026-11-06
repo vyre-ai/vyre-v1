@@ -1,7 +1,7 @@
 // What a person does with an agent's browser in the Space browser: see which ones they may watch, open the live view, take over and give back. Never an agent: an agent drives its own profile through the
 // chrome_* tools. Who may watch and take over a profile is policy.ts. The profile is named by the agent.
 import { ToolError } from "../handlers/tools/common.ts";
-import { actorOf, raise } from "../projections.ts";
+import { actorOf, ensure, mintTicket, raise, redeemTicket } from "../projections.ts";
 import type { CompCtx } from "../projections.ts";
 import { mayTakeOver, profileAccess, profileIdOf } from "./policy.ts";
 import type { ProfileAccess, ProfileAgent } from "./policy.ts";
@@ -76,11 +76,39 @@ export async function profiles(ctx: CompCtx, _input: Record<string, never>) {
 }
 
 export async function stream(ctx: CompCtx, input: { agentId: string }) {
+  ensure(ctx.db);
   const sb = browserOrRaise(ctx);
-  await mayWatch(ctx, input.agentId);
+  const { person, access } = await mayWatch(ctx, input.agentId);
+  // the browser service wakes for a viewer; the address it gives stays in the Space, and the viewer gets the Space's own relay path with a ticket for this person (host/src/routes/browser-stream.ts)
+  try { await sb.stream({ profileId: input.agentId }); } catch (e) { refuse(ctx, e); }
+  // a person who holds the controls gets a ticket that carries their input; anyone else only frames
+  const row = await rowOf(ctx, sb, input.agentId, access);
+  const t = await mintTicket(ctx.db, row.takeoverBy === person ? "takeover" : "stream", input.agentId, person, ctx.now());
+  return { transport: "mjpeg" as const, url: `/browsers/${input.agentId}/stream?ticket=${t.ticket}`, ws: `/browsers/${input.agentId}/ws?ticket=${t.ticket}`, expiresAt: t.expiresAt };
+}
+
+/**
+ * What the Space's relay asks when a viewer arrives (host/src/routes/browser-stream.ts): spend the ticket, get the browser service's own addresses, and say whether the person may send input. A host call, never
+ * a capability: no session can reach it.
+ */
+export async function browserStreamOpen(ctx: CompCtx, input: { ticket: string; agentId: string }): Promise<{ url: string; ws: string; personId: string; input: boolean } | null> {
+  ensure(ctx.db);
+  const sb = spaceBrowser();
+  if (!sb) return null;
+  const who = await redeemTicket(ctx.db, String(input.ticket), ctx.now());
+  if (!who || who.computerId !== String(input.agentId) || (who.kind !== "stream" && who.kind !== "takeover")) return null;
   let target: Awaited<ReturnType<SpaceBrowser["stream"]>>;
-  try { target = await sb.stream({ profileId: input.agentId }); } catch (e) { refuse(ctx, e); }
-  return { transport: "mjpeg" as const, url: target.url, expiresAt: ctx.now() + TICKET_MS };
+  try { target = await sb.stream({ profileId: who.computerId }); } catch { return null; }
+  if (!target.ws || !target.url) return null;
+  const holds = (await sb.profiles().catch(() => ({ profiles: [] as ProfileRow[] }))).profiles.find((p) => p.profileId === who.computerId)?.takeoverBy === who.personId;
+  return { url: target.url, ws: target.ws, personId: who.personId, input: who.kind === "takeover" && holds };
+}
+
+/** Does this person still hold the controls of this agent's browser? */
+export async function browserStreamInput(_ctx: CompCtx, input: { agentId: string; personId: string }): Promise<boolean> {
+  const sb = spaceBrowser();
+  if (!sb) return false;
+  return (await sb.profiles().catch(() => ({ profiles: [] as ProfileRow[] }))).profiles.find((p) => p.profileId === String(input.agentId))?.takeoverBy === String(input.personId);
 }
 
 export async function takeOver(ctx: CompCtx, input: { agentId: string }) {

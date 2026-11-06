@@ -6,7 +6,7 @@ import type { Handlers } from './handlers.ts';
 export const handlers: Handlers<HandlerCtx> = {
   "computers.browser.give_back": async () => ({"profile":{"access":"owner","agentId":"agt_a1b2c3","busy":true,"lastActiveAt":1760000000000,"paired":true,"running":true,"tabs":1,"takeoverBy":"usr_a1b2c3","viewers":1}} as unknown) as never,
   "computers.browser.profiles": async () => ({"maxRunning":1,"profiles":[{"access":"owner","agentId":"agt_a1b2c3","busy":true,"lastActiveAt":1760000000000,"paired":true,"running":true,"tabs":1,"takeoverBy":"usr_a1b2c3","viewers":1}]} as unknown) as never,
-  "computers.browser.stream": async () => ({"expiresAt":1760000000000,"transport":"mjpeg","url":"example"} as unknown) as never,
+  "computers.browser.stream": async () => ({"expiresAt":1760000000000,"transport":"mjpeg","url":"example","ws":"example"} as unknown) as never,
   "computers.browser.take_over": async () => ({"profile":{"access":"owner","agentId":"agt_a1b2c3","busy":true,"lastActiveAt":1760000000000,"paired":true,"running":true,"tabs":1,"takeoverBy":"usr_a1b2c3","viewers":1}} as unknown) as never,
   "computers.chrome.act": async () => ({"downloads":[{"fileId":"fil_a1b2c3","name":"example","path":"Downloads/report.pdf"}],"heldId":"example","ok":true,"snapshot":"example"} as unknown) as never,
   "computers.chrome.api": async () => ({"body":{},"headers":{},"status":1} as unknown) as never,

@@ -1,6 +1,6 @@
 # computers.browser.stream
 
-Live view of an agent's browser: MJPEG over a WebSocket address with a ticket that opens for five minutes; frames are live-only, never stored. Wakes the browser
+Live view of an agent's browser, relayed by the Space: MJPEG or a WebSocket with a ticket that opens once, for one minute; frames are live-only, never stored. Wakes the browser
 
 | | |
 |---|---|
@@ -35,6 +35,7 @@ type In = {
 type Out = {
   transport: "mjpeg";
   url: string;
+  ws?: string;
   expiresAt: number;
 };
 ```
@@ -60,7 +61,8 @@ type Out = {
   "output": {
     "expiresAt": 1760000000000,
     "transport": "mjpeg",
-    "url": "example"
+    "url": "example",
+    "ws": "example"
   }
 }
 ```
