@@ -10,7 +10,7 @@ import type { ReactElement } from "react";
 export type WorkspaceState = "running" | "asleep" | "starting" | "waiting" | "error";
 /** Who a terminal session belongs to: the agent itself, a helper it started (by name), or a person who attached. */
 export interface SessionOwner { kind: "agent" | "helper" | "person"; name?: string }
-export interface WorkspaceSession { name: string; owner?: SessionOwner; windows: number; /** people attached right now */ attached: number; lastActiveAt?: number }
+export interface WorkspaceSession { name: string; owner?: SessionOwner; /** left out when the host does not say */ windows?: number; /** people attached right now; left out when not known */ attached?: number; lastActiveAt?: number }
 export interface WorkspaceView {
   state: WorkspaceState;
   /** Where it runs: "the Space server", or a compute server's name. */
@@ -110,9 +110,12 @@ export function browserAction(v: BrowserView): "take" | "give" | null {
 export const sessionsLine = (n: number): string => `${n} ${n === 1 ? "session" : "sessions"}`;
 /** "Attached: you and 1 more", read from the count of people attached. */
 export function attachedNote(s: WorkspaceSession, agentName = ""): string {
-  const w = `${s.windows} ${s.windows === 1 ? "window" : "windows"}`;
-  const base = s.attached === 0 ? w : `${w} · ${s.attached} attached`;
-  return s.owner || agentName ? `${ownerLabel(s.owner, agentName)} · ${base}` : base;
+  const parts: string[] = [];
+  if (s.windows !== undefined) parts.push(`${s.windows} ${s.windows === 1 ? "window" : "windows"}`);
+  if (s.attached) parts.push(`${s.attached} attached`);
+  const base = parts.join(" · ");
+  const who = s.owner || agentName ? ownerLabel(s.owner, agentName) : "";
+  return [who, base].filter((x) => x !== "").join(" · ");
 }
 
 /** "Dex", "helper: Tess", "Maya": the owner of a session in words, the agent's own name when it is the agent. */
