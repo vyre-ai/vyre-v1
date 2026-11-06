@@ -16,6 +16,7 @@ import { chosen, clearClauses, countSpec, isEdited, optionValue, optionsOf, setS
 import { each, filterable, toggleable } from "./model.ts";
 import type { FieldDef, TableViewState, TypeDef } from "./model.ts";
 import type { JourneyBinding } from "../journey/model.ts";
+import { isPhoneWidth } from "../../../../../../ui/src/SidePane/layout.ts";
 
 /** One kind of view in the switch: the packet's own kinds, or one a later part supplies. */
 export interface KindDef { kind: string; label: string }
@@ -117,7 +118,7 @@ export function ViewHead({ ctx, st, lanes, sort = false, fields = true, extra }:
   const menu = useMenu();
   const online = useOnline();
   const winW = useWindowDimensions().width;
-  const slim = winW > 0 && winW < 720;
+  const slim = isPhoneWidth(winW);
   const typeList = useScreenQuery<{ types: Parameters<typeof typeMenuEntries>[0] }>(SCREENS.types, "types");
   const { def } = ctx;
   // sharing: a Team Space only; Share for those who may share, Export for those who may export (a viewer sees neither)

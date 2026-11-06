@@ -301,7 +301,7 @@ test("layout_shift: an image, an avatar and a skeleton have their size before an
 
 test("a one-paragraph message and the skeleton that stood in for it are the same height", () => {
   assert.equal(messageHeight(1), HEADER_HEIGHT + BODY_LINE);
-  assert.equal(HEADER_HEIGHT, 26);
+  assert.equal(HEADER_HEIGHT, 30);   // a 28 px face and 2 px (the calm pass)
   assert.equal(BODY_LINE, 24);
 });
 

@@ -21,6 +21,8 @@ export const BREAKPOINTS = { wide: 1280, mid: 1024, sheet: 768 } as const;
 
 /** The one phone test: a window narrower than BREAKPOINTS.sheet (768) is a phone. Import this instead of writing 640 or 700. */
 export const PHONE_BELOW = BREAKPOINTS.sheet;
+/** Below the phone width, with no guard for an unmeasured window (0 counts as narrow): for the places that test a raw width. */
+export const belowPhone = (windowWidth: number): boolean => windowWidth < PHONE_BELOW;
 export const isPhoneWidth = (windowWidth: number): boolean => windowWidth > 0 && windowWidth < PHONE_BELOW;
 
 export type Band = "wide" | "mid" | "sheet" | "phone";

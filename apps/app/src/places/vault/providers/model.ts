@@ -51,7 +51,8 @@ export function needsWords(p: Pick<Provider, "engine" | "connection">, engines: 
   return row !== undefined && !row.allowed && row.reason?.startsWith("Needs ") ? row.reason : null;
 }
 
-export function stateWords(state: Provider["state"]): string {
+export function stateWords(state: Provider["state"], unopenable?: boolean): string {
+  if (unopenable === true && state === "needs_sign_in") return "Can't be opened, sign in again";
   return state === "ok" ? "Working" : state === "needs_sign_in" ? "Needs you to sign in again" : "Failing, check the key";
 }
 

@@ -12,6 +12,7 @@ import { Tooltip } from "../../../../../ui/src/Tooltip/index.tsx";
 import { ShellIcon, iconMarkup } from "./icons.tsx";
 import { PHONE_BAR, phoneMore } from "./kits.ts";
 import type { PlaceId, RailEntry, RailGroups } from "./kits.ts";
+import { RADIUS } from "../../../../../ui/src/tokens/radius.ts";
 
 /** The rail is one full-height panel, 56 wide (the layout model's number). */
 export const RAIL_WIDTH = MODEL_RAIL_WIDTH;
@@ -204,7 +205,7 @@ const styles = StyleSheet.create({
   isle: { alignItems: "center", gap: 4, padding: 4, borderRadius: 12 },
   isleOpen: { backgroundColor: "var(--hover)" as string },
   islePlaces: { gap: 4, overflow: "hidden" },
-  count: { position: "absolute", top: 2, right: 0, minWidth: 14, height: 14, paddingHorizontal: 3, borderRadius: 7, alignItems: "center", justifyContent: "center", backgroundColor: "var(--accent-wash)" as string, ...({ boxShadow: "0 0 0 2px var(--side)" } as object) },
+  count: { position: "absolute", top: 2, right: 0, minWidth: 14, height: 14, paddingHorizontal: 3, borderRadius: RADIUS, alignItems: "center", justifyContent: "center", backgroundColor: "var(--accent-wash)" as string, ...({ boxShadow: "0 0 0 2px var(--side)" } as object) },
   countText: { fontSize: 9.5, lineHeight: 14, fontWeight: "600", color: "var(--accent)" as string, fontVariant: ["tabular-nums"] },
   // above the sheets beside it (every web View is its own stacking layer), so a fresh place's tip sits over the main sheet, not under it
   rail: { width: RAIL_WIDTH, flexShrink: 0, alignItems: "center", gap: SHEET_GAP, paddingTop: SHEET_GAP, paddingBottom: SHEET_GAP, borderRadius: SHEET_RADIUS, backgroundColor: "var(--side)" as string, zIndex: 1 },
@@ -217,7 +218,7 @@ const styles = StyleSheet.create({
   on: { backgroundColor: "var(--accent-wash)" as string },
   fresh: { position: "relative" },
   freshSlot: { overflow: "hidden" },
-  tip: { position: "absolute", left: 52, top: 10, zIndex: 80, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 7, backgroundColor: "var(--ink)" as string },
+  tip: { position: "absolute", left: 52, top: 10, zIndex: 80, paddingHorizontal: 8, paddingVertical: 4, borderRadius: RADIUS, backgroundColor: "var(--ink)" as string },
   tipText: { fontSize: 12, lineHeight: 16, color: "var(--win)" as string, ...({ whiteSpace: "nowrap" } as object) },
   dot: { position: "absolute", top: 6, right: 6, width: 5, height: 5, borderRadius: 3, backgroundColor: "var(--beacon)" as string, ...({ boxShadow: "0 0 0 2px var(--side)" } as object) },
 });

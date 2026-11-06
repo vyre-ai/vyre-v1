@@ -12,6 +12,7 @@ import { MenuIcon, menuTrigger, useMenu } from "../Menu/index.tsx";
 import type { MenuEntry } from "../Menu/index.tsx";
 import { activeTab } from "./props.ts";
 import type { TabSpec, TabStripProps } from "./props.ts";
+import { RADIUS } from "../tokens/radius.ts";
 
 export type { TabSpec, TabStripProps } from "./props.ts";
 export { activeTab } from "./props.ts";
@@ -449,14 +450,14 @@ const styles = StyleSheet.create({
   content: { alignItems: "center", paddingLeft: 8, paddingRight: 4 },
   tabs: { flexDirection: "row", alignItems: "center", gap: 2 },
   spacer: { flexGrow: 1 },
-  tab: { height: TAB_HEIGHT, flexDirection: "row", alignItems: "center", gap: 7, paddingLeft: 10, paddingRight: 5, borderRadius: 10 },
+  tab: { height: TAB_HEIGHT, flexDirection: "row", alignItems: "center", gap: 7, paddingLeft: 10, paddingRight: 5, borderRadius: RADIUS },
   tabPinned: { paddingRight: 10 },
   // a tab that is not selected holds no room for its Close: the button sits over the right padding when the pointer is on the tab, so every tab is the same distance from the next
   tabIdle: { paddingRight: 10 },
   tabTight: { paddingLeft: 7, paddingRight: 7 },
   // one longest title for every tab: longer names are cut with an ellipsis
   title: { flexShrink: 1, maxWidth: TITLE_MAX_WIDTH, fontSize: 12.5, lineHeight: 16 },
-  close: { width: 20, height: 20, borderRadius: 6, alignItems: "center", justifyContent: "center" },
+  close: { width: 20, height: 20, borderRadius: RADIUS, alignItems: "center", justifyContent: "center" },
   closeOver: { position: "absolute", right: 3, top: 5, backgroundColor: "var(--hover)" as string },
-  iconButton: { width: 28, height: 28, borderRadius: 9, alignItems: "center", justifyContent: "center" },
+  iconButton: { width: 28, height: 28, borderRadius: RADIUS, alignItems: "center", justifyContent: "center" },
 });

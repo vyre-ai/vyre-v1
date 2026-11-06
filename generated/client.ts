@@ -160,6 +160,7 @@ export function createClient(transport: Transport) {
         list: call("agents.routines.list", 1),
       },
       set_owner: call("agents.set_owner", 1),
+      share_class: call("agents.share_class", 1),
       snapshot: {
         take: call("agents.snapshot.take", 1),
       },
@@ -521,6 +522,15 @@ export function createClient(transport: Transport) {
       sweep: call("company.sweep", 1),
     },
     computers: {
+      browser: {
+        give_back: call("computers.browser.give_back", 1),
+        profiles: call("computers.browser.profiles", 1),
+        sessions: call("computers.browser.sessions", 1),
+        sign_out: call("computers.browser.sign_out", 1),
+        stream: call("computers.browser.stream", 1),
+        take_over: call("computers.browser.take_over", 1),
+        timeline: call("computers.browser.timeline", 1),
+      },
       chrome: {
         act: call("computers.chrome.act", 1),
         api: call("computers.chrome.api", 1),
@@ -2857,6 +2867,7 @@ export function createClient(transport: Transport) {
       },
       run: call("terminal.run", 1),
       status: call("terminal.status", 1),
+      workspace: call("terminal.workspace", 1),
     },
     threads: {
       add_agent: call("threads.add_agent", 1),

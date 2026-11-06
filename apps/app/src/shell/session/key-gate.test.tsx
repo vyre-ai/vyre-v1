@@ -1,18 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
-import { KeyGate, LockScreen, NOTICE_LINE, NoPasswordKey, SHEET_LINE } from "./KeyGate.tsx";
+import { KeyGate, NOTICE_LINE, NoPasswordKey, SHEET_LINE } from "./KeyGate.tsx";
 import { lockName } from "./stored.ts";
 import { forgetKey, keepKey, keyIsKept, rehandKey } from "../../../../../client/src/gateway/key-keeper.ts";
 
 const text = (h: string): string => h.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ");
 
-test("the lock screen names the person, asks for the password and offers Unlock", () => {
-  const t = text(renderToStaticMarkup(<LockScreen name="Irfad" onUnlock={async () => undefined} />));
-  assert.match(t, /Welcome back, Irfad/);
-  assert.match(t, /Password/);
-  assert.match(t, /Unlock/);
-});
 
 test("a Space server over https is checked at launch behind the calm loading state; an address with no key door goes straight in", () => {
   const checked = renderToStaticMarkup(<KeyGate baseUrl="https://team.example.com" token="t" name="Irfad"><p>the shell</p></KeyGate>);
@@ -29,14 +23,6 @@ test("on this computer a calm loading state shows until the daemon answers: no b
   assert.doesNotMatch(text(html), /the shell/);
 });
 
-test("the lock screen has a quiet way out: Forgot password and Sign out; an account with no password key is told so and can go on", () => {
-  const t = text(renderToStaticMarkup(<LockScreen name="Irfad" onUnlock={async () => undefined} onForgot={() => undefined} onSignOut={() => undefined} />));
-  assert.match(t, /Forgot password/);
-  assert.match(t, /Sign out/);
-  const n = text(renderToStaticMarkup(<NoPasswordKey onContinue={() => undefined} onSignOut={() => undefined} />));
-  assert.match(n, /No password here/);
-  assert.match(n, /Continue/);
-});
 
 test("the key is kept in memory only for the session and dropped on sign-out; plain http to another machine is never handed it", async () => {
   keepKey(new Uint8Array(32).fill(5));
@@ -101,9 +87,6 @@ test("the launch lock for a Space server: shown only when no one holds the key a
   assert.equal(await remoteGateState(mk({ holds: false, pw: "no" })), "open", "an account that signed in another way has no password to ask for");
   assert.equal(await remoteGateState(mk({ holds: false, pw: "unknown" })), "open");
   assert.equal(await remoteGateState(mk({ holds: false, pw: "yes" })), "locked", "relaunched, the server lost it, nobody holds it: the lock shows");
-  const t = text(renderToStaticMarkup(<LockScreen name="Irfad" onUnlock={async () => undefined} onSkip={() => undefined} />));
-  assert.match(t, /Not now/);
-  assert.doesNotMatch(text(renderToStaticMarkup(<LockScreen name="Irfad" onUnlock={async () => undefined} />)), /Not now/, "the lock on this computer has no way round");
 });
 
 test("mid-session the app stays on screen: the lock is a quiet notice in the top bar with Unlock and no dismiss; the full-screen lock is for launch only", async () => {
@@ -122,4 +105,31 @@ test("an Unlock sheet asked for on a Space server carries its own words and the 
   assert.equal(await gate.askVaultUnlock(async () => undefined, { title: "Unlock your sign-ins", sub: SHEET_LINE, forgot }), true);
   assert.deepEqual(seen, { title: "Unlock your sign-ins", sub: SHEET_LINE, forgot });
   gate.registerVaultPrompt(null);
+});
+
+test("signed in means unlocked: the gate goes in when the node holds the key or this app can hand it over, and signs out (never locks) when no key exists on this device", async () => {
+  const { gateState } = await import("./KeyGate.tsx");
+  const mk = (o: { st: "held" | "locked" | "unreachable"; restored?: boolean; handed?: boolean; pw?: "yes" | "no" | "unknown"; own?: boolean }) => gateState({
+    own: o.own ?? true, restored: o.restored === true, status: async () => o.st, rehand: async () => o.handed !== false, passwordKey: async () => o.pw ?? "yes",
+  });
+  assert.equal(await mk({ st: "held" }), "open");
+  assert.equal(await mk({ st: "locked", restored: true }), "open", "a node that restarted gets the key from the device copy");
+  assert.equal(await mk({ st: "locked", restored: false }), "signout", "a session signed in before keys were kept on the device: sign in again, no lock screen");
+  assert.equal(await mk({ st: "locked", restored: true, handed: false }), "signout");
+  assert.equal(await mk({ st: "locked", pw: "no" }), "nopassword");
+  assert.equal(await mk({ st: "locked", pw: "unknown" }), "open");
+  assert.equal(await mk({ st: "unreachable" }), "wait", "a daemon still starting is waited for");
+  assert.equal(await mk({ st: "unreachable", own: false }), "open", "a Space server that did not answer is not read as locked");
+});
+
+test("a session with no Vault key on this device is told why, once, in one line", async () => {
+  const { KEY_READY_LINE } = await import("./SessionGate.tsx");
+  assert.equal(KEY_READY_LINE, "Sign in once more so Vyre can keep your Vault ready on this device.");
+});
+
+test("an account with no password key is told so and can go on or sign out", () => {
+  const n = text(renderToStaticMarkup(<NoPasswordKey onContinue={() => undefined} onSignOut={() => undefined} />));
+  assert.match(n, /No password here/);
+  assert.match(n, /Continue/);
+  assert.match(n, /Sign out/);
 });

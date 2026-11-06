@@ -26,6 +26,7 @@ Tell the person the steps about to be taken in the browser before taking them
 ```ts
 type In = {
   computerId?: string;
+  inMyChrome?: boolean;
   goal: string;
   steps?: Array<string>;
 };
@@ -58,6 +59,7 @@ type Out = {
   "input": {
     "computerId": "cmt_a1b2c3",
     "goal": "example",
+    "inMyChrome": true,
     "steps": [
       "example"
     ]

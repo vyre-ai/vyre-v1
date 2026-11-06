@@ -8,6 +8,7 @@ import { resolveAccount, probeAccount, providerOfModel, UnknownAccount, usableHe
 import type { AccountRow, AccountStatus, ProbeResult, SpaceUses, Trigger } from "../../../agent/src/accounts/index.ts";
 import { costTier } from "../../../agent/src/accounts/cost.ts";
 import { savedTested } from "../live-models.ts";
+import { unavailableFor } from "../model-health.ts";
 import { applyRememberedPick, stateOf } from "./control.ts";
 
 interface ProviderRow {
@@ -146,6 +147,8 @@ export async function accountResolve(ctx: Ctx, input: { threadId: string; agentI
   const personal = await (ctx.call("spaces.get", {}) as Promise<{ space?: { kind?: string } }>).then((r) => r.space?.kind === "personal", () => false);
   // a Space account fits when its provider lists the turn's model: the Vault's kept list, else the one this engine saved from its last test
   for (const r of accounts.rows) if (!r.mine && !r.models?.length) { try { const m = savedTested(ctx.db as never, r.ref); if (m.length > 0) r.models = m; } catch { /* nothing saved */ } }
+  // a model the account refused for good (a region it is not served in, not in its plan) is never what a turn falls back to, so Auto and the account's default never land on it (model-health.ts)
+  for (const r of accounts.rows) { if (!r.models?.length) continue; try { const bad = unavailableFor(ctx.db as never, r.ref, ctx.now()); if (bad.size > 0) r.models = r.models.filter((m) => !bad.has(m)); } catch { /* nothing marked */ } }
   const trigger: Trigger = input.stepKey ? "task" : TRIGGER[input.kind ?? "chat"];
   const model = member?.model ?? chosen ?? a.agent.model;
   // the composer's check before sending: the caller is the one who would ask (their own accounts, their team chats)

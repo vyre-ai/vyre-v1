@@ -36,6 +36,7 @@ import {
 } from "./model.ts";
 import type { NewAgentDraft } from "./model.ts";
 import type { AccessPick, AgentSettings, Audience, Exporters, LinkInfo, PickKind, RowFlag, ShareItemType, ShareLevel, ShareRow, ShareSheetProps, ShareSubjectKind } from "./props.ts";
+import { isPhoneWidth } from "../SidePane/layout.ts";
 
 const web = Platform.OS === "web";
 export const webProps = (props: Record<string, unknown>): Record<string, unknown> => (web ? props : {});
@@ -214,7 +215,7 @@ export function SettingsPopover({ name, face, value, outside, anchor, onChange, 
   const empty = value.when === "topics" && value.topics.trim() === "";
   const onClose = (): void => { if (empty && !asked) { setAsked(true); return; } close(); };
   const win = useWindowDimensions();
-  const phone = win.width > 0 && win.width < 640;
+  const phone = isPhoneWidth(win.width);
   const set = (patch: Partial<AgentSettings>): void => onChange({ ...value, ...patch });
   const left = Math.max(8, Math.min(anchor.x - 372, (win.width || 1024) - 392));
   const winH = win.height || 768;

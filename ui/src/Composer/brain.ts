@@ -167,6 +167,11 @@ export function sizeLabel(bytes: number | undefined): string {
   return `${Math.max(1, Math.round(bytes / 1e3))} KB`;
 }
 
+/** "1M context", "258k context": a model's window in the picker. */
+export function windowWords(n: number): string {
+  return `${kTokens(n)} context`;
+}
+
 /** "84k / 200k" for the context meter. */
 export function kTokens(n: number): string {
   if (n >= 1e6) return `${(n / 1e6).toFixed(n % 1e6 === 0 ? 0 : 1)}M`;

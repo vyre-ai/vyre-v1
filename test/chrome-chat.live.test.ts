@@ -85,6 +85,7 @@ test("the booted daemon, the real extension and a scripted chat turn: the person
     turn.ctx.space = who.spaceId;
     turn.ctx.thread = "thr_lab7";
     const bw = browserWorld(who.spaceId);
+    (turn.respond as Record<string, (i: Record<string, unknown>) => unknown>)["chat.messages.list"] = () => ({ messages: [{ threadSeq: 1, author: { kind: "person", id: who.person }, body: "Please do it in my Chrome" }], hasMore: false });
     (turn.respond as Record<string, (i: Record<string, unknown>) => unknown>)["browser.cards.post"] = (input) => browser["browser.cards.post"](bw.as("agt_scout", "agent"), input as never);
     const agent = (cap: string, input: Record<string, unknown> = {}) => tool[cap]!(turn.ctx, { computerId: "my-chrome", ...input });
     await assert.rejects(agent("computers.chrome.snapshot"), (e: any) => e?.error?.code === "provider.unavailable", "not open to agents yet");

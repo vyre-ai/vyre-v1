@@ -7,6 +7,7 @@ import { formPreviewHtml } from "./form-preview.ts";
 import { States } from "../../../../../../ui/src/States/index.tsx";
 import { Button, s } from "./editor-ui.tsx";
 import { FormCode } from "./FormCode.tsx";
+import { belowPhone } from "../../../../../../ui/src/SidePane/layout.ts";
 export interface FormWorkspaceProps {
   title: string; actions?: ReactNode; back(): void; rail: ReactNode; children: ReactNode;
   fields: readonly PreviewField[]; previewOptions?: PreviewOptions;
@@ -15,7 +16,7 @@ export interface FormWorkspaceProps {
 }
 /** The form canvas is a local preview. It never submits visitor answers or publishes a draft. */
 export function FormWorkspace({ title, actions, back, rail, children, fields, modes, previewOptions, consent, css, onCss, html, onHtml, js, onJs, askPanel, error, offline, loading, retry }: FormWorkspaceProps): ReactElement {
-  const phone = useWindowDimensions().width < 700;
+  const phone = belowPhone(useWindowDimensions().width);
   const [tab, setTab] = useState("build");
   const previewHtml = formPreviewHtml(title, fields, modes, consent, css, { ...previewOptions, html, js });
   const asked = modes.filter((m) => m.mode === "ask").flatMap((m) => fields.filter((f) => f.key === m.field));

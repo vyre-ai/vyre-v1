@@ -12,7 +12,7 @@ import { useLinkState } from "../../../../../../ui/src/reach/index.tsx";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { Platform, Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
-import { menuTrigger, reportProblem } from "../../../../../../ui/src/Menu/index.tsx";
+import { menuTrigger, reportProblem, useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { Sheet } from "../../../mobile/sheets/Sheet.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
@@ -39,7 +39,7 @@ import type { MenuMessage, ShowMenu } from "../memory/menu.tsx";
 import { SubjectText, useSubjectBlocks } from "../memory/Subjects.tsx";
 import { ReplyMemory } from "../memory/Used.tsx";
 import { AgentFileProposal, PlanFileCard, isPlanFile, isProposal } from "./proposal.tsx";
-import { Fold, Glyph, IconButton, TextButton } from "./parts.tsx";
+import { Fold, Glyph, IconButton, TextButton, anchorOf } from "./parts.tsx";
 import { ApprovalCard } from "./approval.tsx";
 import { useFollow } from "./use-follow.ts";
 import { CrewResultCard, CrewStartLine, isCrewResult, isCrewStart } from "./crew-card.tsx";
@@ -66,7 +66,9 @@ import { useRefChips } from "./ref-chips.tsx";
 import { AttachmentChips, LinkedText, MountRefs, refsOf } from "./attachments.tsx";
 import { unnamed } from "../names.ts";
 import type { ConversationData } from "./data.tsx";
+import { Card as UiCard, CardActions, CardHead } from "../../../../../../ui/src/Card/index.tsx";
 import type { GlyphName } from "./parts.tsx";
+import { GATE, allows, useOptionalShellRuntime } from "../../../shell/providers/runtime.tsx";
 import { hookLineOf, hookLineText, pokeLine, pokedBy, reportLabel, bodyBlocks, cardLine, collect, errorRow, isCard, isErrorBlock, isSystemLine, isTurnStatus, onBehalfOf, planSteps, questionOptions, statusView, terminalAskOf, workOf } from "./model.ts";
 import type { CardLine, Item, Message } from "./model.ts";
 import { MARK } from "./marks.ts";
@@ -75,6 +77,9 @@ import { ThreadFooter } from "../thread-replies/ThreadFooter.tsx";
 import { AlsoSentMark } from "../thread-replies/AlsoSentMark.tsx";
 import type { Clock } from "../rightpane/model.ts";
 import { TimePop } from "../../../../../../ui/src/Time/index.tsx";
+import { BODY_LEAD, BODY_PX, FACE, GAP_BETWEEN, GAP_WITHIN, GUTTER, META_PX, NAME_PX, RADIUS, SYSTEM_PX } from "../../../../../../ui/src/tokens/calm.ts";
+import { useGutter } from "./gutter.ts";
+import { BLOCK_GAP } from "../../../../../../ui/src/stream/Reserved.tsx";
 
 /** A principal id left in someone's words (an agent printed `usr_...`) shows as the name it stands for, when the Space knows it. */
 export function namedIds(body: string, nameOf?: (id: string) => string): string {
@@ -102,6 +107,8 @@ export interface MessageActions {
   /** A goal's page, from a goal card in the chat. Left out where the shell has no such page. */
   openGoal?(goalId: string): void;
   answer(blockId: string, answer: unknown): void;
+  /** Send words as the person's own reply: what a choice an agent offered in its message sends. Left out where the chat cannot (the choices are then plain pills). */
+  reply?(text: string): void;
   approvePlan(planId: string): void;
   retryTurn(turnId: string): void;
   /** Run the turn that made this reply once more: "Regenerate" in an agent reply's menu. Left out where the chat cannot. */
@@ -183,6 +190,36 @@ export function forkOrigin(m: Pick<Message, "blocks">): { threadId: string; mess
   return d && typeof d["threadId"] === "string" && typeof d["messageId"] === "string" ? { threadId: d["threadId"], messageId: d["messageId"], title: typeof d["title"] === "string" ? d["title"] : "another chat" } : null;
 }
 
+/**
+ * Two values that say the same thing. Functions count as equal (a row calls them through the stable actions the list hands every row, so an older one still does the latest thing); data is compared by value to a
+ * depth, and anything deeper or odd (a Map, a class) counts as different, so a row can draw once more but never keeps something stale. The list rebuilds its items and the actions object on every render (each
+ * key typed in the composer), so without this every row of a long chat drew again on every key.
+ */
+export function sameData(a: unknown, b: unknown, depth: number): boolean {
+  if (Object.is(a, b)) return true;
+  if (typeof a === "function" && typeof b === "function") return true;
+  if (typeof a !== "object" || typeof b !== "object" || a === null || b === null || depth <= 0) return false;
+  if (Array.isArray(a) || Array.isArray(b)) {
+    if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false;
+    for (let i = 0; i < a.length; i++) if (!sameData(a[i], b[i], depth - 1)) return false;
+    return true;
+  }
+  const pa = Object.getPrototypeOf(a) as unknown;
+  if ((pa !== Object.prototype && pa !== null) || Object.getPrototypeOf(b) !== pa) return false;
+  const ka = Object.keys(a);
+  if (ka.length !== Object.keys(b).length) return false;
+  for (const k of ka) {
+    if (!(k in b) || !sameData((a as Record<string, unknown>)[k], (b as Record<string, unknown>)[k], depth - 1)) return false;
+  }
+  return true;
+}
+
+/** Draw a row again only when something it shows changed. */
+export function sameRow(a: MessageViewProps, b: MessageViewProps): boolean {
+  return a.meId === b.meId && a.stream === b.stream && a.sending === b.sending && a.openWork === b.openWork && a.mark === b.mark
+    && sameData(a.item, b.item, 6) && sameData(a.actions, b.actions, 5) && sameData(a.replies, b.replies, 3);
+}
+
 export const MessageView = memo(function MessageView(props: MessageViewProps): ReactElement | null {
   const { item } = props;
   if (item.kind === "day") return <Text testID={`day-${item.key}`} accessibilityRole="header" style={st.day}>{item.label}</Text>;
@@ -192,11 +229,9 @@ export const MessageView = memo(function MessageView(props: MessageViewProps): R
     if (link) {
       const b = item.message.blocks.find((x) => x.type === "link_card")!;
       return (
-        <View testID={`event-${item.key}`} style={[st.event, (link.style === "noted" || link.style === "question") && st.eventCentre]}>
-          {link.style === "noted" ? <LinkCardView id={String(b.id)} data={link} actions={props.actions} size={13} trusted={item.message.kind === "system"} time={item.time} /> : <>
-            <View style={st.eventCard}><LinkCardView id={String(b.id)} data={link} actions={props.actions} size={13} trusted={item.message.kind === "system"} /></View>
-            {link.style === "question" ? null : <TimeTip item={item}><Text style={st.eventTime}>{item.time}</Text></TimeTip>}
-          </>}
+        <View testID={`event-${item.key}`} style={[st.event, link.style === "question" && st.eventCentre]}>
+          <View style={st.eventCard}><LinkCardView id={String(b.id)} data={link} actions={props.actions} size={13} trusted={item.message.kind === "system"} /></View>
+          {link.style === "question" ? null : <TimeTip item={item}><Text style={st.eventTime}>{item.time}</Text></TimeTip>}
         </View>
       );
     }
@@ -228,7 +263,7 @@ export const MessageView = memo(function MessageView(props: MessageViewProps): R
     );
   }
   return item.kind === "me" ? <Mine {...props} item={item} /> : <Theirs {...props} item={item} />;
-});
+}, sameRow);
 
 /* ---------- the hover bar and the menu: the same list in both ---------- */
 
@@ -376,10 +411,10 @@ function Mine({ item, actions, sending, mark, replies }: MessageViewProps & { it
     if (body !== "" && body !== m.body) actions.edit(m.messageId, body);
   };
   return (
-    <View testID={`msg-${m.messageId}`} accessibilityLabel={`You, ${item.time}`} {...h.props} {...menuTrigger((x, y) => actions.showMenu(menuFor(m, true, actions, startEdit, { x, y }), x, y, "Message"))} style={[st.me, item.newgroup && st.gapTop, mark === "match" && st.found, mark === "active" && st.foundActive, mark === "selected" && st.selected]}>
+    <View testID={`msg-${m.messageId}`} accessibilityLabel={`You, ${item.time}`} {...h.props} {...menuTrigger((x, y) => actions.showMenu(menuFor(m, true, actions, startEdit, { x, y }), x, y, "Message"))} style={[st.me, item.newgroup ? st.gapTop : st.gapIn, mark === "match" && st.found, mark === "active" && st.foundActive, mark === "selected" && st.selected]}>
       {h.touch || sheet ? <ActionSheet open={sheet} entries={menuFor(m, true, actions, startEdit)} onClose={() => setSheet(false)} /> : null}
       {h.touch ? null : <HoverBar m={m} mine a={actions} onEdit={startEdit} visible={h.over || h.focus} />}
-      <TimeTip item={item}><Text style={st.when}>{item.time}</Text></TimeTip>
+      <TimeTip item={item}><Text style={[st.when, h.over && st.whenOn]}>{item.time}</Text></TimeTip>
       {editing ? (
         <View testID={`edit-${m.messageId}`} style={st.editBox}>
           <TextInput
@@ -453,11 +488,14 @@ function Theirs({ item, actions, stream, openWork, mark, meId, replies }: Messag
   const m = item.message;
   const [sheet, setSheet] = useState(false);
   const h = useHover(() => setSheet(true));
+  const gutter = useGutter();
   const work = workOf(m);
   const [workOpen, setWorkOpen] = useState(openWork === true);
   const crewStart = m.blocks.find(isCrewStart);
   const cards = m.blocks.filter((b) => isCard(b) && !isCrewStart(b));
-  const statuses = m.blocks.filter(isTurnStatus).map(statusView);
+  const rtStatus = useOptionalShellRuntime();
+  const viewerAdmin = rtStatus !== null && allows(rtStatus, GATE.provisionComputer);
+  const statuses = m.blocks.filter(isTurnStatus).map((b) => statusView(b, { admin: viewerAdmin }));
   // a held call has one card, however many ways the turn named it: the approval card
   const parked = new Set(statuses.flatMap((x) => (x.kind === "approval" ? [x.taskId] : [])));
   const errors = [...m.blocks.filter(isErrorBlock), ...statuses.flatMap((x) => (x.kind === "error" ? [x.block] : []))];
@@ -478,14 +516,15 @@ function Theirs({ item, actions, stream, openWork, mark, meId, replies }: Messag
   // an agent's reply: hovering its face or name shows how it was made (model, account, asker, where, cost, tokens, time)
   const withCard = (kids: ReactElement): ReactElement => (!person && actions.details && !stream && !h.phone && !isSystemLine(m) ? <ReplyHover messageId={m.messageId} details={actions.details}>{kids}</ReplyHover> : kids);
   return (
-    <View testID={`msg-${m.messageId}`} accessibilityLabel={`${item.who.name}, ${item.time}`} {...h.props} {...menuTrigger((x, y) => actions.showMenu(menuFor(m, false, actions, () => undefined, { x, y }), x, y, "Message"))} style={[st.msg, item.newgroup && st.gapTop, mark === "match" && st.found, mark === "active" && st.foundActive, mark === "selected" && st.selected]}>
+    <View testID={`msg-${m.messageId}`} accessibilityLabel={`${item.who.name}, ${item.time}`} {...h.props} {...menuTrigger((x, y) => actions.showMenu(menuFor(m, false, actions, () => undefined, { x, y }), x, y, "Message"))} style={[st.msg, item.newgroup ? st.gapTop : st.gapIn, mark === "match" && st.found, mark === "active" && st.foundActive, mark === "selected" && st.selected]}>
       {h.touch || sheet ? <ActionSheet open={sheet} entries={menuFor(m, false, actions, () => undefined)} onClose={() => setSheet(false)} /> : null}
       {h.touch ? null : <HoverBar byAgent={!person} m={m} mine={false} a={actions} onEdit={() => undefined} visible={barShows(h.over || h.focus, cardOpen)} />}
+      {item.newgroup && gutter ? <View testID={`gutter-face-${m.messageId}`} style={st.gutterFace}><Face name={item.who.name} seedId={item.who.face ?? item.who.id} kind={person || item.who.face !== undefined ? "person" : "agent"} size={FACE} /></View> : null}
       {item.newgroup ? (
         <View style={st.by}>
           {withCard(
             <>
-              <Face name={item.who.name} seedId={item.who.face ?? item.who.id} kind={person || item.who.face !== undefined ? "person" : "agent"} size={20} />
+              {gutter ? null : <Face name={item.who.name} seedId={item.who.face ?? item.who.id} kind={person || item.who.face !== undefined ? "person" : "agent"} size={FACE} />}
               <Pressable accessibilityRole="link" accessibilityLabel={`Open ${item.who.name}`} testID={`who-${m.messageId}`} onPress={() => actions.openAgent(item.who.id)}>
                 <Text style={st.who}>{item.who.name}</Text>
               </Pressable>
@@ -494,7 +533,7 @@ function Theirs({ item, actions, stream, openWork, mark, meId, replies }: Messag
           <TimeTip item={item}><Text style={st.time}>{item.time}</Text></TimeTip>
           {work?.short ? <Pressable accessibilityRole="button" accessibilityLabel={work.summary} testID={`work-short-${m.messageId}`} onPress={() => setWorkOpen((o) => !o)} style={{ opacity: h.over || workOpen ? 1 : 0 }}><Text style={st.time}>{work.summary}</Text></Pressable> : null}
         </View>
-      ) : <Text style={st.whenLeft}>{item.time}</Text>}
+      ) : <TimeTip item={item}><Text style={[gutter ? st.whenLeft : st.whenIn, h.over && st.whenOn]}>{item.time}</Text></TimeTip>}
       {pokedBy(m, actions.nameOf ?? unnamed) ? <Text testID={`poked-${m.messageId}`} style={st.via}>{pokedBy(m, actions.nameOf ?? unnamed)}</Text> : null}
       {item.paidLine ? <Text testID={`paid-${m.messageId}`} style={st.via}>{item.paidLine}</Text> : null}
       {m.via ? <Text testID={`via-${m.messageId}`} style={st.via}>{`Sent by ${item.who.name} on a routine ${m.via.routineOwner === meId ? "you" : actions.nameOf ? actions.nameOf(m.via.routineOwner) : unnamed(m.via.routineOwner)} set`}</Text> : null}
@@ -510,7 +549,7 @@ function Theirs({ item, actions, stream, openWork, mark, meId, replies }: Messag
           ))}
         </Fold>
       ) : null}
-      {stream ? <LiveBody store={stream} hideEmpty={actions.activityOf?.(m.messageId) !== undefined} testID={`body-${m.messageId}`} style={st.body} /> : m.body && !crewCard ? <View testID={`body-${m.messageId}`} style={st.body}><MarkdownBlocks blocks={subjects.blocks} {...(subjects.renderLink || chips.renderLink || citeLink ? { renderLink: ((href, kids, key) => citeLink?.(href, kids, key) ?? chips.renderLink?.(href, kids, key) ?? subjects.renderLink?.(href, kids, key) ?? null) as NonNullable<typeof chips.renderLink> } : {})} {...(renderCode ? { renderCode } : {})} /></View> : null}
+      {stream ? <LiveBody store={stream} hideEmpty={actions.activityOf?.(m.messageId) !== undefined} testID={`body-${m.messageId}`} style={st.body} /> : m.body && !crewCard ? <View testID={`body-${m.messageId}`} style={st.body}><MarkdownBlocks blocks={subjects.blocks} scope={m.messageId} {...(actions.reply ? { onChoose: actions.reply } : {})} {...(subjects.renderLink || chips.renderLink || citeLink ? { renderLink: ((href, kids, key) => citeLink?.(href, kids, key) ?? chips.renderLink?.(href, kids, key) ?? subjects.renderLink?.(href, kids, key) ?? null) as NonNullable<typeof chips.renderLink> } : {})} {...(renderCode ? { renderCode } : {})} /></View> : null}
       {stream && actions.activityOf?.(m.messageId) ? <ActivityLine store={actions.activityOf(m.messageId)!} stream={stream} {...(actions.faceInThread ? { face: <Face name={item.who.name} seedId={item.who.id} kind="agent" size={20} /> } : {})} /> : null}
           {item.hookSteps && actions.files ? <HookSteps id={m.messageId} steps={item.hookSteps.next} agentId={item.hookSteps.agentId} threadId={actions.files.threadId} call={actions.files.call} /> : null}
       {person || stream || m.body === "" ? null : <ReplyMemory messageId={m.messageId} threadId={m.threadId} reply={m.body} part={work ? "cards" : "all"} />}
@@ -632,7 +671,7 @@ function LinkCardView({ id, data, actions, size, trusted, time }: { id: string; 
     void Promise.resolve(actions.host.invoke("access.request", { resource: { type: t.type === "chat" ? "thread" : t.type, id: t.id }, level: "view", idempotencyKey: `ask:${t.type}:${t.id}` })).then(() => setAsked(true), () => undefined);
   };
   const open = (t: NonNullable<LinkCardData["target"]>): void => { if (t.type === "thread" && actions.openMessage) actions.openMessage(t.id, ""); else if (t.type === "fact" && memory?.memory.showKnows) memory.memory.showKnows(); else actions.openBeside(t.type, t.id); };
-  return <LinkCard id={id} data={data} nameOf={actions.nameOf ?? ((x) => x)} icon={<Glyph name={linkGlyph(data.icon)} size={size} color="var(--ink-3)" />} onOpen={open} onAction={act} done={new Set([...done, ...doneByState(data, seen.state)])} state={seen.state} hidden={hidden} {...(time ? { time } : {})} {...(hidden && data.target ? { onAskAccess: askAccess, asked } : {})} />;
+  return <LinkCard id={id} data={data} nameOf={actions.nameOf ?? ((x) => x)} icon={<Glyph name={lineGlyph(data)} size={size} color="var(--ink-3)" />} onOpen={open} onAction={act} done={new Set([...done, ...doneByState(data, seen.state)])} state={seen.state} hidden={hidden} {...(time ? { time } : {})} {...(hidden && data.target ? { onAskAccess: askAccess, asked } : {})} />;
 }
 
 /** What a work card says now, read as this reader: its state while it is live (read again on every change in the Space), and whether they may open it at all. */
@@ -651,8 +690,10 @@ function useCardState(data: LinkCardData, actions: MessageActions): { state: Car
 }
 
 /** The glyph a link card's icon word asks for. */
-const LINK_GLYPH: Record<string, GlyphName> = { task: "task", file: "file", fact: "spark", record: "people", run: "term", routine: "spark", computer: "monitor", approval: "alert", thread: "reply" };
+const LINK_GLYPH: Record<string, GlyphName> = { task: "task", file: "file", fact: "memory", note: "pin", memory: "memory", link: "link", chat: "people", record: "people", run: "term", routine: "spark", computer: "monitor", approval: "alert", thread: "reply" };
 export const linkGlyph = (icon: string): GlyphName => LINK_GLYPH[icon] ?? "reply";
+/** A system line says what it is by its glyph: Noted a pin, Connected a link, Remembered the memory mark; any other card goes by its icon word. */
+export const lineGlyph = (d: { icon: string; lead: string; style?: string }): GlyphName => (d.style === "noted" || /^Noted/.test(d.lead) ? "pin" : /^Connected/.test(d.lead) ? "link" : /^Remembered/.test(d.lead) ? "memory" : linkGlyph(d.icon));
 
 const CARD_ICON: Record<string, GlyphName> = { terminal: "term", plan: "plan", file: "file", changeset: "file", diff: "file", screenshot: "file", record_card: "file", question: "spark" };
 const OPENS = new Set(["terminal", "changeset", "diff", "file", "record_card", "tab_opened", "screenshot", "deploy", "mount"]);
@@ -705,7 +746,7 @@ function Card({ line, actions }: { line: CardLine; actions: MessageActions }): R
 
 /* ---------- errors: what, why, next ---------- */
 
-function ErrorRowView({ block, actions }: { block: Message["blocks"][number]; actions: MessageActions }): ReactElement {
+export function ErrorRowView({ block, actions }: { block: Message["blocks"][number]; actions: MessageActions }): ReactElement {
   const e = errorRow(block);
   const [open, setOpen] = useState(false);
   const [detail, setDetail] = useState<[string, string][] | null>(null);
@@ -729,90 +770,106 @@ function ErrorRowView({ block, actions }: { block: Message["blocks"][number]; ac
     const timer = setInterval(check, 2500);
     return () => { live = false; clearInterval(timer); };
   }, [noAccount, asked, ready, resent, actions]);
+  const { element: moreMenu, show: showMore } = useMenu();
+  const steps = [
+    ...e.next.map((n) => ({ label: n.label, testID: `err-next-${n.key}`, run: () => { if (n.key === "connect_ai") setAsked(true); actions.errorNext(n.key, e.turnId); } })),
+    ...(e.retryable && e.turnId && !retried ? [{ label: "Retry", testID: "err-retry", run: () => { setRetried(true); actions.retryTurn(e.turnId); } }] : []),
+  ];
+  const [fix, ...otherSteps] = steps;
+  const more: MenuEntry[] = [
+    ...otherSteps.map((s) => ({ label: s.label, onSelect: s.run })),
+    { label: "Details", onSelect: () => setOpen((o) => !o) },
+    { label: "Copy id", onSelect: () => actions.copy(e.traceId || e.turnId) },
+    { label: "Report", onSelect: () => reportProblem({ label: reportLabel(e.message, e.traceId) }) },
+  ];
   return (
-    <View testID={`error-${block.id}`} accessibilityRole="alert" {...menuTrigger((x, y) => actions.showMenu([{ label: "Copy error details", onSelect: () => actions.copy(e.traceId) }, { label: "What Happened?", onSelect: () => setOpen((o) => !o) }], x, y, "Error"))} style={st.err}>
-      <View style={st.errTop}><Glyph name="alert" size={15} color="var(--warn)" /><Text style={st.errMsg}>{e.message}</Text></View>
-      {e.cause ? <Text style={st.errCause}>{e.cause}</Text> : null}
-      <View style={st.errActions}>
-        {collect(e.next, (n) => <TextButton link key={n.key} label={n.label} testID={`err-next-${n.key}`} onPress={() => { if (n.key === "connect_ai") setAsked(true); actions.errorNext(n.key, e.turnId); }} />)}
-        {e.retryable && e.turnId && !retried ? <TextButton link label="Retry" testID="err-retry" onPress={() => { setRetried(true); actions.retryTurn(e.turnId); }} /> : null}
-        <TextButton link label="Details" testID="err-what" onPress={() => setOpen((o) => !o)} />
-        <TextButton link label="Copy id" testID="err-trace" onPress={() => actions.copy(e.traceId || e.turnId)} />
-        <TextButton link label="Report" testID="err-report" onPress={() => reportProblem({ label: reportLabel(e.message, e.traceId) })} />
-      </View>
-      {noAccount && ready && !resent ? (
-        <View testID="err-connected" style={st.errActions}>
-          <Text style={st.errCause}>Connected. Send it again?</Text>
-          <TextButton link label="Retry" testID="err-connected-retry" onPress={() => { setResent(true); actions.retryTurn(e.turnId); }} />
-        </View>
-      ) : null}
-      {open ? (
-        <View testID="err-steps" style={st.errSteps}>
-          {collect(detail ?? e.steps, ([k, v]) => <View key={k} style={st.kv}><Text style={st.kvK}>{k}</Text><Text style={st.kvV}>{v}</Text></View>)}
-        </View>
-      ) : null}
+    <View {...menuTrigger((x, y) => actions.showMenu([{ label: "Copy error details", onSelect: () => actions.copy(e.traceId) }, { label: "What Happened?", onSelect: () => setOpen((o) => !o) }], x, y, "Error"))}>
+      <UiCard kind="status" tone="error" testID={`error-${block.id}`} label={e.message}>
+        <CardHead title={e.message} tone="warn" lead={<Glyph name="alert" size={15} color="var(--warn)" />} />
+        {e.cause ? <Text style={st.errCause}>{e.cause}</Text> : null}
+        <CardActions
+          {...(fix ? { primary: { label: fix.label, onPress: fix.run, testID: fix.testID } } : {})}
+          note={<Pressable accessibilityRole="button" accessibilityLabel="More" testID="err-more" onPress={(ev) => { const at = anchorOf(ev); showMore(more, at.x, at.y, "context", { label: "Error" }); }}><Text style={st.errMore}>...</Text></Pressable>}
+        />
+        {moreMenu}
+        {noAccount && ready && !resent ? (
+          <View testID="err-connected" style={st.errActions}>
+            <Text style={st.errCause}>Connected. Send it again?</Text>
+            <TextButton link label="Retry" testID="err-connected-retry" onPress={() => { setResent(true); actions.retryTurn(e.turnId); }} />
+          </View>
+        ) : null}
+        {open ? (
+          <View testID="err-steps" style={st.errSteps}>
+            {collect(detail ?? e.steps, ([k, v]) => <View key={k} style={st.kv}><Text style={st.kvK}>{k}</Text><Text style={st.kvV}>{v}</Text></View>)}
+          </View>
+        ) : null}
+      </UiCard>
     </View>
   );
 }
 
 export const st = StyleSheet.create({
-  approvalLine: { flexDirection: "row", alignItems: "center", gap: 10, alignSelf: "flex-start", marginTop: 4, paddingVertical: 5, paddingHorizontal: 10, marginLeft: -10, borderRadius: 8 },
+  approvalLine: { flexDirection: "row", alignItems: "center", gap: 10, alignSelf: "flex-start", marginTop: 4, paddingVertical: 5, paddingHorizontal: 10, marginLeft: -10, borderRadius: RADIUS },
   approvalOver: { backgroundColor: "var(--hover)" as string },
   approvalFocus: { borderWidth: 2, borderColor: "var(--accent)" as string, paddingVertical: 3, paddingHorizontal: 8 },
   approvalText: { fontSize: 14, lineHeight: 20, color: "var(--ink-2)" as string },
   fromThread: { fontSize: 12, color: "var(--ink-3)" as string },
   approvalOpen: { color: "var(--accent)" as string, fontWeight: "500" },
   fromThreadMine: { alignSelf: "flex-end", marginTop: 4 },
-  day: { alignSelf: "center", fontSize: 12, color: "var(--ink-3)" as string, marginTop: 18, marginBottom: 6 },
-  eventCard: { flexShrink: 1, minWidth: 0 },
+  day: { alignSelf: "center", fontSize: META_PX, color: "var(--ink-3)" as string, marginTop: 28, marginBottom: 8 },
+  eventCard: { flexShrink: 1, flexGrow: 1, minWidth: 0 },
   eventCentre: { justifyContent: "center" },
-  event: { minHeight: 28, flexDirection: "row", alignItems: "center", gap: 8, marginTop: 8, marginBottom: 2 },
+  event: { minHeight: 24, flexDirection: "row", alignItems: "center", gap: 8, marginTop: 6, marginBottom: 0 },
   eventDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: "var(--ink-4)" as string },
-  eventText: { flexShrink: 1, fontSize: 12.5, color: "var(--ink-3)" as string },
+  eventText: { flexShrink: 1, fontSize: SYSTEM_PX, color: "var(--ink-3)" as string },
   eventLink: { color: "var(--accent)" as string, textDecorationLine: "underline", cursor: "pointer" } as object,
-  eventTime: { fontSize: 11.5, color: "var(--ink-4)" as string },
+  eventTime: { fontSize: META_PX, color: "var(--ink-4)" as string },
   hookText: { flex: 1, minWidth: 0, fontSize: 13.5, lineHeight: 19, color: "var(--ink-2)" as string },
   hookLead: { color: "var(--ink)" as string, fontWeight: "500" },
   hookAct: { fontSize: 12.5, lineHeight: 19, color: "var(--ink-3)" as string, cursor: "pointer" } as object,
-  gapTop: { marginTop: 18 },
+  gapTop: { marginTop: GAP_BETWEEN },
+  gapIn: { marginTop: GAP_WITHIN },
   // the mark sits outside the message (marks.ts), so nothing touches its edge
   found: MARK.found as object,
   foundActive: MARK.foundActive as object,
   selected: MARK.selected as object,
-  me: { alignItems: "flex-end", paddingVertical: 2, marginTop: 4, position: "relative" },
+  me: { alignItems: "flex-end", position: "relative" },
   when: { position: "absolute", left: 0, top: 10, fontSize: 11, color: "var(--ink-4)" as string, opacity: 0 },
-  whenLeft: { position: "absolute", left: -44, top: 4, fontSize: 11, color: "var(--ink-4)" as string, opacity: 0 },
-  bubble: { maxWidth: "85%", backgroundColor: "var(--me)" as string, borderRadius: 18, paddingHorizontal: 15, paddingVertical: 9 },
+  whenLeft: { position: "absolute", left: -(GUTTER + 4), top: 3, width: 36, textAlign: "right", fontSize: 11, color: "var(--ink-4)" as string, opacity: 0 },
+  whenIn: { position: "absolute", right: 8, top: 3, fontSize: 11, color: "var(--ink-4)" as string, opacity: 0 },
+  whenOn: { opacity: 1 },
+  gutterFace: { position: "absolute", left: -GUTTER, top: 0 },
+  bubble: { maxWidth: "85%", backgroundColor: "var(--me)" as string, borderRadius: RADIUS, paddingHorizontal: 14, paddingVertical: 8 },
   mineFiles: { alignSelf: "flex-end", maxWidth: "85%" },
-  bubbleText: { color: "var(--ink)" as string, fontSize: 15, lineHeight: 23 },
+  bubbleText: { color: "var(--ink)" as string, fontSize: BODY_PX, lineHeight: BODY_LEAD },
   edited: { marginTop: 2, fontSize: 11.5, color: "var(--ink-4)" as string },
-  editBox: { width: "85%", gap: 6, borderWidth: 1, borderColor: "var(--line-2)" as string, borderRadius: 12, padding: 8, backgroundColor: "var(--win)" as string },
+  editBox: { width: "85%", gap: 6, borderWidth: 1, borderColor: "var(--line-2)" as string, borderRadius: RADIUS, padding: 8, backgroundColor: "var(--win)" as string },
   editField: { minHeight: 44, fontSize: 15, lineHeight: 22, color: "var(--ink)" as string, outlineStyle: "none", outlineWidth: 0 } as object,
   editRow: { flexDirection: "row", justifyContent: "flex-end", gap: 6 },
   waitRow: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 8 },
   failed: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 2 },
   failedText: { fontSize: 12.5, color: "var(--danger)" as string },
-  msg: { paddingVertical: 2, position: "relative", gap: 6 },
-  by: { flexDirection: "row", alignItems: "center", gap: 8, height: 26 },
-  who: { fontSize: 13, fontWeight: "600", color: "var(--ink)" as string },
-  time: { fontSize: 11.5, color: "var(--ink-3)" as string },
-  via: { fontSize: 12, color: "var(--ink-3)" as string },
+  msg: { position: "relative", gap: 2 },
+  by: { flexDirection: "row", alignItems: "center", gap: 8, height: 22 },
+  who: { fontSize: NAME_PX, fontWeight: "600", color: "var(--ink)" as string },
+  time: { fontSize: META_PX, color: "var(--ink-3)" as string },
+  via: { fontSize: META_PX, color: "var(--ink-3)" as string },
   /** under an agent's message for its person, read by the teammate it went to (lane l-agentdm) */
   muteLine: { marginTop: 4 },
-  body: { paddingRight: 8 },
+  body: { paddingRight: 8, marginBottom: -BLOCK_GAP },
   step: { flexDirection: "row", alignItems: "center", gap: 8, minHeight: 24 },
   stepDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: "var(--ink-4)" as string },
   stepLive: { backgroundColor: "var(--ok)" as string },
   stepError: { backgroundColor: "var(--danger)" as string },
   stepTitle: { flexShrink: 1, fontSize: 13, color: "var(--ink-2)" as string },
   stepSub: { flexShrink: 1, fontSize: 12, color: "var(--ink-4)" as string },
-  hover: { position: "absolute", top: -10, flexDirection: "row", alignItems: "center", gap: 0, paddingHorizontal: 2, height: 26, borderRadius: 8, borderWidth: 1, borderColor: "var(--line)" as string, backgroundColor: "var(--win)" as string, zIndex: 2 },
+  hover: { position: "absolute", top: -10, flexDirection: "row", alignItems: "center", gap: 0, paddingHorizontal: 2, height: 28, borderRadius: RADIUS, borderWidth: 1, borderColor: "var(--line)" as string, backgroundColor: "var(--win)" as string, zIndex: 2 },
   hoverMine: { right: 0 },
   hoverTheirs: { right: 8 },
   reactions: { flexDirection: "row", flexWrap: "wrap", gap: 4, marginTop: 2 },
-  react: { height: 22, paddingHorizontal: 8, borderRadius: 11, justifyContent: "center", backgroundColor: "var(--sunk)" as string },
+  react: { height: 24, paddingHorizontal: 8, borderRadius: RADIUS, justifyContent: "center", backgroundColor: "var(--sunk)" as string },
   reactText: { fontSize: 12, color: "var(--ink-2)" as string },
-  card: { borderWidth: 1, borderColor: "var(--line)" as string, borderRadius: 10, backgroundColor: "var(--side)" as string, maxWidth: 520 },
+  card: { borderWidth: 1, borderColor: "var(--line)" as string, borderRadius: RADIUS, backgroundColor: "var(--side)" as string, maxWidth: 520 },
   cardWaiting: { borderColor: "var(--accent)" as string },
   cardHead: { minHeight: 40, flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 12, paddingVertical: 8 },
   cardTitle: { fontSize: 13.5, fontWeight: "500", color: "var(--ink)" as string },
@@ -820,9 +877,8 @@ export const st = StyleSheet.create({
   cardRow: { flexDirection: "row", flexWrap: "wrap", gap: 6, paddingHorizontal: 10, paddingBottom: 10 },
   planSteps: { gap: 4, paddingHorizontal: 12, paddingBottom: 8 },
   planStep: { flexDirection: "row", alignItems: "center", gap: 8 },
-  err: { borderRadius: 10, padding: 12, gap: 6, maxWidth: 560, backgroundColor: "var(--sunk)" as string },
-  errTop: { flexDirection: "row", alignItems: "center", gap: 8 },
-  errMsg: { flexShrink: 1, fontSize: 13.5, fontWeight: "600", color: "var(--ink)" as string },
+  err: { borderRadius: RADIUS, padding: 12, gap: 6, maxWidth: 560, backgroundColor: "var(--sunk)" as string },
+  errMore: { fontSize: 16, color: "var(--ink-3)" as string, paddingHorizontal: 8, letterSpacing: 1 },
   errCause: { fontSize: 13, lineHeight: 19, color: "var(--ink-2)" as string },
   errActions: { flexDirection: "row", flexWrap: "wrap", gap: 4 },
   errSteps: { gap: 4, paddingTop: 4 },

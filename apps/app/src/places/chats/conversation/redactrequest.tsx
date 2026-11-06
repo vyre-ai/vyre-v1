@@ -3,7 +3,8 @@
 // whom. It reads files.marks.list for the file: the request is waiting while it is in the file's requests.
 import { useCallback, useEffect, useState } from "react";
 import type { ReactElement } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text } from "react-native";
+import { Card, CardActions, CardDone, CardHead } from "../../../../../../ui/src/Card/index.tsx";
 import { MenuIcon } from "../../../../../../ui/src/Menu/index.tsx";
 import type { ConversationData } from "./data.tsx";
 import { useFollow } from "./use-follow.ts";
@@ -32,42 +33,20 @@ export function RedactRequestCard({ block, agent, data }: { block: RedactRequest
   useFollow(data.changes, load, state === "waiting");
   const later = (): void => { void data.call("files.redact.later", { requestId: block.requestId }).then(() => setState("later")).catch((e: unknown) => setProblem(e instanceof Error ? e.message : "That did not work.")); };
   return (
-    <View style={st.card} testID={`redactreq-${block.requestId}`} accessibilityLabel={requestLine(agent, block.name)}>
-      <View style={st.head}><MenuIcon icon={EYE_OFF} /><Text style={st.title}>Redact before I can read</Text></View>
+    <Card kind="decision" size="full" testID={`redactreq-${block.requestId}`} label={requestLine(agent, block.name)}>
+      <CardHead title="Redact before I can read" lead={<MenuIcon icon={EYE_OFF} />} />
       <Text style={st.body}>{`${agent} wants to read `}<Text style={st.b}>{block.name}</Text>{". It's in a Redacted folder."}</Text>
       {state === "waiting" ? (
-        <View style={st.foot}>
-          <Pressable accessibilityRole="button" accessibilityLabel="Open to review" testID={`redactreq-open-${block.requestId}`} onPress={() => data.nav.openBeside("file", block.fileId)} style={({ hovered }: { hovered?: boolean }) => [st.pri, hovered === true && st.priOver]}>
-            <Text style={st.priText}>Open to review</Text>
-          </Pressable>
-          <Pressable accessibilityRole="button" accessibilityLabel="Not now" testID={`redactreq-later-${block.requestId}`} onPress={later} style={({ hovered }: { hovered?: boolean }) => [st.sec, hovered === true && st.over]}>
-            <Text style={st.secText}>Not now</Text>
-          </Pressable>
-          <View style={st.grow} />
-          <Text style={st.quiet}>Waiting</Text>
-        </View>
+        <CardActions note={<Text style={st.quiet}>Waiting</Text>} secondary={[{ label: "Not now", onPress: later, testID: `redactreq-later-${block.requestId}` }]} primary={{ label: "Open to review", onPress: () => data.nav.openBeside("file", block.fileId), testID: `redactreq-open-${block.requestId}` }} />
       ) : state === "later" ? <Text style={st.quiet}>{`Not now. ${agent} asks again when the file is opened.`}</Text>
-        : <View style={st.done}><MenuIcon icon={CHECK} color="var(--ok)" /><Text style={st.ok}>{`Reviewed${by ? ` by ${data.nameOf(by)}` : ""}`}</Text></View>}
+        : <CardDone glyph={<MenuIcon icon={CHECK} color="var(--ok)" />} text={`Reviewed${by ? ` by ${data.nameOf(by)}` : ""}`} />}
       {problem ? <Text style={st.quiet} accessibilityLiveRegion="polite">{problem}</Text> : null}
-    </View>
+    </Card>
   );
 }
 
 const st = StyleSheet.create({
-  card: { marginTop: 4, borderRadius: 12, borderWidth: 1, borderColor: "var(--line-2)" as string, paddingVertical: 11, paddingHorizontal: 12, gap: 8, backgroundColor: "var(--raised)" as string, maxWidth: 520 },
-  head: { flexDirection: "row", alignItems: "center", gap: 7 },
-  title: { color: "var(--ink)" as string, fontWeight: "600", fontSize: 12.5 },
   body: { color: "var(--ink-2)" as string, fontSize: 13, lineHeight: 19 },
   b: { color: "var(--ink)" as string, fontWeight: "600" },
-  foot: { flexDirection: "row", alignItems: "center", gap: 6 },
-  grow: { flex: 1 },
-  pri: { height: 28, paddingHorizontal: 11, borderRadius: 8, backgroundColor: "var(--accent)" as string, alignItems: "center", justifyContent: "center" },
-  priOver: { opacity: 0.9 },
-  priText: { color: "var(--accent-ink)" as string, fontWeight: "600", fontSize: 12.5 },
-  sec: { height: 28, paddingHorizontal: 9, borderRadius: 8, alignItems: "center", justifyContent: "center" },
-  over: { backgroundColor: "var(--hover)" as string },
-  secText: { color: "var(--ink-2)" as string, fontWeight: "500", fontSize: 12.5 },
   quiet: { color: "var(--ink-3)" as string, fontSize: 12 },
-  done: { flexDirection: "row", alignItems: "center", gap: 6 },
-  ok: { color: "var(--ok)" as string, fontSize: 12 },
 });

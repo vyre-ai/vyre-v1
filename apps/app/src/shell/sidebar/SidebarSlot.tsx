@@ -16,6 +16,7 @@ import { ResizeHandle, useResizable } from "../../../../../ui/src/SidePane/resiz
 import { SHEET, sq, usePanelPresence, useShellLayout } from "../../../../../ui/src/SidePane/host.tsx";
 import type { ShellLayoutApi } from "../../../../../ui/src/SidePane/host.tsx";
 import { SIDEBAR } from "../../../../../ui/src/SidePane/layout.ts";
+import { RADIUS } from "../../../../../ui/src/tokens/radius.ts";
 
 export interface SidebarEntry { title: string; searchPlaceholder: string; noSearch?: boolean }
 
@@ -127,7 +128,7 @@ export function SidebarSlot(): ReactElement | null {
         <View style={s.actions} testID="sidebar-actions" ref={(n) => { if (n !== null) o.setActionsOutlet(n); }} />
         {full ? null : (
           <Pressable accessibilityRole="button" accessibilityLabel="Hide the sidebar" testID="sidebar-collapse" onPress={() => hideSidebar(slot, shell)}
-            {...webOnly({ title: "Hide the sidebar (⌘⇧\\)" })}
+            {...webOnly({ title: "Hide the sidebar (⌘\\)" })}
             style={({ hovered }: { hovered?: boolean }) => [s.icon, hovered === true && s.hover]}>
             <MenuIcon icon={PANEL} color="var(--ink-3)" />
           </Pressable>
@@ -156,7 +157,7 @@ export function SidebarHide(): ReactElement | null {
   const slot = useSidebarSlot();
   const shell = useShellLayout();
   return (
-    <Pressable accessibilityRole="button" accessibilityLabel="Hide the sidebar" testID="sidebar-hide" onPress={() => hideSidebar(slot, shell)} {...webOnly({ title: "Hide the sidebar (⌘⇧\\)" })} style={({ hovered }: { hovered?: boolean }) => [s.hideFloat, hovered === true && s.hover]}>
+    <Pressable accessibilityRole="button" accessibilityLabel="Hide the sidebar" testID="sidebar-hide" onPress={() => hideSidebar(slot, shell)} {...webOnly({ title: "Hide the sidebar (⌘\\)" })} style={({ hovered }: { hovered?: boolean }) => [s.hideFloat, hovered === true && s.hover]}>
       <MenuIcon icon={PANEL} color="var(--ink-3)" />
     </Pressable>
   );
@@ -170,7 +171,7 @@ export function SidebarExpand(): ReactElement | null {
   const away = shell !== null ? shell.layout.sidebar.mode === "hidden" : slot.collapsed;
   if (!away || slot.compact || !slot.hasSidebar) return null;
   return (
-    <Pressable accessibilityRole="button" accessibilityLabel="Show the sidebar" testID="sidebar-expand" onPress={() => showSidebar(slot, shell)} {...webOnly({ title: "Show the sidebar (⌘⇧\\)" })} style={({ hovered }: { hovered?: boolean }) => [s.expand, hovered === true && s.hover]}>
+    <Pressable accessibilityRole="button" accessibilityLabel="Show the sidebar" testID="sidebar-expand" onPress={() => showSidebar(slot, shell)} {...webOnly({ title: "Show the sidebar (⌘\\)" })} style={({ hovered }: { hovered?: boolean }) => [s.expand, hovered === true && s.hover]}>
       <MenuIcon icon={PANEL} color="var(--ink-3)" />
     </Pressable>
   );
@@ -249,7 +250,7 @@ const s = StyleSheet.create({
   search: { flexDirection: "row", alignItems: "center", gap: 8, height: 32, marginHorizontal: 10, marginBottom: 8, paddingHorizontal: 10, borderRadius: 12, borderWidth: 1, borderColor: "var(--field-line)", backgroundColor: "var(--field)" as string },
   input: { flex: 1, minWidth: 0, color: "var(--ink)" as string, fontSize: 13, padding: 0 },
   outlet: { flex: 1, minHeight: 0 },
-  expand: { width: 28, height: 28, borderRadius: 9, alignItems: "center", justifyContent: "center", marginLeft: 8, marginTop: 6, flexShrink: 0 },
+  expand: { width: 28, height: 28, borderRadius: RADIUS, alignItems: "center", justifyContent: "center", marginLeft: 8, marginTop: 6, flexShrink: 0 },
   hideFloat: { position: "absolute", right: 8, top: 12, width: 28, height: 28, borderRadius: 12, alignItems: "center", justifyContent: "center", zIndex: 3 },
   back: { height: 40, flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
   backText: { color: "var(--accent)" as string, fontSize: 14, fontWeight: "500" },

@@ -203,6 +203,51 @@ fn refusal(e: &tauri_plugin_updater::Error) -> String {
     if signature { "The update was refused: its signature does not match Vyre's release key. Nothing was installed.".to_string() } else { format!("The update did not download: {text}") }
 }
 
+/// What the update needs free on the disk: the bundle is about 180 MB packed and about four times that unpacked, so ask for 1 GB.
+const NEEDS_FREE: u64 = 1_000_000_000;
+
+#[cfg(target_os = "macos")]
+const NEEDS_SPACE: &str = "Your Mac needs about 1 GB free to update. Free some space and press Update now.";
+#[cfg(not(target_os = "macos"))]
+const NEEDS_SPACE: &str = "Your computer needs about 1 GB free to update. Free some space and press Update now.";
+
+/// An error text that means the disk is full: the unpack stops with "No space left on device (os error 28)" (Windows: os error 112, "There is not enough space on the disk").
+pub(crate) fn is_no_space(text: &str) -> bool {
+    let t = text.to_lowercase();
+    ["no space left", "os error 28", "os error 112", "enospc", "not enough space", "disk full", "needs about 1 gb free"].iter().any(|k| t.contains(k))
+}
+
+/// The words for a failed install: the space line when the disk is full, else the install's own text.
+pub(crate) fn install_failure(e: &str) -> String {
+    if is_no_space(e) { NEEDS_SPACE.to_string() } else { format!("The update did not install: {e}") }
+}
+
+/// The free kilobytes in `df -Pk PATH` output (the fourth column of its second line).
+pub(crate) fn parse_df_free(out: &str) -> Option<u64> {
+    let kb: u64 = out.lines().nth(1)?.split_whitespace().nth(3)?.parse().ok()?;
+    Some(kb.saturating_mul(1024))
+}
+
+/// Free bytes on the volume that holds `path`; None when it cannot be told (Windows, or no `df`), which never blocks an update.
+fn free_bytes(path: &std::path::Path) -> Option<u64> {
+    if cfg!(windows) { return None; }
+    let out = std::process::Command::new("df").arg("-Pk").arg(path).output().ok()?;
+    if !out.status.success() { return None; }
+    parse_df_free(&String::from_utf8_lossy(&out.stdout))
+}
+
+/// Before the download: the volumes the unpack uses (the temp folder and the one the app sits on) each have room. Err is the line to show.
+pub(crate) fn space_check(free: &[Option<u64>]) -> Result<(), String> {
+    if free.iter().flatten().any(|f| *f < NEEDS_FREE) { Err(NEEDS_SPACE.to_string()) } else { Ok(()) }
+}
+
+fn check_space() -> Result<(), String> {
+    let app = std::env::current_exe().ok();
+    let free = [free_bytes(&std::env::temp_dir()), app.as_deref().and_then(|p| p.parent()).and_then(free_bytes)];
+    println!("vyre-desktop: update: free space {:?}", free);
+    space_check(&free)
+}
+
 /// Something that runs on this computer and must be quiet before the app's files are replaced: each vyred daemon (sidecar.rs).
 pub(crate) trait LocalService: Send + Sync {
     fn name(&self) -> &'static str;
@@ -362,6 +407,8 @@ async fn install(app: &AppHandle, st: &SharedUpdate) -> Result<(), String> {
             r?.ok_or_else(|| "Vyre is already up to date.".to_string())?
         }
     };
+    // a full disk fails the unpack minutes in, with a path in the message: say so before the download
+    check_space()?;
     // the check's short timeout is for the check; a download takes as long as it takes
     update.timeout = None;
     println!("vyre-desktop: update: downloading {} from {}", update.version, update.download_url);
@@ -395,7 +442,7 @@ async fn install(app: &AppHandle, st: &SharedUpdate) -> Result<(), String> {
                 tell(&installing, "installing", 0, None, 0);
                 println!("vyre-desktop: update: installing {}", update.version);
                 // on Windows this starts the installer and ends the app; the installer opens the new Vyre when it is done
-                update.install(&bytes).map_err(|e| format!("The update did not install: {e}"))
+                update.install(&bytes).map_err(|e| install_failure(&e.to_string()))
             },
         )
     })
@@ -411,6 +458,25 @@ mod tests {
     use super::*;
     use minisign_verify::{PublicKey, Signature};
     use std::sync::atomic::{AtomicU32, AtomicUsize, Ordering};
+
+    #[test]
+    fn a_full_disk_gets_one_plain_line_and_other_failures_keep_their_words() {
+        let unpack = "failed to unpack `Vyre.app/Contents/Resources/runtime/node_modules/es-toolkit/dist/set/keyBy.js` into `/private/var/folders/x`: No space left on device (os error 28)";
+        assert_eq!(install_failure(unpack), NEEDS_SPACE);
+        assert_eq!(install_failure("There is not enough space on the disk. (os error 112)"), NEEDS_SPACE);
+        assert_eq!(install_failure("permission denied"), "The update did not install: permission denied");
+        assert!(NEEDS_SPACE.ends_with("about 1 GB free to update. Free some space and press Update now."));
+    }
+
+    #[test]
+    fn free_space_is_read_from_df_and_under_a_gigabyte_stops_the_update_before_the_download() {
+        let df = "Filesystem 1024-blocks Used Available Capacity Mounted on\n/dev/disk3s5 971350180 954000000 317000 100% /System/Volumes/Data\n";
+        assert_eq!(parse_df_free(df), Some(317_000 * 1024));
+        assert_eq!(parse_df_free("garbage"), None);
+        assert_eq!(space_check(&[Some(317_000 * 1024), Some(50_000_000_000)]), Err(NEEDS_SPACE.to_string()));
+        assert_eq!(space_check(&[Some(2_000_000_000), None]), Ok(()));
+        assert_eq!(space_check(&[None, None]), Ok(()), "a volume that cannot be read never blocks an update");
+    }
 
     #[test]
     fn a_prerelease_reads_beta_and_a_release_reads_stable() {

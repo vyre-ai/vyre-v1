@@ -12,6 +12,7 @@ import { useLive, useMemoryData, useOptionalMemoryData } from "./data.tsx";
 import { LAYER_LABEL, SOURCE_LABEL, ago, lands, proposedGroups } from "./model.ts";
 import type { Fact, NoteRow } from "./model.ts";
 import { Icon } from "./parts.tsx";
+import { isPhoneWidth } from "../../../../../../ui/src/SidePane/layout.ts";
 
 export interface MemoryProposedProps { agentId?: string }
 
@@ -23,7 +24,7 @@ function FactRow({ fact, busy, selected, onSelect, onAccept, onReject, onOpen, n
   const [over, setOver] = useState(false);
   const [focused, setFocused] = useState(false);
   const width = useWindowDimensions().width;
-  const shown = (width > 0 && width < 720) || over || focused || selected;
+  const shown = (isPhoneWidth(width)) || over || focused || selected;
   const trig = menuTrigger((x, y) => menu.show([{ label: "Allow", onSelect: onAccept }, { label: "Deny", onSelect: onReject }, { separator: true }, { label: "Open Source", onSelect: onOpen }], x, y));
   const from = `From ${SOURCE_LABEL[fact.sourceKind]}${fact.layer === "person" ? "" : ` of ${who(fact.ownerRef)}`} · ${ago(fact.learnedAt, now)}${fact.lowRisk === true ? " · low risk" : ""}`;
   return (

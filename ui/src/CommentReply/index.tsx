@@ -25,7 +25,7 @@ export interface CommentReplyViewProps extends CommentReplyProps {
 
 /** Heights: one line, growing to a cap. Compact (phone) is a little taller for touch. */
 export function fieldHeights(density: CommentReplyProps["density"]): { min: number; max: number } {
-  return density === "compact" ? { min: 40, max: 140 } : { min: 34, max: 120 };
+  return density === "compact" ? { min: 44, max: 168 } : { min: 34, max: 168 };
 }
 
 export function canSendReply(text: string, disabled: boolean): boolean {
@@ -41,8 +41,9 @@ interface KeyLike {
 
 const webProps = (props: Record<string, unknown>): Record<string, unknown> => (Platform.OS === "web" ? props : {});
 const FIELD_STYLE = { outlineStyle: "none", outlineWidth: 0, backgroundColor: "transparent" } as unknown as TextStyle;
-const RING = { boxShadow: "inset 0 0 0 1px var(--line-2)" } as unknown as ViewStyle;
-const RING_FOCUS = { boxShadow: "inset 0 0 0 1px var(--accent-line), 0 0 0 3px var(--accent-wash)" } as unknown as ViewStyle;
+// the same pill as the composer (DESIGN-SYSTEM-221): a hairline and a soft shadow, focus on the pill only
+const RING = { boxShadow: "var(--sh-2), inset 0 0 0 1px var(--line)" } as unknown as ViewStyle;
+const RING_FOCUS = { boxShadow: "var(--sh-2), inset 0 0 0 1px var(--accent-line), 0 0 0 4px var(--accent-wash)" } as unknown as ViewStyle;
 
 export function CommentReply(props: CommentReplyViewProps): ReactElement {
   const { min, max } = fieldHeights(props.density);
@@ -109,14 +110,14 @@ export function CommentReply(props: CommentReplyViewProps): ReactElement {
         value={text}
         onChangeText={change}
         onKeyPress={onKeyPress as never}
-        onContentSizeChange={(e) => setHeight(textRef.current === "" ? min : Math.max(min, Math.min(max, Math.ceil(e.nativeEvent.contentSize.height) + 12)))}
+        onContentSizeChange={(e) => setHeight(textRef.current === "" ? min : Math.max(min, Math.min(max, Math.ceil(e.nativeEvent.contentSize.height))))}
         onFocus={() => setFocused(true)}
         onBlur={() => setFocused(false)}
         placeholder={props.placeholder}
         placeholderTextColor="var(--ink-4)"
         accessibilityLabel={label}
         testID="comment-reply-field"
-        style={[styles.field, FIELD_STYLE, { height }]}
+        style={[styles.field, props.density === "compact" && styles.fieldCompact, FIELD_STYLE, { height }]}
       />
       <Pressable
         accessibilityRole="button"
@@ -126,9 +127,9 @@ export function CommentReply(props: CommentReplyViewProps): ReactElement {
         onPress={send}
         testID="comment-reply-send"
         {...webProps({ title: "Send reply" })}
-        style={[styles.send, !ok && styles.sendOff]}
+        style={[styles.send, props.density === "compact" && styles.sendCompact, !ok && styles.sendOff]}
       >
-        <Glyph icon={ICON_UP} native={"↑"} size={15} color="var(--accent-ink)" />
+        <Glyph icon={ICON_UP} native={"↑"} size={16} color="var(--accent-ink)" />
       </Pressable>
       {menu.element}
     </View>
@@ -136,9 +137,12 @@ export function CommentReply(props: CommentReplyViewProps): ReactElement {
 }
 
 const styles = StyleSheet.create({
-  box: { width: "100%", flexDirection: "row", alignItems: "flex-end", borderRadius: 10, backgroundColor: "var(--raised)" as string, paddingLeft: 10, paddingRight: 6, paddingVertical: 4 },
-  boxCompact: { borderRadius: 12, paddingLeft: 12, paddingVertical: 5 },
-  field: { flex: 1, minWidth: 0, color: "var(--ink)" as string, fontSize: 13, lineHeight: 19, paddingVertical: 6, paddingHorizontal: 0, margin: 0, borderWidth: 0 },
-  send: { width: 26, height: 26, borderRadius: 13, marginBottom: 4, marginLeft: 6, alignItems: "center", justifyContent: "center", backgroundColor: "var(--accent)" as string },
+  box: { width: "100%", flexDirection: "row", alignItems: "flex-end", borderRadius: 12, backgroundColor: "var(--raised)" as string, paddingLeft: 12, paddingRight: 6, paddingVertical: 6 },
+  boxCompact: { borderRadius: 12, paddingLeft: 12, paddingVertical: 6 },
+  field: { flex: 1, minWidth: 0, color: "var(--ink)" as string, fontSize: 14, lineHeight: 22, paddingVertical: 6, paddingHorizontal: 0, margin: 0, borderWidth: 0 },
+  send: { width: 32, height: 32, borderRadius: 16, marginBottom: 1, marginLeft: 6, alignItems: "center", justifyContent: "center", backgroundColor: "var(--accent)" as string },
+  // the 44 px touch field: one line of 22 px sits in the middle of it, and the 32 px send with it
+  fieldCompact: { paddingVertical: 11 },
+  sendCompact: { marginBottom: 6 },
   sendOff: { opacity: 0.35 },
 });

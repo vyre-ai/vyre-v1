@@ -11,6 +11,7 @@ import { Shell } from "../../../apps/app/src/shell/spaces/Shell.tsx";
 import type { PlaceContext } from "../../../apps/app/src/shell/spaces/Shell.tsx";
 import { createSampleShell } from "../../../apps/app/src/shell/spaces/sample.tsx";
 import { SidebarContent } from "../../../apps/app/src/shell/sidebar/index.ts";
+import { useMenu } from "../../../ui/src/Menu/index.tsx";
 import type { PlaceId } from "../../../apps/app/src/shell/rail/kits.ts";
 import Vault from "../../../apps/app/src/places/vault/layout/index.tsx";
 import { createSampleVault, northwind } from "../../../apps/app/src/places/vault/layout/sample.ts";
@@ -29,6 +30,7 @@ interface RootLike { setAttribute(name: string, value: string): void; style: { s
 function Place({ ctx, sidebar, initialPane }: { ctx: PlaceContext; sidebar: boolean; initialPane: boolean }): ReactNode {
   const [pane, setPane] = useState(initialPane);
   useEffect(() => { (globalThis as { __pane?: (on: boolean) => void }).__pane = setPane; return () => { (globalThis as { __pane?: unknown }).__pane = undefined; }; }, []);
+  const { element, show } = useMenu();
   const name = ctx.place[0]!.toUpperCase() + ctx.place.slice(1);
   return (
     <View style={{ flex: 1, minHeight: 0 }}>
@@ -48,6 +50,8 @@ function Place({ ctx, sidebar, initialPane }: { ctx: PlaceContext; sidebar: bool
           <Pressable testID="open-pane" onPress={() => setPane(true)} style={{ height: 32, paddingHorizontal: 12, borderRadius: 10, justifyContent: "center", alignSelf: "flex-start", backgroundColor: "var(--accent-wash)" as string }}><Text style={{ color: "var(--accent)" as string, fontSize: 14 }}>Open the side pane</Text></Pressable>
         </View>
       </View>
+      <Pressable testID="edge-menu" onPress={(e) => { const b = (e as unknown as { currentTarget: { getBoundingClientRect(): { left: number; bottom: number } } }).currentTarget.getBoundingClientRect(); show([{ label: "Rename", onSelect: () => undefined }, { label: "Duplicate a long label that needs room", onSelect: () => undefined }, { label: "Delete", onSelect: () => undefined }], b.left, b.bottom, "context", { label: "Edge menu" }); }} style={{ position: "absolute", top: 12, right: 12, height: 32, paddingHorizontal: 12, borderRadius: 12, justifyContent: "center", backgroundColor: "var(--hover)" as string }}><Text style={{ color: "var(--ink)" as string, fontSize: 14 }}>Menu</Text></Pressable>
+      {element}
       <SidePane paneKey="shell221-pane" toggle={{ open: pane, onPress: () => setPane(false) }} title="Details" tabs={[{ key: "d", title: "Details" }]} activeTab="d" onCloseTab={() => setPane(false)}>
         <View style={{ padding: 16 }}><Text style={{ color: "var(--ink)" as string, fontSize: 14 }}>Side pane content</Text></View>
       </SidePane>

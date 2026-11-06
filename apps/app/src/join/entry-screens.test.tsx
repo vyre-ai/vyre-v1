@@ -6,9 +6,9 @@ test('Space entry uses the shared0.6.8 auth frame and exposes distinct real join
  for(const id of['join-frame','join-panel','auth-form-mark','space-entry-join','space-entry-create'])assert.ok(html.includes(`data-testid="${id}"`),id);
  assert.ok(!html.includes('Created your Space'));assert.ok(html.includes('Join a Space') && html.includes('Create a Space'));
 });
-test('locked entry keeps password sign-in and has an explicit Unlock action without device approval',()=>{
- const html=renderToStaticMarkup(<JoinFrame><SignIn invite={invite} state={initialState(invite,{stage:'signin'})} dispatch={()=>undefined} unlock onSubmit={()=>undefined} onBack={()=>undefined}/></JoinFrame>);
- assert.ok(html.includes('Unlock Vyre'));assert.ok(html.includes('Unlock'));assert.ok(html.includes('data-testid="si-password"'));assert.ok(html.includes('data-testid="back"'));assert.doesNotMatch(html,/Touch ID|approve on your phone|passkey/i);
+test('sign-in keeps password sign-in with no device approval, and no Unlock wording',()=>{
+ const html=renderToStaticMarkup(<JoinFrame><SignIn invite={invite} state={initialState(invite,{stage:'signin'})} dispatch={()=>undefined} onSubmit={()=>undefined} onBack={()=>undefined}/></JoinFrame>);
+ assert.ok(!html.includes('Unlock'));assert.ok(html.includes('data-testid="si-password"'));assert.ok(html.includes('data-testid="back"'));assert.doesNotMatch(html,/Touch ID|approve on your phone|passkey/i);
 });
 test('on the desktop app for a Mac the Team Space choice offers to run this Mac as the server; elsewhere it does not',async()=>{
  const{MacServerOffer}=await import('./SpaceEntry.tsx');const{isMacShell}=await import('../shell/session/entry.ts');

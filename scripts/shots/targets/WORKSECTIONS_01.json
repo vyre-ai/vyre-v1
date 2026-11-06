@@ -1,0 +1,53 @@
+{
+  "targets": [
+    {
+      "id": "WORKSECTIONS_01-running",
+      "route": "/m/WORKSECTIONS_01?part=running",
+      "proto": "chats,{skin}",
+      "waitFor": "[data-testid='work-list']",
+      "note": "Both up: a Terminal with three sessions and a project folder, the browser open with its live view and the logins it keeps."
+    },
+    {
+      "id": "WORKSECTIONS_01-asleep",
+      "route": "/m/WORKSECTIONS_01?part=asleep",
+      "proto": "chats,{skin}",
+      "waitFor": "[data-testid='work-list']",
+      "note": "Both asleep: the terminal wakes on Attach, the browser opens from its picture."
+    },
+    {
+      "id": "WORKSECTIONS_01-starting",
+      "route": "/m/WORKSECTIONS_01?part=starting",
+      "proto": "chats,{skin}",
+      "waitFor": "[data-testid='work-list']",
+      "note": "Both starting."
+    },
+    {
+      "id": "WORKSECTIONS_01-waiting",
+      "route": "/m/WORKSECTIONS_01?part=waiting",
+      "proto": "chats,{skin}",
+      "waitFor": "[data-testid='work-list']",
+      "note": "The host is full: both say the same plain line and offer nothing to press."
+    },
+    {
+      "id": "WORKSECTIONS_01-takeover",
+      "route": "/m/WORKSECTIONS_01?part=takeover",
+      "proto": "chats,{skin}",
+      "waitFor": "[data-testid='work-list']",
+      "note": "You are in control of its browser: Give back."
+    },
+    {
+      "id": "WORKSECTIONS_01-member",
+      "route": "/m/WORKSECTIONS_01?part=member",
+      "proto": "chats,{skin}",
+      "waitFor": "[data-testid='work-list']",
+      "note": "A person who may not attach or take over: the state and why, no frame, no buttons."
+    },
+    {
+      "id": "WORKSECTIONS_01-terminal-only",
+      "route": "/m/WORKSECTIONS_01?part=terminal-only",
+      "proto": "chats,{skin}",
+      "waitFor": "[data-testid='work-list']",
+      "note": "The Space browser is not bound yet: one line in its place, the terminal still works."
+    }
+  ]
+}

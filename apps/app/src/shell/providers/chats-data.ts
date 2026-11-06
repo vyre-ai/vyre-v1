@@ -16,6 +16,8 @@ import { nameLookup } from "./records-live.ts";
 import type { ShellRuntime } from "./runtime.tsx";
 import { nameOr } from "../../places/chats/names.ts";
 import { offered } from "../session/private-agents.ts";
+import { workspaceData } from "./workspace-data.ts";
+import { browserData } from "./browser-data.tsx";
 import { requestChannelSheet } from "../../places/chats/channels/request.ts";
 
 export interface ChatsActions {
@@ -225,6 +227,11 @@ export function paneData(rt: ShellRuntime, a: ChatsActions, threadId: string, ag
     me: { id: rt.me.id }, nameOf: nameLookup(rt),
     ownerOf: (id) => { const p = rt.principals.getSnapshot(); return p.status === "ready" ? p.data.find((x) => x.id === id)?.owner : undefined; },
     memory: chatMemory(rt, a),
+    // the agent's workspace: its terminal sessions, Attach and Wake (the Space browser half is bound when it lands)
+    workspace: workspaceData({
+      screens: rt.screens, call: rt.call, newKey: () => `ws-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`, openTerminal: (terminalId) => rt.open({ screen: "chats.terminal-tab", args: { terminalId } }),
+    }),
+    browser: browserData({ call: rt.call, me: rt.me.id, nameOf: nameLookup(rt), spaceUrl: rt.baseUrl }),
     ...(rt.baseUrl ? { spaceUrl: rt.baseUrl } : {}),
   };
 }

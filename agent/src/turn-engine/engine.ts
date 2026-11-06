@@ -35,6 +35,7 @@ export type ToolRunResult = ToolResult & { held?: HeldCall; /** a question asked
 export type ToolRunner = (call: { id: string; name: string; input: unknown }, ctx: ToolContext) => Promise<ToolRunResult>;
 
 import type { HooksPort } from "../tools/hooks.ts";
+import { reportWindow } from "../transcript/windows.ts";
 
 const CLI_DRIVERS: ReadonlySet<string> = new Set(["claude_code", "codex", "grok"]);
 
@@ -240,7 +241,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
   const STREAK_PARK = 3;
   const PERSON_RETRY_MS = 60_000;
   /** Failures that need the person to act (the Vault is locked, a sign-in is missing): the turn waits once instead of failing again for every message. */
-  const PARK_CODES: ReadonlySet<string> = new Set(["engine.vault_locked", "engine.signin_missing"]);
+  const PARK_CODES: ReadonlySet<string> = new Set(["engine.vault_locked", "engine.signin_missing", "engine.signin_unopenable"]);
   const PARK_MAX_MS = 10 * 60_000;   // a host that cannot see the unlock still tries again on the next message after this
   const enqueuedHr = new Map<string, number>();   // `${thread}:${qseq}` -> hr() at enqueue
   let counter = 0;
@@ -470,6 +471,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
     // the provider's dollar figure stands only when every call of the turn reported one
     let usages = 0, priced = 0;
     let lastCode = "";
+    let failResetsAt: number | undefined;
     turnRows.push(turn);
     if (turnRows.length > KEEP_TURNS) turnRows.splice(0, turnRows.length - KEEP_TURNS);
     const run: Running = { turnId: turn.id, agentId: item.agentId, asker, qseq: item.qseq, session: null, cancelled: false, lostLease: false };
@@ -658,6 +660,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
             // the driver says which model ran: an agent that picked none runs on the engine's own default, and a turn moved to a Space account's model ran on that one. That is the turn's model, never "unknown"
             if (ev.model) turn.model = ev.model;
             if (ev.contextTokens !== undefined) info.contextTokens = ev.contextTokens;
+            if (ev.contextWindow !== undefined) { info.contextWindow = ev.contextWindow; reportWindow(ev.model ?? turn.model, ev.contextWindow); }
             usages += 1;
             if (ev.contextTokens !== undefined) info.contextTokens = ev.contextTokens;
             if (ev.model) turn.model = ev.model;   // what the engine says it ran is what is recorded
@@ -706,6 +709,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
             }
             flush("text");
             turn.error = { code: ev.code, message: ev.message };
+            if (ev.resetsAt !== undefined) failResetsAt = ev.resetsAt;
             ended = true;
             break;
           }
@@ -779,7 +783,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
       const n = streak?.code === code ? streak.n + 1 : 1;
       failStreak.set(pk, { code, n });
       if (PARK_CODES.has(code) || n >= STREAK_PARK) lockedPark.set(pk, { threadId: st.thread.id, agentId: item.agentId, asker, messageId: item.messageId, from: item.from, since: now(), code, ...(turn.error?.message ? { message: turn.error.message.slice(0, 300) } : {}), repeat: !PARK_CODES.has(code) });
-      emit({ type: "turn.failed", threadId: st.thread.id, turnId: turn.id, agentId: turn.agentId, code: turn.error?.code ?? "engine_error", ...(paying ? { account: { ref: paying.ref, driver: paying.driver } } : {}), ...(turn.error?.message ? { message: turn.error.message.slice(0, 300) } : {}) });
+      emit({ type: "turn.failed", threadId: st.thread.id, turnId: turn.id, agentId: turn.agentId, code: turn.error?.code ?? "engine_error", ...(paying ? { account: { ref: paying.ref, driver: paying.driver } } : {}), ...(turn.error?.message ? { message: turn.error.message.slice(0, 300) } : {}), ...(failResetsAt !== undefined && turn.error?.code === "provider.rate_limited" ? { resetsAt: failResetsAt } : {}) });
     }
     // The agent's answer is a message like any other: it can @mention the next agent, which counts a hop.
     // a turn that was stopped by a hook and then said nothing says what happened itself, so the stop is never the last thing in the chat

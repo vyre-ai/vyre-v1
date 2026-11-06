@@ -12,6 +12,7 @@ import { roleRowActions } from "../objects/row-menus.ts";
 import { createMenuApiB } from "../../places/chats/menus/actions-b.ts";
 import { capital, count } from "../shell/format.ts";
 import { Help,  Actions, Button, Field, Note, ReadState, Select, attempt, useAction, useRead } from "./shared.tsx";
+import { isPhoneWidth } from "../../../../../ui/src/SidePane/layout.ts";
 type Role = AccessRolesListOut["roles"][number];
 type Drafts = ReadonlyMap<string, readonly string[]>;
 type Preview = { role: Role; permissions: string[]; diff: AccessRolesPreviewOut };
@@ -23,7 +24,7 @@ export function stageRolePermission(role: Role, drafts: Drafts, key: string): st
 }
 export function PermissionMatrix({ roles, drafts, onChange, onOpen, disabled = false }: { roles: readonly Role[]; drafts: Drafts; onChange: (role: Role, key: string) => void; onOpen: (role: Role) => void; disabled?: boolean }): ReactElement {
   const [details, setDetails] = useState("");
-  const width = useWindowDimensions().width, compact = width > 0 && width < 720;   // an unmeasured screen (a static render) is the full matrix
+  const width = useWindowDimensions().width, compact = isPhoneWidth(width);   // an unmeasured screen (a static render) is the full matrix
   const [phoneRole, setPhoneRole] = useState("");
   const areas = [...new Set(permissions.map((permission) => permission.area))];
   const rows: ReactElement[] = [];

@@ -26,6 +26,7 @@ Run a JavaScript expression in the page and return the result
 ```ts
 type In = {
   computerId?: string;
+  inMyChrome?: boolean;
   tabId?: string;
   expression: string;
 };
@@ -58,6 +59,7 @@ type Out = {
   "input": {
     "computerId": "cmt_a1b2c3",
     "expression": "example",
+    "inMyChrome": true,
     "tabId": "example"
   },
   "output": {

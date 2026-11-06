@@ -93,7 +93,7 @@ test("chrome bridge: a booted daemon answers /chrome-bridge/v1/rpc and /events, 
     // Vyre for Chrome's calls run as the person signed in on this computer (lib/chrome-app.ts). Nobody has handed a session over here, so hello lists no Space and every call is refused;
     // nothing falls back to the owner or to the admin token. The person's own sessions are in chrome-bridge.person.live.test.ts.
     const hello = await (await rpc(d, { id: "r2", type: "bridge", op: "hello", input: {} })).json();
-    assert.deepEqual(hello.output, { version: "1", spaces: [], active: null, locked: false, signedIn: false });
+    assert.deepEqual(hello.output, { version: "1", appVersion: "1.2.3", spaces: [], active: null, locked: false, signedIn: false });
     for (const [i, body] of [{ type: "bridge", op: "agents.list", input: {} }, { type: "invoke", capability: "vault.site_rules.list", input: {} }, { type: "bridge", op: "chat.ask", input: { text: "hi", agentId: "agt_scout" } }].entries()) {
       const r = await (await rpc(d, { id: `s${i}`, ...body })).json();
       assert.deepEqual(r.error, { code: "signed_out", message: "Sign in to Vyre on this computer." }, JSON.stringify(body));

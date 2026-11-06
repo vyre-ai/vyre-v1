@@ -26,6 +26,7 @@ Status of Vyre for Chrome in this computer: connected, paused by Esc, held items
 ```ts
 type In = {
   computerId?: string;
+  inMyChrome?: boolean;
 };
 ```
 
@@ -56,7 +57,8 @@ type Out = {
 {
   "name": "example",
   "input": {
-    "computerId": "cmt_a1b2c3"
+    "computerId": "cmt_a1b2c3",
+    "inMyChrome": true
   },
   "output": {
     "connected": true,

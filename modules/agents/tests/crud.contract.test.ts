@@ -37,7 +37,7 @@ const mine = registry.capabilities.filter((c) => c.module === "agents");
 const h = handlers as unknown as Record<string, (ctx: Harness["ctx"], input: any) => Promise<any>>;
 
 test("the handler table covers exactly the 108 capabilities of the agents manifest", () => {
-  assert.equal(mine.length, 108);   // 105 with the nine of install-from-link and agent skills (wip/l-install); agents.people_summary and agents.pause_person (l-consolidate), then 68, agents.config.may_save (l-agenttoml), the eight Connections of l-connections, agents.assistant_of (l-meetings) and the fifteen skill scopes of l-skills2, agents.instruction.append (lessons)
+  assert.equal(mine.length, 109);   // 105 with the nine of install-from-link and agent skills (wip/l-install); agents.people_summary and agents.pause_person (l-consolidate), then 68, agents.config.may_save (l-agenttoml), the eight Connections of l-connections, agents.assistant_of (l-meetings) and the fifteen skill scopes of l-skills2, agents.instruction.append (lessons), agents.share_class (the Space browser)
   assert.deepEqual(Object.keys(h).sort(), mine.map((c) => c.name).sort());
   for (const c of mine) assert.equal(typeof h[c.name], "function", c.name);
 });
@@ -92,6 +92,8 @@ const scenarios: Scenario[] = [
   { cap: "agents.list", setup: withAgent, run: (hn) => h["agents.list"]!(hn.ctx, { section: "personal", status: ["awake"], limit: 10 }) },
   { cap: "agents.get", setup: withAgent, run: (hn, s) => h["agents.get"]!(hn.ctx, { agentId: s.id }) },
   { cap: "agents.get", run: (hn) => h["agents.get"]!(hn.ctx, { agentId: "agt_none" }), expect: "validation.not_found" },
+  { cap: "agents.share_class", setup: withAgent, run: (hn, s) => h["agents.share_class"]!(hn.ctx, { agentId: s.id }) },
+  { cap: "agents.share_class", run: (hn) => h["agents.share_class"]!(hn.ctx, { agentId: "agt_none" }), expect: "validation.not_found" },
   { cap: "agents.assistant_of", run: (hn) => h["agents.assistant_of"]!(hn.as({ kind: "service", id: "svc_host" }), { personId: DANA }) },
   { cap: "agents.assistant_of", run: (hn) => h["agents.assistant_of"]!(hn.ctx, { personId: "usr_someone1" }) },
   { cap: "agents.memory_key.get", setup: withAgent, run: (hn, s) => h["agents.memory_key.get"]!(hn.ctx, { agentId: s.id }) },

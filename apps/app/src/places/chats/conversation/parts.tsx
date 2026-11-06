@@ -5,6 +5,7 @@ import type { ReactElement, ReactNode } from "react";
 import { Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import type { StyleProp, TextStyle } from "react-native";
 import { Face } from "../needsyou/parts.tsx";
+import { RADIUS } from "../../../../../../ui/src/tokens/calm.ts";
 
 const PATHS = {
   pane: ["M2.500 3.500h11v9h-11z", "M10 3.500v9"],
@@ -84,6 +85,22 @@ export function IconButton({ icon, label, onPress, active = false, danger = fals
   );
 }
 
+/** The quiet people count in a header: a small glyph and the number, no badge. Its press opens the list of who is here (the faces live there). */
+export function PeopleCount({ count, label, onPress, testID }: { count: number; label: string; onPress: (x: number, y: number) => void; testID?: string }): ReactElement {
+  const [over, setOver] = useState(false);
+  return (
+    <Pressable
+      accessibilityRole="button" accessibilityLabel={label} testID={testID} {...webProps({ title: label })}
+      onPress={(e) => { const p = anchorOf(e); onPress(p.x, p.y); }}
+      onHoverIn={() => setOver(true)} onHoverOut={() => setOver(false)}
+      style={[s.people, over && s.ibOver]}
+    >
+      <Glyph name="people" size={14} color={over ? "var(--ink)" : "var(--ink-3)"} />
+      <Text style={[s.peopleText, over && { color: "var(--ink)" as string }]}>{count}</Text>
+    </Pressable>
+  );
+}
+
 /** A face with its mode mark: a filled dot for the agent that leads, a ring for one that listens. A press opens that agent's mode menu. */
 export function FaceButton({ name, seedId, mode, working, onPress, title, testID, size = 24, label }: { name: string; seedId?: string | undefined; mode: "lead" | "listen"; working: boolean; onPress: (x: number, y: number) => void; title: string; testID: string; size?: number; label?: string }): ReactElement {
   const [over, setOver] = useState(false);
@@ -148,10 +165,12 @@ export function Fold({ label, open, onToggle, live, testID, children }: { label:
 }
 
 export const s = StyleSheet.create({
-  ib: { borderRadius: 7, alignItems: "center", justifyContent: "center", flexDirection: "row" },
+  people: { height: 28, flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, borderRadius: RADIUS },
+  peopleText: { fontSize: 12.5, color: "var(--ink-3)" as string },
+  ib: { borderRadius: RADIUS, alignItems: "center", justifyContent: "center", flexDirection: "row" },
   ibOver: { backgroundColor: "var(--press)" as string },
   badge: { marginLeft: 3, fontSize: 11, fontWeight: "600", color: "var(--ink-2)" as string },
-  faceBtn: { width: 28, height: 28, borderRadius: 8, alignItems: "center", justifyContent: "center" },
+  faceBtn: { width: 28, height: 28, borderRadius: RADIUS, alignItems: "center", justifyContent: "center" },
   faceChip: { width: "auto", minWidth: 28, flexShrink: 1, flexDirection: "row", gap: 6, paddingLeft: 2, paddingRight: 8 } as object,
   faceBox: { position: "relative" },
   chipText: { flexShrink: 1, fontSize: 13, color: "var(--ink-2)" as string },
@@ -159,7 +178,7 @@ export const s = StyleSheet.create({
   markLead: { backgroundColor: "var(--accent)" as string },
   markListen: { backgroundColor: "var(--win)" as string, borderColor: "var(--ink-4)" as string },
   markWorking: { backgroundColor: "var(--ok)" as string, borderColor: "var(--win)" as string },
-  btn: { height: 28, paddingHorizontal: 11, borderRadius: 8, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 6 },
+  btn: { height: 32, paddingHorizontal: 12, borderRadius: RADIUS, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 6 },
   btnOver: { backgroundColor: "var(--hover)" as string },
   btnPrimary: { backgroundColor: "var(--accent)" as string },
   btnRing: { boxShadow: "inset 0 0 0 1px var(--line-2)" } as object,

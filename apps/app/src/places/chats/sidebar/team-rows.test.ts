@@ -9,12 +9,13 @@ const base: SidebarInput = { faces: [], workingAgents: new Set(), groups: [], ch
 const keys = (es: readonly Entry[]): string[] => es.map((e) => e.key);
 const team = { people: [{ id: "usr_bea", name: "Bea Baker", state: "online" as const }], agents: [{ id: "agt_intake", name: "Intake", line: "in #sales for Omar Reyes, on the Space", threadId: "thr_1" }] };
 
-test("the While you were away row: first of all, only when there is a digest, never while searching", () => {
+test("the While you were away row: right after Tasks and Notes, only when there is a digest, never while searching", () => {
   assert.ok(!keys(buildEntries(base)).includes("digest"), "no absence, no row");
   assert.ok(!keys(buildEntries({ ...base, digest: { count: 0 } })).includes("digest"), "an empty digest draws nothing");
   const es = buildEntries({ ...base, digest: { count: 3 } });
-  assert.equal(es[0]!.key, "digest");
-  assert.deepEqual(es[0], { key: "digest", type: "digest", count: 3 });
+  const at = keys(es).indexOf("digest");
+  assert.equal(keys(es).slice(0, at).every((k) => k.startsWith("nav:")), true, "only Tasks and Notes come before it");
+  assert.deepEqual(es[at], { key: "digest", type: "digest", count: 3 });
   assert.ok(!keys(buildEntries({ ...base, digest: { count: 3 }, searching: true })).includes("digest"));
 });
 

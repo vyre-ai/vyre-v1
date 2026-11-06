@@ -140,7 +140,9 @@ test("a chat whose record cannot be found leaves records out of the footer, with
     const s = createSample("idle");
     const data = { ...s.data, async call(cap: string, input: unknown) { if (cap === "search.resolve") return {}; return s.data.call(cap, input); } };
     const root = await mount(createRoot, <Conversation data={data} />);
-    await press(find(root, "add-agent"));
+    await press(find(root, "participants-button"));
+    await flush();
+    await press(find(root, "people-footer"));
     await flush();
     await press(find(root, "as-row-person:usr_maya"));
     const line = textOf(find(root, "as-line-std")).replace(/\s+/g, " ").trim();

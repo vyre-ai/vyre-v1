@@ -1,0 +1,39 @@
+{
+  "targets": [
+    {
+      "id": "TASKFIX_01-sidebar",
+      "route": "/m/TASKFIX_01?part=sidebar",
+      "proto": "chats,{skin}",
+      "waitFor": "body",
+      "note": "Artifacts row above the list: first chat row clear"
+    },
+    {
+      "id": "TASKFIX_01-held-send",
+      "route": "/m/TASKFIX_01?part=held-send",
+      "proto": "chats,{skin}",
+      "waitFor": "body",
+      "note": "Held message shown, waiting for you"
+    },
+    {
+      "id": "TASKFIX_01-held-expired",
+      "route": "/m/TASKFIX_01?part=held-expired",
+      "proto": "chats,{skin}",
+      "waitFor": "body",
+      "note": "Expired: when, no buttons"
+    },
+    {
+      "id": "TASKFIX_01-held-own",
+      "route": "/m/TASKFIX_01?part=held-own",
+      "proto": "chats,{skin}",
+      "waitFor": "body",
+      "note": "Own agent: Waiting for your approval"
+    },
+    {
+      "id": "TASKFIX_01-held-denied",
+      "route": "/m/TASKFIX_01?part=held-denied",
+      "proto": "chats,{skin}",
+      "waitFor": "body",
+      "note": "Denied: Not approved"
+    }
+  ]
+}

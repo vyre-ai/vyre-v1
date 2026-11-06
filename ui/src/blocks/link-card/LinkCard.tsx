@@ -60,7 +60,7 @@ export function LinkCard({ id, data, nameOf, icon, onOpen, onAction, done, state
     const was = a ? done?.has(a.key) === true : false;
     return (
       <View testID={`link-card-${id}`} style={st.noted}>
-        <View style={st.dot} />
+        {icon ? <View style={st.icon}>{icon}</View> : null}
         <Text style={st.notedText}>
           <Text>{`${data.lead}, `}</Text>
           <Text style={st.notedWords}>{data.title.charAt(0).toLowerCase() + data.title.slice(1)}</Text>
@@ -97,14 +97,14 @@ export function LinkCard({ id, data, nameOf, icon, onOpen, onAction, done, state
 }
 
 const st = StyleSheet.create({
-  line: { paddingVertical: 4, marginVertical: 2, flexDirection: "row", alignItems: "baseline", flexWrap: "wrap", gap: 8 },
+  line: { flexShrink: 1, minWidth: 0, paddingVertical: 0, marginVertical: 0, flexDirection: "row", alignItems: "baseline", flexWrap: "wrap", gap: 8 },
   inlineBtn: { fontSize: 13, lineHeight: 20 },
   card: { marginVertical: 6, maxWidth: 520, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, gap: 8, boxShadow: "inset 0 0 0 1px var(--line-2)" } as object,
-  head: { flexDirection: "row", alignItems: "flex-start", gap: 8 },
+  head: { flexShrink: 1, minWidth: 0, flexDirection: "row", alignItems: "flex-start", gap: 8 },
   icon: { width: 18, height: 20, alignItems: "center", justifyContent: "center" },
   text: { flex: 1, minWidth: 0, fontSize: 13, lineHeight: 20, color: "var(--ink-3)" as string },
   link: { color: "var(--accent)" as string, fontWeight: "500" },
-  title: { color: "var(--ink)" as string, fontWeight: "500" },
+  title: { color: "var(--ink-3)" as string },
   state: { fontSize: 12, fontWeight: "600", color: "var(--ink-3)" as string, marginLeft: 8, lineHeight: 20 },
   ok: { color: "var(--ok)" as string },
   warn: { color: "var(--warn)" as string },
@@ -117,10 +117,10 @@ const st = StyleSheet.create({
   btnPrimaryText: { color: "var(--win)" as string },
   qtitle: { color: "var(--ink)" as string, fontWeight: "500", fontSize: 14 },
   sub: { fontSize: 12.5, lineHeight: 18, color: "var(--ink-3)" as string, marginTop: -4 },
-  noted: { width: "100%", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingTop: 12, paddingBottom: 6 },
+  noted: { width: "100%", flexDirection: "row", alignItems: "center", justifyContent: "flex-start", gap: 8 },
   dot: { width: 5, height: 5, borderRadius: 3, backgroundColor: "var(--ok)" as string },
-  notedText: { fontSize: 12.5, lineHeight: 18, color: "var(--ink-3)" as string },
-  notedWords: { color: "var(--ink-2, var(--ink))" as string, fontWeight: "500" },
+  notedText: { flexShrink: 1, fontSize: 13, lineHeight: 20, color: "var(--ink-3)" as string },
+  notedWords: { color: "var(--ink-3)" as string },
   notedUndo: { color: "var(--accent)" as string, fontWeight: "500" },
   notedTime: { fontSize: 12, color: "var(--ink-3)" as string, fontVariant: ["tabular-nums"] },
   btnText: { fontSize: 12.5, fontWeight: "500", color: "var(--ink)" as string },

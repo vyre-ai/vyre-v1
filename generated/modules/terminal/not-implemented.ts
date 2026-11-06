@@ -23,4 +23,5 @@ export const handlers: Handlers<HandlerCtx> = {
   "terminal.rules.set": async (ctx) => { throw new VyreErr(notImplemented("terminal.rules.set", ctx.trace)); },
   "terminal.run": async (ctx) => { throw new VyreErr(notImplemented("terminal.run", ctx.trace)); },
   "terminal.status": async (ctx) => { throw new VyreErr(notImplemented("terminal.status", ctx.trace)); },
+  "terminal.workspace": async (ctx) => { throw new VyreErr(notImplemented("terminal.workspace", ctx.trace)); },
 };

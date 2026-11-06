@@ -9,7 +9,7 @@ import { Platform, useWindowDimensions } from "react-native";
 import type { ViewStyle } from "react-native";
 import { injectCss } from "../theme/css.ts";
 import { GUTTER } from "./layout.ts";
-import { RADIUS } from "../theme/radius.ts";
+import { RADIUS } from "../tokens/radius.ts";
 import type { Band, Layout } from "./layout.ts";
 
 export interface SheetHost {

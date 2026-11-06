@@ -20,14 +20,12 @@ import { States } from "../../../../../ui/src/States/index.tsx";
 import type { PhoneDeviceLike } from "../../../../../ui/src/Softphone/index.tsx";
 import type { InboxData } from "../../places/inbox/sidebar/data.tsx";
 import { Rail } from "../rail/Rail.tsx";
-import { ShellIcon } from "../rail/icons.tsx";
 import { SidebarBack, SidebarExpand, SidebarHide, SidebarSlot, SidebarSlotProvider, toggleSidebar, useSidebarSlot } from "../sidebar/index.ts";
 import type { SidebarStorage } from "../sidebar/index.ts";
 import type { KitDef, PlaceId } from "../rail/kits.ts";
 import { MainTabs, useTabs } from "../tabs/MainTabs.tsx";
 import { TitleBar } from "../titlebar/TitleBar.tsx";
 import { notices } from "../noticeslot/model.ts";
-import { isLocked, lockAvailable, toggleLock } from "../noticeslot/lock-control.ts";
 import { inTerminal } from "../keyboard/useShellKeys.ts";
 import { HubProvider, useHubState } from "./context.tsx";
 import { titleText } from "./hub.ts";
@@ -300,8 +298,6 @@ export function Shell(props: ShellProps): ReactElement {
       else if (k.type === "close-tab") { e.preventDefault(); hub.closeTab(); }
       else if (k.type === "search") { e.preventDefault(); props.onSearch?.(); }
       else if (k.type === "report") { e.preventDefault(); reportProblem({}); }
-      // Lock Vyre / Unlock (Cmd-L, Ctrl-L elsewhere): a terminal keeps Ctrl-L to clear its screen
-      else if (k.type === "lock") { if (!inTerminal(e.target) && toggleLock()) e.preventDefault(); }
     };
     doc.addEventListener("keydown", onKey);
     return () => doc.removeEventListener("keydown", onKey);
@@ -389,22 +385,10 @@ export function Shell(props: ShellProps): ReactElement {
   );
 }
 
-/** The foot of the rail, inside the one panel: Lock Vyre (when this Space holds a key to lock) above the person's face. */
+/** The foot of the rail, inside the one panel: the person's face (there is no lock any more: signed in means unlocked). */
 function RailFoot({ me, onOpenMe }: { me?: { id: string; name: string; photo?: string }; onOpenMe?: () => void }): ReactElement | null {
-  const lock = lockAvailable();
-  if (!lock && !me) return null;
-  return (
-    <View testID="rail-foot" style={styles.foot}>
-      {lock ? (
-        <Tooltip text={isLocked() ? "Unlock Vyre" : "Lock Vyre"}>
-          <Pressable role="button" aria-label={isLocked() ? "Unlock Vyre" : "Lock Vyre"} testID="rail-lock" onPress={() => { toggleLock(); }} style={styles.me}>
-            <ShellIcon name="lock" size={18} color="var(--ink-3)" />
-          </Pressable>
-        </Tooltip>
-      ) : null}
-      {me ? <MeFace me={me} {...(onOpenMe ? { onPress: onOpenMe } : {})} /> : null}
-    </View>
-  );
+  if (!me) return null;
+  return <View testID="rail-foot" style={styles.foot}><MeFace me={me} {...(onOpenMe ? { onPress: onOpenMe } : {})} /></View>;
 }
 
 /** The person's own face at the foot of the rail. Their profile opens beside whatever is open. */

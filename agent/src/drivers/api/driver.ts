@@ -2,6 +2,7 @@
 // when it lands, `ApiDriver` is the one place to adapt.
 import { anthropic } from "./anthropic.ts";
 import { classify } from "./errors.ts";
+import { reportWindow } from "../../transcript/windows.ts";
 import { google } from "./google.ts";
 import { custom, local, opencodeHeaders, withV1, openai, openaiCompatible, openrouter, opencodeGo, xai } from "./openai.ts";
 import type { ApiSession, SessionDeps } from "./session.ts";
@@ -105,7 +106,10 @@ export function createApiDriver(adapter: ProviderAdapter, deps: ApiDriverDeps): 
         const text = (await res.text().catch(() => "")).slice(0, 200);
         throw new DriverError(classify(res.status, text).code, `The provider answered ${res.status}.`);
       }
-      return adapter.parseModels(await res.json().catch(() => null));
+      const rows = adapter.parseModels(await res.json().catch(() => null));
+      // the provider's own list is the source of truth for a window: kept per provider and model for the meter, rollover and compaction
+      for (const r of rows) if (r.contextTokens !== undefined) reportWindow(adapter.modelName(r.id), r.contextTokens, adapter.id);
+      return rows;
     } finally { clearTimeout(timer); }
   }
 

@@ -17,11 +17,56 @@ import { testLines } from "./test-lines.ts";
 import { num, obj, parseLine, str } from "./json.ts";
 import { codexTrust } from "./hooks-config.ts";
 import type { Json } from "./json.ts";
+import { classifyCli, plainCli } from "./errors.ts";
 import type { Effort } from "../../turn-engine/types.ts";
 import type { CliAdapter, CliDecoder, CliEvent, CommandOptions } from "./types.ts";
 import { TOKEN_ENV } from "./types.ts";
 
 const MCP_FAILURE = /mcp/i;
+
+const MONTHS = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
+/**
+ * When Codex says the usage limit lifts: "... or try again at Nov 9th, 2026 3:12 AM." (a day other than today) or "Try again at 3:12 AM." (today). CHECKED against the strings of codex-cli 0.166
+ * (`%b %-d{suffix}, %Y %-I:%M %p`). Codex writes it in the local time of the machine it runs on, which is the machine this runs on, so it is read the same way. Epoch ms, or null.
+ */
+export function codexResetAt(text: string, now: number = Date.now()): number | null {
+  const full = /\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.? (\d{1,2})(?:st|nd|rd|th)?,? (\d{4}),? (\d{1,2}):(\d{2}) ?([AP]M)\b/i.exec(text);
+  const hour = (h: string, ap: string): number => (Number(h) % 12) + (ap.toUpperCase() === "PM" ? 12 : 0);
+  if (full) {
+    const at = new Date(Number(full[3]), MONTHS.indexOf(full[1]!.toLowerCase()), Number(full[2]), hour(full[4]!, full[6]!), Number(full[5])).getTime();
+    return Number.isFinite(at) ? at : null;
+  }
+  const same = /\b(?:try again|resets?)(?: at)? (\d{1,2}):(\d{2}) ?([AP]M)\b/i.exec(text);
+  if (!same) return null;
+  const d = new Date(now);
+  d.setHours(hour(same[1]!, same[3]!), Number(same[2]), 0, 0);
+  return d.getTime() > now ? d.getTime() : d.getTime() + 86_400_000;
+}
+
+/** The text of a vendor error that arrived as a JSON document (`{"type":"error","error":{"message":"..."},"status":400}`), else the text as it was. */
+export function codexErrorText(raw: string): string {
+  const t = raw.trim();
+  if (!t.startsWith("{")) return t;
+  try {
+    const j: unknown = JSON.parse(t);
+    const o = obj(j as Json);
+    const inner = obj(o?.["error"] as Json);
+    return str(inner?.["message"]) || str(o?.["message"]) || t;
+  } catch { return t; }
+}
+
+/** A Codex failure in plain words, with the code it means and, for a usage limit, when it lifts. Nothing of the vendor's URLs, request ids or JSON reaches a person. */
+export function codexFailure(raw: string, now: number = Date.now()): { code?: string; message: string; resetsAt?: number } {
+  const text = codexErrorText(raw);
+  const code = classifyCli(text);
+  if (code === "provider.rate_limited" && /usage limit/i.test(text)) {
+    const at = codexResetAt(text, now);
+    const when = /try again at ([^.\n]+?)\s*\.?\s*$/i.exec(text.replace(/\s+/g, " "))?.[1];
+    return { code, message: `Codex reached its usage limit.${when ? ` It can be used again at ${when}.` : ""}`, ...(at !== null ? { resetsAt: at } : {}) };
+  }
+  if (code === "provider.auth_failed") return { code, message: "Codex is signed out, or its sign-in has run out. Sign in again." };
+  return { message: plainCli(text) };
+}
 
 /** The tool name of a started item, and whether it counts as activity worth showing. */
 function nameOf(item: Json): string {
@@ -93,7 +138,7 @@ export function createCodexDecoder(): CliDecoder {
           if (ended) return [];
           ended = true;
           const e = obj(j["error"]);
-          return [{ type: "end", error: { message: str(e?.["message"]) || lastError || "the engine reported an error" } }];
+          return [{ type: "end", error: codexFailure(str(e?.["message"]) || lastError || "the engine reported an error") }];
         }
         case "error": {
           const message = str(j["message"]);
@@ -108,7 +153,7 @@ export function createCodexDecoder(): CliDecoder {
     finish() {
       if (ended) return [];
       ended = true;
-      return lastError !== "" ? [{ type: "end", error: { message: lastError } }] : [];
+      return lastError !== "" ? [{ type: "end", error: codexFailure(lastError) }] : [];
     },
   };
 }
@@ -118,7 +163,8 @@ export function createCodexDecoder(): CliDecoder {
  * `-a/--ask-for-approval` (on-request, never) but only on the interactive command, so `exec` takes it as the config key `approval_policy` through `-c`, the way the sandbox already is. A headless run cannot
  * stop and ask, so Ask first and Plan both run read-only (the model describes a change and the person says yes in the chat, or picks Auto); Auto runs workspace-write when a work folder was granted.
  * Codex has no plan mode in `exec`: Plan is read-only plus the plan instruction the engine puts in the turn context, and Vyre's own tools refuse writes in plan mode on the MCP side.
- * Nothing here is ever danger-full-access or --dangerously-bypass-approvals-and-sandbox.
+ * Nothing here is ever danger-full-access or --dangerously-bypass-approvals-and-sandbox. The one place that says it is Vyre's own sandbox wrapper (modules/engine/sandbox.ts codexInWall), and only where Codex's
+ * sandbox cannot start inside Vyre's (a Mac, Linux as root): the run is then still entirely inside Vyre's wall.
  */
 export function codexSandbox(o: Pick<CommandOptions, "mode" | "planMode" | "workFolder" | "noTools">): "workspace-write" | "read-only" {
   const mode = o.mode ?? (o.planMode ? "plan" : "auto");   // no mode: the older rule, writable inside a granted folder unless plan mode

@@ -33,16 +33,15 @@ const ctx = (s: Sample) => ({ meId: "usr_irfad", nameOf: s.data.nameOf, kindOf: 
 
 test("the page reads: header with title and faces, your bubbles, Intake's folded work, cards, the composer line", () => {
   const out = html(createSample("idle"));
-  inOrder(out, ['data-testid="conversation-head"', 'data-testid="conversation-title"', 'data-testid="conversation-faces"', "New client: Elena Rivera", "Intake is on it", "Worked 14s · 3 steps", "Tuesday has two openings", "Book 2pm.", "Worked 6s · 2 steps", 'data-testid="composer"']);
+  inOrder(out, ['data-testid="conversation-head"', 'data-testid="conversation-title"', 'data-testid="participants-button"', "New client: Elena Rivera", "Intake is on it", "Worked 14s · 3 steps", "Tuesday has two openings", "Book 2pm.", "Worked 6s · 2 steps", 'data-testid="composer"']);
   assert.ok(has(out, "client-intake.pdf") && has(out, 'data-testid="proposal-b2"'));
   assert.ok(has(out, "Intake will reply") && has(out, "Message Intake…"));
 });
 
-test("faces carry mode marks: Intake leads, Docs listens, and each face opens its mode menu", () => {
+test("the model still says Intake leads and Docs listens; the header has no face stack", () => {
   const s = createSample("idle");
   const out = html(s);
-  assert.ok(has(out, 'data-testid="face-agt_intake"') && has(out, 'data-testid="face-agt_docs"'));
-  assert.ok(has(out, "Intake, leads") && has(out, "Docs, listening"));
+  assert.ok(!has(out, 'data-testid="face-agt_intake"') && !has(out, 'data-testid="conversation-faces"'), "the faces live in the people popover now, not the header");
   assert.deepEqual(faces(thread(s), s.data.nameOf, []).map((f) => [f.name, f.mode]), [["Intake", "lead"], ["Docs", "listen"]]);
   assert.equal(swapNeeded(thread(s), "agt_docs")?.agentId, "agt_intake");
   assert.equal(swapNeeded(thread(s), "agt_intake"), null);
@@ -153,7 +152,9 @@ test("an error is one inline row: what, why, next, Details, Copy id; Retry carri
   const s = createSample("errors");
   const out = html(s);
   assert.ok(has(out, "Docs did not read fee-schedule.csv") && has(out, "Restricted data only goes to a model on your computer."));
-  for (const t of ["Switch to Llama 3.3 on this computer", "Ask for access", "Retry", "Details", "Copy id", "Report"]) assert.ok(has(out, t), t);
+  // the status card pattern: one primary fix in view; the other next steps, Retry, Details, Copy id and Report sit under its "..." menu
+  for (const t of ["Switch to Llama 3.3 on this computer"]) assert.ok(has(out, t), t);
+  assert.ok(has(out, 'data-testid="err-more"'), "the More menu is on the card");
   assert.ok(has(out, "Changed 1 file in Rivera matter") && has(out, "Review changes") && has(out, "Rivera engagement letter"));
   await act.retryTurn(s.data, "turn_9").catch(() => undefined);
   assert.equal(s.calls[0]!.cap, "engine.turn.retry");
@@ -277,12 +278,13 @@ test("the plan card is on the page: name, open comments", () => {
   assert.equal(planFileLine(2), "Plan · 2 open comments");
 });
 
-test("the header has the agent chip with a face and mode mark, the participants count, search and the pane", () => {
+test("the calm header: title, a quiet people count, the pane and More", () => {
   const s = createSample("idle");
   const out = html(s);
-  inOrder(out, ['data-testid="conversation-title"', 'data-testid="face-agt_intake"', ">Intake<", 'data-testid="participants-button"', 'data-testid="find-button"', 'data-testid="pane-button"', 'data-testid="more-button"']);
+  inOrder(out, ['data-testid="conversation-title"', 'data-testid="participants-button"', 'data-testid="pane-button"', 'data-testid="more-button"']);
+  assert.ok(!has(out, 'data-testid="find-button"') && !has(out, 'data-testid="conversation-people"'), "the calm header: a quiet people count and two icons; Find is in the More menu (and on Cmd F)");
   assert.ok(has(out, "3 in this chat"));
-  assert.ok(has(out, 'data-testid="add-agent"') && has(out, 'aria-label="Add people and agents"'), "the header + is the one Add people and agents sheet");
+  assert.ok(!has(out, 'data-testid="add-agent"'), "Add people and agents is the footer of the people popover (people-footer)");
 });
 
 test("find in chat: matches are ignoring case and accents, counted, and stepped", () => {
@@ -305,7 +307,7 @@ test("the composer's pill names who answers and on what model (Opus); the comput
   assert.equal(modelLabel("opus"), "Opus");
   assert.equal(placeholderFor(thread(s), s.data.nameOf, true), "Queue a message for when Intake finishes…");
   assert.equal(placeholderFor(thread(s), s.data.nameOf, true, true), "Steer Intake…", "a message sent while a steering engine works is steering");
-  assert.ok(!has(html(createSample("nolead")), 'data-testid="composer-strip"'), "no lead, nobody @mentioned: no strip");
+  assert.ok(has(html(createSample("nolead")), 'data-testid="composer-strip"'), "no lead, nobody @mentioned, but an agent is in the chat: the settings icon is still there");
 });
 
 test("switching the model lists the allowed models and sets the lead's model; the header and composer follow", async () => {
@@ -370,7 +372,8 @@ test("the error row offers Report a problem, which opens the shared report sheet
   reportProblem({ label: reportLabel("Docs did not read fee-schedule.csv", "tr_5e20b4") });
   off();
   assert.deepEqual(seen, [{ label: "Docs did not read fee-schedule.csv (trace tr_5e20b4)" }]);
-  assert.ok(has(html(createSample("errors")), 'data-testid="err-report"'));
+  // Report, Details and Copy id sit under the card's "..." menu (the status card pattern: one primary fix, the rest in More)
+  assert.ok(has(html(createSample("errors")), 'data-testid="err-more"'));
 });
 
 test("the hover bar draws Copy, Edit (yours only), Reply and More while the row is hovered or focused, and none of them before: fifty hidden bars were most of the first frame", () => {

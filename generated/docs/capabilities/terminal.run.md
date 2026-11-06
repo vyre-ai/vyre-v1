@@ -27,6 +27,7 @@ Run a command in a session and wait for it (the terminal_run tool); secrets only
 type In = {
   command: string;
   terminalId?: string;
+  session?: string;
   host?: "agent_computer" | "device";
   agentId?: string;
   cwd?: string;
@@ -72,6 +73,7 @@ type Out = {
     "env": {},
     "host": "agent_computer",
     "idempotencyKey": "idem_1",
+    "session": "example",
     "terminalId": "trm_a1b2c3",
     "timeoutSec": 1
   },

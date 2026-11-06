@@ -13,6 +13,7 @@ const possessive = (n: string): string => (n.endsWith("s") ? `${n}'` : `${n}'s`)
 import { everyShort, lastWords, tellWords, watchItems, watchNote } from "./read.ts";
 import type { WatchItem } from "./read.ts";
 import { Empty, Frame, Status, useCall, useRowMenu, v } from "./parts.tsx";
+import { belowPhone } from "../../../../../../ui/src/SidePane/layout.ts";
 
 /** The menu a watch's row opens. */
 export function watchMenu(w: WatchItem, on: { toggle(): void; check(): void; remove(): void; open(): void; page(): void }, open: boolean): MenuEntry[] {
@@ -61,7 +62,7 @@ export function Watching({ initialOpen = null }: { initialOpen?: string | null }
     refresh();
   };
   const now = data.clock().now;
-  const wide = useWindowDimensions().width >= 760;
+  const wide = !belowPhone(useWindowDimensions().width);
   const goals = useCall("goals.list", { scope: "mine" }, (out) => { const o = out as { goals?: { id: string; title: string }[] } | null; return o && Array.isArray(o.goals) ? o.goals : null; });
   const goalTitle = (id: string): string => (goals.phase === "ready" ? goals.value.find((g) => g.id === id)?.title : undefined) ?? "a goal";
   return (

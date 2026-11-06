@@ -14,7 +14,7 @@ export type Inline =
   | { t: "math"; v: string }
   | { t: "br" }
   /** The few inline HTML tags a reply may use: keyboard keys, sub- and superscript, a highlight. Nothing else becomes markup. */
-  | { t: "html"; tag: "kbd" | "sub" | "sup" | "mark"; c: Inline[] };
+  | { t: "html"; tag: "kbd" | "sub" | "sup" | "mark" | "u"; c: Inline[] };
 
 /** What a ```chart block says: a small JSON spec, drawn by our own SVG charts. */
 export interface ChartSpec {
@@ -40,6 +40,8 @@ export type Block =
   | { kind: "fn"; key: string; id: string; inline: Inline[] }
   | { kind: "math"; key: string; text: string }
   | { kind: "mermaid"; key: string; text: string; closed: boolean }
+  /** A ```choices block: one option per line; a press sends that line as the person's reply. */
+  | { kind: "choices"; key: string; options: string[] }
   | { kind: "chart"; key: string; text: string; closed: boolean; spec: ChartSpec | null; error: string | null }
   | { kind: "quote"; key: string; inline: Inline[] }
   | { kind: "code"; key: string; lang: string; text: string; closed: boolean }
@@ -47,7 +49,7 @@ export type Block =
 
 // ---- inline
 
-const ESCAPABLE = /[\\`*_[\]()#+\-.!~>]/;
+const ESCAPABLE = /[\\`*_[\]()#+\-.!~>=]/;
 const SAFE_HREF = /^(https?:\/\/|mailto:)/i;
 const isWord = (c: string | undefined): boolean => c !== undefined && /[\p{L}\p{N}]/u.test(c);
 const isSpace = (c: string | undefined): boolean => c === undefined || c === "" || /\s/.test(c);
@@ -98,9 +100,9 @@ export function parseInline(src: string): Inline[] {
           i = gt >= 0 ? gt + 1 : src.length;
           continue;
         }
-        if (name === "kbd" || name === "sub" || name === "sup" || name === "mark") {
+        if (name === "kbd" || name === "sub" || name === "sup" || name === "mark" || name === "u" || name === "ins") {
           const close = src.toLowerCase().indexOf(`</${name}>`, i + full.length);
-          if (close > 0) { flush(); out.push({ t: "html", tag: name, c: parseInline(src.slice(i + full.length, close)) }); i = close + name.length + 3; continue; }
+          if (close > 0) { flush(); out.push({ t: "html", tag: name === "ins" ? "u" : name, c: parseInline(src.slice(i + full.length, close)) }); i = close + name.length + 3; continue; }
         }
         const auto = /^<((?:https?:\/\/|mailto:)[^\s<>]+)>/i.exec(src.slice(i));
         if (auto) { flush(); out.push({ t: "link", href: auto[1] ?? "", c: [{ t: "text", v: auto[1] ?? "" }] }); i += auto[0].length; continue; }
@@ -112,6 +114,11 @@ export function parseInline(src: string): Inline[] {
     if (ch === "~" && src.charAt(i + 1) === "~" && !isSpace(src.charAt(i + 2))) {
       const end = src.indexOf("~~", i + 2);
       if (end > i + 2 && !isSpace(src.charAt(end - 1))) { flush(); out.push({ t: "del", c: parseInline(src.slice(i + 2, end)) }); i = end + 2; continue; }
+    }
+    // ++underline++ and ==highlight==: a pair of marks with a word on the inside edge of each and no word right before the opening pair, so "C++", "a == b" and "x==y" stay as written.
+    if ((ch === "+" || ch === "=") && src.charAt(i + 1) === ch && !isSpace(src.charAt(i + 2)) && src.charAt(i + 2) !== ch && !isWord(src.charAt(i - 1)) && src.charAt(i - 1) !== ch) {
+      const end = src.indexOf(ch + ch, i + 2);
+      if (end > i + 2 && !isSpace(src.charAt(end - 1)) && !src.slice(i + 2, end).includes("\n\n")) { flush(); out.push({ t: "html", tag: ch === "+" ? "u" : "mark", c: parseInline(src.slice(i + 2, end)) }); i = end + 2; continue; }
     }
     if (ch === "$" && src.charAt(i + 1) !== "$" && !isSpace(src.charAt(i + 1)) && !isWord(src.charAt(i - 1))) {
       const end = src.indexOf("$", i + 1);
@@ -296,7 +303,12 @@ export function parseChunk(text: string, first: number, open = false): Block[] {
   };
   const endQuote = (): void => {
     const co = quote.length > 0 ? /^\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\s*(.*)$/i.exec(quote[0] ?? "") : null;
-    if (co) {
+    // > [!section] Title (or [!section+] to start open): a header line with a chevron; the lines under it are the body, drawn as blocks, shown on a press.
+    const sec = quote.length > 0 ? /^\[!section(\+)?\]\s*(.*)$/i.exec(quote[0] ?? "") : null;
+    if (sec) {
+      const k = key();
+      blocks.push({ kind: "details", key: k, summary: parseInline(sec[2]?.trim() || "Details"), open: sec[1] === "+", blocks: parseDoc(quote.slice(1).join("\n"), k), closed: true });
+    } else if (co) {
       const variant = (co[1] ?? "note").toLowerCase() as Callout;
       blocks.push({ kind: "callout", key: key(), variant, title: co[2]?.trim() || variant.charAt(0).toUpperCase() + variant.slice(1), inline: parseInline(quote.slice(1).join("\n")) });
     } else if (quote.length > 0) blocks.push({ kind: "quote", key: key(), inline: parseInline(quote.join("\n")) });
@@ -326,7 +338,11 @@ export function parseChunk(text: string, first: number, open = false): Block[] {
       }
       const lang = (fence[2] ?? "").toLowerCase();
       const code = body.join("\n");
-      if (lang === "mermaid" && closed) blocks.push({ kind: "mermaid", key: key(), text: code, closed });
+      if (lang === "choices" && closed) {
+        const options = body.map((l) => l.replace(/^\s*(?:[-*+]|\d{1,2}[.)])\s+/, "").trim()).filter((l) => l !== "").slice(0, 8);
+        if (options.length > 0) blocks.push({ kind: "choices", key: key(), options });
+        else blocks.push({ kind: "code", key: key(), lang: fence[2] ?? "", text: code, closed });
+      } else if (lang === "mermaid" && closed) blocks.push({ kind: "mermaid", key: key(), text: code, closed });
       else if (lang === "chart" && closed) {
         const spec = parseChartSpec(code);
         blocks.push({ kind: "chart", key: key(), text: code, closed, spec: spec.ok ? spec.spec : null, error: spec.ok ? null : spec.error });

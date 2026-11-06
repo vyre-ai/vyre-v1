@@ -7,6 +7,7 @@ import type { TextStyle } from "react-native";
 import { Row } from "../Row/index.tsx";
 import { GroupHead, I, IconTile, LogoTile, Pop, useDismiss } from "./parts.tsx";
 import { Glyph } from "./shared.tsx";
+import { RADIUS } from "../tokens/radius.ts";
 
 export type OutChannel = "email" | "text";
 
@@ -144,13 +145,13 @@ const o = StyleSheet.create({
   line: { flexDirection: "row", alignItems: "center", gap: 10, minHeight: 26 },
   k: { width: 52, fontSize: 13, color: "var(--ink-3)" as string },
   v: { flex: 1, minWidth: 0 },
-  seg: { flexDirection: "row", padding: 2, borderRadius: 9, backgroundColor: "var(--sunk)" as string, borderWidth: 1, borderColor: "var(--line)" as string },
-  segBtn: { paddingHorizontal: 10, paddingVertical: 3, borderRadius: 7 },
+  seg: { flexDirection: "row", padding: 2, borderRadius: RADIUS, backgroundColor: "var(--sunk)" as string, borderWidth: 1, borderColor: "var(--line)" as string },
+  segBtn: { paddingHorizontal: 10, paddingVertical: 3, borderRadius: RADIUS },
   segOn: { backgroundColor: "var(--raised)" as string, boxShadow: "var(--sh-1)" } as object,
   segText: { fontSize: 12, color: "var(--ink-3)" as string },
   dim: { opacity: 0.4 },
   segTextOn: { color: "var(--ink)" as string, fontWeight: "500" },
-  from: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 3, paddingLeft: 4, paddingRight: 8, borderRadius: 9, minWidth: 0, flexShrink: 1 },
+  from: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 3, paddingLeft: 4, paddingRight: 8, borderRadius: RADIUS, minWidth: 0, flexShrink: 1 },
   hover: { backgroundColor: "var(--hover)" as string },
   fromName: { fontSize: 13, fontWeight: "500", color: "var(--ink)" as string },
   fromAddr: { fontSize: 13, color: "var(--ink-3)" as string, flexShrink: 1 },

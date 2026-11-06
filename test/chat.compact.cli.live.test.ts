@@ -7,6 +7,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { reportWindow } from "../agent/src/transcript/windows.ts";
 import { boot, call, connect, hostLog, makeAgent, post, seededDir } from "./support/live.ts";
 
 const FAKE_CLI = fileURLToPath(new URL("../host/tests/fixtures/fake-cli-driver/fake-cli.mjs", import.meta.url));
@@ -24,7 +25,8 @@ test("Compact keeps what the person names: Claude Code compacts itself and the l
     await connect(d);
     const agentId = await makeAgent(d, "Keeper");
     const threadId = (await call(d, "chat.start", { kind: "chat", agentIds: [agentId], idempotencyKey: "cmp-start" })).data.thread.threadId as string;
-    // the person picks the model in the panel: its window is what the line and the meter count against
+    // the person picks the model in the panel: its window is what the line and the meter count against. The engine reports 200k for it here (as a plan with a smaller window does), so the threshold and the line stay what they check
+    reportWindow("sonnet", 200_000, "anthropic");
     const picked = await call(d, "engine.set_model", { threadId, agentId, model: "sonnet", provider: "anthropic", idempotencyKey: "cmp-model" });
     assert.equal(picked.status, 200, JSON.stringify(picked.data));
     const first = await post(d, threadId, agentId, "resumecheck", "cmp-1");

@@ -43,6 +43,7 @@ import { canTake, movesFor } from "./moves.ts";
 import type { Move } from "./moves.ts";
 import { useTaskPeople } from "./people.ts";
 import { giveWithCare, guestNote } from "./guest.ts";
+import { isPhoneWidth } from "../../../../../../ui/src/SidePane/layout.ts";
 
 export const TASKS_SCREEN = "tasks.my-work";
 type NeedsOut = CapMap["tasks.needs_you"]["out"];
@@ -66,7 +67,7 @@ export interface TasksPageProps {
 
 export function TasksPage({ rt, openTask, openAgent, openChat, window }: TasksPageProps): ReactElement {
   const width = useWindowDimensions().width;
-  const narrow = width > 0 && width < 720;
+  const narrow = isPhoneWidth(width);
   const menu = useMenu();
   const [scope, setScope] = useState<Scope>({ kind: "mine" });
   const [view, setView] = useState<ViewKind>("list");

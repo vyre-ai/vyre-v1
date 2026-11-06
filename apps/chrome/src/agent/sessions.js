@@ -43,6 +43,10 @@ export function createSessions({ ext, cdp, traffic, emit, now = Date.now, setTim
   const drivers = new Map();
   /** @type {Map<string, Set<number>>} tabs an agent opened or was given, by agent id */
   const owned = new Map();
+  /** @type {Map<string, Set<number>>} the person's own tabs an agent was asked to work in; usable, never closed by the agent */
+  const borrowed = new Map();
+  /** @type {Map<string, Set<number>>} the person's tabs the agent's last find returned */
+  const offered = new Map();
   /** @type {Map<string, number>} the tab each agent is working in */
   const current = new Map();
   /** @type {Map<string, Held>} */
@@ -125,6 +129,8 @@ export function createSessions({ ext, cdp, traffic, emit, now = Date.now, setTim
     refs.delete(tabId);
     for (const [id, h] of held) if (h.tabId === tabId) held.delete(id);
     await undraw(tabId);
+    // The person's own tab goes back out of the agent's group when the agent lets go of it.
+    if (borrowed.get(d.agent.id)?.has(tabId) && ext.tabs && typeof ext.tabs.ungroup === "function") await quiet(() => ext.tabs.ungroup([tabId]));
     await cdp.detach(tabId);
     traffic.forget(tabId);
     emit({ event: "driving", on: false, agent: d.agent.id, tab: tabId, why });
@@ -165,6 +171,14 @@ export function createSessions({ ext, cdp, traffic, emit, now = Date.now, setTim
     own(agentId, tabId) { let s = owned.get(agentId); if (!s) { s = new Set(); owned.set(agentId, s); } s.add(tabId); },
     /** @param {string} agentId @param {number} tabId */
     owns: (agentId, tabId) => Boolean(owned.get(agentId)?.has(tabId)),
+    /** A tab of the person's own that they asked an agent to work in: usable, in the agent's group, never closed by the agent. @param {string} agentId @param {number} tabId */
+    borrow(agentId, tabId) { let s = borrowed.get(agentId); if (!s) { s = new Set(); borrowed.set(agentId, s); } s.add(tabId); },
+    /** @param {string} agentId @param {number} tabId */
+    borrowed: (agentId, tabId) => Boolean(borrowed.get(agentId)?.has(tabId)),
+    /** Tabs a person's open tab list was offered to an agent in a find, usable by `use` for a while. @param {string} agentId @param {number[]} tabIds */
+    offer(agentId, tabIds) { offered.set(agentId, new Set(tabIds)); },
+    /** @param {string} agentId @param {number} tabId */
+    offeredTab: (agentId, tabId) => Boolean(offered.get(agentId)?.has(tabId)),
     /** @param {string} agentId */
     ownedTabs: (agentId) => [...(owned.get(agentId) ?? [])],
     /** @param {string} agentId @param {number | null} tabId */
@@ -174,6 +188,8 @@ export function createSessions({ ext, cdp, traffic, emit, now = Date.now, setTim
     /** A tab closed or navigated away from anything drivable. @param {number} tabId */
     async tabGone(tabId) {
       for (const s of owned.values()) s.delete(tabId);
+      for (const s of borrowed.values()) s.delete(tabId);
+      for (const s of offered.values()) s.delete(tabId);
       for (const [a, t] of current) if (t === tabId) current.delete(a);
       refs.delete(tabId);
       for (const [id, h] of held) if (h.tabId === tabId) held.delete(id);

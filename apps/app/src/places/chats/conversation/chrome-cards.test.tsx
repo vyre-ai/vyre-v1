@@ -37,7 +37,7 @@ test("the held card draws the four fields and three buttons; once answered it sa
   assert.match(t, /Scout stopped before Send/);
   for (const w of ["From", "olivia@firm.test", "Subject", "Your signed deed", "Hi Dana, the signed deed is attached."]) assert.ok(t.includes(w), w);
   for (const id of ["send", "edit", "drop"]) assert.match(open, new RegExp(`chrome-held-b1-${id}`));
-  assert.match(t, /Allow Edit Deny/);
+  assert.match(t, /Allow Edit Deny/); // the owner's vocabulary: primary first, destructive last
   assert.doesNotMatch(t, /Don't send/);
   const sent = renderToStaticMarkup(<HeldSendCard id="b1" data={{ ...HELD, state: "sent" }} agentId="agt_scout" />);
   assert.match(flat(sent), /Sent/);

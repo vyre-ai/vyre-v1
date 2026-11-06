@@ -119,14 +119,16 @@ test("the gear opens How, When and Style; Listening is mode quiet; making anothe
   });
 });
 
-test("a face in the header opens How and When It Answers instead of the old two mode items", async () => {
+test("an agent in the people popover opens How and when it responds instead of the old two mode items", async () => {
   await withDom(async () => {
     const s = createSample("idle");
     const root = await mount(createRoot, <Conversation data={s.data} />);
-    await press(find(root, "face-agt_docs"));
+    await press(find(root, "participants-button"));
+    await flush();
+    await rightClick(root, "people-row-agt_docs");
     assert.equal(find(root, "menu-item-Replies to everything"), null);
     assert.equal(find(root, "menu-item-Only when @mentioned"), null);
-    await press(find(root, "menu-item-How and When It Answers…"));
+    await press(find(root, "menu-item-How and when it responds"));
     assert.ok(find(root, "as-pop"));
   });
 });

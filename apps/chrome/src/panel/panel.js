@@ -176,9 +176,11 @@ function offView() {
   /** @param {Node} big @param {string} t @param {string} d @param {Node | null} [x] */
   const e = (big, t, d, x = null) => [h("div.empty", null, h("div.big", null, big), h("div.t", null, t), d, x ? h("div.after", null, x) : null)];
   if (S.off === "incognito") return e(ic("incog"), "Vyre is off in incognito", "Nothing in this window is read, captured or sent. Vault fill still works from the field badge.");
-  if (S.status === "no_host") return e(mark(26), "Vyre is not on this computer", "Install the Vyre app to chat with your agents here.");
+  if (S.status === "no_host") return e(mark(26), "This browser can't find the Vyre app", "Vyre is not set up for this browser yet. Open the Vyre app, then press Try again. If the app is not installed, install it first.", h("button.btn", act("retry"), "Try again"));
+  if (S.status === "needs_reload") return e(mark(26), "Vyre needs updating: reload the extension", "The Vyre app is newer than this extension. Open your browser's extensions page and press reload on Vyre.", h("button.btn", act("retry"), "Try again"));
+  if (S.status === "needs_app_update") return e(mark(26), "Update the Vyre app", "This extension is newer than the Vyre app on this computer. Update the Vyre app, then press Try again.", h("button.btn", act("retry"), "Try again"));
   if (S.status === "signed_out") return e(mark(26), "Sign in to Vyre on this computer", "Vyre for Chrome works as you, in the Space you pick here. Sign in to the Vyre app and this panel connects.", h("button.btn", act("retry"), "Try again"));
-  if (S.status === "offline") return e(mark(26), "The Vyre app is not running", "Open it and this panel connects.", h("button.btn", act("retry"), "Try again"));
+  if (S.status === "offline") return e(mark(26), "The Vyre app is not running", "Open the Vyre app and this panel connects.", h("button.btn", act("retry"), "Try again"));
   if (S.locked) return e(ic("lock"), "Your Space is locked", "Unlock it in the Vyre app.");
   return null;
 }

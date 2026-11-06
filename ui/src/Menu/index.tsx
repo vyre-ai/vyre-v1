@@ -11,6 +11,7 @@ import type { ViewStyle } from "react-native";
 import { filterMenuEntries, isHead, isItem, isReportItem, isSeparator, resolveMenuItems } from "./props.ts";
 import type { MenuEntry, MenuItem, MenuProps, MenuSource } from "./props.ts";
 import { MenuPortal } from "./portal.tsx";
+import { RADIUS } from "../tokens/radius.ts";
 
 export type { MenuEntry, MenuHead, MenuItem, MenuProps, MenuSeparator, MenuSource } from "./props.ts";
 export { REPORT_A_PROBLEM, appendReportProblem, filterMenuEntries, resolveMenuItems } from "./props.ts";
@@ -96,7 +97,7 @@ export function typeAhead(entries: readonly MenuEntry[], from: number, typed: st
 }
 
 /** Keeps the whole menu inside the window with a small margin, like a native menu. */
-export function clampMenu(x: number, y: number, width: number, height: number, viewW: number, viewH: number, margin = 6): { left: number; top: number } {
+export function clampMenu(x: number, y: number, width: number, height: number, viewW: number, viewH: number, margin = 8): { left: number; top: number } {
   const left = Math.max(margin, Math.min(x, viewW - width - margin));
   const top = Math.max(margin, Math.min(y, viewH - height - margin));
   return { left, top };
@@ -568,12 +569,12 @@ const styles = StyleSheet.create({
     minWidth: MENU_W,
     maxWidth: 320,
     padding: 5,
-    borderRadius: 10,
+    borderRadius: RADIUS,
     backgroundColor: "var(--raised)" as string,
     boxShadow: "var(--sh-pop)" as string,
   },
   // the lit row is the wash; the browser focus ring would draw a black box around it
-  item: { flexDirection: "row", alignItems: "center", height: 28, paddingHorizontal: 9, borderRadius: 6, gap: 9, width: "100%", ...({ outlineStyle: "none" } as unknown as ViewStyle) },
+  item: { flexDirection: "row", alignItems: "center", height: 28, paddingHorizontal: 9, borderRadius: RADIUS, gap: 9, width: "100%", ...({ outlineStyle: "none" } as unknown as ViewStyle) },
   label: { flexShrink: 1, fontSize: 13, lineHeight: 18 },
   check: { marginLeft: "auto", fontSize: 12 },
   checkAfterCount: { marginLeft: 0 },
@@ -583,7 +584,7 @@ const styles = StyleSheet.create({
   mark: { width: 7, height: 7, borderRadius: 4, marginLeft: "auto", backgroundColor: "var(--warn)" as string },
   leading: { width: 20, height: 20, alignItems: "center", justifyContent: "center" },
   // a mark that is the accent colour (a status ring) would vanish on the lit row: it sits on a light disc there
-  leadingLit: { borderRadius: 10, backgroundColor: "var(--raised)" as string },
+  leadingLit: { borderRadius: RADIUS, backgroundColor: "var(--raised)" as string },
   search: { flexDirection: "row", alignItems: "center", gap: 8, height: 32, paddingHorizontal: 9, marginBottom: 4, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
   searchInput: { flex: 1, minWidth: 0, fontSize: 13, color: "var(--ink)" as string, ...({ outlineStyle: "none" } as unknown as ViewStyle) },
   none: { paddingVertical: 10, paddingHorizontal: 9, fontSize: 12.5, color: "var(--ink-3)" as string },

@@ -64,6 +64,8 @@ export interface LiveTurns {
 export interface Connection { get(): "online" | "offline"; subscribe(l: () => void): () => void }
 
 export interface ConversationData {
+  /** Names of the people typing in this chat now, when the place knows (presence); the row above the composer says so. */
+  typing?: readonly string[];
   screens: ScreenHooks;
   call(cap: string, input: unknown): Promise<unknown>;
   /** The live stream's tick: a card reads its object again on it. Left out where nothing streams. */
