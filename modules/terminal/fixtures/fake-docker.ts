@@ -88,6 +88,13 @@ export function fakeDocker(o: FakeDockerOptions = {}) {
       if (act === "wait") { note("wait", name); return json(200, { StatusCode: helperExit }); }
       if (act === "remove") { boxes.delete(name); note("remove", name); return empty(204); }
     }
+    r = /^\/containers\/([^/]+)\/archive$/.exec(p);
+    if (r && (m === "GET" || m === "PUT")) {
+      const b = boxes.get(r[1] as string);
+      if (!b) return json(404, { message: "no such container" });
+      note(m === "GET" ? "archive_get" : "archive_put", b.name, { path: req.query?.["path"], bytes: req.body?.length ?? 0 });
+      return m === "GET" ? { status: 200, body: new TextEncoder().encode("TAR") } : empty(200);
+    }
     r = /^\/containers\/([^/]+)\/exec$/.exec(p);
     if (r && m === "POST") {
       const b = boxes.get(r[1] as string);

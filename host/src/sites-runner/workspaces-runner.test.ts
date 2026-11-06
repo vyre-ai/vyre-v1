@@ -134,7 +134,7 @@ test("a workspace's network is its own: named for its agent, a plain bridge, not
   assert.equal((await w.call("POST", `/v1.47/networks/${net(A)}/connect`, { Container: name(A) })).status, 403, "its own container is on it from create, not by joining");
 });
 
-test("a workspace container may be started, stopped, read, run in and removed, and nothing else: no archive, no wait; another container never", async (t) => {
+test("a workspace container may be started, stopped, read, run in and removed, and nothing else: archive only in its Files folder, no wait; another container never", async (t) => {
   const w = await world();
   t.after(w.close);
   const n = name(A);
@@ -147,7 +147,9 @@ test("a workspace container may be started, stopped, read, run in and removed, a
   for (const [what, body] of [["another user", { Cmd: ["id"], User: "root" }], ["a tty", { Cmd: ["sh"], Tty: true }], ["privileged", { Cmd: ["sh"], Privileged: true }]] as Array<[string, unknown]>) {
     assert.equal((await w.call("POST", `/v1.47/containers/${n}/exec`, body)).status, 403, what);
   }
-  assert.equal((await w.call("PUT", `/v1.47/containers/${n}/archive?path=/home/agent`)).status, 403, "files travel through the mounts, not the archive");
+  for (const [m, q, want] of [["GET", "/home/agent/Vyre/.", 200], ["PUT", "/home/agent/Vyre", 200], ["PUT", "/home/agent/Vyre/work", 200], ["GET", "/home/agent", 403], ["GET", "/home/agent/.ssh", 403], ["PUT", "/home/agent/Vyre/../.ssh", 403], ["PUT", "/etc", 403], ["DELETE", "/home/agent/Vyre", 403]] as const) {
+    assert.equal((await w.call(m, `/v1.47/containers/${n}/archive?path=${encodeURIComponent(q)}`)).status, want, `${m} archive ${q}`);
+  }
   assert.equal((await w.call("POST", `/v1.47/containers/${n}/wait`)).status, 403);
   for (const other of ["vyred", "other"]) assert.equal((await w.call("POST", `/v1.47/containers/${other}/exec`, { Cmd: ["id"] })).status, 403, other);
 });

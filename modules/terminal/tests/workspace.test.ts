@@ -13,13 +13,13 @@ import type { FakeDockerOptions } from "../fixtures/fake-docker.ts";
 const AGENT = "agt_dex";
 const NAME = workspaceName(AGENT);
 
-function rig(o: { docker?: FakeDockerOptions; projects?: () => string[]; idleMs?: number; admit?: WorkspaceOptions["admit"]; runner?: boolean; filesRoot?: WorkspaceOptions["filesRoot"] } = {}) {
+function rig(o: { docker?: FakeDockerOptions; projects?: () => string[]; idleMs?: number; admit?: WorkspaceOptions["admit"]; runner?: boolean; home?: WorkspaceOptions["home"] } = {}) {
   const dk = fakeDocker({ tmux: { scripts: { "echo hi": { out: "hi", code: 0 } } }, ...o.docker });
   const clock = { t: 1_000_000 };
   const mgr = createWorkspaceManager({
     api: createDockerApi(dk.http), http: dk.http, now: () => clock.t, sleep: async (ms) => { clock.t += ms; },
     idleMs: o.idleMs ?? 600_000,
-    ...(o.projects ? { projectsOf: o.projects } : {}), ...(o.admit ? { admit: o.admit } : {}), ...(o.runner ? { runner: true } : {}), ...(o.filesRoot ? { filesRoot: o.filesRoot } : {}),
+    ...(o.projects ? { projectsOf: o.projects } : {}), ...(o.admit ? { admit: o.admit } : {}), ...(o.runner ? { runner: true } : {}), ...(o.home ? { home: o.home } : {}),
   });
   return { dk, mgr, clock };
 }
@@ -27,8 +27,8 @@ const termHost = (r: ReturnType<typeof rig>) => createWorkspaceTerminalHost({ ma
 const target = (agentId = AGENT) => ({ host: "agent_computer" as const, agentId });
 const open = (h: ReturnType<typeof termHost>, id = "trm_1") => h.open({ terminalId: id, target: target(), name: "agent", cols: 100, rows: 30, folders: [] });
 
-test("the container profile: non-root, no capability, no new privileges, no Docker socket, no device, limits, only its own volumes and the Files folder", () => {
-  const good = workspaceContainerConfig(AGENT, "vyre/agent-workspace:1", { projects: ["prj_a"], filesHost: null }, {});
+test("the container profile: non-root, no capability, no new privileges, no Docker socket, no device, limits, only its own volumes, never a host folder", () => {
+  const good = workspaceContainerConfig(AGENT, "vyre/agent-workspace:1", { projects: ["prj_a"] }, {});
   assert.deepEqual(reviewWorkspaceConfig(good, AGENT), []);
   assert.equal(good.User, "10001:10001");
   assert.deepEqual(good.HostConfig.CapDrop, ["ALL"]);
@@ -37,13 +37,12 @@ test("the container profile: non-root, no capability, no new privileges, no Dock
   assert.deepEqual(good.HostConfig.Binds, [`${NAME}-home:/home/agent:rw`, `${NAME}-files:/home/agent/Vyre:rw`, "vyre-wsproj-prj_a:/home/agent/projects/prj_a:rw"]);
   assert.equal(good.HostConfig.Memory, 1024 * 1024 * 1024);
   assert.equal(good.HostConfig.NanoCpus, 1e9);
-  const withFolder = workspaceContainerConfig(AGENT, "i", { projects: [], filesHost: "/srv/vyre/files/agt_dex" }, {});
-  assert.deepEqual(reviewWorkspaceConfig(withFolder, AGENT), [], "a host folder is allowed for the Files folder only");
 
   const wrong = (edit: (c: typeof good) => void): string => { const c = structuredClone(good); edit(c); return reviewWorkspaceConfig(c, AGENT).join("; "); };
   assert.match(wrong((c) => { c.HostConfig.Binds.push("/var/run/docker.sock:/var/run/docker.sock:rw"); }), /docker socket/);
   assert.match(wrong((c) => { c.HostConfig.Binds.push("/etc:/home/agent/projects/etc:rw"); }), /system folder|host folder is bound/);
-  assert.match(wrong((c) => { c.HostConfig.Binds.push("/srv/other:/home/agent/projects/x:rw"); }), /host folder is bound at/);
+  assert.match(wrong((c) => { c.HostConfig.Binds.push("/srv/other:/home/agent/projects/x:rw"); }), /host folder is bound/);
+  assert.match(wrong((c) => { c.HostConfig.Binds.push("/srv/files/agt_dex:/home/agent/Vyre:rw"); }), /host folder is bound/);
   assert.match(wrong((c) => { c.HostConfig.Binds.push("someone-elses-home:/home/agent/projects/y:rw"); }), /is not this workspace's/);
   assert.match(wrong((c) => { c.User = ""; }), /runs as/);
   assert.match(wrong((c) => { c.User = "0:0"; }), /runs as 0:0/);
@@ -80,8 +79,8 @@ test("an id that is not an agent's is refused before anything is made", async ()
   assert.equal(r.dk.boxes.size, 0);
 });
 
-test("behind the runner each workspace is on a network of its own, and no host folder is bound even when one is offered", async () => {
-  const r = rig({ runner: true, filesRoot: () => "/srv/vyre/files/agt_dex" });
+test("behind the runner each workspace is on a network of its own, and only named volumes are bound", async () => {
+  const r = rig({ runner: true });
   await r.mgr.ensure(AGENT);
   assert.equal(r.dk.ops("network").length, 1);
   const net = r.dk.ops("network")[0]!.name!;
@@ -316,4 +315,85 @@ test("createTmuxHost is what runs in the container: the same command lines as on
   const host = createTmuxHost({ exec: (argv) => r.mgr.exec(AGENT, argv) });
   await host.open({ terminalId: "trm_9", target: target(), name: "x", cols: 100, rows: 30, folders: [] });
   assert.deepEqual(r.dk.box(NAME).tmux.calls[0], ["tmux", "new-session", "-d", "-s", "vyre-trm_9", "-x", "100", "-y", "30"]);
+});
+
+// ---- the Files folder ------------------------------------------------------------------------------------------------------------------------------------
+
+function fakeHome(r: () => ReturnType<typeof rig>, o: { fail?: boolean } = {}) {
+  const passes: Array<{ running: boolean; stopsSoFar: number }> = [];
+  const seen: { fs?: import("../workspace.ts").HomeDisk; manifest?: string; computerId?: string; agentId?: string } = {};
+  const home: NonNullable<WorkspaceOptions["home"]> = {
+    sync: (x) => { seen.fs = x.fs; seen.manifest = x.manifest; seen.computerId = x.computerId; seen.agentId = x.agentId; return { async pass() { if (o.fail) throw new Error("Files did not answer"); passes.push({ running: r().dk.boxes.get(NAME)?.running === true, stopsSoFar: r().dk.ops("stop").length }); return { failed: 0 }; } }; },
+    readTar: () => ({ files: new Map([["notes.md", { bytes: Buffer.from("hello"), mtimeMs: 1 }]]), dirs: new Set(["work"]), refused: [], complete: true }),
+    manifest: (id) => `/data/workspaces/${id}/home-manifest.json`,
+    intervalMs: 5,
+  };
+  return { home, passes, seen };
+}
+const later = (ms: number): Promise<void> => new Promise((x) => setTimeout(x, ms));
+
+test("the Files folder is mirrored: once the workspace is up and before the first command, every few seconds while it is awake, and a last time before it stops", async () => {
+  let rg: ReturnType<typeof rig>;
+  const fh = fakeHome(() => rg);
+  rg = rig({ home: fh.home });
+  await rg.mgr.ensure(AGENT);
+  assert.equal(fh.passes.length >= 1, true, "a pass before ensure returned");
+  assert.equal(fh.passes[0]!.running, true, "after the container started: removals are an exec");
+  assert.deepEqual([fh.seen.agentId, fh.seen.computerId, fh.seen.manifest], [AGENT, `ws_${AGENT}`, `/data/workspaces/${AGENT}/home-manifest.json`]);
+  const n0 = fh.passes.length;
+  await later(60);
+  assert.ok(fh.passes.length > n0, "passes keep running while it is awake");
+  assert.equal(await rg.mgr.sleep(AGENT), true);
+  const last = fh.passes.at(-1)!;
+  assert.deepEqual([last.running, last.stopsSoFar], [true, 0], "the last pass ran with the container still up, before it was stopped");
+  const n1 = fh.passes.length;
+  await later(40);
+  assert.equal(fh.passes.length, n1, "no pass after it sleeps");
+  await rg.mgr.exec(AGENT, ["tmux", "-V"]);
+  const n2 = fh.passes.length;
+  assert.ok(n2 > n1, "a wake mirrors again before the command");
+  rg.mgr.close();
+  await later(30);
+  const n3 = fh.passes.length;
+  await later(30);
+  assert.equal(fh.passes.length, n3, "closing the manager stops the passes");
+});
+
+test("a mirror that fails does not stop the workspace from starting, sleeping or waking", async () => {
+  let rg: ReturnType<typeof rig>;
+  const fh = fakeHome(() => rg, { fail: true });
+  rg = rig({ home: fh.home });
+  assert.equal(await rg.mgr.ensure(AGENT), "created");
+  assert.equal(await rg.mgr.sleep(AGENT), true);
+  assert.equal(await rg.mgr.ensure(AGENT), "woke");
+  rg.mgr.close();
+});
+
+test("the disk side of the mirror is the container's own view: the archive of ~/Vyre to read and write, an exec as the agent's user to remove", async () => {
+  let rg: ReturnType<typeof rig>;
+  const fh = fakeHome(() => rg);
+  rg = rig({ home: fh.home, docker: { onExec: (_b, argv) => (argv[0] === "sh" && (argv[2] ?? "").includes("rm -f --") ? { code: 0, stdout: "", stderr: "" } : undefined) } });
+  await rg.mgr.ensure(AGENT);
+  const snap = await fh.seen.fs!.snapshot();
+  assert.deepEqual([...snap.files.keys()], ["notes.md"]);
+  assert.deepEqual(rg.dk.ops("archive_get").at(-1)!.detail, { path: "/home/agent/Vyre/.", bytes: 0 });
+  await fh.seen.fs!.put([{ rel: "AGENT.md", bytes: new TextEncoder().encode("role"), readOnly: true }, { rel: "work/a.txt", bytes: new TextEncoder().encode("a"), readOnly: false }]);
+  const put = rg.dk.ops("archive_put").at(-1)!.detail as { path: string; bytes: number };
+  assert.equal(put.path, "/home/agent/Vyre");
+  assert.ok(put.bytes > 512 * 2, "a tar of both files");
+  await fh.seen.fs!.put([]);
+  assert.equal(rg.dk.ops("archive_put").length, 1, "nothing to write, nothing sent");
+  await fh.seen.fs!.remove(["old.txt", "work/b.txt"], ["gone"]);
+  const rm = rg.dk.ops("exec").map((x) => x.detail as string[]).find((c) => c[0] === "sh" && c[2]?.includes("rm -f --"));
+  assert.ok(rm, "an exec removed them");
+  assert.deepEqual(rm!.slice(3), ["sh", "/home/agent/Vyre/old.txt", "/home/agent/Vyre/work/b.txt", "::", "/home/agent/Vyre/gone"]);
+  await fh.seen.fs!.remove([], []);
+  rg.mgr.close();
+});
+
+test("with no mirror configured ~/Vyre is an ordinary folder: nothing runs and nothing is asked of Files", async () => {
+  const r = rig();
+  await r.mgr.ensure(AGENT);
+  assert.equal(await r.mgr.sleep(AGENT), true);
+  assert.equal(r.dk.ops("archive_get").length + r.dk.ops("archive_put").length, 0);
 });

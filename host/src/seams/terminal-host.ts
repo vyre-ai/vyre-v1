@@ -37,6 +37,13 @@ export interface WorkspacesConfig {
   image?: string;
   /** Minutes of no use before a workspace sleeps, in ms. Default 10 minutes. */
   idleMs?: number;
+  /** The mirror of each agent's folder in Files onto ~/Vyre in its workspace: the computers module's home sync and tar reader, made by the daemon as the agent principal. Omitted: no mirror. */
+  home?: {
+    sync(o: { agentId: string; computerId: string; fs: never; manifest: string }): { pass(): Promise<{ failed: number }> };
+    readTar(tar: Uint8Array): never;
+    manifest(agentId: string): string;
+    intervalMs?: number;
+  };
   /** The projects an agent is on, so their shared folders are mounted. */
   projectsOf?(agentId: string): Promise<readonly string[]> | readonly string[];
   log?(level: "info" | "warn", msg: string, attrs?: Record<string, unknown>): void;

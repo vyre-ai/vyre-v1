@@ -3,8 +3,9 @@
 // stops, the volumes stay) and wakes on the next use in about a second.
 //
 //   container   vyre-ws-<agent> from images/agent-workspace: non-root (10001), every capability dropped, no new privileges, no Docker socket, no device, /tmp a noexec tmpfs, limits.
-//   volumes     vyre-ws-<agent>-home at /home/agent (everything the agent keeps), the agent's Files folder at ~/Vyre (a host folder where the Space may bind one, else the volume
-//               vyre-ws-<agent>-files), and one shared volume per project the agent is on, vyre-wsproj-<project>, at ~/projects/<project> (every agent on the project mounts the same one).
+//   volumes     vyre-ws-<agent>-home at /home/agent (everything the agent keeps), the volume vyre-ws-<agent>-files at ~/Vyre, which mirrors the agent's folder in Files (the computers module's home
+//               sync, run by the daemon through `home`, so the same rules, versions and conflict handling), and one shared volume per project the agent is on, vyre-wsproj-<project>, at ~/projects/<project>
+//               (every agent on the project mounts the same one).
 //   terminal    tmux inside the container, driven with `docker exec`. `createWorkspaceTerminalHost` is a TerminalHost over it (createTmuxHost with this container's exec), so what an agent runs and
 //               what a person attaches to are the same tmux sessions. Live frames come from `tmux pipe-pane` into a file that is read back, since the Engine API's exec here is not streamed.
 //   sleep       a workspace is idle when nothing used it for `idleMs` and no tmux pane runs anything but a shell; `sweep` (a timer) stops it. tmux dies with the container, so a session that had
@@ -12,6 +13,7 @@
 // The module never opens a socket of its own: the DockerApi and DockerHttp come from the host's seam (the Docker socket, or the runner on a Team server), like agent computers.
 import { createHash } from "node:crypto";
 import { createDockerApi } from "../../sandbox/src/docker.ts";
+import { tarFiles } from "../../sandbox/src/tar.ts";
 import type { ContainerConfig, DockerApi, DockerHttp } from "../../sandbox/src/docker.ts";
 import { createTmuxHost } from "./impl.ts";
 import type { ExecResult } from "./impl.ts";
@@ -36,6 +38,23 @@ export const homeVolume = (agentId: string): string => `${workspaceName(agentId)
 export const filesVolume = (agentId: string): string => `${workspaceName(agentId)}-files`;
 export const projectVolume = (projectId: string): string => `${PROJECT_VOLUME_PREFIX}${projectId}`;
 
+/** What the disk side of the Files mirror is, as the computers module's HomeSync reads it (its HomeFs, written out: a module does not import another module). */
+export interface HomeSnapshot { files: Map<string, { bytes: Buffer; mtimeMs: number }>; dirs: Set<string>; refused: string[]; complete: boolean }
+export interface HomeDisk {
+  snapshot(): Promise<HomeSnapshot>;
+  put(files: Array<{ rel: string; bytes: Uint8Array; readOnly: boolean }>): Promise<void>;
+  remove(files: string[], dirs: string[]): Promise<void>;
+}
+export interface WorkspaceHome {
+  /** One mirror of this agent's folder in Files onto `disk`; `pass` runs one round. The daemon makes it with the computers module's createHomeSync, as the agent principal. */
+  sync(o: { agentId: string; computerId: string; fs: HomeDisk; manifest: string }): { pass(): Promise<{ failed: number }> };
+  /** The computers module's reader of the tar the archive call returns: plain files and folders only, anything else refused by name. */
+  readTar(tar: Uint8Array): HomeSnapshot;
+  manifest(agentId: string): string;
+  /** How often a pass runs while the workspace is awake. Default 3 s. */
+  intervalMs?: number;
+}
+
 export interface WorkspaceOptions {
   api: DockerApi;
   /** Raw Engine access: inspect, volumes, the list of workspaces, and waiting for the one-off volume helper. */
@@ -44,8 +63,8 @@ export interface WorkspaceOptions {
   limits?: Partial<{ cpus: number; memoryMb: number; pids: number }>;
   /** A workspace with nothing using it for this long sleeps. Default 10 minutes. */
   idleMs?: number;
-  /** The host folder bound at ~/Vyre, where the Space may bind one (not behind the runner). Null or omitted: the agent's Files volume. */
-  filesRoot?: (agentId: string) => string | null;
+  /** The agent's folder in Files mirrored onto ~/Vyre (the computers module's home sync, handed over by the daemon). Omitted: ~/Vyre is an ordinary folder that Files does not see. */
+  home?: WorkspaceHome;
   /** The projects the agent is on, read when the workspace wakes: a change recreates the container (volumes stay), so the new project's folder is there. */
   projectsOf?: (agentId: string) => Promise<readonly string[]> | readonly string[];
   /** Behind the runner (a Team server) each workspace gets a network of its own, so one cannot reach another. */
@@ -84,9 +103,9 @@ export interface WorkspaceManager {
 
 // ---- the container --------------------------------------------------------------------------------------------------------------------------------------
 
-export interface MountSpec { projects: string[]; filesHost: string | null }
+export interface MountSpec { projects: string[] }
 
-const stable = (m: MountSpec): string => createHash("sha256").update(JSON.stringify({ p: [...m.projects].sort(), f: m.filesHost })).digest("hex").slice(0, 16);
+const stable = (m: MountSpec): string => createHash("sha256").update(JSON.stringify({ p: [...m.projects].sort() })).digest("hex").slice(0, 16);
 
 export function workspaceContainerConfig(agentId: string, image: string, m: MountSpec, o: Pick<WorkspaceOptions, "limits" | "runner">): ContainerConfig {
   const limits = { cpus: 1, memoryMb: 1024, pids: 512, ...o.limits };
@@ -104,7 +123,7 @@ export function workspaceContainerConfig(agentId: string, image: string, m: Moun
     HostConfig: {
       Binds: [
         `${homeVolume(agentId)}:${WORKSPACE_HOME}:rw`,
-        m.filesHost !== null ? `${m.filesHost}:${FILES_GUEST}:rw` : `${filesVolume(agentId)}:${FILES_GUEST}:rw`,
+        `${filesVolume(agentId)}:${FILES_GUEST}:rw`,
         ...[...m.projects].sort().map((p) => `${projectVolume(p)}:${PROJECTS_GUEST}/${p}:rw`),
       ],
       ReadonlyRootfs: false,
@@ -160,7 +179,7 @@ export function reviewWorkspaceConfig(c: ContainerConfig, agentId: string): stri
     const guest = m[2] as string;
     if (/docker\.sock|containerd\.sock|\.sock$/.test(src)) bad.push("docker socket");
     if (SYSTEM.has(src.replace(/\/+$/, "") || "/")) bad.push("a system folder is bound");
-    if (src.startsWith("/")) { if (guest !== FILES_GUEST) bad.push(`a host folder is bound at ${guest}, not ${FILES_GUEST}`); }
+    if (src.startsWith("/")) bad.push(`a host folder is bound at ${guest}`);
     else if (![homeVolume(agentId), filesVolume(agentId)].includes(src) && !(src.startsWith(PROJECT_VOLUME_PREFIX) && PROJECT_ID.test(src.slice(PROJECT_VOLUME_PREFIX.length)))) bad.push(`volume ${src} is not this workspace's`);
     if (!(guest === WORKSPACE_HOME || guest === FILES_GUEST || guest.startsWith(`${PROJECTS_GUEST}/`))) bad.push(`binds into ${guest}`);
   }
@@ -190,6 +209,7 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
   const gens = new Map<string, number>();
   const chain = new Map<string, Promise<unknown>>();
   let timer: ReturnType<typeof setInterval> | null = null;
+  const homes = new Map<string, { sync: { pass(): Promise<{ failed: number }> }; timer: ReturnType<typeof setInterval> | null }>();
   let imageKnown = false;
   let discovered = false;
 
@@ -260,8 +280,58 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
 
   async function mounts(agentId: string): Promise<MountSpec> {
     const projects = [...new Set((await o.projectsOf?.(agentId)) ?? [])].filter((p) => PROJECT_ID.test(p)).sort();
-    return { projects, filesHost: o.runner ? null : (o.filesRoot?.(agentId) ?? null) };
+    return { projects };
   }
+
+  // ---- the Files mirror: ~/Vyre against the agent's folder in Files, read and written through the Engine's archive calls (a link in the folder can only point at something in the container) ----
+  const GUEST = FILES_GUEST;
+  function diskOf(agentId: string): HomeDisk {
+    const name = workspaceName(agentId);
+    const home = o.home as WorkspaceHome;
+    return {
+      async snapshot() {
+        const r = await http({ method: "GET", path: `/containers/${name}/archive`, query: { path: `${GUEST}/.` }, timeoutMs: 120_000 });
+        if (r.status === 404) return { files: new Map(), dirs: new Set(), refused: [], complete: true };
+        if (r.status !== 200) throw new Error(`the Files folder could not be read (${r.status})`);
+        if (r.body.length > 256 * 1024 * 1024) return { files: new Map(), dirs: new Set(), refused: [], complete: false };
+        return home.readTar(r.body);
+      },
+      async put(files) {
+        if (files.length === 0) return;
+        const at = Math.floor(now() / 1000);
+        const tar = tarFiles(files.map((f) => ({ path: f.rel, data: f.bytes, mode: f.readOnly ? 0o444 : 0o644, uid: f.readOnly ? 0 : WORKSPACE_UID, gid: f.readOnly ? 0 : WORKSPACE_UID, mtime: at })));
+        const r = await http({ method: "PUT", path: `/containers/${name}/archive`, query: { path: GUEST }, body: tar, contentType: "application/x-tar", timeoutMs: 120_000 });
+        if (r.status !== 200) throw new Error(`the Files folder could not be written (${r.status})`);
+      },
+      async remove(files, dirs) {
+        if (files.length === 0 && dirs.length === 0) return;
+        // a removal is an exec as the agent's own user inside the running container: rm and rmdir on named paths, nothing else
+        const script = 'mode=f; for p in "$@"; do if [ "$p" = "::" ]; then mode=d; continue; fi; if [ "$mode" = f ]; then rm -f -- "$p"; else rmdir -- "$p" 2>/dev/null; fi; done; true';
+        const r = await execIn(agentId, ["sh", "-c", script, "sh", ...files.map((f) => `${GUEST}/${f}`), "::", ...dirs.map((d) => `${GUEST}/${d}`)], undefined);
+        if (r.code !== 0) throw new Error(`the Files folder could not be tidied (${r.stderr.slice(0, 100)})`);
+      },
+    };
+  }
+  function homeOf(agentId: string): { sync: { pass(): Promise<{ failed: number }> }; timer: ReturnType<typeof setInterval> | null } | null {
+    if (!o.home) return null;
+    let h = homes.get(agentId);
+    if (!h) { h = { sync: o.home.sync({ agentId, computerId: `ws_${agentId}`, fs: diskOf(agentId), manifest: o.home.manifest(agentId) }), timer: null }; homes.set(agentId, h); }
+    return h;
+  }
+  /** One round of the mirror; true when it finished with nothing left undone (or there is no mirror), so a caller about to stop the container knows nothing was lost. */
+  async function homePass(agentId: string): Promise<boolean> {
+    const h = homeOf(agentId);
+    if (!h) return true;
+    try { return (await h.sync.pass()).failed === 0; }
+    catch (e) { log("warn", "workspace.home_pass_failed", { agent: agentId, error: e instanceof Error ? e.message.slice(0, 200) : "unknown" }); return false; }
+  }
+  function startHome(agentId: string): void {
+    const h = homeOf(agentId);
+    if (!h || h.timer) return;
+    h.timer = setInterval(() => { void api.containerRunning(workspaceName(agentId)).then((up) => (up ? homePass(agentId) : undefined)).catch(() => undefined); }, o.home?.intervalMs ?? 3000);
+    h.timer.unref?.();
+  }
+  function stopHome(agentId: string): void { const h = homes.get(agentId); if (h?.timer) { clearInterval(h.timer); h.timer = null; } }
 
   async function removeContainer(name: string): Promise<void> {
     await api.containerStop(name, 10);
@@ -274,7 +344,7 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
     const config = workspaceContainerConfig(agentId, image, want, o);
     let info = await inspect(name);
     // the projects it is on changed (or the Files folder moved): the container is made again with the new mounts; the volumes, and so everything the agent kept, stay
-    if (info && info.labels["vyre.mounts"] !== config.Labels["vyre.mounts"]) { await removeContainer(name); info = null; gens.set(agentId, (gens.get(agentId) ?? 0) + 1); }
+    if (info && info.labels["vyre.mounts"] !== config.Labels["vyre.mounts"]) { stopHome(agentId); if (info.running) await homePass(agentId); await removeContainer(name); info = null; gens.set(agentId, (gens.get(agentId) ?? 0) + 1); }
     if (info?.running) { lastUsed.set(agentId, now()); return "running"; }
     await o.admit?.({ agentId, state: info ? "wake" : "create" });
     if (!info) {
@@ -288,6 +358,9 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
     await api.containerStart(name);
     gens.set(agentId, (gens.get(agentId) ?? 0) + 1);
     lastUsed.set(agentId, now());
+    // Files down into ~/Vyre before the first command, then every few seconds while it is awake
+    await homePass(agentId);
+    startHome(agentId);
     startTimer();
     log("info", info ? "workspace.woke" : "workspace.created", { agent: agentId });
     return info ? "woke" : "created";
@@ -320,6 +393,10 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
   async function sleepNow(agentId: string): Promise<boolean> {
     return serial(agentId, async () => {
       if (!(await api.containerRunning(workspaceName(agentId)))) return false;
+      // what the agent made goes to Files before the container stops
+      stopHome(agentId);
+      const synced = await homePass(agentId);
+      if (!synced) log("warn", "workspace.slept_unsynced", { agent: agentId });
       await api.containerStop(workspaceName(agentId), 10);
       lastUsed.delete(agentId);
       log("info", "workspace.slept", { agent: agentId });
@@ -401,7 +478,7 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
         return r.status === 200 ? { ok: true } : { ok: false, detail: `Docker answered an error (${r.status}).` };
       } catch (e) { return { ok: false, detail: e instanceof Error ? e.message.slice(0, 160) : "The container runtime did not answer." }; }
     },
-    close() { if (timer) { clearInterval(timer); timer = null; } },
+    close() { if (timer) { clearInterval(timer); timer = null; } for (const id of [...homes.keys()]) stopHome(id); },
   };
 }
 

@@ -1844,6 +1844,14 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
               ...(o.computersSocketPath !== undefined ? { socketPath: o.computersSocketPath } : computersRunnerSocket() ? { runner: { socket: computersRunnerSocket() as string, token: computersRunnerToken } } : {}),
               ...(o.workspaceIdleMs !== undefined ? { idleMs: o.workspaceIdleMs } : {}),
               projectsOf: (agentId: string) => (db!.all("SELECT projectId FROM projects_member WHERE principal = ? AND kind = 'agent'", agentId) as Array<{ projectId?: string }>).map((r) => String(r.projectId)),
+              // ~/Vyre in the workspace mirrors the agent's folder in Files: the computers module's home sync, run as the agent principal like any other writer (access, review rules and the scrubber apply)
+              ...((): Record<string, unknown> => {
+                const comp = loaded.moduleExports.get("computers") as { createHomeSync?: (o: unknown, d: unknown) => { pass(): Promise<{ failed: number }> }; readTar?: (t: Uint8Array) => unknown } | undefined;
+                if (!comp?.createHomeSync || !comp.readTar) return {};
+                const callAs = createAgentHomeCaller({ db: db!, spaceId, invoke });
+                const deps = { callAs, putBytes: (url: string, bytes: Uint8Array) => putToSlot(url, bytes), now: Date.now, log: (level: "info" | "warn", msg: string, attrs?: Record<string, unknown>) => sink.log({ space: spaceId, level: level === "warn" ? 40 : 30, msg, place: "workspaces", ...(attrs ? { attrs } : {}) }) };
+                return { home: { sync: (x: unknown) => comp.createHomeSync!(x, deps), readTar: comp.readTar, manifest: (a: string) => path.join(paths.root, "workspaces", a, "home-manifest.json"), ...(o.computersHomeIntervalMs !== undefined ? { intervalMs: o.computersHomeIntervalMs } : {}) } };
+              })(),
               log: (level: "info" | "warn", msg: string, attrs?: Record<string, unknown>) => sink.log({ space: spaceId, level: level === "warn" ? 40 : 30, msg, place: "workspaces", ...(attrs ? { attrs } : {}) }),
             },
           } : {}),

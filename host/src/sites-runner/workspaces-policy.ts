@@ -3,7 +3,7 @@
 // workspace cannot reach another's. It mounts only named volumes: its home (vyre-ws-<agent>-home), its Files folder (vyre-ws-<agent>-files) and one shared volume per project, vyre-wsproj-<project>,
 // which every agent on the project mounts; never a host folder. It runs as 10001, with every capability dropped, no new privileges, a CPU, memory and process cap, rotated logs and no host
 // namespace. The one other container is the project-folder helper (a new volume's root belongs to root; the helper, with the one capability CHOWN, no network and a fixed command, gives it to 10001).
-// Exec is allowed on a workspace; archive and wait are not. Mirrors modules/terminal/workspace.ts (reviewWorkspaceConfig, projectInitBody), which a test holds together with this file.
+// Exec is allowed on a workspace, and archive inside its Files folder (the mirror with Files); wait is not. Mirrors modules/terminal/workspace.ts (reviewWorkspaceConfig, projectInitBody), which a test holds together with this file.
 const isObj = (v: unknown): v is Record<string, unknown> => v !== null && typeof v === "object" && !Array.isArray(v);
 
 export const WS_AGENT = /^[A-Za-z0-9_-]{1,64}$/;
@@ -144,9 +144,18 @@ export function workspaceVolumeBody(body: unknown): { body: Record<string, unkno
   return { body: { Name: name, Labels: { "vyre.workspace.project": name.replace(/^vyre-wsproj-/, "") } } };
 }
 
-/** What a workspace container may be asked: start, stop, inspect, remove, logs and exec. Not archive (files travel through the mounts) and not wait. The helper is the one container that is waited for. */
-export function workspaceAllows(action: string, helper: boolean): boolean {
+/** Archive on a workspace: its Files folder only (~/Vyre), to read the mirror or to write into it. Nothing else of the home, and never a path that climbs. */
+export function wsArchiveOk(method: string, query: URLSearchParams): boolean {
+  const p = query.get("path") ?? "";
+  if (method !== "GET" && method !== "PUT" && method !== "HEAD") return false;
+  if (p.includes("..")) return false;
+  return p === `${WS_HOME}/Vyre` || p === `${WS_HOME}/Vyre/.` || p.startsWith(`${WS_HOME}/Vyre/`);
+}
+
+/** What a workspace container may be asked: start, stop, inspect, remove, logs and exec, and archive inside its Files folder. Not wait. The helper is the one container that is waited for. */
+export function workspaceAllows(action: string, helper: boolean, method = "GET", query: URLSearchParams = new URLSearchParams()): boolean {
   if (helper) return action === "start" || action === "wait" || action === "remove" || action === "json";
+  if (action === "archive") return wsArchiveOk(method, query);
   return action === "start" || action === "stop" || action === "restart" || action === "json" || action === "logs" || action === "remove" || action === "exec";
 }
 

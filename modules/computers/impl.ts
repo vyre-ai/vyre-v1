@@ -43,6 +43,8 @@ export { bindFill, bindHost, bindKit, bindTeam, boundHost, redeemTicket, remembe
 export type { ComputerHost, CompCtx, Probe, RecordResult, SessionInfo } from "./projections.ts";
 export { sleepIdle, awaken } from "./handlers/lifecycle.ts";
 export { createHomeSync } from "./handlers/home.ts";
+/** The reader of the tar the Engine's archive call returns, for the agent workspaces (the terminal module cannot import this module, so the daemon hands it over). */
+export { readTar } from "./handlers/home-fs.ts";
 export { maskEvents, maskHar } from "./handlers/record.ts";
 
 // ---- the Docker host -----------------------------------------------------------------------------------------------------------------------------------

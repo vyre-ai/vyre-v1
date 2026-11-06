@@ -104,7 +104,7 @@ export function createSitesRunner(o: RunnerOptions): { server: http.Server; clos
       const ws = workspaceOf(labels);
       const wsHelper = workspaceHelperOf(labels);
       if (!isSite && !comp && !ws && !wsHelper) { say(`refused ${label}: not a site, computer or workspace container`); refuse(res, 403, "Refused by the sites runner: that container is not a site's, an agent computer's or an agent workspace's."); return; }
-      const allowed = isSite ? siteAllows(v.action, method, url.searchParams) : ws || wsHelper ? workspaceAllows(v.action, wsHelper !== null) : computerAllows(v.action, method, url.searchParams, labels["vyre.helper"] === "home-rm");
+      const allowed = isSite ? siteAllows(v.action, method, url.searchParams) : ws || wsHelper ? workspaceAllows(v.action, wsHelper !== null, method, url.searchParams) : computerAllows(v.action, method, url.searchParams, labels["vyre.helper"] === "home-rm");
       if (!allowed) { say(`refused ${label}: ${v.action} not allowed here`); refuse(res, 403, `Refused by the sites runner: that is not something ${isSite ? "a site" : ws || wsHelper ? "an agent workspace" : "an agent computer"} container may be asked.`); return; }
       if (v.action === "exec") {
         const raw = await readBody(req, 64 * 1024);

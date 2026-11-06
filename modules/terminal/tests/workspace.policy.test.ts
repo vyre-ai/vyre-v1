@@ -7,18 +7,19 @@ import { WS_INIT_SCRIPT, workspaceBody, workspaceInitBody, workspaceNetworkBody,
 
 const netOk = (agent: string, n: string): boolean => n === `vyre-wsnet-${createHash("sha256").update(agent).digest("hex").slice(0, 16)}`;
 
-test("the container the module makes passes the runner's policy, with and without a project, with and without a host Files folder (the runner never sees that one)", () => {
+test("the container the module makes passes the runner's policy, with and without a project", () => {
   for (const agent of ["agt_dex", "agt_a1b2c3", "agt_with-dash_and_under"]) {
-    const cfg = workspaceContainerConfig(agent, "ghcr.io/vyre-ai/agent-workspace@sha256:" + "b".repeat(64), { projects: ["prj_site", "prj_book"], filesHost: null }, { runner: true });
+    const cfg = workspaceContainerConfig(agent, "ghcr.io/vyre-ai/agent-workspace@sha256:" + "b".repeat(64), { projects: ["prj_site", "prj_book"] }, { runner: true });
     const r = workspaceBody(workspaceName(agent), cfg, netOk);
     assert.ok("body" in r, "why" in r ? r.why : "");
     assert.equal(workspaceNetworkName(agent), `vyre-wsnet-${createHash("sha256").update(agent).digest("hex").slice(0, 16)}`);
   }
-  const plain = workspaceContainerConfig("agt_dex", "vyre/agent-workspace:1", { projects: [], filesHost: null }, { runner: true });
+  const plain = workspaceContainerConfig("agt_dex", "vyre/agent-workspace:1", { projects: [] }, { runner: true });
   assert.ok("body" in workspaceBody(workspaceName("agt_dex"), plain, netOk));
-  const withHost = workspaceContainerConfig("agt_dex", "vyre/agent-workspace:1", { projects: [], filesHost: "/srv/files" }, { runner: true });
+  const withHost = workspaceContainerConfig("agt_dex", "vyre/agent-workspace:1", { projects: [] }, { runner: true });
+  withHost.HostConfig.Binds.push("/srv/files:/home/agent/Vyre:rw");
   const refused = workspaceBody(workspaceName("agt_dex"), withHost, netOk);
-  assert.ok("why" in refused && /host folders/.test(refused.why), "behind the runner a host folder is refused, so the module never sends one");
+  assert.ok("why" in refused && /host folders/.test(refused.why), "a host folder is refused by the runner as it is by the module");
 });
 
 test("the project folder helper the module makes is the one the runner allows, and the script is one text", () => {
