@@ -182,3 +182,18 @@ export function checkedLabel(at: number | null, now: number): string {
 
 /** The channel as a person reads it. */
 export const channelLabel = (channel: string): string => (channel === "beta" ? "Beta" : channel === "stable" ? "Stable" : channel);
+
+/** What a Mac needs free to update: the bundle is about 180 MB packed and about four times that unpacked. */
+export const NEEDS_SPACE = "Your Mac needs about 1 GB free to update. Free some space and press Update now.";
+
+/** An error text that means the disk is full: the unpack stops with "No space left on device (os error 28)" or the shell's own pre-check message. */
+export function isNoSpace(text: string): boolean {
+  return /no space left|os error 28|enospc|not enough (disk )?space|disk (is )?full|needs about 1 GB free/i.test(text);
+}
+
+/** The line a failed install shows: the space message when the disk is full, else the shell's own words, else `fallback`. */
+export function installFailureWords(e: unknown, fallback: string): string {
+  const text = e instanceof Error ? e.message : typeof e === "string" ? e : "";
+  if (isNoSpace(text)) return NEEDS_SPACE;
+  return text || fallback;
+}

@@ -15,7 +15,7 @@ import type { ChannelRelease, FeedEntry } from "./channels.ts";
 import { assetsFor, feedBase } from "./feed.ts";
 import { lineage, newestStable, nextPatchTag } from "./lineage.ts";
 import { SIGNATURE_PREFIX, keyId, publicKeyBytes, publicKeyHexOf, signManifest, verifyManifest } from "./sign.ts";
-import { bump, channelOfVersion, releaseCounter, tagVersion, versionProblems } from "./version.ts";
+import { VERSION_FILES, bump, channelOfVersion, releaseCounter, tagVersion, versionProblems } from "./version.ts";
 
 const keys = (): { pem: string; pub: string } => {
   const { privateKey, publicKey } = crypto.generateKeyPairSync("ed25519");
@@ -471,4 +471,33 @@ test("the rolling release leaves unchanged files alone and refreshes the channel
   const sent = gh.log.filter((l) => l.startsWith("UP ")).map((l) => l.slice(3));
   assert.deepEqual(sent, ["Vyre.dmg", "beta.json.sig", "beta.json"], "only what changed, the manifest last");
   assert.ok(r.skipped.includes("vyre.tgz"));
+});
+
+test("a release bump covers the desktop app files and the lockfiles, and a mismatch is reported", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "bump-desktop-"));
+  const put = (f: string, t: string): void => { fs.mkdirSync(path.dirname(path.join(dir, f)), { recursive: true }); fs.writeFileSync(path.join(dir, f), t); };
+  const v = "1.0.0-rc.21";
+  put("package.json", `{\n  "version": "${v}"\n}\n`);
+  put("apps/app/public/whats-new.json", `{\n  "version": "${v}"\n}\n`);
+  put("package-lock.json", JSON.stringify({ name: "x", version: v, packages: { "": { name: "x", version: v }, "apps/desktop": { name: "@vyre/desktop", version: v }, "node_modules/y": { version: "9.9.9" } } }, null, 2) + "\n");
+  put("apps/desktop/package.json", `{\n  "version": "${v}"\n}\n`);
+  put("apps/desktop/src-tauri/Cargo.toml", `[package]\nname = "vyre-desktop"\nversion = "${v}"\nrust-version = "1.77"\n\n[build-dependencies]\ntauri-build = { version = "2" }\n`);
+  put("apps/desktop/src-tauri/tauri.conf.json", `{\n  "version": "${v}"\n}\n`);
+  put("apps/desktop/src-tauri/Cargo.lock", `[[package]]\nname = "other"\nversion = "3.0.0"\n\n[[package]]\nname = "vyre-desktop"\nversion = "${v}"\ndependencies = [\n "a",\n]\n`);
+  for (const f of ["apps/desktop/package.json", "apps/desktop/src-tauri/Cargo.toml", "apps/desktop/src-tauri/tauri.conf.json", "apps/desktop/src-tauri/Cargo.lock", "package-lock.json"]) assert.ok(VERSION_FILES.includes(f), `${f} is a version file`);
+  assert.deepEqual(versionProblems(dir), []);
+  // a desktop file left behind is caught
+  put("apps/desktop/src-tauri/tauri.conf.json", `{\n  "version": "1.0.0-rc.20"\n}\n`);
+  put("apps/desktop/src-tauri/Cargo.lock", fs.readFileSync(path.join(dir, "apps/desktop/src-tauri/Cargo.lock"), "utf8").replace(`vyre-desktop"\nversion = "${v}"`, 'vyre-desktop"\nversion = "1.0.0-rc.20"'));
+  assert.equal(versionProblems(dir).length, 2);
+  bump(dir, "1.0.0-rc.22");
+  assert.deepEqual(versionProblems(dir), []);
+  assert.match(fs.readFileSync(path.join(dir, "apps/desktop/src-tauri/Cargo.toml"), "utf8"), /^version = "1\.0\.0-rc\.22"$/m);
+  assert.match(fs.readFileSync(path.join(dir, "apps/desktop/src-tauri/Cargo.toml"), "utf8"), /tauri-build = \{ version = "2" \}/);
+  const lock = fs.readFileSync(path.join(dir, "apps/desktop/src-tauri/Cargo.lock"), "utf8");
+  assert.match(lock, /name = "vyre-desktop"\nversion = "1\.0\.0-rc\.22"/);
+  assert.match(lock, /name = "other"\nversion = "3\.0\.0"/);
+  const pl = JSON.parse(fs.readFileSync(path.join(dir, "package-lock.json"), "utf8"));
+  assert.deepEqual([pl.version, pl.packages[""].version, pl.packages["apps/desktop"].version, pl.packages["node_modules/y"].version], ["1.0.0-rc.22", "1.0.0-rc.22", "1.0.0-rc.22", "9.9.9"]);
+  fs.rmSync(dir, { recursive: true });
 });

@@ -11,6 +11,7 @@
 #   vyre-server rollback                    switch back to the previous release (code only; data written by the newer one stays)
 #   vyre-server backup                      write a backup of the data directory to $VYRE_DIR/backups (the server keeps running)
 #   vyre-server restore FILE [--yes]        put a backup back: checks it, backs up the current data, stops, restores, starts, checks health
+#   vyre-server fix-userns                  let the engine sandbox make user namespaces (Ubuntu 24.04 setting); install and update do this themselves
 #   vyre-server version
 #
 # Environment: VYRE_DIR (found from this script when unset).
@@ -309,6 +310,12 @@ check_all() {
       fi
     fi
   fi
+  # the host lets the engine sandbox make user namespaces
+  if [ -e "$(userns_proc)" ]; then
+    if [ "$(cat "$(userns_proc)" 2>/dev/null)" = 1 ]; then finding host.userns degraded "kernel.apparmor_restrict_unprivileged_userns is 1, so the engine sandbox (bubblewrap) fails and agent turns error. Fix: vyre-server fix-userns."
+    else finding host.userns healthy "The host allows the user namespaces the engine sandbox needs."
+    fi
+  fi
   # the server answers
   if command -v curl >/dev/null 2>&1 && curl -fsS --max-time 5 "$(health_url)" >/dev/null 2>&1; then
     finding host.healthz healthy "vyred answers /healthz."
@@ -553,6 +560,63 @@ set_current() {
   mv -Tf "$DIR/current.new" "$DIR/current" 2>/dev/null || { rm -f "$DIR/current"; mv "$DIR/current.new" "$DIR/current"; }
 }
 
+# ---- the command, the host setting, the network ------------------------------------------------------------------------------------
+BIN_FILE=${VYRE_BIN_DIR:-/usr/local/bin}/vyre-server
+MARK="Vyre Server, installed by install.sh"
+
+# hand_off ARGS...: this file is not the current release's (an old copy in /usr/local/bin, or a release that is no longer current): run the current release's instead,
+# with the same arguments. VYRE_HANDOFF=1 marks the second hop, so two files that point at each other cannot loop.
+hand_off() {
+  [ "${VYRE_HANDOFF:-0}" != 1 ] || return 0
+  cur="$DIR/current/bin/vyre-server"
+  [ -f "$cur" ] || return 0
+  me=$(readlink -f "$0" 2>/dev/null || printf '%s' "$0")
+  there=$(readlink -f "$cur" 2>/dev/null || printf '%s' "$cur")
+  [ "$me" != "$there" ] || return 0
+  VYRE_HANDOFF=1 VYRE_DIR="$DIR" exec sh "$cur" "$@"
+}
+
+# refresh_bin: the command in /usr/local/bin is a small wrapper that runs the current release's script. A full copy of an older script (what a server keeps from the day it was
+# installed) is replaced by the wrapper, so every later fix runs. Only a file that is ours is touched: it names the mark or is a vyre-server script.
+refresh_bin() {
+  [ -f "$BIN_FILE" ] || return 0
+  want=$(printf '#!/bin/sh\n# %s\nexec "%s/current/bin/vyre-server" "$@"\n' "$MARK" "$DIR")
+  [ "$(cat "$BIN_FILE" 2>/dev/null)" != "$want" ] || return 0
+  grep -q -e "$MARK" -e '^# vyre-server: run and look after Vyre Server' "$BIN_FILE" 2>/dev/null || return 0
+  printf '%s\n' "$want" >"$BIN_FILE.new" 2>/dev/null || { rm -f "$BIN_FILE.new"; return 0; }
+  chmod 0755 "$BIN_FILE.new" && mv -f "$BIN_FILE.new" "$BIN_FILE" || rm -f "$BIN_FILE.new"
+}
+
+# Ubuntu 24.04 stops unprivileged user namespaces (kernel.apparmor_restrict_unprivileged_userns=1), which bubblewrap, the engine's sandbox, needs.
+userns_proc() { if [ "${VYRE_TEST_MODE:-0}" = 1 ] && [ -n "${VYRE_TEST_USERNS_PROC:-}" ]; then printf '%s' "$VYRE_TEST_USERNS_PROC"; else printf /proc/sys/kernel/apparmor_restrict_unprivileged_userns; fi; }
+# ensure_userns: write /etc/sysctl.d/60-vyre-userns.conf and apply it, only on a kernel that has the setting.
+ensure_userns() {
+  [ -e "$(userns_proc)" ] || return 0
+  sd=${VYRE_SYSCTL_DIR:-/etc/sysctl.d}
+  conf="$sd/60-vyre-userns.conf"
+  mkdir -p "$sd" 2>/dev/null || return 0
+  printf '# %s: the engine sandbox (bubblewrap) needs unprivileged user namespaces.\nkernel.apparmor_restrict_unprivileged_userns = 0\n' "$MARK" >"$conf.new" 2>/dev/null || { rm -f "$conf.new"; return 0; }
+  mv -f "$conf.new" "$conf"
+  if command -v sysctl >/dev/null 2>&1; then sysctl -p "$conf" >/dev/null 2>&1 || say "  Could not apply $conf now; it applies at the next boot."; fi
+  return 0
+}
+
+# settle_caddy: Caddy shares vyred's network namespace (network_mode: service:vyred). When vyred is recreated, a Caddy left on the old one serves nothing, so it is recreated
+# too whenever it is not attached to the vyred that runs now.
+settle_caddy() {
+  vid=$(dc ps -q vyred 2>/dev/null | head -n 1 || true)
+  [ -n "$vid" ] || return 0
+  vfull=$(docker inspect -f '{{.Id}}' "$vid" 2>/dev/null || printf '%s' "$vid")
+  cid=$(dc ps -q caddy 2>/dev/null | head -n 1 || true)
+  if [ -n "$cid" ]; then
+    mode=$(docker inspect -f '{{.HostConfig.NetworkMode}}' "$cid" 2>/dev/null || true)
+    [ "$mode" != "container:$vfull" ] || return 0
+  fi
+  dc up -d --force-recreate --no-deps caddy >/dev/null 2>&1 || return 1
+}
+# up_stack: bring the stack up on the current release, then make sure Caddy is on the new vyred.
+up_stack() { dc up -d --remove-orphans >/dev/null 2>&1 || return 1; settle_caddy || true; }
+
 # sync_image: compose.env names the image of the release `current` points at. Written whole and moved into place, so a cut-off write never leaves half a file.
 sync_image() {
   img=$(sed -n 's/^VYRE_IMAGE=//p' "$DIR/current/images.lock" | head -n 1)
@@ -674,9 +738,11 @@ cmd_update() {
   printf '%s\n' "$prev_link" >"$DIR/previous"
   set_current "$REL_VERSION"
   ln -sfn "$DIR/vyre.env" "$DIR/releases/$REL_VERSION/vyre.env"
+  refresh_bin
+  ensure_userns
   reason=""
   if ! sync_image; then reason="the new version's image could not be set"
-  elif ! dc up -d --remove-orphans >/dev/null 2>&1; then reason="the new version did not start"
+  elif ! up_stack; then reason="the new version did not start"
   elif ! wait_healthy; then reason="the new version did not pass its health check"
   fi
   secs=$(( $(date +%s) - started ))
@@ -696,7 +762,8 @@ cmd_update() {
   set_current "${prev_link#releases/}"
   sync_image || true
   rm -f "$DIR/state/update.pending"
-  dc up -d --remove-orphans >/dev/null 2>&1 || true
+  refresh_bin
+  up_stack || true
   if wait_healthy; then record_update "$from" "$REL_VERSION" rolled_back "$secs" "$reason"; die "the update to $REL_VERSION failed ($reason) and the server is back on $from. Backup: $BACKUP_FILE" 4; fi
   record_update "$from" "$REL_VERSION" failed "$secs" "$reason"
   die "the update to $REL_VERSION failed ($reason) and the server did not come back healthy on $from either. Read: vyre-server logs. Backup: $BACKUP_FILE" 5
@@ -713,7 +780,9 @@ cmd_rollback() {
   printf 'releases/%s\n' "$from" >"$DIR/previous"
   set_current "$prev"
   sync_image || die "the image of $prev could not be set; read $DIR/releases/$prev/images.lock."
-  dc up -d --remove-orphans >/dev/null
+  refresh_bin
+  ensure_userns
+  up_stack || die "the server did not start on $prev. Read: vyre-server logs."
   wait_healthy || die "the server did not become healthy on $prev. Read: vyre-server logs."
   record_update "$from" "$prev" rolled_back 0 "manual rollback"
   say "Running $prev."
@@ -721,8 +790,9 @@ cmd_rollback() {
 
 main() {
   trap cleanup EXIT
-  [ $# -gt 0 ] || { sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
+  [ $# -gt 0 ] || { sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
   cmd=$1; shift
+  hand_off "$cmd" "$@"
   case "$cmd" in
     doctor) cmd_doctor "$@" ;;
     status) cmd_status ;;
@@ -732,11 +802,12 @@ main() {
     logs) cmd_logs "$@" ;;
     claim-link) cmd_claim_link ;;
     update) cmd_update "$@" ;;
+    fix-userns) ensure_userns; say "Done." ;;
     rollback) cmd_rollback ;;
     backup) cmd_backup ;;
     restore) cmd_restore "$@" ;;
     version|--version) say "$(cur_version)" ;;
-    -h|--help|help) sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//' ;;
+    -h|--help|help) sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//' ;;
     *) die "unknown command $cmd (try: vyre-server help)" 2 ;;
   esac
 }
