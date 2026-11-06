@@ -79,7 +79,10 @@ test("an agent that has its own computer still browses in the Space browser; nam
     assert.equal(w.d.named("chrome_state").length, 1, "a named computer is its own browser");
     assert.equal(b.calls.length, 1);
     bindPersonalChrome(p);
-    const dana = asPerson(w.h, { kind: "agent", id: "agt_intake" }, { actingFor: DANA });
+    // my-chrome is refused unless the person asked for their own Chrome in this turn (l-mychrome), so the chat's newest line from Dana asks for it
+    const asked = () => ({ messages: [{ threadSeq: 1, author: { kind: "person", id: DANA }, body: "Check the inbox in my Chrome" }], hasMore: false });
+    const dana = asPerson(w.h, { kind: "agent", id: "agt_intake" }, { actingFor: DANA, respond: { "chat.messages.list": asked } });
+    dana.ctx.thread = "thr_1";
     w.d.rebind();
     await tool["computers.chrome.snapshot"]!(dana.ctx, { computerId: "my-chrome" });
     assert.equal(personal.length, 1, "my-chrome is the person's own Chrome, on request");
