@@ -360,7 +360,9 @@ function YourAction({ task, view, me, run, menu, list, mode, setMode, nameOf }: 
 }
 
 function Btn({ label, onPress, primary = false, testID }: { label: string; onPress(e: unknown): void; primary?: boolean; testID?: string }): ReactElement {
-  return <Pressable accessibilityRole="button" accessibilityLabel={label} testID={testID} onPress={onPress} style={({ hovered }: { hovered?: boolean }) => [st.btn, primary && st.btnPrimary, hovered === true && !primary && { backgroundColor: "var(--hover)" as string }]}><Text style={[st.btnText, primary && { color: "var(--accent-ink)" as string }]}>{label}</Text></Pressable>;
+  // a phone's hit target is 44 px (the design system); the same 640 px phone line the join screens use
+  const phone = useWindowDimensions().width <= 640;
+  return <Pressable accessibilityRole="button" accessibilityLabel={label} testID={testID} onPress={onPress} style={({ hovered }: { hovered?: boolean }) => [st.btn, phone && { height: 44 }, primary && st.btnPrimary, hovered === true && !primary && { backgroundColor: "var(--hover)" as string }]}><Text style={[st.btnText, primary && { color: "var(--accent-ink)" as string }]}>{label}</Text></Pressable>;
 }
 
 function Block({ title, right, children }: { title?: string; right?: string; children: ReactNode }): ReactElement {

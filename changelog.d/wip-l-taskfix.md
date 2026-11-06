@@ -1,2 +1,3 @@
 - Task page: a held send shows its recipient, subject and words; an expired request shows when and no Approve; a refused approval ends as Not approved and leaves Needs you; an approval you hold for your own agent says Waiting for your approval instead of You to You. tasks.get now returns expiresAt.
 - Task page rail: the bare kind label under Working notes is gone; the held message sits on the --sel wash (12 px, no border).
+- Task page buttons are 44 px high on a phone.
