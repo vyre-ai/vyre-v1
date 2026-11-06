@@ -1,0 +1,5 @@
+- Long sessions: a crew in the chat is now one compact block (a face, a name, what it was asked, one word of status and a clock per helper). A row opens to the helper's last three steps and its name opens the helper's pane.
+- Long sessions: quiet messages since you last looked fold into one "While you were away" row ("Assistant and 3 helpers did 41 things, 2 need you") that opens in place. Anything that needs you stays where it is.
+- Long sessions: a slim hour mark at each new hour, and a quiet jump row where a release was tagged, a PR merged, a task finished or something was decided.
+- Long sessions: the right pane opens on a session Overview (goal, helpers, files touched, decisions, open questions, jump links, context use such as "38% of 1M").
+- A helper's pane lists the files it changed, and has a "helper: <name>" terminal tab when the helper works in a workspace of its own.

@@ -45,6 +45,7 @@ const PATHS = {
   task: ["M8 14a6 6 0 100-12 6 6 0 000 12z", "M5.500 8.200l1.800 1.800 3.200-3.600"],
   remember: ["M4.500 2.500h7v11l-3.500-2.600-3.500 2.600z"],
   download: ["M8 2.500v8", "M4.500 7.500L8 11l3.500-3.500", "M3 13.500h10"],
+  flag: ["M3.500 14V2.500", "M3.500 3h8l-1.500 3 1.500 3h-8"],
 } as const;
 export type GlyphName = keyof typeof PATHS;
 

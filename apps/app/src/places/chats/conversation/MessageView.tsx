@@ -2,7 +2,7 @@
 // cards (question, plan, terminal, changeset, file) sit under the text; an error is one inline row (what, why, next). Hover shows Copy and Edit and the rest; right-click opens the same
 // list; the keyboard reaches both. Every row is memoised on its item, so a streaming message re-renders alone.
 import { HelperRow } from "./helper-row.tsx";
-import { CrewStrip } from "../crew/strip.tsx";
+import { CrewBlock } from "../session/CrewBlock.tsx";
 import { memberFromBlock, memberOf } from "../crew/status.ts";
 import { holdsOf, mergeStateOf, withTeammates } from "../crew/model.ts";
 import { FROM_THREAD_LINE } from "../crew/also.tsx";
@@ -561,7 +561,7 @@ function Theirs({ item, actions, stream, openWork, mark, meId, replies }: Messag
           const holds = holdsOf(members);
           return (
             <View key={b.id}>
-              <CrewStrip members={members} totals={totals} parentName={item.who.name} {...(coderMerge ? { merge: coderMerge } : {})} selectedId={c?.selected ?? null} onPeek={(x) => (c ? c.peek(x.id) : actions.openMessage?.(x.id, ""))} {...(c ? { onStopAll: c.stopAll, onOpenPane: c.openPane, onRetry: (x: { id: string }) => c.retry(x.id) } : {})} />
+              <CrewBlock members={members} totals={totals} {...(actions.files ? { call: actions.files.call as unknown as (cap: string, input: unknown) => Promise<unknown> } : {})} {...(coderMerge ? { merge: coderMerge } : {})} selectedId={c?.selected ?? null} onPeek={(x) => (c ? c.peek(x.id) : actions.openMessage?.(x.id, ""))} {...(c ? { onStopAll: c.stopAll, onOpenPane: c.openPane, onRetry: (x: { id: string }) => c.retry(x.id) } : {})} />
               {typeof (b.data as { after?: unknown } | null)?.after === "string" ? (
                 <View testID={`crew-answer-${m.messageId}`} style={[st.body, { marginTop: 10 }]}>
                   <MarkdownBlocks blocks={bodyBlocks(`${m.messageId}#answer`, citeBody(namedIds((b.data as { after: string }).after, actions.nameOf), crewRows.length))} {...(citeLink ? { renderLink: ((href: string, kids: ReactNode, key: number) => citeLink(href, kids, key) ?? null) as never } : {})} />

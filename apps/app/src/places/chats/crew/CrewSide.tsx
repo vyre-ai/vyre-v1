@@ -4,14 +4,16 @@ import type { ReactElement } from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
 import { SidePane } from "../../../../../../ui/src/SidePane/index.tsx";
 import { useCrew } from "./context.tsx";
-import { CrewOverview, CrewPeek } from "./pane.tsx";
+import { CrewOverview } from "./pane.tsx";
+import { HelperPane } from "../session/HelperPane.tsx";
+import type { TerminalData } from "../terminal/data.ts";
 
-export function CrewSide({ fallback, nameOf, openHelper, narrow }: { fallback: ReactElement | null; nameOf: (id: string) => string; openHelper: (threadId: string) => void; narrow: boolean }): ReactElement | null {
+export function CrewSide({ fallback, nameOf, openHelper, narrow, terminal }: { fallback: ReactElement | null; nameOf: (id: string) => string; openHelper: (threadId: string) => void; narrow: boolean; /** Where a helper's terminal tab opens; left out where the shell has no terminal */ terminal?: TerminalData }): ReactElement | null {
   const crew = useCrew();
   if (!crew || !crew.open || !crew.status || crew.status.members.length === 0 || !crew.call) return fallback;
   const sel = crew.selected !== null ? crew.status.members.find((m) => m.id === crew.selected) : undefined;
   const body = sel
-    ? <CrewPeek member={sel} call={crew.call} nameOfId={nameOf} onBack={() => crew.show(null)} onOpenChat={(id) => { if (narrow) crew.close(); openHelper(id); }} onRefresh={crew.refresh} />
+    ? <HelperPane member={sel} call={crew.call} nameOfId={nameOf} {...(terminal ? { terminal } : {})} onBack={() => crew.show(null)} onOpenChat={(id) => { if (narrow) crew.close(); openHelper(id); }} onRefresh={crew.refresh} />
     : <CrewOverview status={crew.status} call={crew.call} threadId={crew.threadId} onPeek={(id) => crew.show(id)} onRefresh={crew.refresh} />;
   // on a phone the Crew pane is a screen of its own, the full width, with its own title bar and a close
   if (narrow) {

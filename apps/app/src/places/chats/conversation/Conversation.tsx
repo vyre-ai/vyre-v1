@@ -5,6 +5,9 @@
 import { useFrameStore } from "./frame.ts";
 import type { FrameControls, FrameStore } from "./frame.ts";
 import { foldHelperRows, groupHelperStrips, hideCrewPosts, mergeCrewAnswer, stripFromCoders } from "./helper-rows.ts";
+import { sessionItems } from "../session/model.ts";
+import { AwayRow, HourMark, JumpRow } from "../session/rows.tsx";
+import { SessionPublisher } from "../session/Publisher.tsx";
 import { useCrew } from "../crew/context.tsx";
 import { crewChipOf } from "../crew/model.ts";
 import { CrewIsland } from "../crew/island.tsx";
@@ -73,7 +76,7 @@ import { useOpenConnect } from "../../../shell/connect/context.ts";
 import {
   WINDOW, beforeCursor, byOrder, collect, faces, ghostMessages, findMatches, isClosed, lastMessages, leadOf, matchLine, mentionsIn, mergePages, modeTitle, modelLabel, pendingMessage, placeholderFor, queueNote, queuedCount, queuedIds, sendKind, stillPending, stopLabel,
   directWith, mentionable, muteOfferFor, onBehalfOf, threadKindNote, timeLabel, timeline, otherPeople, titleOf, whoLine, workingAgents, withoutAnswered } from "./model.ts";
-import type { Face as FaceModel, Message, Pending, SendKind, Thread } from "./model.ts";
+import type { Face as FaceModel, Item, Message, Pending, SendKind, Thread } from "./model.ts";
 import { LoadFailed, failureOf } from "../../../../../../ui/src/States/Loads.tsx";
 import { messageLink } from "../../../share/rows.ts";
 import { useZones } from "../../../../../../ui/src/Time/index.tsx";
@@ -321,6 +324,9 @@ function ConversationView(): ReactElement {
   also.current = alsoOn;
   // the crew of this chat: read again when the chat gets a new message (a helper started or reported)
   const crew = useCrew();
+  // a long session: where the person last read to, and when the chat opened (what folds into "While you were away")
+  const [readTo, setReadTo] = useState<number | null>(null);
+  const openedAt = useRef(Date.now());
   const messageCount = messagesQ.status === "loading" ? 0 : messagesQ.data.messages.length;
   useEffect(() => { crew?.refresh(); }, [messageCount]);  // eslint-disable-line react-hooks/exhaustive-deps
   // the agents.list rows the Ask-an-agent picker labels its agents from, read when it first opens
@@ -403,6 +409,7 @@ function ConversationView(): ReactElement {
   // a channel, or a chat between people, is shared: its times read in the Space zone; a chat with only you and your agents reads in your own
   const sharedChat = thread.kind === "channel" || thread.members.filter((p) => p.kind === "person").length >= 2;
   const items = timeline(woven, { meId: data.me.id, nameOf, kindOf: data.kindOf, clock: { ...data.clock(), ...(sharedChat ? { zones } : {}) }, shared: sharedChat }).filter((it) => !(thread.kind === "thread" && it.kind === "day"));   // a thread has no day dividers: its root row and "N replies" lead
+  const rows = sessionItems(items, all, { meId: data.me.id, clock: { ...data.clock(), ...(sharedChat ? { zones } : {}) }, nameOf, since: readTo, openedAt: openedAt.current, mentionsMe: (m) => mentionsIn(m.body, [{ kind: "person", id: data.me.id, name: data.me.name }]).length > 0 });
   const lastLive = [...timelineMessages].reverse().find((m) => data.streamOf(m.messageId) !== undefined);
   const lastStream = lastLive ? data.streamOf(lastLive.messageId) : undefined;
   const queued = queuedCount(timelineMessages, data.me.id, isWorking);
@@ -701,7 +708,8 @@ function ConversationView(): ReactElement {
           <IconButton icon="x" label="Close find" size={24} testID="find-close" onPress={() => { setFinding(false); setQuery(""); }} />
         </View>
       ) : null}
-      <CatchUpLine onJump={(id) => setFocusId(id)} newest={live[live.length - 1]?.messageId ?? ""} credit={(id) => { const m = all.find((x) => x.author.id === id && onBehalfOf(x)); const ob = m ? onBehalfOf(m) : null; return ob ? `${nameOf(ob.person)} (Agent)` : undefined; }} />
+      <SessionPublisher messages={all} meId={data.me.id} jump={(id) => setFocusId(id)} />
+      <CatchUpLine onSince={setReadTo} onJump={(id) => setFocusId(id)} newest={live[live.length - 1]?.messageId ?? ""} credit={(id) => { const m = all.find((x) => x.author.id === id && onBehalfOf(x)); const ob = m ? onBehalfOf(m) : null; return ob ? `${nameOf(ob.person)} (Agent)` : undefined; }} />
       {note ? <Text testID="conversation-note" style={st.noteLine}>{note}</Text> : null}
       {sharedChat ? <Text testID="zone-note" accessibilityLabel={`Times in this chat use ${zoneName(zones.space)}`} style={{ fontSize: 11.5, color: "var(--ink-3)" as string, textAlign: "center", paddingTop: 6, paddingHorizontal: 12 }}>{`Times here use ${zoneName(zones.space)}, the Space's time zone${zones.viewer !== zones.space && offsetMinAt(Date.now(), zones.viewer) !== offsetMinAt(Date.now(), zones.space) ? `. Hover a time to see yours.` : "."}`}</Text> : null}
       {thread.kind === "thread" ? <ThreadParent threadId={thread.parentThreadId} messageId={thread.parentMessageId} call={data.call as never} nameOf={nameOf} kindOf={data.kindOf} clock={data.clock()} count={thread.replyCount ?? all.length} writing={writingName} onOpen={thread.parentThreadId && thread.parentMessageId ? () => data.nav.openThread(thread.parentThreadId!, thread.parentMessageId!) : undefined} /> : null}
@@ -722,12 +730,17 @@ function ConversationView(): ReactElement {
               </View>
             ) : null}
             {items.length === 0 && !data.head && thread.kind !== "thread" ? <States kind="empty" icon="chat" title="Say something to start" /> : null}
-            {collect(items, (it) => {
-              const key = it.key;
-              const stream = it.kind === "other" ? data.streamOf(it.message.messageId) : undefined;
-              const sending = it.kind === "me" ? pendingState.get(it.message.messageId) : undefined;
-              const under = it.kind === "me" || it.kind === "other" ? replies.get(it.message.messageId) : undefined;
-              return <MessageView key={key} item={it} actions={actions} meId={data.me.id} stream={stream} sending={sending} mark={markOf(it, matches, activeId, finding)} replies={under ? { s: under, clock: data.clock() } : undefined} />;
+            {collect(rows, (it) => {
+              if (it.kind === "hour") return <HourMark key={it.key} id={it.key} label={it.label} />;
+              if (it.kind === "jump") return <JumpRow key={it.key} row={it} />;
+              const draw = (x: Item): ReactElement => {
+                const stream = x.kind === "other" ? data.streamOf(x.message.messageId) : undefined;
+                const sending = x.kind === "me" ? pendingState.get(x.message.messageId) : undefined;
+                const under = x.kind === "me" || x.kind === "other" ? replies.get(x.message.messageId) : undefined;
+                return <MessageView key={x.key} item={x} actions={actions} meId={data.me.id} stream={stream} sending={sending} mark={markOf(x, matches, activeId, finding)} replies={under ? { s: under, clock: data.clock() } : undefined} />;
+              };
+              if (it.kind === "away") return <AwayRow key={it.key} row={it}>{collect(it.items, draw)}</AwayRow>;
+              return draw(it);
             })}
             {data.tail ?? null}
           </View>
