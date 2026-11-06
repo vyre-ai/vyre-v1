@@ -48,15 +48,15 @@ main{position:relative;min-height:100%;display:flex;flex-direction:column;align-
 h1{margin-top:18px;font-size:30px;font-weight:600;letter-spacing:-.015em}
 .sub{margin-top:4px;color:var(--ink3);font-size:14px;letter-spacing:.01em}
 form{margin-top:34px;width:min(560px,100%)}
-.box{display:flex;align-items:center;gap:12px;height:54px;padding:0 20px;border-radius:27px;background:var(--raised);border:1px solid var(--line);box-shadow:var(--shadow);transition:border-color .15s,box-shadow .15s}
+.box{display:flex;align-items:center;gap:12px;height:54px;padding:0 20px;border-radius:12px;background:var(--raised);border:1px solid var(--line);box-shadow:var(--shadow);transition:border-color .15s,box-shadow .15s}
 .box:focus-within{border-color:var(--accent);box-shadow:0 0 0 4px var(--glow),var(--shadow)}
 .box svg{flex:none;color:var(--ink3)}
 input{flex:1;min-width:0;border:0;outline:0;background:transparent;color:var(--ink);font:inherit;font-size:16px}
 input::placeholder{color:var(--ink3)}
 .recent{margin-top:40px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap;max-width:740px}
-.tile{display:flex;flex-direction:column;align-items:center;gap:8px;width:104px;padding:12px 4px;border-radius:16px;color:var(--ink2);text-decoration:none;transition:background .15s}
+.tile{display:flex;flex-direction:column;align-items:center;gap:8px;width:104px;padding:12px 4px;border-radius:12px;color:var(--ink2);text-decoration:none;transition:background .15s}
 .tile:hover{background:color-mix(in srgb,var(--raised) 70%,transparent)}
-.dot{width:44px;height:44px;border-radius:13px;display:grid;place-items:center;background:var(--raised);border:1px solid var(--line);color:var(--ink2);font-weight:600;font-size:18px;box-shadow:var(--shadow)}
+.dot{width:44px;height:44px;border-radius:12px;display:grid;place-items:center;background:var(--raised);border:1px solid var(--line);color:var(--ink2);font-weight:600;font-size:18px;box-shadow:var(--shadow)}
 .host{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12.5px;color:var(--ink3)}
 .none{margin-top:40px;color:var(--ink3);font-size:13.5px}
 </style></head>
