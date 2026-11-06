@@ -1,7 +1,6 @@
 // "Intake suggests 2 changes to AGENT.md" (spec 2.14; vyre-v1.html agent file view): an agent's open suggestion for the file, its diff, Dismiss and Apply to AGENT.md.
 // Reads agents.suggestions.list for the agent and the file; Apply is agents.suggestion.accept and Dismiss is agents.suggestion.dismiss. A suggestion that loosens a rule says so.
-import { CARD_FILL } from "../../../../../../ui/src/Card/index.tsx";
-import { RADIUS } from "../../../../../../ui/src/tokens/radius.ts";
+import { Card, CardActions, CardHead } from "../../../../../../ui/src/Card/index.tsx";
 import { useMemo, useState } from "react";
 import type { ReactElement } from "react";
 import { StyleSheet, Text, View } from "react-native";
@@ -11,7 +10,7 @@ import type { Density } from "../../../../../../ui/src/DiffTab/index.tsx";
 import { acceptSuggestion, dismissSuggestion } from "./actions.ts";
 import { useCap, useReviewData } from "./data.tsx";
 import { applySuggestionStrict, diffNote, draftDiff, suggestionHunks, suggestsLine } from "./model.ts";
-import { Btn, Note } from "./parts.tsx";
+import { Note } from "./parts.tsx";
 
 export interface SuggestionCardProps {
   agentId: string;
@@ -53,37 +52,29 @@ export function SuggestionCard({ agentId, file, density = "regular", text, onApp
 
   const who = data.nameOf(agentId);
   return (
-    <View style={st.card} testID="suggestion-card" role="group" aria-label={suggestsLine(who, hunks.length, file)}>
-      <View style={st.head}>
-        <Avatar name={who} kind="agent" size={24} testID="suggestion-face" />
-        <View style={st.headText}>
-          <Text accessibilityRole="header" aria-level={3} style={st.title}>{suggestsLine(who, hunks.length, file)}</Text>
-          {open.reason ? <Text style={st.reason}>{open.reason}</Text> : null}
-        </View>
-      </View>
+    <View style={st.wrap}>
+    <Card kind="result" testID="suggestion-card" label={suggestsLine(who, hunks.length, file)}>
+      <CardHead title={suggestsLine(who, hunks.length, file)} {...(open.reason ? { meta: open.reason } : {})} lead={<Avatar name={who} kind="agent" size={24} testID="suggestion-face" />} />
       {open.widening ? <Text style={st.warn} testID="suggestion-widening">This loosens a rule. An admin sees it in the overrides.</Text> : null}
       {text !== undefined && after !== null && text === after ? <Text style={st.same} testID="suggestion-nochange">No changes. The file already says this.</Text> : null}
       {!fits ? <Text style={st.warn} testID="suggestion-stale">This suggestion no longer fits the file as it is now. Dismiss it, and Intake can suggest again.</Text> : null}
       {text !== undefined && after !== null && diffNote(text, after) ? <Text style={st.same} testID="suggestion-note-eol">{diffNote(text, after)}</Text> : null}
       {fits ? <DiffTab title={file} layout="unified" wordMarks files={[real ?? { path: file, added: hunks.reduce((n, h) => n + (h.added ? h.added.split("\n").length : 0), 0), removed: hunks.reduce((n, h) => n + (h.removed ? h.removed.split("\n").length : 0), 0), body: "text", hunks }]} comments={[]} selectedPath={file} density={density} bare testID="suggestion-diff" /> : null}
-      <View style={st.foot}>
-        <Text style={st.footText} testID="suggestion-foot" {...{ title: "The old version stays in History." }}>Nothing changes until you apply it.</Text>
-        <Btn label="Dismiss" small disabled={busy} onPress={() => go("dismiss")} testID="suggestion-dismiss" />
-        <Btn label={`Apply to ${file}`} small primary disabled={busy || !fits} onPress={() => go("apply")} testID="suggestion-apply" />
-      </View>
+      <CardActions
+        busy={busy}
+        primary={{ label: `Apply to ${file}`, disabled: !fits, onPress: () => go("apply"), testID: "suggestion-apply" }}
+        secondary={[{ label: "Dismiss", onPress: () => go("dismiss"), testID: "suggestion-dismiss" }]}
+        note={<Text style={st.footText} testID="suggestion-foot" {...{ title: "The old version stays in History." }}>Nothing changes until you apply it.</Text>}
+      />
       {line ? <Note text={line.text} kind={line.kind} testID="suggestion-note" /> : null}
+    </Card>
     </View>
   );
 }
 
 const st = StyleSheet.create({
-  card: { marginHorizontal: 16, marginTop: 12, borderRadius: RADIUS, overflow: "hidden", backgroundColor: CARD_FILL },
-  head: { flexDirection: "row", alignItems: "flex-start", gap: 10, paddingHorizontal: 14, paddingTop: 12, paddingBottom: 8 },
-  headText: { flex: 1, minWidth: 0 },
-  title: { fontSize: 13.5, fontWeight: "600", color: "var(--ink)" as string },
-  reason: { fontSize: 12.5, lineHeight: 18, color: "var(--ink-3)" as string },
-  same: { fontSize: 12.5, color: "var(--ink-3)" as string, paddingHorizontal: 14, paddingBottom: 6 },
-  warn: { fontSize: 12.5, color: "var(--warn)" as string, paddingHorizontal: 14, paddingBottom: 6 },
-  foot: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 8, paddingHorizontal: 14, paddingVertical: 10, borderTopWidth: 1, borderTopColor: "var(--line)" },
+  wrap: { marginHorizontal: 16 },
+  same: { fontSize: 12.5, color: "var(--ink-3)" as string },
+  warn: { fontSize: 12.5, color: "var(--warn)" as string },
   footText: { flexGrow: 1, flexShrink: 1, flexBasis: 200, fontSize: 12, color: "var(--ink-3)" as string },
 });
