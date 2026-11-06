@@ -23,10 +23,10 @@ const msg = (id: string, thread: string, seq: number, who: { kind: "person" | "a
   id, messageId: id, threadId: thread, threadSeq: seq, author: who, kind: who.kind === "agent" ? "agent" : "text", body, blocks, depth: 0, attachments: [], reactions: [], pinned: false, createdAt,
 });
 
-function build(part: string) {
+function build(part: string, name?: string | null, dex = false) {
   const s = createSample("channel");
   const main = s.replica.rows("threads")[0] as object;
-  s.replica.put("threads", [{ id: "c1", ...main, title: "Vendor onboarding", agentRepliesInThreads: true }]);
+  s.replica.put("threads", [{ id: "c1", ...main, title: name ?? "Vendor onboarding", agentRepliesInThreads: true }]);
   s.replica.put("messages", [msg("c2", "c1", 2, me, "Find a time for the vendor call next week, and compare the two quotes.", at(9, 21))]);
   const count = part === "empty" ? 0 : part === "long" ? 60 : part === "main" ? 1 : 3;
   s.replica.put("threads", [{
@@ -45,6 +45,7 @@ function build(part: string) {
     ]);
   }
   // the thread's root row reads the message it hangs off
+  if (dex) { const was = s.data.nameOf; s.data.nameOf = (id: string) => (id === "agt_intake" ? "Dex" : was(id)); }   // l-ui221: ?name=amicuspro&dex=1
   const call = s.data.call;
   s.data.call = async (cap: string, input: unknown) => (cap === "chat.message.get" ? { message: { author: { id: "usr_irfad" }, body: "Find a time for the vendor call next week, and compare the two quotes.", createdAt: at(9, 21) } } : call(cap, input));
   return s.data;
@@ -55,7 +56,8 @@ export default function Mount(): ReactNode {
   useEffect(() => setSearch((globalThis as { location?: { search?: string } }).location?.search ?? ""), []);
   const part = new URLSearchParams(search ?? "").get("part") ?? "main";
   const parts = useMemo(() => {
-    const data = build(part);
+    const q = new URLSearchParams(search ?? "");
+    const data = build(part, q.get("name"), q.get("dex") === "1");
     const writing = part === "main";
     const live: LiveTurns = {
       turnsOf: (id) => (writing && id === "t_c2" ? turns : none), subscribe: () => () => undefined, settle: () => undefined, seed: () => undefined, onGap: () => () => undefined,

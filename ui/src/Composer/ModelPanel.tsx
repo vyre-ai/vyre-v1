@@ -1,7 +1,7 @@
 // The model menu (prototype vyre-chat): the one place to pick how a chat runs, opened from the composer. The mode tab (Auto, Ask first, Plan), then Provider and Model (each a submenu that opens to the right of
 // its row), Effort, Runs on, More, the limits as quiet meters, and Compact with what to keep. It stays open while you pick (only an outside click or Escape closes it) and everything follows the provider: its
 // models, its effort levels, the words on its limits. Only accounts you connected are listed, by the name you gave them. A meter the engine has no number for is left out, never guessed.
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { MODES, effortForKey, effortsFor, kTokens, limitWords, modeInfo } from "./brain.ts";
@@ -300,6 +300,10 @@ export function ModelPanel(p: ModelPanelProps): ReactElement {
     return null;
   };
   const body = subBody();
+  // The side list floats outside the menu's box. When the menu goes (a click outside, Escape, a pick, the strip pressed again) the list goes with it in the same frame: it is hidden as the tree is torn down, so no
+  // compositor layer of it is left painted at the menu's edge until something repaints (owner shot, desktop rc.22: a half-drawn ghost of the Model list).
+  const subNode = useRef<{ style?: { display: string; visibility: string } } | null>(null);
+  useLayoutEffect(() => () => { const n = subNode.current; if (n?.style) { n.style.visibility = "hidden"; n.style.display = "none"; } }, []);
 
   return (
     <View
@@ -359,7 +363,8 @@ export function ModelPanel(p: ModelPanelProps): ReactElement {
           <Nav label="Compact" value="Free up context" on={sub === "compact"} onPress={() => toggle("compact")} testID="model-compact" />
         </>
       ) : null}
-      {body ? <View testID="model-sub" style={p.narrow ? st.subInline : [st.sub, flip ? st.subLeft : st.subRight, p.below ? st.subTop : null]} {...webOnly({ dataSet: { cmpPop: "1" } })}>{body}</View> : null}
+      {/* no arrival animation of its own: the menu's rise already carries it, and a second animated layer outside the menu's box is the one that stayed painted */}
+      {body ? <View ref={subNode as never} testID="model-sub" style={p.narrow ? st.subInline : [st.sub, flip ? st.subLeft : st.subRight, p.below ? st.subTop : null]}>{body}</View> : null}
     </View>
   );
 }

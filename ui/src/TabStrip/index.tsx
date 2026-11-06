@@ -213,8 +213,10 @@ export function TabStrip(props: TabStripViewProps): ReactElement {
     const span = spans.current[active];
     const box = scroller.current;
     if (span === undefined || box === null || typeof box.scrollTo !== "function") return;
+    // everything fits: the strip rests at its start, so the first tab is never left cut at the left edge
+    if (content.current > 0 && view.current.w > 0 && content.current <= view.current.w + 2) { if (view.current.x > 0) box.scrollTo({ x: 0, animated: false }); return; }
     const x = span.x + 8;   // spans are inside the tab row, which sits after the strip's padding
-    if (x < view.current.x + 24) box.scrollTo({ x: Math.max(0, x - 24), animated: false });
+    if (x < view.current.x + 24) box.scrollTo({ x: x - 24 < 40 ? 0 : x - 24, animated: false });
     else if (x + span.w > view.current.x + view.current.w - 24 && view.current.w > 0) box.scrollTo({ x: x + span.w - view.current.w + 24, animated: false });
   }, [active]);
   useEffect(() => { reveal(); }, [reveal, tabs.length, room]);

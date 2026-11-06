@@ -447,3 +447,13 @@ test("Continue on a reply stopped for an update runs that turn again, once, with
   assert.equal(s.calls.some((c) => c.cap === "chat.post"), false, "the message is not posted again");
   assert.deepEqual(said, []);
 });
+
+test("the header keeps its name: faces go before it is cut, the lead agent's face last", async () => {
+  const { headerTier } = await import("./Conversation.tsx");
+  assert.equal(headerTier(0), "full", "unmeasured");
+  assert.equal(headerTier(900), "full");
+  assert.equal(headerTier(720), "full");
+  assert.equal(headerTier(719), "lead");
+  assert.equal(headerTier(420), "lead");
+  assert.equal(headerTier(419), "bare");
+});
