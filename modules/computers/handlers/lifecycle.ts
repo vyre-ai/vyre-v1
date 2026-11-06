@@ -8,6 +8,7 @@ import {
 } from "../projections.ts";
 import type { CompCtx, ComputerHost, ComputerRow, Probe, SessionInfo } from "../projections.ts";
 import { finishRecording } from "./record.ts";
+import { migrateComputers } from "../migrate.ts";
 import { bindStarter, checkRoom, claimRoom, drainWaiting, isWaiting, LIMITS, releaseRoom, waitingNote } from "../capacity.ts";
 
 type Row = Record<string, unknown>;
@@ -374,6 +375,8 @@ export async function sleepIdle(ctx: CompCtx): Promise<number> {
   }
   // room also opens without a sleep (a person raised the limit, a site build ended): the job looks at the waiting line each pass
   await startWaiting(ctx);
+  // the one-time move of a computer that is asleep to a workspace and a browser profile; a computer that just slept above is picked up in this same pass
+  try { await migrateComputers(ctx); } catch { ctx.log.warn("computers: the move to workspaces could not be checked"); }
   return slept;
 }
 

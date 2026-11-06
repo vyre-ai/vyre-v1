@@ -61,6 +61,9 @@ export function computerSeccomp(): string {
 export const AGENTD_CTL = "/opt/agentd/ctl";
 /** Where the agent's Files folder is bound inside the computer (one copy, no sync). */
 export const FILES_GUEST = "/home/agent/Vyre";
+/** Where agentd keeps Chrome's user-data (images/agent-computer/agentd/main.ts: PROFILE/chrome), inside the guest home the archive call is limited to. */
+export const CHROME_DATA = "/home/agent/.profile-disk/chrome";
+const MAX_CHROME_DATA = 1024 * 1024 * 1024;
 
 export interface DockerHostOptions {
   api: DockerApi;
@@ -339,6 +342,18 @@ export function createDockerComputerHost(o: DockerHostOptions): ComputerHost & T
       await makeNetwork(a.computerId);
       try { await o.api.containerCreate(name, config); } catch (e) { await dropNetwork(a.computerId).catch(() => undefined); throw e; }
       return {};
+    },
+    async chromeData(computerId) {
+      const name = nameOf(computerId);
+      if (!o.http) throw new Error("this host cannot read a computer's files");
+      if (o.profile) await o.profile.unseal(computerId);
+      try {
+        const r = await o.http({ method: "GET", path: `/containers/${name}/archive`, query: { path: CHROME_DATA }, timeoutMs: 10 * 60_000 });
+        if (r.status === 404) return null;
+        if (r.status !== 200) throw new Error(`the Chrome profile could not be read (${r.status})`);
+        if (r.body.length > MAX_CHROME_DATA) throw new Error("the Chrome profile is over 1 GB");
+        return { tar: r.body };
+      } finally { if (o.profile) await o.profile.seal(computerId).catch(() => undefined); }
     },
     async start(a) {
       const name = nameOf(a.computerId);

@@ -235,3 +235,32 @@ test("the whole lifecycle through the handlers on the Docker host: provision, wa
   assert.equal(f.running.has(name), false);
   assert.deepEqual(ctlCalls(f.execs).map((c) => c.split(" ")[0]), ["configure", "status", "takeover", "record_start", "record_stop", "give_back", "status", "status", "sessions"]);
 });
+
+test("chromeData reads Chrome's folder out of the computer's guest home, unseals and seals the profile around it, and says nothing when there is none", async () => {
+  const f = fakeApi();
+  const reqs: Array<{ method: string; path: string; path_q: string }> = [];
+  const steps: string[] = [];
+  let status = 200;
+  const http: DockerHttp = async (r) => { reqs.push({ method: r.method, path: r.path, path_q: String(r.query?.["path"] ?? "") }); return { status, body: status === 200 ? new Uint8Array([9, 9, 9]) : new Uint8Array() }; };
+  const host = createDockerComputerHost({ api: f.api, http, profile: { async unseal() { steps.push("unseal"); }, async seal() { steps.push("seal"); } } });
+  const got = await host.chromeData!("cmt_abc123");
+  assert.deepEqual(Array.from(got!.tar), [9, 9, 9]);
+  assert.equal(reqs[0]?.method, "GET");
+  assert.match(reqs[0]?.path ?? "", /^\/containers\/vyre-comp-[a-z0-9]+\/archive$/);
+  assert.equal(reqs[0]?.path_q, "/home/agent/.profile-disk/chrome");
+  assert.deepEqual(steps, ["unseal", "seal"]);
+  status = 404;
+  assert.equal(await host.chromeData!("cmt_abc123"), null);
+  status = 500;
+  steps.length = 0;
+  await assert.rejects(() => host.chromeData!("cmt_abc123"), /could not be read \(500\)/);
+  assert.deepEqual(steps, ["unseal", "seal"], "the profile is sealed again even when the read failed");
+});
+
+test("a new desktop container keeps today's limits: 2 CPUs, 4 GB, no swap, 1024 processes", () => {
+  const c = computerContainerConfig("vyre-comp-abc", "cmt_abc", INTAKE, { api: fakeApi().api }, 8);
+  assert.equal(c.HostConfig.NanoCpus, 2e9);
+  assert.equal(c.HostConfig.Memory, 4096 * 1024 * 1024);
+  assert.equal(c.HostConfig.MemorySwap, c.HostConfig.Memory);
+  assert.equal(c.HostConfig.PidsLimit, 1024);
+});
