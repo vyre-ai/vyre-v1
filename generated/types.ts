@@ -17784,6 +17784,7 @@ export type GoogleCalendarListEventsIn = {
   timeMax?: string;
   q?: string;
   syncToken?: string;
+  updatedMin?: string;
   pageToken?: string;
 };
 export type GoogleCalendarListEventsOut = {
