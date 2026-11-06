@@ -51,6 +51,12 @@ export interface WorkspaceHome {
   /** The computers module's reader of the tar the archive call returns: plain files and folders only, anything else refused by name. */
   readTar(tar: Uint8Array): HomeSnapshot;
   manifest(agentId: string): string;
+  /**
+   * One mirror of a project's shared folder onto `fs` (the project's volume, seen from a running workspace that mounts it), with every Files call made as `agentId`, so the file's history says which agent
+   * made a change. Null when the project has no folder in Files: then the volume is shared between its agents and nothing else.
+   */
+  syncProject?(o: { projectId: string; agentId: string; fs: HomeDisk; manifest: string }): { pass(): Promise<{ failed: number }> } | null;
+  projectManifest?(projectId: string): string;
   /** How often a pass runs while the workspace is awake. Default 3 s. */
   intervalMs?: number;
 }
@@ -61,6 +67,8 @@ export interface WorkspaceOptions {
   http: DockerHttp;
   image?: string;
   limits?: Partial<{ cpus: number; memoryMb: number; pids: number; reserveMb: number }>;
+  /** How long after a command the project folders it may have changed are mirrored (a file must sit unchanged for a second first). Default 1200 ms. */
+  projectKickMs?: number;
   /** A workspace with nothing using it for this long sleeps. Default 10 minutes. */
   idleMs?: number;
   /** The agent's folder in Files mirrored onto ~/Vyre (the computers module's home sync, handed over by the daemon). Omitted: ~/Vyre is an ordinary folder that Files does not see. */
@@ -225,6 +233,10 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
   const chain = new Map<string, Promise<unknown>>();
   let timer: ReturnType<typeof setInterval> | null = null;
   const homes = new Map<string, { sync: { pass(): Promise<{ failed: number }> }; timer: ReturnType<typeof setInterval> | null }>();
+  // the projects each awake workspace mounts, who last worked in each project, and its mirror
+  const agentProjects = new Map<string, string[]>();
+  const projectActor = new Map<string, string>();
+  const projects = new Map<string, { sync: { pass(): Promise<{ failed: number }> } | null; timer: ReturnType<typeof setInterval> | null; kick: ReturnType<typeof setTimeout> | null; holder: string | null }>();
   let imageKnown = false;
   let discovered = false;
 
@@ -340,6 +352,17 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
     try { return (await h.sync.pass()).failed === 0; }
     catch (e) { log("warn", "workspace.home_pass_failed", { agent: agentId, error: e instanceof Error ? e.message.slice(0, 200) : "unknown" }); return false; }
   }
+  /** Before a workspace stops: the project folders it mounts, mirrored once more, when it is the last running workspace on them (while another runs, that one keeps mirroring). */
+  async function finalProjectPasses(agentId: string): Promise<boolean> {
+    let ok = true;
+    for (const projectId of agentProjects.get(agentId) ?? []) {
+      let other = false;
+      for (const [a, ps] of agentProjects) if (a !== agentId && ps.includes(projectId) && (await api.containerRunning(workspaceName(a)).catch(() => false))) other = true;
+      if (!other && !(await projectPass(projectId))) ok = false;
+    }
+    stopProjects(agentId);
+    return ok;
+  }
   function startHome(agentId: string): void {
     const h = homeOf(agentId);
     if (!h || h.timer) return;
@@ -347,6 +370,94 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
     h.timer.unref?.();
   }
   function stopHome(agentId: string): void { const h = homes.get(agentId); if (h?.timer) { clearInterval(h.timer); h.timer = null; } }
+
+  // ---- the project folders: a volume the agents on a project share, mirrored with the project's folder in Files, with history that says which agent changed what ----
+  // The disk is read through any running workspace that mounts it. A pass runs as the agent that last worked in the project (every command an agent runs makes it the one, and a pass follows a second
+  // later), so a change on the disk is put in the file's history as that agent's, and Files' own versions give "who changed what" and undo.
+  const PROJECT_GUEST = (p: string): string => `${PROJECTS_GUEST}/${p}`;
+  const runningMounter = async (projectId: string): Promise<string | null> => {
+    for (const [agent, ps] of agentProjects) if (ps.includes(projectId) && (await api.containerRunning(workspaceName(agent)).catch(() => false))) return agent;
+    return null;
+  };
+  function projectDisk(projectId: string, via: string): HomeDisk {
+    const name = workspaceName(via);
+    const home = o.home as WorkspaceHome;
+    const dir = PROJECT_GUEST(projectId);
+    return {
+      async snapshot() {
+        const r = await http({ method: "GET", path: `/containers/${name}/archive`, query: { path: `${dir}/.` }, timeoutMs: 120_000 });
+        if (r.status === 404) return { files: new Map(), dirs: new Set(), refused: [], complete: true };
+        if (r.status !== 200) throw new Error(`the project folder could not be read (${r.status})`);
+        if (r.body.length > 256 * 1024 * 1024) return { files: new Map(), dirs: new Set(), refused: [], complete: false };
+        return home.readTar(r.body);
+      },
+      async put(files) {
+        if (files.length === 0) return;
+        const at = Math.floor(now() / 1000);
+        const tar = tarFiles(files.map((f) => ({ path: f.rel, data: f.bytes, mode: 0o644, uid: WORKSPACE_UID, gid: WORKSPACE_UID, mtime: at })));
+        const r = await http({ method: "PUT", path: `/containers/${name}/archive`, query: { path: dir }, body: tar, contentType: "application/x-tar", timeoutMs: 120_000 });
+        if (r.status !== 200) throw new Error(`the project folder could not be written (${r.status})`);
+      },
+      async remove(files, dirs) {
+        if (files.length === 0 && dirs.length === 0) return;
+        const script = 'mode=f; for p in "$@"; do if [ "$p" = "::" ]; then mode=d; continue; fi; if [ "$mode" = f ]; then rm -f -- "$p"; else rmdir -- "$p" 2>/dev/null; fi; done; true';
+        const r = await execIn(via, ["sh", "-c", script, "sh", ...files.map((f) => `${dir}/${f}`), "::", ...dirs.map((d) => `${dir}/${d}`)], undefined);
+        if (r.code !== 0) throw new Error(`the project folder could not be tidied (${r.stderr.slice(0, 100)})`);
+      },
+    };
+  }
+  /** One round of a project's mirror, as the agent that last worked in it, through a workspace that is running and mounts it. True when nothing was left undone, or there is nothing to do. */
+  async function projectPass(projectId: string): Promise<boolean> {
+    if (!o.home?.syncProject) return true;
+    const via = await runningMounter(projectId);
+    if (via === null) return true;
+    const as = projectActor.get(projectId) ?? via;
+    const p = projects.get(projectId) ?? { sync: null, timer: null, kick: null, holder: null };
+    projects.set(projectId, p);
+    try {
+      // the mirror is made for the agent whose calls it makes and the workspace whose disk it reads; either changing makes a new one (the manifest, which is the project's, is shared)
+      if (p.holder !== `${as}|${via}`) { p.sync = o.home.syncProject({ projectId, agentId: as, fs: projectDisk(projectId, via), manifest: (o.home.projectManifest ?? ((id) => `${o.home!.manifest(`project_${id}`)}`))(projectId) }); p.holder = `${as}|${via}`; }
+      if (p.sync === null) return true;
+      return (await p.sync.pass()).failed === 0;
+    } catch (e) { log("warn", "workspace.project_pass_failed", { project: projectId, error: e instanceof Error ? e.message.slice(0, 200) : "unknown" }); return false; }
+  }
+  function startProjects(agentId: string, ps: readonly string[]): void {
+    if (!o.home?.syncProject) return;
+    agentProjects.set(agentId, [...ps]);
+    for (const projectId of ps) {
+      const p = projects.get(projectId) ?? { sync: null, timer: null, kick: null, holder: null };
+      projects.set(projectId, p);
+      if (p.timer) continue;
+      p.timer = setInterval(() => {
+        void runningMounter(projectId).then(async (via) => {
+          if (via === null) { if (p.timer) { clearInterval(p.timer); p.timer = null; } return; }
+          await projectPass(projectId);
+        }).catch(() => undefined);
+      }, o.home.intervalMs ?? 3000);
+      p.timer.unref?.();
+    }
+  }
+  /** A command ran in this agent's workspace: the project folders it mounts are the ones it may have changed, and it is the agent they are attributed to. A pass follows, after the second a file must sit unchanged. */
+  function kickProjects(agentId: string): void {
+    if (!o.home?.syncProject) return;
+    for (const projectId of agentProjects.get(agentId) ?? []) {
+      projectActor.set(projectId, agentId);
+      const p = projects.get(projectId);
+      if (!p || p.kick) continue;
+      p.kick = setTimeout(() => { p.kick = null; void projectPass(projectId); }, o.projectKickMs ?? 1200);
+      p.kick.unref?.();
+    }
+  }
+  function stopProjects(agentId: string): void {
+    const ps = agentProjects.get(agentId) ?? [];
+    agentProjects.delete(agentId);
+    for (const projectId of ps) {
+      const p = projects.get(projectId);
+      if (!p) continue;
+      // the timer stays while another running workspace mounts the project; it ends itself at its next look otherwise
+      if (p.kick) { clearTimeout(p.kick); p.kick = null; }
+    }
+  }
 
   async function removeContainer(name: string): Promise<void> {
     await api.containerStop(name, 10);
@@ -379,7 +490,12 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
     let info = await inspect(name);
     // the projects it is on changed (or the Files folder moved): the container is made again with the new mounts; the volumes, and so everything the agent kept, stay
     if (info && info.labels["vyre.mounts"] !== config.Labels["vyre.mounts"]) { stopHome(agentId); if (info.running) await homePass(agentId); await removeContainer(name); info = null; gens.set(agentId, (gens.get(agentId) ?? 0) + 1); }
-    if (info?.running) { lastUsed.set(agentId, now()); return "running"; }
+    if (info?.running) {
+      lastUsed.set(agentId, now());
+      // running before this process started: its projects' mirrors start now
+      if (!agentProjects.has(agentId)) startProjects(agentId, want.projects);
+      return "running";
+    }
     await o.admit?.({ agentId, state: info ? "wake" : "create" });
     // room first: a host that is full queues it with a plain line and nothing is made or started
     if (o.capacity) {
@@ -395,6 +511,8 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
     // Files down into ~/Vyre before the first command, then every few seconds while it is awake
     await homePass(agentId);
     startHome(agentId);
+    startProjects(agentId, want.projects);
+    for (const p of want.projects) await projectPass(p);
     startTimer();
     log("info", info ? "workspace.woke" : "workspace.created", { agent: agentId });
     return info ? "woke" : "created";
@@ -415,6 +533,7 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
     if (x?.quiet === true) return (await api.containerRunning(workspaceName(agentId))) ? execIn(agentId, argv, x.env) : { code: 1, stdout: "", stderr: "the workspace is asleep" };
     await ensure(agentId);
     lastUsed.set(agentId, now());
+    kickProjects(agentId);
     try { return await execIn(agentId, argv, x?.env); }
     catch (e) {
       // the container stopped between the wake and the exec (a sweep, or someone stopped it): wake it once more
@@ -429,7 +548,7 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
       if (!(await api.containerRunning(workspaceName(agentId)))) return false;
       // what the agent made goes to Files before the container stops
       stopHome(agentId);
-      const synced = await homePass(agentId);
+      const synced = (await homePass(agentId)) && (await finalProjectPasses(agentId));
       if (!synced) log("warn", "workspace.slept_unsynced", { agent: agentId });
       await api.containerStop(workspaceName(agentId), 10);
       lastUsed.delete(agentId);
@@ -515,7 +634,11 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
         return r.status === 200 ? { ok: true } : { ok: false, detail: `Docker answered an error (${r.status}).` };
       } catch (e) { return { ok: false, detail: e instanceof Error ? e.message.slice(0, 160) : "The container runtime did not answer." }; }
     },
-    close() { if (timer) { clearInterval(timer); timer = null; } for (const id of [...homes.keys()]) stopHome(id); },
+    close() {
+      if (timer) { clearInterval(timer); timer = null; }
+      for (const id of [...homes.keys()]) stopHome(id);
+      for (const p of projects.values()) { if (p.timer) clearInterval(p.timer); if (p.kick) clearTimeout(p.kick); p.timer = null; p.kick = null; }
+    },
   };
 }
 

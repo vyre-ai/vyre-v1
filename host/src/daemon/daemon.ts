@@ -1868,7 +1868,13 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
                 if (!comp?.createHomeSync || !comp.readTar) return {};
                 const callAs = createAgentHomeCaller({ db: db!, spaceId, invoke });
                 const deps = { callAs, putBytes: (url: string, bytes: Uint8Array) => putToSlot(url, bytes), now: Date.now, log: (level: "info" | "warn", msg: string, attrs?: Record<string, unknown>) => sink.log({ space: spaceId, level: level === "warn" ? 40 : 30, msg, place: "workspaces", ...(attrs ? { attrs } : {}) }) };
-                return { home: { sync: (x: unknown) => comp.createHomeSync!(x, deps), readTar: comp.readTar, manifest: (a: string) => path.join(paths.root, "workspaces", a, "home-manifest.json"), ...(o.computersHomeIntervalMs !== undefined ? { intervalMs: o.computersHomeIntervalMs } : {}) } };
+                // a project's shared folder is mirrored with the project's folder in Files; every call is made as the agent that last worked in it, so the file's history says who changed what
+                const syncProject = (x: { projectId: string; agentId: string; fs: unknown; manifest: string }): { pass(): Promise<{ failed: number }> } | null => {
+                  const folder = (db!.all("SELECT folderId FROM projects_project WHERE projectId = ?", x.projectId)[0] as { folderId?: string | null } | undefined)?.folderId;
+                  if (!folder) return null;
+                  return comp.createHomeSync!({ agentId: x.agentId, computerId: `prj_${x.projectId}`, fs: x.fs, manifest: x.manifest, rootFolder: folder, plain: true, reason: "edited in a workspace" }, deps);
+                };
+                return { home: { sync: (x: unknown) => comp.createHomeSync!(x, deps), readTar: comp.readTar, syncProject, projectManifest: (id: string) => path.join(paths.root, "workspaces", "projects", id, "home-manifest.json"), manifest: (a: string) => path.join(paths.root, "workspaces", a, "home-manifest.json"), ...(o.computersHomeIntervalMs !== undefined ? { intervalMs: o.computersHomeIntervalMs } : {}) } };
               })(),
               log: (level: "info" | "warn", msg: string, attrs?: Record<string, unknown>) => sink.log({ space: spaceId, level: level === "warn" ? 40 : 30, msg, place: "workspaces", ...(attrs ? { attrs } : {}) }),
             },

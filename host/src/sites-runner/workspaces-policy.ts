@@ -146,12 +146,14 @@ export function workspaceVolumeBody(body: unknown): { body: Record<string, unkno
   return { body: { Name: name, Labels: { "vyre.workspace.project": name.replace(/^vyre-wsproj-/, "") } } };
 }
 
-/** Archive on a workspace: its Files folder only (~/Vyre), to read the mirror or to write into it. Nothing else of the home, and never a path that climbs. */
+/** Archive on a workspace: its Files folder (~/Vyre) and its projects' folders (~/projects/<project>), to read the mirror or to write into it. Nothing else of the home, and never a path that climbs. */
 export function wsArchiveOk(method: string, query: URLSearchParams): boolean {
   const p = query.get("path") ?? "";
   if (method !== "GET" && method !== "PUT" && method !== "HEAD") return false;
   if (p.includes("..")) return false;
-  return p === `${WS_HOME}/Vyre` || p === `${WS_HOME}/Vyre/.` || p.startsWith(`${WS_HOME}/Vyre/`);
+  if (p === `${WS_HOME}/Vyre` || p === `${WS_HOME}/Vyre/.` || p.startsWith(`${WS_HOME}/Vyre/`)) return true;
+  // a project's shared folder, to mirror it with the project's folder in Files
+  return /^\/home\/agent\/projects\/[A-Za-z0-9_-]{1,64}(\/\.|\/.*)?$/.test(p);
 }
 
 /** What a workspace container may be asked: start, stop, inspect, remove, logs and exec, and archive inside its Files folder. Not wait. The helper is the one container that is waited for. */

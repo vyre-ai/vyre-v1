@@ -42,6 +42,9 @@ export interface WorkspacesConfig {
     sync(o: { agentId: string; computerId: string; fs: never; manifest: string }): { pass(): Promise<{ failed: number }> };
     readTar(tar: Uint8Array): never;
     manifest(agentId: string): string;
+    /** The mirror of a project's shared folder with its folder in Files, every call as the named agent; null when the project has no folder. */
+    syncProject?(o: { projectId: string; agentId: string; fs: never; manifest: string }): { pass(): Promise<{ failed: number }> } | null;
+    projectManifest?(projectId: string): string;
     intervalMs?: number;
   };
   /** Room on the host: asked before a workspace starts, told when one stops (the computers module's capacity, over host calls). Omitted: no limit but Docker's. */

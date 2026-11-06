@@ -469,3 +469,102 @@ test("the container carries the host's limits: 1 CPU, a 1 GB hard cap with 64 MB
   const MB = 1024 * 1024;
   assert.deepEqual([c.HostConfig.NanoCpus, c.HostConfig.Memory, c.HostConfig.MemorySwap, c.HostConfig.PidsLimit, c.HostConfig.MemoryReservation, c.HostConfig.CpuShares], [1e9, 1024 * MB, 1024 * MB, 512, 64 * MB, 256]);
 });
+
+// ---- the project folders, mirrored with Files and attributed to the agent that worked in them ---------------------------------------------------------------
+
+function projectHome(o: { folderless?: boolean; fail?: boolean } = {}) {
+  const made: Array<{ projectId: string; agentId: string; manifest: string }> = [];
+  const passes: Array<{ projectId: string; agentId: string; running: string[]; stops: number }> = [];
+  const disks = new Map<string, import("../workspace.ts").HomeDisk>();
+  let rg: ReturnType<typeof rigWith> | undefined;
+  const home: NonNullable<WorkspaceOptions["home"]> = {
+    sync: () => ({ async pass() { return { failed: 0 }; } }),
+    readTar: () => ({ files: new Map([["plan.md", { bytes: Buffer.from("x"), mtimeMs: 1 }]]), dirs: new Set(), refused: [], complete: true }),
+    manifest: (id) => `/m/${id}.json`,
+    projectManifest: (id) => `/m/projects/${id}.json`,
+    syncProject: (x) => {
+      if (o.folderless) return null;
+      made.push({ projectId: x.projectId, agentId: x.agentId, manifest: x.manifest });
+      disks.set(`${x.projectId}|${x.agentId}`, x.fs);
+      return { async pass() { if (o.fail) throw new Error("Files did not answer"); passes.push({ projectId: x.projectId, agentId: x.agentId, running: [...(rg?.dk.boxes.values() ?? [])].filter((b) => b.running && b.name.startsWith("vyre-ws-")).map((b) => b.name), stops: rg?.dk.ops("stop").length ?? 0 }); return { failed: 0 }; } };
+    },
+    intervalMs: 5000,
+  };
+  return { home, made, passes, disks, bind: (r: ReturnType<typeof rigWith>) => { rg = r; } };
+}
+const B_AGENT = "agt_pam";
+
+test("a project's folder is mirrored with Files when a workspace on it wakes, and a command makes the agent that ran it the one the next mirror is made as", async () => {
+  const ph = projectHome();
+  const r = rigWith({ home: ph.home, projectsOf: () => ["prj_site"], projectKickMs: 5 });
+  ph.bind(r);
+  await r.mgr.ensure(AGENT);
+  assert.deepEqual(ph.passes.map((p) => [p.projectId, p.agentId]), [["prj_site", AGENT]], "a pass at wake, as the agent whose workspace woke");
+  assert.deepEqual(ph.made[0], { projectId: "prj_site", agentId: AGENT, manifest: "/m/projects/prj_site.json" });
+  // a second agent on the same project
+  await r.mgr.ensure(B_AGENT);
+  const n = ph.passes.length;
+  await r.mgr.exec(B_AGENT, ["tmux", "-V"]);
+  await later(40);
+  const after = ph.passes.slice(n);
+  assert.ok(after.length >= 1 && after.every((p) => p.agentId === B_AGENT), `the pass after B's command is B's: ${JSON.stringify(after.map((p) => p.agentId))}`);
+  const m = ph.passes.length;
+  await r.mgr.exec(AGENT, ["tmux", "-V"]);
+  await later(40);
+  assert.ok(ph.passes.slice(m).every((p) => p.agentId === AGENT) && ph.passes.length > m, "and then A's");
+  assert.deepEqual([...new Set(ph.made.map((x) => x.manifest))], ["/m/projects/prj_site.json"], "one manifest for the project, whoever ran the pass");
+  r.mgr.close();
+});
+
+test("the last workspace on a project mirrors it once more before it stops; one that is not the last leaves it to the one still running", async () => {
+  const ph = projectHome();
+  const r = rigWith({ home: ph.home, projectsOf: () => ["prj_site"], projectKickMs: 5 });
+  ph.bind(r);
+  await r.mgr.ensure(AGENT);
+  await r.mgr.ensure(B_AGENT);
+  const n = ph.passes.length;
+  assert.equal(await r.mgr.sleep(AGENT), true);
+  assert.equal(ph.passes.length, n, "B is still running on the project: A stopping adds no project pass");
+  assert.equal(await r.mgr.sleep(B_AGENT), true);
+  const last = ph.passes.at(-1)!;
+  assert.deepEqual([last.projectId, last.running.includes(workspaceName(B_AGENT)), last.stops], ["prj_site", true, 1], "B was the last: a pass ran while it was up, before its stop");
+  r.mgr.close();
+});
+
+test("the disk side of a project mirror is the archive of the project's folder through a running workspace, and an exec to remove", async () => {
+  const ph = projectHome();
+  const r = rigWith({ home: ph.home, projectsOf: () => ["prj_site"], projectKickMs: 5 }, { onExec: (_b, argv) => (argv[0] === "sh" && (argv[2] ?? "").includes("rm -f --") ? { code: 0, stdout: "", stderr: "" } : undefined) });
+  ph.bind(r);
+  await r.mgr.ensure(AGENT);
+  const disk = ph.disks.get(`prj_site|${AGENT}`)!;
+  assert.deepEqual([...(await disk.snapshot()).files.keys()], ["plan.md"]);
+  assert.deepEqual(r.dk.ops("archive_get").at(-1)!.detail, { path: "/home/agent/projects/prj_site/.", bytes: 0 });
+  await disk.put([{ rel: "notes/a.md", bytes: new TextEncoder().encode("a"), readOnly: false }]);
+  assert.equal((r.dk.ops("archive_put").at(-1)!.detail as { path: string }).path, "/home/agent/projects/prj_site");
+  await disk.remove(["old.md"], ["gone"]);
+  const rm = r.dk.ops("exec").map((x) => x.detail as string[]).find((c) => c[0] === "sh" && c[2]?.includes("rm -f --") && c.includes("/home/agent/projects/prj_site/old.md"));
+  assert.deepEqual(rm!.slice(4), ["/home/agent/projects/prj_site/old.md", "::", "/home/agent/projects/prj_site/gone"]);
+  r.mgr.close();
+});
+
+test("a project with no folder in Files, and a mirror that fails, change nothing about starting, using or stopping the workspace", async () => {
+  for (const o of [{ folderless: true }, { fail: true }]) {
+    const ph = projectHome(o);
+    const r = rigWith({ home: ph.home, projectsOf: () => ["prj_site"], projectKickMs: 5 });
+    ph.bind(r);
+    assert.equal(await r.mgr.ensure(AGENT), "created");
+    assert.equal((await r.mgr.exec(AGENT, ["tmux", "-V"])).code, 0);
+    await later(20);
+    assert.equal(await r.mgr.sleep(AGENT), true);
+    assert.equal(await r.mgr.ensure(AGENT), "woke");
+    r.mgr.close();
+  }
+});
+
+test("with no project mirror configured the project volume is just shared: no archive call, no pass", async () => {
+  const r = rigWith({ projectsOf: () => ["prj_site"] });
+  await r.mgr.ensure(AGENT);
+  await r.mgr.exec(AGENT, ["tmux", "-V"]);
+  assert.equal(r.dk.ops("archive_get").length, 0);
+  r.mgr.close();
+});

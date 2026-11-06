@@ -149,7 +149,7 @@ test("a workspace container may be started, stopped, read, run in and removed, a
   for (const [what, body] of [["another user", { Cmd: ["id"], User: "root" }], ["a tty", { Cmd: ["sh"], Tty: true }], ["privileged", { Cmd: ["sh"], Privileged: true }]] as Array<[string, unknown]>) {
     assert.equal((await w.call("POST", `/v1.47/containers/${n}/exec`, body)).status, 403, what);
   }
-  for (const [m, q, want] of [["GET", "/home/agent/Vyre/.", 200], ["PUT", "/home/agent/Vyre", 200], ["PUT", "/home/agent/Vyre/work", 200], ["GET", "/home/agent", 403], ["GET", "/home/agent/.ssh", 403], ["PUT", "/home/agent/Vyre/../.ssh", 403], ["PUT", "/etc", 403], ["DELETE", "/home/agent/Vyre", 403]] as const) {
+  for (const [m, q, want] of [["GET", "/home/agent/Vyre/.", 200], ["PUT", "/home/agent/Vyre", 200], ["PUT", "/home/agent/Vyre/work", 200], ["GET", "/home/agent/projects/prj_site/.", 200], ["PUT", "/home/agent/projects/prj_site", 200], ["PUT", "/home/agent/projects/prj_site/a/b.txt", 200], ["GET", "/home/agent/projects", 403], ["GET", "/home/agent/projects/../.ssh", 403], ["GET", "/home/agent", 403], ["GET", "/home/agent/.ssh", 403], ["PUT", "/home/agent/Vyre/../.ssh", 403], ["PUT", "/etc", 403], ["DELETE", "/home/agent/Vyre", 403]] as const) {
     assert.equal((await w.call(m, `/v1.47/containers/${n}/archive?path=${encodeURIComponent(q)}`)).status, want, `${m} archive ${q}`);
   }
   assert.equal((await w.call("POST", `/v1.47/containers/${n}/wait`)).status, 403);
