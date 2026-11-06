@@ -6,7 +6,7 @@ import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } fro
 import type { ReactElement, ReactNode } from "react";
 import { StyleSheet, View } from "react-native";
 import { loadCryptoKeys, loadRecoveryCrypto } from "../../../../../client/src/crypto/load.ts";
-import { keepKey } from "../../../../../client/src/gateway/key-keeper.ts";
+import { forgetKey, keepKey } from "../../../../../client/src/gateway/key-keeper.ts";
 import { KeyGate } from "./KeyGate.tsx";
 import { holdKeyOnOwnNode, isLoopbackUrl } from "../../../../../client/src/gateway/local-key.ts";
 import { JoinFlow } from "../../join/JoinFlow.tsx";
@@ -71,7 +71,7 @@ async function unlockOwnKey(baseUrl: string, token: string, password: string, ke
     const { openBundle, heldKeyOf, wipeOpened } = await loadCryptoKeys();
     const opened = await openBundle(password, { ...keys, personKeyByRecovery: keys.personKeyByRecovery ?? "" });
     // a linked Space's data is under its earlier key (keys.ts formerKey): that is the one this Space takes
-    try { if (await holdKeyOnOwnNode(baseUrl, token, heldKeyOf(opened))) keepKey(heldKeyOf(opened)); } finally { wipeOpened(opened); }
+    try { if (await holdKeyOnOwnNode(baseUrl, token, heldKeyOf(opened))) await keepKey(heldKeyOf(opened)); } finally { wipeOpened(opened); }
   } catch { /* personal keys stay locked; signing in does not depend on them */ }
 }
 
@@ -107,7 +107,7 @@ function RecoverScreen({ baseUrl, space, username, open, onBack, onSignedIn }: {
   const anonymous = useMemo(() => createCapCaller({ baseUrl, token: () => null }), [baseUrl]);
   const [resetting, setResetting] = useState(false);
   const verify = (token: string): Promise<StoredSession> => openVerifiedSession({ baseUrl, token, open: () => open({ baseUrl, token }), getSpace: () => authenticatedSpace(baseUrl, token) });
-  const holdKey = (token: string, key: Uint8Array): Promise<boolean> => holdKeyOnOwnNode(baseUrl, token, key);
+  const holdKey = async (token: string, key: Uint8Array): Promise<boolean> => { const held = await holdKeyOnOwnNode(baseUrl, token, key); if (held) await keepKey(key); return held; };
   const deviceClass = desktopBridge() ? "desktop" as const : "web" as const;
   if (resetting) return <Suspense fallback={<Opening />}><ResetAccount space={space} address={baseUrl} onBack={() => setResetting(false)} onReset={async (input) => { const keys = await loadCryptoKeys(); onSignedIn(await completeReset({ call: anonymous, makeBundle: (pw, rc) => keys.makeBundle(pw, rc), verify, holdKey, wipe: keys.wipe }, { ...input, deviceClass })); }} /></Suspense>;
   return <Suspense fallback={<Opening />}><RecoveryAccount space={space} address={baseUrl} username={username} onBack={onBack} onAdminReset={() => setResetting(true)} onRecover={async (input) => { const [crypto, keys] = await Promise.all([loadRecoveryCrypto(), loadCryptoKeys()]); onSignedIn(await completeRecovery({ call: anonymous, recover: crypto.recoverAccountKeys, verify, holdKey, wipe: keys.wipe }, { ...input, deviceClass })); }} /></Suspense>;
@@ -468,7 +468,7 @@ export function SessionGate(props: SessionGateProps): ReactElement {
     if(target.def.kind==='personal'&&bridge){const native=(globalThis as {__TAURI__?:{core?:{invoke?:Invoke}}}).__TAURI__?.core?.invoke;if(native){setPhase({kind:'opening-personal'});try{const local=await ensurePersonalSpace(native);if(local.spaceId!==target.def.spaceId||local.claimUrl)throw new Error('Personal Space identity changed');chosen=await resumePersonal(local,target,open);}catch{setConnectedAddress(target.baseUrl);setNotice(true);setPhase({kind:'signin'});return;}}}
     if(!activateAddress(chosen,true))return;setConnectedAddress(chosen.baseUrl);setPhase({kind:'shell',stored:chosen});
   };
-  const signedOut = useCallback((why?: "manual", selected?: string) => { clearStored(undefined, selected); setNotice(why !== "manual"); setPhase({ kind: "signin" }); }, []);
+  const signedOut = useCallback((why?: "manual", selected?: string) => { clearStored(undefined, selected); if (readStoredSessions().length === 0) forgetKey(); setNotice(why !== "manual"); setPhase({ kind: "signin" }); }, []);
   const signedIn = useCallback((stored: StoredSession) => {activateAddress(stored,!!returnSession);clearLock();setLocked(null);setEntry(false);setReturnSession(null);setPhase({ kind: "shell", stored });}, [returnSession]);
   const signedInFromDesktop = useCallback((stored: StoredSession) => {activateAddress(stored,true);consumeBrowserInvite();clearLock();setLocked(null);setEntry(false);setReturnSession(null);setDesktopRoute((route) => consumeDesktopRoute(route)); setPhase({ kind: "shell", stored }); }, []);
 

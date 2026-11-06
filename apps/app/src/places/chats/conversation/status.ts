@@ -50,7 +50,7 @@ const STATUS_WORDS: Record<string, { message: string; cause?: string; next?: { k
   "engine.device_gone": { message: "Your computer went away in the middle of this.", next: [{ key: "run_on_server", label: "Run it on the server instead" }], retryable: true },
   "engine.link_insecure": { message: "Your server needs a secure link (https) before it can run your chats.", retryable: true },
   "engine.cli_missing": { message: "The engine is not installed here.", next: [{ key: "connect_ai", label: "Connect an account" }], retryable: true },
-  "engine.vault_locked": { message: "Your sign-ins are locked on this server.", cause: "Unlock Vyre to use them.", next: [{ key: "unlock_vault", label: "Unlock" }], retryable: false },
+  "engine.vault_locked": { message: "Your Vault key is not on this server.", cause: "Your AI sign-in cannot be opened until you are signed in on a device. Open Vyre there, then send again.", retryable: true },
   "engine.signin_missing": { message: "Your sign-in for this AI is missing.", cause: "Sign in again.", next: [{ key: "connect_ai", label: "Sign in again" }], retryable: false },
   "engine.cli_unusable": { message: "This engine cannot run on your computer as it is.", cause: "It may not be installed here, or not signed in here, or your computer is not connected.", next: [{ key: "connect_ai", label: "Sign in or pick another AI" }], retryable: false },
   "engine.closing": { message: "The app was closing, so this waits and runs when it opens again.", retryable: true },

@@ -71,10 +71,12 @@ test("an install that did not finish says why in a plain line and keeps the Inst
   assert.deepEqual(unsupported.next, [{ key: "connect_ai", label: "Connect an account" }]);
 });
 
-test("a locked Vault is an Unlock card, not a failed reply; an unreadable one gives the reason the Vault gave", () => {
+test("a Vault key that is not on the server says what is missing and offers no unlock; an unreadable Vault gives the reason the Vault gave", () => {
   const locked = errorOf({ state: "failed", turnId: "t", code: "engine.vault_locked" });
-  assert.equal(locked.message, "Your sign-ins are locked on this server.");
-  assert.deepEqual(locked.next, [{ key: "unlock_vault", label: "Unlock" }]);
+  assert.equal(locked.message, "Your Vault key is not on this server.");
+  assert.match(locked.cause ?? "", /signed in on a device/);
+  assert.deepEqual(locked.next, []);
+  assert.equal(locked.retryable, true);
   const unreadable = errorOf({ state: "failed", turnId: "t", code: "engine.vault_unreadable", reason: "provider.unavailable" });
   assert.equal(unreadable.message, "Your Vault could not be read just now.");
   assert.equal(unreadable.cause, "The Vault answered: provider.unavailable.");

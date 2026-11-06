@@ -93,7 +93,7 @@ test("a locked Vault key is engine.vault_locked, whether the Vault module or the
   const invoke: Invoke = async () => ({ status: "ok", output: { handle: "#X", itemId: "vit_1", fields: [] }, traceId: TRACE });
   const vault: VaultPort = { secret: async () => { throw new Error("Your vault key is locked on this computer."); }, signRs256: async () => "" };
   const host = createEngineSessionHost({ invoke, vault, space: SPACE, lockedWaitMs: 0 });
-  await assert.rejects(host.source.lookup("#Dana_Claude.setup_token", WHO), (e: unknown) => (e as { code?: string }).code === "engine.vault_locked" && (e as Error).message === "Your sign-ins are locked on this server. Unlock Vyre to use them.");
+  await assert.rejects(host.source.lookup("#Dana_Claude.setup_token", WHO), (e: unknown) => (e as { code?: string }).code === "engine.vault_locked" && (e as Error).message === "Your Vault key is not on this server, so your sign-in cannot be opened. Your Mine items open while you are signed in: open Vyre on your device and sign in.");
 });
 
 test("a Vault port that fails after access was granted does not leak what it said", async () => {

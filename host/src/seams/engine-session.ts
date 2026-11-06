@@ -63,7 +63,7 @@ function vaultLocked(e: unknown): boolean {
   const x = e as { message?: unknown; details?: { reason?: unknown }; error?: { message?: unknown; details?: { reason?: unknown } } } | null;
   const reason = x?.error?.details?.reason ?? x?.details?.reason;
   const message = x?.error?.message ?? x?.message;
-  return reason === "vault_locked" || (typeof message === "string" && /vault key is locked|sign-ins are locked/i.test(message));
+  return reason === "vault_locked" || (typeof message === "string" && /vault key is locked|sign-ins are locked|Vault key is not on this server/i.test(message));
 }
 
 /** Plain words for a Vault refusal that is not about access: what is wrong with the item or the field the turn asked for. */
@@ -148,7 +148,7 @@ export function createEngineSessionHost(d: EngineSessionHostDeps): EngineSession
             return { kind: "unknown" };
           }
           // Never the original text: it may carry request text. A locked key and every other refusal carry a code of their own, so the chat shows an Unlock card or a precise reason, not "did not finish".
-          if (vaultLocked(e)) throw coded("engine.vault_locked", "Your sign-ins are locked on this server. Unlock Vyre to use them.");
+          if (vaultLocked(e)) throw coded("engine.vault_locked", "Your Vault key is not on this server, so your sign-in cannot be opened. Your Mine items open while you are signed in: open Vyre on your device and sign in.");
           throw coded("engine.vault_unreadable", code !== null ? `The Vault could not be read (${code}).` : "The Vault could not be read.");
         }
   };

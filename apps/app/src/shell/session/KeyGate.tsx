@@ -7,13 +7,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { View } from "react-native";
 import { isLoopbackUrl, keyDoor, keyStatusOnOwnNode, serverKeyState } from "../../../../../client/src/gateway/local-key.ts";
-import { keyIsKept, rehandKey } from "../../../../../client/src/gateway/key-keeper.ts";
-import { askVaultUnlock } from "./vault-gate.ts";
-import { OFFLINE_OWN, SESSION_OVER, WRONG_PASSWORD, noticeAfterBeat, passwordKeyState, remoteGateState, unlockWithPassword } from "./key-unlock.ts";
-import { dropKeyOnOwnNode } from "../../../../../client/src/gateway/local-key.ts";
-import { forgetKey } from "../../../../../client/src/gateway/key-keeper.ts";
-import { notices } from "../noticeslot/model.ts";
-import { registerLockControl } from "../noticeslot/lock-control.ts";
+import { rehandKey, restoreKey } from "../../../../../client/src/gateway/key-keeper.ts";
+import { OFFLINE_OWN, SESSION_OVER, WRONG_PASSWORD, passwordKeyState } from "./key-unlock.ts";
 export { hasPasswordKey, passwordKeyState, unlockWithPassword } from "./key-unlock.ts";
 import { Bar, Button, ErrorLine, Field, Group, JoinFrame, Links, Opening, Panel, Step, TextButton, Title, useHoldFirstFrame } from "../../join/kit.tsx";
 import { whenUsable } from "../../startup/marks.ts";
@@ -83,107 +78,74 @@ export function NoPasswordKey({ onContinue, onSignOut }: { onContinue: () => voi
 const WAIT_MS = 500;
 const WAIT_TRIES = 20;
 
-type GateState = "checking" | "locked" | "offline" | "nopassword" | "open";
+type GateState = "checking" | "nopassword" | "open";
 
-/** Shows `children` once this computer holds the key (or at once for a Space that is not on this computer). While the app runs it hands the key back to a daemon that restarted. */
-export function KeyGate({ baseUrl, token, name, onSignOut, onForgot, children }: { baseUrl: string; token: string; name: string; onSignOut?: () => void; /** go to recovery for this account; without it Forgot password signs out */ onForgot?: () => void; children: ReactNode }): ReactElement | null {
+/**
+ * Signed in means unlocked (owner ruling 6 Nov). The person key was opened by the password at sign-in and sealed on this device (client/src/gateway/key-seal.ts); this gate brings it back after a launch and
+ * hands it to the node that needs it, with no password, no lock screen and no timer. A session that has no key on this device (it was signed in before keys were kept here, or the device store was wiped)
+ * cannot open the Vault, so it is signed out: signing in again is the one place the password is asked. While the app runs it hands the key back to a node that restarted.
+ */
+export function KeyGate({ baseUrl, token, onSignOut, children }: { baseUrl: string; token: string; name?: string; onSignOut?: () => void; /** kept for callers; there is no unlock sheet any more */ onForgot?: () => void; children: ReactNode }): ReactElement | null {
   const own = isLoopbackUrl(baseUrl);
-  // a Space server reached over https: it holds the person's key only while an unlocked device hands it over, so the app asks at launch
+  // a Space server reached over https holds the key while a signed-in device hands it over, so the app hands it over at launch
   const remote = !own && keyDoor(baseUrl) !== null;
   const [state, setState] = useState<GateState>(own || remote ? "checking" : "open");
-  const alive = useRef(true);
-  useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
+  const signOut = useRef(onSignOut);
+  signOut.current = onSignOut;
   useEffect(() => {
-    if (!own) return undefined;
+    if (!own && !remote) return undefined;
     let live = true;
     void (async () => {
-      // a daemon still starting does not answer yet: ask again for a few seconds, never read silence as "locked"
-      for (let i = 0; i < WAIT_TRIES && live; i++) {
-        const st = await keyStatusOnOwnNode(baseUrl, token);
+      const restored = await restoreKey();
+      // a node still starting does not answer yet: ask again for a few seconds, never read silence as "no key"
+      for (let i = 0; i < (own ? WAIT_TRIES : 1) && live; i++) {
+        const next = await gateState({
+          own, restored,
+          status: () => own ? keyStatusOnOwnNode(baseUrl, token) : serverKeyState(baseUrl, token).then((k) => k === null ? "unreachable" as const : k.held ? "held" as const : "locked" as const),
+          rehand: () => rehandKey(baseUrl, token),
+          passwordKey: () => passwordKeyState(baseUrl, token),
+        });
         if (!live) return;
-        if (st === "held") { setState("open"); return; }
-        if (st === "locked") {
-          if (await rehandKey(baseUrl, token)) { if (live) setState("open"); return; }
-          const pw = await passwordKeyState(baseUrl, token);
-          if (live) setState(pw === "yes" ? "locked" : pw === "no" ? "nopassword" : "offline");
-          return;
-        }
+        if (next !== "wait") { if (next === "signout") { if (signOut.current) signOut.current(); else setState("open"); } else setState(next); return; }
         await new Promise<void>((r) => setTimeout(r, WAIT_MS));
       }
       if (live) setState("open"); // it never answered: the shell shows its own offline state; the app is not held behind a blank screen
     })();
     return () => { live = false; };
-  }, [own, baseUrl, token]);
+  }, [own, remote, baseUrl, token]);
+  // while the app is open: a node that lost the key (a restart, a deploy) gets it back from this app, silently
   useEffect(() => {
-    if (!remote) return undefined;
-    let live = true;
-    void remoteGateState({
-      kept: keyIsKept, rehand: () => rehandKey(baseUrl, token),
-      serverHolds: async () => { const k = await serverKeyState(baseUrl, token); return k === null ? null : k.held; },
-      passwordKey: () => passwordKeyState(baseUrl, token),
-    }).then((next) => { if (live) setState(next); }, () => { if (live) setState("open"); });
-    return () => { live = false; };
-  }, [remote, baseUrl, token]);
-  // Locked while Vyre is open (the server restarted and lost the key, or the person pressed Lock): the notice is in the top bar until they unlock. There is nothing to dismiss.
-  const [midLocked, setMidLocked] = useState(false);
-  const lockedRef = useRef(false);
-  lockedRef.current = midLocked;
-  useEffect(() => {
-    if (!remote || state !== "open") return undefined;
-    let live = true;
-    const timer = setInterval(() => {
-      if (lockedRef.current) return;   // the person locked it, or it already says so: a beat never unlocks it
-      void remoteGateState({
-        kept: keyIsKept, rehand: () => rehandKey(baseUrl, token),
-        serverHolds: async () => { const k = await serverKeyState(baseUrl, token); return k === null ? null : k.held; },
-        passwordKey: () => passwordKeyState(baseUrl, token),
-      }).then((now) => { if (live && noticeAfterBeat(now) === "show") setMidLocked(true); }, () => undefined);
-    }, 30_000);
-    return () => { live = false; clearInterval(timer); };
-  }, [remote, state, baseUrl, token]);
-  const forgot = onForgot ?? onSignOut;
-  const unlockHere = (): void => {
-    void askVaultUnlock((password) => unlockWithPassword(baseUrl, token, password), { title: "Unlock your sign-ins", sub: SHEET_LINE, ...(forgot ? { forgot } : {}) }).then((ok) => { if (ok) setMidLocked(false); });
-  };
-  const unlockRef = useRef(unlockHere);
-  unlockRef.current = unlockHere;
-  // Lock Vyre (Cmd-L): the key leaves this app's memory and the server forgets it for this person in this Space, so their Mine sign-ins and items lock everywhere
-  const lockNow = async (): Promise<void> => {
-    forgetKey();
-    try { await dropKeyOnOwnNode(baseUrl, token); } catch { /* the app's copy is gone; a server that did not answer forgets it when the person's sessions end */ }
-    setMidLocked(true);
-  };
-  const lockRef = useRef(lockNow);
-  lockRef.current = lockNow;
-  const door = own || remote;
-  useEffect(() => {
-    if (!door) return undefined;
-    registerLockControl({ locked: () => lockedRef.current, lock: () => lockRef.current(), unlock: () => unlockRef.current() });
-    return () => registerLockControl(null);
-  }, [door]);
-  useEffect(() => {
-    if (midLocked) notices.raise({ id: "locked", kind: "locked", text: NOTICE_LINE, action: { label: "Unlock", run: () => unlockRef.current() } });
-    else notices.resolve("locked");
-    return () => notices.resolve("locked");
-  }, [midLocked]);
-  // while the app is open: a daemon that lost the key (a restart) gets it back from this app's memory, silently
-  useEffect(() => {
-    if (!own || state !== "open") return undefined;
-    const timer = setInterval(() => { void rehandKey(baseUrl, token); }, 3_000);
+    if (!(own || remote) || state !== "open") return undefined;
+    const timer = setInterval(() => { void rehandKey(baseUrl, token); }, own ? 3_000 : 30_000);
     return () => clearInterval(timer);
-  }, [own, state, baseUrl, token]);
+  }, [own, remote, state, baseUrl, token]);
   if (state === "checking") return <Opening testID="lock-checking" />;
   if (state === "nopassword") return <NoPasswordKey onContinue={() => setState("open")} {...(onSignOut ? { onSignOut } : {})} />;
-  if (state === "locked" || state === "offline") {
-    return <LockScreen name={name} {...(forgot ? { onForgot: forgot } : {})} {...(onSignOut ? { onSignOut } : {})} {...(remote ? { onSkip: () => { setMidLocked(true); setState("open"); } } : {})} {...(state === "offline" ? { notice: OFFLINE_OWN } : {})} onUnlock={async (password) => { await unlockWithPassword(baseUrl, token, password); if (alive.current) setState("open"); }} />;
-  }
-  // the app stays on screen while it works: a locked key is a quiet notice in the top bar (shell/noticeslot), Unlock opens the small sheet over whatever is open
   return (
     <View style={{ flex: 1 }}>
       <HoldUntilUsable />
       <View style={{ flex: 1 }}>{children}</View>
     </View>
   );
+}
+
+/**
+ * What one look at the key says: the node holds it (go in), this app can hand it over (go in), the account has no password key to open anything with (say so), or nobody has it and there is none on this
+ * device (sign in again). "wait" is a node that did not answer yet.
+ */
+export async function gateState(d: {
+  own: boolean;
+  restored: boolean;
+  status(): Promise<"held" | "locked" | "unreachable">;
+  rehand(): Promise<boolean>;
+  passwordKey(): Promise<"yes" | "no" | "unknown">;
+}): Promise<"open" | "nopassword" | "signout" | "wait"> {
+  const st = await d.status();
+  if (st === "held") return "open";
+  if (st === "unreachable") return d.own ? "wait" : "open";
+  if (d.restored && await d.rehand()) return "open";
+  const pw = await d.passwordKey();
+  return pw === "yes" ? "signout" : pw === "no" ? "nopassword" : "open";
 }
 
 /** The notice in the top bar while the sign-ins are locked (no dismiss: it goes when they are unlocked), and the line of the sheet Unlock opens. */

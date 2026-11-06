@@ -23,7 +23,6 @@ import type { KitDef, PlaceId } from "../rail/kits.ts";
 import { MainTabs, useTabs } from "../tabs/MainTabs.tsx";
 import { TitleBar } from "../titlebar/TitleBar.tsx";
 import { notices } from "../noticeslot/model.ts";
-import { toggleLock } from "../noticeslot/lock-control.ts";
 import { inTerminal } from "../keyboard/useShellKeys.ts";
 import { HubProvider, useHubState } from "./context.tsx";
 import { titleText } from "./hub.ts";
@@ -239,8 +238,6 @@ export function Shell(props: ShellProps): ReactElement {
       else if (k.type === "close-tab") { e.preventDefault(); hub.closeTab(); }
       else if (k.type === "search") { e.preventDefault(); props.onSearch?.(); }
       else if (k.type === "report") { e.preventDefault(); reportProblem({}); }
-      // Lock Vyre / Unlock (Cmd-L, Ctrl-L elsewhere): a terminal keeps Ctrl-L to clear its screen
-      else if (k.type === "lock") { if (!inTerminal(e.target) && toggleLock()) e.preventDefault(); }
     };
     doc.addEventListener("keydown", onKey);
     return () => doc.removeEventListener("keydown", onKey);
