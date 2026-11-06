@@ -401,6 +401,7 @@ pub fn run() {
             if let Err(e) = native::setup_tray(&handle, &state.native) {
                 eprintln!("tray not created: {e}");
             }
+            { let h = handle.clone(); std::thread::spawn(move || chrome::sync_on_start(&h)); }
             sidecar::start(&handle, &state.sidecar, 0);
             if personal::profile_exists(&handle) { sidecar::start(&handle, &state.personal, 0); }
             if macserver::profile_exists(&handle) { sidecar::start(&handle, &state.server, 0); }

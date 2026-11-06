@@ -683,6 +683,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     sessions: () => teamLinks.sessions(),
     call: (s, cap, input) => gatewayCall(s, cap, input),
     push: (m) => { chromeBridge.push(m); },
+    appVersion: cfg.version,
   });
   // The person's own Chrome as a place the Chrome tools can run: only for an agent working for the person signed in to it, in the Space they picked, once they opened Chrome to agents (POST /local/chrome/agents).
   // a Team Space server reaches the person's Chrome over their device link (their computer's daemon owns the bridge)
