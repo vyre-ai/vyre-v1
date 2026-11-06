@@ -22,7 +22,7 @@ import { each } from "./each.ts";
 import { Icon } from "./icons.tsx";
 import { calendarMenuEntries, dayMenuEntries, eventMenuEntries, lengthMenuEntries, peopleMenuEntries } from "./menus.ts";
 import {
-  DAY, HH, HOUR, MONTH_CAP, allDayLane, availabilityLine, atSlot, blockOf, calReduce, clickCreate, clock, conflicts, dateOf, dayText, directoryOf, dragCreate, dragMove, dragResize, eventLine, eventsOn, freeLine, initialCal, isBand, isPast, lanesOf, monthCell, lengthText, menuFacts,
+  DAY, HH, HOUR, MONTH_CAP, allDayLane, allDayLocal, allDayToWire, availabilityLine, atSlot, blockOf, calReduce, clickCreate, clock, conflicts, dateOf, dayText, directoryOf, dragCreate, dragMove, dragResize, eventLine, eventsOn, freeLine, initialCal, isBand, isPast, lanesOf, monthCell, lengthText, menuFacts,
   minutes, monthOf, nameMap, newDraft, offsetToY, range, rangeShort, setLength, slotText, startOfDay, stripesOf, viewDays, viewRange, viewTitle, visibleCalendarIds, weekdayShort, whoLabel,
 } from "./model.ts";
 import type { Busy, CalendarRow, Draft, EventRow, Mode, Slot, Span } from "./model.ts";
@@ -175,7 +175,7 @@ function Grid({ p }: { p: CalendarProps }): ReactElement {
   const calendars = cals.status === "ready" ? cals.data.calendars : [];
   const shown = visibleCalendarIds(calendars, inbox.hiddenCalendars);
   const evq = useScreenQuery<EventsOut>(SCREEN, "events", { from: range0.from, to: range0.to, ...(cals.status === "ready" ? { calendarIds: shown } : {}) });
-  const events = evq.status === "ready" ? evq.data.events : [];
+  const events = useMemo(() => (evq.status === "ready" ? evq.data.events : []).map((x) => allDayLocal(x, off)), [evq, off]);
   const names = useMemo(() => nameMap(p.team), [p.team]);
 
   const shaded = cal.draft ? cal.draft.people.filter((x) => x !== p.me) : cal.people;
@@ -234,7 +234,7 @@ function Grid({ p }: { p: CalendarProps }): ReactElement {
       openRecord: () => { const r = e.recordIds[0]; if (r) p.onOpenRecord?.(r); },
       openConversation: () => { const c = e.attendees.find((a) => a.contactId)?.contactId; if (c) p.onOpenConversation?.(c); },
       moveTo: (id) => void moveToCalendar(data, e.id, id).catch(fail),
-      duplicate: () => void duplicateEvent(data, e).then((c) => dispatch({ type: "select", id: c.id })).catch(fail),
+      duplicate: () => void duplicateEvent(data, allDayToWire(e, off)).then((c) => dispatch({ type: "select", id: c.id })).catch(fail),
       remove: () => remove(e),
     }, mine), x, y);
     void Promise.resolve(data.call("calendar.get_event", { eventId: e.id })).then((o) => {
