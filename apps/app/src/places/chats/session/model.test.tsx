@@ -41,7 +41,9 @@ test("hours read as 8 PM and 12 AM", () => {
 test("jump points: a release, a merged PR, a finished task and a decision; nothing else", () => {
   const card = (lead: string, title: string, target: string, body = "") => msg({ at: T0, kind: "system", blocks: [{ id: "b", type: "link_card", v: 1, state: "done", data: { icon: "x", lead, title, body, target: { type: target, id: "x" } } } as never] });
   assert.equal(jumpOf(msg({ at: T0, kind: "system", body: "Release v1.0.0-rc.22.1 tagged" }))?.kind, "release");
+  assert.equal(jumpOf(msg({ at: T0, kind: "system", body: "Release v1.0.0-rc.22.1 tagged" }))?.sub, "v1.0.0-rc.22.1", "the detail is the part the label does not say");
   assert.equal(jumpOf(msg({ at: T0, kind: "system", body: "Merged #893 into main" }))?.kind, "merged");
+  assert.equal(jumpOf(msg({ at: T0, kind: "system", body: "Merged #893 into main" }))?.sub, "#893 into main");
   assert.equal(jumpOf(card("Task", "Fix the sandbox", "task", "done"))?.kind, "task");
   assert.equal(jumpOf(card("Decision", "Corners are 12 px", "fact"))?.kind, "decision");
   assert.equal(jumpOf(msg({ at: T0, body: "Pinned thought", pinned: true } as never))?.kind, "decision");
@@ -80,6 +82,7 @@ test("while you were away: a run of quiet items folds, the one that needs you st
   assert.equal(away.length, 1, "the lone quiet line after the question is under the minimum and stays");
   const a = away[0]!;
   assert.equal(a.kind === "away" && a.items.length, 6);
+  assert.deepEqual(a.kind === "away" && a.lines.slice(0, 2).map((l) => `${l.who}: ${l.text}`), ["agt_h0: step 0", "Assistant: step 1"], "one line each: who and what");
   assert.equal(a.kind === "away" && a.needs, 1);
   assert.match(awayWords(a as never), /^Assistant and 3 helpers did 6 things, 1 needs you$/);
   assert.ok(rows.some((r) => r.kind === "other" && r.message.messageId === "m_ask"), "the question stays visible");

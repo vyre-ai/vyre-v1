@@ -80,14 +80,21 @@ test("the hour mark, the jump row and the away row", async () => {
   const jump = await mount(createRoot, <JumpRow row={{ kind: "jump", key: "j", messageId: "m9", label: "Release tagged", sub: "v1.0.0-rc.22.1", time: "11:48 PM" }} />);
   assert.match(textOf(find(jump, "jump-m9")), /Release tagged/);
   assert.match(textOf(find(jump, "jump-m9")), /v1\.0\.0-rc\.22\.1 · 11:48 PM/);
-  const row = { kind: "away" as const, key: "away-m1", items: [], things: 41, who: "Assistant", helpers: 3, needs: 2, span: "9:40 to 11:46 PM" };
-  const away = await mount(createRoot, <AwayRow row={row}><></></AwayRow>);
+  const lines = Array.from({ length: 12 }, (_, i) => ({ id: `l${i}`, who: i % 3 === 0 ? "" : "Tess", text: `thing ${i}`, time: "9:40 PM" }));
+  const row = { kind: "away" as const, key: "away-m1", items: [], lines, things: 41, who: "Assistant", helpers: 3, needs: 2, span: "9:40 to 11:46 PM" };
+  const away = await mount(createRoot, <AwayRow row={row} />);
   assert.match(textOf(find(away, "away-away-m1")), /While you were away/);
   assert.match(textOf(find(away, "away-away-m1")), /Assistant and 3 helpers did 41 things, 2 need you/);
   assert.match(textOf(find(away, "away-away-m1")), /9:40 to 11:46 PM/);
   assert.equal(find(away, "away-away-m1-items"), null);
   await press(find(away, "away-away-m1-toggle"));
-  assert.ok(find(away, "away-away-m1-items"), "opens in place");
+  const open = textOf(find(away, "away-away-m1-items"));
+  assert.ok(open.includes("thing 0") && open.includes("thing 7") && !open.includes("thing 8"), "opens in place to one line each, the first eight");
+  assert.match(open, /Tess\s+thing 1/);
+  assert.match(textOf(find(away, "away-away-m1-more")), /4 more, all quiet/);
+  await press(find(away, "away-away-m1-more"));
+  assert.ok(textOf(find(away, "away-away-m1-items")).includes("thing 11"));
+  assert.equal(find(away, "away-away-m1-more"), null);
 });
 
 const summary = (o: Partial<SessionSummary> = {}): SessionSummary => ({ ...NO_SESSION, long: true, firstAsk: "Ship rc.22.1 tonight.", from: 0, to: (4 * 60 + 41) * 60_000, ...o });

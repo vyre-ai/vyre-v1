@@ -58,15 +58,19 @@ function sayings(m: Pick<Message, "body" | "blocks">): { words: string; card?: {
   return { words: m.body };
 }
 
-/** A message that marks a moment worth coming back to: a release tagged, a PR merged, a task finished, a decision. Null for everything else. */
+const flat = (s: string): string => s.replace(/\s+/g, " ").trim();
+const short = (s: string, max = 80): string => (s.length > max ? `${s.slice(0, max - 1)}…` : s);
+
+/** A message that marks a moment worth coming back to: a release tagged, a PR merged, a task finished, a decision. Null for everything else. The row's detail is the part the label does not already say. */
 export function jumpOf(m: Pick<Message, "messageId" | "kind" | "body" | "blocks" | "pinned" | "createdAt">): Jump | null {
   const { words, card } = sayings(m);
-  const make = (kind: JumpKind, sub: string): Jump => ({ messageId: m.messageId, kind, label: LABEL[kind], sub, at: m.createdAt });
+  const make = (kind: JumpKind, sub: string): Jump => ({ messageId: m.messageId, kind, label: LABEL[kind], sub: short(sub), at: m.createdAt });
   if (card?.target === "fact") return make("decision", card.title);
-  if (/\brelease\b.*\b(tagged|published|shipped|cut)\b|\b(tagged|published|shipped|cut)\b.*\brelease\b|\bv?\d+\.\d+\.\d+(-rc\.[\d.]+)?\b.*\btagged\b/i.test(words)) return make("release", card?.title ?? words.replace(/\s+/g, " ").trim().slice(0, 80));
-  if (/\bmerged\b/i.test(words) && /(#\d+|\bPR\b|pull request)/i.test(words)) return make("merged", card?.title ?? words.replace(/\s+/g, " ").trim().slice(0, 80));
+  const line = flat(words);
+  if (/\brelease\b.*\b(tagged|published|shipped|cut)\b|\b(tagged|published|shipped|cut)\b.*\brelease\b|\bv?\d+\.\d+\.\d+(-rc\.[\d.]+)?\b.*\btagged\b/i.test(words)) return make("release", card?.title ?? /\bv?\d+\.\d+\.\d+[\w.-]*/.exec(line)?.[0] ?? line);
+  if (/\bmerged\b/i.test(words) && /(#\d+|\bPR\b|pull request)/i.test(words)) return make("merged", card?.title ?? line.replace(/^(the )?(PR |pull request )?merged\s+/i, ""));
   if (card?.target === "task" && /\b(done|finished|complete[d]?)\b/i.test(words)) return make("task", card.title);
-  if (m.pinned) return make("decision", words.replace(/\s+/g, " ").trim().slice(0, 80));
+  if (m.pinned) return make("decision", line);
   return null;
 }
 
@@ -108,7 +112,10 @@ export type SessionItem =
   | Item
   | { kind: "hour"; key: string; label: string }
   | { kind: "jump"; key: string; messageId: string; label: string; sub: string; time: string }
-  | { kind: "away"; key: string; items: Item[]; things: number; who: string; helpers: number; needs: number; span: string };
+  | { kind: "away"; key: string; items: Item[]; lines: AwayLine[]; things: number; who: string; helpers: number; needs: number; span: string };
+
+/** One quiet thing inside an away row, as one line: who did it (empty for a system line), what, and when. */
+export interface AwayLine { id: string; who: string; text: string; time: string }
 
 const messageOf = (it: SessionItem): Message | null => (it.kind === "event" || it.kind === "me" || it.kind === "other" ? it.message : null);
 
@@ -151,7 +158,8 @@ export function sessionItems(items: readonly Item[], messages: readonly Message[
       const ranked = [...agents.entries()].sort((a, b) => b[1] - a[1]);
       const lead = ranked[0]?.[0];
       const things = ms.reduce((n, m) => n + 1 + (workOf(m)?.steps.length ?? 0), 0);
-      folded.push({ kind: "away", key: `away-${ms[0]!.messageId}`, items: run, things, who: lead ? o.nameOf(lead) : "The Space", helpers: Math.max(0, ranked.length - 1), needs: 0, span: spanWords(ms[0]!.createdAt, ms[ms.length - 1]!.createdAt, o.clock) });
+      const lines = ms.map((m): AwayLine => ({ id: m.messageId, who: m.kind === "system" || m.kind === "quiet" ? "" : o.nameOf(m.author.id), text: short(flat(m.body.split("\n").find((x) => x.trim() !== "") ?? ""), 120) || workOf(m)?.summary || "Posted a card", time: timeWords(m.createdAt, o.clock) }));
+      folded.push({ kind: "away", key: `away-${ms[0]!.messageId}`, items: run, lines, things, who: lead ? o.nameOf(lead) : "The Space", helpers: Math.max(0, ranked.length - 1), needs: 0, span: spanWords(ms[0]!.createdAt, ms[ms.length - 1]!.createdAt, o.clock) });
     }
     run = [];
   };

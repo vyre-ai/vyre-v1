@@ -6,7 +6,6 @@ import { useFrameStore } from "./frame.ts";
 import type { FrameControls, FrameStore } from "./frame.ts";
 import { foldHelperRows, groupHelperStrips, hideCrewPosts, mergeCrewAnswer, stripFromCoders } from "./helper-rows.ts";
 import { sessionItems } from "../session/model.ts";
-import { AwayRow, HourMark, JumpRow } from "../session/rows.tsx";
 import { SessionPublisher } from "../session/Publisher.tsx";
 import { useCrew } from "../crew/context.tsx";
 import { crewChipOf } from "../crew/model.ts";
@@ -76,7 +75,7 @@ import { useOpenConnect } from "../../../shell/connect/context.ts";
 import {
   WINDOW, beforeCursor, byOrder, collect, faces, ghostMessages, findMatches, isClosed, lastMessages, leadOf, matchLine, mentionsIn, mergePages, modeTitle, modelLabel, pendingMessage, placeholderFor, queueNote, queuedCount, queuedIds, sendKind, stillPending, stopLabel,
   directWith, mentionable, muteOfferFor, onBehalfOf, threadKindNote, timeLabel, timeline, otherPeople, titleOf, whoLine, workingAgents, withoutAnswered } from "./model.ts";
-import type { Face as FaceModel, Item, Message, Pending, SendKind, Thread } from "./model.ts";
+import type { Face as FaceModel, Message, Pending, SendKind, Thread } from "./model.ts";
 import { LoadFailed, failureOf } from "../../../../../../ui/src/States/Loads.tsx";
 import { messageLink } from "../../../share/rows.ts";
 import { useZones } from "../../../../../../ui/src/Time/index.tsx";
@@ -731,16 +730,11 @@ function ConversationView(): ReactElement {
             ) : null}
             {items.length === 0 && !data.head && thread.kind !== "thread" ? <States kind="empty" icon="chat" title="Say something to start" /> : null}
             {collect(rows, (it) => {
-              if (it.kind === "hour") return <HourMark key={it.key} id={it.key} label={it.label} />;
-              if (it.kind === "jump") return <JumpRow key={it.key} row={it} />;
-              const draw = (x: Item): ReactElement => {
-                const stream = x.kind === "other" ? data.streamOf(x.message.messageId) : undefined;
-                const sending = x.kind === "me" ? pendingState.get(x.message.messageId) : undefined;
-                const under = x.kind === "me" || x.kind === "other" ? replies.get(x.message.messageId) : undefined;
-                return <MessageView key={x.key} item={x} actions={actions} meId={data.me.id} stream={stream} sending={sending} mark={markOf(x, matches, activeId, finding)} replies={under ? { s: under, clock: data.clock() } : undefined} />;
-              };
-              if (it.kind === "away") return <AwayRow key={it.key} row={it}>{collect(it.items, draw)}</AwayRow>;
-              return draw(it);
+              const key = it.key;
+              const stream = it.kind === "other" ? data.streamOf(it.message.messageId) : undefined;
+              const sending = it.kind === "me" ? pendingState.get(it.message.messageId) : undefined;
+              const under = it.kind === "me" || it.kind === "other" ? replies.get(it.message.messageId) : undefined;
+              return <MessageView key={key} item={it} actions={actions} meId={data.me.id} stream={stream} sending={sending} mark={markOf(it, matches, activeId, finding)} replies={under ? { s: under, clock: data.clock() } : undefined} />;
             })}
             {data.tail ?? null}
           </View>

@@ -3,6 +3,8 @@
 // list; the keyboard reaches both. Every row is memoised on its item, so a streaming message re-renders alone.
 import { HelperRow } from "./helper-row.tsx";
 import { CrewBlock } from "../session/CrewBlock.tsx";
+import { AwayRow, HourMark, JumpRow } from "../session/rows.tsx";
+import type { SessionItem } from "../session/model.ts";
 import { memberFromBlock, memberOf } from "../crew/status.ts";
 import { holdsOf, mergeStateOf, withTeammates } from "../crew/model.ts";
 import { FROM_THREAD_LINE } from "../crew/also.tsx";
@@ -161,7 +163,8 @@ export interface MessageActions {
 const webProps = (props: Record<string, unknown>): Record<string, unknown> => (Platform.OS === "web" ? props : {});
 
 export interface MessageViewProps {
-  item: Item;
+  /** A message row, or one of a long session's quiet rows (session/model.ts): an hour mark, a jump point, the away row */
+  item: SessionItem;
   actions: MessageActions;
   meId: string;
   /** The stream of a message still being written. */
@@ -185,6 +188,9 @@ export function forkOrigin(m: Pick<Message, "blocks">): { threadId: string; mess
 
 export const MessageView = memo(function MessageView(props: MessageViewProps): ReactElement | null {
   const { item } = props;
+  if (item.kind === "hour") return <HourMark id={item.key} label={item.label} />;
+  if (item.kind === "jump") return <JumpRow row={item} />;
+  if (item.kind === "away") return <AwayRow row={item} />;
   if (item.kind === "day") return <Text testID={`day-${item.key}`} accessibilityRole="header" style={st.day}>{item.label}</Text>;
   if (item.kind === "event") {
     const link = linkCardOf(item.message.blocks.find((x) => x.type === "link_card") ?? { type: "", data: null });

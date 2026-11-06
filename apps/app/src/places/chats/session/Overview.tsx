@@ -139,7 +139,7 @@ export function SessionOverview({ call, threadId, agentId, summary, status, cloc
 
 const st = StyleSheet.create({
   root: { flex: 1, minHeight: 0 },
-  body: { paddingHorizontal: 16, paddingTop: 4, paddingBottom: 24, gap: 24 },
+  body: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 24, gap: 24 },
   section: { gap: 4 },
   h: { fontSize: 12, fontWeight: "600", color: "var(--ink-3)" as string, marginBottom: 4 },
   p: { fontSize: 14, lineHeight: 21, color: "var(--ink)" as string },

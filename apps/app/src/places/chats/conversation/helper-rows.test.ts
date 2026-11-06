@@ -57,6 +57,15 @@ test("the agent's intro, the strip and its answer read as one message once the h
 });
 
 
+test("a system line from the agent ('Crew started') is an event: it is never the strip's intro or answer", () => {
+  const agent = { kind: "agent", id: "agt_1" };
+  const strip = { messageId: "s_1", body: "", author: agent, blocks: [{ type: "crew_strip", id: "strip-1", data: { blocks: [{ type: "helper", id: "b1", data: { helperThreadId: "thr_1", status: "done" } }] } }] };
+  const line = { messageId: "sys", kind: "system", body: "Crew started: Tess and Orin", author: agent, blocks: [] };
+  const out = mergeCrewAnswer([strip, line]);
+  assert.deepEqual(out.map((m) => m.messageId), ["s_1", "sys"], "the strip stays its own message and the line stays a line");
+  assert.equal(out[0]!.blocks[0]!.type, "crew_strip");
+});
+
 import { hideCrewPosts } from "./helper-rows.ts";
 
 test("nothing is posted per coder: the start line and the result card go once the strip holds the coder; words and other cards stay", () => {

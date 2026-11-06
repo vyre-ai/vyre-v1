@@ -1,0 +1,51 @@
+{
+  "targets": [
+    {
+      "id": "SESSION_01-chat",
+      "route": "/m/SESSION_01",
+      "proto": "chats,{skin}",
+      "waitFor": "[data-testid='crew-strip']",
+      "note": "The long session at its end: hour marks, the folded 'While you were away' row, the question and a jump row, with the Overview open in the right pane."
+    },
+    {
+      "id": "SESSION_01-crew",
+      "route": "/m/SESSION_01",
+      "proto": "chats,{skin}",
+      "waitFor": "[data-testid='crew-strip']",
+      "scroll": "[data-testid='crew-strip']",
+      "note": "The compact crew block in the stream."
+    },
+    {
+      "id": "SESSION_01-steps",
+      "route": "/m/SESSION_01",
+      "proto": "chats,{skin}",
+      "waitFor": "[data-testid='crew-strip']",
+      "click": [
+        "[data-testid='crew-chip-thr_orin-toggle']"
+      ],
+      "scroll": "[data-testid='crew-strip']",
+      "note": "A crew row open to its last three steps."
+    },
+    {
+      "id": "SESSION_01-away",
+      "route": "/m/SESSION_01",
+      "proto": "chats,{skin}",
+      "waitFor": "[data-testid='crew-strip']",
+      "click": [
+        "[data-testid^='away-'][data-testid$='-toggle']"
+      ],
+      "scroll": "[data-testid^='away-'][data-testid$='-items']",
+      "note": "The away row opened in place, one line per quiet thing."
+    },
+    {
+      "id": "SESSION_01-helper",
+      "route": "/m/SESSION_01",
+      "proto": "chats,{skin}",
+      "waitFor": "[data-testid='crew-strip']",
+      "click": [
+        "[data-testid='crew-chip-thr_orin-name']"
+      ],
+      "note": "A helper's pane: its thread, last steps and the files it changed."
+    }
+  ]
+}

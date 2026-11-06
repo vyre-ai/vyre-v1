@@ -1,6 +1,6 @@
 // The quiet rows of a long session (prototype t-session): an hour mark, a jump point and "While you were away". Calm pass: no boxes, 13 px muted text, one 12 px radius on the hover, the accent only on the flag.
 import { useState } from "react";
-import type { ReactElement, ReactNode } from "react";
+import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Glyph } from "../conversation/parts.tsx";
 import { awayWords } from "./model.ts";
@@ -30,9 +30,14 @@ export function JumpRow({ row }: { row: Jump }): ReactElement {
   );
 }
 
-/** "While you were away": one row that opens in place, with the quiet things themselves under it. What needs you stays visible outside it. */
-export function AwayRow({ row, children }: { row: Away; children: ReactNode }): ReactElement {
+/** Lines an opened away row shows before "N more, all quiet". */
+export const AWAY_SHOWN = 8;
+
+/** "While you were away": one row that opens in place to one line per quiet thing. What needs you stays visible outside it. */
+export function AwayRow({ row }: { row: Away }): ReactElement {
   const [open, setOpen] = useState(false);
+  const [all, setAll] = useState(false);
+  const shown = all ? row.lines : row.lines.slice(0, AWAY_SHOWN);
   return (
     <View testID={`away-${row.key}`} style={st.away}>
       <Pressable accessibilityRole="button" accessibilityState={{ expanded: open }} accessibilityLabel={`While you were away. ${awayWords(row)}`} testID={`away-${row.key}-toggle`} onPress={() => setOpen((o) => !o)} style={({ hovered }: { hovered?: boolean }) => [st.awayHead, hovered === true && st.hover]}>
@@ -40,7 +45,12 @@ export function AwayRow({ row, children }: { row: Away; children: ReactNode }): 
         <Text numberOfLines={2} style={st.awayText}><Text style={st.awayLead}>While you were away </Text>{awayWords(row)}</Text>
         <Text style={st.awaySpan}>{row.span}</Text>
       </Pressable>
-      {open ? <View testID={`away-${row.key}-items`}>{children}</View> : null}
+      {open ? (
+        <View testID={`away-${row.key}-items`} style={st.lines}>
+          {shown.map((l) => <Text key={l.id} numberOfLines={2} style={st.line}>{l.who !== "" ? <Text style={st.lineWho}>{`${l.who}  `}</Text> : null}{l.text}<Text style={st.lineTime}>{`  ${l.time}`}</Text></Text>)}
+          {row.lines.length > shown.length ? <Pressable accessibilityRole="button" testID={`away-${row.key}-more`} onPress={() => setAll(true)}><Text style={st.more}>{`${row.lines.length - shown.length} more, all quiet`}</Text></Pressable> : null}
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -59,5 +69,10 @@ const st = StyleSheet.create({
   dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: "var(--accent)" as string },
   awayText: { flex: 1, minWidth: 0, fontSize: 13, color: "var(--ink-2)" as string },
   awayLead: { fontWeight: "600", color: "var(--ink)" as string },
+  lines: { gap: 4, marginLeft: 20, marginTop: 4, marginBottom: 4 },
+  line: { fontSize: 13, lineHeight: 20, color: "var(--ink-2)" as string },
+  lineWho: { fontWeight: "600", color: "var(--ink)" as string },
+  lineTime: { fontSize: 12, color: "var(--ink-4)" as string },
+  more: { fontSize: 13, color: "var(--ink-3)" as string },
   awaySpan: { fontSize: 12, color: "var(--ink-4)" as string },
 });
