@@ -8,8 +8,9 @@
 //   when it goes     now, when they are next online, or at a set time; never during away or outside the teammate's working hours unless urgent; at most 3 an hour from one person's agents to one
 //                    teammate; nothing while the teammate muted that person for today. A message that waits is a row here, the person sees "Scheduled for Rubab" in their chat, and a periodic job
 //                    sends it when its time comes (checking everything again).
-//   back to the agent the teammate's reply in that direct chat, and the answer to a card (Approve or Review task, key request), go back to the chat the person asked in as one line that @mentions the
-//                    agent, as the person: the agent carries on there. Nothing a teammate writes counts as the person asking for anything (it is never a typed message).
+//   back to the agent (a message sent as the person) the teammate's reply in that direct chat, and the answer to a card (Approve or Review task, key request), go back to the chat the person asked in as one line that @mentions the
+//                    agent, as the person: the agent carries on there. A message the agent sent as itself is different: the teammate's replies are theirs and the agent's. The chat the agent was asked
+//                    in gets ONE line the first time they reply ("Connected with <name>. <Agent> is talking with <name> directly."), no words of theirs, and nothing more for that direct chat. Nothing a teammate writes counts as the person asking for anything (it is never a typed message).
 //   privacy          the message is checked against the person's private profile facts and their Mine Vault values before it leaves (the direct chat's audience is two people, so nothing private of one
 //                    goes in unless that person said it themselves in the chat they asked in).
 import { readFileSync } from "node:fs";
@@ -303,7 +304,7 @@ export async function peopleStatus(ctx: ChatCtx, input: { personIds?: string[]; 
   }
   // which way a message goes, so the agent never claims the other: the model reads names and handles, never ids
   const how = self
-    ? "You message people as yourself, with your own name, in your own chat with each of them. They reply there and you answer there. The person you work for cannot read that chat unless the teammate adds them; you tell them in one line what came back."
+    ? "You message people as yourself, with your own name, in your own chat with each of them. They reply there and you answer there. The person you work for cannot read that chat unless the teammate adds them, and what the teammate writes to you is theirs: do not relay it. The person is told once, with no words of the teammate's, that you are connected."
     : `You message people for ${mine}, in their own chat with the teammate, signed as ${mine} (Agent). The reply comes back to the chat you were asked in.`;
   return { people: out, how };
 }
@@ -412,7 +413,7 @@ function answer(ctx: ChatCtx, row: DmRow, name: string, words: string | null) {
   return {
     state: sent ? ("sent" as const) : ("scheduled" as const), threadId: row.dm, ...(row.message ? { messageId: row.message } : {}), ...(!sent && row.dueAt !== null ? { dueAt: row.dueAt } : {}),
     when: `${sent ? `Sent to ${name}` : `Scheduled for ${name}: ${words ?? (row.dueAt === null ? "when they are next online" : new Date(row.dueAt).toISOString())}`}${row.mode === "self"
-      ? ", as yourself, in your own chat with them. Their reply lands there and you answer it there; one line tells the person you work for what came back."
+      ? ", as yourself, in your own chat with them. Their reply lands there and you answer it there. What they write is private to them and you: the person you work for gets one line saying you are connected, and you do not relay their words unless they share them."
       : ". Their reply comes back to this chat."}`,
     as: row.mode,
     ...(row.task ? { taskId: row.task } : {}), ...(row.request ? { requestId: row.request } : {}),
@@ -484,15 +485,19 @@ export async function onDirectReply(ctx: ChatCtx, event: { payload: { messageId?
   // the person picked the conversation up themselves: it is theirs now, not the agent's
   const spoke = row.mode !== "self" && ctx.db.all("SELECT 1 AS x FROM chat_message WHERE thread = ? AND author = ? AND threadSeq > ? AND threadSeq < ? AND deleted_at IS NULL LIMIT 1", row.dm, row.person, agentMsg.seq, m.seq).length > 0;
   if (spoke) return [];
+  if (row.mode === "self") {
+    // The conversation is the agent's with the teammate, and it is theirs: the chat the agent was asked in gets ONE line the first time they write back, with no words of theirs in it, and never another
+    // for that direct chat. The agent still reads its own chat as a participant; nothing the teammate writes reaches the person unless the teammate shares it (owner ruling 6 Nov).
+    if (ctx.db.all("SELECT 1 AS x FROM chat_agent_dm WHERE dm = ? AND mode = 'self' AND replied_at IS NOT NULL LIMIT 1", row.dm).length > 0) return [];
+    const who = first((await person(callOf(ctx), row.teammate))?.name ?? "your teammate");
+    const agentName = ((await callOf(ctx)("agents.get", { agentId: row.agent }).catch(() => null)) as { agent?: { name?: string } } | null)?.agent?.name ?? "The agent";
+    quietLine(ctx, row.origin, row.agent, `Connected with ${who}. ${agentName} is talking with ${who} directly.`, { dmId: row.id, state: "connected", teammate: row.teammate, threadId: row.dm });
+    ctx.db.run("UPDATE chat_agent_dm SET replied_at = ? WHERE dm = ? AND mode = 'self'", now, row.dm);
+    return [m.id];
+  }
   const name = (await person(callOf(ctx), row.teammate))?.name ?? "Your teammate";
   const said = m.body.trim() || (m.attachments.length > 0 ? "(sent a file)" : "");
   if (said === "") return [];
-  if (row.mode === "self") {
-    // the conversation is the agent's with the teammate now: the chat it was asked in gets one short line, never the teammate's words whole
-    quietLine(ctx, row.origin, row.agent, `${first(name)} replied: ${clip(said.replace(/\s+/g, " "), REPORT_MAX)}`, { dmId: row.id, state: "replied", teammate: row.teammate, threadId: row.dm, messageId: m.id });
-    ctx.db.run("UPDATE chat_agent_dm SET replied_at = ? WHERE id = ?", now, row.id);
-    return [m.id];
-  }
   const id = relay(ctx, row, `${first(name)} replied: ${clip(said, MAX_RELAY)}`, { kind: "reply", from: row.teammate, messageId: m.id });
   if (id) ctx.db.run("UPDATE chat_agent_dm SET replied_at = ? WHERE id = ?", now, row.id);
   return id ? [id] : [];
