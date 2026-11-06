@@ -40,50 +40,52 @@ async function withDom(run: () => Promise<void>): Promise<void> {
 
 /* ---------- the strip ---------- */
 
-test("the agent strip shows only when an AI will answer: the lead; an @mentioned agent in a people-only chat; nobody when people only", () => {
+test("the settings icon shows only when an AI will answer: the lead; an @mentioned agent in a people-only chat; nobody when people only", () => {
   const lead = clean(renderToStaticMarkup(<Composer whoWillAnswer="" lead="Intake" lists={lists} agents={agents} />));
   assert.match(lead, /data-testid="composer-strip"/);
-  assert.match(lead, /Intake will answer on Sonnet 5\.5, high effort/);
-  assert.match(lead, /aria-label="Effort 3 of 4"/, "effort bars");
-  assert.doesNotMatch(lead, /composer-unavailable|Not available here/, "a pick that can run says nothing");
-  const off = clean(renderToStaticMarkup(<Composer whoWillAnswer="" lead="Intake" lists={lists} agents={[{ ...agents[0]!, unavailable: true }, agents[1]!]} />));
-  assert.match(off, /data-testid="composer-unavailable"[^>]*>Not available here</, "the remembered pick cannot run here: one quiet line");
-  assert.match(off, /Intake will answer on Sonnet 5\.5, not available here, high effort/, "and the label says so");
+  assert.match(lead, /Model and settings\. Intake will answer on Sonnet 5\.5, high effort/);
+  assert.doesNotMatch(lead, /aria-label="Effort 3 of 4"/, "no effort bars in the composer: the menu has them");
+  assert.doesNotMatch(lead, />Sonnet 5\.5</, "the composer names no model: the menu does");
+  assert.doesNotMatch(lead, /composer-unavailable|Not available here</, "no quiet line in the composer either");
+  const off = clean(renderToStaticMarkup(<Composer whoWillAnswer="" lead="Intake" lists={lists} agents={[{ ...agents[0]!, effort: "medium", unavailable: true }, agents[1]!]} />));
+  assert.match(off, /Intake will answer on Sonnet 5\.5, not available here/, "the label says the pick cannot run here");
+  assert.match(off, /composer-settings-dot/, "and the icon carries the dot");
   const people = clean(renderToStaticMarkup(<Composer whoWillAnswer="" lists={lists} agents={agents} />));
-  assert.doesNotMatch(people, /composer-strip/, "people only: no strip");
+  assert.doesNotMatch(people, /composer-strip/, "people only: no icon");
   const mentioned = clean(renderToStaticMarkup(<Composer whoWillAnswer="" lists={lists} agents={agents} value="@Docs can you check" />));
-  assert.match(mentioned, /Docs will answer on GPT-5/, "an @mentioned agent brings the strip");
+  assert.match(mentioned, /Docs will answer on GPT-5/, "an @mentioned agent brings the icon");
   const toPerson = clean(renderToStaticMarkup(<Composer whoWillAnswer="" lead="Intake" lists={lists} agents={agents} value="@Sam can you check" />));
   assert.doesNotMatch(toPerson, /composer-strip/, "addressed to a person: no AI answers");
   const outside = clean(renderToStaticMarkup(<Composer whoWillAnswer="" lead="Intake" lists={lists} agents={agents} sendsOutside />));
-  assert.doesNotMatch(outside, /composer-strip/, "a message that leaves Vyre has no agent strip");
+  assert.doesNotMatch(outside, /composer-strip/, "a message that leaves Vyre has no agent icon");
   assert.deepEqual(answering(["Intake"], agents).map((a) => a.id), ["agt_intake"]);
   assert.deepEqual(answering(["Nobody"], agents), [{ id: "Nobody", name: "Nobody" }], "an agent the place knows nothing about still shows by name");
 });
 
-test("the account name shows on the pill only when it is given (two accounts of one provider), and the ring only past 60 percent, amber past 80", () => {
-  const two = clean(renderToStaticMarkup(<Composer whoWillAnswer="" lead="Intake" lists={lists} agents={[{ ...agents[0]!, accountName: "MLA work" }]} />));
-  assert.match(two, /Sonnet 5\.5 · MLA work/);
+test("the composer shows no account name and no context ring (they are in the menu); the ring rule itself holds past 60 percent, amber past 80", () => {
+  const two = clean(renderToStaticMarkup(<Composer whoWillAnswer="" lead="Intake" lists={lists} agents={[{ ...agents[0]!, accountName: "MLA work", context: { used: 170_000, window: 200_000 } }]} />));
+  assert.doesNotMatch(two, /MLA work</);
+  assert.doesNotMatch(two, /composer-ring/);
   assert.equal(contextRing({ used: 60, window: 100 }), null);
   assert.deepEqual(contextRing({ used: 70, window: 100 }), { pct: 0.7, warn: false });
   assert.deepEqual(contextRing({ used: 85, window: 100 }), { pct: 0.85, warn: true });
   assert.equal(contextRing(null), null);
-  assert.match(two, /data-testid="composer-ring"/);
-  assert.match(two, /data-warn="1"/, "170k of 200k is amber");
-  const low = clean(renderToStaticMarkup(<Composer whoWillAnswer="" lead="Intake" lists={lists} agents={[{ ...agents[0]!, context: { used: 40_000, window: 200_000 } }]} />));
-  assert.doesNotMatch(low, /composer-ring/);
 });
 
-test("the mode chip shows only when the mode is not Auto, the runs chip only when given, and Shift+Tab cycles Auto, Ask first, Plan", async () => {
+test("the settings dot shows only while something is off its default (a mode other than Auto, a place to run, an effort other than medium); Shift+Tab cycles Auto, Ask first, Plan", async () => {
   assert.equal(nextMode("auto"), "ask");
   assert.equal(nextMode("ask"), "plan");
   assert.equal(nextMode("plan"), "auto");
-  const out = clean(renderToStaticMarkup(<Composer whoWillAnswer="" lead="Intake" lists={lists} agents={agents} mode="auto" onMode={() => undefined} />));
-  assert.doesNotMatch(out, /composer-mode/, "Auto says nothing");
-  assert.doesNotMatch(out, /composer-runs/);
-  const asked = clean(renderToStaticMarkup(<Composer whoWillAnswer="" lead="Intake" lists={lists} agents={agents} mode="ask" onMode={() => undefined} runsChip="Northwind" />));
-  assert.match(asked, /data-testid="composer-mode"/);
-  assert.match(asked, />On Northwind</);
+  const plain = { ...agents[0]!, effort: "medium" as const };
+  const out = clean(renderToStaticMarkup(<Composer whoWillAnswer="" lead="Intake" lists={lists} agents={[plain, agents[1]!]} mode="auto" onMode={() => undefined} />));
+  assert.doesNotMatch(out, /composer-settings-dot/, "everything at its default: no dot");
+  assert.doesNotMatch(out, /composer-mode|composer-runs/, "no mode or place chips in the composer");
+  const asked = clean(renderToStaticMarkup(<Composer whoWillAnswer="" lead="Intake" lists={lists} agents={[plain, agents[1]!]} mode="ask" onMode={() => undefined} />));
+  assert.match(asked, /composer-settings-dot/, "Ask first is not the default");
+  const runs = clean(renderToStaticMarkup(<Composer whoWillAnswer="" lead="Intake" lists={lists} agents={[plain, agents[1]!]} mode="auto" onMode={() => undefined} runsChip="Northwind" />));
+  assert.match(runs, /composer-settings-dot/, "running somewhere else is not the default");
+  const effortHigh = clean(renderToStaticMarkup(<Composer whoWillAnswer="" lead="Intake" lists={lists} agents={agents} mode="auto" onMode={() => undefined} />));
+  assert.match(effortHigh, /composer-settings-dot/, "a set effort is not the default");
   await withDom(async () => {
     const modes: ChatMode[] = [];
     function Host(): ReactElement { const [m, setM] = useState<ChatMode>("ask"); return <Composer whoWillAnswer="" lead="Intake" lists={lists} agents={agents} mode={m} onMode={(x) => { modes.push(x); setM(x); }} />; }
@@ -462,5 +464,17 @@ test("choosing another row closes the side list and opens that row's", async () 
     await press(find(root, "model-more-row"));
     assert.equal(find(root, "model-sub") !== null, true, "another row's list");
     assert.equal(find(root, "row-model-sonnet"), null, "the Model list is not left beside it");
+  });
+});
+
+test("the menu names the model and the account at its top, and follows a new pick", async () => {
+  await withDom(async () => {
+    const root = await mount(createRoot, <PanelHost log={[]} usageOf={() => null} />);
+    await press(find(root, "composer-strip"));
+    assert.equal(textOf(find(root, "model-head-name")), "Opus 5.5");
+    assert.equal(textOf(find(root, "model-head-account")), "Personal");
+    await press(find(root, "model-model"));
+    await press(find(root, "row-model-sonnet"));
+    assert.equal(textOf(find(root, "model-head-name")), "Sonnet 5.5");
   });
 });

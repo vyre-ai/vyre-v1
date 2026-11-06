@@ -1,0 +1,3 @@
+- Composer: the model chip is gone. One settings (sliders) icon opens the full menu and carries a dot while anything is off its default; the menu names the model and account at its top. No effort bars, context ring, account name or mode chip in the composer.
+- Composer: one 12 px radius (the pill, its buttons, its chips); focus shows on the pill only (an accent hairline and a soft wash).
+- Model menu: the side list opens level with its row, flips when there is no room, and both it and the menu stay 8 px inside the window.
