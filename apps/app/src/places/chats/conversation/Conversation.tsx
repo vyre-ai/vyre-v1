@@ -656,7 +656,7 @@ function ConversationView(): ReactElement {
   const takeShare = (dt: TransferLike): boolean => { let took = false; dropShare({ preventDefault: () => { took = true; }, dataTransfer: dt as { getData?: (t: string) => string } }); return took; };
   return (
     <DropRoute testID="conversation-drop" style={ROUTE_STYLE} onOther={takeShare}>
-    <View testID="conversation" accessibilityLabel={`Conversation, ${title}`} style={st.root} onLayout={(e) => { const w = Math.round(e.nativeEvent.layout.width); setColW((cur) => (cur === w ? cur : w)); }}>
+    <View testID="conversation" accessibilityLabel={`Conversation, ${title}`} style={st.root}>
       <FrameFeed frame={frame} feed={frameFeed} />
       {compact || inFrame ? null : (
       <View testID="conversation-head" accessibilityRole="header" style={st.head}>
