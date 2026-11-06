@@ -202,3 +202,9 @@ test("an engine that cannot run here says why in the connect card's own words, a
   const auth = data(statusView(block({ state: "failed", turnId: "t", code: "provider.auth_failed", account: "Claude_Code" })));
   assert.equal(auth.next?.[0]?.key, "sign_in:Claude_Code");
 });
+
+test("an AI sign-in that cannot be opened says so and offers the sign-in, not a plain could-not-be-read", () => {
+  const e = errorOf({ state: "failed", turnId: "t", code: "engine.signin_unopenable" });
+  assert.equal(e.message, "Your AI sign-in can't be opened on this device.");
+  assert.deepEqual(e.next, [{ key: "connect_ai", label: "Sign in again" }]);
+});

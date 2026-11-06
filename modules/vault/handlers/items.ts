@@ -33,6 +33,14 @@ export function filler(ctx: VaultCtx) {
 /** The words of a Mine item that cannot open because its owner's key is not on this node: they open when the owner is signed in, and nothing else needs doing. */
 export const MINE_CLOSED = "Your Vault key is not on this server, so your sign-in cannot be opened. Your Mine items open while you are signed in: open Vyre on your device and sign in.";
 
+/** The reason an item whose stored value no key this Space has can open carries (saved under an older key: a reset, a restore). A new sign-in replaces such an item. */
+export const UNOPENABLE = "item_unopenable";
+export const UNOPENABLE_WORDS = "This sign-in can't be opened on this device. Sign in again.";
+export function isUnopenable(e: unknown): boolean {
+  const x = e as { details?: { reason?: unknown }; error?: { details?: { reason?: unknown } } } | null;
+  return (x?.error?.details?.reason ?? x?.details?.reason) === UNOPENABLE;
+}
+
 /** The wrap key of the signed-in owner, or a refusal. */
 async function ownerWrap(ctx: VaultCtx, owner: string): Promise<Buffer> {
   // the owner themselves, or a turn run for them: the key exists only on a node where they unlocked it (ruling 62), so another person's turn never reaches it
@@ -118,7 +126,7 @@ export async function openFields(ctx: VaultCtx, item: Row): Promise<Field[]> {
     return filler(ctx).open(str(item, "id"), sealed);
   } catch (e) {
     if (e instanceof Error && "error" in e) throw e;   // a refusal above
-    throw fail("internal.unexpected", ctx.trace.traceId, { message: "This item could not be opened with the keys this Space has. If it was saved before a password reset, add it again." });
+    throw fail("internal.unexpected", ctx.trace.traceId, { message: "This item could not be opened with the keys this Space has. If it was saved before a password reset, add it again.", details: { reason: UNOPENABLE } });
   }
 }
 
@@ -342,6 +350,8 @@ export async function itemPut(ctx: VaultCtx, input: {
 
 export async function itemUpdate(ctx: VaultCtx, input: {
   itemId: string; name?: string; fieldsSet?: unknown[]; fieldsRemove?: string[]; spaceOnly?: boolean; injectIntoDeployments?: boolean; rotateEveryDays?: number | null;
+  /** A sign-in saved again over an item no key can open: the new fields REPLACE the unreadable value under the current key (same item, handle, name and history). System use, not an input of the capability. */
+  replaceUnopenable?: boolean;
 }) {
   ensure(ctx);
   const r = reachable(ctx, input.itemId, "edit");
@@ -371,7 +381,12 @@ export async function itemUpdate(ctx: VaultCtx, input: {
   const remove = input.fieldsRemove === undefined ? [] : list(input.fieldsRemove).map((k) => (typeof k === "string" && FIELD_KEY.test(k) ? k : bad(ctx, "Field keys are not valid.")));
   const fieldsChanged: string[] = [];
   if (set.length || remove.length) {
-    const have = await openFields(ctx, r);
+    let have: Field[];
+    let replaced = false;
+    try { have = await openFields(ctx, r); }
+    catch (e) {
+      if (input.replaceUnopenable === true && isUnopenable(e) && remove.length === 0 && set.length > 0) { have = []; replaced = true; } else throw e;
+    }
     let next = have.filter((f) => !remove.includes(f.key));
     for (const k of remove) if (!have.some((f) => f.key === k)) bad(ctx, `This item has no field ${k}.`);
     for (const f of set) next = next.some((n) => n.key === f.key) ? next.map((n) => (n.key === f.key ? f : n)) : [...next, f];
@@ -381,7 +396,7 @@ export async function itemUpdate(ctx: VaultCtx, input: {
     changed["fieldKeys"] = JSON.stringify(next.map((f) => f.key));
     ctx.db.run(`UPDATE vault_item_x SET "secrets" = ? WHERE "itemId" = ?`, JSON.stringify(Object.fromEntries(next.map((f) => [f.key, f.secret]))), str(r, "id"));
     fieldsChanged.push(...new Set([...set.map((f) => f.key), ...remove]));
-    for (const k of fieldsChanged) record(ctx, str(r, "id"), "edited", { field: k });
+    for (const k of fieldsChanged) record(ctx, str(r, "id"), "edited", { field: k, ...(replaced ? { detail: "Replaced: the earlier value could not be opened with the current keys." } : {}) });
     // a new value is a rotation: a reminder that keeps nagging after the key was changed teaches people to ignore it
     if (set.length > 0) ctx.db.run(`UPDATE vault_item_x SET "lastRotatedAt" = ? WHERE "itemId" = ?`, ctx.now(), str(r, "id"));
   }

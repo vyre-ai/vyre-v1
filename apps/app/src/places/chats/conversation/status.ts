@@ -51,6 +51,7 @@ const STATUS_WORDS: Record<string, { message: string; cause?: string; next?: { k
   "engine.link_insecure": { message: "Your server needs a secure link (https) before it can run your chats.", retryable: true },
   "engine.cli_missing": { message: "The engine is not installed here.", next: [{ key: "connect_ai", label: "Connect an account" }], retryable: true },
   "engine.vault_locked": { message: "Your Vault key is not on this server.", cause: "Your AI sign-in cannot be opened until you are signed in on a device. Open Vyre there, then send again.", retryable: true },
+  "engine.signin_unopenable": { message: "Your AI sign-in can't be opened on this device.", cause: "It was saved under an older key. Sign in again to replace it.", next: [{ key: "connect_ai", label: "Sign in again" }], retryable: false },
   "engine.signin_missing": { message: "Your sign-in for this AI is missing.", cause: "Sign in again.", next: [{ key: "connect_ai", label: "Sign in again" }], retryable: false },
   "engine.cli_unusable": { message: "This engine cannot run on your computer as it is.", cause: "It may not be installed here, or not signed in here, or your computer is not connected.", next: [{ key: "connect_ai", label: "Sign in or pick another AI" }], retryable: false },
   "engine.closing": { message: "The app was closing, so this waits and runs when it opens again.", retryable: true },

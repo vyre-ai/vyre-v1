@@ -30912,6 +30912,7 @@ export type ProvidersAddOut = {
     address?: string;
     keyless?: boolean;
     spaceKey?: boolean;
+    unopenable?: boolean;
     identity?: string;
     displayName?: string;
     aliases?: Array<string>;
@@ -30988,6 +30989,7 @@ export type ProvidersCustomAddOut = {
     address?: string;
     keyless?: boolean;
     spaceKey?: boolean;
+    unopenable?: boolean;
     identity?: string;
     displayName?: string;
     aliases?: Array<string>;
@@ -31052,6 +31054,7 @@ export type ProvidersListOut = {
       address?: string;
       keyless?: boolean;
       spaceKey?: boolean;
+      unopenable?: boolean;
       identity?: string;
       displayName?: string;
       aliases?: Array<string>;
@@ -31075,6 +31078,7 @@ export type ProvidersListOut = {
 };
 export type ProvidersMarkSigninNeededIn = {
   handle: string;
+  why?: string;
 };
 export type ProvidersMarkSigninNeededOut = {
   marked: boolean;
@@ -31121,6 +31125,7 @@ export type ProvidersSetKeepsNothingOut = {
     address?: string;
     keyless?: boolean;
     spaceKey?: boolean;
+    unopenable?: boolean;
     identity?: string;
     displayName?: string;
     aliases?: Array<string>;
@@ -31171,6 +31176,7 @@ export type ProvidersSetSpaceUseOut = {
     address?: string;
     keyless?: boolean;
     spaceKey?: boolean;
+    unopenable?: boolean;
     identity?: string;
     displayName?: string;
     aliases?: Array<string>;
@@ -31273,6 +31279,7 @@ export type ProvidersSubscriptionCompleteOut = {
     address?: string;
     keyless?: boolean;
     spaceKey?: boolean;
+    unopenable?: boolean;
     identity?: string;
     displayName?: string;
     aliases?: Array<string>;
@@ -31355,6 +31362,7 @@ export type ProvidersUsesSetOut = {
     address?: string;
     keyless?: boolean;
     spaceKey?: boolean;
+    unopenable?: boolean;
     identity?: string;
     displayName?: string;
     aliases?: Array<string>;

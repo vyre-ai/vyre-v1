@@ -97,3 +97,13 @@ test("a read with no way to bring the key back reports the key-missing code and 
   await assert.rejects(other.source.lookup("#Dana_Claude.credentials", who), (e: { code?: string; message?: string }) =>
     e.code === "engine.vault_unreadable" && /Dana_Claude/.test(e.message ?? "") && /read failed \(Error\)/.test(e.message ?? "") && !/not running/.test(e.message ?? "") && e.message !== "The Vault could not be read.");
 });
+
+test("an item no key can open is said as itself: Your Codex sign-in can't be opened on this device, with the account, so the chat can offer the sign-in", async () => {
+  const h = createEngineSessionHost({
+    invoke: (async () => ({ status: "ok", output: { itemId: "vit_1" } })) as never,
+    vault: { secret: async () => { throw Object.assign(new Error("This sign-in can't be opened on this device. Sign in again."), { code: "vault.item_unopenable" }); } } as never,
+    space: "spc_1", keyHeld: () => true,
+  });
+  await assert.rejects(h.source.lookup("#Codex_irfad47_icloud_com.credentials", who), (e: { code?: string; message?: string }) =>
+    e.code === "engine.signin_unopenable" && /^Your Codex sign-in can't be opened on this device\. Sign in to Codex again\./.test(e.message ?? "") && /\[account Codex_irfad47_icloud_com\]/.test(e.message ?? ""));
+});

@@ -63,6 +63,7 @@ export function ProviderPage({ provider, handle, onNote, tokensOf }: ProviderPag
         <View style={s.box} testID="provider-signin">
           <View style={s.boxRow}>
             <View style={{ flex: 1 }}><Text style={s.strong} testID="provider-how">{provider.via.replace(/^Sign in with /, "Signed in with ")}</Text><Text style={s.dim}>{people.name(data.me.id)}</Text></View>
+            {provider.state === "needs_sign_in" && provider.unopenable === true ? <View style={{ flex: 1 }}><Text style={s.dim} testID="provider-unopenable">Can't be opened, sign in again</Text></View> : null}
             {provider.state === "needs_sign_in"
               ? <Btn label="Sign in again" onPress={() => void signIn()} testID="provider-signin-again" />
               : <View style={s.state} testID="provider-state"><View style={[s.dot, { backgroundColor: (provider.state === "ok" ? "var(--ok)" : "var(--danger)") as string }]} /><Text style={s.dim}>{provider.state === "ok" ? "Working" : "Not working"}</Text></View>}

@@ -637,9 +637,9 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
       }
       else if (ev.type === "turn.started" || ev.type === "turn.completed" || ev.type === "turn.failed" || ev.type === "turn.cancelled" || ev.type === "turn.resumed" || (ev.type === "turn.waiting" && ev.reason === "approval")) report(ev.turnId, ev);
       // a sign-in the turn found missing or refused: the account reads "Sign in again" in Settings (the person's own subscription account only; the Vault decides)
-      if (ev.type === "turn.failed" && (ev.code === "engine.signin_missing" || ev.code === "provider.auth_failed") && ev.account?.ref) {
+      if (ev.type === "turn.failed" && (ev.code === "engine.signin_missing" || ev.code === "engine.signin_unopenable" || ev.code === "provider.auth_failed") && ev.account?.ref) {
         const who = engine.turns().find((t) => t.id === ev.turnId)?.asker;
-        void h.call("providers.mark_signin_needed", { handle: ev.account.ref.startsWith("#") ? ev.account.ref : `#${ev.account.ref}` }, who)
+        void h.call("providers.mark_signin_needed", { handle: ev.account.ref.startsWith("#") ? ev.account.ref : `#${ev.account.ref}`, ...(ev.code === "engine.signin_unopenable" ? { why: "unopenable" } : {}) }, who)
           .catch((err: unknown) => h.log?.("an account could not be marked as needing a sign-in", { turnId: ev.turnId, error: err instanceof Error ? err.message : String(err) }));
       }
       if (ev.type === "turn.completed" || ev.type === "turn.failed" || ev.type === "turn.cancelled") {

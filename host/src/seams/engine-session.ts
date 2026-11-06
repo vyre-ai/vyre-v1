@@ -168,6 +168,12 @@ export function createEngineSessionHost(d: EngineSessionHostDeps): EngineSession
             if (who.account === true) throw coded("engine.signin_missing", `${whyUnusable(e, code)} [account ${item}]`);
             return { kind: "unknown" };
           }
+          // a value no key this Space has can open (saved under an older key): said as itself, with the account, so the chat can offer the sign-in
+          if (code === "vault.item_unopenable") {
+            const name = /codex/i.test(item) ? "Codex" : /claude/i.test(item) ? "Claude" : /grok/i.test(item) ? "Grok" : "AI";
+            d.log?.("the vault item could not be opened with the current keys", { handle: item, field: field ?? null });
+            throw coded("engine.signin_unopenable", `Your ${name} sign-in can't be opened on this device. Sign in to ${name} again. [account ${item}]`);
+          }
           // Never the original text: it may carry request text. A locked key and every other refusal carry a code of their own, so the chat shows an Unlock card or a precise reason, not "did not finish".
           if (vaultLocked(e)) throw coded("engine.vault_locked", "Your Vault key is not on this server, so your sign-in cannot be opened. Your Mine items open while you are signed in: open Vyre on your device and sign in.");
           throw coded("engine.vault_unreadable", `The Vault could not read the sign-in ${item}${field ? ` (${field})` : ""}: ${plainCause(e, code)}`);

@@ -77,7 +77,7 @@ export function ProviderPanel({ provider, onNote, onRemoved }: ProviderPanelProp
         <View style={s.facts}>
           <View style={s.fact}><Text style={s.k}>Connects with</Text><Text style={s.v} testID="provider-how">{howConnected(provider)}</Text></View>
           <View style={s.fact}><Text style={s.k}>Belongs to</Text><Text style={s.v} testID="provider-scope">{scopeWords(provider)}</Text></View>
-          <View style={s.fact}><Text style={s.k}>Right now</Text><View style={s.state}><View style={[s.dot, { backgroundColor: (needs !== null || chatWhy !== null ? STATE_COLOR.needs_sign_in : STATE_COLOR[provider.state]) as string }]} /><Text style={s.v} testID="provider-state">{needs ?? (chatWhy !== null ? `Works, but not in chats: ${chatWhy}` : stateWords(provider.state))}</Text></View></View>
+          <View style={s.fact}><Text style={s.k}>Right now</Text><View style={s.state}><View style={[s.dot, { backgroundColor: (needs !== null || chatWhy !== null ? STATE_COLOR.needs_sign_in : STATE_COLOR[provider.state]) as string }]} /><Text style={s.v} testID="provider-state">{needs ?? (chatWhy !== null ? `Works, but not in chats: ${chatWhy}` : stateWords(provider.state, provider.unopenable))}</Text></View></View>
           <View style={s.fact}><Text style={s.k}>This month</Text><Text style={s.v} testID="provider-usage">{usageWords(provider)}</Text></View>
         </View>
 
