@@ -190,7 +190,8 @@ function assertNoValueAnywhere(b: { areas: Record<string, { writes: string[]; da
   for (const v of values) {
     for (const h of hay) assert.ok(!h.includes(v), `a stored or logged string contains a secret value`);
   }
-  const toApp = JSON.stringify(app.received);
+  // the browser refs are random hex ids ("w1-7376d7a8..."); a 3-digit code like 737 appeared in one about 1 run in 8 and failed this check by chance, so the ids are blanked first
+  const toApp = JSON.stringify(app.received).replace(/"ref":"[^"]*"/g, '"ref":""');
   for (const v of values) assert.ok(!toApp.includes(v), "the worker sent a secret value to the app");
 }
 

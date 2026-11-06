@@ -35,6 +35,7 @@ export function useChange(): (row: SettingRow, value: unknown, say?: string) => 
 
 export function SettingControl({ row }: { row: SettingRow }): ReactElement {
   const change = useChange();
+  const data = useSettingsData();
   const c = controlFor(row);
   const v = row.value;
   const label = rowLabel(row);
@@ -49,7 +50,7 @@ export function SettingControl({ row }: { row: SettingRow }): ReactElement {
     case "zone": {
       const here = deviceZone();
       const set = (zone: string): void => { void change(row, zone).then(() => refreshZones()); };
-      return <ZonePicker value={typeof v === "string" && validZone(v) ? v : here} label={label} testID={`ctl-${row.key}`} onChange={set} extra={{ label: "Use this computer's time zone", onSelect: () => set(here) }} />;
+      return <ZonePicker now={data.clock().now} value={typeof v === "string" && validZone(v) ? v : here} label={label} testID={`ctl-${row.key}`} onChange={set} extra={{ label: "Use this computer's time zone", onSelect: () => set(here) }} />;
     }
     case "list": return <Field value={Array.isArray(v) ? v.join(", ") : ""} label={label} width={240} testID={`ctl-${row.key}`} onCommit={(n) => void change(row, splitList(n))} />;
     default:

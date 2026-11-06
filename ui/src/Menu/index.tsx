@@ -233,6 +233,8 @@ export interface MenuViewProps extends MenuProps {
   onClose?: () => void;
   /** What was right-clicked, passed to the report sheet. */
   reportContext?: ReportContext;
+  /** The trigger's right edge. When the menu will not fit to the right of x it flips: its right edge lines up with this, then it clamps 8 px inside the window. */
+  anchorRight?: number;
 }
 
 const MENU_W = 220;
@@ -312,7 +314,9 @@ export function Menu(props: MenuViewProps): ReactElement | null {
 
   if (gone) return null;
 
-  const { left, top } = clampMenu(props.x ?? 0, props.y ?? 0, size.w, size.h, window.width, window.height);
+  const x0 = props.x ?? 0;
+  const flipped = props.anchorRight !== undefined && x0 + size.w > window.width - 8 ? props.anchorRight - size.w : x0;
+  const { left, top } = clampMenu(flipped, props.y ?? 0, size.w, size.h, window.width, window.height);
   const rows: ReactNode[] = [];
   for (let i = 0; i < entries.length; i++) {
     const entry = entries[i];
@@ -420,6 +424,7 @@ function MenuRow({ entry, lit, onHover, onChoose, nodeRef }: {
 /* ---------- opening a menu from a surface ---------- */
 
 export interface OpenMenu {
+  anchorRight?: number;
   items: readonly MenuEntry[];
   x: number;
   y: number;
@@ -536,7 +541,7 @@ export function resetAnchor(): void { lastAnchor = null; }
 /** One open menu for a surface. `element` goes anywhere in the tree; `show` opens it at a point. */
 export function useMenu(): {
   element: ReactElement | null;
-  show: (items: readonly MenuEntry[], x: number, y: number, source?: MenuSource, context?: ReportContext, opts?: { search?: string; width?: number; onSearch?: (query: string) => void }) => void;
+  show: (items: readonly MenuEntry[], x: number, y: number, source?: MenuSource, context?: ReportContext, opts?: { search?: string; width?: number; onSearch?: (query: string) => void; anchorRight?: number }) => void;
   hide: () => void;
   /** New rows for the menu that is open, in place: it stays where it is, with its search and its lit row (a ticked filter row, a label made). Nothing when no menu is open. */
   update: (items: readonly MenuEntry[]) => void;
@@ -544,17 +549,17 @@ export function useMenu(): {
   const [open, setOpen] = useState<OpenMenu | null>(null);
   const counter = useRef(0);
   useEffect(() => { listenForPresses(); }, []);
-  const show = useCallback((items: readonly MenuEntry[], x: number, y: number, source: MenuSource = "context", context?: ReportContext, opts?: { search?: string; width?: number; onSearch?: (query: string) => void }) => {
+  const show = useCallback((items: readonly MenuEntry[], x: number, y: number, source: MenuSource = "context", context?: ReportContext, opts?: { search?: string; width?: number; onSearch?: (query: string) => void; anchorRight?: number }) => {
     counter.current += 1;
     const at = resolveMenuPoint(x, y);
     x = at.x;
     y = at.y;
-    setOpen({ items, x, y, source, nonce: counter.current, ...(context === undefined ? {} : { context }), ...(opts?.search === undefined ? {} : { search: opts.search }), ...(opts?.width === undefined ? {} : { width: opts.width }), ...(opts?.onSearch === undefined ? {} : { onSearch: opts.onSearch }) });
+    setOpen({ items, x, y, source, nonce: counter.current, ...(context === undefined ? {} : { context }), ...(opts?.anchorRight === undefined ? {} : { anchorRight: opts.anchorRight }), ...(opts?.search === undefined ? {} : { search: opts.search }), ...(opts?.width === undefined ? {} : { width: opts.width }), ...(opts?.onSearch === undefined ? {} : { onSearch: opts.onSearch }) });
   }, []);
   const hide = useCallback(() => setOpen(null), []);
   const update = useCallback((items: readonly MenuEntry[]) => setOpen((o) => (o === null ? null : { ...o, items })), []);
   const element = open === null ? null : (
-    <Menu key={open.nonce} items={open.items} x={open.x} y={open.y} source={open.source} onClose={hide} {...(open.context === undefined ? {} : { reportContext: open.context })} {...(open.search === undefined ? {} : { search: open.search })} {...(open.width === undefined ? {} : { width: open.width })} {...(open.onSearch === undefined ? {} : { onSearch: open.onSearch })} />
+    <Menu key={open.nonce} items={open.items} x={open.x} y={open.y} {...(open.anchorRight === undefined ? {} : { anchorRight: open.anchorRight })} source={open.source} onClose={hide} {...(open.context === undefined ? {} : { reportContext: open.context })} {...(open.search === undefined ? {} : { search: open.search })} {...(open.width === undefined ? {} : { width: open.width })} {...(open.onSearch === undefined ? {} : { onSearch: open.onSearch })} />
   );
   return { element, show, hide, update };
 }
