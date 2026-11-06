@@ -5,7 +5,8 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { HOME, answer, collect, errors, launcher, open, opts, say, toolNames, work } from "./support/codex-real.ts";
+import { openMcpBridge } from "../modules/engine/mcp-bridge.ts";
+import { answer, collect, driverCaller, errors, open, opts, say, startMcp, toolNames, work } from "./support/codex-real.ts";
 import type { DriverEvent } from "../agent/src/turn-engine/types.ts";
 
 test("(a) a plain question on Auto is answered, with usage, and ends done", opts, async () => {
@@ -57,4 +58,34 @@ test("(f) a long output comes through whole", opts, async () => {
   assert.ok(nums.includes(1) && nums.includes(150) && nums.includes(300), `got ${nums.length} numbers`);
   assert.equal(ev.at(-1)?.type, "done");
   await s.close();
+});
+
+test("(l) a Vyre tool: Codex calls it through the MCP server with the session token, as the agent for the asker", opts, async () => {
+  const token = "tok-real-mcp-0123456789abcdef";
+  const rig = await startMcp({ [token]: driverCaller() });
+  const s = await open("", { mcp: async () => ({ url: rig.url, token }) });
+  try {
+    const ev = await collect(s.send(say("Call the vyre tool named schema_describe once, then say in one short sentence that you did.")));
+    assert.deepEqual(errors(ev), []);
+    assert.ok(rig.calls.some((c) => c.tool === "schema_describe" && c.outcome === "ok"), `the MCP server saw the call: ${JSON.stringify(rig.calls)}`);
+    assert.ok(toolNames(ev).some((n) => /schema_describe/.test(n)), `activity shows it: ${toolNames(ev)}`);
+    assert.equal(rig.invokes[0]?.principal, "agt_intake");
+    assert.equal(rig.invokes[0]?.actingFor, "per_dana");
+    assert.equal(ev.at(-1)?.type, "done");
+  } finally { await s.close(); await rig.close(); }
+});
+
+test("(m) a Vyre tool through the stdio shim and a socket in the scratch folder, the way a sandboxed Codex reaches Vyre", opts, async () => {
+  const token = "tok-real-shim-0123456789abcdef";
+  const rig = await startMcp({ [token]: driverCaller() });
+  const scratch = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-codex-scratch-"));
+  const bridge = await openMcpBridge({ url: rig.url, token }, { scratch });
+  const s = await open("", { mcp: async () => ({ url: "", token, stdio: bridge.stdio }) });
+  try {
+    const ev = await collect(s.send(say("Call the vyre tool named schema_describe once, then say in one short sentence that you did.")));
+    assert.deepEqual(errors(ev), []);
+    assert.ok(rig.calls.some((c) => c.tool === "schema_describe" && c.outcome === "ok"), `the MCP server saw the call through the shim: ${JSON.stringify(rig.calls)}`);
+    assert.equal(rig.invokes[0]?.actingFor, "per_dana");
+    assert.equal(ev.at(-1)?.type, "done");
+  } finally { await s.close(); await bridge.close(); await rig.close(); fs.rmSync(scratch, { recursive: true, force: true }); }
 });

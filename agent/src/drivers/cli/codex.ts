@@ -163,7 +163,8 @@ export function createCodexDecoder(): CliDecoder {
  * `-a/--ask-for-approval` (on-request, never) but only on the interactive command, so `exec` takes it as the config key `approval_policy` through `-c`, the way the sandbox already is. A headless run cannot
  * stop and ask, so Ask first and Plan both run read-only (the model describes a change and the person says yes in the chat, or picks Auto); Auto runs workspace-write when a work folder was granted.
  * Codex has no plan mode in `exec`: Plan is read-only plus the plan instruction the engine puts in the turn context, and Vyre's own tools refuse writes in plan mode on the MCP side.
- * Nothing here is ever danger-full-access or --dangerously-bypass-approvals-and-sandbox.
+ * Nothing here is ever danger-full-access or --dangerously-bypass-approvals-and-sandbox. The one place that says it is Vyre's own sandbox wrapper (modules/engine/sandbox.ts codexInWall), and only where Codex's
+ * sandbox cannot start inside Vyre's (a Mac, Linux as root): the run is then still entirely inside Vyre's wall.
  */
 export function codexSandbox(o: Pick<CommandOptions, "mode" | "planMode" | "workFolder" | "noTools">): "workspace-write" | "read-only" {
   const mode = o.mode ?? (o.planMode ? "plan" : "auto");   // no mode: the older rule, writable inside a granted folder unless plan mode

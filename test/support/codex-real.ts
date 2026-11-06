@@ -9,7 +9,7 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { CLI_ADAPTERS, createCliDriver, createLocalLauncher } from "../../agent/src/drivers/cli/index.ts";
 import type { CliDriverDeps } from "../../agent/src/drivers/cli/index.ts";
-export { collect } from "../../agent/fixtures/golden-streams/rig.ts";
+export { collect, driverCaller, startMcp } from "../../agent/fixtures/golden-streams/rig.ts";
 import { collect, message, specOf, texts, turnOf } from "../../agent/fixtures/golden-streams/rig.ts";
 import type { DriverEvent } from "../../agent/src/turn-engine/types.ts";
 
