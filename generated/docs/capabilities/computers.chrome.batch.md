@@ -26,6 +26,7 @@ Run several Chrome steps in one call; stops at the first held item
 ```ts
 type In = {
   computerId?: string;
+  inMyChrome?: boolean;
   tabId?: string;
   steps: Array<{
       tool: string;
@@ -65,6 +66,7 @@ type Out = {
   "name": "example",
   "input": {
     "computerId": "cmt_a1b2c3",
+    "inMyChrome": true,
     "steps": [
       {
         "args": {},

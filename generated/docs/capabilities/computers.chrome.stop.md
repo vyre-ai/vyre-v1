@@ -26,6 +26,7 @@ Stop everything Chrome is doing until the person answers
 ```ts
 type In = {
   computerId?: string;
+  inMyChrome?: boolean;
   reason?: string;
 };
 ```
@@ -56,6 +57,7 @@ type Out = {
   "name": "example",
   "input": {
     "computerId": "cmt_a1b2c3",
+    "inMyChrome": true,
     "reason": "example"
   },
   "output": {

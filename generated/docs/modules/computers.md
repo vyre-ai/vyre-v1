@@ -25,7 +25,7 @@ Requires: chat.
 - [computers.chrome.state](../capabilities/computers.chrome.state.md): URL, title and load state of a tab
 - [computers.chrome.status](../capabilities/computers.chrome.status.md): Status of Vyre for Chrome in this computer: connected, paused by Esc, held items
 - [computers.chrome.stop](../capabilities/computers.chrome.stop.md): Stop everything Chrome is doing until the person answers
-- [computers.chrome.tabs](../capabilities/computers.chrome.tabs.md): List, use, open or close tabs
+- [computers.chrome.tabs](../capabilities/computers.chrome.tabs.md): List, find, use, open or close tabs. find looks for tabs already open for a site (in the person's own Chrome: their open tabs); use works in one; a tab that was not yours to begin with is never closed
 - [computers.chrome.type](../capabilities/computers.chrome.type.md): Type text into the focused element or a ref; secrets only as #Handle.field references
 - [computers.chrome.wait](../capabilities/computers.chrome.wait.md): Wait for a load, text, selector, network idle or a time
 - [computers.configure](../capabilities/computers.configure.md): Change the tab limit or idle sleep of a computer

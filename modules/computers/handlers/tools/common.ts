@@ -12,6 +12,7 @@ import { actorOf, addStep, agentFolder, clean, hostFor, ensure, mintId, needComp
 import { personalChrome } from "../../projections.ts";
 import type { CompCtx, ComputerHost, ComputerRow, PersonalChrome, Secret } from "../../projections.ts";
 import { awaken } from "../lifecycle.ts";
+import { askedThisTurn } from "./my-chrome-ask.ts";
 
 export type ToolArgs = Record<string, unknown>;
 export type ToolAnswer = Record<string, unknown>;
@@ -143,29 +144,33 @@ export const MY_CHROME = "my-chrome";
 
 const stub = (ctx: CompCtx): ComputerRow => ({ computerId: MY_CHROME, agentId: ctx.principal.id, state: "working" } as unknown as ComputerRow);
 
-/** Is this call for the person's Chrome? Only an agent working for the person who is signed in to that Chrome, and never when it has a computer and did not ask for this. */
-async function wantsMyChrome(ctx: CompCtx, computerId: string | undefined): Promise<boolean> {
-  const port = personalChrome();
+/** Tools that never need the ask of this turn: they finish or stop what an ask already began (a held item waiting for the person, Stop, Resume, and the look at whether Chrome is connected). */
+const NO_ASK = new Set(["chrome_send", "chrome_stop", "chrome_resume", "chrome_status"]);
+
+/** Where a call goes: `inMyChrome: true` is the way to ask for the person's Chrome; the older spelling `computerId: "my-chrome"` means the same. */
+export const whereOf = (input: { computerId?: string | undefined; inMyChrome?: boolean | undefined }): string | undefined => (input.inMyChrome === true ? MY_CHROME : input.computerId);
+
+const NOT_ASKED = "The person did not ask for their own Chrome in this turn, so it is not used. Work in the Space browser. If their own Chrome is what the task needs, ask them with ask_question: Use my Chrome, or Use the Space browser.";
+const NOT_CONNECTED = "Your Chrome is not connected: Vyre for Chrome is not open on your computer, or it is not turned on for agents in this Space. I can do this in the Space browser instead. Tell the person that plainly and offer it.";
+
+/** Is this call for the person's Chrome? Only when the call asks for it (`inMyChrome`), the person asked for it in this turn, and the Chrome is the one of the person the agent works for and is open to agents. Never by default. */
+async function wantsMyChrome(ctx: CompCtx, computerId: string | undefined, tool?: string): Promise<boolean> {
   const asked = computerId === MY_CHROME;
-  if (asked && ctx.principal.kind !== "agent") raise(ctx, "validation.bad_input", "Your Chrome is for an agent working for you. Say which agent computer you mean.");
-  if (!port || ctx.principal.kind !== "agent") return false;
-  if (computerId !== undefined && !asked) return false;
-  if (!asked) {
-    const own = rowsOf(ctx.db, "SELECT computer_id FROM computers_computers WHERE agent_id = ?", ctx.principal.id)[0];
-    if (own) return false;
-  }
+  if (!asked) return false;
+  if (ctx.principal.kind !== "agent") raise(ctx, "validation.bad_input", "Your Chrome is for an agent working for you. Say which agent computer you mean.");
   const person = ctx.actingFor;
-  if (!person) { if (asked) raise(ctx, "validation.bad_input", "Your Chrome is the Chrome of the person you work for, and this work is not for anyone."); return false; }
-  if (await port.available({ space: ctx.space, person })) return true;
-  if (asked) raise(ctx, "provider.unavailable", "That person's Chrome is not open to agents here. They turn it on in Vyre for Chrome, and the work has to run on their computer.");
-  return false;
+  if (!person) raise(ctx, "validation.bad_input", "Your Chrome is the Chrome of the person you work for, and this work is not for anyone.");
+  if (!(tool && NO_ASK.has(tool)) && !(await askedThisTurn(ctx))) raise(ctx, "validation.bad_input", NOT_ASKED, { reason: "not_asked" });
+  const port = personalChrome();
+  if (!port || !(await port.available({ space: ctx.space, person }))) raise(ctx, "provider.unavailable", NOT_CONNECTED, { reason: "not_connected" });
+  return true;
 }
 
 /** Everything before the call: team Space, the computer, the caller's right to it, awake, and the controls with the agent. Returns null when the spec says to leave a sleeping computer alone. */
-export async function prepare(ctx: CompCtx, computerId: string | undefined, spec: Pick<ToolSpec, "noWake" | "duringTakeover">): Promise<Resolved | null> {
+export async function prepare(ctx: CompCtx, computerId: string | undefined, spec: Pick<ToolSpec, "noWake" | "duringTakeover"> & { name?: string }): Promise<Resolved | null> {
   ensure(ctx.db);
   needTeam(ctx);
-  if (await wantsMyChrome(ctx, computerId)) return { computer: stub(ctx), host: {} as ComputerHost & ToolHost, personal: true };
+  if (await wantsMyChrome(ctx, computerId, spec.name)) return { computer: stub(ctx), host: {} as ComputerHost & ToolHost, personal: true };
   let c = computerFor(ctx, computerId);
   mayUse(ctx, c);
   // The controls are the person's: the tools wait for an agent, never for the person at the controls (their own click or key through the live view is a tool call as them).
@@ -257,8 +262,8 @@ async function chromeCards(ctx: CompCtx, port: PersonalChrome, out: ToolAnswer):
 }
 
 /** The whole path for a tool with nothing special: prepare, call. */
-export async function run(ctx: CompCtx, input: { computerId?: string | undefined }, spec: ToolSpec, args: ToolArgs): Promise<ToolAnswer> {
-  const r = await prepare(ctx, input.computerId, spec);
+export async function run(ctx: CompCtx, input: { computerId?: string | undefined; inMyChrome?: boolean | undefined }, spec: ToolSpec, args: ToolArgs): Promise<ToolAnswer> {
+  const r = await prepare(ctx, whereOf(input), spec);
   if (!r) return spec.asleep ?? {};
   return call(ctx, r, spec, args);
 }

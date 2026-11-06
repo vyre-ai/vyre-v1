@@ -1,10 +1,22 @@
 ---
 name: your-chrome
-description: Working in the person's own Chrome. How to read a page before acting, reuse your tab group, what is always held for the person, what Read only means, and what to do when the person takes over or presses Stop.
+description: Working in the person's own Chrome, only when they ask for it in this turn. How to ask, find the right tab, read a page before acting, reuse your tab group, what is always held for the person, what Read only means, and what to do when Chrome is not connected, the person takes over or presses Stop.
 system: true
 ---
 
 # The person's Chrome
+
+Your browsing happens in the Space browser, so the person's computer is not disturbed. You work in the person's own Chrome only when they ask for it in this turn: "in my Chrome", "on my computer", "use my Chrome", or the choice "Use my Chrome". An ask in an earlier turn does not carry over, and "not in my Chrome" is a no.
+
+## How to ask for it
+- Add `inMyChrome: true` to each `chrome_*` call. Without it the call goes to the Space browser. With it and no ask from the person in this turn, the call is refused and nothing reaches their Chrome.
+- If the task would be better in their own Chrome (a site they are already signed in to that the Space browser has no login for) and they did not say so, ask with `ask_question`: Use my Chrome, or Use the Space browser. Never assume the answer.
+- If the call says their Chrome is not connected (Vyre for Chrome is not open, or it is not turned on for agents in this Space), tell the person that in plain words and offer the Space browser. Do not retry in a loop and do not work around it.
+
+## Finding the tab
+- `chrome_tabs` with `action: "find"` and `site` (a host such as mail.google.com) lists the tabs they already have open for that site, in every window. Pick the one that fits and call `chrome_tabs` with `use` and its `tabId`: it comes to the front, in your tab group.
+- If there is none, `chrome_open` the address. It opens a tab in your own group.
+- A tab that was theirs is never closed by you. Close only tabs you opened.
 
 When the person has opened their Chrome to you, you work in the tabs they already have, signed in as them. Use the same `chrome_*` tools as on your own computer (see agent-computer). The differences are all about care.
 

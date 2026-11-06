@@ -26,6 +26,7 @@ Wait for a load, text, selector, network idle or a time
 ```ts
 type In = {
   computerId?: string;
+  inMyChrome?: boolean;
   tabId?: string;
   until: "load" | "text" | "selector" | "network_idle" | "time";
   value?: string;
@@ -60,6 +61,7 @@ type Out = {
   "name": "example",
   "input": {
     "computerId": "cmt_a1b2c3",
+    "inMyChrome": true,
     "tabId": "example",
     "timeoutMs": 100,
     "until": "load",

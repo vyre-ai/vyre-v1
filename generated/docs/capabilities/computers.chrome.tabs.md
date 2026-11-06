@@ -1,6 +1,6 @@
 # computers.chrome.tabs
 
-List, use, open or close tabs
+List, find, use, open or close tabs. find looks for tabs already open for a site (in the person's own Chrome: their open tabs); use works in one; a tab that was not yours to begin with is never closed
 
 | | |
 |---|---|
@@ -26,9 +26,11 @@ List, use, open or close tabs
 ```ts
 type In = {
   computerId?: string;
-  action: "list" | "use" | "new" | "close";
+  inMyChrome?: boolean;
+  action: "list" | "use" | "find" | "new" | "close";
   tabId?: string;
   url?: string;
+  site?: string;
 };
 ```
 
@@ -64,6 +66,8 @@ type Out = {
   "input": {
     "action": "list",
     "computerId": "cmt_a1b2c3",
+    "inMyChrome": true,
+    "site": "mail.google.com",
     "tabId": "example",
     "url": "example"
   },
