@@ -15,8 +15,9 @@ import type { Entry } from "./parts.tsx";
 import { attachedNote, browserAction, browserWords, orderSessions, sessionsLine, sharedWait, terminalAction, workspaceWords } from "./work-model.ts";
 import type { BrowserData, BrowserView, Tone, WorkspaceData, WorkspaceView } from "./work-model.ts";
 
-/** Is the new layout wanted: a lane has bound its half. A pane with neither draws the single-computer tab. */
-export const usesWorkModel = (d: { workspace?: WorkspaceData | undefined; browser?: BrowserData | undefined }): boolean => d.workspace !== undefined || d.browser !== undefined;
+/** Is the new layout wanted: the browser half is bound, or the workspace is and the agent has no legacy desktop computer. An agent that still has one keeps today's Computer tab until the browser half is bound. */
+export const usesWorkModel = (d: { workspace?: WorkspaceData | undefined; browser?: BrowserData | undefined; agent?: { computerId?: string | undefined } | undefined }): boolean =>
+  d.browser !== undefined || (d.workspace !== undefined && (d.agent?.computerId ?? "") === "");
 
 type Watched<V> = { status: "none" } | { status: "loading" } | { status: "ready"; view: V };
 function useWatched<V>(src: { watch(agentId: string, on: (v: V) => void): () => void } | undefined, agentId: string): Watched<V> {
