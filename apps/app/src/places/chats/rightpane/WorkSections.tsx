@@ -12,7 +12,7 @@ import { usePaneData, useOnline } from "./data.tsx";
 import { dayMonth } from "./model.ts";
 import { Icon, LeadIcon, PaneList, TextButton } from "./parts.tsx";
 import type { Entry } from "./parts.tsx";
-import { attachedNote, browserAction, browserWords, sessionsLine, terminalAction, workspaceWords } from "./work-model.ts";
+import { attachedNote, browserAction, browserWords, orderSessions, sessionsLine, sharedWait, terminalAction, workspaceWords } from "./work-model.ts";
 import type { BrowserData, BrowserView, Tone, WorkspaceData, WorkspaceView } from "./work-model.ts";
 
 /** Is the new layout wanted: a lane has bound its half. A pane with neither draws the single-computer tab. */
@@ -42,7 +42,7 @@ export function Chip({ text, tone, testID }: { text: string; tone: Tone; testID?
 }
 
 /** The Terminal section's card: where the workspace runs and its state, and Attach for a person who may. */
-export function TerminalCard({ view, name, busy = false, onAttach }: { view: WorkspaceView; name: string; busy?: boolean; onAttach(): void }): ReactElement {
+export function TerminalCard({ view, name, busy = false, onAttach, quietWait = false }: { view: WorkspaceView; name: string; busy?: boolean; onAttach(): void; /** the waiting line is said once above, not here */ quietWait?: boolean }): ReactElement {
   const w = workspaceWords(view);
   const action = terminalAction(view);
   return (
@@ -52,7 +52,7 @@ export function TerminalCard({ view, name, busy = false, onAttach }: { view: Wor
         <View style={st.grow} />
         {action === "attach" ? <TextButton label="Attach" primary disabled={busy} onPress={onAttach} testID="terminal-attach" /> : null}
       </View>
-      {w.note ? <Text testID="terminal-note" style={[st.note, view.state === "waiting" && st.noteWarn, view.state === "error" && st.noteBad]}>{w.note}</Text> : null}
+      {w.note && !(quietWait && view.state === "waiting") ? <Text testID="terminal-note" style={[st.note, view.state === "waiting" && st.noteWarn, view.state === "error" && st.noteBad]}>{w.note}</Text> : null}
       {!view.canAttach && view.cannotAttach ? <Text testID="terminal-cannot" style={st.note}>{view.cannotAttach}</Text> : null}
       <Text style={st.sub}>{`${name}'s shell, git and the usual tools${view.host ? ` · on ${view.host}` : ""}`}</Text>
     </View>
@@ -74,7 +74,7 @@ function Frame({ dim, caption, children }: { dim: boolean; caption?: string | un
 }
 
 /** The Browser section's card: the live view (or its picture), the state, and Take over or Give back. */
-export function BrowserCard({ view, name, live, busy = false, onTake, onGive, onOpen }: { view: BrowserView; name: string; live?: ReactElement | undefined; busy?: boolean; onTake(): void; onGive(): void; onOpen(): void }): ReactElement {
+export function BrowserCard({ view, name, live, busy = false, onTake, onGive, onOpen, quietWait = false }: { view: BrowserView; name: string; live?: ReactElement | undefined; busy?: boolean; onTake(): void; onGive(): void; onOpen(): void; quietWait?: boolean }): ReactElement {
   const w = browserWords(view);
   const action = browserAction(view);
   const dim = view.state === "closed" || view.state === "starting" || view.state === "waiting" || view.state === "error";
@@ -95,7 +95,7 @@ export function BrowserCard({ view, name, live, busy = false, onTake, onGive, on
             </Frame>
           ))
         : null}
-      {w.note && view.state !== "open" ? <Text testID="browser-note" style={[st.note, view.state === "waiting" && st.noteWarn, view.state === "error" && st.noteBad]}>{w.note}</Text> : null}
+      {w.note && view.state !== "open" && !(quietWait && view.state === "waiting") ? <Text testID="browser-note" style={[st.note, view.state === "waiting" && st.noteWarn, view.state === "error" && st.noteBad]}>{w.note}</Text> : null}
       {!view.canTakeOver && view.state !== "takeover" && view.cannotTakeOver ? <Text testID="browser-cannot" style={st.note}>{view.cannotTakeOver}</Text> : null}
       <Text style={st.sub}>{`${name} browses in its own profile on the Space${view.host ? ` · ${view.host}` : ""}. Your Chrome is not touched.`}</Text>
     </View>
@@ -123,15 +123,17 @@ export function WorkSections({ deps, window }: { deps: PaneDeps; window?: Virtua
   };
 
   const entries: Entry[] = [];
+  const wait = sharedWait(ws.status === "ready" ? ws.view : undefined, br.status === "ready" ? br.view : undefined);
+  if (wait !== null) entries.push({ key: "wait", type: "block", node: <View style={st.waitBox}><Text testID="work-wait" style={st.waitText}>{wait}</Text></View> });
   entries.push({ key: "l-terminal", type: "label", text: "Terminal", ...(ws.status === "ready" && ws.view.canAttach && (ws.view.state === "running" || ws.view.state === "asleep") ? { right: sessionsLine(ws.view.sessions.length) } : {}) });
   if (ws.status === "none") entries.push({ key: "terminal-none", type: "block", node: <NotYet what={`${name}'s terminal`} testID="terminal-none" /> });
   else if (ws.status === "loading") entries.push({ key: "terminal-loading", type: "block", node: <View testID="terminal-loading" accessibilityLabel="Loading" style={st.sk} /> });
   else {
     const v = ws.view;
-    entries.push({ key: "terminal-card", type: "block", node: <TerminalCard view={v} name={name} busy={busy === "attach" || !online} onAttach={() => run("attach", () => data.workspace!.attach(agentId))} /> });
+    entries.push({ key: "terminal-card", type: "block", node: <TerminalCard view={v} name={name} quietWait={wait !== null} busy={busy === "attach" || !online} onAttach={() => run("attach", () => data.workspace!.attach(agentId))} /> });
     // what is open in a terminal is for the people who may attach to it
-    for (const s of v.canAttach ? v.sessions : []) {
-      entries.push({ key: `session-${s.name}`, type: "row", title: s.name, note: attachedNote(s), leading: <LeadIcon name="terminal" />, testID: `session-${s.name}` });
+    for (const s of v.canAttach ? orderSessions(v.sessions) : []) {
+      entries.push({ key: `session-${s.name}`, type: "row", title: s.name, note: attachedNote(s, name), leading: <LeadIcon name="terminal" />, testID: `session-${s.name}` });
     }
     if (v.canAttach && v.sessions.length === 0 && (v.state === "running" || v.state === "asleep")) entries.push({ key: "no-sessions", type: "empty", text: "No sessions yet." });
     for (const p of v.projects ?? []) entries.push({ key: `project-${p}`, type: "row", title: p, note: "Shared project folder", leading: <LeadIcon name="folder" />, testID: `project-${p}` });
@@ -144,7 +146,7 @@ export function WorkSections({ deps, window }: { deps: PaneDeps; window?: Virtua
     const v = br.view;
     entries.push({
       key: "browser-card", type: "block",
-      node: <BrowserCard view={v} name={name} busy={!online || busy !== null} live={data.browser?.renderLive?.(agentId, { state: v.state, control: v.state === "takeover" && v.mine === true })}
+      node: <BrowserCard view={v} name={name} quietWait={wait !== null} busy={!online || busy !== null} live={data.browser?.renderLive?.(agentId, { state: v.state, control: v.state === "takeover" && v.mine === true })}
         onOpen={() => run("open", () => data.browser!.open(agentId))} onTake={() => run("take", () => data.browser!.takeOver(agentId))} onGive={() => run("give", () => data.browser!.giveBack(agentId))} />,
     });
     // the logins its profile keeps are for the people who may see and take over the browser
@@ -162,6 +164,8 @@ export function WorkSections({ deps, window }: { deps: PaneDeps; window?: Virtua
 const st = StyleSheet.create({
   fill: { flex: 1, minHeight: 0 },
   grow: { flex: 1 },
+  waitBox: { marginHorizontal: 24, marginTop: 10, marginBottom: 2, gap: 8 },
+  waitText: { fontSize: 13, lineHeight: 18, color: "var(--ink)" as string },
   card: { marginHorizontal: 24, marginVertical: 6, gap: 8 },
   cardHead: { minHeight: 30, flexDirection: "row", alignItems: "center", gap: 8 },
   chip: { flexShrink: 1, height: 26, flexDirection: "row", alignItems: "center", gap: 7, paddingLeft: 9, paddingRight: 11, borderRadius: 12, backgroundColor: "var(--sunk)" as string },

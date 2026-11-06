@@ -17,7 +17,7 @@ const SITES = [
   { site: "app.clio.com", signedInAs: "intake@northwind.example", since: Date.UTC(2026, 9, 28) },
   { site: "mail.google.com", signedInAs: "dex@northwind.example", since: Date.UTC(2026, 10, 2) },
 ];
-const SESSIONS = [{ name: "main", windows: 2, attached: 0 }, { name: "dev server", windows: 1, attached: 1 }, { name: "tests", windows: 1, attached: 0 }];
+const SESSIONS = [{ name: "main", owner: { kind: "agent" as const }, windows: 2, attached: 0 }, { name: "tests", owner: { kind: "helper" as const, name: "Tess" }, windows: 1, attached: 0 }, { name: "dev server", owner: { kind: "person" as const, name: "Maya" }, windows: 1, attached: 1 }];
 
 const VIEWS: Record<string, { ws: WorkspaceView | null; br: BrowserView | null }> = {
   running: {

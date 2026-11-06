@@ -9,7 +9,7 @@ import { ChatRightPane } from "./ChatRightPane.tsx";
 import { RightPaneDataProvider } from "./data.tsx";
 import type { ChatRightPaneData } from "./data.tsx";
 import { BrowserCard, TerminalCard, WorkSections, usesWorkModel } from "./WorkSections.tsx";
-import { attachedNote, browserAction, browserWords, sessionsLine, terminalAction, workspaceWords } from "./work-model.ts";
+import { attachedNote, browserAction, browserWords, orderSessions, ownerLabel, sessionsLine, sharedWait, terminalAction, workspaceWords } from "./work-model.ts";
 import type { BrowserData, BrowserView, WorkspaceData, WorkspaceView } from "./work-model.ts";
 import { createSample } from "./sample.ts";
 import type { PaneDeps } from "./actions.ts";
@@ -168,16 +168,58 @@ test("mounted: a half that is not bound says so in one line, and the other half 
   } finally { off(); }
 });
 
-test("a waiting workspace and browser show the same plain line, with a way to run more", async () => {
+test("a waiting workspace and browser for the same reason say the line once, at the top", async () => {
   const off = installDom();
   try {
     const s = createSample();
     const k = stub(ws({ state: "waiting", line: LINE }), br({ state: "waiting", line: LINE }));
     const root = await mount(createRoot, paneOver(s, { workspace: k.workspace, browser: k.browser }, depsOf([])));
-    assert.match(textOf(find(root, "terminal-note")), /Waiting for room on the Space server\. Add a compute server in Console > Computers to run more\./);
-    assert.match(textOf(find(root, "browser-note")), /Waiting for room on the Space server\./);
+    assert.match(textOf(find(root, "work-wait")), /Waiting for room on the Space server\. Add a compute server in Console > Computers to run more\./);
+    assert.equal(textOf(root).split("Add a compute server").length - 1, 1, "once");
+    assert.equal(find(root, "terminal-note"), null);
+    assert.equal(find(root, "browser-note"), null);
     assert.equal(find(root, "terminal-attach"), null);
     assert.equal(find(root, "browser-take"), null);
+  } finally { off(); }
+});
+
+test("when only one waits, or for another reason, each keeps its own line", async () => {
+  const off = installDom();
+  try {
+    const s = createSample();
+    const one = stub(ws({ state: "waiting", line: LINE }), br());
+    const r1 = await mount(createRoot, paneOver(s, { workspace: one.workspace, browser: one.browser }, depsOf([])));
+    assert.equal(find(r1, "work-wait"), null);
+    assert.match(textOf(find(r1, "terminal-note")), /Waiting for room/);
+    const two = stub(ws({ state: "waiting", line: LINE }), br({ state: "waiting", line: "Waiting for room on Maya's Mac. Add a compute server in Console > Computers to run more." }));
+    const r2 = await mount(createRoot, paneOver(s, { workspace: two.workspace, browser: two.browser }, depsOf([])));
+    assert.equal(find(r2, "work-wait"), null);
+    assert.match(textOf(find(r2, "browser-note")), /Maya's Mac/);
+  } finally { off(); }
+});
+
+test("sessions say who owns them, and the agent's own come first", async () => {
+  assert.equal(ownerLabel(undefined, "Dex"), "Dex");
+  assert.equal(ownerLabel({ kind: "agent" }, "Dex"), "Dex");
+  assert.equal(ownerLabel({ kind: "helper", name: "Tess" }, "Dex"), "helper: Tess");
+  assert.equal(ownerLabel({ kind: "person", name: "Maya" }, "Dex"), "Maya");
+  const list = [
+    { name: "p", owner: { kind: "person" as const, name: "Maya" }, windows: 1, attached: 1 }, { name: "h", owner: { kind: "helper" as const, name: "Tess" }, windows: 1, attached: 0 },
+    { name: "a2", owner: { kind: "agent" as const }, windows: 1, attached: 0 }, { name: "a1", windows: 1, attached: 0 },
+  ];
+  assert.deepEqual(orderSessions(list).map((x) => x.name), ["a2", "a1", "h", "p"], "agent, then helpers, then people, each in its order");
+  assert.equal(attachedNote(list[1]!, "Dex"), "helper: Tess · 1 window");
+  assert.equal(attachedNote(list[0]!, "Dex"), "Maya · 1 window · 1 attached");
+  assert.equal(sharedWait({ state: "waiting" }, { state: "waiting" }), LINE);
+  assert.equal(sharedWait({ state: "waiting" }, { state: "open" }), null);
+  const off = installDom();
+  try {
+    const s = createSample();
+    const k = stub(ws({ sessions: list }), null);
+    const root = await mount(createRoot, paneOver(s, { workspace: k.workspace }, depsOf([])));
+    const t = textOf(root);
+    assert.ok(t.indexOf("helper: Tess") > 0 && t.indexOf("helper: Tess") < t.indexOf("Maya · 1 window"), "helpers before people");
+    assert.ok(t.indexOf(s.data.agent.name + " · 1 window") >= 0 && t.indexOf(s.data.agent.name + " · 1 window") < t.indexOf("helper: Tess"));
   } finally { off(); }
 });
 

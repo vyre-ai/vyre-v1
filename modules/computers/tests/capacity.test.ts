@@ -41,18 +41,19 @@ test("verdictOf: memory, count and disk each refuse with their own reason, and a
   assert.deepEqual(verdictOf({ name: "x" }, { reserveMb: 99999, counted: 99 }, "desktop"), { ok: true });
 });
 
-test("a workspace is small and not counted: the count limit stops desktops and browsers, memory alone bounds workspaces", () => {
+test("workspaces and browser profiles are not counted: the count limit stops desktops, memory and disk bound the rest", () => {
   const f = { name: "s", totalMb: 8192, freeMb: 7000, maxAgentComputers: 1 };
   assert.deepEqual(verdictOf(f, { reserveMb: 0, counted: 1 }, "workspace"), { ok: true });
-  assert.equal(verdictOf(f, { reserveMb: 0, counted: 1 }, "browser").ok, false);
+  assert.deepEqual(verdictOf(f, { reserveMb: 0, counted: 1 }, "browser"), { ok: true });
+  assert.equal(verdictOf(f, { reserveMb: 0, counted: 1 }, "desktop").ok, false);
   const budget = 8192 - HEADROOM_MB;
-  assert.equal(fitsOf(f, { reserveMb: 0, counted: 0 }, "workspace"), Math.floor(budget / LIMITS.workspace.reserveMb), "a 8 GB host holds 26 workspaces beside nothing else");
+  assert.equal(fitsOf(f, { reserveMb: 0, counted: 0 }, "workspace"), Math.floor(budget / LIMITS.workspace.reserveMb), "an 8 GB host holds that many workspaces beside nothing else");
   assert.equal(fitsOf(f, { reserveMb: 0, counted: 0 }, "desktop"), 1, "the count (1) is tighter than memory (1 by 4 GB)");
 });
 
-test("new containers: the workspace is 1 CPU and 1 GB with a soft 256 MB, desktops keep 2 CPUs and 4 GB, none has swap", () => {
+test("new containers: the workspace is 1 CPU and 1 GB with a soft 64 MB, desktops keep 2 CPUs and 4 GB, none has swap", () => {
   const w = hostConfigLimits("workspace");
-  assert.deepEqual(w, { NanoCpus: 1e9, Memory: 1024 * MB, MemorySwap: 1024 * MB, PidsLimit: 512, MemoryReservation: 256 * MB, CpuShares: 256 });
+  assert.deepEqual(w, { NanoCpus: 1e9, Memory: 1024 * MB, MemorySwap: 1024 * MB, PidsLimit: 512, MemoryReservation: 64 * MB, CpuShares: 256 });
   const d = hostConfigLimits("desktop");
   assert.deepEqual(d, { NanoCpus: 2e9, Memory: 4096 * MB, MemorySwap: 4096 * MB, PidsLimit: 1024 });
 });
@@ -109,23 +110,21 @@ test("the container runtime's own figures count for the Space server, and a runt
   assert.equal((await checkRoom(h.ctx, { kind: "desktop" })).verdict.ok, true);
 });
 
-test("maxAgentComputers is enforced for desktops and Space browser profiles together", async () => {
+test("maxAgentComputers stops desktops only: every agent still gets a browser profile and a workspace on a small server", async () => {
   const h = harness();
-  report(h, { max: 2 });
-  const a = await made(h, "agt_a");
+  report(h, { max: 1, memMb: 8192, usedMb: 1000 });
+  const a = await made(h, "agt_a"), b = await made(h, "agt_b");
   await wake(h.ctx, { computerId: a });
-  assert.deepEqual(await claimRoom(h.ctx, { kind: "browser", key: "brw_1" }), { state: "running" });
-  const third = await claimRoom(h.ctx, { kind: "browser", key: "brw_2" });
-  assert.equal(third.state, "waiting");
-  assert.equal(third.line, LINE);
-  // workspaces are not counted: they still start
-  assert.deepEqual(await claimRoom(h.ctx, { kind: "workspace", key: "wks_1" }), { state: "running" });
-  assert.deepEqual(await claimRoom(h.ctx, { kind: "workspace", key: "wks_2" }), { state: "running" });
+  assert.equal((await wake(h.ctx, { computerId: b })).computer.state, "waking", "a second desktop waits");
+  for (let i = 0; i < 8; i++) {
+    assert.deepEqual(await claimRoom(h.ctx, { kind: "browser", key: `brw_${i}` }), { state: "running" });
+    assert.deepEqual(await claimRoom(h.ctx, { kind: "workspace", key: `wks_${i}` }), { state: "running" });
+  }
 });
 
 test("claimRoom is idempotent, releaseRoom frees the place, and drainWaiting starts the oldest waiting workload with the starter of its kind", async () => {
   const h = harness();
-  report(h, { max: 1 });
+  report(h, { memMb: 1800, usedMb: 100 });
   const started: string[] = [];
   bindStarter("browser", async (_c, key) => { started.push(key); });
   try {
@@ -146,7 +145,7 @@ test("claimRoom is idempotent, releaseRoom frees the place, and drainWaiting sta
 
 test("a waiting kind with no starter bound is left alone, and a starter that throws gives up its place instead of looping", async () => {
   const h = harness();
-  report(h, { max: 1 });
+  report(h, { memMb: 1800, usedMb: 100 });
   await claimRoom(h.ctx, { kind: "browser", key: "brw_1" });
   await claimRoom(h.ctx, { kind: "browser", key: "brw_2" });
   releaseRoom(h.ctx, "brw_1");
@@ -210,7 +209,7 @@ test("a Space server whose limit the caller cannot see gets the machines default
   assert.equal((await wake(h.ctx, { computerId: b })).computer.state, "working");
   assert.equal((await wake(h.ctx, { computerId: c })).computer.state, "waking", "4 cores: two at once");
   h.fake.host.capacity = async () => ({ totalMb: 65536, freeMb: 60000, cpus: 1, os: "linux" });
-  assert.equal((await checkRoom(h.ctx, { kind: "browser" })).verdict.ok, false, "1 core still allows one, and two are already running");
+  assert.equal((await checkRoom(h.ctx, { kind: "desktop" })).verdict.ok, false, "1 core still allows one, and two are already running");
 });
 
 test("the limit an admin set reaches a wake that cannot see the machine list: machines.rooms carries it", async () => {

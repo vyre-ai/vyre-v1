@@ -8,7 +8,9 @@ import type { ReactElement } from "react";
 // ---- Terminal: the agent's workspace
 
 export type WorkspaceState = "running" | "asleep" | "starting" | "waiting" | "error";
-export interface WorkspaceSession { name: string; windows: number; /** people attached right now */ attached: number; lastActiveAt?: number }
+/** Who a terminal session belongs to: the agent itself, a helper it started (by name), or a person who attached. */
+export interface SessionOwner { kind: "agent" | "helper" | "person"; name?: string }
+export interface WorkspaceSession { name: string; owner?: SessionOwner; windows: number; /** people attached right now */ attached: number; lastActiveAt?: number }
 export interface WorkspaceView {
   state: WorkspaceState;
   /** Where it runs: "the Space server", or a compute server's name. */
@@ -107,7 +109,28 @@ export function browserAction(v: BrowserView): "take" | "give" | null {
 /** "2 sessions", "1 session". */
 export const sessionsLine = (n: number): string => `${n} ${n === 1 ? "session" : "sessions"}`;
 /** "Attached: you and 1 more", read from the count of people attached. */
-export function attachedNote(s: WorkspaceSession): string {
+export function attachedNote(s: WorkspaceSession, agentName = ""): string {
   const w = `${s.windows} ${s.windows === 1 ? "window" : "windows"}`;
-  return s.attached === 0 ? w : `${w} · ${s.attached} attached`;
+  const base = s.attached === 0 ? w : `${w} · ${s.attached} attached`;
+  return s.owner || agentName ? `${ownerLabel(s.owner, agentName)} · ${base}` : base;
 }
+
+/** "Dex", "helper: Tess", "Maya": the owner of a session in words, the agent's own name when it is the agent. */
+export function ownerLabel(o: SessionOwner | undefined, agentName: string): string {
+  if (!o || o.kind === "agent") return agentName;
+  if (o.kind === "helper") return `helper: ${o.name ?? "a helper"}`;
+  return o.name ?? "a person";
+}
+/** The agent's own sessions first, then helpers, then people; each group keeps its order. */
+export function orderSessions(list: readonly WorkspaceSession[]): WorkspaceSession[] {
+  const rank = (s: WorkspaceSession): number => (!s.owner || s.owner.kind === "agent" ? 0 : s.owner.kind === "helper" ? 1 : 2);
+  return list.map((s, i) => ({ s, i })).sort((a, b) => rank(a.s) - rank(b.s) || a.i - b.i).map((x) => x.s);
+}
+/** When both sections wait for the same reason the line is said once, above them. Null otherwise. */
+export function sharedWait(w: { state: string; line?: string } | undefined, b: { state: string; line?: string } | undefined): string | null {
+  if (!w || !b || w.state !== "waiting" || b.state !== "waiting") return null;
+  const a = workspaceWordsLine(w.line), c = workspaceWordsLine(b.line);
+  return a === c ? a : null;
+}
+const DEFAULT_WAIT = "Waiting for room on the Space server. Add a compute server in Console > Computers to run more.";
+const workspaceWordsLine = (l: string | undefined): string => l ?? DEFAULT_WAIT;

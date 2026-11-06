@@ -5,7 +5,7 @@
 //   l-ws (workspaces) and l-sbrowser (the Space browser) use claimRoom / releaseRoom / bindStarter below and nothing else of this file. Desktop computers use them from handlers/lifecycle.ts.
 // DECISION: A host's budget is its memory minus HEADROOM_MB (the OS and Vyre itself). Each running workload holds back its `reserveMb` of it, not its hard cap, so a burstable workspace (cap 1 GB,
 //   holds back 256 MB) fits many times over. The host's real free memory must also cover the new workload's reserve, so a host that is short for another reason (a site build) refuses too.
-// DECISION: machines.maxAgentComputers counts the heavy kinds, desktops and browser profiles. Workspaces are small and every agent has one, so they are bounded by memory and disk only.
+// DECISION: machines.maxAgentComputers counts full desktops only. A headless browser profile (about 150 to 250 MB) and a workspace (about 50 MB idle) are budgeted by memory and disk room, so every agent can have both on a 4-core 8 GB server.
 // DECISION: The default limit is the machines module's: half the cores, at least one. It applies when nothing says otherwise, so a Space server that was never set now holds that many at once.
 // DECISION: A fact the host does not report is not a refusal. A host with no memory figure is limited by the count alone, one with neither takes the workload.
 import { boundHost, rowsOf } from "./projections.ts";
@@ -17,8 +17,8 @@ export const WORKLOADS: readonly Workload[] = ["desktop", "workspace", "browser"
 /** Per kind: the hard caps a new container is made with, and what it holds back of the host while it runs. Desktops stay at today's limits until the workspace and the Space browser replace them. */
 export const LIMITS: Record<Workload, { cpus: number; memoryMb: number; reserveMb: number; pids: number; burstable: boolean }> = {
   desktop: { cpus: 2, memoryMb: 4096, reserveMb: 4096, pids: 1024, burstable: false },
-  workspace: { cpus: 1, memoryMb: 1024, reserveMb: 256, pids: 512, burstable: true },
-  browser: { cpus: 1, memoryMb: 1536, reserveMb: 768, pids: 512, burstable: true },
+  workspace: { cpus: 1, memoryMb: 1024, reserveMb: 64, pids: 512, burstable: true },
+  browser: { cpus: 1, memoryMb: 1024, reserveMb: 256, pids: 512, burstable: true },
 };
 /**
  * The Docker HostConfig limits a new container of this kind is made with. Swap is pinned to the memory cap (no swap, as the host policy requires). A burstable kind also gets a soft reservation and
@@ -33,8 +33,8 @@ export function hostConfigLimits(kind: Workload): { NanoCpus: number; Memory: nu
 export const HEADROOM_MB = 1536;
 /** Disk a host must have free before it starts or makes another container (images, profiles and Files grow on it). */
 export const MIN_DISK_MB = 2048;
-/** The kinds the machine's `maxAgentComputers` counts. */
-export const COUNTED: ReadonlySet<Workload> = new Set<Workload>(["desktop", "browser"]);
+/** The kinds the machine's `maxAgentComputers` counts: full desktops. */
+export const COUNTED: ReadonlySet<Workload> = new Set<Workload>(["desktop"]);
 
 /** What a host says it can hold. Every figure is optional: a host reports what it knows. */
 export interface HostFacts { name: string; totalMb?: number; freeMb?: number; cpus?: number; diskFreeMb?: number; maxAgentComputers?: number }
