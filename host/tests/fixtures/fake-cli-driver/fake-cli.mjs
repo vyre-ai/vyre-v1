@@ -41,6 +41,8 @@ if (argv.includes("--version")) { process.stdout.write("claude fake 0.0.0\n"); p
 if (resumed !== undefined && !fs.existsSync(sessionFile)) { process.stderr.write(`No conversation found with session ID: ${resumed}\n`); process.exit(1); }
 /** The session's file in the engine's home, with the last line of a prompt it was sent. */
 function keep(line) {
+  // `--no-session-persistence` (the chat-title helper passes it) keeps no session on disk, as the real CLI does
+  if (argv.includes("--no-session-persistence")) return;
   try { fs.mkdirSync(path.dirname(sessionFile), { recursive: true }); fs.appendFileSync(sessionFile, `${line}\n`); } catch { /* a home that cannot be written is the test's to notice */ }
 }
 
