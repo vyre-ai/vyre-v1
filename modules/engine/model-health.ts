@@ -7,7 +7,7 @@ import { modelGone } from "../../agent/src/drivers/cli/errors.ts";
 import type { Db } from "./projections.ts";
 
 /** How long a model stays off an account's list after it failed. */
-export const REST_MS = 2 * 3600_000;
+export const REST_MS = 24 * 3600_000;
 /** How long a confirmed model stays confirmed. */
 export const CONFIRM_MS = 24 * 3600_000;
 /** At most this many models of one account are probed in one run (a provider with hundreds of models is not probed one by one; the rest are shown as listed and checked by their first turn). */
@@ -19,6 +19,9 @@ export const CLI_PROBE_PARALLEL = 1;
 export const CLI_PROBE_TIMEOUT_MS = 10_000;
 /** An API key's check gets this long; a check that takes longer is "Not checked", and the model stays selectable. */
 export const API_PROBE_TIMEOUT_MS = 10_000;
+/** The longest an API check is let run; one slower than SOFT shows "Not checked" meanwhile, and one that answers slower than SLOW_MS is noted "slow". */
+export const API_HARD_TIMEOUT_MS = 45_000;
+export const SLOW_MS = 20_000;
 /** How long "Not checked" is remembered before the account is checked again. */
 export const NOT_CHECKED_MS = 60_000;
 export const PROBE_PROMPT = "Reply with the single word: ok";
@@ -31,7 +34,7 @@ function ensure(db: Db): void {
   db.run("CREATE TABLE IF NOT EXISTS engine_model_account (provider_id TEXT PRIMARY KEY, account_ref TEXT NOT NULL)");
   ready.add(db as object);
 }
-const put = (db: Db, ref: string, model: string, state: "bad" | "ok", now: number): void => {
+const put = (db: Db, ref: string, model: string, state: "bad" | "ok" | "slow", now: number): void => {
   ensure(db);
   db.run("INSERT OR REPLACE INTO engine_model_health (account_ref, model, state, at) VALUES (?, ?, ?, ?)", ref, model, state, now);
 };
@@ -41,14 +44,16 @@ export const markUnavailable = (db: Db, ref: string, model: string, now: number)
 /** The account served the model (a probe answered, or a turn ran on it). */
 export const markConfirmed = (db: Db, ref: string, model: string, now: number): void => put(db, ref, model, "ok", now);
 
-const modelsIn = (db: Db, ref: string, state: "bad" | "ok", since: number): Set<string> => {
+const modelsIn = (db: Db, ref: string, state: "bad" | "ok" | "slow", since: number): Set<string> => {
   ensure(db);
   return new Set((db.all("SELECT model FROM engine_model_health WHERE account_ref = ? AND state = ? AND at > ?", ref, state, since) as Array<{ model: string }>).map((r) => r.model));
 };
 /** The models this account is known not to serve right now. */
 export const unavailableFor = (db: Db, ref: string, now: number): Set<string> => modelsIn(db, ref, "bad", now - REST_MS);
 /** The models this account is known to serve. */
-export const confirmedFor = (db: Db, ref: string, now: number): Set<string> => modelsIn(db, ref, "ok", now - CONFIRM_MS);
+export const confirmedFor = (db: Db, ref: string, now: number): Set<string> => new Set([...modelsIn(db, ref, "ok", now - CONFIRM_MS), ...modelsIn(db, ref, "slow", now - CONFIRM_MS)]);
+/** The models this account served but took longer than SLOW_MS to answer a one-word check. */
+export const slowFor = (db: Db, ref: string, now: number): Set<string> => modelsIn(db, ref, "slow", now - CONFIRM_MS);
 
 /** Forget what is known about one account's model (or all of its models). */
 export function clearUnavailable(db: Db, ref: string, model?: string): void {
@@ -77,7 +82,7 @@ export function forgetProvider(db: Db, providerId: string): string | null {
 }
 
 /** An API provider's own words for a model it does not serve (a 404, "model_not_found", "does not exist"). Anything else says nothing about the model. */
-const REFUSED = /model[_ ]not[_ ]found|no such model|unknown model|invalid model|model .{0,60}(?:does not exist|not found|not available|is not supported|not supported)|\b404\b|do(?:es)? not have access to (?:the )?model/i;
+const REFUSED = /RegionError|not available in your region|model[_ ]not[_ ]allowed|not (?:allowed|included) (?:for|on|in) (?:this|your) (?:key|plan|account|subscription)|model[_ ]not[_ ]found|no such model|unknown model|invalid model|model .{0,60}(?:does not exist|not found|not available|is not supported|not supported)|\b404\b|do(?:es)? not have access to (?:the )?model/i;
 export const refusesModel = (message: string): boolean => modelGone(message) || /engine\.model_unavailable/.test(message) || REFUSED.test(message);
 
 /** Asks one account for one tiny answer on one model. A rejection is the provider's refusal. */
@@ -122,7 +127,11 @@ export function probeModels(db: Db, ref: string, models: readonly string[], ask:
   const one = async (lane: number): Promise<void> => {
     if (lane > 0) await first;
     for (let m = queue.shift(); m !== undefined; m = queue.shift()) {
-      try { await within(ask(ref, m), o.timeoutMs ?? API_PROBE_TIMEOUT_MS); markConfirmed(db, ref, m, now()); }
+      const began = now();
+      // a check over the soft limit reads "Not checked" while it goes on; it is let run to the hard limit, and an answer slower than SLOW_MS is kept as "slow"
+      const soft = o.timeoutMs === undefined ? setTimeout(() => markNotChecked(ref, m, now()), API_PROBE_TIMEOUT_MS) : undefined;
+      (soft as { unref?: () => void } | undefined)?.unref?.();
+      try { await within(ask(ref, m), o.timeoutMs ?? API_HARD_TIMEOUT_MS); if (now() - began > SLOW_MS) put(db, ref, m, "slow", now()); else markConfirmed(db, ref, m, now()); }
       catch (e) {
         const text = `${(e as { code?: unknown } | null)?.code ?? ""} ${e instanceof Error ? e.message : String(e)}`;
         if (keyMissing(text)) {
@@ -133,7 +142,7 @@ export function probeModels(db: Db, ref: string, models: readonly string[], ask:
         else if (refusesModel(text)) markUnavailable(db, ref, m, now());
         else markConfirmed(db, ref, m, now());
       }
-      finally { running.delete(key(ref, m)); if (lane === 0) firstDone(); }
+      finally { if (soft !== undefined) clearTimeout(soft); running.delete(key(ref, m)); if (lane === 0) firstDone(); }
     }
   };
   const lanes = Array.from({ length: Math.min(o.parallel ?? PROBE_PARALLEL, queue.length) }, (_, i) => one(i));
