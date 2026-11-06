@@ -18,3 +18,12 @@ test("the one-line pill keeps its field at least 200 px wide and the model menu 
   for (const w of [540, 700]) assert.equal(panelFitsInline(w), false, String(w));
   assert.equal(panelFitsInline(0), false, "unmeasured: the side lists");
 });
+
+test("a field is capped at about seven lines and a third of a short window, and a draft of two lines is a multi-line draft", async () => {
+  const { fieldCap, MULTI_LINE } = await import("./index.tsx");
+  assert.equal(fieldCap(900), 168);
+  assert.equal(fieldCap(400), 120);
+  assert.equal(fieldCap(100), 66);
+  assert.equal(fieldCap(0), 168);
+  assert.ok(MULTI_LINE > 22 && MULTI_LINE < 44, "a second line (44 px) counts, one line (22 px) does not");
+});

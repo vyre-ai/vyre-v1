@@ -67,3 +67,15 @@ test("an update that is ready is a persisting notice with Restart; installing sa
   updateNoticeFrom({ state: () => ({ check: { phase: "available", version: "9" }, installing: false }), subscribe: () => () => undefined }, store);
   assert.equal(store.getSnapshot().live.length, 0);
 });
+
+test("a goal gone Stuck does not interrupt the top bar; a block on the person and an approval still do", () => {
+  const store = createNoticeStore();
+  const items = [
+    n("g", { kind: "unblock.requested", title: "Stuck: Dex onboarded on Amicus Pro" }),
+    n("b", { kind: "unblock.requested", title: "Dana is blocked on your answer" }),
+    n("a", { kind: "approval.requested", title: "Send the retainer?" }),
+  ];
+  const raised = syncNotifications(store, new Set(), items, () => undefined);
+  assert.equal(raised.size, 2);
+  assert.deepEqual(store.getSnapshot().live.map((x) => x.text).sort(), ["Dana is blocked on your answer", "Send the retainer?"]);
+});

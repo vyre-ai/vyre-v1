@@ -120,6 +120,11 @@ export function Conversation({ data, compact = false }: { data?: ConversationDat
   return <ConversationDataProvider value={value}><CompactContext.Provider value={compact}><ChatMemoryProvider memory={value.memory ? { ...value.memory, time: (at: number) => timeLabel(at, value.clock()) } : value.memory} threadId={value.threadId}><ConversationView /></ChatMemoryProvider></CompactContext.Provider></ConversationDataProvider>;
 }
 
+/** How much of the header's faces fit: all of them, the lead agent's face alone, or only the name and the buttons. The title keeps its room first. */
+export function headerTier(width: number): "full" | "lead" | "bare" {
+  return width <= 0 || width >= 720 ? "full" : width >= 560 ? "lead" : "bare";
+}
+
 /** The frame before data: a header bar, messages the size of real ones and a composer box, so nothing moves when the thread arrives. */
 export function ConversationLoading(): ReactElement {
   return (
@@ -251,6 +256,9 @@ function ConversationView(): ReactElement {
   const width = useWindowDimensions().width;
   const mobileBack = useMobileBack();
   const narrow = width > 0 && width < 640;
+  // the conversation's own width (a Thread pane beside it takes room from a wide window): the header drops faces before the name is cut
+  const [colW, setColW] = useState(0);
+  const tier = headerTier(colW);
 
   /* Cmd/Ctrl+F opens find in chat, as in the prototype; Escape closes it. */
   useEffect(() => {
@@ -642,7 +650,7 @@ function ConversationView(): ReactElement {
   const takeShare = (dt: TransferLike): boolean => { let took = false; dropShare({ preventDefault: () => { took = true; }, dataTransfer: dt as { getData?: (t: string) => string } }); return took; };
   return (
     <DropRoute testID="conversation-drop" style={ROUTE_STYLE} onOther={takeShare}>
-    <View testID="conversation" accessibilityLabel={`Conversation, ${title}`} style={st.root}>
+    <View testID="conversation" accessibilityLabel={`Conversation, ${title}`} style={st.root} onLayout={(e) => { const w = Math.round(e.nativeEvent.layout.width); setColW((cur) => (cur === w ? cur : w)); }}>
       <FrameFeed frame={frame} feed={frameFeed} />
       {compact || inFrame ? null : (
       <View testID="conversation-head" accessibilityRole="header" style={st.head}>
@@ -658,16 +666,16 @@ function ConversationView(): ReactElement {
             <Text numberOfLines={1} testID="conversation-title" style={st.title}>{title}</Text>
           </Pressable>
         )}
-        {!dmWith && others.length > 0 ? (
+        {!dmWith && others.length > 0 && tier === "full" ? (
           <View testID="conversation-people" accessibilityLabel={`With ${others.map((p) => nameOf(p)).join(", ")}`} style={st.faces}>
             {/* ui-rows-lint: not a list (the faces of the people in the chat) */}
             {others.slice(0, narrow ? 3 : 4).map((p) => <Face key={p} name={nameOf(p)} seedId={p} kind="person" size={20} />)}
             {others.length > (narrow ? 3 : 4) ? <Text style={st.meta}>{`+${others.length - (narrow ? 3 : 4)}`}</Text> : null}
           </View>
         ) : null}
-        {leadFace && !narrow ? <FaceButton key={leadFace.agentId} name={leadFace.name} seedId={leadFace.agentId} mode={leadFace.mode} working={leadFace.working} title={modeTitle(leadFace)} testID={`face-${leadFace.agentId}`} {...(title !== leadFace.name ? { label: leadFace.name } : {})} size={20} onPress={(x, y) => modeMenu(leadFace, x, y)} /> : null}
+        {leadFace && !narrow && tier !== "bare" ? <FaceButton key={leadFace.agentId} name={leadFace.name} seedId={leadFace.agentId} mode={leadFace.mode} working={leadFace.working} title={modeTitle(leadFace)} testID={`face-${leadFace.agentId}`} {...(title !== leadFace.name && tier === "full" ? { label: leadFace.name } : {})} size={20} onPress={(x, y) => modeMenu(leadFace, x, y)} /> : null}
         <View testID="conversation-faces" accessibilityRole="toolbar" accessibilityLabel="Agents in this chat" style={st.faces}>
-          {collect(narrow ? [] : otherFaces, (f) => <FaceButton key={f.agentId} name={f.name} seedId={f.agentId} mode={f.mode} working={f.working} title={modeTitle(f)} testID={`face-${f.agentId}`} onPress={(x, y) => modeMenu(f, x, y)} />)}
+          {collect(narrow || tier !== "full" ? [] : otherFaces, (f) => <FaceButton key={f.agentId} name={f.name} seedId={f.agentId} mode={f.mode} working={f.working} title={modeTitle(f)} testID={`face-${f.agentId}`} onPress={(x, y) => modeMenu(f, x, y)} />)}
           {narrow ? null : <IconButton icon="plus" label="Add people and agents" size={24} testID="add-agent" onPress={() => add.open({ threadId: thread.threadId })} />}
         </View>
         {isWorking ? <View testID="conversation-live" accessibilityLabel="Working" style={st.live}><View style={st.liveDot} /></View> : null}
@@ -732,12 +740,13 @@ function ConversationView(): ReactElement {
             {data.tail ?? null}
           </View>
         </Feed>
-        {atEnd || data.head ? null : (
-          <Pressable testID="to-latest" accessibilityRole="button" accessibilityLabel="Jump to latest" onPress={() => { setJump((n) => n + 1); setAtEnd(true); }} style={st.toLatest}>
-            <Glyph name="down" size={14} color="var(--ink-2)" /><Text style={st.toLatestText}>Jump to latest</Text>
-          </Pressable>
-        )}
       </View>
+      {/* in its own row under the list, at the right: it never sits over a line of text */}
+      {atEnd || data.head ? null : (
+        <Pressable testID="to-latest" accessibilityRole="button" accessibilityLabel="Jump to latest" onPress={() => { setJump((n) => n + 1); setAtEnd(true); }} style={st.toLatest}>
+          <Glyph name="down" size={14} color="var(--ink-2)" /><Text style={st.toLatestText}>Jump to latest</Text>
+        </Pressable>
+      )}
       {data.live ? <SettleTurns turns={liveTurns} rows={win.rows} settle={data.live.settle} /> : null}
       {focusId !== null ? <FocusLoader key={focusId} id={focusId} have={all.some((m) => m.messageId === focusId)} shownHas={win.rows.some((m) => m.messageId === focusId)} onWindow={(page) => setAround(page)} onWiden={() => setShown((n) => n + WINDOW)} onDone={() => setFocusId(null)} /> : null}
       {activeId ? <ScrollToMessage key={`${activeId}:${matchAt}`} id={activeId} /> : null}
@@ -899,7 +908,7 @@ const st = StyleSheet.create({
   feedContent: { alignItems: "center", paddingHorizontal: 24, paddingBottom: 18 },
   col: { width: "100%", maxWidth: 660, paddingTop: 6 },
   earlier: { alignItems: "center", paddingVertical: 10 },
-  toLatest: { position: "absolute", alignSelf: "center", bottom: 10, height: 30, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, borderRadius: 15, borderWidth: 1, borderColor: "var(--line-2)" as string, backgroundColor: "var(--win)" as string },
+  toLatest: { alignSelf: "flex-end", marginRight: 16, marginVertical: 4, height: 28, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, borderRadius: 14, borderWidth: 1, borderColor: "var(--line-2)" as string, backgroundColor: "var(--win)" as string },
   toLatestText: { fontSize: 12.5, color: "var(--ink-2)" as string },
   queueRow: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", justifyContent: "center", columnGap: 10, rowGap: 2, paddingHorizontal: 24, paddingVertical: 4 },
   queue: { fontSize: 12.5, color: "var(--ink-3)" as string, textAlign: "center" },

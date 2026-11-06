@@ -8,7 +8,7 @@
 // Colours are skin tokens (CSS variables on web), so a skin switch repaints with no re-render.
 // The suggestion matcher is ported from vyre 0.6.9 core/suggest/match.js@07cb32abd with real types.
 
-import { createElement, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, createElement, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { Platform, Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
 import type { TextStyle, ViewStyle } from "react-native";
@@ -610,7 +610,12 @@ interface ChangeLike {
 
 const webProps = (props: Record<string, unknown>): Record<string, unknown> => (Platform.OS === "web" ? props : {});
 const MIN_FIELD = 22;
-const MAX_FIELD = 220;
+/** The tallest the field grows (about seven lines); past this it scrolls inside, so a long draft never pushes the conversation off the pane. */
+const MAX_FIELD = 168;
+/** A field this tall or taller holds more than one line: the controls leave the text's row. */
+export const MULTI_LINE = 34;
+/** The field's cap in a window this tall: never more than about a third of it. */
+export const fieldCap = (windowHeight: number): number => (windowHeight > 0 ? Math.max(66, Math.min(MAX_FIELD, Math.floor(windowHeight * 0.3))) : MAX_FIELD);
 const FIELD_STYLE = { outlineStyle: "none", outlineWidth: 0, backgroundColor: "transparent" } as unknown as TextStyle;
 const BOX_SHADOW = { boxShadow: "var(--sh-2)" } as unknown as ViewStyle;
 const FOCUS_SHADOW = BOX_SHADOW;
@@ -755,6 +760,8 @@ export function Composer(props: ComposerProps): ReactElement {
   const [state, setState] = useState<ComposerState>(() => initialState(props.value ?? "", props.folder ?? null));
   const [focused, setFocused] = useState(false);
   const [height, setHeight] = useState(MIN_FIELD);
+  // a draft that took more than one line: its controls sit under it and the text uses the full width. Latched until the field is empty again, so wrapping at the narrower width cannot flip it back and forth.
+  const [grown, setGrown] = useState(false);
   // a send that failed: the draft is back in the field and this says why, with Try again
   const [sendError, setSendError] = useState<{ reason: string; mode: SendMode } | null>(null);
   const [plusOpen, setPlusOpen] = useState(false);
@@ -777,6 +784,7 @@ export function Composer(props: ComposerProps): ReactElement {
   const win = useWindowDimensions();
   const width = win.width;
   const winH = win.height;
+  const cap = fieldCap(winH);
   const narrow = width > 0 && width < 520;
   // the composer's own width (not the window's): a chat column beside a task pane is narrow in a wide window
   const [boxW, setBoxW] = useState(0);
@@ -1177,7 +1185,8 @@ export function Composer(props: ComposerProps): ReactElement {
   // an email keeps its own two rows: its bar holds sender and format buttons; everything else is the one-line pill
   const oneLine = props.sendsOutside !== true;
   // below about 560 px the field takes the full width on top and the controls sit under it, so the field is never squeezed to a few words wide
-  const stacked = oneLine && isStacked(boxW);
+  useEffect(() => { if (state.text === "") setGrown(false); else if (state.text.includes("\n")) setGrown(true); }, [state.text]);
+  const stacked = oneLine && (isStacked(boxW) || grown);
   const row = oneLine && !stacked;
   // the field's padding, which the token wash behind it takes too: the same box, so a wash sits on its word in the one-line pill, the compact field and the regular one
   const fieldPad: readonly (ViewStyle | false)[] = [styles.padRegular, row && styles.padLine, stacked && styles.padStack, !oneLine && compact && styles.padCompact];
@@ -1195,7 +1204,7 @@ export function Composer(props: ComposerProps): ReactElement {
     <View style={[styles.fieldWrap, ...fieldPad, row && styles.fieldLine]} {...webProps({ dataSet: { cmpField: "1" } })}>
       {useChat ? (
         <ChatField
-          value={state.text} cursor={state.cursor} ranges={ranges} placeholder={props.placeholder ?? "Message"} label={props.label ?? "Message"} testID="composer-field" fontSize={compact ? 14 : 15} lineHeight={22} maxHeight={MAX_FIELD}
+          value={state.text} cursor={state.cursor} ranges={ranges} placeholder={props.placeholder ?? "Message"} label={props.label ?? "Message"} testID="composer-field" fontSize={compact ? 14 : 15} lineHeight={22} maxHeight={cap} onHeight={(h) => { if (h >= MULTI_LINE) setGrown(true); }}
           onChange={onChange as never} onSelectionChange={(e) => patch({ cursor: e.nativeEvent.selection.start })} onKeyPress={onKeyPress as never} onFocus={onFocus} onBlur={onBlur}
           controlRef={(c) => { input.current = c as never; }} onFail={() => setChatFailed(true)} talking={talk.phase !== "idle"}
         />
@@ -1212,7 +1221,7 @@ export function Composer(props: ComposerProps): ReactElement {
             onChange={onChange as never}
             onSelectionChange={(e) => patch({ cursor: e.nativeEvent.selection.start })}
             onKeyPress={onKeyPress as never}
-            onContentSizeChange={(e) => setHeight(Math.max(MIN_FIELD, Math.min(MAX_FIELD, Math.ceil(e.nativeEvent.contentSize.height))))}
+            onContentSizeChange={(e) => { const h = Math.ceil(e.nativeEvent.contentSize.height); setHeight(Math.max(MIN_FIELD, Math.min(cap, h))); if (h >= MULTI_LINE) setGrown(true); }}
             onScroll={(e) => setScrollY(scrollTopOf(e))}
             onFocus={onFocus}
             onBlur={onBlur}
@@ -1254,20 +1263,20 @@ export function Composer(props: ComposerProps): ReactElement {
       ) : null}
       {props.engineLine ? <Text style={styles.engine} testID="composer-engine-line">{props.engineLine}</Text> : null}
       {props.hideWho === true ? null : <Text style={styles.srOnly} testID="composer-who" accessibilityRole="text" accessibilityLiveRegion="polite">{who.line}</Text>}
-      {row ? (
-        <View style={styles.line}>
-          {plusNode_}
-          {fieldNode}
-          {stripNode_}
-          {barExtraNode}
-          {props.whoExtra}
-          <TalkButton talk={talk} />
-          {sendNode}
-        </View>
-      ) : (
-        <>
-          {fieldNode}
-          <View style={stacked ? styles.barStack : [styles.bar, compact && styles.barCompact]}>
+      {/* one parent for both layouts, the field under a key: when a draft grows past a line and the controls move under it, the field is moved, not made again, so the caret and the typing stay */}
+      <View style={row ? styles.line : undefined}>
+        {row ? <Fragment key="plus">{plusNode_}</Fragment> : null}
+        <Fragment key="field">{fieldNode}</Fragment>
+        {row ? (
+          <Fragment key="rest">
+            {stripNode_}
+            {barExtraNode}
+            {props.whoExtra}
+            <TalkButton talk={talk} />
+            {sendNode}
+          </Fragment>
+        ) : (
+          <View key="bar" style={stacked ? styles.barStack : [styles.bar, compact && styles.barCompact]}>
             {plusNode_}
             {stacked ? <View style={styles.spacer} /> : stripNode_}
             {stacked ? stripNode_ : null}
@@ -1277,8 +1286,8 @@ export function Composer(props: ComposerProps): ReactElement {
             <TalkButton talk={talk} />
             {sendNode}
           </View>
-        </>
-      )}
+        )}
+      </View>
       <TalkLine talk={talk} />
       {plusOpen ? (
         <Pop testID="composer-plus" label="Add" style={[popLeft, styles.plusPop] as ViewStyle[]} nodeRef={(n) => { plusNode.current = n; }}>

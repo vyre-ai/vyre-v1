@@ -2,7 +2,7 @@
 // parent message sits on top (press it to go back to it in the chat), then the thread's own messages and composer. The control above it follows, mutes or leaves the thread. Escape closes it.
 import { useEffect } from "react";
 import type { ReactElement } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { SidePane } from "../../../../../../ui/src/SidePane/index.tsx";
 import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
@@ -19,6 +19,10 @@ type ThreadOut = CapMap["threads.get"]["out"];
 type ThreadsOut = CapMap["threads.list"]["out"];
 
 export const THREAD_SIDE_W = 400;
+/** The Thread pane's width when the person has not dragged it: about 40% of the window, never under 360 nor over 560 px, so the channel beside it keeps room for its name. */
+export function threadSideWidth(windowWidth: number): number {
+  return windowWidth > 0 ? Math.max(360, Math.min(560, Math.round(windowWidth * 0.4))) : THREAD_SIDE_W;
+}
 
 export interface ThreadSideProps {
   rt: ShellRuntime;
@@ -39,6 +43,7 @@ export function ThreadSide({ rt, threadId, data, narrow, onClose, say }: ThreadS
   const row = siblings.status === "ready" ? siblings.data.threads.find((t) => t.threadId === threadId) : undefined;
   const mode = modeOf(row);
   const menu = useMenu();
+  const windowWidth = useWindowDimensions().width;
 
   useEffect(() => {
     const g = globalThis as unknown as { addEventListener?: (t: string, f: (e: KeyboardEvent) => void) => void; removeEventListener?: (t: string, f: (e: KeyboardEvent) => void) => void };
@@ -75,7 +80,7 @@ export function ThreadSide({ rt, threadId, data, narrow, onClose, say }: ThreadS
   );
   if (narrow) return <ThreadSheet title={extras.title} onClose={onClose}>{body}</ThreadSheet>;
   return (
-    <SidePane paneKey="chats-thread-side" toggle={{ open: true, onPress: onClose }} title="Thread" tabs={[{ key: "thread", title: "Thread" }]} activeTab="thread" onCloseTab={onClose} defaultWidth={THREAD_SIDE_W}>
+    <SidePane paneKey="chats-thread-side" toggle={{ open: true, onPress: onClose }} title="Thread" tabs={[{ key: "thread", title: "Thread" }]} activeTab="thread" onCloseTab={onClose} defaultWidth={threadSideWidth(windowWidth)}>
       {body}
     </SidePane>
   );
