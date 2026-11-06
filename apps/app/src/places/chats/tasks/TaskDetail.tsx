@@ -37,7 +37,7 @@ import { dueEntries, failure, priorityEntries, withVersion } from "./actions.ts"
 import { ConflictCard } from "./Conflict.tsx";
 import { clashFrom, keptPatch, LIST_NOTES, leftOut, mergeClash, mergeList } from "./conflict.ts";
 import type { Clash } from "./conflict.ts";
-import { dueLabel, holderOf, isOpenState, KIND_TITLE, planOrder, PRIORITIES } from "./model.ts";
+import { dueLabel, holderOf, isOpenState, planOrder, PRIORITIES } from "./model.ts";
 import type { IndexOut, TaskFull, TaskRow, Who } from "./model.ts";
 import { faceKind, LiveWords, TextMenu, useLiveTurn, webProps } from "./parts.tsx";
 import { activityOf } from "./activity.ts";
@@ -656,8 +656,13 @@ function Rail({ task, rt, nameOf, run, menu, seats, openTask, kidsCount, begin }
     <Text style={st.notesHead}>Working notes</Text>
     <NotesEditor saved={task.workingNotes[NOTES_KEY] ?? ""} run={run} />
     {noteRows}
-    <Text style={st.quiet}>{`${KIND_TITLE[task.kind] ?? task.kind}${kidsCount ? ` · ${kidsCount} under it` : ""}`}</Text>
+    {railFootnote(kidsCount) ? <Text style={st.quiet}>{railFootnote(kidsCount)}</Text> : null}
   </ScrollView>;
+}
+
+/** The line at the foot of the rail: only what sits under the task. The kind is never printed bare ("Approve" says nothing). */
+export function railFootnote(kidsCount: number): string {
+  return kidsCount ? `${kidsCount} under it` : "";
 }
 
 function ProjectName({ rt, recordId }: { rt: ShellRuntime; recordId: string }): ReactElement {

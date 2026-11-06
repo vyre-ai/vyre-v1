@@ -1,7 +1,7 @@
 // A held request in the task page: expired, refused, and a path that is one person.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { endedWords, expiredOf, soloPath } from "./TaskDetail.tsx";
+import { endedWords, expiredOf, railFootnote, soloPath } from "./TaskDetail.tsx";
 test("an open request past its time is expired, a closed or live one is not; a refused approval reads Not approved", () => {
   assert.equal(expiredOf({ state: "awaiting_approval", expiresAt: 100 }, 200), 100);
   assert.equal(expiredOf({ state: "awaiting_approval", expiresAt: 300 }, 200), null);
@@ -13,4 +13,9 @@ test("an open request past its time is expired, a closed or live one is not; a r
 test("one person at every seat is no path: You to You says nothing", () => {
   assert.equal(soloPath([{ who: { id: "usr_a" } }, { who: { id: "usr_a" } }, {}]), true);
   assert.equal(soloPath([{ who: { id: "usr_a" } }, { who: { id: "usr_b" } }, {}]), false);
+});
+test("the rail foot never prints a bare kind label, for any task kind", () => {
+  assert.equal(railFootnote(0), "");
+  assert.equal(railFootnote(3), "3 under it");
+  for (const kind of ["work", "approve", "review", "answer", "unblock"]) assert.ok(!railFootnote(0).toLowerCase().includes(kind));
 });
