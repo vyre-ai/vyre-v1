@@ -204,6 +204,19 @@ export async function listEvents(
       found.push(e);
     }
   }
+  // One meeting in several calendars (each attendee's own copy carries the provider's same event id) is listed once: the copy on the caller's own calendar, else the first viewable one.
+  const own = new Set(calendars.filter((c) => ownerOnly(ctx, c)).map((c) => str(c, "id")));
+  const best = new Map<string, Row>();
+  const keyOf = (e: Row): string | null => { const pid = strOrNull(e, "providerId"); return pid === null ? null : `${pid}|${num(e, "startsAt")}`; };
+  for (const e of found) {
+    const k = keyOf(e);
+    if (k === null) continue;
+    const have = best.get(k);
+    if (!have || (!own.has(str(have, "calendarId")) && own.has(str(e, "calendarId")))) best.set(k, e);
+  }
+  const listed = found.filter((e) => { const k = keyOf(e); return k === null || best.get(k) === e; });
+  found.length = 0;
+  found.push(...listed);
   found.sort((a, b) => num(a, "startsAt") - num(b, "startsAt") || num(a, "endsAt") - num(b, "endsAt") || str(a, "id").localeCompare(str(b, "id")));
   const page = found.slice(offset, offset + limit).map(toEvent);
   const end = offset + page.length;

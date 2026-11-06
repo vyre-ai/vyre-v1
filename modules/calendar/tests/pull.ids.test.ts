@@ -69,3 +69,22 @@ test("a re-pull, a changed pull and the full re-read keep every id; a moved even
   assert.equal(idOf(h, "o1"), before.get("Weekly Tech Office Hours" + at(1, 13)));
   assert.equal(h.rows(`SELECT count(*) AS n FROM calendar_event WHERE "calendarId" = ?`, GOOG)[0]!.n, 3, "two series events and the cancelled marker, no duplicates");
 });
+
+test("a meeting that lives in two people's calendars is listed once, as the viewer's own copy, and that id opens; a calendar the viewer cannot open adds nothing", async () => {
+  const h = harness();
+  const MAYA = "cld_maya01", OMAR = "cld_omar01", HIDDEN = "cld_hide01";
+  seedCalendar(h, MAYA, { provider: "google", owner: "usr_maya01", connectionId: "con_g01", remoteId: "primary" });
+  seedCalendar(h, OMAR, { provider: "google", owner: "usr_omar01", connectionId: "con_g01", remoteId: "primary" });
+  seedCalendar(h, HIDDEN, { provider: "google", owner: "usr_pat001", connectionId: "con_g01", remoteId: "primary" });
+  const { ingestEvent } = await import("../handlers/index.ts");
+  for (const c of [OMAR, MAYA, HIDDEN]) await ingestEvent(h.ctx, { source: "google", calendarId: c, providerId: "office_20261107", title: "Weekly Tech Office Hours", startsAt: at(1, 13), endsAt: at(1, 14) });
+  await ingestEvent(h.ctx, { source: "google", calendarId: OMAR, providerId: "omar_only", title: "Omar one to one", startsAt: at(2, 9), endsAt: at(2, 10) });
+  const mine = String(h.rows(`SELECT id FROM calendar_event WHERE "calendarId" = ? AND "providerId" = ?`, MAYA, "office_20261107")[0]!.id);
+  h.denied.add(`calendar:${HIDDEN}`);
+  const listed = (await listEvents(h.ctx, range)).events;   // no calendar named: every calendar the viewer may see
+  assert.deepEqual(listed.map((e) => e.title).sort(), ["Omar one to one", "Weekly Tech Office Hours"], "the shared meeting once");
+  const office = listed.find((e) => e.title === "Weekly Tech Office Hours")!;
+  assert.equal(office.id, mine, "the viewer's own copy");
+  assert.equal((await getEvent(h.ctx, { eventId: office.id })).event.id, mine);
+  for (const e of listed) await getEvent(h.ctx, { eventId: e.id });   // everything listed opens
+});
