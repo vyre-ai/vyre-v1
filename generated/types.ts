@@ -8592,6 +8592,11 @@ export type ComputersChromeActOut = {
   ok: boolean;
   heldId?: string;
   snapshot?: string;
+  downloads?: Array<{
+      name: string;
+      path: string;
+      fileId: string;
+    }>;
 };
 export type ComputersChromeApiIn = {
   computerId?: string;
@@ -8633,6 +8638,11 @@ export type ComputersChromeClickIn = {
 export type ComputersChromeClickOut = {
   ok: boolean;
   heldId?: string;
+  downloads?: Array<{
+      name: string;
+      path: string;
+      fileId: string;
+    }>;
 };
 export type ComputersChromeConsoleIn = {
   computerId?: string;
@@ -8700,6 +8710,11 @@ export type ComputersChromeOpenOut = {
   tabId: string;
   url: string;
   title: string;
+  downloads?: Array<{
+      name: string;
+      path: string;
+      fileId: string;
+    }>;
 };
 export type ComputersChromePlanIn = {
   computerId?: string;
@@ -8766,6 +8781,11 @@ export type ComputersChromeStateOut = {
   url: string;
   title: string;
   loading: boolean;
+  downloads?: Array<{
+      name: string;
+      path: string;
+      fileId: string;
+    }>;
 };
 export type ComputersChromeStatusIn = {
   computerId?: string;
@@ -8817,6 +8837,11 @@ export type ComputersChromeWaitIn = {
 export type ComputersChromeWaitOut = {
   ok: boolean;
   waitedMs: number;
+  downloads?: Array<{
+      name: string;
+      path: string;
+      fileId: string;
+    }>;
 };
 export type ComputersConfigureIn = {
   computerId: string;

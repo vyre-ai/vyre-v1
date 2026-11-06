@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { createProfileManager, checkProfileId } from "../../../images/space-browser/browserd/profiles.ts";
+import { createProfileManager, checkProfileId, writeDownloadPrefs } from "../../../images/space-browser/browserd/profiles.ts";
 import type { LaunchFn } from "../../../images/space-browser/browserd/profiles.ts";
 import type { Chrome } from "../../../images/agent-computer/agentd/chrome.ts";
 import { AgentError } from "../../../images/agent-computer/agentd/errors.ts";
@@ -162,4 +162,42 @@ test("only the chrome tools run in a profile", async () => {
     await assert.rejects(() => r.call("agt_dex", "screen_click"), refusal("bad_input"));
     await assert.rejects(() => r.call("agt_dex", "computer_files_read"), refusal("bad_input"));
   } finally { r.done(); }
+});
+
+test("a profile's browser is told to save into its own downloads folder and never ask; finished downloads are listed, read and dropped, and a name cannot leave the folder", async () => {
+  const r = rig();
+  try {
+    await r.call("agt_dex");
+    const prefs = JSON.parse(fs.readFileSync(path.join(r.root, "profiles", "agt_dex", "chrome", "Default", "Preferences"), "utf8")) as { download: Record<string, unknown>; savefile: Record<string, unknown> };
+    const dir = path.join(r.root, "profiles", "agt_dex", "downloads");
+    assert.deepEqual([prefs.download["default_directory"], prefs.download["prompt_for_download"], prefs.savefile["default_directory"]], [dir, false, dir]);
+    assert.ok(fs.statSync(dir).isDirectory());
+    assert.deepEqual(r.m.downloads("agt_dex"), []);
+    fs.writeFileSync(path.join(dir, "report.pdf"), "pdf bytes");
+    fs.writeFileSync(path.join(dir, "half.pdf.crdownload"), "x");
+    fs.writeFileSync(path.join(dir, ".hidden"), "x");
+    fs.utimesSync(path.join(dir, "report.pdf"), new Date(r.clock.t - 60_000), new Date(r.clock.t - 60_000));
+    const fresh = path.join(dir, "fresh.txt");
+    fs.writeFileSync(fresh, "still growing");
+    fs.utimesSync(fresh, new Date(r.clock.t), new Date(r.clock.t));
+    assert.deepEqual(r.m.downloads("agt_dex").map((x) => x.name), ["report.pdf"], "not a partial file, a hidden one, or one written this second");
+    assert.equal(r.m.downloadRead("agt_dex", "report.pdf").toString(), "pdf bytes");
+    for (const bad of ["../x", "a/b", ".hidden", "x.crdownload", "", "..", "/etc/passwd"]) assert.throws(() => r.m.downloadRead("agt_dex", bad), refusal("bad_input"), bad);
+    assert.throws(() => r.m.downloadRead("agt_dex", "nope.pdf"), refusal("not_found"));
+    r.m.downloadAck("agt_dex", "report.pdf");
+    assert.deepEqual(r.m.downloads("agt_dex"), []);
+    assert.deepEqual(r.m.downloads("agt_scout"), [], "another profile has its own folder");
+  } finally { r.done(); }
+});
+
+test("download preferences keep what the profile's preferences already held", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-prefs-"));
+  try {
+    fs.mkdirSync(path.join(root, "Default"), { recursive: true });
+    fs.writeFileSync(path.join(root, "Default", "Preferences"), JSON.stringify({ intl: { selected_languages: "en" }, download: { extensions_to_open: "pdf", default_directory: "/old" } }));
+    writeDownloadPrefs(root, "/data/profiles/agt_x/downloads");
+    const p = JSON.parse(fs.readFileSync(path.join(root, "Default", "Preferences"), "utf8")) as { intl: unknown; download: Record<string, unknown> };
+    assert.deepEqual(p.intl, { selected_languages: "en" });
+    assert.deepEqual([p.download["extensions_to_open"], p.download["default_directory"], p.download["prompt_for_download"]], ["pdf", "/data/profiles/agt_x/downloads", false]);
+  } finally { fs.rmSync(root, { recursive: true, force: true }); }
 });

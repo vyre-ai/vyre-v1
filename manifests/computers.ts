@@ -30,6 +30,7 @@ const browserRow = t.obj({
   agentId: id.agent, running: t.bool(), tabs: t.int(), busy: t.bool({ description: 'The agent is using it now' }), viewers: t.int({ description: 'People watching its live view' }), lastActiveAt: t.opt(t.ts()),
   takeoverBy: t.opt(id.user), paired: t.bool({ description: 'Vyre for Chrome in the profile is connected to the Space as this agent, so Vault logins fill' }), access: t.enm('owner', 'admin', 'viewer'),
 });
+const downloadsOut = t.opt(t.arr(t.obj({ name: t.str(), path: t.str({ description: "Where it is in the agent's Files, under Downloads", examples: ['Downloads/report.pdf'] }), fileId: id.file }), { description: 'Files the browser finished downloading since the last step: they are in Files now, and this is where' }));
 const comp = { computerId: id.computer };
 const optComp = { computerId: t.opt(id.computer) };
 const tabId = t.opt(t.str({ description: 'Chrome tab id; omit for the active tab' }));
@@ -149,11 +150,11 @@ export default defineManifest({
     }),
     write('computers.chrome.act', 'Act on an element or key: click, hover, press, select, scroll, check; a send, post or payment is held and returns an id', {
       in: { ...optComp, tabId, ref: t.opt(ref), action: t.enm('click', 'double_click', 'hover', 'press', 'select', 'scroll', 'check', 'uncheck', 'focus'), value: t.opt(t.str()) },
-      out: { ok: t.bool(), heldId: t.opt(t.str()), snapshot: t.opt(t.str()) }, ...local({ mcpName: 'chrome_act', risk: 'medium', idem: 'none' }),
+      out: { ok: t.bool(), heldId: t.opt(t.str()), snapshot: t.opt(t.str()), downloads: downloadsOut }, ...local({ mcpName: 'chrome_act', risk: 'medium', idem: 'none' }),
     }),
     write('computers.chrome.click', 'Click an element by ref or by coordinates', {
       in: { ...optComp, tabId, ref: t.opt(ref), x: t.opt(t.int()), y: t.opt(t.int()), button: t.opt(t.enm('left', 'right', 'middle')) },
-      out: { ok: t.bool(), heldId: t.opt(t.str()) }, ...local({ mcpName: 'chrome_click', risk: 'medium', idem: 'none' }),
+      out: { ok: t.bool(), heldId: t.opt(t.str()), downloads: downloadsOut }, ...local({ mcpName: 'chrome_click', risk: 'medium', idem: 'none' }),
     }),
     write('computers.chrome.type', 'Type text into the focused element or a ref; secrets only as #Handle.field references', {
       in: { ...optComp, tabId, ref: t.opt(ref), text: t.str(), submit: t.opt(t.bool()) }, out: { ok: t.bool(), heldId: t.opt(t.str()) },
@@ -164,7 +165,7 @@ export default defineManifest({
       ...local({ mcpName: 'chrome_fill', risk: 'medium', idem: 'none' }),
     }),
     write('computers.chrome.open', 'Open a URL, reusing the open tab by default (never one tab per step)', {
-      in: { ...optComp, url: t.str({ pattern: '^https?://', examples: ['https://example.com'] }), newTab: t.opt(t.bool()) }, out: { tabId: t.str(), url: t.str(), title: t.str() },
+      in: { ...optComp, url: t.str({ pattern: '^https?://', examples: ['https://example.com'] }), newTab: t.opt(t.bool()) }, out: { tabId: t.str(), url: t.str(), title: t.str(), downloads: downloadsOut },
       ...local({ mcpName: 'chrome_open', idem: 'none' }),
     }),
     write('computers.chrome.tabs', 'List, use, open or close tabs', {
@@ -173,7 +174,7 @@ export default defineManifest({
     }),
     write('computers.chrome.wait', 'Wait for a load, text, selector, network idle or a time', {
       in: { ...optComp, tabId, until: t.enm('load', 'text', 'selector', 'network_idle', 'time'), value: t.opt(t.str()), timeoutMs: t.opt(t.int({ minimum: 100, maximum: 120000 })) },
-      out: { ok: t.bool(), waitedMs: t.int() }, ...local({ mcpName: 'chrome_wait', idem: 'none', risk: 'low' }),
+      out: { ok: t.bool(), waitedMs: t.int(), downloads: downloadsOut }, ...local({ mcpName: 'chrome_wait', idem: 'none', risk: 'low' }),
     }),
     read('computers.chrome.screenshot', 'Screenshot of the tab or one element, stored in the agent folder and rendered as a screenshot block', {
       in: { ...optComp, tabId, ref: t.opt(ref), fullPage: t.opt(t.bool()) }, out: { fileId: id.file, width: t.int(), height: t.int() },
@@ -194,7 +195,7 @@ export default defineManifest({
       in: { ...optComp, tabId, ref }, out: { element: t.rec() }, ...local({ mcpName: 'chrome_inspect' }),
     }),
     read('computers.chrome.state', 'URL, title and load state of a tab', {
-      in: { ...optComp, tabId }, out: { url: t.str(), title: t.str(), loading: t.bool() }, ...local({ mcpName: 'chrome_state' }),
+      in: { ...optComp, tabId }, out: { url: t.str(), title: t.str(), loading: t.bool(), downloads: downloadsOut }, ...local({ mcpName: 'chrome_state' }),
     }),
     read('computers.chrome.status', 'Status of Vyre for Chrome in this computer: connected, paused by Esc, held items', {
       in: { ...optComp }, out: { connected: t.bool(), paused: t.bool(), held: t.arr(t.str()) }, ...local({ mcpName: 'chrome_status' }),

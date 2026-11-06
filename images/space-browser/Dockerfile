@@ -30,6 +30,8 @@ COPY agent-computer/vyre-chrome/ /opt/vyre-chrome/
 RUN node /opt/images/space-browser/browserd/setup-extension.mjs
 RUN chmod 0755 /opt/images/space-browser/browserd/ctl /opt/images/space-browser/browserd/bridge-host && chmod -R a+rX /opt/images /opt/vyre-chrome
 
+LABEL ai.vyre.image=space-browser
+
 ENV HOME=/home/browser \
     NODE_ENV=production \
     VYRE_BROWSER_ROOT=/data \

@@ -5,6 +5,7 @@
 //   - the live view: Chrome's screencast sends JPEG frames over the WebSocket, and while a person has the controls the agent's tools are paused and the person's click and keys reach the page
 //   - a Vault login fills: a #Handle.field in chrome_fill is asked of the host's fill channel for that profile's agent, typed into the page, and never comes back in an answer; a profile with no channel
 //     fills nothing; a handle the Vault refuses types nothing
+//   - a file an agent downloads in its profile is saved into its profile folder inside the service, then moved into the agent's Files under Downloads and dropped from the service
 //   - a profile's browser stops after idle and starts again from the same folder
 //   - Vyre for Chrome in a profile is paired with the Space as that agent: it connects through its native messaging host, hears agent.optin, and the Vault answers through the bridge
 //
@@ -23,6 +24,8 @@ import { createDockerApi, unixSocketHttp } from "../../../sandbox/src/docker.ts"
 import { createDockerSpaceBrowser } from "../sbrowser/docker.ts";
 import { ToolError } from "../handlers/tools/common.ts";
 import { createFillService, fillHttp } from "../handlers/fill.ts";
+import { takeDownloads } from "../sbrowser/downloads.ts";
+import { harness } from "../fixtures/harness.ts";
 import type { FillLookup } from "../handlers/fill.ts";
 
 const ON = process.env["VYRE_HEAVY_DOCKER"] === "1";
@@ -69,6 +72,9 @@ function serveSite(req: IncomingMessage, res: ServerResponse): void {
     page(res, `<p id=out>set ${who}</p>`, { "set-cookie": [`sid=${who}; Path=/${persistent}`] });
   } else if (url.pathname === "/whoami") {
     page(res, `<p id=out>cookie:[${req.headers.cookie ?? ""}]</p>`);
+  } else if (url.pathname === "/download") {
+    res.writeHead(200, { "content-type": "application/octet-stream", "content-disposition": `attachment; filename="${url.searchParams.get("name") ?? "file.bin"}"` });
+    res.end(`the contents of ${url.searchParams.get("name") ?? "file.bin"}`);
   } else if (url.pathname === "/ticker") {
     page(res, `<button id=b style="position:fixed;left:100px;top:100px;width:200px;height:100px" onclick="window.clicks=(window.clicks||0)+1;document.getElementById('n').textContent=window.clicks">go</button>
       <input id=t style="position:fixed;left:400px;top:100px;width:300px;height:40px"><p id=n style="position:fixed;left:100px;top:300px">0</p><div id=c style="position:fixed;left:100px;top:400px;font-size:60px"></div>
@@ -317,4 +323,23 @@ test("@heavy space browser: Vyre for Chrome in a profile is paired with the Spac
   assert.equal(out.nonsense.error.code, "not_available");
   assert.equal(out.noTokenStatus, 401, "the bridge answers only a profile's own token");
   grant.revoke();
+});
+
+test("@heavy space browser: a file an agent downloads lands in its Files under Downloads, as the agent, and is gone from the browser service", { skip, timeout: 300_000 }, async () => {
+  await tool("agt_dler", "chrome_open", { url: siteUrl("/whoami") });
+  // a navigation to an attachment downloads it without leaving the page
+  await tool("agt_dler", "chrome_eval", { expression: `(() => { const a = document.createElement("a"); a.href = ${JSON.stringify(siteUrl("/download?name=quarterly%20report.txt"))}; a.download = ""; document.body.appendChild(a); a.click(); return true; })()` });
+  let rows: Array<{ name: string; size: number }> = [];
+  for (let i = 0; i < 40 && rows.length === 0; i++) { await sleep(500); rows = await sb.downloads("agt_dler"); }
+  assert.deepEqual(rows.map((x) => x.name), ["quarterly report.txt"], "Chrome saved it in the profile's downloads folder without asking");
+  const h = harness({ principal: { kind: "agent", id: "agt_dler" }, actingFor: "usr_dana", respond: { "files.folder.create": () => ({ folder: { folderId: "fld_downloads" } }) } });
+  const saved = await takeDownloads(h.ctx, sb, "agt_dler", "agt_dler");
+  assert.deepEqual(saved.map((x) => x.path), ["Downloads/quarterly report.txt"], "the agent is told where");
+  const made = h.calls("files.create");
+  assert.equal(made.length, 1);
+  assert.equal(made[0]!.input["folderId"], "fld_downloads");
+  assert.equal(Buffer.from((made[0]!.input["content"] as { base64: string }).base64, "base64").toString(), "the contents of quarterly report.txt");
+  assert.deepEqual(await sb.downloads("agt_dler"), [], "the browser service dropped its copy");
+  const ls = await api.exec(NAME, { cmd: ["ls", "/data/profiles/agt_dler/downloads"], env: [] });
+  assert.equal(ls.stdout.trim(), "");
 });

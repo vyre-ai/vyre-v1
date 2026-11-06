@@ -14,6 +14,7 @@ import type { CompCtx, ComputerHost, ComputerRow, PersonalChrome, Secret } from 
 import { awaken } from "../lifecycle.ts";
 import { spaceBrowser } from "../../sbrowser/port.ts";
 import { profileIdOf } from "../../sbrowser/policy.ts";
+import { takeDownloads } from "../../sbrowser/downloads.ts";
 
 export type ToolArgs = Record<string, unknown>;
 export type ToolAnswer = Record<string, unknown>;
@@ -229,6 +230,7 @@ export async function call(ctx: CompCtx, r: Resolved, spec: ToolSpec, args: Tool
 }
 
 // The Vault channel of an agent's profile: one token per profile and asker, so the Vault logs who asked and a use after the asker changes is checked as the new asker.
+const REPORTS_DOWNLOADS = new Set(["chrome_open", "chrome_click", "chrome_act", "chrome_wait", "chrome_state"]);
 const fillGrants = new Map<string, { token: string; revoke(): void }>();
 
 /** One tool in the agent's profile of the Space browser. What comes back is scrubbed of the Vault values filled for this profile; no desktop frame exists, so there is no timeline step (the live view shows the page). */
@@ -259,7 +261,13 @@ async function browserCall(ctx: CompCtx, profileId: string, spec: ToolSpec, args
   if (!isRecord(raw)) raise(ctx, "provider.unavailable", "The browser answered with something that is not an object.");
   const { used, frame: _frame, caption: _caption, ...rest } = raw;
   rememberSecrets(profileId, secretsOf(used));
-  return scrubDeep(profileId, rest) as ToolAnswer;
+  const out = scrubDeep(profileId, rest) as ToolAnswer;
+  // what the browser finished downloading goes into the agent's Files (Downloads) and the agent is told where; only the steps that say so carry it
+  if (REPORTS_DOWNLOADS.has(spec.name)) {
+    const saved = await takeDownloads(ctx, sb, profileId, ctx.principal.id);
+    if (saved.length > 0) out["downloads"] = saved;
+  }
+  return out;
 }
 
 /** One tool in the person's own Chrome. What comes back is what the extension answered (it already hides secret fields and never holds a value); a held send or post also leaves its card in the chat. */

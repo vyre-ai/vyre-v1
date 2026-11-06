@@ -134,3 +134,20 @@ test("stop and forget do nothing when the container is not running; profiles lis
   await sb.forget("agt_dex");
   assert.ok(e.execs.some((x) => x.cmd[1] === "forget"));
 });
+
+test("downloads: listed without starting the container, read and dropped by one exec each", async () => {
+  const e = engine((action, body) => {
+    if (action === "downloads") return ok({ downloads: [{ name: "a.pdf", size: 3, at: 5 }] });
+    if (action === "download_read") return ok({ base64: Buffer.from(`file ${String(body["name"])}`).toString("base64") });
+    return ok({});
+  });
+  const sb = createDockerSpaceBrowser({ api: e.api, sleep: async () => {} });
+  assert.deepEqual(await sb.downloads("agt_dex"), []);
+  assert.equal(e.execs.length, 0, "a container that is not running has no downloads and is not started");
+  await sb.tool({ profileId: "agt_dex", tool: "chrome_status", args: {}, timeoutMs: 1000 });
+  assert.deepEqual(await sb.downloads("agt_dex"), [{ name: "a.pdf", size: 3, at: 5 }]);
+  assert.equal(Buffer.from(await sb.downloadRead("agt_dex", "a.pdf")).toString(), "file a.pdf");
+  await sb.downloadAck("agt_dex", "a.pdf");
+  const seen = e.execs.map((x) => `${x.cmd[1]} ${JSON.parse(String(x.cmd[2])).name ?? ""}`.trim());
+  assert.deepEqual(seen.slice(-3), ["downloads", "download_read a.pdf", "download_ack a.pdf"]);
+});

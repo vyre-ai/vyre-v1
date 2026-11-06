@@ -21,7 +21,7 @@ function rig() {
   const rows = new Map<string, ProfileRow>([["agt_named", row("agt_named")], ["agt_dana_ast", row("agt_dana_ast")], ["agt_dex", row("agt_dex", { bridge: { connected: 1, hello: true, optin: true } })], ["agt_mine", row("agt_mine")], ["agt_gone", row("agt_gone")]]);
   const seen: string[] = [];
   const sb: SpaceBrowser = {
-    async available() { return true; }, async tool() { return {}; },
+    async available() { return true; }, async tool() { return {}; }, async downloads() { return []; }, async downloadRead() { return new Uint8Array(); }, async downloadAck() {},
     async takeover(a) {
       const r = rows.get(a.profileId)!;
       if (r.takeoverBy && r.takeoverBy !== a.personId) throw new ToolError("bad_input", "Someone else has the controls.");

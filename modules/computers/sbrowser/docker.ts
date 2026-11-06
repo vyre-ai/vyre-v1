@@ -152,6 +152,17 @@ export function createDockerSpaceBrowser(o: DockerSpaceBrowserOptions): SpaceBro
     async tool(a: BrowserToolCall) {
       return call("tool", { profileId: a.profileId, tool: a.tool, args: a.args, timeoutMs: a.timeoutMs, ...(a.by ? { by: a.by } : {}), ...(a.fill ? { fillUrl: a.fill.url, fillToken: a.fill.token } : {}), ...(a.space ? { spaceId: a.space } : {}) });
     },
+    async downloads(profileId) {
+      if (!(await o.api.containerRunning(name))) return [];
+      const r = (await exec("downloads", { profileId })) as { downloads?: Array<{ name: string; size: number; at: number }> };
+      return Array.isArray(r.downloads) ? r.downloads : [];
+    },
+    async downloadRead(profileId, file) {
+      const r = (await call("download_read", { profileId, name: file })) as { base64?: string };
+      if (typeof r.base64 !== "string") throw new ToolError("unavailable", "The Space browser gave no file.");
+      return decode64(r.base64);
+    },
+    async downloadAck(profileId, file) { await call("download_ack", { profileId, name: file }); },
     async takeover(a) { await call("takeover", { profileId: a.profileId, personId: a.personId }); },
     async giveBack(profileId) { await call("give_back", { profileId }); },
     async screenshot(profileId) {

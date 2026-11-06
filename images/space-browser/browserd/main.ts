@@ -7,6 +7,7 @@
 //   takeover      { profileId, personId }                           give_back { profileId }
 //   screenshot    { profileId }                                     -> { png, width, height }
 //   stream        { profileId }                                     -> { transport: "mjpeg", url, ws }
+//   downloads     { profileId } -> { downloads: [{ name, size, at }] }     download_read { profileId, name } -> { base64 }      download_ack { profileId, name }
 //   stop          { profileId }  (the browser stops, the folder stays)      forget { profileId }  (the folder goes too)
 //   sessions      { profileId }                                     -> { sessions: [{ site, since, lastSeen }] }      sign_out { profileId, site } -> { ok }
 import { chmodSync, existsSync, mkdirSync, rmSync } from "node:fs";
@@ -133,6 +134,9 @@ async function dispatch(action: string, a: Args): Promise<Args> {
       const args = (typeof a["args"] === "object" && a["args"] !== null ? a["args"] : {}) as Args;
       return manager.tool({ profileId: checkProfileId(a["profileId"]), tool: text(a, "tool"), args, timeoutMs: typeof a["timeoutMs"] === "number" ? a["timeoutMs"] : 30_000, ...(a["by"] === "person" ? { by: "person" } : {}) });
     }
+    case "downloads": return { downloads: manager.downloads(checkProfileId(a["profileId"])) };
+    case "download_read": return { base64: manager.downloadRead(checkProfileId(a["profileId"]), text(a, "name")).toString("base64") };
+    case "download_ack": manager.downloadAck(checkProfileId(a["profileId"]), text(a, "name")); return {};
     case "takeover": manager.takeover(checkProfileId(a["profileId"]), text(a, "personId")); return {};
     case "give_back": manager.giveBack(checkProfileId(a["profileId"])); return {};
     case "screenshot": {

@@ -1,11 +1,12 @@
 // The profiles of the Space browser (owner decision 6 Nov: one Chrome service per Space, a profile per agent and per person's Assistant). A profile is its own user-data-dir on the data volume, so its
 // cookies, logins, local storage and tabs never meet another profile's. Its Chromium starts when the profile first browses and stops after idle minutes; the folder stays. One headless Chromium per
 // running profile, each on its own DevTools port on 127.0.0.1, driven by the same tools as an agent computer's browser (agentd/chrome.ts).
-import { mkdirSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { connectCdp } from "../../agent-computer/agentd/cdp.ts";
 import { launchChrome } from "../../agent-computer/agentd/chrome.ts";
 import type { Chrome, ChromeOptions, ChromeState } from "../../agent-computer/agentd/chrome.ts";
-import { badInput, paused, unavailable, within } from "../../agent-computer/agentd/errors.ts";
+import { badInput, notFound, paused, unavailable, within } from "../../agent-computer/agentd/errors.ts";
 import { createVault, scrubUsed } from "../../agent-computer/agentd/vault.ts";
 import type { Vault } from "../../agent-computer/agentd/vault.ts";
 
@@ -15,6 +16,25 @@ export const checkProfileId = (id: unknown): string => {
   if (typeof id !== "string" || !PROFILE_ID.test(id)) throw badInput("Name the profile with its id: letters, digits, _ and -, at least 3 characters.");
   return id;
 };
+
+/** A download in a profile's downloads folder that Chrome has finished (not a `.crdownload` or a hidden file). */
+export interface DownloadRow { name: string; size: number; at: number }
+const MAX_DOWNLOAD = 20 * 1024 * 1024;
+const SAFE_NAME = /^[^/\\\x00-\x1f.][^/\\\x00-\x1f]{0,254}$/;
+
+/** Make Chrome save into this folder and never ask: the preferences file is written before the browser starts (an existing one keeps everything else it holds). */
+export function writeDownloadPrefs(chromeDir: string, downloadsDir: string): void {
+  const dir = join(chromeDir, "Default");
+  mkdirSync(dir, { recursive: true });
+  const file = join(dir, "Preferences");
+  let prefs: Record<string, unknown> = {};
+  try { prefs = JSON.parse(readFileSync(file, "utf8")) as Record<string, unknown>; } catch { /* a new profile */ }
+  const dl = (typeof prefs["download"] === "object" && prefs["download"] !== null ? prefs["download"] : {}) as Record<string, unknown>;
+  const sf = (typeof prefs["savefile"] === "object" && prefs["savefile"] !== null ? prefs["savefile"] : {}) as Record<string, unknown>;
+  prefs["download"] = { ...dl, default_directory: downloadsDir, prompt_for_download: false, directory_upgrade: true };
+  prefs["savefile"] = { ...sf, default_directory: downloadsDir };
+  writeFileSync(file, JSON.stringify(prefs));
+}
 
 export type LaunchFn = (profileDir: string, extensionDir: string | null, log: (m: string) => void, o: ChromeOptions) => Chrome;
 const realLaunch: LaunchFn = (dir, ext, log, o) => launchChrome(null, dir, ext, log, { headless: true, ...o });
@@ -77,6 +97,12 @@ export interface ProfileManager {
   stopAll(): Promise<void>;
   /** For a viewer that is attached or gone: counts as activity. */
   touch(id: string): void;
+  /** What the profile's browser finished downloading and nobody has taken yet. Needs no browser. */
+  downloads(id: string): DownloadRow[];
+  /** One finished download's bytes (up to 20 MB). */
+  downloadRead(id: string, name: string): Buffer;
+  /** The download is in the agent's Files: it leaves this folder. */
+  downloadAck(id: string, name: string): void;
 }
 
 export function createProfileManager(o: ProfileManagerOptions): ProfileManager {
@@ -104,6 +130,9 @@ export function createProfileManager(o: ProfileManagerOptions): ProfileManager {
     }
     return p;
   }
+
+  const downloadsOf = (p: Profile): string => join(p.dir, "downloads");
+  const safeName = (name: string): string => { if (!SAFE_NAME.test(name) || name.endsWith(".crdownload")) throw badInput("That is not a download's name."); return name; };
 
   const running = (): Profile[] => [...profiles.values()].filter((p) => p.chrome !== null);
   const quiet = (p: Profile): boolean => p.state.busy === 0 && p.viewers === 0 && p.state.takeover === null;
@@ -134,12 +163,19 @@ export function createProfileManager(o: ProfileManagerOptions): ProfileManager {
       await makeRoom(p.id);
       if (p.chrome) await release(p);
       mkdirSync(join(p.dir, "chrome"), { recursive: true });
+      mkdirSync(downloadsOf(p), { recursive: true });
+      writeDownloadPrefs(join(p.dir, "chrome"), downloadsOf(p));
       const port = take();
       p.port = port;
       const opts = { port, ...(o.extra?.(p.id) ?? {}) };
       const c = launch(join(p.dir, "chrome"), o.extensionDir, o.log, opts);
       p.chrome = c;
       try { await c.ready(); } catch (e) { await release(p); throw e; }
+      // and the browser itself is told, so a download from a tab opened later goes the same way
+      try {
+        const v = (await (await fetch(`http://127.0.0.1:${port}/json/version`)).json()) as { webSocketDebuggerUrl?: string };
+        if (v.webSocketDebuggerUrl) { const b = await connectCdp(v.webSocketDebuggerUrl, 3000); await b.send("Browser.setDownloadBehavior", { behavior: "allow", downloadPath: downloadsOf(p) }).catch(() => undefined); b.close(); }
+      } catch { /* the preferences already say it; a fake browser in a test has no DevTools */ }
     })();
     try { await p.starting; } finally { p.starting = null; }
     return p;
@@ -214,6 +250,25 @@ export function createProfileManager(o: ProfileManagerOptions): ProfileManager {
       return rows;
     },
     async stopAll() { await Promise.all([...profiles.values()].map((p) => release(p))); },
+    downloads(id) {
+      const dir = downloadsOf(get(id));
+      if (!existsSync(dir)) return [];
+      const rows: DownloadRow[] = [];
+      for (const name of readdirSync(dir)) {
+        if (!SAFE_NAME.test(name) || name.endsWith(".crdownload") || name.endsWith(".tmp")) continue;
+        const st = statSync(join(dir, name));
+        // a file Chrome wrote a moment ago may still be growing: it is taken once it has been quiet for a second
+        if (st.isFile() && now() - st.mtimeMs > 1000) rows.push({ name, size: st.size, at: Math.round(st.mtimeMs) });
+      }
+      return rows.sort((a, b) => a.at - b.at);
+    },
+    downloadRead(id, name) {
+      const f = join(downloadsOf(get(id)), safeName(name));
+      if (!existsSync(f)) throw notFound(`There is no download ${name}.`);
+      if (statSync(f).size > MAX_DOWNLOAD) throw badInput("That download is over 20 MB: too large to move into Files here.");
+      return readFileSync(f);
+    },
+    downloadAck(id, name) { rmSync(join(downloadsOf(get(id)), safeName(name)), { force: true }); },
     touch(id) { const p = profiles.get(id); if (p) p.lastActiveAt = now(); },
   };
 }

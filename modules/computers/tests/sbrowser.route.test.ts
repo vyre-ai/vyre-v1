@@ -14,6 +14,8 @@ import { tool, world } from "./tools.fixture.ts";
 
 const SCRUB = { createScrubber: (secrets: Array<{ handle: string; value: string }>) => ({ scrub: (text: string) => secrets.reduce((t, s) => t.split(s.value).join(`[${s.handle}]`), text) }) };
 
+let downloadsNow: () => Array<{ name: string; size: number; at: number }> = () => [];
+const acked: string[] = [];
 function browser(answers: Record<string, (c: BrowserToolCall) => BrowserAnswer> = {}) {
   const calls: BrowserToolCall[] = [];
   let refuse: ToolError | null = null;
@@ -25,6 +27,7 @@ function browser(answers: Record<string, (c: BrowserToolCall) => BrowserAnswer> 
       if (refuse) throw refuse;
       return (answers[a.tool] ?? (() => ({ url: "https://example.com/", title: "Example", tree: "- page [e1]", truncated: false, ok: true, tabId: "t1", loading: false })))(a);
     },
+    async downloads() { return downloadsNow(); }, async downloadRead(_p, name) { return new TextEncoder().encode(`bytes of ${name}`); }, async downloadAck(_p, name) { acked.push(name); },
     async takeover() {}, async giveBack() {}, async screenshot() { return { bytes: new Uint8Array(), width: 1, height: 1 }; },
     async stream() { return { transport: "mjpeg", url: "http://x" }; }, async stop() {}, async forget() {},
     async profiles() { return { profiles: [], maxRunning: 6 }; }, async health() { return { ok: true }; },
@@ -187,4 +190,53 @@ test("a profile id is one rule in the module and in the browser, and cannot name
   assert.equal(PROFILE_ID.source, BROWSERD_PROFILE_ID.source);
   for (const good of ["agt_dex", "agt_9f3a2b", "abc", "A-b_c"]) assert.equal(profileIdOf(good), good);
   for (const bad of ["", "ab", "../etc", "a/b", "agt dex", ".hidden", "a".repeat(81), "agt_é", "-lead"]) assert.equal(profileIdOf(bad), null, bad);
+});
+
+// ---- downloads
+
+test("what a profile's browser downloaded goes into the agent's Files under Downloads, as the agent, is dropped from the browser service, and the agent is told the path", async () => {
+  const b = browser();
+  acked.length = 0;
+  downloadsNow = () => [{ name: "report.pdf", size: 18, at: 1 }, { name: "data.csv", size: 12, at: 2 }];
+  try {
+    const h = harness({ principal: { kind: "agent", id: "agt_dex" }, actingFor: DANA, respond: { "files.folder.create": () => ({ folder: { folderId: "fld_downloads" } }) } });
+    const out = await tool["computers.chrome.click"]!(h.ctx, { ref: "e1" });
+    assert.deepEqual(out.downloads.map((d: { name: string; path: string }) => [d.name, d.path]), [["report.pdf", "Downloads/report.pdf"], ["data.csv", "Downloads/data.csv"]]);
+    const made = h.calls("files.create");
+    assert.deepEqual(made.map((c) => [c.input["folderId"], c.input["name"], c.input["mime"], c.input["kind"]]), [["fld_downloads", "report.pdf", "application/pdf", "pdf"], ["fld_downloads", "data.csv", "text/csv", "spreadsheet"]]);
+    assert.equal(Buffer.from((made[0]!.input["content"] as { base64: string }).base64, "base64").toString(), "bytes of report.pdf");
+    assert.deepEqual(acked, ["report.pdf", "data.csv"], "the browser service dropped its copies");
+    assert.equal(h.calls("files.folder.create").length, 1);
+    assert.equal(h.calls("files.folder.create")[0]!.input["name"], "Downloads");
+    downloadsNow = () => [];
+    assert.equal((await tool["computers.chrome.click"]!(h.ctx, { ref: "e1" })).downloads, undefined, "nothing new: no field");
+    // a look that does not report downloads leaves them for the next step that does
+    downloadsNow = () => [{ name: "later.zip", size: 1, at: 3 }];
+    await tool["computers.chrome.snapshot"]!(h.ctx, {});
+    assert.equal(h.calls("files.create").length, 2);
+    assert.equal((await tool["computers.chrome.state"]!(h.ctx, {})).downloads[0].path, "Downloads/later.zip");
+    assert.equal(b.calls.length, 4);
+  } finally { downloadsNow = () => []; off(); }
+});
+
+test("a name already in Downloads gets a number, and a file that cannot be made stays in the browser service for the next step", async () => {
+  browser();
+  acked.length = 0;
+  downloadsNow = () => [{ name: "a.pdf", size: 1, at: 1 }];
+  let taken = true;
+  try {
+    const h = harness({ principal: { kind: "agent", id: "agt_dex" }, actingFor: DANA, respond: {
+      "files.folder.create": () => ({ folder: { folderId: "fld_dl2" } }),
+      "files.create": (i) => { if (taken && i["name"] === "a.pdf") throw { error: { code: "validation.duplicate" } }; return { file: { fileId: "fil_x" } }; },
+    } });
+    const out = await tool["computers.chrome.open"]!(h.ctx, { url: "https://example.com/" });
+    assert.equal(out.downloads[0].path, "Downloads/a (2).pdf");
+    acked.length = 0;
+    downloadsNow = () => [{ name: "b.pdf", size: 1, at: 2 }];
+    const broke = harness({ principal: { kind: "agent", id: "agt_scout" }, actingFor: DANA, respond: { "files.folder.create": () => ({ folder: { folderId: "fld_dl3" } }), "files.create": () => { throw new Error("disk full"); } } });
+    const o2 = await tool["computers.chrome.open"]!(broke.ctx, { url: "https://example.com/" });
+    assert.equal(o2.downloads, undefined);
+    assert.deepEqual(acked, [], "not dropped: it is tried again");
+    taken = false;
+  } finally { downloadsNow = () => []; off(); }
 });

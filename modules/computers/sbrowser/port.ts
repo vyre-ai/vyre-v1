@@ -20,6 +20,9 @@ export interface ProfileRow {
   bridge?: { connected: number; hello: boolean; optin: boolean };
 }
 
+/** A finished download in a profile's folder inside the browser service, not yet in the agent's Files. */
+export interface DownloadRow { name: string; size: number; at: number }
+
 export interface BrowserToolCall {
   profileId: string;
   /** The capability's mcpName: chrome_open, chrome_click ... */
@@ -39,6 +42,11 @@ export interface SpaceBrowser {
   available(): Promise<boolean>;
   /** One browser tool for one profile. Starts the service and the profile's browser when they are not running. Throws an error with a `code` (timeout, paused, not_found, bad_input, held, unavailable). */
   tool(a: BrowserToolCall): Promise<BrowserAnswer>;
+  /** Finished downloads waiting in the profile's folder (needs no running browser). */
+  downloads(profileId: string): Promise<DownloadRow[]>;
+  downloadRead(profileId: string, name: string): Promise<Uint8Array>;
+  /** The file is in Files: it leaves the browser service. */
+  downloadAck(profileId: string, name: string): Promise<void>;
   takeover(a: { profileId: string; personId: string }): Promise<void>;
   giveBack(profileId: string): Promise<void>;
   screenshot(profileId: string): Promise<{ bytes: Uint8Array; width: number; height: number }>;
