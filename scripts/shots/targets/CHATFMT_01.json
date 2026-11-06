@@ -1,0 +1,11 @@
+{
+  "targets": [
+    {
+      "id": "CHATFMT_01-rich",
+      "route": "/m/CHATFMT_01",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid='reply']",
+      "note": "One reply with marks, sections, a table, a chart, a flow chart, ticks and choices."
+    }
+  ]
+}

@@ -12,7 +12,7 @@ import type { Candidate, Helper, Message, MessageBlock, Thread } from "./model.t
 export const SAMPLE_NOW = Date.UTC(2025, 9, 24, 10, 0, 0);
 const at = (h: number, min: number, sec = 0, dayOffset = 0): number => Date.UTC(2025, 9, 24 + dayOffset, h, min, sec);
 
-export type Variant = "idle" | "streaming" | "busy" | "errors" | "plan" | "long" | "nolead" | "closed" | "channel" | "runson";
+export type Variant = "idle" | "streaming" | "busy" | "errors" | "plan" | "long" | "huge" | "nolead" | "closed" | "channel" | "runson";
 
 export const NAMES: Record<string, string> = {
   agt_intake: "Intake", agt_docs: "Docs", agt_research: "Research", agt_scout: "Scout", agt_billing: "Billing",
@@ -74,6 +74,14 @@ function build(variant: Variant): { thread: Thread; messages: Message[]; helpers
     for (let i = 0; i < 150; i++) {
       const t = at(8, 0, 0) + i * 60_000;
       messages.push(i % 2 === 0 ? m(`f${i}`, me, `Question ${i + 1}: how many consults are booked for week ${(i % 5) + 1}?`, t) : m(`f${i}`, intake, `Week ${(i % 5) + 1} has **${(i % 7) + 2}** consults booked.`, t));
+    }
+  }
+  if (variant === "huge") {
+    // 2,000 messages, one in four an agent reply with a table, a list, a section and marks: what a long working chat is made of
+    for (let i = 0; i < 2000; i++) {
+      const t = at(8, 0, 0) + i * 60_000;
+      const rich = `Week ${(i % 5) + 1} summary: ==${(i % 7) + 2} consults== booked, **${i % 3} no-shows**, ++one follow-up++.\n\n| Day | Booked |\n|---|---:|\n| Mon | ${i % 4} |\n| Tue | ${i % 6} |\n\n- [ ] Confirm the Tuesday slots\n- [x] Send the intake form\n\n> [!section] Detail ${i}\n> Notes for message ${i}, with \`code\` and a [link](https://example.com/${i}).`;
+      messages.push(i % 2 === 0 ? m(`h${i}`, me, `Question ${i + 1}: how many consults are booked for week ${(i % 5) + 1}?`, t) : m(`h${i}`, intake, i % 4 === 1 ? rich : `Week ${(i % 5) + 1} has **${(i % 7) + 2}** consults booked.`, t));
     }
   }
   if (variant === "errors") {

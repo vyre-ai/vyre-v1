@@ -1,6 +1,6 @@
 // The blocks of a reply beyond paragraphs and lists: code with colour, a language label, Copy and Wrap; diagrams in a sandboxed frame with a fallback to the source; math; charts drawn by our own SVG with a table
 // view and Copy as CSV; callouts; collapsibles; images that enlarge; footnotes. Each is a plain component of the skin's colours (CSS variables on web). The big libraries load only when a message uses them (loaders.ts).
-import { createElement, useEffect, useState } from "react";
+import { createContext, createElement, useContext, useEffect, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import type { Block, ChartSpec } from "./markdown.ts";
@@ -80,15 +80,76 @@ export function CalloutBlock({ variant, title, children, id }: { variant: string
   );
 }
 
+/** Which sections a person opened or closed, kept per message so a section stays as they left it when the row scrolls out of view and back (the list draws only the rows near the screen). */
+const SECTIONS = new Map<string, boolean>();
+const SECTIONS_MAX = 4000;
+export const SectionScope = createContext<string | null>(null);
+/** Forget what was opened (tests; a sign-out). */
+export function forgetSections(): void { SECTIONS.clear(); }
+
 export function DetailsBlock({ summary, open, children, id }: { summary: ReactNode; open: boolean; children: ReactNode; id: string }): ReactElement {
-  const [on, setOn] = useState(open);
+  const scope = useContext(SectionScope);
+  const mem = scope === null ? null : `${scope}\u0000${id}`;
+  const [on, setOn] = useState(mem !== null && SECTIONS.has(mem) ? SECTIONS.get(mem) === true : open);
+  const flip = (): void => {
+    const next = !on;
+    if (mem !== null) {
+      if (SECTIONS.size >= SECTIONS_MAX) SECTIONS.clear();
+      SECTIONS.set(mem, next);
+    }
+    setOn(next);
+  };
   return (
     <View testID={`block-${id}`} style={st.details}>
-      <Pressable accessibilityRole="button" accessibilityState={{ expanded: on }} testID={`details-${id}`} onPress={() => setOn(!on)} style={st.summary}>
+      <Pressable accessibilityRole="button" accessibilityState={{ expanded: on }} testID={`details-${id}`} onPress={flip} style={st.summary}>
         <Text style={st.chev}>{on ? "▾" : "▸"}</Text><Text style={st.summaryText}>{summary}</Text>
       </Pressable>
       {on ? <View style={st.detailsBody}>{children}</View> : null}
     </View>
+  );
+}
+
+/* ---------- things a person can press inside a reply ---------- */
+
+/** What a press inside a reply can do: the message it sits in (so what was pressed is remembered per message) and how to send a reply. Absent on a preview, where nothing is pressable. */
+export interface Reply { scope: string | null; send: ((text: string) => void) | null }
+export const ReplyCtx = createContext<Reply>({ scope: null, send: null });
+const PICKED = new Map<string, string>();
+const TICKED = new Map<string, boolean>();
+/** Forget what was picked and ticked (tests; a sign-out). */
+export function forgetPressed(): void { PICKED.clear(); TICKED.clear(); }
+const cap = (m: Map<string, unknown>): void => { if (m.size >= 4000) m.clear(); };
+
+/** Choices the agent offers: one pill per option. A press sends the words as a reply and the pill stays marked; with no way to send (a preview) they are plain pills. */
+export function ChoicesBlock({ id, options }: { id: string; options: readonly string[] }): ReactElement {
+  const r = useContext(ReplyCtx);
+  const mem = `${r.scope ?? ""}\u0000${id}`;
+  const [picked, setPicked] = useState<string | null>(r.scope !== null ? PICKED.get(mem) ?? null : null);
+  const live = r.send !== null && picked === null;
+  const out: ReactElement[] = [];
+  for (let i = 0; i < options.length; i++) {
+    const o = options[i] ?? "";
+    const on = picked === o;
+    out.push(
+      <Pressable key={i} accessibilityRole="button" accessibilityLabel={o} accessibilityState={{ selected: on, disabled: !live }} disabled={!live} testID={`choice-${id}-${i}`}
+        onPress={() => { cap(PICKED); if (r.scope !== null) PICKED.set(mem, o); setPicked(o); r.send?.(o); }} style={[st.choice, on && st.choiceOn, !live && !on && picked !== null && st.choiceOff]}>
+        <Text style={[st.choiceText, on && st.choiceTextOn]}>{o}</Text>
+      </Pressable>,
+    );
+  }
+  return <View testID={`block-${id}`} accessibilityRole="radiogroup" style={st.choices}>{out}</View>;
+}
+
+/** A task-list box that a person can tick or clear. The state is theirs and stays on this device, per message; it never rewrites the message. */
+export function CheckBox({ id, index, initial, children }: { id: string; index: number; initial: boolean; children?: ReactNode }): ReactElement {
+  const r = useContext(ReplyCtx);
+  const mem = `${r.scope ?? ""}\u0000${id}\u0000${index}`;
+  const [on, setOn] = useState(r.scope !== null && TICKED.has(mem) ? TICKED.get(mem) === true : initial);
+  const box = <View style={[st.box, on && st.boxOn]}>{on ? <Text style={st.tick}>{"\u2713"}</Text> : null}</View>;
+  if (r.scope === null) return <View testID={`check-${id}-${index}`} accessibilityRole="checkbox" accessibilityState={{ checked: on, disabled: true }} accessibilityLabel={on ? "Done" : "Not done"}>{box}</View>;
+  return (
+    <Pressable testID={`check-${id}-${index}`} accessibilityRole="checkbox" accessibilityState={{ checked: on }} accessibilityLabel={on ? "Done" : "Not done"} hitSlop={6}
+      onPress={() => { cap(TICKED); TICKED.set(mem, !on); setOn(!on); }}>{box}{children}</Pressable>
   );
 }
 
@@ -280,7 +341,16 @@ const st = StyleSheet.create({
   details: { borderWidth: 1, borderColor: "var(--line)" as string, borderRadius: 8, marginBottom: 12 },
   summary: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 12, paddingVertical: 8 },
   chev: { color: "var(--ink-3)" as string, fontSize: 12, width: 12 },
-  summaryText: { color: "var(--ink)" as string, fontSize: 15, fontWeight: "500", flex: 1 },
+  choices: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 10 },
+  choice: { paddingHorizontal: 14, minHeight: 36, borderRadius: 18, borderWidth: 1, borderColor: "var(--line-2)" as string, backgroundColor: "var(--surface)" as string, justifyContent: "center" },
+  choiceOn: { backgroundColor: "var(--accent)" as string, borderColor: "var(--accent)" as string },
+  choiceOff: { opacity: 0.5 },
+  choiceText: { color: "var(--ink)" as string, fontSize: 14, lineHeight: 20 },
+  choiceTextOn: { color: "var(--accent-ink)" as string },
+  box: { width: 16, height: 16, borderRadius: 4, borderWidth: 1.5, borderColor: "var(--ink-4)" as string, marginRight: 6, marginTop: 4, alignItems: "center", justifyContent: "center" },
+  boxOn: { backgroundColor: "var(--accent)" as string, borderColor: "var(--accent)" as string },
+  tick: { color: "var(--accent-ink)" as string, fontSize: 11, lineHeight: 13, fontWeight: "700" },
+  summaryText: { color: "var(--ink)" as string, fontSize: 15, fontWeight: "600", flex: 1 },
   detailsBody: { paddingHorizontal: 12, paddingTop: 2 },
   lb: { position: "fixed" as unknown as "absolute", top: 0, left: 0, right: 0, bottom: 0, zIndex: 300, backgroundColor: "rgba(0,0,0,0.6)", alignItems: "center", justifyContent: "center", padding: 24 },
   lbBody: { backgroundColor: "var(--win)" as string, borderRadius: 12, padding: 16, maxWidth: "94%", maxHeight: "90%", overflow: "hidden" },
