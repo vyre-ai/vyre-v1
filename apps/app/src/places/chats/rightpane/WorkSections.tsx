@@ -24,7 +24,8 @@ function useWatched<V>(src: { watch(agentId: string, on: (v: V) => void): () => 
   const [w, setW] = useState<Watched<V>>(src ? { status: "loading" } : { status: "none" });
   useEffect(() => {
     if (!src) { setW({ status: "none" }); return; }
-    setW({ status: "loading" });
+    // a new source keeps what was drawn until its first answer: no flicker when the pane data is rebuilt
+    setW((was) => (was.status === "ready" ? was : { status: "loading" }));
     return src.watch(agentId, (view) => setW({ status: "ready", view }));
   }, [src, agentId]);
   return w;
