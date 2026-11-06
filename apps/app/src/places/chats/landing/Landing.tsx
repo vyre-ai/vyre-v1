@@ -19,7 +19,7 @@ import { SetupRows, setupNote } from "../../../onboarding/SetupRows.tsx";
 import { useInboxSources } from "../../../shell/rail/inbox-sources.ts";
 import { needsRow } from "./needs-row.ts";
 import { useAddSheet, runAfterStart } from "../addsheet/index.ts";
-import { useAccounts } from "../conversation/brain.tsx";
+import { prettyModel, useAccounts } from "../conversation/brain.tsx";
 import { NewChatBrain, newChatStrip } from "../conversation/new-chat-brain.tsx";
 import type { NewChoice } from "../conversation/new-chat-brain.tsx";
 import { commandItems } from "../conversation/commands.ts";
@@ -55,6 +55,16 @@ export function Landing(p: LandingProps): ReactElement {
   // the Assistant is made a moment after the account: when the real one arrives, the one picked is it, not the placeholder the page mounted with
   useEffect(() => { setPicked((cur) => (cur.some((c) => c.kind === "assistant" && (c.id !== you.id || c.name !== you.name)) ? cur.map((c) => (c.kind === "assistant" ? you : c)) : cur)); }, [you]);
   const [choice, setChoice] = useState<NewChoice>({ mode: "auto" });
+  // the model, provider and effort this person picked last, anywhere, are what a new chat shows and starts on (owner, 6 Nov): nothing to pick again. A pick made here first is never replaced.
+  useEffect(() => {
+    let live = true;
+    void Promise.resolve((rt.call as (cap: string, input: unknown) => Promise<unknown>)("engine.last_pick.get", {})).then((out) => {
+      const last = out as { model?: string; provider?: string; effort?: string } | null | undefined;
+      if (!live || !last?.model) return;
+      setChoice((c) => (c.model || c.provider || c.accountRef ? c : { ...c, model: last.model!, modelTitle: prettyModel(last.model), ...(last.provider ? { provider: last.provider } : {}), ...(last.effort ? { effort: last.effort as NonNullable<NewChoice["effort"]> } : {}) }));
+    }, () => undefined);
+    return () => { live = false; };
+  }, [rt]);
   const needs = useLive<NeedsOut>(rt.screens, "tasks.my-work", "needs", { limit: LANDING_NEEDS });
   const recent = useLive<RecentOut>(rt.screens, "chats.sidebar", "recent", { filter: "all" });
   const accounts = useAccounts(rt);

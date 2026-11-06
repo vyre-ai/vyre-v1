@@ -103,7 +103,7 @@ export const consumers = {
     run: async (ctx: EngineCtx, event: { payload: { threadId: string; kind?: string; starter?: string } }): Promise<void> => {
       const p = event.payload;
       const h = engineHost();
-      if (!h || p.kind !== "chat" || !p.starter?.startsWith("usr_")) return;
+      if (!h || (p.kind !== "chat" && p.kind !== "ask") || !p.starter?.startsWith("usr_")) return;
       await ensureRuntime(ctx);
       const t = (await h.call("threads.get", { threadId: p.threadId }, p.starter).catch(() => null)) as { thread?: { agents?: Array<{ agentId: string; mode?: string; model?: string }> } } | null;
       // as the person: a private chat answers only to them

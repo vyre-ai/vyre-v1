@@ -24,3 +24,11 @@ test("choosing the default model in Settings is remembered as the last pick, so 
   await defaultsSet(h.ctx, { fallback: [{ provider: "anthropic", model: "claude-haiku-5-5" }] });
   assert.deepEqual(await lastPickGet(h.ctx), { model: "claude-sonnet-5-5", provider: "anthropic" }, "a backup change is not a pick");
 });
+
+test("a new chat starts on the latest pick of any agent, not an older pick for its own agent (owner, 6 Nov)", async () => {
+  const { recallPick } = await import("../last-pick.ts");
+  const h = harness();
+  rememberPick(h.db, "usr_dana", "agt_intake", { model: "claude-sonnet-5-5", provider: "anthropic", effort: "high" }, 1);
+  rememberPick(h.db, "usr_dana", "agt_docs", { model: "glm-5", provider: "opencode-go", effort: "low" }, 2);
+  assert.deepEqual(recallPick(h.db, "usr_dana", "agt_intake"), { model: "glm-5", provider: "opencode-go", effort: "low" });
+});

@@ -1,1 +1,2 @@
 - Chat: a person's own connected account now comes before any Space-provided account (OpenCode Go and others) when a chat picks its default account, in the account picker and in the resolver (provider spelling `opencode_go` and `opencode-go` no longer passes the own account over).
+- Chat: the model, provider and effort a person picked last now start every new chat (first screen, thread, Ask), across all agents and devices; it is no longer limited to the agent they picked it for.
