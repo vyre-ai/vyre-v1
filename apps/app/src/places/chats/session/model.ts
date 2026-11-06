@@ -1,6 +1,7 @@
 // A long running session (owner, 6 Nov 2026, prototype t-session "rc.22.1 launch night"): one chat that a person and an assistant keep for hours, with a crew in the middle. The pieces that make it readable are pure
 // and live here: which chats count as long, the hour marks, the jump points (release tagged, PR merged, task done, a decision), "While you were away" (quiet messages since the person last looked fold into one row,
 // the things that need them stay), and what the session Overview in the right pane lists. Nothing here draws or reads the network; the tests drive every rule.
+import { durationWords } from "../../../../../../lib/duration.ts";
 import { timeLabel, workOf } from "../conversation/model.ts";
 import type { Clock, Item, Message } from "../conversation/model.ts";
 
@@ -41,7 +42,7 @@ const hourKey = (ts: number, c: Clock): string => `${Math.floor(ts / HOUR)}:${ti
 /* ---------- jump points ---------- */
 
 export type JumpKind = "release" | "merged" | "task" | "decision";
-export interface Jump { messageId: string; kind: JumpKind; label: string; sub: string; at: number }
+export interface Jump { messageId: string; kind: JumpKind; label: string; sub: string; at: number; /** who said it: the author of the message */ by: string }
 
 const LABEL: Record<JumpKind, string> = { release: "Release tagged", merged: "PR merged", task: "Task done", decision: "Decision" };
 const rec = (v: unknown): Record<string, unknown> => (v !== null && typeof v === "object" ? (v as Record<string, unknown>) : {});
@@ -62,9 +63,9 @@ const flat = (s: string): string => s.replace(/\s+/g, " ").trim();
 const short = (s: string, max = 80): string => (s.length > max ? `${s.slice(0, max - 1)}…` : s);
 
 /** A message that marks a moment worth coming back to: a release tagged, a PR merged, a task finished, a decision. Null for everything else. The row's detail is the part the label does not already say. */
-export function jumpOf(m: Pick<Message, "messageId" | "kind" | "body" | "blocks" | "pinned" | "createdAt">): Jump | null {
+export function jumpOf(m: Pick<Message, "messageId" | "kind" | "body" | "blocks" | "pinned" | "createdAt"> & { author?: { id: string } }): Jump | null {
   const { words, card } = sayings(m);
-  const make = (kind: JumpKind, sub: string): Jump => ({ messageId: m.messageId, kind, label: LABEL[kind], sub: short(sub), at: m.createdAt });
+  const make = (kind: JumpKind, sub: string): Jump => ({ messageId: m.messageId, kind, label: LABEL[kind], sub: short(sub), at: m.createdAt, by: (m as { author?: { id?: string } }).author?.id ?? "" });
   if (card?.target === "fact") return make("decision", card.title);
   const line = flat(words);
   if (/\brelease\b.*\b(tagged|published|shipped|cut)\b|\b(tagged|published|shipped|cut)\b.*\brelease\b|\bv?\d+\.\d+\.\d+(-rc\.[\d.]+)?\b.*\btagged\b/i.test(words)) return make("release", card?.title ?? /\bv?\d+\.\d+\.\d+[\w.-]*/.exec(line)?.[0] ?? line);
@@ -201,7 +202,7 @@ export function awayWords(a: Pick<Extract<SessionItem, { kind: "away" }>, "who" 
 
 /* ---------- the session Overview ---------- */
 
-export interface Question { messageId: string; text: string }
+export interface Question { messageId: string; text: string; /** the author of the message that asked */ by: string }
 export interface SessionSummary {
   /** The session is long: the right pane opens on its Overview. */
   long: boolean;
@@ -225,8 +226,8 @@ export function questionsOf(messages: readonly Message[]): Question[] {
   for (const m of messages) {
     for (const b of m.blocks) {
       const d = rec(b.data);
-      if (b.type === "question" && (d["answer"] === undefined || d["answer"] === null) && text(d["prompt"]) !== "") out.push({ messageId: m.messageId, text: oneLine(text(d["prompt"])) });
-      else if (b.type === "plan" && d["state"] === "proposed" && text(d["title"]) !== "") out.push({ messageId: m.messageId, text: `Approve the plan: ${oneLine(text(d["title"]), 120)}` });
+      if (b.type === "question" && (d["answer"] === undefined || d["answer"] === null) && text(d["prompt"]) !== "") out.push({ messageId: m.messageId, text: oneLine(text(d["prompt"])), by: m.author.id });
+      else if (b.type === "plan" && d["state"] === "proposed" && text(d["title"]) !== "") out.push({ messageId: m.messageId, text: `Approve the plan: ${oneLine(text(d["title"]), 120)}`, by: m.author.id });
     }
   }
   return out;
@@ -250,10 +251,13 @@ export function contextWords(ctx: { used: number; window: number; approximate?: 
   return `${ctx.approximate ? "about " : ""}${pct}% of ${k(ctx.window)}`;
 }
 
-/** "4 h 41 min": how long the session has run. */
-export function ranWords(from: number, to: number): string {
-  const mins = Math.max(0, Math.round((to - from) / 60_000));
-  if (mins < 60) return `${mins} min`;
-  const h = Math.floor(mins / 60), m = mins % 60;
-  return m === 0 ? `${h} h` : `${h} h ${m} min`;
+/** "4 h 41 min": how long the session has run, in the app's one duration words. */
+export const ranWords = (from: number, to: number): string => durationWords(to - from);
+
+const FIRST = ["overview", "threads", "files", "memory"];
+const RENAME: Record<string, string> = { threads: "Threads", memory: "Kept" };
+/** The tabs of a long session's pane: the chat's own four first (Overview, Threads, Files, Kept), the rest after them for More to hold. */
+export function sessionTabs<T extends { key: string; title: string }>(tabs: readonly T[]): T[] {
+  const head = FIRST.flatMap((k) => tabs.filter((t) => t.key === k));
+  return [...head, ...tabs.filter((t) => !FIRST.includes(t.key))].map((t) => (RENAME[t.key] ? { ...t, title: RENAME[t.key]! } : t));
 }

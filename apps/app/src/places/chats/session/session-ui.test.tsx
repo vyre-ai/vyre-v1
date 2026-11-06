@@ -102,11 +102,11 @@ const summary = (o: Partial<SessionSummary> = {}): SessionSummary => ({ ...NO_SE
 test("the Overview lists the goal, helpers, files, decisions, open questions, jumps and usage; a helper opens its pane and a jump scrolls the chat", async () => {
   const log: string[] = [];
   const s = summary({
-    decisions: [{ messageId: "m_d", kind: "decision", label: "Decision", sub: "Release after one green CI run", at: 1000 }],
-    questions: [{ messageId: "m_q", text: "Which corner radius?" }],
-    jumps: [{ messageId: "m_r", kind: "release", label: "Release tagged", sub: "v1.0.0-rc.22.1", at: 2000 }],
+    decisions: [{ messageId: "m_d", kind: "decision", label: "Decision", sub: "Release after one green CI run", at: 1000, by: "usr_me" }],
+    questions: [{ messageId: "m_q", text: "Which corner radius?", by: "agt_kai" }],
+    jumps: [{ messageId: "m_r", kind: "release", label: "Release tagged", sub: "v1.0.0-rc.22.1", at: 2000, by: "agt_a" }],
   });
-  const root = await mount(createRoot, <OverviewView goal="Ship rc.22.1" summary={s} members={crew()} context={{ words: "38% of 1M", frac: 0.38 }} clock={() => "11:48 PM"} onHelper={(id) => log.push(`helper:${id}`)} onJump={(id) => log.push(`jump:${id}`)} />);
+  const root = await mount(createRoot, <OverviewView goal="Ship rc.22.1" summary={s} members={crew()} context={{ words: "38% of 1M", frac: 0.38 }} clock={() => "11:48 PM"} who={(id) => (id === "usr_me" ? "You" : id === "agt_kai" ? "Kai" : id)} onHelper={(id) => log.push(`helper:${id}`)} onJump={(id) => log.push(`jump:${id}`)} />);
   const text = textOf(find(root, "session-overview"));
   for (const want of ["Goal", "Helpers", "Files touched", "Decisions", "Open questions", "Jump to", "Usage"]) assert.ok(text.includes(want), want);
   assert.equal(textOf(find(root, "overview-goal")), "Ship rc.22.1");
@@ -114,6 +114,9 @@ test("the Overview lists the goal, helpers, files, decisions, open questions, ju
   assert.equal(textOf(find(root, "overview-context")).replace(/\s+/g, " ").trim(), "Context 38% of 1M");
   assert.match(textOf(find(root, "overview-ran")), /4 h 41 min/);
   assert.ok(find(root, "overview-waiting-thr_k"), "a helper that needs you is an open question too");
+  assert.match(textOf(find(root, "overview-decision-m_d")), /You, 11:48 PM/, "a decision says who and when");
+  assert.match(textOf(find(root, "overview-question-m_q")), /Kai/, "a question says who asked");
+  assert.ok(!JSON.stringify(find(root, "overview-jump-m_r")).includes("svg"), "jump rows are plain, no flag");
   await press(find(root, "overview-helper-thr_o"));
   await press(find(root, "overview-jump-m_r"));
   await press(find(root, "overview-question-m_q"));
@@ -130,7 +133,7 @@ test("the Overview leaves out a section with nothing in it", async () => {
 test("files are listed once with the helper that touched them; a waiting helper is named with what it asked", () => {
   const two = [M({ id: "a", name: "Tess", files: [{ path: "x/a.ts", added: 1, deleted: 0 }] }), M({ id: "b", name: "Orin", files: [{ path: "x/a.ts", added: 2, deleted: 0 }, { path: "x/b.ts", added: 1, deleted: 1 }] })];
   assert.deepEqual(filesOf(two).map((f) => `${f.path}:${f.by}`), ["x/a.ts:Tess", "x/b.ts:Orin"]);
-  assert.deepEqual(waitingOf(crew()), [{ id: "thr_k", text: "Kai: Asked you: 12 px or 14 px corners" }]);
+  assert.deepEqual(waitingOf(crew()), [{ id: "thr_k", text: "Asked you: 12 px or 14 px corners", who: "Kai" }]);
 });
 
 test("the session context: the conversation publishes, the pane reads, a jump from the pane reaches the chat, and a new chat starts empty", async () => {
@@ -151,4 +154,14 @@ test("the session context: the conversation publishes, the pane reads, a jump fr
   assert.equal(seen.length, before, "the same summary changes nothing");
   await act(async () => { root.render(<SessionProvider threadId="thr_2"><Chat /><Pane /><Grab /></SessionProvider>); });
   assert.equal(seen[seen.length - 1], false);
+});
+
+test("a crew row shows a clock only while it runs, in the app's duration words, even when its start is days old", async () => {
+  const old = Date.now() - 378 * 86_400_000;
+  const rows = [M({ id: "thr_r", state: "working", startedAt: old, elapsedMs: 0 }), M({ id: "thr_d", state: "done", startedAt: old, elapsedMs: 5_000, endedAt: old + 5_000 }), M({ id: "thr_n", state: "needs_you", startedAt: old, elapsedMs: 0 })];
+  const root = await mount(createRoot, <CrewBlock members={rows} totals={T()} onPeek={() => undefined} />);
+  assert.equal(textOf(find(root, "crew-chip-thr_r-time")).trim(), "378 d");
+  assert.equal(textOf(find(root, "crew-chip-thr_d-time")).trim(), "", "a finished helper shows no clock");
+  assert.equal(textOf(find(root, "crew-chip-thr_n-time")).trim(), "");
+  assert.ok(!/\d:\d\d/.test(textOf(root)), "never a clock like 9073:44:02");
 });

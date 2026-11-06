@@ -14,7 +14,6 @@ export function HourMark({ id, label }: { id: string; label: string }): ReactEle
   return (
     <View testID={`hour-${id}`} accessibilityRole="text" accessibilityLabel={label} style={st.hour}>
       <Text style={st.hourText}>{label}</Text>
-      <View style={st.rule} />
     </View>
   );
 }
@@ -58,7 +57,6 @@ export function AwayRow({ row }: { row: Away }): ReactElement {
 const st = StyleSheet.create({
   hour: { flexDirection: "row", alignItems: "center", gap: 8, height: 20, marginTop: 24, marginBottom: 4 },
   hourText: { fontSize: 12, color: "var(--ink-3)" as string },
-  rule: { flex: 1, height: 1, backgroundColor: "var(--line)" as string },
   jump: { flexDirection: "row", alignItems: "center", gap: 8, marginVertical: 12 },
   flag: { width: 20, alignItems: "center" },
   jumpWhat: { flexShrink: 0, fontSize: 13, fontWeight: "600", color: "var(--ink)" as string },

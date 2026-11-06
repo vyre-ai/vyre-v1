@@ -3,6 +3,7 @@
 // list; the keyboard reaches both. Every row is memoised on its item, so a streaming message re-renders alone.
 import { HelperRow } from "./helper-row.tsx";
 import { CrewBlock } from "../session/CrewBlock.tsx";
+import { QuestionCard } from "./question-card.tsx";
 import { AwayRow, HourMark, JumpRow } from "../session/rows.tsx";
 import type { SessionItem } from "../session/model.ts";
 import { memberFromBlock, memberOf } from "../crew/status.ts";
@@ -618,6 +619,13 @@ function Theirs({ item, actions, stream, openWork, mark, meId, replies }: Messag
           );
         }
         if (b.type === "helper" && !isCrewStart(b)) return <HelperRow key={b.id} block={b} onOpen={(id) => actions.openMessage?.(id, "")} />;
+        if (b.type === "question" && b.state === "waiting") {
+          const d = (b.data ?? {}) as Record<string, unknown>;
+          const options = questionOptions(d);
+          if (options.length > 0 && d["answer"] === undefined && terminalAskOf(d) === null && mountOffers(options) === null) {
+            return <QuestionCard key={b.id} id={b.id} prompt={typeof d["prompt"] === "string" && d["prompt"] !== "" ? (d["prompt"] as string) : cardLine(b).title} options={options} onAnswer={(o) => actions.answer(b.id, o)} />;
+          }
+        }
         if (isPartOneType(b.type)) return <BlockViewA key={b.id} block={b} host={actions.host} />;
         return <Card key={b.id} line={cardLine(b)} actions={actions} />;
       })}

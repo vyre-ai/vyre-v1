@@ -12,7 +12,9 @@ import type { Message, MessageBlock } from "../../../apps/app/src/places/chats/c
 
 export const title = "A long running session";
 
-const at = (h: number, m: number, day = 0): number => Date.UTC(2025, 9, 23 + day, h, m, 0);
+// the night ended 14 minutes ago, so every time in it is relative to now and nothing reads years
+const START = Date.now() - (285 + 14) * 60_000;
+const at = (h: number, m: number, day = 0): number => START + (h * 60 + m + day * 1440 - 1200) * 60_000;
 const ME = { kind: "person" as const, id: "usr_irfad" };
 const MAYA = { kind: "person" as const, id: "usr_maya" };
 const AGENTS = ["agt_intake", "agt_docs", "agt_research", "agt_scout"].map((id) => ({ kind: "agent" as const, id }));
@@ -34,7 +36,8 @@ const CHATTER = [
 function build() {
   const s = createConversationSample("idle", { title: "rc.22.1 launch night" });
   const rows = s.replica.rows("messages") as unknown as Message[];
-  let seq = rows.reduce((n, m) => Math.max(n, m.threadSeq), 0);
+  s.replica.remove("messages", rows.map((m) => (m as unknown as { id: string }).id));   // the idle chat's own messages: this chat is only the night
+  let seq = 0;
   const out: Message[] = [];
   const add = (id: string, author: Message["author"], body: string, createdAt: number, o: Partial<Message> = {}): number => {
     seq += 1;
@@ -59,7 +62,7 @@ function build() {
   // each helper's own chat, for the steps under its row
   const helperRows: Message[] = CREW.flatMap((c) => c.steps.map((t, i): Message => ({ messageId: `${c.id}_${i}`, threadId: c.id, threadSeq: i + 1, author: { kind: "agent", id: c.agentId }, kind: "agent", body: "", blocks: [block("step", `${c.id}_s${i}`, { title: t, sub: "", secs: 4 }, "done")], depth: 0, attachments: [], reactions: [], pinned: false, createdAt: at(21, 0) + i * 60_000 } as Message)));
   s.replica.put("messages", helperRows.map((m) => ({ id: m.messageId, ...m })));
-  const now = at(0, 46, 1);
+  const now = Date.now();
   const status = () => {
     const members = CREW.map((c) => ({ kind: "helper" as const, id: c.id, parentThreadId: "c1", title: c.title, name: c.name, agentId: c.agentId, state: c.state, ...("step" in c ? { step: c.step } : {}), ...("found" in c ? { found: c.found } : {}), startedAt: now - c.min * 60_000, ...(c.state === "done" ? { endedAt: now - 60_000 } : {}), elapsedMs: c.min * 60_000, tokensIn: 0, tokensOut: 0, costMicros: 0, files: c.files, branch: `crew/${c.name.toLowerCase()}` }));
     return { members, totals: { members: 4, working: 1, done: 2, needsYou: 1, failed: 0, stopped: 0, tokensIn: 0, tokensOut: 0, costMicros: 0, filesChanged: 5, added: 161, deleted: 28, elapsedMs: 18 * 60_000 } };
@@ -70,7 +73,7 @@ function build() {
     if (cap === "engine.crew.workspace") return Promise.resolve({ workspace: null });
     return s.data.call(cap, input);
   };
-  return { ...s, data: { ...s.data, call } };
+  return { ...s, data: { ...s.data, call, clock: () => ({ ...s.data.clock(), now: Date.now() }) } };
 }
 
 export default function Mount(): ReactNode {

@@ -8,9 +8,10 @@ import { injectCss } from "../../../../../../ui/src/theme/css.ts";
 import { Glyph } from "../conversation/parts.tsx";
 import { stepsOf } from "../crew/pane.tsx";
 import type { HelperStep } from "../crew/pane.tsx";
-import { stripTitle, stripTone, faceSeed } from "../crew/model.ts";
+import { stripTone, faceSeed } from "../crew/model.ts";
 import type { CrewMember, CrewTotals } from "../crew/model.ts";
-import { timeOf, useNow } from "../crew/strip.tsx";
+import { useNow } from "../crew/strip.tsx";
+import { durationWords } from "../../../../../../lib/duration.ts";
 import type { Call } from "../crew/status.ts";
 
 const web = Platform.OS === "web";
@@ -19,6 +20,14 @@ const CSS = [
   ".vy-cb-spin{width:10px;height:10px;border-radius:50%;border:1.5px solid var(--accent);border-right-color:transparent;animation:vy-cb-spin 1s linear infinite;display:inline-block;flex:none}",
   "@media (prefers-reduced-motion:reduce){.vy-cb-spin{animation:none}}",
 ].join("\n");
+
+/** The header's one line: how many, who needs you, how long, in the app's duration words (never a clock). */
+export function blockTitle(t: CrewTotals): string {
+  if (t.members === 0) return "";
+  const tail = t.elapsedMs > 0 ? ` · ${durationWords(t.elapsedMs)}` : "";
+  if (t.working === 0 && t.needsYou === 0) return `${t.done} of ${t.members} done${t.failed > 0 ? ` · ${t.failed} failed` : ""}${t.stopped > 0 ? ` · ${t.stopped} stopped` : ""}${tail}`;
+  return `${t.members === 1 ? "1 helper" : `${t.members} helpers`} · ${t.needsYou > 0 ? `${t.needsYou} needs you` : "working"}${tail}`;
+}
 
 /** What a row says on the right: one word. A spinner only while it works. */
 export const statusWord = (s: CrewMember["state"]): string => (s === "working" ? "Working" : s === "needs_you" ? "Waiting on you" : s === "done" ? "Done" : s === "failed" ? "Failed" : "Stopped");
@@ -67,7 +76,7 @@ function Row({ m, now, call, selected, onPeek, onRetry }: { m: CrewMember; now: 
           {m.state === "working" && web ? createElement("span", { className: "vy-cb-spin", "aria-hidden": true, title: "Working" }) : null}
           <Text testID={`${id}-state`} style={[st.statusText, m.state === "needs_you" && st.wait]}>{statusWord(m.state)}</Text>
         </View>
-        {canRetry ? <Pressable accessibilityRole="button" testID={`${id}-retry`} onPress={() => onRetry!(m)} style={st.retry}><Text style={st.retryText}>Retry</Text></Pressable> : <Text testID={`${id}-time`} style={st.time}>{m.state === "needs_you" ? "" : timeOf(m, now)}</Text>}
+        {canRetry ? <Pressable accessibilityRole="button" testID={`${id}-retry`} onPress={() => onRetry!(m)} style={st.retry}><Text style={st.retryText}>Retry</Text></Pressable> : <Text testID={`${id}-time`} style={st.time}>{m.state === "working" ? durationWords(Math.max(m.elapsedMs, now - m.startedAt)) : ""}</Text>}
       </Pressable>
       {open ? (
         <View testID={`${id}-steps`} style={st.steps}>
@@ -97,7 +106,7 @@ export function CrewBlock({ members, totals, call, selectedId, merge, onPeek, on
     <View testID="crew-strip" accessibilityRole="summary" {...(web ? { dataSet: { tone } } : {})} style={st.block}>
       <View style={st.head}>
         <Text style={st.headLead}>Crew</Text>
-        <Text numberOfLines={1} testID="crew-strip-title" style={st.headMeta}>{stripTitle(totals)}</Text>
+        <Text numberOfLines={1} testID="crew-strip-title" style={st.headMeta}>{blockTitle(totals)}</Text>
         {merge && merge.state === "ready" ? (
           <>
             {reviewed ? <Text testID="crew-strip-reviewed" style={st.action}>Reviewed</Text> : <Pressable accessibilityRole="button" testID="crew-strip-review" onPress={() => { setReviewed(true); merge.onReview(); }}><Text style={st.action}>Review all</Text></Pressable>}

@@ -5,7 +5,7 @@
 import { useFrameStore } from "./frame.ts";
 import type { FrameControls, FrameStore } from "./frame.ts";
 import { foldHelperRows, groupHelperStrips, hideCrewPosts, mergeCrewAnswer, stripFromCoders } from "./helper-rows.ts";
-import { sessionItems } from "../session/model.ts";
+import { isLong, sessionItems } from "../session/model.ts";
 import { SessionPublisher } from "../session/Publisher.tsx";
 import { useCrew } from "../crew/context.tsx";
 import { crewChipOf } from "../crew/model.ts";
@@ -446,7 +446,9 @@ function ConversationView(): ReactElement {
   const canSteer = ownTurn && !(leadDriver !== undefined && act.CANNOT_STEER.has(leadDriver));   // a chat on Codex or Grok keeps its message queued: they read nothing mid-turn
   const helpers = (helpersQ.status === "loading" ? [] : helpersQ.data.helpers).filter((h) => h.status === "running");
   // the header chip counts from the crew read (the strip's own): how many are on it and how many wait for you; the pane opens on the overview
-  const crewChip = crew?.status && crew.status.members.length > 0 ? crewChipOf(crew.status.totals) : null;
+  // a long session says who works and who waits in its Overview and the docked question, so the header keeps only the name and its people
+  const longChat = isLong(all);
+  const crewChip = !longChat && crew?.status && crew.status.members.length > 0 ? crewChipOf(crew.status.totals) : null;
 
   /* ---------- menus: all open under the button that asked ---------- */
   const stopMenu = (x: number, y: number): void => {
@@ -463,7 +465,7 @@ function ConversationView(): ReactElement {
       x, y, "other", { label: "Helpers" },
     );
   };
-  const island = islandView(openQs, putAway, islandAt, cardsInView);
+  const island = islandView(openQs, putAway, islandAt, longChat ? new Set<string>() : cardsInView);
   const typingNames: readonly string[] = data.typing ?? [];
   const peopleMenu = (x: number, y: number): void => add.showPeople({ thread, x, y, onOpenAgent: data.nav.openAgent });
   const modelMenu = (x: number, y: number): void => {
@@ -785,7 +787,7 @@ function ConversationView(): ReactElement {
               onDismiss={(q) => setPutAway((cur) => new Set([...cur, q.id]))}
               onPeople={(x, y) => peopleMenu(x, y)} />
           ) : null}
-          {crew?.status && crew.status.members.length > 0 ? <CrewIsland status={crew.status} onPress={() => crew.show(null)} /> : null}
+          {!longChat && crew?.status && crew.status.members.length > 0 ? <CrewIsland status={crew.status} onPress={() => crew.show(null)} /> : null}
           {personMention ? (() => {
             // one strip on top of the composer: who is not here, Add (they read from now on), and a caret for the other ways
             const first = nameOf(personMention.id).split(" ")[0] ?? "";

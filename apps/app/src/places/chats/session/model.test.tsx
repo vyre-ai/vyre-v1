@@ -3,7 +3,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { timeline } from "../conversation/model.ts";
 import type { Clock, Message } from "../conversation/model.ts";
-import { awayWords, contextWords, hourLabel, isLong, isQuiet, jumpOf, needsPerson, questionsOf, ranWords, sessionItems, summaryOf } from "./model.ts";
+import { awayWords, contextWords, hourLabel, isLong, isQuiet, jumpOf, needsPerson, questionsOf, ranWords, sessionItems, sessionTabs, summaryOf } from "./model.ts";
 
 const H = 3_600_000, MIN = 60_000;
 const T0 = Date.UTC(2026, 10, 5, 20, 0, 0);   // 5 Nov, 8 PM in the zone below
@@ -30,6 +30,11 @@ test("a chat is long at three hours with a handful of messages, or forty over an
   const short = [me(T0), msg({ at: T0 + MIN, body: "ok" })];
   const items = timeline(short, ctx);
   assert.deepEqual(sessionItems(items, short, { meId: "usr_me", clock, nameOf, since: 0, openedAt: T0 + H }), items);
+});
+
+test("the pane of a long session: the chat's four tabs first, Threads and Kept named, the rest after", () => {
+  const out = sessionTabs([{ key: "overview", title: "Overview" }, { key: "about", title: "About" }, { key: "computer", title: "Computer" }, { key: "threads", title: "Chats" }, { key: "files", title: "Files" }, { key: "memory", title: "Knows" }, { key: "routines", title: "Routines" }]);
+  assert.deepEqual(out.map((t) => t.title), ["Overview", "Threads", "Files", "Kept", "About", "Computer", "Routines"]);
 });
 
 test("hours read as 8 PM and 12 AM", () => {
@@ -125,6 +130,8 @@ test("the Overview: the first ask, jumps, decisions, open questions, and how lon
   assert.deepEqual(s.decisions.map((j) => j.sub), ["Release after one green CI run"]);
   assert.deepEqual(questionsOf(msgs).map((q) => q.text), ["Which corner radius?"]);
   assert.equal(ranWords(s.from, s.to), "4 h 41 min");
+  assert.equal(s.decisions[0]!.by, "agt_a", "a decision knows who said it");
+  assert.equal(questionsOf(msgs)[0]!.by, "agt_a");
   assert.equal(contextWords({ used: 380_000, window: 1_000_000 }), "38% of 1M");
   assert.equal(contextWords({ used: 50_000, window: 200_000, approximate: true }), "about 25% of 200k");
   assert.equal(contextWords(null), "");

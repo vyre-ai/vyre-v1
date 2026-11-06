@@ -18,6 +18,8 @@ export interface OverviewProps {
   /** "38% of 1M", or "" while unknown. */
   context: { words: string; frac: number } | null;
   clock: (ts: number) => string;
+  /** a person or agent id as a name ("You" for the viewer) */
+  who?: (id: string) => string;
   onHelper(id: string): void;
   onJump(messageId: string): void;
 }
@@ -32,9 +34,9 @@ export function filesOf(members: readonly CrewMember[]): Array<{ path: string; b
 }
 
 /** What waits on the person besides the questions in the chat: a helper that needs a yes. */
-export const waitingOf = (members: readonly CrewMember[]): Array<{ id: string; text: string }> => members.filter((m) => m.state === "needs_you").map((m) => ({ id: m.id, text: `${whoOf(m).name}: ${m.step ?? "needs your OK"}` }));
+export const waitingOf = (members: readonly CrewMember[]): Array<{ id: string; text: string; who: string }> => members.filter((m) => m.state === "needs_you").map((m) => ({ id: m.id, text: m.step ?? "needs your OK", who: whoOf(m).name }));
 
-export function OverviewView({ goal, summary, members, context, clock, onHelper, onJump }: OverviewProps): ReactElement {
+export function OverviewView({ goal, summary, members, context, clock, who = (id) => id, onHelper, onJump }: OverviewProps): ReactElement {
   const files = filesOf(members);
   const waiting = waitingOf(members);
   return (
@@ -47,8 +49,9 @@ export function OverviewView({ goal, summary, members, context, clock, onHelper,
             <Pressable key={m.id} accessibilityRole="button" accessibilityLabel={`Open ${w.name}`} testID={`overview-helper-${m.id}`} onPress={() => onHelper(m.id)} style={({ hovered }: { hovered?: boolean }) => [st.row, hovered === true && st.hover]}>
               <Avatar name={memberName(m)} seedId={faceSeed(m)} kind="agent" size={20} />
               <Text numberOfLines={1} style={st.rowMain}>{w.name}</Text>
-              {w.task !== "" ? <Text numberOfLines={1} style={st.rowSub}>{w.task}</Text> : <View style={{ flex: 1 }} />}
-              <Text style={[st.rowEnd, m.state === "needs_you" && st.wait]}>{statusWord(m.state)}</Text>
+              <View style={{ flex: 1 }} />
+              {w.task !== "" ? <Text numberOfLines={1} style={st.rowSub}>{w.task}</Text> : null}
+              <Text style={[st.rowStatus, m.state === "needs_you" && st.wait]}>{statusWord(m.state)}</Text>
             </Pressable>
           );
         })}
@@ -66,7 +69,7 @@ export function OverviewView({ goal, summary, members, context, clock, onHelper,
         {summary.decisions.map((d) => (
           <Pressable key={d.messageId} accessibilityRole="button" testID={`overview-decision-${d.messageId}`} onPress={() => onJump(d.messageId)} style={({ hovered }: { hovered?: boolean }) => [st.row, hovered === true && st.hover]}>
             <Text numberOfLines={2} style={st.rowMain}>{d.sub}</Text>
-            <Text style={st.rowEnd}>{clock(d.at)}</Text>
+            <Text style={st.rowEnd}>{d.by !== "" ? `${who(d.by)}, ${clock(d.at)}` : clock(d.at)}</Text>
           </Pressable>
         ))}
       </Section>
@@ -75,11 +78,13 @@ export function OverviewView({ goal, summary, members, context, clock, onHelper,
           ...summary.questions.map((q) => (
             <Pressable key={q.messageId} accessibilityRole="button" testID={`overview-question-${q.messageId}`} onPress={() => onJump(q.messageId)} style={({ hovered }: { hovered?: boolean }) => [st.row, hovered === true && st.hover]}>
               <Text numberOfLines={2} style={st.rowMain}>{q.text}</Text>
+              <Text style={st.rowEnd}>{who(q.by)}</Text>
             </Pressable>
           )),
           ...waiting.map((w) => (
             <Pressable key={w.id} accessibilityRole="button" testID={`overview-waiting-${w.id}`} onPress={() => onHelper(w.id)} style={({ hovered }: { hovered?: boolean }) => [st.row, hovered === true && st.hover]}>
               <Text numberOfLines={2} style={st.rowMain}>{w.text}</Text>
+              <Text style={st.rowEnd}>{w.who}</Text>
             </Pressable>
           )),
         ]}
@@ -87,7 +92,6 @@ export function OverviewView({ goal, summary, members, context, clock, onHelper,
       <Section title="Jump to">
         {summary.jumps.map((j) => (
           <Pressable key={j.messageId} accessibilityRole="button" accessibilityLabel={`Jump to ${j.label}`} testID={`overview-jump-${j.messageId}`} onPress={() => onJump(j.messageId)} style={({ hovered }: { hovered?: boolean }) => [st.row, hovered === true && st.hover]}>
-            <Glyph name="flag" size={14} color="var(--accent)" />
             <Text numberOfLines={1} style={st.rowMain}>{j.label}</Text>
             <Text style={st.rowEnd}>{clock(j.at)}</Text>
           </Pressable>
@@ -132,9 +136,9 @@ export function useOverviewReads(call: Call, threadId: string, agentId: string):
   return { goal, context };
 }
 
-export function SessionOverview({ call, threadId, agentId, summary, status, clock, onHelper, onJump }: { call: Call; threadId: string; agentId: string; summary: SessionSummary; status: CrewStatusOut | null; clock: (ts: number) => string; onHelper(id: string): void; onJump(messageId: string): void }): ReactElement {
+export function SessionOverview({ call, threadId, agentId, summary, status, clock, who, onHelper, onJump }: { call: Call; threadId: string; agentId: string; summary: SessionSummary; status: CrewStatusOut | null; clock: (ts: number) => string; who?: (id: string) => string; onHelper(id: string): void; onJump(messageId: string): void }): ReactElement {
   const { goal, context } = useOverviewReads(call, threadId, agentId);
-  return <OverviewView goal={goal !== "" ? goal : summary.firstAsk} summary={summary} members={status?.members ?? []} context={context} clock={clock} onHelper={onHelper} onJump={onJump} />;
+  return <OverviewView goal={goal !== "" ? goal : summary.firstAsk} summary={summary} members={status?.members ?? []} context={context} clock={clock} {...(who ? { who } : {})} onHelper={onHelper} onJump={onJump} />;
 }
 
 const st = StyleSheet.create({
@@ -146,7 +150,8 @@ const st = StyleSheet.create({
   row: { flexDirection: "row", alignItems: "center", gap: 8, minHeight: 32, paddingHorizontal: 8, marginHorizontal: -8, borderRadius: 12 },
   hover: { backgroundColor: "var(--hover)" as string },
   rowMain: { flexShrink: 1, minWidth: 0, fontSize: 14, color: "var(--ink)" as string },
-  rowSub: { flex: 1, minWidth: 0, fontSize: 13, color: "var(--ink-3)" as string },
+  rowSub: { flexShrink: 1, minWidth: 0, fontSize: 13, color: "var(--ink-3)" as string },
+  rowStatus: { width: 96, textAlign: "right", fontSize: 12, color: "var(--ink-3)" as string },
   rowEnd: { marginLeft: "auto", fontSize: 12, color: "var(--ink-3)" as string },
   wait: { color: "var(--warn)" as string },
   meter: { gap: 4, marginBottom: 8 },
