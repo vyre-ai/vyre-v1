@@ -5,15 +5,17 @@ import type { ReactElement } from "react";
 import { BrowserLive } from "../../places/chats/rightpane/BrowserLive.tsx";
 import type { BrowserData, BrowserView } from "../../places/chats/rightpane/work-model.ts";
 
-export interface BrowserRowLike { agentId: string; running: boolean; tabs: number; busy: boolean; viewers: number; lastActiveAt?: number | undefined; takeoverBy?: string | undefined; paired: boolean; access: "owner" | "admin" | "viewer" }
+export interface BrowserRowLike { agentId: string; state?: "running" | "asleep" | "waiting" | "error" | undefined; line?: string | undefined; running: boolean; tabs: number; busy: boolean; viewers: number; lastActiveAt?: number | undefined; takeoverBy?: string | undefined; paired: boolean; access: "owner" | "admin" | "viewer" }
 
 /** The profile as the pane draws it. A profile that is not listed has not started: closed, and the person's own say over it comes from the server when they ask. */
-export function browserView(agentId: string, rows: readonly BrowserRowLike[], d: { me: string; nameOf(id: string): string }): BrowserView {
+export function browserView(agentId: string, rows: readonly BrowserRowLike[], d: { me: string; nameOf(id: string): string }, sites: BrowserView["sites"] = []): BrowserView {
   const r = rows.find((x) => x.agentId === agentId);
   if (!r) return { state: "closed", canTakeOver: true, sites: [] };
   const may = r.access === "owner" || r.access === "admin";
-  const base = { canTakeOver: may, ...(may ? {} : { cannotTakeOver: "You can watch this browser but not take it over." }), sites: [] as BrowserView["sites"] };
+  const base = { canTakeOver: may, ...(may ? {} : { cannotTakeOver: "You can watch this browser but not take it over." }), sites: may ? sites : [] };
   if (r.takeoverBy) return { ...base, state: "takeover", tabs: r.tabs, takenBy: r.takeoverBy === d.me ? "You" : d.nameOf(r.takeoverBy), mine: r.takeoverBy === d.me };
+  if (r.state === "waiting") return { ...base, state: "waiting", ...(r.line ? { line: r.line } : {}) };
+  if (r.state === "error") return { ...base, state: "error", ...(r.line ? { line: r.line } : {}) };
   return { ...base, state: r.running ? "open" : "closed", ...(r.running ? { tabs: r.tabs, ...(r.busy ? { caption: "Working in it now" } : {}) } : {}) };
 }
 
@@ -34,7 +36,16 @@ export function browserData(d: {
     watch(agentId, on) {
       let live = true;
       const pull = (): void => {
-        void Promise.resolve(d.call("computers.browser.profiles", {})).then((o) => { if (live) on(browserView(agentId, (o as { profiles?: BrowserRowLike[] }).profiles ?? [], d)); }, () => undefined);
+        void (async () => {
+          const rows = ((await d.call("computers.browser.profiles", {})) as { profiles?: BrowserRowLike[] }).profiles ?? [];
+          // its logins are read only while it is awake (reading them would wake it) and only for a person who may take it over
+          const r = rows.find((x) => x.agentId === agentId);
+          let sites: BrowserView["sites"] = [];
+          if (r && r.running && (r.access === "owner" || r.access === "admin")) {
+            try { sites = ((await d.call("computers.browser.sessions", { agentId })) as { sessions?: Array<{ site: string; signedInAs?: string; since: number }> }).sessions?.map((x) => ({ site: x.site, ...(x.signedInAs ? { signedInAs: x.signedInAs } : {}), since: x.since })) ?? []; } catch { /* the list stays empty */ }
+          }
+          if (live) on(browserView(agentId, rows, d, sites));
+        })().catch(() => undefined);
       };
       refreshers.add(pull);
       pull();
@@ -45,7 +56,7 @@ export function browserData(d: {
     async open(agentId) { try { await d.call("computers.browser.stream", { agentId }); } catch (e) { throw new Error(sentence(e)); } for (const r of refreshers) r(); },
     takeOver: (agentId) => act("computers.browser.take_over", agentId),
     giveBack: (agentId) => act("computers.browser.give_back", agentId),
-    async signOut() { throw new Error("Signing out of a site is not available in the Space browser yet."); },
+    async signOut(agentId, site) { try { await d.call("computers.browser.sign_out", { agentId, site }); } catch (e) { throw new Error(sentence(e)); } for (const r of refreshers) r(); },
     renderLive: (agentId, o): ReactElement => <BrowserLive agentId={agentId} control={o.control} call={d.call} spaceUrl={d.spaceUrl} onNote={d.note} />,
   };
 }

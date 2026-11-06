@@ -29,7 +29,12 @@ function wire(over: { fail?: string; rows?: BrowserRowLike[] } = {}) {
   const calls: Array<{ cap: string; input: unknown }> = [];
   const ticks: Array<() => void> = [];
   const data = browserData({
-    call: async (cap, input) => { calls.push({ cap, input }); if (over.fail && cap !== "computers.browser.profiles") throw new Error(over.fail); return cap === "computers.browser.profiles" ? { profiles: over.rows ?? [row()], maxRunning: 4 } : {}; },
+    call: async (cap, input) => {
+      calls.push({ cap, input });
+      if (over.fail && cap !== "computers.browser.profiles" && cap !== "computers.browser.sessions") throw new Error(over.fail);
+      if (cap === "computers.browser.sessions") return { sessions: [{ site: "app.clio.com", signedInAs: "intake@x.example", since: 5, lastSeen: 6 }] };
+      return cap === "computers.browser.profiles" ? { profiles: over.rows ?? [row()], maxRunning: 4 } : {};
+    },
     ...d, every: (f) => { ticks.push(f); return () => { ticks.splice(ticks.indexOf(f), 1); }; },
   });
   return { data, calls, ticks };
@@ -51,7 +56,7 @@ test("watch reads the profiles now and on every tick, and a take over or give ba
   assert.deepEqual(w.calls.filter((c) => c.cap === "computers.browser.take_over").map((c) => c.input), [{ agentId: "agt_dex" }]);
   assert.equal(seen.length, 3, "refreshed after the take over");
   await w.data.giveBack("agt_dex");
-  assert.equal(w.calls.at(-2)?.cap, "computers.browser.give_back");
+  assert.deepEqual(w.calls.filter((c) => c.cap === "computers.browser.give_back").map((c) => c.input), [{ agentId: "agt_dex" }]);
   off();
   assert.equal(w.ticks.length, 0);
 });
@@ -63,7 +68,9 @@ test("open asks for the live view, which wakes the browser; a refusal is the ser
   const full = wire({ fail: "Waiting for room on the Space browser." });
   await assert.rejects(() => full.data.open("agt_dex"), /Waiting for room on the Space browser\./);
   await assert.rejects(() => full.data.takeOver("agt_dex"), /Waiting for room/);
-  await assert.rejects(() => w.data.signOut("agt_dex", "x.com"), /not available in the Space browser yet/);
+  await w.data.signOut("agt_dex", "x.com");
+  assert.deepEqual(w.calls.find((c) => c.cap === "computers.browser.sign_out")?.input, { agentId: "agt_dex", site: "x.com" });
+  await assert.rejects(() => full.data.signOut("agt_dex", "x.com"), /Waiting for room/);
 });
 
 test("the live view's helpers: addresses, pointer positions in the browser's own units, and what a key sends", () => {
@@ -78,4 +85,23 @@ test("the live view's helpers: addresses, pointer positions in the browser's own
   assert.deepEqual(keyMessages({ key: "Enter" }), [{ t: "key", name: "Enter", down: true }, { t: "key", name: "Enter", down: false }]);
   assert.deepEqual(keyMessages({ key: "c", metaKey: true }), [{ t: "key", name: "c", down: true }, { t: "key", name: "c", down: false }]);
   assert.deepEqual(keyMessages({ key: "Dead" }), []);
+});
+
+test("a browser waiting for room or in error shows the line the server gave; the logins come from the sessions call, for a person who may take over and only while it runs", async () => {
+  assert.deepEqual(browserView("agt_dex", [row({ running: false, state: "waiting", line: "Waiting for room on the Space server. Add a compute server in Console > Computers to run more." })], d).line?.slice(0, 16), "Waiting for room");
+  assert.equal(browserView("agt_dex", [row({ running: false, state: "waiting" })], d).state, "waiting");
+  assert.equal(browserView("agt_dex", [row({ state: "error", line: "It could not open." })], d).state, "error");
+  const w = wire();
+  const seen: Array<{ n: number; first?: string }> = [];
+  w.data.watch("agt_dex", (v) => seen.push({ n: v.sites.length, ...(v.sites[0] ? { first: v.sites[0].site } : {}) }));
+  await flush();
+  assert.deepEqual(seen, [{ n: 1, first: "app.clio.com" }]);
+  const sleeping = wire({ rows: [row({ running: false, state: "asleep" })] });
+  sleeping.data.watch("agt_dex", () => undefined);
+  await flush();
+  assert.equal(sleeping.calls.some((c) => c.cap === "computers.browser.sessions"), false, "reading logins would wake it");
+  const viewer = wire({ rows: [row({ access: "viewer" })] });
+  viewer.data.watch("agt_dex", () => undefined);
+  await flush();
+  assert.equal(viewer.calls.some((c) => c.cap === "computers.browser.sessions"), false);
 });
