@@ -47,20 +47,20 @@ test("the crew block: a header that counts, one row per helper, the name opens t
   assert.equal(asked.length, 0, "a closed row reads nothing");
   await press(find(root, "crew-chip-thr_o-name"));
   assert.deepEqual(peeked, ["thr_o"]);
-  await press(find(root, "crew-chip-thr_o-toggle"));
+  await press(find(root, "row-crew-chip-thr_o-toggle"));
   await flush();
   assert.ok(find(root, "crew-chip-thr_o-steps"));
   assert.ok(asked.includes("chat.messages.list:thr_o"));
   const open = textOf(find(root, "crew-chip-thr_o-steps"));
   assert.ok(open.includes("Step 5") && open.includes("Step 4") && open.includes("Step 3"), "the last three");
   assert.ok(!open.includes("Step 2"), "and no more");
-  await press(find(root, "crew-chip-thr_o-toggle"));
+  await press(find(root, "row-crew-chip-thr_o-toggle"));
   assert.equal(find(root, "crew-chip-thr_o-steps"), null);
 });
 
 test("an open row with no steps yet says what it is on", async () => {
   const root = await mount(createRoot, <CrewBlock members={crew()} totals={T()} call={async () => ({ messages: [] })} onPeek={() => undefined} />);
-  await press(find(root, "crew-chip-thr_k-toggle"));
+  await press(find(root, "row-crew-chip-thr_k-toggle"));
   await flush();
   assert.equal(textOf(find(root, "crew-chip-thr_k-line")), "Asked you: 12 px or 14 px corners");
 });
@@ -113,14 +113,14 @@ test("the Overview lists the goal, helpers, files, decisions, open questions, ju
   assert.ok(text.includes("compose.server.yml") && text.includes("index.tsx"));
   assert.equal(textOf(find(root, "overview-context")).replace(/\s+/g, " ").trim(), "Context 38% of 1M");
   assert.match(textOf(find(root, "overview-ran")), /4 h 41 min/);
-  assert.ok(find(root, "overview-waiting-thr_k"), "a helper that needs you is an open question too");
-  assert.match(textOf(find(root, "overview-decision-m_d")), /You, 11:48 PM/, "a decision says who and when");
-  assert.match(textOf(find(root, "overview-question-m_q")), /Kai/, "a question says who asked");
-  assert.ok(!JSON.stringify(find(root, "overview-jump-m_r")).includes("svg"), "jump rows are plain, no flag");
-  await press(find(root, "overview-helper-thr_o"));
-  await press(find(root, "overview-jump-m_r"));
-  await press(find(root, "overview-question-m_q"));
-  await press(find(root, "overview-decision-m_d"));
+  assert.ok(find(root, "row-overview-waiting-thr_k"), "a helper that needs you is an open question too");
+  assert.match(textOf(find(root, "row-overview-decision-m_d")), /You, 11:48 PM/, "a decision says who and when");
+  assert.match(textOf(find(root, "row-overview-question-m_q")), /Kai/, "a question says who asked");
+  assert.ok(!JSON.stringify(find(root, "row-overview-jump-m_r")).includes("svg"), "jump rows are plain, no flag");
+  await press(find(root, "row-overview-helper-thr_o"));
+  await press(find(root, "row-overview-jump-m_r"));
+  await press(find(root, "row-overview-question-m_q"));
+  await press(find(root, "row-overview-decision-m_d"));
   assert.deepEqual(log, ["helper:thr_o", "jump:m_r", "jump:m_q", "jump:m_d"]);
 });
 

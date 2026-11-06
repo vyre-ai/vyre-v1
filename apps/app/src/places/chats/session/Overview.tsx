@@ -2,7 +2,8 @@
 // moment worth coming back to, and how full the context is. Everything is read from the chat, its crew and the engine; nothing is written here. `OverviewView` draws from plain values (tests, shots); `SessionOverview` reads them.
 import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { Avatar } from "../../../../../../ui/src/Avatar/index.tsx";
 import { Glyph } from "../conversation/parts.tsx";
 import { faceSeed, nameOf as memberName } from "../crew/model.ts";
@@ -36,66 +37,35 @@ export function filesOf(members: readonly CrewMember[]): Array<{ path: string; b
 /** What waits on the person besides the questions in the chat: a helper that needs a yes. */
 export const waitingOf = (members: readonly CrewMember[]): Array<{ id: string; text: string; who: string }> => members.filter((m) => m.state === "needs_you").map((m) => ({ id: m.id, text: m.step ?? "needs your OK", who: whoOf(m).name }));
 
+const Quiet = ({ children, wait = false }: { children: string; wait?: boolean }): ReactElement => <Text numberOfLines={1} style={[st.rowEnd, wait && st.wait]}>{children}</Text>;
+
 export function OverviewView({ goal, summary, members, context, clock, who = (id) => id, onHelper, onJump }: OverviewProps): ReactElement {
   const files = filesOf(members);
   const waiting = waitingOf(members);
+  const questions = summary.questions.length + waiting.length;
   return (
     <ScrollView testID="session-overview" style={st.root} contentContainerStyle={st.body}>
       <Section title="Goal">{goal !== "" ? <Text testID="overview-goal" style={st.p}>{goal}</Text> : null}</Section>
       <Section title="Helpers">
         {members.map((m) => {
           const w = whoOf(m);
-          return (
-            <Pressable key={m.id} accessibilityRole="button" accessibilityLabel={`Open ${w.name}`} testID={`overview-helper-${m.id}`} onPress={() => onHelper(m.id)} style={({ hovered }: { hovered?: boolean }) => [st.row, hovered === true && st.hover]}>
-              <Avatar name={memberName(m)} seedId={faceSeed(m)} kind="agent" size={20} />
-              <Text numberOfLines={1} style={st.rowMain}>{w.name}</Text>
-              <View style={{ flex: 1 }} />
-              {w.task !== "" ? <Text numberOfLines={1} style={st.rowSub}>{w.task}</Text> : null}
-              <Text style={[st.rowStatus, m.state === "needs_you" && st.wait]}>{statusWord(m.state)}</Text>
-            </Pressable>
-          );
+          return <Row key={m.id} id={`overview-helper-${m.id}`} title={w.name} leading={<Avatar name={memberName(m)} seedId={faceSeed(m)} kind="agent" size={20} />} trailing={<Text numberOfLines={1} style={[st.rowEnd, m.state === "needs_you" && st.wait]}>{w.task !== "" ? `${w.task}   ${statusWord(m.state)}` : statusWord(m.state)}</Text>} onPress={() => onHelper(m.id)} />;
         })}
       </Section>
       <Section title="Files touched">
-        {files.map((f) => (
-          <View key={f.path} testID={`overview-file-${f.path}`} style={st.row}>
-            <Glyph name="file" size={14} />
-            <Text numberOfLines={1} style={st.rowMain}>{f.path.split("/").pop() ?? f.path}</Text>
-            <Text numberOfLines={1} style={st.rowEnd}>{f.by}</Text>
-          </View>
-        ))}
+        {files.map((f) => <Row key={f.path} id={`overview-file-${f.path}`} title={f.path.split("/").pop() ?? f.path} leading={<Glyph name="file" size={14} />} trailing={<Quiet>{f.by}</Quiet>} inert />)}
       </Section>
       <Section title="Decisions">
-        {summary.decisions.map((d) => (
-          <Pressable key={d.messageId} accessibilityRole="button" testID={`overview-decision-${d.messageId}`} onPress={() => onJump(d.messageId)} style={({ hovered }: { hovered?: boolean }) => [st.row, hovered === true && st.hover]}>
-            <Text numberOfLines={2} style={st.rowMain}>{d.sub}</Text>
-            <Text style={st.rowEnd}>{d.by !== "" ? `${who(d.by)}, ${clock(d.at)}` : clock(d.at)}</Text>
-          </Pressable>
-        ))}
+        {summary.decisions.map((d) => <Row key={d.messageId} id={`overview-decision-${d.messageId}`} title={d.sub} trailing={<Quiet>{d.by !== "" ? `${who(d.by)}, ${clock(d.at)}` : clock(d.at)}</Quiet>} onPress={() => onJump(d.messageId)} />)}
       </Section>
       <Section title="Open questions">
-        {[
-          ...summary.questions.map((q) => (
-            <Pressable key={q.messageId} accessibilityRole="button" testID={`overview-question-${q.messageId}`} onPress={() => onJump(q.messageId)} style={({ hovered }: { hovered?: boolean }) => [st.row, hovered === true && st.hover]}>
-              <Text numberOfLines={2} style={st.rowMain}>{q.text}</Text>
-              <Text style={st.rowEnd}>{who(q.by)}</Text>
-            </Pressable>
-          )),
-          ...waiting.map((w) => (
-            <Pressable key={w.id} accessibilityRole="button" testID={`overview-waiting-${w.id}`} onPress={() => onHelper(w.id)} style={({ hovered }: { hovered?: boolean }) => [st.row, hovered === true && st.hover]}>
-              <Text numberOfLines={2} style={st.rowMain}>{w.text}</Text>
-              <Text style={st.rowEnd}>{w.who}</Text>
-            </Pressable>
-          )),
+        {questions === 0 ? null : [
+          ...summary.questions.map((q) => <Row key={q.messageId} id={`overview-question-${q.messageId}`} title={q.text} trailing={<Quiet>{who(q.by)}</Quiet>} onPress={() => onJump(q.messageId)} />),
+          ...waiting.map((w) => <Row key={w.id} id={`overview-waiting-${w.id}`} title={w.text} trailing={<Quiet>{w.who}</Quiet>} onPress={() => onHelper(w.id)} />),
         ]}
       </Section>
       <Section title="Jump to">
-        {summary.jumps.map((j) => (
-          <Pressable key={j.messageId} accessibilityRole="button" accessibilityLabel={`Jump to ${j.label}`} testID={`overview-jump-${j.messageId}`} onPress={() => onJump(j.messageId)} style={({ hovered }: { hovered?: boolean }) => [st.row, hovered === true && st.hover]}>
-            <Text numberOfLines={1} style={st.rowMain}>{j.label}</Text>
-            <Text style={st.rowEnd}>{clock(j.at)}</Text>
-          </Pressable>
-        ))}
+        {summary.jumps.map((j) => <Row key={j.messageId} id={`overview-jump-${j.messageId}`} title={j.label} trailing={<Quiet>{clock(j.at)}</Quiet>} onPress={() => onJump(j.messageId)} />)}
       </Section>
       <Section title="Usage">
         {[

@@ -5,6 +5,7 @@ import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Card, CardActions, CardBody, CardHead } from "../../../../../../ui/src/Card/index.tsx";
 import type { CardActionSpec } from "../../../../../../ui/src/Card/index.tsx";
+import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { Glyph } from "./parts.tsx";
 
 export const STATUS_CARD_TYPES = ["result_card", "progress_card", "status_card"] as const;
@@ -87,7 +88,7 @@ export function StatusCard({ id, type, data, host }: { id: string; type: string;
           note={more.length > 0 ? (
             <View>
               <Pressable accessibilityRole="button" accessibilityLabel="More" testID={`card-${id}-more`} onPress={() => setMenu((o) => !o)}><Text style={st.dots}>···</Text></Pressable>
-              {menu ? <View testID={`card-${id}-menu`} style={st.menu}>{more.map((a) => <Pressable key={a.key} accessibilityRole="button" testID={`card-${id}-${a.key}`} onPress={() => { setMenu(false); go(a); }}><Text style={st.menuItem}>{a.label}</Text></Pressable>)}</View> : null}
+              {menu ? <View testID={`card-${id}-menu`} style={st.menu}>{more.map((a) => <Row key={a.key} id={`card-${id}-${a.key}`} title={a.label} onPress={() => { setMenu(false); go(a); }} />)}</View> : null}
             </View>
           ) : undefined}
         />

@@ -52,6 +52,7 @@ export function QuestionIsland({ list, index, nameOf, onStep, onAnswer, onDismis
           </View>
         ) : null}
         {first && !own ? <TextButton label={first.label} primary testID="island-primary" onPress={() => send(first.id)} /> : null}
+        {/* ui-rows-lint: not a list (the answer buttons of one question, side by side) */}
         {!own ? shown.slice(1).map((o) => <TextButton key={o.id} label={o.label} testID={`island-option-${o.id}`} onPress={() => send(o.id)} />) : null}
         {!own && q.options.length > 2 ? (
           <Pressable accessibilityRole="button" accessibilityLabel="Other answers" testID="island-other" style={({ hovered }: { hovered?: boolean }) => [st.other, hovered === true && st.otherOver]}

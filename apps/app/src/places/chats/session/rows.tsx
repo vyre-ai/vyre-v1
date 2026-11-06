@@ -2,6 +2,7 @@
 import { useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { Glyph } from "../conversation/parts.tsx";
 import { awayWords } from "./model.ts";
 import type { SessionItem } from "./model.ts";
@@ -46,7 +47,7 @@ export function AwayRow({ row }: { row: Away }): ReactElement {
       </Pressable>
       {open ? (
         <View testID={`away-${row.key}-items`} style={st.lines}>
-          {shown.map((l) => <Text key={l.id} numberOfLines={2} style={st.line}>{l.who !== "" ? <Text style={st.lineWho}>{`${l.who}  `}</Text> : null}{l.text}<Text style={st.lineTime}>{`  ${l.time}`}</Text></Text>)}
+          {shown.map((l) => <Row key={l.id} id={`away-line-${l.id}`} title={l.who !== "" ? `${l.who}  ${l.text}` : l.text} trailing={<Text style={st.lineTime}>{l.time}</Text>} inert />)}
           {row.lines.length > shown.length ? <Pressable accessibilityRole="button" testID={`away-${row.key}-more`} onPress={() => setAll(true)}><Text style={st.more}>{`${row.lines.length - shown.length} more, all quiet`}</Text></Pressable> : null}
         </View>
       ) : null}

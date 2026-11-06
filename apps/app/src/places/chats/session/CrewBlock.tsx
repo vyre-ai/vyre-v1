@@ -4,6 +4,7 @@ import { createElement, useEffect, useState } from "react";
 import type { ReactElement } from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { Avatar } from "../../../../../../ui/src/Avatar/index.tsx";
+import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { injectCss } from "../../../../../../ui/src/theme/css.ts";
 import { Glyph } from "../conversation/parts.tsx";
 import { stepsOf } from "../crew/pane.tsx";
@@ -59,7 +60,7 @@ export function useLastSteps(call: Call | undefined, member: Pick<CrewMember, "i
   return steps;
 }
 
-function Row({ m, now, call, selected, onPeek, onRetry }: { m: CrewMember; now: number; call: Call | undefined; selected: boolean; onPeek: (m: CrewMember) => void; onRetry?: ((m: CrewMember) => void) | undefined }): ReactElement {
+function HelperRow({ m, now, call, selected, onPeek, onRetry }: { m: CrewMember; now: number; call: Call | undefined; selected: boolean; onPeek: (m: CrewMember) => void; onRetry?: ((m: CrewMember) => void) | undefined }): ReactElement {
   const [open, setOpen] = useState(false);
   const id = `crew-chip-${m.id}`;
   const { name, task } = whoOf(m);
@@ -68,20 +69,23 @@ function Row({ m, now, call, selected, onPeek, onRetry }: { m: CrewMember; now: 
   const last = m.state === "working" || m.state === "needs_you" ? m.step : m.found;
   return (
     <View testID={id} {...(web ? { dataSet: { state: m.state } } : {})}>
-      <Pressable accessibilityRole="button" accessibilityState={{ expanded: open }} accessibilityLabel={`${name}${task ? `, ${task}` : ""}, ${statusWord(m.state)}`} testID={`${id}-toggle`} onPress={() => setOpen((o) => !o)} style={({ hovered }: { hovered?: boolean }) => [st.row, (hovered === true || selected) && st.hover]}>
-        <Avatar name={name} seedId={faceSeed(m)} kind="agent" size={20} />
-        <Pressable accessibilityRole="link" accessibilityLabel={`Open ${name}`} testID={`${id}-name`} onPress={() => onPeek(m)}><Text numberOfLines={1} style={st.name}>{name}</Text></Pressable>
-        {task !== "" ? <Text numberOfLines={1} testID={`${id}-role`} style={st.task}>{task}</Text> : <View style={{ flex: 1 }} />}
-        <View style={st.status}>
-          {m.state === "working" && web ? createElement("span", { className: "vy-cb-spin", "aria-hidden": true, title: "Working" }) : null}
-          <Text testID={`${id}-state`} style={[st.statusText, m.state === "needs_you" && st.wait]}>{statusWord(m.state)}</Text>
-        </View>
-        {canRetry ? <Pressable accessibilityRole="button" testID={`${id}-retry`} onPress={() => onRetry!(m)} style={st.retry}><Text style={st.retryText}>Retry</Text></Pressable> : <Text testID={`${id}-time`} style={st.time}>{m.state === "working" ? durationWords(Math.max(m.elapsedMs, now - m.startedAt)) : ""}</Text>}
-      </Pressable>
+      <Row
+        id={`${id}-toggle`} title={name} onPress={() => setOpen((o) => !o)}
+        leading={<Pressable accessibilityRole="link" accessibilityLabel={`Open ${name}`} testID={`${id}-name`} onPress={() => onPeek(m)}><Avatar name={name} seedId={faceSeed(m)} kind="agent" size={20} /></Pressable>}
+        trailing={(
+          <View style={st.trail}>
+            {task !== "" ? <Text numberOfLines={1} testID={`${id}-role`} style={st.task}>{task}</Text> : null}
+            {m.state === "working" && web ? createElement("span", { className: "vy-cb-spin", "aria-hidden": true, title: "Working" }) : null}
+            <Text testID={`${id}-state`} style={[st.statusText, m.state === "needs_you" && st.wait]}>{statusWord(m.state)}</Text>
+            {canRetry ? <Pressable accessibilityRole="button" testID={`${id}-retry`} onPress={() => onRetry!(m)} style={st.retry}><Text style={st.retryText}>Retry</Text></Pressable> : <Text testID={`${id}-time`} style={st.time}>{m.state === "working" ? durationWords(Math.max(m.elapsedMs, now - m.startedAt)) : ""}</Text>}
+          </View>
+        )}
+        selected={selected}
+      />
       {open ? (
         <View testID={`${id}-steps`} style={st.steps}>
           {steps.length > 0
-            ? steps.map((x) => <Text key={x.id} numberOfLines={1} style={st.step}>{x.title}{x.sub ? ` · ${x.sub}` : ""}</Text>)
+            ? steps.map((x) => <Row key={x.id} id={`${id}-step-${x.id}`} title={`${x.title}${x.sub ? ` · ${x.sub}` : ""}`} inert />)
             : last ? <Text numberOfLines={1} testID={`${id}-line`} style={st.step}>{last}</Text> : <Text style={st.step}>{m.state === "working" ? "Getting started" : "No steps kept"}</Text>}
           {steps.length > 0 && m.state === "done" && m.found ? <Text numberOfLines={2} testID={`${id}-line`} style={[st.step, st.found]}>{m.found}</Text> : null}
           <Pressable accessibilityRole="link" testID={`${id}-open`} onPress={() => onPeek(m)}><Text style={st.open}>Open in the pane</Text></Pressable>
@@ -118,7 +122,7 @@ export function CrewBlock({ members, totals, call, selectedId, merge, onPeek, on
         {onOpenPane ? <Pressable accessibilityRole="button" accessibilityLabel="Open Crew" testID="crew-strip-pane" onPress={onOpenPane} style={st.pane}><Glyph name="pane" size={14} /></Pressable> : null}
       </View>
       {/* ui-rows-lint: not a list (the rows of one crew block: a face, a name, what it was asked, a status and a clock, drawn together as the prototype t-session shows them) */}
-      {members.map((m) => <Row key={m.id} m={m} now={now} call={call} selected={selectedId === m.id} onPeek={onPeek} onRetry={onRetry} />)}
+      {members.map((m) => <HelperRow key={m.id} m={m} now={now} call={call} selected={selectedId === m.id} onPeek={onPeek} onRetry={onRetry} />)}
     </View>
   );
 }
@@ -135,6 +139,7 @@ const st = StyleSheet.create({
   hover: { backgroundColor: "var(--hover)" as string },
   name: { fontSize: 14, fontWeight: "600", color: "var(--ink)" as string },
   task: { flex: 1, minWidth: 0, fontSize: 13, color: "var(--ink-3)" as string },
+  trail: { flexDirection: "row", alignItems: "center", gap: 8 },
   status: { flexDirection: "row", alignItems: "center", gap: 6 },
   statusText: { fontSize: 12, color: "var(--ink-3)" as string },
   wait: { color: "var(--warn)" as string },

@@ -85,6 +85,9 @@ export function jumpsOf(messages: readonly Message[]): Jump[] {
 
 /* ---------- what needs the person ---------- */
 
+const CARD_BLOCKS = new Set(["result_card", "progress_card", "status_card"]);
+/** A message that carries a status card: the card is the news, so it is never folded away. */
+const hasCard = (m: Pick<Message, "blocks">): boolean => m.blocks.some((b) => CARD_BLOCKS.has(b.type));
 const ASKING = new Set(["plan", "install_plan", "access_request", "key_request", "redact_request", "chrome_held", "crew_result", "held", "approval"]);
 
 /** Does this message wait on the person? An open question, a plan or request to answer, a card with buttons, or an @ of them. */
@@ -103,7 +106,7 @@ export function needsPerson(m: Pick<Message, "blocks" | "body">, mentionsMe: (m:
 /** Quiet: nobody waits on it and a person need not read it to know where things stand. A person's own words, anything that needs them, a jump point, and an agent's longer answer are never quiet. */
 export function isQuiet(m: Message, meId: string, mentionsMe: (m: Pick<Message, "body">) => boolean = () => false): boolean {
   if (m.author.kind === "person" && m.kind !== "system" && m.kind !== "quiet") return false;
-  if (needsPerson(m, mentionsMe) || jumpOf(m) !== null) return false;
+  if (needsPerson(m, mentionsMe) || jumpOf(m) !== null || hasCard(m)) return false;
   if (m.author.id === meId && m.author.kind === "person") return false;
   if (m.kind === "system" || m.kind === "quiet") return true;
   return m.body.trim().length <= CHATTER;
@@ -189,7 +192,7 @@ export function sessionItems(items: readonly Item[], messages: readonly Message[
     }
     const jump = it.kind !== "away" && m ? jumpOf(m) : null;
     // an event that is itself the jump point becomes the jump row; any other message keeps its place and the row follows it
-    if (jump && it.kind === "event") { out.push({ kind: "jump", key: `jump-${jump.messageId}`, messageId: jump.messageId, label: jump.label, sub: jump.sub, time: timeWords(jump.at, o.clock) }); continue; }
+    if (jump && it.kind === "event" && m && !hasCard(m)) { out.push({ kind: "jump", key: `jump-${jump.messageId}`, messageId: jump.messageId, label: jump.label, sub: jump.sub, time: timeWords(jump.at, o.clock) }); continue; }
     out.push(it);
     if (jump) out.push({ kind: "jump", key: `jump-${jump.messageId}`, messageId: jump.messageId, label: jump.label, sub: jump.sub, time: timeWords(jump.at, o.clock) });
   }
