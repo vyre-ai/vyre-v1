@@ -5,7 +5,8 @@ import { useFollow } from "./use-follow.ts";
 import type { ReactElement } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import type { ConversationData } from "./data.tsx";
-import { Glyph, TextButton } from "./parts.tsx";
+import { Glyph } from "./parts.tsx";
+import { Card, CardActions, CardDone, CardHead } from "../../../../../../ui/src/Card/index.tsx";
 
 type Data = Pick<ConversationData, "call" | "nameOf" | "changes">;
 interface Block { requestId: string; requester?: string; resourceTitle?: string; level?: string; note?: string }
@@ -37,10 +38,7 @@ export function AccessRequestCard({ block, data }: { block: Block; data: Data })
   const line = accessLine(who, block);
   if (state !== "waiting") {
     return (
-      <View testID={`accessreq-done-${block.requestId}`} style={st.done} accessibilityRole="text">
-        <Glyph name={state === "granted" ? "check" : "x"} size={13} color={state === "granted" ? "var(--ok)" : "var(--ink-3)"} />
-        <Text style={st.doneText}>{`${state === "granted" ? "Approved" : "Declined"} · ${line}`}</Text>
-      </View>
+      <CardDone testID={`accessreq-done-${block.requestId}`} ok={state === "granted"} glyph={<Glyph name={state === "granted" ? "check" : "x"} size={13} color={state === "granted" ? "var(--ok)" : "var(--ink-3)"} />} text={`${state === "granted" ? "Approved" : "Declined"} · ${line}`} />
     );
   }
   const decide = async (cap: "access.requests.approve" | "access.requests.decline"): Promise<void> => {
@@ -50,26 +48,16 @@ export function AccessRequestCard({ block, data }: { block: Block; data: Data })
     finally { setBusy(false); }
   };
   return (
-    <View testID={`accessreq-${block.requestId}`} style={st.card} accessibilityRole="summary" accessibilityLabel={line}>
-      <Text style={st.title}>{line}</Text>
+    <Card kind="decision" testID={`accessreq-${block.requestId}`} label={line}>
+      <CardHead title={line} />
       {block.note ? <Text style={st.note}>{block.note}</Text> : null}
       {canDecide ? (
-        <View style={st.acts}>
-          <TextButton label="Deny" onPress={() => void decide("access.requests.decline")} disabled={busy} testID={`accessreq-decline-${block.requestId}`} />
-          <TextButton label="Allow" primary disabled={busy} onPress={() => void decide("access.requests.approve")} testID={`accessreq-approve-${block.requestId}`} />
-        </View>
+        <CardActions busy={busy} secondary={[{ label: "Deny", onPress: () => void decide("access.requests.decline"), testID: `accessreq-decline-${block.requestId}` }]} primary={{ label: "Allow", onPress: () => void decide("access.requests.approve"), testID: `accessreq-approve-${block.requestId}` }} error={problem} />
       ) : <Text testID={`accessreq-wait-${block.requestId}`} style={st.note}>Waiting on the people who can decide it.</Text>}
-      {problem ? <Text accessibilityRole="alert" style={st.err}>{problem}</Text> : null}
-    </View>
+    </Card>
   );
 }
 
 const st = StyleSheet.create({
-  card: { marginTop: 8, padding: 12, gap: 10, borderRadius: 12, borderWidth: 1, borderColor: "var(--line-2)" as string, backgroundColor: "var(--raised)" as string, maxWidth: 560 },
-  title: { fontSize: 14, fontWeight: "600", color: "var(--ink)" as string },
   note: { fontSize: 13, lineHeight: 18, color: "var(--ink-2)" as string },
-  acts: { flexDirection: "row", justifyContent: "flex-end", gap: 8 },
-  err: { fontSize: 12.5, color: "var(--danger)" as string },
-  done: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 6 },
-  doneText: { fontSize: 12.5, color: "var(--ink-3)" as string },
 });

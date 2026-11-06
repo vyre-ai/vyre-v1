@@ -4,6 +4,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
+import { Card } from "../../../../../../ui/src/Card/index.tsx";
 import { LiveScreen } from "../computer/LiveScreen.tsx";
 
 export interface LiveCardConfig {
@@ -51,7 +52,7 @@ export function LiveCard({ computerId, fileId, caption, id, cfg }: { computerId:
   }, [frozen, still, fileId]);
   const open = (): void => cfg.openComputer(cfg.agentId);
   return (
-    <View testID={`live-card-${id}`} style={s.card} accessibilityLabel={frozen ? caption : `Live: ${caption}`}>
+    <Card kind="progress" size="compact" flush testID={`live-card-${id}`} label={frozen ? caption : `Live: ${caption}`}>
       {state !== null && !frozen ? (
         <LiveScreen computerId={computerId} state={state} call={cfg.call} spaceUrl={cfg.spaceUrl} now={cfg.now} control={false} onIdlePress={open} testID={`live-card-screen-${id}`} streamTestID={`live-card-stream-${id}`} label="Open the computer" style={s.screen}>
           <View style={s.fallback} />
@@ -66,12 +67,11 @@ export function LiveCard({ computerId, fileId, caption, id, cfg }: { computerId:
         <Text numberOfLines={1} style={s.caption}>{caption}</Text>
         <Text style={s.when}>{state === null ? "" : frozen ? "Done" : "Live"}</Text>
       </View>
-    </View>
+    </Card>
   );
 }
 
 const s = StyleSheet.create({
-  card: { marginTop: 8, borderRadius: 12, borderWidth: 1, borderColor: "var(--line-2)" as string, backgroundColor: "var(--raised)" as string, maxWidth: 420, overflow: "hidden" },
   screen: { height: 190, backgroundColor: "#1a1c22" as string },
   fill: { position: "absolute", left: 0, top: 0, right: 0, bottom: 0 },
   fallback: { flex: 1, backgroundColor: "#1a1c22" as string },

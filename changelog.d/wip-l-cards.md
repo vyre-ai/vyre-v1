@@ -1,0 +1,1 @@
+- One card library (ui/Card) for the six kinds of card (status, decision, input, item, progress, result): one width, radius and edge, a fixed action order with the primary on the right, Enter and Escape, a busy state that keeps the labels, and a field line that never makes the card jump.

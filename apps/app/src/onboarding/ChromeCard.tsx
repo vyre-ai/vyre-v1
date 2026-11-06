@@ -8,6 +8,7 @@ import type { CapCall } from "../shell/session/caps.ts";
 import { desktopBrowsers } from "../shell/providers/vault.tsx";
 import { Glyph } from "./StepGlyph.tsx";
 import { CARD } from "./card-style.ts";
+import { RADIUS } from "../../../../ui/src/tokens/radius.ts";
 
 export const EXTENSION_ZIP_URL = "https://github.com/vyre-ai/vyre-v1/releases/latest/download/vyre-chrome.zip";
 const CHROME = ["M8 2.500a5.500 5.500 0 100 11 5.500 5.500 0 000-11z", "M8 6a2 2 0 100 4 2 2 0 000-4z", "M8 6h5.200M5.600 9.500L3 5M10.400 9.500L7.800 14"];
@@ -104,23 +105,23 @@ const s = StyleSheet.create({
   offText: CARD.offText,
   err: CARD.err,
   steps: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
-  step: { flexGrow: 1, flexBasis: 150, gap: 10, padding: 10, borderRadius: 12, backgroundColor: "var(--win)" as string, borderWidth: 1, borderColor: "var(--line-2)" as string },
+  step: { flexGrow: 1, flexBasis: 150, gap: 10, padding: 10, borderRadius: RADIUS, backgroundColor: "var(--win)" as string, borderWidth: 1, borderColor: "var(--line-2)" as string },
   stepOn: { borderColor: "var(--ok)" as string },
   num: { position: "absolute", top: 8, left: 8, zIndex: 1, width: 20, height: 20, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: "var(--sunk)" as string, borderWidth: 1, borderColor: "var(--line-2)" as string },
   numOn: { backgroundColor: "var(--ok)" as string, borderWidth: 0 },
   numText: { fontSize: 11, fontWeight: "600", color: "var(--ink-2)" as string },
   stepLabel: { fontSize: 12.5, lineHeight: 16, fontWeight: "500", color: "var(--ink)" as string },
   stepLabelOn: { color: "var(--ink-3)" as string },
-  shot: { height: 84, borderRadius: 8, backgroundColor: "var(--sunk)" as string, borderWidth: 1, borderColor: "var(--line)" as string, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, padding: 8 },
+  shot: { height: 84, borderRadius: RADIUS, backgroundColor: "var(--sunk)" as string, borderWidth: 1, borderColor: "var(--line)" as string, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, padding: 8 },
   shotCol: { flexDirection: "column", gap: 4 },
   shotText: { fontSize: 11.5, color: "var(--ink-2)" as string },
   sw: { width: 28, height: 16, borderRadius: 8, backgroundColor: "var(--accent)" as string, justifyContent: "center", alignItems: "flex-end", paddingHorizontal: 2 },
   swDot: { width: 12, height: 12, borderRadius: 6, backgroundColor: "var(--accent-ink)" as string },
-  shotBtn: { height: 26, paddingHorizontal: 10, borderRadius: 6, justifyContent: "center", backgroundColor: "var(--win)" as string, borderWidth: 1, borderColor: "var(--line-2)" as string },
+  shotBtn: { height: 26, paddingHorizontal: 10, borderRadius: RADIUS, justifyContent: "center", backgroundColor: "var(--win)" as string, borderWidth: 1, borderColor: "var(--line-2)" as string },
   shotBtnText: { fontSize: 11.5, fontWeight: "500", color: "var(--ink)" as string },
-  path: { flexDirection: "row", alignItems: "center", gap: 8, height: 36, paddingLeft: 12, paddingRight: 6, borderRadius: 8, backgroundColor: "var(--sunk)" as string, borderWidth: 1, borderColor: "var(--line)" as string },
+  path: { flexDirection: "row", alignItems: "center", gap: 8, height: 36, paddingLeft: 12, paddingRight: 6, borderRadius: RADIUS, backgroundColor: "var(--sunk)" as string, borderWidth: 1, borderColor: "var(--line)" as string },
   pathText: { flex: 1, minWidth: 0, fontSize: 12.5, color: "var(--ink-2)" as string },
-  copy: { height: 26, paddingHorizontal: 10, borderRadius: 6, justifyContent: "center" },
+  copy: { height: 26, paddingHorizontal: 10, borderRadius: RADIUS, justifyContent: "center" },
   copyText: { fontSize: 12.5, fontWeight: "500", color: "var(--ink-2)" as string },
   okSmall: { fontSize: 12.5, color: "var(--ok)" as string, paddingRight: 8 },
   row: { flexDirection: "row", alignItems: "center", gap: 12, flexWrap: "wrap" },

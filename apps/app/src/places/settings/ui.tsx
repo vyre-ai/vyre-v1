@@ -1,5 +1,7 @@
 // The pieces every Settings page is made of: the grouped card, the one row anatomy (lead mark, label, a sub line only when it adds information, control on the right), the switch, the
 // choice, the field and the small button. Sizes follow the prototype's Settings (vyre-settings.html); colours are skin tokens, so a skin switch repaints with no re-render.
+import { CARD_FILL, CARD_INSET } from "../../../../../ui/src/Card/index.tsx";
+import { RADIUS } from "../../../../../ui/src/tokens/radius.ts";
 import { useOpenConnect } from "../../shell/connect/context.ts";
 import { connectEntries } from "../../shell/connect/model.ts";
 import type { Connected, ConnectNeed } from "../../shell/connect/model.ts";
@@ -214,7 +216,7 @@ export function Field({ value, onCommit, label, placeholder, mono = false, patte
         accessibilityLabel={label} testID={testID} value={shown} placeholder={placeholder} secureTextEntry={secureTextEntry} autoFocus={autoFocus}
         onChangeText={(t) => { setDraft(t); setErr(false); }} onBlur={done} onSubmitEditing={done}
         onKeyPress={((e: KeyEventLike) => { if (e.key === "Escape") { setDraft(null); setErr(false); onClose?.(); } }) as never}
-        style={[{ width: full ? ("100%" as unknown as number) : width, height: 32, borderRadius: 7, paddingHorizontal: 10, fontSize: 13 }, mono && s.mono, err && { borderColor: "var(--danger)" as string }]}
+        style={[{ width: full ? ("100%" as unknown as number) : width, height: 32, borderRadius: RADIUS, paddingHorizontal: 12, fontSize: 13 }, mono && s.mono, err && { borderColor: "var(--danger)" as string }]}
       />
     </View>
   );
@@ -271,7 +273,7 @@ export const GoToPage = createContext<(page: string) => void>(() => undefined);
 
 /** A 30px rounded square holding a glyph: the prototype's mark at the left of a link or action row. */
 export function IconTile({ name, size = 16 }: { name: string; size?: number }): ReactElement {
-  return <View aria-hidden style={{ width: 30, height: 30, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: "var(--sunk)" as string }}><Glyph name={name} size={size} color="var(--ink-2)" /></View>;
+  return <View aria-hidden style={{ width: 30, height: 30, borderRadius: RADIUS, alignItems: "center", justifyContent: "center", backgroundColor: CARD_INSET }}><Glyph name={name} size={size} color="var(--ink-2)" /></View>;
 }
 
 /** A 30px picture of a GitHub account or org (github.com/<login>.png); the GitHub mark in a tile stands in when it cannot be loaded. */
@@ -322,7 +324,7 @@ export const s = StyleSheet.create({
   sHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8, marginTop: -4 },
   sTitle: { fontSize: 12.5, fontWeight: "600", color: "var(--ink-2)" as string, marginBottom: 8, paddingHorizontal: 2 },
   sNote: { fontSize: 12, lineHeight: 17, color: "var(--ink-3)" as string, marginTop: 8, paddingHorizontal: 2 },
-  card: { borderRadius: 12, borderWidth: 1, borderColor: "var(--line)" as string, backgroundColor: "var(--raised)" as string, overflow: "hidden" },
+  card: { borderRadius: RADIUS, backgroundColor: CARD_FILL, overflow: "hidden" },
   rowWrap: { paddingHorizontal: 4, paddingVertical: 4, justifyContent: "center" },
   stacked: { flexDirection: "column", alignItems: "stretch", gap: 8, paddingLeft: 8, paddingRight: 16, paddingBottom: 10 },   // the left edge is the label's (the row's own padding is the rest); the right edge stays
   stackedRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingLeft: 8, paddingRight: 16, paddingBottom: 10 },   // under the label, full width (a field and a button fill it)
@@ -337,19 +339,19 @@ export const s = StyleSheet.create({
   controlFixed: { flexShrink: 0, flexDirection: "row", alignItems: "center", gap: 8 },
   sw: { width: 34, height: 20, borderRadius: 10, justifyContent: "center" },
   knob: { position: "absolute", top: 2, width: 16, height: 16, borderRadius: 8, backgroundColor: "#fff" },
-  choice: { height: 30, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 8, borderRadius: 7, flexShrink: 1, minWidth: 0 },
+  choice: { height: 32, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, borderRadius: RADIUS, flexShrink: 1, minWidth: 0 },
   choiceText: { fontSize: 13, color: "var(--ink)" as string, flexShrink: 1 },
   mono: { fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" },
   fieldWrap: { flexDirection: "row", alignItems: "center", gap: 6 },
   prefix: { fontSize: 13, color: "var(--ink-3)" as string },
   stepper: { flexDirection: "row", alignItems: "center", gap: 4 },
-  stepBtn: { width: 26, height: 26, borderRadius: 7, borderWidth: 1, borderColor: "var(--line)" as string, alignItems: "center", justifyContent: "center" },
+  stepBtn: { width: 32, height: 32, borderRadius: RADIUS, borderWidth: 1, borderColor: "var(--line)" as string, alignItems: "center", justifyContent: "center" },
   stepVal: { fontSize: 13, color: "var(--ink)" as string, minWidth: 64, textAlign: "center" },
-  small: { height: 28, paddingHorizontal: 11, borderRadius: 7, borderWidth: 1, borderColor: "var(--line)" as string, alignItems: "center", justifyContent: "center" },
+  small: { height: 32, paddingHorizontal: 12, borderRadius: RADIUS, borderWidth: 1, borderColor: "var(--line)" as string, alignItems: "center", justifyContent: "center" },
   smallText: { fontSize: 13, color: "var(--ink)" as string },
   value: { fontSize: 13, color: "var(--ink-3)" as string },
-  seg: { flexDirection: "row", padding: 2, gap: 2, borderRadius: 8, backgroundColor: "var(--sunk)" as string },
-  segItem: { height: 26, paddingHorizontal: 12, borderRadius: 6, alignItems: "center", justifyContent: "center" },
+  seg: { flexDirection: "row", padding: 2, gap: 2, borderRadius: RADIUS, backgroundColor: CARD_INSET },
+  segItem: { height: 28, paddingHorizontal: 12, borderRadius: RADIUS, alignItems: "center", justifyContent: "center" },
   segOn: { backgroundColor: "var(--raised)" as string, borderWidth: 1, borderColor: "var(--line)" as string },
   segText: { fontSize: 12.5, color: "var(--ink-3)" as string },
   sliderWrap: { flexDirection: "row", alignItems: "center", gap: 8 },

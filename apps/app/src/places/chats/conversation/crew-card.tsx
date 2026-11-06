@@ -4,10 +4,11 @@
 import { useCallback, useEffect, useState } from "react";
 import { useFollow } from "./use-follow.ts";
 import type { ReactElement } from "react";
-import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Card as UiCard, CardActions, CardDone, CardField, CardHead } from "../../../../../../ui/src/Card/index.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import type { ConversationData } from "./data.tsx";
-import { Glyph, TextButton } from "./parts.tsx";
+import { Glyph } from "./parts.tsx";
 import { collect } from "./model.ts";
 import type { MessageBlock } from "./model.ts";
 
@@ -94,23 +95,21 @@ export function CrewResultCard({ block, leadThreadId, data }: { block: MessageBl
     } catch { setLine("Could not push. Try again."); } finally { setBusy(false); }
   };
   if (job?.state === "stopped") {
-    return <View testID={`crew-card-${c.jobId}`} style={st.doneBox}><View style={st.done}><Glyph name="check" size={13} /><Text style={st.doneText}>{`Stopped · ${c.name}: ${c.title}`}</Text></View></View>;
+    return <CardDone testID={`crew-card-${c.jobId}`} glyph={<Glyph name="check" size={13} />} text={`Stopped · ${c.name}: ${c.title}`} />;
   }
   if (merged) {
     return (
       <View testID={`crew-card-${c.jobId}`} style={st.doneBox}>
-        <View style={st.done}><Glyph name="check" size={13} /><Text style={st.doneText}>{`Merged · ${c.name}: ${c.title}`}</Text>{pushed ? <Text style={st.doneText}>· pushed</Text> : null}</View>
-        {pushed ? null : <View style={st.row}><TextButton label="Push" onPress={() => { void push(); }} disabled={busy} testID={`crew-push-${c.jobId}`} /></View>}
+        <CardDone glyph={<Glyph name="check" size={13} />} text={`Merged · ${c.name}: ${c.title}${pushed ? " · pushed" : ""}`} />
+        {pushed ? null : <CardActions busy={busy} secondary={[{ label: "Push", onPress: () => { void push(); }, testID: `crew-push-${c.jobId}` }]} />}
         {line && !line.startsWith("Merged") ? <Text testID={`crew-line-${c.jobId}`} style={st.line}>{line}</Text> : null}
       </View>
     );
   }
+  const title = c.state === "failed" ? `${c.name} could not finish ${c.title}` : `${c.name} finished ${c.title}`;
   return (
-    <View testID={`crew-card-${c.jobId}`} style={st.card}>
-      <View style={st.head}>
-        <Text style={st.title}>{c.state === "failed" ? `${c.name} could not finish ${c.title}` : `${c.name} finished ${c.title}`}</Text>
-        <Text style={st.branch}>{c.branch}</Text>
-      </View>
+    <UiCard kind="result" size="compact" testID={`crew-card-${c.jobId}`} label={title} onCancel={back ? () => { setBack(false); setWords(""); } : undefined}>
+      <CardHead title={title} meta={c.branch} />
       {c.state === "done" ? <Text testID={`crew-stats-${c.jobId}`} style={st.stats}>{statsLine(c)}</Text> : null}
       {collect(c.files.slice(0, SHOWN), (f) => (
         <View key={f.path} style={st.file}><Text numberOfLines={1} style={st.path}>{f.path}</Text><Text style={st.plus}>{`+${f.added}`}</Text><Text style={st.minus}>{`-${f.deleted}`}</Text></View>
@@ -119,29 +118,22 @@ export function CrewResultCard({ block, leadThreadId, data }: { block: MessageBl
       {c.text ? <Text numberOfLines={6} style={st.quote}>{c.text}</Text> : null}
       {back ? (
         <View style={st.backBox}>
-          <TextInput value={words} onChangeText={setWords} placeholder={`What should ${c.name} change?`} accessibilityLabel={`What ${c.name} should change`} style={st.input} testID={`crew-back-input-${c.jobId}`} multiline />
-          <View style={st.row}>
-            <TextButton label="Send" primary onPress={() => { void sendBack(); }} disabled={busy || words.trim() === ""} testID={`crew-back-send-${c.jobId}`} />
-            <TextButton label="Cancel" onPress={() => { setBack(false); setWords(""); }} />
-          </View>
+          <CardField label={`What ${c.name} should change`} accessLabel={`What ${c.name} should change`} placeholder={`What should ${c.name} change?`} value={words} onChange={setWords} multiline testID={`crew-back-input-${c.jobId}`} />
+          <CardActions busy={busy} primary={{ label: "Send", disabled: words.trim() === "", onPress: () => { void sendBack(); }, testID: `crew-back-send-${c.jobId}` }} secondary={[{ label: "Cancel", onPress: () => { setBack(false); setWords(""); } }]} />
         </View>
       ) : (
-        <View style={st.row}>
-          {c.state === "done" ? <TextButton label="Merge" primary onPress={() => { void merge(); }} disabled={busy} testID={`crew-merge-${c.jobId}`} /> : null}
-          <TextButton label="Send back" onPress={() => setBack(true)} disabled={busy} testID={`crew-back-${c.jobId}`} />
-          <TextButton label="Open thread" onPress={() => data.nav.openThread(c.threadId)} testID={`crew-open-${c.jobId}`} />
-        </View>
+        <CardActions
+          busy={busy}
+          {...(c.state === "done" ? { primary: { label: "Merge", onPress: () => { void merge(); }, testID: `crew-merge-${c.jobId}` } } : {})}
+          secondary={[{ label: "Send back", onPress: () => setBack(true), testID: `crew-back-${c.jobId}` }, { label: "Open thread", onPress: () => data.nav.openThread(c.threadId), testID: `crew-open-${c.jobId}` }]}
+        />
       )}
       {line ? <Text testID={`crew-line-${c.jobId}`} style={st.line}>{line}</Text> : null}
-    </View>
+    </UiCard>
   );
 }
 
 const st = StyleSheet.create({
-  card: { borderWidth: 1, borderColor: "var(--line)" as string, borderRadius: 10, padding: 12, gap: 6, backgroundColor: "var(--raised)" as string, maxWidth: 520 },
-  head: { flexDirection: "row", alignItems: "baseline", justifyContent: "space-between", gap: 10 },
-  title: { fontSize: 13.5, fontWeight: "600", color: "var(--ink)" as string, flexShrink: 1 },
-  branch: { fontSize: 11.5, color: "var(--ink-3)" as string },
   stats: { fontSize: 12.5, color: "var(--ink-2)" as string },
   file: { flexDirection: "row", alignItems: "center", gap: 8 },
   path: { flex: 1, fontSize: 12, color: "var(--ink-2)" as string },
@@ -149,13 +141,9 @@ const st = StyleSheet.create({
   minus: { fontSize: 11.5, color: "var(--danger)" as string },
   more: { fontSize: 11.5, color: "var(--ink-3)" as string },
   quote: { fontSize: 12.5, color: "var(--ink-2)" as string, lineHeight: 18, marginTop: 2 },
-  row: { flexDirection: "row", gap: 8, marginTop: 4, flexWrap: "wrap" },
   backBox: { gap: 6 },
-  input: { minHeight: 56, borderWidth: 1, borderColor: "var(--line)" as string, borderRadius: 8, padding: 8, fontSize: 13, color: "var(--ink)" as string },
   line: { fontSize: 12, color: "var(--ink-3)" as string },
   doneBox: { gap: 4 },
   start: { flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 2 },
   startText: { fontSize: 13, color: "var(--ink-2)" as string },
-  done: { flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 2 },
-  doneText: { fontSize: 12.5, color: "var(--ink-3)" as string },
 });

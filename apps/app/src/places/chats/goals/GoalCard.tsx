@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Card, CardActions } from "../../../../../../ui/src/Card/index.tsx";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { useFollow } from "../conversation/use-follow.ts";
 import type { Changes } from "../conversation/use-follow.ts";
@@ -10,7 +11,7 @@ import { Bar, TONE } from "./GoalRow.tsx";
 import { menuTrigger, useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import { askedCall, goalMenuEntries } from "./goal-menu.ts";
 import { TextAsk } from "../menus/TextAsk.tsx";
-import { Btn, Icon } from "./GoalPage.tsx";
+import { Icon } from "./GoalPage.tsx";
 import { delta, fmt, lineWithDue, statusOf } from "./model.ts";
 import { useZones } from "../../../../../../ui/src/Time/index.tsx";
 import type { GoalBlock, Progress, Status } from "./model.ts";
@@ -44,18 +45,17 @@ export function GoalCard({ block, call, changes, openGoal, me }: { block: GoalBl
   const title = block.kind === "draft" ? "Goal drafted" : block.kind === "update" ? "Check-in" : block.kind === "stuck" ? "Stuck" : block.outcome === "done" ? "Goal reached" : block.outcome === "missed" ? "Goal missed" : "Goal stopped";
   const icon = block.kind === "stuck" ? "warn" : block.outcome === "done" ? "check" : "target";
   return (
-    <View testID={`goal-card-${block.kind}-${block.goalId}`} style={st.card} {...menuTrigger((x, y) => { if (block.kind === "draft" || live?.owner === undefined) return; menu.show(goalMenuEntries({ id: block.goalId, title: block.title, status, owner: live.owner }, me, { run: async (cap, input, done) => { press(cap, input, done ?? ""); return true; }, open: openGoal ? () => openGoal(block.goalId) : undefined, ask: setAsking }), x, y, "context", { label: block.title }); })}>
+    <View {...menuTrigger((x, y) => { if (block.kind === "draft" || live?.owner === undefined) return; menu.show(goalMenuEntries({ id: block.goalId, title: block.title, status, owner: live.owner }, me, { run: async (cap, input, done) => { press(cap, input, done ?? ""); return true; }, open: openGoal ? () => openGoal(block.goalId) : undefined, ask: setAsking }), x, y, "context", { label: block.title }); })}>
+    <Card kind="progress" testID={`goal-card-${block.kind}-${block.goalId}`} label={`${title}: ${block.title}`}>
       {menu.element}
       {asking ? <TextAsk title={asking === "stuck" ? "Why is this goal stuck?" : "Report progress"} label={asking === "stuck" ? "What is in the way" : "What changed and what is next"} action={asking === "stuck" ? "Mark stuck" : "Report"} multiline onClose={() => setAsking(null)} onDone={(text) => { const c = askedCall(asking, text); setAsking(null); press(c.cap, c.input, c.done); }} /> : null}
       <View style={st.head}>
         <Icon name={icon} size={14} color={block.kind === "stuck" ? TONE.stuck : block.outcome === "done" ? TONE.ok : "var(--ink-3)"} />
-        <Text style={st.kind}>{title}</Text>
-        <View style={{ flex: 1 }} />
+        <Pressable style={{ flex: 1, minWidth: 0 }} accessibilityRole="link" accessibilityLabel={`Open the goal ${block.title}`} onPress={() => openGoal?.(block.goalId)} testID={`goal-card-open-${block.goalId}`}>
+          <Text style={st.title}>{block.title}</Text>
+        </Pressable>
         <Text style={[st.small, { color: TONE[s.tone] as string }]}>{s.word}</Text>
       </View>
-      <Pressable accessibilityRole="link" accessibilityLabel={`Open the goal ${block.title}`} onPress={() => openGoal?.(block.goalId)} testID={`goal-card-open-${block.goalId}`}>
-        <Text style={st.title}>{block.title}</Text>
-      </Pressable>
       <Text style={st.small}>{lineWithDue(block.line, live?.deadline ?? block.deadline, zones)}</Text>
       {value !== undefined && target !== undefined ? (
         <View style={st.num}>
@@ -71,12 +71,13 @@ export function GoalCard({ block, call, changes, openGoal, me }: { block: GoalBl
       {block.kind === "draft" && block.permissions?.length ? <Lines label="May do without asking, once you start it" items={block.permissions} icon="check" /> : null}
       {block.kind !== "draft" && block.needs?.length ? <Lines label={block.kind === "stuck" ? "Options" : "Waiting on you"} items={block.needs} icon="clock" /> : null}
       {said ? <Text testID="goal-card-said" style={st.said}>{said}</Text> : (
-        <View style={st.actions}>
-          {block.kind === "draft" && status === "draft" ? <><Btn label="Start goal" primary testID="goal-card-start" onPress={() => press("goals.confirm", {}, "Started. The lead agent researches first, then plans.")} /><Btn label="Open" onPress={() => openGoal?.(block.goalId)} /></> : null}
-          {block.kind === "ended" && block.outcome === "missed" && status === "missed" ? <Btn label="Extend three days" primary testID="goal-card-extend" onPress={() => press("goals.extend", { deadline: Math.max(Date.now(), live?.deadline ?? block.deadline) + 3 * 86_400_000 }, "Extended. Check-ins resume.")} /> : null}
-          {block.kind !== "draft" ? <Btn label="Open goal" onPress={() => openGoal?.(block.goalId)} testID="goal-card-goto" /> : null}
-        </View>
+        <CardActions
+          {...(block.kind === "draft" && status === "draft" ? { primary: { label: "Start goal", testID: "goal-card-start", onPress: () => press("goals.confirm", {}, "Started. The lead agent researches first, then plans.") }, secondary: [{ label: "Open", onPress: () => openGoal?.(block.goalId) }] }
+            : block.kind === "ended" && block.outcome === "missed" && status === "missed" ? { primary: { label: "Extend three days", testID: "goal-card-extend", onPress: () => press("goals.extend", { deadline: Math.max(Date.now(), live?.deadline ?? block.deadline) + 3 * 86_400_000 }, "Extended. Check-ins resume.") }, secondary: block.kind !== "draft" ? [{ label: "Open goal", onPress: () => openGoal?.(block.goalId), testID: "goal-card-goto" }] : [] }
+            : block.kind !== "draft" ? { secondary: [{ label: "Open goal", onPress: () => openGoal?.(block.goalId), testID: "goal-card-goto" }] } : {})}
+        />
       )}
+    </Card>
     </View>
   );
 }
@@ -91,9 +92,7 @@ function Lines({ label, items, icon }: { label: string; items: readonly string[]
 }
 
 const st = StyleSheet.create({
-  card: { marginTop: 6, padding: 12, borderRadius: 10, borderWidth: 1, borderColor: "var(--line)" as string, backgroundColor: "var(--raised)" as string, gap: 6, maxWidth: 560 },
   head: { flexDirection: "row", alignItems: "center", gap: 6 },
-  kind: { color: "var(--ink-3)" as string, fontSize: 12, fontWeight: "600" },
   title: { color: "var(--ink)" as string, fontSize: 14.5, fontWeight: "600" },
   small: { color: "var(--ink-3)" as string, fontSize: 12, lineHeight: 17 },
   body: { color: "var(--ink-2)" as string, fontSize: 13, lineHeight: 19 },
@@ -102,6 +101,5 @@ const st = StyleSheet.create({
   of: { color: "var(--ink-3)" as string, fontSize: 14, fontVariant: ["tabular-nums"] },
   lines: { marginTop: 2 },
   label: { color: "var(--ink-3)" as string, fontSize: 11.5, fontWeight: "600", marginTop: 6 },
-  actions: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 4 },
   said: { color: "var(--ok)" as string, fontSize: 12.5, marginTop: 4 },
 });
