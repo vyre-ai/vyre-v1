@@ -161,3 +161,10 @@ test("the composer offers only accounts that can run a chat here: one the list m
   ];
   assert.deepEqual(connectedAccounts(rows).map((a) => a.ref), ["#Mine", "#Plain"]);
 });
+
+test("the account notice never prints an email address", async () => {
+  const { plainAccountName } = await import("./brain.tsx");
+  assert.equal(plainAccountName("techmanager@mylegalacademy.com"), "that account");
+  assert.equal(plainAccountName(undefined), "that account");
+  assert.equal(plainAccountName("MLA work"), "MLA work");
+});

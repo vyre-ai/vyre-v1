@@ -305,7 +305,7 @@ test("the composer's pill names who answers and on what model (Opus); the comput
   assert.equal(modelLabel("opus"), "Opus");
   assert.equal(placeholderFor(thread(s), s.data.nameOf, true), "Queue a message for when Intake finishes…");
   assert.equal(placeholderFor(thread(s), s.data.nameOf, true, true), "Steer Intake…", "a message sent while a steering engine works is steering");
-  assert.ok(!has(html(createSample("nolead")), 'data-testid="composer-strip"'), "no lead, nobody @mentioned: no strip");
+  assert.ok(has(html(createSample("nolead")), 'data-testid="composer-strip"'), "no lead, nobody @mentioned, but an agent is in the chat: the settings icon is still there");
 });
 
 test("switching the model lists the allowed models and sets the lead's model; the header and composer follow", async () => {
@@ -446,4 +446,14 @@ test("Continue on a reply stopped for an update runs that turn again, once, with
   assert.deepEqual(retries.map((c) => c.input), [{ turnId: "trn_stopped" }], "one press, one retry of that very turn");
   assert.equal(s.calls.some((c) => c.cap === "chat.post"), false, "the message is not posted again");
   assert.deepEqual(said, []);
+});
+
+test("the header keeps its name: faces go before it is cut, the lead agent's face last", async () => {
+  const { headerTier } = await import("./Conversation.tsx");
+  assert.equal(headerTier(0), "full", "unmeasured");
+  assert.equal(headerTier(900), "full");
+  assert.equal(headerTier(720), "full");
+  assert.equal(headerTier(719), "lead");
+  assert.equal(headerTier(420), "lead");
+  assert.equal(headerTier(419), "bare");
 });

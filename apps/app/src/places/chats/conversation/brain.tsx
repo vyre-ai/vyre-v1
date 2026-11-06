@@ -44,6 +44,11 @@ export async function callOr<T>(data: Pick<ConversationData, "call">, cap: strin
 /** For tests: forget which capabilities were missing. */
 export function resetMissing(): void { missing.clear(); }
 
+/** The account as the notice names it: never an email address (a sign-in without a given name is called by its address), so the line says "that account" instead. */
+export function plainAccountName(name: string | undefined): string {
+  return name === undefined || name.trim() === "" || name.includes("@") ? "that account" : name;
+}
+
 /* ---------- mode ---------- */
 
 /** The chat's mode: thread.mode when the server keeps it, else Plan when plan mode is on, else Auto, as a new chat starts on the server. */
@@ -262,12 +267,14 @@ export function ChatBrain(p: ChatBrainProps): ReactElement {
       accounts={withSession}
       accountRef={shownRef}
       onAccount={(ref) => {
+        // choosing the account already in use changes nothing, so nothing is written and nothing is said
+        if (ref === shownRef) return;
         setAccountRef(ref);
         const provider = providerOf(ref);
         // a model of another provider cannot run on this account: the engine picks this account's default until one is chosen
         const keep = provider !== undefined && brandOf(provider) === brandOf(providerOf(shownRef)) ? model : null;
         setModel(keep);
-        const name = (accounts ?? []).find((a) => a.ref === ref)?.name ?? "that account";
+        const name = plainAccountName((accounts ?? []).find((a) => a.ref === ref)?.name);
         write({ accountRef: ref, ...(provider ? { provider } : {}), ...(keep ? { model: keep } : {}) }, `${p.agent.name} now runs on ${name} ${where}`);
       }}
       models={models}

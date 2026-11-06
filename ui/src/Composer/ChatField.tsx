@@ -30,6 +30,8 @@ export interface ChatFieldProps {
   onFail: () => void;
   /** Talk is listening: the words it puts in come in without entering the undo history, and when it stops they are one undo step. */
   talking?: boolean;
+  /** The editable's height in px whenever it changes: the composer moves its controls under the text once a draft takes more than a line. */
+  onHeight?: (h: number) => void;
 }
 
 /** True where a real browser DOM is there to mount the editor on; a test renderer or a server render is not. */
@@ -79,6 +81,7 @@ export function ChatField(p: ChatFieldProps): ReactElement {
   useEffect(() => {
     let gone = false;
     let made: EditorLike | null = null;
+    let stop = (): void => undefined;
     if (host.current === null || (host.current as { nodeType?: number }).nodeType !== 1) { cb.current.onFail(); return undefined; }
     void (async () => {
       const core = await import("@tiptap/core");
@@ -127,9 +130,16 @@ export function ChatField(p: ChatFieldProps): ReactElement {
       ed.current = e;
       made = e;
       e.view.dom.setAttribute("data-empty", cb.current.value === "" ? "true" : "false");
+      const RO = (globalThis as { ResizeObserver?: new (f: () => void) => { observe(n: unknown): void; disconnect(): void } }).ResizeObserver;
+      if (RO !== undefined) {
+        const dom = e.view.dom as unknown as { offsetHeight: number };
+        const watch = new RO(() => cb.current.onHeight?.(dom.offsetHeight));
+        watch.observe(e.view.dom);
+        stop = () => watch.disconnect();
+      }
       cb.current.controlRef({ focus: () => { e.commands.focus(); } });
     })().catch(() => { if (!gone) cb.current.onFail(); });
-    return () => { gone = true; cb.current.controlRef(null); made?.destroy(); ed.current = null; };
+    return () => { gone = true; stop(); cb.current.controlRef(null); made?.destroy(); ed.current = null; };
   }, []);
 
   // what the composer holds now (a pick, a clear, a send) and where its mentions are: the field shows it, unless it is what the field itself just said

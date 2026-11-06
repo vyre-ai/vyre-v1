@@ -53,6 +53,9 @@ import type { ReplySummary } from "./replies.ts";
 import type { LiveQuery } from "../../../../../../client/src/index.ts";
 import { useAddSheet } from "../addsheet/index.ts";
 import { useChatViewing, useOpenPublished } from "./artifact-open.ts";
+import { QuestionIsland } from "./QuestionIsland.tsx";
+import { islandView, openQuestions } from "./island.ts";
+import { useCardsInView } from "./use-cards-in-view.ts";
 import { ChatBrain, compactChat, entryOf, modeOf, prettyModel, setChatMode, stripAgents, useAccounts, usePickUnavailable, useUsage } from "./brain.tsx";
 import type { ChatMode } from "../../../../../../ui/src/Composer/index.tsx";
 import { useConnectVersion } from "../../../shell/connect/context.ts";
@@ -100,6 +103,7 @@ function useReplies(threadId: string): Map<string, ReplySummary> {
 
 /** `compact` is for a conversation inside another screen (the onboarding Assistant): just the messages and the composer, no title bar with members, search and side-panel buttons. */
 const CompactContext = createContext(false);
+const NO_IDS: readonly string[] = [];
 /** The mute lines a teammate has been shown, by message (lane l-agentdm): kept on this device so the line does not come back once seen. */
 const MUTE_SEEN = "vyre.agentdm.mute-seen.v1";
 function readMuteSeen(): ReadonlySet<string> {
@@ -118,6 +122,11 @@ export function Conversation({ data, compact = false }: { data?: ConversationDat
   const value = data ?? ctx;
   if (!value) return <ConversationLoading />;
   return <ConversationDataProvider value={value}><CompactContext.Provider value={compact}><ChatMemoryProvider memory={value.memory ? { ...value.memory, time: (at: number) => timeLabel(at, value.clock()) } : value.memory} threadId={value.threadId}><ConversationView /></ChatMemoryProvider></CompactContext.Provider></ConversationDataProvider>;
+}
+
+/** How much of the header's faces fit: all of them, the lead agent's face alone, or only the name and the buttons. The title keeps its room first. */
+export function headerTier(width: number): "full" | "lead" | "bare" {
+  return width <= 0 || width >= 720 ? "full" : width >= 420 ? "lead" : "bare";
 }
 
 /** The frame before data: a header bar, messages the size of real ones and a composer box, so nothing moves when the thread arrives. */
@@ -216,6 +225,9 @@ function ConversationView(): ReactElement {
   const [cursor, setCursor] = useState<number | null>(null);
   const [pending, setPending] = useState<Pending[]>([]);
   const [line, setLine] = useState("");
+  // the question island: put-away questions (this session) and the one the person stepped to
+  const [putAway, setPutAway] = useState<ReadonlySet<string>>(() => new Set());
+  const [islandAt, setIslandAt] = useState<string | null>(null);
   /** A line with an Undo (a drop that shared something): the taking-back runs when it is pressed. */
   const [undo, setUndo] = useState<(() => void) | null>(null);
   // text asked for by a pane or a page ("Ask about this file"): taken when this conversation opens and whenever it is asked again, after what the person had typed
@@ -251,6 +263,9 @@ function ConversationView(): ReactElement {
   const width = useWindowDimensions().width;
   const mobileBack = useMobileBack();
   const narrow = width > 0 && width < 640;
+  // the conversation's own width (a Thread pane beside it takes room from a wide window): the header drops faces before the name is cut
+  const [colW, setColW] = useState(0);
+  const tier = headerTier(colW);
 
   /* Cmd/Ctrl+F opens find in chat, as in the prototype; Escape closes it. */
   useEffect(() => {
@@ -325,11 +340,14 @@ function ConversationView(): ReactElement {
   useEffect(() => { crew?.refresh(); }, [messageCount]);  // eslint-disable-line react-hooks/exhaustive-deps
   // the agents.list rows the Ask-an-agent picker labels its agents from, read when it first opens
   const agentMeta = useRef<readonly AgentMeta[] | null>(null);
+  // which open questions have their own card on screen: the island docks the ones that do not (a hook, so before the early returns)
+  const cardsInView = useCardsInView(messagesQ.status === "loading" ? NO_IDS : openQuestions(mergePages(around ?? messagesQ.data.messages, older)).map((x) => x.id));
   if (failed) return <LoadFailed what="this chat" failure={failed} testID="conversation-failed" />;
   if (threadQ.status === "loading" || messagesQ.status === "loading") return <ConversationLoading />;
   const thread: Thread = threadQ.data.thread;
   const live = messagesQ.data.messages;
   const all = mergePages(around ?? live, older);
+  const openQs = openQuestions(all);
   emptyRef.current = all.length === 0;
   const liveView = around === null;
   // a failure a later reply has answered is over: its card leaves, and the reply stands on its own time
@@ -450,6 +468,8 @@ function ConversationView(): ReactElement {
       x, y, "other", { label: "Helpers" },
     );
   };
+  const island = islandView(openQs, putAway, islandAt, cardsInView);
+  const typingNames: readonly string[] = data.typing ?? [];
   const peopleMenu = (x: number, y: number): void => add.showPeople({ thread, x, y, onOpenAgent: data.nav.openAgent });
   const modelMenu = (x: number, y: number): void => {
     if (!lead) return;
@@ -642,7 +662,7 @@ function ConversationView(): ReactElement {
   const takeShare = (dt: TransferLike): boolean => { let took = false; dropShare({ preventDefault: () => { took = true; }, dataTransfer: dt as { getData?: (t: string) => string } }); return took; };
   return (
     <DropRoute testID="conversation-drop" style={ROUTE_STYLE} onOther={takeShare}>
-    <View testID="conversation" accessibilityLabel={`Conversation, ${title}`} style={st.root}>
+    <View testID="conversation" accessibilityLabel={`Conversation, ${title}`} style={st.root} onLayout={(e) => { const w = Math.round(e.nativeEvent.layout.width); setColW((cur) => (cur === w ? cur : w)); }}>
       <FrameFeed frame={frame} feed={frameFeed} />
       {compact || inFrame ? null : (
       <View testID="conversation-head" accessibilityRole="header" style={st.head}>
@@ -658,16 +678,16 @@ function ConversationView(): ReactElement {
             <Text numberOfLines={1} testID="conversation-title" style={st.title}>{title}</Text>
           </Pressable>
         )}
-        {!dmWith && others.length > 0 ? (
+        {!dmWith && others.length > 0 && tier === "full" ? (
           <View testID="conversation-people" accessibilityLabel={`With ${others.map((p) => nameOf(p)).join(", ")}`} style={st.faces}>
             {/* ui-rows-lint: not a list (the faces of the people in the chat) */}
             {others.slice(0, narrow ? 3 : 4).map((p) => <Face key={p} name={nameOf(p)} seedId={p} kind="person" size={20} />)}
             {others.length > (narrow ? 3 : 4) ? <Text style={st.meta}>{`+${others.length - (narrow ? 3 : 4)}`}</Text> : null}
           </View>
         ) : null}
-        {leadFace && !narrow ? <FaceButton key={leadFace.agentId} name={leadFace.name} seedId={leadFace.agentId} mode={leadFace.mode} working={leadFace.working} title={modeTitle(leadFace)} testID={`face-${leadFace.agentId}`} {...(title !== leadFace.name ? { label: leadFace.name } : {})} size={20} onPress={(x, y) => modeMenu(leadFace, x, y)} /> : null}
+        {leadFace && !narrow && tier !== "bare" ? <FaceButton key={leadFace.agentId} name={leadFace.name} seedId={leadFace.agentId} mode={leadFace.mode} working={leadFace.working} title={modeTitle(leadFace)} testID={`face-${leadFace.agentId}`} {...(title !== leadFace.name && tier === "full" ? { label: leadFace.name } : {})} size={20} onPress={(x, y) => modeMenu(leadFace, x, y)} /> : null}
         <View testID="conversation-faces" accessibilityRole="toolbar" accessibilityLabel="Agents in this chat" style={st.faces}>
-          {collect(narrow ? [] : otherFaces, (f) => <FaceButton key={f.agentId} name={f.name} seedId={f.agentId} mode={f.mode} working={f.working} title={modeTitle(f)} testID={`face-${f.agentId}`} onPress={(x, y) => modeMenu(f, x, y)} />)}
+          {collect(narrow || tier !== "full" ? [] : otherFaces, (f) => <FaceButton key={f.agentId} name={f.name} seedId={f.agentId} mode={f.mode} working={f.working} title={modeTitle(f)} testID={`face-${f.agentId}`} onPress={(x, y) => modeMenu(f, x, y)} />)}
           {narrow ? null : <IconButton icon="plus" label="Add people and agents" size={24} testID="add-agent" onPress={() => add.open({ threadId: thread.threadId })} />}
         </View>
         {isWorking ? <View testID="conversation-live" accessibilityLabel="Working" style={st.live}><View style={st.liveDot} /></View> : null}
@@ -732,12 +752,13 @@ function ConversationView(): ReactElement {
             {data.tail ?? null}
           </View>
         </Feed>
-        {atEnd || data.head ? null : (
-          <Pressable testID="to-latest" accessibilityRole="button" accessibilityLabel="Jump to latest" onPress={() => { setJump((n) => n + 1); setAtEnd(true); }} style={st.toLatest}>
-            <Glyph name="down" size={14} color="var(--ink-2)" /><Text style={st.toLatestText}>Jump to latest</Text>
-          </Pressable>
-        )}
       </View>
+      {/* in its own row under the list, at the right: it never sits over a line of text */}
+      {atEnd || data.head ? null : (
+        <Pressable testID="to-latest" accessibilityRole="button" accessibilityLabel="Jump to latest" onPress={() => { setJump((n) => n + 1); setAtEnd(true); }} style={st.toLatest}>
+          <Glyph name="down" size={14} color="var(--ink-2)" /><Text style={st.toLatestText}>Jump to latest</Text>
+        </Pressable>
+      )}
       {data.live ? <SettleTurns turns={liveTurns} rows={win.rows} settle={data.live.settle} /> : null}
       {focusId !== null ? <FocusLoader key={focusId} id={focusId} have={all.some((m) => m.messageId === focusId)} shownHas={win.rows.some((m) => m.messageId === focusId)} onWindow={(page) => setAround(page)} onWiden={() => setShown((n) => n + WINDOW)} onDone={() => setFocusId(null)} /> : null}
       {activeId ? <ScrollToMessage key={`${activeId}:${matchAt}`} id={activeId} /> : null}
@@ -764,6 +785,14 @@ function ConversationView(): ReactElement {
         <View testID="conversation-closed" style={st.closed}><Text style={st.lineText}>This thread is closed.</Text><TextButton label="Reopen" onPress={() => void data.call("threads.reopen", { threadId: thread.threadId }).catch(fail("Could not reopen."))} testID="reopen" /></View>
       ) : (
         <View style={st.composerBox}>
+          {thread.kind === "channel" ? <View testID="typing-row" accessibilityLiveRegion="polite" style={st.typingRow}>{typingNames.length > 0 ? <Text style={st.typingText}>{`${typingNames.join(", ")} ${typingNames.length === 1 ? "is" : "are"} typing…`}</Text> : null}</View> : null}
+          {island.list.length > 0 ? (
+            <QuestionIsland list={island.list} index={island.index} nameOf={nameOf}
+              onStep={(d) => setIslandAt(island.list[(island.index + d + island.list.length) % island.list.length]!.id)}
+              onAnswer={(q, a) => { void act.answerBlock(data, q.id, a).catch(fail("Could not send the answer.")); }}
+              onDismiss={(q) => setPutAway((cur) => new Set([...cur, q.id]))}
+              onPeople={(x, y) => peopleMenu(x, y)} />
+          ) : null}
           {crew?.status && crew.status.members.length > 0 ? <CrewIsland status={crew.status} onPress={() => crew.show(null)} /> : null}
           {personMention ? (() => {
             // one strip on top of the composer: who is not here, Add (they read from now on), and a caret for the other ways
@@ -899,7 +928,7 @@ const st = StyleSheet.create({
   feedContent: { alignItems: "center", paddingHorizontal: 24, paddingBottom: 18 },
   col: { width: "100%", maxWidth: 660, paddingTop: 6 },
   earlier: { alignItems: "center", paddingVertical: 10 },
-  toLatest: { position: "absolute", alignSelf: "center", bottom: 10, height: 30, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, borderRadius: 15, borderWidth: 1, borderColor: "var(--line-2)" as string, backgroundColor: "var(--win)" as string },
+  toLatest: { alignSelf: "flex-end", marginRight: 16, marginVertical: 4, height: 28, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, borderRadius: 14, borderWidth: 1, borderColor: "var(--line-2)" as string, backgroundColor: "var(--win)" as string },
   toLatestText: { fontSize: 12.5, color: "var(--ink-2)" as string },
   queueRow: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", justifyContent: "center", columnGap: 10, rowGap: 2, paddingHorizontal: 24, paddingVertical: 4 },
   queue: { fontSize: 12.5, color: "var(--ink-3)" as string, textAlign: "center" },
@@ -911,6 +940,8 @@ const st = StyleSheet.create({
   offerStripText: { flex: 1, minWidth: 0, fontSize: 12.5, color: "var(--ink-2)" as string },
   offerBtns: { flexDirection: "row", alignItems: "center", gap: 2, flexShrink: 0 },
   closed: { minHeight: 48, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, borderTopWidth: 1, borderTopColor: "var(--line)" as string, backgroundColor: "var(--side)" as string },
+  typingRow: { height: 20, justifyContent: "center", paddingLeft: 6 },
+  typingText: { fontSize: 12, color: "var(--ink-3)" as string },
   composerBox: { alignSelf: "center", width: "100%", maxWidth: 708, paddingHorizontal: 24, paddingBottom: 16 },
 });
 
