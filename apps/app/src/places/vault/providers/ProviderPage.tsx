@@ -3,14 +3,16 @@
 // no .env box. Turns come from the item's history; per-agent token counts are not in the contract, so the total is the provider's own.
 import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { AskButton } from "../../../../../../ui/src/AskButton/index.tsx";
 import { Avatar } from "../../../../../../ui/src/Avatar/index.tsx";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
+import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
+import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import { useScreenQuery, usePrincipals, useVaultData } from "../layout/data.tsx";
 import { agoLabel } from "../layout/model.ts";
 import type { Provider } from "../layout/model.ts";
-import { Btn, Glyph, LogoTile, Mono } from "../layout/parts.tsx";
+import { Btn, Glyph, IconBtn, LogoTile, Mono } from "../layout/parts.tsx";
 import { Info } from "../../../../../../ui/src/Tip/index.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import { countWords, tokenWords, userKind } from "./model.ts";
@@ -19,13 +21,51 @@ import { ServerKeyLine } from "./ServerKeyLine.tsx";
 type HistoryOut = CapMap["vault.item.history"]["out"];
 
 export interface ProviderPageProps {
-  provider: Provider; handle: string; onNote(text: string): void;
+  provider: Provider; handle: string;
+  /** A line under the list; with `undo` it carries an Undo (a trashed sign-in comes back). */
+  onNote(text: string, undo?: () => Promise<void> | void): void;
+  /** The page's item left the list (trashed or disconnected): the place closes the detail. */
+  onGone?: () => void;
+  /** Counts up each time the list's menu or the Delete key asks to trash this item: the page asks to confirm. */
+  askDelete?: number | undefined;
   /** Tokens an agent or Automation used this month. Wired to the per-actor usage of P-CC_36 when it lands; until then it is not given and no number is drawn. */
   tokensOf?: (actorId: string) => number | undefined;
 }
 
-export function ProviderPage({ provider, handle, onNote, tokensOf }: ProviderPageProps): ReactElement {
+export function ProviderPage({ provider, handle, onNote, onGone, askDelete, tokensOf }: ProviderPageProps): ReactElement {
   const data = useVaultData();
+  const menu = useMenu();
+  const [ask, setAsk] = useState<"trash" | "disconnect" | null>(null);
+  const [renaming, setRenaming] = useState<string | null>(null);
+  const [failure, setFailure] = useState<string | null>(null);
+  useEffect(() => { if (askDelete) setAsk("trash"); }, [askDelete]);
+  const fail = (e: unknown): void => setFailure(e instanceof Error ? e.message : "That did not work. Try again.");
+  const trash = async (): Promise<void> => {
+    try {
+      await data.call("vault.item.delete", { itemId: provider.itemId });
+      setAsk(null);
+      onNote(`Moved ${provider.name} to Trash`, async () => { await data.call("vault.item.restore", { itemId: provider.itemId }); });
+      onGone?.();
+    } catch (e) { fail(e); }
+  };
+  const disconnect = async (): Promise<void> => {
+    try {
+      await data.call("providers.remove", { providerId: provider.id });
+      setAsk(null);
+      onNote(`Disconnected ${provider.name}`);
+      onGone?.();
+    } catch (e) { fail(e); }
+  };
+  const rename = async (to: string): Promise<void> => {
+    const was = provider.name;
+    const next = to.trim();
+    setRenaming(null);
+    if (next === "" || next === was) return;
+    try {
+      await data.call("vault.item.update", { itemId: provider.itemId, name: next });
+      onNote(`Renamed ${was} to ${next}`, async () => { await data.call("vault.item.update", { itemId: provider.itemId, name: was }); });
+    } catch (e) { fail(e); }
+  };
   const people = usePrincipals();
   const hist = useScreenQuery<HistoryOut>("vault.item", "history", { itemId: provider.itemId });
   const [models, setModels] = useState<readonly string[] | "failed" | null>(null);
@@ -42,21 +82,37 @@ export function ProviderPage({ provider, handle, onNote, tokensOf }: ProviderPag
   const signIn = async (): Promise<void> => {
     try { const o = (await data.call("providers.subscription_start", { providerKey: provider.providerKey, idempotencyKey: `again-${provider.id}-${data.clock().now}` })) as { instruction: string }; onNote(o.instruction); } catch (e) { onNote(e instanceof Error ? e.message : "That did not work."); }
   };
+  const more: MenuEntry[] = [
+    { label: "Rename…", onSelect: () => setRenaming(provider.name) },
+    { label: "Sign in again", onSelect: () => { void signIn(); } },
+    { separator: true } as MenuEntry,
+    { label: "Disconnect…", danger: true, onSelect: () => setAsk("disconnect") },
+    { label: "Move to Trash", danger: true, onSelect: () => setAsk("trash") },
+  ];
   const tags = Array.isArray(models)
     // ui-rows-lint: not a list (model names as wrapped tags)
     ? models.map((m) => <View key={m} style={s.chip}><Mono size={12}>{m}</Mono></View>)
     : null;
   return (
     <View style={s.page} testID="provider-page" accessibilityLabel={`${provider.name}, AI provider`}>
-      <View style={s.bar}><View style={{ flex: 1 }} /><AskButton place="vault" context={{ kind: "vault_item", id: provider.itemId, title: provider.name, access: "manage" }} agents={[{ id: "assistant", name: "Assistant", assistant: true }, ...people.all.filter((x) => x.kind === "agent").map((x) => ({ id: x.id, name: x.name }))]} testID="provider-ask" onAsk={(agent, mode, about) => data.nav.ask?.(agent.id, mode, { kind: about.kind, id: about.id, title: about.title })} /></View>
+      {menu.element}
+      <View style={s.bar}><View style={{ flex: 1 }} /><AskButton place="vault" context={{ kind: "vault_item", id: provider.itemId, title: provider.name, access: "manage" }} agents={[{ id: "assistant", name: "Assistant", assistant: true }, ...people.all.filter((x) => x.kind === "agent").map((x) => ({ id: x.id, name: x.name }))]} testID="provider-ask" onAsk={(agent, mode, about) => data.nav.ask?.(agent.id, mode, { kind: about.kind, id: about.id, title: about.title })} /><IconBtn icon="more" label="More" testID="provider-more" onPress={(e) => { const r = rectOf(e); menu.show(more, r.x, r.y); }} /></View>
       <ScrollView contentContainerStyle={s.body}>
         <View style={s.hero}>
           <LogoTile name={provider.name} size={64} />
           <View style={{ flex: 1, gap: 6 }}>
-            <Text accessibilityRole="header" style={s.title}>{provider.name}</Text>
+            {renaming !== null ? <RenameRow value={renaming} onSave={(v) => { void rename(v); }} onCancel={() => setRenaming(null)} /> : <Text accessibilityRole="header" style={s.title}>{provider.name}</Text>}
             <View style={s.meta}><View style={s.chip}><Mono size={12}>{handle}</Mono></View><Text style={s.dim}>Sign-in</Text></View>
           </View>
         </View>
+        {ask !== null ? (
+          <View style={s.confirm} testID="provider-confirm" accessibilityRole="alert">
+            <Text style={s.confirmText}>{ask === "trash" ? `Move ${provider.name} to Trash? Agents and Automations that use it lose it until you bring it back.` : `Disconnect ${provider.name}? Its sign-in is removed. Agents that use it move to another account, and you can sign in again any time.`}</Text>
+            <Btn label={ask === "trash" ? "Move to Trash" : "Disconnect"} danger onPress={() => { void (ask === "trash" ? trash() : disconnect()); }} testID="provider-confirm-yes" />
+            <Btn label="Cancel" onPress={() => setAsk(null)} testID="provider-confirm-no" />
+          </View>
+        ) : null}
+        {failure ? <Text style={s.error} accessibilityRole="alert" testID="provider-error">{failure}</Text> : null}
         <View style={s.private} testID="provider-private"><Glyph name="lock" size={12} color="var(--ink-3)" /><Text style={s.dim}>Mine</Text><Info help="Only you can use it" /></View>
         {provider.scope === "mine" ? <ServerKeyLine /> : null}
 
@@ -93,7 +149,31 @@ export function ProviderPage({ provider, handle, onNote, tokensOf }: ProviderPag
   );
 }
 
+function rectOf(e: unknown): { x: number; y: number } {
+  const ev = e as { currentTarget?: { getBoundingClientRect?: () => { left: number; bottom: number } }; nativeEvent?: { pageX?: number; pageY?: number } };
+  const box = ev.currentTarget?.getBoundingClientRect?.();
+  return box ? { x: box.left, y: box.bottom } : { x: ev.nativeEvent?.pageX ?? 0, y: ev.nativeEvent?.pageY ?? 0 };
+}
+
+/** The name as a field in place: Enter or Save keeps it, Escape or Cancel leaves it. */
+function RenameRow({ value, onSave, onCancel }: { value: string; onSave(v: string): void; onCancel(): void }): ReactElement {
+  const [text, setText] = useState(value);
+  return (
+    <View style={s.renameRow} testID="provider-rename">
+      <TextInput autoFocus value={text} onChangeText={setText} accessibilityLabel="Name" testID="provider-rename-input" style={s.renameInput} onSubmitEditing={() => onSave(text)}
+        onKeyPress={(e) => { if ((e.nativeEvent as { key?: string }).key === "Escape") onCancel(); }} />
+      <Btn label="Save" onPress={() => onSave(text)} testID="provider-rename-save" />
+      <Btn label="Cancel" onPress={onCancel} testID="provider-rename-cancel" />
+    </View>
+  );
+}
+
 const s = StyleSheet.create({
+  confirm: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 8, padding: 12, borderRadius: 10, backgroundColor: "var(--sel)" as string },
+  confirmText: { flex: 1, minWidth: 200, fontSize: 13, lineHeight: 18, color: "var(--ink-2)" as string },
+  error: { fontSize: 12.5, color: "var(--danger)" as string },
+  renameRow: { flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" },
+  renameInput: { flex: 1, minWidth: 160, height: 36, paddingHorizontal: 10, borderRadius: 8, borderWidth: 1, borderColor: "var(--line-2)" as string, fontSize: 18, color: "var(--ink)" as string },
   page: { flex: 1, minHeight: 0 },
   bar: { flexDirection: "row", alignItems: "center", height: 48, paddingHorizontal: 16 },
   body: { paddingHorizontal: 24, paddingBottom: 32, gap: 10 },
