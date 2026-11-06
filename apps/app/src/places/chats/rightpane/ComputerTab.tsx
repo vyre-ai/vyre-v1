@@ -159,13 +159,13 @@ export function NoneBody({ hosts, canProvision, onProvision, name = "this agent"
   );
 }
 
-/** The steps a computer goes through to be ready, from what it reports: the machine, the start, Chrome, and Vyre for Chrome signing in. */
-export const SETUP_STEPS = ["Getting the machine ready", "Starting the computer", "Installing Chrome", "Signing in to Vyre"] as const;
+/** The steps a computer goes through to be ready, from what it reports: the machine, the start, and Chrome coming up. Nothing else is waited for: the computer is ready once it is working and its browser is up. */
+export const SETUP_STEPS = ["Getting the machine ready", "Starting the computer", "Starting Chrome"] as const;
 export function setupStep(c: Pick<Computer, "state" | "tabs" | "lastFrameAt" | "caption">): number {
   if (c.state === "provisioning") return 0;
   if (c.state === "waking") return 1;
-  // awake, but nothing has been seen of it yet: no caption, no frame, and the browser is still coming up
-  if (c.state === "working" && c.caption === undefined && c.lastFrameAt === undefined) return c.tabs > 0 ? 3 : 2;
+  // awake, but nothing has been seen of it yet: no caption, no frame. A tab open means the browser is up and the computer is ready; none means Chrome is still starting.
+  if (c.state === "working" && c.caption === undefined && c.lastFrameAt === undefined && c.tabs === 0) return 2;
   return c.state === "working" ? SETUP_STEPS.length : 1;
 }
 export const isSettingUp = (c: Pick<Computer, "state" | "tabs" | "lastFrameAt" | "caption">): boolean => c.state === "provisioning" || c.state === "waking" || (c.state === "working" && setupStep(c) < SETUP_STEPS.length);

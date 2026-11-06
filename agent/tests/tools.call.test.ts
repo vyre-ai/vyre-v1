@@ -253,3 +253,24 @@ test("a model error keeps a plain reason word and drops an id-shaped one", async
   assert.equal(dropped.message.includes("usr_5cf430c0313aa78673"), false);
   assert.equal(modelError(makeError("validation.precondition_failed", "trc_4", { message: "y", details: { reason: "agent_settings" } })).details?.reason, "agent_settings", "a second call gets the same answer");
 });
+
+test("an agent refused computers.provision is told a person presses Give it a computer, and a card in the chat opens the agent", async () => {
+  const { loadGenerated } = await import("../src/tools/harness.ts");
+  const { takeWork } = await import("../src/tools/work-cards.ts");
+  const { GIVE_COMPUTER_WORDS } = await import("../src/tools/call.ts");
+  const loaded = loadGenerated();
+  const session = createToolSession({ catalog: loaded.catalog, defaults: loaded.defaults, canEngineer: () => false, levelFor: () => null, traceId: () => "trace_fixed",
+    invoke: (async () => { throw new HostError(makeError("permission.no_grant", "trace_fixed")); }) as never });
+  session.preload("T1", ["computers_provision"]);
+  const out = await session.call(ctx({ turnId: "trn_gc" }), "computers_provision", { agentId: "agt_intake", idempotencyKey: "k" });
+  assert.equal(out.kind, "error");
+  const text = JSON.stringify(out.kind === "error" ? out.result.content : {});
+  assert.match(text, /Give it a computer/);
+  assert.match(text, /About/);
+  assert.ok(text.includes("Do not say you lack permission"));
+  assert.equal(GIVE_COMPUTER_WORDS.includes("About tab"), true);
+  const cards = takeWork("trn_gc");
+  assert.equal(cards.length, 1);
+  assert.equal(cards[0]?.title, "Give this agent a computer");
+  assert.deepEqual(cards[0]?.target, { type: "agent", id: "agt_intake" });
+});
