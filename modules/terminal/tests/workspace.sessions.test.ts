@@ -63,7 +63,7 @@ test("the first command makes the session with no grant and no open call; the se
   assert.deepEqual(commandsOf(hn.db, a.terminalId).map((c) => c.command), ["echo hi", "echo hi"]);
 });
 
-test("a host that names the person's computer still gets it, and a host with no workspaces keeps the older rule: where the turn runs", async () => {
+test("a host that names the person's computer still gets it; a host with no workspaces keeps the older rule: where the turn runs; a Personal Space with a runtime has the workspace", async () => {
   {
     const { host, agent } = setup(TEAM_ON_MAC);
     await call(agent, "terminal.run", { command: "echo hi", host: "device", idempotencyKey: idem() });
@@ -75,8 +75,14 @@ test("a host that names the person's computer still gets it, and a host with no 
     assert.deepEqual(opened(host), [{ host: "device", deviceId: "dev_mac" }], "no workspaces here: as before");
   }
   {
-    // a Personal Space keeps the person's own computer: workspaces are a Team Space's for now
+    // a Personal Space whose computer has a container runtime has the workspace too; without one (workspaces off) its agent's commands run on the person's computer
     const { host, agent } = setup({ team: false, agentComputer: false, runsOn: "device", deviceId: "dev_mac" });
+    bindTeam(() => false);
+    await call(agent, "terminal.run", { command: "echo hi", idempotencyKey: idem() });
+    assert.deepEqual(opened(host), [{ host: "agent_computer", agentId: "agt_dex" }]);
+  }
+  {
+    const { host, agent } = setup({ team: false, agentComputer: false, runsOn: "device", deviceId: "dev_mac" }, { workspaces: false });
     bindTeam(() => false);
     await call(agent, "terminal.run", { command: "echo hi", idempotencyKey: idem() });
     assert.deepEqual(opened(host), [{ host: "device", deviceId: "dev_mac" }]);

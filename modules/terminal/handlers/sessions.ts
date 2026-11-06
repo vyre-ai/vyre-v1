@@ -120,7 +120,8 @@ interface OpenInput { by?: TabBy; threadId?: string; host: HostKind; agentId?: s
 async function openSession(ctx: TermCtx, a: OpenInput, mapHostError: (e: unknown) => never): Promise<SessionRow> {
   ensure(ctx.db);
   if (a.host === "agent_computer") {
-    if (!isTeam(ctx.space)) raise(ctx, "permission.needs_team", "Agent computers are part of a Team Space.");
+    // a workspace is every Space's (a Personal Space has one when the person's computer has a container runtime); the desktop computer an agent can be given is a Team Space's
+    if (!isTeam(ctx.space) && !workspacesReady()) raise(ctx, "permission.needs_team", "Agent computers are part of a Team Space.");
     if (a.agentId === undefined) raise(ctx, "validation.bad_input", "Say which agent's workspace to open the terminal in.");
     await needWorkspace(ctx, a.agentId);
   }
@@ -168,7 +169,7 @@ export async function open(ctx: TermCtx, input: Omit<OpenInput, "host"> & { host
   let agentId = input.agentId;
   let scope: WorkScope | undefined;
   if (host === undefined) {
-    if (ctx.principal.kind !== "agent" || !workspacesReady() || !isTeam(ctx.space)) raise(ctx, "validation.bad_input", "Say which computer to open the terminal on.");
+    if (ctx.principal.kind !== "agent" || !workspacesReady()) raise(ctx, "validation.bad_input", "Say which computer to open the terminal on.");
     host = "agent_computer";
   }
   if (host === "agent_computer" && ctx.principal.kind === "agent") {
@@ -341,7 +342,7 @@ async function placeFor(ctx: TermCtx, person: string, agentId: string | undefine
  */
 async function targetForRun(ctx: TermCtx, a: RunInput, person: string, agentId: string | undefined): Promise<RunTarget> {
   if (a.host === "agent_computer") return { host: "agent_computer" };
-  if (a.host !== "device" && agentId !== undefined && workspacesReady() && isTeam(ctx.space)) return { host: "agent_computer" };
+  if (a.host !== "device" && agentId !== undefined && workspacesReady()) return { host: "agent_computer" };
   const p = await placeFor(ctx, person, agentId);
   // a chat that runs on the person's own computer has a computer to run commands on: the agent's own shell there. Vyre has no terminal open on it, and the answer says that, not that there is no computer
   const device = (): RunTarget => (p?.deviceId === undefined ? raise(ctx, "provider.unavailable", OWN_COMPUTER, { reason: "own_computer" }) : { host: "device", deviceId: p.deviceId });

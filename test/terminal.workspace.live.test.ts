@@ -42,7 +42,7 @@ const ok = async (d: Daemon, token: string, cap: string, input: Record<string, u
   return r.data;
 };
 
-test("Team daemon with Docker: an agent's terminal_run makes its workspace, the person attaches to the same session, and a file made in ~/Vyre reaches the agent's folder in Files", { skip, timeout: 900_000 }, async (t) => {
+async function scenario(t: import("node:test").TestContext, kind: "team" | "personal"): Promise<void> {
   if (PRESET === undefined) {
     const built = await docker(["build", "-t", IMAGE, "images/agent-workspace"], 800_000);
     assert.equal(built.code, 0, built.out.slice(-600));
@@ -51,8 +51,11 @@ test("Team daemon with Docker: an agent's terminal_run makes its workspace, the 
   process.env["VYRE_WORKSPACE_IMAGE"] = IMAGE;
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-wslive-"));
   const d = await boot(dir, standIn, undefined, {
-    config: loadConfig(["--data-dir", dir, "--port", "0", "--space", "spc_wslive", "--space-name", "Team", "--space-kind", "team", "--role", "space"], {}, "1.2.3"),
-    computersSocketPath: "/var/run/docker.sock", computersHomeIntervalMs: 300, workspaceIdleMs: 600_000,
+    config: kind === "team"
+      ? loadConfig(["--data-dir", dir, "--port", "0", "--space", "spc_wslive", "--space-name", "Team", "--space-kind", "team", "--role", "space"], {}, "1.2.3")
+      : loadConfig(["--data-dir", dir, "--port", "0", "--space", "spc_wslive", "--space-name", "Personal", "--space-kind", "personal", "--role", "space,device"], {}, "1.2.3"),
+    // a Team server is told its socket; a Personal Space finds the runtime its computer has, as the desktop app's daemon does
+    ...(kind === "team" ? { computersSocketPath: "/var/run/docker.sock" } : {}), computersHomeIntervalMs: 300, workspaceIdleMs: 600_000,
   });
   let name = "";
   t.after(async () => {
@@ -157,4 +160,7 @@ test("Team daemon with Docker: an agent's terminal_run makes its workspace, the 
 
   const health = await ok(d, token, "terminal.health", {});
   assert.equal(health.state, "healthy");
-});
+}
+
+test("Team daemon with Docker: an agent's terminal_run makes its workspace, tabs, a project folder with Files history, and the Files mirror", { skip, timeout: 900_000 }, (t) => scenario(t, "team"));
+test("Personal Space on a computer with a container runtime: the same, with the socket found and no Team", { skip, timeout: 900_000 }, (t) => scenario(t, "personal"));
