@@ -60,6 +60,7 @@ const manager = createProfileManager({
     if (first?.webSocketDebuggerUrl) { const c = await connectCdp(first.webSocketDebuggerUrl, 3000); await c.send("Page.navigate", { url: starts.url() }); c.close(); }
   },
   onPage: (id, url, title) => { try { recentOf(id).add(url, title); } catch { /* a note that cannot be kept is not an error */ } },
+  onClosing: async (p) => { if (!p.chrome?.alive()) return; const c = await p.chrome.page(); try { manager.saveSessions(p.id, await liveSessions(c)); } finally { c.close(); } },
   paired: (id) => bridges?.state(id) ?? { connected: 0, hello: false, optin: false },
 });
 
@@ -106,15 +107,20 @@ const views = startViewServer({
 
 // ---- the actions -----------------------------------------------------------------------------------------------------------------------------------
 
+async function liveSessions(c: Cdp): Promise<Array<{ site: string; since: number; lastSeen: number }>> {
+  const r = await c.send<{ cookies?: Array<{ domain: string; expires: number }> }>("Network.getAllCookies");
+  const sites = new Set<string>();
+  for (const k of r.cookies ?? []) sites.add(k.domain.replace(/^\./, ""));
+  const now = Date.now();
+  return [...sites].sort().map((site) => ({ site, since: now, lastSeen: now }));
+}
+
+/** A running browser is asked live (and the answer kept); a sleeping one is listed from what was kept when it closed, and nothing is started. */
 async function sessions(id: string): Promise<Args> {
-  const c = await pageOf(id);
-  try {
-    const r = await c.send<{ cookies?: Array<{ domain: string; expires: number }> }>("Network.getAllCookies");
-    const sites = new Set<string>();
-    for (const k of r.cookies ?? []) sites.add(k.domain.replace(/^\./, ""));
-    const now = Date.now();
-    return { sessions: [...sites].sort().map((site) => ({ site, since: now, lastSeen: now })) };
-  } finally { c.close(); }
+  const p = manager.get(id);
+  if (!p.chrome?.alive()) return { sessions: manager.cachedSessions(id) };
+  const c = await p.chrome.page();
+  try { const rows = await liveSessions(c); manager.saveSessions(id, rows); return { sessions: rows }; } finally { c.close(); }
 }
 
 async function signOut(id: string, site: string): Promise<Args> {
@@ -172,9 +178,12 @@ async function dispatch(action: string, a: Args): Promise<Args> {
     }
     case "stream": {
       const id = checkProfileId(a["profileId"]);
-      await manager.ensure(id);
+      const p = await manager.ensure(id);
       const t = views.mint(id);
-      return { transport: "mjpeg", url: views.url(t, "mjpeg"), ws: views.url(t, "ws") };
+      // the size the viewer scales its pointer from: what the page's viewport really is, never a constant
+      let size = { width: 1280, height: 800 };
+      try { const c = await p.chrome!.page(); try { const r = await c.send<{ result?: { value?: { w: number; h: number } } }>("Runtime.evaluate", { expression: "({ w: innerWidth, h: innerHeight })", returnByValue: true }); if (r.result?.value) size = { width: r.result.value.w, height: r.result.value.h }; } finally { c.close(); } } catch { /* the configured size */ }
+      return { transport: "mjpeg", url: views.url(t, "mjpeg"), ws: views.url(t, "ws"), ...size };
     }
     case "stop": hubs.delete(checkProfileId(a["profileId"])); await manager.stop(text(a, "profileId")); return {};
     case "reset_chrome": hubs.delete(checkProfileId(a["profileId"])); await manager.resetChrome(text(a, "profileId")); return {};

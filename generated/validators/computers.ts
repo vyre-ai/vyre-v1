@@ -467,6 +467,8 @@ if (!("expiresAt" in o2177)) e.push(p + "/expiresAt" + ': required');
 if ("transport" in o2177) lf(o2177["transport"], p + "/transport", e, L607);
 if ("url" in o2177) lf(o2177["url"], p + "/url", e, L1);
 if ("ws" in o2177) lf(o2177["ws"], p + "/ws", e, L1);
+if ("width" in o2177) lf(o2177["width"], p + "/width", e, L2);
+if ("height" in o2177) lf(o2177["height"], p + "/height", e, L2);
 if ("expiresAt" in o2177) lf(o2177["expiresAt"], p + "/expiresAt", e, L17);
 }
 }

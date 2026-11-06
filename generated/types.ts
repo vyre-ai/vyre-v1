@@ -8586,6 +8586,8 @@ export type ComputersBrowserStreamOut = {
   transport: "mjpeg";
   url: string;
   ws?: string;
+  width?: number;
+  height?: number;
   expiresAt: number;
 };
 export type ComputersBrowserTakeOverIn = {

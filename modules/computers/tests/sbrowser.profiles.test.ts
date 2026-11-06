@@ -218,3 +218,20 @@ test("resetChrome stops the browser and empties its Chrome folder for an import,
     assert.equal(r.launched.length, 2, "it starts again, from an empty folder, or from what an import put there");
   } finally { r.done(); }
 });
+
+test("what the browser holds is noted just before it closes, and a sleeping profile is listed from that note", async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-sessions-"));
+  const closed: string[] = [];
+  try {
+    const r = rig();
+    const m = createProfileManager({ root, extensionDir: null, log: () => {}, launch: (dir, _e, _l, o) => ({ port: o.port ?? 0, async ready() {}, alive: () => true, async tabs() { return []; }, async page() { throw new Error("x"); }, async tool() { return { ok: true }; }, heldIds: () => [], async extension() { return { configured: false, workers: 0 }; }, stop() {}, async shutdown() { closed.push(dir); } } as unknown as Chrome),
+      onClosing: async (p) => { m.saveSessions(p.id, [{ site: "app.clio.com", since: 1, lastSeen: 2 }]); } });
+    await m.tool({ profileId: "agt_dex", tool: "chrome_state", args: {}, timeoutMs: 5000 });
+    assert.deepEqual(m.cachedSessions("agt_dex"), []);
+    await m.stop("agt_dex");
+    assert.equal(closed.length, 1);
+    assert.deepEqual(m.cachedSessions("agt_dex"), [{ site: "app.clio.com", since: 1, lastSeen: 2 }]);
+    assert.deepEqual(m.cachedSessions("agt_other"), []);
+    r.done();
+  } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});

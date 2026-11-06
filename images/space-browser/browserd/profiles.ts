@@ -37,7 +37,10 @@ export function writeDownloadPrefs(chromeDir: string, downloadsDir: string): voi
 }
 
 export type LaunchFn = (profileDir: string, extensionDir: string | null, log: (m: string) => void, o: ChromeOptions) => Chrome;
-const realLaunch: LaunchFn = (dir, ext, log, o) => launchChrome(null, dir, ext, log, { headless: true, ...o });
+// headless=new reserves 87 px of the window for the browser's own bar, so the page gets 1280x800 from a window of 1280x887: every tab, new ones too, has the same viewport, which the live view's pointer maths relies on
+export const VIEWPORT = { width: 1280, height: 800 };
+const BAR_PX = 87;
+const realLaunch: LaunchFn = (dir, ext, log, o) => launchChrome(null, dir, ext, log, { headless: true, size: { width: VIEWPORT.width, height: VIEWPORT.height + BAR_PX }, ...o });
 
 export interface ProfileManagerOptions {
   /** The data volume: profiles live in `<root>/profiles/<id>/chrome`. */
@@ -55,6 +58,8 @@ export interface ProfileManagerOptions {
   launch?: LaunchFn;
   /** Extra browser flags and environment for one profile, such as its bridge folder (bridge.ts). Called each time the profile's browser starts. */
   extra?: (profileId: string) => ChromeOptions;
+  /** Called just before a profile's browser closes: the chance to note what it holds (the sites it is signed in to) so they can be listed while it sleeps. */
+  onClosing?: (p: Profile) => Promise<void>;
   /** Called when a profile's browser is up: the start page's cookie and first tab (main.ts). */
   onStarted?: (profileId: string, port: number) => Promise<void>;
   /** A page the profile's browser opened or looked at, for its start page's recent sites. */
@@ -105,6 +110,9 @@ export interface ProfileManager {
   stopAll(): Promise<void>;
   /** For a viewer that is attached or gone: counts as activity. */
   touch(id: string): void;
+  /** The sites the profile was signed in to when its browser last closed or was last asked (a sleeping profile is listed from this; nothing starts). */
+  cachedSessions(id: string): Array<{ site: string; since: number; lastSeen: number }>;
+  saveSessions(id: string, rows: Array<{ site: string; since: number; lastSeen: number }>): void;
   /** What the profile's browser finished downloading and nobody has taken yet. Needs no browser. */
   downloads(id: string): DownloadRow[];
   /** One finished download's bytes (up to 20 MB). */
@@ -149,6 +157,7 @@ export function createProfileManager(o: ProfileManagerOptions): ProfileManager {
     const c = p.chrome;
     if (!c) return;
     p.chrome = null;
+    try { p.chrome = c; await o.onClosing?.(p); } catch { /* the list taken last stays */ } finally { p.chrome = null; }
     // closed the way a person closes it, so a login that was just made is in the folder when the browser starts again
     await c.shutdown().catch(() => c.stop());
     if (p.port !== null) { const port = p.port; p.port = null; setTimeout(() => ports.delete(port), 1500).unref(); }
@@ -267,6 +276,8 @@ export function createProfileManager(o: ProfileManagerOptions): ProfileManager {
       return rows;
     },
     async stopAll() { await Promise.all([...profiles.values()].map((p) => release(p))); },
+    cachedSessions(id) { try { const j = JSON.parse(readFileSync(join(get(id).dir, "sessions.json"), "utf8")) as Array<{ site: string; since: number; lastSeen: number }>; return Array.isArray(j) ? j : []; } catch { return []; } },
+    saveSessions(id, rows) { try { mkdirSync(get(id).dir, { recursive: true }); writeFileSync(join(get(id).dir, "sessions.json"), JSON.stringify(rows)); } catch { /* not kept */ } },
     downloads(id) {
       const dir = downloadsOf(get(id));
       if (!existsSync(dir)) return [];
