@@ -21,7 +21,7 @@
       "proto": "chats,{skin}",
       "waitFor": "[data-testid='crew-strip']",
       "click": [
-        "[data-testid='crew-chip-thr_orin-toggle']"
+        "[data-testid='row-crew-chip-thr_orin-toggle']"
       ],
       "scroll": "[data-testid='crew-strip']",
       "note": "A crew row open to its last three steps."

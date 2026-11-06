@@ -5,7 +5,7 @@ import { useMemo } from "react";
 import type { ReactNode } from "react";
 import { View, useWindowDimensions } from "react-native";
 import { ChatsPlace } from "../../../apps/app/src/places/chats/ChatsPlace.tsx";
-import { createSample as createConversationSample } from "../../../apps/app/src/places/chats/conversation/sample.ts";
+import { NAMES, createSample as createConversationSample } from "../../../apps/app/src/places/chats/conversation/sample.ts";
 import { createSample as createPaneSample } from "../../../apps/app/src/places/chats/rightpane/sample.ts";
 import { createSampleSidebar, northwind } from "../../../apps/app/src/places/chats/sidebar/sample.ts";
 import type { Message, MessageBlock } from "../../../apps/app/src/places/chats/conversation/model.ts";
@@ -52,7 +52,7 @@ function build() {
   add("n3", MAYA, "agent computers aren't working", at(21, 12));
   const read = add("n4", INTAKE, "Cause: Docker blocks the engine's sandbox on the Space server. The compose file never allowed user namespaces, so every computer stops at a permission error. Tess already has the fix in her branch; it needs one approval to land.", at(21, 15));
   CHATTER.forEach((t, i) => add(`q${i}`, AGENTS[i % 4]!, t, at(21, 40) + i * 9 * 60_000));
-  add("n5", INTAKE, "", at(22, 50), { blocks: [block("question", "bq", { threadId: "c1", blockId: "bq", prompt: "Which corner radius: 12 px or 14 px?", mode: "single", options: [{ id: "a", label: "12 px" }, { id: "b", label: "14 px" }], allowOther: false }, "waiting")] });
+  add("n5", AGENTS[3]!, "", at(22, 50), { blocks: [block("question", "bq", { threadId: "c1", blockId: "bq", prompt: "Which corner radius: 12 px or 14 px?", mode: "single", options: [{ id: "a", label: "12 px" }, { id: "b", label: "14 px" }], allowOther: false }, "waiting")] });
   add("n6", INTAKE, "Release v1.0.0-rc.22.1 tagged", at(23, 48), { kind: "system" });
   add("n7", ME, "Back. What is left?", at(23, 50));
   add("n8", INTAKE, "Two things need you: approve the release and pick the corner radius for Kai. Everything else is done or running.", at(23, 52));
@@ -89,7 +89,7 @@ export default function Mount(): ReactNode {
       if (cap === "engine.usage.get") return Promise.resolve({ account: null, context: { used: 380_000, window: 1_000_000 }, session: null, week: null, source: "estimate" });
       return pane.call(cap, input);
     };
-    return { sidebar: createSampleSidebar(northwind).data, conversation: conv.data, pane: { ...pane, call: paneCall } };
+    return { sidebar: createSampleSidebar(northwind).data, conversation: conv.data, pane: { ...pane, call: paneCall, me: { id: "usr_irfad" }, nameOf: (id: string) => (NAMES[id] ?? id) } };
   }, []);
   return <View style={{ height, backgroundColor: "var(--win)" as string }}><ChatsPlace sidebar={parts.sidebar} conversation={parts.conversation} pane={parts.pane} window={{ start: 0, end: 500 }} /></View>;
 }

@@ -165,3 +165,13 @@ test("a crew row shows a clock only while it runs, in the app's duration words, 
   assert.equal(textOf(find(root, "crew-chip-thr_n-time")).trim(), "");
   assert.ok(!/\d:\d\d/.test(textOf(root)), "never a clock like 9073:44:02");
 });
+
+test("the Overview never prints an id, and a helper that waits on you is not listed again when its own question is", async () => {
+  const kai = M({ id: "thr_k", name: "Kai", agentId: "agt_kai", state: "needs_you", step: "Asked you: 12 px or 14 px corners" });
+  const s = summary({ questions: [{ messageId: "m_q", text: "Which corner radius?", by: "agt_kai" }], decisions: [{ messageId: "m_d", kind: "decision", label: "Decision", sub: "Ship it", at: 1000, by: "usr_x" }] });
+  const root = await mount(createRoot, <OverviewView goal="g" summary={s} members={[kai]} context={null} clock={() => "9:20 PM"} who={(id) => (id === "agt_kai" ? "Kai" : id)} onHelper={() => undefined} onJump={() => undefined} />);
+  assert.equal(find(root, "row-overview-waiting-thr_k"), null, "one question, listed once");
+  assert.match(textOf(find(root, "row-overview-question-m_q")), /Kai/);
+  const dec = textOf(find(root, "row-overview-decision-m_d"));
+  assert.ok(dec.includes("9:20 PM") && !dec.includes("usr_x"), "an unresolved id reads as nothing");
+});

@@ -58,19 +58,20 @@ export function StatusCard({ id, type, data, host }: { id: string; type: string;
     const acts = actsOf(d["actions"]);
     const stop = acts.find((a) => a.key === "stop");
     const others = acts.filter((a) => a.key !== "stop");
+    const [first, ...rest] = others;
     return (
       <Card kind="progress" testID={`status-card-${id}`} label={`${title}. ${str(d["step"])}`}>
         <CardHead lead={<Glyph name="spark" size={14} color="var(--ink-3)" />} title={title} trailing={str(d["step"]) !== "" ? <Text style={st.time}>{str(d["step"])}</Text> : meta} />
         <CardBody bare>
           {/* ui-rows-lint: not a list (the steps of one progress card: a state mark and a label, nothing to press) */}
           {steps.map((x, i) => (
-            <View key={i} testID={`card-${id}-step-${i}`} style={st.step}>
-              <View style={[st.mark, x["state"] === "done" && st.markDone, x["state"] === "running" && st.markRun]} />
+            <View key={i} testID={`card-${id}-step-${i}`} accessibilityLabel={`${str(x["label"])}, ${str(x["state"])}`} style={st.step}>
+              {x["state"] === "done" ? <View style={st.markBox}><Glyph name="check" size={13} color="var(--ok)" /></View> : <View style={st.markBox}><View style={[st.mark, x["state"] === "running" && st.markRun]} /></View>}
               <Text style={[st.stepText, x["state"] === "todo" && st.todo]}>{str(x["label"])}</Text>
             </View>
           ))}
         </CardBody>
-        {acts.length > 0 ? <CardActions secondary={others.map(spec)} busy={busy !== null} error={err} note={stop ? <Pressable accessibilityRole="button" testID={`card-${id}-stop`} onPress={() => go(stop)}><Text style={st.stop}>{stop.label}</Text></Pressable> : undefined} /> : null}
+        {acts.length > 0 ? <CardActions {...(first ? { primary: spec(first) } : {})} secondary={[...rest.map(spec), ...(stop ? [{ ...spec(stop), danger: true }] : [])]} busy={busy !== null} error={err} /> : null}
       </Card>
     );
   }
@@ -101,12 +102,11 @@ const st = StyleSheet.create({
   time: { fontSize: 12, color: "var(--ink-3)" as string },
   body: { fontSize: 14, lineHeight: 21, color: "var(--ink-2)" as string },
   step: { flexDirection: "row", alignItems: "center", gap: 8, minHeight: 24 },
+  markBox: { width: 14, alignItems: "center", justifyContent: "center" },
   mark: { width: 10, height: 10, borderRadius: 5, borderWidth: 1.5, borderColor: "var(--ink-4)" as string },
-  markDone: { backgroundColor: "var(--ink-3)" as string, borderColor: "var(--ink-3)" as string },
-  markRun: { borderColor: "var(--accent)" as string },
+  markRun: { borderColor: "var(--accent)" as string, borderTopColor: "transparent" as string, backgroundColor: "var(--accent-wash)" as string },
   stepText: { fontSize: 14, color: "var(--ink)" as string },
   todo: { color: "var(--ink-3)" as string },
-  stop: { fontSize: 14, color: "var(--danger)" as string },
   dots: { fontSize: 16, color: "var(--ink-3)" as string, paddingHorizontal: 8 },
   menu: { gap: 2, paddingVertical: 4 },
   menuItem: { fontSize: 13, color: "var(--ink-2)" as string, paddingVertical: 4, paddingHorizontal: 8 },

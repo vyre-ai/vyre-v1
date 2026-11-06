@@ -35,13 +35,18 @@ export function filesOf(members: readonly CrewMember[]): Array<{ path: string; b
 }
 
 /** What waits on the person besides the questions in the chat: a helper that needs a yes. */
+/** A person's or agent's name for a row: the resolver's answer, and never an id (an unresolved id reads as nothing). */
+export const nameFor = (who: (id: string) => string, id: string): string => { const n = id === "" ? "" : who(id); return n === id || /^(usr|agt|out)_/.test(n) ? "" : n; };
+
 export const waitingOf = (members: readonly CrewMember[]): Array<{ id: string; text: string; who: string }> => members.filter((m) => m.state === "needs_you").map((m) => ({ id: m.id, text: m.step ?? "needs your OK", who: whoOf(m).name }));
 
 const Quiet = ({ children, wait = false }: { children: string; wait?: boolean }): ReactElement => <Text numberOfLines={1} style={[st.rowEnd, wait && st.wait]}>{children}</Text>;
 
 export function OverviewView({ goal, summary, members, context, clock, who = (id) => id, onHelper, onJump }: OverviewProps): ReactElement {
   const files = filesOf(members);
-  const waiting = waitingOf(members);
+  // a helper that waits on you is one open question when no question block in the chat is its own (the same ask is never listed twice)
+  const asked = new Set(summary.questions.map((q) => q.by));
+  const waiting = waitingOf(members).filter((w) => !asked.has(members.find((m) => m.id === w.id)?.agentId ?? ""));
   const questions = summary.questions.length + waiting.length;
   return (
     <ScrollView testID="session-overview" style={st.root} contentContainerStyle={st.body}>
@@ -56,11 +61,11 @@ export function OverviewView({ goal, summary, members, context, clock, who = (id
         {files.map((f) => <Row key={f.path} id={`overview-file-${f.path}`} title={f.path.split("/").pop() ?? f.path} leading={<View style={{ marginRight: 8 }}><Glyph name="file" size={14} /></View>} trailing={<Quiet>{f.by}</Quiet>} inert />)}
       </Section>
       <Section title="Decisions">
-        {summary.decisions.map((d) => <Row key={d.messageId} id={`overview-decision-${d.messageId}`} title={d.sub} trailing={<Quiet>{d.by !== "" ? `${who(d.by)}, ${clock(d.at)}` : clock(d.at)}</Quiet>} onPress={() => onJump(d.messageId)} />)}
+        {summary.decisions.map((d) => <Row key={d.messageId} id={`overview-decision-${d.messageId}`} title={d.sub} trailing={<Quiet>{nameFor(who, d.by) !== "" ? `${nameFor(who, d.by)}, ${clock(d.at)}` : clock(d.at)}</Quiet>} onPress={() => onJump(d.messageId)} />)}
       </Section>
       <Section title="Open questions">
         {questions === 0 ? null : [
-          ...summary.questions.map((q) => <Row key={q.messageId} id={`overview-question-${q.messageId}`} title={q.text} trailing={<Quiet>{who(q.by)}</Quiet>} onPress={() => onJump(q.messageId)} />),
+          ...summary.questions.map((q) => <Row key={q.messageId} id={`overview-question-${q.messageId}`} title={q.text} trailing={<Quiet>{nameFor(who, q.by)}</Quiet>} onPress={() => onJump(q.messageId)} />),
           ...waiting.map((w) => <Row key={w.id} id={`overview-waiting-${w.id}`} title={w.text} trailing={<Quiet>{w.who}</Quiet>} onPress={() => onHelper(w.id)} />),
         ]}
       </Section>

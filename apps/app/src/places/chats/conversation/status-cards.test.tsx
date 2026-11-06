@@ -48,3 +48,11 @@ test("a card without a title draws nothing", async () => {
   const root = await mount(createRoot, <StatusCard id="x" type="result_card" host={{ run: () => undefined }} data={{}} />);
   assert.equal(find(root, "status-card-x"), null);
 });
+
+test("progress marks: a done step has a check, the running one the running mark, a later one the hollow dot; Watch and Stop share the footer", async () => {
+  const root = await mount(createRoot, <StatusCard id="p2" type="progress_card" host={{ run: () => undefined }} data={{ title: "Release", state: "running", steps: [{ label: "Build", state: "done" }, { label: "Publish", state: "running" }, { label: "Announce", state: "todo" }], actions: [{ key: "watch", label: "Watch" }, { key: "stop", label: "Stop" }] }} />);
+  const json = (id: string): string => JSON.stringify(find(root, id));
+  assert.ok(json("card-p2-step-0").includes("svg") || json("card-p2-step-0").includes("path"), "done: a check");
+  assert.ok(!json("card-p2-step-1").includes("path") && !json("card-p2-step-2").includes("path"));
+  assert.ok(find(root, "card-p2-watch") && find(root, "card-p2-stop"));
+});
