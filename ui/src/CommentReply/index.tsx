@@ -117,7 +117,7 @@ export function CommentReply(props: CommentReplyViewProps): ReactElement {
         placeholderTextColor="var(--ink-4)"
         accessibilityLabel={label}
         testID="comment-reply-field"
-        style={[styles.field, FIELD_STYLE, { height }]}
+        style={[styles.field, props.density === "compact" && styles.fieldCompact, FIELD_STYLE, { height }]}
       />
       <Pressable
         accessibilityRole="button"
@@ -127,7 +127,7 @@ export function CommentReply(props: CommentReplyViewProps): ReactElement {
         onPress={send}
         testID="comment-reply-send"
         {...webProps({ title: "Send reply" })}
-        style={[styles.send, !ok && styles.sendOff]}
+        style={[styles.send, props.density === "compact" && styles.sendCompact, !ok && styles.sendOff]}
       >
         <Glyph icon={ICON_UP} native={"↑"} size={16} color="var(--accent-ink)" />
       </Pressable>
@@ -141,5 +141,8 @@ const styles = StyleSheet.create({
   boxCompact: { borderRadius: 12, paddingLeft: 12, paddingVertical: 6 },
   field: { flex: 1, minWidth: 0, color: "var(--ink)" as string, fontSize: 14, lineHeight: 22, paddingVertical: 6, paddingHorizontal: 0, margin: 0, borderWidth: 0 },
   send: { width: 32, height: 32, borderRadius: 16, marginBottom: 1, marginLeft: 6, alignItems: "center", justifyContent: "center", backgroundColor: "var(--accent)" as string },
+  // the 44 px touch field: one line of 22 px sits in the middle of it, and the 32 px send with it
+  fieldCompact: { paddingVertical: 11 },
+  sendCompact: { marginBottom: 6 },
   sendOff: { opacity: 0.35 },
 });

@@ -53,6 +53,7 @@ for (const skin of ["graphite", "paper"]) for (const [size, [w, h]] of Object.en
   console.log(skin, size, "back at end: island", await page.locator("[data-testid=question-island]").count());
   await go("/m/UI221_02", "[data-testid=comment-reply-t1]");
   await page.screenshot({ path: path.join(out, `comment-${skin}-${size}.png`) });
+  const cm = await page.$("[data-testid=comment-reply-t3]"); if (cm) await cm.screenshot({ path: path.join(out, `comment-compact-${skin}-${size}.png`) });
   if (size === "wide") { await go("/m/UI221_01?part=main&name=amicuspro&dex=1&typing=Omar", "[data-testid=typing-row]"); await shot("channel"); }
   await ctx.close();
 }
