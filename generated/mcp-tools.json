@@ -11836,6 +11836,10 @@
             "pattern": "^cmt_[a-z0-9]+$",
             "type": "string"
           },
+          "inMyChrome": {
+            "description": "Work in the asking person's own Chrome (Vyre for Chrome on their computer) instead of the Space browser. Set it ONLY when the person asked for it in this turn (\"in my Chrome\", \"on my computer\", or the Use my Chrome choice); it is refused otherwise. Leave it out for all other browsing",
+            "type": "boolean"
+          },
           "ref": {
             "description": "Element reference from chrome_snapshot",
             "examples": [
@@ -11892,6 +11896,10 @@
             "minLength": 1,
             "type": "string"
           },
+          "inMyChrome": {
+            "description": "Work in the asking person's own Chrome (Vyre for Chrome on their computer) instead of the Space browser. Set it ONLY when the person asked for it in this turn (\"in my Chrome\", \"on my computer\", or the Use my Chrome choice); it is refused otherwise. Leave it out for all other browsing",
+            "type": "boolean"
+          },
           "method": {
             "enum": [
               "GET",
@@ -11936,6 +11944,10 @@
             ],
             "pattern": "^cmt_[a-z0-9]+$",
             "type": "string"
+          },
+          "inMyChrome": {
+            "description": "Work in the asking person's own Chrome (Vyre for Chrome on their computer) instead of the Space browser. Set it ONLY when the person asked for it in this turn (\"in my Chrome\", \"on my computer\", or the Use my Chrome choice); it is refused otherwise. Leave it out for all other browsing",
+            "type": "boolean"
           },
           "steps": {
             "items": {
@@ -11996,6 +12008,10 @@
             "pattern": "^cmt_[a-z0-9]+$",
             "type": "string"
           },
+          "inMyChrome": {
+            "description": "Work in the asking person's own Chrome (Vyre for Chrome on their computer) instead of the Space browser. Set it ONLY when the person asked for it in this turn (\"in my Chrome\", \"on my computer\", or the Use my Chrome choice); it is refused otherwise. Leave it out for all other browsing",
+            "type": "boolean"
+          },
           "ref": {
             "description": "Element reference from chrome_snapshot",
             "examples": [
@@ -12035,6 +12051,10 @@
             ],
             "pattern": "^cmt_[a-z0-9]+$",
             "type": "string"
+          },
+          "inMyChrome": {
+            "description": "Work in the asking person's own Chrome (Vyre for Chrome on their computer) instead of the Space browser. Set it ONLY when the person asked for it in this turn (\"in my Chrome\", \"on my computer\", or the Use my Chrome choice); it is refused otherwise. Leave it out for all other browsing",
+            "type": "boolean"
           },
           "level": {
             "enum": [
@@ -12078,6 +12098,10 @@
           },
           "expression": {
             "type": "string"
+          },
+          "inMyChrome": {
+            "description": "Work in the asking person's own Chrome (Vyre for Chrome on their computer) instead of the Space browser. Set it ONLY when the person asked for it in this turn (\"in my Chrome\", \"on my computer\", or the Use my Chrome choice); it is refused otherwise. Leave it out for all other browsing",
+            "type": "boolean"
           },
           "tabId": {
             "description": "Chrome tab id; omit for the active tab",
@@ -12132,6 +12156,10 @@
             "minItems": 1,
             "type": "array"
           },
+          "inMyChrome": {
+            "description": "Work in the asking person's own Chrome (Vyre for Chrome on their computer) instead of the Space browser. Set it ONLY when the person asked for it in this turn (\"in my Chrome\", \"on my computer\", or the Use my Chrome choice); it is refused otherwise. Leave it out for all other browsing",
+            "type": "boolean"
+          },
           "tabId": {
             "description": "Chrome tab id; omit for the active tab",
             "type": "string"
@@ -12161,6 +12189,10 @@
             ],
             "pattern": "^cmt_[a-z0-9]+$",
             "type": "string"
+          },
+          "inMyChrome": {
+            "description": "Work in the asking person's own Chrome (Vyre for Chrome on their computer) instead of the Space browser. Set it ONLY when the person asked for it in this turn (\"in my Chrome\", \"on my computer\", or the Use my Chrome choice); it is refused otherwise. Leave it out for all other browsing",
+            "type": "boolean"
           },
           "ref": {
             "description": "Element reference from chrome_snapshot",
@@ -12205,6 +12237,10 @@
           "filter": {
             "type": "string"
           },
+          "inMyChrome": {
+            "description": "Work in the asking person's own Chrome (Vyre for Chrome on their computer) instead of the Space browser. Set it ONLY when the person asked for it in this turn (\"in my Chrome\", \"on my computer\", or the Use my Chrome choice); it is refused otherwise. Leave it out for all other browsing",
+            "type": "boolean"
+          },
           "limit": {
             "maximum": 500,
             "minimum": 1,
@@ -12236,6 +12272,10 @@
             ],
             "pattern": "^cmt_[a-z0-9]+$",
             "type": "string"
+          },
+          "inMyChrome": {
+            "description": "Work in the asking person's own Chrome (Vyre for Chrome on their computer) instead of the Space browser. Set it ONLY when the person asked for it in this turn (\"in my Chrome\", \"on my computer\", or the Use my Chrome choice); it is refused otherwise. Leave it out for all other browsing",
+            "type": "boolean"
           },
           "newTab": {
             "type": "boolean"
@@ -12276,6 +12316,10 @@
           "goal": {
             "type": "string"
           },
+          "inMyChrome": {
+            "description": "Work in the asking person's own Chrome (Vyre for Chrome on their computer) instead of the Space browser. Set it ONLY when the person asked for it in this turn (\"in my Chrome\", \"on my computer\", or the Use my Chrome choice); it is refused otherwise. Leave it out for all other browsing",
+            "type": "boolean"
+          },
           "steps": {
             "items": {
               "type": "string"
@@ -12307,6 +12351,10 @@
             ],
             "pattern": "^cmt_[a-z0-9]+$",
             "type": "string"
+          },
+          "inMyChrome": {
+            "description": "Work in the asking person's own Chrome (Vyre for Chrome on their computer) instead of the Space browser. Set it ONLY when the person asked for it in this turn (\"in my Chrome\", \"on my computer\", or the Use my Chrome choice); it is refused otherwise. Leave it out for all other browsing",
+            "type": "boolean"
           }
         },
         "type": "object"
@@ -12334,6 +12382,10 @@
             "type": "string"
           },
           "fullPage": {
+            "type": "boolean"
+          },
+          "inMyChrome": {
+            "description": "Work in the asking person's own Chrome (Vyre for Chrome on their computer) instead of the Space browser. Set it ONLY when the person asked for it in this turn (\"in my Chrome\", \"on my computer\", or the Use my Chrome choice); it is refused otherwise. Leave it out for all other browsing",
             "type": "boolean"
           },
           "ref": {
@@ -12379,6 +12431,10 @@
             ],
             "minLength": 1,
             "type": "string"
+          },
+          "inMyChrome": {
+            "description": "Work in the asking person's own Chrome (Vyre for Chrome on their computer) instead of the Space browser. Set it ONLY when the person asked for it in this turn (\"in my Chrome\", \"on my computer\", or the Use my Chrome choice); it is refused otherwise. Leave it out for all other browsing",
+            "type": "boolean"
           }
         },
         "required": [
@@ -12414,6 +12470,10 @@
             ],
             "type": "string"
           },
+          "inMyChrome": {
+            "description": "Work in the asking person's own Chrome (Vyre for Chrome on their computer) instead of the Space browser. Set it ONLY when the person asked for it in this turn (\"in my Chrome\", \"on my computer\", or the Use my Chrome choice); it is refused otherwise. Leave it out for all other browsing",
+            "type": "boolean"
+          },
           "selector": {
             "type": "string"
           },
@@ -12444,6 +12504,10 @@
             "pattern": "^cmt_[a-z0-9]+$",
             "type": "string"
           },
+          "inMyChrome": {
+            "description": "Work in the asking person's own Chrome (Vyre for Chrome on their computer) instead of the Space browser. Set it ONLY when the person asked for it in this turn (\"in my Chrome\", \"on my computer\", or the Use my Chrome choice); it is refused otherwise. Leave it out for all other browsing",
+            "type": "boolean"
+          },
           "tabId": {
             "description": "Chrome tab id; omit for the active tab",
             "type": "string"
@@ -12471,6 +12535,10 @@
             "pattern": "^cmt_[a-z0-9]+$",
             "type": "string"
           },
+          "inMyChrome": {
+            "description": "Work in the asking person's own Chrome (Vyre for Chrome on their computer) instead of the Space browser. Set it ONLY when the person asked for it in this turn (\"in my Chrome\", \"on my computer\", or the Use my Chrome choice); it is refused otherwise. Leave it out for all other browsing",
+            "type": "boolean"
+          },
           "tabId": {
             "description": "Chrome tab id; omit for the active tab",
             "type": "string"
@@ -12497,6 +12565,10 @@
             ],
             "pattern": "^cmt_[a-z0-9]+$",
             "type": "string"
+          },
+          "inMyChrome": {
+            "description": "Work in the asking person's own Chrome (Vyre for Chrome on their computer) instead of the Space browser. Set it ONLY when the person asked for it in this turn (\"in my Chrome\", \"on my computer\", or the Use my Chrome choice); it is refused otherwise. Leave it out for all other browsing",
+            "type": "boolean"
           }
         },
         "type": "object"
@@ -12521,6 +12593,10 @@
             "pattern": "^cmt_[a-z0-9]+$",
             "type": "string"
           },
+          "inMyChrome": {
+            "description": "Work in the asking person's own Chrome (Vyre for Chrome on their computer) instead of the Space browser. Set it ONLY when the person asked for it in this turn (\"in my Chrome\", \"on my computer\", or the Use my Chrome choice); it is refused otherwise. Leave it out for all other browsing",
+            "type": "boolean"
+          },
           "reason": {
             "type": "string"
           }
@@ -12536,7 +12612,7 @@
       "blocks": [],
       "cap": "computers.chrome.tabs",
       "deferred": false,
-      "description": "List, use, open or close tabs",
+      "description": "List, find, use, open or close tabs. find looks for tabs already open for a site (in the person's own Chrome: their open tabs); use works in one; a tab that was not yours to begin with is never closed",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -12544,6 +12620,7 @@
             "enum": [
               "list",
               "use",
+              "find",
               "new",
               "close"
             ],
@@ -12554,6 +12631,17 @@
               "cmt_a1b2c3"
             ],
             "pattern": "^cmt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "inMyChrome": {
+            "description": "Work in the asking person's own Chrome (Vyre for Chrome on their computer) instead of the Space browser. Set it ONLY when the person asked for it in this turn (\"in my Chrome\", \"on my computer\", or the Use my Chrome choice); it is refused otherwise. Leave it out for all other browsing",
+            "type": "boolean"
+          },
+          "site": {
+            "description": "find only: the site, as an address or a host such as mail.google.com",
+            "examples": [
+              "mail.google.com"
+            ],
             "type": "string"
           },
           "tabId": {
@@ -12588,6 +12676,10 @@
             ],
             "pattern": "^cmt_[a-z0-9]+$",
             "type": "string"
+          },
+          "inMyChrome": {
+            "description": "Work in the asking person's own Chrome (Vyre for Chrome on their computer) instead of the Space browser. Set it ONLY when the person asked for it in this turn (\"in my Chrome\", \"on my computer\", or the Use my Chrome choice); it is refused otherwise. Leave it out for all other browsing",
+            "type": "boolean"
           },
           "ref": {
             "description": "Element reference from chrome_snapshot",
@@ -12631,6 +12723,10 @@
             ],
             "pattern": "^cmt_[a-z0-9]+$",
             "type": "string"
+          },
+          "inMyChrome": {
+            "description": "Work in the asking person's own Chrome (Vyre for Chrome on their computer) instead of the Space browser. Set it ONLY when the person asked for it in this turn (\"in my Chrome\", \"on my computer\", or the Use my Chrome choice); it is refused otherwise. Leave it out for all other browsing",
+            "type": "boolean"
           },
           "tabId": {
             "description": "Chrome tab id; omit for the active tab",
@@ -66143,7 +66239,7 @@
       "blocks": [],
       "cap": "terminal.open",
       "deferred": false,
-      "description": "Open a terminal session on an agent computer or on your own computer (the device daemon)",
+      "description": "Open a terminal tab: a named tmux session in your workspace (an agent that names no host gets one in its own workspace, or its parent's when it is a helper), or on your own computer (the device daemon)",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -66191,6 +66287,7 @@
             "type": "string"
           },
           "name": {
+            "description": "The tab's name, such as build or tests; a helper's tab is named for the helper when left out",
             "type": "string"
           },
           "rows": {
@@ -66200,7 +66297,6 @@
           }
         },
         "required": [
-          "host",
           "idempotencyKey"
         ],
         "type": "object"
@@ -66537,6 +66633,11 @@
             "minLength": 1,
             "type": "string"
           },
+          "session": {
+            "description": "The name of the tab to run it in; made when there is none. Left out: your own tab (a helper's is named for the helper)",
+            "maxLength": 80,
+            "type": "string"
+          },
           "terminalId": {
             "examples": [
               "trm_a1b2c3"
@@ -66587,6 +66688,32 @@
         "type": "object"
       },
       "name": "terminal_status",
+      "planMode": "allowed",
+      "toolset": "terminal",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "terminal.workspace",
+      "deferred": false,
+      "description": "An agent's workspace as the Terminal tab shows it: asleep, running, waiting for room (with the line) or not made yet, where it is, whether you may attach and why not; with no machine to run it, one plain line",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "agentId"
+        ],
+        "type": "object"
+      },
+      "name": "terminal_workspace",
       "planMode": "allowed",
       "toolset": "terminal",
       "v": 1

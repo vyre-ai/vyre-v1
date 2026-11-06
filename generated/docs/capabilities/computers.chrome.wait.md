@@ -40,6 +40,11 @@ type In = {
 type Out = {
   ok: boolean;
   waitedMs: number;
+  downloads?: Array<{
+      name: string;
+      path: string;
+      fileId: string;
+    }>;
 };
 ```
 
@@ -68,6 +73,13 @@ type Out = {
     "value": "example"
   },
   "output": {
+    "downloads": [
+      {
+        "fileId": "fil_a1b2c3",
+        "name": "example",
+        "path": "Downloads/report.pdf"
+      }
+    ],
     "ok": true,
     "waitedMs": 1
   }

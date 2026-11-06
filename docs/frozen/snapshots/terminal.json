@@ -18,7 +18,8 @@
     "terminal.rules.get@1": "b0a3cd986e581864094a70ee908ca5bdca76f69caf903521f7b0d042265caa42",
     "terminal.rules.set@1": "e0a20e7c7c00a8da22a52da7d628949298ae4ef6217a4f4217adb80c7647271f",
     "terminal.run@1": "a254052814f8ae841362d87ba60a407be554453d58c077b7313da47826b48aee",
-    "terminal.status@1": "adb9fbf1c71a0ec5f8dff1b068f81f55e30c3b504fbb6a7dd4e50f132b5cf232"
+    "terminal.status@1": "adb9fbf1c71a0ec5f8dff1b068f81f55e30c3b504fbb6a7dd4e50f132b5cf232",
+    "terminal.workspace@1": "aca7a2cb0d68985222f7df7306f864e9347b782583e2aa7dfcf7c772519c397f"
   },
   "events": {
     "terminal.closed": "67298f1bb59427922e28d07dd58e80abb5799c025e30da8acbf2ffee62698e32",
