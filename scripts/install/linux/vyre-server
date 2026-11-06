@@ -612,6 +612,45 @@ prune_releases() {
   done
 }
 
+# prune_images: after a healthy update, remove the agent computer, workspace and Space browser images that no kept release names, so each update does not leave the last one behind (MLA had 16.6 GB).
+# An image goes only when all of these hold: it is one of ours (pulled by digest from a repository named agent-computer, workspace or space-browser; or carrying the label ai.vyre.image; or an
+# untagged image whose command is the agent computer's agentd), no kept release or compose.env names it, and no container, running or stopped, was made from it. A kept release is one prune_releases
+# left: the current one and the one a rollback goes to. Images built or tagged by hand (no digest) are never touched. Docker itself refuses to remove an image a container uses, a second guard.
+# A failure never fails the update: it prints what was removed, if anything, and returns 0.
+PRUNE_IMAGE_NAMES=${VYRE_PRUNE_IMAGE_NAMES:-'agent-computer|workspace|space-browser'}
+prune_images() {
+  command -v docker >/dev/null 2>&1 || return 0
+  docker info >/dev/null 2>&1 || return 0
+  keep_ids=""
+  for ref in $( { cat "$DIR"/releases/*/images.lock "$DIR/compose.env"; } 2>/dev/null | sed -n 's/^VYRE_[A-Z_]*IMAGE=//p' | sort -u ); do
+    id=$(docker image inspect -f '{{.Id}}' "$ref" 2>/dev/null) && keep_ids="$keep_ids $id"
+  done
+  listing=$(docker images --no-trunc --format '{{.ID}} {{.Repository}}@{{.Digest}}' 2>/dev/null) || return 0
+  removed=0
+  for id in $(printf '%s\n' "$listing" | awk '{print $1}' | sort -u); do
+    case " $keep_ids " in *" $id "*) continue ;; esac
+    [ -z "$(docker ps -a -q --filter "ancestor=$id" 2>/dev/null)" ] || continue
+    refs=$(printf '%s\n' "$listing" | awk -v i="$id" '$1 == i { print $2 }')
+    # an image someone tagged by hand (a name with no digest) is theirs, even when the same image also carries a digest name
+    ! printf '%s\n' "$refs" | grep -Eq '^[^<].*@<none>$' || continue
+    ours=0
+    case "$(docker image inspect -f '{{index .Config.Labels "ai.vyre.image"}}' "$id" 2>/dev/null)" in ""|"<no value>") ;; *) ours=1 ;; esac
+    case "$(docker image inspect -f '{{join .Config.Cmd " "}}' "$id" 2>/dev/null)" in *"/opt/agentd/main.ts"*) [ "$refs" != "${refs#*<none>@<none>}" ] && ours=1 ;; esac
+    for r in $refs; do
+      case "$r" in *"<none>"*) continue ;; esac
+      printf '%s\n' "$r" | grep -Eq "(^|/)($PRUNE_IMAGE_NAMES)@sha256:" && ours=1
+    done
+    [ "$ours" = 1 ] || continue
+    gone=1; did=0
+    for r in $refs; do
+      case "$r" in *"<none>@<none>"*) if docker rmi "$id" >/dev/null 2>&1; then did=1; else gone=0; fi ;; *"<none>"*) ;; *@sha256:*) if docker rmi "$r" >/dev/null 2>&1; then did=1; else gone=0; fi ;; esac
+    done
+    if [ "$gone" = 1 ] && [ "$did" = 1 ]; then removed=$((removed + 1)); fi
+  done
+  [ "$removed" = 0 ] || say "  Removed $removed old agent computer, workspace or browser $( [ "$removed" = 1 ] && printf image || printf images )."
+  return 0
+}
+
 lock_update_operation() {
   operation_lock_path="$DIR/state/update.lock"
   mkdir -p "$DIR/state"
@@ -695,6 +734,7 @@ cmd_update() {
     rm -f "$DIR/state/update.pending"
     record_update "$from" "$REL_VERSION" ok "$secs" ""
     prune_releases
+    prune_images || true
     say "Updated to $REL_VERSION in $secs s."
     return 0
   fi

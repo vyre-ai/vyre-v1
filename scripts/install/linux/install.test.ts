@@ -822,3 +822,93 @@ test("restore puts the old data back when the server is not healthy on the resto
     assert.deepEqual(fs.readdirSync(path.join(dir, "data")).sort(), ["caddy", "space"]);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
+
+/** A docker that answers from files: images.txt ("<id> <repo>@<digest>"), used (ids a container was made from), labels/<id>, cmd/<id>, busy (ids rmi refuses); every rmi is logged. */
+function fakeDocker(dir: string, o: { images: string[]; used?: string[]; labels?: Record<string, string>; cmds?: Record<string, string>; busy?: string[]; down?: boolean }): { bin: string; removed: () => string[] } {
+  const bin = path.join(dir, "bin");
+  fs.mkdirSync(path.join(dir, "fx/labels"), { recursive: true });
+  fs.mkdirSync(path.join(dir, "fx/cmd"), { recursive: true });
+  fs.mkdirSync(bin, { recursive: true });
+  fs.writeFileSync(path.join(dir, "fx/images.txt"), o.images.join("\n") + "\n");
+  fs.writeFileSync(path.join(dir, "fx/used"), (o.used ?? []).join("\n") + "\n");
+  fs.writeFileSync(path.join(dir, "fx/busy"), (o.busy ?? []).join("\n") + "\n");
+  for (const [k, v] of Object.entries(o.labels ?? {})) fs.writeFileSync(path.join(dir, "fx/labels", k.replace(":", "_")), v);
+  for (const [k, v] of Object.entries(o.cmds ?? {})) fs.writeFileSync(path.join(dir, "fx/cmd", k.replace(":", "_")), v);
+  fs.writeFileSync(path.join(bin, "docker"), `#!/bin/sh
+FX="${dir}/fx"
+idof() { awk -v x="$1" '$1 == x || $2 == x { print $1; exit }' "$FX/images.txt"; }
+case "$1" in
+  info) ${o.down ? "exit 1" : "exit 0"} ;;
+  images) cat "$FX/images.txt" ;;
+  ps) id=\${*##*ancestor=}; grep -qx "$id" "$FX/used" && echo c1; exit 0 ;;
+  image) shift; shift; shift; fmt="$1"; id=$(idof "$2") || exit 1; [ -n "$id" ] || exit 1
+    case "$fmt" in
+      "{{.Id}}") echo "$id" ;;
+      *Labels*) cat "$FX/labels/$(echo "$id" | tr : _)" 2>/dev/null || echo "<no value>" ;;
+      *Cmd*) cat "$FX/cmd/$(echo "$id" | tr : _)" 2>/dev/null || echo "" ;;
+    esac ;;
+  rmi) id=$(idof "$2"); grep -qx "$id" "$FX/busy" && exit 1; echo "$2" >>"$FX/rmi.log"; exit 0 ;;
+esac
+`, { mode: 0o755 });
+  return { bin, removed: () => (fs.existsSync(path.join(dir, "fx/rmi.log")) ? read(path.join(dir, "fx/rmi.log")).trim().split("\n") : []) };
+}
+
+test("prune_images removes agent computer, workspace and browser images no kept release names, and nothing else", () => {
+  const dir = tmp();
+  try {
+    const D = (n: string): string => `sha256:${n.padEnd(64, "0")}`;
+    fs.mkdirSync(path.join(dir, "releases/1.1.0"), { recursive: true });
+    fs.mkdirSync(path.join(dir, "releases/1.0.9"), { recursive: true });
+    fs.writeFileSync(path.join(dir, "releases/1.1.0/images.lock"), `VYRE_IMAGE=ghcr.io/vyre-ai/vyre@${D("5e")}\nVYRE_AGENT_IMAGE=ghcr.io/vyre-ai/agent-computer@${D("c1")}\nVYRE_WORKSPACE_IMAGE=ghcr.io/vyre-ai/workspace@${D("w1")}\n`);
+    fs.writeFileSync(path.join(dir, "releases/1.0.9/images.lock"), `VYRE_IMAGE=ghcr.io/vyre-ai/vyre@${D("5d")}\nVYRE_AGENT_IMAGE=ghcr.io/vyre-ai/agent-computer@${D("c0")}\n`);
+    fs.writeFileSync(path.join(dir, "compose.env"), `VYRE_AGENT_COMPUTER_IMAGE=ghcr.io/vyre-ai/agent-computer@${D("c1")}\n`);
+    const images = [
+      [D("c1"), `ghcr.io/vyre-ai/agent-computer@${D("c1")}`],          // this release: kept
+      [D("c0"), `ghcr.io/vyre-ai/agent-computer@${D("c0")}`],          // the release a rollback goes to: kept
+      [D("w1"), `ghcr.io/vyre-ai/workspace@${D("w1")}`],               // this release's workspace: kept
+      [D("a1"), `ghcr.io/vyre-ai/agent-computer@${D("a1")}`],          // old: removed
+      [D("a2"), `ghcr.io/vyre-ai/workspace@${D("a2")}`],               // old workspace: removed
+      [D("a3"), `ghcr.io/vyre-ai/space-browser@${D("a3")}`],           // old browser: removed
+      [D("u1"), `ghcr.io/vyre-ai/agent-computer@${D("u1")}`],          // a stopped computer was made from it: kept
+      [D("h1"), "vyre/agent-computer@<none>"],                          // built by hand: kept
+      [D("h2"), `ghcr.io/vyre-ai/agent-computer@${D("h2")}`],          // old, but the same image is also tagged by hand: kept
+      [D("h2"), "vyre/agent-computer@<none>"],
+      [D("d1"), "<none>@<none>"],                                       // untagged, agentd inside: removed
+      [D("d2"), "<none>@<none>"],                                       // untagged, something else: kept
+      [D("l1"), `ghcr.io/other/thing@${D("l1")}`],                      // carries the Vyre image label: removed
+      [D("s0"), `ghcr.io/vyre-ai/vyre@${D("s0")}`],                     // an old server image: not ours to remove
+      [D("b1"), `ghcr.io/vyre-ai/agent-computer@${D("b1")}`],          // old, but docker refuses to remove it: not counted
+    ].map(([id, ref]) => `${id} ${ref}`);
+    const f = fakeDocker(dir, { images, used: [D("u1")], labels: { [D("l1")]: "space-browser" }, cmds: { [D("d1")]: "node /opt/agentd/main.ts", [D("d2")]: "postgres" }, busy: [D("b1")] });
+    const out = sh(SERVER, "prune_images", { VYRE_DIR: dir, PATH: `${f.bin}:${process.env.PATH ?? ""}` });
+    assert.equal(out.status, 0, out.stderr);
+    assert.deepEqual(f.removed().sort(), [`ghcr.io/vyre-ai/agent-computer@${D("a1")}`, `ghcr.io/vyre-ai/space-browser@${D("a3")}`, `ghcr.io/vyre-ai/workspace@${D("a2")}`, `ghcr.io/other/thing@${D("l1")}`, D("d1")].sort());
+    assert.match(out.stdout, /Removed 5 old agent computer, workspace or browser images\./);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("prune_images does nothing, and says nothing, when Docker is not answering, and a second run has nothing left to remove", () => {
+  const dir = tmp();
+  try {
+    const f = fakeDocker(dir, { images: [`sha256:${"a".repeat(64)} ghcr.io/vyre-ai/agent-computer@sha256:${"a".repeat(64)}`], down: true });
+    const out = sh(SERVER, "prune_images", { VYRE_DIR: dir, PATH: `${f.bin}:${process.env.PATH ?? ""}` });
+    assert.equal(out.status, 0, out.stderr);
+    assert.equal(out.stdout, "");
+    assert.deepEqual(f.removed(), []);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("an update prunes images only after it is healthy: never before the switch, never on a rollback", () => {
+  for (const healthy of [true, false]) {
+    const dir = tmp();
+    try {
+      for (const version of ["1.0.0", "1.1.0"]) { fs.mkdirSync(path.join(dir, "releases", version), { recursive: true }); fs.writeFileSync(path.join(dir, "releases", version, "images.lock"), "VYRE_IMAGE=fixture@sha256:" + "a".repeat(64) + "\n"); }
+      fs.symlinkSync("releases/1.0.0", path.join(dir, "current")); fs.writeFileSync(path.join(dir, "compose.env"), "VYRE_IMAGE=fixture@sha256:" + "a".repeat(64) + "\n"); fs.writeFileSync(path.join(dir, "vyre.env"), "");
+      const body = 'cur_version(){ printf 1.0.0; }; fetch_release(){ REL_VERSION=1.1.0; }; unpack_release(){ :; }; docker(){ return 0; }; backup_data(){ BACKUP_FILE=fixture; }; set_current(){ :; }; dc(){ return ' + (healthy ? "0" : "1") + '; }; wait_healthy(){ return 0; }; prune_releases(){ echo releases >>"$VYRE_FIXTURE_DIR/order"; }; prune_images(){ echo images >>"$VYRE_FIXTURE_DIR/order"; }; cmd_update --yes --version 1.1.0 --sha256 ' + "a".repeat(64);
+      const out = sh(SERVER, body, { VYRE_DIR: dir, VYRE_FIXTURE_DIR: dir, TMPDIR: dir });
+      assert.equal(out.status, healthy ? 0 : 4, out.stderr);
+      const order = fs.existsSync(path.join(dir, "order")) ? read(path.join(dir, "order")).trim().split("\n") : [];
+      assert.deepEqual(order, healthy ? ["releases", "images"] : [], "images are pruned after the old releases are, and only on a healthy update");
+    } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+  }
+});
