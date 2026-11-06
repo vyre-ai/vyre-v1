@@ -22,7 +22,7 @@ import { each } from "./each.ts";
 import { Icon } from "./icons.tsx";
 import { calendarMenuEntries, dayMenuEntries, eventMenuEntries, lengthMenuEntries, peopleMenuEntries } from "./menus.ts";
 import {
-  DAY, HH, HOUR, MONTH_CAP, allDayLane, allDayLocal, allDayToWire, availabilityLine, atSlot, blockOf, calReduce, clickCreate, clock, conflicts, dateOf, dayText, directoryOf, dragCreate, dragMove, dragResize, eventLine, eventsOn, freeLine, initialCal, isBand, isPast, lanesOf, monthCell, lengthText, menuFacts,
+  DAY, HH, HOUR, MONTH_CAP, allDayLane, allDayLocal, openHour, allDayToWire, availabilityLine, atSlot, blockOf, calReduce, clickCreate, clock, conflicts, dateOf, dayText, directoryOf, dragCreate, dragMove, dragResize, eventLine, eventsOn, freeLine, initialCal, isBand, isPast, lanesOf, monthCell, lengthText, menuFacts,
   minutes, monthOf, nameMap, newDraft, offsetToY, range, rangeShort, setLength, slotText, startOfDay, stripesOf, viewDays, viewRange, viewTitle, visibleCalendarIds, weekdayShort, whoLabel,
 } from "./model.ts";
 import type { Busy, CalendarRow, Draft, EventRow, Mode, Slot, Span } from "./model.ts";
@@ -193,13 +193,12 @@ function Grid({ p }: { p: CalendarProps }): ReactElement {
     void findTime(data, shaded, length, Math.max(clockNow.now, today), today + 14 * DAY, 1).then((r) => { if (live) setFirst(r[0]); }).catch(() => undefined);
     return () => { live = false; };
   }, [shaded.join(), length, draftEnd, today]);
-  // the grid opens at the working day, or just above the current time when today is in view, but never below the earliest timed event shown (with half an hour of margin)
+  // the grid opens one hour above the current time when today is in view (an early event does not pull it up to midnight); another week opens at the working day, but never below its earliest timed event (half an hour of margin)
   useEffect(() => {
     if (cal.mode === "month") { scroll.current?.scrollTo?.({ y: 0, animated: false }); return; }
     const vd = viewDays(cal.mode, cal.day, off);
-    const base = vd.includes(today) ? Math.max(0, (clockNow.now - today) / HOUR - 2.5) : 7.5;
     const firsts = events.filter((e) => !e.allDay && !isBand(e) && e.status !== "canceled").flatMap((e) => vd.filter((d) => e.startsAt >= d && e.startsAt < d + DAY).map((d) => (e.startsAt - d) / HOUR));
-    scroll.current?.scrollTo?.({ y: Math.max(0, Math.min(base, (firsts.length ? Math.min(...firsts) : 24) - 0.5)) * HH, animated: false });
+    scroll.current?.scrollTo?.({ y: openHour(vd.includes(today), (clockNow.now - today) / HOUR, firsts) * HH, animated: false });
   }, [cal.mode, evq.status]); // eslint-disable-line react-hooks/exhaustive-deps -- on open, when the mode changes and when the events arrive
 
   const calId = cal.draft?.calendarId ?? calendars.find((c) => !c.personal)?.id ?? calendars[0]?.id ?? "";

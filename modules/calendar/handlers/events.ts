@@ -124,13 +124,35 @@ function checkId(ctx: CalCtx, prefix: string, value: unknown, what: string): str
 
 // ---- calendars
 
+/**
+ * The calendars a person sees by default: their own, and the ones somebody explicitly shared with them (a direct grant to them, or a group or folder grant). Admin access to every
+ * member's calendar (the role) is for opening another person's calendar on purpose, by id; it is never mixed into their own list or week.
+ */
+async function visibleCalendars(ctx: CalCtx): Promise<Row[]> {
+  const me = ctx.actingFor ?? ctx.principal.id;
+  const out: Row[] = [];
+  for (const r of rowsOf(ctx.db.all(`SELECT * FROM calendar_list WHERE deleted_at IS NULL`))) {
+    if (ownerOnly(ctx, r)) { out.push(r); continue; }
+    if (!canView(ctx, r)) continue;
+    try {
+      const res = obj(await ctx.call("access.shares_of", { resource: { type: "calendar", id: str(r, "id") } }));
+      const explicit = list(res["shares"]).map(obj).some((sh) => {
+        const through = text(sh["through"]);
+        return (through === "direct" && text(obj(obj(sh["grant"])["subject"])["id"]) === me) || through === "group" || through === "folder";
+      });
+      if (explicit) out.push(r);
+    } catch { /* shares are read when the access module answers; a calendar whose shares cannot be read stays out of the default view */ }
+  }
+  return out;
+}
+
 export async function listCalendars(ctx: CalCtx, input: { scope?: "mine" | "shared" | "all" }): Promise<{ calendars: CalendarOut[] }> {
   ensure(ctx);
   const scope = input.scope ?? "all";
   if (scope !== "mine" && scope !== "shared" && scope !== "all") bad(ctx, "The scope is mine, shared or all.");
-  const rows = rowsOf(ctx.db.all(`SELECT * FROM calendar_list WHERE deleted_at IS NULL`));
+  const rows = await visibleCalendars(ctx);
   const out = rows
-    .filter((r) => (ownerOnly(ctx, r) ? scope !== "shared" : scope !== "mine" && canView(ctx, r)))
+    .filter((r) => (ownerOnly(ctx, r) ? scope !== "shared" : scope !== "mine"))
     .sort((a, b) => Number(ownerOnly(ctx, b)) - Number(ownerOnly(ctx, a)) || str(a, "title").localeCompare(str(b, "title")) || str(a, "id").localeCompare(str(b, "id")));
   return { calendars: out.map(toCalendar) };
 }
@@ -194,7 +216,7 @@ export async function listEvents(
     if (!Array.isArray(input.calendarIds)) bad(ctx, "Calendars are a list of calendar ids.");
     calendars = [...new Set(input.calendarIds)].map((id) => calendarRow(ctx, id, "view"));
   } else {
-    calendars = rowsOf(ctx.db.all(`SELECT * FROM calendar_list WHERE deleted_at IS NULL`)).filter((r) => canView(ctx, r));
+    calendars = await visibleCalendars(ctx);   // the viewer's own and the ones shared with them, not every calendar an admin may open
   }
   const q = input.query?.trim().toLowerCase();
   const found: Row[] = [];
@@ -204,6 +226,19 @@ export async function listEvents(
       found.push(e);
     }
   }
+  // One meeting in several calendars (each attendee's own copy carries the provider's same event id) is listed once: the copy on the caller's own calendar, else the first viewable one.
+  const own = new Set(calendars.filter((c) => ownerOnly(ctx, c)).map((c) => str(c, "id")));
+  const best = new Map<string, Row>();
+  const keyOf = (e: Row): string | null => { const pid = strOrNull(e, "providerId"); return pid === null ? null : `${pid}|${num(e, "startsAt")}`; };
+  for (const e of found) {
+    const k = keyOf(e);
+    if (k === null) continue;
+    const have = best.get(k);
+    if (!have || (!own.has(str(have, "calendarId")) && own.has(str(e, "calendarId")))) best.set(k, e);
+  }
+  const listed = found.filter((e) => { const k = keyOf(e); return k === null || best.get(k) === e; });
+  found.length = 0;
+  found.push(...listed);
   found.sort((a, b) => num(a, "startsAt") - num(b, "startsAt") || num(a, "endsAt") - num(b, "endsAt") || str(a, "id").localeCompare(str(b, "id")));
   const page = found.slice(offset, offset + limit).map(toEvent);
   const end = offset + page.length;

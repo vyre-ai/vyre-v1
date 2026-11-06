@@ -488,3 +488,9 @@ export function allDayRows(events: readonly EventRow[], days: readonly number[])
 export function whoLabel(who: readonly string[], names: ReadonlyMap<string, string>): string {
   return who.map((w) => names.get(w) ?? w).join(", ");
 }
+
+/** The hour the grid opens at: one hour above the current time when today is in the view (an early event never pulls it up to midnight); another week at 7:30, but not below its earliest timed event (half an hour of margin). */
+export function openHour(todayInView: boolean, nowHour: number, firstHours: readonly number[]): number {
+  if (todayInView) return Math.max(0, nowHour - 1);
+  return Math.max(0, Math.min(7.5, (firstHours.length ? Math.min(...firstHours) : 24) - 0.5));
+}

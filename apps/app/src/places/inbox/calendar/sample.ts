@@ -99,6 +99,10 @@ function harborEvents(): EventRow[] {
   ];
 }
 
+function sampleOffset(): number {
+  try { const v = Number(new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? "").get("tzoff")); return Number.isFinite(v) ? v : 0; } catch { return 0; }
+}
+
 export interface CalendarSample extends SampleInbox {
   /** Every calendar write, in order. */
   writes: { cap: string; input: unknown }[];
@@ -236,7 +240,8 @@ export function createCalendarSample(space: SampleSpace = northwind, o: { online
   };
   const data: InboxData = {
     ...base.data,
-    clock: () => ({ now: SAMPLE_NOW + SHIFT, offsetMin: 0 }),
+    // `?tzoff=<minutes east of UTC>` shows the sample to a viewer in another zone (the all-day dates are kept as midnight UTC, as the server keeps them)
+    clock: () => ({ now: SAMPLE_NOW + SHIFT, offsetMin: sampleOffset() }),
     async call(cap, input) {
       const r = reads[cap];
       if (r) return r(input as never);

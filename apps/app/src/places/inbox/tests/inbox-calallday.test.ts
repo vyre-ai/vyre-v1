@@ -1,7 +1,7 @@
 // All-day events from a provider are dates (midnight UTC to midnight UTC); the grid's days start at midnight in the viewer's zone. And the event pane says "not there any more" only for a read that says so.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { DAY, MIN, allDayLane, allDayLocal, allDayToWire, viewDays } from "../calendar/model.ts";
+import { DAY, MIN, allDayLane, allDayLocal, allDayToWire, openHour, viewDays } from "../calendar/model.ts";
 import type { EventRow } from "../calendar/model.ts";
 import { goneError, whenLine } from "../calendar/eventpane/model.ts";
 
@@ -38,4 +38,11 @@ test("only a not-found answer means the event is gone; a busy server or a droppe
   assert.equal(goneError(new Error("timeout")), false);
   assert.equal(goneError({ code: "server.unavailable" }), false);
   assert.equal(goneError(null), false);
+});
+
+test("the week opens one hour above the current time, whatever early event is in it", () => {
+  assert.equal(openHour(true, 14.5, [0]), 13.5, "an event at midnight does not pull it up");
+  assert.equal(openHour(true, 0.5, []), 0);
+  assert.equal(openHour(false, 14.5, []), 7.5, "another week opens at the working day");
+  assert.equal(openHour(false, 14.5, [6]), 5.5, "but not below its first event");
 });
