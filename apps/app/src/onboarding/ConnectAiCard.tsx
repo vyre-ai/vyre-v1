@@ -16,6 +16,7 @@ import type { AiHome } from "../ai-signin/own-ai.ts";
 import { accountLine, afterRemoval } from "./connect-change.ts";
 import { refreshPreview } from "./preview.ts";
 import type { AccountRow } from "./connect-change.ts";
+import { RADIUS } from "../../../../ui/src/tokens/radius.ts";
 
 export function ConnectAiCard({ call, connected, onConnected, onDisconnected, initialFlow, home = "here", local = false, mac = onMacDevice() }: { call: CapCall; connected?: boolean; onConnected(providerId: string): void; /** The last connected account was disconnected here: the step is open again. */ onDisconnected?(): void; /** Opens with this sign-in showing (screenshots and tests). */ initialFlow?: SignInFlow & { provider: string }; /** where the person's own key can be kept from here, for the words of a refusal (ai-signin/own-ai.ts) */ home?: AiHome; /** A Personal Space: offer the Claude Code or Codex sign-in already on this computer first (owner decision D2). */ local?: boolean; /** On a Mac the Claude button says the Keychain will ask once. */ mac?: boolean }): ReactElement {
   const attempt = useRef(globalThis.crypto?.randomUUID?.() ?? String(Date.now()));
@@ -169,8 +170,8 @@ const s = StyleSheet.create({
   col: { gap: 10 },
   local: { gap: 4 },
   row: { flexDirection: "row", flexWrap: "wrap", gap: 8, alignItems: "center" },
-  tile: { minHeight: 40, paddingHorizontal: 16, borderRadius: 10, borderWidth: 1, borderColor: "var(--line-2)" as string, alignItems: "center", justifyContent: "center", backgroundColor: "var(--win)" as string },
-  signin: { minHeight: 44, paddingHorizontal: 18, borderRadius: 10, flexDirection: "row", gap: 10, borderWidth: 1, borderColor: "var(--line-2)" as string, alignItems: "center", justifyContent: "flex-start", backgroundColor: "var(--win)" as string },
+  tile: { minHeight: 40, paddingHorizontal: 16, borderRadius: RADIUS, borderWidth: 1, borderColor: "var(--line-2)" as string, alignItems: "center", justifyContent: "center", backgroundColor: "var(--win)" as string },
+  signin: { minHeight: 44, paddingHorizontal: 18, borderRadius: RADIUS, flexDirection: "row", gap: 10, borderWidth: 1, borderColor: "var(--line-2)" as string, alignItems: "center", justifyContent: "flex-start", backgroundColor: "var(--win)" as string },
   tileOn: { borderColor: "var(--accent)" as string, backgroundColor: "var(--accent-wash)" as string },
   tileText: { fontSize: 14, fontWeight: "500", color: "var(--ink)" as string },
   input: CARD.input,

@@ -16,6 +16,9 @@ import { AccessRequestCard } from "../../../apps/app/src/places/chats/conversati
 import { TerminalCard } from "../../../apps/app/src/places/chats/conversation/TerminalCard.tsx";
 import { MountCard } from "../../../apps/app/src/places/chats/conversation/mountcard.tsx";
 import { NoteOfferCard } from "../../../apps/app/src/places/chats/conversation/noteoffer.tsx";
+import { GoalCard } from "../../../apps/app/src/places/chats/goals/GoalCard.tsx";
+import { InstallCard } from "../../../apps/app/src/places/chats/install/InstallCard.tsx";
+import { QuoteCard, WebPageCard } from "../../../apps/app/src/places/chats/conversation/webpage.tsx";
 import { RedactRequestCard } from "../../../apps/app/src/places/chats/conversation/redactrequest.tsx";
 
 export const title = "Chat cards";
@@ -58,6 +61,13 @@ const Mount = (): ReactNode => <MountCard id="m1" prompt="Where are the client f
 const Note = (): ReactNode => <NoteOfferCard id="n1" mine data={{ blockId: "b1", title: "Intake call checklist", body: "Ask for the date of loss, the adjuster's name and whether they have seen a doctor.", state: "offered" }} chat={gdata("x")} />;
 const Redact = (): ReactNode => <RedactRequestCard block={{ requestId: "rrq_1", fileId: "fil_9", name: "Medical records.pdf" }} agent="Intake" data={gdata("x")} />;
 
+const NOW = Date.UTC(2026, 10, 6, 9, 0) + 5 * 86_400_000;
+const goalCall = async (): Promise<unknown> => ({ goal: { status: "draft", deadline: NOW, progress: { tasksDone: 0, tasks: 0 } } });
+const Goal = (): ReactNode => <GoalCard block={{ goalId: "gol_1", threadId: "thr_c", kind: "draft", title: "300 registrations for Lab 8", line: "Luma registrations reach 300", status: "draft", target: 300, deadline: NOW, plan: ["Remind Lab 7 (31% after one reminder)"], permissions: ["Send email from the Lab template"] } as never} call={goalCall} changes={undefined} me="usr_irfad" />;
+const PLAN = { planId: "ins_1", state: "planned", kind: "skill", name: "pdf-tools", summary: "Reads, splits and fills in PDF forms for your agents.", repo: "acme/pdf-tools", commit: "a41f9c2aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", url: "https://github.com/acme/pdf-tools", needs: { domains: ["api.example.com"], vaultKeys: [], files: [] }, skills: ["pdf-tools"], problems: [], who: [{ key: "me", label: "Just you", allowed: true }, { key: "agent", label: "This agent", allowed: true }] };
+const Install = (): ReactNode => <InstallCard id="m1" data={{ planId: "ins_1", name: "pdf-tools", kind: "skill" }} chat={{ call: (async (cap: string) => (cap === "install.get" ? { plan: PLAN } : { items: [] })) as never, openSkills: never }} />;
+const Web = (): ReactNode => <><WebPageCard id="w1" data={{ url: "https://vegalaw.com/intake", title: "Intake form, Vega Family Law" }} /><QuoteCard id="q1" data={{ text: "She said her firm loses every lead that comes in after 5 PM, and she wants answers the same night.", url: "https://vegalaw.com/intake" }} /></>;
+
 export default function Mount_(): ReactNode {
   const [part, setPart] = useState<string | null>(null);
   useEffect(() => setPart(new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? "").get("part") ?? "all"), []);
@@ -65,9 +75,9 @@ export default function Mount_(): ReactNode {
   if (part === null) return <View style={{ flex: 1, backgroundColor: "var(--win)" as string }} />;
   const one: Record<string, ReactNode> = {
     err: <Err />, "err-acct": <Err acct />, approval: <Approval />, "approval-deny": <Approval />, "approval-done": <Approval state="done" />,
-    held: <Held />, "held-edit": <Held />, "held-deny": <Held />, key: <Key />, "key-deny": <Key />, access: <Access />, terminal: <Terminal />, mount: <Mount />, noteoffer: <Note />, redact: <Redact />,
+    held: <Held />, "held-edit": <Held />, "held-deny": <Held />, key: <Key />, "key-deny": <Key />, access: <Access />, terminal: <Terminal />, mount: <Mount />, noteoffer: <Note />, redact: <Redact />, goal: <Goal />, install: <Install />, web: <Web />,
   };
-  const body = part === "all" ? <>{[<Err key="e" />, <Approval key="a" />, <Held key="h" />, <Key key="k" />, <Access key="x" />, <Terminal key="t" />, <Mount key="m" />, <Note key="n" />, <Redact key="r" />]}</> : one[part] ?? null;
+  const body = part === "all" ? <>{[<Err key="e" />, <Approval key="a" />, <Held key="h" />, <Key key="k" />, <Access key="x" />, <Terminal key="t" />, <Mount key="m" />, <Note key="n" />, <Redact key="r" />, <Goal key="g" />, <Install key="i" />, <Web key="w" />]}</> : one[part] ?? null;
   return (
     <View style={{ height, backgroundColor: "var(--win)" as string }}>
       <ScrollView contentContainerStyle={{ alignItems: "center", paddingTop: 16, paddingBottom: 40 }}>

@@ -12,6 +12,7 @@ import { ToolTile } from "./ProviderLogo.tsx";
 import { Glyph } from "./StepGlyph.tsx";
 import { POPULAR_ROLES, POPULAR_TOOLS, ROLES, TOOLS, suggest } from "./work-kinds.ts";
 import { CARD } from "./card-style.ts";
+import { RADIUS } from "../../../../ui/src/tokens/radius.ts";
 
 const STYLES = ["Short and to the point", "Full detail"] as const;
 const ASK = ["What do you do most?", "Which tools do you use?", "How should updates read?"] as const;
@@ -140,12 +141,12 @@ const s = StyleSheet.create({
   dot: { width: 22, height: 4, borderRadius: 2, backgroundColor: "var(--line-2)" as string },
   dotOn: { backgroundColor: "var(--accent)" as string },
   ask: { fontSize: 17, lineHeight: 24, fontWeight: "600", color: "var(--ink)" as string },
-  field: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 6, padding: 8, minHeight: 46, borderRadius: 10, borderWidth: 1, borderColor: "var(--field-line)" as string, backgroundColor: "var(--field)" as string },
+  field: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 6, padding: 8, minHeight: 46, borderRadius: RADIUS, borderWidth: 1, borderColor: "var(--field-line)" as string, backgroundColor: "var(--field)" as string },
   input: CARD.input,
-  chip: { flexDirection: "row", alignItems: "center", gap: 6, height: 28, paddingLeft: 8, paddingRight: 4, borderRadius: 8, backgroundColor: "var(--accent-wash)" as string },
+  chip: { flexDirection: "row", alignItems: "center", gap: 6, height: 28, paddingLeft: 8, paddingRight: 4, borderRadius: RADIUS, backgroundColor: "var(--accent-wash)" as string },
   chipText: { fontSize: 13, fontWeight: "500", color: "var(--ink)" as string },
   chipX: { width: 20, height: 20, borderRadius: 6, alignItems: "center", justifyContent: "center" },
-  sug: { marginTop: -4, borderRadius: 10, borderWidth: 1, borderColor: "var(--line)" as string, overflow: "hidden" },
+  sug: { marginTop: -4, borderRadius: RADIUS, borderWidth: 1, borderColor: "var(--line)" as string, overflow: "hidden" },
   row: { flexDirection: "row", alignItems: "center", gap: 10, minHeight: 38, paddingHorizontal: 12 },
   rowTall: { minHeight: 46 },
   rowOn: { backgroundColor: "var(--sel)" as string },

@@ -1,4 +1,6 @@
 // The pages of You that hold your own work: Profile (with Copy from another Space), Notifications, AI (models, how agents work with you, usage, memory) and Connected (Email and calendar is MailPage.tsx).
+import { CARD_FILL } from "../../../../../ui/src/Card/index.tsx";
+import { RADIUS } from "../../../../../ui/src/tokens/radius.ts";
 import { useConnectionsSummary } from "../vault/connections/summary.ts";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
@@ -154,7 +156,7 @@ export const toggleChannel = (cs: readonly Channel[], c: Channel): Channel[] => 
 
 function Chip({ label, on, onPress, testID }: { label: string; on: boolean; onPress(): void; testID: string }): ReactElement {
   return (
-    <Pressable accessibilityRole="button" aria-pressed={on} accessibilityLabel={label} testID={testID} onPress={onPress} style={[{ height: 28, paddingHorizontal: 10, borderRadius: 14, justifyContent: "center", borderWidth: 1, borderColor: (on ? "var(--accent)" : "var(--line)") as string, backgroundColor: (on ? "var(--accent-wash)" : "transparent") as string }, pointer]}>
+    <Pressable accessibilityRole="button" aria-pressed={on} accessibilityLabel={label} testID={testID} onPress={onPress} style={[{ height: 28, paddingHorizontal: 12, borderRadius: RADIUS, justifyContent: "center", borderWidth: 1, borderColor: (on ? "var(--accent)" : "var(--line)") as string, backgroundColor: (on ? "var(--accent-wash)" : "transparent") as string }, pointer]}>
       <Text style={{ fontSize: 12.5, color: (on ? "var(--ink)" : "var(--ink-3)") as string }}>{label}</Text>
     </Pressable>
   );
@@ -441,7 +443,7 @@ function ConnectionsLink(): ReactElement {
 }
 
 const s = StyleSheet.create({
-  card: { flexDirection: "row", alignItems: "center", gap: 16, padding: 16, borderRadius: 12, borderWidth: 1, borderColor: "var(--line)" as string, backgroundColor: "var(--raised)" as string },
+  card: { flexDirection: "row", alignItems: "center", gap: 16, padding: 16, borderRadius: RADIUS, backgroundColor: CARD_FILL },
   photo: { width: 72, height: 72, borderRadius: 36, overflow: "hidden" },
   who: { fontSize: 17, fontWeight: "600", color: "var(--ink)" as string },
   line: { fontSize: 12.5, color: "var(--ink-3)" as string, marginTop: 2 },

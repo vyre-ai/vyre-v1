@@ -17,6 +17,7 @@ import type { ImportTally } from "./sessions-model.ts";
 import { CARD } from "./card-style.ts";
 import { dropEmpty } from "./sessions-filter.ts";
 import { draftGet, draftSet } from "./drafts.ts";
+import { RADIUS } from "../../../../ui/src/tokens/radius.ts";
 
 const label = (src: SessionSource): string => `${src.provider === "codex" ? "Codex" : "Claude Code"}`;
 
@@ -168,7 +169,7 @@ const s = StyleSheet.create({
   bar: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 2 },
   allRow: { flexDirection: "row", alignItems: "center", height: 28 },
   allText: { fontSize: 13, fontWeight: "500", color: "var(--ink)" as string },
-  filter: { flexDirection: "row", alignItems: "center", gap: 4, height: 28, paddingHorizontal: 8, borderRadius: 7, maxWidth: 220 },
+  filter: { flexDirection: "row", alignItems: "center", gap: 4, height: 28, paddingHorizontal: 8, borderRadius: RADIUS, maxWidth: 220 },
   filterOver: { backgroundColor: "var(--hover)" as string },
   filterText: { fontSize: 13, color: "var(--ink-2)" as string, flexShrink: 1 },
   filterLit: { color: "var(--accent)" as string },

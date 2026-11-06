@@ -46,18 +46,16 @@ export function GoalCard({ block, call, changes, openGoal, me }: { block: GoalBl
   const icon = block.kind === "stuck" ? "warn" : block.outcome === "done" ? "check" : "target";
   return (
     <View {...menuTrigger((x, y) => { if (block.kind === "draft" || live?.owner === undefined) return; menu.show(goalMenuEntries({ id: block.goalId, title: block.title, status, owner: live.owner }, me, { run: async (cap, input, done) => { press(cap, input, done ?? ""); return true; }, open: openGoal ? () => openGoal(block.goalId) : undefined, ask: setAsking }), x, y, "context", { label: block.title }); })}>
-    <Card kind="progress" testID={`goal-card-${block.kind}-${block.goalId}`} label={block.title}>
+    <Card kind="progress" testID={`goal-card-${block.kind}-${block.goalId}`} label={`${title}: ${block.title}`}>
       {menu.element}
       {asking ? <TextAsk title={asking === "stuck" ? "Why is this goal stuck?" : "Report progress"} label={asking === "stuck" ? "What is in the way" : "What changed and what is next"} action={asking === "stuck" ? "Mark stuck" : "Report"} multiline onClose={() => setAsking(null)} onDone={(text) => { const c = askedCall(asking, text); setAsking(null); press(c.cap, c.input, c.done); }} /> : null}
       <View style={st.head}>
         <Icon name={icon} size={14} color={block.kind === "stuck" ? TONE.stuck : block.outcome === "done" ? TONE.ok : "var(--ink-3)"} />
-        <Text style={st.kind}>{title}</Text>
-        <View style={{ flex: 1 }} />
+        <Pressable style={{ flex: 1, minWidth: 0 }} accessibilityRole="link" accessibilityLabel={`Open the goal ${block.title}`} onPress={() => openGoal?.(block.goalId)} testID={`goal-card-open-${block.goalId}`}>
+          <Text style={st.title}>{block.title}</Text>
+        </Pressable>
         <Text style={[st.small, { color: TONE[s.tone] as string }]}>{s.word}</Text>
       </View>
-      <Pressable accessibilityRole="link" accessibilityLabel={`Open the goal ${block.title}`} onPress={() => openGoal?.(block.goalId)} testID={`goal-card-open-${block.goalId}`}>
-        <Text style={st.title}>{block.title}</Text>
-      </Pressable>
       <Text style={st.small}>{lineWithDue(block.line, live?.deadline ?? block.deadline, zones)}</Text>
       {value !== undefined && target !== undefined ? (
         <View style={st.num}>
@@ -95,7 +93,6 @@ function Lines({ label, items, icon }: { label: string; items: readonly string[]
 
 const st = StyleSheet.create({
   head: { flexDirection: "row", alignItems: "center", gap: 6 },
-  kind: { color: "var(--ink-3)" as string, fontSize: 12, fontWeight: "600" },
   title: { color: "var(--ink)" as string, fontSize: 14.5, fontWeight: "600" },
   small: { color: "var(--ink-3)" as string, fontSize: 12, lineHeight: 17 },
   body: { color: "var(--ink-2)" as string, fontSize: 13, lineHeight: 19 },
