@@ -26,6 +26,7 @@ Click an element by ref or by coordinates
 ```ts
 type In = {
   computerId?: string;
+  inMyChrome?: boolean;
   tabId?: string;
   ref?: string;
   x?: number;
@@ -62,6 +63,7 @@ type Out = {
   "input": {
     "button": "left",
     "computerId": "cmt_a1b2c3",
+    "inMyChrome": true,
     "ref": "e12",
     "tabId": "example",
     "x": 1,

@@ -10,6 +10,7 @@
 //     from anything read back.
 
 import { acts } from "./rights.js";
+import { hostUnder } from "../worker/match.js";
 import { applyFacts, callExpression, blurSecrets, collectPage, composeFacts, describeElement, focusElement, markSecret, pageRequest, pointInfo, probe, revealElement, scrollTo, scrubSecrets, selectOption } from "./page.js";
 import { AgentFailure, BATCHABLE, TAB_LIMIT, checkInput, errorOf, fail } from "./protocol.js";
 import { bareUrl, maskBody, maskHeaders, maskJson, maskUrl, scrub } from "./mask.js";
@@ -163,6 +164,8 @@ export function createTools(kit) {
   /** @param {Call} call @param {number} tabId @param {{ owned?: boolean }} [o] */
   async function mayUse(call, tabId, o = {}) {
     if (sessions.owns(call.agent.id, tabId) || kit.mode() === "computer") return;
+    // A tab the agent found for the site the person asked about may be worked in (the ask was checked by the app before the call came).
+    if (!o.owned && sessions.offeredTab(call.agent.id, tabId)) return;
     let tab;
     try { tab = await ext.tabs.get(tabId); } catch { return fail("no_tab"); }
     // The tab the person has in front of them can be handed to an agent (use, or a tool that names it); it can never be closed by one.
@@ -497,6 +500,27 @@ export function createTools(kit) {
         note(`${rows.length} tabs`);
         return { tabs: rows };
       }
+      if (action === "find") {
+        // The person's own open tabs for a site, in every window: web pages only, never a private window. The agent works in one with `use`; nothing is taken until then.
+        const want = String(input["site"] ?? "").trim();
+        const host = want.toLowerCase().replace(/^[a-z]+:\/\//, "").split(/[/?#]/)[0].replace(/:\d+$/, "").replace(/^www\./, "");
+        if (!host) fail("bad_input", "Name the site to find a tab for.");
+        const all = await ext.tabs.query({});
+        const rows = [];
+        const ids = [];
+        for (const t of all) {
+          if (t.id === undefined || t.incognito || !drivable(t.url) || t.url === "about:blank") continue;
+          let h = "";
+          try { h = new URL(String(t.url)).hostname.toLowerCase().replace(/^www\./, ""); } catch { continue; }
+          if (!hostUnder(h, host)) continue;
+          ids.push(t.id);
+          rows.push({ tabId: String(t.id), url: maskUrl(String(t.url)), title: String(t.title ?? ""), active: Boolean(t.active) });
+          if (rows.length >= 10) break;
+        }
+        sessions.offer(agentId, ids);
+        note(rows.length === 0 ? `no open tab for ${host}` : `${rows.length} open ${rows.length === 1 ? "tab" : "tabs"} for ${host}`);
+        return { tabs: rows };
+      }
       if (action === "new") {
         const url = input["url"] ? String(input["url"]) : "about:blank";
         const id = await newTab(call, url, false);
@@ -510,11 +534,20 @@ export function createTools(kit) {
       if (id === null || !Number.isInteger(id)) fail("no_tab");
       if (action === "use") {
         await mayUse(call, /** @type {number} */ (id));
-        sessions.own(agentId, /** @type {number} */ (id));
-        sessions.setCurrent(agentId, /** @type {number} */ (id));
+        const tid = /** @type {number} */ (id);
+        // A tab of the person's that was not the agent's before: it goes into the agent's group and to the front, and it stays the person's (the agent can never close it).
+        const theirs = !sessions.owns(agentId, tid) && kit.mode() !== "computer";
+        sessions.own(agentId, tid);
+        sessions.setCurrent(agentId, tid);
+        if (theirs) {
+          sessions.borrow(agentId, tid);
+          await sessions.group(call.agent, tid);
+          try { if (typeof ext.tabs.update === "function") await ext.tabs.update(tid, { active: true }); } catch { /* the tab is gone: the next call says so */ }
+        }
         note(`using tab ${id}`);
       } else {
         await mayUse(call, /** @type {number} */ (id), { owned: true });
+        if (sessions.borrowed(agentId, /** @type {number} */ (id))) fail("not_yours");
         await sessions.release(/** @type {number} */ (id), "closed");
         await ext.tabs.remove(id);
         await sessions.tabGone(/** @type {number} */ (id));

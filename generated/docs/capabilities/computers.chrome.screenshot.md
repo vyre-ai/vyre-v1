@@ -26,6 +26,7 @@ Screenshot of the tab or one element, stored in the agent folder and rendered as
 ```ts
 type In = {
   computerId?: string;
+  inMyChrome?: boolean;
   tabId?: string;
   ref?: string;
   fullPage?: boolean;
@@ -61,6 +62,7 @@ type Out = {
   "input": {
     "computerId": "cmt_a1b2c3",
     "fullPage": true,
+    "inMyChrome": true,
     "ref": "e12",
     "tabId": "example"
   },

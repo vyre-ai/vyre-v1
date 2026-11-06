@@ -8520,6 +8520,7 @@ export type CompanySweepOut = {
 };
 export type ComputersChromeActIn = {
   computerId?: string;
+  inMyChrome?: boolean;
   tabId?: string;
   ref?: string;
   action: "click" | "double_click" | "hover" | "press" | "select" | "scroll" | "check" | "uncheck" | "focus";
@@ -8532,6 +8533,7 @@ export type ComputersChromeActOut = {
 };
 export type ComputersChromeApiIn = {
   computerId?: string;
+  inMyChrome?: boolean;
   method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   url: string;
   headers?: Record<string, string>;
@@ -8545,6 +8547,7 @@ export type ComputersChromeApiOut = {
 };
 export type ComputersChromeBatchIn = {
   computerId?: string;
+  inMyChrome?: boolean;
   tabId?: string;
   steps: Array<{
       tool: string;
@@ -8561,6 +8564,7 @@ export type ComputersChromeBatchOut = {
 };
 export type ComputersChromeClickIn = {
   computerId?: string;
+  inMyChrome?: boolean;
   tabId?: string;
   ref?: string;
   x?: number;
@@ -8573,6 +8577,7 @@ export type ComputersChromeClickOut = {
 };
 export type ComputersChromeConsoleIn = {
   computerId?: string;
+  inMyChrome?: boolean;
   tabId?: string;
   level?: "log" | "warn" | "error";
   limit?: number;
@@ -8586,6 +8591,7 @@ export type ComputersChromeConsoleOut = {
 };
 export type ComputersChromeEvalIn = {
   computerId?: string;
+  inMyChrome?: boolean;
   tabId?: string;
   expression: string;
 };
@@ -8594,6 +8600,7 @@ export type ComputersChromeEvalOut = {
 };
 export type ComputersChromeFillIn = {
   computerId?: string;
+  inMyChrome?: boolean;
   tabId?: string;
   fields: Array<{
       ref: string;
@@ -8606,6 +8613,7 @@ export type ComputersChromeFillOut = {
 };
 export type ComputersChromeInspectIn = {
   computerId?: string;
+  inMyChrome?: boolean;
   tabId?: string;
   ref: string;
 };
@@ -8614,6 +8622,7 @@ export type ComputersChromeInspectOut = {
 };
 export type ComputersChromeNetIn = {
   computerId?: string;
+  inMyChrome?: boolean;
   tabId?: string;
   filter?: string;
   bodies?: boolean;
@@ -8630,6 +8639,7 @@ export type ComputersChromeNetOut = {
 };
 export type ComputersChromeOpenIn = {
   computerId?: string;
+  inMyChrome?: boolean;
   url: string;
   newTab?: boolean;
 };
@@ -8640,6 +8650,7 @@ export type ComputersChromeOpenOut = {
 };
 export type ComputersChromePlanIn = {
   computerId?: string;
+  inMyChrome?: boolean;
   goal: string;
   steps?: Array<string>;
 };
@@ -8648,12 +8659,14 @@ export type ComputersChromePlanOut = {
 };
 export type ComputersChromeResumeIn = {
   computerId?: string;
+  inMyChrome?: boolean;
 };
 export type ComputersChromeResumeOut = {
   resumed: boolean;
 };
 export type ComputersChromeScreenshotIn = {
   computerId?: string;
+  inMyChrome?: boolean;
   tabId?: string;
   ref?: string;
   fullPage?: boolean;
@@ -8665,6 +8678,7 @@ export type ComputersChromeScreenshotOut = {
 };
 export type ComputersChromeSendIn = {
   computerId?: string;
+  inMyChrome?: boolean;
   heldId: string;
   idempotencyKey: string;
 };
@@ -8674,6 +8688,7 @@ export type ComputersChromeSendOut = {
 };
 export type ComputersChromeSnapshotIn = {
   computerId?: string;
+  inMyChrome?: boolean;
   tabId?: string;
   selector?: string;
   format?: "tree" | "text";
@@ -8686,6 +8701,7 @@ export type ComputersChromeSnapshotOut = {
 };
 export type ComputersChromeSourcesIn = {
   computerId?: string;
+  inMyChrome?: boolean;
   tabId?: string;
 };
 export type ComputersChromeSourcesOut = {
@@ -8697,6 +8713,7 @@ export type ComputersChromeSourcesOut = {
 };
 export type ComputersChromeStateIn = {
   computerId?: string;
+  inMyChrome?: boolean;
   tabId?: string;
 };
 export type ComputersChromeStateOut = {
@@ -8706,6 +8723,7 @@ export type ComputersChromeStateOut = {
 };
 export type ComputersChromeStatusIn = {
   computerId?: string;
+  inMyChrome?: boolean;
 };
 export type ComputersChromeStatusOut = {
   connected: boolean;
@@ -8714,6 +8732,7 @@ export type ComputersChromeStatusOut = {
 };
 export type ComputersChromeStopIn = {
   computerId?: string;
+  inMyChrome?: boolean;
   reason?: string;
 };
 export type ComputersChromeStopOut = {
@@ -8721,9 +8740,11 @@ export type ComputersChromeStopOut = {
 };
 export type ComputersChromeTabsIn = {
   computerId?: string;
-  action: "list" | "use" | "new" | "close";
+  inMyChrome?: boolean;
+  action: "list" | "use" | "find" | "new" | "close";
   tabId?: string;
   url?: string;
+  site?: string;
 };
 export type ComputersChromeTabsOut = {
   tabs: Array<{
@@ -8735,6 +8756,7 @@ export type ComputersChromeTabsOut = {
 };
 export type ComputersChromeTypeIn = {
   computerId?: string;
+  inMyChrome?: boolean;
   tabId?: string;
   ref?: string;
   text: string;
@@ -8746,6 +8768,7 @@ export type ComputersChromeTypeOut = {
 };
 export type ComputersChromeWaitIn = {
   computerId?: string;
+  inMyChrome?: boolean;
   tabId?: string;
   until: "load" | "text" | "selector" | "network_idle" | "time";
   value?: string;

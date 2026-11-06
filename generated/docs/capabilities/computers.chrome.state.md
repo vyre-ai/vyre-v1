@@ -26,6 +26,7 @@ URL, title and load state of a tab
 ```ts
 type In = {
   computerId?: string;
+  inMyChrome?: boolean;
   tabId?: string;
 };
 ```
@@ -58,6 +59,7 @@ type Out = {
   "name": "example",
   "input": {
     "computerId": "cmt_a1b2c3",
+    "inMyChrome": true,
     "tabId": "example"
   },
   "output": {

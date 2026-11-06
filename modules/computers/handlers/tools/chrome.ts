@@ -7,10 +7,10 @@
 import { maskValue } from "../record.ts";
 import { raise } from "../../projections.ts";
 import type { CompCtx } from "../../projections.ts";
-import { call, clip, defined, keepShot, prepare, run, shape, siteOf } from "./common.ts";
+import { call, clip, defined, keepShot, prepare, run, shape, siteOf, whereOf } from "./common.ts";
 import type { ToolAnswer, ToolArgs, ToolSpec } from "./common.ts";
 
-interface Base { computerId?: string | undefined; tabId?: string | undefined }
+interface Base { computerId?: string | undefined; inMyChrome?: boolean | undefined; tabId?: string | undefined }
 const HTTP = /^https?:\/\//i;
 const needRef = (ctx: CompCtx, ref: unknown, what: string): string => {
   if (typeof ref !== "string" || ref.trim() === "") raise(ctx, "validation.bad_input", `Name the element to ${what}: use a ref from chrome_snapshot.`);
@@ -27,7 +27,7 @@ export async function snapshot(ctx: CompCtx, input: Base & { selector?: string; 
 
 export async function screenshot(ctx: CompCtx, input: Base & { ref?: string; fullPage?: boolean }) {
   const spec: ToolSpec = { name: "chrome_screenshot", caption: null };
-  const r = await prepare(ctx, input.computerId, spec);
+  const r = await prepare(ctx, whereOf(input), spec);
   if (!r) raise(ctx, "validation.bad_input", "The computer is asleep.");
   const out = await call(ctx, r, spec, defined({ tabId: input.tabId, ref: input.ref, fullPage: input.fullPage }));
   return keepShot(ctx, r.computer, "chrome_screenshot", out);
@@ -123,19 +123,20 @@ export async function fill(ctx: CompCtx, input: Base & { fields: Array<{ ref: st
   return shape(ctx, "chrome_fill", out, { ok: "b", filled: "n" });
 }
 
-export async function open(ctx: CompCtx, input: { computerId?: string | undefined; url: string; newTab?: boolean }) {
+export async function open(ctx: CompCtx, input: { computerId?: string | undefined; inMyChrome?: boolean | undefined; url: string; newTab?: boolean }) {
   if (typeof input.url !== "string" || !HTTP.test(input.url)) raise(ctx, "validation.bad_input", "Open an http or https address.");
   const spec: ToolSpec = { name: "chrome_open", caption: (a) => `Opened ${siteOf(a["url"])}`, timeoutMs: 60_000 };
   const out = await run(ctx, input, spec, defined({ url: input.url, newTab: input.newTab }));
   return shape(ctx, "chrome_open", out, { tabId: "s", url: "s", title: "s" });
 }
 
-export async function tabs(ctx: CompCtx, input: Base & { action: "list" | "use" | "new" | "close"; url?: string }) {
+export async function tabs(ctx: CompCtx, input: Base & { action: "list" | "use" | "find" | "new" | "close"; url?: string; site?: string }) {
   if ((input.action === "use" || input.action === "close") && !input.tabId) raise(ctx, "validation.bad_input", `Name the tab to ${input.action}.`);
+  if (input.action === "find" && (typeof input.site !== "string" || input.site.trim() === "")) raise(ctx, "validation.bad_input", "Name the site to find a tab for, as an address or a host such as mail.google.com.");
   if (input.url !== undefined && !HTTP.test(input.url)) raise(ctx, "validation.bad_input", "A new tab opens an http or https address.");
   const words: Record<string, string> = { use: "Switched tab", new: "Opened a new tab", close: "Closed a tab" };
-  const spec: ToolSpec = { name: "chrome_tabs", caption: input.action === "list" ? null : () => words[input.action] ?? "Changed tabs" };
-  const out = await run(ctx, input, spec, defined({ action: input.action, tabId: input.tabId, url: input.url }));
+  const spec: ToolSpec = { name: "chrome_tabs", caption: input.action === "list" || input.action === "find" ? null : () => words[input.action] ?? "Changed tabs" };
+  const out = await run(ctx, input, spec, defined({ action: input.action, tabId: input.tabId, url: input.url, site: input.action === "find" ? input.site?.trim().slice(0, 200) : undefined }));
   const got = shape(ctx, "chrome_tabs", out, { tabs: "a" });
   got["tabs"] = (got["tabs"] as unknown[]).map((t) => shape(ctx, "chrome_tabs", t as ToolAnswer, { tabId: "s", url: "s", title: "s", active: "b" }));
   return got;
@@ -157,7 +158,7 @@ export async function evaluate(ctx: CompCtx, input: Base & { expression: string 
   return shape(ctx, "chrome_eval", out, { result: "j" });
 }
 
-export async function plan(ctx: CompCtx, input: { computerId?: string | undefined; goal: string; steps?: string[] }) {
+export async function plan(ctx: CompCtx, input: { computerId?: string | undefined; inMyChrome?: boolean | undefined; goal: string; steps?: string[] }) {
   if (typeof input.goal !== "string" || input.goal.trim() === "") raise(ctx, "validation.bad_input", "Say what the plan is for.");
   const out = await run(ctx, input, { name: "chrome_plan", caption: () => `Plan: ${clip(input.goal, 120)}` }, defined({ goal: input.goal.slice(0, 500), steps: input.steps?.slice(0, 30).map((s) => String(s).slice(0, 300)) }));
   return shape(ctx, "chrome_plan", out, { ok: "b" });
@@ -165,18 +166,18 @@ export async function plan(ctx: CompCtx, input: { computerId?: string | undefine
 
 // ---- stop, resume, send
 
-export async function stop(ctx: CompCtx, input: { computerId?: string | undefined; reason?: string }) {
+export async function stop(ctx: CompCtx, input: { computerId?: string | undefined; inMyChrome?: boolean | undefined; reason?: string }) {
   const out = await run(ctx, input, { name: "chrome_stop", caption: () => "Stopped the browser", noWake: true, duringTakeover: true, asleep: { stopped: true } }, defined({ reason: input.reason?.slice(0, 300) }));
   return shape(ctx, "chrome_stop", out, { stopped: "b" });
 }
 
-export async function resume(ctx: CompCtx, input: { computerId?: string | undefined }) {
+export async function resume(ctx: CompCtx, input: { computerId?: string | undefined; inMyChrome?: boolean | undefined }) {
   const out = await run(ctx, input, { name: "chrome_resume", caption: () => "Resumed the browser", noWake: true, asleep: { resumed: false } }, {});
   return shape(ctx, "chrome_resume", out, { resumed: "b" });
 }
 
 /** Releases what agentd held. The Gate has already asked the person (the capability is `outward`, gate "send"); this only does it. */
-export async function send(ctx: CompCtx, input: { computerId?: string | undefined; heldId: string }) {
+export async function send(ctx: CompCtx, input: { computerId?: string | undefined; inMyChrome?: boolean | undefined; heldId: string }) {
   if (typeof input.heldId !== "string" || input.heldId === "") raise(ctx, "validation.bad_input", "Give the id of the held item.");
   const out = await run(ctx, input, { name: "chrome_send", caption: () => "Sent what was waiting for approval", timeoutMs: 60_000 }, { heldId: input.heldId });
   return shape(ctx, "chrome_send", out, { sent: "b", taskId: "s?" });
@@ -187,7 +188,7 @@ export async function send(ctx: CompCtx, input: { computerId?: string | undefine
 const SENSITIVE_HEADER = /^(authorization|proxy-authorization|cookie|set-cookie|x-api-key|x-auth-token|x-csrf-token|x-xsrf-token)$/i;
 
 /** A call to the site's own backend with this browser's session. The Gate already held a non-GET call. The answer keeps no credential the site sent back. */
-export async function api(ctx: CompCtx, input: { computerId?: string | undefined; method: string; url: string; headers?: Record<string, string>; body?: unknown }) {
+export async function api(ctx: CompCtx, input: { computerId?: string | undefined; inMyChrome?: boolean | undefined; method: string; url: string; headers?: Record<string, string>; body?: unknown }) {
   if (typeof input.url !== "string" || !HTTP.test(input.url)) raise(ctx, "validation.bad_input", "Call an http or https address.");
   if (input.method === "GET" && input.body !== undefined) raise(ctx, "validation.bad_input", "A GET call has no body.");
   const out = await run(ctx, input, { name: "chrome_api", caption: (a) => `Called ${String(a["method"])} ${siteOf(a["url"])}`, timeoutMs: 60_000 }, defined({ method: input.method, url: input.url, headers: input.headers, body: input.body }));
@@ -225,7 +226,8 @@ export async function batch(ctx: CompCtx, input: Base & { steps: Array<{ tool: s
     const name = named[i] as string;
     const args: ToolArgs = { ...(input.steps[i]?.args ?? {}) };
     delete args["computerId"];
-    const stepInput = { ...args, ...(input.computerId ? { computerId: input.computerId } : {}), ...(input.tabId && args["tabId"] === undefined ? { tabId: input.tabId } : {}) };
+    delete args["inMyChrome"];
+    const stepInput = { ...args, ...(input.computerId ? { computerId: input.computerId } : {}), ...(input.inMyChrome === true ? { inMyChrome: true } : {}), ...(input.tabId && args["tabId"] === undefined ? { tabId: input.tabId } : {}) };
     try {
       const result = (await (BATCHABLE[name] as StepFn)(ctx, stepInput)) as Record<string, unknown>;
       const heldId = typeof result?.["heldId"] === "string" ? result["heldId"] : undefined;

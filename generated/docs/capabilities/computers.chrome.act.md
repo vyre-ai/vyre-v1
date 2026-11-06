@@ -26,6 +26,7 @@ Act on an element or key: click, hover, press, select, scroll, check; a send, po
 ```ts
 type In = {
   computerId?: string;
+  inMyChrome?: boolean;
   tabId?: string;
   ref?: string;
   action: "click" | "double_click" | "hover" | "press" | "select" | "scroll" | "check" | "uncheck" | "focus";
@@ -62,6 +63,7 @@ type Out = {
   "input": {
     "action": "click",
     "computerId": "cmt_a1b2c3",
+    "inMyChrome": true,
     "ref": "e12",
     "tabId": "example",
     "value": "example"

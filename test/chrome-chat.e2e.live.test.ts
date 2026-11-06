@@ -32,7 +32,7 @@ test("a chat turn works in the person's Chrome: the held send is a card, Send se
   // the scripted engine: the agent's calls into the computers module, as an agent turn makes them (the thread is where the turn runs)
   const turn = harness({
     principal: { kind: "agent", id: AGENT }, actingFor: PERSON,
-    respond: { "browser.cards.post": (input) => browser["browser.cards.post"](bw.as(AGENT, "agent"), input as never) },
+    respond: { "browser.cards.post": (input) => browser["browser.cards.post"](bw.as(AGENT, "agent"), input as never), "chat.messages.list": () => ({ messages: [{ threadSeq: 1, author: { kind: "person", id: PERSON }, body: "Please do it in my Chrome" }], hasMore: false }) },
   });
   turn.ctx.thread = "thr_lab7";
   const agent = (cap: string, input: Record<string, unknown> = {}) => tool[cap]!(turn.ctx, { computerId: "my-chrome", ...input });
