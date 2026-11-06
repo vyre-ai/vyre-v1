@@ -81,12 +81,14 @@ export function tabMenuEntries(
   key: string | undefined,
   extras: readonly TabMenuExtra[],
   run: (op: TabOp, key: string | undefined) => void,
+  /** A strip whose tabs cannot be closed (the sections of a page) offers no Close items: they would do nothing. */
+  closable = true,
 ): MenuEntry[] {
   const tab = key === undefined ? undefined : tabs.find((t) => t.key === key);
   const std: { label: string; icon: string; op: TabOp }[] = [];
-  if (tab !== undefined && tab.pinned !== true) std.push({ label: "Close Tab", icon: "x", op: "close" });
-  std.push({ label: "Close Other Tabs", icon: "minus", op: "closeOthers" });
-  std.push({ label: "Close All Tabs", icon: "x", op: "closeAll" });
+  if (closable && tab !== undefined && tab.pinned !== true) std.push({ label: "Close Tab", icon: "x", op: "close" });
+  if (closable) std.push({ label: "Close Other Tabs", icon: "minus", op: "closeOthers" });
+  if (closable) std.push({ label: "Close All Tabs", icon: "x", op: "closeAll" });
   let icons = true;
   for (const extra of extras) if (extra.icon === undefined || extra.icon.length === 0) icons = false;
   const out: MenuEntry[] = [];
@@ -99,7 +101,7 @@ export function tabMenuEntries(
       ...(extra.checked === true ? { checked: true } : {}),
     });
   }
-  if (extras.length > 0) out.push({ separator: true });
+  if (extras.length > 0 && std.length > 0) out.push({ separator: true });
   for (const item of std) out.push({ label: item.label, ...(icons ? { icon: item.icon } : {}), onSelect: () => run(item.op, key) });
   return out;
 }
@@ -200,8 +202,10 @@ export function TabStrip(props: TabStripViewProps): ReactElement {
   }, [tabs, onClose]);
 
   const openFor = useCallback((key: string | undefined, x: number, y: number) => {
-    show(entries !== undefined && key !== undefined ? entries(key) : tabMenuEntries(tabs, key, extrasFor(key), run), x, y, "context", { label: key === undefined ? "Tabs" : (tabs.find((t) => t.key === key)?.title ?? key) });
-  }, [tabs, extrasFor, run, show, entries]);
+    const list = entries !== undefined && key !== undefined ? entries(key) : tabMenuEntries(tabs, key, extrasFor(key), run, onClose !== undefined);
+    if (list.length === 0) return;
+    show(list, x, y, "context", { label: key === undefined ? "Tabs" : (tabs.find((t) => t.key === key)?.title ?? key) });
+  }, [tabs, extrasFor, run, show, entries, onClose]);
 
   const select = useCallback((key: string) => {
     if (onSelect) onSelect(key);

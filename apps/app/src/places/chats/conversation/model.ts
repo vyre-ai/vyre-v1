@@ -628,3 +628,8 @@ export function collect<T, U>(list: readonly T[], fn: (item: T, index: number) =
 export function mentionable(item: string | { t: string; ref?: string | undefined }, guest: boolean, inThread: ReadonlyMap<string, unknown>): boolean {
   return !guest || (typeof item !== "string" && item.ref !== undefined && inThread.has(item.ref));
 }
+
+/** A face or name pressed in the chat: a helper's thread opens as the helper chat; anyone else goes to the host, which opens a person's profile or an agent's page. */
+export function faceDoor(helperThreadIds: readonly string[], id: string): "helper" | "principal" {
+  return helperThreadIds.includes(id) ? "helper" : "principal";
+}

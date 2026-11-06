@@ -4,3 +4,4 @@ The usage-limit reset time reads in the Space time zone, and the calendar model 
 Removed a leftover width callback in the chat header that called a deleted setter; typecheck baseline lowered to 311.
 Card onEnter and onCancel accept an explicit undefined; typecheck baseline lowered to 306.
 The fake claude CLI keeps no session file under --no-session-persistence, so the chat-title helper no longer adds a second session to the sessions test. Card action buttons carry the not-a-list note. The crew card Send back entry in the approval-words reviewer list follows the new line.
+The room pack live test reads the digest from the last tag with the pack on, not from the median-by-time run, which on a slow runner can be the first tag (it starts the digest and carries none).

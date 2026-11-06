@@ -62,7 +62,8 @@ const elena = <CallConversation conversationId="elena" contactId="ct_elena" task
 test("a live call with this person puts the call bar in the conversation header and the Call tab beside it", () => {
   const out = withCall("live", "+1 415 555 0161", elena, { notes: "Lease Thursday" });
   assert.ok(out.includes('data-testid="call-header"') && out.includes('data-testid="softphone-bar"'), "the bar is in the header");
-  for (const id of ["softphone-mute", "softphone-hold", "softphone-keypad", "softphone-transfer", "softphone-record", "softphone-hangup"]) assert.ok(out.includes(`data-testid="${id}"`), id);
+  for (const id of ["softphone-mute", "softphone-hold", "softphone-keypad", "softphone-record", "softphone-hangup"]) assert.ok(out.includes(`data-testid="${id}"`), id);
+  assert.ok(!out.includes('data-testid="softphone-transfer"'), "no one to transfer to: no Transfer button that opens an empty menu");
   assert.ok(out.includes("02:14"), "the clock");
   assert.ok(out.includes('data-testid="softphone-pane"') && out.includes("Notes") && out.includes("Last interactions") && out.includes("Open tasks"), "the Call tab");
   assert.ok(out.includes("Send the lease") && out.includes("Lease documents for Thursday"), "the person's tasks and last email");

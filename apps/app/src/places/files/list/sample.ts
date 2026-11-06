@@ -236,12 +236,19 @@ export function createSampleFiles(space: SampleSpace = northwind, o: { online?: 
       if (cur) { const { deletedAt: _d, ...rest } = cur; void _d; replica.remove("files", [cur.fileId]); replica.put("files", [{ ...rest, id: rest.fileId } as unknown as Row]); }
       return { ok: true };
     },
+    "files.folder.move": (i: { folderId: string; toParentId?: string }) => {
+      const cur = allFolders().find((x) => x.id === i.folderId);
+      if (cur) replica.put("folders", [{ ...cur, parent: i.toParentId ?? null }]);
+      return {};
+    },
     "folders.move": (i: { folderId: string; parentId: string | null }) => {
       const cur = allFolders().find((x) => x.id === i.folderId);
       if (cur) replica.put("folders", [{ ...cur, parent: i.parentId }]);
       return { ok: true };
     },
     "folders.delete": (i: { folderId: string }) => { replica.remove("folders", [i.folderId]); return { ok: true }; },
+    "files.folder.delete": (i: { folderId: string }) => { replica.remove("folders", [i.folderId]); return { deleted: true }; },
+    "files.folder.restore": () => ({}),
     "changesets.approve": (i: { changesetId: string }) => {
       const cur = (replica.rows("changesets") as unknown as { id: string }[]).find((c) => c.id === i.changesetId);
       if (cur) replica.put("changesets", [{ ...cur, state: "approved" } as unknown as Row]);

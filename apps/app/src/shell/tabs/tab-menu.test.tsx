@@ -49,7 +49,7 @@ test("a closed tab comes back, the last closed first; a tab that was never close
   assert.equal(c.canReopen(), false);
 });
 
-test("right-click on a tab: the menu follows the state, and Pin Tab, Close Tabs to the Right and Reopen Closed Tab act on the controller", async () => {
+test("right-click on a tab: the menu follows the state, and Pin, Close Tabs to the Right and Reopen Closed Tab act on the controller", async () => {
   const c = ctl();
   c.openPlace("chats"); c.openPlace("files");
   c.select("home");
@@ -58,11 +58,11 @@ test("right-click on a tab: the menu follows the state, and Pin Tab, Close Tabs 
   await flush();
   await contextMenu(root, "home");
   const first = labelsOf(root);
-  assert.deepEqual(first, ["Close", "Close Other Tabs", "Close Tabs to the Right", "Pin Tab"], first.join("|"));
-  await press(find(root as never, "menu-item-Pin Tab") as never); await flush();
+  assert.deepEqual(first, ["Close", "Close Other Tabs", "Close Tabs to the Right", "Pin"], first.join("|"));
+  await press(find(root as never, "menu-item-Pin") as never); await flush();
   assert.equal(c.state().tabs[0]!.pinned, true);
   await contextMenu(root, "home");
-  assert.ok(labelsOf(root).includes("Unpin Tab"), "the words follow the state");
+  assert.ok(labelsOf(root).includes("Unpin"), "the words follow the state");
   await press(find(root as never, "menu-item-Close Tabs to the Right") as never); await flush();
   assert.deepEqual(c.state().tabs.map((t) => t.key), ["home"]);
   assert.equal(c.canReopen(), true);

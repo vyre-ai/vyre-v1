@@ -104,8 +104,15 @@ test("the header shows the shared Ask control when given", () => {
   assert.ok(renderToStaticMarkup(<Viewer fileId="f" title="Offer.png" kind="image" find="x" />).includes('data-testid="vw-find-input"'), "a find query opens the box");
 });
 
+test("History and More are drawn only when there is a handler: no dead buttons", () => {
+  const bare = renderToStaticMarkup(<Viewer fileId="f" title="x.png" kind="image" />);
+  assert.ok(!bare.includes('data-testid="vw-history"') && !bare.includes('data-testid="vw-more"'));
+  const wired = renderToStaticMarkup(<Viewer fileId="f" title="x.png" kind="image" onHistory={() => undefined} />);
+  assert.ok(wired.includes('data-testid="vw-history"') && !wired.includes('data-testid="vw-more"'));
+});
+
 test("the header shows the file tile, its path line, Find, Details, History and More; csv and plan add View and Edit with the saved version", () => {
-  const html = renderToStaticMarkup(<Viewer fileId="c" title="competitors.csv" kind="csv" kindLabel="CSV" subtitle="Agents / Research · Yesterday 4:40 pm" saved={3} sheet={SHEET} />);
+  const html = renderToStaticMarkup(<Viewer fileId="c" title="competitors.csv" kind="csv" kindLabel="CSV" subtitle="Agents / Research · Yesterday 4:40 pm" saved={3} sheet={SHEET} onHistory={() => undefined} onMore={() => undefined} />);
   for (const id of ["vw-tile", "vw-sub", "vw-find-btn", "vw-info", "vw-history", "vw-more", "vw-mode", "vw-mode-view", "vw-mode-edit", "vw-saved"]) assert.ok(html.includes(`data-testid="${id}"`), id);
   assert.match(html, /v3/);
   assert.ok(!renderToStaticMarkup(<Viewer fileId="f" title="x.png" kind="image" />).includes('data-testid="vw-mode"'), "no View and Edit on an image");

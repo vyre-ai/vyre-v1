@@ -15,12 +15,14 @@ import { commentOnQuote, pinArea, resolveComment, saveMarkup, saveText } from ".
 import { useFilesViewerData } from "./data.tsx";
 import { useFileLinks } from "../links.ts";
 import { FileMarkdownEditor } from "./FileMarkdownEditor.tsx";
-import { boxesOf, nodeFor, docCommentsOf, docsMarkdown, isEditable, isOffice, kindLabel, officeBlocks, parseCsv, strokesOf, subtitleOf, textToBlocks, viewerKindOf } from "./model.ts";
+import { versionRows, boxesOf, nodeFor, docCommentsOf, docsMarkdown, isEditable, isOffice, kindLabel, officeBlocks, parseCsv, strokesOf, subtitleOf, textToBlocks, viewerKindOf } from "./model.ts";
 import { TypeTile } from "../FileList.tsx";
 import { tileLabel } from "../tree/model.ts";
 import { GoogleTile, WithProviderMark, googleAppOf } from "../marks.tsx";
 import type { FileComment, ViewerData } from "./model.ts";
 import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
+import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
+import { itemLink } from "../../../share/rows.ts";
 import { ActivityPanel, LayerBanner, LayerTools, RedactPanel, jumpToMark, useLayer, viewerMarks } from "./redact.tsx";
 import type { Access } from "./redact.tsx";
 
@@ -43,6 +45,7 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
   // where a file from a connected folder opens at its provider (Google Docs, Word, Excel, Dropbox); null for a file Vyre holds itself
   const [link, setLink] = useState<FileLink | null>(null);
   const version = useRef(0);
+  const [rev, setRev] = useState(0);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const say = useCallback((e: unknown): void => setNote(e instanceof Error ? e.message : "That did not work."), []);
   // Redaction for AI: the layer of this file, the Redact and Activity tabs, and the access menu
@@ -75,7 +78,7 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
     let live = true;
     void fileLink(d.call, fileId).then((l) => { if (live) setLink(l); });
     return () => { live = false; };
-  }, [d, fileId, mounted]);
+  }, [d, fileId, mounted, rev]);
 
   useEffect(() => {
     if (!note) return undefined;
@@ -141,6 +144,25 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
       { label: `Same as the folder (${cur?.inherited === "redact" ? "Redacted" : cur?.inherited === "off" ? "Not available" : "Available"})`, checked: cur?.own === false, onSelect: () => setAccess(null) },
     ], x, y, "other");
   };
+  // History: the versions of the file, each one restorable (files.versions, files.restore_version); More: the file's link and name
+  const openHistory = (x: number, y: number): void => {
+    void d.call("files.versions", { fileId }).then((out) => {
+      const rows = versionRows((out as { versions: { versionId: string; n: number; by: string; at: number; reason?: string }[] }).versions, d.name);
+      accessMenu.show(
+        rows.length === 0 ? [{ head: "No earlier versions yet." }]
+          : [{ head: "Versions. Pick one to restore it." }, ...rows.map((r): MenuEntry => ({ label: r.label, ...(r.versionId === null ? {} : { onSelect: () => void d.call("files.restore_version", { fileId, versionId: r.versionId }).then(() => { setNote(`Restored v${r.n}.`); setRev((x) => x + 1); }, say) }) }))],
+        x, y, "other", { label: "History" },
+      );
+    }, say);
+  };
+  const copyText = (text: string, done: string): void => { void Promise.resolve((globalThis as { navigator?: { clipboard?: { writeText(t: string): unknown } } }).navigator?.clipboard?.writeText(text)).then(() => setNote(done), () => setNote("Could not copy here.")); };
+  const openMore = (x: number, y: number): void => {
+    const name = load.status === "ready" ? load.data.file.name : "";
+    accessMenu.show([
+      { label: "Copy Link", onSelect: () => copyText(itemLink("file", fileId), "Link copied.") },
+      { label: "Copy name", onSelect: () => copyText(name, "Name copied.") },
+    ], x, y, "other", { label: "More" });
+  };
   const toggle = (k: "redact" | "activity"): void => setPanel((p) => (p === k ? null : k));
   const side = panel === "redact"
     ? <RedactPanel layer={layer} name={d.name} now={now} fileName={file.name} path={(d.pathOf?.(file.folderId) ?? "").replace(/ \/ /g, " / ")} onDone={done} onAccess={openAccess} onJump={jumpToMark} />
@@ -173,6 +195,7 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
         onLayer={layer.mark}
         onUnmark={(markId) => void layer.run("files.marks.remove", { markId }, "Agents can read it again")}
         onMarkActivity={() => setPanel("activity")}
+        onHistory={openHistory} onMore={openMore}
         tools={<LayerTools open={panel} onToggle={toggle} />}
         banner={<LayerBanner layer={layer} name={d.name} onOpen={() => setPanel("redact")} onDone={done} panelOpen={panel === "redact"} />}
         {...(side !== undefined ? { side } : {})}

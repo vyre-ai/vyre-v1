@@ -332,6 +332,12 @@ export function wireSidebar(rt: ShellRuntime, go: Go, toggleSidebar?: () => void
   return { ...base, nav: { ...base.nav, openNeedsYou: (taskId?: string) => go.needs(taskId), openAllAgents: () => go.allAgents(), openSearch: () => go.search(), openImported: (id: string) => go.imported(id), ...(toggleSidebar ? { toggleSidebar } : {}) } };
 }
 
+/** A face or a name opens by what it is: a person's profile, an agent's page (the assistant too). A helper is routed by the conversation, which knows its helpers' threads. */
+export function openFace(rt: Pick<ShellRuntime, "open">, go: Pick<Go, "agent">, list: readonly Principal[], id: string): void {
+  if (list.find((p) => p.id === id)?.kind === "person") rt.open({ subject: { type: "contact", id } });
+  else go.agent(id);
+}
+
 /** The open chat: a face's page, a helper, the Computer chip, a channel's Connect sheet and the Waiting on line are all this place's doors. */
 export function wireConversation(rt: ShellRuntime, go: Go, o: { threadId: string; list: readonly Principal[]; nameOf: (id: string) => string; leadId: string; fill?: ComposerFill; focus?: string; focusN?: number }): ConversationData {
   const base = conversationData(rt, chatsActions(go, o.fill), o.threadId, o.list, o.fill);
@@ -340,7 +346,8 @@ export function wireConversation(rt: ShellRuntime, go: Go, o: { threadId: string
     ...(o.focus ? { focus: o.focus } : {}),
     ...(o.focusN ? { focusN: o.focusN } : {}),
     nav: {
-      ...base.nav, openAgent: (id: string) => go.agent(id), openThread: (id: string, messageId?: string) => (messageId ? go.message(id, messageId) : go.thread(id)), openSearch: (q: string) => go.search(q), togglePane: () => go.togglePane(),
+      // a face opens by what it is: a person's profile, an agent's page (the assistant too); a helper is routed by the conversation before it gets here
+      ...base.nav, openAgent: (id: string) => openFace(rt, go, o.list, id), openThread: (id: string, messageId?: string) => (messageId ? go.message(id, messageId) : go.thread(id)), openSearch: (q: string) => go.search(q), togglePane: () => go.togglePane(),
       openBeside: (kind: string, id: string) => (kind === "computer" ? go.computerOfAgent(id) : base.nav.openBeside(kind, id)),
       openConnectOutsideAgent: (channelId: string) => go.connect(channelId),
     },

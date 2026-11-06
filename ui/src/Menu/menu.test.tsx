@@ -58,7 +58,7 @@ test("every KitScreenDef.menus entry ends with Report a problem, added by the me
 test("the shared defaults (tab menu) end with Report a problem and no module added it", () => {
   const tabs = [{ key: "a", title: "A" }, { key: "b", title: "B", pinned: true }];
   for (const key of ["a", "b"]) {
-    const shared = tabMenuEntries(tabs, key, [{ label: "Pin Tab", icon: "star" }], () => undefined);
+    const shared = tabMenuEntries(tabs, key, [{ label: "Pin", icon: "star" }], () => undefined);
     assert.ok(!labels(shared).includes(REPORT_A_PROBLEM));
     assertEndsWithReport(menuEntries({ items: shared }), `tab menu ${key}`);
   }

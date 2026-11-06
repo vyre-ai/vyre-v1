@@ -208,7 +208,7 @@ export async function errorAction(data: ConversationData, key: string, turnId: s
   if (key === "connect_ai" || key === "open_vault") { if (data.nav.openAiSetup) data.nav.openAiSetup(); else say("Open the Vault and add an AI account."); return; }
   if (installProgram(key) !== undefined) { if (turnId) await retryTurn(data, turnId); else say("Send your message again to set it up."); return; }
   // Windows: WSL needs admin and a restart, which only the person can do; the steps, word for word (sandbox/src/wsl/wsl.ts TURN_ON_WSL_STEPS)
-  if (key === "turn_on_wsl") { say(TURN_ON_WSL_TEXT); return; }
+  if (key === "turn_on_wsl") { data.copy(TURN_ON_WSL_TEXT); say("Copied the steps to turn on WSL. Paste them where you can read them. " + TURN_ON_WSL_TEXT); return; }
   if (key === "unlock_vault") {
     if (!data.nav.unlockVault) { say("Unlock your Vault from the Vault page, then try again."); return; }
     if ((await data.nav.unlockVault()) && turnId) await retryTurn(data, turnId);

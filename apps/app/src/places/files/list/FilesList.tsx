@@ -16,6 +16,7 @@ import {
   SORTS, SORT_LABEL, WHERE_LABEL, createSpring, crumbs, dragPayload, dropMoves, emptyIcon, emptyText, fileLine, folderLine, kindLabel, parsePayload, tileLabel, sizeText, sortLines, sourceOf, updatedText,
 } from "../tree/model.ts";
 import type { Line, SortKey, Spring } from "../tree/model.ts";
+import { restoreCall, trashCall } from "../tree/model.ts";
 import { Glyph, iconOfKind } from "../tree/parts.tsx";
 import { GOOGLE_KIND_WORD, SourcedLead, googleAppOf } from "../marks.tsx";
 import { openInLabel, openInProvider, openInWords } from "../open-in.ts";
@@ -148,11 +149,11 @@ function List(): ReactElement {
     else data.nav.openFile(l.id);
   };
   const toTrash = (ls: readonly Line[]): void => {
-    for (const l of ls) void data.call(l.type === "file" ? "files.delete" : "folders.delete", l.type === "file" ? { fileId: l.id } : { folderId: l.id });
+    for (const l of ls) { const c = trashCall(l.type, l.id); void data.call(c.cap, c.input); }
     dispatch({ type: "clear" });
   };
   const restore = (ls: readonly Line[]): void => {
-    for (const l of ls) if (l.type === "file") void data.call("files.restore", { fileId: l.id });
+    for (const l of ls) { const c = restoreCall(l.type, l.id); void data.call(c.cap, c.input); }
     dispatch({ type: "clear" });
   };
   const selectedLines = (): Line[] => state.selection.map((k) => byKey.get(k)).filter((l): l is Line => l !== undefined);

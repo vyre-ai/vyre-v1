@@ -22,6 +22,8 @@ export interface CommandEnv {
   openFind(): void;
   openSearch(query: string): void;
   openModel(): void;
+  /** The Add sheet for this chat: a command that needs an agent opens it when the chat has none. */
+  openAdd?(): void;
   /** Ask a side question (/btw): it answers in a card of its own and the running turn is left alone. */
   aside(question: string): void;
   /** Send a message as if typed (a plugin's prompt command). */
@@ -154,7 +156,7 @@ async function run(id: string, arg: string, env: CommandEnv, plugins: readonly P
     }
     case "remember": {
       const lead = thread.agents.find((a) => a.mode === "lead") ?? thread.agents[0];
-      if (!lead) { say("Add an agent to this chat first. It keeps what you tell it to remember."); return; }
+      if (!lead) { if (env.openAdd) env.openAdd(); else say("Add an agent to this chat first. It keeps what you tell it to remember."); return; }
       const merged = await act.remember(data, thread, lead.agentId, arg);
       say(merged ? `${data.nameOf(lead.agentId)} will remember that` : `Sent to ${data.nameOf(lead.agentId)} to confirm before it is kept`);
       return;

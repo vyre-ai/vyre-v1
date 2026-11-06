@@ -142,7 +142,7 @@ export function ProjectPage({ projectId, tab: first = DEFAULT_PROJECT_TAB, planV
             <Text accessibilityRole="header" aria-level={1} numberOfLines={1} style={s.title} testID="project-title">{p.title}</Text>
             <Text style={s.chev}>{"\u2304"}</Text>
           </Pressable>
-          <Pressable accessibilityRole="button" accessibilityLabel={mine.starred ? "Unstar" : "Star"} accessibilityState={{ selected: mine.starred }} testID="project-star" onPress={() => { const on = !mine.starred; void api.projectStar(projectId, on).then(() => { setMine((m) => ({ ...m, starred: on })); setNote(on ? "Starred" : "Star removed"); }, say); }} style={({ hovered }: { hovered?: boolean }) => [s.iconBtn, hovered === true && s.hover]}>
+          <Pressable accessibilityRole="button" accessibilityLabel={mine.starred ? "Remove Star" : "Star"} accessibilityState={{ selected: mine.starred }} testID="project-star" onPress={() => { const on = !mine.starred; void api.projectStar(projectId, on).then(() => { setMine((m) => ({ ...m, starred: on })); setNote(on ? "Starred" : "Star removed"); }, say); }} style={({ hovered }: { hovered?: boolean }) => [s.iconBtn, hovered === true && s.hover]}>
             <Text style={[s.star, mine.starred && s.starOn]}>{mine.starred ? "\u2605" : "\u2606"}</Text>
           </Pressable>
           <Pressable accessibilityRole="button" accessibilityLabel={`Status: ${health ? HEALTH_LABEL[health] : p.status ? stageWord(p.status) : "Not set"}`} testID="project-health" disabled={!canEdit}
