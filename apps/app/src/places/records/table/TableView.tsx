@@ -518,7 +518,7 @@ function Grid({ type, def, views, base, saved, headerExtra }: { type: string; de
   const kept = useRef<{ offset: number; rows: RecordRow[] } | null>(null);
   if (q.status === "ready" && (kept.current?.rows !== q.data.rows || kept.current.offset !== (v.group ? 0 : offset))) kept.current = { offset: v.group ? 0 : offset, rows: q.data.rows };
   const loaded = kept.current;
-  // the starred records, for the menu's Star / Remove star and the S key; a runtime that cannot read stars leaves them all unstarred
+  // the starred records, for the menu's Star / Remove Star and the S key; a runtime that cannot read stars leaves them all unstarred
   const stars = useLive("stars.list", { type: "record" });
   const starredIds = useMemo(() => new Set(stars.status === "ready" ? stars.data.stars.map((x) => x.resource.id) : []), [stars]);
   const toggleStar = (id: string, on: boolean): void => { void Promise.resolve(data.call("stars.toggle", { resource: { type: "record", id }, on })).catch(() => undefined); };

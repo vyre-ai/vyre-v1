@@ -9,7 +9,7 @@ export interface TypeDo { open(): void; star?(on: boolean): void; copyName?(): v
 export function typeMenu(f: TypeFacts, d: TypeDo): MenuEntry[] {
   return tidy([
     item("Open", d.open, { hint: "Enter" }),
-    d.star ? item(f.starred ? "Remove star" : "Star", () => d.star?.(!f.starred)) : null,
+    d.star ? item(f.starred ? "Remove Star" : "Star", () => d.star?.(!f.starred)) : null,
     d.copyName ? item("Copy Name", d.copyName) : null,
     f.canEdit && d.editType ? item("Edit Type…", d.editType) : null,
   ]);

@@ -16,19 +16,19 @@ function run(f: Partial<RecordFacts>, only: readonly (keyof RecordDo)[] = ["star
   return { es: recordMenu(facts, d), did };
 }
 
-test("one record: Open, Star, Share, Copy link, Delete, each reaching its call, and only Enter and S shown as keys", () => {
+test("one record: Open, Star, Share, Copy Link, Delete, each reaching its call, and only Enter and S shown as keys", () => {
   const { es, did } = run({});
   const its = items(es);
-  assert.deepEqual(its.map((x) => x.label), ["Open", "Star", "Share…", "Copy link", "Delete"]);
+  assert.deepEqual(its.map((x) => x.label), ["Open", "Star", "Share…", "Copy Link", "Delete"]);
   assert.deepEqual(its.map((x) => x.hint), ["Enter", "S", undefined, undefined, undefined]);
   for (const x of its) x.onSelect?.();
   assert.deepEqual(did, ["open", "star:true", "share", "link", "remove"]);
   assert.equal(its.find((x) => x.label === "Delete")?.danger, true);
 });
 
-test("a starred record says Remove star and turns the star off", () => {
+test("a starred record says Remove Star and turns the star off", () => {
   const { es, did } = run({ starred: true });
-  const star = items(es).find((x) => x.label === "Remove star");
+  const star = items(es).find((x) => x.label === "Remove Star");
   assert.ok(star);
   star.onSelect?.();
   assert.deepEqual(did, ["star:false"]);

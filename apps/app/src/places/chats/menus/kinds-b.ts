@@ -99,7 +99,7 @@ export function automationMenu(f: AutomationFacts, d: AutomationDo): MenuEntry[]
     ...(f.canEdit ? f.groups.map((g) => item(g.name, () => d.move(g.id))) : []),
     f.canEdit && f.group !== null ? item("Out of Its Group", () => d.move(null)) : null,
     sep,
-    item("Copy link", d.copyLink),
+    item("Copy Link", d.copyLink),
     f.canDelete ? sep : null,
     f.canDelete ? item(ellipsis("Move to Trash"), d.remove, { danger: true, hint: KEY.remove }) : null,
   ]);
@@ -134,7 +134,7 @@ export function goalMenu(f: GoalFacts, d: GoalDo): MenuEntry[] {
     f.manage && f.status === "running" ? item(ellipsis("Mark Stuck"), d.markStuck) : null,
     f.manage && !over ? item(ellipsis("Report Progress"), d.report) : null,
     sep,
-    item("Copy link", d.copyLink),
+    item("Copy Link", d.copyLink),
     f.manage && !over ? sep : null,
     f.manage && !over ? item(ellipsis("Stop Goal"), d.stop, { danger: true }) : null,
   ]);
@@ -179,7 +179,7 @@ export function projectMenu(f: ProjectFacts, d: ProjectDo): MenuEntry[] {
     f.manage && f.archived && d.unarchive ? item("Unarchive", d.unarchive) : null,
     f.manage && !f.archived && d.archive ? item("Archive", d.archive) : null,
     sep,
-    item("Copy link", d.copyLink),
+    item("Copy Link", d.copyLink),
   ]);
 }
 
@@ -210,7 +210,7 @@ export function tabMenu(f: TabFacts, d: TabDo): MenuEntry[] {
     f.count > 1 ? item("Close Other Tabs", d.closeOthers) : null,
     f.toTheRight > 0 ? item("Close Tabs to the Right", d.closeRight) : null,
     sep,
-    f.item ? item("Copy link", d.copyLink) : null,
+    f.item ? item("Copy Link", d.copyLink) : null,
     f.pinned ? item("Unpin", () => d.pin(false)) : item("Pin", () => d.pin(true)),
     f.canReopen ? sep : null,
     f.canReopen ? item("Reopen Closed Tab", d.reopen, { hint: KEY_B.reopenTab }) : null,

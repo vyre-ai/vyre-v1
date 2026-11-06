@@ -1,4 +1,4 @@
-// Projects in the Chats sidebar (lane l-chrome2a): the group after Goals, starred first, each with its health dot; a press opens the project in its own tab; the row menu is Open, Star and Copy link.
+// Projects in the Chats sidebar (lane l-chrome2a): the group after Goals, starred first, each with its health dot; a press opens the project in its own tab; the row menu is Open, Star and Copy Link.
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createRoot } from "test-renderer";
@@ -31,7 +31,7 @@ test("the group sits right after Goals, shows three and then 'N more', and a Spa
   assert.ok(!buildEntries({ ...(base as object), projects: [] } as never).some((x) => x.key === "h:projects"));
 });
 
-test("the rows: a health dot and the name, a star mark for a starred one; a press opens the project; the menu has Open, Star and Copy link", async () => {
+test("the rows: a health dot and the name, a star mark for a starred one; a press opens the project; the menu has Open, Star and Copy Link", async () => {
   const off = installDom();
   Dimensions.set({ window: { width: 1280, height: 844, scale: 1, fontScale: 1 } });
   try {

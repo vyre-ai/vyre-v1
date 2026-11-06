@@ -39,10 +39,10 @@ test("the chat header menu is the sidebar row menu's own builder: Rename, Star, 
   const calls: string[] = [];
   const d = { rename: () => calls.push("rename"), star: (on: boolean) => calls.push(`star:${on}`), mute: (on: boolean) => calls.push(`mute:${on}`), archive: () => calls.push("archive"), unarchive: () => calls.push("unarchive"), leave: () => calls.push("leave"), remove: () => calls.push("remove"), addPeople: () => calls.push("add"), copyLink: () => calls.push("link") };
   const e = chatHeaderEntries({ starred: false, muted: false, archived: false, withPeople: false }, d);
-  assert.deepEqual(labels(e), ["Rename", "Star", "Mute", "-", "Add People…", "Copy link", "-", "Archive", "-", "Delete chat"]);
+  assert.deepEqual(labels(e), ["Rename", "Star", "Mute", "-", "Add People…", "Copy Link", "-", "Archive", "-", "Delete chat"]);
   for (const x of rows(e)) x.onSelect?.();
   assert.deepEqual(calls, ["rename", "star:true", "mute:true", "add", "link", "archive", "remove"]);
-  assert.deepEqual(labels(chatHeaderEntries({ starred: true, muted: true, archived: true, withPeople: true }, d)), ["Rename", "Remove star", "Unmute", "-", "Add People…", "Copy link", "-", "Unarchive", "-", "Leave chat"]);
+  assert.deepEqual(labels(chatHeaderEntries({ starred: true, muted: true, archived: true, withPeople: true }, d)), ["Rename", "Remove Star", "Unmute", "-", "Add People…", "Copy Link", "-", "Unarchive", "-", "Leave chat"]);
   // the same items, in the same words, as the row menu
   const side = labels(chatMenu({ starred: false, unread: false, local: false, archived: false, withPeople: false, muted: false }, { open() {}, rename() {}, star() {}, markRead() {}, markUnread() {}, mute() {}, archive() {}, unarchive() {}, leave() {}, remove() {}, addPeople() {}, copyLink() {} }));
   for (const word of labels(e).filter((l) => l !== "-")) assert.ok(side.includes(word), `${word} is in the row menu too`);

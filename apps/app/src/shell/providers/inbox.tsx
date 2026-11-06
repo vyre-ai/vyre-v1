@@ -84,7 +84,7 @@ function Main({ rt, openId, close }: { rt: ShellRuntime; openId: string | null; 
   // a link to the Replies list (the old Threads page redirects here) opens it
   const repliesHash = target.screen === "inbox.replies";
   useEffect(() => { if (repliesHash && state.main !== "replies") dispatch({ type: "replies" }); }, [repliesHash]); // eslint-disable-line react-hooks/exhaustive-deps -- only a new link moves the view
-  // a link to an event (vyre://event/<id>, Copy link in the event pane) opens the Calendar with that event in its pane
+  // a link to an event (vyre://event/<id>, Copy Link in the event pane) opens the Calendar with that event in its pane
   const eventHash = target.subject?.type === "event" ? target.subject.id : null;
   useEffect(() => { if (eventHash !== null && state.main !== "calendar") dispatch({ type: "calendar" }); }, [eventHash]); // eslint-disable-line react-hooks/exhaustive-deps -- only a new link moves the view
   // Choosing another inbox, view, filter or the Calendar in the sidebar leaves the open conversation and shows the list again.

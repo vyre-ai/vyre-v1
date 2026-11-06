@@ -1,4 +1,4 @@
-// The chat header's "..." carries the chat's own items (Rename, Star, Mute, Archive, Leave or Delete, Add People, Copy link) from the SAME builder as the sidebar row menu (menus/chat.ts chatMenu): one list, one set of words.
+// The chat header's "..." carries the chat's own items (Rename, Star, Mute, Archive, Leave or Delete, Add People, Copy Link) from the SAME builder as the sidebar row menu (menus/chat.ts chatMenu): one list, one set of words.
 // Open and Mark as Read are left out, because the chat is open and its read mark is the sidebar's. Pure: facts in, what each item does in, entries out.
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import { chatMenu } from "../menus/chat.ts";

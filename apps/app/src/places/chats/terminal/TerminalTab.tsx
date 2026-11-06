@@ -122,7 +122,7 @@ export function TerminalTab({ data, terminalId }: { data: TerminalData; terminal
   const host = uiHost(row.host);
 
   const items: MenuEntry[] = [
-    { label: starred ? "Remove star" : "Star", onSelect: star },
+    { label: starred ? "Remove Star" : "Star", onSelect: star },
     { label: "Interrupt", onSelect: () => void sender.interrupt() },
     { separator: true },
     { head: "New terminal on" },

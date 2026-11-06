@@ -11,11 +11,11 @@ const acts = { copy: () => calls.push("copy"), edit() {}, setPinned: (_id: strin
 const shape = (m: Message, mine: boolean): string => menuFor(m, mine, acts, () => calls.push("edit")).map((e) => ("separator" in e ? "|" : "head" in e ? "#" : e.label)).join(",");
 
 test("someone else's message: copy, then thread, task, share and fork, then pin and react; no Edit, no Delete", () => {
-  assert.equal(shape(msg(), false), "Copy,|,Reply in thread,Make a Task,Share to...,Fork From Here,|,Pin,Add Reaction");
+  assert.equal(shape(msg(), false), "Copy,|,Reply in Thread,Make a Task,Share to...,Fork From Here,|,Pin,Add Reaction");
 });
 
 test("your own message adds Edit beside Copy and Delete last, alone, in the danger colour", () => {
-  assert.equal(shape(msg({ author: { kind: "person", id: "me" } }), true), "Copy,Edit,|,Reply in thread,Make a Task,Share to...,Fork From Here,|,Pin,Add Reaction,|,Delete");
+  assert.equal(shape(msg({ author: { kind: "person", id: "me" } }), true), "Copy,Edit,|,Reply in Thread,Make a Task,Share to...,Fork From Here,|,Pin,Add Reaction,|,Delete");
   const items = menuFor(msg(), true, acts, () => undefined);
   const last = items.at(-1) as { label: string; danger?: boolean };
   assert.deepEqual([last.label, last.danger], ["Delete", true]);
@@ -30,7 +30,7 @@ test("the words follow the state and every item calls what it says", () => {
 });
 
 test("a system line has no Make a Task, Share or Fork", () => {
-  assert.equal(shape(msg({ kind: "system" }), false), "Copy,|,Reply in thread,|,Pin,Add Reaction");
+  assert.equal(shape(msg({ kind: "system" }), false), "Copy,|,Reply in Thread,|,Pin,Add Reaction");
 });
 
 test("Edit and Delete are only on your own message; an agent's reply has Retry instead of Edit, and Retry runs its turn again", async () => {
@@ -53,14 +53,14 @@ test("Edit and Delete are only on your own message; an agent's reply has Retry i
   await assert.rejects(regenerate({ threadId: "thr_1", call: async () => ({}) } as never, "m1"));
 });
 
-test("Copy link copies the plain link to the message, only where the chat has an address; it sits with Copy", () => {
+test("Copy Link copies the plain link to the message, only where the chat has an address; it sits with Copy", () => {
   const withLink = { ...(acts as object), copyLink: (id: string) => calls.push(`link:${id}`) } as unknown as MessageActions;
   const labels = menuFor(msg(), false, withLink, () => undefined).map((e) => ("separator" in e ? "|" : "head" in e ? "#" : e.label));
-  assert.deepEqual(labels.slice(0, 3), ["Copy", "Copy link", "|"]);
+  assert.deepEqual(labels.slice(0, 3), ["Copy", "Copy Link", "|"]);
   calls.length = 0;
-  (menuFor(msg(), false, withLink, () => undefined).find((e) => "label" in e && e.label === "Copy link") as { onSelect(): void }).onSelect();
+  (menuFor(msg(), false, withLink, () => undefined).find((e) => "label" in e && e.label === "Copy Link") as { onSelect(): void }).onSelect();
   assert.deepEqual(calls, ["link:m1"]);
-  assert.ok(!menuFor(msg(), false, acts, () => undefined).some((e) => "label" in e && e.label === "Copy link"));
+  assert.ok(!menuFor(msg(), false, acts, () => undefined).some((e) => "label" in e && e.label === "Copy Link"));
 });
 
 test("Mark Unread From Here is in the keep group where the chat can do it, and runs threads.mark_unread_from with that message's sequence number", async () => {
@@ -96,10 +96,10 @@ test("message times in a shared place read in the Space zone, hover names both z
   assert.match(other.timeTitle ?? "", /Pacific Time/);
 });
 
-test("the message menu uses the settled names: Pin, Reply in thread, Copy link and Retry", () => {
+test("the message menu uses the settled names: Pin, Reply in Thread, Copy Link and Retry", () => {
   const withAll = { ...(acts as object), copyLink: () => undefined, regenerate: () => undefined } as unknown as MessageActions;
   const agentMsg = msg({ author: { kind: "agent", id: "agt_mira" }, kind: "agent" });
   const labels = menuFor(agentMsg, false, withAll, () => undefined).flatMap((e) => ("label" in e ? [e.label] : []));
-  for (const word of ["Copy link", "Reply in thread", "Retry", "Pin"]) assert.ok(labels.includes(word), word);
-  for (const gone of ["Copy Link", "Reply in Thread", "Regenerate", "Pin Message"]) assert.ok(!labels.includes(gone), `${gone} is retired`);
+  for (const word of ["Copy Link", "Reply in Thread", "Retry", "Pin"]) assert.ok(labels.includes(word), word);
+  for (const gone of ["Copy link", "Reply in thread", "Regenerate", "Pin Message"]) assert.ok(!labels.includes(gone), `${gone} is retired`);
 });

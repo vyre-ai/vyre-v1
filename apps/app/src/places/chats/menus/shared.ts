@@ -7,5 +7,5 @@ import { item } from "../../../../../../ui/src/Menu/entries.ts";
 export { sep, tidy, item } from "../../../../../../ui/src/Menu/entries.ts";
 export { keyLabel, shortcutFor } from "../../../../../../ui/src/Menu/keys.ts";
 
-/** Star / Remove star: the one spelling for putting a chat, agent, channel, project, file or record in your list. */
-export const starItem = (starred: boolean, star: (on: boolean) => void, hint: string = KEY.star): ReturnType<typeof item> => (starred ? item("Remove star", () => star(false), { hint }) : item("Star", () => star(true), { hint }));
+/** Star / Remove Star: the one spelling for putting a chat, agent, channel, project, file or record in your list. */
+export const starItem = (starred: boolean, star: (on: boolean) => void, hint: string = KEY.star): ReturnType<typeof item> => (starred ? item("Remove Star", () => star(false), { hint }) : item("Star", () => star(true), { hint }));

@@ -219,7 +219,7 @@ test("Resolve Conflict… and Star are in the menu of a line, and each does its 
   for (const e of entries.filter((x) => x.label === "Resolve Conflict…" || x.label === "Star")) e.onSelect?.();
   assert.deepEqual(did, ["resolve:fil_logo", "star:fil_logo"]);
   const starred = items(lineMenuEntries([fileLine(stub({ starred: true }))], false, h));
-  assert.ok(starred.some((e) => e.label === "Remove star") && !starred.some((e) => e.label === "Resolve Conflict…"));
+  assert.ok(starred.some((e) => e.label === "Remove Star") && !starred.some((e) => e.label === "Resolve Conflict…"));
   assert.ok(!items(lineMenuEntries([bad], false, { open: h.open, quickLook: h.quickLook, share: h.share, rename: h.rename, trash: h.trash, restore: h.restore })).some((e) => e.label === "Star" || e.label === "Resolve Conflict…"), "no handler, no entry");
 });
 

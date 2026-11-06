@@ -254,7 +254,7 @@ test("Delete then Undo: calendar.delete_event takes it off the grid and calendar
 
 // ------------------------------------------------------------------ menus
 
-test("the event menu: Open, Edit, Join, Prepare, Ask About This, Copy link, Open Record, Open Conversation, Move to a calendar, Duplicate, Delete; what the event lacks is left out", () => {
+test("the event menu: Open, Edit, Join, Prepare, Ask About This, Copy Link, Open Record, Open Conversation, Move to a calendar, Duplicate, Delete; what the event lacks is left out", () => {
   const s = createCalendarSample();
   const picked: string[] = [];
   const h = {
@@ -263,14 +263,14 @@ test("the event menu: Open, Edit, Join, Prepare, Ask About This, Copy link, Open
     moveTo: (id: string) => void picked.push(`move:${id}`), duplicate: () => void picked.push("duplicate"), remove: () => void picked.push("delete"),
   };
   const rich = eventMenuEntries(menuFacts(byId(s, "e_lease_call"), calendars(s)), h);
-  assert.deepEqual(items(rich).map((x) => x.label), ["Open", "Edit", "Join", "Ask About This", "Copy link", "Open Record", "Open Conversation", "Work Google", "Microsoft", "Personal", "Duplicate", "Delete"]);
+  assert.deepEqual(items(rich).map((x) => x.label), ["Open", "Edit", "Join", "Ask About This", "Copy Link", "Open Record", "Open Conversation", "Work Google", "Microsoft", "Personal", "Duplicate", "Delete"]);
   assert.ok(rich.some(isSeparator) && rich.some((x) => isHead(x) && x.head === "Move to a calendar"));
   assert.deepEqual(items(rich).filter((x) => x.checked).map((x) => x.label), ["Work Google"], "the event's own calendar is checked");
   assert.equal(items(rich).at(-1)?.danger, true, "Delete is marked destructive");
   for (const it of items(rich)) it.onSelect?.();
   assert.deepEqual(picked, ["open", "edit", "join", "ask", "link", "record", "conversation", "move:cal_ms", "move:cal_pers", "duplicate", "delete"], "picking the current calendar does nothing");
   const plain = items(eventMenuEntries(menuFacts(byId(s, "e_dentist"), calendars(s)), h)).map((x) => x.label);
-  assert.deepEqual(plain, ["Open", "Edit", "Ask About This", "Copy link", "Work Google", "Microsoft", "Personal", "Duplicate", "Delete"]);
+  assert.deepEqual(plain, ["Open", "Edit", "Ask About This", "Copy Link", "Work Google", "Microsoft", "Personal", "Duplicate", "Delete"]);
 });
 
 test("the card's pickers and the header's people menu carry checkmarks; a day's menu offers New Event Here", () => {

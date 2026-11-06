@@ -276,9 +276,9 @@ const labelsOf = (s: SampleRuns, r: Run, open: boolean, a: RunActions = quiet())
 
 test("the row menu: open, copy and retry for a failed run nobody retried; Stop only while a run works", () => {
   const s = createSampleRuns(northwind);
-  assert.deepEqual(labelsOf(s, runOf(s, "rl1"), true), ["Open to the Side", "Open in Main", "Copy link", "Copy error details", "Retry"]);
-  assert.deepEqual(labelsOf(s, runOf(s, "rl3"), false), ["Open to the Side", "Open in Main", "Copy link", "Copy error details"]);
-  assert.deepEqual(labelsOf(s, runOf(s, "ri1"), false), ["Open to the Side", "Open in Main", "Copy link", "Copy error details", "Stop"]);
+  assert.deepEqual(labelsOf(s, runOf(s, "rl1"), true), ["Open to the Side", "Open in Main", "Copy Link", "Copy error details", "Retry"]);
+  assert.deepEqual(labelsOf(s, runOf(s, "rl3"), false), ["Open to the Side", "Open in Main", "Copy Link", "Copy error details"]);
+  assert.deepEqual(labelsOf(s, runOf(s, "ri1"), false), ["Open to the Side", "Open in Main", "Copy Link", "Copy error details", "Stop"]);
 });
 
 test("the row menu does what it says: opens the run to the side or in Main, copies the link and the trace id", () => {

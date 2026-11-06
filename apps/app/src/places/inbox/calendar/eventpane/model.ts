@@ -64,7 +64,7 @@ export function linkParts(text: string): Array<{ text: string; url?: string }> {
   return out;
 }
 
-/** The event's own link: Cmd-K, chat and Copy link all speak vyre:// links; the shell opens it in Inbox, Calendar. */
+/** The event's own link: Cmd-K, chat and Copy Link all speak vyre:// links; the shell opens it in Inbox, Calendar. */
 export const eventLink = (id: string): string => `vyre://event/${id}`;
 
 /** The name of a guest: the one the invitation carries, else a person of the Space, else the address. */

@@ -26,7 +26,7 @@ export function channelMenu(f: ChannelFacts, d: ChannelDo): MenuEntry[] {
     d.notifications ? item("Notifications\u2026", d.notifications) : null,
     sep,
     f.member && d.invite ? item("Invite\u2026", d.invite) : null,
-    item("Copy link", d.copyLink),
+    item("Copy Link", d.copyLink),
     f.member || f.admin ? sep : null,
     f.admin ? item("Archive Channel", d.archive, { hint: KEY.archive }) : null,
     f.member ? item("Leave Channel", d.leave, { danger: true }) : null,

@@ -1,6 +1,6 @@
 // Inbox > Calendar (spec 3.3, 2.18): Day, Week (the default) and Month over the calendars the sidebar shows. Drag on the grid to make an event in 15 minute steps; a small card takes the title, length,
 // people and calendar; shaded stripes show when the people you add are busy; "Find a time" lists the next free slots. Drag an event to move it and its bottom edge to resize, both on 15 minute
-// steps; right-click for Open, Edit, Join, Going?, Prepare, Ask, Copy link, Open Record, Open Conversation, Move to a calendar, Duplicate and Delete (Undo on the line that follows). A click on an event
+// steps; right-click for Open, Edit, Join, Going?, Prepare, Ask, Copy Link, Open Record, Open Conversation, Move to a calendar, Duplicate and Delete (Undo on the line that follows). A click on an event
 // opens it in the event pane beside the calendar (a sheet on a phone), Enter too, and Escape closes it; a double-click edits it; a click on an empty slot starts a new event there.
 import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import type { ReactElement } from "react";

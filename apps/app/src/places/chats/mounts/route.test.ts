@@ -73,7 +73,7 @@ test("one artifact opens in its own tab inside Chats, keeps the Artifacts row se
   assert.equal(openKeyOf(fromHash("subject=artifact:sit_1").route), "artifacts");
 });
 
-test("the link Copy link makes for a chat and for one message opens that chat, on that message", () => {
+test("the link Copy Link makes for a chat and for one message opens that chat, on that message", () => {
   const chat = fromHash("screen=chats.conversation&threadId=thr_a");
   assert.equal(chat.route.view === "chat" ? chat.route.threadId : null, "thr_a");
   const msg = fromHash("screen=chats.conversation&threadId=thr_a&m=msg_9");

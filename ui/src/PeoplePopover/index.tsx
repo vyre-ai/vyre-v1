@@ -1,6 +1,6 @@
 // ui/PeoplePopover: the people popover that opens from the face stack or the count in a chat or project header. One component for both. Title "People and agents", one row per member
 // (face, name, the role right-aligned in muted text), a divider and one footer action. A row opens the person's profile or the agent's page; a right-click (or long press) offers
-// Message, Change role, Remove and Copy link where allowed. Arrow keys move through the rows and the footer, Enter opens, Escape closes. Rounded 12, the pop shadow, a soft fill under the pointer.
+// Message, Change role, Remove and Copy Link where allowed. Arrow keys move through the rows and the footer, Enter opens, Escape closes. Rounded 12, the pop shadow, a soft fill under the pointer.
 import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
 import { Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";

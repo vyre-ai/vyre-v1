@@ -1,4 +1,4 @@
-// The tab's right-click menu (lane l-chrome2a): Close, Close Other Tabs, Close Tabs to the Right, Pin and Unpin, Copy link and Reopen Closed Tab, built from the controller's real state; a closed tab comes back, a pinned tab stays and
+// The tab's right-click menu (lane l-chrome2a): Close, Close Other Tabs, Close Tabs to the Right, Pin and Unpin, Copy Link and Reopen Closed Tab, built from the controller's real state; a closed tab comes back, a pinned tab stays and
 // Close does not take it; two tabs never show the same thing, so there is no Duplicate.
 import test from "node:test";
 import assert from "node:assert/strict";

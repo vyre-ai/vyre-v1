@@ -61,7 +61,7 @@ export function lineMenuEntries(e: Entry, h: { open(): void; read(read: boolean)
   const out: MenuEntry[] = [{ label: "Open", onSelect: h.open }];
   if (e.kind === "contact") out.push({ label: e.unread > 0 ? "Mark as Read" : "Mark as Unread", onSelect: () => h.read(e.unread > 0) });
   if (e.kind === "contact" && e.contactId) out.push({ label: e.followed ? "Unfollow" : "Follow", onSelect: () => h.follow(!e.followed) });
-  if (e.kind === "contact" && e.contactId) out.push({ label: e.starred ? "Remove star" : "Star", onSelect: () => h.star(!e.starred) });
+  if (e.kind === "contact" && e.contactId) out.push({ label: e.starred ? "Remove Star" : "Star", onSelect: () => h.star(!e.starred) });
   if (e.needsMatch && e.kind !== "call") out.push({ separator: true }, { label: "Match to a record…", onSelect: h.match });
   return out;
 }

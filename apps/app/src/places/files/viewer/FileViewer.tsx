@@ -159,7 +159,7 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
   const openMore = (x: number, y: number): void => {
     const name = load.status === "ready" ? load.data.file.name : "";
     accessMenu.show([
-      { label: "Copy link", onSelect: () => copyText(itemLink("file", fileId), "Link copied.") },
+      { label: "Copy Link", onSelect: () => copyText(itemLink("file", fileId), "Link copied.") },
       { label: "Copy name", onSelect: () => copyText(name, "Name copied.") },
     ], x, y, "other", { label: "More" });
   };

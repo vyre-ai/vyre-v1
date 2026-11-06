@@ -1,5 +1,5 @@
 // Calendar > event pane (lane l-calevents, owner 3 Nov; the prototype's #calnext and #calevent): a click on an event opens it beside the calendar, where it was pressed (on a phone, in a
-// sheet). Title, when in your time zone and how it repeats, the calendar, who organised it, a big Join button, Going? Yes, No or Maybe, Edit, Prepare, Ask and More (Copy link,
+// sheet). Title, when in your time zone and how it repeats, the calendar, who organised it, a big Join button, Going? Yes, No or Maybe, Edit, Prepare, Ask and More (Copy Link,
 // Delete); where it is and what it is about, with its links; who is coming and how each answered. A past meeting shows its close-out (summary, tasks, Open close-out) and the
 // recording or transcript. Edit happens in place; a repeating event asks This Event or All Events on Save. Everything goes through capabilities as the person.
 import { useEffect, useState } from "react";
@@ -174,7 +174,7 @@ export function EventPane(p: EventPaneProps): ReactElement {
   };
   const more = (x: number, y: number): void => {
     const entries: MenuEntry[] = [
-      { label: "Copy link", onSelect: () => { void (globalThis as { navigator?: { clipboard?: { writeText(s: string): Promise<void> } } }).navigator?.clipboard?.writeText(eventLink(e.id))?.catch(() => undefined); p.onUndo("Link copied", async () => undefined); } },
+      { label: "Copy Link", onSelect: () => { void (globalThis as { navigator?: { clipboard?: { writeText(s: string): Promise<void> } } }).navigator?.clipboard?.writeText(eventLink(e.id))?.catch(() => undefined); p.onUndo("Link copied", async () => undefined); } },
       { label: "Ask About This", onSelect: () => p.nav.ask(e) },
       ...(e.recordIds[0] ? [{ label: "Open Record", onSelect: () => p.nav.openRecord(e.recordIds[0]!) }] : []),
       { separator: true },

@@ -46,7 +46,7 @@ export function chatMenu(f: ChatFacts, d: ChatDo, has: { rename?: boolean; mute?
     sep,
     f.local || !d.addPeople ? null : item("Add People\u2026", d.addPeople),
     f.local || !d.moveToProject ? null : item("Move to Project\u2026", d.moveToProject),
-    f.local || !d.copyLink ? null : item("Copy link", d.copyLink),
+    f.local || !d.copyLink ? null : item("Copy Link", d.copyLink),
     sep,
     f.archived ? item("Unarchive", d.unarchive, { hint: KEY.archive }) : item("Archive", d.archive, { hint: KEY.archive }),
     f.local ? null : sep,

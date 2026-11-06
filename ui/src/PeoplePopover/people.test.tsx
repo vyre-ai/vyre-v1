@@ -64,7 +64,7 @@ test("a row opens the person or the agent; the footer runs its action; each plac
   } finally { restore(); }
 });
 
-test("the right-click menu: Message for another person, Change role and Remove only when permitted, never Remove on yourself, Copy link always", () => {
+test("the right-click menu: Message for another person, Change role and Remove only when permitted, never Remove on yourself, Copy Link always", () => {
   const ids = (r: MemberRow, perms = all) => memberMenu(r, perms, "usr_me").map((i) => i.id);
   assert.deepEqual(ids(rows[1]!), ["message", "role", "remove", "link"]);
   assert.deepEqual(ids(rows[0]!), ["role", "link"], "yourself: no Message, no Remove");
@@ -86,7 +86,7 @@ test("a right-click opens the menu and each item reports its action", async () =
     assert.equal(typeof open, "function");
     const { act } = await import("react");
     await act(async () => { open?.({ preventDefault() {}, nativeEvent: { pageX: 10, pageY: 10 }, pageX: 10, pageY: 10, clientX: 10, clientY: 10 }); });
-    for (const label of ["Message", "Change role", "Remove", "Copy link"]) assert.ok(find(root, `menu-item-${label}`) !== null, label);
+    for (const label of ["Message", "Change role", "Remove", "Copy Link"]) assert.ok(find(root, `menu-item-${label}`) !== null, label);
     await press(find(root, "menu-item-Remove"));
     assert.deepEqual(log, ["remove:usr_sara"]);
   } finally { restore(); }

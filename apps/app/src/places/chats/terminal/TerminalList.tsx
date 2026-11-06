@@ -25,7 +25,7 @@ type StarsOut = CapMap["stars.list"]["out"];
 
 function StarButton({ on, onPress, testID }: { on: boolean; onPress: () => void; testID: string }): ReactElement {
   return (
-    <Pressable role="button" aria-pressed={on} accessibilityLabel={on ? "Remove star" : "Star"} onPress={onPress} testID={testID} style={({ hovered }: { hovered?: boolean }) => [st.star, hovered === true && st.starOver]}>
+    <Pressable role="button" aria-pressed={on} accessibilityLabel={on ? "Remove Star" : "Star"} onPress={onPress} testID={testID} style={({ hovered }: { hovered?: boolean }) => [st.star, hovered === true && st.starOver]}>
       <MenuIcon icon="star" size={14} color={on ? "var(--warn)" : "var(--ink-3)"} />
     </Pressable>
   );
@@ -66,7 +66,7 @@ export function TerminalList({ data, x, y, onClose, window }: { data: TerminalDa
       const flip = (): void => { void toggleStar(deps, t.terminalId, !on).then((ok) => { if (!ok) setLine("Could not change the star."); }); };
       const items: MenuEntry[] = [
         { label: "Open", onSelect: () => { data.nav.openTerminal(t.terminalId); onClose(); } },
-        { label: on ? "Remove star" : "Star", onSelect: flip },
+        { label: on ? "Remove Star" : "Star", onSelect: flip },
         { separator: true },
         { label: "Close Session", danger: true, onSelect: () => void closeSession(deps, t.terminalId).then((ok) => { if (!ok) setLine("Could not close it."); }) },
       ];

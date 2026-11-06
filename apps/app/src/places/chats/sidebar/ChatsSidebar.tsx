@@ -541,7 +541,7 @@ function Sidebar({ window, query, slot, open: shown, startFilter }: { window?: V
     ...(data.nav.openGoal ? { open: () => { data.nav.openGoal?.(e.goal.id); leave(); } } : {}),
     ask: (kind) => setGoalAsk({ goalId: e.goal.id, kind }),
   });
-  /** A project row's menu: what anyone may do (Open, Star, Copy link); Share, Add People, Pin File and Archive need the person's role and a sheet, so they are the project page's and are not offered here, where the person's role on the project is known. */
+  /** A project row's menu: what anyone may do (Open, Star, Copy Link); Share, Add People, Pin File and Archive need the person's role and a sheet, so they are the project page's and are not offered here, where the person's role on the project is known. */
   const projectRowMenu = (e: Extract<Entry, { type: "project" }>): MenuEntry[] => projectMenu({ title: e.project.title, starred: e.project.starred, archived: false, manage: false, edit: false }, {
     open: () => { data.nav.openProject?.(e.project.id); leave(); },
     star: (on) => { void Promise.resolve(data.call("stars.toggle", { resource: { type: "project", id: e.project.id }, on })).then(() => projectsQ.reload(), () => say("That did not go through.")); },

@@ -278,9 +278,9 @@ export function menuFor(m: Message, mine: boolean, a: MessageActions, onEdit: ()
   // groups, split by a separator: read and write it, then turn it into something, then keep it, then how it was made, then remove it last
   const talk = m.kind !== "system" && m.kind !== "quiet";
   const write: MenuEntry[] = [{ label: "Copy", onSelect: () => a.copy(m.body) }];
-  if (a.copyLink) write.push({ label: "Copy link", onSelect: () => a.copyLink!(m.messageId) });
+  if (a.copyLink) write.push({ label: "Copy Link", onSelect: () => a.copyLink!(m.messageId) });
   if (mine && m.kind === "text") write.push({ label: "Edit", onSelect: onEdit });
-  const turn: MenuEntry[] = [{ label: "Reply in thread", onSelect: () => a.openThread(m.messageId) }];
+  const turn: MenuEntry[] = [{ label: "Reply in Thread", onSelect: () => a.openThread(m.messageId) }];
   // an agent's reply cannot be edited by you; it can be asked again
   if (!mine && m.author.kind === "agent" && m.kind !== "system" && m.kind !== "quiet" && a.regenerate) turn.push({ label: "Retry", onSelect: () => a.regenerate!(m.messageId) });
   if (a.askAgent && talk) turn.push({ label: "Ask an Agent…", onSelect: () => a.askAgent!(m.messageId, at.x, at.y) });
@@ -312,7 +312,7 @@ export function HoverBar({ m, mine, a, onEdit, visible, byAgent = false }: { m: 
   const talk = m.kind !== "system" && m.kind !== "quiet";
   if (byAgent) {
     bar.push({ icon: "copy", label: "Copy", run: () => a.copy(m.body) });
-    bar.push({ icon: "reply", label: "Reply in thread", run: () => a.openThread(m.messageId) });
+    bar.push({ icon: "reply", label: "Reply in Thread", run: () => a.openThread(m.messageId) });
     if (a.fork && talk) bar.push({ icon: "fork", label: "Fork From Here", run: () => a.fork!(m.messageId) });
     if (talk) bar.push({ icon: "pin", label: m.pinned ? "Unpin" : "Pin", run: () => a.setPinned(m.messageId, !m.pinned) });
     // an agent's answer, in any chat, can become work or a memory in one tap, from here and from the long-press sheet; nothing of it is drawn at rest
@@ -321,11 +321,11 @@ export function HoverBar({ m, mine, a, onEdit, visible, byAgent = false }: { m: 
   } else if (mine && a.humanChat !== true) {
     bar.push({ icon: "copy", label: "Copy", run: () => a.copy(m.body) });
     if (m.kind === "text") bar.push({ icon: "edit", label: "Edit", run: onEdit });
-    bar.push({ icon: "reply", label: "Reply in thread", run: () => a.openThread(m.messageId) });
+    bar.push({ icon: "reply", label: "Reply in Thread", run: () => a.openThread(m.messageId) });
     if (a.askAgent && talk) bar.push({ icon: "spark", label: "Ask an Agent", run: (x, y) => a.askAgent!(m.messageId, x, y) });
   } else {
     if (a.pickReaction && talk) bar.push({ icon: "smile", label: "Add Reaction", run: (x, y) => a.pickReaction!(m.messageId, x, y) });
-    bar.push({ icon: "reply", label: "Reply in thread", run: () => a.openThread(m.messageId) });
+    bar.push({ icon: "reply", label: "Reply in Thread", run: () => a.openThread(m.messageId) });
     if (a.askAgent && talk) bar.push({ icon: "spark", label: "Ask an Agent", run: (x, y) => a.askAgent!(m.messageId, x, y) });
     if (mine && m.kind === "text") bar.push({ icon: "edit", label: "Edit", run: onEdit });
   }

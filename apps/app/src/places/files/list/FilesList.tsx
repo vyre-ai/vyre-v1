@@ -56,7 +56,7 @@ export function lineMenuEntries(
     // a file from a connected folder also opens in the app it lives in (Google Docs, Word, Excel, Dropbox)
     const app = one.type === "file" && h.openIn ? openInLabel(one) : null;
     if (app !== null) out.push({ label: openInWords(app), onSelect: () => h.openIn?.(one) });
-    if (one.type === "file" && h.star) out.push({ label: one.starred === true ? "Remove star" : "Star", onSelect: () => h.star?.(one) });
+    if (one.type === "file" && h.star) out.push({ label: one.starred === true ? "Remove Star" : "Star", onSelect: () => h.star?.(one) });
     if (one.type === "folder" && h.share) out.push({ label: "Share…", onSelect: () => h.share?.(one) });
     if (one.type === "file" && h.shareFile) out.push({ label: "Share…", onSelect: () => h.shareFile?.(one) });
     out.push({ label: "Rename…", hint: "F2", onSelect: () => h.rename(one) });

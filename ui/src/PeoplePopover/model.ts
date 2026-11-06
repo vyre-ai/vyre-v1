@@ -34,7 +34,7 @@ export type MemberAction = "message" | "role" | "remove" | "link" | "poke" | "se
 
 export interface MemberMenuItem { id: MemberAction; label: string; danger?: boolean }
 
-/** The right-click menu of a row: Message (a person who is not you), Change role and Remove (only when permitted, and never on yourself for Remove), Copy link (always). */
+/** The right-click menu of a row: Message (a person who is not you), Change role and Remove (only when permitted, and never on yourself for Remove), Copy Link (always). */
 export function memberMenu(row: MemberRow, perms: MemberPerms, meId: string | undefined): MemberMenuItem[] {
   const out: MemberMenuItem[] = [];
   const me = row.id === meId;
@@ -42,7 +42,7 @@ export function memberMenu(row: MemberRow, perms: MemberPerms, meId: string | un
   if (perms.agentControls === true && row.kind !== "person") out.push({ id: "poke", label: "Poke" }, { id: "settings", label: "How and when it responds" });
   if (perms.changeRole) out.push({ id: "role", label: "Change role" });
   if (perms.remove && !me) out.push({ id: "remove", label: "Remove", danger: true });
-  out.push({ id: "link", label: "Copy link" });
+  out.push({ id: "link", label: "Copy Link" });
   return out;
 }
 

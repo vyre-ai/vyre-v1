@@ -186,7 +186,7 @@ test("the line's menu opens, marks read or unread, follows, stars and matches", 
   for (const it of e) it.onSelect?.();
   assert.deepEqual(did, ["open", "read:true", "follow:false", "star:true"]);
   const marcus = contactEntry(rows.find((r) => r.id === "marcus")!, northwind.mailboxes);
-  assert.deepEqual(items(lineMenuEntries(marcus, h)).map((x) => x.label), ["Open", "Mark as Read", "Follow", "Remove star"], "a starred conversation offers Remove star");
+  assert.deepEqual(items(lineMenuEntries(marcus, h)).map((x) => x.label), ["Open", "Mark as Read", "Follow", "Remove Star"], "a starred conversation offers Remove Star");
   items(lineMenuEntries(marcus, h))[3]!.onSelect?.();
   assert.equal(did[did.length - 1], "star:false");
   assert.deepEqual(items(lineMenuEntries(unk, h)).map((x) => x.label), ["Open", "Mark as Read", "Match to a record…"]);

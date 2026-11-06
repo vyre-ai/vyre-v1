@@ -541,14 +541,14 @@ test("an agent's answer has Make task in its hover bar, in a chat of people and 
   const bar = (visible: boolean, byAgent = true): string => clean(renderToStaticMarkup(
     <HoverBar m={reply} mine={!byAgent} byAgent={byAgent} visible={visible} onEdit={() => undefined} a={{ openBeside: () => undefined, nameOf: r.data.nameOf, makeTask: () => undefined, copy: () => undefined, openThread: () => undefined, setPinned: () => undefined, fork: () => undefined, showMenu: () => undefined } as never} />,
   ));
-  assert.ok(bar(true).includes('data-testid="act-make-m_ans"'), "Make task sits in the bar next to Copy, Reply in thread, Fork and Pin, whoever is in the chat");
+  assert.ok(bar(true).includes('data-testid="act-make-m_ans"'), "Make task sits in the bar next to Copy, Reply in Thread, Fork and Pin, whoever is in the chat");
   assert.ok(!bar(true, false).includes('data-testid="act-make-m_ans"'), "never on a person's own message");
   assert.ok(!bar(false).includes('act-make-m_ans'), "at rest no action is drawn");
   // the message itself draws none of it at rest
   const items = timeline([reply], { meId: r.data.me.id, nameOf: r.data.nameOf, kindOf: r.data.kindOf, clock: r.data.clock() });
   const html = clean(items.map((it) => renderToStaticMarkup(<MessageView item={it} actions={{ openBeside: () => undefined, nameOf: r.data.nameOf, makeTask: () => undefined, copy: () => undefined, openThread: () => undefined, setPinned: () => undefined, fork: () => undefined } as never} meId={r.data.me.id} />)).join(""));
   const text = html.replace(/<[^>]+>/g, " ");
-  for (const word of ["Copy", "Reply in thread", "Fork From Here", "Pin", "Make a Task", "Remember This"]) assert.ok(!new RegExp(`\\b${word}\\b`).test(text), `${word} is not shown at rest`);
+  for (const word of ["Copy", "Reply in Thread", "Fork From Here", "Pin", "Make a Task", "Remember This"]) assert.ok(!new RegExp(`\\b${word}\\b`).test(text), `${word} is not shown at rest`);
   // and the long-press sheet on a phone has it
   const sheet = menuFor(reply, false, { makeTask: () => undefined, openThread: () => undefined, copy: () => undefined, setPinned: () => undefined, react: () => undefined, remove: () => undefined } as never, () => undefined);
   assert.ok(sheet.some((e) => "label" in e && e.label === "Make a Task"));

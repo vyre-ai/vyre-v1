@@ -88,7 +88,7 @@ export function runMenu(run: Run, a: RunActions, nav: { openRun(id: string): voi
   const items: MenuEntry[] = [
     { label: "Open to the Side", onSelect: () => nav.openRunSide(run.id) },
     { label: "Open in Main", onSelect: () => nav.openRun(run.id) },
-    { label: "Copy link", onSelect: () => a.copy(runLink(run), "the link to this run") },
+    { label: "Copy Link", onSelect: () => a.copy(runLink(run), "the link to this run") },
     { label: "Copy error details", onSelect: () => a.copy(run.traceId, "the error details") },
   ];
   if (failedStillOpen) items.push({ separator: true }, { label: "Retry", onSelect: () => void a.retry(run) });

@@ -1,4 +1,4 @@
-// The Artifacts page menu: right-click a card (or its ... button) gives Open, Share, Copy link, Rename and Delete for the owner and Open and Copy link for anyone else; Rename and Delete reach sites.update and
+// The Artifacts page menu: right-click a card (or its ... button) gives Open, Share, Copy Link, Rename and Delete for the owner and Open and Copy Link for anyone else; Rename and Delete reach sites.update and
 // sites.delete, and Delete asks first.
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -35,15 +35,15 @@ function scripted(): { rt: ShellRuntime; calls: { cap: string; input: Record<str
   return { rt, calls };
 }
 
-test("the owner's artifact has Open, Share, Copy link, Rename and Delete; someone else's has Open and Copy link", async () => {
+test("the owner's artifact has Open, Share, Copy Link, Rename and Delete; someone else's has Open and Copy Link", async () => {
   installDom();
   const { rt } = scripted();
   const root = await mount(createRoot, <ArtifactsPage rt={rt} />);
   await flush();
   await rightClick(root, "artifact-card-sit_a");
   await flush();
-  assert.deepEqual(labels(root), ["Open", "Share…", "Copy link", "Rename…", "Delete…"]);
-  await press(find(root, "menu-item-Copy link"));
+  assert.deepEqual(labels(root), ["Open", "Share…", "Copy Link", "Rename…", "Delete…"]);
+  await press(find(root, "menu-item-Copy Link"));
   await flush();
   await press(find(root, "artifacts-filter"));
   await flush();
@@ -52,7 +52,7 @@ test("the owner's artifact has Open, Share, Copy link, Rename and Delete; someon
   await flush();
   await rightClick(root, "artifact-card-sit_b");
   await flush();
-  assert.deepEqual(labels(root), ["Open", "Copy link"]);
+  assert.deepEqual(labels(root), ["Open", "Copy Link"]);
 });
 
 test("Delete asks first, then calls sites.delete; Rename calls sites.update with the new name", async () => {
@@ -89,5 +89,5 @@ test("the card's own ... button opens the same menu as a right-click", async () 
   await flush();
   await press(find(root, "artifact-card-sit_a-more"));
   await flush();
-  assert.deepEqual(labels(root), ["Open", "Share…", "Copy link", "Rename…", "Delete…"]);
+  assert.deepEqual(labels(root), ["Open", "Share…", "Copy Link", "Rename…", "Delete…"]);
 });

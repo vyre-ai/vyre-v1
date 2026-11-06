@@ -25,7 +25,7 @@ import { tabMenuEntries } from "../TabStrip/index.tsx";
 
 // KitScreenDef.menus entries, shaped as the generated screens carry them.
 const KIT_MENUS: readonly { target: string; items: readonly KitMenuItem[] }[] = [
-  { target: "row", items: [{ label: "Open", icon: "open", action: "open" }, { label: "Copy link", icon: "link", action: "copy_link" }, { label: "Delete", icon: "trash", action: "delete" }] },
+  { target: "row", items: [{ label: "Open", icon: "open", action: "open" }, { label: "Copy Link", icon: "link", action: "copy_link" }, { label: "Delete", icon: "trash", action: "delete" }] },
   { target: "header", items: [{ label: "Star", icon: "star", action: "star" }] },
   { target: "empty", items: [] },
   { target: "bare", items: [{ label: "Rename", icon: "", action: "rename" }, { label: "Move", icon: "", action: "move" }] },

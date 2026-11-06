@@ -14,10 +14,10 @@ test("a type has Open, Star, Copy Name and Edit Type for a person who may edit; 
   assert.deepEqual(did, ["open", "star:true", "copy", "edit"]);
 });
 
-test("a starred type says Remove star; a person who may not edit gets no Edit Type", () => {
+test("a starred type says Remove Star; a person who may not edit gets no Edit Type", () => {
   const did: string[] = [];
   const its = items(typeMenu({ starred: true, canEdit: false }, { open: () => undefined, star: (on) => void did.push(`star:${on}`), editType: () => undefined }));
-  assert.deepEqual(its.map((x) => x.label), ["Open", "Remove star"]);
+  assert.deepEqual(its.map((x) => x.label), ["Open", "Remove Star"]);
   its[1]!.onSelect?.();
   assert.deepEqual(did, ["star:false"]);
 });
