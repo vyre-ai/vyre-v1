@@ -72,3 +72,25 @@ test("task boxes: pressable inside a message, plain in a preview", () => {
   assert.match(live, /r-cursor-\w+[^>]*data-testid="check-b0-1"/, "a box in a message takes a press");
   assert.doesNotMatch(draw(md), /r-cursor-\w+[^>]*data-testid="check-b0-1"/, "a preview box does not");
 });
+
+test("no raw == or ++ marker is left on screen, in a paragraph with other marks, at a sentence end, at a line start, or in a list item", () => {
+  const md = [
+    "Lead with ==highlight== and ++underline++ then *italic*, **bold**, a [link](https://example.com), `code`, and end on ==the last one==.",
+    "",
+    "==Starts the line== and ++so does this++, then (==in brackets==) and \"++quoted++\".",
+    "",
+    "- ==list highlight== with ++list underline++ and **bold**",
+    "- plain item then ==late mark==.",
+    "1. ++numbered underline++ and *italic*",
+    "",
+    "**==bold highlight==** and *++italic underline++* and ==with `code` inside==.",
+  ].join("\n");
+  const text = (html: string): string => html.replace(/<[^>]*>/g, "");
+  const shown = text(draw(md));
+  assert.ok(!shown.includes("==") && !shown.includes("++"), `a marker is on screen: ${shown}`);
+  for (const w of ["highlight", "underline", "italic", "bold", "link", "code", "the last one", "Starts the line", "in brackets", "quoted", "list highlight", "late mark", "numbered underline", "bold highlight", "italic underline", "with code inside"]) assert.ok(shown.includes(w), w);
+  const marks = (html: string, re: RegExp): number => (html.match(re) ?? []).length;
+  const html = draw(md);
+  assert.ok(marks(html, /r-textDecorationLine-\w+/g) >= 5, "underlines drawn");
+  assert.ok(marks(html, /r-backgroundColor-\w+/g) >= 5, "highlights drawn");
+});
