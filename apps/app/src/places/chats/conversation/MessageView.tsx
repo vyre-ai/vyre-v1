@@ -185,6 +185,36 @@ export function forkOrigin(m: Pick<Message, "blocks">): { threadId: string; mess
   return d && typeof d["threadId"] === "string" && typeof d["messageId"] === "string" ? { threadId: d["threadId"], messageId: d["messageId"], title: typeof d["title"] === "string" ? d["title"] : "another chat" } : null;
 }
 
+/**
+ * Two values that say the same thing. Functions count as equal (a row calls them through the stable actions the list hands every row, so an older one still does the latest thing); data is compared by value to a
+ * depth, and anything deeper or odd (a Map, a class) counts as different, so a row can draw once more but never keeps something stale. The list rebuilds its items and the actions object on every render (each
+ * key typed in the composer), so without this every row of a long chat drew again on every key.
+ */
+export function sameData(a: unknown, b: unknown, depth: number): boolean {
+  if (Object.is(a, b)) return true;
+  if (typeof a === "function" && typeof b === "function") return true;
+  if (typeof a !== "object" || typeof b !== "object" || a === null || b === null || depth <= 0) return false;
+  if (Array.isArray(a) || Array.isArray(b)) {
+    if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false;
+    for (let i = 0; i < a.length; i++) if (!sameData(a[i], b[i], depth - 1)) return false;
+    return true;
+  }
+  const pa = Object.getPrototypeOf(a) as unknown;
+  if ((pa !== Object.prototype && pa !== null) || Object.getPrototypeOf(b) !== pa) return false;
+  const ka = Object.keys(a);
+  if (ka.length !== Object.keys(b).length) return false;
+  for (const k of ka) {
+    if (!(k in b) || !sameData((a as Record<string, unknown>)[k], (b as Record<string, unknown>)[k], depth - 1)) return false;
+  }
+  return true;
+}
+
+/** Draw a row again only when something it shows changed. */
+export function sameRow(a: MessageViewProps, b: MessageViewProps): boolean {
+  return a.meId === b.meId && a.stream === b.stream && a.sending === b.sending && a.openWork === b.openWork && a.mark === b.mark
+    && sameData(a.item, b.item, 6) && sameData(a.actions, b.actions, 5) && sameData(a.replies, b.replies, 3);
+}
+
 export const MessageView = memo(function MessageView(props: MessageViewProps): ReactElement | null {
   const { item } = props;
   if (item.kind === "day") return <Text testID={`day-${item.key}`} accessibilityRole="header" style={st.day}>{item.label}</Text>;
@@ -230,7 +260,7 @@ export const MessageView = memo(function MessageView(props: MessageViewProps): R
     );
   }
   return item.kind === "me" ? <Mine {...props} item={item} /> : <Theirs {...props} item={item} />;
-});
+}, sameRow);
 
 /* ---------- the hover bar and the menu: the same list in both ---------- */
 

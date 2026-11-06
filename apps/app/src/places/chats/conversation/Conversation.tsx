@@ -34,6 +34,7 @@ import { droppedOf, sharedLine, shareWithAgents, undoShare } from "./dropshare.t
 import { ConversationDataProvider, useConversationData, useOnline, useOptionalConversationData, useScreenQuery } from "./data.tsx";
 import type { ConversationData, ConversationNav } from "./data.tsx";
 import * as act from "./actions.ts";
+import { newDelegates, stableActions } from "./stable-actions.ts";
 import { ChatMemoryProvider } from "../memory/thread.tsx";
 import { keepItem, weave } from "../tasks/activity.ts";
 import { useMemoryEntries } from "../memory/menu.tsx";
@@ -112,6 +113,9 @@ function rememberMuteSeen(id: string): void {
     globalThis.localStorage?.setItem(MUTE_SEEN, JSON.stringify([...now, id].slice(-200)));
   } catch { /* no storage here: the line shows again next time */ }
 }
+
+/** The newest rows are always drawn in full (the chat follows the end and streams there); older ones may be skipped while off screen. */
+const OFFSCREEN_KEEP = 24;
 
 export function Conversation({ data, compact = false }: { data?: ConversationData; compact?: boolean }): ReactElement {
   const ctx = useOptionalConversationData();
@@ -211,6 +215,7 @@ function ConversationView(): ReactElement {
   const repliesSwitch = useReplySwitch(data, data.threadId, threadQ.status === "ready" ? repliesOf(threadQ.data.thread) : undefined);
   const helpersQ = useScreenQuery<HelpersOut>(CONVERSATION_SCREEN, "helpers", { threadId: data.threadId });
   const [shown, setShown] = useState(WINDOW);
+  const delegates = useRef(newDelegates());
   const [older, setOlder] = useState<Message[]>([]);
   const [olderMore, setOlderMore] = useState<boolean | null>(null);
   const [cursor, setCursor] = useState<number | null>(null);
@@ -584,6 +589,8 @@ function ConversationView(): ReactElement {
       menu.show(entries, x, y, "context", { label: "Share to" });
     }, fail("Could not list where to share it.")),
   };
+  // what the rows get: the same data, with every function swapped for one that never changes (so a row the list skips still does the latest thing)
+  const rowActions = stableActions(delegates.current, actions);
 
   const inThread = new Map(thread.agents.map((a) => [a.agentId, a.mode] as const));
   const dirId = (name: string, kind: "agent" | "person"): string | undefined => data.directory.find((c) => c.kind === kind && c.name === name)?.id;
@@ -723,12 +730,14 @@ function ConversationView(): ReactElement {
               </View>
             ) : null}
             {items.length === 0 && !data.head && thread.kind !== "thread" ? <States kind="empty" icon="chat" title="Say something to start" /> : null}
-            {collect(items, (it) => {
+            {collect(items, (it, at) => {
               const key = it.key;
               const stream = it.kind === "other" ? data.streamOf(it.message.messageId) : undefined;
               const sending = it.kind === "me" ? pendingState.get(it.message.messageId) : undefined;
               const under = it.kind === "me" || it.kind === "other" ? replies.get(it.message.messageId) : undefined;
-              return <MessageView key={key} item={it} actions={actions} meId={data.me.id} stream={stream} sending={sending} mark={markOf(it, matches, activeId, finding)} replies={under ? { s: under, clock: data.clock() } : undefined} />;
+              const row = <MessageView key={key} item={it} actions={rowActions} meId={data.me.id} stream={stream} sending={sending} mark={markOf(it, matches, activeId, finding)} replies={under ? { s: under, clock: data.clock() } : undefined} />;
+              // always wrapped on the web, so a row that grows old keeps its state; only the style changes
+              return Platform.OS === "web" ? <View key={key} style={at < items.length - OFFSCREEN_KEEP ? st.offscreen : undefined}>{row}</View> : row;
             })}
             {data.tail ?? null}
           </View>
@@ -899,6 +908,8 @@ const st = StyleSheet.create({
   feedBox: { flex: 1, minHeight: 0 },
   feedContent: { alignItems: "center", paddingHorizontal: 24, paddingBottom: 18 },
   col: { width: "100%", maxWidth: 660, paddingTop: 6 },
+  // an older row the browser may skip drawing and laying out while it is off screen; it keeps the size it last had, so the scroll bar and the scroll position do not move
+  offscreen: { contentVisibility: "auto", containIntrinsicSize: "auto 88px" } as object,
   earlier: { alignItems: "center", paddingVertical: 10 },
   toLatest: { position: "absolute", alignSelf: "center", bottom: 10, height: 30, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, borderRadius: 15, borderWidth: 1, borderColor: "var(--line-2)" as string, backgroundColor: "var(--win)" as string },
   toLatestText: { fontSize: 12.5, color: "var(--ink-2)" as string },
