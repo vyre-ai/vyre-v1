@@ -1,0 +1,1 @@
+- Chat: a person's own connected account now comes before any Space-provided account (OpenCode Go and others) when a chat picks its default account, in the account picker and in the resolver (provider spelling `opencode_go` and `opencode-go` no longer passes the own account over).

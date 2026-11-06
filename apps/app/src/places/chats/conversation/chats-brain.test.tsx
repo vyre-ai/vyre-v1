@@ -161,3 +161,12 @@ test("the composer offers only accounts that can run a chat here: one the list m
   ];
   assert.deepEqual(connectedAccounts(rows).map((a) => a.ref), ["#Mine", "#Plain"]);
 });
+
+test("the person's own accounts are listed, shown and pinned before a Space account (owner, 6 Nov)", () => {
+  const rows = [
+    { ref: "#space_oc", driver: "opencode-go", kind: "api_key", title: "OpenCode Go", name: "Space OpenCode", status: "ok", mine: false },
+    { ref: "#mine_oc", driver: "opencode-go", kind: "api_key", title: "OpenCode Go", name: "My OpenCode", status: "ok", mine: true },
+    { ref: "#mine_cl", driver: "claude_code", kind: "subscription", title: "Claude", name: "Claude", status: "ok", mine: true },
+  ];
+  assert.deepEqual(connectedAccounts(rows).map((a) => a.ref), ["#mine_oc", "#mine_cl", "#space_oc"]);
+});

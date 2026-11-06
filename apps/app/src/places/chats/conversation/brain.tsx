@@ -77,7 +77,7 @@ export async function configureAgent(data: Pick<ConversationData, "call" | "thre
 
 /* ---------- reading ---------- */
 
-interface AccountRow { ref: string; driver: string; kind: string; title: string; name?: string; status: string; aliases?: string[]; usable?: boolean; why?: string }
+interface AccountRow { ref: string; driver: string; kind: string; title: string; name?: string; status: string; aliases?: string[]; usable?: boolean; why?: string; mine?: boolean }
 interface UsageOut {
   account: { ref: string; name: string; provider: string; plan?: string } | null;
   context: { used: number; window: number; approximate?: boolean } | null;
@@ -101,7 +101,9 @@ export { modelReason, outOfUsage } from "./live-models.ts";
 
 /** Only accounts that are connected (signed in or not yet tested) and can run a chat here (engine.accounts.list with place "chat": the one rule every picker reads) are offered, by the name the person gave them. */
 export function connectedAccounts(rows: readonly AccountRow[]): PanelAccount[] {
-  return rows.filter((r) => (r.status === "ok" || r.status === "untested") && r.usable !== false).map((r) => ({ ref: r.ref, name: r.name ?? r.title, provider: r.driver, ...(r.kind === "api_key" ? { plan: "API key" } : {}), ...(r.aliases?.length ? { aliases: r.aliases } : {}) }));
+  // the person's own accounts come before any account the Space provides (owner, 6 Nov): the first one is what a chat shows and pins when nothing was chosen. The order inside each group is kept.
+  const ok = rows.filter((r) => (r.status === "ok" || r.status === "untested") && r.usable !== false);
+  return [...ok.filter((r) => r.mine === true), ...ok.filter((r) => r.mine !== true)].map((r) => ({ ref: r.ref, name: r.name ?? r.title, provider: r.driver, ...(r.kind === "api_key" ? { plan: "API key" } : {}), ...(r.aliases?.length ? { aliases: r.aliases } : {}) }));
 }
 
 /** The account a pinned ref shows as: itself, or the account it was folded into or listed under. */
