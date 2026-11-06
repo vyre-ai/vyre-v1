@@ -25,10 +25,10 @@ COPY agent-computer/agentd/ /opt/images/agent-computer/agentd/
 COPY space-browser/browserd/ /opt/images/space-browser/browserd/
 RUN ln -s /opt/images/space-browser/browserd /opt/browserd
 COPY agent-computer/vyre-chrome/ /opt/vyre-chrome/
-# An agent's browser never signs in to Google or syncs; Vyre for Chrome is pinned to the toolbar (the id comes from the path, as in the agent computer).
-RUN mkdir -p /etc/chromium/policies/managed \
- && node -e 'const h=require("crypto").createHash("sha256").update("/opt/vyre-chrome").digest("hex").slice(0,32);const id=[...h].map((c)=>String.fromCharCode(97+parseInt(c,16))).join("");require("fs").writeFileSync("/etc/chromium/policies/managed/vyre.json",JSON.stringify({BrowserSignin:0,SyncDisabled:true,PromptForDownloadLocation:false,ExtensionSettings:{[id]:{toolbar_pin:"force_pinned"}}}))'
-RUN chmod 0755 /opt/images/space-browser/browserd/ctl && chmod -R a+rX /opt/images /opt/vyre-chrome
+# An agent's browser never signs in to Google or syncs; Vyre for Chrome is pinned to the toolbar and its native messaging host `run.vyre.bridge` points at browserd (setup-extension.mjs works out the id from the
+# manifest's key, as Chromium does). The vendor/ folder holds lib/chrome-bridge.ts: a link in the repository, a copy in the build context (scripts/release stage-bridge).
+RUN node /opt/images/space-browser/browserd/setup-extension.mjs
+RUN chmod 0755 /opt/images/space-browser/browserd/ctl /opt/images/space-browser/browserd/bridge-host && chmod -R a+rX /opt/images /opt/vyre-chrome
 
 ENV HOME=/home/browser \
     NODE_ENV=production \

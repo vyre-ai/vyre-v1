@@ -3,7 +3,7 @@
 // that site's containers and the ingress (the vyred and Caddy service, labelled vyre.ingress); create a container that carries vyre.site=<site>, sits on its site's network only, runs with
 // every capability dropped, no new privileges, a CPU, memory and process cap, rotated logs, and no host path, device, port or namespace; start, stop, read, remove and log only containers
 // that carry vyre.site; exec only into those, as their own user; remove only vyre-site images, volumes and networks. So one site cannot reach another site or its database.
-import { COMPUTER_NAME, COMPUTER_NET, HELPER_NAME_RE, PROFILE_VOLUME, archiveOk, isComputerImage } from "./computers-policy.ts";
+import { COMPUTER_NAME, COMPUTER_NET, HELPER_NAME_RE, PROFILE_VOLUME, SBROWSER_NAME, SBROWSER_NET, SBROWSER_VOLUME, archiveOk, isComputerImage, isSbrowserImage } from "./computers-policy.ts";
 
 /** A site's own network: its app, its Postgres and Redis, and the ingress. */
 export const networkOf = (siteId: string): string => `vyre-site-${siteId.replace(/^sit_/, "").slice(-16)}`;
@@ -121,20 +121,20 @@ export function judge(r: Request): Verdict | { ok: true; kind: "container"; id: 
     // a digest pull names the whole reference in fromImage and sets no tag; any other pull is repo and tag
     const ref = from.includes("@") ? (r.query.has("tag") ? `${from}:${r.query.get("tag")}` : from) : `${from}:${r.query.get("tag") ?? "latest"}`;
     for (const k of r.query.keys()) if (k !== "fromImage" && k !== "tag") return no(`a pull may not set ${k}`);
-    return Object.values(ADDON_IMAGES).includes(ref) || isComputerImage(ref) ? { ok: true, kind: "plain" } : no(`only ${Object.values(ADDON_IMAGES).join(" and ")} and the agent computer image may be fetched`);
+    return Object.values(ADDON_IMAGES).includes(ref) || isComputerImage(ref) || isSbrowserImage(ref) ? { ok: true, kind: "plain" } : no(`only ${Object.values(ADDON_IMAGES).join(" and ")}, the agent computer image and the Space browser image may be fetched`);
   }
   const img = /^\/images\/(.+?)(\/json)?$/.exec(p);
   if (img) {
     const name = decodeURIComponent(img[1] as string);
     const site = /^vyre-site\/[a-z0-9]{1,64}:[a-z0-9]{1,64}$/.test(name);
-    if (m === "GET" && img[2] && (site || Object.values(ADDON_IMAGES).includes(name) || isComputerImage(name))) return { ok: true, kind: "plain" };
+    if (m === "GET" && img[2] && (site || Object.values(ADDON_IMAGES).includes(name) || isComputerImage(name) || isSbrowserImage(name))) return { ok: true, kind: "plain" };
     if (m === "DELETE" && !img[2] && site) return { ok: true, kind: "plain" };
     return no("only a site's own images may be read or removed");
   }
   if (m === "POST" && p === "/containers/create") {
     const name = r.query.get("name") ?? "";
     for (const k of r.query.keys()) if (k !== "name") return no(`a create may not set ${k}`);
-    return /^vyre-site-[a-z0-9-]{1,100}$/.test(name) || COMPUTER_NAME.test(name) || HELPER_NAME_RE.test(name) ? { ok: true, kind: "body", path: name } : no("a site container is named vyre-site-... and a computer's vyre-comp-...");
+    return /^vyre-site-[a-z0-9-]{1,100}$/.test(name) || COMPUTER_NAME.test(name) || HELPER_NAME_RE.test(name) || name === SBROWSER_NAME ? { ok: true, kind: "body", path: name } : no("a site container is named vyre-site-..., a computer's vyre-comp-... and the Space browser's vyre-sbrowser");
   }
   const c = /^\/containers\/([A-Za-z0-9_.-]{1,128})(?:\/(json|logs|start|stop|restart|archive|exec|wait))?$/.exec(p);
   if (c) {
@@ -150,14 +150,15 @@ export function judge(r: Request): Verdict | { ok: true; kind: "container"; id: 
   if (e) return m === "POST" && e[2] === "start" ? { ok: true, kind: "exec-start", id: e[1] as string } : m === "GET" && e[2] === "json" ? { ok: true, kind: "exec-inspect", id: e[1] as string } : no("that exec call is refused");
   if (m === "POST" && p === "/networks/create") return { ok: true, kind: "network-create" };
   const net = /^\/networks\/([a-z0-9-]{1,40})(?:\/(connect))?$/.exec(p);
-  if (net && (NET_NAME.test(net[1] as string) || COMPUTER_NET.test(net[1] as string))) {
+  if (net && (NET_NAME.test(net[1] as string) || COMPUTER_NET.test(net[1] as string) || net[1] === SBROWSER_NET)) {
     if (m === "GET" && !net[2]) return { ok: true, kind: "plain" };
     if (m === "DELETE" && !net[2]) return { ok: true, kind: "plain" };
     if (m === "POST" && net[2] === "connect") return { ok: true, kind: "network-connect", network: net[1] as string };
   }
-  if (net) return no("only a site's or a computer's own network may be read, made, joined or removed");
+  if (net) return no("only a site's, a computer's or the Space browser's own network may be read, made, joined or removed");
   if (m === "DELETE" && /^\/volumes\/vyre-site-[a-z0-9]{1,12}-(postgres|redis)-data$/.test(p)) return { ok: true, kind: "plain" };
   if (m === "DELETE" && PROFILE_VOLUME.test(p.replace(/^\/volumes\//, ""))) return { ok: true, kind: "plain" };
+  if (m === "DELETE" && p === `/volumes/${SBROWSER_VOLUME}`) return { ok: true, kind: "plain" };
   return no("the sites runner does not do that");
 }
 

@@ -143,3 +143,92 @@ export function archiveOk(method: string, query: URLSearchParams): boolean {
   if (p.includes("..")) return false;
   return p === GUEST_HOME || p === `${GUEST_HOME}/.` || p.startsWith(`${GUEST_HOME}/`);
 }
+
+// ---- the Space browser (images/space-browser): one container for the Space host, `vyre-sbrowser`, labelled vyre.sbrowser=1, with its profiles on the named volume `vyre-sbrowser-data` and a network of its
+// own, `vyre-sbrowsernet`, so it cannot reach an agent computer or a site and only the ingress that joins it (the one route the Vault channel posts to) can reach it. The same confinement as a computer:
+// every capability dropped, no new privileges, a seccomp profile, caps on CPU, memory and processes, no host folder, device, port or namespace. Exec and logs only; no archive, no wait.
+
+export const SBROWSER_NAME = "vyre-sbrowser";
+export const SBROWSER_NET = "vyre-sbrowsernet";
+export const SBROWSER_VOLUME = "vyre-sbrowser-data";
+export const SBROWSER_DATA_GUEST = "/data";
+
+/** The Space browser image and its tag: the default, or the registry copy. More can be named for a server in VYRE_SBROWSER_IMAGES (comma separated repositories). */
+export function sbrowserImages(extra = process.env["VYRE_SBROWSER_IMAGES"] ?? ""): RegExp {
+  const repos = ["vyre/space-browser", "ghcr.io/vyre-ai/space-browser", ...extra.split(",").map((s) => s.trim()).filter((s) => /^[a-z0-9][a-z0-9./_-]{0,100}$/.test(s))];
+  return new RegExp(`^(${repos.map((r) => r.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&")).join("|")}):[A-Za-z0-9_.-]{1,64}$`);
+}
+export const SBROWSER_DIGEST = /^(vyre\/space-browser|ghcr\.io\/vyre-ai\/space-browser)@sha256:[0-9a-f]{64}$/;
+export const isSbrowserImage = (name: string): boolean => sbrowserImages().test(name) || SBROWSER_DIGEST.test(name);
+
+/** Is this container the Space browser's (by its labels)? */
+export const sbrowserOf = (labels: Record<string, string> | null | undefined): boolean => labels?.["vyre.sbrowser"] === "1";
+
+/** The Space browser's container create body, or why it is refused. */
+export function sbrowserBody(name: string, body: unknown): { body: Record<string, unknown> } | { why: string } {
+  if (!isObj(body)) return { why: "the container config is not an object" };
+  for (const k of Object.keys(body)) if (!TOP_KEYS.has(k) && !emptyish(body[k])) return { why: `the Space browser container may not set ${k}` };
+  if (name !== SBROWSER_NAME) return { why: "the Space browser container is named vyre-sbrowser" };
+  const labels = isObj(body["Labels"]) ? body["Labels"] : {};
+  if (labels["vyre.sbrowser"] !== "1") return { why: "the Space browser container must carry vyre.sbrowser=1" };
+  for (const k of Object.keys(labels)) if (k !== "vyre.sbrowser") return { why: `the Space browser container may not carry the label ${k}` };
+  if (!isSbrowserImage(String(body["Image"] ?? ""))) return { why: "the Space browser runs the Space browser image" };
+  if (body["Hostname"] !== undefined && body["Hostname"] !== name) return { why: "the Space browser's hostname is its container name" };
+  const env = Array.isArray(body["Env"]) ? (body["Env"] as unknown[]) : [];
+  for (const e of env) if (typeof e !== "string" || !/^VYRE_BROWSER_(MAX_RUNNING|IDLE_MINUTES|SWEEP_SECONDS)=[0-9.]{1,8}$/.test(e)) return { why: "the Space browser's environment is its limits and idle time" };
+  const h = isObj(body["HostConfig"]) ? body["HostConfig"] : null;
+  if (!h) return { why: "the Space browser container needs its limits" };
+  if (h["Privileged"] === true) return { why: "privileged containers are refused" };
+  for (const k of Object.keys(h)) if (!HOST_KEYS.has(k) && !emptyish(h[k])) return { why: `the Space browser container may not set HostConfig.${k}` };
+  if (h["NetworkMode"] !== SBROWSER_NET) return { why: "the Space browser is on its own network only" };
+  if (!emptyish(h["PidMode"])) return { why: "the host pid namespace is refused (PidMode)" };
+  if (h["IpcMode"] !== undefined && h["IpcMode"] !== "private") return { why: "the Space browser's ipc namespace is private" };
+  if (!emptyish(h["UsernsMode"])) return { why: "a user namespace mode is refused" };
+  if (!emptyish(h["Devices"])) return { why: "devices are refused (Devices)" };
+  if (!emptyish(h["ExtraHosts"]) || !emptyish(h["Dns"])) return { why: "the Space browser takes no extra hosts or DNS servers" };
+  if (!emptyish(h["CapAdd"])) return { why: "the Space browser container gets no capability (CapAdd)" };
+  if (!Array.isArray(h["CapDrop"]) || !(h["CapDrop"] as unknown[]).includes("ALL")) return { why: "every capability must be dropped" };
+  const sec = Array.isArray(h["SecurityOpt"]) ? (h["SecurityOpt"] as unknown[]) : [];
+  if (!sec.includes("no-new-privileges:true") && !sec.includes("no-new-privileges")) return { why: "new privileges must be off" };
+  let seccomp = false;
+  for (const o of sec) {
+    if (o === "no-new-privileges:true" || o === "no-new-privileges") continue;
+    if (typeof o === "string" && o.startsWith("seccomp=") && o !== "seccomp=unconfined") {
+      try { const p = JSON.parse(o.slice(8)) as { defaultAction?: unknown }; if (p.defaultAction === "SCMP_ACT_ERRNO" || p.defaultAction === "SCMP_ACT_KILL" || p.defaultAction === "SCMP_ACT_KILL_PROCESS") { seccomp = true; continue; } } catch { /* refused below */ }
+      return { why: "the seccomp profile must deny what it does not name" };
+    }
+    return { why: "the Space browser container takes no security option but no-new-privileges and a seccomp profile" };
+  }
+  if (!seccomp) return { why: "the Space browser container needs its seccomp profile" };
+  const binds = Array.isArray(h["Binds"]) ? (h["Binds"] as unknown[]) : [];
+  for (const b of binds) if (b !== `${SBROWSER_VOLUME}:${SBROWSER_DATA_GUEST}:rw` && b !== `${SBROWSER_VOLUME}:${SBROWSER_DATA_GUEST}`) return { why: "host folders are refused: the Space browser mounts only its own profile volume" };
+  const tmpfs = isObj(h["Tmpfs"]) ? h["Tmpfs"] : {};
+  if (Object.keys(tmpfs).some((k) => k !== "/tmp" && k !== "/dev/shm")) return { why: "only /tmp and /dev/shm may be a tmpfs" };
+  const nano = Number(h["NanoCpus"]), mem = Number(h["Memory"]), pids = Number(h["PidsLimit"]);
+  if (!(nano > 0 && nano <= MAX.nanoCpus)) return { why: "the Space browser needs a CPU cap of at most 4 CPUs" };
+  if (!(mem > 0 && mem <= MAX.memory) || Number(h["MemorySwap"]) !== mem) return { why: "the Space browser needs a memory cap of at most 8 GB and no swap" };
+  if (!(pids > 0 && pids <= MAX.pids)) return { why: "the Space browser needs a process cap of at most 2048" };
+  const ul = Array.isArray(h["Ulimits"]) ? (h["Ulimits"] as unknown[]) : [];
+  if (ul.some((u) => !isObj(u) || (u["Name"] !== "nofile" && u["Name"] !== "core"))) return { why: "the Space browser takes no ulimit but nofile and core" };
+  if (h["AutoRemove"] === true) return { why: "the Space browser is removed by Vyre, not by Docker" };
+  const net = isObj(body["NetworkingConfig"]) && isObj(body["NetworkingConfig"]["EndpointsConfig"]) ? Object.keys(body["NetworkingConfig"]["EndpointsConfig"]) : [];
+  if (net.some((n) => n !== SBROWSER_NET)) return { why: "the Space browser joins its own network only" };
+  return { body: { ...body, HostConfig: { ...h, CapAdd: [], Privileged: false, LogConfig: LOGS, Devices: [], PidMode: "" } } };
+}
+
+/** The Space browser's network: a plain bridge with its label. Only it and the ingress join. */
+export function sbrowserNetworkBody(body: unknown): { body: Record<string, unknown> } | { why: string } {
+  if (!isObj(body)) return { why: "the network config is not an object" };
+  for (const k of Object.keys(body)) if (!["Name", "Driver", "Labels", "CheckDuplicate", "Internal", "Options"].includes(k)) return { why: `the Space browser network may not set ${k}` };
+  const labels = isObj(body["Labels"]) ? body["Labels"] : {};
+  if (labels["vyre.sbrowser"] !== "1") return { why: "the Space browser network carries vyre.sbrowser=1" };
+  if (body["Name"] !== SBROWSER_NET) return { why: "the Space browser network is named vyre-sbrowsernet" };
+  if (body["Driver"] !== undefined && body["Driver"] !== "bridge") return { why: "the Space browser network is a bridge" };
+  if (isObj(body["Options"]) && Object.keys(body["Options"]).some((k) => k !== "com.docker.network.bridge.enable_icc")) return { why: "the Space browser network takes no driver options" };
+  return { body: { Name: SBROWSER_NET, Driver: "bridge", CheckDuplicate: true, Labels: { "vyre.sbrowser": "1" }, ...(body["Internal"] === true ? { Internal: true } : {}) } };
+}
+
+/** What the Space browser's container may be asked: read it, start, stop and remove it, run browserd's control program in it. No archive (no file goes in or out) and no wait. */
+export function sbrowserAllows(action: string, _method: string, _query: URLSearchParams): boolean {
+  return ["json", "logs", "start", "stop", "restart", "remove", "exec"].includes(action);
+}

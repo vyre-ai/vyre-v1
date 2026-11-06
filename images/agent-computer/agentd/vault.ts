@@ -14,6 +14,10 @@ export interface Vault {
   setFiller(url: string | null, token: string | null, computerId: string): void;
   fillArgs<T>(args: T): Promise<{ args: T; used: Used[] }>;
   hasChannel(): boolean;
+  /** One value, for a `#Handle.field` the extension's vault.fill names (the filler pushes it to the page and drops it). */
+  value(handleText: string): Promise<{ value: string; itemId: string }>;
+  /** A Vault capability for Vyre for Chrome as this profile's agent (which items fit a page, a handle to one). The host allows two (FILL_INVOKE in modules/computers/handlers/fill.ts). */
+  invoke(capability: string, input: Record<string, unknown>): Promise<unknown>;
 }
 
 export function createVault(): Vault {
@@ -26,6 +30,24 @@ export function createVault(): Vault {
     },
     hasChannel: () => filler !== null,
     async fillArgs<T>(args: T) { return fillWith(filler, args); },
+    async value(handleText) {
+      const m = /^#([A-Za-z][A-Za-z0-9_]*)\.([A-Za-z0-9_]+)$/.exec(handleText);
+      if (!m) throw badInput("A handle is written #Handle.field.");
+      if (!filler) throw unavailable("This profile has no channel to the Vault.");
+      return ask(filler, m[1]!, m[2]!);
+    },
+    async invoke(capability, input) {
+      if (!filler) throw unavailable("This profile has no channel to the Vault.");
+      let res: Response;
+      try {
+        res = await fetch(filler.url, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${filler.token}` }, body: JSON.stringify({ op: "invoke", capability, input, computerId: filler.computerId }), signal: AbortSignal.timeout(10_000) });
+      } catch { throw unavailable("The Vault did not answer."); }
+      if (res.status === 403) throw badInput("This agent may not ask the Vault that.");
+      if (res.status === 404) throw notFound("The Vault has nothing for that.");
+      if (!res.ok) throw unavailable(`The Vault refused (${res.status}).`);
+      const j = (await res.json().catch(() => null)) as { output?: unknown } | null;
+      return j?.output ?? null;
+    },
   };
 }
 

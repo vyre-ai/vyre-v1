@@ -17,7 +17,9 @@ const SCRUB = { createScrubber: (secrets: Array<{ handle: string; value: string 
 function browser(answers: Record<string, (c: BrowserToolCall) => BrowserAnswer> = {}) {
   const calls: BrowserToolCall[] = [];
   let refuse: ToolError | null = null;
+  let up = true;
   const sb: SpaceBrowser = {
+    async available() { return up; },
     async tool(a) {
       calls.push(a);
       if (refuse) throw refuse;
@@ -28,7 +30,7 @@ function browser(answers: Record<string, (c: BrowserToolCall) => BrowserAnswer> 
     async profiles() { return { profiles: [], maxRunning: 6 }; }, async health() { return { ok: true }; },
   };
   bindSpaceBrowser(sb);
-  return { calls, refuseWith(e: ToolError | null) { refuse = e; } };
+  return { calls, refuseWith(e: ToolError | null) { refuse = e; }, setAvailable(v: boolean) { up = v; } };
 }
 const agentCtx = (id: string, person = DANA) => harness({ principal: { kind: "agent", id }, actingFor: person }).ctx;
 const off = (): void => { bindSpaceBrowser(null); bindFill(null); bindKit(null); bindPersonalChrome(null); };
@@ -89,6 +91,21 @@ test("without a Space browser bound nothing changes: an agent with no computer i
   } finally { off(); }
 });
 
+test("a host that cannot run the Space browser leaves an agent where it was: no computer is the old refusal, and the person's Chrome still works", async () => {
+  const b = browser();
+  b.setAvailable(false);
+  try {
+    await assert.rejects(() => tool["computers.chrome.state"]!(agentCtx("agt_dex"), {}), (e) => codeOf(e) === "validation.not_found");
+    assert.equal(b.calls.length, 0);
+    b.setAvailable(true);
+  } finally { off(); }
+  const again = browser();
+  try {
+    await tool["computers.chrome.state"]!(agentCtx("agt_dex"), {});
+    assert.equal(again.calls.length, 1, "and when the runtime answers it is used");
+  } finally { off(); }
+});
+
 test("what the browser refuses with keeps its meaning", async () => {
   const b = browser();
   try {
@@ -102,7 +119,7 @@ test("what the browser refuses with keeps its meaning", async () => {
   } finally { off(); }
 });
 
-test("the Vault channel rides only typing calls, one token per profile and asker, and the values it filled are scrubbed from every answer", async () => {
+test("the Vault channel rides every call, one token per profile and asker, and the values it filled are scrubbed from every answer", async () => {
   const issued: Array<{ computerId: string; agentId: string; asker: string }> = [];
   let revoked = 0;
   bindFill({ async issue(h) { issued.push({ computerId: h.computerId, agentId: h.agentId, asker: h.asker }); return { fillToken: `tok${issued.length}`.padEnd(24, "x"), revoke() { revoked += 1; } }; }, url: () => "http://vyre-host/fill" });
@@ -115,18 +132,16 @@ test("the Vault channel rides only typing calls, one token per profile and asker
   try {
     const dex = agentCtx("agt_dex", DANA);
     await tool["computers.chrome.snapshot"]!(dex, {});
-    assert.equal(b.calls[0]!.fill, undefined, "a look carries no channel");
-    await tool["computers.chrome.fill"]!(dex, { fields: [{ ref: "e3", value: "#Dex_Site.password" }] });
-    const first = b.calls[1]!.fill!;
-    assert.equal(first.url, "http://vyre-host/fill");
+    const first = b.calls[0]!.fill!;
+    assert.equal(first.url, "http://vyre-host/fill", "even a look carries the channel: the extension in the profile fills on its own");
     assert.deepEqual(issued, [{ computerId: "agt_dex", agentId: "agt_dex", asker: DANA }], "the token is for this profile and this agent, as the asker");
     await tool["computers.chrome.fill"]!(dex, { fields: [{ ref: "e3", value: "#Dex_Site.password" }] });
-    assert.equal(b.calls[2]!.fill!.token, first.token, "the same asker reuses the token");
+    assert.equal(b.calls[1]!.fill!.token, first.token, "the same asker reuses the token");
     assert.equal(issued.length, 1);
     await tool["computers.chrome.fill"]!(agentCtx("agt_dex", OMAR), { fields: [{ ref: "e3", value: "#Dex_Site.password" }] });
     assert.equal(issued.length, 2, "another asker is a new grant");
     assert.equal(revoked, 1, "and the old one ends");
-    assert.notEqual(b.calls[3]!.fill!.token, first.token);
+    assert.notEqual(b.calls[2]!.fill!.token, first.token);
     await tool["computers.chrome.fill"]!(agentCtx("agt_scout", DANA), { fields: [{ ref: "e3", value: "#Scout_Site.password" }] });
     assert.equal(issued.at(-1)!.computerId, "agt_scout", "another agent is another profile with its own token");
     assert.equal(revoked, 1, "and does not end Dex's");

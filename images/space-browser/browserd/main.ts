@@ -16,6 +16,8 @@ import { networkInterfaces } from "node:os";
 import { connectCdp } from "../../agent-computer/agentd/cdp.ts";
 import type { Cdp } from "../../agent-computer/agentd/cdp.ts";
 import { AgentError, badInput, unavailable } from "../../agent-computer/agentd/errors.ts";
+import { createBridgeHub } from "./bridge.ts";
+import type { BridgeHub } from "./bridge.ts";
 import { createProfileManager, checkProfileId } from "./profiles.ts";
 import { createCdpInput, createScreencastHub, startViewServer } from "./view.ts";
 import type { Hub, ViewOf } from "./view.ts";
@@ -27,6 +29,7 @@ const PORT = Number(env["VYRE_STREAM_PORT"] ?? 7002);
 const MAX_LINE = 12 * 1024 * 1024;
 const log = (m: string): void => { process.stderr.write(`browserd: ${m}\n`); };
 
+let bridges: BridgeHub | null = null;
 const manager = createProfileManager({
   root: ROOT,
   extensionDir: existsSync("/opt/vyre-chrome") ? "/opt/vyre-chrome" : null,
@@ -34,6 +37,9 @@ const manager = createProfileManager({
   maxRunning: Number(env["VYRE_BROWSER_MAX_RUNNING"] ?? 6) || 6,
   idleMs: (Number(env["VYRE_BROWSER_IDLE_MINUTES"] ?? 10) || 10) * 60_000,
   tabLimit: Number(env["VYRE_TAB_LIMIT"] ?? 10) || 10,
+  // Vyre for Chrome in a profile talks to the Space through browserd (bridge.ts); the bridge is up before the first browser starts
+  extra: (id) => bridges?.prepare(id) ?? {},
+  paired: (id) => bridges?.state(id) ?? { connected: 0, hello: false, optin: false },
 });
 
 const address = (): string => {
@@ -119,7 +125,11 @@ async function dispatch(action: string, a: Args): Promise<Args> {
     }
     case "tool": {
       // The Vault channel of this profile's agent rides the call that may type a handle, held in memory for this profile only.
-      if (typeof a["fillUrl"] === "string" && typeof a["fillToken"] === "string") manager.get(checkProfileId(a["profileId"])).vault.setFiller(a["fillUrl"], a["fillToken"], checkProfileId(a["profileId"]));
+      const pid = checkProfileId(a["profileId"]);
+      if (typeof a["spaceId"] === "string" && /^[A-Za-z0-9_-]{3,80}$/.test(a["spaceId"])) manager.get(pid).spaceId = a["spaceId"];
+      if (typeof a["fillUrl"] === "string" && typeof a["fillToken"] === "string") manager.get(pid).vault.setFiller(a["fillUrl"], a["fillToken"], pid);
+      // Vyre for Chrome in the profile is paired with the Space as this agent as soon as the Space and the Vault channel are known
+      if (manager.get(pid).spaceId && manager.get(pid).vault.hasChannel()) bridges?.pair(pid);
       const args = (typeof a["args"] === "object" && a["args"] !== null ? a["args"] : {}) as Args;
       return manager.tool({ profileId: checkProfileId(a["profileId"]), tool: text(a, "tool"), args, timeoutMs: typeof a["timeoutMs"] === "number" ? a["timeoutMs"] : 30_000, ...(a["by"] === "person" ? { by: "person" } : {}) });
     }
@@ -176,6 +186,7 @@ function serve(c: Socket): void {
 async function main(): Promise<void> {
   rmSync(SOCKET, { force: true });
   mkdirSync(`${ROOT}/profiles`, { recursive: true });
+  bridges = await createBridgeHub({ root: ROOT, port: Number(env["VYRE_BRIDGE_PORT"] ?? 0) || 0, profile: (id) => manager.get(id), log });
   const control = createNetServer(serve);
   await new Promise<void>((resolve, reject) => { control.once("error", reject); control.listen(SOCKET, () => resolve()); });
   chmodSync(SOCKET, 0o600);
@@ -185,6 +196,7 @@ async function main(): Promise<void> {
   const bye = (): void => {
     clearInterval(sweeper);
     views.close();
+    bridges?.close();
     control.close();
     // every browser is closed properly (cookies and logins reach the volume) before the process ends; Docker waits 10 s
     void manager.stopAll().finally(() => process.exit(0));

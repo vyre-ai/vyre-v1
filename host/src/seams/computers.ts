@@ -27,7 +27,15 @@ export interface ComputersFillHostDeps {
 export function createComputersFillHost(d: ComputersFillHostDeps) {
   const session = createEngineSessionHost({ invoke: d.invoke, vault: d.vault, space: d.space });
   return {
-    source: session.source,
+    // The extension in a Space browser profile asks which Vault items fit a page and for a handle to one, as the agent the profile belongs to, for the person who asked (the module allows only those two capabilities)
+    source: {
+      ...session.source,
+      invoke: async (capability: string, input: Record<string, unknown>, who: { agentId: string; asker: string }): Promise<unknown> => {
+        const r = await d.invoke(capability, input, { space: d.space, principal: { kind: "agent", id: who.agentId }, actingFor: who.asker, origin: "computers" } as never);
+        if (r.status !== "ok") throw r;
+        return r.output;
+      },
+    },
     log: (u: FillUseRecord) => d.log(u),
     url: () => `${d.baseUrl().replace(/\/+$/, "")}${FILL_PATH}`,
     mount: d.mount,

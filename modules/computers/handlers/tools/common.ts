@@ -138,6 +138,15 @@ async function liveCard(ctx: CompCtx, c: ComputerRow, caption: string, fileId: s
   } catch { lastCard.delete(key); }
 }
 
+// Is the Space browser usable on this host (the container runtime answers)? Asked at most every 15 seconds. When it is not, an agent keeps browsing where it did before.
+let usable: { sb: unknown; at: number; ok: boolean } | null = null;
+async function browserUsable(sb: NonNullable<ReturnType<typeof spaceBrowser>>, now: number): Promise<boolean> {
+  if (usable && usable.sb === sb && now - usable.at < 15_000) return usable.ok;
+  const ok = await sb.available().catch(() => false);
+  usable = { sb, at: now, ok };
+  return ok;
+}
+
 export interface Resolved {
   computer: ComputerRow; host: ComputerHost & ToolHost;
   /** The person's own Chrome, not an agent computer. */ personal?: boolean;
@@ -173,7 +182,7 @@ export async function prepare(ctx: CompCtx, computerId: string | undefined, spec
   needTeam(ctx);
   // The Space browser is where an agent browses by default (owner decision 6 Nov): its own profile, on the Space host, whoever asked, so the person's computer is never disturbed and a team agent's logins
   // outlive the person who asked. Only a call that names a computer (a person working one) or the person's own Chrome (`my-chrome`, on request) goes elsewhere.
-  if (spec.name !== undefined && spec.name.startsWith("chrome_") && computerId === undefined && ctx.principal.kind === "agent" && spaceBrowser()) {
+  if (spec.name !== undefined && spec.name.startsWith("chrome_") && computerId === undefined && ctx.principal.kind === "agent" && spaceBrowser() && await browserUsable(spaceBrowser()!, ctx.now())) {
     const profileId = profileIdOf(ctx.principal.id);
     if (!profileId) raise(ctx, "validation.bad_input", "This agent cannot have a browser profile: its id is not valid.");
     return { computer: { computerId: profileId, agentId: ctx.principal.id, state: "working" } as unknown as ComputerRow, host: {} as ComputerHost & ToolHost, browser: { profileId } };
@@ -221,7 +230,6 @@ export async function call(ctx: CompCtx, r: Resolved, spec: ToolSpec, args: Tool
 
 // The Vault channel of an agent's profile: one token per profile and asker, so the Vault logs who asked and a use after the asker changes is checked as the new asker.
 const fillGrants = new Map<string, { token: string; revoke(): void }>();
-const TYPING = new Set(["chrome_type", "chrome_fill", "chrome_act"]);
 
 /** One tool in the agent's profile of the Space browser. What comes back is scrubbed of the Vault values filled for this profile; no desktop frame exists, so there is no timeline step (the live view shows the page). */
 async function browserCall(ctx: CompCtx, profileId: string, spec: ToolSpec, args: ToolArgs): Promise<ToolAnswer> {
@@ -229,7 +237,8 @@ async function browserCall(ctx: CompCtx, profileId: string, spec: ToolSpec, args
   if (!sb) raise(ctx, "provider.unavailable", "The Space browser is not running on this host.");
   let fill: { url: string; token: string } | undefined;
   const binding = boundFill();
-  if (binding && TYPING.has(spec.name)) {
+  // every call carries the channel, not only the typing ones: Vyre for Chrome in the profile fills logins on its own when a page loads, and asks the Vault through it
+  if (binding) {
     const asker = actorOf(ctx);
     const key = `${profileId}|${asker}`;
     let g = fillGrants.get(key);
@@ -243,7 +252,7 @@ async function browserCall(ctx: CompCtx, profileId: string, spec: ToolSpec, args
   }
   let raw: ToolAnswer;
   try {
-    raw = await sb.tool({ profileId, tool: spec.name, args, timeoutMs: Math.min(spec.timeoutMs ?? DEFAULT_TOOL_MS, MAX_TOOL_MS), ...(fill ? { fill } : {}) });
+    raw = await sb.tool({ profileId, tool: spec.name, args, timeoutMs: Math.min(spec.timeoutMs ?? DEFAULT_TOOL_MS, MAX_TOOL_MS), space: ctx.space, ...(fill ? { fill } : {}) });
   } catch (e) {
     return refuse(ctx, e);
   }

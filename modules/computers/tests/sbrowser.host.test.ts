@@ -45,6 +45,30 @@ test("the first tool makes and starts the one container, waits for browserd, the
   assert.equal(e.starts, 1);
 });
 
+test("available is whether the container runtime answers; behind the runner the service has its own network, with the ingress joined, and a missing image is fetched", async () => {
+  const e = engine(() => ok({}), { image: false });
+  const pulled: string[] = [];
+  const reqs: Array<{ method: string; path: string; json?: unknown }> = [];
+  const http = async (r: { method: string; path: string; query?: Record<string, string>; json?: unknown }) => {
+    reqs.push({ method: r.method, path: r.path, ...(r.json !== undefined ? { json: r.json } : {}) });
+    if (r.path === "/images/create") { pulled.push(JSON.stringify(r.query)); (e as unknown as { gotImage: boolean }).gotImage = true; }
+    return { status: r.path.startsWith("/networks/create") ? 201 : 200, body: new Uint8Array() };
+  };
+  const api = { ...e.api, async imageExists() { return (e as unknown as { gotImage?: boolean }).gotImage === true; } };
+  const sb = createDockerSpaceBrowser({ api, http, runner: { ingress: "vyre-vyred", alias: "vyre-host" }, image: "ghcr.io/vyre-ai/space-browser:1.2", sleep: async () => {} });
+  assert.equal(await sb.available(), true);
+  await sb.tool({ profileId: "agt_dex", tool: "chrome_status", args: {}, timeoutMs: 1000 });
+  assert.deepEqual(pulled, [JSON.stringify({ fromImage: "ghcr.io/vyre-ai/space-browser", tag: "1.2" })]);
+  const net = reqs.find((r) => r.path === "/networks/create")!;
+  assert.deepEqual(net.json, { Name: "vyre-sbrowsernet", Driver: "bridge", CheckDuplicate: true, Labels: { "vyre.sbrowser": "1" } });
+  const join = reqs.find((r) => r.path === "/networks/vyre-sbrowsernet/connect")!;
+  assert.deepEqual(join.json, { Container: "vyre-vyred", EndpointConfig: { Aliases: ["vyre-host"] } });
+  assert.equal(e.created[0]!.config.HostConfig.NetworkMode, "vyre-sbrowsernet");
+  assert.deepEqual(reviewComputerConfig(e.created[0]!.config), []);
+  const down = createDockerSpaceBrowser({ api: { ...e.api, async ping() { return false; } } });
+  assert.equal(await down.available(), false);
+});
+
 test("calls that arrive together start the container once", async () => {
   const e = engine(() => ok({}));
   const sb = createDockerSpaceBrowser({ api: e.api, sleep: async () => {} });

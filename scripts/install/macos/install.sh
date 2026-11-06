@@ -524,7 +524,7 @@ write_agents() {
 }
 
 pull_images() {
-  for k in VYRE_IMAGE VYRE_AGENT_IMAGE VYRE_SANDBOX_IMAGE; do
+  for k in VYRE_IMAGE VYRE_AGENT_IMAGE VYRE_BROWSER_IMAGE VYRE_SANDBOX_IMAGE; do
     ref=$(lock_get "$k")
     [ -n "$ref" ] || continue
     case "$ref" in *@sha256:*) ;; *) die "the release names $k without a digest ($ref); nothing was started." ;; esac
@@ -671,6 +671,7 @@ node_write_config() {
   {
     printf 'VYRE_IMAGE=%s\n' "$(lock_get VYRE_IMAGE)"
     printf 'VYRE_AGENT_IMAGE=%s\n' "$(lock_get VYRE_AGENT_IMAGE)"
+    printf 'VYRE_BROWSER_IMAGE=%s\n' "$(lock_get VYRE_BROWSER_IMAGE)"
     printf 'DOCKER_GID=%s\n' "$gid"
   } >"$DIR/compose.env"
   cat >"$DIR/compose.node.yml" <<COMPOSE
@@ -687,6 +688,7 @@ services:
     network_mode: bridge
     environment:
       VYRE_AGENT_COMPUTER_IMAGE: \${VYRE_AGENT_IMAGE}
+      VYRE_SPACE_BROWSER_IMAGE: \${VYRE_BROWSER_IMAGE}
       VYRE_CADDY_ADMIN: http://127.0.0.1:2019
     volumes:
       - ./data:/data

@@ -308,6 +308,12 @@ check_all() {
       else finding host.agent_image degraded "The agent computer image is not pulled yet; agent computers cannot start. Run: docker pull $ai"
       fi
     fi
+    bi=$(lock_get VYRE_BROWSER_IMAGE)
+    if [ -n "$bi" ]; then
+      if docker image inspect "$bi" >/dev/null 2>&1; then finding host.browser_image healthy "The Space browser image is pulled."
+      else finding host.browser_image degraded "The Space browser image is not pulled yet; agents browse without it until it is. Run: docker pull $bi"
+      fi
+    fi
   fi
   # the server answers
   if command -v curl >/dev/null 2>&1 && curl -fsS --max-time 5 "$(health_url)" >/dev/null 2>&1; then
@@ -559,8 +565,10 @@ sync_image() {
   [ -n "$img" ] || return 1
   # the agent computer image of this release, by digest: vyred asks for exactly this one (compose.server.yml VYRE_AGENT_COMPUTER_IMAGE). A release without one leaves the line out and the default applies.
   aimg=$(sed -n 's/^VYRE_AGENT_IMAGE=//p' "$DIR/current/images.lock" | head -n 1)
+  # the Space browser image of this release, by digest (compose.server.yml VYRE_SPACE_BROWSER_IMAGE), the same way
+  bimg=$(sed -n 's/^VYRE_BROWSER_IMAGE=//p' "$DIR/current/images.lock" | head -n 1)
   cp -p "$DIR/compose.env" "$DIR/compose.env.new" || return 1
-  { grep -v -e '^VYRE_IMAGE=' -e '^VYRE_AGENT_COMPUTER_IMAGE=' "$DIR/compose.env" || true; printf 'VYRE_IMAGE=%s\n' "$img"; [ -z "$aimg" ] || printf 'VYRE_AGENT_COMPUTER_IMAGE=%s\n' "$aimg"; } >"$DIR/compose.env.new" || { rm -f "$DIR/compose.env.new"; return 1; }
+  { grep -v -e '^VYRE_IMAGE=' -e '^VYRE_AGENT_COMPUTER_IMAGE=' -e '^VYRE_SPACE_BROWSER_IMAGE=' "$DIR/compose.env" || true; printf 'VYRE_IMAGE=%s\n' "$img"; [ -z "$aimg" ] || printf 'VYRE_AGENT_COMPUTER_IMAGE=%s\n' "$aimg"; [ -z "$bimg" ] || printf 'VYRE_SPACE_BROWSER_IMAGE=%s\n' "$bimg"; } >"$DIR/compose.env.new" || { rm -f "$DIR/compose.env.new"; return 1; }
   mv -f "$DIR/compose.env.new" "$DIR/compose.env"
 }
 
@@ -659,7 +667,7 @@ cmd_update() {
   if [ "$DRY" = 1 ]; then say "Would install $REL_VERSION from the $CHANNEL channel; no images, backups or running services were changed."; return 0; fi
   unpack_release
   [ -n "$(sed -n 's/^VYRE_IMAGE=//p' "$DIR/releases/$REL_VERSION/images.lock")" ] || die "the release names no server image; nothing was changed."
-  for k in VYRE_IMAGE VYRE_AGENT_IMAGE VYRE_SANDBOX_IMAGE; do
+  for k in VYRE_IMAGE VYRE_AGENT_IMAGE VYRE_BROWSER_IMAGE VYRE_SANDBOX_IMAGE; do
     ref=$(sed -n "s/^$k=//p" "$DIR/releases/$REL_VERSION/images.lock" | head -n 1)
     [ -n "$ref" ] || continue
     case "$ref" in *@sha256:*) ;; *) die "the release names $k without a digest; nothing was changed." ;; esac

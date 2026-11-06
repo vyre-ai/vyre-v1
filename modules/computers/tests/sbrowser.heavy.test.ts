@@ -6,6 +6,7 @@
 //   - a Vault login fills: a #Handle.field in chrome_fill is asked of the host's fill channel for that profile's agent, typed into the page, and never comes back in an answer; a profile with no channel
 //     fills nothing; a handle the Vault refuses types nothing
 //   - a profile's browser stops after idle and starts again from the same folder
+//   - Vyre for Chrome in a profile is paired with the Space as that agent: it connects through its native messaging host, hears agent.optin, and the Vault answers through the bridge
 //
 // Runs only with VYRE_HEAVY_DOCKER=1. Without it every test here is skipped with its reason; a skip is never a pass of the real thing. With it on, nothing is skipped: a missing Docker daemon or a failed image
 // build fails the run.
@@ -35,7 +36,7 @@ const http = unixSocketHttp();
 const api = createDockerApi(http);
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 const sb = createDockerSpaceBrowser({ api, name: NAME, image: IMAGE, user: { uid: 10001, gid: 10001 }, idleMinutes: 0.05, sweepSeconds: 2, startTimeoutMs: 90_000 });
-const tool = (profileId: string, name: string, args: Record<string, unknown> = {}, extra: { by?: "person"; fill?: { url: string; token: string } } = {}) => sb.tool({ profileId, tool: name, args, timeoutMs: 30_000, ...extra });
+const tool = (profileId: string, name: string, args: Record<string, unknown> = {}, extra: { by?: "person"; fill?: { url: string; token: string }; space?: string } = {}) => sb.tool({ profileId, tool: name, args, timeoutMs: 30_000, ...extra });
 
 function host(cmd: string, args: string[], timeoutMs: number): Promise<{ code: number; out: string }> {
   return new Promise((resolve) => {
@@ -86,7 +87,18 @@ const lookup = async (handle: string): Promise<FillLookup> => {
   return handle === "#Login_Site.password" ? { kind: "value", itemId: "itm_login", value: PASSWORD } : { kind: "unknown" };
 };
 const uses: string[] = [];
-const fills = createFillService({ source: { lookup }, log: (u) => { uses.push(`${u.agentId}:${u.handle}:${u.outcome}`); } });
+const invokes: Array<{ cap: string; input: Record<string, unknown>; who: { agentId: string; asker: string } }> = [];
+const fills = createFillService({
+  source: {
+    lookup,
+    async invoke(cap, input, who) {
+      invokes.push({ cap, input, who });
+      if (cap === "vault.items.match") return { items: [{ item: { itemId: "itm_login", name: "Login" }, usernameField: "username" }] };
+      return { handle: "#Login_Site", fields: ["username", "password"] };
+    },
+  },
+  log: (u) => { uses.push(`${u.agentId}:${u.handle}:${u.outcome}`); },
+});
 
 const listen = (s: Server): Promise<number> => new Promise((resolve) => s.listen(0, "0.0.0.0", () => resolve((s.address() as { port: number }).port)));
 const siteUrl = (p: string): string => `http://${GATEWAY}:${sitePort}${p}`;
@@ -103,6 +115,10 @@ before(async () => {
   const ctxDir = fs.mkdtempSync(path.join(os.tmpdir(), `sbrowser-ctx-${suffix}-`));
   fs.cpSync(path.join(ROOT, "images/agent-computer"), path.join(ctxDir, "agent-computer"), { recursive: true });
   fs.cpSync(path.join(ROOT, "images/space-browser"), path.join(ctxDir, "space-browser"), { recursive: true });
+  // the bridge protocol module is a link in the repository and a copy in the build context (scripts/release stage-bridge does the same)
+  const vendor = path.join(ctxDir, "space-browser/browserd/vendor/chrome-bridge.ts");
+  fs.rmSync(vendor, { force: true });
+  fs.copyFileSync(path.join(ROOT, "lib/chrome-bridge.ts"), vendor);
   fs.cpSync(ext, path.join(ctxDir, "agent-computer/vyre-chrome"), { recursive: true, filter: (s) => !/\/(tests|node_modules)(\/|$)/.test(s) });
   const built = await host("docker", ["build", "-f", path.join(ctxDir, "space-browser/Dockerfile"), "-t", IMAGE, ctxDir], 1_200_000);
   fs.rmSync(ctxDir, { recursive: true, force: true });
@@ -242,5 +258,63 @@ test("@heavy space browser: a Vault login fills in the agent's profile, and neve
     await assert.rejects(() => tool("agt_dex", "chrome_fill", { fields: [{ ref: passRef, value: "#Login_Site.password" }] }, { fill }), (e) => e instanceof ToolError && e.code === "bad_input" && /may not use/.test(e.message));
   } finally { deny = false; }
   assert.ok(uses.includes("agt_dex:#Login_Site.password:refused"));
+  grant.revoke();
+});
+
+// What the extension's native host does, from inside the container: read the profile's bridge folder, call the bridge over loopback with the profile's token, and listen on the events stream.
+const AS_EXTENSION = String.raw`
+const fs = require("fs");
+const dir = "/data/profiles/agt_pair/bridge";
+const info = JSON.parse(fs.readFileSync(dir + "/vyred.json", "utf8"));
+const token = fs.readFileSync(dir + "/admin.token", "utf8").trim();
+const base = info.url;
+const H = { authorization: "Bearer " + token, "content-type": "application/json" };
+const rpc = (b) => fetch(base + "/chrome-bridge/v1/rpc", { method: "POST", headers: H, body: JSON.stringify(b) }).then((r) => r.json());
+(async () => {
+  const lines = [];
+  const ac = new AbortController();
+  const ev = await fetch(base + "/chrome-bridge/v1/events", { headers: H, signal: ac.signal });
+  (async () => { const rd = ev.body.getReader(); const dec = new TextDecoder(); let buf = ""; try { for (;;) { const { value, done } = await rd.read(); if (done) break; buf += dec.decode(value); let i; while ((i = buf.indexOf("\n")) >= 0) { lines.push(JSON.parse(buf.slice(0, i))); buf = buf.slice(i + 1); } } } catch (e) {} })();
+  const hello = await rpc({ id: "1", type: "bridge", op: "hello", input: {} });
+  const match = await rpc({ id: "2", type: "invoke", capability: "vault.items.match", input: { url: "https://app.example.com" } });
+  const use = await rpc({ id: "3", type: "invoke", capability: "vault.use", input: { item: "itm_login" } });
+  const fill = await rpc({ id: "4", type: "invoke", capability: "vault.fill", input: { handle: "#Login_Site.password", target: { kind: "browser", ref: "ag1-test" } } });
+  const bad = await rpc({ id: "5", type: "invoke", capability: "vault.share", input: {} });
+  const nonsense = await rpc({ id: "6", type: "bridge", op: "agents.list", input: {} });
+  const noToken = await fetch(base + "/chrome-bridge/v1/rpc", { method: "POST", headers: { "content-type": "application/json" }, body: "{}" });
+  await new Promise((r) => setTimeout(r, 500));
+  ac.abort();
+  console.log(JSON.stringify({ hello, match, use, fill, bad, nonsense, noTokenStatus: noToken.status, lines }));
+})();
+`;
+
+test("@heavy space browser: Vyre for Chrome in a profile is paired with the Space as that agent, and the Vault answers through the bridge", { skip, timeout: 300_000 }, async () => {
+  const grant = await fills.issue({ computerId: "agt_pair", agentId: "agt_pair", asker: "usr_dana" });
+  const fill = { url: `http://${GATEWAY}:${fillPort}/`, token: grant.fillToken };
+  await tool("agt_pair", "chrome_open", { url: siteUrl("/login") }, { fill, space: "spc_sbtest" });
+  // the real extension connects through its native messaging host, says hello, and hears that the Space opened this browser to its agent
+  let row: { bridge?: { connected: number; hello: boolean; optin: boolean } } | undefined;
+  for (let i = 0; i < 60; i++) {
+    row = (await sb.profiles()).profiles.find((x) => x.profileId === "agt_pair");
+    if (row?.bridge?.optin && row.bridge.connected >= 1) break;
+    await sleep(1000);
+  }
+  assert.ok(row?.bridge?.optin && row.bridge.connected >= 1, `the extension connected through its native host and was told the Space opened it to its agent (${JSON.stringify(row?.bridge)})`);
+  // what the extension's native host does, spoken by hand
+  const r = await api.exec(NAME, { cmd: ["node", "-e", AS_EXTENSION], env: [] });
+  assert.equal(r.exitCode, 0, r.stderr);
+  const out = JSON.parse(r.stdout.trim().split("\n").at(-1)!) as { hello: { output: { active: string; signedIn: boolean } }; match: { output: { items: Array<{ item: { itemId: string } }> } }; use: { output: { handle: string } }; fill: { output: { filled: boolean } }; bad: { error: { code: string } }; nonsense: { error: { code: string } }; noTokenStatus: number; lines: Array<Record<string, unknown>> };
+  assert.deepEqual([out.hello.output.active, out.hello.output.signedIn], ["spc_sbtest", true], "the profile's agent is signed in to its one Space");
+  assert.equal(out.match.output.items[0]!.item.itemId, "itm_login", "which items fit a page, from the Vault");
+  assert.equal(out.use.output.handle, "#Login_Site");
+  assert.ok(invokes.every((x) => x.who.agentId === "agt_pair" && x.who.asker === "usr_dana"), "every Vault question was asked as this profile's agent for the person who asked");
+  assert.deepEqual(invokes.map((x) => x.cap), ["vault.items.match", "vault.use"]);
+  assert.equal(out.fill.output.filled, true);
+  assert.deepEqual(out.lines.find((l) => l["type"] === "fill"), { type: "fill", ref: "ag1-test", value: PASSWORD }, "the value was pushed to the extension once, for the one ref");
+  assert.deepEqual(out.lines[0], { type: "agent.optin", spaces: ["spc_sbtest"], mode: "computer" });
+  assert.ok(uses.includes("agt_pair:#Login_Site.password:filled"), "the Vault logged the use under the agent");
+  assert.equal(out.bad.error.code, "not_allowed", "the extension may not ask for anything else");
+  assert.equal(out.nonsense.error.code, "not_available");
+  assert.equal(out.noTokenStatus, 401, "the bridge answers only a profile's own token");
   grant.revoke();
 });

@@ -14,6 +14,8 @@ export interface ProfileRow {
   lastActiveAt: number;
   held: number;
   paused: boolean;
+  /** Vyre for Chrome in the profile, paired with the Space as the agent: the extensions connected, whether it said hello, and whether the Space opened the browser to the agent's Space. */
+  bridge?: { connected: number; hello: boolean; optin: boolean };
 }
 
 export interface BrowserToolCall {
@@ -24,11 +26,15 @@ export interface BrowserToolCall {
   timeoutMs: number;
   /** `person` is the person at the controls acting through the live view: browserd lets it through a takeover that holds the agent's tools. */
   by?: "person";
+  /** The Space this agent works in: Vyre for Chrome in the profile is paired with it, as the agent, so Vault logins fill. */
+  space?: string;
   /** The Vault channel of this profile's agent for #Handle.field in the call: held by browserd in memory, for this profile only. */
   fill?: { url: string; token: string };
 }
 
 export interface SpaceBrowser {
+  /** Can this host run it at all (the container runtime answers)? When not, an agent keeps browsing where it did before (its own computer, or the person's Chrome). Cheap: the router asks at most every 15 seconds. */
+  available(): Promise<boolean>;
   /** One browser tool for one profile. Starts the service and the profile's browser when they are not running. Throws an error with a `code` (timeout, paused, not_found, bad_input, held, unavailable). */
   tool(a: BrowserToolCall): Promise<BrowserAnswer>;
   takeover(a: { profileId: string; personId: string }): Promise<void>;

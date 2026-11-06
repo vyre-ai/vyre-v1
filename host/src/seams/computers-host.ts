@@ -11,6 +11,8 @@ export interface ComputersHostSeam {
   runner?: { socket: string; token(): string; ingress?: string; alias?: string };
   /** The agent computer image. Default vyre/agent-computer:1 (images/agent-computer). */
   image?: string;
+  /** The Space browser image (images/space-browser). Default vyre/space-browser:1. */
+  browserImage?: string;
   /** The folder bound at ~/Vyre in an agent's computer, made on first use. It is a mirror of the agent's folder in Files (the module's home sync keeps the two together, as the agent). */
   filesRoot(agentId: string): string | null;
   /** The home mirror: every call to Files runs as the agent principal; a pass runs at wake, every few seconds while the computer runs, and at sleep. */
@@ -52,6 +54,7 @@ export function createComputersHost(d: ComputersHostDeps): ComputersHostSeam {
     ...(d.socketPath !== undefined ? { socketPath: d.socketPath } : {}),
     ...(d.runner ? { runner: d.runner } : {}),
     image: d.image ?? process.env["VYRE_AGENT_COMPUTER_IMAGE"] ?? "vyre/agent-computer:1",
+    browserImage: process.env["VYRE_SPACE_BROWSER_IMAGE"] ?? "vyre/space-browser:1",
     startTimeoutMs: d.startTimeoutMs ?? 120_000,
     ...(d.callAs && d.putBytes ? { home: { callAs: d.callAs as never, putBytes: d.putBytes, ...(d.homeIntervalMs !== undefined ? { intervalMs: d.homeIntervalMs } : {}), manifest: (agentId: string) => path.join(root, agentId, "home-manifest.json"), ...(d.announce ? { announce: d.announce } : {}), ...(d.log ? { log: d.log } : {}) } } : {}),
     filesRoot(agentId) {
