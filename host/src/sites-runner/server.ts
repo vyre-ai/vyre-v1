@@ -4,7 +4,7 @@
 import fs from "node:fs";
 import http from "node:http";
 import { bare, buildQuery, containerBody, execBody, judge, networkBody, networkOf, SITE_ID, siteAllows, computerAllows } from "./policy.ts";
-import { COMPUTER_ID, HELPER_NAME_RE, computerBody, computerNet, computerNetworkBody, computerOf, helperBody } from "./computers-policy.ts";
+import { COMPUTER_ID, HELPER_NAME_RE, computerBody, computerNet, computerNetworkBody, computerOf, helperBody, SBROWSER_NAME, SBROWSER_NET, sbrowserAllows, sbrowserBody, sbrowserNetworkBody, sbrowserOf } from "./computers-policy.ts";
 import { WS_AGENT, WS_INIT_NAME, WS_NET, workspaceAllows, workspaceBody, workspaceHelperOf, workspaceInitBody, workspaceNetworkBody, workspaceOf, workspaceVolumeBody } from "./workspaces-policy.ts";
 import { sha256Hex } from "../../../kernel/src/log/hash.ts";
 
@@ -90,7 +90,7 @@ export function createSitesRunner(o: RunnerOptions): { server: http.Server; clos
       let parsed: unknown;
       try { parsed = JSON.parse((raw ?? Buffer.alloc(0)).toString("utf8")); } catch { refuse(res, 400, "the container config is not JSON"); return; }
       const nm = v.path as string;
-      const c = HELPER_NAME_RE.test(nm) ? helperBody(nm, parsed) : WS_INIT_NAME.test(nm) ? workspaceInitBody(nm, parsed) : nm.startsWith("vyre-ws-") ? workspaceBody(nm, parsed, wsNetOk) : nm.startsWith("vyre-comp-") ? computerBody(nm, parsed) : containerBody(nm, parsed);
+      const c = HELPER_NAME_RE.test(nm) ? helperBody(nm, parsed) : nm === SBROWSER_NAME ? sbrowserBody(nm, parsed) : WS_INIT_NAME.test(nm) ? workspaceInitBody(nm, parsed) : nm.startsWith("vyre-ws-") ? workspaceBody(nm, parsed, wsNetOk) : nm.startsWith("vyre-comp-") ? computerBody(nm, parsed) : containerBody(nm, parsed);
       if ("why" in c) { say(`refused create ${v.path}: ${c.why}`); refuse(res, 403, `Refused by the sites runner: ${c.why}.`); return; }
       const body = Buffer.from(JSON.stringify(c.body));
       await docker("POST", `${url.pathname}${url.search}`, body, { "content-type": "application/json", "content-length": body.length }, res);
@@ -103,9 +103,10 @@ export function createSitesRunner(o: RunnerOptions): { server: http.Server; clos
       const comp = computerOf(labels);
       const ws = workspaceOf(labels);
       const wsHelper = workspaceHelperOf(labels);
-      if (!isSite && !comp && !ws && !wsHelper) { say(`refused ${label}: not a site, computer or workspace container`); refuse(res, 403, "Refused by the sites runner: that container is not a site's, an agent computer's or an agent workspace's."); return; }
-      const allowed = isSite ? siteAllows(v.action, method, url.searchParams) : ws || wsHelper ? workspaceAllows(v.action, wsHelper !== null, method, url.searchParams) : computerAllows(v.action, method, url.searchParams, labels["vyre.helper"] === "home-rm");
-      if (!allowed) { say(`refused ${label}: ${v.action} not allowed here`); refuse(res, 403, `Refused by the sites runner: that is not something ${isSite ? "a site" : ws || wsHelper ? "an agent workspace" : "an agent computer"} container may be asked.`); return; }
+      const sbr = sbrowserOf(labels);
+      if (!isSite && !comp && !ws && !wsHelper && !sbr) { say(`refused ${label}: not a site, computer, workspace or Space browser container`); refuse(res, 403, "Refused by the sites runner: that container is not a site's, an agent computer's, an agent workspace's or the Space browser's."); return; }
+      const allowed = isSite ? siteAllows(v.action, method, url.searchParams) : sbr ? sbrowserAllows(v.action, method, url.searchParams) : ws || wsHelper ? workspaceAllows(v.action, wsHelper !== null, method, url.searchParams) : computerAllows(v.action, method, url.searchParams, labels["vyre.helper"] === "home-rm");
+      if (!allowed) { say(`refused ${label}: ${v.action} not allowed here`); refuse(res, 403, `Refused by the sites runner: that is not something ${isSite ? "a site" : sbr ? "the Space browser" : ws || wsHelper ? "an agent workspace" : "an agent computer"} container may be asked.`); return; }
       if (v.action === "exec") {
         const raw = await readBody(req, 64 * 1024);
         let parsed: unknown;
@@ -140,8 +141,9 @@ export function createSitesRunner(o: RunnerOptions): { server: http.Server; clos
       let body: Record<string, unknown>;
       if (v.kind === "network-create") {
         const wantsComputer = typeof parsed === "object" && parsed !== null && COMPUTER_ID.test(String(((parsed as { Labels?: Record<string, unknown> }).Labels ?? {})["vyre.computer"] ?? ""));
+        const wantsSbrowser = typeof parsed === "object" && parsed !== null && ((parsed as { Labels?: Record<string, unknown> }).Labels ?? {})["vyre.sbrowser"] === "1";
         const wantsWorkspace = typeof parsed === "object" && parsed !== null && WS_AGENT.test(String(((parsed as { Labels?: Record<string, unknown> }).Labels ?? {})["vyre.workspace"] ?? ""));
-        const n = wantsWorkspace ? workspaceNetworkBody(parsed) : wantsComputer ? computerNetworkBody(parsed) : networkBody(parsed);
+        const n = wantsSbrowser ? sbrowserNetworkBody(parsed) : wantsWorkspace ? workspaceNetworkBody(parsed) : wantsComputer ? computerNetworkBody(parsed) : networkBody(parsed);
         if ("why" in n) { say(`refused network: ${n.why}`); refuse(res, 403, `Refused by the sites runner: ${n.why}.`); return; }
         body = n.body;
       } else {
@@ -151,7 +153,7 @@ export function createSitesRunner(o: RunnerOptions): { server: http.Server; clos
         const who = (parsed as { Container?: unknown })?.Container;
         const labels = typeof who === "string" ? await labelsOf(who) : null;
         const comp = labels === null ? null : computerOf(labels);
-        const own = labels !== null && ((SITE_ID.test(labels["vyre.site"] ?? "") && networkOf(labels["vyre.site"] as string) === v.network) || (comp !== null && labels["vyre.helper"] === undefined && computerNet(comp) === v.network));
+        const own = labels !== null && ((SITE_ID.test(labels["vyre.site"] ?? "") && networkOf(labels["vyre.site"] as string) === v.network) || (comp !== null && labels["vyre.helper"] === undefined && computerNet(comp) === v.network) || (sbrowserOf(labels) && v.network === SBROWSER_NET));
         if (!labels || !(own || labels["vyre.ingress"] === "1")) { say(`refused joining ${v.network}`); refuse(res, 403, "Refused by the sites runner: only a network's own containers and the ingress join it."); return; }
         const aliases = (parsed as { EndpointConfig?: { Aliases?: unknown } })?.EndpointConfig?.Aliases;
         body = { Container: who, ...(Array.isArray(aliases) && aliases.every((a) => typeof a === "string") ? { EndpointConfig: { Aliases: aliases } } : {}) };

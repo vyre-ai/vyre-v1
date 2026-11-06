@@ -19,7 +19,7 @@ import type { FeedEntry, Releases, UpdateChannel } from "./channels.ts";
 import { assetsFor, feedBase } from "./feed.ts";
 import { APP_TARBALL, EXTENSION_ZIP, KITS_TARBALL, packExtension, packFolder, packServer, releasesFrom } from "./pack.ts";
 import type { ImageKey } from "./pack.ts";
-import { imageHasChrome, stageChrome } from "./computer.ts";
+import { imageHasChrome, stageBridge, stageChrome } from "./computer.ts";
 import { GithubReleases, publishRelease, updateRolling } from "./publish.ts";
 import { smokeRelease } from "./smoke.ts";
 import { checkDesktopArtifacts, digestLine, feedNotes, signDesktop } from "./updater.ts";
@@ -79,10 +79,10 @@ export function main(argv: string[]): number {
       }
       case "pack": {
         // pack <dir> <version>: server (needs IMAGE_* env), app web export (APP_DIST), extension and kits, into <dir>; each only when its input is given
-        if (a === undefined || b === undefined) { console.error("usage: pack <dir> <version>   (env: VYRE_IMAGE[, VYRE_AGENT_IMAGE, VYRE_WORKSPACE_IMAGE, VYRE_SANDBOX_IMAGE] APP_DIST)"); return 2; }
+        if (a === undefined || b === undefined) { console.error("usage: pack <dir> <version>   (env: VYRE_IMAGE[, VYRE_AGENT_IMAGE, VYRE_BROWSER_IMAGE, VYRE_WORKSPACE_IMAGE, VYRE_SANDBOX_IMAGE] APP_DIST)"); return 2; }
         fs.mkdirSync(a, { recursive: true });
         const images: Partial<Record<ImageKey, string>> = {};
-        for (const k of ["VYRE_IMAGE", "VYRE_AGENT_IMAGE", "VYRE_WORKSPACE_IMAGE", "VYRE_SANDBOX_IMAGE"] as const) { const v = process.env[k]; if (v) images[k] = v; }
+        for (const k of ["VYRE_IMAGE", "VYRE_AGENT_IMAGE", "VYRE_BROWSER_IMAGE", "VYRE_WORKSPACE_IMAGE", "VYRE_SANDBOX_IMAGE"] as const) { const v = process.env[k]; if (v) images[k] = v; }
         const made: string[] = [];
         if (images.VYRE_IMAGE) { packServer({ root, outDir: a, version: b, images }); made.push("vyre.tgz"); }
         const dist = process.env["APP_DIST"];
@@ -94,6 +94,7 @@ export function main(argv: string[]): number {
         return 0;
       }
       case "stage-chrome": { console.log(`release: staged ${stageChrome(root).length} Vyre for Chrome files into images/agent-computer/vyre-chrome`); return 0; }
+      case "stage-bridge": { console.log(`release: staged ${stageBridge(root)} into the Space browser build context`); return 0; }
       case "image-has-chrome": {
         if (a === undefined) { console.error("usage: image-has-chrome <image>"); return 2; }
         imageHasChrome(a, stageChrome(root));
@@ -136,7 +137,7 @@ export function main(argv: string[]): number {
         console.log(`release: wrote ${names.join(", ")}`);
         return 0;
       }
-      default: console.error("usage: counter | bump | tag | lineage | pack | stage-chrome | image-has-chrome | pubkey | sign | updater-digest | updater | updater-check | assets | feed-base | publish | rolling | unpublish | smoke"); return 2;
+      default: console.error("usage: counter | bump | tag | lineage | pack | stage-chrome | stage-bridge | image-has-chrome | pubkey | sign | updater-digest | updater | updater-check | assets | feed-base | publish | rolling | unpublish | smoke"); return 2;
     }
   } catch (e) { console.error(`release: ${e instanceof Error ? e.message : "failed"}`); return 1; }
 }

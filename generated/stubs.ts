@@ -160,6 +160,7 @@ export function stubs(ctx: CallCtx) {
         list: call("agents.routines.list"),
       },
       set_owner: call("agents.set_owner"),
+      share_class: call("agents.share_class"),
       snapshot: {
         take: call("agents.snapshot.take"),
       },
@@ -521,6 +522,15 @@ export function stubs(ctx: CallCtx) {
       sweep: call("company.sweep"),
     },
     computers: {
+      browser: {
+        give_back: call("computers.browser.give_back"),
+        profiles: call("computers.browser.profiles"),
+        sessions: call("computers.browser.sessions"),
+        sign_out: call("computers.browser.sign_out"),
+        stream: call("computers.browser.stream"),
+        take_over: call("computers.browser.take_over"),
+        timeline: call("computers.browser.timeline"),
+      },
       chrome: {
         act: call("computers.chrome.act"),
         api: call("computers.chrome.api"),

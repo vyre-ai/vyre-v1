@@ -37,6 +37,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "agents.routine.save": async (ctx) => { throw new VyreErr(notImplemented("agents.routine.save", ctx.trace)); },
   "agents.routines.list": async (ctx) => { throw new VyreErr(notImplemented("agents.routines.list", ctx.trace)); },
   "agents.set_owner": async (ctx) => { throw new VyreErr(notImplemented("agents.set_owner", ctx.trace)); },
+  "agents.share_class": async (ctx) => { throw new VyreErr(notImplemented("agents.share_class", ctx.trace)); },
   "agents.snapshot.take": async (ctx) => { throw new VyreErr(notImplemented("agents.snapshot.take", ctx.trace)); },
   "agents.status": async (ctx) => { throw new VyreErr(notImplemented("agents.status", ctx.trace)); },
   "agents.suggestion.accept": async (ctx) => { throw new VyreErr(notImplemented("agents.suggestion.accept", ctx.trace)); },

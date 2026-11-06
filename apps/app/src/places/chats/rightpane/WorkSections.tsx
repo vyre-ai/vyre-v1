@@ -15,15 +15,17 @@ import type { Entry } from "./parts.tsx";
 import { attachedNote, browserAction, browserWords, orderSessions, sessionsLine, sharedWait, terminalAction, workspaceWords } from "./work-model.ts";
 import type { BrowserData, BrowserView, Tone, WorkspaceData, WorkspaceView } from "./work-model.ts";
 
-/** Is the new layout wanted: a lane has bound its half. A pane with neither draws the single-computer tab. */
-export const usesWorkModel = (d: { workspace?: WorkspaceData | undefined; browser?: BrowserData | undefined }): boolean => d.workspace !== undefined || d.browser !== undefined;
+/** Is the new layout wanted: the browser half is bound, or the workspace is and the agent has no legacy desktop computer. An agent that still has one keeps today's Computer tab until the browser half is bound. */
+export const usesWorkModel = (d: { workspace?: WorkspaceData | undefined; browser?: BrowserData | undefined; agent?: { computerId?: string | undefined } | undefined }): boolean =>
+  d.browser !== undefined || (d.workspace !== undefined && (d.agent?.computerId ?? "") === "");
 
 type Watched<V> = { status: "none" } | { status: "loading" } | { status: "ready"; view: V };
 function useWatched<V>(src: { watch(agentId: string, on: (v: V) => void): () => void } | undefined, agentId: string): Watched<V> {
   const [w, setW] = useState<Watched<V>>(src ? { status: "loading" } : { status: "none" });
   useEffect(() => {
     if (!src) { setW({ status: "none" }); return; }
-    setW({ status: "loading" });
+    // a new source keeps what was drawn until its first answer: no flicker when the pane data is rebuilt
+    setW((was) => (was.status === "ready" ? was : { status: "loading" }));
     return src.watch(agentId, (view) => setW({ status: "ready", view }));
   }, [src, agentId]);
   return w;

@@ -250,3 +250,14 @@ test("mounted: a person who may not attach or take over does not see what is ope
     assert.equal(find(root, "browser-frame"), null);
   } finally { off(); }
 });
+
+test("an agent that still has a legacy desktop computer keeps the single-computer tab until the browser half is bound", () => {
+  const w = stub(ws(), null).workspace;
+  const b = stub(null, br()).browser;
+  assert.equal(usesWorkModel({ workspace: w, agent: { computerId: "cmt_1" } }), false);
+  assert.equal(usesWorkModel({ workspace: w, browser: b, agent: { computerId: "cmt_1" } }), true);
+  assert.equal(usesWorkModel({ workspace: w, agent: {} }), true);
+  const s = createSample();
+  const legacy = clean(renderToStaticMarkup(<ChatRightPane data={{ ...s.data, workspace: w }} open onToggle={() => undefined} tab="computer" window={ALL} paneWidth={640} />));
+  assert.ok(!legacy.includes('data-testid="terminal-card"') && legacy.includes('data-testid="pane-body-computer"'), "the sample agent has a computer: today's tab");
+});

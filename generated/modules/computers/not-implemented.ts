@@ -5,6 +5,13 @@ import type { Handlers } from './handlers.ts';
 
 /** Served while the module is a stub and no example answer is wanted: every capability fails with a typed error carrying the trace id. */
 export const handlers: Handlers<HandlerCtx> = {
+  "computers.browser.give_back": async (ctx) => { throw new VyreErr(notImplemented("computers.browser.give_back", ctx.trace)); },
+  "computers.browser.profiles": async (ctx) => { throw new VyreErr(notImplemented("computers.browser.profiles", ctx.trace)); },
+  "computers.browser.sessions": async (ctx) => { throw new VyreErr(notImplemented("computers.browser.sessions", ctx.trace)); },
+  "computers.browser.sign_out": async (ctx) => { throw new VyreErr(notImplemented("computers.browser.sign_out", ctx.trace)); },
+  "computers.browser.stream": async (ctx) => { throw new VyreErr(notImplemented("computers.browser.stream", ctx.trace)); },
+  "computers.browser.take_over": async (ctx) => { throw new VyreErr(notImplemented("computers.browser.take_over", ctx.trace)); },
+  "computers.browser.timeline": async (ctx) => { throw new VyreErr(notImplemented("computers.browser.timeline", ctx.trace)); },
   "computers.chrome.act": async (ctx) => { throw new VyreErr(notImplemented("computers.chrome.act", ctx.trace)); },
   "computers.chrome.api": async (ctx) => { throw new VyreErr(notImplemented("computers.chrome.api", ctx.trace)); },
   "computers.chrome.batch": async (ctx) => { throw new VyreErr(notImplemented("computers.chrome.batch", ctx.trace)); },

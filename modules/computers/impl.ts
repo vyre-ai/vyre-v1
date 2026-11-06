@@ -39,6 +39,12 @@ import { nodeRun } from "./remote.ts";
 import { ToolError } from "./handlers/tools/common.ts";
 import type { ToolAnswer, ToolCode, ToolHost } from "./handlers/tools/common.ts";
 import type { ComputerHost, HostKind, Probe, RecordResult, SessionInfo } from "./projections.ts";
+import "./sbrowser/migrate.ts";
+import { browserStreamInput, browserStreamOpen } from "./sbrowser/handlers.ts";
+import "./sbrowser/room.ts";
+import { bindSpaceBrowser } from "./sbrowser/port.ts";
+import type { SpaceBrowser } from "./sbrowser/port.ts";
+import { createDockerSpaceBrowser, DEFAULT_BROWSER_IMAGE } from "./sbrowser/docker.ts";
 
 export const handlers: Record<string, Handler> = table as unknown as Record<string, Handler>;
 
@@ -521,6 +527,10 @@ export interface ComputersHostConfig {
   /** A Team server: the runner's socket and token (it alone holds the Docker socket), and the container vyred runs in, which joins each computer's network. */
   runner?: { socket: string; token(): string; ingress?: string; alias?: string };
   image?: string;
+  /** The Space browser image (images/space-browser). Default vyre/space-browser:1. */
+  browserImage?: string;
+  /** How many browsers the Space browser holds at once and how long a quiet one stays (minutes). */
+  browser?: { maxRunning?: number; idleMinutes?: number };
   filesRoot?: (agentId: string) => string | null;
   startTimeoutMs?: number;
   /** The agent's home mirror: calls as the agent principal, the upload of large files, how often a pass runs, where each agent's manifest lives, and a log. */
@@ -548,8 +558,22 @@ export function computerSubnets(): string[] { return (boundHost() as { subnets?:
 export async function learnComputerSubnets(ids: readonly string[]): Promise<string[]> { return (await (boundHost() as { knownNetworks?: (i: readonly string[]) => Promise<string[]> } | null)?.knownNetworks?.(ids)) ?? []; }
 export async function localSiteLogs(a: { computerId: string; slug: string; lines: number }): Promise<string[]> { return (await boundHost()?.siteLogs?.(a)) ?? []; }
 
+/** The Space browser for this machine, not yet bound: one container for the Space host, a Chrome profile per agent (sbrowser/). */
+export function buildSpaceBrowser(c: ComputersHostConfig): SpaceBrowser {
+  const http = c.runner ? unixSocketHttp(c.runner.socket, undefined, () => ({ authorization: `Bearer ${c.runner!.token()}` })) : unixSocketHttp(c.socketPath);
+  return createDockerSpaceBrowser({
+    api: createDockerApi(http), http,
+    image: c.browserImage ?? DEFAULT_BROWSER_IMAGE,
+    ...(c.runner ? { runner: { ...(c.runner.ingress ? { ingress: c.runner.ingress } : {}), ...(c.runner.alias ? { alias: c.runner.alias } : {}) } } : {}),
+    ...(c.browser?.maxRunning !== undefined ? { maxRunning: c.browser.maxRunning } : {}),
+    ...(c.browser?.idleMinutes !== undefined ? { idleMinutes: c.browser.idleMinutes } : {}),
+    ...(c.startTimeoutMs !== undefined ? { startTimeoutMs: c.startTimeoutMs } : {}),
+  });
+}
+
 export function setComputerHost(c: ComputersHostConfig | null): void {
   bindHost(c === null ? null : buildComputerHost(c));
+  bindSpaceBrowser(c === null ? null : buildSpaceBrowser(c));
 }
 
 // Only the setters the daemon wires are host seams (the loader reports any other function here as a driver left unwired); what a computer that joined needs is exported beside them.
@@ -557,4 +581,4 @@ export const hostSeams = { setComputersFill, setComputerHost };
 export { nodeRun };
 
 /** What the host asks of this module on behalf of a computer that joined (host/src/routes/compute.ts): never a capability, never reachable from a session. */
-export const hostCalls = { "computers.workspace_claim": workspaceClaim, "computers.workspace_release": workspaceRelease, "computers.workspace_waiting": workspaceWaiting, "computers.node_jobs": nodeJobs, "computers.node_result": nodeResult, "computers.node_home_check": nodeHomeCheck, "computers.stream_open": nodeStreamOpen, "computers.stream_input": nodeStreamInput, "computers.node_recording_check": nodeRecordingCheck };
+export const hostCalls = { "computers.browser_stream_open": browserStreamOpen, "computers.browser_stream_input": browserStreamInput, "computers.workspace_claim": workspaceClaim, "computers.workspace_release": workspaceRelease, "computers.workspace_waiting": workspaceWaiting, "computers.node_jobs": nodeJobs, "computers.node_result": nodeResult, "computers.node_home_check": nodeHomeCheck, "computers.stream_open": nodeStreamOpen, "computers.stream_input": nodeStreamInput, "computers.node_recording_check": nodeRecordingCheck };
