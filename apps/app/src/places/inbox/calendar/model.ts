@@ -12,6 +12,8 @@ export type Attendee = EventRow["attendees"][number];
 export type Mode = "day" | "week" | "month";
 
 export const MIN = 60_000;
+/** A zone's offset from UTC, in minutes, as milliseconds: the one place the calendar turns an offset into a shift. */
+const shiftMs = (offsetMin: number): number => offsetMin * MIN;
 export const HOUR = 60 * MIN;
 export const DAY = 24 * HOUR;
 /** Pixels an hour on the Day and Week grids; a 15 minute step is a quarter of it (16 px). A 30 minute event is 31 px: two lines of title. */
@@ -28,7 +30,7 @@ const FULLMONTH = ["January", "February", "March", "April", "May", "June", "July
 
 /** The start (midnight in the person's day) of the day an instant falls on. */
 export function startOfDay(at: number, offsetMin: number): number {
-  return dayOf(at, offsetMin) * DAY - offsetMin * MIN;
+  return dayOf(at, offsetMin) * DAY - shiftMs(offsetMin);
 }
 
 /** Calendar days stepped by whole days: a day is 24 hours here because the person's offset is fixed for the view. */
@@ -36,7 +38,7 @@ export const addDays = (day: number, n: number): number => day + n * DAY;
 
 /** A local date from a day start. */
 function parts(day: number, offsetMin: number): { y: number; m: number; d: number; wd: number } {
-  const x = new Date(day + offsetMin * MIN);
+  const x = new Date(day + shiftMs(offsetMin));
   return { y: x.getUTCFullYear(), m: x.getUTCMonth(), d: x.getUTCDate(), wd: x.getUTCDay() };
 }
 
@@ -48,7 +50,7 @@ export function weekStart(day: number, offsetMin: number): number {
 
 export function monthStart(day: number, offsetMin: number): number {
   const p = parts(day, offsetMin);
-  return Date.UTC(p.y, p.m, 1) - offsetMin * MIN;
+  return Date.UTC(p.y, p.m, 1) - shiftMs(offsetMin);
 }
 
 /** The days the view draws: one for Day, seven for Week (Monday first), whole weeks covering the month for Month. */
@@ -75,7 +77,7 @@ export function stepView(mode: Mode, day: number, dir: 1 | -1, offsetMin: number
   if (mode === "day") return addDays(day, dir);
   if (mode === "week") return addDays(day, 7 * dir);
   const p = parts(day, offsetMin);
-  return Date.UTC(p.y, p.m + dir, 1) - offsetMin * MIN;
+  return Date.UTC(p.y, p.m + dir, 1) - shiftMs(offsetMin);
 }
 
 export function viewTitle(mode: Mode, day: number, offsetMin: number): string {
@@ -93,7 +95,7 @@ export const monthOf = (day: number, offsetMin: number): number => parts(day, of
 
 /** 9:30 AM */
 export function clock(at: number, offsetMin: number): string {
-  const d = new Date(at + offsetMin * MIN);
+  const d = new Date(at + shiftMs(offsetMin));
   const h = d.getUTCHours(), m = d.getUTCMinutes();
   return `${h % 12 === 0 ? 12 : h % 12}:${String(m).padStart(2, "0")} ${h < 12 ? "AM" : "PM"}`;
 }
@@ -141,8 +143,8 @@ export const offsetToY = (ms: number): number => (ms / HOUR) * HH;
 
 /** Snap an instant to the nearest 15 minute step (clock time in the person's day). */
 export function snap(at: number, offsetMin: number): number {
-  const local = at + offsetMin * MIN;
-  return Math.round(local / STEP) * STEP - offsetMin * MIN;
+  const local = at + shiftMs(offsetMin);
+  return Math.round(local / STEP) * STEP - shiftMs(offsetMin);
 }
 
 export interface Span { startsAt: number; endsAt: number }
@@ -439,10 +441,10 @@ export interface AllDayLane { segs: AllDaySeg[]; /** Per day index: how many are
  * midnight in the viewer's zone. Timed events pass through. `allDayToWire` is the way back for a write.
  */
 export function allDayLocal<T extends Pick<EventRow, "allDay" | "startsAt" | "endsAt">>(e: T, offsetMin: number): T {
-  return e.allDay && offsetMin !== 0 ? { ...e, startsAt: e.startsAt - offsetMin * MIN, endsAt: e.endsAt - offsetMin * MIN } : e;
+  return e.allDay && offsetMin !== 0 ? { ...e, startsAt: e.startsAt - shiftMs(offsetMin), endsAt: e.endsAt - shiftMs(offsetMin) } : e;
 }
 export function allDayToWire<T extends Pick<EventRow, "allDay" | "startsAt" | "endsAt">>(e: T, offsetMin: number): T {
-  return e.allDay && offsetMin !== 0 ? { ...e, startsAt: e.startsAt + offsetMin * MIN, endsAt: e.endsAt + offsetMin * MIN } : e;
+  return e.allDay && offsetMin !== 0 ? { ...e, startsAt: e.startsAt + shiftMs(offsetMin), endsAt: e.endsAt + shiftMs(offsetMin) } : e;
 }
 
 /** The all-day lane: one chip per event per day (a copy of the same title on the same days is one), a multi-day event is one bar across its days, and rows past `cap` fold into "+N" per day. */

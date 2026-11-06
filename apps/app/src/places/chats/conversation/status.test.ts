@@ -236,11 +236,15 @@ test("an AI sign-in that cannot be opened says so and offers the sign-in, not a 
   assert.deepEqual(e.next, [{ key: "connect_ai", label: "Sign in again" }]);
 });
 
-test("a usage limit that said when it lifts puts the time in the cause", async () => {
+test("a usage limit that said when it lifts puts the time in the cause, in the Space's time zone", async () => {
   const { resetWords } = await import("./status.ts");
-  const now = new Date(2026, 10, 6, 10, 0).getTime();
-  assert.match(resetWords(new Date(2026, 10, 6, 15, 12).getTime(), now), /^at 3:12\s?PM$/);
-  assert.match(resetWords(new Date(2026, 10, 9, 3, 12).getTime(), now), /^on Nov 9 at 3:12\s?AM$/);
+  const zone = "America/Los_Angeles";
+  const now = Date.UTC(2026, 10, 6, 18, 0); // Fri 6 Nov, 10:00 AM in Los Angeles
+  assert.equal(resetWords(Date.UTC(2026, 10, 6, 23, 12), now, zone), "at 3:12 PM");
+  assert.equal(resetWords(Date.UTC(2026, 10, 7, 17, 0), now, zone), "tomorrow at 9:00 AM");
+  assert.equal(resetWords(Date.UTC(2026, 10, 9, 11, 12), now, zone), "on Mon 9 Nov at 3:12 AM");
+  // the same instant reads differently in another zone, and the Space's zone is what applies by default
+  assert.equal(resetWords(Date.UTC(2026, 10, 6, 23, 12), now, "Asia/Karachi"), "tomorrow at 4:12 AM");
 });
 
 test("a failed turn that hit a usage limit says when the account is usable again", () => {

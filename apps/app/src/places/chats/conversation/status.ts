@@ -1,5 +1,6 @@
 // How a turn that ended without a reply reads in a chat. The engine bridge posts it as a turn_status block (modules/engine/handlers/bridge.ts); its name and codes are internal and never shown.
 import type { Message, MessageBlock } from "./model.ts";
+import { clockIn, currentZones, dateIn, dayIn } from "../../../../../../lib/zones.ts";
 
 const str = (v: unknown): string => (typeof v === "string" || typeof v === "number" ? String(v) : "");
 const dataOf = (b: MessageBlock): Record<string, unknown> => (typeof b.data === "object" && b.data !== null && !Array.isArray(b.data) ? (b.data as Record<string, unknown>) : {});
@@ -121,11 +122,13 @@ export type StatusView = { kind: "error"; block: MessageBlock } | { kind: "note"
 export const DEVICE_WAIT_TEXT = "Your computer is off. This chat runs when it is back.";
 export const RUN_ON_SERVER = { key: "run_on_server", label: "Run it on the server instead" } as const;
 
-/** "at 3:12 AM" for a time later today, "on Nov 9 at 3:12 AM" for another day, in the reader's own clock. */
-export function resetWords(at: number, now: number = Date.now()): string {
-  const d = new Date(at);
-  const clock = d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
-  return d.toDateString() === new Date(now).toDateString() ? `at ${clock}` : `on ${d.toLocaleDateString(undefined, { month: "short", day: "numeric" })} at ${clock}`;
+/** "at 3:12 AM" for a time later today, "tomorrow at 3:12 AM", or "on Mon 9 Nov at 3:12 AM" for another day, in the Space's time zone (the same clock every member reads). */
+export function resetWords(at: number, now: number = Date.now(), zone: string = currentZones().space): string {
+  const clock = clockIn(at, zone);
+  const day = dayIn(at, zone) - dayIn(now, zone);
+  if (day === 0) return `at ${clock}`;
+  if (day === 1) return `tomorrow at ${clock}`;
+  return `on ${dateIn(at, zone, now)} at ${clock}`;
 }
 
 /** Why a turn stopped, in words: never a bare "Stopped." (owner, 4 Nov 2026). */
