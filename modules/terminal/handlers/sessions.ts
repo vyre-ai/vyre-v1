@@ -6,10 +6,10 @@
 // The machine does the work through the TerminalHost port (projections.ts); this module keeps what Vyre knows about a session and enforces who may do what in it.
 import {
   MAX_RULES, MAX_RULE_CHARS, TICKET_MS, actorOf, boundHost, boundKit, boundPlace, boundValues, clean, commandsOf, ensure, forgetSecrets, hostOf, insertSession, isTeam, judge, mintId, raise, rememberSecrets,
-  rulesOf, sessionBy, sessionOf, sha256, ticketSecret, touch, workspacesReady,
+  rulesOf, sessionBy, sessionOf, sha256, ticketSecret, touch, workspacesReady, SESSION_SELECT, insertTab,
 } from "../projections.ts";
 import { judged, isDangerous } from "../risk.ts";
-import type { HostKind, Lookup, Rules, Secret, SessionRow, Target, TermCtx, TermState, TurnPlace, ValueSource, VaultRun, Where } from "../projections.ts";
+import type { HostKind, Lookup, Rules, Secret, SessionRow, TabBy, Target, TermCtx, TermState, TurnPlace, ValueSource, VaultRun, Where } from "../projections.ts";
 
 type Row = Record<string, unknown>;
 const DEFAULT_COLS = 120;
@@ -26,6 +26,7 @@ export function terminalRow(x: SessionRow) {
     terminalId: x.terminalId, name: x.name, host: x.host, hostTitle: x.hostTitle,
     ...(x.agentId === undefined ? {} : { agentId: x.agentId }), ...(x.computerId === undefined ? {} : { computerId: x.computerId }), ...(x.deviceId === undefined ? {} : { deviceId: x.deviceId }),
     cwd: x.cwd, state: x.state, exitCode: x.exitCode, named: x.named, cols: x.cols, rows: x.rows, createdAt: x.createdAt, lastActiveAt: x.lastActiveAt, ...(x.runId === undefined ? {} : { runId: x.runId }),
+    ...(x.by === undefined ? {} : { by: x.by }),
   };
 }
 
@@ -40,12 +41,50 @@ function live(ctx: TermCtx, id: string): SessionRow {
 
 interface AgentFacts { ownerId?: string; kind?: string; runtime?: string }
 
+// ---- the workspace a call works in, and who it is there ----------------------------------------------------------------------------------------------------
+
+export interface WorkScope {
+  /** The agent whose workspace it is. */
+  agentId: string;
+  /** Set when the caller is a helper, subagent or crew member working under that agent: its own tab in the parent's workspace, labelled with its name. */
+  helper?: { name: string };
+}
+
+const MAX_HOPS = 4;
+
+/**
+ * The workspace an agent's terminal call works in (owner, 6 Nov: helpers, subagents and crew an agent starts get a terminal in the parent's workspace, each in a tab of its own). A call from a helper
+ * thread climbs to the chat the helper was started under, and the workspace is the agent of that chat: the helper itself when it is the same agent, else the chat's first agent. Anything the climb cannot
+ * read leaves the caller in its own workspace. Only the helper's own chain is ever read, so a helper never reaches another person's workspace.
+ */
+export async function workScope(ctx: TermCtx, agentId: string): Promise<WorkScope> {
+  if (ctx.thread === undefined || !ctx.call) return { agentId };
+  type Th = { kind?: string; title?: string; parentThreadId?: string; agents?: Array<{ agentId: string }> };
+  const get = async (threadId: string): Promise<Th | undefined> => { try { return ((await ctx.call!("threads.get", { threadId })) as { thread?: Th } | undefined)?.thread; } catch { return undefined; } };
+  const first = await get(ctx.thread);
+  if (first?.kind !== "helper" || first.parentThreadId === undefined) return { agentId };
+  let top: Th | undefined = first;
+  for (let i = 0; i < MAX_HOPS && top?.kind === "helper" && top.parentThreadId !== undefined; i++) top = await get(top.parentThreadId);
+  const lead = top?.agents?.map((a) => a.agentId) ?? [];
+  const ws = lead.includes(agentId) ? agentId : lead[0];
+  if (ws === undefined) return { agentId };
+  let name = (first.title ?? "").trim();
+  if (ws !== agentId) { try { const n = ((await ctx.call("agents.get", { agentId })) as { agent?: { name?: string } } | undefined)?.agent?.name; if (n) name = n; } catch { /* the title stands */ } }
+  return { agentId: ws, helper: { name: (name || "helper").slice(0, 60) } };
+}
+
+/** Who a session is a tab of, for the call that opens it. */
+async function tabFor(ctx: TermCtx, scope: WorkScope | undefined): Promise<TabBy> {
+  if (ctx.principal.kind === "agent") return scope?.helper ? { kind: "helper", name: scope.helper.name } : { kind: "agent" };
+  return { kind: "person" };
+}
+
 /**
  * Whose workspace this is to enter (owner, 6 Nov): an agent in its own; a person in their own Assistant's (or any agent of theirs); owners and admins (the ones who hold Manage) in a team agent's;
  * nobody else, and never in another person's Assistant or outside agent, whatever their role, since that is private to its person.
  */
 export async function mayEnterWorkspace(ctx: TermCtx, agentId: string): Promise<boolean> {
-  if (ctx.principal.kind === "agent") return ctx.principal.id === agentId;
+  if (ctx.principal.kind === "agent") return ctx.principal.id === agentId || (await workScope(ctx, ctx.principal.id)).agentId === agentId;
   if (ctx.principal.kind === "service") return true;
   const me = actorOf(ctx);
   let agent: AgentFacts | undefined;
@@ -61,7 +100,11 @@ async function needWorkspace(ctx: TermCtx, agentId: string): Promise<void> {
 
 /** A session in a workspace is entered only by who may enter that workspace. */
 async function needAccess(ctx: TermCtx, x: SessionRow): Promise<SessionRow> {
-  if (x.host === "agent_computer" && x.agentId !== undefined) await needWorkspace(ctx, x.agentId);
+  if (x.host === "agent_computer" && x.agentId !== undefined) {
+    await needWorkspace(ctx, x.agentId);
+    // a helper from another agent works in the parent's workspace in its own tab: it does not type in the parent's or a sibling's
+    if (ctx.principal.kind === "agent" && ctx.principal.id !== x.agentId && x.actor !== undefined && x.actor !== ctx.principal.id) raise(ctx, "permission.role_lacks_permission", "That tab belongs to another agent in this workspace.", { reason: "tab_not_yours" });
+  }
   return x;
 }
 
@@ -72,7 +115,7 @@ const unexpected = (ctx: TermCtx, what: string, e: unknown): never => {
 
 // ---- opening ------------------------------------------------------------------------------------------------------------------------------------------------
 
-interface OpenInput { host: HostKind; agentId?: string; computerId?: string; deviceId?: string; name?: string; cwd?: string; cols?: number; rows?: number; named?: boolean }
+interface OpenInput { by?: TabBy; threadId?: string; host: HostKind; agentId?: string; computerId?: string; deviceId?: string; name?: string; cwd?: string; cols?: number; rows?: number; named?: boolean }
 
 async function openSession(ctx: TermCtx, a: OpenInput, mapHostError: (e: unknown) => never): Promise<SessionRow> {
   ensure(ctx.db);
@@ -98,9 +141,11 @@ async function openSession(ctx: TermCtx, a: OpenInput, mapHostError: (e: unknown
   const row: SessionRow = {
     terminalId, name, named: a.named ?? (a.name !== undefined && a.name.trim() !== ""), host: a.host, hostTitle: started.title ?? TITLE[a.host],
     ...(a.agentId === undefined ? {} : { agentId: a.agentId }), ...(a.computerId === undefined ? {} : { computerId: a.computerId }), ...(a.deviceId === undefined ? {} : { deviceId: a.deviceId }),
+    ...(a.by === undefined ? {} : { by: a.by, actor: ctx.principal.id }),
     cwd: started.cwd, state: "idle", exitCode: null, cols, rows, owner, ...(ctx.run === undefined ? {} : { runId: ctx.run }), createdAt: now, lastActiveAt: now,
   };
   insertSession(ctx.db, row);
+  if (a.by !== undefined) insertTab(ctx.db, terminalId, a.by, ctx.principal.id, ctx.thread);
   ctx.emit("terminal.opened", terminalId, { terminalId, host: a.host, ...(a.agentId === undefined ? {} : { agentId: a.agentId }), by: owner });
   return row;
 }
@@ -117,9 +162,22 @@ const unavailable = (ctx: TermCtx) => (e: unknown): never => {
   return raise(ctx, "provider.unavailable", "That computer did not start a terminal. Check that it is on and try again.");
 };
 
-export async function open(ctx: TermCtx, input: OpenInput) {
-  const host: HostKind = input.host;
-  return { terminal: terminalRow(await openSession(ctx, { ...input, host }, unavailable(ctx))) };
+export async function open(ctx: TermCtx, input: Omit<OpenInput, "host"> & { host?: HostKind }) {
+  // an agent that names no host opens a tab in its workspace: its own, or its parent's when it is a helper
+  let host = input.host;
+  let agentId = input.agentId;
+  let scope: WorkScope | undefined;
+  if (host === undefined) {
+    if (ctx.principal.kind !== "agent" || !workspacesReady() || !isTeam(ctx.space)) raise(ctx, "validation.bad_input", "Say which computer to open the terminal on.");
+    host = "agent_computer";
+  }
+  if (host === "agent_computer" && ctx.principal.kind === "agent") {
+    scope = await workScope(ctx, agentId ?? ctx.principal.id);
+    agentId = agentId === undefined || agentId === ctx.principal.id ? scope.agentId : agentId;
+  }
+  const by = await tabFor(ctx, scope);
+  const name = input.name ?? (scope?.helper ? `helper: ${scope.helper.name}` : undefined);
+  return { terminal: terminalRow(await openSession(ctx, { ...input, host, ...(agentId === undefined ? {} : { agentId }), ...(name === undefined ? {} : { name }), by }, unavailable(ctx))) };
 }
 
 export async function openServer(ctx: TermCtx, input: { name?: string; cwd?: string; cols?: number; rows?: number }) {
@@ -131,8 +189,11 @@ export async function openServer(ctx: TermCtx, input: { name?: string; cwd?: str
 export function list(ctx: TermCtx, input: { section?: "personal" | "shared" | "space"; folderId?: string; host?: HostKind; state?: TermState[]; cursor?: string; limit?: number }) {
   ensure(ctx.db);
   const me = actorOf(ctx);
-  const all = (ctx.db.all("SELECT * FROM terminal_sessions WHERE closed_at IS NULL ORDER BY last_active_at DESC, terminal_id DESC") as Row[]).map(sessionOf);
+  const all = (ctx.db.all(`${SESSION_SELECT} WHERE s.closed_at IS NULL ORDER BY s.last_active_at DESC, s.terminal_id DESC`) as Row[]).map(sessionOf);
+  const asAgent = ctx.principal.kind === "agent" ? ctx.principal.id : undefined;
   const mine = all.filter((x) => {
+    // an agent lists the tabs of its own workspace, and a helper those it opened itself; never the person's other terminals
+    if (asAgent !== undefined && !(x.host === "agent_computer" && (x.agentId === asAgent || x.actor === asAgent))) return false;
     if (input.host !== undefined && x.host !== input.host) return false;
     if (input.state !== undefined && !input.state.includes(x.state)) return false;
     if (input.folderId !== undefined && x.folderId !== input.folderId) return false;
@@ -257,7 +318,7 @@ export async function resize(ctx: TermCtx, a: { terminalId: string; cols: number
 const WHERE: Readonly<Record<HostKind, Where>> = { agent_computer: "computer", space_server: "host", device: "device" };
 
 interface RunInput {
-  command: string; terminalId?: string; host?: "agent_computer" | "device"; agentId?: string; cwd?: string; timeoutSec?: number; env?: Record<string, string>;
+  command: string; terminalId?: string; session?: string; host?: "agent_computer" | "device"; agentId?: string; cwd?: string; timeoutSec?: number; env?: Record<string, string>;
 }
 
 interface RunTarget { host: HostKind; deviceId?: string }
@@ -311,15 +372,19 @@ async function sessionForRun(ctx: TermCtx, a: RunInput): Promise<SessionRow> {
     return needAccess(ctx, x);
   }
   const owner = actorOf(ctx);
-  const agentId = a.agentId ?? (ctx.principal.kind === "agent" ? ctx.principal.id : undefined);
+  let agentId = a.agentId ?? (ctx.principal.kind === "agent" ? ctx.principal.id : undefined);
   const { host, deviceId } = await targetForRun(ctx, a, owner, agentId);
+  // a helper or crew member works in its parent's workspace, in a tab of its own labelled with its name
+  let scope: WorkScope | undefined;
+  if (host === "agent_computer" && ctx.principal.kind === "agent" && agentId === ctx.principal.id) { scope = await workScope(ctx, agentId); agentId = scope.agentId; }
+  const tab = (a.session ?? "").trim().slice(0, 80) || (scope?.helper ? `helper: ${scope.helper.name}` : AGENT_SESSION);
   const found = ctx.db.all(
-    "SELECT * FROM terminal_sessions WHERE owner = ? AND host = ? AND name = ? AND closed_at IS NULL AND (agent_id IS ? OR agent_id = ?) AND (device_id IS ? OR device_id = ?) ORDER BY created_at DESC LIMIT 1",
-    owner, host, AGENT_SESSION, agentId ?? null, agentId ?? "", deviceId ?? null, deviceId ?? "",
+    `${SESSION_SELECT} WHERE s.owner = ? AND s.host = ? AND s.name = ? AND s.closed_at IS NULL AND (s.agent_id IS ? OR s.agent_id = ?) AND (s.device_id IS ? OR s.device_id = ?) ORDER BY s.created_at DESC LIMIT 1`,
+    owner, host, tab, agentId ?? null, agentId ?? "", deviceId ?? null, deviceId ?? "",
   ) as Row[];
   const hit = found[0];
-  if (hit) return sessionOf(hit);
-  return openSession(ctx, { host, ...(agentId === undefined ? {} : { agentId }), ...(deviceId === undefined ? {} : { deviceId }), name: AGENT_SESSION, named: false, ...(a.cwd === undefined ? {} : { cwd: a.cwd }) }, unavailable(ctx));
+  if (hit) return needAccess(ctx, sessionOf(hit));
+  return openSession(ctx, { host, ...(agentId === undefined ? {} : { agentId }), ...(deviceId === undefined ? {} : { deviceId }), name: tab, named: a.session !== undefined && a.session.trim() !== "", by: await tabFor(ctx, scope), ...(a.cwd === undefined ? {} : { cwd: a.cwd }) }, unavailable(ctx));
 }
 
 export async function run(ctx: TermCtx, a: RunInput) {

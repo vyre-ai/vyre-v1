@@ -9483,7 +9483,7 @@
     {
       "deferred": false,
       "name": "terminal_open",
-      "summary": "Open a terminal session on an agent computer or on your own computer (the device daemon)",
+      "summary": "Open a terminal tab: a named tmux session in your workspace (an agent that names no host gets one in its own workspace, or its parent's when it is a helper), or on your own computer (the device daemon)",
       "toolset": "terminal"
     },
     {

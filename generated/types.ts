@@ -41434,6 +41434,10 @@ export type TerminalGetOut = {
     createdAt: number;
     lastActiveAt: number;
     runId?: string;
+    by?: {
+      kind: "agent" | "helper" | "person";
+      name?: string;
+    };
   };
 };
 export type TerminalHealthIn = Record<string, unknown>;
@@ -41482,12 +41486,16 @@ export type TerminalListOut = {
       createdAt: number;
       lastActiveAt: number;
       runId?: string;
+      by?: {
+        kind: "agent" | "helper" | "person";
+        name?: string;
+      };
     }>;
   next?: string;
   total?: number;
 };
 export type TerminalOpenIn = {
-  host: "agent_computer" | "device";
+  host?: "agent_computer" | "device";
   agentId?: string;
   computerId?: string;
   deviceId?: string;
@@ -41515,6 +41523,10 @@ export type TerminalOpenOut = {
     createdAt: number;
     lastActiveAt: number;
     runId?: string;
+    by?: {
+      kind: "agent" | "helper" | "person";
+      name?: string;
+    };
   };
 };
 export type TerminalOpenServerIn = {
@@ -41542,6 +41554,10 @@ export type TerminalOpenServerOut = {
     createdAt: number;
     lastActiveAt: number;
     runId?: string;
+    by?: {
+      kind: "agent" | "helper" | "person";
+      name?: string;
+    };
   };
 };
 export type TerminalReadIn = {
@@ -41575,6 +41591,10 @@ export type TerminalRenameOut = {
     createdAt: number;
     lastActiveAt: number;
     runId?: string;
+    by?: {
+      kind: "agent" | "helper" | "person";
+      name?: string;
+    };
   };
 };
 export type TerminalRequestIn = {
@@ -41633,6 +41653,7 @@ export type TerminalRulesSetOut = {
 export type TerminalRunIn = {
   command: string;
   terminalId?: string;
+  session?: string;
   host?: "agent_computer" | "device";
   agentId?: string;
   cwd?: string;

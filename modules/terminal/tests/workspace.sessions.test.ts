@@ -32,6 +32,7 @@ function setup(place: TurnPlace | null | "unbound", o: { workspaces?: boolean } 
   const agent: TermCtx = { ...hn.as(AGENT, "usr_dana", "run_1"), thread: "thr_chat" };
   return { hn, host, agent };
 }
+const hn0 = (c: TermCtx): TermCtx => c;
 const opened = (host: ReturnType<typeof fakeHost>): unknown[] => host.calls.filter((c) => c.op === "open").map((c) => (c.args as { target: unknown }).target);
 const TEAM_ON_MAC: TurnPlace = { team: true, agentComputer: true, runsOn: "device", deviceId: "dev_mac" };
 
@@ -89,8 +90,12 @@ test("terminal_open on a workspace names the agent; an agent opens only its own 
   assert.deepEqual(opened(host), []);
   const own = await call(agent, "terminal.open", { host: "agent_computer", agentId: "agt_dex", idempotencyKey: idem() });
   assert.equal(own.terminal.host, "agent_computer");
-  const none = await failure(() => h["terminal.open"]!(agent, { host: "agent_computer" }));
-  assert.equal(none.code, "validation.bad_input");
+  const noAgent = await failure(() => h["terminal.open"]!(hn0(agent), { host: "agent_computer" }));
+  assert.equal(noAgent.code, "no error", "an agent that names no agent opens in its own workspace");
+  const person = await failure(() => h["terminal.open"]!(harness().ctx, { host: "agent_computer" }));
+  assert.equal(person.code, "validation.bad_input", "a person must say whose workspace");
+  const noHost = await failure(() => h["terminal.open"]!(harness().ctx, {}));
+  assert.equal(noHost.code, "validation.bad_input", "a person who names no host is asked");
   const viaOther = await failure(() => h["terminal.run"]!(agent, { command: "echo hi", agentId: "agt_other" }));
   assert.equal(viaOther.code, "permission.role_lacks_permission", "an agent that names another agent's id gets nothing of it");
 });

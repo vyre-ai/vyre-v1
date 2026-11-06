@@ -81,16 +81,20 @@ test("Team daemon with Docker: an agent's terminal_run makes its workspace, the 
   name = `vyre-ws-${agent}`;
   const threadId = (await ok(d, token, "chat.start", { kind: "chat", agentIds: [agent] })).thread.threadId as string;
   await ok(d, token, "threads.set_mode", { threadId, mode: "auto" });
-  const run = async (command: string, key: string): Promise<{ terminalId: string; exitCode: number; output: string }> => {
-    await ok(d, token, "chat.post", { threadId, body: `TOOL terminal_run ${JSON.stringify({ command, idempotencyKey: key })}`, mentions: [{ kind: "agent", id: agent }] });
+  const tool = async (toolName: string, input: Record<string, unknown>, key: string): Promise<any> => {   // eslint-disable-line @typescript-eslint/no-explicit-any
+    await ok(d, token, "chat.post", { threadId, body: `TOOL ${toolName} ${JSON.stringify({ ...input, idempotencyKey: key })}`, mentions: [{ kind: "agent", id: agent }] });
     const said = await waitFor(async () => {
       await d.hooks?.pump?.();
       const m = ((await call(d, token, "chat.messages.list", { threadId })).data.messages as Array<{ author?: { kind?: string }; body?: string }> | undefined) ?? [];
-      return m.filter((x) => x.author?.kind === "agent" && /TOOL RESULT/.test(x.body ?? "")).map((x) => x.body ?? "").find((b) => b.includes(key)) ?? m.filter((x) => x.author?.kind === "agent" && /TOOL RESULT/.test(x.body ?? "")).map((x) => x.body ?? "").at(-1) ?? null;
+      const results = m.filter((x) => x.author?.kind === "agent" && /TOOL RESULT/.test(x.body ?? "")).map((x) => x.body ?? "");
+      return results.length > seenResults ? results.at(-1)! : null;
     }, 120_000);
+    seenResults += 1;
     assert.match(said, /TOOL RESULT ok/, said);
-    return (JSON.parse(said.replace(/^[\s\S]*?TOOL RESULT ok /, "")) as { data: { terminalId: string; exitCode: number; output: string } }).data;
+    return (JSON.parse(said.replace(/^[\s\S]*?TOOL RESULT ok /, "")) as { data: any }).data;   // eslint-disable-line @typescript-eslint/no-explicit-any
   };
+  let seenResults = 0;
+  const run = (command: string, key: string, session?: string): Promise<{ terminalId: string; exitCode: number; output: string }> => tool("terminal_run", { command, ...(session ? { session } : {}) }, key);
 
   assert.equal((await docker(["inspect", name], 30_000)).code === 0, false, "no workspace before the first command");
   const first = await run("echo hi", "ws-echo");
@@ -106,6 +110,18 @@ test("Team daemon with Docker: an agent's terminal_run makes its workspace, the 
   assert.match(att.replay, /^hi$/m);
   const tmux = await docker(["exec", name, "tmux", "list-sessions", "-F", "#{session_name}"], 30_000);
   assert.equal(tmux.out.trim().split("\n")[0], `vyre-${first.terminalId}`, "the person's tab and the agent are in the same tmux session");
+
+  // many tabs: the agent runs into a named one, opens another with terminal_open, lists them and closes one; each is its own tmux session in the same container
+  const build = await run("echo building", "ws-build", "build");
+  assert.notEqual(build.terminalId, first.terminalId);
+  const srv = await tool("terminal_open", { name: "server" }, "ws-open");
+  assert.deepEqual([srv.terminal.name, srv.terminal.host, srv.terminal.agentId, srv.terminal.by], ["server", "agent_computer", agent, { kind: "agent" }]);
+  const listed = await tool("terminal_list", {}, "ws-list");
+  assert.deepEqual((listed.terminals as Array<{ name: string }>).map((x) => x.name).sort(), ["agent", "build", "server"]);
+  const sessions = (await docker(["exec", name, "tmux", "list-sessions", "-F", "#{session_name}"], 30_000)).out.trim().split("\n").filter((x) => x.startsWith("vyre-")).sort();
+  assert.deepEqual(sessions, [first.terminalId, build.terminalId, srv.terminal.terminalId].map((x) => `vyre-${x}`).sort(), "three tmux sessions in one workspace");
+  await tool("terminal_close", { terminalId: srv.terminal.terminalId }, "ws-close");
+  assert.deepEqual(((await tool("terminal_list", {}, "ws-list2")).terminals as Array<{ name: string }>).map((x) => x.name).sort(), ["agent", "build"]);
 
   // a file the agent makes in ~/Vyre reaches its folder in Files, as the agent
   await run("echo from-the-workspace > ~/Vyre/made.txt", "ws-made");
