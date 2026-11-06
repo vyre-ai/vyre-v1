@@ -1,0 +1,4 @@
+- Chat: underline (++text++ or <u>) and highlight (==text==) marks beside bold, italic and strike.
+- Chat: a long reply can fold into collapsible sections (> [!section] Title); a section stays as you left it, per message.
+- Chat: agents can offer choices you press to reply (```choices), and task-list boxes in a reply can be ticked.
+- Agents now know all of these formats.
