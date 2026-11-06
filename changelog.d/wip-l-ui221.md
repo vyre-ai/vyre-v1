@@ -6,5 +6,5 @@
 - Tabs: a saved list loads with one blank "New chat" tab and one Inbox tab.
 - Composer: a draft of more than one line moves the model chip and buttons under the text, and the text uses the full width; the field is capped at about seven lines (a third of a short window) and scrolls inside.
 - Conversation: "Jump to latest" is its own row under the list, at the right, and never covers text; the header drops member faces before the chat name is cut.
-- Thread pane: opens at about 40% of the window (360 to 560 px); still resizable.
+- Thread pane: opens at about 40% of the room beside the sidebar (360 to 560 px); still resizable.
 - Top bar: a goal that went Stuck no longer interrupts the top bar; it stays in the goal and in Needs you.

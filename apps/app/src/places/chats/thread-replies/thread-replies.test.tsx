@@ -428,10 +428,10 @@ test("pure: the footer words, the timer and the also-sent lookup", () => {
 
 void (null as unknown as ConversationData);
 
-test("the Thread pane opens at about 40% of the window, between 360 and 560 px", async () => {
+test("the Thread pane opens at about 40% of the room beside the sidebar, between 360 and 560 px", async () => {
   const { threadSideWidth } = await import("../mounts/ThreadSide.tsx");
-  assert.equal(threadSideWidth(1280), 512);
-  assert.equal(threadSideWidth(1440), 560);
+  assert.equal(threadSideWidth(1280), 406, "the channel (874 - 406 = 610) stays the wider pane");
+  assert.equal(threadSideWidth(1440), 470);
   assert.equal(threadSideWidth(2000), 560);
   assert.equal(threadSideWidth(800), 360);
   assert.equal(threadSideWidth(0), 400);

@@ -19,9 +19,11 @@ type ThreadOut = CapMap["threads.get"]["out"];
 type ThreadsOut = CapMap["threads.list"]["out"];
 
 export const THREAD_SIDE_W = 400;
-/** The Thread pane's width when the person has not dragged it: about 40% of the window, never under 360 nor over 560 px, so the channel beside it keeps room for its name. */
+/** The Chats sidebar's width (ChatsMounted SIDEBAR_W, not imported: it imports this file). */
+const SIDEBAR_BESIDE = 264;
+/** The Thread pane's width when the person has not dragged it: about 40% of the room beside the sidebar, never under 360 nor over 560 px, so the channel stays the main pane and keeps room for its name. */
 export function threadSideWidth(windowWidth: number): number {
-  return windowWidth > 0 ? Math.max(360, Math.min(560, Math.round(windowWidth * 0.4))) : THREAD_SIDE_W;
+  return windowWidth > 0 ? Math.max(360, Math.min(560, Math.round((windowWidth - SIDEBAR_BESIDE) * 0.4))) : THREAD_SIDE_W;
 }
 
 export interface ThreadSideProps {
