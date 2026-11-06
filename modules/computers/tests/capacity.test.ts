@@ -223,3 +223,28 @@ test("the limit an admin set reaches a wake that cannot see the machine list: ma
   assert.equal(q.state, "waking", "16 cores would default to 8, the admin's 1 holds");
   assert.equal(q.caption, LINE);
 });
+
+test("the same wake: a host with room goes straight to working with no waiting line; a full one is waking with the line and never starts; the host's own figures decide, not the machine it runs on", async () => {
+  const roomy = harness();
+  report(roomy, { memMb: 65_536, usedMb: 1000, max: 4 });
+  const a = await made(roomy, "agt_a");
+  const up = (await wake(roomy.ctx, { computerId: a })).computer;
+  assert.deepEqual([up.state, up.caption ?? null], ["working", null]);
+  assert.equal(isWaiting(roomy.db, a), false);
+  const full = harness();
+  report(full, { memMb: 3000, usedMb: 2900, max: 4 });
+  const b = await made(full, "agt_b");
+  const wait = (await wake(full.ctx, { computerId: b })).computer;
+  assert.deepEqual([wait.state, wait.caption], ["waking", LINE]);
+  assert.equal(full.fake.named("start").length, 0);
+});
+
+test("a host built with its own capacity reports that, not the machine's memory (how a test of room stays the same on any runner)", async () => {
+  const { createDockerComputerHost } = await import("../impl.ts");
+  const said = { totalMb: 65_536, freeMb: 60_000, cpus: 8, os: "linux", diskFreeMb: 200_000 };
+  const host = createDockerComputerHost({ api: {} as never, capacity: async () => said });
+  assert.deepEqual(await host.capacity!(), said);
+  const real = createDockerComputerHost({ api: {} as never });
+  const r = await real.capacity!();
+  assert.ok(r.totalMb > 0 && r.cpus > 0, "without an override it reads the machine");
+});

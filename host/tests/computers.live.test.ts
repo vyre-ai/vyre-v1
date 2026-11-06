@@ -54,6 +54,8 @@ async function boot(dir: string): Promise<Daemon> {
     }),
     fetch: caddyFetch,
     computersHomeIntervalMs: 20_000,
+    // room is the test's own: a shared runner's free memory and the other jobs on it must not decide whether this computer starts
+    computersCapacity: { totalMb: 65_536, freeMb: 60_000, cpus: 8, os: "linux", diskFreeMb: 200_000 },
     intervals: { fast: 3_600_000, slow: 3_600_000, encryption: 3_600_000, commands: 3_600_000, hooks: 3_600_000 },
   });
 }
@@ -65,15 +67,19 @@ async function call(d: Daemon, cap: string, input: unknown, token: string = d.to
 }
 
 test("computers live: an agent's computer on a booted daemon is asleep until woken, shows a screen frame, and sleeps again", { skip }, async () => {
-  // Vyre for Chrome ships in the image (owner rule): the extension is copied into a copy of the build context, as the release build does (the runners have no buildx)
-  const ctxDir = tmp("vyre-agentcomp-ctx-");
-  fs.cpSync(path.join(CODE_ROOT, "images/agent-computer"), ctxDir, { recursive: true });
-  fs.cpSync(path.join(CODE_ROOT, "apps/chrome/manifest.json"), path.join(ctxDir, "vyre-chrome/manifest.json"));
-  fs.cpSync(path.join(CODE_ROOT, "apps/chrome/src"), path.join(ctxDir, "vyre-chrome/src"), { recursive: true });
-  const built = await docker(["build", "-t", IMAGE, ctxDir], 1_200_000);
-  fs.rmSync(ctxDir, { recursive: true, force: true });
-  assert.equal(built.code, 0, `building ${IMAGE} failed: ${built.out.slice(-1500)}`);
-  process.env["VYRE_AGENT_COMPUTER_IMAGE"] = IMAGE;
+  // VYRE_AGENT_COMPUTER_TEST_IMAGE names an image already built from this checkout (a box that has one need not build it again); otherwise it is built here
+  const prebuilt = process.env["VYRE_AGENT_COMPUTER_TEST_IMAGE"];
+  if (prebuilt === undefined) {
+    // Vyre for Chrome ships in the image (owner rule): the extension is copied into a copy of the build context, as the release build does (the runners have no buildx)
+    const ctxDir = tmp("vyre-agentcomp-ctx-");
+    fs.cpSync(path.join(CODE_ROOT, "images/agent-computer"), ctxDir, { recursive: true });
+    fs.cpSync(path.join(CODE_ROOT, "apps/chrome/manifest.json"), path.join(ctxDir, "vyre-chrome/manifest.json"));
+    fs.cpSync(path.join(CODE_ROOT, "apps/chrome/src"), path.join(ctxDir, "vyre-chrome/src"), { recursive: true });
+    const built = await docker(["build", "-t", IMAGE, ctxDir], 1_200_000);
+    fs.rmSync(ctxDir, { recursive: true, force: true });
+    assert.equal(built.code, 0, `building ${IMAGE} failed: ${built.out.slice(-1500)}`);
+  }
+  process.env["VYRE_AGENT_COMPUTER_IMAGE"] = prebuilt ?? IMAGE;
   const dir = seededDir();
   const d = await boot(dir);
   let computerId = "";
