@@ -26,6 +26,7 @@ Read network requests of the tab with timing; bodies are masked by the vault scr
 ```ts
 type In = {
   computerId?: string;
+  inMyChrome?: boolean;
   tabId?: string;
   filter?: string;
   bodies?: boolean;
@@ -67,6 +68,7 @@ type Out = {
     "bodies": true,
     "computerId": "cmt_a1b2c3",
     "filter": "example",
+    "inMyChrome": true,
     "limit": 1,
     "tabId": "example"
   },

@@ -60,7 +60,7 @@ const SHAPES = {
   chrome_type: { tabId: "s?", ref: "s?", text: "s", submit: "b?" },
   chrome_fill: { tabId: "s?", fields: "a" },
   chrome_open: { url: "s", newTab: "b?" },
-  chrome_tabs: { action: ["list", "use", "new", "close"], tabId: "s?", url: "s?" },
+  chrome_tabs: { action: ["list", "use", "find", "new", "close"], tabId: "s?", url: "s?", site: "s?" },
   chrome_wait: { tabId: "s?", until: WAITS, value: "s?", timeoutMs: "n?" },
   chrome_screenshot: { tabId: "s?", ref: "s?", fullPage: "b?" },
   chrome_eval: { tabId: "s?", expression: "s" },

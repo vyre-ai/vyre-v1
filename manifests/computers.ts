@@ -27,6 +27,11 @@ const recordingRow = t.obj({
 const sessionRow = t.obj({ site: t.str({ examples: ['app.example.com'] }), signedInAs: t.opt(t.str()), since: t.ts(), lastSeen: t.ts() });
 const comp = { computerId: id.computer };
 const optComp = { computerId: t.opt(id.computer) };
+/** Chrome tools run on the agent's own computer. `inMyChrome` is the one way to ask for the asking person's own Chrome, and only when they asked for it in this turn. */
+const chromeWhere = {
+  ...optComp,
+  inMyChrome: t.opt(t.bool({ description: "Work in the asking person's own Chrome (Vyre for Chrome on their computer) instead of the Space browser. Set it ONLY when the person asked for it in this turn (\"in my Chrome\", \"on my computer\", or the Use my Chrome choice); it is refused otherwise. Leave it out for all other browsing" })),
+};
 const tabId = t.opt(t.str({ description: 'Chrome tab id; omit for the active tab' }));
 const ref = t.str({ description: 'Element reference from chrome_snapshot', examples: ['e12'] });
 const intent = t.enm('make_skill', 'learn_routine', 'work_out_backend_calls', 'learn_workflow');
@@ -127,85 +132,85 @@ export default defineManifest({
 
     // ---- Chrome tools (Vyre for Chrome signed in as the agent)
     read('computers.chrome.snapshot', 'Read the page as an accessibility tree with element refs; prefer this over screenshots', {
-      in: { ...optComp, tabId, selector: t.opt(t.str()), format: t.opt(t.enm('tree', 'text')) }, out: { url: t.str(), title: t.str(), tree: t.str(), truncated: t.bool() },
+      in: { ...chromeWhere, tabId, selector: t.opt(t.str()), format: t.opt(t.enm('tree', 'text')) }, out: { url: t.str(), title: t.str(), tree: t.str(), truncated: t.bool() },
       ...local({ mcpName: 'chrome_snapshot', agent: { planMode: 'allowed' } }),
     }),
     write('computers.chrome.act', 'Act on an element or key: click, hover, press, select, scroll, check; a send, post or payment is held and returns an id', {
-      in: { ...optComp, tabId, ref: t.opt(ref), action: t.enm('click', 'double_click', 'hover', 'press', 'select', 'scroll', 'check', 'uncheck', 'focus'), value: t.opt(t.str()) },
+      in: { ...chromeWhere, tabId, ref: t.opt(ref), action: t.enm('click', 'double_click', 'hover', 'press', 'select', 'scroll', 'check', 'uncheck', 'focus'), value: t.opt(t.str()) },
       out: { ok: t.bool(), heldId: t.opt(t.str()), snapshot: t.opt(t.str()) }, ...local({ mcpName: 'chrome_act', risk: 'medium', idem: 'none' }),
     }),
     write('computers.chrome.click', 'Click an element by ref or by coordinates', {
-      in: { ...optComp, tabId, ref: t.opt(ref), x: t.opt(t.int()), y: t.opt(t.int()), button: t.opt(t.enm('left', 'right', 'middle')) },
+      in: { ...chromeWhere, tabId, ref: t.opt(ref), x: t.opt(t.int()), y: t.opt(t.int()), button: t.opt(t.enm('left', 'right', 'middle')) },
       out: { ok: t.bool(), heldId: t.opt(t.str()) }, ...local({ mcpName: 'chrome_click', risk: 'medium', idem: 'none' }),
     }),
     write('computers.chrome.type', 'Type text into the focused element or a ref; secrets only as #Handle.field references', {
-      in: { ...optComp, tabId, ref: t.opt(ref), text: t.str(), submit: t.opt(t.bool()) }, out: { ok: t.bool(), heldId: t.opt(t.str()) },
+      in: { ...chromeWhere, tabId, ref: t.opt(ref), text: t.str(), submit: t.opt(t.bool()) }, out: { ok: t.bool(), heldId: t.opt(t.str()) },
       ...local({ mcpName: 'chrome_type', risk: 'medium', idem: 'none' }),
     }),
     write('computers.chrome.fill', 'Fill form fields; values may be #Handle.field references that the computer vault filler substitutes at the last moment', {
-      in: { ...optComp, tabId, fields: t.arr(t.obj({ ref, value: t.str() }), { minItems: 1 }) }, out: { ok: t.bool(), filled: t.int() },
+      in: { ...chromeWhere, tabId, fields: t.arr(t.obj({ ref, value: t.str() }), { minItems: 1 }) }, out: { ok: t.bool(), filled: t.int() },
       ...local({ mcpName: 'chrome_fill', risk: 'medium', idem: 'none' }),
     }),
     write('computers.chrome.open', 'Open a URL, reusing the open tab by default (never one tab per step)', {
-      in: { ...optComp, url: t.str({ pattern: '^https?://', examples: ['https://example.com'] }), newTab: t.opt(t.bool()) }, out: { tabId: t.str(), url: t.str(), title: t.str() },
+      in: { ...chromeWhere, url: t.str({ pattern: '^https?://', examples: ['https://example.com'] }), newTab: t.opt(t.bool()) }, out: { tabId: t.str(), url: t.str(), title: t.str() },
       ...local({ mcpName: 'chrome_open', idem: 'none' }),
     }),
-    write('computers.chrome.tabs', 'List, use, open or close tabs', {
-      in: { ...optComp, action: t.enm('list', 'use', 'new', 'close'), tabId, url: t.opt(t.str()) }, out: { tabs: t.arr(t.obj({ tabId: t.str(), url: t.str(), title: t.str(), active: t.bool() })) },
+    write('computers.chrome.tabs', 'List, find, use, open or close tabs. find looks for tabs already open for a site (in the person\'s own Chrome: their open tabs); use works in one; a tab that was not yours to begin with is never closed', {
+      in: { ...chromeWhere, action: t.enm('list', 'use', 'find', 'new', 'close'), tabId, url: t.opt(t.str()), site: t.opt(t.str({ description: 'find only: the site, as an address or a host such as mail.google.com', examples: ['mail.google.com'] })) }, out: { tabs: t.arr(t.obj({ tabId: t.str(), url: t.str(), title: t.str(), active: t.bool() })) },
       ...local({ mcpName: 'chrome_tabs', idem: 'none' }),
     }),
     write('computers.chrome.wait', 'Wait for a load, text, selector, network idle or a time', {
-      in: { ...optComp, tabId, until: t.enm('load', 'text', 'selector', 'network_idle', 'time'), value: t.opt(t.str()), timeoutMs: t.opt(t.int({ minimum: 100, maximum: 120000 })) },
+      in: { ...chromeWhere, tabId, until: t.enm('load', 'text', 'selector', 'network_idle', 'time'), value: t.opt(t.str()), timeoutMs: t.opt(t.int({ minimum: 100, maximum: 120000 })) },
       out: { ok: t.bool(), waitedMs: t.int() }, ...local({ mcpName: 'chrome_wait', idem: 'none', risk: 'low' }),
     }),
     read('computers.chrome.screenshot', 'Screenshot of the tab or one element, stored in the agent folder and rendered as a screenshot block', {
-      in: { ...optComp, tabId, ref: t.opt(ref), fullPage: t.opt(t.bool()) }, out: { fileId: id.file, width: t.int(), height: t.int() },
+      in: { ...chromeWhere, tabId, ref: t.opt(ref), fullPage: t.opt(t.bool()) }, out: { fileId: id.file, width: t.int(), height: t.int() },
       ...local({ mcpName: 'chrome_screenshot', agent: { planMode: 'allowed', blocks: ['screenshot'] } }),
     }),
     write('computers.chrome.eval', 'Run a JavaScript expression in the page and return the result', {
-      in: { ...optComp, tabId, expression: t.str() }, out: { result: t.json() }, ...local({ mcpName: 'chrome_eval', risk: 'high', idem: 'none', audit: 'sensitive' }),
+      in: { ...chromeWhere, tabId, expression: t.str() }, out: { result: t.json() }, ...local({ mcpName: 'chrome_eval', risk: 'high', idem: 'none', audit: 'sensitive' }),
     }),
     read('computers.chrome.console', 'Read the page console messages', {
-      in: { ...optComp, tabId, level: t.opt(t.enm('log', 'warn', 'error')), limit: t.opt(t.int({ minimum: 1, maximum: 500 })) }, out: { messages: t.arr(t.obj({ level: t.str(), text: t.str(), at: t.ts() })) },
+      in: { ...chromeWhere, tabId, level: t.opt(t.enm('log', 'warn', 'error')), limit: t.opt(t.int({ minimum: 1, maximum: 500 })) }, out: { messages: t.arr(t.obj({ level: t.str(), text: t.str(), at: t.ts() })) },
       ...local({ mcpName: 'chrome_console' }),
     }),
     read('computers.chrome.net', 'Read network requests of the tab with timing; bodies are masked by the vault scrubber', {
-      in: { ...optComp, tabId, filter: t.opt(t.str()), bodies: t.opt(t.bool()), limit: t.opt(t.int({ minimum: 1, maximum: 500 })) },
+      in: { ...chromeWhere, tabId, filter: t.opt(t.str()), bodies: t.opt(t.bool()), limit: t.opt(t.int({ minimum: 1, maximum: 500 })) },
       out: { requests: t.arr(t.obj({ method: t.str(), url: t.str(), status: t.opt(t.int()), ms: t.opt(t.int()), body: t.opt(t.str()) })) }, ...local({ mcpName: 'chrome_net' }),
     }),
     read('computers.chrome.inspect', 'Inspect one element: attributes, computed text, box and role', {
-      in: { ...optComp, tabId, ref }, out: { element: t.rec() }, ...local({ mcpName: 'chrome_inspect' }),
+      in: { ...chromeWhere, tabId, ref }, out: { element: t.rec() }, ...local({ mcpName: 'chrome_inspect' }),
     }),
     read('computers.chrome.state', 'URL, title and load state of a tab', {
-      in: { ...optComp, tabId }, out: { url: t.str(), title: t.str(), loading: t.bool() }, ...local({ mcpName: 'chrome_state' }),
+      in: { ...chromeWhere, tabId }, out: { url: t.str(), title: t.str(), loading: t.bool() }, ...local({ mcpName: 'chrome_state' }),
     }),
     read('computers.chrome.status', 'Status of Vyre for Chrome in this computer: connected, paused by Esc, held items', {
-      in: { ...optComp }, out: { connected: t.bool(), paused: t.bool(), held: t.arr(t.str()) }, ...local({ mcpName: 'chrome_status' }),
+      in: { ...chromeWhere }, out: { connected: t.bool(), paused: t.bool(), held: t.arr(t.str()) }, ...local({ mcpName: 'chrome_status' }),
     }),
     write('computers.chrome.stop', 'Stop everything Chrome is doing until the person answers', {
-      in: { ...optComp, reason: t.opt(t.str()) }, out: { stopped: t.bool() }, ...local({ mcpName: 'chrome_stop', idem: 'natural', risk: 'low' }),
+      in: { ...chromeWhere, reason: t.opt(t.str()) }, out: { stopped: t.bool() }, ...local({ mcpName: 'chrome_stop', idem: 'natural', risk: 'low' }),
     }),
     write('computers.chrome.resume', 'Resume after a stop or an Esc press once the person has answered', {
-      in: { ...optComp }, out: { resumed: t.bool() }, ...local({ mcpName: 'chrome_resume', idem: 'natural', risk: 'low' }),
+      in: { ...chromeWhere }, out: { resumed: t.bool() }, ...local({ mcpName: 'chrome_resume', idem: 'natural', risk: 'low' }),
     }),
     outward('computers.chrome.send', 'Send a held send, post or payment: the person approves it first (Gate)', {
-      in: { ...optComp, heldId: t.str() }, out: { sent: t.bool(), taskId: t.opt(id.task) }, gate: 'send',
+      in: { ...chromeWhere, heldId: t.str() }, out: { sent: t.bool(), taskId: t.opt(id.task) }, gate: 'send',
       ...local({ mcpName: 'chrome_send', agent: { planMode: 'blocked' } }),
     }),
     write('computers.chrome.batch', 'Run several Chrome steps in one call; stops at the first held item', {
-      in: { ...optComp, tabId, steps: t.arr(t.obj({ tool: t.str(), args: t.rec() }), { minItems: 1, maxItems: 50 }) },
+      in: { ...chromeWhere, tabId, steps: t.arr(t.obj({ tool: t.str(), args: t.rec() }), { minItems: 1, maxItems: 50 }) },
       out: { results: t.arr(t.obj({ tool: t.str(), ok: t.bool(), result: t.opt(t.json()), heldId: t.opt(t.str()) })) }, ...local({ mcpName: 'chrome_batch', risk: 'medium', idem: 'none' }),
     }),
     write('computers.chrome.plan', 'Tell the person the steps about to be taken in the browser before taking them', {
-      in: { ...optComp, goal: t.str(), steps: t.opt(t.arr(t.str())) }, out: { ok: t.bool() }, ...local({ mcpName: 'chrome_plan', idem: 'none', risk: 'low' }),
+      in: { ...chromeWhere, goal: t.str(), steps: t.opt(t.arr(t.str())) }, out: { ok: t.bool() }, ...local({ mcpName: 'chrome_plan', idem: 'none', risk: 'low' }),
     }),
     outward('computers.chrome.api', 'Call a site backend with the session of this browser; non-GET calls pass the Gate', {
-      in: { ...optComp, method: t.enm('GET', 'POST', 'PUT', 'PATCH', 'DELETE'), url: t.str({ pattern: '^https?://', examples: ['https://example.com/api/items'] }), headers: t.opt(t.rec(t.str())), body: t.opt(t.json()) },
+      in: { ...chromeWhere, method: t.enm('GET', 'POST', 'PUT', 'PATCH', 'DELETE'), url: t.str({ pattern: '^https?://', examples: ['https://example.com/api/items'] }), headers: t.opt(t.rec(t.str())), body: t.opt(t.json()) },
       out: { status: t.int(), headers: t.rec(t.str()), body: t.json() }, gate: { act: 'post', when: "input.method != 'GET'" },
       ...local({ mcpName: 'chrome_api', agent: { planMode: 'blocked' } }),
     }),
     read('computers.chrome.sources', 'List scripts, requests and storage a page uses (to work out backend calls for a recipe)', {
-      in: { ...optComp, tabId }, out: { scripts: t.arr(t.str()), endpoints: t.arr(t.obj({ method: t.str(), url: t.str() })) }, ...local({ mcpName: 'chrome_sources' }),
+      in: { ...chromeWhere, tabId }, out: { scripts: t.arr(t.str()), endpoints: t.arr(t.obj({ method: t.str(), url: t.str() })) }, ...local({ mcpName: 'chrome_sources' }),
     }),
 
     // ---- Screen tools (full desktop on demand)

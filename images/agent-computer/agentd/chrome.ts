@@ -254,6 +254,13 @@ export function launchChrome(screen: Screen, profileDir: string, extensionDir: s
           if (all.length >= state.tabLimit) throw badInput(`This computer has ${all.length} tabs open, which is its limit. Close one first.`);
           const t = await getJson<Target>(`/json/new?${encodeURIComponent(s("url") ?? "about:blank")}`, "PUT");
           active = t.id;
+        } else if (action === "find") {
+          // the tabs this computer already has open for a site (the same words as in the person's Chrome)
+          const host = (s("site") ?? "").trim().toLowerCase().replace(/^[a-z]+:\/\//, "").split(/[/?#]/)[0]!.replace(/:\d+$/, "").replace(/^www\./, "");
+          if (host === "") throw badInput("Name the site to find a tab for.");
+          const all = await targets();
+          const own = (u: string): boolean => { try { const h = new URL(u).hostname.toLowerCase().replace(/^www\./, ""); return h === host || h.endsWith(`.${host}`); } catch { return false; } };
+          return { tabs: all.filter((t) => own(t.url)).slice(0, 10).map((t) => ({ tabId: t.id, url: t.url, title: t.title, active: t.id === (active ?? all[0]?.id) })) };
         } else if (action !== "list") throw badInput(`I cannot ${action} tabs.`);
         await sleep(action === "list" ? 0 : 150);
         const all = await targets();

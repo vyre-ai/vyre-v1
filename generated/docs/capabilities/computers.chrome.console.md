@@ -26,6 +26,7 @@ Read the page console messages
 ```ts
 type In = {
   computerId?: string;
+  inMyChrome?: boolean;
   tabId?: string;
   level?: "log" | "warn" | "error";
   limit?: number;
@@ -62,6 +63,7 @@ type Out = {
   "name": "example",
   "input": {
     "computerId": "cmt_a1b2c3",
+    "inMyChrome": true,
     "level": "log",
     "limit": 1,
     "tabId": "example"

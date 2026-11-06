@@ -1683,7 +1683,7 @@
     {
       "deferred": false,
       "name": "chrome_tabs",
-      "summary": "List, use, open or close tabs",
+      "summary": "List, find, use, open or close tabs. find looks for tabs already open for a site (in the person's own Chrome: their open tabs); use works in one; a tab that was not yours to begin with is never closed",
       "toolset": "computer"
     },
     {

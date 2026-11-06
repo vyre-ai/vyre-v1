@@ -26,6 +26,7 @@ Open a URL, reusing the open tab by default (never one tab per step)
 ```ts
 type In = {
   computerId?: string;
+  inMyChrome?: boolean;
   url: string;
   newTab?: boolean;
 };
@@ -59,6 +60,7 @@ type Out = {
   "name": "example",
   "input": {
     "computerId": "cmt_a1b2c3",
+    "inMyChrome": true,
     "newTab": true,
     "url": "https://example.com"
   },
