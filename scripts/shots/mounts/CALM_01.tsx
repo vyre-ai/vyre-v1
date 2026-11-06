@@ -42,8 +42,8 @@ export default function Mount(): ReactNode {
       row("z3", a, RICH, 3),
       row("z4", a, "I have started on the three logins. North is done.", 5),
       { ...row("z5", a, "", 6), kind: "system", blocks: [{ type: "link_card", v: 1, id: "lc1", data: { icon: "thread", lead: "Connected", title: "with Aliza. Intake is talking with Aliza directly." } }] },
-      { ...row("z6", a, "", 7), kind: "system", blocks: [{ type: "link_card", v: 1, id: "lc2", data: { icon: "note", lead: "Noted", title: "decision, go with Harbor", style: "noted" } }] },
-      { ...row("z7", a, "", 8), kind: "system", blocks: [{ type: "link_card", v: 1, id: "lc3", data: { icon: "memory", lead: "Remembered", title: "Harbor sends its login code to Omar" } }] },
+      { ...row("z6", a, "", 7), kind: "system", blocks: [{ type: "link_card", v: 1, id: "lc2", data: { icon: "fact", lead: "Noted", title: "decision, go with Harbor", style: "noted" } }] },
+      { ...row("z7", a, "", 8), kind: "system", blocks: [{ type: "link_card", v: 1, id: "lc3", data: { icon: "fact", lead: "Remembered", title: "Harbor sends its login code to Omar" } }] },
     ]);
     return s;
   }, []);

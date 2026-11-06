@@ -229,10 +229,8 @@ export const MessageView = memo(function MessageView(props: MessageViewProps): R
       const b = item.message.blocks.find((x) => x.type === "link_card")!;
       return (
         <View testID={`event-${item.key}`} style={[st.event, link.style === "question" && st.eventCentre]}>
-          {link.style === "noted" ? <LinkCardView id={String(b.id)} data={link} actions={props.actions} size={13} trusted={item.message.kind === "system"} time={item.time} /> : <>
-            <View style={st.eventCard}><LinkCardView id={String(b.id)} data={link} actions={props.actions} size={13} trusted={item.message.kind === "system"} /></View>
-            {link.style === "question" ? null : <TimeTip item={item}><Text style={st.eventTime}>{item.time}</Text></TimeTip>}
-          </>}
+          <View style={st.eventCard}><LinkCardView id={String(b.id)} data={link} actions={props.actions} size={13} trusted={item.message.kind === "system"} /></View>
+          {link.style === "question" ? null : <TimeTip item={item}><Text style={st.eventTime}>{item.time}</Text></TimeTip>}
         </View>
       );
     }
@@ -672,7 +670,7 @@ function LinkCardView({ id, data, actions, size, trusted, time }: { id: string; 
     void Promise.resolve(actions.host.invoke("access.request", { resource: { type: t.type === "chat" ? "thread" : t.type, id: t.id }, level: "view", idempotencyKey: `ask:${t.type}:${t.id}` })).then(() => setAsked(true), () => undefined);
   };
   const open = (t: NonNullable<LinkCardData["target"]>): void => { if (t.type === "thread" && actions.openMessage) actions.openMessage(t.id, ""); else if (t.type === "fact" && memory?.memory.showKnows) memory.memory.showKnows(); else actions.openBeside(t.type, t.id); };
-  return <LinkCard id={id} data={data} nameOf={actions.nameOf ?? ((x) => x)} icon={<Glyph name={linkGlyph(data.icon)} size={size} color="var(--ink-3)" />} onOpen={open} onAction={act} done={new Set([...done, ...doneByState(data, seen.state)])} state={seen.state} hidden={hidden} {...(time ? { time } : {})} {...(hidden && data.target ? { onAskAccess: askAccess, asked } : {})} />;
+  return <LinkCard id={id} data={data} nameOf={actions.nameOf ?? ((x) => x)} icon={<Glyph name={lineGlyph(data)} size={size} color="var(--ink-3)" />} onOpen={open} onAction={act} done={new Set([...done, ...doneByState(data, seen.state)])} state={seen.state} hidden={hidden} {...(time ? { time } : {})} {...(hidden && data.target ? { onAskAccess: askAccess, asked } : {})} />;
 }
 
 /** What a work card says now, read as this reader: its state while it is live (read again on every change in the Space), and whether they may open it at all. */
@@ -691,8 +689,10 @@ function useCardState(data: LinkCardData, actions: MessageActions): { state: Car
 }
 
 /** The glyph a link card's icon word asks for. */
-const LINK_GLYPH: Record<string, GlyphName> = { task: "task", file: "file", fact: "spark", record: "people", run: "term", routine: "spark", computer: "monitor", approval: "alert", thread: "reply" };
+const LINK_GLYPH: Record<string, GlyphName> = { task: "task", file: "file", fact: "memory", note: "pin", memory: "memory", link: "link", chat: "people", record: "people", run: "term", routine: "spark", computer: "monitor", approval: "alert", thread: "reply" };
 export const linkGlyph = (icon: string): GlyphName => LINK_GLYPH[icon] ?? "reply";
+/** A system line says what it is by its glyph: Noted a pin, Connected a link, Remembered the memory mark; any other card goes by its icon word. */
+export const lineGlyph = (d: { icon: string; lead: string; style?: string }): GlyphName => (d.style === "noted" || /^Noted/.test(d.lead) ? "pin" : /^Connected/.test(d.lead) ? "link" : /^Remembered/.test(d.lead) ? "memory" : linkGlyph(d.icon));
 
 const CARD_ICON: Record<string, GlyphName> = { terminal: "term", plan: "plan", file: "file", changeset: "file", diff: "file", screenshot: "file", record_card: "file", question: "spark" };
 const OPENS = new Set(["terminal", "changeset", "diff", "file", "record_card", "tab_opened", "screenshot", "deploy", "mount"]);
@@ -806,7 +806,7 @@ export const st = StyleSheet.create({
   day: { alignSelf: "center", fontSize: META_PX, color: "var(--ink-3)" as string, marginTop: 28, marginBottom: 8 },
   eventCard: { flexShrink: 1, flexGrow: 1, minWidth: 0 },
   eventCentre: { justifyContent: "center" },
-  event: { minHeight: 24, flexDirection: "row", alignItems: "center", gap: 8, marginTop: 10, marginBottom: 10 },
+  event: { minHeight: 24, flexDirection: "row", alignItems: "center", gap: 8, marginTop: 6, marginBottom: 0 },
   eventDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: "var(--ink-4)" as string },
   eventText: { flexShrink: 1, fontSize: SYSTEM_PX, color: "var(--ink-3)" as string },
   eventLink: { color: "var(--accent)" as string, textDecorationLine: "underline", cursor: "pointer" } as object,
