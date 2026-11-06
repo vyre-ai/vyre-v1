@@ -84,15 +84,15 @@ test("message times in a shared place read in the Space zone, hover names both z
   const zones = { space: "America/Los_Angeles", viewer: "Asia/Karachi" };
   const at = Date.parse("2026-11-05T17:05:00Z");          // 9:05 AM Pacific, 10:05 PM Karachi
   const shared = { now: Date.parse("2026-11-05T20:00:00Z"), offsetMin: 300, zones };
-  assert.equal(timeLabel(at, shared), "09:05");
+  assert.equal(timeLabel(at, shared), "9:05 AM");
   assert.equal(dayLabel(at, shared), "Today");
   assert.match(timeTitle(at, shared) ?? "", /^Thu 5 Nov 2026, 9:05 AM Pacific Time\. Your time: Thu 5 Nov, 10:05 PM Pakistan/);
   const priv = { now: shared.now, offsetMin: 300 };
-  assert.equal(timeLabel(at, priv), "22:05");
+  assert.equal(timeLabel(at, priv), "10:05 PM");
   assert.equal(timeTitle(at, priv), undefined, "no hover where there is no second zone");
   const items = timeline([msg({ createdAt: at, messageId: "m_t" })], { meId: "me", nameOf: (id: string) => id, kindOf: () => "person" as never, clock: shared, shared: true } as never);
   const other = items.find((i) => i.kind === "other") as { time: string; timeTitle?: string };
-  assert.equal(other.time, "09:05");
+  assert.equal(other.time, "9:05 AM");
   assert.match(other.timeTitle ?? "", /Pacific Time/);
 });
 
