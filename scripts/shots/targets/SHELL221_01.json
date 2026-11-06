@@ -1,0 +1,18 @@
+{
+  "targets": [
+    {
+      "id": "SHELL221_01-chats",
+      "route": "/m/SHELL221_01?place=chats",
+      "proto": "chats,{skin}",
+      "waitFor": "[data-testid='shell-rail']",
+      "note": "The shell frame: rail, sidebar, main, one 8 px gutter."
+    },
+    {
+      "id": "SHELL221_01-chats-pane",
+      "route": "/m/SHELL221_01?place=chats&pane=1",
+      "proto": "chats,{skin}",
+      "waitFor": "[data-testid='side-pane']",
+      "note": "The same with a side pane open."
+    }
+  ]
+}

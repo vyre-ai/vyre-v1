@@ -29,6 +29,7 @@ import { Glyph } from "../sidebar/parts.tsx";
 import { useLive } from "../mounts/live.ts";
 import { LANDING_NEEDS, moreLine, realAssistant, startFailure, startInput, workingChats, workingLine } from "./model.ts";
 import type { NeedItem, NeedsOut, RecentOut, WithEntry } from "./model.ts";
+import { belowPhone } from "../../../../../../ui/src/SidePane/layout.ts";
 
 export interface LandingProps {
   rt: ShellRuntime;
@@ -119,7 +120,7 @@ export function Landing(p: LandingProps): ReactElement {
 
   return (
     <ScrollView testID="chats-landing" style={st.root} contentContainerStyle={st.content} keyboardShouldPersistTaps="handled">
-      <View style={[st.column, width < 720 ? st.columnNarrow : null]}>
+      <View style={[st.column, belowPhone(width) ? st.columnNarrow : null]}>
         <View style={st.hero}>
           <WorkingMark state="thinking" size={44} testID="landing-mark" />
           <Text accessibilityRole="header" aria-level={1} testID="landing-title" style={st.title}>What are we working on?</Text>

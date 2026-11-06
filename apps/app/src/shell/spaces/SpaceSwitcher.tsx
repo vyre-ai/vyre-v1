@@ -11,6 +11,7 @@ import { sq } from "../../../../../ui/src/SidePane/host.tsx";
 import { ShellIcon, iconMarkup } from "../rail/icons.tsx";
 import { initialOf, othersNeedingYou } from "./model.ts";
 import type { SpaceDef } from "./model.ts";
+import { RADIUS } from "../../../../../ui/src/tokens/radius.ts";
 
 export type SpaceAction = "add" | "invite" | "settings" | "terminal" | "add-server" | "away" | "profile" | "sign-out";
 
@@ -114,10 +115,10 @@ function tintStyle(def: SpaceDef): ViewStyle {
 
 const styles = StyleSheet.create({
   wrap: { marginBottom: 2 },
-  tile: { width: 36, height: 36, borderRadius: 13, alignItems: "center", justifyContent: "center", ...(Platform.OS === "web" ? ({ boxShadow: "inset 0 1px 0 rgba(255,255,255,.22)" } as ViewStyle) : {}) },
+  tile: { width: 36, height: 36, borderRadius: RADIUS, alignItems: "center", justifyContent: "center", ...(Platform.OS === "web" ? ({ boxShadow: "inset 0 1px 0 rgba(255,255,255,.22)" } as ViewStyle) : {}) },
   letter: { color: "var(--accent-ink)" as string, fontSize: 14, fontWeight: "600" },
   imageTile: { backgroundColor: "var(--panel)" as string },
-  image: { width: 36, height: 36, borderRadius: 13 },
+  image: { width: 36, height: 36, borderRadius: RADIUS },
   dot: { position: "absolute", top: -2, right: -2, width: 9, height: 9, borderRadius: 5, backgroundColor: "var(--danger)" as string, borderWidth: 2, borderColor: "var(--rail)" as string },
   away: { position: "absolute", right: -3, bottom: -3, width: 14, height: 14, borderRadius: 7, alignItems: "center", justifyContent: "center", backgroundColor: "var(--warn)" as string, borderWidth: 2, borderColor: "var(--rail)" as string },
 });

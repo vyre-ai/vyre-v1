@@ -17,6 +17,7 @@ import type { FieldDef, Lane, RecordRow } from "./model.ts";
 import { Value } from "./parts.tsx";
 import { ViewHead, useViewState } from "./view.tsx";
 import type { ViewCtx, ViewState } from "./view.tsx";
+import { isPhoneWidth } from "../../../../../../ui/src/SidePane/layout.ts";
 
 const shadow = (v: string): ViewStyle => (Platform.OS === "web" ? ({ boxShadow: v } as ViewStyle) : {});
 
@@ -167,7 +168,7 @@ export function BoardView({ ctx }: { ctx: ViewCtx }): ReactElement {
   // the lane of records with no value comes first: a board whose records have none shows them at the left, and not beyond the screen behind lanes that say "No cards" (it is drawn only while it has cards)
   const own = lanesOf(field);
   const lanes = [...own.filter((l) => l.none), ...own.filter((l) => !l.none)];
-  const laneWidth = width > 0 && width < 720 ? Math.max(220, width - 56) : LANE_W;
+  const laneWidth = isPhoneWidth(width) ? Math.max(220, width - 56) : LANE_W;
 
   const move = (row: RecordRow, to: Lane): void => {
     setError(null);

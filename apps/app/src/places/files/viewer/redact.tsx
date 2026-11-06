@@ -12,6 +12,7 @@ import type { LayerAct, ViewerMark } from "../../../../../../ui/src/Viewer/index
 import type { FilesViewerData } from "./data.tsx";
 import { fileEventWords } from "../../../../../../lib/words/files.ts";
 import type { FileWords } from "../../../../../../lib/words/files.ts";
+import { belowPhone } from "../../../../../../ui/src/SidePane/layout.ts";
 
 export type Access = "on" | "redact" | "off";
 export interface LayerMarkRow { markId: string; kind: "redact" | "highlight"; shape: "span" | "box" | "range" | "name"; text?: string; occurrence?: number; box?: { x: number; y: number; w: number; h: number }; from?: number; to?: number; label?: string; by: string; byAgent?: string; at: number; unplaced: boolean }
@@ -162,7 +163,7 @@ function Section({ title, count, action, children }: { title: string; count?: nu
 /** The Redact tab. */
 export function RedactPanel({ layer, name, now, fileName, path, onDone, onAccess, onJump }: { layer: Layer; name: (id: string) => string; now: number; fileName: string; path: string; onDone: () => void; onAccess: (x: number, y: number) => void; onJump: (markId: string) => void }): ReactElement {
   const l = layer.list;
-  const narrow = useWindowDimensions().width < 700;   // the phone: the tab covers the file, as a sheet
+  const narrow = belowPhone(useWindowDimensions().width);   // the phone: the tab covers the file, as a sheet
   const hidden = useMemo(() => (l ? l.marks.filter((m) => m.kind === "redact" && m.shape !== "name") : []), [l]);
   if (!l) return <View style={[s.panel, narrow && s.sheet]} testID="rx-panel"><Text style={s.quiet}>Loading…</Text></View>;
   const needs = l.state === "needs_review", waiting = l.requests.length > 0;
@@ -236,7 +237,7 @@ function suggestionRows(groups: ReadonlyMap<string, Suggestion[]>, layer: Layer)
 
 /** The Activity tab: newest first, by day; a line opens the spot it is about. */
 export function ActivityPanel({ rows, now, onOpen }: { rows: readonly ActivityRow[]; now: number; onOpen: (row: ActivityRow) => void }): ReactElement {
-  const narrow = useWindowDimensions().width < 700;
+  const narrow = belowPhone(useWindowDimensions().width);
   const out: ReactNode[] = [];
   let day = "";
   for (const r of rows) {

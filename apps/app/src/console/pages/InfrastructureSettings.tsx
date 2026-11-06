@@ -1,4 +1,5 @@
-import { SpaceLogoRow } from './SpaceImage.tsx';
+
+import { belowPhone } from "../../../../../ui/src/SidePane/layout.ts";import { SpaceLogoRow } from './SpaceImage.tsx';
 import { createdLine } from './space-created.ts';
 import { TIME_ZONES, zoneLabel } from './space-zones.ts';
 import { useEffect, useState } from 'react';
@@ -56,7 +57,7 @@ function Pick({ label, shown, face, options, value, onChange, disabled = false, 
 }
 /** A text field on the right of a row. It saves when the person leaves it, not on a button. */
 function RowField({ label, value, onChange, onCommit, testID, width }: { label: string; value: string; onChange: (value: string) => void; onCommit: () => void; testID: string; width: number }): ReactElement {
-    const narrow = useWindowDimensions().width < 720;
+    const narrow = belowPhone(useWindowDimensions().width);
     return <TextInput value={value} onChangeText={onChange} onBlur={onCommit} onSubmitEditing={onCommit} accessibilityLabel={label} testID={testID} autoCapitalize="none" autoCorrect={false} style={[st.field, { width: narrow ? Math.min(width, 190) : width }]}/>;
 }
 const skinFace = (id: string): ReactElement => { const k = skins.find(x => x.id === id); return k ? <View style={[st.swatch, { backgroundColor: k.palette.win, borderColor: k.palette.me }]}><View style={[st.dot, { backgroundColor: k.palette.accent }]}/></View> : <View style={[st.swatch, { flexDirection: 'row', overflow: 'hidden', borderColor: '#d8d6d0' }]}><View style={{ width: 8, height: 16, backgroundColor: '#f4f3ef' }}/><View style={{ width: 8, height: 16, backgroundColor: '#1b1b1d' }}/></View>; };

@@ -56,6 +56,7 @@ import {
 import type { CardNode, DefTrigger, Definition, Issue, RunState } from "./model.ts";
 import { Dot, IconButton, SubTabs, TextButton, pointer, webOnly } from "./parts.tsx";
 import type { KeyEventLike, SubTab } from "./parts.tsx";
+import { isPhoneWidth } from "../../../../../../ui/src/SidePane/layout.ts";
 
 type GetOut = CapMap["automations.get"]["out"];
 type VersionsOut = CapMap["automations.versions"]["out"];
@@ -149,7 +150,7 @@ function CanvasBody({ a, canEdit, tab, setTab, failedRuns, versions, tabBodies, 
   const tight = winW > 0 && winW < 1180;
   // a Space Automation is changed by whoever holds automations.space (l-perms): anyone else reads it, runs and tests it, copies it, or asks an admin
   const locked = a.kind === "space" && (canEdit === undefined ? data.canSpace === false : !canEdit);
-  const phone = winW > 0 && winW < 720;   // a phone reads an Automation and runs it; building it is for a bigger window   // beside the sidebar a 1024 window has no room for labelled buttons: icons only
+  const phone = isPhoneWidth(winW);   // a phone reads an Automation and runs it; building it is for a bigger window   // beside the sidebar a 1024 window has no room for labelled buttons: icons only
   const { element, show } = useMenu();
   const [draft, setDraft] = useState<Definition | null>(null);
   const undo = useRef<Definition[]>([]);

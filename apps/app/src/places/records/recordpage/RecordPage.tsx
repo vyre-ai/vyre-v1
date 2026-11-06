@@ -38,6 +38,7 @@ import { SealedField } from "./SealedField.tsx";
 import { DropZone } from "../../../../../../ui/src/FileDrop/index.tsx";
 import { GoalsOf } from "../../chats/goals/GoalsList.tsx";
 import type { DroppedFile } from "../../../../../../ui/src/FileDrop/index.tsx";
+import { isPhoneWidth } from "../../../../../../ui/src/SidePane/layout.ts";
 
 export interface RecordPageStart {
   /** The relationship map open. */
@@ -300,7 +301,7 @@ function PageBody({ type, recordId, start = {} }: RecordPageProps): ReactElement
   const mq = useLive("records.relations_map", { type, recordId, hops: 2 }, late || map);
   const width = useWindowDimensions().width;
   const wide = width === 0 || width >= 900;
-  const phone = width > 0 && width < 640;
+  const phone = isPhoneWidth(width);
   const [editing, setEditing] = useState<{ key: string; text: string; error?: string } | null>(start.edit ?? null);
   const [flash, setFlash] = useState<Flash | null>(null);
   const [all, setAll] = useState(start.all === true || start.edit !== undefined);

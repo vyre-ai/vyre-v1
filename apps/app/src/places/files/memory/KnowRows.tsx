@@ -16,6 +16,7 @@ import type { FlashState } from "./KnowFrame.tsx";
 import { SourceChip } from "./KnowParts.tsx";
 import type { KFact, TrailRow } from "./know.ts";
 import { Icon } from "./parts.tsx";
+import { isPhoneWidth } from "../../../../../../ui/src/SidePane/layout.ts";
 
 export const DAY_MS = 86_400_000;
 
@@ -119,7 +120,7 @@ export function KRow({ testID, label, main, meta, actions, menu, onOpen, keys, h
   const [over, setOver] = useState(false);
   const [focused, setFocused] = useState(false);
   const w = useWindowDimensions().width;
-  const shown = always || over || focused || (w > 0 && w < 720);
+  const shown = always || over || focused || (isPhoneWidth(w));
   const { onKeyDown: menuKey, ...menuProps } = menuTrigger((x, y) => m.show(menu(), x, y)) as { onKeyDown?: (e: KeyLike) => void };
   const onKeyDown = (e: KeyLike): void => {
     menuKey?.(e);

@@ -1070,7 +1070,7 @@ export function Composer(props: ComposerProps): ReactElement {
 
   const plusRows: ReactElement[] = [];
   const plusRow = (id: string, title: string, icon: string, onPress: () => void, trailing?: ReactNode): void => {
-    plusRows.push(<Row key={id} id={id} title={title} leading={<View style={styles.lead}><IconTile icon={icon} /></View>} {...(trailing ? { trailing } : {})} onPress={onPress} domProps={{ style: { minHeight: 38, borderRadius: 10 } }} />);
+    plusRows.push(<Row key={id} id={id} title={title} leading={<View style={styles.lead}><IconTile icon={icon} /></View>} {...(trailing ? { trailing } : {})} onPress={onPress} domProps={{ style: { minHeight: 38, borderRadius: RADIUS } }} />);
   };
   if (plusOpen) {
     if (takesFiles) plusRow("plus-upload", "Upload files", I.file, () => { setPlusOpen(false); upload(); }, <Text style={styles.rowNote}>or drop</Text>);
@@ -1087,7 +1087,7 @@ export function Composer(props: ComposerProps): ReactElement {
   if (open) {
     for (const [i, entry] of entries.entries()) {
       if (!isPopupItem(entry)) { listNodes.push(<GroupHead key={`h${entry.head}`} label={entry.head} />); continue; }
-      const hover = { onMouseEnter: () => patch({ active: i }), style: { minHeight: 38, borderRadius: 10 } };
+      const hover = { onMouseEnter: () => patch({ active: i }), style: { minHeight: 38, borderRadius: RADIUS } };
       if (trigger?.ch === "@") {
         const agent = entry.kind === "Agent";
         listNodes.push(<Row key={`${entry.group}:${entry.label}`} id={`pop-${i}`} title={entry.label} {...(entry.note === undefined ? {} : { note: entry.note })} selected={i === active} onPress={() => pick(entry)}
@@ -1349,7 +1349,7 @@ const styles = StyleSheet.create({
   chipX: { width: 20, height: 20, borderRadius: 10, alignItems: "center", justifyContent: "center" },
   chipXText: { color: "var(--ink-3)" as string, fontSize: 14, lineHeight: 16 },
   card: { position: "relative", flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 6, paddingLeft: 6, paddingRight: 10, borderRadius: RADIUS, backgroundColor: "var(--sunk)" as string, borderWidth: 1, borderColor: "var(--line)" as string, maxWidth: 220 },
-  cardIc: { width: 30, height: 30, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: "var(--raised)" as string, overflow: "hidden" },
+  cardIc: { width: 30, height: 30, borderRadius: RADIUS, alignItems: "center", justifyContent: "center", backgroundColor: "var(--raised)" as string, overflow: "hidden" },
   cardText: { minWidth: 0, flexShrink: 1 },
   cardName: { fontSize: 12.5, color: "var(--ink)" as string },
   cardSize: { fontSize: 11.5, color: "var(--ink-3)" as string },
@@ -1370,7 +1370,7 @@ const styles = StyleSheet.create({
   fieldCompact: { fontSize: 14, lineHeight: 22 },
   backdrop: { position: "absolute", left: 0, right: 0, top: 0 },
   ghost: { color: "transparent", whiteSpace: "pre-wrap", wordBreak: "break-word", overflowWrap: "break-word" } as object,
-  tok: { backgroundColor: "var(--accent-wash)" as string, borderRadius: 5, boxShadow: "0 0 0 2px var(--accent-wash)" } as object,
+  tok: { backgroundColor: "var(--accent-wash)" as string, borderRadius: RADIUS, boxShadow: "0 0 0 2px var(--accent-wash)" } as object,
   srOnly: { position: "absolute", width: 1, height: 1, overflow: "hidden", opacity: 0 },
   bar: { flexDirection: "row", alignItems: "center", gap: 4, paddingTop: 4, paddingHorizontal: 8, paddingBottom: 8 },
   barCompact: { paddingBottom: 6, paddingHorizontal: 6 },
@@ -1400,7 +1400,7 @@ const styles = StyleSheet.create({
   hashLeft: { flex: 1, minWidth: 0 },
   scopeBar: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 12, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
   scopeLabel: { fontSize: 12.5, color: "var(--ink-3)" as string },
-  scopeBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 7 },
+  scopeBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: RADIUS },
   scopeValue: { fontSize: 12.5, fontWeight: "500", color: "var(--ink)" as string },
   scopeQ: { marginLeft: "auto", fontSize: 12, color: "var(--ink-4)" as string, flexShrink: 1 },
   empty: { fontSize: 12.5, color: "var(--ink-3)" as string, padding: 10 },

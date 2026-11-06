@@ -9,6 +9,7 @@ import { markKey } from "../AppIcon/domains.ts";
 import { injectCss } from "../theme/css.ts";
 import { effortBars } from "./brain.ts";
 import type { Effort } from "./brain.ts";
+import { RADIUS } from "../tokens/radius.ts";
 
 const web = Platform.OS === "web";
 export const webOnly = (props: Record<string, unknown>): Record<string, unknown> => (web ? props : {});
@@ -214,8 +215,8 @@ const s = StyleSheet.create({
   ringWarn: { color: "var(--warn)" as string },
   light: { position: "absolute", left: 18, right: 18, top: -1, height: 2, borderRadius: 2, zIndex: 2 },
   lightNative: { backgroundColor: "var(--accent)" as string, opacity: 0.6 },
-  pop: { position: "absolute", zIndex: 60, backgroundColor: "var(--raised)" as string, borderWidth: 1, borderColor: "var(--line-2)" as string, borderRadius: 16 },
+  pop: { position: "absolute", zIndex: 60, backgroundColor: "var(--raised)" as string, borderWidth: 1, borderColor: "var(--line-2)" as string, borderRadius: RADIUS },
   grp: { fontSize: 11, fontWeight: "600", letterSpacing: 0.4, textTransform: "uppercase", color: "var(--ink-4)" as string, paddingTop: 10, paddingBottom: 4, paddingHorizontal: 10 },
-  iconTile: { borderRadius: 8, alignItems: "center", justifyContent: "center", flexShrink: 0 },
+  iconTile: { borderRadius: RADIUS, alignItems: "center", justifyContent: "center", flexShrink: 0 },
   kbd: { fontSize: 11, color: "var(--ink-4)" as string, fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" },
 });

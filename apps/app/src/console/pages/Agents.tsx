@@ -15,6 +15,7 @@ import { Actions, Button, Field, FormSheet, ModelSelect, Note, pickRow, Stepper,
 import {TemplateFiles} from "./TemplateFiles.tsx";
 import { connectedNote } from "./connected-model.ts";
 import { CAP_OPTIONS, PAUSE_NOTE, PEOPLE_FOOT, capKey, micros, spendPct, summaryNote } from "./people-agents-model.ts";
+import { isPhoneWidth } from "../../../../../ui/src/SidePane/layout.ts";
 
 type Agents = CapMap["agents.list"]["out"];
 const PROVIDERS = [{ key: "anthropic", title: "Anthropic" }, { key: "openai", title: "OpenAI" }, { key: "google", title: "Google" }, { key: "other", title: "Other" }];
@@ -70,7 +71,7 @@ export function PeoplesAgents(): ReactElement | null {
   const action = useAction(read.refresh);
   const [confirm, setConfirm] = useState<string | null>(null);
   const winW = useWindowDimensions().width;
-  const narrow = winW > 0 && winW < 720;
+  const narrow = isPhoneWidth(winW);
   if (!read.data || read.data.people.length === 0) return null;
   return (
     <Section title="People's own agents" count={read.data.people.length} testID="people-agents">

@@ -3,9 +3,10 @@ import { useEffect } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { IconBtn } from "./parts.tsx";
+import { belowPhone } from "../../../../../../ui/src/SidePane/layout.ts";
 
 export function Sheet({ title, onClose, children, footer, testID, icon }: { title: string; onClose: () => void; children: ReactNode; footer?: ReactNode; testID?: string; icon?: ReactNode }): ReactElement {
-  const narrow = useWindowDimensions().width < 640;
+  const narrow = belowPhone(useWindowDimensions().width);
   useEffect(() => {
     const doc = (globalThis as { document?: { addEventListener(t: string, f: (e: KeyboardEvent) => void): void; removeEventListener(t: string, f: (e: KeyboardEvent) => void): void } }).document;
     if (!doc) return;

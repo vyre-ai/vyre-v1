@@ -13,6 +13,7 @@ import { useProjectPageData } from "../data.tsx";
 import { dueWords, hiddenLine, kindOf, liveDescription, liveReady, liveTitle, metricLine, planStatus, stageWord, stateTone } from "./model.ts";
 import type { LiveOut, LiveRowOut, TypeName, View as LiveView } from "./model.ts";
 import { useZones } from "../../../../../../../ui/src/Time/index.tsx";
+import { isPhoneWidth } from "../../../../../../../ui/src/SidePane/layout.ts";
 
 export interface LiveAttrs { blockId: string | null; type: string; spec: unknown; view: string }
 export interface LiveApi { update(patch: { type?: string; spec?: unknown; view?: string }): void; remove(): void }
@@ -151,7 +152,7 @@ export function LiveBlockView({ projectId, attrs, readOnly, api, fresh = false, 
   const [lit, setLit] = useState(fresh);
   useEffect(() => { if (!fresh) return undefined; setLit(true); const id = setTimeout(() => setLit(false), 6000); return () => clearTimeout(id); }, [fresh]);
   const w = useWindowDimensions().width;
-  const phone = w > 0 && w < 700;
+  const phone = isPhoneWidth(w);
   const kind = kindOf(attrs.type);
   const out = useLive(projectId, attrs, reload);
   const open = useOpenRow();

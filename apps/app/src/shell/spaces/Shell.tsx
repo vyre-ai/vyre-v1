@@ -2,14 +2,17 @@
 // right rail. A place never draws this frame: its sidebar and its panes land in the sheets through ui/SidePane's host. One Space is open at a time:
 // a switch shows the skeleton as its first frame, unmounts every place, and keys the next place by the new Space, so two Spaces' rows never meet on screen.
 // Places are drawn by `renderPlace`; the shell owns the frame, the tabs, the keys and the Space.
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { Platform, Pressable, StyleSheet, View, useWindowDimensions } from "react-native";
 import { reportProblem } from "../../../../../ui/src/Menu/index.tsx";
 import { Avatar } from "../../../../../ui/src/Avatar/index.tsx";
 import { holdView, installMotion } from "../../../../../ui/src/theme/motion.ts";
 import type { Swap } from "../../../../../ui/src/theme/motion.ts";
-import { SHEET_GAP, SHEET_RADIUS, SheetHostProvider, sq, useSquircle } from "../../../../../ui/src/SidePane/host.tsx";
+import { SHEET_GAP, SHEET_RADIUS, SIDEBAR_OVERLAY, SheetHostProvider, ShellLayoutProvider, sq, useSquircle } from "../../../../../ui/src/SidePane/host.tsx";
+import type { ShellLayoutApi } from "../../../../../ui/src/SidePane/host.tsx";
+import { BREAKPOINTS, bandKey, layoutPanels } from "../../../../../ui/src/SidePane/layout.ts";
+import { paneWidths } from "../../../../../ui/src/SidePane/index.tsx";
 import { Tooltip } from "../../../../../ui/src/Tooltip/index.tsx";
 import { installTips } from "../../../../../ui/src/Tooltip/tips.ts";
 import { NeedsTeamSpace } from "../../../../../ui/src/NeedsTeamSpace/index.tsx";
@@ -17,7 +20,7 @@ import { States } from "../../../../../ui/src/States/index.tsx";
 import type { PhoneDeviceLike } from "../../../../../ui/src/Softphone/index.tsx";
 import type { InboxData } from "../../places/inbox/sidebar/data.tsx";
 import { Rail } from "../rail/Rail.tsx";
-import { SidebarBack, SidebarExpand, SidebarHide, SidebarSlot, SidebarSlotProvider, useSidebarSlot } from "../sidebar/index.ts";
+import { SidebarBack, SidebarExpand, SidebarHide, SidebarSlot, SidebarSlotProvider, toggleSidebar, useSidebarSlot } from "../sidebar/index.ts";
 import type { SidebarStorage } from "../sidebar/index.ts";
 import type { KitDef, PlaceId } from "../rail/kits.ts";
 import { MainTabs, useTabs } from "../tabs/MainTabs.tsx";
@@ -105,7 +108,8 @@ export function teamOnly(place: PlaceId, hash = ""): string | null {
   return place === "apps" ? "Sites and forms" : null;
 }
 
-export const COMPACT_BELOW = 700;
+/** Under this window width the shell is one panel at a time (the layout model's phone band). */
+export const COMPACT_BELOW = BREAKPOINTS.sheet;
 
 /** The sidebar slides on the one panel motion: 220 ms, the standard ease. */
 const SLIDE = (Platform.OS === "web" ? { transitionProperty: "margin-left, opacity", transitionDuration: "220ms", transitionTimingFunction: "cubic-bezier(.2,.8,.2,1)" } : {}) as object;
@@ -141,30 +145,86 @@ export function Sheets({ tabs, toast, hub, children }: { tabs: ReactNode; toast?
   const host = useMemo(() => ({ left, right, hide: <SidebarHide /> }), [left, right]);
   const slot = useSidebarSlot();
   const [leftW, setLeftW] = useState(0);
-  const hidden = slot.collapsed;
+  const windowWidth = useWindowDimensions().width;
+
+  // what is open right now: the panels tell the shell (usePanelPresence); the newest pane owns the right side
+  const [panes, setPanes] = useState<readonly { id: string; close: () => void }[]>([]);
+  const [sidebars, setSidebars] = useState<readonly { id: string; def: number; min: number; max: number }[]>([]);
+  const [peek, setPeek] = useState(false);
+  const [version, setVersion] = useState(0);
+  const register = useCallback((kind: "sidebar" | "pane", id: string, close?: () => void, meta?: { def: number; min: number; max: number }) => {
+    if (kind === "sidebar") {
+      const spec = { id, def: meta?.def ?? 272, min: meta?.min ?? 220, max: meta?.max ?? 360 };
+      // the shell's own sidebar is always first; a list a place adds follows it
+      setSidebars((n) => [...n.filter((x) => x.id !== id), spec].sort((a, b) => Number(b.id === "place-sidebar") - Number(a.id === "place-sidebar")));
+      return () => setSidebars((n) => n.filter((x) => x.id !== id));
+    }
+    const entry = { id, close: close ?? (() => undefined) };
+    setPanes((p) => [...p.filter((x) => x.id !== id), entry]);
+    return () => setPanes((p) => p.filter((x) => x !== entry && !(x.id === id && x.close === entry.close)));
+  }, []);
+  const activePane = panes.length === 0 ? null : (panes[panes.length - 1] as { id: string }).id;
+  const band0 = layoutPanels({ windowWidth, hasSidebar: true, sidebarOpen: true, paneOpen: false }).band;
+  const savedOf = (key: string): number | null => paneWidths.get(bandKey(key, band0));
+  // the slot has an entry from the first frame; its own registration lands one effect later
+  const allSidebars = slot.hasSidebar && !sidebars.some((x) => x.id === "place-sidebar") ? [{ id: "place-sidebar", def: 272, min: 220, max: 360 }, ...sidebars] : sidebars;
+  const layout = useMemo(() => layoutPanels({
+    windowWidth, hasSidebar: allSidebars.length > 0, sidebars: allSidebars.map((x) => ({ ...x, saved: savedOf(x.id) })), sidebarOpen: !slot.collapsed, sidebarPeek: peek, paneOpen: activePane !== null,
+    saved: { pane: activePane === null ? null : savedOf(activePane) },
+  }), [windowWidth, allSidebars.length, sidebars, slot.hasSidebar, slot.collapsed, peek, activePane, version]);   // eslint-disable-line react-hooks/exhaustive-deps -- savedOf reads the store, version says it changed
+  const mode = layout.sidebar.mode;
+  const paneOverlay = layout.pane.mode === "overlay";
+  useEffect(() => { if (peek && (mode === "docked" || mode === "none" || mode === "screen")) setPeek(false); }, [peek, mode]);
+  useEffect(() => { if (activePane !== null) setPeek(false); }, [activePane]);
+  const api = useMemo<ShellLayoutApi>(() => ({
+    layout, register, activePane,
+    saved: savedOf,
+    commit: (key, width) => { if (width === null) paneWidths.reset(bandKey(key, band0)); else paneWidths.set(bandKey(key, band0), width); setVersion((v) => v + 1); },
+    peekSidebar: setPeek,
+  }), [layout, register, activePane, band0]);   // eslint-disable-line react-hooks/exhaustive-deps
+  const leaveOverlay = useCallback(() => {
+    if (paneOverlay) (panes[panes.length - 1] as { close: () => void } | undefined)?.close();
+    else setPeek(false);
+  }, [paneOverlay, panes]);
+  const overlayOn = paneOverlay || mode === "overlay";
+  const hidden = mode === "hidden";
+  const docked = mode === "docked";
   useSquircle();
   useEffect(() => { if (Platform.OS === "web") { installTips(); installMotion((globalThis as { document?: Parameters<typeof installMotion>[0] }).document); } }, []);
   useEffect(() => {
     if (Platform.OS !== "web") return undefined;
-    const doc = (globalThis as { document?: { addEventListener(t: string, f: (e: KeyboardEvent) => void): void; removeEventListener(t: string, f: (e: KeyboardEvent) => void): void } }).document;
-    const onKey = (e: KeyboardEvent): void => { if (shellKey(e)?.type === "sidebar") { e.preventDefault(); slot.setCollapsed(!slot.collapsed); } };
+    const doc = (globalThis as { document?: { addEventListener(t: string, f: (e: KeyboardEvent) => void): void; removeEventListener(t: string, f: (e: KeyboardEvent) => void): void; querySelector(q: string): unknown } }).document;
+    const onKey = (e: KeyboardEvent): void => {
+      if (shellKey(e)?.type === "sidebar") { e.preventDefault(); toggleSidebar(slot, api); return; }
+      // Escape closes an overlay sheet unless a menu or a dialog (or a field's own handler) has taken it
+      if (overlayOn && e.key === "Escape" && !e.defaultPrevented && doc?.querySelector('[role="menu"],[role="dialog"],[aria-modal="true"]') == null) leaveOverlay();
+    };
     doc?.addEventListener("keydown", onKey);
     return () => doc?.removeEventListener("keydown", onKey);
-  }, [slot]);
+  }, [slot, api, overlayOn, leaveOverlay]);
+  const leftWrap = [
+    styles.leftWrap, SLIDE,
+    mode === "overlay" ? SIDEBAR_OVERLAY : null,
+    docked ? { marginRight: SHEET_GAP } : null,
+    hidden ? { marginLeft: -(leftW + SHEET_GAP), marginRight: SHEET_GAP, opacity: 0 } : null,
+  ];
   return (
     <SheetHostProvider value={host}>
-      <View testID="sheets" style={styles.sheets}>
-        <View testID="sheet-left-wrap" aria-hidden={hidden} pointerEvents={hidden ? "none" : "auto"} onLayout={(e) => { const w = Math.round(e.nativeEvent.layout.width); if (w > 0) setLeftW(w); }} style={[styles.leftWrap, SLIDE, hidden ? { marginLeft: -leftW, opacity: 0 } : null]}>
-          <SidebarSlot />
-          <View testID="sheet-left" style={styles.outlet} ref={(n) => { if (n !== null) setLeft(n); }} />
+      <ShellLayoutProvider value={api}>
+        <View testID="sheets" style={styles.sheets} {...(Platform.OS === "web" ? { dataSet: { band: layout.band, sidebar: mode, pane: layout.pane.mode } } : {})}>
+          <View testID="sheet-left-wrap" aria-hidden={hidden} pointerEvents={hidden ? "none" : "auto"} onLayout={(e) => { const w = Math.round(e.nativeEvent.layout.width); if (w > 0) setLeftW(w); }} style={leftWrap}>
+            <SidebarSlot />
+            <View testID="sheet-left" style={styles.outlet} ref={(n) => { if (n !== null) setLeft(n); }} />
+          </View>
+          <View testID="sheet-main" ref={main as never} style={[styles.mainSheet, SLIDE]} {...sq("sheet")}>
+            <View style={styles.tabsRow}><SidebarExpand /><View style={styles.tabsFill}>{tabs}</View></View>
+            {children}
+            {toast}
+          </View>
+          {overlayOn ? <Pressable testID="sheet-scrim" accessibilityLabel="Close" onPress={leaveOverlay} style={styles.scrim} /> : null}
+          <View testID="sheet-right" style={styles.outlet} ref={(n) => { if (n !== null) setRight(n); }} />
         </View>
-        <View testID="sheet-main" ref={main as never} style={[styles.mainSheet, SLIDE, hidden ? styles.mainAlone : null]} {...sq("sheet")}>
-          <View style={styles.tabsRow}><SidebarExpand /><View style={styles.tabsFill}>{tabs}</View></View>
-          {children}
-          {toast}
-        </View>
-        <View testID="sheet-right" style={styles.outlet} ref={(n) => { if (n !== null) setRight(n); }} />
-      </View>
+      </ShellLayoutProvider>
     </SheetHostProvider>
   );
 }
@@ -296,7 +356,7 @@ export function Shell(props: ShellProps): ReactElement {
             fresh={state.fresh}
             onSettle={hub.settle}
             header={spaceTile}
-            {...(props.me ? { foot: <MeFace me={props.me} {...(props.onOpenMe ? { onPress: props.onOpenMe } : {})} /> } : {})}
+            foot={<RailFoot {...(props.me ? { me: props.me } : {})} {...(props.onOpenMe ? { onOpenMe: props.onOpenMe } : {})} />}
           />}
           <SidebarSlotProvider
             deviceId={props.sidebar?.deviceId ?? "device"} personId={props.sidebar?.personId ?? "me"} spaceId={ctx.spaceId} place={state.place}
@@ -327,6 +387,12 @@ export function Shell(props: ShellProps): ReactElement {
   );
 }
 
+/** The foot of the rail, inside the one panel: the person's face (there is no lock any more: signed in means unlocked). */
+function RailFoot({ me, onOpenMe }: { me?: { id: string; name: string; photo?: string }; onOpenMe?: () => void }): ReactElement | null {
+  if (!me) return null;
+  return <View testID="rail-foot" style={styles.foot}><MeFace me={me} {...(onOpenMe ? { onPress: onOpenMe } : {})} /></View>;
+}
+
 /** The person's own face at the foot of the rail. Their profile opens beside whatever is open. */
 function MeFace({ me, onPress }: { me: { id: string; name: string; photo?: string }; onPress?: () => void }): ReactElement {
   return (
@@ -340,15 +406,17 @@ function MeFace({ me, onPress }: { me: { id: string; name: string; photo?: strin
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: "var(--rail)" as string },
-  body: { flex: 1, flexDirection: "row", minHeight: 0, paddingRight: 8, paddingBottom: 8 },
+  // one gutter: the window edge to the rail and the rail to the sheets are both SHEET_GAP; the top edge is the title bar's
+  body: { flex: 1, flexDirection: "row", minHeight: 0, gap: SHEET_GAP, paddingLeft: SHEET_GAP, paddingRight: SHEET_GAP, paddingBottom: SHEET_GAP },
   sheets: { flex: 1, minWidth: 0, minHeight: 0, flexDirection: "row" },
   outlet: { flexDirection: "row", minHeight: 0, flexShrink: 0 },
+  scrim: { position: "absolute", top: 0, right: 0, bottom: 0, left: 0, zIndex: 30, borderRadius: SHEET_RADIUS, backgroundColor: "rgba(0,0,0,0.32)" as string },
   leftWrap: { flexDirection: "row", minHeight: 0, flexShrink: 0 },
-  mainAlone: { marginLeft: 0 },
   tabsRow: { flexDirection: "row", flexShrink: 0 },
   tabsFill: { flex: 1, minWidth: 0 },
-  mainSheet: { flex: 1, minWidth: 0, minHeight: 0, marginLeft: SHEET_GAP, borderRadius: SHEET_RADIUS, overflow: "hidden", backgroundColor: "var(--win)" as string },
-  me: { width: 38, height: 38, borderRadius: 14, alignItems: "center", justifyContent: "center" },
+  mainSheet: { flex: 1, minWidth: 0, minHeight: 0, borderRadius: SHEET_RADIUS, overflow: "hidden", backgroundColor: "var(--win)" as string },
+  foot: { alignItems: "center", gap: 4 },
+  me: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   bodyPhone: { flex: 1, flexDirection: "column", minHeight: 0 },
   main: { flex: 1, minWidth: 0, minHeight: 0 },
   stageRow: { flex: 1, flexDirection: "row", minHeight: 0 },

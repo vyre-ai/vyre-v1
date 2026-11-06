@@ -8,6 +8,7 @@ import { Avatar } from "../../../../../../ui/src/Avatar/index.tsx";
 import { injectCss } from "../../../../../../ui/src/theme/css.ts";
 import { jobLine, clock, isCode, lineOf, modelTag, nameOf, roleOf, stripTitle, stripTone, testsWords, faceSeed } from "./model.ts";
 import type { CrewMember, CrewTotals } from "./model.ts";
+import { isPhoneWidth } from "../../../../../../ui/src/SidePane/layout.ts";
 
 const web = Platform.OS === "web";
 const CSS = [
@@ -56,7 +57,7 @@ export function HelperChip({ m, now, selected = false, index = 0, last = false, 
   const code = isCode(m);
   // below the width of a phone the muted "Assistant's helper" goes first, so the name has the room
   const winW = useWindowDimensions().width;
-  const compact = winW > 0 && winW < 640;
+  const compact = isPhoneWidth(winW);
   const tag = m.why ? modelTag(m) : "";
   const canRetry = m.state === "failed" || m.state === "stopped";
   return (
@@ -98,7 +99,7 @@ export function CrewStrip({ members, totals, selectedId, parentName, merge, onPe
   if (members.length === 0) return null;
   const tone = stripTone(totals);
   ensureCss();
-  const compactHead = winW > 0 && winW < 640;
+  const compactHead = isPhoneWidth(winW);
   const mergeButtons = merge ? (
     <>
       {reviewed ? <Text testID="crew-strip-reviewed" style={st.headBtnText}>Reviewed</Text> : <Pressable accessibilityRole="button" testID="crew-strip-review" onPress={() => { setReviewed(true); merge.onReview(); }} style={[st.headBtn, { backgroundColor: "var(--accent)" as string }]}><Text style={[st.headBtnText, { color: "var(--accent-ink)" as string }]}>Review all</Text></Pressable>}

@@ -8,6 +8,7 @@ import { adminPages } from "../providers/settings-admin.ts";
 import { decideOpen, onOpenHeld, peekOpen, takeOpen } from "./open-link.ts";
 import type { OpenItem } from "./open-link.ts";
 import { TELL_SENT } from "./reach.ts";
+import { belowPhone } from "../../../../../ui/src/SidePane/layout.ts";
 
 const leave = (): void => {
   const h = (globalThis as { history?: { state: unknown; replaceState(s: unknown, t: string, u: string): void } }).history;
@@ -20,7 +21,7 @@ export function OpenLink({ hub, rt, me, spaceId }: { hub: Pick<ShellHub, "go">; 
   const [shown, setShown] = useState<{ text: string; ask: { type: string; id: string } | null } | null>(null);
   const [asked, setAsked] = useState(false);
   // on a phone the card sits above the bottom bar
-  const phone = useWindowDimensions().width < 700;
+  const phone = belowPhone(useWindowDimensions().width);
   useEffect(() => onOpenHeld(() => setHeld(peekOpen())), []);
   useEffect(() => {
     if (held === null) return undefined;

@@ -16,6 +16,7 @@ import { PeoplePopover } from "../../../../../../ui/src/PeoplePopover/index.tsx"
 import type { MemberRow } from "../../../../../../ui/src/PeoplePopover/index.tsx";
 import { addedLine, addsSomeone, directoryOf, failedLine, hereSub, maxLevelOf, projectExtras, roleWord, settingsOf, titleOfTarget } from "./model.ts";
 import type { AddOpen, AddSheetDeps, ThreadAgentRow, ThreadRow } from "./model.ts";
+import { isPhoneWidth } from "../../../../../../ui/src/SidePane/layout.ts";
 
 type Out<K extends keyof CapMap> = CapMap[K]["out"];
 
@@ -274,7 +275,7 @@ export function useAddSheet(deps: AddSheetDeps, opts: { onDone?: () => void; cop
   let element: ReactElement | null = null;
   if (surface?.k === "sheet") {
     const { r } = surface;
-    const phone = win.width > 0 && win.width < 640;
+    const phone = isPhoneWidth(win.width);
     const sameThread = r.threadId;
     element = (
       <AccessSheet
@@ -298,7 +299,7 @@ export function useAddSheet(deps: AddSheetDeps, opts: { onDone?: () => void; cop
     );
   } else if (surface?.k === "pick") {
     const { r, onPicks } = surface;
-    const phone = win.width > 0 && win.width < 640;
+    const phone = isPhoneWidth(win.width);
     element = (
       <AccessSheet
         mode="add" density={phone ? "compact" : "regular"} ownerName={deps.me.name} target={r.target} directory={r.directory} here={r.here} models={MODELS} earlierMessages={false}

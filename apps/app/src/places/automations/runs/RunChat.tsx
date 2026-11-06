@@ -22,6 +22,7 @@ import { RunLines } from "./RunLines.tsx";
 import { RunWork } from "./RunWork.tsx";
 import { UndoPanel } from "./RunUndo.tsx";
 import { each } from "./each.ts";
+import { belowPhone } from "../../../../../../ui/src/SidePane/layout.ts";
 
 type GetOut = CapMap["runs.get"]["out"];
 type StepsOut = CapMap["runs.steps"]["out"];
@@ -56,7 +57,7 @@ export function RunChat({ runId, wide = false, retriedIds = NONE, openThoughts =
   const [draft, setDraft] = useState("");
   const [retried, setRetried] = useState(false);
   const sent = useRef(0);
-  const winNarrow = useWindowDimensions().width < 720;   // a phone has no room for the title beside a button
+  const winNarrow = belowPhone(useWindowDimensions().width);   // a phone has no room for the title beside a button
   const [boxW, setBoxW] = useState(0);
   const narrow = winNarrow || (boxW > 0 && boxW < 560);   // so does the side pane: the title wraps to two lines instead of truncating
   const now = data.clock().now;

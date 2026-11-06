@@ -11,6 +11,7 @@ import { AccessIcon, AccessSheetShell, AccessViewHead } from "../AccessSheet/ind
 import { Overlay } from "../Overlay/index.tsx";
 import { TITLE, footerOf, memberMenu, placeOf, walk } from "./model.ts";
 import type { MemberAction, MemberPerms, MemberRow, PeopleWhere } from "./model.ts";
+import { isPhoneWidth } from "../SidePane/layout.ts";
 
 export { TITLE, WIDTH, footerOf, memberMenu, placeOf, walk } from "./model.ts";
 export type { MemberAction, MemberKind, MemberMenuItem, MemberPerms, MemberRow, PeopleWhere } from "./model.ts";
@@ -62,7 +63,7 @@ export function PeoplePopover({ where, rows, meId, perms, anchor, onOpen, onActi
     return () => doc.removeEventListener("keydown", key);
   }, [at, count, rows, footer.id, onClose, onOpen, onFooter]);
   // the prototype's widths: about 215 for a chat, 260 for a project. A phone has no popover: the same rows open as the app's bottom sheet.
-  const phone = win.width > 0 && win.width < 640;
+  const phone = isPhoneWidth(win.width);
   const spot = placeOf(anchor, win.width || 1024, where);
   const { left, top, width } = spot;
   const place = (phone ? { position: web ? "fixed" : "absolute", left: 0, right: 0, bottom: 0 } : { position: web ? "fixed" : "absolute", left, top, width }) as unknown as ViewStyle;

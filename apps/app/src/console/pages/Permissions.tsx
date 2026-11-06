@@ -14,6 +14,7 @@ import { Button, Help, Note, ReadState, Select, useAction, useRead } from "./sha
 import { AddExceptionSheet, ExceptionsList, PERMS, useExceptions } from "./exceptions.tsx";
 import { CELL_WORD, allowsKey, areaWord, refusedCell, areasOf, columns, differ, exceptionFor, isGuestRole, isOwnerRole, roleCell } from "./permissions-model.ts";
 import type { Cell, ExceptionLite, PersonLite, RoleLite } from "./permissions-model.ts";
+import { isPhoneWidth } from "../../../../../ui/src/SidePane/layout.ts";
 
 export const MARK: Readonly<Record<Cell, string>> = { allow: "✓", own: "◐", ask: "✋", no: "–" };
 export const INK: Readonly<Record<Cell, string>> = { allow: "var(--ok)", own: "var(--accent)", ask: "var(--warn)", no: "var(--ink-4)" };
@@ -24,7 +25,7 @@ export function Permissions(): ReactElement {
   const roles = useRead<{ roles: RoleLite[] }>("access.roles.list", { limit: 200 });
   const people = useRead<{ principals: PersonLite[] }>("access.principals.list", { limit: 500 });
   const ex = useExceptions();
-  const width = useWindowDimensions().width, phone = width > 0 && width < 720;
+  const width = useWindowDimensions().width, phone = isPhoneWidth(width);
   const [q, setQ] = useState("");
   const [open, setOpen] = useState<ReadonlySet<string>>(new Set(["automations"]));
   const [custom, setCustom] = useState(false);

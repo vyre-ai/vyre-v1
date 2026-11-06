@@ -13,6 +13,7 @@ import { useInboxData, useScreenQuery } from "../sidebar/data.tsx";
 import { usePhone } from "../softphone/phone.tsx";
 import { callIsWith, cardOf, numbersOfThread, showsCall } from "./model.ts";
 import type { OpenTask } from "./model.ts";
+import { isPhoneWidth } from "../../../../../../ui/src/SidePane/layout.ts";
 
 export interface CallConversationProps extends ContactTabProps {
   /** The person's open tasks, for the Call tab (the app reads them from Tasks). */
@@ -32,7 +33,7 @@ export function CallConversation({ tasks = [], ...tab }: CallConversationProps):
   const [paneOpen, setPaneOpen] = useState(true);
   const [tabKey, setTabKey] = useState<"call" | "record">("call");
   const width = useWindowDimensions().width;
-  const phoneSize = width > 0 && width < 720; // 0 is "not measured yet" (the static page); on a phone the bar is the call surface and the Call tab does not squeeze the thread
+  const phoneSize = isPhoneWidth(width); // 0 is "not measured yet" (the static page); on a phone the bar is the call surface and the Call tab does not squeeze the thread
   // the claim is made once per conversation: the context object changes with the call, the claim function does not need to be re-run for it
   const claim = useRef(phone?.claim);
   claim.current = phone?.claim;

@@ -10,6 +10,7 @@ import { MenuIcon, menuTrigger, useMenu } from "../Menu/index.tsx";
 import type { MenuEntry } from "../Menu/index.tsx";
 import { OBJECT_PAGE_BASE_TABS } from "./props.ts";
 import type { Density, ObjectAction, ObjectPageProps, ObjectTab } from "./props.ts";
+import { isPhoneWidth } from "../SidePane/layout.ts";
 
 export type { Density, ObjectAction, ObjectPageProps, ObjectTab } from "./props.ts";
 export { OBJECT_PAGE_BASE_TABS, frozenObjectPageProps } from "./props.ts";
@@ -132,7 +133,7 @@ interface Pending {
 export function ObjectPage(props: ObjectPageViewProps): ReactElement {
   const { name, kind, owner, status, actions, tabs, density, sheetOpen, impacts, onAction, onUndo, onTab, onBack } = props;
   const measuredWidth = useWindowDimensions().width;
-  const compact = density === "compact" || measuredWidth > 0 && measuredWidth < 720;
+  const compact = density === "compact" || isPhoneWidth(measuredWidth);
   const [active, setActive] = useState(props.activeTabId);
   const [pending, setPending] = useState<Pending | null>(null);
   const [done, setDone] = useState<string | null>(null);

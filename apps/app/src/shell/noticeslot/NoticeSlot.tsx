@@ -6,6 +6,7 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { ShellIcon } from "../rail/icons.tsx";
 import { PASSING_MS, notices as shared, slotView } from "./model.ts";
 import type { Notice, NoticeStore } from "./model.ts";
+import { RADIUS } from "../../../../../ui/src/tokens/radius.ts";
 
 function ActionButton({ n, testID }: { n: Notice; testID?: string }): ReactElement | null {
   if (!n.action) return null;
@@ -79,12 +80,12 @@ const st = StyleSheet.create({
   empty: { width: 0 },
   wrap: { position: "relative", flexShrink: 1, minWidth: 0, justifyContent: "center" },
   wrapCompact: { position: "relative", justifyContent: "center" },
-  pill: { flexDirection: "row", alignItems: "center", gap: 7, height: 26, paddingHorizontal: 9, borderRadius: 8, maxWidth: 460 },
+  pill: { flexDirection: "row", alignItems: "center", gap: 7, height: 26, paddingHorizontal: 9, borderRadius: RADIUS, maxWidth: 460 },
   text: { flexShrink: 1, fontSize: 12.5, color: "var(--ink-2)" as string },
   more: { fontSize: 11.5, color: "var(--ink-3)" as string },
-  act: { paddingHorizontal: 7, height: 20, borderRadius: 6, justifyContent: "center" },
+  act: { paddingHorizontal: 7, height: 20, borderRadius: RADIUS, justifyContent: "center" },
   actText: { fontSize: 12.5, fontWeight: "600", color: "var(--accent)" as string },
-  bell: { width: 30, height: 26, alignItems: "center", justifyContent: "center", borderRadius: 8 },
+  bell: { width: 30, height: 26, alignItems: "center", justifyContent: "center", borderRadius: RADIUS },
   dot: { position: "absolute", top: 4, right: 6, width: 6, height: 6, borderRadius: 3, backgroundColor: "var(--accent)" as string },
   backdrop: { position: "fixed" as unknown as "absolute", left: 0, right: 0, top: 0, bottom: 0, zIndex: 70 },
   popover: { position: "absolute", top: 30, left: 0, zIndex: 80, minWidth: 340, padding: 10, gap: 8, borderRadius: 12, backgroundColor: "var(--raised)" as string, borderWidth: 1, borderColor: "var(--line)" as string, boxShadow: "var(--sh-pop)" as string },

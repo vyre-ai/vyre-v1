@@ -49,6 +49,7 @@ import type { Move } from "./moves.ts";
 import { useTaskPeople } from "./people.ts";
 import type { Seat } from "./people.ts";
 import { TimePop, useZones } from "../../../../../../ui/src/Time/index.tsx";
+import { belowPhone } from "../../../../../../ui/src/SidePane/layout.ts";
 
 type History = CapMap["tasks.history"]["out"];
 type TaskOut = CapMap["tasks.get"]["out"];
@@ -312,7 +313,7 @@ export function soloPath(steps: ReadonlyArray<{ who?: { id: string } | undefined
 /** Whose hands it passes through: faces and names, the holder lit. */
 function BatonPath({ steps, nameOf }: { steps: ReturnType<typeof stepsOf>; nameOf(id: string): string }): ReactElement {
   // on a phone the path keeps to one line: short connectors, no indent
-  const tight = useWindowDimensions().width < 640;
+  const tight = belowPhone(useWindowDimensions().width);
   const out: ReactElement[] = [];
   for (const [i, s] of steps.entries()) {
     if (i > 0) out.push(<View key={`j${i}`} style={[st.pathLine, tight && st.pathLineTight]} />);
@@ -361,7 +362,7 @@ function YourAction({ task, view, me, run, menu, list, mode, setMode, nameOf }: 
 
 function Btn({ label, onPress, primary = false, testID }: { label: string; onPress(e: unknown): void; primary?: boolean; testID?: string }): ReactElement {
   // a phone's hit target is 44 px (the design system); the same 640 px phone line the join screens use
-  const phone = useWindowDimensions().width <= 640;
+  const phone = belowPhone(useWindowDimensions().width);
   return <Pressable accessibilityRole="button" accessibilityLabel={label} testID={testID} onPress={onPress} style={({ hovered }: { hovered?: boolean }) => [st.btn, phone && { height: 44 }, primary && st.btnPrimary, hovered === true && !primary && { backgroundColor: "var(--hover)" as string }]}><Text style={[st.btnText, primary && { color: "var(--accent-ink)" as string }]}>{label}</Text></Pressable>;
 }
 

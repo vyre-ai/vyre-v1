@@ -171,9 +171,9 @@ test("type-ahead finds the next label that starts with the typed text", () => {
 
 test("the menu stays inside the window", () => {
   assert.deepEqual(clampMenu(10, 10, 220, 100, 1280, 800), { left: 10, top: 10 });
-  assert.deepEqual(clampMenu(1270, 790, 220, 100, 1280, 800), { left: 1054, top: 694 });
-  assert.deepEqual(clampMenu(-5, -5, 220, 100, 390, 844), { left: 6, top: 6 });
-  assert.deepEqual(clampMenu(380, 20, 220, 100, 390, 844), { left: 164, top: 20 }, "phone width");
+  assert.deepEqual(clampMenu(1270, 790, 220, 100, 1280, 800), { left: 1052, top: 692 });
+  assert.deepEqual(clampMenu(-5, -5, 220, 100, 390, 844), { left: 8, top: 8 });
+  assert.deepEqual(clampMenu(380, 20, 220, 100, 390, 844), { left: 162, top: 20 }, "phone width");
 });
 
 test("a right-click opens the menu at the pointer and stops the browser's own menu; the menu key opens it under the surface", () => {

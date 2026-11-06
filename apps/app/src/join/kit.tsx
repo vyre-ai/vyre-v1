@@ -9,6 +9,7 @@ import { Avatar } from "../../../../ui/src/Avatar/index.tsx";
 import { injectCss } from "../../../../ui/src/theme/css.ts";
 import { ENTRY, FONT, MONO } from "./palette.ts";
 import type { EntryPalette } from "./palette.ts";
+import { PHONE_BELOW } from "../../../../ui/src/SidePane/layout.ts";
 
 interface Theme { p: EntryPalette; phone: boolean }
 const ThemeCtx = createContext<Theme | null>(null);
@@ -74,7 +75,8 @@ function watchViewport(onChange: () => void): () => void {
 const useViewport = (): Viewport => useSyncExternalStore(watchViewport, readViewport, () => SERVER_VIEWPORT);
 
 /** Phone layout from 640 wide down. */
-export const PHONE_MAX = 640;
+/** The phone width the join screens use: the shared band (under 768). */
+export const PHONE_MAX = PHONE_BELOW - 1;
 /** How wide the sheet is, and the shortest it gets, so most steps fade in place. */
 export const SHEET_WIDTH = 420;
 export const SHEET_MIN = 416;
