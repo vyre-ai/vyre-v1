@@ -11,7 +11,7 @@
 //   sleep       a workspace is idle when nothing used it for `idleMs` and no tmux pane runs anything but a shell; `sweep` (a timer) stops it. tmux dies with the container, so a session that had
 //               been open is made again, empty, the next time something uses it.
 // The module never opens a socket of its own: the DockerApi and DockerHttp come from the host's seam (the Docker socket, or the runner on a Team server), like agent computers.
-import { createHash } from "node:crypto";
+import { sha256Hex } from "../../kernel/src/log/hash.ts";
 import { createDockerApi } from "../../sandbox/src/docker.ts";
 import { tarFiles } from "../../sandbox/src/tar.ts";
 import type { ContainerConfig, DockerApi, DockerHttp } from "../../sandbox/src/docker.ts";
@@ -33,7 +33,7 @@ const PROJECT_ID = /^[A-Za-z0-9_-]{1,64}$/;
 const SHELLS: ReadonlySet<string> = new Set(["bash", "zsh", "sh", "dash", "fish", "ksh", "ash", "tmux"]);
 
 export const workspaceName = (agentId: string): string => `${WORKSPACE_PREFIX}${agentId}`;
-export const workspaceNetworkName = (agentId: string): string => `vyre-wsnet-${createHash("sha256").update(agentId).digest("hex").slice(0, 16)}`;
+export const workspaceNetworkName = (agentId: string): string => `vyre-wsnet-${sha256Hex(agentId).slice(0, 16)}`;
 export const homeVolume = (agentId: string): string => `${workspaceName(agentId)}-home`;
 export const filesVolume = (agentId: string): string => `${workspaceName(agentId)}-files`;
 export const projectVolume = (projectId: string): string => `${PROJECT_VOLUME_PREFIX}${projectId}`;
@@ -131,7 +131,7 @@ export interface WorkspaceManager {
 
 export interface MountSpec { projects: string[] }
 
-const stable = (m: MountSpec): string => createHash("sha256").update(JSON.stringify({ p: [...m.projects].sort() })).digest("hex").slice(0, 16);
+const stable = (m: MountSpec): string => sha256Hex(JSON.stringify({ p: [...m.projects].sort() })).slice(0, 16);
 
 export function workspaceContainerConfig(agentId: string, image: string, m: MountSpec, o: Pick<WorkspaceOptions, "limits" | "runner">): ContainerConfig {
   // the numbers are modules/computers/capacity.ts hostConfigLimits("workspace): a hard cap of 1 GB, 64 MB held back while it runs, low CPU shares, no swap (test/workspace.capacity.test.ts holds the two together)
