@@ -26,17 +26,25 @@ export function modelReason(m: { reason?: string; resetsAt?: number }, now = Dat
   if (!m.reason) return undefined;
   if (m.reason === "not_connected") return "Not connected";
   if (m.reason === "checking") return "Checking...";
+  if (m.reason === "not_checked") return "Not checked";
   if (m.reason === "usage_limit") return outOfUsage(m.resetsAt, now);
   return "Not allowed here";
 }
 
+/** The names the provider gave models, as the menu listed them: the composer chip and the strip read the same name (owner, 6 Nov: "GLM 5" everywhere, never "Glm 5"). */
+const listedTitles = new Map<string, string>();
+export const listedTitle = (model: string): string | undefined => listedTitles.get(model);
+
 /** The panel's rows: the vendor's name for each model, the vendor's default marked Default (as Auto is marked "Picks per message"), a greyed row with its reason. */
 export function menuModels(out: ModelsOut | undefined, now = Date.now()): MenuModel[] {
+  for (const m of out?.models ?? []) if (m.title) listedTitles.set(m.model, m.title);
   return (out?.models ?? []).map((m) => {
     const why = modelReason(m, now);
-    const note = m.model === "auto" ? "Picks per message" : m.isDefault ? "Default" : undefined;
+    // a model still being checked, or not checked, can be picked: the turn says what is wrong if it truly cannot run
+    const soft = m.allowed !== false && (m.reason === "checking" || m.reason === "not_checked");
+    const note = soft ? why : m.model === "auto" ? "Picks per message" : m.isDefault ? "Default" : undefined;
     return {
-      id: m.model, title: m.title, ...(m.contextTokens ? { window: m.contextTokens } : {}), allowed: m.allowed, ...(why ? { reason: why } : {}), ...(note ? { note } : {}),
+      id: m.model, title: m.title, ...(m.contextTokens ? { window: m.contextTokens } : {}), allowed: m.allowed, ...(why && !soft ? { reason: why } : {}), ...(note ? { note } : {}),
       ...(m.alias ? { alias: m.alias } : {}), ...(m.efforts ? { efforts: m.efforts } : {}),
     };
   });

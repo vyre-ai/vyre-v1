@@ -220,3 +220,46 @@ test("without a host that can read this computer (a Team Space server), local is
     await assert.rejects(p.subscriptionStart(h.ctx, { providerKey: "codex", idempotencyKey: key(), local: true }), (e: unknown) => /Personal Space only/.test(`${(e as { message?: string })?.message ?? ""} ${JSON.stringify(e)}`));
   } finally { u.configureVault(null); h.cleanup(); }
 });
+
+/** The value of an item saved under an older key: its stored box no longer opens. */
+function breakValue(h: Harness, itemId: string): void {
+  const row = h.rows(`SELECT * FROM vault_secret`).find((r) => r["itemId"] === itemId)!;
+  const box = JSON.parse(String(row["box"])) as { iv: string; ct: string; tag: string };
+  box.ct = Buffer.from("not the sealed value").toString("base64");
+  h.ctx.db.run(`UPDATE vault_secret SET "box" = ? WHERE "itemId" = ?`, JSON.stringify(box), itemId);
+}
+
+test("signing in again to an account whose saved item cannot be opened REPLACES it: same row, handle, name and history, new value under the current key, no delete first", async () => {
+  const h = harness();
+  const who = { id: "claude:acct:a-9/org:o-9", label: "maya@example.com" };
+  const OLD = "sk-ant-oat01-old-key-0123456789", NEW = "sk-ant-oat01-fresh-sign-in-0123456789"; // secret-scan: fake
+  u.configureVault({ sinks: {}, signin: port([claude(OLD, who), claude(NEW, who)]) });
+  try {
+    const one = await signIn(h);
+    breakValue(h, String(one.itemId));
+    await assert.rejects(() => secretOf(h, String(one.handle)), (e: { code?: string; message?: string }) => e.code === "vault.item_unopenable" && /can't be opened on this device/.test(e.message ?? ""));
+    const two = await signIn(h);
+    assert.deepEqual([two.id, two.itemId, two.handle, two.itemName], [one.id, one.itemId, one.handle, one.itemName], "the same row, item, handle and name");
+    assert.equal(live(h, `SELECT * FROM vault_meta`).length, 1, "nothing was deleted or duplicated");
+    assert.equal(await secretOf(h, String(two.handle)), NEW, "it opens now, under the current key");
+    const history = h.rows(`SELECT * FROM vault_history`).filter((r) => r["itemId"] === String(one.itemId));
+    assert.ok(history.length >= 2, "the history rows stay and the replacement adds one");
+  } finally { u.configureVault({ sinks: {} }); }
+});
+
+test("an account the engine found unopenable is marked in the Vault list: Can't be opened, sign in again; signing in again clears the mark", async () => {
+  const h = harness();
+  const who = { id: "claude:acct:a-8/org:o-8", label: "maya@example.com" };
+  u.configureVault({ sinks: {}, signin: port([claude("sk-ant-oat01-a-0123456789", who), claude("sk-ant-oat01-b-0123456789", who)]) }); // secret-scan: fake
+  try {
+    const one = await signIn(h);
+    const marked = out(p.markSigninNeeded(h.ctx, { handle: String(one.handle), why: "unopenable" }));
+    assert.equal(marked.marked, true);
+    const row = (out(await p.list(h.ctx, {})).providers as Json[]).find((r) => r.id === one.id)!;
+    assert.deepEqual([row.state, row.unopenable], ["needs_sign_in", true]);
+    assert.deepEqual(contractErrors("providers.list", "out", { providers: [row] }), []);
+    await signIn(h);
+    const after = (out(await p.list(h.ctx, {})).providers as Json[]).find((r) => r.id === one.id)!;
+    assert.deepEqual([after.state, after.unopenable], ["ok", undefined]);
+  } finally { u.configureVault({ sinks: {} }); }
+});

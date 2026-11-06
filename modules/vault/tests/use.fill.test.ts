@@ -327,7 +327,7 @@ test("the host port reads the asker's own Mine item with their key, a Shared ite
     await assert.rejects(() => port.secret("#Mine_Engine_Key.api_key", "spc_vault"), /no shared item/, "without an asker only Shared items come out");
     await assert.rejects(() => port.secret("#Mine_Engine_Key.api_key", "spc_vault", ROB), /no shared item/, "another person's Mine item is never read");
     h.lock(MAYA);
-    await assert.rejects(() => port.secret("#Mine_Engine_Key.api_key", "spc_vault", MAYA), /locked/, "a locked key opens nothing");
+    await assert.rejects(() => port.secret("#Mine_Engine_Key.api_key", "spc_vault", MAYA), /Vault key is not on this server/, "no key on the node opens nothing");
   } finally { h.cleanup(); }
 });
 

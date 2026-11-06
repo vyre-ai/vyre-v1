@@ -20,5 +20,7 @@ const FAMILY: Readonly<Record<string, string>> = { "claude-code": "anthropic", c
 
 /** True when an account of provider `account` can serve a model whose provider is `wanted`. */
 export function sameProviderFamily(account: string, wanted: string): boolean {
-  return (FAMILY[account] ?? account) === (FAMILY[wanted] ?? wanted);
+  // one provider is spelled "opencode-go" by the Vault and "opencode_go" by the model list: an own account is never passed over for a spelling (owner, 6 Nov: the Space account beat the person's own)
+  const norm = (p: string): string => { const k = p.toLowerCase().replace(/_/g, "-"); return FAMILY[k] ?? k; };
+  return norm(account) === norm(wanted);
 }

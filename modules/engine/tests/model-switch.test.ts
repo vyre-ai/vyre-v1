@@ -135,7 +135,7 @@ test("an API key's models are checked in the background: shown greyed as Checkin
       },
     };
     const first = await modelsList(ctx, { refresh: true });
-    assert.deepEqual(first.models.map((m) => [m.model, m.allowed, m.reason]), [["beam-free", false, "checking"], ["glm-5.3", false, "checking"]]);
+    assert.deepEqual(first.models.map((m) => [m.model, m.allowed, m.reason]), [["beam-free", true, "checking"], ["glm-5.3", true, "checking"]]);
     assert.equal(first.listed?.refreshing, true, "the menu asks again");
     release();
     const second = await modelsList(ctx, { wait: true });
@@ -227,4 +227,41 @@ test("a picked model is checked at once, past the cap, and a refusal hides it", 
     assert.deepEqual(asked, ["m-29"], "the picked model, and nothing else");
     assert.deepEqual([...unavailableFor(ctx.db, "#Dana_Opencode", ctx.now())], ["m-29"]);
   } finally { bindCompleter(null); resetProbes(); }
+});
+
+test("a check that fails because the Vault key is not on this node ends once for the whole account: one request, every model selectable and read as Not checked, no second try while it holds", async () => {
+  resetLiveModels(); resetProbes();
+  bindCompleter(async () => ({ text: "ok", tokensIn: 1, tokensOut: 1 }));
+  try {
+    const h = harness();
+    const asked: string[] = [];
+    const ctx: EngineCtx = {
+      ...h.ctx,
+      call: async (cap: string, input: unknown) => {
+        if (cap === "providers.list") return { providers: [OPENCODE] };
+        if (cap === "providers.test") return { ok: true, models: ["beam-free", "glm-5.3", "glm-5"] };
+        if (cap === "engine.complete") { asked.push((input as { model: string }).model); throw Object.assign(new Error("Your Vault key is not on this server, so your sign-in cannot be opened."), { code: "engine.vault_locked" }); }
+        return h.ctx.call(cap, input);
+      },
+    };
+    await modelsList(ctx, { refresh: true });
+    await Promise.all(probing(["#Dana_Opencode"]));
+    const after = await modelsList(ctx, { refresh: true });
+    assert.equal(asked.length, 1, "one failed read for the account, not one per model");
+    assert.deepEqual(after.models.map((m) => [m.allowed, m.reason]), [[true, "not_checked"], [true, "not_checked"], [true, "not_checked"]]);
+    assert.equal(after.listed?.refreshing ?? false, false, "nothing is checking any more");
+    await modelsList(ctx, { refresh: true });
+    assert.equal(asked.length, 1, "not asked again while Not checked holds");
+  } finally { bindCompleter(null); resetProbes(); }
+});
+
+test("a check that takes too long is Not checked for that model, not Checking forever, and the model stays selectable", async () => {
+  resetLiveModels(); resetProbes();
+  const { probeModels, notCheckedFor, probing: inFlight } = await import("../model-health.ts");
+  const h = harness();
+  probeModels(h.ctx.db, "#Slow", ["m1"], () => new Promise<void>(() => undefined), () => 1000, { timeoutMs: 20 });
+  await Promise.all(inFlight(["#Slow"]));
+  assert.deepEqual([...notCheckedFor("#Slow", 1000).models], ["m1"]);
+  assert.equal(confirmedFor(h.ctx.db, "#Slow", 1000).has("m1"), false, "a timeout confirms nothing");
+  resetProbes();
 });

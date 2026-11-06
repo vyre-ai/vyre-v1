@@ -58,6 +58,7 @@ type Out = {
     address?: string;
     keyless?: boolean;
     spaceKey?: boolean;
+    unopenable?: boolean;
     identity?: string;
     displayName?: string;
     aliases?: Array<string>;
@@ -130,6 +131,7 @@ type Out = {
       "spaceMayUse": true,
       "state": "ok",
       "teamChatsForMe": true,
+      "unopenable": true,
       "usage": {
         "costCents": 1,
         "periodStart": 1760000000000,

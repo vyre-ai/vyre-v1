@@ -12,7 +12,7 @@ import type { Candidate, Helper, Message, MessageBlock, Thread } from "./model.t
 export const SAMPLE_NOW = Date.UTC(2025, 9, 24, 10, 0, 0);
 const at = (h: number, min: number, sec = 0, dayOffset = 0): number => Date.UTC(2025, 9, 24 + dayOffset, h, min, sec);
 
-export type Variant = "idle" | "streaming" | "busy" | "errors" | "plan" | "long" | "nolead" | "closed" | "channel" | "runson";
+export type Variant = "idle" | "streaming" | "busy" | "errors" | "plan" | "long" | "nolead" | "closed" | "channel" | "runson" | "vaultkey" | "lastpick";
 
 export const NAMES: Record<string, string> = {
   agt_intake: "Intake", agt_docs: "Docs", agt_research: "Research", agt_scout: "Scout", agt_billing: "Billing",
@@ -68,6 +68,14 @@ function build(variant: Variant): { thread: Thread; messages: Message[]; helpers
       m("r4", me, "Now check the retainer clause against Maya's notes.", at(9, 50)),
       m("r5", intake, "", at(9, 50, 5), { blocks: [status("st2", { state: "device_wait", text: "Your computer is off. This chat runs when it is back." })] }),
     );
+    return { thread, messages, helpers: [] };
+  }
+  if (variant === "vaultkey" || variant === "lastpick") {
+    // lane l-chatrely (6 Nov): a turn that needs the Vault's key when the server has none says exactly what is missing; a chat with no pick of its own shows the model the person picked last
+    thread.title = "Rivera engagement letter";
+    thread.agents = [{ agentId: "agt_intake", mode: "lead" }];
+    messages.push(m("v1", me, "Pull this year's fee schedule and draft the Rivera engagement letter.", at(9, 40)));
+    if (variant === "vaultkey") messages.push(m("v2", intake, "", at(9, 40, 20), { blocks: [{ type: "turn_status", v: 1, id: "vk1", data: { state: "failed", turnId: "t_vk", code: "engine.vault_locked" } } as MessageBlock] }));
     return { thread, messages, helpers: [] };
   }
   if (variant === "long") {
@@ -287,12 +295,17 @@ export function createSample(variant: Variant = "idle", o: SampleOptions = {}): 
       return { messageId: `poke_${counter}`, delivered: "engine" };
     },
     "engine.interrupt": () => ({ ok: true }),
-    "engine.models.list": () => ({ models: [
+    "engine.last_pick.get": () => (variant === "lastpick" ? { model: "glm-5", provider: "opencode-go", effort: "high" } : {}),
+    "engine.models.list": () => (variant === "lastpick" ? { models: [
+      { provider: "opencode_go", model: "glm-5", title: "GLM 5", driver: "opencode", allowed: true, reason: "not_checked" },
+      { provider: "opencode_go", model: "glm-5.3", title: "GLM 5.3", driver: "opencode", allowed: true, reason: "not_checked" },
+      { provider: "opencode_go", model: "beam-free", title: "Beam Free", driver: "opencode", allowed: true, reason: "checking" },
+    ] } : { models: [
       { provider: "anthropic", model: "opus", title: "Opus", driver: "claude_code", allowed: true },
       { provider: "anthropic", model: "sonnet", title: "Sonnet", driver: "claude_code", allowed: true },
       { provider: "anthropic", model: "haiku", title: "Haiku", driver: "claude_code", allowed: true },
       { provider: "local", model: "llama-3.3", title: "Llama 3.3 on this computer", driver: "local", allowed: true },
-    ] }),
+    ] }) as never,
     "engine.set_model": (i: { agentId?: string; model: string; provider: string }) => {
       const cur = threadRow();
       setThread({ agents: cur.agents.map((a) => (a.agentId === i.agentId ? { ...a, model: i.model } : a)) });

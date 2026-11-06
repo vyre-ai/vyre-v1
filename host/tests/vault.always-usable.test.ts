@@ -1,0 +1,109 @@
+// A signed-in person's Vault is always usable (owner ruling 6 Nov): a fresh sign-in can run a turn that needs a Vault credential at once, and so can the next launch, with no password and no unlock step.
+// The desktop path is a daemon on this computer (loopback door), the web path is a Space server (https door): both are the same keyring behind the same /vault/key door.
+import test from "node:test";
+import assert from "node:assert/strict";
+import { createKeyring } from "../src/seams/keyring.ts";
+import { createEngineSessionHost } from "../src/seams/engine-session.ts";
+import { forgetKey, keepKey, leaveMemory, rehandKey, restoreKey, useSealStore } from "../../client/src/gateway/key-keeper.ts";
+import { holdKeyOnOwnNode } from "../../client/src/gateway/local-key.ts";
+import type { SealRecord, SealStore } from "../../client/src/gateway/key-seal.ts";
+
+const KEY = Uint8Array.from({ length: 32 }, (_, i) => 100 + i);
+const who = { agentId: "agt_1", asker: "usr_1", where: "host" as const, account: true };
+const memory = (): SealStore => { let row: SealRecord | null = null; return { get: async () => row, put: async (r) => { row = r; }, remove: async () => { row = null; } }; };
+
+/** A daemon: the keyring behind the key door, and a Vault that can read the person's credential only while the keyring holds their key. */
+function daemon() {
+  const ring = createKeyring({ allowed: () => true, live: () => true });
+  const f = (async (url: string, init?: { body?: string }) => {
+    const op = String(url).split("/").pop();
+    if (op === "status") return { status: 200, json: async () => ({ held: ring.holds("usr_1") }) };
+    if (op === "unlock") { ring.hold("usr_1", Buffer.from(JSON.parse(init!.body!).key, "base64"), "ses_1"); return { status: 204 }; }
+    return { status: 404 };
+  }) as unknown as typeof fetch;
+  const slept: number[] = [];
+  const host = createEngineSessionHost({
+    invoke: (async () => ({ status: "ok", output: { itemId: "vit_1" } })) as never,
+    vault: { secret: async () => { const k = ring.get("usr_1"); if (!k) throw new Error("Your vault key is locked on this computer."); k.fill(0); return "CREDENTIAL"; } } as never,
+    space: "spc_1", lockedWaitMs: 4_000, lockedPollMs: 2_000, sleep: async (ms) => { slept.push(ms); }, now: () => slept.reduce((a, b) => a + b, 0),
+  });
+  return { ring, f, host, slept };
+}
+
+for (const [door, address] of [["desktop (this computer)", "http://127.0.0.1:7777"], ["web (Space server over https)", "https://team.example.com"]] as const) {
+  test(`${door}: a fresh sign-in runs a turn that needs a Vault credential at once, with no wait`, async () => {
+    const d = daemon();
+    useSealStore(memory());
+    try {
+      // sign-in opened the key with the password and hands it over, keeping it on the device
+      const mine = Uint8Array.from(KEY);
+      assert.equal(await holdKeyOnOwnNode(address, "tok", mine, d.f as never), true);
+      await keepKey(mine); mine.fill(0);
+      const r = await d.host.source.lookup("#Dana_Claude.credentials", who);
+      assert.equal(r.kind, "value");
+      assert.deepEqual(d.slept, [], "the first read answered; nothing waited for an unlock");
+    } finally { forgetKey(); useSealStore(undefined); }
+  });
+
+  test(`${door}: after a relaunch and a restarted node the key comes back by itself and the turn runs`, async () => {
+    const first = daemon();
+    useSealStore(memory());
+    try {
+      await holdKeyOnOwnNode(address, "tok", Uint8Array.from(KEY), first.f as never);
+      await keepKey(Uint8Array.from(KEY));
+      // the app closes, the node restarts empty, the app opens again: no password anywhere
+      leaveMemory();
+      const second = daemon();
+      assert.equal(await restoreKey(), true);
+      assert.equal(await rehandKey(address, "tok", second.f), true);
+      const r = await second.host.source.lookup("#Dana_Claude.credentials", who);
+      assert.equal(r.kind, "value");
+      assert.deepEqual(second.slept, []);
+    } finally { forgetKey(); useSealStore(undefined); }
+  });
+}
+
+test("with no key on the server the turn says exactly what is missing, and never asks for an unlock", async () => {
+  const d = daemon();
+  await assert.rejects(d.host.source.lookup("#Dana_Claude.credentials", who), (e: { code?: string; message?: string }) =>
+    e.code === "engine.vault_locked" && /Vault key is not on this server/.test(e.message ?? "") && !/unlock/i.test(e.message ?? ""));
+});
+
+test("a Vault read that fails because the key is not on this node is the key-missing case, tries to bring the key back once, and then reads", async () => {
+  let held = false; let reads = 0; let rehands = 0;
+  const h = createEngineSessionHost({
+    invoke: (async () => ({ status: "ok", output: { itemId: "vit_1" } })) as never,
+    vault: { secret: async () => { reads++; if (!held) throw new Error("The Vault is not live on this server."); return "CREDENTIAL"; } } as never,
+    space: "spc_1", keyHeld: () => held, rehand: async () => { rehands++; held = true; return true; },
+  });
+  const r = await h.source.lookup("#Dana_Claude.credentials", who);
+  assert.equal(r.kind, "value");
+  assert.deepEqual([reads, rehands], [2, 1]);
+});
+
+test("a read with no way to bring the key back reports the key-missing code and words; any other failure names the item and what failed, never a bare could-not-be-read", async () => {
+  const logs: string[] = [];
+  const missing = createEngineSessionHost({
+    invoke: (async () => ({ status: "ok", output: { itemId: "vit_1" } })) as never,
+    vault: { secret: async () => { throw new Error("The Vault is not live on this server."); } } as never,
+    space: "spc_1", keyHeld: () => false, lockedWaitMs: 0, log: (m) => logs.push(m),
+  });
+  await assert.rejects(missing.source.lookup("#Dana_Claude.credentials", who), (e: { code?: string }) => e.code === "engine.vault_locked");
+  const other = createEngineSessionHost({
+    invoke: (async () => ({ status: "ok", output: { itemId: "vit_1" } })) as never,
+    vault: { secret: async () => { throw new Error("The vault service is not running."); } } as never,
+    space: "spc_1", keyHeld: () => true,
+  });
+  await assert.rejects(other.source.lookup("#Dana_Claude.credentials", who), (e: { code?: string; message?: string }) =>
+    e.code === "engine.vault_unreadable" && /Dana_Claude/.test(e.message ?? "") && /read failed \(Error\)/.test(e.message ?? "") && !/not running/.test(e.message ?? "") && e.message !== "The Vault could not be read.");
+});
+
+test("an item no key can open is said as itself: Your Codex sign-in can't be opened on this device, with the account, so the chat can offer the sign-in", async () => {
+  const h = createEngineSessionHost({
+    invoke: (async () => ({ status: "ok", output: { itemId: "vit_1" } })) as never,
+    vault: { secret: async () => { throw Object.assign(new Error("This sign-in can't be opened on this device. Sign in again."), { code: "vault.item_unopenable" }); } } as never,
+    space: "spc_1", keyHeld: () => true,
+  });
+  await assert.rejects(h.source.lookup("#Codex_irfad47_icloud_com.credentials", who), (e: { code?: string; message?: string }) =>
+    e.code === "engine.signin_unopenable" && /^Your Codex sign-in can't be opened on this device\. Sign in to Codex again\./.test(e.message ?? "") && /\[account Codex_irfad47_icloud_com\]/.test(e.message ?? ""));
+});

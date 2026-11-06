@@ -13,7 +13,7 @@ export function createImapSecretResolver(vault: Pick<VaultPort, "secret">): Imap
     // why the Vault said no, in fixed words (never its own text, which may carry more): locked, or no item under that name
     try { value = await vault.secret(handle, ctx.space, asker); } catch (e) {
       const said = e instanceof Error ? e.message : "";
-      const message = /locked/i.test(said) ? "Your sign-ins are locked on this server. Unlock Vyre to use the mailbox password." : /no (shared )?item/i.test(said) ? "The Vault has no item for that mailbox password." : "The vault did not release the mailbox password.";
+      const message = /locked|Vault key is not on this server/i.test(said) ? "Your Vault key is not on this server, so the mailbox password cannot be opened. Open Vyre on your device and sign in." : /no (shared )?item/i.test(said) ? "The Vault has no item for that mailbox password." : "The vault did not release the mailbox password.";
       throw fail("provider.auth_failed", ctx.trace.traceId, { message });
     }
     if (!value) throw fail("provider.auth_failed", ctx.trace.traceId, { message: "The mailbox password in the Vault is empty." });

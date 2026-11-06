@@ -214,13 +214,13 @@ export function createBridge(o: BridgeOptions): Bridge {
       const program = e.code === "engine.cli_missing" ? /^(claude|codex|grok) is not installed/.exec(e.message ?? "")?.[1] : undefined;
       const setup = program ? /\((offline|checksum|unsupported|disk|failed)\)\.?$/.exec(e.message ?? "")?.[1] : undefined;
       // A Vault that could not be read gives the code it answered with (a fixed word shape, never the text that came with it).
-      const reason = e.code === "engine.vault_unreadable" ? /^The Vault could not be read \(([a-z_]+(?:\.[a-z_]+)*)\)\.$/.exec(e.message ?? "")?.[1] : undefined;
+      const reason = e.code === "engine.vault_unreadable" ? (/^The Vault could not read the sign-in [\w.-]+(?: \([\w]+\))?: ([a-z_]+(?:\.[a-z_]+)*)\.$/.exec(e.message ?? "") ?? /^The Vault could not be read \(([a-z_]+(?:\.[a-z_]+)*)\)\.$/.exec(e.message ?? ""))?.[1] : undefined;
       // a picked model nothing can serve: the words name the model and what can run (model-fallback.ts noModelWords), a fixed sentence of Vyre's own
       const detail = e.code === "engine.model_unavailable" || e.code === "engine.no_model_picked" ? e.message : undefined;
       // how the engine process ended, when it says (an exit code or a signal): a number is no secret, and it is what a person reads out to get help
       // the account whose sign-in is missing (its Vault handle, no secret), so the chat's button opens that account
-      const named = e.code === "engine.signin_missing" ? /\[account ([\w.-]{1,60})\]/.exec(e.message ?? "")?.[1] : undefined;
-      const needsSignin = e.code === "engine.signin_missing" || e.code === "provider.auth_failed" || e.code === "engine.cli_unusable";
+      const named = e.code === "engine.signin_missing" || e.code === "engine.signin_unopenable" ? /\[account ([\w.-]{1,60})\]/.exec(e.message ?? "")?.[1] : undefined;
+      const needsSignin = e.code === "engine.signin_missing" || e.code === "engine.signin_unopenable" || e.code === "provider.auth_failed" || e.code === "engine.cli_unusable";
       const account = needsSignin ? (named ?? (e.account?.ref && /^[\w.#-]{1,60}$/.test(e.account.ref) ? e.account.ref.replace(/^#/, "") : undefined)) : undefined;
       // the same plain reasons the connect card shows (engine.providers.list, cliTrouble): the program is not on this computer, or its sign-in needs doing again
       const cliProgram = e.account ? ({ claude_code: "claude", codex: "codex", grok: "grok" } as Record<string, string>)[e.account.driver] : undefined;

@@ -240,7 +240,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
   const STREAK_PARK = 3;
   const PERSON_RETRY_MS = 60_000;
   /** Failures that need the person to act (the Vault is locked, a sign-in is missing): the turn waits once instead of failing again for every message. */
-  const PARK_CODES: ReadonlySet<string> = new Set(["engine.vault_locked", "engine.signin_missing"]);
+  const PARK_CODES: ReadonlySet<string> = new Set(["engine.vault_locked", "engine.signin_missing", "engine.signin_unopenable"]);
   const PARK_MAX_MS = 10 * 60_000;   // a host that cannot see the unlock still tries again on the next message after this
   const enqueuedHr = new Map<string, number>();   // `${thread}:${qseq}` -> hr() at enqueue
   let counter = 0;
