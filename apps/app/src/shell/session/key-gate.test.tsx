@@ -138,3 +138,8 @@ test("signed in means unlocked: the gate goes in when the node holds the key or 
   assert.equal(await mk({ st: "unreachable" }), "wait", "a daemon still starting is waited for");
   assert.equal(await mk({ st: "unreachable", own: false }), "open", "a Space server that did not answer is not read as locked");
 });
+
+test("a session with no Vault key on this device is told why, once, in one line", async () => {
+  const { KEY_READY_LINE } = await import("./SessionGate.tsx");
+  assert.equal(KEY_READY_LINE, "Sign in once more so Vyre can keep your Vault ready on this device.");
+});

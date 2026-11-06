@@ -26,6 +26,7 @@ export function modelReason(m: { reason?: string; resetsAt?: number }, now = Dat
   if (!m.reason) return undefined;
   if (m.reason === "not_connected") return "Not connected";
   if (m.reason === "checking") return "Checking...";
+  if (m.reason === "not_checked") return "Not checked";
   if (m.reason === "usage_limit") return outOfUsage(m.resetsAt, now);
   return "Not allowed here";
 }
@@ -34,9 +35,11 @@ export function modelReason(m: { reason?: string; resetsAt?: number }, now = Dat
 export function menuModels(out: ModelsOut | undefined, now = Date.now()): MenuModel[] {
   return (out?.models ?? []).map((m) => {
     const why = modelReason(m, now);
-    const note = m.model === "auto" ? "Picks per message" : m.isDefault ? "Default" : undefined;
+    // a model still being checked, or not checked, can be picked: the turn says what is wrong if it truly cannot run
+    const soft = m.allowed !== false && (m.reason === "checking" || m.reason === "not_checked");
+    const note = soft ? why : m.model === "auto" ? "Picks per message" : m.isDefault ? "Default" : undefined;
     return {
-      id: m.model, title: m.title, ...(m.contextTokens ? { window: m.contextTokens } : {}), allowed: m.allowed, ...(why ? { reason: why } : {}), ...(note ? { note } : {}),
+      id: m.model, title: m.title, ...(m.contextTokens ? { window: m.contextTokens } : {}), allowed: m.allowed, ...(why && !soft ? { reason: why } : {}), ...(note ? { note } : {}),
       ...(m.alias ? { alias: m.alias } : {}), ...(m.efforts ? { efforts: m.efforts } : {}),
     };
   });

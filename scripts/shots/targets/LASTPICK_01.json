@@ -1,0 +1,8 @@
+{
+  "targets": [
+    { "id": "LASTPICK_01-landing", "route": "/m/LASTPICK_01?part=landing", "proto": "chats,{skin}", "waitFor": "[data-testid='composer-field']", "note": "First screen: the composer already shows the model picked last." },
+    { "id": "LASTPICK_01-vaultkey", "route": "/m/P-L9b_04?v=vaultkey", "proto": "chats,{skin}", "waitFor": "[data-testid='msg-v1']", "note": "A turn that needs the Vault key when the server has none: the card says exactly what is missing, with no Unlock." },
+    { "id": "LASTPICK_01-thread-pick", "route": "/m/P-L9b_04?v=lastpick", "proto": "chats,{skin}", "waitFor": "[data-testid='msg-v1']", "note": "A chat with no pick of its own shows the last pick in its composer." },
+    { "id": "LASTPICK_01-menu", "route": "/m/TEAM1_01?part=menu", "proto": "chats,{skin}", "waitFor": "[data-testid='space-tile']", "click": "[data-testid='space-tile']", "note": "The account menu: no Lock Vyre, Sign Out stays." }
+  ]
+}

@@ -75,14 +75,14 @@ test("text that is not a Vault handle is never looked up: a sealed record field,
 
 test("a failure of the Vault itself is an error that names the code and never the text that came with it", async () => {
   const w = world(() => Object.assign(new Error(`upstream said: token ${SECRET} rejected`), { code: "provider.unavailable" }));
-  await assert.rejects(w.host.source.lookup("#Dana_Claude.setup_token", WHO), (e: unknown) => e instanceof Error && e.message === "The Vault could not be read (provider.unavailable)." && !e.message.includes(SECRET));
+  await assert.rejects(w.host.source.lookup("#Dana_Claude.setup_token", WHO), (e: unknown) => e instanceof Error && e.message === "The Vault could not read the sign-in Dana_Claude (setup_token): provider.unavailable." && !e.message.includes(SECRET));
 });
 
 test("a failure of the Vault carries a code of its own, so the chat can tell a locked Vault from a broken one", async () => {
   const w = world(() => Object.assign(new Error("boom"), { code: "provider.unavailable" }));
   await assert.rejects(w.host.source.lookup("#Dana_Claude.setup_token", WHO), (e: unknown) => (e as { code?: string }).code === "engine.vault_unreadable");
   const noCode = world(() => new Error("boom"));
-  await assert.rejects(noCode.host.source.lookup("#Dana_Claude.setup_token", WHO), (e: unknown) => (e as { code?: string }).code === "engine.vault_unreadable" && (e as Error).message === "The Vault could not be read.");
+  await assert.rejects(noCode.host.source.lookup("#Dana_Claude.setup_token", WHO), (e: unknown) => (e as { code?: string }).code === "engine.vault_unreadable" && /Dana_Claude/.test((e as Error).message) && /read failed/.test((e as Error).message) && !/^The Vault could not be read\.$/.test((e as Error).message));
 });
 
 test("a locked Vault key is engine.vault_locked, whether the Vault module or the key port says it, and no text from either reaches the message", async () => {

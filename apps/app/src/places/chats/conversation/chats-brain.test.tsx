@@ -5,7 +5,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createRoot } from "test-renderer";
 import { installDom, mount, find, press, flush, textOf } from "../../../../../../ui/src/testing/dom.ts";
-import { ChatBrain, configureAgent, connectedAccounts, isMissingCap, modeOf, panelUsage, prettyModel, resetMissing, setChatMode, stripAgents } from "./brain.tsx";
+import { ChatBrain, configureAgent, connectedAccounts, withLastPick, isMissingCap, modeOf, panelUsage, prettyModel, resetMissing, setChatMode, stripAgents } from "./brain.tsx";
 import type { ConversationData } from "./data.tsx";
 import type { Thread } from "./model.ts";
 
@@ -169,4 +169,13 @@ test("the person's own accounts are listed, shown and pinned before a Space acco
     { ref: "#mine_cl", driver: "claude_code", kind: "subscription", title: "Claude", name: "Claude", status: "ok", mine: true },
   ];
   assert.deepEqual(connectedAccounts(rows).map((a) => a.ref), ["#mine_oc", "#mine_cl", "#space_oc"]);
+});
+
+test("a chat with no pick of its own shows the last pick before its first turn; a pick of its own is kept; Auto counts", () => {
+  const bare = { ...thread, agents: [{ agentId: "agt_intake", mode: "lead" }] } as unknown as Thread;
+  assert.equal(withLastPick(bare, null), bare);
+  const shown = withLastPick(bare, { model: "glm-5", provider: "opencode-go", effort: "high" });
+  assert.deepEqual([shown.agents[0]!.model, shown.agents[0]!.provider, shown.agents[0]!.effort], ["glm-5", "opencode-go", "high"]);
+  assert.equal(withLastPick(thread, { model: "glm-5" }).agents[0]!.model, "claude-sonnet-5-5", "its own pick wins");
+  assert.equal(withLastPick(bare, { model: "auto" }).agents[0]!.model, "auto");
 });

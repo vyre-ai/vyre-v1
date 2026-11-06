@@ -320,3 +320,24 @@ export async function compactChat(data: Pick<ConversationData, "call" | "threadI
   });
   return typeof out?.line === "string" ? out.line : null;
 }
+
+/* ---------- the model a person picked last ---------- */
+
+export interface LastPick { model?: string; provider?: string; effort?: Effort }
+
+/** What this person picked last, anywhere (engine.last_pick.get): a chat with no pick of its own shows it before its first turn, the way a new chat starts on it. Null until it is read, and when there is none. */
+export function useLastPick(data: { call(cap: string, input: unknown): unknown }): LastPick | null {
+  const [pick, setPick] = useState<LastPick | null>(null);
+  useEffect(() => {
+    let live = true;
+    void Promise.resolve(data.call("engine.last_pick.get", {})).then((out) => { const o = out as LastPick | null | undefined; if (live && o?.model) setPick(o); }, () => undefined);
+    return () => { live = false; };
+  }, [data]);
+  return pick;
+}
+
+/** The thread as the composer shows it: an agent with no model of its own wears the last pick. The server applies the same pick at its first turn. */
+export function withLastPick(thread: Thread, pick: LastPick | null): Thread {
+  if (!pick?.model) return thread;
+  return { ...thread, agents: thread.agents.map((a) => (a.model ? a : { ...a, model: pick.model!, ...(pick.provider ? { provider: pick.provider } : {}), ...(pick.effort && !a.effort ? { effort: pick.effort } : {}) })) };
+}

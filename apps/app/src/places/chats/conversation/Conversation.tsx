@@ -53,7 +53,7 @@ import type { ReplySummary } from "./replies.ts";
 import type { LiveQuery } from "../../../../../../client/src/index.ts";
 import { useAddSheet } from "../addsheet/index.ts";
 import { useChatViewing, useOpenPublished } from "./artifact-open.ts";
-import { ChatBrain, compactChat, entryOf, modeOf, prettyModel, setChatMode, stripAgents, useAccounts, usePickUnavailable, useUsage } from "./brain.tsx";
+import { ChatBrain, compactChat, entryOf, modeOf, prettyModel, setChatMode, stripAgents, useAccounts, useLastPick, usePickUnavailable, useUsage, withLastPick } from "./brain.tsx";
 import type { ChatMode } from "../../../../../../ui/src/Composer/index.tsx";
 import { useConnectVersion } from "../../../shell/connect/context.ts";
 import { windowAround } from "./focus.ts";
@@ -296,6 +296,7 @@ function ConversationView(): ReactElement {
   // the lead's context, read again whenever the message count changes (a turn ended or a message went out)
   const leadUsage = useUsage(data, leadNow?.agentId ?? null, leadNow?.accountRef ?? null, messagesQ.status === "loading" ? 0 : messagesQ.data.messages.length);
   const leadPickOff = usePickUnavailable(data, leadNow?.model, leadNow?.accountRef ?? null);
+  const lastPick = useLastPick(data);
   const outsideOffline = useOutsideOffline(data, leadNow?.agentId ?? null, messagesQ.status === "loading" ? 0 : messagesQ.data.messages.length);
   const place = useRunsOn({ call: data.call, threadId: data.threadId, agentId: leadNow?.agentId, spaceName: data.spaceName ?? "The Space", say });
   const serverMode = threadQ.status === "loading" ? null : modeOf(threadQ.data.thread);
@@ -609,7 +610,8 @@ function ConversationView(): ReactElement {
   };
   const contexts = new Map<string, { used: number; window: number } | null>();
   if (lead && leadUsage !== "loading") contexts.set(lead.agentId, leadUsage?.context ?? null);
-  const composerAgents = stripAgents(thread, nameOf, accounts ?? [], contexts, new Set(lead && leadPickOff ? [lead.agentId] : []));
+  const shownThread = withLastPick(thread, lastPick);
+  const composerAgents = stripAgents(shownThread, nameOf, accounts ?? [], contexts, new Set(lead && leadPickOff ? [lead.agentId] : []));
   // a person @mentioned who is not in a private chat: Add them (the chat becomes a group chat), or start a channel instead
   const personMention = thread.kind === "chat"
     ? mentionsIn(typed, data.directory.filter((c) => c.kind === "person" && c.id !== data.me.id && !thread.members.some((m) => m.id === c.id)))[0]
@@ -792,7 +794,7 @@ function ConversationView(): ReactElement {
             agents={composerAgents} mode={mode} onMode={chooseChatMode}
             barExtra={<MemorySwitch threadId={thread.threadId} call={data.call} say={say} />}
             suggest={composerSuggest(data)} preview={(item) => previewOf(data, item)}
-            renderPanel={(agent, close, narrowPanel) => <ChatBrain data={data} thread={thread} agent={agent} accounts={accounts} mode={mode} onMode={chooseChatMode} close={close} narrow={narrowPanel} say={say} {...(place.runs ? { runs: place.runs } : {})} onCompact={(keep, always) => void compactChat(data, keep, always, agent.id).then((line) => { if (line === null) say(keep ? `Compacted, keeping ${keep}` : "Compacted"); }, fail("Could not compact."))} />}
+            renderPanel={(agent, close, narrowPanel) => <ChatBrain data={data} thread={shownThread} agent={agent} accounts={accounts} mode={mode} onMode={chooseChatMode} close={close} narrow={narrowPanel} say={say} {...(place.runs ? { runs: place.runs } : {})} onCompact={(keep, always) => void compactChat(data, keep, always, agent.id).then((line) => { if (line === null) say(keep ? `Compacted, keeping ${keep}` : "Compacted"); }, fail("Could not compact."))} />}
             onAddPeople={() => add.open({ threadId: thread.threadId })}
             {...(lead ? { lead: nameOf(lead.agentId) } : {})} members={thread.members.filter((p) => p.kind === "person").map((p) => nameOf(p.id))} listening={collect(thread.agents.filter((a) => a.mode === "listen"), (a) => nameOf(a.agentId))}
             lists={lists} agentChat={thread.kind !== "channel"} onChange={(t) => { typedRef.current = t; setTyped(t); }} onCommand={(name) => void runSlash(`/${name}`, commandEnv())}

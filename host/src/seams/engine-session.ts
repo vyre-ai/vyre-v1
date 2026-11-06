@@ -37,6 +37,10 @@ export interface EngineSessionHostDeps {
   lockedWaitMs?: number;
   /** How often it looks again while waiting. Default 2 s. */
   lockedPollMs?: number;
+  /** Whether this node holds the person's Vault key right now (the keyring). Absent: not known. */
+  keyHeld?(person: string): boolean;
+  /** Ask for the key to be there again (the node reopens it from the sign-in's wrap, or the app hands it over): true when it is held afterwards. Tried once before a turn waits. */
+  rehand?(person: string): Promise<boolean>;
   /** For tests. */
   sleep?(ms: number): Promise<void>;
   now?(): number;
@@ -73,6 +77,13 @@ function whyUnusable(e: unknown, code: string | null): string {
   const field = /no field (\w+)/i.exec(m)?.[1];
   if (field) return `That account's Vault item has no ${field} field. Sign in to it again.`;
   return code === "validation.not_found" ? "The Vault item for that account is gone or not shared with you. Sign in to it again." : "The Vault could not use that account's item. Sign in to it again.";
+}
+
+/** What failed, with no text the Vault or a provider sent (it can carry a secret): the code when there is one, else the kind of error. */
+function plainCause(e: unknown, code: string | null): string {
+  if (code !== null) return `${code}.`;
+  const kind = e instanceof Error && e.name !== "" ? e.name : "an unknown error";
+  return `the read failed (${kind}).`;
 }
 
 /** An error the turn engine reads the code of (agent/src/turn-engine/engine.ts), so the failure reaches the chat under that code. */
@@ -133,7 +144,17 @@ export function createEngineSessionHost(d: EngineSessionHostDeps): EngineSession
           if (r.status !== "ok") return { kind: "denied", reason: "no_access" };
           const itemId = (r.output as { itemId?: unknown } | null)?.itemId;
           if (typeof itemId !== "string") return { kind: "unknown" };
-          const value = await d.vault.secret(handle, d.space, service ? undefined : who.asker);
+          const asker = service ? undefined : who.asker;
+          let value: string;
+          try { value = await d.vault.secret(handle, d.space, asker); }
+          catch (first) {
+            // The key is not on this node (the app was updated or restarted and has not handed it over yet): try to get it back once and read again, before the turn waits or fails
+            const missing = vaultLocked(first) || (asker !== undefined && d.keyHeld !== undefined && !d.keyHeld(asker));
+            if (!missing) throw first;
+            d.log?.("the vault key was not on this node for a read", { handle: item, field: field ?? null, class: first instanceof Error ? first.name : "unknown" });
+            if (asker === undefined || !d.rehand || !(await d.rehand(asker).catch(() => false))) throw Object.assign(first instanceof Error ? first : new Error(String(first)), { details: { reason: "vault_locked" } });
+            value = await d.vault.secret(handle, d.space, asker);
+          }
           return { kind: "value", itemId, value, spaceOnly: false, injectIntoDeployments: false };
         } catch (e) {
           const code = codeOf(e);
@@ -149,7 +170,7 @@ export function createEngineSessionHost(d: EngineSessionHostDeps): EngineSession
           }
           // Never the original text: it may carry request text. A locked key and every other refusal carry a code of their own, so the chat shows an Unlock card or a precise reason, not "did not finish".
           if (vaultLocked(e)) throw coded("engine.vault_locked", "Your Vault key is not on this server, so your sign-in cannot be opened. Your Mine items open while you are signed in: open Vyre on your device and sign in.");
-          throw coded("engine.vault_unreadable", code !== null ? `The Vault could not be read (${code}).` : "The Vault could not be read.");
+          throw coded("engine.vault_unreadable", `The Vault could not read the sign-in ${item}${field ? ` (${field})` : ""}: ${plainCause(e, code)}`);
         }
   };
 

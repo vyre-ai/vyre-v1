@@ -7,7 +7,7 @@ import { readFileSync } from "node:fs";
 import { windowFor } from "../../../../agent/src/transcript/windows.ts";
 import { actorOf, raise } from "../../projections.ts";
 import { completerOf, ensureRuntime } from "../../runtime.ts";
-import { CLI_PROBE_PARALLEL, CLI_PROBE_TIMEOUT_MS, PROBE_CAP, PROBE_PROMPT, noteAccount, confirmedFor, probeModels, probeRunning, probing, unavailableFor } from "../../model-health.ts";
+import { CLI_PROBE_PARALLEL, CLI_PROBE_TIMEOUT_MS, PROBE_CAP, PROBE_PROMPT, noteAccount, notCheckedFor, confirmedFor, probeModels, probeRunning, probing, unavailableFor } from "../../model-health.ts";
 import { LIVE_DRIVERS, modelsFor, savedTested, saveTested } from "../../live-models.ts";
 import type { LiveModel, ModelsState } from "../../live-models.ts";
 import type { EngineCtx } from "../../projections.ts";
@@ -70,7 +70,7 @@ function prettyModel(model: string): string {
 }
 
 interface ModelInfo {
-  provider: string; model: string; title: string; driver: Driver; contextTokens?: number; allowed: boolean; reason?: "label_provider" | "policy_model" | "not_connected" | "usage_limit" | "checking"; resetsAt?: number;
+  provider: string; model: string; title: string; driver: Driver; contextTokens?: number; allowed: boolean; reason?: "label_provider" | "policy_model" | "not_connected" | "usage_limit" | "checking" | "not_checked"; resetsAt?: number;
   /** The CLI's own name that resolves to this model today (Claude Code's opus): a pick saved as the alias is this row. */
   alias?: string; isDefault?: boolean; efforts?: string[]; defaultEffort?: string;
 }
@@ -139,8 +139,9 @@ export async function modelsList(ctx: EngineCtx, input: { accountRef?: string; t
     const checking = new Set<string>();
     const isCli = subs.includes(p);
     noteAccount(ctx.db, p.id, ref);
-    if (!passive && p.spaceKey !== true && completerOf() !== null) {
-      const known = confirmedFor(ctx.db, ref, ctx.now());
+    const known = confirmedFor(ctx.db, ref, ctx.now());
+    const nc = notCheckedFor(ref, ctx.now());
+    if (!passive && p.spaceKey !== true && completerOf() !== null && !nc.account) {
       const unsure = models.filter((m) => !refused.has(m) && !known.has(m)).slice(0, PROBE_CAP);
       for (const m of unsure) checking.add(m);
       if (unsure.length > 0) probeModels(ctx.db, ref, unsure, async (r, m) => { await ctx.call("engine.complete", { accountRef: r, prompt: PROBE_PROMPT, model: m }); }, ctx.now, isCli ? { parallel: CLI_PROBE_PARALLEL, timeoutMs: CLI_PROBE_TIMEOUT_MS } : {});
@@ -153,8 +154,8 @@ export async function modelsList(ctx: EngineCtx, input: { accountRef?: string; t
       // a pick saved as the alias (sonnet) ran out under that name: the row it resolves to is greyed too
       const spentAs = spent ?? (why === null && lm?.alias ? out.get(lm.alias) : undefined);
       const row: ModelInfo = {
-        provider: p.providerKey, model, title: lm?.title ?? prettyModel(model), driver: driverOf(p), contextTokens: windowFor(model, p.providerKey), allowed: why === null && spentAs === undefined && !checking.has(model),
-        ...(why !== null ? { reason: why } : checking.has(model) && spentAs === undefined ? { reason: "checking" as const } : spentAs ? { reason: "usage_limit" as const, ...(spentAs.resetsAt !== undefined ? { resetsAt: spentAs.resetsAt } : {}) } : {}),
+        provider: p.providerKey, model, title: lm?.title ?? prettyModel(model), driver: driverOf(p), contextTokens: windowFor(model, p.providerKey), allowed: why === null && spentAs === undefined,
+        ...(why !== null ? { reason: why } : spentAs === undefined && checking.has(model) ? { reason: "checking" as const } : spentAs === undefined && !known.has(model) && (nc.account || nc.models.has(model)) ? { reason: "not_checked" as const } : spentAs ? { reason: "usage_limit" as const, ...(spentAs.resetsAt !== undefined ? { resetsAt: spentAs.resetsAt } : {}) } : {}),
         ...(lm?.alias ? { alias: lm.alias } : {}), ...(lm?.isDefault ? { isDefault: true } : {}), ...(lm?.efforts ? { efforts: lm.efforts } : {}), ...(lm?.defaultEffort ? { defaultEffort: lm.defaultEffort } : {}),
       };
       const key = `${row.provider}/${row.model}`;

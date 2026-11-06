@@ -97,3 +97,19 @@ test("with no pick kept, the chat starts with no model so the Space default answ
     assert.equal(start.input["model"], undefined);
   } finally { off(); }
 });
+
+test("a remembered Auto starts the new chat on Auto, not on an older model", async () => {
+  const off = installDom();
+  try {
+    const w = world({ assistantRowAfter: 0, last: { model: "auto", provider: "anthropic" } });
+    const opened: string[] = [];
+    const r = createRoot();
+    await act(async () => { r.render(page(w.rtWith({ id: REAL, name: "Assistant" }), opened)); });
+    for (let i = 0; i < 5; i++) await flush();
+    const root = r.container as unknown as Node;
+    await typeInto(find(root, "composer-field"), "Hi");
+    await press(find(root, "composer-send"));
+    for (let i = 0; i < 20 && opened.length === 0; i++) await flush();
+    assert.equal(w.calls.find((c) => c.cap === "chat.start")!.input["model"], "auto");
+  } finally { off(); }
+});

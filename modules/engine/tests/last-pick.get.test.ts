@@ -32,3 +32,13 @@ test("a new chat starts on the latest pick of any agent, not an older pick for i
   rememberPick(h.db, "usr_dana", "agt_docs", { model: "glm-5", provider: "opencode-go", effort: "low" }, 2);
   assert.deepEqual(recallPick(h.db, "usr_dana", "agt_intake"), { model: "glm-5", provider: "opencode-go", effort: "low" });
 });
+
+test("picking Auto is a pick: it is remembered over an older specific model, and no pick at all stays different from Auto", async () => {
+  const { recallPick } = await import("../last-pick.ts");
+  const h = harness();
+  assert.equal(recallPick(h.db, "usr_dana", "agt_intake"), null, "no pick yet");
+  rememberPick(h.db, "usr_dana", "agt_intake", { model: "claude-sonnet-5-5", provider: "anthropic", effort: "high" }, 1);
+  rememberPick(h.db, "usr_dana", "agt_docs", { model: "auto", provider: "anthropic", effort: null }, 2);
+  assert.equal(recallPick(h.db, "usr_dana", "agt_intake")?.model, "auto");
+  assert.deepEqual(await lastPickGet(h.ctx), { model: "auto", provider: "anthropic" });
+});

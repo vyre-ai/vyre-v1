@@ -85,13 +85,13 @@ type GateState = "checking" | "nopassword" | "open";
  * hands it to the node that needs it, with no password, no lock screen and no timer. A session that has no key on this device (it was signed in before keys were kept here, or the device store was wiped)
  * cannot open the Vault, so it is signed out: signing in again is the one place the password is asked. While the app runs it hands the key back to a node that restarted.
  */
-export function KeyGate({ baseUrl, token, onSignOut, children }: { baseUrl: string; token: string; name?: string; onSignOut?: () => void; /** kept for callers; there is no unlock sheet any more */ onForgot?: () => void; children: ReactNode }): ReactElement | null {
+export function KeyGate({ baseUrl, token, onSignOut, onNoKey, children }: { baseUrl: string; token: string; name?: string; onSignOut?: () => void; /** a session with no Vault key on this device: sign in again (says why once); else onSignOut */ onNoKey?: () => void; /** kept for callers; there is no unlock sheet any more */ onForgot?: () => void; children: ReactNode }): ReactElement | null {
   const own = isLoopbackUrl(baseUrl);
   // a Space server reached over https holds the key while a signed-in device hands it over, so the app hands it over at launch
   const remote = !own && keyDoor(baseUrl) !== null;
   const [state, setState] = useState<GateState>(own || remote ? "checking" : "open");
   const signOut = useRef(onSignOut);
-  signOut.current = onSignOut;
+  signOut.current = onNoKey ?? onSignOut;
   useEffect(() => {
     if (!own && !remote) return undefined;
     let live = true;

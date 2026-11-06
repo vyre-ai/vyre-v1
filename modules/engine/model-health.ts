@@ -16,7 +16,11 @@ export const PROBE_CAP = 12;
 export const PROBE_PARALLEL = 2;
 /** A CLI engine is probed one model at a time, each with this long to answer (a process per model is heavy). A timeout says nothing about the model. */
 export const CLI_PROBE_PARALLEL = 1;
-export const CLI_PROBE_TIMEOUT_MS = 45_000;
+export const CLI_PROBE_TIMEOUT_MS = 10_000;
+/** An API key's check gets this long; a check that takes longer is "Not checked", and the model stays selectable. */
+export const API_PROBE_TIMEOUT_MS = 10_000;
+/** How long "Not checked" is remembered before the account is checked again. */
+export const NOT_CHECKED_MS = 60_000;
 export const PROBE_PROMPT = "Reply with the single word: ok";
 
 const ready = new WeakSet<object>();
@@ -81,11 +85,29 @@ export type Ask = (ref: string, model: string) => Promise<void>;
 const running = new Map<string, Promise<void>>();
 const key = (ref: string, model: string): string => `${ref}\u0000${model}`;
 
+const unchecked = new Map<string, number>();
+const star = "*";
+/** A check ended without an answer for a reason that says nothing about the model (the Vault key is not on this node, or it took too long): it is "Not checked", not "Checking", for a while. `model` null: the whole account. */
+export const markNotChecked = (ref: string, model: string | null, now: number): void => { unchecked.set(key(ref, model ?? star), now); };
+/** What is not checked for this account right now: all of it, or these models. */
+export function notCheckedFor(ref: string, now: number): { account: boolean; models: Set<string> } {
+  const out = { account: false, models: new Set<string>() };
+  for (const [k, at] of unchecked) {
+    if (now - at > NOT_CHECKED_MS) { unchecked.delete(k); continue; }
+    const [r, m] = k.split("\u0000");
+    if (r !== ref) continue;
+    if (m === star) out.account = true; else out.models.add(m!);
+  }
+  return out;
+}
+/** A probe failed because the person's Vault key is not on this node. */
+export const keyMissing = (text: string): boolean => /engine\.vault_locked|vault key is (?:locked|not on)|sign-ins are locked|Vault is not live/i.test(text);
+
 /** Probes in flight for these accounts, so a read can wait for them. */
 export const probing = (refs: readonly string[]): Promise<void>[] => [...running.entries()].filter(([k]) => refs.some((r) => k.startsWith(`${r}\u0000`))).map(([, p]) => p);
 export const probeRunning = (ref: string): boolean => [...running.keys()].some((k) => k.startsWith(`${ref}\u0000`));
 /** Tests: forget probes in flight. */
-export function resetProbes(): void { running.clear(); }
+export function resetProbes(): void { running.clear(); unchecked.clear(); }
 
 /**
  * Check these models in the background, two at a time: an answer confirms the model, the provider refusing it marks it bad, and anything else (a rate limit, no network, a failed sign-in) says nothing
@@ -94,22 +116,33 @@ export function resetProbes(): void { running.clear(); }
 export function probeModels(db: Db, ref: string, models: readonly string[], ask: Ask, now: () => number, o: { parallel?: number; timeoutMs?: number } = {}): void {
   const todo = models.filter((m) => !running.has(key(ref, m))).slice(0, PROBE_CAP);
   const queue = [...todo];
-  const one = async (): Promise<void> => {
+  // the first model is asked alone: when that read fails because the Vault key is not on this node, the other lanes never start (one failed read per account, not one per model)
+  let firstDone: () => void = () => undefined;
+  const first = new Promise<void>((r) => { firstDone = r; });
+  const one = async (lane: number): Promise<void> => {
+    if (lane > 0) await first;
     for (let m = queue.shift(); m !== undefined; m = queue.shift()) {
-      try { await (o.timeoutMs === undefined ? ask(ref, m) : within(ask(ref, m), o.timeoutMs)); markConfirmed(db, ref, m, now()); }
+      try { await within(ask(ref, m), o.timeoutMs ?? API_PROBE_TIMEOUT_MS); markConfirmed(db, ref, m, now()); }
       catch (e) {
         const text = `${(e as { code?: unknown } | null)?.code ?? ""} ${e instanceof Error ? e.message : String(e)}`;
-        if (refusesModel(text)) markUnavailable(db, ref, m, now()); else markConfirmed(db, ref, m, now());
+        if (keyMissing(text)) {
+          // one failure for the account, not one per model: the rest of the queue is dropped and the whole account reads "Not checked" for a while
+          markNotChecked(ref, null, now());
+          for (const left of queue.splice(0)) running.delete(key(ref, left));
+        } else if (e instanceof Error && e.message === TOO_LONG) markNotChecked(ref, m, now());
+        else if (refusesModel(text)) markUnavailable(db, ref, m, now());
+        else markConfirmed(db, ref, m, now());
       }
-      finally { running.delete(key(ref, m)); }
+      finally { running.delete(key(ref, m)); if (lane === 0) firstDone(); }
     }
   };
-  const lanes = Array.from({ length: Math.min(o.parallel ?? PROBE_PARALLEL, queue.length) }, () => one());
+  const lanes = Array.from({ length: Math.min(o.parallel ?? PROBE_PARALLEL, queue.length) }, (_, i) => one(i));
   const all = Promise.all(lanes).then(() => undefined);
   for (const m of todo) running.set(key(ref, m), all);
 }
 
+const TOO_LONG = "the check took too long";
 function within<T>(p: Promise<T>, ms: number): Promise<T> {
   let t: ReturnType<typeof setTimeout> | undefined;
-  return Promise.race([p, new Promise<never>((_, rej) => { t = setTimeout(() => rej(new Error("the check took too long")), ms); (t as { unref?: () => void }).unref?.(); })]).finally(() => { if (t !== undefined) clearTimeout(t); });
+  return Promise.race([p, new Promise<never>((_, rej) => { t = setTimeout(() => rej(new Error(TOO_LONG)), ms); (t as { unref?: () => void }).unref?.(); })]).finally(() => { if (t !== undefined) clearTimeout(t); });
 }
