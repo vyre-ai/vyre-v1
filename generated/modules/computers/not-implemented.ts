@@ -9,6 +9,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "computers.browser.profiles": async (ctx) => { throw new VyreErr(notImplemented("computers.browser.profiles", ctx.trace)); },
   "computers.browser.stream": async (ctx) => { throw new VyreErr(notImplemented("computers.browser.stream", ctx.trace)); },
   "computers.browser.take_over": async (ctx) => { throw new VyreErr(notImplemented("computers.browser.take_over", ctx.trace)); },
+  "computers.browser.timeline": async (ctx) => { throw new VyreErr(notImplemented("computers.browser.timeline", ctx.trace)); },
   "computers.chrome.act": async (ctx) => { throw new VyreErr(notImplemented("computers.chrome.act", ctx.trace)); },
   "computers.chrome.api": async (ctx) => { throw new VyreErr(notImplemented("computers.chrome.api", ctx.trace)); },
   "computers.chrome.batch": async (ctx) => { throw new VyreErr(notImplemented("computers.chrome.batch", ctx.trace)); },

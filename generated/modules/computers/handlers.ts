@@ -9,6 +9,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "computers.browser.profiles": Handler<"computers.browser.profiles", X>;
   "computers.browser.stream": Handler<"computers.browser.stream", X>;
   "computers.browser.take_over": Handler<"computers.browser.take_over", X>;
+  "computers.browser.timeline": Handler<"computers.browser.timeline", X>;
   "computers.chrome.act": Handler<"computers.chrome.act", X>;
   "computers.chrome.api": Handler<"computers.chrome.api", X>;
   "computers.chrome.batch": Handler<"computers.chrome.batch", X>;

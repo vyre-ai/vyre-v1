@@ -8582,6 +8582,27 @@ export type ComputersBrowserTakeOverOut = {
     access: "owner" | "admin" | "viewer";
   };
 };
+export type ComputersBrowserTimelineIn = {
+  agentId: string;
+  runId?: string;
+  threadId?: string;
+  cursor?: string;
+  limit?: number;
+};
+export type ComputersBrowserTimelineOut = {
+  steps: Array<{
+      stepId: string;
+      idx: number;
+      at: number;
+      caption: string;
+      tool: string;
+      frameFileId?: string;
+      by: "agent" | "person";
+      runId?: string;
+    }>;
+  next?: string;
+  total?: number;
+};
 export type ComputersChromeActIn = {
   computerId?: string;
   tabId?: string;
@@ -44969,6 +44990,7 @@ export interface CapMap {
   "computers.browser.profiles": { in: ComputersBrowserProfilesIn; out: ComputersBrowserProfilesOut };
   "computers.browser.stream": { in: ComputersBrowserStreamIn; out: ComputersBrowserStreamOut };
   "computers.browser.take_over": { in: ComputersBrowserTakeOverIn; out: ComputersBrowserTakeOverOut };
+  "computers.browser.timeline": { in: ComputersBrowserTimelineIn; out: ComputersBrowserTimelineOut };
   "computers.chrome.act": { in: ComputersChromeActIn; out: ComputersChromeActOut };
   "computers.chrome.api": { in: ComputersChromeApiIn; out: ComputersChromeApiOut };
   "computers.chrome.batch": { in: ComputersChromeBatchIn; out: ComputersChromeBatchOut };

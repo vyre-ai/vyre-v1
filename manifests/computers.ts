@@ -139,6 +139,9 @@ export default defineManifest({
     write('computers.browser.give_back', "Give an agent's browser back to the agent; the person who has the controls or an admin may", {
       in: { agentId: id.agent }, out: { profile: browserRow }, perm: 'computers.take_over', level: 'use', audit: 'sensitive', idem: 'natural', offline: 'online', errors: ['permission.no_grant', 'provider.unavailable'],
     }),
+    read('computers.browser.timeline', "What an agent did in its Space browser, step by step with a picture each: the same timeline as a computer's, for the agent's profile. Only for a browser you may watch", {
+      in: { agentId: id.agent, runId: t.opt(id.run), threadId: t.opt(id.thread), ...pageIn }, out: { steps: t.arr(stepRow), ...pageOut }, perm: 'computers.watch', label: 'filter', errors: ['permission.no_grant', 'validation.not_found'],
+    }),
     read('computers.health', 'Health of the container runtime and agentd on the host', {
       out: { state: t.enm('healthy', 'degraded', 'down'), detail: t.opt(t.str()), runtime: t.opt(t.enm('ready', 'missing')), latencyMs: t.opt(t.int()), awake: t.int(), asleep: t.int() },
     }),
@@ -295,6 +298,11 @@ export default defineManifest({
     }, 'Screenshot: {{caption}}', {
       opens: { tab: 'computer', input: { computerId: '/computerId' } },
       actions: [{ key: 'make_skill', label: 'Make a skill from here', cap: 'computers.skill_from_step', input: { computerId: '/computerId', stepId: '/stepId' } }],
+    }),
+    block('browser_screenshot', {
+      agentId: id.agent, fileId: id.file, caption: t.str(), stepId: t.opt(t.id('stp')), stepIndex: t.opt(t.int()), at: t.ts(), live: t.opt(t.bool()),
+    }, 'Browser: {{caption}}', {
+      opens: { tab: 'computer', input: { agentId: '/agentId' } },
     }),
   ],
   health: [

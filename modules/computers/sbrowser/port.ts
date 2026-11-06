@@ -31,6 +31,8 @@ export interface BrowserToolCall {
   timeoutMs: number;
   /** `person` is the person at the controls acting through the live view: browserd lets it through a takeover that holds the agent's tools. */
   by?: "person";
+  /** Who the browser belongs to, for its start page: the agent's name and its face (an SVG drawn once, sent when it changes). */
+  agent?: { name: string; faceSvg?: string };
   /** The Space this agent works in: Vyre for Chrome in the profile is paired with it, as the agent, so Vault logins fill. */
   space?: string;
   /** The Vault channel of this profile's agent for #Handle.field in the call: held by browserd in memory, for this profile only. */

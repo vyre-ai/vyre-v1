@@ -527,6 +527,7 @@ export function stubs(ctx: CallCtx) {
         profiles: call("computers.browser.profiles"),
         stream: call("computers.browser.stream"),
         take_over: call("computers.browser.take_over"),
+        timeline: call("computers.browser.timeline"),
       },
       chrome: {
         act: call("computers.chrome.act"),

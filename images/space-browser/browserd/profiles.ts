@@ -71,6 +71,8 @@ export interface Profile {
   viewers: number;
   /** The agent this profile belongs to, as the Space said when it configured it. */
   agentId: string | undefined;
+  /** The agent's name, for its start page. */
+  agentName: string | undefined;
   spaceId: string | undefined;
   starting: Promise<void> | null;
 }
@@ -126,7 +128,7 @@ export function createProfileManager(o: ProfileManagerOptions): ProfileManager {
       p = {
         id, dir, vault: createVault(),
         state: { stopped: false, tabLimit: o.tabLimit ?? 10, takeover: null, busy: 0, caption: undefined },
-        chrome: null, port: null, lastActiveAt: now(), viewers: 0, agentId: undefined, spaceId: undefined, starting: null,
+        chrome: null, port: null, lastActiveAt: now(), viewers: 0, agentId: undefined, agentName: undefined, spaceId: undefined, starting: null,
       };
       profiles.set(id, p);
     }

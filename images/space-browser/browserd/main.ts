@@ -10,7 +10,7 @@
 //   downloads     { profileId } -> { downloads: [{ name, size, at }] }     download_read { profileId, name } -> { base64 }      download_ack { profileId, name }
 //   stop          { profileId }  (the browser stops, the folder stays)      forget { profileId }  (the folder goes too)
 //   sessions      { profileId }                                     -> { sessions: [{ site, since, lastSeen }] }      sign_out { profileId, site } -> { ok }
-import { chmodSync, existsSync, mkdirSync, rmSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { createServer as createNetServer } from "node:net";
 import type { Socket } from "node:net";
 import { networkInterfaces } from "node:os";
@@ -119,6 +119,9 @@ async function dispatch(action: string, a: Args): Promise<Args> {
       const n = a["tabLimit"];
       if (typeof n === "number" && Number.isInteger(n) && n >= 1 && n <= 200) p.state.tabLimit = n;
       if (typeof a["agentId"] === "string") p.agentId = a["agentId"];
+      if (typeof a["agentName"] === "string") manager.get(pid).agentName = a["agentName"].slice(0, 80);
+      // the face is drawn once by the host and kept with the profile, so the start page fetches nothing
+      if (typeof a["faceSvg"] === "string" && a["faceSvg"].startsWith("<svg") && a["faceSvg"].length < 60_000) { mkdirSync(manager.get(pid).dir, { recursive: true }); writeFileSync(`${manager.get(pid).dir}/face.svg`, a["faceSvg"]); }
       if (typeof a["spaceId"] === "string") p.spaceId = a["spaceId"];
       // The Vault channel for this profile only: held in memory, set again on every start. A profile fills only as its own agent.
       if (typeof a["fillUrl"] === "string" && typeof a["fillToken"] === "string") p.vault.setFiller(a["fillUrl"], a["fillToken"], p.id);

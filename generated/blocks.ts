@@ -16,6 +16,15 @@ export type ArtifactBlockData = {
   artifactId: string;
   title: string;
 };
+export type BrowserScreenshotBlockData = {
+  agentId: string;
+  fileId: string;
+  caption: string;
+  stepId?: string;
+  stepIndex?: number;
+  at: number;
+  live?: boolean;
+};
 export type ChangesetBlockData = {
   changesetId: string;
   folderId: string;
@@ -334,6 +343,7 @@ export type VaultUsedBlockData = {
 export interface BlockDataMap {
   "access_request": AccessRequestBlockData;
   "artifact": ArtifactBlockData;
+  "browser_screenshot": BrowserScreenshotBlockData;
   "changeset": ChangesetBlockData;
   "checklist": ChecklistBlockData;
   "crew_result": CrewResultBlockData;
@@ -409,6 +419,21 @@ export const blockRegistry = [
       "tab": "artifact",
       "input": {
         "artifactId": "/artifactId"
+      }
+    }
+  },
+  {
+    "type": "browser_screenshot",
+    "v": 1,
+    "module": "computers",
+    "component": "ui:BlockBrowserScreenshot",
+    "fallback": "Browser: {{caption}}",
+    "waitsForAnswer": false,
+    "actions": [],
+    "opens": {
+      "tab": "computer",
+      "input": {
+        "agentId": "/agentId"
       }
     }
   },

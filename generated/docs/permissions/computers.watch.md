@@ -16,6 +16,7 @@ Area: agents. Risk: low. Applies to: computer.
 
 - computers.browser.profiles
 - computers.browser.stream
+- computers.browser.timeline
 - computers.get
 - computers.list
 - computers.recording.get

@@ -16,6 +16,8 @@ import { spaceBrowser } from "../../sbrowser/port.ts";
 import { profileIdOf } from "../../sbrowser/policy.ts";
 import { takeDownloads } from "../../sbrowser/downloads.ts";
 import { needRoom } from "../../sbrowser/room.ts";
+import { agentInfo } from "../../sbrowser/agentinfo.ts";
+import { faceSvg } from "../../sbrowser/face.ts";
 import { waitingNote } from "../../capacity.ts";
 
 export type ToolArgs = Record<string, unknown>;
@@ -150,6 +152,18 @@ async function browserUsable(sb: NonNullable<ReturnType<typeof spaceBrowser>>, n
   return ok;
 }
 
+/** The chat's live card for work in an agent's Space browser: one per burst of ten quiet minutes. Posting never fails the tool call. */
+async function browserCard(ctx: CompCtx, agentId: string, caption: string, fileId: string | undefined, at: number): Promise<void> {
+  if (!ctx.thread || ctx.principal.kind !== "agent" || !fileId) return;
+  const key = `browser|${agentId}|${ctx.thread}`;
+  const prev = lastCard.get(key);
+  lastCard.set(key, at);
+  if (prev !== undefined && at - prev < LIVE_GAP_MS) return;
+  try {
+    await ctx.call("chat.post", { threadId: ctx.thread, body: "", mentions: [], idempotencyKey: `sbrlive:${agentId}:${ctx.thread}:${Math.floor(at / LIVE_GAP_MS)}`, blocks: [{ type: "browser_screenshot", v: 1, data: { agentId, fileId, caption, at, live: true } }] });
+  } catch { lastCard.delete(key); }
+}
+
 export interface Resolved {
   computer: ComputerRow; host: ComputerHost & ToolHost;
   /** The person's own Chrome, not an agent computer. */ personal?: boolean;
@@ -232,6 +246,7 @@ export async function call(ctx: CompCtx, r: Resolved, spec: ToolSpec, args: Tool
 }
 
 // The Vault channel of an agent's profile: one token per profile and asker, so the Vault logs who asked and a use after the asker changes is checked as the new asker.
+const faceSent = new Set<string>();
 const REPORTS_DOWNLOADS = new Set(["chrome_open", "chrome_click", "chrome_act", "chrome_wait", "chrome_state"]);
 const fillGrants = new Map<string, { token: string; revoke(): void }>();
 
@@ -256,9 +271,16 @@ async function browserCall(ctx: CompCtx, profileId: string, spec: ToolSpec, args
   }
   // a browser that would start needs room on the host first (a claim on a running one is the same ask)
   if (spec.name !== "chrome_status" && spec.name !== "chrome_stop" && spec.name !== "chrome_resume" && spec.name !== "chrome_plan") await needRoom(ctx, sb, profileId);
+  // the agent's name rides every call (the service keeps it in memory); its face is drawn once and kept with the profile
+  let agent: { name: string; faceSvg?: string } | undefined;
+  const who = await agentInfo(ctx, ctx.principal.id);
+  if (who) {
+    agent = { name: who.name };
+    if (!faceSent.has(profileId)) { const svg = await faceSvg(who.face); if (svg) agent.faceSvg = svg; faceSent.add(profileId); }
+  }
   let raw: ToolAnswer;
   try {
-    raw = await sb.tool({ profileId, tool: spec.name, args, timeoutMs: Math.min(spec.timeoutMs ?? DEFAULT_TOOL_MS, MAX_TOOL_MS), space: ctx.space, ...(fill ? { fill } : {}) });
+    raw = await sb.tool({ profileId, ...(agent ? { agent } : {}), tool: spec.name, args, timeoutMs: Math.min(spec.timeoutMs ?? DEFAULT_TOOL_MS, MAX_TOOL_MS), space: ctx.space, ...(fill ? { fill } : {}) });
   } catch (e) {
     return refuse(ctx, e);
   }
@@ -267,6 +289,17 @@ async function browserCall(ctx: CompCtx, profileId: string, spec: ToolSpec, args
   rememberSecrets(profileId, secretsOf(used));
   const out = scrubDeep(profileId, rest) as ToolAnswer;
   // what the browser finished downloading goes into the agent's Files (Downloads) and the agent is told where; only the steps that say so carry it
+  // a step with a caption is one line of the agent's browser timeline, with a picture of the page, and the chat shows the browser live once per burst of work
+  if (spec.caption) {
+    const at = ctx.now();
+    const words = clean(profileId, spec.caption(args, out).trim()).slice(0, 200);
+    let frame: string | undefined;
+    try { const shot = await sb.screenshot(profileId); frame = Buffer.from(shot.bytes).toString("base64"); } catch { /* a step without a picture */ }
+    const c = { computerId: profileId, agentId: ctx.principal.id } as unknown as ComputerRow;
+    const frameFileId = await keepFrame(ctx, c, frame, at);
+    addStep(ctx.db, profileId, at, { by: "agent", caption: words, tool: spec.name, ...(frameFileId ? { frameFileId } : {}), ...(ctx.run ? { runId: ctx.run } : {}), ...(ctx.thread ? { threadId: ctx.thread } : {}) });
+    await browserCard(ctx, ctx.principal.id, words, frameFileId, at);
+  }
   if (REPORTS_DOWNLOADS.has(spec.name)) {
     const saved = await takeDownloads(ctx, sb, profileId, ctx.principal.id);
     if (saved.length > 0) out["downloads"] = saved;

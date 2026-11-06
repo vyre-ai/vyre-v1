@@ -527,6 +527,7 @@ export function createClient(transport: Transport) {
         profiles: call("computers.browser.profiles", 1),
         stream: call("computers.browser.stream", 1),
         take_over: call("computers.browser.take_over", 1),
+        timeline: call("computers.browser.timeline", 1),
       },
       chrome: {
         act: call("computers.chrome.act", 1),

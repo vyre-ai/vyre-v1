@@ -1,7 +1,8 @@
 // What a person does with an agent's browser in the Space browser: see which ones they may watch, open the live view, take over and give back. Never an agent: an agent drives its own profile through the
 // chrome_* tools. Who may watch and take over a profile is policy.ts. The profile is named by the agent.
 import { ToolError } from "../handlers/tools/common.ts";
-import { actorOf, ensure, mintTicket, raise, redeemTicket } from "../projections.ts";
+import { pageOf } from "../handlers/record.ts";
+import { actorOf, ensure, mintTicket, raise, redeemTicket, rowsOf, stepOf, stepOut } from "../projections.ts";
 import type { CompCtx } from "../projections.ts";
 import { mayTakeOver, profileAccess, profileIdOf } from "./policy.ts";
 import type { ProfileAccess, ProfileAgent } from "./policy.ts";
@@ -128,7 +129,21 @@ export async function giveBack(ctx: CompCtx, input: { agentId: string }) {
   return { profile: await rowOf(ctx, sb, input.agentId, access) };
 }
 
+/** The agent's browser steps, newest last: what computers.timeline gives for a computer, for a profile. */
+export async function timeline(ctx: CompCtx, input: { agentId: string; runId?: string; threadId?: string; cursor?: string; limit?: number }) {
+  ensure(ctx.db);
+  await mayWatch(ctx, input.agentId);
+  const args: unknown[] = [input.agentId];
+  let sql = "SELECT * FROM computers_timeline WHERE computer_id = ?";
+  if (input.runId) { sql += " AND run_id = ?"; args.push(input.runId); }
+  if (input.threadId) { sql += " AND thread_id = ?"; args.push(input.threadId); }
+  sql += " ORDER BY idx";
+  const p = pageOf(rowsOf(ctx.db, sql, ...args).map(stepOf), input.cursor, input.limit);
+  return { steps: p.page.map(stepOut), ...(p.next ? { next: p.next } : {}), total: p.total };
+}
+
 export const sbrowserHandlers = {
+  "computers.browser.timeline": timeline,
   "computers.browser.profiles": profiles,
   "computers.browser.stream": stream,
   "computers.browser.take_over": takeOver,
