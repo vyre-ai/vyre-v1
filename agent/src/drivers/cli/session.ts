@@ -247,7 +247,7 @@ export function createCliSession(deps: CliSessionDeps, spec: SessionSpec): CliSe
             break;
           case "usage":
             yield {
-              type: "usage", inputTokens: item.inputTokens, outputTokens: item.outputTokens, ...(item.model ? { model: item.model } : {}), ...(item.contextTokens !== undefined ? { contextTokens: item.contextTokens } : {}),
+              type: "usage", inputTokens: item.inputTokens, outputTokens: item.outputTokens, ...(item.model ? { model: item.model } : {}), ...(item.contextWindow !== undefined ? { contextWindow: item.contextWindow } : {}), ...(item.contextTokens !== undefined ? { contextTokens: item.contextTokens } : {}),
               ...(item.cacheReadTokens !== undefined ? { cacheReadTokens: item.cacheReadTokens } : {}), ...(item.cacheWriteTokens !== undefined ? { cacheWriteTokens: item.cacheWriteTokens } : {}),
               ...(item.reasoningTokens !== undefined ? { reasoningTokens: item.reasoningTokens } : {}), ...(item.costUsd !== undefined ? { costUsd: item.costUsd } : {}),
             };

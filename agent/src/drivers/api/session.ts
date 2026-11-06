@@ -238,7 +238,7 @@ export function createApiSession(deps: SessionDeps, spec: SessionSpec): ApiSessi
       const system = orderSystem(ctx.system);
       let hash = prefixHash(system, ctx.tools, model);
       let fixed = fixedTokens(system, ctx.tools);
-      const window = windowFor(model, deps.adapter.id);
+      const window = windowFor(deps.adapter.modelName(model), deps.adapter.id);
       let messages: Msg[] = threadMessages(input);
       const maxSteps = deps.maxSteps ?? MAX_STEPS;
       for (let step = 0; step < maxSteps; step++) {

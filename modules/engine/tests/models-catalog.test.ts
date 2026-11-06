@@ -45,7 +45,7 @@ test("the catalog lists each usable account with its models, tier, context and a
   const by = (ref: string) => out.accounts.find((a) => a.ref === ref)!;
   assert.deepEqual(by("#Dana_Opencode").models.map((m) => [m.id, m.available, m.tier]), [["beam-free", "unavailable", "cheap"], ["glm-5.3", "ok", "standard"], ["kimi-k3", "unverified", "standard"]]);
   assert.equal(by("#Dana_Opencode").usable, true, "two of its models can answer");
-  assert.deepEqual(by("#Dana_Anthropic").models.map((m) => [m.id, m.available, m.tier, m.vision, m.context]), [["claude-sonnet-5-5", "ok", "standard", true, 200_000], ["claude-haiku-5-5", "unverified", "cheap", true, 200_000]]);
+  assert.deepEqual(by("#Dana_Anthropic").models.map((m) => [m.id, m.available, m.tier, m.vision, m.context]), [["claude-sonnet-5-5", "ok", "standard", true, 1_000_000], ["claude-haiku-5-5", "unverified", "cheap", true, 1_000_000]]);
   assert.deepEqual([by("#Dana_OpenAI").usable, by("#Dana_OpenAI").why, by("#Dana_OpenAI").models], [false, "Sign in again", []]);
   assert.deepEqual(by("#Dana_Anthropic").kind, "api_key");
   assert.equal((await modelsCatalog(ctx, { accountRef: "#Dana_Anthropic" })).accounts.length, 1);
