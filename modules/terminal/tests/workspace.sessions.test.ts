@@ -215,3 +215,12 @@ test("terminal.workspace: the state, where it is and whether this person may att
   bindWorkspaces(false);
   bindTeamFor(null);
 });
+
+test("who may enter, for a service: the host's own services do; a service a tenant made (an Automation, a form, a site) is treated as nobody and gets no workspace", async () => {
+  const base = asPerson("usr_admin", true);
+  // a tenant's service holds only the grants it was given: here none, so Manage is not allowed it
+  const as = (id: string): TermCtx => ({ ...base, principal: { kind: "service", id }, authorize: (a) => ({ effect: id.startsWith("svc_host") || id.startsWith("svc_engine") ? "allow" : a.level === "manage" ? "deny" : "deny" }) });
+  assert.equal(await mayEnterWorkspace(as("svc_host"), "agt_dex"), true);
+  assert.equal(await mayEnterWorkspace(as("svc_engine"), "agt_dex"), true);
+  for (const id of ["svc_form_abc", "svc_site_0123", `svc_${"a1".repeat(16)}`]) assert.equal(await mayEnterWorkspace(as(id), "agt_dex"), false, id);
+});

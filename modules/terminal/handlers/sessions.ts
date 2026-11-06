@@ -9,6 +9,7 @@ import {
   rulesOf, sessionBy, sessionOf, sha256, ticketSecret, touch, workspacesFor, boundWorkspaceStatus, SESSION_SELECT, insertTab,
 } from "../projections.ts";
 import { judged, isDangerous } from "../risk.ts";
+import { isTrustedService } from "../../../lib/trust.ts";
 import type { HostKind, Lookup, Rules, Secret, SessionRow, TabBy, Target, TermCtx, TermState, TurnPlace, ValueSource, VaultRun, Where } from "../projections.ts";
 
 type Row = Record<string, unknown>;
@@ -85,7 +86,8 @@ async function tabFor(ctx: TermCtx, scope: WorkScope | undefined): Promise<TabBy
  */
 export async function mayEnterWorkspace(ctx: TermCtx, agentId: string): Promise<boolean> {
   if (ctx.principal.kind === "agent") return ctx.principal.id === agentId || (await workScope(ctx, ctx.principal.id)).agentId === agentId;
-  if (ctx.principal.kind === "service") return true;
+  // the host and the services it runs; never a service a tenant made (an Automation, a public form, a site), which holds only the grants it was given
+  if (isTrustedService(ctx.principal)) return true;
   const me = actorOf(ctx);
   let agent: AgentFacts | undefined;
   try { agent = ((await ctx.call?.("agents.get", { agentId })) as { agent?: AgentFacts } | undefined)?.agent; } catch { agent = undefined; }

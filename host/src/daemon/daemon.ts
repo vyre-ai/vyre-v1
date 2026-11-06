@@ -324,6 +324,8 @@ export interface DaemonOptions {
   workspaceIdleMs?: number;
   /** A test of workspaces on a server that joined: this Space has no container runtime of its own, whatever the machine has. */
   workspaceRuntimeOff?: boolean;
+  /** A test of agent computers: what the host says it can hold (memory, CPUs, disk) instead of the machine's own figures, so room does not depend on what else runs on the runner. */
+  computersCapacity?: { totalMb: number; freeMb: number; cpus: number; os: string; diskFreeMb?: number };
   /** The container engine socket the agent computers module talks to (default: the system one); tests point it somewhere nothing listens. */
   computersSocketPath?: string;
   /** The sites runner's socket (host/src/sites-runner; default VYRE_SITES_RUNNER) and, beside it, its token file. Vyre never holds the Docker socket itself. */
@@ -1854,6 +1856,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           putBytes: (url, bytes) => putToSlot(url, bytes),
           log: (level, msg, attrs) => sink.log({ space: spaceId, level: level === "warn" ? 40 : 30, msg, place: "computers", ...(attrs ? { attrs } : {}) }),
           ...(o.computersHomeIntervalMs !== undefined ? { homeIntervalMs: o.computersHomeIntervalMs } : {}),
+          ...(o.computersCapacity ? { capacity: async () => o.computersCapacity as NonNullable<typeof o.computersCapacity> } : {}),
         }),
         // terminals on this machine: the person's own computer when this daemon is it (the desktop app's daemon), and where a person's turn runs, read as that person
         setTerminalHost: () => createTerminalHostSeam({

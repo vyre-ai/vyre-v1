@@ -24,6 +24,8 @@ export interface ComputersHostSeam {
     announce?: (a: { agentId: string; computerId: string; files: Array<{ fileId: string; name: string; kind: string; size: number; version: number }> }) => Promise<boolean | void>;
     log?: (level: "info" | "warn", msg: string, attrs?: Record<string, unknown>) => void;
   };
+  /** What this host says it can hold, instead of reading the machine (a test of room; the real host reads os.totalmem, os.freemem and the disk). */
+  capacity?: () => Promise<{ totalMb: number; freeMb: number; cpus: number; os: string; diskFreeMb?: number }>;
   /** How long a wake waits for agentd (Xvfb and Chromium start before it answers). */
   startTimeoutMs?: number;
 }
@@ -35,6 +37,8 @@ export interface ComputersHostDeps {
   runner?: { socket: string; token(): string; ingress?: string; alias?: string };
   image?: string;
   startTimeoutMs?: number;
+  /** See ComputersHostSeam.capacity. */
+  capacity?: () => Promise<{ totalMb: number; freeMb: number; cpus: number; os: string; diskFreeMb?: number }>;
   /** Run a capability as the agent (the daemon's invoke pipeline with the agent principal, so access, review rules and the scrubber apply). Omitted: no home mirror. */
   callAs?: (agentId: string, cap: string, input: unknown) => Promise<unknown>;
   /** Send bytes to an upload url that files.upload_url handed out. */
@@ -56,6 +60,7 @@ export function createComputersHost(d: ComputersHostDeps): ComputersHostSeam {
     image: d.image ?? process.env["VYRE_AGENT_COMPUTER_IMAGE"] ?? "vyre/agent-computer:1",
     browserImage: process.env["VYRE_SPACE_BROWSER_IMAGE"] ?? "vyre/space-browser:1",
     startTimeoutMs: d.startTimeoutMs ?? 120_000,
+    ...(d.capacity ? { capacity: d.capacity } : {}),
     ...(d.callAs && d.putBytes ? { home: { callAs: d.callAs as never, putBytes: d.putBytes, ...(d.homeIntervalMs !== undefined ? { intervalMs: d.homeIntervalMs } : {}), manifest: (agentId: string) => path.join(root, agentId, "home-manifest.json"), ...(d.announce ? { announce: d.announce } : {}), ...(d.log ? { log: d.log } : {}) } } : {}),
     filesRoot(agentId) {
       if (!AGENT_ID.test(agentId)) return null;

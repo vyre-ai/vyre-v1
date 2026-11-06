@@ -102,6 +102,8 @@ export interface DockerHostOptions {
   /** The agent's home on the computer mirrors its folder in Files (handlers/home.ts): calls as the agent, how often to look, and where the manifest of what was last synced is kept. */
   home?: { deps: HomeDeps; intervalMs?: number; manifest(agentId: string): string; announce?: (a: { agentId: string; computerId: string; files: MadeFile[] }) => Promise<boolean | void> };
   sleep?: (ms: number) => Promise<void>;
+  /** What this host says it can hold, instead of the machine's own figures (see ComputersHostConfig.capacity). */
+  capacity?: () => Promise<{ totalMb: number; freeMb: number; cpus: number; os: string; diskFreeMb?: number }>;
   /**
    * Run behind the container runner (a Team server: vyred holds no Docker socket, the runner does, and refuses all but agent computers). Each computer then gets a network of its own
    * (so one cannot reach another), only its profile volume (no host folder), and the ingress joins that network for the one route agentd posts to.
@@ -500,6 +502,7 @@ export function createDockerComputerHost(o: DockerHostOptions): ComputerHost & T
       } catch (e) { return { ok: false, latencyMs: Date.now() - t0, detail: explainEngine(0, e, o.runner ? "runner" : "engine") }; }
     },
     async capacity() {
+      if (o.capacity) return o.capacity();
       const os = process.getBuiltinModule("node:os");
       let diskFreeMb: number | undefined;
       try { const st = process.getBuiltinModule("node:fs").statfsSync("/"); diskFreeMb = Math.floor((Number(st.bavail) * Number(st.bsize)) / 1048576); } catch { /* the disk figure is left out */ }
@@ -533,6 +536,8 @@ export interface ComputersHostConfig {
   browser?: { maxRunning?: number; idleMinutes?: number };
   filesRoot?: (agentId: string) => string | null;
   startTimeoutMs?: number;
+  /** What the host says it can hold instead of the machine's own figures: a test of room, so it does not depend on what else runs on the runner. */
+  capacity?: () => Promise<{ totalMb: number; freeMb: number; cpus: number; os: string; diskFreeMb?: number }>;
   /** The agent's home mirror: calls as the agent principal, the upload of large files, how often a pass runs, where each agent's manifest lives, and a log. */
   home?: { callAs: HomeDeps["callAs"]; putBytes: HomeDeps["putBytes"]; intervalMs?: number; manifest(agentId: string): string; log?: HomeDeps["log"]; announce?: (a: { agentId: string; computerId: string; files: MadeFile[] }) => Promise<boolean | void> };
 }
@@ -547,6 +552,7 @@ export function buildComputerHost(c: ComputersHostConfig): ComputerHost & ToolHo
     ...(c.image !== undefined ? { image: c.image } : {}),
     ...(c.filesRoot !== undefined ? { filesRoot: c.filesRoot } : {}),
     ...(c.startTimeoutMs !== undefined ? { startTimeoutMs: c.startTimeoutMs } : {}),
+    ...(c.capacity ? { capacity: c.capacity } : {}),
     ...(c.home ? { home: { deps: { callAs: c.home.callAs, putBytes: c.home.putBytes, now: Date.now, log: c.home.log ?? (() => undefined) }, ...(c.home.intervalMs !== undefined ? { intervalMs: c.home.intervalMs } : {}), manifest: c.home.manifest, ...(c.home.announce ? { announce: c.home.announce } : {}) } } : {}),
   });
 }
