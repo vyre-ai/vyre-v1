@@ -7,3 +7,4 @@
 - Chats: the question island docks a question only while its own card is scrolled out of view, and goes when the card comes back into view, so one question never shows twice.
 - Composer: the settings icon shows whenever the chat has an agent in it (a channel with an agent), not only when one will answer.
 - Comment reply (tasks, records, files): the same pill as the composer: 12 px radius, hairline and soft shadow, focus on the pill only, 14 px text, round 32 px send.
+- Comment reply: the placeholder and send are centred in the 44 px phone field.
