@@ -160,3 +160,19 @@ test("widths are saved per band", () => {
   assert.equal(bandKey("chats-thread-side", "wide"), "chats-thread-side@wide");
   assert.notEqual(bandKey("p", "wide"), bandKey("p", "mid"));
 });
+
+test("two left panels (the sidebar and a list a place adds): their widths and the gutter between them are reserved, and main still keeps 480", () => {
+  const two = [{ id: "place-sidebar", def: 272, min: 220, max: 360 }, { id: "vault-list", def: 380, min: 260, max: 480 }];
+  const l = layoutPanels(base({ windowWidth: 1440, sidebars: two }));
+  assert.equal(l.sidebar.panels.length, 2);
+  assert.equal(l.sidebar.width, 272 + GUTTER + 380);
+  assert.equal(GUTTER + RAIL_WIDTH + GUTTER + l.sidebar.width + GUTTER + l.main.width + GUTTER, 1440);
+  // a narrow window: the last panel gives way to its floor, never main under 480
+  const narrow = layoutPanels(base({ windowWidth: 1280, paneOpen: true, sidebars: two }));
+  assert.ok(narrow.main.width >= MAIN_MIN, `main ${narrow.main.width}`);
+  assert.ok(narrow.pane.width >= PANE.min);
+  for (const p of narrow.sidebar.panels) assert.ok(p.width >= p.min);
+  // each panel's own saved width is used
+  const saved = layoutPanels(base({ windowWidth: 1920, sidebars: [{ ...two[0]!, saved: 300 }, { ...two[1]!, saved: 300 }] }));
+  assert.deepEqual(saved.sidebar.panels.map((p) => p.width), [300, 300]);
+});

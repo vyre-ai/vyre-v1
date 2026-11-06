@@ -201,7 +201,7 @@ const ISLE_REVEAL = (Platform.OS === "web" ? { transitionProperty: "max-height, 
 const TIP_FADE = (Platform.OS === "web" ? { transitionProperty: "opacity", transitionDuration: "200ms", transitionTimingFunction: "ease" } : {}) as object;
 
 const styles = StyleSheet.create({
-  isle: { alignItems: "center", gap: 4, padding: 4, borderRadius: 16 },
+  isle: { alignItems: "center", gap: 4, padding: 4, borderRadius: 12 },
   isleOpen: { backgroundColor: "var(--hover)" as string },
   islePlaces: { gap: 4, overflow: "hidden" },
   count: { position: "absolute", top: 2, right: 0, minWidth: 14, height: 14, paddingHorizontal: 3, borderRadius: 7, alignItems: "center", justifyContent: "center", backgroundColor: "var(--accent-wash)" as string, ...({ boxShadow: "0 0 0 2px var(--side)" } as object) },

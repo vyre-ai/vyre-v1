@@ -19,6 +19,10 @@ export const PANE = { min: 320, max: 640, defMin: 360, defMax: 560, share: 0.4 }
 /** The window width at which each band starts. */
 export const BREAKPOINTS = { wide: 1280, mid: 1024, sheet: 768 } as const;
 
+/** The one phone test: a window narrower than BREAKPOINTS.sheet (768) is a phone. Import this instead of writing 640 or 700. */
+export const PHONE_BELOW = BREAKPOINTS.sheet;
+export const isPhoneWidth = (windowWidth: number): boolean => windowWidth > 0 && windowWidth < PHONE_BELOW;
+
 export type Band = "wide" | "mid" | "sheet" | "phone";
 export const BANDS: readonly Band[] = ["wide", "mid", "sheet", "phone"];
 
@@ -30,10 +34,15 @@ export function bandOf(windowWidth: number): Band {
   return "phone";
 }
 
+/** One docked left panel: the shell's own sidebar, or a list a place puts beside it (Vault's list). */
+export interface SidebarSpec { id: string; def: number; min: number; max: number; saved?: number | null }
+
 export interface LayoutInput {
   windowWidth: number;
-  /** A place has put a sidebar in the slot. */
+  /** A place has put a sidebar in the slot. Ignored when `sidebars` lists the left panels. */
   hasSidebar: boolean;
+  /** The left panels in order, each with its own default, limits and saved width. Left out: one sidebar (272, 220 to 360). */
+  sidebars?: readonly SidebarSpec[];
   /** The person's choice: false after the toggle or Cmd-\. Kept while a pane or a narrow window hides the sidebar. */
   sidebarOpen: boolean;
   /** The sidebar was asked for as an overlay (its toggle in a band that has no room for it). */
@@ -53,7 +62,8 @@ export interface Layout {
   band: Band;
   gutter: number;
   rail: { shown: boolean; width: number };
-  sidebar: { mode: SidebarMode; width: number } & PanelLimits;
+  /** `width` is the whole left group (every panel and the gutters between them); `min` and `max` are the first panel's. */
+  sidebar: { mode: SidebarMode; width: number; panels: readonly { id: string; width: number; min: number; max: number }[] } & PanelLimits;
   pane: { mode: PaneMode; width: number; defaultWidth: number } & PanelLimits;
   main: { width: number; reading: number };
   /** The sidebar is open by choice but folded away because a pane is open (the 1024 to 1279 band). */
@@ -68,7 +78,9 @@ export function paneDefault(roomRightOfSidebar: number): number {
 }
 
 export function layoutPanels(input: LayoutInput): Layout {
-  const { hasSidebar, sidebarOpen, paneOpen } = input;
+  const { sidebarOpen, paneOpen } = input;
+  const specs: readonly SidebarSpec[] = input.sidebars ?? (input.hasSidebar ? [{ id: "place-sidebar", def: SIDEBAR.def, min: SIDEBAR.min, max: SIDEBAR.max, saved: input.saved?.sidebar ?? null }] : []);
+  const hasSidebar = specs.length > 0;
   const band = bandOf(input.windowWidth);
   const W = input.windowWidth > 0 ? input.windowWidth : 1440;
   const G = GUTTER;
@@ -76,14 +88,12 @@ export function layoutPanels(input: LayoutInput): Layout {
   const rail = { shown: !phone, width: phone ? 0 : RAIL_WIDTH };
   // the room right of the rail's gutter: the window less both edges
   const C = phone ? W : W - 2 * G - RAIL_WIDTH - G;
-  const savedSb = input.saved?.sidebar ?? null;
   const savedPane = input.saved?.pane ?? null;
 
-  const sbWanted = clamp(savedSb ?? SIDEBAR.def, SIDEBAR.min, SIDEBAR.max);
   if (phone) {
     return {
       band, gutter: G, rail,
-      sidebar: { mode: hasSidebar ? "screen" : "none", width: W, min: W, max: W },
+      sidebar: { mode: hasSidebar ? "screen" : "none", width: W, min: W, max: W, panels: specs.map((sp) => ({ id: sp.id, width: W, min: W, max: W })) },
       pane: { mode: paneOpen ? "screen" : "none", width: W, defaultWidth: W, min: W, max: W },
       main: { width: W, reading: Math.min(W, READING_MAX) },
       folded: false,
@@ -96,13 +106,18 @@ export function layoutPanels(input: LayoutInput): Layout {
   const sbOverlay = hasSidebar && !sbDocked && input.sidebarPeek === true;
   const sbMode: SidebarMode = !hasSidebar ? "none" : sbDocked ? "docked" : sbOverlay ? "overlay" : "hidden";
 
-  // the sidebar may grow until a pane at its floor and main at its floor still fit beside it
-  const sbCapDocked = paneOpen && dockable ? C - 2 * G - MAIN_MIN - PANE.min : SIDEBAR.max;
-  const sbMax = Math.max(SIDEBAR.min, Math.min(SIDEBAR.max, sbCapDocked));
-  const sbWidth = sbMode === "overlay"
-    ? clamp(sbWanted, SIDEBAR.min, Math.min(SIDEBAR.max, C))
-    : clamp(sbWanted, SIDEBAR.min, sbMax);
-  const sidebar = { mode: sbMode, width: sbWidth, min: SIDEBAR.min, max: sbMax };
+  // the left group may grow until a pane at its floor and main at its floor still fit beside it; past that the last panels give way to their floors
+  const groupGaps = Math.max(0, specs.length - 1) * G;
+  const groupCap = sbMode === "overlay" ? C : C - G - MAIN_MIN - (paneOpen && dockable ? G + PANE.min : 0);
+  const widths = specs.map((sp) => clamp(sp.saved ?? sp.def, sp.min, sp.max));
+  for (let i = widths.length - 1; i >= 0 && widths.reduce((a, b) => a + b, 0) + groupGaps > groupCap; i--) {
+    const over = widths.reduce((a, b) => a + b, 0) + groupGaps - groupCap;
+    widths[i] = Math.max((specs[i] as SidebarSpec).min, (widths[i] as number) - over);
+  }
+  const sbWidth = widths.reduce((a, b) => a + b, 0) + groupGaps;
+  const panels = specs.map((sp, i) => ({ id: sp.id, width: widths[i] as number, min: sp.min, max: Math.max(sp.min, Math.min(sp.max, groupCap - (sbWidth - (widths[i] as number)))) }));
+  const first = panels[0] ?? { min: SIDEBAR.min, max: SIDEBAR.max };
+  const sidebar = { mode: sbMode, width: sbWidth, min: first.min, max: first.max, panels };
 
   const roomRight = C - (sbDocked ? sbWidth + G : 0);
   // a docked pane keeps main at MAIN_MIN: its widest is what is left after main and its gutter

@@ -1,6 +1,7 @@
 // The Files place in the shell (spec 3.5): the list of the open folder, Recent, Starred, Shared with me, Trash or Knowledge, with the Files sidebar in the shared place sidebar slot (P-L9_22).
 // Where the list is, the selection and Quick Look are the place's own state. On a phone the sidebar is the list and the body opens when a row is chosen. Before the Space's runtime exists
 // the place draws its loading frames.
+import { isPhoneWidth } from "../../../../../ui/src/SidePane/layout.ts";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import type { MountRow } from "../../places/files/mounts/index.ts";
@@ -105,7 +106,7 @@ export default function FilesPlace(_props: { place: string }): ReactElement {
   const data = useMemo(() => (rt ? filesData(rt, { view: memory, open: openRoute }, { connect: (into) => setMountReq({ kind: "mount", into }), live: openLive, liveView: liveOn }, acts) : null), [rt, memory, openRoute, openLive, liveOn, acts]);
   const review = useMemo(() => (rt ? reviewData(rt) : null), [rt]);
   const width = useWindowDimensions().width;
-  const phone = width > 0 && width < 720;
+  const phone = isPhoneWidth(width);
   if (!data || !review) {
     return (
       <View testID="files-place-loading" style={{ flex: 1, flexDirection: "row", minHeight: 0 }}>

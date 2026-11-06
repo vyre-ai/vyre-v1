@@ -151,23 +151,29 @@ export function Sheets({ tabs, toast, hub, children }: { tabs: ReactNode; toast?
 
   // what is open right now: the panels tell the shell (usePanelPresence); the newest pane owns the right side
   const [panes, setPanes] = useState<readonly { id: string; close: () => void }[]>([]);
-  const [sidebars, setSidebars] = useState(0);
+  const [sidebars, setSidebars] = useState<readonly { id: string; def: number; min: number; max: number }[]>([]);
   const [peek, setPeek] = useState(false);
   const [version, setVersion] = useState(0);
-  const register = useCallback((kind: "sidebar" | "pane", id: string, close?: () => void) => {
-    if (kind === "sidebar") { setSidebars((n) => n + 1); return () => setSidebars((n) => Math.max(0, n - 1)); }
+  const register = useCallback((kind: "sidebar" | "pane", id: string, close?: () => void, meta?: { def: number; min: number; max: number }) => {
+    if (kind === "sidebar") {
+      const spec = { id, def: meta?.def ?? 272, min: meta?.min ?? 220, max: meta?.max ?? 360 };
+      // the shell's own sidebar is always first; a list a place adds follows it
+      setSidebars((n) => [...n.filter((x) => x.id !== id), spec].sort((a, b) => Number(b.id === "place-sidebar") - Number(a.id === "place-sidebar")));
+      return () => setSidebars((n) => n.filter((x) => x.id !== id));
+    }
     const entry = { id, close: close ?? (() => undefined) };
     setPanes((p) => [...p.filter((x) => x.id !== id), entry]);
     return () => setPanes((p) => p.filter((x) => x !== entry && !(x.id === id && x.close === entry.close)));
   }, []);
   const activePane = panes.length === 0 ? null : (panes[panes.length - 1] as { id: string }).id;
-  const hasSidebar = slot.hasSidebar || sidebars > 0;
   const band0 = layoutPanels({ windowWidth, hasSidebar: true, sidebarOpen: true, paneOpen: false }).band;
   const savedOf = (key: string): number | null => paneWidths.get(bandKey(key, band0));
+  // the slot has an entry from the first frame; its own registration lands one effect later
+  const allSidebars = slot.hasSidebar && !sidebars.some((x) => x.id === "place-sidebar") ? [{ id: "place-sidebar", def: 272, min: 220, max: 360 }, ...sidebars] : sidebars;
   const layout = useMemo(() => layoutPanels({
-    windowWidth, hasSidebar, sidebarOpen: !slot.collapsed, sidebarPeek: peek, paneOpen: activePane !== null,
-    saved: { sidebar: savedOf("place-sidebar"), pane: activePane === null ? null : savedOf(activePane) },
-  }), [windowWidth, hasSidebar, slot.collapsed, peek, activePane, version]);   // eslint-disable-line react-hooks/exhaustive-deps -- savedOf reads the store, version says it changed
+    windowWidth, hasSidebar: allSidebars.length > 0, sidebars: allSidebars.map((x) => ({ ...x, saved: savedOf(x.id) })), sidebarOpen: !slot.collapsed, sidebarPeek: peek, paneOpen: activePane !== null,
+    saved: { pane: activePane === null ? null : savedOf(activePane) },
+  }), [windowWidth, allSidebars.length, sidebars, slot.hasSidebar, slot.collapsed, peek, activePane, version]);   // eslint-disable-line react-hooks/exhaustive-deps -- savedOf reads the store, version says it changed
   const mode = layout.sidebar.mode;
   const paneOverlay = layout.pane.mode === "overlay";
   useEffect(() => { if (peek && (mode === "docked" || mode === "none" || mode === "screen")) setPeek(false); }, [peek, mode]);
@@ -184,7 +190,7 @@ export function Sheets({ tabs, toast, hub, children }: { tabs: ReactNode; toast?
   }, [paneOverlay, panes]);
   const overlayOn = paneOverlay || mode === "overlay";
   const hidden = mode === "hidden";
-  const docked = hasSidebar && mode === "docked";
+  const docked = mode === "docked";
   useSquircle();
   useEffect(() => { if (Platform.OS === "web") { installTips(); installMotion((globalThis as { document?: Parameters<typeof installMotion>[0] }).document); } }, []);
   useEffect(() => {

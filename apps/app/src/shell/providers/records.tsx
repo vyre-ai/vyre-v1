@@ -1,6 +1,7 @@
 // The Records place in the shell (spec 3.6): the sidebar of record types and saved views in the shell's shared place sidebar slot (P-L9d_22), and the open type as a table, board, gallery or list.
 // The open type and view are the place's own state (the sidebar chooses, the views follow). On a phone the sidebar is the list and the view opens when a row is chosen. Before the Space's runtime
 // exists the place draws its loading frames.
+import { isPhoneWidth } from "../../../../../ui/src/SidePane/layout.ts";
 import { isProjectTab } from "../../places/records/projectpage/tabs.ts";
 import { adminTarget } from "./settings-admin.ts";
 import { useConsolePages } from "../reach/viewer.ts";
@@ -112,7 +113,7 @@ export default function RecordsPlace(_props: { place: string }): ReactElement {
   const canEdit = useCanEditSchema(rt);
   const data = useMemo(() => (rt ? recordsData(rt, screen, canEdit) : null), [rt, screen, canEdit]);
   const width = useWindowDimensions().width;
-  const phone = width > 0 && width < 720;
+  const phone = isPhoneWidth(width);
   if (!data) {
     return (
       <View testID="records-place-loading" style={{ flex: 1, flexDirection: "row", minHeight: 0 }}>

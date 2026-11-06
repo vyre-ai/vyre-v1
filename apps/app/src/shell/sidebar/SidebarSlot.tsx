@@ -41,6 +41,7 @@ const Ctx = createContext<SidebarSlotApi | null>(null);
 const Reg = createContext<{ register(e: SidebarEntry | null): void; outlet: unknown } | null>(null);
 
 export const SIDEBAR_DEFAULT = SIDEBAR.def;
+const SIDEBAR_META = { def: SIDEBAR.def, min: SIDEBAR.min, max: SIDEBAR.max };
 
 export interface SidebarSlotProviderProps {
   deviceId: string;
@@ -113,7 +114,7 @@ export function SidebarSlot(): ReactElement | null {
   const slot = useSidebarSlot();
   const o = useContext(OutletContext);
   const shell = useShellLayout();
-  usePanelPresence("sidebar", "place-sidebar", o !== null && o.entry !== null);
+  usePanelPresence("sidebar", "place-sidebar", o !== null && o.entry !== null, undefined, SIDEBAR_META);
   const resize = useResizable({ kind: "sidebar", paneKey: "place-sidebar", defaultWidth: SIDEBAR_DEFAULT, grow: "right", min: SIDEBAR.min, maxFraction: 0.5, maxWidth: SIDEBAR.max });
   if (o === null || o.entry === null) return null;
   const full = slot.compact;
@@ -243,13 +244,13 @@ const s = StyleSheet.create({
   head: { height: 54, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 4, paddingLeft: 16, paddingRight: 10, paddingTop: 4 },
   title: { color: "var(--ink)" as string, fontSize: 15, fontWeight: "600", flexShrink: 1 },
   actions: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 4 },
-  icon: { width: 28, height: 28, borderRadius: 7, alignItems: "center", justifyContent: "center" },
+  icon: { width: 28, height: 28, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   hover: { backgroundColor: "var(--hover)" as string },
-  search: { flexDirection: "row", alignItems: "center", gap: 8, height: 32, marginHorizontal: 10, marginBottom: 8, paddingHorizontal: 10, borderRadius: 8, borderWidth: 1, borderColor: "var(--field-line)", backgroundColor: "var(--field)" as string },
+  search: { flexDirection: "row", alignItems: "center", gap: 8, height: 32, marginHorizontal: 10, marginBottom: 8, paddingHorizontal: 10, borderRadius: 12, borderWidth: 1, borderColor: "var(--field-line)", backgroundColor: "var(--field)" as string },
   input: { flex: 1, minWidth: 0, color: "var(--ink)" as string, fontSize: 13, padding: 0 },
   outlet: { flex: 1, minHeight: 0 },
   expand: { width: 28, height: 28, borderRadius: 9, alignItems: "center", justifyContent: "center", marginLeft: 8, marginTop: 6, flexShrink: 0 },
-  hideFloat: { position: "absolute", right: 8, top: 12, width: 28, height: 28, borderRadius: 7, alignItems: "center", justifyContent: "center", zIndex: 3 },
+  hideFloat: { position: "absolute", right: 8, top: 12, width: 28, height: 28, borderRadius: 12, alignItems: "center", justifyContent: "center", zIndex: 3 },
   back: { height: 40, flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
   backText: { color: "var(--accent)" as string, fontSize: 14, fontWeight: "500" },
 });

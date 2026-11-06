@@ -1,4 +1,5 @@
 // The Automations place: the shell sidebar slot holds the list, and the body holds the open Automation or an operational view.
+import { isPhoneWidth } from "../../../../../ui/src/SidePane/layout.ts";
 import { ResizableColumn } from "../../../../../ui/src/SidePane/resize.tsx";
 import { useConnectVersion } from "../connect/context.ts";
 import { useEffect, useMemo, useState } from "react";
@@ -154,7 +155,7 @@ function Body({ rt }: { rt: ShellRuntime }): ReactElement {
     ask: (id, context) => data.nav.ask(id, context),
   }), [rt, data]);
   const winW = useWindowDimensions().width;
-  const phone = winW > 0 && winW < 720;   // the phone has no sidebar beside the body: the list is the first screen
+  const phone = isPhoneWidth(winW);   // the phone has no sidebar beside the body: the list is the first screen
   const canvas = openId ? (
     phone && sideRun ? (
       // on the phone a run takes the whole screen; Close goes back to the editor

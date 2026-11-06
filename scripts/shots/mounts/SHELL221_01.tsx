@@ -1,5 +1,5 @@
 // Mount for lane l-shell221: the real Shell (rail, sidebar slot, main sheet, right outlet) over a generic place that uses the shell's primitives the way every place does: a SidebarContent and, when asked, a SidePane.
-//   ?place=chats|records|files|vault|settings|console|automations (default chats)   ?pane=1 opens a side pane   ?nosidebar=1 a place without a sidebar
+//   ?place=chats|records|files|vault|settings|console|automations (default chats)   ?real=1 draws the real Vault, Settings and Console places in the shell instead of the generic place   ?pane=1 opens a side pane   ?nosidebar=1 a place without a sidebar
 // The query is read after mount (rule 25), so the first frame is empty and the client draws the same one.
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
@@ -12,6 +12,15 @@ import type { PlaceContext } from "../../../apps/app/src/shell/spaces/Shell.tsx"
 import { createSampleShell } from "../../../apps/app/src/shell/spaces/sample.tsx";
 import { SidebarContent } from "../../../apps/app/src/shell/sidebar/index.ts";
 import type { PlaceId } from "../../../apps/app/src/shell/rail/kits.ts";
+import Vault from "../../../apps/app/src/places/vault/layout/index.tsx";
+import { createSampleVault, northwind } from "../../../apps/app/src/places/vault/layout/sample.ts";
+import { SettingsPlace } from "../../../apps/app/src/places/settings/SettingsPlace.tsx";
+import { SettingsDataProvider } from "../../../apps/app/src/places/settings/data.tsx";
+import { createSampleSettings } from "../../../apps/app/src/places/settings/sample.ts";
+import { ConsoleShell } from "../../../apps/app/src/console/shell/ConsoleShell.tsx";
+import { ConsoleDataProvider } from "../../../apps/app/src/console/shell/data.tsx";
+import { createSampleConsole } from "../../../apps/app/src/console/shell/sample.ts";
+import { consolePageFor } from "../../../apps/app/src/shell/providers/console.tsx";
 
 export const title = "Shell layout";
 
@@ -46,6 +55,18 @@ function Place({ ctx, sidebar, initialPane }: { ctx: PlaceContext; sidebar: bool
   );
 }
 
+const vaultSample = createSampleVault(northwind);
+const settingsSample = createSampleSettings();
+const consoleSample = createSampleConsole();
+
+function Real({ place, pane }: { place: string; pane: boolean }): ReactNode | null {
+  if (place === "vault") return <View style={{ flex: 1, minHeight: 0 }}><Vault data={vaultSample.data} /></View>;
+  if (place === "settings") return <SettingsDataProvider value={settingsSample.data}><View style={{ flex: 1, minHeight: 0 }}><SettingsPlace initialPage="profile" /></View></SettingsDataProvider>;
+  if (place === "console") return <ConsoleDataProvider value={consoleSample.data}><View style={{ flex: 1, minHeight: 0 }}><ConsoleShell embedded initialPage="people" renderPage={(id, state) => consolePageFor(id, state as Record<string, string | undefined>)} /></View></ConsoleDataProvider>;
+  void pane;
+  return null;
+}
+
 function Inner({ search }: { search: string }): ReactNode {
   const height = useWindowDimensions().height;
   const made = useMemo(() => {
@@ -56,9 +77,9 @@ function Inner({ search }: { search: string }): ReactNode {
     const theme = createThemeController({ personId: "irfad", spaceId: "nw", spaceSkin: { nw: skin, hb: skin, me: skin }, prefersDark: skin === "graphite", root: themeRoot, storage: null });
     const hub = createSampleShell({ openId: "nw", theme });
     hub.go((query.get("place") ?? "chats") as PlaceId);
-    return { hub, theme, sidebar: query.get("nosidebar") !== "1", pane: query.get("pane") === "1" };
+    return { hub, theme, sidebar: query.get("nosidebar") !== "1", pane: query.get("pane") === "1", real: query.get("real") === "1" };
   }, [search]);
-  return <View style={{ height }}><Shell hub={made.hub} theme={made.theme} me={{ id: "usr_irfad", name: "Irfad Imtiaz" }} renderPlace={(ctx) => <Place ctx={ctx} sidebar={made.sidebar} initialPane={made.pane} />} /></View>;
+  return <View style={{ height }}><Shell hub={made.hub} theme={made.theme} me={{ id: "usr_irfad", name: "Irfad Imtiaz" }} renderPlace={(ctx) => (made.real && Real({ place: ctx.place, pane: made.pane }) !== null ? <Real place={ctx.place} pane={made.pane} /> : <Place ctx={ctx} sidebar={made.sidebar} initialPane={made.pane} />)} /></View>;
 }
 
 export default function Mount(): ReactNode {

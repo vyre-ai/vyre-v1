@@ -9,7 +9,7 @@ import type { ViewStyle } from "react-native";
 import { SIDE_PANE_MAX, SIDE_PANE_MIN } from "./props.ts";
 import { clampPaneWidth, paneWidths } from "./index.tsx";
 import { RAIL_OVERLAY, SHEET, SHEET_GAP, intoSheet, sq, useRailOverlay, useSheetHost, useShellLayout, usePanelPresence } from "./host.tsx";
-import { bandKey } from "./layout.ts";
+import { SIDEBAR, bandKey } from "./layout.ts";
 import { useEdgeDrag } from "./drag.ts";
 
 /** The pane grows to the left (a right-hand pane, handle on its left edge) or to the right (a left sidebar, handle on its right edge). */
@@ -61,7 +61,7 @@ export function useResizable(o: ResizeOptions): Resizable {
   const { paneKey, defaultWidth, grow, onWidthChange } = o;
   const shell = useShellLayout();
   const kind = shell !== null ? o.kind : undefined;
-  const model = shell !== null && kind !== undefined ? shell.layout[kind] : null;
+  const model = shell !== null && kind !== undefined ? (kind === "pane" ? shell.layout.pane : (shell.layout.sidebar.panels.find((x) => x.id === paneKey) ?? null)) : null;
   const band = shell?.layout.band ?? "wide";
   const key = model !== null ? bandKey(paneKey, band) : paneKey;
   const min = model !== null ? model.min : (o.min ?? SIDE_PANE_MIN);
@@ -186,9 +186,11 @@ export interface ResizableColumnProps {
 /** A column with a resizable width: the sidebars and the right-hand panels that are not a SidePane. In the shell it is a sheet: the sidebar sheet on the left, a right rail sheet on the right. */
 export function ResizableColumn(p: ResizableColumnProps): ReactElement | null {
   const host = useSheetHost();
+  const shell = useShellLayout();
   const overlay = useRailOverlay();
   const managed = host !== null && p.inline !== true;
-  const here = usePanelPresence(p.grow === "left" ? "pane" : "sidebar", p.paneKey, managed);
+  const meta = useMemo(() => ({ def: p.defaultWidth, min: p.min ?? SIDEBAR.min, max: p.maxWidth ?? 480 }), [p.defaultWidth, p.min, p.maxWidth]);
+  const here = usePanelPresence(p.grow === "left" ? "pane" : "sidebar", p.paneKey, managed, undefined, p.grow === "right" ? meta : undefined);
   const r = useResizable({ ...(managed ? { kind: p.grow === "left" ? "pane" as const : "sidebar" as const } : {}), paneKey: p.paneKey, defaultWidth: p.defaultWidth, grow: p.grow, ...(p.min === undefined ? {} : { min: p.min }), ...(p.maxFraction === undefined ? {} : { maxFraction: p.maxFraction }), ...(p.maxWidth === undefined ? {} : { maxWidth: p.maxWidth }) });
   const handle = <ResizeHandle r={r} at={p.grow === "left" ? "left" : "right"} />;
   const a11y = { ...(p.onLayout === undefined ? {} : { onLayout: p.onLayout as never }), ...(p.label === undefined ? {} : { accessibilityLabel: p.label }), ...(p.role === undefined ? {} : { accessibilityRole: p.role }) };
@@ -196,8 +198,10 @@ export function ResizableColumn(p: ResizableColumnProps): ReactElement | null {
   if (managed && !here) return null;
   if (host !== null && p.inline !== true) {
     const right = p.grow === "left";
+    // a left panel that follows another one (the shell's sidebar, then a list) keeps the one gutter between them
+    const after = !right && shell !== null && shell.layout.sidebar.panels.findIndex((x) => x.id === p.paneKey) > 0;
     return <>{intoSheet(target, (
-      <View style={[rel, { width: r.width, minWidth: 0, flexShrink: 0 }, right ? { marginLeft: SHEET_GAP } : null, right && overlay ? RAIL_OVERLAY : null]} testID={p.testID} {...a11y} {...(right && Platform.OS === "web" ? { dataSet: { panelIn: "1" } } : {})}>
+      <View style={[rel, { width: r.width, minWidth: 0, flexShrink: 0 }, right || after ? { marginLeft: SHEET_GAP } : null, right && overlay ? RAIL_OVERLAY : null]} testID={p.testID} {...a11y} {...(right && Platform.OS === "web" ? { dataSet: { panelIn: "1" } } : {})}>
         <View style={[SHEET, p.style, SHEET_RESET]} {...sq("sheet")}>{p.children}{p.paneKey === "place-sidebar" ? host.hide : null}</View>
         {right && overlay ? null : handle}
       </View>

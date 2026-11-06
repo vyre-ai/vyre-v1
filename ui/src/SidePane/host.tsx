@@ -9,6 +9,7 @@ import { Platform, useWindowDimensions } from "react-native";
 import type { ViewStyle } from "react-native";
 import { injectCss } from "../theme/css.ts";
 import { GUTTER } from "./layout.ts";
+import { RADIUS } from "../theme/radius.ts";
 import type { Band, Layout } from "./layout.ts";
 
 export interface SheetHost {
@@ -28,7 +29,7 @@ export const useSheetHost = (): SheetHost | null => useContext(Ctx);
 export const SHEET_OVERLAY_BELOW = 1000;
 /** The one gutter: window edge to panel and panel to panel, every place (DESIGN-SYSTEM-221 section 1). */
 export const SHEET_GAP = GUTTER;
-export const SHEET_RADIUS = 14;
+export const SHEET_RADIUS = RADIUS;
 
 /**
  * What the shell tells its panels (the layout model in ./layout.ts, computed once in the shell). A panel reads its mode and width here instead of deciding for itself, registers when it is open so the
@@ -37,7 +38,7 @@ export const SHEET_RADIUS = 14;
 export interface ShellLayoutApi {
   layout: Layout;
   /** A panel is open. The newest pane wins (one side pane at a time); closing it brings the one before it back. Returns the release. */
-  register(kind: "sidebar" | "pane", id: string, close?: () => void): () => void;
+  register(kind: "sidebar" | "pane", id: string, close?: () => void, meta?: { def: number; min: number; max: number }): () => void;
   /** The pane that owns the right side now. */
   activePane: string | null;
   /** Saved width for a panel key in the current band. */
@@ -78,7 +79,7 @@ export const SIDEBAR_OVERLAY: ViewStyle = { position: "absolute", top: 0, left: 
  * The !important beats the atomic style React Native Web writes for borderRadius.
  */
 export const SQUIRCLE_CSS = [
-  "@supports (corner-shape:squircle){[data-sq]{corner-shape:squircle}[data-sq=sheet]{border-radius:20px!important}[data-sq=card]{border-radius:22px!important}[data-sq=row]{border-radius:15px!important}[data-sq=track]{border-radius:26px!important}[data-sq=tile]{border-radius:20px!important}[data-sq=face]{border-radius:38%!important}}",
+  "@supports (corner-shape:squircle){[data-sq]{corner-shape:squircle}[data-sq=sheet],[data-sq=card],[data-sq=row],[data-sq=track],[data-sq=tile]{border-radius:12px!important}[data-sq=face]{border-radius:38%!important}}",
 ].join("\n");
 
 export function useSquircle(): void {
@@ -95,15 +96,15 @@ export function sq(shape: "sheet" | "card" | "row" | "track" | "tile" | "face"):
  * A panel tells the shell it is open. Returns false while another pane owns the right side (one side pane at a time) or before the shell has seen this one, so the caller draws nothing then.
  * Outside the shell, or for a panel that is not managed, it is always true.
  */
-export function usePanelPresence(kind: "sidebar" | "pane", id: string, open: boolean, close?: () => void): boolean {
+export function usePanelPresence(kind: "sidebar" | "pane", id: string, open: boolean, close?: () => void, meta?: { def: number; min: number; max: number }): boolean {
   const shell = useShellLayout();
   const closeRef = useRef(close);
   closeRef.current = close;
   const register = shell?.register;
   useEffect(() => {
     if (register === undefined || !open) return undefined;
-    return register(kind, id, () => closeRef.current?.());
-  }, [register, kind, id, open]);
+    return register(kind, id, () => closeRef.current?.(), meta);
+  }, [register, kind, id, open, meta?.def, meta?.min, meta?.max]);   // eslint-disable-line react-hooks/exhaustive-deps -- meta is three numbers, listed one by one
   if (shell === null || !open) return true;
   if (kind === "sidebar") return true;
   return shell.activePane === id;
