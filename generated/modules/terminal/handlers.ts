@@ -23,4 +23,5 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "terminal.rules.set": Handler<"terminal.rules.set", X>;
   "terminal.run": Handler<"terminal.run", X>;
   "terminal.status": Handler<"terminal.status", X>;
+  "terminal.workspace": Handler<"terminal.workspace", X>;
 }

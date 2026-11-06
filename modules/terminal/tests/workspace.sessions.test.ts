@@ -63,7 +63,7 @@ test("the first command makes the session with no grant and no open call; the se
   assert.deepEqual(commandsOf(hn.db, a.terminalId).map((c) => c.command), ["echo hi", "echo hi"]);
 });
 
-test("a host that names the person's computer still gets it, and a host with no workspaces keeps the older rule: where the turn runs", async () => {
+test("a host that names the person's computer still gets it; a host with no workspaces keeps the older rule: where the turn runs; a Personal Space with a runtime has the workspace", async () => {
   {
     const { host, agent } = setup(TEAM_ON_MAC);
     await call(agent, "terminal.run", { command: "echo hi", host: "device", idempotencyKey: idem() });
@@ -75,8 +75,14 @@ test("a host that names the person's computer still gets it, and a host with no 
     assert.deepEqual(opened(host), [{ host: "device", deviceId: "dev_mac" }], "no workspaces here: as before");
   }
   {
-    // a Personal Space keeps the person's own computer: workspaces are a Team Space's for now
+    // a Personal Space whose computer has a container runtime has the workspace too; without one (workspaces off) its agent's commands run on the person's computer
     const { host, agent } = setup({ team: false, agentComputer: false, runsOn: "device", deviceId: "dev_mac" });
+    bindTeam(() => false);
+    await call(agent, "terminal.run", { command: "echo hi", idempotencyKey: idem() });
+    assert.deepEqual(opened(host), [{ host: "agent_computer", agentId: "agt_dex" }]);
+  }
+  {
+    const { host, agent } = setup({ team: false, agentComputer: false, runsOn: "device", deviceId: "dev_mac" }, { workspaces: false });
     bindTeam(() => false);
     await call(agent, "terminal.run", { command: "echo hi", idempotencyKey: idem() });
     assert.deepEqual(opened(host), [{ host: "device", deviceId: "dev_mac" }]);
@@ -171,4 +177,41 @@ test("a person attaches to their own Assistant's session and types in it", async
   assert.match(att.replay, /hi/);
   assert.equal((await call(dana, "terminal.input", { terminalId: run.terminalId, data: "ls\n" })).ok, true);
   assert.deepEqual(opened(host), [{ host: "agent_computer", agentId: "agt_dana_assistant" }]);
+});
+
+// ---- what the Terminal tab shows ---------------------------------------------------------------------------------------------------------------------
+
+import { bindTeam as bindTeamFor, bindWorkspaceStatus } from "../projections.ts";
+
+// the ids of this file's agents have underscores the contract's pattern does not allow, so the input is not checked here; the output is
+const wsOf = async (ctx: TermCtx, input: { agentId: string }): Promise<any> => {   // eslint-disable-line @typescript-eslint/no-explicit-any
+  const out = await h["terminal.workspace"]!(ctx, input);
+  assert.deepEqual(contractErrors("terminal.workspace", "out", out), [], "terminal.workspace output");
+  return out;
+};
+
+test("terminal.workspace: the state, where it is and whether this person may attach; with no machine one plain line, personal and team worded apart; another person's Assistant says only that it is not theirs", async () => {
+  reset();
+  const dana = asPerson("usr_dana", false);
+  bindWorkspaces(async () => true);
+  bindWorkspaceStatus(async (id) => (id === "agt_dana_assistant" ? { state: "running", host: "space", projects: ["prj_a"] } : { state: "waiting", line: "Waiting for room on the Space server. Add a compute server in Console > Computers to run more." }));
+  const own = await wsOf(dana, { agentId: "agt_dana_assistant" });
+  assert.deepEqual(own, { state: "running", host: "space", projects: ["prj_a"], canAttach: true });
+  const others = await wsOf(dana, { agentId: "agt_lee_assistant" });
+  assert.deepEqual(others, { state: "none", canAttach: false, cannotAttach: "That workspace is not yours to open. A person opens their own Assistant's; an owner or admin opens a team agent's." });
+  const admin = asPerson("usr_admin", true);
+  const waiting = await wsOf(admin, { agentId: "agt_dex" });
+  assert.equal(waiting.state, "waiting");
+  assert.match(waiting.line, /^Waiting for room on the Space server\./);
+  assert.equal(waiting.canAttach, false, "nothing to attach to while it waits");
+  // no machine for this agent: the plain line, and its commands run where the turn runs
+  bindWorkspaces(async () => false);
+  bindTeamFor(() => false);
+  const personal = await wsOf(dana, { agentId: "agt_dana_assistant" });
+  assert.deepEqual([personal.state, personal.canAttach, personal.line], ["unavailable", false, "Your Assistant runs commands on this computer. Install Docker or add a server in Console > Computers to give it a workspace of its own."]);
+  bindTeamFor(() => true);
+  assert.match((await wsOf(admin, { agentId: "agt_dex" })).line, /^This Space has no machine to run agent workspaces on\. Add a server in Console > Computers\.$/);
+  bindWorkspaceStatus(null);
+  bindWorkspaces(false);
+  bindTeamFor(null);
 });

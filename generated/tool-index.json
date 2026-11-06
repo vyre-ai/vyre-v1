@@ -9548,6 +9548,12 @@
     },
     {
       "deferred": false,
+      "name": "terminal_workspace",
+      "summary": "An agent's workspace as the Terminal tab shows it: asleep, running, waiting for room (with the line) or not made yet, where it is, whether you may attach and why not; with no machine to run it, one plain line",
+      "toolset": "terminal"
+    },
+    {
+      "deferred": false,
       "name": "threads_add_agent",
       "summary": "Add an agent to a thread as listening (or leading when it is the only agent)",
       "toolset": "chats"

@@ -6,7 +6,7 @@
 // The machine does the work through the TerminalHost port (projections.ts); this module keeps what Vyre knows about a session and enforces who may do what in it.
 import {
   MAX_RULES, MAX_RULE_CHARS, TICKET_MS, actorOf, boundHost, boundKit, boundPlace, boundValues, clean, commandsOf, ensure, forgetSecrets, hostOf, insertSession, isTeam, judge, mintId, raise, rememberSecrets,
-  rulesOf, sessionBy, sessionOf, sha256, ticketSecret, touch, workspacesReady, SESSION_SELECT, insertTab,
+  rulesOf, sessionBy, sessionOf, sha256, ticketSecret, touch, workspacesFor, boundWorkspaceStatus, SESSION_SELECT, insertTab,
 } from "../projections.ts";
 import { judged, isDangerous } from "../risk.ts";
 import type { HostKind, Lookup, Rules, Secret, SessionRow, TabBy, Target, TermCtx, TermState, TurnPlace, ValueSource, VaultRun, Where } from "../projections.ts";
@@ -120,7 +120,8 @@ interface OpenInput { by?: TabBy; threadId?: string; host: HostKind; agentId?: s
 async function openSession(ctx: TermCtx, a: OpenInput, mapHostError: (e: unknown) => never): Promise<SessionRow> {
   ensure(ctx.db);
   if (a.host === "agent_computer") {
-    if (!isTeam(ctx.space)) raise(ctx, "permission.needs_team", "Agent computers are part of a Team Space.");
+    // a workspace is every Space's (a Personal Space has one when the person's computer has a container runtime); the desktop computer an agent can be given is a Team Space's
+    if (!isTeam(ctx.space) && !(a.agentId !== undefined && (await workspacesFor(a.agentId)))) raise(ctx, "permission.needs_team", "Agent computers are part of a Team Space.");
     if (a.agentId === undefined) raise(ctx, "validation.bad_input", "Say which agent's workspace to open the terminal in.");
     await needWorkspace(ctx, a.agentId);
   }
@@ -168,7 +169,7 @@ export async function open(ctx: TermCtx, input: Omit<OpenInput, "host"> & { host
   let agentId = input.agentId;
   let scope: WorkScope | undefined;
   if (host === undefined) {
-    if (ctx.principal.kind !== "agent" || !workspacesReady() || !isTeam(ctx.space)) raise(ctx, "validation.bad_input", "Say which computer to open the terminal on.");
+    if (ctx.principal.kind !== "agent" || !(await workspacesFor(ctx.principal.id))) raise(ctx, "validation.bad_input", "Say which computer to open the terminal on.");
     host = "agent_computer";
   }
   if (host === "agent_computer" && ctx.principal.kind === "agent") {
@@ -341,7 +342,7 @@ async function placeFor(ctx: TermCtx, person: string, agentId: string | undefine
  */
 async function targetForRun(ctx: TermCtx, a: RunInput, person: string, agentId: string | undefined): Promise<RunTarget> {
   if (a.host === "agent_computer") return { host: "agent_computer" };
-  if (a.host !== "device" && agentId !== undefined && workspacesReady() && isTeam(ctx.space)) return { host: "agent_computer" };
+  if (a.host !== "device" && agentId !== undefined && (await workspacesFor(agentId))) return { host: "agent_computer" };
   const p = await placeFor(ctx, person, agentId);
   // a chat that runs on the person's own computer has a computer to run commands on: the agent's own shell there. Vyre has no terminal open on it, and the answer says that, not that there is no computer
   const device = (): RunTarget => (p?.deviceId === undefined ? raise(ctx, "provider.unavailable", OWN_COMPUTER, { reason: "own_computer" }) : { host: "device", deviceId: p.deviceId });
@@ -359,6 +360,25 @@ async function targetForRun(ctx: TermCtx, a: RunInput, person: string, agentId: 
   if (p.agentComputer && (p.runsOn === "agent_computer" || p.runsOn === "server" || p.runsOn === "space")) return { host: "agent_computer" };
   if (p.runsOn === "server") return raise(ctx, "provider.unavailable", "This chat runs on one of the person's servers, where Vyre terminals are not open yet. Your own shell runs there: use it in your work folder.", { reason: "server" });
   return device();
+}
+
+export const NO_WORKSPACE_PERSONAL = "Your Assistant runs commands on this computer. Install Docker or add a server in Console > Computers to give it a workspace of its own.";
+export const NO_WORKSPACE_TEAM = "This Space has no machine to run agent workspaces on. Add a server in Console > Computers.";
+
+/**
+ * An agent's workspace as the Terminal tab shows it: asleep, running, waiting for room (with the line) or not made yet; where it is; the projects it has folders for; whether this person may attach, and why not
+ * in a sentence. A Space with no machine for it says so in one plain line, and the agent's commands go where its turn runs.
+ */
+export async function workspace(ctx: TermCtx, input: { agentId: string }) {
+  ensure(ctx.db);
+  const may = await mayEnterWorkspace(ctx, input.agentId);
+  const cannot = "That workspace is not yours to open. A person opens their own Assistant's; an owner or admin opens a team agent's.";
+  if (!may) return { state: "none" as const, canAttach: false, cannotAttach: cannot };
+  const probe = boundWorkspaceStatus();
+  const available = probe !== null && (await workspacesFor(input.agentId));
+  if (!available) return { state: "unavailable" as const, canAttach: false, line: isTeam(ctx.space) ? NO_WORKSPACE_TEAM : NO_WORKSPACE_PERSONAL, cannotAttach: "There is no workspace to attach to." };
+  const st = await (probe as NonNullable<typeof probe>)(input.agentId).catch(() => ({ state: "none" as const }));
+  return { ...st, canAttach: st.state === "running" || st.state === "asleep" || st.state === "none" };
 }
 
 /** The session an agent's commands go to when it names none: one per agent, person, host and computer, kept so "Open terminal" shows the same screen. */
