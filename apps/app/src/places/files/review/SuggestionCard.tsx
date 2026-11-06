@@ -1,5 +1,7 @@
 // "Intake suggests 2 changes to AGENT.md" (spec 2.14; vyre-v1.html agent file view): an agent's open suggestion for the file, its diff, Dismiss and Apply to AGENT.md.
 // Reads agents.suggestions.list for the agent and the file; Apply is agents.suggestion.accept and Dismiss is agents.suggestion.dismiss. A suggestion that loosens a rule says so.
+import { CARD_FILL } from "../../../../../../ui/src/Card/index.tsx";
+import { RADIUS } from "../../../../../../ui/src/tokens/radius.ts";
 import { useMemo, useState } from "react";
 import type { ReactElement } from "react";
 import { StyleSheet, Text, View } from "react-native";
@@ -75,7 +77,7 @@ export function SuggestionCard({ agentId, file, density = "regular", text, onApp
 }
 
 const st = StyleSheet.create({
-  card: { marginHorizontal: 16, marginTop: 12, borderRadius: 12, overflow: "hidden", borderWidth: 1, borderColor: "var(--line)", backgroundColor: "var(--win)" as string },
+  card: { marginHorizontal: 16, marginTop: 12, borderRadius: RADIUS, overflow: "hidden", backgroundColor: CARD_FILL },
   head: { flexDirection: "row", alignItems: "flex-start", gap: 10, paddingHorizontal: 14, paddingTop: 12, paddingBottom: 8 },
   headText: { flex: 1, minWidth: 0 },
   title: { fontSize: 13.5, fontWeight: "600", color: "var(--ink)" as string },

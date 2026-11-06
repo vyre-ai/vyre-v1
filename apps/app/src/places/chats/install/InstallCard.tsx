@@ -1,6 +1,8 @@
 // The install card (owner, 4 Nov 2026; prototype r-install): an agent was given a link and read it into a plan; this is the card that waits for the person. It says what it is, what it does, what it needs,
 // the exact commit and who gets it, then Install, Edit (the name agents will see) and Not now. After Install it is one quiet line with Open. An update is one quiet line, See changes, and a diff card
 // with Update and Not now. The card reads its plan by id (install.get), so it is right after a reload and on another device.
+import { CARD_FILL } from "../../../../../../ui/src/Card/index.tsx";
+import { RADIUS } from "../../../../../../ui/src/tokens/radius.ts";
 import { useCallback, useEffect, useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
@@ -232,7 +234,7 @@ function Pill({ on, label, onPress, testID }: { on: boolean; label: string; onPr
 }
 
 const st = StyleSheet.create({
-  card: { borderRadius: 16, padding: 12, gap: 8, backgroundColor: "var(--sunk)" as string, maxWidth: 560 },
+  card: { borderRadius: RADIUS, padding: 12, gap: 8, backgroundColor: CARD_FILL, maxWidth: 560 },
   head2: { flexDirection: "row", gap: 10, alignItems: "flex-start" },
   headText: { flex: 1, minWidth: 0, gap: 1 },
   summary: { fontSize: 12, lineHeight: 17, color: "var(--ink-3)" as string },
