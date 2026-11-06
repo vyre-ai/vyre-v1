@@ -47,7 +47,7 @@ export const REVIEWER_LINES: ReadonlyArray<readonly [file: string, has: string]>
   ["apps/app/src/places/chats/tasks/TaskDetail.tsx", '<Btn label="Looks good" primary testID="task-approve"'],
   ["apps/app/src/places/chats/needsyou/sample.ts", 'const review = [{ key: "review", label: "Looks good" }'],
   ["apps/app/src/shell/places-fixture/sample-a.ts", 'const review = [{ key: "review", label: "Looks good" }'],
-  ["apps/app/src/places/chats/conversation/crew-card.tsx", "testID={`crew-back-${c.jobId}`}"],
+  ["apps/app/src/places/chats/conversation/crew-card.tsx", '{ label: "Send back", onPress: () => setBack(true), testID: `crew-back-${c.jobId}` }'],
 ];
 
 /** Label-bearing spots on one line: label=, accessibilityLabel=, a menu entry's label:, a held card's do/dont, a short title (a Button's title, not a task's name), and JSX text. Returns each old word found. */

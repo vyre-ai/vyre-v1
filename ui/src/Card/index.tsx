@@ -199,6 +199,7 @@ export function CardActions({ primary, secondary = [], busy = false, error, note
       <View style={s.actions}>
         <View style={s.buttons}>
           {primary ? <CardButton {...primary} primary busy={busy} disabled={busy || primary.disabled === true} /> : null}
+          {/* ui-rows-lint: not a list (the card's action buttons, side by side) */}
           {secondary.map((a) => <CardButton key={a.label} {...a} disabled={busy || a.disabled === true} />)}
         </View>
         {note ? <View style={s.note}>{note}</View> : null}
