@@ -1039,8 +1039,10 @@ const parseCursor = (c: string | null): { updatedMin: number; fullAt: number } |
   return m ? { updatedMin: Number(m[1]), fullAt: Number(m[2]) } : null;
 };
 /** Let the event loop run: the pull lands events with synchronous SQLite, so after a batch it steps aside for requests. */
-const YIELD_EVERY = 20;
+const YIELD_EVERY_MS = 20;
 const yieldLoop = (): Promise<void> => new Promise((r) => setImmediate(r));
+/** A yielder for one pull: after every event it steps aside once YIELD_EVERY_MS have passed since it last did, so no stretch of work holds the loop longer than about that. */
+const makeYielder = (): (() => Promise<void>) => { let since = performance.now(); return async () => { if (performance.now() - since >= YIELD_EVERY_MS) { await yieldLoop(); since = performance.now(); } }; };
 
 async function pullGoogle(ctx: CalCtx, calendarId: string, connectionId: string, remoteId: string, cursor: string | null, account?: string): Promise<Pulled> {
   const run = async (token: string | null, since: number | null, fullAt: number): Promise<Pulled> => {
@@ -1049,7 +1051,7 @@ async function pullGoogle(ctx: CalCtx, calendarId: string, connectionId: string,
     let pageToken: string | undefined;
     let next: string | null = null;
     const now = ctx.now();
-    let landed = 0;
+    const step = makeYielder();
     for (let page = 0; page < MAX_PAGES; page++) {
       const query: Json = token ? { syncToken: token } : { timeMin: isoOf(now - PULL_BEHIND), timeMax: isoOf(now + PULL_AHEAD), ...(since !== null ? { updatedMin: isoOf(since) } : {}) };
       const res = obj(await ctx.call("google.calendar.list_events", { connectionId, calendarId: remoteId, ...(account ? { as: account } : {}), ...query, ...(pageToken ? { pageToken } : {}) }));
@@ -1059,7 +1061,7 @@ async function pullGoogle(ctx: CalCtx, calendarId: string, connectionId: string,
         await ingestEvent(ctx, ing);
         if (ing.deleted) removed++;
         else upserted++;
-        if (++landed % YIELD_EVERY === 0) await yieldLoop();
+        await step();
       }
       pageToken = text(res.nextPageToken) || undefined;
       if (text(res.nextSyncToken)) next = text(res.nextSyncToken);
@@ -1093,14 +1095,14 @@ async function pullGraph(ctx: CalCtx, calendarId: string, connectionId: string, 
     const res = obj(await ctx.call("ms.calendar.delta", { connectionId, ...(remoteId === GRAPH_DEFAULT ? {} : { calendarId: remoteId }), ...(account ? { as: account } : {}), start: isoOf(now - PULL_BEHIND), end: isoOf(now + PULL_AHEAD), ...(link ? { deltaLink: link } : {}) }));
     let upserted = 0;
     let removed = 0;
-    let landed = 0;
+    const step = makeYielder();
     for (const raw of list(res.changed).map(obj)) {
       const ing = fromGraph(calendarId, raw);
       if (!ing) continue;
       await ingestEvent(ctx, ing);
       if (ing.deleted) removed++;
       else upserted++;
-      if (++landed % YIELD_EVERY === 0) await yieldLoop();
+      await step();
     }
     for (const id of list(res.removed)) {
       if (typeof id !== "string" || !id) continue;
