@@ -433,6 +433,18 @@ export function directoryOf(team: readonly { email: string; name: string }[]): {
 export interface AllDaySeg { e: EventRow; /** First and last day index it covers in the view. */ a: number; b: number; /** Its row in the lane. */ row: number }
 export interface AllDayLane { segs: AllDaySeg[]; /** Per day index: how many are folded into the "+N". */ hidden: Record<number, number>; /** Rows to draw, the "+N" row included. */ rows: number }
 
+/**
+ * A provider's all-day event is a date, not an instant: the server keeps it as midnight UTC of that date to midnight UTC of the day after. The grid's days start at midnight in the
+ * viewer's zone, so the same numbers would sit across two grid days anywhere but UTC (a Sunday event drawn as a Saturday to Sunday bar). This puts the event on its own date:
+ * midnight in the viewer's zone. Timed events pass through. `allDayToWire` is the way back for a write.
+ */
+export function allDayLocal<T extends Pick<EventRow, "allDay" | "startsAt" | "endsAt">>(e: T, offsetMin: number): T {
+  return e.allDay && offsetMin !== 0 ? { ...e, startsAt: e.startsAt - offsetMin * MIN, endsAt: e.endsAt - offsetMin * MIN } : e;
+}
+export function allDayToWire<T extends Pick<EventRow, "allDay" | "startsAt" | "endsAt">>(e: T, offsetMin: number): T {
+  return e.allDay && offsetMin !== 0 ? { ...e, startsAt: e.startsAt + offsetMin * MIN, endsAt: e.endsAt + offsetMin * MIN } : e;
+}
+
 /** The all-day lane: one chip per event per day (a copy of the same title on the same days is one), a multi-day event is one bar across its days, and rows past `cap` fold into "+N" per day. */
 export function allDayLane(events: readonly EventRow[], days: readonly number[], cap = 2): AllDayLane {
   const first = days[0] as number, last = (days[days.length - 1] as number) + DAY;
