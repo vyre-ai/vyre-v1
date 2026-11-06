@@ -478,3 +478,14 @@ test("the menu names the model and the account at its top, and follows a new pic
     assert.equal(textOf(find(root, "model-head-name")), "Sonnet 5.5");
   });
 });
+
+test("a chat with an agent in it has the settings icon even when nobody will answer, when the place can open the menu", () => {
+  const noPanel = clean(renderToStaticMarkup(<Composer whoWillAnswer="" lists={lists} agents={agents} />));
+  assert.doesNotMatch(noPanel, /composer-strip/, "no menu to open: no icon");
+  const channel = clean(renderToStaticMarkup(<Composer whoWillAnswer="" lists={lists} agents={agents} renderPanel={() => null} />));
+  assert.match(channel, /data-testid="composer-strip"/, "an agent is in the chat: the icon");
+  const outside = clean(renderToStaticMarkup(<Composer whoWillAnswer="" lists={lists} agents={agents} renderPanel={() => null} sendsOutside />));
+  assert.doesNotMatch(outside, /composer-strip/, "a message that leaves Vyre has none");
+  const alone = clean(renderToStaticMarkup(<Composer whoWillAnswer="" lists={lists} agents={[]} renderPanel={() => null} />));
+  assert.doesNotMatch(alone, /composer-strip/, "no agent in the chat: no icon");
+});

@@ -817,7 +817,8 @@ export function Composer(props: ComposerProps): ReactElement {
     : undefined;
   const who = answerLine(state.text, props.whoWillAnswer, whoCtx);
   const answerers = props.sendsOutside === true || props.hideWho === true ? [] : answering(who.responders, props.agents);
-  const ai = answerers.length > 0;
+  // the settings icon: whoever will answer, else the chat's first agent when the place can open the menu (a channel with an agent in it)
+  const settingsAgent: ComposerAgent | undefined = answerers[0] ?? (props.renderPanel !== undefined && props.sendsOutside !== true && props.hideWho !== true ? props.agents?.[0] : undefined);
 
   const trigger = useMemo(() => detectTrigger(state.text, state.cursor, symbols), [state.text, state.cursor, symbols.join(",")]);
   const searchKey = trigger !== null && (trigger.ch === "#" || trigger.ch === "[[") ? `${trigger.ch}\u0000${trigger.query}` : null;
@@ -850,7 +851,7 @@ export function Composer(props: ComposerProps): ReactElement {
   const working = props.working === true;
   const hasContent = canSend(state);
   const control = sendControl(working, hasContent);
-  const showMode = ai && props.mode !== undefined && props.onMode !== undefined;
+  const showMode = settingsAgent !== undefined && props.mode !== undefined && props.onMode !== undefined;
 
   const patch = useCallback((next: Partial<ComposerState>) => setState((s) => ({ ...s, ...next })), []);
   const talk = useTalk({
@@ -1239,9 +1240,9 @@ export function Composer(props: ComposerProps): ReactElement {
   );
   // an app's own control beside the model strip (the memory lock) sits in the same 32 px box as the others, centred on the same line
   const barExtraNode = props.barExtra ? <View style={styles.extraBox}>{props.barExtra}</View> : null;
-  const stripNode_ = ai ? (
+  const stripNode_ = settingsAgent !== undefined ? (
     <View ref={stripNode as never} style={styles.stripWrap}>
-      <AgentStrip list={answerers} open={panelOpen} mode={showMode ? props.mode : undefined} runsChip={props.runsChip} {...(props.renderPanel ? { onPress: () => { setPlusOpen(false); setPanelOpen((x) => !x); } } : {})} />
+      <AgentStrip list={[settingsAgent]} open={panelOpen} mode={showMode ? props.mode : undefined} runsChip={props.runsChip} {...(props.renderPanel ? { onPress: () => { setPlusOpen(false); setPanelOpen((x) => !x); } } : {})} />
     </View>
   ) : null;
 
@@ -1299,9 +1300,9 @@ export function Composer(props: ComposerProps): ReactElement {
           <View style={styles.scr}>{plusRows}</View>
         </Pop>
       ) : null}
-      {panelOpen && ai && props.renderPanel ? (
+      {panelOpen && settingsAgent !== undefined && props.renderPanel ? (
         <Pop testID="composer-panel" label="Model" style={[panelNarrow ? styles.panelNarrow : styles.panelPop, panelNarrow ? { maxHeight: Math.max(240, Math.min(520, winH - 180)) } : null, props.panelBelow ? styles.panelBelow : null] as ViewStyle[]} nodeRef={(n) => { panelNode.current = n; }}>
-          {props.renderPanel(answerers[0] as ComposerAgent, () => setPanelOpen(false), panelNarrow)}
+          {props.renderPanel(settingsAgent, () => setPanelOpen(false), panelNarrow)}
         </Pop>
       ) : null}
       {hashPop}

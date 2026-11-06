@@ -55,6 +55,7 @@ import { useAddSheet } from "../addsheet/index.ts";
 import { useChatViewing, useOpenPublished } from "./artifact-open.ts";
 import { QuestionIsland } from "./QuestionIsland.tsx";
 import { islandView, openQuestions } from "./island.ts";
+import { useCardsInView } from "./use-cards-in-view.ts";
 import { ChatBrain, compactChat, entryOf, modeOf, prettyModel, setChatMode, stripAgents, useAccounts, usePickUnavailable, useUsage } from "./brain.tsx";
 import type { ChatMode } from "../../../../../../ui/src/Composer/index.tsx";
 import { useConnectVersion } from "../../../shell/connect/context.ts";
@@ -102,6 +103,7 @@ function useReplies(threadId: string): Map<string, ReplySummary> {
 
 /** `compact` is for a conversation inside another screen (the onboarding Assistant): just the messages and the composer, no title bar with members, search and side-panel buttons. */
 const CompactContext = createContext(false);
+const NO_IDS: readonly string[] = [];
 /** The mute lines a teammate has been shown, by message (lane l-agentdm): kept on this device so the line does not come back once seen. */
 const MUTE_SEEN = "vyre.agentdm.mute-seen.v1";
 function readMuteSeen(): ReadonlySet<string> {
@@ -338,11 +340,14 @@ function ConversationView(): ReactElement {
   useEffect(() => { crew?.refresh(); }, [messageCount]);  // eslint-disable-line react-hooks/exhaustive-deps
   // the agents.list rows the Ask-an-agent picker labels its agents from, read when it first opens
   const agentMeta = useRef<readonly AgentMeta[] | null>(null);
+  // which open questions have their own card on screen: the island docks the ones that do not (a hook, so before the early returns)
+  const cardsInView = useCardsInView(messagesQ.status === "loading" ? NO_IDS : openQuestions(mergePages(around ?? messagesQ.data.messages, older)).map((x) => x.id));
   if (failed) return <LoadFailed what="this chat" failure={failed} testID="conversation-failed" />;
   if (threadQ.status === "loading" || messagesQ.status === "loading") return <ConversationLoading />;
   const thread: Thread = threadQ.data.thread;
   const live = messagesQ.data.messages;
   const all = mergePages(around ?? live, older);
+  const openQs = openQuestions(all);
   emptyRef.current = all.length === 0;
   const liveView = around === null;
   // a failure a later reply has answered is over: its card leaves, and the reply stands on its own time
@@ -463,7 +468,7 @@ function ConversationView(): ReactElement {
       x, y, "other", { label: "Helpers" },
     );
   };
-  const island = islandView(openQuestions(all), putAway, islandAt);
+  const island = islandView(openQs, putAway, islandAt, cardsInView);
   const typingNames: readonly string[] = data.typing ?? [];
   const peopleMenu = (x: number, y: number): void => add.showPeople({ thread, x, y, onOpenAgent: data.nav.openAgent });
   const modelMenu = (x: number, y: number): void => {

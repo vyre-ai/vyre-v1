@@ -41,6 +41,18 @@ for (const skin of ["graphite", "paper"]) for (const [size, [w, h]] of Object.en
   await go("/m/P-L9b_04?v=plan", "[data-testid=question-island]");
   await shot("island");
   console.log(skin, size, "island", JSON.stringify(await page.evaluate(() => { const i = document.querySelector("[data-testid=question-island]"); const c = document.querySelector("[data-testid=composer]"); if (!i || !c) return null; const a = i.getBoundingClientRect(), b = c.getBoundingClientRect(); return { island: [Math.round(a.left), Math.round(a.top), Math.round(a.width), Math.round(a.height)], composer: [Math.round(b.left), Math.round(b.top), Math.round(b.width)], gap: Math.round(b.top - a.bottom) }; })));
+  // the island follows its card: in view at the end of the list (no island), scrolled away (docked)
+  await go("/m/P-L9b_04?v=plan", "[data-testid=composer-field]");
+  const feedGap = () => page.evaluate(() => { const f = document.querySelector("[data-testid=conversation-feed]"); return f ? Math.round(f.scrollHeight - f.scrollTop - f.clientHeight) : null; });
+  console.log(skin, size, "at end: island", await page.locator("[data-testid=question-island]").count(), "card", await page.locator("[data-testid=blk-question-q1]").count(), "gap", await feedGap());
+  await shot("island-hidden");
+  await page.evaluate(() => { const f = document.querySelector("[data-testid=conversation-feed]"); f.scrollTop = 0; }); await page.waitForTimeout(500);
+  console.log(skin, size, "scrolled up: island", await page.locator("[data-testid=question-island]").count());
+  await shot("island-docked");
+  await page.evaluate(() => { const f = document.querySelector("[data-testid=conversation-feed]"); f.scrollTop = f.scrollHeight; }); await page.waitForTimeout(500);
+  console.log(skin, size, "back at end: island", await page.locator("[data-testid=question-island]").count());
+  await go("/m/UI221_02", "[data-testid=comment-reply-t1]");
+  await page.screenshot({ path: path.join(out, `comment-${skin}-${size}.png`) });
   if (size === "wide") { await go("/m/UI221_01?part=main&name=amicuspro&dex=1&typing=Omar", "[data-testid=typing-row]"); await shot("channel"); }
   await ctx.close();
 }

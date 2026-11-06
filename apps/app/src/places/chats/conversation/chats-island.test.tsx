@@ -105,3 +105,16 @@ test("a channel keeps a fixed row above the composer for who is typing; other ch
   assert.doesNotMatch(none, /is typing/);
   assert.doesNotMatch(clean(renderToStaticMarkup(<Conversation data={createSample("idle").data} />)), /typing-row/);
 });
+
+test("the island docks only the questions whose own card is off screen: one in view is left to its card, and it comes back when the card scrolls away", async () => {
+  const { rectsOverlap } = await import("./use-cards-in-view.ts");
+  const all = openQuestions([q("q1", 10), q("q2", 20)]);
+  assert.equal(islandView(all, new Set(), null, new Set(["q2"])).list.map((x) => x.id).join(), "q1", "q2's card is on screen: only q1 is docked");
+  assert.equal(islandView(all, new Set(), null, new Set(["q1", "q2"])).list.length, 0, "both cards on screen: no island");
+  assert.equal(islandView(all, new Set(), null, new Set()).list.length, 2, "both scrolled away: both docked");
+  const feed = { top: 100, bottom: 700 };
+  assert.equal(rectsOverlap({ top: 300, bottom: 400 }, feed), true, "inside");
+  assert.equal(rectsOverlap({ top: 720, bottom: 800 }, feed), false, "below the list");
+  assert.equal(rectsOverlap({ top: 20, bottom: 104 }, feed), false, "a sliver at the edge is out of view");
+  assert.equal(rectsOverlap({ top: 40, bottom: 300 }, feed), true, "partly in");
+});
