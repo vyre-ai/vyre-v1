@@ -11,3 +11,4 @@
 - The Browser section now shows a browser waiting for room with the server's line, lists the logins its profile holds (computers.browser.sessions, only while it runs, for people who may take it over), and signs out of a site (computers.browser.sign_out).
 - The browser live view scales your clicks from the frame size the stream reports, or the picture's own size, and accounts for bars around the picture; no fixed page size.
 - The Terminal section reads the workspace's state, its waiting line, where it runs and who may attach from terminal.workspace (one source for the attach rule); sessions still come from the agent's terminal rows, and project folders show by name.
+- The Browser section lists the logins of a sleeping browser too (from the list saved when it closed) without waking it.

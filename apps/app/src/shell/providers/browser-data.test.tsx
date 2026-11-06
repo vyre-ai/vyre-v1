@@ -90,7 +90,7 @@ test("the live view's helpers: addresses, pointer positions in the browser's own
   assert.deepEqual(keyMessages({ key: "Dead" }), []);
 });
 
-test("a browser waiting for room or in error shows the line the server gave; the logins come from the sessions call, for a person who may take over and only while it runs", async () => {
+test("a browser waiting for room or in error shows the line the server gave; the logins come from the sessions call, for a person who may take over ", async () => {
   assert.deepEqual(browserView("agt_dex", [row({ running: false, state: "waiting", line: "Waiting for room on the Space server. Add a compute server in Console > Computers to run more." })], d).line?.slice(0, 16), "Waiting for room");
   assert.equal(browserView("agt_dex", [row({ running: false, state: "waiting" })], d).state, "waiting");
   assert.equal(browserView("agt_dex", [row({ state: "error", line: "It could not open." })], d).state, "error");
@@ -100,9 +100,10 @@ test("a browser waiting for room or in error shows the line the server gave; the
   await flush();
   assert.deepEqual(seen, [{ n: 1, first: "app.clio.com" }]);
   const sleeping = wire({ rows: [row({ running: false, state: "asleep" })] });
-  sleeping.data.watch("agt_dex", () => undefined);
+  const seenAsleep: number[] = [];
+  sleeping.data.watch("agt_dex", (v) => seenAsleep.push(v.sites.length));
   await flush();
-  assert.equal(sleeping.calls.some((c) => c.cap === "computers.browser.sessions"), false, "reading logins would wake it");
+  assert.deepEqual(seenAsleep, [1], "a sleeping browser lists the logins it saved, and is not woken by it");
   const viewer = wire({ rows: [row({ access: "viewer" })] });
   viewer.data.watch("agt_dex", () => undefined);
   await flush();

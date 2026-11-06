@@ -38,10 +38,10 @@ export function browserData(d: {
       const pull = (): void => {
         void (async () => {
           const rows = ((await d.call("computers.browser.profiles", {})) as { profiles?: BrowserRowLike[] }).profiles ?? [];
-          // its logins are read only while it is awake (reading them would wake it) and only for a person who may take it over
+          // its logins are for a person who may take it over; a sleeping browser answers from the list saved when it closed, and is not woken
           const r = rows.find((x) => x.agentId === agentId);
           let sites: BrowserView["sites"] = [];
-          if (r && r.running && (r.access === "owner" || r.access === "admin")) {
+          if (r && (r.access === "owner" || r.access === "admin")) {
             try { sites = ((await d.call("computers.browser.sessions", { agentId })) as { sessions?: Array<{ site: string; signedInAs?: string; since: number }> }).sessions?.map((x) => ({ site: x.site, ...(x.signedInAs ? { signedInAs: x.signedInAs } : {}), since: x.since })) ?? []; } catch { /* the list stays empty */ }
           }
           if (live) on(browserView(agentId, rows, d, sites));
