@@ -119,6 +119,27 @@
    "proto": "chats,{skin}",
    "waitFor": "[data-testid='redactreq-rrq_1']",
    "note": ""
+  },
+  {
+   "id": "CARDS_01-goal",
+   "route": "/m/CARDS_01?part=goal",
+   "proto": "chats,{skin}",
+   "waitFor": "[data-testid^='goal-card']",
+   "note": "goal"
+  },
+  {
+   "id": "CARDS_01-install",
+   "route": "/m/CARDS_01?part=install",
+   "proto": "chats,{skin}",
+   "waitFor": "[data-testid='install-m1']",
+   "note": "install"
+  },
+  {
+   "id": "CARDS_01-web",
+   "route": "/m/CARDS_01?part=web",
+   "proto": "chats,{skin}",
+   "waitFor": "[data-testid='webpage-w1']",
+   "note": "web"
   }
  ]
 }
