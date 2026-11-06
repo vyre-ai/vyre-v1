@@ -6,7 +6,7 @@ import http from "node:http";
 import { bare, buildQuery, containerBody, execBody, judge, networkBody, networkOf, SITE_ID, siteAllows, computerAllows } from "./policy.ts";
 import { COMPUTER_ID, HELPER_NAME_RE, computerBody, computerNet, computerNetworkBody, computerOf, helperBody, SBROWSER_NAME, SBROWSER_NET, sbrowserAllows, sbrowserBody, sbrowserNetworkBody, sbrowserOf } from "./computers-policy.ts";
 import { WS_AGENT, WS_INIT_NAME, WS_NET, workspaceAllows, workspaceBody, workspaceHelperOf, workspaceInitBody, workspaceNetworkBody, workspaceOf, workspaceVolumeBody } from "./workspaces-policy.ts";
-import { createHash } from "node:crypto";
+import { sha256Hex } from "../../../kernel/src/log/hash.ts";
 
 export interface RunnerOptions { dockerSocket: string; listen: string; token: string; log?: (line: string) => void }
 
@@ -61,7 +61,7 @@ export function createSitesRunner(o: RunnerOptions): { server: http.Server; clos
   }
 
   /** A workspace's network is named for its agent: vyre-wsnet- and the first 16 hex of the agent id's sha-256 (modules/terminal/workspace.ts workspaceNetworkName). */
-  const wsNetOk = (agent: string, net: string): boolean => WS_NET.test(net) && net === `vyre-wsnet-${createHash("sha256").update(agent).digest("hex").slice(0, 16)}`;
+  const wsNetOk = (agent: string, net: string): boolean => WS_NET.test(net) && net === `vyre-wsnet-${sha256Hex(agent).slice(0, 16)}`;
 
   async function labelsOf(id: string): Promise<Record<string, string> | null> {
     const r = await docker("GET", `/containers/${encodeURIComponent(id)}/json`, null, {}, null);

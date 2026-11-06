@@ -7,7 +7,7 @@
 import fs from "node:fs";
 import http from "node:http";
 import path from "node:path";
-import { randomBytes } from "node:crypto";
+import { randomHex } from "../../../kernel/src/log/hash.ts";
 import { createSitesRunner } from "../sites-runner/server.ts";
 
 /** Bytes of a body in one frame once base64 has grown them. */
@@ -135,7 +135,7 @@ export function createDockerAsk(o: { socket: string; token: string; maxTotal?: n
     const headers: http.OutgoingHttpHeaders = body ? { "content-type": r.contentType ?? (r.jsonText !== undefined ? "application/json" : "application/octet-stream"), "content-length": body.length } : {};
     const res = await raw(r.method, `/v${await negotiate()}${r.path}${qs}`, headers, body, r.timeoutMs ?? 60_000);
     if (res.body.length > CHUNK) {
-      const id = randomBytes(16).toString("hex");
+      const id = randomHex(16);
       outbox.set(id, { body: res.body, at: now() });
       return { status: res.status, bodyB64: res.body.subarray(0, CHUNK).toString("base64"), more: { id, chunks: Math.ceil(res.body.length / CHUNK) } };
     }
@@ -152,7 +152,7 @@ export async function startWorkspaceDocker(dataDir: string, o: { dockerSocket?: 
   fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
   const listen = path.join(dir, "workspaces-runner.sock");
   fs.rmSync(listen, { force: true });
-  const token = randomBytes(24).toString("hex");
+  const token = randomHex(24);
   const runner = createSitesRunner({ dockerSocket: o.dockerSocket ?? process.env["VYRE_DOCKER_SOCKET"] ?? "/var/run/docker.sock", listen, token, ...(o.log ? { log: o.log } : {}) });
   await runner.listening;
   return { ask: createDockerAsk({ socket: listen, token }), close: async () => { runner.server.closeAllConnections?.(); await runner.close(); } };

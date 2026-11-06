@@ -279,7 +279,7 @@ test("@heavy space browser: a Vault login fills in the agent's profile, and neve
 
 // What the extension's native host does, from inside the container: read the profile's bridge folder, call the bridge over loopback with the profile's token, and listen on the events stream.
 const AS_EXTENSION = String.raw`
-const fs = require("fs");
+const fs = require("node:fs");
 const dir = "/data/profiles/agt_pair/bridge";
 const info = JSON.parse(fs.readFileSync(dir + "/vyred.json", "utf8"));
 const token = fs.readFileSync(dir + "/admin.token", "utf8").trim();
