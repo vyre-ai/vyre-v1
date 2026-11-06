@@ -76,7 +76,7 @@ const contractErrors = (s: MountSample, only: (cap: string) => boolean): string[
 test("the face: the lead's face is in the header and its menu's Open Page shows the agent page with its tabs", () => {
   const s = createMountSample();
   const chat = html(s, step(START, { t: "chat", threadId: "c1" }));
-  assert.ok(has(chat, 'data-testid="face-agt_intake"'), "the lead's face is a button in the header");
+  assert.ok(!has(chat, 'data-testid="face-agt_intake"'), "the faces are in the people popover, not the header");
   assert.ok(!has(chat, 'data-testid="agent-page"'), "the chat is not the agent page");
   const { go, acts, shown } = doors(s);
   conversation(s, go).nav.openAgent("agt_intake");
@@ -455,7 +455,7 @@ test("the whole place with a runtime draws the sidebar and the open chat, and ev
   const side = inSlot(s);
   assert.ok(has(side.out, 'data-testid="chats-sidebar"'), "the sidebar is drawn in the shell's slot");
   for (const own of ["sidebar-head", "sidebar-toggle", "sidebar-collapsed", "sidebar-show", "chats-back", "chats-sidebar"]) assert.ok(!has(out, `data-testid="${own}"`), `${own}: the place draws no sidebar frame of its own`);
-  for (const id of ["helpers-button", "participants-button", "pane-button", "more-button", "add-agent"]) assert.ok(has(out, `data-testid="${id}"`), id);
+  for (const id of ["helpers-button", "participants-button", "pane-button", "more-button"]) assert.ok(has(out, `data-testid="${id}"`), id);
   assert.ok(!has(out, "-loading"), "no loading frame once the Space is open");
 });
 

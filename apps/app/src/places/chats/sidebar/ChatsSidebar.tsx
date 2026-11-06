@@ -43,6 +43,7 @@ import { importedChanged, onImportedChange } from "../imported/changes.ts";
 import { useGoals } from "../goals/data.ts";
 import { sidebarGoals } from "../goals/model.ts";
 import type { GoalLine } from "../goals/model.ts";
+import { RADIUS, ROW } from "../../../../../../ui/src/tokens/calm.ts";
 import { GOAL_ROW_H, GoalRow } from "../goals/GoalRow.tsx";
 import { askedCall, goalMenuEntries } from "../goals/goal-menu.ts";
 import { useProjects } from "../projects/data.ts";
@@ -67,7 +68,7 @@ export const SIDEBAR_SCREEN = "chats.sidebar";
 export const AGENTS_SCREEN = "chats.all-agents";
 /** Tasks is the one door to what needs you: the sidebar reads its Needs you and its count (tasks.my-work), never the Home screen. */
 export const NEEDS_SCREEN = "tasks.my-work";
-export const ROW_H = 34;
+export const ROW_H = ROW;
 const NO_GOALS: GoalLine[] = [];
 /** A section head sits a little apart from the rows above it. */
 const WORK_SCREEN = "tasks.my-work";
@@ -509,7 +510,7 @@ function Sidebar({ window, query, slot, open: shown, startFilter }: { window?: V
       const subject = it.subject;
       items.push({ label: `${it.title}: ${it.line}`, ...(subject && (subject.type === "thread" || subject.type === "task" || data.nav.openSubject) ? { onSelect: () => openDigestItem(subject) } : {}) });
     }
-    items.push({ separator: true }, { label: "Mark as Seen", onSelect: seenDigest });
+    items.push({ separator: true }, { label: "Mark all seen", onSelect: seenDigest });
     menu.show(items, x, y, "other", { label: "While you were away" });
   };
   const at = (ev: unknown): [number, number] => { const n = (ev as { nativeEvent?: { pageX?: number; pageY?: number } } | undefined)?.nativeEvent; return [n?.pageX ?? 8, n?.pageY ?? 48]; };
@@ -606,7 +607,7 @@ function Sidebar({ window, query, slot, open: shown, startFilter }: { window?: V
       case "project": return wrap(
         <Row id={e.key} title={e.project.title} selected={sel} hovered={lit} onPress={() => open(e)}
           leading={<LeadGlyph name="project" />}
-          trailing={<View style={st.tools}>{(e.project.unread ?? 0) > 0 ? <UnreadDot /> : null}{e.project.starred ? <Text style={st.starMark}>{"\u2605"}</Text> : null}<View style={[st.healthDot, { backgroundColor: HEALTH_DOT[e.project.health ?? "none"] }]} testID={`project-dot-${e.project.id}`} accessibilityLabel={e.project.health ? HEALTH_LABEL[e.project.health] : "No status"} /></View>} />, ROW_H);
+          trailing={<View style={st.tools}>{(e.project.unread ?? 0) > 0 ? <UnreadDot /> : null}{e.project.starred ? <Text style={st.starMark}>{"\u2605"}</Text> : null}{e.project.health === "risk" || e.project.health === "off" ? <View style={[st.healthDot, { backgroundColor: HEALTH_DOT[e.project.health] }]} testID={`project-dot-${e.project.id}`} accessibilityLabel={HEALTH_LABEL[e.project.health]} /> : null}</View>} />, ROW_H);
       case "goal": return wrap(<GoalRow goal={e.goal} selected={sel} hovered={lit} now={data.clock().now} me={data.me?.id} leadName={agentName(e.goal.leadAgentId)} onPress={() => open(e)} />, GOAL_ROW_H);
       case "group": return <GroupLabel label={e.label} />;
       case "action": return (
@@ -645,7 +646,7 @@ function Sidebar({ window, query, slot, open: shown, startFilter }: { window?: V
       case "digest": return (
         <View style={{ height: ROW_H }} testID="away-digest-row">
           <Row id={e.key} title="While you were away" selected={sel} hovered={lit} onPress={(ev) => { setCursor(e.key); const [x, y] = at(ev); digestMenu(x, y); }} leading={<LeadGlyph name="clock" />}
-            trailing={<Text testID="away-digest-count" style={st.navCount}>{e.count}</Text>} />
+            trailing={lit ? <Pressable accessibilityRole="button" accessibilityLabel="Mark all seen" testID="away-digest-seen" onPress={() => seenDigest()} style={st.seenBtn}><Text style={st.seenText}>Mark all seen</Text></Pressable> : <Text testID="away-digest-count" style={st.navCount}>{e.count}</Text>} />
         </View>
       );
       case "pulse": return (
@@ -791,11 +792,13 @@ const st = StyleSheet.create({
   starMark: { fontSize: 11, color: "var(--warn)" as string },
   root: { flex: 1, minHeight: 0, paddingHorizontal: 8 },
   top: { height: 28, flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 6, paddingBottom: 4 },
+  seenBtn: { height: 24, paddingHorizontal: 6, justifyContent: "center", borderRadius: RADIUS },
+  seenText: { fontSize: 12, color: "var(--ink-3)" as string },
   navCount: { fontSize: 11, color: "var(--ink-4)" as string, fontVariant: ["tabular-nums"] },
   needDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: "var(--warn)" as string },
   more: { height: ROW_H, justifyContent: "center", paddingHorizontal: 8 },
   moreText: { fontSize: 12, color: "var(--ink-3)" as string },
-  undo: { flexDirection: "row", alignItems: "center", gap: 10, marginHorizontal: 8, marginBottom: 8, paddingHorizontal: 12, minHeight: 40, borderRadius: 10, backgroundColor: "var(--raised)" as string, borderWidth: 1, borderColor: "var(--line)" as string },
+  undo: { flexDirection: "row", alignItems: "center", gap: 10, marginHorizontal: 8, marginBottom: 8, paddingHorizontal: 12, minHeight: 40, borderRadius: RADIUS, backgroundColor: "var(--raised)" as string, borderWidth: 1, borderColor: "var(--line)" as string },
   undoText: { flex: 1, minWidth: 0, fontSize: 13, color: "var(--ink-2)" as string },
   undoBtn: { height: 28, paddingHorizontal: 8, justifyContent: "center" },
   undoAct: { fontSize: 13, fontWeight: "600", color: "var(--accent)" as string },
@@ -804,7 +807,7 @@ const st = StyleSheet.create({
   tools: { flexDirection: "row", alignItems: "center", gap: 6 },
   time: { fontSize: 11, color: "var(--ink-3)" as string },
   renameRow: { height: ROW_H, flexDirection: "row", alignItems: "center", paddingHorizontal: 8 },
-  renameInput: { flex: 1, minWidth: 0, height: 24, borderRadius: 6, borderWidth: 1, borderColor: "var(--accent)" as string, paddingHorizontal: 6, fontSize: 13, color: "var(--ink)" as string, outlineStyle: "none", outlineWidth: 0 } as object,
+  renameInput: { flex: 1, minWidth: 0, height: 24, borderRadius: RADIUS, borderWidth: 1, borderColor: "var(--accent)" as string, paddingHorizontal: 6, fontSize: 13, color: "var(--ink)" as string, outlineStyle: "none", outlineWidth: 0 } as object,
   digit: { fontSize: 11, color: "var(--ink-4)" as string },
   waiting: { fontSize: 11.5, color: "var(--accent)" as string },
   quiet: { fontSize: 11.5, color: "var(--ink-3)" as string },

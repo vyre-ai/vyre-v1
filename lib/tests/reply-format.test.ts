@@ -32,3 +32,7 @@ test("it says which ids can be linked: Vyre items, and mail and calendar ids fro
   assert.match(REPLY_FORMAT, /calendar event/);
   assert.match(REPLY_FORMAT, /write the name alone/);
 });
+
+test("it tells agents about sections, marks and choices", () => {
+  for (const w of ["[!section]", "++underline++", "==highlight==", "```choices"]) assert.ok(REPLY_FORMAT.includes(w), w);
+});

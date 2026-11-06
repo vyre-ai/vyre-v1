@@ -1,0 +1,5 @@
+{
+  "targets": [
+    { "id": "CALM_01-chat", "route": "/m/CALM_01", "proto": "chat,{skin}", "waitFor": "[data-testid='conversation-feed']", "note": "The calm chat: sidebar, grouped messages, rich reply, cards." }
+  ]
+}

@@ -1,11 +1,12 @@
 // Draws the blocks of a streaming message. A final block is a memoised component keyed by its position and handed the same object every frame, so React skips it; only the open block (and its
 // caret) is drawn again. Typography is the prototype's message body: 15 px on a 24 px line, 10 px between blocks, code in the mono face on `--sunk`.
-import { Fragment, createContext, memo, useContext, useState } from "react";
+import { Fragment, createContext, memo, useContext, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import type { Block, Inline } from "./markdown.ts";
+import { CODE_TINT, HIGHLIGHT, RADIUS } from "../tokens/calm.ts";
 import { BLOCK_GAP, BODY_LINE, BODY_SIZE } from "./Reserved.tsx";
-import { CalloutBlock, ChartBlock, CodeBlock, DetailsBlock, DiagramBlock, FootnoteLine, ImageBlock, MathBlock, MathInline } from "./Blocks.tsx";
+import { CalloutBlock, CheckBox, ChartBlock, ChoicesBlock, CodeBlock, ReplyCtx, SectionScope, DetailsBlock, DiagramBlock, FootnoteLine, ImageBlock, MathBlock, MathInline } from "./Blocks.tsx";
 
 /** Draws a link its own way (a known subject with its hover card) or returns null to draw it as the plain link. */
 /** Draws something under a fenced code block (a Run bar), or null for nothing. Only called for a block that is finished. */
@@ -52,7 +53,7 @@ function inlineNodes(items: readonly Inline[], onLink?: (href: string) => void, 
         out.push(<MathInline key={i} tex={n.v} />);
         break;
       case "html":
-        out.push(<Text key={i} style={n.tag === "kbd" ? styles.kbd : n.tag === "mark" ? styles.mark : n.tag === "sup" ? styles.sup : styles.sub}>{inlineNodes(n.c, onLink, renderLink)}</Text>);
+        out.push(<Text key={i} style={n.tag === "kbd" ? styles.kbd : n.tag === "mark" ? styles.mark : n.tag === "u" ? styles.u : n.tag === "sup" ? styles.sup : styles.sub}>{inlineNodes(n.c, onLink, renderLink)}</Text>);
         break;
       case "em":
         out.push(<Text key={i} style={styles.em}>{inlineNodes(n.c, onLink, renderLink)}</Text>);
@@ -104,7 +105,7 @@ function listItems(block: Extract<Block, { kind: "ul" | "ol" }>, caret: boolean,
     out.push(
       <View key={i} style={styles.item}>
         {block.checks && block.checks[i] !== null && block.checks[i] !== undefined
-          ? <View testID={`check-${block.key}-${i}`} accessibilityRole="checkbox" accessibilityState={{ checked: block.checks[i] === true, disabled: true }} accessibilityLabel={block.checks[i] === true ? "Done" : "Not done"} style={[styles.box, block.checks[i] === true && styles.boxOn]}>{block.checks[i] === true ? <Text style={styles.tick}>{"\u2713"}</Text> : null}</View>
+          ? <CheckBox id={block.key} index={i} initial={block.checks[i] === true} />
           : <Text style={styles.marker}>{block.kind === "ul" ? "\u2022" : `${block.start + i}.`}</Text>}
         <Text style={styles.itemText}>{inlineNodes(caret && i === block.items.length - 1 ? withCaret(block.items[i] ?? []) : (block.items[i] ?? []), onLink, renderLink)}</Text>
       </View>,
@@ -206,6 +207,8 @@ export const BlockView = memo(function BlockView({ block, caret = false, onLink,
           {renderCode && !caret && block.closed ? renderCode(block) : null}
         </View>
       );
+    case "choices":
+      return <ChoicesBlock id={block.key} options={block.options} />;
     case "mermaid":
       return <DiagramBlock id={block.key} source={block.text} />;
     case "chart":
@@ -244,13 +247,18 @@ export interface MarkdownBlocksProps {
   renderLink?: RenderLink;
   /** Draws a bar under a finished code block (Run); leave it out and a code block is just the code. */
   renderCode?: RenderCode;
+  /** The message these blocks belong to. Given, a person's presses (a section opened, a box ticked, a choice picked) are remembered for it; left out, the blocks are a plain preview. */
+  scope?: string;
+  /** Sends a reply. Given with `scope`, the choices an agent offers can be pressed. */
+  onChoose?: (text: string) => void;
   /** Draws plain words its own way (file names that open a tab); leave it out and words are words. */
   renderText?: RenderText;
 }
 
 /** Final blocks first (same objects every frame, so they do not re-render), then the open ones. */
-export function MarkdownBlocks({ blocks, streaming = false, onLink, renderLink, renderCode, renderText }: MarkdownBlocksProps) {
+export function MarkdownBlocks({ blocks, streaming = false, onLink, renderLink, renderCode, renderText, scope, onChoose }: MarkdownBlocksProps) {
   const last = blocks.length - 1;
+  const reply = useMemo(() => ({ scope: scope ?? null, send: scope !== undefined && !streaming && onChoose ? onChoose : null }), [scope, streaming, onChoose]);
   const views: ReactNode[] = [];
   for (let i = 0; i < blocks.length; i++) {
     const b = blocks[i];
@@ -258,10 +266,14 @@ export function MarkdownBlocks({ blocks, streaming = false, onLink, renderLink, 
   }
   return (
     <TextCtx.Provider value={renderText ?? null}>
-      <View testID="markdown-blocks" style={styles.root}>
-        {views}
-        {streaming && blocks.length === 0 ? <Text style={styles.p}>{CARET}</Text> : null}
-      </View>
+      <SectionScope.Provider value={scope ?? null}>
+        <ReplyCtx.Provider value={reply}>
+          <View testID="markdown-blocks" style={styles.root}>
+            {views}
+            {streaming && blocks.length === 0 ? <Text style={styles.p}>{CARET}</Text> : null}
+          </View>
+        </ReplyCtx.Provider>
+      </SectionScope.Provider>
     </TextCtx.Provider>
   );
 }
@@ -284,27 +296,28 @@ const styles = StyleSheet.create({
   strong: { fontWeight: "600" },
   del: { textDecorationLine: "line-through", color: "var(--ink-3)" as string },
   fnref: { color: "var(--accent)" as string, fontSize: 11 },
-  kbd: { fontFamily: MONO, fontSize: 12, backgroundColor: "var(--sunk)" as string, color: "var(--ink)" as string },
-  mark: { backgroundColor: "var(--accent-wash)" as string },
+  kbd: { fontFamily: MONO, fontSize: 12, backgroundColor: CODE_TINT, color: "var(--ink)" as string },
+  mark: { backgroundColor: HIGHLIGHT },
+  u: { textDecorationLine: "underline" },
   sup: { fontSize: 11 },
   sub: { fontSize: 11 },
   em: { fontStyle: "italic" },
   link: { color: "var(--accent)" as string },
-  code: { fontFamily: MONO, fontSize: 13, backgroundColor: "var(--sunk)" as string },
+  code: { fontFamily: MONO, fontSize: 13, backgroundColor: CODE_TINT },
   quote: { borderLeftWidth: 2, borderLeftColor: "var(--line-2)" as string, paddingLeft: 12, marginBottom: BLOCK_GAP },
   quoteText: { color: "var(--ink-2)" as string, fontSize: BODY_SIZE, lineHeight: BODY_LINE },
   rule: { height: 1, backgroundColor: "var(--line)" as string, marginVertical: 12 },
-  pre: { backgroundColor: "var(--sunk)" as string, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, marginBottom: BLOCK_GAP },
+  pre: { backgroundColor: CODE_TINT, borderRadius: RADIUS, paddingHorizontal: 12, paddingVertical: 10, marginBottom: BLOCK_GAP },
   preText: { color: "var(--ink)" as string, fontFamily: MONO, fontSize: 13, lineHeight: 20 },
   list: { marginBottom: BLOCK_GAP },
-  box: { width: 16, height: 16, borderRadius: 4, borderWidth: 1.5, borderColor: "var(--ink-4)" as string, marginRight: 6, marginTop: 4, alignItems: "center", justifyContent: "center" },
+  box: { width: 16, height: 16, borderRadius: 6, borderWidth: 1.5, borderColor: "var(--ink-4)" as string, marginRight: 6, marginTop: 4, alignItems: "center", justifyContent: "center" },
   boxOn: { backgroundColor: "var(--accent)" as string, borderColor: "var(--accent)" as string },
   tick: { color: "var(--accent-ink)" as string, fontSize: 11, lineHeight: 13, fontWeight: "700" },
   codeHead: { flexDirection: "row", alignItems: "center", marginBottom: 6 },
   lang: { flex: 1, color: "var(--ink-3)" as string, fontSize: 11.5 },
-  copy: { paddingHorizontal: 8, height: 22, borderRadius: 5, justifyContent: "center" },
+  copy: { paddingHorizontal: 8, height: 24, borderRadius: RADIUS, justifyContent: "center" },
   copyText: { color: "var(--ink-3)" as string, fontSize: 12 },
-  tableWrap: { marginBottom: BLOCK_GAP, maxWidth: "100%", borderRadius: 8, borderWidth: 1, borderColor: "var(--line)" as string, overflow: "hidden" },
+  tableWrap: { marginBottom: BLOCK_GAP, maxWidth: "100%", borderRadius: RADIUS, borderWidth: 1, borderColor: "var(--line)" as string, overflow: "hidden" },
   tableScroll: { flexGrow: 1 },
   table: { minWidth: "100%" as unknown as number },
   tr: { flexDirection: "row", borderTopWidth: 1, borderTopColor: "var(--line)" as string },
