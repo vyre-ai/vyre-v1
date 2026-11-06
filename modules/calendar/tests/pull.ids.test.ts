@@ -1,7 +1,7 @@
 // A pull must keep event ids, and every event the grid lists must open (rc.22: "This event is not there any more" on an event still drawn in the grid). Replay only.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { getEvent, listEvents, pullProviderCalendars } from "../handlers/index.ts";
+import { getEvent, listCalendars, listEvents, pullProviderCalendars } from "../handlers/index.ts";
 import { at, contractErrors, harness, seedCalendar } from "../fixtures/harness.ts";
 
 const GOOG = "cld_goog01";
@@ -87,4 +87,21 @@ test("a meeting that lives in two people's calendars is listed once, as the view
   assert.equal(office.id, mine, "the viewer's own copy");
   assert.equal((await getEvent(h.ctx, { eventId: office.id })).event.id, mine);
   for (const e of listed) await getEvent(h.ctx, { eventId: e.id });   // everything listed opens
+});
+
+test("with no calendar named, an admin's week and list hold their own calendars and the ones shared with them, never a member's calendar they can open only through the admin role", async () => {
+  const h = harness();   // the viewer is usr_maya01, an admin: the role lets them open every calendar
+  const MINE = "cld_maya01", SHARED = "cld_omar01", MEMBER = "cld_pat001";
+  seedCalendar(h, MINE, { owner: "usr_maya01", title: "Maya" });
+  seedCalendar(h, SHARED, { owner: "usr_omar01", title: "Omar (shared with Maya)" });
+  seedCalendar(h, MEMBER, { owner: "usr_pat001", title: "Pat" });
+  h.roleOnly.add(MEMBER);
+  const { ingestEvent } = await import("../handlers/index.ts");
+  for (const c of [MINE, SHARED, MEMBER]) await ingestEvent(h.ctx, { source: "google", calendarId: c, providerId: `own_${c}`, title: `on ${c}`, startsAt: at(1, 9), endsAt: at(1, 10) });
+  const memberEvent = String(h.rows(`SELECT id FROM calendar_event WHERE "calendarId" = ?`, MEMBER)[0]!.id);
+  assert.deepEqual((await listEvents(h.ctx, range)).events.map((e) => e.calendarId).sort(), [SHARED, MINE].sort(), "their own and the shared one");
+  assert.deepEqual((await listCalendars(h.ctx, {})).calendars.map((c) => c.id).sort(), [SHARED, MINE].sort(), "the sidebar list says the same");
+  // opening a member's calendar on purpose still works
+  assert.deepEqual((await listEvents(h.ctx, { ...range, calendarIds: [MEMBER] })).events.map((e) => e.calendarId), [MEMBER]);
+  assert.equal((await getEvent(h.ctx, { eventId: memberEvent })).event.id, memberEvent);
 });
