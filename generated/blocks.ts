@@ -248,6 +248,21 @@ export type PokedBlockData = {
   by: string;
   agentId: string;
 };
+export type ProgressCardBlockData = {
+  title: string;
+  step?: string;
+  state: "running" | "done" | "failed" | "stopped";
+  steps: Array<{
+      label: string;
+      state: "done" | "running" | "todo";
+    }>;
+  actions?: Array<{
+      key: string;
+      label: string;
+      cap?: string;
+      input?: Record<string, unknown>;
+    }>;
+};
 export type QuestionBlockData = {
   threadId: string;
   blockId: string;
@@ -281,6 +296,17 @@ export type RedactRequestBlockData = {
   agentId?: string;
   state: "waiting" | "done" | "later";
 };
+export type ResultCardBlockData = {
+  title: string;
+  body?: string;
+  jobId?: string;
+  actions?: Array<{
+      key: string;
+      label: string;
+      cap?: string;
+      input?: Record<string, unknown>;
+    }>;
+};
 export type ScreenshotBlockData = {
   computerId: string;
   fileId: string;
@@ -296,6 +322,23 @@ export type SecretInputBlockData = {
   folderId: string;
   fields: Array<string>;
   hint?: string;
+};
+export type StatusCardBlockData = {
+  title: string;
+  body?: string;
+  tone: "info" | "warn" | "error";
+  fix?: {
+    key: string;
+    label: string;
+    cap?: string;
+    input?: Record<string, unknown>;
+  };
+  more?: Array<{
+      key: string;
+      label: string;
+      cap?: string;
+      input?: Record<string, unknown>;
+    }>;
 };
 export type TabOpenedBlockData = {
   targetType: string;
@@ -364,11 +407,14 @@ export interface BlockDataMap {
   "plan": PlanBlockData;
   "poke": PokeBlockData;
   "poked": PokedBlockData;
+  "progress_card": ProgressCardBlockData;
   "question": QuestionBlockData;
   "record_card": RecordCardBlockData;
   "redact_request": RedactRequestBlockData;
+  "result_card": ResultCardBlockData;
   "screenshot": ScreenshotBlockData;
   "secret_input": SecretInputBlockData;
+  "status_card": StatusCardBlockData;
   "tab_opened": TabOpenedBlockData;
   "table": TableBlockData;
   "talk_key": TalkKeyBlockData;
@@ -851,6 +897,16 @@ export const blockRegistry = [
     "opens": null
   },
   {
+    "type": "progress_card",
+    "v": 1,
+    "module": "chat",
+    "component": "ui:BlockProgressCard",
+    "fallback": "{{title}}: {{state}}",
+    "waitsForAnswer": false,
+    "actions": [],
+    "opens": null
+  },
+  {
     "type": "question",
     "v": 1,
     "module": "chat",
@@ -910,6 +966,16 @@ export const blockRegistry = [
     }
   },
   {
+    "type": "result_card",
+    "v": 1,
+    "module": "chat",
+    "component": "ui:BlockResultCard",
+    "fallback": "{{title}}",
+    "waitsForAnswer": false,
+    "actions": [],
+    "opens": null
+  },
+  {
     "type": "screenshot",
     "v": 1,
     "module": "computers",
@@ -953,6 +1019,16 @@ export const blockRegistry = [
         }
       }
     ],
+    "opens": null
+  },
+  {
+    "type": "status_card",
+    "v": 1,
+    "module": "chat",
+    "component": "ui:BlockStatusCard",
+    "fallback": "{{title}}",
+    "waitsForAnswer": false,
+    "actions": [],
     "opens": null
   },
   {

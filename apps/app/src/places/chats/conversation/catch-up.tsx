@@ -43,8 +43,8 @@ export function catchUpLine(c: CatchUp, nameOf: (id: string) => string, mine: nu
 /** Is the page in front of the person? Anything without a document (a test, native) counts as showing. */
 const showing = (): boolean => (globalThis as { document?: { visibilityState?: string } }).document?.visibilityState !== "hidden";
 
-export function CatchUpLine({ onJump, newest, credit }: {
-  onJump: (messageId: string) => void; /** the last message on screen: a new one moves the read cursor again */ newest: string;
+export function CatchUpLine({ onJump, onSince, newest, credit }: {
+  onJump: (messageId: string) => void; /** where the person had read to when the chat opened (a long session folds what came after it) */ onSince?: (since: number) => void; /** the last message on screen: a new one moves the read cursor again */ newest: string;
   /** an agent that wrote here for its person goes by "<Person> (Agent)", never its own name (lane l-agentdm) */ credit?: (id: string) => string | undefined;
 }): ReactElement | null {
   const data = useConversationData();
@@ -64,7 +64,7 @@ export function CatchUpLine({ onJump, newest, credit }: {
     read.current.opened = false; read.current.marked = "";
     setC(null);
     const opened = (): void => { if (live) { read.current.opened = true; mark.current(); } };
-    Promise.resolve(data.call("chat.catch_up", { threadId: data.threadId })).then((r) => { if (live) setC(r as CatchUp); opened(); }, opened);
+    Promise.resolve(data.call("chat.catch_up", { threadId: data.threadId })).then((r) => { if (live) { setC(r as CatchUp); const since = (r as { since?: unknown }).since; if (typeof since === "number") onSince?.(since); } opened(); }, opened);
     return () => { live = false; };
   }, [data.threadId]); // eslint-disable-line react-hooks/exhaustive-deps -- once per chat, not per render of its data
   useEffect(() => { mark.current(); }, [newest]);

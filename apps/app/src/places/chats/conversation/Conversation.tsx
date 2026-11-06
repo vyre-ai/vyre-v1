@@ -5,6 +5,8 @@
 import { useFrameStore } from "./frame.ts";
 import type { FrameControls, FrameStore } from "./frame.ts";
 import { foldHelperRows, groupHelperStrips, hideCrewPosts, mergeCrewAnswer, stripFromCoders } from "./helper-rows.ts";
+import { isLong, sessionItems } from "../session/model.ts";
+import { SessionPublisher } from "../session/Publisher.tsx";
 import { useCrew } from "../crew/context.tsx";
 import { crewChipOf } from "../crew/model.ts";
 import { CrewIsland } from "../crew/island.tsx";
@@ -355,6 +357,9 @@ function ConversationView(): ReactElement {
   also.current = alsoOn;
   // the crew of this chat: read again when the chat gets a new message (a helper started or reported)
   const crew = useCrew();
+  // a long session: where the person last read to, and when the chat opened (what folds into "While you were away")
+  const [readTo, setReadTo] = useState<number | null>(null);
+  const openedAt = useRef(Date.now());
   const messageCount = messagesQ.status === "loading" ? 0 : messagesQ.data.messages.length;
   useEffect(() => { crew?.refresh(); }, [messageCount]);  // eslint-disable-line react-hooks/exhaustive-deps
   // the agents.list rows the Ask-an-agent picker labels its agents from, read when it first opens
@@ -441,6 +446,7 @@ function ConversationView(): ReactElement {
   // a channel, or a chat between people, is shared: its times read in the Space zone; a chat with only you and your agents reads in your own
   const sharedChat = thread.kind === "channel" || thread.members.filter((p) => p.kind === "person").length >= 2;
   const items = timeline(woven, { meId: data.me.id, nameOf, kindOf: data.kindOf, clock: { ...data.clock(), ...(sharedChat ? { zones } : {}) }, shared: sharedChat }).filter((it) => !(thread.kind === "thread" && it.kind === "day"));   // a thread has no day dividers: its root row and "N replies" lead
+  const rows = sessionItems(items, all, { meId: data.me.id, clock: { ...data.clock(), ...(sharedChat ? { zones } : {}) }, nameOf, since: readTo, openedAt: openedAt.current, mentionsMe: (m) => mentionsIn(m.body, [{ kind: "person", id: data.me.id, name: data.me.name }]).length > 0 });
   const lastLive = [...timelineMessages].reverse().find((m) => data.streamOf(m.messageId) !== undefined);
   const lastStream = lastLive ? data.streamOf(lastLive.messageId) : undefined;
   const queued = queuedCount(timelineMessages, data.me.id, isWorking);
@@ -454,7 +460,9 @@ function ConversationView(): ReactElement {
   const canSteer = ownTurn && !(leadDriver !== undefined && act.CANNOT_STEER.has(leadDriver));   // a chat on Codex or Grok keeps its message queued: they read nothing mid-turn
   const helpers = (helpersQ.status === "loading" ? [] : helpersQ.data.helpers).filter((h) => h.status === "running");
   // the header chip counts from the crew read (the strip's own): how many are on it and how many wait for you; the pane opens on the overview
-  const crewChip = crew?.status && crew.status.members.length > 0 ? crewChipOf(crew.status.totals) : null;
+  // a long session says who works and who waits in its Overview and the docked question, so the header keeps only the name and its people
+  const longChat = isLong(all);
+  const crewChip = !longChat && crew?.status && crew.status.members.length > 0 ? crewChipOf(crew.status.totals) : null;
 
   /* ---------- menus: all open under the button that asked ---------- */
   const stopMenu = (x: number, y: number): void => {
@@ -471,7 +479,7 @@ function ConversationView(): ReactElement {
       x, y, "other", { label: "Helpers" },
     );
   };
-  const island = islandView(openQs, putAway, islandAt, cardsInView);
+  const island = islandView(openQs, putAway, islandAt, longChat ? new Set<string>() : cardsInView);
   const typingNames: readonly string[] = data.typing ?? [];
   // a face or a name opens by what it is: a helper (its thread) opens as the helper chat; a person or an agent goes to the host, which opens a profile or an agent page
   const allHelpers = helpersQ.status === "loading" ? [] : helpersQ.data.helpers;
@@ -732,7 +740,8 @@ function ConversationView(): ReactElement {
           <IconButton icon="x" label="Close find" size={24} testID="find-close" onPress={() => { setFinding(false); setQuery(""); }} />
         </View>
       ) : null}
-      <CatchUpLine onJump={(id) => setFocusId(id)} newest={live[live.length - 1]?.messageId ?? ""} credit={(id) => { const m = all.find((x) => x.author.id === id && onBehalfOf(x)); const ob = m ? onBehalfOf(m) : null; return ob ? `${nameOf(ob.person)} (Agent)` : undefined; }} />
+      <SessionPublisher messages={all} meId={data.me.id} jump={(id) => setFocusId(id)} />
+      <CatchUpLine onSince={setReadTo} onJump={(id) => setFocusId(id)} newest={live[live.length - 1]?.messageId ?? ""} credit={(id) => { const m = all.find((x) => x.author.id === id && onBehalfOf(x)); const ob = m ? onBehalfOf(m) : null; return ob ? `${nameOf(ob.person)} (Agent)` : undefined; }} />
       {note ? <Text testID="conversation-note" style={st.noteLine}>{note}</Text> : null}
       {sharedChat ? <Text testID="zone-note" accessibilityLabel={`Times in this chat use ${zoneName(zones.space)}`} style={{ fontSize: 11.5, color: "var(--ink-3)" as string, textAlign: "center", paddingTop: 6, paddingHorizontal: 12 }}>{`Times here use ${zoneName(zones.space)}, the Space's time zone${zones.viewer !== zones.space && offsetMinAt(Date.now(), zones.viewer) !== offsetMinAt(Date.now(), zones.space) ? `. Hover a time to see yours.` : "."}`}</Text> : null}
       {thread.kind === "thread" ? <ThreadParent threadId={thread.parentThreadId} messageId={thread.parentMessageId} call={data.call as never} nameOf={nameOf} kindOf={data.kindOf} clock={data.clock()} count={thread.replyCount ?? all.length} writing={writingName} onOpen={thread.parentThreadId && thread.parentMessageId ? () => data.nav.openThread(thread.parentThreadId!, thread.parentMessageId!) : undefined} /> : null}
@@ -754,14 +763,14 @@ function ConversationView(): ReactElement {
               </View>
             ) : null}
             {items.length === 0 && !data.head && thread.kind !== "thread" ? <States kind="empty" icon="chat" title="Say something to start" /> : null}
-            {collect(items, (it, at) => {
+            {collect(rows, (it, at) => {
               const key = it.key;
               const stream = it.kind === "other" ? data.streamOf(it.message.messageId) : undefined;
               const sending = it.kind === "me" ? pendingState.get(it.message.messageId) : undefined;
               const under = it.kind === "me" || it.kind === "other" ? replies.get(it.message.messageId) : undefined;
               const row = <MessageView key={key} item={it} actions={rowActions} meId={data.me.id} stream={stream} sending={sending} mark={markOf(it, matches, activeId, finding)} replies={under ? { s: under, clock: data.clock() } : undefined} />;
               // always wrapped on the web, so a row that grows old keeps its state; only the style changes
-              return Platform.OS === "web" ? <View key={key} style={at < items.length - OFFSCREEN_KEEP ? st.offscreen : undefined}>{row}</View> : row;
+              return Platform.OS === "web" ? <View key={key} style={at < rows.length - OFFSCREEN_KEEP ? st.offscreen : undefined}>{row}</View> : row;
             })}
             {data.tail ?? null}
           </View>
@@ -808,7 +817,7 @@ function ConversationView(): ReactElement {
               onDismiss={(q) => setPutAway((cur) => new Set([...cur, q.id]))}
               onPeople={(x, y) => peopleMenu(x, y)} />
           ) : null}
-          {crew?.status && crew.status.members.length > 0 ? <CrewIsland status={crew.status} onPress={() => crew.show(null)} /> : null}
+          {!longChat && crew?.status && crew.status.members.length > 0 ? <CrewIsland status={crew.status} onPress={() => crew.show(null)} /> : null}
           {personMention ? (() => {
             // one strip on top of the composer: who is not here, Add (they read from now on), and a caret for the other ways
             const first = nameOf(personMention.id).split(" ")[0] ?? "";

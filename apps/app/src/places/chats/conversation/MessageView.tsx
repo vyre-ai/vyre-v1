@@ -2,7 +2,11 @@
 // cards (question, plan, terminal, changeset, file) sit under the text; an error is one inline row (what, why, next). Hover shows Copy and Edit and the rest; right-click opens the same
 // list; the keyboard reaches both. Every row is memoised on its item, so a streaming message re-renders alone.
 import { HelperRow } from "./helper-row.tsx";
-import { CrewStrip } from "../crew/strip.tsx";
+import { CrewBlock } from "../session/CrewBlock.tsx";
+import { QuestionCard } from "./question-card.tsx";
+import { StatusCard, isStatusCard } from "./status-cards.tsx";
+import { AwayRow, HourMark, JumpRow } from "../session/rows.tsx";
+import type { SessionItem } from "../session/model.ts";
 import { memberFromBlock, memberOf } from "../crew/status.ts";
 import { holdsOf, mergeStateOf, withTeammates } from "../crew/model.ts";
 import { FROM_THREAD_LINE } from "../crew/also.tsx";
@@ -168,7 +172,8 @@ export interface MessageActions {
 const webProps = (props: Record<string, unknown>): Record<string, unknown> => (Platform.OS === "web" ? props : {});
 
 export interface MessageViewProps {
-  item: Item;
+  /** A message row, or one of a long session's quiet rows (session/model.ts): an hour mark, a jump point, the away row */
+  item: SessionItem;
   actions: MessageActions;
   meId: string;
   /** The stream of a message still being written. */
@@ -220,10 +225,19 @@ export function sameRow(a: MessageViewProps, b: MessageViewProps): boolean {
     && sameData(a.item, b.item, 6) && sameData(a.actions, b.actions, 5) && sameData(a.replies, b.replies, 3);
 }
 
+/** What a status card's buttons do: the card's own capability as the person (the Gate still holds what leaves Vyre); with none, nothing happens here. */
+const cardHost = (actions: MessageActions, time?: string): { run(a: { cap?: string; input?: Record<string, unknown> }): Promise<unknown> | void; time?: string } => ({ run: (a) => (a.cap && actions.files ? actions.files.call(a.cap, a.input ?? {}) : undefined), ...(time ? { time } : {}) });
+
 export const MessageView = memo(function MessageView(props: MessageViewProps): ReactElement | null {
   const { item } = props;
+  if (item.kind === "hour") return <HourMark id={item.key} label={item.label} />;
+  if (item.kind === "jump") return <JumpRow row={item} />;
+  if (item.kind === "away") return <AwayRow row={item} />;
   if (item.kind === "day") return <Text testID={`day-${item.key}`} accessibilityRole="header" style={st.day}>{item.label}</Text>;
   if (item.kind === "event") {
+    // a card block on a quiet or system line is the line: the card says it, so no words beside it
+    const card = item.message.blocks.find((x) => isStatusCard(x.type));
+    if (card) return <View testID={`event-${item.key}`} style={st.eventCardRow}><StatusCard id={card.id} type={card.type} data={card.data} host={cardHost(props.actions, item.time)} /></View>;
     const link = linkCardOf(item.message.blocks.find((x) => x.type === "link_card") ?? { type: "", data: null });
     if (link && link.lead === "Aside" && link.body) return <KeptAside id={item.message.messageId} question={link.title} body={link.body} time={item.time} />;
     if (link) {
@@ -600,7 +614,7 @@ function Theirs({ item, actions, stream, openWork, mark, meId, replies }: Messag
           const holds = holdsOf(members);
           return (
             <View key={b.id}>
-              <CrewStrip members={members} totals={totals} parentName={item.who.name} {...(coderMerge ? { merge: coderMerge } : {})} selectedId={c?.selected ?? null} onPeek={(x) => (c ? c.peek(x.id) : actions.openMessage?.(x.id, ""))} {...(c ? { onStopAll: c.stopAll, onOpenPane: c.openPane, onRetry: (x: { id: string }) => c.retry(x.id) } : {})} />
+              <CrewBlock members={members} totals={totals} {...(actions.files ? { call: actions.files.call as unknown as (cap: string, input: unknown) => Promise<unknown> } : {})} {...(coderMerge ? { merge: coderMerge } : {})} selectedId={c?.selected ?? null} onPeek={(x) => (c ? c.peek(x.id) : actions.openMessage?.(x.id, ""))} {...(c ? { onStopAll: c.stopAll, onOpenPane: c.openPane, onRetry: (x: { id: string }) => c.retry(x.id) } : {})} />
               {typeof (b.data as { after?: unknown } | null)?.after === "string" ? (
                 <View testID={`crew-answer-${m.messageId}`} style={[st.body, { marginTop: 10 }]}>
                   <MarkdownBlocks blocks={bodyBlocks(`${m.messageId}#answer`, citeBody(namedIds((b.data as { after: string }).after, actions.nameOf), crewRows.length))} {...(citeLink ? { renderLink: ((href: string, kids: ReactNode, key: number) => citeLink(href, kids, key) ?? null) as never } : {})} />
@@ -612,6 +626,14 @@ function Theirs({ item, actions, stream, openWork, mark, meId, replies }: Messag
           );
         }
         if (b.type === "helper" && !isCrewStart(b)) return <HelperRow key={b.id} block={b} onOpen={(id) => actions.openMessage?.(id, "")} />;
+        if (isStatusCard(b.type)) return <StatusCard key={b.id} id={b.id} type={b.type} data={b.data} host={cardHost(actions)} />;
+        if (b.type === "question" && b.state === "waiting") {
+          const d = (b.data ?? {}) as Record<string, unknown>;
+          const options = questionOptions(d);
+          if (options.length > 0 && d["answer"] === undefined && terminalAskOf(d) === null && mountOffers(options) === null) {
+            return <QuestionCard key={b.id} id={b.id} prompt={typeof d["prompt"] === "string" && d["prompt"] !== "" ? (d["prompt"] as string) : cardLine(b).title} options={options} onAnswer={(o) => actions.answer(b.id, o)} />;
+          }
+        }
         if (isPartOneType(b.type)) return <BlockViewA key={b.id} block={b} host={actions.host} />;
         return <Card key={b.id} line={cardLine(b)} actions={actions} />;
       })}

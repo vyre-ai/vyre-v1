@@ -27,7 +27,10 @@ export function QuestionIsland({ list, index, nameOf, onStep, onAnswer, onDismis
   const [writing, setWriting] = useState<string | null>(null);
   const [text, setText] = useState("");
   if (!q) return null;
-  const [first, ...rest] = q.options;
+  // two answers are two buttons, the first the primary one (the prototype's "12 px" and "14 px"); more than two, the first is the button and the rest wait under Other
+  const shown = q.options.length <= 2 ? q.options : q.options.slice(0, 1);
+  const [first] = shown;
+  const rest = q.options.slice(shown.length);
   const send = (answer: string): void => { setWriting(null); setText(""); onAnswer(q, answer); };
   const otherEntries = (): MenuEntry[] => [
     ...rest.map((o): MenuEntry => ({ label: o.label, onSelect: () => send(o.id) })),
@@ -49,7 +52,9 @@ export function QuestionIsland({ list, index, nameOf, onStep, onAnswer, onDismis
           </View>
         ) : null}
         {first && !own ? <TextButton label={first.label} primary testID="island-primary" onPress={() => send(first.id)} /> : null}
-        {!own ? (
+        {/* ui-rows-lint: not a list (the answer buttons of one question, side by side) */}
+        {!own ? shown.slice(1).map((o) => <TextButton key={o.id} label={o.label} testID={`island-option-${o.id}`} onPress={() => send(o.id)} />) : null}
+        {!own && q.options.length > 2 ? (
           <Pressable accessibilityRole="button" accessibilityLabel="Other answers" testID="island-other" style={({ hovered }: { hovered?: boolean }) => [st.other, hovered === true && st.otherOver]}
             onPress={(e) => { const r = (e as unknown as { currentTarget?: { getBoundingClientRect?: () => { left: number; top: number } } }).currentTarget?.getBoundingClientRect?.(); menu.show(otherEntries(), r?.left ?? 0, r?.top ?? 0, "other", { label: "Other answers" }); }}>
             <Text style={st.otherText}>Other</Text>
