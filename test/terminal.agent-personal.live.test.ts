@@ -34,7 +34,9 @@ async function agentRunsHere(o: { tmux: boolean }): Promise<void> {
   const bare = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-agentterm-bin-"));
   const savedPath = process.env["PATH"];
   if (!o.tmux) process.env["PATH"] = bare;
+  // this test is about the person's own computer: a machine that has Docker would give the agent a workspace (test/terminal.workspace.live.test.ts), so the Space here has no runtime
   const d = await boot(dir, standIn, undefined, {
+    workspaceRuntimeOff: true,
     config: loadConfig(["--data-dir", dir, "--port", "0", "--space", "spc_agentterm", "--space-name", "Personal", "--space-kind", "personal", "--role", "space,device"], {}, "1.2.3"),
   });
   try {

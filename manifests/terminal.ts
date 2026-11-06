@@ -35,6 +35,14 @@ export default defineManifest({
     read('terminal.list', 'List terminal sessions you can see, including named leftover scripts', {
       in: listIn, out: { terminals: t.arr(terminalRow), ...pageOut }, tool: 'terminal', label: 'filter', cli: 'vyre terminal list',
     }),
+    read('terminal.workspace', 'An agent\'s workspace as the Terminal tab shows it: asleep, running, waiting for room (with the line) or not made yet, where it is, whether you may attach and why not; with no machine to run it, one plain line', {
+      in: { agentId: id.agent },
+      out: {
+        state: t.enm('running', 'asleep', 'waiting', 'none', 'unavailable'), line: t.opt(t.str({ description: 'Waiting: the room line. Unavailable: why, and what to do' })), host: t.opt(t.enm('space', 'server')),
+        nodeId: t.opt(t.str()), projects: t.opt(t.arr(id.project)), canAttach: t.bool(), cannotAttach: t.opt(t.str({ description: 'Why not, as one sentence' })),
+      },
+      tool: 'terminal', label: 'check',
+    }),
     read('terminal.get', 'Read one terminal session: host, state, working folder, last exit code', {
       in: target, out: { terminal: terminalRow }, on: ['terminal', '/terminalId'], tool: 'terminal', errors: ['validation.not_found'],
     }),

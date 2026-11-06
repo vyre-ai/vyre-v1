@@ -2,7 +2,7 @@
 // (a person's own server on a Personal Space, a compute server on a Team one). Each machine has a manager of its own (workspace.ts); the fleet is the one manager the terminal sees, sending each agent
 // to the machine its workspace is on. The Docker questions for a node travel over its live socket (`remoteDockerHttp`), and the node puts them to its own Docker through the runner's policy.
 import type { DockerHttp, DockerRequest, DockerResponse } from "../../sandbox/src/docker.ts";
-import type { WorkspaceManager, WorkspaceRow } from "./workspace.ts";
+import type { WorkspaceManager, WorkspaceRow, WorkspaceStatus } from "./workspace.ts";
 
 /** Bytes of a body that fit one frame of the node's socket once base64 has grown them (host/src/compute/docker-ask.ts MAX_BODY). */
 export const MAX_LINK_BODY = 2_500_000;
@@ -63,6 +63,14 @@ export function createWorkspaceFleet(o: FleetOptions): WorkspaceFleet {
   }
 
   return {
+    async status(agentId): Promise<WorkspaceStatus> {
+      const nodeIdOf = (m: WorkspaceManager): string | undefined => [...nodes].find(([, x]) => x === m)?.[0];
+      const known = homes.get(agentId);
+      const tag = (m: WorkspaceManager, st: WorkspaceStatus): WorkspaceStatus => { const n = nodeIdOf(m); return { ...st, host: n === undefined ? "space" : "server", ...(n === undefined ? {} : { nodeId: n }) }; };
+      if (known) return tag(known, await known.status(agentId));
+      for (const m of all()) { const st = await m.status(agentId).catch(() => null); if (st && st.state !== "none") return tag(m, st); }
+      return { state: "none" };
+    },
     async available(agentId) { return o.space !== null || (homes.has(agentId) ? true : (await o.place(agentId).catch(() => null)) !== null); },
     async ensure(agentId) { return (await managerFor(agentId)).ensure(agentId); },
     async provision(agentId) { return (await managerFor(agentId)).provision(agentId); },

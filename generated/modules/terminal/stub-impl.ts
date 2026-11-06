@@ -22,4 +22,5 @@ export const handlers: Handlers<HandlerCtx> = {
   "terminal.rules.set": async () => ({"rules":{"allow":["example"],"ask":["example"],"deny":["example"],"folders":["fld_a1b2c3"]}} as unknown) as never,
   "terminal.run": async () => ({"durationMs":1,"exitCode":1,"output":"example","terminalId":"trm_a1b2c3","truncated":true} as unknown) as never,
   "terminal.status": async () => ({"rows":[{"exitCode":1,"lastLine":"example","state":"running","terminalId":"trm_a1b2c3"}]} as unknown) as never,
+  "terminal.workspace": async () => ({"canAttach":true,"cannotAttach":"example","host":"space","line":"example","nodeId":"example","projects":["prj_a1b2c3"],"state":"running"} as unknown) as never,
 };

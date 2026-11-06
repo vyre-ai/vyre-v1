@@ -4,7 +4,7 @@ Lane L2. Kind module. Version 0.1.0.
 
 Requires: nothing.
 
-## Capabilities (18)
+## Capabilities (19)
 
 - [terminal.attach](../capabilities/terminal.attach.md): Attach to a session as a live stream; the same session an agent used, so Open terminal shows its commands
 - [terminal.close](../capabilities/terminal.close.md): Close a session and kill its tmux session
@@ -24,6 +24,7 @@ Requires: nothing.
 - [terminal.rules.set](../capabilities/terminal.rules.set.md): Change your allow, ask and deny rules and the extra folders (a Personal Space terminal is locked to its own folder plus these)
 - [terminal.run](../capabilities/terminal.run.md): Run a command in a session and wait for it (the terminal_run tool); secrets only as #Handle.field; output is scrubbed before it returns
 - [terminal.status](../capabilities/terminal.status.md): Live status of terminals for Home (state and last line read from tmux)
+- [terminal.workspace](../capabilities/terminal.workspace.md): An agent's workspace as the Terminal tab shows it: asleep, running, waiting for room (with the line) or not made yet, where it is, whether you may attach and why not; with no machine to run it, one plain line
 
 ## Events (5)
 

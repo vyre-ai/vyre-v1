@@ -98,9 +98,14 @@ export interface WorkspaceCapacity {
   release(agentId: string, nodeId?: string): Promise<void>;
 }
 
+/** What a workspace is doing, for the Terminal tab: asleep and running are its container; waiting is a start the host had no room for; none is no container yet. */
+export interface WorkspaceStatus { state: "running" | "asleep" | "waiting" | "none"; line?: string; /** Where it is: the Space's own runtime, or a server that joined. */ host?: "space" | "server"; nodeId?: string; projects?: string[] }
+
 export interface WorkspaceRow { agentId: string; state: "running" | "asleep"; lastUsedAt?: number }
 
 export interface WorkspaceManager {
+  /** What it is doing now, without waking it or making it. */
+  status(agentId: string): Promise<WorkspaceStatus>;
   /** Make the workspace if there is none, stopped, with no claim on the host's room: for the one-time move of an agent computer. Safe to repeat. */
   provision(agentId: string): Promise<{ workspaceId: string }>;
   /** Make the workspace if there is none and wake it if it sleeps; counts as use. */
@@ -231,6 +236,9 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
   const log = o.log ?? (() => undefined);
   const lastUsed = new Map<string, number>();
   const gens = new Map<string, number>();
+  const waitingLine = new Map<string, string>();
+  /** The project folders each workspace was made or woken with, for the Terminal tab. */
+  const mounted = new Map<string, string[]>();
   const chain = new Map<string, Promise<unknown>>();
   let timer: ReturnType<typeof setInterval> | null = null;
   const homes = new Map<string, { sync: { pass(): Promise<{ failed: number }> }; timer: ReturnType<typeof setInterval> | null }>();
@@ -493,6 +501,7 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
     if (info && info.labels["vyre.mounts"] !== config.Labels["vyre.mounts"]) { stopHome(agentId); if (info.running) await homePass(agentId); await removeContainer(name); info = null; gens.set(agentId, (gens.get(agentId) ?? 0) + 1); }
     if (info?.running) {
       lastUsed.set(agentId, now());
+      mounted.set(agentId, want.projects);
       // running before this process started: its projects' mirrors start now
       if (!agentProjects.has(agentId)) startProjects(agentId, want.projects);
       return "running";
@@ -501,7 +510,8 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
     // room first: a host that is full queues it with a plain line and nothing is made or started
     if (o.capacity) {
       const room = await o.capacity.claim(agentId);
-      if (room.state === "waiting") throw wsError(room.line ?? "Waiting for room on the Space server. Add a compute server in Console > Computers to run more.", "waiting");
+      if (room.state === "waiting") { waitingLine.set(agentId, room.line ?? "Waiting for room on the Space server."); throw wsError(room.line ?? "Waiting for room on the Space server. Add a compute server in Console > Computers to run more.", "waiting"); }
+      waitingLine.delete(agentId);
     }
     try {
       if (!info) await build(agentId, name, want, config);
@@ -512,6 +522,7 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
     // Files down into ~/Vyre before the first command, then every few seconds while it is awake
     await homePass(agentId);
     startHome(agentId);
+    mounted.set(agentId, want.projects);
     startProjects(agentId, want.projects);
     for (const p of want.projects) await projectPass(p);
     startTimer();
@@ -597,6 +608,13 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
 
   return {
     ensure, exec, provision,
+    async status(agentId) {
+      const row = (await this.list()).find((r) => r.agentId === agentId);
+      const projects = mounted.get(agentId);
+      if (row) return { state: row.state, ...(projects && projects.length > 0 ? { projects } : {}) };
+      const line = waitingLine.get(agentId);
+      return line !== undefined ? { state: "waiting", line } : { state: "none" };
+    },
     generation: (agentId) => gens.get(agentId) ?? 0,
     sleep: sleepNow,
     sweep,

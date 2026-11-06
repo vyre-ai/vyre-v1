@@ -110,6 +110,12 @@ export const workspacesReady = (): boolean => workspacesProbe !== null;
 /** Is there a machine this agent's workspace can live on now: the Space's own runtime, or a server that joined. When not, its commands go where its turn runs, as before. */
 export async function workspacesFor(agentId: string): Promise<boolean> { try { return workspacesProbe !== null && (await workspacesProbe(agentId)); } catch { return false; } }
 
+/** What an agent's workspace is doing now (the fleet's status), for the Terminal tab; null when this host has none. */
+export type WorkspaceStatusOf = (agentId: string) => Promise<{ state: "running" | "asleep" | "waiting" | "none"; line?: string; host?: "space" | "server"; nodeId?: string; projects?: string[] }>;
+let statusPort: WorkspaceStatusOf | null = null;
+export function bindWorkspaceStatus(f: WorkspaceStatusOf | null): void { statusPort = f; }
+export const boundWorkspaceStatus = (): WorkspaceStatusOf | null => statusPort;
+
 /** Is this a Team Space? Agent computers need one (spec 2.7). The host binds the answer; unbound means team. */
 let teamSpace: (space: string) => boolean = () => true;
 export function bindTeam(f: ((space: string) => boolean) | null): void { teamSpace = f ?? (() => true); }

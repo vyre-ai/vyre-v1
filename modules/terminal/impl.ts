@@ -4,7 +4,7 @@
 // is read back with capture-pane. Live frames come from a tmux control-mode client (`%output` lines, decoded here).
 import type { Handler } from "../../host/src/invoke.ts";
 import { handlers as table } from "./handlers/index.ts";
-import { bindHost, bindKit, bindMachineHost, bindMachinePlace, bindPlace, bindTeam, bindValues, bindWorkspaces, boundHost, redeemTicket, scrubberFor, spellingsFor } from "./projections.ts";
+import { bindWorkspaceStatus, bindHost, bindKit, bindMachineHost, bindMachinePlace, bindPlace, bindTeam, bindValues, bindWorkspaces, boundHost, redeemTicket, scrubberFor, spellingsFor } from "./projections.ts";
 import { unixSocketHttp } from "../../sandbox/src/docker.ts";
 import { buildWorkspaceManager, createWorkspaceTerminalHost } from "./workspace.ts";
 import type { WorkspaceManager, WorkspaceOptions, WorkspaceTerminalHost } from "./workspace.ts";
@@ -445,6 +445,7 @@ export function setTerminalHost(seam: TerminalHostSeam | null): void {
   bindMachinePlace(seam?.place ?? null);
   // agent commands go to a workspace when there is a machine for this agent's one right now; with none (no runtime, no server) they go where the turn runs, as before
   bindWorkspaces(fleet ? (agentId) => fleet.available(agentId) : false);
+  bindWorkspaceStatus(fleet ? (agentId) => fleet.status(agentId) : null);
 }
 
 // Only the setter the daemon wires is a host seam.

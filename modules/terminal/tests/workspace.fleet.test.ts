@@ -95,3 +95,26 @@ test("workspacesFor follows the fleet: a machine for this agent now, or the agen
   bindWorkspaces(false);
   assert.equal(await workspacesFor(A), false);
 });
+
+test("status: a manager says asleep, running, waiting (with the line) or none, without waking or making anything; the fleet says which machine", async () => {
+  const space = fakeDocker(), nodeDk = fakeDocker();
+  let full = true;
+  const cap: WorkspaceCapacity = { claim: async () => (full ? { state: "waiting", line: "Waiting for room on the Space server." } : { state: "running" }), release: async () => undefined };
+  const m = createWorkspaceManager({ api: createDockerApi(space.http), http: space.http, idleMs: 600_000, capacity: cap, projectsOf: () => ["prj_a"] });
+  assert.deepEqual(await m.status(A), { state: "none" });
+  await assert.rejects(() => m.ensure(A));
+  assert.deepEqual(await m.status(A), { state: "waiting", line: "Waiting for room on the Space server." });
+  assert.equal(space.boxes.size, 0, "a status read makes nothing");
+  full = false;
+  await m.ensure(A);
+  assert.deepEqual(await m.status(A), { state: "running", projects: ["prj_a"] });
+  await m.sleep(A);
+  assert.equal((await m.status(A)).state, "asleep");
+  assert.equal(space.box(workspaceName(A)).running, false, "a status read does not wake it");
+  const f = createWorkspaceFleet({ space: m, node: () => mgr(nodeDk, { runner: true }), place: async () => "srv_a" });
+  assert.deepEqual(await f.status(A), { state: "asleep", host: "space", projects: ["prj_a"] });
+  assert.deepEqual(await f.status(B), { state: "none" });
+  const onlyNode = createWorkspaceFleet({ space: null, node: () => mgr(nodeDk, { runner: true }), place: async () => "srv_a" });
+  await onlyNode.ensure(B);
+  assert.deepEqual(await onlyNode.status(B), { state: "running", host: "server", nodeId: "srv_a" });
+});
