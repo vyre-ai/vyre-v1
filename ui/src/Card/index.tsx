@@ -39,11 +39,11 @@ export interface CardProps {
   /** Read out for the card as a whole. */
   label: string;
   /** Enter inside the card (not in a multi-line field, not on a button) runs this: the primary action. */
-  onEnter?: () => void;
+  onEnter?: (() => void) | undefined;
   /** No padding: a picture runs edge to edge and the card clips it (a live screen, a page shot). */
   flush?: boolean;
   /** Escape inside the card runs this: the way out (Deny, Not now, Back, Cancel). */
-  onCancel?: () => void;
+  onCancel?: (() => void) | undefined;
   children?: ReactNode;
 }
 
