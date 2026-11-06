@@ -342,3 +342,8 @@ test("the section tabs (Ask, Style and the rest) have no options button: its Clo
   assert.ok(html.includes('data-testid="em-history"'), "the page rendered");
   assert.ok(!html.includes('data-testid="tab-strip-more"'), "no overflow menu of Close commands");
 });
+
+test("the automation composer's button says Preview (nothing is sent); the default still says Test send", () => {
+  assert.match(tag(renderToStaticMarkup(<EmailBuilder {...base} testSendLabel="Preview" />), "em-test-send"), /aria-label="Preview"/);
+  assert.match(tag(renderToStaticMarkup(<EmailBuilder {...base} />), "em-test-send"), /aria-label="Test send"/);
+});
