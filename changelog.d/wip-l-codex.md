@@ -1,0 +1,2 @@
+- Codex: a model the ChatGPT account does not have now moves the turn to another model (it was read as a plain engine error); a vendor error that arrives as JSON is read for its message; a signed-out Codex says "sign in again" in plain words with no URL or request id; a Codex usage limit carries the time it lifts, and the failed reply says "It can be used again at ...".
+- Live tests run the real Codex program when VYRE_TEST_CODEX_HOME names a signed-in home (skipped, with the reason, otherwise).

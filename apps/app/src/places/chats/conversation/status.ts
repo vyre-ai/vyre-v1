@@ -121,6 +121,13 @@ export type StatusView = { kind: "error"; block: MessageBlock } | { kind: "note"
 export const DEVICE_WAIT_TEXT = "Your computer is off. This chat runs when it is back.";
 export const RUN_ON_SERVER = { key: "run_on_server", label: "Run it on the server instead" } as const;
 
+/** "at 3:12 AM" for a time later today, "on Nov 9 at 3:12 AM" for another day, in the reader's own clock. */
+export function resetWords(at: number, now: number = Date.now()): string {
+  const d = new Date(at);
+  const clock = d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+  return d.toDateString() === new Date(now).toDateString() ? `at ${clock}` : `on ${d.toLocaleDateString(undefined, { month: "short", day: "numeric" })} at ${clock}`;
+}
+
 /** Why a turn stopped, in words: never a bare "Stopped." (owner, 4 Nov 2026). */
 export function stoppedWords(reason: string): string {
   switch (reason) {
@@ -173,6 +180,8 @@ export function statusView(b: MessageBlock): StatusView {
   // a missing sign-in opens Settings > Your AI at that account, not the generic connect flow
   if ((str(d.code) === "engine.signin_missing" || str(d.code) === "provider.auth_failed") && str(d.account) !== "") w = { ...w, next: [{ key: `sign_in:${str(d.account)}`, label: "Sign in again" }] };
   if (str(d.code) === "engine.vault_unreadable" && str(d.reason) !== "") w = { ...w, cause: `The Vault answered: ${str(d.reason)}.` };
+  // a usage limit that said when it lifts: the time is in the sentence (the reader's own clock), not left for them to guess
+  if (str(d.code) === "provider.rate_limited" && typeof d.resetsAt === "number" && Number.isFinite(d.resetsAt)) w = { ...w, cause: `It can be used again ${resetWords(d.resetsAt)}. Or use another account now.` };
   // the engine process stopped and said nothing a person can use: the sentence never stands alone, the exit code is the reason there is
   if (str(d.code) === "engine.cli_error") w = { ...w, message: "The engine stopped before it replied.", cause: str(d.exit) !== "" ? `It exited with code ${str(d.exit)}. Try again. If it keeps happening, open Details and send them to your admin.` : "It gave no reason. Try again. If it keeps happening, open Details and send them to your admin." };
   return { kind: "error", block: { ...b, type: "error", data: { code: str(d.code), message: w.message, ...(w.cause ? { cause: w.cause } : {}), next: w.next ?? [], retryable: w.retryable, turnId: str(d.turnId), steps: [...(str(d.code) ? [["Code", str(d.code)]] : []), ["Reply", str(d.turnId)]] } } };
