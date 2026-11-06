@@ -15,19 +15,20 @@ function chat(n: number, size = 40): Transcript {
 }
 
 test("windows by model", () => {
-  assert.equal(windowFor("claude-sonnet-5-5", "anthropic"), 200_000);
+  assert.equal(windowFor("claude-sonnet-5-5", "anthropic"), 1_000_000);
+  assert.equal(windowFor("claude-sonnet-4-5", "anthropic"), 200_000);
   assert.equal(windowFor("claude-opus-4[1m]", "anthropic"), 1_000_000);
   assert.equal(windowFor("gemini-2.5-pro", "google"), 1_000_000);
   assert.equal(windowFor("gpt-5-codex", "openai"), 258_400);
   assert.equal(windowFor("grok-4", "xai"), 256_000);
   assert.equal(windowFor("some-local-model", "local"), 128_000);
-  assert.equal(windowFor(null, null), 200_000);
+  assert.equal(windowFor(null, null), 128_000);
 });
 
 test("a reported count wins; with none, the characters said are estimated against the model's window", () => {
   const r = contextOf({ used: 100_000, window: 200_000 });
   assert.deepEqual([r.used, r.window, r.share, r.source], [100_000, 200_000, 0.5, "reported"]);
-  const e = contextOf({ chars: 400_000, model: "claude-sonnet-5-5" });
+  const e = contextOf({ chars: 400_000, model: "claude-sonnet-4-5" });
   assert.deepEqual([e.used, e.window, e.source], [100_000 + ROLL.baseline, 200_000, "estimated"]);
   assert.equal(contextOf({ chars: 0, model: "gpt-5" }).used, ROLL.baseline);
 });
@@ -55,16 +56,16 @@ test("the decision to roll", () => {
 
 test("rolloverCheck estimates from the transcript when the engine reports nothing", () => {
   const small = chat(3);
-  const none = rolloverCheck(small, { threadId: T, model: "claude-sonnet-5-5" });
+  const none = rolloverCheck(small, { threadId: T, model: "claude-sonnet-4-5" });
   assert.equal(none.roll, false);
   assert.equal(none.ctx.source, "estimated");
 
   const big = createTranscript();
   for (let i = 1; i <= 10; i++) big.append(personTurn({ threadId: T, authorId: "usr_dana", text: "q".repeat(50_000), at: i }));
-  const full = rolloverCheck(big, { threadId: T, model: "claude-sonnet-5-5" });
+  const full = rolloverCheck(big, { threadId: T, model: "claude-sonnet-4-5" });
   assert.equal(full.roll, true);
   assert.ok(full.ctx.share > 0.6);
-  assert.equal(rolloverCheck(big, { threadId: T, model: "claude-sonnet-5-5", fromTurn: 10 }).roll, false, "only what was said since the last roll counts");
+  assert.equal(rolloverCheck(big, { threadId: T, model: "claude-sonnet-4-5", fromTurn: 10 }).roll, false, "only what was said since the last roll counts");
   assert.equal(rolloverCheck(big, { threadId: T, used: 50_000, window: 200_000 }).ctx.source, "reported");
 });
 

@@ -1,5 +1,6 @@
 // Prefix cache and request shape (ARCH 6.6): the stable system blocks and the sorted tool list are hashed and marked so a resumed chat's first token reads the provider's cache;
 // compaction at 80% of the window keeps the prompt inside it.
+import { reportWindow } from "../src/transcript/windows.ts";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { ADAPTERS, COMPACT_AT, compact, createApiDriver, createPrefixTracker, geminiSchema, prefixHash, sortTools } from "../src/drivers/api/index.ts";
@@ -166,6 +167,7 @@ test("compaction never separates a tool call from its results and falls back to 
 });
 
 test("a long thread is compacted inside a send, and the request that goes out fits the window", async () => {
+  reportWindow(MODELS.anthropic, 200_000, "anthropic");   // the provider's own list said 200k for this model
   const history = Array.from({ length: 40 }, (_, i) => msg(i + 1, i % 2 === 0 ? "dana" : "intake", "w".repeat(20_000), i % 2 === 0 ? "person" : "agent"));
   history.push(msg(41, "dana", "Now what?"));
   const f = fakeFetch(() => ({ chunks: chunked(fixture("anthropic-text"), 64) }));

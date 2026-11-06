@@ -1,0 +1,20 @@
+{
+  "targets": [
+    {
+      "id": "CTXWIN_01-menu",
+      "route": "/m/CTXWIN_01",
+      "proto": "chats,{skin}",
+      "waitFor": "[data-testid='composer-strip']",
+      "click": ["[data-testid='composer-strip']"],
+      "note": "The model panel: the Context row reads 42% of 1M."
+    },
+    {
+      "id": "CTXWIN_01-models",
+      "route": "/m/CTXWIN_01",
+      "proto": "chats,{skin}",
+      "waitFor": "[data-testid='composer-strip']",
+      "click": ["[data-testid='composer-strip']", "[data-testid='model-model']"],
+      "note": "The model picker: each model carries its window, muted."
+    }
+  ]
+}
