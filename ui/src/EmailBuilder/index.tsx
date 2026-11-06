@@ -331,6 +331,8 @@ export function splitTokens(text: string): readonly { token?: string; field?: st
 
 export interface EmailBuilderViewProps extends Omit<EmailBuilderProps, "onTestSend" | "onAcceptDiff"> {
   onTestSend?: () => void | Promise<void>;
+  /** The button's words when pressing it sends nothing (the automation composer renders a preview): "Preview". Default "Test send". */
+  testSendLabel?: string;
   onAcceptDiff?: (id: string) => void | boolean;
   /** The author turned one proposed change down; it stays listed as Rejected and nothing is applied. */
   onRejectDiff?: (id: string) => void;
@@ -476,9 +478,9 @@ export function EmailBuilder(props: EmailBuilderViewProps): ReactElement {
     if (sending) return;
     setSent(false); setSendError(null); setSending(true);
     try {
-      if (!onTestSend) throw new Error("Connect a sending account before sending a test.");
+      if (!onTestSend) throw new Error(props.testSendLabel === undefined ? "Connect a sending account before sending a test." : "Nothing to preview.");
       await onTestSend(); setSent(true);
-    } catch (e) { setSendError(e instanceof Error ? e.message : "The test email was not sent."); }
+    } catch (e) { setSendError(e instanceof Error ? e.message : props.testSendLabel === undefined ? "The test email was not sent." : "Could not make the preview."); }
     finally { setSending(false); }
   };
   const [style, setStyle] = useState<EmailStyle>(props.emailStyle ?? DEFAULT_EMAIL_STYLE);
@@ -660,7 +662,7 @@ export function EmailBuilder(props: EmailBuilderViewProps): ReactElement {
       <Pressable ref={refOf("history")} accessibilityRole="button" accessibilityLabel="Version history" testID="em-history" onPress={historyMenu} style={(state) => [s.btn, (state as { hovered?: boolean }).hovered === true && s.btnOver]}><MenuIcon icon={ICON.history} /></Pressable>
       <Btn label="Comments" icon={ICON.comment} on={commentsOpen} onPress={() => setCommentsOpen((o) => !o)} testID="em-comments" />
       <Btn label="Focus" icon={ICON.focus} onPress={() => setFocusMode(true)} testID="em-focus" />
-      <Btn label="Test send" icon={ICON.send} onPress={() => void sendTest()} testID="em-test-send" />
+      <Btn label={props.testSendLabel ?? "Test send"} icon={ICON.send} onPress={() => void sendTest()} testID="em-test-send" />
       {props.ask !== undefined ? <AskButton {...props.ask} compact={compact} /> : null}
     </View>
   );
@@ -1037,7 +1039,7 @@ export function EmailBuilder(props: EmailBuilderViewProps): ReactElement {
       {focus ? <Text style={s.hint} testID="em-focus-hint">Focus mode. Esc or Shift-Cmd-F to leave.</Text> : null}
       {menu.element}
       {sendError ? <Text accessibilityRole="alert" style={s.toast} testID="em-send-error">{sendError}</Text> : null}
-      {sent ? <Text style={s.toast} testID="em-sent">Test email sent to you.</Text> : null}
+      {sent ? <Text style={s.toast} testID="em-sent">{props.testSendLabel === undefined ? "Test email sent to you." : "Preview ready below."}</Text> : null}
     </View>
   );
 }

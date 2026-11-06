@@ -132,6 +132,7 @@ function EmailStep({ nodeId, input, samples, onInput }: {
             fromName: draft.fromName,
           }));
         }}
+        testSendLabel="Preview"
         onTestSend={() => setRendered(renderMessage("send_email", input, values) ?? "Nothing to render yet.")}
       />
       {rendered ? <Text testID="composer-rendered" style={s.note}>{rendered}</Text> : null}
