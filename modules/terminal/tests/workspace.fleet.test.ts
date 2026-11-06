@@ -3,7 +3,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createDockerApi } from "../../../sandbox/src/docker.ts";
-import { createWorkspaceFleet, MAX_LINK_BODY, NO_PLACE, remoteDockerHttp } from "../fleet.ts";
+import { createWorkspaceFleet, NO_PLACE, remoteDockerHttp } from "../fleet.ts";
 import { createWorkspaceManager, createWorkspaceTerminalHost, workspaceName } from "../workspace.ts";
 import type { WorkspaceCapacity } from "../workspace.ts";
 import { bindWorkspaces, workspacesFor } from "../projections.ts";
@@ -22,7 +22,6 @@ test("remote Docker: a request becomes one question with its body as text or bas
   await http({ method: "PUT", path: "/containers/x/archive", query: { path: "/home/agent/Vyre" }, body: new Uint8Array([1, 2, 3]), contentType: "application/x-tar" });
   assert.equal(asked[1]!.input["bodyB64"], "AQID");
   assert.equal(asked[1]!.input["contentType"], "application/x-tar");
-  await assert.rejects(() => http({ method: "PUT", path: "/x", body: new Uint8Array(MAX_LINK_BODY + 1) }), /too large to send to the server/);
   const none = remoteDockerHttp(async () => null);
   await assert.rejects(() => none({ method: "GET", path: "/_ping" }), /did not answer for Docker/);
 });

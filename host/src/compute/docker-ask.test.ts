@@ -77,6 +77,12 @@ test("a question that is not a Docker request, and a body or an answer over one 
   assert.throws(() => readInput({ method: "GET", path: "/a/../b" }), /path is refused/);
   assert.throws(() => readInput({ method: "GET", path: "//host" }), /path is refused/);
   assert.throws(() => readInput({ method: "GET", path: "/x", query: { a: 1 } }), /query is refused/);
-  await assert.rejects(() => w.ask({ method: "PUT", path: "/containers/vyre-ws-agt_dex/archive", query: { path: "/home/agent/Vyre" }, bodyB64: Buffer.alloc(MAX_BODY + 1).toString("base64") }), /too large to send/);
-  await assert.rejects(() => w.ask({ method: "GET", path: "/containers/vyre-ws-agt_dex/archive", query: { path: "/home/agent/Vyre/." } }), /too large to bring over the server link/);
+  assert.throws(() => readInput({ method: "PUT", path: "/", stage: { id: "zz", index: 0, total: 1 } }), /staged piece is refused/);
+  assert.throws(() => readInput({ method: "PUT", path: "/", stage: { id: "abcdef0123", index: 2, total: 2 } }), /staged piece is refused/);
+  assert.throws(() => readInput({ method: "GET", path: "/", chunk: { id: "abcdef0123", index: 0 } }), /piece is refused/);
+  assert.throws(() => readInput({ method: "PUT", path: "/x", stagedId: "../x" }), /staged body is refused/);
+  // an answer over one frame comes back as its first piece and says there is more
+  const big = await w.ask({ method: "GET", path: "/containers/vyre-ws-agt_dex/archive", query: { path: "/home/agent/Vyre/." } }) as { status: number; more?: { id: string; chunks: number } };
+  assert.equal(big.status, 200);
+  assert.equal(big.more?.chunks, 2);
 });
