@@ -105,6 +105,8 @@ export interface MessageActions {
   /** A goal's page, from a goal card in the chat. Left out where the shell has no such page. */
   openGoal?(goalId: string): void;
   answer(blockId: string, answer: unknown): void;
+  /** Send words as the person's own reply: what a choice an agent offered in its message sends. Left out where the chat cannot (the choices are then plain pills). */
+  reply?(text: string): void;
   approvePlan(planId: string): void;
   retryTurn(turnId: string): void;
   /** Run the turn that made this reply once more: "Regenerate" in an agent reply's menu. Left out where the chat cannot. */
@@ -186,6 +188,36 @@ export function forkOrigin(m: Pick<Message, "blocks">): { threadId: string; mess
   return d && typeof d["threadId"] === "string" && typeof d["messageId"] === "string" ? { threadId: d["threadId"], messageId: d["messageId"], title: typeof d["title"] === "string" ? d["title"] : "another chat" } : null;
 }
 
+/**
+ * Two values that say the same thing. Functions count as equal (a row calls them through the stable actions the list hands every row, so an older one still does the latest thing); data is compared by value to a
+ * depth, and anything deeper or odd (a Map, a class) counts as different, so a row can draw once more but never keeps something stale. The list rebuilds its items and the actions object on every render (each
+ * key typed in the composer), so without this every row of a long chat drew again on every key.
+ */
+export function sameData(a: unknown, b: unknown, depth: number): boolean {
+  if (Object.is(a, b)) return true;
+  if (typeof a === "function" && typeof b === "function") return true;
+  if (typeof a !== "object" || typeof b !== "object" || a === null || b === null || depth <= 0) return false;
+  if (Array.isArray(a) || Array.isArray(b)) {
+    if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false;
+    for (let i = 0; i < a.length; i++) if (!sameData(a[i], b[i], depth - 1)) return false;
+    return true;
+  }
+  const pa = Object.getPrototypeOf(a) as unknown;
+  if ((pa !== Object.prototype && pa !== null) || Object.getPrototypeOf(b) !== pa) return false;
+  const ka = Object.keys(a);
+  if (ka.length !== Object.keys(b).length) return false;
+  for (const k of ka) {
+    if (!(k in b) || !sameData((a as Record<string, unknown>)[k], (b as Record<string, unknown>)[k], depth - 1)) return false;
+  }
+  return true;
+}
+
+/** Draw a row again only when something it shows changed. */
+export function sameRow(a: MessageViewProps, b: MessageViewProps): boolean {
+  return a.meId === b.meId && a.stream === b.stream && a.sending === b.sending && a.openWork === b.openWork && a.mark === b.mark
+    && sameData(a.item, b.item, 6) && sameData(a.actions, b.actions, 5) && sameData(a.replies, b.replies, 3);
+}
+
 export const MessageView = memo(function MessageView(props: MessageViewProps): ReactElement | null {
   const { item } = props;
   if (item.kind === "day") return <Text testID={`day-${item.key}`} accessibilityRole="header" style={st.day}>{item.label}</Text>;
@@ -231,7 +263,7 @@ export const MessageView = memo(function MessageView(props: MessageViewProps): R
     );
   }
   return item.kind === "me" ? <Mine {...props} item={item} /> : <Theirs {...props} item={item} />;
-});
+}, sameRow);
 
 /* ---------- the hover bar and the menu: the same list in both ---------- */
 
@@ -515,7 +547,7 @@ function Theirs({ item, actions, stream, openWork, mark, meId, replies }: Messag
           ))}
         </Fold>
       ) : null}
-      {stream ? <LiveBody store={stream} hideEmpty={actions.activityOf?.(m.messageId) !== undefined} testID={`body-${m.messageId}`} style={st.body} /> : m.body && !crewCard ? <View testID={`body-${m.messageId}`} style={st.body}><MarkdownBlocks blocks={subjects.blocks} {...(subjects.renderLink || chips.renderLink || citeLink ? { renderLink: ((href, kids, key) => citeLink?.(href, kids, key) ?? chips.renderLink?.(href, kids, key) ?? subjects.renderLink?.(href, kids, key) ?? null) as NonNullable<typeof chips.renderLink> } : {})} {...(renderCode ? { renderCode } : {})} /></View> : null}
+      {stream ? <LiveBody store={stream} hideEmpty={actions.activityOf?.(m.messageId) !== undefined} testID={`body-${m.messageId}`} style={st.body} /> : m.body && !crewCard ? <View testID={`body-${m.messageId}`} style={st.body}><MarkdownBlocks blocks={subjects.blocks} scope={m.messageId} {...(actions.reply ? { onChoose: actions.reply } : {})} {...(subjects.renderLink || chips.renderLink || citeLink ? { renderLink: ((href, kids, key) => citeLink?.(href, kids, key) ?? chips.renderLink?.(href, kids, key) ?? subjects.renderLink?.(href, kids, key) ?? null) as NonNullable<typeof chips.renderLink> } : {})} {...(renderCode ? { renderCode } : {})} /></View> : null}
       {stream && actions.activityOf?.(m.messageId) ? <ActivityLine store={actions.activityOf(m.messageId)!} stream={stream} {...(actions.faceInThread ? { face: <Face name={item.who.name} seedId={item.who.id} kind="agent" size={20} /> } : {})} /> : null}
           {item.hookSteps && actions.files ? <HookSteps id={m.messageId} steps={item.hookSteps.next} agentId={item.hookSteps.agentId} threadId={actions.files.threadId} call={actions.files.call} /> : null}
       {person || stream || m.body === "" ? null : <ReplyMemory messageId={m.messageId} threadId={m.threadId} reply={m.body} part={work ? "cards" : "all"} />}

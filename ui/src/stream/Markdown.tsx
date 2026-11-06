@@ -1,12 +1,12 @@
 // Draws the blocks of a streaming message. A final block is a memoised component keyed by its position and handed the same object every frame, so React skips it; only the open block (and its
 // caret) is drawn again. Typography is the prototype's message body: 15 px on a 24 px line, 10 px between blocks, code in the mono face on `--sunk`.
-import { Fragment, createContext, memo, useContext, useState } from "react";
+import { Fragment, createContext, memo, useContext, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import type { Block, Inline } from "./markdown.ts";
 import { CODE_TINT, HIGHLIGHT, RADIUS } from "../tokens/calm.ts";
 import { BLOCK_GAP, BODY_LINE, BODY_SIZE } from "./Reserved.tsx";
-import { CalloutBlock, ChartBlock, CodeBlock, DetailsBlock, DiagramBlock, FootnoteLine, ImageBlock, MathBlock, MathInline } from "./Blocks.tsx";
+import { CalloutBlock, CheckBox, ChartBlock, ChoicesBlock, CodeBlock, ReplyCtx, SectionScope, DetailsBlock, DiagramBlock, FootnoteLine, ImageBlock, MathBlock, MathInline } from "./Blocks.tsx";
 
 /** Draws a link its own way (a known subject with its hover card) or returns null to draw it as the plain link. */
 /** Draws something under a fenced code block (a Run bar), or null for nothing. Only called for a block that is finished. */
@@ -53,7 +53,7 @@ function inlineNodes(items: readonly Inline[], onLink?: (href: string) => void, 
         out.push(<MathInline key={i} tex={n.v} />);
         break;
       case "html":
-        out.push(<Text key={i} style={n.tag === "kbd" ? styles.kbd : n.tag === "mark" ? styles.mark : n.tag === "sup" ? styles.sup : styles.sub}>{inlineNodes(n.c, onLink, renderLink)}</Text>);
+        out.push(<Text key={i} style={n.tag === "kbd" ? styles.kbd : n.tag === "mark" ? styles.mark : n.tag === "u" ? styles.u : n.tag === "sup" ? styles.sup : styles.sub}>{inlineNodes(n.c, onLink, renderLink)}</Text>);
         break;
       case "em":
         out.push(<Text key={i} style={styles.em}>{inlineNodes(n.c, onLink, renderLink)}</Text>);
@@ -105,7 +105,7 @@ function listItems(block: Extract<Block, { kind: "ul" | "ol" }>, caret: boolean,
     out.push(
       <View key={i} style={styles.item}>
         {block.checks && block.checks[i] !== null && block.checks[i] !== undefined
-          ? <View testID={`check-${block.key}-${i}`} accessibilityRole="checkbox" accessibilityState={{ checked: block.checks[i] === true, disabled: true }} accessibilityLabel={block.checks[i] === true ? "Done" : "Not done"} style={[styles.box, block.checks[i] === true && styles.boxOn]}>{block.checks[i] === true ? <Text style={styles.tick}>{"\u2713"}</Text> : null}</View>
+          ? <CheckBox id={block.key} index={i} initial={block.checks[i] === true} />
           : <Text style={styles.marker}>{block.kind === "ul" ? "\u2022" : `${block.start + i}.`}</Text>}
         <Text style={styles.itemText}>{inlineNodes(caret && i === block.items.length - 1 ? withCaret(block.items[i] ?? []) : (block.items[i] ?? []), onLink, renderLink)}</Text>
       </View>,
@@ -207,6 +207,8 @@ export const BlockView = memo(function BlockView({ block, caret = false, onLink,
           {renderCode && !caret && block.closed ? renderCode(block) : null}
         </View>
       );
+    case "choices":
+      return <ChoicesBlock id={block.key} options={block.options} />;
     case "mermaid":
       return <DiagramBlock id={block.key} source={block.text} />;
     case "chart":
@@ -245,13 +247,18 @@ export interface MarkdownBlocksProps {
   renderLink?: RenderLink;
   /** Draws a bar under a finished code block (Run); leave it out and a code block is just the code. */
   renderCode?: RenderCode;
+  /** The message these blocks belong to. Given, a person's presses (a section opened, a box ticked, a choice picked) are remembered for it; left out, the blocks are a plain preview. */
+  scope?: string;
+  /** Sends a reply. Given with `scope`, the choices an agent offers can be pressed. */
+  onChoose?: (text: string) => void;
   /** Draws plain words its own way (file names that open a tab); leave it out and words are words. */
   renderText?: RenderText;
 }
 
 /** Final blocks first (same objects every frame, so they do not re-render), then the open ones. */
-export function MarkdownBlocks({ blocks, streaming = false, onLink, renderLink, renderCode, renderText }: MarkdownBlocksProps) {
+export function MarkdownBlocks({ blocks, streaming = false, onLink, renderLink, renderCode, renderText, scope, onChoose }: MarkdownBlocksProps) {
   const last = blocks.length - 1;
+  const reply = useMemo(() => ({ scope: scope ?? null, send: scope !== undefined && !streaming && onChoose ? onChoose : null }), [scope, streaming, onChoose]);
   const views: ReactNode[] = [];
   for (let i = 0; i < blocks.length; i++) {
     const b = blocks[i];
@@ -259,10 +266,14 @@ export function MarkdownBlocks({ blocks, streaming = false, onLink, renderLink, 
   }
   return (
     <TextCtx.Provider value={renderText ?? null}>
-      <View testID="markdown-blocks" style={styles.root}>
-        {views}
-        {streaming && blocks.length === 0 ? <Text style={styles.p}>{CARET}</Text> : null}
-      </View>
+      <SectionScope.Provider value={scope ?? null}>
+        <ReplyCtx.Provider value={reply}>
+          <View testID="markdown-blocks" style={styles.root}>
+            {views}
+            {streaming && blocks.length === 0 ? <Text style={styles.p}>{CARET}</Text> : null}
+          </View>
+        </ReplyCtx.Provider>
+      </SectionScope.Provider>
     </TextCtx.Provider>
   );
 }
@@ -287,6 +298,7 @@ const styles = StyleSheet.create({
   fnref: { color: "var(--accent)" as string, fontSize: 11 },
   kbd: { fontFamily: MONO, fontSize: 12, backgroundColor: CODE_TINT, color: "var(--ink)" as string },
   mark: { backgroundColor: HIGHLIGHT, borderRadius: 4 },
+  u: { textDecorationLine: "underline" },
   sup: { fontSize: 11 },
   sub: { fontSize: 11 },
   em: { fontStyle: "italic" },

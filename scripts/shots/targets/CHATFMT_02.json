@@ -1,0 +1,11 @@
+{
+  "targets": [
+    {
+      "id": "CHATFMT_02-huge",
+      "route": "/m/CHATFMT_02",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid='conversation-feed']",
+      "note": "A chat with 2,000 messages (measured, not compared)."
+    }
+  ]
+}
