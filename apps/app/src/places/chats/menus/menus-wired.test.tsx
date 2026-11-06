@@ -7,7 +7,9 @@ import { chatHeaderEntries, isArchivedIn } from "../conversation/chat-header-men
 import { chatMenu } from "./chat.ts";
 import { openFace } from "../mounts/data.ts";
 import { tabMenuEntries } from "../../../../../../ui/src/TabStrip/index.tsx";
-import { moveTargets, restoreCall, trashCall } from "../../files/tree/model.ts";
+import { renderToStaticMarkup } from "react-dom/server";
+import { FolderMovePicker } from "../../files/tree/FolderMovePicker.tsx";
+import { pathInto, restoreCall, trashCall } from "../../files/tree/model.ts";
 import { versionRows } from "../../files/viewer/model.ts";
 import { brandPatch, DEFAULT_EMAIL_STYLE } from "../../../../../../ui/src/EmailBuilder/index.tsx";
 import type { MenuEntry, MenuItem } from "../../../../../../ui/src/Menu/index.tsx";
@@ -55,9 +57,12 @@ test("a tab strip whose tabs cannot be closed offers no Close items (they did no
   assert.deepEqual(labels(tabMenuEntries(tabs, "a", [{ label: "Rename" }], () => undefined, false)), ["Rename"], "extras stand alone, with no divider before nothing");
 });
 
-test("Move on a folder lists the top of Files and the other top folders, never the folder itself", () => {
-  const t = moveTargets([{ folderId: "f1", name: "Billing" }, { folderId: "f2", name: "Clients" }], "f1");
-  assert.deepEqual(t, [{ label: "Top of Files", to: null }, { label: "Clients", to: "f2" }]);
+test("the Move picker's path: going into a folder adds it, going into one already on the path steps back to it", () => {
+  const top = [{ id: null, name: "Top of Files" }];
+  const a = pathInto(top, null, "f1", "Clients");
+  const b = pathInto(a, "f1", "f2", "Rivera");
+  assert.deepEqual(b.map((c) => c.name), ["Top of Files", "Clients", "Rivera"]);
+  assert.deepEqual(pathInto(b, "f2", "f1", "Clients").map((c) => c.name), ["Top of Files", "Clients"]);
 });
 
 test("the viewer's History lists versions newest first; the current one is marked and cannot be restored, the others can", () => {
@@ -89,4 +94,10 @@ test("the header menu says Unarchive for a chat that is in the Archived list, an
   const d = { rename() {}, star() {}, mute() {}, archive() {}, unarchive() {}, leave() {}, remove() {} };
   assert.ok(labels(chatHeaderEntries({ starred: false, muted: false, archived: isArchivedIn(recent, "thr_old"), withPeople: false }, d)).includes("Unarchive"));
   assert.ok(labels(chatHeaderEntries({ starred: false, muted: false, archived: isArchivedIn(recent, "thr_new"), withPeople: false }, d)).includes("Archive"));
+});
+
+test("the folder Move picker opens with a search box and the path, and never offers the folder being moved", () => {
+  const html = renderToStaticMarkup(<FolderMovePicker moving={{ id: "f1", name: "Billing" }} call={async () => ({ folders: [] })} onMove={() => undefined} onClose={() => undefined} />);
+  assert.ok(html.includes("Move Billing") && html.includes('data-testid="folder-move-search"') && html.includes("Top of Files"));
+  assert.ok(html.includes("Move to Top of Files"), "the one action names where it moves to");
 });

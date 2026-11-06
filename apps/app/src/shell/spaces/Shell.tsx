@@ -203,7 +203,7 @@ export function Shell(props: ShellProps): ReactElement {
     } else if (action === "invite") {
       if (props.team) props.team.invite();
       else hub.flash(`Inviting people needs ${name} to be open`);
-    } else if (action === "add") hub.flash("Join with a link, or connect a server");
+    } else if (action === "add") { requestAddServer(); hub.go("settings"); }
   };
 
   const switchBy = (spaceId: string): void => {

@@ -367,9 +367,10 @@ export function openByDefault(f: FolderRow): boolean {
   return f.parentId === undefined && f.subject !== undefined && f.subject.kind !== "space" && f.subject.id === undefined;
 }
 
-/** Where a folder can be moved from its menu: the top of Files, then the folders at the top, never the folder itself. */
-export function moveTargets(folders: readonly { folderId: string; name: string }[], movingId: string): { label: string; to: string | null }[] {
-  return [{ label: "Top of Files", to: null }, ...folders.filter((f) => f.folderId !== movingId).map((f) => ({ label: f.name, to: f.folderId }))];
+/** The path above the Move picker's list after going into `folderId`: going into a folder already on the path steps back to it; otherwise it is added. */
+export function pathInto(trail: readonly { id: string | null; name: string }[], _from: string | null, folderId: string, name: string): { id: string | null; name: string }[] {
+  const i = trail.findIndex((c) => c.id === folderId);
+  return i >= 0 ? trail.slice(0, i + 1).slice() : [...trail, { id: folderId, name }];
 }
 
 /** Delete and Restore in Files are one pair: a folder goes to Trash with files.folder.delete and comes back with files.folder.restore (folders.delete is the access module's, which hands items back to their owners and leaves nothing in Trash). */

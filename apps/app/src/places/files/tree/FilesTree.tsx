@@ -12,10 +12,11 @@ import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import { each, matchRows } from "../../../shell/sidebar/model.ts";
 import type { SidebarSlotApi } from "../../../shell/sidebar/index.ts";
 import { useFilesData, useLive, useOptionalFilesData, useSource } from "./data.tsx";
-import { dropMoves, hasAgentFace, moveTargets, trashCall, openByDefault, orderFolders, parsePayload, rootRank, sameWhere, spaceRoots } from "./model.ts";
+import { dropMoves, hasAgentFace, trashCall, openByDefault, orderFolders, parsePayload, rootRank, sameWhere, spaceRoots } from "./model.ts";
 import type { FolderRow, TreeRoots, Where } from "./model.ts";
 import { KNOW_ROWS, rowOf } from "../memory/know.ts";
 import { Glyph } from "./parts.tsx";
+import { FolderMovePicker } from "./FolderMovePicker.tsx";
 import { Mark } from "../mounts/icons.tsx";
 import type { MarkKind } from "../mounts/icons.tsx";
 import { WithProviderMark } from "../marks.tsx";
@@ -192,6 +193,7 @@ function Tree({ query, slot }: { query: string; slot?: SidebarSlotApi | undefine
   const mounts = useMountStates(data.call);
   const [over, setOver] = useState<string | null>(null);
   const menuAt = useRef<{ x: number; y: number }>({ x: 8, y: 48 });
+  const [moving, setMoving] = useState<{ id: string; name: string } | null>(null);
   const q = query.trim();
   const rootRows: TreeRoots = roots.status === "ready" ? roots.data.roots : [];
   const virtual = rootRows.filter((r) => r.kind === "virtual");
@@ -220,14 +222,8 @@ function Tree({ query, slot }: { query: string; slot?: SidebarSlotApi | undefine
       ...(data.nav.shareFolder ? { onShare: (n: { id: string }) => data.nav.shareFolder?.(n.id) } : {}),
       ...(data.nav.connectFolder ? { onMount: (n: { id: string }) => data.nav.connectFolder?.(n.id) } : {}),
       onRename: (n) => data.nav.renameEntry("folder", n.id, n.name),
-      // Move... lists where the folder can go (the top of Files and the folders at the top) and moves it with folders.move; a folder cannot go into itself
-      onMove: (n) => {
-        const { x, y } = menuAt.current;
-        void Promise.resolve(data.call("files.list", {})).then((out) => {
-          const go = (parentId: string | null): void => { void Promise.resolve(data.call("folders.move", { folderId: n.id, parentId })).catch(() => undefined); };
-          menu.show([{ head: `Move ${n.name} to` }, ...moveTargets((out as { folders?: { folderId: string; name: string }[] } | null)?.folders ?? [], n.id).map((t) => ({ label: t.label, onSelect: () => go(t.to) }))], x, y, "other", { label: "Move" });
-        }, () => undefined);
-      },
+      // Move... opens the picker: the whole tree to browse, and a search
+      onMove: (n) => setMoving({ id: n.id, name: n.name }),
       onDelete: (n) => { const c = trashCall("folder", n.id); void data.call(c.cap, c.input); },
     },
   };
@@ -252,6 +248,7 @@ function Tree({ query, slot }: { query: string; slot?: SidebarSlotApi | undefine
 
   return (
     <View style={styles.side} testID="files-tree" accessibilityLabel="Files sidebar">
+      {moving ? <FolderMovePicker moving={moving} call={data.call} onClose={() => setMoving(null)} onMove={(parentId) => { const id = moving.id; setMoving(null); void Promise.resolve(data.call("folders.move", { folderId: id, parentId })).catch(() => undefined); }} /> : null}
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollIn} testID="files-nav">
         {each(fixed, (r) => <NavRow key={r.id} id={r.id} title={r.title} glyph={r.glyph} selected={sameWhere(state.where, r.where)} count={r.count} onPress={go(r.where)} />)}
         {knowShown.length > 0 ? <SectionHead id="know" label="Knowledge" open={!isShut("know")} onToggle={() => flip("know")} /> : null}

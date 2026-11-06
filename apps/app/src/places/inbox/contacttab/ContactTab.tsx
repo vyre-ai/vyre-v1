@@ -449,7 +449,7 @@ function Tab({ conversationId, contactId, ...props }: ContactTabProps): ReactEle
             density={phone ? "compact" : "regular"}
             testID="contact-composer-field"
             onChange={(t) => patch({ text: t })}
-            onAttach={() => { if (props.onAttach) props.onAttach(); else setNote("Attach from Files is not connected in this view"); }}
+            {...(props.onAttach ? { onAttach: props.onAttach } : {})}
             onSubmit={(p) => { if (blocker === "") void send(p.text, p.files); else setNote(blocker); }}
             recipients={(
               <OutgoingHeader

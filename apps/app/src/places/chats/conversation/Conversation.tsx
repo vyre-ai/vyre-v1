@@ -398,7 +398,8 @@ function ConversationView(): ReactElement {
 
   const commandEnv = (): CommandEnv => ({
     data, thread, rows: win.rows, say, newKey: data.newKey,
-    openFind: () => setFinding(true), openSearch: (q) => data.nav.openSearch?.(q), openModel: () => { if (lead) modelMenu(8, 120); else say("Add an agent to this chat first."); },
+    openFind: () => setFinding(true), openSearch: (q) => data.nav.openSearch?.(q), openModel: () => { if (lead) modelMenu(8, 120); else add.open({ threadId: data.threadId, name: thread.title ?? "" }); },
+    openAdd: () => add.open({ threadId: data.threadId, name: thread.title ?? "" }),
     aside: (question) => void act.startAside(data, thread.threadId, question, data.newKey()).then((r) => setAsides((cur) => [...cur, { id: r.asideThreadId, question }]), fail("Could not ask that.")),
     send: (text) => submit({ text, chips: [], files: [], folder: null, links: [], refs: [], mode: "queue", answers: "" }, "queue"),
   });

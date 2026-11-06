@@ -671,7 +671,7 @@ export function EmailBuilder(props: EmailBuilderViewProps): ReactElement {
       {allComments.length === 0 ? <Text style={s.note}>No comments yet.</Text> : null}
       <View style={s.envRow}>
         <TextInput accessibilityLabel="Add a comment" testID="em-comment-input" value={draftComment} onChangeText={setDraftComment} onSubmitEditing={postComment} placeholder="Add a comment" placeholderTextColor="var(--ink-4)" style={s.envInput} />
-        <Btn label="Post" strong onPress={postComment} disabled={draftComment.trim() === ""} testID="em-comment-post" />
+        <Btn label="Post" strong onPress={postComment} disabled={draftComment.trim() === "" || !props.onComment} testID="em-comment-post" />
       </View>
     </View>
   ) : null;
