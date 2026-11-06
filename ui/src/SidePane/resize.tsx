@@ -8,7 +8,8 @@ import { PanResponder, Platform, StyleSheet, View, useWindowDimensions } from "r
 import type { ViewStyle } from "react-native";
 import { SIDE_PANE_MAX, SIDE_PANE_MIN } from "./props.ts";
 import { clampPaneWidth, paneWidths } from "./index.tsx";
-import { RAIL_OVERLAY, SHEET, SHEET_GAP, intoSheet, sq, useRailOverlay, useSheetHost } from "./host.tsx";
+import { RAIL_OVERLAY, SHEET, SHEET_GAP, intoSheet, sq, useRailOverlay, useSheetHost, useShellLayout, usePanelPresence } from "./host.tsx";
+import { bandKey } from "./layout.ts";
 import { useEdgeDrag } from "./drag.ts";
 
 /** The pane grows to the left (a right-hand pane, handle on its left edge) or to the right (a left sidebar, handle on its right edge). */
@@ -35,12 +36,16 @@ export interface ResizeOptions {
   /** A hard cap in px on top of the fraction: the prototype's sidebar stops at 380, the right rail at 720. */
   maxWidth?: number;
   onWidthChange?: (width: number) => void;
+  /** Inside the shell: the layout model owns this panel's width, limits and saved width (per band). */
+  kind?: "sidebar" | "pane";
 }
 
 export interface Resizable {
   width: number;
   dragging: boolean;
   min: number;
+  /** The model's widest (main keeps 480); Infinity outside the shell. */
+  max: number;
   maxFraction: number;
   windowWidth: number;
   /** The pointer and key handlers for the handle. */
@@ -54,13 +59,23 @@ export interface Resizable {
 
 export function useResizable(o: ResizeOptions): Resizable {
   const { paneKey, defaultWidth, grow, onWidthChange } = o;
-  const min = o.min ?? SIDE_PANE_MIN;
+  const shell = useShellLayout();
+  const kind = shell !== null ? o.kind : undefined;
+  const model = shell !== null && kind !== undefined ? shell.layout[kind] : null;
+  const band = shell?.layout.band ?? "wide";
+  const key = model !== null ? bandKey(paneKey, band) : paneKey;
+  const min = model !== null ? model.min : (o.min ?? SIDE_PANE_MIN);
   const maxFraction = o.maxFraction ?? SIDE_PANE_MAX;
   const win = useWindowDimensions();
-  const [stored, setStored] = useState<number | null>(() => paneWidths.get(paneKey));
+  const [stored, setStored] = useState<number | null>(() => paneWidths.get(key));
+  const [live, setLive] = useState<number | null>(null);
   const [dragging, setDragging] = useState(false);
   const cap = (w: number): number => (o.maxWidth === undefined ? w : Math.min(w, o.maxWidth));
-  const width = cap(clampPaneWidth(stored ?? defaultWidth, win.width, min, maxFraction));
+  // limits the drag holds to: the model's (main keeps 480, the pane keeps its floor), else the caller's own
+  const limitsRef = useRef({ min, max: model !== null ? model.max : Infinity });
+  limitsRef.current = { min, max: model !== null ? model.max : Infinity };
+  const hold = (w: number, windowWidth: number): number => (model !== null ? Math.round(Math.min(Math.max(limitsRef.current.min, w), Math.max(limitsRef.current.min, limitsRef.current.max))) : cap(clampPaneWidth(w, windowWidth, min, maxFraction)));
+  const width = model !== null ? (live !== null ? hold(live, win.width) : model.width) : cap(clampPaneWidth(stored ?? defaultWidth, win.width, min, maxFraction));
   const widthRef = useRef(width);
   widthRef.current = width;
   const windowRef = useRef(win.width);
@@ -68,21 +83,26 @@ export function useResizable(o: ResizeOptions): Resizable {
   const start = useRef(width);
   const lastTap = useRef(0);
 
-  useEffect(() => { setStored(paneWidths.get(paneKey)); }, [paneKey]);
+  useEffect(() => { setStored(paneWidths.get(key)); }, [key]);
 
   const apply = useCallback((next: number, remember: boolean) => {
-    const clamped = cap(clampPaneWidth(next, windowRef.current, min, maxFraction));
+    const clamped = hold(next, windowRef.current);
     widthRef.current = clamped;
-    setStored(clamped);
-    if (remember) paneWidths.set(paneKey, clamped);
+    if (model !== null && shell !== null) {
+      if (remember) { setLive(null); shell.commit(paneKey, clamped); } else setLive(clamped);
+    } else {
+      setStored(clamped);
+      if (remember) paneWidths.set(paneKey, clamped);
+    }
     if (onWidthChange) onWidthChange(clamped);
-  }, [paneKey, min, maxFraction, o.maxWidth, onWidthChange]);
+  }, [paneKey, min, maxFraction, o.maxWidth, onWidthChange, model !== null, shell]);
 
   const reset = useCallback(() => {
+    if (model !== null && shell !== null) { setLive(null); shell.commit(paneKey, null); return; }
     paneWidths.reset(paneKey);
     setStored(null);
     if (onWidthChange) onWidthChange(clampPaneWidth(defaultWidth, windowRef.current, min, maxFraction));
-  }, [paneKey, defaultWidth, min, maxFraction, onWidthChange]);
+  }, [paneKey, defaultWidth, min, maxFraction, onWidthChange, model !== null, shell]);
 
   const sign = grow === "left" ? -1 : 1;
   const begin = (): void => { start.current = widthRef.current; setDragging(true); };
@@ -111,7 +131,7 @@ export function useResizable(o: ResizeOptions): Resizable {
     if (next === "reset") reset(); else apply(next, true);
   };
 
-  return { width, dragging, min, maxFraction, windowWidth: win.width, panHandlers: (Platform.OS === "web" ? {} : responder.panHandlers) as unknown as Record<string, unknown>, edgeRef, onKey, setWidth: (n) => apply(n, true), reset };
+  return { width, dragging, min, max: model !== null ? model.max : Infinity, maxFraction, windowWidth: win.width, panHandlers: (Platform.OS === "web" ? {} : responder.panHandlers) as unknown as Record<string, unknown>, edgeRef, onKey, setWidth: (n) => apply(n, true), reset };
 }
 
 const COL_RESIZE = (Platform.OS === "web" ? "col-resize" : undefined) as unknown as ViewStyle["cursor"];
@@ -132,7 +152,7 @@ export function ResizeHandle({ r, at, label = "Resize the pane", testID = "side-
       aria-label={label}
       aria-valuenow={r.width}
       aria-valuemin={r.min}
-      aria-valuemax={Math.max(r.min, Math.round(r.windowWidth * r.maxFraction))}
+      aria-valuemax={Number.isFinite(r.max) ? r.max : Math.max(r.min, Math.round(r.windowWidth * r.maxFraction))}
       testID={testID}
       focusable
       onPointerEnter={() => setLit(true)}
@@ -167,10 +187,13 @@ export interface ResizableColumnProps {
 export function ResizableColumn(p: ResizableColumnProps): ReactElement | null {
   const host = useSheetHost();
   const overlay = useRailOverlay();
-  const r = useResizable({ paneKey: p.paneKey, defaultWidth: p.defaultWidth, grow: p.grow, ...(p.min === undefined ? {} : { min: p.min }), ...(p.maxFraction === undefined ? {} : { maxFraction: p.maxFraction }), ...(p.maxWidth === undefined ? {} : { maxWidth: p.maxWidth }) });
+  const managed = host !== null && p.inline !== true;
+  const here = usePanelPresence(p.grow === "left" ? "pane" : "sidebar", p.paneKey, managed);
+  const r = useResizable({ ...(managed ? { kind: p.grow === "left" ? "pane" as const : "sidebar" as const } : {}), paneKey: p.paneKey, defaultWidth: p.defaultWidth, grow: p.grow, ...(p.min === undefined ? {} : { min: p.min }), ...(p.maxFraction === undefined ? {} : { maxFraction: p.maxFraction }), ...(p.maxWidth === undefined ? {} : { maxWidth: p.maxWidth }) });
   const handle = <ResizeHandle r={r} at={p.grow === "left" ? "left" : "right"} />;
   const a11y = { ...(p.onLayout === undefined ? {} : { onLayout: p.onLayout as never }), ...(p.label === undefined ? {} : { accessibilityLabel: p.label }), ...(p.role === undefined ? {} : { accessibilityRole: p.role }) };
   const target = host === null || p.inline === true ? null : p.grow === "right" ? host.left : host.right;
+  if (managed && !here) return null;
   if (host !== null && p.inline !== true) {
     const right = p.grow === "left";
     return <>{intoSheet(target, (

@@ -13,7 +13,9 @@ import { collapseKey, phoneView, readCollapsed, writeCollapsed } from "./model.t
 import type { PhoneView, SidebarStorage } from "./model.ts";
 import { portalInto } from "./portal.ts";
 import { ResizeHandle, useResizable } from "../../../../../ui/src/SidePane/resize.tsx";
-import { SHEET, sq } from "../../../../../ui/src/SidePane/host.tsx";
+import { SHEET, sq, usePanelPresence, useShellLayout } from "../../../../../ui/src/SidePane/host.tsx";
+import type { ShellLayoutApi } from "../../../../../ui/src/SidePane/host.tsx";
+import { SIDEBAR } from "../../../../../ui/src/SidePane/layout.ts";
 
 export interface SidebarEntry { title: string; searchPlaceholder: string; noSearch?: boolean }
 
@@ -38,7 +40,7 @@ export interface SidebarSlotApi {
 const Ctx = createContext<SidebarSlotApi | null>(null);
 const Reg = createContext<{ register(e: SidebarEntry | null): void; outlet: unknown } | null>(null);
 
-export const SIDEBAR_DEFAULT = 244;
+export const SIDEBAR_DEFAULT = SIDEBAR.def;
 
 export interface SidebarSlotProviderProps {
   deviceId: string;
@@ -110,7 +112,9 @@ export function SidebarContent(props: { title: string; searchPlaceholder?: strin
 export function SidebarSlot(): ReactElement | null {
   const slot = useSidebarSlot();
   const o = useContext(OutletContext);
-  const resize = useResizable({ paneKey: "place-sidebar", defaultWidth: SIDEBAR_DEFAULT, grow: "right", min: 200, maxFraction: 0.5, maxWidth: 380 });
+  const shell = useShellLayout();
+  usePanelPresence("sidebar", "place-sidebar", o !== null && o.entry !== null);
+  const resize = useResizable({ kind: "sidebar", paneKey: "place-sidebar", defaultWidth: SIDEBAR_DEFAULT, grow: "right", min: SIDEBAR.min, maxFraction: 0.5, maxWidth: SIDEBAR.max });
   if (o === null || o.entry === null) return null;
   const full = slot.compact;
   // On the phone an opened body replaces the list. The slot stays mounted (display none) because the place's sidebar content is portalled into its outlet.
@@ -121,7 +125,7 @@ export function SidebarSlot(): ReactElement | null {
         <Text style={s.title} accessibilityRole="header" numberOfLines={1}>{o.entry.title}</Text>
         <View style={s.actions} testID="sidebar-actions" ref={(n) => { if (n !== null) o.setActionsOutlet(n); }} />
         {full ? null : (
-          <Pressable accessibilityRole="button" accessibilityLabel="Hide the sidebar" testID="sidebar-collapse" onPress={() => slot.setCollapsed(true)}
+          <Pressable accessibilityRole="button" accessibilityLabel="Hide the sidebar" testID="sidebar-collapse" onPress={() => hideSidebar(slot, shell)}
             {...webOnly({ title: "Hide the sidebar (⌘⇧\\)" })}
             style={({ hovered }: { hovered?: boolean }) => [s.icon, hovered === true && s.hover]}>
             <MenuIcon icon={PANEL} color="var(--ink-3)" />
@@ -149,8 +153,9 @@ export function SidebarSlot(): ReactElement | null {
 /** The Hide button on a sheet that draws its own head (Inbox, Vault, Settings). */
 export function SidebarHide(): ReactElement | null {
   const slot = useSidebarSlot();
+  const shell = useShellLayout();
   return (
-    <Pressable accessibilityRole="button" accessibilityLabel="Hide the sidebar" testID="sidebar-hide" onPress={() => slot.setCollapsed(true)} {...webOnly({ title: "Hide the sidebar (⌘⇧\\)" })} style={({ hovered }: { hovered?: boolean }) => [s.hideFloat, hovered === true && s.hover]}>
+    <Pressable accessibilityRole="button" accessibilityLabel="Hide the sidebar" testID="sidebar-hide" onPress={() => hideSidebar(slot, shell)} {...webOnly({ title: "Hide the sidebar (⌘⇧\\)" })} style={({ hovered }: { hovered?: boolean }) => [s.hideFloat, hovered === true && s.hover]}>
       <MenuIcon icon={PANEL} color="var(--ink-3)" />
     </Pressable>
   );
@@ -159,12 +164,35 @@ export function SidebarHide(): ReactElement | null {
 /** The button that brings a hidden sidebar back: the shell draws it at the left of the tab strip. */
 export function SidebarExpand(): ReactElement | null {
   const slot = useSidebarSlot();
-  if (!slot.collapsed || slot.compact) return null;
+  const shell = useShellLayout();
+  // the sidebar is away: hidden by choice, folded behind an open pane, or an overlay band that has not been asked for yet
+  const away = shell !== null ? shell.layout.sidebar.mode === "hidden" : slot.collapsed;
+  if (!away || slot.compact || !slot.hasSidebar) return null;
   return (
-    <Pressable accessibilityRole="button" accessibilityLabel="Show the sidebar" testID="sidebar-expand" onPress={() => slot.setCollapsed(false)} {...webOnly({ title: "Show the sidebar (⌘⇧\\)" })} style={({ hovered }: { hovered?: boolean }) => [s.expand, hovered === true && s.hover]}>
+    <Pressable accessibilityRole="button" accessibilityLabel="Show the sidebar" testID="sidebar-expand" onPress={() => showSidebar(slot, shell)} {...webOnly({ title: "Show the sidebar (⌘⇧\\)" })} style={({ hovered }: { hovered?: boolean }) => [s.expand, hovered === true && s.hover]}>
       <MenuIcon icon={PANEL} color="var(--ink-3)" />
     </Pressable>
   );
+}
+
+/** Put the sidebar away: an overlay goes back, a docked one is collapsed (the choice is kept). */
+export function hideSidebar(slot: SidebarSlotApi, shell: ShellLayoutApi | null): void {
+  if (shell !== null && shell.layout.sidebar.mode === "overlay") shell.peekSidebar(false);
+  else slot.setCollapsed(true);
+}
+
+/** Bring it back: where it can dock the choice is un-collapsed; where it cannot (a folded sidebar, the sheet band) it opens as an overlay over main. */
+export function showSidebar(slot: SidebarSlotApi, shell: ShellLayoutApi | null): void {
+  const l = shell?.layout;
+  if (shell !== null && l !== undefined && (l.folded || l.band === "sheet" || l.band === "mid" && l.pane.mode !== "none")) { shell.peekSidebar(true); return; }
+  slot.setCollapsed(false);
+}
+
+/** Cmd-\\ and the toggle: one place decides what "toggle" means in every band. */
+export function toggleSidebar(slot: SidebarSlotApi, shell: ShellLayoutApi | null): void {
+  const mode = shell?.layout.sidebar.mode;
+  if (mode === "docked" || mode === "overlay" || (shell === null && !slot.collapsed)) hideSidebar(slot, shell);
+  else showSidebar(slot, shell);
 }
 
 const webOnly = (props: Record<string, unknown>): Record<string, unknown> => (Platform.OS === "web" ? props : {});

@@ -6,13 +6,15 @@ import { useEffect, useRef, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { menuTrigger, useMenu } from "../../../../../ui/src/Menu/index.tsx";
-import { sq } from "../../../../../ui/src/SidePane/host.tsx";
+import { SHEET_GAP, SHEET_RADIUS, sq } from "../../../../../ui/src/SidePane/host.tsx";
+import { RAIL_WIDTH as MODEL_RAIL_WIDTH } from "../../../../../ui/src/SidePane/layout.ts";
 import { Tooltip } from "../../../../../ui/src/Tooltip/index.tsx";
 import { ShellIcon, iconMarkup } from "./icons.tsx";
 import { PHONE_BAR, phoneMore } from "./kits.ts";
 import type { PlaceId, RailEntry, RailGroups } from "./kits.ts";
 
-export const RAIL_WIDTH = 60;
+/** The rail is one full-height panel, 56 wide (the layout model's number). */
+export const RAIL_WIDTH = MODEL_RAIL_WIDTH;
 /** How long a fresh place's tip stays before it leaves by itself. */
 export const FRESH_TIP_MS = 6000;
 
@@ -95,9 +97,9 @@ export function Rail({ groups, active, onSelect, onOpenInTab, onPrefetch, header
     );
   }
   return (
-    <View testID="shell-rail" accessibilityRole="navigation" aria-label="Places" style={styles.rail}>
+    <View testID="shell-rail" accessibilityRole="navigation" aria-label="Places" style={styles.rail} {...sq("sheet")}>
       {header}
-      <View testID="rail-track" style={styles.track} {...sq("track")}>{buttons(groups.top)}</View>
+      <View testID="rail-track" style={styles.track}>{buttons(groups.top)}</View>
       <View style={styles.spacer} />
       {groups.bottom.length > 0 ? <Isle entries={groups.bottom} active={active} render={buttons} /> : null}
       {foot}
@@ -124,7 +126,7 @@ function Isle({ entries, active, render }: { entries: readonly RailEntry[]; acti
   const waiting = entries.some((e) => e.count > 0 || e.dot);
   return (
     <View ref={box as never} testID="rail-isle" style={[styles.isle, ISLE_MOVE, open ? styles.isleOpen : null]} {...sq("track")}>
-      <View testID="rail-isle-places" aria-hidden={!open} pointerEvents={open ? "auto" : "none"} style={[styles.islePlaces, ISLE_REVEAL, { maxHeight: open ? entries.length * 41 : 0, opacity: open ? 1 : 0 }]}>{render(entries)}</View>
+      <View testID="rail-isle-places" aria-hidden={!open} pointerEvents={open ? "auto" : "none"} style={[styles.islePlaces, ISLE_REVEAL, { maxHeight: open ? entries.length * 44 : 0, opacity: open ? 1 : 0 }]}>{render(entries)}</View>
       {/* folded, the button stands for the open place; unfolded, that place is in the list above, so the button is only the fold (a second gear under Settings read as a duplicate) */}
       <Tooltip text={open ? "Fold" : "More"}>
         <Pressable role="button" aria-label="More places" aria-expanded={open} testID="rail-isle-more" onPress={() => setOpen((o) => !o)} style={[styles.button, cur && !open ? styles.on : null]} {...sq("tile")}>
@@ -159,7 +161,7 @@ function Reveal({ place, tip, onSettle, children }: { place: PlaceId; tip: strin
   }, [open, tip]);
   return (
     <View testID={`rail-fresh-${place}`} style={styles.fresh}>
-      <View style={[styles.freshSlot, ISLE_REVEAL, { maxHeight: open ? 38 : 0, opacity: open ? 1 : 0 }]}>{children}</View>
+      <View style={[styles.freshSlot, ISLE_REVEAL, { maxHeight: open ? 40 : 0, opacity: open ? 1 : 0 }]}>{children}</View>
       {tip !== null ? (
         <View testID={`rail-tip-${place}`} role="tooltip" aria-hidden={!tipOn} pointerEvents="none" style={[styles.tip, TIP_FADE, { opacity: tipOn ? 1 : 0 }]}>
           <Text numberOfLines={1} style={styles.tipText}>{tip}</Text>
@@ -199,23 +201,23 @@ const ISLE_REVEAL = (Platform.OS === "web" ? { transitionProperty: "max-height, 
 const TIP_FADE = (Platform.OS === "web" ? { transitionProperty: "opacity", transitionDuration: "200ms", transitionTimingFunction: "ease" } : {}) as object;
 
 const styles = StyleSheet.create({
-  isle: { alignItems: "center", gap: 3, padding: 5, borderRadius: 19 },
-  isleOpen: { backgroundColor: "var(--side)" as string },
-  islePlaces: { gap: 3, overflow: "hidden" },
+  isle: { alignItems: "center", gap: 4, padding: 4, borderRadius: 16 },
+  isleOpen: { backgroundColor: "var(--hover)" as string },
+  islePlaces: { gap: 4, overflow: "hidden" },
   count: { position: "absolute", top: 2, right: 0, minWidth: 14, height: 14, paddingHorizontal: 3, borderRadius: 7, alignItems: "center", justifyContent: "center", backgroundColor: "var(--accent-wash)" as string, ...({ boxShadow: "0 0 0 2px var(--side)" } as object) },
   countText: { fontSize: 9.5, lineHeight: 14, fontWeight: "600", color: "var(--accent)" as string, fontVariant: ["tabular-nums"] },
   // above the sheets beside it (every web View is its own stacking layer), so a fresh place's tip sits over the main sheet, not under it
-  rail: { width: RAIL_WIDTH, flexShrink: 0, alignItems: "center", gap: 8, paddingTop: 2, paddingBottom: 2, zIndex: 1 },
-  track: { gap: 3, padding: 5, borderRadius: 19, backgroundColor: "var(--side)" as string },
+  rail: { width: RAIL_WIDTH, flexShrink: 0, alignItems: "center", gap: SHEET_GAP, paddingTop: SHEET_GAP, paddingBottom: SHEET_GAP, borderRadius: SHEET_RADIUS, backgroundColor: "var(--side)" as string, zIndex: 1 },
+  track: { gap: 4, alignItems: "center" },
   bar2: { flexDirection: "row", alignItems: "center", justifyContent: "space-around", height: 56, paddingHorizontal: 6, backgroundColor: "var(--rail)" as string, borderTopWidth: 1, borderTopColor: "var(--line)" as string },
   spacer: { flexGrow: 1 },
-  button: { width: 38, height: 38, borderRadius: 14, alignItems: "center", justifyContent: "center" },
+  button: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   flat: { width: 44, height: 44 },
   over: { backgroundColor: "var(--hover)" as string },
   on: { backgroundColor: "var(--accent-wash)" as string },
   fresh: { position: "relative" },
   freshSlot: { overflow: "hidden" },
-  tip: { position: "absolute", left: 46, top: 9, zIndex: 80, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 7, backgroundColor: "var(--ink)" as string },
+  tip: { position: "absolute", left: 52, top: 10, zIndex: 80, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 7, backgroundColor: "var(--ink)" as string },
   tipText: { fontSize: 12, lineHeight: 16, color: "var(--win)" as string, ...({ whiteSpace: "nowrap" } as object) },
   dot: { position: "absolute", top: 6, right: 6, width: 5, height: 5, borderRadius: 3, backgroundColor: "var(--beacon)" as string, ...({ boxShadow: "0 0 0 2px var(--side)" } as object) },
 });
