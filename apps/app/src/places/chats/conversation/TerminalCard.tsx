@@ -58,8 +58,8 @@ export function TerminalCard({ id, why, command, risk, host, agentId, deps, copy
         <CardActions
           error={st.s === "error" ? "Could not reach the terminal" : null}
           secondary={[
-            { label: "Deny", onPress: () => { answer(id, "decline"); setSt({ s: "done", line: "Denied" }); }, testID: `terminal-card-decline-${id}` },
             { label: "Copy", onPress: () => { copy(command); answer(id, "copy"); setSt({ s: "done", line: "Copied. You run it" }); }, testID: `terminal-card-copy-${id}` },
+            { label: "Deny", onPress: () => { answer(id, "decline"); setSt({ s: "done", line: "Denied" }); }, testID: `terminal-card-decline-${id}` },
           ]}
           primary={{ label: "Run in my terminal", onPress: run, testID: `terminal-card-run-${id}` }}
         />

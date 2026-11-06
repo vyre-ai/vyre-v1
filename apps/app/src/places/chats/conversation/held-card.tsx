@@ -168,7 +168,7 @@ export function HeldCard(p: HeldCardProps): ReactElement {
         <CardActions
           busy={busy}
           {...(p.stoppedNote ? { note: <Text style={st.sub} testID={`${p.testID}-stopped`}>{p.stoppedNote}</Text> } : {})}
-          secondary={[{ label: "Deny", onPress: () => setDenying(true), testID: `${p.testID}-drop` }, ...(p.editable ? [{ label: "Edit", icon: <Glyph name="edit" size={13} color="var(--ink-2)" />, onPress: () => { setDraft({ body: p.body, subject: p.subject ?? "", to: p.to.map((r) => r.name).join(", ") }); setEditing(true); }, testID: `${p.testID}-edit` }] : [])]}
+          secondary={[...(p.editable ? [{ label: "Edit", icon: <Glyph name="edit" size={13} color="var(--ink-2)" />, onPress: () => { setDraft({ body: p.body, subject: p.subject ?? "", to: p.to.map((r) => r.name).join(", ") }); setEditing(true); }, testID: `${p.testID}-edit` }] : []), { label: "Deny", onPress: () => setDenying(true), testID: `${p.testID}-drop` }]}
           primary={{ label: "Allow", icon: <Glyph name="check" size={13} color="var(--accent-ink)" />, onPress: () => run(p.onSend, () => setDone("sent")), testID: `${p.testID}-send` }}
         />
       ) : null}

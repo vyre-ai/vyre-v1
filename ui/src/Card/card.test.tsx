@@ -25,10 +25,10 @@ test("a status error card is an alert; the other kinds are not", () => {
   assert.doesNotMatch(renderToStaticMarkup(<Card kind="decision" label="D" />), /role="alert"/);
 });
 
-test("the quiet actions sit left of the primary one, in the order given", () => {
-  const html = renderToStaticMarkup(<CardActions primary={{ label: "Allow", onPress: noop }} secondary={[{ label: "Deny", onPress: noop }, { label: "Always allow", onPress: noop }]} />);
-  assert.ok(html.indexOf(">Deny<") < html.indexOf(">Always allow<"));
-  assert.ok(html.indexOf(">Always allow<") < html.indexOf(">Allow<"));
+test("the primary comes first, then the secondary actions in the order given, the deny last", () => {
+  const html = renderToStaticMarkup(<CardActions primary={{ label: "Allow", onPress: noop }} secondary={[{ label: "Always allow", onPress: noop }, { label: "Deny", onPress: noop }]} />);
+  assert.ok(html.indexOf(">Allow<") < html.indexOf(">Always allow<"));
+  assert.ok(html.indexOf(">Always allow<") < html.indexOf(">Deny<"));
 });
 
 test("a busy card disables every action and keeps the labels", () => {
@@ -65,7 +65,7 @@ test("the reason step has Back, the confirming Deny, and the reason field", () =
   assert.match(html, /data-testid="d-reason"/);
   assert.match(html, /data-testid="d-back"/);
   assert.match(html, /data-testid="d-go"/);
-  assert.ok(html.indexOf(">Back<") < html.indexOf(">Deny<"));
+  assert.ok(html.indexOf(">Deny<") < html.indexOf(">Back<"));
 });
 
 test("a done line is one line of text", () => {

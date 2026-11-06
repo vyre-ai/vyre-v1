@@ -180,7 +180,7 @@ export function ApprovalCard({ taskId, agent, agentId, data, face, faceSeed, edi
       ) : (
         <CardActions
           busy={busy}
-          secondary={[{ label: "Deny", onPress: () => setDenying(true), testID: `approval-deny-${taskId}` }, ...(allowable ? [{ label: "Always allow", onPress: always, testID: `approval-always-${taskId}` }] : [])]}
+          secondary={[...(allowable ? [{ label: "Always allow", onPress: always, testID: `approval-always-${taskId}` }] : []), { label: "Deny", onPress: () => setDenying(true), testID: `approval-deny-${taskId}` }]}
           primary={{ label: "Allow", onPress: () => act("approve"), testID: `approval-allow-${taskId}` }}
           error={line}
         />

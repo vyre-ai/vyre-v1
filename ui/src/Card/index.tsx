@@ -3,7 +3,7 @@
 //   status    a fact and what to do next (an error, a notice)          decision  someone must say yes or no (approve, deny, choose)
 //   input     fields, then submit (a key, a name)                      item      one thing with a name and Open (a file, a link, a page)
 //   progress  something live with a state and Stop or Watch             result    what changed and the buttons that land it (a diff, a merge)
-// One width (560 full, 420 compact), one radius, one edge, one title size. The action row has a fixed order: quiet actions on the left, the one primary on the right (the Dialog's order), it wraps on a phone
+// One width (560 full, 420 compact), one radius, one edge, one title size. The action row has a fixed order, the owner's approval vocabulary: the primary first, then the secondary actions, the destructive one (Deny, Discard) last. It wraps on a phone
 // and the buttons grow to a thumb. Enter runs the card's `onEnter` and Escape its `onCancel` when focus is inside the card (never from a multi-line or rich field or a button, which keep their own Enter).
 // A busy card disables its actions and shows a ring on the primary; the label never changes, so nothing jumps. A field's error line has its place reserved, so showing it moves nothing.
 // Colours are skin tokens only, so light and graphite both work. The ring's turn goes in through the sheet (injectCss); reduced motion stops it.
@@ -174,9 +174,9 @@ export interface CardActionSpec {
 }
 
 export interface CardActionsProps {
-  /** The one filled action, right-most. */
+  /** The one filled action, first (the approval vocabulary: Allow, Always allow, Deny). */
   primary?: CardActionSpec;
-  /** Quiet actions, left of the primary, in order (Deny, Edit, Always allow). */
+  /** Quiet actions after the primary, in order; the destructive one (Deny, Discard) goes last. */
   secondary?: readonly CardActionSpec[];
   /** The primary is working: every action is disabled and the primary shows a ring. */
   busy?: boolean;
@@ -184,20 +184,18 @@ export interface CardActionsProps {
   error?: string | null;
   /** On the left of the row, quiet: a stopped note, a "..." menu. */
   note?: ReactNode;
-  /** "start" keeps the row on the left (a status card's links); the default sits right with the primary last. */
-  align?: "start" | "end";
   testID?: string;
 }
 
-export function CardActions({ primary, secondary = [], busy = false, error, note, align = "end", testID }: CardActionsProps): ReactElement {
+export function CardActions({ primary, secondary = [], busy = false, error, note, testID }: CardActionsProps): ReactElement {
   return (
     <View testID={testID} style={s.actionsWrap}>
       <View style={s.actions}>
-        {note ? <View style={s.note}>{note}</View> : null}
-        <View style={[s.buttons, align === "start" && s.buttonsStart]}>
-          {secondary.map((a) => <CardButton key={a.label} {...a} disabled={busy || a.disabled === true} />)}
+        <View style={s.buttons}>
           {primary ? <CardButton {...primary} primary busy={busy} disabled={busy || primary.disabled === true} /> : null}
+          {secondary.map((a) => <CardButton key={a.label} {...a} disabled={busy || a.disabled === true} />)}
         </View>
+        {note ? <View style={s.note}>{note}</View> : null}
       </View>
       {error ? <Text accessibilityRole="alert" style={s.error} testID={testID ? `${testID}-error` : undefined}>{error}</Text> : null}
     </View>
@@ -258,8 +256,8 @@ export function CardDeny({ onDeny, onBack, busy = false, ids, label = "Deny" }: 
         style={[s.input, s.inputMulti]}
       />
       <CardActions
-        secondary={[{ label: "Back", onPress: onBack, testID: ids.back }]}
         primary={{ label, danger: true, onPress: () => onDeny(reason.trim()), testID: ids.go }}
+        secondary={[{ label: "Back", onPress: onBack, testID: ids.back }]}
         busy={busy}
       />
     </View>
@@ -292,9 +290,8 @@ export const s = StyleSheet.create({
   under: { minHeight: 16, fontSize: 12, lineHeight: 16, color: "var(--ink-3)" as string },
   actionsWrap: { gap: 6 },
   actions: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 },
-  note: { flexShrink: 1 },
-  buttons: { flexDirection: "row", flexWrap: "wrap", justifyContent: "flex-end", gap: 8, marginLeft: "auto" },
-  buttonsStart: { justifyContent: "flex-start", marginLeft: 0, gap: 4 },
+  note: { flexShrink: 1, marginLeft: "auto" },
+  buttons: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 8 },
   error: { fontSize: 12.5, lineHeight: 17, color: "var(--danger)" as string },
   btn: { height: 30, paddingHorizontal: 12, borderRadius: 8, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 6, borderWidth: 1, borderColor: "transparent" },
   btnTall: { height: 40, paddingHorizontal: 14 },

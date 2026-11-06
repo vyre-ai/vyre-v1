@@ -742,7 +742,7 @@ export function ErrorRowView({ block, actions }: { block: Message["blocks"][numb
       <UiCard kind="status" tone="error" testID={`error-${block.id}`} label={e.message}>
         <CardHead title={e.message} tone="warn" lead={<Glyph name="alert" size={15} color="var(--warn)" />} />
         {e.cause ? <Text style={st.errCause}>{e.cause}</Text> : null}
-        <CardActions align="start" secondary={links} />
+        <CardActions secondary={links} />
         {noAccount && ready && !resent ? (
           <View testID="err-connected" style={st.errActions}>
             <Text style={st.errCause}>Connected. Send it again?</Text>
