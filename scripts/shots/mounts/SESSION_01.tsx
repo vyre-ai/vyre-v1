@@ -45,6 +45,7 @@ function build() {
     return seq;
   };
   add("n0", ME, "Ship rc.22.1 tonight. Everything in RC22-1-BUGS, the composer and the agent workspaces. Keep me posted here, I will be in and out.", at(20, 0));
+  add("n9d", ME, "Decided: release after one green CI run", at(20, 3), { pinned: true });
   add("n1", INTAKE, "On it. Tonight is four pieces: server fixes, the Chrome extension, the composer and context windows. I will run them as a crew so they move at the same time, and bring each one back here when it is done.\n\nNothing goes out without your yes. The release and the MLA update each ask you once.", at(20, 4));
   CREW.forEach((c, i) => add(`h${i}`, INTAKE, "", at(20, 5, 0) + i * 1000, { blocks: [block("helper", `hb${i}`, { helperThreadId: c.id, title: c.title, agentId: c.agentId, startedAt: at(20, 5) })] }));
   add("n2", INTAKE, "Crew started: Tess, Orin, Kai and Juno", at(20, 6), { kind: "system" });
@@ -55,7 +56,9 @@ function build() {
   add("n6", INTAKE, "Release v1.0.0-rc.22.1 tagged", at(23, 48), { kind: "system" });
   add("n7", ME, "Back. What is left?", at(23, 50));
   add("n8", INTAKE, "Two things need you: approve the release and pick the corner radius for Kai. Everything else is done or running.", at(23, 52));
-  add("n9", INTAKE, "Merged #893 into main", at(0, 6, 1), { kind: "system" });
+  add("n9", INTAKE, "Merged #893 into main", at(0, 6, 1), { kind: "system", blocks: [block("result_card", "bc1", { title: "Merged #893 into main", body: "Server fixes, Chrome extension and context windows. 470 tests passed, 0 failed.", actions: [{ key: "view", label: "View the change" }, { key: "checks", label: "Open checks" }] }, "done")] });
+  add("n9b", INTAKE, "Release rc.22.1", at(0, 20, 1), { kind: "system", blocks: [block("progress_card", "bc2", { title: "Release rc.22.1", step: "Step 3 of 3", state: "running", steps: [{ label: "Build", state: "done" }, { label: "Sign", state: "done" }, { label: "Publish, uploading the Mac app", state: "running" }], actions: [{ key: "watch", label: "Watch" }, { key: "stop", label: "Stop" }] }, "live")] });
+  add("n9c", INTAKE, "The MLA update could not start", at(0, 31, 1), { kind: "system", blocks: [block("status_card", "bc3", { title: "The MLA update could not start", body: "The server ran out of disk (2.1 GB free, needs 4). Free old images, then update.", tone: "warn", fix: { key: "fix", label: "Free space and update" }, more: [{ key: "details", label: "Details" }, { key: "copy", label: "Copy id" }, { key: "report", label: "Report" }] }, "done")] });
   CHATTER.slice(0, 6).forEach((t, i) => add(`r${i}`, AGENTS[(i + 1) % 4]!, t, at(0, 12, 1) + i * 5 * 60_000));
   add("n10", INTAKE, "MLA is on rc.22.1 and healthy. The Mac and Windows links are in the release. Kai still needs your corner answer before the composer change lands.", at(0, 45, 1));
   s.replica.put("messages", out.map((m) => ({ id: m.messageId, ...m })));

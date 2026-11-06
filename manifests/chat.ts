@@ -735,6 +735,18 @@ export default defineManifest({
     block('form_fields', {
       title: t.opt(t.str()), recordId: t.opt(id.record), fields: t.arr(t.obj({ key: t.str(), label: t.str(), value: t.json(), kind: t.str() })),
     }, 'Fields: {{title}}'),
+    // the three status cards of the card library (l-session, 6 Nov 2026): what changed, what is running, what went wrong. Agents and the server post them; the chat draws each with ui/Card.
+    block('result_card', {
+      title: t.str(), body: t.opt(t.str()), jobId: t.opt(t.str()), actions: t.opt(t.arr(t.obj({ key: t.str(), label: t.str(), cap: t.opt(t.str()), input: t.opt(t.rec()) }))),
+    }, '{{title}}'),
+    block('progress_card', {
+      title: t.str(), step: t.opt(t.str()), state: t.enm('running', 'done', 'failed', 'stopped'),
+      steps: t.arr(t.obj({ label: t.str(), state: t.enm('done', 'running', 'todo') })), actions: t.opt(t.arr(t.obj({ key: t.str(), label: t.str(), cap: t.opt(t.str()), input: t.opt(t.rec()) }))),
+    }, '{{title}}: {{state}}'),
+    block('status_card', {
+      title: t.str(), body: t.opt(t.str()), tone: t.enm('info', 'warn', 'error'),
+      fix: t.opt(t.obj({ key: t.str(), label: t.str(), cap: t.opt(t.str()), input: t.opt(t.rec()) })), more: t.opt(t.arr(t.obj({ key: t.str(), label: t.str(), cap: t.opt(t.str()), input: t.opt(t.rec()) }))),
+    }, '{{title}}'),
     block('checklist', { title: t.opt(t.str()), items: t.arr(t.obj({ text: t.str(), done: t.bool(), by: t.opt(t.str()) })) }, 'Checklist {{title}}'),
   ],
   settings: [

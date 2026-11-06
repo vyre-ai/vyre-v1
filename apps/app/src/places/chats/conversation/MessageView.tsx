@@ -4,6 +4,7 @@
 import { HelperRow } from "./helper-row.tsx";
 import { CrewBlock } from "../session/CrewBlock.tsx";
 import { QuestionCard } from "./question-card.tsx";
+import { StatusCard, isStatusCard } from "./status-cards.tsx";
 import { AwayRow, HourMark, JumpRow } from "../session/rows.tsx";
 import type { SessionItem } from "../session/model.ts";
 import { memberFromBlock, memberOf } from "../crew/status.ts";
@@ -224,6 +225,9 @@ export function sameRow(a: MessageViewProps, b: MessageViewProps): boolean {
     && sameData(a.item, b.item, 6) && sameData(a.actions, b.actions, 5) && sameData(a.replies, b.replies, 3);
 }
 
+/** What a status card's buttons do: the card's own capability as the person (the Gate still holds what leaves Vyre); with none, nothing happens here. */
+const cardHost = (actions: MessageActions, time?: string): { run(a: { cap?: string; input?: Record<string, unknown> }): Promise<unknown> | void; time?: string } => ({ run: (a) => (a.cap && actions.files ? actions.files.call(a.cap, a.input ?? {}) : undefined), ...(time ? { time } : {}) });
+
 export const MessageView = memo(function MessageView(props: MessageViewProps): ReactElement | null {
   const { item } = props;
   if (item.kind === "hour") return <HourMark id={item.key} label={item.label} />;
@@ -231,6 +235,9 @@ export const MessageView = memo(function MessageView(props: MessageViewProps): R
   if (item.kind === "away") return <AwayRow row={item} />;
   if (item.kind === "day") return <Text testID={`day-${item.key}`} accessibilityRole="header" style={st.day}>{item.label}</Text>;
   if (item.kind === "event") {
+    // a card block on a quiet or system line is the line: the card says it, so no words beside it
+    const card = item.message.blocks.find((x) => isStatusCard(x.type));
+    if (card) return <View testID={`event-${item.key}`} style={st.eventCardRow}><StatusCard id={card.id} type={card.type} data={card.data} host={cardHost(props.actions, item.time)} /></View>;
     const link = linkCardOf(item.message.blocks.find((x) => x.type === "link_card") ?? { type: "", data: null });
     if (link && link.lead === "Aside" && link.body) return <KeptAside id={item.message.messageId} question={link.title} body={link.body} time={item.time} />;
     if (link) {
@@ -619,6 +626,7 @@ function Theirs({ item, actions, stream, openWork, mark, meId, replies }: Messag
           );
         }
         if (b.type === "helper" && !isCrewStart(b)) return <HelperRow key={b.id} block={b} onOpen={(id) => actions.openMessage?.(id, "")} />;
+        if (isStatusCard(b.type)) return <StatusCard key={b.id} id={b.id} type={b.type} data={b.data} host={cardHost(actions)} />;
         if (b.type === "question" && b.state === "waiting") {
           const d = (b.data ?? {}) as Record<string, unknown>;
           const options = questionOptions(d);

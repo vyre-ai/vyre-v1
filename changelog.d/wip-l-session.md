@@ -3,3 +3,5 @@
 - Long sessions: a slim hour mark at each new hour, and a quiet jump row where a release was tagged, a PR merged, a task finished or something was decided.
 - Long sessions: the right pane opens on a session Overview (goal, helpers, files touched, decisions, open questions, jump links, context use such as "38% of 1M").
 - A helper's pane lists the files it changed, and has a "helper: <name>" terminal tab when the helper works in a workspace of its own.
+- Chats: a merge, a release in progress and a failure are now cards (result, progress and status, from the one card library) instead of plain lines. After Merge the chat shows "Merged <branch> into <base>" as a result card. Agents post the same cards with chat.post.
+- The pane tab "Kept" is called "Pinned".

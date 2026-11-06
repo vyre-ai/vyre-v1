@@ -56,6 +56,8 @@ function sayings(m: Pick<Message, "body" | "blocks">): { words: string; card?: {
     const card = { lead: text(d["lead"]), title: text(d["title"]), target: text(rec(d["target"])["type"]) };
     return { words: `${card.lead} ${card.title} ${text(d["body"])}`, card };
   }
+  const sc = m.blocks.find((b) => b.type === "result_card" || b.type === "progress_card" || b.type === "status_card");
+  if (sc) { const d = rec(sc.data); return { words: `${text(d["title"])} ${text(d["body"])}`, card: { lead: "", title: text(d["title"]), target: "" } }; }
   return { words: m.body };
 }
 
@@ -68,8 +70,8 @@ export function jumpOf(m: Pick<Message, "messageId" | "kind" | "body" | "blocks"
   const make = (kind: JumpKind, sub: string): Jump => ({ messageId: m.messageId, kind, label: LABEL[kind], sub: short(sub), at: m.createdAt, by: (m as { author?: { id?: string } }).author?.id ?? "" });
   if (card?.target === "fact") return make("decision", card.title);
   const line = flat(words);
-  if (/\brelease\b.*\b(tagged|published|shipped|cut)\b|\b(tagged|published|shipped|cut)\b.*\brelease\b|\bv?\d+\.\d+\.\d+(-rc\.[\d.]+)?\b.*\btagged\b/i.test(words)) return make("release", card?.title ?? /\bv?\d+\.\d+\.\d+[\w.-]*/.exec(line)?.[0] ?? line);
-  if (/\bmerged\b/i.test(words) && /(#\d+|\bPR\b|pull request)/i.test(words)) return make("merged", card?.title ?? line.replace(/^(the )?(PR |pull request )?merged\s+/i, ""));
+  if (/\brelease\b.*\b(tagged|published|shipped|cut)\b|\b(tagged|published|shipped|cut)\b.*\brelease\b|\bv?\d+\.\d+\.\d+(-rc\.[\d.]+)?\b.*\btagged\b/i.test(words)) return make("release", /\bv?\d+\.\d+\.\d+[\w.-]*/.exec(line)?.[0] ?? card?.title ?? line);
+  if (/\bmerged\b/i.test(words) && /(#\d+|\bPR\b|pull request)/i.test(words)) return make("merged", line.replace(/^(the )?(PR |pull request )?merged\s+/i, ""));
   if (card?.target === "task" && /\b(done|finished|complete[d]?)\b/i.test(words)) return make("task", card.title);
   if (m.pinned) return make("decision", line);
   return null;
@@ -255,8 +257,8 @@ export function contextWords(ctx: { used: number; window: number; approximate?: 
 export const ranWords = (from: number, to: number): string => durationWords(to - from);
 
 const FIRST = ["overview", "threads", "files", "memory"];
-const RENAME: Record<string, string> = { threads: "Threads", memory: "Kept" };
-/** The tabs of a long session's pane: the chat's own four first (Overview, Threads, Files, Kept), the rest after them for More to hold. */
+const RENAME: Record<string, string> = { threads: "Threads", memory: "Pinned" };
+/** The tabs of a long session's pane: the chat's own four first (Overview, Threads, Files, Pinned), the rest after them for More to hold. */
 export function sessionTabs<T extends { key: string; title: string }>(tabs: readonly T[]): T[] {
   const head = FIRST.flatMap((k) => tabs.filter((t) => t.key === k));
   return [...head, ...tabs.filter((t) => !FIRST.includes(t.key))].map((t) => (RENAME[t.key] ? { ...t, title: RENAME[t.key]! } : t));

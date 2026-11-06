@@ -32,9 +32,9 @@ test("a chat is long at three hours with a handful of messages, or forty over an
   assert.deepEqual(sessionItems(items, short, { meId: "usr_me", clock, nameOf, since: 0, openedAt: T0 + H }), items);
 });
 
-test("the pane of a long session: the chat's four tabs first, Threads and Kept named, the rest after", () => {
+test("the pane of a long session: the chat's four tabs first, Threads and Pinned named, the rest after", () => {
   const out = sessionTabs([{ key: "overview", title: "Overview" }, { key: "about", title: "About" }, { key: "computer", title: "Computer" }, { key: "threads", title: "Chats" }, { key: "files", title: "Files" }, { key: "memory", title: "Knows" }, { key: "routines", title: "Routines" }]);
-  assert.deepEqual(out.map((t) => t.title), ["Overview", "Threads", "Files", "Kept", "About", "Computer", "Routines"]);
+  assert.deepEqual(out.map((t) => t.title), ["Overview", "Threads", "Files", "Pinned", "About", "Computer", "Routines"]);
 });
 
 test("hours read as 8 PM and 12 AM", () => {
@@ -50,6 +50,9 @@ test("jump points: a release, a merged PR, a finished task and a decision; nothi
   assert.equal(jumpOf(msg({ at: T0, kind: "system", body: "Merged #893 into main" }))?.kind, "merged");
   assert.equal(jumpOf(msg({ at: T0, kind: "system", body: "Merged #893 into main" }))?.sub, "#893 into main");
   assert.equal(jumpOf(card("Task", "Fix the sandbox", "task", "done"))?.kind, "task");
+  const rc = (title: string, body = "") => msg({ at: T0, kind: "system", blocks: [{ id: "r", type: "result_card", v: 1, state: "done", data: { title, body } } as never] });
+  assert.equal(jumpOf(rc("Merged #893 into main", "470 tests passed"))?.kind, "merged", "a result card is a jump point too");
+  assert.equal(jumpOf(rc("Merged #893 into main"))?.sub, "#893 into main");
   assert.equal(jumpOf(card("Decision", "Corners are 12 px", "fact"))?.kind, "decision");
   assert.equal(jumpOf(msg({ at: T0, body: "Pinned thought", pinned: true } as never))?.kind, "decision");
   assert.equal(jumpOf(msg({ at: T0, body: "Looking at the release notes." })), null);
