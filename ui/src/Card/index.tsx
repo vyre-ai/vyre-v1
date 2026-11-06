@@ -35,6 +35,8 @@ export interface CardProps {
   label: string;
   /** Enter inside the card (not in a multi-line field, not on a button) runs this: the primary action. */
   onEnter?: () => void;
+  /** No padding: a picture runs edge to edge and the card clips it (a live screen, a page shot). */
+  flush?: boolean;
   /** Escape inside the card runs this: the way out (Deny, Not now, Back, Cancel). */
   onCancel?: () => void;
   children?: ReactNode;
@@ -58,14 +60,14 @@ export function keyHandler(onEnter: (() => void) | undefined, onCancel: (() => v
   };
 }
 
-export function Card({ kind, tone = "neutral", size = "full", testID, label, onEnter, onCancel, children }: CardProps): ReactElement {
+export function Card({ kind, tone = "neutral", size = "full", flush = false, testID, label, onEnter, onCancel, children }: CardProps): ReactElement {
   injectCss((globalThis as { document?: Parameters<typeof injectCss>[0] }).document, "vyre-ui-card", CARD_CSS);
   const key = keyHandler(onEnter, onCancel);
   return (
     <View
       testID={testID} accessibilityRole={kind === "status" && tone === "error" ? "alert" : "summary"} accessibilityLabel={label}
       {...(key ? ({ onKeyDown: key } as object) : {})}
-      style={[s.card, kind === "status" ? s.sunk : s.raised, { maxWidth: CARD_WIDTH[size], borderColor: edgeOf(kind, tone) }, size === "compact" && s.compact]}
+      style={[s.card, kind === "status" ? s.sunk : s.raised, { maxWidth: CARD_WIDTH[size], borderColor: edgeOf(kind, tone) }, size === "compact" && s.compact, flush && s.flush]}
     >
       {children}
     </View>
@@ -267,6 +269,7 @@ export function CardDeny({ onDeny, onBack, busy = false, ids, label = "Deny" }: 
 export const s = StyleSheet.create({
   card: { marginTop: 8, padding: 12, gap: 10, borderRadius: 12, borderWidth: 1, alignSelf: "stretch" },
   compact: { padding: 10, gap: 8 },
+  flush: { padding: 0, gap: 0, overflow: "hidden" },
   raised: { backgroundColor: "var(--raised)" as string },
   sunk: { backgroundColor: "var(--sunk)" as string },
   head: { flexDirection: "row", alignItems: "center", gap: 10 },

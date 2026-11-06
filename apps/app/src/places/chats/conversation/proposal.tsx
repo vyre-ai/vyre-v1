@@ -7,7 +7,8 @@ import { Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } fro
 import type { Block } from "../../../../../../ui/src/kit/types.ts";
 import { menuTrigger, useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { BlockHost } from "../../../../../../ui/src/blocks/impl-a/index.tsx";
-import { Glyph, TextButton } from "./parts.tsx";
+import { Glyph } from "./parts.tsx";
+import { Card, CardActions, CardDone, CardHead } from "../../../../../../ui/src/Card/index.tsx";
 import { collect } from "./model.ts";
 import { useFollow } from "./use-follow.ts";
 import type { Changes } from "./use-follow.ts";
@@ -91,18 +92,16 @@ export function AgentFileProposal({ block, host, changes }: { block: Block; host
 
   if (state === "open" && elsewhere !== null) {
     return (
-      <View testID={`proposal-${id}`} accessibilityLabel={`${d.file} change, ${elsewhere}`} style={[st.card, st.done]}>
-        <Glyph name={elsewhere === "rejected" ? "x" : "check"} size={13} color={elsewhere === "rejected" ? "var(--ink-3)" : "var(--ok)"} />
-        <Text testID={`proposal-${id}-state`} style={st.doneText}>{`The change to ${d.file} was ${elsewhere}.`}</Text>
+      <View testID={`proposal-${id}`} accessibilityLabel={`${d.file} change, ${elsewhere}`}>
+        <CardDone ok={elsewhere !== "rejected"} glyph={<Glyph name={elsewhere === "rejected" ? "x" : "check"} size={13} color={elsewhere === "rejected" ? "var(--ink-3)" : "var(--ok)"} />} text={`The change to ${d.file} was ${elsewhere}.`} testID={`proposal-${id}-state`} />
       </View>
     );
   }
   if (state !== "open") {
     const line = state === "accepted" ? `You accepted the change to ${d.file}.${d.lines > 0 ? ` It has ${d.lines} lines now.` : ""}` : state === "rejected" ? `You rejected the change to ${d.file}.` : `Sent your edit to ${d.agent || "the agent"}. It will propose the change again.`;
     return (
-      <View testID={`proposal-${id}`} accessibilityLabel={`${d.file} change, ${state}`} style={[st.card, st.done]}>
-        <Glyph name={state === "rejected" ? "x" : "check"} size={13} color={state === "rejected" ? "var(--ink-3)" : "var(--ok)"} />
-        <Text testID={`proposal-${id}-state`} style={st.doneText}>{line}</Text>
+      <View testID={`proposal-${id}`} accessibilityLabel={`${d.file} change, ${state}`}>
+        <CardDone ok={state !== "rejected"} glyph={<Glyph name={state === "rejected" ? "x" : "check"} size={13} color={state === "rejected" ? "var(--ink-3)" : "var(--ok)"} />} text={line} testID={`proposal-${id}-state`} />
       </View>
     );
   }
@@ -115,7 +114,8 @@ export function AgentFileProposal({ block, host, changes }: { block: Block; host
     ], x, y, "context", { label: `${d.file} change` });
   };
   return (
-    <View testID={`proposal-${id}`} accessibilityLabel={`${d.file} change proposed by ${d.agent}`} {...menuTrigger(menu)} style={st.card}>
+    <View {...menuTrigger(menu)}>
+    <Card kind="result" testID={`proposal-${id}`} label={`${d.file} change proposed by ${d.agent}`} onCancel={editing ? () => setEditing(false) : undefined}>
       <View style={st.head}>
         <Glyph name="file" size={15} color="var(--ink-3)" />
         <View style={st.headTitle}>
@@ -138,26 +138,15 @@ export function AgentFileProposal({ block, host, changes }: { block: Block; host
           ))}
         </View>
       )}
-      <View style={st.foot}>
-        {editing ? (
-          <>
-            <TextButton label="Send Edited" dark icon="check" testID={`proposal-${id}-send`} onPress={sendEdited} />
-            <TextButton label="Cancel" testID={`proposal-${id}-cancel`} onPress={() => setEditing(false)} />
-          </>
-        ) : d.canAccept ? (
-          <>
-            <TextButton label="Allow" dark icon="check" testID={`proposal-${id}-accept`} onPress={accept} />
-            <TextButton label="Edit" ring icon="edit" testID={`proposal-${id}-edit-open`} onPress={() => setEditing(true)} />
-            <TextButton label="Deny" icon="x" testID={`proposal-${id}-reject`} onPress={reject} />
-          </>
-        ) : (
-          <>
-            <TextButton label={`Suggest to ${d.owner || "the Owner"}`} dark icon="check" testID={`proposal-${id}-suggest`} onPress={suggest} />
-            <TextButton label="Deny" icon="x" testID={`proposal-${id}-reject`} onPress={reject} />
-          </>
-        )}
-      </View>
+      {editing ? (
+        <CardActions primary={{ label: "Send Edited", icon: <Glyph name="check" size={13} color="var(--accent-ink)" />, onPress: sendEdited, testID: `proposal-${id}-send` }} secondary={[{ label: "Cancel", onPress: () => setEditing(false), testID: `proposal-${id}-cancel` }]} />
+      ) : d.canAccept ? (
+        <CardActions primary={{ label: "Allow", icon: <Glyph name="check" size={13} color="var(--accent-ink)" />, onPress: accept, testID: `proposal-${id}-accept` }} secondary={[{ label: "Edit", icon: <Glyph name="edit" size={13} color="var(--ink-2)" />, onPress: () => setEditing(true), testID: `proposal-${id}-edit-open` }, { label: "Deny", icon: <Glyph name="x" size={13} color="var(--ink-2)" />, onPress: reject, testID: `proposal-${id}-reject` }]} />
+      ) : (
+        <CardActions primary={{ label: `Suggest to ${d.owner || "the Owner"}`, icon: <Glyph name="check" size={13} color="var(--accent-ink)" />, onPress: suggest, testID: `proposal-${id}-suggest` }} secondary={[{ label: "Deny", icon: <Glyph name="x" size={13} color="var(--ink-2)" />, onPress: reject, testID: `proposal-${id}-reject` }]} />
+      )}
       {element}
+    </Card>
     </View>
   );
 }
@@ -198,9 +187,6 @@ const MONO = 'ui-monospace, "SF Mono", Menlo, Consolas, monospace';
 const RING = { boxShadow: "inset 0 0 0 1px var(--line-2)" } as object;
 
 const st = StyleSheet.create({
-  card: { marginTop: 8, marginBottom: 6, maxWidth: 520, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, gap: 10, ...RING },
-  done: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 12, paddingVertical: 8 },
-  doneText: { flex: 1, fontSize: 12.5, color: "var(--ink-3)" as string },
   head: { flexDirection: "row", alignItems: "center", gap: 8 },
   headTitle: { flex: 1, minWidth: 0, flexDirection: "row", alignItems: "center", flexWrap: "wrap" },
   link: { fontSize: 13, color: "var(--accent)" as string },
@@ -213,7 +199,6 @@ const st = StyleSheet.create({
   line: { flex: 1, fontFamily: MONO, fontSize: 12, lineHeight: 18, color: "var(--ink)" as string, paddingHorizontal: 0 },
   ctx: { paddingHorizontal: 10, color: "var(--ink-4)" as string },
   edit: { minHeight: 70, borderRadius: 10, padding: 10, fontFamily: MONO, fontSize: 12, lineHeight: 18, color: "var(--ink)" as string, backgroundColor: "var(--sunk)" as string, outlineStyle: "none" } as object,
-  foot: { flexDirection: "row", alignItems: "center", gap: 6 },
   plan: { flexDirection: "row", alignItems: "center", gap: 12, alignSelf: "flex-start", maxWidth: 460, marginTop: 6, marginBottom: 8, paddingVertical: 10, paddingRight: 14, paddingLeft: 10, borderRadius: 12, ...RING },
   planIcon: { width: 34, height: 40, borderRadius: 6, alignItems: "center", justifyContent: "center", backgroundColor: "var(--accent-wash)" as string },
   planName: { fontSize: 13.5, fontWeight: "600", color: "var(--ink)" as string },

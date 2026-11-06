@@ -8,6 +8,7 @@ import type { ReactElement } from "react";
 import { Image, StyleSheet, Text, TextInput, View } from "react-native";
 import { Glyph, TextButton } from "./parts.tsx";
 import { HeldCard } from "./held-card.tsx";
+import { Card, CardActions } from "../../../../../../ui/src/Card/index.tsx";
 
 export interface HeldCardData {
   heldId: string; agent: string; site: string; kind: string; to: string; from: string; subject: string; message: string; summary: string;
@@ -96,7 +97,8 @@ export function ChromeStepCard({ id, data, agentId, agentName, actions }: { id: 
   const c = { ...found, agent: found.agent === "An agent" && agentName ? agentName : found.agent };
   const live = c.state === "using" || c.state === "waiting";
   return (
-    <View testID={`chrome-step-${id}`} accessibilityLabel={stepWords(c)} style={s.step}>
+    <Card kind="progress" size="full" testID={`chrome-step-${id}`} label={stepWords(c)}>
+    <View style={s.step}>
       {c.thumb ? <Image testID={`chrome-step-${id}-thumb`} source={{ uri: c.thumb }} style={s.thumb} resizeMode="cover" accessibilityIgnoresInvertColors /> : <View style={s.tile}><Text style={s.tileText}>{(c.site[0] ?? "?").toUpperCase()}</Text></View>}
       <View style={s.words}>
         <Text style={s.title} numberOfLines={1}>{stepWords(c)}</Text>
@@ -111,10 +113,10 @@ export function ChromeStepCard({ id, data, agentId, agentName, actions }: { id: 
           </View>
         ) : null}
         {live ? (
-          <View style={s.actions}>
-            <TextButton label="Watch" onPress={() => { void actions?.watch(agentId).catch(() => undefined); }} disabled={!actions} testID={`chrome-step-watch-${id}`} />
-            <TextButton label="Take over" onPress={() => { void actions?.takeOver(agentId).catch(() => undefined); }} disabled={!actions} testID={`chrome-step-takeover-${id}`} />
-          </View>
+          <CardActions
+            primary={{ label: "Watch", onPress: () => { void actions?.watch(agentId).catch(() => undefined); }, disabled: !actions, testID: `chrome-step-watch-${id}` }}
+            secondary={[{ label: "Take over", onPress: () => { void actions?.takeOver(agentId).catch(() => undefined); }, disabled: !actions, testID: `chrome-step-takeover-${id}` }]}
+          />
         ) : null}
         {c.saw.length > 0 ? (
           <View style={{ gap: 3, alignSelf: "flex-start" }}>
@@ -125,6 +127,7 @@ export function ChromeStepCard({ id, data, agentId, agentName, actions }: { id: 
         ) : null}
       </View>
     </View>
+    </Card>
   );
 }
 
@@ -154,7 +157,7 @@ const s = StyleSheet.create({
   summary: { paddingHorizontal: 12, fontSize: 13, color: "var(--ink-2)" as string },
   actions: { flexDirection: "row", gap: 8, flexWrap: "wrap", marginTop: 2 },
   state: { fontSize: 12.5, color: "var(--ink-3)" as string },
-  step: { flexDirection: "row", alignItems: "center", gap: 12, marginTop: 6, padding: 8, paddingRight: 14, maxWidth: 666, alignSelf: "stretch", alignItems: "flex-start", minWidth: 0, borderRadius: 12, borderWidth: 1, borderColor: "var(--line)" as string, backgroundColor: "var(--raised)" as string },
+  step: { flexDirection: "row", gap: 12, alignItems: "flex-start", minWidth: 0 },
   thumb: { width: 220, height: 138, flexShrink: 0, maxWidth: "46%" as unknown as number, borderRadius: 8, borderWidth: 1, borderColor: "var(--line-2)" as string, backgroundColor: "#fff" },
   tile: { width: 220, height: 138, flexShrink: 0, maxWidth: "46%" as unknown as number, borderRadius: 8, backgroundColor: "var(--sunk)" as string, alignItems: "center", justifyContent: "center" },
   tileText: { fontSize: 22, fontWeight: "600", color: "var(--ink-3)" as string },
