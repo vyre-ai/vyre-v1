@@ -305,7 +305,7 @@ test("the composer's pill names who answers and on what model (Opus); the comput
   assert.equal(modelLabel("opus"), "Opus");
   assert.equal(placeholderFor(thread(s), s.data.nameOf, true), "Queue a message for when Intake finishes…");
   assert.equal(placeholderFor(thread(s), s.data.nameOf, true, true), "Steer Intake…", "a message sent while a steering engine works is steering");
-  assert.ok(!has(html(createSample("nolead")), 'data-testid="composer-strip"'), "no lead, nobody @mentioned: no strip");
+  assert.ok(has(html(createSample("nolead")), 'data-testid="composer-strip"'), "no lead, nobody @mentioned, but an agent is in the chat: the settings icon is still there");
 });
 
 test("switching the model lists the allowed models and sets the lead's model; the header and composer follow", async () => {

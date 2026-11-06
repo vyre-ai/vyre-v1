@@ -20,10 +20,10 @@ import { MenuIcon, menuTrigger, useMenu } from "../Menu/index.tsx";
 import type { MenuEntry } from "../Menu/index.tsx";
 import { DropHost, DropOverlay, useDropRoute, useFileDrop } from "../FileDrop/index.tsx";
 import { Row } from "../Row/index.tsx";
-import { answering, contextRing, deleteToken, effortsFor, modeInfo, nextMode, sendControl, sizeLabel, stripName, tokenRanges } from "./brain.ts";
+import { answering, deleteToken, modeInfo, nextMode, sendControl, sizeLabel, stripName, tokenRanges } from "./brain.ts";
 import type { ChatMode, ComposerAgent, TokenRange } from "./brain.ts";
 import { ChatField, canMountChatField } from "./ChatField.tsx";
-import { ContextRing, EffortBars, GroupHead, I, IconTile, Kbd, Pop, STOP, ensureComposerCss, useDismiss } from "./parts.tsx";
+import { GroupHead, I, IconTile, Kbd, Pop, STOP, ensureComposerCss, useDismiss } from "./parts.tsx";
 import { composerSymbols } from "./props.ts";
 import { closeEmoji, findEmoji } from "./emoji.ts";
 import type { ComposerAttachment, ComposerChip, ComposerRef, ComposerShellProps, ComposerSymbol } from "./props.ts";
@@ -617,17 +617,20 @@ export const MULTI_LINE = 34;
 /** The field's cap in a window this tall: never more than about a third of it. */
 export const fieldCap = (windowHeight: number): number => (windowHeight > 0 ? Math.max(66, Math.min(MAX_FIELD, Math.floor(windowHeight * 0.3))) : MAX_FIELD);
 const FIELD_STYLE = { outlineStyle: "none", outlineWidth: 0, backgroundColor: "transparent" } as unknown as TextStyle;
-const BOX_SHADOW = { boxShadow: "var(--sh-2)" } as unknown as ViewStyle;
-const FOCUS_SHADOW = BOX_SHADOW;
+const BOX_SHADOW = { boxShadow: "var(--sh-2), inset 0 0 0 1px var(--line)" } as unknown as ViewStyle;
+/** Focus shows on the pill only: an accent hairline and a soft wash around it. The field inside has no box and no ring of its own. */
+const FOCUS_SHADOW = { boxShadow: "var(--sh-2), inset 0 0 0 1px var(--accent-line), 0 0 0 4px var(--accent-wash)" } as unknown as ViewStyle;
 const HOVER = { backgroundColor: "var(--hover)" };
 const web = Platform.OS === "web";
 /** Every control in the composer's bar is this tall and wide to press, centred on one line, with this gap between them. */
 const CTRL = 32;
+/** The one corner radius (DESIGN-SYSTEM-221): the composer, its buttons and its chips. Only the send button and avatars are round. */
+const RADIUS = 12;
 const CTRL_GAP = 8;
 /** Below this width (the composer's own, not the window's) the field takes a row to itself and the controls sit under it. */
 const STACK_BELOW = 560;
 /** In the one-line pill the field keeps at least this width; the model chip truncates its account name instead of taking the row. */
-export const FIELD_MIN_LINE = 200;
+export const FIELD_MIN_LINE = 120;
 /** Under this composer width the model menu fills the composer's width and its lists open inline: a side list would run out of a narrow pane (the Thread pane). */
 export const PANEL_SIDE_MIN = 540;
 /** True when a composer this wide (its own width, 0 while unmeasured) shows the model menu's lists inline instead of beside it. */
@@ -700,27 +703,29 @@ function FileCard({ f, onRemove, testID }: { f: ComposerAttachment; onRemove?: (
   );
 }
 
-/** The model pill: how this chat runs. Shown only when an AI will answer; a press opens the model menu. The mode and where it runs appear only when they are not the usual. */
-function AgentStrip({ list, narrow, onPress, open, face, mode, runsChip, ring }: { list: readonly ComposerAgent[]; narrow: boolean; onPress?: () => void; open: boolean; face: boolean; mode?: ChatMode | undefined; runsChip?: string | undefined; ring: { pct: number; warn: boolean } | null }): ReactElement {
+/**
+ * The one settings icon (prototype s-chat221): sliders, and a small dot while anything is off its default (a mode other than Auto, a chat that does not run on this computer, a
+ * set effort, a pick that cannot run here). It names no model: the model, account, effort and the rest are in the menu it opens, under the model's own name.
+ */
+export function offDefault({ mode, runsChip, effort, unavailable }: { mode?: ChatMode | undefined; runsChip?: string | undefined; effort?: string | undefined; unavailable?: boolean | undefined }): boolean {
+  return (mode !== undefined && mode !== "auto") || runsChip !== undefined || (effort !== undefined && effort !== "medium") || unavailable === true;
+}
+
+function AgentStrip({ list, onPress, open, mode, runsChip }: { list: readonly ComposerAgent[]; narrow?: boolean; onPress?: () => void; open: boolean; face?: boolean; mode?: ChatMode | undefined; runsChip?: string | undefined; ring?: unknown }): ReactElement {
   const a = list[0] as ComposerAgent;
   const name = stripName(list);
-  const title = a.modelTitle ?? "Auto";
-  const label = `${name} will answer on ${title}${a.unavailable === true ? ", not available here" : ""}${a.effort ? `, ${a.effort} effort` : ""}${onPress ? ". Mode, model, effort and limits" : ""}`;
+  const dot = offDefault({ mode, runsChip, effort: a.effort, unavailable: a.unavailable });
+  const label = `Model and settings. ${name} will answer on ${a.modelTitle ?? "Auto"}${a.unavailable === true ? ", not available here" : ""}${a.effort ? `, ${a.effort} effort` : ""}${dot ? ". Something is not at its default" : ""}`;
   const body = (
     <>
-      {face ? <Avatar {...avatarOf({ id: a.id, name: a.name, kind: a.kind === "assistant" ? "assistant" : "agent" })} size={20} /> : null}
-      {mode !== undefined && mode !== "auto" ? <View style={styles.mchip} testID="composer-mode"><Text style={styles.mchipText}>{modeInfo(mode).label}</Text></View> : null}
-      {runsChip !== undefined ? <View style={styles.rchip} testID="composer-runs"><Text numberOfLines={1} style={styles.rchipText}>{`On ${runsChip}`}</Text></View> : null}
-      {narrow ? null : <Text numberOfLines={1} style={styles.stripModelText}>{`${title}${a.accountName ? ` · ${a.accountName}` : ""}`}</Text>}
-      {a.unavailable === true ? <Text numberOfLines={1} style={styles.stripNote} testID="composer-unavailable">Not available here</Text> : null}
-      <EffortBars effort={a.effort} levels={effortsFor(a.provider).length} testID="composer-effort" />
-      {ring ? <ContextRing pct={ring.pct} warn={ring.warn} size={18} /> : null}
+      <Glyph icon={I.tune} native="≡" size={16} color={open ? "var(--ink)" : "var(--ink-3)"} />
+      {dot ? <View style={styles.setDot} testID="composer-settings-dot" /> : null}
     </>
   );
-  if (!onPress) return <View style={styles.strip} testID="composer-strip" accessibilityLabel={label}>{body}</View>;
+  if (!onPress) return <View style={styles.setBtn} testID="composer-strip" accessibilityLabel={label}>{body}</View>;
   return (
-    <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ expanded: open }} testID="composer-strip" onPress={onPress} {...webProps({ title: "Mode, provider, model, effort, limits" })}
-      style={({ hovered }: { hovered?: boolean }) => [styles.strip, (hovered === true || open) && HOVER]}>
+    <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ expanded: open }} testID="composer-strip" onPress={onPress} {...webProps({ title: "Model and settings" })}
+      style={({ hovered }: { hovered?: boolean }) => [styles.setBtn, (hovered === true || open) && HOVER]}>
       {body}
     </Pressable>
   );
@@ -812,7 +817,8 @@ export function Composer(props: ComposerProps): ReactElement {
     : undefined;
   const who = answerLine(state.text, props.whoWillAnswer, whoCtx);
   const answerers = props.sendsOutside === true || props.hideWho === true ? [] : answering(who.responders, props.agents);
-  const ai = answerers.length > 0;
+  // the settings icon: whoever will answer, else the chat's first agent when the place can open the menu (a channel with an agent in it)
+  const settingsAgent: ComposerAgent | undefined = answerers[0] ?? (props.renderPanel !== undefined && props.sendsOutside !== true && props.hideWho !== true ? props.agents?.[0] : undefined);
 
   const trigger = useMemo(() => detectTrigger(state.text, state.cursor, symbols), [state.text, state.cursor, symbols.join(",")]);
   const searchKey = trigger !== null && (trigger.ch === "#" || trigger.ch === "[[") ? `${trigger.ch}\u0000${trigger.query}` : null;
@@ -845,8 +851,7 @@ export function Composer(props: ComposerProps): ReactElement {
   const working = props.working === true;
   const hasContent = canSend(state);
   const control = sendControl(working, hasContent);
-  const ring = ai ? contextRing(answerers[0]?.context) : null;
-  const showMode = ai && props.mode !== undefined && props.onMode !== undefined;
+  const showMode = settingsAgent !== undefined && props.mode !== undefined && props.onMode !== undefined;
 
   const patch = useCallback((next: Partial<ComposerState>) => setState((s) => ({ ...s, ...next })), []);
   const talk = useTalk({
@@ -1186,7 +1191,8 @@ export function Composer(props: ComposerProps): ReactElement {
   const oneLine = props.sendsOutside !== true;
   // below about 560 px the field takes the full width on top and the controls sit under it, so the field is never squeezed to a few words wide
   useEffect(() => { if (state.text === "") setGrown(false); else if (state.text.includes("\n")) setGrown(true); }, [state.text]);
-  const stacked = oneLine && (isStacked(boxW) || grown);
+  // one line when empty at any width (prototype s-chat221): the controls leave the text's row only once a draft takes more than a line
+  const stacked = oneLine && grown;
   const row = oneLine && !stacked;
   // the field's padding, which the token wash behind it takes too: the same box, so a wash sits on its word in the one-line pill, the compact field and the regular one
   const fieldPad: readonly (ViewStyle | false)[] = [styles.padRegular, row && styles.padLine, stacked && styles.padStack, !oneLine && compact && styles.padCompact];
@@ -1234,9 +1240,9 @@ export function Composer(props: ComposerProps): ReactElement {
   );
   // an app's own control beside the model strip (the memory lock) sits in the same 32 px box as the others, centred on the same line
   const barExtraNode = props.barExtra ? <View style={styles.extraBox}>{props.barExtra}</View> : null;
-  const stripNode_ = ai ? (
+  const stripNode_ = settingsAgent !== undefined ? (
     <View ref={stripNode as never} style={styles.stripWrap}>
-      <AgentStrip list={answerers} narrow={narrow} open={panelOpen} face={(props.agents?.length ?? 0) > 1} mode={showMode ? props.mode : undefined} runsChip={props.runsChip} ring={ring} {...(props.renderPanel ? { onPress: () => { setPlusOpen(false); setPanelOpen((x) => !x); } } : {})} />
+      <AgentStrip list={[settingsAgent]} open={panelOpen} mode={showMode ? props.mode : undefined} runsChip={props.runsChip} {...(props.renderPanel ? { onPress: () => { setPlusOpen(false); setPanelOpen((x) => !x); } } : {})} />
     </View>
   ) : null;
 
@@ -1294,9 +1300,9 @@ export function Composer(props: ComposerProps): ReactElement {
           <View style={styles.scr}>{plusRows}</View>
         </Pop>
       ) : null}
-      {panelOpen && ai && props.renderPanel ? (
+      {panelOpen && settingsAgent !== undefined && props.renderPanel ? (
         <Pop testID="composer-panel" label="Model" style={[panelNarrow ? styles.panelNarrow : styles.panelPop, panelNarrow ? { maxHeight: Math.max(240, Math.min(520, winH - 180)) } : null, props.panelBelow ? styles.panelBelow : null] as ViewStyle[]} nodeRef={(n) => { panelNode.current = n; }}>
-          {props.renderPanel(answerers[0] as ComposerAgent, () => setPanelOpen(false), panelNarrow)}
+          {props.renderPanel(settingsAgent, () => setPanelOpen(false), panelNarrow)}
         </Pop>
       ) : null}
       {hashPop}
@@ -1329,8 +1335,8 @@ export function Composer(props: ComposerProps): ReactElement {
 const CHIP_ICON: Record<string, string> = { Folder: ICON_FOLDER, Record: ICON_RECORD, File: ICON_FILE, Channel: "link" };
 
 const styles = StyleSheet.create({
-  box: { position: "relative", width: "100%", borderRadius: 22, backgroundColor: "var(--raised)" as string },
-  boxCompact: { borderRadius: 18 },
+  box: { position: "relative", width: "100%", borderRadius: RADIUS, backgroundColor: "var(--raised)" as string },
+  boxCompact: { borderRadius: RADIUS },
   line: { flexDirection: "row", alignItems: "flex-end", gap: CTRL_GAP, padding: 8 },
   recipients: { paddingTop: 10, paddingHorizontal: 14 },
   banner: { paddingTop: 8, paddingHorizontal: 14 },
@@ -1338,11 +1344,11 @@ const styles = StyleSheet.create({
   sendErrorText: { fontSize: 12.5, color: "var(--danger)" as string, flexShrink: 1 },
   sendErrorRetry: { fontSize: 12.5, fontWeight: "600", color: "var(--accent)" as string },
   tray: { flexDirection: "row", flexWrap: "wrap", gap: 8, paddingTop: 10, paddingHorizontal: 12 },
-  chip: { flexDirection: "row", alignItems: "center", gap: 5, height: 26, paddingLeft: 8, paddingRight: 3, borderRadius: 999, backgroundColor: "var(--sunk)" as string, borderWidth: 1, borderColor: "var(--line)" as string, maxWidth: "100%", alignSelf: "center" },
+  chip: { flexDirection: "row", alignItems: "center", gap: 5, height: 26, paddingLeft: 8, paddingRight: 3, borderRadius: RADIUS, backgroundColor: "var(--sunk)" as string, borderWidth: 1, borderColor: "var(--line)" as string, maxWidth: "100%", alignSelf: "center" },
   chipText: { color: "var(--ink)" as string, fontSize: 12.5, lineHeight: 16, flexShrink: 1 },
   chipX: { width: 20, height: 20, borderRadius: 10, alignItems: "center", justifyContent: "center" },
   chipXText: { color: "var(--ink-3)" as string, fontSize: 14, lineHeight: 16 },
-  card: { position: "relative", flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 6, paddingLeft: 6, paddingRight: 10, borderRadius: 12, backgroundColor: "var(--sunk)" as string, borderWidth: 1, borderColor: "var(--line)" as string, maxWidth: 220 },
+  card: { position: "relative", flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 6, paddingLeft: 6, paddingRight: 10, borderRadius: RADIUS, backgroundColor: "var(--sunk)" as string, borderWidth: 1, borderColor: "var(--line)" as string, maxWidth: 220 },
   cardIc: { width: 30, height: 30, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: "var(--raised)" as string, overflow: "hidden" },
   cardText: { minWidth: 0, flexShrink: 1 },
   cardName: { fontSize: 12.5, color: "var(--ink)" as string },
@@ -1368,15 +1374,10 @@ const styles = StyleSheet.create({
   srOnly: { position: "absolute", width: 1, height: 1, overflow: "hidden", opacity: 0 },
   bar: { flexDirection: "row", alignItems: "center", gap: 4, paddingTop: 4, paddingHorizontal: 8, paddingBottom: 8 },
   barCompact: { paddingBottom: 6, paddingHorizontal: 6 },
-  tool: { width: CTRL, height: CTRL, borderRadius: CTRL / 2, alignItems: "center", justifyContent: "center" },
-  stripWrap: { flexShrink: 1, minWidth: 0 },
-  strip: { flexDirection: "row", alignItems: "center", gap: 7, height: CTRL, paddingHorizontal: 9, borderRadius: CTRL / 2, minWidth: 0 },
-  stripModelText: { fontSize: 12.5, color: "var(--ink-3)" as string, flexShrink: 1 },
-  stripNote: { fontSize: 11.5, color: "var(--ink-3)" as string, flexShrink: 1, fontStyle: "italic" as const },
-  mchip: { height: 20, paddingHorizontal: 7, borderRadius: 10, justifyContent: "center", backgroundColor: "var(--accent-wash)" as string },
-  mchipText: { fontSize: 11.5, lineHeight: 20, color: "var(--accent)" as string },
-  rchip: { height: 20, paddingHorizontal: 7, borderRadius: 10, justifyContent: "center", backgroundColor: "var(--sunk)" as string, flexShrink: 1 },
-  rchipText: { fontSize: 11.5, lineHeight: 20, color: "var(--ink-3)" as string },
+  tool: { width: CTRL, height: CTRL, borderRadius: RADIUS, alignItems: "center", justifyContent: "center" },
+  stripWrap: { flexShrink: 0 },
+  setBtn: { position: "relative", width: CTRL, height: CTRL, borderRadius: RADIUS, alignItems: "center", justifyContent: "center", flexShrink: 0 },
+  setDot: { position: "absolute", top: 6, right: 6, width: 6, height: 6, borderRadius: 3, backgroundColor: "var(--accent)" as string, boxShadow: "0 0 0 2px var(--raised)" } as object,
   spacer: { flex: 1 },
   send: { width: CTRL, height: CTRL, borderRadius: CTRL / 2, alignItems: "center", justifyContent: "center", backgroundColor: "var(--accent)" as string, flexShrink: 0 },
   sendStop: { backgroundColor: "var(--sel)" as string },

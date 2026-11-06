@@ -53,6 +53,9 @@ import type { ReplySummary } from "./replies.ts";
 import type { LiveQuery } from "../../../../../../client/src/index.ts";
 import { useAddSheet } from "../addsheet/index.ts";
 import { useChatViewing, useOpenPublished } from "./artifact-open.ts";
+import { QuestionIsland } from "./QuestionIsland.tsx";
+import { islandView, openQuestions } from "./island.ts";
+import { useCardsInView } from "./use-cards-in-view.ts";
 import { ChatBrain, compactChat, entryOf, modeOf, prettyModel, setChatMode, stripAgents, useAccounts, useLastPick, usePickUnavailable, useUsage, withLastPick } from "./brain.tsx";
 import type { ChatMode } from "../../../../../../ui/src/Composer/index.tsx";
 import { useConnectVersion } from "../../../shell/connect/context.ts";
@@ -100,6 +103,7 @@ function useReplies(threadId: string): Map<string, ReplySummary> {
 
 /** `compact` is for a conversation inside another screen (the onboarding Assistant): just the messages and the composer, no title bar with members, search and side-panel buttons. */
 const CompactContext = createContext(false);
+const NO_IDS: readonly string[] = [];
 /** The mute lines a teammate has been shown, by message (lane l-agentdm): kept on this device so the line does not come back once seen. */
 const MUTE_SEEN = "vyre.agentdm.mute-seen.v1";
 function readMuteSeen(): ReadonlySet<string> {
@@ -221,6 +225,9 @@ function ConversationView(): ReactElement {
   const [cursor, setCursor] = useState<number | null>(null);
   const [pending, setPending] = useState<Pending[]>([]);
   const [line, setLine] = useState("");
+  // the question island: put-away questions (this session) and the one the person stepped to
+  const [putAway, setPutAway] = useState<ReadonlySet<string>>(() => new Set());
+  const [islandAt, setIslandAt] = useState<string | null>(null);
   /** A line with an Undo (a drop that shared something): the taking-back runs when it is pressed. */
   const [undo, setUndo] = useState<(() => void) | null>(null);
   // text asked for by a pane or a page ("Ask about this file"): taken when this conversation opens and whenever it is asked again, after what the person had typed
@@ -334,11 +341,14 @@ function ConversationView(): ReactElement {
   useEffect(() => { crew?.refresh(); }, [messageCount]);  // eslint-disable-line react-hooks/exhaustive-deps
   // the agents.list rows the Ask-an-agent picker labels its agents from, read when it first opens
   const agentMeta = useRef<readonly AgentMeta[] | null>(null);
+  // which open questions have their own card on screen: the island docks the ones that do not (a hook, so before the early returns)
+  const cardsInView = useCardsInView(messagesQ.status === "loading" ? NO_IDS : openQuestions(mergePages(around ?? messagesQ.data.messages, older)).map((x) => x.id));
   if (failed) return <LoadFailed what="this chat" failure={failed} testID="conversation-failed" />;
   if (threadQ.status === "loading" || messagesQ.status === "loading") return <ConversationLoading />;
   const thread: Thread = threadQ.data.thread;
   const live = messagesQ.data.messages;
   const all = mergePages(around ?? live, older);
+  const openQs = openQuestions(all);
   emptyRef.current = all.length === 0;
   const liveView = around === null;
   // a failure a later reply has answered is over: its card leaves, and the reply stands on its own time
@@ -459,6 +469,8 @@ function ConversationView(): ReactElement {
       x, y, "other", { label: "Helpers" },
     );
   };
+  const island = islandView(openQs, putAway, islandAt, cardsInView);
+  const typingNames: readonly string[] = data.typing ?? [];
   const peopleMenu = (x: number, y: number): void => add.showPeople({ thread, x, y, onOpenAgent: data.nav.openAgent });
   const modelMenu = (x: number, y: number): void => {
     if (!lead) return;
@@ -775,6 +787,14 @@ function ConversationView(): ReactElement {
         <View testID="conversation-closed" style={st.closed}><Text style={st.lineText}>This thread is closed.</Text><TextButton label="Reopen" onPress={() => void data.call("threads.reopen", { threadId: thread.threadId }).catch(fail("Could not reopen."))} testID="reopen" /></View>
       ) : (
         <View style={st.composerBox}>
+          {thread.kind === "channel" ? <View testID="typing-row" accessibilityLiveRegion="polite" style={st.typingRow}>{typingNames.length > 0 ? <Text style={st.typingText}>{`${typingNames.join(", ")} ${typingNames.length === 1 ? "is" : "are"} typing…`}</Text> : null}</View> : null}
+          {island.list.length > 0 ? (
+            <QuestionIsland list={island.list} index={island.index} nameOf={nameOf}
+              onStep={(d) => setIslandAt(island.list[(island.index + d + island.list.length) % island.list.length]!.id)}
+              onAnswer={(q, a) => { void act.answerBlock(data, q.id, a).catch(fail("Could not send the answer.")); }}
+              onDismiss={(q) => setPutAway((cur) => new Set([...cur, q.id]))}
+              onPeople={(x, y) => peopleMenu(x, y)} />
+          ) : null}
           {crew?.status && crew.status.members.length > 0 ? <CrewIsland status={crew.status} onPress={() => crew.show(null)} /> : null}
           {personMention ? (() => {
             // one strip on top of the composer: who is not here, Add (they read from now on), and a caret for the other ways
@@ -922,6 +942,8 @@ const st = StyleSheet.create({
   offerStripText: { flex: 1, minWidth: 0, fontSize: 12.5, color: "var(--ink-2)" as string },
   offerBtns: { flexDirection: "row", alignItems: "center", gap: 2, flexShrink: 0 },
   closed: { minHeight: 48, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, borderTopWidth: 1, borderTopColor: "var(--line)" as string, backgroundColor: "var(--side)" as string },
+  typingRow: { height: 20, justifyContent: "center", paddingLeft: 6 },
+  typingText: { fontSize: 12, color: "var(--ink-3)" as string },
   composerBox: { alignSelf: "center", width: "100%", maxWidth: 708, paddingHorizontal: 24, paddingBottom: 16 },
 });
 
