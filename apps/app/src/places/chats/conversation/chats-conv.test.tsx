@@ -454,6 +454,6 @@ test("the header keeps its name: faces go before it is cut, the lead agent's fac
   assert.equal(headerTier(900), "full");
   assert.equal(headerTier(720), "full");
   assert.equal(headerTier(719), "lead");
-  assert.equal(headerTier(560), "lead");
-  assert.equal(headerTier(559), "bare");
+  assert.equal(headerTier(420), "lead");
+  assert.equal(headerTier(419), "bare");
 });

@@ -122,7 +122,7 @@ export function Conversation({ data, compact = false }: { data?: ConversationDat
 
 /** How much of the header's faces fit: all of them, the lead agent's face alone, or only the name and the buttons. The title keeps its room first. */
 export function headerTier(width: number): "full" | "lead" | "bare" {
-  return width <= 0 || width >= 720 ? "full" : width >= 560 ? "lead" : "bare";
+  return width <= 0 || width >= 720 ? "full" : width >= 420 ? "lead" : "bare";
 }
 
 /** The frame before data: a header bar, messages the size of real ones and a composer box, so nothing moves when the thread arrives. */
