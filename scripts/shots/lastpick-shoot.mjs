@@ -37,7 +37,7 @@ for (const t of targets) for (const skin of ["paper", "graphite"]) for (const [s
   await page.waitForTimeout(500);
   let found = true;
   if (t.waitFor) await page.waitForSelector(t.waitFor, { timeout: 8000 }).catch(() => { found = false; });
-  if (t.click) await page.click(t.click, { timeout: 8000 }).catch(() => {});
+  for (const c of [].concat(t.clicks ?? t.click ?? [])) { await page.click(c, { timeout: 8000 }).catch(() => {}); await page.waitForTimeout(400); }
   await page.waitForTimeout(900);
   const file = path.join(out, `${t.id.replace("LASTPICK_01-", "")}-${skin}-${size}.png`);
   await page.screenshot({ path: file });

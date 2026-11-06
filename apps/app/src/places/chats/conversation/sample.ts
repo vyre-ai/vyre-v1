@@ -208,7 +208,6 @@ export function createSample(variant: Variant = "idle", o: SampleOptions = {}): 
 
   // a thread under a message (agents reply in threads): its own row and its own messages, by id
   const rowOf = (id: string): (Thread & Row) | undefined => (replica.rows("threads") as unknown as (Thread & Row)[]).find((x) => x.threadId === id);
-  replica.resolve("engine.last_pick.get", () => (variant === "lastpick" ? { model: "glm-5", provider: "opencode-go", effort: "high" } : {}) as never);
   replica.resolve("threads.get", (_t, input) => { const { id: _id, ...rest } = rowOf(input.threadId) ?? threadRow(); return { thread: rest as Thread }; });
   replica.resolve("threads.list", (_t, input) => ({ threads: (replica.rows("threads") as unknown as (Thread & Row)[]).filter((x) => input.parentThreadId !== undefined && x.parentThreadId === input.parentThreadId).map(({ id: _id, ...rest }) => rest as Thread), hasMore: false }));
   replica.resolve("chat.messages.list", (_t, input) => {
@@ -296,12 +295,17 @@ export function createSample(variant: Variant = "idle", o: SampleOptions = {}): 
       return { messageId: `poke_${counter}`, delivered: "engine" };
     },
     "engine.interrupt": () => ({ ok: true }),
-    "engine.models.list": () => ({ models: [
+    "engine.last_pick.get": () => (variant === "lastpick" ? { model: "glm-5", provider: "opencode-go", effort: "high" } : {}),
+    "engine.models.list": () => (variant === "lastpick" ? { models: [
+      { provider: "opencode_go", model: "glm-5", title: "GLM 5", driver: "opencode", allowed: true, reason: "not_checked" },
+      { provider: "opencode_go", model: "glm-5.3", title: "GLM 5.3", driver: "opencode", allowed: true, reason: "not_checked" },
+      { provider: "opencode_go", model: "beam-free", title: "Beam Free", driver: "opencode", allowed: true, reason: "checking" },
+    ] } : { models: [
       { provider: "anthropic", model: "opus", title: "Opus", driver: "claude_code", allowed: true },
       { provider: "anthropic", model: "sonnet", title: "Sonnet", driver: "claude_code", allowed: true },
       { provider: "anthropic", model: "haiku", title: "Haiku", driver: "claude_code", allowed: true },
       { provider: "local", model: "llama-3.3", title: "Llama 3.3 on this computer", driver: "local", allowed: true },
-    ] }),
+    ] }) as never,
     "engine.set_model": (i: { agentId?: string; model: string; provider: string }) => {
       const cur = threadRow();
       setThread({ agents: cur.agents.map((a) => (a.agentId === i.agentId ? { ...a, model: i.model } : a)) });
