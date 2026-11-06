@@ -93,9 +93,9 @@ export const google: ProviderAdapter = {
   decoder,
   modelsRequest: () => ({ path: "/v1beta/models?pageSize=200", headers: {} }),
   parseModels(json): ModelInfo[] {
-    const rows = (json as { models?: Array<{ name?: unknown; displayName?: unknown; supportedGenerationMethods?: unknown }> } | null)?.models ?? [];
+    const rows = (json as { models?: Array<{ name?: unknown; displayName?: unknown; supportedGenerationMethods?: unknown; inputTokenLimit?: unknown }> } | null)?.models ?? [];
     return rows
       .filter((r) => typeof r.name === "string" && Array.isArray(r.supportedGenerationMethods) && r.supportedGenerationMethods.includes("generateContent"))
-      .map((r) => ({ id: String(r.name).replace(/^models\//, ""), ...(typeof r.displayName === "string" ? { label: r.displayName } : {}) }));
+      .map((r) => ({ id: String(r.name).replace(/^models\//, ""), ...(typeof r.displayName === "string" ? { label: r.displayName } : {}), ...(typeof r.inputTokenLimit === "number" && r.inputTokenLimit > 0 ? { contextTokens: r.inputTokenLimit } : {}) }));
   },
 };

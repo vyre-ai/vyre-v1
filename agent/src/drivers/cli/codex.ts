@@ -85,7 +85,8 @@ export function createCodexDecoder(): CliDecoder {
           // cached_input_tokens is the part of input_tokens read from the cache; reasoning_output_tokens is inside output_tokens. Codex reports no cache writes and no price.
           const cached = u && typeof u["cached_input_tokens"] === "number" ? num(u["cached_input_tokens"]) : undefined;
           const reasoning = u && typeof u["reasoning_output_tokens"] === "number" ? num(u["reasoning_output_tokens"]) : undefined;
-          if (input > 0 || output > 0) out.push({ type: "usage", inputTokens: input, outputTokens: output, ...(cached !== undefined ? { cacheReadTokens: cached } : {}), ...(reasoning !== undefined ? { reasoningTokens: reasoning } : {}) });
+          const ctxWin = [u?.["model_context_window"], j["model_context_window"]].find((v) => typeof v === "number" && v > 0) as number | undefined;
+          if (input > 0 || output > 0) out.push({ type: "usage", inputTokens: input, outputTokens: output, ...(ctxWin !== undefined ? { contextWindow: ctxWin } : {}), ...(cached !== undefined ? { cacheReadTokens: cached } : {}), ...(reasoning !== undefined ? { reasoningTokens: reasoning } : {}) });
           out.push({ type: "end" });
           return out;
         }

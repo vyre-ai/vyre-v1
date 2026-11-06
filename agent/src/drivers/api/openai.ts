@@ -168,10 +168,14 @@ export function openaiCompatible(o: CompatOptions): ProviderAdapter {
     decoder,
     modelsRequest: () => ({ path: "/models", headers: o.opencode ? { "user-agent": vyreUserAgent() } : {}, ...(o.modelsUrl ? { url: o.modelsUrl } : {}) }),
     parseModels(json): ModelInfo[] {
-      const rows = (json as { data?: Array<{ id?: unknown; name?: unknown }> } | null)?.data ?? [];
+      const rows = (json as { data?: Array<{ id?: unknown; name?: unknown; context_length?: unknown; context_window?: unknown; max_context_length?: unknown; max_input_tokens?: unknown; max_model_len?: unknown; top_provider?: { context_length?: unknown } }> } | null)?.data ?? [];
       return rows
         .filter((r) => typeof r.id === "string" && (o.modelFilter === undefined || o.modelFilter.test(String(r.id))))
-        .map((r) => ({ id: String(r.id), ...(typeof r.name === "string" ? { label: r.name } : {}) }));
+        .map((r) => {
+          // OpenRouter and OpenCode say context_length; others context_window, max_input_tokens, or (vLLM, local servers) max_model_len
+          const ctx = [r.context_length, r.context_window, r.max_input_tokens, r.max_context_length, r.max_model_len, r.top_provider?.context_length].find((v) => typeof v === "number" && v > 0) as number | undefined;
+          return { id: String(r.id), ...(typeof r.name === "string" ? { label: r.name } : {}), ...(ctx !== undefined ? { contextTokens: ctx } : {}) };
+        });
     },
   };
 }
