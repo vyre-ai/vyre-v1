@@ -212,3 +212,15 @@ test("a Space server whose limit the caller cannot see gets the machines default
   h.fake.host.capacity = async () => ({ totalMb: 65536, freeMb: 60000, cpus: 1, os: "linux" });
   assert.equal((await checkRoom(h.ctx, { kind: "browser" })).verdict.ok, false, "1 core still allows one, and two are already running");
 });
+
+test("the limit an admin set reaches a wake that cannot see the machine list: machines.rooms carries it", async () => {
+  const h = harness();
+  h.respond["machines.list"] = () => ({ machines: [] });
+  h.respond["machines.rooms"] = () => ({ rooms: [{ machineId: "space", maxAgentComputers: 1 }] });
+  h.fake.host.capacity = async () => ({ totalMb: 65536, freeMb: 60000, cpus: 16, os: "linux" });
+  const a = await made(h, "agt_a"), b = await made(h, "agt_b");
+  assert.equal((await wake(h.ctx, { computerId: a })).computer.state, "working");
+  const q = (await wake(h.ctx, { computerId: b })).computer;
+  assert.equal(q.state, "waking", "16 cores would default to 8, the admin's 1 holds");
+  assert.equal(q.caption, LINE);
+});

@@ -83,6 +83,12 @@ export async function factsOf(ctx: CompCtx, key: string): Promise<HostFacts> {
     const out = (await ctx.call("machines.list", {})) as { machines?: MachineRow[] };
     machine = (out.machines ?? []).find((m) => m.machineId === key);
   } catch { /* the machines module is not running: only the host's own answer */ }
+  // machines.rooms names the Space server and the caller's own machines to anyone, and carries the limit an admin set: a member's or an agent's wake sees it too
+  try {
+    const out = (await ctx.call("machines.rooms", { ids: [key] })) as { rooms?: Array<{ machineId: string; maxAgentComputers?: number }> };
+    const r = (out.rooms ?? []).find((x) => x.machineId === key);
+    if (r && typeof r.maxAgentComputers === "number") f.maxAgentComputers = r.maxAgentComputers;
+  } catch { /* not running: the default below */ }
   if (machine) {
     const shown = machine.nickname ?? machine.name;
     if (shown) f.name = key === SPACE ? "the Space server" : shown;

@@ -764,6 +764,7 @@ if ("why" in o4101) lf(o4101["why"], p + "/rooms" + '/' + i4100 + "/why", e, L1)
 if ("turns" in o4101) lf(o4101["turns"], p + "/rooms" + '/' + i4100 + "/turns", e, L17);
 if ("maxTurns" in o4101) lf(o4101["maxTurns"], p + "/rooms" + '/' + i4100 + "/maxTurns", e, L12);
 if ("draining" in o4101) lf(o4101["draining"], p + "/rooms" + '/' + i4100 + "/draining", e, L3);
+if ("maxAgentComputers" in o4101) lf(o4101["maxAgentComputers"], p + "/rooms" + '/' + i4100 + "/maxAgentComputers", e, L17);
 }
 }
 }

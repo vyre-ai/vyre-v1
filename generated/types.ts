@@ -22260,6 +22260,7 @@ export type MachinesRoomsOut = {
       turns: number;
       maxTurns: number;
       draining: boolean;
+      maxAgentComputers?: number;
     }>;
 };
 export type MachinesSetIn = {
