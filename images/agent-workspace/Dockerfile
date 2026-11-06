@@ -6,6 +6,9 @@
 #   docker build -t vyre/agent-workspace:1 images/agent-workspace
 FROM node:24-bookworm-slim@sha256:55fb5f5a527ea2c5c4a95f963e48ef90aa38c7b346054fdc8ee9957a2b55d205
 
+# The label is how `vyre-server update` knows this image is Vyre's and may be pruned when no kept release names it.
+LABEL ai.vyre.image="workspace"
+
 # tmux: the sessions. git, curl, jq, ripgrep, less, nano, unzip, zip, openssh-client (git over ssh with a key the agent is given; no server): the daily tools. python3 with pip and venv: scripts.
 # build-essential and pkg-config: native modules and small C builds. procps and coreutils: ps, du. No sudo, no su, no docker client, no package manager left to use at run time.
 RUN apt-get update \

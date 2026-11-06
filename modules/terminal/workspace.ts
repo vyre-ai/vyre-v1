@@ -60,7 +60,7 @@ export interface WorkspaceOptions {
   /** Raw Engine access: inspect, volumes, the list of workspaces, and waiting for the one-off volume helper. */
   http: DockerHttp;
   image?: string;
-  limits?: Partial<{ cpus: number; memoryMb: number; pids: number }>;
+  limits?: Partial<{ cpus: number; memoryMb: number; pids: number; reserveMb: number }>;
   /** A workspace with nothing using it for this long sleeps. Default 10 minutes. */
   idleMs?: number;
   /** The agent's folder in Files mirrored onto ~/Vyre (the computers module's home sync, handed over by the daemon). Omitted: ~/Vyre is an ordinary folder that Files does not see. */
@@ -69,6 +69,11 @@ export interface WorkspaceOptions {
   projectsOf?: (agentId: string) => Promise<readonly string[]> | readonly string[];
   /** Behind the runner (a Team server) each workspace gets a network of its own, so one cannot reach another. */
   runner?: boolean;
+  /**
+   * Room on the host (modules/computers/capacity.ts, reached by the daemon as host calls, since this module cannot import that one). `claim` is asked before a container starts: running means start,
+   * waiting means do not, and the line is shown as the reason. `release` is told when one stops or is removed. A waiting workspace is started by the daemon when room opens (`ensure`).
+   */
+  capacity?: WorkspaceCapacity;
   /**
    * Called before a workspace is made or woken; throwing refuses it, with the error's message shown as the line. The capacity lane (l-capacity) plugs the room check in here: creating or waking
    * checks room first, and a full host queues with "Waiting for room on the Space server".
@@ -79,9 +84,16 @@ export interface WorkspaceOptions {
   log?: (level: "info" | "warn", msg: string, attrs?: Record<string, unknown>) => void;
 }
 
+export interface WorkspaceCapacity {
+  claim(agentId: string): Promise<{ state: "running" | "waiting"; line?: string }>;
+  release(agentId: string): Promise<void>;
+}
+
 export interface WorkspaceRow { agentId: string; state: "running" | "asleep"; lastUsedAt?: number }
 
 export interface WorkspaceManager {
+  /** Make the workspace if there is none, stopped, with no claim on the host's room: for the one-time move of an agent computer. Safe to repeat. */
+  provision(agentId: string): Promise<{ workspaceId: string }>;
   /** Make the workspace if there is none and wake it if it sleeps; counts as use. */
   ensure(agentId: string): Promise<"created" | "woke" | "running">;
   /** Run argv in the workspace (waking it first), as the container's own user (10001): an exec never names another. */
@@ -108,7 +120,8 @@ export interface MountSpec { projects: string[] }
 const stable = (m: MountSpec): string => createHash("sha256").update(JSON.stringify({ p: [...m.projects].sort() })).digest("hex").slice(0, 16);
 
 export function workspaceContainerConfig(agentId: string, image: string, m: MountSpec, o: Pick<WorkspaceOptions, "limits" | "runner">): ContainerConfig {
-  const limits = { cpus: 1, memoryMb: 1024, pids: 512, ...o.limits };
+  // the numbers are modules/computers/capacity.ts hostConfigLimits("workspace): a hard cap of 1 GB, 64 MB held back while it runs, low CPU shares, no swap (test/workspace.capacity.test.ts holds the two together)
+  const limits = { cpus: 1, memoryMb: 1024, pids: 512, reserveMb: 64, ...o.limits };
   const memory = Math.round(limits.memoryMb * 1024 * 1024);
   const name = workspaceName(agentId);
   return {
@@ -141,6 +154,8 @@ export function workspaceContainerConfig(agentId: string, image: string, m: Moun
       Memory: memory,
       MemorySwap: memory,
       NanoCpus: Math.round(limits.cpus * 1e9),
+      MemoryReservation: Math.round(limits.reserveMb * 1024 * 1024),
+      CpuShares: 256,
       Init: true,
       AutoRemove: false,
       Ulimits: [{ Name: "nofile", Soft: 8192, Hard: 16384 }, { Name: "core", Soft: 0, Hard: 0 }],
@@ -338,6 +353,25 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
     await api.containerRemove(name);
   }
 
+  /** Make the container, stopped: the profile review, the image, the project volumes, the network. */
+  async function build(agentId: string, name: string, want: MountSpec, config: ContainerConfig): Promise<void> {
+    const wrong = reviewWorkspaceConfig(config, agentId);
+    if (wrong.length > 0) throw wsError(`the workspace's container config is outside its profile: ${wrong.join(", ")}`);
+    await ensureImage();
+    for (const p of want.projects) await ensureProjectVolume(p);
+    await makeNetwork(agentId);
+    await api.containerCreate(name, config);
+  }
+
+  function provision(agentId: string): Promise<{ workspaceId: string }> {
+    if (!AGENT_ID.test(agentId)) return Promise.reject(wsError("That is not an agent a workspace can be made for.", "bad_input"));
+    return serial(agentId, async () => {
+      const name = workspaceName(agentId);
+      if (!(await inspect(name))) { const want = await mounts(agentId); await build(agentId, name, want, workspaceContainerConfig(agentId, image, want, o)); log("info", "workspace.provisioned", { agent: agentId }); }
+      return { workspaceId: name };
+    });
+  }
+
   async function wake(agentId: string): Promise<"created" | "woke" | "running"> {
     const name = workspaceName(agentId);
     const want = await mounts(agentId);
@@ -347,15 +381,15 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
     if (info && info.labels["vyre.mounts"] !== config.Labels["vyre.mounts"]) { stopHome(agentId); if (info.running) await homePass(agentId); await removeContainer(name); info = null; gens.set(agentId, (gens.get(agentId) ?? 0) + 1); }
     if (info?.running) { lastUsed.set(agentId, now()); return "running"; }
     await o.admit?.({ agentId, state: info ? "wake" : "create" });
-    if (!info) {
-      const wrong = reviewWorkspaceConfig(config, agentId);
-      if (wrong.length > 0) throw wsError(`the workspace's container config is outside its profile: ${wrong.join(", ")}`);
-      await ensureImage();
-      for (const p of want.projects) await ensureProjectVolume(p);
-      await makeNetwork(agentId);
-      await api.containerCreate(name, config);
+    // room first: a host that is full queues it with a plain line and nothing is made or started
+    if (o.capacity) {
+      const room = await o.capacity.claim(agentId);
+      if (room.state === "waiting") throw wsError(room.line ?? "Waiting for room on the Space server. Add a compute server in Console > Computers to run more.", "waiting");
     }
-    await api.containerStart(name);
+    try {
+      if (!info) await build(agentId, name, want, config);
+      await api.containerStart(name);
+    } catch (e) { await o.capacity?.release(agentId).catch(() => undefined); throw e; }
     gens.set(agentId, (gens.get(agentId) ?? 0) + 1);
     lastUsed.set(agentId, now());
     // Files down into ~/Vyre before the first command, then every few seconds while it is awake
@@ -399,6 +433,8 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
       if (!synced) log("warn", "workspace.slept_unsynced", { agent: agentId });
       await api.containerStop(workspaceName(agentId), 10);
       lastUsed.delete(agentId);
+      // the room it held goes back, and the oldest waiting workspace starts
+      await o.capacity?.release(agentId).catch(() => undefined);
       log("info", "workspace.slept", { agent: agentId });
       return true;
     });
@@ -440,7 +476,7 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
   }
 
   return {
-    ensure, exec,
+    ensure, exec, provision,
     generation: (agentId) => gens.get(agentId) ?? 0,
     sleep: sleepNow,
     sweep,
@@ -470,6 +506,7 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
         }
         if (o.runner) await http({ method: "DELETE", path: `/networks/${workspaceNetworkName(agentId)}` }).catch(() => undefined);
         lastUsed.delete(agentId);
+        await o.capacity?.release(agentId).catch(() => undefined);
       });
     },
     async health() {

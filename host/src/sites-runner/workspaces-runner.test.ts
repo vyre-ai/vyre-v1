@@ -20,7 +20,7 @@ const good = (id = A, over: Record<string, unknown> = {}, h: Record<string, unkn
   HostConfig: {
     Binds: [`${name(id)}-home:/home/agent:rw`, `${name(id)}-files:/home/agent/Vyre:rw`, "vyre-wsproj-prj_site:/home/agent/projects/prj_site:rw"], ReadonlyRootfs: false, Tmpfs: { "/tmp": "rw,size=512m" }, CapDrop: ["ALL"], CapAdd: [],
     SecurityOpt: ["no-new-privileges:true"], Privileged: false, NetworkMode: net(id), PidMode: "", IpcMode: "private", UsernsMode: "", Devices: [], PidsLimit: 512, Memory: 1024 ** 3, MemorySwap: 1024 ** 3,
-    NanoCpus: 1e9, Init: true, AutoRemove: false, Ulimits: [{ Name: "nofile", Soft: 8192, Hard: 16384 }], ExtraHosts: [], Dns: [], ...h,
+    NanoCpus: 1e9, MemoryReservation: 64 * 1024 ** 2, CpuShares: 256, Init: true, AutoRemove: false, Ulimits: [{ Name: "nofile", Soft: 8192, Hard: 16384 }], ExtraHosts: [], Dns: [], ...h,
   },
 });
 const helper = (project = "prj_site", over: Record<string, unknown> = {}, h: Record<string, unknown> = {}) => ({
@@ -85,6 +85,8 @@ test("a workspace container is refused when it asks for anything a workspace is 
     ["no memory cap", good(A, {}, { Memory: 0 }), "memory"],
     ["too much memory", good(A, {}, { Memory: 64 * 1024 ** 3, MemorySwap: 64 * 1024 ** 3 }), "memory"],
     ["swap", good(A, {}, { MemorySwap: 8 * 1024 ** 3 }), "swap"],
+    ["a reservation above the cap", good(A, {}, { MemoryReservation: 2 * 1024 ** 3 }), "reservation"],
+    ["more than the default CPU shares", good(A, {}, { CpuShares: 4096 }), "shares"],
     ["no process cap", good(A, {}, { PidsLimit: 0 }), "process"],
     ["too many CPUs", good(A, {}, { NanoCpus: 64e9 }), "CPU"],
     ["extra hosts", good(A, {}, { ExtraHosts: ["evil:10.0.0.1"] }), "extra hosts"],

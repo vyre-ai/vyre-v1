@@ -44,6 +44,11 @@ export interface WorkspacesConfig {
     manifest(agentId: string): string;
     intervalMs?: number;
   };
+  /** Room on the host: asked before a workspace starts, told when one stops (the computers module's capacity, over host calls). Omitted: no limit but Docker's. */
+  capacity?: {
+    claim(agentId: string): Promise<{ state: "running" | "waiting"; line?: string }>;
+    release(agentId: string): Promise<void>;
+  };
   /** The projects an agent is on, so their shared folders are mounted. */
   projectsOf?(agentId: string): Promise<readonly string[]> | readonly string[];
   log?(level: "info" | "warn", msg: string, attrs?: Record<string, unknown>): void;

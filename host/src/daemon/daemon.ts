@@ -1845,6 +1845,24 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
               ...(o.workspaceIdleMs !== undefined ? { idleMs: o.workspaceIdleMs } : {}),
               projectsOf: (agentId: string) => (db!.all("SELECT projectId FROM projects_member WHERE principal = ? AND kind = 'agent'", agentId) as Array<{ projectId?: string }>).map((r) => String(r.projectId)),
               // ~/Vyre in the workspace mirrors the agent's folder in Files: the computers module's home sync, run as the agent principal like any other writer (access, review rules and the scrubber apply)
+              // room on the host: the computers module's capacity, over host calls (this module cannot import that one). A waiting workspace starts by itself when room opens, and a computer that is moved
+              // to the new model gets its workspace made (stopped) by the idle pass.
+              ...((): Record<string, unknown> => {
+                const comp = loaded.moduleExports.get("computers") as { bindWorkspaceStart?: (f: ((agentId: string) => Promise<void>) | null) => void; bindMigrationPort?: (k: "ensureWorkspace", f: (ctx: unknown, a: { agentId: string; computerId: string }) => Promise<{ workspaceId: string }>) => void } | undefined;
+                const term = loaded.moduleExports.get("terminal") as { boundWorkspaces?: () => { ensure(a: string): Promise<unknown>; provision(a: string): Promise<{ workspaceId: string }> } | null } | undefined;
+                if (!comp || !term) return {};
+                const call = (name: string, input: unknown): Promise<unknown> => (hooks ? hooks.call(name, input) : Promise.reject(new Error("The Space is not ready.")));
+                comp.bindWorkspaceStart?.(async (agentId) => { await term.boundWorkspaces?.()?.ensure(agentId); });
+                comp.bindMigrationPort?.("ensureWorkspace", async (_ctx, a) => {
+                  const m = term.boundWorkspaces?.();
+                  if (!m) throw new Error("This Space has no agent workspaces.");
+                  return m.provision(a.agentId);
+                });
+                return { capacity: {
+                  claim: async (agentId: string) => (await call("computers.workspace_claim", { agentId })) as { state: "running" | "waiting"; line?: string },
+                  release: async (agentId: string) => { await call("computers.workspace_release", { agentId }); },
+                } };
+              })(),
               ...((): Record<string, unknown> => {
                 const comp = loaded.moduleExports.get("computers") as { createHomeSync?: (o: unknown, d: unknown) => { pass(): Promise<{ failed: number }> }; readTar?: (t: Uint8Array) => unknown } | undefined;
                 if (!comp?.createHomeSync || !comp.readTar) return {};

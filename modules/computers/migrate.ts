@@ -22,7 +22,12 @@ export interface MigrationPorts {
   importChromeData(ctx: CompCtx, a: { agentId: string; profileId: string; data: ChromeData }): Promise<{ bytes: number }>;
 }
 let ports: MigrationPorts | null = null;
+const parts: Partial<MigrationPorts> = {};
+/** All three at once (a test, or one binder that owns them all). */
 export function bindMigration(p: MigrationPorts | null): void { ports = p; }
+/** One at a time, each by the lane that owns it (l-ws: ensureWorkspace; l-sbrowser: the profile and Chrome's data). The move runs once all three are bound. */
+export function bindMigrationPort<K extends keyof MigrationPorts>(k: K, f: MigrationPorts[K] | null): void { if (f) parts[k] = f; else delete parts[k]; }
+const boundPorts = (): MigrationPorts | null => ports ?? (parts.ensureWorkspace && parts.ensureBrowserProfile && parts.importChromeData ? (parts as MigrationPorts) : null);
 
 export const MAX_ATTEMPTS = 3;
 
@@ -33,7 +38,7 @@ const say = (e: unknown): string => (e instanceof Error ? e.message.slice(0, 300
 /** Move every asleep computer that has not moved. Returns what happened; a computer that is awake is `waiting`. Never throws: one computer's failure is its own row. */
 export async function migrateComputers(ctx: CompCtx): Promise<MigrationResult> {
   const out: MigrationResult = { done: 0, partial: 0, failed: 0, waiting: 0 };
-  const p = ports;
+  const p = boundPorts();
   if (!p) return out;
   const todo = rowsOf(ctx.db, "SELECT * FROM computers_computers WHERE computer_id NOT IN (SELECT computer_id FROM computers_migration WHERE state IN ('done', 'partial') OR attempts >= ?) ORDER BY agent_id", MAX_ATTEMPTS).map(computerOf);
   for (const c of todo) {

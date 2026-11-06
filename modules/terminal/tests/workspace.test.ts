@@ -397,3 +397,75 @@ test("with no mirror configured ~/Vyre is an ordinary folder: nothing runs and n
   assert.equal(await r.mgr.sleep(AGENT), true);
   assert.equal(r.dk.ops("archive_get").length + r.dk.ops("archive_put").length, 0);
 });
+
+// ---- room on the host ---------------------------------------------------------------------------------------------------------------------------------
+
+function fakeRoom(o: { full?: () => boolean } = {}) {
+  const log: string[] = [];
+  const capacity: NonNullable<WorkspaceOptions["capacity"]> = {
+    async claim(id) { log.push(`claim ${id}`); return o.full?.() ? { state: "waiting", line: "Waiting for room on the Space server. Add a compute server in Console > Computers to run more." } : { state: "running" }; },
+    async release(id) { log.push(`release ${id}`); },
+  };
+  return { capacity, log };
+}
+const rigWith = (extra: Partial<WorkspaceOptions>, docker?: FakeDockerOptions) => {
+  const dk = fakeDocker({ tmux: { scripts: { "echo hi": { out: "hi", code: 0 } } }, ...docker });
+  const clock = { t: 1_000_000 };
+  const mgr = createWorkspaceManager({ api: createDockerApi(dk.http), http: dk.http, now: () => clock.t, sleep: async (ms) => { clock.t += ms; }, idleMs: 600_000, ...extra });
+  return { dk, mgr, clock };
+};
+
+test("a workspace asks for room before it is made, tells the host when it sleeps or goes, and keeps nothing it did not get", async () => {
+  const room = fakeRoom();
+  const r = rigWith({ capacity: room.capacity });
+  await r.mgr.ensure(AGENT);
+  assert.deepEqual(room.log, [`claim ${AGENT}`]);
+  await r.mgr.ensure(AGENT);
+  assert.deepEqual(room.log, [`claim ${AGENT}`], "a running workspace is not asked again");
+  assert.equal(await r.mgr.sleep(AGENT), true);
+  assert.deepEqual(room.log, [`claim ${AGENT}`, `release ${AGENT}`], "the room goes back when it stops");
+  await r.mgr.ensure(AGENT);
+  assert.deepEqual(room.log.slice(-1), [`claim ${AGENT}`], "a wake asks again");
+  await r.mgr.remove(AGENT);
+  assert.equal(room.log.at(-1), `release ${AGENT}`);
+});
+
+test("a full host queues the workspace with the plain line: nothing is made or started, and the next try after room opens works", async () => {
+  let full = true;
+  const room = fakeRoom({ full: () => full });
+  const r = rigWith({ capacity: room.capacity });
+  await assert.rejects(() => r.mgr.ensure(AGENT), (e: Error) => e.message.startsWith("Waiting for room on the Space server.") && (e as { workspace?: boolean }).workspace === true && (e as { code?: string }).code === "waiting");
+  assert.equal(r.dk.boxes.size, 0);
+  full = false;
+  assert.equal(await r.mgr.ensure(AGENT), "created", "the starter the host runs when room opens");
+});
+
+test("a workspace that fails to start gives its room back", async () => {
+  const room = fakeRoom();
+  const r = rigWith({ capacity: room.capacity }, { image: false });
+  await assert.rejects(() => r.mgr.ensure(AGENT), /can't start agent workspaces/);
+  assert.deepEqual(room.log, [`claim ${AGENT}`, `release ${AGENT}`]);
+});
+
+test("provision makes the workspace stopped, asks for no room and starts nothing, and is safe to repeat; the first command starts it", async () => {
+  const room = fakeRoom();
+  const admitted: string[] = [];
+  const r = rigWith({ capacity: room.capacity, admit: ({ state }) => { admitted.push(state); }, projectsOf: () => ["prj_site"] });
+  const a = await r.mgr.provision(AGENT);
+  const b = await r.mgr.provision(AGENT);
+  assert.deepEqual([a, b], [{ workspaceId: NAME }, { workspaceId: NAME }]);
+  assert.equal(r.dk.ops("create").filter((x) => x.name === NAME).length, 1);
+  assert.equal(r.dk.ops("start").filter((x) => x.name === NAME).length, 0, "the workspace itself was not started (only the one-off project helper ran)");
+  assert.deepEqual([room.log, admitted], [[], []], "no room claimed");
+  assert.equal(r.dk.box(NAME).running, false);
+  assert.deepEqual((await r.mgr.list()).map((x) => x.state), ["asleep"]);
+  assert.equal(await r.mgr.ensure(AGENT), "woke", "the first command wakes what was provisioned");
+  assert.equal(r.dk.ops("create").filter((x) => x.name === NAME).length, 1, "it is not made again");
+  await assert.rejects(() => r.mgr.provision("../x"), /not an agent/);
+});
+
+test("the container carries the host's limits: 1 CPU, a 1 GB hard cap with 64 MB held back, low CPU shares, no swap, 512 processes", () => {
+  const c = workspaceContainerConfig(AGENT, "i", { projects: [] }, {});
+  const MB = 1024 * 1024;
+  assert.deepEqual([c.HostConfig.NanoCpus, c.HostConfig.Memory, c.HostConfig.MemorySwap, c.HostConfig.PidsLimit, c.HostConfig.MemoryReservation, c.HostConfig.CpuShares], [1e9, 1024 * MB, 1024 * MB, 512, 64 * MB, 256]);
+});

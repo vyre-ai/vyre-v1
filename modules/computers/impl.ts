@@ -26,6 +26,8 @@ import { createDockerApi, unixSocketHttp } from "../../sandbox/src/docker.ts";
 import type { ContainerConfig, DockerApi, DockerHttp } from "../../sandbox/src/docker.ts";
 import { handlers as table } from "./handlers/index.ts";
 import { LIMITS } from "./capacity.ts";
+import { bindWorkspaceStart, workspaceClaim, workspaceRelease, workspaceWaiting } from "./workspace-port.ts";
+import { bindMigration, bindMigrationPort } from "./migrate.ts";
 import { createHomeSync } from "./handlers/home.ts";
 import { createContainerHomeFs } from "./handlers/home-fs.ts";
 import type { HomeDeps, HomeSync, MadeFile } from "./handlers/home.ts";
@@ -44,6 +46,8 @@ export { bindFill, bindHost, bindKit, bindTeam, boundHost, redeemTicket, remembe
 export type { ComputerHost, CompCtx, Probe, RecordResult, SessionInfo } from "./projections.ts";
 export { sleepIdle, awaken } from "./handlers/lifecycle.ts";
 export { createHomeSync } from "./handlers/home.ts";
+/** What the daemon binds for the agent workspaces: how a waiting one starts, and the workspace half of the one-time move of a computer. */
+export { bindWorkspaceStart, bindMigration, bindMigrationPort };
 /** The reader of the tar the Engine's archive call returns, for the agent workspaces (the terminal module cannot import this module, so the daemon hands it over). */
 export { readTar } from "./handlers/home-fs.ts";
 export { maskEvents, maskHar } from "./handlers/record.ts";
@@ -553,4 +557,4 @@ export const hostSeams = { setComputersFill, setComputerHost };
 export { nodeRun };
 
 /** What the host asks of this module on behalf of a computer that joined (host/src/routes/compute.ts): never a capability, never reachable from a session. */
-export const hostCalls = { "computers.node_jobs": nodeJobs, "computers.node_result": nodeResult, "computers.node_home_check": nodeHomeCheck, "computers.stream_open": nodeStreamOpen, "computers.stream_input": nodeStreamInput, "computers.node_recording_check": nodeRecordingCheck };
+export const hostCalls = { "computers.workspace_claim": workspaceClaim, "computers.workspace_release": workspaceRelease, "computers.workspace_waiting": workspaceWaiting, "computers.node_jobs": nodeJobs, "computers.node_result": nodeResult, "computers.node_home_check": nodeHomeCheck, "computers.stream_open": nodeStreamOpen, "computers.stream_input": nodeStreamInput, "computers.node_recording_check": nodeRecordingCheck };

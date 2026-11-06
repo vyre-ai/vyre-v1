@@ -29,7 +29,7 @@ export const WS_HOME = "/home/agent";
 export const WS_INIT_SCRIPT = "chown 10001:10001 /vol";
 
 const TOP_KEYS = new Set(["Image", "Hostname", "User", "WorkingDir", "Cmd", "Env", "Labels", "StopTimeout", "HostConfig", "NetworkingConfig"]);
-const HOST_KEYS = new Set(["Binds", "ReadonlyRootfs", "Tmpfs", "CapDrop", "CapAdd", "SecurityOpt", "Privileged", "NetworkMode", "PidMode", "IpcMode", "UsernsMode", "Devices", "PidsLimit", "Memory", "MemorySwap", "NanoCpus", "Init", "AutoRemove", "Ulimits", "LogConfig", "ExtraHosts", "Dns"]);
+const HOST_KEYS = new Set(["Binds", "ReadonlyRootfs", "Tmpfs", "CapDrop", "CapAdd", "SecurityOpt", "Privileged", "NetworkMode", "PidMode", "IpcMode", "UsernsMode", "Devices", "PidsLimit", "Memory", "MemorySwap", "NanoCpus", "Init", "AutoRemove", "Ulimits", "LogConfig", "ExtraHosts", "Dns", "MemoryReservation", "CpuShares"]);
 const emptyish = (v: unknown): boolean => v === undefined || v === null || v === false || v === "" || (Array.isArray(v) && v.length === 0) || (isObj(v) && Object.keys(v).length === 0);
 
 /** The agent a workspace container's labels name, or null. */
@@ -88,6 +88,8 @@ export function workspaceBody(name: string, body: unknown, netOk: (agentId: stri
   if (!(nano > 0 && nano <= WS_MAX.nanoCpus)) return { why: "a workspace needs a CPU cap of at most 4 CPUs" };
   if (!(mem > 0 && mem <= WS_MAX.memory) || Number(h["MemorySwap"]) !== mem) return { why: "a workspace needs a memory cap of at most 8 GB and no swap" };
   if (!(pids > 0 && pids <= WS_MAX.pids)) return { why: "a workspace needs a process cap of at most 2048" };
+  if (h["MemoryReservation"] !== undefined && !(Number(h["MemoryReservation"]) > 0 && Number(h["MemoryReservation"]) <= mem)) return { why: "a workspace's memory reservation is within its memory cap" };
+  if (h["CpuShares"] !== undefined && !(Number(h["CpuShares"]) >= 2 && Number(h["CpuShares"]) <= 1024)) return { why: "a workspace's CPU shares are at most 1024 (the default)" };
   const ul = Array.isArray(h["Ulimits"]) ? (h["Ulimits"] as unknown[]) : [];
   if (ul.some((u) => !isObj(u) || (u["Name"] !== "nofile" && u["Name"] !== "core"))) return { why: "a workspace takes no ulimit but nofile and core" };
   if (h["AutoRemove"] === true) return { why: "a workspace is removed by Vyre, not by Docker" };
