@@ -35,6 +35,8 @@ export function harness(opts: HarnessOptions = {}) {
   const emitted: Emitted[] = [];
   const called: Called[] = [];
   const denied = new Set<string>();
+  /** calendars the caller may open only through a role (an admin), not because anyone shared them: access.shares_of says so */
+  const roleOnly = new Set<string>();
   const members = new Map<string, string>(Object.entries(opts.members ?? { usr_maya01: "maya@vyre.test", usr_omar01: "omar@vyre.test" }));
   const meetings: Meeting[] = (opts.meetings ?? []).map((m) => ({ ...m, emails: [...m.emails], sources: [...m.sources] }));
   const failing = new Set<string>();
@@ -69,6 +71,12 @@ export function harness(opts: HarnessOptions = {}) {
       const scripted = scripts.get(cap);
       if (scripted) return scripted(body);
       switch (cap) {
+        // by default every calendar is shared with the caller (the harness allows everything not denied); one in roleOnly is open to the caller through their role alone
+        case "access.shares_of": {
+          const rid = String((body.resource as { id?: string }).id);
+          const me = (this as unknown as CalCtx).principal?.id ?? ctx.principal.id;
+          return { shares: roleOnly.has(rid) ? [{ through: "role", grant: { id: "gnt_role01", subject: { kind: "role", id: "admin" }, level: "manage" } }] : [{ through: "direct", grant: { id: "gnt_dir001", subject: { kind: "person", id: me }, level: "view" } }] };
+        }
         case "mail.mailbox.list":
           return {
             mailboxes: [...members].map(([owner, address]) => ({
@@ -126,7 +134,7 @@ export function harness(opts: HarnessOptions = {}) {
   ensure(ctx);
 
   return {
-    ctx, emitted, called, denied, members, meetings, google, graph,
+    ctx, emitted, called, denied, roleOnly, members, meetings, google, graph,
     advance(ms: number) { clock += ms; },
     fail(cap: string, on = true) { if (on) failing.add(cap); else failing.delete(cap); },
     script(cap: string, fn: (input: Record<string, unknown>) => unknown) { scripts.set(cap, fn); },

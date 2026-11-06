@@ -1,0 +1,40 @@
+// l-perf221: the CALWEEK_01 week with all-day and multi-day events for a UTC+5 and a UTC-8 viewer (?tzoff). Based on l-calendar-shoot: the CALWEEK_01 shots (week, day, month; the hover card is shot on the week). Lane screenshots without ensureDeps (the shared node_modules is never reinstalled): export the shots app once, serve it, shoot each CALWEEK_01 target in paper and graphite, at the
+// wide size and the phone size (a phone-only part is shot at the phone size only). Run on the build box from the worktree:
+//   node scripts/shots/notes-shoot.mjs [out-dir] [--skip-export] [--only=grid,take] [--size=wide|phone]
+import fs from "node:fs";
+import path from "node:path";
+import { execSync } from "node:child_process";
+const REPO = process.cwd();
+const { serve } = await import(path.join(REPO, "scripts/shots/serve.mjs"));
+const { routeUrl, loadTargets } = await import(path.join(REPO, "scripts/shots/lib.mjs"));
+const { exportEnv } = await import(path.join(REPO, "scripts/lib/registry-hash.mjs"));
+const appDir = path.join(REPO, "scripts/shots/app");
+const args = process.argv.slice(2);
+const out = args.find((a) => !a.startsWith("--")) || "/root/wt/tmp-l-calendar/ui-shots";
+const only = (args.find((a) => a.startsWith("--only=")) ?? "").slice(7).split(",").filter(Boolean);
+const sizeOnly = (args.find((a) => a.startsWith("--size=")) ?? "").slice(7);
+if (!args.includes("--skip-export")) {
+  fs.rmSync(path.join(appDir, "dist"), { recursive: true, force: true });
+  execSync((await import(path.join(process.cwd(), "scripts/shots/expo-cmd.mjs"))).exportCmd(process.cwd()), { cwd: appDir, stdio: "inherit", env: exportEnv() });
+}
+fs.mkdirSync(out, { recursive: true });
+const SIZES = { wide: { width: 1440, height: 900 }, phone: { width: 390, height: 844 } };
+const real = await serve(path.join(appDir, "dist"), { spa: true });
+const { createRequire } = await import("node:module");
+const { chromium } = createRequire(path.join(REPO, "package.json"))("playwright-core");
+const browser = await chromium.launch({ args: ["--no-sandbox"] });
+const t = loadTargets(path.join(REPO, "scripts/shots")).find((x) => x.id === "CALWEEK_01-week");
+for (const [zone, tzoff] of [["utc+5", 300], ["utc-8", -480], ["utc", 0]]) for (const skin of ["paper", "graphite"]) {
+  const ctx = await browser.newContext({ viewport: SIZES.wide, deviceScaleFactor: 1, colorScheme: skin === "graphite" ? "dark" : "light", reducedMotion: "reduce" });
+  const page = await ctx.newPage();
+  const url = routeUrl(real.origin, t.route + `&tzoff=${tzoff}`, skin);
+  await page.goto(url, { waitUntil: "load", timeout: 60000 }).catch(() => page.goto(url, { waitUntil: "load", timeout: 60000 }));
+  await page.waitForSelector(t.waitFor, { timeout: 8000 }).catch(() => {});
+  await page.waitForTimeout(1200);
+  const file = path.join(out, `week-allday-${zone}-${skin}-wide.png`);
+  await page.screenshot({ path: file });
+  console.log(`shot ${path.basename(file)}`);
+  await ctx.close();
+}
+await browser.close(); real.close();
+process.exit(0);

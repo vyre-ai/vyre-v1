@@ -15,7 +15,7 @@ import { Icon } from "../icons.tsx";
 import { LENGTHS, lengthText } from "../model.ts";
 import type { CalendarRow } from "../model.ts";
 import {
-  RESPONSE_LABEL, RSVP, editDraft, editInput, ended, eventLink, guestName, linkParts, repeatsLine, rsvpSummary, undoInput, whenLine, zoneName,
+  RESPONSE_LABEL, RSVP, editDraft, editInput, ended, eventLink, goneError, guestName, linkParts, repeatsLine, rsvpSummary, undoInput, whenLine, zoneName,
 } from "./model.ts";
 import type { Closeout, EditDraft, EventFull, EventRow, Prep, Response } from "./model.ts";
 import { BrandMark } from "./BrandMark.tsx";
@@ -83,6 +83,7 @@ export function EventPane(p: EventPaneProps): ReactElement {
   const c = data.clock();
   const [full, setFull] = useState<EventFull | null>(null);
   const [missing, setMissing] = useState(false);
+  const [unread, setUnread] = useState(false);
   const [rev, setRev] = useState(0);
   const [edit, setEdit] = useState<EditDraft | null>(null);
   const [err, setErr] = useState("");
@@ -94,9 +95,17 @@ export function EventPane(p: EventPaneProps): ReactElement {
 
   // the event, again whenever the calendar re-read its events or the pane changed it
   useEffect(() => {
-    let live = true;
-    void Promise.resolve(data.call("calendar.get_event", { eventId: p.eventId })).then((o) => { if (live) { setFull(o as EventFull); setMissing(false); } }, () => { if (live) setMissing(true); });
-    return () => { live = false; };
+    let live = true, timer: ReturnType<typeof setTimeout> | null = null;
+    // Only an answer that says the event is gone says so. A read that failed any other way (the server busy, a dropped link) is tried again, and the pane keeps what it had.
+    const read = (n: number): void => {
+      void Promise.resolve(data.call("calendar.get_event", { eventId: p.eventId })).then((o) => { if (live) { setFull(o as EventFull); setMissing(false); setUnread(false); } }, (x: unknown) => {
+        if (!live) return;
+        if (goneError(x)) { setMissing(true); setUnread(false); return; }
+        if (n < 4) timer = setTimeout(() => read(n + 1), 1500 * (n + 1)); else setUnread(true);
+      });
+    };
+    read(0);
+    return () => { live = false; if (timer) clearTimeout(timer); };
   }, [data, p.eventId, p.stamp, rev]);
   const e = full?.event;
   useEffect(() => { if (p.editing && e && !edit) setEdit(editDraft(e, c.offsetMin)); }, [p.editing, e?.id]); // eslint-disable-line react-hooks/exhaustive-deps -- a double-click starts the edit once the event is here
@@ -136,6 +145,7 @@ export function EventPane(p: EventPaneProps): ReactElement {
     try { const out = await data.call(cap, input); setRev((r) => r + 1); return out; } catch (x) { setErr((x as { message?: string }).message || "That did not go through. Try again."); throw x; }
   };
 
+  if (unread && !full) return <View style={st.pane} testID="event-pane"><Text style={st.quiet}>This event could not be opened just now. Close it and try again.</Text></View>;
   if (missing) return <View style={st.pane} testID="event-pane"><Text style={st.quiet}>This event is not there any more.</Text></View>;
   if (!e) return <View style={st.pane} testID="event-pane-loading" accessibilityLabel="Loading"><View style={st.skTitle} /><View style={st.skLine} /></View>;
 

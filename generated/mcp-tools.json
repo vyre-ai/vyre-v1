@@ -27503,6 +27503,9 @@
           },
           "timeMin": {
             "type": "string"
+          },
+          "updatedMin": {
+            "type": "string"
           }
         },
         "required": [

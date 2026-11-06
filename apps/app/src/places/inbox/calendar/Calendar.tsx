@@ -22,7 +22,7 @@ import { each } from "./each.ts";
 import { Icon } from "./icons.tsx";
 import { calendarMenuEntries, dayMenuEntries, eventMenuEntries, lengthMenuEntries, peopleMenuEntries } from "./menus.ts";
 import {
-  DAY, HH, HOUR, MONTH_CAP, allDayLane, availabilityLine, atSlot, blockOf, calReduce, clickCreate, clock, conflicts, dateOf, dayText, directoryOf, dragCreate, dragMove, dragResize, eventLine, eventsOn, freeLine, initialCal, isBand, isPast, lanesOf, monthCell, lengthText, menuFacts,
+  DAY, HH, HOUR, MONTH_CAP, allDayLane, allDayLocal, openHour, allDayToWire, availabilityLine, atSlot, blockOf, calReduce, clickCreate, clock, conflicts, dateOf, dayText, directoryOf, dragCreate, dragMove, dragResize, eventLine, eventsOn, freeLine, initialCal, isBand, isPast, lanesOf, monthCell, lengthText, menuFacts,
   minutes, monthOf, nameMap, newDraft, offsetToY, range, rangeShort, setLength, slotText, startOfDay, stripesOf, viewDays, viewRange, viewTitle, visibleCalendarIds, weekdayShort, whoLabel,
 } from "./model.ts";
 import type { Busy, CalendarRow, Draft, EventRow, Mode, Slot, Span } from "./model.ts";
@@ -175,7 +175,7 @@ function Grid({ p }: { p: CalendarProps }): ReactElement {
   const calendars = cals.status === "ready" ? cals.data.calendars : [];
   const shown = visibleCalendarIds(calendars, inbox.hiddenCalendars);
   const evq = useScreenQuery<EventsOut>(SCREEN, "events", { from: range0.from, to: range0.to, ...(cals.status === "ready" ? { calendarIds: shown } : {}) });
-  const events = evq.status === "ready" ? evq.data.events : [];
+  const events = useMemo(() => (evq.status === "ready" ? evq.data.events : []).map((x) => allDayLocal(x, off)), [evq, off]);
   const names = useMemo(() => nameMap(p.team), [p.team]);
 
   const shaded = cal.draft ? cal.draft.people.filter((x) => x !== p.me) : cal.people;
@@ -193,13 +193,12 @@ function Grid({ p }: { p: CalendarProps }): ReactElement {
     void findTime(data, shaded, length, Math.max(clockNow.now, today), today + 14 * DAY, 1).then((r) => { if (live) setFirst(r[0]); }).catch(() => undefined);
     return () => { live = false; };
   }, [shaded.join(), length, draftEnd, today]);
-  // the grid opens at the working day, or just above the current time when today is in view, but never below the earliest timed event shown (with half an hour of margin)
+  // the grid opens one hour above the current time when today is in view (an early event does not pull it up to midnight); another week opens at the working day, but never below its earliest timed event (half an hour of margin)
   useEffect(() => {
     if (cal.mode === "month") { scroll.current?.scrollTo?.({ y: 0, animated: false }); return; }
     const vd = viewDays(cal.mode, cal.day, off);
-    const base = vd.includes(today) ? Math.max(0, (clockNow.now - today) / HOUR - 2.5) : 7.5;
     const firsts = events.filter((e) => !e.allDay && !isBand(e) && e.status !== "canceled").flatMap((e) => vd.filter((d) => e.startsAt >= d && e.startsAt < d + DAY).map((d) => (e.startsAt - d) / HOUR));
-    scroll.current?.scrollTo?.({ y: Math.max(0, Math.min(base, (firsts.length ? Math.min(...firsts) : 24) - 0.5)) * HH, animated: false });
+    scroll.current?.scrollTo?.({ y: openHour(vd.includes(today), (clockNow.now - today) / HOUR, firsts) * HH, animated: false });
   }, [cal.mode, evq.status]); // eslint-disable-line react-hooks/exhaustive-deps -- on open, when the mode changes and when the events arrive
 
   const calId = cal.draft?.calendarId ?? calendars.find((c) => !c.personal)?.id ?? calendars[0]?.id ?? "";
@@ -234,7 +233,7 @@ function Grid({ p }: { p: CalendarProps }): ReactElement {
       openRecord: () => { const r = e.recordIds[0]; if (r) p.onOpenRecord?.(r); },
       openConversation: () => { const c = e.attendees.find((a) => a.contactId)?.contactId; if (c) p.onOpenConversation?.(c); },
       moveTo: (id) => void moveToCalendar(data, e.id, id).catch(fail),
-      duplicate: () => void duplicateEvent(data, e).then((c) => dispatch({ type: "select", id: c.id })).catch(fail),
+      duplicate: () => void duplicateEvent(data, allDayToWire(e, off)).then((c) => dispatch({ type: "select", id: c.id })).catch(fail),
       remove: () => remove(e),
     }, mine), x, y);
     void Promise.resolve(data.call("calendar.get_event", { eventId: e.id })).then((o) => {

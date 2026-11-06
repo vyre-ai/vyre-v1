@@ -27,9 +27,9 @@ export function zoneName(at: number): string {
   }
 }
 
-/** "Thursday, Oct 9 · 2:00 to 2:45 PM", or "· All day", in the viewer's time. */
+/** "Thursday, Oct 9 · 2:00 to 2:45 PM", or "· All day", in the viewer's time (an all-day event is a date, so it reads in UTC like the server keeps it). */
 export function whenLine(e: Pick<EventRow, "startsAt" | "endsAt" | "allDay">, offsetMin: number): string {
-  return e.allDay ? `${dayText(e.startsAt, offsetMin)} · All day` : `${dayText(e.startsAt, offsetMin)} · ${range(e.startsAt, e.endsAt, offsetMin)}`;
+  return e.allDay ? `${dayText(e.startsAt, 0)} · All day` : `${dayText(e.startsAt, offsetMin)} · ${range(e.startsAt, e.endsAt, offsetMin)}`;
 }
 
 /** "Every Monday", "Every other Thursday", "Every weekday": what the instances of the series say. */
@@ -118,4 +118,10 @@ export const ended = (e: Pick<EventRow, "endsAt">, now: number): boolean => e.en
 export function relDay(at: number, now: number, offsetMin: number): string {
   const d = Math.round((startOfDay(at, offsetMin) - startOfDay(now, offsetMin)) / DAY);
   return d === 0 ? `Today ${clock(at, offsetMin)}` : d === -1 ? `Yesterday ${clock(at, offsetMin)}` : dayText(at, offsetMin);
+}
+
+/** True when a failed read says the event does not exist (validation.not_found), as opposed to a read that did not get through. */
+export function goneError(x: unknown): boolean {
+  const e = x as { code?: unknown; error?: { code?: unknown } } | null;
+  return e?.code === "validation.not_found" || e?.error?.code === "validation.not_found";
 }

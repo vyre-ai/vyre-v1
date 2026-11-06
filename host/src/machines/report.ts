@@ -8,7 +8,7 @@ export interface Specs { os: string; arch: string; cores: number; memBytes: numb
 export interface Load { cpuPct: number; memUsedBytes: number; diskFreeBytes: number; netInBps: number; netOutBps: number }
 export interface Runs { turns: number; agentComputers: number; sites: number; automations: number }
 /** Vyre's own share of this machine: its processes' CPU and memory. */
-export interface VyreShare { cpuPct: number; memBytes: number }
+export interface VyreShare { cpuPct: number; memBytes: number; /** the largest event-loop lag in ms since the last report: a job holding the loop shows here */ loopLagMs?: number }
 export interface Report { specs: Specs; load: Load; runs: Runs; can: Can[]; version: string; vyre?: VyreShare }
 
 /** One report is far smaller than this; a longer frame is not one. */
@@ -34,12 +34,12 @@ export function parseReport(x: unknown): Report | null {
   const gpu = text(s["gpu"], 80);
   const can = Array.isArray(m["can"]) ? [...new Set(m["can"].filter((c): c is Can => (CAN as readonly unknown[]).includes(c)))] : [];
   const v = (m["vyre"] ?? null) as Record<string, unknown> | null;
-  const vc = v ? num(v["cpuPct"], 0, 100) : null, vm = v ? num(v["memBytes"], 0, TB) : null;
+  const vc = v ? num(v["cpuPct"], 0, 100) : null, vm = v ? num(v["memBytes"], 0, TB) : null, vl = v ? num(v["loopLagMs"], 0, 3_600_000) : null;
   return {
     specs: { os, arch, cores: Math.round(cores), memBytes: Math.round(memBytes), diskBytes: Math.round(diskBytes), ...(gpu ? { gpu } : {}) },
     load: { cpuPct: Math.round(cpu * 10) / 10, memUsedBytes: Math.round(Math.min(memUsed, memBytes || memUsed)), diskFreeBytes: Math.round(Math.min(diskFree, diskBytes || diskFree)), netInBps: Math.round(nin ?? 0), netOutBps: Math.round(nout ?? 0) },
     runs: { turns: Math.round(num(r["turns"], 0, 10_000) ?? 0), agentComputers: Math.round(num(r["agentComputers"], 0, 10_000) ?? 0), sites: Math.round(num(r["sites"], 0, 10_000) ?? 0), automations: Math.round(num(r["automations"], 0, 100_000) ?? 0) },
     can, version,
-    ...(vc !== null && vm !== null ? { vyre: { cpuPct: Math.round(vc * 10) / 10, memBytes: Math.round(vm) } } : {}),
+    ...(vc !== null && vm !== null ? { vyre: { cpuPct: Math.round(vc * 10) / 10, memBytes: Math.round(vm), ...(vl !== null ? { loopLagMs: Math.round(vl) } : {}) } } : {}),
   };
 }
