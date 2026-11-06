@@ -4,23 +4,37 @@
 import type { DockerHttp, DockerRequest, DockerResponse } from "../../sandbox/src/docker.ts";
 import type { WorkspaceManager, WorkspaceRow, WorkspaceStatus } from "./workspace.ts";
 
-/** Bytes of a body that fit one frame of the node's socket once base64 has grown them (host/src/compute/docker-ask.ts MAX_BODY). */
-export const MAX_LINK_BODY = 2_500_000;
+/** Bytes of a body in one frame of the node's socket once base64 has grown them (host/src/compute/docker-ask.ts CHUNK); a larger one travels in pieces of this size. */
+export const CHUNK = 2_000_000;
+/** The most a body may hold in all its pieces (host/src/compute/docker-ask.ts MAX_TOTAL). */
+export const MAX_LINK_BODY = 300 * 1024 * 1024;
 
-/** A DockerHttp whose engine is on a node: each request is one question over the node's socket. */
+/** A DockerHttp whose engine is on a node: each request is a question over the node's socket, and a body larger than one frame goes in pieces, staged on the node before the request that uses it; an answer larger than one frame comes back in pieces. */
 export function remoteDockerHttp(ask: (input: unknown, timeoutMs: number) => Promise<unknown>): DockerHttp {
+  type Answer = { status?: number; bodyB64?: string; more?: { id: string; chunks: number } } | null;
+  const rid = (): string => Array.from(globalThis.crypto.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, "0")).join("");
   return async (req: DockerRequest): Promise<DockerResponse> => {
     const body = req.json !== undefined ? undefined : req.body;
     if (body && body.length > MAX_LINK_BODY) throw new Error("That is too large to send to the server.");
     const timeoutMs = req.timeoutMs ?? 60_000;
-    const input = {
-      method: req.method, path: req.path, ...(req.query ? { query: req.query } : {}),
-      ...(req.json !== undefined ? { jsonText: JSON.stringify(req.json) } : body ? { bodyB64: Buffer.from(body).toString("base64") } : {}),
-      ...(req.contentType ? { contentType: req.contentType } : {}), timeoutMs,
-    };
-    const out = (await ask(input, timeoutMs + 10_000)) as { status?: number; bodyB64?: string } | null;
+    let bodyPart: Record<string, unknown> = {};
+    if (req.json !== undefined) bodyPart = { jsonText: JSON.stringify(req.json) };
+    else if (body && body.length > CHUNK) {
+      const id = rid();
+      const total = Math.ceil(body.length / CHUNK);
+      for (let i = 0; i < total; i++) await ask({ method: "PUT", path: "/", stage: { id, index: i, total }, bodyB64: Buffer.from(body.subarray(i * CHUNK, (i + 1) * CHUNK)).toString("base64") }, 30_000);
+      bodyPart = { stagedId: id };
+    } else if (body) bodyPart = { bodyB64: Buffer.from(body).toString("base64") };
+    const input = { method: req.method, path: req.path, ...(req.query ? { query: req.query } : {}), ...bodyPart, ...(req.contentType ? { contentType: req.contentType } : {}), timeoutMs };
+    const out = (await ask(input, timeoutMs + 10_000)) as Answer;
     if (!out || typeof out.status !== "number") throw new Error("The server did not answer for Docker.");
-    return { status: out.status, body: new Uint8Array(Buffer.from(out.bodyB64 ?? "", "base64")) };
+    const parts: Buffer[] = [Buffer.from(out.bodyB64 ?? "", "base64")];
+    if (out.more) for (let i = 1; i < out.more.chunks; i++) {
+      const piece = (await ask({ method: "GET", path: "/", chunk: { id: out.more.id, index: i } }, 30_000)) as Answer;
+      if (!piece || typeof piece.status !== "number") throw new Error("The server did not finish its answer for Docker.");
+      parts.push(Buffer.from(piece.bodyB64 ?? "", "base64"));
+    }
+    return { status: out.status, body: new Uint8Array(Buffer.concat(parts)) };
   };
 }
 

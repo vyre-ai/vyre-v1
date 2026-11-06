@@ -63,6 +63,16 @@ test("a Personal Space with no runtime of its own runs an agent's workspace on a
   const rows = (await ok(d, "terminal.list", {})).terminals as Array<{ name: string; host: string; hostTitle: string }>;
   assert.deepEqual(rows.map((r) => [r.name, r.host]).sort(), [["agent", "agent_computer"], ["server", "agent_computer"]]);
   assert.equal(rows[0]!.hostTitle, "Workspace");
+  // a file bigger than one frame of the node's socket reaches the agent's folder in Files: the mirror reads ~/Vyre as a tar of several pieces
+  await ok(d, "terminal.run", { command: "head -c 6000000 /dev/urandom > ~/Vyre/big.bin", host: "agent_computer", agentId: agent, timeoutSec: 60 });
+  const folderId = (await ok(d, "agents.get", { agentId: agent })).agent.folderId as string;
+  let size = 0;
+  for (let i = 0; i < 40 && size === 0; i++) {
+    const l = (await ok(d, "files.list", { section: "space", folder: folderId })).files as Array<{ name: string; size: number }>;
+    size = l.find((f) => f.name === "big.bin")?.size ?? 0;
+    if (size === 0) await new Promise((r) => setTimeout(r, 1000));
+  }
+  assert.equal(size, 6_000_000, "the 6 MB file is in Files");
   const att = await ok(d, "terminal.attach", { terminalId: run.terminalId });
   assert.match(att.replay, /echo hi/);
   assert.equal((await docker(["exec", name, "tmux", "list-sessions", "-F", "#{session_name}"])).out.trim().split("\n").length, 2);
