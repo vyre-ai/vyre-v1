@@ -605,3 +605,13 @@ test("a failed write says why in the app's own words, and a computer that could 
   assert.equal(reasonOf(new Error("Not allowed.")), "Not allowed");
   assert.equal(reasonOf("not an error"), "");
 });
+
+test("a computer that is working with its browser up is ready: no step waits for a sign-in that nothing does", async () => {
+  const { setupStep, isSettingUp, SETUP_STEPS } = await import("./ComputerTab.tsx");
+  assert.ok(!SETUP_STEPS.some((s) => /Signing in/.test(s)));
+  const base = { state: "working" as const, tabs: 1, lastFrameAt: undefined, caption: undefined };
+  assert.equal(isSettingUp(base as never), false, "tabs open, no caption, no frame: ready");
+  assert.equal(isSettingUp({ ...base, tabs: 0 } as never), true, "Chrome still coming up");
+  assert.equal(setupStep({ ...base, tabs: 0 } as never), 2);
+  assert.equal(isSettingUp({ ...base, state: "waking" } as never), true);
+});

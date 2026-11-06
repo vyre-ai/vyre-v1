@@ -67,6 +67,7 @@ import { AttachmentChips, LinkedText, MountRefs, refsOf } from "./attachments.ts
 import { unnamed } from "../names.ts";
 import type { ConversationData } from "./data.tsx";
 import type { GlyphName } from "./parts.tsx";
+import { GATE, allows, useOptionalShellRuntime } from "../../../shell/providers/runtime.tsx";
 import { hookLineOf, hookLineText, pokeLine, pokedBy, reportLabel, bodyBlocks, cardLine, collect, errorRow, isCard, isErrorBlock, isSystemLine, isTurnStatus, onBehalfOf, planSteps, questionOptions, statusView, terminalAskOf, workOf } from "./model.ts";
 import type { CardLine, Item, Message } from "./model.ts";
 import { MARK } from "./marks.ts";
@@ -457,7 +458,9 @@ function Theirs({ item, actions, stream, openWork, mark, meId, replies }: Messag
   const [workOpen, setWorkOpen] = useState(openWork === true);
   const crewStart = m.blocks.find(isCrewStart);
   const cards = m.blocks.filter((b) => isCard(b) && !isCrewStart(b));
-  const statuses = m.blocks.filter(isTurnStatus).map(statusView);
+  const rtStatus = useOptionalShellRuntime();
+  const viewerAdmin = rtStatus !== null && allows(rtStatus, GATE.provisionComputer);
+  const statuses = m.blocks.filter(isTurnStatus).map((b) => statusView(b, { admin: viewerAdmin }));
   // a held call has one card, however many ways the turn named it: the approval card
   const parked = new Set(statuses.flatMap((x) => (x.kind === "approval" ? [x.taskId] : [])));
   const errors = [...m.blocks.filter(isErrorBlock), ...statuses.flatMap((x) => (x.kind === "error" ? [x.block] : []))];
@@ -705,7 +708,7 @@ function Card({ line, actions }: { line: CardLine; actions: MessageActions }): R
 
 /* ---------- errors: what, why, next ---------- */
 
-function ErrorRowView({ block, actions }: { block: Message["blocks"][number]; actions: MessageActions }): ReactElement {
+export function ErrorRowView({ block, actions }: { block: Message["blocks"][number]; actions: MessageActions }): ReactElement {
   const e = errorRow(block);
   const [open, setOpen] = useState(false);
   const [detail, setDetail] = useState<[string, string][] | null>(null);

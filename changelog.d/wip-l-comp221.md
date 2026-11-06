@@ -1,0 +1,4 @@
+- Agent computer: the setup checklist no longer sticks on "Signing in to Vyre" (nothing signs in); a working computer with its browser up is ready, and the steps are the machine, the start and Chrome.
+- An agent refused computers.provision tells the person that a person presses Give it a computer in the About tab, and a card in the chat opens the agent, instead of "I don't have permission".
+- Error card for an engine that stopped: names a server setup cause (sandbox could not start, image missing) in plain words and says trying again fails the same way until it is fixed, with no Retry.
+- Error card no longer tells the Space owner or an admin to send it to an admin.
