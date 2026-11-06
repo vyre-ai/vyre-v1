@@ -150,3 +150,26 @@ test("a message with a status card is never folded, and no jump row repeats it",
   assert.ok(!rows.some((r) => r.kind === "jump"), "the card says it: no jump row repeats it in the transcript");
   assert.equal(jumpOf(merged)?.label, "PR merged", "but it is still a jump point for the Overview");
 });
+
+test("message times in a long session read 11:28 PM, the one format; a short chat keeps its own", () => {
+  seq = 600;
+  const msgs = [me(T0), ...pad(7, T0 + MIN), msg({ at: T0 + 3 * H + 28 * MIN, body: "late" })];
+  const rows = sessionItems(timeline(msgs, ctx), msgs, { meId: "usr_me", clock, nameOf, since: null, openedAt: T0 });
+  const late = rows.find((r) => r.kind === "other" && r.message.body === "late");
+  assert.equal(late && late.kind === "other" && late.time, "11:28 PM");
+  const first = rows.find((r) => r.kind === "me");
+  assert.equal(first && first.kind === "me" && first.time, "8:00 PM");
+});
+
+test("hour marks only move forward: an away row that began in an earlier hour than the row above adds none", () => {
+  seq = 700;
+  const seen = me(T0);
+  // a later message sits before the quiet run in the timeline (an out-of-order arrival), the run began an hour earlier
+  const late = msg({ at: T0 + 3 * H, body: "x".repeat(200) });
+  const quiet = (i: number) => msg({ at: T0 + 2 * H + i * MIN, body: `q${i}` });
+  const msgs = [seen, ...pad(3, T0 + MIN), late, ...[0, 1, 2, 3, 4].map(quiet), me(T0 + 5 * H)];
+  const rows = sessionItems(timeline(msgs, ctx), msgs, { meId: "usr_me", clock, nameOf, since: seen.threadSeq, openedAt: T0 + 6 * H });
+  assert.ok(rows.some((r) => r.kind === "away"), "the run folded");
+  const labels = rows.filter((r) => r.kind === "hour").map((r) => (r as { label: string }).label);
+  assert.deepEqual(labels, ["8 PM", "11 PM", "1 AM"], "forward only: no 10 PM after 11 PM");
+});

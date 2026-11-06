@@ -37,7 +37,8 @@ export function timeWords(ts: number, c: Clock): string {
   const [h, m] = timeLabel(ts, c).split(":").map(Number) as [number, number];
   return `${h % 12 === 0 ? 12 : h % 12}:${String(m).padStart(2, "0")} ${h < 12 ? "AM" : "PM"}`;
 }
-const hourKey = (ts: number, c: Clock): string => `${Math.floor(ts / HOUR)}:${timeLabel(ts, c).slice(0, 2)}`;
+/** The absolute hour a moment is in: hour marks only ever move to a later one. */
+const hourBucket = (ts: number): number => Math.floor(ts / HOUR);
 
 /* ---------- jump points ---------- */
 
@@ -182,18 +183,20 @@ export function sessionItems(items: readonly Item[], messages: readonly Message[
   if (first) first.needs = waiting;
   // 2. hour marks and jump rows
   const out: SessionItem[] = [];
-  let lastHour = "";
+  let lastBucket = -Infinity;
   for (const it of folded) {
     const m = it.kind === "away" ? messageOf(it.items[0]!) : it.kind === "day" ? null : messageOf(it);
-    if (it.kind === "day") { out.push(it); lastHour = ""; continue; }
+    if (it.kind === "day") { out.push(it); lastBucket = -Infinity; continue; }
     if (m) {
-      const hk = hourKey(m.createdAt, o.clock);
-      if (hk !== lastHour) { out.push({ kind: "hour", key: `hour-${m.messageId}`, label: hourLabel(m.createdAt, o.clock) }); lastHour = hk; }
+      // a mark appears only when the hour moves forward from the row above; a row that began earlier (an away row is placed where it happened) never walks the spine back
+      const hb = hourBucket(m.createdAt);
+      if (hb > lastBucket) { out.push({ kind: "hour", key: `hour-${m.messageId}`, label: hourLabel(m.createdAt, o.clock) }); lastBucket = hb; }
     }
     const jump = it.kind !== "away" && m ? jumpOf(m) : null;
     // an event that is itself the jump point becomes the jump row; any other message keeps its place and the row follows it
     if (jump && it.kind === "event" && m && !hasCard(m)) { out.push({ kind: "jump", key: `jump-${jump.messageId}`, messageId: jump.messageId, label: jump.label, sub: jump.sub, time: timeWords(jump.at, o.clock) }); continue; }
-    out.push(it);
+    // one time format in a long session: "10:28 PM", the one the cards and the pane use
+    out.push(m && (it.kind === "event" || it.kind === "me" || it.kind === "other") ? { ...it, time: timeWords(m.createdAt, o.clock) } : it);
     // a card says it already: its jump point lives in the Overview, so the transcript does not repeat it under the card
     if (jump && !(m && hasCard(m))) out.push({ kind: "jump", key: `jump-${jump.messageId}`, messageId: jump.messageId, label: jump.label, sub: jump.sub, time: timeWords(jump.at, o.clock) });
   }
