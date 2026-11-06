@@ -46,9 +46,6 @@ export async function openOn(d: Pick<TerminalData, "call" | "newKey">, h: HostCh
   return ((await d.call(c.cap, c.input)) as { terminal: { terminalId: string } }).terminal.terminalId;
 }
 
-/** Open terminal is offered unless the chat has an agent computer: a terminal on an agent computer is not built yet (the terminal host runs on a person's device only), so the button would always fail. */
-export const canOpenTerminal = (d: Pick<TerminalData, "agent">): boolean => !d.agent?.computerId;
-
 export function TerminalPaneTab({ data }: { data: TerminalData }): ReactElement {
   const [id, setId] = useState<string | null | undefined>(undefined);
   const [busy, setBusy] = useState(false);
@@ -90,9 +87,6 @@ export function TerminalPaneTab({ data }: { data: TerminalData }): ReactElement 
               </Pressable>
             ))}
           </View>
-        ) : !canOpenTerminal(data) ? (
-          // a terminal on an agent computer is not built yet: no button that always fails
-          <Text testID="terminal-pane-agent-none" style={st.hint}>A terminal on {data.agent?.name ?? "the agent"}'s computer is not available yet. Its browser is.</Text>
         ) : (
           <Pressable accessibilityRole="button" accessibilityLabel="Open terminal" testID="terminal-pane-open" disabled={busy} onPress={open} style={[st.btn, busy && { opacity: 0.5 }]}><Text style={st.btnText}>Open terminal</Text></Pressable>
         )}
