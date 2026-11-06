@@ -78,7 +78,10 @@ test("the live view's helpers: addresses, pointer positions in the browser's own
   assert.equal(viewUrl(undefined, "https://x/y"), "https://x/y");
   assert.equal(socketUrl("https://space.example", "/browsers/agt_dex/ws?ticket=t"), "wss://space.example/browsers/agt_dex/ws?ticket=t");
   assert.equal(socketUrl("http://localhost:3000", "/browsers/a/ws?ticket=t"), "ws://localhost:3000/browsers/a/ws?ticket=t");
-  assert.deepEqual(pointOf(150, 100, { width: 300, height: 200 }), { x: BROWSER_VIEW.width / 2, y: BROWSER_VIEW.height / 2 });
+  assert.deepEqual(pointOf(160, 100, { width: 320, height: 200 }), { x: BROWSER_VIEW.width / 2, y: BROWSER_VIEW.height / 2 }, "no size said: the default");
+  assert.deepEqual(pointOf(150, 100, { width: 300, height: 200 }, { width: 1280, height: 713 }), { x: 640, y: 357 }, "the size the stream reported, not a constant");
+  assert.deepEqual(pointOf(150, 150, { width: 300, height: 300 }, { width: 1280, height: 800 }), { x: 640, y: 400 }, "centre of a picture with bars above and below");
+  assert.deepEqual(pointOf(150, 10, { width: 300, height: 300 }, { width: 1280, height: 800 }), { x: 640, y: 0 }, "a press on a bar goes to the page's edge");
   assert.deepEqual(pointOf(999, -5, { width: 300, height: 200 }), { x: 1279, y: 0 }, "clamped to the page");
   assert.deepEqual(pointOf(5, 5, { width: 0, height: 0 }), { x: 0, y: 0 });
   assert.deepEqual(keyMessages({ key: "a" }), [{ t: "type", text: "a" }]);
