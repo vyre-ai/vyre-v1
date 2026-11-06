@@ -41,7 +41,6 @@ test("only connected accounts are offered, by the name the person gave (the prov
   assert.deepEqual([a!.modelTitle, a!.accountName, a!.effort, a!.provider, a!.context], ["Sonnet 5.5", "MLA work", "high", "anthropic", { used: 9, window: 10 }]);
   const [solo] = stripAgents(thread, () => "Intake", accts.filter((x) => x.ref !== "#cl_personal"), new Map());
   assert.equal(solo!.accountName, undefined, "one account of the provider: no name on the strip");
-  assert.equal(prettyModel("gpt-5"), "GPT 5");
   assert.equal(prettyModel("opus"), "Opus");
 });
 
@@ -178,4 +177,11 @@ test("a chat with no pick of its own shows the last pick before its first turn; 
   assert.deepEqual([shown.agents[0]!.model, shown.agents[0]!.provider, shown.agents[0]!.effort], ["glm-5", "opencode-go", "high"]);
   assert.equal(withLastPick(thread, { model: "glm-5" }).agents[0]!.model, "claude-sonnet-5-5", "its own pick wins");
   assert.equal(withLastPick(bare, { model: "auto" }).agents[0]!.model, "auto");
+});
+
+test("a model reads the way its provider names it everywhere: the listed title wins, and GLM and GPT keep their capitals", async () => {
+  const { menuModels } = await import("./live-models.ts");
+  assert.equal(prettyModel("glm-5"), "GLM 5");
+  menuModels({ models: [{ model: "k2-thinking", title: "Kimi K2 Thinking", allowed: true }] });
+  assert.equal(prettyModel("k2-thinking"), "Kimi K2 Thinking");
 });

@@ -15,13 +15,12 @@ export interface SignInProps {
   onGithub?: () => void;
   onRecoveryCode?: () => void;
   onBack?: () => void;
-  unlock?: boolean;
 }
 
-export function SignIn({ invite, state, dispatch, busy, onSubmit, onSso, onGithub, onRecoveryCode, onBack, unlock }: SignInProps) {
+export function SignIn({ invite, state, dispatch, busy, onSubmit, onSso, onGithub, onRecoveryCode, onBack }: SignInProps) {
   const totp = state.si === "totp";
   const go = (): void => { if (onSubmit) onSubmit(); else dispatch({ t: "next" }); };
-  const label = busy ? "Signing in" : unlock ? "Unlock" : "Sign in";
+  const label = busy ? "Signing in" : "Sign in";
   const bar = <Bar onBack={() => { if (!totp && onBack) onBack(); else dispatch({ t: "back" }); }} cont={<Button testID="next" label={label} busy={!!busy} disabled={!signInValid(state)} onPress={go} />} />;
   const help = onRecoveryCode ? <Links><TextButton testID={totp ? "recovery-code-link" : "signin-help"} label={totp ? "Use a recovery code" : "Forgot password"} onPress={onRecoveryCode} /></Links> : undefined;
   const others = !totp && (invite.sso.length || invite.github) ? (
@@ -43,7 +42,7 @@ export function SignIn({ invite, state, dispatch, busy, onSubmit, onSso, onGithu
         </Step>
       ) : (
         <Step id="sign-in">
-          <Title title={unlock ? "Unlock Vyre" : `Sign in to ${invite.space}`} sub={unlock ? "Sign in again" : invite.space === invite.host ? undefined : invite.host} />
+          <Title title={`Sign in to ${invite.space}`} sub={invite.space === invite.host ? undefined : invite.host} />
           <Group>
             <FieldRow testID="si-user" label="Username" value={state.siUser} onChange={(v) => dispatch({ t: "set", patch: { siUser: cleanUsername(v), error: "" } })} autoComplete="username" onSubmit={go} disabled={!!busy} />
             <FieldRow testID="si-password" label="Password" value={state.siPw} onChange={(v) => dispatch({ t: "set", patch: { siPw: v, error: "" } })} secure visibilityTestID="si-password-visibility" autoComplete="current-password" onSubmit={go} disabled={!!busy} error={!!state.error} />

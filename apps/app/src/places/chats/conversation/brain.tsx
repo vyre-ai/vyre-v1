@@ -13,7 +13,7 @@ import { isAssistantId } from "../../../../../../ui/src/Avatar/index.tsx";
 import { useOpenConnect } from "../../../shell/connect/context.ts";
 import type { ConversationData } from "./data.tsx";
 import type { Thread, ThreadAgent } from "./model.ts";
-import { loadMenuModels, pickedRow, pickUnavailable } from "./live-models.ts";
+import { listedTitle, loadMenuModels, pickedRow, pickUnavailable } from "./live-models.ts";
 import type { ModelsOut } from "./live-models.ts";
 import type { MenuModel } from "./live-models.ts";
 
@@ -115,13 +115,13 @@ export function entryOf(accounts: readonly PanelAccount[] | null | undefined, re
 /** "claude-sonnet-5-5" reads "Sonnet 5.5"; a model the catalog named keeps that name. */
 export function prettyModel(model: string | undefined, titles?: ReadonlyMap<string, string>): string {
   if (!model) return "";
-  const known = titles?.get(model);
+  const known = titles?.get(model) ?? listedTitle(model);
   if (known) return known;
   const parts = model.replace(/^(claude|gpt|grok)-(?=[a-z])/i, "").split("-");
   const words: string[] = [];
   const nums: string[] = [];
   for (const p of parts) (/^\d+$/.test(p) ? nums : words).push(p);
-  const name = words.map((w) => (w.length <= 3 && /^gpt$/i.test(w) ? w.toUpperCase() : w.charAt(0).toUpperCase() + w.slice(1))).join(" ");
+  const name = words.map((w) => (/^(gpt|glm|oss|llm)$/i.test(w) ? w.toUpperCase() : w.charAt(0).toUpperCase() + w.slice(1))).join(" ");
   return [name, nums.join(".")].filter(Boolean).join(" ") || model;
 }
 

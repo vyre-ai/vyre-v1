@@ -14,55 +14,8 @@ import { Bar, Button, ErrorLine, Field, Group, JoinFrame, Links, Opening, Panel,
 import { whenUsable } from "../../startup/marks.ts";
 import { MANY_TRIES, TOO_MANY } from "../../join/failure.ts";
 
-/** How long the lock screen holds Unlock after too many wrong passwords. */
-export const LOCK_WAIT_MS = 30_000;
-
 /** The app is mounted but not drawn yet: the first frame stays until the first place is usable. */
 function HoldUntilUsable(): null { useHoldFirstFrame(whenUsable); return null; }
-
-export function LockScreen({ name, onUnlock, onForgot, onSignOut, onSkip, notice, sub }: { name: string; onUnlock: (password: string) => Promise<void>; onForgot?: () => void; onSignOut?: () => void; /** a Space server: go on without unlocking; the Mine items stay closed */ onSkip?: () => void; /** one quiet line under the greeting: why the lock is back while Vyre was open */ sub?: string; /** a line to start with: the Space on this computer did not answer */ notice?: string }): ReactElement {
-  const [password, setPassword] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState(notice ?? "");
-  const [held, setHeld] = useState(false);
-  const misses = useRef(0);
-  const alive = useRef(true);
-  useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
-  const submit = useCallback((): void => {
-    if (busy || held || password === "") return;
-    setBusy(true); setError("");
-    onUnlock(password).catch((e: unknown) => {
-      if (!alive.current) return;
-      const line = e instanceof Error && e.message ? e.message : OFFLINE_OWN;
-      setBusy(false); setPassword("");
-      if (line !== WRONG_PASSWORD) { setError(line); return; }
-      misses.current++;
-      if (misses.current < MANY_TRIES) { setError(line); return; }
-      misses.current = 0; setError(TOO_MANY); setHeld(true);
-      setTimeout(() => { if (alive.current) { setHeld(false); setError(""); } }, LOCK_WAIT_MS);
-    });
-  }, [busy, held, onUnlock, password]);
-  const gone = error === SESSION_OVER;
-  return (
-    <JoinFrame>
-      <Panel hug below={<LockLinks {...(onForgot ? { onForgot } : {})} {...(onSignOut && !gone ? { onSignOut } : {})} {...(onSkip && !gone ? { onSkip } : {})} />} bar={<Bar cont={gone && onSignOut ? <Button label="Sign in" onPress={onSignOut} testID="lock-signout" /> : <Button label={busy ? "Unlocking" : "Unlock"} onPress={submit} busy={busy} disabled={password === "" || held} testID="lock-unlock" />} />}>
-        <Step id="lock">
-          <Title title={name ? `Welcome back, ${name}` : "Welcome back"} {...(sub ? { sub } : {})} />
-          <Group>
-            <Field label="Password" value={password} onChange={(v) => { setPassword(v); if (!held) setError(""); }} secure autoFocus onSubmit={submit} disabled={busy} testID="lock-password" autoComplete="current-password" error={!!error && !held} visibilityTestID="lock-password-visibility" />
-          </Group>
-          <ErrorLine testID="lock-error" collapse>{error}</ErrorLine>
-        </Step>
-      </Panel>
-    </JoinFrame>
-  );
-}
-
-/** The two ways out of the lock screen, under the sheet's primary. */
-function LockLinks({ onForgot, onSignOut, onSkip }: { onForgot?: () => void; onSignOut?: () => void; onSkip?: () => void }): ReactElement | null {
-  if (!onForgot && !onSignOut && !onSkip) return null;
-  return <Links>{onSkip ? <TextButton label="Not now" onPress={onSkip} testID="lock-skip" /> : null}{onForgot ? <TextButton label="Forgot password" onPress={onForgot} testID="lock-forgot" /> : null}{onSignOut ? <TextButton label="Sign out" onPress={onSignOut} testID="lock-signout" /> : null}</Links>;
-}
 
 /** An account with no password key: nothing to unlock here, said plainly, with the way on. */
 export function NoPasswordKey({ onContinue, onSignOut }: { onContinue: () => void; onSignOut?: () => void }): ReactElement {
