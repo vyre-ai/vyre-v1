@@ -161,9 +161,10 @@ test("drag: the selection travels together, a drop moves each file into the fold
   assert.deepEqual(parsePayload("file:fil_deck,folder:fld_proposals,junk"), [{ type: "file", id: "fil_deck" }, { type: "folder", id: "fld_proposals" }]);
   const here = (): string | null => "fld_sales";
   assert.deepEqual(dropMoves(parsePayload("file:fil_deck,folder:fld_proposals"), "fld_billing", here), [
-    { cap: "files.move", input: { fileId: "fil_deck", toFolderId: "fld_billing" } }, { cap: "folders.move", input: { folderId: "fld_proposals", parentId: "fld_billing" } },
+    { cap: "files.move", input: { fileId: "fil_deck", toFolderId: "fld_billing" } }, { cap: "files.folder.move", input: { folderId: "fld_proposals", toParentId: "fld_billing" } },
   ]);
   assert.deepEqual(dropMoves(parsePayload("folder:fld_proposals"), "fld_proposals", here), [], "a folder cannot go into itself");
+  assert.deepEqual(dropMoves(parsePayload("folder:fld_proposals"), null, here), [{ cap: "files.folder.move", input: { folderId: "fld_proposals" } }], "dropped on All files: no destination, the top of its own tree");
   assert.deepEqual(dropMoves(parsePayload("file:fil_deck"), "fld_sales", here), [], "a file already there stays");
 });
 
@@ -176,7 +177,7 @@ test("drag into a folder moves the file: the next render lists it there and not 
   assert.ok(lines(html("fld_billing")).includes("file:fil_deck"));
   for (const m of dropMoves(parsePayload("folder:fld_proposals"), "fld_billing", () => "fld_sales")) await s.data.call(m.cap, m.input);
   assert.ok(lines(html("fld_billing")).includes("folder:fld_proposals") && !lines(html("fld_sales")).includes("folder:fld_proposals"));
-  assert.deepEqual(s.calls.map((c) => c.cap), ["files.move", "folders.move"]);
+  assert.deepEqual(s.calls.map((c) => c.cap), ["files.move", "files.folder.move"]);
 });
 
 test("spring-load: a dragged item resting on a folder opens it after the wait; leaving or moving on cancels", () => {

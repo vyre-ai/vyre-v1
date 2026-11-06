@@ -13584,7 +13584,7 @@ export type FilesFolderGetOut = {
 };
 export type FilesFolderMoveIn = {
   folderId: string;
-  toParentId: string;
+  toParentId?: string;
 };
 export type FilesFolderMoveOut = {
   folder: {

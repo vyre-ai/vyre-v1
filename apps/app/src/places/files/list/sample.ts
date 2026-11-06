@@ -236,6 +236,11 @@ export function createSampleFiles(space: SampleSpace = northwind, o: { online?: 
       if (cur) { const { deletedAt: _d, ...rest } = cur; void _d; replica.remove("files", [cur.fileId]); replica.put("files", [{ ...rest, id: rest.fileId } as unknown as Row]); }
       return { ok: true };
     },
+    "files.folder.move": (i: { folderId: string; toParentId?: string }) => {
+      const cur = allFolders().find((x) => x.id === i.folderId);
+      if (cur) replica.put("folders", [{ ...cur, parent: i.toParentId ?? null }]);
+      return {};
+    },
     "folders.move": (i: { folderId: string; parentId: string | null }) => {
       const cur = allFolders().find((x) => x.id === i.folderId);
       if (cur) replica.put("folders", [{ ...cur, parent: i.parentId }]);

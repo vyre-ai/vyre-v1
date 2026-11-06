@@ -1,6 +1,6 @@
 # files.folder.move
 
-Move a folder under another folder (its sharing follows the new parent)
+Move a folder under another folder, or to the top of its tree when no folder is given (its sharing follows the new parent)
 
 | | |
 |---|---|
@@ -26,7 +26,7 @@ Move a folder under another folder (its sharing follows the new parent)
 ```ts
 type In = {
   folderId: string;
-  toParentId: string;
+  toParentId?: string;
 };
 ```
 

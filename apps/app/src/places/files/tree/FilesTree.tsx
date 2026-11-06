@@ -248,7 +248,7 @@ function Tree({ query, slot }: { query: string; slot?: SidebarSlotApi | undefine
 
   return (
     <View style={styles.side} testID="files-tree" accessibilityLabel="Files sidebar">
-      {moving ? <FolderMovePicker moving={moving} call={data.call} onClose={() => setMoving(null)} onMove={(parentId) => { const id = moving.id; setMoving(null); void Promise.resolve(data.call("folders.move", { folderId: id, parentId })).catch(() => undefined); }} /> : null}
+      {moving ? <FolderMovePicker moving={moving} call={data.call} onClose={() => setMoving(null)} onMove={(parentId) => { const id = moving.id; setMoving(null); void Promise.resolve(data.call("files.folder.move", { folderId: id, ...(parentId === null ? {} : { toParentId: parentId }) })).catch(() => undefined); }} /> : null}
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollIn} testID="files-nav">
         {each(fixed, (r) => <NavRow key={r.id} id={r.id} title={r.title} glyph={r.glyph} selected={sameWhere(state.where, r.where)} count={r.count} onPress={go(r.where)} />)}
         {knowShown.length > 0 ? <SectionHead id="know" label="Knowledge" open={!isShut("know")} onToggle={() => flip("know")} /> : null}

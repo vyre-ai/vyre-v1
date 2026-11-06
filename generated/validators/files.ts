@@ -1875,7 +1875,6 @@ const b3006: string[] = []; lf(x3006, p, b3006, L0); if (b3006.length) e.push(..
 if (g3006 === "object") {
 if (g3006 === 'object') { const o3006 = x3006 as Record<string, unknown>;
 if (!("folderId" in o3006)) e.push(p + "/folderId" + ': required');
-if (!("toParentId" in o3006)) e.push(p + "/toParentId" + ': required');
 if ("folderId" in o3006) lf(o3006["folderId"], p + "/folderId", e, L44);
 if ("toParentId" in o3006) lf(o3006["toParentId"], p + "/toParentId", e, L44);
 }

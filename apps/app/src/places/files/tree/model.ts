@@ -181,7 +181,7 @@ export function parsePayload(payload: string): { type: "file" | "folder"; id: st
   return out;
 }
 
-export interface Move { cap: "files.move" | "folders.move"; input: Record<string, unknown> }
+export interface Move { cap: "files.move" | "files.folder.move"; input: Record<string, unknown> }
 
 /** The moves a drop makes: each file to the folder, each folder under it. A folder never moves into itself, and an item already there stays put. */
 export function dropMoves(items: readonly { type: "file" | "folder"; id: string }[], target: string | null, here: (item: { type: "file" | "folder"; id: string }) => string | null): Move[] {
@@ -189,7 +189,7 @@ export function dropMoves(items: readonly { type: "file" | "folder"; id: string 
   for (const it of items) {
     if (it.type === "folder" && it.id === target) continue;
     if (here(it) === target) continue;
-    out.push(it.type === "file" ? { cap: "files.move", input: { fileId: it.id, toFolderId: target } } : { cap: "folders.move", input: { folderId: it.id, parentId: target } });
+    out.push(it.type === "file" ? { cap: "files.move", input: { fileId: it.id, toFolderId: target } } : { cap: "files.folder.move", input: { folderId: it.id, ...(target === null ? {} : { toParentId: target }) } });
   }
   return out;
 }
@@ -373,7 +373,7 @@ export function pathInto(trail: readonly { id: string | null; name: string }[], 
   return i >= 0 ? trail.slice(0, i + 1).slice() : [...trail, { id: folderId, name }];
 }
 
-/** Delete and Restore in Files are one pair: a folder goes to Trash with files.folder.delete and comes back with files.folder.restore (folders.delete is the access module's, which hands items back to their owners and leaves nothing in Trash). */
+/** Delete and Restore in Files are one pair: a folder goes to Trash with files.folder.delete and comes back with files.folder.restore. */
 export function trashCall(type: "file" | "folder", id: string): { cap: string; input: Record<string, unknown> } {
   return type === "file" ? { cap: "files.delete", input: { fileId: id } } : { cap: "files.folder.delete", input: { folderId: id } };
 }

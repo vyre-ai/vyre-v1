@@ -1,5 +1,5 @@
 // Move a folder: browse the whole folder tree (press a folder to go into it, the path above goes back up) or search every folder by name, then Move Here.
-// Reads files.list (the folders of one folder) and files.folder.search; moves with folders.move, the call Files already uses for a drop.
+// Reads files.list (the folders of one folder) and files.folder.search; moves with files.folder.move (no destination means the top of its tree), the call a drop uses too.
 import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";

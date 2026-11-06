@@ -21036,7 +21036,7 @@
       "blocks": [],
       "cap": "files.folder.move",
       "deferred": false,
-      "description": "Move a folder under another folder (its sharing follows the new parent)",
+      "description": "Move a folder under another folder, or to the top of its tree when no folder is given (its sharing follows the new parent)",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -21056,8 +21056,7 @@
           }
         },
         "required": [
-          "folderId",
-          "toParentId"
+          "folderId"
         ],
         "type": "object"
       },
