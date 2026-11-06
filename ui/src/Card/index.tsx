@@ -4,7 +4,7 @@
 //   input     fields, then submit (a key, a name)                      item      one thing with a name and Open (a file, a link, a page)
 //   progress  something live with a state and Stop or Watch             result    what changed and the buttons that land it (a diff, a merge)
 // One width (560 full, 420 compact), one radius, one edge, one title size. The action row has a fixed order: quiet actions on the left, the one primary on the right (the Dialog's order), it wraps on a phone
-// and the buttons grow to a thumb. Enter runs the card's `onEnter` and Escape its `onCancel` when focus is inside the card (never from a multi-line field or a button, which keep their own Enter).
+// and the buttons grow to a thumb. Enter runs the card's `onEnter` and Escape its `onCancel` when focus is inside the card (never from a multi-line or rich field or a button, which keep their own Enter).
 // A busy card disables its actions and shows a ring on the primary; the label never changes, so nothing jumps. A field's error line has its place reserved, so showing it moves nothing.
 // Colours are skin tokens only, so light and graphite both work. The ring's turn goes in through the sheet (injectCss); reduced motion stops it.
 import { useState } from "react";
@@ -43,13 +43,14 @@ export interface CardProps {
 const edgeOf = (kind: CardKind, tone: CardTone): string => (kind === "status" ? "transparent" : tone === "warn" ? "var(--warn)" : tone === "error" ? "var(--danger)" : "var(--line-2)");
 
 /** Keys on the web arrive as DOM events on the View; a native build has none, so the handler is only attached where the event has a `key`. */
-export function keyHandler(onEnter: (() => void) | undefined, onCancel: (() => void) | undefined): ((e: { key?: string; target?: { tagName?: string; getAttribute?(n: string): string | null }; stopPropagation?(): void; metaKey?: boolean; ctrlKey?: boolean }) => void) | undefined {
+export function keyHandler(onEnter: (() => void) | undefined, onCancel: (() => void) | undefined): ((e: { key?: string; target?: { tagName?: string; isContentEditable?: boolean; getAttribute?(n: string): string | null }; stopPropagation?(): void; metaKey?: boolean; ctrlKey?: boolean }) => void) | undefined {
   if (!onEnter && !onCancel) return undefined;
   return (e) => {
     if (e.key === "Escape" && onCancel) { e.stopPropagation?.(); onCancel(); return; }
     if (e.key !== "Enter" || !onEnter) return;
     const tag = String(e.target?.tagName ?? "").toLowerCase();
     // a button keeps its own Enter; a multi-line field keeps its newline unless Cmd or Ctrl is down
+    if (e.target?.isContentEditable === true || e.target?.getAttribute?.("contenteditable") === "true") return;
     if (tag === "button" || tag === "a" || e.target?.getAttribute?.("role") === "button") return;
     if (tag === "textarea" && !(e.metaKey || e.ctrlKey)) return;
     e.stopPropagation?.();
@@ -79,19 +80,20 @@ export interface CardHeadProps {
   title: string;
   /** Under the title: when, where, who. */
   meta?: string;
+  metaTestID?: string;
   /** On the right: a state word, a menu button. */
   trailing?: ReactNode;
   tone?: CardTone;
   testID?: string;
 }
 
-export function CardHead({ lead, title, meta, trailing, tone = "neutral", testID }: CardHeadProps): ReactElement {
+export function CardHead({ lead, title, meta, metaTestID, trailing, tone = "neutral", testID }: CardHeadProps): ReactElement {
   return (
     <View style={s.head} testID={testID}>
       {lead ? <View style={s.lead}>{lead}</View> : null}
       <View style={s.titles}>
         <Text style={[s.title, tone === "neutral" ? null : { color: "var(--ink)" }]} numberOfLines={2}>{title}</Text>
-        {meta ? <Text style={s.meta} numberOfLines={2}>{meta}</Text> : null}
+        {meta ? <Text style={s.meta} numberOfLines={2} testID={metaTestID}>{meta}</Text> : null}
       </View>
       {trailing ? <View style={s.trailing}>{trailing}</View> : null}
     </View>
@@ -135,18 +137,20 @@ export interface CardFieldProps {
   testID?: string;
   disabled?: boolean;
   autoFocus?: boolean;
+  /** Read out in place of `label` when the visible label is shorter than the question. */
+  accessLabel?: string;
 }
 
 /** A labelled input. The line under it is always one line tall, so a hint turning into an error moves nothing. */
-export function CardField({ label, value, onChange, multiline = false, placeholder, hint, error, secure = false, testID, disabled = false, autoFocus = false }: CardFieldProps): ReactElement {
+export function CardField({ label, value, onChange, multiline = false, placeholder, hint, error, secure = false, testID, disabled = false, autoFocus = false, accessLabel }: CardFieldProps): ReactElement {
   const [focus, setFocus] = useState(false);
   const bad = Boolean(error);
   return (
     <View style={s.fieldWrap}>
       <Text style={s.label}>{label}</Text>
       <TextInput
-        accessibilityLabel={label} testID={testID} value={value} onChangeText={onChange} editable={!disabled} autoFocus={autoFocus}
-        multiline={multiline} secureTextEntry={secure} {...(placeholder ? { placeholder } : {})} placeholderTextColor="var(--ink-4)"
+        accessibilityLabel={accessLabel ?? label} testID={testID} value={value} onChangeText={onChange} editable={!disabled} autoFocus={autoFocus}
+        multiline={multiline} secureTextEntry={secure} {...(secure ? { autoCapitalize: "none", autoCorrect: false } : {})} {...(placeholder ? { placeholder } : {})} placeholderTextColor="var(--ink-4)"
         onFocus={() => setFocus(true)} onBlur={() => setFocus(false)}
         {...(bad ? { "aria-invalid": true } : {})}
         style={[s.input, multiline && s.inputMulti, focus && s.inputFocus, bad && s.inputBad, disabled && { opacity: 0.5 }]}
@@ -165,6 +169,8 @@ export interface CardActionSpec {
   icon?: ReactNode;
   /** Destructive text. */
   danger?: boolean;
+  /** Drawn as an accent text link (a status card's next steps). */
+  link?: boolean;
 }
 
 export interface CardActionsProps {
@@ -178,15 +184,17 @@ export interface CardActionsProps {
   error?: string | null;
   /** On the left of the row, quiet: a stopped note, a "..." menu. */
   note?: ReactNode;
+  /** "start" keeps the row on the left (a status card's links); the default sits right with the primary last. */
+  align?: "start" | "end";
   testID?: string;
 }
 
-export function CardActions({ primary, secondary = [], busy = false, error, note, testID }: CardActionsProps): ReactElement {
+export function CardActions({ primary, secondary = [], busy = false, error, note, align = "end", testID }: CardActionsProps): ReactElement {
   return (
     <View testID={testID} style={s.actionsWrap}>
       <View style={s.actions}>
         {note ? <View style={s.note}>{note}</View> : null}
-        <View style={s.buttons}>
+        <View style={[s.buttons, align === "start" && s.buttonsStart]}>
           {secondary.map((a) => <CardButton key={a.label} {...a} disabled={busy || a.disabled === true} />)}
           {primary ? <CardButton {...primary} primary busy={busy} disabled={busy || primary.disabled === true} /> : null}
         </View>
@@ -199,8 +207,6 @@ export function CardActions({ primary, secondary = [], busy = false, error, note
 export interface CardButtonProps extends CardActionSpec {
   primary?: boolean;
   busy?: boolean;
-  /** A text link in the accent (a status card's next steps). */
-  link?: boolean;
 }
 
 export function CardButton({ label, onPress, testID, disabled = false, icon, danger = false, primary = false, busy = false, link = false }: CardButtonProps): ReactElement {
@@ -236,23 +242,24 @@ export interface CardDenyProps {
   onDeny(reason: string): void;
   onBack(): void;
   busy?: boolean;
-  testID: string;
+  /** The test ids of the reason field, Back and the confirming button. */
+  ids: { reason: string; back: string; go: string };
   /** The label of the confirming button. */
   label?: string;
 }
 
 /** The step after Deny: an optional reason that goes back to the agent, with Back and the confirming Deny. Shared by every decision card. */
-export function CardDeny({ onDeny, onBack, busy = false, testID, label = "Deny" }: CardDenyProps): ReactElement {
+export function CardDeny({ onDeny, onBack, busy = false, ids, label = "Deny" }: CardDenyProps): ReactElement {
   const [reason, setReason] = useState("");
   return (
     <View style={s.deny}>
       <TextInput
-        accessibilityLabel="Why not (optional)" testID={`${testID}-reason`} value={reason} onChangeText={setReason} placeholder="Reason (optional)" placeholderTextColor="var(--ink-4)" multiline
+        accessibilityLabel="Why not (optional)" testID={ids.reason} value={reason} onChangeText={setReason} placeholder="Reason (optional)" placeholderTextColor="var(--ink-4)" multiline
         style={[s.input, s.inputMulti]}
       />
       <CardActions
-        secondary={[{ label: "Back", onPress: onBack, testID: `${testID}-back` }]}
-        primary={{ label, danger: true, onPress: () => onDeny(reason.trim()), testID: `${testID}-go` }}
+        secondary={[{ label: "Back", onPress: onBack, testID: ids.back }]}
+        primary={{ label, danger: true, onPress: () => onDeny(reason.trim()), testID: ids.go }}
         busy={busy}
       />
     </View>
@@ -287,6 +294,7 @@ export const s = StyleSheet.create({
   actions: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 },
   note: { flexShrink: 1 },
   buttons: { flexDirection: "row", flexWrap: "wrap", justifyContent: "flex-end", gap: 8, marginLeft: "auto" },
+  buttonsStart: { justifyContent: "flex-start", marginLeft: 0, gap: 4 },
   error: { fontSize: 12.5, lineHeight: 17, color: "var(--danger)" as string },
   btn: { height: 30, paddingHorizontal: 12, borderRadius: 8, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 6, borderWidth: 1, borderColor: "transparent" },
   btnTall: { height: 40, paddingHorizontal: 14 },

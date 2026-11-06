@@ -61,7 +61,7 @@ test("a field keeps one line under it whether it shows a hint, an error or nothi
 });
 
 test("the reason step has Back, the confirming Deny, and the reason field", () => {
-  const html = renderToStaticMarkup(<CardDeny testID="d" onDeny={noop} onBack={noop} />);
+  const html = renderToStaticMarkup(<CardDeny ids={{ reason: "d-reason", back: "d-back", go: "d-go" }} onDeny={noop} onBack={noop} />);
   assert.match(html, /data-testid="d-reason"/);
   assert.match(html, /data-testid="d-back"/);
   assert.match(html, /data-testid="d-go"/);
@@ -87,6 +87,7 @@ test("Enter runs the primary, Escape the way out; a button and a multi-line fiel
   h({ key: "Enter", target: { tagName: "BUTTON" } });
   h({ key: "Enter", target: { tagName: "TEXTAREA" } });
   h({ key: "Enter", target: { tagName: "TEXTAREA" }, metaKey: true });
+  h({ key: "Enter", target: { tagName: "DIV", isContentEditable: true } });
   h({ key: "a", target: { tagName: "INPUT" } });
   assert.deepEqual(calls, ["enter", "esc", "enter"]);
   assert.equal(keyHandler(undefined, undefined), undefined);

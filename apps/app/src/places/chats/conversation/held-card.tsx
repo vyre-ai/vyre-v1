@@ -2,16 +2,17 @@
 //   Header   the recipient's avatar and name and the channel in plain words ("Dex wants to message Aliza Rizvi"), and, only when it does not go now, when ("Sends at 9:00").
 //   Body     what it says, drawn by the chat's own block renderer (bold, lists, links), in full; past about twelve lines it is cut with "Show all".
 //   Edit     the body becomes the shared MarkdownEditor in place, with Save and Cancel. Saving keeps it held and the card says "Edited by you".
-//   Buttons  Allow (primary, it sends), Edit, Deny: the one approval vocabulary (Allow, Always allow, Deny). Deny asks for a reason, optional, that goes back to the agent. After Allow the card reads
+//   Buttons  Deny, Edit, then Allow (primary, it sends, right-most, the Card library's order): the one approval vocabulary (Allow, Always allow, Deny). Deny asks for a reason, optional, that goes back to the agent. After Allow the card reads
 //            "Sent to Aliza · 04:38", after Deny "Not sent".
 // It knows nothing of the Gate or of Chrome: the caller says what Allow, Save and Deny do. No internal field name is ever drawn.
 import { useState } from "react";
 import type { ReactElement } from "react";
-import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Card, CardActions, CardDeny, CardDone, CardField, CardHead } from "../../../../../../ui/src/Card/index.tsx";
 import { MarkdownEditor } from "../../../../../../ui/src/RichEditor/MarkdownEditor.tsx";
 import { MarkdownText } from "../../../../../../ui/src/stream/MarkdownText.tsx";
 import { Face } from "../needsyou/parts.tsx";
-import { Glyph, TextButton } from "./parts.tsx";
+import { Glyph } from "./parts.tsx";
 
 export interface HeldRecipient { name: string; seed: string; kind?: "person" | "agent" }
 export interface HeldSaved { body: string; subject?: string; to?: string }
@@ -88,7 +89,6 @@ export function HeldCard(p: HeldCardProps): ReactElement {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState({ body: p.body, subject: p.subject ?? "", to: p.to.map((r) => r.name).join(", ") });
   const [denying, setDenying] = useState(false);
-  const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [all, setAll] = useState(false);
@@ -107,24 +107,24 @@ export function HeldCard(p: HeldCardProps): ReactElement {
 
   if (state !== "waiting") {
     return (
-      <View testID={p.testID} style={st.done} accessibilityRole="text">
-        <Glyph name={state === "sent" ? "check" : "x"} size={13} color={state === "sent" ? "var(--ok)" : "var(--ink-3)"} />
-        <Text style={st.doneText} testID={`${p.testID}-done`}>{state === "sent" ? (p.state === "dropped" ? "Sent" : p.doneLine ?? "Sent") : (p.state === "dropped" ? p.doneLine ?? "Not sent" : "Not sent")}</Text>
-      </View>
+      <CardDone testID={p.testID} ok={state === "sent"} glyph={<Glyph name={state === "sent" ? "check" : "x"} size={13} color={state === "sent" ? "var(--ok)" : "var(--ink-3)"} />} text={state === "sent" ? (p.state === "dropped" ? "Sent" : p.doneLine ?? "Sent") : (p.state === "dropped" ? p.doneLine ?? "Not sent" : "Not sent")} />
     );
   }
+  const reset = (): void => { setEditing(false); setError(""); setDraft({ body: p.body, subject: p.subject ?? "", to: p.to.map((r) => r.name).join(", ") }); };
+  const save = (): void => { if (busy || draft.body.trim() === "") return; run(() => (p.onSave ? p.onSave({ body: draft.body, ...(p.editSubject ? { subject: draft.subject } : {}), ...(p.editTo ? { to: draft.to } : {}) }) : Promise.resolve()), () => setEditing(false)); };
   return (
-    <View testID={p.testID} style={st.card} accessibilityRole="summary" accessibilityLabel={title}>
-      <View style={st.head}>
-        {/* ui-rows-lint: not a list (the faces of who it goes to) */}
-        {faces.length > 0 ? <View style={st.faces}>{faces.map((r, i) => <View key={`${r.seed}${i}`} style={i > 0 ? st.faceNext : undefined}><Face name={r.name} seedId={r.seed} kind={r.kind ?? "person"} size={22} /></View>)}</View> : null}
-        <View style={st.titles}>
-          <Text style={st.title} numberOfLines={2}>{title}</Text>
-          {p.schedule ? <Text style={st.sub} testID={`${p.testID}-schedule`}>{p.schedule}</Text> : null}
-        </View>
-        {p.edited ? <Text style={st.edited} testID={`${p.testID}-edited`}>Edited by you</Text> : null}
-        {p.onAlways && p.alwaysLabel && !editing && !denying ? <Pressable accessibilityRole="button" accessibilityLabel="More" onPress={() => setMenu((m) => !m)} testID={`${p.testID}-more`}><Text style={st.more}>...</Text></Pressable> : null}
-      </View>
+    <Card kind="decision" testID={p.testID} label={title} onCancel={editing ? reset : denying ? () => setDenying(false) : undefined} {...(editing && (p.editTo || p.editSubject) ? { onEnter: save } : {})}>
+      <CardHead
+        title={title} {...(p.schedule ? { meta: p.schedule, metaTestID: `${p.testID}-schedule` } : {})}
+        lead={faces.length > 0 ? (
+          // ui-rows-lint: not a list (the faces of who it goes to)
+          <View style={st.faces}>{faces.map((r, i) => <View key={`${r.seed}${i}`} style={i > 0 ? st.faceNext : undefined}><Face name={r.name} seedId={r.seed} kind={r.kind ?? "person"} size={22} /></View>)}</View>
+        ) : undefined}
+        trailing={<>
+          {p.edited ? <Text style={st.edited} testID={`${p.testID}-edited`}>Edited by you</Text> : null}
+          {p.onAlways && p.alwaysLabel && !editing && !denying ? <Pressable accessibilityRole="button" accessibilityLabel="More" onPress={() => setMenu((m) => !m)} testID={`${p.testID}-more`}><Text style={st.more}>...</Text></Pressable> : null}
+        </>}
+      />
       {menu && p.onAlways && p.alwaysLabel && !editing && !denying ? (
         <View style={st.menu}><Pressable accessibilityRole="button" disabled={busy} onPress={() => { setMenu(false); void run(() => p.onAlways!(), () => setDone("sent")); }} testID={`${p.testID}-always`}><Text style={st.menuItem}>{p.alwaysLabel}</Text></Pressable></View>
       ) : null}
@@ -133,12 +133,9 @@ export function HeldCard(p: HeldCardProps): ReactElement {
           // ui-rows-lint: not a list (the people a message goes to, faces with names in one line)
           <View key={r.label} style={st.row} testID={`${p.testID}-people-${r.label.toLowerCase()}`}><Text style={st.label}>{r.label}</Text><View style={st.guests}>{r.people.slice(0, 6).map((g, i) => <View key={`${g.seed}${i}`} style={st.guest}><Face name={g.name} seedId={g.seed} kind="person" size={g.sub ? 24 : 18} /><View><Text style={st.value}>{g.name}</Text>{g.sub ? <Text style={st.sub}>{g.sub}</Text> : null}</View></View>)}{r.people.length > 6 ? <Text style={st.sub}>{`and ${r.people.length - 6} more`}</Text> : null}</View></View>
         ))}
-        {editing && p.editTo ? (
-          <View style={st.row}><Text style={st.label}>To</Text><TextInput accessibilityLabel="To" testID={`${p.testID}-to`} value={draft.to} onChangeText={(v) => setDraft((d) => ({ ...d, to: v }))} style={st.input} /></View>
-        ) : null}
-        {editing && p.editSubject ? (
-          <View style={st.row}><Text style={st.label}>{p.subjectLabel ?? "Subject"}</Text><TextInput accessibilityLabel={p.subjectLabel ?? "Subject"} testID={`${p.testID}-subject`} value={draft.subject} onChangeText={(v) => setDraft((d) => ({ ...d, subject: v }))} style={st.input} /></View>
-        ) : p.subject ? <View style={st.row}><Text style={st.label}>{p.subjectLabel ?? "Subject"}</Text><Text style={[st.value, p.subjectLabel ? st.strong : undefined]} testID={`${p.testID}-subject-text`}>{p.subject}</Text></View> : null}
+        {editing && p.editTo ? <CardField label="To" testID={`${p.testID}-to`} value={draft.to} onChange={(v) => setDraft((d) => ({ ...d, to: v }))} /> : null}
+        {editing && p.editSubject ? <CardField label={p.subjectLabel ?? "Subject"} testID={`${p.testID}-subject`} value={draft.subject} onChange={(v) => setDraft((d) => ({ ...d, subject: v }))} />
+        : p.subject ? <View style={st.row}><Text style={st.label}>{p.subjectLabel ?? "Subject"}</Text><Text style={[st.value, p.subjectLabel ? st.strong : undefined]} testID={`${p.testID}-subject-text`}>{p.subject}</Text></View> : null}
         {!editing ? (p.fields ?? []).flatMap(([label, text]) => [
           <View key={label} style={st.row}><Text style={st.label}>{label}</Text>{(p.fieldMd ?? []).includes(label) ? <View style={{ flex: 1 }}><MarkdownText text={text} /></View> : <Text style={st.value} testID={`${p.testID}-field-${label.toLowerCase()}`}>{text}</Text>}</View>,
           // ui-rows-lint: not a list (the invitees of an event, faces with names in one line)
@@ -148,16 +145,13 @@ export function HeldCard(p: HeldCardProps): ReactElement {
       {editing ? (
         <View style={st.editor} testID={`${p.testID}-editor`}>
           {(p.editor ?? SharedEditor)({ value: draft.body, onChange: (md) => setDraft((d) => ({ ...d, body: md })), label: p.fold ? "Edit the agenda" : "Edit the message" })}
-          <View style={st.acts}>
-            <TextButton label="Cancel" onPress={() => { setEditing(false); setError(""); setDraft({ body: p.body, subject: p.subject ?? "", to: p.to.map((r) => r.name).join(", ") }); }} disabled={busy} testID={`${p.testID}-cancel`} />
-            <TextButton label="Save" primary disabled={busy || draft.body.trim() === ""} onPress={() => run(() => (p.onSave ? p.onSave({ body: draft.body, ...(p.editSubject ? { subject: draft.subject } : {}), ...(p.editTo ? { to: draft.to } : {}) }) : Promise.resolve()), () => setEditing(false))} testID={`${p.testID}-save`} />
-          </View>
+          <CardActions busy={busy} secondary={[{ label: "Cancel", onPress: reset, testID: `${p.testID}-cancel` }]} primary={{ label: "Save", onPress: save, disabled: draft.body.trim() === "", testID: `${p.testID}-save` }} />
         </View>
       ) : (
         p.fold && p.body.trim() === "" ? null : p.fold && !agenda ? (
-          <Pressable accessibilityRole="button" onPress={() => setAgenda(true)} testID={`${p.testID}-fold`}><Text style={st.link}>{`${p.fold}  ›`}</Text></Pressable>
+          <Pressable accessibilityRole="button" onPress={() => setAgenda(true)} testID={`${p.testID}-fold`}><Text style={st.link}>{`${p.fold}  \u203a`}</Text></Pressable>
         ) : <View>
-          {p.fold ? <Pressable accessibilityRole="button" onPress={() => setAgenda(false)}><Text style={st.link}>{`${p.fold}  ⌄`}</Text></Pressable> : null}
+          {p.fold ? <Pressable accessibilityRole="button" onPress={() => setAgenda(false)}><Text style={st.link}>{`${p.fold}  \u2304`}</Text></Pressable> : null}
           <View testID={`${p.testID}-body`} style={[st.body, long && !all && { maxHeight: BODY_LINES * LINE_PX, overflow: "hidden" }]}><MarkdownText text={p.body} /></View>
           {long ? <Pressable accessibilityRole="button" onPress={() => setAll((x) => !x)} testID={`${p.testID}-all`}><Text style={st.link}>{all ? "Show less" : "Show all"}</Text></Pressable> : null}
         </View>
@@ -169,35 +163,23 @@ export function HeldCard(p: HeldCardProps): ReactElement {
         </View>
       ) : null}
       {denying ? (
-        <View style={st.deny}>
-          <TextInput accessibilityLabel="Why not (optional)" testID={`${p.testID}-reason`} value={reason} onChangeText={setReason} placeholder="Reason (optional)" placeholderTextColor="var(--ink-4)" multiline style={st.reasonInput} />
-          <View style={st.acts}>
-            <TextButton label="Back" onPress={() => setDenying(false)} disabled={busy} testID={`${p.testID}-back`} />
-            <TextButton label="Deny" danger disabled={busy} onPress={() => run(() => p.onDrop(reason.trim()), () => setDone("dropped"))} testID={`${p.testID}-drop-go`} />
-          </View>
-        </View>
+        <CardDeny ids={{ reason: `${p.testID}-reason`, back: `${p.testID}-back`, go: `${p.testID}-drop-go` }} busy={busy} onBack={() => setDenying(false)} onDeny={(r) => run(() => p.onDrop(r), () => setDone("dropped"))} />
       ) : !editing ? (
-        <View style={st.foot}>
-          <View style={st.acts}>
-            <TextButton label="Allow" primary icon="check" disabled={busy} onPress={() => run(p.onSend, () => setDone("sent"))} testID={`${p.testID}-send`} />
-            {p.editable ? <TextButton label="Edit" ring icon="edit" disabled={busy} onPress={() => { setDraft({ body: p.body, subject: p.subject ?? "", to: p.to.map((r) => r.name).join(", ") }); setEditing(true); }} testID={`${p.testID}-edit`} /> : null}
-            <TextButton label="Deny" disabled={busy} onPress={() => setDenying(true)} testID={`${p.testID}-drop`} />
-          </View>
-          {p.stoppedNote ? <Text style={st.sub} testID={`${p.testID}-stopped`}>{p.stoppedNote}</Text> : null}
-        </View>
+        <CardActions
+          busy={busy}
+          {...(p.stoppedNote ? { note: <Text style={st.sub} testID={`${p.testID}-stopped`}>{p.stoppedNote}</Text> } : {})}
+          secondary={[{ label: "Deny", onPress: () => setDenying(true), testID: `${p.testID}-drop` }, ...(p.editable ? [{ label: "Edit", icon: <Glyph name="edit" size={13} color="var(--ink-2)" />, onPress: () => { setDraft({ body: p.body, subject: p.subject ?? "", to: p.to.map((r) => r.name).join(", ") }); setEditing(true); }, testID: `${p.testID}-edit` }] : [])]}
+          primary={{ label: "Allow", icon: <Glyph name="check" size={13} color="var(--accent-ink)" />, onPress: () => run(p.onSend, () => setDone("sent")), testID: `${p.testID}-send` }}
+        />
       ) : null}
       {error ? <Text accessibilityRole="alert" style={st.error} testID={`${p.testID}-error`}>{error}</Text> : null}
-    </View>
+    </Card>
   );
 }
 
 const st = StyleSheet.create({
-  card: { marginTop: 8, padding: 12, gap: 10, borderRadius: 12, borderWidth: 1, borderColor: "var(--line-2)" as string, backgroundColor: "var(--raised)" as string, maxWidth: 666, alignSelf: "stretch" },
-  head: { flexDirection: "row", alignItems: "center", gap: 10 },
   faces: { flexDirection: "row", alignItems: "center" },
   faceNext: { marginLeft: -6 },
-  titles: { flex: 1, minWidth: 0, gap: 1 },
-  title: { fontSize: 14, fontWeight: "600", color: "var(--ink)" as string },
   sub: { fontSize: 12, color: "var(--ink-3)" as string },
   strong: { fontWeight: "600" },
   guests: { flex: 1, gap: 4 },
@@ -210,15 +192,8 @@ const st = StyleSheet.create({
   row: { flexDirection: "row", gap: 10, alignItems: "flex-start" },
   label: { width: 60, fontSize: 12, color: "var(--ink-3)" as string },
   value: { flex: 1, minWidth: 0, fontSize: 13, color: "var(--ink)" as string },
-  input: { flex: 1, minWidth: 0, minHeight: 30, borderWidth: 1, borderColor: "var(--line)" as string, borderRadius: 7, paddingHorizontal: 9, color: "var(--ink)" as string, backgroundColor: "var(--win)" as string, fontSize: 13 },
   body: { padding: 10, borderRadius: 8, backgroundColor: "var(--sunk)" as string },
   link: { fontSize: 12.5, color: "var(--accent)" as string, paddingTop: 4 },
   editor: { gap: 8 },
-  deny: { gap: 8 },
-  reasonInput: { minHeight: 56, padding: 10, borderRadius: 8, borderWidth: 1, borderColor: "var(--field-line)" as string, backgroundColor: "var(--field)" as string, fontSize: 13, color: "var(--ink)" as string },
-  foot: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 },
-  acts: { flexDirection: "row", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" },
   error: { fontSize: 12.5, color: "var(--danger)" as string },
-  done: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 6 },
-  doneText: { fontSize: 12.5, color: "var(--ink-3)" as string },
 });

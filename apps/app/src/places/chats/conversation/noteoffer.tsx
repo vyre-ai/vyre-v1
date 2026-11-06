@@ -5,6 +5,7 @@ import { useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import type { ConversationData } from "./data.tsx";
+import { Card, CardActions, CardBody, CardHead } from "../../../../../../ui/src/Card/index.tsx";
 
 export const isNoteOffer = (type: string): boolean => type === "note_offer";
 
@@ -42,38 +43,21 @@ export function NoteOfferCard({ id, data, mine, chat, say }: { id: string; data:
     );
   };
   return (
-    <View testID={`noteoffer-${id}`} accessibilityLabel="Save as a note?" style={s.card}>
-      <View style={s.head}>
-        <Text accessibilityRole="header" style={s.title}>Save as a note?</Text>
-        <Text style={s.quiet}>{mine ? "Private to you" : "Offered to someone else in this chat"}</Text>
-      </View>
-      <View style={s.preview} testID={`noteoffer-preview-${id}`}>
+    <Card kind="decision" size="compact" testID={`noteoffer-${id}`} label="Save as a note?" {...(mine ? { onCancel: () => answer("dismiss") } : {})}>
+      <CardHead title="Save as a note?" meta={mine ? "Private to you" : "Offered to someone else in this chat"} />
+      <CardBody testID={`noteoffer-preview-${id}`}>
         <Text style={s.pt} numberOfLines={2}>{offer.title}</Text>
         <Text style={s.pb} numberOfLines={5}>{offer.body}</Text>
-      </View>
-      {mine ? (
-        <View style={s.acts}>
-          <Pressable accessibilityRole="button" accessibilityLabel="Save" testID={`noteoffer-save-${id}`} disabled={busy} onPress={() => answer("save")} style={[s.btn, s.btnPrimary]}><Text style={[s.btnText, s.btnPrimaryText]}>Save</Text></Pressable>
-          <Pressable accessibilityRole="button" accessibilityLabel="Not now" testID={`noteoffer-dismiss-${id}`} disabled={busy} onPress={() => answer("dismiss")} style={s.btn}><Text style={s.btnText}>Not now</Text></Pressable>
-        </View>
-      ) : null}
-    </View>
+      </CardBody>
+      {mine ? <CardActions busy={busy} secondary={[{ label: "Not now", onPress: () => answer("dismiss"), testID: `noteoffer-dismiss-${id}` }]} primary={{ label: "Save", onPress: () => answer("save"), testID: `noteoffer-save-${id}` }} /> : null}
+    </Card>
   );
 }
 
 const s = StyleSheet.create({
-  card: { marginTop: 10, maxWidth: 460, padding: 12, borderRadius: 14, backgroundColor: "var(--raised)" as string, boxShadow: "inset 0 0 0 1px var(--line)" } as object,
-  head: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
-  title: { fontSize: 13.5, fontWeight: "600", color: "var(--ink)" as string },
   quiet: { fontSize: 12, color: "var(--ink-3)" as string },
-  preview: { marginTop: 10, padding: 10, paddingHorizontal: 12, borderRadius: 10, backgroundColor: "var(--sunk)" as string },
   pt: { fontSize: 14, fontWeight: "600", color: "var(--ink)" as string },
   pb: { marginTop: 3, fontSize: 13, lineHeight: 19, color: "var(--ink-2)" as string },
-  acts: { flexDirection: "row", gap: 8, marginTop: 12 },
-  btn: { height: 30, justifyContent: "center", paddingHorizontal: 13, borderRadius: 9 },
-  btnPrimary: { backgroundColor: "var(--accent)" as string },
-  btnText: { fontSize: 13.5, fontWeight: "600", color: "var(--ink-3)" as string },
-  btnPrimaryText: { color: "var(--accent-ink)" as string },
   saved: { flexDirection: "row", alignItems: "center", gap: 7, marginTop: 8 },
   link: { fontSize: 12, color: "var(--accent)" as string },
 });
