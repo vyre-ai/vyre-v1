@@ -2,6 +2,7 @@
 // initial, the page title, its host and the masked screenshot the person left in), and a quote block is the selected text with the site it came from. Both read only their own data;
 // a screenshot is shown only as a data: image the extension made (password and card fields already blacked out on the person's computer), never fetched from anywhere.
 import type { ReactElement } from "react";
+import { Card } from "../../../../../../ui/src/Card/index.tsx";
 import { Image, Linking, Pressable, StyleSheet, Text, View } from "react-native";
 
 export interface WebPageData { url: string; host: string; title: string; shot: string | null }
@@ -40,6 +41,7 @@ export function WebPageCard({ id, data }: { id: string; data: unknown }): ReactE
   const p = webPageOf(data);
   if (!p) return null;
   return (
+    <Card kind="item" size="compact" testID={`webpage-card-${id}`} label={p.title}>
     <Pressable testID={`webpage-${id}`} accessibilityRole="link" accessibilityLabel={`${p.title}, ${p.host}${p.shot ? ", with a screenshot" : ""}`} onPress={() => open(p.url)} style={({ hovered }: { hovered?: boolean }) => [s.card, hovered && s.hover]}>
       {p.shot ? <Image testID={`webpage-${id}-shot`} source={{ uri: p.shot }} style={s.shot} resizeMode="cover" accessibilityIgnoresInvertColors /> : (
         <View style={s.tile}><Text style={s.tileText}>{(p.host[0] ?? "?").toUpperCase()}</Text></View>
@@ -49,6 +51,7 @@ export function WebPageCard({ id, data }: { id: string; data: unknown }): ReactE
         <Text style={s.host} numberOfLines={1}>{p.shot ? `${p.host} · with screenshot` : p.host}</Text>
       </View>
     </Pressable>
+    </Card>
   );
 }
 
@@ -64,7 +67,7 @@ export function QuoteCard({ id, data }: { id: string; data: unknown }): ReactEle
 }
 
 const s = StyleSheet.create({
-  card: { flexDirection: "row", alignItems: "center", gap: 10, marginTop: 6, padding: 6, paddingRight: 12, borderRadius: 10, maxWidth: 420, borderWidth: 1, borderColor: "var(--line)" as string, backgroundColor: "var(--side)" as string, alignSelf: "flex-start" },
+  card: { flexDirection: "row", alignItems: "center", gap: 10, borderRadius: 12 },
   hover: { backgroundColor: "var(--sel)" as string },
   shot: { width: 64, height: 42, borderRadius: 6, borderWidth: 1, borderColor: "var(--line-2)" as string, backgroundColor: "#fff" },
   tile: { width: 42, height: 42, borderRadius: 8, backgroundColor: "var(--sunk)" as string, alignItems: "center", justifyContent: "center" },

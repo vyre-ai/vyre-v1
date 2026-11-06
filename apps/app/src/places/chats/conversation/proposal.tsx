@@ -8,7 +8,7 @@ import type { Block } from "../../../../../../ui/src/kit/types.ts";
 import { menuTrigger, useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { BlockHost } from "../../../../../../ui/src/blocks/impl-a/index.tsx";
 import { Glyph } from "./parts.tsx";
-import { Card, CardActions, CardDone, CardHead } from "../../../../../../ui/src/Card/index.tsx";
+import { CARD_INSET, Card, CardActions, CardDone, CardHead } from "../../../../../../ui/src/Card/index.tsx";
 import { collect } from "./model.ts";
 import { useFollow } from "./use-follow.ts";
 import type { Changes } from "./use-follow.ts";
@@ -192,13 +192,13 @@ const st = StyleSheet.create({
   link: { fontSize: 13, color: "var(--accent)" as string },
   faint: { fontSize: 12, color: "var(--ink-3)" as string },
   why: { fontSize: 13, lineHeight: 20, color: "var(--ink-2)" as string },
-  diff: { borderRadius: 12, paddingVertical: 6, overflow: "hidden", backgroundColor: "var(--win)" as string, ...RING },
+  diff: { borderRadius: 12, paddingVertical: 6, overflow: "hidden", backgroundColor: CARD_INSET },
   lineRow: { flexDirection: "row", paddingHorizontal: 10, position: "relative" },
   wash: { position: "absolute", left: 0, right: 0, top: 0, bottom: 0 },
   sign: { width: 14, fontFamily: MONO, fontSize: 12, lineHeight: 18, color: "var(--ink-3)" as string },
   line: { flex: 1, fontFamily: MONO, fontSize: 12, lineHeight: 18, color: "var(--ink)" as string, paddingHorizontal: 0 },
   ctx: { paddingHorizontal: 10, color: "var(--ink-4)" as string },
-  edit: { minHeight: 70, borderRadius: 12, padding: 10, fontFamily: MONO, fontSize: 12, lineHeight: 18, color: "var(--ink)" as string, backgroundColor: "var(--sunk)" as string, outlineStyle: "none" } as object,
+  edit: { minHeight: 70, borderRadius: 12, padding: 10, fontFamily: MONO, fontSize: 12, lineHeight: 18, color: "var(--ink)" as string, backgroundColor: CARD_INSET, outlineStyle: "none" } as object,
   plan: { flexDirection: "row", alignItems: "center", gap: 12, alignSelf: "flex-start", maxWidth: 460, marginTop: 6, marginBottom: 8, paddingVertical: 10, paddingRight: 14, paddingLeft: 10, borderRadius: 12, ...RING },
   planIcon: { width: 34, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: "var(--accent-wash)" as string },
   planName: { fontSize: 13.5, fontWeight: "600", color: "var(--ink)" as string },

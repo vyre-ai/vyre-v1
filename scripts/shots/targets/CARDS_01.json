@@ -21,7 +21,7 @@
    "waitFor": "[role='alert']",
    "note": "error card with Details",
    "click": [
-    "[data-testid='err-what']"
+    "[data-testid='err-more']"
    ]
   },
   {

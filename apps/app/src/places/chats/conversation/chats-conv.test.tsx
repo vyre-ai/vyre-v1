@@ -153,7 +153,9 @@ test("an error is one inline row: what, why, next, Details, Copy id; Retry carri
   const s = createSample("errors");
   const out = html(s);
   assert.ok(has(out, "Docs did not read fee-schedule.csv") && has(out, "Restricted data only goes to a model on your computer."));
-  for (const t of ["Switch to Llama 3.3 on this computer", "Ask for access", "Retry", "Details", "Copy id", "Report"]) assert.ok(has(out, t), t);
+  // the status card pattern: one primary fix in view; the other next steps, Retry, Details, Copy id and Report sit under its "..." menu
+  for (const t of ["Switch to Llama 3.3 on this computer"]) assert.ok(has(out, t), t);
+  assert.ok(has(out, 'data-testid="err-more"'), "the More menu is on the card");
   assert.ok(has(out, "Changed 1 file in Rivera matter") && has(out, "Review changes") && has(out, "Rivera engagement letter"));
   await act.retryTurn(s.data, "turn_9").catch(() => undefined);
   assert.equal(s.calls[0]!.cap, "engine.turn.retry");
@@ -370,7 +372,8 @@ test("the error row offers Report a problem, which opens the shared report sheet
   reportProblem({ label: reportLabel("Docs did not read fee-schedule.csv", "tr_5e20b4") });
   off();
   assert.deepEqual(seen, [{ label: "Docs did not read fee-schedule.csv (trace tr_5e20b4)" }]);
-  assert.ok(has(html(createSample("errors")), 'data-testid="err-report"'));
+  // Report, Details and Copy id sit under the card's "..." menu (the status card pattern: one primary fix, the rest in More)
+  assert.ok(has(html(createSample("errors")), 'data-testid="err-more"'));
 });
 
 test("the hover bar draws Copy, Edit (yours only), Reply and More while the row is hovered or focused, and none of them before: fifty hidden bars were most of the first frame", () => {

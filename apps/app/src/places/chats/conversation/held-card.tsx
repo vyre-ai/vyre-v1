@@ -8,7 +8,7 @@
 import { useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import { Card, CardActions, CardDeny, CardDone, CardField, CardHead } from "../../../../../../ui/src/Card/index.tsx";
+import { CARD_INSET, Card, CardActions, CardDeny, CardDone, CardField, CardHead } from "../../../../../../ui/src/Card/index.tsx";
 import { MarkdownEditor } from "../../../../../../ui/src/RichEditor/MarkdownEditor.tsx";
 import { MarkdownText } from "../../../../../../ui/src/stream/MarkdownText.tsx";
 import { Face } from "../needsyou/parts.tsx";
@@ -186,13 +186,13 @@ const st = StyleSheet.create({
   guest: { flexDirection: "row", alignItems: "center", gap: 6 },
   edited: { fontSize: 12, color: "var(--ink-3)" as string },
   more: { fontSize: 16, color: "var(--ink-3)" as string, paddingHorizontal: 6, letterSpacing: 1 },
-  menu: { alignSelf: "flex-end", paddingVertical: 4, paddingHorizontal: 10, borderRadius: 12, backgroundColor: "var(--sunk)" as string },
+  menu: { alignSelf: "flex-end", paddingVertical: 4, paddingHorizontal: 10, borderRadius: 12, backgroundColor: CARD_INSET },
   menuItem: { fontSize: 13, color: "var(--ink-2)" as string },
   rows: { gap: 6 },
   row: { flexDirection: "row", gap: 10, alignItems: "flex-start" },
   label: { width: 60, fontSize: 12, color: "var(--ink-3)" as string },
   value: { flex: 1, minWidth: 0, fontSize: 13, color: "var(--ink)" as string },
-  body: { padding: 10, borderRadius: 12, backgroundColor: "var(--sunk)" as string },
+  body: { padding: 10, borderRadius: 12, backgroundColor: CARD_INSET },
   link: { fontSize: 12.5, color: "var(--accent)" as string, paddingTop: 4 },
   editor: { gap: 8 },
   error: { fontSize: 12.5, color: "var(--danger)" as string },

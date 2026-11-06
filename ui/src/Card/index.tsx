@@ -21,6 +21,10 @@ export const CARD_WIDTH = { full: 560, compact: 420 } as const;
 /** The phone width under which the buttons grow to a thumb. */
 export const PHONE_UNDER = 600;
 
+/** The one soft surface every card sits on, and the inset step inside it (a diff, a message, a command): both a mix of the skin's own ink into its window, so a card is a step off the window and its inner panel a further step, in paper and in graphite alike. No border. */
+export const CARD_FILL = "color-mix(in srgb, var(--ink) 5%, var(--win))";
+export const CARD_INSET = "color-mix(in srgb, var(--ink) 9%, var(--win))";
+
 export const CARD_CSS = [
   "@keyframes vyre-card-ring{to{transform:rotate(360deg)}}",
   "@media (prefers-reduced-motion:reduce){[data-card-ring]{animation:none!important}}",
@@ -270,15 +274,15 @@ export const s = StyleSheet.create({
   card: { marginTop: 8, padding: 12, gap: 10, borderRadius: RADIUS, alignSelf: "stretch" },
   compact: { padding: 10, gap: 8 },
   flush: { padding: 0, gap: 0, overflow: "hidden" },
-  raised: { backgroundColor: "var(--raised)" as string },
-  sunk: { backgroundColor: "var(--sunk)" as string },
+  raised: { backgroundColor: CARD_FILL },
+  sunk: { backgroundColor: CARD_FILL },
   head: { flexDirection: "row", alignItems: "center", gap: 10 },
   lead: { flexDirection: "row", alignItems: "center" },
   titles: { flex: 1, minWidth: 0, gap: 1 },
   title: { fontSize: 14, fontWeight: "600", lineHeight: 19, color: "var(--ink)" as string },
   meta: { fontSize: 12, lineHeight: 16, color: "var(--ink-3)" as string },
   trailing: { flexDirection: "row", alignItems: "center", gap: 6 },
-  body: { gap: 6, padding: 10, borderRadius: RADIUS, backgroundColor: "var(--sunk)" as string },
+  body: { gap: 6, padding: 10, borderRadius: RADIUS, backgroundColor: CARD_INSET },
   bodyBare: { gap: 6 },
   fields: { gap: 6 },
   row: { flexDirection: "row", gap: 10, alignItems: "flex-start" },

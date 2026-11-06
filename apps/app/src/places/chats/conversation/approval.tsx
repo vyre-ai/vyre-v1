@@ -5,7 +5,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { StyleSheet, Text, View } from "react-native";
-import { Card, CardActions, CardDeny, CardDone, CardHead } from "../../../../../../ui/src/Card/index.tsx";
+import { CARD_INSET, Card, CardActions, CardDeny, CardDone, CardHead } from "../../../../../../ui/src/Card/index.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import type { ConversationData } from "./data.tsx";
 import { Glyph } from "./parts.tsx";
@@ -190,7 +190,7 @@ export function ApprovalCard({ taskId, agent, agentId, data, face, faceSeed, edi
 }
 
 const st = StyleSheet.create({
-  excerpt: { gap: 6, padding: 10, borderRadius: 12, backgroundColor: "var(--sunk)" as string },
+  excerpt: { gap: 6, padding: 10, borderRadius: 12, backgroundColor: CARD_INSET },
   line: { gap: 1 },
   label: { fontSize: 11.5, color: "var(--ink-3)" as string },
   link: { fontSize: 13, lineHeight: 18, color: "var(--accent)" as string },

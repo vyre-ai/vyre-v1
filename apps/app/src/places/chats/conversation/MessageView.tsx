@@ -12,7 +12,7 @@ import { useLinkState } from "../../../../../../ui/src/reach/index.tsx";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { Platform, Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
-import { menuTrigger, reportProblem } from "../../../../../../ui/src/Menu/index.tsx";
+import { menuTrigger, reportProblem, useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { Sheet } from "../../../mobile/sheets/Sheet.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
@@ -39,7 +39,7 @@ import type { MenuMessage, ShowMenu } from "../memory/menu.tsx";
 import { SubjectText, useSubjectBlocks } from "../memory/Subjects.tsx";
 import { ReplyMemory } from "../memory/Used.tsx";
 import { AgentFileProposal, PlanFileCard, isPlanFile, isProposal } from "./proposal.tsx";
-import { Fold, Glyph, IconButton, TextButton } from "./parts.tsx";
+import { Fold, Glyph, IconButton, TextButton, anchorOf } from "./parts.tsx";
 import { ApprovalCard } from "./approval.tsx";
 import { useFollow } from "./use-follow.ts";
 import { CrewResultCard, CrewStartLine, isCrewResult, isCrewStart } from "./crew-card.tsx";
@@ -730,19 +730,28 @@ export function ErrorRowView({ block, actions }: { block: Message["blocks"][numb
     const timer = setInterval(check, 2500);
     return () => { live = false; clearInterval(timer); };
   }, [noAccount, asked, ready, resent, actions]);
-  const links = [
-    ...e.next.map((n) => ({ label: n.label, link: true as const, testID: `err-next-${n.key}`, onPress: () => { if (n.key === "connect_ai") setAsked(true); actions.errorNext(n.key, e.turnId); } })),
-    ...(e.retryable && e.turnId && !retried ? [{ label: "Retry", link: true as const, testID: "err-retry", onPress: () => { setRetried(true); actions.retryTurn(e.turnId); } }] : []),
-    { label: "Details", link: true as const, testID: "err-what", onPress: () => setOpen((o) => !o) },
-    { label: "Copy id", link: true as const, testID: "err-trace", onPress: () => actions.copy(e.traceId || e.turnId) },
-    { label: "Report", link: true as const, testID: "err-report", onPress: () => reportProblem({ label: reportLabel(e.message, e.traceId) }) },
+  const { element: moreMenu, show: showMore } = useMenu();
+  const steps = [
+    ...e.next.map((n) => ({ label: n.label, testID: `err-next-${n.key}`, run: () => { if (n.key === "connect_ai") setAsked(true); actions.errorNext(n.key, e.turnId); } })),
+    ...(e.retryable && e.turnId && !retried ? [{ label: "Retry", testID: "err-retry", run: () => { setRetried(true); actions.retryTurn(e.turnId); } }] : []),
+  ];
+  const [fix, ...otherSteps] = steps;
+  const more: MenuEntry[] = [
+    ...otherSteps.map((s) => ({ label: s.label, onSelect: s.run })),
+    { label: "Details", onSelect: () => setOpen((o) => !o) },
+    { label: "Copy id", onSelect: () => actions.copy(e.traceId || e.turnId) },
+    { label: "Report", onSelect: () => reportProblem({ label: reportLabel(e.message, e.traceId) }) },
   ];
   return (
     <View {...menuTrigger((x, y) => actions.showMenu([{ label: "Copy error details", onSelect: () => actions.copy(e.traceId) }, { label: "What Happened?", onSelect: () => setOpen((o) => !o) }], x, y, "Error"))}>
       <UiCard kind="status" tone="error" testID={`error-${block.id}`} label={e.message}>
         <CardHead title={e.message} tone="warn" lead={<Glyph name="alert" size={15} color="var(--warn)" />} />
         {e.cause ? <Text style={st.errCause}>{e.cause}</Text> : null}
-        <CardActions secondary={links} />
+        <CardActions
+          {...(fix ? { primary: { label: fix.label, onPress: fix.run, testID: fix.testID } } : {})}
+          note={<Pressable accessibilityRole="button" accessibilityLabel="More" testID="err-more" onPress={(ev) => { const at = anchorOf(ev); showMore(more, at.x, at.y, "context", { label: "Error" }); }}><Text style={st.errMore}>...</Text></Pressable>}
+        />
+        {moreMenu}
         {noAccount && ready && !resent ? (
           <View testID="err-connected" style={st.errActions}>
             <Text style={st.errCause}>Connected. Send it again?</Text>
@@ -824,6 +833,7 @@ export const st = StyleSheet.create({
   cardRow: { flexDirection: "row", flexWrap: "wrap", gap: 6, paddingHorizontal: 10, paddingBottom: 10 },
   planSteps: { gap: 4, paddingHorizontal: 12, paddingBottom: 8 },
   planStep: { flexDirection: "row", alignItems: "center", gap: 8 },
+  errMore: { fontSize: 16, color: "var(--ink-3)" as string, paddingHorizontal: 8, letterSpacing: 1 },
   errCause: { fontSize: 13, lineHeight: 19, color: "var(--ink-2)" as string },
   errActions: { flexDirection: "row", flexWrap: "wrap", gap: 4 },
   errSteps: { gap: 4, paddingTop: 4 },
