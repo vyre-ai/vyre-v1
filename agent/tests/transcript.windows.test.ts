@@ -63,11 +63,12 @@ test("Claude Code reports the window per model in the result line", () => {
   assert.equal(u?.type === "usage" ? u.model : undefined, "claude-opus-5-5");
 });
 
-test("Codex reports model_context_window with the turn", () => {
+test("Codex exec JSON carries no window (checked in openai/codex exec_events.rs: Usage is tokens only), so Codex sizes from the table", () => {
   const d = createCodexDecoder();
-  const out = d.push(JSON.stringify({ type: "turn.completed", usage: { input_tokens: 100, output_tokens: 20, model_context_window: 258_400 } }));
+  const out = d.push(JSON.stringify({ type: "turn.completed", usage: { input_tokens: 100, cached_input_tokens: 0, output_tokens: 20, reasoning_output_tokens: 0 } }));
   const u = out.find((e) => e.type === "usage");
-  assert.equal(u?.type === "usage" ? u.contextWindow : undefined, 258_400);
+  assert.ok(u?.type === "usage" && u.contextWindow === undefined);
+  assert.equal(windowFor("gpt-5-codex", "codex"), 258_400);
 });
 
 test("compaction and rollover thresholds are a share of the real window", () => {
