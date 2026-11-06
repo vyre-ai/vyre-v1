@@ -103,9 +103,12 @@ export const boundPlace = (): PlaceOf | null => placePort ?? machinePlace;
  * Whether this host has agent workspaces (a container runtime and the workspace image path): an agent's terminal then goes to its workspace, from wherever its turn runs (owner, 6 Nov). The daemon
  * binds it when it hands over a workspace config (setTerminalHost); a test binds it directly. Unbound: no workspaces, and an agent's commands go where the turn runs, as before.
  */
-let workspacesOn = false;
-export function bindWorkspaces(on: boolean): void { workspacesOn = on; }
-export const workspacesReady = (): boolean => workspacesOn;
+let workspacesProbe: ((agentId: string) => Promise<boolean>) | null = null;
+export function bindWorkspaces(on: boolean | ((agentId: string) => Promise<boolean>)): void { workspacesProbe = typeof on === "function" ? on : on ? () => Promise.resolve(true) : null; }
+/** Are workspaces configured on this host at all (a machine may still be missing for one agent: workspacesFor says). */
+export const workspacesReady = (): boolean => workspacesProbe !== null;
+/** Is there a machine this agent's workspace can live on now: the Space's own runtime, or a server that joined. When not, its commands go where its turn runs, as before. */
+export async function workspacesFor(agentId: string): Promise<boolean> { try { return workspacesProbe !== null && (await workspacesProbe(agentId)); } catch { return false; } }
 
 /** Is this a Team Space? Agent computers need one (spec 2.7). The host binds the answer; unbound means team. */
 let teamSpace: (space: string) => boolean = () => true;

@@ -93,8 +93,9 @@ export interface WorkspaceOptions {
 }
 
 export interface WorkspaceCapacity {
-  claim(agentId: string): Promise<{ state: "running" | "waiting"; line?: string }>;
-  release(agentId: string): Promise<void>;
+  /** `nodeId` names the server the workspace is on when it is not the Space's own. */
+  claim(agentId: string, nodeId?: string): Promise<{ state: "running" | "waiting"; line?: string }>;
+  release(agentId: string, nodeId?: string): Promise<void>;
 }
 
 export interface WorkspaceRow { agentId: string; state: "running" | "asleep"; lastUsedAt?: number }

@@ -320,6 +320,8 @@ export interface DaemonOptions {
   computersHomeIntervalMs?: number;
   /** How long an agent workspace is idle before it sleeps, in ms (default 10 minutes); tests shorten it. */
   workspaceIdleMs?: number;
+  /** A test of workspaces on a server that joined: this Space has no container runtime of its own, whatever the machine has. */
+  workspaceRuntimeOff?: boolean;
   /** The container engine socket the agent computers module talks to (default: the system one); tests point it somewhere nothing listens. */
   computersSocketPath?: string;
   /** The sites runner's socket (host/src/sites-runner; default VYRE_SITES_RUNNER) and, beside it, its token file. Vyre never holds the Docker socket itself. */
@@ -569,6 +571,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   // the container vyred runs in (compose sets it as vyre.ingress): it joins each computer's network, so agentd can post to the Vault channel
   /** The container runtime agent workspaces use: a socket named for the Space, the runner beside a Team server's vyred, or the one the person's own computer has (Docker Desktop, Colima, OrbStack ...). Null: none, and the agent's commands go where its turn runs. */
   const workspaceRuntime = (): { socketPath: string } | { runner: { socket: string; token(): string } } | null => {
+    if (o.workspaceRuntimeOff === true) return null;
     if (o.computersSocketPath !== undefined) return { socketPath: o.computersSocketPath };
     if (cfg.spaceKind !== "personal" && computersRunnerSocket()) return { runner: { socket: computersRunnerSocket() as string, token: computersRunnerToken } };
     const found = findDockerSocket();
@@ -1848,9 +1851,20 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           computerOf: (person) => (db!.all("SELECT id FROM devices_device WHERE person = ? AND revokedAt IS NULL AND deleted_at IS NULL AND class IN ('desktop', 'daemon', 'web') ORDER BY CASE WHEN class = 'web' THEN 1 ELSE 0 END, lastSeenAt DESC, id DESC LIMIT 1", person)[0] as { id?: string } | undefined)?.id,
           // agent workspaces (6 Nov): a Team server that has a container runtime (the runner beside vyred, or a Docker socket) gives every agent a workspace, made on first use; the same engine as agent computers
           // A Personal Space has them too when the person's computer has a container runtime (Docker Desktop, Colima, OrbStack ...): the socket is found, and the image is the release's own from the registry.
-          ...(workspaceRuntime() !== null ? {
+          // With no runtime of its own the Space still has workspaces: they go on a server of the agent's owner that joined, is connected and has Docker (the Docker questions travel over that server's live socket).
+          ...({
             workspaces: {
-              ...(workspaceRuntime() as object),
+              ...((workspaceRuntime() ?? {}) as object),
+              nodes: {
+                ask: (nodeId: string, kind: string, input: unknown, timeoutMs?: number) => computeStream.ask(nodeId, kind, input, timeoutMs),
+                place: async (agentId: string): Promise<string | null> => {
+                  const owner = ((await createAgentHomeCaller({ db: db!, spaceId, invoke })(agentId, "agents.get", { agentId })) as { agent?: { ownerId?: string } } | null)?.agent?.ownerId;
+                  if (!owner) return null;
+                  const r = await invoke("network.my_computers", {}, { space: spaceId, principal: { kind: "person", id: owner }, origin: "terminal" });
+                  const mine = r.status === "ok" ? ((r.output as { computers?: Array<{ serverId: string; enrollment: string; facts?: { docker?: boolean } }> }).computers ?? []) : [];
+                  return mine.find((c) => c.enrollment === "approved" && c.facts?.docker === true && computeStream.connected(c.serverId))?.serverId ?? null;
+                },
+              },
               ...(cfg.spaceKind === "personal" && !process.env["VYRE_WORKSPACE_IMAGE"] ? { image: `ghcr.io/vyre-ai/agent-workspace:${cfg.version}` } : {}),
               ...(o.workspaceIdleMs !== undefined ? { idleMs: o.workspaceIdleMs } : {}),
               projectsOf: (agentId: string) => (db!.all("SELECT projectId FROM projects_member WHERE principal = ? AND kind = 'agent'", agentId) as Array<{ projectId?: string }>).map((r) => String(r.projectId)),
@@ -1869,8 +1883,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
                   return m.provision(a.agentId);
                 });
                 return { capacity: {
-                  claim: async (agentId: string) => (await call("computers.workspace_claim", { agentId })) as { state: "running" | "waiting"; line?: string },
-                  release: async (agentId: string) => { await call("computers.workspace_release", { agentId }); },
+                  claim: async (agentId: string, nodeId?: string) => (await call("computers.workspace_claim", { agentId, ...(nodeId ? { nodeId } : {}) })) as { state: "running" | "waiting"; line?: string },
+                  release: async (agentId: string, nodeId?: string) => { await call("computers.workspace_release", { agentId, ...(nodeId ? { nodeId } : {}) }); },
                 } };
               })(),
               ...((): Record<string, unknown> => {
@@ -1888,7 +1902,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
               })(),
               log: (level: "info" | "warn", msg: string, attrs?: Record<string, unknown>) => sink.log({ space: spaceId, level: level === "warn" ? 40 : 30, msg, place: "workspaces", ...(attrs ? { attrs } : {}) }),
             },
-          } : {}),
+          }),
         }),
         // the Vault channel of agent computers (P-L2_21): agentd posts one #Handle.field at a time to /computers/fill with its own token; without a Vault the channel is not offered
         setComputersFill: (d) => d.vault ? createComputersFillHost({
