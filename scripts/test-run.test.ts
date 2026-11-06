@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { runFile, capFor, breakdown, mergeTimings, skippedOf, DEFAULT_CAP_MS } from "./test-run.ts";
+import { runFile, capFor, breakdown, mergeTimings, skippedOf, allSkipped, DEFAULT_CAP_MS } from "./test-run.ts";
 
 // Scaled stand-in for the 20 s rule: the cap is 1 s here and the fixture runs 1.6 s, so the check is the same without a 21 s wait.
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), "trun-"));
@@ -50,4 +50,24 @@ test("timings merge keeps passing files only", () => {
   const base = { file: "b.test.ts", ok: true, ms: 7, capMs: 20000, overCap: false, breakdown: [], out: "" };
   const t = mergeTimings({ "old.test.ts": { ms: 1, at } }, [{ ...base, file: "a.test.ts" }, { ...base, ok: false }], at);
   assert.deepEqual(Object.keys(t).sort(), ["a.test.ts", "old.test.ts"]);
+});
+
+test("a file whose every test was skipped is a skip with its reason, not a pass; a file that ran anything is not", () => {
+  const out = "﹣ needs a key # VYRE_TEST_CODEX_HOME is not set\nℹ tests 1\nℹ pass 0\nℹ fail 0\nℹ skipped 1\n";
+  assert.equal(allSkipped(out), "VYRE_TEST_CODEX_HOME is not set");
+  assert.equal(allSkipped("ℹ pass 2\nℹ fail 0\nℹ skipped 1\n"), null);
+  assert.equal(allSkipped("ℹ pass 0\nℹ fail 1\nℹ skipped 1\n"), null);
+  assert.equal(allSkipped("ℹ pass 3\nℹ fail 0\nℹ skipped 0\n"), null);
+  assert.equal(allSkipped("ℹ pass 0\nℹ fail 0\nℹ skipped 2\n"), "no reason given");
+});
+
+test("the runners print skip <file> (<reason>) and count skips apart from passes", async () => {
+  const { spawnSync } = await import("node:child_process");
+  const fs2 = await import("node:fs"), os2 = await import("node:os"), path2 = await import("node:path");
+  const dir = fs2.mkdtempSync(path2.join(os2.tmpdir(), "runner-skip-"));
+  try {
+    fs2.writeFileSync(path2.join(dir, "only-skips.test.ts"), 'import test from "node:test";\ntest("needs a key", { skip: "no key here" }, () => {});\n');
+    const r = spawnSync(process.execPath, ["--test", "--test-reporter=spec", path2.join(dir, "only-skips.test.ts")], { encoding: "utf8", env: Object.fromEntries(Object.entries(process.env).filter(([k]) => k !== "NODE_TEST_CONTEXT")) });
+    assert.equal(allSkipped(r.stdout + r.stderr), "no key here");
+  } finally { fs2.rmSync(dir, { recursive: true, force: true }); }
 });

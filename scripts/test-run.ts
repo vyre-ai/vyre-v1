@@ -65,6 +65,13 @@ export function skippedOf(out: string): { n: number; lines: string[] } {
   return { n, lines: out.split("\n").filter((l) => /^\s*﹣ .* # /.test(l)).map((l) => l.trim()) };
 }
 
+/** A file whose every test was skipped (it ran nothing): the reason of the first skip, or "no reason given". Null when any test ran or the file skipped nothing. A skip is not a pass. */
+export function allSkipped(out: string): string | null {
+  const n = Number(/^ℹ skipped (\d+)/m.exec(out)?.[1] ?? 0);
+  if (n === 0 || Number(/^ℹ pass (\d+)/m.exec(out)?.[1] ?? 0) > 0 || Number(/^ℹ fail (\d+)/m.exec(out)?.[1] ?? 0) > 0) return null;
+  return /^\s*﹣ .*? # (.+)$/m.exec(out)?.[1]?.trim() ?? "no reason given";
+}
+
 /** Merges this run's durations into a timings table: { file: { ms, at } }. */
 export function mergeTimings(prev: Record<string, { ms: number; at: string }>, results: RunResult[], at = new Date().toISOString()) {
   const next = { ...prev };
@@ -87,7 +94,13 @@ if (process.argv[1] && path.resolve(process.argv[1]) === self) {
   const queue = [...picked], results: RunResult[] = [];
   await Promise.all(Array.from({ length: Math.min(jobs, queue.length) }, async () => { while (queue.length) { const f = queue.shift()!; results.push(await runFile(f, { cwd: repo, capMs: capFor(f, slowAll) })); } }));
   if (arg("--no-skip")) for (const r of results) { const sk = skippedOf(r.out); if (r.ok && sk.n > 0) { r.ok = false; r.out = `${r.file} skipped ${sk.n} test(s), and with --no-skip a skip is a failure:\n${sk.lines.join("\n")}\n`; } }
-  for (const r of results.sort((a, b) => a.file.localeCompare(b.file))) { console.log(`${r.ok ? "ok  " : "FAIL"} ${r.file} ${r.ms} ms`); if (!r.ok) console.log(r.out); }
+  let skipped = 0;
+  for (const r of results.sort((a, b) => a.file.localeCompare(b.file))) {
+    const why = r.ok ? allSkipped(r.out) : null;
+    if (why !== null) { skipped += 1; console.log(`skip ${r.file} (${why})`); continue; }
+    console.log(`${r.ok ? "ok  " : "FAIL"} ${r.file} ${r.ms} ms`); if (!r.ok) console.log(r.out);
+  }
+  console.log(`${results.length} files, ${results.filter((r) => !r.ok).length} failed, ${skipped} skipped (a skipped file did not run and is not a pass)`);
   if (arg("--timings")) {
     const tf = path.join(repo, "test/timings.json");
     fs.writeFileSync(tf, JSON.stringify(mergeTimings(JSON.parse(fs.readFileSync(tf, "utf8")), results), null, 2) + "\n");
