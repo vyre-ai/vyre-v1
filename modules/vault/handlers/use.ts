@@ -91,20 +91,26 @@ export function secretPort(db: VaultDb): SecretPort {
     if (!row) throw new Error("The vault service is not running.");
     const box = parseJson(row["box"], { iv: "", ct: "", tag: "" });
     let fields: Field[];
-    if (str(meta, "scope") === "mine") {
-      const key = await currentKeyPort()?.personKey(str(meta, "owner"));
-      // the words the engine and the app read as a locked key (vault_locked): the owner's Mine items open while they are signed in
-      if (!key) throw new Error("Your sign-ins are locked on this server. Unlock Vyre to use them.");
-      const sealed = { keyId: str(row, "keyId"), box, rev: num(row, "rev"), wrapped: parseJson(row["wrapped"], { iv: "", ct: "", tag: "" }) };
-      if (num(row, "enc") === ENC_MINE_SEALED) {
-        const priv = await currentKeyPort()?.privateKey?.(str(meta, "owner"));
-        if (!priv) throw new Error("Your sign-ins are locked on this server. Unlock Vyre to use them.");
-        fields = openMineSealed(str(meta, "id"), { enc: ENC_MINE_SEALED, ...sealed }, priv);
-      } else fields = openMine(str(meta, "id"), { enc: ENC_MINE, ...sealed }, wrapKeyFromPersonKey(key));
-    } else {
-      const f = currentFiller();
-      if (!f) throw new Error("The vault service is not running.");
-      fields = f.open(str(meta, "id"), { enc: 1, keyId: str(row, "keyId"), box, rev: num(row, "rev") });
+    try {
+      if (str(meta, "scope") === "mine") {
+        const key = await currentKeyPort()?.personKey(str(meta, "owner"));
+        // the words the engine and the app read as a locked key (vault_locked): the owner's Mine items open while they are signed in
+        if (!key) throw new Error("Your Vault key is not on this server, so your sign-in cannot be opened. Your Mine items open while you are signed in: open Vyre on your device and sign in.");
+        const sealed = { keyId: str(row, "keyId"), box, rev: num(row, "rev"), wrapped: parseJson(row["wrapped"], { iv: "", ct: "", tag: "" }) };
+        if (num(row, "enc") === ENC_MINE_SEALED) {
+          const priv = await currentKeyPort()?.privateKey?.(str(meta, "owner"));
+          if (!priv) throw new Error("Your Vault key is not on this server, so your sign-in cannot be opened. Your Mine items open while you are signed in: open Vyre on your device and sign in.");
+          fields = openMineSealed(str(meta, "id"), { enc: ENC_MINE_SEALED, ...sealed }, priv);
+        } else fields = openMine(str(meta, "id"), { enc: ENC_MINE, ...sealed }, wrapKeyFromPersonKey(key));
+      } else {
+        const f = currentFiller();
+        if (!f) throw new Error("The vault service is not running.");
+        fields = f.open(str(meta, "id"), { enc: 1, keyId: str(row, "keyId"), box, rev: num(row, "rev") });
+      }
+    } catch (e) {
+      // a refusal above (the key is not on this node) keeps its own words; a value no key this Space has can open is said as itself, so the person is told to sign in again
+      if (e instanceof Error && /Vault key is not on this server|vault service is not running|Vault is not live/.test(e.message)) throw e;
+      throw Object.assign(new Error("This sign-in can't be opened on this device. Sign in again."), { code: "vault.item_unopenable", name: "ItemUnopenable" });
     }
     const hit = m[2] ? fields.find((x) => x.key === m[2]) : fields.length === 1 ? fields[0] : fields.filter((x) => x.secret).length === 1 ? fields.find((x) => x.secret) : undefined;
     if (!hit) throw new Error(`Name a field after ${handle}.`);

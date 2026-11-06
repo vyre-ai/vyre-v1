@@ -4,7 +4,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
-import { MODES, effortForKey, effortsFor, kTokens, limitWords, modeInfo } from "./brain.ts";
+import { MODES, effortForKey, effortsFor, kTokens, limitWords, modeInfo, windowWords } from "./brain.ts";
 import type { ChatMode, ComposerAgent, Effort } from "./brain.ts";
 import { BrandMark, I, ensureComposerCss, webOnly } from "./parts.tsx";
 import { Glyph } from "./shared.tsx";
@@ -253,7 +253,7 @@ export function ModelPanel(p: ModelPanelProps): ReactElement {
               const on = m.id === p.model;
               const off = m.allowed === false;
               // a model the account may not use stays visible with the reason, and does nothing when pressed
-              return <Row key={m.id} id={`model-${m.id}`} title={m.title} selected={on} {...(off ? { note: m.reason ?? "Not available on this account" } : m.note ? { note: m.note } : {})} trailing={on ? CHECK : null} {...(off ? {} : { onPress: () => { p.onModel(m.id); setSub(null); } })} />;
+              return <Row key={m.id} id={`model-${m.id}`} title={m.title} selected={on} {...(off ? { note: m.reason ?? "Not available on this account" } : m.note || m.window ? { note: [m.note, m.window ? windowWords(m.window) : ""].filter((x) => x).join(" · ") } : {})} trailing={on ? CHECK : null} {...(off ? {} : { onPress: () => { p.onModel(m.id); setSub(null); } })} />;
             })}
           </ScrollView>
           {p.modelsLine && p.models !== null ? <Text style={st.quiet} testID="model-models-line">{p.modelsLine}</Text> : null}
@@ -335,7 +335,7 @@ export function ModelPanel(p: ModelPanelProps): ReactElement {
           <View style={st.lims} testID="model-usage">
             {session ? <Meter testID="meter-session" label={words.session} frac={session.pct} value={resetLabel(session.resetsAt, p.now) ? `resets ${resetLabel(session.resetsAt, p.now)}` : pct(session.pct)} /> : null}
             {week ? <Meter testID="meter-week" label={words.week} frac={week.pct} value={resetLabel(week.resetsAt, p.now) ? `resets ${resetLabel(week.resetsAt, p.now)}` : pct(week.pct)} /> : null}
-            {ctx ? <Meter testID="meter-context" label="Context" frac={ctx.used / ctx.window} value={`${ctx.approximate ? "about " : ""}${kTokens(ctx.used)} / ${kTokens(ctx.window)}`} /> : null}
+            {ctx ? <Meter testID="meter-context" label="Context" frac={ctx.used / ctx.window} value={`${ctx.approximate ? "about " : ""}${Math.round((Math.min(ctx.used, ctx.window) / ctx.window) * 100)}% of ${kTokens(ctx.window)}`} /> : null}
           </View>
         </>
       )}

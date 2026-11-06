@@ -71,10 +71,12 @@ test("an install that did not finish says why in a plain line and keeps the Inst
   assert.deepEqual(unsupported.next, [{ key: "connect_ai", label: "Connect an account" }]);
 });
 
-test("a locked Vault is an Unlock card, not a failed reply; an unreadable one gives the reason the Vault gave", () => {
+test("a Vault key that is not on the server says what is missing and offers no unlock; an unreadable Vault gives the reason the Vault gave", () => {
   const locked = errorOf({ state: "failed", turnId: "t", code: "engine.vault_locked" });
-  assert.equal(locked.message, "Your sign-ins are locked on this server.");
-  assert.deepEqual(locked.next, [{ key: "unlock_vault", label: "Unlock" }]);
+  assert.equal(locked.message, "Your Vault key is not on this server.");
+  assert.match(locked.cause ?? "", /signed in on a device/);
+  assert.deepEqual(locked.next, []);
+  assert.equal(locked.retryable, true);
   const unreadable = errorOf({ state: "failed", turnId: "t", code: "engine.vault_unreadable", reason: "provider.unavailable" });
   assert.equal(unreadable.message, "Your Vault could not be read just now.");
   assert.equal(unreadable.cause, "The Vault answered: provider.unavailable.");
@@ -199,4 +201,27 @@ test("an engine that cannot run here says why in the connect card's own words, a
   assert.equal(signin.next?.[0]?.key, "sign_in:Codex");
   const auth = data(statusView(block({ state: "failed", turnId: "t", code: "provider.auth_failed", account: "Claude_Code" })));
   assert.equal(auth.next?.[0]?.key, "sign_in:Claude_Code");
+});
+
+test("an AI sign-in that cannot be opened says so and offers the sign-in, not a plain could-not-be-read", () => {
+  const e = errorOf({ state: "failed", turnId: "t", code: "engine.signin_unopenable" });
+  assert.equal(e.message, "Your AI sign-in can't be opened on this device.");
+  assert.deepEqual(e.next, [{ key: "connect_ai", label: "Sign in again" }]);
+});
+
+test("a usage limit that said when it lifts puts the time in the cause", async () => {
+  const { resetWords } = await import("./status.ts");
+  const now = new Date(2026, 10, 6, 10, 0).getTime();
+  assert.match(resetWords(new Date(2026, 10, 6, 15, 12).getTime(), now), /^at 3:12\s?PM$/);
+  assert.match(resetWords(new Date(2026, 10, 9, 3, 12).getTime(), now), /^on Nov 9 at 3:12\s?AM$/);
+});
+
+test("a failed turn that hit a usage limit says when the account is usable again", () => {
+  const v = statusView(block({ state: "failed", code: "provider.rate_limited", turnId: "t1", resetsAt: Date.now() + 3 * 3_600_000 }));
+  assert.equal(v?.kind, "error");
+  const data = (v as { block: { data: { message: string; cause?: string } } }).block.data;
+  assert.equal(data.message, "Your AI account reached its usage limit.");
+  assert.match(data.cause ?? "", /can be used again (at|on) .*another account/);
+  const plain = statusView(block({ state: "failed", code: "provider.rate_limited", turnId: "t1" }));
+  assert.equal((plain as { block: { data: { cause?: string } } }).block.data.cause, "Wait for it to reset, or use another account.");
 });

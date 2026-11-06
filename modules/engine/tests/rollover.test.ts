@@ -47,7 +47,7 @@ function rig(o: { account: ResolvedAccount; tokensIn: number; context?: number; 
 }
 
 test("a Claude Code chat at 85% of its window rolls over: the session is forgotten and closed, a Vyre summary stands in, and the chat is told", async () => {
-  const r = rig({ account: CLAUDE, tokensIn: 170_000 });
+  const r = rig({ account: CLAUDE, tokensIn: 850_000 });
   assert.equal(await r.go(), true);
   assert.equal(resumeId(r.h.db, { threadId: T, agentId: A, person: "usr_dana", driver: "claude_code" }), null, "the next turn starts a new session");
   assert.equal(r.dropped(), 1);
@@ -58,22 +58,22 @@ test("a Claude Code chat at 85% of its window rolls over: the session is forgott
 });
 
 test("below the threshold, on an API engine, or soon after a roll, nothing happens", async () => {
-  const low = rig({ account: CLAUDE, tokensIn: 90_000 });
+  const low = rig({ account: CLAUDE, tokensIn: 450_000 });
   assert.equal(await low.go(), false);
   assert.equal(low.dropped(), 0);
-  const api = rig({ account: API, tokensIn: 190_000 });
+  const api = rig({ account: API, tokensIn: 950_000 });
   assert.equal(await api.go(), false, "an API engine rebuilds its context from the chat every turn");
-  const soon = rig({ account: CLAUDE, tokensIn: 170_000, turnsSince: 3 });
+  const soon = rig({ account: CLAUDE, tokensIn: 850_000, turnsSince: 3 });
   saveCompaction(soon.h.db, { threadId: T, agentId: A, how: "vyre", upToSeq: 1, summary: "s", keep: "", used: 12_000, window: 200_000, at: NOW });
   assert.equal(await soon.go(), false, "one roll per ROLL.gap turns");
   assert.equal(soon.dropped(), 0);
 });
 
 test("a queued message holds the roll for a few turn boundaries, unless the window is nearly full", async () => {
-  const r = rig({ account: CLAUDE, tokensIn: 170_000, queued: true });
+  const r = rig({ account: CLAUDE, tokensIn: 850_000, queued: true });
   for (let i = 0; i < 3; i++) assert.equal(await r.go(), false, `boundary ${i + 1}: waiting for the queued message`);
   assert.equal(await r.go(), true, "it has waited long enough");
-  const full = rig({ account: CLAUDE, tokensIn: 185_000, queued: true });
+  const full = rig({ account: CLAUDE, tokensIn: 925_000, queued: true });
   assert.equal(await full.go(), true, "past 90% it rolls whatever is queued");
 });
 

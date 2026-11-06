@@ -37,7 +37,7 @@ const LINE_CHARS = 300;
 const ROLLING_CHARS = 8_000;
 
 const cut = (s: string, n: number): string => { const t = s.replace(/\s+/g, " ").trim(); return t.length > n ? `${t.slice(0, n - 1)}…` : t; };
-const k = (n: number): string => (n >= 1_000 ? `${Math.round(n / 1_000)}k` : String(Math.max(0, Math.round(n))));
+const k = (n: number): string => (n >= 1_000_000 ? `${Math.round(n / 10_000) / 100}M` : n >= 1_000 ? `${Math.round(n / 1_000)}k` : String(Math.max(0, Math.round(n))));
 
 /** Vyre's summary of a chat: what to keep first, word for word, then the rolling summary, then the latest messages. */
 export function vyreSummary(keep: string, rolling: string, latest: readonly StoredMessage[], nameOf: (id: string) => string = (id) => id): string {

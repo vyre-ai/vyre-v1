@@ -6,7 +6,7 @@
 //   source   provider when a limit window was reported, estimate when only the context figure (counted from our own turn records) is known, none otherwise.
 // DECISION: API-key accounts report per-minute throttles (anthropic-ratelimit-*), which are not a session or a week, so they are not shown as one.
 // The table is created here with CREATE TABLE IF NOT EXISTS, the way the other engine_* helper tables are, so no migration list changes.
-import { windowFor } from "../../../agent/src/transcript/windows.ts";
+import { reportWindow, windowFor } from "../../../agent/src/transcript/windows.ts";
 import { raise } from "../projections.ts";
 import type { Db, EngineCtx } from "../projections.ts";
 import { ensureExtra } from "./extra/schema.ts";
@@ -142,9 +142,11 @@ export async function usageGet(ctx: EngineCtx, input: { threadId: string; agentI
     try {
       ensureInfo(ctx.db);
       const i = rows(ctx, "SELECT info FROM engine_turn_info WHERE turn_id = ?", String(last["turn_id"]))[0];
-      const parsed = i && typeof i["info"] === "string" ? (JSON.parse(i["info"] as string) as { contextTokens?: number; tools?: unknown[] }) : undefined;
+      const parsed = i && typeof i["info"] === "string" ? (JSON.parse(i["info"] as string) as { contextTokens?: number; contextWindow?: number; tools?: unknown[] }) : undefined;
       if (Array.isArray(parsed?.tools)) lastCalls = parsed!.tools!.length + 1;
       if (typeof parsed?.contextTokens === "number" && parsed.contextTokens > 0) lastSize = parsed.contextTokens;
+      // the window the engine reported for the model that turn ran on survives a restart in the turn record
+      if (typeof parsed?.contextWindow === "number") reportWindow(optStr(last["model"]), parsed.contextWindow);
     } catch { /* the figure falls back to the turn's total */ }
   }
   // a chat that picked no model runs on the engine's own default: the model its latest turn really ran on sizes the window

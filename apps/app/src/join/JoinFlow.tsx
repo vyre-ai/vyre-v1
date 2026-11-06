@@ -44,7 +44,6 @@ export interface JoinFlowProps {
   onSaveCode?: (code: string) => void;
   newCode?: () => string;
   onBackFromSignIn?: () => void;
-  unlock?: boolean;
   /** rc.17: "I already have a Vyre account", for a person with an account in another Space and no session for it on this device */
   onHaveAccount?: () => void;
 }
@@ -175,7 +174,7 @@ function JoinFlowForHost(props: JoinFlowProps) {
   const page = state.stage === "connect"
     ? <Welcome address={state.spaceAddress} busy={state.spaceResolving} error={state.spaceError} onAddressChange={changeSpaceAddress} onSignIn={() => void resolveSpace("signin")} onGetStarted={() => void resolveSpace("onboarding")} />
     : state.stage === "signin"
-    ? <SignIn invite={invite} state={state} dispatch={dispatch} busy={signingIn} onSubmit={() => void signIn()} {...(props.onSso?{onSso:props.onSso}:{})} {...(props.onGithub?{onGithub:props.onGithub}:{})} {...(props.onRecoveryCode?{onRecoveryCode:props.onRecoveryCode}:{})} {...(props.onBackFromSignIn ? {onBack:props.onBackFromSignIn} : {})} {...(props.unlock ? {unlock:true} : {})} />
+    ? <SignIn invite={invite} state={state} dispatch={dispatch} busy={signingIn} onSubmit={() => void signIn()} {...(props.onSso?{onSso:props.onSso}:{})} {...(props.onGithub?{onGithub:props.onGithub}:{})} {...(props.onRecoveryCode?{onRecoveryCode:props.onRecoveryCode}:{})} {...(props.onBackFromSignIn ? {onBack:props.onBackFromSignIn} : {})} />
     : (
       <AcceptInvite
         invite={invite} state={state} dispatch={dispatch} rules={rules} {...(props.expired===undefined?{}:{expired:props.expired})}

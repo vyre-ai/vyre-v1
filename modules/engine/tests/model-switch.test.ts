@@ -135,7 +135,7 @@ test("an API key's models are checked in the background: shown greyed as Checkin
       },
     };
     const first = await modelsList(ctx, { refresh: true });
-    assert.deepEqual(first.models.map((m) => [m.model, m.allowed, m.reason]), [["beam-free", false, "checking"], ["glm-5.3", false, "checking"]]);
+    assert.deepEqual(first.models.map((m) => [m.model, m.allowed, m.reason]), [["beam-free", true, "checking"], ["glm-5.3", true, "checking"]]);
     assert.equal(first.listed?.refreshing, true, "the menu asks again");
     release();
     const second = await modelsList(ctx, { wait: true });
@@ -227,4 +227,99 @@ test("a picked model is checked at once, past the cap, and a refusal hides it", 
     assert.deepEqual(asked, ["m-29"], "the picked model, and nothing else");
     assert.deepEqual([...unavailableFor(ctx.db, "#Dana_Opencode", ctx.now())], ["m-29"]);
   } finally { bindCompleter(null); resetProbes(); }
+});
+
+test("a check that fails because the Vault key is not on this node ends once for the whole account: one request, every model selectable and read as Not checked, no second try while it holds", async () => {
+  resetLiveModels(); resetProbes();
+  bindCompleter(async () => ({ text: "ok", tokensIn: 1, tokensOut: 1 }));
+  try {
+    const h = harness();
+    const asked: string[] = [];
+    const ctx: EngineCtx = {
+      ...h.ctx,
+      call: async (cap: string, input: unknown) => {
+        if (cap === "providers.list") return { providers: [OPENCODE] };
+        if (cap === "providers.test") return { ok: true, models: ["beam-free", "glm-5.3", "glm-5"] };
+        if (cap === "engine.complete") { asked.push((input as { model: string }).model); throw Object.assign(new Error("Your Vault key is not on this server, so your sign-in cannot be opened."), { code: "engine.vault_locked" }); }
+        return h.ctx.call(cap, input);
+      },
+    };
+    await modelsList(ctx, { refresh: true });
+    await Promise.all(probing(["#Dana_Opencode"]));
+    const after = await modelsList(ctx, { refresh: true });
+    assert.equal(asked.length, 1, "one failed read for the account, not one per model");
+    assert.deepEqual(after.models.map((m) => [m.allowed, m.reason]), [[true, "not_checked"], [true, "not_checked"], [true, "not_checked"]]);
+    assert.equal(after.listed?.refreshing ?? false, false, "nothing is checking any more");
+    await modelsList(ctx, { refresh: true });
+    assert.equal(asked.length, 1, "not asked again while Not checked holds");
+  } finally { bindCompleter(null); resetProbes(); }
+});
+
+test("a check that takes too long is Not checked for that model, not Checking forever, and the model stays selectable", async () => {
+  resetLiveModels(); resetProbes();
+  const { probeModels, notCheckedFor, probing: inFlight } = await import("../model-health.ts");
+  const h = harness();
+  probeModels(h.ctx.db, "#Slow", ["m1"], () => new Promise<void>(() => undefined), () => 1000, { timeoutMs: 20 });
+  await Promise.all(inFlight(["#Slow"]));
+  assert.deepEqual([...notCheckedFor("#Slow", 1000).models], ["m1"]);
+  assert.equal(confirmedFor(h.ctx.db, "#Slow", 1000).has("m1"), false, "a timeout confirms nothing");
+  resetProbes();
+});
+
+const OPEN = "#Team_Opencode";
+test("a provider's permanent refusal (RegionError, not in the plan, model not found) hides the model from that account for a day; a rate limit, a 5xx or a timeout never does", async () => {
+  const { probeModels, probing: inFlight, notCheckedFor } = await import("../model-health.ts");
+  resetProbes();
+  const h = harness();
+  const errs: Record<string, string> = {
+    region: '403 {"type":"error","error":{"type":"RegionError","message":"This model is not available in your region"}}',
+    plan: "403 This model is not included in your plan",
+    gone: "404 model_not_found",
+    limited: "429 rate limit reached",
+    down: "503 upstream unavailable",
+    slow: "the check took too long",
+  };
+  probeModels(h.ctx.db, OPEN, Object.keys(errs), async (_r, m) => { throw new Error(errs[m]!); }, () => 1000, { timeoutMs: 5000, parallel: 6 });
+  await Promise.all(inFlight([OPEN]));
+  assert.deepEqual([...unavailableFor(h.ctx.db, OPEN, 1000)].sort(), ["gone", "plan", "region"], "only the permanent refusals hide a model");
+  assert.equal(unavailableFor(h.ctx.db, OPEN, 1000 + 23 * 3600_000).has("region"), true, "still hidden within the day");
+  assert.equal(unavailableFor(h.ctx.db, OPEN, 1000 + 25 * 3600_000).has("region"), false, "asked again after a day");
+  assert.ok(notCheckedFor(OPEN, 1000).models.size >= 0);
+  resetProbes();
+});
+
+test("a model that answered a check slower than 20 s is kept as slow and listed with a quiet Slow note, still selectable", async () => {
+  const { probeModels, probing: inFlight, slowFor } = await import("../model-health.ts");
+  resetProbes(); resetLiveModels();
+  const h = harness();
+  let t = 0;
+  probeModels(h.ctx.db, OPEN, ["hy4-preview", "glm-5"], async (_r, m) => { t += m === "hy4-preview" ? 42_000 : 1_000; }, () => t, { timeoutMs: 100_000, parallel: 1 });
+  await Promise.all(inFlight([OPEN]));
+  assert.deepEqual([...slowFor(h.ctx.db, OPEN, t)], ["hy4-preview"]);
+  assert.equal(confirmedFor(h.ctx.db, OPEN, t).has("hy4-preview"), true, "slow is still a working model");
+  resetProbes();
+});
+
+test("Auto never lands on a hidden model: the account's default model skips what the account refused", async () => {
+  const { accountResolve } = await import("../handlers/accounts.ts");
+  resetProbes();
+  const h = harness();
+  markUnavailable(h.ctx.db, OPEN, "muse-spark-1.2-contributor", h.ctx.now());
+  const providers = [{ id: "prv_t", providerKey: "opencode_go", name: "OpenCode", connection: "api_key", scope: "shared", handle: OPEN, itemId: "vit_t", engine: "opencode-go", spaceMayUse: true, state: "ok", uses: { teamChats: { who: "everyone" }, goals: true }, models: ["muse-spark-1.2-contributor", "glm-5"] }];
+  const ctx: EngineCtx = {
+    ...h.ctx,
+    call: async (cap: string, input: unknown) => {
+      if (cap === "providers.list") return { providers };
+      if (cap === "threads.get") return { thread: { starter: "usr_dana", agents: [{ agentId: "agt_1" }] } };
+      if (cap === "agents.get") return { agent: { accountPolicy: "asker", model: "claude-sonnet-5-5" } };
+      if (cap === "engine.policy.get") return { allowedAccounts: "any" };
+      if (cap === "engine.defaults.get") return { fallback: [] };
+      if (cap === "engine.placement.decide") return { placement: "host" };
+      if (cap === "spaces.get") return { space: { kind: "team" } };
+      return h.ctx.call(cap, input);
+    },
+  };
+  const r = await accountResolve(ctx as never, { threadId: "thr_1", agentId: "agt_1", askerId: "usr_dana", kind: "wake" });
+  assert.equal(r.accountRef, OPEN);
+  assert.equal(r.modelFallback?.to, "glm-5", "not the refused first model");
 });

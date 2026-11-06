@@ -3,6 +3,10 @@
 import { useMemo, useState } from "react";
 import type { ReactElement } from "react";
 import { holdKeyOnOwnNode } from "../../../../client/src/gateway/local-key.ts";
+import { keepKey } from "../../../../client/src/gateway/key-keeper.ts";
+
+/** The key goes to this computer's node and is kept sealed on this device, so the next launch opens with no password. */
+const holdAndKeep = async (baseUrl: string, token: string, key: Uint8Array): Promise<boolean> => { const held = await holdKeyOnOwnNode(baseUrl, token, key); if (held) await keepKey(key); return held; };
 import { loadCryptoKeys } from "../../../../client/src/crypto/load.ts";
 import { makeRecoveryCode } from "../join/JoinFlow.tsx";
 import { createCapCaller } from "../shell/session/caps.ts";
@@ -61,7 +65,7 @@ export function ClaimRoute({ token, onDone, onSignIn, onBack, address, fragment,
   const claim = async (v: { name: string; username: string; password: string; recoveryCode: string }): Promise<void> => {
     const { makeBundle, wipe } = await loadCryptoKeys();
     const claimed = await claimOwner(
-      { call, makeBundle: (password, recoveryCode, id) => makeBundle(password, recoveryCode, { spaceId: id }), holdKey: (t, key) => holdKeyOnOwnNode(baseUrl, t, key), wipe },
+      { call, makeBundle: (password, recoveryCode, id) => makeBundle(password, recoveryCode, { spaceId: id }), holdKey: (t, key) => holdAndKeep(baseUrl, t, key), wipe },
       { token, spaceId, name: v.name, username: v.username, password: v.password, recoveryCode: v.recoveryCode, ...deviceFor(deviceClass) },
     );
     await finish(claimed, v.username);
@@ -72,7 +76,7 @@ export function ClaimRoute({ token, onDone, onSignIn, onBack, address, fragment,
   const claimWith = async (c: Carried, from?: KnownIdentity): Promise<void> => {
     const { wipe } = await loadCryptoKeys();
     const claimed = await claimOwner(
-      { call, makeBundle: (_pw, _code, id) => c.carry(id), holdKey: (t, key) => holdKeyOnOwnNode(baseUrl, t, key), wipe },
+      { call, makeBundle: (_pw, _code, id) => c.carry(id), holdKey: (t, key) => holdAndKeep(baseUrl, t, key), wipe },
       { token, spaceId, name: c.name, username: c.username, password: c.password, recoveryCode: "", ...deviceFor(deviceClass) },
     );
     await finish(claimed, c.username);

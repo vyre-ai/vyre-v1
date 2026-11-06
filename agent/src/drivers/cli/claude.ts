@@ -161,9 +161,12 @@ export function createClaudeDecoder(): CliDecoder {
     // the result line names every model the turn used; a turn that used one is that model
     const used = Object.keys(obj(j["modelUsage"]) ?? {}).filter((k) => !k.startsWith("<"));
     if (used.length === 1) model = used[0]!;
+    // the window Claude Code itself holds for that model (modelUsage.<model>.contextWindow): the figure the meter and compaction size against
+    const usage1 = used.length === 1 ? obj(obj(j["modelUsage"])?.[used[0]!]) : null;
+    const window = usage1 && typeof usage1["contextWindow"] === "number" && usage1["contextWindow"] > 0 ? usage1["contextWindow"] : undefined;
     if (total.input > 0 || total.output > 0) {
       out.push({
-        type: "usage", inputTokens: total.input, outputTokens: total.output, ...(model !== "" ? { model } : {}), ...(lastContext > 0 ? { contextTokens: lastContext } : {}),
+        type: "usage", inputTokens: total.input, outputTokens: total.output, ...(model !== "" ? { model } : {}), ...(lastContext > 0 ? { contextTokens: lastContext } : {}), ...(window !== undefined ? { contextWindow: window } : {}),
         ...(cacheRead !== undefined ? { cacheReadTokens: cacheRead } : {}), ...(cacheWrite !== undefined ? { cacheWriteTokens: cacheWrite } : {}), ...(costUsd !== undefined ? { costUsd } : {}),
       });
     }

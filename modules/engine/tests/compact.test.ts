@@ -108,8 +108,8 @@ test("Claude Code compacts itself: the chat's own session is sent the compact wi
   const r = rig({ account: CLAUDE, events: [{ type: "block", kind: "compacted", payload: { before: 91_000, after: 5_100 } }, { type: "usage", inputTokens: 91_000, outputTokens: 800 }, { type: "done" }] });
   const out = await r.compactor.run(r.req);
   assert.deepEqual([out.engine, out.how, out.fellBack], ["claude_code", "engine", false]);
-  assert.equal(out.line, "Compacted. Kept: the lease dates. Context now about 5k of 200k tokens.");
-  assert.deepEqual(out.context, { used: 5_100, window: 200_000 });
+  assert.equal(out.line, "Compacted. Kept: the lease dates. Context now about 5k of 1M tokens.");
+  assert.deepEqual(out.context, { used: 5_100, window: 1_000_000 });
   assert.equal(r.opened.length, 1);
   const spec = r.opened[0]!.spec as { account?: { driver?: string }; mode?: string; agent: { model?: string; effort?: string } };
   assert.deepEqual([spec.account?.driver, spec.mode, spec.agent.model, spec.agent.effort], ["claude_code", "auto", "sonnet", "high"], "the chat's own settings, so the pool hands the chat's own session");
@@ -119,7 +119,7 @@ test("Claude Code compacts itself: the chat's own session is sent the compact wi
   assert.equal(r.dropped(), 1, "an older warm process of the chat is closed first");
   assert.deepEqual(r.posts, [{ agentId: A, text: out.line }]);
   const c = lastCompaction(r.h.db, T, A);
-  assert.deepEqual([c?.how, c?.used, c?.window, c?.keep], ["engine", 5_100, 200_000, "the lease dates"]);
+  assert.deepEqual([c?.how, c?.used, c?.window, c?.keep], ["engine", 5_100, 1_000_000, "the lease dates"]);
 });
 
 for (const code of ["engine.nothing_to_compact", "engine.session_gone"]) {
@@ -129,7 +129,7 @@ for (const code of ["engine.nothing_to_compact", "engine.session_gone"]) {
     const out = await r.compactor.run(r.req);
     assert.deepEqual([out.how, out.fellBack], ["vyre", true]);
     assert.match(out.line, code === "engine.session_gone" ? /Claude Code no longer had this chat's session, so Vyre compacted it from the chat's summary\.$/ : /Claude Code had nothing of this chat yet/);
-    assert.match(out.line, /^Compacted\. Kept: the lease dates\. Context now about \d+k of 200k tokens\./);
+    assert.match(out.line, /^Compacted\. Kept: the lease dates\. Context now about \d+k of 1M tokens\./);
     assert.equal(r.opened[0]!.cancelled, code !== "engine.nothing_to_compact");
     assert.equal(resumeId(r.h.db, { threadId: T, agentId: A, person: "usr_dana", driver: "claude_code" }), null, "the engine session is forgotten: the next turn starts from the summary");
     assert.equal(r.posts.length, 1);
@@ -240,10 +240,10 @@ test("the meter shows what a compaction left until a later turn says otherwise, 
   saveCompaction(h.db, { threadId: T, agentId: A, how: "engine", upToSeq: 3, summary: "", keep: "", used: 6_000, window: 200_000, at: NOW - 5_000 });
   setKeepEvery(h.db, T, "the lease dates", "usr_dana", NOW);
   let out = await usageGet(ctx, { threadId: T, agentId: A });
-  assert.deepEqual(out.context, { used: 6_000, window: 200_000 });
+  assert.deepEqual(out.context, { used: 6_000, window: 1_000_000 });
   assert.equal(out.keepEvery, "the lease dates");
   assert.deepEqual(validate(cap("engine.usage.get").output, out, "", {}), []);
   turn(2, 9_000, NOW - 1_000);
   out = await usageGet(ctx, { threadId: T, agentId: A });
-  assert.deepEqual(out.context, { used: 9_000, window: 200_000 }, "the next turn's own figure wins");
+  assert.deepEqual(out.context, { used: 9_000, window: 1_000_000 }, "the next turn's own figure wins");
 });

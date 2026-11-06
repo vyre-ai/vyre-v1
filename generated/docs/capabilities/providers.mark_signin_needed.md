@@ -26,6 +26,7 @@ System: the engine found a sign-in missing or refused when a turn ran on this ac
 ```ts
 type In = {
   handle: string;
+  why?: string;
 };
 ```
 
@@ -50,7 +51,8 @@ type Out = {
 {
   "name": "example",
   "input": {
-    "handle": "#Dana_Lawmatics.api_key"
+    "handle": "#Dana_Lawmatics.api_key",
+    "why": "example"
   },
   "output": {
     "marked": true
