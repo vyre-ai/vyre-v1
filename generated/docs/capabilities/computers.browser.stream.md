@@ -36,6 +36,8 @@ type Out = {
   transport: "mjpeg";
   url: string;
   ws?: string;
+  width?: number;
+  height?: number;
   expiresAt: number;
 };
 ```
@@ -60,8 +62,10 @@ type Out = {
   },
   "output": {
     "expiresAt": 1760000000000,
+    "height": 1,
     "transport": "mjpeg",
     "url": "example",
+    "width": 1,
     "ws": "example"
   }
 }

@@ -90,11 +90,12 @@ export async function stream(ctx: CompCtx, input: { agentId: string }) {
   const sb = browserOrRaise(ctx);
   const { person, access } = await mayWatch(ctx, input.agentId);
   // the browser service wakes for a viewer; the address it gives stays in the Space, and the viewer gets the Space's own relay path with a ticket for this person (host/src/routes/browser-stream.ts)
-  try { await sb.stream({ profileId: input.agentId }); } catch (e) { refuse(ctx, e); }
+  let size: { width?: number; height?: number } = {};
+  try { const r = await sb.stream({ profileId: input.agentId }); if (r.width && r.height) size = { width: r.width, height: r.height }; } catch (e) { refuse(ctx, e); }
   // a person who holds the controls gets a ticket that carries their input; anyone else only frames
   const row = await rowOf(ctx, sb, input.agentId, access);
   const t = await mintTicket(ctx.db, row.takeoverBy === person ? "takeover" : "stream", input.agentId, person, ctx.now());
-  return { transport: "mjpeg" as const, url: `/browsers/${input.agentId}/stream?ticket=${t.ticket}`, ws: `/browsers/${input.agentId}/ws?ticket=${t.ticket}`, expiresAt: t.expiresAt };
+  return { transport: "mjpeg" as const, url: `/browsers/${input.agentId}/stream?ticket=${t.ticket}`, ws: `/browsers/${input.agentId}/ws?ticket=${t.ticket}`, expiresAt: t.expiresAt, ...(size.width ? size : {}) };
 }
 
 /**

@@ -173,8 +173,8 @@ export function createDockerSpaceBrowser(o: DockerSpaceBrowserOptions): SpaceBro
       return { bytes: decode64(s.png), width: Number(s.width), height: Number(s.height) };
     },
     async stream(a) {
-      const s = await call("stream", { profileId: a.profileId }) as { url?: string; ws?: string };
-      return { transport: "mjpeg", url: s.url ?? "", ...(typeof s.ws === "string" ? { ws: s.ws } : {}) };
+      const s = await call("stream", { profileId: a.profileId }) as { url?: string; ws?: string; width?: number; height?: number };
+      return { transport: "mjpeg", url: s.url ?? "", ...(typeof s.ws === "string" ? { ws: s.ws } : {}), ...(typeof s.width === "number" && typeof s.height === "number" ? { width: s.width, height: s.height } : {}) };
     },
     async sessions(profileId) {
       const r = (await call("sessions", { profileId })) as { sessions?: Array<{ site: string; since: number; lastSeen: number }> };

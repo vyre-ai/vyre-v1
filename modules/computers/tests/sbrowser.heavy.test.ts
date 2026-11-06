@@ -196,6 +196,16 @@ test("@heavy space browser: the live view sends screencast frames, and a person 
   await tool("agt_dex", "chrome_open", { url: siteUrl("/ticker") });
   const s = await sb.stream({ profileId: "agt_dex" });
   assert.ok(s.ws, "browserd gave a WebSocket address");
+  assert.deepEqual([s.width, s.height], [1280, 800], "the stream says the page's real size, measured");
+  assert.equal(String((await tool("agt_dex", "chrome_eval", { expression: "innerWidth + 'x' + innerHeight" }))["result"]), "1280x800", "the viewport is exactly 1280x800");
+  const before = ((await tool("agt_dex", "chrome_tabs", { action: "list" }))["tabs"] as Array<{ tabId: string }>)[0]!.tabId;
+  const added = (await tool("agt_dex", "chrome_tabs", { action: "new", url: siteUrl("/whoami") }))["tabs"] as Array<{ tabId: string; active: boolean }>;
+  const extra = added.find((x) => x.active)!.tabId;
+  assert.equal(String((await tool("agt_dex", "chrome_eval", { expression: "innerWidth + 'x' + innerHeight" }))["result"]), "1280x800", "a new tab too");
+  const shotDims = await tool("agt_dex", "chrome_screenshot");
+  assert.deepEqual([shotDims["width"], shotDims["height"]], [1280, 800]);
+  void extra;
+  await tool("agt_dex", "chrome_tabs", { action: "use", tabId: before });
   const wsUrl = s.ws!.replace(/^ws:\/\/[^:/]+/, `ws://${await ipOfContainer()}`);
   const base = wsUrl.replace(/^ws/, "http").replace(/\/ws\?t=.*/, "");
   assert.equal((await fetch(`${base}/stream?t=nope`)).status, 401, "a view without a ticket is refused");
@@ -369,4 +379,17 @@ test("@heavy space browser: every profile starts on the Vyre start page, shows i
   // and a curl with no cookie from inside the container sees nothing either
   const bare = await api.exec(NAME, { cmd: ["node", "-e", "fetch('http://127.0.0.1:7004/start').then(r=>r.text()).then(t=>console.log(/Dana/.test(t)?'LEAK':'ok'))"], env: [] });
   assert.equal(bare.stdout.trim(), "ok");
+});
+
+test("@heavy space browser: the sites a profile is signed in to are listed while its browser sleeps, and listing starts nothing", { skip, timeout: 300_000 }, async () => {
+  await tool("agt_sleepy", "chrome_open", { url: siteUrl("/set?name=zed&keep=1") });
+  assert.ok((await sb.sessions("agt_sleepy")).some((x) => x.site === GATEWAY), "live while it runs");
+  let asleep = false;
+  for (let i = 0; i < 40 && !asleep; i++) { await sleep(1000); asleep = (await sb.profiles()).profiles.find((x) => x.profileId === "agt_sleepy")?.running === false; }
+  assert.ok(asleep, "the browser stopped after idle");
+  const rows = await sb.sessions("agt_sleepy");
+  assert.ok(rows.some((x) => x.site === GATEWAY), `listed from what was kept when it closed (${JSON.stringify(rows)})`);
+  assert.equal((await sb.profiles()).profiles.find((x) => x.profileId === "agt_sleepy")?.running, false, "listing started nothing");
+  assert.deepEqual(await sb.sessions("agt_never_seen"), [], "a profile that never ran has none, and starts nothing");
+  assert.equal((await sb.profiles()).profiles.find((x) => x.profileId === "agt_never_seen")?.running ?? false, false);
 });

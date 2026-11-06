@@ -47,7 +47,8 @@ async function fetchJson<T>(base: string, path: string, method = "GET"): Promise
   const r = await fetch(`${base}${path}`, { method });
   if (!r.ok) throw unavailable(`the browser answered ${r.status} to ${path}`);
   const text = await r.text();
-  return (text ? JSON.parse(text) : {}) as T;
+  // /json/activate and /json/close answer a plain sentence ("Target activated", "Target is closing"), not JSON
+  try { return (text ? JSON.parse(text) : {}) as T; } catch { return {} as T; }
 }
 
 /** How the browser is started. The agent computer uses the defaults (a window on its Xvfb screen, port 9222). The Space browser (images/space-browser) runs one headless Chromium per profile, each on its own port. */
