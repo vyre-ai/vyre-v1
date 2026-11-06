@@ -143,9 +143,10 @@ export function InstallCard({ id, data, chat, mine = true }: { id: string; data:
 
   return (
     <Card kind="decision" testID={`install-${id}`} label={`Install ${plan.name}?`} onCancel={editing ? () => { setName(null); setEditing(false); } : undefined}>
-      <CardHead title={`Install ${shown} (${KIND_WORDS[plan.kind]})`} lead={<Face name={chat.agentName ?? "Assistant"} size={22} />} />
+      <CardHead title={`Install ${shown}`} lead={<Face name={chat.agentName ?? "Assistant"} size={22} />} />
       <Text testID={`install-summary-${id}`} style={st.summary}>{plan.summary}</Text>
       <View style={st.grid}>
+        {plan.kind !== "skill" ? <Row k="Type" v={KIND_WORDS[plan.kind]} /> : null}
         <Row k="Source" v={`${plan.repo}${plan.path ? `/${plan.path}` : ""}`} mono />
         <Row k="Needs" v={`Network: ${needs.network}\nVault: ${needs.vault}${needs.files !== "none" ? `\nFiles: ${needs.files}` : ""}`} testID={`install-needs-${id}`} />
         <Row k={pin.label} v={pin.value} mono={Boolean(plan.commit)} testID={`install-pin-${id}`} />

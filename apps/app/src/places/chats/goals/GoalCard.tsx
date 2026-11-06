@@ -51,12 +51,11 @@ export function GoalCard({ block, call, changes, openGoal, me }: { block: GoalBl
       {asking ? <TextAsk title={asking === "stuck" ? "Why is this goal stuck?" : "Report progress"} label={asking === "stuck" ? "What is in the way" : "What changed and what is next"} action={asking === "stuck" ? "Mark stuck" : "Report"} multiline onClose={() => setAsking(null)} onDone={(text) => { const c = askedCall(asking, text); setAsking(null); press(c.cap, c.input, c.done); }} /> : null}
       <View style={st.head}>
         <Icon name={icon} size={14} color={block.kind === "stuck" ? TONE.stuck : block.outcome === "done" ? TONE.ok : "var(--ink-3)"} />
-        <View style={{ flex: 1 }} />
+        <Pressable style={{ flex: 1, minWidth: 0 }} accessibilityRole="link" accessibilityLabel={`Open the goal ${block.title}`} onPress={() => openGoal?.(block.goalId)} testID={`goal-card-open-${block.goalId}`}>
+          <Text style={st.title}>{block.title}</Text>
+        </Pressable>
         <Text style={[st.small, { color: TONE[s.tone] as string }]}>{s.word}</Text>
       </View>
-      <Pressable accessibilityRole="link" accessibilityLabel={`Open the goal ${block.title}`} onPress={() => openGoal?.(block.goalId)} testID={`goal-card-open-${block.goalId}`}>
-        <Text style={st.title}>{block.title}</Text>
-      </Pressable>
       <Text style={st.small}>{lineWithDue(block.line, live?.deadline ?? block.deadline, zones)}</Text>
       {value !== undefined && target !== undefined ? (
         <View style={st.num}>
