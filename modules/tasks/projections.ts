@@ -336,7 +336,7 @@ export function toOut(t: Task, idx: OpenIndex): Record<string, unknown> {
     takenBy: t.takenBy, due: t.due, effort: t.effort, recordId: t.recordId, fileIds: t.fileIds, source: t.source,
     key: t.key, priority: t.priority, labels: t.labels, start: t.start, fields: t.fields, recur: t.recur, workerThread: t.workerThread,
     parentTaskId: t.parentTaskId, dependsOn: t.dependsOn, followers: t.followers, workingNotes: notes, threadId: t.threadId,
-    reviewLoops: t.reviewLoops, snoozedUntil: t.snoozedUntil, createdBy: t.createdBy, createdAt: t.createdAt, updatedAt: t.updatedAt, version: t.version,
+    reviewLoops: t.reviewLoops, snoozedUntil: t.snoozedUntil, expiresAt: t.expiresAt, createdBy: t.createdBy, createdAt: t.createdAt, updatedAt: t.updatedAt, version: t.version,
   });
 }
 /** The row a caller reads: the task, and whether the next move is theirs. */

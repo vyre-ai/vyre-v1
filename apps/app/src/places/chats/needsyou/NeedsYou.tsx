@@ -407,7 +407,7 @@ const st = StyleSheet.create({
   pair: { flexDirection: "row", gap: 12 },
   pk: { width: 120, fontSize: 12.5, color: "var(--ink-3)" as string },
   pv: { flex: 1, fontSize: 13, color: "var(--ink)" as string },
-  quote: { gap: 6, padding: 12, borderRadius: 8, backgroundColor: "var(--sunk)" as string },
+  quote: { gap: 6, padding: 12, borderRadius: 12, backgroundColor: "var(--sel)" as string },
   qline: { fontSize: 13, lineHeight: 19, color: "var(--ink)" as string },
   tag: { fontSize: 11, fontWeight: "500", color: "var(--warn)" as string },
   people: { height: 24, paddingHorizontal: 6, borderRadius: 6, flexDirection: "row", alignItems: "center", gap: 4 },
