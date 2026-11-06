@@ -176,6 +176,11 @@ export function createDockerSpaceBrowser(o: DockerSpaceBrowserOptions): SpaceBro
       const s = await call("stream", { profileId: a.profileId }) as { url?: string; ws?: string };
       return { transport: "mjpeg", url: s.url ?? "", ...(typeof s.ws === "string" ? { ws: s.ws } : {}) };
     },
+    async sessions(profileId) {
+      const r = (await call("sessions", { profileId })) as { sessions?: Array<{ site: string; since: number; lastSeen: number }> };
+      return Array.isArray(r.sessions) ? r.sessions : [];
+    },
+    async signOut(profileId, site) { return ((await call("sign_out", { profileId, site })) as { ok?: boolean }).ok === true; },
     async importChrome(profileId, tar) {
       await call("reset_chrome", { profileId });
       await o.api.putArchive(name, `/data/profiles/${profileId}`, tar);

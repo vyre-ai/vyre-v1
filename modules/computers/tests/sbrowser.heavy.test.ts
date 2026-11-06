@@ -343,3 +343,30 @@ test("@heavy space browser: a file an agent downloads lands in its Files under D
   const ls = await api.exec(NAME, { cmd: ["ls", "/data/profiles/agt_dler/downloads"], env: [] });
   assert.equal(ls.stdout.trim(), "");
 });
+
+test("@heavy space browser: every profile starts on the Vyre start page, shows its agent's name and face and the sites it opened, and another profile's browser cannot read them", { skip, timeout: 300_000 }, async () => {
+  const face = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" fill="#d9c8f2"/><circle cx="32" cy="28" r="12" fill="#222"/></svg>';
+  await tool("agt_home", "chrome_status");
+  await sb.tool({ profileId: "agt_home", tool: "chrome_open", args: { url: siteUrl("/whoami") }, timeoutMs: 30_000, agent: { name: "Dana's Assistant", faceSvg: face } });
+  const first = (await tool("agt_home", "chrome_tabs", { action: "list" }))["tabs"] as Array<{ url: string }>;
+  assert.ok(first.length >= 1);
+  // the first tab was the start page before the agent navigated; open it again to read it (the browser carries the profile's cookie)
+  await tool("agt_home", "chrome_open", { url: "http://127.0.0.1:7004/start?skin=graphite" });
+  assert.match(await text("agt_home"), /Dana's Assistant/);
+  const html = String((await tool("agt_home", "chrome_eval", { expression: "document.documentElement.outerHTML" }))["result"]);
+  assert.match(html, /data:image\/svg\+xml;base64,/, "the face is inline: nothing to fetch");
+  assert.ok(html.includes(GATEWAY), "the site it opened is in the row of recent sites");
+  assert.match(html, /#161617/, "Graphite");
+  fs.mkdirSync("/root/sbshots", { recursive: true });
+  const shot = await sb.screenshot("agt_home");
+  fs.writeFileSync("/root/sbshots/start-graphite.png", shot.bytes);
+  await tool("agt_home", "chrome_open", { url: "http://127.0.0.1:7004/start?skin=light" });
+  fs.writeFileSync("/root/sbshots/start-light.png", (await sb.screenshot("agt_home")).bytes);
+  // another profile's browser has its own cookie: it sees no name and no sites
+  await tool("agt_peek", "chrome_open", { url: "http://127.0.0.1:7004/start" });
+  const peek = await text("agt_peek");
+  assert.ok(!peek.includes("Dana's Assistant") && !peek.includes(GATEWAY), peek);
+  // and a curl with no cookie from inside the container sees nothing either
+  const bare = await api.exec(NAME, { cmd: ["node", "-e", "fetch('http://127.0.0.1:7004/start').then(r=>r.text()).then(t=>console.log(/Dana/.test(t)?'LEAK':'ok'))"], env: [] });
+  assert.equal(bare.stdout.trim(), "ok");
+});

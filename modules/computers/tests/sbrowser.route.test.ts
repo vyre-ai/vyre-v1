@@ -17,6 +17,8 @@ const SCRUB = { createScrubber: (secrets: Array<{ handle: string; value: string 
 
 let downloadsNow: () => Array<{ name: string; size: number; at: number }> = () => [];
 const acked: string[] = [];
+let sessionsNow: () => Array<{ site: string; since: number; lastSeen: number }> = () => [];
+const signedOut: string[] = [];
 function browser(answers: Record<string, (c: BrowserToolCall) => BrowserAnswer> = {}) {
   const calls: BrowserToolCall[] = [];
   let refuse: ToolError | null = null;
@@ -30,7 +32,7 @@ function browser(answers: Record<string, (c: BrowserToolCall) => BrowserAnswer> 
     },
     async downloads() { return downloadsNow(); }, async downloadRead(_p, name) { return new TextEncoder().encode(`bytes of ${name}`); }, async downloadAck(_p, name) { acked.push(name); },
     async takeover() {}, async giveBack() {}, async screenshot() { return { bytes: new Uint8Array([1, 2, 3]), width: 1, height: 1 }; },
-    async stream() { return { transport: "mjpeg", url: "http://x" }; }, async importChrome() { return { bytes: 0 }; }, async stop() {}, async forget() {},
+    async stream() { return { transport: "mjpeg", url: "http://x" }; }, async sessions() { return sessionsNow(); }, async signOut(_p, site) { signedOut.push(site); return true; }, async importChrome() { return { bytes: 0 }; }, async stop() {}, async forget() {},
     async profiles() { return { profiles: [], maxRunning: 6 }; }, async health() { return { ok: true }; },
   };
   bindSpaceBrowser(sb);

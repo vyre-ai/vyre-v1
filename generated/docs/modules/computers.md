@@ -4,10 +4,12 @@ Lane L2. Kind module. Version 0.1.0.
 
 Requires: chat.
 
-## Capabilities (64)
+## Capabilities (66)
 
 - [computers.browser.give_back](../capabilities/computers.browser.give_back.md): Give an agent's browser back to the agent; the person who has the controls or an admin may
 - [computers.browser.profiles](../capabilities/computers.browser.profiles.md): The agent browsers in this Space's browser that you may watch: running or asleep, tabs, whether the agent is using it, and who has the controls
+- [computers.browser.sessions](../capabilities/computers.browser.sessions.md): The sites an agent's browser is signed in to (cookies the profile holds), by site, never a value. Wakes the browser when it is asleep. Only for a browser you may watch
+- [computers.browser.sign_out](../capabilities/computers.browser.sign_out.md): Sign an agent's browser out of a site: its cookies and storage for that site are cleared. The owner and admins only
 - [computers.browser.stream](../capabilities/computers.browser.stream.md): Live view of an agent's browser, relayed by the Space: MJPEG or a WebSocket with a ticket that opens once, for one minute; frames are live-only, never stored. Wakes the browser
 - [computers.browser.take_over](../capabilities/computers.browser.take_over.md): Take over an agent's browser ("You're in control"): its tools wait, your clicks and keys reach the page. An Assistant's or personal agent's browser is its person's alone; a team agent's goes to its owner and admins; one shared with named people may be watched by them but not taken over
 - [computers.browser.timeline](../capabilities/computers.browser.timeline.md): What an agent did in its Space browser, step by step with a picture each: the same timeline as a computer's, for the agent's profile. Only for a browser you may watch

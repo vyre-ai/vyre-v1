@@ -5,6 +5,8 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 
 const DIR = "/opt/vyre-chrome";
+// the start page of every profile (browserd/start.ts): the home page and the new tab; the first tab goes there when the browser starts
+const START = "http://127.0.0.1:7004/start";
 const idOf = (bytes) => [...crypto.createHash("sha256").update(bytes).digest("hex").slice(0, 32)].map((c) => String.fromCharCode(97 + parseInt(c, 16))).join("");
 let key = null;
 let has = false;
@@ -23,7 +25,7 @@ try {
 } catch { /* the placeholder: no extension in this build */ }
 const id = key ? idOf(Buffer.from(key, "base64")) : idOf(Buffer.from(DIR));
 fs.mkdirSync("/etc/chromium/policies/managed", { recursive: true });
-fs.writeFileSync("/etc/chromium/policies/managed/vyre.json", JSON.stringify({ BrowserSignin: 0, SyncDisabled: true, PromptForDownloadLocation: false, ExtensionSettings: { [id]: { toolbar_pin: "force_pinned" } } }));
+fs.writeFileSync("/etc/chromium/policies/managed/vyre.json", JSON.stringify({ BrowserSignin: 0, SyncDisabled: true, PromptForDownloadLocation: false, HomepageLocation: START, HomepageIsNewTabPage: false, NewTabPageLocation: START, ShowHomeButton: false, RestoreOnStartup: 5, ExtensionSettings: { [id]: { toolbar_pin: "force_pinned" } } }));
 if (has) {
   fs.mkdirSync("/etc/chromium/native-messaging-hosts", { recursive: true });
   fs.writeFileSync("/etc/chromium/native-messaging-hosts/run.vyre.bridge.json", JSON.stringify({

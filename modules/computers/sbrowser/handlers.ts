@@ -2,6 +2,7 @@
 // chrome_* tools. Who may watch and take over a profile is policy.ts. The profile is named by the agent.
 import { ToolError } from "../handlers/tools/common.ts";
 import { pageOf } from "../handlers/record.ts";
+import { waitingNote } from "../capacity.ts";
 import { actorOf, ensure, mintTicket, raise, redeemTicket, rowsOf, stepOf, stepOut } from "../projections.ts";
 import type { CompCtx } from "../projections.ts";
 import { mayTakeOver, profileAccess, profileIdOf } from "./policy.ts";
@@ -51,8 +52,8 @@ function refuse(ctx: CompCtx, e: unknown): never {
   raise(ctx, "provider.unavailable", "The Space browser did not answer.", { reason: e instanceof Error ? e.message.slice(0, 200) : "unknown" });
 }
 
-const rowOut = (r: ProfileRow, access: Exclude<ProfileAccess, "none">) => ({
-  agentId: r.profileId, running: r.running, tabs: r.tabs, busy: r.busy, viewers: r.viewers, ...(r.lastActiveAt ? { lastActiveAt: r.lastActiveAt } : {}),
+const rowOut = (r: ProfileRow, access: Exclude<ProfileAccess, "none">, line?: string | null) => ({
+  agentId: r.profileId, running: r.running, state: line ? ("waiting" as const) : r.running ? ("running" as const) : ("asleep" as const), ...(line ? { line } : {}), tabs: r.tabs, busy: r.busy, viewers: r.viewers, ...(r.lastActiveAt ? { lastActiveAt: r.lastActiveAt } : {}),
   ...(r.takeoverBy ? { takeoverBy: r.takeoverBy } : {}), paired: r.bridge?.optin === true && r.bridge.connected > 0, access,
 });
 
@@ -71,7 +72,15 @@ export async function profiles(ctx: CompCtx, _input: Record<string, never>) {
     const agent = await agentOf(ctx, row.profileId);
     if (!agent) continue;
     const access = profileAccess(agent, person, admin);
-    if (access !== "none") out.push(rowOut(row, access));
+    if (access !== "none") out.push(rowOut(row, access, waitingNote(ctx.db, row.profileId)));
+  }
+  // a browser waiting for room has not reached the service yet: it is listed with the line
+  for (const r of rowsOf(ctx.db, "SELECT claim_key FROM computers_claim WHERE kind = 'browser' AND state = 'waiting'")) {
+    const id = String(r["claim_key"]);
+    if (out.some((x) => x.agentId === id)) continue;
+    const agent = await agentOf(ctx, id);
+    const access = agent ? profileAccess(agent, person, admin) : "none";
+    if (access !== "none") out.push(rowOut({ profileId: id, running: false, tabs: 0, busy: false, takeover: false, viewers: 0, lastActiveAt: 0, held: 0, paused: false }, access, waitingNote(ctx.db, id)));
   }
   return { profiles: out, maxRunning: all.maxRunning };
 }
@@ -142,7 +151,22 @@ export async function timeline(ctx: CompCtx, input: { agentId: string; runId?: s
   return { steps: p.page.map(stepOut), ...(p.next ? { next: p.next } : {}), total: p.total };
 }
 
+export async function sessions(ctx: CompCtx, input: { agentId: string }) {
+  const sb = browserOrRaise(ctx);
+  await mayWatch(ctx, input.agentId);
+  try { return { sessions: (await sb.sessions(input.agentId)).map((x) => ({ site: x.site, since: x.since, lastSeen: x.lastSeen })) }; } catch (e) { refuse(ctx, e); }
+}
+
+export async function signOut(ctx: CompCtx, input: { agentId: string; site: string }) {
+  const sb = browserOrRaise(ctx);
+  await mayWatch(ctx, input.agentId, true);
+  if (!/^[a-z0-9.-]{1,253}$/i.test(input.site)) raise(ctx, "validation.bad_input", "Name the site as its host name, such as app.example.com.");
+  try { return { ok: await sb.signOut(input.agentId, input.site) }; } catch (e) { refuse(ctx, e); }
+}
+
 export const sbrowserHandlers = {
+  "computers.browser.sessions": sessions,
+  "computers.browser.sign_out": signOut,
   "computers.browser.timeline": timeline,
   "computers.browser.profiles": profiles,
   "computers.browser.stream": stream,

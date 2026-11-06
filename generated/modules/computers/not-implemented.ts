@@ -7,6 +7,8 @@ import type { Handlers } from './handlers.ts';
 export const handlers: Handlers<HandlerCtx> = {
   "computers.browser.give_back": async (ctx) => { throw new VyreErr(notImplemented("computers.browser.give_back", ctx.trace)); },
   "computers.browser.profiles": async (ctx) => { throw new VyreErr(notImplemented("computers.browser.profiles", ctx.trace)); },
+  "computers.browser.sessions": async (ctx) => { throw new VyreErr(notImplemented("computers.browser.sessions", ctx.trace)); },
+  "computers.browser.sign_out": async (ctx) => { throw new VyreErr(notImplemented("computers.browser.sign_out", ctx.trace)); },
   "computers.browser.stream": async (ctx) => { throw new VyreErr(notImplemented("computers.browser.stream", ctx.trace)); },
   "computers.browser.take_over": async (ctx) => { throw new VyreErr(notImplemented("computers.browser.take_over", ctx.trace)); },
   "computers.browser.timeline": async (ctx) => { throw new VyreErr(notImplemented("computers.browser.timeline", ctx.trace)); },

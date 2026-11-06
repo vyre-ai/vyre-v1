@@ -28,6 +28,7 @@ const sessionRow = t.obj({ site: t.str({ examples: ['app.example.com'] }), signe
 // The agent browsers of the Space browser (modules/computers/sbrowser): one profile per agent, named by the agent. Only people use these (to watch and take over), never an agent, so none is a tool.
 const browserRow = t.obj({
   agentId: id.agent, running: t.bool(), tabs: t.int(), busy: t.bool({ description: 'The agent is using it now' }), viewers: t.int({ description: 'People watching its live view' }), lastActiveAt: t.opt(t.ts()),
+  state: t.enm('running', 'asleep', 'waiting', 'error'), line: t.opt(t.str({ description: 'Why it waits (no room on the host) or what went wrong, in a plain line' })),
   takeoverBy: t.opt(id.user), paired: t.bool({ description: 'Vyre for Chrome in the profile is connected to the Space as this agent, so Vault logins fill' }), access: t.enm('owner', 'admin', 'viewer'),
 });
 const downloadsOut = t.opt(t.arr(t.obj({ name: t.str(), path: t.str({ description: "Where it is in the agent's Files, under Downloads", examples: ['Downloads/report.pdf'] }), fileId: id.file }), { description: 'Files the browser finished downloading since the last step: they are in Files now, and this is where' }));
@@ -138,6 +139,12 @@ export default defineManifest({
     }),
     write('computers.browser.give_back', "Give an agent's browser back to the agent; the person who has the controls or an admin may", {
       in: { agentId: id.agent }, out: { profile: browserRow }, perm: 'computers.take_over', level: 'use', audit: 'sensitive', idem: 'natural', offline: 'online', errors: ['permission.no_grant', 'provider.unavailable'],
+    }),
+    read('computers.browser.sessions', "The sites an agent's browser is signed in to (cookies the profile holds), by site, never a value. Wakes the browser when it is asleep. Only for a browser you may watch", {
+      in: { agentId: id.agent }, out: { sessions: t.arr(sessionRow) }, perm: 'computers.watch', label: 'check', offline: 'online', errors: ['permission.no_grant', 'provider.unavailable', 'validation.not_found'],
+    }),
+    write('computers.browser.sign_out', "Sign an agent's browser out of a site: its cookies and storage for that site are cleared. The owner and admins only", {
+      in: { agentId: id.agent, site: t.str() }, out: { ok: t.bool() }, perm: 'computers.take_over', level: 'use', audit: 'sensitive', idem: 'natural', offline: 'online', errors: ['permission.no_grant', 'provider.unavailable', 'validation.bad_input'],
     }),
     read('computers.browser.timeline', "What an agent did in its Space browser, step by step with a picture each: the same timeline as a computer's, for the agent's profile. Only for a browser you may watch", {
       in: { agentId: id.agent, runId: t.opt(id.run), threadId: t.opt(id.thread), ...pageIn }, out: { steps: t.arr(stepRow), ...pageOut }, perm: 'computers.watch', label: 'filter', errors: ['permission.no_grant', 'validation.not_found'],
