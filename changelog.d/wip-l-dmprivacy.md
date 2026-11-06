@@ -1,0 +1,1 @@
+- Privacy: when an agent messages a teammate as itself, the teammate's replies are no longer quoted into the chat the agent was asked in. That chat gets one line, "Connected with <name>. <Agent> is talking with <name> directly.", the first time they reply, and nothing more. The agent is told it does not relay their words.

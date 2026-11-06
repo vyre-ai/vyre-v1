@@ -69,11 +69,12 @@ test("Team: a Space agent messages Noah as itself in its own chat; Noah's reply 
     // Mia cannot read it
     assert.notEqual((await api("usr_mia", "chat.messages.list", { threadId: found!.id })).status, 200, "the asker cannot read the agent's chat with Noah");
 
-    // Noah replies there: the agent answers there, and Mia's chat gets one short line from the agent
+    // Noah replies there: the agent answers there, and Mia's chat gets one line from the agent with none of Noah's words
     assert.equal((await api("usr_noah", "chat.post", { threadId: found!.id, body: "Thanks, I will read it tonight.", idempotencyKey: "self-n1" })).status, 200);
     await waitFor(async () => (await list("usr_noah", found!.id)).find((m) => m.author?.id === agentId && /Thanks Noah, noted/.test(m.body ?? "")) ?? null, 40_000, () => hostLog(d));
-    const line = (await list("usr_mia", chat)).find((m) => m.kind === "quiet" && /^Noah replied: /.test(m.body ?? ""));
-    assert.equal(line?.author?.id, agentId, "the report is the agent's own line");
-    assert.match(String(line?.body), /Thanks, I will read it tonight/);
+    const lines = (await list("usr_mia", chat)).filter((m) => m.kind === "quiet" && /^Connected with Noah\./.test(m.body ?? ""));
+    assert.equal(lines.length, 1, "one line");
+    assert.equal(lines[0]?.author?.id, agentId, "the report is the agent's own line");
+    assert.ok(!/Thanks, I will read it tonight|Noah replied/.test(JSON.stringify(await list("usr_mia", chat))), "none of Noah's words reach Mia's chat");
   } finally { await stop(d); }
 });
