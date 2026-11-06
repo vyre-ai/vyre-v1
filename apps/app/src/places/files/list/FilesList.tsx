@@ -32,6 +32,7 @@ import { QuickLook } from "./QuickLook.tsx";
 import { DropZone } from "../../../../../../ui/src/FileDrop/index.tsx";
 import type { DroppedFile } from "../../../../../../ui/src/FileDrop/index.tsx";
 import { TimePop } from "../../../../../../ui/src/Time/index.tsx";
+import { tellIfRefused } from "../tree/refusal.ts";
 
 const DOUBLE_MS = 450;
 const lineKey = (l: Line): string => l.key;
@@ -149,11 +150,11 @@ function List(): ReactElement {
     else data.nav.openFile(l.id);
   };
   const toTrash = (ls: readonly Line[]): void => {
-    for (const l of ls) { const c = trashCall(l.type, l.id); void data.call(c.cap, c.input); }
+    for (const l of ls) { const c = trashCall(l.type, l.id); tellIfRefused(data.call(c.cap, c.input), `Could not move ${l.name} to Trash`); }
     dispatch({ type: "clear" });
   };
   const restore = (ls: readonly Line[]): void => {
-    for (const l of ls) { const c = restoreCall(l.type, l.id); void data.call(c.cap, c.input); }
+    for (const l of ls) { const c = restoreCall(l.type, l.id); tellIfRefused(data.call(c.cap, c.input), `Could not restore ${l.name}`); }
     dispatch({ type: "clear" });
   };
   const selectedLines = (): Line[] => state.selection.map((k) => byKey.get(k)).filter((l): l is Line => l !== undefined);

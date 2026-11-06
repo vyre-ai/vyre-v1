@@ -2,6 +2,7 @@
 // Knowledge (Memory, Graph); then Space, holding All files, the Agents folders (each agent's face), the Projects folders and the Space's other top folders. Every row is a ui/Row (a
 // ui/FolderTree SlotRow for the folders); a folder is a drop target; dropping a file or folder on a folder moves it there. The Trash is in the list's more menu.
 import { useEffect, useRef, useState } from "react";
+import { tellIfRefused } from "./refusal.ts";
 import type { Dispatch, ReactElement, SetStateAction } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Avatar } from "../../../../../../ui/src/Avatar/index.tsx";
@@ -224,7 +225,7 @@ function Tree({ query, slot }: { query: string; slot?: SidebarSlotApi | undefine
       onRename: (n) => data.nav.renameEntry("folder", n.id, n.name),
       // Move... opens the picker: the whole tree to browse, and a search
       onMove: (n) => setMoving({ id: n.id, name: n.name }),
-      onDelete: (n) => { const c = trashCall("folder", n.id); void data.call(c.cap, c.input); },
+      onDelete: (n) => { const c = trashCall("folder", n.id); tellIfRefused(data.call(c.cap, c.input), `Could not move ${n.name} to Trash`); },
     },
   };
 
@@ -248,7 +249,7 @@ function Tree({ query, slot }: { query: string; slot?: SidebarSlotApi | undefine
 
   return (
     <View style={styles.side} testID="files-tree" accessibilityLabel="Files sidebar">
-      {moving ? <FolderMovePicker moving={moving} call={data.call} onClose={() => setMoving(null)} onMove={(parentId) => { const id = moving.id; setMoving(null); void Promise.resolve(data.call("files.folder.move", { folderId: id, ...(parentId === null ? {} : { toParentId: parentId }) })).catch(() => undefined); }} /> : null}
+      {moving ? <FolderMovePicker moving={moving} call={data.call} onClose={() => setMoving(null)} onMove={(parentId) => { const id = moving.id; setMoving(null); tellIfRefused(data.call("files.folder.move", { folderId: id, ...(parentId === null ? {} : { toParentId: parentId }) }), "Could not move the folder"); }} /> : null}
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollIn} testID="files-nav">
         {each(fixed, (r) => <NavRow key={r.id} id={r.id} title={r.title} glyph={r.glyph} selected={sameWhere(state.where, r.where)} count={r.count} onPress={go(r.where)} />)}
         {knowShown.length > 0 ? <SectionHead id="know" label="Knowledge" open={!isShut("know")} onToggle={() => flip("know")} /> : null}

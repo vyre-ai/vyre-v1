@@ -247,12 +247,27 @@ test("a usage limit that said when it lifts puts the time in the cause, in the S
   assert.equal(resetWords(Date.UTC(2026, 10, 6, 23, 12), now, "Asia/Karachi"), "tomorrow at 4:12 AM");
 });
 
-test("a failed turn that hit a usage limit says when the account is usable again", () => {
-  const v = statusView(block({ state: "failed", code: "provider.rate_limited", turnId: "t1", resetsAt: Date.now() + 3 * 3_600_000 }));
-  assert.equal(v?.kind, "error");
-  const data = (v as { block: { data: { message: string; cause?: string } } }).block.data;
-  assert.equal(data.message, "Your AI account reached its usage limit.");
-  assert.match(data.cause ?? "", /can be used again (at|on) .*another account/);
+test("a failed turn that hit a usage limit says when the account is usable again: later today, tomorrow, or on a date", async () => {
+  const { mock } = await import("node:test");
+  const { setCurrentZones } = await import("../../../../../../lib/zones.ts");
+  setCurrentZones({ space: "America/Los_Angeles", viewer: "America/Los_Angeles" });
+  // Fri 6 Nov 2026, 10:00 AM in Los Angeles
+  mock.timers.enable({ apis: ["Date"], now: Date.UTC(2026, 10, 6, 18, 0) });
+  try {
+    const cause = (resetsAt: number): string => {
+      const v = statusView(block({ state: "failed", code: "provider.rate_limited", turnId: "t1", resetsAt }));
+      assert.equal(v?.kind, "error");
+      const data = (v as { block: { data: { message: string; cause?: string } } }).block.data;
+      assert.equal(data.message, "Your AI account reached its usage limit.");
+      return data.cause ?? "";
+    };
+    assert.equal(cause(Date.UTC(2026, 10, 6, 21, 39)), "It can be used again at 1:39 PM. Or use another account now.");
+    assert.equal(cause(Date.UTC(2026, 10, 7, 10, 39)), "It can be used again tomorrow at 2:39 AM. Or use another account now.");
+    assert.equal(cause(Date.UTC(2026, 10, 9, 11, 12)), "It can be used again on Mon 9 Nov at 3:12 AM. Or use another account now.");
+  } finally {
+    mock.timers.reset();
+    setCurrentZones(null);
+  }
   const plain = statusView(block({ state: "failed", code: "provider.rate_limited", turnId: "t1" }));
   assert.equal((plain as { block: { data: { cause?: string } } }).block.data.cause, "Wait for it to reset, or use another account.");
 });
