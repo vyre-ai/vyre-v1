@@ -13,8 +13,7 @@ import { AgentError, badInput, notFound, paused, sleep, unavailable } from "./er
 import { browserBounds } from "./desktop.ts";
 import type { Screen } from "./x11.ts";
 
-const PORT = 9222;
-const BASE = `http://127.0.0.1:${PORT}`;
+const DEFAULT_PORT = 9222;
 const OUTWARD = "\\b(send|post|publish|submit order|pay|purchase|buy now|place order|checkout|confirm payment|delete|remove account|transfer|donate)\\b";
 const HOLD_TTL_MS = 15 * 60_000;
 
@@ -30,6 +29,8 @@ interface Held { run: () => Promise<void>; what: string; at: number }
 export interface Chrome {
   ready(): Promise<void>;
   alive(): boolean;
+  /** The DevTools port of this browser on 127.0.0.1. */
+  readonly port: number;
   tabs(): Promise<Target[]>;
   tool(name: string, args: Record<string, unknown>, state: ChromeState): Promise<Record<string, unknown>>;
   /** For sessions and sign-out: a connection to any page target. */
@@ -38,16 +39,36 @@ export interface Chrome {
   /** Is Vyre for Chrome loaded: the flag it was started with, and its running workers. */
   extension(): Promise<{ configured: boolean; workers: number }>;
   stop(): void;
+  /** Close the browser the way a person does (Browser.close), so cookies and local storage are written to the profile folder, then stop it if it is still there after a few seconds. */
+  shutdown(): Promise<void>;
 }
 
-async function getJson<T>(path: string, method = "GET"): Promise<T> {
-  const r = await fetch(`${BASE}${path}`, { method });
+async function fetchJson<T>(base: string, path: string, method = "GET"): Promise<T> {
+  const r = await fetch(`${base}${path}`, { method });
   if (!r.ok) throw unavailable(`the browser answered ${r.status} to ${path}`);
   const text = await r.text();
-  return (text ? JSON.parse(text) : {}) as T;
+  // /json/activate and /json/close answer a plain sentence ("Target activated", "Target is closing"), not JSON
+  try { return (text ? JSON.parse(text) : {}) as T; } catch { return {} as T; }
 }
 
-export function launchChrome(screen: Screen, profileDir: string, extensionDir: string | null, log: (m: string) => void): Chrome {
+/** How the browser is started. The agent computer uses the defaults (a window on its Xvfb screen, port 9222). The Space browser (images/space-browser) runs one headless Chromium per profile, each on its own port. */
+export interface ChromeOptions {
+  /** DevTools port. Default 9222. */
+  port?: number;
+  /** Run without a screen (headless=new). Needs no `screen`. */
+  headless?: boolean;
+  /** Window size when headless. Default 1280x800. */
+  size?: { width: number; height: number };
+  /** Extra command line flags. */
+  flags?: readonly string[];
+  /** Extra environment for the browser process (for example the profile's bridge folder). */
+  env?: Record<string, string>;
+}
+
+export function launchChrome(screen: Screen | null, profileDir: string, extensionDir: string | null, log: (m: string) => void, opts: ChromeOptions = {}): Chrome {
+  const PORT = opts.port ?? DEFAULT_PORT;
+  const BASE = `http://127.0.0.1:${PORT}`;
+  const getJson = <T>(path: string, method = "GET"): Promise<T> => fetchJson<T>(BASE, path, method);
   let proc: ChildProcess | null = null;
   let up: Promise<void> | null = null;
   let active: string | null = null;
@@ -58,14 +79,16 @@ export function launchChrome(screen: Screen, profileDir: string, extensionDir: s
     if (up) return up;
     up = (async () => {
       for (const f of ["SingletonLock", "SingletonCookie", "SingletonSocket"]) { try { rmSync(join(profileDir, f), { force: true }); } catch { /* not there */ } }
-      const bounds = browserBounds(screen);
+      const headless = opts.headless === true || screen === null;
+      const bounds = headless ? { x: 0, y: 0, width: opts.size?.width ?? 1280, height: opts.size?.height ?? 800 } : browserBounds(screen);
       const args = [
+        ...(headless ? ["--headless=new"] : []),
         "--disable-dev-shm-usage", "--disable-gpu", `--user-data-dir=${profileDir}`, `--remote-debugging-port=${PORT}`, "--remote-debugging-address=127.0.0.1",
-        `--window-position=${bounds.x},${bounds.y}`, `--window-size=${bounds.width},${bounds.height}`, "--no-first-run", "--no-default-browser-check", "--password-store=basic", "--disable-features=Translate,MediaRouter",
+        `--window-position=${bounds.x},${bounds.y}`, `--window-size=${bounds.width},${bounds.height}`, ...(opts.flags ?? []), "--no-first-run", "--no-default-browser-check", "--password-store=basic", "--disable-features=Translate,MediaRouter",
         ...(extensionDir && existsSync(join(extensionDir, "manifest.json")) ? [`--load-extension=${extensionDir}`] : []),
         "about:blank",
       ];
-      const p = spawn("chromium", args, { env: { ...process.env, DISPLAY: screen.display }, stdio: ["ignore", "ignore", "pipe"] });
+      const p = spawn("chromium", args, { env: { ...process.env, ...(screen && !headless ? { DISPLAY: screen.display } : {}), ...(opts.env ?? {}) }, stdio: ["ignore", "ignore", "pipe"] });
       proc = p;
       p.stderr!.on("data", (c: Buffer) => { const t = c.toString("utf8").trim(); if (/error|fatal/i.test(t)) log(`chromium: ${t.slice(0, 300)}`); });
       p.on("exit", () => { if (proc === p) proc = null; up = null; });
@@ -426,6 +449,7 @@ export function launchChrome(screen: Screen, profileDir: string, extensionDir: s
   }
 
   return {
+    port: PORT,
     ready: start,
     alive: () => proc !== null && proc.exitCode === null,
     tabs: async () => { try { return await targets(); } catch { return []; } },
@@ -438,5 +462,19 @@ export function launchChrome(screen: Screen, profileDir: string, extensionDir: s
       return { configured: extensionDir !== null && existsSync(join(extensionDir, "manifest.json")), workers };
     },
     stop() { proc?.kill("SIGTERM"); },
+    async shutdown() {
+      const p = proc;
+      if (!p || p.exitCode !== null) return;
+      try {
+        const v = await getJson<{ webSocketDebuggerUrl?: string }>("/json/version");
+        if (v.webSocketDebuggerUrl) {
+          const c = await connectCdp(v.webSocketDebuggerUrl, 3000);
+          await c.send("Browser.close", {}, 3000).catch(() => undefined);
+          c.close();
+        }
+      } catch { /* not answering: it is stopped below */ }
+      for (let i = 0; i < 50 && p.exitCode === null; i++) await sleep(100);
+      if (p.exitCode === null) p.kill("SIGTERM");
+    },
   };
 }

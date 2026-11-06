@@ -1,5 +1,6 @@
 // What the Chats right pane reads: one context. Lists are live queries over the local copy (client hooks from the generated screen index), so the pane paints from what the
 // device keeps and updates when the copy changes. Writes go through `call`, one capability per action. The shell supplies the agent of the open chat and the navigation.
+import type { BrowserData, WorkspaceData } from "./work-model.ts";
 import { createContext, useContext, useMemo, useSyncExternalStore } from "react";
 import type { ReactElement, ReactNode } from "react";
 import type { LiveQuery, QueryState, ScreenHooks } from "../../../../../../client/src/index.ts";
@@ -45,6 +46,9 @@ export interface PaneAgent {
 export interface ChatRightPaneData {
   /** What the Terminal tab reads. Left out where the shell has no terminal: the tab is not shown. */
   terminal?: TerminalData;
+  /** The agent's workspace (Terminal section of the Computer tab) and its profile in the Space browser (Browser section). Filled by the workspace and Space browser work; with neither, the Computer tab is the single-computer one. */
+  workspace?: WorkspaceData;
+  browser?: BrowserData;
   screens: ScreenHooks;
   /** One capability call as the signed-in person; rejects with the capability's error. */
   call(cap: string, input: unknown): Promise<unknown>;

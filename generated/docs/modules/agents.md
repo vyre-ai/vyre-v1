@@ -4,7 +4,7 @@ Lane L2. Kind module. Version 0.1.0.
 
 Requires: chat, engine, mcp, memory, notes, runs, terminal.
 
-## Capabilities (108)
+## Capabilities (109)
 
 - [agents.assistant_of](../capabilities/agents.assistant_of.md): A person's own Assistant, for the server's modules that work for them; only the server and the person themself are answered
 - [agents.builtin_skill.get](../capabilities/agents.builtin_skill.get.md): Read one built-in skill by name, the full SKILL.md: Working in Vyre, the focus skill of a place (focus-records, focus-files, focus-automations, focus-vault, focus-inbox, focus-apps, focus-console), agent-loops, agent-computer
@@ -38,6 +38,7 @@ Requires: chat, engine, mcp, memory, notes, runs, terminal.
 - [agents.routine.save](../capabilities/agents.routine.save.md): Create or change a routine, a schedule (cron) or a watcher (kind watch: runs on each new message in a channel); messages it causes carry "Sent by <agent> on a routine <person> set"
 - [agents.routines.list](../capabilities/agents.routines.list.md): Routines of an agent (schedules set by the owner)
 - [agents.set_owner](../capabilities/agents.set_owner.md): Hand an agent to another active person: its home folder and the agent change owner with it and the previous owner keeps nothing on them
+- [agents.share_class](../capabilities/agents.share_class.md): How an agent is shared, for the modules that decide who may watch its work (its browser): private to its person (an Assistant or an outside agent), personal (shared with nobody), shared with named people, or with the whole Space. Only for an agent the caller can see
 - [agents.snapshot.take](../capabilities/agents.snapshot.take.md): Take the file snapshot a run uses; changes to the files apply between runs
 - [agents.status](../capabilities/agents.status.md): Live status of an agent: Awake (idle 2 minutes), Working, Asleep or Paused with reason and who
 - [agents.suggestion.accept](../capabilities/agents.suggestion.accept.md): Accept a suggestion (shown to the owner and editors only); applies it through files.save as a version

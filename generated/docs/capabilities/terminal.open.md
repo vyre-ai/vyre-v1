@@ -1,6 +1,6 @@
 # terminal.open
 
-Open a terminal session on an agent computer or on your own computer (the device daemon)
+Open a terminal tab: a named tmux session in your workspace (an agent that names no host gets one in its own workspace, or its parent's when it is a helper), or on your own computer (the device daemon)
 
 | | |
 |---|---|
@@ -25,7 +25,7 @@ Open a terminal session on an agent computer or on your own computer (the device
 
 ```ts
 type In = {
-  host: "agent_computer" | "device";
+  host?: "agent_computer" | "device";
   agentId?: string;
   computerId?: string;
   deviceId?: string;
@@ -58,6 +58,10 @@ type Out = {
     createdAt: number;
     lastActiveAt: number;
     runId?: string;
+    by?: {
+      kind: "agent" | "helper" | "person";
+      name?: string;
+    };
   };
 };
 ```
@@ -91,6 +95,10 @@ type Out = {
   "output": {
     "terminal": {
       "agentId": "agt_a1b2c3",
+      "by": {
+        "kind": "agent",
+        "name": "Ember"
+      },
       "cols": 1,
       "computerId": "cmt_a1b2c3",
       "createdAt": 1760000000000,

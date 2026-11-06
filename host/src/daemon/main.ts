@@ -13,6 +13,12 @@ const version = process.env["VYRE_VERSION"] ?? "0.0.0-dev";
 async function runCompute(config: DaemonConfig): Promise<number> {
   let host: unknown;
   let cli: { spawn(spec: unknown): Promise<never> } | undefined;
+  let workspaceDocker: ((input: unknown) => Promise<unknown>) | undefined;
+  /** The runner a Team server runs beside vyred, here in this process on a private socket: the Space's Docker questions for agent workspaces are put to it, so workspaces-policy.ts judges each one. */
+  const startWorkspaceDocker = async (dataDir: string): Promise<(input: unknown) => Promise<unknown>> => {
+    const { startWorkspaceDocker: start } = await import("../compute/docker-ask.ts");
+    return (await start(dataDir, { log: (line) => process.stdout.write(`vyred: workspaces runner: ${line}\n`) })).ask;
+  };
   const { fileExportsImporter } = await import("../loader.ts");
   const { createComputersHost } = await import("../seams/computers-host.ts");
   const importSeams = (root: string): Promise<unknown> => fileExportsImporter(root)("computers");
@@ -52,6 +58,8 @@ async function runCompute(config: DaemonConfig): Promise<number> {
           async run(kind, input) {
             const s = (await seams) as { buildComputerHost?: (c: unknown) => unknown; nodeRun?: (h: unknown, k: string, i: unknown) => Promise<unknown> } | undefined;
             if (!s?.buildComputerHost || !s.nodeRun) throw new Error("this computer has no agent computers module");
+            // the Space asks this machine's Docker for an agent workspace: through the runner's own policy, in this process (host/src/compute/docker-ask.ts)
+            if (kind === "docker") return (workspaceDocker ??= await startWorkspaceDocker(config.dataDir))(input);
             if (kind === "edge") return nodeEdge(input, (computerId) => s.nodeRun!(host!, "address", { computerId }) as Promise<string | null>);
             host ??= s.buildComputerHost(createComputersHost({ dataDir: config.dataDir, callAs: link.call, putBytes: link.put, announce: async (m) => ((await link.call(m.agentId, "made_files", { files: m.files.map((f) => ({ fileId: f.fileId })) })) as { said?: boolean } | undefined)?.said !== false, homeIntervalMs: 2_000_000_000, log: (level, msg, attrs) => process.stderr.write(`vyred: ${level} ${msg} ${JSON.stringify(attrs ?? {})}\n`) }));
             return s.nodeRun(host, kind, input);

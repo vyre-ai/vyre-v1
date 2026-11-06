@@ -37,6 +37,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "agents.routine.save": Handler<"agents.routine.save", X>;
   "agents.routines.list": Handler<"agents.routines.list", X>;
   "agents.set_owner": Handler<"agents.set_owner", X>;
+  "agents.share_class": Handler<"agents.share_class", X>;
   "agents.snapshot.take": Handler<"agents.snapshot.take", X>;
   "agents.status": Handler<"agents.status", X>;
   "agents.suggestion.accept": Handler<"agents.suggestion.accept", X>;

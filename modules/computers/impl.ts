@@ -25,6 +25,9 @@ import { tarFiles } from "../../sandbox/src/tar.ts";
 import { createDockerApi, unixSocketHttp } from "../../sandbox/src/docker.ts";
 import type { ContainerConfig, DockerApi, DockerHttp } from "../../sandbox/src/docker.ts";
 import { handlers as table } from "./handlers/index.ts";
+import { LIMITS } from "./capacity.ts";
+import { bindWorkspaceStart, workspaceClaim, workspaceRelease, workspaceWaiting } from "./workspace-port.ts";
+import { bindMigration, bindMigrationPort } from "./migrate.ts";
 import { createHomeSync } from "./handlers/home.ts";
 import { createContainerHomeFs } from "./handlers/home-fs.ts";
 import type { HomeDeps, HomeSync, MadeFile } from "./handlers/home.ts";
@@ -36,6 +39,12 @@ import { nodeRun } from "./remote.ts";
 import { ToolError } from "./handlers/tools/common.ts";
 import type { ToolAnswer, ToolCode, ToolHost } from "./handlers/tools/common.ts";
 import type { ComputerHost, HostKind, Probe, RecordResult, SessionInfo } from "./projections.ts";
+import "./sbrowser/migrate.ts";
+import { browserStreamInput, browserStreamOpen } from "./sbrowser/handlers.ts";
+import "./sbrowser/room.ts";
+import { bindSpaceBrowser } from "./sbrowser/port.ts";
+import type { SpaceBrowser } from "./sbrowser/port.ts";
+import { createDockerSpaceBrowser, DEFAULT_BROWSER_IMAGE } from "./sbrowser/docker.ts";
 
 export const handlers: Record<string, Handler> = table as unknown as Record<string, Handler>;
 
@@ -43,6 +52,10 @@ export { bindFill, bindHost, bindKit, bindTeam, boundHost, redeemTicket, remembe
 export type { ComputerHost, CompCtx, Probe, RecordResult, SessionInfo } from "./projections.ts";
 export { sleepIdle, awaken } from "./handlers/lifecycle.ts";
 export { createHomeSync } from "./handlers/home.ts";
+/** What the daemon binds for the agent workspaces: how a waiting one starts, and the workspace half of the one-time move of a computer. */
+export { bindWorkspaceStart, bindMigration, bindMigrationPort };
+/** The reader of the tar the Engine's archive call returns, for the agent workspaces (the terminal module cannot import this module, so the daemon hands it over). */
+export { readTar } from "./handlers/home-fs.ts";
 export { maskEvents, maskHar } from "./handlers/record.ts";
 
 // ---- the Docker host -----------------------------------------------------------------------------------------------------------------------------------
@@ -60,6 +73,9 @@ export function computerSeccomp(): string {
 export const AGENTD_CTL = "/opt/agentd/ctl";
 /** Where the agent's Files folder is bound inside the computer (one copy, no sync). */
 export const FILES_GUEST = "/home/agent/Vyre";
+/** Where agentd keeps Chrome's user-data (images/agent-computer/agentd/main.ts: PROFILE/chrome), inside the guest home the archive call is limited to. */
+export const CHROME_DATA = "/home/agent/.profile-disk/chrome";
+const MAX_CHROME_DATA = 1024 * 1024 * 1024;
 
 export interface DockerHostOptions {
   api: DockerApi;
@@ -101,7 +117,7 @@ const RECORDING_PATH = /^work\/recordings\/rcd_[a-z0-9]+$/;
 export const computerNetworkName = (computerId: string): string => `vyre-compnet-${computerId.replace(/^cmt_/, "").replace(/-/g, "").slice(-16)}`;
 
 export function computerContainerConfig(name: string, computerId: string, agentId: string, o: DockerHostOptions, tabLimit: number): ContainerConfig {
-  const limits = { cpus: 2, memoryMb: 4096, pids: 1024, ...o.limits };
+  const limits = { cpus: LIMITS.desktop.cpus, memoryMb: LIMITS.desktop.memoryMb, pids: LIMITS.desktop.pids, ...o.limits };
   const memory = Math.round(limits.memoryMb * 1024 * 1024);
   const uid = o.user?.uid ?? 10001;
   const gid = o.user?.gid ?? 10001;
@@ -339,6 +355,18 @@ export function createDockerComputerHost(o: DockerHostOptions): ComputerHost & T
       try { await o.api.containerCreate(name, config); } catch (e) { await dropNetwork(a.computerId).catch(() => undefined); throw e; }
       return {};
     },
+    async chromeData(computerId) {
+      const name = nameOf(computerId);
+      if (!o.http) throw new Error("this host cannot read a computer's files");
+      if (o.profile) await o.profile.unseal(computerId);
+      try {
+        const r = await o.http({ method: "GET", path: `/containers/${name}/archive`, query: { path: CHROME_DATA }, timeoutMs: 10 * 60_000 });
+        if (r.status === 404) return null;
+        if (r.status !== 200) throw new Error(`the Chrome profile could not be read (${r.status})`);
+        if (r.body.length > MAX_CHROME_DATA) throw new Error("the Chrome profile is over 1 GB");
+        return { tar: r.body };
+      } finally { if (o.profile) await o.profile.seal(computerId).catch(() => undefined); }
+    },
     async start(a) {
       const name = nameOf(a.computerId);
       if (o.profile) await o.profile.unseal(a.computerId);
@@ -473,7 +501,9 @@ export function createDockerComputerHost(o: DockerHostOptions): ComputerHost & T
     },
     async capacity() {
       const os = process.getBuiltinModule("node:os");
-      return { totalMb: Math.round(os.totalmem() / 1048576), freeMb: Math.round(os.freemem() / 1048576), cpus: os.cpus().length, os: os.platform() };
+      let diskFreeMb: number | undefined;
+      try { const st = process.getBuiltinModule("node:fs").statfsSync("/"); diskFreeMb = Math.floor((Number(st.bavail) * Number(st.bsize)) / 1048576); } catch { /* the disk figure is left out */ }
+      return { totalMb: Math.round(os.totalmem() / 1048576), freeMb: Math.round(os.freemem() / 1048576), cpus: os.cpus().length, os: os.platform(), ...(diskFreeMb !== undefined ? { diskFreeMb } : {}) };
     },
     subnets: () => [...subnets.values()],
     async knownNetworks(ids: readonly string[]) { for (const id of ids) await learnSubnet(id); return [...subnets.values()]; },
@@ -497,6 +527,10 @@ export interface ComputersHostConfig {
   /** A Team server: the runner's socket and token (it alone holds the Docker socket), and the container vyred runs in, which joins each computer's network. */
   runner?: { socket: string; token(): string; ingress?: string; alias?: string };
   image?: string;
+  /** The Space browser image (images/space-browser). Default vyre/space-browser:1. */
+  browserImage?: string;
+  /** How many browsers the Space browser holds at once and how long a quiet one stays (minutes). */
+  browser?: { maxRunning?: number; idleMinutes?: number };
   filesRoot?: (agentId: string) => string | null;
   startTimeoutMs?: number;
   /** The agent's home mirror: calls as the agent principal, the upload of large files, how often a pass runs, where each agent's manifest lives, and a log. */
@@ -524,8 +558,22 @@ export function computerSubnets(): string[] { return (boundHost() as { subnets?:
 export async function learnComputerSubnets(ids: readonly string[]): Promise<string[]> { return (await (boundHost() as { knownNetworks?: (i: readonly string[]) => Promise<string[]> } | null)?.knownNetworks?.(ids)) ?? []; }
 export async function localSiteLogs(a: { computerId: string; slug: string; lines: number }): Promise<string[]> { return (await boundHost()?.siteLogs?.(a)) ?? []; }
 
+/** The Space browser for this machine, not yet bound: one container for the Space host, a Chrome profile per agent (sbrowser/). */
+export function buildSpaceBrowser(c: ComputersHostConfig): SpaceBrowser {
+  const http = c.runner ? unixSocketHttp(c.runner.socket, undefined, () => ({ authorization: `Bearer ${c.runner!.token()}` })) : unixSocketHttp(c.socketPath);
+  return createDockerSpaceBrowser({
+    api: createDockerApi(http), http,
+    image: c.browserImage ?? DEFAULT_BROWSER_IMAGE,
+    ...(c.runner ? { runner: { ...(c.runner.ingress ? { ingress: c.runner.ingress } : {}), ...(c.runner.alias ? { alias: c.runner.alias } : {}) } } : {}),
+    ...(c.browser?.maxRunning !== undefined ? { maxRunning: c.browser.maxRunning } : {}),
+    ...(c.browser?.idleMinutes !== undefined ? { idleMinutes: c.browser.idleMinutes } : {}),
+    ...(c.startTimeoutMs !== undefined ? { startTimeoutMs: c.startTimeoutMs } : {}),
+  });
+}
+
 export function setComputerHost(c: ComputersHostConfig | null): void {
   bindHost(c === null ? null : buildComputerHost(c));
+  bindSpaceBrowser(c === null ? null : buildSpaceBrowser(c));
 }
 
 // Only the setters the daemon wires are host seams (the loader reports any other function here as a driver left unwired); what a computer that joined needs is exported beside them.
@@ -533,4 +581,4 @@ export const hostSeams = { setComputersFill, setComputerHost };
 export { nodeRun };
 
 /** What the host asks of this module on behalf of a computer that joined (host/src/routes/compute.ts): never a capability, never reachable from a session. */
-export const hostCalls = { "computers.node_jobs": nodeJobs, "computers.node_result": nodeResult, "computers.node_home_check": nodeHomeCheck, "computers.stream_open": nodeStreamOpen, "computers.stream_input": nodeStreamInput, "computers.node_recording_check": nodeRecordingCheck };
+export const hostCalls = { "computers.browser_stream_open": browserStreamOpen, "computers.browser_stream_input": browserStreamInput, "computers.workspace_claim": workspaceClaim, "computers.workspace_release": workspaceRelease, "computers.workspace_waiting": workspaceWaiting, "computers.node_jobs": nodeJobs, "computers.node_result": nodeResult, "computers.node_home_check": nodeHomeCheck, "computers.stream_open": nodeStreamOpen, "computers.stream_input": nodeStreamInput, "computers.node_recording_check": nodeRecordingCheck };

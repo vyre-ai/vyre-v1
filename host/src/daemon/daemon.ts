@@ -97,6 +97,7 @@ import { FILL_PATH, createComputersFillHost, createFillRoute } from "../seams/co
 import { homeCallAllowed, homeScopeOf } from "./home-confine.ts";
 import { createComputersHost } from "../seams/computers-host.ts";
 import { createTerminalHostSeam } from "../seams/terminal-host.ts";
+import { findDockerSocket } from "../seams/docker-socket.ts";
 import { READER_LOSS, createEngineHost } from "../seams/engine.ts";
 import { createEmailAskDriver, createFormAskDriver } from "../seams/email-ask.ts";
 import { createEventsHost } from "../seams/events-ports.ts";
@@ -127,6 +128,7 @@ import { createVaultExportRoute } from "../routes/vault-export.ts";
 import { createWebhookRoute } from "../routes/webhooks.ts";
 import { createComputeRoute } from "../routes/compute.ts";
 import { createComputeStream } from "../routes/compute-stream.ts";
+import { createBrowserStream } from "../routes/browser-stream.ts";
 import { createReporter } from "../machines/reporter.ts";
 import type { Report } from "../machines/report.ts";
 import { isFix, runFix } from "./machine-fix.ts";
@@ -318,6 +320,10 @@ export interface DaemonOptions {
   computersBaseUrl?: string;
   /** How often an agent computer mirrors its home with Files while it runs (tests set it long and trigger passes by waking and sleeping). Default 3 s. */
   computersHomeIntervalMs?: number;
+  /** How long an agent workspace is idle before it sleeps, in ms (default 10 minutes); tests shorten it. */
+  workspaceIdleMs?: number;
+  /** A test of workspaces on a server that joined: this Space has no container runtime of its own, whatever the machine has. */
+  workspaceRuntimeOff?: boolean;
   /** The container engine socket the agent computers module talks to (default: the system one); tests point it somewhere nothing listens. */
   computersSocketPath?: string;
   /** The sites runner's socket (host/src/sites-runner; default VYRE_SITES_RUNNER) and, beside it, its token file. Vyre never holds the Docker socket itself. */
@@ -565,6 +571,14 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   const computersRunnerSocket = (): string | undefined => o.sitesRunnerSocket ?? process.env["VYRE_SITES_RUNNER"] ?? undefined;
   const computersRunnerToken = (): string => { try { return fs.readFileSync(process.env["VYRE_SITES_RUNNER_TOKEN_FILE"] ?? path.join(path.dirname(computersRunnerSocket() as string), "token"), "utf8").trim(); } catch { return ""; } };
   // the container vyred runs in (compose sets it as vyre.ingress): it joins each computer's network, so agentd can post to the Vault channel
+  /** The container runtime agent workspaces use: a socket named for the Space, the runner beside a Team server's vyred, or the one the person's own computer has (Docker Desktop, Colima, OrbStack ...). Null: none, and the agent's commands go where its turn runs. */
+  const workspaceRuntime = (): { socketPath: string } | { runner: { socket: string; token(): string } } | null => {
+    if (o.workspaceRuntimeOff === true) return null;
+    if (o.computersSocketPath !== undefined) return { socketPath: o.computersSocketPath };
+    if (cfg.spaceKind !== "personal" && computersRunnerSocket()) return { runner: { socket: computersRunnerSocket() as string, token: computersRunnerToken } };
+    const found = findDockerSocket();
+    return found ? { socketPath: found.path } : null;
+  };
   const ingressContainer = (): string | undefined => process.env["VYRE_INGRESS_CONTAINER"] ?? (fs.existsSync("/.dockerenv") ? process.env["HOSTNAME"] : undefined);
   let sitesTick: () => Promise<void> = () => Promise.resolve();
   const siteHostRoute = createSiteHostRoute({
@@ -605,6 +619,10 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   let computeHome: (nodeId: string, a: { token: string; computerId: string; cap: string; input: unknown }) => Promise<{ ok: true; output: unknown } | null> = () => Promise.resolve(null);
   let computeStreamOpen: (ticket: string, computerId: string) => Promise<{ nodeId: string; personId: string; input: boolean } | null> = () => Promise.resolve(null);
   let computeStreamInput: (computerId: string, personId: string) => Promise<boolean> = () => Promise.resolve(false);
+  // the live view of an agent's browser in the Space browser, relayed (host/src/routes/browser-stream.ts); the computers module spends the ticket
+  let browserOpen: (ticket: string, agentId: string) => Promise<{ url: string; ws: string; personId: string; input: boolean } | null> = () => Promise.resolve(null);
+  let browserInput: (agentId: string, personId: string) => Promise<boolean> = () => Promise.resolve(false);
+  const browserStream = createBrowserStream({ open: (t, a) => browserOpen(t, a), mayInput: (a, p) => browserInput(a, p) });
   // a person's own computer links with their signed-in session (lane l-runson); who it is comes from the same resolver as the gateway, once the Space is open
   let closeIdleSessions: (person?: string) => Promise<number> = () => Promise.resolve(0);
   let idleSessions: (person?: string) => number = () => 0;
@@ -971,6 +989,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         await putToSlot(a.url, a.bytes);
         return true;
       };
+      browserOpen = async (ticket, agentId) => (await hookRunner.call("computers.browser_stream_open", { ticket, agentId })) as { url: string; ws: string; personId: string; input: boolean } | null;
+      browserInput = async (agentId, personId) => (await hookRunner.call("computers.browser_stream_input", { agentId, personId })) === true;
       computeStreamOpen = async (ticket, computerId) => (await hookRunner.call("computers.stream_open", { ticket, computerId })) as { nodeId: string; personId: string; input: boolean } | null;
       const pool = (): { closeIdle?: (p?: string) => Promise<number>; idleCount?: (p?: string) => number } | undefined => (loaded.moduleExports.get("engine") as { openerOf?: () => { pool: { closeIdle?: (p?: string) => Promise<number>; idleCount?: (p?: string) => number } } | null } | undefined)?.openerOf?.()?.pool;
       closeIdleSessions = async (person) => (await pool()?.closeIdle?.(person)) ?? 0;
@@ -1840,6 +1860,60 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           roles: cfg.roles, team: cfg.spaceKind !== "personal",
           readAs: async (person, cap, input) => { const r = await invoke(cap, input, { space: spaceId, principal: { kind: "person", id: person }, origin: "terminal" }); return r.status === "ok" ? r.output : null; },
           computerOf: (person) => (db!.all("SELECT id FROM devices_device WHERE person = ? AND revokedAt IS NULL AND deleted_at IS NULL AND class IN ('desktop', 'daemon', 'web') ORDER BY CASE WHEN class = 'web' THEN 1 ELSE 0 END, lastSeenAt DESC, id DESC LIMIT 1", person)[0] as { id?: string } | undefined)?.id,
+          // agent workspaces (6 Nov): a Team server that has a container runtime (the runner beside vyred, or a Docker socket) gives every agent a workspace, made on first use; the same engine as agent computers
+          // A Personal Space has them too when the person's computer has a container runtime (Docker Desktop, Colima, OrbStack ...): the socket is found, and the image is the release's own from the registry.
+          // With no runtime of its own the Space still has workspaces: they go on a server of the agent's owner that joined, is connected and has Docker (the Docker questions travel over that server's live socket).
+          ...({
+            workspaces: {
+              ...((workspaceRuntime() ?? {}) as object),
+              nodes: {
+                ask: (nodeId: string, kind: string, input: unknown, timeoutMs?: number) => computeStream.ask(nodeId, kind, input, timeoutMs),
+                place: async (agentId: string): Promise<string | null> => {
+                  const owner = ((await createAgentHomeCaller({ db: db!, spaceId, invoke })(agentId, "agents.get", { agentId })) as { agent?: { ownerId?: string } } | null)?.agent?.ownerId;
+                  if (!owner) return null;
+                  const r = await invoke("network.my_computers", {}, { space: spaceId, principal: { kind: "person", id: owner }, origin: "terminal" });
+                  const mine = r.status === "ok" ? ((r.output as { computers?: Array<{ serverId: string; enrollment: string; facts?: { docker?: boolean } }> }).computers ?? []) : [];
+                  return mine.find((c) => c.enrollment === "approved" && c.facts?.docker === true && computeStream.connected(c.serverId))?.serverId ?? null;
+                },
+              },
+              ...(cfg.spaceKind === "personal" && !process.env["VYRE_WORKSPACE_IMAGE"] ? { image: `ghcr.io/vyre-ai/agent-workspace:${cfg.version}` } : {}),
+              ...(o.workspaceIdleMs !== undefined ? { idleMs: o.workspaceIdleMs } : {}),
+              projectsOf: (agentId: string) => (db!.all("SELECT projectId FROM projects_member WHERE principal = ? AND kind = 'agent'", agentId) as Array<{ projectId?: string }>).map((r) => String(r.projectId)),
+              // ~/Vyre in the workspace mirrors the agent's folder in Files: the computers module's home sync, run as the agent principal like any other writer (access, review rules and the scrubber apply)
+              // room on the host: the computers module's capacity, over host calls (this module cannot import that one). A waiting workspace starts by itself when room opens, and a computer that is moved
+              // to the new model gets its workspace made (stopped) by the idle pass.
+              ...((): Record<string, unknown> => {
+                const comp = loaded.moduleExports.get("computers") as { bindWorkspaceStart?: (f: ((agentId: string) => Promise<void>) | null) => void; bindMigrationPort?: (k: "ensureWorkspace", f: (ctx: unknown, a: { agentId: string; computerId: string }) => Promise<{ workspaceId: string }>) => void } | undefined;
+                const term = loaded.moduleExports.get("terminal") as { boundWorkspaces?: () => { ensure(a: string): Promise<unknown>; provision(a: string): Promise<{ workspaceId: string }> } | null } | undefined;
+                if (!comp || !term) return {};
+                const call = (name: string, input: unknown): Promise<unknown> => (hooks ? hooks.call(name, input) : Promise.reject(new Error("The Space is not ready.")));
+                comp.bindWorkspaceStart?.(async (agentId) => { await term.boundWorkspaces?.()?.ensure(agentId); });
+                comp.bindMigrationPort?.("ensureWorkspace", async (_ctx, a) => {
+                  const m = term.boundWorkspaces?.();
+                  if (!m) throw new Error("This Space has no agent workspaces.");
+                  return m.provision(a.agentId);
+                });
+                return { capacity: {
+                  claim: async (agentId: string, nodeId?: string) => (await call("computers.workspace_claim", { agentId, ...(nodeId ? { nodeId } : {}) })) as { state: "running" | "waiting"; line?: string },
+                  release: async (agentId: string, nodeId?: string) => { await call("computers.workspace_release", { agentId, ...(nodeId ? { nodeId } : {}) }); },
+                } };
+              })(),
+              ...((): Record<string, unknown> => {
+                const comp = loaded.moduleExports.get("computers") as { createHomeSync?: (o: unknown, d: unknown) => { pass(): Promise<{ failed: number }> }; readTar?: (t: Uint8Array) => unknown } | undefined;
+                if (!comp?.createHomeSync || !comp.readTar) return {};
+                const callAs = createAgentHomeCaller({ db: db!, spaceId, invoke });
+                const deps = { callAs, putBytes: (url: string, bytes: Uint8Array) => putToSlot(url, bytes), now: Date.now, log: (level: "info" | "warn", msg: string, attrs?: Record<string, unknown>) => sink.log({ space: spaceId, level: level === "warn" ? 40 : 30, msg, place: "workspaces", ...(attrs ? { attrs } : {}) }) };
+                // a project's shared folder is mirrored with the project's folder in Files; every call is made as the agent that last worked in it, so the file's history says who changed what
+                const syncProject = (x: { projectId: string; agentId: string; fs: unknown; manifest: string }): { pass(): Promise<{ failed: number }> } | null => {
+                  const folder = (db!.all("SELECT folderId FROM projects_project WHERE projectId = ?", x.projectId)[0] as { folderId?: string | null } | undefined)?.folderId;
+                  if (!folder) return null;
+                  return comp.createHomeSync!({ agentId: x.agentId, computerId: `prj_${x.projectId}`, fs: x.fs, manifest: x.manifest, rootFolder: folder, plain: true, reason: "edited in a workspace" }, deps);
+                };
+                return { home: { sync: (x: unknown) => comp.createHomeSync!(x, deps), readTar: comp.readTar, syncProject, projectManifest: (id: string) => path.join(paths.root, "workspaces", "projects", id, "home-manifest.json"), manifest: (a: string) => path.join(paths.root, "workspaces", a, "home-manifest.json"), ...(o.computersHomeIntervalMs !== undefined ? { intervalMs: o.computersHomeIntervalMs } : {}) } };
+              })(),
+              log: (level: "info" | "warn", msg: string, attrs?: Record<string, unknown>) => sink.log({ space: spaceId, level: level === "warn" ? 40 : 30, msg, place: "workspaces", ...(attrs ? { attrs } : {}) }),
+            },
+          }),
         }),
         // the Vault channel of agent computers (P-L2_21): agentd posts one #Handle.field at a time to /computers/fill with its own token; without a Vault the channel is not offered
         setComputersFill: (d) => d.vault ? createComputersFillHost({
@@ -2195,7 +2269,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       capIndex = indexCapabilities(caps);
 
       const mkHub = (): LiveHub => createLiveHub({
-        claims: (req) => computeStream.claims(req),
+        claims: (req) => computeStream.claims(req) || browserStream.claims(req),
         // a socket shows its address to the browser console and to logs: a device with no header presents a one-time ticket, never its session token
         session: (h, url) => {
           const ticket = url.searchParams.get("ticket");
@@ -2408,7 +2482,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     o.liveSync?.onHub?.(h);
     syncLive.setHost(h);
     const server = h.server;
-    if (hubFactory) server.on("upgrade", (req, socket, head) => { if (computeStream.claims(req)) computeStream.upgrade(req, socket, head); });
+    if (hubFactory) server.on("upgrade", (req, socket, head) => { if (computeStream.claims(req)) computeStream.upgrade(req, socket, head); else if (browserStream.claims(req)) browserStream.upgrade(req, socket, head); });
     server.removeAllListeners("request");
     // a site's container reaches this machine only through its own network; a connection on that network's address is a site trying the Space's API, and is closed at once
     server.on("connection", (sock) => { if (siteGuard(sock.localAddress, sock.remoteAddress)) sock.destroy(); });
@@ -2455,7 +2529,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       if (artifactHostRoute.handle(req, res)) return;
       if (siteHostRoute.handle(req, res)) return;
       if (peerService?.handle(req, res)) return;
-      if (liveTicketRoute.handle(req, res) || publicPath.handle(req, res) || siteSigninPage.handle(req, res) || mcpRoute.handle(req, res) || (gitProxy?.handle(req, res) ?? false) || chromeBridge.handle(req, res) || chromeAgentsRoute.handle(req, res) || githubSignInRoute.handle(req, res) || githubConnectRoute.handle(req, res) || ssoSignInRoute.handle(req, res) || blobRoute?.handle(req, res) || formsPageRoute?.handle(req, res) || unsubscribeRoute.handle(req, res) || shareRoute?.handle(req, res) || portalLinkRoute?.handle(req, res) || exportRoute.handle(req, res) || webhookRoute.handle(req, res) || computeRoute.handle(req, res) || computeStream.handle(req, res) || localWorkRoute.handle(req, res) || teamLinks.handle(req, res) || fillRoute.handle(req, res) || localKeyRoute.handle(req, res) || appFiles.handle(req, res)) return;
+      if (liveTicketRoute.handle(req, res) || browserStream.handle(req, res) || publicPath.handle(req, res) || siteSigninPage.handle(req, res) || mcpRoute.handle(req, res) || (gitProxy?.handle(req, res) ?? false) || chromeBridge.handle(req, res) || chromeAgentsRoute.handle(req, res) || githubSignInRoute.handle(req, res) || githubConnectRoute.handle(req, res) || ssoSignInRoute.handle(req, res) || blobRoute?.handle(req, res) || formsPageRoute?.handle(req, res) || unsubscribeRoute.handle(req, res) || shareRoute?.handle(req, res) || portalLinkRoute?.handle(req, res) || exportRoute.handle(req, res) || webhookRoute.handle(req, res) || computeRoute.handle(req, res) || computeStream.handle(req, res) || localWorkRoute.handle(req, res) || teamLinks.handle(req, res) || fillRoute.handle(req, res) || localKeyRoute.handle(req, res) || appFiles.handle(req, res)) return;
       listener(req, res);
     });
     await new Promise<void>((resolve, reject) => {

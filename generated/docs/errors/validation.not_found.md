@@ -29,5 +29,5 @@ HTTP 404. Retryable: no.
 - agents.routine.run_now
 - agents.routines.list
 - agents.set_owner
+- agents.share_class
 - agents.snapshot.take
-- agents.status

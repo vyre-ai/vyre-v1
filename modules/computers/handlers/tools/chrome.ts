@@ -61,7 +61,7 @@ export async function inspect(ctx: CompCtx, input: Base & { ref: string }) {
 
 export async function state(ctx: CompCtx, input: Base) {
   const out = await run(ctx, input, { name: "chrome_state", caption: null }, defined({ tabId: input.tabId }));
-  return shape(ctx, "chrome_state", out, { url: "s", title: "s", loading: "b" });
+  return shape(ctx, "chrome_state", out, { url: "s", title: "s", loading: "b", downloads: "a?" });
 }
 
 /** Does not wake a sleeping computer: asleep means no browser, so nothing is connected and nothing is held. */
@@ -89,7 +89,7 @@ export async function act(ctx: CompCtx, input: Base & { ref?: string; action: st
   if ((input.action === "press" || input.action === "select") && (input.value === undefined || input.value === "")) raise(ctx, "validation.bad_input", `${input.action === "press" ? "Name the key to press" : "Name the option to select"}.`);
   const spec: ToolSpec = { name: "chrome_act", caption: (a, o) => held(o, `${DID[input.action] ?? input.action} ${a["ref"] ? `element ${clip(a["ref"], 20)}` : input.action === "press" ? clip(input.value, 30) : "the page"}`.trim()) };
   const out = await run(ctx, input, spec, defined({ tabId: input.tabId, ref, action: input.action, value: input.value }));
-  return shape(ctx, "chrome_act", out, { ok: "b", heldId: "s?", snapshot: "s?" });
+  return shape(ctx, "chrome_act", out, { ok: "b", heldId: "s?", snapshot: "s?", downloads: "a?" });
 }
 
 export async function click(ctx: CompCtx, input: Base & { ref?: string; x?: number; y?: number; button?: string }) {
@@ -99,7 +99,7 @@ export async function click(ctx: CompCtx, input: Base & { ref?: string; x?: numb
   if (byXY && ((input.x as number) < 0 || (input.y as number) < 0)) raise(ctx, "validation.bad_input", "x and y are inside the page: zero or more.");
   const spec: ToolSpec = { name: "chrome_click", caption: (a, o) => held(o, byRef ? `Clicked element ${clip(a["ref"], 20)}` : `Clicked at ${String(a["x"])}, ${String(a["y"])}`) };
   const out = await run(ctx, input, spec, defined({ tabId: input.tabId, ref: byRef ? input.ref : undefined, x: byRef ? undefined : input.x, y: byRef ? undefined : input.y, button: input.button }));
-  return shape(ctx, "chrome_click", out, { ok: "b", heldId: "s?" });
+  return shape(ctx, "chrome_click", out, { ok: "b", heldId: "s?", downloads: "a?" });
 }
 
 export async function type(ctx: CompCtx, input: Base & { ref?: string; text: string; submit?: boolean }) {
@@ -127,7 +127,7 @@ export async function open(ctx: CompCtx, input: { computerId?: string | undefine
   if (typeof input.url !== "string" || !HTTP.test(input.url)) raise(ctx, "validation.bad_input", "Open an http or https address.");
   const spec: ToolSpec = { name: "chrome_open", caption: (a) => `Opened ${siteOf(a["url"])}`, timeoutMs: 60_000 };
   const out = await run(ctx, input, spec, defined({ url: input.url, newTab: input.newTab }));
-  return shape(ctx, "chrome_open", out, { tabId: "s", url: "s", title: "s" });
+  return shape(ctx, "chrome_open", out, { tabId: "s", url: "s", title: "s", downloads: "a?" });
 }
 
 export async function tabs(ctx: CompCtx, input: Base & { action: "list" | "use" | "find" | "new" | "close"; url?: string; site?: string }) {
@@ -148,7 +148,7 @@ export async function wait(ctx: CompCtx, input: Base & { until: string; value?: 
   const limit = input.timeoutMs ?? 30_000;
   const what: Record<string, string> = { load: "the page to load", text: "text", selector: "an element", network_idle: "the network to settle", time: "a moment" };
   const out = await run(ctx, input, { name: "chrome_wait", caption: () => `Waited for ${what[input.until] ?? input.until}`, timeoutMs: limit + 5_000 }, defined({ tabId: input.tabId, until: input.until, value: input.value, timeoutMs: limit }));
-  return shape(ctx, "chrome_wait", out, { ok: "b", waitedMs: "n" });
+  return shape(ctx, "chrome_wait", out, { ok: "b", waitedMs: "n", downloads: "a?" });
 }
 
 export async function evaluate(ctx: CompCtx, input: Base & { expression: string }) {
