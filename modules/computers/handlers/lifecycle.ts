@@ -8,6 +8,7 @@ import {
 } from "../projections.ts";
 import type { CompCtx, ComputerHost, ComputerRow, Probe, SessionInfo } from "../projections.ts";
 import { finishRecording } from "./record.ts";
+import { bindStarter, checkRoom, claimRoom, drainWaiting, isWaiting, LIMITS, releaseRoom, waitingNote } from "../capacity.ts";
 
 type Row = Record<string, unknown>;
 const pageOf = <T>(items: readonly T[], cursor: string | undefined, limit: number | undefined): { page: T[]; next?: string; total: number } => {
@@ -89,7 +90,7 @@ export async function health(ctx: CompCtx, _input: Record<string, never>) {
 
 export interface HostRow { hostId: string; kind: "this" | "space" | "server"; name: string; online: boolean; canRun: boolean; runs: number; reason?: string; detail?: string; room?: { fits: number; freeMb: number; totalMb: number } }
 
-const COMPUTER_MB = 4096;
+const COMPUTER_MB = LIMITS.desktop.reserveMb;
 const OS_WORDS: Record<string, string> = { linux: "Linux", darwin: "macOS", win32: "Windows" };
 const gb = (mb: number): string => `${(mb / 1024).toFixed(mb >= 10240 ? 0 : 1)} GB`;
 /** The machine in a line and how many more computers its free memory holds. */
@@ -163,6 +164,9 @@ export async function provision(ctx: CompCtx, input: { agentId: string; tabLimit
   }
   if (rowsOf(ctx.db, "SELECT computer_id FROM computers_computers WHERE agent_id = ?", input.agentId)[0]) raise(ctx, "validation.duplicate", "This agent already has a computer.", { agentId: input.agentId });
   if (input.nodeId !== undefined) await placeable(ctx, input.nodeId, input.agentId);
+  // a computer made here is stopped and holds no memory, but its image, profile and Files grow on the disk: a full disk refuses before anything is made
+  const room = await checkRoom(ctx, { kind: "desktop", nodeId: input.nodeId ?? null });
+  if (!room.verdict.ok && room.verdict.reason === "disk") raise(ctx, "provider.unavailable", `${room.verdict.detail}. Free some space on it, or add a compute server in Console > Computers.`, { reason: room.verdict.detail });
   const computerId = mintId("cmt", ctx.now());
   const tabLimit = input.tabLimit ?? DEFAULT_TAB_LIMIT;
   ctx.log.info("computer: provisioning", { computerId, agentId: input.agentId, node: input.nodeId ?? null });
@@ -218,7 +222,9 @@ export async function remove(ctx: CompCtx, input: { computerId: string }) {
     if (c.nodeId === undefined || (await nodeIsListed(ctx, c.nodeId))) throw e;
   }
   for (const t of ["computers_sessions", "computers_tickets", "computers_timeline", "computers_computers"]) ctx.db.run(`DELETE FROM ${t} WHERE computer_id = ?`, c.computerId);
+  releaseRoom(ctx, c.computerId);
   ctx.emit("computer.removed", c.computerId, { computerId: c.computerId, agentId: c.agentId });
+  await startWaiting(ctx);
   return { removed: true };
 }
 
@@ -259,16 +265,23 @@ async function connectFill(ctx: CompCtx, host: ComputerHost, c: ComputerRow): Pr
 export async function awaken(ctx: CompCtx, c: ComputerRow, by: string): Promise<ComputerRow> {
   if (c.state === "working" || c.state === "takeover") return c;
   if (c.state === "provisioning") raise(ctx, "validation.bad_input", "This computer is still being set up.");
-  if (c.state === "waking") return c;
+  // a computer waiting for room is asked again each time something needs it; one that is really starting is left to finish
+  if (c.state === "waking" && !isWaiting(ctx.db, c.computerId)) return c;
   const host = hostOf(ctx, c.computerId);
-  setComputer(ctx.db, c.computerId, { state: "waking", error: null });
+  const room = await claimRoom(ctx, { kind: "desktop", key: c.computerId, nodeId: c.nodeId ?? null });
+  if (room.state === "waiting") {
+    // queued, not failed: Waking with the plain line, and it starts by itself when a computer sleeps or is removed (drainWaiting)
+    setComputer(ctx.db, c.computerId, { state: "waking", error: null, caption: room.line ?? null });
+    return needComputer(ctx, c.computerId);
+  }
+  setComputer(ctx.db, c.computerId, { state: "waking", error: null, caption: null });
   ctx.log.info("computer: starting", { computerId: c.computerId, by });
   try {
     await host.start({ computerId: c.computerId, tabLimit: c.tabLimit, agentId: c.agentId });
   } catch (e) {
     const reason = e instanceof Error ? e.message.slice(0, 1000) : "The computer did not start.";
     ctx.log.warn("computer: start failed", { computerId: c.computerId, reason });
-    setComputer(ctx.db, c.computerId, { state: "error", error: reason });
+    setComputer(ctx.db, c.computerId, { state: "error", error: reason, caption: null });
     raise(ctx, "internal.unexpected", `The computer did not start: ${reason}`, { reason });
   }
   await connectFill(ctx, host, c);
@@ -276,6 +289,14 @@ export async function awaken(ctx: CompCtx, c: ComputerRow, by: string): Promise<
   ctx.log.info("computer: ready", { computerId: c.computerId });
   ctx.emit("computer.started", c.computerId, { computerId: c.computerId, agentId: c.agentId, by });
   return refresh(ctx, needComputer(ctx, c.computerId));
+}
+
+/** Wake it, and say so when it is only waiting for room: a caller that is about to use the screen must not go on with a computer that has not started. */
+async function awakened(ctx: CompCtx, c: ComputerRow, by: string): Promise<ComputerRow> {
+  const out = await awaken(ctx, c, by);
+  const line = waitingNote(ctx.db, out.computerId);
+  if (line !== null) raise(ctx, "validation.precondition_failed", line, { waiting: true });
+  return out;
 }
 
 export async function wake(ctx: CompCtx, input: { computerId: string }) {
@@ -298,7 +319,20 @@ async function putToSleep(ctx: CompCtx, c: ComputerRow, reason: "idle" | "reques
   if (out.sessions) storeSessions(ctx, c.computerId, out.sessions);
   setComputer(ctx.db, c.computerId, { state: "asleep", caption: null, tabs: 0, error: null, ...(out.diskBytes !== undefined ? { disk_bytes: out.diskBytes } : {}) });
   ctx.emit("computer.slept", c.computerId, { computerId: c.computerId, agentId: c.agentId, reason });
+  await startWaiting(ctx);
 }
+
+/** Room may have opened: start what waits, oldest first. A failure here never fails the call that freed the room. */
+async function startWaiting(ctx: CompCtx): Promise<void> {
+  try { await drainWaiting(ctx); } catch { ctx.log.warn("capacity: the waiting line could not be checked"); }
+}
+bindStarter("desktop", async (ctx, computerId) => {
+  const c = needComputer(ctx, computerId);
+  if (c.state !== "waking") return;
+  // its waiting line is gone; back to asleep so awaken starts it for real
+  setComputer(ctx.db, computerId, { state: "asleep", caption: null });
+  await awaken(ctx, { ...c, state: "asleep" as const }, "queue");
+});
 
 export async function sleep(ctx: CompCtx, input: { computerId: string }) {
   ensure(ctx.db);
@@ -306,6 +340,12 @@ export async function sleep(ctx: CompCtx, input: { computerId: string }) {
   const c0 = needComputer(ctx, input.computerId);
   if (c0.state === "asleep") return { computer: computerOut(c0) };
   if (c0.state === "takeover") raise(ctx, "validation.precondition_failed", "A person has the controls. They give it back first.", { takeoverBy: c0.takeoverBy });
+  if (c0.state === "waking" && isWaiting(ctx.db, c0.computerId)) {
+    // asked to stop while it waits for room: the wait is cancelled
+    releaseRoom(ctx, c0.computerId);
+    setComputer(ctx.db, c0.computerId, { state: "asleep", caption: null, error: null });
+    return { computer: computerOut(needComputer(ctx, c0.computerId)) };
+  }
   if (c0.state === "waking" || c0.state === "provisioning") raise(ctx, "validation.precondition_failed", "This computer is still starting.");
   if (c0.recordingId) raise(ctx, "validation.precondition_failed", "A recording is running.");
   const c = await refresh(ctx, c0);
@@ -332,6 +372,8 @@ export async function sleepIdle(ctx: CompCtx): Promise<number> {
     if (c.idleSleepMinutes === 0 || ctx.now() - quietSince < c.idleSleepMinutes * 60_000) continue;
     try { await putToSleep(ctx, c, "idle"); slept++; } catch { /* marked as an error; the next pass leaves it alone */ }
   }
+  // room also opens without a sleep (a person raised the limit, a site build ended): the job looks at the waiting line each pass
+  await startWaiting(ctx);
   return slept;
 }
 
@@ -354,7 +396,7 @@ export async function takeOver(ctx: CompCtx, input: { computerId: string }) {
     return { computer: computerOut(c), ticket: t.ticket };
   }
   if (c.state === "provisioning" || c.state === "waking") raise(ctx, "validation.precondition_failed", "This computer is still starting.");
-  c = await awaken(ctx, c, person);
+  c = await awakened(ctx, c, person);
   const host = hostOf(ctx, c.computerId);
   try {
     await host.takeover({ computerId: c.computerId, personId: person });
@@ -415,7 +457,7 @@ export async function sessionSignOut(ctx: CompCtx, input: { computerId: string; 
   needTeam(ctx);
   const site = input.site.trim();
   if (site === "") raise(ctx, "validation.bad_input", "Name the site to sign out of.");
-  const c = await awaken(ctx, needComputer(ctx, input.computerId), actorOf(ctx));
+  const c = await awakened(ctx, needComputer(ctx, input.computerId), actorOf(ctx));
   let ok: boolean;
   try { ok = await hostOf(ctx, c.computerId).signOut({ computerId: c.computerId, site }); } catch (e) { raise(ctx, "internal.unexpected", `The computer did not sign out: ${e instanceof Error ? e.message.slice(0, 200) : "no reason given"}`); }
   if (!ok) return { ok: false };

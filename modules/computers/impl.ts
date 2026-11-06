@@ -25,6 +25,7 @@ import { tarFiles } from "../../sandbox/src/tar.ts";
 import { createDockerApi, unixSocketHttp } from "../../sandbox/src/docker.ts";
 import type { ContainerConfig, DockerApi, DockerHttp } from "../../sandbox/src/docker.ts";
 import { handlers as table } from "./handlers/index.ts";
+import { LIMITS } from "./capacity.ts";
 import { createHomeSync } from "./handlers/home.ts";
 import { createContainerHomeFs } from "./handlers/home-fs.ts";
 import type { HomeDeps, HomeSync, MadeFile } from "./handlers/home.ts";
@@ -101,7 +102,7 @@ const RECORDING_PATH = /^work\/recordings\/rcd_[a-z0-9]+$/;
 export const computerNetworkName = (computerId: string): string => `vyre-compnet-${computerId.replace(/^cmt_/, "").replace(/-/g, "").slice(-16)}`;
 
 export function computerContainerConfig(name: string, computerId: string, agentId: string, o: DockerHostOptions, tabLimit: number): ContainerConfig {
-  const limits = { cpus: 2, memoryMb: 4096, pids: 1024, ...o.limits };
+  const limits = { cpus: LIMITS.desktop.cpus, memoryMb: LIMITS.desktop.memoryMb, pids: LIMITS.desktop.pids, ...o.limits };
   const memory = Math.round(limits.memoryMb * 1024 * 1024);
   const uid = o.user?.uid ?? 10001;
   const gid = o.user?.gid ?? 10001;
@@ -473,7 +474,9 @@ export function createDockerComputerHost(o: DockerHostOptions): ComputerHost & T
     },
     async capacity() {
       const os = process.getBuiltinModule("node:os");
-      return { totalMb: Math.round(os.totalmem() / 1048576), freeMb: Math.round(os.freemem() / 1048576), cpus: os.cpus().length, os: os.platform() };
+      let diskFreeMb: number | undefined;
+      try { const st = process.getBuiltinModule("node:fs").statfsSync("/"); diskFreeMb = Math.floor((Number(st.bavail) * Number(st.bsize)) / 1048576); } catch { /* the disk figure is left out */ }
+      return { totalMb: Math.round(os.totalmem() / 1048576), freeMb: Math.round(os.freemem() / 1048576), cpus: os.cpus().length, os: os.platform(), ...(diskFreeMb !== undefined ? { diskFreeMb } : {}) };
     },
     subnets: () => [...subnets.values()],
     async knownNetworks(ids: readonly string[]) { for (const id of ids) await learnSubnet(id); return [...subnets.values()]; },

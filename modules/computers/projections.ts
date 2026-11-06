@@ -1,5 +1,6 @@
 // @reads /modules/computers/migrations/0001_init.sql
 // @reads /modules/computers/migrations/0002_nodes.sql
+// @reads /modules/computers/migrations/0003_claims.sql
 // Durable rows of the computers module (agent computers, recordings, tickets, timeline steps, signed-in sessions), the port to the machine that runs the containers, and the helpers
 // every computers handler shares. Every statement names a computers_* table, which is all ctx.db lets a module touch. The migration file is the one source of the schema.
 import { readFileSync } from "node:fs";
@@ -79,7 +80,7 @@ export interface ComputerHost {
   signOut(a: { computerId: string; site: string }): Promise<boolean>;
   health(): Promise<{ ok: boolean; detail?: string; latencyMs?: number }>;
   /** What this machine has to give: memory and CPUs, for the host picker (how many more computers fit). */
-  capacity?(): Promise<{ totalMb: number; freeMb: number; cpus: number; os: string }>;
+  capacity?(): Promise<{ totalMb: number; freeMb: number; cpus: number; os: string; diskFreeMb?: number }>;
   /** The address a port of this computer is reached at from this machine, or null while it is not running. */
   address?(computerId: string): Promise<string | null>;
   /** The last lines of a site's log: `~/sites/<slug>/site.log` by the shipped skill's convention. */
@@ -144,14 +145,18 @@ export function needTeam(_ctx: Pick<CompCtx, "space" | "trace">): void { /* avai
 
 // ---- schema --------------------------------------------------------------------------------------------------------------------------------------------
 
-const SCHEMA = ["0001_init.sql", "0002_nodes.sql"].map((f) => readFileSync(new URL(`./migrations/${f}`, import.meta.url), "utf8")).join("\n")
+const statements = (files: string[]): string[] => files.map((f) => readFileSync(new URL(`./migrations/${f}`, import.meta.url), "utf8")).join("\n")
   .split("\n").filter((l) => !l.trimStart().startsWith("--")).join("\n")
   .split(";").map((s) => s.trim()).filter((s) => s.length > 0);
+const SCHEMA = statements(["0001_init.sql", "0002_nodes.sql"]);
+/** Added after the first Spaces existed: every statement is IF NOT EXISTS, so a database that already has the first two gets it on its next use. */
+const CLAIMS = statements(["0003_claims.sql"]);
 const ready = new WeakSet<object>();
 
 export function ensure(db: Db): void {
   if (ready.has(db)) return;
   try { db.all("SELECT site FROM computers_sessions WHERE computer_id = ?", "probe"); } catch { for (const stmt of SCHEMA) db.run(stmt); }
+  try { db.all("SELECT claim_key FROM computers_claim WHERE claim_key = ?", "probe"); } catch { for (const stmt of CLAIMS) db.run(stmt); }
   ready.add(db);
 }
 

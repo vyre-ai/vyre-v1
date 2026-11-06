@@ -12,6 +12,7 @@ import { actorOf, addStep, agentFolder, clean, hostFor, ensure, mintId, needComp
 import { personalChrome } from "../../projections.ts";
 import type { CompCtx, ComputerHost, ComputerRow, PersonalChrome, Secret } from "../../projections.ts";
 import { awaken } from "../lifecycle.ts";
+import { waitingNote } from "../../capacity.ts";
 
 export type ToolArgs = Record<string, unknown>;
 export type ToolAnswer = Record<string, unknown>;
@@ -173,7 +174,7 @@ export async function prepare(ctx: CompCtx, computerId: string | undefined, spec
   if (c.state === "takeover" && !spec.duringTakeover && !atTheControls) raise(ctx, "validation.bad_input", "A person has the controls. The tools wait until they give them back.", { takeoverBy: c.takeoverBy });
   if (c.state === "asleep" && spec.noWake) return null;
   if (c.state === "asleep" || c.state === "error") c = await awaken(ctx, c, actorOf(ctx));
-  if (c.state === "provisioning" || c.state === "waking") raise(ctx, "provider.unavailable", "This computer is still starting.");
+  if (c.state === "provisioning" || c.state === "waking") raise(ctx, "provider.unavailable", waitingNote(ctx.db, c.computerId) ?? "This computer is still starting.");
   return { computer: c, host: toolHost(ctx, c.computerId) };
 }
 
