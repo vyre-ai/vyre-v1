@@ -126,6 +126,9 @@ export default defineManifest({
     read('agents.assistant_of', "A person's own Assistant, for the server's modules that work for them; only the server and the person themself are answered", {
       in: { personId: id.user }, out: { agentId: t.opt(id.agent) }, label: 'check',
     }),
+    read('agents.share_class', "How an agent is shared, for the modules that decide who may watch its work (its browser): private to its person (an Assistant or an outside agent), personal (shared with nobody), shared with named people, or with the whole Space. Only for an agent the caller can see", {
+      in: target, out: { class: t.enm('private', 'personal', 'shared', 'space'), ownerId: id.user, people: t.arr(id.user, { description: 'The people it is shared with by name, without its owner' }) }, on: ['agent', '/agentId'], label: 'check', errors: ['validation.not_found'],
+    }),
     read('agents.status', 'Live status of an agent: Awake (idle 2 minutes), Working, Asleep or Paused with reason and who', {
       in: target, out: { status: agentStatus, since: t.ts(), reason: t.opt(t.str()), by: t.opt(t.str()) }, on: ['agent', '/agentId'], tool: 'agents',
     }),

@@ -7,7 +7,7 @@ import type { PersonalChrome } from "../projections.ts";
 import { bindSpaceBrowser } from "../sbrowser/port.ts";
 import type { BrowserAnswer, BrowserToolCall, SpaceBrowser } from "../sbrowser/port.ts";
 import { PROFILE_ID as BROWSERD_PROFILE_ID } from "../../../images/space-browser/browserd/profiles.ts";
-import { PROFILE_ID, profileAccess, profileIdOf } from "../sbrowser/policy.ts";
+import { PROFILE_ID, mayTakeOver, profileAccess, profileIdOf } from "../sbrowser/policy.ts";
 import { ToolError } from "../handlers/tools/common.ts";
 import { asPerson, codeOf, DANA, harness, OMAR } from "../fixtures/harness.ts";
 import { tool, world } from "./tools.fixture.ts";
@@ -167,18 +167,20 @@ test("a screenshot of a profile is kept in the agent's folder like any other", a
 
 // ---- who may watch and take over
 
-test("the profile access rule: an Assistant only its person; a personal agent only its owner; a team agent its owner and admins", () => {
-  const assistant = { agentId: "agt_dana_assistant", ownerId: DANA, kind: "assistant" as const };
-  const personal = { agentId: "agt_mine", ownerId: DANA, kind: "agent" as const, personal: true };
-  const team = { agentId: "agt_dex", ownerId: DANA, kind: "agent" as const };
-  assert.equal(profileAccess(assistant, DANA, false), "owner");
-  assert.equal(profileAccess(assistant, OMAR, true), "none", "not even an admin");
-  assert.equal(profileAccess(personal, DANA, false), "owner");
-  assert.equal(profileAccess(personal, OMAR, true), "none", "not even an admin");
-  assert.equal(profileAccess({ agentId: "agt_x", ownerId: DANA }, OMAR, true), "admin", "an agent with no kind and no flag is a team agent");
-  assert.equal(profileAccess(team, DANA, false), "owner");
-  assert.equal(profileAccess(team, OMAR, true), "admin");
-  assert.equal(profileAccess(team, OMAR, false), "none", "a member who is not an admin");
+test("the profile access rule by how the agent is shared: private and personal only the owner; shared with named people they watch, owner and admins take over; the whole Space, owner and admins", () => {
+  const mk = (cls: "private" | "personal" | "shared" | "space", people: string[] = []) => ({ agentId: "agt_x", ownerId: DANA, class: cls, people });
+  for (const cls of ["private", "personal"] as const) {
+    assert.equal(profileAccess(mk(cls), DANA, false), "owner");
+    assert.equal(profileAccess(mk(cls, [OMAR]), OMAR, true), "none", `${cls}: not even an admin`);
+  }
+  assert.equal(profileAccess(mk("space"), DANA, false), "owner");
+  assert.equal(profileAccess(mk("space"), OMAR, true), "admin");
+  assert.equal(profileAccess(mk("space"), OMAR, false), "none", "a member who is not an admin");
+  assert.equal(profileAccess(mk("shared", [OMAR]), OMAR, false), "viewer", "a person it was shared with watches");
+  assert.equal(profileAccess(mk("shared", [OMAR]), OMAR, true), "admin", "an admin takes over");
+  assert.equal(profileAccess(mk("shared", [OMAR]), "usr_other", false), "none");
+  assert.equal(profileAccess(mk("shared", [OMAR]), "usr_other", true), "admin");
+  assert.deepEqual(["owner", "admin", "viewer", "none"].map((x) => mayTakeOver(x as never)), [true, true, false, false]);
 });
 
 test("a profile id is one rule in the module and in the browser, and cannot name a path", () => {

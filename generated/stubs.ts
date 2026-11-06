@@ -160,6 +160,7 @@ export function stubs(ctx: CallCtx) {
         list: call("agents.routines.list"),
       },
       set_owner: call("agents.set_owner"),
+      share_class: call("agents.share_class"),
       snapshot: {
         take: call("agents.snapshot.take"),
       },

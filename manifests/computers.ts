@@ -28,7 +28,7 @@ const sessionRow = t.obj({ site: t.str({ examples: ['app.example.com'] }), signe
 // The agent browsers of the Space browser (modules/computers/sbrowser): one profile per agent, named by the agent. Only people use these (to watch and take over), never an agent, so none is a tool.
 const browserRow = t.obj({
   agentId: id.agent, running: t.bool(), tabs: t.int(), busy: t.bool({ description: 'The agent is using it now' }), viewers: t.int({ description: 'People watching its live view' }), lastActiveAt: t.opt(t.ts()),
-  takeoverBy: t.opt(id.user), paired: t.bool({ description: 'Vyre for Chrome in the profile is connected to the Space as this agent, so Vault logins fill' }), access: t.enm('owner', 'admin'),
+  takeoverBy: t.opt(id.user), paired: t.bool({ description: 'Vyre for Chrome in the profile is connected to the Space as this agent, so Vault logins fill' }), access: t.enm('owner', 'admin', 'viewer'),
 });
 const comp = { computerId: id.computer };
 const optComp = { computerId: t.opt(id.computer) };
@@ -132,7 +132,7 @@ export default defineManifest({
     read('computers.browser.stream', "Live view of an agent's browser: MJPEG over a WebSocket address with a ticket that opens for five minutes; frames are live-only, never stored. Wakes the browser", {
       in: { agentId: id.agent }, out: { transport: t.enm('mjpeg'), url: t.str(), expiresAt: t.ts() }, perm: 'computers.watch', label: 'check', offline: 'online', errors: ['permission.no_grant', 'provider.unavailable', 'validation.not_found'],
     }),
-    write('computers.browser.take_over', "Take over an agent's browser (\"You're in control\"): its tools wait, your clicks and keys reach the page. An Assistant's browser is its person's alone; a team agent's goes to its owner and admins", {
+    write('computers.browser.take_over', "Take over an agent's browser (\"You're in control\"): its tools wait, your clicks and keys reach the page. An Assistant's or personal agent's browser is its person's alone; a team agent's goes to its owner and admins; one shared with named people may be watched by them but not taken over", {
       in: { agentId: id.agent }, out: { profile: browserRow }, perm: 'computers.take_over', level: 'use', audit: 'sensitive', idem: 'natural', offline: 'online', errors: ['permission.no_grant', 'provider.unavailable', 'validation.precondition_failed'],
     }),
     write('computers.browser.give_back', "Give an agent's browser back to the agent; the person who has the controls or an admin may", {

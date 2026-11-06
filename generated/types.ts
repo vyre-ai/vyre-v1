@@ -2137,6 +2137,14 @@ export type AgentsSetOwnerOut = {
     chatOf?: string;
   };
 };
+export type AgentsShareClassIn = {
+  agentId: string;
+};
+export type AgentsShareClassOut = {
+  class: "private" | "personal" | "shared" | "space";
+  ownerId: string;
+  people: Array<string>;
+};
 export type AgentsSnapshotTakeIn = {
   agentId: string;
   runId?: string;
@@ -8531,7 +8539,7 @@ export type ComputersBrowserGiveBackOut = {
     lastActiveAt?: number;
     takeoverBy?: string;
     paired: boolean;
-    access: "owner" | "admin";
+    access: "owner" | "admin" | "viewer";
   };
 };
 export type ComputersBrowserProfilesIn = Record<string, unknown>;
@@ -8545,7 +8553,7 @@ export type ComputersBrowserProfilesOut = {
       lastActiveAt?: number;
       takeoverBy?: string;
       paired: boolean;
-      access: "owner" | "admin";
+      access: "owner" | "admin" | "viewer";
     }>;
   maxRunning: number;
 };
@@ -8570,7 +8578,7 @@ export type ComputersBrowserTakeOverOut = {
     lastActiveAt?: number;
     takeoverBy?: string;
     paired: boolean;
-    access: "owner" | "admin";
+    access: "owner" | "admin" | "viewer";
   };
 };
 export type ComputersChromeActIn = {
@@ -44661,6 +44669,7 @@ export interface CapMap {
   "agents.routine.save": { in: AgentsRoutineSaveIn; out: AgentsRoutineSaveOut };
   "agents.routines.list": { in: AgentsRoutinesListIn; out: AgentsRoutinesListOut };
   "agents.set_owner": { in: AgentsSetOwnerIn; out: AgentsSetOwnerOut };
+  "agents.share_class": { in: AgentsShareClassIn; out: AgentsShareClassOut };
   "agents.snapshot.take": { in: AgentsSnapshotTakeIn; out: AgentsSnapshotTakeOut };
   "agents.status": { in: AgentsStatusIn; out: AgentsStatusOut };
   "agents.suggestion.accept": { in: AgentsSuggestionAcceptIn; out: AgentsSuggestionAcceptOut };

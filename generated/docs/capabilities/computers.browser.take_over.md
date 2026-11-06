@@ -1,6 +1,6 @@
 # computers.browser.take_over
 
-Take over an agent's browser ("You're in control"): its tools wait, your clicks and keys reach the page. An Assistant's browser is its person's alone; a team agent's goes to its owner and admins
+Take over an agent's browser ("You're in control"): its tools wait, your clicks and keys reach the page. An Assistant's or personal agent's browser is its person's alone; a team agent's goes to its owner and admins; one shared with named people may be watched by them but not taken over
 
 | | |
 |---|---|
@@ -42,7 +42,7 @@ type Out = {
     lastActiveAt?: number;
     takeoverBy?: string;
     paired: boolean;
-    access: "owner" | "admin";
+    access: "owner" | "admin" | "viewer";
   };
 };
 ```

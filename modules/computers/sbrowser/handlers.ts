@@ -3,7 +3,7 @@
 import { ToolError } from "../handlers/tools/common.ts";
 import { actorOf, raise } from "../projections.ts";
 import type { CompCtx } from "../projections.ts";
-import { profileAccess, profileIdOf } from "./policy.ts";
+import { mayTakeOver, profileAccess, profileIdOf } from "./policy.ts";
 import type { ProfileAccess, ProfileAgent } from "./policy.ts";
 import { spaceBrowser } from "./port.ts";
 import type { ProfileRow, SpaceBrowser } from "./port.ts";
@@ -21,26 +21,26 @@ function personOf(ctx: CompCtx): string {
   return actorOf(ctx);
 }
 
-/** The agent behind a profile, as policy.ts needs it; null when the agent cannot be read (gone, or not this Space's). */
+/** The agent behind a profile, as policy.ts needs it; null when the caller cannot see it (gone, or private to someone else): the same answer for both. */
 async function agentOf(ctx: CompCtx, agentId: string): Promise<ProfileAgent | null> {
   try {
-    const r = (await ctx.call("agents.get", { agentId })) as { agent?: { agentId?: string; ownerId?: string; kind?: ProfileAgent["kind"]; personal?: boolean } };
-    const a = r.agent;
-    if (!a || typeof a.ownerId !== "string") return null;
-    return { agentId, ownerId: a.ownerId, kind: a.kind, ...(a.personal === true ? { personal: true } : {}) };
+    const r = (await ctx.call("agents.share_class", { agentId })) as { class?: ProfileAgent["class"]; ownerId?: string; people?: string[] };
+    if (typeof r.ownerId !== "string" || !r.class) return null;
+    return { agentId, ownerId: r.ownerId, class: r.class, people: r.people ?? [] };
   } catch { return null; }
 }
 
 const isAdmin = (ctx: CompCtx): boolean => ctx.authorize({ perm: "computers.use", level: "manage" }, { type: "computer", id: null }).effect === "allow";
 
 /** The caller's right to this agent's browser, or a refusal in plain words. */
-async function mayWatch(ctx: CompCtx, agentId: string): Promise<{ person: string; access: Exclude<ProfileAccess, "none">; agent: ProfileAgent }> {
+async function mayWatch(ctx: CompCtx, agentId: string, takeOver = false): Promise<{ person: string; access: Exclude<ProfileAccess, "none">; agent: ProfileAgent }> {
   const person = personOf(ctx);
   if (!profileIdOf(agentId)) raise(ctx, "validation.not_found", "There is no browser for that agent.");
   const agent = await agentOf(ctx, agentId);
   if (!agent) raise(ctx, "validation.not_found", "There is no browser for that agent.");
   const access = profileAccess(agent, person, isAdmin(ctx));
-  if (access === "none") raise(ctx, "permission.no_grant", agent.kind === "assistant" ? "An Assistant's browser is its person's alone." : "You cannot watch this agent's browser.");
+  if (access === "none") raise(ctx, "permission.no_grant", agent.class === "private" ? "That agent's browser is its person's alone." : "You cannot watch this agent's browser.");
+  if (takeOver && !mayTakeOver(access)) raise(ctx, "permission.no_grant", "This agent is shared with you to watch. Its owner and admins take over.");
   return { person, access, agent };
 }
 
@@ -85,14 +85,14 @@ export async function stream(ctx: CompCtx, input: { agentId: string }) {
 
 export async function takeOver(ctx: CompCtx, input: { agentId: string }) {
   const sb = browserOrRaise(ctx);
-  const { person, access } = await mayWatch(ctx, input.agentId);
+  const { person, access } = await mayWatch(ctx, input.agentId, true);
   try { await sb.takeover({ profileId: input.agentId, personId: person }); } catch (e) { refuse(ctx, e); }
   return { profile: await rowOf(ctx, sb, input.agentId, access) };
 }
 
 export async function giveBack(ctx: CompCtx, input: { agentId: string }) {
   const sb = browserOrRaise(ctx);
-  const { person, access } = await mayWatch(ctx, input.agentId);
+  const { person, access } = await mayWatch(ctx, input.agentId, true);
   const now = await rowOf(ctx, sb, input.agentId, access);
   // the person who has the controls gives them back; so may an admin (the person went away)
   if (now.takeoverBy !== undefined && now.takeoverBy !== person && access !== "admin") raise(ctx, "permission.no_grant", "Someone else has the controls.");

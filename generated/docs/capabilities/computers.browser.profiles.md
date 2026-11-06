@@ -40,7 +40,7 @@ type Out = {
       lastActiveAt?: number;
       takeoverBy?: string;
       paired: boolean;
-      access: "owner" | "admin";
+      access: "owner" | "admin" | "viewer";
     }>;
   maxRunning: number;
 };

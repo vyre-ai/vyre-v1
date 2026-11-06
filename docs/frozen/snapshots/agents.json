@@ -33,6 +33,7 @@
     "agents.routine.save@1": "cc48ee1a68af34f2afc4e5d73224f803fa3c06562aa601acfb71de0de6a4049c",
     "agents.routines.list@1": "bd185c5431d7db14ee54be4b1052b0c597093de4497a3c5ed81090123e2d2384",
     "agents.set_owner@1": "f72c5e67706f2b2e96b605f2c7b3698971eaac5d740b9e5e2c98ebc17c4da950",
+    "agents.share_class@1": "ecc627efbe79eb5c8b445459a25d2fd8e657cea04bb616ec076d75906d5d1e5d",
     "agents.snapshot.take@1": "8bf04613b460030530adbc4b4af0a95599ab3b9b541283fdf7446d2585846fe0",
     "agents.status@1": "637b6af41dc8ec9743b46103c95bcf541b6193ab64d3659ffbc527b4648cd6ae",
     "agents.suggestion.accept@1": "17981417ec6aa151e8586a580f286d9b6021fcbfb63042bfa81ba2e01396ae43",

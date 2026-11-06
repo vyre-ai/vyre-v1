@@ -8,15 +8,17 @@ import { ToolError } from "../handlers/tools/common.ts";
 import { codeOf, DANA, harness, OMAR } from "../fixtures/harness.ts";
 import { tool } from "./tools.fixture.ts";
 
-const AGENTS: Record<string, { ownerId: string; kind: "assistant" | "agent"; personal?: boolean }> = {
-  agt_dana_ast: { ownerId: DANA, kind: "assistant" },
-  agt_dex: { ownerId: DANA, kind: "agent" },
-  agt_mine: { ownerId: DANA, kind: "agent", personal: true },
+const WATCHER = "usr_watcher";
+const AGENTS: Record<string, { ownerId: string; class: "private" | "personal" | "shared" | "space"; people: string[] }> = {
+  agt_dana_ast: { ownerId: DANA, class: "private", people: [] },
+  agt_dex: { ownerId: DANA, class: "space", people: [] },
+  agt_mine: { ownerId: DANA, class: "personal", people: [] },
+  agt_named: { ownerId: DANA, class: "shared", people: [WATCHER] },
 };
 const row = (profileId: string, over: Partial<ProfileRow> = {}): ProfileRow => ({ profileId, running: true, tabs: 2, busy: false, takeover: false, viewers: 0, lastActiveAt: 1_760_000_000_000, held: 0, paused: false, ...over });
 
 function rig() {
-  const rows = new Map<string, ProfileRow>([["agt_dana_ast", row("agt_dana_ast")], ["agt_dex", row("agt_dex", { bridge: { connected: 1, hello: true, optin: true } })], ["agt_mine", row("agt_mine")], ["agt_gone", row("agt_gone")]]);
+  const rows = new Map<string, ProfileRow>([["agt_named", row("agt_named")], ["agt_dana_ast", row("agt_dana_ast")], ["agt_dex", row("agt_dex", { bridge: { connected: 1, hello: true, optin: true } })], ["agt_mine", row("agt_mine")], ["agt_gone", row("agt_gone")]]);
   const seen: string[] = [];
   const sb: SpaceBrowser = {
     async available() { return true; }, async tool() { return {}; },
@@ -34,7 +36,7 @@ function rig() {
   bindSpaceBrowser(sb);
   return { seen, rows };
 }
-const respond = { "agents.get": (i: Record<string, unknown>) => { const a = AGENTS[String(i["agentId"])]; if (!a) throw new Error("no such agent"); return { agent: { agentId: i["agentId"], ...a } }; } };
+const respond = { "agents.share_class": (i: Record<string, unknown>) => { const a = AGENTS[String(i["agentId"])]; if (!a) throw new Error("no such agent"); return a; } };
 const as = (person: string, manager = true) => harness({ principal: { kind: "person", id: person }, manager, respond });
 const off = (): void => bindSpaceBrowser(null);
 
@@ -42,15 +44,27 @@ test("a person sees the browsers they may watch: an owner their own, an admin th
   rig();
   try {
     const dana = await tool["computers.browser.profiles"]!(as(DANA, false).ctx, {});
-    assert.deepEqual(dana.profiles.map((p: { agentId: string; access: string }) => [p.agentId, p.access]), [["agt_dana_ast", "owner"], ["agt_dex", "owner"], ["agt_mine", "owner"]], "Dana sees hers; agt_gone has no agent and is left out");
+    assert.deepEqual(dana.profiles.map((p: { agentId: string; access: string }) => [p.agentId, p.access]), [["agt_named", "owner"], ["agt_dana_ast", "owner"], ["agt_dex", "owner"], ["agt_mine", "owner"]], "Dana sees hers; agt_gone has no agent and is left out");
     assert.equal(dana.maxRunning, 6);
     const omar = await tool["computers.browser.profiles"]!(as(OMAR, true).ctx, {});
-    assert.deepEqual(omar.profiles.map((p: { agentId: string; access: string }) => [p.agentId, p.access]), [["agt_dex", "admin"]], "an admin sees the team agent only");
+    assert.deepEqual(omar.profiles.map((p: { agentId: string; access: string }) => [p.agentId, p.access]), [["agt_named", "admin"], ["agt_dex", "admin"]], "an admin sees the shared and team agents, never an Assistant or a personal agent");
     const member = await tool["computers.browser.profiles"]!(as(OMAR, false).ctx, {});
     assert.deepEqual(member.profiles, [], "a member who is not an admin sees none of Dana's");
     const dex = dana.profiles.find((p: { agentId: string }) => p.agentId === "agt_dex");
     assert.deepEqual([dex.paired, dex.running, dex.tabs, dex.busy], [true, true, 2, false], "paired means Vyre for Chrome is connected and was told the Space");
     assert.equal(dana.profiles.find((p: { agentId: string }) => p.agentId === "agt_mine").paired, false);
+  } finally { off(); }
+});
+
+test("an agent shared with named people may be watched by them and taken over only by its owner and admins", async () => {
+  const r = rig();
+  try {
+    const w = as(WATCHER, false);
+    assert.deepEqual((await tool["computers.browser.profiles"]!(w.ctx, {})).profiles.map((p: { agentId: string; access: string }) => [p.agentId, p.access]), [["agt_named", "viewer"]]);
+    assert.match((await tool["computers.browser.stream"]!(w.ctx, { agentId: "agt_named" })).url, /stream/);
+    await assert.rejects(() => tool["computers.browser.take_over"]!(w.ctx, { agentId: "agt_named" }), (e) => codeOf(e) === "permission.no_grant");
+    await assert.rejects(() => tool["computers.browser.stream"]!(w.ctx, { agentId: "agt_dex" }), (e) => codeOf(e) === "permission.no_grant", "not shared with them");
+    assert.deepEqual(r.seen, ["stream agt_named"]);
   } finally { off(); }
 });
 
