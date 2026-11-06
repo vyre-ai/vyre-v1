@@ -52,7 +52,7 @@ export function MountCard({ id, prompt, offers, agents, data, answer }: MountCar
 
 const st = StyleSheet.create({
   sources: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  source: { flexDirection: "row", alignItems: "center", gap: 8, minHeight: 40, paddingHorizontal: 12, borderRadius: 10, borderWidth: 1, borderColor: "var(--line)" as string },
+  source: { flexDirection: "row", alignItems: "center", gap: 8, minHeight: 40, paddingHorizontal: 12, borderRadius: 12, borderWidth: 1, borderColor: "var(--line)" as string },
   sourceOver: { backgroundColor: "var(--hover)" as string },
   sourceText: { fontSize: 13.5, color: "var(--ink)" as string },
 });

@@ -132,13 +132,13 @@ export function ChromeStepCard({ id, data, agentId, agentName, actions }: { id: 
 }
 
 const s = StyleSheet.create({
-  card: { marginTop: 6, maxWidth: 666, alignSelf: "stretch", gap: 10, paddingBottom: 12, borderRadius: 10, borderWidth: 1, borderColor: "var(--accent-line)" as string, backgroundColor: "var(--raised)" as string, overflow: "hidden" },
+  card: { marginTop: 6, maxWidth: 666, alignSelf: "stretch", gap: 10, paddingBottom: 12, borderRadius: 12, borderWidth: 1, borderColor: "var(--accent-line)" as string, backgroundColor: "var(--raised)" as string, overflow: "hidden" },
   band: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 12, paddingVertical: 9, backgroundColor: "var(--sel)" as string },
   bandTitle: { flex: 1, fontSize: 13.5, fontWeight: "500", color: "var(--ink)" as string },
   needs: { fontSize: 12, color: "var(--ink-3)" as string },
   who: { paddingHorizontal: 12, fontSize: 12.5, color: "var(--ink-3)" as string },
   foot: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8, paddingHorizontal: 12, paddingTop: 4 },
-  input: { flex: 1, minWidth: 0, minHeight: 30, borderWidth: 1, borderColor: "var(--line)" as string, borderRadius: 7, paddingHorizontal: 9, paddingVertical: 5, color: "var(--ink)" as string, backgroundColor: "var(--win)" as string, fontSize: 13 },
+  input: { flex: 1, minWidth: 0, minHeight: 30, borderWidth: 1, borderColor: "var(--line)" as string, borderRadius: 12, paddingHorizontal: 9, paddingVertical: 5, color: "var(--ink)" as string, backgroundColor: "var(--win)" as string, fontSize: 13 },
   inputArea: { minHeight: 96, textAlignVertical: "top" as const },
   checks: { gap: 4, marginTop: 4 },
   check: { flexDirection: "row", alignItems: "center", gap: 8 },
@@ -158,8 +158,8 @@ const s = StyleSheet.create({
   actions: { flexDirection: "row", gap: 8, flexWrap: "wrap", marginTop: 2 },
   state: { fontSize: 12.5, color: "var(--ink-3)" as string },
   step: { flexDirection: "row", gap: 12, alignItems: "flex-start", minWidth: 0 },
-  thumb: { width: 220, height: 138, flexShrink: 0, maxWidth: "46%" as unknown as number, borderRadius: 8, borderWidth: 1, borderColor: "var(--line-2)" as string, backgroundColor: "#fff" },
-  tile: { width: 220, height: 138, flexShrink: 0, maxWidth: "46%" as unknown as number, borderRadius: 8, backgroundColor: "var(--sunk)" as string, alignItems: "center", justifyContent: "center" },
+  thumb: { width: 220, height: 138, flexShrink: 0, maxWidth: "46%" as unknown as number, borderRadius: 12, borderWidth: 1, borderColor: "var(--line-2)" as string, backgroundColor: "#fff" },
+  tile: { width: 220, height: 138, flexShrink: 0, maxWidth: "46%" as unknown as number, borderRadius: 12, backgroundColor: "var(--sunk)" as string, alignItems: "center", justifyContent: "center" },
   tileText: { fontSize: 22, fontWeight: "600", color: "var(--ink-3)" as string },
   words: { flex: 1, minWidth: 0, gap: 2 },
   handle: { flexShrink: 1, fontSize: 12.5, color: "var(--ink-2)" as string, fontFamily: "var(--mono, ui-monospace, Menlo, monospace)" as string },

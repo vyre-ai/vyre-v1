@@ -3,7 +3,7 @@
 //   status    a fact and what to do next (an error, a notice)          decision  someone must say yes or no (approve, deny, choose)
 //   input     fields, then submit (a key, a name)                      item      one thing with a name and Open (a file, a link, a page)
 //   progress  something live with a state and Stop or Watch             result    what changed and the buttons that land it (a diff, a merge)
-// One width (560 full, 420 compact), one radius, one edge, one title size. The action row has a fixed order, the owner's approval vocabulary: the primary first, then the secondary actions, the destructive one (Deny, Discard) last. It wraps on a phone
+// One width (560 full, 420 compact), one radius (ui/tokens/radius.ts, 12), no edge (one soft surface, the calm pass), one title size. The action row has a fixed order, the owner's approval vocabulary: the primary first, then the secondary actions, the destructive one (Deny, Discard) last. It wraps on a phone
 // and the buttons grow to a thumb. Enter runs the card's `onEnter` and Escape its `onCancel` when focus is inside the card (never from a multi-line or rich field or a button, which keep their own Enter).
 // A busy card disables its actions and shows a ring on the primary; the label never changes, so nothing jumps. A field's error line has its place reserved, so showing it moves nothing.
 // Colours are skin tokens only, so light and graphite both work. The ring's turn goes in through the sheet (injectCss); reduced motion stops it.
@@ -11,6 +11,7 @@ import { useState } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
 import { injectCss } from "../theme/css.ts";
+import { RADIUS } from "../tokens/radius.ts";
 
 export type CardKind = "status" | "decision" | "input" | "item" | "progress" | "result";
 export type CardTone = "neutral" | "info" | "warn" | "error" | "ok";
@@ -42,7 +43,6 @@ export interface CardProps {
   children?: ReactNode;
 }
 
-const edgeOf = (kind: CardKind, tone: CardTone): string => (kind === "status" ? "transparent" : tone === "warn" ? "var(--warn)" : tone === "error" ? "var(--danger)" : "var(--line-2)");
 
 /** Keys on the web arrive as DOM events on the View; a native build has none, so the handler is only attached where the event has a `key`. */
 export function keyHandler(onEnter: (() => void) | undefined, onCancel: (() => void) | undefined): ((e: { key?: string; target?: { tagName?: string; isContentEditable?: boolean; getAttribute?(n: string): string | null }; stopPropagation?(): void; metaKey?: boolean; ctrlKey?: boolean }) => void) | undefined {
@@ -67,7 +67,7 @@ export function Card({ kind, tone = "neutral", size = "full", flush = false, tes
     <View
       testID={testID} accessibilityRole={kind === "status" && tone === "error" ? "alert" : "summary"} accessibilityLabel={label}
       {...(key ? ({ onKeyDown: key } as object) : {})}
-      style={[s.card, kind === "status" ? s.sunk : s.raised, { maxWidth: CARD_WIDTH[size], borderColor: edgeOf(kind, tone) }, size === "compact" && s.compact, flush && s.flush]}
+      style={[s.card, kind === "status" ? s.sunk : s.raised, { maxWidth: CARD_WIDTH[size] }, size === "compact" && s.compact, flush && s.flush]}
     >
       {children}
     </View>
@@ -267,7 +267,7 @@ export function CardDeny({ onDeny, onBack, busy = false, ids, label = "Deny" }: 
 }
 
 export const s = StyleSheet.create({
-  card: { marginTop: 8, padding: 12, gap: 10, borderRadius: 12, borderWidth: 1, alignSelf: "stretch" },
+  card: { marginTop: 8, padding: 12, gap: 10, borderRadius: RADIUS, alignSelf: "stretch" },
   compact: { padding: 10, gap: 8 },
   flush: { padding: 0, gap: 0, overflow: "hidden" },
   raised: { backgroundColor: "var(--raised)" as string },
@@ -278,7 +278,7 @@ export const s = StyleSheet.create({
   title: { fontSize: 14, fontWeight: "600", lineHeight: 19, color: "var(--ink)" as string },
   meta: { fontSize: 12, lineHeight: 16, color: "var(--ink-3)" as string },
   trailing: { flexDirection: "row", alignItems: "center", gap: 6 },
-  body: { gap: 6, padding: 10, borderRadius: 8, backgroundColor: "var(--sunk)" as string },
+  body: { gap: 6, padding: 10, borderRadius: RADIUS, backgroundColor: "var(--sunk)" as string },
   bodyBare: { gap: 6 },
   fields: { gap: 6 },
   row: { flexDirection: "row", gap: 10, alignItems: "flex-start" },
@@ -286,7 +286,7 @@ export const s = StyleSheet.create({
   value: { flex: 1, minWidth: 0 },
   valueText: { fontSize: 13, lineHeight: 18, color: "var(--ink)" as string },
   fieldWrap: { gap: 4 },
-  input: { minHeight: 34, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: "var(--field-line)" as string, backgroundColor: "var(--field)" as string, fontSize: 13, color: "var(--ink)" as string },
+  input: { minHeight: 34, paddingHorizontal: 12, paddingVertical: 6, borderRadius: RADIUS, borderWidth: 1, borderColor: "var(--field-line)" as string, backgroundColor: "var(--field)" as string, fontSize: 13, color: "var(--ink)" as string },
   inputMulti: { minHeight: 56, paddingTop: 8 },
   inputFocus: { borderColor: "var(--accent)" as string },
   inputBad: { borderColor: "var(--danger)" as string },
@@ -296,14 +296,14 @@ export const s = StyleSheet.create({
   note: { flexShrink: 1, marginLeft: "auto" },
   buttons: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 8 },
   error: { fontSize: 12.5, lineHeight: 17, color: "var(--danger)" as string },
-  btn: { height: 30, paddingHorizontal: 12, borderRadius: 8, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 6, borderWidth: 1, borderColor: "transparent" },
-  btnTall: { height: 40, paddingHorizontal: 14 },
+  btn: { height: 32, paddingHorizontal: 12, borderRadius: RADIUS, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 6, borderWidth: 1, borderColor: "transparent" },
+  btnTall: { height: 44 },
   btnOver: { backgroundColor: "var(--hover)" as string },
   btnPrimary: { backgroundColor: "var(--accent)" as string },
   btnLink: { paddingHorizontal: 4 },
   btnFocus: { borderColor: "var(--accent)" as string },
-  btnText: { fontSize: 13, fontWeight: "500", color: "var(--ink)" as string },
-  btnTextPrimary: { color: "var(--accent-ink)" as string },
+  btnText: { fontSize: 13, fontWeight: "400", color: "var(--ink)" as string },
+  btnTextPrimary: { color: "var(--accent-ink)" as string, fontWeight: "600" },
   btnTextLink: { color: "var(--accent)" as string, fontWeight: "400" },
   ring: { width: 11, height: 11, borderRadius: 6, borderWidth: 2, borderTopColor: "transparent", animationName: "vyre-card-ring", animationDuration: "0.8s", animationIterationCount: "infinite", animationTimingFunction: "linear" } as object,
   done: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 6 },

@@ -98,3 +98,14 @@ test("only the card's own source uses the library tokens: no raw colours", async
   const src = readFileSync(new URL("./index.tsx", import.meta.url), "utf8");
   assert.doesNotMatch(src.replace(/\/\/.*$/gm, ""), /#[0-9a-fA-F]{3,6}\b|rgba?\(/);
 });
+
+test("one radius for the card, its fields and its buttons, from the token; buttons are 32 high and 44 on a phone; no card edge", async () => {
+  const { readFileSync } = await import("node:fs");
+  const { RADIUS } = await import("../tokens/radius.ts");
+  assert.equal(RADIUS, 12);
+  const src = readFileSync(new URL("./index.tsx", import.meta.url), "utf8");
+  for (const k of ["card", "body", "input", "btn"]) assert.match(src, new RegExp(`  ${k}: \\{[^\\n]*borderRadius: RADIUS`), k);
+  assert.match(src, /btn: \{ height: 32,/);
+  assert.match(src, /btnTall: \{ height: 44 \}/);
+  assert.doesNotMatch(src, /  card: \{[^\n]*borderWidth/);
+});

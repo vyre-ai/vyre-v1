@@ -190,7 +190,7 @@ export function ApprovalCard({ taskId, agent, agentId, data, face, faceSeed, edi
 }
 
 const st = StyleSheet.create({
-  excerpt: { gap: 6, padding: 10, borderRadius: 8, backgroundColor: "var(--sunk)" as string },
+  excerpt: { gap: 6, padding: 10, borderRadius: 12, backgroundColor: "var(--sunk)" as string },
   line: { gap: 1 },
   label: { fontSize: 11.5, color: "var(--ink-3)" as string },
   link: { fontSize: 13, lineHeight: 18, color: "var(--accent)" as string },
