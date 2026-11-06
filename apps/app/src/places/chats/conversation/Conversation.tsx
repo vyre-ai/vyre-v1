@@ -84,7 +84,7 @@ import { LoadFailed, failureOf } from "../../../../../../ui/src/States/Loads.tsx
 import { itemLink, messageLink } from "../../../share/rows.ts";
 import { createMenuApi } from "../menus/actions.ts";
 import { TextAsk } from "../menus/TextAsk.tsx";
-import { chatHeaderEntries } from "./chat-header-menu.ts";
+import { chatHeaderEntries, isArchivedIn } from "./chat-header-menu.ts";
 import { useZones } from "../../../../../../ui/src/Time/index.tsx";
 import { offsetMinAt, zoneName } from "../../../../../../lib/zones.ts";
 
@@ -230,7 +230,7 @@ function ConversationView(): ReactElement {
   const moreAt = useRef<{ x: number; y: number }>({ x: 8, y: 48 });
   useEffect(() => {
     let live = true;
-    void Promise.all([menuApi.stars(), menuApi.mutes()]).then(([stars, mutes]) => { if (live) setHdr((h) => ({ ...h, starred: stars.has(`thread:${data.threadId}`), muted: mutes.has(`thread:${data.threadId}`) })); }, () => undefined);
+    void Promise.all([menuApi.stars(), menuApi.mutes(), Promise.resolve(data.call("chat.recent", {})).catch(() => null)]).then(([stars, mutes, recent]) => { if (live) setHdr({ starred: stars.has(`thread:${data.threadId}`), muted: mutes.has(`thread:${data.threadId}`), archived: isArchivedIn(recent as { archived?: { threadId: string }[] } | null, data.threadId) }); }, () => undefined);
     return () => { live = false; };
   }, [menuApi, data.threadId]);
   const memoryEntries = useMemoryEntries();

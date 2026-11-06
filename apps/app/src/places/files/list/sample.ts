@@ -242,6 +242,8 @@ export function createSampleFiles(space: SampleSpace = northwind, o: { online?: 
       return { ok: true };
     },
     "folders.delete": (i: { folderId: string }) => { replica.remove("folders", [i.folderId]); return { ok: true }; },
+    "files.folder.delete": (i: { folderId: string }) => { replica.remove("folders", [i.folderId]); return { deleted: true }; },
+    "files.folder.restore": () => ({}),
     "changesets.approve": (i: { changesetId: string }) => {
       const cur = (replica.rows("changesets") as unknown as { id: string }[]).find((c) => c.id === i.changesetId);
       if (cur) replica.put("changesets", [{ ...cur, state: "approved" } as unknown as Row]);

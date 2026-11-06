@@ -17,3 +17,8 @@ export function chatHeaderEntries(f: HeaderChatFacts, d: HeaderChatDo): MenuEntr
     { open: false, read: false },
   );
 }
+
+/** Whether a chat is in the Archived list of chat.recent (the list the sidebar's Archived section reads). An older server that sends none has none. */
+export function isArchivedIn(recent: { archived?: readonly { threadId: string }[] } | null | undefined, threadId: string): boolean {
+  return (recent?.archived ?? []).some((t) => t.threadId === threadId);
+}

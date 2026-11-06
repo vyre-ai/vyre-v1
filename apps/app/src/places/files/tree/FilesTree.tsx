@@ -12,7 +12,7 @@ import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import { each, matchRows } from "../../../shell/sidebar/model.ts";
 import type { SidebarSlotApi } from "../../../shell/sidebar/index.ts";
 import { useFilesData, useLive, useOptionalFilesData, useSource } from "./data.tsx";
-import { dropMoves, hasAgentFace, moveTargets, openByDefault, orderFolders, parsePayload, rootRank, sameWhere, spaceRoots } from "./model.ts";
+import { dropMoves, hasAgentFace, moveTargets, trashCall, openByDefault, orderFolders, parsePayload, rootRank, sameWhere, spaceRoots } from "./model.ts";
 import type { FolderRow, TreeRoots, Where } from "./model.ts";
 import { KNOW_ROWS, rowOf } from "../memory/know.ts";
 import { Glyph } from "./parts.tsx";
@@ -228,7 +228,7 @@ function Tree({ query, slot }: { query: string; slot?: SidebarSlotApi | undefine
           menu.show([{ head: `Move ${n.name} to` }, ...moveTargets((out as { folders?: { folderId: string; name: string }[] } | null)?.folders ?? [], n.id).map((t) => ({ label: t.label, onSelect: () => go(t.to) }))], x, y, "other", { label: "Move" });
         }, () => undefined);
       },
-      onDelete: (n) => void data.call("folders.delete", { folderId: n.id }),
+      onDelete: (n) => { const c = trashCall("folder", n.id); void data.call(c.cap, c.input); },
     },
   };
 

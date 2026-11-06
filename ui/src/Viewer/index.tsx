@@ -291,9 +291,9 @@ export interface ViewerViewProps extends ViewerProps {
   saved?: number;
   onEditMode?: (edit: boolean) => void;
   onInfo?: () => void;
-  /** The versions of the file; the point is where the button was pressed. Left out, the History button is drawn dimmed and does nothing (the Files viewer always passes it). */
+  /** The versions of the file; the point is where the button was pressed. Left out, the History button is not drawn. */
   onHistory?: (x: number, y: number) => void;
-  /** The file's other actions (copy link, download); the point is where the button was pressed. Left out, the More button is drawn dimmed and does nothing (the Files viewer always passes it). */
+  /** The file's other actions (copy link, download); the point is where the button was pressed. Left out, the More button is not drawn. */
   onMore?: (x: number, y: number) => void;
   /** The line of the quiet "no preview" state, for a file whose app is known ("No preview of this file here. Open it in Word."); without it the line names Open in, or the file's own app. */
   noPreview?: string;
@@ -494,9 +494,9 @@ export function Viewer(props: ViewerViewProps): ReactElement {
       {props.tools}
       {iconBtn("Find in file", ICON.find, "vw-find-btn", () => setFindOpen((o) => !o), findOpen)}
       {iconBtn("Details", ICON.info, "vw-info", () => { setDetailsOpen((o) => !o); props.onInfo?.(); }, detailsOpen)}
-      {iconBtn("History", ICON.history, "vw-history", (e) => { const q = pressPoint(e); props.onHistory?.(q.x, q.y); }, false, props.onHistory === undefined)}
+      {props.onHistory ? iconBtn("History", ICON.history, "vw-history", (e) => { const q = pressPoint(e); props.onHistory?.(q.x, q.y); }) : null}
       {props.ask !== undefined ? <AskButton {...props.ask} compact /> : null}
-      {iconBtn("More", ICON.more, "vw-more", (e) => { const q = pressPoint(e); props.onMore?.(q.x, q.y); }, false, props.onMore === undefined)}
+      {props.onMore ? iconBtn("More", ICON.more, "vw-more", (e) => { const q = pressPoint(e); props.onMore?.(q.x, q.y); }) : null}
     </View>
   );
 

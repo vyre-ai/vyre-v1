@@ -3,11 +3,11 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { pressChip } from "../conversation/MessageView.tsx";
 import { faceDoor } from "../conversation/model.ts";
-import { chatHeaderEntries } from "../conversation/chat-header-menu.ts";
+import { chatHeaderEntries, isArchivedIn } from "../conversation/chat-header-menu.ts";
 import { chatMenu } from "./chat.ts";
 import { openFace } from "../mounts/data.ts";
 import { tabMenuEntries } from "../../../../../../ui/src/TabStrip/index.tsx";
-import { moveTargets } from "../../files/tree/model.ts";
+import { moveTargets, restoreCall, trashCall } from "../../files/tree/model.ts";
 import { versionRows } from "../../files/viewer/model.ts";
 import { brandPatch, DEFAULT_EMAIL_STYLE } from "../../../../../../ui/src/EmailBuilder/index.tsx";
 import type { MenuEntry, MenuItem } from "../../../../../../ui/src/Menu/index.tsx";
@@ -73,4 +73,20 @@ test("Use brand sets the brand's font and its colour on links and the button; a 
   assert.equal(p.colors?.button, "#112233");
   assert.equal(p.colors?.text, DEFAULT_EMAIL_STYLE.colors.text, "the other colours stay");
   assert.equal(brandPatch(DEFAULT_EMAIL_STYLE, { color: "teal", font: "Georgia" }).colors?.button, DEFAULT_EMAIL_STYLE.colors.button);
+});
+
+test("a folder deleted from Files goes to Trash with files.folder.delete and comes back with files.folder.restore (the same trash); folders.delete is not used", () => {
+  assert.deepEqual(trashCall("folder", "f1"), { cap: "files.folder.delete", input: { folderId: "f1" } });
+  assert.deepEqual(restoreCall("folder", "f1"), { cap: "files.folder.restore", input: { folderId: "f1" } });
+  assert.deepEqual([trashCall("file", "x").cap, restoreCall("file", "x").cap], ["files.delete", "files.restore"]);
+});
+
+test("the header menu says Unarchive for a chat that is in the Archived list, and Archive for one that is not", () => {
+  const recent = { archived: [{ threadId: "thr_old" }] };
+  assert.equal(isArchivedIn(recent, "thr_old"), true);
+  assert.equal(isArchivedIn(recent, "thr_new"), false);
+  assert.equal(isArchivedIn(null, "thr_new"), false);
+  const d = { rename() {}, star() {}, mute() {}, archive() {}, unarchive() {}, leave() {}, remove() {} };
+  assert.ok(labels(chatHeaderEntries({ starred: false, muted: false, archived: isArchivedIn(recent, "thr_old"), withPeople: false }, d)).includes("Unarchive"));
+  assert.ok(labels(chatHeaderEntries({ starred: false, muted: false, archived: isArchivedIn(recent, "thr_new"), withPeople: false }, d)).includes("Archive"));
 });

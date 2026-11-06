@@ -371,3 +371,11 @@ export function openByDefault(f: FolderRow): boolean {
 export function moveTargets(folders: readonly { folderId: string; name: string }[], movingId: string): { label: string; to: string | null }[] {
   return [{ label: "Top of Files", to: null }, ...folders.filter((f) => f.folderId !== movingId).map((f) => ({ label: f.name, to: f.folderId }))];
 }
+
+/** Delete and Restore in Files are one pair: a folder goes to Trash with files.folder.delete and comes back with files.folder.restore (folders.delete is the access module's, which hands items back to their owners and leaves nothing in Trash). */
+export function trashCall(type: "file" | "folder", id: string): { cap: string; input: Record<string, unknown> } {
+  return type === "file" ? { cap: "files.delete", input: { fileId: id } } : { cap: "files.folder.delete", input: { folderId: id } };
+}
+export function restoreCall(type: "file" | "folder", id: string): { cap: string; input: Record<string, unknown> } {
+  return type === "file" ? { cap: "files.restore", input: { fileId: id } } : { cap: "files.folder.restore", input: { folderId: id } };
+}
