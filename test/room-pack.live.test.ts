@@ -11,7 +11,7 @@ const ROOM = 300;
 /** What each one-shot request (the room digest's batch) was asked, so the test can check what the digest is built from. */
 const oneShots: string[] = [];
 
-async function run(): Promise<{ on: { ms: number; prompt: string; bytes: number }; off: { ms: number; prompt: string; bytes: number } }> {
+async function run(): Promise<{ on: { ms: number; prompt: string; bytes: number }; off: { ms: number; prompt: string; bytes: number }; last: { ms: number; prompt: string; bytes: number } }> {
   let sentAt = 0, seen = "", firstTextAt = 0;
   const reset = (): void => { sentAt = 0; seen = ""; firstTextAt = 0; };
   const model: OpenSession = async () => ({
@@ -71,13 +71,14 @@ async function run(): Promise<{ on: { ms: number; prompt: string; bytes: number 
     }
     const mid = <T extends { ms: number }>(xs: T[]): T => [...xs].sort((a, b) => a.ms - b.ms)[Math.floor(xs.length / 2)]!;
     console.log(`room pack runs (ms): off ${offs.map((x) => x.ms).join(",")}; on ${ons.map((x) => x.ms).join(",")}`);
-    return { on: mid(ons), off: mid(offs) };
+    return { on: mid(ons), off: mid(offs), last: ons[ons.length - 1]! };
   } finally { delete process.env["VYRE_ROOM_PACK"]; await d.stop(); }
 }
 
 test("a tagged agent in a 300-message room gets the roster, the recent messages with names and times, and a request in well under a second", { timeout: 560_000 }, async () => {
-  const { on, off } = await run();
-  const text = JSON.parse(on.prompt) as { context: Array<{ id: string; text: string }>; history: string[] };
+  const { on, off, last } = await run();
+  // the first tag with the pack on starts the digest in the background and carries none; the tags after it do. The median-by-time run can be either, so what the pack holds is read from the LAST tag with the pack on (the time budget still uses the median)
+  const text = JSON.parse(last.prompt) as { context: Array<{ id: string; text: string }>; history: string[] };
   const room = text.context.find((s) => s.id === "room")?.text ?? "";
   const recent = text.context.find((s) => s.id === "recent")?.text ?? "";
   assert.match(room, /People: .*\(asked you\)/);
