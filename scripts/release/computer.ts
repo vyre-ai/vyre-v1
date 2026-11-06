@@ -25,6 +25,20 @@ export function stageChrome(root: string): string[] {
   return out.sort();
 }
 
+/**
+ * The Space browser image (images/space-browser) imports the Chrome bridge protocol module that the daemon serves, lib/chrome-bridge.ts, as browserd/vendor/chrome-bridge.ts: a link in the repository, so the
+ * code is one file, and a copy in the build context, since a link out of the context would be dangling in the image. Returns the copied path.
+ */
+export function stageBridge(root: string): string {
+  const from = path.join(root, "lib/chrome-bridge.ts");
+  const to = path.join(root, "images/space-browser/browserd/vendor/chrome-bridge.ts");
+  if (!fs.existsSync(from)) throw new Error("lib/chrome-bridge.ts is missing");
+  fs.mkdirSync(path.dirname(to), { recursive: true });
+  fs.rmSync(to, { force: true });
+  fs.copyFileSync(from, to);
+  return "images/space-browser/browserd/vendor/chrome-bridge.ts";
+}
+
 export type Run = (cmd: string, args: string[]) => string;
 const real: Run = (cmd, args) => execFileSync(cmd, args, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
 

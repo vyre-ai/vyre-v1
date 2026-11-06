@@ -99,6 +99,14 @@ export function bindPlace(f: PlaceOf | null): void { placePort = f; }
 export function bindMachinePlace(f: PlaceOf | null): void { machinePlace = f; }
 export const boundPlace = (): PlaceOf | null => placePort ?? machinePlace;
 
+/**
+ * Whether this host has agent workspaces (a container runtime and the workspace image path): an agent's terminal then goes to its workspace, from wherever its turn runs (owner, 6 Nov). The daemon
+ * binds it when it hands over a workspace config (setTerminalHost); a test binds it directly. Unbound: no workspaces, and an agent's commands go where the turn runs, as before.
+ */
+let workspacesOn = false;
+export function bindWorkspaces(on: boolean): void { workspacesOn = on; }
+export const workspacesReady = (): boolean => workspacesOn;
+
 /** Is this a Team Space? Agent computers need one (spec 2.7). The host binds the answer; unbound means team. */
 let teamSpace: (space: string) => boolean = () => true;
 export function bindTeam(f: ((space: string) => boolean) | null): void { teamSpace = f ?? (() => true); }
@@ -109,11 +117,16 @@ export const isTeam = (space: string): boolean => teamSpace(space);
 const SCHEMA = readFileSync(new URL("./migrations/0001_init.sql", import.meta.url), "utf8")
   .split("\n").filter((l) => !l.trimStart().startsWith("--")).join("\n")
   .split(";").map((s) => s.trim()).filter((s) => s.length > 0);
+const TABS_SCHEMA = readFileSync(new URL("./migrations/0002_tabs.sql", import.meta.url), "utf8")
+  .split("\n").filter((l) => !l.trimStart().startsWith("--")).join("\n")
+  .split(";").map((x) => x.trim()).filter((x) => x.length > 0);
 const ready = new WeakSet<object>();
 
 export function ensure(db: Db): void {
   if (ready.has(db)) return;
   try { db.all("SELECT ticket_hash FROM terminal_tickets WHERE terminal_id = ?", "probe"); } catch { for (const stmt of SCHEMA) db.run(stmt); }
+  // a Space made before tabs has the first schema only
+  try { db.all("SELECT terminal_id FROM terminal_tabs WHERE terminal_id = ?", "probe"); } catch { for (const stmt of TABS_SCHEMA) db.run(stmt); }
   ready.add(db);
 }
 
@@ -131,7 +144,11 @@ type Row = Record<string, unknown>;
 const s = (v: unknown): string => String(v);
 const opt = (v: unknown): string | undefined => (v === null || v === undefined ? undefined : String(v));
 
+/** Whose tab a session is: the agent itself, a helper it started (by name), or a person who opened it. */
+export interface TabBy { kind: "agent" | "helper" | "person"; name?: string }
+
 export interface SessionRow {
+  by?: TabBy; actor?: string;
   terminalId: string; name: string; named: boolean; host: HostKind; hostTitle: string; agentId?: string; computerId?: string; deviceId?: string; cwd: string; state: TermState;
   exitCode: number | null; cols: number; rows: number; owner: string; folderId?: string; runId?: string; createdAt: number; lastActiveAt: number; closedAt?: number;
 }
@@ -142,6 +159,9 @@ export function sessionOf(r: Row): SessionRow {
     exitCode: r["exit_code"] === null || r["exit_code"] === undefined ? null : Number(r["exit_code"]), cols: Number(r["cols"]), rows: Number(r["rows"]), owner: s(r["owner"]),
     createdAt: Number(r["created_at"]), lastActiveAt: Number(r["last_active_at"]),
   };
+  const tk = opt(r["tab_kind"]);
+  if (tk === "agent" || tk === "helper" || tk === "person") { const tn = opt(r["tab_name"]); out.by = { kind: tk, ...(tn === undefined ? {} : { name: tn }) }; }
+  const ta = opt(r["tab_actor"]); if (ta !== undefined) out.actor = ta;
   const a = opt(r["agent_id"]); if (a !== undefined) out.agentId = a;
   const c = opt(r["computer_id"]); if (c !== undefined) out.computerId = c;
   const d = opt(r["device_id"]); if (d !== undefined) out.deviceId = d;
@@ -152,8 +172,15 @@ export function sessionOf(r: Row): SessionRow {
 }
 
 export function sessionBy(db: Db, terminalId: string): SessionRow | null {
-  const r = (db.all("SELECT * FROM terminal_sessions WHERE terminal_id = ?", terminalId) as Row[])[0];
+  const r = (db.all(`${SESSION_SELECT} WHERE s.terminal_id = ?`, terminalId) as Row[])[0];
   return r ? sessionOf(r) : null;
+}
+
+/** A session with its tab: who made it. */
+export const SESSION_SELECT = "SELECT s.*, t.kind AS tab_kind, t.name AS tab_name, t.actor AS tab_actor FROM terminal_sessions s LEFT JOIN terminal_tabs t ON t.terminal_id = s.terminal_id";
+
+export function insertTab(db: Db, terminalId: string, by: TabBy, actor: string, threadId?: string): void {
+  db.run("INSERT OR REPLACE INTO terminal_tabs (terminal_id, kind, name, actor, thread_id) VALUES (?, ?, ?, ?, ?)", terminalId, by.kind, by.name ?? null, actor, threadId ?? null);
 }
 
 export function insertSession(db: Db, x: SessionRow): void {

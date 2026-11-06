@@ -31,7 +31,7 @@ test("a private chat runs on the asker's computer when it is online; a channel r
   assert.deepEqual(await placementDecide(channel.ctx, { threadId: "thr_2", agentId: "agt_1", kind: "message" }), { placement: "host", reason: "shared_thread" });
 });
 
-test("a computer that is off: Automatic runs on the Space's server (allowed by default, owner rulings 3 Nov), and waits with the line for a person who turned that off; an agent with its own computer runs on the host", async () => {
+test("a computer that is off: Automatic runs on the Space's server (allowed by default, owner rulings 3 Nov), and waits with the line for a person who turned that off; an agent with its own computer is placed like any other", async () => {
   const offMac = { ...mac, lastSeenAt: NOW - 10 * 60_000 };
   const byDefault = ctxFor("chat", [{ kind: "person", id: "usr_dana" }], [offMac]);
   assert.deepEqual(await placementDecide(byDefault.ctx, { threadId: "thr_1", agentId: "agt_1", kind: "message" }), { placement: "host", reason: "space" });
@@ -41,7 +41,7 @@ test("a computer that is off: Automatic runs on the Space's server (allowed by d
   runtimeOptIn(off.ctx, { enabled: true, wrappedRuntimeKey: "ciphertext" });
   assert.equal((await placementDecide(off.ctx, { threadId: "thr_1", agentId: "agt_1", kind: "message" })).placement, "host", "the fallback reads the setting each time");
   const computer = ctxFor("chat", [{ kind: "person", id: "usr_dana" }], [mac], { hasComputer: true });
-  assert.equal((await placementDecide(computer.ctx, { threadId: "thr_1", agentId: "agt_1", kind: "message" })).reason, "agent_computer");
+  assert.equal((await placementDecide(computer.ctx, { threadId: "thr_1", agentId: "agt_1", kind: "message" })).placement, "device", "an agent with a computer keeps own-computer-first: the turn runs on the person's computer, not the Space's server");
   const phone = ctxFor("chat", [{ kind: "person", id: "usr_dana" }], [{ id: "dev_ph", class: "phone", lastSeenAt: NOW }]);
   assert.equal((await placementDecide(phone.ctx, { threadId: "thr_1", agentId: "agt_1", kind: "message" })).reason, "space");
 });

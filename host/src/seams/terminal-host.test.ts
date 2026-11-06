@@ -36,3 +36,24 @@ test("where a turn runs is read as the person: this computer, the agent's comput
   assert.deepEqual(await seam(["space"], { placement: "device", reason: "device" }, false).place(a), { team: false, agentComputer: false, runsOn: "device" });
   assert.deepEqual(await seam(["space"], { placement: "host", reason: "shared_thread" }, false).place(a), { team: false, agentComputer: false, runsOn: "space" });
 });
+
+test("agent workspaces: handed over only when the machine can run them, with the image of the release (VYRE_WORKSPACE_IMAGE) or the default, and the rest as given", () => {
+  const read = async (): Promise<unknown> => null;
+  const none = createTerminalHostSeam({ roles: ["space"], team: true, readAs: read, computerOf: () => undefined, env: { HOME: "/tmp" } });
+  assert.equal(none.workspaces, undefined, "no container runtime: no workspaces, and agents' commands go where the turn runs");
+  const was = process.env["VYRE_WORKSPACE_IMAGE"];
+  try {
+    delete process.env["VYRE_WORKSPACE_IMAGE"];
+    const projectsOf = async (): Promise<string[]> => ["prj_a"];
+    const dflt = createTerminalHostSeam({ roles: ["space"], team: true, readAs: read, computerOf: () => undefined, env: { HOME: "/tmp" }, workspaces: { runner: { socket: "/run/vyre-sites/runner.sock", token: () => "t" }, projectsOf, idleMs: 1000 } });
+    assert.equal(dflt.workspaces?.image, "vyre/agent-workspace:1");
+    assert.equal(dflt.workspaces?.runner?.socket, "/run/vyre-sites/runner.sock");
+    assert.equal(dflt.workspaces?.projectsOf, projectsOf);
+    assert.equal(dflt.workspaces?.idleMs, 1000);
+    process.env["VYRE_WORKSPACE_IMAGE"] = `ghcr.io/vyre-ai/agent-workspace@sha256:${"c".repeat(64)}`;
+    const locked = createTerminalHostSeam({ roles: ["space"], team: true, readAs: read, computerOf: () => undefined, env: { HOME: "/tmp" }, workspaces: { socketPath: "/var/run/docker.sock" } });
+    assert.equal(locked.workspaces?.image, `ghcr.io/vyre-ai/agent-workspace@sha256:${"c".repeat(64)}`);
+    const named = createTerminalHostSeam({ roles: ["space"], team: true, readAs: read, computerOf: () => undefined, env: { HOME: "/tmp" }, workspaces: { image: "vyre/agent-workspace:test" } });
+    assert.equal(named.workspaces?.image, "vyre/agent-workspace:test", "an image named by the caller wins");
+  } finally { if (was === undefined) delete process.env["VYRE_WORKSPACE_IMAGE"]; else process.env["VYRE_WORKSPACE_IMAGE"] = was; }
+});

@@ -198,13 +198,15 @@
         "manifests/",
         "tools/gen/",
         "fixtures/",
-        "images/agent-computer/agentd/"
+        "images/agent-computer/agentd/",
+        "images/space-browser/browserd/"
       ]
     },
     "B8": {
       "text": "named exceptions to the layer rule"
     },
     "dynamicOk": [
+      "modules/computers/sbrowser/face.ts",
       "modules/memory/local-embedder.ts",
       "ui/src/theme/theme.firstframe.test.ts",
       "host/src/loader.ts",

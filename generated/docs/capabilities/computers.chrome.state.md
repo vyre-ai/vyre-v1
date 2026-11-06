@@ -37,6 +37,11 @@ type Out = {
   url: string;
   title: string;
   loading: boolean;
+  downloads?: Array<{
+      name: string;
+      path: string;
+      fileId: string;
+    }>;
 };
 ```
 
@@ -61,6 +66,13 @@ type Out = {
     "tabId": "example"
   },
   "output": {
+    "downloads": [
+      {
+        "fileId": "fil_a1b2c3",
+        "name": "example",
+        "path": "Downloads/report.pdf"
+      }
+    ],
     "loading": true,
     "title": "example",
     "url": "example"

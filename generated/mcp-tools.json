@@ -66140,7 +66140,7 @@
       "blocks": [],
       "cap": "terminal.open",
       "deferred": false,
-      "description": "Open a terminal session on an agent computer or on your own computer (the device daemon)",
+      "description": "Open a terminal tab: a named tmux session in your workspace (an agent that names no host gets one in its own workspace, or its parent's when it is a helper), or on your own computer (the device daemon)",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -66188,6 +66188,7 @@
             "type": "string"
           },
           "name": {
+            "description": "The tab's name, such as build or tests; a helper's tab is named for the helper when left out",
             "type": "string"
           },
           "rows": {
@@ -66197,7 +66198,6 @@
           }
         },
         "required": [
-          "host",
           "idempotencyKey"
         ],
         "type": "object"
@@ -66532,6 +66532,11 @@
               "idem_1"
             ],
             "minLength": 1,
+            "type": "string"
+          },
+          "session": {
+            "description": "The name of the tab to run it in; made when there is none. Left out: your own tab (a helper's is named for the helper)",
+            "maxLength": 80,
             "type": "string"
           },
           "terminalId": {
