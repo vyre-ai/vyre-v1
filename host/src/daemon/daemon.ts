@@ -87,6 +87,7 @@ import type { Platform } from "../platform/index.ts";
 import * as probes from "../platform/probes.ts";
 import type { FetchFn, ProbeName, ProbeResult } from "../platform/probes.ts";
 import { Scheduler } from "../scheduler/index.ts";
+import { loopLag } from "../scheduler/looplag.ts";
 import { Supervisor } from "../supervisor/index.ts";
 import type { RunningUnit, ServiceSpec, UnitExit } from "../supervisor/index.ts";
 import { createGateHook, moduleFetches, moduleOutward, moduleWhens, payloadHash } from "./gate-hook.ts";
@@ -839,6 +840,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     now, tickMs: o.intervals?.tick ?? 1000, log: sink.logger({ space: space ?? "-", place: "scheduler" }),
     onRun: jobRanLog(sink, () => space ?? "-"),
   });
+  // the event-loop lag guard: a block over 200 ms is warned with the jobs in flight, and the worst lag rides in the machines report
+  loopLag({ running: () => scheduler.runningNames(), warn: (msg, attrs) => sink.log({ space: space ?? "-", level: 40, msg, place: "scheduler", attrs }) });
 
   try {
     if (hasSpace) {
