@@ -49,7 +49,7 @@ export function createRoller(d: RollerDeps) {
       const queued = engine.queue(ev.threadId).some((q) => q.state === "queued");
       // the context is what the model was shown in its last call; the turn's input tokens add up every call of it (cache reads included) and would roll a chat that is nowhere near full
       const check = rolloverCheck({ turns: () => [] }, {
-        threadId: ev.threadId, ...(turn.info?.contextTokens !== undefined && turn.info.contextTokens > 0 ? { used: turn.info.contextTokens } : {}), chars, model: turn.model, provider: account.provider,
+        threadId: ev.threadId, ...(turn.info?.contextTokens !== undefined && turn.info.contextTokens > 0 ? { used: turn.info.contextTokens } : {}), ...(turn.info?.contextWindow !== undefined && turn.info.contextWindow > 0 ? { window: turn.info.contextWindow } : {}), chars, model: turn.model, provider: account.provider,
         blocked: queued ? "a queued message" : null, waited: waited.get(key) ?? 0, sinceRoll: since,
       });
       if (!check.roll) {
