@@ -21,6 +21,11 @@ export function noticeKindOf(n: Pick<Notification, "kind">): { kind: Exclude<Not
   }
 }
 
+/** A goal that went Stuck files an Unblock task for its owner (modules/goals: "Stuck: <goal>"). That is the goal's own state: it shows in the goal's row and in Needs you, and does not interrupt the top bar. A person is interrupted for what only they can answer (an approval, a question, access, a block on them). */
+export function isGoalStuck(n: Pick<Notification, "kind" | "title">): boolean {
+  return n.kind === "unblock.requested" && /^Stuck:/i.test(n.title);
+}
+
 export const noticeIdOf = (n: Pick<Notification, "kind" | "subject" | "title">): string => `ntf:${collapseKey(n)}`;
 
 /** The text of a notice: the title, with how many when a burst collapsed into it and the title does not say. */
@@ -35,7 +40,7 @@ export function noticeText(n: Pick<Notification, "title" | "count">): string {
 export function syncNotifications(store: NoticeStore, before: ReadonlySet<string>, items: readonly Notification[], act: (n: Notification) => void): Set<string> {
   const now = new Set<string>();
   for (const n of items) {
-    if (n.level !== "interrupt" || n.seenAt !== undefined) continue;
+    if (n.level !== "interrupt" || n.seenAt !== undefined || isGoalStuck(n)) continue;
     const id = noticeIdOf(n);
     const k = noticeKindOf(n);
     store.raise({ id, kind: k.kind, text: noticeText(n), action: { label: k.label, run: () => act(n) } });
