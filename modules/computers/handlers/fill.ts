@@ -18,7 +18,15 @@ export type FillLookup =
 
 export interface FillSource {
   lookup(handle: string, who: { agentId: string; asker: string; where: "host" | "device" | "computer" }): Promise<FillLookup>;
+  /**
+   * A Vault capability for Vyre for Chrome inside a Space browser profile, as the agent the profile belongs to (the extension asks which items fit a page, and for a handle to one). Only the capabilities in
+   * FILL_INVOKE are asked; a source without this answers 404 and the extension finds nothing to fill.
+   */
+  invoke?(capability: string, input: Record<string, unknown>, who: { agentId: string; asker: string }): Promise<unknown>;
 }
+
+/** What the extension in a Space browser profile may ask of the Vault through the fill channel: which items fit a page (names and field keys, never values) and a handle to one item. A value goes only by #Handle.field. */
+export const FILL_INVOKE: readonly string[] = ["vault.items.match", "vault.use"];
 
 /** What the host remembers about one use: who, what, where. Never the value. */
 export interface FillUse { computerId: string; agentId: string; asker: string; handle: string; itemId: string; outcome: "filled" | "refused" | "missing"; at: number }
@@ -80,7 +88,19 @@ export function createFillService(d: FillServiceDeps): FillService {
       const m = /^Bearer (\S+)$/.exec(req.authorization ?? "");
       const holder = m ? byHash.get(await sha256(m[1]!)) : undefined;
       if (!holder) return { status: 401, body: { code: "unauthorized" } };
-      const b = req.body as { handle?: unknown; field?: unknown; computerId?: unknown } | null;
+      const b = req.body as { handle?: unknown; field?: unknown; computerId?: unknown; op?: unknown; capability?: unknown; input?: unknown } | null;
+      if (b && b.op === "invoke") {
+        if (typeof b.computerId !== "string" || b.computerId !== holder.computerId) return { status: 403, body: { code: "forbidden" } };
+        if (typeof b.capability !== "string" || !FILL_INVOKE.includes(b.capability) || typeof b.input !== "object" || b.input === null || Array.isArray(b.input)) return { status: 400, body: { code: "bad_input" } };
+        if (!d.source.invoke) return { status: 404, body: { code: "not_found" } };
+        if (holder.nodeId !== undefined && req.secure !== true) return { status: 403, body: { code: "insecure_link" } };
+        try {
+          return { status: 200, body: { output: await d.source.invoke(b.capability, b.input as Record<string, unknown>, { agentId: holder.agentId, asker: holder.asker }) } };
+        } catch (e) {
+          const code = (e as { error?: { code?: unknown } } | null)?.error?.code;
+          return typeof code === "string" && /permission|not_found/.test(code) ? { status: code.includes("not_found") ? 404 : 403, body: { code: code.includes("not_found") ? "not_found" : "forbidden" } } : { status: 503, body: { code: "unavailable" } };
+        }
+      }
       if (!b || typeof b.handle !== "string" || typeof b.field !== "string" || !HANDLE.test(b.handle) || !FIELD.test(b.field)) return { status: 400, body: { code: "bad_input" } };
       // A token is for one computer. A body that names another is a computer asking for what it was not given.
       if (typeof b.computerId !== "string" || b.computerId !== holder.computerId) return { status: 403, body: { code: "forbidden" } };

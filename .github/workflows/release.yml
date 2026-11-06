@@ -75,6 +75,33 @@ jobs:
             docker push "$img"
             echo "VYRE_AGENT_IMAGE=$(docker inspect --format '{{index .RepoDigests 0}}' "$img")" >> "$GITHUB_ENV"
           fi
+      - name: Space browser image with Vyre for Chrome baked in, and the proof it is in there
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          node scripts/release/cli.ts stage-chrome
+          node scripts/release/cli.ts stage-bridge
+          img="ghcr.io/vyre-ai/space-browser:$VERSION"
+          docker build -f images/space-browser/Dockerfile -t "$img" images
+          node scripts/release/cli.ts image-has-chrome "$img"
+          if [ "$DRYRUN" != true ]; then
+            echo "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+            docker push "$img"
+            echo "VYRE_BROWSER_IMAGE=$(docker inspect --format '{{index .RepoDigests 0}}' "$img")" >> "$GITHUB_ENV"
+          fi
+      - name: Agent workspace image (shell, tmux, git, node, python; no desktop)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          img="ghcr.io/vyre-ai/agent-workspace:$VERSION"
+          docker build -t "$img" images/agent-workspace
+          # the proof it holds what an agent's terminal needs: tmux, git, node and python, and a user that is not root
+          docker run --rm --entrypoint sh "$img" -c 'tmux -V && git --version && node --version && python3 --version && test "$(id -u)" != 0'
+          if [ "$DRYRUN" != true ]; then
+            echo "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+            docker push "$img"
+            echo "VYRE_WORKSPACE_IMAGE=$(docker inspect --format '{{index .RepoDigests 0}}' "$img")" >> "$GITHUB_ENV"
+          fi
       - name: Pack the server, the app web export, the Chrome extension and the Kits; write releases.json
         env:
           APP_DIST: apps/app/dist

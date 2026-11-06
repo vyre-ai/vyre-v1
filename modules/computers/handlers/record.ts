@@ -7,7 +7,7 @@ import {
 } from "../projections.ts";
 import type { CompCtx, ComputerHost, ComputerRow, RecordingRow, RecordResult } from "../projections.ts";
 
-const pageOf = <T>(items: readonly T[], cursor: string | undefined, limit: number | undefined): { page: T[]; next?: string; total: number } => {
+export const pageOf = <T>(items: readonly T[], cursor: string | undefined, limit: number | undefined): { page: T[]; next?: string; total: number } => {
   const start = cursor && /^\d+$/.test(cursor) ? Number(cursor) : 0;
   const size = limit ?? 100;
   return { page: items.slice(start, start + size), ...(start + size < items.length ? { next: String(start + size) } : {}), total: items.length };

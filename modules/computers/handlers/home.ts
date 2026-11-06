@@ -67,7 +67,11 @@ export function conflictName(name: string): string {
   return dot > 0 ? `${name.slice(0, dot)} (from computer)${name.slice(dot)}` : `${name} (from computer)`;
 }
 
-export function createHomeSync(o: { agentId: string; computerId: string; fs: HomeFs; manifest: string }, d: HomeDeps): HomeSync {
+/**
+ * `rootFolder` and `plain` make it the mirror of a project's shared folder instead of an agent's home (agent workspaces, 6 Nov): the root is that Files folder, nothing in it is read-only (an AGENT.md in a
+ * project is a file like another), and `reason` says where an edit came from in the file's history. Every call still runs as `agentId`, so the history names the agent that made the change.
+ */
+export function createHomeSync(o: { agentId: string; computerId: string; fs: HomeFs; manifest: string; rootFolder?: string; plain?: boolean; reason?: string }, d: HomeDeps): HomeSync {
   let running: Promise<HomeReport> | null = null;
 
   function load(): Manifest {
@@ -140,7 +144,7 @@ export function createHomeSync(o: { agentId: string; computerId: string; fs: Hom
     const report: HomeReport = { down: 0, up: 0, conflicts: 0, removed: 0, refused: [], suggested: 0, failed: 0, made: [] };
     const agent = (await d.callAs(o.agentId, "agents.get", { agentId: o.agentId })).agent as { folderId: string; ownerId: string };
     const m = load();
-    const R = await remote(agent.folderId);
+    const R = await remote(o.rootFolder ?? agent.folderId);
     const snap = await o.fs.snapshot();
     if (!snap.complete) { report.failed++; d.log("warn", "computers.home.too_big", { computer: o.computerId }); return report; }
     report.refused = snap.refused;
@@ -166,7 +170,7 @@ export function createHomeSync(o: { agentId: string; computerId: string; fs: Hom
     const paths = new Set<string>([...R.files.keys(), ...L.files.keys(), ...Object.keys(m.files)]);
     for (const rel of [...paths].sort()) {
       const r = R.files.get(rel), l = L.files.get(rel), prev = m.files[rel];
-      const readOnly = !rel.includes("/") && READ_ONLY.has(rel);
+      const readOnly = o.plain !== true && !rel.includes("/") && READ_ONLY.has(rel);
       try {
         if (r && !l) {
           if (prev && prev.version === r.version) {
@@ -219,7 +223,7 @@ export function createHomeSync(o: { agentId: string; computerId: string; fs: Hom
           }
           if (localChanged && !remoteChanged) {
             if (!settled(l)) continue;
-            const w = await d.callAs(o.agentId, "files.write", { fileId: r.fileId, content: await content(bytes), baseVersion: r.version, reason: "edited on the computer" });
+            const w = await d.callAs(o.agentId, "files.write", { fileId: r.fileId, content: await content(bytes), baseVersion: r.version, reason: o.reason ?? "edited on the computer" });
             m.files[rel] = { fileId: r.fileId, version: Number(w.file?.version ?? r.version + 1), sha };
             report.up++;
           } else if (!localChanged && remoteChanged) {

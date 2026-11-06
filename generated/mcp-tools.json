@@ -66140,7 +66140,7 @@
       "blocks": [],
       "cap": "terminal.open",
       "deferred": false,
-      "description": "Open a terminal session on an agent computer or on your own computer (the device daemon)",
+      "description": "Open a terminal tab: a named tmux session in your workspace (an agent that names no host gets one in its own workspace, or its parent's when it is a helper), or on your own computer (the device daemon)",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -66188,6 +66188,7 @@
             "type": "string"
           },
           "name": {
+            "description": "The tab's name, such as build or tests; a helper's tab is named for the helper when left out",
             "type": "string"
           },
           "rows": {
@@ -66197,7 +66198,6 @@
           }
         },
         "required": [
-          "host",
           "idempotencyKey"
         ],
         "type": "object"
@@ -66534,6 +66534,11 @@
             "minLength": 1,
             "type": "string"
           },
+          "session": {
+            "description": "The name of the tab to run it in; made when there is none. Left out: your own tab (a helper's is named for the helper)",
+            "maxLength": 80,
+            "type": "string"
+          },
           "terminalId": {
             "examples": [
               "trm_a1b2c3"
@@ -66584,6 +66589,32 @@
         "type": "object"
       },
       "name": "terminal_status",
+      "planMode": "allowed",
+      "toolset": "terminal",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "terminal.workspace",
+      "deferred": false,
+      "description": "An agent's workspace as the Terminal tab shows it: asleep, running, waiting for room (with the line) or not made yet, where it is, whether you may attach and why not; with no machine to run it, one plain line",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "agentId"
+        ],
+        "type": "object"
+      },
+      "name": "terminal_workspace",
       "planMode": "allowed",
       "toolset": "terminal",
       "v": 1

@@ -1,0 +1,4 @@
+#!/bin/sh
+# The native messaging host `run.vyre.bridge` of the Space browser: Chrome starts this when Vyre for Chrome connects, and it relays to browserd's bridge (bridge.ts) through the profile's data folder
+# (VYRE_DATA_DIR is in the browser's environment). It is the extension's own host program (apps/chrome/src/worker/native/host.js), unchanged.
+exec node /opt/vyre-chrome/src/worker/native/host.js "$@"
