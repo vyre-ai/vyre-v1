@@ -30,11 +30,19 @@ function SmallBtn({ label, onPress, on = false, testID }: { label: string; onPre
   );
 }
 
-/** The frame every block with controls wears: a quiet header with the kind and its buttons, the content below. */
-function Frame({ label, controls, children, testID }: { label: string; controls?: ReactNode; children: ReactNode; testID?: string }): ReactElement {
+/** A pointer that hovers (a mouse or trackpad). A phone has none, so quiet controls stay shown there. */
+const canHover = (): boolean => {
+  const g = globalThis as { matchMedia?: (q: string) => { matches: boolean } };
+  return g.matchMedia ? g.matchMedia("(hover: hover)").matches : false;
+};
+
+/** The frame every block with controls wears: a quiet header with the kind and its buttons, the content below. `quiet` shows the buttons only while the pointer is over the block or focus is inside it. */
+function Frame({ label, controls, children, testID, quiet = false }: { label: string; controls?: ReactNode; children: ReactNode; testID?: string; quiet?: boolean }): ReactElement {
+  const [on, setOn] = useState(false);
+  const shown = !quiet || on || !canHover();
   return (
-    <View style={st.frame} testID={testID}>
-      <View style={st.head}><Text style={st.headLabel}>{label}</Text><View style={st.grow} />{controls}</View>
+    <View style={st.frame} testID={testID} {...(quiet ? ({ onMouseEnter: () => setOn(true), onMouseLeave: () => setOn(false), onFocus: () => setOn(true), onBlur: () => setOn(false) } as object) : {})}>
+      <View style={st.head}><Text style={st.headLabel}>{label}</Text><View style={st.grow} /><View style={[st.controls, !shown && st.controlsOff]}>{controls}</View></View>
       {children}
     </View>
   );
@@ -287,7 +295,7 @@ function svgChart(g: Geo, spec: ChartSpec): ReactNode {
   });
   g.points.forEach((p, i) => kids.push(el("circle", { key: `p${i}`, cx: p.x, cy: p.y, r: 4, fill: SERIES_COLORS[p.s % SERIES_COLORS.length], opacity: 0.85 })));
   g.slices.forEach((sl, i) => { kids.push(el("path", { key: `s${i}`, d: sl.path, fill: SERIES_COLORS[sl.i % SERIES_COLORS.length], stroke: "var(--win)", strokeWidth: 2 })); if (sl.frac > 0.06) kids.push(el("text", { key: `st${i}`, x: sl.mid[0], y: sl.mid[1] + 4, textAnchor: "middle", ...txt, fill: "var(--accent-ink)" }, `${Math.round(sl.frac * 100)}%`)); });
-  return el("svg", { viewBox: `0 0 ${g.box.w} ${g.box.h}`, role: "img", "aria-label": spec.title ?? `${spec.type} chart`, style: { width: "100%", height: "auto", maxHeight: CHART_MAX, maxWidth: 460, display: "block" } }, ...kids);
+  return el("svg", { viewBox: `0 0 ${g.box.w} ${g.box.h}`, role: "img", "aria-label": spec.title ?? `${spec.type} chart`, style: { width: "auto", height: CHART_MAX, maxWidth: "100%", display: "block" } }, ...kids);
 }
 
 export function ChartBlock({ spec, error, source, id }: { spec: ChartSpec | null; error: string | null; source: string; id: string }): ReactElement {
@@ -306,7 +314,7 @@ export function ChartBlock({ spec, error, source, id }: { spec: ChartSpec | null
   // ui-rows-lint: not a list (a chart legend: a colour key per series, nothing to hover or pick)
   const legend = g.legend.length > 1 || spec.type === "pie" ? g.legend.map((l, i) => (<View key={i} style={st.lg}><View style={[st.lgDot, { backgroundColor: SERIES_COLORS[i % SERIES_COLORS.length] }]} /><Text style={st.lgText}>{l}</Text></View>)) : null;
   return (
-    <Frame label={`chart · ${spec.type}${spec.title ? ` · ${spec.title}` : ""}`} testID={`block-${id}`} controls={<>{web ? <SmallBtn label="Chart" on={!table} onPress={() => setTable(false)} testID={`chart-tab-${id}`} /> : null}<SmallBtn label="Table" on={table} onPress={() => setTable(true)} testID={`table-tab-${id}`} /><SmallBtn label="Copy CSV" onPress={() => copyText(csv)} testID={`chart-csv-${id}`} /></>}>
+    <Frame quiet label={spec.title ?? ""} testID={`block-${id}`} controls={<>{web ? <SmallBtn label="Chart" on={!table} onPress={() => setTable(false)} testID={`chart-tab-${id}`} /> : null}<SmallBtn label="Table" on={table} onPress={() => setTable(true)} testID={`table-tab-${id}`} /><SmallBtn label="Copy CSV" onPress={() => copyText(csv)} testID={`chart-csv-${id}`} /></>}>
       {!table && web ? <View style={st.chartBody} testID={`chart-${id}`}>{svgChart(g, spec)}{legend ? <View style={st.legend}>{legend}</View> : null}</View> : (
         <ScrollView horizontal showsHorizontalScrollIndicator testID={`chart-table-${id}`}>
           <View>
@@ -325,8 +333,10 @@ export type ExtraBlock = Extract<Block, { kind: "callout" | "details" | "img" | 
 
 const st = StyleSheet.create({
   grow: { flex: 1 },
+  controls: { flexDirection: "row", alignItems: "center", gap: 4 },
+  controlsOff: { opacity: 0 },
   frame: { borderRadius: RADIUS, overflow: "hidden", marginBottom: 12 },
-  head: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 4, minHeight: 30 },
+  head: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 0, paddingVertical: 4, minHeight: 30 },
   headLabel: { color: "var(--ink-3)" as string, fontSize: 12 },
   small: { height: 24, paddingHorizontal: 8, borderRadius: RADIUS, justifyContent: "center" },
   smallOver: { backgroundColor: "var(--hover)" as string },
@@ -367,7 +377,7 @@ const st = StyleSheet.create({
   dg: { padding: 12, alignItems: "center" },
   note: { color: "var(--ink-3)" as string, fontSize: 12.5, paddingHorizontal: 12, paddingVertical: 6 },
   error: { color: "var(--danger)" as string, fontSize: 12.5, paddingHorizontal: 12, paddingTop: 8 },
-  chartBody: { paddingVertical: 6 },
+  chartBody: { paddingVertical: 6, alignItems: "flex-start" },
   legend: { flexDirection: "row", flexWrap: "wrap", gap: 14, paddingTop: 8 },
   lg: { flexDirection: "row", alignItems: "center", gap: 6 },
   lgDot: { width: 9, height: 9, borderRadius: 2 },

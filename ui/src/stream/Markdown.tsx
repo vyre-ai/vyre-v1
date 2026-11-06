@@ -297,7 +297,7 @@ const styles = StyleSheet.create({
   del: { textDecorationLine: "line-through", color: "var(--ink-3)" as string },
   fnref: { color: "var(--accent)" as string, fontSize: 11 },
   kbd: { fontFamily: MONO, fontSize: 12, backgroundColor: CODE_TINT, color: "var(--ink)" as string },
-  mark: { backgroundColor: HIGHLIGHT, borderRadius: 4 },
+  mark: { backgroundColor: HIGHLIGHT },
   u: { textDecorationLine: "underline" },
   sup: { fontSize: 11 },
   sub: { fontSize: 11 },

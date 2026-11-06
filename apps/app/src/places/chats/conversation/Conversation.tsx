@@ -56,12 +56,12 @@ import type { ReplySummary } from "./replies.ts";
 import type { LiveQuery } from "../../../../../../client/src/index.ts";
 import { useAddSheet } from "../addsheet/index.ts";
 import { useChatViewing, useOpenPublished } from "./artifact-open.ts";
-import { ChatBrain, compactChat, entryOf, modeOf, prettyModel, setChatMode, stripAgents, useAccounts, usePickUnavailable, useUsage } from "./brain.tsx";
+import { ChatBrain, compactChat, entryOf, modeOf, setChatMode, stripAgents, useAccounts, usePickUnavailable, useUsage } from "./brain.tsx";
 import type { ChatMode } from "../../../../../../ui/src/Composer/index.tsx";
 import { useConnectVersion } from "../../../shell/connect/context.ts";
 import { windowAround } from "./focus.ts";
 import type { MessageActions } from "./MessageView.tsx";
-import { FaceButton, Glyph, IconButton, PeopleCount, RenameField, TextButton } from "./parts.tsx";
+import { Glyph, IconButton, PeopleCount, RenameField, TextButton } from "./parts.tsx";
 import { CONTINUE_TEXT, DEFAULT_AGENT_HOPS, limitOf, parkedAtLimit, parkedLine } from "./hops.ts";
 import { addedAgentMentions, askPost, pickerAgents, unansweredOwn } from "./askagent.ts";
 import { MemorySwitch } from "./memory-switch.tsx";
@@ -74,9 +74,9 @@ import { CONNECT_YOURS, NO_AI_LINE, SET_SPACE_KEY, aiReady } from "./ai-ready.ts
 import type { AiReady } from "./ai-ready.ts";
 import { useOpenConnect } from "../../../shell/connect/context.ts";
 import {
-  WINDOW, beforeCursor, byOrder, collect, faces, ghostMessages, findMatches, isClosed, lastMessages, leadOf, matchLine, mentionsIn, mergePages, modeTitle, modelLabel, pendingMessage, placeholderFor, queueNote, queuedCount, queuedIds, sendKind, stillPending, stopLabel,
-  directWith, mentionable, muteOfferFor, onBehalfOf, threadKindNote, timeLabel, timeline, otherPeople, titleOf, whoLine, workingAgents, withoutAnswered } from "./model.ts";
-import type { Face as FaceModel, Message, Pending, SendKind, Thread } from "./model.ts";
+  WINDOW, beforeCursor, byOrder, collect, ghostMessages, findMatches, isClosed, lastMessages, leadOf, matchLine, mentionsIn, mergePages, modelLabel, pendingMessage, placeholderFor, queueNote, queuedCount, queuedIds, sendKind, stillPending, stopLabel,
+  directWith, mentionable, muteOfferFor, onBehalfOf, threadKindNote, timeLabel, timeline, titleOf, whoLine, workingAgents, withoutAnswered } from "./model.ts";
+import type { Message, Pending, SendKind, Thread } from "./model.ts";
 import { LoadFailed, failureOf } from "../../../../../../ui/src/States/Loads.tsx";
 import { messageLink } from "../../../share/rows.ts";
 import { useZones } from "../../../../../../ui/src/Time/index.tsx";
@@ -427,23 +427,6 @@ function ConversationView(): ReactElement {
   const crewChip = crew?.status && crew.status.members.length > 0 ? crewChipOf(crew.status.totals) : null;
 
   /* ---------- menus: all open under the button that asked ---------- */
-  const faceList = faces(thread, nameOf, working);
-  const leadFace = faceList.find((f) => f.mode === "lead") ?? faceList[0];
-  const otherFaces = faceList.filter((f) => f !== leadFace);
-  const modeMenu = (f: FaceModel, x: number, y: number): void => {
-    const many = faceList.length > 1;
-    const items: MenuEntry[] = [
-      { head: f.name },
-      // how it answers, when, and in what style: one popover, saved for this chat (threads.agent_settings.set)
-      { label: "How and When It Answers…", onSelect: () => add.showSettings({ thread, agentId: f.agentId, x, y }) },
-      { separator: true },
-      ...(f.model ? [{ head: `Model · ${prettyModel(f.model)}` } as MenuEntry] : []),
-      { label: `Ask ${f.name} to Review This`, onSelect: () => void act.askToReview(data, thread, f.agentId, data.newKey()).catch(fail("Could not ask.")) },
-      { label: `Open ${f.name}'s Page`, onSelect: () => data.nav.openAgent(f.agentId) },
-      ...(many ? [{ separator: true } as MenuEntry, { label: "Remove From Chat", danger: true, onSelect: () => void act.removeAgent(data, f.agentId).catch(fail("Could not remove it.")) } as MenuEntry] : []),
-    ];
-    menu.show(items, x, y, "other", { label: f.name });
-  };
   const stopMenu = (x: number, y: number): void => {
     if (working.length === 1) { void act.stopAgent(data, working[0]).then(() => say("Stopped. The steps so far are kept."), fail("Could not stop it.")); return; }
     menu.show([
@@ -635,7 +618,6 @@ function ConversationView(): ReactElement {
   const title = titleOf(thread, nameOf, data.me.id);
   // a direct chat is named for the other person and wears their face
   const dmWith = directWith(thread, data.me.id);
-  const others = otherPeople(thread, data.me.id);
   const q = queueNote(queued, lead ? nameOf(lead.agentId) : "", canSteer, ownTurn);
 
   // A mounted folder or file dragged from Files is shared with this chat's agents (desktop); the line says so and can take it back
@@ -671,11 +653,6 @@ function ConversationView(): ReactElement {
             <Text numberOfLines={1} testID="conversation-title" style={st.title}>{title}</Text>
           </Pressable>
         )}
-        {leadFace && !narrow ? <FaceButton key={leadFace.agentId} name={leadFace.name} seedId={leadFace.agentId} mode={leadFace.mode} working={leadFace.working} title={modeTitle(leadFace)} testID={`face-${leadFace.agentId}`} {...(title !== leadFace.name ? { label: leadFace.name } : {})} size={20} onPress={(x, y) => modeMenu(leadFace, x, y)} /> : null}
-        <View testID="conversation-faces" accessibilityRole="toolbar" accessibilityLabel="Agents in this chat" style={st.faces}>
-          {collect(narrow ? [] : otherFaces, (f) => <FaceButton key={f.agentId} name={f.name} seedId={f.agentId} mode={f.mode} working={f.working} title={modeTitle(f)} testID={`face-${f.agentId}`} onPress={(x, y) => modeMenu(f, x, y)} />)}
-          {narrow ? null : <IconButton icon="plus" label="Add people and agents" size={24} testID="add-agent" onPress={() => add.open({ threadId: thread.threadId })} />}
-        </View>
         {isWorking ? <View testID="conversation-live" accessibilityLabel="Working" style={st.live}><View style={st.liveDot} /></View> : null}
         <View style={{ flex: 1 }} />
         {online ? null : <Text testID="conversation-offline" style={st.meta}>Offline</Text>}
@@ -892,7 +869,6 @@ const st = StyleSheet.create({
   titleBtn: { flexShrink: 1, flexDirection: "row", alignItems: "center", gap: 6, borderRadius: RADIUS, paddingHorizontal: 6, paddingVertical: 2, marginLeft: -6 },
   titleOver: { backgroundColor: "var(--hover)" as string },
   rename: { width: 320, maxWidth: "60%", height: 28, borderRadius: RADIUS, paddingHorizontal: 6, marginLeft: -6, fontSize: 14, fontWeight: "600", color: "var(--ink)" as string, backgroundColor: "var(--field)" as string, outlineStyle: "none", outlineWidth: 0 } as object,
-  faces: { flexDirection: "row", alignItems: "center", gap: 2, flexShrink: 0 },
   find: { height: 40, flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
   findInput: { flex: 1, minWidth: 0, height: 28, fontSize: 13.5, color: "var(--ink)" as string, outlineStyle: "none", outlineWidth: 0 } as object,
   live: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 6 },

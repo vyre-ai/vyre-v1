@@ -5,6 +5,7 @@ import { View, useWindowDimensions } from "react-native";
 import { ChatsSidebar } from "../../../apps/app/src/places/chats/sidebar/ChatsSidebar.tsx";
 import { createSampleSidebar, northwind } from "../../../apps/app/src/places/chats/sidebar/sample.ts";
 import { Conversation } from "../../../apps/app/src/places/chats/conversation/Conversation.tsx";
+import { sampleGoals } from "../../../apps/app/src/places/chats/goals/sample.ts";
 import { createSample } from "../../../apps/app/src/places/chats/conversation/sample.ts";
 
 export const title = "Calm chat";
@@ -24,7 +25,11 @@ const RICH = [
 export default function Mount(): ReactNode {
   const { width } = useWindowDimensions();
   const phone = width < 640;
-  const sb = useMemo(() => createSampleSidebar(northwind).data, []);
+  const sb = useMemo(() => {
+    const now = Date.UTC(2025, 9, 24, 10, 0);
+    const base = createSampleSidebar(northwind, { goals: sampleGoals(now, "stuck").lines as never }).data;
+    return { ...base, call: async (cap: string, input: unknown) => cap === "home.digest" ? { digest: { id: "dg1", headline: ["Three things happened"], items: [{ title: "Rivera intake", line: "Form came back", subject: { type: "thread", id: "c1" } }, { title: "Billing", line: "12 invoices ready", subject: { type: "thread", id: "c2" } }, { title: "Docs", line: "Letter drafted", subject: { type: "thread", id: "c3" } }] } } : base.call(cap, input) };
+  }, []);
   const sample = useMemo(() => {
     const s = createSample("idle");
     const base = Date.UTC(2025, 9, 24, 9, 40);
@@ -36,6 +41,9 @@ export default function Mount(): ReactNode {
       row("z2", p, "Harbor's login code goes to my phone, ping me.", 1),
       row("z3", a, RICH, 3),
       row("z4", a, "I have started on the three logins. North is done.", 5),
+      { ...row("z5", a, "", 6), kind: "system", blocks: [{ type: "link_card", v: 1, id: "lc1", data: { icon: "thread", lead: "Connected", title: "with Aliza. Intake is talking with Aliza directly." } }] },
+      { ...row("z6", a, "", 7), kind: "system", blocks: [{ type: "link_card", v: 1, id: "lc2", data: { icon: "note", lead: "Noted", title: "decision, go with Harbor", style: "noted" } }] },
+      { ...row("z7", a, "", 8), kind: "system", blocks: [{ type: "link_card", v: 1, id: "lc3", data: { icon: "memory", lead: "Remembered", title: "Harbor sends its login code to Omar" } }] },
     ]);
     return s;
   }, []);

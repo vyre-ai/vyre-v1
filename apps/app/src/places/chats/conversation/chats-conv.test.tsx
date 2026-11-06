@@ -33,16 +33,15 @@ const ctx = (s: Sample) => ({ meId: "usr_irfad", nameOf: s.data.nameOf, kindOf: 
 
 test("the page reads: header with title and faces, your bubbles, Intake's folded work, cards, the composer line", () => {
   const out = html(createSample("idle"));
-  inOrder(out, ['data-testid="conversation-head"', 'data-testid="conversation-title"', 'data-testid="conversation-faces"', "New client: Elena Rivera", "Intake is on it", "Worked 14s · 3 steps", "Tuesday has two openings", "Book 2pm.", "Worked 6s · 2 steps", 'data-testid="composer"']);
+  inOrder(out, ['data-testid="conversation-head"', 'data-testid="conversation-title"', 'data-testid="participants-button"', "New client: Elena Rivera", "Intake is on it", "Worked 14s · 3 steps", "Tuesday has two openings", "Book 2pm.", "Worked 6s · 2 steps", 'data-testid="composer"']);
   assert.ok(has(out, "client-intake.pdf") && has(out, 'data-testid="proposal-b2"'));
   assert.ok(has(out, "Intake will reply") && has(out, "Message Intake…"));
 });
 
-test("faces carry mode marks: Intake leads, Docs listens, and each face opens its mode menu", () => {
+test("the model still says Intake leads and Docs listens; the header has no face stack", () => {
   const s = createSample("idle");
   const out = html(s);
-  assert.ok(has(out, 'data-testid="face-agt_intake"') && has(out, 'data-testid="face-agt_docs"'));
-  assert.ok(has(out, "Intake, leads") && has(out, "Docs, listening"));
+  assert.ok(!has(out, 'data-testid="face-agt_intake"') && !has(out, 'data-testid="conversation-faces"'), "the faces live in the people popover now, not the header");
   assert.deepEqual(faces(thread(s), s.data.nameOf, []).map((f) => [f.name, f.mode]), [["Intake", "lead"], ["Docs", "listen"]]);
   assert.equal(swapNeeded(thread(s), "agt_docs")?.agentId, "agt_intake");
   assert.equal(swapNeeded(thread(s), "agt_intake"), null);
@@ -277,13 +276,13 @@ test("the plan card is on the page: name, open comments", () => {
   assert.equal(planFileLine(2), "Plan · 2 open comments");
 });
 
-test("the header has the agent chip with a face and mode mark, the participants count, search and the pane", () => {
+test("the calm header: title, a quiet people count, the pane and More", () => {
   const s = createSample("idle");
   const out = html(s);
-  inOrder(out, ['data-testid="conversation-title"', 'data-testid="face-agt_intake"', ">Intake<", 'data-testid="participants-button"', 'data-testid="pane-button"', 'data-testid="more-button"']);
+  inOrder(out, ['data-testid="conversation-title"', 'data-testid="participants-button"', 'data-testid="pane-button"', 'data-testid="more-button"']);
   assert.ok(!has(out, 'data-testid="find-button"') && !has(out, 'data-testid="conversation-people"'), "the calm header: a quiet people count and two icons; Find is in the More menu (and on Cmd F)");
   assert.ok(has(out, "3 in this chat"));
-  assert.ok(has(out, 'data-testid="add-agent"') && has(out, 'aria-label="Add people and agents"'), "the header + is the one Add people and agents sheet");
+  assert.ok(!has(out, 'data-testid="add-agent"'), "Add people and agents is the footer of the people popover (people-footer)");
 });
 
 test("find in chat: matches are ignoring case and accents, counted, and stepped", () => {

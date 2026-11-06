@@ -227,7 +227,7 @@ export const MessageView = memo(function MessageView(props: MessageViewProps): R
     if (link) {
       const b = item.message.blocks.find((x) => x.type === "link_card")!;
       return (
-        <View testID={`event-${item.key}`} style={[st.event, (link.style === "noted" || link.style === "question") && st.eventCentre]}>
+        <View testID={`event-${item.key}`} style={[st.event, link.style === "question" && st.eventCentre]}>
           {link.style === "noted" ? <LinkCardView id={String(b.id)} data={link} actions={props.actions} size={13} trusted={item.message.kind === "system"} time={item.time} /> : <>
             <View style={st.eventCard}><LinkCardView id={String(b.id)} data={link} actions={props.actions} size={13} trusted={item.message.kind === "system"} /></View>
             {link.style === "question" ? null : <TimeTip item={item}><Text style={st.eventTime}>{item.time}</Text></TimeTip>}
@@ -801,7 +801,7 @@ export const st = StyleSheet.create({
   approvalOpen: { color: "var(--accent)" as string, fontWeight: "500" },
   fromThreadMine: { alignSelf: "flex-end", marginTop: 4 },
   day: { alignSelf: "center", fontSize: META_PX, color: "var(--ink-3)" as string, marginTop: 28, marginBottom: 8 },
-  eventCard: { flexShrink: 1, minWidth: 0 },
+  eventCard: { flexShrink: 1, flexGrow: 1, minWidth: 0 },
   eventCentre: { justifyContent: "center" },
   event: { minHeight: 24, flexDirection: "row", alignItems: "center", gap: 8, marginTop: 10, marginBottom: 10 },
   eventDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: "var(--ink-4)" as string },

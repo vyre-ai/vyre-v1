@@ -1,3 +1,4 @@
 - Chat looks calmer, like the prototype: faces sit in the gutter left of a 680 px column (inline on narrow panes), 28 px faces, names 14 semibold, times 12 muted, 20 px between people and 6 px inside one person's run, a time on hover for grouped messages.
 - Day separators are plain muted text. System lines are 13 px muted on one row. Sections are a quiet chevron row with an indented body, code and charts are not boxed, charts are at most 140 px with soft bars, highlight is a soft amber wash.
 - One 12 px radius in the chat. The calm numbers live once in ui/src/tokens/calm.ts.
+- The header drops the face stack and the + (they live in the people popover: its rows are the faces, its footer is Add people and agents). A chart's Chart, Table and Copy CSV show only while the pointer is over it, and its "chart · bar" label is gone.
