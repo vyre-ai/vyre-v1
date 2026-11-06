@@ -4,8 +4,12 @@ Lane L2. Kind module. Version 0.1.0.
 
 Requires: chat.
 
-## Capabilities (59)
+## Capabilities (63)
 
+- [computers.browser.give_back](../capabilities/computers.browser.give_back.md): Give an agent's browser back to the agent; the person who has the controls or an admin may
+- [computers.browser.profiles](../capabilities/computers.browser.profiles.md): The agent browsers in this Space's browser that you may watch: running or asleep, tabs, whether the agent is using it, and who has the controls
+- [computers.browser.stream](../capabilities/computers.browser.stream.md): Live view of an agent's browser: MJPEG over a WebSocket address with a ticket that opens for five minutes; frames are live-only, never stored. Wakes the browser
+- [computers.browser.take_over](../capabilities/computers.browser.take_over.md): Take over an agent's browser ("You're in control"): its tools wait, your clicks and keys reach the page. An Assistant's browser is its person's alone; a team agent's goes to its owner and admins
 - [computers.chrome.act](../capabilities/computers.chrome.act.md): Act on an element or key: click, hover, press, select, scroll, check; a send, post or payment is held and returns an id
 - [computers.chrome.api](../capabilities/computers.chrome.api.md): Call a site backend with the session of this browser; non-GET calls pass the Gate
 - [computers.chrome.batch](../capabilities/computers.chrome.batch.md): Run several Chrome steps in one call; stops at the first held item

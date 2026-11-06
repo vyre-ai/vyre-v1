@@ -9,6 +9,8 @@ export interface ProfileRow {
   busy: boolean;
   /** A person has the controls. */
   takeover: boolean;
+  /** Which person. */
+  takeoverBy?: string;
   /** People watching its live view. */
   viewers: number;
   lastActiveAt: number;

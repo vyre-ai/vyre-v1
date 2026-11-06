@@ -521,6 +521,12 @@ export function createClient(transport: Transport) {
       sweep: call("company.sweep", 1),
     },
     computers: {
+      browser: {
+        give_back: call("computers.browser.give_back", 1),
+        profiles: call("computers.browser.profiles", 1),
+        stream: call("computers.browser.stream", 1),
+        take_over: call("computers.browser.take_over", 1),
+      },
       chrome: {
         act: call("computers.chrome.act", 1),
         api: call("computers.chrome.api", 1),

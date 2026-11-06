@@ -16,8 +16,8 @@ const OURS = [
   "computers.recording.process", "computers.recording.delete", "computers.screenshot", "computers.stream", "computers.timeline", "computers.timeline_step", "computers.skill_from_step",
 ];
 
-test("the handler table holds the twenty-four lifecycle capabilities and the 35 tools: all 59 frozen computers capabilities, nothing else", () => {
-  assert.equal(mine.length, 59);
+test("the handler table holds the lifecycle capabilities, the 35 tools and the four of the Space browser (list, live view, take over, give back): all 63 computers capabilities, nothing else", () => {
+  assert.equal(mine.length, 63);
   assert.deepEqual(Object.keys(h).sort(), mine.map((c) => c.name).sort());
   for (const name of OURS) assert.ok(h[name], name);
 });

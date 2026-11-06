@@ -5,6 +5,10 @@ import type { CapMap, HandlerCtx } from '../../types.ts';
 export type Handler<C extends keyof CapMap, X extends HandlerCtx = HandlerCtx> = (ctx: X, input: CapMap[C]['in']) => Promise<CapMap[C]['out']>;
 
 export type Handlers<X extends HandlerCtx = HandlerCtx> = {
+  "computers.browser.give_back": Handler<"computers.browser.give_back", X>;
+  "computers.browser.profiles": Handler<"computers.browser.profiles", X>;
+  "computers.browser.stream": Handler<"computers.browser.stream", X>;
+  "computers.browser.take_over": Handler<"computers.browser.take_over", X>;
   "computers.chrome.act": Handler<"computers.chrome.act", X>;
   "computers.chrome.api": Handler<"computers.chrome.api", X>;
   "computers.chrome.batch": Handler<"computers.chrome.batch", X>;

@@ -55,7 +55,7 @@ export interface Profile {
   starting: Promise<void> | null;
 }
 
-export interface ProfileRow { profileId: string; running: boolean; tabs: number; busy: boolean; takeover: boolean; viewers: number; lastActiveAt: number; port?: number; held: number; paused: boolean; bridge?: { connected: number; hello: boolean; optin: boolean } }
+export interface ProfileRow { profileId: string; running: boolean; tabs: number; busy: boolean; takeover: boolean; viewers: number; lastActiveAt: number; port?: number; held: number; paused: boolean; takeoverBy?: string; bridge?: { connected: number; hello: boolean; optin: boolean } }
 
 export interface ProfileManager {
   /** The profile's record (made on first mention; no browser starts). */
@@ -209,7 +209,7 @@ export function createProfileManager(o: ProfileManagerOptions): ProfileManager {
       for (const p of profiles.values()) {
         const alive = p.chrome?.alive() === true;
         const tabs = alive && p.chrome ? (await p.chrome.tabs()).length : 0;
-        rows.push({ profileId: p.id, running: alive, tabs, busy: p.state.busy > 0, takeover: p.state.takeover !== null, viewers: p.viewers, lastActiveAt: p.lastActiveAt, ...(p.port !== null ? { port: p.port } : {}), held: p.chrome?.heldIds().length ?? 0, paused: p.state.stopped, ...(o.paired ? { bridge: o.paired(p.id) } : {}) });
+        rows.push({ profileId: p.id, running: alive, tabs, busy: p.state.busy > 0, takeover: p.state.takeover !== null, viewers: p.viewers, lastActiveAt: p.lastActiveAt, ...(p.port !== null ? { port: p.port } : {}), held: p.chrome?.heldIds().length ?? 0, paused: p.state.stopped, ...(p.state.takeover ? { takeoverBy: p.state.takeover.personId } : {}), ...(o.paired ? { bridge: o.paired(p.id) } : {}) });
       }
       return rows;
     },

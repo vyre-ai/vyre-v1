@@ -1,6 +1,10 @@
 {
   "module": "computers",
   "capabilities": {
+    "computers.browser.give_back@1": "bfe1caf12f1bfa51bebde77c14eb8b1e4d656d1ce1327958ee4968acd37d7bf9",
+    "computers.browser.profiles@1": "889796990b52d62b0ebaee77d1d32e8c12fd24326efe2691c243692216279677",
+    "computers.browser.stream@1": "019bf539fd1ece80b22062483fe16e28747bc3a957f8edcc2143a5a3ba179057",
+    "computers.browser.take_over@1": "d06b074dd9ea415ead67f554009261fc4d92d8cb8a326087115672f391be697f",
     "computers.chrome.act@1": "9b6cb08a501cc44869fba19f26de7bf5090a67a6bc81ab1a19870db396df921b",
     "computers.chrome.api@1": "5398367c32abe0b8d7129785eb3f8f7bf95a08adf432f753d76f462dfb47e5a2",
     "computers.chrome.batch@1": "7cb368c0bd69d4527b187a35ee7c8da68c6630cbd6b10a6212a3ea87ad62f630",

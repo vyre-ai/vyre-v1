@@ -521,6 +521,12 @@ export function stubs(ctx: CallCtx) {
       sweep: call("company.sweep"),
     },
     computers: {
+      browser: {
+        give_back: call("computers.browser.give_back"),
+        profiles: call("computers.browser.profiles"),
+        stream: call("computers.browser.stream"),
+        take_over: call("computers.browser.take_over"),
+      },
       chrome: {
         act: call("computers.chrome.act"),
         api: call("computers.chrome.api"),

@@ -169,13 +169,13 @@ test("a screenshot of a profile is kept in the agent's folder like any other", a
 
 test("the profile access rule: an Assistant only its person; a personal agent only its owner; a team agent its owner and admins", () => {
   const assistant = { agentId: "agt_dana_assistant", ownerId: DANA, kind: "assistant" as const };
-  const personal = { agentId: "agt_mine", ownerId: DANA, kind: "agent" as const };
-  const team = { agentId: "agt_dex", ownerId: DANA, kind: "agent" as const, team: true };
+  const personal = { agentId: "agt_mine", ownerId: DANA, kind: "agent" as const, personal: true };
+  const team = { agentId: "agt_dex", ownerId: DANA, kind: "agent" as const };
   assert.equal(profileAccess(assistant, DANA, false), "owner");
   assert.equal(profileAccess(assistant, OMAR, true), "none", "not even an admin");
   assert.equal(profileAccess(personal, DANA, false), "owner");
-  assert.equal(profileAccess(personal, OMAR, true), "none", "unknown sharing is the narrow rule");
-  assert.equal(profileAccess({ ...personal, team: false }, OMAR, true), "none");
+  assert.equal(profileAccess(personal, OMAR, true), "none", "not even an admin");
+  assert.equal(profileAccess({ agentId: "agt_x", ownerId: DANA }, OMAR, true), "admin", "an agent with no kind and no flag is a team agent");
   assert.equal(profileAccess(team, DANA, false), "owner");
   assert.equal(profileAccess(team, OMAR, true), "admin");
   assert.equal(profileAccess(team, OMAR, false), "none", "a member who is not an admin");

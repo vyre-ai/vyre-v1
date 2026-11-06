@@ -8518,6 +8518,61 @@ export type CompanySweepOut = {
   gone: Array<string>;
   held?: string;
 };
+export type ComputersBrowserGiveBackIn = {
+  agentId: string;
+};
+export type ComputersBrowserGiveBackOut = {
+  profile: {
+    agentId: string;
+    running: boolean;
+    tabs: number;
+    busy: boolean;
+    viewers: number;
+    lastActiveAt?: number;
+    takeoverBy?: string;
+    paired: boolean;
+    access: "owner" | "admin";
+  };
+};
+export type ComputersBrowserProfilesIn = Record<string, unknown>;
+export type ComputersBrowserProfilesOut = {
+  profiles: Array<{
+      agentId: string;
+      running: boolean;
+      tabs: number;
+      busy: boolean;
+      viewers: number;
+      lastActiveAt?: number;
+      takeoverBy?: string;
+      paired: boolean;
+      access: "owner" | "admin";
+    }>;
+  maxRunning: number;
+};
+export type ComputersBrowserStreamIn = {
+  agentId: string;
+};
+export type ComputersBrowserStreamOut = {
+  transport: "mjpeg";
+  url: string;
+  expiresAt: number;
+};
+export type ComputersBrowserTakeOverIn = {
+  agentId: string;
+};
+export type ComputersBrowserTakeOverOut = {
+  profile: {
+    agentId: string;
+    running: boolean;
+    tabs: number;
+    busy: boolean;
+    viewers: number;
+    lastActiveAt?: number;
+    takeoverBy?: string;
+    paired: boolean;
+    access: "owner" | "admin";
+  };
+};
 export type ComputersChromeActIn = {
   computerId?: string;
   tabId?: string;
@@ -44853,6 +44908,10 @@ export interface CapMap {
   "company.start": { in: CompanyStartIn; out: CompanyStartOut };
   "company.status": { in: CompanyStatusIn; out: CompanyStatusOut };
   "company.sweep": { in: CompanySweepIn; out: CompanySweepOut };
+  "computers.browser.give_back": { in: ComputersBrowserGiveBackIn; out: ComputersBrowserGiveBackOut };
+  "computers.browser.profiles": { in: ComputersBrowserProfilesIn; out: ComputersBrowserProfilesOut };
+  "computers.browser.stream": { in: ComputersBrowserStreamIn; out: ComputersBrowserStreamOut };
+  "computers.browser.take_over": { in: ComputersBrowserTakeOverIn; out: ComputersBrowserTakeOverOut };
   "computers.chrome.act": { in: ComputersChromeActIn; out: ComputersChromeActOut };
   "computers.chrome.api": { in: ComputersChromeApiIn; out: ComputersChromeApiOut };
   "computers.chrome.batch": { in: ComputersChromeBatchIn; out: ComputersChromeBatchOut };
