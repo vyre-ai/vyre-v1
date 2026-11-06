@@ -107,6 +107,12 @@ async function openSession(ctx: TermCtx, a: OpenInput, mapHostError: (e: unknown
 
 const unavailable = (ctx: TermCtx) => (e: unknown): never => {
   if (e && typeof e === "object" && "error" in e) throw e;   // already a shaped error (no host bound)
+  // a workspace that would not start says why in its own plain words (no image on the server, no room, Docker not answering); the lines after the first are for Copy details
+  if (e instanceof Error && (e as { workspace?: unknown }).workspace === true) {
+    ctx.log.warn("terminal: workspace did not start", { reason: e.message.slice(0, 160) });
+    const [first = "The workspace did not start.", ...rest] = e.message.split("\n");
+    return raise(ctx, "provider.unavailable", first.slice(0, 300), rest.length > 0 ? { detail: rest.join("\n").slice(0, 600) } : undefined);
+  }
   ctx.log.warn("terminal: open failed", { reason: e instanceof Error ? e.message.slice(0, 120) : "unknown" });
   return raise(ctx, "provider.unavailable", "That computer did not start a terminal. Check that it is on and try again.");
 };

@@ -173,7 +173,8 @@ export function reviewWorkspaceConfig(c: ContainerConfig, agentId: string): stri
 const dec = new TextDecoder();
 const bodyText = (b: Uint8Array): string => { const s = dec.decode(b); try { const m = (JSON.parse(s) as { message?: string }).message; return String(m ?? s).slice(0, 200); } catch { return s.slice(0, 200); } };
 const realSleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
-const wsError = (message: string, code = "unavailable"): Error => Object.assign(new Error(message), { code });
+/** A refusal written for a person: the first line is plain words, anything after it (Details: ...) is for Copy details. The terminal says the first line as the reason a session did not open. */
+const wsError = (message: string, code = "unavailable"): Error => Object.assign(new Error(message), { code, workspace: true });
 
 export const IMAGE_MISSING_LINE = "This server can't start agent workspaces yet.";
 
@@ -405,7 +406,7 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
 }
 
 /** The one-off container that gives a new project volume to the agent user. Fixed text: the runner holds the same shape and refuses any other. */
-export const PROJECT_INIT_SCRIPT = `chown ${WORKSPACE_UID}:${WORKSPACE_UID} /vol && chmod 2775 /vol`;
+export const PROJECT_INIT_SCRIPT = `chown ${WORKSPACE_UID}:${WORKSPACE_UID} /vol`;
 export const projectInitName = (projectId: string): string => `vyre-wsinit-${projectId}`;
 export function projectInitBody(projectId: string, img: string): Record<string, unknown> {
   return {

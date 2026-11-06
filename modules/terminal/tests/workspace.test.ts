@@ -159,7 +159,7 @@ test("a project the agent is on gets one shared volume, made once and handed to 
   const helper = r.dk.ops("create").find((x) => x.name === "vyre-wsinit-prj_site");
   assert.ok(helper, "the helper ran");
   assert.deepEqual(helper!.detail, projectInitBody("prj_site", "vyre/agent-workspace:1"));
-  assert.equal(PROJECT_INIT_SCRIPT, "chown 10001:10001 /vol && chmod 2775 /vol");
+  assert.equal(PROJECT_INIT_SCRIPT, "chown 10001:10001 /vol");
   assert.equal(r.dk.boxes.has("vyre-wsinit-prj_site"), false, "the helper is removed");
   assert.ok(r.dk.box(NAME).config["HostConfig"]["Binds"].includes("vyre-wsproj-prj_site:/home/agent/projects/prj_site:rw"));
 

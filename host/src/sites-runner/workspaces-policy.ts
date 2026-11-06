@@ -26,7 +26,7 @@ export const WS_MAX = { nanoCpus: 4e9, memory: 8 * 1024 ** 3, pids: 2048 };
 const LOGS = { Type: "json-file", Config: { "max-size": "10m", "max-file": "3" } };
 export const WS_HOME = "/home/agent";
 /** The one command the project-folder helper runs (modules/terminal/workspace.ts PROJECT_INIT_SCRIPT is the same text; a test holds the two together). */
-export const WS_INIT_SCRIPT = "chown 10001:10001 /vol && chmod 2775 /vol";
+export const WS_INIT_SCRIPT = "chown 10001:10001 /vol";
 
 const TOP_KEYS = new Set(["Image", "Hostname", "User", "WorkingDir", "Cmd", "Env", "Labels", "StopTimeout", "HostConfig", "NetworkingConfig"]);
 const HOST_KEYS = new Set(["Binds", "ReadonlyRootfs", "Tmpfs", "CapDrop", "CapAdd", "SecurityOpt", "Privileged", "NetworkMode", "PidMode", "IpcMode", "UsernsMode", "Devices", "PidsLimit", "Memory", "MemorySwap", "NanoCpus", "Init", "AutoRemove", "Ulimits", "LogConfig", "ExtraHosts", "Dns"]);
