@@ -214,6 +214,8 @@ export function listTime(at: number, now: number, offsetMin: number): string {
 // ---------------------------------------------------------------- the sidebar
 
 export interface NavGroup { key: "mine" | "shared" | "agent"; label: string; items: NavInbox[] }
+/** Whether a mailbox row wears the private-mailbox lock: only in a shared group (under Mine every mailbox is the person's alone, and a lock there read as a Vault lock). */
+export const showsLock = (group: string, b: { lock: boolean }): boolean => b.lock && group !== "mine";
 export interface NavInbox { id: string; label: string; scope: Scope; unread: number; lock: boolean; agent: boolean; channel: "email" | "sms" }
 
 /** Mine, Shared and Agents: mailboxes by kind, numbers under Mine (a number is assigned to one person). Unread counts come from inbox.counts. */
