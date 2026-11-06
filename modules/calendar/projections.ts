@@ -380,7 +380,7 @@ export function graphTime(value: unknown): number | undefined {
 // ---- schema
 
 const ready = new WeakSet<object>();
-const migrationSql = ["0001_calendar_core.sql", "0002_calendar_account.sql", "0003_calendar_last_sync.sql", "0004_calendar_series.sql", "0005_calendar_conference.sql"].map((f) => readFileSync(fileURLToPath(new URL(`./migrations/${f}`, import.meta.url)), "utf8")).join("\n");
+const migrationSql = ["0001_calendar_core.sql", "0002_calendar_account.sql", "0003_calendar_last_sync.sql", "0004_calendar_series.sql", "0005_calendar_conference.sql", "0006_calendar_event_provider_index.sql"].map((f) => readFileSync(fileURLToPath(new URL(`./migrations/${f}`, import.meta.url)), "utf8")).join("\n");
 
 export function statements(sql: string): string[] {
   const out: string[] = [];
