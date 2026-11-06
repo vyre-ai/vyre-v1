@@ -40,13 +40,13 @@ if ("statusUrl" in o392) lf(o392["statusUrl"], p + "/statusUrl", e, L1);
 
 function d_s_f0dc4dc53a(v: unknown, p: string, e: string[]): void {
 {
-const x1181 = v;
-const g1181 = typeOf(x1181);
-const b1181: string[] = []; lf(x1181, p, b1181, L0); if (b1181.length) e.push(...b1181);
-if (g1181 === "object") {
-if (g1181 === 'object') { const o1181 = x1181 as Record<string, unknown>;
-if (!("number" in o1181)) e.push(p + "/number" + ': required');
-if ("number" in o1181) d_s_5430c2af6e(o1181["number"], p + "/number", e);
+const x1180 = v;
+const g1180 = typeOf(x1180);
+const b1180: string[] = []; lf(x1180, p, b1180, L0); if (b1180.length) e.push(...b1180);
+if (g1180 === "object") {
+if (g1180 === 'object') { const o1180 = x1180 as Record<string, unknown>;
+if (!("number" in o1180)) e.push(p + "/number" + ': required');
+if ("number" in o1180) d_s_5430c2af6e(o1180["number"], p + "/number", e);
 }
 }
 }

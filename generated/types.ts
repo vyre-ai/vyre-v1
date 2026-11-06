@@ -38386,6 +38386,7 @@ export type TasksActOut = {
     threadId?: string;
     reviewLoops: number;
     snoozedUntil?: number;
+    expiresAt?: number;
     createdBy: string;
     createdAt: number;
     updatedAt: number;
@@ -38455,6 +38456,7 @@ export type TasksAgentOnItOut = {
     threadId?: string;
     reviewLoops: number;
     snoozedUntil?: number;
+    expiresAt?: number;
     createdBy: string;
     createdAt: number;
     updatedAt: number;
@@ -38527,6 +38529,7 @@ export type TasksAskOut = {
     threadId?: string;
     reviewLoops: number;
     snoozedUntil?: number;
+    expiresAt?: number;
     createdBy: string;
     createdAt: number;
     updatedAt: number;
@@ -38600,6 +38603,7 @@ export type TasksAssignOut = {
     threadId?: string;
     reviewLoops: number;
     snoozedUntil?: number;
+    expiresAt?: number;
     createdBy: string;
     createdAt: number;
     updatedAt: number;
@@ -38668,6 +38672,7 @@ export type TasksBlockOut = {
     threadId?: string;
     reviewLoops: number;
     snoozedUntil?: number;
+    expiresAt?: number;
     createdBy: string;
     createdAt: number;
     updatedAt: number;
@@ -38800,6 +38805,7 @@ export type TasksCreateOut = {
     threadId?: string;
     reviewLoops: number;
     snoozedUntil?: number;
+    expiresAt?: number;
     createdBy: string;
     createdAt: number;
     updatedAt: number;
@@ -38869,6 +38875,7 @@ export type TasksDecideOut = {
     threadId?: string;
     reviewLoops: number;
     snoozedUntil?: number;
+    expiresAt?: number;
     createdBy: string;
     createdAt: number;
     updatedAt: number;
@@ -38942,6 +38949,7 @@ export type TasksDelegateOut = {
     threadId?: string;
     reviewLoops: number;
     snoozedUntil?: number;
+    expiresAt?: number;
     createdBy: string;
     createdAt: number;
     updatedAt: number;
@@ -39020,6 +39028,7 @@ export type TasksDependenciesAddOut = {
     threadId?: string;
     reviewLoops: number;
     snoozedUntil?: number;
+    expiresAt?: number;
     createdBy: string;
     createdAt: number;
     updatedAt: number;
@@ -39088,6 +39097,7 @@ export type TasksDependenciesRemoveOut = {
     threadId?: string;
     reviewLoops: number;
     snoozedUntil?: number;
+    expiresAt?: number;
     createdBy: string;
     createdAt: number;
     updatedAt: number;
@@ -39165,6 +39175,7 @@ export type TasksEscalateOut = {
     threadId?: string;
     reviewLoops: number;
     snoozedUntil?: number;
+    expiresAt?: number;
     createdBy: string;
     createdAt: number;
     updatedAt: number;
@@ -39233,6 +39244,7 @@ export type TasksFollowersAddOut = {
     threadId?: string;
     reviewLoops: number;
     snoozedUntil?: number;
+    expiresAt?: number;
     createdBy: string;
     createdAt: number;
     updatedAt: number;
@@ -39301,6 +39313,7 @@ export type TasksFollowersRemoveOut = {
     threadId?: string;
     reviewLoops: number;
     snoozedUntil?: number;
+    expiresAt?: number;
     createdBy: string;
     createdAt: number;
     updatedAt: number;
@@ -39368,6 +39381,7 @@ export type TasksGetOut = {
     threadId?: string;
     reviewLoops: number;
     snoozedUntil?: number;
+    expiresAt?: number;
     createdBy: string;
     createdAt: number;
     updatedAt: number;
@@ -39525,6 +39539,7 @@ export type TasksLinksAddOut = {
     threadId?: string;
     reviewLoops: number;
     snoozedUntil?: number;
+    expiresAt?: number;
     createdBy: string;
     createdAt: number;
     updatedAt: number;
@@ -39594,6 +39609,7 @@ export type TasksLinksRemoveOut = {
     threadId?: string;
     reviewLoops: number;
     snoozedUntil?: number;
+    expiresAt?: number;
     createdBy: string;
     createdAt: number;
     updatedAt: number;
@@ -39672,6 +39688,7 @@ export type TasksListOut = {
       threadId?: string;
       reviewLoops: number;
       snoozedUntil?: number;
+      expiresAt?: number;
       createdBy: string;
       createdAt: number;
       updatedAt: number;
@@ -39743,6 +39760,7 @@ export type TasksMyWorkOut = {
       threadId?: string;
       reviewLoops: number;
       snoozedUntil?: number;
+      expiresAt?: number;
       createdBy: string;
       createdAt: number;
       updatedAt: number;
@@ -39818,6 +39836,7 @@ export type TasksNeedsYouOut = {
         threadId?: string;
         reviewLoops: number;
         snoozedUntil?: number;
+        expiresAt?: number;
         createdBy: string;
         createdAt: number;
         updatedAt: number;
@@ -39926,6 +39945,7 @@ export type TasksPlanOut = {
     threadId?: string;
     reviewLoops: number;
     snoozedUntil?: number;
+    expiresAt?: number;
     createdBy: string;
     createdAt: number;
     updatedAt: number;
@@ -39999,6 +40019,7 @@ export type TasksReleaseOut = {
     threadId?: string;
     reviewLoops: number;
     snoozedUntil?: number;
+    expiresAt?: number;
     createdBy: string;
     createdAt: number;
     updatedAt: number;
@@ -40066,6 +40087,7 @@ export type TasksRestoreOut = {
     threadId?: string;
     reviewLoops: number;
     snoozedUntil?: number;
+    expiresAt?: number;
     createdBy: string;
     createdAt: number;
     updatedAt: number;
@@ -40140,6 +40162,7 @@ export type TasksReviewOut = {
     threadId?: string;
     reviewLoops: number;
     snoozedUntil?: number;
+    expiresAt?: number;
     createdBy: string;
     createdAt: number;
     updatedAt: number;
@@ -40209,6 +40232,7 @@ export type TasksSnoozeOut = {
     threadId?: string;
     reviewLoops: number;
     snoozedUntil?: number;
+    expiresAt?: number;
     createdBy: string;
     createdAt: number;
     updatedAt: number;
@@ -40278,6 +40302,7 @@ export type TasksSubmitOut = {
     threadId?: string;
     reviewLoops: number;
     snoozedUntil?: number;
+    expiresAt?: number;
     createdBy: string;
     createdAt: number;
     updatedAt: number;
@@ -40346,6 +40371,7 @@ export type TasksTakeOut = {
     threadId?: string;
     reviewLoops: number;
     snoozedUntil?: number;
+    expiresAt?: number;
     createdBy: string;
     createdAt: number;
     updatedAt: number;
@@ -40416,6 +40442,7 @@ export type TasksTransitionOut = {
     threadId?: string;
     reviewLoops: number;
     snoozedUntil?: number;
+    expiresAt?: number;
     createdBy: string;
     createdAt: number;
     updatedAt: number;
@@ -40505,6 +40532,7 @@ export type TasksUpdateOut = {
     threadId?: string;
     reviewLoops: number;
     snoozedUntil?: number;
+    expiresAt?: number;
     createdBy: string;
     createdAt: number;
     updatedAt: number;
@@ -40582,6 +40610,7 @@ export type TasksWorkingNotesDeleteOut = {
     threadId?: string;
     reviewLoops: number;
     snoozedUntil?: number;
+    expiresAt?: number;
     createdBy: string;
     createdAt: number;
     updatedAt: number;
@@ -40652,6 +40681,7 @@ export type TasksWorkingNotesSetOut = {
     threadId?: string;
     reviewLoops: number;
     snoozedUntil?: number;
+    expiresAt?: number;
     createdBy: string;
     createdAt: number;
     updatedAt: number;
