@@ -4,6 +4,7 @@ import { createElement, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { Avatar } from "../../../../../../ui/src/Avatar/index.tsx";
+import { RADIUS } from "../../../../../../ui/src/tokens/calm.ts";
 import { Tooltip } from "../../../../../../ui/src/Tooltip/index.tsx";
 
 export const ICON = {
@@ -137,9 +138,9 @@ export const s = StyleSheet.create({
   away: { position: "absolute", right: -2, bottom: -2, width: 8, height: 8, borderRadius: 4, backgroundColor: "var(--side)" as string, borderWidth: 2, borderColor: "var(--warn)" as string },
   lead: { width: 18, height: 18, marginRight: 9, alignItems: "center", justifyContent: "center" },
   dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: "var(--accent)" as string },
-  badge: { minWidth: 17, height: 17, paddingHorizontal: 5, borderRadius: 9, backgroundColor: "var(--accent-wash)" as string, alignItems: "center", justifyContent: "center", marginLeft: 6 },
+  badge: { minWidth: 18, height: 18, paddingHorizontal: 5, borderRadius: RADIUS, backgroundColor: "var(--accent-wash)" as string, alignItems: "center", justifyContent: "center", marginLeft: 6 },
   badgeText: { fontSize: 11, fontWeight: "600", color: "var(--accent)" as string },
-  tool: { width: 22, height: 22, borderRadius: 5, alignItems: "center", justifyContent: "center" },
+  tool: { width: 24, height: 24, borderRadius: RADIUS, alignItems: "center", justifyContent: "center" },
   toolOver: { backgroundColor: "var(--press)" as string },
   head: { height: 34, flexDirection: "row", alignItems: "flex-end", paddingHorizontal: 8, paddingBottom: 6 },
   headLabel: { flexDirection: "row", alignItems: "center", gap: 6, height: 20 },

@@ -280,7 +280,8 @@ test("the plan card is on the page: name, open comments", () => {
 test("the header has the agent chip with a face and mode mark, the participants count, search and the pane", () => {
   const s = createSample("idle");
   const out = html(s);
-  inOrder(out, ['data-testid="conversation-title"', 'data-testid="face-agt_intake"', ">Intake<", 'data-testid="participants-button"', 'data-testid="find-button"', 'data-testid="pane-button"', 'data-testid="more-button"']);
+  inOrder(out, ['data-testid="conversation-title"', 'data-testid="face-agt_intake"', ">Intake<", 'data-testid="participants-button"', 'data-testid="pane-button"', 'data-testid="more-button"']);
+  assert.ok(!has(out, 'data-testid="find-button"') && !has(out, 'data-testid="conversation-people"'), "the calm header: a quiet people count and two icons; Find is in the More menu (and on Cmd F)");
   assert.ok(has(out, "3 in this chat"));
   assert.ok(has(out, 'data-testid="add-agent"') && has(out, 'aria-label="Add people and agents"'), "the header + is the one Add people and agents sheet");
 });

@@ -75,6 +75,9 @@ import { ThreadFooter } from "../thread-replies/ThreadFooter.tsx";
 import { AlsoSentMark } from "../thread-replies/AlsoSentMark.tsx";
 import type { Clock } from "../rightpane/model.ts";
 import { TimePop } from "../../../../../../ui/src/Time/index.tsx";
+import { BODY_LEAD, BODY_PX, FACE, GAP_BETWEEN, GAP_WITHIN, GUTTER, META_PX, NAME_PX, RADIUS, SYSTEM_PX } from "../../../../../../ui/src/tokens/calm.ts";
+import { useGutter } from "./gutter.ts";
+import { BLOCK_GAP } from "../../../../../../ui/src/stream/Reserved.tsx";
 
 /** A principal id left in someone's words (an agent printed `usr_...`) shows as the name it stands for, when the Space knows it. */
 export function namedIds(body: string, nameOf?: (id: string) => string): string {
@@ -376,10 +379,10 @@ function Mine({ item, actions, sending, mark, replies }: MessageViewProps & { it
     if (body !== "" && body !== m.body) actions.edit(m.messageId, body);
   };
   return (
-    <View testID={`msg-${m.messageId}`} accessibilityLabel={`You, ${item.time}`} {...h.props} {...menuTrigger((x, y) => actions.showMenu(menuFor(m, true, actions, startEdit, { x, y }), x, y, "Message"))} style={[st.me, item.newgroup && st.gapTop, mark === "match" && st.found, mark === "active" && st.foundActive, mark === "selected" && st.selected]}>
+    <View testID={`msg-${m.messageId}`} accessibilityLabel={`You, ${item.time}`} {...h.props} {...menuTrigger((x, y) => actions.showMenu(menuFor(m, true, actions, startEdit, { x, y }), x, y, "Message"))} style={[st.me, item.newgroup ? st.gapTop : st.gapIn, mark === "match" && st.found, mark === "active" && st.foundActive, mark === "selected" && st.selected]}>
       {h.touch || sheet ? <ActionSheet open={sheet} entries={menuFor(m, true, actions, startEdit)} onClose={() => setSheet(false)} /> : null}
       {h.touch ? null : <HoverBar m={m} mine a={actions} onEdit={startEdit} visible={h.over || h.focus} />}
-      <TimeTip item={item}><Text style={st.when}>{item.time}</Text></TimeTip>
+      <TimeTip item={item}><Text style={[st.when, h.over && st.whenOn]}>{item.time}</Text></TimeTip>
       {editing ? (
         <View testID={`edit-${m.messageId}`} style={st.editBox}>
           <TextInput
@@ -453,6 +456,7 @@ function Theirs({ item, actions, stream, openWork, mark, meId, replies }: Messag
   const m = item.message;
   const [sheet, setSheet] = useState(false);
   const h = useHover(() => setSheet(true));
+  const gutter = useGutter();
   const work = workOf(m);
   const [workOpen, setWorkOpen] = useState(openWork === true);
   const crewStart = m.blocks.find(isCrewStart);
@@ -478,14 +482,15 @@ function Theirs({ item, actions, stream, openWork, mark, meId, replies }: Messag
   // an agent's reply: hovering its face or name shows how it was made (model, account, asker, where, cost, tokens, time)
   const withCard = (kids: ReactElement): ReactElement => (!person && actions.details && !stream && !h.phone && !isSystemLine(m) ? <ReplyHover messageId={m.messageId} details={actions.details}>{kids}</ReplyHover> : kids);
   return (
-    <View testID={`msg-${m.messageId}`} accessibilityLabel={`${item.who.name}, ${item.time}`} {...h.props} {...menuTrigger((x, y) => actions.showMenu(menuFor(m, false, actions, () => undefined, { x, y }), x, y, "Message"))} style={[st.msg, item.newgroup && st.gapTop, mark === "match" && st.found, mark === "active" && st.foundActive, mark === "selected" && st.selected]}>
+    <View testID={`msg-${m.messageId}`} accessibilityLabel={`${item.who.name}, ${item.time}`} {...h.props} {...menuTrigger((x, y) => actions.showMenu(menuFor(m, false, actions, () => undefined, { x, y }), x, y, "Message"))} style={[st.msg, item.newgroup ? st.gapTop : st.gapIn, mark === "match" && st.found, mark === "active" && st.foundActive, mark === "selected" && st.selected]}>
       {h.touch || sheet ? <ActionSheet open={sheet} entries={menuFor(m, false, actions, () => undefined)} onClose={() => setSheet(false)} /> : null}
       {h.touch ? null : <HoverBar byAgent={!person} m={m} mine={false} a={actions} onEdit={() => undefined} visible={barShows(h.over || h.focus, cardOpen)} />}
+      {item.newgroup && gutter ? <View testID={`gutter-face-${m.messageId}`} style={st.gutterFace}><Face name={item.who.name} seedId={item.who.face ?? item.who.id} kind={person || item.who.face !== undefined ? "person" : "agent"} size={FACE} /></View> : null}
       {item.newgroup ? (
         <View style={st.by}>
           {withCard(
             <>
-              <Face name={item.who.name} seedId={item.who.face ?? item.who.id} kind={person || item.who.face !== undefined ? "person" : "agent"} size={20} />
+              {gutter ? null : <Face name={item.who.name} seedId={item.who.face ?? item.who.id} kind={person || item.who.face !== undefined ? "person" : "agent"} size={FACE} />}
               <Pressable accessibilityRole="link" accessibilityLabel={`Open ${item.who.name}`} testID={`who-${m.messageId}`} onPress={() => actions.openAgent(item.who.id)}>
                 <Text style={st.who}>{item.who.name}</Text>
               </Pressable>
@@ -494,7 +499,7 @@ function Theirs({ item, actions, stream, openWork, mark, meId, replies }: Messag
           <TimeTip item={item}><Text style={st.time}>{item.time}</Text></TimeTip>
           {work?.short ? <Pressable accessibilityRole="button" accessibilityLabel={work.summary} testID={`work-short-${m.messageId}`} onPress={() => setWorkOpen((o) => !o)} style={{ opacity: h.over || workOpen ? 1 : 0 }}><Text style={st.time}>{work.summary}</Text></Pressable> : null}
         </View>
-      ) : <Text style={st.whenLeft}>{item.time}</Text>}
+      ) : <TimeTip item={item}><Text style={[gutter ? st.whenLeft : st.whenIn, h.over && st.whenOn]}>{item.time}</Text></TimeTip>}
       {pokedBy(m, actions.nameOf ?? unnamed) ? <Text testID={`poked-${m.messageId}`} style={st.via}>{pokedBy(m, actions.nameOf ?? unnamed)}</Text> : null}
       {item.paidLine ? <Text testID={`paid-${m.messageId}`} style={st.via}>{item.paidLine}</Text> : null}
       {m.via ? <Text testID={`via-${m.messageId}`} style={st.via}>{`Sent by ${item.who.name} on a routine ${m.via.routineOwner === meId ? "you" : actions.nameOf ? actions.nameOf(m.via.routineOwner) : unnamed(m.via.routineOwner)} set`}</Text> : null}
@@ -756,63 +761,67 @@ function ErrorRowView({ block, actions }: { block: Message["blocks"][number]; ac
 }
 
 export const st = StyleSheet.create({
-  approvalLine: { flexDirection: "row", alignItems: "center", gap: 10, alignSelf: "flex-start", marginTop: 4, paddingVertical: 5, paddingHorizontal: 10, marginLeft: -10, borderRadius: 8 },
+  approvalLine: { flexDirection: "row", alignItems: "center", gap: 10, alignSelf: "flex-start", marginTop: 4, paddingVertical: 5, paddingHorizontal: 10, marginLeft: -10, borderRadius: RADIUS },
   approvalOver: { backgroundColor: "var(--hover)" as string },
   approvalFocus: { borderWidth: 2, borderColor: "var(--accent)" as string, paddingVertical: 3, paddingHorizontal: 8 },
   approvalText: { fontSize: 14, lineHeight: 20, color: "var(--ink-2)" as string },
   fromThread: { fontSize: 12, color: "var(--ink-3)" as string },
   approvalOpen: { color: "var(--accent)" as string, fontWeight: "500" },
   fromThreadMine: { alignSelf: "flex-end", marginTop: 4 },
-  day: { alignSelf: "center", fontSize: 12, color: "var(--ink-3)" as string, marginTop: 18, marginBottom: 6 },
+  day: { alignSelf: "center", fontSize: META_PX, color: "var(--ink-3)" as string, marginTop: 28, marginBottom: 8 },
   eventCard: { flexShrink: 1, minWidth: 0 },
   eventCentre: { justifyContent: "center" },
-  event: { minHeight: 28, flexDirection: "row", alignItems: "center", gap: 8, marginTop: 8, marginBottom: 2 },
+  event: { minHeight: 24, flexDirection: "row", alignItems: "center", gap: 8, marginTop: 10, marginBottom: 10 },
   eventDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: "var(--ink-4)" as string },
-  eventText: { flexShrink: 1, fontSize: 12.5, color: "var(--ink-3)" as string },
+  eventText: { flexShrink: 1, fontSize: SYSTEM_PX, color: "var(--ink-3)" as string },
   eventLink: { color: "var(--accent)" as string, textDecorationLine: "underline", cursor: "pointer" } as object,
-  eventTime: { fontSize: 11.5, color: "var(--ink-4)" as string },
+  eventTime: { fontSize: META_PX, color: "var(--ink-4)" as string },
   hookText: { flex: 1, minWidth: 0, fontSize: 13.5, lineHeight: 19, color: "var(--ink-2)" as string },
   hookLead: { color: "var(--ink)" as string, fontWeight: "500" },
   hookAct: { fontSize: 12.5, lineHeight: 19, color: "var(--ink-3)" as string, cursor: "pointer" } as object,
-  gapTop: { marginTop: 18 },
+  gapTop: { marginTop: GAP_BETWEEN },
+  gapIn: { marginTop: GAP_WITHIN },
   // the mark sits outside the message (marks.ts), so nothing touches its edge
   found: MARK.found as object,
   foundActive: MARK.foundActive as object,
   selected: MARK.selected as object,
-  me: { alignItems: "flex-end", paddingVertical: 2, marginTop: 4, position: "relative" },
+  me: { alignItems: "flex-end", position: "relative" },
   when: { position: "absolute", left: 0, top: 10, fontSize: 11, color: "var(--ink-4)" as string, opacity: 0 },
-  whenLeft: { position: "absolute", left: -44, top: 4, fontSize: 11, color: "var(--ink-4)" as string, opacity: 0 },
-  bubble: { maxWidth: "85%", backgroundColor: "var(--me)" as string, borderRadius: 18, paddingHorizontal: 15, paddingVertical: 9 },
+  whenLeft: { position: "absolute", left: -(GUTTER + 4), top: 3, width: 36, textAlign: "right", fontSize: 11, color: "var(--ink-4)" as string, opacity: 0 },
+  whenIn: { position: "absolute", right: 8, top: 3, fontSize: 11, color: "var(--ink-4)" as string, opacity: 0 },
+  whenOn: { opacity: 1 },
+  gutterFace: { position: "absolute", left: -GUTTER, top: 0 },
+  bubble: { maxWidth: "85%", backgroundColor: "var(--me)" as string, borderRadius: RADIUS, paddingHorizontal: 14, paddingVertical: 8 },
   mineFiles: { alignSelf: "flex-end", maxWidth: "85%" },
-  bubbleText: { color: "var(--ink)" as string, fontSize: 15, lineHeight: 23 },
+  bubbleText: { color: "var(--ink)" as string, fontSize: BODY_PX, lineHeight: BODY_LEAD },
   edited: { marginTop: 2, fontSize: 11.5, color: "var(--ink-4)" as string },
-  editBox: { width: "85%", gap: 6, borderWidth: 1, borderColor: "var(--line-2)" as string, borderRadius: 12, padding: 8, backgroundColor: "var(--win)" as string },
+  editBox: { width: "85%", gap: 6, borderWidth: 1, borderColor: "var(--line-2)" as string, borderRadius: RADIUS, padding: 8, backgroundColor: "var(--win)" as string },
   editField: { minHeight: 44, fontSize: 15, lineHeight: 22, color: "var(--ink)" as string, outlineStyle: "none", outlineWidth: 0 } as object,
   editRow: { flexDirection: "row", justifyContent: "flex-end", gap: 6 },
   waitRow: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 8 },
   failed: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 2 },
   failedText: { fontSize: 12.5, color: "var(--danger)" as string },
-  msg: { paddingVertical: 2, position: "relative", gap: 6 },
-  by: { flexDirection: "row", alignItems: "center", gap: 8, height: 26 },
-  who: { fontSize: 13, fontWeight: "600", color: "var(--ink)" as string },
-  time: { fontSize: 11.5, color: "var(--ink-3)" as string },
-  via: { fontSize: 12, color: "var(--ink-3)" as string },
+  msg: { position: "relative", gap: 2 },
+  by: { flexDirection: "row", alignItems: "center", gap: 8, height: 22 },
+  who: { fontSize: NAME_PX, fontWeight: "600", color: "var(--ink)" as string },
+  time: { fontSize: META_PX, color: "var(--ink-3)" as string },
+  via: { fontSize: META_PX, color: "var(--ink-3)" as string },
   /** under an agent's message for its person, read by the teammate it went to (lane l-agentdm) */
   muteLine: { marginTop: 4 },
-  body: { paddingRight: 8 },
+  body: { paddingRight: 8, marginBottom: -BLOCK_GAP },
   step: { flexDirection: "row", alignItems: "center", gap: 8, minHeight: 24 },
   stepDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: "var(--ink-4)" as string },
   stepLive: { backgroundColor: "var(--ok)" as string },
   stepError: { backgroundColor: "var(--danger)" as string },
   stepTitle: { flexShrink: 1, fontSize: 13, color: "var(--ink-2)" as string },
   stepSub: { flexShrink: 1, fontSize: 12, color: "var(--ink-4)" as string },
-  hover: { position: "absolute", top: -10, flexDirection: "row", alignItems: "center", gap: 0, paddingHorizontal: 2, height: 26, borderRadius: 8, borderWidth: 1, borderColor: "var(--line)" as string, backgroundColor: "var(--win)" as string, zIndex: 2 },
+  hover: { position: "absolute", top: -10, flexDirection: "row", alignItems: "center", gap: 0, paddingHorizontal: 2, height: 28, borderRadius: RADIUS, borderWidth: 1, borderColor: "var(--line)" as string, backgroundColor: "var(--win)" as string, zIndex: 2 },
   hoverMine: { right: 0 },
   hoverTheirs: { right: 8 },
   reactions: { flexDirection: "row", flexWrap: "wrap", gap: 4, marginTop: 2 },
-  react: { height: 22, paddingHorizontal: 8, borderRadius: 11, justifyContent: "center", backgroundColor: "var(--sunk)" as string },
+  react: { height: 24, paddingHorizontal: 8, borderRadius: RADIUS, justifyContent: "center", backgroundColor: "var(--sunk)" as string },
   reactText: { fontSize: 12, color: "var(--ink-2)" as string },
-  card: { borderWidth: 1, borderColor: "var(--line)" as string, borderRadius: 10, backgroundColor: "var(--side)" as string, maxWidth: 520 },
+  card: { borderWidth: 1, borderColor: "var(--line)" as string, borderRadius: RADIUS, backgroundColor: "var(--side)" as string, maxWidth: 520 },
   cardWaiting: { borderColor: "var(--accent)" as string },
   cardHead: { minHeight: 40, flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 12, paddingVertical: 8 },
   cardTitle: { fontSize: 13.5, fontWeight: "500", color: "var(--ink)" as string },
@@ -820,7 +829,7 @@ export const st = StyleSheet.create({
   cardRow: { flexDirection: "row", flexWrap: "wrap", gap: 6, paddingHorizontal: 10, paddingBottom: 10 },
   planSteps: { gap: 4, paddingHorizontal: 12, paddingBottom: 8 },
   planStep: { flexDirection: "row", alignItems: "center", gap: 8 },
-  err: { borderRadius: 10, padding: 12, gap: 6, maxWidth: 560, backgroundColor: "var(--sunk)" as string },
+  err: { borderRadius: RADIUS, padding: 12, gap: 6, maxWidth: 560, backgroundColor: "var(--sunk)" as string },
   errTop: { flexDirection: "row", alignItems: "center", gap: 8 },
   errMsg: { flexShrink: 1, fontSize: 13.5, fontWeight: "600", color: "var(--ink)" as string },
   errCause: { fontSize: 13, lineHeight: 19, color: "var(--ink-2)" as string },

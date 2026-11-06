@@ -14,6 +14,8 @@ import type { Call } from "../details/read.ts";
 import { DECIDED_LINE, isDecided } from "../../../shell/decided.ts";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
+import { COLUMN, RADIUS, gutterFits } from "../../../../../../ui/src/tokens/calm.ts";
+import { GutterContext } from "./gutter.ts";
 import { Platform, Pressable, StyleSheet, Text, TextInput, useWindowDimensions, View } from "react-native";
 import type { ComposerSend, ListItem } from "../../../../../../ui/src/Composer/index.tsx";
 import { DeferredComposer as Composer } from "../../../../../../ui/src/Composer/Deferred.tsx";
@@ -58,7 +60,7 @@ import type { ChatMode } from "../../../../../../ui/src/Composer/index.tsx";
 import { useConnectVersion } from "../../../shell/connect/context.ts";
 import { windowAround } from "./focus.ts";
 import type { MessageActions } from "./MessageView.tsx";
-import { FaceButton, Glyph, IconButton, RenameField, TextButton } from "./parts.tsx";
+import { FaceButton, Glyph, IconButton, PeopleCount, RenameField, TextButton } from "./parts.tsx";
 import { CONTINUE_TEXT, DEFAULT_AGENT_HOPS, limitOf, parkedAtLimit, parkedLine } from "./hops.ts";
 import { addedAgentMentions, askPost, pickerAgents, unansweredOwn } from "./askagent.ts";
 import { MemorySwitch } from "./memory-switch.tsx";
@@ -249,6 +251,7 @@ function ConversationView(): ReactElement {
   const [picker, setPicker] = useState<{ id: string; x: number; y: number } | null>(null);
   const [renaming, setRenaming] = useState(false);
   const width = useWindowDimensions().width;
+  const [gutter, setGutter] = useState(() => gutterFits(width));
   const mobileBack = useMobileBack();
   const narrow = width > 0 && width < 640;
 
@@ -463,6 +466,8 @@ function ConversationView(): ReactElement {
   };
   const moreEntries = (): MenuEntry[] => {
     const items: MenuEntry[] = [
+      { label: "Find in Chat", hint: "⌘F", onSelect: () => setFinding(true) },
+      { separator: true } as MenuEntry,
       { label: "Plan Mode", checked: mode === "plan", onSelect: () => chooseChatMode(mode === "plan" ? "ask" : "plan") },
       ...(hasSwitch(thread) && repliesSwitch.on !== null ? [{ label: SWITCH_TITLE, checked: repliesSwitch.on, ...(repliesSwitch.on ? { hint: SWITCH_NOTE } : {}), onSelect: () => repliesSwitch.set(!repliesSwitch.on) } as MenuEntry] : []),
       ...(lead ? [{ label: `Open ${nameOf(lead.agentId)}'s Page`, onSelect: () => data.nav.openAgent(lead.agentId) } as MenuEntry] : []),
@@ -658,13 +663,6 @@ function ConversationView(): ReactElement {
             <Text numberOfLines={1} testID="conversation-title" style={st.title}>{title}</Text>
           </Pressable>
         )}
-        {!dmWith && others.length > 0 ? (
-          <View testID="conversation-people" accessibilityLabel={`With ${others.map((p) => nameOf(p)).join(", ")}`} style={st.faces}>
-            {/* ui-rows-lint: not a list (the faces of the people in the chat) */}
-            {others.slice(0, narrow ? 3 : 4).map((p) => <Face key={p} name={nameOf(p)} seedId={p} kind="person" size={20} />)}
-            {others.length > (narrow ? 3 : 4) ? <Text style={st.meta}>{`+${others.length - (narrow ? 3 : 4)}`}</Text> : null}
-          </View>
-        ) : null}
         {leadFace && !narrow ? <FaceButton key={leadFace.agentId} name={leadFace.name} seedId={leadFace.agentId} mode={leadFace.mode} working={leadFace.working} title={modeTitle(leadFace)} testID={`face-${leadFace.agentId}`} {...(title !== leadFace.name ? { label: leadFace.name } : {})} size={20} onPress={(x, y) => modeMenu(leadFace, x, y)} /> : null}
         <View testID="conversation-faces" accessibilityRole="toolbar" accessibilityLabel="Agents in this chat" style={st.faces}>
           {collect(narrow ? [] : otherFaces, (f) => <FaceButton key={f.agentId} name={f.name} seedId={f.agentId} mode={f.mode} working={f.working} title={modeTitle(f)} testID={`face-${f.agentId}`} onPress={(x, y) => modeMenu(f, x, y)} />)}
@@ -676,8 +674,7 @@ function ConversationView(): ReactElement {
         {crewChip ? (crewChip.text !== "" && !narrow ? <Pressable accessibilityRole="button" accessibilityLabel={crewChip.label} testID="helpers-button" onPress={() => crew!.show(null)} style={st.crewChip}><Text testID="helpers-chip-text" style={st.crewChipText}>{crewChip.text}</Text></Pressable> : <IconButton icon="helper" label={crewChip.label} badge={crewChip.active > 0 ? crewChip.active : crewChip.total} testID="helpers-button" onPress={() => crew!.show(null)} />)
           : helpers.length > 0 ? <IconButton icon="helper" label={`${helpers.length} ${helpers.length === 1 ? "helper" : "helpers"} running`} badge={helpers.length} testID="helpers-button" onPress={helpersMenu} /> : null}
         {isWorking ? <IconButton icon="stop" label={stopLabel(working, nameOf)} danger testID="stop-button" onPress={stopMenu} /> : null}
-        <IconButton icon="people" label={`${thread.members.length} in this chat`} badge={thread.members.length} testID="participants-button" onPress={peopleMenu} />
-        <IconButton icon="search" label="Find in chat" active={finding} testID="find-button" onPress={() => setFinding((f) => !f)} />
+        <PeopleCount count={thread.members.length} label={`${thread.members.length} in this chat`} testID="participants-button" onPress={peopleMenu} />
         <IconButton icon="pane" label="Show or hide the pane" testID="pane-button" onPress={() => data.nav.togglePane()} />
         <IconButton icon="more" label="More" testID="more-button" onPress={moreMenu} />
       </View>
@@ -712,7 +709,8 @@ function ConversationView(): ReactElement {
           <TextButton label="Jump to latest" testID="viewing-earlier-latest" onPress={() => { setAround(null); setOlder([]); setFocusId(null); setShown(WINDOW); setJump((n) => n + 1); setAtEnd(true); }} />
         </View>
       )}
-      <View style={st.feedBox}>
+      <View style={st.feedBox} onLayout={(e) => setGutter(gutterFits(e.nativeEvent.layout.width))}>
+        <GutterContext.Provider value={gutter}>
         <Feed key={jump} followKey={timelineMessages.length} {...(lastStream ? { store: lastStream } : {})} {...(data.head ? { startAway: true, endKey: sentOnPage } : {})} testID="conversation-feed" contentStyle={st.feedContent} onAtEndChange={setAtEnd}>
           {data.head ?? null}
           <View style={st.col}>
@@ -732,6 +730,7 @@ function ConversationView(): ReactElement {
             {data.tail ?? null}
           </View>
         </Feed>
+        </GutterContext.Provider>
         {atEnd || data.head ? null : (
           <Pressable testID="to-latest" accessibilityRole="button" accessibilityLabel="Jump to latest" onPress={() => { setJump((n) => n + 1); setAtEnd(true); }} style={st.toLatest}>
             <Glyph name="down" size={14} color="var(--ink-2)" /><Text style={st.toLatestText}>Jump to latest</Text>
@@ -880,9 +879,9 @@ const st = StyleSheet.create({
   root: { flex: 1, minHeight: 0, backgroundColor: "var(--win)" as string },
   head: { minHeight: 48, flexDirection: "row", alignItems: "center", gap: 8, paddingLeft: 20, paddingRight: 10 },
   title: { flexShrink: 1, minWidth: 40, maxWidth: 320, fontSize: 14, fontWeight: "600", color: "var(--ink)" as string },
-  titleBtn: { flexShrink: 1, flexDirection: "row", alignItems: "center", gap: 6, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2, marginLeft: -6 },
+  titleBtn: { flexShrink: 1, flexDirection: "row", alignItems: "center", gap: 6, borderRadius: RADIUS, paddingHorizontal: 6, paddingVertical: 2, marginLeft: -6 },
   titleOver: { backgroundColor: "var(--hover)" as string },
-  rename: { width: 320, maxWidth: "60%", height: 26, borderRadius: 6, paddingHorizontal: 6, marginLeft: -6, fontSize: 14, fontWeight: "600", color: "var(--ink)" as string, backgroundColor: "var(--field)" as string, outlineStyle: "none", outlineWidth: 0 } as object,
+  rename: { width: 320, maxWidth: "60%", height: 28, borderRadius: RADIUS, paddingHorizontal: 6, marginLeft: -6, fontSize: 14, fontWeight: "600", color: "var(--ink)" as string, backgroundColor: "var(--field)" as string, outlineStyle: "none", outlineWidth: 0 } as object,
   faces: { flexDirection: "row", alignItems: "center", gap: 2, flexShrink: 0 },
   find: { height: 40, flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
   findInput: { flex: 1, minWidth: 0, height: 28, fontSize: 13.5, color: "var(--ink)" as string, outlineStyle: "none", outlineWidth: 0 } as object,
@@ -890,16 +889,16 @@ const st = StyleSheet.create({
   liveDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: "var(--ok)" as string },
   liveText: { fontSize: 12, color: "var(--ink-2)" as string },
   meta: { fontSize: 12, color: "var(--ink-3)" as string },
-  crewChip: { height: 26, paddingHorizontal: 10, borderRadius: 13, justifyContent: "center", backgroundColor: "var(--accent-wash)" as string },
+  crewChip: { height: 28, paddingHorizontal: 10, borderRadius: RADIUS, justifyContent: "center", backgroundColor: "var(--accent-wash)" as string },
   crewChipText: { fontSize: 12.5, color: "var(--accent)" as string, fontWeight: "500" },
   earlierBar: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, minHeight: 34, backgroundColor: "var(--side)" as string, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
   earlierText: { fontSize: 12.5, color: "var(--ink-2)" as string },
   noteLine: { paddingHorizontal: 16, paddingTop: 6, fontSize: 12, color: "var(--ink-3)" as string },
   feedBox: { flex: 1, minHeight: 0 },
-  feedContent: { alignItems: "center", paddingHorizontal: 24, paddingBottom: 18 },
-  col: { width: "100%", maxWidth: 660, paddingTop: 6 },
+  feedContent: { alignItems: "center", paddingHorizontal: 24, paddingTop: 12, paddingBottom: 18 },
+  col: { width: "100%", maxWidth: COLUMN, paddingTop: 6 },
   earlier: { alignItems: "center", paddingVertical: 10 },
-  toLatest: { position: "absolute", alignSelf: "center", bottom: 10, height: 30, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, borderRadius: 15, borderWidth: 1, borderColor: "var(--line-2)" as string, backgroundColor: "var(--win)" as string },
+  toLatest: { position: "absolute", alignSelf: "center", bottom: 10, height: 32, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, borderRadius: RADIUS, borderWidth: 1, borderColor: "var(--line-2)" as string, backgroundColor: "var(--win)" as string },
   toLatestText: { fontSize: 12.5, color: "var(--ink-2)" as string },
   queueRow: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", justifyContent: "center", columnGap: 10, rowGap: 2, paddingHorizontal: 24, paddingVertical: 4 },
   queue: { fontSize: 12.5, color: "var(--ink-3)" as string, textAlign: "center" },
@@ -907,11 +906,11 @@ const st = StyleSheet.create({
   lineText: { fontSize: 12.5, color: "var(--ink-2)" as string },
   /** A quiet line: muted ink, no underline. */
   quietLine: { color: "var(--ink-3)" as string },
-  offerStrip: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10, minHeight: 38, paddingLeft: 14, paddingRight: 6, marginHorizontal: 10, marginBottom: -1, borderTopLeftRadius: 14, borderTopRightRadius: 14, borderWidth: 1, borderColor: "var(--line)" as string, backgroundColor: "var(--side)" as string },
+  offerStrip: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10, minHeight: 38, paddingLeft: 14, paddingRight: 6, marginHorizontal: 10, marginBottom: -1, borderTopLeftRadius: RADIUS, borderTopRightRadius: RADIUS, borderWidth: 1, borderColor: "var(--line)" as string, backgroundColor: "var(--side)" as string },
   offerStripText: { flex: 1, minWidth: 0, fontSize: 12.5, color: "var(--ink-2)" as string },
   offerBtns: { flexDirection: "row", alignItems: "center", gap: 2, flexShrink: 0 },
   closed: { minHeight: 48, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, borderTopWidth: 1, borderTopColor: "var(--line)" as string, backgroundColor: "var(--side)" as string },
-  composerBox: { alignSelf: "center", width: "100%", maxWidth: 708, paddingHorizontal: 24, paddingBottom: 16 },
+  composerBox: { alignSelf: "center", width: "100%", maxWidth: COLUMN + 48, paddingHorizontal: 24, paddingBottom: 16 },
 });
 
 

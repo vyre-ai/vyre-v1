@@ -4,6 +4,7 @@ import { Fragment, createContext, memo, useContext, useState } from "react";
 import type { ReactNode } from "react";
 import { Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import type { Block, Inline } from "./markdown.ts";
+import { CODE_TINT, HIGHLIGHT, RADIUS } from "../tokens/calm.ts";
 import { BLOCK_GAP, BODY_LINE, BODY_SIZE } from "./Reserved.tsx";
 import { CalloutBlock, ChartBlock, CodeBlock, DetailsBlock, DiagramBlock, FootnoteLine, ImageBlock, MathBlock, MathInline } from "./Blocks.tsx";
 
@@ -284,27 +285,27 @@ const styles = StyleSheet.create({
   strong: { fontWeight: "600" },
   del: { textDecorationLine: "line-through", color: "var(--ink-3)" as string },
   fnref: { color: "var(--accent)" as string, fontSize: 11 },
-  kbd: { fontFamily: MONO, fontSize: 12, backgroundColor: "var(--sunk)" as string, color: "var(--ink)" as string },
-  mark: { backgroundColor: "var(--accent-wash)" as string },
+  kbd: { fontFamily: MONO, fontSize: 12, backgroundColor: CODE_TINT, color: "var(--ink)" as string },
+  mark: { backgroundColor: HIGHLIGHT, borderRadius: 4 },
   sup: { fontSize: 11 },
   sub: { fontSize: 11 },
   em: { fontStyle: "italic" },
   link: { color: "var(--accent)" as string },
-  code: { fontFamily: MONO, fontSize: 13, backgroundColor: "var(--sunk)" as string },
+  code: { fontFamily: MONO, fontSize: 13, backgroundColor: CODE_TINT },
   quote: { borderLeftWidth: 2, borderLeftColor: "var(--line-2)" as string, paddingLeft: 12, marginBottom: BLOCK_GAP },
   quoteText: { color: "var(--ink-2)" as string, fontSize: BODY_SIZE, lineHeight: BODY_LINE },
   rule: { height: 1, backgroundColor: "var(--line)" as string, marginVertical: 12 },
-  pre: { backgroundColor: "var(--sunk)" as string, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, marginBottom: BLOCK_GAP },
+  pre: { backgroundColor: CODE_TINT, borderRadius: RADIUS, paddingHorizontal: 12, paddingVertical: 10, marginBottom: BLOCK_GAP },
   preText: { color: "var(--ink)" as string, fontFamily: MONO, fontSize: 13, lineHeight: 20 },
   list: { marginBottom: BLOCK_GAP },
-  box: { width: 16, height: 16, borderRadius: 4, borderWidth: 1.5, borderColor: "var(--ink-4)" as string, marginRight: 6, marginTop: 4, alignItems: "center", justifyContent: "center" },
+  box: { width: 16, height: 16, borderRadius: 6, borderWidth: 1.5, borderColor: "var(--ink-4)" as string, marginRight: 6, marginTop: 4, alignItems: "center", justifyContent: "center" },
   boxOn: { backgroundColor: "var(--accent)" as string, borderColor: "var(--accent)" as string },
   tick: { color: "var(--accent-ink)" as string, fontSize: 11, lineHeight: 13, fontWeight: "700" },
   codeHead: { flexDirection: "row", alignItems: "center", marginBottom: 6 },
   lang: { flex: 1, color: "var(--ink-3)" as string, fontSize: 11.5 },
-  copy: { paddingHorizontal: 8, height: 22, borderRadius: 5, justifyContent: "center" },
+  copy: { paddingHorizontal: 8, height: 24, borderRadius: RADIUS, justifyContent: "center" },
   copyText: { color: "var(--ink-3)" as string, fontSize: 12 },
-  tableWrap: { marginBottom: BLOCK_GAP, maxWidth: "100%", borderRadius: 8, borderWidth: 1, borderColor: "var(--line)" as string, overflow: "hidden" },
+  tableWrap: { marginBottom: BLOCK_GAP, maxWidth: "100%", borderRadius: RADIUS, borderWidth: 1, borderColor: "var(--line)" as string, overflow: "hidden" },
   tableScroll: { flexGrow: 1 },
   table: { minWidth: "100%" as unknown as number },
   tr: { flexDirection: "row", borderTopWidth: 1, borderTopColor: "var(--line)" as string },
