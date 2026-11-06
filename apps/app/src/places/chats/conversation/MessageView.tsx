@@ -111,7 +111,7 @@ export interface MessageActions {
   reply?(text: string): void;
   approvePlan(planId: string): void;
   retryTurn(turnId: string): void;
-  /** Run the turn that made this reply once more: "Regenerate" in an agent reply's menu. Left out where the chat cannot. */
+  /** Run the turn that made this reply once more: "Retry" in an agent reply's menu. Left out where the chat cannot. */
   regenerate?(messageId: string): void;
   /** Mark the chat unread from this message on (threads.mark_unread_from, by its sequence number). */
   markUnreadFrom?(seq: number): void;
@@ -282,13 +282,13 @@ export function menuFor(m: Message, mine: boolean, a: MessageActions, onEdit: ()
   if (mine && m.kind === "text") write.push({ label: "Edit", onSelect: onEdit });
   const turn: MenuEntry[] = [{ label: "Reply in Thread", onSelect: () => a.openThread(m.messageId) }];
   // an agent's reply cannot be edited by you; it can be asked again
-  if (!mine && m.author.kind === "agent" && m.kind !== "system" && m.kind !== "quiet" && a.regenerate) turn.push({ label: "Regenerate", onSelect: () => a.regenerate!(m.messageId) });
+  if (!mine && m.author.kind === "agent" && m.kind !== "system" && m.kind !== "quiet" && a.regenerate) turn.push({ label: "Retry", onSelect: () => a.regenerate!(m.messageId) });
   if (a.askAgent && talk) turn.push({ label: "Ask an Agent…", onSelect: () => a.askAgent!(m.messageId, at.x, at.y) });
   if (a.makeTask && talk) turn.push({ label: "Make a Task", onSelect: () => a.makeTask!(m.messageId) });
   if (a.share && talk) turn.push({ label: "Share to...", onSelect: () => a.share!(m.messageId, at.x, at.y) });
   if (a.fork && talk) turn.push({ label: "Fork From Here", onSelect: () => a.fork!(m.messageId) });
   const keep: MenuEntry[] = [
-    { label: m.pinned ? "Unpin Message" : "Pin Message", onSelect: () => a.setPinned(m.messageId, !m.pinned) },
+    { label: m.pinned ? "Unpin" : "Pin", onSelect: () => a.setPinned(m.messageId, !m.pinned) },
     { label: "Add Reaction", onSelect: () => (a.pickReaction ? a.pickReaction(m.messageId, at.x, at.y) : a.react(m.messageId, "👍", false)) },
   ];
   if (a.markUnreadFrom && !m.messageId.startsWith("pending:")) keep.push({ label: "Mark Unread From Here", onSelect: () => a.markUnreadFrom!(m.threadSeq) });
@@ -312,21 +312,21 @@ export function HoverBar({ m, mine, a, onEdit, visible, byAgent = false }: { m: 
   const talk = m.kind !== "system" && m.kind !== "quiet";
   if (byAgent) {
     bar.push({ icon: "copy", label: "Copy", run: () => a.copy(m.body) });
-    bar.push({ icon: "reply", label: "Reply in thread", run: () => a.openThread(m.messageId) });
-    if (a.fork && talk) bar.push({ icon: "fork", label: "Fork from here", run: () => a.fork!(m.messageId) });
+    bar.push({ icon: "reply", label: "Reply in Thread", run: () => a.openThread(m.messageId) });
+    if (a.fork && talk) bar.push({ icon: "fork", label: "Fork From Here", run: () => a.fork!(m.messageId) });
     if (talk) bar.push({ icon: "pin", label: m.pinned ? "Unpin" : "Pin", run: () => a.setPinned(m.messageId, !m.pinned) });
     // an agent's answer, in any chat, can become work or a memory in one tap, from here and from the long-press sheet; nothing of it is drawn at rest
-    if (a.makeTask && talk && m.body.trim() !== "") bar.push({ icon: "task", label: "Make task", run: () => a.makeTask!(m.messageId) });
-    if (memory && talk && m.body.trim() !== "") bar.push({ icon: "remember", label: "Remember", run: () => { void rememberMessage(memory.memory, memory.threadId, { messageId: m.messageId, body: m.body }, memory.flash); } });
+    if (a.makeTask && talk && m.body.trim() !== "") bar.push({ icon: "task", label: "Make a Task", run: () => a.makeTask!(m.messageId) });
+    if (memory && talk && m.body.trim() !== "") bar.push({ icon: "remember", label: "Remember This", run: () => { void rememberMessage(memory.memory, memory.threadId, { messageId: m.messageId, body: m.body }, memory.flash); } });
   } else if (mine && a.humanChat !== true) {
     bar.push({ icon: "copy", label: "Copy", run: () => a.copy(m.body) });
     if (m.kind === "text") bar.push({ icon: "edit", label: "Edit", run: onEdit });
-    bar.push({ icon: "reply", label: "Reply in thread", run: () => a.openThread(m.messageId) });
-    if (a.askAgent && talk) bar.push({ icon: "spark", label: "Ask an agent", run: (x, y) => a.askAgent!(m.messageId, x, y) });
+    bar.push({ icon: "reply", label: "Reply in Thread", run: () => a.openThread(m.messageId) });
+    if (a.askAgent && talk) bar.push({ icon: "spark", label: "Ask an Agent", run: (x, y) => a.askAgent!(m.messageId, x, y) });
   } else {
-    if (a.pickReaction && talk) bar.push({ icon: "smile", label: "React", run: (x, y) => a.pickReaction!(m.messageId, x, y) });
-    bar.push({ icon: "reply", label: "Reply in thread", run: () => a.openThread(m.messageId) });
-    if (a.askAgent && talk) bar.push({ icon: "spark", label: "Ask an agent", run: (x, y) => a.askAgent!(m.messageId, x, y) });
+    if (a.pickReaction && talk) bar.push({ icon: "smile", label: "Add Reaction", run: (x, y) => a.pickReaction!(m.messageId, x, y) });
+    bar.push({ icon: "reply", label: "Reply in Thread", run: () => a.openThread(m.messageId) });
+    if (a.askAgent && talk) bar.push({ icon: "spark", label: "Ask an Agent", run: (x, y) => a.askAgent!(m.messageId, x, y) });
     if (mine && m.kind === "text") bar.push({ icon: "edit", label: "Edit", run: onEdit });
   }
   return (
@@ -398,7 +398,7 @@ function Replies({ m, replies, actions, mine }: { m: Message; replies: MessageVi
   return <ThreadFooter s={replies.s} threadId={replies.s.threadId} clock={replies.clock} nameOf={actions.nameOf ?? unnamed} mine={mine} testID={`replies-${m.messageId}`} onOpen={() => actions.openThread(m.messageId)} />;
 }
 
-function Mine({ item, actions, sending, mark, replies }: MessageViewProps & { item: Extract<Item, { kind: "me" }> }): ReactElement {
+function Mine({ item, actions, sending, mark, replies, meId }: MessageViewProps & { item: Extract<Item, { kind: "me" }> }): ReactElement {
   const m = item.message;
   const [sheet, setSheet] = useState(false);
   const h = useHover(() => setSheet(true));
@@ -455,7 +455,7 @@ function Mine({ item, actions, sending, mark, replies }: MessageViewProps & { it
         const tid = String((b.data as { threadId?: unknown } | null)?.threadId ?? "");
         return <Pressable key={b.id} accessibilityRole="link" testID={`from-thread-${m.messageId}`} onPress={() => (tid !== "" ? actions.openMessage?.(tid, "") : undefined)} style={st.fromThreadMine}><Text style={st.fromThread}>{FROM_THREAD_LINE}</Text></Pressable>;
       })}
-      <Reactions m={m} a={actions} mine />
+      <Reactions m={m} a={actions} mine meId={meId} />
       {actions.alsoSent?.has(m.messageId) ? <AlsoSentMark messageId={m.messageId} mine /> : null}
       <Replies m={m} replies={replies} actions={actions} mine />
       <LearnedLines messageId={m.messageId} />
@@ -624,7 +624,7 @@ function Theirs({ item, actions, stream, openWork, mark, meId, replies }: Messag
           <Text style={[st.via, st.muteLine]}>{`Mute agent messages from ${firstName(item.who.name.replace(/ \(Agent\)$/, ""))} for today`}</Text>
         </Pressable>
       ) : null}
-      <Reactions m={m} a={actions} mine={false} />
+      <Reactions m={m} a={actions} mine={false} meId={meId} />
       {actions.alsoSent?.has(m.messageId) ? <AlsoSentMark messageId={m.messageId} /> : null}
       <Replies m={m} replies={replies} actions={actions} mine={false} />
       <LearnedLines messageId={m.messageId} />
@@ -633,12 +633,17 @@ function Theirs({ item, actions, stream, openWork, mark, meId, replies }: Messag
   );
 }
 
-function Reactions({ m, a, mine }: { m: Message; a: MessageActions; mine: boolean }): ReactElement | null {
+/** A chip toggles your own reaction: add it when you have not reacted with that emoji, take it back when you have. */
+export function pressChip(a: Pick<MessageActions, "react">, messageId: string, emoji: string, by: readonly string[], meId: string): void {
+  a.react(messageId, emoji, by.includes(meId));
+}
+
+function Reactions({ m, a, mine, meId }: { m: Message; a: MessageActions; mine: boolean; meId: string }): ReactElement | null {
   if (m.reactions.length === 0) return null;
   return (
     <View testID={`reactions-${m.messageId}`} style={[st.reactions, mine && { alignSelf: "flex-end" }]}>
       {collect(m.reactions, (r) => (
-        <Pressable key={r.emoji} accessibilityRole="button" accessibilityLabel={`${r.emoji} ${r.by.length}`} onPress={() => a.react(m.messageId, r.emoji, true)} style={st.react}>
+        <Pressable key={r.emoji} accessibilityRole="button" accessibilityLabel={`${r.emoji} ${r.by.length}`} onPress={() => pressChip(a, m.messageId, r.emoji, r.by, meId)} style={[st.react, r.by.includes(meId) && st.reactMine]}>
           <Text style={st.reactText}>{`${r.emoji} ${r.by.length}`}</Text>
         </Pressable>
       ))}
@@ -868,6 +873,7 @@ export const st = StyleSheet.create({
   hoverTheirs: { right: 8 },
   reactions: { flexDirection: "row", flexWrap: "wrap", gap: 4, marginTop: 2 },
   react: { height: 24, paddingHorizontal: 8, borderRadius: RADIUS, justifyContent: "center", backgroundColor: "var(--sunk)" as string },
+  reactMine: { borderWidth: 1, borderColor: "var(--accent)" as string },
   reactText: { fontSize: 12, color: "var(--ink-2)" as string },
   card: { borderWidth: 1, borderColor: "var(--line)" as string, borderRadius: RADIUS, backgroundColor: "var(--side)" as string, maxWidth: 520 },
   cardWaiting: { borderColor: "var(--accent)" as string },

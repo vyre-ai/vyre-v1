@@ -191,7 +191,7 @@ export function AgentForm({ agentId, call, newKey, onDone, onCancel, say, sharin
 
         {sharing ? (
           <Section title="Who can use it" note={agentId === null ? "Only you, until you share it" : `${shares && sharing ? accessCount({ shares: shareRows(shares, sharing.nameOf, agentId), itemType: "agent", resourceId: agentId, ownerId: sharing.meId, ownerName: sharing.meName }) : 1} with access`}>
-            <View style={st.row}><Btn label="Share" testID="agent-share" onPress={() => { if (agentId === null) say("Create it first, then share it from here."); else setSharingOpen(true); }} /></View>
+            {agentId !== null ? <View style={st.row}><Btn label="Share" testID="agent-share" onPress={() => setSharingOpen(true)} /></View> : null}
           </Section>
         ) : null}
 

@@ -1,6 +1,6 @@
 // The right-click menu of an agent in Chats (team/v1/CONTEXT-MENUS.md). Pure: facts about the row and what the person may do go in, what each item does goes in, the entries of the one Menu surface come out.
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
-import { KEY, item, sep, tidy } from "./shared.ts";
+import { KEY, item, sep, starItem, tidy } from "./shared.ts";
 
 export interface AgentFacts {
   name: string;
@@ -52,7 +52,7 @@ export function agentMenu(f: AgentFacts, d: AgentDo): MenuEntry[] {
     d.editInstructions && f.manage && !f.assistant ? item("Edit Instructions", d.editInstructions) : null,
     f.manage && !f.assistant ? (f.status === "paused" ? item("Resume", d.resume) : item("Pause", d.pause)) : null,
     sep,
-    f.starred ? item("Remove Star", () => d.star(false), { hint: KEY.star }) : item("Star", () => d.star(true), { hint: KEY.star }),
+    starItem(f.starred, d.star),
     f.muted ? item("Unmute", () => d.mute(false)) : item("Mute", () => d.mute(true)),
     f.manage && !f.assistant ? sep : null,
     f.manage && !f.assistant ? item("Delete Agent…", d.remove, { danger: true, hint: KEY.remove }) : null,

@@ -1203,7 +1203,15 @@ async function folderMove(ctx: Ctx, input: unknown): Promise<{ folder: FolderOut
   ensureReady(ctx);
   const o = rec(ctx, input);
   const row = liveFolder(ctx, reqStr(ctx, o, "folderId"));
-  const dest = liveFolder(ctx, reqStr(ctx, o, "toParentId"));
+  // no folder given: the top of its own tree, the root it lives under (Personal, Projects, ...)
+  const toId = optStr(ctx, o, "toParentId");
+  let dest: Row;
+  if (toId !== undefined) dest = liveFolder(ctx, toId);
+  else {
+    let up: Row = row;
+    while (!isNull(up.parent_id)) up = mustFolder(ctx, String(up.parent_id));
+    dest = up;
+  }
   if (isRoot(row)) fail(ctx, "validation.precondition_failed", "A root folder stays where it is.");
   if (String(dest.id) === String(row.id) || underPath(dest, row)) {
     fail(ctx, "validation.precondition_failed", "A folder cannot move into itself.");

@@ -248,7 +248,8 @@ test("HTML source colouring: tags, attribute names, strings and comments, and th
 });
 
 test("the header has Preview as, Templates, Version history and Comments; Preview as lists only when there are contacts", () => {
-  const html = renderToStaticMarkup(<EmailBuilder {...base} contacts={CONTACTS} />);
+  const html = renderToStaticMarkup(<EmailBuilder {...base} contacts={CONTACTS} onSaveTemplate={() => undefined} />);
+  assert.ok(!renderToStaticMarkup(<EmailBuilder {...base} contacts={CONTACTS} />).includes('data-testid="em-templates"'), "no templates and nowhere to save one: no Templates button that opens an empty menu");
   for (const id of ["em-previewas", "em-templates", "em-history", "em-comments"]) assert.ok(html.includes(`data-testid="${id}"`), id);
   assert.match(html, /Preview as Elena Rivera/);
   assert.ok(!renderToStaticMarkup(<EmailBuilder {...base} />).includes('data-testid="em-previewas"'));
@@ -334,4 +335,10 @@ test("HTML previews sandbox author content and visual links retain real destinat
   const html = compileEmail([{ id: "image", kind: "image", src: "https://example.com/logo.png", alt: "Logo" }, { id: "button", kind: "button", text: "Read", href: "https://example.com/read" }]);
   assert.match(html, /src="https:\/\/example.com\/logo.png"/);
   assert.match(html, /href="https:\/\/example.com\/read"/);
+});
+
+test("the section tabs (Ask, Style and the rest) have no options button: its Close items would do nothing", () => {
+  const html = renderToStaticMarkup(<EmailBuilder {...base} />);
+  assert.ok(html.includes('data-testid="em-history"'), "the page rendered");
+  assert.ok(!html.includes('data-testid="tab-strip-more"'), "no overflow menu of Close commands");
 });

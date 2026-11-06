@@ -176,7 +176,7 @@ test("suggested changes: the owner accepts or dismisses; a person who cannot cha
   assert.equal(notes[0]!.text, "Accepted. AGENT.md has the change.");
   assert.ok(!has(html(s, "settings"), "Suggested changes"), "both are resolved, so the section is gone");
   const viewer = html(createSample("viewer"), "settings");
-  assert.ok(has(viewer, 'data-testid="suggested-sg1"') && !has(viewer, 'data-testid="accept-sg1"'));
+  assert.ok(!has(viewer, 'data-testid="suggested-sg1"') && !has(viewer, 'data-testid="accept-sg1"'), "a viewer sees the suggestion but has no button that does nothing");
 });
 
 test("Pause and Resume write and change the status line with the reason; Move to Trash asks first", async () => {

@@ -3141,7 +3141,7 @@
     {
       "deferred": false,
       "name": "files_folder_move",
-      "summary": "Move a folder under another folder (its sharing follows the new parent)",
+      "summary": "Move a folder under another folder, or to the top of its tree when no folder is given (its sharing follows the new parent)",
       "toolset": "files"
     },
     {

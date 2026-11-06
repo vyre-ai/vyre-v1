@@ -89,7 +89,9 @@ export function AppHubsView({ connections, servers, onConnect, onDisconnect }: A
       onPress={() => setOpen({ ...open, [c.connectionId]: !here })}
       trailing={<Pressable accessibilityRole="button" accessibilityLabel={`More about ${h.name}`} testID={`hub-more-${c.name}`} onPress={(e) => {
         const r = (e?.currentTarget as unknown as { getBoundingClientRect?(): { left: number; bottom: number } } | undefined)?.getBoundingClientRect?.();
-        menu.show([{ label: "Disconnect", danger: true, onSelect: () => onDisconnect(c.connectionId) }], r?.left ?? 20, r?.bottom ?? 100, "other");
+        const x = r?.left ?? 20, y = r?.bottom ?? 100;
+        // Disconnect asks first: the connection and what agents do through it stop
+        menu.show([{ label: "Disconnect", danger: true, onSelect: () => menu.show([{ head: `Disconnect ${h.name}? Agents stop using it.` }, { label: "Disconnect", danger: true, onSelect: () => onDisconnect(c.connectionId) }, { label: "Cancel" }], x, y, "other") }], x, y, "other");
       }} style={{ paddingHorizontal: 10, paddingVertical: 4 }}><Text style={{ fontSize: 18, color: "var(--ink-3)" }}>{"⋯"}</Text></Pressable>} />);
     if (!here) continue;
     const server = servers[c.name];

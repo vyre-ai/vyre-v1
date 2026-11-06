@@ -207,3 +207,8 @@ export const strokesToSave = (strokes: readonly Stroke[]): CapMap["files.markup.
 
 /** The one-line subtitle: where it is and when it changed. */
 export const subtitleOf = (d: ViewerData, now: number, path?: string): string => [path, `changed ${when(d.file.updatedAt, now)}`].filter(Boolean).join(" · ");
+
+/** The History menu: the file's versions newest first; the first is the one you are on, the rest restore when picked. */
+export function versionRows(versions: readonly { versionId: string; n: number; by: string; at: number; reason?: string }[], nameOf: (id: string) => string): { label: string; versionId: string | null; n: number }[] {
+  return versions.map((v, i) => ({ label: `v${v.n}${i === 0 ? " (now)" : ""} · ${nameOf(v.by)} · ${new Date(v.at).toISOString().slice(0, 16).replace("T", " ")}${v.reason ? ` · ${v.reason}` : ""}`, versionId: i === 0 ? null : v.versionId, n: v.n }));
+}

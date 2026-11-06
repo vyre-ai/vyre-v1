@@ -80,15 +80,15 @@ test("close others and close all keep pinned tabs", () => {
 
 test("the tab menu: extras first, then the close commands, icons all or none", () => {
   const ran: string[] = [];
-  const entries = tabMenuEntries(TABS, "a", [{ label: "Pin Tab", icon: "star" }], (op, key) => ran.push(`${op}:${key}`));
+  const entries = tabMenuEntries(TABS, "a", [{ label: "Pin", icon: "star" }], (op, key) => ran.push(`${op}:${key}`));
   const labels = entries.filter(isItem).map((e) => e.label);
-  assert.deepEqual(labels, ["Pin Tab", "Close Tab", "Close Other Tabs", "Close All Tabs"]);
+  assert.deepEqual(labels, ["Pin", "Close Tab", "Close Other Tabs", "Close All Tabs"]);
   assert.ok(entries.some(isSeparator), "a separator splits extras from the close commands");
   assert.ok(entries.filter(isItem).every((e) => typeof e.icon === "string" && e.icon.length > 0), "all have icons");
-  for (const entry of entries) if (isItem(entry) && entry.label !== "Pin Tab") entry.onSelect?.();
+  for (const entry of entries) if (isItem(entry) && entry.label !== "Pin") entry.onSelect?.();
   assert.deepEqual(ran, ["close:a", "closeOthers:a", "closeAll:a"]);
 
-  const mixed = tabMenuEntries(TABS, "a", [{ label: "Pin Tab" }], () => undefined);
+  const mixed = tabMenuEntries(TABS, "a", [{ label: "Pin" }], () => undefined);
   assert.ok(mixed.filter(isItem).every((e) => e.icon === undefined), "one extra without an icon drops every icon");
 
   const pinned = tabMenuEntries(TABS, "home", [], () => undefined).filter(isItem).map((e) => e.label);
@@ -99,7 +99,7 @@ test("the tab menu: extras first, then the close commands, icons all or none", (
 
 test("an extra's own handler is kept", () => {
   let hit = 0;
-  const entries = tabMenuEntries(TABS, "a", [{ label: "Pin Tab", icon: "star", onSelect: () => { hit += 1; } }], () => undefined);
+  const entries = tabMenuEntries(TABS, "a", [{ label: "Pin", icon: "star", onSelect: () => { hit += 1; } }], () => undefined);
   const first = entries[0];
   assert.ok(first !== undefined && isItem(first));
   first.onSelect?.();
