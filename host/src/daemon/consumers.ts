@@ -18,6 +18,9 @@ import type { RawDb } from "../ctx/db.ts";
 
 export const MAX_TRIES = 5;
 const PAGE = 200;
+/** After this many deliveries the pass lets the event loop run (requests wait behind a long backlog otherwise). */
+const YIELD_EVERY = 8;
+const yieldLoop = (): Promise<void> => new Promise((r) => setImmediate(r));
 /** How often the runs module's escalation clock is swept. */
 export const RUNS_ESCALATION_EVERY_MS = 60_000;
 export const SYSTEM_PRINCIPAL = { kind: "service", id: "svc_host" } as const;
@@ -220,6 +223,7 @@ export function createHookRunner(d: HookRunnerDeps): HookRunner {
   async function passFor(c: ConsumerDef): Promise<void> {
     let at = cursor(c.name);
     if (at === undefined) return;   // start() has not run for it yet
+    let delivered = 0;
     for (;;) {
       const page = await d.log.read({ after: at, limit: PAGE });
       if (!page.length) return;
@@ -229,10 +233,12 @@ export function createHookRunner(d: HookRunnerDeps): HookRunner {
           if (!(await deliver(c, e))) { setCursor(c.name, at); return; }   // stop here: this event is tried again on the next pass, before any later one
           at = e.seq;
           setCursor(c.name, at);   // a delivered event is recorded at once, so a crash repeats at most the one in flight
+          if (++delivered % YIELD_EVERY === 0) await yieldLoop();
         } else at = e.seq;
       }
       setCursor(c.name, at);
       if (page.length < PAGE) return;
+      await yieldLoop();
     }
   }
 
