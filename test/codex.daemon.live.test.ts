@@ -7,6 +7,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { bootCore } from "../fixtures/seed/core/index.ts";
 import { fakePlatform } from "../host/src/platform/index.ts";
@@ -21,6 +22,17 @@ const why = HOME === "" || !fs.existsSync(path.join(HOME, "auth.json")) ? "VYRE_
   : process.env["VYRE_TEST_CODEX_VAULT_IMPORT"] !== "1" ? "VYRE_TEST_CODEX_VAULT_IMPORT=1 is not set: this test copies the sign-in into a throwaway Vault"
   : process.platform !== "linux" || !["/usr/bin/bwrap", "/usr/local/bin/bwrap", "/bin/bwrap"].some((p) => fs.existsSync(p)) ? "this test runs the bubblewrap sandbox: Linux with bwrap"
   : spawnSync("codex", ["--version"]).status !== 0 ? "the codex program is not installed here" : false;
+
+/** Refreshing the token would rotate the owner's original sign-in, so the test never lets one start: it needs the access token to have at least an hour left (Codex refreshes only an expired one), and it checks afterwards that the original file is byte for byte unchanged. */
+const authFile = path.join(HOME, "auth.json");
+const digest = (): string => createHash("sha256").update(fs.readFileSync(authFile)).digest("hex");
+const hoursLeft = (): number => {
+  try {
+    const t = (JSON.parse(fs.readFileSync(authFile, "utf8")) as { tokens?: { access_token?: string } }).tokens?.access_token ?? "";
+    const exp = (JSON.parse(Buffer.from(t.split(".")[1] ?? "", "base64url").toString()) as { exp?: number }).exp ?? 0;
+    return (exp * 1000 - Date.now()) / 3_600_000;
+  } catch { return -1; }
+};
 
 const caddyFetch: FetchFn = () => Promise.resolve({ ok: true, status: 200, headers: { get: () => null }, text: () => Promise.resolve('{"apps":{"http":{}}}') });
 
@@ -41,6 +53,8 @@ const find = (root: string, name: string): string | null => {
 };
 
 test("a chat on a Codex sign-in: a plain turn, a turn that runs a command and writes a file in the agent's folder, and a turn that resumes the same Codex session", { skip: why, timeout: 110_000 }, async () => {
+  assert.ok(hoursLeft() > 1, "the access token has under an hour left: a refresh could rotate the original sign-in, so the test does not run");
+  const before = digest();
   process.env["CODEX_HOME"] = HOME;   // the reader of "the sign-in on this computer" looks here
   const dir = seededDir();
   const d: Daemon = await startDaemon({
@@ -91,5 +105,8 @@ test("a chat on a Codex sign-in: a plain turn, a turn that runs a command and wr
     assert.match(await ask("What word is in hello.txt? Answer with just the word."), /sandboxed/i);
     const turns = (await ok("engine.turns.list", { threadId })).turns as Any[];
     assert.ok(turns.length >= 3 && turns.every((t) => t.state === "completed"), `all turns completed: ${JSON.stringify(turns.map((t) => [t.state, t.error?.code]))}`);
-  } finally { await d.stop(); fs.rmSync(dir, { recursive: true, force: true }); }
+  } finally {
+    await d.stop(); fs.rmSync(dir, { recursive: true, force: true });
+    assert.equal(digest(), before, "the original sign-in was not touched");
+  }
 });
