@@ -82,9 +82,9 @@ export const UNDO_MS = 8_000;
 const EMPTY_RECENT: RecentOut = { starred: [], today: [], yesterday: [], earlier: [], archived: [], nextUnread: null };
 
 /** Rows that react to the pointer: the row's "..." appears on hover. */
-function Hot({ children }: { children: (over: boolean) => ReactElement }): ReactElement {
+function Hot({ children, testID }: { children: (over: boolean) => ReactElement; testID?: string }): ReactElement {
   const [over, setOver] = useState(false);
-  return <View style={{ height: ROW_H }} {...{ onMouseEnter: () => setOver(true), onMouseLeave: () => setOver(false) }}>{children(over)}</View>;
+  return <View {...(testID ? { testID } : {})} style={{ height: ROW_H }} {...{ onMouseEnter: () => setOver(true), onMouseLeave: () => setOver(false) }}>{children(over)}</View>;
 }
 
 export function useSidebarApi(onLocal: (row: ChatRow) => void, onSettled: (localId: string) => void): SidebarApi {
@@ -644,10 +644,10 @@ function Sidebar({ window, query, slot, open: shown, startFilter }: { window?: V
         return e.to === "notes" ? wrap(row) : row;
       }
       case "digest": return (
-        <View style={{ height: ROW_H }} testID="away-digest-row">
-          <Row id={e.key} title="While you were away" selected={sel} hovered={lit} onPress={(ev) => { setCursor(e.key); const [x, y] = at(ev); digestMenu(x, y); }} leading={<LeadGlyph name="clock" />}
-            trailing={lit ? <Pressable accessibilityRole="button" accessibilityLabel="Mark all seen" testID="away-digest-seen" onPress={() => seenDigest()} style={st.seenBtn}><Text style={st.seenText}>Mark all seen</Text></Pressable> : <Text testID="away-digest-count" style={st.navCount}>{e.count}</Text>} />
-        </View>
+        <Hot testID="away-digest-row">{(over) => (
+          <Row id={e.key} title="While you were away" selected={sel} hovered={lit} onPress={(ev) => { setCursor(e.key); const [x, y] = at(ev); digestMenu(x, y); }}
+            trailing={over || lit ? <Pressable accessibilityRole="button" accessibilityLabel="Mark all seen" testID="away-digest-seen" onPress={() => seenDigest()} style={st.seenBtn}><Text style={st.seenText}>Mark all seen</Text></Pressable> : <Text testID="away-digest-count" style={st.navCount}>{e.count}</Text>} />
+        )}</Hot>
       );
       case "pulse": return (
         <View style={{ height: ROW_H }} testID={`pulse-${e.kind}-${e.id}`}>

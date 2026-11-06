@@ -33,6 +33,25 @@ for (const skin of ["paper", "graphite"]) for (const [size, vp] of Object.entrie
   console.log(file, errs.length ? `errors: ${errs.join(" | ")}` : "no page errors");
   await ctx.close();
 }
+// states: the people popover, the chart's quiet controls on hover, and Mark all seen on the away row
+for (const skin of ["paper", "graphite"]) {
+  const ctx = await browser.newContext({ viewport: SIZES.w1440, deviceScaleFactor: 1, colorScheme: skin === "graphite" ? "dark" : "light", reducedMotion: "reduce" });
+  const page = await ctx.newPage();
+  await page.goto(routeUrl(real.origin, "/m/CALM_01", skin), { waitUntil: "load", timeout: 60000 });
+  await page.waitForSelector("[data-testid='conversation-feed']", { timeout: 30000 });
+  await page.waitForTimeout(1200);
+  await page.hover("[data-testid='away-digest-row']");
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: path.join(out, `real-${skin}-w1440-awayhover.png`), clip: { x: 0, y: 0, width: 280, height: 260 } });
+  const chart = await page.$("[data-testid^='block-'] [data-testid^='chart-']");
+  if (chart) { await chart.hover(); await page.waitForTimeout(300); await page.screenshot({ path: path.join(out, `real-${skin}-w1440-charthover.png`) }); }
+  await page.click("[data-testid='participants-button']");
+  await page.waitForSelector("[data-testid='people-popover']", { timeout: 10000 });
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: path.join(out, `real-${skin}-w1440-people.png`) });
+  console.log("states", skin);
+  await ctx.close();
+}
 await browser.close();
 real.close?.();
 process.exit(0);
