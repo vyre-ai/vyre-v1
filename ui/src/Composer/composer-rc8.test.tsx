@@ -429,3 +429,38 @@ test("a send that fails gives the draft back with the reason and Try again; tryi
   assert.equal(find(root, "composer-send-error"), null, "a good send clears the line");
   assert.equal(find(root, "composer-field")!.props.value, "", "and the field is empty again");
 });
+
+for (const how of ["escape", "strip", "again"] as const) {
+  test(`the side list goes with the menu when it closes by ${how}: no layer left behind`, async () => {
+    await withDom(async () => {
+      const root = await mount(createRoot, <PanelHost log={[]} usageOf={() => null} />);
+      await press(find(root, "composer-strip"));
+      await press(find(root, "model-model"));
+      assert.ok(find(root, "model-sub"), "the side list is open");
+      if (how === "escape") {
+        await keyDown(find(root, "model-panel"), "Escape");
+        assert.equal(find(root, "model-sub"), null, "the first Escape closes the side list");
+        assert.ok(find(root, "model-panel"), "and leaves the menu");
+        await keyDown(find(root, "model-panel"), "Escape");
+      } else if (how === "strip") await press(find(root, "composer-strip"));
+      else { await press(find(root, "row-model-sonnet")); await press(find(root, "composer-strip")); }
+      assert.equal(find(root, "model-panel"), null, "the menu is gone");
+      assert.equal(find(root, "model-sub"), null, "the side list is gone with it");
+    });
+  });
+}
+
+test("choosing another row closes the side list and opens that row's", async () => {
+  await withDom(async () => {
+    const root = await mount(createRoot, <PanelHost log={[]} usageOf={() => null} />);
+    await press(find(root, "composer-strip"));
+    await press(find(root, "model-model"));
+    assert.ok(find(root, "model-sub"));
+    await press(find(root, "model-model"));
+    assert.equal(find(root, "model-sub"), null, "the same row again closes it");
+    await press(find(root, "model-model"));
+    await press(find(root, "model-more-row"));
+    assert.equal(find(root, "model-sub") !== null, true, "another row's list");
+    assert.equal(find(root, "row-model-sonnet"), null, "the Model list is not left beside it");
+  });
+});

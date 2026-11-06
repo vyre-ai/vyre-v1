@@ -8,3 +8,4 @@
 - Conversation: "Jump to latest" is its own row under the list, at the right, and never covers text; the header drops member faces before the chat name is cut.
 - Thread pane: opens at about 40% of the room beside the sidebar (360 to 560 px); still resizable.
 - Top bar: a goal that went Stuck no longer interrupts the top bar; it stays in the goal and in Needs you.
+- Model menu: the side list (Model, Provider, Runs on) goes with the menu in the same frame by every way it closes, and has no animation layer of its own, so no half-drawn ghost of it is left on screen.
