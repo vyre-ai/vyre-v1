@@ -1,6 +1,7 @@
 // Goals, as the screens draw them: the words of a status, the note under a row, the steady bar, the chart, the budget line and the activity by day. Pure, so the sidebar, the goal page,
 // the card in a chat and the phone read one source, and the tests read it without a screen.
 
+import { countLabel } from "../../../../../../ui/src/tokens/calm.ts";
 import { dateIn, dayIn, dueText, instantOf, localInput, whenText } from "../../../../../../lib/zones.ts";
 import type { Zones } from "../../../../../../lib/zones.ts";
 /** A dash (hyphen, en or em) left at the end of a line once the deadline is cut off. Built from code points so no dash character sits in the source (no-em-dash lint). */
@@ -61,6 +62,12 @@ export function numberOf(p: Progress): string {
   if (p.target !== undefined) return p.value === undefined ? (p.error ? "Can't read" : "Not read yet") : `${fmt(p.value)} / ${fmt(p.target)}`;
   if (p.items !== undefined) return `${p.itemsDone ?? 0} of ${p.items}`;
   return `${p.tasksDone} of ${p.tasks} tasks`;
+}
+/** The quiet count in a sidebar row: "212/300", "3/5", "2/4". No bar, no words (the calm pass); a number that could not be read says nothing. */
+export function countOf(p: Progress): string {
+  if (p.target !== undefined) return p.value === undefined ? "" : countLabel(Math.round(p.value), Math.round(p.target));
+  if (p.items !== undefined) return countLabel(p.itemsDone ?? 0, p.items);
+  return countLabel(p.tasksDone, p.tasks);
 }
 export const fmt = (n: number): string => (Number.isInteger(n) ? n.toLocaleString("en-US") : n.toLocaleString("en-US", { maximumFractionDigits: 1 }));
 

@@ -150,7 +150,7 @@ export const anthropic: ProviderAdapter = {
   decoder,
   modelsRequest: () => ({ path: "/v1/models?limit=100", headers: { "anthropic-version": VERSION } }),
   parseModels(json): ModelInfo[] {
-    const rows = (json as { data?: Array<{ id?: unknown; display_name?: unknown }> } | null)?.data ?? [];
-    return rows.filter((r) => typeof r.id === "string").map((r) => ({ id: String(r.id), ...(typeof r.display_name === "string" ? { label: r.display_name } : {}) }));
+    const rows = (json as { data?: Array<{ id?: unknown; display_name?: unknown; max_input_tokens?: unknown }> } | null)?.data ?? [];
+    return rows.filter((r) => typeof r.id === "string").map((r) => ({ id: String(r.id), ...(typeof r.display_name === "string" ? { label: r.display_name } : {}), ...(typeof r.max_input_tokens === "number" && r.max_input_tokens > 0 ? { contextTokens: r.max_input_tokens } : {}) }));
   },
 };

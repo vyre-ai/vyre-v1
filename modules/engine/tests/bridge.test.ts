@@ -553,3 +553,11 @@ test("an agent's hand-off cut at the hop limit is never silent: one quiet line i
   const note = s.chat.flatMap((r) => r.blocks as Array<{ type?: string; data?: { text?: string } }>).find((b) => b.type === "turn_status" && /Stopped passing this on after 3 hand-offs/.test(b.data?.text ?? ""));
   assert.ok(note, "the chat says so, once");
 });
+
+import { serverCause } from "../handlers/bridge.ts";
+test("a server setup cause in the engine's own words becomes a fixed word, and nothing else does", () => {
+  assert.equal(serverCause("claude exited with code 1: bwrap: No permissions to create new namespace, likely because the kernel does not allow non-privileged user namespaces"), "sandbox");
+  assert.equal(serverCause("Unable to find image 'vyre-engine:1' locally"), "image");
+  assert.equal(serverCause("the engine exited with code 137"), undefined);
+  assert.equal(serverCause(""), undefined);
+});

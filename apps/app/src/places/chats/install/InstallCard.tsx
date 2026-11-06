@@ -1,11 +1,13 @@
 // The install card (owner, 4 Nov 2026; prototype r-install): an agent was given a link and read it into a plan; this is the card that waits for the person. It says what it is, what it does, what it needs,
 // the exact commit and who gets it, then Install, Edit (the name agents will see) and Not now. After Install it is one quiet line with Open. An update is one quiet line, See changes, and a diff card
 // with Update and Not now. The card reads its plan by id (install.get), so it is right after a reload and on another device.
+import { CARD_INSET, Card, CardActions, CardHead } from "../../../../../../ui/src/Card/index.tsx";
+import { RADIUS } from "../../../../../../ui/src/tokens/radius.ts";
 import { useCallback, useEffect, useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import type { ConversationData } from "../conversation/data.tsx";
-import { TextButton } from "../conversation/parts.tsx";
+import { Glyph, TextButton } from "../conversation/parts.tsx";
 import { Face } from "../needsyou/parts.tsx";
 import { KIND_WORDS, SCOPES, choices, diffRows, doneLine, changedCount, needsLines, pinnedLine, shortOf, titleOf, isOlder, losesWords } from "./model.ts";
 import type { Plan, RunOn, Scope } from "./model.ts";
@@ -123,41 +125,28 @@ export function InstallCard({ id, data, chat, mine = true }: { id: string; data:
           <Pressable accessibilityRole="button" testID={`install-diff-toggle-${id}`} onPress={() => setDiff((x) => !x)}><Text style={st.link}>{diff ? "Hide changes" : "See changes"}</Text></Pressable>
         </View>
         {diff ? (
-          <View testID={`install-diff-${id}`} style={st.card}>
-            <View style={st.head2}>
-              <Face name={chat.agentName ?? "Assistant"} size={22} />
-              <View style={st.headText}>
-                <Text accessibilityRole="header" style={st.title}>{titleOf(plan)}</Text>
-                <Text style={st.summary}>{`${shortOf(d.from)} to ${shortOf(d.to)} · ${changedCount(d)} ${changedCount(d) === 1 ? "file" : "files"} changed`}</Text>
-              </View>
-            </View>
+          <Card kind="result" testID={`install-diff-${id}`} label={titleOf(plan)}>
+            <CardHead title={titleOf(plan)} meta={`${shortOf(d.from)} to ${shortOf(d.to)} · ${changedCount(d)} ${changedCount(d) === 1 ? "file" : "files"} changed`} lead={<Face name={chat.agentName ?? "Assistant"} size={22} />} />
             <View style={st.diff}>
               {/* ui-rows-lint: not a list (the lines of one diff) */}
               {diffRows(d).map((r, i) => <Text key={i} style={[st.mono, r.kind === "head" && st.head, r.kind === "add" && st.add, r.kind === "del" && st.del]}>{r.text}</Text>)}
             </View>
             {isOlder(plan) && losesWords(d) !== "" ? <Text testID={`install-loses-${id}`} style={st.sub}><Text style={st.warn}>Older version:</Text>{` ${losesWords(d)}`}</Text> : null}
             {(d.newAccess ?? []).length > 0 ? <Text testID={`install-newaccess-${id}`} style={st.sub}><Text style={st.warn}>New access:</Text>{` it now also reaches ${(d.newAccess ?? []).join(", ")}. Everything else is the same.`}</Text> : null}
-            {mine ? <View style={st.row}>
-              <TextButton label={isOlder(plan) ? "Go back to it" : "Update"} primary icon="check" disabled={busy} testID={`install-update-go-${id}`} onPress={() => { void install(); }} />
-              <TextButton label="Not now" testID={`install-update-no-${id}`} onPress={() => setDiff(false)} />
-            </View> : null}
+            {mine ? <CardActions busy={busy} primary={{ label: isOlder(plan) ? "Go back to it" : "Update", icon: <Glyph name="check" size={13} color="var(--accent-ink)" />, onPress: () => { void install(); }, testID: `install-update-go-${id}` }} secondary={[{ label: "Not now", onPress: () => setDiff(false), testID: `install-update-no-${id}` }]} /> : null}
             {line ? <Text testID={`install-line-${id}`} style={st.sub}>{line}</Text> : null}
-          </View>
+          </Card>
         ) : null}
       </View>
     );
   }
 
   return (
-    <View testID={`install-${id}`} accessibilityLabel={`Install ${plan.name}?`} style={st.card}>
-      <View style={st.head2}>
-        <Face name={chat.agentName ?? "Assistant"} size={22} />
-        <View style={st.headText}>
-          <Text accessibilityRole="header" style={st.title}>{`Install ${shown} (${KIND_WORDS[plan.kind]})`}</Text>
-          <Text testID={`install-summary-${id}`} style={st.summary}>{plan.summary}</Text>
-        </View>
-      </View>
+    <Card kind="decision" testID={`install-${id}`} label={`Install ${plan.name}?`} onCancel={editing ? () => { setName(null); setEditing(false); } : undefined}>
+      <CardHead title={`Install ${shown}`} lead={<Face name={chat.agentName ?? "Assistant"} size={22} />} />
+      <Text testID={`install-summary-${id}`} style={st.summary}>{plan.summary}</Text>
       <View style={st.grid}>
+        {plan.kind !== "skill" ? <Row k="Type" v={KIND_WORDS[plan.kind]} /> : null}
         <Row k="Source" v={`${plan.repo}${plan.path ? `/${plan.path}` : ""}`} mono />
         <Row k="Needs" v={`Network: ${needs.network}\nVault: ${needs.vault}${needs.files !== "none" ? `\nFiles: ${needs.files}` : ""}`} testID={`install-needs-${id}`} />
         <Row k={pin.label} v={pin.value} mono={Boolean(plan.commit)} testID={`install-pin-${id}`} />
@@ -210,16 +199,16 @@ export function InstallCard({ id, data, chat, mine = true }: { id: string; data:
           <View style={st.row}><TextButton label="Save" primary testID={`install-name-save-${id}`} onPress={() => setEditing(false)} /><TextButton label="Cancel" onPress={() => { setName(null); setEditing(false); }} /></View>
         </View>
       ) : mine ? (
-        <View style={st.btns}>
-          <TextButton label="Install" primary icon="check" disabled={busy || missing.length > 0 || (needsKey && vault.trim() === "")} testID={`install-go-${id}`} onPress={() => { void install(); }} />
-          <TextButton label="Edit" ring icon="edit" testID={`install-edit-${id}`} onPress={() => setEditing(true)} />
-          <TextButton label="Don't install" testID={`install-no-${id}`} onPress={() => setState("declined")} />
-        </View>
+        <CardActions
+          busy={busy}
+          primary={{ label: "Install", icon: <Glyph name="check" size={13} color="var(--accent-ink)" />, disabled: missing.length > 0 || (needsKey && vault.trim() === ""), onPress: () => { void install(); }, testID: `install-go-${id}` }}
+          secondary={[{ label: "Edit", icon: <Glyph name="edit" size={13} color="var(--ink-2)" />, onPress: () => setEditing(true), testID: `install-edit-${id}` }, { label: "Don't install", onPress: () => setState("declined"), testID: `install-no-${id}` }]}
+        />
       ) : <Text style={st.sub}>Waiting for the person who asked.</Text>}
       {mine && !editing && missing.length > 0 ? <Text testID={`install-waits-${id}`} style={st.sub}>Add the key first.</Text> : null}
       {mine && !editing && missing.length === 0 && needsKey && vault.trim() === "" ? <Text testID={`install-waits-${id}`} style={st.sub}>Pick a key to continue.</Text> : null}
       {line ? <Text testID={`install-line-${id}`} style={st.sub}>{line}</Text> : null}
-    </View>
+    </Card>
   );
 }
 
@@ -232,16 +221,13 @@ function Pill({ on, label, onPress, testID }: { on: boolean; label: string; onPr
 }
 
 const st = StyleSheet.create({
-  card: { borderRadius: 16, padding: 12, gap: 8, backgroundColor: "var(--sunk)" as string, maxWidth: 560 },
-  head2: { flexDirection: "row", gap: 10, alignItems: "flex-start" },
-  headText: { flex: 1, minWidth: 0, gap: 1 },
   summary: { fontSize: 12, lineHeight: 17, color: "var(--ink-3)" as string },
   warn: { color: "var(--warn)" as string, fontWeight: "600" },
   dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: "var(--ink-4, var(--ink-3))" as string, marginRight: 2 },
   gap: { gap: 6 },
   title: { fontSize: 13.5, fontWeight: "600", color: "var(--ink)" as string },
   sub: { fontSize: 12.5, color: "var(--ink-2)" as string, lineHeight: 18 },
-  grid: { gap: 7, backgroundColor: "var(--bg)" as string, borderRadius: 10, padding: 10 },
+  grid: { gap: 7, backgroundColor: CARD_INSET, borderRadius: RADIUS, padding: 10 },
   keys: { flex: 1, gap: 6 },
   vtext: { fontSize: 13, lineHeight: 19, color: "var(--ink)" as string },
   keyInput: { flex: 0, alignSelf: "stretch", minHeight: 34 },
@@ -253,16 +239,15 @@ const st = StyleSheet.create({
   head: { color: "var(--ink-3)" as string, marginTop: 4 },
   add: { backgroundColor: "var(--ok-wash, rgba(60,160,90,0.14))" as string },
   del: { backgroundColor: "var(--danger-wash, rgba(200,70,70,0.12))" as string, color: "var(--ink-2)" as string },
-  diff: { backgroundColor: "var(--bg)" as string, borderRadius: 10, paddingVertical: 6, paddingHorizontal: 8 },
+  diff: { backgroundColor: CARD_INSET, borderRadius: RADIUS, paddingVertical: 6, paddingHorizontal: 8 },
   seg: { flexDirection: "row", flexWrap: "wrap", gap: 2, padding: 2, borderRadius: 9, backgroundColor: "var(--hover)" as string, flexShrink: 1, flexGrow: 0, alignSelf: "flex-start", minWidth: 0, maxWidth: "100%" },
   pill: { height: 26, paddingHorizontal: 10, borderRadius: 7, justifyContent: "center" },
   pillOn: { backgroundColor: "var(--raised)" as string },
   pillText: { fontSize: 12.5, color: "var(--ink-3)" as string },
   pillTextOn: { color: "var(--ink)" as string },
   row: { flexDirection: "row", gap: 8, flexWrap: "wrap", marginTop: 2, alignItems: "center" },
-  btns: { flexDirection: "row", gap: 6, flexWrap: "nowrap", marginTop: 2, alignItems: "center" },
   edit: { gap: 6 },
-  input: { flex: 1, height: 34, borderWidth: 1, borderColor: "var(--line)" as string, borderRadius: 9, paddingHorizontal: 10, fontSize: 13, color: "var(--ink)" as string, backgroundColor: "var(--field)" as string },
+  input: { flex: 1, height: 34, borderWidth: 1, borderColor: "var(--line)" as string, borderRadius: RADIUS, paddingHorizontal: 12, fontSize: 13, color: "var(--ink)" as string, backgroundColor: "var(--field)" as string },
   quiet: { flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 2, flexWrap: "wrap" },
   quietText: { fontSize: 12.5, color: "var(--ink-3)" as string },
   link: { fontSize: 12.5, color: "var(--accent)" as string },

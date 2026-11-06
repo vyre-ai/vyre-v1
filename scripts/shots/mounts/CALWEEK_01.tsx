@@ -27,7 +27,8 @@ export default function Mount(): ReactNode {
   if (!q) return <View style={{ flex: 1 }} />;
   const phone = width > 0 && width < 720;
   const mode = (q.get("view") ?? (phone ? "day" : "week")) as Mode;
-  const day = TODAY + Number(q.get("day") ?? 0) * DAY;
+  const off = Number(q.get("tzoff") ?? 0) || 0;   // a viewer east or west of UTC (minutes): their today starts at their own midnight
+  const day = (off === 0 ? TODAY : startOfDay(SAMPLE_NOW + SHIFT, off)) + Number(q.get("day") ?? 0) * DAY;
   const cal = <Calendar me={ME} team={TEAM} initial={{ mode, day }} onJoin={() => undefined} onOpenUrl={() => undefined} onAsk={() => undefined} onOpenMeeting={() => undefined} onOpenFile={() => undefined} />;
   return (
     <InboxDataProvider value={data}>

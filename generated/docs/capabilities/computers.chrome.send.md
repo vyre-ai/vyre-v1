@@ -26,6 +26,7 @@ Send a held send, post or payment: the person approves it first (Gate)
 ```ts
 type In = {
   computerId?: string;
+  inMyChrome?: boolean;
   heldId: string;
   idempotencyKey: string;
 };
@@ -60,7 +61,8 @@ type Out = {
   "input": {
     "computerId": "cmt_a1b2c3",
     "heldId": "example",
-    "idempotencyKey": "idem_1"
+    "idempotencyKey": "idem_1",
+    "inMyChrome": true
   },
   "output": {
     "sent": true,

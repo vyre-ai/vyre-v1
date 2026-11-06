@@ -5,7 +5,6 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { createNoticeStore, PASSING_MS, PRIORITY, slotView } from "./model.ts";
 import { NoticeSlot } from "./NoticeSlot.tsx";
 import { PhoneNotices } from "./PhoneNotices.tsx";
-import { isLocked, lockAvailable, registerLockControl, toggleLock } from "./lock-control.ts";
 import { matchShortcut, keyboardRows } from "../keyboard/map.ts";
 import { shellKey, SHELL_KEYS } from "../spaces/keys.ts";
 
@@ -67,18 +66,7 @@ test("the slot shows the top notice with its one action and +N; the popover list
   assert.doesNotMatch(phone, /Sign-ins locked Unlock/, "a bell, not a line");
 });
 
-test("the lock action: the notice's Unlock runs, and Cmd-L locks while unlocked and opens the password sheet while locked", () => {
-  const seen: string[] = [];
-  let locked = false;
-  registerLockControl({ locked: () => locked, lock: async () => { seen.push("lock"); locked = true; }, unlock: () => { seen.push("unlock"); } });
-  assert.equal(lockAvailable(), true);
-  assert.equal(toggleLock(), true);
-  assert.deepEqual(seen, ["lock"]);
-  assert.equal(isLocked(), true);
-  assert.equal(toggleLock(), true);
-  assert.deepEqual(seen, ["lock", "unlock"], "locked: the same key opens the sheet");
-  registerLockControl(null);
-  assert.equal(toggleLock(), false, "no key to lock here: the key is left alone");
+test("a notice's action runs when pressed", () => {
   const s = createNoticeStore();
   let pressed = 0;
   s.raise({ id: "locked", kind: "locked", text: "Sign-ins locked", action: { label: "Unlock", run: () => { pressed++; } } });
@@ -86,28 +74,17 @@ test("the lock action: the notice's Unlock runs, and Cmd-L locks while unlocked 
   assert.equal(pressed, 1);
 });
 
-test("Cmd-L on a Mac and Ctrl-L elsewhere is Lock Vyre; a terminal keeps Ctrl-L for clearing its screen; it is in the shortcut lists", () => {
-  assert.deepEqual(shellKey({ key: "l", metaKey: true }), { type: "lock" });
-  assert.deepEqual(shellKey({ key: "L", ctrlKey: true }), { type: "lock" });
-  assert.equal(shellKey({ key: "l" }), null, "a plain L is typing");
-  assert.deepEqual(matchShortcut({ key: "l", metaKey: true }, "mac"), { id: "vault.lock" });
-  assert.deepEqual(matchShortcut({ key: "l", ctrlKey: true }, "other"), { id: "vault.lock" });
-  assert.equal(matchShortcut({ key: "l", ctrlKey: true }, "other", { inTerminal: true }), null);
-  assert.equal(matchShortcut({ key: "l", ctrlKey: true }, "mac"), null, "Ctrl-L is not the shortcut on a Mac");
-  const rows = keyboardRows("mac");
-  assert.equal(rows.find((r) => r.id === "vault.lock")?.keys, "⌘L");
-  assert.equal(keyboardRows("other").find((r) => r.id === "vault.lock")?.keys, "Ctrl+L");
-  assert.ok(SHELL_KEYS.some((k) => k.keys === "Cmd-L"));
-  // nothing else in either table uses the same key
-  assert.equal(rows.filter((r) => r.keys === "⌘L").length, 1);
+test("Cmd-L is not a shortcut any more: signed in means unlocked, so a plain Cmd-L is left to the page or the browser", () => {
+  assert.equal(shellKey({ key: "l", metaKey: true }), null);
+  assert.equal(shellKey({ key: "L", ctrlKey: true }), null);
+  assert.equal(matchShortcut({ key: "l", metaKey: true }, "mac"), null);
+  assert.equal(keyboardRows("mac").some((r) => r.id === "vault.lock"), false);
+  assert.equal(SHELL_KEYS.some((k) => k.keys === "Cmd-L"), false);
 });
 
-test("Cmd-K offers Lock Vyre while unlocked and Unlock while locked, and nothing where there is no key to lock", async () => {
+test("Cmd-K has no Lock or Unlock command", async () => {
   const { gateActions } = await import("../cmdk/gate.ts");
-  const base = { away: false, offline: false };
-  assert.equal(gateActions(base).some((a) => a.key === "vault.lock"), false, "no key door here: no command");
-  assert.deepEqual(gateActions({ ...base, lock: { available: true, locked: false } }).find((a) => a.key === "vault.lock")?.title, "Lock Vyre");
-  assert.deepEqual(gateActions({ ...base, lock: { available: true, locked: true } }).find((a) => a.key === "vault.lock")?.title, "Unlock");
+  assert.equal(gateActions({ away: false, offline: false }).some((a) => a.key === "vault.lock"), false);
 });
 
 test("the phone has one slim row with the bell only while something needs the person", () => {

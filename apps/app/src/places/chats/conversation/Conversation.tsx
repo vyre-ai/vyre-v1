@@ -16,6 +16,8 @@ import type { Call } from "../details/read.ts";
 import { DECIDED_LINE, isDecided } from "../../../shell/decided.ts";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
+import { COLUMN, RADIUS, gutterFits } from "../../../../../../ui/src/tokens/calm.ts";
+import { GutterContext } from "./gutter.ts";
 import { Platform, Pressable, StyleSheet, Text, TextInput, useWindowDimensions, View } from "react-native";
 import type { ComposerSend, ListItem } from "../../../../../../ui/src/Composer/index.tsx";
 import { DeferredComposer as Composer } from "../../../../../../ui/src/Composer/Deferred.tsx";
@@ -36,6 +38,7 @@ import { droppedOf, sharedLine, shareWithAgents, undoShare } from "./dropshare.t
 import { ConversationDataProvider, useConversationData, useOnline, useOptionalConversationData, useScreenQuery } from "./data.tsx";
 import type { ConversationData, ConversationNav } from "./data.tsx";
 import * as act from "./actions.ts";
+import { newDelegates, stableActions } from "./stable-actions.ts";
 import { ChatMemoryProvider } from "../memory/thread.tsx";
 import { keepItem, weave } from "../tasks/activity.ts";
 import { useMemoryEntries } from "../memory/menu.tsx";
@@ -55,12 +58,15 @@ import type { ReplySummary } from "./replies.ts";
 import type { LiveQuery } from "../../../../../../client/src/index.ts";
 import { useAddSheet } from "../addsheet/index.ts";
 import { useChatViewing, useOpenPublished } from "./artifact-open.ts";
-import { ChatBrain, compactChat, entryOf, modeOf, prettyModel, setChatMode, stripAgents, useAccounts, usePickUnavailable, useUsage } from "./brain.tsx";
+import { QuestionIsland } from "./QuestionIsland.tsx";
+import { islandView, openQuestions } from "./island.ts";
+import { useCardsInView } from "./use-cards-in-view.ts";
+import { ChatBrain, compactChat, entryOf, modeOf, prettyModel, setChatMode, stripAgents, useAccounts, useLastPick, usePickUnavailable, useUsage, withLastPick } from "./brain.tsx";
 import type { ChatMode } from "../../../../../../ui/src/Composer/index.tsx";
 import { useConnectVersion } from "../../../shell/connect/context.ts";
 import { windowAround } from "./focus.ts";
 import type { MessageActions } from "./MessageView.tsx";
-import { FaceButton, Glyph, IconButton, RenameField, TextButton } from "./parts.tsx";
+import { Glyph, IconButton, PeopleCount, RenameField, TextButton } from "./parts.tsx";
 import { CONTINUE_TEXT, DEFAULT_AGENT_HOPS, limitOf, parkedAtLimit, parkedLine } from "./hops.ts";
 import { addedAgentMentions, askPost, pickerAgents, unansweredOwn } from "./askagent.ts";
 import { MemorySwitch } from "./memory-switch.tsx";
@@ -73,9 +79,9 @@ import { CONNECT_YOURS, NO_AI_LINE, SET_SPACE_KEY, aiReady } from "./ai-ready.ts
 import type { AiReady } from "./ai-ready.ts";
 import { useOpenConnect } from "../../../shell/connect/context.ts";
 import {
-  WINDOW, beforeCursor, byOrder, collect, faces, ghostMessages, findMatches, isClosed, lastMessages, leadOf, matchLine, mentionsIn, mergePages, modeTitle, modelLabel, pendingMessage, placeholderFor, queueNote, queuedCount, queuedIds, sendKind, stillPending, stopLabel,
-  directWith, mentionable, muteOfferFor, onBehalfOf, threadKindNote, timeLabel, timeline, otherPeople, titleOf, whoLine, workingAgents, withoutAnswered } from "./model.ts";
-import type { Face as FaceModel, Message, Pending, SendKind, Thread } from "./model.ts";
+  WINDOW, beforeCursor, byOrder, collect, ghostMessages, findMatches, isClosed, lastMessages, leadOf, matchLine, mentionsIn, mergePages, modelLabel, pendingMessage, placeholderFor, queueNote, queuedCount, queuedIds, sendKind, stillPending, stopLabel,
+  directWith, mentionable, muteOfferFor, onBehalfOf, threadKindNote, timeLabel, timeline, titleOf, whoLine, workingAgents, withoutAnswered } from "./model.ts";
+import type { Message, Pending, SendKind, Thread } from "./model.ts";
 import { LoadFailed, failureOf } from "../../../../../../ui/src/States/Loads.tsx";
 import { messageLink } from "../../../share/rows.ts";
 import { useZones } from "../../../../../../ui/src/Time/index.tsx";
@@ -102,6 +108,7 @@ function useReplies(threadId: string): Map<string, ReplySummary> {
 
 /** `compact` is for a conversation inside another screen (the onboarding Assistant): just the messages and the composer, no title bar with members, search and side-panel buttons. */
 const CompactContext = createContext(false);
+const NO_IDS: readonly string[] = [];
 /** The mute lines a teammate has been shown, by message (lane l-agentdm): kept on this device so the line does not come back once seen. */
 const MUTE_SEEN = "vyre.agentdm.mute-seen.v1";
 function readMuteSeen(): ReadonlySet<string> {
@@ -115,11 +122,19 @@ function rememberMuteSeen(id: string): void {
   } catch { /* no storage here: the line shows again next time */ }
 }
 
+/** The newest rows are always drawn in full (the chat follows the end and streams there); older ones may be skipped while off screen. */
+const OFFSCREEN_KEEP = 24;
+
 export function Conversation({ data, compact = false }: { data?: ConversationData; compact?: boolean }): ReactElement {
   const ctx = useOptionalConversationData();
   const value = data ?? ctx;
   if (!value) return <ConversationLoading />;
   return <ConversationDataProvider value={value}><CompactContext.Provider value={compact}><ChatMemoryProvider memory={value.memory ? { ...value.memory, time: (at: number) => timeLabel(at, value.clock()) } : value.memory} threadId={value.threadId}><ConversationView /></ChatMemoryProvider></CompactContext.Provider></ConversationDataProvider>;
+}
+
+/** How much of the header's faces fit: all of them, the lead agent's face alone, or only the name and the buttons. The title keeps its room first. */
+export function headerTier(width: number): "full" | "lead" | "bare" {
+  return width <= 0 || width >= 720 ? "full" : width >= 420 ? "lead" : "bare";
 }
 
 /** The frame before data: a header bar, messages the size of real ones and a composer box, so nothing moves when the thread arrives. */
@@ -213,11 +228,15 @@ function ConversationView(): ReactElement {
   const repliesSwitch = useReplySwitch(data, data.threadId, threadQ.status === "ready" ? repliesOf(threadQ.data.thread) : undefined);
   const helpersQ = useScreenQuery<HelpersOut>(CONVERSATION_SCREEN, "helpers", { threadId: data.threadId });
   const [shown, setShown] = useState(WINDOW);
+  const delegates = useRef(newDelegates());
   const [older, setOlder] = useState<Message[]>([]);
   const [olderMore, setOlderMore] = useState<boolean | null>(null);
   const [cursor, setCursor] = useState<number | null>(null);
   const [pending, setPending] = useState<Pending[]>([]);
   const [line, setLine] = useState("");
+  // the question island: put-away questions (this session) and the one the person stepped to
+  const [putAway, setPutAway] = useState<ReadonlySet<string>>(() => new Set());
+  const [islandAt, setIslandAt] = useState<string | null>(null);
   /** A line with an Undo (a drop that shared something): the taking-back runs when it is pressed. */
   const [undo, setUndo] = useState<(() => void) | null>(null);
   // text asked for by a pane or a page ("Ask about this file"): taken when this conversation opens and whenever it is asked again, after what the person had typed
@@ -251,6 +270,7 @@ function ConversationView(): ReactElement {
   const [picker, setPicker] = useState<{ id: string; x: number; y: number } | null>(null);
   const [renaming, setRenaming] = useState(false);
   const width = useWindowDimensions().width;
+  const [gutter, setGutter] = useState(() => gutterFits(width));
   const mobileBack = useMobileBack();
   const narrow = width > 0 && width < 640;
 
@@ -298,6 +318,7 @@ function ConversationView(): ReactElement {
   // the lead's context, read again whenever the message count changes (a turn ended or a message went out)
   const leadUsage = useUsage(data, leadNow?.agentId ?? null, leadNow?.accountRef ?? null, messagesQ.status === "loading" ? 0 : messagesQ.data.messages.length);
   const leadPickOff = usePickUnavailable(data, leadNow?.model, leadNow?.accountRef ?? null);
+  const lastPick = useLastPick(data);
   const outsideOffline = useOutsideOffline(data, leadNow?.agentId ?? null, messagesQ.status === "loading" ? 0 : messagesQ.data.messages.length);
   const place = useRunsOn({ call: data.call, threadId: data.threadId, agentId: leadNow?.agentId, spaceName: data.spaceName ?? "The Space", say });
   const serverMode = threadQ.status === "loading" ? null : modeOf(threadQ.data.thread);
@@ -330,11 +351,14 @@ function ConversationView(): ReactElement {
   useEffect(() => { crew?.refresh(); }, [messageCount]);  // eslint-disable-line react-hooks/exhaustive-deps
   // the agents.list rows the Ask-an-agent picker labels its agents from, read when it first opens
   const agentMeta = useRef<readonly AgentMeta[] | null>(null);
+  // which open questions have their own card on screen: the island docks the ones that do not (a hook, so before the early returns)
+  const cardsInView = useCardsInView(messagesQ.status === "loading" ? NO_IDS : openQuestions(mergePages(around ?? messagesQ.data.messages, older)).map((x) => x.id));
   if (failed) return <LoadFailed what="this chat" failure={failed} testID="conversation-failed" />;
   if (threadQ.status === "loading" || messagesQ.status === "loading") return <ConversationLoading />;
   const thread: Thread = threadQ.data.thread;
   const live = messagesQ.data.messages;
   const all = mergePages(around ?? live, older);
+  const openQs = openQuestions(all);
   emptyRef.current = all.length === 0;
   const liveView = around === null;
   // a failure a later reply has answered is over: its card leaves, and the reply stands on its own time
@@ -425,23 +449,6 @@ function ConversationView(): ReactElement {
   const crewChip = crew?.status && crew.status.members.length > 0 ? crewChipOf(crew.status.totals) : null;
 
   /* ---------- menus: all open under the button that asked ---------- */
-  const faceList = faces(thread, nameOf, working);
-  const leadFace = faceList.find((f) => f.mode === "lead") ?? faceList[0];
-  const otherFaces = faceList.filter((f) => f !== leadFace);
-  const modeMenu = (f: FaceModel, x: number, y: number): void => {
-    const many = faceList.length > 1;
-    const items: MenuEntry[] = [
-      { head: f.name },
-      // how it answers, when, and in what style: one popover, saved for this chat (threads.agent_settings.set)
-      { label: "How and When It Answers…", onSelect: () => add.showSettings({ thread, agentId: f.agentId, x, y }) },
-      { separator: true },
-      ...(f.model ? [{ head: `Model · ${prettyModel(f.model)}` } as MenuEntry] : []),
-      { label: `Ask ${f.name} to Review This`, onSelect: () => void act.askToReview(data, thread, f.agentId, data.newKey()).catch(fail("Could not ask.")) },
-      { label: `Open ${f.name}'s Page`, onSelect: () => data.nav.openAgent(f.agentId) },
-      ...(many ? [{ separator: true } as MenuEntry, { label: "Remove From Chat", danger: true, onSelect: () => void act.removeAgent(data, f.agentId).catch(fail("Could not remove it.")) } as MenuEntry] : []),
-    ];
-    menu.show(items, x, y, "other", { label: f.name });
-  };
   const stopMenu = (x: number, y: number): void => {
     if (working.length === 1) { void act.stopAgent(data, working[0]).then(() => say("Stopped. The steps so far are kept."), fail("Could not stop it.")); return; }
     menu.show([
@@ -456,6 +463,8 @@ function ConversationView(): ReactElement {
       x, y, "other", { label: "Helpers" },
     );
   };
+  const island = islandView(openQs, putAway, islandAt, cardsInView);
+  const typingNames: readonly string[] = data.typing ?? [];
   const peopleMenu = (x: number, y: number): void => add.showPeople({ thread, x, y, onOpenAgent: data.nav.openAgent });
   const modelMenu = (x: number, y: number): void => {
     if (!lead) return;
@@ -469,6 +478,8 @@ function ConversationView(): ReactElement {
   };
   const moreEntries = (): MenuEntry[] => {
     const items: MenuEntry[] = [
+      { label: "Find in Chat", hint: "⌘F", onSelect: () => setFinding(true) },
+      { separator: true } as MenuEntry,
       { label: "Plan Mode", checked: mode === "plan", onSelect: () => chooseChatMode(mode === "plan" ? "ask" : "plan") },
       ...(hasSwitch(thread) && repliesSwitch.on !== null ? [{ label: SWITCH_TITLE, checked: repliesSwitch.on, ...(repliesSwitch.on ? { hint: SWITCH_NOTE } : {}), onSelect: () => repliesSwitch.set(!repliesSwitch.on) } as MenuEntry] : []),
       ...(lead ? [{ label: `Open ${nameOf(lead.agentId)}'s Page`, onSelect: () => data.nav.openAgent(lead.agentId) } as MenuEntry] : []),
@@ -530,6 +541,7 @@ function ConversationView(): ReactElement {
     openBeside: data.nav.openBeside,
     ...(data.nav.openGoal ? { openGoal: data.nav.openGoal } : {}),
     answer: (blockId, answer) => void act.answerBlock(data, blockId, answer).catch(fail("Could not send the answer.")),
+    reply: (text) => submit({ text, chips: [], files: [], folder: null, links: [], refs: [], mode: "queue", answers: "" }, "queue"),
     approvePlan: (planId) => void act.approvePlan(data, planId).then(() => say("Plan approved. The steps run and tick off in the card."), fail("Could not approve the plan.")),
     retryTurn: (turnId) => void act.retryTurn(data, turnId).catch(fail("Could not retry.")),
     regenerate: (messageId) => void act.regenerate(data, messageId).catch(fail("Could not ask again.")),
@@ -589,6 +601,8 @@ function ConversationView(): ReactElement {
       menu.show(entries, x, y, "context", { label: "Share to" });
     }, fail("Could not list where to share it.")),
   };
+  // what the rows get: the same data, with every function swapped for one that never changes (so a row the list skips still does the latest thing)
+  const rowActions = stableActions(delegates.current, actions);
 
   const inThread = new Map(thread.agents.map((a) => [a.agentId, a.mode] as const));
   const dirId = (name: string, kind: "agent" | "person"): string | undefined => data.directory.find((c) => c.kind === kind && c.name === name)?.id;
@@ -615,7 +629,8 @@ function ConversationView(): ReactElement {
   };
   const contexts = new Map<string, { used: number; window: number } | null>();
   if (lead && leadUsage !== "loading") contexts.set(lead.agentId, leadUsage?.context ?? null);
-  const composerAgents = stripAgents(thread, nameOf, accounts ?? [], contexts, new Set(lead && leadPickOff ? [lead.agentId] : []));
+  const shownThread = withLastPick(thread, lastPick);
+  const composerAgents = stripAgents(shownThread, nameOf, accounts ?? [], contexts, new Set(lead && leadPickOff ? [lead.agentId] : []));
   // a person @mentioned who is not in a private chat: Add them (the chat becomes a group chat), or start a channel instead
   const personMention = thread.kind === "chat"
     ? mentionsIn(typed, data.directory.filter((c) => c.kind === "person" && c.id !== data.me.id && !thread.members.some((m) => m.id === c.id)))[0]
@@ -628,7 +643,6 @@ function ConversationView(): ReactElement {
   const title = titleOf(thread, nameOf, data.me.id);
   // a direct chat is named for the other person and wears their face
   const dmWith = directWith(thread, data.me.id);
-  const others = otherPeople(thread, data.me.id);
   const q = queueNote(queued, lead ? nameOf(lead.agentId) : "", canSteer, ownTurn);
 
   // A mounted folder or file dragged from Files is shared with this chat's agents (desktop); the line says so and can take it back
@@ -664,26 +678,13 @@ function ConversationView(): ReactElement {
             <Text numberOfLines={1} testID="conversation-title" style={st.title}>{title}</Text>
           </Pressable>
         )}
-        {!dmWith && others.length > 0 ? (
-          <View testID="conversation-people" accessibilityLabel={`With ${others.map((p) => nameOf(p)).join(", ")}`} style={st.faces}>
-            {/* ui-rows-lint: not a list (the faces of the people in the chat) */}
-            {others.slice(0, narrow ? 3 : 4).map((p) => <Face key={p} name={nameOf(p)} seedId={p} kind="person" size={20} />)}
-            {others.length > (narrow ? 3 : 4) ? <Text style={st.meta}>{`+${others.length - (narrow ? 3 : 4)}`}</Text> : null}
-          </View>
-        ) : null}
-        {leadFace && !narrow ? <FaceButton key={leadFace.agentId} name={leadFace.name} seedId={leadFace.agentId} mode={leadFace.mode} working={leadFace.working} title={modeTitle(leadFace)} testID={`face-${leadFace.agentId}`} {...(title !== leadFace.name ? { label: leadFace.name } : {})} size={20} onPress={(x, y) => modeMenu(leadFace, x, y)} /> : null}
-        <View testID="conversation-faces" accessibilityRole="toolbar" accessibilityLabel="Agents in this chat" style={st.faces}>
-          {collect(narrow ? [] : otherFaces, (f) => <FaceButton key={f.agentId} name={f.name} seedId={f.agentId} mode={f.mode} working={f.working} title={modeTitle(f)} testID={`face-${f.agentId}`} onPress={(x, y) => modeMenu(f, x, y)} />)}
-          {narrow ? null : <IconButton icon="plus" label="Add people and agents" size={24} testID="add-agent" onPress={() => add.open({ threadId: thread.threadId })} />}
-        </View>
         {isWorking ? <View testID="conversation-live" accessibilityLabel="Working" style={st.live}><View style={st.liveDot} /></View> : null}
         <View style={{ flex: 1 }} />
         {online ? null : <Text testID="conversation-offline" style={st.meta}>Offline</Text>}
         {crewChip ? (crewChip.text !== "" && !narrow ? <Pressable accessibilityRole="button" accessibilityLabel={crewChip.label} testID="helpers-button" onPress={() => crew!.show(null)} style={st.crewChip}><Text testID="helpers-chip-text" style={st.crewChipText}>{crewChip.text}</Text></Pressable> : <IconButton icon="helper" label={crewChip.label} badge={crewChip.active > 0 ? crewChip.active : crewChip.total} testID="helpers-button" onPress={() => crew!.show(null)} />)
           : helpers.length > 0 ? <IconButton icon="helper" label={`${helpers.length} ${helpers.length === 1 ? "helper" : "helpers"} running`} badge={helpers.length} testID="helpers-button" onPress={helpersMenu} /> : null}
         {isWorking ? <IconButton icon="stop" label={stopLabel(working, nameOf)} danger testID="stop-button" onPress={stopMenu} /> : null}
-        <IconButton icon="people" label={`${thread.members.length} in this chat`} badge={thread.members.length} testID="participants-button" onPress={peopleMenu} />
-        <IconButton icon="search" label="Find in chat" active={finding} testID="find-button" onPress={() => setFinding((f) => !f)} />
+        <PeopleCount count={thread.members.length} label={`${thread.members.length} in this chat`} testID="participants-button" onPress={peopleMenu} />
         <IconButton icon="pane" label="Show or hide the pane" testID="pane-button" onPress={() => data.nav.togglePane()} />
         <IconButton icon="more" label="More" testID="more-button" onPress={moreMenu} />
       </View>
@@ -719,7 +720,8 @@ function ConversationView(): ReactElement {
           <TextButton label="Jump to latest" testID="viewing-earlier-latest" onPress={() => { setAround(null); setOlder([]); setFocusId(null); setShown(WINDOW); setJump((n) => n + 1); setAtEnd(true); }} />
         </View>
       )}
-      <View style={st.feedBox}>
+      <View style={st.feedBox} onLayout={(e) => setGutter(gutterFits(e.nativeEvent.layout.width))}>
+        <GutterContext.Provider value={gutter}>
         <Feed key={jump} followKey={timelineMessages.length} {...(lastStream ? { store: lastStream } : {})} {...(data.head ? { startAway: true, endKey: sentOnPage } : {})} testID="conversation-feed" contentStyle={st.feedContent} onAtEndChange={setAtEnd}>
           {data.head ?? null}
           <View style={st.col}>
@@ -729,22 +731,26 @@ function ConversationView(): ReactElement {
               </View>
             ) : null}
             {items.length === 0 && !data.head && thread.kind !== "thread" ? <States kind="empty" icon="chat" title="Say something to start" /> : null}
-            {collect(rows, (it) => {
+            {collect(rows, (it, at) => {
               const key = it.key;
               const stream = it.kind === "other" ? data.streamOf(it.message.messageId) : undefined;
               const sending = it.kind === "me" ? pendingState.get(it.message.messageId) : undefined;
               const under = it.kind === "me" || it.kind === "other" ? replies.get(it.message.messageId) : undefined;
-              return <MessageView key={key} item={it} actions={actions} meId={data.me.id} stream={stream} sending={sending} mark={markOf(it, matches, activeId, finding)} replies={under ? { s: under, clock: data.clock() } : undefined} />;
+              const row = <MessageView key={key} item={it} actions={rowActions} meId={data.me.id} stream={stream} sending={sending} mark={markOf(it, matches, activeId, finding)} replies={under ? { s: under, clock: data.clock() } : undefined} />;
+              // always wrapped on the web, so a row that grows old keeps its state; only the style changes
+              return Platform.OS === "web" ? <View key={key} style={at < rows.length - OFFSCREEN_KEEP ? st.offscreen : undefined}>{row}</View> : row;
             })}
             {data.tail ?? null}
           </View>
         </Feed>
-        {atEnd || data.head ? null : (
-          <Pressable testID="to-latest" accessibilityRole="button" accessibilityLabel="Jump to latest" onPress={() => { setJump((n) => n + 1); setAtEnd(true); }} style={st.toLatest}>
-            <Glyph name="down" size={14} color="var(--ink-2)" /><Text style={st.toLatestText}>Jump to latest</Text>
-          </Pressable>
-        )}
+        </GutterContext.Provider>
       </View>
+      {/* in its own row under the list, at the right: it never sits over a line of text */}
+      {atEnd || data.head ? null : (
+        <Pressable testID="to-latest" accessibilityRole="button" accessibilityLabel="Jump to latest" onPress={() => { setJump((n) => n + 1); setAtEnd(true); }} style={st.toLatest}>
+          <Glyph name="down" size={14} color="var(--ink-2)" /><Text style={st.toLatestText}>Jump to latest</Text>
+        </Pressable>
+      )}
       {data.live ? <SettleTurns turns={liveTurns} rows={win.rows} settle={data.live.settle} /> : null}
       {focusId !== null ? <FocusLoader key={focusId} id={focusId} have={all.some((m) => m.messageId === focusId)} shownHas={win.rows.some((m) => m.messageId === focusId)} onWindow={(page) => setAround(page)} onWiden={() => setShown((n) => n + WINDOW)} onDone={() => setFocusId(null)} /> : null}
       {activeId ? <ScrollToMessage key={`${activeId}:${matchAt}`} id={activeId} /> : null}
@@ -771,6 +777,14 @@ function ConversationView(): ReactElement {
         <View testID="conversation-closed" style={st.closed}><Text style={st.lineText}>This thread is closed.</Text><TextButton label="Reopen" onPress={() => void data.call("threads.reopen", { threadId: thread.threadId }).catch(fail("Could not reopen."))} testID="reopen" /></View>
       ) : (
         <View style={st.composerBox}>
+          {thread.kind === "channel" ? <View testID="typing-row" accessibilityLiveRegion="polite" style={st.typingRow}>{typingNames.length > 0 ? <Text style={st.typingText}>{`${typingNames.join(", ")} ${typingNames.length === 1 ? "is" : "are"} typing…`}</Text> : null}</View> : null}
+          {island.list.length > 0 ? (
+            <QuestionIsland list={island.list} index={island.index} nameOf={nameOf}
+              onStep={(d) => setIslandAt(island.list[(island.index + d + island.list.length) % island.list.length]!.id)}
+              onAnswer={(q, a) => { void act.answerBlock(data, q.id, a).catch(fail("Could not send the answer.")); }}
+              onDismiss={(q) => setPutAway((cur) => new Set([...cur, q.id]))}
+              onPeople={(x, y) => peopleMenu(x, y)} />
+          ) : null}
           {crew?.status && crew.status.members.length > 0 ? <CrewIsland status={crew.status} onPress={() => crew.show(null)} /> : null}
           {personMention ? (() => {
             // one strip on top of the composer: who is not here, Add (they read from now on), and a caret for the other ways
@@ -799,7 +813,7 @@ function ConversationView(): ReactElement {
             agents={composerAgents} mode={mode} onMode={chooseChatMode}
             barExtra={<MemorySwitch threadId={thread.threadId} call={data.call} say={say} />}
             suggest={composerSuggest(data)} preview={(item) => previewOf(data, item)}
-            renderPanel={(agent, close, narrowPanel) => <ChatBrain data={data} thread={thread} agent={agent} accounts={accounts} mode={mode} onMode={chooseChatMode} close={close} narrow={narrowPanel} say={say} {...(place.runs ? { runs: place.runs } : {})} onCompact={(keep, always) => void compactChat(data, keep, always, agent.id).then((line) => { if (line === null) say(keep ? `Compacted, keeping ${keep}` : "Compacted"); }, fail("Could not compact."))} />}
+            renderPanel={(agent, close, narrowPanel) => <ChatBrain data={data} thread={shownThread} agent={agent} accounts={accounts} mode={mode} onMode={chooseChatMode} close={close} narrow={narrowPanel} say={say} {...(place.runs ? { runs: place.runs } : {})} onCompact={(keep, always) => void compactChat(data, keep, always, agent.id).then((line) => { if (line === null) say(keep ? `Compacted, keeping ${keep}` : "Compacted"); }, fail("Could not compact."))} />}
             onAddPeople={() => add.open({ threadId: thread.threadId })}
             {...(lead ? { lead: nameOf(lead.agentId) } : {})} members={thread.members.filter((p) => p.kind === "person").map((p) => nameOf(p.id))} listening={collect(thread.agents.filter((a) => a.mode === "listen"), (a) => nameOf(a.agentId))}
             lists={lists} agentChat={thread.kind !== "channel"} onChange={(t) => { typedRef.current = t; setTyped(t); }} onCommand={(name) => void runSlash(`/${name}`, commandEnv())}
@@ -887,26 +901,27 @@ const st = StyleSheet.create({
   root: { flex: 1, minHeight: 0, backgroundColor: "var(--win)" as string },
   head: { minHeight: 48, flexDirection: "row", alignItems: "center", gap: 8, paddingLeft: 20, paddingRight: 10 },
   title: { flexShrink: 1, minWidth: 40, maxWidth: 320, fontSize: 14, fontWeight: "600", color: "var(--ink)" as string },
-  titleBtn: { flexShrink: 1, flexDirection: "row", alignItems: "center", gap: 6, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2, marginLeft: -6 },
+  titleBtn: { flexShrink: 1, flexDirection: "row", alignItems: "center", gap: 6, borderRadius: RADIUS, paddingHorizontal: 6, paddingVertical: 2, marginLeft: -6 },
   titleOver: { backgroundColor: "var(--hover)" as string },
-  rename: { width: 320, maxWidth: "60%", height: 26, borderRadius: 6, paddingHorizontal: 6, marginLeft: -6, fontSize: 14, fontWeight: "600", color: "var(--ink)" as string, backgroundColor: "var(--field)" as string, outlineStyle: "none", outlineWidth: 0 } as object,
-  faces: { flexDirection: "row", alignItems: "center", gap: 2, flexShrink: 0 },
+  rename: { width: 320, maxWidth: "60%", height: 28, borderRadius: RADIUS, paddingHorizontal: 6, marginLeft: -6, fontSize: 14, fontWeight: "600", color: "var(--ink)" as string, backgroundColor: "var(--field)" as string, outlineStyle: "none", outlineWidth: 0 } as object,
   find: { height: 40, flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
   findInput: { flex: 1, minWidth: 0, height: 28, fontSize: 13.5, color: "var(--ink)" as string, outlineStyle: "none", outlineWidth: 0 } as object,
   live: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 6 },
   liveDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: "var(--ok)" as string },
   liveText: { fontSize: 12, color: "var(--ink-2)" as string },
   meta: { fontSize: 12, color: "var(--ink-3)" as string },
-  crewChip: { height: 26, paddingHorizontal: 10, borderRadius: 13, justifyContent: "center", backgroundColor: "var(--accent-wash)" as string },
+  crewChip: { height: 28, paddingHorizontal: 10, borderRadius: RADIUS, justifyContent: "center", backgroundColor: "var(--accent-wash)" as string },
   crewChipText: { fontSize: 12.5, color: "var(--accent)" as string, fontWeight: "500" },
   earlierBar: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, minHeight: 34, backgroundColor: "var(--side)" as string, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
   earlierText: { fontSize: 12.5, color: "var(--ink-2)" as string },
   noteLine: { paddingHorizontal: 16, paddingTop: 6, fontSize: 12, color: "var(--ink-3)" as string },
   feedBox: { flex: 1, minHeight: 0 },
-  feedContent: { alignItems: "center", paddingHorizontal: 24, paddingBottom: 18 },
-  col: { width: "100%", maxWidth: 660, paddingTop: 6 },
+  feedContent: { alignItems: "center", paddingHorizontal: 24, paddingTop: 12, paddingBottom: 18 },
+  col: { width: "100%", maxWidth: COLUMN, paddingTop: 6 },
+  // an older row the browser may skip drawing and laying out while it is off screen; it keeps the size it last had, so the scroll bar and the scroll position do not move
+  offscreen: { contentVisibility: "auto", containIntrinsicSize: "auto 88px" } as object,
   earlier: { alignItems: "center", paddingVertical: 10 },
-  toLatest: { position: "absolute", alignSelf: "center", bottom: 10, height: 30, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, borderRadius: 15, borderWidth: 1, borderColor: "var(--line-2)" as string, backgroundColor: "var(--win)" as string },
+  toLatest: { alignSelf: "flex-end", marginRight: 16, marginVertical: 4, height: 28, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, borderRadius: RADIUS, borderWidth: 1, borderColor: "var(--line-2)" as string, backgroundColor: "var(--win)" as string },
   toLatestText: { fontSize: 12.5, color: "var(--ink-2)" as string },
   queueRow: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", justifyContent: "center", columnGap: 10, rowGap: 2, paddingHorizontal: 24, paddingVertical: 4 },
   queue: { fontSize: 12.5, color: "var(--ink-3)" as string, textAlign: "center" },
@@ -914,11 +929,13 @@ const st = StyleSheet.create({
   lineText: { fontSize: 12.5, color: "var(--ink-2)" as string },
   /** A quiet line: muted ink, no underline. */
   quietLine: { color: "var(--ink-3)" as string },
-  offerStrip: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10, minHeight: 38, paddingLeft: 14, paddingRight: 6, marginHorizontal: 10, marginBottom: -1, borderTopLeftRadius: 14, borderTopRightRadius: 14, borderWidth: 1, borderColor: "var(--line)" as string, backgroundColor: "var(--side)" as string },
+  offerStrip: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10, minHeight: 38, paddingLeft: 14, paddingRight: 6, marginHorizontal: 10, marginBottom: -1, borderTopLeftRadius: RADIUS, borderTopRightRadius: RADIUS, borderWidth: 1, borderColor: "var(--line)" as string, backgroundColor: "var(--side)" as string },
   offerStripText: { flex: 1, minWidth: 0, fontSize: 12.5, color: "var(--ink-2)" as string },
   offerBtns: { flexDirection: "row", alignItems: "center", gap: 2, flexShrink: 0 },
   closed: { minHeight: 48, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, borderTopWidth: 1, borderTopColor: "var(--line)" as string, backgroundColor: "var(--side)" as string },
-  composerBox: { alignSelf: "center", width: "100%", maxWidth: 708, paddingHorizontal: 24, paddingBottom: 16 },
+  typingRow: { height: 20, justifyContent: "center", paddingLeft: 6 },
+  typingText: { fontSize: 12, color: "var(--ink-3)" as string },
+  composerBox: { alignSelf: "center", width: "100%", maxWidth: COLUMN + 48, paddingHorizontal: 24, paddingBottom: 16 },
 });
 
 

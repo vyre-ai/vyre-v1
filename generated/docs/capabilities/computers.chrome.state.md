@@ -26,6 +26,7 @@ URL, title and load state of a tab
 ```ts
 type In = {
   computerId?: string;
+  inMyChrome?: boolean;
   tabId?: string;
 };
 ```
@@ -37,6 +38,11 @@ type Out = {
   url: string;
   title: string;
   loading: boolean;
+  downloads?: Array<{
+      name: string;
+      path: string;
+      fileId: string;
+    }>;
 };
 ```
 
@@ -58,9 +64,17 @@ type Out = {
   "name": "example",
   "input": {
     "computerId": "cmt_a1b2c3",
+    "inMyChrome": true,
     "tabId": "example"
   },
   "output": {
+    "downloads": [
+      {
+        "fileId": "fil_a1b2c3",
+        "name": "example",
+        "path": "Downloads/report.pdf"
+      }
+    ],
     "loading": true,
     "title": "example",
     "url": "example"

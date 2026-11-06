@@ -16,6 +16,7 @@ import type { ChatMemoryData } from "../memory/data.tsx";
 import { RightPaneDataProvider, hasComputers, useOnline, useOptionalPaneData, usePaneData, useScreenQuery } from "./data.tsx";
 import type { ChatRightPaneData, RightPaneNav } from "./data.tsx";
 import { COMPUTER_SCREEN, ComputerTab } from "./ComputerTab.tsx";
+import { WorkSections, usesWorkModel } from "./WorkSections.tsx";
 import { AboutTab } from "./AboutTab.tsx";
 import { ProfileHeader, roleLine } from "./ProfileHeader.tsx";
 import type { HeaderAction, Presence } from "./ProfileHeader.tsx";
@@ -108,8 +109,10 @@ function PaneView({ open, onToggle, tab: controlled, initialTab, hookSel, setup:
   const win = useWindowDimensions();
   const narrow = win.width > 0 && win.width < NARROW;
   // no capable host, no agent computers: no Computer tab and no offer to set one up
-  const noComputers = !hasComputers(data.space);
-  const hasComputer = (data.agent.computerId ?? "") !== "";
+  const work = usesWorkModel(data);
+  const noComputers = !work && !hasComputers(data.space);
+  // every agent has a workspace once the work model is bound: the Computer tab is always there, with nothing to set up
+  const hasComputer = work || (data.agent.computerId ?? "") !== "";
   // "Give it a computer" in About opens the Computer tab on the setup, until the agent has one
   const [setup, setSetup] = useState(setupFirst === true);
   const showComputer = hasComputer || (setup && !noComputers);
@@ -174,7 +177,7 @@ function PaneView({ open, onToggle, tab: controlled, initialTab, hookSel, setup:
     <View testID={`pane-body-${tab}`} style={st.body}>
       {tab === "overview" && session ? <SessionOverview call={data.call} threadId={data.threadId} agentId={data.agent.agentId} summary={session.summary} status={crewLive?.status ?? null} clock={(ts) => timeWords(ts, data.clock())} onHelper={(id) => crewLive?.show(id)} onJump={(id) => session.jump(id)} /> : null}
       {tab === "about" ? <AboutTab agent={agent} name={data.agent.name} hasComputer={showComputer} {...(!noComputers && !showComputer ? { onGive: () => { setSetup(true); setOwn("computer"); onTab?.("computer"); } } : {})} onOpenFiles={() => { setOwn("files"); onTab?.("files"); }} onOpenKnows={() => { setOwn("memory"); onTab?.("memory"); }} /> : null}
-      {tab === "computer" ? <ComputerTab deps={deps} {...(window ? { window } : {})} /> : null}
+      {tab === "computer" ? (work ? <WorkSections deps={deps} {...(window ? { window } : {})} /> : <ComputerTab deps={deps} {...(window ? { window } : {})} />) : null}
       {tab === "threads" ? <ThreadsTab deps={deps} {...(window ? { window } : {})} /> : null}
       {tab === "hooks" ? <HooksTab deps={deps} selected={hookSel ?? null} {...(window ? { window } : {})} /> : null}
       {tab === "crew" ? <CrewTab deps={deps} {...(window ? { window } : {})} /> : null}

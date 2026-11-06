@@ -47,7 +47,9 @@ test("the header + opens the same sheet (the old Add as listening menu is gone)"
   await withDom(async () => {
     const s = createSample("idle");
     const root = await mount(createRoot, <Conversation data={s.data} />);
-    await press(find(root, "add-agent"));
+    await press(find(root, "participants-button"));
+    await flush();
+    await press(find(root, "people-footer"));
     await flush();
     assert.ok(find(root, SHEET));
     assert.equal(find(root, "menu-item-Docs"), null, "no list of agents to add as listening");
@@ -82,7 +84,9 @@ test("a channel opens the same sheet on the channel", async () => {
   await withDom(async () => {
     const s = createSample("channel");
     const root = await mount(createRoot, <Conversation data={s.data} />);
-    await press(find(root, "add-agent"));
+    await press(find(root, "participants-button"));
+    await flush();
+    await press(find(root, "people-footer"));
     await flush();
     assert.match(textOf(find(root, SHEET)), /to #intake/);
     // people join the channel itself
@@ -157,7 +161,9 @@ test("the outside-agents note names the signed-in person in full, from data.me: 
     const s = createSample("idle");
     assert.equal(s.data.me.name, "Irfad Imtiaz");
     const root = await mount(createRoot, <Conversation data={s.data} />);
-    await press(find(root, "add-agent"));
+    await press(find(root, "participants-button"));
+    await flush();
+    await press(find(root, "people-footer"));
     await flush();
     assert.match(textOf(find(root, SHEET)), /Others see these as Irfad Imtiaz \(Agent\)/);
     assert.ok(!/these as You \(Agent\)/.test(textOf(find(root, SHEET))));

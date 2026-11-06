@@ -51,3 +51,15 @@ test("the card shows the draft and, once read, the record beside it, as a link",
     assert.match(textOf(find(node, "held-record")), /Fox & Co.*Company.*Email.*hi@fox\.test/s);
   } finally { await act(async () => { root.unmount(); }); restore(); }
 });
+
+import { blockView } from "./model.ts";
+test("a held send that is not email shows who it goes to and the words, never the block's type name", () => {
+  const v = blockView({ type: "doc_excerpt", v: 1, data: { act: "send", cap: "chat.message_person", input: { to: { name: "Aliza Cohen", handle: "aliza" }, subject: "Agency token", body: "Hi Aliza, can you send it?" } } } as never);
+  assert.equal(v.type, "quote");
+  const lines = v.type === "quote" ? v.lines : [];
+  assert.ok(lines.includes("To: Aliza Cohen"));
+  assert.ok(lines.includes("Subject: Agency token"));
+  assert.ok(lines.includes("Hi Aliza, can you send it?"));
+  const bare = blockView({ type: "doc_excerpt", v: 1, data: { act: "send", cap: "x.y", input: { channel: "general" } } } as never);
+  assert.deepEqual(bare, { type: "pairs", pairs: [["To", "general"]] });
+});

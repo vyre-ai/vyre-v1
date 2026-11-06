@@ -1,9 +1,10 @@
 // The blocks of a reply beyond paragraphs and lists: code with colour, a language label, Copy and Wrap; diagrams in a sandboxed frame with a fallback to the source; math; charts drawn by our own SVG with a table
 // view and Copy as CSV; callouts; collapsibles; images that enlarge; footnotes. Each is a plain component of the skin's colours (CSS variables on web). The big libraries load only when a message uses them (loaders.ts).
-import { createElement, useEffect, useState } from "react";
+import { createContext, createElement, useContext, useEffect, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import type { Block, ChartSpec } from "./markdown.ts";
+import { CHART_MAX, CODE_TINT, RADIUS } from "../tokens/calm.ts";
 import { chartGeometry, chartTable } from "./charts.ts";
 import type { Geo } from "./charts.ts";
 import { highlight } from "./highlight.ts";
@@ -29,11 +30,19 @@ function SmallBtn({ label, onPress, on = false, testID }: { label: string; onPre
   );
 }
 
-/** The frame every block with controls wears: a quiet header with the kind and its buttons, the content below. */
-function Frame({ label, controls, children, testID }: { label: string; controls?: ReactNode; children: ReactNode; testID?: string }): ReactElement {
+/** A pointer that hovers (a mouse or trackpad). A phone has none, so quiet controls stay shown there. */
+const canHover = (): boolean => {
+  const g = globalThis as { matchMedia?: (q: string) => { matches: boolean } };
+  return g.matchMedia ? g.matchMedia("(hover: hover)").matches : false;
+};
+
+/** The frame every block with controls wears: a quiet header with the kind and its buttons, the content below. `quiet` shows the buttons only while the pointer is over the block or focus is inside it. */
+function Frame({ label, controls, children, testID, quiet = false }: { label: string; controls?: ReactNode; children: ReactNode; testID?: string; quiet?: boolean }): ReactElement {
+  const [on, setOn] = useState(false);
+  const shown = !quiet || on || !canHover();
   return (
-    <View style={st.frame} testID={testID}>
-      <View style={st.head}><Text style={st.headLabel}>{label}</Text><View style={st.grow} />{controls}</View>
+    <View style={st.frame} testID={testID} {...(quiet ? ({ onMouseEnter: () => setOn(true), onMouseLeave: () => setOn(false), onFocus: () => setOn(true), onBlur: () => setOn(false) } as object) : {})}>
+      <View style={st.head}><Text style={st.headLabel}>{label}</Text><View style={st.grow} /><View style={[st.controls, !shown && st.controlsOff]}>{controls}</View></View>
       {children}
     </View>
   );
@@ -80,15 +89,76 @@ export function CalloutBlock({ variant, title, children, id }: { variant: string
   );
 }
 
+/** Which sections a person opened or closed, kept per message so a section stays as they left it when the row scrolls out of view and back (the list draws only the rows near the screen). */
+const SECTIONS = new Map<string, boolean>();
+const SECTIONS_MAX = 4000;
+export const SectionScope = createContext<string | null>(null);
+/** Forget what was opened (tests; a sign-out). */
+export function forgetSections(): void { SECTIONS.clear(); }
+
 export function DetailsBlock({ summary, open, children, id }: { summary: ReactNode; open: boolean; children: ReactNode; id: string }): ReactElement {
-  const [on, setOn] = useState(open);
+  const scope = useContext(SectionScope);
+  const mem = scope === null ? null : `${scope}\u0000${id}`;
+  const [on, setOn] = useState(mem !== null && SECTIONS.has(mem) ? SECTIONS.get(mem) === true : open);
+  const flip = (): void => {
+    const next = !on;
+    if (mem !== null) {
+      if (SECTIONS.size >= SECTIONS_MAX) SECTIONS.clear();
+      SECTIONS.set(mem, next);
+    }
+    setOn(next);
+  };
   return (
     <View testID={`block-${id}`} style={st.details}>
-      <Pressable accessibilityRole="button" accessibilityState={{ expanded: on }} testID={`details-${id}`} onPress={() => setOn(!on)} style={st.summary}>
+      <Pressable accessibilityRole="button" accessibilityState={{ expanded: on }} testID={`details-${id}`} onPress={flip} style={st.summary}>
         <Text style={st.chev}>{on ? "▾" : "▸"}</Text><Text style={st.summaryText}>{summary}</Text>
       </Pressable>
       {on ? <View style={st.detailsBody}>{children}</View> : null}
     </View>
+  );
+}
+
+/* ---------- things a person can press inside a reply ---------- */
+
+/** What a press inside a reply can do: the message it sits in (so what was pressed is remembered per message) and how to send a reply. Absent on a preview, where nothing is pressable. */
+export interface Reply { scope: string | null; send: ((text: string) => void) | null }
+export const ReplyCtx = createContext<Reply>({ scope: null, send: null });
+const PICKED = new Map<string, string>();
+const TICKED = new Map<string, boolean>();
+/** Forget what was picked and ticked (tests; a sign-out). */
+export function forgetPressed(): void { PICKED.clear(); TICKED.clear(); }
+const cap = (m: Map<string, unknown>): void => { if (m.size >= 4000) m.clear(); };
+
+/** Choices the agent offers: one pill per option. A press sends the words as a reply and the pill stays marked; with no way to send (a preview) they are plain pills. */
+export function ChoicesBlock({ id, options }: { id: string; options: readonly string[] }): ReactElement {
+  const r = useContext(ReplyCtx);
+  const mem = `${r.scope ?? ""}\u0000${id}`;
+  const [picked, setPicked] = useState<string | null>(r.scope !== null ? PICKED.get(mem) ?? null : null);
+  const live = r.send !== null && picked === null;
+  const out: ReactElement[] = [];
+  for (let i = 0; i < options.length; i++) {
+    const o = options[i] ?? "";
+    const on = picked === o;
+    out.push(
+      <Pressable key={i} accessibilityRole="button" accessibilityLabel={o} accessibilityState={{ selected: on, disabled: !live }} disabled={!live} testID={`choice-${id}-${i}`}
+        onPress={() => { cap(PICKED); if (r.scope !== null) PICKED.set(mem, o); setPicked(o); r.send?.(o); }} style={[st.choice, on && st.choiceOn, !live && !on && picked !== null && st.choiceOff]}>
+        <Text style={[st.choiceText, on && st.choiceTextOn]}>{o}</Text>
+      </Pressable>,
+    );
+  }
+  return <View testID={`block-${id}`} accessibilityRole="radiogroup" style={st.choices}>{out}</View>;
+}
+
+/** A task-list box that a person can tick or clear. The state is theirs and stays on this device, per message; it never rewrites the message. */
+export function CheckBox({ id, index, initial, children }: { id: string; index: number; initial: boolean; children?: ReactNode }): ReactElement {
+  const r = useContext(ReplyCtx);
+  const mem = `${r.scope ?? ""}\u0000${id}\u0000${index}`;
+  const [on, setOn] = useState(r.scope !== null && TICKED.has(mem) ? TICKED.get(mem) === true : initial);
+  const box = <View style={[st.box, on && st.boxOn]}>{on ? <Text style={st.tick}>{"\u2713"}</Text> : null}</View>;
+  if (r.scope === null) return <View testID={`check-${id}-${index}`} accessibilityRole="checkbox" accessibilityState={{ checked: on, disabled: true }} accessibilityLabel={on ? "Done" : "Not done"}>{box}</View>;
+  return (
+    <Pressable testID={`check-${id}-${index}`} accessibilityRole="checkbox" accessibilityState={{ checked: on }} accessibilityLabel={on ? "Done" : "Not done"} hitSlop={6}
+      onPress={() => { cap(TICKED); TICKED.set(mem, !on); setOn(!on); }}>{box}{children}</Pressable>
   );
 }
 
@@ -217,7 +287,7 @@ function svgChart(g: Geo, spec: ChartSpec): ReactNode {
     if (g.type !== "scatter") g.xTicks.forEach((t, i) => kids.push(el("text", { key: `tx${i}`, x: t.at, y: g.box.h - 10, textAnchor: "middle", ...txt }, t.label)));
     else g.xTicks.forEach((t, i) => kids.push(el("text", { key: `tx${i}`, x: t.at, y: g.box.h - 10, textAnchor: "middle", ...txt }, t.label)));
   }
-  g.rects.forEach((r, i) => kids.push(el("rect", { key: `r${i}`, x: r.x, y: r.y, width: Math.max(0, r.w), height: Math.max(0, r.h), rx: 3, fill: SERIES_COLORS[r.s % SERIES_COLORS.length], "data-series": r.s, "data-v": r.v })));
+  g.rects.forEach((r, i) => kids.push(el("rect", { key: `r${i}`, x: r.x, y: r.y, width: Math.max(0, r.w), height: Math.max(0, r.h), rx: 3, fill: SERIES_COLORS[r.s % SERIES_COLORS.length], opacity: Math.max(0.35, 0.65 - r.i * 0.04), "data-series": r.s, "data-v": r.v })));
   g.lines.forEach((l, i) => {
     if (g.type === "area") kids.push(el("path", { key: `a${i}`, d: l.area, fill: SERIES_COLORS[l.s % SERIES_COLORS.length], opacity: 0.18 }));
     kids.push(el("path", { key: `l${i}`, d: l.path, fill: "none", stroke: SERIES_COLORS[l.s % SERIES_COLORS.length], strokeWidth: 2, strokeLinejoin: "round" }));
@@ -225,7 +295,7 @@ function svgChart(g: Geo, spec: ChartSpec): ReactNode {
   });
   g.points.forEach((p, i) => kids.push(el("circle", { key: `p${i}`, cx: p.x, cy: p.y, r: 4, fill: SERIES_COLORS[p.s % SERIES_COLORS.length], opacity: 0.85 })));
   g.slices.forEach((sl, i) => { kids.push(el("path", { key: `s${i}`, d: sl.path, fill: SERIES_COLORS[sl.i % SERIES_COLORS.length], stroke: "var(--win)", strokeWidth: 2 })); if (sl.frac > 0.06) kids.push(el("text", { key: `st${i}`, x: sl.mid[0], y: sl.mid[1] + 4, textAnchor: "middle", ...txt, fill: "var(--accent-ink)" }, `${Math.round(sl.frac * 100)}%`)); });
-  return el("svg", { viewBox: `0 0 ${g.box.w} ${g.box.h}`, role: "img", "aria-label": spec.title ?? `${spec.type} chart`, style: { width: "100%", height: "auto", display: "block" } }, ...kids);
+  return el("svg", { viewBox: `0 0 ${g.box.w} ${g.box.h}`, role: "img", "aria-label": spec.title ?? `${spec.type} chart`, style: { width: "auto", height: CHART_MAX, maxWidth: "100%", display: "block" } }, ...kids);
 }
 
 export function ChartBlock({ spec, error, source, id }: { spec: ChartSpec | null; error: string | null; source: string; id: string }): ReactElement {
@@ -244,7 +314,7 @@ export function ChartBlock({ spec, error, source, id }: { spec: ChartSpec | null
   // ui-rows-lint: not a list (a chart legend: a colour key per series, nothing to hover or pick)
   const legend = g.legend.length > 1 || spec.type === "pie" ? g.legend.map((l, i) => (<View key={i} style={st.lg}><View style={[st.lgDot, { backgroundColor: SERIES_COLORS[i % SERIES_COLORS.length] }]} /><Text style={st.lgText}>{l}</Text></View>)) : null;
   return (
-    <Frame label={`chart · ${spec.type}${spec.title ? ` · ${spec.title}` : ""}`} testID={`block-${id}`} controls={<>{web ? <SmallBtn label="Chart" on={!table} onPress={() => setTable(false)} testID={`chart-tab-${id}`} /> : null}<SmallBtn label="Table" on={table} onPress={() => setTable(true)} testID={`table-tab-${id}`} /><SmallBtn label="Copy CSV" onPress={() => copyText(csv)} testID={`chart-csv-${id}`} /></>}>
+    <Frame quiet label={spec.title ?? ""} testID={`block-${id}`} controls={<>{web ? <SmallBtn label="Chart" on={!table} onPress={() => setTable(false)} testID={`chart-tab-${id}`} /> : null}<SmallBtn label="Table" on={table} onPress={() => setTable(true)} testID={`table-tab-${id}`} /><SmallBtn label="Copy CSV" onPress={() => copyText(csv)} testID={`chart-csv-${id}`} /></>}>
       {!table && web ? <View style={st.chartBody} testID={`chart-${id}`}>{svgChart(g, spec)}{legend ? <View style={st.legend}>{legend}</View> : null}</View> : (
         <ScrollView horizontal showsHorizontalScrollIndicator testID={`chart-table-${id}`}>
           <View>
@@ -263,27 +333,38 @@ export type ExtraBlock = Extract<Block, { kind: "callout" | "details" | "img" | 
 
 const st = StyleSheet.create({
   grow: { flex: 1 },
-  frame: { borderWidth: 1, borderColor: "var(--line)" as string, borderRadius: 10, overflow: "hidden", marginBottom: 12, backgroundColor: "var(--win)" as string },
-  head: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 4, minHeight: 30, backgroundColor: "var(--sunk)" as string, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
+  controls: { flexDirection: "row", alignItems: "center", gap: 4 },
+  controlsOff: { opacity: 0 },
+  frame: { borderRadius: RADIUS, overflow: "hidden", marginBottom: 12 },
+  head: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 0, paddingVertical: 4, minHeight: 30 },
   headLabel: { color: "var(--ink-3)" as string, fontSize: 12 },
-  small: { height: 22, paddingHorizontal: 8, borderRadius: 5, justifyContent: "center" },
+  small: { height: 24, paddingHorizontal: 8, borderRadius: RADIUS, justifyContent: "center" },
   smallOver: { backgroundColor: "var(--hover)" as string },
   smallOn: { backgroundColor: "var(--accent-wash)" as string },
   smallText: { color: "var(--ink-2)" as string, fontSize: 12 },
   smallTextOn: { color: "var(--accent)" as string },
-  pre: { backgroundColor: "var(--sunk)" as string, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8, marginBottom: 12 },
+  pre: { backgroundColor: CODE_TINT, borderRadius: RADIUS, paddingHorizontal: 12, paddingVertical: 8, marginBottom: 12 },
   codeHead: { flexDirection: "row", alignItems: "center", marginBottom: 6, marginHorizontal: -6 },
   lang: { flex: 1, color: "var(--ink-3)" as string, fontSize: 11.5, paddingLeft: 6 },
   preText: { color: "var(--ink)" as string, fontFamily: MONO, fontSize: 13, lineHeight: 20, padding: 10 },
-  callout: { borderLeftWidth: 3, borderRadius: 6, backgroundColor: "var(--sunk)" as string, paddingHorizontal: 12, paddingVertical: 8, marginBottom: 12 },
+  callout: { borderLeftWidth: 3, borderRadius: RADIUS, backgroundColor: CODE_TINT, paddingHorizontal: 12, paddingVertical: 8, marginBottom: 12 },
   coTitle: { fontSize: 12.5, fontWeight: "600", marginBottom: 2 },
-  details: { borderWidth: 1, borderColor: "var(--line)" as string, borderRadius: 8, marginBottom: 12 },
-  summary: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 12, paddingVertical: 8 },
+  details: { marginBottom: 8 },
+  summary: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 0, paddingVertical: 4 },
   chev: { color: "var(--ink-3)" as string, fontSize: 12, width: 12 },
-  summaryText: { color: "var(--ink)" as string, fontSize: 15, fontWeight: "500", flex: 1 },
-  detailsBody: { paddingHorizontal: 12, paddingTop: 2 },
+  choices: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 10 },
+  choice: { paddingHorizontal: 14, minHeight: 36, borderRadius: RADIUS, borderWidth: 1, borderColor: "var(--line-2)" as string, backgroundColor: "var(--surface)" as string, justifyContent: "center" },
+  choiceOn: { backgroundColor: "var(--accent)" as string, borderColor: "var(--accent)" as string },
+  choiceOff: { opacity: 0.5 },
+  choiceText: { color: "var(--ink)" as string, fontSize: 14, lineHeight: 20 },
+  choiceTextOn: { color: "var(--accent-ink)" as string },
+  box: { width: 16, height: 16, borderRadius: 6, borderWidth: 1.5, borderColor: "var(--ink-4)" as string, marginRight: 6, marginTop: 4, alignItems: "center", justifyContent: "center" },
+  boxOn: { backgroundColor: "var(--accent)" as string, borderColor: "var(--accent)" as string },
+  tick: { color: "var(--accent-ink)" as string, fontSize: 11, lineHeight: 13, fontWeight: "700" },
+  summaryText: { color: "var(--ink)" as string, fontSize: 15, fontWeight: "600", flex: 1 },
+  detailsBody: { paddingLeft: 20, paddingTop: 2 },
   lb: { position: "fixed" as unknown as "absolute", top: 0, left: 0, right: 0, bottom: 0, zIndex: 300, backgroundColor: "rgba(0,0,0,0.6)", alignItems: "center", justifyContent: "center", padding: 24 },
-  lbBody: { backgroundColor: "var(--win)" as string, borderRadius: 12, padding: 16, maxWidth: "94%", maxHeight: "90%", overflow: "hidden" },
+  lbBody: { backgroundColor: "var(--win)" as string, borderRadius: RADIUS, padding: 16, maxWidth: "94%", maxHeight: "90%", overflow: "hidden" },
   imgWrap: { marginBottom: 12, alignItems: "flex-start" },
   caption: { color: "var(--ink-3)" as string, fontSize: 12.5, marginTop: 4 },
   alt: { color: "var(--ink-3)" as string },
@@ -296,7 +377,7 @@ const st = StyleSheet.create({
   dg: { padding: 12, alignItems: "center" },
   note: { color: "var(--ink-3)" as string, fontSize: 12.5, paddingHorizontal: 12, paddingVertical: 6 },
   error: { color: "var(--danger)" as string, fontSize: 12.5, paddingHorizontal: 12, paddingTop: 8 },
-  chartBody: { padding: 12 },
+  chartBody: { paddingVertical: 6, alignItems: "flex-start" },
   legend: { flexDirection: "row", flexWrap: "wrap", gap: 14, paddingTop: 8 },
   lg: { flexDirection: "row", alignItems: "center", gap: 6 },
   lgDot: { width: 9, height: 9, borderRadius: 2 },

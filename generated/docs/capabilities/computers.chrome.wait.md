@@ -26,6 +26,7 @@ Wait for a load, text, selector, network idle or a time
 ```ts
 type In = {
   computerId?: string;
+  inMyChrome?: boolean;
   tabId?: string;
   until: "load" | "text" | "selector" | "network_idle" | "time";
   value?: string;
@@ -39,6 +40,11 @@ type In = {
 type Out = {
   ok: boolean;
   waitedMs: number;
+  downloads?: Array<{
+      name: string;
+      path: string;
+      fileId: string;
+    }>;
 };
 ```
 
@@ -60,12 +66,20 @@ type Out = {
   "name": "example",
   "input": {
     "computerId": "cmt_a1b2c3",
+    "inMyChrome": true,
     "tabId": "example",
     "timeoutMs": 100,
     "until": "load",
     "value": "example"
   },
   "output": {
+    "downloads": [
+      {
+        "fileId": "fil_a1b2c3",
+        "name": "example",
+        "path": "Downloads/report.pdf"
+      }
+    ],
     "ok": true,
     "waitedMs": 1
   }

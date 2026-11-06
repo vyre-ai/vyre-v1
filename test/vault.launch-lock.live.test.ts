@@ -4,6 +4,7 @@
 //   1. the key is held on the server: her turn runs on her Mine sign-in, and the launch check goes straight in;
 //   2. the app is relaunched after the server restarted (no device holds the key): the launch check says "locked"; with Not now her chat is answered by the Space key under the one line that says why;
 //   3. she unlocks with her password: the key is held, her next turn runs on her Mine sign-in, and the launch check goes straight in.
+import { MINE_CLOSED } from "../modules/vault/handlers/items.ts";
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -64,7 +65,7 @@ test("launch lock on a Space server: held, goes straight in; relaunched with the
     const revealed = await api(d, sara.token, "vault.item.reveal", { itemId: items[0]!.id, idempotencyKey: "reveal-locked" });
     assert.equal(revealed.status, 401);
     const err = (revealed.data as { error?: { message?: string; details?: { reason?: string } } }).error!;
-    assert.equal(err.message, "Your sign-ins are locked on this server. Unlock Vyre to use them.");
+    assert.equal(err.message, MINE_CLOSED);
     assert.equal(err.details?.reason, "vault_locked", "the app reads the reason, so the person stays signed in");
 
     // 3. Unlock: the password opens the key, it goes to the server and stays in the app's memory; her Mine sign-in answers again

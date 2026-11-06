@@ -71,10 +71,12 @@ test("an install that did not finish says why in a plain line and keeps the Inst
   assert.deepEqual(unsupported.next, [{ key: "connect_ai", label: "Connect an account" }]);
 });
 
-test("a locked Vault is an Unlock card, not a failed reply; an unreadable one gives the reason the Vault gave", () => {
+test("a Vault key that is not on the server says what is missing and offers no unlock; an unreadable Vault gives the reason the Vault gave", () => {
   const locked = errorOf({ state: "failed", turnId: "t", code: "engine.vault_locked" });
-  assert.equal(locked.message, "Your sign-ins are locked on this server.");
-  assert.deepEqual(locked.next, [{ key: "unlock_vault", label: "Unlock" }]);
+  assert.equal(locked.message, "Your Vault key is not on this server.");
+  assert.match(locked.cause ?? "", /signed in on a device/);
+  assert.deepEqual(locked.next, []);
+  assert.equal(locked.retryable, true);
   const unreadable = errorOf({ state: "failed", turnId: "t", code: "engine.vault_unreadable", reason: "provider.unavailable" });
   assert.equal(unreadable.message, "Your Vault could not be read just now.");
   assert.equal(unreadable.cause, "The Vault answered: provider.unavailable.");
@@ -178,7 +180,7 @@ test("an engine failure never stands alone: a missing sign-in, an engine that ca
   const unusable = data(statusView(block({ state: "failed", turnId: "t", code: "engine.cli_unusable" })));
   assert.match(unusable.cause ?? "", /not installed here|not signed in here|not connected/);
   const crash = data(statusView(block({ state: "failed", turnId: "t", code: "engine.cli_error", exit: "137" })));
-  assert.match(crash.cause ?? "", /exited with code 137/);
+  assert.match(crash.cause ?? "", /stopped with an error \(code 137\)/);
   const bare = data(statusView(block({ state: "failed", turnId: "t", code: "engine.cli_error" })));
   assert.ok((bare.cause ?? "").length > 0, "no reason: still says what to do, and Details holds the code");
   assert.ok(!/^The engine stopped with an error before it replied\.$/.test(crash.message));
@@ -199,4 +201,58 @@ test("an engine that cannot run here says why in the connect card's own words, a
   assert.equal(signin.next?.[0]?.key, "sign_in:Codex");
   const auth = data(statusView(block({ state: "failed", turnId: "t", code: "provider.auth_failed", account: "Claude_Code" })));
   assert.equal(auth.next?.[0]?.key, "sign_in:Claude_Code");
+});
+
+test("an engine that stopped for a server setup cause says so, says trying again will fail the same way, and offers no Retry; the owner is sent to Console, a member to an admin", () => {
+  type D = { message: string; cause?: string; retryable: boolean };
+  const data = (b: ReturnType<typeof statusView>): D => (b as { block: { data: D } }).block.data;
+  const member = data(statusView(block({ state: "failed", turnId: "t", code: "engine.cli_error", why: "sandbox" })));
+  assert.match(member.cause ?? "", /will fail the same way until the server is fixed/);
+  assert.match(member.cause ?? "", /Space owner or an admin/);
+  assert.equal(member.retryable, false);
+  const owner = data(statusView(block({ state: "failed", turnId: "t", code: "engine.cli_error", why: "image" }), { admin: true }));
+  assert.match(owner.cause ?? "", /needs an update before agent computers can start/);
+  assert.match(owner.cause ?? "", /vyre-server update/);
+  const ownerSandbox = data(statusView(block({ state: "failed", turnId: "t", code: "engine.cli_error", why: "sandbox" }), { admin: true }));
+  assert.match(ownerSandbox.cause ?? "", /needs an update before Claude Code can run here.*vyre-server update/);
+  assert.ok(!/Console/.test(ownerSandbox.cause ?? ""));
+  assert.ok(!/admin\.|your admin/.test(owner.cause ?? ""));
+  assert.equal(owner.retryable, false);
+});
+
+test("a bare engine crash never tells the Space owner or an admin to send it to an admin", () => {
+  const cause = (opts?: { admin?: boolean }): string => ((statusView(block({ state: "failed", turnId: "t", code: "engine.cli_error", exit: "1" }), opts) as { block: { data: { cause: string } } }).block.data.cause);
+  assert.ok(!/admin/.test(cause({ admin: true })));
+  assert.match(cause({ admin: true }), /Report/);
+  assert.match(cause({ admin: false }), /Space owner or an admin/);
+  assert.ok(!/send them to your admin/.test(cause()));
+  const none = (statusView(block({ state: "failed", turnId: "t", code: "engine.cli_error" }), { admin: true }) as { block: { data: { cause: string } } }).block.data.cause;
+  assert.match(none, /It gave no reason/);
+});
+
+test("an AI sign-in that cannot be opened says so and offers the sign-in, not a plain could-not-be-read", () => {
+  const e = errorOf({ state: "failed", turnId: "t", code: "engine.signin_unopenable" });
+  assert.equal(e.message, "Your AI sign-in can't be opened on this device.");
+  assert.deepEqual(e.next, [{ key: "connect_ai", label: "Sign in again" }]);
+});
+
+test("a usage limit that said when it lifts puts the time in the cause, in the Space's time zone", async () => {
+  const { resetWords } = await import("./status.ts");
+  const zone = "America/Los_Angeles";
+  const now = Date.UTC(2026, 10, 6, 18, 0); // Fri 6 Nov, 10:00 AM in Los Angeles
+  assert.equal(resetWords(Date.UTC(2026, 10, 6, 23, 12), now, zone), "at 3:12 PM");
+  assert.equal(resetWords(Date.UTC(2026, 10, 7, 17, 0), now, zone), "tomorrow at 9:00 AM");
+  assert.equal(resetWords(Date.UTC(2026, 10, 9, 11, 12), now, zone), "on Mon 9 Nov at 3:12 AM");
+  // the same instant reads differently in another zone, and the Space's zone is what applies by default
+  assert.equal(resetWords(Date.UTC(2026, 10, 6, 23, 12), now, "Asia/Karachi"), "tomorrow at 4:12 AM");
+});
+
+test("a failed turn that hit a usage limit says when the account is usable again", () => {
+  const v = statusView(block({ state: "failed", code: "provider.rate_limited", turnId: "t1", resetsAt: Date.now() + 3 * 3_600_000 }));
+  assert.equal(v?.kind, "error");
+  const data = (v as { block: { data: { message: string; cause?: string } } }).block.data;
+  assert.equal(data.message, "Your AI account reached its usage limit.");
+  assert.match(data.cause ?? "", /can be used again (at|on) .*another account/);
+  const plain = statusView(block({ state: "failed", code: "provider.rate_limited", turnId: "t1" }));
+  assert.equal((plain as { block: { data: { cause?: string } } }).block.data.cause, "Wait for it to reset, or use another account.");
 });

@@ -26,6 +26,7 @@ Click an element by ref or by coordinates
 ```ts
 type In = {
   computerId?: string;
+  inMyChrome?: boolean;
   tabId?: string;
   ref?: string;
   x?: number;
@@ -40,6 +41,11 @@ type In = {
 type Out = {
   ok: boolean;
   heldId?: string;
+  downloads?: Array<{
+      name: string;
+      path: string;
+      fileId: string;
+    }>;
 };
 ```
 
@@ -62,12 +68,20 @@ type Out = {
   "input": {
     "button": "left",
     "computerId": "cmt_a1b2c3",
+    "inMyChrome": true,
     "ref": "e12",
     "tabId": "example",
     "x": 1,
     "y": 1
   },
   "output": {
+    "downloads": [
+      {
+        "fileId": "fil_a1b2c3",
+        "name": "example",
+        "path": "Downloads/report.pdf"
+      }
+    ],
     "heldId": "example",
     "ok": true
   }

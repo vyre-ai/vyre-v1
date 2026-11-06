@@ -151,6 +151,8 @@ export interface TurnInfo {
   reasoningTokens?: number;
   /** What the turn's last request sent, fresh and cached: the size of the chat as the model last saw it (the turn's token total adds every request of the turn together). */
   contextTokens?: number;
+  /** The window of the model the turn ran on, when the engine reported it. */
+  contextWindow?: number;
   /** The provider's own dollar figure, summed over the turn's calls, when every call reported one. */
   costUsd?: number;
   tools: ToolTrace[];
@@ -174,7 +176,7 @@ export type EngineEvent =
   /** A parked turn is over: its wake started as a turn of its own. */
   | { type: "turn.resumed"; threadId: string; turnId: string; agentId: string }
   | { type: "turn.completed"; threadId: string; turnId: string; agentId: string }
-  | { type: "turn.failed"; threadId: string; turnId: string; agentId: string; code: string; /** the account the turn ran on (its reference and engine), so the chat can say which sign-in needs doing */ account?: { ref: string; driver: string }; /** a turn a dead host left (code host_lost): its queue row and whom it ran for */ qseq?: number; asker?: string; /** what the engine knows of the failure, for the log only: never stored in an event, never shown to the person, scrubbed by the bridge before it is written */ message?: string }
+  | { type: "turn.failed"; threadId: string; turnId: string; agentId: string; code: string; /** the account the turn ran on (its reference and engine), so the chat can say which sign-in needs doing */ account?: { ref: string; driver: string }; /** a turn a dead host left (code host_lost): its queue row and whom it ran for */ qseq?: number; asker?: string; /** what the engine knows of the failure, for the log only: never stored in an event, never shown to the person, scrubbed by the bridge before it is written */ message?: string; /** a usage-limit failure that said when the account is usable again (epoch ms) */ resetsAt?: number }
   | { type: "turn.cancelled"; threadId: string; turnId: string; agentId: string; /** why it was stopped: interrupt, stop, limit, left, moved, lease */ reason?: string }
   | { type: "agent.handoff"; threadId: string; to: Placement }
   | { type: "queue.consumed"; threadId: string; qseq: number; messageId: string | null };
@@ -191,7 +193,7 @@ export type DriverEvent =
    * inputTokens counts every input token, cache reads and writes included. The optional fields are present only when the provider reported them: cache reads and writes, reasoning tokens
    * (already inside outputTokens), and the provider's own price for the call in dollars (Claude Code's total_cost_usd, OpenRouter's usage.cost). Absent means not reported, never zero.
    */
-  | { type: "usage"; inputTokens: number; outputTokens: number; model?: string; contextTokens?: number; cacheReadTokens?: number; cacheWriteTokens?: number; reasoningTokens?: number; costUsd?: number }
+  | { type: "usage"; inputTokens: number; outputTokens: number; model?: string; contextTokens?: number; /** The model's own window, when the engine said it. */ contextWindow?: number; cacheReadTokens?: number; cacheWriteTokens?: number; reasoningTokens?: number; costUsd?: number }
   /** A subscription limit window as the engine reported it (percent used 0 to 100, reset time in epoch ms). Kept per account; shown only when reported. */
   | { type: "limits"; window: "session" | "week"; pct: number; resetsAt?: number }
   | { type: "done"; mentions?: readonly RouteMention[] }

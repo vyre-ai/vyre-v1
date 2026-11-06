@@ -7,7 +7,7 @@ import { RiskDot } from "../terminal/RiskDot.tsx";
 import type { Risk } from "../terminal/RiskDot.tsx";
 import { answerOf, sessionFor, typeCommand, waitForRun } from "../terminal/request.ts";
 import type { RunDeps } from "../terminal/request.ts";
-import { TextButton } from "./parts.tsx";
+import { Card, CardActions, CardBody, CardDone, CardHead } from "../../../../../../ui/src/Card/index.tsx";
 
 export interface TerminalCardProps {
   id: string;
@@ -28,7 +28,7 @@ type State = { s: "ask" } | { s: "typed"; terminalId: string } | { s: "done"; li
 
 export function TerminalCard({ id, why, command, risk, host, agentId, deps, copy, openTerminal, answer }: TerminalCardProps): ReactElement {
   const [st, setSt] = useState<State>({ s: "ask" });
-  if (st.s === "done") return <Text testID={`terminal-card-done-${id}`} style={s.done}>{st.line}</Text>;
+  if (st.s === "done") return <CardDone testID={`terminal-card-done-${id}`} text={st.line} />;
   const run = (): void => {
     void (async () => {
       try {
@@ -44,38 +44,32 @@ export function TerminalCard({ id, why, command, risk, host, agentId, deps, copy
   };
   const typed = st.s === "typed";
   return (
-    <View testID={`terminal-card-${id}`} style={s.card} accessibilityRole="summary" accessibilityLabel={why}>
-      <Text style={s.why}>{why}</Text>
-      <View style={s.cmd}>
-        <RiskDot risk={risk} />
-        <Text testID={`terminal-card-command-${id}`} selectable style={s.code}>{command}</Text>
-      </View>
+    <Card kind="decision" testID={`terminal-card-${id}`} label={why}>
+      <CardHead title={why} />
+      <CardBody>
+        <View style={s.cmd}>
+          <RiskDot risk={risk} />
+          <Text testID={`terminal-card-command-${id}`} selectable style={s.code}>{command}</Text>
+        </View>
+      </CardBody>
       {typed ? (
-        <View style={s.row}>
-          <Text testID={`terminal-card-wait-${id}`} style={s.wait}>Press Enter in the terminal</Text>
-          <View style={{ flex: 1 }} />
-          <TextButton label="Show" onPress={() => openTerminal((st as { terminalId: string }).terminalId)} testID={`terminal-card-show-${id}`} />
-        </View>
+        <CardActions note={<Text testID={`terminal-card-wait-${id}`} style={s.wait}>Press Enter in the terminal</Text>} secondary={[{ label: "Show", onPress: () => openTerminal((st as { terminalId: string }).terminalId), testID: `terminal-card-show-${id}` }]} />
       ) : (
-        <View style={s.row}>
-          {st.s === "error" ? <Text accessibilityRole="alert" style={s.err}>Could not reach the terminal</Text> : null}
-          <View style={{ flex: 1 }} />
-          <TextButton label="Deny" onPress={() => { answer(id, "decline"); setSt({ s: "done", line: "Denied" }); }} testID={`terminal-card-decline-${id}`} />
-          <TextButton label="Copy" onPress={() => { copy(command); answer(id, "copy"); setSt({ s: "done", line: "Copied. You run it" }); }} testID={`terminal-card-copy-${id}`} />
-          <TextButton label="Run in my terminal" primary onPress={run} testID={`terminal-card-run-${id}`} />
-        </View>
+        <CardActions
+          error={st.s === "error" ? "Could not reach the terminal" : null}
+          secondary={[
+            { label: "Copy", onPress: () => { copy(command); answer(id, "copy"); setSt({ s: "done", line: "Copied. You run it" }); }, testID: `terminal-card-copy-${id}` },
+            { label: "Deny", onPress: () => { answer(id, "decline"); setSt({ s: "done", line: "Denied" }); }, testID: `terminal-card-decline-${id}` },
+          ]}
+          primary={{ label: "Run in my terminal", onPress: run, testID: `terminal-card-run-${id}` }}
+        />
       )}
-    </View>
+    </Card>
   );
 }
 
 const s = StyleSheet.create({
-  card: { marginTop: 8, padding: 12, gap: 10, borderRadius: 12, borderWidth: 1, borderColor: "var(--line-2)" as string, backgroundColor: "var(--raised)" as string, maxWidth: 560 },
-  why: { fontSize: 14, fontWeight: "600", color: "var(--ink)" as string },
-  cmd: { flexDirection: "row", alignItems: "flex-start", gap: 10, padding: 10, borderRadius: 8, backgroundColor: "var(--sunk)" as string },
+  cmd: { flexDirection: "row", alignItems: "flex-start", gap: 10 },
   code: { flex: 1, minWidth: 0, fontSize: 13, lineHeight: 18, color: "var(--ink)" as string, fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" },
-  row: { flexDirection: "row", alignItems: "center", gap: 8 },
   wait: { fontSize: 12.5, color: "var(--ink-3)" as string },
-  err: { fontSize: 12.5, color: "var(--danger)" as string },
-  done: { marginTop: 6, fontSize: 12.5, color: "var(--ink-3)" as string },
 });

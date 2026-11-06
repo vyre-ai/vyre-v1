@@ -9,7 +9,7 @@ import { shareWithAgents } from "./dropshare.ts";
 import { collect } from "./model.ts";
 import { mountedAnswer } from "./mountcard.ts";
 import type { SourceOffer } from "./mountcard.ts";
-import { TextButton } from "./parts.tsx";
+import { Card, CardActions, CardDone, CardHead } from "../../../../../../ui/src/Card/index.tsx";
 
 export interface MountCardProps {
   id: string;
@@ -25,7 +25,7 @@ export function MountCard({ id, prompt, offers, agents, data, answer }: MountCar
   const [open, setOpen] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
   const [line, setLine] = useState<string | null>(null);
-  if (done !== null) return <Text testID={`mount-card-done-${id}`} style={st.done}>{done}</Text>;
+  if (done !== null) return <CardDone testID={`mount-card-done-${id}`} text={done} />;
   const mounted = (info: { folderId: string; name: string }): void => {
     setOpen(null);
     void shareWithAgents(data, [{ type: "folder", id: info.folderId }], agents, `mount-card:${id}`).then(
@@ -34,8 +34,8 @@ export function MountCard({ id, prompt, offers, agents, data, answer }: MountCar
     );
   };
   return (
-    <View testID={`mount-card-${id}`} style={st.card} accessibilityRole="summary" accessibilityLabel={prompt}>
-      <Text style={st.title}>{prompt}</Text>
+    <Card kind="decision" testID={`mount-card-${id}`} label={prompt} onCancel={() => { setDone("Skipped"); answer(id, "Not now. Carry on without it."); }}>
+      <CardHead title={prompt} />
       <View style={st.sources}>
         {collect(offers, (o) => (
           <Pressable key={o.source} accessibilityRole="button" accessibilityLabel={`Connect ${o.label}`} testID={`mount-card-source-${id}-${o.source}`} onPress={() => { setLine(null); setOpen(o.source); }} style={({ hovered }: { hovered?: boolean }) => [st.source, hovered === true && st.sourceOver]}>
@@ -44,23 +44,15 @@ export function MountCard({ id, prompt, offers, agents, data, answer }: MountCar
           </Pressable>
         ))}
       </View>
-      <View style={st.acts}>
-        <TextButton label="Not now" onPress={() => { setDone("Skipped"); answer(id, "Not now. Carry on without it."); }} testID={`mount-card-skip-${id}`} />
-      </View>
-      {line ? <Text style={st.err}>{line}</Text> : null}
+      <CardActions secondary={[{ label: "Not now", onPress: () => { setDone("Skipped"); answer(id, "Not now. Carry on without it."); }, testID: `mount-card-skip-${id}` }]} error={line} />
       {open !== null && data.mountSheet ? data.mountSheet({ source: open, onMounted: mounted, onClose: () => setOpen(null) }) : null}
-    </View>
+    </Card>
   );
 }
 
 const st = StyleSheet.create({
-  card: { marginTop: 8, padding: 12, gap: 10, borderRadius: 12, borderWidth: 1, borderColor: "var(--line-2)" as string, backgroundColor: "var(--raised)" as string, maxWidth: 560 },
-  title: { fontSize: 14, fontWeight: "600", color: "var(--ink)" as string },
   sources: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  source: { flexDirection: "row", alignItems: "center", gap: 8, minHeight: 40, paddingHorizontal: 12, borderRadius: 10, borderWidth: 1, borderColor: "var(--line)" as string },
+  source: { flexDirection: "row", alignItems: "center", gap: 8, minHeight: 40, paddingHorizontal: 12, borderRadius: 12, borderWidth: 1, borderColor: "var(--line)" as string },
   sourceOver: { backgroundColor: "var(--hover)" as string },
   sourceText: { fontSize: 13.5, color: "var(--ink)" as string },
-  acts: { flexDirection: "row", justifyContent: "flex-end" },
-  err: { fontSize: 12.5, color: "var(--danger)" as string },
-  done: { marginTop: 6, fontSize: 12.5, color: "var(--ink-3)" as string },
 });

@@ -89,7 +89,7 @@ test("a server-side turn for a member drives the extension on the member's own c
     bindPersonalChrome(space.d.personalChrome);
     const turnFor = (who: string) => {
       const bw = browserWorld("spc_stream");
-      const h = harness({ principal: { kind: "agent", id: "agt_scout" }, actingFor: who, respond: { "browser.cards.post": (i) => browser["browser.cards.post"](bw.as("agt_scout", "agent"), i as never) } });
+      const h = harness({ principal: { kind: "agent", id: "agt_scout" }, actingFor: who, respond: { "browser.cards.post": (i) => browser["browser.cards.post"](bw.as("agt_scout", "agent"), i as never), "chat.messages.list": () => ({ messages: [{ threadSeq: 1, author: { kind: "person", id: who }, body: "Please do it in my Chrome" }], hasMore: false }) } });
       h.ctx.space = "spc_stream";
       h.ctx.thread = "thr_lab7";
       return { h, bw, agent: (cap: string, input: Record<string, unknown> = {}) => tool[cap]!(h.ctx, { computerId: "my-chrome", ...input }) };

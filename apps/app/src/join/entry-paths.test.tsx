@@ -9,7 +9,7 @@ import { createRoot } from "test-renderer";
 import { find, flush, installDom, mount, press, textOf } from "../onboarding/test-dom.ts";
 import { CapError } from "../shell/session/caps.ts";
 import { JoinRefused, acceptDesktopJoin } from "../shell/session/desktop.ts";
-import { LockScreen, passwordKeyState, unlockWithPassword } from "../shell/session/KeyGate.tsx";
+import { passwordKeyState, unlockWithPassword } from "../shell/session/KeyGate.tsx";
 import { SessionGate } from "../shell/session/SessionGate.tsx";
 import { MANY_TRIES, OFFLINE_SPACE, TOO_MANY, WRONG_SIGN_IN, isMiss, signInLine } from "./failure.ts";
 import { readFileSync } from "node:fs";
@@ -57,21 +57,6 @@ test("a Space that did not answer is not an account with no password", async () 
   } finally { globalThis.fetch = real; }
 });
 
-test("the lock screen keeps a person on it after a wrong password and clears the field; offline starts with the line and can still be tried", async () => {
-  installDom();
-  let tries = 0;
-  const root = await mount(createRoot, <LockScreen name="Dana" onForgot={() => undefined} onSignOut={() => undefined} onUnlock={async () => { tries++; throw new Error("That password is not right."); }} />);
-  assert.equal(find(root as never, "lock-unlock")!.props["aria-disabled"], true, "Unlock waits for a password");
-  await type(find(root as never, "lock-password"), "nope");
-  await press(find(root as never, "lock-unlock"));
-  await flush();
-  assert.equal(tries, 1);
-  assert.match(textOf(find(root as never, "lock-error")), /not right/);
-  assert.ok(find(root as never, "lock-forgot") && find(root as never, "lock-signout"), "the ways out stay");
-  const off = renderToStaticMarkup(<LockScreen name="Dana" notice="Vyre cannot reach the Space on this computer. Try again." onUnlock={async () => undefined} />);
-  assert.match(off, /cannot reach the Space/);
-  assert.match(off, /data-testid="lock-password"/);
-});
 
 test("a taken username goes back to the account step with the line, keeping what was typed", () => {
   const rules = { isTaken: () => false };
@@ -196,13 +181,6 @@ test("the launch is the ground and one clean mark: no sheet, no tile, no halfton
   assert.match(kit, /prefers-reduced-motion[^"]*\[data-entry-halo\][^"]*\[data-entry-glide\]\{transition:none/, "less motion means no bloom and no glide");
 });
 
-test("the lock sheet hugs what is on it, with no gap kept for a line that is not there", () => {
-  const empty = renderToStaticMarkup(<LockScreen name="Dana Wills" onUnlock={async () => undefined} onForgot={() => undefined} onSignOut={() => undefined} />);
-  assert.match(empty, /Welcome back, Dana Wills/);
-  assert.doesNotMatch(empty, /min-height:416px/);
-  assert.doesNotMatch(empty, /data-testid="lock-error"/);
-  assert.match(renderToStaticMarkup(<LockScreen name="" notice="Nope." onUnlock={async () => undefined} />), /data-testid="lock-error"/);
-});
 
 test("a session keeps the name as the person wrote it, for the lock screen", async () => {
   const kept: unknown[] = [];

@@ -66,6 +66,8 @@ export class Scheduler {
   private onRun: NonNullable<SchedulerOptions["onRun"]>;
   private timer: ReturnType<typeof setInterval> | null = null;
   private inflight = new Set<Promise<void>>();
+  /** names of the jobs running now (the event-loop lag guard says who was in flight when the loop stalled) */
+  runningNames(): string[] { return [...this.jobs.values()].filter((j) => j.running).map((j) => j.spec.name); }
   lastTickAt: number | null = null;
 
   constructor(o: SchedulerOptions = {}) {

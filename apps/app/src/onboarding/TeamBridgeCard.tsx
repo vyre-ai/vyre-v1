@@ -3,6 +3,7 @@
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { CARD } from "./card-style.ts";
+import { RADIUS } from "../../../../ui/src/tokens/radius.ts";
 
 export const MAC_WARNING = "This Mac must be on and Vyre open for your team to connect. For always-on, install on a server.";
 
@@ -19,7 +20,7 @@ export function TeamBridgeCard({ onCreate, mac }: { onCreate(): void; /** the de
 const s = StyleSheet.create({
   col: { gap: 10 },
   line: { fontSize: 14, lineHeight: 20, color: "var(--ink)" as string },
-  warn: { fontSize: 13.5, lineHeight: 19, color: "var(--ink)" as string, padding: 10, borderRadius: 8, backgroundColor: "var(--accent-wash)" as string },
+  warn: { fontSize: 13.5, lineHeight: 19, color: "var(--ink)" as string, padding: 10, borderRadius: RADIUS, backgroundColor: "var(--accent-wash)" as string },
   dim: { fontSize: 12.5, color: "var(--ink-3)" as string },
   primary: CARD.primary,
   primaryText: CARD.primaryText,

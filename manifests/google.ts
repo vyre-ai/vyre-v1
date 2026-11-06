@@ -159,7 +159,7 @@ in: {}, out: { email: t.opt(email), connectionId: t.opt(id.connection), files: t
   gw('google.gmail.stop_watch', 'Stop Gmail push notices for the member mailbox', {}, { stopped: t.bool() }, { gate: quiet('Removes a push channel; nothing is sent to anyone') }),
   // ---- Calendar
   gr('google.calendar.list_calendars', 'List the calendars of the member', {}, { calendars: t.arr(t.obj({ id: t.str(), summary: t.str(), primary: t.opt(t.bool()), backgroundColor: t.opt(t.str()), accessRole: t.opt(t.str()) })) }, { tool: 'inbox', deferred: true }),
-  gr('google.calendar.list_events', 'List events (incremental with a sync token)', { calendarId: t.str({ examples: ['primary'] }), timeMin: t.opt(t.str()), timeMax: t.opt(t.str()), q: t.opt(t.str()), syncToken: t.opt(t.str()), pageToken: t.opt(t.str()) },
+  gr('google.calendar.list_events', 'List events (incremental with a sync token)', { calendarId: t.str({ examples: ['primary'] }), timeMin: t.opt(t.str()), timeMax: t.opt(t.str()), q: t.opt(t.str()), syncToken: t.opt(t.str()), updatedMin: t.opt(t.str()), pageToken: t.opt(t.str()) },
     { events: t.arr(gcalEvent), nextPageToken: t.opt(t.str()), nextSyncToken: t.opt(t.str()) }, { tool: 'inbox', deferred: true }),
   gr('google.calendar.get_event', 'Read one event', { calendarId: t.str(), eventId: t.str() }, { event: gcalEvent }, { tool: 'inbox', deferred: true }),
   gw('google.calendar.create_event', 'Create an event; Google invites the attendees', eventWrite, { event: gcalEvent }, { gate: 'send', tool: 'inbox', deferred: true }),

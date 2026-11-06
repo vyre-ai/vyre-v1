@@ -26,6 +26,7 @@ List scripts, requests and storage a page uses (to work out backend calls for a 
 ```ts
 type In = {
   computerId?: string;
+  inMyChrome?: boolean;
   tabId?: string;
 };
 ```
@@ -60,6 +61,7 @@ type Out = {
   "name": "example",
   "input": {
     "computerId": "cmt_a1b2c3",
+    "inMyChrome": true,
     "tabId": "example"
   },
   "output": {

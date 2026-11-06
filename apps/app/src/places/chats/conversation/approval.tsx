@@ -4,10 +4,11 @@
 // choice that is gone, and a press that was too late hears "Already decided.".
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
-import { StyleSheet, Text, TextInput, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
+import { CARD_INSET, Card, CardActions, CardDeny, CardDone, CardHead } from "../../../../../../ui/src/Card/index.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import type { ConversationData } from "./data.tsx";
-import { Glyph, TextButton } from "./parts.tsx";
+import { Glyph } from "./parts.tsx";
 import { collect } from "./model.ts";
 import { askLine, askRows, denyNote, diffLines, doneLine, excerptLines, heldOf, outcomeOf, plainRows, sentLine, wantsLine } from "./approval-model.ts";
 import type { DiffLine } from "./approval-model.ts";
@@ -45,7 +46,6 @@ export function ApprovalCard({ taskId, agent, agentId, data, face, faceSeed, edi
   /** For an edit of a file that exists: what is taken out and put in, instead of the new text alone. */
   const [diff, setDiff] = useState<{ lines: DiffLine[]; more: number } | null>(null);
   const [denying, setDenying] = useState(false);
-  const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
   const [line, setLine] = useState<string | null>(null);
   const [outcome, setOutcome] = useState<"allowed" | "denied" | null>(null);
@@ -131,10 +131,7 @@ export function ApprovalCard({ taskId, agent, agentId, data, face, faceSeed, edi
   const ended = outcome ?? outcomeOf(task.state);
   if (ended) {
     return (
-      <View testID={`approval-done-${taskId}`} style={st.done} accessibilityRole="text">
-        <Glyph name={ended === "allowed" ? "check" : "x"} size={13} color={ended === "allowed" ? "var(--ok)" : "var(--ink-3)"} />
-        <Text style={st.doneText}>{held.plain ? `${ended === "allowed" ? "Approved" : "Sent back"} · ${task.title}` : held.cap === "chat.message_person" ? sentLine(ended, subject, (task.workingNotes as Record<string, string> | undefined)?.["approved_in"] === "chat") : doneLine(ended, held.cap, subject, held.input)}</Text>
-      </View>
+      <CardDone testID={`approval-done-${taskId}`} ok={ended === "allowed"} glyph={<Glyph name={ended === "allowed" ? "check" : "x"} size={13} color={ended === "allowed" ? "var(--ok)" : "var(--ink-3)"} />} text={held.plain ? `${ended === "allowed" ? "Approved" : "Sent back"} · ${task.title}` : held.cap === "chat.message_person" ? sentLine(ended, subject, (task.workingNotes as Record<string, string> | undefined)?.["approved_in"] === "chat") : doneLine(ended, held.cap, subject, held.input)} />
     );
   }
   const act = (key: "approve" | "reject", note?: string): void => {
@@ -156,11 +153,8 @@ export function ApprovalCard({ taskId, agent, agentId, data, face, faceSeed, edi
   const rows = held.plain ? plainRows(held) : held.what ? askRows(task.blocks) : excerptLines(held.input, 5, held.cap);
   const headline = held.what ? askLine(agent, held.what) : wantsLine(agent, held.cap, subject, held.input);
   return (
-    <View testID={`approval-${taskId}`} style={st.card} accessibilityRole="summary" accessibilityLabel={headline}>
-      <View style={st.head}>
-        <Face name={agent} seedId={face ?? faceSeed ?? agentId} kind={face ? "person" : "agent"} size={20} />
-        <Text style={st.title}>{headline}</Text>
-      </View>
+    <Card kind="decision" testID={`approval-${taskId}`} label={headline} onCancel={denying ? () => setDenying(false) : undefined}>
+      <CardHead title={headline} lead={<Face name={agent} seedId={face ?? faceSeed ?? agentId} kind={face ? "person" : "agent"} size={20} />} />
       {diff && diff.lines.length > 0 ? (
         <View testID={`approval-diff-${taskId}`} style={st.excerpt}>
           {collect(diff.lines.map((l, i) => ({ ...l, i })), (l) => (
@@ -182,30 +176,21 @@ export function ApprovalCard({ taskId, agent, agentId, data, face, faceSeed, edi
         </View>
       ) : null}
       {denying ? (
-        <View style={st.deny}>
-          <TextInput accessibilityLabel="Why not (optional)" testID={`approval-reason-${taskId}`} value={reason} onChangeText={setReason} placeholder="Reason (optional)" placeholderTextColor="var(--ink-4)" multiline style={st.input} />
-          <View style={st.acts}>
-            <TextButton label="Back" onPress={() => setDenying(false)} testID={`approval-back-${taskId}`} />
-            <TextButton label="Deny" danger disabled={busy} onPress={() => act("reject", denyNote(reason))} testID={`approval-deny-go-${taskId}`} />
-          </View>
-        </View>
+        <CardDeny ids={{ reason: `approval-reason-${taskId}`, back: `approval-back-${taskId}`, go: `approval-deny-go-${taskId}` }} busy={busy} onBack={() => setDenying(false)} onDeny={(r) => act("reject", denyNote(r))} />
       ) : (
-        <View style={st.acts}>
-          <TextButton label="Deny" onPress={() => setDenying(true)} disabled={busy} testID={`approval-deny-${taskId}`} />
-          {allowable ? <TextButton label="Always allow" disabled={busy} onPress={always} testID={`approval-always-${taskId}`} /> : null}
-          <TextButton label="Allow" primary disabled={busy} onPress={() => act("approve")} testID={`approval-allow-${taskId}`} />
-        </View>
+        <CardActions
+          busy={busy}
+          secondary={[...(allowable ? [{ label: "Always allow", onPress: always, testID: `approval-always-${taskId}` }] : []), { label: "Deny", onPress: () => setDenying(true), testID: `approval-deny-${taskId}` }]}
+          primary={{ label: "Allow", onPress: () => act("approve"), testID: `approval-allow-${taskId}` }}
+          error={line}
+        />
       )}
-      {line ? <Text accessibilityRole="alert" style={st.err}>{line}</Text> : null}
-    </View>
+    </Card>
   );
 }
 
 const st = StyleSheet.create({
-  card: { marginTop: 8, padding: 12, gap: 10, borderRadius: 12, borderWidth: 1, borderColor: "var(--line-2)" as string, backgroundColor: "var(--raised)" as string, maxWidth: 560 },
-  head: { flexDirection: "row", alignItems: "center", gap: 8 },
-  title: { flexShrink: 1, fontSize: 14, fontWeight: "600", color: "var(--ink)" as string },
-  excerpt: { gap: 6, padding: 10, borderRadius: 8, backgroundColor: "var(--sunk)" as string },
+  excerpt: { gap: 6, padding: 10, borderRadius: 12, backgroundColor: CARD_INSET },
   line: { gap: 1 },
   label: { fontSize: 11.5, color: "var(--ink-3)" as string },
   link: { fontSize: 13, lineHeight: 18, color: "var(--accent)" as string },
@@ -213,10 +198,4 @@ const st = StyleSheet.create({
   diffLine: { flexDirection: "row", gap: 8 },
   mark: { width: 12, fontSize: 13, fontWeight: "600" },
   del: { color: "var(--ink-3)" as string, textDecorationLine: "line-through" },
-  acts: { flexDirection: "row", justifyContent: "flex-end", gap: 8 },
-  deny: { gap: 8 },
-  input: { minHeight: 56, padding: 10, borderRadius: 8, borderWidth: 1, borderColor: "var(--field-line)" as string, backgroundColor: "var(--field)" as string, fontSize: 13, color: "var(--ink)" as string },
-  err: { fontSize: 12.5, color: "var(--danger)" as string },
-  done: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 6 },
-  doneText: { fontSize: 12.5, color: "var(--ink-3)" as string },
 });

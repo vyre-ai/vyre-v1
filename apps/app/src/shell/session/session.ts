@@ -241,7 +241,7 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
     try { opened = await openBundle(password, { ...got.keys, personKeyByRecovery: got.keys.personKeyByRecovery ?? "" }); } catch { throw new Error("That password does not open your vault."); }
     try {
       if (!(await holdKeyOnOwnNode(o.baseUrl, token ?? "", heldKeyOf(opened)))) throw new Error("Your Vault could not be opened. Sign in again to open it.");
-      keepKey(heldKeyOf(opened));
+      await keepKey(heldKeyOf(opened));
     } finally { wipeOpened(opened); }
   };
 

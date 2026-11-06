@@ -20,7 +20,7 @@ import type { OpenResult } from "../../../apps/app/src/places/chats/conversation
 
 export const title = "Chats conversation";
 
-const VARIANTS: readonly Variant[] = ["idle", "streaming", "busy", "errors", "plan", "long", "nolead", "closed"];
+const VARIANTS: readonly Variant[] = ["idle", "streaming", "busy", "errors", "plan", "long", "nolead", "closed", "vaultkey", "lastpick"];
 const isVariant = (v: string | null): v is Variant => VARIANTS.includes(v as Variant);
 
 /** The few DOM members the probe uses; this tree has no DOM lib, so they are named here. */

@@ -247,7 +247,7 @@ export function createCliSession(deps: CliSessionDeps, spec: SessionSpec): CliSe
             break;
           case "usage":
             yield {
-              type: "usage", inputTokens: item.inputTokens, outputTokens: item.outputTokens, ...(item.model ? { model: item.model } : {}), ...(item.contextTokens !== undefined ? { contextTokens: item.contextTokens } : {}),
+              type: "usage", inputTokens: item.inputTokens, outputTokens: item.outputTokens, ...(item.model ? { model: item.model } : {}), ...(item.contextWindow !== undefined ? { contextWindow: item.contextWindow } : {}), ...(item.contextTokens !== undefined ? { contextTokens: item.contextTokens } : {}),
               ...(item.cacheReadTokens !== undefined ? { cacheReadTokens: item.cacheReadTokens } : {}), ...(item.cacheWriteTokens !== undefined ? { cacheWriteTokens: item.cacheWriteTokens } : {}),
               ...(item.reasoningTokens !== undefined ? { reasoningTokens: item.reasoningTokens } : {}), ...(item.costUsd !== undefined ? { costUsd: item.costUsd } : {}),
             };
@@ -258,7 +258,7 @@ export function createCliSession(deps: CliSessionDeps, spec: SessionSpec): CliSe
             outstanding -= 1;
             if (item.error) {
               if (gone(item.error.message)) { await stop(r, false); return "gone"; }
-              yield { type: "error", code: item.error.code ?? classifyCli(item.error.message), message: plainCli(clean(item.error.message)) };
+              yield { type: "error", code: item.error.code ?? classifyCli(item.error.message), message: plainCli(clean(item.error.message)), ...(item.error.resetsAt !== undefined ? { resetsAt: item.error.resetsAt } : {}) };
               return "stop";
             }
             // A steering engine's result ends the turn every message it has read belongs to. A message it has not read yet is the start of its next turn, which ends with a result of its own: wait for that

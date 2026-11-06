@@ -26,6 +26,7 @@ Open a URL, reusing the open tab by default (never one tab per step)
 ```ts
 type In = {
   computerId?: string;
+  inMyChrome?: boolean;
   url: string;
   newTab?: boolean;
 };
@@ -38,6 +39,11 @@ type Out = {
   tabId: string;
   url: string;
   title: string;
+  downloads?: Array<{
+      name: string;
+      path: string;
+      fileId: string;
+    }>;
 };
 ```
 
@@ -59,10 +65,18 @@ type Out = {
   "name": "example",
   "input": {
     "computerId": "cmt_a1b2c3",
+    "inMyChrome": true,
     "newTab": true,
     "url": "https://example.com"
   },
   "output": {
+    "downloads": [
+      {
+        "fileId": "fil_a1b2c3",
+        "name": "example",
+        "path": "Downloads/report.pdf"
+      }
+    ],
     "tabId": "example",
     "title": "example",
     "url": "example"

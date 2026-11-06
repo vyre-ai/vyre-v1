@@ -414,16 +414,16 @@ export const RECENT_SHOWN = 8;
 /** People and Agents show this many, then "N more". */
 export const LIST_SHOWN = 3;
 
-/** The flat list, top to bottom: Tasks and Notes, then Now (running and waiting rise here), Recent, Channels, People, Agents. Every list survives 300 rows: each folds, and long ones stop at "N more". */
+/** The flat list, top to bottom: Tasks and Notes, While you were away (one quiet row), then Now (running and waiting rise here), Recent, Channels, People, Agents. Every list survives 300 rows: each folds, and long ones stop at "N more". */
 export function buildEntries(i: SidebarInput): Entry[] {
   const out: Entry[] = [];
   const open = (s: SectionKey): boolean => !i.closed.has(s);
   const err = (s: SectionKey): Entry[] => { const e = i.errors?.[s]; return e ? [{ key: `x:${s}`, type: "error", section: s, text: e.text, cause: e.cause, ...(e.code ? { code: e.code } : {}), ...(e.traceId ? { traceId: e.traceId } : {}) }] : []; };
-  if (!i.searching && i.digest && i.digest.count > 0) out.push({ key: "digest", type: "digest", count: i.digest.count });
   if (!i.searching) {
     out.push({ key: "nav:tasks", type: "nav", to: "tasks", label: "Tasks", count: i.tasksCount ?? 0 });
     if (i.notes) out.push({ key: "nav:notes", type: "nav", to: "notes", label: "Notes", count: 0 });
   }
+  if (!i.searching && i.digest && i.digest.count > 0) out.push({ key: "digest", type: "digest", count: i.digest.count });
   const muted = i.muted ?? NONE_MUTED;
   const starredOf = i.starred ?? (() => false);
   const filtered = i.filter !== undefined && i.filter !== "all";

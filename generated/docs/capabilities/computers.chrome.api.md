@@ -26,6 +26,7 @@ Call a site backend with the session of this browser; non-GET calls pass the Gat
 ```ts
 type In = {
   computerId?: string;
+  inMyChrome?: boolean;
   method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   url: string;
   headers?: Record<string, string>;
@@ -66,6 +67,7 @@ type Out = {
     "computerId": "cmt_a1b2c3",
     "headers": {},
     "idempotencyKey": "idem_1",
+    "inMyChrome": true,
     "method": "GET",
     "url": "https://example.com/api/items"
   },

@@ -1,10 +1,10 @@
 // The model menu (prototype vyre-chat): the one place to pick how a chat runs, opened from the composer. The mode tab (Auto, Ask first, Plan), then Provider and Model (each a submenu that opens to the right of
 // its row), Effort, Runs on, More, the limits as quiet meters, and Compact with what to keep. It stays open while you pick (only an outside click or Escape closes it) and everything follows the provider: its
 // models, its effort levels, the words on its limits. Only accounts you connected are listed, by the name you gave them. A meter the engine has no number for is left out, never guessed.
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
-import { MODES, effortForKey, effortsFor, kTokens, limitWords, modeInfo } from "./brain.ts";
+import { MODES, effortForKey, effortsFor, kTokens, limitWords, modeInfo, windowWords } from "./brain.ts";
 import type { ChatMode, ComposerAgent, Effort } from "./brain.ts";
 import { BrandMark, I, ensureComposerCss, webOnly } from "./parts.tsx";
 import { Glyph } from "./shared.tsx";
@@ -152,7 +152,7 @@ function Seg<T extends string>({ items, on, pick, testID, tight }: { items: read
   );
 }
 
-function Nav({ label, value, on, onPress, testID, lead }: { label: string; value: string; on: boolean; onPress: () => void; testID: string; lead?: ReactNode }): ReactElement {
+function Nav({ label, value, on, onPress, testID, lead }: { label: string; value: string; on: boolean; onPress: (e: unknown) => void; testID: string; lead?: ReactNode }): ReactElement {
   return (
     <Pressable accessibilityRole="button" accessibilityLabel={`${label}${value ? `: ${value}` : ""}`} accessibilityState={{ expanded: on }} testID={testID} onPress={onPress}
       style={({ hovered }: { hovered?: boolean }) => [st.item, on ? st.sel : hovered === true ? st.hover : null]}>
@@ -182,10 +182,15 @@ export function ModelPanel(p: ModelPanelProps): ReactElement {
   const [find, setFind] = useState("");
   const node = useRef<{ focus?: () => void; getBoundingClientRect?: () => { right: number } } | null>(null);
   useEffect(() => { node.current?.focus?.(); }, []);
-  const toggle = (next: Sub): void => {
+  // the pressed row's top inside the menu: the side list opens level with it (prototype s-chat221 place())
+  const [subTop, setSubTop] = useState(0);
+  const toggle = (next: Sub, e?: unknown): void => {
     const box = node.current?.getBoundingClientRect?.();
     const room = (globalThis as { innerWidth?: number }).innerWidth;
-    setFlip(box !== undefined && room !== undefined && box.right + 228 > room);
+    // 216 wide list, 6 apart, and 8 px kept from the window's edge
+    setFlip(box !== undefined && room !== undefined && box.right + 6 + 216 + 8 > room);
+    const row = (e as { currentTarget?: { offsetTop?: number } } | undefined)?.currentTarget;
+    setSubTop(typeof row?.offsetTop === "number" ? row.offsetTop : 0);
     // the Compact form opens with the chat's standing words, ticked, so compacting again keeps them and unticking is a choice the person sees
     const standing = p.usage !== "loading" ? p.usage?.keepEvery : undefined;
     if (next === "compact" && sub !== "compact" && standing) { setKeep(standing); setAlways(true); }
@@ -253,7 +258,7 @@ export function ModelPanel(p: ModelPanelProps): ReactElement {
               const on = m.id === p.model;
               const off = m.allowed === false;
               // a model the account may not use stays visible with the reason, and does nothing when pressed
-              return <Row key={m.id} id={`model-${m.id}`} title={m.title} selected={on} {...(off ? { note: m.reason ?? "Not available on this account" } : m.note ? { note: m.note } : {})} trailing={on ? CHECK : null} {...(off ? {} : { onPress: () => { p.onModel(m.id); setSub(null); } })} />;
+              return <Row key={m.id} id={`model-${m.id}`} title={m.title} selected={on} {...(off ? { note: m.reason ?? "Not available on this account" } : m.note || m.window ? { note: [m.note, m.window ? windowWords(m.window) : ""].filter((x) => x).join(" · ") } : {})} trailing={on ? CHECK : null} {...(off ? {} : { onPress: () => { p.onModel(m.id); setSub(null); } })} />;
             })}
           </ScrollView>
           {p.modelsLine && p.models !== null ? <Text style={st.quiet} testID="model-models-line">{p.modelsLine}</Text> : null}
@@ -300,6 +305,24 @@ export function ModelPanel(p: ModelPanelProps): ReactElement {
     return null;
   };
   const body = subBody();
+  // The side list floats outside the menu's box. When the menu goes (a click outside, Escape, a pick, the strip pressed again) the list goes with it in the same frame: it is hidden as the tree is torn down, so no
+  // compositor layer of it is left painted at the menu's edge until something repaints (owner shot, desktop rc.22: a half-drawn ghost of the Model list).
+  const subNode = useRef<{ style?: { display: string; visibility: string } } | null>(null);
+  // the menu and its side list stay 8 px inside the window: a menu taller than the room above scrolls, a side list level with its row is moved up or down until it fits (web)
+  useLayoutEffect(() => {
+    const m = node.current as unknown as { getBoundingClientRect?: () => { top: number; bottom: number }; style?: Record<string, string> } | null;
+    const r = m?.getBoundingClientRect?.();
+    if (m?.style && r && r.top < 8) { m.style.maxHeight = `${Math.max(160, r.bottom - 8)}px`; m.style.overflowY = "auto"; }
+  }, [sub]);
+  useLayoutEffect(() => {
+    const n = subNode.current as unknown as { getBoundingClientRect?: () => { top: number; bottom: number }; style?: Record<string, string> } | null;
+    const h = (globalThis as { innerHeight?: number }).innerHeight;
+    const r = n?.getBoundingClientRect?.();
+    if (!n?.style || !r || h === undefined) return;
+    if (r.bottom > h - 8) n.style["top"] = `${subTop - (r.bottom - (h - 8))}px`;
+    else if (r.top < 8) n.style["top"] = `${subTop + (8 - r.top)}px`;
+  }, [sub, subTop, flip]);
+  useLayoutEffect(() => () => { const n = subNode.current; if (n?.style) { n.style.visibility = "hidden"; n.style.display = "none"; } }, []);
 
   return (
     <View
@@ -309,6 +332,10 @@ export function ModelPanel(p: ModelPanelProps): ReactElement {
       ref={node as never}
       {...webOnly({ tabIndex: -1, onKeyDown, role: "dialog" })}
     >
+      <View style={st.head} testID="model-head">
+        <Text numberOfLines={1} style={st.headModel} testID="model-head-name">{model?.title ?? p.agent.modelTitle ?? "Auto"}</Text>
+        <Text numberOfLines={1} style={st.headSub} testID="model-head-account">{account ? `${account.name}${account.plan ? ` · ${account.plan}` : ""}` : p.accounts === null ? "" : "No account chosen"}</Text>
+      </View>
       {p.onMode && p.mode ? (
         <>
           <Seg items={MODES.map((m) => ({ id: m.id, label: m.label }))} on={p.mode} pick={(m) => p.onMode?.(m)} testID="model-mode" />
@@ -320,22 +347,22 @@ export function ModelPanel(p: ModelPanelProps): ReactElement {
           <Text style={st.itemText}>Connect an AI account</Text>
         </Pressable>
       ) : (
-        <Nav label="Provider" value={account?.name ?? (p.accounts === null ? "" : "Choose")} on={sub === "provider"} onPress={() => toggle("provider")} testID="model-account" lead={account ? <BrandMark provider={account.provider} size={13} /> : undefined} />
+        <Nav label="Provider" value={account?.name ?? (p.accounts === null ? "" : "Choose")} on={sub === "provider"} onPress={(e) => toggle("provider", e)} testID="model-account" lead={account ? <BrandMark provider={account.provider} size={13} /> : undefined} />
       )}
-      <Nav label="Model" value={model?.title ?? p.agent.modelTitle ?? "Auto"} on={sub === "model"} onPress={() => toggle("model")} testID="model-model" />
+      <Nav label="Model" value={model?.title ?? p.agent.modelTitle ?? "Auto"} on={sub === "model"} onPress={(e) => toggle("model", e)} testID="model-model" />
       <View style={st.item}>
         <Text style={st.itemText}>Effort</Text>
         <View style={st.itemRight}><Seg tight items={efforts} on={efforts.some((e) => e.id === p.effort) ? p.effort : "medium"} pick={(e) => p.onEffort(e)} testID="model-effort" /></View>
       </View>
-      {p.runs ? <Nav label="Runs on" value={p.runs.fixed?.name ?? p.runs.value} on={sub === "runs"} onPress={() => toggle("runs")} testID="model-runs-row" /> : null}
-      <Nav label="More" value="" on={sub === "more"} onPress={() => toggle("more")} testID="model-more-row" />
+      {p.runs ? <Nav label="Runs on" value={p.runs.fixed?.name ?? p.runs.value} on={sub === "runs"} onPress={(e) => toggle("runs", e)} testID="model-runs-row" /> : null}
+      <Nav label="More" value="" on={sub === "more"} onPress={(e) => toggle("more", e)} testID="model-more-row" />
       {noMeters && p.usage !== "loading" ? null : (
         <>
           <View style={st.dv} />
           <View style={st.lims} testID="model-usage">
             {session ? <Meter testID="meter-session" label={words.session} frac={session.pct} value={resetLabel(session.resetsAt, p.now) ? `resets ${resetLabel(session.resetsAt, p.now)}` : pct(session.pct)} /> : null}
             {week ? <Meter testID="meter-week" label={words.week} frac={week.pct} value={resetLabel(week.resetsAt, p.now) ? `resets ${resetLabel(week.resetsAt, p.now)}` : pct(week.pct)} /> : null}
-            {ctx ? <Meter testID="meter-context" label="Context" frac={ctx.used / ctx.window} value={`${ctx.approximate ? "about " : ""}${kTokens(ctx.used)} / ${kTokens(ctx.window)}`} /> : null}
+            {ctx ? <Meter testID="meter-context" label="Context" frac={ctx.used / ctx.window} value={`${ctx.approximate ? "about " : ""}${Math.round((Math.min(ctx.used, ctx.window) / ctx.window) * 100)}% of ${kTokens(ctx.window)}`} /> : null}
           </View>
         </>
       )}
@@ -356,15 +383,19 @@ export function ModelPanel(p: ModelPanelProps): ReactElement {
       {p.onCompact ? (
         <>
           <View style={st.dv} />
-          <Nav label="Compact" value="Free up context" on={sub === "compact"} onPress={() => toggle("compact")} testID="model-compact" />
+          <Nav label="Compact" value="Free up context" on={sub === "compact"} onPress={(e) => toggle("compact", e)} testID="model-compact" />
         </>
       ) : null}
-      {body ? <View testID="model-sub" style={p.narrow ? st.subInline : [st.sub, flip ? st.subLeft : st.subRight, p.below ? st.subTop : null]} {...webOnly({ dataSet: { cmpPop: "1" } })}>{body}</View> : null}
+      {/* no arrival animation of its own: the menu's rise already carries it, and a second animated layer outside the menu's box is the one that stayed painted */}
+      {body ? <View ref={subNode as never} testID="model-sub" style={p.narrow ? st.subInline : [st.sub, flip ? st.subLeft : st.subRight, { top: subTop, bottom: "auto" as unknown as number }]}>{body}</View> : null}
     </View>
   );
 }
 
 const st = StyleSheet.create({
+  head: { gap: 1, paddingHorizontal: 10, paddingTop: 6, paddingBottom: 8, marginHorizontal: 4, marginBottom: 6, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
+  headModel: { fontSize: 13.5, fontWeight: "600", color: "var(--ink)" as string },
+  headSub: { fontSize: 12, color: "var(--ink-3)" as string },
   panel: { width: 286, padding: 6, backgroundColor: "var(--raised)" as string, borderRadius: 16, outlineStyle: "none" } as object,
   panelNarrow: { width: "100%" },
   seg: { flexDirection: "row", marginHorizontal: 4, marginTop: 4, padding: 2, borderRadius: 9, backgroundColor: "var(--sunk)" as string },

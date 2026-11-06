@@ -39,14 +39,14 @@ export async function boot(bootCore: () => { store: { db: { exec(sql: string): v
   return { d, dir };
 }
 
-export async function enroll(d: Daemon, nodeDir: string, log: string[], launcher: NodeLauncher): Promise<{ nodeId: string; abort: AbortController; running: Promise<string> }> {
+export async function enroll(d: Daemon, nodeDir: string, log: string[], launcher: NodeLauncher, extra: Partial<NodeDeps> = {}): Promise<{ nodeId: string; abort: AbortController; running: Promise<string> }> {
   const abort = new AbortController();
   const deps = (join?: string): NodeDeps => ({
     server: d.url, join, dataDir: nodeDir, name: "relay-node", signal: abort.signal, now: Date.now, pollMs: 100,
     fetch: (url, init) => fetch(url, init) as never,
     sleep: (ms, signal) => new Promise<void>((resolve, reject) => { const t = setTimeout(resolve, ms); signal.addEventListener("abort", () => { clearTimeout(t); reject(new Error("stopped")); }, { once: true }); }),
     log: (line) => { log.push(line); }, facts: () => ({ os: "linux", arch: "x64", docker: false, version: "t" }),
-    cliLauncher: launcher,
+    cliLauncher: launcher, ...extra,
   });
   const made = await post(d, "/v1/network/my_computer_code", { nickname: "relay-box", idempotencyKey: "rc-1" }, OWNER_TOKEN);
   const running = runComputeNode(deps(made.json.data.code as string));

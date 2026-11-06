@@ -128,6 +128,9 @@ export interface EngineHostDeps {
   pluginLaunch?: unknown;
   /** The host's save of sign-in files a CLI refreshed during a turn (signin-refresh.ts), handed to the session opener's ports. */
   saveSignin?: SigninRefresh["save"];
+  /** The person's Vault key on this node: held now, and asking for it to be reopened (host/src/seams/engine-session.ts). */
+  keyHeld?: (person: string) => boolean;
+  rehand?: (person: string) => Promise<boolean>;
   /** Told at shutdown when the engine has closed its sessions and saved what their CLIs refreshed, so the daemon waits for it before the databases close. */
   closing?: (done: Promise<void>) => void;
   /** See EngineHostSeam.turns. */
@@ -177,6 +180,6 @@ export function createEngineHost(d: EngineHostDeps): EngineHostSeam {
     const onlyAsker = kind === "thinking" || (kind === "delta" && e.privately === true) ? e.asker ?? "" : null;
     pub({ t: "turn", turn: turnId, delta: { kind, ...rest } }, (person) => (onlyAsker !== null ? person === onlyAsker : mayRead(e.threadId, person)));
   };
-  const session = d.vault ? createEngineSessionHost({ invoke: d.invoke, vault: d.vault, space: d.space, ...(d.log ? { log: d.log } : {}), ...(d.saveSignin ? { saveSignin: d.saveSignin } : {}) }) : undefined;
+  const session = d.vault ? createEngineSessionHost({ invoke: d.invoke, vault: d.vault, space: d.space, ...(d.log ? { log: d.log } : {}), ...(d.saveSignin ? { saveSignin: d.saveSignin } : {}), ...(d.keyHeld ? { keyHeld: d.keyHeld } : {}), ...(d.rehand ? { rehand: d.rehand } : {}) }) : undefined;
   return { ...(d.closing ? { closing: d.closing } : {}), ...(d.turns ? { turns: d.turns } : {}), ...(d.mayAll ? { mayAll: d.mayAll } : {}), holder: `host:${d.space}`, call, postAs, ...(d.putToSlot ? { putToSlot: d.putToSlot } : {}), ...(d.publishTurn ? { stream, forgetReaders: () => { epoch++; seen.clear(); } } : {}), ...(d.now ? { now: d.now } : {}), ...(d.log ? { log: d.log } : {}), ...(session ? { session } : {}), ...(d.sandbox !== undefined ? { sandbox: d.sandbox } : {}), ...(d.dataDir ? { dataDir: d.dataDir } : {}), ...(d.cli !== undefined ? { cli: d.cli } : {}), ...(d.engineInstall ? { engines: { install: true } } : {}), ...(d.openSession !== undefined ? { openSession: d.openSession } : {}), invoke: d.invoke, space: d.space, ...(d.own ? { own: d.own } : {}), ...(d.keyHeld ? { keyHeld: d.keyHeld } : {}), ...(d.keyOpen ? { keyOpen: d.keyOpen } : {}), ...(d.gitProxy ? { gitProxy: d.gitProxy } : {}), ...(d.onApiTools !== undefined ? { onApiTools: d.onApiTools } : {}), ...(d.ours ? { ours: d.ours } : {}), ...(d.nodes ? { nodes: d.nodes } : {}), mcpFetch: d.mcpFetch ?? createGuardedFetch({ own: false }), ...(d.pluginLaunch !== undefined ? { pluginLaunch: d.pluginLaunch } : {}) };
 }

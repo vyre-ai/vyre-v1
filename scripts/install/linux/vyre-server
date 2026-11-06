@@ -11,6 +11,7 @@
 #   vyre-server rollback                    switch back to the previous release (code only; data written by the newer one stays)
 #   vyre-server backup                      write a backup of the data directory to $VYRE_DIR/backups (the server keeps running)
 #   vyre-server restore FILE [--yes]        put a backup back: checks it, backs up the current data, stops, restores, starts, checks health
+#   vyre-server fix-userns                  let the engine sandbox make user namespaces (Ubuntu 24.04 setting); install and update do this themselves
 #   vyre-server version
 #
 # Environment: VYRE_DIR (found from this script when unset).
@@ -302,11 +303,29 @@ check_all() {
       "") finding host.sites_runner degraded "The sites runner is not running, so sites cannot deploy. Start it: vyre-server start." ;;
       *) finding host.sites_runner degraded "The sites runner is $sr. Read: vyre-server logs sites-runner." ;;
     esac
+    wi=$(lock_get VYRE_WORKSPACE_IMAGE)
+    if [ -n "$wi" ]; then
+      if docker image inspect "$wi" >/dev/null 2>&1; then finding host.workspace_image healthy "The agent workspace image is pulled."
+      else finding host.workspace_image degraded "The agent workspace image is not pulled yet; agent terminals cannot start. Run: docker pull $wi"
+      fi
+    fi
     ai=$(lock_get VYRE_AGENT_IMAGE)
     if [ -n "$ai" ]; then
       if docker image inspect "$ai" >/dev/null 2>&1; then finding host.agent_image healthy "The agent computer image is pulled."
       else finding host.agent_image degraded "The agent computer image is not pulled yet; agent computers cannot start. Run: docker pull $ai"
       fi
+    fi
+    bi=$(lock_get VYRE_BROWSER_IMAGE)
+    if [ -n "$bi" ]; then
+      if docker image inspect "$bi" >/dev/null 2>&1; then finding host.browser_image healthy "The Space browser image is pulled."
+      else finding host.browser_image degraded "The Space browser image is not pulled yet; agents browse without it until it is. Run: docker pull $bi"
+      fi
+    fi
+  fi
+  # the host lets the engine sandbox make user namespaces
+  if [ -e "$(userns_proc)" ]; then
+    if [ "$(cat "$(userns_proc)" 2>/dev/null)" = 1 ]; then finding host.userns degraded "kernel.apparmor_restrict_unprivileged_userns is 1, so the engine sandbox (bubblewrap) fails and agent turns error. Fix: vyre-server fix-userns."
+    else finding host.userns healthy "The host allows the user namespaces the engine sandbox needs."
     fi
   fi
   # the server answers
@@ -553,14 +572,74 @@ set_current() {
   mv -Tf "$DIR/current.new" "$DIR/current" 2>/dev/null || { rm -f "$DIR/current"; mv "$DIR/current.new" "$DIR/current"; }
 }
 
+# ---- the command, the host setting, the network ------------------------------------------------------------------------------------
+BIN_FILE=${VYRE_BIN_DIR:-/usr/local/bin}/vyre-server
+MARK="Vyre Server, installed by install.sh"
+
+# hand_off ARGS...: this file is not the current release's (an old copy in /usr/local/bin, or a release that is no longer current): run the current release's instead,
+# with the same arguments. VYRE_HANDOFF=1 marks the second hop, so two files that point at each other cannot loop.
+hand_off() {
+  [ "${VYRE_HANDOFF:-0}" != 1 ] || return 0
+  cur="$DIR/current/bin/vyre-server"
+  [ -f "$cur" ] || return 0
+  me=$(readlink -f "$0" 2>/dev/null || printf '%s' "$0")
+  there=$(readlink -f "$cur" 2>/dev/null || printf '%s' "$cur")
+  [ "$me" != "$there" ] || return 0
+  VYRE_HANDOFF=1 VYRE_DIR="$DIR" exec sh "$cur" "$@"
+}
+
+# refresh_bin: the command in /usr/local/bin is a small wrapper that runs the current release's script. A full copy of an older script (what a server keeps from the day it was
+# installed) is replaced by the wrapper, so every later fix runs. Only a file that is ours is touched: it names the mark or is a vyre-server script.
+refresh_bin() {
+  [ -f "$BIN_FILE" ] || return 0
+  want=$(printf '#!/bin/sh\n# %s\nexec "%s/current/bin/vyre-server" "$@"\n' "$MARK" "$DIR")
+  [ "$(cat "$BIN_FILE" 2>/dev/null)" != "$want" ] || return 0
+  grep -q -e "$MARK" -e '^# vyre-server: run and look after Vyre Server' "$BIN_FILE" 2>/dev/null || return 0
+  printf '%s\n' "$want" >"$BIN_FILE.new" 2>/dev/null || { rm -f "$BIN_FILE.new"; return 0; }
+  chmod 0755 "$BIN_FILE.new" && mv -f "$BIN_FILE.new" "$BIN_FILE" || rm -f "$BIN_FILE.new"
+}
+
+# Ubuntu 24.04 stops unprivileged user namespaces (kernel.apparmor_restrict_unprivileged_userns=1), which bubblewrap, the engine's sandbox, needs.
+userns_proc() { if [ "${VYRE_TEST_MODE:-0}" = 1 ] && [ -n "${VYRE_TEST_USERNS_PROC:-}" ]; then printf '%s' "$VYRE_TEST_USERNS_PROC"; else printf /proc/sys/kernel/apparmor_restrict_unprivileged_userns; fi; }
+# ensure_userns: write /etc/sysctl.d/60-vyre-userns.conf and apply it, only on a kernel that has the setting.
+ensure_userns() {
+  [ -e "$(userns_proc)" ] || return 0
+  sd=${VYRE_SYSCTL_DIR:-/etc/sysctl.d}
+  conf="$sd/60-vyre-userns.conf"
+  mkdir -p "$sd" 2>/dev/null || return 0
+  printf '# %s: the engine sandbox (bubblewrap) needs unprivileged user namespaces.\nkernel.apparmor_restrict_unprivileged_userns = 0\n' "$MARK" >"$conf.new" 2>/dev/null || { rm -f "$conf.new"; return 0; }
+  mv -f "$conf.new" "$conf"
+  if command -v sysctl >/dev/null 2>&1; then sysctl -p "$conf" >/dev/null 2>&1 || say "  Could not apply $conf now; it applies at the next boot."; fi
+  return 0
+}
+
+# settle_caddy: Caddy shares vyred's network namespace (network_mode: service:vyred). When vyred is recreated, a Caddy left on the old one serves nothing, so it is recreated
+# too whenever it is not attached to the vyred that runs now.
+settle_caddy() {
+  vid=$(dc ps -q vyred 2>/dev/null | head -n 1 || true)
+  [ -n "$vid" ] || return 0
+  vfull=$(docker inspect -f '{{.Id}}' "$vid" 2>/dev/null || printf '%s' "$vid")
+  cid=$(dc ps -q caddy 2>/dev/null | head -n 1 || true)
+  if [ -n "$cid" ]; then
+    mode=$(docker inspect -f '{{.HostConfig.NetworkMode}}' "$cid" 2>/dev/null || true)
+    [ "$mode" != "container:$vfull" ] || return 0
+  fi
+  dc up -d --force-recreate --no-deps caddy >/dev/null 2>&1 || return 1
+}
+# up_stack: bring the stack up on the current release, then make sure Caddy is on the new vyred.
+up_stack() { dc up -d --remove-orphans >/dev/null 2>&1 || return 1; settle_caddy || true; }
+
 # sync_image: compose.env names the image of the release `current` points at. Written whole and moved into place, so a cut-off write never leaves half a file.
 sync_image() {
   img=$(sed -n 's/^VYRE_IMAGE=//p' "$DIR/current/images.lock" | head -n 1)
   [ -n "$img" ] || return 1
   # the agent computer image of this release, by digest: vyred asks for exactly this one (compose.server.yml VYRE_AGENT_COMPUTER_IMAGE). A release without one leaves the line out and the default applies.
   aimg=$(sed -n 's/^VYRE_AGENT_IMAGE=//p' "$DIR/current/images.lock" | head -n 1)
+  # the Space browser image of this release, by digest (compose.server.yml VYRE_SPACE_BROWSER_IMAGE), the same way
+  bimg=$(sed -n 's/^VYRE_BROWSER_IMAGE=//p' "$DIR/current/images.lock" | head -n 1)
+  wimg=$(sed -n 's/^VYRE_WORKSPACE_IMAGE=//p' "$DIR/current/images.lock" | head -n 1)
   cp -p "$DIR/compose.env" "$DIR/compose.env.new" || return 1
-  { grep -v -e '^VYRE_IMAGE=' -e '^VYRE_AGENT_COMPUTER_IMAGE=' "$DIR/compose.env" || true; printf 'VYRE_IMAGE=%s\n' "$img"; [ -z "$aimg" ] || printf 'VYRE_AGENT_COMPUTER_IMAGE=%s\n' "$aimg"; } >"$DIR/compose.env.new" || { rm -f "$DIR/compose.env.new"; return 1; }
+  { grep -v -e '^VYRE_IMAGE=' -e '^VYRE_AGENT_COMPUTER_IMAGE=' -e '^VYRE_SPACE_BROWSER_IMAGE=' -e '^VYRE_WORKSPACE_IMAGE=' "$DIR/compose.env" || true; printf 'VYRE_IMAGE=%s\n' "$img"; [ -z "$aimg" ] || printf 'VYRE_AGENT_COMPUTER_IMAGE=%s\n' "$aimg"; [ -z "$bimg" ] || printf 'VYRE_SPACE_BROWSER_IMAGE=%s\n' "$bimg"; [ -z "$wimg" ] || printf 'VYRE_WORKSPACE_IMAGE=%s\n' "$wimg"; } >"$DIR/compose.env.new" || { rm -f "$DIR/compose.env.new"; return 1; }
   mv -f "$DIR/compose.env.new" "$DIR/compose.env"
 }
 
@@ -603,6 +682,45 @@ prune_releases() {
   ls -1t "$DIR/releases" 2>/dev/null | awk -v k="$KEEP_RELEASES" 'NR > k' | while read -r v; do
     [ "$v" = "$keep" ] || [ "$v" = "$prev" ] || rm -rf "$DIR/releases/$v"
   done
+}
+
+# prune_images: after a healthy update, remove the agent computer, workspace and Space browser images that no kept release names, so each update does not leave the last one behind (MLA had 16.6 GB).
+# An image goes only when all of these hold: it is one of ours (pulled by digest from a repository named agent-computer, workspace or space-browser; or carrying the label ai.vyre.image; or an
+# untagged image whose command is the agent computer's agentd), no kept release or compose.env names it, and no container, running or stopped, was made from it. A kept release is one prune_releases
+# left: the current one and the one a rollback goes to. Images built or tagged by hand (no digest) are never touched. Docker itself refuses to remove an image a container uses, a second guard.
+# A failure never fails the update: it prints what was removed, if anything, and returns 0.
+PRUNE_IMAGE_NAMES=${VYRE_PRUNE_IMAGE_NAMES:-'agent-computer|workspace|space-browser'}
+prune_images() {
+  command -v docker >/dev/null 2>&1 || return 0
+  docker info >/dev/null 2>&1 || return 0
+  keep_ids=""
+  for ref in $( { cat "$DIR"/releases/*/images.lock "$DIR/compose.env"; } 2>/dev/null | sed -n 's/^VYRE_[A-Z_]*IMAGE=//p' | sort -u ); do
+    id=$(docker image inspect -f '{{.Id}}' "$ref" 2>/dev/null) && keep_ids="$keep_ids $id"
+  done
+  listing=$(docker images --no-trunc --format '{{.ID}} {{.Repository}}@{{.Digest}}' 2>/dev/null) || return 0
+  removed=0
+  for id in $(printf '%s\n' "$listing" | awk '{print $1}' | sort -u); do
+    case " $keep_ids " in *" $id "*) continue ;; esac
+    [ -z "$(docker ps -a -q --filter "ancestor=$id" 2>/dev/null)" ] || continue
+    refs=$(printf '%s\n' "$listing" | awk -v i="$id" '$1 == i { print $2 }')
+    # an image someone tagged by hand (a name with no digest) is theirs, even when the same image also carries a digest name
+    ! printf '%s\n' "$refs" | grep -Eq '^[^<].*@<none>$' || continue
+    ours=0
+    case "$(docker image inspect -f '{{index .Config.Labels "ai.vyre.image"}}' "$id" 2>/dev/null)" in ""|"<no value>") ;; *) ours=1 ;; esac
+    case "$(docker image inspect -f '{{join .Config.Cmd " "}}' "$id" 2>/dev/null)" in *"/opt/agentd/main.ts"*) [ "$refs" != "${refs#*<none>@<none>}" ] && ours=1 ;; esac
+    for r in $refs; do
+      case "$r" in *"<none>"*) continue ;; esac
+      printf '%s\n' "$r" | grep -Eq "(^|/)($PRUNE_IMAGE_NAMES)@sha256:" && ours=1
+    done
+    [ "$ours" = 1 ] || continue
+    gone=1; did=0
+    for r in $refs; do
+      case "$r" in *"<none>@<none>"*) if docker rmi "$id" >/dev/null 2>&1; then did=1; else gone=0; fi ;; *"<none>"*) ;; *@sha256:*) if docker rmi "$r" >/dev/null 2>&1; then did=1; else gone=0; fi ;; esac
+    done
+    if [ "$gone" = 1 ] && [ "$did" = 1 ]; then removed=$((removed + 1)); fi
+  done
+  [ "$removed" = 0 ] || say "  Removed $removed old agent computer, workspace or browser $( [ "$removed" = 1 ] && printf image || printf images )."
+  return 0
 }
 
 lock_update_operation() {
@@ -659,7 +777,7 @@ cmd_update() {
   if [ "$DRY" = 1 ]; then say "Would install $REL_VERSION from the $CHANNEL channel; no images, backups or running services were changed."; return 0; fi
   unpack_release
   [ -n "$(sed -n 's/^VYRE_IMAGE=//p' "$DIR/releases/$REL_VERSION/images.lock")" ] || die "the release names no server image; nothing was changed."
-  for k in VYRE_IMAGE VYRE_AGENT_IMAGE VYRE_SANDBOX_IMAGE; do
+  for k in VYRE_IMAGE VYRE_AGENT_IMAGE VYRE_BROWSER_IMAGE VYRE_WORKSPACE_IMAGE VYRE_SANDBOX_IMAGE; do
     ref=$(sed -n "s/^$k=//p" "$DIR/releases/$REL_VERSION/images.lock" | head -n 1)
     [ -n "$ref" ] || continue
     case "$ref" in *@sha256:*) ;; *) die "the release names $k without a digest; nothing was changed." ;; esac
@@ -674,9 +792,11 @@ cmd_update() {
   printf '%s\n' "$prev_link" >"$DIR/previous"
   set_current "$REL_VERSION"
   ln -sfn "$DIR/vyre.env" "$DIR/releases/$REL_VERSION/vyre.env"
+  refresh_bin
+  ensure_userns
   reason=""
   if ! sync_image; then reason="the new version's image could not be set"
-  elif ! dc up -d --remove-orphans >/dev/null 2>&1; then reason="the new version did not start"
+  elif ! up_stack; then reason="the new version did not start"
   elif ! wait_healthy; then reason="the new version did not pass its health check"
   fi
   secs=$(( $(date +%s) - started ))
@@ -688,6 +808,7 @@ cmd_update() {
     rm -f "$DIR/state/update.pending"
     record_update "$from" "$REL_VERSION" ok "$secs" ""
     prune_releases
+    prune_images || true
     say "Updated to $REL_VERSION in $secs s."
     return 0
   fi
@@ -696,7 +817,8 @@ cmd_update() {
   set_current "${prev_link#releases/}"
   sync_image || true
   rm -f "$DIR/state/update.pending"
-  dc up -d --remove-orphans >/dev/null 2>&1 || true
+  refresh_bin
+  up_stack || true
   if wait_healthy; then record_update "$from" "$REL_VERSION" rolled_back "$secs" "$reason"; die "the update to $REL_VERSION failed ($reason) and the server is back on $from. Backup: $BACKUP_FILE" 4; fi
   record_update "$from" "$REL_VERSION" failed "$secs" "$reason"
   die "the update to $REL_VERSION failed ($reason) and the server did not come back healthy on $from either. Read: vyre-server logs. Backup: $BACKUP_FILE" 5
@@ -713,7 +835,9 @@ cmd_rollback() {
   printf 'releases/%s\n' "$from" >"$DIR/previous"
   set_current "$prev"
   sync_image || die "the image of $prev could not be set; read $DIR/releases/$prev/images.lock."
-  dc up -d --remove-orphans >/dev/null
+  refresh_bin
+  ensure_userns
+  up_stack || die "the server did not start on $prev. Read: vyre-server logs."
   wait_healthy || die "the server did not become healthy on $prev. Read: vyre-server logs."
   record_update "$from" "$prev" rolled_back 0 "manual rollback"
   say "Running $prev."
@@ -721,8 +845,9 @@ cmd_rollback() {
 
 main() {
   trap cleanup EXIT
-  [ $# -gt 0 ] || { sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
+  [ $# -gt 0 ] || { sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
   cmd=$1; shift
+  hand_off "$cmd" "$@"
   case "$cmd" in
     doctor) cmd_doctor "$@" ;;
     status) cmd_status ;;
@@ -732,11 +857,12 @@ main() {
     logs) cmd_logs "$@" ;;
     claim-link) cmd_claim_link ;;
     update) cmd_update "$@" ;;
+    fix-userns) ensure_userns; say "Done." ;;
     rollback) cmd_rollback ;;
     backup) cmd_backup ;;
     restore) cmd_restore "$@" ;;
     version|--version) say "$(cur_version)" ;;
-    -h|--help|help) sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//' ;;
+    -h|--help|help) sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//' ;;
     *) die "unknown command $cmd (try: vyre-server help)" 2 ;;
   esac
 }

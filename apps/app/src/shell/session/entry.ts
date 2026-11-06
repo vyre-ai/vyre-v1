@@ -2,7 +2,6 @@ import { normalizeSpaceAddress } from '../../join/logic.ts';
 import type { DesktopRoute } from './desktop.ts';
 import { probeDirectSpace } from './caps.ts';
 export type EntryTarget = Extract<DesktopRoute,{kind:'signin'|'join'}> | {kind:'claim';address:string;url:string};
-export interface LockedIdentity {address:string;personId:string;name:string}
 const control=/[\u0000-\u001f\u007f-\u009f]/u;
 /** Canonical invitation/owner links remain distinct from a Space sign-in address. */
 export function entryTarget(raw:string):EntryTarget|null{
@@ -22,12 +21,6 @@ export function isMacShell(nav:{platform?:string;userAgent?:string}|undefined=(g
  const text=`${nav?.platform??''} ${nav?.userAgent??''}`;
  return /Mac/.test(text)&&!/iPhone|iPad|iPod/.test(text);
 }
-export function lockedIdentity(input:{baseUrl:string;personId:string;name?:string;[key:string]:unknown}):LockedIdentity{return{address:input.baseUrl,personId:input.personId,name:input.name||'Your account'};}
-const LOCK_KEY='vyre.locked.v1';
-const storage=()=>{try{return(globalThis as {sessionStorage?:Storage}).sessionStorage;}catch{return undefined;}};
-export function readLock(address?:string):LockedIdentity|null{try{const item=JSON.parse(storage()?.getItem(LOCK_KEY)??'null') as LockedIdentity|null;return item&&(!address||item.address===address)&&typeof item.personId==='string'&&typeof item.name==='string'?lockedIdentity({...item,baseUrl:item.address}):null;}catch{return null;}}
-export function storeLock(identity:LockedIdentity):void{try{storage()?.setItem(LOCK_KEY,JSON.stringify(identity));}catch{/* the current window still locks when storage is unavailable */}}
-export function clearLock():void{try{storage()?.removeItem(LOCK_KEY);}catch{/* blocked storage */}}
 
 /** Remove a spent or dismissed browser invite before shell navigation can remount the gate. */
 export function consumeBrowserInvite(browser: {location?:{pathname:string};history?:{replaceState(data:unknown,unused:string,url:string):void}}=globalThis as never):void{const p=browser.location?.pathname??'';if(p==='/join'||p.startsWith('/join/'))browser.history?.replaceState(null,'','/chat');}

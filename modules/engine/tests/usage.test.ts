@@ -61,7 +61,7 @@ test("context used is the input tokens of the thread's latest turn for that agen
   turn(h, { tokensIn: 0, at: NOW });
   const out = await usageGet(ctx, { threadId: T, agentId: A });
   assert.deepEqual(shape(out), []);
-  assert.deepEqual(out.context, { used: 48_000, window: 200_000 });
+  assert.deepEqual(out.context, { used: 48_000, window: 1_000_000 });
 });
 
 test("the window comes from the model catalog: 1M for a [1m] model, GPT-5 at 258,400, and what Set model chose wins", async () => {
@@ -76,14 +76,14 @@ test("the window comes from the model catalog: 1M for a [1m] model, GPT-5 at 258
 
 test("the context figure never passes the window, and a chat that has not started is zero used, not unknown", async () => {
   const { h, ctx } = setup();
-  assert.deepEqual((await usageGet(ctx, { threadId: T, agentId: A })).context, { used: 0, window: 200_000 });
+  assert.deepEqual((await usageGet(ctx, { threadId: T, agentId: A })).context, { used: 0, window: 1_000_000 });
   turn(h, { tokensIn: 450_000, at: NOW });
-  assert.deepEqual((await usageGet(ctx, { threadId: T, agentId: A })).context, { used: 200_000, window: 200_000 }, "a turn of several model calls sums their inputs; the figure is held at the window");
+  assert.deepEqual((await usageGet(ctx, { threadId: T, agentId: A })).context, { used: 450_000, window: 1_000_000 }, "a turn of several model calls sums their inputs; the figure is held at the window");
 });
 
 test("every model the app offers has a window in the catalog, and models.list carries it as contextTokens", async () => {
   for (const [model, provider, want] of [
-    ["opus", "anthropic", 200_000], ["sonnet", "anthropic", 200_000], ["haiku", "anthropic", 200_000], ["gpt-5-codex", "openai", 258_400], ["gpt-5", "openai", 258_400],
+    ["opus", "anthropic", 1_000_000], ["sonnet", "anthropic", 1_000_000], ["haiku", "anthropic", 1_000_000], ["claude-sonnet-4-5", "anthropic", 200_000], ["gpt-5-codex", "openai", 258_400], ["gpt-5", "openai", 258_400],
     ["grok-4", "xai", 256_000], ["grok-code-fast-1", "xai", 256_000], ["gemini-2.5-pro", "google", 1_000_000],
   ] as const) assert.equal(windowFor(model, provider), want, model);
   const h = harness();
@@ -95,7 +95,7 @@ test("every model the app offers has a window in the catalog, and models.list ca
       return h.ctx.call(cap, {});
     },
   };
-  assert.deepEqual((await modelsList(ctx, {})).models.map((m) => [m.model, m.contextTokens]), [["claude-opus-5[1m]", 1_000_000], ["claude-sonnet-5-5", 200_000]]);
+  assert.deepEqual((await modelsList(ctx, {})).models.map((m) => [m.model, m.contextTokens]), [["claude-opus-5[1m]", 1_000_000], ["claude-sonnet-5-5", 1_000_000]]);
 });
 
 test("no model name anywhere means no context figure, not a guess", async () => {
@@ -152,7 +152,7 @@ test("without an accountRef the account that pays for the next turn is used; non
   const none = setup({ resolved: null });
   const out = await usageGet(none.ctx, { threadId: T, agentId: A });
   assert.equal(out.account, null);
-  assert.deepEqual(out.context, { used: 0, window: 200_000 });
+  assert.deepEqual(out.context, { used: 0, window: 1_000_000 });
   assert.deepEqual(shape(out), []);
 });
 
@@ -207,7 +207,7 @@ test("context used is what the model was shown in the turn's last call, not the 
   turn(h, { tokensIn: 1_000_000, at: NOW - 1000 });
   h.db.run("CREATE TABLE IF NOT EXISTS engine_turn_info (turn_id TEXT PRIMARY KEY, thread_id TEXT NOT NULL, reply_message_id TEXT, info TEXT, cost TEXT, updated_at INTEGER NOT NULL)");
   h.db.run("INSERT INTO engine_turn_info (turn_id, thread_id, info, updated_at) VALUES (?, ?, ?, ?)", `trn_u${n}`, T, JSON.stringify({ tools: [], switches: [], contextTokens: 61_000 }), NOW);
-  assert.deepEqual((await usageGet(ctx, { threadId: T, agentId: A })).context, { used: 61_000, window: 200_000 });
+  assert.deepEqual((await usageGet(ctx, { threadId: T, agentId: A })).context, { used: 61_000, window: 1_000_000 });
 });
 
 test("an engine that reports only a turn's total (Codex) does not read a sum of requests as the context: with tool calls it is estimated from the number of requests", async () => {
@@ -215,5 +215,5 @@ test("an engine that reports only a turn's total (Codex) does not read a sum of 
   turn(h, { tokensIn: 400_000, at: NOW - 1000 });
   h.db.run("CREATE TABLE IF NOT EXISTS engine_turn_info (turn_id TEXT PRIMARY KEY, thread_id TEXT NOT NULL, reply_message_id TEXT, info TEXT, cost TEXT, updated_at INTEGER NOT NULL)");
   h.db.run("INSERT INTO engine_turn_info (turn_id, thread_id, info, updated_at) VALUES (?, ?, ?, ?)", `trn_u${n}`, T, JSON.stringify({ tools: Array.from({ length: 7 }, (_, i) => ({ id: `t${i}`, name: "Bash", startedAt: 1 })), switches: [] }), NOW);
-  assert.deepEqual((await usageGet(ctx, { threadId: T, agentId: A })).context, { used: 100_000, window: 200_000, approximate: true }, "7 tool calls and the answer: 8 requests, the last about 2 x 400k / 8");
+  assert.deepEqual((await usageGet(ctx, { threadId: T, agentId: A })).context, { used: 100_000, window: 1_000_000, approximate: true }, "7 tool calls and the answer: 8 requests, the last about 2 x 400k / 8");
 });

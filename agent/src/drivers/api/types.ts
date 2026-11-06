@@ -88,7 +88,8 @@ export interface ProviderAdapter {
   parseModels(json: unknown): ModelInfo[];
 }
 
-export interface ModelInfo { id: string; label?: string }
+/** `contextTokens`: the window the provider's own list says for it, when it does. */
+export interface ModelInfo { id: string; label?: string; contextTokens?: number }
 
 /** An account as a driver sees it: the Vault handle, and the address when the account names its own (OpenAI-compatible endpoints). */
 /** `keyless`: the account has no key (a local server); the authorizer returns no headers and never asks the Vault. */

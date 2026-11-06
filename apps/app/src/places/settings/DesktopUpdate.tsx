@@ -8,7 +8,7 @@ import { View } from "react-native";
 import { useSettingsData } from "./data.tsx";
 import type { DesktopUpdater } from "./data.tsx";
 import { Section, SettingsRow, SmallButton, Switch, Value } from "./ui.tsx";
-import { FROM_KEY, autoUpdateOn, channelLabel, checkedLabel, noteLines, noteUpdateFrom, progressLine, setAutoUpdate } from "../../startup/update/model.ts";
+import { FROM_KEY, autoUpdateOn, channelLabel, checkedLabel, installFailureWords, noteLines, noteUpdateFrom, progressLine, setAutoUpdate } from "../../startup/update/model.ts";
 import type { Progress, Store, UpdateCheck, WhatsNew } from "../../startup/update/model.ts";
 import { loadWhatsNew, localStore, setUpdateState, subscribeUpdates, updateState, updateWaiting } from "../../startup/update/store.ts";
 import type { UpdateState } from "../../startup/update/store.ts";
@@ -118,7 +118,7 @@ export function AboutVyre({ updater, store: given }: { updater?: DesktopUpdater 
     noteUpdateFrom(store, state.check.current);
     setUpdateState({ installing: true });
     try { await u.install(setProgress); setFailure("The update did not finish. Try again."); }
-    catch (e) { setFailure(words(e, "The update did not install. Try again.")); }
+    catch (e) { setFailure(installFailureWords(e, "The update did not install. Try again.")); }
     finally { try { store?.removeItem(FROM_KEY); } catch { /* nothing kept */ } setUpdateState({ installing: false }); setBusy(false); }
   };
   // the first open of the page checks when the start did not get an answer

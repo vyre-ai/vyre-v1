@@ -96,7 +96,7 @@ const shot = async (page: any, name: string): Promise<void> => {
 };
 const openSheet = async (page: any, phone: boolean): Promise<void> => {
   if (phone) { await page.getByTestId("composer-attach").click({ timeout: 8000 }); await page.getByTestId("row-plus-people").click({ timeout: 8000 }); }
-  else await page.getByTestId("add-agent").click({ timeout: 8000 });
+  else { await page.getByTestId("participants-button").click({ timeout: 8000 }); await page.getByTestId("people-footer").click({ timeout: 8000 }); }
   await page.getByTestId("add-sheet").waitFor({ timeout: 10000 });
   await guards.get(page)?.check("after opening the Add sheet");
 };

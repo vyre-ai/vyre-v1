@@ -124,13 +124,35 @@ function checkId(ctx: CalCtx, prefix: string, value: unknown, what: string): str
 
 // ---- calendars
 
+/**
+ * The calendars a person sees by default: their own, and the ones somebody explicitly shared with them (a direct grant to them, or a group or folder grant). Admin access to every
+ * member's calendar (the role) is for opening another person's calendar on purpose, by id; it is never mixed into their own list or week.
+ */
+async function visibleCalendars(ctx: CalCtx): Promise<Row[]> {
+  const me = ctx.actingFor ?? ctx.principal.id;
+  const out: Row[] = [];
+  for (const r of rowsOf(ctx.db.all(`SELECT * FROM calendar_list WHERE deleted_at IS NULL`))) {
+    if (ownerOnly(ctx, r)) { out.push(r); continue; }
+    if (!canView(ctx, r)) continue;
+    try {
+      const res = obj(await ctx.call("access.shares_of", { resource: { type: "calendar", id: str(r, "id") } }));
+      const explicit = list(res["shares"]).map(obj).some((sh) => {
+        const through = text(sh["through"]);
+        return (through === "direct" && text(obj(obj(sh["grant"])["subject"])["id"]) === me) || through === "group" || through === "folder";
+      });
+      if (explicit) out.push(r);
+    } catch { /* shares are read when the access module answers; a calendar whose shares cannot be read stays out of the default view */ }
+  }
+  return out;
+}
+
 export async function listCalendars(ctx: CalCtx, input: { scope?: "mine" | "shared" | "all" }): Promise<{ calendars: CalendarOut[] }> {
   ensure(ctx);
   const scope = input.scope ?? "all";
   if (scope !== "mine" && scope !== "shared" && scope !== "all") bad(ctx, "The scope is mine, shared or all.");
-  const rows = rowsOf(ctx.db.all(`SELECT * FROM calendar_list WHERE deleted_at IS NULL`));
+  const rows = await visibleCalendars(ctx);
   const out = rows
-    .filter((r) => (ownerOnly(ctx, r) ? scope !== "shared" : scope !== "mine" && canView(ctx, r)))
+    .filter((r) => (ownerOnly(ctx, r) ? scope !== "shared" : scope !== "mine"))
     .sort((a, b) => Number(ownerOnly(ctx, b)) - Number(ownerOnly(ctx, a)) || str(a, "title").localeCompare(str(b, "title")) || str(a, "id").localeCompare(str(b, "id")));
   return { calendars: out.map(toCalendar) };
 }
@@ -194,7 +216,7 @@ export async function listEvents(
     if (!Array.isArray(input.calendarIds)) bad(ctx, "Calendars are a list of calendar ids.");
     calendars = [...new Set(input.calendarIds)].map((id) => calendarRow(ctx, id, "view"));
   } else {
-    calendars = rowsOf(ctx.db.all(`SELECT * FROM calendar_list WHERE deleted_at IS NULL`)).filter((r) => canView(ctx, r));
+    calendars = await visibleCalendars(ctx);   // the viewer's own and the ones shared with them, not every calendar an admin may open
   }
   const q = input.query?.trim().toLowerCase();
   const found: Row[] = [];
@@ -204,6 +226,19 @@ export async function listEvents(
       found.push(e);
     }
   }
+  // One meeting in several calendars (each attendee's own copy carries the provider's same event id) is listed once: the copy on the caller's own calendar, else the first viewable one.
+  const own = new Set(calendars.filter((c) => ownerOnly(ctx, c)).map((c) => str(c, "id")));
+  const best = new Map<string, Row>();
+  const keyOf = (e: Row): string | null => { const pid = strOrNull(e, "providerId"); return pid === null ? null : `${pid}|${num(e, "startsAt")}`; };
+  for (const e of found) {
+    const k = keyOf(e);
+    if (k === null) continue;
+    const have = best.get(k);
+    if (!have || (!own.has(str(have, "calendarId")) && own.has(str(e, "calendarId")))) best.set(k, e);
+  }
+  const listed = found.filter((e) => { const k = keyOf(e); return k === null || best.get(k) === e; });
+  found.length = 0;
+  found.push(...listed);
   found.sort((a, b) => num(a, "startsAt") - num(b, "startsAt") || num(a, "endsAt") - num(b, "endsAt") || str(a, "id").localeCompare(str(b, "id")));
   const page = found.slice(offset, offset + limit).map(toEvent);
   const end = offset + page.length;
@@ -797,6 +832,8 @@ export async function ingestEvent(ctx: CalCtx, input: IngestIn): Promise<{ event
       ctx.db.run(`UPDATE calendar_event SET ${names.map((n) => `${quoted(n)} = ?`).join(", ")}, version = ?, updated_at = ? WHERE id = ?`, ...names.map((n) => set.get(n) ?? null), num(have, "version") + 1, now, eventId);
     }
     if (changed.length) ctx.emit("calendar_event.updated", `entity/${eventId}`, { eventId, calendarId: input.calendarId, fields: changed });
+    // nothing changed and the event already has its meeting: the pull of an unchanged event costs one lookup, not a meetings.ingest call
+    if (!changed.length && strOrNull(have, "meetingId") !== null) return { eventId, meetingId: str(have, "meetingId"), merged: false };
   }
   const meeting = await joinMeeting(ctx, eventId);
   return { eventId, ...(meeting.meetingId ? { meetingId: meeting.meetingId } : {}), merged: meeting.merged };
@@ -1025,15 +1062,33 @@ async function pullCalendar(ctx: CalCtx, cal: Row): Promise<void> {
 
 const isoOf = (ts: number): string => new Date(ts).toISOString();
 
+/**
+ * The Google cursor. Asking for a window (timeMin, timeMax) never gets a sync token back, so the old pull read the whole window again every two minutes. The cursor is now
+ * `u1:<updatedMin ms>:<last full read ms>`: a pass asks only for what changed since updatedMin (cancelled events included), and the whole window is read again every
+ * FULL_EVERY_MS to move the window and to catch what a pass missed. A real sync token (a cursor without the `u1:` prefix) is still used when Google gives one.
+ */
+const FULL_EVERY_MS = 6 * 60 * 60_000;
+const UPDATED_SKEW_MS = 60_000;
+const parseCursor = (c: string | null): { updatedMin: number; fullAt: number } | null => {
+  const m = c ? /^u1:(\d+):(\d+)$/.exec(c) : null;
+  return m ? { updatedMin: Number(m[1]), fullAt: Number(m[2]) } : null;
+};
+/** Let the event loop run: the pull lands events with synchronous SQLite, so after a batch it steps aside for requests. */
+const YIELD_EVERY_MS = 20;
+const yieldLoop = (): Promise<void> => new Promise((r) => setImmediate(r));
+/** A yielder for one pull: after every event it steps aside once YIELD_EVERY_MS have passed since it last did, so no stretch of work holds the loop longer than about that. */
+const makeYielder = (): (() => Promise<void>) => { let since = performance.now(); return async () => { if (performance.now() - since >= YIELD_EVERY_MS) { await yieldLoop(); since = performance.now(); } }; };
+
 async function pullGoogle(ctx: CalCtx, calendarId: string, connectionId: string, remoteId: string, cursor: string | null, account?: string): Promise<Pulled> {
-  const run = async (token: string | null): Promise<Pulled> => {
+  const run = async (token: string | null, since: number | null, fullAt: number): Promise<Pulled> => {
     let upserted = 0;
     let removed = 0;
     let pageToken: string | undefined;
     let next: string | null = null;
     const now = ctx.now();
+    const step = makeYielder();
     for (let page = 0; page < MAX_PAGES; page++) {
-      const query: Json = token ? { syncToken: token } : { timeMin: isoOf(now - PULL_BEHIND), timeMax: isoOf(now + PULL_AHEAD) };
+      const query: Json = token ? { syncToken: token } : { timeMin: isoOf(now - PULL_BEHIND), timeMax: isoOf(now + PULL_AHEAD), ...(since !== null ? { updatedMin: isoOf(since) } : {}) };
       const res = obj(await ctx.call("google.calendar.list_events", { connectionId, calendarId: remoteId, ...(account ? { as: account } : {}), ...query, ...(pageToken ? { pageToken } : {}) }));
       for (const raw of list(res.events).map(obj)) {
         const ing = fromGoogle(calendarId, raw);
@@ -1041,19 +1096,31 @@ async function pullGoogle(ctx: CalCtx, calendarId: string, connectionId: string,
         await ingestEvent(ctx, ing);
         if (ing.deleted) removed++;
         else upserted++;
+        await step();
       }
       pageToken = text(res.nextPageToken) || undefined;
       if (text(res.nextSyncToken)) next = text(res.nextSyncToken);
       if (!pageToken) break;
     }
-    return { upserted, removed, cursor: next };
+    return { upserted, removed, cursor: next ?? (token ? null : `u1:${Math.max(0, now - UPDATED_SKEW_MS)}:${fullAt}`) };
   };
-  if (!cursor) return run(null);
+  const mine = parseCursor(cursor);
+  const full = (): Promise<Pulled> => run(null, null, ctx.now());
+  if (!cursor) return full();
+  if (mine) {
+    if (ctx.now() - mine.fullAt >= FULL_EVERY_MS) return full();
+    try {
+      return await run(null, mine.updatedMin, mine.fullAt);
+    } catch (e) {
+      ctx.log.warn("calendar: the changes since the last pass were refused, reading the window again", { calendarId, code: codeOf(e) });
+      return full();
+    }
+  }
   try {
-    return await run(cursor);
+    return await run(cursor, null, ctx.now());
   } catch (e) {
     ctx.log.warn("calendar: sync token refused, reading the window again", { calendarId, code: codeOf(e) });
-    return run(null);   // an expired token means read everything in the window once; ingest is idempotent
+    return full();   // an expired token means read everything in the window once; ingest is idempotent
   }
 }
 
@@ -1063,12 +1130,14 @@ async function pullGraph(ctx: CalCtx, calendarId: string, connectionId: string, 
     const res = obj(await ctx.call("ms.calendar.delta", { connectionId, ...(remoteId === GRAPH_DEFAULT ? {} : { calendarId: remoteId }), ...(account ? { as: account } : {}), start: isoOf(now - PULL_BEHIND), end: isoOf(now + PULL_AHEAD), ...(link ? { deltaLink: link } : {}) }));
     let upserted = 0;
     let removed = 0;
+    const step = makeYielder();
     for (const raw of list(res.changed).map(obj)) {
       const ing = fromGraph(calendarId, raw);
       if (!ing) continue;
       await ingestEvent(ctx, ing);
       if (ing.deleted) removed++;
       else upserted++;
+      await step();
     }
     for (const id of list(res.removed)) {
       if (typeof id !== "string" || !id) continue;

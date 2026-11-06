@@ -50,6 +50,10 @@ type Out = {
     createdAt: number;
     lastActiveAt: number;
     runId?: string;
+    by?: {
+      kind: "agent" | "helper" | "person";
+      name?: string;
+    };
   };
 };
 ```
@@ -73,6 +77,10 @@ type Out = {
   "output": {
     "terminal": {
       "agentId": "agt_a1b2c3",
+      "by": {
+        "kind": "agent",
+        "name": "Ember"
+      },
       "cols": 1,
       "computerId": "cmt_a1b2c3",
       "createdAt": 1760000000000,

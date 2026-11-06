@@ -82,6 +82,7 @@ type Out = {
     threadId?: string;
     reviewLoops: number;
     snoozedUntil?: number;
+    expiresAt?: number;
     createdBy: string;
     createdAt: number;
     updatedAt: number;
@@ -150,6 +151,7 @@ type Out = {
       ],
       "due": 1760000000000,
       "effort": 1,
+      "expiresAt": 1760000000000,
       "fields": {},
       "fileIds": [
         "fil_a1b2c3"

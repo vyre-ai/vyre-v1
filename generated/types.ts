@@ -2137,6 +2137,14 @@ export type AgentsSetOwnerOut = {
     chatOf?: string;
   };
 };
+export type AgentsShareClassIn = {
+  agentId: string;
+};
+export type AgentsShareClassOut = {
+  class: "private" | "personal" | "shared" | "space";
+  ownerId: string;
+  people: Array<string>;
+};
 export type AgentsSnapshotTakeIn = {
   agentId: string;
   runId?: string;
@@ -8518,8 +8526,112 @@ export type CompanySweepOut = {
   gone: Array<string>;
   held?: string;
 };
+export type ComputersBrowserGiveBackIn = {
+  agentId: string;
+};
+export type ComputersBrowserGiveBackOut = {
+  profile: {
+    agentId: string;
+    running: boolean;
+    tabs: number;
+    busy: boolean;
+    viewers: number;
+    lastActiveAt?: number;
+    state: "running" | "asleep" | "waiting" | "error";
+    line?: string;
+    takeoverBy?: string;
+    paired: boolean;
+    access: "owner" | "admin" | "viewer";
+  };
+};
+export type ComputersBrowserProfilesIn = Record<string, unknown>;
+export type ComputersBrowserProfilesOut = {
+  profiles: Array<{
+      agentId: string;
+      running: boolean;
+      tabs: number;
+      busy: boolean;
+      viewers: number;
+      lastActiveAt?: number;
+      state: "running" | "asleep" | "waiting" | "error";
+      line?: string;
+      takeoverBy?: string;
+      paired: boolean;
+      access: "owner" | "admin" | "viewer";
+    }>;
+  maxRunning: number;
+};
+export type ComputersBrowserSessionsIn = {
+  agentId: string;
+};
+export type ComputersBrowserSessionsOut = {
+  sessions: Array<{
+      site: string;
+      signedInAs?: string;
+      since: number;
+      lastSeen: number;
+    }>;
+};
+export type ComputersBrowserSignOutIn = {
+  agentId: string;
+  site: string;
+};
+export type ComputersBrowserSignOutOut = {
+  ok: boolean;
+};
+export type ComputersBrowserStreamIn = {
+  agentId: string;
+};
+export type ComputersBrowserStreamOut = {
+  transport: "mjpeg";
+  url: string;
+  ws?: string;
+  width?: number;
+  height?: number;
+  expiresAt: number;
+};
+export type ComputersBrowserTakeOverIn = {
+  agentId: string;
+};
+export type ComputersBrowserTakeOverOut = {
+  profile: {
+    agentId: string;
+    running: boolean;
+    tabs: number;
+    busy: boolean;
+    viewers: number;
+    lastActiveAt?: number;
+    state: "running" | "asleep" | "waiting" | "error";
+    line?: string;
+    takeoverBy?: string;
+    paired: boolean;
+    access: "owner" | "admin" | "viewer";
+  };
+};
+export type ComputersBrowserTimelineIn = {
+  agentId: string;
+  runId?: string;
+  threadId?: string;
+  cursor?: string;
+  limit?: number;
+};
+export type ComputersBrowserTimelineOut = {
+  steps: Array<{
+      stepId: string;
+      idx: number;
+      at: number;
+      caption: string;
+      tool: string;
+      frameFileId?: string;
+      by: "agent" | "person";
+      runId?: string;
+    }>;
+  next?: string;
+  total?: number;
+};
 export type ComputersChromeActIn = {
   computerId?: string;
+  inMyChrome?: boolean;
   tabId?: string;
   ref?: string;
   action: "click" | "double_click" | "hover" | "press" | "select" | "scroll" | "check" | "uncheck" | "focus";
@@ -8529,9 +8641,15 @@ export type ComputersChromeActOut = {
   ok: boolean;
   heldId?: string;
   snapshot?: string;
+  downloads?: Array<{
+      name: string;
+      path: string;
+      fileId: string;
+    }>;
 };
 export type ComputersChromeApiIn = {
   computerId?: string;
+  inMyChrome?: boolean;
   method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   url: string;
   headers?: Record<string, string>;
@@ -8545,6 +8663,7 @@ export type ComputersChromeApiOut = {
 };
 export type ComputersChromeBatchIn = {
   computerId?: string;
+  inMyChrome?: boolean;
   tabId?: string;
   steps: Array<{
       tool: string;
@@ -8561,6 +8680,7 @@ export type ComputersChromeBatchOut = {
 };
 export type ComputersChromeClickIn = {
   computerId?: string;
+  inMyChrome?: boolean;
   tabId?: string;
   ref?: string;
   x?: number;
@@ -8570,9 +8690,15 @@ export type ComputersChromeClickIn = {
 export type ComputersChromeClickOut = {
   ok: boolean;
   heldId?: string;
+  downloads?: Array<{
+      name: string;
+      path: string;
+      fileId: string;
+    }>;
 };
 export type ComputersChromeConsoleIn = {
   computerId?: string;
+  inMyChrome?: boolean;
   tabId?: string;
   level?: "log" | "warn" | "error";
   limit?: number;
@@ -8586,6 +8712,7 @@ export type ComputersChromeConsoleOut = {
 };
 export type ComputersChromeEvalIn = {
   computerId?: string;
+  inMyChrome?: boolean;
   tabId?: string;
   expression: string;
 };
@@ -8594,6 +8721,7 @@ export type ComputersChromeEvalOut = {
 };
 export type ComputersChromeFillIn = {
   computerId?: string;
+  inMyChrome?: boolean;
   tabId?: string;
   fields: Array<{
       ref: string;
@@ -8606,6 +8734,7 @@ export type ComputersChromeFillOut = {
 };
 export type ComputersChromeInspectIn = {
   computerId?: string;
+  inMyChrome?: boolean;
   tabId?: string;
   ref: string;
 };
@@ -8614,6 +8743,7 @@ export type ComputersChromeInspectOut = {
 };
 export type ComputersChromeNetIn = {
   computerId?: string;
+  inMyChrome?: boolean;
   tabId?: string;
   filter?: string;
   bodies?: boolean;
@@ -8630,6 +8760,7 @@ export type ComputersChromeNetOut = {
 };
 export type ComputersChromeOpenIn = {
   computerId?: string;
+  inMyChrome?: boolean;
   url: string;
   newTab?: boolean;
 };
@@ -8637,9 +8768,15 @@ export type ComputersChromeOpenOut = {
   tabId: string;
   url: string;
   title: string;
+  downloads?: Array<{
+      name: string;
+      path: string;
+      fileId: string;
+    }>;
 };
 export type ComputersChromePlanIn = {
   computerId?: string;
+  inMyChrome?: boolean;
   goal: string;
   steps?: Array<string>;
 };
@@ -8648,12 +8785,14 @@ export type ComputersChromePlanOut = {
 };
 export type ComputersChromeResumeIn = {
   computerId?: string;
+  inMyChrome?: boolean;
 };
 export type ComputersChromeResumeOut = {
   resumed: boolean;
 };
 export type ComputersChromeScreenshotIn = {
   computerId?: string;
+  inMyChrome?: boolean;
   tabId?: string;
   ref?: string;
   fullPage?: boolean;
@@ -8665,6 +8804,7 @@ export type ComputersChromeScreenshotOut = {
 };
 export type ComputersChromeSendIn = {
   computerId?: string;
+  inMyChrome?: boolean;
   heldId: string;
   idempotencyKey: string;
 };
@@ -8674,6 +8814,7 @@ export type ComputersChromeSendOut = {
 };
 export type ComputersChromeSnapshotIn = {
   computerId?: string;
+  inMyChrome?: boolean;
   tabId?: string;
   selector?: string;
   format?: "tree" | "text";
@@ -8686,6 +8827,7 @@ export type ComputersChromeSnapshotOut = {
 };
 export type ComputersChromeSourcesIn = {
   computerId?: string;
+  inMyChrome?: boolean;
   tabId?: string;
 };
 export type ComputersChromeSourcesOut = {
@@ -8697,15 +8839,22 @@ export type ComputersChromeSourcesOut = {
 };
 export type ComputersChromeStateIn = {
   computerId?: string;
+  inMyChrome?: boolean;
   tabId?: string;
 };
 export type ComputersChromeStateOut = {
   url: string;
   title: string;
   loading: boolean;
+  downloads?: Array<{
+      name: string;
+      path: string;
+      fileId: string;
+    }>;
 };
 export type ComputersChromeStatusIn = {
   computerId?: string;
+  inMyChrome?: boolean;
 };
 export type ComputersChromeStatusOut = {
   connected: boolean;
@@ -8714,6 +8863,7 @@ export type ComputersChromeStatusOut = {
 };
 export type ComputersChromeStopIn = {
   computerId?: string;
+  inMyChrome?: boolean;
   reason?: string;
 };
 export type ComputersChromeStopOut = {
@@ -8721,9 +8871,11 @@ export type ComputersChromeStopOut = {
 };
 export type ComputersChromeTabsIn = {
   computerId?: string;
-  action: "list" | "use" | "new" | "close";
+  inMyChrome?: boolean;
+  action: "list" | "use" | "find" | "new" | "close";
   tabId?: string;
   url?: string;
+  site?: string;
 };
 export type ComputersChromeTabsOut = {
   tabs: Array<{
@@ -8735,6 +8887,7 @@ export type ComputersChromeTabsOut = {
 };
 export type ComputersChromeTypeIn = {
   computerId?: string;
+  inMyChrome?: boolean;
   tabId?: string;
   ref?: string;
   text: string;
@@ -8746,6 +8899,7 @@ export type ComputersChromeTypeOut = {
 };
 export type ComputersChromeWaitIn = {
   computerId?: string;
+  inMyChrome?: boolean;
   tabId?: string;
   until: "load" | "text" | "selector" | "network_idle" | "time";
   value?: string;
@@ -8754,6 +8908,11 @@ export type ComputersChromeWaitIn = {
 export type ComputersChromeWaitOut = {
   ok: boolean;
   waitedMs: number;
+  downloads?: Array<{
+      name: string;
+      path: string;
+      fileId: string;
+    }>;
 };
 export type ComputersConfigureIn = {
   computerId: string;
@@ -11827,7 +11986,7 @@ export type EngineModelsListOut = {
       driver: "anthropic" | "openai" | "openrouter" | "google" | "xai" | "opencode_go" | "local" | "custom" | "claude_code" | "codex" | "grok";
       contextTokens?: number;
       allowed: boolean;
-      reason?: "label_provider" | "policy_model" | "not_connected" | "usage_limit" | "checking";
+      reason?: "label_provider" | "policy_model" | "not_connected" | "usage_limit" | "checking" | "not_checked" | "slow";
       resetsAt?: number;
       alias?: string;
       isDefault?: boolean;
@@ -17784,6 +17943,7 @@ export type GoogleCalendarListEventsIn = {
   timeMax?: string;
   q?: string;
   syncToken?: string;
+  updatedMin?: string;
   pageToken?: string;
 };
 export type GoogleCalendarListEventsOut = {
@@ -22260,6 +22420,7 @@ export type MachinesRoomsOut = {
       turns: number;
       maxTurns: number;
       draining: boolean;
+      maxAgentComputers?: number;
     }>;
 };
 export type MachinesSetIn = {
@@ -30912,6 +31073,7 @@ export type ProvidersAddOut = {
     address?: string;
     keyless?: boolean;
     spaceKey?: boolean;
+    unopenable?: boolean;
     identity?: string;
     displayName?: string;
     aliases?: Array<string>;
@@ -30988,6 +31150,7 @@ export type ProvidersCustomAddOut = {
     address?: string;
     keyless?: boolean;
     spaceKey?: boolean;
+    unopenable?: boolean;
     identity?: string;
     displayName?: string;
     aliases?: Array<string>;
@@ -31052,6 +31215,7 @@ export type ProvidersListOut = {
       address?: string;
       keyless?: boolean;
       spaceKey?: boolean;
+      unopenable?: boolean;
       identity?: string;
       displayName?: string;
       aliases?: Array<string>;
@@ -31075,6 +31239,7 @@ export type ProvidersListOut = {
 };
 export type ProvidersMarkSigninNeededIn = {
   handle: string;
+  why?: string;
 };
 export type ProvidersMarkSigninNeededOut = {
   marked: boolean;
@@ -31121,6 +31286,7 @@ export type ProvidersSetKeepsNothingOut = {
     address?: string;
     keyless?: boolean;
     spaceKey?: boolean;
+    unopenable?: boolean;
     identity?: string;
     displayName?: string;
     aliases?: Array<string>;
@@ -31171,6 +31337,7 @@ export type ProvidersSetSpaceUseOut = {
     address?: string;
     keyless?: boolean;
     spaceKey?: boolean;
+    unopenable?: boolean;
     identity?: string;
     displayName?: string;
     aliases?: Array<string>;
@@ -31273,6 +31440,7 @@ export type ProvidersSubscriptionCompleteOut = {
     address?: string;
     keyless?: boolean;
     spaceKey?: boolean;
+    unopenable?: boolean;
     identity?: string;
     displayName?: string;
     aliases?: Array<string>;
@@ -31355,6 +31523,7 @@ export type ProvidersUsesSetOut = {
     address?: string;
     keyless?: boolean;
     spaceKey?: boolean;
+    unopenable?: boolean;
     identity?: string;
     displayName?: string;
     aliases?: Array<string>;
@@ -38217,6 +38386,7 @@ export type TasksActOut = {
     threadId?: string;
     reviewLoops: number;
     snoozedUntil?: number;
+    expiresAt?: number;
     createdBy: string;
     createdAt: number;
     updatedAt: number;
@@ -38286,6 +38456,7 @@ export type TasksAgentOnItOut = {
     threadId?: string;
     reviewLoops: number;
     snoozedUntil?: number;
+    expiresAt?: number;
     createdBy: string;
     createdAt: number;
     updatedAt: number;
@@ -38358,6 +38529,7 @@ export type TasksAskOut = {
     threadId?: string;
     reviewLoops: number;
     snoozedUntil?: number;
+    expiresAt?: number;
     createdBy: string;
     createdAt: number;
     updatedAt: number;
@@ -38431,6 +38603,7 @@ export type TasksAssignOut = {
     threadId?: string;
     reviewLoops: number;
     snoozedUntil?: number;
+    expiresAt?: number;
     createdBy: string;
     createdAt: number;
     updatedAt: number;
@@ -38499,6 +38672,7 @@ export type TasksBlockOut = {
     threadId?: string;
     reviewLoops: number;
     snoozedUntil?: number;
+    expiresAt?: number;
     createdBy: string;
     createdAt: number;
     updatedAt: number;
@@ -38631,6 +38805,7 @@ export type TasksCreateOut = {
     threadId?: string;
     reviewLoops: number;
     snoozedUntil?: number;
+    expiresAt?: number;
     createdBy: string;
     createdAt: number;
     updatedAt: number;
@@ -38700,6 +38875,7 @@ export type TasksDecideOut = {
     threadId?: string;
     reviewLoops: number;
     snoozedUntil?: number;
+    expiresAt?: number;
     createdBy: string;
     createdAt: number;
     updatedAt: number;
@@ -38773,6 +38949,7 @@ export type TasksDelegateOut = {
     threadId?: string;
     reviewLoops: number;
     snoozedUntil?: number;
+    expiresAt?: number;
     createdBy: string;
     createdAt: number;
     updatedAt: number;
@@ -38851,6 +39028,7 @@ export type TasksDependenciesAddOut = {
     threadId?: string;
     reviewLoops: number;
     snoozedUntil?: number;
+    expiresAt?: number;
     createdBy: string;
     createdAt: number;
     updatedAt: number;
@@ -38919,6 +39097,7 @@ export type TasksDependenciesRemoveOut = {
     threadId?: string;
     reviewLoops: number;
     snoozedUntil?: number;
+    expiresAt?: number;
     createdBy: string;
     createdAt: number;
     updatedAt: number;
@@ -38996,6 +39175,7 @@ export type TasksEscalateOut = {
     threadId?: string;
     reviewLoops: number;
     snoozedUntil?: number;
+    expiresAt?: number;
     createdBy: string;
     createdAt: number;
     updatedAt: number;
@@ -39064,6 +39244,7 @@ export type TasksFollowersAddOut = {
     threadId?: string;
     reviewLoops: number;
     snoozedUntil?: number;
+    expiresAt?: number;
     createdBy: string;
     createdAt: number;
     updatedAt: number;
@@ -39132,6 +39313,7 @@ export type TasksFollowersRemoveOut = {
     threadId?: string;
     reviewLoops: number;
     snoozedUntil?: number;
+    expiresAt?: number;
     createdBy: string;
     createdAt: number;
     updatedAt: number;
@@ -39199,6 +39381,7 @@ export type TasksGetOut = {
     threadId?: string;
     reviewLoops: number;
     snoozedUntil?: number;
+    expiresAt?: number;
     createdBy: string;
     createdAt: number;
     updatedAt: number;
@@ -39356,6 +39539,7 @@ export type TasksLinksAddOut = {
     threadId?: string;
     reviewLoops: number;
     snoozedUntil?: number;
+    expiresAt?: number;
     createdBy: string;
     createdAt: number;
     updatedAt: number;
@@ -39425,6 +39609,7 @@ export type TasksLinksRemoveOut = {
     threadId?: string;
     reviewLoops: number;
     snoozedUntil?: number;
+    expiresAt?: number;
     createdBy: string;
     createdAt: number;
     updatedAt: number;
@@ -39503,6 +39688,7 @@ export type TasksListOut = {
       threadId?: string;
       reviewLoops: number;
       snoozedUntil?: number;
+      expiresAt?: number;
       createdBy: string;
       createdAt: number;
       updatedAt: number;
@@ -39574,6 +39760,7 @@ export type TasksMyWorkOut = {
       threadId?: string;
       reviewLoops: number;
       snoozedUntil?: number;
+      expiresAt?: number;
       createdBy: string;
       createdAt: number;
       updatedAt: number;
@@ -39649,6 +39836,7 @@ export type TasksNeedsYouOut = {
         threadId?: string;
         reviewLoops: number;
         snoozedUntil?: number;
+        expiresAt?: number;
         createdBy: string;
         createdAt: number;
         updatedAt: number;
@@ -39757,6 +39945,7 @@ export type TasksPlanOut = {
     threadId?: string;
     reviewLoops: number;
     snoozedUntil?: number;
+    expiresAt?: number;
     createdBy: string;
     createdAt: number;
     updatedAt: number;
@@ -39830,6 +40019,7 @@ export type TasksReleaseOut = {
     threadId?: string;
     reviewLoops: number;
     snoozedUntil?: number;
+    expiresAt?: number;
     createdBy: string;
     createdAt: number;
     updatedAt: number;
@@ -39897,6 +40087,7 @@ export type TasksRestoreOut = {
     threadId?: string;
     reviewLoops: number;
     snoozedUntil?: number;
+    expiresAt?: number;
     createdBy: string;
     createdAt: number;
     updatedAt: number;
@@ -39971,6 +40162,7 @@ export type TasksReviewOut = {
     threadId?: string;
     reviewLoops: number;
     snoozedUntil?: number;
+    expiresAt?: number;
     createdBy: string;
     createdAt: number;
     updatedAt: number;
@@ -40040,6 +40232,7 @@ export type TasksSnoozeOut = {
     threadId?: string;
     reviewLoops: number;
     snoozedUntil?: number;
+    expiresAt?: number;
     createdBy: string;
     createdAt: number;
     updatedAt: number;
@@ -40109,6 +40302,7 @@ export type TasksSubmitOut = {
     threadId?: string;
     reviewLoops: number;
     snoozedUntil?: number;
+    expiresAt?: number;
     createdBy: string;
     createdAt: number;
     updatedAt: number;
@@ -40177,6 +40371,7 @@ export type TasksTakeOut = {
     threadId?: string;
     reviewLoops: number;
     snoozedUntil?: number;
+    expiresAt?: number;
     createdBy: string;
     createdAt: number;
     updatedAt: number;
@@ -40247,6 +40442,7 @@ export type TasksTransitionOut = {
     threadId?: string;
     reviewLoops: number;
     snoozedUntil?: number;
+    expiresAt?: number;
     createdBy: string;
     createdAt: number;
     updatedAt: number;
@@ -40336,6 +40532,7 @@ export type TasksUpdateOut = {
     threadId?: string;
     reviewLoops: number;
     snoozedUntil?: number;
+    expiresAt?: number;
     createdBy: string;
     createdAt: number;
     updatedAt: number;
@@ -40413,6 +40610,7 @@ export type TasksWorkingNotesDeleteOut = {
     threadId?: string;
     reviewLoops: number;
     snoozedUntil?: number;
+    expiresAt?: number;
     createdBy: string;
     createdAt: number;
     updatedAt: number;
@@ -40483,6 +40681,7 @@ export type TasksWorkingNotesSetOut = {
     threadId?: string;
     reviewLoops: number;
     snoozedUntil?: number;
+    expiresAt?: number;
     createdBy: string;
     createdAt: number;
     updatedAt: number;
@@ -41434,6 +41633,10 @@ export type TerminalGetOut = {
     createdAt: number;
     lastActiveAt: number;
     runId?: string;
+    by?: {
+      kind: "agent" | "helper" | "person";
+      name?: string;
+    };
   };
 };
 export type TerminalHealthIn = Record<string, unknown>;
@@ -41482,12 +41685,16 @@ export type TerminalListOut = {
       createdAt: number;
       lastActiveAt: number;
       runId?: string;
+      by?: {
+        kind: "agent" | "helper" | "person";
+        name?: string;
+      };
     }>;
   next?: string;
   total?: number;
 };
 export type TerminalOpenIn = {
-  host: "agent_computer" | "device";
+  host?: "agent_computer" | "device";
   agentId?: string;
   computerId?: string;
   deviceId?: string;
@@ -41515,6 +41722,10 @@ export type TerminalOpenOut = {
     createdAt: number;
     lastActiveAt: number;
     runId?: string;
+    by?: {
+      kind: "agent" | "helper" | "person";
+      name?: string;
+    };
   };
 };
 export type TerminalOpenServerIn = {
@@ -41542,6 +41753,10 @@ export type TerminalOpenServerOut = {
     createdAt: number;
     lastActiveAt: number;
     runId?: string;
+    by?: {
+      kind: "agent" | "helper" | "person";
+      name?: string;
+    };
   };
 };
 export type TerminalReadIn = {
@@ -41575,6 +41790,10 @@ export type TerminalRenameOut = {
     createdAt: number;
     lastActiveAt: number;
     runId?: string;
+    by?: {
+      kind: "agent" | "helper" | "person";
+      name?: string;
+    };
   };
 };
 export type TerminalRequestIn = {
@@ -41633,6 +41852,7 @@ export type TerminalRulesSetOut = {
 export type TerminalRunIn = {
   command: string;
   terminalId?: string;
+  session?: string;
   host?: "agent_computer" | "device";
   agentId?: string;
   cwd?: string;
@@ -41657,6 +41877,18 @@ export type TerminalStatusOut = {
       lastLine?: string;
       exitCode: number | null;
     }>;
+};
+export type TerminalWorkspaceIn = {
+  agentId: string;
+};
+export type TerminalWorkspaceOut = {
+  state: "running" | "asleep" | "waiting" | "none" | "unavailable";
+  line?: string;
+  host?: "space" | "server";
+  nodeId?: string;
+  projects?: Array<string>;
+  canAttach: boolean;
+  cannotAttach?: string;
 };
 export type ThreadsAddAgentIn = {
   threadId: string;
@@ -44606,6 +44838,7 @@ export interface CapMap {
   "agents.routine.save": { in: AgentsRoutineSaveIn; out: AgentsRoutineSaveOut };
   "agents.routines.list": { in: AgentsRoutinesListIn; out: AgentsRoutinesListOut };
   "agents.set_owner": { in: AgentsSetOwnerIn; out: AgentsSetOwnerOut };
+  "agents.share_class": { in: AgentsShareClassIn; out: AgentsShareClassOut };
   "agents.snapshot.take": { in: AgentsSnapshotTakeIn; out: AgentsSnapshotTakeOut };
   "agents.status": { in: AgentsStatusIn; out: AgentsStatusOut };
   "agents.suggestion.accept": { in: AgentsSuggestionAcceptIn; out: AgentsSuggestionAcceptOut };
@@ -44853,6 +45086,13 @@ export interface CapMap {
   "company.start": { in: CompanyStartIn; out: CompanyStartOut };
   "company.status": { in: CompanyStatusIn; out: CompanyStatusOut };
   "company.sweep": { in: CompanySweepIn; out: CompanySweepOut };
+  "computers.browser.give_back": { in: ComputersBrowserGiveBackIn; out: ComputersBrowserGiveBackOut };
+  "computers.browser.profiles": { in: ComputersBrowserProfilesIn; out: ComputersBrowserProfilesOut };
+  "computers.browser.sessions": { in: ComputersBrowserSessionsIn; out: ComputersBrowserSessionsOut };
+  "computers.browser.sign_out": { in: ComputersBrowserSignOutIn; out: ComputersBrowserSignOutOut };
+  "computers.browser.stream": { in: ComputersBrowserStreamIn; out: ComputersBrowserStreamOut };
+  "computers.browser.take_over": { in: ComputersBrowserTakeOverIn; out: ComputersBrowserTakeOverOut };
+  "computers.browser.timeline": { in: ComputersBrowserTimelineIn; out: ComputersBrowserTimelineOut };
   "computers.chrome.act": { in: ComputersChromeActIn; out: ComputersChromeActOut };
   "computers.chrome.api": { in: ComputersChromeApiIn; out: ComputersChromeApiOut };
   "computers.chrome.batch": { in: ComputersChromeBatchIn; out: ComputersChromeBatchOut };
@@ -46545,6 +46785,7 @@ export interface CapMap {
   "terminal.rules.set": { in: TerminalRulesSetIn; out: TerminalRulesSetOut };
   "terminal.run": { in: TerminalRunIn; out: TerminalRunOut };
   "terminal.status": { in: TerminalStatusIn; out: TerminalStatusOut };
+  "terminal.workspace": { in: TerminalWorkspaceIn; out: TerminalWorkspaceOut };
   "threads.add_agent": { in: ThreadsAddAgentIn; out: ThreadsAddAgentOut };
   "threads.agent.configure": { in: ThreadsAgentConfigureIn; out: ThreadsAgentConfigureOut };
   "threads.agent.create": { in: ThreadsAgentCreateIn; out: ThreadsAgentCreateOut };

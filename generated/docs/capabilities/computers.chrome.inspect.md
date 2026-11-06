@@ -26,6 +26,7 @@ Inspect one element: attributes, computed text, box and role
 ```ts
 type In = {
   computerId?: string;
+  inMyChrome?: boolean;
   tabId?: string;
   ref: string;
 };
@@ -57,6 +58,7 @@ type Out = {
   "name": "example",
   "input": {
     "computerId": "cmt_a1b2c3",
+    "inMyChrome": true,
     "ref": "e12",
     "tabId": "example"
   },

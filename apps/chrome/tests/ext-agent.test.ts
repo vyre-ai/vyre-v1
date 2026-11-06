@@ -177,7 +177,7 @@ function makeWorld(over = {}) {
     },
     tabs: {
       get: async (id) => { const t = world.tabs.get(id); if (!t) throw new Error("No tab with id: " + id); return { ...t }; },
-      query: async () => [...world.tabs.values()].filter((t) => t.active).map((t) => ({ ...t })),
+      query: async (q = {}) => [...world.tabs.values()].filter((t) => q.active === undefined || Boolean(t.active) === q.active).map((t) => ({ ...t })),
       create: async ({ url, active }) => { const id = world.nextTab++; world.tabs.set(id, { id, url: "about:blank", title: "", status: "complete", active: Boolean(active) }); world.pages.set(id, { ...loginPage(), url: "about:blank", title: "", controls: [], extra: [] }); return { id, url }; },
       remove: async (id) => { world.tabs.delete(id); for (const f of world.removedListeners) f(id); },
       onRemoved: { addListener: (f) => world.removedListeners.push(f) },
@@ -1136,4 +1136,45 @@ test("Open in Vyre opens the chat the agent was asked in, else the Space's web a
   await w.advance(0);
   assert.deepEqual(asked[0], ["bridge", "app.open", { place: "chats", threadId: "thr_lab7" }]);
   w.control.transport.call = call;
+});
+
+// ---------- the person's own tabs, when they asked for their own Chrome ----------
+
+function withMail(w) {
+  w.tabs.set(8, { id: 8, url: "https://mail.test/inbox?token=abc", title: "Inbox", status: "complete", active: false });
+  w.pages.set(8, { ...loginPage(), url: "https://mail.test/inbox", title: "Inbox", text: "Inbox", controls: [], extra: [] });
+  w.tabs.set(9, { id: 9, url: "https://other.test/", title: "Other", status: "complete", active: false, incognito: true });
+  w.tabs.set(10, { id: 10, url: "https://mail.test/private", title: "Private mail", status: "complete", active: false, incognito: true });
+  w.tabs.set(11, { id: 11, url: "chrome://settings", title: "Settings", status: "complete", active: false });
+  return w;
+}
+
+test("find lists the person's open tabs for a site, in every window, masked, never a private window or a browser page", async () => {
+  const w = withMail(await ready({}).then(async (x) => { await x.optIn("personal"); return x; }));
+  const found = await w.call("chrome_tabs", { action: "find", site: "https://www.mail.test/anything" });
+  assert.deepEqual(found.tabs.map((t) => [t.tabId, t.title, t.active]), [["8", "Inbox", false]]);
+  assert.doesNotMatch(found.tabs[0].url, /abc/, "a query value that looks like a secret is masked");
+  assert.deepEqual((await w.call("chrome_tabs", { action: "find", site: "nothing.test" })).tabs, [], "no open tab: the agent opens its own");
+  await w.fails("chrome_tabs", { action: "find" }, "bad_input");
+  await w.fails("chrome_tabs", { action: "find", site: "  " }, "bad_input");
+});
+
+test("a found tab can be used (it goes to the front, into the agent's group) and is never closed by the agent; a tab it did not find is still not its to use", async () => {
+  const w = withMail(await ready({}).then(async (x) => { await x.optIn("personal"); return x; }));
+  await w.fails("chrome_tabs", { action: "use", tabId: "8" }, "not_yours");
+  await w.call("chrome_tabs", { action: "find", site: "mail.test" });
+  const raised = [];
+  w.ext.tabs.update = async (id, props) => { raised.push([id, props]); w.tabs.get(id).active = true; return {}; };
+  await w.call("chrome_tabs", { action: "use", tabId: "8" });
+  assert.deepEqual(raised, [[8, { active: true }]]);
+  assert.match((await w.call("chrome_snapshot")).url, /mail\.test/);
+  await w.fails("chrome_tabs", { action: "close", tabId: "8" }, "not_yours");
+  assert.equal(w.tabs.has(8), true, "the person's tab is still there");
+  await w.fails("chrome_tabs", { action: "use", tabId: "10" }, "not_yours", w.agent);
+});
+
+test("a find belongs to the agent that made it: another agent cannot use the tab it found", async () => {
+  const w = withMail(await ready({}).then(async (x) => { await x.optIn("personal"); return x; }));
+  await w.call("chrome_tabs", { action: "find", site: "mail.test" });
+  await w.fails("chrome_tabs", { action: "use", tabId: "8" }, "not_yours", { id: "agt_scout", name: "Scout" });
 });

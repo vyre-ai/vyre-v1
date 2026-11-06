@@ -78,6 +78,7 @@ test("computers behind the runner: set up, wake, run a command, two agents isola
     config: loadConfig(["--data-dir", dir, "--port", "0"], {}, "1.2.3"), codeRoot: CODE_ROOT,
     platform: fakePlatform({ os: "linux", hostname: "runner-live", free: 80e9, commands: { [`findmnt -n -o SOURCE --target ${dir}`]: { stdout: "/dev/mapper/vyre\n" }, "lsblk -s -n -o TYPE /dev/mapper/vyre": { stdout: "crypt\ndisk\n" } } }),
     fetch: caddyFetch, computersHomeIntervalMs: 20_000,
+    computersCapacity: { totalMb: 65_536, freeMb: 60_000, cpus: 8, os: "linux", diskFreeMb: 200_000 },
     intervals: { fast: 3_600_000, slow: 3_600_000, encryption: 3_600_000, commands: 3_600_000, hooks: 3_600_000 },
   });
   const ids: string[] = [];

@@ -1,0 +1,2 @@
+- Vault: a sign-in's page (AI providers) has a More menu with Rename, Sign in again, Disconnect and Move to Trash, each doing real work; Disconnect and Move to Trash ask first, and Move to Trash has an Undo.
+- Vault: the list's Move to Trash (right-click, Delete key) now reaches a sign-in's page; before it did nothing for them.

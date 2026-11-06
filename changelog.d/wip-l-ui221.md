@@ -1,0 +1,11 @@
+- Composer: the text field keeps at least 200 px in the one-line pill; the model chip shortens its account name instead of squeezing the field.
+- Model menu: in a composer narrower than 540 px (the Thread pane) the menu fills the composer's width and its lists open inline, so it stays inside the pane.
+- Model menu: choosing the account already in use writes and says nothing; the notice never prints an email address.
+- Tabs: the strip rests at its start when everything fits, and reveals a tab near the start from the true left edge, so the first tab is not left cut.
+- Conversation: the list stays at its end when it gets shorter (a notice line, a taller composer), so the last card's Retry, Details and Report are not cut off.
+- Tabs: a saved list loads with one blank "New chat" tab and one Inbox tab.
+- Composer: a draft of more than one line moves the model chip and buttons under the text, and the text uses the full width; the field is capped at about seven lines (a third of a short window) and scrolls inside.
+- Conversation: "Jump to latest" is its own row under the list, at the right, and never covers text; the header drops member faces before the chat name is cut.
+- Thread pane: opens at about 40% of the room beside the sidebar (360 to 560 px); still resizable.
+- Top bar: a goal that went Stuck no longer interrupts the top bar; it stays in the goal and in Needs you.
+- Model menu: the side list (Model, Provider, Runs on) goes with the menu in the same frame by every way it closes, and has no animation layer of its own, so no half-drawn ghost of it is left on screen.

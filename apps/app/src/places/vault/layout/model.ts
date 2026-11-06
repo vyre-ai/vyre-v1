@@ -122,7 +122,7 @@ export function agoLabel(ts: number, c: Clock): string {
 
 /** The second line of a row: the field names (never values), "Login · USERNAME", or how a provider signs in. */
 export function secondLine(it: Item, provider?: Provider): string {
-  if (provider) return `${provider.via} · ${provider.scope === "mine" ? "Mine" : "Shared"}`;
+  if (provider) return provider.unopenable === true ? "Can't be opened, sign in again" : `${provider.via} · ${provider.scope === "mine" ? "Mine" : "Shared"}`;
   const keys = it.fieldKeys.join(" · ");
   if (it.kind === "login" || it.kind === "card" || it.kind === "totp" || it.kind === "note") return keys ? `${KIND_LABEL[it.kind]} · ${keys}` : KIND_LABEL[it.kind];
   return keys || KIND_LABEL[it.kind];
