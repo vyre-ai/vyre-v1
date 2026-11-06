@@ -3,3 +3,4 @@
 - One 12 px radius in the chat. The calm numbers live once in ui/src/tokens/calm.ts.
 - The header drops the face stack and the + (they live in the people popover: its rows are the faces, its footer is Add people and agents). A chart's Chart, Table and Copy CSV show only while the pointer is over it, and its "chart · bar" label is gone.
 - "While you were away" sits right after Tasks and Notes as one quiet row (no icon); "Mark all seen" replaces its count on hover.
+- System lines (Connected, Noted, Remembered) share one style: a small icon, the words, the time at the right, 6 px apart.

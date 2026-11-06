@@ -60,6 +60,7 @@ export function LinkCard({ id, data, nameOf, icon, onOpen, onAction, done, state
     const was = a ? done?.has(a.key) === true : false;
     return (
       <View testID={`link-card-${id}`} style={st.noted}>
+        {icon ? <View style={st.icon}>{icon}</View> : null}
         <Text style={st.notedText}>
           <Text>{`${data.lead}, `}</Text>
           <Text style={st.notedWords}>{data.title.charAt(0).toLowerCase() + data.title.slice(1)}</Text>
@@ -118,7 +119,7 @@ const st = StyleSheet.create({
   sub: { fontSize: 12.5, lineHeight: 18, color: "var(--ink-3)" as string, marginTop: -4 },
   noted: { width: "100%", flexDirection: "row", alignItems: "center", justifyContent: "flex-start", gap: 8 },
   dot: { width: 5, height: 5, borderRadius: 3, backgroundColor: "var(--ok)" as string },
-  notedText: { fontSize: 13, lineHeight: 20, color: "var(--ink-3)" as string },
+  notedText: { flexShrink: 1, fontSize: 13, lineHeight: 20, color: "var(--ink-3)" as string },
   notedWords: { color: "var(--ink-3)" as string },
   notedUndo: { color: "var(--accent)" as string, fontWeight: "500" },
   notedTime: { fontSize: 12, color: "var(--ink-3)" as string, fontVariant: ["tabular-nums"] },
