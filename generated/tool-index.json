@@ -1683,7 +1683,7 @@
     {
       "deferred": false,
       "name": "chrome_tabs",
-      "summary": "List, use, open or close tabs",
+      "summary": "List, find, use, open or close tabs. find looks for tabs already open for a site (in the person's own Chrome: their open tabs); use works in one; a tab that was not yours to begin with is never closed",
       "toolset": "computer"
     },
     {
@@ -3141,7 +3141,7 @@
     {
       "deferred": false,
       "name": "files_folder_move",
-      "summary": "Move a folder under another folder (its sharing follows the new parent)",
+      "summary": "Move a folder under another folder, or to the top of its tree when no folder is given (its sharing follows the new parent)",
       "toolset": "files"
     },
     {
@@ -9483,7 +9483,7 @@
     {
       "deferred": false,
       "name": "terminal_open",
-      "summary": "Open a terminal session on an agent computer or on your own computer (the device daemon)",
+      "summary": "Open a terminal tab: a named tmux session in your workspace (an agent that names no host gets one in its own workspace, or its parent's when it is a helper), or on your own computer (the device daemon)",
       "toolset": "terminal"
     },
     {
@@ -9544,6 +9544,12 @@
       "deferred": false,
       "name": "terminal_status",
       "summary": "Live status of terminals for Home (state and last line read from tmux)",
+      "toolset": "terminal"
+    },
+    {
+      "deferred": false,
+      "name": "terminal_workspace",
+      "summary": "An agent's workspace as the Terminal tab shows it: asleep, running, waiting for room (with the line) or not made yet, where it is, whether you may attach and why not; with no machine to run it, one plain line",
       "toolset": "terminal"
     },
     {

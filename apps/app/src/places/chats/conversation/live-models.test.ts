@@ -76,3 +76,12 @@ test("a model still being checked is a greyed row that says Checking...", () => 
   const rows = menuModels({ models: [{ model: "glm-5.3", title: "GLM 5.3", allowed: false, reason: "checking" }, { model: "ok", title: "Ok", allowed: true }] });
   assert.deepEqual(rows.map((r) => [r.id, r.allowed, r.reason]), [["glm-5.3", false, "Checking..."], ["ok", true, undefined]]);
 });
+
+test("a model being checked, or not checked, is a row the person can pick, with its state as the note", () => {
+  const rows = menuModels({ models: [
+    { model: "a", title: "A", allowed: true, reason: "checking" },
+    { model: "b", title: "B", allowed: true, reason: "not_checked" },
+    { model: "c", title: "C", allowed: false, reason: "usage_limit" },
+  ] });
+  assert.deepEqual(rows.map((r) => [r.id, r.allowed, r.reason, r.note]), [["a", true, undefined, "Checking..."], ["b", true, undefined, "Not checked"], ["c", false, "Out of usage for now", undefined]]);
+});

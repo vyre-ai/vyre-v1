@@ -98,7 +98,8 @@ export async function act(ctx: TasksCtx, input: In): Promise<unknown> {
   if (def?.note === "required" && !note) raise(ctx, "validation.precondition_failed", "Add a note so the sender knows what to change.", { reason: "note_required" });
   const asked = chatAsk(t);
   // a plan sent back is finished as a request: the agent hears why and proposes again, as a new task
-  const to = asked?.planId !== undefined && key === "reject" ? "canceled" : targetFor(t, key);
+  // a held act or request that is not approved ends there (Canceled, shown as "Not approved"): there is no work to go back to, and it leaves Needs you
+  const to = (asked?.planId !== undefined || t.kind === "approve") && key === "reject" ? "canceled" : targetFor(t, key);
   if (to === null) raise(ctx, "validation.precondition_failed", `That cannot be done while the task is ${t.state}.`, { reason: "illegal_transition", state: t.state, action: key });
 
   // a bare Decline from a list decides the request itself: the request, every approver's task, the requester and the agent all follow from its own capability
@@ -143,6 +144,7 @@ export async function act(ctx: TasksCtx, input: In): Promise<unknown> {
 
   const applied = commitMove(ctx, t, to, checked);
   if (applied.took) await syncThread(ctx, t);
+  if (t.kind === "approve" && key === "reject") emitTask(ctx, ctx.db, "task.rejected", t, { by: ctx.principal.id, note }, { type: "rejected", by: ctx.principal.id, ...(note ? { note } : {}) });
   if (applied.handled) emitTask(ctx, ctx.db, "task.handled", t, { by: ctx.principal.id }, { type: "handled", by: ctx.principal.id });
 
   // continue the source at once; a failure here is reported in the result, never undoes the decision

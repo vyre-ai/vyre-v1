@@ -1,0 +1,1 @@
+- The test runners (scripts/test-run.mjs and test-run.ts) print a file whose every test was skipped as `skip <file> (<reason>)`, count skips apart from passes and failures in the summary line, and never cache a skipped file as a pass.

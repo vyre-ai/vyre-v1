@@ -13,7 +13,7 @@ import { isAssistantId } from "../../../../../../ui/src/Avatar/index.tsx";
 import { useOpenConnect } from "../../../shell/connect/context.ts";
 import type { ConversationData } from "./data.tsx";
 import type { Thread, ThreadAgent } from "./model.ts";
-import { loadMenuModels, pickedRow, pickUnavailable } from "./live-models.ts";
+import { listedTitle, loadMenuModels, pickedRow, pickUnavailable } from "./live-models.ts";
 import type { ModelsOut } from "./live-models.ts";
 import type { MenuModel } from "./live-models.ts";
 
@@ -43,6 +43,11 @@ export async function callOr<T>(data: Pick<ConversationData, "call">, cap: strin
 
 /** For tests: forget which capabilities were missing. */
 export function resetMissing(): void { missing.clear(); }
+
+/** The account as the notice names it: never an email address (a sign-in without a given name is called by its address), so the line says "that account" instead. */
+export function plainAccountName(name: string | undefined): string {
+  return name === undefined || name.trim() === "" || name.includes("@") ? "that account" : name;
+}
 
 /* ---------- mode ---------- */
 
@@ -77,7 +82,7 @@ export async function configureAgent(data: Pick<ConversationData, "call" | "thre
 
 /* ---------- reading ---------- */
 
-interface AccountRow { ref: string; driver: string; kind: string; title: string; name?: string; status: string; aliases?: string[]; usable?: boolean; why?: string }
+interface AccountRow { ref: string; driver: string; kind: string; title: string; name?: string; status: string; aliases?: string[]; usable?: boolean; why?: string; mine?: boolean }
 interface UsageOut {
   account: { ref: string; name: string; provider: string; plan?: string } | null;
   context: { used: number; window: number; approximate?: boolean } | null;
@@ -101,7 +106,9 @@ export { modelReason, outOfUsage } from "./live-models.ts";
 
 /** Only accounts that are connected (signed in or not yet tested) and can run a chat here (engine.accounts.list with place "chat": the one rule every picker reads) are offered, by the name the person gave them. */
 export function connectedAccounts(rows: readonly AccountRow[]): PanelAccount[] {
-  return rows.filter((r) => (r.status === "ok" || r.status === "untested") && r.usable !== false).map((r) => ({ ref: r.ref, name: r.name ?? r.title, provider: r.driver, ...(r.kind === "api_key" ? { plan: "API key" } : {}), ...(r.aliases?.length ? { aliases: r.aliases } : {}) }));
+  // the person's own accounts come before any account the Space provides (owner, 6 Nov): the first one is what a chat shows and pins when nothing was chosen. The order inside each group is kept.
+  const ok = rows.filter((r) => (r.status === "ok" || r.status === "untested") && r.usable !== false);
+  return [...ok.filter((r) => r.mine === true), ...ok.filter((r) => r.mine !== true)].map((r) => ({ ref: r.ref, name: r.name ?? r.title, provider: r.driver, ...(r.kind === "api_key" ? { plan: "API key" } : {}), ...(r.aliases?.length ? { aliases: r.aliases } : {}) }));
 }
 
 /** The account a pinned ref shows as: itself, or the account it was folded into or listed under. */
@@ -113,13 +120,13 @@ export function entryOf(accounts: readonly PanelAccount[] | null | undefined, re
 /** "claude-sonnet-5-5" reads "Sonnet 5.5"; a model the catalog named keeps that name. */
 export function prettyModel(model: string | undefined, titles?: ReadonlyMap<string, string>): string {
   if (!model) return "";
-  const known = titles?.get(model);
+  const known = titles?.get(model) ?? listedTitle(model);
   if (known) return known;
   const parts = model.replace(/^(claude|gpt|grok)-(?=[a-z])/i, "").split("-");
   const words: string[] = [];
   const nums: string[] = [];
   for (const p of parts) (/^\d+$/.test(p) ? nums : words).push(p);
-  const name = words.map((w) => (w.length <= 3 && /^gpt$/i.test(w) ? w.toUpperCase() : w.charAt(0).toUpperCase() + w.slice(1))).join(" ");
+  const name = words.map((w) => (/^(gpt|glm|oss|llm)$/i.test(w) ? w.toUpperCase() : w.charAt(0).toUpperCase() + w.slice(1))).join(" ");
   return [name, nums.join(".")].filter(Boolean).join(" ") || model;
 }
 
@@ -262,12 +269,14 @@ export function ChatBrain(p: ChatBrainProps): ReactElement {
       accounts={withSession}
       accountRef={shownRef}
       onAccount={(ref) => {
+        // choosing the account already in use changes nothing, so nothing is written and nothing is said
+        if (ref === shownRef) return;
         setAccountRef(ref);
         const provider = providerOf(ref);
         // a model of another provider cannot run on this account: the engine picks this account's default until one is chosen
         const keep = provider !== undefined && brandOf(provider) === brandOf(providerOf(shownRef)) ? model : null;
         setModel(keep);
-        const name = (accounts ?? []).find((a) => a.ref === ref)?.name ?? "that account";
+        const name = plainAccountName((accounts ?? []).find((a) => a.ref === ref)?.name);
         write({ accountRef: ref, ...(provider ? { provider } : {}), ...(keep ? { model: keep } : {}) }, `${p.agent.name} now runs on ${name} ${where}`);
       }}
       models={models}
@@ -317,4 +326,25 @@ export async function compactChat(data: Pick<ConversationData, "call" | "threadI
     return null;
   });
   return typeof out?.line === "string" ? out.line : null;
+}
+
+/* ---------- the model a person picked last ---------- */
+
+export interface LastPick { model?: string; provider?: string; effort?: Effort }
+
+/** What this person picked last, anywhere (engine.last_pick.get): a chat with no pick of its own shows it before its first turn, the way a new chat starts on it. Null until it is read, and when there is none. */
+export function useLastPick(data: { call(cap: string, input: unknown): unknown }): LastPick | null {
+  const [pick, setPick] = useState<LastPick | null>(null);
+  useEffect(() => {
+    let live = true;
+    void Promise.resolve(data.call("engine.last_pick.get", {})).then((out) => { const o = out as LastPick | null | undefined; if (live && o?.model) setPick(o); }, () => undefined);
+    return () => { live = false; };
+  }, [data]);
+  return pick;
+}
+
+/** The thread as the composer shows it: an agent with no model of its own wears the last pick. The server applies the same pick at its first turn. */
+export function withLastPick(thread: Thread, pick: LastPick | null): Thread {
+  if (!pick?.model) return thread;
+  return { ...thread, agents: thread.agents.map((a) => (a.model ? a : { ...a, model: pick.model!, ...(pick.provider ? { provider: pick.provider } : {}), ...(pick.effort && !a.effort ? { effort: pick.effort } : {}) })) };
 }

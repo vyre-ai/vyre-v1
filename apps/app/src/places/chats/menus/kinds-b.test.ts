@@ -1,7 +1,7 @@
 // The menus of Vault items, automations, goals, projects, tabs and the Console rows: what each offers for each state and permission, in what order, with which key, and that every item calls what it says.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { automationMenu, consoleComputerMenu, consoleDomainMenu, consoleGroupMenu, consoleNumberMenu, consolePersonMenu, consoleRoleMenu, goalMenu, projectMenu, tabMenu, vaultItemMenu } from "./kinds-b.ts";
+import { automationMenu, consoleDomainMenu, consoleGroupMenu, consoleNumberMenu, consolePersonMenu, consoleRoleMenu, goalMenu, projectMenu, tabMenu, vaultItemMenu } from "./kinds-b.ts";
 import type { MenuEntry, MenuItem } from "../../../../../../ui/src/Menu/index.tsx";
 
 const rows = (e: readonly MenuEntry[]): MenuItem[] => e.filter((x): x is MenuItem => !("separator" in x) && !("head" in x));
@@ -86,23 +86,26 @@ test("project: star by state, Share, Add People and Archive or Unarchive for a m
   assert.deepEqual(calls, ["open", "star:true", "share", "addPeople", "pinFile", "archive", "copyLink"]);
 });
 
+test("project row in the sidebar: a manager with no Share, Add People, Pin File or Archive handler sees none of them (no item that does nothing)", () => {
+  const bare = { open: () => undefined, star: () => undefined, copyLink: () => undefined };
+  assert.deepEqual(labels(projectMenu({ title: "Portal", starred: false, archived: false, manage: true, edit: true, roles: true }, bare)), ["Open", "Star", "-", "Copy Link"]);
+});
+
 // ---- tab
-const tabDo = recorder<Parameters<typeof tabMenu>[1]>(["close", "closeOthers", "closeRight", "duplicate", "copyLink", "toWindow", "reopen"]);
-const tabLess = recorder<Parameters<typeof tabMenu>[1]>(["close", "closeOthers", "closeRight", "copyLink", "reopen"]);
+const tabDo = recorder<Parameters<typeof tabMenu>[1]>(["close", "closeOthers", "closeRight", "copyLink", "reopen"]);
 const tabFacts = (o: Partial<Parameters<typeof tabMenu>[0]> = {}): Parameters<typeof tabMenu>[0] => ({ title: "Rivera", pinned: false, count: 4, toTheRight: 2, item: true, canReopen: true, ...o });
-test("tab: the words follow pinned; Close Others and Right only when there are others; Reopen only when one was closed; the window only on desktop", () => {
+test("tab: the words follow pinned; Close Others and Right only when there are others; Reopen only when one was closed; no Duplicate or Move to New Window (a tab is unique by what it shows, and the app opens no windows)", () => {
   const d = { ...tabDo, pin: rec("pin") };
   const e = tabMenu(tabFacts(), d);
-  assert.deepEqual(labels(e), ["Close", "Close Other Tabs", "Close Tabs to the Right", "-", "Duplicate", "Copy Link", "Pin Tab", "Move to New Window", "-", "Reopen Closed Tab"]);
+  assert.deepEqual(labels(e), ["Close", "Close Other Tabs", "Close Tabs to the Right", "-", "Copy Link", "Pin", "-", "Reopen Closed Tab"]);
   assert.equal(rows(e)[0]!.hint, "⌘W");
   assert.equal(rows(e).at(-1)!.hint, "⇧⌘T");
-  assert.ok(labels(tabMenu(tabFacts({ pinned: true }), d)).includes("Unpin Tab"));
-  assert.deepEqual(labels(tabMenu(tabFacts({ count: 1, toTheRight: 0, item: false, canReopen: false }), d)), ["Close", "-", "Pin Tab"]);
-  const plain = labels(tabMenu(tabFacts(), { ...tabLess, pin: rec("pin") }));
-  assert.ok(!plain.includes("Move to New Window") && !plain.includes("Duplicate"), "the window is the desktop app's and a second tab needs the host to make one");
+  assert.ok(labels(tabMenu(tabFacts({ pinned: true }), d)).includes("Unpin"));
+  assert.deepEqual(labels(tabMenu(tabFacts({ count: 1, toTheRight: 0, item: false, canReopen: false }), d)), ["Close", "-", "Pin"]);
+  assert.ok(!labels(e).includes("Move to New Window") && !labels(e).includes("Duplicate"), "no item the app cannot do");
   calls.length = 0;
   for (const x of rows(e)) x.onSelect?.();
-  assert.deepEqual(calls, ["close", "closeOthers", "closeRight", "duplicate", "copyLink", "pin:true", "toWindow", "reopen"]);
+  assert.deepEqual(calls, ["close", "closeOthers", "closeRight", "copyLink", "pin:true", "reopen"]);
 });
 
 // ---- Console rows
@@ -132,13 +135,10 @@ test("console group, role, computer, number and domain: Manage shows the changin
   const held = rows(consoleRoleMenu({ name: "Editor", manage: true, builtIn: false, holders: 2 }, r)).at(-1)!;
   assert.equal(held.disabled, true);
   assert.match(held.reason ?? "", /2 people hold this role/);
-  const c = recorder<Parameters<typeof consoleComputerMenu>[1]>(["open", "copyName", "wake", "sleep", "limits", "takeOver", "remove"]);
-  assert.deepEqual(labels(consoleComputerMenu({ name: "Mira's computer", manage: true, asleep: false, takeOver: true }, c)), ["Open", "Copy Name", "-", "Sleep", "Limits…", "Take Over", "-", "Remove Computer…"]);
-  assert.deepEqual(labels(consoleComputerMenu({ name: "x", manage: true, asleep: true, takeOver: true }, c)), ["Open", "Copy Name", "-", "Wake", "Limits…", "-", "Remove Computer…"], "an asleep computer is woken, not taken over");
   const n = recorder<Parameters<typeof consoleNumberMenu>[1]>(["open", "copyNumber", "assign", "release"]);
   assert.deepEqual(labels(consoleNumberMenu({ name: "+1 415", manage: true }, n)), ["Open", "Copy Number", "-", "Assign…", "-", "Release Number…"]);
   const m = recorder<Parameters<typeof consoleDomainMenu>[1]>(["open", "copyName", "check", "remove"]);
   assert.deepEqual(labels(consoleDomainMenu({ name: "firm.test", manage: true }, m)), ["Open", "Copy Name", "-", "Check Now", "-", "Remove Domain…"]);
   assert.deepEqual(labels(consoleDomainMenu({ name: "firm.test", manage: false }, m)), ["Open", "Copy Name"]);
-  for (const e of [consoleComputerMenu({ name: "x", manage: true, asleep: false, takeOver: false }, c), consoleNumberMenu({ name: "n", manage: true }, n), consoleDomainMenu({ name: "d", manage: true }, m)]) dangerLast(e);
+  for (const e of [consoleNumberMenu({ name: "n", manage: true }, n), consoleDomainMenu({ name: "d", manage: true }, m)]) dangerLast(e);
 });

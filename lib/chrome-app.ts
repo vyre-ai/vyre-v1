@@ -65,6 +65,8 @@ export interface ChromeAppDeps {
   setTimer?: (f: () => void, ms: number) => unknown;
   clearTimer?: (t: unknown) => void;
   now?: () => number;
+  /** The app's own version, so the extension can tell when it is running a different one (rc.14 app, rc.22 extension). Left out of hello when unknown. */
+  appVersion?: string;
 }
 
 class AppError extends Error {
@@ -244,7 +246,7 @@ export function createChromeApp(deps: ChromeAppDeps) {
         case "hello": {
           const all = deps.sessions();
           const active = all.find((x) => x.id === picked) ?? all[all.length - 1] ?? null;
-          return { version: "1", spaces: all.map((x) => ({ id: x.id, name: x.name, webUrl: x.address })), active: active ? active.id : null, locked: false, signedIn: all.length > 0 };
+          return { version: "1", ...(deps.appVersion ? { appVersion: deps.appVersion } : {}), spaces: all.map((x) => ({ id: x.id, name: x.name, webUrl: x.address })), active: active ? active.id : null, locked: false, signedIn: all.length > 0 };
         }
         case "space.select": {
           const id = str(input["id"], 124);

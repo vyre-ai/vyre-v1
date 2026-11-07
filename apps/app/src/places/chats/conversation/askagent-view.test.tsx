@@ -73,7 +73,7 @@ test("every message in a channel, yours or someone else's, has Ask an Agent… i
   const { askAgent: _drop, ...without } = a as unknown as Record<string, unknown>;
   assert.ok(!labels(false, without as unknown as MessageActions).includes("Ask an Agent…"));
   const bar = renderToStaticMarkup(<HoverBar m={theirs} mine={false} a={a} onEdit={() => undefined} visible />);
-  assert.ok(bar.includes('data-testid="act-ask-c1"') && bar.includes('aria-label="Ask an agent"'), "a button in the bar, reachable by keyboard");
+  assert.ok(bar.includes('data-testid="act-ask-c1"') && bar.includes('aria-label="Ask an Agent"'), "a button in the bar, reachable by keyboard");
   assert.ok(!bar.includes("pill"));
 });
 

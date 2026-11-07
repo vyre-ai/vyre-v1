@@ -26,6 +26,7 @@ Resume after a stop or an Esc press once the person has answered
 ```ts
 type In = {
   computerId?: string;
+  inMyChrome?: boolean;
 };
 ```
 
@@ -54,7 +55,8 @@ type Out = {
 {
   "name": "example",
   "input": {
-    "computerId": "cmt_a1b2c3"
+    "computerId": "cmt_a1b2c3",
+    "inMyChrome": true
   },
   "output": {
     "resumed": true

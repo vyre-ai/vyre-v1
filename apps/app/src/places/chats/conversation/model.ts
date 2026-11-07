@@ -72,11 +72,17 @@ export function timeTitle(ts: number, c: Clock): string | undefined {
   return c.zones ? zoneTitle(ts, c.zones) : undefined;
 }
 
-export function timeLabel(ts: number, c: Clock): string {
-  if (c.zones) { const p = partsIn(ts, c.zones.space); return `${String(p.hour).padStart(2, "0")}:${String(p.minute).padStart(2, "0")}`; }
+/** The hour and minute of a moment in the clock the chat reads in, 24-hour, for code that needs the numbers. */
+export function clockParts(ts: number, c: Clock): { hour: number; minute: number } {
+  if (c.zones) { const p = partsIn(ts, c.zones.space); return { hour: p.hour, minute: p.minute }; }
   const d = new Date(local(ts, c));
-  const two = (n: number): string => String(n).padStart(2, "0");
-  return `${two(d.getUTCHours())}:${two(d.getUTCMinutes())}`;
+  return { hour: d.getUTCHours(), minute: d.getUTCMinutes() };
+}
+
+/** A time of day the way a person says it: "10:28 PM". One format in every chat (owner, 7 Nov 2026). */
+export function timeLabel(ts: number, c: Clock): string {
+  const { hour, minute } = clockParts(ts, c);
+  return `${hour % 12 === 0 ? 12 : hour % 12}:${String(minute).padStart(2, "0")} ${hour < 12 ? "AM" : "PM"}`;
 }
 
 export function dayLabel(ts: number, c: Clock): string {
@@ -627,4 +633,9 @@ export function collect<T, U>(list: readonly T[], fn: (item: T, index: number) =
 /** May the @ menu offer this agent? Everyone sees every agent offered to them; a guest only the agents this chat allows (the ones in it). */
 export function mentionable(item: string | { t: string; ref?: string | undefined }, guest: boolean, inThread: ReadonlyMap<string, unknown>): boolean {
   return !guest || (typeof item !== "string" && item.ref !== undefined && inThread.has(item.ref));
+}
+
+/** A face or name pressed in the chat: a helper's thread opens as the helper chat; anyone else goes to the host, which opens a person's profile or an agent's page. */
+export function faceDoor(helperThreadIds: readonly string[], id: string): "helper" | "principal" {
+  return helperThreadIds.includes(id) ? "helper" : "principal";
 }

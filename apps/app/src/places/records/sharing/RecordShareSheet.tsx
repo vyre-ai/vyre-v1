@@ -12,6 +12,7 @@ import { useRecordsData } from "../sidebar/data.tsx";
 import type { ShareTarget } from "../sidebar/data.tsx";
 import { RECORD_LEVELS, audienceCall, exportersCall, outsideCall, flagCall, sheetModel, shareCall, subtitleOf } from "./model.ts";
 import type { SharesOut } from "./model.ts";
+import { isPhoneWidth } from "../../../../../../ui/src/SidePane/layout.ts";
 
 /** The people, groups and agents a Space offers (id and name; a line under the name is optional). */
 export interface ShareDirectory { people?: readonly { id: string; name: string }[]; groups?: readonly { id: string; name: string }[]; roles?: readonly { id: string; name: string }[]; agents?: readonly { id: string; name: string }[] }
@@ -21,7 +22,7 @@ const FIXED = (Platform.OS === "web" ? "fixed" : "absolute") as ViewStyle["posit
 export function RecordShareSheet({ target, directory, spaceName, meId, onClose }: { target: ShareTarget; directory: ShareDirectory; spaceName?: string; meId?: string; onClose(): void }): ReactElement {
   const data = useRecordsData();
   const width = useWindowDimensions().width;
-  const phone = width > 0 && width < 720;
+  const phone = isPhoneWidth(width);
   const key = JSON.stringify({ type: target.type, id: target.id });
   const q = useMemo(() => data.live("access.shares_of", { resource: { type: target.type, id: target.id } } as never), [data, key]);   // eslint-disable-line react-hooks/exhaustive-deps
   const state = useSyncExternalStore(q.subscribe, q.getSnapshot, q.getSnapshot);

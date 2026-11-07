@@ -39,15 +39,18 @@ test("approve closes an Approve request and says who approved", async () => {
   assert.deepEqual(hist.entries.map((e: { type: string }) => e.type).slice(0, 3), ["approved", "completed", "transitioned:done"]);
 });
 
-test("sending back needs a note and carries it", async () => {
+test("denying a request ends it (Canceled, shown as Not approved), keeps the note, and says rejected in its history", async () => {
   const h = harness();
   const id = await create(h, { kind: "approve", assigned: bob });
   await refused(h.call("tasks.act", { taskId: id, action: "reject" }, { id: bob.id }), "validation.precondition_failed", "note_required");
   assert.equal(await state(h, id), "awaiting_approval");
   const r = await h.call("tasks.act", { taskId: id, action: "reject", note: "wrong client" }, { id: bob.id });
-  assert.equal(r.task.state, "doing");
+  assert.equal(r.task.state, "canceled", "an approval that is refused has no work to go back to");
   assert.deepEqual(names(h), ["task.transitioned", "task.rejected"]);
   assert.equal(h.events[1]!.payload.note, "wrong client");
+  const hist = await h.call("tasks.history", { taskId: id }, { id: bob.id });
+  assert.ok(hist.entries.some((e: { type: string }) => e.type === "rejected"));
+  await refused(h.call("tasks.act", { taskId: id, action: "approve" }, { id: bob.id }), "validation.precondition_failed", "closed");
 });
 
 test("a Review request: looks good moves on to the approver, send back counts a loop", async () => {
@@ -171,7 +174,7 @@ test("sending a held act back drops it through gate.deny with the note", async (
   await refused(h.call("tasks.act", { taskId: id, action: "reject" }, asAlice), "validation.precondition_failed", "note_required");
   assert.equal(h.calls.length, 0);
   const r = await h.call("tasks.act", { taskId: id, action: "reject", note: "wrong recipient" }, asAlice);
-  assert.equal(r.task.state, "doing");
+  assert.equal(r.task.state, "canceled");
   assert.deepEqual(h.calls[0], { cap: "gate.deny", input: { holdId: "hld_1", taskId: id, mode: "send_back", note: "wrong recipient" } });
 });
 

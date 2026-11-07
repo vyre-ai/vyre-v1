@@ -13,6 +13,7 @@ import type { RowEnv } from "./parts.tsx";
 import { useLiveTurn } from "./parts.tsx";
 import { rowStep } from "./keys.ts";
 import { CARD_ATTR, useRoving } from "./roving.ts";
+import { belowPhone } from "../../../../../../ui/src/SidePane/layout.ts";
 
 const DAYS = 14, BACK = 3;
 // at phone width a week fits with the day labels readable: today is the second day, and the name column is narrow
@@ -35,7 +36,7 @@ function Line({ row, env, first, tab, onActive, days, back, nameW }: { row: Task
 
 export function Timeline({ rows, env, window }: { rows: readonly TaskRow[]; env: RowEnv; window?: VirtualWindow }): ReactElement {
   const [shift, setShift] = useState(0);
-  const narrow = useWindowDimensions().width < 720;
+  const narrow = belowPhone(useWindowDimensions().width);
   const days = narrow ? PHONE_DAYS : DAYS, back = narrow ? PHONE_BACK : BACK, nameW = narrow ? PHONE_NAME : 240;
   const today = Math.floor((env.now + env.offsetMin * 60_000) / DAY) * DAY - env.offsetMin * 60_000;
   const first = today + (shift - back) * DAY;

@@ -1,4 +1,6 @@
 // The pages of You that hold your own work: Profile (with Copy from another Space), Notifications, AI (models, how agents work with you, usage, memory) and Connected (Email and calendar is MailPage.tsx).
+import { CARD_FILL } from "../../../../../ui/src/Card/index.tsx";
+import { RADIUS } from "../../../../../ui/src/tokens/radius.ts";
 import { useConnectionsSummary } from "../vault/connections/summary.ts";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
@@ -83,7 +85,7 @@ export function ProfilePage({ rows, found }: PageProps): ReactElement {
         {[
           photo ? <SettingsRow key="photo" id="profile.photo" label="Photo" first found={found === "profile.photo"} {...(photoNote ? { sub: photoNote } : {})} control={<><SmallButton label="Choose" testID="choose-photo" onPress={() => { setPhotoNote(null); data.nav.choosePhoto().then((id) => { if (id) void change(photo, id); }, (e: unknown) => setPhotoNote(e instanceof Error && e.message ? e.message : "Could not use that picture.")); }} />{photo.value ? <SmallButton label="Remove" onPress={() => void change(photo, null)} /> : null}</>} /> : null,
           rowFor(name, 1, <Field value={str(name) || data.me.name} label="Name" testID="ctl-profile.display_name" onCommit={(v) => { if (v !== (str(name) || data.me.name)) void change(name!, v); }} />, "Name"),
-          rowFor(handle, 2, <Field value={str(handle) || data.me.username || ""} label="Handle" placeholder="Pick a handle" prefix="@" mono pattern={"^([a-z0-9_.-]{2,32})?$"} width={160} testID="ctl-profile.handle" onCommit={(v) => { if (v !== (str(handle) || data.me.username || "")) void change(handle!, v); }} />, "Handle", "Letters, numbers, dots and dashes"),
+          rowFor(handle, 2, <Field value={str(handle) || data.me.username || ""} label="Handle" placeholder="Pick a handle" prefix="@" pattern={"^([a-z0-9_.-]{2,32})?$"} width={160} testID="ctl-profile.handle" onCommit={(v) => { if (v !== (str(handle) || data.me.username || "")) void change(handle!, v); }} />, "Handle", "Letters, numbers, dots and dashes"),
           rowFor(title, 3, <Field value={str(title)} label="Title" placeholder="Add a title" testID="ctl-profile.title" onCommit={(v) => void change(title!, v)} />, "Title"),
         ]}
       </Section>
@@ -154,7 +156,7 @@ export const toggleChannel = (cs: readonly Channel[], c: Channel): Channel[] => 
 
 function Chip({ label, on, onPress, testID }: { label: string; on: boolean; onPress(): void; testID: string }): ReactElement {
   return (
-    <Pressable accessibilityRole="button" aria-pressed={on} accessibilityLabel={label} testID={testID} onPress={onPress} style={[{ height: 28, paddingHorizontal: 10, borderRadius: 14, justifyContent: "center", borderWidth: 1, borderColor: (on ? "var(--accent)" : "var(--line)") as string, backgroundColor: (on ? "var(--accent-wash)" : "transparent") as string }, pointer]}>
+    <Pressable accessibilityRole="button" aria-pressed={on} accessibilityLabel={label} testID={testID} onPress={onPress} style={[{ height: 28, paddingHorizontal: 12, borderRadius: RADIUS, justifyContent: "center", borderWidth: 1, borderColor: (on ? "var(--accent)" : "var(--line)") as string, backgroundColor: (on ? "var(--accent-wash)" : "transparent") as string }, pointer]}>
       <Text style={{ fontSize: 12.5, color: (on ? "var(--ink)" : "var(--ink-3)") as string }}>{label}</Text>
     </Pressable>
   );
@@ -441,7 +443,7 @@ function ConnectionsLink(): ReactElement {
 }
 
 const s = StyleSheet.create({
-  card: { flexDirection: "row", alignItems: "center", gap: 16, padding: 16, borderRadius: 12, borderWidth: 1, borderColor: "var(--line)" as string, backgroundColor: "var(--raised)" as string },
+  card: { flexDirection: "row", alignItems: "center", gap: 16, padding: 16, borderRadius: RADIUS, backgroundColor: CARD_FILL },
   photo: { width: 72, height: 72, borderRadius: 36, overflow: "hidden" },
   who: { fontSize: 17, fontWeight: "600", color: "var(--ink)" as string },
   line: { fontSize: 12.5, color: "var(--ink-3)" as string, marginTop: 2 },

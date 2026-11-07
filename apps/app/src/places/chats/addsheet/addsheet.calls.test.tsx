@@ -12,7 +12,9 @@ test("a guest invite goes through threads.invite_guest with the chosen level", a
   await withDom(async () => {
     const s = createSample("idle");
     const root = await mount(createRoot, <Conversation data={s.data} />);
-    await press(find(root, "add-agent"));
+    await press(find(root, "participants-button"));
+    await flush();
+    await press(find(root, "people-footer"));
     await flush();
     await typeInto(find(root, "as-search"), "dana@fox-legal.com");
     await press(find(root, "as-invite"));
@@ -30,7 +32,9 @@ test("a chat-owned agent is made through threads.agent.create and shows in the c
   await withDom(async () => {
     const s = createSample("idle");
     const root = await mount(createRoot, <Conversation data={s.data} />);
-    await press(find(root, "add-agent"));
+    await press(find(root, "participants-button"));
+    await flush();
+    await press(find(root, "people-footer"));
     await flush();
     await press(find(root, "as-new"));
     await typeInto(find(root, "as-name"), "Checker");
@@ -43,7 +47,9 @@ test("a chat-owned agent is made through threads.agent.create and shows in the c
     assert.equal((call?.input as { name: string }).name, "Checker");
     assert.equal((call?.input as { brief: string }).brief, "Checks every upload against the spec");
     assert.ok(!s.calls.some((c) => c.cap === "agents.create"), "it never reaches the Agents page");
-    assert.ok(testIds(root).some((i) => /^face-agt_new/.test(i)), "it shows with the chat");
+    await press(find(root, "participants-button"));
+    await flush();
+    assert.ok(testIds(root).some((i) => /^people-row-agt_new/.test(i)), "it shows with the chat, in the people popover");
     assert.ok(s.toasts.includes("Checker was added"));
   });
 });
@@ -52,13 +58,17 @@ test("an outside agent goes through threads.outside_agent.add, and its x on Here
   await withDom(async () => {
     const s = createSample("idle");
     const root = await mount(createRoot, <Conversation data={s.data} />);
-    await press(find(root, "add-agent"));
+    await press(find(root, "participants-button"));
+    await flush();
+    await press(find(root, "people-footer"));
     await flush();
     await pickAndAdd(root, ["outside:out_cc"]);
     assert.deepEqual(s.calls.filter((c) => c.cap === "threads.outside_agent.add").map((c) => c.input), [{ threadId: "c1", agentId: "out_cc", mode: "listen" }]);
     assert.ok(!s.calls.some((c) => c.cap === "threads.add_agent" && (c.input as { agentId: string }).agentId === "out_cc"), "never as a plain agent");
     // open again: it is Here now, and can be taken out
-    await press(find(root, "add-agent"));
+    await press(find(root, "participants-button"));
+    await flush();
+    await press(find(root, "people-footer"));
     await flush();
     await press(find(root, "as-here-remove-out_cc"));
     await flush();
@@ -72,7 +82,9 @@ test("an agent picked with Only listens is added, then set quiet; a person is ad
   await withDom(async () => {
     const s = createSample("idle");
     const root = await mount(createRoot, <Conversation data={s.data} />);
-    await press(find(root, "add-agent"));
+    await press(find(root, "participants-button"));
+    await flush();
+    await press(find(root, "people-footer"));
     await flush();
     await press(find(root, "as-row-agent:agt_research"));
     await press(find(root, "as-settings-agent:agt_research"));
@@ -91,7 +103,9 @@ test("a person who can only view cannot give Member: the option is not offered a
   await withDom(async () => {
     const s = createSample("idle", { viewOnly: true });
     const root = await mount(createRoot, <Conversation data={s.data} />);
-    await press(find(root, "add-agent"));
+    await press(find(root, "participants-button"));
+    await flush();
+    await press(find(root, "people-footer"));
     await flush();
     await press(find(root, "as-row-person:usr_maya"));
     assert.match(textOf(find(root, "as-pick-person:usr_maya")), /Can view/);
@@ -105,7 +119,9 @@ test("Include earlier messages shows for a chat and is off by default; on, the p
   await withDom(async () => {
     const s = createSample("idle");
     const root = await mount(createRoot, <Conversation data={s.data} />);
-    await press(find(root, "add-agent"));
+    await press(find(root, "participants-button"));
+    await flush();
+    await press(find(root, "people-footer"));
     await flush();
     await press(find(root, "as-row-person:usr_maya"));
     assert.ok(find(root, "as-earlier"), "shown for a chat");
@@ -113,7 +129,9 @@ test("Include earlier messages shows for a chat and is off by default; on, the p
     await press(find(root, "as-add"));
     await flush();
     assert.deepEqual(s.calls.filter((c) => c.cap === "threads.members.add").map((c) => c.input), [{ threadId: "c1", personId: "usr_maya" }], "off by default: no flag");
-    await press(find(root, "add-agent"));
+    await press(find(root, "participants-button"));
+    await flush();
+    await press(find(root, "people-footer"));
     await flush();
     await press(find(root, "as-row-person:usr_omar"));
     await press(find(root, "as-earlier"));
@@ -123,7 +141,9 @@ test("Include earlier messages shows for a chat and is off by default; on, the p
     assert.deepEqual(s.calls.filter((c) => c.cap === "threads.members.add").at(-1)?.input, { threadId: "c1", personId: "usr_omar", fromStart: true });
     const ch = createSample("channel");
     const room = await mount(createRoot, <Conversation data={ch.data} />);
-    await press(find(room, "add-agent"));
+    await press(find(room, "participants-button"));
+    await flush();
+    await press(find(room, "people-footer"));
     await flush();
     await press(find(room, "as-row-person:usr_omar"));
     assert.equal(find(room, "as-earlier"), null, "a channel's people read everything it holds");
@@ -138,7 +158,9 @@ async function footerFor(scope: "both" | "folder" | "none"): Promise<string> {
   await withDom(async () => {
     const s = createSample("idle", { scope });
     const root = await mount(createRoot, <Conversation data={s.data} />);
-    await press(find(root, "add-agent"));
+    await press(find(root, "participants-button"));
+    await flush();
+    await press(find(root, "people-footer"));
     await flush();
     await press(find(root, "as-row-person:usr_maya"));
     line = textOf(find(root, "as-line-std")).replace(/\s+/g, " ").trim();

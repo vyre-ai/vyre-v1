@@ -2,6 +2,7 @@
 // Calendar or the Meetings tab when the sidebar asks for it. The Inbox's own UI state (view, scope, filters, selection) is one reducer shared by the sidebar and the list. Before the Space's runtime
 // exists the place draws its loading frame. Inbox is off the rail until something flows in; a saved tab or a link that still opens it with nothing connected shows the connect
 // tiles of Settings > Email and calendar instead of an empty Inbox.
+import { isPhoneWidth } from "../../../../../ui/src/SidePane/layout.ts";
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useOpenedId, usePlaceHash } from "../hash/context.tsx";
 import { NotFound } from "../hash/NotFound.tsx";
@@ -153,7 +154,7 @@ function Main({ rt, openId, close }: { rt: ShellRuntime; openId: string | null; 
 /** The sidebar and the middle side by side; on a phone one at a time: the list of inboxes first, then what a row opened, with a way back. */
 function InboxFrame({ rt, openId, close }: { rt: ShellRuntime; openId: string | null; close: () => void }): ReactElement {
   const winW = useWindowDimensions().width;
-  const phone = winW > 0 && winW < 720;
+  const phone = isPhoneWidth(winW);
   const { state } = useInboxState();
   const { target } = usePlaceHash();
   const [entered, setEntered] = useState(false);

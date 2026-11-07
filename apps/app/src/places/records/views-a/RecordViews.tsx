@@ -21,6 +21,7 @@ import { each, KIND_LABEL, KIND_ORDER, kindOf } from "./model.ts";
 import type { TableViewState } from "./model.ts";
 import type { KindDef, ViewCtx } from "./view.tsx";
 import { KindSwitch } from "./view.tsx";
+import { isPhoneWidth } from "../../../../../../ui/src/SidePane/layout.ts";
 
 type TypesOut = CapMap["schema.types.list"]["out"];
 type ViewsOut = CapMap["views.list"]["out"];
@@ -49,7 +50,7 @@ function TypeViews({ type, kind, view, extraKinds }: RecordViewsProps & { type: 
   const kinds: KindDef[] = [...each(KIND_ORDER, (k) => ({ kind: k, label: KIND_LABEL[k] })), ...each(extraKinds ?? [], (k) => ({ kind: k.kind, label: k.label }))];
   const known = each(kinds, (k) => k.kind);
   const winW = useWindowDimensions().width;
-  const phone = winW > 0 && winW < 700;
+  const phone = isPhoneWidth(winW);
   const [picked, setPicked] = useState<{ key: string; kind: string } | null>(null);
   const key = `${type}:${saved?.viewId ?? ""}`;
   if (!def) return <TableLoading />;

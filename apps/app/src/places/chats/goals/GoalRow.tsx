@@ -4,12 +4,13 @@ import type { ReactElement } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { Avatar, avatarOf } from "../../../../../../ui/src/Avatar/index.tsx";
-import { fractionOf, rowNote } from "./model.ts";
+import { countOf, rowNote } from "./model.ts";
+import { ROW } from "../../../../../../ui/src/tokens/calm.ts";
 import { useZones } from "../../../../../../ui/src/Time/index.tsx";
 import type { GoalLine, Tone } from "./model.ts";
 
-/** A goal's row is the Row with a note: 44 px, the same as any two-line row. */
-export const GOAL_ROW_H = 44;
+/** A goal's row is one line like every row: 32 px, the face, the title, the quiet count. A dot only when it needs you. */
+export const GOAL_ROW_H = ROW;
 
 export const TONE: Readonly<Record<Tone, string>> = { plain: "var(--ink-3)", need: "var(--warn)", stuck: "var(--danger)", ok: "var(--ok)", dim: "var(--ink-4)" };
 
@@ -25,14 +26,15 @@ export function Bar({ value, tone = "plain", width = 44, testID }: { value: numb
 export function GoalRow({ goal, selected, hovered, now, me, leadName, onPress }: { goal: GoalLine; selected: boolean; hovered: boolean; now: number; me: string | undefined; leadName: string; onPress(): void }): ReactElement {
   const zones = useZones();
   const note = rowNote(goal, now, zones, me);
-  const tone: Tone = goal.status === "done" ? "ok" : goal.status === "paused" || goal.status === "missed" || goal.status === "stopped" || goal.status === "draft" ? "dim" : "plain";
+  const needs = note.tone === "need" || note.tone === "stuck";
+  const count = countOf(goal.progress);
   return (
     <View testID={`goal-row-${goal.id}`} style={{ height: GOAL_ROW_H }}>
       <Row
-        id={`g:${goal.id}`} title={goal.title} note={note.text} {...(note.lead ? { noteLead: note.lead, noteLeadTone: note.tone === "stuck" || note.tone === "need" ? "warning" as const : "accent" as const } : {})}
+        id={`g:${goal.id}`} title={goal.title}
         selected={selected} hovered={hovered} onPress={onPress}
         leading={<View style={st.face}><Avatar {...avatarOf({ id: goal.leadAgentId, name: leadName, kind: "agent" })} size={20} /></View>}
-        trailing={<Bar value={fractionOf(goal.progress)} tone={tone} testID={`goal-bar-${goal.id}`} />}
+        trailing={<View style={st.tail}>{needs ? <View testID={`goal-needs-${goal.id}`} accessibilityLabel={note.lead ?? "Needs you"} style={[st.needs, { backgroundColor: note.tone === "stuck" ? "var(--danger)" : "var(--warn)" }]} /> : null}{count ? <Text testID={`goal-count-${goal.id}`} style={st.count}>{count}</Text> : null}</View>}
       />
     </View>
   );
@@ -40,6 +42,9 @@ export function GoalRow({ goal, selected, hovered, now, me, leadName, onPress }:
 
 const st = StyleSheet.create({
   face: { marginRight: 9 },
+  tail: { flexDirection: "row", alignItems: "center", gap: 8 },
+  needs: { width: 7, height: 7, borderRadius: 4 },
+  count: { fontSize: 12, color: "var(--ink-3)" as string, fontVariant: ["tabular-nums"] } as object,
   bar: { height: 3, borderRadius: 2, backgroundColor: "var(--sel)" as string, overflow: "hidden" },
   fill: { height: 3, borderRadius: 2 },
 });

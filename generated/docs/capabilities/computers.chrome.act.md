@@ -26,6 +26,7 @@ Act on an element or key: click, hover, press, select, scroll, check; a send, po
 ```ts
 type In = {
   computerId?: string;
+  inMyChrome?: boolean;
   tabId?: string;
   ref?: string;
   action: "click" | "double_click" | "hover" | "press" | "select" | "scroll" | "check" | "uncheck" | "focus";
@@ -40,6 +41,11 @@ type Out = {
   ok: boolean;
   heldId?: string;
   snapshot?: string;
+  downloads?: Array<{
+      name: string;
+      path: string;
+      fileId: string;
+    }>;
 };
 ```
 
@@ -62,11 +68,19 @@ type Out = {
   "input": {
     "action": "click",
     "computerId": "cmt_a1b2c3",
+    "inMyChrome": true,
     "ref": "e12",
     "tabId": "example",
     "value": "example"
   },
   "output": {
+    "downloads": [
+      {
+        "fileId": "fil_a1b2c3",
+        "name": "example",
+        "path": "Downloads/report.pdf"
+      }
+    ],
     "heldId": "example",
     "ok": true,
     "snapshot": "example"

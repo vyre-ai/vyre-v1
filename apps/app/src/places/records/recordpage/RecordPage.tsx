@@ -38,6 +38,7 @@ import { SealedField } from "./SealedField.tsx";
 import { DropZone } from "../../../../../../ui/src/FileDrop/index.tsx";
 import { GoalsOf } from "../../chats/goals/GoalsList.tsx";
 import type { DroppedFile } from "../../../../../../ui/src/FileDrop/index.tsx";
+import { isPhoneWidth } from "../../../../../../ui/src/SidePane/layout.ts";
 
 export interface RecordPageStart {
   /** The relationship map open. */
@@ -258,7 +259,7 @@ function Pane({ type, row, def, tab, onTab, phone = false }: { type: string; row
       onLayout={(e) => { const w = Math.round(e.nativeEvent.layout.width); if (w > 0 && w !== paneW) setPaneW(w); }}
     >
       <TabMeasure titles={PANE_TABS.map((x) => x.title)} onWidth={titles.set} />
-      <TabStrip underline tabs={strip as never} active={tab} onSelect={select} />
+      <TabStrip underline noOptions tabs={strip as never} active={tab} onSelect={select} />
       {fill ? <View style={p.paneFill}>{body}</View> : <ScrollView style={p.paneScroll}>{body}</ScrollView>}
       {menu.element}
     </ResizableColumn>
@@ -300,7 +301,7 @@ function PageBody({ type, recordId, start = {} }: RecordPageProps): ReactElement
   const mq = useLive("records.relations_map", { type, recordId, hops: 2 }, late || map);
   const width = useWindowDimensions().width;
   const wide = width === 0 || width >= 900;
-  const phone = width > 0 && width < 640;
+  const phone = isPhoneWidth(width);
   const [editing, setEditing] = useState<{ key: string; text: string; error?: string } | null>(start.edit ?? null);
   const [flash, setFlash] = useState<Flash | null>(null);
   const [all, setAll] = useState(start.all === true || start.edit !== undefined);
@@ -461,7 +462,7 @@ function PageBody({ type, recordId, start = {} }: RecordPageProps): ReactElement
             </View>
           ) : null}
           {map ? <View style={p.mapBox} testID="relation-map-box">{nodes.length > 1 ? <RelationMap nodes={nodes} edges={mapEdges} onOpen={(n) => data.nav.openRecord(n.type, n.recordId)} /> : <Text style={p.paneEmpty}>Nothing is linked to this record yet.</Text>}</View> : null}
-          {tabs ? <TabStrip tabs={each(tabs, (t) => ({ key: t.key, title: t.title }))} active={tabs.some((t) => t.key === group) ? group : tabs[0]!.key} onSelect={setGroup} /> : null}
+          {tabs ? <TabStrip noOptions tabs={each(tabs, (t) => ({ key: t.key, title: t.title }))} active={tabs.some((t) => t.key === group) ? group : tabs[0]!.key} onSelect={setGroup} /> : null}
           {body}
           {all ? <Pressable accessibilityRole="button" testID="hide-empty" onPress={() => setAll(false)}><Text style={p.more}>Hide empty fields</Text></Pressable> : null}
         </ScrollView>

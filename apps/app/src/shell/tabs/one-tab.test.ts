@@ -128,3 +128,11 @@ test("saved blank chats close on load, keeping one: the one used last; chats wit
   const read = dedupeTabs(readTabs(writeTabs(s))!);
   assert.deepEqual(keys(read), keys(out), "the same after a save and a read");
 });
+
+test("saved chat tabs titled New chat (read as blank, saved before the mark) load as one; an Inbox saved twice loads as one", () => {
+  const raw = writeTabs(state([tab("files"), tab("chats", "subject=thread:a", "New chat", 5), tab("chats", "subject=thread:b", "New chat", 9), tab("chats", "subject=thread:c", "Renewal", 1), tab("inbox", undefined, "Inbox", 2), tab("inbox", "subject=conversation:cnv_1", "Inbox", 7)], "files"));
+  const out = dedupeTabs(readTabs(raw)!);
+  assert.deepEqual(keys(out), ["files", "chats:subject=thread:b", "chats:subject=thread:c", "inbox:subject=conversation:cnv_1"]);
+  assert.equal(out.tabs.filter((t) => t.place === "inbox").length, 1);
+  assert.equal(dedupeTabs(out), out, "loading again changes nothing");
+});

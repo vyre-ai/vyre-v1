@@ -5,12 +5,13 @@ import { useState } from "react";
 import { Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { setAll, setPick, shortDiff, wordsOf } from "./conflict.ts";
 import type { Clash, ClashRow, Pick } from "./conflict.ts";
+import { belowPhone } from "../../../../../../ui/src/SidePane/layout.ts";
 
 export interface ConflictProps { clash: Clash; by: string; now: number; offsetMin: number; busy?: boolean; onChange(c: Clash): void; onSave(): void }
 
 export function ConflictCard({ clash, by, now, offsetMin, busy, onChange, onSave }: ConflictProps): ReactElement {
   const { width } = useWindowDimensions();
-  const narrow = width < 640;
+  const narrow = belowPhone(width);
   const mine = clash.rows.filter((r) => r.pick === "mine").length;
   const theirs = clash.rows.length - mine;
   return (
@@ -41,7 +42,7 @@ function Row({ row, by, now, offsetMin, onPick }: { row: ClashRow; by: string; n
   const short = all ? null : shortDiff(row.mine, row.current);
   const mine = short ? short[0] : wordsOf(row.key, row.mine, now, offsetMin);
   const cur = short ? short[1] : wordsOf(row.key, row.current, now, offsetMin);
-  const narrow = width < 640;
+  const narrow = belowPhone(width);
   const long = shortDiff(row.mine, row.current) !== null;
   return (
     <View testID={`task-conflict-row-${row.key}`} style={[st.row, narrow && st.rowNarrow]}>

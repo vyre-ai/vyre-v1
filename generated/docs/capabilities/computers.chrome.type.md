@@ -26,6 +26,7 @@ Type text into the focused element or a ref; secrets only as #Handle.field refer
 ```ts
 type In = {
   computerId?: string;
+  inMyChrome?: boolean;
   tabId?: string;
   ref?: string;
   text: string;
@@ -60,6 +61,7 @@ type Out = {
   "name": "example",
   "input": {
     "computerId": "cmt_a1b2c3",
+    "inMyChrome": true,
     "ref": "e12",
     "submit": true,
     "tabId": "example",

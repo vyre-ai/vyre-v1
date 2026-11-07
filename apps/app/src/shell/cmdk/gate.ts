@@ -1,6 +1,5 @@
 // The search of the real shell (P-L9_23): CmdKData built from what a signed-in Space gives the shell. Local hits come from the replica's live queries (people and agents, recent chats)
 // in the same task as the keystroke; the server is search.query behind the capability caller; Recent is search.recent.list read ahead of the sheet opening.
-import { isLocked, lockAvailable, toggleLock } from "../noticeslot/lock-control.ts";
 import type { ShellRuntime } from "../providers/runtime.tsx";
 import type { PlaceId } from "../rail/kits.ts";
 import { skins, system } from "../../../../../ui/src/tokens/skins.ts";
@@ -92,9 +91,8 @@ export function shellHitTarget(hit: Hit, state: { inbox?: boolean }): { place: P
   return null;
 }
 
-export function gateActions(state: { away: boolean; offline: boolean; terminal?: boolean; lock?: { available: boolean; locked: boolean } }, team = true): readonly CmdAction[] {
+export function gateActions(state: { away: boolean; offline: boolean; terminal?: boolean}, team = true): readonly CmdAction[] {
   return [
-    ...(state.lock?.available ? [{ key: "vault.lock", title: state.lock.locked ? "Unlock" : "Lock Vyre", icon: "lock" }] : []),
     { key: "task.new", title: "New task", icon: "plus" },
     { key: "mail.connect", title: "Connect email", icon: "plus" },
     ...(team ? [{ key: "channel.new", title: "New channel", icon: "plus" }] : []),
@@ -150,7 +148,7 @@ export function createGateSearch(d: GateSearchDeps): CmdKData {
       return mine(out.hits);
     },
     recent: () => mine(d.recent()),
-    actions: (text) => [...askActions(currentScreen()), ...gateActions({ ...state, lock: { available: lockAvailable(), locked: isLocked() } }, rt.space.kind === "team")].filter((a) => !text || a.title.toLowerCase().includes(text.toLowerCase())),
+    actions: (text) => [...askActions(currentScreen()), ...gateActions(state, rt.space.kind === "team")].filter((a) => !text || a.title.toLowerCase().includes(text.toLowerCase())),
     skins: () => [{ id: system.id, name: system.name }, ...skins.map((s) => ({ id: s.id, name: s.name, swatch: s.palette.accent }))],
     currentSkin: () => (globalThis as { document?: { documentElement?: { getAttribute(k: string): string | null } } }).document?.documentElement?.getAttribute("data-skin") ?? "system",
     previewSkin: () => undefined,
@@ -164,7 +162,6 @@ export function createGateSearch(d: GateSearchDeps): CmdKData {
     },
     runAction: (a) => {
       if (a.key === ASK_HERE) askHere();
-      else if (a.key === "vault.lock") toggleLock();
       else if (a.key === "presence.away") {
         state.away = !state.away;
         if (d.away) d.away(state.away);

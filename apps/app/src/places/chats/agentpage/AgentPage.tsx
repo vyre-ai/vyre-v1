@@ -171,7 +171,7 @@ function PageView({ tab: controlled, initialTab, onTab, window }: AgentPageProps
         ) : <View testID="agent-strip-loading" style={st.skStrip} />}
         <WorkingOn />
         <TabMeasure titles={TAB_TITLES} onWidth={titles.set} />
-        <TabStrip underline tabs={strip} active={tab} onSelect={select} label={`${name}'s page`} />
+        <TabStrip underline noOptions tabs={strip} active={tab} onSelect={select} label={`${name}'s page`} />
         <View testID={`page-body-${tab}`} style={st.body}>
           <RightPaneDataProvider value={paneDataOf(data)}>
             {tab === "activity" ? <ActivityTab agentId={agentId} call={data.call} clock={data.clock()} openChat={data.nav.openChat} /> : null}

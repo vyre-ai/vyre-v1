@@ -1,0 +1,6 @@
+- fix(server): vyred in compose.server.yml may make user namespaces and mounts (seccomp, AppArmor and systempaths unconfined), so the engine sandbox runs on a Space server
+- fix(release): a version bump also covers the desktop app (package.json, Cargo.toml, tauri.conf.json, Cargo.lock) and the lockfile roots, and versionProblems reports a mismatch
+- test(install): the agent image variable compose reads is the one the updater and installer write
+- fix(server): the vyre-server command hands off to the current release's script and update and rollback replace an old installed copy with the wrapper, so fixes in the updater reach servers
+- fix(server): install, update and rollback write /etc/sysctl.d/60-vyre-userns.conf (apparmor_restrict_unprivileged_userns=0) where the kernel has it, and doctor names it when it is 1
+- fix(server): after an update or rollback Caddy is recreated when it is not on the vyred that runs now

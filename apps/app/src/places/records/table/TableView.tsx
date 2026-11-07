@@ -35,6 +35,7 @@ import { recordMenu } from "../menus/record.ts";
 import { NO_PICK, isPickedRow, pickCount, toggleHeader, togglePick } from "./model.ts";
 import type { Column, FieldDef, GroupItem, RowPick, RecordRow, TableViewState, TypeDef } from "./model.ts";
 import { TimePop } from "../../../../../../ui/src/Time/index.tsx";
+import { isPhoneWidth } from "../../../../../../ui/src/SidePane/layout.ts";
 
 type TypesOut = CapMap["schema.types.list"]["out"];
 type ViewsOut = CapMap["views.list"]["out"];
@@ -473,7 +474,7 @@ function Grid({ type, def, views, base, saved, headerExtra }: { type: string; de
   const menu = useMenu();
   const online = useOnline();
   const phone = useWindowDimensions().width;
-  const slim = phone > 0 && phone < 720;
+  const slim = isPhoneWidth(phone);
   const tight = phone > 0 && phone < 1180;   // beside the sidebar a 1024 window has no room for seven labelled buttons: icons only, so the type and view names keep their room
   const typeList = useScreenQuery<TypesOut>(SCREENS.types, "types");
   const access = useRecordAccess(type);

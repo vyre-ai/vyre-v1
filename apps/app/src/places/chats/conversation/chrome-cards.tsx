@@ -8,6 +8,7 @@ import type { ReactElement } from "react";
 import { Image, StyleSheet, Text, TextInput, View } from "react-native";
 import { Glyph, TextButton } from "./parts.tsx";
 import { HeldCard } from "./held-card.tsx";
+import { Card, CardActions } from "../../../../../../ui/src/Card/index.tsx";
 
 export interface HeldCardData {
   heldId: string; agent: string; site: string; kind: string; to: string; from: string; subject: string; message: string; summary: string;
@@ -96,7 +97,8 @@ export function ChromeStepCard({ id, data, agentId, agentName, actions }: { id: 
   const c = { ...found, agent: found.agent === "An agent" && agentName ? agentName : found.agent };
   const live = c.state === "using" || c.state === "waiting";
   return (
-    <View testID={`chrome-step-${id}`} accessibilityLabel={stepWords(c)} style={s.step}>
+    <Card kind="progress" size="full" testID={`chrome-step-${id}`} label={stepWords(c)}>
+    <View style={s.step}>
       {c.thumb ? <Image testID={`chrome-step-${id}-thumb`} source={{ uri: c.thumb }} style={s.thumb} resizeMode="cover" accessibilityIgnoresInvertColors /> : <View style={s.tile}><Text style={s.tileText}>{(c.site[0] ?? "?").toUpperCase()}</Text></View>}
       <View style={s.words}>
         <Text style={s.title} numberOfLines={1}>{stepWords(c)}</Text>
@@ -111,10 +113,10 @@ export function ChromeStepCard({ id, data, agentId, agentName, actions }: { id: 
           </View>
         ) : null}
         {live ? (
-          <View style={s.actions}>
-            <TextButton label="Watch" onPress={() => { void actions?.watch(agentId).catch(() => undefined); }} disabled={!actions} testID={`chrome-step-watch-${id}`} />
-            <TextButton label="Take over" onPress={() => { void actions?.takeOver(agentId).catch(() => undefined); }} disabled={!actions} testID={`chrome-step-takeover-${id}`} />
-          </View>
+          <CardActions
+            primary={{ label: "Watch", onPress: () => { void actions?.watch(agentId).catch(() => undefined); }, disabled: !actions, testID: `chrome-step-watch-${id}` }}
+            secondary={[{ label: "Take over", onPress: () => { void actions?.takeOver(agentId).catch(() => undefined); }, disabled: !actions, testID: `chrome-step-takeover-${id}` }]}
+          />
         ) : null}
         {c.saw.length > 0 ? (
           <View style={{ gap: 3, alignSelf: "flex-start" }}>
@@ -125,17 +127,18 @@ export function ChromeStepCard({ id, data, agentId, agentName, actions }: { id: 
         ) : null}
       </View>
     </View>
+    </Card>
   );
 }
 
 const s = StyleSheet.create({
-  card: { marginTop: 6, maxWidth: 666, alignSelf: "stretch", gap: 10, paddingBottom: 12, borderRadius: 10, borderWidth: 1, borderColor: "var(--accent-line)" as string, backgroundColor: "var(--raised)" as string, overflow: "hidden" },
+  card: { marginTop: 6, maxWidth: 666, alignSelf: "stretch", gap: 10, paddingBottom: 12, borderRadius: 12, borderWidth: 1, borderColor: "var(--accent-line)" as string, backgroundColor: "var(--raised)" as string, overflow: "hidden" },
   band: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 12, paddingVertical: 9, backgroundColor: "var(--sel)" as string },
   bandTitle: { flex: 1, fontSize: 13.5, fontWeight: "500", color: "var(--ink)" as string },
   needs: { fontSize: 12, color: "var(--ink-3)" as string },
   who: { paddingHorizontal: 12, fontSize: 12.5, color: "var(--ink-3)" as string },
   foot: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8, paddingHorizontal: 12, paddingTop: 4 },
-  input: { flex: 1, minWidth: 0, minHeight: 30, borderWidth: 1, borderColor: "var(--line)" as string, borderRadius: 7, paddingHorizontal: 9, paddingVertical: 5, color: "var(--ink)" as string, backgroundColor: "var(--win)" as string, fontSize: 13 },
+  input: { flex: 1, minWidth: 0, minHeight: 30, borderWidth: 1, borderColor: "var(--line)" as string, borderRadius: 12, paddingHorizontal: 9, paddingVertical: 5, color: "var(--ink)" as string, backgroundColor: "var(--win)" as string, fontSize: 13 },
   inputArea: { minHeight: 96, textAlignVertical: "top" as const },
   checks: { gap: 4, marginTop: 4 },
   check: { flexDirection: "row", alignItems: "center", gap: 8 },
@@ -154,9 +157,9 @@ const s = StyleSheet.create({
   summary: { paddingHorizontal: 12, fontSize: 13, color: "var(--ink-2)" as string },
   actions: { flexDirection: "row", gap: 8, flexWrap: "wrap", marginTop: 2 },
   state: { fontSize: 12.5, color: "var(--ink-3)" as string },
-  step: { flexDirection: "row", alignItems: "center", gap: 12, marginTop: 6, padding: 8, paddingRight: 14, maxWidth: 666, alignSelf: "stretch", alignItems: "flex-start", minWidth: 0, borderRadius: 12, borderWidth: 1, borderColor: "var(--line)" as string, backgroundColor: "var(--raised)" as string },
-  thumb: { width: 220, height: 138, flexShrink: 0, maxWidth: "46%" as unknown as number, borderRadius: 8, borderWidth: 1, borderColor: "var(--line-2)" as string, backgroundColor: "#fff" },
-  tile: { width: 220, height: 138, flexShrink: 0, maxWidth: "46%" as unknown as number, borderRadius: 8, backgroundColor: "var(--sunk)" as string, alignItems: "center", justifyContent: "center" },
+  step: { flexDirection: "row", gap: 12, alignItems: "flex-start", minWidth: 0 },
+  thumb: { width: 220, height: 138, flexShrink: 0, maxWidth: "46%" as unknown as number, borderRadius: 12, borderWidth: 1, borderColor: "var(--line-2)" as string, backgroundColor: "#fff" },
+  tile: { width: 220, height: 138, flexShrink: 0, maxWidth: "46%" as unknown as number, borderRadius: 12, backgroundColor: "var(--sunk)" as string, alignItems: "center", justifyContent: "center" },
   tileText: { fontSize: 22, fontWeight: "600", color: "var(--ink-3)" as string },
   words: { flex: 1, minWidth: 0, gap: 2 },
   handle: { flexShrink: 1, fontSize: 12.5, color: "var(--ink-2)" as string, fontFamily: "var(--mono, ui-monospace, Menlo, monospace)" as string },

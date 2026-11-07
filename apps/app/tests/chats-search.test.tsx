@@ -52,14 +52,14 @@ test("the line under the box says how the search ran and what it left out", () =
   assert.equal(statusLine(out({ hits: [hit(), hit({ messageId: "m2" })], meaning: true }), false, "rivera"), "2 results by words and meaning");
   assert.equal(statusLine(out({}), false, "rivera"), "Nothing found by words");
   assert.equal(statusLine(out({ hits: [hit()], sealedChats: 2 }), false, "rivera"), "1 result by words. 2 sealed chats are not searched here.");
-  assert.equal(whenLine(Date.UTC(2026, 9, 29, 15, 30), clock), "Yesterday, 15:30");
+  assert.equal(whenLine(Date.UTC(2026, 9, 29, 15, 30), clock), "Yesterday, 3:30 PM");
 });
 
 test("a result row names who wrote it, the chat it is in and when, marks the matched words, and is a button for the keyboard and the pointer", () => {
   const html = clean(renderToStaticMarkup(<Row h={hit()} i={0} on query="rivera estate" data={data()} onHover={() => undefined} open={() => undefined} menu={{ show: () => undefined, element: null } as never} />));
   assert.ok(html.includes('data-testid="hit-msg_1"'));
   assert.ok(html.includes("in Intake"));
-  assert.ok(html.includes("Yesterday, 15:30"));
+  assert.ok(html.includes("Yesterday, 3:30 PM"));
   assert.ok(html.includes("Rivera estate"));
   assert.ok(!/usr_|agt_/.test(html.replace(/data-testid="[^"]*"/g, "").replace(/aria-label="[^"]*"/g, "")), "no ids in what is read");
   const off = clean(renderToStaticMarkup(<Row h={hit({ found: "meaning" })} i={3} on={false} query="x" data={data()} onHover={() => undefined} open={() => undefined} menu={{ show: () => undefined, element: null } as never} />));

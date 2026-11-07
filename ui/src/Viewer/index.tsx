@@ -291,8 +291,10 @@ export interface ViewerViewProps extends ViewerProps {
   saved?: number;
   onEditMode?: (edit: boolean) => void;
   onInfo?: () => void;
-  onHistory?: () => void;
-  onMore?: () => void;
+  /** The versions of the file; the point is where the button was pressed. Left out, the History button is not drawn. */
+  onHistory?: (x: number, y: number) => void;
+  /** The file's other actions (copy link, download); the point is where the button was pressed. Left out, the More button is not drawn. */
+  onMore?: (x: number, y: number) => void;
   /** The line of the quiet "no preview" state, for a file whose app is known ("No preview of this file here. Open it in Word."); without it the line names Open in, or the file's own app. */
   noPreview?: string;
   /** A file that lives at a provider (Google Docs, Word, Excel, Dropbox): one press opens it in the provider's own editor. `label` reads "Open in Google Docs". */
@@ -354,6 +356,12 @@ function Tool(p: { label: string; icon: string; on?: boolean; onPress: () => voi
       <Text style={s.toolText}>{p.label}</Text>
     </Pressable>
   );
+}
+
+/** Where a press happened, for a menu that opens under the button. */
+function pressPoint(e: unknown): { x: number; y: number } {
+  const t = e as { clientX?: number; clientY?: number; nativeEvent?: { pageX?: number; pageY?: number } } | undefined;
+  return { x: t?.clientX ?? t?.nativeEvent?.pageX ?? 24, y: (t?.clientY ?? t?.nativeEvent?.pageY ?? 40) + 12 };
 }
 
 export function Viewer(props: ViewerViewProps): ReactElement {
@@ -433,9 +441,9 @@ export function Viewer(props: ViewerViewProps): ReactElement {
   const changeBlocks = (next: readonly DocBlock[]): void => { setBlocks(next); props.onEdit?.(next); };
   const pick = (t: MarkupTool): void => setTool((x) => (x === t ? null : t));
 
-  const iconBtn = (label: string, icon: string, testID: string, onPress?: () => void, on = false): ReactElement => (
-    <Pressable accessibilityRole="button" accessibilityLabel={label} aria-selected={on} accessibilityState={{ selected: on }} testID={testID} onPress={onPress}
-      style={({ hovered }: { hovered?: boolean }) => [s.iconBtn, on && s.toolOn, hovered === true && s.toolOver]}><MenuIcon icon={icon} /></Pressable>
+  const iconBtn = (label: string, icon: string, testID: string, onPress?: (e?: unknown) => void, on = false, disabled = false): ReactElement => (
+    <Pressable accessibilityRole="button" accessibilityLabel={label} aria-selected={on} accessibilityState={{ selected: on, disabled }} disabled={disabled} testID={testID} onPress={onPress}
+      style={({ hovered }: { hovered?: boolean }) => [s.iconBtn, on && s.toolOn, hovered === true && !disabled && s.toolOver, disabled && { opacity: 0.4 }]}><MenuIcon icon={icon} /></Pressable>
   );
   const bar = (
     <View style={s.bar} testID="vw-bar">
@@ -486,9 +494,9 @@ export function Viewer(props: ViewerViewProps): ReactElement {
       {props.tools}
       {iconBtn("Find in file", ICON.find, "vw-find-btn", () => setFindOpen((o) => !o), findOpen)}
       {iconBtn("Details", ICON.info, "vw-info", () => { setDetailsOpen((o) => !o); props.onInfo?.(); }, detailsOpen)}
-      {iconBtn("History", ICON.history, "vw-history", props.onHistory)}
+      {props.onHistory ? iconBtn("History", ICON.history, "vw-history", (e) => { const q = pressPoint(e); props.onHistory?.(q.x, q.y); }) : null}
       {props.ask !== undefined ? <AskButton {...props.ask} compact /> : null}
-      {iconBtn("More", ICON.more, "vw-more", props.onMore)}
+      {props.onMore ? iconBtn("More", ICON.more, "vw-more", (e) => { const q = pressPoint(e); props.onMore?.(q.x, q.y); }) : null}
     </View>
   );
 

@@ -33,7 +33,7 @@ Requires: mounts.
 - [files.folder.create](../capabilities/files.folder.create.md): Create a folder
 - [files.folder.delete](../capabilities/files.folder.delete.md): Move a folder and its files to Trash
 - [files.folder.get](../capabilities/files.folder.get.md): Read one folder with counts, source mark, git state and Review changes flag
-- [files.folder.move](../capabilities/files.folder.move.md): Move a folder under another folder (its sharing follows the new parent)
+- [files.folder.move](../capabilities/files.folder.move.md): Move a folder under another folder, or to the top of its tree when no folder is given (its sharing follows the new parent)
 - [files.folder.rename](../capabilities/files.folder.rename.md): Rename a folder
 - [files.folder.restore](../capabilities/files.folder.restore.md): Bring a folder back from Trash
 - [files.folder.search](../capabilities/files.folder.search.md): Find folders by name for the # picker and the Into picker

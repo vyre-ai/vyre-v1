@@ -49,11 +49,11 @@ export async function crewLine(ctx: ChatCtx, input: CrewLineInput): Promise<{ me
   const merged = job?.result?.merged;
   if (!job || job.state !== "merged" || !merged) raise(ctx, "validation.precondition_failed", "That work has not been merged.");
   if (merged.by !== ctx.principal.id) raise(ctx, "permission.no_grant", "Only the person who merged it can leave this line.");
-  const mark = (b: { type?: string; data?: Record<string, unknown> }): boolean => b.type === "crew_line" && b.data?.["jobId"] === input.jobId;
+  const mark = (b: { type?: string; data?: Record<string, unknown> }): boolean => (b.type === "result_card" || b.type === "crew_line") && b.data?.["jobId"] === input.jobId;
   const seen = lastMessages(ctx.db, t.id, 200).find((m) => m.blocks.some(mark));
   if (seen) return { messageId: seen.id };
   const body = `Merged ${job.branch} into ${job.base} · +${merged.added ?? 0} -${merged.deleted ?? 0}`;
-  const m = insertMessage(ctx, t.id, { author: ctx.principal.id, kind: "quiet", body, blocks: [{ type: "crew_line", v: 1, id: mintId("blk", ctx.now()), data: { jobId: input.jobId, line: body, branch: job.branch, base: job.base, added: merged.added ?? 0, deleted: merged.deleted ?? 0 }, state: "done", traceId: ctx.trace.traceId }] });
+  const m = insertMessage(ctx, t.id, { author: ctx.principal.id, kind: "quiet", body, blocks: [{ type: "result_card", v: 1, id: mintId("blk", ctx.now()), data: { jobId: input.jobId, title: `Merged ${job.branch} into ${job.base}`, body: `+${merged.added ?? 0} -${merged.deleted ?? 0}` }, state: "done", traceId: ctx.trace.traceId }] });
   return { messageId: m.id };
 }
 export const crewLineHandlers = { "chat.crew_line": (ctx: ChatCtx, input: CrewLineInput) => crewLine(ctx, input) };

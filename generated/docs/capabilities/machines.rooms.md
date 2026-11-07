@@ -43,6 +43,7 @@ type Out = {
       turns: number;
       maxTurns: number;
       draining: boolean;
+      maxAgentComputers?: number;
     }>;
 };
 ```
@@ -71,6 +72,7 @@ type Out = {
       {
         "draining": true,
         "machineId": "example",
+        "maxAgentComputers": 1,
         "maxTurns": 1,
         "name": "example",
         "score": 1,

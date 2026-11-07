@@ -1,3 +1,5 @@
+
+import { belowPhone } from "../../../../ui/src/SidePane/layout.ts";
 // First launch has three doors: Just me, I was invited, Set up my team. "Set up my team" always makes the Personal Space first (so the founder has their own place), then
 // offers the Team Space. Two small notes carry that across the claim screen and the shell: a wish to add a team once the Personal Space is open, and the name and username
 // just claimed, so the Team claim can pre-fill them. The password is never kept, and each Space has its own recovery code.
@@ -24,7 +26,7 @@ export function doorsFor(device: Device): readonly { door: Door; title: string; 
 
 /** The device a window is, from what the shell and the window say. */
 export function deviceOf(o: { desktop: boolean; mac: boolean; width: number }): Device {
-  if (o.width <= 640) return "phone";
+  if (belowPhone(o.width)) return "phone";
   if (!o.desktop) return "web";
   return o.mac ? "mac" : "win";
 }

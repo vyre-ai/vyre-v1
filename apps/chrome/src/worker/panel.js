@@ -11,6 +11,7 @@
 //
 // The panel keeps a port named "vyre.panel" open; the worker pushes reply deltas, Selected chip changes and tab switches down it.
 
+import { versionState } from "./version.js";
 import { BridgeFailure } from "./protocol.js";
 import { pageOf } from "./match.js";
 
@@ -82,6 +83,11 @@ export function createPanel({ ext, bridge, store, privacy, context, views = new 
     return { space, agent: row ? row.agent : "", model: row ? row.model : "" };
   }
 
+  /** The version this extension is running, from its own manifest. */
+  function ownVersion() {
+    try { const m = ext.runtime && ext.runtime.getManifest ? ext.runtime.getManifest() : null; return m ? m.version_name || m.version : ""; } catch { return ""; }
+  }
+
   /** @param {any} msg */
   async function handle(msg) {
     switch (msg.type) {
@@ -94,6 +100,8 @@ export function createPanel({ ext, bridge, store, privacy, context, views = new 
         let status = "online";
         try { hello = await bridge.op("hello"); } catch (e) { status = e instanceof BridgeFailure && e.code === "no_host" ? "no_host" : "offline"; }
         if (hello && hello.signedIn === false) status = "signed_out";
+        const mismatch = hello ? versionState(hello.appVersion, ownVersion()) : "ok";
+        if (mismatch !== "ok" && status === "online") status = mismatch === "reload" ? "needs_reload" : "needs_app_update";
         if (hello && Array.isArray(hello.spaces)) await store.set({ spaces: hello.spaces.map((/** @type {any} */ s) => ({ id: String(s.id), name: String(s.name), webUrl: String(s.webUrl ?? "") })), activeSpace: typeof hello.active === "string" ? hello.active : null }).catch(() => {});
         /** @type {any} */
         let agents = { agents: [], suggested: null };

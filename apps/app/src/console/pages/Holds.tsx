@@ -77,7 +77,7 @@ export function Holds(): ReactElement {
   if (!list.data) return <ReadState error={list.error} retry={list.refresh} />;
   const holds = visibleHolds(mergeHolds(more, list.data.holds), released);
   const next = page.loaded ? page.next : list.data.next;
-  const rows: ObjectListRow<Hold>[] = holds.map((hold) => ({ id: `${hold.target.kind}:${hold.target.id}`, title: hold.title, note: `${hold.target.kind} · ${hold.reason} · ${new Date(hold.at).toLocaleString()} · ${data.name(hold.by)}`, search: hold.reason, filters: [hold.target.kind], value: hold, actions: [{ label: "Release…", destructive: true, onSelect: () => setReleasePreview(hold) }] }));
+  const rows: ObjectListRow<Hold>[] = holds.map((hold) => ({ id: `${hold.target.kind}:${hold.target.id}`, title: hold.title, note: `${hold.target.kind} · ${hold.reason} · ${new Date(hold.at).toLocaleString()} · ${data.name(hold.by)}`, search: hold.reason, filters: [hold.target.kind], value: hold, actions: [{ label: "Release…", danger: true, onSelect: () => setReleasePreview(hold) }] }));
   const verifyPlaced = async (expected: { target: Target; reason: string }): Promise<string> => {
     const out = await data.call("governance.holds.list", { kind: expected.target.kind, limit: 100 }) as HoldsOut;
     const placed = out.holds.find((hold) => hold.target.id === expected.target.id && hold.reason === expected.reason);

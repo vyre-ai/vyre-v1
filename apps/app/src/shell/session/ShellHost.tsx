@@ -48,10 +48,9 @@ import { useNotificationNotices, useUpdateNotice } from "../noticeslot/bridge.ts
 import type { NotificationNoticesProps, UpdateSource } from "../noticeslot/bridge.ts";
 import { desktopUpdates, localStore, setUpdateState } from "../../startup/update/store.ts";
 import { FROM_KEY, noteUpdateFrom } from "../../startup/update/model.ts";
-import { isMacShell, lockedIdentity, storeLock } from "./entry.ts";
+import { isMacShell } from "./entry.ts";
 import { anyUnread } from "../../places/chats/sidebar/model.ts";
 import type { RecentOut } from "../../places/chats/sidebar/model.ts";
-import type { LockedIdentity } from "./entry.ts";
 
 const PhoneHost = lazy(() => import("./PhoneHost.tsx").then((m) => ({ default: m.PhoneHost })));
 
@@ -70,10 +69,9 @@ export interface ShellHostProps {
   voice?: LoadVoiceDevice | undefined;
   onAddSpace?:()=>void;
   onSwitchSpace?:(spaceId:string)=>void;
-  onLocked?:(identity:LockedIdentity)=>void;
 }
 
-export function ShellHost({ stored, open, onSignedOut, onHub, hub: given, initialSearchOpen = false, voice, onAddSpace, onSwitchSpace, onLocked }: ShellHostProps): ReactElement {
+export function ShellHost({ stored, open, onSignedOut, onHub, hub: given, initialSearchOpen = false, voice, onAddSpace, onSwitchSpace }: ShellHostProps): ReactElement {
   const navRef = useRef<ShellHub | null>(null);
   const signedOutRef=useRef(onSignedOut);signedOutRef.current=onSignedOut;
   const phoneGo = useRef<((p: PlaceId, hash: string) => void) | null>(null);
@@ -308,13 +306,6 @@ export function ShellHost({ stored, open, onSignedOut, onHub, hub: given, initia
     void session?.call("identity.sign_out", {}).catch(() => undefined);
     onSignedOut("manual");
   };
-  const lock=():void=>{
-    const identity=lockedIdentity({...stored,name:session?.me.name??stored.def.name});
-    storeLock(identity);clearStored();
-    forgetKey();void dropKeyOnOwnNode(stored.baseUrl,stored.token).catch(()=>undefined);void unlinkComputer(stored);
-    void session?.call("identity.sign_out",{}).catch(()=>undefined);
-    if(onLocked)onLocked(identity);else onSignedOut("manual");
-  };
   const selectSpace=(id:string):void=>{if(id===stored.def.spaceId)return;const target=catalogue.find(item=>item.def.spaceId===id);if(!target||!onSwitchSpace)return;sessionTheme(target,false);onSwitchSpace(id);};
   const renderNewTab = (): ReactElement => (search ? <NewTabSearch data={search} /> : <States kind="empty" title="Open anything, or start something" icon="search" />);
   // the onboarding screen opens over whatever the shell shows, the first time a person enters a Space and when asked
@@ -347,10 +338,10 @@ export function ShellHost({ stored, open, onSignedOut, onHub, hub: given, initia
   // on a computer the Console is a place in the shell; at its own address nothing surrounds it. In the app on a phone it is not there (owner ruling, 3 Nov): PhoneHost draws the Chat-about-it line
   if (consoleDoor && location.place !== "console") return <View testID="console-redirect" style={{ flex: 1, backgroundColor: "var(--win)" as string }} />;
   if (location.place === "console" && consoleDoor) return wrap(<ConsoleAlone value><HubProvider hub={hub}>{renderPlace({ place: "console", hash: location.hash } as PlaceContext)}</HubProvider></ConsoleAlone>);
-  if (narrow) return wrap(<Suspense fallback={<View style={{ flex: 1, backgroundColor: "var(--win)" as string }} />}><PhoneHost session={session} location={{ place: location.place, hash: location.hash }} needsYou={needsYou} registerGo={registerGo} onSignOut={signOut} onLock={lock} {...(onSwitchSpace?{onSwitchSpace:selectSpace}:{})} {...(onAddSpace?{onAddSpace}:{})} /></Suspense>);
+  if (narrow) return wrap(<Suspense fallback={<View style={{ flex: 1, backgroundColor: "var(--win)" as string }} />}><PhoneHost session={session} location={{ place: location.place, hash: location.hash }} needsYou={needsYou} registerGo={registerGo} onSignOut={signOut} {...(onSwitchSpace?{onSwitchSpace:selectSpace}:{})} {...(onAddSpace?{onAddSpace}:{})} /></Suspense>);
   return wrap(
     <>
-      <Shell hub={hub} {...(teamProp ? { team: teamProp } : {})} {...(session ? { me: { id: session.me.id, name: session.me.name } } : {})} onOpenMe={() => hub.go("settings", "profile")} {...(runsOnProp ? { runsOn: runsOnProp } : {})} {...(theme?{theme}:{})} {...(onSwitchSpace?{onSwitchSpace:selectSpace}:{})} renderPlace={renderPlace} renderNewTab={renderNewTab} onSearch={() => setSearchOpen(true)} onSpaceAction={(a) => { if (a === "sign-out") signOut(); else if(a==='lock')lock();else if(a==='add')onAddSpace?.(); }} {...(phone ? { phone: { device: phone.device, data: phone.data } } : {})} {...(purge ? { purge } : {})} />
+      <Shell hub={hub} {...(teamProp ? { team: teamProp } : {})} {...(session ? { me: { id: session.me.id, name: session.me.name } } : {})} onOpenMe={() => hub.go("settings", "profile")} {...(runsOnProp ? { runsOn: runsOnProp } : {})} {...(theme?{theme}:{})} {...(onSwitchSpace?{onSwitchSpace:selectSpace}:{})} renderPlace={renderPlace} renderNewTab={renderNewTab} onSearch={() => setSearchOpen(true)} onSpaceAction={(a) => { if (a === "sign-out") signOut(); else if(a==='add')onAddSpace?.(); }} {...(phone ? { phone: { device: phone.device, data: phone.data } } : {})} {...(purge ? { purge } : {})} />
       {searchOpen && search ? <CmdK data={search} onClose={() => setSearchOpen(false)} onTiming={(name, ms) => { if (name === "local" && session) speed.record(session.runtime.space.id, "search", ms); }} /> : null}
     </>
   );

@@ -9,7 +9,7 @@ import { menuTrigger, useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import { useCanSend, useInboxData, useOptionalInboxData, useScreenQuery } from "./data.tsx";
-import { SCREENS, navGroups, sameScope } from "./model.ts";
+import { SCREENS, navGroups, sameScope, showsLock } from "./model.ts";
 import { CalendarRows } from "./CalendarRows.tsx";
 import type { ContactRow, NavInbox, Scope, View as ViewKind } from "./model.ts";
 import { Avatar } from "../../../../../../ui/src/Avatar/index.tsx";
@@ -122,7 +122,8 @@ function Sidebar(): ReactElement {
         <SideRow
           key={b.id} id={`inbox:${b.id}`} title={b.label} selected={scoped(b.scope)} count={b.unread}
           glyph={b.agent ? <Avatar name={b.label.replace(/@$/, "").replace(/\u2019?'?s number$/, "")} kind="agent" size={18} /> : <Glyph name={b.channel === "sms" ? "call" : "mail"} />}
-          trailing={b.lock ? <Glyph name="lock" size={12} /> : null}
+          // Under Mine every mailbox is yours alone, so a lock there says nothing (and read as a Vault lock); in a shared group it marks a private mailbox
+          trailing={showsLock(g.key, b) ? <View accessibilityLabel="Private mailbox, only you can see it" {...({ title: "Private mailbox, only you can see it" } as object)}><Glyph name="lock" size={12} /></View> : null}
           // a mailbox lists its mail by thread, the same grouping as All inboxes (owner, 3 Nov)
           onPress={() => pick(b.scope, b.channel === "sms" ? undefined : "thread")}
           onMenu={(x, y) => inboxMenu(b, x, y)}

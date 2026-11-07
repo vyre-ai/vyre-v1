@@ -137,12 +137,28 @@ function ChangeModel({ member, call, onDone }: { member: CrewMember; call: Call;
   );
 }
 
+type StepBlock = { id: string; type: string; data?: unknown; state?: string };
+export interface HelperStep { id: string; title: string; sub: string; state?: string }
+
+/** The steps a helper has taken, in plain words, from the blocks of its own chat: the blocks that are work, not notes. A tool's call, what it touched and its result are one step ("Reading next-week.ics"). */
+export function stepsOf(all: readonly StepBlock[]): HelperStep[] {
+  const blocks = all.filter((b) => !NOT_STEPS.has(b.type));
+  const dat = (b: { data?: unknown }): Record<string, unknown> => (typeof b.data === "object" && b.data !== null ? (b.data as Record<string, unknown>) : {});
+  const ended = new Set(blocks.filter((b) => b.type === "tool_result").map((b) => String(dat(b)["id"] ?? "")));
+  const detail = new Map(blocks.filter((b) => b.type === "tool_input").map((b) => [String(dat(b)["id"] ?? ""), String(dat(b)["detail"] ?? "")] as const));
+  return blocks.filter((b) => b.type !== "tool_input" && b.type !== "tool_result").map((b) => {
+    if (b.type === "tool_call") { const id = String(dat(b)["id"] ?? ""); return { id: b.id, title: ended.has(id) ? doneWords(String(dat(b)["name"] ?? ""), typeof dat(b)["label"] === "string" ? String(dat(b)["label"]) : undefined, typeof dat(b)["ran"] === "string" ? String(dat(b)["ran"]) : undefined) : stepWords(String(dat(b)["name"] ?? ""), (typeof dat(b)["detail"] === "string" && dat(b)["detail"] !== "" ? String(dat(b)["detail"]) : undefined) ?? (detail.get(id) || undefined)), sub: "", state: ended.has(id) ? "done" : "live" }; }
+    const l = blockLine(b as never);
+    return { id: b.id, title: l.title, sub: l.sub, ...(b.state ? { state: b.state } : {}) };
+  });
+}
+
 type Note = { messageId: string; who: "brief" | "person" | "parent" | "helper"; authorId: string; body: string; kind?: string; state?: string; seenAt?: number; restart?: boolean };
 const WHO = { brief: "Brief", person: "You", parent: "Agent", helper: "Helper" } as const;
 
 export function CrewPeek({ member, call, nameOfId, onBack, onOpenChat, onRefresh }: { member: CrewMember; call: Call; nameOfId?: (id: string) => string; onBack: () => void; onOpenChat: (threadId: string) => void; onRefresh: () => void }): ReactElement {
   const [notes, setNotes] = useState<Note[]>([]);
-  const [steps, setSteps] = useState<Array<{ id: string; title: string; sub: string; state?: string }>>([]);
+  const [steps, setSteps] = useState<HelperStep[]>([]);
   const [text, setText] = useState("");
   const [err, setErr] = useState<string | null>(null);
   const live = member.state === "working" || member.state === "needs_you";
@@ -154,16 +170,7 @@ export function CrewPeek({ member, call, nameOfId, onBack, onOpenChat, onRefresh
       // the steps it has taken, in plain words: the blocks of its own chat that are work, not notes
       void Promise.resolve(call("chat.messages.list", { threadId: member.id })).then((r) => {
         if (dead) return;
-        const blocks = ((r as { messages?: Array<{ blocks: Array<{ id: string; type: string; data?: unknown; state?: string }> }> } | undefined)?.messages ?? []).flatMap((m) => m.blocks).filter((b) => !NOT_STEPS.has(b.type));
-        const dat = (b: { data?: unknown }): Record<string, unknown> => (typeof b.data === "object" && b.data !== null ? (b.data as Record<string, unknown>) : {});
-        const ended = new Set(blocks.filter((b) => b.type === "tool_result").map((b) => String(dat(b)["id"] ?? "")));
-        const detail = new Map(blocks.filter((b) => b.type === "tool_input").map((b) => [String(dat(b)["id"] ?? ""), String(dat(b)["detail"] ?? "")] as const));
-        // a tool's call, what it touched and its result are one step, said in plain words ("Reading next-week.ics")
-        setSteps(blocks.filter((b) => b.type !== "tool_input" && b.type !== "tool_result").map((b) => {
-          if (b.type === "tool_call") { const id = String(dat(b)["id"] ?? ""); return { id: b.id, title: ended.has(id) ? doneWords(String(dat(b)["name"] ?? ""), typeof dat(b)["label"] === "string" ? String(dat(b)["label"]) : undefined, typeof dat(b)["ran"] === "string" ? String(dat(b)["ran"]) : undefined) : stepWords(String(dat(b)["name"] ?? ""), (typeof dat(b)["detail"] === "string" && dat(b)["detail"] !== "" ? String(dat(b)["detail"]) : undefined) ?? (detail.get(id) || undefined)), sub: "", state: ended.has(id) ? "done" : "live" }; }
-          const l = blockLine(b as never);
-          return { id: b.id, title: l.title, sub: l.sub, ...(b.state ? { state: b.state } : {}) };
-        }));
+        setSteps(stepsOf(((r as { messages?: Array<{ blocks: StepBlock[] }> } | undefined)?.messages ?? []).flatMap((m) => m.blocks)));
       }, () => undefined);
     };
     read();
@@ -209,6 +216,9 @@ export function CrewPeek({ member, call, nameOfId, onBack, onOpenChat, onRefresh
       <HelperHooksSection threadId={member.id} call={call} lead={brief ? (nameOfId?.(brief.authorId) ?? "the agent") : "the agent"} name={nameOf(member)} />
       {member.found ? <><Text style={st.section}>Answer</Text><Text testID="crew-peek-answer" style={st.rowLine}>{member.found}</Text></> : null}
       {isCode(member) ? <><Text style={st.section}>Code</Text><Text testID="crew-peek-code" style={st.mono}>{member.branch} · +{member.added ?? 0} −{member.deleted ?? 0} · {member.files?.length ?? 0} files{member.tests ? ` · ${testsWords(member.tests)}` : ""}</Text>{member.tests?.failing ? <Text testID="crew-peek-failing" style={[st.mono, { color: "var(--danger)" as string }]}>Failing: {member.tests.failing}</Text> : null}</> : null}
+      {(member.files?.length ?? 0) > 0 ? <Text style={st.section}>Files changed</Text> : null}
+      {/* ui-rows-lint: not a list (the files this helper changed, each a path and its change, nothing to press) */}
+      {(member.files ?? []).slice(0, 12).map((f) => <View key={f.path} testID={`crew-file-${f.path}`} style={st.step}><Text numberOfLines={1} style={[st.rowLine, { flex: 1 }]}>{f.path}</Text><Text style={st.mono}>+{f.added} −{f.deleted}</Text></View>)}
       {log.length > 0 ? <Text style={st.section}>Notes</Text> : null}
       {/* ui-rows-lint: not a list (a read-only log of what was said between the helper and the agent that started it, each entry a sender and words, nothing to press) */}
       {log.map((n) => <View key={n.messageId} testID={`crew-note-${n.messageId}`} style={st.note}><Text style={st.noteWho}>{WHO[n.who]}{n.who === "parent" && n.seenAt !== undefined ? " · seen" : ""}</Text><Text style={st.rowLine}>{n.body}</Text></View>)}

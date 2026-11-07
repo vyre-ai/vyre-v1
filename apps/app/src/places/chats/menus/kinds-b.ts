@@ -2,7 +2,7 @@
 // Pure, the shape of kinds.ts: each builder gets facts about the row, from real state and what the person may do, and what each item does, and returns the entries of the one Menu surface. An item is here
 // only when it works for this person; a toggle's words follow its state; open and read come first, then change, then share, then organise, and danger is last and alone, with its key in the hint column.
 import type { MenuEntry, MenuItem } from "../../../../../../ui/src/Menu/index.tsx";
-import { KEY, tidy } from "./kinds.ts";
+import { KEY, starItem, tidy } from "./kinds.ts";
 
 const sep: MenuEntry = { separator: true };
 const item = (label: string, onSelect: () => void, o: Partial<MenuItem> = {}): MenuItem => ({ label, onSelect, ...o });
@@ -158,24 +158,26 @@ export interface ProjectDo {
   /** Absent on the project's own page: it is open. */
   open?: (() => void) | undefined;
   star(on: boolean): void;
-  share(): void;
-  addPeople(): void;
-  pinFile(): void;
-  archive(): void;
-  unarchive(): void;
+  /** The four that need the person's role on the project and a sheet or page of their own: only the project page supplies them. A row that cannot do them leaves them out, and the item is not drawn. */
+  share?: (() => void) | undefined;
+  addPeople?: (() => void) | undefined;
+  pinFile?: (() => void) | undefined;
+  archive?: (() => void) | undefined;
+  unarchive?: (() => void) | undefined;
   copyLink(): void;
 }
 /** Archive takes a project out of the lists and keeps it readable (projects.archive); it is a manager's, and always undoable by Unarchive. */
 export function projectMenu(f: ProjectFacts, d: ProjectDo): MenuEntry[] {
   return tidy([
     d.open ? item("Open", d.open, { hint: KEY.enter }) : null,
-    f.starred ? item("Remove Star", () => d.star(false), { hint: KEY.star }) : item("Star", () => d.star(true), { hint: KEY.star }),
-    f.manage || f.roles === true ? sep : null,
-    f.manage ? item(ellipsis("Share"), d.share) : null,
-    f.manage || f.roles === true ? item(ellipsis("Add People"), d.addPeople) : null,
-    f.edit ? item(ellipsis("Pin File"), d.pinFile) : null,
-    f.manage ? sep : null,
-    f.manage ? (f.archived ? item("Unarchive", d.unarchive) : item("Archive", d.archive)) : null,
+    starItem(f.starred, d.star),
+    (f.manage || f.roles === true) && (d.share || d.addPeople) ? sep : null,
+    f.manage && d.share ? item(ellipsis("Share"), d.share) : null,
+    (f.manage || f.roles === true) && d.addPeople ? item(ellipsis("Add People"), d.addPeople) : null,
+    f.edit && d.pinFile ? item(ellipsis("Pin File"), d.pinFile) : null,
+    f.manage && (f.archived ? d.unarchive : d.archive) ? sep : null,
+    f.manage && f.archived && d.unarchive ? item("Unarchive", d.unarchive) : null,
+    f.manage && !f.archived && d.archive ? item("Archive", d.archive) : null,
     sep,
     item("Copy Link", d.copyLink),
   ]);
@@ -198,12 +200,8 @@ export interface TabDo {
   close(): void;
   closeOthers(): void;
   closeRight(): void;
-  /** Offered only when the host can make a second tab on the same thing. */
-  duplicate?: (() => void) | undefined;
   copyLink(): void;
   pin(on: boolean): void;
-  /** Offered only by the desktop app, which can give a tab its own window. */
-  toWindow?: (() => void) | undefined;
   reopen(): void;
 }
 export function tabMenu(f: TabFacts, d: TabDo): MenuEntry[] {
@@ -212,10 +210,8 @@ export function tabMenu(f: TabFacts, d: TabDo): MenuEntry[] {
     f.count > 1 ? item("Close Other Tabs", d.closeOthers) : null,
     f.toTheRight > 0 ? item("Close Tabs to the Right", d.closeRight) : null,
     sep,
-    f.item && d.duplicate ? item("Duplicate", d.duplicate) : null,
     f.item ? item("Copy Link", d.copyLink) : null,
-    f.pinned ? item("Unpin Tab", () => d.pin(false)) : item("Pin Tab", () => d.pin(true)),
-    d.toWindow && f.item ? item("Move to New Window", d.toWindow) : null,
+    f.pinned ? item("Unpin", () => d.pin(false)) : item("Pin", () => d.pin(true)),
     f.canReopen ? sep : null,
     f.canReopen ? item("Reopen Closed Tab", d.reopen, { hint: KEY_B.reopenTab }) : null,
   ]);
@@ -304,21 +300,6 @@ export function consoleRoleMenu(f: ConsoleRoleFacts, d: ConsoleRoleDo): MenuEntr
     f.manage ? item(ellipsis("Preview Changes"), d.preview) : null,
     f.manage && !f.builtIn ? sep : null,
     f.manage && !f.builtIn ? (f.holders > 0 ? item(ellipsis("Delete Role"), d.remove, { danger: true, disabled: true, reason: `${f.holders} ${f.holders === 1 ? "person holds" : "people hold"} this role` }) : item(ellipsis("Delete Role"), d.remove, { danger: true, hint: KEY.remove })) : null,
-  ]);
-}
-
-export interface ConsoleComputerFacts extends ConsoleFacts { asleep: boolean; /** You may take it over (it is awake and has a screen). */ takeOver: boolean }
-export interface ConsoleComputerDo { open(): void; copyName(): void; wake(): void; sleep(): void; limits(): void; takeOver(): void; remove(): void }
-export function consoleComputerMenu(f: ConsoleComputerFacts, d: ConsoleComputerDo): MenuEntry[] {
-  return tidy([
-    item("Open", d.open, { hint: KEY.enter }),
-    item("Copy Name", d.copyName),
-    f.manage ? sep : null,
-    f.manage ? (f.asleep ? item("Wake", d.wake) : item("Sleep", d.sleep)) : null,
-    f.manage ? item(ellipsis("Limits"), d.limits) : null,
-    f.manage && f.takeOver && !f.asleep ? item("Take Over", d.takeOver) : null,
-    f.manage ? sep : null,
-    f.manage ? item(ellipsis("Remove Computer"), d.remove, { danger: true, hint: KEY.remove }) : null,
   ]);
 }
 

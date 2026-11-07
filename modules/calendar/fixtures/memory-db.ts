@@ -158,6 +158,12 @@ function compileWhere(src: string, args: unknown[]): (row: Row) => boolean {
     } else if ((m = /^([\s\S]+?)\s+is\s+null$/i.exec(t))) {
       const col = ident(m[1] ?? "");
       preds.push((row) => row[col] === null || row[col] === undefined);
+    } else if ((m = /^([\s\S]+?)\s+in\s*\(([?,\s]+)\)$/i.exec(t))) {
+      const col = ident(m[1] ?? "");
+      const n = (m[2] ?? "").split(",").length;
+      const set = new Set<unknown>();
+      for (let j = 0; j < n; j++) set.add(norm(args[i++]));
+      preds.push((row) => set.has(row[col] ?? null));
     } else if ((m = /^([\s\S]+?)\s+like\s+\?$/i.exec(t))) {
       const col = ident(m[1] ?? "");
       const pattern = likeToRegExp(String(args[i++] ?? ""));

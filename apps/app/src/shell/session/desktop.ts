@@ -203,7 +203,7 @@ export async function acceptDesktopJoin(join: PreviewedDesktopJoin, values: Join
     const accepted = object(answer);
     const stored = await verifyAndPersist(join.route.address, { status: "ok", session: { token: accepted?.["token"] } }, join.preview.spaceId, deps);
     // This helper sends nothing to a remote Space. Only the person's own loopback node may hold their Mine key.
-    try { if (await holdKeyOnOwnNode(join.route.address, stored.token, made.personKey)) keepKey(made.personKey); } catch { /* setup reports a locked Vault if the own node is unavailable */ }
+    try { if (await holdKeyOnOwnNode(join.route.address, stored.token, made.personKey)) await keepKey(made.personKey); } catch { /* setup reports a locked Vault if the own node is unavailable */ }
     return stored;
   } finally {
     wipe(made.personKey);

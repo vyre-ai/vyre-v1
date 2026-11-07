@@ -77,7 +77,7 @@ export function groupHelperStrips<M extends Msg & { author?: unknown }>(messages
  */
 export function mergeCrewAnswer<M extends Msg & { author?: unknown; body: string }>(messages: readonly M[]): M[] {
   const author = (m: M): string => JSON.stringify((m as { author?: unknown }).author ?? "");
-  const plain = (m: M): boolean => m.body.trim() !== "" && m.blocks.length === 0 && (m as { author?: { kind?: string } }).author?.kind === "agent";
+  const plain = (m: M): boolean => m.body.trim() !== "" && m.blocks.length === 0 && (m as { author?: { kind?: string } }).author?.kind === "agent" && !["system", "quiet"].includes(String((m as { kind?: unknown }).kind ?? ""));   // a system line ("Crew started") is an event, never the agent's intro or answer
   const out: M[] = [];
   for (let i = 0; i < messages.length; i += 1) {
     const m = messages[i]!;

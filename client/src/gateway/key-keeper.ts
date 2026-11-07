@@ -1,14 +1,37 @@
-// The person key for the length of one app session, in memory only: never written to disk, a cookie or storage. It is kept after the one password entry at launch so that a daemon that restarts behind
-// an open app (a crash, the sidecar restarting, a Space server restarting) gets the key again by itself, with no prompt. Sign-out and quitting the app drop it. The key only ever goes to this computer's own
-// loopback node, or to the Space server the session signed in to over https (local-key.ts keyDoor).
+// The person key for the length of the signed-in session (owner ruling 6 Nov: signed in means unlocked). It is kept in this app's memory and sealed on this device (key-seal.ts), so a relaunch, a new tab,
+// a daemon that restarts behind an open app or a Space server that restarts gets the key again by itself, with no prompt. Sign-out and a session that ended drop both. The key only ever goes to this
+// computer's own loopback node, or to the Space server the session signed in to over https (local-key.ts keyDoor).
 import { holdKeyOnOwnNode, keyDoor, keyStatusOnOwnNode } from "./local-key.ts";
+import { indexedDbStore, sealKey, unsealGone, unsealKey } from "./key-seal.ts";
+import type { SealStore } from "./key-seal.ts";
 
 let kept: Uint8Array | null = null;
+let store: SealStore | null | undefined;
+const deviceStore = (): SealStore | null => (store === undefined ? (store = indexedDbStore()) : store);
+/** Tests give the device store; undefined puts the browser's back. */
+export function useSealStore(s: SealStore | null | undefined): void { store = s; }
 
-/** Keeps a copy of the key for this session. The caller still wipes its own. */
-export function keepKey(key: Uint8Array): void { forgetKey(); kept = Uint8Array.from(key); }
-export function forgetKey(): void { kept?.fill(0); kept = null; }
+/** Keeps a copy of the key for this session, in memory and sealed on this device. The caller still wipes its own. Resolves when the sealed copy is written (or could not be). */
+export async function keepKey(key: Uint8Array): Promise<boolean> {
+  memoryOnly(key);
+  const copy = Uint8Array.from(key);   // the caller wipes its own right after this call returns its promise
+  try { return await sealKey(deviceStore(), copy); } finally { copy.fill(0); }
+}
+function memoryOnly(key: Uint8Array): void { kept?.fill(0); kept = Uint8Array.from(key); }
+/** Signing out, or a session that ended: the key leaves memory and the device. */
+export function forgetKey(): void { kept?.fill(0); kept = null; void unsealGone(deviceStore()); }
+/** The app closed: memory goes, the sealed copy on this device stays for the next launch (the app runs this on its way out; tests use it to stand for a relaunch). */
+export function leaveMemory(): void { kept?.fill(0); kept = null; }
 export const keyIsKept = (): boolean => kept !== null;
+/** After a launch: the sealed key of this device's signed-in session comes back into memory. True when this app holds a key afterwards. */
+export async function restoreKey(): Promise<boolean> {
+  if (kept) return true;
+  const k = await unsealKey(deviceStore());
+  if (!k) return false;
+  if (!kept) kept = Uint8Array.from(k);
+  k.fill(0);
+  return true;
+}
 
 /** If the daemon lost the key (a restart) and the app still has it, hands it back. True when the daemon holds the key afterwards. Silent: no prompt, no error. */
 export async function rehandKey(baseUrl: string, token: string, f?: typeof fetch): Promise<boolean> {

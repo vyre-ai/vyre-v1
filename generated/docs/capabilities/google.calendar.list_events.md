@@ -32,6 +32,7 @@ type In = {
   timeMax?: string;
   q?: string;
   syncToken?: string;
+  updatedMin?: string;
   pageToken?: string;
 };
 ```
@@ -85,7 +86,8 @@ type Out = {
     "q": "example",
     "syncToken": "example",
     "timeMax": "example",
-    "timeMin": "example"
+    "timeMin": "example",
+    "updatedMin": "example"
   },
   "output": {
     "events": [

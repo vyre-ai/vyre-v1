@@ -4,6 +4,7 @@
 //   <app data>/chrome-extension/        a copy of the extension from the app bundle (runtime/chrome-extension, versioned with the app by stage-runtime.ts), replaced on every install
 //   <app data>/chrome-host/             run-vyre-bridge (.cmd on Windows): runs the bundled Node on the extension's native host, and run.vyre.bridge.json filled from the extension's template
 //   each installed browser's NativeMessagingHosts folder (the registry on Windows) gets that manifest, naming this extension's id and no other origin
+//   at every app start, for a person who installed before, the folder is refreshed when the bundled version differs and every installed browser is registered again (sync_on_start)
 use serde::Serialize;
 use std::path::{Path, PathBuf};
 use tauri::{AppHandle, Manager};
@@ -96,22 +97,52 @@ pub(crate) fn windows_launcher(node: &Path, host_js: &Path) -> String {
     format!("@echo off\r\nrem Vyre for Chrome's native messaging host, written by the Vyre app.\r\n\"{}\" \"{}\" %*\r\n", node.display(), host_js.display())
 }
 
+/// The Chromium browsers the native host is registered for on Windows, as (browser, registry key under HKCU). The key is where that browser looks for `NativeMessagingHosts\\<host>`.
+/// Chrome, Edge, Brave and Chromium are the documented ones; Vivaldi and Opera follow the same pattern. Arc, Dia and Comet have no Windows build to check against, so they are not listed.
+#[cfg_attr(not(windows), allow(dead_code))]
+pub(crate) const WINDOWS_BROWSERS: [(&str, &str); 6] = [
+    ("Google Chrome", r"Software\Google\Chrome"),
+    ("Chromium", r"Software\Chromium"),
+    ("Microsoft Edge", r"Software\Microsoft\Edge"),
+    ("Brave", r"Software\BraveSoftware\Brave-Browser"),
+    ("Vivaldi", r"Software\Vivaldi"),
+    ("Opera", r"Software\Opera Software"),
+];
+
 /// Where each browser keeps native messaging host manifests, as (browser, the folder that exists when it is installed, the folder to write into). Unix only; Windows uses the registry.
+/// Arc, Dia and Comet exist on a Mac only. Each Chromium browser reads host manifests from its own data folder, so a browser that is not listed here says "Vyre is not on this computer".
 #[cfg_attr(windows, allow(dead_code))]
 pub(crate) fn browser_dirs(os: &str, home: &Path) -> Vec<(&'static str, PathBuf, PathBuf)> {
     let mac = os == "macos";
-    let base = |mac_path: &str, linux_path: &str| -> PathBuf {
-        if mac { home.join("Library/Application Support").join(mac_path) } else { home.join(".config").join(linux_path) }
-    };
-    [
-        ("Google Chrome", base("Google/Chrome", "google-chrome")),
-        ("Chromium", base("Chromium", "chromium")),
-        ("Microsoft Edge", base("Microsoft Edge", "microsoft-edge")),
-        ("Brave", base("BraveSoftware/Brave-Browser", "BraveSoftware/Brave-Browser")),
-    ]
-    .into_iter()
-    .map(|(name, dir)| (name, dir.clone(), dir.join("NativeMessagingHosts")))
-    .collect()
+    // (name, folder under Application Support on a Mac, folder under ~/.config on Linux; None when the browser has no Linux build)
+    let all: [(&'static str, &str, Option<&str>); 10] = [
+        ("Google Chrome", "Google/Chrome", Some("google-chrome")),
+        ("Chromium", "Chromium", Some("chromium")),
+        ("Microsoft Edge", "Microsoft Edge", Some("microsoft-edge")),
+        ("Brave", "BraveSoftware/Brave-Browser", Some("BraveSoftware/Brave-Browser")),
+        ("Vivaldi", "Vivaldi", Some("vivaldi")),
+        ("Opera", "com.operasoftware.Opera", Some("opera")),
+        ("Arc", "Arc/User Data", None),
+        ("Dia", "Dia/User Data", None),
+        ("Comet", "Comet", None),
+        ("Chrome Canary", "Google/Chrome Canary", None),
+    ];
+    all.into_iter()
+        .filter_map(|(name, mac_path, linux_path)| {
+            let dir = if mac { home.join("Library/Application Support").join(mac_path) } else { home.join(".config").join(linux_path?) };
+            Some((name, dir.clone(), dir.join("NativeMessagingHosts")))
+        })
+        .collect()
+}
+
+/// An installed copy of the extension that is not the bundled version has to be replaced. Nothing is written for a person who never pressed Install (no folder yet).
+pub(crate) fn needs_refresh(bundled: &str, installed: Option<&str>) -> bool {
+    matches!(installed, Some(v) if v != bundled)
+}
+
+/// The "reload the extension" notice is shown once per extension version: when a refresh put in a version that has not been announced yet.
+pub(crate) fn reload_notice_due(told: &str, version: &str) -> bool {
+    !version.is_empty() && told.trim() != version
 }
 
 fn copy_dir(from: &Path, to: &Path) -> std::io::Result<()> {
@@ -152,7 +183,7 @@ fn manifest_version(dir: &Path) -> String {
 fn register_windows(manifest: &Path) -> Vec<String> {
     use std::process::Command;
     let mut done = Vec::new();
-    for (name, key) in [("Google Chrome", r"Software\Google\Chrome"), ("Chromium", r"Software\Chromium"), ("Microsoft Edge", r"Software\Microsoft\Edge"), ("Brave", r"Software\BraveSoftware\Brave-Browser")] {
+    for (name, key) in WINDOWS_BROWSERS {
         // only for a browser that has a key of its own, so a browser that is not installed gets nothing
         let present = Command::new("reg").args(["query", &format!(r"HKCU\{key}")]).output().map(|o| o.status.success()).unwrap_or(false);
         if !present {
@@ -217,6 +248,37 @@ pub fn install(app: &AppHandle) -> Result<ChromeInstall, String> {
         return Err("Vyre did not find Chrome on this computer. Install Chrome, open it once, then try again.".to_string());
     }
     Ok(ChromeInstall { extension_dir: ext.to_string_lossy().to_string(), extension_id: EXTENSION_ID.to_string(), version: manifest_version(&ext), browsers })
+}
+
+/// At app start, for a person who has installed Vyre for Chrome before: register the host with every browser that is installed now (a browser added since the last install gets it too), rewrite the launcher
+/// (the app may have moved), and when the bundled extension is not the version in the folder, replace the folder. A new extension version is announced once with a banner, because the browser keeps running
+/// the old copy until the person presses reload on the extension card. Nothing is written for a person who never pressed Install.
+pub fn sync_on_start(app: &AppHandle) {
+    let Ok(data) = app_dir(app) else { return };
+    let Ok(rt) = crate::sidecar::runtime_dir(app) else { return };
+    let ext = data.join("chrome-extension");
+    if !ext.join("manifest.json").is_file() {
+        return;
+    }
+    let bundled_v = manifest_version(&rt.join("chrome-extension"));
+    let installed_v = manifest_version(&ext);
+    let refreshed = needs_refresh(&bundled_v, Some(&installed_v));
+    if let Err(e) = install(app) {
+        eprintln!("chrome extension sync: {e}");
+        return;
+    }
+    if !refreshed {
+        return;
+    }
+    let marker = data.join("chrome-reload-told");
+    let told = std::fs::read_to_string(&marker).unwrap_or_default();
+    if reload_notice_due(&told, &bundled_v) {
+        use tauri_plugin_notification::NotificationExt;
+        let shown = app.notification().builder().title("Vyre for Chrome was updated").body("Open your browser's extensions page and press reload on Vyre.").show().is_ok();
+        if shown {
+            let _ = std::fs::write(&marker, &bundled_v);
+        }
+    }
 }
 
 #[tauri::command]
@@ -298,7 +360,51 @@ mod tests {
         assert_eq!(mac[0].2, Path::new("/Users/pat/Library/Application Support/Google/Chrome/NativeMessagingHosts"));
         let linux = browser_dirs("linux", Path::new("/home/pat"));
         assert_eq!(linux[0].2, Path::new("/home/pat/.config/google-chrome/NativeMessagingHosts"));
-        assert_eq!(linux.len(), 4);
+        assert_eq!(linux.len(), 6, "Arc, Dia, Comet and Canary have no Linux build");
+        assert!(linux.iter().all(|b| !["Arc", "Dia", "Comet"].contains(&b.0)));
+    }
+
+    #[test]
+    fn every_chromium_browser_the_owners_people_use_gets_the_host_on_a_mac() {
+        let mac = browser_dirs("macos", Path::new("/Users/pat"));
+        let hosts = |name: &str| mac.iter().find(|b| b.0 == name).unwrap_or_else(|| panic!("{name} is missing")).2.clone();
+        let base = Path::new("/Users/pat/Library/Application Support");
+        assert_eq!(hosts("Comet"), base.join("Comet/NativeMessagingHosts"));
+        assert_eq!(hosts("Arc"), base.join("Arc/User Data/NativeMessagingHosts"));
+        assert_eq!(hosts("Dia"), base.join("Dia/User Data/NativeMessagingHosts"));
+        assert_eq!(hosts("Brave"), base.join("BraveSoftware/Brave-Browser/NativeMessagingHosts"));
+        assert_eq!(hosts("Microsoft Edge"), base.join("Microsoft Edge/NativeMessagingHosts"));
+        assert_eq!(hosts("Vivaldi"), base.join("Vivaldi/NativeMessagingHosts"));
+        assert_eq!(hosts("Chromium"), base.join("Chromium/NativeMessagingHosts"));
+        assert_eq!(hosts("Opera"), base.join("com.operasoftware.Opera/NativeMessagingHosts"));
+        let names: std::collections::HashSet<_> = mac.iter().map(|b| b.0).collect();
+        assert_eq!(names.len(), mac.len(), "no browser twice");
+    }
+
+    #[test]
+    fn windows_registers_each_documented_browser_once() {
+        let names: std::collections::HashSet<_> = WINDOWS_BROWSERS.iter().map(|b| b.0).collect();
+        assert_eq!(names.len(), WINDOWS_BROWSERS.len());
+        for want in ["Google Chrome", "Microsoft Edge", "Brave", "Vivaldi"] {
+            assert!(names.contains(want), "{want}");
+        }
+        assert!(WINDOWS_BROWSERS.iter().all(|b| b.1.starts_with(r"Software\")));
+    }
+
+    #[test]
+    fn the_extension_folder_is_replaced_only_when_it_exists_and_the_version_differs() {
+        assert!(needs_refresh("1.0.0-rc.22", Some("1.0.0-rc.14")));
+        assert!(needs_refresh("1.0.0-rc.22", Some("")), "a folder whose manifest cannot be read is replaced");
+        assert!(!needs_refresh("1.0.0-rc.22", Some("1.0.0-rc.22")));
+        assert!(!needs_refresh("1.0.0-rc.22", None), "never installed: nothing is written");
+    }
+
+    #[test]
+    fn the_reload_notice_is_shown_once_per_version() {
+        assert!(reload_notice_due("", "1.0.0-rc.22"));
+        assert!(reload_notice_due("1.0.0-rc.14", "1.0.0-rc.22"));
+        assert!(!reload_notice_due("1.0.0-rc.22\n", "1.0.0-rc.22"));
+        assert!(!reload_notice_due("", ""), "no version, no notice");
     }
 
     #[test]

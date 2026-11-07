@@ -8,6 +8,7 @@ import { useResume } from "../../onboarding/resume-context.ts";
 import { syncLabel } from "./model.ts";
 import { NoticeSlot } from "../noticeslot/NoticeSlot.tsx";
 import { notices } from "../noticeslot/model.ts";
+import { RADIUS } from "../../../../../ui/src/tokens/radius.ts";
 
 export const TITLE_BAR_HEIGHT = 38;
 
@@ -61,9 +62,9 @@ const styles = StyleSheet.create({
   noticeSide: { justifyContent: "flex-start", paddingLeft: 10 },
   call: { justifyContent: "center" },
   setup: { justifyContent: "center", flexShrink: 0 },
-  omni: { width: 340, maxWidth: "60%" as unknown as number, height: 26, flexDirection: "row", alignItems: "center", gap: 8, paddingLeft: 11, paddingRight: 6, borderRadius: 8, backgroundColor: "var(--sunk)" as string },
+  omni: { width: 340, maxWidth: "60%" as unknown as number, height: 26, flexDirection: "row", alignItems: "center", gap: 8, paddingLeft: 11, paddingRight: 6, borderRadius: RADIUS, backgroundColor: "var(--sunk)" as string },
   omniCompact: { width: 34, paddingLeft: 10, paddingRight: 0 },
   omniText: { flex: 1, minWidth: 0, fontSize: 12.5, color: "var(--ink-3)" as string },
   omniOver: { color: "var(--ink-2)" as string },
-  kbd: { fontSize: 10.5, lineHeight: 15, color: "var(--ink-4)" as string, paddingHorizontal: 4, borderRadius: 4, borderWidth: 1, borderColor: "var(--line-2)" as string },
+  kbd: { fontSize: 10.5, lineHeight: 15, color: "var(--ink-4)" as string, paddingHorizontal: 4, borderRadius: RADIUS, borderWidth: 1, borderColor: "var(--line-2)" as string },
 });

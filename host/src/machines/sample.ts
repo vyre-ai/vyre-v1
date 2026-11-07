@@ -3,6 +3,7 @@
 import { execFile } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
+import { loopLag } from "../scheduler/looplag.ts";
 import type { Can, Load, Report, Runs, Specs, VyreShare } from "./report.ts";
 
 export interface CpuTimes { idle: number; total: number }
@@ -19,7 +20,7 @@ export interface SampleDeps {
   /** Bytes in and out since boot, over every real interface. */
   net(): { in: number; out: number };
   /** This process's CPU time in microseconds and its resident memory. */
-  self(): { cpuUs: number; rss: number };
+  self(): { cpuUs: number; rss: number; loopLagMs?: number };
   now(): number;
   osName(): string;
   /** The graphics card's name, once known (it takes a moment to ask). */
@@ -62,7 +63,7 @@ export function createSampler(d: SampleDeps): Sampler {
       let cpu = 0;
       if (lastSelf && now > lastSelf.at) cpu = Math.max(0, Math.min(100, ((s.cpuUs - lastSelf.cpuUs) / 1000 / (now - lastSelf.at)) * 100 / Math.max(1, d.coreCount())));
       lastSelf = { cpuUs: s.cpuUs, at: now };
-      return { cpuPct: cpu, memBytes: s.rss };
+      return { cpuPct: cpu, memBytes: s.rss, ...(s.loopLagMs !== undefined ? { loopLagMs: s.loopLagMs } : {}) };
     },
   };
 }
@@ -154,7 +155,7 @@ export function realDeps(o: { dataDir: string; can(): Can[] }): SampleDeps {
       if (platform === "darwin" && !netBusy) { netBusy = true; void run("/usr/sbin/netstat", ["-ib"], 2000).then((t) => { if (t) netNow = macNet(t); netBusy = false; }); }
       return netNow;
     },
-    self: () => { const c = process.cpuUsage(); return { cpuUs: c.user + c.system, rss: process.memoryUsage().rss }; },
+    self: () => { const c = process.cpuUsage(); return { cpuUs: c.user + c.system, rss: process.memoryUsage().rss, loopLagMs: loopLag().take().maxMs }; },
     now: () => Date.now(), osName: () => osText ?? `${os.type()} ${os.release()}`, gpu: () => gpuName, can: o.can,
   };
 }

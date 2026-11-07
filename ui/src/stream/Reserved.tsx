@@ -11,8 +11,8 @@ export const BODY_LINE = 24;
 /** Space after a paragraph or list. */
 export const BLOCK_GAP = 10;
 /** The line above a message body: avatar, name and time. */
-export const AVATAR_SIZE = 20;
-export const HEADER_GAP = 6;
+export const AVATAR_SIZE = 28;
+export const HEADER_GAP = 2;
 export const HEADER_HEIGHT = AVATAR_SIZE + HEADER_GAP;
 
 export interface ReservedImageProps {

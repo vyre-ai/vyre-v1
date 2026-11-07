@@ -12,6 +12,7 @@ import { MenuIcon, menuTrigger, useMenu } from "../Menu/index.tsx";
 import type { MenuEntry } from "../Menu/index.tsx";
 import { activeTab } from "./props.ts";
 import type { TabSpec, TabStripProps } from "./props.ts";
+import { RADIUS } from "../tokens/radius.ts";
 
 export type { TabSpec, TabStripProps } from "./props.ts";
 export { activeTab } from "./props.ts";
@@ -81,12 +82,14 @@ export function tabMenuEntries(
   key: string | undefined,
   extras: readonly TabMenuExtra[],
   run: (op: TabOp, key: string | undefined) => void,
+  /** A strip whose tabs cannot be closed (the sections of a page) offers no Close items: they would do nothing. */
+  closable = true,
 ): MenuEntry[] {
   const tab = key === undefined ? undefined : tabs.find((t) => t.key === key);
   const std: { label: string; icon: string; op: TabOp }[] = [];
-  if (tab !== undefined && tab.pinned !== true) std.push({ label: "Close Tab", icon: "x", op: "close" });
-  std.push({ label: "Close Other Tabs", icon: "minus", op: "closeOthers" });
-  std.push({ label: "Close All Tabs", icon: "x", op: "closeAll" });
+  if (closable && tab !== undefined && tab.pinned !== true) std.push({ label: "Close Tab", icon: "x", op: "close" });
+  if (closable) std.push({ label: "Close Other Tabs", icon: "minus", op: "closeOthers" });
+  if (closable) std.push({ label: "Close All Tabs", icon: "x", op: "closeAll" });
   let icons = true;
   for (const extra of extras) if (extra.icon === undefined || extra.icon.length === 0) icons = false;
   const out: MenuEntry[] = [];
@@ -99,7 +102,7 @@ export function tabMenuEntries(
       ...(extra.checked === true ? { checked: true } : {}),
     });
   }
-  if (extras.length > 0) out.push({ separator: true });
+  if (extras.length > 0 && std.length > 0) out.push({ separator: true });
   for (const item of std) out.push({ label: item.label, ...(icons ? { icon: item.icon } : {}), onSelect: () => run(item.op, key) });
   return out;
 }
@@ -200,8 +203,10 @@ export function TabStrip(props: TabStripViewProps): ReactElement {
   }, [tabs, onClose]);
 
   const openFor = useCallback((key: string | undefined, x: number, y: number) => {
-    show(entries !== undefined && key !== undefined ? entries(key) : tabMenuEntries(tabs, key, extrasFor(key), run), x, y, "context", { label: key === undefined ? "Tabs" : (tabs.find((t) => t.key === key)?.title ?? key) });
-  }, [tabs, extrasFor, run, show, entries]);
+    const list = entries !== undefined && key !== undefined ? entries(key) : tabMenuEntries(tabs, key, extrasFor(key), run, onClose !== undefined);
+    if (list.length === 0) return;
+    show(list, x, y, "context", { label: key === undefined ? "Tabs" : (tabs.find((t) => t.key === key)?.title ?? key) });
+  }, [tabs, extrasFor, run, show, entries, onClose]);
 
   const select = useCallback((key: string) => {
     if (onSelect) onSelect(key);
@@ -213,8 +218,10 @@ export function TabStrip(props: TabStripViewProps): ReactElement {
     const span = spans.current[active];
     const box = scroller.current;
     if (span === undefined || box === null || typeof box.scrollTo !== "function") return;
+    // everything fits: the strip rests at its start, so the first tab is never left cut at the left edge
+    if (content.current > 0 && view.current.w > 0 && content.current <= view.current.w + 2) { if (view.current.x > 0) box.scrollTo({ x: 0, animated: false }); return; }
     const x = span.x + 8;   // spans are inside the tab row, which sits after the strip's padding
-    if (x < view.current.x + 24) box.scrollTo({ x: Math.max(0, x - 24), animated: false });
+    if (x < view.current.x + 24) box.scrollTo({ x: x - 24 < 40 ? 0 : x - 24, animated: false });
     else if (x + span.w > view.current.x + view.current.w - 24 && view.current.w > 0) box.scrollTo({ x: x + span.w - view.current.w + 24, animated: false });
   }, [active]);
   useEffect(() => { reveal(); }, [reveal, tabs.length, room]);
@@ -447,14 +454,14 @@ const styles = StyleSheet.create({
   content: { alignItems: "center", paddingLeft: 8, paddingRight: 4 },
   tabs: { flexDirection: "row", alignItems: "center", gap: 2 },
   spacer: { flexGrow: 1 },
-  tab: { height: TAB_HEIGHT, flexDirection: "row", alignItems: "center", gap: 7, paddingLeft: 10, paddingRight: 5, borderRadius: 10 },
+  tab: { height: TAB_HEIGHT, flexDirection: "row", alignItems: "center", gap: 7, paddingLeft: 10, paddingRight: 5, borderRadius: RADIUS },
   tabPinned: { paddingRight: 10 },
   // a tab that is not selected holds no room for its Close: the button sits over the right padding when the pointer is on the tab, so every tab is the same distance from the next
   tabIdle: { paddingRight: 10 },
   tabTight: { paddingLeft: 7, paddingRight: 7 },
   // one longest title for every tab: longer names are cut with an ellipsis
   title: { flexShrink: 1, maxWidth: TITLE_MAX_WIDTH, fontSize: 12.5, lineHeight: 16 },
-  close: { width: 20, height: 20, borderRadius: 6, alignItems: "center", justifyContent: "center" },
+  close: { width: 20, height: 20, borderRadius: RADIUS, alignItems: "center", justifyContent: "center" },
   closeOver: { position: "absolute", right: 3, top: 5, backgroundColor: "var(--hover)" as string },
-  iconButton: { width: 28, height: 28, borderRadius: 9, alignItems: "center", justifyContent: "center" },
+  iconButton: { width: 28, height: 28, borderRadius: RADIUS, alignItems: "center", justifyContent: "center" },
 });

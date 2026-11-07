@@ -5,7 +5,11 @@ import { renderToStaticMarkup } from "react-dom/server";
 import {
   Menu,
   REPORT_A_PROBLEM,
+  anchorRightFor,
   clampMenu,
+  menuLeft,
+  noteAnchor,
+  resetAnchor,
   iconNames,
   iconsAllOrNone,
   kitMenuEntries,
@@ -58,7 +62,7 @@ test("every KitScreenDef.menus entry ends with Report a problem, added by the me
 test("the shared defaults (tab menu) end with Report a problem and no module added it", () => {
   const tabs = [{ key: "a", title: "A" }, { key: "b", title: "B", pinned: true }];
   for (const key of ["a", "b"]) {
-    const shared = tabMenuEntries(tabs, key, [{ label: "Pin Tab", icon: "star" }], () => undefined);
+    const shared = tabMenuEntries(tabs, key, [{ label: "Pin", icon: "star" }], () => undefined);
     assert.ok(!labels(shared).includes(REPORT_A_PROBLEM));
     assertEndsWithReport(menuEntries({ items: shared }), `tab menu ${key}`);
   }
@@ -171,9 +175,9 @@ test("type-ahead finds the next label that starts with the typed text", () => {
 
 test("the menu stays inside the window", () => {
   assert.deepEqual(clampMenu(10, 10, 220, 100, 1280, 800), { left: 10, top: 10 });
-  assert.deepEqual(clampMenu(1270, 790, 220, 100, 1280, 800), { left: 1054, top: 694 });
-  assert.deepEqual(clampMenu(-5, -5, 220, 100, 390, 844), { left: 6, top: 6 });
-  assert.deepEqual(clampMenu(380, 20, 220, 100, 390, 844), { left: 164, top: 20 }, "phone width");
+  assert.deepEqual(clampMenu(1270, 790, 220, 100, 1280, 800), { left: 1052, top: 692 });
+  assert.deepEqual(clampMenu(-5, -5, 220, 100, 390, 844), { left: 8, top: 8 });
+  assert.deepEqual(clampMenu(380, 20, 220, 100, 390, 844), { left: 162, top: 20 }, "phone width");
 });
 
 test("a right-click opens the menu at the pointer and stops the browser's own menu; the menu key opens it under the surface", () => {
@@ -279,4 +283,22 @@ test("an entry with a mark draws a small dot whose text is its tooltip and label
   const html = renderToStaticMarkup(<Menu source="other" items={[{ label: "Acme: Create invoice", mark: "Untested" }, { label: "Acme: List invoices" }]} />);
   assert.match(html, /title="Untested"/);
   assert.equal((html.match(/data-mark="true"/g) ?? []).length, 1);
+});
+
+test("a menu opened from a button near the right edge lines up with the button's right edge, then stays 8 px inside the window", () => {
+  resetAnchor();
+  // a trigger 96 wide at x 1090 in a 1280 window; the menu is 220 wide and will not fit to its right
+  noteAnchor({ getBoundingClientRect: () => ({ left: 1090, right: 1186, bottom: 40 }) });
+  const right = anchorRightFor(1090);
+  assert.equal(right, 1186, "a menu opened at the control's left edge knows the control's right edge");
+  assert.equal(menuLeft(1090, 220, 1280, right) + 220, 1186, "the menu's right edge is the trigger's");
+  // a trigger so close to the edge that lining up would leave the window: clamp to 8
+  noteAnchor({ getBoundingClientRect: () => ({ left: 1250, right: 1274, bottom: 40 }) });
+  assert.equal(menuLeft(1250, 220, 1280, anchorRightFor(1250)), 1280 - 220 - 8);
+  // "under the pressed button" (-1) also flips; a right-click at the pointer does not
+  assert.equal(anchorRightFor(-1), 1274);
+  assert.equal(anchorRightFor(900), undefined);
+  // room on the right: no flip
+  assert.equal(menuLeft(100, 220, 1280, 160), 100);
+  resetAnchor();
 });

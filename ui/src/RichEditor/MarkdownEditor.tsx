@@ -14,6 +14,7 @@ import { Row } from "../Row/index.tsx";
 import { MarkdownText } from "../stream/MarkdownText.tsx";
 import { blockOfLine, dedentPaste, docToMarkdown, looksLikeMarkdown, markdownToDoc } from "./mdtree.ts";
 import type { PMNode } from "./mdtree.ts";
+import { belowPhone } from "../SidePane/layout.ts";
 
 export type MarkdownView = "styled" | "raw";
 
@@ -325,7 +326,7 @@ function MarkdownEditorEdit(props: MarkdownEditorProps): ReactElement {
   const minHeight = props.minHeight ?? (compact ? 120 : 220);
   const placeholder = props.placeholder ?? "Write";
   const { width: winW } = useWindowDimensions();
-  const phone = compact || winW < 700;
+  const phone = compact || belowPhone(winW);
   const [own, setOwn] = useState<MarkdownView>(props.view ?? "styled");
   const view = props.view ?? own;
   const setView = (v: MarkdownView): void => { setOwn(v); props.onView?.(v); };

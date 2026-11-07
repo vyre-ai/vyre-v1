@@ -11,6 +11,7 @@ import { Dot, Glyph } from "../../shell/glyphs.tsx";
 import type { Tone } from "../../shell/glyphs.tsx";
 import { Empty, Group, Lead, LinkButton, Section, pointer } from "../../shell/ui.tsx";
 import { Button, useAction, useRead } from "../shared.tsx";
+import { isPhoneWidth } from "../../../../../../ui/src/SidePane/layout.ts";
 
 type Out = CapMap["console.overview"]["out"];
 type Attention = Out["attention"][number];
@@ -78,7 +79,7 @@ export function WarnTile({ icon }: { icon: string }): ReactElement {
 export function Overview(): ReactElement {
   const data = useConsoleData();
   const q = useScreenQuery<Out>("console.overview", "overview", {});
-  const width = useWindowDimensions().width, compact = width > 0 && width < 720;   // an unmeasured screen (a static render) keeps the desktop layout
+  const width = useWindowDimensions().width, compact = isPhoneWidth(width);   // an unmeasured screen (a static render) keeps the desktop layout
   const act = useAction(() => (data.screens as { invalidate?: () => void }).invalidate?.());
   // machine alerts (a disk nearly full, memory pressure, a machine offline with pinned work, a failed backup, an update waiting): a line here, a dot on Machines, one Inbox line for each admin
   const machineAlerts = (useRead<CapMap["machines.alerts"]["out"]>("machines.alerts").data?.alerts ?? []).map(toAlert);

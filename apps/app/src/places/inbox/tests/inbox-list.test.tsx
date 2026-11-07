@@ -186,7 +186,7 @@ test("the line's menu opens, marks read or unread, follows, stars and matches", 
   for (const it of e) it.onSelect?.();
   assert.deepEqual(did, ["open", "read:true", "follow:false", "star:true"]);
   const marcus = contactEntry(rows.find((r) => r.id === "marcus")!, northwind.mailboxes);
-  assert.deepEqual(items(lineMenuEntries(marcus, h)).map((x) => x.label), ["Open", "Mark as Read", "Follow", "Unstar"], "a starred conversation offers Unstar");
+  assert.deepEqual(items(lineMenuEntries(marcus, h)).map((x) => x.label), ["Open", "Mark as Read", "Follow", "Remove Star"], "a starred conversation offers Remove Star");
   items(lineMenuEntries(marcus, h))[3]!.onSelect?.();
   assert.equal(did[did.length - 1], "star:false");
   assert.deepEqual(items(lineMenuEntries(unk, h)).map((x) => x.label), ["Open", "Mark as Read", "Match to a record…"]);
@@ -258,4 +258,11 @@ test("Starred: starring a conversation shows it under Starred, unstarring takes 
   assert.deepEqual(lines(html({ scope: { kind: "starred" } })), ["elena", "priya"]);
   assert.ok(!has(html({}), 'data-testid="star-marcus"'));
   assert.deepEqual(s.calls.map((c) => c.cap), ["stars.toggle", "stars.toggle"]);
+});
+
+test("a lock on a mailbox row means a private mailbox in a shared group, never a mailbox under Mine", async () => {
+  const { showsLock } = await import("../sidebar/model.ts");
+  assert.equal(showsLock("mine", { lock: true }), false);
+  assert.equal(showsLock("team", { lock: true }), true);
+  assert.equal(showsLock("team", { lock: false }), false);
 });

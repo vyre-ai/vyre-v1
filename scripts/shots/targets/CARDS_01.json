@@ -1,0 +1,145 @@
+{
+ "targets": [
+  {
+   "id": "CARDS_01-all",
+   "route": "/m/CARDS_01?part=all",
+   "proto": "chats,{skin}",
+   "waitFor": "[data-testid='noteoffer-n1']",
+   "note": "Every chat card in one column"
+  },
+  {
+   "id": "CARDS_01-err",
+   "route": "/m/CARDS_01?part=err",
+   "proto": "chats,{skin}",
+   "waitFor": "[role='alert']",
+   "note": "error card"
+  },
+  {
+   "id": "CARDS_01-err-details",
+   "route": "/m/CARDS_01?part=err",
+   "proto": "chats,{skin}",
+   "waitFor": "[role='alert']",
+   "note": "error card with Details",
+   "click": [
+    "[data-testid='err-more']"
+   ]
+  },
+  {
+   "id": "CARDS_01-approval",
+   "route": "/m/CARDS_01?part=approval",
+   "proto": "chats,{skin}",
+   "waitFor": "[data-testid='approval-tsk_1']",
+   "note": "approval card"
+  },
+  {
+   "id": "CARDS_01-approval-deny",
+   "route": "/m/CARDS_01?part=approval",
+   "proto": "chats,{skin}",
+   "waitFor": "[data-testid='approval-tsk_1']",
+   "note": "deny asks why",
+   "click": [
+    "[data-testid='approval-deny-tsk_1']"
+   ]
+  },
+  {
+   "id": "CARDS_01-held",
+   "route": "/m/CARDS_01?part=held",
+   "proto": "chats,{skin}",
+   "waitFor": "[data-testid='approval-tsk_1']",
+   "note": "held message"
+  },
+  {
+   "id": "CARDS_01-held-edit",
+   "route": "/m/CARDS_01?part=held",
+   "proto": "chats,{skin}",
+   "waitFor": "[data-testid='approval-tsk_1']",
+   "note": "held edit",
+   "click": [
+    "[data-testid='approval-tsk_1-edit']"
+   ]
+  },
+  {
+   "id": "CARDS_01-held-deny",
+   "route": "/m/CARDS_01?part=held",
+   "proto": "chats,{skin}",
+   "waitFor": "[data-testid='approval-tsk_1']",
+   "note": "held deny",
+   "click": [
+    "[data-testid='approval-tsk_1-drop']"
+   ]
+  },
+  {
+   "id": "CARDS_01-key",
+   "route": "/m/CARDS_01?part=key",
+   "proto": "chats,{skin}",
+   "waitFor": "[data-testid='keyreq-vrq_1']",
+   "note": "key request"
+  },
+  {
+   "id": "CARDS_01-key-deny",
+   "route": "/m/CARDS_01?part=key",
+   "proto": "chats,{skin}",
+   "waitFor": "[data-testid='keyreq-vrq_1']",
+   "note": "key deny",
+   "click": [
+    "[data-testid='keyreq-decline-vrq_1']"
+   ]
+  },
+  {
+   "id": "CARDS_01-access",
+   "route": "/m/CARDS_01?part=access",
+   "proto": "chats,{skin}",
+   "waitFor": "[data-testid='accessreq-arq_1']",
+   "note": ""
+  },
+  {
+   "id": "CARDS_01-terminal",
+   "route": "/m/CARDS_01?part=terminal",
+   "proto": "chats,{skin}",
+   "waitFor": "[data-testid='terminal-card-t1']",
+   "note": ""
+  },
+  {
+   "id": "CARDS_01-mount",
+   "route": "/m/CARDS_01?part=mount",
+   "proto": "chats,{skin}",
+   "waitFor": "[data-testid='mount-card-m1']",
+   "note": ""
+  },
+  {
+   "id": "CARDS_01-noteoffer",
+   "route": "/m/CARDS_01?part=noteoffer",
+   "proto": "chats,{skin}",
+   "waitFor": "[data-testid='noteoffer-n1']",
+   "note": ""
+  },
+  {
+   "id": "CARDS_01-redact",
+   "route": "/m/CARDS_01?part=redact",
+   "proto": "chats,{skin}",
+   "waitFor": "[data-testid='redactreq-rrq_1']",
+   "note": ""
+  },
+  {
+   "id": "CARDS_01-goal",
+   "route": "/m/CARDS_01?part=goal",
+   "proto": "chats,{skin}",
+   "waitFor": "[data-testid^='goal-card']",
+   "note": "goal"
+  },
+  {
+   "id": "CARDS_01-install",
+   "route": "/m/CARDS_01?part=install",
+   "proto": "chats,{skin}",
+   "waitFor": "[data-testid='install-m1']",
+   "note": "install"
+  },
+  {
+   "id": "CARDS_01-web",
+   "route": "/m/CARDS_01?part=web",
+   "proto": "chats,{skin}",
+   "waitFor": "[data-testid='webpage-w1']",
+   "note": "web"
+  }
+ ]
+}

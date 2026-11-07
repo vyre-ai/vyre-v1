@@ -543,11 +543,12 @@ export async function calendarList(ctx: GoogleCtx, a: Act) {
   };
 }
 
-export async function eventsList(ctx: GoogleCtx, a: Act & { calendarId: string; timeMin?: string; timeMax?: string; q?: string; syncToken?: string; pageToken?: string }) {
-  // With a sync token Google refuses every other filter.
+export async function eventsList(ctx: GoogleCtx, a: Act & { calendarId: string; timeMin?: string; timeMax?: string; q?: string; syncToken?: string; updatedMin?: string; pageToken?: string }) {
+  // With a sync token Google refuses every other filter. With only a window Google gives no sync token, so `updatedMin` is the other way to ask for what changed: it keeps the
+  // window and adds the cancelled events, so a delete in the window still arrives.
   const q = a.syncToken
     ? { syncToken: a.syncToken, pageToken: a.pageToken }
-    : { timeMin: a.timeMin, timeMax: a.timeMax, q: a.q, pageToken: a.pageToken, singleEvents: true, orderBy: "startTime", maxResults: 250 };
+    : { timeMin: a.timeMin, timeMax: a.timeMax, q: a.q, pageToken: a.pageToken, ...(a.updatedMin ? { updatedMin: a.updatedMin, showDeleted: true } : {}), singleEvents: true, orderBy: "startTime", maxResults: 250 };
   const r = await g(ctx, a, "google.calendar.list_events", "calendar", { url: `${cal(a.calendarId)}/events`, query: q, bulk: true });
   const out: Record<string, unknown> = { events: list(r.items).map((x) => mapEvent(obj(x))) };
   if (text(r.nextPageToken)) out.nextPageToken = text(r.nextPageToken);

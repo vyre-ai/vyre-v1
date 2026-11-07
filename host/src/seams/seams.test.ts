@@ -266,8 +266,8 @@ test("imap: the person asking is passed to the Vault, so their own Mine password
   assert.equal(await mine("#Mail_Pw", ctx, "usr_pia"), "pa55");
   assert.deepEqual(askers, ["usr_pia"]);
   await assert.rejects(mine("#Mail_Pw", ctx), (e: unknown) => e instanceof HostError && e.error.message === "The Vault has no item for that mailbox password.", "no asker: the Mine item is missing, and it says so");
-  const locked = createImapSecretResolver({ secret: async () => { throw new Error("Your sign-ins are locked on this server. Unlock Vyre to use them."); } });
-  await assert.rejects(locked("#Mail_Pw", ctx, "usr_pia"), (e: unknown) => e instanceof HostError && /locked on this server/.test(e.error.message));
+  const locked = createImapSecretResolver({ secret: async () => { throw new Error("Your Vault key is not on this server, so your sign-in cannot be opened."); } });
+  await assert.rejects(locked("#Mail_Pw", ctx, "usr_pia"), (e: unknown) => e instanceof HostError && /Vault key is not on this server/.test(e.error.message));
 });
 
 // ---- wiring

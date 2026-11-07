@@ -16,6 +16,7 @@ import type { ChatMemoryData } from "../memory/data.tsx";
 import { RightPaneDataProvider, hasComputers, useOnline, useOptionalPaneData, usePaneData, useScreenQuery } from "./data.tsx";
 import type { ChatRightPaneData, RightPaneNav } from "./data.tsx";
 import { COMPUTER_SCREEN, ComputerTab } from "./ComputerTab.tsx";
+import { WorkSections, usesWorkModel } from "./WorkSections.tsx";
 import { AboutTab } from "./AboutTab.tsx";
 import { ProfileHeader, roleLine } from "./ProfileHeader.tsx";
 import type { HeaderAction, Presence } from "./ProfileHeader.tsx";
@@ -29,6 +30,9 @@ import { HooksTab } from "./HooksTab.tsx";
 import { ThreadsTab, AGENT_PAGE_SCREEN, PANE_SCREEN } from "./ThreadsTab.tsx";
 import { CrewTab } from "./CrewTab.tsx";
 import { useCrew } from "../crew/context.tsx";
+import { useSession } from "../session/context.tsx";
+import { SessionOverview } from "../session/Overview.tsx";
+import { sessionTabs, timeWords } from "../session/model.ts";
 import { SkillsTab } from "../install/SkillsTab.tsx";
 import { onOpenSkills } from "../install/open.ts";
 import { DEFAULT_TAB, PANE_KEY, PANE_WIDTH_GUESS, TABS, tabsOf } from "./model.ts";
@@ -105,13 +109,18 @@ function PaneView({ open, onToggle, tab: controlled, initialTab, hookSel, setup:
   const win = useWindowDimensions();
   const narrow = win.width > 0 && win.width < NARROW;
   // no capable host, no agent computers: no Computer tab and no offer to set one up
-  const noComputers = !hasComputers(data.space);
-  const hasComputer = (data.agent.computerId ?? "") !== "";
+  const work = usesWorkModel(data);
+  const noComputers = !work && !hasComputers(data.space);
+  // every agent has a workspace once the work model is bound: the Computer tab is always there, with nothing to set up
+  const hasComputer = work || (data.agent.computerId ?? "") !== "";
   // "Give it a computer" in About opens the Computer tab on the setup, until the agent has one
   const [setup, setSetup] = useState(setupFirst === true);
   const showComputer = hasComputer || (setup && !noComputers);
-  const [own, setOwn] = useState<TabKey>(initialTab ?? DEFAULT_TAB);
-  const wanted = controlled ?? own;
+  // a long session opens on its Overview (lane l-session); any other chat on About
+  const session = useSession();
+  const longSession = session?.summary.long === true;
+  const [own, setOwn] = useState<TabKey | null>(initialTab ?? null);
+  const wanted = controlled ?? own ?? (longSession ? "overview" : DEFAULT_TAB);
   const tab: TabKey = wanted === "computer" && !showComputer ? "about" : wanted;
   // Open on an install card: the Skills tab, with that skill lit
   const [lit, setLit] = useState<string | undefined>(undefined);
@@ -150,7 +159,9 @@ function PaneView({ open, onToggle, tab: controlled, initialTab, hookSel, setup:
   // the Hooks tab appears once the chat has hooks, or when a hook line opened it
   const hooksQ = useScreenQuery<CapMap["hooks.list"]["out"]>(PANE_SCREEN, "hooks", { threadId: data.threadId });
   const hasHooks = (hooksQ.status === "ready" && hooksQ.data.hooks.length > 0) || tab === "hooks";
-  const tabs = useMemo(() => tabsOf(data.terminal !== undefined, hasCrew, hasComputer, hasSkills, hasHooks).filter((t) => !(noComputers && t.key === "computer")).map((t) => ({ ...t, pinned: true, ...(t.key === "memory" && facts > 0 ? { title: `Knows ${facts}` } : {}) })), [facts, noComputers, data.terminal, hasCrew, showComputer, hasSkills, hasHooks]);
+  const baseTabs = useMemo(() => tabsOf(data.terminal !== undefined, hasCrew, hasComputer, hasSkills, hasHooks, longSession).filter((t) => !(noComputers && t.key === "computer")).map((t) => ({ ...t, pinned: true, ...(t.key === "memory" && facts > 0 ? { title: `Knows ${facts}` } : {}) })), [facts, noComputers, data.terminal, hasCrew, showComputer, hasSkills, hasHooks, longSession]);
+  // a long session shows the chat's own pane: Overview, Threads, Files, Kept, then the rest behind More (the agent's profile is one tap away on its page)
+  const tabs = useMemo(() => (longSession ? sessionTabs(baseTabs) : baseTabs), [baseTabs, longSession]);
   const titles = useTitleWidths();
   const paneNow = paneWidth ?? (narrow ? win.width : paneW);
   const { strip, select } = useFittedTabs(tabs, tab, paneNow, {
@@ -158,16 +169,17 @@ function PaneView({ open, onToggle, tab: controlled, initialTab, hookSel, setup:
     pick: (key) => { setOwn(key); onTab?.(key); },
   });
   /** The pane's top row: the open item as a tab, the agent with its face and a close x, as the prototype draws it above the agent's header. */
-  const openTab = { key: "open", title: data.agent.name, lead: <Face name={data.agent.name} seedId={data.agent.agentId} size={16} /> };
+  const openTab = longSession ? { key: "open", title: "This chat" } : { key: "open", title: data.agent.name, lead: <Face name={data.agent.name} seedId={data.agent.agentId} size={16} /> };
   const inner = (
   <View testID="chats-right-pane" style={[st.root, extra?.active ? st.gone : null]} onLayout={(e) => { const w = Math.round(e.nativeEvent.layout.width); if (w > 0 && w !== paneW) setPaneW(w); }}>
     <TabMeasure titles={tabs.map((x) => x.title)} onWidth={titles.set} />
-    <AgentHeader deps={deps} role={agent?.role} status={agent?.status} menu={menu} />
+    {longSession ? null : <AgentHeader deps={deps} role={agent?.role} status={agent?.status} menu={menu} />}
     <View style={st.tabs}><TabStrip tabs={strip} active={tab} onSelect={select} tight bare underline noOptions label={`${data.agent.name}'s tabs`} /></View>
     {online ? null : <Text testID="pane-offline" style={st.offline}>Offline. Showing what this device keeps.</Text>}
     <View testID={`pane-body-${tab}`} style={st.body}>
+      {tab === "overview" && session ? <SessionOverview call={data.call} threadId={data.threadId} agentId={data.agent.agentId} summary={session.summary} status={crewLive?.status ?? null} clock={(ts) => timeWords(ts, data.clock())} onHelper={(id) => crewLive?.show(id)} who={(id) => (data.me && id === data.me.id ? "You" : data.nameOf?.(id) ?? id)} onJump={(id) => session.jump(id)} /> : null}
       {tab === "about" ? <AboutTab agent={agent} name={data.agent.name} hasComputer={showComputer} {...(!noComputers && !showComputer ? { onGive: () => { setSetup(true); setOwn("computer"); onTab?.("computer"); } } : {})} onOpenFiles={() => { setOwn("files"); onTab?.("files"); }} onOpenKnows={() => { setOwn("memory"); onTab?.("memory"); }} /> : null}
-      {tab === "computer" ? <ComputerTab deps={deps} {...(window ? { window } : {})} /> : null}
+      {tab === "computer" ? (work ? <WorkSections deps={deps} {...(window ? { window } : {})} /> : <ComputerTab deps={deps} {...(window ? { window } : {})} />) : null}
       {tab === "threads" ? <ThreadsTab deps={deps} {...(window ? { window } : {})} /> : null}
       {tab === "hooks" ? <HooksTab deps={deps} selected={hookSel ?? null} {...(window ? { window } : {})} /> : null}
       {tab === "crew" ? <CrewTab deps={deps} {...(window ? { window } : {})} /> : null}

@@ -13,10 +13,12 @@ import { PANE_TAB_EXTRA } from "./rightpane/ChatRightPane.tsx";
 import { TAB_EXTRA } from "./rightpane/model.ts";
 
 const clean = (s: string): string => s.replaceAll("<!-- -->", "").replaceAll("&#x27;", "'").replaceAll("&amp;", "&");
-const pane = (o: { asleep?: boolean; width: number; tab?: "computer" }): string => {
+const pane = (o: { asleep?: boolean; width: number; tab?: "computer"; legacy?: boolean }): string => {
   const s = createMountSample(o.asleep ? { asleep: true } : {});
   const go = createGo(s.rt, () => undefined, (id) => PEOPLE.find((p) => p.id === id)?.name ?? id, () => undefined);
-  const data = wirePane(s.rt, go, "c1", { agentId: "agt_intake", name: "Intake", computerId: "cmp_intake" });
+  const wired = wirePane(s.rt, go, "c1", { agentId: "agt_intake", name: "Intake", computerId: "cmp_intake" });
+  // the single-computer tab is what a host without the workspace and Space browser draws: unbind both to see it
+  const data = o.legacy ? { ...wired, workspace: undefined, browser: undefined } : wired;
   return clean(renderToStaticMarkup(<AgentPane data={data} open onToggle={() => undefined} paneWidth={o.width} {...(o.tab ? { tab: o.tab } : {})} window={{ start: 0, end: 500 }} />));
 };
 
@@ -40,7 +42,7 @@ test("a narrow pane folds the tabs that do not fit behind More", () => {
 });
 
 test("a sleeping computer shows its dimmed frame (pressing it wakes it) and one chip, and the last session's steps each carry a thumbnail, the tool and the time into the session", () => {
-  const out = pane({ asleep: true, width: AGENT_PANE_W, tab: "computer" });
+  const out = pane({ asleep: true, width: AGENT_PANE_W, tab: "computer", legacy: true });
   assert.ok(out.includes("Asleep · wakes when needed") && out.includes("Last session"));
   assert.ok(out.includes('data-testid="step-thumb"'), "a frame thumbnail on a step");
   assert.ok(/Chrome · \d+:\d\d/.test(out), "the tool and the time into the session, as m:ss");
@@ -62,4 +64,10 @@ test("the folded tabs are a down chevron named More tabs, with no word beside it
   const out = clean(renderToStaticMarkup(<TabStrip tabs={tabs} active="x" tight />));
   assert.ok(out.includes('aria-label="More tabs"') && out.includes("<svg"));
   assert.ok(!out.includes(">More tabs<"), "the name is spoken, not drawn");
+});
+
+test("with the workspace and the Space browser bound, an agent that has a legacy computer gets the Terminal and Browser layout", () => {
+  const out = pane({ asleep: true, width: AGENT_PANE_W, tab: "computer" });
+  assert.ok(out.includes(">Terminal<") && out.includes(">Browser<"));
+  assert.ok(!out.includes("Last session"), "not the single-computer tab");
 });

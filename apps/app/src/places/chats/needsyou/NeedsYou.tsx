@@ -97,7 +97,8 @@ function NeedsView({ window, initialSelected }: { window?: VirtualWindow; initia
     for (const m of a.more) out.push({ label: m.label, onSelect: () => void doAct(i, m) });
     if (out.length > 0) out.push({ separator: true });
     for (const c of SNOOZES) out.push({ label: `Snooze: ${c.label}`, onSelect: () => void snooze(deps, i.task, c.key, clock) });
-    out.push({ separator: true }, { label: "Open Source", onSelect: () => { const s = i.task.source; if (s) data.nav.openSource(s.kind, s.id); } });
+    const from = i.task.source;
+    if (from) out.push({ separator: true }, { label: "Open Source", onSelect: () => data.nav.openSource(from.kind, from.id) });
     if (needsTake(i.task, data.me) && fixOf(i.task) === null) out.push({ label: "Take", onSelect: () => void take(deps, i.task) });
     return out;
   };
@@ -219,7 +220,8 @@ function Detail({ item, narrow, compose, draft, onDraft, onBack, onAct, onCancel
   const people = participants(t, (id) => (id.startsWith("usr_") ? "person" : "agent"));
   const peopleMenu = (x: number, y: number): void => {
     const who: MenuEntry[] = [];
-    for (const p of people) who.push({ label: p.kind === "person" ? data.nameOf(p.id) : `${data.nameOf(p.id)}, ${p.role}`, onSelect: () => undefined });
+    // who is on it: lines to read, not buttons
+    for (const p of people) who.push({ head: p.kind === "person" ? data.nameOf(p.id) : `${data.nameOf(p.id)}, ${p.role}` });
     showMenu(who, x, y);
   };
   const blockNodes: ReactElement[] = [];
@@ -407,7 +409,7 @@ const st = StyleSheet.create({
   pair: { flexDirection: "row", gap: 12 },
   pk: { width: 120, fontSize: 12.5, color: "var(--ink-3)" as string },
   pv: { flex: 1, fontSize: 13, color: "var(--ink)" as string },
-  quote: { gap: 6, padding: 12, borderRadius: 8, backgroundColor: "var(--sunk)" as string },
+  quote: { gap: 6, padding: 12, borderRadius: 12, backgroundColor: "var(--sel)" as string },
   qline: { fontSize: 13, lineHeight: 19, color: "var(--ink)" as string },
   tag: { fontSize: 11, fontWeight: "500", color: "var(--warn)" as string },
   people: { height: 24, paddingHorizontal: 6, borderRadius: 6, flexDirection: "row", alignItems: "center", gap: 4 },

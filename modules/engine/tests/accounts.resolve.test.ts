@@ -117,3 +117,12 @@ test("a sign-in kept under the tool's own key serves a model of its maker: claud
   const other = resolveAccount(base({ agent: { accountPolicy: "asker", provider: providerOfModel("gemini-2.5-pro") as string }, accounts: [sub("claude-code")], onServer: false }));
   assert.equal(other.allowed, false, "a Claude sign-in does not serve a Gemini model");
 });
+
+test("a person's own account answers before a Space account, whichever spelling the provider has (owner, 6 Nov)", () => {
+  const space = row({ ref: "#Space_OpenCode", driver: "opencode-go", provider: "opencode-go", spaceKey: true, models: ["glm-5"] });
+  const own = row({ ref: "#Dana_OpenCode", driver: "opencode-go", provider: "opencode-go", mine: true, ownerId: "usr_dana" });
+  for (const wanted of ["opencode-go", "opencode_go"]) {
+    const r = resolveAccount(base({ model: "glm-5", agent: { accountPolicy: "asker", provider: wanted }, accounts: [space, own] }));
+    assert.deepEqual(pick(r), ["#Dana_OpenCode", "usr_dana", "starter"], wanted);
+  }
+});

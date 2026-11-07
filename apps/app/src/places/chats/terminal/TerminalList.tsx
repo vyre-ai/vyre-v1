@@ -25,7 +25,7 @@ type StarsOut = CapMap["stars.list"]["out"];
 
 function StarButton({ on, onPress, testID }: { on: boolean; onPress: () => void; testID: string }): ReactElement {
   return (
-    <Pressable role="button" aria-pressed={on} accessibilityLabel={on ? "Remove star" : "Star"} onPress={onPress} testID={testID} style={({ hovered }: { hovered?: boolean }) => [st.star, hovered === true && st.starOver]}>
+    <Pressable role="button" aria-pressed={on} accessibilityLabel={on ? "Remove Star" : "Star"} onPress={onPress} testID={testID} style={({ hovered }: { hovered?: boolean }) => [st.star, hovered === true && st.starOver]}>
       <MenuIcon icon="star" size={14} color={on ? "var(--warn)" : "var(--ink-3)"} />
     </Pressable>
   );

@@ -28,6 +28,7 @@ import type { ComposerFill } from "../conversation/data.tsx";
 import { HelperChat, HelperChatLoading } from "../helper/HelperChat.tsx";
 import { AgentPane } from "../AgentPane.tsx";
 import { CrewProvider } from "../crew/context.tsx";
+import { SessionProvider } from "../session/context.tsx";
 import { CrewSide } from "../crew/CrewSide.tsx";
 import { useAddSheet } from "../addsheet/index.ts";
 import { AgentShareHost } from "../agentform/AgentShare.tsx";
@@ -477,6 +478,7 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch,
   const showMain = !(narrow && right !== null);
   return (
     <CrewProvider call={rt.call as (cap: string, input: unknown) => Promise<unknown>} threadId={threadId ?? ""} >
+    <SessionProvider threadId={threadId ?? ""}>
     <View testID="chats-place" style={st.row}>
       <ChatsSidebarSlot data={side} open={openKey} {...(window ? { window } : {})} />
       {showMain ? (
@@ -484,13 +486,14 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch,
           <View style={st.fill}>{main}</View>
         </View>
       ) : null}
-      <CrewSide fallback={right} nameOf={nameOf} openHelper={(id) => go.thread(id)} narrow={narrow} />
+      <CrewSide fallback={right} nameOf={nameOf} openHelper={(id) => go.thread(id)} narrow={narrow} terminal={terminal} />
       {narrow ? beside : null}
       {add.element}
       {shareAgent !== null ? <AgentShareHost agentId={shareAgent} name={nameOf(shareAgent)} call={rt.call as (cap: string, input: unknown) => Promise<unknown>} newKey={newKey} say={setLine} sharing={{ directory, meName: rt.me.name, meId: rt.me.id, nameOf }} onClose={() => setShareAgent(null)} /> : null}
       <Layer shown={shown} rt={rt} go={go} nameOf={nameOf} list={list} counter={counter} terminal={terminal} window={window} />
       {line ? <View testID="chats-line" accessibilityRole="alert" accessibilityLiveRegion="polite" style={st.toast}><Text style={st.toastText}>{line.text}</Text>{line.action ? <TextButton label={line.action.label} testID="chats-line-action" onPress={() => { const run = line.action?.run; setLineState(null); run?.(); }} /> : null}</View> : null}
     </View>
+    </SessionProvider>
     </CrewProvider>
   );
 }

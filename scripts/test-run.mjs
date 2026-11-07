@@ -62,6 +62,13 @@ const tsxArgs = ["--import", "tsx", "--import", path.join(REPO, "scripts/shots/r
 if (files.some(needsTsx)) await ensureDeps(REPO);
 const nocache = (f) => noCache(read(f));   // @nocache, or a test that lists a directory (scripts/lib/graph.mjs)
 
+/** A file whose every test was skipped (it ran nothing): the first skip's reason. Null when any test ran. A skip is not a pass (same rule as test-run.ts allSkipped). */
+const allSkipped = (out) => {
+  const n = Number(/^ℹ skipped (\d+)/m.exec(out)?.[1] ?? 0);
+  if (n === 0 || Number(/^ℹ pass (\d+)/m.exec(out)?.[1] ?? 0) > 0 || Number(/^ℹ fail (\d+)/m.exec(out)?.[1] ?? 0) > 0) return null;
+  return /^\s*﹣ .*? # (.+)$/m.exec(out)?.[1]?.trim() ?? "no reason given";
+};
+
 const run = (f) => new Promise((resolve) => {
   const cap = (slowBy.get(f)?.capSec ?? 30) * 1000 /* ruling 52: 30 s fast cap, was 20 */, t0 = Date.now();
   const key = useCache && !nocache(f) ? cacheKey(f, fwd, read, env) : null;
@@ -74,8 +81,9 @@ const run = (f) => new Promise((resolve) => {
   p.on("close", (code) => {
     clearTimeout(dog);
     const ms = Date.now() - t0, ok = code === 0;
-    if (ok && marker) { try { fs.writeFileSync(marker, JSON.stringify({ key, durationMs: ms, file: f })); } catch { /* cache is best effort */ } }
-    resolve({ f, ok, cached: false, ms, out });
+    const skip = ok ? allSkipped(out) : null;
+    if (ok && !skip && marker) { try { fs.writeFileSync(marker, JSON.stringify({ key, durationMs: ms, file: f })); } catch { /* cache is best effort */ } }
+    resolve({ f, ok, cached: false, ms, out, skip });
   });
 });
 
@@ -84,12 +92,13 @@ const results = [], queue = [...files];
 const t0 = Date.now();
 await Promise.all(Array.from({ length: Math.min(jobs, queue.length) }, async () => { while (queue.length) results.push(await run(queue.shift())); }));
 for (const r of results.sort((a, b) => a.f.localeCompare(b.f))) {
+  if (r.skip) { console.log(`skip ${r.f} (${r.skip})`); continue; }
   console.log(`${r.ok ? "ok  " : "FAIL"} ${r.f} ${r.cached ? "(cached)" : r.ms + " ms"}`);
   if (!r.ok) console.log(r.out);
 }
 const failed = results.filter((r) => !r.ok);
 const cachedN = results.filter((r) => r.cached).length;
-console.log(`${results.length} files, ${cachedN} cached, ${failed.length} failed, ${Date.now() - t0} ms, shard ${shard.join("/")}`);
+console.log(`${results.length} files, ${cachedN} cached, ${failed.length} failed, ${results.filter((r) => r.skip).length} skipped, ${Date.now() - t0} ms, shard ${shard.join("/")}`);
 // a cached pass did not run this time: say how many, on the run page too, so a green shard of replayed passes is visible
 console.log(`pass cache: ${cachedN} of ${results.length} files in shard ${shard.join("/")} were served from a cached pass and did not run`);
 if (process.env.GITHUB_ACTIONS === "true") console.log(`::notice title=pass cache::${cachedN} of ${results.length} files in this job were served from a cached pass and did not run`);

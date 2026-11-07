@@ -181,7 +181,7 @@ export function parsePayload(payload: string): { type: "file" | "folder"; id: st
   return out;
 }
 
-export interface Move { cap: "files.move" | "folders.move"; input: Record<string, unknown> }
+export interface Move { cap: "files.move" | "files.folder.move"; input: Record<string, unknown> }
 
 /** The moves a drop makes: each file to the folder, each folder under it. A folder never moves into itself, and an item already there stays put. */
 export function dropMoves(items: readonly { type: "file" | "folder"; id: string }[], target: string | null, here: (item: { type: "file" | "folder"; id: string }) => string | null): Move[] {
@@ -189,7 +189,7 @@ export function dropMoves(items: readonly { type: "file" | "folder"; id: string 
   for (const it of items) {
     if (it.type === "folder" && it.id === target) continue;
     if (here(it) === target) continue;
-    out.push(it.type === "file" ? { cap: "files.move", input: { fileId: it.id, toFolderId: target } } : { cap: "folders.move", input: { folderId: it.id, parentId: target } });
+    out.push(it.type === "file" ? { cap: "files.move", input: { fileId: it.id, toFolderId: target } } : { cap: "files.folder.move", input: { folderId: it.id, ...(target === null ? {} : { toParentId: target }) } });
   }
   return out;
 }
@@ -365,4 +365,18 @@ export function orderFolders<T extends { folderId: string; name: string }>(folde
 /** Agents and Projects open when the sidebar first draws, as the prototype's do (an agent's or project's own folder, with an id, starts closed). */
 export function openByDefault(f: FolderRow): boolean {
   return f.parentId === undefined && f.subject !== undefined && f.subject.kind !== "space" && f.subject.id === undefined;
+}
+
+/** The path above the Move picker's list after going into `folderId`: going into a folder already on the path steps back to it; otherwise it is added. */
+export function pathInto(trail: readonly { id: string | null; name: string }[], _from: string | null, folderId: string, name: string): { id: string | null; name: string }[] {
+  const i = trail.findIndex((c) => c.id === folderId);
+  return i >= 0 ? trail.slice(0, i + 1).slice() : [...trail, { id: folderId, name }];
+}
+
+/** Delete and Restore in Files are one pair: a folder goes to Trash with files.folder.delete and comes back with files.folder.restore. */
+export function trashCall(type: "file" | "folder", id: string): { cap: string; input: Record<string, unknown> } {
+  return type === "file" ? { cap: "files.delete", input: { fileId: id } } : { cap: "files.folder.delete", input: { folderId: id } };
+}
+export function restoreCall(type: "file" | "folder", id: string): { cap: string; input: Record<string, unknown> } {
+  return type === "file" ? { cap: "files.restore", input: { fileId: id } } : { cap: "files.folder.restore", input: { folderId: id } };
 }

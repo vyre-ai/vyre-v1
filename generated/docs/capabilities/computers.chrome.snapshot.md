@@ -26,6 +26,7 @@ Read the page as an accessibility tree with element refs; prefer this over scree
 ```ts
 type In = {
   computerId?: string;
+  inMyChrome?: boolean;
   tabId?: string;
   selector?: string;
   format?: "tree" | "text";
@@ -62,6 +63,7 @@ type Out = {
   "input": {
     "computerId": "cmt_a1b2c3",
     "format": "tree",
+    "inMyChrome": true,
     "selector": "example",
     "tabId": "example"
   },

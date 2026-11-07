@@ -22,6 +22,7 @@ import type { SheetAgent } from "./BrowserSheet.tsx";
 import type { BrowserSite } from "./browser.ts";
 import { RulesPanel } from "./RulesPanel.tsx";
 import { ShareSheet } from "./ShareSheet.tsx";
+import { belowPhone } from "../../../../../../ui/src/SidePane/layout.ts";
 
 export interface ConnectionsData { home: Home | null; accounts: Account[]; connectors: Connector[]; groups: Map<string, string>; error: string | null; loaded: boolean; sites?: BrowserSite[] }
 
@@ -173,7 +174,7 @@ export function ConnectionsView({ onClose, initialAdd = false, initialSite = fal
     </View>
   );
 
-  const narrow = useWindowDimensions().width < 640;
+  const narrow = belowPhone(useWindowDimensions().width);
   return (
     <View style={s.frame} testID="vault-connections">
       {menu.element}

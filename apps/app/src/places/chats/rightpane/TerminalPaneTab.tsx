@@ -20,13 +20,15 @@ export function startSession(rows: readonly Row[], agentComputer: string | undef
   return (agentComputer ? live.find((r) => r.host === "agent_computer" && r.computerId === agentComputer) : undefined) ?? live.find((r) => r.host === "device");
 }
 
+/** A name for the new session, and where it starts (a helper's terminal is named for the helper and starts in its workspace). */
+export interface OpenOpts { name?: string; cwd?: string }
 export type Opened = { s: "opened"; terminalId: string } | { s: "choose"; hosts: HostChoice[] } | { s: "none" };
 
 /**
  * What Open terminal does. The chat's agent computer when it has one. Otherwise this computer, named by its device (a terminal on a computer must say which); when this one is not a computer
  * (the web, a phone) the person picks among the online hosts they do have, and when there are none the pane says so.
  */
-export async function openHere(d: Pick<TerminalData, "call" | "newKey" | "agent" | "team" | "nameOf" | "clock">): Promise<Opened> {
+export async function openHere(d: Pick<TerminalData, "call" | "newKey" | "agent" | "team" | "nameOf" | "clock">, opts: OpenOpts = {}): Promise<Opened> {
   let host: HostChoice | undefined;
   if (d.agent?.computerId) host = { key: `agent:${d.agent.computerId}`, label: "", kind: "agent", online: true, agentId: d.agent.agentId, computerId: d.agent.computerId };
   else {
@@ -37,13 +39,13 @@ export async function openHere(d: Pick<TerminalData, "call" | "newKey" | "agent"
     const hosts = (await loadHosts(d.call, { team: d.team === true, now: d.clock().now, nameOf: d.nameOf ?? ((id) => id) })).filter((h) => h.online);
     return hosts.length > 0 ? { s: "choose", hosts } : { s: "none" };
   }
-  return { s: "opened", terminalId: await openOn(d, host) };
+  return { s: "opened", terminalId: await openOn(d, host, opts) };
 }
 
 /** Open a session on one host and return its id. */
-export async function openOn(d: Pick<TerminalData, "call" | "newKey">, h: HostChoice): Promise<string> {
+export async function openOn(d: Pick<TerminalData, "call" | "newKey">, h: HostChoice, opts: OpenOpts = {}): Promise<string> {
   const c = openHostCall(h, d.newKey());
-  return ((await d.call(c.cap, c.input)) as { terminal: { terminalId: string } }).terminal.terminalId;
+  return ((await d.call(c.cap, { ...c.input, ...opts })) as { terminal: { terminalId: string } }).terminal.terminalId;
 }
 
 export function TerminalPaneTab({ data }: { data: TerminalData }): ReactElement {

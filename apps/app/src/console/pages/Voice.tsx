@@ -9,6 +9,7 @@ import { Glyph } from "../shell/glyphs.tsx";
 import { Group, Section } from "../shell/ui.tsx";
 import { IconTile } from "./CiRunners.tsx";
 import { Actions, Button, Field, Note, ReadState, Select, useAction, useRead, QuietButton } from "./shared.tsx";
+import { isPhoneWidth } from "../../../../../ui/src/SidePane/layout.ts";
 
 type SpaceOut = CapMap["talk.space.status"]["out"];
 type VoiceOut = CapMap["talk.status"]["out"];
@@ -48,7 +49,7 @@ export function VoiceSettings(): ReactElement {
   const [pick, setPick] = useState("deepgram");
   const checked = useRef(false);
   const winW = useWindowDimensions().width;
-  const narrow = winW > 0 && winW < 720;   // an unmeasured screen (a static render) keeps the desktop layout
+  const narrow = isPhoneWidth(winW);   // an unmeasured screen (a static render) keeps the desktop layout
   const s = space.data;
   // a row that says when it was last checked should not be far behind: an old answer is asked again once as the page opens
   useEffect(() => {

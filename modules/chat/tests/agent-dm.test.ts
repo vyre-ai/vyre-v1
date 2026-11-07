@@ -241,7 +241,7 @@ test("a plain yes in Dana's own words presses the Send this to Maya card: noted 
 
 // ---- a Space agent writes as itself (owner ruling 4 Nov 2026) ----
 
-test("a Space agent messages a teammate as itself in its own chat with them; the asker's chat gets one short line; the reply goes to the agent; the asker cannot read it", async () => {
+test("a Space agent messages a teammate as itself in its own chat with them; the asker's chat gets one content-free line however many times they reply; the asker cannot read it", async () => {
   const { hn } = world({ kind: "agent" });
   const { origin, agent } = await asked(hn);
   hn.clear();
@@ -263,16 +263,20 @@ test("a Space agent messages a teammate as itself in its own chat with them; the
   assert.equal(hn.rows("SELECT title FROM chat_thread WHERE id = ?", out.threadId)[0]!["title"], "Intake", "named after the agent");
   assert.match(String(msgs(hn, origin).find((m) => m["kind"] === "quiet" && /^Sent to Maya in Intake's chat with them/.test(String(m["body"])))?.["body"]), /\(private to them\)\.$/, "Dana's chat says where it went");
 
-  // Maya replies there: one short line goes to the chat the agent was asked in, with the words clipped and no turn started by it
-  const long = "Friday works. ".repeat(40);
-  const reply = (await h["chat.post"]!(hn.person(MAYA), { threadId: out.threadId, body: long, idempotencyKey: key() })).message;
-  const event = hn.named("message.received").find((e) => e.payload["messageId"] === reply.messageId)!;
-  assert.equal((await onDirectReply(hn.ctx, event as never)).length, 1);
-  const line = msgs(hn, origin).at(-1)!;
-  assert.equal(line["author"], INTAKE, "the agent's own line, not Dana's");
-  assert.equal(line["kind"], "quiet");
-  assert.match(String(line["body"]), /^Maya replied: Friday works\./);
-  assert.ok(String(line["body"]).length < 200, "never her words whole");
+  // Maya replies there, several times: the chat the agent was asked in gets ONE line, with none of her words, and nothing after it
+  const before = msgs(hn, origin).length;
+  const said = ["Friday works, after 2pm.", "Here is a Vault key name: Stripe_Key", "your computer is ready"];
+  for (const [i2, body] of said.entries()) {
+    const reply = (await h["chat.post"]!(hn.person(MAYA), { threadId: out.threadId, body, idempotencyKey: key() })).message;
+    const event = hn.named("message.received").find((e) => e.payload["messageId"] === reply.messageId)!;
+    assert.equal((await onDirectReply(hn.ctx, event as never)).length, i2 === 0 ? 1 : 0, i2 === 0 ? "the first reply is noted" : "no later reply is");
+  }
+  const after = msgs(hn, origin).slice(before);
+  assert.equal(after.length, 1, "exactly one line across several replies");
+  assert.equal(after[0]!["author"], INTAKE, "the agent's own line, not Dana's");
+  assert.equal(after[0]!["kind"], "quiet");
+  assert.equal(after[0]!["body"], "Connected with Maya. Intake is talking with Maya directly.");
+  for (const w of said) assert.ok(!String(after[0]!["body"]).includes(w.slice(0, 12)) && !JSON.stringify(after[0]).includes("Stripe_Key"), "none of her words");
 });
 
 test("a Space agent's hourly limit is its own, per teammate; an Assistant's stays per person", async () => {

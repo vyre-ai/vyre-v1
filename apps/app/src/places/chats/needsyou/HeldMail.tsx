@@ -4,11 +4,12 @@ import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { peekOf } from "./heldmail.ts";
 import type { HeldMail, Peek } from "./heldmail.ts";
+import { belowPhone } from "../../../../../../ui/src/SidePane/layout.ts";
 
 const TYPES = ["contact", "company"] as const;
 
 export function HeldMailCard({ mail, call, onOpenRecord }: { mail: HeldMail; call(cap: string, input: unknown): Promise<unknown>; onOpenRecord(recordId: string): void }): ReactElement {
-  const wide = useWindowDimensions().width >= 760;
+  const wide = !belowPhone(useWindowDimensions().width);
   const [peek, setPeek] = useState<Peek | null>(null);
   useEffect(() => {
     let live = true;

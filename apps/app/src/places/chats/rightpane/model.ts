@@ -2,7 +2,7 @@
 // agent's folder is walked. The pane follows the agent of the open chat (spec 3.2); nothing here reads the replica, so the tests drive every rule directly.
 import type { CapMap } from "../../../../../../generated/types.ts";
 
-export type TabKey = "about" | "computer" | "threads" | "files" | "terminal" | "memory" | "routines" | "crew" | "skills" | "hooks";
+export type TabKey = "overview" | "about" | "computer" | "threads" | "files" | "terminal" | "memory" | "routines" | "crew" | "skills" | "hooks";
 export const TABS: readonly { key: TabKey; title: string }[] = [
   { key: "about", title: "About" },
   { key: "computer", title: "Computer" },
@@ -16,8 +16,8 @@ export const TERMINAL_TAB: { key: TabKey; title: string } = { key: "terminal", t
 /** The Crew tab: shown only in a chat that has teammates working for it, right after Chats. */
 export const CREW_TAB: { key: TabKey; title: string } = { key: "crew", title: "Crew" };
 /** The tabs of a pane, shown only when useful: Computer once the agent has one, Terminal for every agent where the shell has a terminal, Crew when teammates work for the chat. */
-export const tabsOf = (terminal: boolean, crew = false, computer = true, skills = false, hooks = false): readonly { key: TabKey; title: string }[] => {
-  const out: { key: TabKey; title: string }[] = [];
+export const tabsOf = (terminal: boolean, crew = false, computer = true, skills = false, hooks = false, overview = false): readonly { key: TabKey; title: string }[] => {
+  const out: { key: TabKey; title: string }[] = overview ? [OVERVIEW_TAB] : [];
   for (const t of TABS) {
     if (t.key === "computer" && !computer) continue;
     out.push(t);
@@ -28,6 +28,8 @@ export const tabsOf = (terminal: boolean, crew = false, computer = true, skills 
   if (skills) out.push(SKILLS_TAB);   // once the person has skills (l-install)
   return out;
 };
+/** The session Overview: first, in a long chat (lane l-session). */
+export const OVERVIEW_TAB: { key: TabKey; title: string } = { key: "overview", title: "Overview" };
 /** The Hooks tab: the hooks that run in this chat, shown once there are some or when a hook line opened it. */
 export const HOOKS_TAB: { key: TabKey; title: string } = { key: "hooks", title: "Hooks" };
 /** The Skills tab: the person's skills and an agent's, last, once there are any. */

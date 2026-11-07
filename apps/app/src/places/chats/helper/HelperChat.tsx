@@ -20,6 +20,7 @@ type MessagesOut = CapMap["chat.messages.list"]["out"];
 
 import { HelperHooks } from "./HelperHooks.tsx";
 import type { HelperHooksOut } from "./HelperHooks.tsx";
+import { isPhoneWidth } from "../../../../../../ui/src/SidePane/layout.ts";
 export const HELPER_SCREEN = "chats.helper-chat";
 /** Blocks that are bookkeeping, not steps a person reads: the notes between helper and agent, the turn's own status. */
 const BOOKKEEPING = new Set(["helper_note", "turn_status", "tool_steps"]);
@@ -60,7 +61,7 @@ function HelperView(): ReactElement {
     return () => { dead = true; clearInterval(t); };
   }, [parentId, data.threadId]);  // eslint-disable-line react-hooks/exhaustive-deps
   const winW = useWindowDimensions().width;
-  const narrow = winW > 0 && winW < 640;
+  const narrow = isPhoneWidth(winW);
   const failed = failureOf(threadQ, messagesQ);
   if (failed) return <LoadFailed what="this helper" failure={failed} testID="helper-load-failed" />;
   if (threadQ.status === "loading" || messagesQ.status === "loading") return <HelperChatLoading />;

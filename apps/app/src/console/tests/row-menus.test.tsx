@@ -87,3 +87,13 @@ test("in the list a removing item asks first: Delete Group becomes 'Delete Group
   await press(find(root as never, "menu-item-Delete Group") as never); await flush();
   assert.deepEqual(w.calls.map((c) => c.cap), ["access.groups.delete"]);
 });
+
+test("Remove from Space removes the person: it reads the removal preview, then calls members.remove (it used to confirm and remove nobody)", async () => {
+  const w = deps();
+  const sara = { id: "usr_sara", name: "Sara", status: "active", roles: ["rol_member"] };
+  items(personRowActions(sara, "usr_me", w.d)).find((x) => x.label === "Remove from Space…")!.onSelect!();
+  await flush();
+  assert.deepEqual(w.calls.map((c) => c.cap), ["members.remove_preview", "members.remove"]);
+  assert.deepEqual(w.calls[1]!.input, { personId: "usr_sara", plan: [] });
+  assert.ok(w.log.includes("done:Sara removed from the Space"), "the page is told it is done");
+});

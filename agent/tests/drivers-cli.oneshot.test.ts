@@ -84,7 +84,7 @@ test("codex: a rejected sign-in is provider.auth_failed; an MCP server that did 
   const spy = newSpy();
   const session = await createCliDriver(CLI_ADAPTERS.codex, driverDeps(spy)).open(specOf());
   const bad = await collect(session.send(turnOf("authfail")));
-  assert.deepEqual(bad, [{ type: "error", code: "provider.auth_failed", message: "unexpected status 401 Unauthorized: Missing bearer or basic authentication in header" }]);
+  assert.deepEqual(bad, [{ type: "error", code: "provider.auth_failed", message: "Codex is signed out, or its sign-in has run out. Sign in again." }]);
   const nomcp = await collect(session.send(turnOf("mcpfail")));
   assert.deepEqual(nomcp, [{ type: "error", code: "engine.mcp_failed", message: "Vyre's tools did not connect to the engine." }]);
   await session.close();

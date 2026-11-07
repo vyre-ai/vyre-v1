@@ -353,6 +353,24 @@ test("tree roots, create, move, versions and path rewrite", async () => {
   assert.ok(names.includes("file.moved"));
 });
 
+test("a folder is deleted to Trash, restored, and moved to the top of its tree with no destination given", async () => {
+  const { ctx } = open();
+  const tree = await handlers["files.tree"](ctx, {});
+  const personalId = idOf(tree.roots.find((root) => root.key === "personal")?.folderId, "personal");
+  const outer = await handlers["files.folder.create"](ctx, { parentId: personalId, name: "Outer" });
+  const inner = await handlers["files.folder.create"](ctx, { parentId: outer.folder.folderId, name: "Inner" });
+  await handlers["files.folder.delete"](ctx, { folderId: inner.folder.folderId });
+  assert.deepEqual((await handlers["files.trash.list"](ctx, {})).folders.map((f) => f.name), ["Inner"]);
+  const back = await handlers["files.folder.restore"](ctx, { folderId: inner.folder.folderId });
+  assert.equal(back.folder.parentId, outer.folder.folderId);
+  const top = await handlers["files.folder.move"](ctx, { folderId: inner.folder.folderId });
+  assert.equal(top.folder.parentId, personalId, "no destination means the top of its own tree");
+  assert.equal(top.folder.path, "Personal/Inner");
+  const topList = await handlers["files.list"](ctx, { folder: personalId });
+  assert.ok(topList.folders.some((f) => f.name === "Inner") && topList.folders.some((f) => f.name === "Outer"));
+  await expectCode("validation.precondition_failed", () => handlers["files.folder.move"](ctx, { folderId: personalId }));
+});
+
 test("trash restore brings back a file and a folder with its children", async () => {
   const { ctx } = open();
   const tree = await handlers["files.tree"](ctx, {});

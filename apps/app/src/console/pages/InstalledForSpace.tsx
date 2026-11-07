@@ -12,6 +12,7 @@ import { changedCount, diffRows, needsLines, pinnedLine, shortOf } from "../../p
 import type { Plan } from "../../places/chats/install/model.ts";
 import { errorSentence } from "../../errors/details.ts";
 import { Note } from "./shared.tsx";
+import { isPhoneWidth } from "../../../../../ui/src/SidePane/layout.ts";
 
 type Call = (cap: string, input: Record<string, unknown>) => Promise<unknown>;
 export interface Install { installId: string; kind: Plan["kind"]; name: string; repo: string; commit: string; url: string; by: string; at: number; installed: Record<string, unknown> }
@@ -57,7 +58,7 @@ export function loseWords(i: Install, nameOf: (id: string) => string): string {
 export const reaches = (p: Plan): string[] => [...p.needs.domains, ...p.needs.vaultKeys];
 
 export function InstalledForSpace({ call, nameOf = (id) => id, onAddSkill }: { call: Call; nameOf?: (id: string) => string; onAddSkill?: () => void }): ReactElement {
-  const width = useWindowDimensions().width, compact = width > 0 && width < 720;   // an unmeasured screen (a static render) keeps the desktop layout
+  const width = useWindowDimensions().width, compact = isPhoneWidth(width);   // an unmeasured screen (a static render) keeps the desktop layout
   const [rows, setRows] = useState<Install[] | null>(null);
   const [updates, setUpdates] = useState<Record<string, Plan>>({});
   const [failed, setFailed] = useState<Record<string, string>>({});

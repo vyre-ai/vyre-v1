@@ -57,7 +57,8 @@ test("the words: kinds, needs, the pinned commit, the choices, the done line", (
 test("a skill card says what it is, what it does, what it needs, the exact commit and who gets it", async () => {
   const c = await card(PLAN());
   const t = textOf(find(c.root, "install-m1")!);
-  assert.match(t, /Install pdf-tools \(a skill\)/);
+  assert.match(t, /Install pdf-tools/);
+  assert.doesNotMatch(t, /\(a skill\)/, "no type label in the title");
   assert.match(t, /Reads, splits and fills in PDF forms for your agents\./);
   assert.match(textOf(find(c.root, "install-needs-m1")!), /Network: api\.example\.com[\s\S]*Vault: none/);
   assert.match(textOf(find(c.root, "install-pin-m1")!), /Pinned to.*a41f9c2/);

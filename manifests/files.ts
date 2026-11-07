@@ -385,8 +385,8 @@ export default defineManifest({
       in: { parentId: id.folder, name: t.str(), reviewChanges: t.opt(t.bool()), subject: t.opt(t.obj({ kind: t.enm('agent', 'project'), id: t.str({ examples: ['agt_a1b2c3'] }) })) }, out: { folder: folderRow }, make: ['folder', '/parentId'], perm: 'files.write', emits: ['folder.created'], tool: 'files', offline: 'queue', errors: ['validation.duplicate'],
     }),
     write('files.folder.rename', 'Rename a folder', { in: { folderId: id.folder, name: t.str() }, out: { folder: folderRow }, on: ['folder', '/folderId'], perm: 'files.write', emits: ['folder.renamed'], tool: 'files', errors: ['validation.duplicate'] }),
-    write('files.folder.move', 'Move a folder under another folder (its sharing follows the new parent)', {
-      in: { folderId: id.folder, toParentId: id.folder }, out: { folder: folderRow }, on: ['folder', '/folderId'], perm: 'files.write', emits: ['folder.moved'], tool: 'files', errors: ['validation.precondition_failed'],
+    write('files.folder.move', 'Move a folder under another folder, or to the top of its tree when no folder is given (its sharing follows the new parent)', {
+      in: { folderId: id.folder, toParentId: t.opt(id.folder) }, out: { folder: folderRow }, on: ['folder', '/folderId'], perm: 'files.write', emits: ['folder.moved'], tool: 'files', errors: ['validation.precondition_failed'],
     }),
     write('files.folder.delete', 'Move a folder and its files to Trash', {
       in: { folderId: id.folder }, out: { deleted: t.bool() }, on: ['folder', '/folderId'], perm: 'files.delete', gate: { act: 'delete', when: "actor.kind != 'person'" }, emits: ['folder.deleted'], tool: 'files', errors: ['permission.on_hold'],

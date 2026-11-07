@@ -26,6 +26,7 @@ import { SavedBar, SavedProvider } from "./saved.tsx";
 import { AskedAccount } from "./asked-account.ts";
 import { Glyph, GoToPage, IconBox, Mark, pointer, webOnly } from "./ui.tsx";
 import type { KeyEventLike } from "./ui.tsx";
+import { belowPhone } from "../../../../../ui/src/SidePane/layout.ts";
 
 type ListOut = CapMap["settings.list"]["out"];
 
@@ -49,7 +50,7 @@ export function SettingsPlace(props: SettingsProps): ReactElement {
 function SettingsBody({ initialAccount, initialPage = "profile", initialQuery = "", initialView = "page", initialFound = null, width: given }: SettingsProps): ReactElement {
   const data = useSettingsData();
   const measured = useWindowDimensions().width;
-  const phone = (given ?? measured) < 760;
+  const phone = belowPhone(given ?? measured);
   const [page, setPageRaw] = useState<PageKey>(homeOf(initialPage));
   const setPage = (k: PageKey): void => setPageRaw(homeOf(k));
   const [view, setView] = useState<"nav" | "page">(initialView);

@@ -75,6 +75,10 @@ export const DEFAULT_EMAIL_STYLE: EmailStyle = {
 };
 export const COLOR_LABEL: Readonly<Record<keyof EmailColors, string>> = { page: "Page", email: "Email", text: "Text", muted: "Muted text", links: "Links", button: "Button", buttonText: "Button text" };
 export const isHex = (v: string): boolean => /^#[0-9a-fA-F]{6}$/.test(v);
+/** Use brand: the brand's font, and its colour on links and the button (a colour that is not a six-digit hex is left out). */
+export function brandPatch(style: EmailStyle, brand: { color: string; font: string }): Partial<EmailStyle> {
+  return { font: brand.font, colors: { ...style.colors, ...(isHex(brand.color) ? { links: brand.color, button: brand.color } : {}) } };
+}
 
 /** Applies the Dark frame: it swaps the page, email, text and muted colours, never the brand colours. */
 function resolveStyle(style: EmailStyle | undefined, dark: boolean): EmailStyle {
@@ -327,6 +331,8 @@ export function splitTokens(text: string): readonly { token?: string; field?: st
 
 export interface EmailBuilderViewProps extends Omit<EmailBuilderProps, "onTestSend" | "onAcceptDiff"> {
   onTestSend?: () => void | Promise<void>;
+  /** The button's words when pressing it sends nothing (the automation composer renders a preview): "Preview". Default "Test send". */
+  testSendLabel?: string;
   onAcceptDiff?: (id: string) => void | boolean;
   /** The author turned one proposed change down; it stays listed as Rejected and nothing is applied. */
   onRejectDiff?: (id: string) => void;
@@ -472,9 +478,9 @@ export function EmailBuilder(props: EmailBuilderViewProps): ReactElement {
     if (sending) return;
     setSent(false); setSendError(null); setSending(true);
     try {
-      if (!onTestSend) throw new Error("Connect a sending account before sending a test.");
+      if (!onTestSend) throw new Error(props.testSendLabel === undefined ? "Connect a sending account before sending a test." : "Nothing to preview.");
       await onTestSend(); setSent(true);
-    } catch (e) { setSendError(e instanceof Error ? e.message : "The test email was not sent."); }
+    } catch (e) { setSendError(e instanceof Error ? e.message : props.testSendLabel === undefined ? "The test email was not sent." : "Could not make the preview."); }
     finally { setSending(false); }
   };
   const [style, setStyle] = useState<EmailStyle>(props.emailStyle ?? DEFAULT_EMAIL_STYLE);
@@ -560,7 +566,7 @@ export function EmailBuilder(props: EmailBuilderViewProps): ReactElement {
       setBlocks(tp.blocks); setHtml(""); setPlain(""); if (tp.subject !== undefined) setSubject(tp.subject); setSelected(null);
       commit(next, `Applied the ${tp.name} template`); props.onTemplate?.(tp.id);
     } })),
-    { label: "Save as template", onSelect: () => props.onSaveTemplate?.(blocks) },
+    ...(props.onSaveTemplate ? [{ label: "Save as template", onSelect: () => props.onSaveTemplate?.(blocks) }] : []),
   ]);
   const historyMenu = (): void => anchorMenu("history", [
     { head: "Versions" },
@@ -648,13 +654,15 @@ export function EmailBuilder(props: EmailBuilderViewProps): ReactElement {
           <Text style={s.btnText}>{narrow ? "Preview as" : `Preview as ${previewAs ?? "…"}`}</Text><MenuIcon icon={ICON.down} />
         </Pressable>
       ) : null}
-      <Pressable ref={refOf("templates")} accessibilityRole="button" accessibilityLabel="Templates" testID="em-templates" onPress={templatesMenu} style={(state) => [s.btn, (state as { hovered?: boolean }).hovered === true && s.btnOver]}>
-        <MenuIcon icon={ICON.templates} />{narrow ? null : <Text style={s.btnText}>Templates</Text>}
-      </Pressable>
+      {(props.templates?.length ?? 0) > 0 || props.onSaveTemplate ? (
+        <Pressable ref={refOf("templates")} accessibilityRole="button" accessibilityLabel="Templates" testID="em-templates" onPress={templatesMenu} style={(state) => [s.btn, (state as { hovered?: boolean }).hovered === true && s.btnOver]}>
+          <MenuIcon icon={ICON.templates} />{narrow ? null : <Text style={s.btnText}>Templates</Text>}
+        </Pressable>
+      ) : null}
       <Pressable ref={refOf("history")} accessibilityRole="button" accessibilityLabel="Version history" testID="em-history" onPress={historyMenu} style={(state) => [s.btn, (state as { hovered?: boolean }).hovered === true && s.btnOver]}><MenuIcon icon={ICON.history} /></Pressable>
       <Btn label="Comments" icon={ICON.comment} on={commentsOpen} onPress={() => setCommentsOpen((o) => !o)} testID="em-comments" />
       <Btn label="Focus" icon={ICON.focus} onPress={() => setFocusMode(true)} testID="em-focus" />
-      <Btn label="Test send" icon={ICON.send} onPress={() => void sendTest()} testID="em-test-send" />
+      <Btn label={props.testSendLabel ?? "Test send"} icon={ICON.send} onPress={() => void sendTest()} testID="em-test-send" />
       {props.ask !== undefined ? <AskButton {...props.ask} compact={compact} /> : null}
     </View>
   );
@@ -665,7 +673,7 @@ export function EmailBuilder(props: EmailBuilderViewProps): ReactElement {
       {allComments.length === 0 ? <Text style={s.note}>No comments yet.</Text> : null}
       <View style={s.envRow}>
         <TextInput accessibilityLabel="Add a comment" testID="em-comment-input" value={draftComment} onChangeText={setDraftComment} onSubmitEditing={postComment} placeholder="Add a comment" placeholderTextColor="var(--ink-4)" style={s.envInput} />
-        <Btn label="Post" strong onPress={postComment} disabled={draftComment.trim() === ""} testID="em-comment-post" />
+        <Btn label="Post" strong onPress={postComment} disabled={draftComment.trim() === "" || !props.onComment} testID="em-comment-post" />
       </View>
     </View>
   ) : null;
@@ -821,7 +829,7 @@ export function EmailBuilder(props: EmailBuilderViewProps): ReactElement {
 
   const pane = (
     <View style={[s.pane, narrow && s.paneNarrow]} testID="em-pane">
-      <TabStrip tabs={each(PANE_TABS, (k) => ({ key: k, title: TAB_TITLE[k] }))} active={tab} onSelect={(k) => setTab(k as PaneTab)} />
+      <TabStrip noOptions tabs={each(PANE_TABS, (k) => ({ key: k, title: TAB_TITLE[k] }))} active={tab} onSelect={(k) => setTab(k as PaneTab)} />
       <ScrollView style={s.paneBody} contentContainerStyle={s.paneContent}>
         {tab === "style" ? (
           <View testID="em-style">
@@ -830,7 +838,7 @@ export function EmailBuilder(props: EmailBuilderViewProps): ReactElement {
                 <Text style={s.sec}>Brand</Text>
                 <Row id="brand" title={props.brand.name} note={`${props.brand.color} · ${props.brand.font}`}
                   leading={<View style={[s.brandDot, { backgroundColor: props.brand.color }]}><Text style={s.brandLetter}>{props.brand.name.slice(0, 1)}</Text></View>}
-                  trailing={<Btn label="Use brand" strong onPress={() => props.onUseBrand?.()} testID="em-use-brand" />} />
+                  trailing={<Btn label="Use brand" strong onPress={() => { const b = props.brand; if (b === undefined) return; changeStyle(brandPatch(style, b), `Used the ${b.name} brand`); props.onUseBrand?.(); }} testID="em-use-brand" />} />
               </View>
             ) : null}
             <Text style={s.sec}>Email</Text>
@@ -1031,7 +1039,7 @@ export function EmailBuilder(props: EmailBuilderViewProps): ReactElement {
       {focus ? <Text style={s.hint} testID="em-focus-hint">Focus mode. Esc or Shift-Cmd-F to leave.</Text> : null}
       {menu.element}
       {sendError ? <Text accessibilityRole="alert" style={s.toast} testID="em-send-error">{sendError}</Text> : null}
-      {sent ? <Text style={s.toast} testID="em-sent">Test email sent to you.</Text> : null}
+      {sent ? <Text style={s.toast} testID="em-sent">{props.testSendLabel === undefined ? "Test email sent to you." : "Preview ready below."}</Text> : null}
     </View>
   );
 }

@@ -105,8 +105,8 @@ test("codex: reasoning and messages arrive whole, an MCP call is started and fin
 });
 
 test("codex: a failed turn ends once with the engine's message; an MCP server that did not start is reported and the stream ending after it is an error end", () => {
-  const msg = "unexpected status 401 Unauthorized: Missing bearer or basic authentication in header";
-  assert.deepEqual(decode("codex-error-auth", createCodexDecoder()), [S1, { type: "end", error: { message: msg } }]);
+  // a rejected sign-in is told in plain words, with its code (the vendor's own line, with its URL and request id, is not what a person reads)
+  assert.deepEqual(decode("codex-error-auth", createCodexDecoder()), [S1, { type: "end", error: { code: "provider.auth_failed", message: "Codex is signed out, or its sign-in has run out. Sign in again." } }]);
   assert.deepEqual(decode("codex-mcp-failed", createCodexDecoder()), [
     S1,
     { type: "mcp", status: "failed", detail: "MCP client for `vyre` failed to start: connection refused" },

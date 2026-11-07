@@ -4,9 +4,10 @@
 import { useCallback, useEffect, useState } from "react";
 import { useFollow } from "./use-follow.ts";
 import type { ReactElement } from "react";
-import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Card, CardActions, CardDeny, CardDone, CardField, CardHead } from "../../../../../../ui/src/Card/index.tsx";
 import type { ConversationData } from "./data.tsx";
-import { Glyph, TextButton } from "./parts.tsx";
+import { Glyph } from "./parts.tsx";
 import { Face } from "../needsyou/parts.tsx";
 import { AUDIENCES, keyWords, requestOf } from "./keyrequest-model.ts";
 import type { KeyAudience, KeyRequest } from "./keyrequest-model.ts";
@@ -20,7 +21,6 @@ export function KeyRequestCard({ requestId, agent, agentId, data }: { requestId:
   const [canDecide, setCanDecide] = useState(false);
   const [values, setValues] = useState<Record<string, string>>({});
   const [declining, setDeclining] = useState(false);
-  const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState("");
   // who may use the key through the agent (owner ruling, 3 Nov 2026): only the person who asked, unless the approver picks anyone who asks this agent
@@ -43,10 +43,7 @@ export function KeyRequestCard({ requestId, agent, agentId, data }: { requestId:
   if (req.state !== "waiting") {
     const ok = req.state === "fulfilled";
     return (
-      <View testID={`keyreq-done-${requestId}`} style={st.done} accessibilityRole="text">
-        <Glyph name={ok ? "check" : "x"} size={13} color={ok ? "var(--ok)" : "var(--ink-3)"} />
-        <Text style={st.doneText}>{ok ? `Added · ${words}` : req.state === "declined" ? `Declined · ${words}` : `Withdrawn · ${words}`}</Text>
-      </View>
+      <CardDone testID={`keyreq-done-${requestId}`} ok={ok} glyph={<Glyph name={ok ? "check" : "x"} size={13} color={ok ? "var(--ok)" : "var(--ink-3)"} />} text={ok ? `Added · ${words}` : req.state === "declined" ? `Declined · ${words}` : `Withdrawn · ${words}`} />
     );
   }
 
@@ -67,37 +64,28 @@ export function KeyRequestCard({ requestId, agent, agentId, data }: { requestId:
     } catch (e) { setProblem((e as { message?: string }).message ?? "That did not save. Try again."); void load(); }
     finally { setBusy(false); }
   };
-  const decline = async (): Promise<void> => {
+  const decline = async (reason: string): Promise<void> => {
     setBusy(true); setProblem("");
-    try { await data.call("vault.requests.decline", { requestId, ...(reason.trim() ? { note: reason.trim() } : {}) }); await load(); }
+    try { await data.call("vault.requests.decline", { requestId, ...(reason ? { note: reason } : {}) }); await load(); }
     catch (e) { setProblem((e as { message?: string }).message ?? "That did not send. Try again."); void load(); }
     finally { setBusy(false); }
   };
   const ready = req.fields.every((k) => (values[k] ?? "").trim() !== "");
 
   return (
-    <View testID={`keyreq-${requestId}`} style={st.card} accessibilityRole="summary" accessibilityLabel={`${agent} needs the ${words}`}>
-      <View style={st.head}>
-        <Face name={agent} seedId={agentId} kind="agent" size={20} />
-        <Text style={st.title}>{`${agent} needs the ${words}`}</Text>
-      </View>
+    <Card kind="input" testID={`keyreq-${requestId}`} label={`${agent} needs the ${words}`} onCancel={declining ? () => setDeclining(false) : undefined} {...(canDecide && !declining && ready && !busy ? { onEnter: () => void add() } : {})}>
+      <CardHead title={`${agent} needs the ${words}`} lead={<Face name={agent} seedId={agentId} kind="agent" size={20} />} />
       {req.reason ? <Text style={st.reason}>{req.reason}</Text> : null}
       {!canDecide ? (
         <Text testID={`keyreq-wait-${requestId}`} style={st.reason}>Asked an admin to add it. It carries on when they do.</Text>
       ) : declining ? (
-        <View style={st.col}>
-          <TextInput accessibilityLabel="Why not (optional)" testID={`keyreq-reason-${requestId}`} value={reason} onChangeText={setReason} placeholder="Reason (optional)" placeholderTextColor="var(--ink-4)" style={st.input} />
-          <View style={st.acts}>
-            <TextButton label="Back" onPress={() => setDeclining(false)} testID={`keyreq-back-${requestId}`} />
-            <TextButton label="Deny" danger disabled={busy} onPress={() => void decline()} testID={`keyreq-decline-go-${requestId}`} />
-          </View>
-        </View>
+        <CardDeny ids={{ reason: `keyreq-reason-${requestId}`, back: `keyreq-back-${requestId}`, go: `keyreq-decline-go-${requestId}` }} busy={busy} onBack={() => setDeclining(false)} onDeny={(r) => void decline(r)} />
       ) : (
         <View style={st.col}>
           {/* ui-rows-lint: not a list (one secure field per field of the key) */}
-          {req.fields.map((k) => (
-            <TextInput key={k} accessibilityLabel={req.fields.length === 1 ? `${words} value` : `${words}, ${k}`} testID={`keyreq-field-${requestId}-${k}`} value={values[k] ?? ""} onChangeText={(v) => setValues({ ...values, [k]: v })}
-              placeholder={req.fields.length === 1 ? "Paste the key" : k} placeholderTextColor="var(--ink-4)" secureTextEntry autoCapitalize="none" autoCorrect={false} style={st.input} />
+          {req.fields.map((k, i) => (
+            <CardField key={k} label={req.fields.length === 1 ? "Key" : k} accessLabel={req.fields.length === 1 ? `${words} value` : `${words}, ${k}`} testID={`keyreq-field-${requestId}-${k}`} value={values[k] ?? ""} onChange={(v) => setValues({ ...values, [k]: v })}
+              placeholder={req.fields.length === 1 ? "Paste the key" : k} secure hint={i === 0 ? "It goes straight to the Vault. No message holds it." : " "} error={null} disabled={busy} />
           ))}
           <View accessibilityRole="radiogroup" accessibilityLabel={`Who can use it through ${agent}`} testID={`keyreq-audience-${requestId}`} style={st.col}>
             <Text style={st.ask}>{`Who can use it through ${agent}?`}</Text>
@@ -109,31 +97,21 @@ export function KeyRequestCard({ requestId, agent, agentId, data }: { requestId:
               </Pressable>
             ))}
           </View>
-          <View style={st.acts}>
-            <TextButton label="Deny" onPress={() => setDeclining(true)} disabled={busy} testID={`keyreq-decline-${requestId}`} />
-            <TextButton label="Add the key" primary disabled={busy || !ready} onPress={() => void add()} testID={`keyreq-add-${requestId}`} />
-          </View>
+          <CardActions busy={busy} secondary={[{ label: "Deny", onPress: () => setDeclining(true), testID: `keyreq-decline-${requestId}` }]} primary={{ label: "Add the key", disabled: !ready, onPress: () => void add(), testID: `keyreq-add-${requestId}` }} />
         </View>
       )}
       {problem ? <Text accessibilityRole="alert" style={st.err}>{problem}</Text> : null}
-    </View>
+    </Card>
   );
 }
 
 const st = StyleSheet.create({
-  card: { marginTop: 8, padding: 12, gap: 10, borderRadius: 12, borderWidth: 1, borderColor: "var(--line-2)" as string, backgroundColor: "var(--raised)" as string, maxWidth: 560 },
-  head: { flexDirection: "row", alignItems: "center", gap: 8 },
-  title: { flexShrink: 1, fontSize: 14, fontWeight: "600", color: "var(--ink)" as string },
   reason: { fontSize: 13, lineHeight: 18, color: "var(--ink-2)" as string },
   col: { gap: 8 },
-  acts: { flexDirection: "row", justifyContent: "flex-end", gap: 8 },
-  input: { minHeight: 36, paddingHorizontal: 10, paddingVertical: 8, borderRadius: 8, borderWidth: 1, borderColor: "var(--field-line)" as string, backgroundColor: "var(--field)" as string, fontSize: 13, color: "var(--ink)" as string },
   err: { fontSize: 12.5, color: "var(--danger)" as string },
   ask: { fontSize: 13, color: "var(--ink-2)" as string },
   choice: { flexDirection: "row", alignItems: "center", gap: 8, minHeight: 28 },
   dot: { width: 14, height: 14, borderRadius: 7, borderWidth: 1.5, borderColor: "var(--ink-3)" as string },
   dotOn: { borderWidth: 4.5, borderColor: "var(--accent)" as string },
   choiceText: { fontSize: 13, color: "var(--ink)" as string },
-  done: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 6 },
-  doneText: { fontSize: 12.5, color: "var(--ink-3)" as string },
 });

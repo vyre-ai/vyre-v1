@@ -1,5 +1,5 @@
 // The right-click menus of the Console's rows (lane l-chrome2a; team/v1/CONTEXT-MENUS.md): a person, a group, a role, a number, a domain. Each page hands its row's facts and what the page can do; the entries are the
-// ones of chats/menus/kinds-b.ts, without "Open" (the list adds it first). What needs a picker or a wizard (Change Role, Add Person, Assign, Remove from Space) opens the object, where that lives; what is one call is
+// ones of chats/menus/kinds-b.ts, without "Open" (the list adds it first). What needs a picker or a wizard (Change Role, Add Person, Assign) opens the object, where that lives; what is one call is
 // one call. Anything that removes asks first (ObjectList).
 import type { MenuEntry } from "../../../../../ui/src/Menu/index.tsx";
 import { consoleDomainMenu, consoleGroupMenu, consoleNumberMenu, consolePersonMenu, consoleRoleMenu } from "../../places/chats/menus/kinds-b.ts";
@@ -21,7 +21,7 @@ export function personRowActions(p: { id: string; name: string; status: string; 
     {
       open: d.open, copyName: () => copyToClipboard(p.name),
       suspend: () => once(d, () => d.api.personSuspend(p.id), `${p.name} suspended`), reactivate: () => once(d, () => d.api.personReactivate(p.id), `${p.name} reactivated`),
-      changeRole: d.open, remove: d.open,
+      changeRole: d.open, remove: () => once(d, () => d.api.personRemove(p.id), `${p.name} removed from the Space`),
     },
   ));
 }

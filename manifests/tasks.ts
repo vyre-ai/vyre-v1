@@ -24,7 +24,7 @@ const taskRow = t.obj({
   takenBy: t.opt(t.str({ examples: ['usr_a1b2c3'] })), due: t.opt(t.ts()), effort: t.opt(t.int({ minimum: 0, description: 'Minutes' })),
   recordId: t.opt(id.record), fileIds: t.arr(id.file), source: t.opt(source), parentTaskId: t.opt(id.task), dependsOn: t.arr(id.task),
   followers: t.arr(t.str()), workingNotes: t.rec(t.str()), threadId: t.opt(id.thread), reviewLoops: t.int({ minimum: 0 }),
-  snoozedUntil: t.opt(t.ts()), createdBy: t.str(), createdAt: t.ts(), updatedAt: t.ts(),
+  snoozedUntil: t.opt(t.ts()), expiresAt: t.opt(t.ts({ description: 'When an open request stops being decidable' })), createdBy: t.str(), createdAt: t.ts(), updatedAt: t.ts(),
   version: t.opt(t.int({ minimum: 0, description: 'Counts the writes to the task; send it back as expectedVersion on tasks.update to be told when someone else changed the task first' })),
   yourTurn: t.opt(t.bool()),   // the next move is the reader's: their seat, or a group or role of theirs nobody took yet
   priority: t.opt(priority), labels: t.opt(t.arr(t.str())), start: t.opt(t.ts()), fields: t.opt(fieldValues), recur: t.opt(recur), workerThread: t.opt(id.thread),

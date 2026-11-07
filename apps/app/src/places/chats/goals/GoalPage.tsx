@@ -29,6 +29,7 @@ import { TimePop, When, useZones } from "../../../../../../ui/src/Time/index.tsx
 import { whenIn } from "../../../../../../lib/zones.ts";
 import type { Zones } from "../../../../../../ui/src/Time/index.tsx";
 import type { Goal, GoalPageData, PlanStep, TaskLine, Tone, WaitLine, Who } from "./model.ts";
+import { isPhoneWidth } from "../../../../../../ui/src/SidePane/layout.ts";
 
 export interface GoalPageProps {
   goalId: string;
@@ -58,7 +59,7 @@ export function GoalPage({ goalId, call, changes, me, nameOf, clock, conversatio
   const { state, reload } = useGoal(call, changes, goalId);
   const zones = useZones();
   const width = useWindowDimensions().width;
-  const phone = width > 0 && width < 640;
+  const phone = isPhoneWidth(width);
   const [tab, setTab] = useState<PaneTab>("activity");
   const [paneOpen, setPaneOpen] = useState(pane && !phone && width >= 980);
   const [line, setLine] = useState("");

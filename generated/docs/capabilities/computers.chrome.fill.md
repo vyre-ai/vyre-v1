@@ -26,6 +26,7 @@ Fill form fields; values may be #Handle.field references that the computer vault
 ```ts
 type In = {
   computerId?: string;
+  inMyChrome?: boolean;
   tabId?: string;
   fields: Array<{
       ref: string;
@@ -67,6 +68,7 @@ type Out = {
         "value": "example"
       }
     ],
+    "inMyChrome": true,
     "tabId": "example"
   },
   "output": {

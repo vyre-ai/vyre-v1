@@ -91,14 +91,14 @@ export type CliEvent =
   /** What a call touches, in safe words (a file name, a search query): only for the live line, never saved. */
   | { type: "tool"; phase: "input"; id: string; detail: string }
   /** inputTokens counts cache reads and writes too. The split, reasoning and the engine's own dollar figure come only when the engine reported them (absent = not reported, never 0 in their place). */
-  | { type: "usage"; inputTokens: number; outputTokens: number; model?: string; contextTokens?: number; cacheReadTokens?: number; cacheWriteTokens?: number; reasoningTokens?: number; costUsd?: number }
+  | { type: "usage"; inputTokens: number; outputTokens: number; model?: string; contextTokens?: number; /** The model's own window, when the engine said it. */ contextWindow?: number; cacheReadTokens?: number; cacheWriteTokens?: number; reasoningTokens?: number; costUsd?: number }
   /** What the engine reported about a subscription limit window: how much of it is used (0 to 100) and when it resets (epoch ms), as the engine said it. Never estimated. */
   | { type: "limits"; window: "session" | "week"; pct: number; resetsAt?: number }
   /** The engine took up a user message we wrote (its replay line): from here it is part of the turn it was read in, or the start of the next one. Only engines that replay report it. */
   | { type: "read" }
   /** The engine compacted its own context (Claude Code's compact_boundary): the tokens before and, when it said, after. */
   | { type: "compacted"; before?: number; after?: number }
-  | { type: "end"; error?: { code?: string; message: string } };
+  | { type: "end"; error?: { code?: string; message: string; /** A limit refusal that said when the account is usable again (epoch ms). */ resetsAt?: number } };
 
 export interface CliDecoder {
   /** One decoder per process: it may keep state. A line that is not JSON, or of a shape it does not know, yields nothing. */

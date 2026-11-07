@@ -37,7 +37,7 @@ import { dueEntries, failure, priorityEntries, withVersion } from "./actions.ts"
 import { ConflictCard } from "./Conflict.tsx";
 import { clashFrom, keptPatch, LIST_NOTES, leftOut, mergeClash, mergeList } from "./conflict.ts";
 import type { Clash } from "./conflict.ts";
-import { dueLabel, holderOf, isOpenState, KIND_TITLE, planOrder, PRIORITIES } from "./model.ts";
+import { dueLabel, holderOf, isOpenState, planOrder, PRIORITIES } from "./model.ts";
 import type { IndexOut, TaskFull, TaskRow, Who } from "./model.ts";
 import { faceKind, LiveWords, TextMenu, useLiveTurn, webProps } from "./parts.tsx";
 import { activityOf } from "./activity.ts";
@@ -49,6 +49,7 @@ import type { Move } from "./moves.ts";
 import { useTaskPeople } from "./people.ts";
 import type { Seat } from "./people.ts";
 import { TimePop, useZones } from "../../../../../../ui/src/Time/index.tsx";
+import { belowPhone } from "../../../../../../ui/src/SidePane/layout.ts";
 
 type History = CapMap["tasks.history"]["out"];
 type TaskOut = CapMap["tasks.get"]["out"];
@@ -253,7 +254,8 @@ function TaskHead({ task, rt, nameOf, run, line, menu, kids, list, seats, openTa
       {/* the title wraps to as many lines as it needs (a phone, the side pane); Enter saves it, it never holds a line break */}
       <TextInput accessibilityLabel="Task title" testID="task-title" value={title} onFocus={() => { titleBase.current = task.version; }} onChangeText={(v) => setTitle(v.replace(/\n/g, ""))} onBlur={saveTitle} onSubmitEditing={saveTitle} multiline blurOnSubmit scrollEnabled={false} onContentSizeChange={(e) => setTitleH(Math.max(34, Math.ceil(e.nativeEvent.contentSize.height)))} style={[st.h1, { height: titleH }]} />
     </View>
-    {steps.length > 2 ? <BatonPath steps={steps} nameOf={nameOf} /> : null}
+    {steps.length > 2 && !soloPath(steps) ? <BatonPath steps={steps} nameOf={nameOf} /> : null}
+    {task.kind === "approve" && isOpenState(task.state as TaskState) && expiredOf(task, rt.clock().now) === null && soloPath(steps) ? <Text testID="task-waiting-you" style={st.waiting}>Waiting for your approval.</Text> : null}
     {turn ? <View style={st.liveLine}><LiveWords turn={turn} turns={rt.turns} name={nameOf(turn.agentId)} /></View> : null}
     <YourAction task={task} view={view} me={rt.me.id} run={run} menu={menu} list={list} mode={mode} setMode={setMode} nameOf={nameOf} />
     {line ? <Text accessibilityRole="alert" testID="task-line" style={st.error}>{line}</Text> : null}
@@ -302,10 +304,16 @@ function SourceChip({ task, rt, openChat }: { task: TaskFull; rt: ShellRuntime; 
   return <Chip label="From a journey" icon="flow" onPress={() => rt.open({ subject: { type: "journey", id: s.id } })} />;
 }
 
+/** The same person at every seat (an agent's request that the person approves for it): "You, You" says nothing. */
+export function soloPath(steps: ReadonlyArray<{ who?: { id: string } | undefined }>): boolean {
+  const ids = new Set(steps.flatMap((s) => (s.who ? [s.who.id] : [])));
+  return ids.size <= 1;
+}
+
 /** Whose hands it passes through: faces and names, the holder lit. */
 function BatonPath({ steps, nameOf }: { steps: ReturnType<typeof stepsOf>; nameOf(id: string): string }): ReactElement {
   // on a phone the path keeps to one line: short connectors, no indent
-  const tight = useWindowDimensions().width < 640;
+  const tight = belowPhone(useWindowDimensions().width);
   const out: ReactElement[] = [];
   for (const [i, s] of steps.entries()) {
     if (i > 0) out.push(<View key={`j${i}`} style={[st.pathLine, tight && st.pathLineTight]} />);
@@ -353,7 +361,9 @@ function YourAction({ task, view, me, run, menu, list, mode, setMode, nameOf }: 
 }
 
 function Btn({ label, onPress, primary = false, testID }: { label: string; onPress(e: unknown): void; primary?: boolean; testID?: string }): ReactElement {
-  return <Pressable accessibilityRole="button" accessibilityLabel={label} testID={testID} onPress={onPress} style={({ hovered }: { hovered?: boolean }) => [st.btn, primary && st.btnPrimary, hovered === true && !primary && { backgroundColor: "var(--hover)" as string }]}><Text style={[st.btnText, primary && { color: "var(--accent-ink)" as string }]}>{label}</Text></Pressable>;
+  // a phone's hit target is 44 px (the design system); the same 640 px phone line the join screens use
+  const phone = belowPhone(useWindowDimensions().width);
+  return <Pressable accessibilityRole="button" accessibilityLabel={label} testID={testID} onPress={onPress} style={({ hovered }: { hovered?: boolean }) => [st.btn, phone && { height: 44 }, primary && st.btnPrimary, hovered === true && !primary && { backgroundColor: "var(--hover)" as string }]}><Text style={[st.btnText, primary && { color: "var(--accent-ink)" as string }]}>{label}</Text></Pressable>;
 }
 
 function Block({ title, right, children }: { title?: string; right?: string; children: ReactNode }): ReactElement {
@@ -372,7 +382,13 @@ function TaskBody({ task, rt, nameOf, run, kids, people, openTask, openAgent, on
   if (held) blocks.push(<HeldMailCard key="mail" mail={held} call={rt.call} onOpenRecord={(id) => rt.open({ subject: { type: "record", id } })} />);
   else for (const [i, b] of task.blocks.entries()) if (b.type !== "question" && b.type !== "access_request" && b.type !== "mail_signin") blocks.push(<TaskBlock key={`${b.type}-${i}`} view={blockView(b)} />);
   if (task.kind === "answer") return <><AnswerBlock task={task} run={run} nameOf={nameOf} />{blocks.length ? <Block>{blocks}</Block> : null}</>;
-  if (task.kind === "approve") return <>{body}<Block title="Held until you approve">{blocks}<ActionButtons task={task} run={run} /></Block></>;
+  if (task.kind === "approve") {
+    const exp = expiredOf(task, rt.clock().now);
+    const ended = !isOpenState(task.state as TaskState) || exp !== null;
+    return <>{body}<Block title={ended ? "Held, not sent" : "Held until you approve"}>{blocks}
+      {exp !== null ? <Text testID="task-expired" style={[st.waiting, { paddingLeft: 0, paddingTop: 10 }]}>{`This request expired ${new Date(exp).toLocaleString()}. Ask for it again.`}</Text> : <ActionButtons task={task} run={run} flush />}
+    </Block></>;
+  }
   const access = accessRequestOf(task);
   if (task.kind === "unblock") return <>{body}{blocks.length ? <Block>{blocks}</Block> : null}<Block>{access && isOpenState(task.state as TaskState) ? <Btn label="Allow" primary testID="task-access-approve" onPress={() => void run("access.requests.approve", { requestId: access.requestId, ...(access.level ? { level: access.level } : {}) })} /> : null}{mailSignIn && openConnect && isOpenState(task.state as TaskState) ? <Btn label="Sign in again" primary testID="task-mailfix" onPress={() => void openConnect({ kind: "mailbox", provider: mailSignIn })} /> : <ActionButtons task={task} run={run} />}</Block></>;
   if (task.kind === "review") return <>{body}<DoneMeans task={task} run={run} />{blocks.length ? <Block title="Outputs">{blocks}</Block> : null}<Outputs task={task} rt={rt} /><Block><ActionButtons task={task} run={run} /></Block></>;
@@ -432,16 +448,24 @@ function Brief({ text, base, run, rt, taskId }: { text: string | undefined; base
 }
 
 /** The buttons a request carries, from the task itself. */
-function ActionButtons({ task, run }: { task: TaskFull; run(cap: string, input: Record<string, unknown>): Promise<boolean> }): ReactElement | null {
+/** When an open request ran out of time, else null: no Approve then, only the words. */
+export function expiredOf(task: { state: string; expiresAt?: number | undefined }, now: number): number | null {
+  return isOpenState(task.state as TaskState) && task.expiresAt !== undefined && now > task.expiresAt ? task.expiresAt : null;
+}
+
+/** A request that was not approved ends as Not approved, not as a bare Canceled. */
+export const endedWords = (task: { kind: string; state: string }): string => (task.kind === "approve" && task.state === "canceled" ? "Not approved" : stateTitle(task.state as TaskState));
+
+function ActionButtons({ task, run, flush = false }: { task: TaskFull; run(cap: string, input: Record<string, unknown>): Promise<boolean>; flush?: boolean }): ReactElement | null {
   const [need, setNeed] = useState<string | null>(null);
   const [note, setNote] = useState("");
-  if (!isOpenState(task.state as TaskState)) return <Text style={st.doneLine}>{`${stateTitle(task.state as TaskState)}${task.workingNotes["answer"] ? `: ${task.workingNotes["answer"]}` : ""}`}</Text>;
+  if (!isOpenState(task.state as TaskState)) return <Text style={[st.doneLine, task.kind === "approve" && task.state === "canceled" && { color: "var(--ink-3)" as string }]}>{`${endedWords(task)}${task.workingNotes["answer"] ? `: ${task.workingNotes["answer"]}` : ""}`}</Text>;
   const press = (key: string, required: boolean): void => { if (required && !note.trim()) { setNeed(key); return; } void run("tasks.act", { action: key, ...(note.trim() ? { note: note.trim() } : {}) }); };
   const buttons: ReactElement[] = [];
   for (const [i, a] of task.actions.entries()) buttons.push(<Btn key={a.key} label={a.label} primary={i === 0} testID={`task-act-${a.key}`} onPress={() => press(a.key, a.note === "required")} />);
   return <View style={st.actionForm}>
     {need ? <TextInput autoFocus accessibilityLabel="Add a note" placeholder="Add a note" placeholderTextColor="var(--ink-3)" value={note} onChangeText={setNote} multiline style={[st.input, { minHeight: 56 }]} /> : null}
-    <View style={st.actions}>{buttons}</View>
+    <View style={[st.actions, flush && { paddingLeft: 0 }]}>{buttons}</View>
   </View>;
 }
 
@@ -612,7 +636,7 @@ function Rail({ task, rt, nameOf, run, menu, seats, openTask, kidsCount, begin }
     customRows.push(<KV key={f.key} label={f.title} testID={`rail-field-${f.key}`}><TextInput accessibilityLabel={f.title} placeholder="Add" placeholderTextColor="var(--ink-4)" defaultValue={v === undefined ? "" : String(v)} onEndEditing={(e) => { const t = e.nativeEvent.text.trim(); if (t !== String(v ?? "")) void run("tasks.update", { fields: { [f.key]: t === "" ? null : t } }); }} style={st.kvInput} /></KV>);
   }
   return <ScrollView testID="task-rail" contentContainerStyle={st.rail}>
-    <KV label="Status" testID="rail-status" onPress={(e) => { const at = pointAt(e); menu.show(statusEntries(task, rt.me.id, run, begin), at.x, at.y, "other", { label: "Status" }); }}><View style={st.kvFace}><StatusDot state={task.state as TaskState} size={13} /><Text style={st.kvVal}>{stateTitle(task.state as TaskState)}</Text></View></KV>
+    <KV label="Status" testID="rail-status" onPress={(e) => { const at = pointAt(e); menu.show(statusEntries(task, rt.me.id, run, begin), at.x, at.y, "other", { label: "Status" }); }}><View style={st.kvFace}><StatusDot state={task.state as TaskState} size={13} /><Text style={st.kvVal}>{endedWords(task)}</Text></View></KV>
     <KV label="Assigned" testID="rail-assigned" onPress={(e) => slotMenu("assigned", e)}>{person("assigned", task.assigned)}</KV>
     {(task.assigned.kind === "group" || task.assigned.kind === "role") ? <KV label="Taken by" testID="rail-taken" {...(canTake(task) ? { onPress: () => void run("tasks.take", {}) } : canRelease(task, rt.me.id) ? { onPress: () => void run("tasks.release", {}) } : {})}>{task.takenBy ? <Text numberOfLines={1} style={st.kvVal}>{task.takenBy === rt.me.id ? "You (give it back)" : nameOf(task.takenBy)}</Text> : <Text style={st.kvAdd}>{canTake(task) ? "Take it" : "Nobody yet"}</Text>}</KV> : null}
     <KV label="Reviewer" testID="rail-reviewer" onPress={(e) => slotMenu("reviewer", e)}>{person("reviewer", task.reviewer)}</KV>
@@ -635,8 +659,13 @@ function Rail({ task, rt, nameOf, run, menu, seats, openTask, kidsCount, begin }
     <Text style={st.notesHead}>Working notes</Text>
     <NotesEditor saved={task.workingNotes[NOTES_KEY] ?? ""} run={run} />
     {noteRows}
-    <Text style={st.quiet}>{`${KIND_TITLE[task.kind] ?? task.kind}${kidsCount ? ` · ${kidsCount} under it` : ""}`}</Text>
+    {railFootnote(kidsCount) ? <Text style={st.quiet}>{railFootnote(kidsCount)}</Text> : null}
   </ScrollView>;
+}
+
+/** The line at the foot of the rail: only what sits under the task. The kind is never printed bare ("Approve" says nothing). */
+export function railFootnote(kidsCount: number): string {
+  return kidsCount ? `${kidsCount} under it` : "";
 }
 
 function ProjectName({ rt, recordId }: { rt: ShellRuntime; recordId: string }): ReactElement {
@@ -693,7 +722,7 @@ const st = StyleSheet.create({
   actions: { flexDirection: "row", flexWrap: "wrap", gap: 6, paddingLeft: 36, paddingTop: 14 },
   actionForm: { gap: 2, paddingTop: 10 },
   input: { marginLeft: 36, padding: 10, minHeight: 38, borderRadius: 9, fontSize: 14, color: "var(--ink)" as string, backgroundColor: "var(--sunk)" as string, outlineStyle: "none", outlineWidth: 0 } as object,
-  btn: { height: 32, justifyContent: "center", paddingHorizontal: 13, borderRadius: 9 },
+  btn: { height: 32, justifyContent: "center", paddingHorizontal: 13, borderRadius: 12 },
   btnPrimary: { backgroundColor: "var(--accent)" as string },
   btnText: { fontSize: 13.5, fontWeight: "600", color: "var(--ink-2)" as string },
   error: { paddingLeft: 36, paddingTop: 10, fontSize: 13, color: "var(--danger)" as string },
