@@ -167,7 +167,12 @@ export function createTmuxHost(o: TmuxOptions): TerminalHost {
   };
   if (o.control) {
     const control = o.control;
-    host.stream = (terminalId, onFrame) => control(nameOf(terminalId), (line) => { const f = frameOf(line); if (f !== null) onFrame(f); });
+    host.stream = (terminalId, onFrame) => {
+      // Stopping a viewer ends its tmux client, which takes a moment: lines it had already written still arrive. Once stop() has been called nothing more may reach the viewer.
+      let live = true;
+      const stop = control(nameOf(terminalId), (line) => { if (!live) return; const f = frameOf(line); if (f !== null) onFrame(f); });
+      return () => { live = false; stop(); };
+    };
   }
   return host;
 }

@@ -232,3 +232,16 @@ test("the module end to end on tmux: an agent's command, the person's typing, th
   assert.equal(tm.sessions.size, 0);
   assert.equal(codeOf(await h["terminal.read"]!(hn.ctx, { terminalId: r.terminalId }).catch((e: unknown) => e)), "validation.not_found");
 });
+
+test("stream: a viewer that has stopped gets nothing more, even when its tmux client still delivers lines it had already written", async () => {
+  // a real `tmux -C attach` is ended asynchronously: lines already in its pipe arrive after stop() returned
+  const lines = new Map<string, (line: string) => void>();
+  const host = createTmuxHost({ exec: fakeTmux().exec, control: (session, onLine) => { lines.set(session, onLine); return () => undefined; }, pollMs: 50 });
+  const got: string[] = [];
+  const stop = host.stream!("trm_a1", (f) => got.push(f));
+  const push = lines.get("vyre-trm_a1")!;
+  push("%output %1 first\\015\\012");
+  stop();
+  push("%output %1 late\\015\\012");
+  assert.deepEqual(got.map((f) => f.trim()), ["first"], "the line that arrived after stop() never reaches the viewer");
+});

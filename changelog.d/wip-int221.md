@@ -7,3 +7,4 @@ The fake claude CLI keeps no session file under --no-session-persistence, so the
 The room pack live test reads the digest from the last tag with the pack on, not from the median-by-time run, which on a slow runner can be the first tag (it starts the digest and carries none).
 Files menu actions (Trash, Restore, folder delete, folder move) tell the person when the Space refuses them. The usage-limit cause test pins the clock and checks later today, tomorrow and a date.
 Status cards on a quiet line get their row style (it was used but never defined); the block registry test counts result_card, progress_card and status_card (36).
+A terminal live viewer that has stopped gets no more lines, even those its tmux client had already written (the tmux heavy test "the viewer that left gets nothing more" no longer depends on timing).
