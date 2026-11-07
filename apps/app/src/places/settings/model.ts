@@ -221,7 +221,7 @@ export function controlFor(row: SettingRow, schema: Schema | undefined = HINTS[r
   const v = row.default;
   if (typeof v === "boolean") return { kind: "switch" };
   if (typeof v === "number") return { kind: "number", ...(schema?.minimum !== undefined ? { min: schema.minimum } : {}), ...(schema?.maximum !== undefined ? { max: schema.maximum } : {}), step: v >= 1000 ? 100 : 1 };
-  if (typeof v === "string") return { kind: "text", ...(schema?.pattern ? { pattern: schema.pattern } : {}), ...(row.key.includes("handle") ? { mono: true } : {}) };
+  if (typeof v === "string") return { kind: "text", ...(schema?.pattern ? { pattern: schema.pattern } : {}) };
   if (Array.isArray(v)) return { kind: "list" };
   return { kind: "summary" };
 }

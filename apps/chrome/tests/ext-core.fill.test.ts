@@ -185,13 +185,24 @@ async function worker(app: FakeApp, url = "https://login.acme.test/signin") {
 const sender = { id: "ext_vyre" };
 const popup = (w: any, msg: Msg) => w.onMessage(msg, sender);
 
+/**
+ * Which of `values` appear in what the app received: every string and number is searched, ref ids included. A long secret (8 or more characters) is a hit on any occurrence; a short code (737) is a hit
+ * when a value equals it or holds it as a whole token, so a random hex id like "w1-7376d7a8..." that happens to contain the digits is not.
+ */
+function secretsIn(received: unknown, values: string[]): string[] {
+  const strings: string[] = [];
+  const walk = (x: unknown): void => { if (typeof x === "string") strings.push(x); else if (typeof x === "number") strings.push(String(x)); else if (Array.isArray(x)) x.forEach(walk); else if (x !== null && typeof x === "object") Object.values(x).forEach(walk); };
+  walk(received);
+  const holds = (h: string, v: string): boolean => (v.length >= 8 ? h.includes(v) : h === v || new RegExp(`(?<![A-Za-z0-9])${v.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![A-Za-z0-9])`).test(h));
+  return values.filter((v) => strings.some((h) => holds(h, v)));
+}
+
 function assertNoValueAnywhere(b: { areas: Record<string, { writes: string[]; data: object }> }, app: FakeApp, values: string[]) {
   const hay = [JSON.stringify(Object.values(b.areas).map((a) => a.data)), ...Object.values(b.areas).flatMap((a) => a.writes), ...logged];
   for (const v of values) {
     for (const h of hay) assert.ok(!h.includes(v), `a stored or logged string contains a secret value`);
   }
-  const toApp = JSON.stringify(app.received);
-  for (const v of values) assert.ok(!toApp.includes(v), "the worker sent a secret value to the app");
+  assert.deepEqual(secretsIn(app.received, values), [], "the worker sent a secret value to the app");
 }
 
 // ---------- fill ----------
@@ -710,4 +721,12 @@ test("a page with no card field does not list cards", async () => {
   const st = await popup(b.w, { type: "popup.state" });
   assert.equal(st.data.cardFields, undefined);
   assert.equal(st.data.cards, undefined);
+});
+
+test("the secret check fires: a short code as its own value, as a whole token in a ref, and a card number inside a longer string are all caught; a hex id that only contains the digits is not", () => {
+  assert.deepEqual(secretsIn({ type: "x", code: "737" }, [CVV]), [CVV], "the code as a value of its own");
+  assert.deepEqual(secretsIn({ target: { kind: "browser", ref: "w1-737" } }, [CVV]), [CVV], "the code as a whole token in a ref field");
+  assert.deepEqual(secretsIn({ note: `paid with ${CARD} today` }, [CARD]), [CARD], "the full card number inside a longer string");
+  assert.deepEqual(secretsIn({ code: 737 }, [CVV]), [CVV], "the code as a number");
+  assert.deepEqual(secretsIn({ target: { ref: "w1-7376d7a86a6ef3c9dd170826" } }, [CVV, CARD]), [], "a random id that merely contains the digits is not a leak");
 });

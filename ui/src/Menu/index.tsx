@@ -233,6 +233,8 @@ export interface MenuViewProps extends MenuProps {
   onClose?: () => void;
   /** What was right-clicked, passed to the report sheet. */
   reportContext?: ReportContext;
+  /** The trigger's right edge. When the menu will not fit to the right of x it flips: its right edge lines up with this, then it clamps 8 px inside the window. */
+  anchorRight?: number;
 }
 
 const MENU_W = 220;
@@ -312,7 +314,8 @@ export function Menu(props: MenuViewProps): ReactElement | null {
 
   if (gone) return null;
 
-  const { left, top } = clampMenu(props.x ?? 0, props.y ?? 0, size.w, size.h, window.width, window.height);
+  const left = menuLeft(props.x ?? 0, size.w, window.width, props.anchorRight);
+  const { top } = clampMenu(props.x ?? 0, props.y ?? 0, size.w, size.h, window.width, window.height);
   const rows: ReactNode[] = [];
   for (let i = 0; i < entries.length; i++) {
     const entry = entries[i];
@@ -420,6 +423,7 @@ function MenuRow({ entry, lit, onHover, onChoose, nodeRef }: {
 /* ---------- opening a menu from a surface ---------- */
 
 export interface OpenMenu {
+  anchorRight?: number;
   items: readonly MenuEntry[];
   x: number;
   y: number;
@@ -490,6 +494,7 @@ export function menuTrigger(open: (x: number, y: number) => void): Record<string
       if (event.key !== "ContextMenu" && !(event.key === "F10" && event.shiftKey === true)) return;
       event.preventDefault?.();
       const box = event.currentTarget?.getBoundingClientRect?.();
+      noteAnchor(event.currentTarget);
       open(box?.left ?? 0, box?.bottom ?? 0);
     },
   };
@@ -497,11 +502,11 @@ export function menuTrigger(open: (x: number, y: number) => void): Record<string
 
 /* ---------- anchoring to the button that was pressed ---------- */
 
-interface RectLike { left: number; bottom: number }
+interface RectLike { left: number; right?: number; bottom: number }
 interface AnchorEl { getBoundingClientRect?: () => RectLike; closest?: (selector: string) => AnchorEl | null }
 
 const BUTTONISH = "button, [role=button], [role=menuitem], [role=tab], a[href], summary";
-let lastAnchor: { x: number; y: number } | null = null;
+let lastAnchor: { x: number; y: number; right?: number } | null = null;
 let listening = false;
 
 /** Remembers where the control under `target` sits (its left edge and bottom). Called for every press and for Enter or Space on a focused control. */
@@ -510,7 +515,7 @@ export function noteAnchor(target: unknown): void {
   if (el === null || el === undefined) return;
   const host = typeof el.closest === "function" ? (el.closest(BUTTONISH) ?? el) : el;
   const rect = typeof host.getBoundingClientRect === "function" ? host.getBoundingClientRect() : null;
-  if (rect !== null && Number.isFinite(rect.left) && Number.isFinite(rect.bottom)) lastAnchor = { x: rect.left, y: rect.bottom + 4 };
+  if (rect !== null && Number.isFinite(rect.left) && Number.isFinite(rect.bottom)) lastAnchor = { x: rect.left, y: rect.bottom + 4, ...(typeof rect.right === "number" && Number.isFinite(rect.right) ? { right: rect.right } : {}) };
 }
 
 /** One document listener, installed once on web. A menu opened by a button that has no pointer position (the caller passes -1, or nothing) lands under that button. */
@@ -530,13 +535,29 @@ export function resolveMenuPoint(x: number, y: number): { x: number; y: number }
   return lastAnchor ?? { x: 6, y: 6 };
 }
 
+/**
+ * The right edge of the control a menu opens from, for the flip. A menu opened at a control's left edge (what every button caller passes, or -1 for "under the pressed button") belongs to the control
+ * last pressed, so its right edge is known from that control's own rect. A menu opened at the pointer (a right-click) has no trigger and does not flip to one.
+ */
+export function anchorRightFor(x: number): number | undefined {
+  if (lastAnchor?.right === undefined) return undefined;
+  const unknown = !Number.isFinite(x) || x < 0;
+  return unknown || Math.abs(x - lastAnchor.x) < 1 ? lastAnchor.right : undefined;
+}
+
+/** Where a menu's left edge goes: at x, or, when it would not fit to the right of x, with its right edge on the trigger's; then 8 px inside the window. */
+export function menuLeft(x: number, width: number, viewW: number, anchorRight: number | undefined, margin = 8): number {
+  const flipped = anchorRight !== undefined && x + width > viewW - margin ? anchorRight - width : x;
+  return Math.max(margin, Math.min(flipped, viewW - width - margin));
+}
+
 /** Forgets the remembered control (tests). */
 export function resetAnchor(): void { lastAnchor = null; }
 
 /** One open menu for a surface. `element` goes anywhere in the tree; `show` opens it at a point. */
 export function useMenu(): {
   element: ReactElement | null;
-  show: (items: readonly MenuEntry[], x: number, y: number, source?: MenuSource, context?: ReportContext, opts?: { search?: string; width?: number; onSearch?: (query: string) => void }) => void;
+  show: (items: readonly MenuEntry[], x: number, y: number, source?: MenuSource, context?: ReportContext, opts?: { search?: string; width?: number; onSearch?: (query: string) => void; anchorRight?: number }) => void;
   hide: () => void;
   /** New rows for the menu that is open, in place: it stays where it is, with its search and its lit row (a ticked filter row, a label made). Nothing when no menu is open. */
   update: (items: readonly MenuEntry[]) => void;
@@ -544,17 +565,18 @@ export function useMenu(): {
   const [open, setOpen] = useState<OpenMenu | null>(null);
   const counter = useRef(0);
   useEffect(() => { listenForPresses(); }, []);
-  const show = useCallback((items: readonly MenuEntry[], x: number, y: number, source: MenuSource = "context", context?: ReportContext, opts?: { search?: string; width?: number; onSearch?: (query: string) => void }) => {
+  const show = useCallback((items: readonly MenuEntry[], x: number, y: number, source: MenuSource = "context", context?: ReportContext, opts?: { search?: string; width?: number; onSearch?: (query: string) => void; anchorRight?: number }) => {
     counter.current += 1;
+    const anchorRight = opts?.anchorRight ?? anchorRightFor(x);
     const at = resolveMenuPoint(x, y);
     x = at.x;
     y = at.y;
-    setOpen({ items, x, y, source, nonce: counter.current, ...(context === undefined ? {} : { context }), ...(opts?.search === undefined ? {} : { search: opts.search }), ...(opts?.width === undefined ? {} : { width: opts.width }), ...(opts?.onSearch === undefined ? {} : { onSearch: opts.onSearch }) });
+    setOpen({ items, x, y, source, nonce: counter.current, ...(context === undefined ? {} : { context }), ...(anchorRight === undefined ? {} : { anchorRight }), ...(opts?.search === undefined ? {} : { search: opts.search }), ...(opts?.width === undefined ? {} : { width: opts.width }), ...(opts?.onSearch === undefined ? {} : { onSearch: opts.onSearch }) });
   }, []);
   const hide = useCallback(() => setOpen(null), []);
   const update = useCallback((items: readonly MenuEntry[]) => setOpen((o) => (o === null ? null : { ...o, items })), []);
   const element = open === null ? null : (
-    <Menu key={open.nonce} items={open.items} x={open.x} y={open.y} source={open.source} onClose={hide} {...(open.context === undefined ? {} : { reportContext: open.context })} {...(open.search === undefined ? {} : { search: open.search })} {...(open.width === undefined ? {} : { width: open.width })} {...(open.onSearch === undefined ? {} : { onSearch: open.onSearch })} />
+    <Menu key={open.nonce} items={open.items} x={open.x} y={open.y} {...(open.anchorRight === undefined ? {} : { anchorRight: open.anchorRight })} source={open.source} onClose={hide} {...(open.context === undefined ? {} : { reportContext: open.context })} {...(open.search === undefined ? {} : { search: open.search })} {...(open.width === undefined ? {} : { width: open.width })} {...(open.onSearch === undefined ? {} : { onSearch: open.onSearch })} />
   );
   return { element, show, hide, update };
 }
