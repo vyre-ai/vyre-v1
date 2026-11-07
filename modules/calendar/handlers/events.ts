@@ -766,13 +766,14 @@ export interface IngestIn {
 }
 
 /** Land one provider event: upsert by provider id, then merge with a meeting on time plus guests or on the join link. */
-export async function ingestEvent(ctx: CalCtx, input: IngestIn): Promise<{ eventId: string; meetingId?: string; merged: boolean }> {
+export async function ingestEvent(ctx: CalCtx, input: IngestIn, prefetched?: Row | null): Promise<{ eventId: string; meetingId?: string; merged: boolean }> {
   ensure(ctx);
   if (input.source !== "google" && input.source !== "microsoft") bad(ctx, "The source is google or microsoft.");
   if (!isId("cld", input.calendarId)) bad(ctx, "That is not a calendar id.");
   const providerId = clean(ctx, input.providerId, "The provider id", 1000, true) ?? "";
   if (!first(ctx.db.all(`SELECT id FROM calendar_list WHERE id = ? AND deleted_at IS NULL`, input.calendarId))) missing(ctx, "There is no such calendar.");
-  const have = first(ctx.db.all(`SELECT * FROM calendar_event WHERE "calendarId" = ? AND "providerId" = ?`, input.calendarId, providerId));
+  // a pull reads the events of a whole page in one query and passes each one in (null: known to be absent); a lone ingest looks its event up
+  const have = prefetched !== undefined ? (prefetched ?? undefined) : first(ctx.db.all(`SELECT * FROM calendar_event WHERE "calendarId" = ? AND "providerId" = ?`, input.calendarId, providerId));
   const now = ctx.now();
   if (input.deleted === true) {
     if (!have) {
@@ -1073,6 +1074,26 @@ const parseCursor = (c: string | null): { updatedMin: number; fullAt: number } |
   const m = c ? /^u1:(\d+):(\d+)$/.exec(c) : null;
   return m ? { updatedMin: Number(m[1]), fullAt: Number(m[2]) } : null;
 };
+/**
+ * The rows already held for one batch of provider events, read in one query instead of one per event. `rowFor` answers the stored row, null when the event is certainly new, and undefined when it
+ * cannot know (the same provider id came twice in the batch, so the ingest looks it up itself).
+ */
+function preloadEvents(ctx: CalCtx, calendarId: string, providerIds: readonly string[]): (providerId: string) => Row | null | undefined {
+  const held = new Map<string, Row>();
+  for (let i = 0; i < providerIds.length; i += 400) {
+    const part = providerIds.slice(i, i + 400);
+    if (part.length === 0) continue;
+    for (const row of rowsOf(ctx.db.all(`SELECT * FROM calendar_event WHERE "calendarId" = ? AND "providerId" IN (${part.map(() => "?").join(", ")})`, calendarId, ...part))) held.set(str(row, "providerId"), row);
+  }
+  const seen = new Set<string>();
+  return (providerId) => {
+    const row = held.get(providerId);
+    const again = seen.has(providerId);
+    seen.add(providerId);
+    return again ? undefined : (row ?? null);
+  };
+}
+
 /** Let the event loop run: the pull lands events with synchronous SQLite, so after a batch it steps aside for requests. */
 const YIELD_EVERY_MS = 20;
 const yieldLoop = (): Promise<void> => new Promise((r) => setImmediate(r));
@@ -1090,10 +1111,10 @@ async function pullGoogle(ctx: CalCtx, calendarId: string, connectionId: string,
     for (let page = 0; page < MAX_PAGES; page++) {
       const query: Json = token ? { syncToken: token } : { timeMin: isoOf(now - PULL_BEHIND), timeMax: isoOf(now + PULL_AHEAD), ...(since !== null ? { updatedMin: isoOf(since) } : {}) };
       const res = obj(await ctx.call("google.calendar.list_events", { connectionId, calendarId: remoteId, ...(account ? { as: account } : {}), ...query, ...(pageToken ? { pageToken } : {}) }));
-      for (const raw of list(res.events).map(obj)) {
-        const ing = fromGoogle(calendarId, raw);
-        if (!ing) continue;
-        await ingestEvent(ctx, ing);
+      const items = list(res.events).map(obj).map((raw) => fromGoogle(calendarId, raw)).filter((x): x is NonNullable<typeof x> => x !== null);
+      const rowFor = preloadEvents(ctx, calendarId, items.map((x) => x.providerId.trim()));
+      for (const ing of items) {
+        await ingestEvent(ctx, ing, rowFor(ing.providerId.trim()));
         if (ing.deleted) removed++;
         else upserted++;
         await step();
@@ -1131,10 +1152,10 @@ async function pullGraph(ctx: CalCtx, calendarId: string, connectionId: string, 
     let upserted = 0;
     let removed = 0;
     const step = makeYielder();
-    for (const raw of list(res.changed).map(obj)) {
-      const ing = fromGraph(calendarId, raw);
-      if (!ing) continue;
-      await ingestEvent(ctx, ing);
+    const changed = list(res.changed).map(obj).map((raw) => fromGraph(calendarId, raw)).filter((x): x is NonNullable<typeof x> => x !== null);
+    const rowFor = preloadEvents(ctx, calendarId, changed.map((x) => x.providerId.trim()));
+    for (const ing of changed) {
+      await ingestEvent(ctx, ing, rowFor(ing.providerId.trim()));
       if (ing.deleted) removed++;
       else upserted++;
       await step();

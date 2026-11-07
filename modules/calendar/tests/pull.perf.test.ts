@@ -75,6 +75,7 @@ test("a 5,000 event calendar lands without holding the event loop (budget 200 ms
   assert.ok(first.maxMs <= 200, `the first pull held the loop ${first.maxMs} ms`);
   h.advance(120_000);
   pages();
+  const writesBefore = h.rows(`SELECT sum(version) AS v, count(*) AS n FROM calendar_event WHERE "calendarId" = ?`, GOOG)[0]!;
   const t0 = performance.now();
   await pullProviderCalendars(svc(h));
   const ms = performance.now() - t0, second = lag.take();
@@ -82,4 +83,7 @@ test("a 5,000 event calendar lands without holding the event loop (budget 200 ms
   t.diagnostic(`first pull max lag ${first.maxMs} ms; second pull ${Math.round(ms)} ms, max lag ${second.maxMs} ms`);
   assert.ok(second.maxMs <= 200, `the second pull held the loop ${second.maxMs} ms`);
   assert.ok(ms < 5000, `the second pull took ${Math.round(ms)} ms`);
+  // 5,000 unchanged events are read in batches and none of them is written again: no row's version moved, and none was added
+  const writesAfter = h.rows(`SELECT sum(version) AS v, count(*) AS n FROM calendar_event WHERE "calendarId" = ?`, GOOG)[0]!;
+  assert.deepEqual([writesAfter.v, writesAfter.n], [writesBefore.v, writesBefore.n], "the second pass wrote nothing for unchanged events");
 });
