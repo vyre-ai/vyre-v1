@@ -2,7 +2,7 @@
 // and live here: which chats count as long, the hour marks, the jump points (release tagged, PR merged, task done, a decision), "While you were away" (quiet messages since the person last looked fold into one row,
 // the things that need them stay), and what the session Overview in the right pane lists. Nothing here draws or reads the network; the tests drive every rule.
 import { durationWords } from "../../../../../../lib/duration.ts";
-import { timeLabel, workOf } from "../conversation/model.ts";
+import { clockParts, timeLabel, workOf } from "../conversation/model.ts";
 import type { Clock, Item, Message } from "../conversation/model.ts";
 
 /** A chat is a long session once it has run for hours with real traffic: 40 messages over an hour (the chat loads its last 50, so a full page counts), or three hours with a handful. A short chat keeps the plain timeline. */
@@ -29,14 +29,11 @@ export function isLong(messages: readonly Pick<Message, "createdAt">[]): boolean
 
 /** "8 PM", "12 AM": the hour of a moment in the clock the chat reads in. */
 export function hourLabel(ts: number, c: Clock): string {
-  const h = Number(timeLabel(ts, c).slice(0, 2));
+  const h = clockParts(ts, c).hour;
   return `${h % 12 === 0 ? 12 : h % 12} ${h < 12 ? "AM" : "PM"}`;
 }
-/** "11:48 PM": a time of day the way the prototype writes it. */
-export function timeWords(ts: number, c: Clock): string {
-  const [h, m] = timeLabel(ts, c).split(":").map(Number) as [number, number];
-  return `${h % 12 === 0 ? 12 : h % 12}:${String(m).padStart(2, "0")} ${h < 12 ? "AM" : "PM"}`;
-}
+/** "11:48 PM": a time of day, the chat's one format. */
+export const timeWords = timeLabel;
 /** The absolute hour a moment is in: hour marks only ever move to a later one. */
 const hourBucket = (ts: number): number => Math.floor(ts / HOUR);
 
@@ -139,8 +136,8 @@ export interface SessionOptions {
 
 /** "9:40 to 11:46 PM", or "9:40 PM to 12:10 AM" when the two sides differ. */
 function spanWords(a: number, b: number, c: Clock): string {
-  const t = (ts: number): string => { const [h, m] = timeLabel(ts, c).split(":").map(Number) as [number, number]; return `${h % 12 === 0 ? 12 : h % 12}:${String(m).padStart(2, "0")}`; };
-  const ap = (ts: number): string => (Number(timeLabel(ts, c).slice(0, 2)) < 12 ? "AM" : "PM");
+  const t = (ts: number): string => timeLabel(ts, c).replace(/ [AP]M$/, "");
+  const ap = (ts: number): string => (clockParts(ts, c).hour < 12 ? "AM" : "PM");
   return ap(a) === ap(b) ? `${t(a)} to ${t(b)} ${ap(b)}` : `${t(a)} ${ap(a)} to ${t(b)} ${ap(b)}`;
 }
 

@@ -173,3 +173,14 @@ test("hour marks only move forward: an away row that began in an earlier hour th
   const labels = rows.filter((r) => r.kind === "hour").map((r) => (r as { label: string }).label);
   assert.deepEqual(labels, ["8 PM", "11 PM", "1 AM"], "forward only: no 10 PM after 11 PM");
 });
+
+test("every chat reads times in the one format: 9:05 AM, 12:00 PM, 12:30 AM, in a shared place and a private one", async () => {
+  const { timeLabel } = await import("../conversation/model.ts");
+  const priv = { now: 0, offsetMin: 0 };
+  assert.equal(timeLabel(Date.UTC(2026, 10, 5, 9, 5), priv), "9:05 AM");
+  assert.equal(timeLabel(Date.UTC(2026, 10, 5, 12, 0), priv), "12:00 PM");
+  assert.equal(timeLabel(Date.UTC(2026, 10, 5, 0, 30), priv), "12:30 AM");
+  assert.equal(timeLabel(Date.UTC(2026, 10, 5, 23, 59), priv), "11:59 PM");
+  const shared = { now: 0, offsetMin: 300, zones: { space: "America/Los_Angeles", viewer: "Asia/Karachi" } };
+  assert.equal(timeLabel(Date.parse("2026-11-05T17:05:00Z"), shared), "9:05 AM");
+});
