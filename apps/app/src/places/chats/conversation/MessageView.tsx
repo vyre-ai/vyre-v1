@@ -846,7 +846,7 @@ export const st = StyleSheet.create({
   day: { alignSelf: "center", fontSize: META_PX, color: "var(--ink-3)" as string, marginTop: 28, marginBottom: 8 },
   eventCard: { flexShrink: 1, flexGrow: 1, minWidth: 0 },
   // a status card on a quiet or system line stands alone on its own row, the way a card does elsewhere in the feed
-  eventCardRow: { marginTop: 6, minWidth: 0 },
+  eventCardRow: { marginTop: 8, minWidth: 0 },
   eventCentre: { justifyContent: "center" },
   event: { minHeight: 24, flexDirection: "row", alignItems: "center", gap: 8, marginTop: 6, marginBottom: 0 },
   eventDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: "var(--ink-4)" as string },
