@@ -190,9 +190,13 @@ function assertNoValueAnywhere(b: { areas: Record<string, { writes: string[]; da
   for (const v of values) {
     for (const h of hay) assert.ok(!h.includes(v), `a stored or logged string contains a secret value`);
   }
-  // the browser refs are random hex ids ("w1-7376d7a8..."); a 3-digit code like 737 appeared in one about 1 run in 8 and failed this check by chance, so the ids are blanked first
-  const toApp = JSON.stringify(app.received).replace(/"ref":"[^"]*"/g, '"ref":""');
-  for (const v of values) assert.ok(!toApp.includes(v), "the worker sent a secret value to the app");
+  // every string value the app received is searched, ref ids included. A long secret fails on any occurrence; a short code (737) fails when a value equals it or holds it as a whole token,
+  // so a random hex id like "w1-7376d7a8..." that happens to contain the digits is not a hit
+  const strings: string[] = [];
+  const walk = (x: unknown): void => { if (typeof x === "string") strings.push(x); else if (typeof x === "number") strings.push(String(x)); else if (Array.isArray(x)) x.forEach(walk); else if (x !== null && typeof x === "object") Object.values(x).forEach(walk); };
+  walk(app.received);
+  const holds = (h: string, v: string): boolean => (v.length >= 8 ? h.includes(v) : h === v || new RegExp(`(?<![A-Za-z0-9])${v.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![A-Za-z0-9])`).test(h));
+  for (const v of values) assert.ok(!strings.some((h) => holds(h, v)), "the worker sent a secret value to the app");
 }
 
 // ---------- fill ----------
