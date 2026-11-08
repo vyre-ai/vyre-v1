@@ -100,11 +100,16 @@ export function useScreenQuery<T>(screenId: string, name: string, state: Record<
 }
 
 /** A live capability query. The input is compared by value. */
-export function useLive<C extends LiveCap>(cap: C, input: CapMap[C]["in"]): QueryState<CapMap[C]["out"]> {
+/** A query that is never asked: it stays loading and sends nothing (a read that needs an id it doesn't have yet). */
+const IDLE: { subscribe: (cb: () => void) => () => void; getSnapshot: () => QueryState<never> } = { subscribe: () => () => undefined, getSnapshot: (): QueryState<never> => IDLE_STATE };
+const IDLE_STATE: QueryState<never> = { status: "loading" };
+
+/** A live read. With `input` null nothing is sent: the server is never asked with an empty id. */
+export function useLive<C extends LiveCap>(cap: C, input: CapMap[C]["in"] | null): QueryState<CapMap[C]["out"]> {
   const { live } = useFilesData();
-  const key = JSON.stringify(input);
-  const q = useMemo(() => live(cap, JSON.parse(key) as CapMap[C]["in"]), [live, cap, key]);
-  return useSyncExternalStore(q.subscribe, q.getSnapshot, q.getSnapshot);
+  const key = input === null ? null : JSON.stringify(input);
+  const q = useMemo(() => (key === null ? IDLE : live(cap, JSON.parse(key) as CapMap[C]["in"])), [live, cap, key]);
+  return useSyncExternalStore(q.subscribe, q.getSnapshot, q.getSnapshot) as QueryState<CapMap[C]["out"]>;
 }
 
 export function useFolderNodes(): QueryState<readonly FolderNode[]> {

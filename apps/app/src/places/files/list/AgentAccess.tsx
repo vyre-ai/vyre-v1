@@ -28,7 +28,7 @@ const ACCESS_LINE: Record<Access, string> = { on: "Agents read files. Redacted p
 const CHECK = `${SVG}<path d="M3 8.5l3 3 7-7"/></svg>`;
 
 export function useAgentStates(folderId: string | undefined): AgentStates | null {
-  const q = useLive("files.agent_states" as never, (folderId ? { folderId } : { folderId: "" }) as never);
+  const q = useLive("files.agent_states" as never, (folderId ? { folderId } : null) as never);
   if (!folderId) return null;
   return q.status === "ready" ? (q.data as unknown as AgentStates) : null;
 }

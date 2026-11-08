@@ -434,3 +434,15 @@ test("a file's modified time reads in the Space's zone, whatever the viewer's of
     assert.equal(updatedText(now - 3_600_000, now, 300), "12:00 AM", "midnight in the Space, not 1 PM in Karachi");
   } finally { setCurrentZones(null); }
 });
+
+test("a list that is not a folder (Recent, the top of Files) never asks for agent states with an empty folder id", () => {
+  const sample = createSampleFiles(northwind);
+  const asked: unknown[] = [];
+  const live = sample.data.live.bind(sample.data);
+  sample.data.live = ((cap: string, input: unknown) => { if (cap === "files.agent_states") asked.push(input); return live(cap as never, input as never); }) as typeof sample.data.live;
+  wrap(sample, { where: { kind: "recent" } }, <FilesList />);
+  wrap(sample, { where: { kind: "folder", id: null } }, <FilesList />);
+  assert.deepEqual(asked, [], "no folder, no read: the server is never asked with folderId \"\"");
+  wrap(sample, folder("fld_daily"), <FilesList />);
+  assert.ok(asked.length > 0 && asked.every((x) => typeof (x as { folderId?: unknown }).folderId === "string" && (x as { folderId: string }).folderId !== ""), "an open folder still reads its states, by its own id");
+});
