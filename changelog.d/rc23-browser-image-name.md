@@ -1,0 +1,1 @@
+- The release publishes the Space browser image as ghcr.io/vyre-ai/vyre-browser (the space-browser name was held by an empty package the release could not write to). Servers accept both names.

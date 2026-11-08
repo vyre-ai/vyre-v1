@@ -155,10 +155,10 @@ export const SBROWSER_DATA_GUEST = "/data";
 
 /** The Space browser image and its tag: the default, or the registry copy. More can be named for a server in VYRE_SBROWSER_IMAGES (comma separated repositories). */
 export function sbrowserImages(extra = process.env["VYRE_SBROWSER_IMAGES"] ?? ""): RegExp {
-  const repos = ["vyre/space-browser", "ghcr.io/vyre-ai/space-browser", ...extra.split(",").map((s) => s.trim()).filter((s) => /^[a-z0-9][a-z0-9./_-]{0,100}$/.test(s))];
+  const repos = ["vyre/space-browser", "ghcr.io/vyre-ai/space-browser", "ghcr.io/vyre-ai/vyre-browser", ...extra.split(",").map((s) => s.trim()).filter((s) => /^[a-z0-9][a-z0-9./_-]{0,100}$/.test(s))];
   return new RegExp(`^(${repos.map((r) => r.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&")).join("|")}):[A-Za-z0-9_.-]{1,64}$`);
 }
-export const SBROWSER_DIGEST = /^(vyre\/space-browser|ghcr\.io\/vyre-ai\/space-browser)@sha256:[0-9a-f]{64}$/;
+export const SBROWSER_DIGEST = /^(vyre\/space-browser|ghcr\.io\/vyre-ai\/space-browser|ghcr\.io\/vyre-ai\/vyre-browser)@sha256:[0-9a-f]{64}$/;
 export const isSbrowserImage = (name: string): boolean => sbrowserImages().test(name) || SBROWSER_DIGEST.test(name);
 
 /** Is this container the Space browser's (by its labels)? */

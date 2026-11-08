@@ -103,6 +103,8 @@ test("the Space browser container is refused when it asks for anything it is nev
   assert.deepEqual([sent.HostConfig["CapDrop"], sent.HostConfig["CapAdd"], sent.HostConfig["Privileged"], sent.HostConfig["LogConfig"]], [["ALL"], [], false, { Type: "json-file", Config: { "max-size": "10m", "max-file": "3" } }]);
   const withDigest = await create(good({ Image: `ghcr.io/vyre-ai/space-browser@sha256:${"a".repeat(64)}` }));
   assert.equal(withDigest.status, 201, "the registry copy by digest");
+  const released = await create(good({ Image: `ghcr.io/vyre-ai/vyre-browser@sha256:${"c".repeat(64)}` }));
+  assert.equal(released.status, 201, "the release's registry copy (vyre-browser) by digest");
 });
 
 test("the Space browser's network is its own, joined only by its container and the ingress", async (t) => {
@@ -154,6 +156,9 @@ test("the Space browser image may be fetched and read, by tag or by digest, and 
   assert.equal((await w.call("POST", `/images/create?fromImage=${encodeURIComponent(`ghcr.io/vyre-ai/space-browser@sha256:${"b".repeat(64)}`)}`)).status, 200, "by digest");
   assert.equal((await w.call("POST", "/images/create?fromImage=evil/space-browser&tag=1")).status, 403);
   assert.equal((await w.call("POST", "/images/create?fromImage=ghcr.io/vyre-ai/space-browser-evil&tag=1")).status, 403);
+  assert.equal((await w.call("POST", "/images/create?fromImage=ghcr.io/vyre-ai/vyre-browser&tag=1.0.0-rc.23")).status, 200, "the release's registry copy");
+  assert.equal((await w.call("POST", `/images/create?fromImage=${encodeURIComponent(`ghcr.io/vyre-ai/vyre-browser@sha256:${"d".repeat(64)}`)}`)).status, 200, "the release's copy by digest");
+  assert.equal((await w.call("POST", "/images/create?fromImage=ghcr.io/vyre-ai/vyre-browser-evil&tag=1")).status, 403);
   assert.equal((await w.call("GET", `/images/${encodeURIComponent("vyre/space-browser:1")}/json`)).status, 200);
   assert.equal((await w.call("GET", `/images/${encodeURIComponent("alpine:latest")}/json`)).status, 403);
   assert.equal((await w.call("DELETE", `/volumes/${SBROWSER_VOLUME}?force=true`)).status, 200);

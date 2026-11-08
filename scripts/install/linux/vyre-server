@@ -689,7 +689,7 @@ prune_releases() {
 # untagged image whose command is the agent computer's agentd), no kept release or compose.env names it, and no container, running or stopped, was made from it. A kept release is one prune_releases
 # left: the current one and the one a rollback goes to. Images built or tagged by hand (no digest) are never touched. Docker itself refuses to remove an image a container uses, a second guard.
 # A failure never fails the update: it prints what was removed, if anything, and returns 0.
-PRUNE_IMAGE_NAMES=${VYRE_PRUNE_IMAGE_NAMES:-'agent-computer|workspace|space-browser'}
+PRUNE_IMAGE_NAMES=${VYRE_PRUNE_IMAGE_NAMES:-'agent-computer|workspace|space-browser|vyre-browser'}
 prune_images() {
   command -v docker >/dev/null 2>&1 || return 0
   docker info >/dev/null 2>&1 || return 0
