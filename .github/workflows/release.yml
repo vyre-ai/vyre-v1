@@ -81,7 +81,7 @@ jobs:
         run: |
           node scripts/release/cli.ts stage-chrome
           node scripts/release/cli.ts stage-bridge
-          img="ghcr.io/vyre-ai/space-browser:$VERSION"
+          img="ghcr.io/vyre-ai/vyre-browser:$VERSION"   # the registry copy of images/space-browser (the ghcr name space-browser is held by an unlinked package)
           docker build -f images/space-browser/Dockerfile -t "$img" images
           node scripts/release/cli.ts image-has-chrome "$img"
           if [ "$DRYRUN" != true ]; then
