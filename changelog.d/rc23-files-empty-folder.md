@@ -1,0 +1,1 @@
+- Files no longer asks the Space about agent access with an empty folder id at the top of Files or in Recent, which the Space refused over and over.

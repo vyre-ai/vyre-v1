@@ -1,11 +1,11 @@
 {
-  "version": "1.0.0-rc.22",
+  "version": "1.0.0-rc.23",
   "lines": [
-    "An agent's email draft is sent exactly as written, to the people it's addressed to, never cut short.",
-    "Memory search and recall work again on Spaces made before rc.18.",
-    "The model you pick in a chat is the one that runs. If it can't run here, the chat says why and offers another.",
-    "Naming someone who isn't in the chat no longer silences the agent. It answers, and the message box says who it will reach.",
-    "Reconnecting a calendar no longer makes a second copy, and goal helpers join the goal's chat.",
-    "Artifacts show in the desktop app again instead of a blank page, and the @mention highlight stays on the name in long drafts."
+    "Tag several agents and people in one message. Every agent you tag answers, even when you tag a person too.",
+    "Chats are calmer: results, progress and status show as clean cards, and the session pane marks each hour.",
+    "Every menu option does what it says. Files can move folders anywhere and restore them from Trash.",
+    "Times read the same everywhere, in your Space's time zone.",
+    "One corner style across the app, and menus near the edge line up with the button that opened them.",
+    "Calendar syncs are much faster, and Codex failures say plainly what went wrong and when to try again."
   ]
 }
