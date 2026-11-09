@@ -946,7 +946,7 @@ idof() { awk -v x="$1" '$1 == x || $2 == x { print $1; exit }' "$FX/images.txt";
 case "$1" in
   info) ${o.down ? "exit 1" : "exit 0"} ;;
   images) cat "$FX/images.txt" ;;
-  ps) id=\${*##*ancestor=}; grep -qx "$id" "$FX/used" && echo c1; exit 0 ;;
+  ps) id=""; for a in "$@"; do case "$a" in ancestor=*) id=\${a#ancestor=} ;; esac; done; grep -qx "$id" "$FX/used" && echo c1; exit 0 ;;   # per argument: macOS bash 3.2 applies \${*##...} to each one
   image) shift; shift; shift; fmt="$1"; id=$(idof "$2") || exit 1; [ -n "$id" ] || exit 1
     case "$fmt" in
       "{{.Id}}") echo "$id" ;;

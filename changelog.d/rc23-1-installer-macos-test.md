@@ -1,0 +1,1 @@
+- The installer test double for `docker ps` reads the `ancestor=` filter one argument at a time, so the image-cleanup test also passes on macOS (bash 3.2), where it had failed since rc.23.
