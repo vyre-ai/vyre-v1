@@ -3,7 +3,7 @@
   "lines": [
     "Every Space stays signed in after an update, your Personal Space included.",
     "Each Space keeps its own Vault key on this computer, so signing in to one never signs you out of another.",
-    "Signing out of one Space opens your next one instead of the Welcome screen.",
+    "Signing out of one Space keeps you signed in to the others.",
     "Sign in on a computer that already has its own Personal Space opens that Space's sign-in."
   ]
 }

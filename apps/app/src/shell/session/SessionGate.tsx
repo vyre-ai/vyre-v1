@@ -478,16 +478,14 @@ export function SessionGate(props: SessionGateProps): ReactElement {
     if(target.def.kind==='personal'&&isLoopbackUrl(target.baseUrl)&&bridge&&native){setPhase({kind:'opening-personal'});try{const local=await withinStart(ensurePersonalSpace(native));if(local.spaceId!==target.def.spaceId||local.claimUrl)throw new Error('Personal Space identity changed');chosen=await resumePersonal(local,target,open);}catch{setConnectedAddress(target.baseUrl);setPhase({kind:'signin'});return;}}
     if(!activateAddress(chosen,true))return;setEntry(false);setDesktopRoute(null);setConnectedAddress(chosen.baseUrl);setPhase({kind:'shell',stored:chosen});
   };
-  // Signing out of one Space never signs out of the others (owner, 10 Nov): a person who signs out opens their next saved Space; a session the Space ended asks for that Space's sign-in, with Back to the next.
+  // Signing out of one Space never signs out of the others (owner, 10 Nov): that Space's sign-in shows, its key alone is forgotten, and Back opens the next saved Space as it was.
   const signedOut = (why?: "manual" | "key", selected?: string): void => {
     const gone = selected ? readStored(undefined, selected) : null;
     clearStored(undefined, selected);
     if (gone) forgetKey(gone.token);
     const rest = readStoredSessions();
     if (rest.length === 0) forgetKey();
-    const next = rest[0] ?? null;
-    if (why === "manual" && next) { setNotice(false); void enterSaved(next); return; }
-    setReturnSession(next);
+    setReturnSession(rest[0] ?? null);
     setNotice(why === "key" ? KEY_READY_LINE : why !== "manual");
     setPhase({ kind: "signin" });
   };
