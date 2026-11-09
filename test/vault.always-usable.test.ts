@@ -10,7 +10,7 @@ import type { SealRecord, SealStore } from "../client/src/gateway/key-seal.ts";
 
 const KEY = Uint8Array.from({ length: 32 }, (_, i) => 100 + i);
 const who = { agentId: "agt_1", asker: "usr_1", where: "host" as const, account: true };
-const memory = (): SealStore => { let row: SealRecord | null = null; return { get: async () => row, put: async (r) => { row = r; }, remove: async () => { row = null; } }; };
+const memory = (): SealStore => { const rows = new Map<string, SealRecord>(); return { get: async (k) => rows.get(k) ?? null, put: async (k, r) => { rows.set(k, r); }, remove: async (k) => { rows.delete(k); }, clear: async () => { rows.clear(); } }; };
 
 /** A daemon: the keyring behind the key door, and a Vault that can read the person's credential only while the keyring holds their key. */
 function daemon() {
@@ -38,7 +38,7 @@ for (const [door, address] of [["desktop (this computer)", "http://127.0.0.1:777
       // sign-in opened the key with the password and hands it over, keeping it on the device
       const mine = Uint8Array.from(KEY);
       assert.equal(await holdKeyOnOwnNode(address, "tok", mine, d.f as never), true);
-      await keepKey(mine); mine.fill(0);
+      await keepKey(mine, "tok"); mine.fill(0);
       const r = await d.host.source.lookup("#Dana_Claude.credentials", who);
       assert.equal(r.kind, "value");
       assert.deepEqual(d.slept, [], "the first read answered; nothing waited for an unlock");
@@ -50,11 +50,11 @@ for (const [door, address] of [["desktop (this computer)", "http://127.0.0.1:777
     useSealStore(memory());
     try {
       await holdKeyOnOwnNode(address, "tok", Uint8Array.from(KEY), first.f as never);
-      await keepKey(Uint8Array.from(KEY));
+      await keepKey(Uint8Array.from(KEY), "tok");
       // the app closes, the node restarts empty, the app opens again: no password anywhere
       leaveMemory();
       const second = daemon();
-      assert.equal(await restoreKey(), true);
+      assert.equal(await restoreKey("tok"), true);
       assert.equal(await rehandKey(address, "tok", second.f), true);
       const r = await second.host.source.lookup("#Dana_Claude.credentials", who);
       assert.equal(r.kind, "value");
