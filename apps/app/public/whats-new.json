@@ -1,11 +1,9 @@
 {
-  "version": "1.0.0-rc.23",
+  "version": "1.0.0-rc.24",
   "lines": [
-    "Tag several agents and people in one message. Every agent you tag answers, even when you tag a person too.",
-    "Chats are calmer: results, progress and status show as clean cards, and the session pane marks each hour.",
-    "Every menu option does what it says. Files can move folders anywhere and restore them from Trash.",
-    "Times read the same everywhere, in your Space's time zone.",
-    "One corner style across the app, and menus near the edge line up with the button that opened them.",
-    "Calendar syncs are much faster, and Codex failures say plainly what went wrong and when to try again."
+    "Every Space stays signed in after an update, your Personal Space included.",
+    "Each Space keeps its own Vault key on this computer, so signing in to one never signs you out of another.",
+    "Signing out of one Space opens your next one instead of the Welcome screen.",
+    "Sign in on a computer that already has its own Personal Space opens that Space's sign-in."
   ]
 }
