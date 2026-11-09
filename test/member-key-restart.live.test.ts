@@ -60,7 +60,7 @@ test("Team server restart: a Google member's key reopens from the server's wrap,
     // Sara signs in with her password: her app opens the key, hands it over and keeps it in memory (key-keeper.ts)
     const sara = await join(d, "sara");
     assert.equal((await door(d, sara.token, "unlock", sara.personKey)).status, 204);
-    keepKey(sara.personKey);
+    keepKey(sara.personKey, sara.token);
     const saraRef = await connectClaude(d, sara.token, "Sara_Claude", { spaceUse: false });
 
     assert.equal((await ask(d, agentId, { token: rubabGoogle }, "before")).reply, `ran for ${rubab.personId} on subscription ${rubabRef}`);

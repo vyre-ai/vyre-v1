@@ -19,7 +19,7 @@ test("a restart behind an open app: the key comes back silently; a relaunch lock
     assert.equal(await keyHeldOnOwnNode(d.url, d.token), false, "a fresh daemon holds no key");
     // the one entry at launch: the password opens the key, the app hands it over and keeps it in memory for the session
     assert.equal(await holdKeyOnOwnNode(d.url, d.token, KEY), true);
-    keepKey(KEY);
+    keepKey(KEY, d.token);
     assert.equal(await keyHeldOnOwnNode(d.url, d.token), true);
     const folder = (await ok(d, "vault.folders.create", { idempotencyKey: "rk-f", name: "Mine", scope: "mine" })).folder.id as string;
     itemId = (await ok(d, "vault.item.put", { idempotencyKey: "rk-put", folderId: folder, name: "Restart_Key", kind: "api_key", fields: [{ key: "api_key", value: SECRET, secret: true }] })).item.id as string;
