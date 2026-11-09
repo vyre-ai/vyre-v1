@@ -25,8 +25,8 @@ test("on this computer a calm loading state shows until the daemon answers: no b
 
 
 test("the key is kept in memory only for the session and dropped on sign-out; plain http to another machine is never handed it", async () => {
-  keepKey(new Uint8Array(32).fill(5));
-  assert.equal(keyIsKept(), true);
+  keepKey(new Uint8Array(32).fill(5), "t");
+  assert.equal(keyIsKept("t"), true);
   assert.equal(await rehandKey("http://10.0.0.2:7777", "t"), false);
   forgetKey();
   assert.equal(keyIsKept(), false);
@@ -60,7 +60,7 @@ test("an open app that holds the key asks the Space again every beat and hands i
   const stop = watchKey("https://team.example.com", () => "tok", { set, clear, rehand });
   ticks[0]!();
   assert.deepEqual(calls, [], "a device that was never unlocked here has no key to hand over");
-  keepKey(new Uint8Array(32).fill(9));
+  keepKey(new Uint8Array(32).fill(9), "tok");
   ticks[0]!();
   assert.deepEqual(calls, ["https://team.example.com|tok"]);
   stop();
@@ -107,15 +107,15 @@ test("an Unlock sheet asked for on a Space server carries its own words and the 
   gate.registerVaultPrompt(null);
 });
 
-test("signed in means unlocked: the gate goes in when the node holds the key or this app can hand it over, and signs out (never locks) when no key exists on this device", async () => {
+test("signed in means unlocked: the gate goes in when the node holds the key or this app can hand it over, and stays signed in (never signs out, never locks) when no key exists on this device", async () => {
   const { gateState } = await import("./KeyGate.tsx");
   const mk = (o: { st: "held" | "locked" | "unreachable"; restored?: boolean; handed?: boolean; pw?: "yes" | "no" | "unknown"; own?: boolean }) => gateState({
     own: o.own ?? true, restored: o.restored === true, status: async () => o.st, rehand: async () => o.handed !== false, passwordKey: async () => o.pw ?? "yes",
   });
   assert.equal(await mk({ st: "held" }), "open");
   assert.equal(await mk({ st: "locked", restored: true }), "open", "a node that restarted gets the key from the device copy");
-  assert.equal(await mk({ st: "locked", restored: false }), "signout", "a session signed in before keys were kept on the device: sign in again, no lock screen");
-  assert.equal(await mk({ st: "locked", restored: true, handed: false }), "signout");
+  assert.equal(await mk({ st: "locked", restored: false }), "open", "a session signed in before keys were kept on the device (an update from rc.22) keeps its sign-in; the Vault asks once where needed");
+  assert.equal(await mk({ st: "locked", restored: true, handed: false }), "open", "a key the node refused never deletes the saved sign-in");
   assert.equal(await mk({ st: "locked", pw: "no" }), "nopassword");
   assert.equal(await mk({ st: "locked", pw: "unknown" }), "open");
   assert.equal(await mk({ st: "unreachable" }), "wait", "a daemon still starting is waited for");

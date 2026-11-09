@@ -50,7 +50,7 @@ export async function main(argv: readonly string[], io: CliIo = processIo(), pro
     return head === undefined && !pre.flags.has("help") ? EXIT.USAGE : EXIT.OK;
   }
   if (head === "server") return serverCommand(io, args.slice(args.indexOf("server") + 1));
-  if (head === "doctor") return doctorCommand(io, parseArgs(args.slice(args.indexOf("doctor") + 1), new Set(["json", "offline"])), { alwaysOffline: false });
+  if (head === "doctor") return doctorCommand(io, parseArgs(args.slice(args.indexOf("doctor") + 1), new Set(["json", "offline", "quick"])), { alwaysOffline: false });
   if (head === "connector" && (pre.positional[1] !== undefined)) return connectorCommand(io, parseArgs(args, connectorBooleans));
   if (head === "run" && pre.flags.has("env")) return runEnv(io, parseArgs(args.slice(args.indexOf("run") + 1), new Set(["json"])));
 

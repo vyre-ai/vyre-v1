@@ -1,0 +1,5 @@
+- Every Space stays signed in across an update. A missing Vault key on this device no longer signs a Space out and deletes its saved sign-in: the Space opens and the Vault asks for the password once, where it is first needed.
+- Each signed-in Space keeps its own key on this device, so signing in to one Space no longer replaces another's key, and a relaunch brings every Space back with its own.
+- The Personal Space is found after an update moves it to a new local port, from launch, from Sign in and from Back.
+- Signing out of one Space opens the next saved Space instead of the Welcome screen. A Space that did not start no longer forgets its sign-in when you press Sign in.
+- Sign in on a computer whose Personal Space already has its owner opens that Space's sign-in instead of trying to copy a Personal Space from another computer.

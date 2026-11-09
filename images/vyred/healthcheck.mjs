@@ -1,4 +1,5 @@
-// Container healthcheck for the vyred image. It runs `vyre-server doctor --offline --json` (the same checks the terminal shows) and asks the daemon's /healthz.
+// Container healthcheck for the vyred image. It runs `vyre-server doctor --offline --quick --json` (the same checks the terminal shows; --quick re-verifies only the newest events of the log, so a Space
+// with a long history still answers inside the 8 s it is given) and asks the daemon's /healthz.
 // Healthy means: vyred answers, its process is alive, and nothing the container can judge is down. The container cannot judge three things, so they never fail it:
 //   host.disk_encrypted  the volume belongs to the host, which the installer checks (ARCH 7.13)
 //   host.docker          the image does not carry Docker; sites and agent computers are the host's
@@ -43,7 +44,7 @@ export async function check(env = process.env) {
     const body = await r.json();
     if (!r.ok || body?.ok === false) return { ok: false, why: `/healthz answered ${r.status}` };
   } catch (e) { return { ok: false, why: `/healthz did not answer: ${e instanceof Error ? e.message : String(e)}` }; }
-  const run = spawnSync(process.execPath, [CLI, "doctor", "--offline", "--json", "--role", doctorRole(env), "--data-dir", dataDir], { encoding: "utf8", env: { ...env, VYRE_PROGRAM: "vyre-server" }, timeout: 8000 });
+  const run = spawnSync(process.execPath, [CLI, "doctor", "--offline", "--quick", "--json", "--role", doctorRole(env), "--data-dir", dataDir], { encoding: "utf8", env: { ...env, VYRE_PROGRAM: "vyre-server" }, timeout: 8000 });
   let report;
   try { report = JSON.parse(run.stdout); } catch { return { ok: false, why: `the doctor printed no report${run.stderr ? `: ${run.stderr.trim().slice(0, 200)}` : ""}` }; }
   return verdict(report, env);

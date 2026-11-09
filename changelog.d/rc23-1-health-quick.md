@@ -1,0 +1,1 @@
+- The server's container health check re-verifies only the newest 5,000 events of the log (`vyre-server doctor --quick`). A Space with a long history was marked unhealthy because the full pass took longer than the check allows. `vyre-server doctor` without `--quick` still verifies the whole log.

@@ -3,7 +3,7 @@
 // restarts behind an open app gets it back by itself, before the next turn needs it. Quit and relaunch, or an update, shows this screen once. Nothing is written to disk. Phone and web do not use it: a Space
 // that is not on this computer never holds a Mine key here (isLoopbackUrl), so they keep their existing flows. Every state has a way on: a wrong password stays here, a Space that does not answer can be
 // retried, a forgotten password goes straight to recovery, and Sign out always leaves.
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { View } from "react-native";
 import { isLoopbackUrl, keyDoor, keyStatusOnOwnNode, serverKeyState } from "../../../../../client/src/gateway/local-key.ts";
@@ -35,21 +35,20 @@ type GateState = "checking" | "nopassword" | "open";
 
 /**
  * Signed in means unlocked (owner ruling 6 Nov). The person key was opened by the password at sign-in and sealed on this device (client/src/gateway/key-seal.ts); this gate brings it back after a launch and
- * hands it to the node that needs it, with no password, no lock screen and no timer. A session that has no key on this device (it was signed in before keys were kept here, or the device store was wiped)
- * cannot open the Vault, so it is signed out: signing in again is the one place the password is asked. While the app runs it hands the key back to a node that restarted.
+ * hands it to the node that needs it, with no password, no lock screen and no timer. A session that has no key on this device (signed in before keys were kept here, or the device store was wiped) stays
+ * signed in (owner, 10 Nov: every Space is signed in after an update as it was before it): the shell opens and the Vault asks for the password once, where it is first needed. A saved sign-in is never
+ * removed for a missing key. While the app runs it hands the key back to a node that restarted.
  */
-export function KeyGate({ baseUrl, token, onSignOut, onNoKey, children }: { baseUrl: string; token: string; name?: string; onSignOut?: () => void; /** a session with no Vault key on this device: sign in again (says why once); else onSignOut */ onNoKey?: () => void; /** kept for callers; there is no unlock sheet any more */ onForgot?: () => void; children: ReactNode }): ReactElement | null {
+export function KeyGate({ baseUrl, token, onSignOut, children }: { baseUrl: string; token: string; name?: string; onSignOut?: () => void; /** kept for callers; there is no unlock sheet any more */ onForgot?: () => void; children: ReactNode }): ReactElement | null {
   const own = isLoopbackUrl(baseUrl);
   // a Space server reached over https holds the key while a signed-in device hands it over, so the app hands it over at launch
   const remote = !own && keyDoor(baseUrl) !== null;
   const [state, setState] = useState<GateState>(own || remote ? "checking" : "open");
-  const signOut = useRef(onSignOut);
-  signOut.current = onNoKey ?? onSignOut;
   useEffect(() => {
     if (!own && !remote) return undefined;
     let live = true;
     void (async () => {
-      const restored = await restoreKey();
+      const restored = await restoreKey(token);
       // a node still starting does not answer yet: ask again for a few seconds, never read silence as "no key"
       for (let i = 0; i < (own ? WAIT_TRIES : 1) && live; i++) {
         const next = await gateState({
@@ -59,7 +58,7 @@ export function KeyGate({ baseUrl, token, onSignOut, onNoKey, children }: { base
           passwordKey: () => passwordKeyState(baseUrl, token),
         });
         if (!live) return;
-        if (next !== "wait") { if (next === "signout") { if (signOut.current) signOut.current(); else setState("open"); } else setState(next); return; }
+        if (next !== "wait") { setState(next); return; }
         await new Promise<void>((r) => setTimeout(r, WAIT_MS));
       }
       if (live) setState("open"); // it never answered: the shell shows its own offline state; the app is not held behind a blank screen
@@ -84,7 +83,7 @@ export function KeyGate({ baseUrl, token, onSignOut, onNoKey, children }: { base
 
 /**
  * What one look at the key says: the node holds it (go in), this app can hand it over (go in), the account has no password key to open anything with (say so), or nobody has it and there is none on this
- * device (sign in again). "wait" is a node that did not answer yet.
+ * device (go in all the same: the Vault asks for the password where it is first needed, and the sign-in is kept). "wait" is a node that did not answer yet.
  */
 export async function gateState(d: {
   own: boolean;
@@ -92,13 +91,13 @@ export async function gateState(d: {
   status(): Promise<"held" | "locked" | "unreachable">;
   rehand(): Promise<boolean>;
   passwordKey(): Promise<"yes" | "no" | "unknown">;
-}): Promise<"open" | "nopassword" | "signout" | "wait"> {
+}): Promise<"open" | "nopassword" | "wait"> {
   const st = await d.status();
   if (st === "held") return "open";
   if (st === "unreachable") return d.own ? "wait" : "open";
   if (d.restored && await d.rehand()) return "open";
   const pw = await d.passwordKey();
-  return pw === "yes" ? "signout" : pw === "no" ? "nopassword" : "open";
+  return pw === "no" ? "nopassword" : "open";
 }
 
 /** The notice in the top bar while the sign-ins are locked (no dismiss: it goes when they are unlocked), and the line of the sheet Unlock opens. */

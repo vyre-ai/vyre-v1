@@ -68,6 +68,11 @@ export const lockName = (s: Pick<StoredSession, "displayName" | "username">): st
 /** A managed Personal profile keeps its Space identity when its loopback port changes. */
 export function readStoredSpace(spaceId:string,store:KeyValueStore|undefined=browserStore()):StoredSession|null{return Object.values(sessions(store)).find(s=>s.def.spaceId===spaceId)??null;}
 
+/** This computer's own Personal Space, saved at whatever loopback port it last ran on. Its daemon takes a new port on every start (an update, a restart), so its session is found by kind, not address,
+ * and the gate then verifies it at the new address (SessionGate resumePersonal) before using it. */
+export function readStoredPersonal(store:KeyValueStore|undefined=browserStore()):StoredSession|null{return Object.values(sessions(store)).find(s=>s.def.kind==='personal'&&isLoopbackAddress(s.baseUrl))??null;}
+const isLoopbackAddress=(value:string):boolean=>{try{const h=new URL(value).hostname.toLowerCase();return h==='127.0.0.1'||h==='localhost'||h==='[::1]'||h==='::1';}catch{return false;}};
+
 /** The gate never carries a prior Space across an address change. */
 export function phaseForStoredAddress<T>(stored: T | null): { kind: "signin" } | { kind: "shell"; stored: T } {
   return stored ? { kind: "shell", stored } : { kind: "signin" };

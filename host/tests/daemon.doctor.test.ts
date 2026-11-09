@@ -120,6 +120,26 @@ test("a gap in the sequence, a broken prev link and a file that is not an event 
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
 
+test("the quick pass re-verifies only the newest events, linked to the one before them, and still catches a change among them", async () => {
+  const dir = deadServerDir();
+  try {
+    const file = path.join(dir, "events.db");
+    const full = verifyChainReadOnly(file);
+    assert.equal(full.ok, true);
+    assert.ok(full.seq >= 6, "the seeded log is long enough to have an old part and a tail");
+    const quick = verifyChainReadOnly(file, 2);
+    assert.deepEqual(quick, { ok: true, seq: full.seq }, "the tail reaches the same head");
+    const db = openDb(file);
+    db.run("UPDATE events SET event = replace(event, '\"actor\":\"svc_seed\"', '\"actor\":\"svc_evil\"') WHERE seq = 4");
+    db.close();
+    assert.equal(verifyChainReadOnly(file).ok, false, "the full pass still reads the whole history");
+    assert.equal(verifyChainReadOnly(file, 2).ok, true, "an old event is outside the quick pass");
+    const r = await runDoctor({ dataDir: dir, platform: machine(dir), fetch: caddyOk, chainTail: full.seq - 3 });
+    assert.equal(by(r, "kernel.events_db").state, "down", "a changed event inside the tail is caught");
+    assert.match(by(r, "kernel.events_db").detail, /event 4 was changed|event 5 does not follow/);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
 test("errors in the last day are counted by message; old ones are not", async () => {
   const dir = deadServerDir();
   try {
