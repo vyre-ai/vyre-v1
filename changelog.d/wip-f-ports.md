@@ -1,0 +1,1 @@
+- Everyone now has a private Personal calendar from the day they join (the owner from the start), so you can add an event without connecting Google or Microsoft first. People who joined earlier get theirs the next time the server starts.

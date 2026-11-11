@@ -797,6 +797,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   let headSeq = 0;
   let sawSpace = false, hostMadeSpace = false;
   let claimIssue: () => Promise<{ code: string; expiresAt: number } | null> = async () => null;
+  /** Ruling 86: every person has one local Personal calendar, made through calendar.create_calendar in the pipeline as that person so the calendar resource registers in the same commit. Set once the pipeline exists; a no-op before. */
+  let ensurePersonalCalendar: (person: string) => Promise<void> = async () => {};
   const access = createAccess();
   // Ruling 70: authorize answers from the access module's snapshot. The log's access events wait here until the module has folded them; `syncAccess` (set once the hooks run)
   // hands them over, adopts the snapshot it answers and runs after every commit that may have changed access, so the next call already sees a join, a role change, a share or a removal.
@@ -1253,7 +1255,13 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           // identity opens a device session at sign-in by calling devices.register, which only the server itself may do (P-SEC_08): that one call, from identity, runs as the host. Nothing else is widened.
           if (h && mod === "identity") return ((ctx, input) => h({ ...ctx, ...peopleExtras?.(mod, ctx), call: (name: string, callInput: unknown, opts?: unknown) => (name === "devices.register" ? system(name, callInput, ctx.trace) : (ctx.call as (n: string, i: unknown, o?: unknown) => Promise<unknown>)(name, callInput, opts)) } as typeof ctx, input)) as Handler;
           // accepting an invite: the person proved the code, and the invite's role, groups and starting places were the inviter's to give. Those join effects run as the host, not as the signed-out caller.
-          if (h && cap === "members.accept") return ((ctx, input) => h({ ...ctx, ...peopleExtras?.(mod, ctx), call: (name: string, callInput: unknown) => system(name, callInput, ctx.trace) } as typeof ctx, input)) as Handler;
+          if (h && cap === "members.accept") return (async (ctx, input) => {
+            const out = await h({ ...ctx, ...peopleExtras?.(mod, ctx), call: (name: string, callInput: unknown) => system(name, callInput, ctx.trace) } as typeof ctx, input);
+            // ruling 86: everyone has one local Personal calendar from the day they join
+            const person = (out as { personId?: unknown } | null)?.personId;
+            if (typeof person === "string") await ensurePersonalCalendar(person);
+            return out;
+          }) as Handler;
           // handing an agent to another person: ownership of the agent and its folder moves with the host's authority (ruling 88). The call itself was authorized (manage on the agent, and the Gate for a non-person);
           // only this one call from this one capability is widened, and it is the host-only access.transfer_ownership
           if (h && cap === "agents.set_owner") return ((ctx, input) => h({ ...ctx, call: (name: string, callInput: unknown, opts?: unknown) => (name === "access.transfer_ownership" ? hookRunner.call(name, callInput) : (ctx.call as (n: string, i: unknown, o?: unknown) => Promise<unknown>)(name, callInput, opts)) } as typeof ctx, input)) as Handler;
@@ -1302,6 +1310,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           if (claim && events.some((e) => e.type === "keys.stored" && (e.payload as { personId?: string } | undefined)?.personId === access.owner())) {
             claim = null;
             try { fs.rmSync(path.join(paths.logDir, "claim-link.txt"), { force: true }); } catch { /* already gone */ }
+            // ruling 86: the claim also makes sure the owner has their Personal calendar (covers a start where the calendar module was not ready). It reads first, so nothing is duplicated.
+            void ensurePersonalCalendar(access.owner() ?? "");
           }
           recent.push(...events);
           if (recent.length > RING) recent.splice(0, recent.length - RING);
@@ -1393,6 +1403,27 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       syncAccess = async (force) => { await syncOnce(force); void healAgents().catch(() => undefined); };
       await syncAccess();
       await healAgents();
+      const personalRuns = new Map<string, Promise<void>>();
+      ensurePersonalCalendar = (person) => {
+        if (!person || loaded.serving.get("calendar") !== "live") return Promise.resolve();
+        const running = personalRuns.get(person);
+        if (running) return running;   // the same person twice at once (a join and a start) makes one calendar
+        const as = { space: spaceId, principal: { kind: "person" as const, id: person }, preAuth: true, origin: "hook" as const };
+        const run = (async (): Promise<void> => {
+          try {
+            const mine = await invoke("calendar.list_calendars", { scope: "mine" }, as);
+            const calendars = (mine.status === "ok" ? (mine.output as { calendars?: { personal?: boolean }[] }).calendars : undefined) ?? [];
+            if (calendars.some((c) => c.personal === true)) return;
+            await invoke("calendar.create_calendar", { title: "Personal", personal: true, idempotencyKey: `personal-calendar:${person}:${now()}` }, as);
+          } catch (e) {
+            sink.log({ space: spaceId, level: 40, msg: "calendar.personal_failed", place: "boot", attrs: { person, error: e instanceof Error ? e.message : String(e) } });
+          }
+        })().finally(() => { personalRuns.delete(person); });
+        personalRuns.set(person, run);
+        return run;
+      };
+      // people who were here before this rule (the owner of a Space this host made, members who joined on an older version) get theirs at start: the read-first check makes it a no-op for anyone who has one, so no migration of user data is needed
+      for (const p of [...access.snap.allPrincipals()]) if (p.kind === "person" && p.status === "active") await ensurePersonalCalendar(p.id);
       // the owner of a Space this host made has not claimed it until identity holds an account for them: a fresh one-time link at every start until they do
       claimIssue = async () => {
         const owner = access.owner();
