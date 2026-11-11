@@ -9,6 +9,7 @@ import { openRecords } from "../impl.ts";
 import { UNDO_WINDOW_MS, createMergeHandlers, findMerge, undoMerge } from "../handlers/merge.ts";
 import type { MergeDeps } from "../handlers/merge.ts";
 import { LEDGER } from "../fixtures/seed.ts";
+import { StoreError } from "../../../kernel/src/store/types.ts";
 
 const SPACE = "spc_aaaaaaaaaaaa";
 const NOW = 1_800_000_000_000;
@@ -497,4 +498,81 @@ test("bulk_upsert and merge (909): the host's own service is pre-authorized by t
   const tenant = { ...host, principal: { kind: "service", id: `svc_${"a".repeat(32)}` } };
   const out2 = await k.h["records.bulk_upsert"](tenant, { type: "party", rows: [{ email: "ann@x.com", name: "Nope" }], match: ["email"] });
   assert.deepEqual([out2.updated, out2.refused?.[0]?.reason], [0, "not_allowed"]);
+});
+
+// ---- issue 909, review round 12 Nov: no oracle, approved calls, relations, outages, reporting
+
+const only = (denied: (id: string | null) => boolean, o: { viewDenied?: boolean } = {}) => (k: Kit["ctx"]) => ({
+  ...k, authorize: (a: { level: string }, res: { id: string | null }) => ({ effect: (o.viewDenied && a.level === "view") || denied(res.id) ? ("deny" as const) : ("allow" as const), reason: "t" }),
+});
+
+test("bulk_upsert (909 review): a caller who may not edit a record gets 'not allowed' whether or not the row would change anything, never 'skipped': the answer carries no value of that record", async () => {
+  const k = await kit();
+  const ceo = await party(k, { name: "Chief", email: "ceo@x.com", city: "Oslo" });
+  const caller = only((id) => id === ceo)(k.ctx);
+  const same = await k.h["records.bulk_upsert"](caller, { type: "party", rows: [{ email: "ceo@x.com", city: "Oslo" }], match: ["email"] });
+  const different = await k.h["records.bulk_upsert"](caller, { type: "party", rows: [{ email: "ceo@x.com", city: "Rome" }], match: ["email"] });
+  for (const out of [same, different]) {
+    assert.deepEqual([out.created, out.updated, out.skipped], [0, 0, 0]);
+    assert.deepEqual(out.refused, [{ row: 0, reason: "not_allowed", message: "You may not edit this record." }]);
+  }
+});
+
+test("bulk_upsert (909 review): matching on a field the caller may not read is refused like any row on that record, and two matching records are not announced to a caller who may not change them", async () => {
+  const k = await kit();
+  await party(k, { name: "A", email: "dup@x.com" });
+  await party(k, { name: "B", email: "dup@x.com" });
+  const blind = only(() => false, { viewDenied: true })(k.ctx);
+  const out = await k.h["records.bulk_upsert"](blind, { type: "party", rows: [{ email: "dup@x.com", city: "Rome" }], match: ["email"] });
+  assert.deepEqual(out.refused?.map((r) => [r.row, r.reason]), [[0, "not_allowed"]], "not 'two records match'");
+  await assert.rejects(k.h["records.bulk_upsert"](k.ctx, { type: "party", rows: [{ email: "dup@x.com", city: "Rome" }], match: ["email"] }), vcode("validation.duplicate"), "a caller who may change both is told to resolve the duplicates");
+});
+
+test("bulk_upsert (909 review): rows folded into a refused row are refused with it, and rows folded into a written row are the ones counted as skipped", async () => {
+  const k = await kit();
+  const ann = await party(k, { name: "Ann", email: "ann@x.com" });
+  await party(k, { name: "Bo", email: "bo@x.com" });
+  const caller = only((id) => id === ann)(k.ctx);
+  const out = await k.h["records.bulk_upsert"](caller, { type: "party", rows: [{ email: "ann@x.com", city: "A" }, { email: "ann@x.com", city: "B" }, { email: "bo@x.com", city: "C" }, { email: "bo@x.com", phone: "1" }], match: ["email"] });
+  assert.deepEqual([out.created, out.updated, out.skipped], [0, 1, 1]);
+  assert.deepEqual(out.refused?.map((r) => r.row).sort(), [0, 1]);
+});
+
+test("bulk_upsert (909 review): createOnly makes every row a new record with nothing matched (an import told to always create)", async () => {
+  const k = await kit();
+  const out = await k.h["records.bulk_upsert"](k.ctx, { type: "party", rows: [{ name: "Same", email: "s@x.com" }, { name: "Same", email: "s@x.com" }], match: [], createOnly: true });
+  assert.deepEqual([out.created, out.updated, out.skipped], [2, 0, 0]);
+});
+
+test("bulk_upsert (909 review): a store that is down fails the call and says what was written; a row that vanished is that row's result", async () => {
+  const k = await kit();
+  await party(k, { name: "A", email: "a@x.com" });
+  await party(k, { name: "B", email: "b@x.com" });
+  const real = k.deps.store;
+  let n = 0;
+  const flaky = createMergeHandlers({ ...k.deps, store: { ...real, update: (async (...a: Parameters<typeof real.update>) => { if (++n === 2) throw new StoreError("unavailable", "the store is read-only"); return real.update(...a); }) as typeof real.update } });
+  await assert.rejects(flaky["records.bulk_upsert"](k.ctx, { type: "party", rows: [{ email: "a@x.com", city: "1" }, { email: "b@x.com", city: "2" }, { email: "c@x.com", city: "3" }], match: ["email"] }), (e: unknown) => {
+    const err = (e as { error: { code: string; details: { wrote: { updated: number } } } }).error;
+    assert.equal(err.code, "internal.unavailable");
+    assert.equal(err.details.wrote.updated, 1, "the first row is written and the failure says so");
+    return true;
+  });
+  n = -10;
+  const gone = createMergeHandlers({ ...k.deps, store: { ...real, update: (async () => { throw new StoreError("not_found", "no such record"); }) as typeof real.update } });
+  const out = await gone["records.bulk_upsert"](k.ctx, { type: "party", rows: [{ email: "a@x.com", city: "9" }], match: ["email"] });
+  assert.deepEqual(out.refused?.map((r) => r.reason), ["not_found"]);
+});
+
+test("merge (909 review): records that link to a merged record are changed, so the caller needs edit on each, nothing is written otherwise, and each change is announced like an edit", async () => {
+  const k = await kit();
+  const a = await party(k, { name: "Ann" }), b = await party(k, { name: "Ann B" });
+  const d1 = mintRecordId();
+  await k.rec.store.create("deal", d1, { title: "Deal", owner: link(b) });
+  const mayNot = only((id) => id === d1)(k.ctx);
+  await assert.rejects(k.h["records.merge"](mayNot as never, { type: "party", survivorId: a, mergedIds: [b], picks: {} }), vcode("permission.no_grant"));
+  assert.ok(!(await k.rec.store.get("party", b))?.deleted_at, "nothing merged");
+  await k.h["records.merge"](k.ctx, { type: "party", survivorId: a, mergedIds: [b], picks: {} });
+  const upd = k.seen.filter((e) => e.name === "record.updated" && e.subject === `record/${d1}`);
+  assert.equal(upd.length, 1, "the deal's link moved and the change was announced");
+  assert.deepEqual(Object.keys(upd[0]!.payload.fields as object), ["owner"]);
 });

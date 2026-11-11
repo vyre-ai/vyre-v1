@@ -49961,6 +49961,10 @@
       "effects": "write",
       "inputSchema": {
         "properties": {
+          "createOnly": {
+            "description": "Every row is made as a new record and nothing is matched (match is ignored)",
+            "type": "boolean"
+          },
           "idempotencyKey": {
             "examples": [
               "idem_1"

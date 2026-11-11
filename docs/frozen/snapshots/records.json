@@ -3,7 +3,7 @@
   "capabilities": {
     "records.activity@1": "c7311a3af537c3f3b65e05748a2048be580d84ffd13acae4d31656965678da3b",
     "records.as_of@1": "feaaa3c69079203960085ed20ebe40163ef830763506dc6c1ddfb7f3b9cdbe9b",
-    "records.bulk_upsert@1": "feedec7e79b45dfb22afd5a61fc8019be7d017786b8428e355f0b8662de43b4a",
+    "records.bulk_upsert@1": "7cc827bd9082b41956a6b603500c6d509c8045f7836534504a704f33d3643da4",
     "records.changes@1": "df1e1d9a34b9a65c75812cc57bac0f3cd783fdfec9660aad8f696737e3666bcb",
     "records.comments.add@1": "34280ba8ded8f1ee02ca90bec39f0ad53429ec132cfac91e931e9c04ac4cdfbc",
     "records.comments.delete@1": "e022325cf05821c820e992d0d645e43ef36d8993d7d3bcd2a8d6d7ae2bfe7568",
@@ -19,7 +19,7 @@
     "records.get@1": "8c6aa2e129d5c7291439a375fc5ef0ba9d64e5909087ba0ae0c5bc3ae85eddd1",
     "records.history@1": "eecd946caac006cf53ec301ea963214ed5d01fc05e6a3854022b0bd70f75c688",
     "records.hold@1": "23df3326420cf31938b7b3be523da4e00914d68beb46d34b34c8b8f5e8435e81",
-    "records.merge@1": "c5d330c2051d8b48bb3c24f1a8cbf99c79d0bd863fa5fbc78588e11541bcb336",
+    "records.merge@1": "abca9df3971d077f11b768f0eacce0d49bd3447bd183484e804a8eb0572c1105",
     "records.page_prefs.get@1": "b28118ad4e9d5ef8806b096a8373a93f8e974cc9d7f21b53ebc5a887958c01c6",
     "records.page_prefs.set@1": "1be2d2384e304c9acae7434f35535ef051714aafd2df414a2f20ebac27db89ea",
     "records.purge@1": "08e26e728b3b699ecc1ad35bc8dac61decc15ff24249eb62ab3f887c31e5bab0",

@@ -48,6 +48,7 @@ type Out = {
   creates: number;
   updates: number;
   skips: number;
+  refused?: number;
   errors: Array<{
       row: number;
       column?: string;
@@ -111,6 +112,7 @@ type Out = {
       }
     ],
     "previewToken": "example",
+    "refused": 1,
     "samples": [
       {}
     ],

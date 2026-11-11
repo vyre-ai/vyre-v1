@@ -483,7 +483,7 @@ export function createInvoke(deps: InvokeDeps): Invoke {
     const h = deps.handler(c.name, c.v);
     if (!h) throw fail("internal.not_implemented", traceId, { details: { cap: c.name } });
     const events: EventEnvelope[] = [];
-    const ctx = makeCtx(c, seed, trace, depth, events);
+    const ctx = makeCtx(c, seed, trace, depth, events, approved);
     let output: unknown;
     try {
       output = await h(ctx, input);   // a throw here is mapped by the outer catch: VyreErr and HostError keep their code, anything else is internal.unexpected
@@ -559,7 +559,7 @@ export function createInvoke(deps: InvokeDeps): Invoke {
     };
   }
 
-  function makeCtx(c: CapabilityDef, seed: CtxSeed, trace: TraceContext, depth: number, buf: EventEnvelope[]): Ctx {
+  function makeCtx(c: CapabilityDef, seed: CtxSeed, trace: TraceContext, depth: number, buf: EventEnvelope[], approved = false): Ctx {
     const svc = deps.services?.(seed, c) ?? {};
     const unavailable = (what: string) => (): never => { throw fail("internal.not_implemented", trace.traceId, { details: { service: what, cap: c.name } }); };
     const ctx: Ctx = {
@@ -595,7 +595,7 @@ export function createInvoke(deps: InvokeDeps): Invoke {
         return r.output;
       },
       authorize(action, resource): Decision {
-        const d = deps.authorize({ principal: seed.principal.id, actingFor: seed.actingFor, action, resource, provider: seed.provider, now: now(), ...(action.cap !== undefined ? { cap: action.cap } : {}) });
+        const d = deps.authorize({ principal: seed.principal.id, actingFor: seed.actingFor, action, resource, provider: seed.provider, now: now(), ...(action.cap !== undefined ? { cap: action.cap } : {}), ...(action.fields !== undefined ? { fields: action.fields } : {}), ...(approved ? { approved: true } : {}) });
         return { effect: d.effect, reason: d.reason, decisionId: d.decisionId };
       },
       // each person on their own grants, as no one's agent: what a chat's audience may open (lib/audience.ts). A check that cannot run says no.

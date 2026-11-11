@@ -70,3 +70,36 @@ test("a source that syncs records in (create, then update the same records) runs
   assert.equal(again.status, "accepted");
   assert.equal(await phoneOf("nia@sync.test"), "101");
 });
+
+test("an import with each onMatch choice: update (the preview says which rows will be refused, the commit lists them as failed), skip, and create (every row is made, nothing is matched)", async () => {
+  const mapping = [{ column: "Name", field: "name" }, { column: "Email", field: "email" }, { column: "Phone", field: "phone" }];
+  const stage = async (by: Person, csv: string, onMatch: "update" | "skip" | "create", tag: string) => {
+    const staged = await by.call("import.parse_csv", { text: csv });
+    const pv = await by.call("import.preview", { importId: staged.importId, type: "contact", mapping, match: ["email"], onMatch });
+    return { staged, pv, commit: async () => { await by.call("import.commit", { importId: staged.importId, previewToken: pv.previewToken, idempotencyKey: `om-${tag}` }); return (await by.call("import.get", { importId: staged.importId })).import as Record<string, unknown> & { errors?: Array<{ row: number; message: string }> }; } };
+  };
+  const csv = (tag: string) => `Name,Email,Phone\nAnn Again,ann@example.test,+1 555 0${tag}\nPia ${tag},pia${tag}@example.test,\n`;
+  // update, as the create-only role: the matching row is labelled refused in the preview, not promised as an update
+  const u = await stage(maker, csv("11"), "update", "u");
+  assert.deepEqual([u.pv.creates, u.pv.updates, u.pv.refused], [1, 0, 1], JSON.stringify(u.pv));
+  const ug = await u.commit();
+  assert.deepEqual([ug["state"], ug["created"], ug["updated"], ug["failed"]], ["done", 1, 0, 1]);
+  assert.equal(ug.errors?.[0]?.row, 1, "the refused row is named by its place in the file");
+  // update, as the owner: the same row is an update
+  const o = await stage(h.owner, csv("12"), "update", "o");
+  assert.deepEqual([o.pv.creates, o.pv.updates, o.pv.refused], [1, 1, undefined]);
+  const og = await o.commit();
+  assert.deepEqual([og["created"], og["updated"], og["failed"]], [1, 1, 0]);
+  // skip: the matching row is skipped, the new one is made
+  const s = await stage(maker, csv("13"), "skip", "s");
+  assert.deepEqual([s.pv.creates, s.pv.skips], [1, 1]);
+  const sg = await s.commit();
+  assert.deepEqual([sg["state"], sg["created"], sg["skipped"], sg["failed"]], ["done", 1, 1, 0]);
+  // create: both rows are made as new records, even the one that matches (this used to fail every such import)
+  const c = await stage(maker, csv("14"), "create", "c");
+  assert.deepEqual([c.pv.creates, c.pv.updates], [2, 0]);
+  const cg = await c.commit();
+  assert.deepEqual([cg["state"], cg["created"], cg["failed"]], ["done", 2, 0]);
+  const anns = (await h.owner.call("records.query", { type: "contact", filter: { field: "email", op: "eq", value: "ann@example.test" }, limit: 10 })).rows as unknown[];
+  assert.equal(anns.length, 2, "create made a second Ann");
+});

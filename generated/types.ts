@@ -20401,6 +20401,7 @@ export type ImportPreviewOut = {
   creates: number;
   updates: number;
   skips: number;
+  refused?: number;
   errors: Array<{
       row: number;
       column?: string;
@@ -31596,6 +31597,7 @@ export type RecordsBulkUpsertIn = {
   rows: Array<Record<string, unknown>>;
   match: Array<string>;
   runAutomations?: boolean;
+  createOnly?: boolean;
   idempotencyKey: string;
 };
 export type RecordsBulkUpsertOut = {

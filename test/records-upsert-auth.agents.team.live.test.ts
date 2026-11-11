@@ -19,6 +19,14 @@ test("Team: an agent's bulk_upsert changes an existing contact only where the ag
   const answers: Answer[] = [];
   const model = scriptedModel(async function* (input, run) {
     const ask = String(input.trigger?.body ?? "");
+    const mg = /^merge (\S+) (\S+)$/.exec(ask);   // merge <survivorId> <mergedId>
+    if (mg) {
+      yield* run("tool_search", { query: "records merge" });
+      const r = yield* run("records_merge", { type: "contact", survivorId: mg[1], mergedIds: [mg[2]], picks: {}, idempotencyKey: `m-${answers.length}` });
+      answers.push({ ok: r.ok, text: JSON.stringify(r.content).slice(0, 400) });
+      yield { type: "text", text: "done" };
+      return;
+    }
     const m = /^upsert (\S+) (\S+) (\S+)$/.exec(ask);   // upsert <email> <field> <value>
     if (!m) return;
     const rows: Array<Record<string, unknown>> = [{ email: m[1], [m[2]!]: m[3] }];
@@ -76,6 +84,12 @@ test("Team: an agent's bulk_upsert changes an existing contact only where the ag
       return answers[answers.length - 1]!;
     };
 
+    // a call the Gate parks does not answer the agent until a person decides, so those asks only post
+    const tell = async (agentId: string, line: string, n: number): Promise<void> => {
+      const th = await api("usr_olivia", "chat.start", { kind: "chat", agentIds: [agentId], idempotencyKey: `ua-chat-${n}` });
+      await api("usr_olivia", "chat.post", { threadId: th.data.thread.threadId, body: line, mentions: [{ kind: "agent", id: agentId }], idempotencyKey: `ua-post-${n}` });
+    };
+
     // 1. create without edit: the new row is made, the existing record is not changed, the row is reported
     const a1 = await askAgent(entry, "upsert ann@acme.test name WITHNEW", 1);
     assert.deepEqual([a1.created, a1.updated ?? 0], [1, 0], a1.text);
@@ -108,5 +122,37 @@ test("Team: an agent's bulk_upsert changes an existing contact only where the ag
     const a3 = await askAgent(editor, "upsert ann@acme.test phone 777", 3);
     assert.deepEqual(a3.refused?.map((r) => [r.row, r.reason]), [[0, "needs_approval"]], a3.text);
     assert.equal((await annNow())["phone"], "555", "the held change was not written");
-  } catch (e) { console.error("FAILED:", e instanceof Error ? e.message.slice(0, 1500) : e); throw e; } finally { await stop(d); }
+
+    // 4. a call a person approved goes through: the Gate parks the agent's whole bulk_upsert, Olivia approves it, and its rows are written (the approval is not asked for again row by row)
+    assert.equal((await api("usr_olivia", "access.policies.set", { key: "gate.ua-edit", scope: "space", value: { act: "approve", approver: "owner", caps: ["records.bulk_upsert", "records.update"] } })).status, 200);
+    await tell(editor, "upsert ann@acme.test phone 888", 5);
+    const hold = await waitFor(async () => {
+      await d.hooks?.pump?.();
+      const holds = (await api("usr_olivia", "gate.holds.list", { states: ["held"] })).data.holds as Array<{ id: string; taskId: string; capName?: string }>;
+      return holds.find((h) => h.capName === "records.bulk_upsert") ?? null;
+    }, 60_000, () => hostLog(d));
+    assert.equal((await annNow())["phone"], "555", "parked: nothing written yet");
+    assert.equal((await api("usr_olivia", "tasks.act", { taskId: hold.taskId, action: "approve" })).status, 200);
+    await waitFor(async () => { await d.hooks?.pump?.(); return (await annNow())["phone"] === "888" ? true : null; }, 60_000, () => hostLog(d));
+
+    // 5. an agent cannot merge records into Trash without approval, and once a person approves the merge it goes through
+    const mrole = (await api("usr_olivia", "access.roles.create", { name: "Merger", cloneFrom: member.id, idempotencyKey: "ua-mrole" })).data.role as { id: string; permissions: string[] };
+    const mperms = [...new Set([...mrole.permissions, "records.delete"])];
+    const mprev = await api("usr_olivia", "access.roles.preview", { roleId: mrole.id, permissions: mperms });
+    assert.equal((await api("usr_olivia", "access.roles.apply", { roleId: mrole.id, permissions: mperms, previewHash: mprev.data.previewHash })).status, 200);
+    const merger = await make("Merger");
+    assert.equal((await api("usr_olivia", "access.roles.assign", { subject: { kind: "agent", id: merger }, roleId: mrole.id, idempotencyKey: "ua-massign" })).status, 200);
+    assert.equal((await api("usr_olivia", "access.policies.reset", { key: "gate.ua-edit", scope: "space" })).status, 200);
+    const bo = (await api("usr_olivia", "records.create", { type: "contact", fields: { name: "Bo Birch", email: "bo@acme.test" }, idempotencyKey: "ua-bo" })).data.record.id as string;
+    await tell(merger, `merge ${annId} ${bo}`, 6);
+    const mhold = await waitFor(async () => {
+      await d.hooks?.pump?.();
+      const holds = (await api("usr_olivia", "gate.holds.list", { states: ["held"] })).data.holds as Array<{ id: string; taskId: string; capName?: string }>;
+      return holds.find((h) => h.capName === "records.merge") ?? null;
+    }, 60_000, () => hostLog(d));
+    const boNow = async (): Promise<number> => (await api("usr_olivia", "records.get", { type: "contact", recordId: bo })).status;
+    assert.equal(await boNow(), 200, "parked: Bo is not merged away yet");
+    assert.equal((await api("usr_olivia", "tasks.act", { taskId: mhold.taskId, action: "approve" })).status, 200);
+    await waitFor(async () => { await d.hooks?.pump?.(); return (await boNow()) !== 200 ? true : null; }, 60_000, () => hostLog(d));
+  } catch (e) { console.error("ANSWERS:", JSON.stringify(answers.slice(-2))); console.error("FAILED:", e instanceof Error ? e.message.slice(0, 1500) : e); throw e; } finally { await stop(d); }
 });

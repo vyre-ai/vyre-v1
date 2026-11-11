@@ -29,6 +29,7 @@ type In = {
   rows: Array<Record<string, unknown>>;
   match: Array<string>;
   runAutomations?: boolean;
+  createOnly?: boolean;
   idempotencyKey: string;
 };
 ```
@@ -62,6 +63,7 @@ type Out = {
 {
   "name": "example",
   "input": {
+    "createOnly": true,
     "idempotencyKey": "idem_1",
     "match": [
       "example"

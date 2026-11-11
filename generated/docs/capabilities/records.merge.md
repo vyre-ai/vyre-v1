@@ -11,7 +11,7 @@ Merge records into a survivor with a value picked per field (undoable for 30 day
 | Grant level | edit |
 | Risk | medium |
 | Resource | record (/survivorId) |
-| Gate | none |
+| Gate | delete when actor.kind != 'person' |
 | Idempotency | natural |
 | Offline | online |
 | Audit | always |
@@ -19,7 +19,7 @@ Merge records into a survivor with a value picked per field (undoable for 30 day
 | HTTP | POST /v1/records/merge |
 | MCP tool | records_merge (records) |
 | CLI | none |
-| Emits | record.merged |
+| Emits | record.merged, record.updated |
 
 ## Input
 

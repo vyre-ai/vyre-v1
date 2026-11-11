@@ -567,6 +567,7 @@ if ("previewToken" in o3880) lf(o3880["previewToken"], p + "/previewToken", e, L
 if ("creates" in o3880) lf(o3880["creates"], p + "/creates", e, L2);
 if ("updates" in o3880) lf(o3880["updates"], p + "/updates", e, L2);
 if ("skips" in o3880) lf(o3880["skips"], p + "/skips", e, L2);
+if ("refused" in o3880) lf(o3880["refused"], p + "/refused", e, L2);
 if ("errors" in o3880) {
 {
 const x3881 = o3880["errors"];

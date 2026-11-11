@@ -91,7 +91,7 @@ export default defineManifest({
         runAutomations: t.opt(t.bool()),
       },
       out: {
-        previewToken: t.str(), creates: t.int(), updates: t.int(), skips: t.int(),
+        previewToken: t.str(), creates: t.int(), updates: t.int(), skips: t.int(), refused: t.opt(t.int({ description: 'Rows that match a record the importer may not edit; the commit does not write them and counts them as failed' })),
         errors: t.arr(t.obj({ row: t.int(), column: t.opt(t.str()), message: t.str() }), { maxItems: 50 }), errorCount: t.int(),
         newFields: t.arr(t.obj({ key: fieldKey, type: t.str() })), samples: t.arr(t.rec()),
       },

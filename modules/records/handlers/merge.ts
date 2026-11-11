@@ -37,7 +37,7 @@ export type MergeCtx = Pick<WriteCtx, "trace" | "emit"> & {
   /** Who is calling. The host's own service (hooks, the scheduler, the engine seams) is pre-authorized by the pipeline for every capability, so it changes records here as it does through records.update. */
   principal?: { kind: string; id: string };
   /** The host decision for the caller on one record. Writing an existing record, or merging records away, needs the same right the single-record capability needs (records.edit, records.delete), checked here for each record. */
-  authorize?: (action: { perm: string | null; level: "view" | "use" | "edit" | "manage"; cap?: string }, resource: { type: string; id: string | null }) => { effect: "allow" | "deny" | "hold"; reason?: string };
+  authorize?: (action: { perm: string | null; level: "view" | "use" | "edit" | "manage"; cap?: string; fields?: readonly string[] }, resource: { type: string; id: string | null }) => { effect: "allow" | "deny" | "hold"; reason?: string };
 };
 export type ExportCtx = Pick<WriteCtx, "trace"> & {
   actor?: string;
@@ -58,7 +58,7 @@ export interface MergeDeps {
 
 export interface MergeHandlers {
   "records.merge"(ctx: MergeCtx, input: { type: string; survivorId: string; mergedIds: string[]; picks: Record<string, string> }): Promise<{ record: RecordRow; undoUntil: number }>;
-  "records.bulk_upsert"(ctx: MergeCtx, input: { type: string; rows: Record<string, unknown>[]; match: string[]; runAutomations?: boolean }): Promise<{ created: number; updated: number; skipped: number; refused?: Array<{ row: number; reason: string; message: string }> }>;
+  "records.bulk_upsert"(ctx: MergeCtx, input: { type: string; rows: Record<string, unknown>[]; match: string[]; runAutomations?: boolean; createOnly?: boolean }): Promise<{ created: number; updated: number; skipped: number; refused?: Array<{ row: number; reason: string; message: string }> }>;
   "records.export"(ctx: ExportCtx, input: { type: string; format: "csv" | "xlsx"; recordIds?: string[] } & ViewSpec): Promise<{ fileId: string }>;
 }
 
@@ -249,6 +249,31 @@ async function applyMerge(deps: MergeDeps, ctx: MergeCtx, input: { type: string;
     if (!same(value, survivor.data[f.name])) { patch[f.name] = value === undefined ? null : value; before[f.name] = survivor.data[f.name] ?? null; }
   }
 
+  // Relation fields on other records that point at a merged record are repointed to the survivor. That changes those records, so the caller needs edit on each of them, checked before anything is written.
+  const mergedSet = new Set(mergedIds);
+  const relationFieldsOf = (other: TypeDef): FieldDef[] => other.fields.filter((f) => {
+    if (!isRelation(f)) return false;
+    const to = targetOf(f);
+    return to === undefined || to === input.type;
+  });
+  {
+    const touched = new Set<string>();
+    for (const other of await store.types()) {
+      const fields = relationFieldsOf(other);
+      if (!fields.length) continue;
+      await scan(store, other.name, async (row) => {
+        if (mergedSet.has(row.id) && other.name === input.type) return;
+        for (const f of fields) {
+          const bare = targetOf(f) === input.type;
+          const dropSelf = other.name === input.type && row.id === survivor.id ? survivor.id : null;
+          if (rewriteValue(row.data[f.name], input.type, bare, mergedSet, survivor.id, dropSelf) !== undefined) { touched.add(row.id); break; }
+        }
+      });
+    }
+    for (const id of touched) if (id !== survivor.id) may("records.edit", id);
+  }
+  const events: Array<{ type: string; id: string; prev: Record<string, unknown>; rec: StoredRecord }> = [];
+
   const journal: Journal = { mergeId: mintUuid(), type: input.type, survivor: survivor.id, merged: mergedIds, before, rewrites: [] };
   const removed: string[] = [];
   let updated = false;
@@ -257,24 +282,19 @@ async function applyMerge(deps: MergeDeps, ctx: MergeCtx, input: { type: string;
       await store.update(input.type, survivor.id, patch, survivor.version);
       updated = true;
     }
-    const mergedSet = new Set(mergedIds);
     for (const other of await store.types()) {
-      const fields = other.fields.filter((f) => {
-        if (!isRelation(f)) return false;
-        const to = targetOf(f);
-        return to === undefined || to === input.type;
-      });
+      const fields = relationFieldsOf(other);
       if (!fields.length) continue;
       await scan(store, other.name, async (row) => {
         if (mergedSet.has(row.id) && other.name === input.type) return;
-        const next: Record<string, unknown> = {};
+        const next: Record<string, unknown> = {}, prev: Record<string, unknown> = {};
         for (const f of fields) {
           const bare = targetOf(f) === input.type;
           const dropSelf = other.name === input.type && row.id === survivor.id ? survivor.id : null;
           const v = rewriteValue(row.data[f.name], input.type, bare, mergedSet, survivor.id, dropSelf);
-          if (v !== undefined) { next[f.name] = v; journal.rewrites.push({ type: other.name, id: row.id, field: f.name, before: row.data[f.name] ?? null, after: v }); }
+          if (v !== undefined) { next[f.name] = v; prev[f.name] = row.data[f.name] ?? null; journal.rewrites.push({ type: other.name, id: row.id, field: f.name, before: row.data[f.name] ?? null, after: v }); }
         }
-        if (Object.keys(next).length) await store.update(other.name, row.id, next, row.version);
+        if (Object.keys(next).length) { const rec = await store.update(other.name, row.id, next, row.version); events.push({ type: other.name, id: row.id, prev, rec }); }
       });
     }
     for (const m of merged) {
@@ -310,6 +330,8 @@ async function applyMerge(deps: MergeDeps, ctx: MergeCtx, input: { type: string;
   const undoUntil = now() + UNDO_WINDOW_MS;
   tx.run("INSERT INTO qm_merges (merge_id, type, survivor, merged, before, rewrites, actor, created_at, undo_until) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
     journal.mergeId, input.type, survivor.id, JSON.stringify(mergedIds), JSON.stringify(before), JSON.stringify(journal.rewrites), actor, now(), undoUntil);
+  // the records whose links moved to the survivor changed like any edit: automations and sync see it
+  for (const w of events) { const keys = Object.keys(w.prev); ctx.emit("record.updated", `record/${w.id}`, { recordId: w.id, type: w.type, fields: changedOf(keys, w.rec.data), prev: w.prev, version: w.rec.version }); }
   for (const id of mergedIds) ctx.emit("record.merged", `record/${survivor.id}`, { survivorId: survivor.id, mergedId: id, type: input.type });
   return { record: rowOf(tx, final), undoUntil };
 }
@@ -382,12 +404,13 @@ const changedOf = (keys: string[], data: Record<string, unknown>): Record<string
   return out;
 };
 
-async function upsert(deps: MergeDeps, ctx: MergeCtx, input: { type: string; rows: Record<string, unknown>[]; match: string[]; runAutomations?: boolean }): Promise<{ created: number; updated: number; skipped: number }> {
+async function upsert(deps: MergeDeps, ctx: MergeCtx, input: { type: string; rows: Record<string, unknown>[]; match: string[]; runAutomations?: boolean; createOnly?: boolean }): Promise<{ created: number; updated: number; skipped: number; refused?: Array<{ row: number; reason: string; message: string }> }> {
   const { store, tx } = deps;
   ensure(tx);
   const def = await needType(store, input.type);
   const known = new Map(def.fields.map((f) => [f.name, f]));
-  if (!input.match.length) bad(ctx, "match is empty: name the fields that identify a row (for example email)");
+  const createOnly = input.createOnly === true;   // every row is a new record: nothing is matched
+  if (!createOnly && !input.match.length) bad(ctx, "match is empty: name the fields that identify a row (for example email)");
   for (const m of input.match) {
     const f = known.get(m);
     if (!f) throw new StoreError("unknown_field", `${input.type} has no field ${m}`);
@@ -396,68 +419,87 @@ async function upsert(deps: MergeDeps, ctx: MergeCtx, input: { type: string; row
   if (input.rows.length > MAX_UPSERT_ROWS) bad(ctx, `a bulk upsert takes at most ${MAX_UPSERT_ROWS} rows: split them into smaller batches`);
   const quiet = input.runAutomations !== true;
 
-  // Plan: one entry per distinct match key; later rows with the same key fold into the first.
-  interface Plan { existing: { id: string; version: number; fields: Record<string, unknown> } | null; values: Record<string, unknown>; index: number }
+  // Plan: one entry per distinct match key; later rows with the same key fold into the first. With createOnly every row is its own new record.
+  interface Plan { existing: { id: string; version: number; fields: Record<string, unknown> } | null; values: Record<string, unknown>; index: number; folded: number[]; blocked?: "hold" | "deny" | "blind" }
   const plans = new Map<string, Plan>();
-  let folded = 0;
-  ensureMatchIndex(tx, input.type, input.match);
+  if (!createOnly) ensureMatchIndex(tx, input.type, input.match);
   for (let i = 0; i < input.rows.length; i++) {
     const row = input.rows[i];
     if (!isObj(row)) bad(ctx, `row ${i} is not an object`);
     for (const k of Object.keys(row!)) if (!known.has(k)) throw new StoreError("unknown_field", `row ${i}: ${input.type} has no field ${k}`);
     for (const m of input.match) if (!present(row![m])) bad(ctx, `row ${i} has no value for match field ${m}`);
+    if (createOnly) { plans.set(`#${i}`, { existing: null, values: { ...row! }, index: i, folded: [] }); continue; }
     const key = keyFor(row!, input.match);
     const prior = plans.get(key);
-    if (prior) { Object.assign(prior.values, row); folded++; continue; }
+    if (prior) { Object.assign(prior.values, row); prior.folded.push(i); continue; }
     const filter: Filter = { and: input.match.map((m) => ({ field: m, op: "eq" as const, value: row![m] })) };
     // sorted by the match fields, so the match index answers the filter and the order together (by created_at, the planner could walk the whole type in that order instead)
     const found = findRows(tx, input.type, { filter, sort: input.match.map((field) => ({ field, dir: "asc" as const })), limit: 2 });
+    // Who may change what is decided before anything is compared or counted: a caller who may not edit a record (or read the fields it was matched on) learns nothing about it from this answer,
+    // not its values (no "nothing changed"), not that two records match. Every such row gets the same answer.
+    const verdicts = found.rows.map((r) => judge(ctx, r.id, input.match));
+    const blocked = verdicts.find((v) => v !== "allow");
+    if (blocked) { plans.set(key, { existing: null, values: { ...row! }, index: i, folded: [], blocked }); continue; }
     if (found.rows.length > 1) throw new StoreError("unique_violation", `row ${i}: ${found.rows.length} records already match ${input.match.join(", ")}; resolve the duplicates first`);
     const hit = found.rows[0];
-    plans.set(key, { existing: hit ? { id: hit.id, version: hit.version, fields: hit.fields } : null, values: { ...row! }, index: i });
+    plans.set(key, { existing: hit ? { id: hit.id, version: hit.version, fields: hit.fields } : null, values: { ...row! }, index: i, folded: [] });
   }
 
   let created = 0;
   let updated = 0;
-  let skipped = folded;
+  let skipped = 0;
   // a row the caller may not write, or the store refuses (a locked field, a record on hold), is reported for that row and the rest of the batch goes on
   const refused: Array<{ row: number; reason: string; message: string }> = [];
+  const refuse = (plan: Plan, reason: string, message: string): void => { for (const r of [plan.index, ...plan.folded]) refused.push({ row: r, reason, message }); };
+  // There is no transaction: when the call fails part way the rows already written stay, so the failure says what was written.
+  const wrote = (): Record<string, unknown> => ({ created, updated, skipped, ...(refused.length ? { refused } : {}) });
   for (const plan of plans.values()) {
     try {
+      if (plan.blocked) {
+        if (plan.blocked === "hold") refuse(plan, "needs_approval", "A change to this record needs approval, so this row was not written.");
+        else refuse(plan, "not_allowed", plan.blocked === "blind" ? "This call cannot check what you may edit, so it changes no existing record." : "You may not edit this record.");
+        continue;
+      }
       if (!plan.existing) {
         const id = mintRecordId();
         const rec = await store.create(input.type, id, plan.values);
         created++;
+        skipped += plan.folded.length;
         ctx.emit("record.created", `record/${rec.id}`, { recordId: rec.id, type: rec.type, fields: { ...rec.data }, ...(quiet ? { quiet: true } : {}) });
         continue;
       }
-      // an existing record is changed under exactly the rules of records.update: edit on that record (its label and holds included), then the store's field locks and write-once rules
+      // an existing record is changed under exactly the rules of records.update: the store's field locks and write-once rules (edit on the record was decided in the plan)
       const diff: Record<string, unknown> = {};
       for (const [k, v] of Object.entries(plan.values)) if (!same(plan.existing.fields[k], v)) diff[k] = v;
-      if (!Object.keys(diff).length) { skipped++; continue; }
-      const allowed = isHostService(ctx.principal) ? { effect: "allow" as const } : ctx.authorize?.({ perm: "records.edit", level: "edit", cap: "records.update" }, { type: "record", id: plan.existing.id });
-      if (allowed?.effect !== "allow") {
-        // a hold is an edit that waits for someone's approval: it is not written here, and the row says so (a person can make the change on the record, where the approval step runs)
-        refused.push(allowed?.effect === "hold"
-          ? { row: plan.index, reason: "needs_approval", message: "A change to this record needs approval, so this row was not written." }
-          : { row: plan.index, reason: "not_allowed", message: allowed === undefined ? "This call cannot check what you may edit, so it changes no existing record." : "You may not edit this record." });
-        continue;
-      }
+      if (!Object.keys(diff).length) { skipped += 1 + plan.folded.length; continue; }
       const rec = await store.update(input.type, plan.existing.id, diff, plan.existing.version);
       updated++;
+      skipped += plan.folded.length;
       const keys = Object.keys(diff);
       // the values the row replaced, an empty field as empty (null), so undoing the Run clears what the import filled
       const prev: Record<string, unknown> = {};
       for (const k of keys) prev[k] = Object.prototype.hasOwnProperty.call(plan.existing.fields, k) ? plan.existing.fields[k] : null;
       ctx.emit("record.updated", `record/${rec.id}`, { recordId: rec.id, type: rec.type, fields: changedOf(keys, rec.data), prev, version: rec.version, ...(quiet ? { quiet: true } : {}) });
     } catch (e) {
-      if (e instanceof RecordsError) { refused.push({ row: plan.index, reason: e.reason, message: e.message }); continue; }
-      if (e instanceof StoreError && e.code !== "version_conflict") { refused.push({ row: plan.index, reason: e.code, message: e.message }); continue; }
-      if (e instanceof StoreError) throw mapErr(ctx, new StoreError(e.code, `row ${plan.index}: ${e.message}`));
+      if (e instanceof RecordsError) { refuse(plan, e.reason, e.message); continue; }
+      // a store that is down is a failed call, not a refused row; a row that vanished or clashes is that row's result
+      if (e instanceof StoreError && e.code === "unavailable") fail(ctx as WriteCtx, "internal.unavailable", `row ${plan.index}: ${e.message}. Rows already written stay written: ${created} created, ${updated} changed.`, { wrote: wrote() });
+      if (e instanceof StoreError && e.code === "version_conflict") fail(ctx as WriteCtx, "validation.version_conflict", `row ${plan.index}: ${e.message}. Rows already written stay written: ${created} created, ${updated} changed.`, { wrote: wrote() });
+      if (e instanceof StoreError) { refuse(plan, e.code, e.message); continue; }
       throw e;
     }
   }
   return { created, updated, skipped, ...(refused.length ? { refused } : {}) };
+}
+
+/** May this caller change this existing record, as records.update would allow? "blind": the call carries no way to check, so nothing is changed. Matching by a field the caller may not read counts as not allowed. */
+function judge(ctx: MergeCtx, id: string, matchFields: readonly string[]): "allow" | "hold" | "deny" | "blind" {
+  if (isHostService(ctx.principal)) return "allow";   // pre-authorized by the pipeline, as for every capability
+  if (!ctx.authorize) return "blind";
+  const at = { type: "record", id };
+  if (ctx.authorize({ perm: null, level: "view", fields: matchFields }, at).effect !== "allow") return "deny";
+  const d = ctx.authorize({ perm: "records.edit", level: "edit", cap: "records.update" }, at);
+  return d.effect === "allow" ? "allow" : d.effect === "hold" ? "hold" : "deny";
 }
 
 function mapErr(ctx: Pick<WriteCtx, "trace">, e: unknown): unknown {

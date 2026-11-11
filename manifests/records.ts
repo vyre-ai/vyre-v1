@@ -110,14 +110,14 @@ export default defineManifest({
       emits: ['record.updated', 'record.value_proposed'], tool: 'records', offline: 'patch', errors: ['validation.field_locked', 'validation.version_conflict', 'validation.duplicate'], hook: true,
     }),
     create('records.bulk_upsert', 'Create or update many records by match key, quietly (no automations unless asked)', {
-      in: { type: id.recordType, rows: t.arr(t.rec()), match: t.arr(t.str()), runAutomations: t.opt(t.bool()) },
+      in: { type: id.recordType, rows: t.arr(t.rec()), match: t.arr(t.str()), runAutomations: t.opt(t.bool()), createOnly: t.opt(t.bool({ description: 'Every row is made as a new record and nothing is matched (match is ignored)' })) },
       out: { created: t.int(), updated: t.int(), skipped: t.int(), refused: t.opt(t.arr(t.obj({ row: t.int({ description: 'Index of the row in the call' }), reason: t.str(), message: t.str() }), { description: 'Rows that were not written: the caller may not edit the record, or the store refused (a locked field, a record on hold). The other rows were written.' })) }, make: ['record', '/type'], perm: 'records.create', emits: ['record.created', 'record.updated'], tool: 'records', cli: 'vyre records upsert',
     }),
     write('records.delete', 'Move a record to Trash', { in: target, out: { deleted: t.bool() }, on: ['record', '/recordId'], perm: 'records.delete', emits: ['record.deleted'], gate: { act: 'delete', when: "actor.kind != 'person'" }, tool: 'records', offline: 'queue', errors: ['permission.on_hold'] }),
     write('records.restore', 'Restore a record from Trash', { in: target, out: { record: recordRow }, on: ['record', '/recordId'], perm: 'records.delete', emits: ['record.restored'], tool: 'records' }),
     write('records.merge', 'Merge records into a survivor with a value picked per field (undoable for 30 days)', {
       in: { type: id.recordType, survivorId: id.record, mergedIds: t.arr(id.record), picks: t.rec(t.str()) }, out: { record: recordRow, undoUntil: t.ts() },
-      on: ['record', '/survivorId'], perm: 'records.delete', emits: ['record.merged'], audit: 'always', tool: 'records',
+      on: ['record', '/survivorId'], perm: 'records.delete', emits: ['record.merged', 'record.updated'], gate: { act: 'delete', when: "actor.kind != 'person'" }, audit: 'always', tool: 'records',
     }),
     write('records.hold', 'Place a hold on a record', { in: { ...target, reason: t.str() }, out: { held: t.bool() }, on: ['record', '/recordId'], perm: 'records.hold', emits: ['record.held'], audit: 'always', tool: 'records' }),
     write('records.release_hold', 'Release a hold on a record', { in: target, out: { released: t.bool() }, on: ['record', '/recordId'], perm: 'records.hold', emits: ['record.hold_released'], audit: 'always', tool: 'records' }),
