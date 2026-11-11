@@ -23,12 +23,14 @@ function server(opts: { commitFails?: string } = {}) {
       case "import.parse_csv": return { importId: "imp_1", source: "csv", tables: [{ name: "CSV", rowCount: 2, columns }], expiresAt: 1 };
       case "schema.types.get": return { type: { fields: [{ key: "name", title: "Name", type: "text" }, { key: "email", title: "Email", type: "email" }, { key: "company", title: "Company", type: "relation" }] } };
       case "import.suggest_mapping": return { mapping: [{ column: "Full name", field: "name", confidence: 0.9 }, { column: "Email", field: "email", confidence: 1 }, { column: "Notes", confidence: 0 }], unmapped: ["Notes"], newFields: [] };
-      case "import.preview": return { previewToken: "pv_1", creates: 2, updates: 0, skips: 0, errors: [], errorCount: 0, newFields: [], samples: [] };
+      case "import.preview": return { previewToken: "pv_1", rows: 3, creates: 2, updates: 0, skips: 0, repeats: 1, errors: [], errorCount: 0, newFields: [], samples: [] };
       case "import.commit":
         if (opts.commitFails) throw new Error(opts.commitFails);
         state = "done";
         return { runId: "run_1", importId: "imp_1" };
-      case "import.get": return { import: { importId: "imp_1", state, created: 2, updated: 0, skipped: 0, failed: 0 } };
+      case "import.get": return { import: { importId: "imp_1", state, created: 2, updated: 0, skipped: 0, failed: 0, repeated: 1, runId: "run_1" } };
+      case "runs.preview_undo": return { undone: [{}, {}], skipped: [] };
+      case "runs.undo": return { undone: [{}, {}], skipped: [] };
       case "records.query": return { rows: [], total: state === "done" ? 2 : 0 };
       default: throw new Error(`unscripted ${cap}`);
     }
@@ -61,11 +63,19 @@ test("choose a CSV, see the columns matched, preview, bring in and read the summ
   const prev = s.calls.find((c) => c.cap === "import.preview")!.input;
   assert.deepEqual(prev["mapping"], [{ column: "Full name", field: "name" }, { column: "Email", field: "email" }]);
   assert.deepEqual([prev["match"], prev["onMatch"]], [["email"], "update"]);
+  assert.ok(textOf(find(root, "import-file-total")).includes("3 rows in the file."));
   assert.ok(textOf(find(root, "import-count-new")).includes("2"));
+  assert.ok(textOf(find(root, "import-repeats")).includes("1 row repeats an earlier one in this file; the later row is used."));
   assert.ok(textOf(find(root, "import-commit")).includes("Bring in 2 rows"));
   await press(find(root, "import-commit"));
   await flush(); await flush();
-  assert.ok(textOf(find(root, "import-summary")).startsWith("2 new rows added. They are in contacts."));
+  assert.ok(textOf(find(root, "import-summary")).startsWith("2 new rows added, 1 repeated row left out for a later one. They are in contacts."));
+  // Undo: asks what it will do, then does it
+  await press(find(root, "import-undo")); await flush();
+  assert.ok(textOf(find(root, "import-undo-ask")).includes("2 changes"));
+  await press(find(root, "import-undo-go")); await flush();
+  assert.ok(textOf(find(root, "import-undone")).startsWith("The import is undone: 2 changes taken back."));
+  assert.deepEqual(s.calls.filter((c) => c.cap.startsWith("runs.")).map((c) => c.cap), ["runs.preview_undo", "runs.undo"]);
   assert.ok(s.calls.every((c) => !/^(engine|chat|agents)\./.test(c.cap)), "no AI call");
   assert.ok(find(root, "import-done"), "a way back to the contacts");
 });

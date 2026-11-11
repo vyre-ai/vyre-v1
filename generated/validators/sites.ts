@@ -126,18 +126,18 @@ if ("site" in o355) d_s_e5054dcaf4(o355["site"], p + "/site", e);
 
 function d_s_62366ba217(v: unknown, p: string, e: string[]): void {
 {
-const x464 = v;
-const g464 = typeOf(x464);
-const b464: string[] = []; lf(x464, p, b464, L0); if (b464.length) e.push(...b464);
-if (g464 === "object") {
-if (g464 === 'object') { const o464 = x464 as Record<string, unknown>;
-if ("repo" in o464) lf(o464["repo"], p + "/repo", e, L1);
-if ("branch" in o464) lf(o464["branch"], p + "/branch", e, L1);
-if ("tokenHandle" in o464) lf(o464["tokenHandle"], p + "/tokenHandle", e, L7);
-if ("folderId" in o464) lf(o464["folderId"], p + "/folderId", e, L44);
-if ("fileId" in o464) lf(o464["fileId"], p + "/fileId", e, L43);
-if ("path" in o464) lf(o464["path"], p + "/path", e, L1);
-if ("root" in o464) lf(o464["root"], p + "/root", e, L1);
+const x463 = v;
+const g463 = typeOf(x463);
+const b463: string[] = []; lf(x463, p, b463, L0); if (b463.length) e.push(...b463);
+if (g463 === "object") {
+if (g463 === 'object') { const o463 = x463 as Record<string, unknown>;
+if ("repo" in o463) lf(o463["repo"], p + "/repo", e, L1);
+if ("branch" in o463) lf(o463["branch"], p + "/branch", e, L1);
+if ("tokenHandle" in o463) lf(o463["tokenHandle"], p + "/tokenHandle", e, L7);
+if ("folderId" in o463) lf(o463["folderId"], p + "/folderId", e, L44);
+if ("fileId" in o463) lf(o463["fileId"], p + "/fileId", e, L43);
+if ("path" in o463) lf(o463["path"], p + "/path", e, L1);
+if ("root" in o463) lf(o463["root"], p + "/root", e, L1);
 }
 }
 }

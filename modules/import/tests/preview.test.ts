@@ -71,27 +71,36 @@ test("a required field with no value is an error on its row", async () => {
   assert.deepEqual(out.errors[0], { row: 1, column: "Name", message: "Name is required." });
 });
 
-test("rows that match existing records are updates, skips or new records as asked; the same person twice in the file is one create and one update", async () => {
+test("rows that match existing records are updates, skips or new records as asked; the same person twice in the file counts once, the later row is used", async () => {
   const h = harness();
   h.world.seed("contact", { name: "Ada", email: "ada@example.com" }, { name: "Grace", email: "grace@example.com" });
   const id = await stage(h, `${CSV}\nAda Again,ada@example.com,,,,,,`);
   const upd = await preview(h, id, { match: ["email"] });
-  assert.deepEqual([upd.creates, upd.updates, upd.skips], [1, 3, 0], "Alan is new; Ada, Grace and the second Ada exist");
+  assert.deepEqual([upd.rows, upd.creates, upd.updates, upd.skips, upd.repeats], [4, 1, 2, 0, 1], "Alan is new; the later Ada and Grace update the people here; the first Ada repeats and is left out");
   const filter = h.only("records.query")[0]!.input.filter;
   assert.deepEqual(filter.or[0], { and: [{ field: "email", op: "eq", value: "ada@example.com" }] });
   const skip = await preview(h, id, { match: ["email"], onMatch: "skip" });
-  assert.deepEqual([skip.creates, skip.updates, skip.skips], [1, 0, 3]);
+  assert.deepEqual([skip.creates, skip.updates, skip.skips, skip.repeats], [1, 0, 2, 1]);
   const make = await preview(h, id, { match: ["email"], onMatch: "create" });
-  assert.deepEqual([make.creates, make.updates, make.skips], [4, 0, 0]);
+  assert.deepEqual([make.creates, make.updates, make.skips, make.repeats], [4, 0, 0, 0], "create: every row is new");
   const none = await preview(h, id);
-  assert.deepEqual([none.creates, none.updates], [4, 0], "without a match every row is new");
+  assert.deepEqual([none.creates, none.updates, none.repeats], [4, 0, 0], "without a match every row is new");
 });
 
-test("a match on a file with nothing existing: the first row of a pair is a create and the second an update", async () => {
+test("a match on a file with nothing existing: the same email twice is one new row, the later row is used", async () => {
   const h = harness();
   const id = await stage(h, "Name,Email\nAda,ada@example.com\nAda B,ada@example.com\nGrace,grace@example.com\n");
   const out = await preview(h, id, { mapping: [{ column: "Name", field: "name" }, { column: "Email", field: "email" }], match: ["email"] });
-  assert.deepEqual([out.creates, out.updates], [2, 1]);
+  assert.deepEqual([out.rows, out.creates, out.updates, out.skips, out.repeats], [3, 2, 0, 0, 1]);
+});
+
+test("every row is exactly one of new, updated, left alone, repeated or a problem, so the counts add up to the rows in the file; someone here who would not change is left alone", async () => {
+  const h = harness();
+  h.world.seed("contact", { name: "Grace", email: "grace@example.com" }, { name: "Same", email: "same@example.com" }, { name: "Old", email: "old@example.com" });
+  const id = await stage(h, "Name,Email\nNew One,new@example.com\nSame,same@example.com\nOld Renamed,old@example.com\nBad,not-an-email\nFirst,rep@example.com\nSecond,rep@example.com\n");
+  const out = await preview(h, id, { mapping: [{ column: "Name", field: "name" }, { column: "Email", field: "email" }], match: ["email"] });
+  assert.deepEqual([out.rows, out.creates, out.updates, out.skips, out.repeats, out.errorCount], [6, 2, 1, 1, 1, 1], "New One and the later rep are new, Old is updated, Same is left alone, the first rep repeats, Bad is a problem");
+  assert.equal(out.creates + out.updates + out.skips + out.repeats + out.errorCount, out.rows);
 });
 
 test("a column with no field is a new field only when asked, and then it is only listed", async () => {

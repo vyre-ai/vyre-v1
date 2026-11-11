@@ -181,31 +181,31 @@ d_s_6c8b57052a(a263[i263], p + '/' + i263, e);
 
 function d_s_61c996a60e(v: unknown, p: string, e: string[]): void {
 {
-const x462 = v;
-const g462 = typeOf(x462);
-const b462: string[] = []; lf(x462, p, b462, L0); if (b462.length) e.push(...b462);
-if (g462 === "object") {
-if (g462 === 'object') { const o462 = x462 as Record<string, unknown>;
-if (!("connectionId" in o462)) e.push(p + "/connectionId" + ': required');
-if ("connectionId" in o462) lf(o462["connectionId"], p + "/connectionId", e, L35);
-if ("as" in o462) lf(o462["as"], p + "/as", e, L6);
-if ("q" in o462) lf(o462["q"], p + "/q", e, L1);
-if ("labelIds" in o462) {
+const x461 = v;
+const g461 = typeOf(x461);
+const b461: string[] = []; lf(x461, p, b461, L0); if (b461.length) e.push(...b461);
+if (g461 === "object") {
+if (g461 === 'object') { const o461 = x461 as Record<string, unknown>;
+if (!("connectionId" in o461)) e.push(p + "/connectionId" + ': required');
+if ("connectionId" in o461) lf(o461["connectionId"], p + "/connectionId", e, L35);
+if ("as" in o461) lf(o461["as"], p + "/as", e, L6);
+if ("q" in o461) lf(o461["q"], p + "/q", e, L1);
+if ("labelIds" in o461) {
 {
-const x463 = o462["labelIds"];
-const g463 = typeOf(x463);
-const b463: string[] = []; lf(x463, p + "/labelIds", b463, L4); if (b463.length) e.push(...b463);
-if (g463 === "array") {
-if (g463 === 'array') { const a463 = x463 as unknown[];
-for (let i463 = 0; i463 < a463.length; i463++) {
-lf(a463[i463], p + "/labelIds" + '/' + i463, e, L1);
+const x462 = o461["labelIds"];
+const g462 = typeOf(x462);
+const b462: string[] = []; lf(x462, p + "/labelIds", b462, L4); if (b462.length) e.push(...b462);
+if (g462 === "array") {
+if (g462 === 'array') { const a462 = x462 as unknown[];
+for (let i462 = 0; i462 < a462.length; i462++) {
+lf(a462[i462], p + "/labelIds" + '/' + i462, e, L1);
 }
 }
 }
 }
 }
-if ("maxResults" in o462) lf(o462["maxResults"], p + "/maxResults", e, L116);
-if ("pageToken" in o462) lf(o462["pageToken"], p + "/pageToken", e, L1);
+if ("maxResults" in o461) lf(o461["maxResults"], p + "/maxResults", e, L116);
+if ("pageToken" in o461) lf(o461["pageToken"], p + "/pageToken", e, L1);
 }
 }
 }

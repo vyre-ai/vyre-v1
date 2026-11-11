@@ -158,8 +158,8 @@ export function blocksToText(blocks: readonly DocBlock[], kind: FileKind): strin
   return `${lines.join("\n")}\n`;
 }
 
-/** CSV text to a sheet: quoted cells and doubled quotes are read; the first line is the header. */
-export function parseCsv(text: string): Sheet {
+/** CSV text (or tab-separated text for a .tsv) to a sheet: quoted cells and doubled quotes are read; the first line is the header. */
+export function parseCsv(text: string, delimiter = ","): Sheet {
   const rows: string[][] = [];
   let row: string[] = [];
   let cell = "";
@@ -169,7 +169,7 @@ export function parseCsv(text: string): Sheet {
     if (quoted) {
       if (c === '"' && text[i + 1] === '"') { cell += '"'; i++; } else if (c === '"') quoted = false; else cell += c;
     } else if (c === '"') quoted = true;
-    else if (c === ",") { row.push(cell); cell = ""; }
+    else if (c === delimiter) { row.push(cell); cell = ""; }
     else if (c === "\n" || c === "\r") {
       if (c === "\r" && text[i + 1] === "\n") i++;
       row.push(cell); cell = "";

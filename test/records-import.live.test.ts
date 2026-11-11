@@ -28,6 +28,7 @@ test("import 200 contacts from a CSV with no AI account; a member sees them", as
     const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "import-")), "people.csv");
     fs.writeFileSync(file, csv());
     const me = await seat(s, w.owner, "Owner");
+    await me.page.setViewportSize({ width: 1440, height: 900 });
     await open(me, s, "/records#type=contact");
     await me.page.getByTestId("records-import-btn").waitFor({ timeout: 30_000 });
     await shoot(me.page, OUT, "records-toolbar");
@@ -50,16 +51,40 @@ test("import 200 contacts from a CSV with no AI account; a member sees them", as
     await shoot(me.page, OUT, "match-changed");
     await me.page.getByTestId("import-preview").click();
     await me.page.getByTestId("import-counts").waitFor({ timeout: 30_000 });
-    assert.equal((await me.page.getByTestId("import-count-new").innerText()).split("\n")[0], "200");
+    // 202 rows in the file: 200 new (the later of the two Dara rows is used), 0 updated, 0 left alone, 1 repeat, 1 problem; the button counts what is written
+    assert.equal(await me.page.getByTestId("import-file-total").innerText(), "202 rows in the file.");
+    assert.deepEqual(await Promise.all(["new", "updated", "left"].map(async (k) => (await me.page.getByTestId(`import-count-${k}`).innerText()).split("\n")[0])), ["200", "0", "0"]);
+    assert.equal(await me.page.getByTestId("import-repeats").innerText(), "1 row repeats an earlier one in this file; the later row is used.");
+    assert.equal(await me.page.getByTestId("import-problems").innerText(), "1 row has a problem and will not be brought in.");
+    assert.equal(await me.page.getByTestId("import-commit").innerText(), "Bring in 200 rows");
     await shoot(me.page, OUT, "preview");
     await me.page.getByTestId("import-commit").click();
     await me.page.getByTestId("import-summary").waitFor({ timeout: 120_000 });
-    assert.match(await me.page.getByTestId("import-summary").innerText(), /^200 new rows added/);
+    assert.equal(await me.page.getByTestId("import-summary").innerText(), "200 new rows added, 1 repeated row left out for a later one, 1 row left out for a problem. They are in contacts.");
     await shoot(me.page, OUT, "done");
+
+    // a member sees the people (the owner's sheet stays open meanwhile)
+    const sara = await w.join("sara");
+    const rows = (await sara.ok("records.query", { type: "contact", limit: 500 })) as { rows: Array<{ fields: Record<string, unknown> }> };
+    assert.equal(rows.rows.length, 200, "a member sees the 200 contacts the owner brought in");
+    assert.equal(rows.rows.find((r) => r.fields["email"] === "dara.3@example.test")?.fields["name"], `${person(3)} again`, "the later row of the repeat is the one used");
+    assert.equal(rows.rows.find((r) => r.fields["email"] === "dara.3@example.test")?.fields["phone"], undefined, "nothing of the earlier Dara row is mixed in");
+    const seen = await seat(s, sara, "Member");
+    await open(seen, s, "/records#type=contact");
+    await seen.page.getByText(person(0), { exact: false }).first().waitFor({ timeout: 30_000 });
+
+    // Undo: asks what it will do, then takes the import back
+    await me.page.getByTestId("import-undo").click();
+    await me.page.getByTestId("import-undo-ask").waitFor();
+    await shoot(me.page, OUT, "undo-ask");
+    await me.page.getByTestId("import-undo-go").click();
+    await me.page.getByTestId("import-undone").waitFor({ timeout: 120_000 });
+    await shoot(me.page, OUT, "undone");
     await me.page.getByTestId("import-done").click();
     await me.page.getByTestId("import-sheet").waitFor({ state: "detached" });
-    await me.page.getByText(person(0), { exact: false }).first().waitFor({ timeout: 30_000 });
-    await shoot(me.page, OUT, "contacts-after");
+    await me.page.getByText("No contacts yet.").waitFor({ timeout: 30_000 });
+    assert.equal(((await sara.ok("records.query", { type: "contact", limit: 500 })) as { rows: unknown[] }).rows.length, 0, "the people are gone for the member too");
+    await shoot(me.page, OUT, "contacts-after-undo");
 
     // the palette finds it
     await me.page.keyboard.press("Control+k");
@@ -67,15 +92,6 @@ test("import 200 contacts from a CSV with no AI account; a member sees them", as
     await me.page.getByText("Import contacts from a spreadsheet").first().waitFor({ timeout: 10_000 });
     await shoot(me.page, OUT, "palette");
     await me.page.keyboard.press("Escape");
-
-    // a member sees the people
-    const sara = await w.join("sara");
-    const rows = (await sara.ok("records.query", { type: "contact", limit: 500 })) as { rows: unknown[] };
-    assert.equal(rows.rows.length, 200, "a member sees the 200 contacts the owner brought in");
-    const seen = await seat(s, sara, "Member");
-    await open(seen, s, "/records#type=contact");
-    await seen.page.getByText(person(0), { exact: false }).first().waitFor({ timeout: 30_000 });
-    assert.equal(await seen.page.getByTestId("records-import-btn").count() >= 0, true);
     assert.deepEqual(me.errors, []);
 
     // the phone
@@ -97,7 +113,20 @@ test("import 200 contacts from a CSV with no AI account; a member sees them", as
     rename(await shoot(me.page, OUT, "phone-preview"));
     await me.page.getByTestId("import-commit").click();
     await me.page.getByTestId("import-summary").waitFor({ timeout: 120_000 });
-    assert.match(await me.page.getByTestId("import-summary").innerText(), /^0 new rows added, 200 rows updated, 1 row skipped, 1 row left out for a problem/, `the same file again updates the people already here and adds nobody: ${await me.page.getByTestId("import-summary").innerText()}`);
+    assert.match(await me.page.getByTestId("import-summary").innerText(), /^200 new rows added, 1 repeated row left out for a later one, 1 row left out for a problem/, "the undone people are new again");
     rename(await shoot(me.page, OUT, "phone-done"));
+    // the toolbar at three widths: the title keeps its room and the least used actions are in More
+    await me.page.setViewportSize({ width: 1440, height: 900 });
+    await open(me, s, "/records#type=contact");
+    await me.page.getByTestId("records-import-btn").waitFor({ timeout: 30_000 });
+    await shoot(me.page, OUT, "toolbar-1440");
+    for (const width of [1280, 1024]) {
+      await me.page.setViewportSize({ width, height: 800 });
+      await open(me, s, "/records#type=contact");
+      await me.page.getByTestId("records-more").waitFor({ timeout: 30_000 });
+      assert.equal(await me.page.getByTestId("records-import-btn").count(), 0, `at ${width} Import is in More`);
+      await shoot(me.page, OUT, `toolbar-${width}`);
+      if (width === 1280) { await me.page.getByTestId("records-more").click(); await shoot(me.page, OUT, "toolbar-1280-more"); await me.page.keyboard.press("Escape"); }
+    }
   } finally { await s.close(); }
 });

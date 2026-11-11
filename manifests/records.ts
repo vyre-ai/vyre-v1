@@ -110,7 +110,7 @@ export default defineManifest({
       emits: ['record.updated', 'record.value_proposed'], tool: 'records', offline: 'patch', errors: ['validation.field_locked', 'validation.version_conflict', 'validation.duplicate'], hook: true,
     }),
     create('records.bulk_upsert', 'Create or update many records by match key, quietly (no automations unless asked)', {
-      in: { type: id.recordType, rows: t.arr(t.rec()), match: t.arr(t.str()), runAutomations: t.opt(t.bool()) },
+      in: { type: id.recordType, rows: t.arr(t.rec()), match: t.arr(t.str()), runAutomations: t.opt(t.bool()), createOnly: t.opt(t.bool({ description: 'Make every row a new record: no match field is needed and none is looked up' })) },
       out: { created: t.int(), updated: t.int(), skipped: t.int() }, make: ['record', '/type'], perm: 'records.create', emits: ['record.created', 'record.updated'], tool: 'records', cli: 'vyre records upsert',
     }),
     write('records.delete', 'Move a record to Trash', { in: target, out: { deleted: t.bool() }, on: ['record', '/recordId'], perm: 'records.delete', emits: ['record.deleted'], gate: { act: 'delete', when: "actor.kind != 'person'" }, tool: 'records', offline: 'queue', errors: ['permission.on_hold'] }),

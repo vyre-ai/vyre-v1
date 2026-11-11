@@ -42,3 +42,51 @@ test("2,000 contacts (IMPORT_ROWS=20000 for the big one): timed", async () => {
   const r = await run(Number(process.env["IMPORT_ROWS"] ?? 2000), "imp-big");
   console.log("IMPORT big rows", r.ms, "ms", JSON.stringify({ creates: r.preview["creates"], skips: r.preview["skips"], errorCount: r.preview["errorCount"] }));
 });
+
+const WATCHED = ["nia", "sam", "olive", "mid", "fay"].map((n) => `${n}@example.test`);
+const people = async (who: Person): Promise<Array<{ id: string; fields: Record<string, unknown> }>> => ((await who.call("records.query", { type: "contact", filter: { or: WATCHED.map((e) => ({ field: "email", op: "eq", value: e })) }, limit: 500 })).rows as Array<{ id: string; fields: Record<string, unknown> }>);
+
+test("a file with new, updated, left alone, repeated and problem rows: the preview is what the commit does, the later repeat is used whole, and Undo takes the import back", async () => {
+  const mk = async (name: string, email: string) => (await h.owner.call("records.create", { type: "contact", fields: { name, email } })).record.id as string;
+  const olive = await mk("Olive", "olive@example.test");
+  await mk("Same Sam", "sam@example.test");
+  const mid = await mk("Mid Mo", "mid@example.test");
+  const text = ["Name,Email,Phone",
+    "New Nia,nia@example.test,+1 555 0200",
+    "Same Sam,sam@example.test,",
+    "Olive Renamed,olive@example.test,",
+    "Mid Renamed,mid@example.test,",
+    "Bad Bo,not-an-email,",
+    "First Fay,fay@example.test,+1 555 0300",
+    "Second Fay,fay@example.test,"].join("\n");
+  const staged = await h.owner.call("import.parse_csv", { text });
+  const mapping = [{ column: "Name", field: "name" }, { column: "Email", field: "email" }, { column: "Phone", field: "phone" }];
+  const pv = await h.owner.call("import.preview", { importId: staged.importId, type: "contact", mapping, match: ["email"] });
+  assert.deepEqual([pv.rows, pv.creates, pv.updates, pv.skips, pv.repeats, pv.errorCount], [7, 2, 2, 1, 1, 1], "new Nia and Second Fay; Olive and Mid updated; Sam left alone; First Fay repeats; Bad Bo is a problem");
+  const run = await h.owner.call("import.commit", { importId: staged.importId, previewToken: pv.previewToken, idempotencyKey: "import-all-kinds" });
+  await waitFor(async () => ((await h.owner.call("import.get", { importId: staged.importId })).import as { state: string }).state === "done" ? true : null, 60_000, "done");
+  const got = (await h.owner.call("import.get", { importId: staged.importId })).import as Record<string, number>;
+  assert.deepEqual([got["created"], got["updated"], got["skipped"], got["repeated"], got["failed"]], [pv.creates, pv.updates, pv.skips, pv.repeats, pv.errorCount], "the commit does what the preview said");
+  const now = await people(h.owner);
+  const fay = now.find((r) => r.fields["email"] === "fay@example.test")!;
+  assert.equal(fay.fields["name"], "Second Fay");
+  assert.equal(fay.fields["phone"], undefined, "every field of the kept row is from the later row: the earlier row's phone is not mixed in");
+  assert.equal(now.filter((r) => r.fields["email"] === "fay@example.test").length, 1);
+
+  const listed = ((await h.owner.call("runs.list", { scope: "mine", limit: 50 })).runs as Array<{ id: string; name?: string; status?: string }>).find((r) => r.id === String(run.runId));
+  assert.deepEqual([listed?.name, listed?.status], ["Import contact", "succeeded"], "the import is a Run in the importer's own list of runs");
+  // someone else changes Mid after the import
+  await h.owner.call("records.update", { type: "contact", recordId: mid, patch: { name: "Mid by hand" } });
+  const undo = await h.owner.call("runs.preview_undo", { runId: String(run.runId) });
+  assert.equal((undo.undone as unknown[]).length, 3, "Nia and Second Fay are removed, Olive is put back");
+  assert.deepEqual((undo.skipped as Array<{ reason: string; summary: string }>).map((x) => x.reason), ["changed_since"]);
+  const done = await h.owner.call("runs.undo", { runId: String(run.runId) });
+  assert.equal((done.undone as unknown[]).length, 3);
+  const after = await people(h.owner);
+  const byEmail = (e: string) => after.find((r) => r.fields["email"] === e);
+  assert.equal(byEmail("nia@example.test"), undefined, "rows the import created are gone");
+  assert.equal(byEmail("fay@example.test"), undefined);
+  assert.equal(after.find((r) => r.id === olive)?.fields["name"], "Olive", "a row it updated is back to its earlier values");
+  assert.equal(after.find((r) => r.id === mid)?.fields["name"], "Mid by hand", "a row changed by someone after the import is left alone");
+  assert.match(((done.skipped as Array<{ summary: string }>)[0]?.summary) ?? "", /changed after the run/, "and named");
+});

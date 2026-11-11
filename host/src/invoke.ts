@@ -590,7 +590,7 @@ export function createInvoke(deps: InvokeDeps): Invoke {
         }
         // CallOpts.traceId: a call that continues earlier work (a provider's callback about a call a person placed) runs on that work's trace
         const nested: TraceContext = opts?.traceId !== undefined && /^[0-9a-f]{32}$/.test(opts.traceId) && !/^0+$/.test(opts.traceId) ? { ...trace, traceId: opts.traceId } : trace;
-        const r = await invoke(name, callInput, { ...base, depth: depth + 1, trace: nested, approval: resume?.approvalToken, v: undefined, clearedActs: resume ? undefined : cleared, gateMode: opts?.gate ?? seed.gateMode, step: opts?.step ?? base.step });
+        const r = await invoke(name, callInput, { ...base, ...(opts?.run !== undefined ? { run: opts.run } : {}), depth: depth + 1, trace: nested, approval: resume?.approvalToken, v: undefined, clearedActs: resume ? undefined : cleared, gateMode: opts?.gate ?? seed.gateMode, step: opts?.step ?? base.step });
         if (r.status === "held") throw fail("permission.needs_approval", trace.traceId, { details: { taskId: r.taskId, cap: name } });
         return r.output;
       },

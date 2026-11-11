@@ -17,6 +17,8 @@ const recordIdOf = (e: LoggedEvent): string | undefined => {
   return typeof v === "string" ? v : undefined;
 };
 const asRecord = (v: unknown): Record<string, unknown> => (v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {});
+/** The record's type as the event names it: every records capability takes it with the record id. */
+const typeOf = (e: LoggedEvent): Record<string, string> => (typeof e.payload.type === "string" ? { type: e.payload.type } : {});
 const nameOf = (e: LoggedEvent): string => {
   const t = typeof e.payload.type === "string" ? e.payload.type : "record";
   return `${t} ${recordIdOf(e) ?? ""}`.trim();
@@ -27,19 +29,19 @@ const nameOf = (e: LoggedEvent): string => {
  * reverses the event, or says why it cannot). Events that are not listed and match no pattern are not undoable.
  */
 export const RULES: Record<string, Rule> = {
-  "record.created": (e) => ({ cap: "records.delete", input: { recordId: recordIdOf(e) ?? "" }, summary: `Removed ${nameOf(e)}`, what: nameOf(e) }),
+  "record.created": (e) => ({ cap: "records.delete", input: { ...typeOf(e), recordId: recordIdOf(e) ?? "" }, summary: `Removed ${nameOf(e)}`, what: nameOf(e) }),
   "record.updated": (e) => {
     const prev = asRecord(e.payload.prev);
     if (Object.keys(prev).length === 0) return { skip: "not_undoable", summary: `The old values of ${nameOf(e)} were not kept` };
-    return { cap: "records.update", input: { recordId: recordIdOf(e) ?? "", patch: prev }, summary: `Put back ${Object.keys(prev).join(", ")} on ${nameOf(e)}`, what: nameOf(e) };
+    return { cap: "records.update", input: { ...typeOf(e), recordId: recordIdOf(e) ?? "", patch: prev }, summary: `Put back ${Object.keys(prev).join(", ")} on ${nameOf(e)}`, what: nameOf(e) };
   },
-  "record.deleted": (e) => ({ cap: "records.restore", input: { recordId: recordIdOf(e) ?? "" }, summary: `Restored ${nameOf(e)} from Trash`, what: nameOf(e) }),
-  "record.restored": (e) => ({ cap: "records.delete", input: { recordId: recordIdOf(e) ?? "" }, summary: `Moved ${nameOf(e)} back to Trash`, what: nameOf(e) }),
+  "record.deleted": (e) => ({ cap: "records.restore", input: { ...typeOf(e), recordId: recordIdOf(e) ?? "" }, summary: `Restored ${nameOf(e)} from Trash`, what: nameOf(e) }),
+  "record.restored": (e) => ({ cap: "records.delete", input: { ...typeOf(e), recordId: recordIdOf(e) ?? "" }, summary: `Moved ${nameOf(e)} back to Trash`, what: nameOf(e) }),
 };
 const SENT = /(^|\.)(sent|launched|sent_for_review|posted|called|texted)$/;
 const DEPLOYED = /(^|\.)(deployed|promoted|published|released)$/;
 /** Events that only describe the Run itself or its bookkeeping: never part of "what it changed". */
-const BOOKKEEPING = /^(run\.|task\.|gate\.|webhook\.|health\.|log\.|audit\.|turn\.|thread\.)/;
+const BOOKKEEPING = /^(run\.|resource\.|task\.|gate\.|webhook\.|health\.|log\.|audit\.|turn\.|thread\.)/;
 
 export function ruleFor(type: string): Rule | undefined {
   const r = RULES[type];

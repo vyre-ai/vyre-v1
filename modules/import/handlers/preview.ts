@@ -51,46 +51,60 @@ export function buildRows(table: Table, mapping: readonly Mapping[], fields: Rea
 
 const keyOf = (fields: Record<string, unknown>, match: readonly string[]): string | undefined => {
   const vals = match.map((k) => fields[k]);
-  return vals.some((v) => v === undefined) ? undefined : stable(vals);
+  return vals.some((v) => v === undefined || v === null || v === "") ? undefined : stable(vals);
 };
+/** Every match field of a row holds a value: the row can be found, so it goes through the match. */
+export const hasKey = (fields: Record<string, unknown>, match: readonly string[]): boolean => keyOf(fields, match) !== undefined;
+const same = (a: unknown, b: unknown): boolean => stable(a ?? null) === stable(b ?? null);
 
-/** Which of these rows already exist: records of the type whose match fields equal the row's, asked in chunks. */
-async function existing(ctx: ImportCtx, type: string, match: readonly string[], rows: readonly Built[]): Promise<Set<string>> {
+/** The records of the type whose match fields equal a row's, asked in chunks: their fields by match key (the fields of the mapped columns, to tell a change from no change). */
+async function existing(ctx: ImportCtx, type: string, match: readonly string[], keys: readonly string[], rows: readonly Built[]): Promise<Map<string, Record<string, unknown>>> {
   const wanted = new Map<string, Record<string, unknown>>();
   for (const b of rows) {
     if (!b.fields) continue;
     const k = keyOf(b.fields, match);
     if (k !== undefined && !wanted.has(k)) wanted.set(k, b.fields);
   }
-  const found = new Set<string>();
+  const found = new Map<string, Record<string, unknown>>();
   const list = [...wanted.values()];
+  const asked = [...new Set([...match, ...keys])];
   for (let i = 0; i < list.length; i += 100) {
     const chunk = list.slice(i, i + 100);
     const filter = { or: chunk.map((f) => ({ and: match.map((k) => ({ field: k, op: "eq", value: f[k] })) })) };
     // a page holds at most 500 rows (the capability's limit), so a chunk whose keys match many rows is read page by page
     let cursor: string | undefined;
     do {
-      const res = await call<{ rows?: Array<{ fields?: Record<string, unknown> }>; next?: string }>(ctx, "records.query", { type, filter, fields: [...match], limit: 500, ...(cursor !== undefined ? { cursor } : {}) });
-      for (const r of res.rows ?? []) { const k = r.fields ? keyOf(r.fields, match) : undefined; if (k !== undefined) found.add(k); }
+      const res = await call<{ rows?: Array<{ fields?: Record<string, unknown> }>; next?: string }>(ctx, "records.query", { type, filter, fields: asked, limit: 500, ...(cursor !== undefined ? { cursor } : {}) });
+      for (const r of res.rows ?? []) { const k = r.fields ? keyOf(r.fields, match) : undefined; if (k !== undefined && r.fields) found.set(k, r.fields); }
       cursor = res.next;
     } while (cursor !== undefined);
   }
   return found;
 }
 
-/** What each row would do: c create, u update, s skip, e error. */
-export async function classify(ctx: ImportCtx, type: string, match: readonly string[], onMatch: Plan["onMatch"], rows: readonly Built[]): Promise<string> {
-  const have = match.length > 0 ? await existing(ctx, type, match, rows) : new Set<string>();
-  const seen = new Set<string>();
+/**
+ * What each row will do, one letter per row, and the rule that makes the preview a promise:
+ *   c a new row; u a row that changes someone already here; s left alone (an empty row, someone already here who would not change, or one the person chose to leave);
+ *   e a row with a problem, not brought in; r a row that repeats the match value of a later row in the file: the LAST row for a match value is used, whole, and the earlier ones are left out.
+ * A row with no match value (or an import with no match field) is always new. Commit takes exactly these letters.
+ */
+export async function classify(ctx: ImportCtx, type: string, match: readonly string[], onMatch: Plan["onMatch"], rows: readonly Built[], keys: readonly string[] = []): Promise<string> {
+  const matching = match.length > 0 && onMatch !== "create";
+  const have = matching ? await existing(ctx, type, match, keys, rows) : new Map<string, Record<string, unknown>>();
+  const last = new Map<string, number>();
+  if (matching) rows.forEach((b, i) => { if (b.errors.length === 0 && b.fields) { const k = keyOf(b.fields, match); if (k !== undefined) last.set(k, i); } });
   let out = "";
-  for (const b of rows) {
-    if (b.errors.length > 0) { out += "e"; continue; }
-    if (!b.fields) { out += "s"; continue; }
-    const k = match.length > 0 ? keyOf(b.fields, match) : undefined;
-    const exists = k !== undefined && (have.has(k) || seen.has(k));
-    if (k !== undefined) seen.add(k);
-    out += !exists ? "c" : onMatch === "skip" ? "s" : onMatch === "create" ? "c" : "u";
-  }
+  rows.forEach((b, i) => {
+    if (b.errors.length > 0) { out += "e"; return; }
+    if (!b.fields) { out += "s"; return; }
+    const k = matching ? keyOf(b.fields, match) : undefined;
+    if (k === undefined) { out += "c"; return; }
+    if (last.get(k) !== i) { out += "r"; return; }
+    const cur = have.get(k);
+    if (cur === undefined) out += "c";
+    else if (onMatch === "skip") out += "s";
+    else out += Object.entries(b.fields).every(([f, v]) => same(cur[f], v)) ? "s" : "u";
+  });
   return out;
 }
 
@@ -131,7 +145,7 @@ export async function preview(ctx: ImportCtx, input: In): Promise<unknown> {
 
   const rows = buildRows(table, mapping, fields, compileAll(ctx, mapping));
   const onMatch: Plan["onMatch"] = input.onMatch ?? "update";
-  const actions = await classify(ctx, input.type, match, onMatch, rows);
+  const actions = await classify(ctx, input.type, match, onMatch, rows, mapping.map((m) => m.field));
   const count = (c: string): number => [...actions].filter((x) => x === c).length;
   const errors = rows.flatMap((b) => b.errors);
   const base: Omit<Plan, "actions"> = { table: table.name, type: input.type, mapping, match, onMatch, createFields, runAutomations: input.runAutomations === true, newFields };
@@ -141,7 +155,7 @@ export async function preview(ctx: ImportCtx, input: In): Promise<unknown> {
   s.previewToken = previewToken;
   saveSession(ctx.db, s);
   return {
-    previewToken, creates: count("c"), updates: count("u"), skips: count("s"),
+    previewToken, rows: rows.length, creates: count("c"), updates: count("u"), skips: count("s"), repeats: count("r"),
     errors: errors.slice(0, ERRORS_SHOWN).map((e) => clean({ row: e.row, column: e.column, message: e.message })), errorCount: errors.length,
     newFields: newFields.map((n) => ({ key: n.key, type: n.type })), samples: rows.filter((b) => b.fields).slice(0, 5).map((b) => b.fields as Record<string, unknown>),
   };

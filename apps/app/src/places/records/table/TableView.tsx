@@ -478,6 +478,8 @@ function Grid({ type, def, views, base, saved, headerExtra }: { type: string; de
   const phone = useWindowDimensions().width;
   const slim = isPhoneWidth(phone);
   const tight = phone > 0 && phone < 1180;   // beside the sidebar a 1024 window has no room for seven labelled buttons: icons only, so the type and view names keep their room
+  // below 1400 the least used actions (Colour, Share, Import, Export) move into one More menu, so the type and view names keep their room
+  const roomy = phone === 0 || phone >= 1400;
   const typeList = useScreenQuery<TypesOut>(SCREENS.types, "types");
   const access = useRecordAccess(type);
   // Import: a spreadsheet of rows into this type. The command palette and the sidebar ask for it through request.ts; a request waiting when the table is drawn is taken at once
@@ -732,6 +734,13 @@ function Grid({ type, def, views, base, saved, headerExtra }: { type: string; de
   }
 
   const lit = (b: boolean): boolean => b;
+  /** The actions that moved out of the toolbar on a narrower window. */
+  const moreEntries = (x: number, y: number): MenuEntry[] => [
+    { label: colourField ? `Colour: ${colourField.title}` : "Colour", onSelect: () => keep("colour")(x, y) },
+    ...(access.on && (access.can.manage || access.can.share) ? [{ label: "Share", onSelect: () => data.share?.open({ type: "record_type", id: type, name: def.plural }) } as MenuEntry] : []),
+    ...(canImport ? [{ label: "Import…", onSelect: () => setImporting(true) } as MenuEntry] : []),
+    ...(access.on && access.can.export ? [{ label: "Export as CSV", onSelect: exportView } as MenuEntry] : []),
+  ];
   return (
     <View style={styles.main} testID="records-table" accessibilityLabel={`${def.plural} table`}>
       <View style={styles.head} testID="records-head">
@@ -773,11 +782,12 @@ function Grid({ type, def, views, base, saved, headerExtra }: { type: string; de
         <HeadButton icon="sort" label="Sort" detail={sortKey ? def.fields.find((f) => f.key === sortKey.field)?.title : undefined} on={lit(sortKey !== undefined)} bare={tight} testID="records-sort" onPress={(x, y) => menu.show(sortEntries(), x, y, "other")} />
         <HeadButton icon="group" label="Group" detail={groupField?.title} on={lit(groupField !== undefined)} bare={tight} testID="records-group" onPress={(x, y) => menu.show(groupEntries(), x, y, "other")} />
         <HeadButton icon="eye" label="Fields" detail={v.hidden.length ? `${v.hidden.length} hidden` : undefined} bare={tight} testID="records-fields" onPress={data.canEditSchema === true ? () => setPanel({}) : keep("fields")} />
-        <HeadButton icon="colour" label="Colour" detail={colourField?.title} on={lit(colourField !== undefined)} bare={tight} testID="records-colour" onPress={keep("colour")} />
+        {roomy ? <HeadButton icon="colour" label="Colour" detail={colourField?.title} on={lit(colourField !== undefined)} bare={tight} testID="records-colour" onPress={keep("colour")} /> : null}
         {access.on && access.hasShared ? <HeadButton icon="people" label="Shared with me" bare={tight} on={lit(sharedOnly)} testID="records-shared" onPress={() => setSharedOnly(!sharedOnly)} /> : null}
-        {access.on && (access.can.manage || access.can.share) ? <HeadButton icon="share" label="Share" bare={tight} testID="records-share-btn" onPress={() => data.share?.open({ type: "record_type", id: type, name: def.plural })} /> : null}
-        {canImport ? <HeadButton icon="upload" label="Import" bare={tight} testID="records-import-btn" onPress={() => setImporting(true)} /> : null}
-        {access.on && access.can.export ? <HeadButton icon="download" label="Export" bare={tight} testID="records-export-btn" onPress={exportView} /> : null}
+        {roomy && access.on && (access.can.manage || access.can.share) ? <HeadButton icon="share" label="Share" bare={tight} testID="records-share-btn" onPress={() => data.share?.open({ type: "record_type", id: type, name: def.plural })} /> : null}
+        {roomy && canImport ? <HeadButton icon="upload" label="Import" bare={tight} testID="records-import-btn" onPress={() => setImporting(true)} /> : null}
+        {!roomy ? <HeadButton icon="more" label="More" bare testID="records-more" onPress={(x, y) => menu.show(moreEntries(x, y), x, y, "other")} /> : null}
+        {roomy && access.on && access.can.export ? <HeadButton icon="download" label="Export" bare={tight} testID="records-export-btn" onPress={exportView} /> : null}
         {headerExtra}
         <HeadButton icon="plus" label="New" bare={tight} filled testID="records-new" onPress={startNew} />
       </View>

@@ -58,7 +58,7 @@ test("undo puts back the old values of what the Run updated and says so", async 
   const run = await aRun(h);
   const e = w.add("record.updated", { runId: run, ...upd("rec_1", { status: "active" }, { status: "new" }) });
   const r = await h.call("runs.undo", { runId: run }, alice);
-  assert.deepEqual(w.done, [{ cap: "records.update", input: { recordId: "rec_1", patch: { status: "new" } } }]);
+  assert.deepEqual(w.done, [{ cap: "records.update", input: { type: "contact", recordId: "rec_1", patch: { status: "new" } } }]);
   assert.equal(r.undone.length, 1);
   assert.equal(r.undone[0].eventId, e.id);
   assert.match(r.undone[0].summary, /Put back status on contact rec_1/);
@@ -119,6 +119,7 @@ test("sent messages, deployments and unknown writes are listed as not undoable; 
   const other = w.add("memory.fact_added", { runId: run });
   w.add("run.waiting", { runId: run, payload: { runId: run } });
   w.add("task.created", { runId: run });
+  w.add("resource.created", { runId: run });   // a created record becoming an access resource: the record.created covers it
   const noPrev = w.add("record.updated", { runId: run, ...upd("rec_9", { a: 1 }, {}) });
   const r = await h.call("runs.undo", { runId: run }, alice);
   assert.deepEqual(w.done, []);

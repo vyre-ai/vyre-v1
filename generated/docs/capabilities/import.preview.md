@@ -45,9 +45,11 @@ type In = {
 ```ts
 type Out = {
   previewToken: string;
+  rows: number;
   creates: number;
   updates: number;
   skips: number;
+  repeats: number;
   errors: Array<{
       row: number;
       column?: string;
@@ -111,6 +113,8 @@ type Out = {
       }
     ],
     "previewToken": "example",
+    "repeats": 1,
+    "rows": 1,
     "samples": [
       {}
     ],

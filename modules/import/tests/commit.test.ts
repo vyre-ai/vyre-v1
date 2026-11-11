@@ -105,33 +105,49 @@ test("an expired import cannot be committed", async () => {
   assert.equal(h.only("records.bulk_upsert").length, 0);
 });
 
-test("rows that match existing records are updates through the match key; skip leaves them out; create makes new ones", async () => {
+test("rows that match existing records are updates through the match key; skip leaves them out; create makes new ones; the later row of a repeat is the one used", async () => {
   const text = `${CSV}\nAda Again,ada@example.com,,,,,,`;
   const upd = harness();
   upd.world.seed("contact", { name: "Old Ada", email: "ada@example.com" });
   const a = await ready(upd, text, { match: ["email"] }, MAPPING);
   await run(upd, "import.commit", a);
   assert.deepEqual(upd.only("records.bulk_upsert")[0]!.input.match, ["email"]);
-  assert.equal(upd.only("records.bulk_upsert")[0]!.input.rows.length, 4);
-  assert.equal(upd.world.rows("contact").length, 3, "Ada updated (twice), Grace and Alan created");
-  assert.equal(upd.world.rows("contact")[0]!["name"], "Ada Again");
+  assert.equal(upd.only("records.bulk_upsert")[0]!.input.rows.length, 3, "the first Ada repeats a later row and is not sent");
+  assert.equal(upd.world.rows("contact").length, 3, "Ada updated once, Grace and Alan created");
+  const ada = upd.world.rows("contact")[0]!;
+  assert.deepEqual([ada["name"], ada["phone"], ada["company"]], ["Ada Again", undefined, undefined], "every field of the kept row comes from the later row, nothing from the earlier one");
   assert.deepEqual(upd.named("import.completed")[0]!.payload["created"], 2);
-  assert.deepEqual(upd.named("import.completed")[0]!.payload["updated"], 2);
+  assert.deepEqual(upd.named("import.completed")[0]!.payload["updated"], 1);
 
   const skip = harness();
   skip.world.seed("contact", { name: "Old Ada", email: "ada@example.com" });
   const b = await ready(skip, text, { match: ["email"], onMatch: "skip" }, MAPPING);
   await run(skip, "import.commit", b);
-  assert.equal(skip.only("records.bulk_upsert")[0]!.input.rows.length, 2, "Grace and Alan; both Adas are left alone");
+  assert.equal(skip.only("records.bulk_upsert")[0]!.input.rows.length, 2, "Grace and Alan; Ada is left alone");
   assert.equal(skip.world.rows("contact")[0]!["name"], "Old Ada");
-  assert.equal(skip.named("import.completed")[0]!.payload["skipped"], 2);
+  assert.equal(skip.named("import.completed")[0]!.payload["skipped"], 1);
 
   const make = harness();
   make.world.seed("contact", { name: "Old Ada", email: "ada@example.com" });
   const c = await ready(make, text, { match: ["email"], onMatch: "create" }, MAPPING);
   await run(make, "import.commit", c);
   assert.deepEqual(make.only("records.bulk_upsert")[0]!.input.match, [], "no match key: every row is new");
+  assert.equal(make.only("records.bulk_upsert")[0]!.input.createOnly, true);
   assert.equal(make.world.rows("contact").length, 5);
+});
+
+test("the preview is a promise: new, updated, left alone, repeated and problem counts in the preview equal what the commit writes, in a file with all five kinds", async () => {
+  const h = harness();
+  h.world.seed("contact", { name: "Same", email: "same@example.com" }, { name: "Old", email: "old@example.com" });
+  const map = [{ column: "Name", field: "name" }, { column: "Email", field: "email" }];
+  const importId = await stage(h, "Name,Email\nNew One,new@example.com\nSame,same@example.com\nOld Renamed,old@example.com\nBad,not-an-email\nFirst,rep@example.com\nSecond,rep@example.com\nNo Email,\n");
+  const pv = await run(h, "import.preview", { importId, type: "contact", mapping: map, match: ["email"] });
+  assert.deepEqual([pv.rows, pv.creates, pv.updates, pv.skips, pv.repeats, pv.errorCount], [7, 3, 1, 1, 1, 1]);
+  await run(h, "import.commit", { importId, previewToken: pv.previewToken });
+  const got = (await run(h, "import.get", { importId })).import;
+  assert.deepEqual([got.created, got.updated, got.skipped, got.repeated, got.failed], [pv.creates, pv.updates, pv.skips, pv.repeats, pv.errorCount]);
+  const names = h.world.rows("contact").map((r) => r["name"]).sort();
+  assert.deepEqual(names, ["New One", "No Email", "Old Renamed", "Same", "Second"]);
 });
 
 test("rows that could not be converted are not written and are counted as failed", async () => {
@@ -164,7 +180,7 @@ test("a large import is written in batches of 500, each with its own key", async
   await run(h, "import.commit", { importId, previewToken });
   const bulk = h.only("records.bulk_upsert");
   assert.deepEqual(bulk.map((c) => c.input.rows.length), [500, 500, 200]);
-  assert.deepEqual(bulk.map((c) => c.key), [`imp:${importId}:0`, `imp:${importId}:1`, `imp:${importId}:2`]);
+  assert.deepEqual(bulk.map((c) => c.key), [`imp:${importId}:p0`, `imp:${importId}:p1`, `imp:${importId}:p2`]);
   assert.equal(h.world.rows("contact").length, 1200);
   assert.equal(h.named("import.completed")[0]!.payload["created"], 1200);
 });

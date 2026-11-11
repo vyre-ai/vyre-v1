@@ -130,7 +130,7 @@ export interface RowError { row: number; column?: string | undefined; message: s
 export interface Plan {
   table: string; type: string; mapping: Mapping[]; match: string[]; onMatch: "update" | "skip" | "create"; createFields: boolean; runAutomations: boolean;
   newFields: NewField[];
-  /** One letter per data row: c create, u update, s skip, e error. */
+  /** One letter per data row: c create, u update, s left alone, e error, r repeats the match value of a later row (the later row is used). */
   actions: string;
 }
 export type State = "staged" | "running" | "done" | "failed" | "canceled";

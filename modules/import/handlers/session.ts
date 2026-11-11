@@ -5,7 +5,7 @@ import { IMPORTABLE } from "../mapping.ts";
 
 // DECISION: an import that has not been previewed has no record type yet; it shows the type `pending`.
 const row = (s: Session) => clean({
-  importId: s.importId, source: s.source, type: s.type ?? "pending", state: s.state, runId: s.runId, by: s.createdBy, at: s.createdAt, created: s.created, updated: s.updated, skipped: s.skipped, failed: s.failed,
+  importId: s.importId, source: s.source, type: s.type ?? "pending", state: s.state, runId: s.runId, by: s.createdBy, at: s.createdAt, created: s.created, updated: s.updated, skipped: s.skipped, failed: s.failed, repeated: s.plan ? [...s.plan.actions].filter((a) => a === "r").length : undefined,
   ranAutomations: s.ranAutomations, errorsFileId: s.errorsFileId,
 });
 

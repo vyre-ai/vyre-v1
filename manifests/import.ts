@@ -29,7 +29,7 @@ const mapping = t.arr(t.obj({ column: t.str(), field: fieldKey, transform: t.opt
 
 const importRow = t.obj({
   importId, source: sourceKind, type: id.recordType, state: t.enm('staged', 'running', 'done', 'failed', 'canceled'),
-  runId: t.opt(id.run), by: t.str(), at: t.ts(), created: t.int(), updated: t.int(), skipped: t.int(), failed: t.int(),
+  runId: t.opt(id.run), by: t.str(), at: t.ts(), created: t.int(), updated: t.int(), skipped: t.int(), failed: t.int(), repeated: t.opt(t.int()),
   ranAutomations: t.bool(), errorsFileId: t.opt(id.file),
 });
 
@@ -90,7 +90,7 @@ export default defineManifest({
         runAutomations: t.opt(t.bool()),
       },
       out: {
-        previewToken: t.str(), creates: t.int(), updates: t.int(), skips: t.int(),
+        previewToken: t.str(), rows: t.int({ description: 'Data rows in the staged table' }), creates: t.int(), updates: t.int(), skips: t.int({ description: 'Left alone: empty rows, rows that would change nothing, rows the importer chose to leave' }), repeats: t.int({ description: 'Rows that repeat the match value of a later row in the same file; the later row is used' }),
         errors: t.arr(t.obj({ row: t.int(), column: t.opt(t.str()), message: t.str() }), { maxItems: 50 }), errorCount: t.int(),
         newFields: t.arr(t.obj({ key: fieldKey, type: t.str() })), samples: t.arr(t.rec()),
       },

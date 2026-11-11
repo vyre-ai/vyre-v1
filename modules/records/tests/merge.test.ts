@@ -411,3 +411,14 @@ test("export never writes a row the caller may not read, picked or not: the pick
 // Run on the final commit of this packet, after merging main, so the CI log lists this file as ok.
 // run on the final commit
 // run on the final commit
+
+test("bulk_upsert: createOnly makes every row a new record with no match field, rows with no key included, and looks nothing up", async () => {
+  const k = await kit();
+  const count = async () => (await k.rec.store.query("party", { page: { limit: 100 } })).rows.length;
+  const rows = [{ email: "a@x.com", name: "A" }, { email: "a@x.com", name: "A again" }, { name: "No email" }];
+  assert.deepEqual(await k.h["records.bulk_upsert"](k.ctx, { type: "party", rows, match: [], createOnly: true }), { created: 3, updated: 0, skipped: 0 });
+  assert.equal(await count(), 3, "the repeat is not folded");
+  assert.equal(k.seen.filter((e) => e.name === "record.created").length, 3);
+  assert.ok(k.seen.filter((e) => e.name === "record.created").every((e) => e.payload.quiet === true));
+  await assert.rejects(k.h["records.bulk_upsert"](k.ctx, { type: "party", rows: [{ name: "x" }], match: [] }), vcode("validation.bad_input"), "without createOnly an empty match is still refused");
+});

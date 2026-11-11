@@ -77,18 +77,22 @@ export function fakeWorld(clock: { t: number }) {
       const hit = rows.filter((r) => ors.some((o) => o.and.every((c) => JSON.stringify(r.fields[c.field]) === JSON.stringify(c.value))));
       return { rows: hit.map((r) => ({ id: r.id, type: i.type, version: 1, label: 0, fields: r.fields, createdAt: clock.t, updatedAt: clock.t, holds: 0 })), total: hit.length };
     },
+    // as the real records.bulk_upsert answers: createOnly makes every row new; otherwise match fields are required on every row, a row that changes nothing is skipped
     "records.bulk_upsert": (i, o) => keyed(o, "bu", () => {
       const call = bulkCalls++;
       if (failBatch.at === call) fail("internal.unexpected", "the store is full");
       const rows = store.get(i.type) ?? [];
       store.set(i.type, rows);
-      let created = 0, updated = 0;
+      let created = 0, updated = 0, skipped = 0;
+      if (i.createOnly !== true && i.match.length === 0) fail("validation.bad_input", "match is empty: name the fields that identify a row (for example email)");
       for (const r of i.rows) {
-        const k = i.match.length > 0 ? keyOf(r, i.match) : undefined;
-        const hit = k === undefined ? undefined : rows.find((x) => keyOf(x.fields, i.match) === k);
-        if (hit) { Object.assign(hit.fields, r); updated++; } else { rows.push({ id: next("rec"), fields: { ...r } }); created++; }
+        if (i.createOnly === true) { rows.push({ id: next("rec"), fields: { ...r } }); created++; continue; }
+        const k = keyOf(r, i.match);
+        if (k === undefined) fail("validation.bad_input", "a row has no value for a match field");
+        const hit = rows.find((x) => keyOf(x.fields, i.match) === k);
+        if (hit) { if (Object.entries(r).every(([f, v]) => JSON.stringify(hit.fields[f] ?? null) === JSON.stringify(v ?? null))) skipped++; else { Object.assign(hit.fields, r); updated++; } } else { rows.push({ id: next("rec"), fields: { ...r } }); created++; }
       }
-      return { created, updated, skipped: 0 };
+      return { created, updated, skipped };
     }),
     "runs.start": (i, o) => keyed(o, "rs", () => { const runId = next("run"); runs.set(runId, { status: "running" }); return { runId }; }),
     "runs.get": (i) => ({ run: { id: i.runId, status: runs.get(i.runId)?.status ?? "running" } }),

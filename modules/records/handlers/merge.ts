@@ -51,7 +51,7 @@ export interface MergeDeps {
 
 export interface MergeHandlers {
   "records.merge"(ctx: MergeCtx, input: { type: string; survivorId: string; mergedIds: string[]; picks: Record<string, string> }): Promise<{ record: RecordRow; undoUntil: number }>;
-  "records.bulk_upsert"(ctx: MergeCtx, input: { type: string; rows: Record<string, unknown>[]; match: string[]; runAutomations?: boolean }): Promise<{ created: number; updated: number; skipped: number }>;
+  "records.bulk_upsert"(ctx: MergeCtx, input: { type: string; rows: Record<string, unknown>[]; match: string[]; runAutomations?: boolean; createOnly?: boolean }): Promise<{ created: number; updated: number; skipped: number }>;
   "records.export"(ctx: ExportCtx, input: { type: string; format: "csv" | "xlsx"; recordIds?: string[] } & ViewSpec): Promise<{ fileId: string }>;
 }
 
@@ -367,13 +367,15 @@ const changedOf = (keys: string[], data: Record<string, unknown>): Record<string
   return out;
 };
 
-async function upsert(deps: MergeDeps, ctx: MergeCtx, input: { type: string; rows: Record<string, unknown>[]; match: string[]; runAutomations?: boolean }): Promise<{ created: number; updated: number; skipped: number }> {
+async function upsert(deps: MergeDeps, ctx: MergeCtx, input: { type: string; rows: Record<string, unknown>[]; match: string[]; runAutomations?: boolean; createOnly?: boolean }): Promise<{ created: number; updated: number; skipped: number }> {
   const { store, tx } = deps;
   ensure(tx);
   const def = await needType(store, input.type);
   const known = new Map(def.fields.map((f) => [f.name, f]));
-  if (!input.match.length) bad(ctx, "match is empty: name the fields that identify a row (for example email)");
-  for (const m of input.match) {
+  // createOnly: every row is a new record, whatever it holds (an import of rows that have no match value, or with nothing to match on); no row is looked up or folded
+  const createOnly = input.createOnly === true;
+  if (!createOnly && !input.match.length) bad(ctx, "match is empty: name the fields that identify a row (for example email)");
+  for (const m of createOnly ? [] : input.match) {
     const f = known.get(m);
     if (!f) throw new StoreError("unknown_field", `${input.type} has no field ${m}`);
     if (f.kind === "sealed") bad(ctx, `${m} is sealed and cannot be a match field`);
@@ -389,6 +391,10 @@ async function upsert(deps: MergeDeps, ctx: MergeCtx, input: { type: string; row
     const row = input.rows[i];
     if (!isObj(row)) bad(ctx, `row ${i} is not an object`);
     for (const k of Object.keys(row!)) if (!known.has(k)) throw new StoreError("unknown_field", `row ${i}: ${input.type} has no field ${k}`);
+    if (createOnly) {
+      plans.set(`row:${i}`, { existing: null, values: { ...row! }, index: i });
+      continue;
+    }
     for (const m of input.match) if (!present(row![m])) bad(ctx, `row ${i} has no value for match field ${m}`);
     const key = keyFor(row!, input.match);
     const prior = plans.get(key);

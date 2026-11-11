@@ -128,6 +128,12 @@ test("a CSV reads as a sheet, quoted cells and all, and is not edited in place; 
   await assert.rejects(() => s.data.call("files.viewer_data", { fileId: "nope" }), /No such file/);
 });
 
+test("a tab-separated file is read on its tabs: its columns and rows, not one column", () => {
+  const sheet = parseCsv("Name\tNote\nRivera, E\tsaid yes\nChen\tok\n", "\t");
+  assert.deepEqual(sheet.cols, ["Name", "Note"]);
+  assert.deepEqual(sheet.rows, [["Rivera, E", "said yes"], ["Chen", "ok"]]);
+});
+
 test("no copy on these screens uses an em dash", async () => {
   const s = createSampleViewer();
   const text = clean(renderToStaticMarkup(<FilesViewerDataProvider value={s.data}><FileViewer fileId="f_offer" /></FilesViewerDataProvider>));

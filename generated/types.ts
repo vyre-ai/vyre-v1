@@ -20239,6 +20239,7 @@ export type ImportGetOut = {
     updated: number;
     skipped: number;
     failed: number;
+    repeated?: number;
     ranAutomations: boolean;
     errorsFileId?: string;
   };
@@ -20261,6 +20262,7 @@ export type ImportListOut = {
       updated: number;
       skipped: number;
       failed: number;
+      repeated?: number;
       ranAutomations: boolean;
       errorsFileId?: string;
     }>;
@@ -20388,9 +20390,11 @@ export type ImportPreviewIn = {
 };
 export type ImportPreviewOut = {
   previewToken: string;
+  rows: number;
   creates: number;
   updates: number;
   skips: number;
+  repeats: number;
   errors: Array<{
       row: number;
       column?: string;
@@ -31586,6 +31590,7 @@ export type RecordsBulkUpsertIn = {
   rows: Array<Record<string, unknown>>;
   match: Array<string>;
   runAutomations?: boolean;
+  createOnly?: boolean;
   idempotencyKey: string;
 };
 export type RecordsBulkUpsertOut = {

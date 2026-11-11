@@ -10,11 +10,11 @@ import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { Glyph } from "../sidebar/parts.tsx";
 import { attemptKey } from "../../../shell/providers/files-review.ts";
 import { pickFiles } from "../../../shell/providers/files-actions.ts";
-import { MAX_FILE_BYTES, NOT_A_SHEET, TOO_BIG, counts, defaultMatch, fillable, importLabel, looksLikeCsv, mapped, pick, picksFrom, problem, problemsLine, progressLine, skipReason, summary } from "./model.ts";
-import type { Col, Done, Picks, Preview, Target } from "./model.ts";
+import { MAX_FILE_BYTES, NOT_A_SHEET, TOO_BIG, counts, defaultMatch, fileLine, fillable, importLabel, leftOutNotes, looksLikeCsv, mapped, pick, picksFrom, problemLines, problemsLine, progressLine, repeatsLine, skipReason, summary, undoAsk, undoneLine } from "./model.ts";
+import type { Col, Done, Picks, Preview, Target, UndoReport } from "./model.ts";
 
 type Call = (cap: string, input: unknown) => Promise<unknown>;
-type Step = "choose" | "match" | "preview" | "working" | "done";
+type Step = "choose" | "match" | "preview" | "working" | "done" | "undoask" | "undone";
 
 export interface ImportSheetProps {
   call: Call;
@@ -58,6 +58,9 @@ export function ImportSheet({ call, type, plural, onClose, pick: choosePath = pi
   const [staged, setStaged] = useState<{ importId: string; rows: number; columns: readonly Col[] } | null>(null);
   const [targets, setTargets] = useState<readonly Target[]>([]);
   const [picks, setPicks] = useState<Picks>({});
+  const [notes, setNotes] = useState<Readonly<Record<string, string>>>({});
+  const [undoReport, setUndoReport] = useState<UndoReport | null>(null);
+  const [undoDone, setUndoDone] = useState<UndoReport | null>(null);
   const [match, setMatch] = useState("");
   const [onMatch, setOnMatch] = useState<"update" | "skip">("update");
   const [preview, setPreview] = useState<(Preview & { previewToken: string }) | null>(null);
@@ -88,9 +91,10 @@ export function ImportSheet({ call, type, plural, onClose, pick: choosePath = pi
       const fields = fillable(info.type?.fields ?? []);
       const sug = (await call("import.suggest_mapping", { importId: out.importId, type })) as { mapping: Array<{ column: string; field?: string }> };
       const first = picksFrom(table.columns, sug.mapping, fields);
+      const left = leftOutNotes(table.columns, sug.mapping, info.type?.fields ?? []);
       if (!alive.current) return;
       setFileName(file.name); setStaged({ importId: out.importId, rows: table.rowCount, columns: table.columns }); setTargets(fields);
-      setPicks(first); setMatch(defaultMatch(first)); setStep("match");
+      setPicks(first); setNotes(left); setMatch(defaultMatch(first)); setStep("match");
     });
   };
 
@@ -148,6 +152,20 @@ export function ImportSheet({ call, type, plural, onClose, pick: choosePath = pi
     return () => clearInterval(timer);
   }, [step]);
 
+  // Undo takes the Run back: the rows it added go to Trash, the rows it changed return to their old values, and a row someone changed since stays as it is
+  const askUndo = (): void => {
+    if (!done?.runId) return;
+    const runId = done.runId;
+    setBusy(true); setError("");
+    void Promise.resolve(call("runs.preview_undo", { runId })).then((r) => { if (alive.current) { setUndoReport(r as UndoReport); setStep("undoask"); } }, (e: unknown) => { if (alive.current) setError(words(e)); }).finally(() => { if (alive.current) setBusy(false); });
+  };
+  const undo = (): void => {
+    if (!done?.runId) return;
+    const runId = done.runId;
+    setBusy(true); setError("");
+    void Promise.resolve(call("runs.undo", { runId })).then((r) => { if (alive.current) { setUndoDone(r as UndoReport); setStep("undone"); } }, (e: unknown) => { if (alive.current) setError(words(e)); }).finally(() => { if (alive.current) setBusy(false); });
+  };
+
   const targetOptions = [{ key: "", title: "Leave out" }, ...targets.map((t) => ({ key: t.key, title: t.title }))];
   const matchOptions = [{ key: "", title: "Nothing: add every row" }, ...mapped(picks).map((m) => ({ key: m.field, title: targets.find((t) => t.key === m.field)?.title ?? m.field }))];
   const feeds = mapped(picks).length;
@@ -170,7 +188,7 @@ export function ImportSheet({ call, type, plural, onClose, pick: choosePath = pi
         <Text style={s.text} testID="import-file-line">{`${fileName}: ${staged.rows.toLocaleString("en-US")} ${staged.rows === 1 ? "row" : "rows"}. Each column goes to a field, or stays out.`}</Text>
         <View style={s.list} testID="import-columns">
           {staged.columns.map((c) => (
-            <Row key={c.name} id={`import-col-${c.name}`} title={c.name} note={c.sample.filter((x) => x !== "").slice(0, 2).join(", ")} trailing={<Choice value={picks[c.name] ?? ""} options={targetOptions} onPick={(f) => change(c.name, f)} testID={`import-field-${c.name}`} label={`Field for ${c.name}`} />} />
+            <Row key={c.name} id={`import-col-${c.name}`} title={c.name} note={(picks[c.name] ?? "") === "" && notes[c.name] !== undefined ? notes[c.name] : c.sample.filter((x) => x !== "").slice(0, 2).join(", ")} trailing={<Choice value={picks[c.name] ?? ""} options={targetOptions} onPick={(f) => change(c.name, f)} testID={`import-field-${c.name}`} label={`Field for ${c.name}`} />} />
           ))}
         </View>
         <Text style={s.label}>People already here are found by</Text>
@@ -190,6 +208,7 @@ export function ImportSheet({ call, type, plural, onClose, pick: choosePath = pi
     const go = importLabel(preview);
     body = (
       <View style={s.body}>
+        <Text style={s.text} testID="import-file-total">{fileLine(preview)}</Text>
         <View style={s.counts} testID="import-counts">
           {counts(preview).map((c) => (
             <View key={c.key} style={s.count} testID={`import-count-${c.key}`}>
@@ -199,8 +218,9 @@ export function ImportSheet({ call, type, plural, onClose, pick: choosePath = pi
           ))}
         </View>
         {skipReason(preview, onMatch) ? <Text style={s.text} testID="import-skip-reason">{skipReason(preview, onMatch)}</Text> : null}
+        {repeatsLine(preview) ? <Text style={s.text} testID="import-repeats">{repeatsLine(preview)}</Text> : null}
         {problemsLine(preview) ? <Text style={s.warn} testID="import-problems">{problemsLine(preview)}</Text> : null}
-        {preview.errors.slice(0, 5).map((e) => <Text key={`${e.row}-${e.column ?? ""}`} style={s.text}>{problem(e)}</Text>)}
+        {problemLines(preview).map((line) => <Text key={line} style={s.text}>{line}</Text>)}
         {error ? <Text style={s.error} accessibilityRole="alert" testID="import-error">{error}</Text> : null}
       </View>
     );
@@ -215,15 +235,29 @@ export function ImportSheet({ call, type, plural, onClose, pick: choosePath = pi
       </View>
     );
     actions = [];
+  } else if (step === "undoask") {
+    title = "Undo this import?";
+    body = (
+      <View style={s.body}>
+        {undoReport ? <Text style={s.text} testID="import-undo-ask">{undoAsk(undoReport)}</Text> : null}
+        {error ? <Text style={s.error} accessibilityRole="alert" testID="import-error">{error}</Text> : null}
+      </View>
+    );
+    actions = [{ label: "Keep it", onPress: () => { setError(""); setStep("done"); }, testID: "import-undo-keep" }, { label: busy ? "Undoing" : "Undo", primary: true, disabled: busy || (undoReport?.undone.length ?? 0) === 0, onPress: undo, testID: "import-undo-go" }];
+  } else if (step === "undone") {
+    title = "Undone";
+    body = <View style={s.body}>{undoDone ? <Text style={s.text} testID="import-undone">{undoneLine(undoDone)}</Text> : null}</View>;
+    actions = [{ label: `See ${plural.toLowerCase()}`, primary: true, onPress: onClose, testID: "import-done" }];
   } else {
     title = done?.state === "failed" ? "The import stopped" : "Done";
+    const canUndo = done !== null && done.runId !== undefined && done.created + done.updated > 0;
     body = (
       <View style={s.body}>
         {done ? <Text style={s.text} testID="import-summary">{summary(done, plural)}</Text> : null}
         {error ? <Text style={s.error} accessibilityRole="alert" testID="import-error">{error}</Text> : null}
       </View>
     );
-    actions = [{ label: `See ${plural.toLowerCase()}`, primary: true, onPress: onClose, testID: "import-done" }];
+    actions = [...(canUndo ? [{ label: busy ? "Checking" : "Undo this import", disabled: busy, onPress: askUndo, testID: "import-undo" }] : []), { label: `See ${plural.toLowerCase()}`, primary: true, onPress: onClose, testID: "import-done" }];
   }
   return <Dialog title={title} onClose={step === "working" ? () => undefined : onClose} testID="import-sheet" width={460} fill actions={actions} >{body}</Dialog>;
 }

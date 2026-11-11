@@ -47,6 +47,7 @@ type Out = {
       updated: number;
       skipped: number;
       failed: number;
+      repeated?: number;
       ranAutomations: boolean;
       errorsFileId?: string;
     }>;
@@ -83,6 +84,7 @@ type Out = {
         "failed": 1,
         "importId": "imp_a1b2c3",
         "ranAutomations": true,
+        "repeated": 1,
         "runId": "run_a1b2c3",
         "skipped": 1,
         "source": "csv",

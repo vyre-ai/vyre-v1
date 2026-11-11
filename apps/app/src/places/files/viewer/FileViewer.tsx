@@ -106,7 +106,8 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
   // a Word file or a deck is read from its Markdown: headings, lists, tables, pictures, and a deck's slides with their notes
   const office = ready !== null && isOffice(ready.data.file.kind);
   const blocks = useMemo(() => (ready && kind === "document" ? (office ? officeBlocks(text) : textToBlocks(text, app === "gdocs" ? "markdown" : ready.data.file.kind)) : []), [ready, kind, text, app, office]);
-  const sheet = useMemo(() => (kind === "csv" ? parseCsv(text) : undefined), [kind, text]);
+  const tabs = ready !== null && /\.tsv$/i.test(ready.data.file.name);
+  const sheet = useMemo(() => (kind === "csv" ? parseCsv(text, tabs ? "\t" : ",") : undefined), [kind, text, tabs]);
   const boxes = useMemo(() => (ready ? boxesOf(ready.comments) : []), [ready]);
   const strokes = useMemo(() => (ready ? strokesOf(ready.markup.strokes) : []), [ready]);
 

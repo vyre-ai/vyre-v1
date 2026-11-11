@@ -184,22 +184,22 @@ d_s_3c66978f2d(a271[i271], p + '/' + i271, e);
 
 function d_s_51b3ec7c59(v: unknown, p: string, e: string[]): void {
 {
-const x379 = v;
-const g379 = typeOf(x379);
-const b379: string[] = []; lf(x379, p, b379, L0); if (b379.length) e.push(...b379);
-if (g379 === "object") {
-if (g379 === 'object') { const o379 = x379 as Record<string, unknown>;
-if (!("noteId" in o379)) e.push(p + "/noteId" + ': required');
-if (!("path" in o379)) e.push(p + "/path" + ': required');
-if (!("title" in o379)) e.push(p + "/title" + ': required');
-if (!("layer" in o379)) e.push(p + "/layer" + ': required');
-if (!("updatedAt" in o379)) e.push(p + "/updatedAt" + ': required');
-if ("noteId" in o379) lf(o379["noteId"], p + "/noteId", e, L148);
-if ("path" in o379) lf(o379["path"], p + "/path", e, L1);
-if ("title" in o379) lf(o379["title"], p + "/title", e, L1);
-if ("layer" in o379) lf(o379["layer"], p + "/layer", e, L70);
-if ("agentId" in o379) lf(o379["agentId"], p + "/agentId", e, L10);
-if ("updatedAt" in o379) lf(o379["updatedAt"], p + "/updatedAt", e, L17);
+const x378 = v;
+const g378 = typeOf(x378);
+const b378: string[] = []; lf(x378, p, b378, L0); if (b378.length) e.push(...b378);
+if (g378 === "object") {
+if (g378 === 'object') { const o378 = x378 as Record<string, unknown>;
+if (!("noteId" in o378)) e.push(p + "/noteId" + ': required');
+if (!("path" in o378)) e.push(p + "/path" + ': required');
+if (!("title" in o378)) e.push(p + "/title" + ': required');
+if (!("layer" in o378)) e.push(p + "/layer" + ': required');
+if (!("updatedAt" in o378)) e.push(p + "/updatedAt" + ': required');
+if ("noteId" in o378) lf(o378["noteId"], p + "/noteId", e, L148);
+if ("path" in o378) lf(o378["path"], p + "/path", e, L1);
+if ("title" in o378) lf(o378["title"], p + "/title", e, L1);
+if ("layer" in o378) lf(o378["layer"], p + "/layer", e, L70);
+if ("agentId" in o378) lf(o378["agentId"], p + "/agentId", e, L10);
+if ("updatedAt" in o378) lf(o378["updatedAt"], p + "/updatedAt", e, L17);
 }
 }
 }

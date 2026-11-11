@@ -4,7 +4,7 @@
 import { call, clean, codeOf, ensure, keyed, me, raise, remember, saveSession, staged, tolerant } from "../projections.ts";
 import type { ImportCtx, In, RowError, Session } from "../projections.ts";
 import type { FieldInfo } from "../mapping.ts";
-import { buildRows, compileAll, planBase, tokenFor } from "./preview.ts";
+import { buildRows, compileAll, hasKey, planBase, tokenFor } from "./preview.ts";
 import { fieldsOf } from "./parse.ts";
 
 export const BATCH = 500;
@@ -35,7 +35,14 @@ export async function commit(ctx: ImportCtx, input: In): Promise<unknown> {
   const rows = buildRows(table, plan.mapping, fields, compileAll(ctx, plan.mapping));
   if (rows.length !== plan.actions.length) raise(ctx, "validation.precondition_failed", "The preview is out of date. Preview again.", { reason: "stale_preview" });
   const runAutomations = input.runAutomations ?? plan.runAutomations;
-  const todo = rows.filter((_b, i) => plan.actions[i] === "c" || plan.actions[i] === "u").map((b) => b.fields as Record<string, unknown>);
+  const matching = plan.match.length > 0 && plan.onMatch !== "create";
+  // the preview's letters decide every row: c and u are written, s is left alone, e is a problem, r repeats a later row. A row with a match value goes through the match; any other is a new record.
+  const byKey: Array<Record<string, unknown>> = [], plain: Array<Record<string, unknown>> = [];
+  rows.forEach((b, i) => {
+    const a = plan.actions[i];
+    if ((a !== "c" && a !== "u") || !b.fields) return;
+    (matching && hasKey(b.fields, plan.match) ? byKey : plain).push(b.fields as Record<string, unknown>);
+  });
   const errors: RowError[] = rows.flatMap((b) => b.errors);
   const skippedByPlan = [...plan.actions].filter((a) => a === "s").length;
 
@@ -43,7 +50,7 @@ export async function commit(ctx: ImportCtx, input: In): Promise<unknown> {
   const runId = started.runId;
   s.state = "running"; s.runId = runId; s.ranAutomations = runAutomations === true;
   saveSession(ctx.db, s);
-  ctx.emit("import.started", `entity/${s.importId}`, { importId: s.importId, runId, type: plan.type, source: s.source, rows: todo.length });
+  ctx.emit("import.started", `entity/${s.importId}`, { importId: s.importId, runId, type: plan.type, source: s.source, rows: byKey.length + plain.length });
 
   const result = { runId, importId: s.importId };
   let created = 0, updated = 0, skipped = skippedByPlan;
@@ -53,17 +60,19 @@ export async function commit(ctx: ImportCtx, input: In): Promise<unknown> {
         ops: plan.newFields.map((n) => ({ op: "field.add", type: plan.type, field: n.key, def: { key: n.key, type: n.type, title: n.title } })), reason: `Import into ${plan.type}`,
       }, { idempotencyKey: `imp-schema:${s.importId}` });
     }
-    for (let at = 0, n = 0; at < todo.length; at += BATCH, n++) {
-      const run = await tolerant<{ run?: { status?: string } }>(ctx, "runs.get", { runId }, {});
-      if (run.run?.status === "stopped") {
-        s.state = "canceled";
-        break;
+    // every write is made as part of the Run (run: runId), so the Run's events carry its id and Undo can take the import back
+    const send = async (list: Array<Record<string, unknown>>, withMatch: boolean, tag: string): Promise<boolean> => {
+      for (let at = 0, n = 0; at < list.length; at += BATCH, n++) {
+        const run = await tolerant<{ run?: { status?: string } }>(ctx, "runs.get", { runId }, {});
+        if (run.run?.status === "stopped") { s.state = "canceled"; return false; }
+        const out = await call<{ created?: number; updated?: number; skipped?: number }>(ctx, "records.bulk_upsert", {
+          type: plan.type, rows: list.slice(at, at + BATCH), match: withMatch ? plan.match : [], ...(withMatch ? {} : { createOnly: true }), runAutomations: runAutomations === true,
+        }, { idempotencyKey: `imp:${s.importId}:${tag}${n}`, run: runId });
+        created += out.created ?? 0; updated += out.updated ?? 0; skipped += out.skipped ?? 0;
       }
-      const out = await call<{ created?: number; updated?: number; skipped?: number }>(ctx, "records.bulk_upsert", {
-        type: plan.type, rows: todo.slice(at, at + BATCH), match: plan.onMatch === "create" ? [] : plan.match, runAutomations: runAutomations === true,
-      }, { idempotencyKey: `imp:${s.importId}:${n}` });
-      created += out.created ?? 0; updated += out.updated ?? 0; skipped += out.skipped ?? 0;
-    }
+      return true;
+    };
+    if (await send(byKey, true, "")) await send(plain, false, "p");
   } catch (e) {
     const message = e instanceof Error ? e.message : codeOf(e);
     Object.assign(s, { state: "failed", created, updated, skipped, failed: errors.length, errors: errors.slice(0, KEPT_ERRORS) });
@@ -78,7 +87,8 @@ export async function commit(ctx: ImportCtx, input: In): Promise<unknown> {
   // the rows are not kept once they are written (or the import is canceled): the counts and the errors stay
   s.tables = s.tables.map((t) => ({ ...t, rows: [] }));
   saveSession(ctx.db, s);
-  const line = `${created} created, ${updated} updated, ${skipped} skipped, ${errors.length} failed`;
+  const repeated = [...plan.actions].filter((a) => a === "r").length;
+  const line = `${created} created, ${updated} updated, ${skipped} left alone, ${repeated} repeated, ${errors.length} failed`;
   if (canceled) await finish(ctx, runId, "stopped", `Stopped by a person. ${line}`);
   else {
     await finish(ctx, runId, "succeeded", line);
