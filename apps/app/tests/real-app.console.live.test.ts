@@ -106,8 +106,12 @@ test("the real app on a booted daemon: the Console uses real backup, device and 
         await page.getByRole("button",{name:"Role",exact:true}).click();await page.getByRole("menuitem",{name:member.name,exact:true}).click();
         await page.getByTestId("invite-sheet").getByRole("button", { name: "Create invite", exact: true }).click();
         await page.getByTestId("console-invite-link").waitFor();
-        assert.equal(new URL(await page.getByTestId("console-invite-link").innerText()).host,new URL(space.url).host);
-        const lifecycleCode=decodeURIComponent(new URL(await page.getByTestId("console-invite-link").innerText()).pathname.split("/").pop()??"");
+        // the row holds its label, the link and a Copy button (first-hour fix, 11 Nov 2026): the link is the one address in it
+        const inviteRow = await page.getByTestId("console-invite-link").innerText();
+        const inviteLinks = inviteRow.match(/https?:\/\/\S+/g) ?? [];
+        assert.equal(inviteLinks.length, 1, `one link in the invite row: ${inviteRow}`);
+        assert.equal(new URL(inviteLinks[0]!).host,new URL(space.url).host);
+        const lifecycleCode=decodeURIComponent(new URL(inviteLinks[0]!).pathname.split("/").pop()??"");
         await page.getByTestId("invite-sheet").getByRole("button",{name:"Done",exact:true}).click();await page.getByTestId("invite-sheet").waitFor({state:"detached"});
         const lifecycleKeys={personKeyByPassword:"cGVyc29uLWJ5LXBhc3N3b3Jk",publicKey:"cHVibGljLWtleQ==",privateKeyWrapped:"cHJpdmF0ZS13cmFwcGVk",spaceKeys:[{epoch:1,wrapped:"c3BhY2Uta2V5LTE="}]};
         const lifecycle=await anonymous("members.accept",{code:lifecycleCode,username:"console.lifecycle",displayName:"Lifecycle Person",password:"lifecycle old password 9",keys:lifecycleKeys,deviceName:"Lifecycle client",deviceClass:"web"}) as {personId:string;token:string};

@@ -37,6 +37,8 @@ export function breakdown(out: string, top = 5): { name: string; ms: number }[] 
 export function runFile(file: string, opts: { cwd?: string; capMs?: number } = {}): Promise<RunResult> {
   // A runner started from inside `node --test` must not inherit its test context, or the child file runs as a subtest.
   const env: NodeJS.ProcessEnv = { ...process.env }; delete env.NODE_TEST_CONTEXT;
+  // a key is checked with its provider before it is saved; a test that adds a fixture key has no real provider to ask, so the host probe accepts keys unless the test asks for the real answer (host/src/seams/vault.ts)
+  env.VYRE_TEST_KEY_CHECK ??= "accept";
   // Ruling 21 (same rule as test-run.mjs): .tsx files, and .ts files that opt in with `// @tsx`, run through the tsx loader with react-native mapped to react-native-web.
   const cwd0 = opts.cwd ?? process.cwd();
   const tsx = file.endsWith(".tsx") || (() => { try { return /^\s*\/\/\s*@tsx\b/m.test(fs.readFileSync(path.resolve(cwd0, file), "utf8")); } catch { return false; } })();

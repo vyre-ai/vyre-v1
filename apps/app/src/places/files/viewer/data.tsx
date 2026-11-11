@@ -23,6 +23,8 @@ export interface FilesViewerData {
   openUrl?(url: string): void;
   /** A file named in the words opens in a tab of its own; `background` leaves the person where they are (Cmd-click, middle click). */
   openFileTab?(fileId: string, background: boolean): void;
+  /** Share the file with people (the same sheet as in the Files list). Absent where there is no one to share with: a Personal Space, a sample. */
+  share?(fileId: string, name: string): void;
   /** Files in the same folder, for the strip under an image. */
   siblings?(folderId: string): readonly { id: string; title: string }[];
 }

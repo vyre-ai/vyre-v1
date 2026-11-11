@@ -1,5 +1,5 @@
 // Vault sheet: the one overlay for Add and Edit. A dimmed backdrop, a panel centred on wide windows and full height on a phone, Escape closes, focus stays inside.
-import { useEffect } from "react";
+import { useEscapeLayer } from "../../../../../../ui/src/Overlay/escape.ts";
 import type { ReactElement, ReactNode } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { IconBtn } from "./parts.tsx";
@@ -7,13 +7,7 @@ import { belowPhone } from "../../../../../../ui/src/SidePane/layout.ts";
 
 export function Sheet({ title, onClose, children, footer, testID, icon }: { title: string; onClose: () => void; children: ReactNode; footer?: ReactNode; testID?: string; icon?: ReactNode }): ReactElement {
   const narrow = belowPhone(useWindowDimensions().width);
-  useEffect(() => {
-    const doc = (globalThis as { document?: { addEventListener(t: string, f: (e: KeyboardEvent) => void): void; removeEventListener(t: string, f: (e: KeyboardEvent) => void): void } }).document;
-    if (!doc) return;
-    const onKey = (e: KeyboardEvent): void => { if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); onClose(); } };
-    doc.addEventListener("keydown", onKey, true as never);
-    return () => doc.removeEventListener("keydown", onKey, true as never);
-  }, [onClose]);
+  useEscapeLayer(true, onClose);   // one Escape closes the topmost layer only, even from a field inside the sheet
   return (
     <View style={s.layer} testID={testID} accessibilityViewIsModal accessibilityRole="dialog" accessibilityLabel={title}>
       <Pressable accessible={false} style={s.backdrop} onPress={onClose} testID={testID ? `${testID}-backdrop` : undefined} />

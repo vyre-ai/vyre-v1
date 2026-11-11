@@ -87,9 +87,19 @@ const stopper = (child: ChildProcess): (() => Promise<void>) => () => new Promis
 
 /** Starts the daemon as a person does and reads the address it prints (and, on a fresh install, the claim link it prints right after). */
 async function startDaemon(dir: string, extra: string[], port=0): Promise<{ child: ChildProcess; url: string; claim: string | null }> {
+  // A key is checked with its provider before it is saved, so a walk that adds a fixture key needs a provider that answers: unless the walk brought its own stand-in (VYRE_TEST_VENDOR) or opted out
+  // (VYRE_TEST_NO_VENDOR=1, for a walk that wants the real provider's answer), the daemon gets the shared stand-in, which accepts keys and refuses one with "invalid" in it.
+  let env: NodeJS.ProcessEnv = { ...process.env, VYRE_ADMIN_TOKEN: ADMIN_TOKEN };
+  let standIn: { close(): void } | null = null;
+  if (!process.env["VYRE_TEST_VENDOR"] && process.env["VYRE_TEST_NO_VENDOR"] !== "1") {
+    const { vendor } = await import("../../../fixtures/model-vendor.ts");
+    const v = await vendor(); standIn = v;
+    env = { ...env, VYRE_TEST_VENDOR: v.base, NODE_OPTIONS: `${process.env["NODE_OPTIONS"] ?? ""} --import ${fileURLToPath(new URL("../../../fixtures/model-vendor-preload.mjs", import.meta.url))}`.trim() };
+  }
   const child: ChildProcess = spawn(process.execPath, ["host/src/daemon/main.ts", "--role", "space", "--data-dir", dir, "--port", String(port), ...extra], {
-    cwd: REPO, env: { ...process.env, VYRE_ADMIN_TOKEN: ADMIN_TOKEN }, stdio: ["ignore", "pipe", "inherit"],
+    cwd: REPO, env, stdio: ["ignore", "pipe", "inherit"],
   });
+  child.once("exit", () => standIn?.close());
   const printed = await new Promise<{ url: string; claim: string | null }>((resolve, reject) => {
     let out = "";
     let url: string | null = null;
