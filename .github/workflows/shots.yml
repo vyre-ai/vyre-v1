@@ -20,6 +20,40 @@ concurrency:
   group: shots-${{ github.ref }}
   cancel-in-progress: true
 jobs:
+  after-check:
+    # The push budget (check.yml, 5 minutes) is met only when check's slow shards have the whole GitHub-hosted pool: 38 shots jobs started at the same moment took 38 of the 60 slots and left check about 22.
+    # So the screenshot shards start once check's shard jobs are done (or after 14 minutes, or at once when no check run exists for this commit: a pull request, a dispatch, a push check ignores).
+    # It always succeeds: waiting is an ordering, not a gate.
+    runs-on: ubuntu-latest
+    timeout-minutes: 16
+    permissions: { actions: read, contents: read }
+    steps:
+      - name: Wait for check's shard jobs on this commit
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+        run: |
+          deadline=$((SECONDS + 840))
+          while [ $SECONDS -lt $deadline ]; do
+            run=$(gh api "repos/$REPO/actions/workflows/check.yml/runs?head_sha=$SHA&event=push&per_page=1" --jq '.workflow_runs[0] | if . == null then "none" else "\(.id) \(.status)" end' || echo "error")
+            case "$run" in
+              none) if [ $SECONDS -gt 90 ]; then echo "no check run for this commit: going on"; exit 0; fi ;;
+              error) ;;
+              *" completed") echo "check finished: $run"; exit 0 ;;
+              *)
+                id=${run%% *}
+                # one line per job: "<name> <status>"; the shard jobs are fast-N, slow-N, heavy-N and perf-N
+                jobs=$(gh api "repos/$REPO/actions/runs/$id/jobs?per_page=100" --paginate --jq '.jobs[] | "\(.name) \(.status)"' || echo "")
+                shards=$(printf '%s\n' "$jobs" | grep -cE '^(fast|slow|heavy|perf)-[0-9]+ ' || true)
+                open=$(printf '%s\n' "$jobs" | grep -E '^(fast|slow|heavy|perf)-[0-9]+ ' | grep -vc ' completed$' || true)
+                echo "check $run: $shards shard jobs, $open not finished"
+                if [ "$shards" -gt 0 ] && [ "$open" -eq 0 ]; then echo "check's shards are done: going on"; exit 0; fi ;;
+            esac
+            sleep 15
+          done
+          echo "check's shards did not finish in 14 minutes: going on"
   lockfile:
     if: github.event_name == 'workflow_dispatch' && inputs.lockfile == 'true' || contains(github.event.head_commit.message, '[lockfile]')
     runs-on: ubuntu-latest
@@ -37,6 +71,7 @@ jobs:
           retention-days: 7
   shots:
     # Full runs use thirty-six bounded shards. Packet branches retain their single targeted capture.
+    needs: after-check
     if: (inputs.walks || '') == ''
     runs-on: ubuntu-latest
     timeout-minutes: 35

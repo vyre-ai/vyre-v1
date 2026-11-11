@@ -65,6 +65,13 @@ test("shots shards the complete visual suite and publishes release evidence thro
   assert.match(capture.text, /name: shots-part-\$\{\{ matrix\.shard \}\}/);
   assert.doesNotMatch(capture.text, /pwa-mobile|real-app\.e2e/, "release evidence does not wait behind visual shards");
   assert.deepEqual(evidence.needs, [], "release evidence starts independently");
+  // check's slow shards need the whole hosted pool (the push budget): the 36 screenshot shards wait for check's shard jobs, and the waiting job always succeeds
+  const wait = shots.jobs.find((j) => j.name === "after-check")!;
+  assert.ok(wait, "shots.yml has the after-check job");
+  assert.deepEqual(capture.needs, ["after-check"], "the screenshot shards start after check's shards");
+  assert.match(wait.text, /actions\/workflows\/check\.yml\/runs\?head_sha=\$SHA/);
+  assert.match(wait.text, /going on/, "a missing or slow check run lets the shards start anyway");
+  assert.doesNotMatch(wait.text, /exit 1/, "waiting is an ordering, not a gate");
   assert.match(evidence.text, /pwa-mobile\/evidence\.json/);
   assert.match(evidence.text, /pwa-mobile\/iphone-390x844-standalone-simulated\.png/);
   assert.deepEqual(aggregate.needs, ["shots", "release-evidence"]);
@@ -205,13 +212,17 @@ test("check, main and release run their shards through the one run-shard action:
   assert.match(action, /test-run\.ts --slow --jobs 2 --files/);
   for (const n of ["check", "main", "release"]) { const t = wf(n).text; assert.match(t, /uses: \.\/\.github\/actions\/run-shard/); assert.match(t, /ci-select\.ts/); }
   assert.doesNotMatch(wf("release").text, /--max \d/, "release uses the same shard plan as check: no --max");
-  // The org is out of GitHub Actions minutes (25 Oct): a hosted job dies with 0 steps, so none of the three workflows may name a GitHub-hosted runner, in a runs-on or in the matrix choice.
-  // One job is the exception, by design: release.yml's `publish` runs on a GitHub-hosted runner since 11 Nov (the repo has been public since 25 Oct, so hosted minutes are free, and kits and desktop already run
-  // hosted). Its self-hosted runner pulled the release artifacts at 85 KB/s and timed out three releases in a row. Every other job of the three still must not name one.
+  // GitHub-hosted runners are free since the owner made the repo public (25 Oct), so the shards may run on them: the matrix entry says "hosted" and the runs-on expression turns it into ubuntu-latest.
+  // What must stay self-hosted is everything that needs the hosts: heavy and perf entries (Docker, the pinned perf host), the Docker jobs, the gates, and release signing. A hosted runner is named only in that one expression,
+  // with one exception by design: release.yml's `publish` runs on ubuntu-latest since 11 Nov (its self-hosted runner pulled the release artifacts at 85 KB/s and timed out three releases in a row).
   for (const n of ["check", "main", "release"]) {
     const t = n === "release" ? wf(n).jobs.filter((j) => j.name !== "publish").map((j) => j.text).join("\n") : wf(n).text;
-    assert.doesNotMatch(t, /runs-on:[^\n]*\b(?:ubuntu|windows|macos)-/i, `${n}.yml names a GitHub-hosted runner`);
-    assert.doesNotMatch(t, /'hosted'|"hosted"/, `${n}.yml picks a hosted runner from the matrix`);
+    assert.doesNotMatch(t, /runs-on:\s*(?:\[[^\]]*)?\b(?:ubuntu|windows|macos)-/i, `${n}.yml names a GitHub-hosted runner outside the matrix expression`);
+    assert.match(wf(n).text, /runs-on: \$\{\{ fromJSON\(matrix\.runner == 'hosted' && '\["ubuntu-latest"\]' \|\| format\('\["self-hosted","linux","\{0\}"\]', matrix\.runner \|\| 'v1'\)\) \}\}/, `${n}.yml picks its shard runner from the matrix`);
+  }
+  for (const [n, jobs] of [["check", ["images-docker", "l2-heavy", "computer-lifecycle", "gates", "typecheck", "select", "check"]], ["release", ["select", "sign"]]] as const) {
+    const t = wf(n).text;
+    for (const j of jobs) { const m = new RegExp(`\\n  ${j}:[\\s\\S]*?runs-on: ([^\\n]+)`).exec(t); if (m) assert.match(m[1]!, /self-hosted/, `${n}.yml job ${j} stays self-hosted`); }
   }
 });
 
