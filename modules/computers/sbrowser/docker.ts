@@ -41,6 +41,10 @@ export interface DockerSpaceBrowserOptions {
   runner?: { ingress?: string; alias?: string };
   sleep?: (ms: number) => Promise<void>;
   startTimeoutMs?: number;
+  /** Where the adapter says what it does to the container (replacing one of an earlier release). Default: stderr. */
+  log?: (m: string) => void;
+  /** How long a container of an earlier release that was busy is used before the next look. Default 30 seconds. */
+  recheckMs?: number;
 }
 
 /** `net`: the service's own network was made, and (without the runner) the address of the host on it, which `host.docker.internal` names so the Vault channel is reached on that network. */
@@ -141,10 +145,46 @@ export function createDockerSpaceBrowser(o: DockerSpaceBrowserOptions): SpaceBro
     return n?.gateway ? { gateway: n.gateway } : {};
   }
 
-  /** The container exists and runs; made and started on first use, with browserd answering. Calls that arrive together share one check. */
+  // ---- the container is of this release ----
+  // A Space that ran the Space browser before an update keeps its container (and with it the old browserd, its policy and its network) unless something replaces it. What a container was made from is
+  // read back from the Engine (its image id and the settings this adapter gives it) and compared with what this release would make; a container that differs is replaced, at once when no profile is busy
+  // and nobody has the controls, otherwise at the first quiet moment. The volume stays, so every profile keeps its sign-ins. (A label would say it more simply, but the runner allows the Space browser no
+  // label beyond vyre.sbrowser=1, host/src/sites-runner/computers-policy.ts.)
+  const log = o.log ?? ((m: string): void => { process.stderr.write(`space browser: ${m}\n`); });
+  let current = false;
+  let recheckAt = 0;
+  const sorted = (v: unknown): string[] => (Array.isArray(v) ? v.map(String).sort() : []);
+  const envKeys = (env: readonly string[]): Set<string> => new Set(env.map((e) => e.split("=")[0]!));
+  const revision = (x: { image: string; net: string; hosts: unknown; env: string[]; binds: unknown; memory: number; cpus: number; security: unknown }): string => JSON.stringify([x.image, x.net, sorted(x.hosts), x.env.slice().sort(), sorted(x.binds), x.memory, x.cpus, sorted(x.security)]);
+  async function jsonOf(path: string): Promise<Record<string, unknown> | null> {
+    if (!o.http) return null;
+    try { const r = await o.http({ method: "GET", path }); return r.status === 200 ? (JSON.parse(new TextDecoder().decode(r.body)) as Record<string, unknown>) : null; } catch { return null; }
+  }
+  /** null: the Engine cannot be asked (no raw access), so nothing is compared. Otherwise whether the container is missing, of this release, or another. */
+  async function releaseOf(config: ContainerConfig): Promise<"missing" | "same" | "other" | null> {
+    if (!o.http) return null;
+    const c = await jsonOf(`/containers/${name}/json`);
+    if (!c) return "missing";
+    const img = await jsonOf(`/images/${encodeURIComponent(config.Image)}/json`);
+    if (!img || typeof img["Id"] !== "string") return null;
+    const hc = (c["HostConfig"] ?? {}) as Record<string, unknown>;
+    const cc = (c["Config"] ?? {}) as Record<string, unknown>;
+    const ours = envKeys(config.Env);
+    const want = revision({ image: img["Id"], net: config.HostConfig.NetworkMode, hosts: config.HostConfig.ExtraHosts, env: [...config.Env], binds: config.HostConfig.Binds, memory: config.HostConfig.Memory, cpus: config.HostConfig.NanoCpus, security: config.HostConfig.SecurityOpt });
+    const have = revision({ image: String(c["Image"] ?? ""), net: String(hc["NetworkMode"] ?? ""), hosts: hc["ExtraHosts"] ?? [], env: sorted(cc["Env"]).filter((e) => ours.has(e.split("=")[0]!)), binds: hc["Binds"] ?? [], memory: Number(hc["Memory"] ?? 0), cpus: Number(hc["NanoCpus"] ?? 0), security: hc["SecurityOpt"] ?? [] });
+    return want === have ? "same" : "other";
+  }
+  /** No profile is busy and nobody has the controls: the container can be replaced without cutting anything off. */
+  async function quietNow(): Promise<boolean> {
+    try { const s = (await exec("status", {})) as { profiles?: ProfileRow[] }; return !(s.profiles ?? []).some((p) => p.busy || p.takeover); } catch { return true; }
+  }
+
+  /** The container exists, is of this release, and runs; made and started on first use, with browserd answering. Calls that arrive together share one check. */
   function ensureUp(): Promise<void> {
     up ??= (async () => {
-      if (await o.api.containerRunning(name)) { if (subnet === null) await learnNetwork(); return; }
+      const running = await o.api.containerRunning(name);
+      // without raw Engine access nothing can be compared: a running container is used as it is
+      if (running && (current || !o.http || Date.now() < recheckAt)) { if (subnet === null) await learnNetwork(); return; }
       const net = await makeNetwork();
       const config = browserContainerConfig(o, net);
       const wrong = reviewComputerConfig(config);
@@ -160,11 +200,23 @@ export function createDockerSpaceBrowser(o: DockerSpaceBrowserOptions): SpaceBro
         }
         if (!(await o.api.imageExists(config.Image))) throw new ToolError("unavailable", `The Space browser image ${config.Image} is not on this server${why ? ` and could not be fetched (${why.slice(0, 80)})` : ""}. Update the server to fetch it.`);
       }
+      const release = await releaseOf(config);
+      if (release === "other") {
+        if (running && !(await quietNow())) {
+          log("the container is of an earlier release; it is replaced as soon as no agent is using its browser and nobody has the controls");
+          recheckAt = Date.now() + (o.recheckMs ?? 30_000);
+          if (subnet === null) await learnNetwork();
+          return;
+        }
+        log("replacing the container of an earlier release with this release's (the profiles and their sign-ins stay on the volume)");
+        await o.api.containerStop(name, 10).catch(() => undefined);
+        await o.api.containerRemove(name);
+      } else if (release === "same" && running) { current = true; return; }
       try { await o.api.containerCreate(name, config); } catch (e) { if (!/already in use|409|conflict/i.test(e instanceof Error ? e.message : "")) throw e; }
       await o.api.containerStart(name);
       const deadline = Date.now() + (o.startTimeoutMs ?? 30_000);
       for (;;) {
-        try { await exec("status", {}); return; } catch (e) {
+        try { await exec("status", {}); current = release !== null; return; } catch (e) {
           if (Date.now() >= deadline) throw new ToolError("unavailable", `The Space browser did not answer in time: ${e instanceof Error ? e.message.slice(0, 160) : "unknown"}`);
           await sleep(400);
         }
@@ -231,7 +283,14 @@ export function createDockerSpaceBrowser(o: DockerSpaceBrowserOptions): SpaceBro
     },
     async stop(profileId) { if (await o.api.containerRunning(name)) await exec("stop", { profileId }); },
     // the agent is gone: its sign-ins go too, so a service that is not running is started to remove the folder (it starts no browser)
-    async forget(profileId) { await call("forget", { profileId }); },
+    async forget(profileId) {
+      // a host whose Space browser never ran has no volume: there is nothing to remove, and no container is made or image fetched for it
+      if (!(await o.api.containerRunning(name)) && o.http) {
+        const v = await o.http({ method: "GET", path: `/volumes/${name}-data` }).catch(() => null);
+        if (v?.status === 404) return;
+      }
+      await call("forget", { profileId });
+    },
     subnets: () => (subnet ? [subnet] : []),
     async profiles() {
       if (!(await o.api.containerRunning(name))) return { profiles: [], maxRunning: o.maxRunning ?? 6 };

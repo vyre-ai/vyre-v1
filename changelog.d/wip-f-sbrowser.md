@@ -18,3 +18,4 @@
 - A takeover is kept going only by the person who took over (their open live view or their input); an agent waiting and checking its browser, or someone else watching, no longer keeps it from ending after 15 quiet minutes.
 - A browser step is never sent a second time on its own after the Space browser stopped while working on it; the agent is told the step did not finish.
 - Clicks, typing and opening pages in the Space browser no longer pause a moment after each step to look for a download; a step waits only when it really started one.
+- After an update, a Space browser made by an earlier release is replaced by the new one as soon as no agent is using it, so the protections above reach Spaces that already used it; every profile keeps its sign-ins.

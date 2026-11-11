@@ -46,6 +46,10 @@ const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms
 const sb = createDockerSpaceBrowser({ api, name: NAME, image: IMAGE, user: { uid: 10001, gid: 10001 }, idleMinutes: 0.05, sweepSeconds: 2, startTimeoutMs: 90_000 });
 // a second service with Engine access and no runner, as on a server or a computer with Docker: it gets a network of its own
 const NET_NAME = `${NAME}n`;
+// a container of an earlier release: VYRE_SPACE_BROWSER_OLD_IMAGE is an image built from an earlier commit (CI builds it from the merge base); without it the same image is used and only the container's
+// settings are of the earlier release (the default bridge, no network of its own), which is replaced the same way
+const UPG_NAME = `${NAME}u`;
+const OLD_IMAGE = process.env["VYRE_SPACE_BROWSER_OLD_IMAGE"] ?? IMAGE;
 const sbNet = createDockerSpaceBrowser({ api, http, name: NET_NAME, image: IMAGE, user: { uid: 10001, gid: 10001 }, startTimeoutMs: 90_000 });
 const tool = (profileId: string, name: string, args: Record<string, unknown> = {}, extra: { by?: "person"; fill?: { url: string; token: string }; space?: string } = {}) => sb.tool({ profileId, tool: name, args, timeoutMs: 30_000, ...extra });
 
@@ -154,12 +158,13 @@ before(async () => {
 
 after(async () => {
   if (!ON) return;
-  for (const n of [NAME, NET_NAME]) {
+  for (const n of [NAME, NET_NAME, UPG_NAME]) {
     await api.containerStop(n, 5).catch(() => undefined);
     await api.containerRemove(n).catch(() => undefined);
     await http({ method: "DELETE", path: `/volumes/${n}-data`, query: { force: "true" } }).catch(() => undefined);
   }
   await http({ method: "DELETE", path: `/networks/${NET_NAME}net` }).catch(() => undefined);
+  await http({ method: "DELETE", path: `/networks/${UPG_NAME}net` }).catch(() => undefined);
   site?.close(); fillSite?.close();
 });
 
@@ -608,6 +613,34 @@ test("@heavy space browser: a give back that does not reach browserd is repaired
     assert.equal(typeof out.url, "string", "the agent works: its call carried the hold as the Space has it");
     assert.equal((await sb.profiles()).profiles.find((p) => p.profileId === AG)?.takeoverBy, undefined, "and browserd let go");
   } finally { sb.giveBack = realGiveBack; bindSpaceBrowser(null); }
+});
+
+// Review finding 5 (12 Nov): an install that already ran the Space browser kept its old container (old browserd with DevTools ports, old policy, the default bridge) after an update.
+test("@heavy space browser: a container of an earlier release is replaced by this release's, and the profiles keep their sign-ins", { skip, timeout: 600_000 }, async () => {
+  const old = createDockerSpaceBrowser({ api, name: UPG_NAME, image: OLD_IMAGE, user: { uid: 10001, gid: 10001 }, startTimeoutMs: 90_000 });
+  await old.tool({ profileId: "agt_kept", tool: "chrome_open", args: { url: siteUrl("/set?name=kept&keep=1") }, timeoutMs: 30_000 });
+  await old.stop("agt_kept");   // the sign-in is written to the profile folder
+  const before = JSON.parse(new TextDecoder().decode((await http({ method: "GET", path: `/containers/${UPG_NAME}/json` })).body)) as { Id: string; Image: string; HostConfig: { NetworkMode: string } };
+  assert.equal(before.HostConfig.NetworkMode, "bridge", "the earlier release's container is on the default bridge");
+  const lines: string[] = [];
+  const now = createDockerSpaceBrowser({ api, http, name: UPG_NAME, image: IMAGE, user: { uid: 10001, gid: 10001 }, startTimeoutMs: 90_000, log: (m) => lines.push(m) });
+  await now.tool({ profileId: "agt_kept", tool: "chrome_open", args: { url: siteUrl("/whoami") }, timeoutMs: 30_000 });
+  const after = JSON.parse(new TextDecoder().decode((await http({ method: "GET", path: `/containers/${UPG_NAME}/json` })).body)) as { Id: string; Image: string; HostConfig: { NetworkMode: string } };
+  assert.notEqual(after.Id, before.Id, `replaced (${JSON.stringify(lines)})`);
+  assert.equal(after.HostConfig.NetworkMode, `${UPG_NAME}net`, "on its own network now");
+  const img = JSON.parse(new TextDecoder().decode((await http({ method: "GET", path: `/images/${encodeURIComponent(IMAGE)}/json` })).body)) as { Id: string };
+  assert.equal(after.Image, img.Id, "made from this release's image");
+  assert.ok(lines.some((l) => /replacing the container of an earlier release/.test(l)), JSON.stringify(lines));
+  const who = String((await now.tool({ profileId: "agt_kept", tool: "chrome_eval", args: { expression: "document.body.innerText" }, timeoutMs: 30_000 }))["result"]);
+  assert.equal(who, "cookie:[sid=kept]", "the profile kept its sign-in across the replacement");
+  const listening = await api.exec(UPG_NAME, { cmd: ["sh", "-c", "cat /proc/net/tcp /proc/net/tcp6 2>/dev/null"], env: [] });
+  const open = listening.stdout.split("\n").slice(1).map((l) => l.trim().split(/\s+/)).filter((c) => c[3] === "0A" && c[1]).map((c) => parseInt(c[1]!.split(":")[1]!, 16)).filter((p) => p === 9222 || (p >= 9300 && p < 9500));
+  assert.deepEqual(open, [], "and no DevTools port is open in it");
+  // a second adapter of the same release leaves it alone
+  const again = createDockerSpaceBrowser({ api, http, name: UPG_NAME, image: IMAGE, user: { uid: 10001, gid: 10001 }, startTimeoutMs: 90_000, log: (m) => lines.push(m) });
+  await again.tool({ profileId: "agt_kept", tool: "chrome_state", args: {}, timeoutMs: 30_000 });
+  const third = JSON.parse(new TextDecoder().decode((await http({ method: "GET", path: `/containers/${UPG_NAME}/json` })).body)) as { Id: string };
+  assert.equal(third.Id, after.Id, "a container of this release is not replaced");
 });
 
 test("@heavy space browser: a profile's tabs come back after its browser stops after idle", { skip, timeout: 300_000 }, async () => {

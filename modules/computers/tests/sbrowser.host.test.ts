@@ -243,3 +243,28 @@ test("ctl says whether the request was sent: no socket is 'not up yet' (exit 3),
     assert.match(out.stderr, /browserd stopped while it worked on the request/);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
+
+test("a container of an earlier release that is busy or held is kept until it is quiet, with a line saying so, then replaced", async () => {
+  let busy = true;
+  const e = engine((action) => (action === "status" ? ok({ profiles: [{ profileId: "agt_dex", running: true, tabs: 1, busy, takeover: false, viewers: 0, lastActiveAt: 1, held: 0, paused: false }] }) : ok({ ok: true })));
+  await e.api.containerStart("vyre-sbrowser");   // it runs already, made by an earlier release
+  let removed = 0;
+  const api = { ...e.api, async containerRemove(id: string) { removed += 1; await e.api.containerRemove(id); } };
+  const enc = (v: unknown) => new TextEncoder().encode(JSON.stringify(v));
+  const http = async (r: { method: string; path: string }) => {
+    if (r.method === "GET" && r.path === "/containers/vyre-sbrowser/json") return { status: 200, body: enc({ Id: "c-old", Image: "sha256:old", HostConfig: { NetworkMode: "bridge" }, Config: { Env: [] } }) };
+    if (r.method === "GET" && r.path.startsWith("/images/")) return { status: 200, body: enc({ Id: "sha256:new" }) };
+    if (r.method === "GET" && r.path.startsWith("/networks/")) return { status: 200, body: enc({ IPAM: { Config: [{ Subnet: "172.30.0.0/16", Gateway: "172.30.0.1" }] } }) };
+    return { status: r.path === "/networks/create" ? 201 : 200, body: new Uint8Array() };
+  };
+  const lines: string[] = [];
+  const sb = createDockerSpaceBrowser({ api, http, sleep: async () => {}, log: (m) => lines.push(m), recheckMs: 0 });
+  await sb.tool({ profileId: "agt_dex", tool: "chrome_state", args: {}, timeoutMs: 1000 });
+  assert.equal(removed, 0, "busy: not replaced under the agent");
+  assert.ok(lines.some((l) => /replaced as soon as no agent is using its browser/.test(l)), JSON.stringify(lines));
+  busy = false;
+  await sb.tool({ profileId: "agt_dex", tool: "chrome_state", args: {}, timeoutMs: 1000 });
+  assert.equal(removed, 1, "quiet: replaced");
+  assert.equal(e.created.length, 1);
+  assert.equal(e.created[0]!.config.HostConfig.NetworkMode, "vyre-sbrowsernet");
+});
