@@ -21,10 +21,10 @@ import { bindSpaceBrowser } from "../../modules/computers/sbrowser/port.ts";
 import type { ProfileRow, SpaceBrowser } from "../../modules/computers/sbrowser/port.ts";
 
 const OUT = "shots-evidence/computers";
-const PNG = "iVBORw0KGgo=";
+export const PNG = "iVBORw0KGgo=";
 
 /** The model stand-in, except that "show me the command" is answered with a command in a shell block, as a model would. */
-const modelWithCommand: OpenSession = async (spec) => {
+export const modelWithCommand: OpenSession = async (spec) => {
   const inner = await standIn(spec);
   return {
     ...inner,
@@ -35,7 +35,7 @@ const modelWithCommand: OpenSession = async (spec) => {
   } as ReturnType<OpenSession> extends Promise<infer S> ? S : never;
 };
 
-function scriptedTerminal(): TerminalHost {
+export function scriptedTerminal(): TerminalHost {
   const screens = new Map<string, string>();
   return {
     async open(a) { screens.set(a.terminalId, ""); return { cwd: "/home/agent", title: "Desk's computer" }; },
@@ -49,7 +49,7 @@ function scriptedTerminal(): TerminalHost {
 }
 
 /** A Space browser that keeps one profile row per agent: who holds the controls is the row's, the way the browser service keeps it. */
-function fakeSpaceBrowser(): { sb: SpaceBrowser; rows: Map<string, ProfileRow> } {
+export function fakeSpaceBrowser(): { sb: SpaceBrowser; rows: Map<string, ProfileRow> } {
   const rows = new Map<string, ProfileRow>();
   const sb: SpaceBrowser = {
     async available() { return true; }, async tool() { return {}; }, async downloads() { return []; }, async downloadRead() { return new Uint8Array(); }, async downloadAck() {},
@@ -70,7 +70,7 @@ function fakeSpaceBrowser(): { sb: SpaceBrowser; rows: Map<string, ProfileRow> }
 const KEY = "sk-ant-api03-JOURNEYkeyVALUE9876543210zyxwvuts"; // secret-scan: fake
 
 /** Team: the admin files the AI account in a Shared folder and the agent is pinned to it. Personal: the person's own key, and the agent answers on it as they ask. */
-async function agentFor(w: Awaited<ReturnType<typeof bootScreens>>["world"], kind: "personal" | "team"): Promise<string> {
+export async function agentFor(w: Awaited<ReturnType<typeof bootScreens>>["world"], kind: "personal" | "team"): Promise<string> {
   if (kind === "team") return makeAgent(w.owner, "Desk", await connectClaude(w));
   await w.owner.ok("providers.add", { providerKey: "anthropic", connection: "api_key", apiKey: KEY, name: "My Claude", scope: "mine" });
   return (await w.owner.ok("agents.create", { name: "Desk", role: "You work at a computer." })).agent.agentId as string;

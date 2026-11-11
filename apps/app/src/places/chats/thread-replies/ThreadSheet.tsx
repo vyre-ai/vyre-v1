@@ -1,5 +1,5 @@
 // A phone opens the thread as a full-screen sheet over the chat: a header with a back arrow, "Thread" and the chat's title, then the thread. It is drawn in the shared overlay layer so nothing in the chat covers it.
-import { useEffect } from "react";
+import { useEscapeLayer } from "../../../../../../ui/src/Overlay/escape.ts";
 import type { ReactElement, ReactNode } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Overlay } from "../../../../../../ui/src/Overlay/index.tsx";
@@ -7,13 +7,7 @@ import { Icon } from "../needsyou/parts.tsx";
 import { THREAD_TITLE } from "./model.ts";
 
 export function ThreadSheet({ title, onClose, children }: { title: string; onClose(): void; children: ReactNode }): ReactElement {
-  useEffect(() => {
-    const doc = (globalThis as { document?: { addEventListener(t: string, f: (e: KeyboardEvent) => void): void; removeEventListener(t: string, f: (e: KeyboardEvent) => void): void } }).document;
-    if (!doc) return undefined;
-    const onKey = (e: KeyboardEvent): void => { if (e.key === "Escape") onClose(); };
-    doc.addEventListener("keydown", onKey);
-    return () => doc.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  useEscapeLayer(true, onClose);
   return (
     <Overlay>
       <View testID="thread-sheet" accessibilityViewIsModal accessibilityLabel={THREAD_TITLE} style={st.sheet}>
