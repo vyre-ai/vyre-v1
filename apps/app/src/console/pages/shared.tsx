@@ -40,8 +40,20 @@ export function useAction(refresh: () => void) {
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const inflight = useRef(false);
-  const run = async <T,>(cap: string, input: unknown, success: string | ((out: T) => string | Promise<string>)): Promise<T | undefined> => {
-    if (inflight.current) return undefined;
+  // What is running now and what waits behind it, by call. A press while another call runs used to be dropped without a word: pick two people one after the other and the second was lost.
+  // A different call now waits its turn; the same call again (a double press) is the one already on its way, so it is ignored.
+  const running = useRef("");
+  const waiting = useRef(new Set<string>());
+  const tail = useRef<Promise<unknown>>(Promise.resolve());
+  const run = <T,>(cap: string, input: unknown, success: string | ((out: T) => string | Promise<string>)): Promise<T | undefined> => {
+    const digest = cap + JSON.stringify(input);
+    if ((inflight.current && running.current === digest) || waiting.current.has(digest)) return Promise.resolve(undefined);
+    waiting.current.add(digest);
+    const mine = tail.current.then(() => { waiting.current.delete(digest); running.current = digest; return exec<T>(cap, input, success); });
+    tail.current = mine.catch(() => undefined);
+    return mine;
+  };
+  const exec = async <T,>(cap: string, input: unknown, success: string | ((out: T) => string | Promise<string>)): Promise<T | undefined> => {
     if(connection?.get()==='offline'){setNote('Reconnect to this Space before changing it.');return undefined;}
     let payload=input;
     const value=input&&typeof input==='object'&&!Array.isArray(input)?input as Record<string,unknown>:null;

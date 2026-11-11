@@ -8,3 +8,4 @@
 - The AI account menus (Automations settings, the agent form, the agent page) say "Loading…" while the Space's accounts are read, instead of "None kept", and fill in when they arrive.
 - The share and add-people sheets say "Loading people…" while the people and groups are read, instead of "Nobody by that name".
 - The test runner now prints why a test failed even when the file then hangs and is killed at its time limit, so a failure on the build machine always says what it was.
+- Console buttons pressed one after another (adding two people to a team in a row) no longer lose the second press: it waits for the first and is then done; a repeated press of the same button is still done once.
