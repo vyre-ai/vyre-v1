@@ -10,6 +10,7 @@ import { ConnectAI } from "./ConnectAI.tsx";
 import {
   Bar, Button, Caption, Check, CodeShown, ErrorLine, FieldRow, Foot, Group, AgentFace, Links, Meter, Panel, Row, Sheet, Step, Switch, TextButton, Title, CheckBox, Working,
   baseText, useJoin,
+  RECOVERY_WHAT,
 } from "./kit.tsx";
 import { PASSWORD_MIN, RUN_STEPS, meter, strength, suggestions, usernameOk, valid, cleanUsername } from "./logic.ts";
 import type { Action, FlowState, JoinInvite, Rules } from "./logic.ts";
@@ -177,7 +178,7 @@ function DeviceStep({ state, dispatch, newCode }: Pick<AcceptInviteProps, "state
 function RecoverySheet({ state, dispatch, onCopyCode, onSaveCode }: Pick<AcceptInviteProps, "invite" | "state" | "dispatch" | "onCopyCode" | "onSaveCode">) {
   return (
     <Sheet label="Recovery code" onDismiss={() => dispatch({ t: "recovery_close" })}>
-      <Title title="Your recovery code" />
+      <Title title="Your recovery code" sub={RECOVERY_WHAT} />
       <CodeShown code={state.code} testID="recovery-code" />
       <View style={{ flexDirection: "row", gap: 8, marginTop: 8 }}>
         <View style={{ flex: 1 }}><Button quiet testID="copy-code" label="Copy" onPress={() => onCopyCode?.(state.code)} /></View>

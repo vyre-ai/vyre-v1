@@ -706,3 +706,6 @@ const ENTRY_THEME = { p: ENTRY, phone: false };
 
 export const styles = StyleSheet.create({ fill: { flex: 1 } });
 export { base as baseText };
+
+/** What the recovery code is, said where it is shown: what it does, that it is shown once, and where to keep it. */
+export const RECOVERY_WHAT = "Keep it somewhere safe, like a password manager. It is shown only now. If you forget your password, this code lets you set a new one. Anyone who has it can do the same.";
