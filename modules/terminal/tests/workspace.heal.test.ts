@@ -634,3 +634,30 @@ test("review 7: a command queued behind another whose tab is closed before its t
   assert.equal(dk.box(NAME).tmux.calls.some((c) => String(c.at(-1)).includes("echo queued")), false, "never typed");
   m.close();
 });
+
+// ---- lead, 12 Nov: the volumes of an agent in Trash go after the Space's Trash retention ------------------------------------------------------------------
+
+test("an agent in Trash keeps its workspace volumes for the Space's Trash retention, read from governance at run time; restoring it stops the clock; then the periodic pass removes them", async () => {
+  const { onAgentGone, onAgentRestored, forgetExpiredWorkspaces } = await import("../handlers/sessions.ts");
+  reset();
+  const hn = harness();
+  let retention = "7d";
+  const removed: string[] = [];
+  const ctx: TermCtx = { ...hn.ctx, call: (async (cap: string) => (cap === "governance.retention.get" ? { kinds: [{ key: "trash", value: retention }] } : undefined)) as never };
+  const remove = async (id: string): Promise<void> => { removed.push(id); };
+  await onAgentGone(ctx, { payload: { agentId: "agt_old" } }, null);
+  await onAgentGone(ctx, { payload: { agentId: "agt_back" } }, null);
+  hn.advance(6 * 86_400_000);
+  assert.deepEqual(await forgetExpiredWorkspaces(ctx, remove), [], "six days in Trash: kept");
+  assert.equal(onAgentRestored(ctx, "agt_back"), true);
+  hn.advance(2 * 86_400_000);
+  assert.deepEqual(await forgetExpiredWorkspaces(ctx, remove), ["agt_old"], "past the retention: its volumes go; the restored agent's stay");
+  assert.deepEqual(removed, ["agt_old"]);
+  // Trash kept forever: nothing goes; governance not reachable: its 30-day default
+  await onAgentGone(ctx, { payload: { agentId: "agt_kept" } }, null);
+  retention = "forever";
+  hn.advance(400 * 86_400_000);
+  assert.deepEqual(await forgetExpiredWorkspaces(ctx, remove), []);
+  const noGov: TermCtx = { ...hn.ctx, call: (async () => { throw new Error("governance is not here"); }) as never };
+  assert.deepEqual(await forgetExpiredWorkspaces(noGov, remove), ["agt_kept"]);
+});

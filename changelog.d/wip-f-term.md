@@ -27,3 +27,4 @@
 - Home's terminal status stays steady when Vyre cannot look up an agent for a moment, and asks for each agent once.
 - A command waiting its turn in a tab that you close says so instead of failing oddly.
 - The Terminal tab's live view no longer repeats old lines after an editor such as vim closes.
+- An agent in Trash keeps its workspace files for as long as the Space keeps Trash; after that they are removed, unless the agent was restored.

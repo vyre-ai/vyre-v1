@@ -1,4 +1,5 @@
 // @reads /modules/terminal/migrations/0001_init.sql
+// @reads /modules/terminal/migrations/0003_gone.sql
 // Durable rows of the terminal module (sessions, commands, rules, attach tickets), the port to the machine a session lives on, the rule matcher and the per-session secret scrubbers.
 // Every statement names a terminal_* table, which is all ctx.db lets a module touch. The migration file is the one source of the schema.
 import { readFileSync } from "node:fs";
@@ -137,6 +138,9 @@ const SCHEMA = readFileSync(new URL("./migrations/0001_init.sql", import.meta.ur
 const TABS_SCHEMA = readFileSync(new URL("./migrations/0002_tabs.sql", import.meta.url), "utf8")
   .split("\n").filter((l) => !l.trimStart().startsWith("--")).join("\n")
   .split(";").map((x) => x.trim()).filter((x) => x.length > 0);
+const GONE_SCHEMA = readFileSync(new URL("./migrations/0003_gone.sql", import.meta.url), "utf8")
+  .split("\n").filter((l) => !l.trimStart().startsWith("--")).join("\n")
+  .split(";").map((x) => x.trim()).filter((x) => x.length > 0);
 const ready = new WeakSet<object>();
 
 export function ensure(db: Db): void {
@@ -144,6 +148,8 @@ export function ensure(db: Db): void {
   try { db.all("SELECT ticket_hash FROM terminal_tickets WHERE terminal_id = ?", "probe"); } catch { for (const stmt of SCHEMA) db.run(stmt); }
   // a Space made before tabs has the first schema only
   try { db.all("SELECT terminal_id FROM terminal_tabs WHERE terminal_id = ?", "probe"); } catch { for (const stmt of TABS_SCHEMA) db.run(stmt); }
+  // and before the Trash clock for workspace volumes
+  try { db.all("SELECT agent_id FROM terminal_workspace_gone WHERE agent_id = ?", "probe"); } catch { for (const stmt of GONE_SCHEMA) db.run(stmt); }
   ready.add(db);
 }
 

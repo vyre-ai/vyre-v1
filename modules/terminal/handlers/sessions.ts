@@ -762,8 +762,57 @@ export async function onAgentGone(ctx: TermCtx, event: { payload: { agentId?: un
     ctx.db.run("UPDATE terminal_sessions SET closed_at = ?, state = 'exited' WHERE terminal_id = ?", at, id);
     ctx.emit("terminal.closed", id, { terminalId: id, by: "svc_host" });
   }
+  // the clock for its volumes starts now (removed after the Space's Trash retention, unless it is restored first)
+  ctx.db.run("INSERT INTO terminal_workspace_gone (agent_id, deleted_at) VALUES (?, ?) ON CONFLICT (agent_id) DO NOTHING", agentId, ctx.now());
   if (remove) await remove(agentId);
   return open;
+}
+
+/** agent.restored: back from Trash, so its volumes stay. */
+export function onAgentRestored(ctx: TermCtx, agentId: unknown): boolean {
+  if (typeof agentId !== "string") return false;
+  ensure(ctx.db);
+  return ctx.db.run("DELETE FROM terminal_workspace_gone WHERE agent_id = ?", agentId).changes > 0;
+}
+
+/**
+ * How long Trash keeps things when governance cannot be read: governance's default trash retention ('30d', manifests/governance.ts). The Space browser keeps the same constant (modules/computers/sbrowser/
+ * forget.ts TRASH_KEEP_MS); test/trash-retention.workspace.test.ts holds this one to governance's default.
+ */
+export const TRASH_KEEP_MS = 30 * 86_400_000;
+
+/** A retention value as governance writes it ("30d", "12w", "6m", "2y", "forever") in ms; null for forever; undefined when it is not one of those. */
+export function retentionMs(v: string): number | null | undefined {
+  if (v === "forever") return null;
+  const m = /^(\d{1,5})([dwmy])$/.exec(v.trim());
+  if (!m) return undefined;
+  return Number(m[1]) * { d: 1, w: 7, m: 30, y: 365 }[m[2] as "d" | "w" | "m" | "y"] * 86_400_000;
+}
+
+/** The Space's Trash retention in force, read from governance now; its default when that cannot be read; null when Trash is kept forever. */
+export async function trashKeepMs(ctx: TermCtx): Promise<number | null> {
+  try {
+    const out = (await ctx.call?.("governance.retention.get", {})) as { kinds?: Array<{ key?: string; value?: string }> } | undefined;
+    const v = out?.kinds?.find((k) => k.key === "trash")?.value;
+    const ms = typeof v === "string" ? retentionMs(v) : undefined;
+    if (ms !== undefined) return ms;
+  } catch { /* governance is not running here (a Personal Space has no retention settings): its default */ }
+  return TRASH_KEEP_MS;
+}
+
+/** The periodic pass: the home and Files volumes of agents in Trash longer than Trash keeps things are removed. Returns the agents whose volumes went. */
+export async function forgetExpiredWorkspaces(ctx: TermCtx, remove: ((agentId: string) => Promise<void>) | null): Promise<string[]> {
+  ensure(ctx.db);
+  if (!remove || (ctx.db.all("SELECT 1 FROM terminal_workspace_gone LIMIT 1") as Row[]).length === 0) return [];
+  const keep = await trashKeepMs(ctx);
+  if (keep === null) return [];
+  const due = (ctx.db.all("SELECT agent_id FROM terminal_workspace_gone WHERE deleted_at <= ?", ctx.now() - keep) as Row[]).map((r) => String(r["agent_id"]));
+  const done: string[] = [];
+  for (const id of due) {
+    try { await remove(id); ctx.db.run("DELETE FROM terminal_workspace_gone WHERE agent_id = ?", id); done.push(id); }
+    catch (e) { ctx.log.warn("terminal: the workspace volumes of an agent in Trash could not be removed; tried again later", { agentId: id, reason: e instanceof Error ? e.message.slice(0, 160) : "unknown" }); }
+  }
+  return done;
 }
 
 export { commandsOf, judge, rulesOf };

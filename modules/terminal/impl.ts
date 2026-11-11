@@ -4,7 +4,7 @@
 // is read back with capture-pane. Live frames come from a tmux control-mode client (`%output` lines, decoded here).
 import type { Handler } from "../../host/src/invoke.ts";
 import { handlers as table } from "./handlers/index.ts";
-import { onAgentGone } from "./handlers/sessions.ts";
+import { forgetExpiredWorkspaces, onAgentGone, onAgentRestored } from "./handlers/sessions.ts";
 import { bindWorkspaceStatus, bindHost, bindKit, bindMachineHost, bindMachinePlace, bindMachineValues, bindPlace, bindTeam, bindValues, bindWorkspaces, boundHost, redeemTicket, scopeOfId, scrubberFor, spellingsFor } from "./projections.ts";
 import { unixSocketHttp } from "../../sandbox/src/docker.ts";
 import { buildWorkspaceManager, createWorkspaceTerminalHost } from "./workspace.ts";
@@ -688,6 +688,15 @@ export function setTerminalHost(seam: TerminalHostSeam | null): void {
 // Only the setter the daemon wires is a host seam.
 export const hostSeams = { setTerminalHost };
 
+/** Jobs the host runs on a clock. */
+export const periodic = {
+  /** Hourly: the home and Files volumes of an agent in Trash longer than the Space's Trash retention are removed (12 Nov, the Space browser's rule for its profiles). */
+  "terminal.trash_volumes": {
+    everyMs: 60 * 60_000,
+    run: (ctx: TermCtx): Promise<string[]> => forgetExpiredWorkspaces(ctx, workspaceManager ? (agentId) => (workspaceManager as WorkspaceManager).remove(agentId) : null),
+  },
+};
+
 /** What the module reads from the event log (host/src/daemon/consumers.ts runs each after commit, at least once). */
 export const consumers = {
   /** An agent went to Trash (deleted, or the Assistant of a person removed from the Space): its sessions close and its workspace's container and room go; what it kept stays (handlers/sessions.ts onAgentGone). */
@@ -698,10 +707,11 @@ export const consumers = {
   /** An agent came back from Trash: its workspace may be made again, over the volumes it kept. */
   "terminal.agent_restored": {
     on: ["agent.restored"],
-    run: (_ctx: TermCtx, event: { payload: { agentId?: unknown } }): string[] => {
+    run: (ctx: TermCtx, event: { payload: { agentId?: unknown } }): string[] => {
       const id = event.payload.agentId;
-      if (typeof id !== "string" || !workspaceManager) return [];
-      workspaceManager.restore(id);
+      if (typeof id !== "string") return [];
+      onAgentRestored(ctx, id);
+      workspaceManager?.restore(id);
       return [id];
     },
   },
