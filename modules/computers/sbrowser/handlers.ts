@@ -157,8 +157,10 @@ export async function giveBack(ctx: CompCtx, input: { agentId: string }) {
   // the person who has the controls gives them back; so may an admin (the person went away)
   if (by !== undefined && by !== person && access !== "admin") raise(ctx, "permission.no_grant", "Someone else has the controls.");
   // giving back always works: the module's hold goes first, so the agent has its tools even when the browser service does not answer now (a restarted one holds nothing)
+  // the release carries when it was decided: a takeover by someone else that reaches browserd before it is not undone by it
+  const decidedAt = Date.now();
   dropHold(ctx, input.agentId);
-  try { await sb.giveBack(input.agentId); } catch (e) { ctx.log.warn("sbrowser: give back did not reach the browser service", { agentId: input.agentId, reason: e instanceof Error ? e.message.slice(0, 160) : "unknown" }); }
+  try { await sb.giveBack(input.agentId, { before: decidedAt }); } catch (e) { ctx.log.warn("sbrowser: give back did not reach the browser service", { agentId: input.agentId, reason: e instanceof Error ? e.message.slice(0, 160) : "unknown" }); }
   return { profile: await rowOf(ctx, sb, input.agentId, access).catch(() => rowOut({ profileId: input.agentId, running: false, tabs: 0, busy: false, takeover: false, viewers: 0, lastActiveAt: 0, held: 0, paused: false }, access)) };
 }
 

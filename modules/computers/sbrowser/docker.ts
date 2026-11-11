@@ -156,26 +156,48 @@ export function createDockerSpaceBrowser(o: DockerSpaceBrowserOptions): SpaceBro
   const log = o.log ?? ((m: string): void => { process.stderr.write(`space browser: ${m}\n`); });
   let current = false;
   let recheckAt = 0;
+  const startedAt = Date.now();
   const sorted = (v: unknown): string[] => (Array.isArray(v) ? v.map(String).sort() : []);
   const envKeys = (env: readonly string[]): Set<string> => new Set(env.map((e) => e.split("=")[0]!));
   const revision = (x: { image: string; net: string; hosts: unknown; env: string[]; binds: unknown; memory: number; cpus: number; security: unknown }): string => JSON.stringify([x.image, x.net, sorted(x.hosts), x.env.slice().sort(), sorted(x.binds), x.memory, x.cpus, sorted(x.security)]);
-  async function jsonOf(path: string): Promise<Record<string, unknown> | null> {
+  /** The Engine's answer: the object, "missing" on a 404, or null when it could not be read (an error is not an answer). */
+  async function jsonOf(path: string): Promise<Record<string, unknown> | "missing" | null> {
     if (!o.http) return null;
-    try { const r = await o.http({ method: "GET", path }); return r.status === 200 ? (JSON.parse(new TextDecoder().decode(r.body)) as Record<string, unknown>) : null; } catch { return null; }
+    try {
+      const r = await o.http({ method: "GET", path });
+      if (r.status === 404) return "missing";
+      return r.status === 200 ? (JSON.parse(new TextDecoder().decode(r.body)) as Record<string, unknown>) : null;
+    } catch { return null; }
   }
-  /** null: the Engine cannot be asked (no raw access), so nothing is compared. Otherwise whether the container is missing, of this release, or another. */
-  async function releaseOf(config: ContainerConfig): Promise<"missing" | "same" | "other" | null> {
+  const createdMs = (v: unknown): number => { const t = Date.parse(String(v ?? "")); return Number.isFinite(t) ? t : 0; };
+  /**
+   * null: unknown (no raw access, or something could not be read), and unknown is never "different": nothing is replaced on an error, the next look tries again. "other" goes only one way, so two
+   * daemons on one computer that share the container never take turns replacing it (third look, 12 Nov):
+   *   - a different image is replaced only by a newer one (by the image's build time); a daemon of an older release leaves a newer container alone;
+   *   - with the same image, different settings replace it only when the container was made before this daemon started, so each daemon replaces it at most once per start.
+   */
+  async function releaseOf(config: ContainerConfig, net: { gateway?: string } | undefined): Promise<"missing" | "same" | "other" | null> {
     if (!o.http) return null;
     const c = await jsonOf(`/containers/${name}/json`);
-    if (!c) return "missing";
+    if (c === "missing") return "missing";
+    if (!c) return null;
+    // the settings this release would make depend on the network's gateway (Linux, no runner): when the network could not be read, the comparison would be wrong
+    if (!o.runner && (o.platform ?? process.platform) === "linux" && !net?.gateway) return null;
     const img = await jsonOf(`/images/${encodeURIComponent(config.Image)}/json`);
-    if (!img || typeof img["Id"] !== "string") return null;
+    if (!img || img === "missing" || typeof img["Id"] !== "string") return null;
     const hc = (c["HostConfig"] ?? {}) as Record<string, unknown>;
     const cc = (c["Config"] ?? {}) as Record<string, unknown>;
     const ours = envKeys(config.Env);
     const want = revision({ image: img["Id"], net: config.HostConfig.NetworkMode, hosts: config.HostConfig.ExtraHosts, env: [...config.Env], binds: config.HostConfig.Binds, memory: config.HostConfig.Memory, cpus: config.HostConfig.NanoCpus, security: config.HostConfig.SecurityOpt });
     const have = revision({ image: String(c["Image"] ?? ""), net: String(hc["NetworkMode"] ?? ""), hosts: hc["ExtraHosts"] ?? [], env: sorted(cc["Env"]).filter((e) => ours.has(e.split("=")[0]!)), binds: hc["Binds"] ?? [], memory: Number(hc["Memory"] ?? 0), cpus: Number(hc["NanoCpus"] ?? 0), security: hc["SecurityOpt"] ?? [] });
-    return want === have ? "same" : "other";
+    if (want === have) return "same";
+    if (String(c["Image"] ?? "") !== img["Id"]) {
+      const theirs = await jsonOf(`/images/${encodeURIComponent(String(c["Image"] ?? ""))}/json`);
+      if (theirs === null) return null;
+      // their image is gone (pruned on update) or older than ours: ours is the newer release
+      return theirs === "missing" || createdMs(img["Created"]) > createdMs(theirs["Created"]) ? "other" : "same";
+    }
+    return createdMs(c["Created"]) < startedAt ? "other" : "same";
   }
   /** No profile is busy and nobody has the controls: the container can be replaced without cutting anything off. */
   async function quietNow(): Promise<boolean> {
@@ -203,7 +225,7 @@ export function createDockerSpaceBrowser(o: DockerSpaceBrowserOptions): SpaceBro
         }
         if (!(await o.api.imageExists(config.Image))) throw new ToolError("unavailable", `The Space browser image ${config.Image} is not on this server${why ? ` and could not be fetched (${why.slice(0, 80)})` : ""}. Update the server to fetch it.`);
       }
-      const release = await releaseOf(config);
+      const release = await releaseOf(config, net);
       if (release === "other") {
         if (running && !(await quietNow())) {
           log("the container is of an earlier release; it is replaced as soon as no agent is using its browser and nobody has the controls");
@@ -215,6 +237,8 @@ export function createDockerSpaceBrowser(o: DockerSpaceBrowserOptions): SpaceBro
         await o.api.containerStop(name, 10).catch(() => undefined);
         await o.api.containerRemove(name);
       } else if (release === "same" && running) { current = true; return; }
+      // unknown: the running container is used as it is and looked at again later, never replaced on an error
+      else if (release === null && running && o.http) { recheckAt = Date.now() + (o.recheckMs ?? 30_000); if (subnet === null) await learnNetwork(); return; }
       try { await o.api.containerCreate(name, config); } catch (e) { if (!/already in use|409|conflict/i.test(e instanceof Error ? e.message : "")) throw e; }
       await o.api.containerStart(name);
       const deadline = Date.now() + (o.startTimeoutMs ?? 30_000);
@@ -295,6 +319,28 @@ export function createDockerSpaceBrowser(o: DockerSpaceBrowserOptions): SpaceBro
       await call("forget", { profileId });
     },
     subnets: () => (subnet ? [subnet] : []),
+    async profileUsed(profileId) {
+      // a running service reads its own folder (no browser starts for it); a stopped one is read through the Engine's file view of the container; none at all, with no volume, has no profiles
+      if (await o.api.containerRunning(name)) return ((await exec("profile_used", { profileId })) as { used?: boolean }).used === true;
+      if (!o.http) throw new ToolError("unavailable", "The Space browser is not running here, so whether this profile holds sign-ins cannot be told now.");
+      const stat = async (p: string): Promise<boolean | null> => {
+        const r = await o.http!({ method: "HEAD", path: `/containers/${name}/archive`, query: { path: p } }).catch(() => null);
+        return r?.status === 200 ? true : r?.status === 404 ? false : null;
+      };
+      const base = `${BROWSER_DATA_GUEST}/profiles/${profileId}`;
+      const a = await stat(`${base}/chrome/Default`);
+      if (a === true) return true;
+      const b = await stat(`${base}/sessions.json`);
+      if (b === true) return true;
+      if (a === false && b === false) {
+        // a 404 is also what a missing container answers: then the volume decides
+        const c = await o.http({ method: "GET", path: `/containers/${name}/json` }).catch(() => null);
+        if (c?.status === 200) return false;
+        const v = await o.http({ method: "GET", path: `/volumes/${name}-data` }).catch(() => null);
+        if (v?.status === 404) return false;
+      }
+      throw new ToolError("unavailable", "Whether this agent's Space browser profile holds sign-ins cannot be told now; try again later.");
+    },
     async profiles() {
       if (!(await o.api.containerRunning(name))) return { profiles: [], maxRunning: o.maxRunning ?? 6 };
       const s = await call("status", {}) as { profiles?: ProfileRow[]; maxRunning?: number };

@@ -27,3 +27,5 @@
 - A workspace or an agent's browser waiting for room now says it starts by itself when there is room, instead of advising a compute server that would not help it.
 - On a Mac or Windows computer, the Space browser reaches the Vault channel as Docker itself resolves it, so Vault fills keep working there.
 - An agent in Trash keeps its browser sign-ins for as long as the Space keeps its Trash (an admin's setting is followed; 30 days by default).
+- A Linux server without ip6tables still blocks the cloud metadata address over IPv4, and `vyre-server doctor` names the missing IPv6 half.
+- An abandoned live view no longer keeps a takeover going when the page shows nothing new.

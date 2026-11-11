@@ -332,7 +332,8 @@ check_all() {
   # no container Vyre starts for agents reaches the cloud's metadata address
   mst=$(meta_state)
   case "$mst" in
-    on) finding host.metadata healthy "Agents' containers cannot reach the cloud metadata address (169.254.0.0/16); DNS to it still passes." ;;
+    on) if [ "$(meta_v6)" = missing ]; then finding host.metadata degraded "Agents' containers cannot reach the cloud metadata address over IPv4 (169.254.0.0/16), but the IPv6 one (fd00:ec2::254) is not blocked: there is no ip6tables on this server."
+        else finding host.metadata healthy "Agents' containers cannot reach the cloud metadata address (169.254.0.0/16); DNS to it still passes."; fi ;;
     off) finding host.metadata degraded "Agents' containers can reach the cloud metadata address (169.254.0.0/16), which can hand out this server's credentials. Fix: vyre-server start." ;;
     broken*) finding host.metadata degraded "Agents' containers may reach the cloud metadata address (169.254.0.0/16): ${mst#broken }." ;;
   esac
@@ -647,13 +648,14 @@ meta_state() {
   if command -v docker >/dev/null 2>&1 && docker info 2>/dev/null | grep -i 'firewall backend' | grep -qi nftables; then printf 'broken Docker uses its nftables firewall, which has no DOCKER-USER chain'; return 0; fi
   iptables -w -L DOCKER-USER -n >/dev/null 2>&1 || { printf "broken iptables has no DOCKER-USER chain: Docker's firewall rules are off, or Docker uses the other iptables backend"; return 0; }
   iptables -w -C FORWARD -j DOCKER-USER >/dev/null 2>&1 || { printf "broken the DOCKER-USER chain iptables shows is not in the path of Docker's traffic (iptables-legacy and iptables-nft do not match)"; return 0; }
-  command -v ip6tables >/dev/null 2>&1 || { printf 'broken there is no ip6tables, so the IPv6 metadata address (fd00:ec2::254) is not blocked'; return 0; }
   meta_rules | while read -r t d i pr po tg; do
     # IPv6 rules only where Docker forwards IPv6 (its ip6tables chain is there)
     [ "$t" = iptables ] || meta_chain "$t" || continue
     meta_rule "$t" -C "$d" "$i" "$pr" "$po" "$tg" || { printf off; break; }
   done | grep -q off && printf off || printf on
 }
+# meta_v6: "missing" when there is no ip6tables (the IPv4 rules still go in; doctor reports the IPv6 half on its own), "ok" otherwise
+meta_v6() { command -v ip6tables >/dev/null 2>&1 && printf ok || printf missing; }
 # ensure_metadata_block: when a rule is missing, every rule of ours is taken out and put back in order (the drops first, each DNS pass inserted above them); never fails the caller
 ensure_metadata_block() {
   st=$(meta_state)

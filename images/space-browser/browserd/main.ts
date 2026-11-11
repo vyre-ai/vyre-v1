@@ -168,6 +168,7 @@ async function dispatch(action: string, a: Args): Promise<Args> {
       return manager.tool({ profileId: checkProfileId(a["profileId"]), tool: text(a, "tool"), args, timeoutMs: typeof a["timeoutMs"] === "number" ? a["timeoutMs"] : 30_000, ...(a["by"] === "person" ? { by: "person" } : {}) });
     }
     case "downloads": return { downloads: manager.downloads(checkProfileId(a["profileId"])) };
+    case "profile_used": return { used: manager.used(checkProfileId(a["profileId"])) };
     case "download_read": return { base64: manager.downloadRead(checkProfileId(a["profileId"]), text(a, "name")).toString("base64") };
     case "download_ack": manager.downloadAck(checkProfileId(a["profileId"]), text(a, "name")); return {};
     case "download_keep": manager.downloadKeep(checkProfileId(a["profileId"]), text(a, "name")); return {};

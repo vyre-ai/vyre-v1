@@ -253,7 +253,7 @@ test("a container of an earlier release that is busy or held is kept until it is
   const enc = (v: unknown) => new TextEncoder().encode(JSON.stringify(v));
   const http = async (r: { method: string; path: string }) => {
     if (r.method === "GET" && r.path === "/containers/vyre-sbrowser/json") return { status: 200, body: enc({ Id: "c-old", Image: "sha256:old", HostConfig: { NetworkMode: "bridge" }, Config: { Env: [] } }) };
-    if (r.method === "GET" && r.path.startsWith("/images/")) return { status: 200, body: enc({ Id: "sha256:new" }) };
+    if (r.method === "GET" && r.path.startsWith("/images/")) return { status: 200, body: enc(r.path.includes("sha256%3Aold") || r.path.includes("sha256:old") ? { Id: "sha256:old", Created: "2026-11-01T00:00:00Z" } : { Id: "sha256:new", Created: "2026-11-12T00:00:00Z" }) };
     if (r.method === "GET" && r.path.startsWith("/networks/")) return { status: 200, body: enc({ IPAM: { Config: [{ Subnet: "172.30.0.0/16", Gateway: "172.30.0.1" }] } }) };
     return { status: r.path === "/networks/create" ? 201 : 200, body: new Uint8Array() };
   };
@@ -310,4 +310,36 @@ test("a refusal's reason travels from browserd through ctl to the module: profil
     const err = await new Promise<string>((resolve) => { const p = spawn(process.execPath, [ctl, "reset_chrome", "{}"], { env: { ...process.env, VYRE_BROWSERD_SOCKET: sockPath } }); let e = ""; p.stderr.on("data", (d: Buffer) => { e += d.toString(); }); p.on("exit", () => resolve(e)); });
     assert.equal(toolErrorOf(err, 1).reason, "profile_busy", "ctl prints it");
   } finally { server.close(); fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+// Third look (12 Nov): two suspected flaps in the replacement of an earlier release's container.
+test("the container is replaced only one way: an error is never a difference, an older daemon leaves a newer container alone, and the same image with other settings is replaced at most once per start", async () => {
+  const enc = (v: unknown) => new TextEncoder().encode(JSON.stringify(v));
+  const run = async (o: { container: Record<string, unknown>; ours?: Record<string, unknown>; theirs?: Record<string, unknown> | "missing"; netFails?: boolean }) => {
+    const e = engine(() => ok({}));
+    await e.api.containerStart("vyre-sbrowser");
+    let removed = 0;
+    const api = { ...e.api, async containerRemove(id: string) { removed += 1; await e.api.containerRemove(id); } };
+    const http = async (r: { method: string; path: string }) => {
+      if (r.method === "GET" && r.path === "/containers/vyre-sbrowser/json") return { status: 200, body: enc(o.container) };
+      if (r.method === "GET" && r.path.startsWith("/images/")) {
+        const id = decodeURIComponent(r.path.slice("/images/".length, -"/json".length));
+        if (id === "sha256:theirs") return o.theirs === "missing" ? { status: 404, body: new Uint8Array() } : { status: 200, body: enc(o.theirs ?? { Id: "sha256:theirs", Created: "2026-11-01T00:00:00Z" }) };
+        return { status: 200, body: enc(o.ours ?? { Id: "sha256:ours", Created: "2026-11-12T00:00:00Z" }) };
+      }
+      if (r.method === "GET" && r.path.startsWith("/networks/")) return o.netFails ? { status: 500, body: new Uint8Array() } : { status: 200, body: enc({ IPAM: { Config: [{ Subnet: "172.30.0.0/16", Gateway: "172.30.0.1" }] } }) };
+      return { status: r.path === "/networks/create" ? 201 : 200, body: new Uint8Array() };
+    };
+    const sb = createDockerSpaceBrowser({ api, http, sleep: async () => {}, log: () => undefined, platform: "linux" });
+    await sb.tool({ profileId: "agt_dex", tool: "chrome_status", args: {}, timeoutMs: 1000 });
+    return removed;
+  };
+  const old = { Image: "sha256:theirs", Created: "2026-11-01T00:00:00Z", HostConfig: { NetworkMode: "bridge" }, Config: { Env: [] } };
+  assert.equal(await run({ container: old }), 1, "an older image's container is replaced");
+  assert.equal(await run({ container: old, theirs: "missing" }), 1, "one whose image is gone (pruned) too");
+  assert.equal(await run({ container: old, theirs: { Id: "sha256:theirs", Created: "2026-12-01T00:00:00Z" } }), 0, "a newer image's container is left to the newer daemon");
+  assert.equal(await run({ container: old, netFails: true }), 0, "the network could not be read: unknown, not different");
+  const sameImage = { Image: "sha256:ours", HostConfig: { NetworkMode: "bridge" }, Config: { Env: [] } };
+  assert.equal(await run({ container: { ...sameImage, Created: "2020-01-01T00:00:00Z" } }), 1, "same image, other settings, made before this daemon started: replaced");
+  assert.equal(await run({ container: { ...sameImage, Created: new Date(Date.now() + 60_000).toISOString() } }), 0, "made since this daemon started (by the other daemon): left alone");
 });

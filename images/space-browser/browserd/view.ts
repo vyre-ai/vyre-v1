@@ -191,7 +191,7 @@ export interface ViewOf {
 export interface ViewServer {
   /** A ticket for one viewer of one profile, valid for five minutes. `personId` is the person it is for, so the views a person has open can be counted. */
   mint(profileId: string, personId?: string): string;
-  /** How many views of this profile this person has open now. */
+  /** How many live views (WebSocket, pinged by the relay) of this profile this person has open now. MJPEG views are not counted: they cannot prove they are alive. */
   viewersOf(profileId: string, personId: string): number;
   url(token: string, transport: "mjpeg" | "ws"): string;
   close(): void;
@@ -226,15 +226,16 @@ export function startViewServer(d: ViewDeps): ViewServer {
       const got = open(url.searchParams.get("t"));
       if (!got) { res.writeHead(401, { "content-type": "text/plain" }).end("This view needs a ticket.\n"); return; }
       res.writeHead(200, { "content-type": `multipart/x-mixed-replace; boundary=${BOUNDARY}`, "cache-control": "no-store", connection: "close" });
+      // an MJPEG view cannot show it is alive (it sends nothing, and a still page sends it no frame that would fill a dead socket), so it never counts as the holder's open view: only a WebSocket
+      // view, which the Space's relay pings and closes when it stops answering, keeps a takeover going (second and third looks, 12 Nov)
       viewers += 1;
-      count(keyOf(got), 1);
       const stop = got.view.hub.watch((jpeg) => {
         if (res.writableLength > 2 * 1024 * 1024) return;
         res.write(`--${BOUNDARY}\r\ncontent-type: image/jpeg\r\ncontent-length: ${jpeg.length}\r\n\r\n`);
         res.write(jpeg);
         res.write("\r\n");
       });
-      res.once("close", () => { stop(); viewers -= 1; count(keyOf(got), -1); });
+      res.once("close", () => { stop(); viewers -= 1; });
       return;
     }
     if (url.pathname === "/health") { res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify({ ok: true })); return; }

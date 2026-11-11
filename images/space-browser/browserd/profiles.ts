@@ -126,6 +126,8 @@ export interface ProfileManager {
   stopAll(): Promise<void>;
   /** For a viewer that is attached or gone: counts as activity. */
   touch(id: string): void;
+  /** Has this profile ever held Chrome's data (its browser ran: Chrome made its Default folder) or a list of sign-ins? Reads the folder only: nothing starts, and a profile never seen is false. */
+  used(id: string): boolean;
   /** The sites the profile was signed in to when its browser last closed or was last asked (a sleeping profile is listed from this; nothing starts). */
   cachedSessions(id: string): Array<{ site: string; since: number; lastSeen: number }>;
   saveSessions(id: string, rows: Array<{ site: string; since: number; lastSeen: number }>): void;
@@ -331,6 +333,10 @@ export function createProfileManager(o: ProfileManagerOptions): ProfileManager {
       return rows;
     },
     async stopAll() { await Promise.all([...profiles.values()].map((p) => release(p))); },
+    used(id) {
+      const dir = join(o.root, "profiles", checkProfileId(id));
+      return existsSync(join(dir, "chrome", "Default")) || existsSync(join(dir, "sessions.json"));
+    },
     cachedSessions(id) { try { const j = JSON.parse(readFileSync(join(get(id).dir, "sessions.json"), "utf8")) as Array<{ site: string; since: number; lastSeen: number }>; return Array.isArray(j) ? j : []; } catch { return []; } },
     saveSessions(id, rows) { try { mkdirSync(get(id).dir, { recursive: true }); writeFileSync(join(get(id).dir, "sessions.json"), JSON.stringify(rows)); } catch { /* not kept */ } },
     downloads(id) {

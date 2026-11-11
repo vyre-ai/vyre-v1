@@ -305,3 +305,42 @@ test("a step that sets off no download waits for nothing after it", async () => 
     }
   } finally { r.done(); }
 });
+
+// Third look (12 Nov): a dead MJPEG view of a still page was never closed (no frame, so no full socket) and kept the holder's takeover going. Only a WebSocket view, which the relay pings, counts.
+test("only the holder's WebSocket views count as their open view; an MJPEG view never does", async () => {
+  const { startViewServer } = await import("../../../images/space-browser/browserd/view.ts");
+  const port = 21000 + Math.floor(Math.random() * 20000);
+  // one frame at once, then a still page: nothing more
+  const hub = { watch: (f: (j: Buffer) => void) => { f(Buffer.from([0xff, 0xd8, 0xff, 0xd9])); return () => undefined; }, viewers: () => 0, lastFrameAt: () => null, latest: () => null };
+  const views = startViewServer({ port, address: () => "127.0.0.1", viewOf: () => ({ hub, input: { call: async () => ({ x: 0, y: 0 }) }, takenOver: () => true, onInput: () => undefined }) });
+  try {
+    await new Promise((r) => setTimeout(r, 50));
+    const ac = new AbortController();
+    const res = await fetch(views.url(views.mint("agt_dex", "usr_dana"), "mjpeg"), { signal: ac.signal });
+    assert.equal(res.status, 200);
+    await new Promise((r) => setTimeout(r, 50));
+    assert.equal(views.viewersOf("agt_dex", "usr_dana"), 0, "an MJPEG view is not counted");
+    const ws = new WebSocket(views.url(views.mint("agt_dex", "usr_dana"), "ws"));
+    await new Promise<void>((r) => ws.addEventListener("open", () => r()));
+    await new Promise((r) => setTimeout(r, 50));
+    assert.equal(views.viewersOf("agt_dex", "usr_dana"), 1, "a WebSocket view is");
+    ws.close(); ac.abort();
+    for (let i = 0; i < 40 && views.viewersOf("agt_dex", "usr_dana") > 0; i++) await new Promise((r) => setTimeout(r, 25));
+    assert.equal(views.viewersOf("agt_dex", "usr_dana"), 0, "and stops counting when it closes");
+  } finally { views.close(); }
+});
+
+// Third look (12 Nov): give back released with no time, so a takeover by another person that reached browserd first was cleared by it.
+test("a release carries the time it was decided: browserd never undoes a takeover that began after it", async () => {
+  const r = rig();
+  try {
+    await r.call("agt_dex");
+    const decided = r.clock.t;
+    r.clock.t += 1000;
+    r.m.takeover("agt_dex", "usr_omar");             // Omar takes over after Dana's give back was decided
+    r.m.giveBack("agt_dex", decided);                // Dana's release reaches browserd late
+    await assert.rejects(() => r.call("agt_dex"), refusal("paused"), "Omar still has the controls");
+    r.m.giveBack("agt_dex", r.clock.t + 1);
+    await r.call("agt_dex");
+  } finally { r.done(); }
+});

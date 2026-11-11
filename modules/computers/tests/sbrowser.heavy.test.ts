@@ -691,6 +691,21 @@ test("@heavy space browser: an agent's call that read no hold before a person to
   } finally { bindFill(null); bindSpaceBrowser(null); }
 });
 
+// For lane f-desktop (12 Nov): whether a profile ever held Chrome data or sign-ins, asked without starting a browser or the container.
+test("@heavy space browser: profileUsed says whether a profile ever held Chrome data, starting nothing, with the service running or stopped", { skip, timeout: 300_000 }, async () => {
+  await tool("agt_used", "chrome_open", { url: siteUrl("/set?name=used&keep=1") });
+  assert.equal(await sb.profileUsed("agt_used"), true, "a profile its browser ran in");
+  assert.equal(await sb.profileUsed("agt_never_here"), false, "a profile that does not exist");
+  assert.ok(!(await sb.profiles()).profiles.some((p) => p.profileId === "agt_never_here"), "asking started nothing for it");
+  await api.containerStop(NAME, 10);
+  assert.equal(await api.containerRunning(NAME), false);
+  const look = createDockerSpaceBrowser({ api, http, name: NAME, image: IMAGE, user: { uid: 10001, gid: 10001 } });
+  assert.equal(await look.profileUsed("agt_used"), true, "read through the stopped container");
+  assert.equal(await look.profileUsed("agt_never_here"), false);
+  assert.equal(await api.containerRunning(NAME), false, "and the container was not started");
+  await tool("agt_used", "chrome_state");   // the service comes back for the next test
+});
+
 test("@heavy space browser: a profile's tabs come back after its browser stops after idle", { skip, timeout: 300_000 }, async () => {
   await tool("agt_tabby", "chrome_open", { url: siteUrl("/whoami?tab=one") });
   await tool("agt_tabby", "chrome_tabs", { action: "new", url: siteUrl("/whoami?tab=two") });

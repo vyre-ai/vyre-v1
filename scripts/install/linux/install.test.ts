@@ -975,9 +975,15 @@ esac
     assert.equal(state(), "off");
     sh(SERVER, "ensure_metadata_block", env);
     assert.deepEqual(read(rules("iptables")).trim().split("\n"), v4, "repaired in order, no duplicate");
-    // no ip6tables at all: said
+    // no ip6tables at all (third look, 12 Nov): the IPv4 rules still go in, and doctor says the IPv6 half is missing, with the reason
     fs.rmSync(path.join(shim, "ip6tables"));
-    assert.match(state({ PATH: `${shim}:/usr/bin:/bin` }), /^broken there is no ip6tables/);
+    fs.writeFileSync(rules("iptables"), "");
+    const noV6 = { ...env, PATH: `${shim}:/usr/bin:/bin` };
+    assert.equal(sh(SERVER, "meta_state", noV6).stdout, "off", "the IPv4 half is judged on its own");
+    sh(SERVER, "ensure_metadata_block", noV6);
+    assert.deepEqual(read(rules("iptables")).trim().split("\n"), v4, "IPv4 blocked though there is no ip6tables");
+    assert.equal(sh(SERVER, "meta_state", noV6).stdout, "on");
+    assert.match(sh(SERVER, 'FINDINGS=""; DOWN=0; check_all >/dev/null 2>&1; printf "%s" "$FINDINGS"', noV6).stdout, /host\.metadata\tdegraded\t.*IPv4.*fd00:ec2::254.*there is no ip6tables/);
     // start, the update (also the daily check when there is nothing new) and the rollback all put it there
     const text = read(SERVER);
     assert.match(text, /cmd_start\(\) \{[^\n]*ensure_metadata_block; dc up/, "start (the boot unit runs it)");

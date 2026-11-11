@@ -73,6 +73,11 @@ export interface SpaceBrowser {
   signOut(profileId: string, site: string): Promise<boolean>;
   /** The browser of the profile stops; the folder stays. */
   stop(profileId: string): Promise<void>;
+  /**
+   * Has this profile ever held Chrome data or sign-ins (its browser ran in it, or it lists sites it was signed in to)? Starts neither a browser nor the container; false for a profile that does not exist.
+   * Throws (unavailable) only when it cannot tell (the service's volume is there but there is no container to read it through). Lane f-desktop's move asks this before it puts an old desktop's Chrome in.
+   */
+  profileUsed(profileId: string): Promise<boolean>;
   /** The agent is gone: the browser stops and the folder is deleted. */
   forget(profileId: string): Promise<void>;
   profiles(): Promise<{ profiles: ProfileRow[]; maxRunning: number }>;

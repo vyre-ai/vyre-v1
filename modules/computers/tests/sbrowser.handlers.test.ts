@@ -216,3 +216,20 @@ test("who takes over: a member their own Assistant (yes), a member someone else'
     assert.ok(!r.seen.some((s) => s.includes(OMAR) && (s.includes("agt_dana_ast") || s.includes("agt_mine"))), "nothing reached the browser service for them");
   } finally { off(); }
 });
+
+test("give back tells the browser service when it was decided, so a later takeover is never undone by it", async () => {
+  rig();
+  const { spaceBrowser } = await import("../sbrowser/port.ts");
+  const sb = spaceBrowser()!;
+  const seen: Array<{ before?: number }> = [];
+  const orig = sb.giveBack.bind(sb);
+  sb.giveBack = async (id, o) => { seen.push(o ?? {}); await orig(id, o); };
+  try {
+    const dana = as(DANA, false);
+    await tool["computers.browser.take_over"]!(dana.ctx, { agentId: "agt_mine" });
+    const t0 = Date.now();
+    await tool["computers.browser.give_back"]!(dana.ctx, { agentId: "agt_mine" });
+    assert.equal(seen.length, 1);
+    assert.ok(typeof seen[0]!.before === "number" && seen[0]!.before >= t0 && seen[0]!.before <= Date.now(), JSON.stringify(seen));
+  } finally { off(); }
+});
