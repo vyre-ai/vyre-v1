@@ -29,17 +29,35 @@ pub const SHORTCUT: &str = "CommandOrControl+Shift+V";
 
 /// Run in the page after every load: report script errors and how much text rendered, through our own command.
 /// This is how a blank window shows up in the log (and in the desktop job) instead of staying a mystery.
+/// A window that has still drawn nothing 8 s after loading says what the page holds, and then recovers by itself: every service worker and cache goes and the page loads again,
+/// as often as the shell allows (page_recover, a few times per start, each one in the log). A person must never be left looking at an empty window.
 const PAGE_PROBE: &str = r#"(function () {
   var inv = window.__TAURI__ && window.__TAURI__.core && window.__TAURI__.core.invoke;
   if (!inv || window.__vyreProbe) return;
   window.__vyreProbe = true;
   function send(kind, text) { try { inv("page_report", { kind: kind, text: String(text) }); } catch (e) {} }
+  function chars() { return document.body ? document.body.innerText.length : 0; }
   window.addEventListener("error", function (e) { send("error", e.message); });
   window.addEventListener("unhandledrejection", function (e) { send("error", e.reason); });
   setTimeout(function () {
-    var n = document.body ? document.body.innerText.length : 0;
-    send("rendered", n + " chars at " + location.protocol + "//" + location.host + location.pathname);
+    send("rendered", chars() + " chars at " + location.protocol + "//" + location.host + location.pathname);
   }, 2000);
+  setTimeout(function () {
+    if (chars() > 0) return;
+    var sw = navigator.serviceWorker;
+    var c = sw && sw.controller;
+    var shows = "drew nothing 8 s after loading: " + location.href + ", readyState " + document.readyState + ", title \"" + String(document.title || "").slice(0, 40) + "\", " +
+      (document.body ? document.body.children.length + " element(s) in body" : "no body") + ", page " + (document.documentElement ? document.documentElement.outerHTML.length : 0) + " bytes, served by " +
+      (c ? "the worker " + c.scriptURL : "no worker");
+    send("blank", shows);
+    inv("page_recover", { kind: "blank", text: shows }).then(function (ok) {
+      if (!ok) return;
+      var gone = sw && sw.getRegistrations ? sw.getRegistrations().then(function (rs) { return Promise.all(rs.map(function (r) { return r.unregister(); })); }) : Promise.resolve();
+      var cleared = window.caches ? caches.keys().then(function (ks) { return Promise.all(ks.map(function (k) { return caches.delete(k); })); }) : Promise.resolve();
+      var again = function () { location.replace("/"); };
+      Promise.all([gone, cleared]).then(again, again);
+    }, function () {});
+  }, 8000);
 })();"#;
 
 /// Run in the page after every load: a link that leaves the app (window.open, or an anchor to another site) opens in the default browser through open_link.
@@ -66,20 +84,25 @@ const EXTERNAL_LINKS: &str = r#"(function () {
   }, true);
 })();"#;
 
-/// Run in the page after every load: the desktop app has no service worker (the page never registers one, startup/boot.ts). One an earlier version registered is removed with its caches, and
-/// the page loads again. On Windows such a worker took over every page load from the second start and the window drew nothing (update-proof run 41627777786), so the page itself could not run
-/// the code that fixes it: the shell does it from here, whatever page the worker served.
+/// Run in the page after every load: the desktop app has no service worker (the page never registers one, startup/boot.ts). One an earlier version registered is removed with its caches.
+/// On Windows such a worker took over every page load from the second start and the window drew nothing (update-proof run 41627777786), so the page itself could not run the code that fixes
+/// it: the shell does it from here, whatever page the worker served. The page loads again only when the worker served it (it is the page's controller), and only as often as the shell allows
+/// (page_recover): a worker still listed while the app's own page is up is removed without a reload, so the repair never reloads twice for one worker or loops (update-proof run 43109353813).
 pub(crate) const NO_SERVICE_WORKER: &str = r#"(function () {
   if (window.__vyreNoSw || !navigator.serviceWorker || !navigator.serviceWorker.getRegistrations) return;
   window.__vyreNoSw = true;
   var inv = window.__TAURI__ && window.__TAURI__.core && window.__TAURI__.core.invoke;
   navigator.serviceWorker.getRegistrations().then(function (rs) {
     if (!rs.length) return;
+    var served = !!navigator.serviceWorker.controller;
     var gone = Promise.all(rs.map(function (r) { return r.unregister(); }));
     var cleared = window.caches ? caches.keys().then(function (ks) { return Promise.all(ks.map(function (k) { return caches.delete(k); })); }) : Promise.resolve();
     Promise.all([gone, cleared]).then(function () {
-      if (inv) inv("page_report", { kind: "service-worker", text: "removed " + rs.length + " service worker(s) an earlier version registered; loading again" }).catch(function () {});
-      location.replace("/");
+      var said = "removed " + rs.length + " service worker(s) an earlier version registered";
+      if (!inv) return;
+      if (!served) { inv("page_report", { kind: "service-worker", text: said + "; this page is the app's own, not loaded again" }).catch(function () {}); return; }
+      inv("page_report", { kind: "service-worker", text: said + "; loading again" }).catch(function () {});
+      inv("page_recover", { kind: "service-worker", text: said }).then(function (ok) { if (ok) location.replace("/"); }, function () {});
     }, function () {});
   }, function () {});
 })();"#;
@@ -308,7 +331,7 @@ pub fn run() {
             }
         })
         .manage(updater::SharedUpdate::default())
-        .manage(AppState { sidecar: shared.clone(), personal: personal.clone(), server: server.clone(), links: Mutex::new(commands::LinkHandoff::default()), native: native::NativeState::default() })
+        .manage(AppState { sidecar: shared.clone(), personal: personal.clone(), server: server.clone(), links: Mutex::new(commands::LinkHandoff::default()), native: native::NativeState::default(), recoveries: std::sync::atomic::AtomicU32::new(0) })
         .invoke_handler(tauri::generate_handler![
             first_frame,
             commands::desktop_info,
@@ -316,6 +339,7 @@ pub fn run() {
             commands::ensure_mac_server,
             commands::take_pending_link,
             commands::page_report,
+            commands::page_recover,
             commands::open_link,
             artifact_view::artifact_view_show,
             artifact_view::artifact_view_bounds,

@@ -74,7 +74,7 @@ function freshProfile(tag: string): void {
 }
 const charsOf = (log: string): number => Number(/page rendered: (\d+) chars/.exec(log)?.[1] ?? "0");
 
-function launch(feed: string, tag: string, off = false): { child: ChildProcess; log: () => string; waitFor(re: RegExp, ms: number): Promise<boolean> } {
+function launch(feed: string, tag: string, off = false): { child: ChildProcess; log: () => string; waitFor(re: RegExp | ((log: string) => boolean), ms: number): Promise<boolean> } {
   const env: Record<string, string | undefined> = { ...process.env, VYRE_UPDATE_FEED: feed };
   if (!off) delete env["VYRE_NO_AUTO_UPDATE"];
   // the default stdio, as apps/desktop/tests/shell.heavy.test.ts starts it: started with stdin "ignore" the Windows app's page draws nothing (tmp-winlook run 41596151473, where the
@@ -87,7 +87,7 @@ function launch(feed: string, tag: string, off = false): { child: ChildProcess; 
   child.stderr!.on("data", add);
   return {
     child, log: () => text,
-    async waitFor(re, ms) { const end = Date.now() + ms; while (Date.now() < end) { if (re.test(text)) return true; await sleep(250); } return re.test(text); },
+    async waitFor(re, ms) { const hit = (): boolean => (typeof re === "function" ? re(text) : re.test(text)); const end = Date.now() + ms; while (Date.now() < end) { if (hit()) return true; await sleep(250); } return hit(); },
   };
 }
 
@@ -130,19 +130,34 @@ if (kept) {
   profileListing("kept");
   const run = launch(GOOD, "upgraded-start", true);
   const removed = await run.waitFor(/page serviceworker: removed \d+ service worker/, 60_000);
-  await run.waitFor(/page rendered: [1-9]\d* chars/, 30_000);
+  // Everything the shell said from the first removal on. The removal can be said more than once in one start (run 43109353813 said it twice, then drew 132 chars), so this is the
+  // whole rest of the log, never the piece between two removals.
+  const sinceRemoval = (): string => { const log = run.log(); const at = log.indexOf("page serviceworker: removed"); return at < 0 ? "" : log.slice(at); };
+  const reportsAfter = (): number[] => [...sinceRemoval().matchAll(/page rendered: (\d+) chars/g)].map((m) => Number(m[1]));
+  await run.waitFor(() => reportsAfter().some((n) => n > 0), 30_000);
   await sleep(4000);
   shot("upgraded-start");
   // the page's last report after the worker's removal, which must be nonzero and still nonzero about 3 s later (a page that drew and went blank must not pass); every report is printed
-  const reportsAfter = (): number[] => [...(run.log().split("page serviceworker")[1] ?? "").matchAll(/page rendered: (\d+) chars/g)].map((m) => Number(m[1]));
   const first = reportsAfter();
   await sleep(3000);
   const later = reportsAfter();
   const after = later.at(-1) ?? 0;
-  console.log(`update-proof: first start over the shipped app's profile: worker removed=${removed}, then ${after} chars (every report after the removal: ${later.join(", ") || "none"}; at the first look: ${first.join(", ") || "none"})`);
+  const said = sinceRemoval();
+  const removals = (said.match(/page serviceworker: removed/g) ?? []).length;
+  const recovered = said.split("\n").filter((l) => /page recover /.test(l));
+  console.log(`update-proof: first start over the shipped app's profile: worker removed=${removed}, then ${after} chars (every report after the removal: ${later.join(", ") || "none"}; at the first look: ${first.join(", ") || "none"}); removals said ${removals} time(s); the page loaded itself again ${recovered.filter((l) => !/refused/.test(l)).length} time(s)`);
+  for (const l of recovered) console.log(`update-proof:   ${l.trim()}`);
   if (first.length > 0 && first[0] === 0 && after > 0) console.log("update-proof: NOTE the page reported 0 before it drew; a blank flash on the first start over an old profile");
+  if (recovered.some((l) => /page recover blank/.test(l)) && after > 0) console.log("update-proof: NOTE it drew only after the shell's blank-window recovery loaded it again");
   if (!removed) failures.push("upgrade: the earlier version's service worker was not removed");
-  if (after === 0) { failures.push("upgrade: the app draws nothing after removing the earlier worker"); console.log(`update-proof: the shell said, after the worker was removed:\n${(run.log().split("page serviceworker")[1] ?? "").split("\n").slice(0, 40).join("\n")}`); }
+  if (recovered.some((l) => /refused/.test(l))) failures.push("upgrade: the page kept loading itself again until the shell refused");
+  if (after === 0) {
+    failures.push("upgrade: the app draws nothing after removing the earlier worker");
+    // what the WebView held when nothing was drawn (PAGE_PROBE's "page blank" line: address, readyState, title, elements, size, which worker served it), then the shell's own words
+    const blank = said.split("\n").filter((l) => /page blank:/.test(l));
+    console.log(`update-proof: what the window showed: ${blank.length ? blank.map((l) => l.trim()).join(" | ") : "no blank report (the page never ran the shell's probe 8 s after a load)"}`);
+    console.log(`update-proof: the shell said, from the first removal on:\n${said.split("\n").slice(0, 40).join("\n")}`);
+  }
   await quit("upgraded-start");
 } else {
   // the earlier steps of this job ran the app on this profile and ended it with a force kill (run-shell.sh's trap): start as a fresh person, keeping a listing of what was there

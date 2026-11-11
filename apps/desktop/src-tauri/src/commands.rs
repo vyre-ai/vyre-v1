@@ -4,6 +4,7 @@
 //   desktop_info()        platform, app version and the sidecar status (address once it answers /healthz)
 //   take_pending_link()   a Vyre link that arrived before the page was listening, once
 //   page_report(kind, text)  what the shell's own load hook (lib.rs PAGE_PROBE) tells us: script errors and the rendered size, to the log only
+//   page_recover(kind, text) -> bool  may the page load itself again to repair itself (an earlier worker, a blank window); bounded per start, each answer in the log
 //   windows_sandbox_state(), setup_windows_sandbox()   Windows: is WSL on, and turn it on for team chats (winsandbox.rs)
 // Events: "vyre://sidecar" (Status) and "vyre://deep-link" (DeepLink).
 
@@ -44,6 +45,8 @@ pub struct AppState {
     pub server: Shared,
     pub links: Mutex<LinkHandoff>,
     pub native: crate::native::NativeState,
+    /// How often the page has loaded itself again since this start (page_recover).
+    pub recoveries: std::sync::atomic::AtomicU32,
 }
 
 #[derive(Serialize)]
@@ -104,6 +107,30 @@ pub fn page_report(kind: String, text: String) {
     println!("vyre-desktop: page {kind}: {text}");
 }
 
+/// How often, per start of the app, the page may load itself again to repair itself (an earlier version's service worker, or a window that has drawn nothing). Bounded so a repair can never loop.
+pub const MAX_PAGE_RECOVERIES: u32 = 3;
+
+/// The page asks before it loads itself again to repair itself. Says each attempt, or the refusal, in the log; true means go ahead.
+pub fn recovery_allowed(done: &std::sync::atomic::AtomicU32, kind: &str, text: &str) -> bool {
+    let kind: String = kind.chars().filter(|c| c.is_ascii_alphanumeric()).take(16).collect();
+    let text: String = text.chars().filter(|c| !c.is_control()).take(200).collect();
+    let n = done.fetch_add(1, std::sync::atomic::Ordering::SeqCst) + 1;
+    if n <= MAX_PAGE_RECOVERIES {
+        println!("vyre-desktop: page recover {kind} (load again, {n} of {MAX_PAGE_RECOVERIES} this start): {text}");
+        true
+    } else {
+        done.store(MAX_PAGE_RECOVERIES + 1, std::sync::atomic::Ordering::SeqCst);
+        println!("vyre-desktop: page recover {kind} refused: the page already loaded itself again {MAX_PAGE_RECOVERIES} times this start: {text}");
+        false
+    }
+}
+
+/// Called by the shell's own scripts (lib.rs NO_SERVICE_WORKER, PAGE_PROBE) before the page loads itself again.
+#[tauri::command]
+pub fn page_recover(state: State<'_, AppState>, kind: String, text: String) -> bool {
+    recovery_allowed(&state.recoveries, &kind, &text)
+}
+
 /// A web address the shell hands to the default browser: http or https, no spaces or control characters, no user or password, bounded.
 pub fn web_link(url: &str) -> bool {
     let rest = url.strip_prefix("https://").or_else(|| url.strip_prefix("http://"));
@@ -155,6 +182,18 @@ mod tests {
 
         assert_eq!(handoff.lock().unwrap().activate_and_take(), None);
         assert_eq!(handoff.lock().unwrap().deliver(expected.clone()), Some(expected));
+    }
+
+    #[test]
+    fn the_page_may_load_itself_again_a_bounded_number_of_times_per_start() {
+        let done = std::sync::atomic::AtomicU32::new(0);
+        for _ in 0..MAX_PAGE_RECOVERIES {
+            assert!(recovery_allowed(&done, "blank", "drew nothing"));
+        }
+        for _ in 0..5 {
+            assert!(!recovery_allowed(&done, "service-worker", "removed 1"), "never past the bound, so a repair cannot loop");
+        }
+        assert_eq!(done.load(std::sync::atomic::Ordering::SeqCst), MAX_PAGE_RECOVERIES + 1, "the count does not grow without end");
     }
 
     #[test]

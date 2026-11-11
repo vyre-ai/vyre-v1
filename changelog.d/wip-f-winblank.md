@@ -1,0 +1,1 @@
+- Windows: the first start after updating from an earlier version removes that version's leftover background worker without loading the window twice, and a window that still shows nothing a few seconds after opening clears what an earlier version left and loads again by itself (a few times at most).
