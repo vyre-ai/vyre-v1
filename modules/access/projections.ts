@@ -6,7 +6,7 @@ import { fail } from "../../host/src/routes/errors.ts";
 import { AccessSnapshot } from "../../kernel/src/authorize/index.ts";
 import { THROUGH_AGENT } from "../../lib/through-agent.ts";
 import { isElevatedRole, isOwnerRole } from "../../kernel/src/authorize/snapshot.ts";
-import type { Expr, GrantRow, Policy, PrincipalRow } from "../../kernel/src/authorize/index.ts";
+import type { Expr, GrantRow, Policy, PrincipalRow, ResourceRow } from "../../kernel/src/authorize/index.ts";
 
 type ProviderPolicy = Extract<Policy, { kind: "provider_label" }>;
 type GatePolicy = Extract<Policy, { kind: "gate" }>;
@@ -257,6 +257,8 @@ export class AccessStore {
 
   bump(): void { this.epoch++; this.snap = null; }
   invalidate(): void { this.snap = null; }
+  /** Take `snap` as this store's snapshot at the current epoch (the kept store of access.sync, after it changed the snapshot in place). */
+  adoptSnapshot(snap: AccessSnapshot): void { this.snap = snap; this.snapEpoch = this.epoch; }
 
   seed(): void {
     const parsed = parseCatalogue(catalogueSource());
@@ -293,18 +295,25 @@ export class AccessStore {
 
   /** Row the checker and scopeFor both read: filter fields, plus label, owner and holds taken from the resource. */
   resourceRow(id: string): Record<string, unknown> | undefined {
-    const r = this.resources.get(id);
-    if (!r) return undefined;
-    return { ...(r.row ?? {}), id: r.id, owner_id: r.ownerId, label: labelRank(r.label), holds: r.holds };
+    return rowOfResource(this.resources.get(id));
   }
 
   /** Cached authorize snapshot. Rebuilt only when the epoch moves. */
   snapshot(): AccessSnapshot {
     if (this.snap && this.snapEpoch === this.epoch) return this.snap;
+    // the read view held across a rebuild (no snapshot kept for it any more): a fresh sealed one, built but not cached, since a reader may not write the store (review 2, finding D)
+    if (READ_VIEWS.has(this) && writing === 0) return sealSnapshot(this.build());
+    const snap = this.build();
+    this.snap = snap;
+    this.snapEpoch = this.epoch;
+    return snap;
+  }
+
+  private build(): AccessSnapshot {
     const snap = new AccessSnapshot();
     snap.labelNames = ["Public", "Internal", "Confidential", "Restricted"];
     for (const r of this.roles.values()) {
-      snap.putRole({ id: r.id, clearance: labelRank(r.clearance), perms: r.permissions, name: r.name, assignableToAgents: r.assignableToAgents });
+      snap.putRole({ id: r.id, clearance: labelRank(r.clearance), perms: [...r.permissions], name: r.name, assignableToAgents: r.assignableToAgents });
     }
     snap.putRole({ id: "rol_engineer_mcp", clearance: 0, perms: ["engineer.mcp"], name: "Engineer MCP" });
     for (const p of this.principals.values()) {
@@ -323,14 +332,7 @@ export class AccessStore {
     }
     for (const a of this.actors.values()) if (a.engineerMcp && a.status === "active") snap.addPrincipalRole({ holder: a.id, role: "rol_engineer_mcp" });
     for (const g of this.groups.values()) for (const m of g.members) snap.addMember({ group: g.id, member: m.id });
-    for (const r of this.resources.values()) {
-      // Only people added and Only me cut a resource off from its container (the record from its type, the type from the Space); the row keeps the natural parent, so a seed that re-registers it cannot undo the cut
-      const cut = (r.row?.["audience"] === "added" || r.row?.["audience"] === "me") && r.parentId !== null;
-      snap.putResource({
-        id: r.id, type: r.type, parent_id: cut ? null : r.parentId, label: labelRank(r.label), owner_id: r.ownerId, holds: r.holds,
-        ...(cut ? { home: r.parentId } : {}), ...(r.row?.["exportViewers"] === true ? { export_viewers: true } : {}),
-      });
-    }
+    for (const r of this.resources.values()) snap.putResource(kernelResource(r));
     for (const k of this.fieldLabels.keys()) if (k.startsWith("assistant:")) snap.setAssistant(k.slice("assistant:".length), true);
     for (const g of this.grants.values()) snap.putGrant(kernelGrant(g));
     for (const [k, n] of this.fieldLabels) {
@@ -341,8 +343,6 @@ export class AccessStore {
     for (const p of this.policies.values()) { const k = policyOf(p); if (k) policies.push(k); }
     snap.setPolicies(policies);
     snap.rowSource = (id) => this.resourceRow(id);
-    this.snap = snap;
-    this.snapEpoch = this.epoch;
     return snap;
   }
 
@@ -487,6 +487,39 @@ export class AccessStore {
     this.raw = null;
   }
 
+  /**
+   * Write just these resources and the cursor of the folded events, for a batch that only registered objects (consumers.ts `apply`): two statements per object instead of the comparison of
+   * every row `persist` makes. What was written is noted in that comparison, so a later `persist` of this store neither writes these rows again nor misses one.
+   */
+  persistResources(db: Db, ids: Iterable<string>, cursorMoved: boolean): void {
+    if (!this.base && this.raw) { this.base = this.fromRaw(); this.raw = null; }
+    const note = (table: string, key: unknown[], vals: unknown[]): void => {
+      if (!this.base) return;
+      let t = this.base.get(table);
+      const shape = SHAPES[table]!;
+      if (!t) { t = { pk: shape.pk, cols: shape.cols, vals: new Map() }; this.base.set(table, t); }
+      t.vals.set(JSON.stringify(key), vals);
+    };
+    for (const id of ids) {
+      const r = this.resources.get(id);
+      if (!r) continue;
+      const vals = [r.id, r.type, r.parentId, r.label, r.ownerId, r.holds, r.row ? JSON.stringify(r.row) : null];
+      db.run("DELETE FROM access_resources WHERE id = ?", id);
+      db.run("INSERT INTO access_resources (id,type,parent_id,label,owner_id,holds,row_json) VALUES (?,?,?,?,?,?,?)", ...vals);
+      note("access_resources", [r.id], vals);
+    }
+    if (!cursorMoved) return;
+    const n = this.fieldLabels.get(CURSOR_KEY) ?? 0;
+    // the cursor is this computer's own (migrations/0004_local_cursor.sql): where access_local_cursor exists it is kept there, as `persist` keeps it, and never in access_fields, which travels
+    if (this.localCursor) {
+      db.run("INSERT INTO access_local_cursor (id,seq) VALUES (?,?) ON CONFLICT(id) DO UPDATE SET seq = max(seq, excluded.seq)", CURSOR_KEY, n);
+      note("access_local_cursor", [CURSOR_KEY], [CURSOR_KEY, n]);
+    } else {
+      db.run("INSERT INTO access_fields (k,rank) VALUES (?,?) ON CONFLICT(k) DO UPDATE SET rank = max(rank, excluded.rank)", CURSOR_KEY, n);
+      note("access_fields", [CURSOR_KEY], [CURSOR_KEY, n]);
+    }
+  }
+
   hydrate(db: Db): void {
     // the rows as read are kept: they are what the next persist compares against, and keeping them costs nothing here
     const raw = new Map<string, Record<string, unknown>[]>();
@@ -579,12 +612,29 @@ export class AccessStore {
   }
 }
 
+/** A resource as the authorize snapshot holds it. */
+export function kernelResource(r: ResourceRec): ResourceRow {
+  // Only people added and Only me cut a resource off from its container (the record from its type, the type from the Space); the row keeps the natural parent, so a seed that re-registers it cannot undo the cut
+  const cut = (r.row?.["audience"] === "added" || r.row?.["audience"] === "me") && r.parentId !== null;
+  return {
+    id: r.id, type: r.type, parent_id: cut ? null : r.parentId, label: labelRank(r.label), owner_id: r.ownerId, holds: r.holds,
+    ...(cut && r.parentId !== null ? { home: r.parentId } : {}), ...(r.row?.["exportViewers"] === true ? { export_viewers: true } : {}),
+  };
+}
+
+/** The row the checker and scopeFor both read for a resource: filter fields, plus label, owner and holds taken from the resource. */
+export function rowOfResource(r: ResourceRec | undefined): Record<string, unknown> | undefined {
+  if (!r) return undefined;
+  return { ...(r.row ?? {}), id: r.id, owner_id: r.ownerId, label: labelRank(r.label), holds: r.holds };
+}
+
 function kernelGrant(g: GrantRec): GrantRow {
   const c = g.conditions;
   const conditions: NonNullable<GrantRow["conditions"]> = {};
-  if (isExpr(c.rowFilter)) conditions.rowFilter = c.rowFilter;
+  // copies, not the store's own objects: the snapshot must not change if a store record ever did (review finding 4)
+  if (isExpr(c.rowFilter)) conditions.rowFilter = structuredClone(c.rowFilter);
   if (c.labelCeiling !== undefined) conditions.labelCeiling = labelRank(c.labelCeiling);
-  if (c.hiddenFields?.length) conditions.hiddenFields = c.hiddenFields;
+  if (c.hiddenFields?.length) conditions.hiddenFields = [...c.hiddenFields];
   if (c.window) { conditions.notBefore = c.window.from; conditions.notAfter = c.window.to; }
   if (c.export) conditions.export = true;
   if (c.reshare) conditions.reshare = true;
@@ -600,7 +650,7 @@ function kernelGrant(g: GrantRec): GrantRow {
     by: g.by,
   };
   if (g.source?.startsWith(THROUGH_AGENT)) row.source = g.source;
-  if (c.exception) row.exception = { perms: c.exception.perms, effect: c.exception.effect, ...(c.exception.own ? { own: c.exception.own } : {}) };
+  if (c.exception) row.exception = { perms: [...c.exception.perms], effect: c.exception.effect, ...(c.exception.own ? { own: [...c.exception.own] } : {}) };
   return row;
 }
 
@@ -609,22 +659,113 @@ export function pkey(key: string, scope: string): string { return `${scope}\n${k
 const STORES = new WeakMap<Db, AccessStore>();
 
 export function storeOf(ctx: AccessCtx): AccessStore {
+  // a read-only capability (handlers/index.ts readOnly) reads the kept view of access.sync: no read of the tables, and no way to change it
+  if (READERS.has(ctx) && readView) { const v = readView(ctx); if (v) return v; }
   let s = STORES.get(ctx.db);
   if (s) return s;
-  s = new AccessStore();
-  let rows: unknown[] = [];
-  try { rows = ctx.db.all("SELECT * FROM access_roles"); } catch { rows = []; }
-  if (rows.length) s.hydrate(ctx.db);
-  else {
-    try { ctx.db.all("SELECT id FROM access_local_cursor LIMIT 1"); s.localCursor = true; } catch { /* a Space from before migration 0004 */ }
-    s.seed();
-    try { s.persist(ctx.db); } catch { /* a db that cannot take the tables still serves the memory snapshot */ }
-  }
+  s = loadStore(ctx.db);
   STORES.set(ctx.db, s);
   return s;
 }
 
+/** A store read from the tables; a Space whose tables are empty gets the built-in roles and policies, written at once. */
+export function loadStore(db: Db, written?: (ok: boolean) => void): AccessStore {
+  const s = new AccessStore();
+  let rows: unknown[] = [];
+  try { rows = db.all("SELECT * FROM access_roles"); } catch { rows = []; }
+  if (rows.length) s.hydrate(db);
+  else {
+    try { db.all("SELECT id FROM access_local_cursor LIMIT 1"); s.localCursor = true; } catch { /* a Space from before migration 0004 */ }
+    s.seed();
+    // a db that cannot take the tables still serves the memory snapshot; `written` says the seed did not reach them, so nobody keeps this store as if it had
+    try { s.persist(db); } catch { written?.(false); }
+  }
+  return s;
+}
+
 export function dropStore(db: Db): void { STORES.delete(db); }
+
+// ---- the read view -------------------------------------------------------------------------------------------------------
+// access.sync keeps one store per daemon database (consumers.ts). A capability that only reads is handed that store instead of reading every access table again. It is sealed: outside the
+// sync's own synchronous work every map refuses set, delete and clear, every record in it is frozen, its fields and its write methods refuse, and the snapshot it answers through
+// `snapshot()` refuses every mutator. The sync replaces records rather than changing them (consumers.ts applyEvent), so a reader holding one never sees it change under it.
+
+const READERS = new WeakSet<object>();
+let readView: ((ctx: AccessCtx) => AccessStore | null) | null = null;
+/** consumers.ts hands over how to find the kept view of a ctx's database. */
+export function setReadView(f: (ctx: AccessCtx) => AccessStore | null): void { readView = f; }
+
+/** Wrap a capability that never changes the access store: its calls to storeOf get the kept read view when there is one (else a store of their own, as before). */
+export function readOnly<C extends AccessCtx, I, R>(h: (ctx: C, input: I) => Promise<R>): (ctx: C, input: I) => Promise<R> {
+  return (ctx, input) => { READERS.add(ctx); return h(ctx, input); };
+}
+
+let writing = 0;
+/** Run `f` as the writer of sealed stores and snapshots (access.sync only). */
+export function asKeptWriter<T>(f: () => T): T { writing++; try { return f(); } finally { writing--; } }
+export const READ_VIEW_REFUSAL = "The access read view cannot be changed by a capability that reads.";
+function mustWrite(): void { if (writing === 0) throw new Error(READ_VIEW_REFUSAL); }
+
+function deepFreeze<T>(v: T): T {
+  if (v === null || typeof v !== "object" || Object.isFrozen(v)) return v;
+  for (const x of Object.values(v as object)) deepFreeze(x);
+  return Object.freeze(v);
+}
+class SealedMap<K, V> extends Map<K, V> {
+  sealed = false;
+  override set(k: K, v: V): this { if (this.sealed) { mustWrite(); deepFreeze(v); } return super.set(k, v); }
+  override delete(k: K): boolean { if (this.sealed) mustWrite(); return super.delete(k); }
+  override clear(): void { if (this.sealed) mustWrite(); super.clear(); }
+}
+class SealedSet<T> extends Set<T> {
+  sealed = false;
+  override add(v: T): this { if (this.sealed) mustWrite(); return super.add(v); }
+  override delete(v: T): boolean { if (this.sealed) mustWrite(); return super.delete(v); }
+  override clear(): void { if (this.sealed) mustWrite(); super.clear(); }
+}
+/** Every own field becomes an accessor whose setter refuses outside the writer; `methods` refuse outside the writer too; nothing new can be added. */
+function sealFields(o: object, methods: readonly string[]): void {
+  const rec = o as Record<string, unknown>;
+  for (const k of Object.keys(rec)) {
+    let v = rec[k];
+    Object.defineProperty(o, k, { get: () => v, set: (x: unknown) => { mustWrite(); v = x; }, enumerable: true, configurable: false });
+  }
+  for (const m of methods) {
+    const f = rec[m] as (...a: unknown[]) => unknown;
+    Object.defineProperty(o, m, { value: (...a: unknown[]) => { mustWrite(); return f.apply(o, a); }, writable: false, enumerable: false, configurable: false });
+  }
+  Object.preventExtensions(o);
+}
+
+/** Seal a store for the read view (called once, as the writer, on the store access.sync keeps). */
+const READ_VIEWS = new WeakSet<AccessStore>();
+export function sealStore(store: AccessStore): AccessStore {
+  READ_VIEWS.add(store);
+  const rec = store as unknown as Record<string, unknown>;
+  for (const [k, v] of Object.entries(rec)) {
+    if (k === "base" || k === "raw") continue;   // what persist compares against: the store's own, never read by a capability
+    if (v instanceof Map) { const m = new SealedMap(v); for (const x of m.values()) deepFreeze(x); m.sealed = true; rec[k] = m; }
+    else if (v instanceof Set) { const m = new SealedSet(v); m.sealed = true; rec[k] = m; }
+  }
+  sealFields(store, ["bump", "invalidate", "seed", "hydrate", "persist", "persistResources", "setRoles", "adoptSnapshot"]);
+  return store;
+}
+
+const SNAP_MUTATORS = ["putPrincipal", "setAssistant", "putRole", "addPrincipalRole", "removePrincipalRole", "addMember", "removeMember", "putGrant", "revokeGrant", "putResource", "setFieldLabel", "setPolicies", "changed"] as const;
+/** Seal a snapshot of the read view: every mutator and every public field refuses outside the writer. Its derived caches (filled by reading) are private and still fill. */
+export function sealSnapshot(snap: AccessSnapshot): AccessSnapshot {
+  const rec = snap as unknown as Record<string, unknown>;
+  for (const k of ["epoch", "labelNames", "rowSource", "clock"]) {
+    let v = rec[k];
+    if (k === "labelNames") v = Object.freeze([...(v as string[])]);
+    Object.defineProperty(snap, k, { get: () => v, set: (x: unknown) => { mustWrite(); v = x; }, enumerable: true, configurable: false });
+  }
+  for (const m of SNAP_MUTATORS) {
+    const f = (Object.getPrototypeOf(snap) as Record<string, (...a: unknown[]) => unknown>)[m]!;
+    Object.defineProperty(snap, m, { value: (...a: unknown[]) => { mustWrite(); return f.apply(snap, a); }, writable: false, enumerable: false, configurable: false });
+  }
+  return snap;
+}
 
 export function changed(ctx: AccessCtx, store: AccessStore, what: "role" | "group" | "membership" | "label" | "actor" | "assignment"): void {
   store.bump();

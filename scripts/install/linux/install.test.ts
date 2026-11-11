@@ -91,14 +91,17 @@ test("disk_encrypted uses the longest matching mount, not the root", () => {
   fs.rmSync(dir, { recursive: true });
 });
 
-test("check_encrypted refuses a plain disk with exit 3 and the LUKS steps, and passes an encrypted one", () => {
+test("check_encrypted refuses a plain disk with exit 3 and the two ways forward, and passes an encrypted one", () => {
   const dir = tmp();
   const plain = fakeHost(dir, { src: "/dev/sdb1", layers: ["part", "disk"] });
   const bad = sh(INSTALL, `check_encrypted "${dir}/data"`, hostEnv(plain));
   assert.equal(bad.status, 3);
   assert.match(bad.stderr, /not on an encrypted volume/);
-  assert.match(bad.stderr, /cryptsetup luksFormat/);
-  assert.match(bad.stderr, /--data-dir/);
+  assert.match(bad.stderr, /--provider-encrypted/, "way 1: the provider's encrypted volume");
+  assert.match(bad.stderr, /--allow-plain-disk/, "way 2: an explicit, recorded choice");
+  assert.doesNotMatch(bad.stderr, /--encrypt-data/, "the installer does not make an encrypted volume");
+  assert.match(bad.stderr, /Backups are kept on that volume too/);
+  assert.match(bad.stderr, /encrypt the disk yourself/, "and points at the docs for someone who sets LUKS up first");
   const unknown = sh(INSTALL, `check_encrypted "${dir}/data"`, { VYRE_TEST_PROC_MOUNTS: path.join(dir, "missing") });
   assert.equal(unknown.status, 3, "a volume it cannot verify is refused too");
   assert.match(unknown.stderr, /that this installer can verify/);
@@ -716,7 +719,7 @@ test("an update backup also stops a container outside compose that still mounts 
   const dir = tmp();
   try {
     fs.mkdirSync(path.join(dir, "data", "space"), { recursive: true });
-    fs.writeFileSync(path.join(dir, "data", "space", "events.db-x"), "x");
+    fs.writeFileSync(path.join(dir, "data", "space", "events.db"), "x");   // a Space has its event log: a backup refuses a folder with none
     const fake = `docker(){ echo "docker $*" >>"${dir}/docker.log"; case "$1 $2" in "volume ls") echo vyre-server_vyre-data ;; "volume inspect") printf '%s' "${dir}/data/space" ;; "ps -q") echo abc123 ;; "inspect -f") echo /vyre-site-9-app ;; esac; return 0; }`;
     const r = sh(SERVER, `DATA_DIR="${dir}/data"; dc(){ echo "dc $*" >>"${dir}/docker.log"; }; ${fake}; backup_data pre; resume_strays`, { VYRE_DIR: dir });
     assert.equal(r.status, 0, r.stderr);

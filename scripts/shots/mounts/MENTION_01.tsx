@@ -23,7 +23,7 @@ const PRINCIPALS = [
 ];
 interface RootLike { setAttribute(name: string, value: string): void; style: { setProperty(name: string, value: string): void; removeProperty(name: string): void } }
 type Pick1 = { click?: () => void; focus?: () => void; value?: string; setSelectionRange?: (a: number, b: number) => void; dispatchEvent?: (e: unknown) => boolean };
-type Doc = { querySelector(s: string): Pick1 | null; documentElement?: RootLike };
+type Doc = { execCommand?(cmd: string, ui?: boolean, value?: string): boolean; querySelector(s: string): Pick1 | null; documentElement?: RootLike };
 
 export default function Mount(): ReactNode {
   const [q, setQ] = useState<URLSearchParams | null>(null);
@@ -40,7 +40,8 @@ function Page({ who, view, skin }: { who: string; view: string; skin: string }):
   const guest = who === "guest";
   const ask = view === "ask";
   const sample = useMemo(() => {
-    const s = createSample(ask ? "channel" : "idle");
+    // the @ menu opens in a shared channel (a one-to-one chat with an agent has none), so both views are the channel
+    const s = createSample("channel");
     const me = guest ? "usr_gus" : ME;
     const list = guest ? [...PRINCIPALS, { id: "usr_gus", name: "Gus Guest", kind: "person" as const, guest: true }] : PRINCIPALS;
     const own = guest ? { id: "agt_gus_assistant", name: "Assistant" } : MY_ASSISTANT;
@@ -57,13 +58,12 @@ function Page({ who, view, skin }: { who: string; view: string; skin: string }):
       return () => clearTimeout(t);
     }
     const t = setTimeout(() => {
-      const el = (globalThis as { document?: Doc }).document?.querySelector("[data-testid='composer-field']");
+      const d = (globalThis as { document?: Doc }).document;
+      const el = d?.querySelector("[data-testid='composer-field']");
       if (!el) return;
+      // the composer is a rich editor (a contenteditable page, not a text area): focus it and type the @ a person would
       el.focus?.();
-      const proto = (globalThis as unknown as { HTMLTextAreaElement: { prototype: object } }).HTMLTextAreaElement.prototype;
-      (Object.getOwnPropertyDescriptor(proto, "value")?.set as ((v: string) => void) | undefined)?.call(el, "@");
-      el.setSelectionRange?.(1, 1);
-      el.dispatchEvent?.(new (globalThis as unknown as { Event: new (t: string, i: object) => unknown }).Event("input", { bubbles: true }));
+      d?.execCommand?.("insertText", false, "@");
     }, 800);
     return () => clearTimeout(t);
   }, [ask]);

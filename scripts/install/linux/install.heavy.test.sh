@@ -149,7 +149,7 @@ mkrel 1.0.0 good; publish 1.0.0
 t_refuse_plain_disk() {
   expect_status 3 envrun plain plain sh "$HERE/install.sh" --yes
   grep -q "not on an encrypted volume" "$W/cmd.out"
-  grep -q "luksFormat" "$W/cmd.out"
+  grep -q -e "--provider-encrypted" -e "--allow-plain-disk" "$W/cmd.out"
   [ ! -e "$W/srv" ]
 }
 t_dry_run() {

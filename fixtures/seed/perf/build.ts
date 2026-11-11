@@ -88,6 +88,10 @@ async function build(into: string, sizes: PerfSizes): Promise<void> {
       await call(d, "tasks.create", { idempotencyKey: `perf-task-${i}`, title: `Perf task ${i}`, assigned: { kind: "person", id: PEOPLE[i % PEOPLE.length]!.id } });
     }
     t4 = performance.now();
+    // the template is a settled Space: every consumer (search indexing above all) has caught up with the import, as it would long before anyone restarts the server. Saved behind, the
+    // first start of each copy did that work (the daemon finishes its consumers' pass before it reports itself started).
+    await d.hooks?.pump();
+    await d.projections?.pump();
     gaps.push("messages: the chat module has no handlers, so no capability writes a message", "files: files migrations never create files_file, so files.create answers 500");
   } finally { await d.stop(); }
   // agents: agents.create needs the files tree, so they are kernel principals (as core's own two are)
@@ -109,8 +113,9 @@ async function build(into: string, sizes: PerfSizes): Promise<void> {
     log.close();
     const mod = new DatabaseSync(path.join(into, "modules.db"));
     const target = { run: (sql: string, ...args: unknown[]) => mod.prepare(sql).run(...(args as never[])) };
-    fillAccessTables(target, events);
-    fillIdentityTables(target, CORE_SPACE, events);
+    // one transaction: a commit per row made these 100,000 rows take most of half an hour
+    mod.exec("BEGIN IMMEDIATE");
+    try { fillAccessTables(target, events); fillIdentityTables(target, CORE_SPACE, events); mod.exec("COMMIT"); } catch (e) { mod.exec("ROLLBACK"); throw e; }
     mod.close();
   }
   fs.writeFileSync(path.join(into, "perf.json"), JSON.stringify({ gaps, sizes }));

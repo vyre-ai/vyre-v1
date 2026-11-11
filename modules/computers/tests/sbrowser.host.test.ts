@@ -45,6 +45,18 @@ test("the first tool makes and starts the one container, waits for browserd, the
   assert.equal(e.starts, 1);
 });
 
+test("a local Space browser image name (vyre/...) is never asked of a registry: Docker would look on Docker Hub, which is not Vyre's", async () => {
+  for (const image of [undefined, "vyre/space-browser:1", "docker.io/vyre/space-browser:1"]) {
+    const e = engine(() => ok({}), { image: false });
+    const asked: string[] = [];
+    const http = async (r: { method: string; path: string }) => { asked.push(r.path); return { status: 200, body: new Uint8Array() }; };
+    const sb = createDockerSpaceBrowser({ api: e.api, http, ...(image ? { image } : {}), sleep: async () => {} } as never);
+    await assert.rejects(() => sb.tool({ profileId: "agt_dex", tool: "chrome_status", args: {}, timeoutMs: 1000 }), (err: Error) => /not on this server/.test(err.message) && /never fetched/.test(err.message), String(image));
+    assert.equal(asked.includes("/images/create"), false, `no fetch was tried for ${String(image)}`);
+    assert.equal(e.created.length, 0);
+  }
+});
+
 test("available is whether the container runtime answers; behind the runner the service has its own network, with the ingress joined, and a missing image is fetched", async () => {
   const e = engine(() => ok({}), { image: false });
   const pulled: string[] = [];

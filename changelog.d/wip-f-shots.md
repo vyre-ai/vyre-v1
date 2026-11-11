@@ -1,1 +1,7 @@
 - Fixed the screenshot check that ran out of time: the prototype shot no longer waits 30 seconds for a test id only the real app has.
+- Fixed three screenshot targets that waited for test ids the app no longer has (face picker upload tab, tab strip).
+- The push checks finish sooner: the agent computer test runs as four parallel jobs, quick browser tests share jobs, and tests are balanced by measured time.
+- Removed screenshot targets for the old Home screen, which the app no longer has.
+- The push checks do less waiting: the timing table is refreshed from a real run by a script (scripts/ci-timings.ts), and the agent computer test checks also run in the affected-only heavy job.
+- Settings search now finds text size, density, reduce motion and language on the Appearance page.
+- The screenshot check fails when a screen it waits for never appears; every screenshot target now waits for a screen the app draws today, and the old Home, Needs you, Models and Connected targets are gone.

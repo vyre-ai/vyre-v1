@@ -22,7 +22,7 @@ import { StoreError } from "../../../kernel/src/store/types.ts";
 import type { FieldDef, Filter, Store, StoredRecord, TypeDef } from "../../../kernel/src/store/types.ts";
 import { RecordsError, fail, mapError, toRow } from "./write.ts";
 import type { RecordRow, WriteCtx } from "./write.ts";
-import { MAX_LIMIT, runQuery } from "./query.ts";
+import { MAX_LIMIT, ensureMatchIndex, findRows } from "./query.ts";
 import type { ViewSpec } from "./query.ts";
 
 export const UNDO_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
@@ -396,6 +396,7 @@ async function upsert(deps: MergeDeps, ctx: MergeCtx, input: { type: string; row
   interface Plan { existing: { id: string; version: number; fields: Record<string, unknown> } | null; values: Record<string, unknown>; index: number }
   const plans = new Map<string, Plan>();
   let folded = 0;
+  ensureMatchIndex(tx, input.type, input.match);
   for (let i = 0; i < input.rows.length; i++) {
     const row = input.rows[i];
     if (!isObj(row)) bad(ctx, `row ${i} is not an object`);
@@ -405,7 +406,8 @@ async function upsert(deps: MergeDeps, ctx: MergeCtx, input: { type: string; row
     const prior = plans.get(key);
     if (prior) { Object.assign(prior.values, row); folded++; continue; }
     const filter: Filter = { and: input.match.map((m) => ({ field: m, op: "eq" as const, value: row![m] })) };
-    const found = runQuery(tx, input.type, { filter, limit: 2 });
+    // sorted by the match fields, so the match index answers the filter and the order together (by created_at, the planner could walk the whole type in that order instead)
+    const found = findRows(tx, input.type, { filter, sort: input.match.map((field) => ({ field, dir: "asc" as const })), limit: 2 });
     if (found.rows.length > 1) throw new StoreError("unique_violation", `row ${i}: ${found.rows.length} records already match ${input.match.join(", ")}; resolve the duplicates first`);
     const hit = found.rows[0];
     plans.set(key, { existing: hit ? { id: hit.id, version: hit.version, fields: hit.fields } : null, values: { ...row! }, index: i });
@@ -591,7 +593,7 @@ async function exportRows(deps: MergeDeps, ctx: ExportCtx, input: { type: string
   const first: ViewSpec = { ...(input.filter !== undefined ? { filter: input.filter } : {}), ...(input.sort ? { sort: input.sort } : {}), ...(input.offset ? { offset: input.offset } : {}), limit: MAX_LIMIT };
   let cursor: string | undefined;
   for (;;) {
-    const res = runQuery(tx, input.type, { ...first, ...(cursor ? { cursor } : {}) });
+    const res = findRows(tx, input.type, { ...first, ...(cursor ? { cursor } : {}) });
     for (const r of res.rows) {
       if (picked !== null && !picked.has(r.id)) continue;
       // only what the caller may read goes into the file, picked or not

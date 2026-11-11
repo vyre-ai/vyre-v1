@@ -46,7 +46,7 @@ export function runFile(file: string, opts: { cwd?: string; capMs?: number } = {
   const loader = tsx ? ["--import", "tsx", "--import", path.join(cwd0, "scripts/shots/rn-alias.mjs")] : [];
   const capMs = opts.capMs ?? DEFAULT_CAP_MS, cwd = opts.cwd ?? process.cwd(), t0 = Date.now();
   return new Promise((resolve) => {
-    const p = spawn(process.execPath, [...loader, "--test", "--test-reporter=spec", `--test-timeout=${capMs}`, file], { cwd, stdio: ["ignore", "pipe", "pipe"], env });
+    const p = spawn(process.execPath, [...loader, "--test", "--test-reporter=spec", "--test-reporter-destination=stdout", `--test-reporter=${path.join(path.dirname(fileURLToPath(import.meta.url)), "lib/failure-reporter.mjs")}`, "--test-reporter-destination=stdout", `--test-timeout=${capMs}`, file], { cwd, stdio: ["ignore", "pipe", "pipe"], env });
     let out = "", overCap = false;
     p.stdout.on("data", (d) => (out += d)); p.stderr.on("data", (d) => (out += d));
     const dog = setTimeout(() => { overCap = true; p.kill("SIGKILL"); }, capMs + 2000); // watchdog 2 s after the cap, so a file just over it is reported over-cap with its breakdown, not killed mid-test

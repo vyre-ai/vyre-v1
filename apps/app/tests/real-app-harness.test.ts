@@ -45,13 +45,16 @@ const TYPES: Record<string, string> = { ".html": "text/html; charset=utf-8", ".j
 export interface Edge { origin: string; close(): void }
 
 /** The app's export on one origin, with the gateway (/v1, /sync, /healthz) and the live socket (/live) passed through to the daemon. */
-export function edge(dist: string, daemonUrl: string, tls?: { key: string; cert: string }, port = 0): Promise<Edge> {
-  const target = new URL(daemonUrl);
+export function edge(dist: string, daemonUrl: string | (() => string), tls?: { key: string; cert: string }, port = 0): Promise<Edge> {
+  // a function gives the daemon's address when the first request needs it: the edge can listen (and so hold its port) before the daemon it fronts has finished starting
+  const targetNow = (): URL => new URL(typeof daemonUrl === "function" ? daemonUrl() : daemonUrl);
   const base = path.resolve(dist);
   const proxied = (p: string): boolean => p.startsWith("/v1/") || p.startsWith("/sync/") || p === "/healthz" || p.startsWith("/live") || p.startsWith("/local/vault/key/") || p === "/mcp" || p.startsWith("/.well-known/oauth-") || /^\/oauth\/(authorize|register|token|wait)$/.test(p);
   const handle: http.RequestListener = (req, res) => {
     const u = new URL(req.url ?? "/", "http://edge");
     if (proxied(u.pathname)) {
+      let target: URL;
+      try { target = targetNow(); } catch { res.writeHead(503); res.end("the daemon is still starting"); return; }
       const up = http.request({ host: target.hostname, port: target.port, path: req.url, method: req.method, headers: req.headers }, (r) => { res.writeHead(r.statusCode ?? 502, r.headers); r.pipe(res); });
       up.on("error", () => { res.writeHead(502); res.end("daemon unreachable"); });
       req.pipe(up);
@@ -66,6 +69,8 @@ export function edge(dist: string, daemonUrl: string, tls?: { key: string; cert:
   };
   const server = tls ? https.createServer(tls, handle) : http.createServer(handle);
   server.on("upgrade", (req, socket, head) => {
+    let target: URL;
+    try { target = targetNow(); } catch { socket.destroy(); return; }
     const up = net.connect(Number(target.port), target.hostname, () => {
       const lines = [`${req.method ?? "GET"} ${req.url ?? "/"} HTTP/1.1`];
       for (let i = 0; i < req.rawHeaders.length; i += 2) lines.push(`${req.rawHeaders[i]}: ${req.rawHeaders[i + 1]}`);
@@ -76,7 +81,7 @@ export function edge(dist: string, daemonUrl: string, tls?: { key: string; cert:
     up.on("error", () => socket.destroy());
     socket.on("error", () => up.destroy());
   });
-  return new Promise((resolve) => server.listen(port, "127.0.0.1", () => resolve({ origin: `${tls ? "https" : "http"}://127.0.0.1:${(server.address() as net.AddressInfo).port}`, close: () => server.close() })));
+  return new Promise((resolve, reject) => { server.once("error", reject); server.listen(port, "127.0.0.1", () => resolve({ origin: `${tls ? "https" : "http"}://127.0.0.1:${(server.address() as net.AddressInfo).port}`, close: () => server.close() })); });
 }
 
 const ADMIN_TOKEN = "e2e-owner-bootstrap-token";
@@ -104,7 +109,7 @@ async function startDaemon(dir: string, extra: string[], port=0): Promise<{ chil
     let out = "";
     let url: string | null = null;
     let settle: ReturnType<typeof setTimeout> | null = null;
-    const timer = setTimeout(() => reject(new Error(`the daemon did not start in 30 s: ${out}`)), 30_000);
+    const timer = setTimeout(() => { child.kill("SIGKILL"); reject(new Error(`the daemon did not start in 30 s: ${out}`)); }, 30_000);   // a daemon that never came up must not outlive the failed boot
     const done = (): void => {
       clearTimeout(timer);
       if (settle) clearTimeout(settle);
@@ -137,11 +142,20 @@ export async function bootSpace(): Promise<Space> {
 /** A fresh install (ruling 71): an empty data directory. The host makes the Space and prints a one-time claim link; the owner becomes the owner by claiming it, as a person does. */
 export async function bootFreshSpace(kind?:"personal", publishLocal=false, unnamed=false): Promise<Space> {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-real-app-fresh-"));
-  const port=publishLocal?await new Promise<number>((resolve,reject)=>{const server=net.createServer();server.once("error",reject);server.listen(0,"127.0.0.1",()=>{const selected=(server.address()as net.AddressInfo).port;server.close(()=>resolve(selected));});}):0;
-  const address=publishLocal?`http://127.0.0.1:${port}`:null;
-  const d = await startDaemon(dir, ["--space", "spc_fresh", ...(unnamed?[]:["--space-name", kind==="personal"?"Personal":"Fresh Co"]), ...(kind?["--space-kind",kind]:[]),...(address?["--address",address]:[])],port);
-  if(address&&d.url!==address)throw new Error("The fixture must publish its actual listening endpoint");
-  return { url: d.url, token: ADMIN_TOKEN, space: "spc_fresh", dir, stop: stopper(d.child), claim: d.claim };
+  // A walk that publishes the daemon's own address needs the port before the daemon starts, and the daemon binds it itself, so a port picked and given back can be taken in between. When that happens the daemon exits
+  // (or never starts) and the boot is tried again on another port; whatever a failed try started is stopped first.
+  for (let attempt = 1; ; attempt++) {
+    const port=publishLocal?await new Promise<number>((resolve,reject)=>{const server=net.createServer();server.once("error",reject);server.listen(0,"127.0.0.1",()=>{const selected=(server.address()as net.AddressInfo).port;server.close(()=>resolve(selected));});}):0;
+    const address=publishLocal?`http://127.0.0.1:${port}`:null;
+    try {
+      const d = await startDaemon(dir, ["--space", "spc_fresh", ...(unnamed?[]:["--space-name", kind==="personal"?"Personal":"Fresh Co"]), ...(kind?["--space-kind",kind]:[]),...(address?["--address",address]:[])],port);
+      if(address&&d.url!==address){ d.child.kill("SIGKILL"); throw new Error("The fixture must publish its actual listening endpoint"); }
+      return { url: d.url, token: ADMIN_TOKEN, space: "spc_fresh", dir, stop: stopper(d.child), claim: d.claim };
+    } catch (e) {
+      if (!publishLocal || attempt >= 4) throw e;
+      fs.rmSync(dir, { recursive: true, force: true }); fs.mkdirSync(dir, { recursive: true });
+    }
+  }
 }
 
 /** The claim link as the browser opens it: the daemon prints its own address, the page is served from the edge, so the path and fragment move to the edge's origin. */

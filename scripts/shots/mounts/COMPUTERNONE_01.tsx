@@ -44,7 +44,7 @@ const answer = (away: boolean) => (cap: string): Promise<unknown> => Promise.res
   cap === "devices.presence" ? { people: [{ personId: "usr_sara", state: away ? "away" : "online", lastSeenAt: NOW - 4 * 60_000 }] }
   : cap === "settings.public_of" ? { timezone: "Europe/Berlin", hours: { days: [1, 2, 3, 4, 5], from: "09:00", to: "17:30" }, pronouns: away ? undefined : "they/them", title: "Account lead", ...(away ? {} : { phone: "+49 30 5550 188" }) }
   : cap === "projects.roles_of" ? { roles: [{ projectId: "p1", title: "Client portal launch", role: "lead" }, { projectId: "p2", title: "Northwind renewal", role: "reviewer" }] }
-  : cap === "threads.list" ? { threads: [{ threadId: "t1", kind: "chat", title: "Renewal redline", members: [{ kind: "person", id: "usr_sara" }, { kind: "person", id: "usr_irfad" }] }, { threadId: "t2", kind: "chat", title: "Portal launch", members: [{ kind: "person", id: "usr_sara" }] }] }
+  : cap === "threads.list" ? { threads: [{ threadId: "t1", kind: "chat", title: "Renewal redline", agents: [], members: [{ kind: "person", id: "usr_sara" }, { kind: "person", id: "usr_irfad" }] }, { threadId: "t2", kind: "chat", title: "Portal launch", agents: [], members: [{ kind: "person", id: "usr_sara" }] }] }
   : cap === "files.shared_with_me" ? { files: [{ fileId: "f1", name: "Renewal redline.docx", ownerId: "usr_sara" }, { fileId: "f2", name: "Portal launch plan", ownerId: "usr_sara" }], folders: [] }
   : cap === "tasks.list" ? { tasks: [{ id: "k1", title: "Check the renewal before Friday" }] } : {});
 
