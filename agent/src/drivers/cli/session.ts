@@ -209,9 +209,12 @@ export function createCliSession(deps: CliSessionDeps, spec: SessionSpec): CliSe
       for (;;) {
         // Until the first text, thinking or tool event the deadline runs from the prompt: session, usage and limit lines do not keep a silent engine alive. A compact has its own pace.
         const left = said || compacting ? Infinity : firstTokenMs - (Date.now() - wroteAt);
+        // Which deadline the wait below ends at is decided here, before waiting, and not by reading the clock again afterwards: a timer can fire a millisecond before the clock says its time
+        // is up, and the second reading then called a silent engine "stopped answering" (the idle line) instead of "didn't answer in time" (seen on a busy runner, 12 Nov).
+        const firstTokenDue = left <= idleMs;
         const item = await r.chan.next(Math.min(idleMs, Math.max(1, left)), signal);
         if (item === null) return "stop";
-        if (item === "idle" && !said && !compacting && Date.now() - wroteAt >= firstTokenMs) {
+        if (item === "idle" && firstTokenDue && !said && !compacting) {
           (deps.onNoFirstToken ?? logNoFirstToken)({ provider: a.id, model: deps.model ?? "", account: deps.account ?? "", waitedMs: Date.now() - wroteAt });
           yield { type: "error", code: NO_FIRST_TOKEN_CODE, message: NO_FIRST_TOKEN_LINE };
           await stop(r, false);
