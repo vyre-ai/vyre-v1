@@ -128,7 +128,7 @@ test("what the browser refuses with keeps its meaning", async () => {
   } finally { off(); }
 });
 
-test("the Vault channel rides every call, one token per profile and asker, and the values it filled are scrubbed from every answer", async () => {
+test("the Vault channel rides every call as its asker, ends with the call, and the values it filled are scrubbed from every answer", async () => {
   const issued: Array<{ computerId: string; agentId: string; asker: string }> = [];
   let revoked = 0;
   bindFill({ async issue(h) { issued.push({ computerId: h.computerId, agentId: h.agentId, asker: h.asker }); return { fillToken: `tok${issued.length}`.padEnd(24, "x"), revoke() { revoked += 1; } }; }, url: () => "http://vyre-host/fill" });
@@ -144,16 +144,17 @@ test("the Vault channel rides every call, one token per profile and asker, and t
     const first = b.calls[0]!.fill!;
     assert.equal(first.url, "http://vyre-host/fill", "even a look carries the channel: the extension in the profile fills on its own");
     assert.deepEqual(issued, [{ computerId: "agt_dex", agentId: "agt_dex", asker: DANA }], "the token is for this profile and this agent, as the asker");
+    // the channel lives only while the person's call runs (sbrowser audit bug 5): it ended with the look, and the next call brings a new one
+    assert.equal(revoked, 1, "the look's channel ended with it");
     await tool["computers.chrome.fill"]!(dex, { fields: [{ ref: "e3", value: "#Dex_Site.password" }] });
-    assert.equal(b.calls[1]!.fill!.token, first.token, "the same asker reuses the token");
-    assert.equal(issued.length, 1);
+    assert.notEqual(b.calls[1]!.fill!.token, first.token, "a later call of the same person has a channel of its own");
+    assert.deepEqual([issued.length, revoked], [2, 2]);
     await tool["computers.chrome.fill"]!(agentCtx("agt_dex", OMAR), { fields: [{ ref: "e3", value: "#Dex_Site.password" }] });
-    assert.equal(issued.length, 2, "another asker is a new grant");
-    assert.equal(revoked, 1, "and the old one ends");
+    assert.deepEqual(issued.at(-1), { computerId: "agt_dex", agentId: "agt_dex", asker: OMAR }, "another asker's call is a grant as that asker");
     assert.notEqual(b.calls[2]!.fill!.token, first.token);
     await tool["computers.chrome.fill"]!(agentCtx("agt_scout", DANA), { fields: [{ ref: "e3", value: "#Scout_Site.password" }] });
     assert.equal(issued.at(-1)!.computerId, "agt_scout", "another agent is another profile with its own token");
-    assert.equal(revoked, 1, "and does not end Dex's");
+    assert.equal(revoked, issued.length, "no channel outlives its call");
     const snap = await tool["computers.chrome.snapshot"]!(dex, {});
     assert.ok(!JSON.stringify(snap).includes(value), "the value is scrubbed after it was filled on this profile");
     assert.match(snap.tree, /\[#Dex_Site\.password\]/);

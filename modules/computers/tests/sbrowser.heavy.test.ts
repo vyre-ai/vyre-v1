@@ -88,8 +88,13 @@ function serveSite(req: IncomingMessage, res: ServerResponse): void {
   } else { res.writeHead(404).end("no"); }
 }
 
-const lookup = async (handle: string): Promise<FillLookup> => {
+const API_KEY = "sk-live-heavy-0123456789abcdef";
+/** Who each Vault lookup was asked as (the person whose call the channel rode). */
+const lookedUpAs: Array<{ handle: string; asker: string }> = [];
+const lookup = async (handle: string, who: { asker: string }): Promise<FillLookup> => {
+  lookedUpAs.push({ handle, asker: who.asker });
   if (deny) return { kind: "denied", reason: "no" };
+  if (handle === "#Api_Site.key") return who.asker === "usr_dana" ? { kind: "value", itemId: "itm_api", value: API_KEY } : { kind: "denied", reason: "no_access" };
   return handle === "#Login_Site.password" ? { kind: "value", itemId: "itm_login", value: PASSWORD } : { kind: "unknown" };
 };
 const uses: string[] = [];
@@ -322,8 +327,11 @@ test("@heavy space browser: Vyre for Chrome in a profile is paired with the Spac
     await sleep(1000);
   }
   assert.ok(row?.bridge?.optin && row.bridge.connected >= 1, `the extension connected through its native host and was told the Space opened it to its agent (${JSON.stringify(row?.bridge)})`);
-  // what the extension's native host does, spoken by hand
+  // what the extension's native host does, spoken by hand, while a call of the person is still in (the channel rides the call: sbrowser audit bug 5)
+  const during = tool("agt_pair", "chrome_wait", { until: "time", value: "4000" }, { fill, space: "spc_sbtest" });
+  await sleep(300);
   const r = await api.exec(NAME, { cmd: ["node", "-e", AS_EXTENSION], env: [] });
+  await during;
   assert.equal(r.exitCode, 0, r.stderr);
   const out = JSON.parse(r.stdout.trim().split("\n").at(-1)!) as { hello: { output: { active: string; signedIn: boolean } }; match: { output: { items: Array<{ item: { itemId: string } }> } }; use: { output: { handle: string } }; fill: { output: { filled: boolean } }; bad: { error: { code: string } }; nonsense: { error: { code: string } }; noTokenStatus: number; lines: Array<Record<string, unknown>> };
   assert.deepEqual([out.hello.output.active, out.hello.output.signedIn], ["spc_sbtest", true], "the profile's agent is signed in to its one Space");
@@ -338,7 +346,74 @@ test("@heavy space browser: Vyre for Chrome in a profile is paired with the Spac
   assert.equal(out.bad.error.code, "not_allowed", "the extension may not ask for anything else");
   assert.equal(out.nonsense.error.code, "not_available");
   assert.equal(out.noTokenStatus, 401, "the bridge answers only a profile's own token");
+  // between turns the extension acts as nobody: no channel is left, so it is not signed in and the Vault answers nothing
+  const after = await api.exec(NAME, { cmd: ["node", "-e", AS_EXTENSION], env: [] });
+  const out2 = JSON.parse(after.stdout.trim().split("\n").at(-1)!) as { hello: { output: { signedIn: boolean } }; match: { error?: { code: string } }; fill: { error?: { code: string }; output?: unknown } };
+  assert.equal(out2.hello.output.signedIn, false, "not signed in between turns");
+  assert.ok(out2.match.error && out2.fill.error, `no Vault answer between turns: ${JSON.stringify({ match: out2.match, fill: out2.fill })}`);
   grant.revoke();
+});
+
+test("@heavy space browser (sbrowser bug 5): one team agent working for two people at once: a typed handle is looked up as the person whose call typed it, and the extension fills as neither while both calls run", { skip, timeout: 300_000 }, async () => {
+  const dana = await fills.issue({ computerId: "agt_pair", agentId: "agt_pair", asker: "usr_dana", turn: true });
+  const omar = await fills.issue({ computerId: "agt_pair", agentId: "agt_pair", asker: "usr_omar", turn: true });
+  const url = `http://${GATEWAY}:${fillPort}/`;
+  await tool("agt_pair", "chrome_open", { url: siteUrl("/login") }, { fill: { url, token: dana.fillToken }, space: "spc_sbtest" });
+  const snap = String((await tool("agt_pair", "chrome_snapshot"))["tree"]);
+  const userRef = /\[ref=(e\d+)\]/.exec(snap.split("\n").find((l) => /textbox "User/.test(l))!)![1]!;
+  // Dana's call stays in while Omar's call types a handle only Dana may use: it is asked as Omar, and refused
+  const danaCall = tool("agt_pair", "chrome_wait", { until: "time", value: "4000" }, { fill: { url, token: dana.fillToken } });
+  await sleep(300);
+  const from = lookedUpAs.length;
+  await assert.rejects(() => tool("agt_pair", "chrome_fill", { fields: [{ ref: userRef, value: "#Api_Site.key" }] }, { fill: { url, token: omar.fillToken } }), (e) => e instanceof ToolError && /may not use/.test(e.message));
+  assert.deepEqual(lookedUpAs.slice(from), [{ handle: "#Api_Site.key", asker: "usr_omar" }], "looked up as Omar, whose call typed it, though Dana's call is in too");
+  // the extension, meanwhile: two people's calls are in, so it fills as neither
+  const omarWait = tool("agt_pair", "chrome_wait", { until: "time", value: "2000" }, { fill: { url, token: omar.fillToken } });
+  await sleep(200);
+  const mid = JSON.parse((await api.exec(NAME, { cmd: ["node", "-e", AS_EXTENSION], env: [] })).stdout.trim().split("\n").at(-1)!) as { hello: { output: { signedIn: boolean } }; fill: { error?: unknown } };
+  await omarWait;
+  assert.equal(mid.hello.output.signedIn, false, "with two people's calls in, the extension is signed in as neither");
+  assert.ok(mid.fill.error, "and fills nothing");
+  await danaCall;
+  // the same handle in Dana's own call fills as Dana
+  const ok = await tool("agt_pair", "chrome_fill", { fields: [{ ref: userRef, value: "#Api_Site.key" }] }, { fill: { url, token: dana.fillToken } });
+  assert.equal(ok["filled"], 1);
+  assert.equal(lookedUpAs.at(-1)!.asker, "usr_dana");
+  dana.revoke(); omar.revoke();
+});
+
+test("@heavy space browser (sbrowser bug 2): a key typed into a text field comes back raw from the real browser, and the module takes it out of every answer and keeps no picture of the page", { skip, timeout: 300_000 }, async () => {
+  const { bindSpaceBrowser } = await import("../sbrowser/port.ts");
+  const { bindFill, forgetSecrets } = await import("../projections.ts");
+  const { handlers } = await import("../impl.ts");
+  const call = handlers as unknown as Record<string, (ctx: unknown, input: unknown) => Promise<Record<string, unknown>>>;
+  bindSpaceBrowser(sb);
+  bindFill({ issue: (h) => fills.issue(h), url: () => `http://${GATEWAY}:${fillPort}/` });
+  try {
+    const dana = harness({ principal: { kind: "agent", id: "agt_vb" }, actingFor: "usr_dana" });
+    const omar = harness({ principal: { kind: "agent", id: "agt_vb" }, actingFor: "usr_omar", raw: dana.raw });
+    await call["computers.chrome.open"]!(dana.ctx, { url: siteUrl("/login") });
+    const tree = String((await call["computers.chrome.snapshot"]!(dana.ctx, {}))["tree"]);
+    const userRef = /\[ref=(e\d+)\]/.exec(tree.split("\n").find((l) => /textbox "User/.test(l))!)![1]!;
+    const pictures = dana.calls("files.create").length;
+    const filled = await call["computers.chrome.fill"]!(dana.ctx, { fields: [{ ref: userRef, value: "#Api_Site.key" }] });
+    assert.equal(JSON.stringify(filled).includes(API_KEY), false);
+    const read = "document.querySelector('input[name=user]').value";
+    // the real browser does hold it, and says so to anyone who asks browserd directly: this is what the module's scrub stands between
+    assert.equal(String((await tool("agt_vb", "chrome_eval", { expression: read }))["result"]), API_KEY, "the text field holds the key");
+    // Omar asks the same team agent to read it back, every way the tools allow
+    const answers = [
+      await call["computers.chrome.eval"]!(omar.ctx, { expression: read }),
+      await call["computers.chrome.eval"]!(omar.ctx, { expression: `btoa(${read})` }),
+      await call["computers.chrome.snapshot"]!(omar.ctx, {}),
+      await call["computers.chrome.inspect"]!(omar.ctx, { ref: userRef }),
+    ];
+    for (const a of answers) assert.equal(JSON.stringify(a).includes(API_KEY) || JSON.stringify(a).includes(Buffer.from(API_KEY).toString("base64")), false, JSON.stringify(a).replaceAll(API_KEY, "<KEY>"));
+    assert.match(JSON.stringify(answers[0]), /\[#Api_Site\.key\]/);
+    await assert.rejects(() => call["computers.chrome.screenshot"]!(omar.ctx, {}), (e) => /holds a value filled from the Vault/.test(JSON.stringify(e)), "no picture of the page");
+    assert.equal(dana.calls("files.create").length + omar.calls("files.create").length, pictures, "no picture of the page was kept for the fill step or after it");
+    forgetSecrets("agt_vb");
+  } finally { bindSpaceBrowser(null); bindFill(null); }
 });
 
 test("@heavy space browser: a file an agent downloads lands in its Files under Downloads, as the agent, and is gone from the browser service", { skip, timeout: 300_000 }, async () => {

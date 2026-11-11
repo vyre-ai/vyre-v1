@@ -2,3 +2,6 @@
 - A Vault handle written inside a command line (for example a password after -p) now works safely: the value is passed exactly, whatever characters it holds, and can never run as a command.
 - Agents can now use Vault handles in terminal commands on a real Space; before, the handle reached the command as plain text.
 - When a team agent works for several people, a value one person's command used is removed from everything the agent shows anyone from that workspace: command output, other tabs, the live view and status lines.
+- A Vault value an agent's Space browser was given, typed by a tool or filled by Vyre for Chrome, no longer comes back in what the browser tools answer (page text, scripts run on the page, element details, console and network), to anyone who asks the same agent.
+- The Space browser keeps no picture of a page that holds a value filled from the Vault, and a screenshot of it is refused until a new page is opened, since a text field shows what it holds.
+- When one team agent browses for two people at once, each person's Vault fills are looked up as that person, and Vyre for Chrome in the agent's browser fills nothing between their turns.

@@ -8,7 +8,7 @@
 //   recording and every answer can be scrubbed; `frame` is the screen after the step (the timeline's picture); `caption` is its words.
 // Errors are only ones the capabilities declare: a person at the controls, a held item and a bad argument are validation.bad_input; Esc, a computer still starting and a silent agentd are provider.unavailable.
 // Handles are never resolved here: "agent computer logins stay on that computer" (ARCH 6.11), agentd substitutes them at the last moment and scrubs its own output. This module scrubs again.
-import { actorOf, addStep, agentFolder, boundFill, clean, hostFor, ensure, mintId, needComputer, needTeam, raise, rememberSecrets, rowsOf, setComputer } from "../../projections.ts";
+import { actorOf, addStep, agentFolder, boundFill, clean, hostFor, ensure, mintId, needComputer, needTeam, pageHoldsValue, pageOpened, raise, rememberSecrets, rowsOf, setComputer } from "../../projections.ts";
 import { personalChrome } from "../../projections.ts";
 import type { CompCtx, ComputerHost, ComputerRow, PersonalChrome, Secret } from "../../projections.ts";
 import { awaken } from "../lifecycle.ts";
@@ -226,8 +226,11 @@ export async function prepare(ctx: CompCtx, computerId: string | undefined, spec
 /** One call to agentd and everything after it: scrub, remember what was filled, keep the frame, add the step. Returns the capability's output. */
 export async function call(ctx: CompCtx, r: Resolved, spec: ToolSpec, args: ToolArgs): Promise<ToolAnswer> {
   if (r.personal) return personalCall(ctx, spec, args);
+  // a page that holds a value filled from the Vault is not pictured: a text field (an API key, a one-time code) shows what it holds, and a picture cannot be scrubbed
+  if (spec.name === "chrome_screenshot" && pageHoldsValue(r.computer.computerId)) raise(ctx, "validation.bad_input", HOLDS_VALUE, { reason: "vault_value_on_page" });
   if (r.browser) return browserCall(ctx, r.browser.profileId, spec, args);
   const c = r.computer;
+  if (spec.name === "chrome_open") pageOpened(c.computerId);
   let raw: ToolAnswer;
   try {
     const byPerson = c.state === "takeover" && ctx.principal.kind === "person" && c.takeoverBy !== undefined && actorOf(ctx) === c.takeoverBy;
@@ -243,7 +246,7 @@ export async function call(ctx: CompCtx, r: Resolved, spec: ToolSpec, args: Tool
   setComputer(ctx.db, c.computerId, { last_active_at: at });
   if (spec.caption) {
     const words = typeof caption === "string" && caption.trim() !== "" ? clean(c.computerId, caption.trim()).slice(0, 200) : spec.caption(args, out);
-    const frameFileId = await keepFrame(ctx, c, frame, at);
+    const frameFileId = pageHoldsValue(c.computerId) ? undefined : await keepFrame(ctx, c, frame, at);
     addStep(ctx.db, c.computerId, at, {
       by: ctx.principal.kind === "agent" ? "agent" : "person", caption: words, tool: spec.name, ...(frameFileId ? { frameFileId } : {}), ...(ctx.run ? { runId: ctx.run } : {}), ...(ctx.thread ? { threadId: ctx.thread } : {}),
     });
@@ -252,10 +255,26 @@ export async function call(ctx: CompCtx, r: Resolved, spec: ToolSpec, args: Tool
   return out;
 }
 
-// The Vault channel of an agent's profile: one token per profile and asker, so the Vault logs who asked and a use after the asker changes is checked as the new asker.
+export const HOLDS_VALUE = "This page holds a value filled from the Vault, so no picture of it is taken. Open the next page first.";
+
+// The Vault channel of an agent's profile rides each tool call, as the person whose turn the call is (sbrowser audit bug 5): a token per profile and asker, live only while that person's calls run, so
+// one team agent working for two people at once looks each fill up as the right one, and nobody's access outlives their turn (Vyre for Chrome in the profile fills nothing between turns).
 const faceSent = new Set<string>();
 const REPORTS_DOWNLOADS = new Set(["chrome_open", "chrome_click", "chrome_act", "chrome_wait", "chrome_state"]);
-const fillGrants = new Map<string, { token: string; revoke(): void }>();
+const fillGrants = new Map<string, { token: string; revoke(): void; calls: number }>();
+async function grantFor(binding: NonNullable<ReturnType<typeof boundFill>>, profileId: string, agentId: string, asker: string): Promise<{ token: string; done(): void }> {
+  const key = `${profileId}|${asker}`;
+  let g = fillGrants.get(key);
+  if (!g) {
+    const issued = await binding.issue({ computerId: profileId, agentId, asker, turn: true });
+    g = fillGrants.get(key) ?? { token: issued.fillToken, revoke: issued.revoke, calls: 0 };
+    if (g.token !== issued.fillToken) issued.revoke();   // another call of the same person got there first
+    fillGrants.set(key, g);
+  }
+  g.calls += 1;
+  const held = g;
+  return { token: held.token, done() { held.calls -= 1; if (held.calls <= 0 && fillGrants.get(key) === held) { fillGrants.delete(key); held.revoke(); } } };
+}
 
 /** One tool in the agent's profile of the Space browser. What comes back is scrubbed of the Vault values filled for this profile; no desktop frame exists, so there is no timeline step (the live view shows the page). */
 async function browserCall(ctx: CompCtx, profileId: string, spec: ToolSpec, args: ToolArgs): Promise<ToolAnswer> {
@@ -263,19 +282,17 @@ async function browserCall(ctx: CompCtx, profileId: string, spec: ToolSpec, args
   if (!sb) raise(ctx, "provider.unavailable", "The Space browser is not running on this host.");
   let fill: { url: string; token: string } | undefined;
   const binding = boundFill();
-  // every call carries the channel, not only the typing ones: Vyre for Chrome in the profile fills logins on its own when a page loads, and asks the Vault through it
+  // every call carries the channel, not only the typing ones: Vyre for Chrome in the profile fills logins on its own when a page loads, and asks the Vault through it, as this call's person, during this call
+  let grant: { token: string; done(): void } | null = null;
   if (binding) {
-    const asker = actorOf(ctx);
-    const key = `${profileId}|${asker}`;
-    let g = fillGrants.get(key);
-    if (!g) {
-      for (const [k, old] of fillGrants) if (k.startsWith(`${profileId}|`)) { old.revoke(); fillGrants.delete(k); }
-      const issued = await binding.issue({ computerId: profileId, agentId: ctx.principal.id, asker });
-      g = { token: issued.fillToken, revoke: issued.revoke };
-      fillGrants.set(key, g);
-    }
-    fill = { url: binding.url(), token: g.token };
+    grant = await grantFor(binding, profileId, ctx.principal.id, actorOf(ctx));
+    fill = { url: binding.url(), token: grant.token };
   }
+  try { return await browserStep(ctx, sb, profileId, spec, args, fill); }
+  finally { grant?.done(); }
+}
+
+async function browserStep(ctx: CompCtx, sb: NonNullable<ReturnType<typeof spaceBrowser>>, profileId: string, spec: ToolSpec, args: ToolArgs, fill: { url: string; token: string } | undefined): Promise<ToolAnswer> {
   // a browser that would start needs room on the host first (a claim on a running one is the same ask)
   if (spec.name !== "chrome_status" && spec.name !== "chrome_stop" && spec.name !== "chrome_resume" && spec.name !== "chrome_plan") await needRoom(ctx, sb, profileId);
   // the agent's name rides every call (the service keeps it in memory); its face is drawn once and kept with the profile
@@ -285,6 +302,8 @@ async function browserCall(ctx: CompCtx, profileId: string, spec: ToolSpec, args
     agent = { name: who.name };
     if (!faceSent.has(profileId)) { const svg = await faceSvg(who.face); if (svg) agent.faceSvg = svg; faceSent.add(profileId); }
   }
+  // a new page replaces the one a value was filled into (a fill while it loads marks it again)
+  if (spec.name === "chrome_open") pageOpened(profileId);
   let raw: ToolAnswer;
   try {
     raw = await sb.tool({ profileId, ...(agent ? { agent } : {}), tool: spec.name, args, timeoutMs: Math.min(spec.timeoutMs ?? DEFAULT_TOOL_MS, MAX_TOOL_MS), space: ctx.space, ...(fill ? { fill } : {}) });
@@ -301,7 +320,8 @@ async function browserCall(ctx: CompCtx, profileId: string, spec: ToolSpec, args
     const at = ctx.now();
     const words = clean(profileId, spec.caption(args, out).trim()).slice(0, 200);
     let frame: string | undefined;
-    try { const shot = await sb.screenshot(profileId); frame = Buffer.from(shot.bytes).toString("base64"); } catch { /* a step without a picture */ }
+    // no picture of a page that holds a value filled from the Vault (it is kept in Files, and a text field shows its value)
+    if (!pageHoldsValue(profileId)) { try { const shot = await sb.screenshot(profileId); frame = Buffer.from(shot.bytes).toString("base64"); } catch { /* a step without a picture */ } }
     const c = { computerId: profileId, agentId: ctx.principal.id } as unknown as ComputerRow;
     const frameFileId = await keepFrame(ctx, c, frame, at);
     addStep(ctx.db, profileId, at, { by: "agent", caption: words, tool: spec.name, ...(frameFileId ? { frameFileId } : {}), ...(ctx.run ? { runId: ctx.run } : {}), ...(ctx.thread ? { threadId: ctx.thread } : {}) });
