@@ -8,3 +8,7 @@
 - The Terminal tab in a chat opens in the agent's workspace, the same sessions its commands use, instead of on this computer.
 - The Terminal tab's live view keeps showing new lines on long sessions (past 5,000 lines), and a line being typed or a prompt that changes shows as it is now instead of going missing.
 - A Terminal tab left open no longer keeps an agent's workspace awake: it sleeps after its idle time like any other, and wakes when you type or the agent runs something.
+- When an agent goes to Trash (or a person leaves and their Assistant goes with them), its workspace stops and gives its room back; what it kept stays, so a restored agent has its files.
+- A workspace stopped outside Vyre (out of memory, a restart of the server) no longer holds its room forever.
+- Files history names the agent whose command changed a project file, not another agent that only had a terminal tab open.
+- A workspace waiting for room no longer tells you to add a compute server, which could not take it; it says it starts by itself when there is room.

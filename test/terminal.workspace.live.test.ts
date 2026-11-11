@@ -160,6 +160,14 @@ async function scenario(t: import("node:test").TestContext, kind: "team" | "pers
 
   const health = await ok(d, token, "terminal.health", {});
   assert.equal(health.state, "healthy");
+
+  // the agent goes to Trash (12 Nov, audit item 13): its workspace's container goes and its tabs close; its home and Files volumes stay, since it can be restored
+  await ok(d, token, "agents.delete", { agentId: agent });
+  const gone = await waitFor(async () => { await d.hooks?.pump?.(); return (await docker(["inspect", name], 30_000)).code !== 0 ? true : null; }, 60_000);
+  assert.equal(gone, true, "the container is gone");
+  assert.equal((await docker(["volume", "inspect", `${name}-home`], 30_000)).code, 0, "what the agent kept stays");
+  const left = ((await ok(d, token, "terminal.list", { section: "personal" })).terminals as Array<{ agentId?: string }>).filter((x) => x.agentId === agent);
+  assert.deepEqual(left, [], "its tabs are closed");
 }
 
 test("Team daemon with Docker: an agent's terminal_run makes its workspace, tabs, a project folder with Files history, and the Files mirror", { skip, timeout: 900_000 }, (t) => scenario(t, "team"));

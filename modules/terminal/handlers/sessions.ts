@@ -140,7 +140,8 @@ const adoptOn = async (h: TerminalHost, x: SessionRow): Promise<void> => {
 const queues = new Map<string, Promise<unknown>>();
 export const BUSY_LINE = "That terminal was busy with another command the whole time, so this one did not run. Name a session of your own (session) to run beside it.";
 async function oneAtATime<T>(terminalId: string, timeoutMs: number, f: (leftMs: number) => Promise<T>): Promise<T> {
-  const before = queues.get(terminalId) ?? Promise.resolve();
+  const ahead = queues.get(terminalId);
+  const before = ahead ?? Promise.resolve();
   let free!: () => void;
   const mine = new Promise<void>((r) => { free = r; });
   const tail = before.then(() => mine);
@@ -148,6 +149,8 @@ async function oneAtATime<T>(terminalId: string, timeoutMs: number, f: (leftMs: 
   const t0 = Date.now();
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
+    // nothing ahead: the command has its whole time
+    if (ahead === undefined) return await f(timeoutMs);
     const turn = await Promise.race([before.then(() => true, () => true), new Promise<false>((r) => { timer = setTimeout(() => r(false), timeoutMs); })]);
     if (!turn) throw Object.assign(new Error(BUSY_LINE), { code: "busy" });
     return await f(Math.max(1000, timeoutMs - (Date.now() - t0)));
@@ -636,6 +639,26 @@ export async function request(ctx: TermCtx, input: { threadId: string; command: 
 export async function isDangerCall(_ctx: unknown, input: unknown): Promise<boolean> {
   const c = (input as { command?: unknown } | null)?.command;
   return typeof c !== "string" || isDangerous(c);
+}
+
+/**
+ * An agent went to Trash (deleted, or the Assistant of a person who left the Space): its workspace stops for good. Its open sessions close, its container and network go and the room it held on the
+ * host is given back; its home and Files volumes stay, since an agent in Trash can be restored and they hold what it made (the next command after a restore makes the workspace again over them).
+ * Safe to run twice. `remove` is the machine's (the workspace fleet), absent where this host has no workspaces.
+ */
+export async function onAgentGone(ctx: TermCtx, event: { payload: { agentId?: unknown } }, remove: ((agentId: string) => Promise<void>) | null): Promise<string[]> {
+  ensure(ctx.db);
+  const agentId = event.payload.agentId;
+  if (typeof agentId !== "string" || !/^agt_[A-Za-z0-9_-]+$/.test(agentId)) return [];
+  const open = (ctx.db.all("SELECT terminal_id FROM terminal_sessions WHERE host = 'agent_computer' AND agent_id = ? AND closed_at IS NULL", agentId) as Row[]).map((r) => String(r["terminal_id"]));
+  const at = ctx.now();
+  for (const id of open) {
+    ctx.db.run("UPDATE terminal_sessions SET closed_at = ?, state = 'exited' WHERE terminal_id = ?", at, id);
+    forgetSecrets(id);
+    ctx.emit("terminal.closed", id, { terminalId: id, by: "svc_host" });
+  }
+  if (remove) await remove(agentId);
+  return open;
 }
 
 export { commandsOf, judge, rulesOf };

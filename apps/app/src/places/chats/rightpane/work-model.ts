@@ -15,7 +15,7 @@ export interface WorkspaceView {
   state: WorkspaceState;
   /** Where it runs: "the Space server", or a compute server's name. */
   host?: string;
-  /** Waiting: "Waiting for room on <host>. Add a compute server in Console > Computers to run more." Error: the reason, in words. */
+  /** Waiting: "Waiting for room on <host>. The workspace starts by itself when there is room." Error: the reason, in words. */
   line?: string;
   /** The tmux sessions the agent and attached people share. */
   sessions: readonly WorkspaceSession[];
@@ -77,7 +77,7 @@ export function workspaceWords(v: WorkspaceView): Words {
     case "running": return v.sessions.length === 0 ? { chip: "Running", tone: "ok", note: "No session open yet. A command starts one." } : { chip: "Running", tone: "ok" };
     case "asleep": return { chip: "Asleep", tone: "quiet", note: "Wakes in about a second on the next command." };
     case "starting": return { chip: "Starting", tone: "quiet" };
-    case "waiting": return { chip: "Waiting for room", tone: "warn", note: v.line ?? "Waiting for room on the Space server. Add a compute server in Console > Computers to run more." };
+    case "waiting": return { chip: "Waiting for room", tone: "warn", note: v.line ?? "Waiting for room on the Space server. The workspace starts by itself when there is room." };
     case "error": return { chip: "Needs attention", tone: "bad", note: v.line ?? "The workspace could not start." };
   }
 }

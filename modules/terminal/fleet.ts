@@ -93,10 +93,17 @@ export function createWorkspaceFleet(o: FleetOptions): WorkspaceFleet {
     async sleep(agentId) { return (await managerFor(agentId)).sleep(agentId); },
     // a hold is taken after the run's wake, so the agent's machine is known by then
     hold(agentId) { return homes.get(agentId)?.hold(agentId) ?? (() => undefined); },
+    worked(agentId) { homes.get(agentId)?.worked(agentId); },
     async sweep() { const out: string[] = []; for (const m of all()) out.push(...(await m.sweep().catch(() => []))); return out; },
     async list() { const rows: WorkspaceRow[] = []; for (const m of all()) rows.push(...(await m.list().catch(() => []))); return rows; },
     async find(session) { for (const m of all()) { const id = await m.find(session).catch(() => null); if (id !== null) { homes.set(id, m); return id; } } return null; },
-    async remove(agentId) { await (await managerFor(agentId)).remove(agentId); homes.delete(agentId); },
+    async remove(agentId, x) {
+      // only where it is: an agent with no workspace anywhere has nothing to take away, and none is made or placed for it
+      const known = homes.get(agentId);
+      const where = known ? [known] : (await Promise.all(all().map(async (m) => ((await has(m, agentId)) ? m : null)))).filter((m): m is WorkspaceManager => m !== null);
+      for (const m of where) await m.remove(agentId, x);
+      homes.delete(agentId);
+    },
     async health() {
       const hs = await Promise.all(all().map((m) => m.health().catch(() => ({ ok: false }))));
       if (hs.length === 0) return { ok: false, detail: NO_PLACE };

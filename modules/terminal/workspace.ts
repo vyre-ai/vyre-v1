@@ -123,13 +123,22 @@ export interface WorkspaceManager {
   list(): Promise<WorkspaceRow[]>;
   /** The workspace that holds this tmux session, among the running ones (the host forgot where it was across a restart), or null. */
   find(session: string): Promise<string | null>;
-  remove(agentId: string): Promise<void>;
+  /**
+   * Take the workspace away: its container, its network and the room it held. `keepVolumes` leaves its home and Files volumes (what the agent kept), for an agent moved to Trash that may come back;
+   * without it they go too.
+   */
+  remove(agentId: string, o?: { keepVolumes?: boolean }): Promise<void>;
   health(): Promise<{ ok: boolean; detail?: string }>;
   /**
    * A command is running in the workspace (a `terminal_run` from typing it to its end): until the returned function is called the workspace neither sleeps nor is made again for a project change.
    * The terminal holds it around each run, since between two reads of the screen no exec is in flight and the pane alone cannot say a command is still Vyre's.
    */
   hold(agentId: string): () => void;
+  /**
+   * Someone worked in the workspace (a command ran to its end, keys were typed): the project folders it mounts are the ones that may have changed, and this agent is who the next mirror of them names in
+   * Files history. Reading the screen, a resize or a status check is not work and names nobody.
+   */
+  worked(agentId: string): void;
   /** Stop the idle timer. */
   close(): void;
 }
@@ -254,6 +263,16 @@ const wsError = (message: string, code = "unavailable"): Error => Object.assign(
 
 export const IMAGE_MISSING_LINE = "This server can't start agent workspaces yet.";
 
+/**
+ * What a workspace waiting for room says. The host's line names the host; its advice to add a compute server is not true for a workspace (12 Nov, audit item 9): a workspace stays on the machine it
+ * was made on, and the Space's own runtime always wins over a server, so a new server takes none of them. What is true: the waiting workspace starts by itself once room opens.
+ */
+export const WAIT_TAIL = "The workspace starts by itself when there is room.";
+export function workspaceWaitLine(hostLine: string | undefined): string {
+  const first = /^Waiting for room on [^.]+\./.exec(hostLine ?? "")?.[0] ?? "Waiting for room on the Space server.";
+  return `${first} ${WAIT_TAIL}`;
+}
+
 export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
   const now = o.now ?? Date.now;
   const sleep = o.sleep ?? realSleep;
@@ -276,6 +295,8 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
   const projects = new Map<string, { sync: { pass(): Promise<{ failed: number }> } | null; timer: ReturnType<typeof setInterval> | null; kick: ReturnType<typeof setTimeout> | null; holder: string | null }>();
   let imageKnown = false;
   let discovered = false;
+  /** Workspaces this process started that hold room on the host: one whose container stopped without Vyre (out of memory, docker stop, a crash) gives its room back at the next sweep. */
+  const claimed = new Set<string>();
   /** Runs in flight per workspace (hold). */
   const holds = new Map<string, number>();
   /** A project change waiting for the workspace to be quiet: when it was last looked at, so a busy workspace is not asked on every exec. */
@@ -580,13 +601,14 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
     // room first: a host that is full queues it with a plain line and nothing is made or started
     if (o.capacity) {
       const room = await o.capacity.claim(agentId);
-      if (room.state === "waiting") { waitingLine.set(agentId, room.line ?? "Waiting for room on the Space server."); throw wsError(room.line ?? "Waiting for room on the Space server. Add a compute server in Console > Computers to run more.", "waiting"); }
+      if (room.state === "waiting") { const line = workspaceWaitLine(room.line); waitingLine.set(agentId, line); throw wsError(line, "waiting"); }
       waitingLine.delete(agentId);
     }
     try {
       if (!info) await build(agentId, name, want, config);
       await api.containerStart(name);
     } catch (e) { await o.capacity?.release(agentId).catch(() => undefined); throw e; }
+    if (o.capacity) claimed.add(agentId);
     gens.set(agentId, (gens.get(agentId) ?? 0) + 1);
     lastUsed.set(agentId, now());
     // Files down into ~/Vyre before the first command, then every few seconds while it is awake
@@ -615,7 +637,6 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
     if (x?.quiet === true) return (await api.containerRunning(workspaceName(agentId))) ? execIn(agentId, argv, x.env) : { code: 1, stdout: "", stderr: "the workspace is asleep" };
     await ensure(agentId);
     lastUsed.set(agentId, now());
-    kickProjects(agentId);
     try { return await execIn(agentId, argv, x?.env); }
     catch (e) {
       // the container stopped between the wake and the exec (a sweep, or someone stopped it): wake it once more
@@ -641,6 +662,7 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
       await api.containerStop(workspaceName(agentId), 10);
       lastUsed.delete(agentId);
       // the room it held goes back, and the oldest waiting workspace starts
+      claimed.delete(agentId);
       await o.capacity?.release(agentId).catch(() => undefined);
       log("info", "workspace.slept", { agent: agentId });
       return true;
@@ -654,10 +676,39 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
     return rows.map((x) => x.Labels?.["vyre.workspace"] ?? "").filter((id) => AGENT_ID.test(id));
   }
 
+  /** Every workspace container on this engine, running or not. */
+  async function every(): Promise<Array<{ agentId: string; running: boolean }>> {
+    const r = await http({ method: "GET", path: "/containers/json", query: { all: "true", filters: JSON.stringify({ label: ["vyre.workspace"] }) } });
+    if (r.status !== 200) throw new Error(`Docker did not list the workspaces (${r.status})`);
+    return (JSON.parse(dec.decode(r.body)) as Array<{ State?: string; Labels?: Record<string, string> }>).flatMap((x) => { const id = x.Labels?.["vyre.workspace"] ?? ""; return AGENT_ID.test(id) ? [{ agentId: id, running: x.State === "running" }] : []; });
+  }
+
+  /**
+   * Room held for a workspace whose container is not running and that Vyre did not stop (out of memory, `docker stop` from outside, the host rebooted) goes back to the host. In this process the
+   * workspaces it started are known; after a restart (a reboot restarts the daemon too) every stopped workspace's room is given back once, except one that is waiting for room here.
+   */
+  async function giveBackDeadRoom(firstLook: boolean): Promise<void> {
+    if (!o.capacity) return;
+    let all: Array<{ agentId: string; running: boolean }>;
+    try { all = await every(); } catch { return; }
+    const up = new Set(all.filter((x) => x.running).map((x) => x.agentId));
+    const dead = new Set<string>([...claimed].filter((id) => !up.has(id)));
+    if (firstLook) for (const x of all) if (!x.running && !waitingLine.has(x.agentId)) dead.add(x.agentId);
+    for (const id of dead) {
+      claimed.delete(id);
+      lastUsed.delete(id);
+      stopHome(id);
+      stopProjects(id);
+      await o.capacity.release(id).catch(() => undefined);
+      log("warn", "workspace.stopped_outside", { agent: id });
+    }
+  }
+
   async function sweep(): Promise<string[]> {
     const slept: string[] = [];
     let live: string[];
     try { live = await running(); } catch { return slept; }
+    await giveBackDeadRoom(!discovered);
     // workspaces that were running before this process started get a whole idle period from now
     if (!discovered) { discovered = true; for (const id of live) if (!lastUsed.has(id)) lastUsed.set(id, now()); }
     for (const id of live) {
@@ -682,6 +733,7 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
 
   return {
     ensure, exec, provision,
+    worked: (agentId) => kickProjects(agentId),
     hold(agentId) {
       holds.set(agentId, (holds.get(agentId) ?? 0) + 1);
       let done = false;
@@ -723,16 +775,26 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
       }
       return null;
     },
-    async remove(agentId) {
+    async remove(agentId, x) {
       await serial(agentId, async () => {
+        stopHome(agentId);
+        stopProjects(agentId);
+        homes.delete(agentId);
         if (await inspect(workspaceName(agentId))) await removeContainer(workspaceName(agentId));
-        for (const v of [homeVolume(agentId), filesVolume(agentId)]) {
-          const r = await http({ method: "DELETE", path: `/volumes/${v}`, query: { force: "true" } });
-          if (r.status !== 204 && r.status !== 404) throw wsError(`The workspace's volume was not removed (${r.status}).`);
+        if (x?.keepVolumes !== true) {
+          for (const v of [homeVolume(agentId), filesVolume(agentId)]) {
+            const r = await http({ method: "DELETE", path: `/volumes/${v}`, query: { force: "true" } });
+            if (r.status !== 204 && r.status !== 404) throw wsError(`The workspace's volume was not removed (${r.status}).`);
+          }
         }
         if (o.runner) await http({ method: "DELETE", path: `/networks/${workspaceNetworkName(agentId)}` }).catch(() => undefined);
         lastUsed.delete(agentId);
+        mounted.delete(agentId);
+        pendingMounts.delete(agentId);
+        waitingLine.delete(agentId);
+        claimed.delete(agentId);
         await o.capacity?.release(agentId).catch(() => undefined);
+        log("info", "workspace.removed", { agent: agentId, keptVolumes: x?.keepVolumes === true });
       });
     },
     async health() {
@@ -899,7 +961,7 @@ export function createWorkspaceTerminalHost(w: WorkspaceTerminalOptions): Worksp
       where.set(a.terminalId, { agentId, cols: a.cols, rows: a.rows, cwd: r.cwd, gen: m.generation(agentId) });
       return { ...r, title: "Workspace" };
     },
-    async input(id, data) { await inSession(id, (h) => h.input(id, data)); },
+    async input(id, data) { await inSession(id, (h) => h.input(id, data)); const x = where.get(id); if (x) m.worked(x.agentId); },
     async interrupt(id) { await inSession(id, (h) => h.interrupt(id)); },
     async resize(id, cols, rows) { await inSession(id, (h) => h.resize(id, cols, rows)); const x = where.get(id); if (x) { x.cols = cols; x.rows = rows; } },
     async read(id, r) {
@@ -922,7 +984,11 @@ export function createWorkspaceTerminalHost(w: WorkspaceTerminalOptions): Worksp
         // a session tmux lost is made again before the line is typed; never after, so a command is never typed twice
         if ((await m.exec(t.agentId, ["tmux", "has-session", "-t", nameOf(id)])).code !== 0) t = await at(id, true);
         return await t.host.run(id, r);
-      } finally { release(); }
+      } finally {
+        release();
+        // what the command changed in a project folder is put in Files history as this workspace's agent, by the pass that follows its end
+        m.worked(t.agentId);
+      }
     },
     async status(ids) {
       const out: Awaited<ReturnType<TerminalHost["status"]>> = [];

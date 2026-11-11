@@ -4,13 +4,14 @@
 // is read back with capture-pane. Live frames come from a tmux control-mode client (`%output` lines, decoded here).
 import type { Handler } from "../../host/src/invoke.ts";
 import { handlers as table } from "./handlers/index.ts";
+import { onAgentGone } from "./handlers/sessions.ts";
 import { bindWorkspaceStatus, bindHost, bindKit, bindMachineHost, bindMachinePlace, bindPlace, bindTeam, bindValues, bindWorkspaces, boundHost, redeemTicket, scrubberFor, spellingsFor } from "./projections.ts";
 import { unixSocketHttp } from "../../sandbox/src/docker.ts";
 import { buildWorkspaceManager, createWorkspaceTerminalHost } from "./workspace.ts";
 import type { WorkspaceManager, WorkspaceOptions, WorkspaceTerminalHost } from "./workspace.ts";
 import { createWorkspaceFleet, remoteDockerHttp } from "./fleet.ts";
 import type { WorkspaceFleet } from "./fleet.ts";
-import type { Db, PlaceOf, Target, TermState, TerminalHost } from "./projections.ts";
+import type { Db, PlaceOf, Target, TermCtx, TermState, TerminalHost } from "./projections.ts";
 
 export const handlers: Record<string, Handler> = table as unknown as Record<string, Handler>;
 export { fetchesOutside, isDangerCall, outwardOf } from "./handlers/index.ts";
@@ -558,6 +559,15 @@ export function setTerminalHost(seam: TerminalHostSeam | null): void {
 
 // Only the setter the daemon wires is a host seam.
 export const hostSeams = { setTerminalHost };
+
+/** What the module reads from the event log (host/src/daemon/consumers.ts runs each after commit, at least once). */
+export const consumers = {
+  /** An agent went to Trash (deleted, or the Assistant of a person removed from the Space): its sessions close and its workspace's container and room go; what it kept stays (handlers/sessions.ts onAgentGone). */
+  "terminal.agent_gone": {
+    on: ["agent.deleted"],
+    run: (ctx: TermCtx, event: { payload: { agentId?: unknown } }): Promise<string[]> => onAgentGone(ctx, event, workspaceManager ? (agentId) => (workspaceManager as WorkspaceManager).remove(agentId, { keepVolumes: true }) : null),
+  },
+};
 
 export { bindHost, bindKit, bindPlace, bindTeam, bindValues, bindWorkspaces };
 export { createWorkspaceFleet, remoteDockerHttp } from "./fleet.ts";

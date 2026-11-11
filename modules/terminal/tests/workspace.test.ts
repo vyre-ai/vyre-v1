@@ -504,12 +504,15 @@ test("a project's folder is mirrored with Files when a workspace on it wakes, an
   // a second agent on the same project
   await r.mgr.ensure(B_AGENT);
   const n = ph.passes.length;
+  // B works (a command of B's ran to its end): 12 Nov, any exec was taken for work, so another agent's tab reading its screen took the authorship
   await r.mgr.exec(B_AGENT, ["tmux", "-V"]);
+  r.mgr.worked(B_AGENT);
   await later(40);
   const after = ph.passes.slice(n);
   assert.ok(after.length >= 1 && after.every((p) => p.agentId === B_AGENT), `the pass after B's command is B's: ${JSON.stringify(after.map((p) => p.agentId))}`);
   const m = ph.passes.length;
   await r.mgr.exec(AGENT, ["tmux", "-V"]);
+  r.mgr.worked(AGENT);
   await later(40);
   assert.ok(ph.passes.slice(m).every((p) => p.agentId === AGENT) && ph.passes.length > m, "and then A's");
   assert.deepEqual([...new Set(ph.made.map((x) => x.manifest))], ["/m/projects/prj_site.json"], "one manifest for the project, whoever ran the pass");

@@ -301,3 +301,102 @@ test("terminal.status tells nothing about a session in another person's Assistan
   assert.equal((await h["terminal.status"]!(dana, { terminalIds: [r.terminalId] })).rows.length, 1, "its person sees it");
   assert.deepEqual((await h["terminal.status"]!(eve, { terminalIds: [r.terminalId] })).rows, [], "another person, whatever their role, does not");
 });
+
+// ---- 13: an agent goes to Trash ------------------------------------------------------------------------------------------------------------------------------
+
+test("an agent moved to Trash (or the Assistant of a person who left) loses its workspace: sessions close, the container and the room go, what it kept stays", async () => {
+  const { hn, agent } = setup();
+  const room: string[] = [];
+  const dk = engine();
+  const m = manager(dk, { capacity: { async claim(id) { room.push(`claim ${id}`); return { state: "running" }; }, async release(id) { room.push(`release ${id}`); } } });
+  bindHost(daemonHost(m));
+  const r = await h["terminal.run"]!(agent, { command: "echo hi", idempotencyKey: idem() });
+  assert.equal(dk.box(NAME).running, true);
+  const { consumers } = await import("../impl.ts");
+  const gone = consumers["terminal.agent_gone"];
+  assert.deepEqual(gone.on, ["agent.deleted"]);
+  const closed = await onAgentGoneWith(m, hn.ctx, AGENT);
+  assert.deepEqual(closed, [r.terminalId]);
+  assert.equal(dk.boxes.has(NAME), false, "the container is gone");
+  assert.equal(dk.ops("volume_remove").length, 0, "its home and Files volumes stay: an agent in Trash can be restored");
+  assert.equal(room.at(-1), `release ${AGENT}`, "the room it held goes back");
+  assert.equal(hn.rows("SELECT closed_at FROM terminal_sessions WHERE terminal_id = ?", r.terminalId)[0]?.["closed_at"] !== null, true, "its tab is closed");
+  assert.equal(hn.named("terminal.closed").length, 1);
+  assert.deepEqual(await onAgentGoneWith(m, hn.ctx, AGENT), [], "safe to run twice");
+  m.close();
+});
+
+async function onAgentGoneWith(m: WorkspaceManager, ctx: TermCtx, agentId: string): Promise<string[]> {
+  const { onAgentGone } = await import("../handlers/sessions.ts");
+  return onAgentGone(ctx, { payload: { agentId } }, (id) => m.remove(id, { keepVolumes: true }));
+}
+
+// ---- 12: room held by a workspace that died outside Vyre ---------------------------------------------------------------------------------------------------
+
+test("a workspace whose container stopped without Vyre (out of memory, docker stop, a reboot) gives its room back at the next sweep, in this process and after a restart", async () => {
+  const room: string[] = [];
+  const capacity = { async claim(id: string) { room.push(`claim ${id}`); return { state: "running" as const }; }, async release(id: string) { room.push(`release ${id}`); } };
+  const dk = engine();
+  const m = manager(dk, { capacity });
+  await m.ensure(AGENT);
+  dk.kill(NAME);
+  await m.sweep();
+  assert.deepEqual(room, [`claim ${AGENT}`, `release ${AGENT}`], "the dead container's room went back");
+  assert.equal((await m.ensure(AGENT)), "woke", "the next use starts it again, asking for room again");
+  assert.deepEqual(room.slice(-1), [`claim ${AGENT}`]);
+  m.close();
+  // the host reboots: the daemon starts again and the container is stopped
+  dk.kill(NAME);
+  const after = manager(dk, { capacity });
+  room.length = 0;
+  await after.sweep();
+  assert.deepEqual(room, [`release ${AGENT}`], "after the restart its room goes back once");
+  await after.sweep();
+  assert.deepEqual(room, [`release ${AGENT}`], "and only once");
+  after.close();
+});
+
+// ---- 8: who changed a project file -------------------------------------------------------------------------------------------------------------------------
+
+test("a project file's change is put in Files history as the agent whose command made it, not as another agent whose tab only read its screen", async () => {
+  const passes: Array<{ projectId: string; agentId: string }> = [];
+  const home: NonNullable<WorkspaceOptions["home"]> = {
+    sync: () => ({ async pass() { return { failed: 0 }; } }),
+    readTar: () => ({ files: new Map(), dirs: new Set(), refused: [], complete: true }),
+    manifest: (id) => `/m/${id}.json`,
+    projectManifest: (id) => `/m/p/${id}.json`,
+    syncProject: (x) => ({ async pass() { passes.push({ projectId: x.projectId, agentId: x.agentId }); return { failed: 0 }; } }),
+    intervalMs: 60_000,
+  };
+  const dk = engine();
+  const m = manager(dk, { home, projectsOf: () => ["prj_site"], projectKickMs: 5, sleep: fast });
+  const host = createWorkspaceTerminalHost({ manager: m, sleep: fast });
+  const B = "agt_pam";
+  await host.open({ terminalId: "trm_b", target: { host: "agent_computer", agentId: B }, name: "agent", cols: 80, rows: 24, folders: [] });
+  await host.open({ terminalId: "trm_a", target: { host: "agent_computer", agentId: AGENT }, name: "agent", cols: 80, rows: 24, folders: [] });
+  await host.run("trm_a", { command: "echo hi", env: {}, timeoutMs: 5000 });
+  const n = passes.length;
+  // B's tab is open: it reads its screen, resizes, asks its status, again and again, while A's change waits for its pass
+  let cursor = (await host.read("trm_b", { lines: 50 })).next;
+  for (let i = 0; i < 5; i++) { cursor = (await host.read("trm_b", { lines: 50, since: cursor })).next; await host.resize("trm_b", 90, 30); await host.status(["trm_b"]); }
+  await new Promise((x) => setTimeout(x, 40));
+  const after = passes.slice(n).filter((p) => p.projectId === "prj_site");
+  assert.ok(after.length >= 1, "a pass followed A's command");
+  assert.deepEqual([...new Set(after.map((p) => p.agentId))], [AGENT], `named as A, the agent that worked: ${JSON.stringify(after)}`);
+  m.close();
+});
+
+// ---- 9: the waiting line --------------------------------------------------------------------------------------------------------------------------------
+
+test("a workspace waiting for room says only what is true: the host it waits on, and that it starts by itself; never to add a compute server, which cannot take it", async () => {
+  const dk = engine();
+  const m = manager(dk, { capacity: { async claim() { return { state: "waiting", line: "Waiting for room on Maya's server. Add a compute server in Console > Computers to run more." }; }, async release() { /* nothing held */ } } });
+  let message = "";
+  try { await m.ensure(AGENT); } catch (e) { message = (e as Error).message; }
+  assert.equal(message, "Waiting for room on Maya's server. The workspace starts by itself when there is room.");
+  assert.deepEqual(await m.status(AGENT), { state: "waiting", line: message });
+  const bare = manager(dk, { capacity: { async claim() { return { state: "waiting" }; }, async release() { /* nothing held */ } } });
+  await assert.rejects(() => bare.ensure("agt_other"), (e: Error) => e.message === "Waiting for room on the Space server. The workspace starts by itself when there is room.");
+  m.close();
+  bare.close();
+});
