@@ -1002,6 +1002,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         // the first capability of each module, looked up once (a search of every capability on every module call was a fifteenth of a write)
         capOf: (m) => { if (!firstCapOf.has(m)) firstCapOf.set(m, registryCaps.find((c) => (c as { module?: string }).module === m)); return firstCapOf.get(m); },
         warn: (msg, attrs) => sink.log({ space: space!, level: 30, msg, place: "hooks", ...(attrs ? { attrs } : {}) }),
+        info: (msg, attrs) => sink.log({ space: space!, level: 20, msg, place: "hooks", ...(attrs ? { attrs } : {}) }),
       });
       hooks = hookRunner;
       // each reopen of a person's key from the server's wrap is an audit row for them, as a fresh provider sign-in's is
@@ -2739,6 +2740,9 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   const stop = (): Promise<void> => {
     stopping ??= (async () => {
       sink.log({ space: space ?? "-", level: 20, msg: "daemon.stopping", place: "boot" });
+      // first the hooks: no consumer is handed another event while the services close under it (what commits from here on is delivered by the next start, from the stored cursor), and the
+      // pass in flight ends before the engine and the seams go. Bounded, so a consumer that will not end cannot hold the stop.
+      if (hooks) await Promise.race([hooks.close().catch(() => undefined), new Promise<void>((r) => { setTimeout(r, 5_000).unref(); })]);
       for (const c of closers.reverse()) await Promise.resolve().then(c).catch(() => {});
       clearInfo(paths);
       o.onStopped?.();

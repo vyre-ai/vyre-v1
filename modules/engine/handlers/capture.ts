@@ -2,7 +2,7 @@
 // only be read as one of its people (a service that asked would be told the chat is not there); the person is the last one who wrote in it. What a chat may leave behind is memory's own business:
 // capture reads the lead agent's captureMode (off keeps nothing, propose leaves every fact to accept, auto_low_risk merges the low-risk kinds).
 import { engineHost } from "../runtime.ts";
-import { ensure } from "../projections.ts";
+import { ensure, keepForRestart } from "../projections.ts";
 import type { EngineCtx } from "../projections.ts";
 
 export const IDLE_MS = 30 * 60_000;
@@ -38,6 +38,7 @@ async function captureOne(ctx: EngineCtx, call: CaptureCall, threadId: string, p
 /** A thread was closed. The person is whoever last wrote in it, else whoever closed it. */
 export async function captureClosed(ctx: EngineCtx, event: Event, call: CaptureCall | null = engineHost()?.call ?? null): Promise<string[]> {
   const threadId = str(event.payload["threadId"]);
+  if (!call) keepForRestart(ctx);
   if (threadId === "" || !call) return [];
   ensure(ctx.db);
   const known = (ctx.db.all("SELECT person FROM engine_capture_state WHERE thread_id = ?", threadId)[0] as { person?: string } | undefined)?.person;
