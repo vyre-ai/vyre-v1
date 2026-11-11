@@ -30,12 +30,12 @@ services:
       VYRE_DOCKER_ROOT_DIR: ${VYRE_DOCKER_ROOT_DIR:-}
       VYRE_DOCKER_ROOT_STATE: ${VYRE_DOCKER_ROOT_STATE:-}
       VYRE_SITES_RUNNER: /run/vyre-sites/runner.sock
-      # the agent computer image of this release, by digest (compose.env: the installer and vyre-server update write it from images.lock); the default is for a run without them
-      VYRE_AGENT_COMPUTER_IMAGE: ${VYRE_AGENT_COMPUTER_IMAGE:-vyre/agent-computer:1}
+      # the agent computer image of this release, by digest (compose.env: the installer and vyre-server update write it from images.lock); left empty when compose.env has no line for it (a server whose update tool is older than the release): vyred then asks ghcr.io/vyre-ai for this release's image by version, never a bare vyre/... name
+      VYRE_AGENT_COMPUTER_IMAGE: ${VYRE_AGENT_COMPUTER_IMAGE:-}
       # the Space browser image of this release, by digest, the same way: one Chrome service for the Space host, a profile per agent (images/space-browser)
-      VYRE_SPACE_BROWSER_IMAGE: ${VYRE_SPACE_BROWSER_IMAGE:-vyre/space-browser:1}
+      VYRE_SPACE_BROWSER_IMAGE: ${VYRE_SPACE_BROWSER_IMAGE:-}
       # the agent workspace image of this release, by digest (the same way): every agent's shell and tmux live in a container from it
-      VYRE_WORKSPACE_IMAGE: ${VYRE_WORKSPACE_IMAGE:-vyre/agent-workspace:1}
+      VYRE_WORKSPACE_IMAGE: ${VYRE_WORKSPACE_IMAGE:-}
     env_file:
       - path: ./vyre.env
         required: false

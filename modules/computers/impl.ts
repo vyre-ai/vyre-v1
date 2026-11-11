@@ -22,7 +22,7 @@ import { readFileSync } from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { Handler } from "../../host/src/invoke.ts";
 import { tarFiles } from "../../sandbox/src/tar.ts";
-import { createDockerApi, unixSocketHttp } from "../../sandbox/src/docker.ts";
+import { NOT_FETCHED_REASON, createDockerApi, fetchableImage, unixSocketHttp } from "../../sandbox/src/docker.ts";
 import type { ContainerConfig, DockerApi, DockerHttp } from "../../sandbox/src/docker.ts";
 import { handlers as table } from "./handlers/index.ts";
 import { LIMITS } from "./capacity.ts";
@@ -348,6 +348,8 @@ export function createDockerComputerHost(o: DockerHostOptions): ComputerHost & T
         const byDigest = config.Image.includes("@");
         const [repo, tag] = byDigest ? [config.Image, ""] : [config.Image.slice(0, config.Image.lastIndexOf(":")), config.Image.slice(config.Image.lastIndexOf(":") + 1)];
         let pulled = false; let why = "";
+        // a local name (vyre/...) is never asked of a registry: Docker would look on Docker Hub, which is not Vyre's (sandbox/src/docker.ts fetchableImage)
+        if (!fetchableImage(config.Image)) throw new Error(`${IMAGE_MISSING_SENTENCE}\nDetails: the agent computer image ${config.Image} is not on this server; ${NOT_FETCHED_REASON}.`);
         if (o.http) {
           try { const r = await o.http({ method: "POST", path: "/images/create", query: byDigest ? { fromImage: repo } : { fromImage: repo, tag }, timeoutMs: 15 * 60_000 }); pulled = r.status === 200 && !/"error"/.test(new TextDecoder().decode(r.body)); if (!pulled) why = bodyText(r.body); } catch (e) { why = e instanceof Error ? e.message.slice(0, 160) : "no answer"; }
         }

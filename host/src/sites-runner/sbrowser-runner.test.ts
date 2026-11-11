@@ -151,7 +151,7 @@ test("the Space browser's container may be read, started, stopped, removed and r
 test("the Space browser image may be fetched and read, by tag or by digest, and no other; its volume may be removed and no other", async (t) => {
   const w = await world();
   t.after(w.close);
-  assert.equal((await w.call("POST", "/images/create?fromImage=vyre/space-browser&tag=1")).status, 200);
+  assert.equal((await w.call("POST", "/images/create?fromImage=vyre/space-browser&tag=1")).status, 403, "a bare vyre/... name would be looked for on Docker Hub, which is not Vyre's: never fetched");
   assert.equal((await w.call("POST", "/images/create?fromImage=ghcr.io/vyre-ai/space-browser&tag=1.0.0-rc.23")).status, 200);
   assert.equal((await w.call("POST", `/images/create?fromImage=${encodeURIComponent(`ghcr.io/vyre-ai/space-browser@sha256:${"b".repeat(64)}`)}`)).status, 200, "by digest");
   assert.equal((await w.call("POST", "/images/create?fromImage=evil/space-browser&tag=1")).status, 403);

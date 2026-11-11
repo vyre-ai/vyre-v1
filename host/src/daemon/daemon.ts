@@ -96,6 +96,7 @@ import { withGateNesting } from "./gate-nesting.ts";
 import { FILL_PATH, createComputersFillHost, createFillRoute } from "../seams/computers.ts";
 import { homeCallAllowed, homeScopeOf } from "./home-confine.ts";
 import { createComputersHost } from "../seams/computers-host.ts";
+import { releaseImage } from "../seams/release-images.ts";
 import { createTerminalHostSeam } from "../seams/terminal-host.ts";
 import { findDockerSocket } from "../seams/docker-socket.ts";
 import { READER_LOSS, createEngineHost } from "../seams/engine.ts";
@@ -1920,6 +1921,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         },
         setComputerHost: () => createComputersHost({
           dataDir: paths.root,
+          version: cfg.version,
           ...(o.computersSocketPath !== undefined ? { socketPath: o.computersSocketPath } : {}),
           // On a Team server vyred holds no Docker socket: agent computers are made and run through the runner beside it (the same one that runs sites), which refuses anything else
           ...(o.computersSocketPath === undefined && computersRunnerSocket() ? { runner: { socket: computersRunnerSocket() as string, token: computersRunnerToken, ...(ingressContainer() ? { ingress: ingressContainer() as string } : {}) } } : {}),
@@ -1953,7 +1955,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
                   return mine.find((c) => c.enrollment === "approved" && c.facts?.docker === true && computeStream.connected(c.serverId))?.serverId ?? null;
                 },
               },
-              ...(cfg.spaceKind === "personal" && !process.env["VYRE_WORKSPACE_IMAGE"] ? { image: `ghcr.io/vyre-ai/agent-workspace:${cfg.version}` } : {}),
+              // the setting when it names an image, else this release's own image on ghcr.io/vyre-ai (seams/release-images.ts): never a bare vyre/... name, which Docker would look for on Docker Hub
+              image: releaseImage("agent-workspace", cfg.version, process.env["VYRE_WORKSPACE_IMAGE"]),
               ...(o.workspaceIdleMs !== undefined ? { idleMs: o.workspaceIdleMs } : {}),
               projectsOf: (agentId: string) => (db!.all("SELECT projectId FROM projects_member WHERE principal = ? AND kind = 'agent'", agentId) as Array<{ projectId?: string }>).map((r) => String(r.projectId)),
               // ~/Vyre in the workspace mirrors the agent's folder in Files: the computers module's home sync, run as the agent principal like any other writer (access, review rules and the scrubber apply)

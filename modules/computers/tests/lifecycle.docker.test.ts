@@ -85,6 +85,18 @@ test("create makes a stopped container, and an image that is not on the host is 
   assert.equal(f.created.has("vyre-comp-two"), false);
 });
 
+test("a local agent computer image name (vyre/...) is never asked of a registry: Docker would look on Docker Hub, which is not Vyre's", async () => {
+  for (const image of ["vyre/agent-computer:1", "docker.io/vyre/agent-computer:1", `vyre/agent-computer@sha256:${"f".repeat(64)}`]) {
+    const f = fakeApi();
+    f.setImage(false);
+    const asked: string[] = [];
+    const http = async (r: { path: string }) => { asked.push(r.path); f.setImage(true); return { status: 200, body: new TextEncoder().encode('{"status":"Pull complete"}') }; };
+    const host = createDockerComputerHost({ api: f.api, image, http } as never);
+    await assert.rejects(() => host.create({ computerId: "cmt_loc", agentId: INTAKE, tabLimit: 8, idleSleepMinutes: 10 }), (e: Error) => { const [plain, details] = e.message.split("\nDetails: "); return plain === "This server can't start agent computers yet." && /never fetched/.test(details ?? ""); }, image);
+    assert.deepEqual(asked, [], `no fetch was tried for ${image}`);
+  }
+});
+
 test("an image named by digest is fetched whole (fromImage carries the digest, no tag), and a missing one says so plainly with how to fix it", async () => {
   const digest = `ghcr.io/vyre-ai/agent-computer@sha256:${"f".repeat(64)}`;
   const f = fakeApi();

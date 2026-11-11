@@ -1,0 +1,2 @@
+- A server only ever fetches Vyre's agent workspace, Space browser and agent computer images from Vyre's own registry. Before, a server that was missing an image setting asked a public registry for a name Vyre does not own there.
+- A server whose update tool is older than the release (installed before rc.23) now gets this release's workspace and browser images by itself, so agent terminals and the Space browser start after an update without a manual step.
