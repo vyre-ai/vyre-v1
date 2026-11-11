@@ -1,0 +1,6 @@
+- A server only ever fetches Vyre's agent workspace, Space browser and agent computer images from Vyre's own registry. Before, a server that was missing an image setting asked a public registry for a name Vyre does not own there.
+- A server whose update tool is older than the release (installed before rc.23) now gets this release's workspace and browser images by itself, so agent terminals and the Space browser start after an update without a manual step.
+- Vyre Server on a Mac with Colima: agent turns that run on the server now start. The server switches on the setting its sandbox needs inside Docker's virtual machine at every start, and `vyre-server doctor` reports it.
+- Vyre Server on a Mac remembers which Docker it was installed on, so it keeps working when the Mac's active Docker is switched to another one.
+- The agent workspace and Space browser images are now built for Apple silicon too, so they run natively on an Apple silicon Mac.
+- Vyre Server installs on a Mac with Apple silicon. Before, the installer stopped while fetching an image that exists for Intel only.

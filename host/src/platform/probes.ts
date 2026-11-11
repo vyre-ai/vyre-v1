@@ -25,7 +25,26 @@ export function stackIsEncrypted(lsblkTypes: string): boolean {
   return lsblkTypes.split("\n").some((l) => l.trim().toLowerCase() === "crypt");
 }
 
-export async function diskEncrypted(p: Platform, dataDir: string): Promise<ProbeResult> {
+/** What the person chose at install about the disk question (VYRE_DISK_ENCRYPTION, written by the installer): the server inside Docker cannot see the host's disk, so it reports the choice. */
+export interface DiskChoice { kind: string; since?: string }
+
+export function diskChoiceResult(c: DiskChoice): ProbeResult | null {
+  const when = c.since ? ` on ${c.since}` : "";
+  switch (c.kind) {
+    case "plain": return result("degraded", `The data is NOT encrypted at rest. You chose to install on a plain disk${when}: anyone who gets a copy of this disk, a snapshot or a backup can read it.`);
+    // the person's word, not a check: shown as its own thing (not healthy) so a summary never counts it as encrypted
+    case "provider": return result("degraded", `Not verified: your provider's encryption, as you stated${when}. This server cannot check it; confirm it with your provider.`);
+    // looked at again by the host script at every start of the server
+    case "detected": return result("healthy", "The data directory is on an encrypted volume (verified by the host at the last start; where its key is kept is not visible).");
+    // an encryption layer on a file: the host cannot tell where its key is, and a key on the same disk protects nothing
+    case "detected_file": return result("degraded", "The data is on an encrypted volume that is a file on this disk. This server cannot tell where its key is kept: a key on this same disk protects nothing.");
+    default: return null;
+  }
+}
+
+export async function diskEncrypted(p: Platform, dataDir: string, choice?: DiskChoice | null): Promise<ProbeResult> {
+  const chosen = choice ? diskChoiceResult(choice) : null;
+  if (chosen) return chosen;
   if (p.os === "darwin") {
     const r = await p.run("fdesetup", ["status"]);
     const on = r.code === 0 || r.stdout ? parseFdesetup(r.stdout) : null;

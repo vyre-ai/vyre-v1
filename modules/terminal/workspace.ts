@@ -12,7 +12,7 @@
 //               been open is made again, empty, the next time something uses it.
 // The module never opens a socket of its own: the DockerApi and DockerHttp come from the host's seam (the Docker socket, or the runner on a Team server), like agent computers.
 import { sha256Hex } from "../../kernel/src/log/hash.ts";
-import { createDockerApi } from "../../sandbox/src/docker.ts";
+import { NOT_FETCHED_REASON, createDockerApi, fetchableImage } from "../../sandbox/src/docker.ts";
 import { tarFiles } from "../../sandbox/src/tar.ts";
 import type { ContainerConfig, DockerApi, DockerHttp } from "../../sandbox/src/docker.ts";
 import { createTmuxHost } from "./impl.ts";
@@ -328,6 +328,8 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
       const [repo, tag] = byDigest ? [image, ""] : [image.slice(0, image.lastIndexOf(":")), image.slice(image.lastIndexOf(":") + 1)];
       let why = "";
       let pulled = false;
+      // a local name (vyre/...) is never asked of a registry: Docker would look on Docker Hub, which is not Vyre's (sandbox/src/docker.ts fetchableImage)
+      if (!fetchableImage(image)) throw wsError(`${IMAGE_MISSING_LINE}\nDetails: the workspace image ${image} is not on this server; ${NOT_FETCHED_REASON}.`, "image_missing");
       try {
         const r = await http({ method: "POST", path: "/images/create", query: byDigest ? { fromImage: repo } : { fromImage: repo, tag }, timeoutMs: 15 * 60_000 });
         pulled = r.status === 200 && !/"error"/.test(dec.decode(r.body));

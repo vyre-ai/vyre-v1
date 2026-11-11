@@ -13,13 +13,13 @@ import type { FakeDockerOptions } from "../fixtures/fake-docker.ts";
 const AGENT = "agt_dex";
 const NAME = workspaceName(AGENT);
 
-function rig(o: { docker?: FakeDockerOptions; projects?: () => string[]; idleMs?: number; admit?: WorkspaceOptions["admit"]; runner?: boolean; home?: WorkspaceOptions["home"] } = {}) {
+function rig(o: { docker?: FakeDockerOptions; projects?: () => string[]; idleMs?: number; admit?: WorkspaceOptions["admit"]; runner?: boolean; home?: WorkspaceOptions["home"]; image?: string } = {}) {
   const dk = fakeDocker({ tmux: { scripts: { "echo hi": { out: "hi", code: 0 } } }, ...o.docker });
   const clock = { t: 1_000_000 };
   const mgr = createWorkspaceManager({
     api: createDockerApi(dk.http), http: dk.http, now: () => clock.t, sleep: async (ms) => { clock.t += ms; },
     idleMs: o.idleMs ?? 600_000,
-    ...(o.projects ? { projectsOf: o.projects } : {}), ...(o.admit ? { admit: o.admit } : {}), ...(o.runner ? { runner: true } : {}), ...(o.home ? { home: o.home } : {}),
+    ...(o.projects ? { projectsOf: o.projects } : {}), ...(o.admit ? { admit: o.admit } : {}), ...(o.runner ? { runner: true } : {}), ...(o.home ? { home: o.home } : {}), ...(o.image ? { image: o.image } : {}),
   });
   return { dk, mgr, clock };
 }
@@ -99,11 +99,22 @@ test("the room check runs before a workspace is made or woken, and a refusal mak
 });
 
 test("no image on the server and none to fetch: the line says so and nothing is made", async () => {
-  const r = rig({ docker: { image: false } });
-  await assert.rejects(() => r.mgr.ensure(AGENT), (e: Error) => e.message.startsWith(IMAGE_MISSING_LINE) && /docker pull vyre\/agent-workspace:1/.test(e.message));
+  const REL = "ghcr.io/vyre-ai/agent-workspace:1.0.0";
+  const r = rig({ docker: { image: false }, image: REL });
+  await assert.rejects(() => r.mgr.ensure(AGENT), (e: Error) => e.message.startsWith(IMAGE_MISSING_LINE) && e.message.includes(`docker pull ${REL}`));
   assert.equal(r.dk.boxes.size, 0);
-  const fetched = rig({ docker: { image: false, pullWorks: true } });
+  const fetched = rig({ docker: { image: false, pullWorks: true }, image: REL });
   assert.equal(await fetched.mgr.ensure(AGENT), "created", "a server that can fetch the image does");
+});
+
+test("a local image name (vyre/...) is never asked of a registry: Docker would look on Docker Hub, which is not Vyre's", async () => {
+  // the registry would even answer here (pullWorks): the manager must not ask
+  for (const image of [undefined, "vyre/agent-workspace:1", "docker.io/vyre/agent-workspace:1", `vyre/agent-workspace@sha256:${"a".repeat(64)}`]) {
+    const r = rig({ docker: { image: false, pullWorks: true }, ...(image ? { image } : {}) });
+    await assert.rejects(() => r.mgr.ensure(AGENT), (e: Error) => e.message.startsWith(IMAGE_MISSING_LINE) && /never fetched/.test(e.message) && !/docker pull/.test(e.message), String(image));
+    assert.equal(r.dk.log.filter((l) => l.op === "pull").length, 0, `no fetch was tried for ${String(image)}`);
+    assert.equal(r.dk.boxes.size, 0);
+  }
 });
 
 test("a workspace sleeps after idle minutes with its volumes kept, and wakes on the next use", async () => {
