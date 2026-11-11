@@ -173,7 +173,20 @@ export function createDockerSpaceBrowser(o: DockerSpaceBrowserOptions): SpaceBro
     return up;
   }
 
-  const call = async (action: string, body: Record<string, unknown>): Promise<BrowserAnswer> => { await ensureUp(); return exec(action, body); };
+  // a container that runs is not always one whose browserd answers: just after it (re)started the control socket is not there yet, and the call waits for it instead of failing
+  const starting = (e: unknown): boolean => e instanceof ToolError && e.code === "unavailable" && /not answering|ENOENT|ECONNREFUSED/i.test(e.message);
+  const call = async (action: string, body: Record<string, unknown>): Promise<BrowserAnswer> => {
+    await ensureUp();
+    try { return await exec(action, body); } catch (e) {
+      if (!starting(e)) throw e;
+      const deadline = Date.now() + (o.startTimeoutMs ?? 30_000);
+      for (;;) {
+        await sleep(400);
+        try { await exec("status", {}); break; } catch (e2) { if (!starting(e2) || Date.now() >= deadline) throw e2; }
+      }
+      return exec(action, body);
+    }
+  };
   // a daemon that starts while the service already runs knows its network before any page can ask it something
   void learnNetwork();
 
@@ -219,7 +232,7 @@ export function createDockerSpaceBrowser(o: DockerSpaceBrowserOptions): SpaceBro
     subnets: () => (subnet ? [subnet] : []),
     async profiles() {
       if (!(await o.api.containerRunning(name))) return { profiles: [], maxRunning: o.maxRunning ?? 6 };
-      const s = await exec("status", {}) as { profiles?: ProfileRow[]; maxRunning?: number };
+      const s = await call("status", {}) as { profiles?: ProfileRow[]; maxRunning?: number };
       return { profiles: Array.isArray(s.profiles) ? s.profiles : [], maxRunning: Number(s.maxRunning ?? o.maxRunning ?? 6) };
     },
     async health() {

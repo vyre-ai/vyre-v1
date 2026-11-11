@@ -25,7 +25,8 @@ import { createDockerSpaceBrowser } from "../sbrowser/docker.ts";
 import { ToolError } from "../handlers/tools/common.ts";
 import { createFillService, fillHttp } from "../handlers/fill.ts";
 import { takeDownloads } from "../sbrowser/downloads.ts";
-import { harness } from "../fixtures/harness.ts";
+import { asPerson, codeOf, harness } from "../fixtures/harness.ts";
+import { tool as cap } from "./tools.fixture.ts";
 import { computerSubnets } from "../impl.ts";
 import { bindSpaceBrowser } from "../sbrowser/port.ts";
 import { clientOnNetwork } from "../../../host/src/routes/site-host.ts";
@@ -483,6 +484,46 @@ test("@heavy space browser: with Engine access the service is on a network of it
     const net = JSON.parse(new TextDecoder().decode((await http({ method: "GET", path: `/networks/${NET_NAME}net` })).body)) as { IPAM: { Config: Array<{ Subnet: string }> } };
     assert.deepEqual(computerSubnets(), [net.IPAM.Config[0]!.Subnet], "the daemon knows the service's network");
   } finally { bindSpaceBrowser(null); daemon.close(); }
+});
+
+// Audit B4 (12 Nov): the hold was enforced only inside browserd, which keeps it in memory. Through the module's own path (the capabilities an agent calls), every chrome_* tool must wait while a person has the
+// controls, also after the browser service restarts during the takeover; and giving back must always work.
+test("@heavy space browser: through the module every chrome tool of the agent waits while a person holds its browser, also after the browser service restarts, and giving back works", { skip, timeout: 300_000 }, async () => {
+  const AG = "agt_held";
+  const h = harness({ principal: { kind: "agent", id: AG }, actingFor: "usr_dana" });
+  const dana = asPerson(h, { kind: "person", id: "usr_dana" }, { respond: { "agents.share_class": () => ({ class: "personal", ownerId: "usr_dana", people: [] }) } });
+  bindSpaceBrowser(sb);
+  try {
+    await cap["computers.chrome.open"]!(h.ctx, { url: siteUrl("/ticker") });
+    await cap["computers.browser.take_over"]!(dana.ctx, { agentId: AG });
+    const all: Array<[string, Record<string, unknown>]> = [
+      ["computers.chrome.open", { url: siteUrl("/whoami") }], ["computers.chrome.state", {}], ["computers.chrome.snapshot", {}], ["computers.chrome.screenshot", {}], ["computers.chrome.console", {}],
+      ["computers.chrome.net", {}], ["computers.chrome.inspect", { ref: "e1" }], ["computers.chrome.sources", {}], ["computers.chrome.act", { ref: "e1", action: "click" }], ["computers.chrome.click", { x: 150, y: 150 }],
+      ["computers.chrome.type", { text: "x" }], ["computers.chrome.fill", { fields: [{ ref: "e1", value: "x" }] }], ["computers.chrome.wait", { until: "time", value: "10" }], ["computers.chrome.eval", { expression: "1" }],
+      ["computers.chrome.api", { method: "GET", url: siteUrl("/whoami") }], ["computers.chrome.send", { heldId: "hld_x" }], ["computers.chrome.tabs", { action: "list" }], ["computers.chrome.plan", { goal: "x" }], ["computers.chrome.resume", {}],
+    ];
+    const through = async (when: string): Promise<string[]> => {
+      const wrong: string[] = [];
+      for (const [name, input] of all) {
+        const r = await cap[name]!(h.ctx, input).then(() => "ran", (e: unknown) => (codeOf(e) === "provider.unavailable" && /A person has the controls/.test(JSON.stringify(e)) ? "waited" : `refused otherwise: ${JSON.stringify(e).slice(0, 120)}`));
+        if (r !== "waited") wrong.push(`${when} ${name}: ${r}`);
+      }
+      const b = await cap["computers.chrome.batch"]!(h.ctx, { steps: [{ tool: "state", args: {} }] }) as { results: Array<{ ok: boolean; result?: { error?: string } }> };
+      if (b.results[0]!.ok || !/A person has the controls/.test(String(b.results[0]!.result?.error))) wrong.push(`${when} batch: ${JSON.stringify(b.results[0])}`);
+      return wrong;
+    };
+    const wrong = await through("held");
+    assert.equal((await cap["computers.chrome.status"]!(h.ctx, {})).connected, true, "a look at the status runs while it is held");
+    // the browser service restarts under the person's hands
+    const r = await http({ method: "POST", path: `/containers/${NAME}/restart`, query: { t: "5" } });
+    assert.equal(r.status, 204, "the service restarted");
+    wrong.push(...(await through("after the restart")));
+    assert.deepEqual(wrong, [], "every tool waited");
+    assert.equal((await sb.profiles()).profiles.find((p) => p.profileId === AG)?.takeoverBy, "usr_dana", "the restarted service was told who has the controls");
+    const back = await cap["computers.browser.give_back"]!(dana.ctx, { agentId: AG }) as { profile: { takeoverBy?: string } };
+    assert.equal(back.profile.takeoverBy, undefined);
+    assert.equal(typeof (await cap["computers.chrome.state"]!(h.ctx, {})).url, "string", "given back, the agent works at once");
+  } finally { bindSpaceBrowser(null); }
 });
 
 test("@heavy space browser: a profile's tabs come back after its browser stops after idle", { skip, timeout: 300_000 }, async () => {

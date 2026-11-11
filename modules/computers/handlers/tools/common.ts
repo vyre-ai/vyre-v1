@@ -17,6 +17,7 @@ import { spaceBrowser } from "../../sbrowser/port.ts";
 import { profileIdOf } from "../../sbrowser/policy.ts";
 import { takeDownloads } from "../../sbrowser/downloads.ts";
 import { needRoom } from "../../sbrowser/room.ts";
+import { currentHold, DURING_HOLD, HELD_LINE } from "../../sbrowser/hold.ts";
 import { agentInfo } from "../../sbrowser/agentinfo.ts";
 import { faceSvg } from "../../sbrowser/face.ts";
 import { waitingNote } from "../../capacity.ts";
@@ -261,6 +262,11 @@ const fillGrants = new Map<string, { token: string; revoke(): void }>();
 async function browserCall(ctx: CompCtx, profileId: string, spec: ToolSpec, args: ToolArgs): Promise<ToolAnswer> {
   const sb = spaceBrowser();
   if (!sb) raise(ctx, "provider.unavailable", "The Space browser is not running on this host.");
+  // a person at the controls: the agent's tools wait here, before the call reaches the browser service, however that service is reached and after it restarts (the hold is the module's own)
+  if (!DURING_HOLD.has(spec.name)) {
+    const h = await currentHold(ctx, sb, profileId);
+    if (h) raise(ctx, "provider.unavailable", HELD_LINE, { takeoverBy: h.personId });
+  }
   let fill: { url: string; token: string } | undefined;
   const binding = boundFill();
   // every call carries the channel, not only the typing ones: Vyre for Chrome in the profile fills logins on its own when a page loads, and asks the Vault through it

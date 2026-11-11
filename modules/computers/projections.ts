@@ -2,6 +2,7 @@
 // @reads /modules/computers/migrations/0002_nodes.sql
 // @reads /modules/computers/migrations/0003_claims.sql
 // @reads /modules/computers/migrations/0004_migration.sql
+// @reads /modules/computers/migrations/0005_browser_hold.sql
 // Durable rows of the computers module (agent computers, recordings, tickets, timeline steps, signed-in sessions), the port to the machine that runs the containers, and the helpers
 // every computers handler shares. Every statement names a computers_* table, which is all ctx.db lets a module touch. The migration file is the one source of the schema.
 import { readFileSync } from "node:fs";
@@ -155,6 +156,7 @@ const SCHEMA = statements(["0001_init.sql", "0002_nodes.sql"]);
 /** Added after the first Spaces existed: every statement is IF NOT EXISTS, so a database that already has the first two gets it on its next use. */
 const CLAIMS = statements(["0003_claims.sql"]);
 const MIGRATION = statements(["0004_migration.sql"]);
+const HOLD = statements(["0005_browser_hold.sql"]);
 const ready = new WeakSet<object>();
 
 export function ensure(db: Db): void {
@@ -162,6 +164,7 @@ export function ensure(db: Db): void {
   try { db.all("SELECT site FROM computers_sessions WHERE computer_id = ?", "probe"); } catch { for (const stmt of SCHEMA) db.run(stmt); }
   try { db.all("SELECT claim_key FROM computers_claim WHERE claim_key = ?", "probe"); } catch { for (const stmt of CLAIMS) db.run(stmt); }
   try { db.all("SELECT computer_id FROM computers_migration WHERE computer_id = ?", "probe"); } catch { for (const stmt of MIGRATION) db.run(stmt); }
+  try { db.all("SELECT profile_id FROM computers_browser_hold WHERE profile_id = ?", "probe"); } catch { for (const stmt of HOLD) db.run(stmt); }
   ready.add(db);
 }
 

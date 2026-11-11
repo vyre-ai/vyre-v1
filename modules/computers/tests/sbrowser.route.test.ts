@@ -324,3 +324,74 @@ test("while a person holds an agent's browser the agent's tools are refused with
     assert.equal(out.loading, false, "given back, the agent works at once");
   } finally { off(); }
 });
+
+// ---- the module's own hold (audit B4, bug 11) ----
+
+function holdingBrowser(o: { giveBackFails?: boolean } = {}) {
+  const held = new Map<string, string>();
+  const calls: BrowserToolCall[] = [];
+  let viewers = 0;
+  let lastActiveAt = 0;
+  const sb: SpaceBrowser = {
+    async available() { return true; },
+    async tool(a) { calls.push(a); if (held.has(a.profileId) && a.by !== "person" && a.tool !== "chrome_status" && a.tool !== "chrome_stop") throw new ToolError("paused", "A person has the controls. The tools wait until they give them back."); return a.tool === "chrome_status" ? { connected: true, paused: false, held: [] } : { url: "https://example.com/", title: "Example", loading: false, ok: true, tabId: "t1", tree: "", truncated: false }; },
+    async downloads() { return []; }, async downloadRead() { return new Uint8Array(); }, async downloadAck() {},
+    async takeover(a) { held.set(a.profileId, a.personId); },
+    async giveBack(id) { if (o.giveBackFails) throw new ToolError("unavailable", "browserd is not answering"); held.delete(id); },
+    async screenshot() { return { bytes: new Uint8Array([1]), width: 1, height: 1 }; }, async stream() { return { transport: "mjpeg", url: "http://x", ws: "ws://x" }; }, async sessions() { return []; }, async signOut() { return true; }, async importChrome() { return { bytes: 0 }; }, async stop() {}, async forget() {},
+    async profiles() { return { profiles: [...held].map(([profileId, by]) => ({ profileId, running: true, tabs: 1, busy: false, takeover: true, takeoverBy: by, viewers, lastActiveAt, held: 0, paused: false })), maxRunning: 6 }; }, async health() { return { ok: true }; },
+  };
+  bindSpaceBrowser(sb);
+  return { sb, held, calls, restart() { held.clear(); }, watch(n: number) { viewers = n; }, active(t: number) { lastActiveAt = t; } };
+}
+const shareAs = (cls: "private" | "personal" | "shared" | "space", ownerId = DANA, people: string[] = []) => ({ "agents.share_class": () => ({ class: cls, ownerId, people }) });
+
+test("the module holds the agent's browser itself: a restarted browser service is told again, and the agent waits either way", async () => {
+  const b = holdingBrowser();
+  try {
+    const ag = harness({ principal: { kind: "agent", id: "agt_dex" }, actingFor: DANA });
+    const dana = asPerson(ag, { kind: "person", id: DANA }, { respond: shareAs("space") });
+    await tool["computers.browser.take_over"]!(dana.ctx, { agentId: "agt_dex" });
+    b.restart();
+    const before = b.calls.length;
+    await assert.rejects(() => tool["computers.chrome.click"]!(ag.ctx, { x: 1, y: 1 }), (e) => codeOf(e) === "provider.unavailable" && /A person has the controls/.test(JSON.stringify(e)));
+    assert.equal(b.calls.length, before, "refused by the module, before the browser service");
+    assert.equal(b.held.get("agt_dex"), DANA, "the restarted service holds it again");
+    assert.equal(typeof (await tool["computers.chrome.status"]!(ag.ctx, {})).connected, "boolean", "a look at the status runs");
+  } finally { off(); }
+});
+
+test("an abandoned takeover ends by itself after 15 quiet minutes with a plain line, and someone watching or acting keeps it", async () => {
+  const b = holdingBrowser();
+  try {
+    const ag = harness({ principal: { kind: "agent", id: "agt_dex" }, actingFor: DANA });
+    const dana = asPerson(ag, { kind: "person", id: DANA }, { respond: shareAs("space") });
+    await tool["computers.browser.take_over"]!(dana.ctx, { agentId: "agt_dex" });
+    ag.advance(14 * 60_000);
+    await assert.rejects(() => tool["computers.chrome.state"]!(ag.ctx, {}), (e) => /come back to you by themselves/.test(JSON.stringify(e)), "the agent is told it waits and for how long at most");
+    b.watch(1);
+    ag.advance(10 * 60_000);
+    await assert.rejects(() => tool["computers.chrome.state"]!(ag.ctx, {}), (e) => /A person has the controls/.test(JSON.stringify(e)), "someone watching keeps it");
+    b.watch(0);
+    b.active(ag.clock.t + 5 * 60_000);
+    ag.advance(5 * 60_000);
+    await assert.rejects(() => tool["computers.chrome.state"]!(ag.ctx, {}), (e) => /A person has the controls/.test(JSON.stringify(e)), "input through the live view keeps it");
+    ag.advance(15 * 60_000);
+    const out = await tool["computers.chrome.state"]!(ag.ctx, {});
+    assert.equal(out.url, "https://example.com/", "nobody there for 15 minutes: the agent has its browser back");
+    assert.equal(b.held.has("agt_dex"), false, "and the browser service was told");
+  } finally { off(); }
+});
+
+test("giving back always works: the agent has its tools even when the browser service does not answer the give back", async () => {
+  const b = holdingBrowser({ giveBackFails: true });
+  try {
+    const ag = harness({ principal: { kind: "agent", id: "agt_dex" }, actingFor: DANA });
+    const dana = asPerson(ag, { kind: "person", id: DANA }, { respond: shareAs("space") });
+    await tool["computers.browser.take_over"]!(dana.ctx, { agentId: "agt_dex" });
+    const back = await tool["computers.browser.give_back"]!(dana.ctx, { agentId: "agt_dex" });
+    assert.equal(back.profile.takeoverBy, undefined);
+    b.held.clear();   // what a service that restarted holds
+    assert.equal((await tool["computers.chrome.state"]!(ag.ctx, {})).url, "https://example.com/");
+  } finally { off(); }
+});
