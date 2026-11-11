@@ -1,2 +1,6 @@
 - Removing someone from a project, or giving them a lower project role, now takes effect at once, even while the project is still being set up; before, the setup could quietly give the old access back.
 - Signing out, ending a session from the devices list, revoking a device, suspending or removing a person now also closes that person's open live connection, so the app on that device can do nothing more as them.
+- Leaving a chat or channel, or being taken out of one, now also takes away your view of the agents that chat made, at once; an agent taken out of a channel loses what the channel gave it.
+- A join step that failed and is tried again later no longer gives back a role, group, project role or channel an admin changed in the meantime, and gives nothing to someone who was removed or is suspended.
+- Taking a share off a record, or lowering it, now also takes it off the record's Files folder at once.
+- A form link revoked while someone was still sending the form now refuses that submission.
