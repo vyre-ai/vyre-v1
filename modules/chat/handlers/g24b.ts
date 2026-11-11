@@ -13,7 +13,7 @@ import {
 import { isTrustedService } from "../../../lib/trust.ts";
 import type { ChannelRec, ChatCtx, Db, Mode } from "../projections.ts";
 import { mayGovernChannel, seesSpace } from "./post.ts";
-import { familyOf, grantsOf, revokeGrants, unshareOwnedFrom } from "./owned.ts";
+import { leftFamily, grantsOf, revokeGrants, unshareOwnedFrom } from "./owned.ts";
 
 type Row = Record<string, unknown>;
 const KINDS = ["people", "agents", "runs"] as const;
@@ -69,7 +69,7 @@ function cleanName(ctx: ChatCtx, raw: string): string {
 /** Out of the channel: what being in it gave (the person's view of the agents the channel and its threads made) goes back first, then the membership (owned.ts). True when they were in it. */
 async function leaveWithGrants(ctx: ChatCtx, ch: ChannelRec, person: string): Promise<boolean> {
   if (!isMember(ctx.db, ch.mainThread, person)) return false;
-  return unshareOwnedFrom(ctx, familyOf(ctx, ch.mainThread), person, () => dropMember(ctx, ch.mainThread, person));
+  return unshareOwnedFrom(ctx, leftFamily(ctx, ch.mainThread, person), person, () => dropMember(ctx, ch.mainThread, person));
 }
 
 function dropMember(ctx: ChatCtx, thread: string, person: string): boolean {

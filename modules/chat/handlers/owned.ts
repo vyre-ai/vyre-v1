@@ -88,6 +88,11 @@ export async function shareOwnedWith(ctx: ChatCtx, threadId: string, person: str
   }, limits(ctx));
 }
 
+/** What leaving `left` takes back for `person`: that thread and the threads under it, except a thread under it where the person is still a direct member (that membership keeps what it gives). */
+export function leftFamily(ctx: ChatCtx, left: string, person: string): string[] {
+  return familyOf(ctx, left).filter((id) => id === left || !isMember(ctx.db, id, person));
+}
+
 /** A thread and the threads under it (a channel's main thread and its threads), to the depth threads nest. */
 export function familyOf(ctx: ChatCtx, root: string): string[] {
   ensure(ctx.db);

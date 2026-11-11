@@ -5,6 +5,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { handlers } from "../impl.ts";
 import { DANA, INTAKE, LEO, harness as baseHarness } from "../fixtures/harness.ts";
+import { addMember, insertThread } from "../projections.ts";
 import type { Harness } from "../fixtures/harness.ts";
 
 type Fn = (ctx: Harness["ctx"], input: any) => Promise<any>;   // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -101,4 +102,16 @@ test("channels.agents.remove: the agent loses what the channel gave it", async (
   grants.push({ resource: { type: "folder", id: "fld_other" }, subject: { kind: "agent", id: OUTSIDE }, level: "view", source: "direct" });
   await h["channels.agents.remove"]!(hn.ctx, { channelId: ch.channelId, agentId: OUTSIDE });
   assert.deepEqual(grants.filter((g) => g.subject.id === OUTSIDE).map((g) => g.source), ["direct"], "what the channel gave is gone; the direct share stays");
+});
+
+test("leaving a channel keeps what a thread under it gives when the person is still a direct member of that thread", async () => {
+  const { hn, grants } = world();
+  const ch = (await h["channels.create"]!(hn.ctx, { name: "deep", visibility: "invite", memberIds: [LEO], idempotencyKey: key() })).channel as { channelId: string; mainThreadId: string };
+  const sub = insertThread(hn.ctx, { kind: "chat", title: "Side", starter: DANA, listed: true, channelId: ch.channelId, parentThreadId: ch.mainThreadId });
+  addMember(hn.ctx, sub.id, DANA, "owner");
+  addMember(hn.ctx, sub.id, LEO);
+  const a = (await h["threads.agent.create"]!(hn.ctx, { threadId: sub.id, name: "Side helper", idempotencyKey: key() })).agentId as string;
+  assert.equal(on(grants, LEO, a).length, 1, "Leo sees the side thread's agent");
+  await h["channels.leave"]!(hn.as({ kind: "person", id: LEO }), { channelId: ch.channelId });
+  assert.equal(on(grants, LEO, a).length, 1, "still a member of the side thread, he keeps it");
 });
