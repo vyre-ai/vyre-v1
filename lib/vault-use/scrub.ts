@@ -27,6 +27,12 @@ function b64Variants(raw: Uint8Array): string[] {
   return out;
 }
 
+/** The inside of bash's $'...' for a value: named escapes, an escaped quote and backslash, octal for any other control character. */
+function ansiC(value: string): string {
+  const named: Record<string, string> = { "\n": "\\n", "\t": "\\t", "\r": "\\r", "\x07": "\\a", "\b": "\\b", "\x1b": "\\E", "\f": "\\f", "\v": "\\v", "'": "\\'", "\\": "\\\\" };
+  return Array.from(value, (c) => named[c] ?? (c.charCodeAt(0) < 32 || c.charCodeAt(0) === 127 ? `\\${c.charCodeAt(0).toString(8).padStart(3, "0")}` : c)).join("");
+}
+
 /** Every spelling of `value` we remove. */
 export function variantsOf(value: string): string[] {
   const raw = new TextEncoder().encode(value);
@@ -41,6 +47,14 @@ export function variantsOf(value: string): string[] {
   set.add(hex);
   set.add(hex.toUpperCase());
   for (const v of b64Variants(raw)) set.add(v);
+  // How a shell or a terminal can show the value (review 12 Nov, 5 and 6): a pty turns each line end into CRLF; xtrace and shell quoting close and reopen around a single quote; bash writes a value
+  // with a control character as $'...'; printf %q puts a backslash before each special character.
+  if (value.includes("\n")) set.add(value.replace(/\r?\n/g, "\r\n"));
+  if (value.includes("'")) set.add(value.replace(/'/g, "'\\''"));
+  if (/[^A-Za-z0-9,._+:@%/=-]/.test(value)) {
+    set.add(value.replace(/([^A-Za-z0-9,._+:@%/=-])/g, "\\$1"));
+    set.add(ansiC(value));
+  }
   return [...set].filter((v) => v.length >= (v === value ? MIN_SECRET_LENGTH : 6));
 }
 

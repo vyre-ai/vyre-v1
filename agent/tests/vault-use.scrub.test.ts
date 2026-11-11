@@ -163,3 +163,18 @@ test("value never reaches transcript or model context: arguments as written, scr
     if (!failed.ok) for (const v of variantsOf(value)) assert.ok(!JSON.stringify(failed).includes(v));
   }
 });
+
+test("review findings 5 and 6: the spellings a shell or a terminal makes of a value are scrubbed too: CRLF line ends, shell quoting, $'...' and backslash-escaped forms", () => {
+  const value = "it's a\nsecret\tkey!";
+  const s = createScrubber([{ handle: "#K.v", itemId: "itm", value }]);
+  const forms = [
+    value.replaceAll("\n", "\r\n"),                                   // the pty's line ends, as the live view gets them
+    `'${value.replace(/'/g, "'\\''")}'`,                              // xtrace and shQuote
+    "$'it\\'s a\\nsecret\\tkey!'",                                    // bash's $'...' (set -x, printf %q of a control character)
+    "it\\'s\\ a\\\nsecret\\\tkey\\!",                                  // backslash before each special character (printf %q of a plain one)
+  ];
+  for (const f of forms) {
+    const out = s.scrub(`x ${f} y`);
+    assert.ok(out.includes("[#K.v]") && !out.includes("secret"), `${JSON.stringify(f)} -> ${JSON.stringify(out)}`);
+  }
+});

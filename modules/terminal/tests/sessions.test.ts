@@ -283,7 +283,7 @@ test("W6: a handle in the command line is never pasted in as its value; a value 
     [`echo 'pw=#Db.password!'`, `echo 'pw='"\${VYRE_H_1}"'!'`],
     [`cat <<EOF\nuser=#Db.password\nEOF`, `cat <<EOF\nuser=\${VYRE_H_1}\nEOF`],
     [`x=$(echo #Db.password) && curl -H "k: #Api.key" #Db.password`, `x=$(echo "\${VYRE_H_1}") && curl -H "k: \${VYRE_H_2}" "\${VYRE_H_1}"`],
-    ["echo #general #Db.password", `echo #general "\${VYRE_H_1}"`],
+    ["echo tag#general #Db.password", `echo tag#general "\${VYRE_H_1}"`],
   ];
   for (const [command, line] of lines) {
     await call(hn, "terminal.run", { command, idempotencyKey: idem() }, agent);
@@ -479,4 +479,49 @@ test("review finding 1, terminal side: the error of a failed run and the status 
   try { await h["terminal.run"]!(hn.as(AGENT, "usr_omar"), { command: "anything", session: "omar" }); } catch (e) { said = JSON.stringify(e) + String((e as Error).message); }
   assert.ok(said !== "" && !said.includes(KEY), said.replaceAll(KEY, "<KEY>"));
   assert.equal(JSON.stringify(hn.logged).includes(KEY), false, "nor the log");
+});
+
+test("review finding 10: forms the reader cannot be sure of are refused with a line that names the handle; here-strings, arithmetic and (( )) before a handle are read right", async () => {
+  const EVIL = "a*b$c;touch /tmp/vyre-pwned";
+  const { hn, host } = setup();
+  bindValues(fakeValues({ "#Db.password": EVIL }));
+  const agent = hn.as(AGENT, "usr_dana");
+  const fine: Array<[string, string]> = [
+    ["cat <<< #Db.password", `cat <<< "\${VYRE_H_1}"`],
+    ["echo $((a<<2)); echo #Db.password", `echo $((a<<2)); echo "\${VYRE_H_1}"`],
+    ["(( n = 1 )) && echo #Db.password", `(( n = 1 )) && echo "\${VYRE_H_1}"`],
+    [`x="$(echo #Db.password)"`, `x="$(echo "\${VYRE_H_1}")"`],
+  ];
+  for (const [command, line] of fine) {
+    await call(hn, "terminal.run", { command, idempotencyKey: idem() }, agent);
+    assert.equal((host.calls.at(-1)?.args as { command: string }).command, line, command);
+  }
+  const unsure = [
+    `x="$(case y in a) echo #Db.password;; esac)"`,
+    "echo ${X:-#Db.password}",
+    "echo $(( #Db.password ))",
+    "case $1 in *) echo #Db.password ;; esac",
+  ];
+  for (const command of unsure) {
+    const before = host.count("run");
+    let err: unknown = null;
+    try { await h["terminal.run"]!(agent, { command }); } catch (e) { err = e; }
+    assert.equal(codeOf(err), "validation.bad_input", command);
+    assert.match(JSON.stringify(err), /#Db\.password stands where Vyre cannot tell how the shell will read it.*Pass it with env/, command);
+    assert.equal(host.count("run"), before, `${command}: nothing ran`);
+  }
+});
+
+test("review finding 9: a handle in a # comment is never looked up, so it is neither read nor audited, and the command runs as written", async () => {
+  const { hn, host } = setup({ "echo hi # set to #Db.password": { exitCode: 0, output: "hi" }, "echo #nottag then #Db.password": { exitCode: 0, output: "" } });
+  const asked: string[] = [];
+  const table = fakeValues({ "#Db.password": "pw-0123456789" });
+  bindValues({ lookup: async (handle, who) => { asked.push(handle); return table.lookup(handle, who); } });
+  const agent = hn.as(AGENT, "usr_dana");
+  const r = await call(hn, "terminal.run", { command: "echo hi # set to #Db.password", idempotencyKey: idem() }, agent);
+  assert.equal(r.output, "hi");
+  // an unknown #word at the start of a word is a comment for the shell, and so is the rest of the line
+  await call(hn, "terminal.run", { command: "echo #nottag then #Db.password", idempotencyKey: idem() }, agent);
+  assert.deepEqual(asked, ["#nottag"], "only the word the shell would read was asked about");
+  assert.deepEqual((host.calls.at(-1)?.args as { env: unknown }).env, {}, "no value went anywhere");
 });

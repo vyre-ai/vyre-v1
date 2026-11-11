@@ -45,6 +45,30 @@ function files(dir: string): string[] {
   return out;
 }
 
+/**
+ * A real binding: a call of the binder from production code (this module, or the host, which reaches a module's binders as methods of its exports: `mod.bindX?.(...)`), with something to bind.
+ * Naming it in a string, or calling it with null or false (taking it back out), is not one (review 12 Nov, finding 11).
+ */
+export function isBound(name: string, mod: string, text: ReadonlyMap<string, string>): boolean {
+  const callIn = new RegExp(`(^|[^A-Za-z0-9_.])${name}(\\?\\.)?\\(\\s*(?!(?:null|false)\\s*\\))`);
+  const methodCall = new RegExp(`\\.${name}(\\?\\.)?\\(\\s*(?!(?:null|false)\\s*\\))`);
+  return [...text].some(([r, s]) => (r.startsWith(`${mod}/`) || r.startsWith("host/")) && s.split("\n").some((line) => {
+    const t = line.trim();
+    if (/^(import|export \{|export \*|\/\/|\*|\/\*\*)/.test(t) || new RegExp(`^export (function|const) ${name}\\b`).test(t)) return false;
+    return callIn.test(line) || (r.startsWith("host/") && methodCall.test(line));
+  }));
+}
+
+test("the guard counts only a real call with something to bind: a quoted name in the host, or a call with null, is not a binding", () => {
+  const mod = "modules/demo";
+  const def = ["modules/demo/projections.ts", "export function bindThing(x: unknown) { thing = x; }"] as const;
+  assert.equal(isBound("bindThing", mod, new Map([def, ["host/src/daemon/daemon.ts", `const names = ["bindThing", 'bindThing'];`]])), false, "a name in quotes");
+  assert.equal(isBound("bindThing", mod, new Map([def, ["modules/demo/impl.ts", "bindThing(null);"]])), false, "taking it out");
+  assert.equal(isBound("bindThing", mod, new Map([def, ["modules/other/impl.ts", "bindThing(real);"]])), false, "another module's call");
+  assert.equal(isBound("bindThing", mod, new Map([def, ["modules/demo/impl.ts", "bindThing(createThing());"]])), true, "the module binds it");
+  assert.equal(isBound("bindThing", mod, new Map([def, ["host/src/daemon/daemon.ts", "comp.bindThing?.(async () => real);"]])), true, "the host binds it through the module's exports");
+});
+
 test("every port a module exports is bound by production code, or is listed with why not", () => {
   const prod = [...files(path.join(ROOT, "modules")), ...files(path.join(ROOT, "host", "src"))].map((p) => ({ rel: path.relative(ROOT, p).split(path.sep).join("/"), p })).filter((f) => !testy(f.rel));
   const text = new Map(prod.map((f) => [f.rel, fs.readFileSync(f.p, "utf8")] as const));
@@ -58,14 +82,7 @@ test("every port a module exports is bound by production code, or is listed with
       const key = `${mod}:${name}`;
       if (seen.has(key)) continue;
       seen.add(key);
-      // a call is the name followed by `(` or `?.(`, on a line that is not its definition, an import or a re-export; in this module or in the host (which binds through the loader by name too)
-      const call = new RegExp(`(^|[^A-Za-z0-9_.])${name}(\\?\\.)?\\(`);
-      const named = new RegExp(`["'.]${name}["'?]`);
-      const called = [...text].some(([r, s]) => (r.startsWith(`${mod}/`) || r.startsWith("host/")) && s.split("\n").some((line) => {
-        const t = line.trim();
-        if (/^(import|export \{|export \*|\/\/|\*|\/\*\*)/.test(t) || new RegExp(`^export (function|const) ${name}\\b`).test(t)) return false;
-        return call.test(line) || (r.startsWith("host/") && named.test(line));
-      }));
+      const called = isBound(name, mod, text);
       if (called && KNOWN_UNBOUND.has(key)) unbound.push(`${key} is bound now: take it off KNOWN_UNBOUND`);
       if (!called && TEST_ONLY[key] === undefined && !KNOWN_UNBOUND.has(key)) unbound.push(`${key} (${rel})`);
     }

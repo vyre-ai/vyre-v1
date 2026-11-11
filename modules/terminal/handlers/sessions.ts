@@ -8,7 +8,7 @@ import {
   MAX_RULES, MAX_RULE_CHARS, TICKET_MS, actorOf, boundHost, boundKit, boundPlace, boundValues, clean, commandsOf, ensure, forgetSecrets, hostOf, insertSession, isTeam, judge, mintId, raise, rememberSecrets,
   rulesOf, sessionBy, sessionOf, sha256, ticketSecret, touch, workspacesFor, boundWorkspaceStatus, SESSION_SELECT, insertTab, scopeOf,
 } from "../projections.ts";
-import { QuotedHereDoc, referHandles } from "../fill.ts";
+import { classify, QuotedHereDoc, referHandles, UnsurePlace } from "../fill.ts";
 import type { HandleRef } from "../fill.ts";
 import { HANDLE, SEALED } from "../../../lib/vault-use/index.ts";
 import { judged, isDangerous } from "../risk.ts";
@@ -453,26 +453,33 @@ export async function run(ctx: TermCtx, a: RunInput) {
   let line = command;
   if (base) {
     const names = new Map<string, string>();
-    const spots = [...command.matchAll(new RegExp(HANDLE.source, "g")), ...command.matchAll(new RegExp(SEALED.source, "g"))].sort((x, y) => (x.index ?? 0) - (y.index ?? 0));
-    let end = -1;
-    for (const m of spots) {
-      const at = m.index ?? 0;
-      if (at < end) continue;   // inside a spot already taken
-      const handle = m[0];
-      if ((await source.lookup(handle, who)).kind === "unknown") continue;
-      let name = names.get(handle);
+    const found = [...command.matchAll(new RegExp(HANDLE.source, "g")), ...command.matchAll(new RegExp(SEALED.source, "g"))].sort((x, y) => (x.index ?? 0) - (y.index ?? 0));
+    const spots: Array<{ at: number; length: number; handle: string }> = [];
+    for (const m of found) { const at = m.index ?? 0; const last = spots[spots.length - 1]; if (!last || at >= last.at + last.length) spots.push({ at, length: m[0].length, handle: m[0] }); }
+    // Each spot is asked about in order, and only where the shell would read it: a handle in a # comment is never looked up (nor audited). Text the Vault does not know at the start of a word is a
+    // comment for the shell, and so is the rest of its line, so the place of every later spot is read again after each answer.
+    const isHandle = new Map<number, boolean>();
+    let modes = classify(command, spots, (at) => isHandle.get(at) !== false);
+    for (;;) {
+      const next = spots.find((x) => !isHandle.has(x.at) && modes.get(x.at) !== "comment");
+      if (!next) break;
+      isHandle.set(next.at, (await source.lookup(next.handle, who)).kind !== "unknown");
+      modes = classify(command, spots, (at) => isHandle.get(at) !== false);
+    }
+    for (const x of spots) {
+      if (isHandle.get(x.at) !== true || modes.get(x.at) === "comment") continue;
+      let name = names.get(x.handle);
       if (name === undefined) {
         let n = names.size + 1;
         while (`VYRE_H_${n}` in env) n++;
         name = `VYRE_H_${n}`;
-        names.set(handle, name);
-        env[name] = handle;
+        names.set(x.handle, name);
+        env[name] = x.handle;
       }
-      refs.push({ at, length: handle.length, name });
-      end = at + handle.length;
+      refs.push({ at: x.at, length: x.length, name });
     }
     try { line = referHandles(command, refs); }
-    catch (e) { raise(ctx, "validation.bad_input", e instanceof Error ? e.message : "That command cannot take a Vault value.", e instanceof QuotedHereDoc ? { handle: e.handle } : undefined); }
+    catch (e) { raise(ctx, "validation.bad_input", e instanceof Error ? e.message : "That command cannot take a Vault value.", e instanceof QuotedHereDoc || e instanceof UnsurePlace ? { handle: e.handle } : undefined); }
   }
   // The command is recorded when the machine is actually asked to run it: a command refused before that (a handle the person may not use) is not a step.
   let started: { at: number; rowId: number } | null = null;

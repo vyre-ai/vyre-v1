@@ -12,7 +12,7 @@ import os from "node:os";
 import path from "node:path";
 import { createTmuxHost, handlers, openFrames } from "../impl.ts";
 import type { Exec, ExecResult } from "../impl.ts";
-import { bindHost, bindTeam, bindValues, scrubberFor, spellingsFor } from "../projections.ts";
+import { bindHost, bindKit, bindTeam, bindValues, scrubberFor, spellingsFor } from "../projections.ts";
 import { fakeValues, harness, reset } from "../fixtures/harness.ts";
 import type { Harness } from "../fixtures/harness.ts";
 
@@ -322,4 +322,61 @@ test("tmux (review 3, 5): a values buffer an earlier daemon left is removed, a b
   await assert.rejects(() => host.run("trm_hv7", { command: "true", env: { K: VALUE }, timeoutMs: 3000 }), /still running something/);
   assert.equal((await runTmux(["list-buffers", "-F", "#{buffer_name}"])).stdout.includes("vyre-env-"), false);
   await host.interrupt("trm_hv7");
+});
+
+test("tmux (review 10): in real bash, every form the reader accepts hands the command the value exactly, a glob character included, and never runs it", { skip }, async () => {
+  const EVIL = "a*b?[c]$d;touch $HOME/vyre-pwned-10";
+  reset();
+  bindHost(host);
+  bindTeam(() => true);
+  bindValues(fakeValues({ "#Db.password": EVIL }));
+  const hn = harness();
+  const agent = hn.as(AGENT, "usr_dana", "run_10");
+  try {
+    fs.writeFileSync(path.join(work, "abxc"), "");   // a file a glob of the value would match
+    const forms = [
+      "printf %s #Db.password | wc -c",
+      "cat <<< #Db.password | head -c -1 | wc -c",
+      "echo $((2<<1)) >/dev/null; printf %s #Db.password | wc -c",
+      "(( n = 1 )) && printf %s #Db.password | wc -c",
+      `x="$(printf %s #Db.password)"; printf %s "$x" | wc -c`,
+      `printf %s 'pw=#Db.password' | wc -c`,
+      "cat <<EOF | head -c -1 | wc -c\n#Db.password\nEOF",
+    ];
+    const want = [EVIL.length, EVIL.length, EVIL.length, EVIL.length, EVIL.length, EVIL.length + 3, EVIL.length];
+    for (const [i, command] of forms.entries()) {
+      const r = await h["terminal.run"]!(agent, { session: "forms", command, idempotencyKey: `f10-${i}` });
+      assert.equal(r.output.trim(), String(want[i]), `${command}: ${r.output}`);
+    }
+    assert.equal(fs.existsSync(path.join(work, "vyre-pwned-10")), false, "the value never ran");
+  } finally { reset(); }
+});
+
+test("tmux (review 6): a multi-line value a command prints reaches the live view with the terminal's CRLF line ends, and is scrubbed there too", { skip }, async () => {
+  const LINE2 = `pem${Math.random().toString(36).slice(2, 12)}`;
+  const PEM = `-----BEGIN KEY-----\n${LINE2}${LINE2}\n-----END KEY-----`;
+  reset();
+  bindHost(host);
+  bindTeam(() => true);
+  bindValues(fakeValues({ "#Dana_Pem.key": PEM }));
+  bindKit(null);   // the real scrubber (lib/vault-use), as a daemon has it
+  const hn = harness();
+  const agent = hn.as(AGENT, "usr_dana", "run_6");
+  try {
+    const opened = await h["terminal.open"]!(hn.ctx, { host: "agent_computer", agentId: "agt_intake", name: "pem", idempotencyKey: "hv6-open" });
+    const terminalId = opened.terminal.terminalId as string;
+    await h["terminal.run"]!(agent, { terminalId, command: "true", env: { K: "#Dana_Pem.key" }, idempotencyKey: "hv6-0" });
+    const att = await h["terminal.attach"]!(hn.ctx, { terminalId });
+    const got: string[] = [];
+    const raw: string[] = [];
+    const stopRaw = host.stream!(terminalId, (f) => raw.push(f));
+    const live = await openFrames(hn.db, att.ticket, hn.clock.t, (t) => got.push(t));
+    await sleep(300);
+    await h["terminal.run"]!(agent, { terminalId, command: 'printf "%s\\n" "$K"', env: { K: "#Dana_Pem.key" }, idempotencyKey: "hv6-1" });
+    await until("the printed key in the stream", () => got.join("").includes("[#Dana_Pem.key]") || raw.join("").includes(LINE2));
+    await sleep(300);
+    assert.ok(raw.join("").includes(`${LINE2}${LINE2}\r\n`), "the terminal sent it with CRLF line ends");
+    assert.equal(got.join("").includes(LINE2), false, `the live view: ${JSON.stringify(got.join("").slice(-300))}`);
+    live!.close(); stopRaw();
+  } finally { reset(); }
 });
