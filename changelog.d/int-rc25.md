@@ -1,0 +1,1 @@
+- Lane branches (wip/...) no longer start CI runs on every push: they are tested on the lane box, and CI runs on pull requests and integration branches, so runs stop starving each other.

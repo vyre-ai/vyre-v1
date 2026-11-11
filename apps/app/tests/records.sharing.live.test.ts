@@ -6,7 +6,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
-import { OUT, recordsSharingSpace } from "./records-sharing-kit.ts";
+import { OUT, recordsSharingSpace } from "./records-sharing-kit.test.ts";
 
 test("records sharing in the real app: Deals for Bea to edit and Cal to view, nothing for Dee, export on request, one deal Only me", async (t) => {
   await recordsSharingSpace(t, async ({ web, ada, bea, cal, dee, deals, deal, post, api, open }) => {

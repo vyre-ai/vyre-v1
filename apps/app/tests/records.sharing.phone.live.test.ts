@@ -3,7 +3,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
-import { OUT, recordsSharingSpace } from "./records-sharing-kit.ts";
+import { OUT, recordsSharingSpace } from "./records-sharing-kit.test.ts";
 
 test("records sharing on a phone: Records from the tab bar, Share, read only, nothing for Dee", async (t) => {
   await recordsSharingSpace(t, async ({ t, ada, cal, dee, deals, deal, api, open }) => {
