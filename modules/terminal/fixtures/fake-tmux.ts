@@ -11,6 +11,8 @@ export interface FakeTmuxOptions {
   scripts?: Record<string, Script>;
   installed?: boolean;
   version?: string;
+  /** Lines of history a session keeps; past it a tenth is dropped at a time, as tmux does. Default 20000. */
+  historyLimit?: number;
 }
 
 const RUN = /^printf '%s\\n' '(__VYRE_BEG_[0-9a-f]+__)'; (?:cd '((?:[^']|'\\'')*)' && )?([\s\S]*); printf '\\n%s:%d\\n' '(__VYRE_END_[0-9a-f]+__)' \$\?$/;
@@ -56,9 +58,18 @@ export function fakeTmux(o: FakeTmuxOptions = {}) {
   const installed = o.installed !== false;
 
   const escape = (text: string): string => Array.from(new TextEncoder().encode(text), (b) => (b < 32 || b === 92 || b > 126 ? `\\${b.toString(8).padStart(3, "0")}` : String.fromCharCode(b))).join("");
+  const limit = o.historyLimit ?? 20_000;
   const print = (s: Sess, text: string): void => {
     s.lines.push(...text.split("\n"));
+    // the cursor's line is one more, under the printed ones; what does not fit on the screen is history, and history past the limit goes a tenth at a time
+    while (s.lines.length + 1 - s.rows > limit) s.lines.splice(0, Math.max(1, Math.floor(limit / 10)));
     for (const cb of controls.get(s.name) ?? []) cb(`%output %1 ${escape(`${text}\n`)}`);
+  };
+  /** The screen as tmux holds it: the printed lines, then the cursor's line with what is typed on it; `h` of them are history, the last `rows` are the screen. */
+  const grid = (s: Sess): { all: string[]; h: number; cy: number } => {
+    const all = [...s.lines, s.typed];
+    const h = Math.max(0, all.length - s.rows);
+    return { all, h, cy: all.length - 1 - h };
   };
   const result = (command: string, env: Record<string, string>): ScriptResult => {
     const sc = scripts[command];
@@ -92,6 +103,22 @@ export function fakeTmux(o: FakeTmuxOptions = {}) {
   const flag = (argv: readonly string[], f: string): string | undefined => { const i = argv.indexOf(f); return i >= 0 ? argv[i + 1] : undefined; };
 
   const exec: Exec = async (argv) => {
+    // commands joined with ";" run one after another, their output together
+    if (argv[0] === "tmux" && argv.includes(";")) {
+      const out: string[] = [];
+      let part: string[] = [];
+      for (const a of [...argv.slice(1), ";"]) {
+        if (a !== ";") { part.push(a); continue; }
+        const r = await one(["tmux", ...part]);
+        if (r.code !== 0) return r;
+        out.push(r.stdout);
+        part = [];
+      }
+      return ok(out.join(""));
+    }
+    return one(argv);
+  };
+  const one: Exec = async (argv) => {
     calls.push([...argv]);
     if (argv[0] !== "tmux") return bad("not tmux");
     if (!installed) return { code: 127, stdout: "", stderr: "tmux: command not found" };
@@ -111,6 +138,7 @@ export function fakeTmux(o: FakeTmuxOptions = {}) {
     switch (sub) {
       case "display-message": {
         const fmt = argv[argv.length - 1];
+        if (fmt === "#{history_size} #{cursor_y} #{history_limit}") { const g = grid(s); return ok(`${g.h} ${g.cy} ${limit}\n`); }
         return ok(`${fmt === "#{pane_current_path}" ? s.cwd : fmt === "#{pane_current_command}" ? (s.hung ? "sleep" : "bash") : ""}\n`);
       }
       case "send-keys": {
@@ -121,8 +149,12 @@ export function fakeTmux(o: FakeTmuxOptions = {}) {
         return ok();
       }
       case "capture-pane": {
+        // as tmux: up to n lines of history above the screen, then every row of the screen (empty ones too)
         const n = Math.abs(Number(flag(argv, "-S")));
-        return ok(`${s.lines.slice(-n).join("\n")}\n`);
+        const g = grid(s);
+        const screen = g.all.slice(g.h);
+        while (screen.length < s.rows) screen.push("");
+        return ok(`${[...g.all.slice(Math.max(0, g.h - n), g.h), ...screen].join("\n")}\n`);
       }
       case "resize-window": s.cols = Number(flag(argv, "-x")); s.rows = Number(flag(argv, "-y")); return ok();
       case "kill-session": sessions.delete(s.name); return ok();

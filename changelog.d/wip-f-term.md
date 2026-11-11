@@ -6,3 +6,5 @@
 - Workspaces that were running when Vyre restarted go to sleep after their idle time again.
 - A terminal's status is shown only to people who may open that workspace.
 - The Terminal tab in a chat opens in the agent's workspace, the same sessions its commands use, instead of on this computer.
+- The Terminal tab's live view keeps showing new lines on long sessions (past 5,000 lines), and a line being typed or a prompt that changes shows as it is now instead of going missing.
+- A Terminal tab left open no longer keeps an agent's workspace awake: it sleeps after its idle time like any other, and wakes when you type or the agent runs something.

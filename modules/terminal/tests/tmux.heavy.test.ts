@@ -226,3 +226,28 @@ test("tmux: a Vault value filled into a command is removed from the result, the 
     assert.ok(screenAfter.includes(SECRET), "and the shell did receive the value, in pieces");
   } finally { reset(); }
 });
+
+test("real tmux: a tab's live read keeps every line, in order, once, while tmux drops old history between reads (12 Nov, audit item 14)", { skip }, async () => {
+  await open("trm_heavy_hist");
+  const s = "vyre-trm_heavy_hist";
+  // a small history, so tmux drops a tenth of it many times between two reads: the window is made again under the limit
+  assert.equal((await runTmux(["set-option", "-t", s, "history-limit", "200"])).code, 0);
+  assert.equal((await runTmux(["new-window", "-t", s])).code, 0);
+  assert.equal((await runTmux(["kill-window", "-t", `${s}:0`])).code, 0);
+  let cursor = (await host.read("trm_heavy_hist", { lines: 1 })).next;
+  const seen: number[] = [];
+  let to = 0;
+  for (let round = 0; round < 30; round++) {
+    const from = to + 1;
+    to += 150;
+    const r = await host.run("trm_heavy_hist", { command: `seq ${from} ${to}`, env: {}, timeoutMs: 20_000 });
+    assert.equal(r.exitCode, 0);
+    const got = await host.read("trm_heavy_hist", { lines: 1, since: cursor });
+    // the last line of an answer is the cursor's (the prompt), sent again next time; the rest are finished
+    seen.push(...got.text.split("\n").slice(0, -1).filter((l) => /^\d+$/.test(l)).map(Number));
+    cursor = got.next;
+  }
+  assert.equal(seen.length, to, `every line once (${seen.length} of ${to})`);
+  assert.deepEqual(seen, Array.from({ length: to }, (_, i) => i + 1), "in order");
+  await host.close("trm_heavy_hist");
+});

@@ -847,7 +847,8 @@ export function createWorkspaceTerminalHost(w: WorkspaceTerminalOptions): Worksp
 
   function tmuxFor(agentId: string): TerminalHost {
     let h = tmuxHosts.get(agentId);
-    if (!h) { h = createTmuxHost({ exec: (argv) => m.exec(agentId, argv), control: control(agentId), prefix }); tmuxHosts.set(agentId, h); }
+    // a tab's live read is quiet: it neither wakes the workspace nor counts as use, so a tab left open does not keep the workspace awake, and a person watching is not taken for the agent at work
+    if (!h) { h = createTmuxHost({ exec: (argv) => m.exec(agentId, argv), quietExec: (argv) => m.exec(agentId, argv, { quiet: true }), control: control(agentId), prefix }); tmuxHosts.set(agentId, h); }
     return h;
   }
 
@@ -901,7 +902,18 @@ export function createWorkspaceTerminalHost(w: WorkspaceTerminalOptions): Worksp
     async input(id, data) { await inSession(id, (h) => h.input(id, data)); },
     async interrupt(id) { await inSession(id, (h) => h.interrupt(id)); },
     async resize(id, cols, rows) { await inSession(id, (h) => h.resize(id, cols, rows)); const x = where.get(id); if (x) { x.cols = cols; x.rows = rows; } },
-    async read(id, r) { return inSession(id, (h) => h.read(id, r)); },
+    async read(id, r) {
+      const x = where.get(id);
+      if (r.since === undefined || !x) return inSession(id, (h) => h.read(id, r));
+      // the live read of an open tab: an asleep workspace has nothing new to show, and is left asleep until someone types or the agent runs something
+      const up = (await m.list().catch(() => [])).find((w) => w.agentId === x.agentId)?.state === "running";
+      if (!up) return { text: "", next: r.since };
+      if (x.gen !== m.generation(x.agentId)) {
+        if ((await m.exec(x.agentId, ["tmux", "has-session", "-t", nameOf(id)], { quiet: true })).code !== 0) return { text: "", next: r.since };
+        x.gen = m.generation(x.agentId);
+      }
+      try { return await tmuxFor(x.agentId).read(id, r); } catch { return { text: "", next: r.since }; }
+    },
     async run(id, r) {
       let t = await at(id);
       // held from the typed line to its end: the workspace neither sleeps nor is made again for a project change while it runs

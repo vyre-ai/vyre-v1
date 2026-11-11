@@ -62,7 +62,8 @@ test("read: the last lines of the screen, or only what came after a cursor", asy
   assert.equal(all.text, "one\ntwo\nthree\nfour");
   tm.write("vyre-trm_a1", "five");
   const fresh = await host.read("trm_a1", { lines: 100, since: all.next });
-  assert.deepEqual([fresh.text, fresh.next], ["five", all.next + 1]);
+  // the answer runs through the cursor's line (empty here, under "five"), which is `next` and comes again until it is finished (12 Nov: a line that changes between reads was lost)
+  assert.deepEqual([fresh.text, fresh.next], ["five\n", all.next + 1]);
 });
 
 // ---- run

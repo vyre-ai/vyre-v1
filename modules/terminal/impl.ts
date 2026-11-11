@@ -36,7 +36,17 @@ export interface TmuxOptions {
   scrollback?: number;
   /** tmux session names are `<prefix><terminalId>`. Default "vyre-". */
   prefix?: string;
+  /** How a tab's live read (read with `since`) runs tmux: an exec that neither wakes the machine nor counts as use (a workspace). Default `exec`. */
+  quietExec?: Exec;
 }
+
+/**
+ * Where a session's screen is, in lines counted from the first line it ever printed: tmux's history size and cursor row, and how many lines tmux dropped. Once the history is full tmux drops a tenth
+ * of its limit at a time, so between two reads it may have dropped some whole number of tenths; the last finished lines seen (the anchor) say which number it was: the one that puts them back where
+ * they were. With no anchor to go by (a full-screen program redrew everything) the fewest drops that explain the history size are taken, which can only show a line twice, never skip one.
+ */
+interface Marks { h: number; dropped: number; anchor?: { at: number; lines: string[] } }
+const POS = "#{history_size} #{cursor_y} #{history_limit}";
 
 const SHELLS: ReadonlySet<string> = new Set(["bash", "zsh", "sh", "dash", "fish", "ksh", "ash", "tmux"]);
 const ENV_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
@@ -84,6 +94,67 @@ export function createTmuxHost(o: TmuxOptions): TerminalHost {
   async function capture(session: string, lines: number): Promise<string> {
     return tidy(await tmux(["capture-pane", "-p", "-J", "-t", session, "-S", `-${Math.max(1, lines)}`]));
   }
+  const marks = new Map<string, Marks>();
+  type Pos = { h: number; cy: number; ny: number };
+  const posOf = (line: string): Pos | null => {
+    const [h, cy, lim] = line.trim().split(" ").map(Number);
+    if (h === undefined || cy === undefined || !Number.isFinite(h) || !Number.isFinite(cy)) return null;
+    return { h, cy, ny: Math.max(1, Math.floor((lim !== undefined && Number.isFinite(lim) ? lim : 2000) / 10)) };
+  };
+  async function position(run: Exec, session: string): Promise<Pos> {
+    const r = await run(["tmux", "display-message", "-p", "-t", session, POS]);
+    const p = r.code === 0 ? posOf(r.stdout) : null;
+    if (!p) throw new Error(`tmux did not say where the screen is: ${r.stderr.trim().slice(0, 200)}`);
+    return p;
+  }
+  /** The last `back` lines of history and the whole screen, with the position, in one tmux call (output between two calls would shift one against the other). */
+  async function grab(run: Exec, session: string, back: number): Promise<{ parts: string[]; p: Pos; shown: number }> {
+    const r = await run(["tmux", "capture-pane", "-p", "-t", session, "-S", `-${back}`, ";", "display-message", "-p", "-t", session, POS]);
+    if (r.code !== 0) throw new Error(`tmux capture-pane failed: ${r.stderr.trim().slice(0, 200)}`);
+    const parts = r.stdout.replace(/\n$/, "").split("\n").map((l) => l.replace(/\s+$/u, ""));
+    const p = posOf(parts.pop() ?? "");
+    if (!p) throw new Error("tmux did not say where the screen is");
+    return { parts, p, shown: Math.min(back, p.h) };
+  }
+  /** The session's lines from `since` (counted from its first line, or the cursor's line when not given) through the cursor's line, and the cursor's line. Moves the session's marks on. */
+  async function locate(run: Exec, session: string, since: number | undefined): Promise<{ lines: string[]; cursor: number }> {
+    const mk = marks.get(session);
+    const pre = await position(run, session);
+    const kmin = (h: number, ny: number): number => (mk ? Math.max(0, Math.ceil((mk.h - h) / ny)) : 0);
+    const estTop = (mk?.dropped ?? 0) + kmin(pre.h, pre.ny) * pre.ny + pre.h;
+    const want = since === undefined ? 0 : Math.max(0, estTop - since);
+    const fits = (g: Awaited<ReturnType<typeof grab>>, k: number): boolean => {
+      if (!mk?.anchor) return true;
+      const first = mk.dropped + k * g.p.ny + g.p.h - g.shown;
+      const at = mk.anchor.at - first;
+      return at >= 0 && mk.anchor.lines.every((l, i) => g.parts[at + i] === l);
+    };
+    let g = await grab(run, session, Math.min(scrollback * 4, want + 100));
+    let k: number | null = fits(g, kmin(g.p.h, g.p.ny)) ? kmin(g.p.h, g.p.ny) : null;
+    if (k === null && mk) {
+      // tmux may have dropped whole tenths of its history while the history size looked no smaller: look further back for the anchor
+      g = await grab(run, session, Math.min(g.p.h, Math.min(scrollback * 4, want + 100) + 10 * g.p.ny));
+      const k0 = kmin(g.p.h, g.p.ny);
+      for (let x = k0; x <= k0 + 10 && k === null; x++) if (fits(g, x)) k = x;
+      k ??= k0;
+    }
+    const dropped = (mk?.dropped ?? 0) + (k ?? 0) * g.p.ny;
+    const first = dropped + g.p.h - g.shown;
+    const cursor = dropped + g.p.h + g.p.cy;
+    const from = since === undefined ? cursor : Math.max(first, Math.min(since, cursor));
+    const lines = g.parts.slice(from - first, cursor - first + 1);
+    const anchorFrom = Math.max(first, cursor - 3);
+    marks.set(session, { h: g.p.h, dropped, ...(cursor > anchorFrom ? { anchor: { at: anchorFrom, lines: g.parts.slice(anchorFrom - first, cursor - first) } } : {}) });
+    return { lines, cursor };
+  }
+  /**
+   * The lines from `since` through the cursor's line, and the cursor's line as `next`: the line being typed on is sent again on every read until it is finished, so a prompt or a line that changes
+   * between two reads is never lost.
+   */
+  async function readSince(run: Exec, session: string, since: number): Promise<{ text: string; next: number }> {
+    const r = await locate(run, session, since);
+    return { text: r.lines.join("\n"), next: r.cursor };
+  }
 
   const host: TerminalHost = {
     async open(a) {
@@ -99,9 +170,11 @@ export function createTmuxHost(o: TmuxOptions): TerminalHost {
     async interrupt(terminalId) { await tmux(["send-keys", "-t", nameOf(terminalId), "C-c"]); },
     async resize(terminalId, cols, rows) { await tmux(["resize-window", "-t", nameOf(terminalId), "-x", String(cols), "-y", String(rows)]); },
     async read(terminalId, r) {
-      const all = (await capture(nameOf(terminalId), r.since === undefined ? r.lines : scrollback)).split("\n");
-      const text = r.since === undefined ? all.slice(-r.lines) : all.slice(r.since);
-      return { text: text.join("\n"), next: all.length };
+      const session = nameOf(terminalId);
+      if (r.since !== undefined) return readSince(o.quietExec ?? o.exec, session, r.since);
+      const all = (await capture(session, r.lines)).split("\n");
+      // the replay, and where a live read goes on from: the cursor's line, which the next read sends again
+      return { text: all.slice(-r.lines).join("\n"), next: (await locate(o.exec, session, undefined)).cursor };
     },
     async run(terminalId, r) {
       const session = nameOf(terminalId);
@@ -153,6 +226,7 @@ export function createTmuxHost(o: TmuxOptions): TerminalHost {
       return out;
     },
     async close(terminalId) {
+      marks.delete(nameOf(terminalId));
       const r = await o.exec(["tmux", "kill-session", "-t", nameOf(terminalId)]);
       // A session that is already gone is closed.
       if (r.code !== 0 && !/can't find session|no server running|no such session/i.test(r.stderr)) throw new Error(`tmux kill-session failed: ${r.stderr.trim().slice(0, 200)}`);
@@ -232,7 +306,7 @@ export interface ShellOptions {
   scrollback?: number;
 }
 
-interface ShellSession { cwd: string; lines: string[]; partial: string; typed: string; running: AbortController | null; exitCode: number | null; listeners: Set<(text: string) => void> }
+interface ShellSession { cwd: string; lines: string[]; partial: string; typed: string; running: AbortController | null; exitCode: number | null; listeners: Set<(text: string) => void>; dropped: number }
 
 /**
  * A session on a computer that has no tmux (a Mac does not ship it): each command runs in its own shell in the session's folder, and the session keeps a screen of what ran and what it printed, so
@@ -255,7 +329,7 @@ export function createShellHost(o: ShellOptions): TerminalHost {
     const parts = (s.partial + text.replace(/\r\n/g, "\n")).split("\n");
     s.partial = parts.pop() ?? "";
     s.lines.push(...parts);
-    if (s.lines.length > scrollback) s.lines.splice(0, s.lines.length - scrollback);
+    if (s.lines.length > scrollback) { s.dropped += s.lines.length - scrollback; s.lines.splice(0, s.lines.length - scrollback); }
     const frame = text.replace(/\r?\n/g, "\r\n");
     for (const f of s.listeners) f(frame);
   };
@@ -290,7 +364,7 @@ export function createShellHost(o: ShellOptions): TerminalHost {
   return {
     async open(a) {
       const cwd = a.cwd ?? o.home;
-      sessions.set(a.terminalId, { cwd, lines: [], partial: "", typed: "", running: null, exitCode: null, listeners: new Set() });
+      sessions.set(a.terminalId, { cwd, lines: [], partial: "", typed: "", running: null, exitCode: null, listeners: new Set(), dropped: 0 });
       return { cwd };
     },
     // A person typing: the line is kept until Enter, then run like a command of their own. Backspace takes back a character; Ctrl-C stops what runs.
@@ -314,9 +388,11 @@ export function createShellHost(o: ShellOptions): TerminalHost {
     async interrupt(terminalId) { const s = must(terminalId); s.running?.abort(); show(s, "^C\n"); },
     async resize(terminalId) { must(terminalId); },
     async read(terminalId, r) {
-      const all = screen(must(terminalId));
-      const text = r.since === undefined ? all.slice(-r.lines) : all.slice(r.since);
-      return { text: text.join("\n"), next: all.length };
+      // lines are counted from the session's first one, and the line being written on (the partial one) is `next`, sent again until it ends: the same reading as a tmux session's
+      const s = must(terminalId);
+      const all = screen(s);
+      const text = r.since === undefined ? all.slice(-r.lines) : all.slice(Math.max(0, r.since - s.dropped));
+      return { text: text.join("\n"), next: s.dropped + s.lines.length };
     },
     run: async (terminalId, r) => exec(must(terminalId), r),
     async status(ids) {
@@ -342,7 +418,7 @@ export function createShellHost(o: ShellOptions): TerminalHost {
     },
     async health() { return { ok: true, detail: "Commands run in a shell on this computer. Install tmux for full terminals.", sessions: sessions.size }; },
     // a plain session lives in this process: after a restart its row is made a session again, empty, in its folder
-    adopt(a) { if (!sessions.has(a.terminalId)) sessions.set(a.terminalId, { cwd: a.cwd ?? o.home, lines: [], partial: "", typed: "", running: null, exitCode: null, listeners: new Set() }); },
+    adopt(a) { if (!sessions.has(a.terminalId)) sessions.set(a.terminalId, { cwd: a.cwd ?? o.home, lines: [], partial: "", typed: "", running: null, exitCode: null, listeners: new Set(), dropped: 0 }); },
   };
 }
 

@@ -42,12 +42,16 @@ export function sessionLine(t: TerminalRow): string {
 export interface ReadOut { text: string; next: number }
 
 /**
- * The frames of one attached session. terminal.attach gave the replay; from the cursor `since` on, terminal.read answers whatever the shell printed since, and each non-empty
- * answer is one frame with the next sequence number. A failed read is tried again on the next tick; nothing is lost because the cursor moves only when a read succeeds.
+ * The frames of one attached session. terminal.attach gave the replay; from the cursor `since` on, terminal.read answers the lines from that line through the line the cursor is on, and `next` is the
+ * cursor's line, so the line being typed on comes again in every answer until it is finished. Each answer that differs from the last is one frame with the next sequence number: it first clears the
+ * line the screen ends on (the unfinished one it drew last time) and writes it again with what follows. A failed read is tried again on the next tick; nothing is lost because the cursor moves only
+ * when a read succeeds.
  */
+export const REDRAW_LINE = "\r\x1b[2K";
 export function pollSource(read: (since: number) => Promise<ReadOut>, since: number, everyMs = 400): TerminalSource {
   let seq = 0;
   let cursor = since;
+  let last = "";
   return {
     subscribe(onFrame: (frame: TerminalFrame) => void): () => void {
       let stopped = false;
@@ -56,8 +60,10 @@ export function pollSource(read: (since: number) => Promise<ReadOut>, since: num
         void read(cursor).then(
           (r) => {
             if (stopped) return;
+            const same = r.next === cursor && r.text === last;
             cursor = r.next;
-            if (r.text.length > 0) { seq += 1; onFrame({ seq, data: r.text }); }
+            last = r.text;
+            if (r.text.length > 0 && !same) { seq += 1; onFrame({ seq, data: `${REDRAW_LINE}${r.text.replace(/\n/g, "\r\n")}` }); }
           },
           () => undefined,
         ).then(() => { if (!stopped) timer = setTimeout(tick, everyMs); });

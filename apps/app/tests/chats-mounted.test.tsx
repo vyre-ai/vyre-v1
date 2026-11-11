@@ -29,7 +29,7 @@ import { connectEntries } from "../src/places/chats/conversation/Conversation.ts
 import { TerminalList } from "../src/places/chats/terminal/TerminalList.tsx";
 import { TerminalRules } from "../src/places/chats/terminal/TerminalRules.tsx";
 import { sessionProps } from "../src/places/chats/terminal/TerminalTab.tsx";
-import { RULE_LISTS, ago, linesText, openCall, ordered, parseLines, pollSource, rulesProblem, sameRules, uiHost, uiState } from "../src/places/chats/terminal/model.ts";
+import { REDRAW_LINE, RULE_LISTS, ago, linesText, openCall, ordered, parseLines, pollSource, rulesProblem, sameRules, uiHost, uiState } from "../src/places/chats/terminal/model.ts";
 import type { Rules, TerminalRow } from "../src/places/chats/terminal/model.ts";
 import { askServerAccess, attach, createSender, openSession, saveRules, toggleStar } from "../src/places/chats/terminal/session.ts";
 import { errorCode, isRefusal } from "../src/places/chats/mounts/live.ts";
@@ -431,7 +431,7 @@ test("terminal: the polled source delivers each answer as the next frame and sur
   await settle(20);
   assert.equal(frames.length, seen, "no frames after the subscription ends");
   assert.deepEqual(frames.map((f) => f.seq), frames.map((_, i) => i + 1), "sequence numbers count up from one");
-  assert.ok(frames.length >= 1 && frames[0]?.data === "a");
+  assert.ok(frames.length >= 1 && frames[0]?.data === `${REDRAW_LINE}a`, "the answer redraws the line the screen ends on, then writes what follows");
 });
 
 /* ---------- links and the whole place ---------- */
