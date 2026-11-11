@@ -9,6 +9,8 @@ import {
   DAY_MS, DEFAULT_EXPIRY_DAYS, EVERYONE, GUEST_ROLE, OWNER_ROLE, hashCode, inviteById, inviteByCode, inviteView, invitesAll, listOf, mustInvite, newCode, nid, normCode, page, raise, stateOf,
 } from "../projections.ts";
 
+import { oneAtATime } from "../../../lib/one-at-a-time.ts";
+
 const ok = { ok: true } as const;
 type Dev = "desktop" | "phone" | "web" | "extension" | "daemon";
 
@@ -167,7 +169,13 @@ export async function invitesPreview(ctx: MembersCtx, input: { code: string }) {
 
 // ---- the join effects
 
-export interface JoinStep { k: string; state: "pending" | "done" | "failed"; error?: string; tries: number }
+export interface JoinStep {
+  k: string; state: "pending" | "done" | "failed"; error?: string; tries: number;
+  /** what the Space held for this step when it first failed (areaState); a retry runs only while that is still so */
+  seen?: string | null;
+  /** set when a retry was dropped because someone changed this since: the step will not run again */
+  dropped?: string;
+}
 
 function stepsFor(r: InviteRow, guest?: { level: "view" | "reply" }): JoinStep[] {
   // a guest of one chat: the guest role, that chat and what they may do in it, and nothing the Space gives everyone (no Everyone group, no home channel, no company mailbox)
@@ -219,39 +227,123 @@ export const JOIN_SURFACE_AFTER = 3;
 /** The periodic retry stops trying a step after this many failures; an admin's Retry starts it again. */
 export const JOIN_MAX_TRIES = 50;
 
-/** Run every pending join step, for one person or for all. A step that fails is kept with its error and tried again next time; a step that worked is never run twice. */
+/**
+ * What the Space holds now for the thing a join step gives: the person's roles, whether they are in the group or the channel, their project role, their levels on the agent or resource. A retry
+ * compares it with what was there when the step first failed: if someone changed it since (an admin gave another role, took them out of a channel, set a project role), the admin's change wins
+ * and the step is dropped. Null: the step gives nothing anyone can take away (home channel, company mail, checklist). Throws when it cannot be read; the step then waits.
+ */
+async function areaState(ctx: MembersCtx, personId: string, step: JoinStep): Promise<string | null> {
+  const colon = step.k.indexOf(":");
+  const kind = colon < 0 ? step.k : step.k.slice(0, colon);
+  const arg = colon < 0 ? "" : step.k.slice(colon + 1);
+  if (kind === "role" || kind === "group") {
+    const p = ((await ctx.call("access.principals.get", { principal: { kind: "person", id: personId } })) as { principal: { roles?: string[]; groups?: string[] } }).principal;
+    return JSON.stringify([...((kind === "role" ? p.roles : p.groups) ?? [])].sort());
+  }
+  if (kind === "project") {
+    const ms = ((await ctx.call("projects.members.list", { projectId: arg })) as { members?: { principal: string; role: string }[] }).members ?? [];
+    return ms.find((m) => m.principal === personId)?.role ?? "none";
+  }
+  if (kind === "channel") {
+    const ch = ((await ctx.call("channels.get", { channelId: arg })) as { channel: { members?: { id: string }[] } }).channel;
+    return String((ch.members ?? []).some((m) => m.id === personId));
+  }
+  if (kind === "agent" || kind === "grant") {
+    const resource = kind === "agent" ? { type: "agent", id: arg } : { type: arg.split(":")[0]!, id: arg.split(":")[1]! };
+    const shares = ((await ctx.call("access.shares_of", { resource })) as { shares?: { grant: { subject: { id: string }; level: string } }[] }).shares ?? [];
+    return JSON.stringify(shares.filter((x) => x.grant.subject.id === personId).map((x) => x.grant.level).sort());
+  }
+  return null;
+}
+
+const logWarn = (ctx: MembersCtx, msg: string, attrs: Record<string, unknown>): void => { (ctx as { log?: { warn?(m: string, a?: Record<string, unknown>): void } }).log?.warn?.(msg, attrs); };
+
+/**
+ * Run every pending join step, for one person or for all. A step that fails is kept with its error and tried again next time; a step that worked is never run twice.
+ * An admin's later change always wins: a retry never gives back what someone changed or took away after the join (areaState), and nothing runs for a person who was removed (their steps are
+ * dropped) or is suspended (their steps wait). One person's steps run one pass at a time (lib/one-at-a-time.ts), so the accept and the periodic retry never run the same step side by side.
+ */
 export async function drainJoins(ctx: MembersCtx, personId?: string, opts: { periodic?: boolean } = {}): Promise<{ applied: number; pending: number }> {
-  const rows = (personId
+  const ids = (personId
     ? ctx.db.all(`SELECT * FROM members_joins WHERE person_id = ?`, personId)
-    : ctx.db.all(`SELECT * FROM members_joins WHERE state = ?`, "pending")) as { person_id: string; invite_id: string; steps: string; state: string }[];
+    : ctx.db.all(`SELECT * FROM members_joins WHERE state = ?`, "pending")) as { person_id: string }[];
   let applied = 0, pending = 0;
-  for (const j of rows) {
-    if (j.state === "applied") continue;
-    const steps = JSON.parse(j.steps) as JoinStep[];
-    for (const s of steps) {
-      if (s.state === "done") continue;
-      if (opts.periodic === true && s.tries >= JOIN_MAX_TRIES) continue;
-      try {
-        await runStep(ctx, j.person_id, s, j.invite_id);
-        s.state = "done";
-        delete s.error;
-      } catch (e) {
-        s.state = "failed";
-        s.tries++;
-        s.error = (e as { error?: { code?: string } }).error?.code ?? String(e).slice(0, 120);
-      }
-    }
-    const left = steps.filter((s) => s.state !== "done").length;
-    const before = JSON.parse(j.steps) as JoinStep[];
-    ctx.db.run(`UPDATE members_joins SET steps = ?, state = ?, applied_at = ? WHERE person_id = ?`, JSON.stringify(steps), left === 0 ? "applied" : "pending", left === 0 ? ctx.now() : null, j.person_id);
-    // a step that has failed JOIN_SURFACE_AFTER times now shows to admins; say so once, as it crosses
-    for (const s of steps) {
-      const was = before.find((b) => b.k === s.k);
-      if (s.state === "failed" && s.tries === JOIN_SURFACE_AFTER && (was?.tries ?? 0) < JOIN_SURFACE_AFTER) ctx.emit("member.join_stuck", j.person_id, { personId: j.person_id, step: s.k, error: s.error ?? "failed", tries: s.tries });
-    }
-    if (left === 0) applied++; else pending++;
+  for (const { person_id } of ids) {
+    const r = await oneAtATime(`members-join:${ctx.space}:${person_id}`, () => drainOne(ctx, person_id, opts));
+    if (r === "applied") applied++; else if (r === "pending") pending++;
   }
   return { applied, pending };
+}
+
+async function drainOne(ctx: MembersCtx, personId: string, opts: { periodic?: boolean }): Promise<"applied" | "pending" | "none"> {
+  // read again in the queue: another pass may have finished it meanwhile
+  const j = (ctx.db.all(`SELECT * FROM members_joins WHERE person_id = ?`, personId) as { person_id: string; invite_id: string; steps: string; state: string }[])[0];
+  if (!j || j.state === "applied") return "none";
+  const steps = JSON.parse(j.steps) as JoinStep[];
+  const before = JSON.parse(j.steps) as JoinStep[];
+  const retrying = steps.some((s) => s.state === "failed");
+  let status: string | undefined;
+  if (retrying) {
+    try { status = ((await ctx.call("access.principals.get", { principal: { kind: "person", id: j.person_id } })) as { principal: { status?: string } }).principal.status; }
+    catch { status = undefined; }
+  }
+  if (status === "suspended") return "pending";   // nothing is given to a suspended person; the steps wait for a reactivation
+  for (const s of steps) {
+    if (s.state === "done") continue;
+    if (opts.periodic === true && s.tries >= JOIN_MAX_TRIES) continue;
+    if (s.state === "failed") {
+      if (status === "removed") { drop(ctx, j.person_id, s, "the person was removed"); continue; }
+      if (s.seen !== undefined && s.seen !== null) {
+        let now: string | null;
+        try { now = await areaState(ctx, j.person_id, s); } catch { continue; }   // cannot tell what the Space holds now: the step waits, it never gives anything unchecked
+        if (now !== s.seen) { drop(ctx, j.person_id, s, "someone changed it after the join"); continue; }
+      }
+    }
+    try {
+      await runStep(ctx, j.person_id, s, j.invite_id);
+      s.state = "done";
+      delete s.error;
+      delete s.seen;
+    } catch (e) {
+      s.state = "failed";
+      s.tries++;
+      s.error = (e as { error?: { code?: string } }).error?.code ?? String(e).slice(0, 120);
+      if (s.seen === undefined) { try { s.seen = await areaState(ctx, j.person_id, s); } catch { /* read again at the next try */ } }
+    }
+  }
+  const left = steps.filter((s) => s.state !== "done").length;
+  ctx.db.run(`UPDATE members_joins SET steps = ?, state = ?, applied_at = ? WHERE person_id = ?`, JSON.stringify(steps), left === 0 ? "applied" : "pending", left === 0 ? ctx.now() : null, j.person_id);
+  // a step that has failed JOIN_SURFACE_AFTER times now shows to admins; say so once, as it crosses
+  for (const s of steps) {
+    const was = before.find((b) => b.k === s.k);
+    if (s.state === "failed" && s.tries === JOIN_SURFACE_AFTER && (was?.tries ?? 0) < JOIN_SURFACE_AFTER) ctx.emit("member.join_stuck", j.person_id, { personId: j.person_id, step: s.k, error: s.error ?? "failed", tries: s.tries });
+  }
+  return left === 0 ? "applied" : "pending";
+}
+
+/**
+ * Someone other than the join itself changed what a waiting join step would give (an admin set a project role or took the person out of a channel; the person left it). The step is dropped at
+ * once, in the person's queue, so a retry can never undo the change even when the change left no trace in what the Space holds now (put in, then taken out again). From the consumer in impl.ts.
+ */
+export async function supersedeJoinStep(ctx: MembersCtx, personId: string, key: string, why: string): Promise<void> {
+  await oneAtATime(`members-join:${ctx.space}:${personId}`, async () => {
+    const j = (ctx.db.all(`SELECT * FROM members_joins WHERE person_id = ?`, personId) as { steps: string; state: string }[])[0];
+    if (!j || j.state === "applied") return;
+    const steps = JSON.parse(j.steps) as JoinStep[];
+    const s = steps.find((x) => x.k === key && x.state !== "done");
+    if (!s) return;
+    drop(ctx, personId, s, why);
+    const left = steps.filter((x) => x.state !== "done").length;
+    ctx.db.run(`UPDATE members_joins SET steps = ?, state = ?, applied_at = ? WHERE person_id = ?`, JSON.stringify(steps), left === 0 ? "applied" : "pending", left === 0 ? ctx.now() : null, personId);
+  });
+}
+
+/** A retry that would undo a later change is not made: the step is closed as done, with why, and said in the log. */
+function drop(ctx: MembersCtx, personId: string, s: JoinStep, why: string): void {
+  s.state = "done";
+  s.dropped = why;
+  delete s.error;
+  logWarn(ctx, "members: a join step was not retried", { personId, step: s.k, why });
 }
 
 // ---- what admins see of joins that have not finished

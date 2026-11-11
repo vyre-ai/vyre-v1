@@ -347,6 +347,9 @@ export function harness(now = NOW) {
     roles: new Map<string, string>([["rol_owner", "Owner"], ["rol_admin", "Admin"], ["rol_member", "Member"], ["rol_guest", "Guest"]]),
     groups: new Set<string>(["grp_everyone", "grp_sales", "grp_ops"]),
     principals: new Map<string, FakePrincipal>(),
+    /** who is in each channel and holds a role on each project, as channels and projects keep them */
+    channelMembers: new Map<string, Set<string>>(),
+    projectRoles: new Map<string, Map<string, string>>(),
     devices: new Map<string, { id: string; revokedAt?: number }[]>(),
     holds: [] as { id: string; taskId: string; principal: { id: string }; actingFor?: string }[],
     owned: new Map<string, Partial<Record<RemovalKind, OwnedItem>>>(),
@@ -389,7 +392,14 @@ export function harness(now = NOW) {
         if (world.vaultDenied.has(item)) throw fail("permission.no_grant", TRACE, {});
         return { handle: i.item, itemId: "vit_members1", fields: ["value"] };
       }
-      case "access.share": case "projects.members.set": case "channels.members.add": return { ok: true };
+      case "projects.members.set": { const m = world.projectRoles.get(i.projectId) ?? new Map<string, string>(); m.set(i.principal, i.role); world.projectRoles.set(i.projectId, m); return { member: { principal: i.principal, role: i.role } }; }
+      case "projects.members.remove": { const had = world.projectRoles.get(i.projectId)?.delete(i.principal) ?? false; return { removed: had }; }
+      case "projects.members.list": return { members: [...(world.projectRoles.get(i.projectId) ?? new Map<string, string>())].map(([principal, role]) => ({ principal, role })) };
+      case "channels.members.add": { const m = world.channelMembers.get(i.channelId) ?? new Set<string>(); for (const id of i.personIds as string[]) m.add(id); world.channelMembers.set(i.channelId, m); return { ok: true }; }
+      case "channels.members.remove": { world.channelMembers.get(i.channelId)?.delete(i.personId); return { ok: true }; }
+      case "channels.get": return { channel: { channelId: i.channelId, members: [...(world.channelMembers.get(i.channelId) ?? new Set<string>())].map((id) => ({ kind: "person", id })) } };
+      case "access.shares_of": return { shares: [] };
+      case "access.share": return { ok: true };
       case "channels.home_join": return { channelId: "chn_vyre", added: true };
       case "access.join_share": return { grant: { id: "gnt_join" } };
       case "devices.list": return { devices: (world.devices.get(i.person) ?? []).map((d) => ({ ...d })) };
