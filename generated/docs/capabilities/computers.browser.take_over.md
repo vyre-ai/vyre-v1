@@ -7,7 +7,7 @@ Take over an agent's browser ("You're in control"): its tools wait, your clicks 
 | Module | computers |
 | Version | 1 (since 1.0.0) |
 | Effects | write |
-| Permission | computers.take_over |
+| Permission | computers.watch |
 | Grant level | use |
 | Risk | medium |
 | Resource | space |
