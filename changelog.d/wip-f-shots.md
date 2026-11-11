@@ -1,2 +1,4 @@
 - Fixed the screenshot check that ran out of time: the prototype shot no longer waits 30 seconds for a test id only the real app has.
 - Fixed three screenshot targets that waited for test ids the app no longer has (face picker upload tab, tab strip).
+- The push checks finish sooner: the agent computer test runs as four parallel jobs, quick browser tests share jobs, and tests are balanced by measured time.
+- Removed screenshot targets for the old Home screen, which the app no longer has.
