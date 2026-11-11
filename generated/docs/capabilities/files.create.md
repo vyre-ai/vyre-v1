@@ -19,7 +19,7 @@ Create a file in a folder from text, base64 or an uploaded blob
 | HTTP | POST /v1/files/create |
 | MCP tool | files_create (files) |
 | CLI | vyre files put |
-| Emits | file.created, file.version_added, changeset.opened |
+| Emits | file.created, file.version_added, changeset.opened, changeset.updated |
 
 ## Input
 

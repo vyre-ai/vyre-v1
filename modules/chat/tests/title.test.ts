@@ -54,7 +54,7 @@ test("with no account or a model that fails, the request's own words make the ti
   const { hn } = world(["Draft the October note for Sara"], null);
   const id = await chatOf(hn);
   const out = await titleMake(hn.ctx, { threadId: id, account: ACCOUNT });
-  assert.deepEqual(out, { made: true, title: "Draft the October note for" });
+  assert.deepEqual(out, { made: true, title: "Draft the October note" });
   const bare = world(["Reconcile the October ledger today"]);
   const id2 = await chatOf(bare.hn);
   assert.equal((await titleMake(bare.hn.ctx, { threadId: id2 })).title, "Reconcile the October ledger today");

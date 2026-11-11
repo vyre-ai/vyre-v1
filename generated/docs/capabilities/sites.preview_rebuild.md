@@ -19,7 +19,7 @@ Rebuild a preview or bring back a removed one
 | HTTP | POST /v1/sites/preview_rebuild |
 | MCP tool | sites_preview_rebuild (sites) |
 | CLI | none |
-| Emits | site.preview_created |
+| Emits | site.preview_created, site.build_failed, site.deployed, site.preview_removed |
 
 ## Input
 

@@ -1,5 +1,7 @@
 name: release
-# Tag to live under 25 minutes (ARCH-DECISIONS 13). Live needs the suite, client, kits, images and security; never native or desktop.
+# Tag to live under 25 minutes (ARCH-DECISIONS 13). Live needs the suite, client, kits, images, heavy and security; never native or desktop.
+# The suite is the one gate that may come from another run: when a finished main.yml run for exactly the tag commit ran the whole suite green (`reuse`, scripts/release/reuse.ts says what counts),
+# `select` and `suite` are skipped and the release notes name that run. With no such run they run here, as before. Every other gate always runs here, on the tag.
 # After live: sign (in the `release` Environment, after its reviewer approves), publish to the GitHub Release of the tag, and a post-publish smoke. docs/release/runbook.md says how and why.
 # The macOS DMG is downloaded once, by publish, and checked there against the build's SHA-256 sidecar in the payload handed through sign (the sidecar itself is not signed); sign and the jobs before it never move it.
 # A tag whose name contains "dryrun" is a practice run: it builds and packs everything, validates the bake file (no image is pushed), signs with a key made for the run and thrown away
@@ -16,7 +18,10 @@ jobs:
       version: ${{ steps.tag.outputs.version }}
       channel: ${{ steps.tag.outputs.channel }}
       dryrun: ${{ steps.tag.outputs.dryrun }}
+      started: ${{ steps.clock.outputs.started }}
     steps:
+      - id: clock
+        run: echo "started=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"   # budget-tag measures from here when the API cannot be read
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
       - id: tag
@@ -32,6 +37,22 @@ jobs:
           { echo "version=${out% *}"; echo "channel=${out#* }"; echo "dryrun=false"; } >> "$GITHUB_OUTPUT"
           # a commit that is not on main must be the next patch of the newest published stable release, on origin/hotfix/<tag>
           if git merge-base --is-ancestor "$SHA" origin/main; then echo "lineage: $SHA is on main"; else node scripts/release/cli.ts lineage "$SHA" "$TAG"; fi
+  reuse:
+    # A commit whose whole suite already passed in a finished main.yml run (schedule, dispatch or a whole-suite push) does not run it again here. The run is named in this job's summary and in the release
+    # notes. No such run, or a lookup that fails, and `select` and `suite` run below as before. Nothing else is skipped: client, kits, images, heavy and security always run on the tag.
+    needs: guard
+    runs-on: [self-hosted, linux, v1]
+    timeout-minutes: 5
+    permissions: { contents: read, actions: read }
+    outputs:
+      run: ${{ steps.find.outputs.run }}
+      tests: ${{ steps.find.outputs.tests }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: find
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/release/cli.ts reuse "${{ github.sha }}"
   package:
     needs: guard
     # the multi-arch image build needs docker buildx and qemu: one host serves the `buildx` label (vyre-ci-7)
@@ -52,8 +73,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           docker buildx version >/dev/null 2>&1 || { echo "this runner has no docker buildx, which the multi-arch image build needs (docs/release/runbook.md)"; exit 1; }
-          echo "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
-          TAG="$VERSION" docker buildx bake -f images/vyred/docker-bake.hcl --push --metadata-file bake.json
+          bash scripts/release/retry.sh 3 10 bash -c 'echo "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin'
+          # a dropped registry connection is tried once more (the layers already pushed are not sent again); a refusal that comes back twice still fails the job
+          TAG="$VERSION" bash scripts/release/retry.sh 2 30 docker buildx bake -f images/vyred/docker-bake.hcl --push --metadata-file bake.json
           digest=$(jq -r '.vyred["containerimage.digest"]' bake.json)
           case "$digest" in sha256:*) ;; *) echo "no image digest in the bake metadata"; exit 1 ;; esac
           echo "VYRE_IMAGE=ghcr.io/vyre-ai/vyred@$digest" >> "$GITHUB_ENV"
@@ -71,8 +93,8 @@ jobs:
           docker build -t "$img" images/agent-computer
           node scripts/release/cli.ts image-has-chrome "$img"   # fails the release when the extension is not in /opt/vyre-chrome
           if [ "$DRYRUN" != true ]; then
-            echo "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
-            docker push "$img"
+            bash scripts/release/retry.sh 3 10 bash -c 'echo "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin'
+            bash scripts/release/retry.sh 3 20 docker push "$img"
             echo "VYRE_AGENT_IMAGE=$(docker inspect --format '{{index .RepoDigests 0}}' "$img")" >> "$GITHUB_ENV"
           fi
       - name: Space browser image with Vyre for Chrome baked in, and the proof it is in there
@@ -85,8 +107,8 @@ jobs:
           docker build -f images/space-browser/Dockerfile -t "$img" images
           node scripts/release/cli.ts image-has-chrome "$img"
           if [ "$DRYRUN" != true ]; then
-            echo "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
-            docker push "$img"
+            bash scripts/release/retry.sh 3 10 bash -c 'echo "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin'
+            bash scripts/release/retry.sh 3 20 docker push "$img"
             echo "VYRE_BROWSER_IMAGE=$(docker inspect --format '{{index .RepoDigests 0}}' "$img")" >> "$GITHUB_ENV"
           fi
       - name: Agent workspace image (shell, tmux, git, node, python; no desktop)
@@ -98,8 +120,8 @@ jobs:
           # the proof it holds what an agent's terminal needs: tmux, git, node and python, and a user that is not root
           docker run --rm --entrypoint sh "$img" -c 'tmux -V && git --version && node --version && python3 --version && test "$(id -u)" != 0'
           if [ "$DRYRUN" != true ]; then
-            echo "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
-            docker push "$img"
+            bash scripts/release/retry.sh 3 10 bash -c 'echo "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin'
+            bash scripts/release/retry.sh 3 20 docker push "$img"
             echo "VYRE_WORKSPACE_IMAGE=$(docker inspect --format '{{index .RepoDigests 0}}' "$img")" >> "$GITHUB_ENV"
           fi
       - name: Pack the server, the app web export, the Chrome extension and the Kits; write releases.json
@@ -113,6 +135,8 @@ jobs:
       - uses: actions/upload-artifact@v4
         with: { name: release-files, path: dist, if-no-files-found: error, retention-days: 7 }
   select:
+    needs: reuse
+    if: needs.reuse.outputs.run == ''
     runs-on: [self-hosted, linux, v1]
     timeout-minutes: 5
     outputs:
@@ -194,14 +218,22 @@ jobs:
       - uses: actions/upload-artifact@v4
         with: { name: release-files-desktop, path: dist, if-no-files-found: error, retention-days: 7 }
   live:
-    needs: [guard, package, suite, client, kits, images, heavy, security]
+    needs: [guard, reuse, package, select, suite, client, kits, images, heavy, security]
+    # Every gate passed. The suite passed here, or `reuse` named a finished main.yml run that ran the whole suite green on this very commit and select and suite were skipped for it; a skipped suite
+    # with no reused run is a failure. Explicit results, not the implied success(): a skipped select or suite would otherwise skip live, sign and deploy with it.
+    if: >-
+      always() && needs.guard.result == 'success' && needs.reuse.result == 'success' && needs.package.result == 'success'
+      && needs.client.result == 'success' && needs.kits.result == 'success' && needs.images.result == 'success'
+      && needs.heavy.result == 'success' && needs.security.result == 'success'
+      && ((needs.reuse.outputs.run != '' && needs.select.result == 'skipped' && needs.suite.result == 'skipped') || (needs.select.result == 'success' && needs.suite.result == 'success'))
     runs-on: [self-hosted, linux, v1]
     timeout-minutes: 5
     steps:
       - run: echo "live gate passed"
   sign:
     needs: [guard, desktop-release-files, live]
-    if: needs.guard.outputs.dryrun != 'true'
+    # explicit results (see live): with a reused suite, the skipped select and suite upstream of live would otherwise skip the real signing too
+    if: always() && needs.guard.result == 'success' && needs.guard.outputs.dryrun != 'true' && needs.desktop-release-files.result == 'success' && needs.live.result == 'success'
     # The only job that ever holds the real key. It has a runner label of its own that no other workflow names (scripts/release/runner-label.test.ts fails if one does), on a host that runs
     # nothing else, and it runs in a container that is removed when the job ends. Never on the shared CI runners: code from an earlier PR job could have changed them.
     runs-on: [self-hosted, linux, release-sign]
@@ -275,25 +307,24 @@ jobs:
       - uses: actions/upload-artifact@v4
         with: { name: release-signed, path: dist, if-no-files-found: error, retention-days: 1 }
   publish:
-    needs: [guard, sign, sign-dryrun]
+    needs: [guard, reuse, sign, sign-dryrun]
     if: always() && (needs.sign.result == 'success' || needs.sign-dryrun.result == 'success')
-    runs-on: [self-hosted, linux, v1]
+    # On a GitHub-hosted runner (free: the repo is public), because that is where the artifact store is fast. On the self-hosted v1 runners this job pulled the 127 MB DMG at about 85 KB/s and hit its
+    # 30 minute cap on rc.21, rc.22 and rc.23. It holds only the run's own token (contents: write to attach files, actions: read to fetch the artifacts), never the signing key: everything it uploads was signed in `sign`.
+    runs-on: ubuntu-latest
     timeout-minutes: 30
-    permissions: { contents: write }
+    permissions: { contents: write, actions: read }
     env:
       GH_TOKEN: ${{ github.token }}
       TAG: ${{ github.ref_name }}
       CHANNEL: ${{ needs.guard.outputs.channel }}
+      RELEASE_TESTS: ${{ needs.reuse.outputs.tests }}
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
-        with: { name: release-signed, path: dist }
-      - uses: actions/download-artifact@v4
-        with: { name: desktop-macOS, path: desktop-artifact }
-      - uses: actions/download-artifact@v4
-        with: { name: desktop-Windows-exe, path: desktop-win }
-      - uses: actions/download-artifact@v4
-        with: { name: desktop-macOS-update, path: desktop-upd }
+      - uses: actions/setup-node@v4
+        with: { node-version: 24 }
+      - name: The signed payload and the three desktop files, fetched side by side, each try limited and retried (scripts/release/fetch-artifacts.sh)
+        run: bash scripts/release/fetch-artifacts.sh release-signed=dist desktop-macOS=desktop-artifact desktop-Windows-exe=desktop-win desktop-macOS-update=desktop-upd
       - name: The one DMG matches the build's SHA-256 sidecar from the payload handed through sign, before anything is uploaded
         run: |
           set -euo pipefail
@@ -362,20 +393,21 @@ jobs:
         run: node scripts/release/cli.ts unpublish "$TAG"
   deploy:
     needs: live
+    if: always() && needs.live.result == 'success'
     uses: ./.github/workflows/deploy.yml
   budget-tag:
     permissions: { contents: read, actions: read }
     # Sign waits for a person to approve, so the budget is measured to the live gate and the deploy, not to publish and smoke.
-    needs: [live, deploy]
+    needs: [guard, live, deploy]
     if: always()
     runs-on: [self-hosted, linux, v1]
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
-      - name: Wall time of this run against the 25 minute tag budget
+      - name: Wall time of this run against the 25 minute tag budget (read from the API 30 jobs a page with retries; if it still does not answer, measured from the guard job's own clock)
         env:
           GH_TOKEN: ${{ github.token }}
-        run: node scripts/ci-budget.ts --kind tag --run-id ${{ github.run_id }} --repo ${{ github.repository }}
+        run: node scripts/ci-budget.ts --kind tag --run-id ${{ github.run_id }} --repo ${{ github.repository }} --fallback-start "${{ needs.guard.outputs.started }}"
       - name: Job times
         if: always()
         env:

@@ -20,3 +20,10 @@ test("with nothing kept for the work the menu says so once and links to the Vaul
   assert.equal(opened, 1);
   assert.equal(e.some((x) => "label" in x && x.disabled === true), true, "the line is not a choice");
 });
+
+test("while the accounts are still loading the menu says Loading and never claims that none are kept", () => {
+  const e = aiMenu(null, "automations", undefined, () => undefined, { openVault: () => undefined });
+  assert.deepEqual(labels(e), ["Automatic", "Loading…"]);
+  assert.equal(e.some((x) => "label" in x && /None kept|Open Vault/.test(x.label)), false);
+  assert.equal(e.some((x) => "label" in x && x.label === "Loading…" && x.disabled === true), true);
+});

@@ -513,7 +513,8 @@ export async function onCardAnswered(ctx: ChatCtx, event: { name: string; payloa
   if (row.request && row.origin) return [];
   const name = first((await person(callOf(ctx), row.teammate))?.name ?? "Your teammate");
   const title = row.card?.title ?? "your request";
-  const note = p.note?.trim() ? ` "${clip(p.note.trim(), 500)}"` : "";
+  // as itself the agent's chat with the teammate is theirs: the outcome goes back to the asker's chat, never the words they typed with it (owner ruling 6 Nov, bug 34)
+  const note = row.mode !== "self" && p.note?.trim() ? ` "${clip(p.note.trim(), 500)}"` : "";
   const text = event.name === "task.approved" ? `${name} ${row.card?.kind === "review" ? "reviewed it: looks good" : "approved"}: ${title}.${note}`
     : event.name === "vault.request_fulfilled" ? `${name} added the ${title} key.`
     : event.name === "vault.request_declined" ? `${name} did not add the ${title} key.${note}`

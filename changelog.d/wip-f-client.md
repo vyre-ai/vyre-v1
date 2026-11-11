@@ -1,0 +1,2 @@
+- A member who joins by an invite link can choose a profile photo in their first minute, and a Space admin who was never given a project can still change its roles; both are now held by tests that walk a real server.
+- Opening the app at the Chats address while a task or chat tab is selected now makes that tab the Chats tab, so a tab never names an item the page is no longer showing; the Chats rail still goes to the tab Chats already has and shows what it shows.

@@ -3,8 +3,8 @@ import { Pressable, Text, View } from "react-native";
 import { Select } from "./shared.tsx";
 
 /** The labelled picker the AI pages use: the shared Select, so every picker looks and opens the same way. */
-export function Choice({ label, value, options, onChange, disabled = false }: { label: string; value: string; options: readonly { key: string; title: string }[]; onChange(value: string): void; disabled?: boolean }): ReactElement {
-  return <Select label={label} value={value} options={options} onChange={onChange} disabled={disabled} />;
+export function Choice({ label, value, options, onChange, disabled = false, loading = false }: { loading?: boolean; label: string; value: string; options: readonly { key: string; title: string }[]; onChange(value: string): void; disabled?: boolean }): ReactElement {
+  return <Select label={label} value={value} options={options} onChange={onChange} disabled={disabled} loading={loading} />;
 }
 
 export function Tick({ label, checked, onChange, disabled = false }: { label: string; checked: boolean; onChange(checked: boolean): void; disabled?: boolean }): ReactElement {

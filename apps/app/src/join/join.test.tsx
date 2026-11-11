@@ -274,11 +274,12 @@ test("every compact phone control keeps a 44px hit target without enlarging its 
   const device = html({ stage: "steps", step: 2, ...FILLED });
   const sheet = html({ stage: "steps", step: 2, ...FILLED, rec: "new", sheet: true, code: "K7QM-4TXD-92HB-WPLE" });
   const signIn = html({ stage: "signin", si: "pw" });
-  for (const id of ["next", "trust", "saved", "copy-code", "si-password-visibility"]) {
-    const out = id === "next" || id === "si-password-visibility" ? signIn : id === "trust" ? device : sheet;
+  for (const id of ["next", "saved", "copy-code", "si-password-visibility"]) {
+    const out = id === "next" || id === "si-password-visibility" ? signIn : sheet;
     assert.match(tagOf(out, id), /(?:min-)?height:44px/, id);
   }
-  assert.match(device, /height:24px/, "the switch stays visually compact within its larger hit target");
+  // "Trust this device" is not offered: nothing used it (rc.22 client walk). A real trusted-device behaviour would hook in at JoinFlow submit and identity.signin's device argument.
+  assert.ok(!/trust/i.test(device) && !device.includes('data-testid="trust"'), "the join step has no Trust this device row");
 });
 
 test("GitHub-only sign-in does not render an empty single sign-on section", () => {
@@ -295,8 +296,9 @@ test("taken usernames give a truthful fallback when no suggestions are available
 
 test("step 3: this device, and the recovery code sheet with the code and the box", () => {
   const dev = html({ stage: "steps", step: 2, ...FILLED });
-  for (const text of ["This device", "Device name", "Trust this device", "Recovery code", "Create"]) assert.ok(dev.includes(text), text);
-  assert.match(dev, /role="switch"/);
+  for (const text of ["This device", "Device name", "Recovery code", "Create"]) assert.ok(dev.includes(text), text);
+  assert.ok(!dev.includes("Trust this device"), "no Trust this device row: nothing used it");
+  assert.doesNotMatch(dev, /role="switch"/, "no switch on this step");
   assert.doesNotMatch(dev, /data-testid="join-sheet"/);
   const sheet = html({ stage: "steps", step: 2, ...FILLED, rec: "new", sheet: true, code: "K7QM-4TXD-92HB-WPLE" });
   for (const text of ["Your recovery code", "K7QM-4TXD-92HB-WPLE", "Copy", "Save", "I saved it", "Cancel", "Done"]) assert.ok(sheet.includes(text), text);

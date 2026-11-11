@@ -1,6 +1,7 @@
 // A tab opened on an item (an automation, a record, a file, a chat, a task) is named for the item, not for its place: "Weekly digest", "Elena Rivera". The place's own name stays until the
 // item's name arrives; a subject this does not know keeps the place's name. Opening the same item again finds its tab by key (tabKey = place + hash), so tabs are one per item.
 import { chatName, hasRealTitle } from "../../../../../lib/chat-name.ts";
+import { parseHash, subjectOf } from "../hash/hash.ts";
 
 export interface Ask {
   cap: string;
@@ -121,4 +122,42 @@ export function followTitle(session: TitleSession, ask: Ask, retitle: (title: st
   const live = ask.live ? session.hooks.capQuery(ask.live.cap, ask.live.input) : null;
   const stop = live ? live.subscribe(run) : undefined;
   return () => { off = true; stop?.(); };
+}
+
+/** The ask that names the tab showing `hash` in `place`, or null for a place's own tab and anything with no name to read. */
+export function askForHash(place: string, hash: string): Ask | null {
+  const target = parseHash(hash);
+  const subject = subjectOf(target);
+  return subject ? titleAsk(subject, target.args) : screenAsk(target.screen, target.args) ?? typeTitleAsk(place, target.args);
+}
+
+export interface TabSource {
+  tabs(): ReadonlyArray<{ key: string; place: string; hash?: string; isNew?: boolean }>;
+  subscribe(listener: () => void): () => void;
+}
+
+/**
+ * A tab has no title of its own: its label is the current name of the item it shows. Every tab on an item is followed, the selected one or not, so a chat that is named (or renamed) while another tab is
+ * selected changes on its tab at once, and a tab restored from the last launch is read again. A tab that is closed, or that now shows another item, stops being followed. Returns the stop.
+ */
+export function followAllTabs(session: TitleSession, source: TabSource, retitle: (key: string, title: string, empty?: boolean) => void): () => void {
+  const followers = new Map<string, { sig: string; stop: () => void }>();
+  const sync = (): void => {
+    const live = new Set<string>();
+    for (const tab of source.tabs()) {
+      if (tab.isNew === true || tab.hash === undefined || tab.hash === "") continue;
+      const ask = askForHash(tab.place, tab.hash);
+      if (!ask) continue;
+      live.add(tab.key);
+      const sig = `${tab.place}|${tab.hash}`;
+      if (followers.get(tab.key)?.sig === sig) continue;
+      followers.get(tab.key)?.stop();
+      const key = tab.key;
+      followers.set(key, { sig, stop: followTitle(session, ask, (t, empty) => retitle(key, t, empty)) });
+    }
+    for (const [k, f] of followers) if (!live.has(k)) { f.stop(); followers.delete(k); }
+  };
+  sync();
+  const off = source.subscribe(sync);
+  return () => { off(); for (const f of followers.values()) f.stop(); followers.clear(); };
 }

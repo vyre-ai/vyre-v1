@@ -1,5 +1,5 @@
 // Shared parts of the agent Computer live tests (host/tests/computers.*.live.test.ts): a booted daemon on a seeded data dir, the image, Docker and gateway calls, and the Files home helpers.
-// Not a test file. The three tests split the one lifecycle test this replaced (computers.live.test.ts) by behaviour so each runs in a job of its own.
+// Not a test file. The five tests split the one lifecycle test this replaced (computers.live.test.ts) by behaviour so each runs in a job of its own.
 import test from "node:test";
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";

@@ -7,6 +7,7 @@ import { checkNpmLicenses } from "./license-check.ts";
 import { applyKnown } from "./boundaries.ts";
 import { scanText } from "./security/secret-scan.ts";
 import { failing as auditFailing, findings as auditFindings } from "./security/audit.ts";
+import { MAIN_FULL_SELECT_ARGS } from "./release/reuse.ts";
 
 const dir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../.github/workflows");
 type Job = { name: string; timeout: boolean; uses: boolean; needs: string[]; continueOnError: boolean; text: string };
@@ -93,7 +94,8 @@ test("budget jobs run if always() at 5, 10 and 25 minutes", () => {
     assert.match(j!.text, /^ {4}if: always\(\)/m, `${job} if always`);
     assert.match(j!.text, new RegExp(`ci-budget\\.ts --kind ${kind}\\b`));
   }
-  assert.deepEqual(wf("release").jobs.find((j) => j.name === "budget-tag")!.needs, ["live", "deploy"], "tag budget stops at the live and deploy boundary, before desktop publication work");
+  // guard is there for its clock (the budget job measures from it when the API cannot be read); the budget still stops at the live and deploy boundary, before desktop publication work
+  assert.deepEqual(wf("release").jobs.find((j) => j.name === "budget-tag")!.needs, ["guard", "live", "deploy"], "tag budget stops at the live and deploy boundary, before desktop publication work");
 });
 
 test("native stays non-blocking for live while the macOS desktop artifact gates only publication", () => {
@@ -118,7 +120,7 @@ test("native stays non-blocking for live while the macOS desktop artifact gates 
   assert.match(desktop.text, /shasum -a 256/);
   assert.match(desktop.text, /name: desktop-macOS-sha256, path: dmg-sum/);
   const publish = rel.jobs.find((j) => j.name === "publish")!;
-  assert.match(publish.text, /name: desktop-macOS, path: desktop-artifact/, "publish takes the DMG once");
+  assert.match(publish.text, /desktop-macOS=desktop-artifact/, "publish takes the DMG once");
   assert.match(publish.text, /sha256sum -c "\$dmg_name\.sha256"/, "publish checks the DMG against the build's SHA-256 sidecar before uploading");
   assert.ok(publish.text.indexOf("sha256sum -c") < publish.text.indexOf("cli.ts publish"), "the check comes before the upload");
   for (const n of ["sign", "sign-dryrun"]) assert.doesNotMatch(rel.jobs.find((j) => j.name === n)!.text, /desktop-macOS/, `${n} never downloads the DMG`);
@@ -139,7 +141,7 @@ test("release artifact transfer stages have a bounded thirty-minute window", () 
   }
   assert.match(rel.jobs.find((j) => j.name === "sign")!.text, /name: release-files-desktop, path: dist/);
   assert.match(rel.jobs.find((j) => j.name === "sign-dryrun")!.text, /name: release-files-desktop, path: dist/);
-  assert.match(rel.jobs.find((j) => j.name === "publish")!.text, /name: release-signed, path: dist/);
+  assert.match(rel.jobs.find((j) => j.name === "publish")!.text, /release-signed=dist/);
 });
 
 test("the macOS desktop release path verifies, mounts, installs and exercises the DMG", () => {
@@ -154,7 +156,7 @@ test("the macOS desktop release path verifies, mounts, installs and exercises th
   assert.match(desktop.text, /spctl --assess --type execute/);
   assert.match(desktop.text, /run-shell\.sh/);
   assert.match(desktop.text, /VYRE_SHELL_RELAUNCH=1/);
-  assert.match(wf("release").text, /name: desktop-macOS, path: desktop-artifact/);
+  assert.match(wf("release").jobs.find((j) => j.name === "publish")!.text, /desktop-macOS=desktop-artifact/);
   const runner = fs.readFileSync(path.resolve(dir, "../../apps/desktop/src-tauri/ci/run-shell.sh"), "utf8");
   const smoke = fs.readFileSync(path.resolve(dir, "../../apps/desktop/tests/shell.heavy.test.ts"), "utf8");
   assert.match(runner, /VYRE_SHELL_RELAUNCH/);
@@ -204,11 +206,12 @@ test("check, main and release run their shards through the one run-shard action:
   for (const n of ["check", "main", "release"]) { const t = wf(n).text; assert.match(t, /uses: \.\/\.github\/actions\/run-shard/); assert.match(t, /ci-select\.ts/); }
   assert.doesNotMatch(wf("release").text, /--max \d/, "release uses the same shard plan as check: no --max");
   // GitHub-hosted runners are free since the owner made the repo public (25 Oct), so the shards may run on them: the matrix entry says "hosted" and the runs-on expression turns it into ubuntu-latest.
-  // What must stay self-hosted is everything that needs the hosts: heavy and perf entries (Docker, the pinned perf host), the Docker jobs, the gates, and release signing. A hosted runner is named only in that one expression.
+  // What must stay self-hosted is everything that needs the hosts: heavy and perf entries (Docker, the pinned perf host), the Docker jobs, the gates, and release signing. A hosted runner is named only in that one expression,
+  // with one exception by design: release.yml's `publish` runs on ubuntu-latest since 11 Nov (its self-hosted runner pulled the release artifacts at 85 KB/s and timed out three releases in a row).
   for (const n of ["check", "main", "release"]) {
-    const t = wf(n).text;
+    const t = n === "release" ? wf(n).jobs.filter((j) => j.name !== "publish").map((j) => j.text).join("\n") : wf(n).text;
     assert.doesNotMatch(t, /runs-on:\s*(?:\[[^\]]*)?\b(?:ubuntu|windows|macos)-/i, `${n}.yml names a GitHub-hosted runner outside the matrix expression`);
-    assert.match(t, /runs-on: \$\{\{ fromJSON\(matrix\.runner == 'hosted' && '\["ubuntu-latest"\]' \|\| format\('\["self-hosted","linux","\{0\}"\]', matrix\.runner \|\| 'v1'\)\) \}\}/, `${n}.yml picks its shard runner from the matrix`);
+    assert.match(wf(n).text, /runs-on: \$\{\{ fromJSON\(matrix\.runner == 'hosted' && '\["ubuntu-latest"\]' \|\| format\('\["self-hosted","linux","\{0\}"\]', matrix\.runner \|\| 'v1'\)\) \}\}/, `${n}.yml picks its shard runner from the matrix`);
   }
   for (const [n, jobs] of [["check", ["images-docker", "l2-heavy", "computer-lifecycle", "gates", "typecheck", "select", "check"]], ["release", ["select", "sign"]]] as const) {
     const t = wf(n).text;
@@ -266,13 +269,31 @@ test("the Windows setup program reaches the release as VyreSetup.exe with a SHA-
   assert.doesNotMatch(assembled.text, /desktop-Windows-exe/, "assembling never downloads the setup program");
   for (const n of ["sign", "sign-dryrun"]) assert.doesNotMatch(rel.jobs.find((j) => j.name === n)!.text, /desktop-Windows/, `${n} never downloads the setup program`);
   const publish = rel.jobs.find((j) => j.name === "publish")!;
-  assert.match(publish.text, /name: desktop-Windows-exe, path: desktop-win/);
+  assert.match(publish.text, /desktop-Windows-exe=desktop-win/);
   assert.match(publish.text, /sha256sum -c VyreSetup\.exe\.sha256/);
   assert.match(publish.text, /cat \*\.dmg\.sha256 VyreSetup\.exe\.sha256 > SHA256SUMS/);
   assert.ok(publish.text.indexOf("sha256sum -c VyreSetup.exe.sha256") < publish.text.indexOf("cli.ts publish"), "the check comes before the upload");
   const ps1 = fs.readFileSync(path.resolve(dir, "../../scripts/install/windows/install.ps1"), "utf8");
   assert.match(ps1, /"\$ReleaseBase\/VyreSetup\.exe"/);
   assert.match(ps1, /"\$ReleaseBase\/SHA256SUMS"/);
+});
+
+test("the Windows leg proves the install end to end, and it blocks release the way the Mac leg does", () => {
+  const desktop = wf("desktop");
+  const e2e = fs.readFileSync(path.resolve(dir, "../../scripts/install/windows/install.e2e.ps1"), "utf8");
+  for (const phase of ["silent-install", "nsis-uninstall", "via-script", "script-uninstall"]) {
+    assert.match(desktop.text, new RegExp(`-Phase ${phase}`), `the workflow runs ${phase}`);
+    assert.ok(e2e.includes(`"${phase}"`), `the script has ${phase}`);
+  }
+  assert.match(desktop.text, /run-shell\.sh "\$\(cygpath -u "\$APP"\)" "\$PWD\/out-installed"/, "the installed program gets the packaged smoke");
+  assert.match(desktop.text, /VYRE_SHELL_RELAUNCH: "1"/, "and the relaunch");
+  assert.match(desktop.text, /cp win-sum\/VyreSetup\.exe\.sha256 win-release\/SHA256SUMS/, "install.ps1 reads a local SHA256SUMS made from the build's own sidecar");
+  assert.match(e2e, /VYRE_RELEASE_BASE = "http:\/\/127\.0\.0\.1:8765"/, "never a published release");
+  assert.match(e2e, /Find-VyreApp/, "the path check is install.ps1's own");
+  // the installer and its proof run on a pull request that touches them, not only at release
+  for (const trigger of ["pull_request", "push"]) assert.match(desktop.text.slice(desktop.text.indexOf(`  ${trigger}:`)), /scripts\/install\/windows\/\*\*/, `${trigger} runs the desktop workflow for installer changes`);
+  // a red Windows leg fails the `desktop` workflow, and release's desktop-release-files needs it
+  assert.deepEqual(wf("release").jobs.find((j) => j.name === "desktop-release-files")!.needs, ["package", "desktop"]);
 });
 
 test("the app's own updates: the build writes digests, only the digests go through sign, sign makes the signatures and the feed, publish checks the bundles against them", () => {
@@ -292,7 +313,68 @@ test("the app's own updates: the build writes digests, only the digests go throu
     assert.doesNotMatch(job.text, /desktop-macOS-update,/);
   }
   const publish = rel.jobs.find((j) => j.name === "publish")!;
-  assert.match(publish.text, /name: desktop-macOS-update, path: desktop-upd/);
+  assert.match(publish.text, /desktop-macOS-update=desktop-upd/);
   assert.match(publish.text, /cli\.ts updater-check dist dist/);
   assert.ok(publish.text.indexOf("updater-check") < publish.text.indexOf("cli.ts publish"), "the check comes before the upload");
+});
+
+// The release is meant to publish with nobody touching it (11 Nov 2026: rc.21, rc.22 and rc.23 each had to be published by hand). These keep the shape that makes that safe and keep every gate.
+test("release: the suite is the only gate that a finished main.yml run can stand in for, and every other gate always runs on the tag", () => {
+  const rel = wf("release");
+  const job = (n: string) => rel.jobs.find((j) => j.name === n)!;
+  const cond = (n: string) => /^ {4}if:\s*(>-\n)?([\s\S]*?)(?=^ {4}[a-z-]+:)/m.exec(job(n).text)?.[2] ?? "";
+  // select and suite run unless reuse named a run; no other job may have an `if` that can drop a gate
+  assert.deepEqual(job("select").needs, ["reuse"]);
+  assert.match(job("select").text, /^ {4}if: needs\.reuse\.outputs\.run == ''$/m);
+  assert.deepEqual(job("suite").needs, ["select"]);
+  assert.doesNotMatch(job("suite").text, /^ {4}if:/m, "suite is skipped only through select");
+  for (const n of ["guard", "reuse", "package", "client", "kits", "images", "heavy", "security", "desktop", "desktop-release-files", "native"]) assert.doesNotMatch(job(n).text, /^ {4}if:/m, `${n} is never skipped`);
+  // live needs each gate to have succeeded here; select and suite may be skipped only with a reused run
+  const live = job("live");
+  for (const g of ["guard", "reuse", "package", "select", "suite", "client", "kits", "images", "heavy", "security"]) assert.ok(live.needs.includes(g), `live needs ${g}`);
+  const c = cond("live");
+  for (const g of ["guard", "reuse", "package", "client", "kits", "images", "heavy", "security"]) assert.match(c, new RegExp(`needs\\.${g}\\.result == 'success'`), `live requires ${g} to have succeeded`);
+  assert.match(c, /needs\.reuse\.outputs\.run != '' && needs\.select\.result == 'skipped' && needs\.suite\.result == 'skipped'/, "a skipped suite counts only with a reused run");
+  assert.match(c, /needs\.select\.result == 'success' && needs\.suite\.result == 'success'/, "otherwise select and suite passed here");
+  assert.match(c, /^\s*always\(\)/, "an explicit result test, so a skipped select does not skip live");
+  // what hangs off live must test live's own result, since the implied success() also looks at live's skipped ancestors
+  assert.match(cond("sign"), /always\(\) && needs\.guard\.result == 'success'.*needs\.desktop-release-files\.result == 'success' && needs\.live\.result == 'success'/);
+  assert.match(job("deploy").text, /^ {4}if: always\(\) && needs\.live\.result == 'success'$/m);
+  // nothing in the release may be marked to pass when it fails
+  assert.doesNotMatch(rel.text, /continue-on-error/);
+  for (const j of rel.jobs) assert.ok(!j.continueOnError, j.name);
+  // the reuse job asks for exactly the commit that was tagged
+  assert.match(job("reuse").text, /cli\.ts reuse "\$\{\{ github\.sha \}\}"/);
+  assert.match(job("publish").text, /RELEASE_TESTS: \$\{\{ needs\.reuse\.outputs\.tests \}\}/, "the release notes name where the tests ran");
+});
+
+test("release: what counts as a whole-suite run uses the same plan flags as main.yml's full run", () => {
+  const main = wf("main").text;
+  assert.match(main, /node scripts\/ci-select\.ts "\$base" --matrix --max 8 --no-perf/, "main.yml's select line");
+  assert.deepEqual([...MAIN_FULL_SELECT_ARGS], ["", "--matrix", "--max", "8", "--no-perf"], "reuse.ts plans the shards the way main.yml does");
+  // main.yml names its test jobs after the plan (shards: name: ${{ matrix.name }}) and its golden jobs are what proves a whole-suite run
+  assert.match(wf("main").jobs.find((j) => j.name === "shards")!.text, /name: \$\{\{ matrix\.name \}\}|^ {4}name: \$\{\{ matrix\.name \}\}/m);
+  for (const g of ["golden-main-1", "golden-main-2", "golden-main-3", "golden-main"]) assert.match(wf("main").jobs.find((j) => j.name === g)!.text, /needs\.select\.outputs\.full == 'true'/, `${g} runs only for a whole-suite run`);
+});
+
+test("release: publish runs hosted, holds no signing key, fetches its artifacts with retries and a limit per try, and the package pushes are retried", () => {
+  const rel = wf("release");
+  const publish = rel.jobs.find((j) => j.name === "publish")!;
+  assert.match(publish.text, /^ {4}runs-on: ubuntu-latest$/m);
+  assert.match(publish.text, /^ {4}timeout-minutes: 30$/m, "the cap is not raised");
+  assert.match(publish.text, /^ {4}permissions: \{ contents: write, actions: read \}$/m);
+  assert.doesNotMatch(publish.text, /VYRE_SIGNING_KEY|secrets\./, "publish never sees a secret");
+  assert.doesNotMatch(publish.text, /download-artifact/, "publish fetches through the retrying script");
+  const fetcher = fs.readFileSync(path.join(dir, "../../scripts/release/fetch-artifacts.sh"), "utf8");
+  assert.match(fetcher, /timeout "\$limit" gh run download/);
+  assert.match(fetcher, /could not fetch the artifact/);
+  assert.match(publish.text, /^ {6}- name: Attach everything/m);
+  const pk = rel.jobs.find((j) => j.name === "package")!;
+  assert.match(pk.text, /^ {4}timeout-minutes: 20$/m, "the cap is not raised");
+  assert.doesNotMatch(pk.text.split("\n").filter((l) => !/^\s*#/.test(l)).join("\n"), /^\s*docker push /m, "every push goes through retry.sh");
+  assert.match(pk.text, /retry\.sh 2 30 docker buildx bake/);
+  assert.equal((pk.text.match(/retry\.sh 3 20 docker push/g) ?? []).length, 3, "the three image pushes");
+  // the budget job reads the API in pages and falls back to the guard's own clock
+  const b = rel.jobs.find((j) => j.name === "budget-tag")!;
+  assert.match(b.text, /--fallback-start "\$\{\{ needs\.guard\.outputs\.started \}\}"/);
 });

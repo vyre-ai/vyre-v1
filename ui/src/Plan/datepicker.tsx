@@ -1,5 +1,6 @@
 // ui/Plan date picker: the small month popover for a task's due day (the prototype's pickDate). Draws in the root overlay, fixed to the window, so no lane or row can cover it.
 // Click a day to pick it; the arrows move the month; Escape or a click outside closes it. The picked day is where the task now ends.
+import { useEscapeLayer } from "../Overlay/escape.ts";
 import { useEffect, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { Overlay } from "../Overlay/index.tsx";
@@ -14,11 +15,11 @@ export function DatePicker({ at, today, onPick, onClose }: { at: PickerState; to
   const m = pickMonth(at.cur, today, step);
   useEffect(() => {
     const off = (e: EventLike): void => { if (!e.target.closest("[data-plan-datepicker]")) onClose(); };
-    const key = (e: EventLike): void => { if (e.key === "Escape") { e.stopPropagation(); onClose(); } };
     // listen a tick later so the press that opened the picker does not close it
-    const t = setTimeout(() => { win().addEventListener("mousedown", off); win().addEventListener("keydown", key); }, 0);
-    return () => { clearTimeout(t); win().removeEventListener("mousedown", off); win().removeEventListener("keydown", key); };
+    const t = setTimeout(() => { win().addEventListener("mousedown", off); }, 0);
+    return () => { clearTimeout(t); win().removeEventListener("mousedown", off); };
   }, [onClose]);
+  useEscapeLayer(true, onClose);   // Escape closes the picker alone, not a sheet under it
   const cells: ReactNode[] = [];
   for (let i = 0; i < m.lead; i++) cells.push(h("span", { key: `b${i}` }));
   for (const d of m.days) {

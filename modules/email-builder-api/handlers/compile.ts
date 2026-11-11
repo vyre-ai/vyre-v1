@@ -9,6 +9,7 @@ import { ERROR_CODES, VyreErr } from "../../../packages/contracts/src/errors.ts"
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
 import type { ErrorCode, NextStep, VyreError } from "../../../packages/contracts/src/types.ts";
 import { mintUuid } from "../../../lib/ids.ts";
+import { findRecord } from "../../../lib/record-type.ts";
 
 export const MAX_BLOCKS = 500;
 export const MAX_DEPTH = 3;
@@ -711,7 +712,10 @@ async function restoreVersion(ctx: Ctx, input: unknown): Promise<{ email: EmailD
 }
 
 async function recordValues(ctx: Ctx, recordId: string): Promise<Record<string, string>> {
-  const out = (await ctx.call("records.get", { recordId })) as { record?: { fields?: unknown } };
+  // records.get reads a record by type and id; the email preview is given only the id, so the type is looked up (the read that finds it is the read)
+  const found = await findRecord((cap, input) => ctx.call(cap as never, input as never), recordId);
+  if (!found) fail(ctx, "validation.not_found", "That record does not exist.");
+  const out = { record: found.record };
   return valuesOf(out.record?.fields);
 }
 

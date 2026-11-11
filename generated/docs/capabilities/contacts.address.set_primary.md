@@ -19,7 +19,7 @@ Make one address the primary email or phone of a contact
 | HTTP | POST /v1/contacts/address/set_primary |
 | MCP tool | contacts_address_set_primary (inbox) |
 | CLI | none |
-| Emits | none |
+| Emits | contact.address_added |
 
 ## Input
 

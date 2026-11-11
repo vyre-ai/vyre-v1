@@ -30,6 +30,8 @@ export interface AccessEntry {
 }
 
 export interface AccessDirectory {
+  /** The people and groups are still being read: the lists are partial, so the sheet says it is loading and never says nobody matches. */
+  loading?: boolean;
   /** The few the person works with most, shown first when nothing is typed. */
   suggested?: readonly AccessEntry[];
   people?: readonly AccessEntry[];
