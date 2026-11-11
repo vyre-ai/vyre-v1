@@ -57,6 +57,7 @@ export function workspaceData(d: {
       const q = rowsQuery();
       let live = true;
       let seq = 0;
+      let shown = false;
       const push = (): void => {
         const mine = ++seq;
         void (async () => {
@@ -64,8 +65,11 @@ export function workspaceData(d: {
           const snap = q.getSnapshot();
           const rows = snap.status === "ready" && snap.data ? snap.data.terminals : [];
           const projects = (await Promise.all((read.projects ?? []).map(nameOfProject))).filter((x): x is string => x !== null);
-          if (live && mine === seq) on(workspaceView(agentId, read, rows, projects));
-        })().catch(() => undefined);
+          if (live && mine === seq) { shown = true; on(workspaceView(agentId, read, rows, projects)); }
+        })().catch((e: unknown) => {
+          // never a placeholder that does not fill: until a first answer comes, the refusal is the line (the next poll replaces it)
+          if (live && mine === seq && !shown) on({ state: "error", sessions: [], canAttach: false, line: sentence(e) });
+        });
       };
       const off = q.subscribe(push);
       const stop = every(push, POLL_MS);

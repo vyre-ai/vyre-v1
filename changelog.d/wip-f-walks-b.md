@@ -1,1 +1,2 @@
 - Pressing Escape closes a menu you opened with the keyboard (Shift+F10 on a list row), even before you have moved into it, so it no longer blocks the page behind it.
+- On a Space with nowhere to run a browser, an agent's Computer tab now says so in one line and tells you to add a compute server, instead of showing an empty box that never fills.
