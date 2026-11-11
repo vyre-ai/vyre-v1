@@ -341,6 +341,8 @@ export interface DaemonOptions {
   computeLeaseMs?: number;
   /** How often a computer's live-view socket checks that its credential still stands (a test sets it low). Default 2 s. */
   computeStreamRecheckMs?: number;
+  /** Tests: false leaves open live sockets to the per-frame session check alone (ws.ts `live`), so a test can prove that check without the close that ending a session also makes. Default true. */
+  liveCloseOnEnd?: boolean;
   /** The host artifacts are served from, apart from the app's origin (host/src/routes/artifact-host.ts). Default: VYRE_ARTIFACT_HOST, else none. */
   artifactHost?: string;
   /** Tests: decide whether a node's link counts as private (default: TLS, or a peer on this machine). */
@@ -644,11 +646,21 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   let machinesSync: () => void = () => undefined;
   let machinesIngest: (from: { nodeId: string; serverId?: string; owner?: string; device?: { deviceId: string; person: string; name?: string }; latencyMs?: number }, report: unknown) => void = () => undefined;
   let deviceReporter: ReturnType<typeof createReporter> | undefined;
-  let deviceOfToken: (token: string) => Promise<{ person: string; device: string; name?: string } | null> = () => Promise.resolve(null);
+  let deviceOfToken: (token: string) => Promise<{ person: string; device: string; name?: string; sessionId?: string } | null> = () => Promise.resolve(null);
   let streamRef: { devices(p?: string): { nodeId: string; person: string }[]; ask(n: string, k: string, i: unknown, t?: number): Promise<unknown> } | null = null;
   let remoteChrome: ReturnType<typeof createRemotePort>;
   const computeStream = createComputeStream({ procsChanged: () => machinesSync(), chromeEvent: (link, e) => remoteChrome.onEvent({ nodeId: link.nodeId, person: link.person }, e), poll: (c) => computePoll(c, {}), device: (t) => deviceOfToken(t), report: (from, r) => machinesIngest(from, r), open: (t, c) => computeStreamOpen(t, c), mayInput: (c, p) => computeStreamInput(c, p), ...(o.computeStreamRecheckMs !== undefined ? { recheckMs: o.computeStreamRecheckMs } : {}), ...(o.computeStreamSecure ? { secure: o.computeStreamSecure } : {}) });
   streamRef = computeStream;
+  /**
+   * A session ended (`person` set when known: whose it was), or a person can no longer act (`everyone`: suspended, removed). Everything live that the session or person holds closes now:
+   * the app's sockets (ws.ts endSessions; each also refuses any frame on its own), the person's own computer link to this Space, and the live views of computers and browsers they opened by
+   * ticket. A view is not tied to one session, so ending any session of the person closes their views; they open again with a new ticket.
+   */
+  const endLive = (m: { sessionId?: string; person?: string }, everyone: boolean): void => {
+    if (o.liveCloseOnEnd !== false) hub?.endSessions?.(everyone ? { person: m.person! } : { ...(m.sessionId ? { sessionId: m.sessionId } : {}) });
+    computeStream.endSessions(everyone ? { person: m.person! } : { ...(m.sessionId ? { sessionId: m.sessionId } : {}) }, m.person);
+    if (m.person) browserStream.endPerson(m.person);
+  };
   closers.push(() => computeStream.close());
   // A device-role daemon (the Vyre app's, on the person's own computer) links to each Team Space its person is signed in to here, so their chats there can run on this computer (lane l-runson).
   // A daemon that hosts a Space does not: its Space is here, and its turns already run here.
@@ -1351,9 +1363,10 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           // a session that ended, or a person who can no longer act: their open sockets close now, so no more events or answers reach them (every call frame is also checked, ws.ts `live`)
           for (const e of events) {
             const p = (e.payload ?? {}) as { sessionId?: unknown; principalId?: unknown; personId?: unknown };
-            if (e.type === "session.revoked" && typeof p.sessionId === "string") hub?.endSessions?.({ sessionId: p.sessionId });
-            else if (e.type === "principal.suspended" && typeof p.principalId === "string") hub?.endSessions?.({ person: p.principalId });
-            else if (e.type === "member.removed" && typeof p.personId === "string") hub?.endSessions?.({ person: p.personId });
+            const pp = p as { person?: unknown };
+            if (e.type === "session.revoked" && typeof p.sessionId === "string") endLive({ sessionId: p.sessionId, ...(typeof pp.person === "string" ? { person: pp.person } : {}) }, false);
+            else if (e.type === "principal.suspended" && typeof p.principalId === "string") endLive({ person: p.principalId }, true);
+            else if (e.type === "member.removed" && typeof p.personId === "string") endLive({ person: p.personId }, true);
           }
           // someone left a chat or lost a grant: whoever was watching a reply being written is asked about again before the next piece reaches them
           if (events.some((e) => READER_LOSS.test(e.type))) engineSeam?.forgetReaders?.();
@@ -1812,7 +1825,11 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         // identity opens a device session at sign-in: the token is minted here for that devices session, and ending a session stops it at the gateway (P-SEC_05)
         setSessionTokens: () => ({
           mint: (sessionId: string) => issueSessionToken(db!, sessionId, now),
-          end: (sessionId: string) => { db!.run("UPDATE devices_session SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL", now(), sessionId); hub?.endSessions?.({ sessionId }); },
+          end: (sessionId: string) => {
+            db!.run("UPDATE devices_session SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL", now(), sessionId);
+            const row = db!.all("SELECT person FROM devices_session WHERE id = ?", sessionId)[0] as { person?: string } | undefined;
+            endLive({ sessionId, ...(row?.person ? { person: row.person } : {}) }, false);
+          },
         }),
         // sites are routes: an address pointing at a port on a computer, or at a folder in Files. Site code never runs here; only its bytes pass
         configureRoutes: () => {
@@ -2265,7 +2282,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         let row: { class?: string; name?: string } | undefined;
         try { row = db!.all("SELECT class, name FROM devices_device WHERE id = ? AND person = ?", who.device, who.principal.id)[0] as typeof row; } catch { row = undefined; }
         if (row?.class !== undefined && row.class !== "desktop" && row.class !== "daemon") return null;
-        return { person: who.principal.id, device: who.device, ...(row?.name ? { name: row.name } : {}) };
+        return { person: who.principal.id, device: who.device, ...(row?.name ? { name: row.name } : {}), ...(who.sessionId ? { sessionId: who.sessionId } : {}) };
       };
       callerOf = async (h) => {
         if (bearer(h["authorization"])?.startsWith("vas_")) return null;
