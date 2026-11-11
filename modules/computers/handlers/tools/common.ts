@@ -264,10 +264,8 @@ async function browserCall(ctx: CompCtx, profileId: string, spec: ToolSpec, args
   const sb = spaceBrowser();
   if (!sb) raise(ctx, "provider.unavailable", "The Space browser is not running on this host.");
   // a person at the controls: the agent's tools wait here, before the call reaches the browser service, however that service is reached and after it restarts (the hold is the module's own)
-  if (!DURING_HOLD.has(spec.name)) {
-    const h = await currentHold(ctx, sb, profileId);
-    if (h) raise(ctx, "provider.unavailable", HELD_LINE, { takeoverBy: h.personId });
-  }
+  const hold = await currentHold(ctx, sb, profileId);
+  if (hold && !DURING_HOLD.has(spec.name)) raise(ctx, "provider.unavailable", HELD_LINE, { takeoverBy: hold.personId });
   let fill: { url: string; token: string } | undefined;
   const binding = boundFill();
   // every call carries the channel, not only the typing ones: Vyre for Chrome in the profile fills logins on its own when a page loads, and asks the Vault through it
@@ -294,7 +292,7 @@ async function browserCall(ctx: CompCtx, profileId: string, spec: ToolSpec, args
   }
   let raw: ToolAnswer;
   try {
-    raw = await sb.tool({ profileId, ...(agent ? { agent } : {}), tool: spec.name, args, timeoutMs: Math.min(spec.timeoutMs ?? DEFAULT_TOOL_MS, MAX_TOOL_MS), space: ctx.space, ...(fill ? { fill } : {}) });
+    raw = await sb.tool({ profileId, ...(agent ? { agent } : {}), tool: spec.name, args, timeoutMs: Math.min(spec.timeoutMs ?? DEFAULT_TOOL_MS, MAX_TOOL_MS), space: ctx.space, hold: hold?.personId ?? null, ...(fill ? { fill } : {}) });
   } catch (e) {
     return refuse(ctx, e);
   }

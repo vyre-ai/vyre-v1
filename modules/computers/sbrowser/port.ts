@@ -16,6 +16,9 @@ export interface ProfileRow {
   lastActiveAt: number;
   held: number;
   paused: boolean;
+  /** How many views the person at the controls has open now, and when they last sent input through one: what keeps a takeover in use. */
+  holderViews?: number;
+  personActiveAt?: number;
   /** Vyre for Chrome in the profile, paired with the Space as the agent: the extensions connected, whether it said hello, and whether the Space opened the browser to the agent's Space. */
   bridge?: { connected: number; hello: boolean; optin: boolean };
 }
@@ -37,6 +40,8 @@ export interface BrowserToolCall {
   space?: string;
   /** The Vault channel of this profile's agent for #Handle.field in the call: held by browserd in memory, for this profile only. */
   fill?: { url: string; token: string };
+  /** Who holds the controls as the module's table says now (null: nobody). browserd follows it, so its own copy can never block the agent after a give back it missed. */
+  hold?: string | null;
 }
 
 export interface SpaceBrowser {
@@ -55,7 +60,7 @@ export interface SpaceBrowser {
   giveBack(profileId: string): Promise<void>;
   screenshot(profileId: string): Promise<{ bytes: Uint8Array; width: number; height: number }>;
   /** Where the live view of a profile is served from, for a ticket the viewer presents. `ws` is browserd's own WebSocket address on the machine that runs it, for the host's relay, never for a viewer. */
-  stream(a: { profileId: string }): Promise<{ transport: "mjpeg"; url: string; ws?: string; width?: number; height?: number }>;
+  stream(a: { profileId: string; personId?: string }): Promise<{ transport: "mjpeg"; url: string; ws?: string; width?: number; height?: number }>;
   /** Replace the profile's Chrome data with a tar whose root entry is the folder `chrome` (the old computer's Chrome user-data). The profile's browser is stopped first. */
   importChrome(profileId: string, tar: Uint8Array): Promise<{ bytes: number }>;
   /** The sites the profile holds cookies for (starts its browser when it is asleep). */

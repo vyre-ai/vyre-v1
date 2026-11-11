@@ -1,6 +1,8 @@
 // A person at the controls of an agent's Space browser (owner ruling 6 Nov: while a person has taken over, the agent's tools wait). The module keeps the hold in its own table, so every chrome_* tool of the
 // agent is refused here, before the call reaches the browser service, and the hold outlives a restart of that service (browserd keeps its copy in memory only; a restarted one is told again).
-// A hold nobody is using ends by itself: when the person has not watched or acted for HOLD_IDLE_MS, the agent gets the controls back, so an abandoned takeover never blocks the agent for good.
+// A hold nobody is using ends by itself: when the person who took over has not had their own live view open nor sent input for HOLD_IDLE_MS, the agent gets the controls back, so an abandoned takeover never
+// blocks the agent for good. Only that person keeps it in use: never the agent's calls (it polls chrome_status while it waits) and never someone else watching.
+// The table is the one truth: every call to the browser service carries the hold as it stands (BrowserToolCall.hold), and browserd's own copy follows it, so a give back it missed is repaired by the next call.
 import { ensure, rowsOf } from "../projections.ts";
 import type { CompCtx } from "../projections.ts";
 import type { ProfileRow, SpaceBrowser } from "./port.ts";
@@ -48,7 +50,8 @@ export async function currentHold(ctx: CompCtx, sb: SpaceBrowser, profileId: str
   try { row = (await sb.profiles()).profiles.find((p) => p.profileId === profileId); answered = true; } catch { /* the service does not answer: the hold stands as it is */ }
   const now = ctx.now();
   if (row && row.takeoverBy === h.personId) {
-    const last = Math.max(h.seen, row.viewers > 0 ? now : 0, row.lastActiveAt > h.since ? row.lastActiveAt : 0);
+    const input = row.personActiveAt ?? 0;
+    const last = Math.max(h.seen, (row.holderViews ?? 0) > 0 ? now : 0, input > h.since ? input : 0);
     if (last > h.seen) { ctx.db.run("UPDATE computers_browser_hold SET seen = ? WHERE profile_id = ?", last, profileId); h.seen = last; }
   }
   if (now - h.seen >= HOLD_IDLE_MS) {
@@ -64,3 +67,12 @@ export async function currentHold(ctx: CompCtx, sb: SpaceBrowser, profileId: str
 
 /** Does this person hold this profile now (the module's word, not only the service's)? */
 export const heldBy = (ctx: Pick<CompCtx, "db">, profileId: string): string | null => holdRow(ctx, profileId)?.personId ?? null;
+
+/** The periodic pass: browserd's copy follows the table both ways (a takeover it kept after a give back or an expiry it missed is cleared; one it lost on a restart is told again). */
+export async function syncHolds(ctx: CompCtx, sb: SpaceBrowser, rows: readonly ProfileRow[]): Promise<void> {
+  for (const r of rows) {
+    const h = holdRow(ctx, r.profileId);
+    if (r.takeoverBy !== undefined && h === null) { try { await sb.giveBack(r.profileId); } catch { /* the next call carries the hold */ } }
+    else if (h !== null && r.takeoverBy !== h.personId) { try { await sb.takeover({ profileId: r.profileId, personId: h.personId }); } catch { /* the module refuses the agent anyway */ } }
+  }
+}

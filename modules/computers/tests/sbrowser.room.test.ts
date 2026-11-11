@@ -162,3 +162,21 @@ test("a deleted agent's browser profile is removed with its hold and its room; a
     assert.deepEqual(calls, []);
   } finally { bindSpaceBrowser(null); }
 });
+
+test("the periodic pass clears a takeover browserd kept after the module let go, and tells a restarted one about a hold it lost", async () => {
+  const held = new Map<string, string>([["agt_stale", DANA]]);
+  const told: string[] = [];
+  sbrowser();
+  const { spaceBrowser } = await import("../sbrowser/port.ts");
+  const sb = spaceBrowser()!;
+  sb.profiles = async () => ({ profiles: [...new Set([...held.keys(), "agt_lost"])].map((id) => ({ profileId: id, running: true, tabs: 1, busy: false, takeover: held.has(id), ...(held.has(id) ? { takeoverBy: held.get(id)! } : {}), viewers: 0, lastActiveAt: 1, held: 0, paused: false })), maxRunning: 6 });
+  sb.giveBack = async (id) => { told.push(`give_back ${id}`); held.delete(id); };
+  sb.takeover = async (a) => { told.push(`takeover ${a.profileId} ${a.personId}`); held.set(a.profileId, a.personId); };
+  const h = harness();
+  h.db.run("INSERT INTO computers_browser_hold (profile_id, person_id, since, seen) VALUES ('agt_lost', ?, ?, ?)", DANA, h.clock.t, h.clock.t);
+  try {
+    const { periodic } = await import("../impl.ts") as { periodic: Record<string, { run: (ctx: unknown) => Promise<void> }> };
+    await periodic["computers.browser_room"]!.run(h.ctx);
+    assert.deepEqual(told.sort(), ["give_back agt_stale", `takeover agt_lost ${DANA}`]);
+  } finally { bindSpaceBrowser(null); resetRoom(); }
+});

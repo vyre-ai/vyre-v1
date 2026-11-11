@@ -189,8 +189,10 @@ export interface ViewOf {
 }
 
 export interface ViewServer {
-  /** A ticket for one viewer of one profile, valid for five minutes. */
-  mint(profileId: string): string;
+  /** A ticket for one viewer of one profile, valid for five minutes. `personId` is the person it is for, so the views a person has open can be counted. */
+  mint(profileId: string, personId?: string): string;
+  /** How many views of this profile this person has open now. */
+  viewersOf(profileId: string, personId: string): number;
   url(token: string, transport: "mjpeg" | "ws"): string;
   close(): void;
   viewers(): number;
@@ -204,15 +206,18 @@ export interface ViewDeps {
 }
 
 export function startViewServer(d: ViewDeps): ViewServer {
-  const tokens = new Map<string, { exp: number; profileId: string }>();
+  const tokens = new Map<string, { exp: number; profileId: string; personId?: string }>();
   let viewers = 0;
-  const open = (t: string | null): { profileId: string; view: ViewOf } | null => {
+  const byPerson = new Map<string, number>();
+  const count = (key: string | null, d: number): void => { if (!key) return; const n = (byPerson.get(key) ?? 0) + d; if (n > 0) byPerson.set(key, n); else byPerson.delete(key); };
+  const keyOf = (got: { profileId: string; personId?: string }): string | null => (got.personId ? `${got.profileId}|${got.personId}` : null);
+  const open = (t: string | null): { profileId: string; personId?: string; view: ViewOf } | null => {
     if (!t) return null;
     const e = tokens.get(t);
     if (!e) return null;
     if (e.exp < Date.now()) { tokens.delete(t); return null; }
     const view = d.viewOf(e.profileId);
-    return view ? { profileId: e.profileId, view } : null;
+    return view ? { profileId: e.profileId, ...(e.personId ? { personId: e.personId } : {}), view } : null;
   };
 
   const server: Server = createServer((req, res) => {
@@ -222,13 +227,14 @@ export function startViewServer(d: ViewDeps): ViewServer {
       if (!got) { res.writeHead(401, { "content-type": "text/plain" }).end("This view needs a ticket.\n"); return; }
       res.writeHead(200, { "content-type": `multipart/x-mixed-replace; boundary=${BOUNDARY}`, "cache-control": "no-store", connection: "close" });
       viewers += 1;
+      count(keyOf(got), 1);
       const stop = got.view.hub.watch((jpeg) => {
         if (res.writableLength > 2 * 1024 * 1024) return;
         res.write(`--${BOUNDARY}\r\ncontent-type: image/jpeg\r\ncontent-length: ${jpeg.length}\r\n\r\n`);
         res.write(jpeg);
         res.write("\r\n");
       });
-      res.once("close", () => { stop(); viewers -= 1; });
+      res.once("close", () => { stop(); viewers -= 1; count(keyOf(got), -1); });
       return;
     }
     if (url.pathname === "/health") { res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify({ ok: true })); return; }
@@ -243,8 +249,9 @@ export function startViewServer(d: ViewDeps): ViewServer {
     const ws = acceptWebSocket(req, socket, head);
     if (!ws) return;
     viewers += 1;
+    count(keyOf(got), 1);
     const stop = view.hub.watch((jpeg) => { ws.send(jpeg); });
-    ws.onClose(() => { stop(); viewers -= 1; });
+    ws.onClose(() => { stop(); viewers -= 1; count(keyOf(got), -1); });
     ws.onMessage((data, binary) => {
       if (binary || typeof data !== "string") return;
       const t0 = performance.now();
@@ -275,14 +282,15 @@ export function startViewServer(d: ViewDeps): ViewServer {
   server.listen(d.port, "0.0.0.0");
 
   return {
-    mint(profileId) {
+    mint(profileId, personId) {
       for (const [t, e] of tokens) if (e.exp < Date.now()) tokens.delete(t);
       const t = randomBytes(24).toString("hex");
-      tokens.set(t, { exp: Date.now() + TOKEN_TTL_MS, profileId });
+      tokens.set(t, { exp: Date.now() + TOKEN_TTL_MS, profileId, ...(personId ? { personId } : {}) });
       return t;
     },
     url: (token, transport) => (transport === "ws" ? `ws://${d.address()}:${d.port}/ws?t=${token}` : `http://${d.address()}:${d.port}/stream?t=${token}`),
     close() { server.close(); },
     viewers: () => viewers,
+    viewersOf: (profileId, personId) => byPerson.get(`${profileId}|${personId}`) ?? 0,
   };
 }

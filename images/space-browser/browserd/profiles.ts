@@ -91,6 +91,8 @@ export interface Profile {
   importingUntil: number;
   /** Downloads as the browser reports them: the ones under way, and when the last began and finished. */
   dl: { active: Set<string>; begunAt: number; doneAt: number };
+  /** When the person at the controls last sent input through the live view: the only thing besides their own open view that keeps a takeover in use (the module's 15 minute rule). */
+  personActiveAt: number;
 }
 
 export interface ProfileRow { profileId: string; running: boolean; tabs: number; busy: boolean; takeover: boolean; viewers: number; lastActiveAt: number; held: number; paused: boolean; takeoverBy?: string; bridge?: { connected: number; hello: boolean; optin: boolean } }
@@ -104,6 +106,8 @@ export interface ProfileManager {
   tool(a: { profileId: string; tool: string; args: Record<string, unknown>; timeoutMs: number; by?: string }): Promise<Record<string, unknown>>;
   takeover(id: string, personId: string): void;
   giveBack(id: string): void;
+  /** The hold as the Space says it is now (its table is the one truth): a person, or nobody. browserd's own copy follows it on every call that carries it. */
+  setHold(id: string, personId: string | null): void;
   /** Stop the browser, keep the folder. */
   stop(id: string): Promise<void>;
   /**
@@ -149,7 +153,7 @@ export function createProfileManager(o: ProfileManagerOptions): ProfileManager {
       p = {
         id, dir, vault: createVault(),
         state: { stopped: false, tabLimit: o.tabLimit ?? 10, takeover: null, busy: 0, caption: undefined },
-        chrome: null, lastActiveAt: now(), viewers: 0, agentId: undefined, agentName: undefined, spaceId: undefined, starting: null, importingUntil: 0, dl: { active: new Set(), begunAt: 0, doneAt: 0 },
+        chrome: null, lastActiveAt: now(), viewers: 0, agentId: undefined, agentName: undefined, spaceId: undefined, starting: null, importingUntil: 0, dl: { active: new Set(), begunAt: 0, doneAt: 0 }, personActiveAt: 0,
       };
       profiles.set(id, p);
     }
@@ -280,6 +284,11 @@ export function createProfileManager(o: ProfileManagerOptions): ProfileManager {
       p.lastActiveAt = now();
     },
     giveBack(id) { const p = get(id); p.state.takeover = null; p.lastActiveAt = now(); },
+    setHold(id, personId) {
+      const p = get(id);
+      if (personId === null) { p.state.takeover = null; return; }
+      if (p.state.takeover?.personId !== personId) p.state.takeover = { personId, since: now() };
+    },
     async stop(id) { const p = profiles.get(checkProfileId(id)); if (p) { p.state.takeover = null; await release(p); } },
     async resetChrome(id) {
       const p = get(id);

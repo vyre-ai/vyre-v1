@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // browserd's control program (modules/computers/sbrowser): `ctl <action> '<json>'` asks the running browserd over its unix socket and prints the answer.
-// An answer is one JSON object on stdout and exit 0. A refusal is {"code","message"} on the last line of stderr and a non-zero exit (code 1: browserd refused; 3: browserd is not up yet).
+// An answer is one JSON object on stdout and exit 0. A refusal is {"code","message"} on the last line of stderr and a non-zero exit (code 1: browserd refused; 3: browserd is not up yet, the request was
+// never sent, so asking again is safe; 4: browserd stopped after the request was sent, so it may have been done: never ask again by itself).
 import net from "node:net";
 
 const SOCKET = process.env.VYRE_BROWSERD_SOCKET || "/tmp/browserd.sock";
@@ -20,8 +21,9 @@ if (arg !== undefined && arg !== "") {
 const sock = net.connect(SOCKET);
 let buf = "";
 let done = false;
+let sent = false;
 sock.setEncoding("utf8");
-sock.on("connect", () => sock.write(JSON.stringify({ action, args }) + "\n"));
+sock.on("connect", () => { sent = true; sock.write(JSON.stringify({ action, args }) + "\n"); });
 sock.on("data", (d) => {
   buf += d;
   const at = buf.indexOf("\n");
@@ -35,5 +37,5 @@ sock.on("data", (d) => {
     die((r && r.code) || "unavailable", (r && r.message) || "browserd refused", 1);
   }
 });
-sock.on("error", (e) => die("unavailable", "browserd is not answering: " + e.message, 3));
-sock.on("close", () => { if (!done) die("unavailable", "browserd closed the connection", 3); });
+sock.on("error", (e) => { if (!done) (sent ? die("unavailable", "browserd stopped while it worked on the request: " + e.message, 4) : die("unavailable", "browserd is not up yet: " + e.message, 3)); });
+sock.on("close", () => { if (!done) (sent ? die("unavailable", "browserd stopped while it worked on the request", 4) : die("unavailable", "browserd is not up yet", 3)); });

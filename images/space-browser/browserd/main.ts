@@ -101,7 +101,7 @@ const views = startViewServer({
   address,
   viewOf: (id): ViewOf | null => {
     const p = manager.get(id);
-    return { hub: hubOf(id), input: createCdpInput(() => pageOf(id)), takenOver: () => p.state.takeover !== null, onInput: (event) => { audit.push({ profileId: id, at: Date.now(), event }); if (audit.length > 1000) audit.shift(); manager.touch(id); } };
+    return { hub: hubOf(id), input: createCdpInput(() => pageOf(id)), takenOver: () => p.state.takeover !== null, onInput: (event) => { audit.push({ profileId: id, at: Date.now(), event }); if (audit.length > 1000) audit.shift(); manager.touch(id); p.personActiveAt = Date.now(); } };
   },
 });
 
@@ -139,7 +139,8 @@ async function signOut(id: string, site: string): Promise<Args> {
 
 async function dispatch(action: string, a: Args): Promise<Args> {
   switch (action) {
-    case "status": return { profiles: await manager.list(), maxRunning: Number(env["VYRE_BROWSER_MAX_RUNNING"] ?? 6) || 6, viewers: views.viewers() };
+    // each row also says how many views the person at the controls has open and when they last sent input: what keeps a takeover in use (never the agent's calls, never someone else watching)
+    case "status": return { profiles: (await manager.list()).map((r) => { const p = manager.get(r.profileId); return { ...r, holderViews: r.takeoverBy ? views.viewersOf(r.profileId, r.takeoverBy) : 0, ...(p.personActiveAt ? { personActiveAt: p.personActiveAt } : {}) }; }), maxRunning: Number(env["VYRE_BROWSER_MAX_RUNNING"] ?? 6) || 6, viewers: views.viewers() };
     case "configure": {
       const p = manager.get(checkProfileId(a["profileId"]));
       const n = a["tabLimit"];
@@ -160,6 +161,8 @@ async function dispatch(action: string, a: Args): Promise<Args> {
       if (typeof a["fillUrl"] === "string" && typeof a["fillToken"] === "string") manager.get(pid).vault.setFiller(a["fillUrl"], a["fillToken"], pid);
       // Vyre for Chrome in the profile is paired with the Space as this agent as soon as the Space and the Vault channel are known
       if (manager.get(pid).spaceId && manager.get(pid).vault.hasChannel()) bridges?.pair(pid);
+      // the hold as the Space's table has it now: browserd follows it, so a give back or an expiry it missed is repaired by the next call
+      if ("hold" in a) manager.setHold(pid, typeof a["hold"] === "string" && a["hold"] !== "" ? a["hold"] : null);
       const args = (typeof a["args"] === "object" && a["args"] !== null ? a["args"] : {}) as Args;
       return manager.tool({ profileId: checkProfileId(a["profileId"]), tool: text(a, "tool"), args, timeoutMs: typeof a["timeoutMs"] === "number" ? a["timeoutMs"] : 30_000, ...(a["by"] === "person" ? { by: "person" } : {}) });
     }
@@ -180,7 +183,7 @@ async function dispatch(action: string, a: Args): Promise<Args> {
     case "stream": {
       const id = checkProfileId(a["profileId"]);
       const p = await manager.ensure(id);
-      const t = views.mint(id);
+      const t = views.mint(id, typeof a["personId"] === "string" ? a["personId"] : undefined);
       // the size the viewer scales its pointer from: what the page's viewport really is, never a constant
       let size = { width: 1280, height: 800 };
       try { const c = await p.chrome!.page(); try { const r = await c.send<{ result?: { value?: { w: number; h: number } } }>("Runtime.evaluate", { expression: "({ w: innerWidth, h: innerHeight })", returnByValue: true }); if (r.result?.value) size = { width: r.result.value.w, height: r.result.value.h }; } finally { c.close(); } } catch { /* the configured size */ }

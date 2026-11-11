@@ -101,7 +101,7 @@ export async function stream(ctx: CompCtx, input: { agentId: string }) {
   // the view wakes the browser: it needs room on the host like any browser that starts
   await needRoom(ctx, sb, input.agentId);
   let size: { width?: number; height?: number } = {};
-  try { const r = await sb.stream({ profileId: input.agentId }); if (r.width && r.height) size = { width: r.width, height: r.height }; } catch (e) { refuse(ctx, e); }
+  try { const r = await sb.stream({ profileId: input.agentId, personId: person }); if (r.width && r.height) size = { width: r.width, height: r.height }; } catch (e) { refuse(ctx, e); }
   // the person at the controls opening the view is using the hold; a service that restarted is told about it again
   if (heldBy(ctx, input.agentId) === person) { touchHold(ctx, input.agentId, person); await currentHold(ctx, sb, input.agentId); }
   // a person who holds the controls gets a ticket that carries their input; anyone else only frames
@@ -121,7 +121,7 @@ export async function browserStreamOpen(ctx: CompCtx, input: { ticket: string; a
   const who = await redeemTicket(ctx.db, String(input.ticket), ctx.now());
   if (!who || who.computerId !== String(input.agentId) || (who.kind !== "stream" && who.kind !== "takeover")) return null;
   let target: Awaited<ReturnType<SpaceBrowser["stream"]>>;
-  try { target = await sb.stream({ profileId: who.computerId }); } catch { return null; }
+  try { target = await sb.stream({ profileId: who.computerId, personId: who.personId }); } catch { return null; }
   if (!target.ws || !target.url) return null;
   let holds = heldBy(ctx, who.computerId) === who.personId;
   if (holds) { touchHold(ctx, who.computerId, who.personId); holds = (await currentHold(ctx, sb, who.computerId))?.personId === who.personId; }

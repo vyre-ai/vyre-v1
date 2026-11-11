@@ -13,3 +13,7 @@
 - The browser step that downloads a file now says where it landed in Files in that same step, and typing or sending a held item reports downloads too.
 - A download over 20 MB is reported once in plain words (it stays in the agent's Space browser and is not put in Files) instead of being tried at every step.
 - On a Linux server, no container Vyre starts for agents (Space browser, workspaces, agent computers) can reach the cloud's metadata address, which can hand out the server's credentials; the rest of their internet is unchanged, and `vyre-server doctor` says whether the block is in place.
+- Opening a page in a new tab, or after the last tab was closed, works again in agents' browsers (agent computers and the Space browser).
+- A give back that did not reach the Space browser no longer leaves the agent blocked: the agent's next step puts it right.
+- A takeover is kept going only by the person who took over (their open live view or their input); an agent waiting and checking its browser, or someone else watching, no longer keeps it from ending after 15 quiet minutes.
+- A browser step is never sent a second time on its own after the Space browser stopped while working on it; the agent is told the step did not finish.

@@ -38,7 +38,7 @@ export function acceptWebSocket(req: IncomingMessage, socket: Duplex, head: Buff
   let onMessage: (data: string | Uint8Array, binary: boolean) => void = () => undefined;
   let onClose: () => void = () => undefined;
   let closed = false;
-  let buf = head.length > 0 ? Buffer.from(head) : Buffer.alloc(0);
+  let buf: Buffer = head.length > 0 ? Buffer.from(head) : Buffer.alloc(0);
   let parts: Buffer[] = [];
   let partsOpcode = 0;
   let partsLen = 0;

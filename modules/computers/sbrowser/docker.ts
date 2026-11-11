@@ -173,8 +173,9 @@ export function createDockerSpaceBrowser(o: DockerSpaceBrowserOptions): SpaceBro
     return up;
   }
 
-  // a container that runs is not always one whose browserd answers: just after it (re)started the control socket is not there yet, and the call waits for it instead of failing
-  const starting = (e: unknown): boolean => e instanceof ToolError && e.code === "unavailable" && /not answering|ENOENT|ECONNREFUSED/i.test(e.message);
+  // a container that runs is not always one whose browserd answers: just after it (re)started the control socket is not there yet, and the call waits for it instead of failing. Only a request that
+  // certainly never reached browserd is asked again (ctl says "not up yet": no connection was made); one that was sent and then lost is an error to the caller, never a silent repeat (a click, a send).
+  const starting = (e: unknown): boolean => e instanceof ToolError && e.code === "unavailable" && /^browserd is not up yet/.test(e.message);
   const call = async (action: string, body: Record<string, unknown>): Promise<BrowserAnswer> => {
     await ensureUp();
     try { return await exec(action, body); } catch (e) {
@@ -193,7 +194,7 @@ export function createDockerSpaceBrowser(o: DockerSpaceBrowserOptions): SpaceBro
   return {
     available: () => o.api.ping().catch(() => false),
     async tool(a: BrowserToolCall) {
-      return call("tool", { profileId: a.profileId, tool: a.tool, args: a.args, timeoutMs: a.timeoutMs, ...(a.by ? { by: a.by } : {}), ...(a.fill ? { fillUrl: a.fill.url, fillToken: a.fill.token } : {}), ...(a.space ? { spaceId: a.space } : {}), ...(a.agent ? { agentName: a.agent.name, ...(a.agent.faceSvg ? { faceSvg: a.agent.faceSvg } : {}) } : {}) });
+      return call("tool", { profileId: a.profileId, tool: a.tool, args: a.args, timeoutMs: a.timeoutMs, ...(a.by ? { by: a.by } : {}), ...(a.fill ? { fillUrl: a.fill.url, fillToken: a.fill.token } : {}), ...(a.space ? { spaceId: a.space } : {}), ...(a.hold !== undefined ? { hold: a.hold } : {}), ...(a.agent ? { agentName: a.agent.name, ...(a.agent.faceSvg ? { faceSvg: a.agent.faceSvg } : {}) } : {}) });
     },
     async downloads(profileId) {
       if (!(await o.api.containerRunning(name))) return [];
@@ -214,7 +215,7 @@ export function createDockerSpaceBrowser(o: DockerSpaceBrowserOptions): SpaceBro
       return { bytes: decode64(s.png), width: Number(s.width), height: Number(s.height) };
     },
     async stream(a) {
-      const s = await call("stream", { profileId: a.profileId }) as { url?: string; ws?: string; width?: number; height?: number };
+      const s = await call("stream", { profileId: a.profileId, ...(a.personId ? { personId: a.personId } : {}) }) as { url?: string; ws?: string; width?: number; height?: number };
       return { transport: "mjpeg", url: s.url ?? "", ...(typeof s.ws === "string" ? { ws: s.ws } : {}), ...(typeof s.width === "number" && typeof s.height === "number" ? { width: s.width, height: s.height } : {}) };
     },
     async sessions(profileId) {

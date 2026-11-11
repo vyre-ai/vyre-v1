@@ -308,9 +308,9 @@ export function launchChrome(screen: Screen | null, profileDir: string, extensio
       case "chrome_open": {
         const url = s("url") ?? "";
         const all = await targets();
-        const newTab = args["newTab"] === true || all.length === 0;
-        if (newTab && all.length >= state.tabLimit) throw badInput(`This computer has ${all.length} tabs open, which is its limit. Close one first.`);
-        if (newTab) {
+        const wantNew = args["newTab"] === true || all.length === 0;
+        if (wantNew && all.length >= state.tabLimit) throw badInput(`This computer has ${all.length} tabs open, which is its limit. Close one first.`);
+        if (wantNew) {
           const t = await newTab(url);
           active = t.id;
           const out = await withTab(t.id, async (c) => { await waitFor(c, "load", undefined, 30_000).catch(() => 0); return { url: await evalIn<string>(c, "location.href"), title: await evalIn<string>(c, "document.title") }; });

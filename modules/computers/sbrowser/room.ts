@@ -6,7 +6,8 @@ import { claimRoom, drainWaiting, releaseRoom, bindStarter } from "../capacity.t
 import { raise, rowsOf } from "../projections.ts";
 import type { CompCtx } from "../projections.ts";
 import { spaceBrowser } from "./port.ts";
-import type { SpaceBrowser } from "./port.ts";
+import type { ProfileRow, SpaceBrowser } from "./port.ts";
+import { syncHolds } from "./hold.ts";
 
 const RECONCILE_MS = 20_000;
 /** A claim this young may belong to a browser that is still starting: it is not taken for a stopped one. */
@@ -19,10 +20,14 @@ export async function reconcileClaims(ctx: CompCtx, sb: SpaceBrowser, o: { force
   if (!o.force && at - lastReconcile < RECONCILE_MS) return;
   const claims = rowsOf(ctx.db, "SELECT claim_key, since FROM computers_claim WHERE kind = 'browser' AND state = 'running'");
   const waiting = rowsOf(ctx.db, "SELECT 1 FROM computers_claim WHERE state = 'waiting' LIMIT 1").length > 0;
-  if (claims.length === 0 && !waiting) return;
+  const holds = rowsOf(ctx.db, "SELECT 1 FROM computers_browser_hold LIMIT 1").length > 0;
+  // a browser that runs holds a claim, so a takeover browserd kept on its own (it missed a give back) is seen here too
+  if (claims.length === 0 && !waiting && !holds) return;
   lastReconcile = at;
   let running: Set<string>;
-  try { running = new Set((await sb.profiles()).profiles.filter((p) => p.running).map((p) => p.profileId)); } catch { return; }
+  let rows: ProfileRow[];
+  try { rows = (await sb.profiles()).profiles; running = new Set(rows.filter((p) => p.running).map((p) => p.profileId)); } catch { return; }
+  await syncHolds(ctx, sb, rows);
   for (const r of claims) {
     const key = String(r["claim_key"]);
     if (!running.has(key) && at - Number(r["since"]) >= START_GRACE_MS) releaseRoom(ctx, key);

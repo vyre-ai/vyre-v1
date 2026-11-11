@@ -60,6 +60,7 @@ function host(cmd: string, args: string[], timeoutMs: number): Promise<{ code: n
 // ---- the sites the browsers visit, served from this test process on the Docker bridge ----------------------------------------------------------------
 
 const logins: Array<{ user: string; password: string }> = [];
+const slowHits = new Map<string, number>();
 let site: Server;
 let fillSite: Server;
 let GATEWAY = "172.17.0.1";
@@ -84,6 +85,10 @@ function serveSite(req: IncomingMessage, res: ServerResponse): void {
     res.writeHead(200, { "content-type": "application/octet-stream", "content-disposition": `attachment; filename="${url.searchParams.get("name") ?? "file.bin"}"` });
     const bytes = Number(url.searchParams.get("bytes") ?? 0);
     res.end(bytes > 0 ? Buffer.alloc(bytes, 120) : `the contents of ${url.searchParams.get("name") ?? "file.bin"}`);
+  } else if (url.pathname === "/slow") {
+    const k = url.searchParams.get("k") ?? "";
+    slowHits.set(k, (slowHits.get(k) ?? 0) + 1);
+    setTimeout(() => page(res, `<p id=out>slow ${k}</p>`), 4000);
   } else if (url.pathname === "/files") {
     page(res, `<a id=small href="/download?name=invoice.txt">Invoice</a> <a id=big href="/download?name=archive.bin&bytes=${21 * 1024 * 1024}">Archive</a>`);
   } else if (url.pathname === "/ticker") {
@@ -547,6 +552,62 @@ test("@heavy space browser: the click that downloads a file reports it in the sa
     assert.equal(later.downloads, undefined, "and is not reported or tried again");
     assert.deepEqual(await sb.downloads(AG), [], "nothing is left waiting in the list");
   } finally { bindSpaceBrowser(null); }
+});
+
+// Review finding 1 (12 Nov): chrome_open with newTab, or after the last tab was closed, threw "newTab is not a function" (a local boolean hid the helper in agentd/chrome.ts, shared with agent computers).
+test("@heavy space browser: chrome_open opens a new tab when asked, and opens a page after the last tab was closed", { skip, timeout: 300_000 }, async () => {
+  await tool("agt_newtab", "chrome_open", { url: siteUrl("/whoami?n=1") });
+  const before = ((await tool("agt_newtab", "chrome_tabs", { action: "list" }))["tabs"] as unknown[]).length;
+  const opened = await tool("agt_newtab", "chrome_open", { url: siteUrl("/whoami?n=2"), newTab: true });
+  assert.match(String(opened["url"]), /n=2/);
+  const tabs = (await tool("agt_newtab", "chrome_tabs", { action: "list" }))["tabs"] as Array<{ tabId: string; url: string }>;
+  assert.equal(tabs.length, before + 1, "one more tab");
+  for (const t of tabs) await tool("agt_newtab", "chrome_tabs", { action: "close", tabId: t.tabId });
+  assert.equal(((await tool("agt_newtab", "chrome_tabs", { action: "list" }))["tabs"] as unknown[]).length, 0, "every tab closed");
+  const again = await tool("agt_newtab", "chrome_open", { url: siteUrl("/whoami?n=3") });
+  assert.match(String(again["url"]), /n=3/, "a page opens in a new tab when none is left");
+});
+
+// Review finding 4 (12 Nov): the adapter repeated a whole call when the error said "not answering", which ctl also prints for an error after the request was sent. A step in flight when browserd dies must come
+// back as an error, never be sent again by itself. What a dying browserd really produces is printed by the test.
+test("@heavy space browser: a step in flight when browserd dies is an error to the agent and is not sent again", { skip, timeout: 300_000 }, async () => {
+  // a browserd told to stop (TERM: it closes the browsers and answers) and one that is killed outright (KILL: the socket and the exec just end)
+  for (const sig of ["TERM", "KILL"]) {
+    const key = `die${sig}`;
+    await tool("agt_dying", "chrome_open", { url: siteUrl("/whoami") });
+    const step = tool("agt_dying", "chrome_open", { url: siteUrl(`/slow?k=${key}`) }).then(() => "answered", (e: unknown) => `refused: ${e instanceof Error ? e.message : String(e)}`);
+    for (let i = 0; i < 50 && !slowHits.get(key); i++) await sleep(100);
+    assert.equal(slowHits.get(key), 1, "the step reached the site");
+    // browserd is the container's program: the container stops with it (and this exec with it)
+    await api.exec(NAME, { cmd: ["sh", "-c", `kill -${sig} $(pgrep -f 'node /opt/browserd/main.ts')`], env: [] }).catch(() => undefined);
+    const got = await step;
+    console.log(`a step when browserd died (${sig}): ${got}`);
+    await sleep(6000);
+    assert.equal(slowHits.get(key), 1, `the step was not sent again (${sig}: ${got})`);
+    assert.match(got, /^refused: /, "the agent is told it did not finish");
+  }
+  // and the service comes back for the next call
+  await tool("agt_dying", "chrome_open", { url: siteUrl("/whoami") });
+});
+
+// Review finding 2 (12 Nov): when the give back did not reach browserd, browserd kept its own takeover and refused the agent for good while the Space said nobody held it.
+test("@heavy space browser: a give back that does not reach browserd is repaired by the agent's next call through the module", { skip, timeout: 300_000 }, async () => {
+  const AG = "agt_missed";
+  const h = harness({ principal: { kind: "agent", id: AG }, actingFor: "usr_dana" });
+  const dana = asPerson(h, { kind: "person", id: "usr_dana" }, { respond: { "agents.share_class": () => ({ class: "personal", ownerId: "usr_dana", people: [] }) } });
+  const realGiveBack = sb.giveBack.bind(sb);
+  bindSpaceBrowser(sb);
+  try {
+    await cap["computers.chrome.open"]!(h.ctx, { url: siteUrl("/whoami") });
+    await cap["computers.browser.take_over"]!(dana.ctx, { agentId: AG });
+    sb.giveBack = async () => { throw new ToolError("unavailable", "browserd stopped while it worked on the request"); };
+    await cap["computers.browser.give_back"]!(dana.ctx, { agentId: AG });
+    sb.giveBack = realGiveBack;
+    assert.equal((await sb.profiles()).profiles.find((p) => p.profileId === AG)?.takeoverBy, "usr_dana", "browserd missed it and still holds its own copy");
+    const out = await cap["computers.chrome.state"]!(h.ctx, {});
+    assert.equal(typeof out.url, "string", "the agent works: its call carried the hold as the Space has it");
+    assert.equal((await sb.profiles()).profiles.find((p) => p.profileId === AG)?.takeoverBy, undefined, "and browserd let go");
+  } finally { sb.giveBack = realGiveBack; bindSpaceBrowser(null); }
 });
 
 test("@heavy space browser: a profile's tabs come back after its browser stops after idle", { skip, timeout: 300_000 }, async () => {

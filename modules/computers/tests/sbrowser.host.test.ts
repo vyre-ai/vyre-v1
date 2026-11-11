@@ -197,3 +197,49 @@ test("with Engine access and no runner the service gets a network of its own, na
   try { assert.ok(computerSubnets().includes("172.29.0.0/16"), "a request from the Space browser reaches only the Vault channel of the daemon"); } finally { bindSpaceBrowser(null); }
   assert.deepEqual(reviewComputerConfig(c), []);
 });
+
+// Review finding 4 (12 Nov): a call was repeated whenever the error said "not answering", which ctl also printed after the request was sent. Only a request that never reached browserd is asked again.
+test("a call is asked again only when ctl says browserd was not up (nothing was sent); one lost after it was sent is an error, never repeated", async () => {
+  for (const [stderr, again] of [
+    [{ code: "unavailable", message: "browserd is not up yet: connect ENOENT /tmp/browserd.sock" }, true],
+    [{ code: "unavailable", message: "browserd stopped while it worked on the request: read ECONNRESET" }, false],
+    [{ code: "unavailable", message: "browserd is not answering: write EPIPE" }, false],
+  ] as const) {
+    let tools = 0;
+    const e = engine((action) => {
+      if (action === "status") return ok({});
+      tools += 1;
+      return tools === 1 ? { exitCode: 3, stdout: "", stderr: `${JSON.stringify(stderr)}\n` } : ok({ ok: true });
+    });
+    const sb = createDockerSpaceBrowser({ api: e.api, sleep: async () => {} });
+    const r = await sb.tool({ profileId: "agt_dex", tool: "chrome_click", args: { ref: "e1" }, timeoutMs: 1000 }).then(() => "done", (x: unknown) => (x as Error).message);
+    assert.equal(tools, again ? 2 : 1, `${stderr.message}: sent ${tools} times`);
+    assert.equal(r === "done", again, stderr.message);
+  }
+});
+
+test("ctl says whether the request was sent: no socket is 'not up yet' (exit 3), a browserd that drops the request is 'stopped while it worked' (exit 4)", async () => {
+  const { spawnSync, spawn } = await import("node:child_process");
+  const { createServer } = await import("node:net");
+  const fs = await import("node:fs");
+  const os = await import("node:os");
+  const path = await import("node:path");
+  const ctl = path.join(path.dirname(new URL(import.meta.url).pathname), "../../../images/space-browser/browserd/ctl");
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ctl-"));
+  try {
+    const none = spawnSync(process.execPath, [ctl, "tool", "{}"], { env: { ...process.env, VYRE_BROWSERD_SOCKET: path.join(dir, "absent.sock") }, encoding: "utf8" });
+    assert.equal(none.status, 3);
+    assert.match(none.stderr, /browserd is not up yet/);
+    const sockPath = path.join(dir, "b.sock");
+    const server = createServer((c) => { c.once("data", () => c.destroy()); });
+    await new Promise<void>((r) => server.listen(sockPath, () => r()));
+    const out = await new Promise<{ status: number | null; stderr: string }>((resolve) => {
+      const p = spawn(process.execPath, [ctl, "tool", "{}"], { env: { ...process.env, VYRE_BROWSERD_SOCKET: sockPath } });
+      let err = ""; p.stderr.on("data", (d: Buffer) => { err += d.toString(); });
+      p.on("exit", (status) => resolve({ status, stderr: err }));
+    });
+    server.close();
+    assert.equal(out.status, 4, out.stderr);
+    assert.match(out.stderr, /browserd stopped while it worked on the request/);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
