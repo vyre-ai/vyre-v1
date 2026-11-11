@@ -5,3 +5,4 @@
 - A workspace running a script, a `sh -c` command or a job in the background is no longer put to sleep as idle, and a command that starts just as it would sleep is never cut off.
 - Workspaces that were running when Vyre restarted go to sleep after their idle time again.
 - A terminal's status is shown only to people who may open that workspace.
+- The Terminal tab in a chat opens in the agent's workspace, the same sessions its commands use, instead of on this computer.
