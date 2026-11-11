@@ -96,6 +96,7 @@ import { withGateNesting } from "./gate-nesting.ts";
 import { FILL_PATH, createComputersFillHost, createFillRoute } from "../seams/computers.ts";
 import { homeCallAllowed, homeScopeOf } from "./home-confine.ts";
 import { createComputersHost } from "../seams/computers-host.ts";
+import { releaseImage } from "../seams/release-images.ts";
 import { createTerminalHostSeam } from "../seams/terminal-host.ts";
 import { findDockerSocket } from "../seams/docker-socket.ts";
 import { READER_LOSS, createEngineHost } from "../seams/engine.ts";
@@ -1039,7 +1040,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           turns: (id: string) => (id === "space" ? Math.max(0, engineTurns - computeStream.running()) : computeStream.connected(id) ? computeStream.running(id) : undefined),
           own: async () => ({ name: reporter.name(), report: (o.machineReport ?? ((r: Report) => r))(reporter.report()) }),
           idle: (_id: string, person?: string) => idleSessions(person),
-          findings: async () => (await runDoctor({ dataDir: paths.root, role: "space" })).findings,
+          findings: async () => (await runDoctor({ dataDir: paths.root, role: "space", ...(cfg.diskChoice ? { diskChoice: cfg.diskChoice } : {}), ...(cfg.dockerRoot ? { dockerRoot: cfg.dockerRoot } : {}) })).findings,
           fix: async (id: string, fix: string, service?: string, person?: string) => {
             if (!isFix(fix)) throw new Error(`unknown fix ${fix}`);
             // a member's own computer or server: its idle sessions are the owner's, held by the Space's pool, and only theirs stop; nothing of anyone else's
@@ -1920,6 +1921,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         },
         setComputerHost: () => createComputersHost({
           dataDir: paths.root,
+          version: cfg.version,
           ...(o.computersSocketPath !== undefined ? { socketPath: o.computersSocketPath } : {}),
           // On a Team server vyred holds no Docker socket: agent computers are made and run through the runner beside it (the same one that runs sites), which refuses anything else
           ...(o.computersSocketPath === undefined && computersRunnerSocket() ? { runner: { socket: computersRunnerSocket() as string, token: computersRunnerToken, ...(ingressContainer() ? { ingress: ingressContainer() as string } : {}) } } : {}),
@@ -1953,7 +1955,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
                   return mine.find((c) => c.enrollment === "approved" && c.facts?.docker === true && computeStream.connected(c.serverId))?.serverId ?? null;
                 },
               },
-              ...(cfg.spaceKind === "personal" && !process.env["VYRE_WORKSPACE_IMAGE"] ? { image: `ghcr.io/vyre-ai/agent-workspace:${cfg.version}` } : {}),
+              // the setting when it names an image, else this release's own image on ghcr.io/vyre-ai (seams/release-images.ts): never a bare vyre/... name, which Docker would look for on Docker Hub
+              image: releaseImage("agent-workspace", cfg.version, process.env["VYRE_WORKSPACE_IMAGE"]),
               ...(o.workspaceIdleMs !== undefined ? { idleMs: o.workspaceIdleMs } : {}),
               projectsOf: (agentId: string) => (db!.all("SELECT projectId FROM projects_member WHERE principal = ? AND kind = 'agent'", agentId) as Array<{ projectId?: string }>).map((r) => String(r.projectId)),
               // ~/Vyre in the workspace mirrors the agent's folder in Files: the computers module's home sync, run as the agent principal like any other writer (access, review rules and the scrubber apply)
@@ -2386,7 +2389,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     return used ? r : { ...r, state: "healthy", detail: `${r.detail ?? "Not running."} Agent computers need it; none exist yet.` };
   };
   const probeFns: Record<ProbeName, () => Promise<ProbeResult> | ProbeResult> = {
-    disk_encrypted: () => (o.probes?.diskEncrypted ? o.probes.diskEncrypted() : probes.diskEncrypted(platform, paths.root)),
+    disk_encrypted: () => (o.probes?.diskEncrypted ? o.probes.diskEncrypted() : probes.diskEncrypted(platform, paths.root, cfg.diskChoice)),
     events_db: events,
     index_db: () => probes.indexLag(o.probes?.indexLag ? o.probes.indexLag() : null),
     scheduler: () => probes.schedulerTick(scheduler.lastTickAt, now()),
@@ -2417,6 +2420,21 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     const d = db;
     // one commit for the three heartbeats, not three
     d.tx(() => {
+      // The installer changed how this server is reached (a new address or relay, VYRE_NETWORK_REV): apply it once. Without this the row made at the first start keeps the old way and a new domain never gets its site.
+      // The row is updated, not replaced: the relay address and the domain the installer is not changing stay, so the Console's own mode switch still works afterwards, and the endpoint of the old address is marked down.
+      if (cfg.networkRev) {
+        const seen = (d.all("SELECT value FROM network_info WHERE key = 'network_rev'")[0] as { value?: string } | undefined)?.value;
+        if (seen !== cfg.networkRev) {
+          if (d.all("SELECT id FROM network_config WHERE id = 1").length) {
+            d.run(
+              "UPDATE network_config SET address = ?, mode = ?, domain = COALESCE(?, domain), relay_address = COALESCE(?, relay_address), public_ingress = ?, ingress_detail = ?, reported_at = ? WHERE id = 1",
+              address, cfg.relayUrl && !cfg.address ? "relay" : "own_domain", cfg.address, relayHost, cfg.address || cfg.relayUrl ? 1 : 0, cfg.address || cfg.relayUrl ? null : "Forms and webhooks need a public address.", t,
+            );
+            d.run("UPDATE network_endpoint SET state = 'down' WHERE kind = 'direct' AND url != ?", /^https?:\/\//.test(address) ? address : `https://${address}`);
+          }
+          storeInfo(d, "network_rev", cfg.networkRev, t);
+        }
+      }
       storeInfo(d, "space_version", cfg.version, t);
       d.run(
         "INSERT INTO network_config (id, address, mode, domain, relay_address, public_ingress, ingress_detail, reported_at) VALUES (1, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET reported_at = excluded.reported_at, relay_address = COALESCE(excluded.relay_address, network_config.relay_address)",

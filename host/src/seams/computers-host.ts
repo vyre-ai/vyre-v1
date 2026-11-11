@@ -3,6 +3,7 @@
 // Vyre Files folder. The module builds the Docker ComputerHost from it (createDockerComputerHost) and binds it; a daemon without Docker answers provider.unavailable from health, not at boot.
 import fs from "node:fs";
 import path from "node:path";
+import { releaseImage } from "./release-images.ts";
 
 export interface ComputersHostSeam {
   /** The Docker Engine socket. Default /var/run/docker.sock. */
@@ -36,6 +37,8 @@ export interface ComputersHostDeps {
   socketPath?: string;
   runner?: { socket: string; token(): string; ingress?: string; alias?: string };
   image?: string;
+  /** This release's version: when no setting names an image, the host asks for the release's own image by this tag (release-images.ts). Omitted: the local build names. */
+  version?: string;
   startTimeoutMs?: number;
   /** See ComputersHostSeam.capacity. */
   capacity?: () => Promise<{ totalMb: number; freeMb: number; cpus: number; os: string; diskFreeMb?: number }>;
@@ -57,8 +60,8 @@ export function createComputersHost(d: ComputersHostDeps): ComputersHostSeam {
   return {
     ...(d.socketPath !== undefined ? { socketPath: d.socketPath } : {}),
     ...(d.runner ? { runner: d.runner } : {}),
-    image: d.image ?? process.env["VYRE_AGENT_COMPUTER_IMAGE"] ?? "vyre/agent-computer:1",
-    browserImage: process.env["VYRE_SPACE_BROWSER_IMAGE"] ?? "vyre/space-browser:1",
+    image: d.image ?? releaseImage("agent-computer", d.version, process.env["VYRE_AGENT_COMPUTER_IMAGE"]),
+    browserImage: releaseImage("vyre-browser", d.version, process.env["VYRE_SPACE_BROWSER_IMAGE"]),
     startTimeoutMs: d.startTimeoutMs ?? 120_000,
     ...(d.capacity ? { capacity: d.capacity } : {}),
     ...(d.callAs && d.putBytes ? { home: { callAs: d.callAs as never, putBytes: d.putBytes, ...(d.homeIntervalMs !== undefined ? { intervalMs: d.homeIntervalMs } : {}), manifest: (agentId: string) => path.join(root, agentId, "home-manifest.json"), ...(d.announce ? { announce: d.announce } : {}), ...(d.log ? { log: d.log } : {}) } } : {}),

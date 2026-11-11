@@ -152,7 +152,8 @@ test("volumes, images and pulls: only an agent computer's profile volume may be 
   assert.equal((await w.call("DELETE", "/volumes/some-other-volume")).status, 403);
   assert.equal((await w.call("GET", "/images/vyre/agent-computer:1/json")).status, 200);
   assert.equal((await w.call("GET", "/images/alpine:latest/json")).status, 403);
-  assert.equal((await w.call("POST", "/images/create?fromImage=vyre/agent-computer&tag=1")).status, 200);
+  assert.equal((await w.call("POST", "/images/create?fromImage=vyre/agent-computer&tag=1")).status, 403, "a bare vyre/... name would be looked for on Docker Hub, which is not Vyre's: never fetched");
+  assert.equal((await w.call("POST", "/images/create?fromImage=ghcr.io/vyre-ai/agent-computer&tag=1.0.0-rc.24")).status, 200, "the release's registry copy");
   assert.equal((await w.call("POST", "/images/create?fromImage=alpine&tag=latest")).status, 403);
 });
 
@@ -162,7 +163,7 @@ test("the agent computer image by digest: read, pulled and created from only for
   const hex = "d".repeat(64);
   for (const repo of ["ghcr.io/vyre-ai/agent-computer", "vyre/agent-computer"]) {
     assert.equal((await w.call("GET", `/images/${repo}@sha256:${hex}/json`)).status, 200, `${repo} read by digest`);
-    assert.equal((await w.call("POST", `/images/create?fromImage=${repo}@sha256:${hex}`)).status, 200, `${repo} pulled by digest`);
+    assert.equal((await w.call("POST", `/images/create?fromImage=${repo}@sha256:${hex}`)).status, repo.startsWith("vyre/") ? 403 : 200, `${repo} pulled by digest: only Vyre's own registry is ever asked`);
   }
   for (const bad of [`ghcr.io/evil/agent-computer@sha256:${hex}`, `alpine@sha256:${hex}`, `ghcr.io/vyre-ai/vyred@sha256:${hex}`, `vyre/agent-computer@sha256:${"d".repeat(63)}`, `vyre/agent-computer@sha256:${"G".repeat(64)}`, "vyre/agent-computer@md5:abc"]) {
     assert.equal((await w.call("GET", `/images/${bad}/json`)).status, 403, `${bad} read`);
