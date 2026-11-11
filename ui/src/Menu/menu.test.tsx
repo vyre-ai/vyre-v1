@@ -161,6 +161,11 @@ test("the menu panel can take focus, so Escape and the arrow keys reach it even 
   assert.match(html, /<div[^>]*role="menu"[^>]*tabindex="-1"|<div[^>]*tabindex="-1"[^>]*role="menu"/, "the panel is focusable by script, not a tab stop");
 });
 
+test("a row that cannot be chosen (the Loading row) tells assistive tech it is disabled", () => {
+  const html = renderToStaticMarkup(<Menu items={choiceRows([{ label: "Acme" }], true)} x={0} y={0} />);
+  assert.match(html, /aria-disabled="true"[^>]*aria-label="Loading…"|aria-label="Loading…"[^>]*aria-disabled="true"/);
+});
+
 test("arrow keys wrap over actionable items only", () => {
   const entries = menuEntries({ items: [{ head: "A" }, { label: "One" }, { separator: true }, { label: "Two" }] });
   const pick = selectableIndices(entries);

@@ -424,6 +424,7 @@ function MenuRow({ entry, lit, onHover, onChoose, nodeRef }: {
       aria-checked={entry.checked === true ? true : undefined}
       aria-current={entry.checked === true ? "true" : undefined}
       aria-disabled={entry.disabled === true ? true : undefined}
+      disabled={entry.disabled === true}
       onPress={(event) => { event.stopPropagation(); if (entry.disabled !== true) onChoose(); }}
       onHoverIn={entry.disabled === true ? undefined : onHover}
       onFocus={entry.disabled === true ? undefined : onHover}
