@@ -8,8 +8,8 @@ import { spawn } from "node:child_process";
 import type { ChildProcess } from "node:child_process";
 import { existsSync, rmSync } from "node:fs";
 import { join } from "node:path";
-import { connectCdp } from "./cdp.ts";
-import type { Cdp } from "./cdp.ts";
+import { connectCdp, connectPipe } from "./cdp.ts";
+import type { Cdp, CdpPipe } from "./cdp.ts";
 import { AgentError, badInput, notFound, paused, sleep, unavailable } from "./errors.ts";
 import { browserBounds } from "./desktop.ts";
 import type { Screen } from "./x11.ts";
@@ -30,9 +30,14 @@ interface Held { run: () => Promise<void>; what: string; at: number }
 export interface Chrome {
   ready(): Promise<void>;
   alive(): boolean;
-  /** The DevTools port of this browser on 127.0.0.1. */
-  readonly port: number;
+  /** The DevTools port of this browser on 127.0.0.1, or null when it talks over its pipe and opens no port. */
+  readonly port: number | null;
+  /** The page tabs, the front one first. */
   tabs(): Promise<Target[]>;
+  /** The browser target itself (Browser.*, Storage.*, Target.*). Close it when done. */
+  browser(): Promise<Cdp>;
+  /** A connection to one tab by id. Close it when done. */
+  attach(targetId: string): Promise<Cdp>;
   tool(name: string, args: Record<string, unknown>, state: ChromeState): Promise<Record<string, unknown>>;
   /** For sessions and sign-out: a connection to any page target. */
   page(): Promise<Cdp>;
@@ -64,12 +69,23 @@ export interface ChromeOptions {
   flags?: readonly string[];
   /** Extra environment for the browser process (for example the profile's bridge folder). */
   env?: Record<string, string>;
+  /**
+   * Talk to the browser over --remote-debugging-pipe and open no DevTools port. The Space browser runs one browser per agent in one container, so a port on 127.0.0.1 would let one agent's pages open
+   * another agent's DevTools; a pipe is held only by this process. `port` is ignored.
+   */
+  pipe?: boolean;
 }
 
 export function launchChrome(screen: Screen | null, profileDir: string, extensionDir: string | null, log: (m: string) => void, opts: ChromeOptions = {}): Chrome {
+  const PIPE = opts.pipe === true;
   const PORT = opts.port ?? DEFAULT_PORT;
   const BASE = `http://127.0.0.1:${PORT}`;
   const getJson = <T>(path: string, method = "GET"): Promise<T> => fetchJson<T>(BASE, path, method);
+  let pipe: CdpPipe | null = null;
+  // over the pipe there is no /json/list, which lists the front tab first: the order is kept here, the newest tab and the one last brought forward first, as Chrome does
+  const order: string[] = [];
+  const toFront = (id: string): void => { const i = order.indexOf(id); if (i >= 0) order.splice(i, 1); order.unshift(id); };
+  const needPipe = (): CdpPipe => { if (!pipe || pipe.closed()) throw unavailable("the browser is not running"); return pipe; };
   let proc: ChildProcess | null = null;
   let up: Promise<void> | null = null;
   let active: string | null = null;
@@ -84,18 +100,28 @@ export function launchChrome(screen: Screen | null, profileDir: string, extensio
       const bounds = headless ? { x: 0, y: 0, width: opts.size?.width ?? 1280, height: opts.size?.height ?? 800 } : browserBounds(screen);
       const args = [
         ...(headless ? ["--headless=new"] : []),
-        "--disable-dev-shm-usage", "--disable-gpu", `--user-data-dir=${profileDir}`, `--remote-debugging-port=${PORT}`, "--remote-debugging-address=127.0.0.1",
+        "--disable-dev-shm-usage", "--disable-gpu", `--user-data-dir=${profileDir}`, ...(PIPE ? ["--remote-debugging-pipe"] : [`--remote-debugging-port=${PORT}`, "--remote-debugging-address=127.0.0.1"]),
         `--window-position=${bounds.x},${bounds.y}`, `--window-size=${bounds.width},${bounds.height}`, ...(opts.flags ?? []), "--no-first-run", "--no-default-browser-check", "--password-store=basic", "--disable-features=Translate,MediaRouter",
         ...(extensionDir && existsSync(join(extensionDir, "manifest.json")) ? [`--load-extension=${extensionDir}`] : []),
         "about:blank",
       ];
-      const p = spawn("chromium", args, { env: { ...process.env, ...(screen && !headless ? { DISPLAY: screen.display } : {}), ...(opts.env ?? {}) }, stdio: ["ignore", "ignore", "pipe"] });
+      const p = spawn("chromium", args, { env: { ...process.env, ...(screen && !headless ? { DISPLAY: screen.display } : {}), ...(opts.env ?? {}) }, stdio: PIPE ? ["ignore", "ignore", "pipe", "pipe", "pipe"] : ["ignore", "ignore", "pipe"] });
       proc = p;
       p.stderr!.on("data", (c: Buffer) => { const t = c.toString("utf8").trim(); if (/error|fatal/i.test(t)) log(`chromium: ${t.slice(0, 300)}`); });
-      p.on("exit", () => { if (proc === p) proc = null; up = null; });
+      p.on("exit", () => { if (proc === p) { proc = null; pipe = null; order.length = 0; } up = null; });
+      if (PIPE) {
+        // fd 3 is what the browser reads, fd 4 what it writes
+        const conn = connectPipe(p.stdio[3] as NodeJS.WritableStream, p.stdio[4] as NodeJS.ReadableStream);
+        pipe = conn;
+        conn.onBrowser("Target.targetCreated", (e) => { const t = e["targetInfo"] as { targetId?: string; type?: string } | undefined; if (t?.type === "page" && t.targetId) toFront(t.targetId); });
+        conn.onBrowser("Target.targetDestroyed", (e) => { const i = order.indexOf(String(e["targetId"])); if (i >= 0) order.splice(i, 1); });
+      }
       for (let i = 0; i < 300; i++) {
         if (p.exitCode !== null) throw unavailable("the browser exited while starting");
-        try { await getJson("/json/version"); return; } catch { await sleep(100); }
+        try {
+          if (PIPE) { await needPipe().browser.send("Target.setDiscoverTargets", { discover: true }, 1000); return; }
+          await getJson("/json/version"); return;
+        } catch { await sleep(100); }
       }
       throw unavailable("the browser did not start in 30 seconds");
     })();
@@ -131,7 +157,36 @@ export function launchChrome(screen: Screen | null, profileDir: string, extensio
     return log;
   };
 
-  const targets = async (): Promise<Target[]> => (await getJson<Target[]>("/json/list")).filter((t) => t.type === "page");
+  const allTargets = async (): Promise<Target[]> => {
+    if (!PIPE) return getJson<Target[]>("/json/list");
+    const r = await needPipe().browser.send<{ targetInfos?: Array<{ targetId: string; type: string; url: string; title: string }> }>("Target.getTargets");
+    const rows = (r.targetInfos ?? []).map((t) => ({ id: t.targetId, type: t.type, url: t.url, title: t.title }));
+    const rank = (id: string): number => { const i = order.indexOf(id); return i < 0 ? order.length : i; };
+    return rows.sort((a, b) => rank(a.id) - rank(b.id));
+  };
+  const targets = async (): Promise<Target[]> => (await allTargets()).filter((t) => t.type === "page");
+  /** A new tab on a page, brought to the front. */
+  const newTab = async (url: string): Promise<Target> => {
+    if (!PIPE) return getJson<Target>(`/json/new?${encodeURIComponent(url)}`, "PUT");
+    const r = await needPipe().browser.send<{ targetId: string }>("Target.createTarget", { url });
+    toFront(r.targetId);
+    return { id: r.targetId, type: "page", url, title: "" };
+  };
+  const activate = async (id: string): Promise<void> => {
+    if (!PIPE) { await getJson(`/json/activate/${id}`); return; }
+    await needPipe().browser.send("Target.activateTarget", { targetId: id });
+    toFront(id);
+  };
+  const closeTab = async (id: string): Promise<void> => {
+    if (!PIPE) { await getJson(`/json/close/${id}`); return; }
+    await needPipe().browser.send("Target.closeTarget", { targetId: id });
+  };
+  const browserConn = async (): Promise<Cdp> => {
+    if (PIPE) return needPipe().browser;
+    const v = await getJson<{ webSocketDebuggerUrl?: string }>("/json/version");
+    if (!v.webSocketDebuggerUrl) throw unavailable("the browser gave no DevTools address");
+    return connectCdp(v.webSocketDebuggerUrl, 3000);
+  };
   const pick = async (tabId: unknown): Promise<Target> => {
     const all = await targets();
     const id = typeof tabId === "string" && tabId !== "" ? tabId : active ?? all[0]?.id;
@@ -140,6 +195,7 @@ export function launchChrome(screen: Screen | null, profileDir: string, extensio
     return t;
   };
   const connect = async (t: Target): Promise<Cdp> => {
+    if (PIPE) return needPipe().attach(t.id);
     if (!t.webSocketDebuggerUrl) throw unavailable("that tab cannot be controlled");
     return connectCdp(t.webSocketDebuggerUrl);
   };
@@ -255,13 +311,14 @@ export function launchChrome(screen: Screen | null, profileDir: string, extensio
         const newTab = args["newTab"] === true || all.length === 0;
         if (newTab && all.length >= state.tabLimit) throw badInput(`This computer has ${all.length} tabs open, which is its limit. Close one first.`);
         if (newTab) {
-          const t = await getJson<Target>(`/json/new?${encodeURIComponent(url)}`, "PUT");
+          const t = await newTab(url);
           active = t.id;
           const out = await withTab(t.id, async (c) => { await waitFor(c, "load", undefined, 30_000).catch(() => 0); return { url: await evalIn<string>(c, "location.href"), title: await evalIn<string>(c, "document.title") }; });
           return { tabId: t.id, ...out };
         }
         return withTab(tabId, async (c, t) => {
           active = t.id;
+          if (PIPE) toFront(t.id);
           await c.send("Page.enable");
           await c.send("Page.navigate", { url });
           await sleep(100);
@@ -271,12 +328,12 @@ export function launchChrome(screen: Screen | null, profileDir: string, extensio
       }
       case "chrome_tabs": {
         const action = s("action") ?? "list";
-        if (action === "use") { const t = await pick(tabId); await getJson(`/json/activate/${t.id}`); active = t.id; }
-        else if (action === "close") { const t = await pick(tabId); await getJson(`/json/close/${t.id}`); if (active === t.id) active = null; }
+        if (action === "use") { const t = await pick(tabId); await activate(t.id); active = t.id; }
+        else if (action === "close") { const t = await pick(tabId); await closeTab(t.id); if (active === t.id) active = null; }
         else if (action === "new") {
           const all = await targets();
           if (all.length >= state.tabLimit) throw badInput(`This computer has ${all.length} tabs open, which is its limit. Close one first.`);
-          const t = await getJson<Target>(`/json/new?${encodeURIComponent(s("url") ?? "about:blank")}`, "PUT");
+          const t = await newTab(s("url") ?? "about:blank");
           active = t.id;
         } else if (action === "find") {
           // the tabs this computer already has open for a site (the same words as in the person's Chrome)
@@ -450,16 +507,18 @@ export function launchChrome(screen: Screen | null, profileDir: string, extensio
   }
 
   return {
-    port: PORT,
+    port: PIPE ? null : PORT,
     ready: start,
     alive: () => proc !== null && proc.exitCode === null,
     tabs: async () => { try { return await targets(); } catch { return []; } },
+    browser: async () => { await start(); return browserConn(); },
+    attach: async (targetId) => { await start(); return connect({ id: targetId, type: "page", url: "", title: "", ...(PIPE ? {} : { webSocketDebuggerUrl: `ws://127.0.0.1:${PORT}/devtools/page/${targetId}` }) }); },
     tool,
     page: async () => { await start(); return connect(await pick(undefined)); },
     heldIds: () => [...held.keys()],
     extension: async () => {
       let workers = 0;
-      try { workers = (await getJson<Target[]>("/json/list")).filter((t) => t.url.startsWith("chrome-extension://")).length; } catch { /* the browser is not up */ }
+      try { workers = (await allTargets()).filter((t) => t.url.startsWith("chrome-extension://")).length; } catch { /* the browser is not up */ }
       return extensionStatus(extensionDir !== null && existsSync(join(extensionDir, "manifest.json")), workers);
     },
     stop() { proc?.kill("SIGTERM"); },
@@ -467,12 +526,9 @@ export function launchChrome(screen: Screen | null, profileDir: string, extensio
       const p = proc;
       if (!p || p.exitCode !== null) return;
       try {
-        const v = await getJson<{ webSocketDebuggerUrl?: string }>("/json/version");
-        if (v.webSocketDebuggerUrl) {
-          const c = await connectCdp(v.webSocketDebuggerUrl, 3000);
-          await c.send("Browser.close", {}, 3000).catch(() => undefined);
-          c.close();
-        }
+        const c = await browserConn();
+        await c.send("Browser.close", {}, 3000).catch(() => undefined);
+        c.close();
       } catch { /* not answering: it is stopped below */ }
       for (let i = 0; i < 50 && p.exitCode === null; i++) await sleep(100);
       if (p.exitCode === null) p.kill("SIGTERM");

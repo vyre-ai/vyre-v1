@@ -1,9 +1,9 @@
 // The profiles of the Space browser (owner decision 6 Nov: one Chrome service per Space, a profile per agent and per person's Assistant). A profile is its own user-data-dir on the data volume, so its
 // cookies, logins, local storage and tabs never meet another profile's. Its Chromium starts when the profile first browses and stops after idle minutes; the folder stays. One headless Chromium per
-// running profile, each on its own DevTools port on 127.0.0.1, driven by the same tools as an agent computer's browser (agentd/chrome.ts).
+// running profile, driven by the same tools as an agent computer's browser (agentd/chrome.ts) over its DevTools pipe: no profile's browser opens a DevTools port, so a page in one agent's browser has
+// nothing on 127.0.0.1 to open another agent's browser with (all profiles share the container's loopback).
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { connectCdp } from "../../agent-computer/agentd/cdp.ts";
 import { launchChrome } from "../../agent-computer/agentd/chrome.ts";
 import type { Chrome, ChromeOptions, ChromeState } from "../../agent-computer/agentd/chrome.ts";
 import { badInput, notFound, paused, unavailable, within } from "../../agent-computer/agentd/errors.ts";
@@ -40,7 +40,7 @@ export type LaunchFn = (profileDir: string, extensionDir: string | null, log: (m
 // headless=new reserves 87 px of the window for the browser's own bar, so the page gets 1280x800 from a window of 1280x887: every tab, new ones too, has the same viewport, which the live view's pointer maths relies on
 export const VIEWPORT = { width: 1280, height: 800 };
 const BAR_PX = 87;
-const realLaunch: LaunchFn = (dir, ext, log, o) => launchChrome(null, dir, ext, log, { headless: true, size: { width: VIEWPORT.width, height: VIEWPORT.height + BAR_PX }, ...o });
+const realLaunch: LaunchFn = (dir, ext, log, o) => launchChrome(null, dir, ext, log, { headless: true, size: { width: VIEWPORT.width, height: VIEWPORT.height + BAR_PX }, ...o, pipe: true });
 
 export interface ProfileManagerOptions {
   /** The data volume: profiles live in `<root>/profiles/<id>/chrome`. */
@@ -52,8 +52,6 @@ export interface ProfileManagerOptions {
   /** A running profile with nobody watching and no work for this long is stopped. Default 10 minutes. */
   idleMs?: number;
   tabLimit?: number;
-  /** The first DevTools port; each running profile takes the next free one. Default 9300. */
-  basePort?: number;
   now?: () => number;
   launch?: LaunchFn;
   /** Extra browser flags and environment for one profile, such as its bridge folder (bridge.ts). Called each time the profile's browser starts. */
@@ -61,7 +59,7 @@ export interface ProfileManagerOptions {
   /** Called just before a profile's browser closes: the chance to note what it holds (the sites it is signed in to) so they can be listed while it sleeps. */
   onClosing?: (p: Profile) => Promise<void>;
   /** Called when a profile's browser is up: the start page's cookie and first tab (main.ts). */
-  onStarted?: (profileId: string, port: number) => Promise<void>;
+  onStarted?: (profileId: string, chrome: Chrome) => Promise<void>;
   /** A page the profile's browser opened or looked at, for its start page's recent sites. */
   onPage?: (profileId: string, url: string, title: string) => void;
   /** What the profile's Vyre for Chrome is doing with the Space, for the profile's row. */
@@ -74,7 +72,6 @@ export interface Profile {
   readonly vault: Vault;
   readonly state: ChromeState & { takeover: { personId: string; since: number } | null; busy: number; caption: string | undefined };
   chrome: Chrome | null;
-  port: number | null;
   lastActiveAt: number;
   /** People watching its live view (view.ts counts them). */
   viewers: number;
@@ -86,7 +83,7 @@ export interface Profile {
   starting: Promise<void> | null;
 }
 
-export interface ProfileRow { profileId: string; running: boolean; tabs: number; busy: boolean; takeover: boolean; viewers: number; lastActiveAt: number; port?: number; held: number; paused: boolean; takeoverBy?: string; bridge?: { connected: number; hello: boolean; optin: boolean } }
+export interface ProfileRow { profileId: string; running: boolean; tabs: number; busy: boolean; takeover: boolean; viewers: number; lastActiveAt: number; held: number; paused: boolean; takeoverBy?: string; bridge?: { connected: number; hello: boolean; optin: boolean } }
 
 export interface ProfileManager {
   /** The profile's record (made on first mention; no browser starts). */
@@ -126,11 +123,7 @@ export function createProfileManager(o: ProfileManagerOptions): ProfileManager {
   const launch = o.launch ?? realLaunch;
   const maxRunning = o.maxRunning ?? 6;
   const idleMs = o.idleMs ?? 10 * 60_000;
-  const basePort = o.basePort ?? 9300;
   const profiles = new Map<string, Profile>();
-  const ports = new Set<number>();
-
-  const take = (): number => { for (let p = basePort; p < basePort + 200; p++) if (!ports.has(p)) { ports.add(p); return p; } throw unavailable("The Space browser has no free port."); };
 
   function get(idIn: string): Profile {
     const id = checkProfileId(idIn);
@@ -140,7 +133,7 @@ export function createProfileManager(o: ProfileManagerOptions): ProfileManager {
       p = {
         id, dir, vault: createVault(),
         state: { stopped: false, tabLimit: o.tabLimit ?? 10, takeover: null, busy: 0, caption: undefined },
-        chrome: null, port: null, lastActiveAt: now(), viewers: 0, agentId: undefined, agentName: undefined, spaceId: undefined, starting: null,
+        chrome: null, lastActiveAt: now(), viewers: 0, agentId: undefined, agentName: undefined, spaceId: undefined, starting: null,
       };
       profiles.set(id, p);
     }
@@ -160,7 +153,6 @@ export function createProfileManager(o: ProfileManagerOptions): ProfileManager {
     try { p.chrome = c; await o.onClosing?.(p); } catch { /* the list taken last stays */ } finally { p.chrome = null; }
     // closed the way a person closes it, so a login that was just made is in the folder when the browser starts again
     await c.shutdown().catch(() => c.stop());
-    if (p.port !== null) { const port = p.port; p.port = null; setTimeout(() => ports.delete(port), 1500).unref(); }
   }
 
   async function makeRoom(except: string): Promise<void> {
@@ -182,18 +174,16 @@ export function createProfileManager(o: ProfileManagerOptions): ProfileManager {
       mkdirSync(join(p.dir, "chrome"), { recursive: true });
       mkdirSync(downloadsOf(p), { recursive: true });
       writeDownloadPrefs(join(p.dir, "chrome"), downloadsOf(p));
-      const port = take();
-      p.port = port;
-      const opts = { port, ...(o.extra?.(p.id) ?? {}) };
+      const opts = { ...(o.extra?.(p.id) ?? {}), pipe: true };
       const c = launch(join(p.dir, "chrome"), o.extensionDir, o.log, opts);
       p.chrome = c;
       try { await c.ready(); } catch (e) { await release(p); throw e; }
       // and the browser itself is told, so a download from a tab opened later goes the same way
       try {
-        const v = (await (await fetch(`http://127.0.0.1:${port}/json/version`)).json()) as { webSocketDebuggerUrl?: string };
-        if (v.webSocketDebuggerUrl) { const b = await connectCdp(v.webSocketDebuggerUrl, 3000); await b.send("Browser.setDownloadBehavior", { behavior: "allow", downloadPath: downloadsOf(p) }).catch(() => undefined); b.close(); }
+        const b = await c.browser();
+        try { await b.send("Browser.setDownloadBehavior", { behavior: "allow", downloadPath: downloadsOf(p), eventsEnabled: true }).catch(() => undefined); } finally { b.close(); }
       } catch { /* the preferences already say it; a fake browser in a test has no DevTools */ }
-      await o.onStarted?.(p.id, port).catch((e: unknown) => o.log(`start page: ${e instanceof Error ? e.message : "failed"}`));
+      await o.onStarted?.(p.id, c).catch((e: unknown) => o.log(`start page: ${e instanceof Error ? e.message : "failed"}`));
     })();
     try { await p.starting; } finally { p.starting = null; }
     return p;
@@ -271,7 +261,7 @@ export function createProfileManager(o: ProfileManagerOptions): ProfileManager {
       for (const p of profiles.values()) {
         const alive = p.chrome?.alive() === true;
         const tabs = alive && p.chrome ? (await p.chrome.tabs()).length : 0;
-        rows.push({ profileId: p.id, running: alive, tabs, busy: p.state.busy > 0, takeover: p.state.takeover !== null, viewers: p.viewers, lastActiveAt: p.lastActiveAt, ...(p.port !== null ? { port: p.port } : {}), held: p.chrome?.heldIds().length ?? 0, paused: p.state.stopped, ...(p.state.takeover ? { takeoverBy: p.state.takeover.personId } : {}), ...(o.paired ? { bridge: o.paired(p.id) } : {}) });
+        rows.push({ profileId: p.id, running: alive, tabs, busy: p.state.busy > 0, takeover: p.state.takeover !== null, viewers: p.viewers, lastActiveAt: p.lastActiveAt, held: p.chrome?.heldIds().length ?? 0, paused: p.state.stopped, ...(p.state.takeover ? { takeoverBy: p.state.takeover.personId } : {}), ...(o.paired ? { bridge: o.paired(p.id) } : {}) });
       }
       return rows;
     },

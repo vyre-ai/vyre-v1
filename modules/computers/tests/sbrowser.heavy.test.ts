@@ -387,6 +387,75 @@ test("@heavy space browser: every profile starts on the Vyre start page, shows i
   assert.equal(bare.stdout.trim(), "ok");
 });
 
+// Audit bug 1 (12 Nov): every profile's browser shares the container's loopback. Agent B's pages and tools try every way to reach agent A's browser: its DevTools on 127.0.0.1 (list, version, new,
+// activate, close, the page WebSocket), a cross-site request a page can send without reading the answer, and A's files (its bridge token) through a file address. None may work.
+test("@heavy space browser: agent B's browser cannot reach agent A's browser: no DevTools on loopback for list, new, close, activate or a WebSocket, and no file of A's profile", { skip, timeout: 300_000 }, async () => {
+  await tool("agt_victim", "chrome_open", { url: siteUrl("/set?name=victim&keep=1") });
+  const victimTab = ((await tool("agt_victim", "chrome_tabs", { action: "list" }))["tabs"] as Array<{ tabId: string }>)[0]!.tabId;
+  const tabsOfA = async (): Promise<number> => ((await tool("agt_victim", "chrome_tabs", { action: "list" }))["tabs"] as unknown[]).length;
+  const before = await tabsOfA();
+  await tool("agt_snoop", "chrome_open", { url: siteUrl("/whoami") });
+  const got: Record<string, string> = {};
+  const evalB = async (expression: string): Promise<string> => String((await tool("agt_snoop", "chrome_eval", { expression }))["result"]);
+  // the DevTools ports the browsers used (9300 and up), and Chrome's usual one
+  for (const port of [9222, 9300, 9301, 9302, 9303, 9304, 9305, 9306, 9307, 9308]) {
+    const base = `http://127.0.0.1:${port}`;
+    // A keeps working (the idle stop here is 3 s); a tab of A's that B closed shows here
+    await tool("agt_victim", "chrome_state").catch((e: unknown) => { got[`A lost its tab by ${port}`] = e instanceof Error ? e.message : "failed"; });
+    // the agent opens the list as a page and reads it
+    try {
+      const o = await tool("agt_snoop", "chrome_open", { url: `${base}/json/list` });
+      const body = await evalB("document.body ? document.body.innerText.slice(0, 400) : ''");
+      if (/webSocketDebuggerUrl|devtoolsFrontendUrl/.test(body) || String(o["title"]).includes("json")) got[`open ${port}/json/list`] = body.slice(0, 120);
+    } catch { /* refused: good */ }
+    // a page on the site asks without reading the answer (no-cors): close and activate are plain GETs
+    const blind = await evalB(`(async () => { const out = []; for (const p of ["/json/version", "/json/activate/${victimTab}", "/json/close/${victimTab}"]) { try { await fetch(${JSON.stringify(base)} + p, { mode: "no-cors" }); out.push(p + ":sent"); } catch (e) { out.push(p + ":blocked"); } } return out.join(","); })()`).catch(() => "");
+    if (/sent/.test(blind)) got[`no-cors ${port}`] = blind;
+    // the page WebSocket of A's tab
+    const ws = await evalB(`new Promise((res) => { try { const w = new WebSocket("ws://127.0.0.1:${port}/devtools/page/${victimTab}"); w.onopen = () => { w.close(); res("open"); }; w.onerror = () => res("error"); setTimeout(() => res("timeout"), 3000); } catch (e) { res("threw"); } })`).catch(() => "");
+    if (ws === "open") got[`ws ${port}`] = ws;
+  }
+  // a same-origin page on the DevTools port can PUT /json/new; nothing answers on any of them
+  for (const port of [9222, 9300, 9301, 9302]) {
+    try {
+      await tool("agt_snoop", "chrome_open", { url: `http://127.0.0.1:${port}/json/version` });
+      const made = await evalB(`fetch("/json/new?${siteUrl("/whoami")}", { method: "PUT" }).then((r) => String(r.status)).catch(() => "blocked")`);
+      if (made === "200") got[`put new ${port}`] = made;
+    } catch { /* nothing there */ }
+  }
+  // a file of A's profile: its bridge token, opened as a tab (the browser service, not only the module, refuses it)
+  for (const url of ["file:///data/profiles/agt_victim/bridge/admin.token", "file:///data/profiles/"]) {
+    try {
+      await tool("agt_snoop", "chrome_tabs", { action: "new", url });
+      const body = await evalB("document.body ? document.body.innerText.slice(0, 200) : ''");
+      if (body !== "" && !/blocked|ERR_BLOCKED|not available/i.test(body)) got[`file ${url}`] = body.slice(0, 60);
+    } catch { /* refused: good */ }
+  }
+  // and nothing listens for DevTools in the container at all
+  const listening = await api.exec(NAME, { cmd: ["sh", "-c", "cat /proc/net/tcp /proc/net/tcp6 2>/dev/null"], env: [] });
+  const ports = new Set(listening.stdout.split("\n").slice(1).map((l) => l.trim().split(/\s+/)).filter((c) => c[3] === "0A" && c[1]).map((c) => parseInt(c[1]!.split(":")[1]!, 16)));
+  for (const p of ports) if (p === 9222 || (p >= 9300 && p < 9500)) got[`listening ${p}`] = "yes";
+  const after = await tabsOfA().catch(() => -1);
+  if (after !== before) got["A's tab count"] = `${before} -> ${after}`;
+  assert.deepEqual(got, {}, `B reached A's browser: ${JSON.stringify(got)}`);
+  assert.equal(await text("agt_victim"), "set victim", "A's page is untouched");
+});
+
+test("@heavy space browser: a profile's tabs come back after its browser stops after idle", { skip, timeout: 300_000 }, async () => {
+  await tool("agt_tabby", "chrome_open", { url: siteUrl("/whoami?tab=one") });
+  await tool("agt_tabby", "chrome_tabs", { action: "new", url: siteUrl("/whoami?tab=two") });
+  let stopped = false;
+  for (let i = 0; i < 40 && !stopped; i++) { await sleep(1000); stopped = (await sb.profiles()).profiles.find((x) => x.profileId === "agt_tabby")?.running === false; }
+  assert.ok(stopped, "the browser stopped after idle");
+  let urls: string[] = [];
+  for (let i = 0; i < 20; i++) {
+    urls = ((await tool("agt_tabby", "chrome_tabs", { action: "list" }))["tabs"] as Array<{ url: string }>).map((t) => t.url);
+    if (urls.some((u) => u.includes("tab=one")) && urls.some((u) => u.includes("tab=two"))) break;
+    await sleep(500);
+  }
+  assert.ok(urls.some((u) => u.includes("tab=one")) && urls.some((u) => u.includes("tab=two")), `both tabs are back (${JSON.stringify(urls)})`);
+});
+
 test("@heavy space browser: the sites a profile is signed in to are listed while its browser sleeps, and listing starts nothing", { skip, timeout: 300_000 }, async () => {
   await tool("agt_sleepy", "chrome_open", { url: siteUrl("/set?name=zed&keep=1") });
   assert.ok((await sb.sessions("agt_sleepy")).some((x) => x.site === GATEWAY), "live while it runs");

@@ -7,7 +7,6 @@
 import { randomBytes } from "node:crypto";
 import { createServer } from "node:http";
 import type { Server } from "node:http";
-import { connectCdp } from "../../agent-computer/agentd/cdp.ts";
 import type { Cdp } from "../../agent-computer/agentd/cdp.ts";
 import { sleep } from "../../agent-computer/agentd/errors.ts";
 import { acceptWebSocket } from "../../agent-computer/agentd/ws.ts";
@@ -24,9 +23,15 @@ export interface Hub {
   latest(): Buffer | null;
 }
 
+/** What the hub needs of a running browser: its tabs, the front one first, and a connection to one (over the browser's own DevTools pipe; no port). */
+export interface HubBrowser {
+  tabs(): Promise<Array<{ id: string }>>;
+  attach(targetId: string): Promise<Cdp>;
+}
+
 export interface HubOptions {
-  /** The browser's DevTools port, or null while it is not running. */
-  port(): number | null;
+  /** The running browser, or null while it is not running. */
+  chrome(): HubBrowser | null;
   /** Make sure the browser is up (a viewer of a sleeping profile wakes it). */
   wake(): Promise<void>;
   width?: number;
@@ -37,8 +42,6 @@ export interface HubOptions {
   activity?(): void;
   log?: (m: string) => void;
 }
-
-interface PageTarget { id: string; type: string; webSocketDebuggerUrl?: string }
 
 /** Frames of the front tab of one browser. Starts when the first viewer comes, follows the front tab, and stops a few seconds after the last viewer leaves. */
 export function createScreencastHub(o: HubOptions): Hub {
@@ -54,15 +57,13 @@ export function createScreencastHub(o: HubOptions): Hub {
 
   const push = (jpeg: Buffer): void => { last = jpeg; lastAt = Date.now(); for (const w of watchers) w(jpeg); };
 
-  async function front(port: number): Promise<PageTarget | null> {
-    const r = await fetch(`http://127.0.0.1:${port}/json/list`);
-    if (!r.ok) return null;
-    return ((await r.json()) as PageTarget[]).find((t) => t.type === "page" && t.webSocketDebuggerUrl) ?? null;
+  async function front(b: HubBrowser): Promise<{ id: string } | null> {
+    return (await b.tabs())[0] ?? null;
   }
 
-  async function attach(t: PageTarget): Promise<void> {
+  async function attach(b: HubBrowser, t: { id: string }): Promise<void> {
     conn?.close();
-    const c = await connectCdp(t.webSocketDebuggerUrl as string);
+    const c = await b.attach(t.id);
     conn = c;
     target = t.id;
     c.on("Page.screencastFrame", (p) => {
@@ -82,10 +83,10 @@ export function createScreencastHub(o: HubOptions): Hub {
   async function run(gen: number): Promise<void> {
     while (gen === generation && watchers.size > 0) {
       try {
-        const port = o.port();
-        if (port === null) { await o.wake(); continue; }
-        const t = await front(port);
-        if (t && (t.id !== target || conn === null)) await attach(t);
+        const b = o.chrome();
+        if (b === null) { await o.wake(); continue; }
+        const t = await front(b);
+        if (t && (t.id !== target || conn === null)) await attach(b, t);
       } catch (e) { log(`screencast: ${e instanceof Error ? e.message : "failed"}`); conn = null; target = null; }
       await sleep(700);
     }

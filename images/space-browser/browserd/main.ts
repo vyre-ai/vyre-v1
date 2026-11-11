@@ -14,7 +14,6 @@ import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync }
 import { createServer as createNetServer } from "node:net";
 import type { Socket } from "node:net";
 import { networkInterfaces } from "node:os";
-import { connectCdp } from "../../agent-computer/agentd/cdp.ts";
 import type { Cdp } from "../../agent-computer/agentd/cdp.ts";
 import { AgentError, badInput, unavailable } from "../../agent-computer/agentd/errors.ts";
 import { createRecentSites, startStartServer } from "./start.ts";
@@ -45,19 +44,20 @@ const manager = createProfileManager({
   // Vyre for Chrome in a profile talks to the Space through browserd (bridge.ts); the bridge is up before the first browser starts
   extra: (id) => bridges?.prepare(id) ?? {},
   // the start page: the profile's browser carries a cookie that names it (set before the first tab goes to the page), and the pages it opens are remembered for the page's row of sites
-  onStarted: async (id, port) => {
+  onStarted: async (id, chrome) => {
     if (!starts) return;
     const token = starts.token(id);
-    const v = (await (await fetch(`http://127.0.0.1:${port}/json/version`)).json()) as { webSocketDebuggerUrl?: string };
-    if (v.webSocketDebuggerUrl) {
-      const b = await connectCdp(v.webSocketDebuggerUrl, 3000);
-      await b.send("Storage.setCookies", { cookies: [{ name: "vyre_start", value: token, url: starts.url(), httpOnly: true, sameSite: "Lax", expires: Math.floor(Date.now() / 1000) + 86_400 }] });
-      b.close();
-    }
-    // the first tab opens on the start page unless something already took it
-    const tabs = (await (await fetch(`http://127.0.0.1:${port}/json/list`)).json()) as Array<{ type: string; url: string; webSocketDebuggerUrl?: string }>;
-    const first = tabs.find((t) => t.type === "page" && (t.url === "about:blank" || t.url === "") && t.webSocketDebuggerUrl);
-    if (first?.webSocketDebuggerUrl) { const c = await connectCdp(first.webSocketDebuggerUrl, 3000); await c.send("Page.navigate", { url: starts.url() }); c.close(); }
+    const b = await chrome.browser();
+    try {
+      // a session cookie: it lives as long as this browser runs, and the token it carries is made new each time the browser starts, so the page names its agent however long the browser stays up
+      await b.send("Storage.setCookies", { cookies: [{ name: "vyre_start", value: token, url: starts.url(), httpOnly: true, sameSite: "Lax" }] });
+    } finally { b.close(); }
+    // the first tab opens on the start page unless something already took it; when the browser brought back the tabs it had before it stopped, the blank one it was started with goes instead
+    const tabs = await chrome.tabs();
+    const first = tabs.find((t) => t.url === "about:blank" || t.url === "");
+    if (!first) return;
+    if (tabs.some((t) => t !== first && t.url !== "about:blank" && t.url !== "")) { const b2 = await chrome.browser(); try { await b2.send("Target.closeTarget", { targetId: first.id }); } finally { b2.close(); } return; }
+    const c = await chrome.attach(first.id); try { await c.send("Page.navigate", { url: starts.url() }); } finally { c.close(); }
   },
   onPage: (id, url, title) => { try { recentOf(id).add(url, title); } catch { /* a note that cannot be kept is not an error */ } },
   onClosing: async (p) => { if (!p.chrome?.alive()) return; const c = await p.chrome.page(); try { manager.saveSessions(p.id, await liveSessions(c)); } finally { c.close(); } },
@@ -81,7 +81,7 @@ const hubOf = (id: string): Hub => {
   if (!h) {
     const p = manager.get(id);
     h = createScreencastHub({
-      port: () => (p.chrome?.alive() ? p.port : null),
+      chrome: () => (p.chrome?.alive() ? p.chrome : null),
       wake: async () => { await manager.ensure(id); },
       activity: () => { p.viewers = hubs.get(id)?.viewers() ?? 0; manager.touch(id); },
       log,

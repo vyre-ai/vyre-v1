@@ -1,0 +1,3 @@
+- One agent's browser in the Space browser can no longer see, open, close or drive another agent's browser: each browser talks to Vyre over its own private channel and opens no DevTools port, and no page or tool can open a file of the browser service.
+- An agent's Space browser opens the tabs it had when it stopped after a quiet spell.
+- The Space browser's start page keeps showing the agent's name for as long as its browser runs, not only for its first day.

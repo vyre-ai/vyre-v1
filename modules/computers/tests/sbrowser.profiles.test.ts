@@ -1,4 +1,4 @@
-// The profiles inside the Space browser (images/space-browser/browserd/profiles.ts), with a stand-in for Chromium: one folder, one port and one Vault channel per profile, the idle stop, room for a new
+// The profiles inside the Space browser (images/space-browser/browserd/profiles.ts), with a stand-in for Chromium: one folder and one Vault channel per profile, a DevTools pipe and never a port, the idle stop, room for a new
 // browser when the service is full, a person at the controls, and a profile id that cannot name a path. The real Chromium is sbrowser.heavy.test.ts.
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -13,12 +13,12 @@ import { AgentError } from "../../../images/agent-computer/agentd/errors.ts";
 function rig(o: { maxRunning?: number; idleMs?: number } = {}) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-sbrowser-"));
   const clock = { t: 1_000_000 };
-  const launched: Array<{ dir: string; port: number; chrome: Chrome; stopped: boolean; tools: string[]; held: string[] }> = [];
+  const launched: Array<{ dir: string; port: number | undefined; pipe: boolean; chrome: Chrome; stopped: boolean; tools: string[]; held: string[] }> = [];
   const launch: LaunchFn = (dir, _ext, _log, opts) => {
-    const rec = { dir, port: opts.port ?? 0, stopped: false, tools: [] as string[], held: [] as string[], chrome: null as unknown as Chrome };
+    const rec = { dir, port: opts.port, pipe: opts.pipe === true, stopped: false, tools: [] as string[], held: [] as string[], chrome: null as unknown as Chrome };
     rec.chrome = {
-      port: rec.port,
-      async ready() {}, alive: () => !rec.stopped, async tabs() { return []; }, async page() { throw new Error("no page"); },
+      port: null,
+      async ready() {}, alive: () => !rec.stopped, async tabs() { return []; }, async page() { throw new Error("no page"); }, async browser() { throw new Error("no browser"); }, async attach() { throw new Error("no page"); },
       async tool(name) { rec.tools.push(name); return name === "chrome_state" ? { url: `file://${dir}`, title: path.basename(path.dirname(dir)), loading: false } : { ok: true }; },
       heldIds: () => rec.held, async extension() { return { configured: false, workers: 0 }; }, stop() { rec.stopped = true; }, async shutdown() { rec.stopped = true; },
     } as Chrome;
@@ -31,14 +31,14 @@ function rig(o: { maxRunning?: number; idleMs?: number } = {}) {
 }
 const refusal = (code: string) => (e: unknown) => e instanceof AgentError && e.code === code;
 
-test("each profile has its own folder on the volume and its own port, so cookies and logins are separate", async () => {
+test("each profile has its own folder on the volume, and its browser talks over its own DevTools pipe and opens no port, so cookies and logins are separate", async () => {
   const r = rig();
   try {
     const a = await r.call("agt_dex");
     const b = await r.call("agt_scout");
     assert.equal(r.launched.length, 2);
     assert.notEqual(r.launched[0]!.dir, r.launched[1]!.dir);
-    assert.notEqual(r.launched[0]!.port, r.launched[1]!.port);
+    assert.deepEqual(r.launched.map((x) => [x.pipe, x.port]), [[true, undefined], [true, undefined]], "no browser is given a DevTools port: another profile's pages would reach it on the shared loopback");
     assert.equal(r.launched[0]!.dir, path.join(r.root, "profiles", "agt_dex", "chrome"));
     assert.equal(r.launched[1]!.dir, path.join(r.root, "profiles", "agt_scout", "chrome"));
     assert.ok(fs.statSync(r.launched[0]!.dir).isDirectory() && fs.statSync(r.launched[1]!.dir).isDirectory());
@@ -224,7 +224,7 @@ test("what the browser holds is noted just before it closes, and a sleeping prof
   const closed: string[] = [];
   try {
     const r = rig();
-    const m = createProfileManager({ root, extensionDir: null, log: () => {}, launch: (dir, _e, _l, o) => ({ port: o.port ?? 0, async ready() {}, alive: () => true, async tabs() { return []; }, async page() { throw new Error("x"); }, async tool() { return { ok: true }; }, heldIds: () => [], async extension() { return { configured: false, workers: 0 }; }, stop() {}, async shutdown() { closed.push(dir); } } as unknown as Chrome),
+    const m = createProfileManager({ root, extensionDir: null, log: () => {}, launch: (dir) => ({ port: null, async ready() {}, alive: () => true, async tabs() { return []; }, async page() { throw new Error("x"); }, async tool() { return { ok: true }; }, heldIds: () => [], async extension() { return { configured: false, workers: 0 }; }, stop() {}, async shutdown() { closed.push(dir); } } as unknown as Chrome),
       onClosing: async (p) => { m.saveSessions(p.id, [{ site: "app.clio.com", since: 1, lastSeen: 2 }]); } });
     await m.tool({ profileId: "agt_dex", tool: "chrome_state", args: {}, timeoutMs: 5000 });
     assert.deepEqual(m.cachedSessions("agt_dex"), []);
