@@ -2,3 +2,4 @@
 - On a Space with nowhere to run a browser, an agent's Computer tab now says so in one line and tells you to add a compute server, instead of showing an empty box that never fills.
 - An agent's page now shows the same Computer tab as the chat pane, Terminal and Browser, and every link or button that used to open the old single-computer popup opens that tab instead.
 - Pressing Escape now closes only the top layer: a date picker, menu, people popover, reaction picker or lightbox closes by itself and leaves the sheet or dialog under it open.
+- Closing the terminal list or another popover that a link opened no longer leaves its address on the tab, so a reload or the Chats address does not bring it back.

@@ -78,8 +78,17 @@ test("Shared with me lists only granted items, newest share first, and not what 
   await handlers["files.delete"](ctx, { fileId: gone });
 
   // access: the grants, the flow-down rows of the shared folder, a trashed file, an id this module does not hold; "mine" is the caller's own, so it is not in the shared section
-  access.sharedFiles = [inside, deep, oldest, loose, newest, gone, "fil_notinfiles"];
-  access.sharedFolders = [clients, sub, other, "fld_notinfiles"];
+  // everything here was made by the caller; what is shared with them was made by someone else, so those rows are handed to another person (the caller's own, even shared on to others, is never "shared with me")
+  const owned = (await handlers["files.folder.create"](ctx, { parentId: personal, name: "Mine shared on" })).folder.folderId;
+  const spaceHeld = (await handlers["files.folder.create"](ctx, { parentId: personal, name: "Held by the Space" })).folder.folderId;
+  ctx.db.run("UPDATE files_folder SET owner = ? WHERE id = ?", ctx.space, spaceHeld);
+  const agentHome = (await handlers["files.folder.create"](ctx, { parentId: personal, name: "Agent home" })).folder.folderId;
+  ctx.db.run("UPDATE files_folder SET owner = ? WHERE id = ?", "usr_other", agentHome);
+  ctx.db.run("UPDATE files_folder SET system_key = ? WHERE id = ?", "agent:agt_desk", agentHome);
+  for (const id of [inside, deep, oldest, loose, newest, gone]) ctx.db.run("UPDATE files_file SET owner = ? WHERE id = ?", "usr_other", id);
+  for (const id of [clients, sub, other]) ctx.db.run("UPDATE files_folder SET owner = ? WHERE id = ?", "usr_other", id);
+  access.sharedFiles = [inside, deep, oldest, loose, newest, gone, mine, "fil_notinfiles"];
+  access.sharedFolders = [clients, sub, other, owned, spaceHeld, agentHome, "fld_notinfiles"];
   access.sharedAt = { [clients]: 100, [other]: 200, [oldest]: 100, [loose]: 300, [newest]: 500, [inside]: 50 };
 
   const out = await handlers["files.shared_with_me"](ctx, {});
@@ -87,7 +96,8 @@ test("Shared with me lists only granted items, newest share first, and not what 
   assert.deepEqual(out.folders.map((f) => f.name), ["Other", "Clients"], "folders newest share first; Sub opens from Clients");
   assert.equal(out.total, 5);
   assert.equal(out.next, undefined);
-  assert.ok(!out.files.some((f) => f.fileId === mine), "what the caller owns is not shared with them");
+  assert.ok(!out.files.some((f) => f.fileId === mine), "what the caller owns is not shared with them, though access lists it with a grant on it");
+  assert.ok(!out.folders.some((f) => f.name === "Mine shared on" || f.name === "Held by the Space" || f.name === "Agent home"), "nor is a folder the caller owns, one the Space itself holds, or an agent's home");
   assert.ok(calls.some((c) => c.cap === "access.lists" && (c.input as Row)["section"] === "shared" && (c.input as Row)["type"] === "file"));
   assert.ok(calls.some((c) => c.cap === "access.lists" && (c.input as Row)["section"] === "shared" && (c.input as Row)["type"] === "folder"));
 
@@ -149,6 +159,7 @@ test("Shared with me follows access across pages of its answer", async () => {
   seen.length = 0;   // the tree's own Shared with me count asks access too; this test is about the pages of files.shared_with_me
   const personal = idOf(tree.roots.find((r) => r.key === "personal")?.folderId, "personal");
   for (const name of ["a.txt", "b.txt"]) ids.push((await handlers["files.create"](ctx, { folderId: personal, name, content: { text: name } })).file.fileId);
+  for (const id of ids) ctx.db.run("UPDATE files_file SET owner = ? WHERE id = ?", "usr_other", id);   // made by someone else: it is theirs, shared with the caller
   const out = await handlers["files.shared_with_me"](ctx, {});
   assert.deepEqual(out.files.map((f) => f.name), ["a.txt", "b.txt"]);
   assert.deepEqual(seen.map((s) => s["cursor"]), [undefined, "1"], "the second page is asked for with the cursor access gave");

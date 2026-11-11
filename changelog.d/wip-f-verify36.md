@@ -9,3 +9,4 @@
 - A Space with no name of its own is called "your Space" everywhere, never by its raw id or its web address; its tile shows the Vyre letter; Console, Space, General shows an empty name field to fill in, and first-run setup no longer pre-fills the name with the address.
 - Adding an AI key now checks it with the provider first: a key the provider refuses says so in the provider's words and is not saved, an unreachable provider says the key could not be checked, and only a key that works is called connected.
 - Invite links have a Copy button; typing "sign out" in the search finds Sign out; the built-in skills list no longer shows the internal "focus" skills; a greeting in front of a request no longer names the chat.
+- Removed the "Trust this device" switch from the join steps: nothing used it.

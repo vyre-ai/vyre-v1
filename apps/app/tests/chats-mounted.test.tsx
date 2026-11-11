@@ -134,22 +134,41 @@ test("the channel menu: Connect an Outside Agent is on a channel's menu only, an
   assert.ok(has(out, 'data-testid="connect-outside-agent"') && has(out, CONNECT_SUB));
 });
 
-test("the agent's computer opens as a popup over the chat from the pane's door", async () => {
+// owner ruling 6 Nov 2026: an agent's computer is one Computer tab (Terminal and Browser) on the agent's page; the old popup over the chat is gone
+test("the agent's computer: the pane's door opens the agent's Computer tab, with no popup, no toast and no question to the server; any other card still opens beside the chat", async () => {
   const s = createMountSample();
   const { go, acts, shown, said } = doors(s);
   conversation(s, go).nav.openBeside("computer", "agt_intake");
   await settle();
-  assert.deepEqual(acts, [{ t: "layer", layer: { kind: "computer", computerId: COMPUTER, chat: false } }]);
+  assert.deepEqual(acts, [{ t: "agent", agentId: "agt_intake", tab: "computer" }], "the door is the agent's page on its Computer tab");
+  assert.deepEqual(shown().route, { view: "agent", agentId: "agt_intake", tab: "computer" });
+  assert.equal(shown().layer, null, "no layer goes up over the chat");
   const out = html(s, shown());
-  assert.ok(has(out, 'data-testid="computer-popup"') && has(out, "Intake's computer"), "the popup, with the agent's name");
-  assert.ok(has(out, 'data-testid="rail-take"') && has(out, 'data-testid="rail-close"'));
-  // an agent with no computer says so instead of opening nothing
+  assert.ok(has(out, 'data-testid="agent-page"') && has(out, 'data-testid="tab-computer-selected"'), "the agent page, with its Computer tab the selected one");
+  assert.ok(has(out, 'data-testid="page-body-computer"'), "the tab's body");
+  assert.ok(has(out, 'data-testid="label-l-terminal"') && has(out, 'data-testid="label-l-browser"'), "Terminal and Browser, the two halves of the computer");
+  assert.ok(has(out, 'data-testid="terminal-loading"') && has(out, 'data-testid="browser-loading"'), "each half draws its card once its source answers");
+  for (const gone of ["computer-popup", "rail-take", "rail-close", "popup-loading"]) assert.ok(!has(out, `data-testid="${gone}"`), `no ${gone}`);
+  assert.ok(!has(out, 'data-testid="conversation"'), "the page replaces the chat in the middle");
+  assert.deepEqual(said, [], "nothing is said");
+  assert.deepEqual(caps(s).filter((c) => c.startsWith("computers.")), [], "the door asks the server nothing");
+  // an agent with no computer gets the same tab, which explains itself; no toast says "has no computer yet"
   conversation(s, go).nav.openBeside("computer", "agt_docs");
   await settle();
-  assert.deepEqual(said, ["Docs has no computer yet."]);
+  assert.deepEqual(acts[acts.length - 1], { t: "agent", agentId: "agt_docs", tab: "computer" });
+  assert.deepEqual(said, [], "no toast for an agent with nothing to run on");
+  assert.deepEqual(caps(s).filter((c) => c.startsWith("computers.")), [], "and still no question to the server");
   // any other card still opens beside the chat through the shell
   conversation(s, go).nav.openBeside("file", "fil_1");
   assert.deepEqual(s.opened, [{ subject: { type: "file", id: "fil_1" } }]);
+  assert.equal(acts.length, 2, "a file card is not a page change");
+});
+
+test("a link that names a computer still lands on its agent's Computer tab, never on the popup", async () => {
+  const s = createMountSample();
+  const out = html(s, undefined, "screen=chats.computer-popup&computerId=" + COMPUTER);
+  assert.ok(!has(out, 'data-testid="computer-popup"'), "no popup");
+  assert.ok(has(out, 'data-testid="popup-loading"'), "the layer only waits for the computer's agent, then hands over to the tab");
 });
 
 /* ---------- the pages and layers ---------- */

@@ -1,19 +1,12 @@
 // A sheet for detail on the phone (spec 3.11): it rises from the bottom over the screen, with a grabber, a title and a close; a tap outside or Esc closes it. Drawn in the shared Overlay layer
 // so no list or header can cover it.
-import { useEffect } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Overlay } from "../../../../../ui/src/Overlay/index.tsx";
+import { useEscapeLayer } from "../../../../../ui/src/Overlay/escape.ts";
 
 export function Sheet({ open, title, onClose, children }: { open: boolean; title: string; onClose: () => void; children: ReactNode }): ReactElement | null {
-  useEffect(() => {
-    if (!open) return;
-    const doc = (globalThis as { document?: { addEventListener(t: string, f: (e: KeyboardEvent) => void): void; removeEventListener(t: string, f: (e: KeyboardEvent) => void): void } }).document;
-    if (!doc) return;
-    const onKey = (e: KeyboardEvent): void => { if (e.key === "Escape") onClose(); };
-    doc.addEventListener("keydown", onKey);
-    return () => doc.removeEventListener("keydown", onKey);
-  }, [open, onClose]);
+  useEscapeLayer(open, onClose);   // one Escape closes the topmost layer only: this sheet, or the menu or picker drawn over it, never both
   if (!open) return null;
   return (
     <Overlay>
