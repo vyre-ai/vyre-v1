@@ -2,6 +2,7 @@
 // record types, Space folders, Space skills and Shared Vault items everyone may use. Admins add and remove agents and Vault items here (a grant to the Everyone group, which every
 // member is in from the moment they join); the other kinds already have an "everyone" of their own, and this page names it and where it changes. Mine items and restricted items are
 // never shared with everyone: the server refuses them.
+import { worthShowing } from "../../places/records/sidebar/model.ts";
 import { useState } from "react";
 import type { ReactElement } from "react";
 import { Text, View } from "react-native";
@@ -83,7 +84,8 @@ export function EveryoneGets(): ReactElement {
   if (by.vault.length === 0) rows.push(<Row key="v:none" id="everyone-vault-none" title="None" note="Only Shared items can be shared with everyone; Mine items stay private" />);
   for (const v of by.vault) rows.push(<Row key={`v:${v.id}`} id={`everyone-vault-${v.id}`} title={vaultName(v.id)} note="Use, by name" trailing={<LinkButton label="Remove" testID={`everyone-remove-${v.id}`} onPress={() => unshare(v, vaultName(v.id))} />} />);
   label("Records");
-  const ts = types.data?.types ?? [];
+  // Contacts only on a new Space: the types modules need stay out while they are empty (owner ruling 31 Oct 2026)
+  const ts = (types.data?.types ?? []).filter((x) => worthShowing(x));
   if (ts.length === 0 && by.records.length === 0) rows.push(<Row key="r:none" id="everyone-records-none" title="No record type yet" />);
   for (const t of ts.slice(0, open ? ts.length : 5)) rows.push(<Row key={`t:${t.key}`} id={`everyone-type-${t.key}`} title={t.plural} note="Open to everyone, as their role allows. Set apart from its Share sheet in Records" />);
   for (const r of by.records) rows.push(<Row key={`r:${r.id}`} id={`everyone-record-${r.id}`} title={names.resource(r)} note="Shared with everyone" trailing={<LinkButton label="Remove" onPress={() => unshare(r, names.resource(r))} />} />);

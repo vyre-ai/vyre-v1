@@ -22,7 +22,7 @@ export function viewerOf(ctx: MachinesCtx): Viewer {
   return { id: person, admin };
 }
 
-interface Dir { name?: string; removed?: boolean; owner?: string }
+interface Dir { name?: string; removed?: boolean; owner?: string; role?: string }
 /** What the Space knows of each machine apart from its reports: the name a person gave a server, and whether it was removed. Best effort: a missing answer leaves the machine's own words. */
 async function directory(ctx: MachinesCtx, v: Viewer): Promise<Map<string, Dir>> {
   const out = new Map<string, Dir>();
@@ -31,7 +31,7 @@ async function directory(ctx: MachinesCtx, v: Viewer): Promise<Map<string, Dir>>
     const r = (await ctx.call(v.admin ? "network.servers" : "network.my_computers", {})) as { servers?: Row[]; computers?: Row[] };
     for (const s of [...(r.servers ?? []), ...(r.computers ?? [])]) {
       const id = String(s["serverId"] ?? "");
-      if (id) out.set(id, { name: String(s["name"] ?? s["nickname"] ?? ""), ...(s["enrollment"] === "pending" ? { removed: true } : {}) });
+      if (id) out.set(id, { name: String(s["name"] ?? s["nickname"] ?? ""), ...(typeof s["role"] === "string" ? { role: s["role"] } : {}), ...(s["enrollment"] === "pending" ? { removed: true } : {}) });
     }
     if (r.servers || r.computers) {
       // a server that is not in the list any more was removed
@@ -127,9 +127,9 @@ async function context(ctx: MachinesCtx) {
   const [dir, comps] = await Promise.all([directory(ctx, v), agentComputers(ctx)]);
   const pins = pinsOf(ctx);
   const reported = allMachines(ctx).filter((r) => mayList(r, v) && !gone(r, dir));
-  // a server the Space approved that has not reported yet (or has never connected) is still the Space's: it is listed, offline, so an admin can open it and remove it
+  // a server the Space approved that has not reported yet (or has never connected) is still the Space's: it is listed, offline, so an admin can open it and remove it. The Space's own server is the "space" machine already: its network row (role space) is not a second one (client walk, 11 Nov 2026)
   const known = new Set(reported.map((r) => r.machineId));
-  const waiting: Rec[] = v.admin ? [...dir.entries()].filter(([id, d]) => /^srv_/.test(id) && !d.removed && !known.has(id)).map(([id, d]) => ({
+  const waiting: Rec[] = v.admin ? [...dir.entries()].filter(([id, d]) => /^srv_/.test(id) && d.role !== "space" && !d.removed && !known.has(id)).map(([id, d]) => ({
     machineId: id, kind: "server", name: d.name || id, ownerId: null, nickname: null, maxTurns: null, maxAgentComputers: null, drain: false, specs: null, load: null, runs: null, can: [], vyre: null, version: null, latencyMs: null, lastSeen: null, firstSeen: ctx.now(),
   })) : [];
   const recs = [...reported, ...waiting];

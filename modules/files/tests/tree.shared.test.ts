@@ -46,11 +46,17 @@ test("the Shared with me root counts the caller's shared items: files and folder
   const b = await file(personal, "b.md");
   const gone = await file(personal, "gone.md");
   await handlers["files.delete"](ctx, { fileId: gone });
+  // what is shared with the caller was made by someone else; the caller's own, even with a grant on it, is never "shared with me" (client walk, 11 Nov 2026)
+  const mine = await file(personal, "mine.md");
+  for (const id of [inside, a, b, gone]) ctx.db.run("UPDATE files_file SET owner = ? WHERE id = ?", "usr_other", id);
+  ctx.db.run("UPDATE files_folder SET owner = ? WHERE id = ?", "usr_other", clients);
 
-  access.sharedFiles = [inside, a];
+  access.sharedFiles = [mine];
+  assert.equal(await shared(ctx), 0, "the caller's own file is not shared with them, though access lists it");
+  access.sharedFiles = [inside, a, mine];
   access.sharedFolders = [clients];
   assert.equal(await shared(ctx), 2, "a.md and Clients; inside.txt opens from the shared folder");
-  access.sharedFiles = [inside, a, b, gone, "fil_notinfiles"];
+  access.sharedFiles = [inside, a, b, gone, mine, "fil_notinfiles"];
   access.sharedFolders = [clients, "fld_notinfiles"];
   assert.equal(await shared(ctx), 3, "b.md joins; the trashed file and the unknown ids do not count");
   const list = await handlers["files.shared_with_me"](ctx, {});
@@ -67,7 +73,7 @@ test("a caller without grants sees 0 whatever others share, and the other roots 
   for (const w of [maya, omar]) {
     const personal = (await handlers["files.tree"](w.ctx, {})).roots.find((r) => r.key === "personal")!.folderId!;
     const f = (await handlers["files.create"](w.ctx, { folderId: personal, name: "x.md", content: { text: "x" } })).file.fileId;
-    if (w === maya) access.sharedFiles = [f];
+    if (w === maya) { w.ctx.db.run("UPDATE files_file SET owner = ? WHERE id = ?", "usr_other", f); access.sharedFiles = [f]; }   // someone else's file, shared with maya
   }
   assert.equal(await shared(maya.ctx), 1);
   assert.equal(await shared(omar.ctx), 0, "refused by access: nothing is listed for omar");

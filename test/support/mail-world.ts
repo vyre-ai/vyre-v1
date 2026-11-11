@@ -98,6 +98,8 @@ export async function bootMailWorld(o: WorldOptions): Promise<MailWorld> {
       commands: { [`findmnt -n -o SOURCE --target ${dir}`]: { stdout: "/dev/mapper/vyre\n" }, "lsblk -s -n -o TYPE /dev/mapper/vyre": { stdout: "crypt\ndisk\n" }, "docker info --format {{.ServerVersion}}": { stdout: "27.1.1\n" } },
     }),
     fetch: caddyFetch,
+    // an AI key is checked with the provider before it is saved (rc.24): the world's providers accept the stand-in keys it uses, and answer a model list
+    providerFetch: (async () => ({ ok: true, status: 200, json: async () => ({ data: [{ id: "claude-test" }] }), text: async () => "{}" })) as unknown as typeof globalThis.fetch,
     intervals: { fast: 3_600_000, slow: 3_600_000, encryption: 3_600_000, commands: 3_600_000, hooks: 3_600_000 },
     http: fake.http,
     seams: { fetch: fake.tokenFetch },
