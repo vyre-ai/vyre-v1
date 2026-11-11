@@ -1,5 +1,5 @@
 
-import { isNamed, spaceLabel } from '../../shell/spaces/space-label.ts';
+import { isNamed } from '../../shell/spaces/space-label.ts';
 import { belowPhone } from "../../../../../ui/src/SidePane/layout.ts";import { SpaceLogoRow } from './SpaceImage.tsx';
 import { createdLine } from './space-created.ts';
 import { TIME_ZONES, zoneLabel } from './space-zones.ts';
@@ -89,7 +89,7 @@ export function SpaceProfile(): ReactElement {
     const mono = (text: string): ReactElement => <Text style={st.mono} numberOfLines={1}>{text}</Text>;
     const address = space.address.host ?? 'This device';
     return <View testID="console-space-infra"><Section title="Identity"><Group>
-        <SpaceLogoRow spaceName={spaceLabel(space.name)} logoFileId={space.logoFileId ?? null} onSaved={result.refresh}/>
+        <SpaceLogoRow spaceName={isNamed(space.name) ? space.name : "Vyre"} logoFileId={space.logoFileId ?? null} onSaved={result.refresh}/>
         <Line index={1}><Row id="space-name" title="Name" trailing={<RowField label="Space name" testID="infra-space-name" placeholder="Name your Space" value={name} onChange={setName} onCommit={saveName} width={220}/>}/></Line>
         <Line index={2}><Row id="space-legal" tall title="Legal name" note="Shown on public pages and emails" trailing={<RowField label="Legal name" testID="infra-space-legal" value={legal} onChange={setLegal} onCommit={saveLegal} width={260}/>}/></Line>
         <Line index={3}><Row id="space-address-now" title="Address" trailing={<View style={st.inline}>{mono(address)}<Button label={copied ? 'Copied' : 'Copy'} testID="space-address-copy" onPress={() => { copyAddress(address); setCopied(true); setTimeout(() => setCopied(false), 1500); }}/></View>}/></Line>

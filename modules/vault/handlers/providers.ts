@@ -240,7 +240,7 @@ async function checkKey(ctx: VaultCtx, c: CatalogEntry, apiKey: string): Promise
   if (r.ok) return;
   const said = (r.detail ?? "").replace(/sk-[A-Za-z0-9_-]+/g, "[key]").replace(/\s+/g, " ").trim();
   if (r.refused === true || /accept|invalid|unauthori[sz]ed|incorrect|key/i.test(said) && !/reach|answer|time/i.test(said)) {
-    throw fail("provider.auth_failed", ctx.trace.traceId, { message: `${c.name} did not accept that key.${said && said.length <= 140 ? ` It said: ${said.replace(/\.$/, "")}.` : ""} Check the key and try again.` });
+    throw fail("provider.auth_failed", ctx.trace.traceId, { message: `${c.name} did not accept that key.${said && said.length <= 140 && !/^the provider did not accept this key\.?$/i.test(said) ? ` It said: ${said.replace(/\.$/, "")}.` : ""} Check the key and try again.` });
   }
   throw fail("provider.unavailable", ctx.trace.traceId, { message: `Vyre could not reach ${c.name} to check the key, so it was not saved. Check this server's internet connection and try again.` });
 }
