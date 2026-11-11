@@ -23,7 +23,6 @@ export interface MenuApi {
   computers(): Promise<Map<string, { computerId: string; asleep: boolean }>>;
   wake(computerId: string): Promise<void>;
   sleep(computerId: string): Promise<void>;
-  provision(agentId: string): Promise<void>;
   pause(agentId: string): Promise<void>;
   resume(agentId: string): Promise<void>;
   deleteAgent(agentId: string): Promise<void>;
@@ -57,7 +56,6 @@ export function createMenuApi(data: Pick<ChatsSidebarData, "call">): MenuApi {
     },
     async wake(computerId) { await data.call("computers.wake", { computerId }); },
     async sleep(computerId) { await data.call("computers.sleep", { computerId }); },
-    async provision(agentId) { await data.call("computers.provision", { agentId, idempotencyKey: `pc_${agentId}` }); },
     async pause(agentId) { await data.call("agents.pause", { agentId }); },
     async resume(agentId) { await data.call("agents.resume", { agentId }); },
     async deleteAgent(agentId) { await data.call("agents.delete", { agentId }); },

@@ -15,8 +15,8 @@ import type { HookFire, HookVerdict } from "./hooks.ts";
 import type { Refusal, ToolCtx, ToolDef, ToolResult, ToolSet } from "./types.ts";
 import { withLocalTimes } from "../../../lib/time-convert.ts";
 
-/** What an agent is told, and tells the person, when it cannot set up its own computer: a person does it. */
-export const GIVE_COMPUTER_WORDS = "A person who manages this Space sets up an agent's computer: they press Give it a computer in the About tab of this chat's side pane. A card in this chat links them to the agent. Tell them that in plain words. Do not say you lack permission.";
+/** What an agent is told when it asks for a computer: agents no longer get a desktop (6 Nov), they have a terminal and a browser already. There is nothing for a person to set up. */
+export const NO_COMPUTER_WORDS = "Agents no longer get a desktop computer. You already have a terminal in your own workspace (terminal_run, terminal_open) and a browser in the Space browser (chrome_open, chrome_snapshot, chrome_act). Use those. Use the person's own Chrome only if they ask for it.";
 
 /** The capabilities whose results are times a person schedules by. */
 const TIMED = /^(?:calendar|mail|inbox|tasks|meetings|events)\./;
@@ -233,10 +233,9 @@ export function createToolSession(deps: CallDeps): ToolSession {
       const asked = t.cap === "chat.question.ask" ? (res.output as { blockId?: unknown } | null)?.blockId : undefined;
       return { kind: "result", traceId: res.traceId, result: { ok: true, content }, ...(typeof asked === "string" ? { parkOn: { blockId: asked } } : {}) };
     } catch (e) {
-      // Setting up an agent's computer takes a person who manages the Space. The agent does not say "I don't have permission": it says a person presses Give it a computer, and a card in the chat opens the agent for them.
+      // An agent that asks for a computer is refused for want of the grant; what it needs to hear is what it has, not that it lacks permission, and no person has anything to press.
       if (e instanceof HostError && e.error.code === "permission.no_grant" && t.cap === "computers.provision") {
-        recordWork(ctx.turnId, { key: `give-computer:${ctx.agentId}`, icon: "computer", lead: "Needs a person", title: "Give this agent a computer", target: { type: "agent", id: ctx.agentId } });
-        const error = makeError("permission.no_grant", traceId, { message: GIVE_COMPUTER_WORDS, details: { tool: t.name, reason: "person_sets_up_computer" } });
+        const error = makeError("permission.no_grant", traceId, { message: NO_COMPUTER_WORDS, details: { tool: t.name, reason: "no_new_desktop" } });
         return { kind: "error", error, result: { ok: false, content: { error: modelError(error) } } };
       }
       if (e instanceof HostError) return { kind: "error", error: e.error, result: { ok: false, content: { error: modelError(e.error) } } };

@@ -363,7 +363,7 @@ function Sidebar({ window, query, slot, open: shown, startFilter }: { window?: V
     setFactsAt((n) => n + 1);   // the list redraws the row quiet (or loud again) at once
     guard(menuApi.setMute(kind, id, on, minutes));
   };
-  const manageAgents = allows(rtPerms, "agents.manage"), provisionPc = allows(rtPerms, GATE.provisionComputer);
+  const manageAgents = allows(rtPerms, "agents.manage");
   // the Add sheet (people and agents into a chat, a channel invite) and the Share sheet (who may use an agent): one host each, drawn at the end of the sidebar
   const [note, setNote] = useState<string | null>(null);
   const noteTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -422,13 +422,12 @@ function Sidebar({ window, query, slot, open: shown, startFilter }: { window?: V
   });
   const faceMenu = (e: Extract<Entry, { type: "face" }>, x: number, y: number): MenuEntry[] => {
     const a = e.agent, pc = facts.current.computers.get(a.agentId);
-    return agentMenu({ name: e.assistant ? data.space.assistant.name : a.name, assistant: e.assistant === true, starred: starred("agent", a.agentId), status: a.status, hasComputer: a.hasComputer, computer: pc, muted: muted("agent", a.agentId), manage: manageAgents, provision: provisionPc }, {
+    return agentMenu({ name: e.assistant ? data.space.assistant.name : a.name, assistant: e.assistant === true, starred: starred("agent", a.agentId), status: a.status, hasComputer: a.hasComputer, computer: pc, muted: muted("agent", a.agentId), manage: manageAgents }, {
       message: () => { data.nav.openAgentChat(a.agentId); leave(); },
       openProfile: data.nav.openAgent ? () => { data.nav.openAgent?.(a.agentId); leave(); } : undefined,
-      openComputer: pc && data.nav.openSubject ? () => { data.nav.openSubject?.({ type: "computer", id: pc.computerId }); leave(); } : undefined,
+      openComputer: pc && data.nav.openSubject ? () => { data.nav.openSubject?.({ type: "computer", id: pc.computerId }); leave(); } : data.nav.openAgent ? () => { data.nav.openAgent?.(a.agentId, "computer"); leave(); } : undefined,
       wake: () => { if (pc) again(menuApi.wake(pc.computerId)); readFacts(true); },
       sleep: () => { if (pc) again(menuApi.sleep(pc.computerId)); readFacts(true); },
-      giveComputer: () => { again(menuApi.provision(a.agentId)); readFacts(true); },
       pause: () => again(menuApi.pause(a.agentId)),
       resume: () => again(menuApi.resume(a.agentId)),
       // the next menu says what was just done, before the read behind it comes back

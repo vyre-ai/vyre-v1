@@ -19,7 +19,7 @@ When `sites_host` says `deploy: true`, Vyre builds and runs the app itself on th
 Roll back with `sites_rollback`. A repo deploys again on each push. The app must listen on `PORT` on 0.0.0.0.
 
 ## Or run it on a computer
-- Use your agent computer (`terminal_open`, or `computers_provision` if you have none) or a server of the Space. Never run a site in Vyre itself.
+- Use your workspace (`terminal_open`) or a server of the Space. Never run a site in Vyre itself.
 - Keep it in `~/sites/<name>`, in git. Listen on `0.0.0.0`.
 - Keep it running with a process manager (pm2, supervisord, or a loop in tmux) that restarts it, and write its output to `~/sites/<name>/site.log`. That file is what Logs shows.
 - Secrets are Vault handles. Fill them at start and never write a value in a file, a commit or a message.

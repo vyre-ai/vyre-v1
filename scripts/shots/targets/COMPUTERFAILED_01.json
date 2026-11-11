@@ -20,13 +20,6 @@
       "proto": "chats,{skin}",
       "waitFor": "[data-testid='computer-failed']",
       "note": "Any other refusal shows the server's own words."
-    },
-    {
-      "id": "COMPUTERFAILED_01-provision-unavailable",
-      "route": "/m/COMPUTERFAILED_01?part=provision-unavailable",
-      "proto": "chats,{skin}",
-      "waitFor": "[data-testid='computer-refused']",
-      "note": "computers.provision answered provider.unavailable: the server's words and Copy details above the Set up button."
     }
   ]
 }

@@ -23,7 +23,7 @@ import { useSpaceAi } from "../../vault/providers/useSpaceAi.ts";
 import { Glyph as Mark } from "../conversation/parts.tsx";
 import { Glyph } from "../sidebar/parts.tsx";
 import { createInput, draftInstructions, grantsFor, reachOffers, updatePatch, workPatch, chatKeyPatch } from "./model.ts";
-import type { AgentDraft, ComputerChoice, VaultItem } from "./model.ts";
+import type { AgentDraft, VaultItem } from "./model.ts";
 
 type Call = (cap: string, input: unknown) => Promise<unknown>;
 type FileRow = CapMap["files.list"]["out"]["files"][number];
@@ -44,11 +44,6 @@ export interface AgentFormProps {
 }
 
 const EMPTY: AgentDraft = { name: "", does: "", face: "", instructions: "", model: "", fallbackModel: "", computer: "none", workKey: "" };
-const COMPUTERS: readonly { id: ComputerChoice; title: string; note: string }[] = [
-  { id: "none", title: "No computer", note: "Works in chat, files and tools" },
-  { id: "own", title: "Its own computer", note: "A browser, terminal and files of its own. Asleep until needed" },
-  { id: "yours", title: "Yours, when you ask", note: "Uses your computer only in your own chats" },
-];
 
 export function AgentForm({ agentId, call, newKey, onDone, onCancel, say, sharing, openVault }: AgentFormProps): ReactElement {
   const [d, setD] = useState<AgentDraft>(() => ({ ...EMPTY, face: agentId === null ? formatFace(suggestFace(takenFaces())) : "" }));
@@ -179,15 +174,6 @@ export function AgentForm({ agentId, call, newKey, onDone, onCancel, say, sharin
           {each(picked, (p) => <View key={p.id} style={st.line}><Text style={st.lineText}>{p.name}</Text><Btn label="Remove" testID={`agent-reach-off-${p.id}`} onPress={() => setPicked((l) => l.filter((x) => x.id !== p.id))} /></View>)}
           <TextInput testID="agent-reach" accessibilityLabel="Search what it can reach" value={q} onChangeText={setQ} placeholder="Search the Vault" placeholderTextColor="var(--ink-3)" style={st.field} />
           {each(found, (i) => <Pressable key={i.id} role="button" testID={`agent-reach-${i.id}`} onPress={() => { setPicked((l) => [...l, i]); setQ(""); }} style={(({ hovered }: { hovered?: boolean }) => [st.line, hovered === true && st.over]) as never}><Text style={st.lineText}>{i.name}</Text><Text style={st.lineNote}>Use</Text></Pressable>)}
-        </Section>
-
-        <Section title="Computer">
-          {each(COMPUTERS, (c) => (
-            <Pressable key={c.id} role="radio" aria-checked={d.computer === c.id} testID={`agent-computer-${c.id}`} onPress={() => set({ computer: c.id })} style={st.opt}>
-              <View style={[st.radio, d.computer === c.id && st.radioOn]} />
-              <View style={st.optText}><Text style={st.lineText}>{c.title}</Text><Text style={st.lineNote}>{c.note}</Text></View>
-            </Pressable>
-          ))}
         </Section>
 
         {sharing ? (

@@ -548,10 +548,10 @@ export function createContextBuilder(d: ContextDeps) {
       const rs = arr(routines?.["routines"]);
       can.push("Your own loops: a schedule (a cron) or a watcher (kind watch: runs on each new message in a channel) you set for yourself. Make or change one with agents_routine_save (give routineId to change), see them with agents_routines_list, remove one with agents_routine_delete. Cron runs in UTC: convert the person's time (see the time line) and say both. They show on your page and in this chat's Routines tab. When a person says \"every Monday\" or \"whenever X is posted\", make the loop; do not just promise to remember.");
       can.push(rs.length > 0 ? `Your routines and watchers now:\n${rs.slice(0, 20).map(routineLine).join("\n")}` : "You have no routines or watchers yet.");
-      if (agent["hasComputer"] === true) {
-        const c = arr(computers?.["computers"]).find((x) => str(x["agentId"]) === agentId);
-        can.push(c ? `Your computer is ${str(c["state"])}${typeof c["tabs"] === "number" ? `, ${c["tabs"]} tab${c["tabs"] === 1 ? "" : "s"} open` : ""}${str(c["caption"]) ? `: ${one(c["caption"], 100)}` : ""}${str(c["takeoverBy"]) ? ` (${who(String(c["takeoverBy"]))} is in control)` : ""}.` : "You have a computer; it is not listed for this person.");
-      } else can.push("You have no agent computer of your own. You can still run commands on the computer this chat runs on with terminal_run. Ask for an agent computer with computers_provision only when a task needs a browser.");
+      // What an agent has (6 Nov): a terminal in its own workspace, a browser of its own in the Space browser, and the person's own Chrome only when they ask for it. The old per-agent desktop is mentioned only while one still exists.
+      const old = agent["hasComputer"] === true ? arr(computers?.["computers"]).find((x) => str(x["agentId"]) === agentId) : undefined;
+      can.push(`${old ? "You never need to ask for a computer." : "You have no desktop computer, and you never need to ask for one."} You have a terminal in your own workspace (terminal_run, terminal_open) that keeps its files and sessions, and a browser of your own in the Space browser (chrome_open, chrome_snapshot, chrome_act) that keeps its sign-ins. Work in the person's own Chrome only when they ask for it.`);
+      if (old) can.push(`Your computer is ${str(old["state"])}${typeof old["tabs"] === "number" ? `, ${old["tabs"]} tab${old["tabs"] === 1 ? "" : "s"} open` : ""}${str(old["caption"]) ? `: ${one(old["caption"], 100)}` : ""}${str(old["takeoverBy"]) ? ` (${who(String(old["takeoverBy"]))} is in control)` : ""}. It is an older desktop, kept until its sign-ins have moved to your browser.`);
     }
     add("can", true, can.join("\n"));
 

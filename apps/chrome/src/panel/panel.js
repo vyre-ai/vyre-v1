@@ -459,12 +459,6 @@ const A = /** @type {Record<string, (el: HTMLElement) => void | Promise<void>>} 
   wFreq: (el) => menu(el, FREQS.map((f) => ({ label: f.label, check: f.min === S.w.every, run: () => { S.w.every = f.min; render(); } }))),
   wWho: (el) => menu(el, [{ head: "Who checks it" }, ...S.agents.map((a) => ({ face: { name: a.name, avatar: a.avatar ?? null, assistant: Boolean(a.assistant) }, label: a.name, trail: a.computer ? "Has a computer" : "", check: a.id === S.w.agentId, run: () => { S.w.agentId = a.id; S.w.run = null; render(); } }))]),
   wRun: (el) => { const k = el.dataset["k"] === "computer" ? "computer" : "chrome"; const a = S.agents.find((x) => x.id === S.w.agentId); if (k === "computer" && !(a && a.computer)) return; S.w.run = k; render(); },
-  givePc: async () => {
-    const a = S.agents.find((x) => x.id === S.w.agentId);
-    if (!a) return;
-    try { await ask("panel.watch.givePc", { agentId: a.id }); S.w.note = `Asked ${a.name} to set up a computer. It will show in your chats.`; } catch (e) { S.w.error = e instanceof Error ? e.message : ""; }
-    render();
-  },
   wStart: async () => {
     const a = S.agents.find((x) => x.id === S.w.agentId) || S.agents[0];
     if (!a || S.w.saving || (S.w.what === "region" && !S.w.region)) return;

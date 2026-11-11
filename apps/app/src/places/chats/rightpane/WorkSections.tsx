@@ -160,6 +160,12 @@ export function WorkSections({ deps, window }: { deps: PaneDeps; window?: Virtua
       entries.push({ key: `site-${x.site}`, type: "row", title: x.site, note: `${x.signedInAs ? `${x.signedInAs} · ` : ""}since ${dayMonth(x.since, clock)}`, leading: <LeadIcon name="lock" />, testID: `site-${x.site}`, menu });
     }
   }
+  // An agent that still has an older desktop keeps a way to watch it, wake it and take it over until its sign-ins have moved to the browser above (Console > Computers removes it afterwards)
+  const older = data.agent.computerId ?? "";
+  if (older !== "") {
+    entries.push({ key: "l-older", type: "label", text: "Older desktop" });
+    entries.push({ key: "older-desktop", type: "row", title: "Open its desktop", note: "The computer it had before. It stays until its sign-ins have moved to the browser above.", leading: <LeadIcon name="watch" />, testID: "older-desktop", onPress: () => data.nav.openComputer(older) });
+  }
   return <View style={st.fill}><PaneList entries={entries} {...(window ? { window } : {})} testID="work-list" /></View>;
 }
 

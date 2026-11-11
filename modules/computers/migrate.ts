@@ -35,14 +35,20 @@ export interface MigrationResult { done: number; partial: number; failed: number
 
 const say = (e: unknown): string => (e instanceof Error ? e.message.slice(0, 300) : "unknown");
 
-/** Move every asleep computer that has not moved. Returns what happened; a computer that is awake is `waiting`. Never throws: one computer's failure is its own row. */
-export async function migrateComputers(ctx: CompCtx): Promise<MigrationResult> {
-  const out: MigrationResult = { done: 0, partial: 0, failed: 0, waiting: 0 };
-  const p = boundPorts();
-  if (!p) return out;
-  const todo = rowsOf(ctx.db, "SELECT * FROM computers_computers WHERE computer_id NOT IN (SELECT computer_id FROM computers_migration WHERE state IN ('done', 'partial') OR attempts >= ?) ORDER BY agent_id", MAX_ATTEMPTS).map(computerOf);
-  for (const c of todo) {
-    if (c.state !== "asleep") { out.waiting++; continue; }
+type Step = "done" | "partial" | "failed" | "retry";
+/** Moves in flight, by computer: the idle pass and an agent's first browser call never move one computer twice at once, and a call waits for the move that is already running. */
+const moving = new Map<string, Promise<Step>>();
+
+/** Has this computer's move reached its end: moved (done), moved without its sign-ins (partial), or given up on after the attempts? */
+function settled(ctx: Pick<CompCtx, "db">, computerId: string): boolean {
+  return rowsOf(ctx.db, "SELECT 1 FROM computers_migration WHERE computer_id = ? AND (state IN ('done', 'partial') OR attempts >= ?)", computerId, MAX_ATTEMPTS).length > 0;
+}
+
+/** Move one asleep computer. A failed step is its own row, never a throw. */
+function moveOne(ctx: CompCtx, p: MigrationPorts, c: ComputerRow): Promise<Step> {
+  const flying = moving.get(c.computerId);
+  if (flying) return flying;
+  const run = (async (): Promise<Step> => {
     const prior = rowsOf(ctx.db, "SELECT attempts, workspace_id, profile_id FROM computers_migration WHERE computer_id = ?", c.computerId)[0];
     const attempts = Number(prior?.["attempts"] ?? 0) + 1;
     let workspaceId = prior?.["workspace_id"] ? String(prior["workspace_id"]) : null;
@@ -51,20 +57,64 @@ export async function migrateComputers(ctx: CompCtx): Promise<MigrationResult> {
       workspaceId = (await p.ensureWorkspace(ctx, { agentId: c.agentId, computerId: c.computerId })).workspaceId;
       profileId = (await p.ensureBrowserProfile(ctx, { agentId: c.agentId, computerId: c.computerId })).profileId;
       const host = hostFor(ctx, c.computerId);
-      if (!host?.chromeData) { record(ctx, c, "partial", { workspaceId, profileId, attempts, bytes: 0, error: "This computer's server cannot hand over its Chrome profile yet. The agent signs in again once." }); out.partial++; continue; }
+      if (!host?.chromeData) { record(ctx, c, "partial", { workspaceId, profileId, attempts, bytes: 0, error: "This computer's server cannot hand over its Chrome profile yet. The agent signs in again once." }); return "partial"; }
       const data = await host.chromeData(c.computerId);
+      // The computer answered that it has no Chrome folder. One that was never started has none to give, and moves with nothing to import. One that has run does have one, so "not found" means the
+      // sign-ins were not handed over: that is said (partial, with the reason), never recorded as a move that carried them.
+      if (data === null && c.lastActiveAt !== undefined) {
+        record(ctx, c, "partial", { workspaceId, profileId, attempts, bytes: 0, error: "This computer's Chrome profile was not found, so its sign-ins did not move. The agent signs in again once." });
+        ctx.log.warn("computers: the old computer had no Chrome profile to hand over", { computerId: c.computerId, agentId: c.agentId });
+        return "partial";
+      }
       const bytes = data ? (await p.importChromeData(ctx, { agentId: c.agentId, profileId, data })).bytes : 0;
       record(ctx, c, "done", { workspaceId, profileId, attempts, bytes, error: null });
       ctx.log.warn("computers: moved to a workspace and a browser profile", { computerId: c.computerId, agentId: c.agentId, chromeBytes: bytes });
-      out.done++;
+      return "done";
     } catch (e) {
       const final = attempts >= MAX_ATTEMPTS;
       record(ctx, c, "failed", { workspaceId, profileId, attempts, bytes: null, error: say(e) });
       ctx.log.warn("computers: the move to a workspace and a browser profile failed", { computerId: c.computerId, attempts, final, reason: say(e) });
-      if (final) out.failed++;
+      return final ? "failed" : "retry";
     }
+  })().finally(() => { moving.delete(c.computerId); });
+  moving.set(c.computerId, run);
+  return run;
+}
+
+/** Move every asleep computer that has not moved. Returns what happened; a computer that is awake is `waiting`. Never throws: one computer's failure is its own row. */
+export async function migrateComputers(ctx: CompCtx): Promise<MigrationResult> {
+  const out: MigrationResult = { done: 0, partial: 0, failed: 0, waiting: 0 };
+  const p = boundPorts();
+  if (!p) return out;
+  const todo = rowsOf(ctx.db, "SELECT * FROM computers_computers WHERE computer_id NOT IN (SELECT computer_id FROM computers_migration WHERE state IN ('done', 'partial') OR attempts >= ?) ORDER BY agent_id", MAX_ATTEMPTS).map(computerOf);
+  for (const c of todo) {
+    if (c.state !== "asleep") { out.waiting++; continue; }
+    const r = await moveOne(ctx, p, c);
+    if (r === "done" || r === "partial" || r === "failed") out[r]++;
   }
   return out;
+}
+
+/**
+ * Has this agent's old desktop moved to its workspace and its Space browser profile (or has it none)? An agent's browser calls go to the Space browser only once this is true. The move copies the old Chrome's
+ * folder into the profile and replaces what the profile holds, so a profile that was already in use would lose what was signed in since: the move has to come first. Asked at an agent's first browser call:
+ *   - a move in flight is waited for;
+ *   - a desktop that is asleep is moved now, not at the next pass of the idle job;
+ *   - a desktop that is awake cannot be copied safely (Chrome's cookie files are SQLite and a copy taken while it runs can be torn): false, and the call stays on that desktop, where the sign-ins are,
+ *     until the idle job has put it to sleep and moved it;
+ *   - a process where the move is not bound at all (it never runs) does not hold the browser back.
+ */
+export async function settleMove(ctx: CompCtx, agentId: string): Promise<boolean> {
+  const p = boundPorts();
+  if (!p) return true;
+  for (const c of rowsOf(ctx.db, "SELECT * FROM computers_computers WHERE agent_id = ?", agentId).map(computerOf)) {
+    if (settled(ctx, c.computerId)) continue;
+    const flying = moving.get(c.computerId);
+    if (flying) await flying;
+    else if (c.state === "asleep") await moveOne(ctx, p, c);
+    if (!settled(ctx, c.computerId)) return false;
+  }
+  return true;
 }
 
 function record(ctx: CompCtx, c: ComputerRow, state: "done" | "partial" | "failed", a: { workspaceId: string | null; profileId: string | null; attempts: number; bytes: number | null; error: string | null }): void {

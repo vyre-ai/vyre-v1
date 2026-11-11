@@ -316,7 +316,7 @@ export function createSampleSidebar(space: SampleSpace = northwind, o: { online?
     openChat: (id) => void opened.push(`chat:${id}`), openAgentChat: (id) => void opened.push(`agent:${id}`), openChannel: (id) => void opened.push(`channel:${id}`),
     openNeedsYou: (id) => void opened.push(id ? `needs:${id}` : "needs"), openAllAgents: () => void opened.push("all-agents"), openSearch: () => void opened.push("search"),
     openSpaceSwitcher: () => void opened.push("spaces"), openNewChannel: () => void opened.push("new-channel"),
-    openAgent: (id) => void opened.push(`profile:${id}`), openChatTab: (id) => void opened.push(`tab:${id}`), openGoal: (id) => void opened.push(`goal:${id}`), openProject: (id) => void opened.push(`project:${id}`), openNewProject: () => void opened.push("new-project"),
+    openAgent: (id, section) => void opened.push(section ? `profile:${id}:${section}` : `profile:${id}`), openChatTab: (id) => void opened.push(`tab:${id}`), openGoal: (id) => void opened.push(`goal:${id}`), openProject: (id) => void opened.push(`project:${id}`), openNewProject: () => void opened.push("new-project"),
   };
   const connection: Connection = { get: () => (online ? "online" : "offline"), subscribe: (l) => { listeners.add(l); return () => void listeners.delete(l); } };
 

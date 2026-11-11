@@ -10,8 +10,8 @@ const rows = (e: readonly MenuEntry[]): MenuItem[] => e.filter((x): x is MenuIte
 const labels = (e: readonly MenuEntry[]): string[] => e.map((x) => ("separator" in x ? "-" : "head" in x ? `# ${x.head}` : x.label));
 const calls: string[] = [];
 const rec = (n: string) => (...a: unknown[]): void => { calls.push(a.length ? `${n}:${a.join(",")}` : n); };
-const agentDo: AgentDo = { message: rec("message"), openProfile: rec("profile"), openComputer: rec("opencomp"), wake: rec("wake"), sleep: rec("sleep"), giveComputer: rec("give"), pause: rec("pause"), resume: rec("resume"), star: rec("star"), mute: rec("mute"), remove: rec("remove") };
-const agent = (o: Partial<AgentFacts> = {}): AgentFacts => ({ name: "Mira", assistant: false, starred: false, status: "awake", hasComputer: true, computer: { computerId: "cmp_1", asleep: false }, muted: false, manage: true, provision: true, ...o });
+const agentDo: AgentDo = { message: rec("message"), openProfile: rec("profile"), openComputer: rec("opencomp"), wake: rec("wake"), sleep: rec("sleep"), pause: rec("pause"), resume: rec("resume"), star: rec("star"), mute: rec("mute"), remove: rec("remove") };
+const agent = (o: Partial<AgentFacts> = {}): AgentFacts => ({ name: "Mira", assistant: false, starred: false, status: "awake", hasComputer: true, computer: { computerId: "cmp_1", asleep: false }, muted: false, manage: true, ...o });
 
 test("agent: an admin sees the whole menu, in groups, danger last and alone", () => {
   const e = agentMenu(agent(), agentDo);
@@ -23,16 +23,18 @@ test("agent: an admin sees the whole menu, in groups, danger last and alone", ()
   assert.equal(last.hint, "⌘⌫");
 });
 
-test("agent: the words follow the state; a member loses Pause, Give a Computer and Delete", () => {
+test("agent: the words follow the state; a member loses Pause and Delete", () => {
   assert.ok(labels(agentMenu(agent({ status: "paused", starred: true, muted: true, computer: { computerId: "c", asleep: true } }), agentDo)).join("|").includes("Resume|-|Remove Star|Unmute"));
   assert.ok(labels(agentMenu(agent({ computer: { computerId: "c", asleep: true } }), agentDo)).includes("Wake Its Computer"));
   const m = labels(agentMenu(agent({ manage: false }), agentDo));
   assert.ok(!m.some((x) => /^(Pause|Resume|Delete|Wake|Sleep|Give)/.test(x)), m.join("|"));
   assert.ok(m.includes("Message Mira") && m.includes("Star") && m.includes("Open Its Computer"));
+  // an agent with no old desktop still opens its terminal and browser (its Computer tab); nothing offers to make a desktop, for anyone
   const none = labels(agentMenu(agent({ hasComputer: false, computer: undefined }), agentDo));
-  assert.ok(none.includes("Give It a Computer") && !none.includes("Open Its Computer"));
-  assert.ok(!labels(agentMenu(agent({ hasComputer: false, manage: false, provision: false }), agentDo)).includes("Give It a Computer"));
-  assert.ok(!labels(agentMenu(agent({ hasComputer: false, provision: false }), agentDo)).includes("Give It a Computer"), "setting up a computer needs its own permission");
+  assert.ok(none.includes("Open Its Computer") && !none.some((x) => /^(Wake|Sleep|Give)/.test(x)));
+  for (const f of [{ hasComputer: false, computer: undefined }, { hasComputer: false, manage: false }, { assistant: true, hasComputer: false }, {}] as Partial<AgentFacts>[]) {
+    assert.ok(!labels(agentMenu(agent(f), agentDo)).some((x) => /Give It a Computer/.test(x)), "no menu offers to give a computer");
+  }
   const unknown = labels(agentMenu(agent({ computer: undefined }), agentDo));
   assert.ok(!unknown.some((x) => /^(Wake|Sleep)/.test(x)), "a computer whose state is not known offers neither");
   const own = labels(agentMenu(agent({ assistant: true, hasComputer: false }), agentDo));
@@ -109,7 +111,7 @@ test("the writes: each item is one capability with its own input", async () => {
   assert.deepEqual([...await api.stars()], ["agent:agt_1"]);
   sent.length = 0;
   await api.setMute("person", "usr_1", true); await api.setMute("thread", "thr_1", false);
-  await api.wake("cmp_1"); await api.sleep("cmp_1"); await api.provision("agt_1");
+  await api.wake("cmp_1"); await api.sleep("cmp_1");
   await api.pause("agt_1"); await api.resume("agt_1"); await api.deleteAgent("agt_1");
   await api.renameThread("thr_1", "New name"); await api.leaveChannel("chn_1"); await api.archiveChannel("chn_1");
   assert.deepEqual(sent, [
@@ -117,7 +119,6 @@ test("the writes: each item is one capability with its own input", async () => {
     { cap: "notifications.mute.clear", input: { target: { kind: "thread", id: "thr_1" } } },
     { cap: "computers.wake", input: { computerId: "cmp_1" } },
     { cap: "computers.sleep", input: { computerId: "cmp_1" } },
-    { cap: "computers.provision", input: { agentId: "agt_1", idempotencyKey: "pc_agt_1" } },
     { cap: "agents.pause", input: { agentId: "agt_1" } },
     { cap: "agents.resume", input: { agentId: "agt_1" } },
     { cap: "agents.delete", input: { agentId: "agt_1" } },

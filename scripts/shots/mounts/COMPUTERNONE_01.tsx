@@ -1,28 +1,15 @@
-// Mount for the agent-computer job: an agent that has no computer yet, in the Chats right pane's Computer tab, in each state the Space can be in. The button is there only when a host can run a
-// computer; otherwise the real reason and the next step are, in words.
-//   ?part=can (a host can run one), checking (the Space is being asked), runner (the server's container runner is not running), mac (Docker is not running on this Mac), space (no machine can run
-//   one yet), picks (two machines, the one with most room preselected), setup1 / setup3 (setting up, at a step), failed (the real reason, Copy details), ready / asleep (the whole pane on Computer: the picture is the open, one state chip, one footer line), about (About, with the Computer tab), nocomputer (About of an agent without one: one quiet row and the offer, no Computer or Terminal tab), member (a member: who sets it up), error (the Space did not answer)
+// Mount for the agent-computer job: an agent that has no old desktop, in the Chats right pane's Computer tab. Nothing offers to make one (6 Nov: a workspace and the Space browser replace it).
+//   ?part=none (the default: no old desktop, nothing to set up), setup1 / setup3 (setting up, at a step), failed (the real reason, Copy details), ready / asleep (the whole pane on Computer: the picture is the open, one state chip, one footer line), about (About, with the Computer tab), nocomputer (About of an agent without one: one quiet row and the offer, no Computer or Terminal tab), member (a member: who sets it up), error (the Space did not answer)
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { View, useWindowDimensions } from "react-native";
-import { FailedBody, NoneBody, SettingUp } from "../../../apps/app/src/places/chats/rightpane/ComputerTab.tsx";
+import { ComputerNone, FailedBody, SettingUp } from "../../../apps/app/src/places/chats/rightpane/ComputerTab.tsx";
 import { ChatRightPane } from "../../../apps/app/src/places/chats/rightpane/ChatRightPane.tsx";
 import { PersonProfile } from "../../../apps/app/src/places/chats/rightpane/PersonProfile.tsx";
 import { createSample } from "../../../apps/app/src/places/chats/rightpane/sample.ts";
 import type { ChatRightPaneData } from "../../../apps/app/src/places/chats/rightpane/data.tsx";
-import type { HostsAnswer } from "../../../apps/app/src/places/chats/rightpane/ComputerTab.tsx";
 
 export const title = "Computer tab: no computer yet";
-
-const ANSWERS: Record<string, { hosts: HostsAnswer; can: boolean }> = {
-  can: { hosts: { state: "ready", available: true, hosts: [{ hostId: "space", name: "The Space", canRun: true }] }, can: true },
-  checking: { hosts: { state: "loading" }, can: true },
-  runner: { hosts: { state: "ready", available: false, hosts: [{ hostId: "space", name: "The Space", canRun: false, reason: "This server's container runner is not running, so agent computers cannot start. Start it: docker compose up -d sites-runner." }] }, can: true },
-  mac: { hosts: { state: "ready", available: false, hosts: [{ hostId: "this", name: "This computer", canRun: false, reason: "Docker is not running on this Mac. Start Docker Desktop or Colima, then set up the computer." }] }, can: true },
-  space: { hosts: { state: "ready", available: false, hosts: [] }, can: true },
-  member: { hosts: { state: "ready", available: true, hosts: [{ hostId: "space", name: "The Space", canRun: true }] }, can: false },
-  error: { hosts: { state: "error", message: "the Space did not answer" }, can: true },
-};
 
 const HOSTS = { available: true, hosts: [
   { hostId: "space", kind: "space", name: "Northwind server", canRun: true, detail: "8 GB, 4 cores", room: { fits: 3, freeMb: 6144, totalMb: 8192 } },
@@ -61,11 +48,10 @@ function Person({ away, tab }: { away: boolean; tab: "about" | "chats" | "files"
 
 export default function Mount(): ReactNode {
   const [part, setPart] = useState<string | null>(null);
-  useEffect(() => setPart(new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? "").get("part") ?? "can"), []);
+  useEffect(() => setPart(new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? "").get("part") ?? "none"), []);
   const { height, width } = useWindowDimensions();
   if (part === null) return <View style={{ flex: 1, backgroundColor: "var(--win)" as string }} />;
   if (part === "person" || part === "away" || part === "personchats") return <Person away={part === "away"} tab={part === "personchats" ? "chats" : "about"} />;
-  const a = ANSWERS[part] ?? ANSWERS["can"]!;
   if (part === "ready" || part === "asleep") return <Pane withComputer tab="computer" asleep={part === "asleep"} />;
   if (part === "about" || part === "nocomputer") return <Pane withComputer={part === "about"} tab="about" />;
   const card = (n: ReactNode): ReactNode => (
@@ -75,12 +61,6 @@ export default function Mount(): ReactNode {
   );
   if (part === "setup1" || part === "setup3") return card(<SettingUp name="Dex" step={part === "setup1" ? 1 : 3} where="Northwind server" />);
   if (part === "failed") return card(<FailedBody name="Dex" reason="Docker could not pull the image: the server has no route to the registry. Check the server's network, then try again." details="Dex's computer cmp_demo\nstate: error\nruns on: Northwind server" onCopy={() => undefined} onAgain={() => undefined} />);
-  if (part === "picks") return card(<NoneBody name="Dex" hosts={{ state: "ready", ...HOSTS }} canProvision onProvision={() => undefined} />);
-  return (
-    <View style={{ height, backgroundColor: "var(--win)" as string, alignItems: "center", paddingTop: 40 }}>
-      <View style={{ width: Math.min(360, width - 24), borderWidth: 1, borderColor: "var(--line)" as string, borderRadius: 12, backgroundColor: "var(--side)" as string }}>
-        <NoneBody hosts={a.hosts} canProvision={a.can} onProvision={() => undefined} />
-      </View>
-    </View>
-  );
+  // ?part=none: an agent with no old desktop, in a host where the terminal and the browser are not bound: one plain pane, nothing to set up
+  return card(<ComputerNone name="Dex" />);
 }

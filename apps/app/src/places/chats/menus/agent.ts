@@ -14,8 +14,6 @@ export interface AgentFacts {
   muted: boolean;
   /** agents.manage: pause, wake and sleep its computer, delete. */
   manage: boolean;
-  /** access.manage: set up a computer for it. */
-  provision: boolean;
 }
 export interface AgentDo {
   message(): void;
@@ -23,7 +21,6 @@ export interface AgentDo {
   openComputer?: (() => void) | undefined;
   wake(): void;
   sleep(): void;
-  giveComputer(): void;
   pause(): void;
   resume(): void;
   star(on: boolean): void;
@@ -36,9 +33,8 @@ export interface AgentDo {
   editInstructions?: (() => void) | undefined;
 }
 export function agentMenu(f: AgentFacts, d: AgentDo): MenuEntry[] {
-  const computer = f.hasComputer || f.computer !== undefined
-    ? [d.openComputer ? item("Open Its Computer", d.openComputer) : null, f.manage && f.computer ? (f.computer.asleep ? item("Wake Its Computer", d.wake) : item("Sleep Its Computer", d.sleep)) : null]
-    : [f.provision && !f.assistant ? item("Give It a Computer", d.giveComputer) : null];
+  // every agent has a terminal and a browser (its Computer tab): Open lands there. Wake and Sleep are only for an old desktop that still exists.
+  const computer = [d.openComputer ? item("Open Its Computer", d.openComputer) : null, f.manage && f.computer ? (f.computer.asleep ? item("Wake Its Computer", d.wake) : item("Sleep Its Computer", d.sleep)) : null];
   return tidy([
     item(`Message ${f.name}`, d.message, { hint: KEY.enter }),
     d.openProfile ? item("Open Profile", d.openProfile, { hint: KEY.profile }) : null,

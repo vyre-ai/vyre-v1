@@ -148,9 +148,14 @@ async function placeable(ctx: CompCtx, nodeId: string, agentId: string): Promise
   }
 }
 
+/** What an agent that asks for a desktop is told (the agent tool computers_provision lands here). */
+export const NO_NEW_DESKTOP = "Agents no longer get a desktop computer. You already have a terminal in your own workspace (terminal_run, terminal_open) and a browser in the Space browser (chrome_open, chrome_snapshot, chrome_act). Use those. Use the person's own Chrome only if they ask for it.";
+
 export async function provision(ctx: CompCtx, input: { agentId: string; tabLimit?: number; nodeId?: string; idempotencyKey: string }) {
   ensure(ctx.db);
   needTeam(ctx);
+  // 6 Nov decision: a workspace and the Space browser replace one desktop container per agent. No agent makes itself an old desktop; the people who still hold one keep it until it has moved.
+  if (ctx.principal.kind === "agent") raise(ctx, "validation.precondition_failed", NO_NEW_DESKTOP, { agentId: input.agentId });
   const host = input.nodeId === undefined ? hostOf(ctx) : null;
   // say why before anything is made: a host that cannot run containers refuses with its own reason, in words, not a row that is made and unmade
   if (host) {

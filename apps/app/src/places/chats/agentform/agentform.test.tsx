@@ -44,10 +44,11 @@ test("the fields become agents.create and agents.update input", () => {
 
 const page = (team: boolean): string => renderToStaticMarkup(<AgentForm agentId={null} call={async () => ({})} newKey={() => "k"} onDone={() => undefined} onCancel={() => undefined} say={() => undefined} {...(team ? { sharing: { directory: { people: [], groups: [], roles: [], agents: [], channels: [], automations: [] } as never, meName: "Ada", meId: "p1", nameOf: (id: string) => id } } : {})} />);
 
-test("the page draws its sections in order", () => {
+test("the page draws its sections in order, and none of them offers a computer", () => {
   const out = page(true);
+  assert.ok(!out.includes("agent-computer-") && !out.includes("Its own computer") && !out.includes("No computer"), "every agent has a terminal and a browser: there is nothing to choose");
   let at = 0;
-  for (const s of ["agent-name", "agent-does", "Instructions", "Context", "Can reach", "Computer", "Who can use it", "Preferred model", "Create agent"]) { const i = out.indexOf(s, at); assert.ok(i >= at, s); at = i; }
+  for (const s of ["agent-name", "agent-does", "Instructions", "Context", "Can reach", "Who can use it", "Preferred model", "Create agent"]) { const i = out.indexOf(s, at); assert.ok(i >= at, s); at = i; }
 });
 
 test("Who can use it is hidden in a Personal Space", () => {

@@ -18,7 +18,7 @@ const git = (cwd: string, ...args: string[]): string => {
   return r.stdout;
 };
 
-test("the owner's Assistant makes a project in one go, every read of the id list gives resolves, it adds a teammate and provisions a computer; a Space agent asked by the owner is refused", async () => {
+test("the owner's Assistant makes a project in one go, every read of the id list gives resolves, it adds a teammate; no agent can give itself a desktop computer, the Assistant included, and is told what it has instead; a Space agent asked by the owner is refused", async () => {
   const out: Record<string, any> = {};   // eslint-disable-line @typescript-eslint/no-explicit-any
   let assistant = ""; let spaceAgent = "";
   let d: Daemon | undefined;
@@ -45,7 +45,7 @@ test("the owner's Assistant makes a project in one go, every read of the id list
     out["members"] = data((yield* run("projects_members_list", { projectId: made.projectId })) as Answer, "projects_members_list");
     out["mates"] = data((yield* run("projects_teammates_list", { projectId: made.projectId })) as Answer, "projects_teammates_list");
     out["mate"] = data((yield* run("projects_teammates_create", { projectId: made.projectId, name: "Ember", role: "member", idempotencyKey: "t1" })) as Answer, "projects_teammates_create");
-    out["computer"] = data((yield* run("computers_provision", { agentId: assistant, idempotencyKey: "cp1" })) as Answer, "computers_provision");
+    out["computer"] = yield* run("computers_provision", { agentId: assistant, idempotencyKey: "cp1" });
     yield { type: "text", text: "done" };
   });
   const s = await claimedSpace(model);
@@ -63,7 +63,10 @@ test("the owner's Assistant makes a project in one go, every read of the id list
     assert.equal(out["members"].members.find((m: { principal: string }) => m.principal === s.owner)?.role, "lead");
     assert.deepEqual(out["mates"].teammates, []);
     assert.equal(out["mate"].teammate.madeForProject, true);
-    assert.equal(out["computer"].computer.agentId, assistant);
+    // 6 Nov: an agent has a terminal in its workspace and a browser in the Space browser; none makes itself an old desktop, the owner's Assistant no more than a Space agent, and each is told what it has
+    assert.equal((out["computer"] as Answer).ok, false, JSON.stringify(out["computer"]));
+    assert.match(JSON.stringify(out["computer"]), /terminal_run/);
+    assert.doesNotMatch(JSON.stringify(out["computer"]), /Give it a computer|About tab/);
     // the project's chat starts with someone to answer: its maker's Assistant, so a plain message is not met with silence
     await s.d.hooks?.pump?.();
     const channel = (await s.api("channels.get", { channelId: out["made"].channelId })).channel as { mainThreadId: string };
@@ -74,6 +77,7 @@ test("the owner's Assistant makes a project in one go, every read of the id list
     // a Space agent is not the owner's hands: it is refused where the Assistant passes
     assert.equal((out["sa_mate"] as Answer).ok, false, JSON.stringify(out["sa_mate"]));
     assert.equal((out["sa_prov"] as Answer).ok, false, JSON.stringify(out["sa_prov"]));
+    assert.match(JSON.stringify(out["sa_prov"]), /terminal_run/);
   } finally { await stop(d); }
 });
 

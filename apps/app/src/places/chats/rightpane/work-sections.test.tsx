@@ -121,6 +121,23 @@ test("mounted: Terminal then Browser, the agent has no computer and nothing asks
   } finally { off(); }
 });
 
+test("mounted: an agent that still has an older desktop gets one row that opens it; an agent without one gets none, and neither is offered a new one", async () => {
+  const off = installDom();
+  try {
+    const s = createSample();
+    const k = stub(ws(), br());
+    const withOld = paneOver(s, { workspace: k.workspace, browser: k.browser, agent: { agentId: s.data.agent.agentId, name: s.data.agent.name, computerId: "cmp_old" } }, depsOf([]));
+    const root = await mount(createRoot, withOld);
+    const t = textOf(root);
+    assert.ok(t.includes("Older desktop") && t.includes("Open its desktop"), "the older desktop has its row");
+    assert.ok(t.indexOf("Browser") < t.indexOf("Older desktop"), "after the terminal and the browser");
+    await press(find(root, "row-older-desktop"));
+    assert.deepEqual(s.opened.slice(-1), ["computer:cmp_old"], "it opens the desktop's own view: live view, wake, take over");
+    const none = await mount(createRoot, paneOver(s, { workspace: k.workspace, browser: k.browser, agent: { agentId: s.data.agent.agentId, name: s.data.agent.name } }, depsOf([])));
+    assert.ok(!textOf(none).includes("Older desktop") && !/Give .* a computer|Set up its computer/.test(textOf(none)));
+  } finally { off(); }
+});
+
 test("mounted: Attach attaches this agent's terminal, Take over takes its browser, Give back gives it back, Sign out signs out of the site", async () => {
   const off = installDom();
   try {

@@ -20,6 +20,7 @@ import { needRoom } from "../../sbrowser/room.ts";
 import { agentInfo } from "../../sbrowser/agentinfo.ts";
 import { faceSvg } from "../../sbrowser/face.ts";
 import { waitingNote } from "../../capacity.ts";
+import { settleMove } from "../../migrate.ts";
 
 export type ToolArgs = Record<string, unknown>;
 export type ToolAnswer = Record<string, unknown>;
@@ -63,12 +64,29 @@ function toolHost(ctx: CompCtx, computerId: string): ComputerHost & ToolHost {
   return host as ComputerHost & ToolHost;
 }
 
-/** The computer a tool call is for: the one named, else the caller's own (an agent has one). */
-export function computerFor(ctx: CompCtx, computerId: string | undefined): ComputerRow {
+/**
+ * What an agent with no old-style desktop is told when a tool needs one. Agents no longer get a desktop (6 Nov): they have a terminal in their workspace and a browser in the Space browser, so each line
+ * names the tool that works for what the call was after, in words an agent can pass on to a person. `tool` is the tool's name; any other call gets the general line.
+ */
+export function noDesktopLine(tool: string | undefined): string {
+  if (tool !== undefined && tool.startsWith("chrome_")) {
+    return "This Space has no browser for agents right now: the container runtime (Docker) does not answer on the computer this Space runs on, and the Space browser needs it. Docker on that computer, or a server with Docker added in Console > Computers, gives agents a browser. Tell the person that. Use their own Chrome only if they ask for it.";
+  }
+  if (tool !== undefined && tool.startsWith("screen_")) {
+    return "You have no desktop screen: the screen tools work only on an old-style agent computer, and agents no longer get one. To work on a web page use chrome_open, chrome_snapshot and chrome_act in the Space browser. To run commands use terminal_run in your workspace.";
+  }
+  if (tool !== undefined && tool.startsWith("computer_files_")) {
+    return "You have no desktop computer for these file tools to read. Your Files folder is in Files: use the files tools, or terminal_run to work with it in your workspace.";
+  }
+  return "You have no desktop computer, and agents no longer get one. You have a terminal in your workspace (terminal_run) and a browser in the Space browser (chrome_open, chrome_snapshot).";
+}
+
+/** The computer a tool call is for: the one named, else the caller's own (an agent that still has an old desktop). */
+export function computerFor(ctx: CompCtx, computerId: string | undefined, tool?: string): ComputerRow {
   if (computerId) return needComputer(ctx, computerId);
   if (ctx.principal.kind !== "agent") raise(ctx, "validation.bad_input", "Say which computer. Only an agent can leave it out.");
   const r = rowsOf(ctx.db, "SELECT computer_id FROM computers_computers WHERE agent_id = ?", ctx.principal.id)[0];
-  if (!r) raise(ctx, "validation.not_found", "This agent has no computer. Give it one first.", { agentId: ctx.principal.id });
+  if (!r) raise(ctx, "validation.not_found", noDesktopLine(tool), { agentId: ctx.principal.id });
   return needComputer(ctx, String(r["computer_id"]));
 }
 
@@ -207,12 +225,13 @@ export async function prepare(ctx: CompCtx, computerId: string | undefined, spec
   if (await wantsMyChrome(ctx, computerId, spec.name)) return { computer: stub(ctx), host: {} as ComputerHost & ToolHost, personal: true };
   // The Space browser is where an agent browses by default (owner decision 6 Nov): its own profile, on the Space host, whoever asked, so the person's computer is never disturbed and a team agent's logins
   // outlive the person who asked. Only a call that names a computer (a person working one) or the person's own Chrome (`my-chrome`, on request) goes elsewhere.
-  if (spec.name !== undefined && spec.name.startsWith("chrome_") && computerId === undefined && ctx.principal.kind === "agent" && spaceBrowser() && await browserUsable(spaceBrowser()!, ctx.now())) {
+  // An agent that still has an old desktop moves to the Space browser only after that desktop's sign-ins have moved into its profile (migrate.ts settleMove); until then its browser calls stay on the desktop.
+  if (spec.name !== undefined && spec.name.startsWith("chrome_") && computerId === undefined && ctx.principal.kind === "agent" && spaceBrowser() && await browserUsable(spaceBrowser()!, ctx.now()) && await settleMove(ctx, ctx.principal.id)) {
     const profileId = profileIdOf(ctx.principal.id);
     if (!profileId) raise(ctx, "validation.bad_input", "This agent cannot have a browser profile: its id is not valid.");
     return { computer: { computerId: profileId, agentId: ctx.principal.id, state: "working" } as unknown as ComputerRow, host: {} as ComputerHost & ToolHost, browser: { profileId } };
   }
-  let c = computerFor(ctx, computerId);
+  let c = computerFor(ctx, computerId, spec.name);
   mayUse(ctx, c);
   // The controls are the person's: the tools wait for an agent, never for the person at the controls (their own click or key through the live view is a tool call as them).
   const atTheControls = ctx.principal.kind === "person" && c.takeoverBy !== undefined && actorOf(ctx) === c.takeoverBy;

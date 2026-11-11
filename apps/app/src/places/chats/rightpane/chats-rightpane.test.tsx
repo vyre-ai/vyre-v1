@@ -7,10 +7,9 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { ChatRightPane, ChatRightPaneLoading } from "./ChatRightPane.tsx";
 import { RightPaneDataProvider } from "./data.tsx";
 import { FilesTab, treeOrder } from "./FilesTab.tsx";
-import { NoneBody, setupView } from "./ComputerTab.tsx";
-import type { HostsAnswer } from "./ComputerTab.tsx";
+import { ComputerTab } from "./ComputerTab.tsx";
 import {
-  accept, correct, deleteRoutine, duplicateRoutine, provision, reasonOf, reject, removeFact, renameRoutine, saveInstructions, setRoutine, signOut, takeOver, giveBack, wake, wakeFailure, computerWords, provisionKey,
+  accept, correct, deleteRoutine, duplicateRoutine, reasonOf, reject, removeFact, renameRoutine, saveInstructions, setRoutine, signOut, takeOver, giveBack, wake, wakeFailure, computerWords,
 } from "./actions.ts";
 import type { PaneDeps } from "./actions.ts";
 import {
@@ -99,21 +98,21 @@ test("Computer, asleep: Wake, the last session, and a dimmed screen that wakes o
   assert.ok(!has(out, 'data-testid="computer-take"'), "Take over is for a working computer");
 });
 
-test("Computer, a Personal Space with a capable host (a server, or Docker here) has the Computer tab and sets up an agent's computer like a team one", () => {
+test("Computer, a Personal Space with a capable host (a server, or Docker here) offers no desktop either: an agent with none is shown About, with nothing to set up", () => {
   const s = createSample("personal");
   const withHost: Sample = { ...s, data: { ...s.data, space: { ...s.data.space, computers: true } } };
-  const out = clean(renderToStaticMarkup(<ChatRightPane data={withHost.data} open onToggle={() => undefined} tab="computer" setup window={ALL} />));
-  assert.ok(has(out, 'data-testid="computer-none"') && has(out, "Checking where its computer can run"), "no computer yet; the button waits for the Space to say a host can run one");
+  const out = clean(renderToStaticMarkup(<ChatRightPane data={withHost.data} open onToggle={() => undefined} tab="computer" window={ALL} />));
+  assert.ok(!has(out, 'data-testid="computer-none"') && !has(out, "Checking where its computer can run") && !has(out, "computer-provision"), "no pane that waits for a host to say it can make a computer");
   assert.ok(!has(out, "Needs a Team Space"));
 });
 
-test("Computer, in a Personal Space there is no Computer tab and the pane opens on About; an agent without a computer offers to set one up", () => {
+test("Computer, in a Personal Space there is no Computer tab and the pane opens on About; an agent with no computer is shown About, with nothing to set up", () => {
   const personal = html(createSample("personal"), "computer");
   assert.ok(!has(personal, 'data-testid="computer-personal"') && !has(personal, ">Computer<"), "no Computer tab in a Personal Space");
   assert.ok(has(personal, 'data-testid="face-Assistant"'), "asking for Computer shows About");
   const s = createSample();
-  const bare = clean(renderToStaticMarkup(<ChatRightPane data={{ ...s.data, agent: { agentId: "agt_intake", name: "Intake" } }} open onToggle={() => undefined} tab="computer" setup window={ALL} />));
-  assert.ok(has(bare, "Give Intake its own computer") && has(bare, 'data-testid="computer-checking"') && !has(bare, 'data-testid="computer-provision"'), "no button until a host says it can run one");
+  const bare = clean(renderToStaticMarkup(<ChatRightPane data={{ ...s.data, agent: { agentId: "agt_intake", name: "Intake" } }} open onToggle={() => undefined} tab="computer" window={ALL} />));
+  assert.ok(has(bare, 'data-testid="about-no-computer"') && !has(bare, "its own computer") && !has(bare, 'data-testid="computer-provision"') && !has(bare, "Set up its computer"), "no offer to make a computer, whatever host there is");
 });
 
 test("Threads: the threads it worked in, its helpers (running first), and its own chats; the open chat is selected", () => {
@@ -297,7 +296,7 @@ test("Delete removes a routine and Undo brings it back as it was", async () => {
   assert.ok(back && back.enabled === false && back.cron === r5.cron);
 });
 
-test("computer actions: wake, take over, give back, sign out, set up", async () => {
+test("computer actions: wake, take over, give back, sign out", async () => {
   const s = createSample("asleep");
   const { d, notes } = deps(s);
   await wake(d, "cmp_intake", "Intake");
@@ -310,8 +309,7 @@ test("computer actions: wake, take over, give back, sign out, set up", async () 
   assert.ok(!html(s, "computer").includes('data-testid="computer-give"'));
   await signOut(d, "cmp_intake", "Calendar");
   assert.ok(!html(s, "computer").includes("Maya Chen's calendar, can book"));
-  await provision(d, "agt_intake", "Intake");
-  assert.deepEqual(s.calls.map((c) => c.cap), ["computers.wake", "computers.take_over", "computers.give_back", "computers.session.sign_out", "computers.provision", "computers.wake"]);
+  assert.deepEqual(s.calls.map((c) => c.cap), ["computers.wake", "computers.take_over", "computers.give_back", "computers.session.sign_out"]);
   assert.ok(notes.every((n) => !n.text.startsWith("Could not")));
 });
 
@@ -335,33 +333,22 @@ test("a wake the server refuses is said in the pane and the computer shows why i
   assert.equal(wakeFailure.get("cmp_intake"), undefined);
 });
 
-test("setting up a computer whose wake is refused says so: the wake is not dropped", async () => {
+test("a wake the server refuses (provider.unavailable) is said in plain words by role, with the runtime's sentence in Details", async () => {
   const s = createSample("asleep");
   const { d, notes } = deps(s);
+  const why = "The computer did not start: The container runtime did not answer.";
+  const refuse: PaneDeps = { call: async (cap, input) => { if (cap === "computers.wake") throw Object.assign(new Error(why), { code: "provider.unavailable" }); return d.call(cap, input); }, note: d.note };
   wakeFailure.set("cmp_intake", null);
-  s.failNext("computers.wake");
-  await provision(d, "agt_intake", "Intake");
-  await new Promise<void>((r) => setTimeout(r, 0));
-  assert.ok(notes.some((n) => n.text === "Could not wake it: computers.wake failed"), JSON.stringify(notes));
-  wakeFailure.set("cmp_intake", null);
-});
-
-test("a provision the server refuses (provider.unavailable) is said in plain words by role, with the runtime's sentence in Details", async () => {
-  const s = createSample();
-  const { d, notes } = deps(s);
-  const why = "The computer could not be created: The container runtime did not answer.";
-  const refuse: PaneDeps = { call: async (cap, input) => { if (cap === "computers.provision") throw Object.assign(new Error(why), { code: "provider.unavailable" }); return d.call(cap, input); }, note: d.note };
-  wakeFailure.set(provisionKey("agt_intake"), null);
-  assert.equal(await provision(refuse, "agt_intake", "Intake"), false);
-  assert.deepEqual(notes.map((n) => n.text), ["Could not set up its computer: The computer could not be created: The container runtime did not answer"]);
-  const f = wakeFailure.get(provisionKey("agt_intake"))!;
+  assert.equal(await wake(refuse, "cmp_intake", "Intake"), false);
+  assert.deepEqual(notes.map((n) => n.text), ["Could not wake it: The computer did not start: The container runtime did not answer"]);
+  const f = wakeFailure.get("cmp_intake")!;
   assert.equal(f.code, "provider.unavailable");
   const admin = computerWords(f, true, "Dex");
   const member = computerWords(f, false, "Dex");
   assert.equal(admin.sentence, "This server can't start agent computers right now. Check Console > Computers.");
   assert.equal(member.sentence, "This server can't start agent computers right now. Ask your admin.");
   for (const w of [admin, member]) { assert.equal(w.server, true); assert.equal(w.details, "The container runtime did not answer."); assert.ok(!/runtime|container/i.test(w.sentence)); }
-  wakeFailure.set(provisionKey("agt_intake"), null);
+  wakeFailure.set("cmp_intake", null);
 });
 
 test("a refusal with no curated sentence says Vyre could not start the computer, and the server's words are Details", () => {
@@ -579,31 +566,25 @@ test("giving back from the pane tells the agent in the chat to carry on, once, a
   assert.ok(!posted.some((p) => p.cap === "chat.post"), "without a chat there is nowhere to say it");
 });
 
-test("Computer, none yet: the button is there only when a host can run one; when none can, the real reason and the next step are, never a button that cannot work", () => {
-  const render = (hosts: HostsAnswer, canProvision = true) => clean(renderToStaticMarkup(<NoneBody hosts={hosts} canProvision={canProvision} onProvision={() => undefined} name="Dex" />));
-  const can = render({ state: "ready", available: true, hosts: [{ hostId: "space", name: "The Space", canRun: true }] });
-  assert.ok(has(can, 'data-testid="computer-provision"') && has(can, "Set up its computer") && !has(can, 'data-testid="computer-cannot"'));
-  assert.ok(has(render({ state: "ready", available: true, hosts: [] }, false), 'data-testid="computer-provision-admin"') && !has(render({ state: "ready", available: true, hosts: [] }, false), 'data-testid="computer-provision"'), "a member is told who sets it up");
-  const why = "This server's container runner is not running, so agent computers cannot start. Start it: docker compose up -d sites-runner.";
-  const cannot = render({ state: "ready", available: false, hosts: [{ hostId: "space", name: "The Space", canRun: false, reason: why }] });
-  assert.ok(has(cannot, 'data-testid="computer-cannot"') && has(cannot, "docker compose up -d sites-runner") && !has(cannot, 'data-testid="computer-provision"') && !has(cannot, "Set up its computer"));
-  const mac = render({ state: "ready", available: false, hosts: [{ hostId: "this", name: "This computer", canRun: false, reason: "Docker is not running on this Mac. Start Docker Desktop or Colima, then set up the computer." }] });
-  assert.ok(has(mac, "Start Docker Desktop or Colima") && !has(mac, "Try again"));
-  const none = render({ state: "ready", available: false, hosts: [] });
-  assert.ok(has(none, "Add a server with Docker"));
-  const err = render({ state: "error", message: "the Space did not answer" });
-  assert.ok(has(err, "could not ask where an agent computer can run: the space did not answer".replace("the space", "the Space")) && !has(err, "Set up its computer"));
-  assert.equal(setupView({ state: "loading" }).kind, "checking");
+test("Computer tab of an agent with no old desktop: one plain pane, nothing to set up, whatever the host and the role", () => {
+  const s = createSample();
+  for (const personal of [false, true]) {
+    const data = { ...s.data, agent: { agentId: "agt_intake", name: "Dex" }, ...(personal ? { space: { ...s.data.space, computers: false } } : {}) };
+    const out = clean(renderToStaticMarkup(<RightPaneDataProvider value={data}><ComputerTab deps={{ call: data.call, note: () => undefined }} /></RightPaneDataProvider>));
+    assert.ok(has(out, 'data-testid="computer-none"') && has(out, "Dex has no desktop computer"), "it says what is true");
+    assert.ok(!has(out, "computer-provision") && !has(out, "Set up its computer") && !has(out, "own computer") && !has(out, "Give Dex"), "and offers nothing to make");
+  }
 });
 
-test("a failed write says why in the app's own words, and a computer that could not be set up says the reason", async () => {
-  const s = createSample();
+test("a failed write says why in the app's own words", async () => {
+  const s = createSample("asleep");
   const { d, notes } = deps(s);
   const reasoned: PaneDeps = { ...d, call: async () => { throw new Error("This server's container runner is not running. Start it: docker compose up -d sites-runner."); } };
-  assert.equal(await provision(reasoned, "agt_intake", "Dex"), false);
-  assert.deepEqual(notes.map((n) => n.text), ["Could not set up its computer: This server's container runner is not running. Start it: docker compose up -d sites-runner"]);
+  assert.equal(await wake(reasoned, "cmp_intake", "Dex"), false);
+  assert.deepEqual(notes.map((n) => n.text), ["Could not wake it: This server's container runner is not running. Start it: docker compose up -d sites-runner"]);
   assert.equal(reasonOf(new Error("Not allowed.")), "Not allowed");
   assert.equal(reasonOf("not an error"), "");
+  wakeFailure.set("cmp_intake", null);
 });
 
 test("a computer that is working with its browser up is ready: no step waits for a sign-in that nothing does", async () => {

@@ -42,7 +42,7 @@ test("an agent row: right-click gives the agent menu (not the chat menu), admin 
   assert.deepEqual(s.rejected, [], "every call inside the contract");
 });
 
-test("an agent's computer: Sleep when it works, Wake when it sleeps, Give It a Computer when it has none", async () => {
+test("an agent's computer: Sleep when it works, Wake when it sleeps, and an agent with no desktop opens its terminal and browser instead of being offered one", async () => {
   const { s, root } = await drawn(createRoot, { open: null });
   const faces = rowIds(root, "row-f:").filter((i) => i !== "row-f:agt_assistant");
   const [a, b] = faces.map((i) => i.slice("row-f:".length)) as [string, string];
@@ -53,9 +53,12 @@ test("an agent's computer: Sleep when it works, Wake when it sleeps, Give It a C
   await press(find(root, "menu-item-Sleep Its Computer")); await flush();
   assert.deepEqual(caps(s, "computers.sleep"), [{ computerId: "cmp_a" }]);
   await rightClick(root, faces[1]!);
-  assert.ok(find(root, "menu-item-Give It a Computer"), "an agent with no computer offers one");
-  await press(find(root, "menu-item-Give It a Computer")); await flush();
-  assert.deepEqual(caps(s, "computers.provision"), [{ agentId: b, idempotencyKey: `pc_${b}` }]);
+  assert.ok(!find(root, "menu-item-Give It a Computer"), "nothing offers to make a desktop");
+  assert.ok(find(root, "menu-item-Open Its Computer"), "an agent with no desktop still opens its terminal and browser");
+  assert.ok(!find(root, "menu-item-Sleep Its Computer") && !find(root, "menu-item-Wake Its Computer"), "and has no desktop to sleep or wake");
+  await press(find(root, "menu-item-Open Its Computer")); await flush();
+  assert.deepEqual(caps(s, "computers.provision"), [], "pressing it never makes a computer");
+  assert.deepEqual(s.opened.slice(-1), [`profile:${b}:computer`], "it lands on the agent's Computer tab");
 });
 
 test("Delete Agent asks first; Cancel changes nothing, Delete agent deletes", async () => {

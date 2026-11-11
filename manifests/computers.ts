@@ -338,8 +338,8 @@ export default defineManifest({
     screen('chats.agent-computer', 'chats', 'ui:AgentComputerTab', {
       slot: 'side',
       q: { computer: ['computers.get', { computerId: '/state/computerId' }, true], sessions: ['computers.sessions.list', { computerId: '/state/computerId' }, true] },
-      a: { wake: ['computers.wake', { computerId: '/state/computerId' }], provision: ['computers.provision', {}] },
-      empty: 'This agent has no computer', primary: 'Give it a computer', needs: ['computers.watch'],
+      a: { wake: ['computers.wake', { computerId: '/state/computerId' }] },
+      empty: 'This agent has no desktop computer', primary: 'Wake', needs: ['computers.watch'],
     }),
     screen('chats.recording-sheet', 'chats', 'ui:RecordingSheet', {
       slot: 'sheet',
