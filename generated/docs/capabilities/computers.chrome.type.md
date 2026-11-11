@@ -40,6 +40,12 @@ type In = {
 type Out = {
   ok: boolean;
   heldId?: string;
+  downloads?: Array<{
+      name: string;
+      path: string;
+      fileId?: string;
+      note?: string;
+    }>;
 };
 ```
 
@@ -68,6 +74,14 @@ type Out = {
     "text": "example"
   },
   "output": {
+    "downloads": [
+      {
+        "fileId": "fil_a1b2c3",
+        "name": "example",
+        "note": "example",
+        "path": "Downloads/report.pdf"
+      }
+    ],
     "heldId": "example",
     "ok": true
   }

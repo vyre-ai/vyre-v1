@@ -38,6 +38,12 @@ type In = {
 type Out = {
   sent: boolean;
   taskId?: string;
+  downloads?: Array<{
+      name: string;
+      path: string;
+      fileId?: string;
+      note?: string;
+    }>;
 };
 ```
 
@@ -65,6 +71,14 @@ type Out = {
     "inMyChrome": true
   },
   "output": {
+    "downloads": [
+      {
+        "fileId": "fil_a1b2c3",
+        "name": "example",
+        "note": "example",
+        "path": "Downloads/report.pdf"
+      }
+    ],
     "sent": true,
     "taskId": "tsk_a1b2c3"
   }

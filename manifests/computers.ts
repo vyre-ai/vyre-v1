@@ -31,7 +31,7 @@ const browserRow = t.obj({
   state: t.enm('running', 'asleep', 'waiting', 'error'), line: t.opt(t.str({ description: 'Why it waits (no room on the host) or what went wrong, in a plain line' })),
   takeoverBy: t.opt(id.user), paired: t.bool({ description: 'Vyre for Chrome in the profile is connected to the Space as this agent, so Vault logins fill' }), access: t.enm('owner', 'admin', 'viewer'),
 });
-const downloadsOut = t.opt(t.arr(t.obj({ name: t.str(), path: t.str({ description: "Where it is in the agent's Files, under Downloads", examples: ['Downloads/report.pdf'] }), fileId: id.file }), { description: 'Files the browser finished downloading since the last step: they are in Files now, and this is where' }));
+const downloadsOut = t.opt(t.arr(t.obj({ name: t.str(), path: t.str({ description: "Where it is in the agent's Files, under Downloads", examples: ['Downloads/report.pdf'] }), fileId: t.opt(id.file), note: t.opt(t.str({ description: 'Why a download is not in Files (it is too large to move), in plain words: tell the person' })) }), { description: 'Files the browser finished downloading since the last step: they are in Files now, and this is where. One too large to move has no fileId and a note' }));
 const comp = { computerId: id.computer };
 const optComp = { computerId: t.opt(id.computer) };
 /** Chrome tools run on the agent's own computer. `inMyChrome` is the one way to ask for the asking person's own Chrome, and only when they asked for it in this turn. */
@@ -174,7 +174,7 @@ export default defineManifest({
       out: { ok: t.bool(), heldId: t.opt(t.str()), downloads: downloadsOut }, ...local({ mcpName: 'chrome_click', risk: 'medium', idem: 'none' }),
     }),
     write('computers.chrome.type', 'Type text into the focused element or a ref; secrets only as #Handle.field references', {
-      in: { ...chromeWhere, tabId, ref: t.opt(ref), text: t.str(), submit: t.opt(t.bool()) }, out: { ok: t.bool(), heldId: t.opt(t.str()) },
+      in: { ...chromeWhere, tabId, ref: t.opt(ref), text: t.str(), submit: t.opt(t.bool()) }, out: { ok: t.bool(), heldId: t.opt(t.str()), downloads: downloadsOut },
       ...local({ mcpName: 'chrome_type', risk: 'medium', idem: 'none' }),
     }),
     write('computers.chrome.fill', 'Fill form fields; values may be #Handle.field references that the computer vault filler substitutes at the last moment', {
@@ -224,7 +224,7 @@ export default defineManifest({
       in: { ...chromeWhere }, out: { resumed: t.bool() }, ...local({ mcpName: 'chrome_resume', idem: 'natural', risk: 'low' }),
     }),
     outward('computers.chrome.send', 'Send a held send, post or payment: the person approves it first (Gate)', {
-      in: { ...chromeWhere, heldId: t.str() }, out: { sent: t.bool(), taskId: t.opt(id.task) }, gate: 'send',
+      in: { ...chromeWhere, heldId: t.str() }, out: { sent: t.bool(), taskId: t.opt(id.task), downloads: downloadsOut }, gate: 'send',
       ...local({ mcpName: 'chrome_send', agent: { planMode: 'blocked' } }),
     }),
     write('computers.chrome.batch', 'Run several Chrome steps in one call; stops at the first held item', {

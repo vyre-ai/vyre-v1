@@ -5,7 +5,11 @@ import { agentInfo } from "./agentinfo.ts";
 import type { CompCtx } from "../projections.ts";
 import type { SpaceBrowser } from "./port.ts";
 
-export interface SavedDownload { name: string; path: string; fileId: string }
+export interface SavedDownload { name: string; path: string; fileId?: string; note?: string }
+
+/** The most a download can be to move into Files from the Space browser (browserd's own limit, profiles.ts MAX_DOWNLOAD). */
+export const MAX_DOWNLOAD_BYTES = 20 * 1024 * 1024;
+const mb = (n: number): string => `${Math.max(1, Math.round(n / (1024 * 1024)))} MB`;
 
 const MIME: Record<string, [string, string]> = {
   pdf: ["application/pdf", "pdf"], png: ["image/png", "image"], jpg: ["image/jpeg", "image"], jpeg: ["image/jpeg", "image"], gif: ["image/gif", "image"], webp: ["image/webp", "image"], svg: ["image/svg+xml", "image"],
@@ -57,6 +61,15 @@ export async function takeDownloads(ctx: CompCtx, sb: SpaceBrowser, profileId: s
   if (!folderId) return [];
   const saved: SavedDownload[] = [];
   for (const row of rows.slice(0, 10)) {
+    // too large to move: said once, in plain words with where it is, and kept out of the list so it is not tried at every step
+    if (row.size > MAX_DOWNLOAD_BYTES) {
+      if (!sb.downloadKeep) continue;
+      try {
+        await sb.downloadKeep(profileId, row.name);
+        saved.push({ name: row.name, path: `Space browser downloads/${row.name}`, note: `${row.name} is ${mb(row.size)}, more than the 20 MB a download can move into Files. It stays in this agent's Space browser and was not put in Files.` });
+      } catch { /* tried at the next step */ }
+      continue;
+    }
     try {
       const bytes = await sb.downloadRead(profileId, row.name);
       const { mime, kind } = typeOf(row.name);

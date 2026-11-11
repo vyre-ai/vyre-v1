@@ -255,7 +255,8 @@ export async function call(ctx: CompCtx, r: Resolved, spec: ToolSpec, args: Tool
 
 // The Vault channel of an agent's profile: one token per profile and asker, so the Vault logs who asked and a use after the asker changes is checked as the new asker.
 const faceSent = new Set<string>();
-const REPORTS_DOWNLOADS = new Set(["chrome_open", "chrome_click", "chrome_act", "chrome_wait", "chrome_state"]);
+// the steps that can set off a download report it (browserd waits for it to finish within a short bound), and the looks report what arrived after
+const REPORTS_DOWNLOADS = new Set(["chrome_open", "chrome_click", "chrome_act", "chrome_type", "chrome_send", "chrome_wait", "chrome_state"]);
 const fillGrants = new Map<string, { token: string; revoke(): void }>();
 
 /** One tool in the agent's profile of the Space browser. What comes back is scrubbed of the Vault values filled for this profile; no desktop frame exists, so there is no timeline step (the live view shows the page). */

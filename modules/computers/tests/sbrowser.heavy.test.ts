@@ -82,7 +82,10 @@ function serveSite(req: IncomingMessage, res: ServerResponse): void {
     page(res, `<p id=out>cookie:[${req.headers.cookie ?? ""}]</p>`);
   } else if (url.pathname === "/download") {
     res.writeHead(200, { "content-type": "application/octet-stream", "content-disposition": `attachment; filename="${url.searchParams.get("name") ?? "file.bin"}"` });
-    res.end(`the contents of ${url.searchParams.get("name") ?? "file.bin"}`);
+    const bytes = Number(url.searchParams.get("bytes") ?? 0);
+    res.end(bytes > 0 ? Buffer.alloc(bytes, 120) : `the contents of ${url.searchParams.get("name") ?? "file.bin"}`);
+  } else if (url.pathname === "/files") {
+    page(res, `<a id=small href="/download?name=invoice.txt">Invoice</a> <a id=big href="/download?name=archive.bin&bytes=${21 * 1024 * 1024}">Archive</a>`);
   } else if (url.pathname === "/ticker") {
     page(res, `<button id=b style="position:fixed;left:100px;top:100px;width:200px;height:100px" onclick="window.clicks=(window.clicks||0)+1;document.getElementById('n').textContent=window.clicks">go</button>
       <input id=t style="position:fixed;left:400px;top:100px;width:300px;height:40px"><p id=n style="position:fixed;left:100px;top:300px">0</p><div id=c style="position:fixed;left:100px;top:400px;font-size:60px"></div>
@@ -523,6 +526,26 @@ test("@heavy space browser: through the module every chrome tool of the agent wa
     const back = await cap["computers.browser.give_back"]!(dana.ctx, { agentId: AG }) as { profile: { takeoverBy?: string } };
     assert.equal(back.profile.takeoverBy, undefined);
     assert.equal(typeof (await cap["computers.chrome.state"]!(h.ctx, {})).url, "string", "given back, the agent works at once");
+  } finally { bindSpaceBrowser(null); }
+});
+
+// Audit B9 (12 Nov): a download often showed only on a later step (a file had to be quiet for a second), and one over 20 MB stayed in the service, tried at every step and never reported.
+test("@heavy space browser: the click that downloads a file reports it in the same step, and a file over 20 MB is reported once in plain words and not tried again", { skip, timeout: 300_000 }, async () => {
+  const AG = "agt_clicker";
+  const h = harness({ principal: { kind: "agent", id: AG }, actingFor: "usr_dana", respond: { "files.folder.create": () => ({ folder: { folderId: "fld_dl_clicker" } }) } });
+  bindSpaceBrowser(sb);
+  try {
+    await cap["computers.chrome.open"]!(h.ctx, { url: siteUrl("/files") });
+    const tree = String((await cap["computers.chrome.snapshot"]!(h.ctx, {})).tree);
+    const refOf = (label: string): string => /\[ref=(e\d+)\]/.exec(tree.split("\n").find((l) => l.includes(`"${label}"`)) ?? "")?.[1] ?? "";
+    const small = await cap["computers.chrome.click"]!(h.ctx, { ref: refOf("Invoice") });
+    assert.deepEqual((small.downloads ?? []).map((d: { path: string }) => d.path), ["Downloads/invoice.txt"], `the click that downloaded it says so (${JSON.stringify(small)})`);
+    const big = await cap["computers.chrome.click"]!(h.ctx, { ref: refOf("Archive") });
+    const note = (big.downloads ?? []).find((d: { name: string }) => d.name === "archive.bin") as { note?: string; fileId?: string } | undefined;
+    assert.ok(note && /more than the 20 MB/.test(String(note.note)) && note.fileId === undefined, `a file too large to move is reported with a plain line (${JSON.stringify(big)})`);
+    const later = await cap["computers.chrome.state"]!(h.ctx, {});
+    assert.equal(later.downloads, undefined, "and is not reported or tried again");
+    assert.deepEqual(await sb.downloads(AG), [], "nothing is left waiting in the list");
   } finally { bindSpaceBrowser(null); }
 });
 

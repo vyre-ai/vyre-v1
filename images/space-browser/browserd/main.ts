@@ -166,6 +166,7 @@ async function dispatch(action: string, a: Args): Promise<Args> {
     case "downloads": return { downloads: manager.downloads(checkProfileId(a["profileId"])) };
     case "download_read": return { base64: manager.downloadRead(checkProfileId(a["profileId"]), text(a, "name")).toString("base64") };
     case "download_ack": manager.downloadAck(checkProfileId(a["profileId"]), text(a, "name")); return {};
+    case "download_keep": manager.downloadKeep(checkProfileId(a["profileId"]), text(a, "name")); return {};
     case "takeover": manager.takeover(checkProfileId(a["profileId"]), text(a, "personId")); return {};
     case "give_back": manager.giveBack(checkProfileId(a["profileId"])); return {};
     case "screenshot": {

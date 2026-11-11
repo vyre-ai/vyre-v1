@@ -206,6 +206,7 @@ export function createDockerSpaceBrowser(o: DockerSpaceBrowserOptions): SpaceBro
       return decode64(r.base64);
     },
     async downloadAck(profileId, file) { await call("download_ack", { profileId, name: file }); },
+    async downloadKeep(profileId, file) { await call("download_keep", { profileId, name: file }); },
     async takeover(a) { await call("takeover", { profileId: a.profileId, personId: a.personId }); },
     async giveBack(profileId) { await call("give_back", { profileId }); },
     async screenshot(profileId) {

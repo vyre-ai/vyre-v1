@@ -49,6 +49,8 @@ export interface SpaceBrowser {
   downloadRead(profileId: string, name: string): Promise<Uint8Array>;
   /** The file is in Files: it leaves the browser service. */
   downloadAck(profileId: string, name: string): Promise<void>;
+  /** The file is too large to move into Files: the service keeps it out of the list (reported once, never tried again). */
+  downloadKeep?(profileId: string, name: string): Promise<void>;
   takeover(a: { profileId: string; personId: string }): Promise<void>;
   giveBack(profileId: string): Promise<void>;
   screenshot(profileId: string): Promise<{ bytes: Uint8Array; width: number; height: number }>;

@@ -395,3 +395,24 @@ test("giving back always works: the agent has its tools even when the browser se
     assert.equal((await tool["computers.chrome.state"]!(ag.ctx, {})).url, "https://example.com/");
   } finally { off(); }
 });
+
+test("a download over 20 MB is reported once with a plain line and where it is, kept out of the list, and never moved or tried again", async () => {
+  browser();
+  const kept: string[] = [];
+  const big = { name: "archive.zip", size: 34 * 1024 * 1024, at: 1 };
+  downloadsNow = () => (kept.includes(big.name) ? [] : [big]);
+  const { spaceBrowser } = await import("../sbrowser/port.ts");
+  const sb = spaceBrowser()!;
+  sb.downloadRead = async () => { throw new ToolError("bad_input", "That download is over 20 MB: too large to move into Files here."); };
+  sb.downloadKeep = async (_p, name) => { kept.push(name); };
+  try {
+    const h = harness({ principal: { kind: "agent", id: "agt_dex" }, actingFor: DANA, respond: { "files.folder.create": () => ({ folder: { folderId: "fld_dl" } }) } });
+    const out = await tool["computers.chrome.click"]!(h.ctx, { ref: "e1" });
+    assert.equal(out.downloads.length, 1);
+    assert.equal(out.downloads[0].fileId, undefined, "not in Files");
+    assert.match(out.downloads[0].note, /archive\.zip is 34 MB, more than the 20 MB a download can move into Files/);
+    assert.deepEqual(kept, ["archive.zip"], "taken out of the list");
+    assert.equal((await tool["computers.chrome.state"]!(h.ctx, {})).downloads, undefined, "and not reported again");
+    assert.equal(h.calls("files.create").filter((c) => c.input["name"] === "archive.zip").length, 0);
+  } finally { downloadsNow = () => []; off(); }
+});

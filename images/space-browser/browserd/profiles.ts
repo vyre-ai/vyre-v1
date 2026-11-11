@@ -2,7 +2,7 @@
 // cookies, logins, local storage and tabs never meet another profile's. Its Chromium starts when the profile first browses and stops after idle minutes; the folder stays. One headless Chromium per
 // running profile, driven by the same tools as an agent computer's browser (agentd/chrome.ts) over its DevTools pipe: no profile's browser opens a DevTools port, so a page in one agent's browser has
 // nothing on 127.0.0.1 to open another agent's browser with (all profiles share the container's loopback).
-import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { launchChrome } from "../../agent-computer/agentd/chrome.ts";
 import type { Chrome, ChromeOptions, ChromeState } from "../../agent-computer/agentd/chrome.ts";
@@ -19,7 +19,11 @@ export const checkProfileId = (id: unknown): string => {
 
 /** A download in a profile's downloads folder that Chrome has finished (not a `.crdownload` or a hidden file). */
 export interface DownloadRow { name: string; size: number; at: number }
-const MAX_DOWNLOAD = 20 * 1024 * 1024;
+export const MAX_DOWNLOAD = 20 * 1024 * 1024;
+/** The steps that can set off a download: the step waits for one it started to finish (a short look for it to begin, then up to SETTLE_MS), so the step that downloaded is the one that reports it. */
+const ACTING: ReadonlySet<string> = new Set(["chrome_click", "chrome_act", "chrome_open", "chrome_send", "chrome_type"]);
+const BEGIN_LOOK_MS = 300;
+const SETTLE_MS = 15_000;
 const SAFE_NAME = /^[^/\\\x00-\x1f.][^/\\\x00-\x1f]{0,254}$/;
 
 /** Make Chrome save into this folder and never ask: the preferences file is written before the browser starts (an existing one keeps everything else it holds). */
@@ -85,6 +89,8 @@ export interface Profile {
   starting: Promise<void> | null;
   /** Chrome's data of an old computer is being put into the folder until then (resetChrome to importDone): the browser does not start meanwhile. */
   importingUntil: number;
+  /** Downloads as the browser reports them: the ones under way, and when the last began and finished. */
+  dl: { active: Set<string>; begunAt: number; doneAt: number };
 }
 
 export interface ProfileRow { profileId: string; running: boolean; tabs: number; busy: boolean; takeover: boolean; viewers: number; lastActiveAt: number; held: number; paused: boolean; takeoverBy?: string; bridge?: { connected: number; hello: boolean; optin: boolean } }
@@ -124,6 +130,8 @@ export interface ProfileManager {
   downloadRead(id: string, name: string): Buffer;
   /** The download is in the agent's Files: it leaves this folder. */
   downloadAck(id: string, name: string): void;
+  /** A download too large to move into Files: it leaves the list (kept in the profile's downloads-kept folder), so it is reported once and not tried again. */
+  downloadKeep(id: string, name: string): void;
 }
 
 export function createProfileManager(o: ProfileManagerOptions): ProfileManager {
@@ -141,7 +149,7 @@ export function createProfileManager(o: ProfileManagerOptions): ProfileManager {
       p = {
         id, dir, vault: createVault(),
         state: { stopped: false, tabLimit: o.tabLimit ?? 10, takeover: null, busy: 0, caption: undefined },
-        chrome: null, lastActiveAt: now(), viewers: 0, agentId: undefined, agentName: undefined, spaceId: undefined, starting: null, importingUntil: 0,
+        chrome: null, lastActiveAt: now(), viewers: 0, agentId: undefined, agentName: undefined, spaceId: undefined, starting: null, importingUntil: 0, dl: { active: new Set(), begunAt: 0, doneAt: 0 },
       };
       profiles.set(id, p);
     }
@@ -160,6 +168,7 @@ export function createProfileManager(o: ProfileManagerOptions): ProfileManager {
     const c = p.chrome;
     if (!c) return;
     p.chrome = null;
+    p.dl.active.clear();
     try { p.chrome = c; await o.onClosing?.(p); } catch { /* the list taken last stays */ } finally { p.chrome = null; }
     // closed the way a person closes it, so a login that was just made is in the folder when the browser starts again
     await c.shutdown().catch(() => c.stop());
@@ -210,7 +219,12 @@ export function createProfileManager(o: ProfileManagerOptions): ProfileManager {
       // and the browser itself is told, so a download from a tab opened later goes the same way
       try {
         const b = await c.browser();
-        try { await b.send("Browser.setDownloadBehavior", { behavior: "allow", downloadPath: downloadsOf(p), eventsEnabled: true }).catch(() => undefined); } finally { b.close(); }
+        try {
+          // and says what it downloads, so a step can wait for the file it set off (the pipe's browser connection lives as long as the browser)
+          b.on("Browser.downloadWillBegin", (e) => { p.dl.active.add(String(e["guid"])); p.dl.begunAt = Date.now(); });
+          b.on("Browser.downloadProgress", (e) => { if (e["state"] === "completed" || e["state"] === "canceled") { p.dl.active.delete(String(e["guid"])); p.dl.doneAt = Date.now(); } });
+          await b.send("Browser.setDownloadBehavior", { behavior: "allow", downloadPath: downloadsOf(p), eventsEnabled: true }).catch(() => undefined);
+        } finally { b.close(); }
       } catch { /* the preferences already say it; a fake browser in a test has no DevTools */ }
       await o.onStarted?.(p.id, c).catch((e: unknown) => o.log(`start page: ${e instanceof Error ? e.message : "failed"}`));
     }
@@ -239,12 +253,21 @@ export function createProfileManager(o: ProfileManagerOptions): ProfileManager {
     try {
       const prof = await ensure(p.id);
       const c = prof.chrome as Chrome;
+      const began = Date.now();
       const raw = await within(ms, name, () => c.tool(name, filled.args, prof.state));
+      if (ACTING.has(name)) await settleDownloads(prof, began);
       const out = filled.used.length > 0 ? { ...scrubUsed(raw, filled.used), used: filled.used } : raw;
       p.state.caption = name.replace(/_/g, " ");
       if ((name === "chrome_open" || name === "chrome_state") && typeof out["url"] === "string") o.onPage?.(p.id, out["url"], typeof out["title"] === "string" ? out["title"] : "");
       return out;
     } finally { p.state.busy -= 1; p.lastActiveAt = now(); }
+  }
+
+  /** A download the step set off begins a moment after it: look for one briefly, and wait for one under way to finish, within bounds. */
+  async function settleDownloads(p: Profile, began: number): Promise<void> {
+    const t0 = Date.now();
+    while (p.dl.active.size === 0 && p.dl.begunAt < began && Date.now() - t0 < BEGIN_LOOK_MS) await new Promise((r) => setTimeout(r, 50));
+    while (p.dl.active.size > 0 && Date.now() - t0 < SETTLE_MS) await new Promise((r) => setTimeout(r, 100));
   }
 
   return {
@@ -302,14 +325,16 @@ export function createProfileManager(o: ProfileManagerOptions): ProfileManager {
     cachedSessions(id) { try { const j = JSON.parse(readFileSync(join(get(id).dir, "sessions.json"), "utf8")) as Array<{ site: string; since: number; lastSeen: number }>; return Array.isArray(j) ? j : []; } catch { return []; } },
     saveSessions(id, rows) { try { mkdirSync(get(id).dir, { recursive: true }); writeFileSync(join(get(id).dir, "sessions.json"), JSON.stringify(rows)); } catch { /* not kept */ } },
     downloads(id) {
-      const dir = downloadsOf(get(id));
+      const p = get(id);
+      const dir = downloadsOf(p);
       if (!existsSync(dir)) return [];
       const rows: DownloadRow[] = [];
       for (const name of readdirSync(dir)) {
         if (!SAFE_NAME.test(name) || name.endsWith(".crdownload") || name.endsWith(".tmp")) continue;
         const st = statSync(join(dir, name));
-        // a file Chrome wrote a moment ago may still be growing: it is taken once it has been quiet for a second
-        if (st.isFile() && now() - st.mtimeMs > 1000) rows.push({ name, size: st.size, at: Math.round(st.mtimeMs) });
+        // a file Chrome wrote a moment ago may still be growing: it is taken once it has been quiet for a second, or at once when the browser said its downloads finished after it was written
+        const finished = p.dl.active.size === 0 && p.dl.doneAt > 0 && p.dl.doneAt >= st.mtimeMs - 100;
+        if (st.isFile() && (finished || now() - st.mtimeMs > 1000)) rows.push({ name, size: st.size, at: Math.round(st.mtimeMs) });
       }
       return rows.sort((a, b) => a.at - b.at);
     },
@@ -320,6 +345,14 @@ export function createProfileManager(o: ProfileManagerOptions): ProfileManager {
       return readFileSync(f);
     },
     downloadAck(id, name) { rmSync(join(downloadsOf(get(id)), safeName(name)), { force: true }); },
+    downloadKeep(id, name) {
+      const p = get(id);
+      const from = join(downloadsOf(p), safeName(name));
+      if (!existsSync(from)) throw notFound(`There is no download ${name}.`);
+      const kept = join(p.dir, "downloads-kept");
+      mkdirSync(kept, { recursive: true });
+      renameSync(from, join(kept, name));
+    },
     touch(id) { const p = profiles.get(id); if (p) p.lastActiveAt = now(); },
   };
 }

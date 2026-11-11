@@ -10,3 +10,5 @@
 - Opening an agent's live view or signing its browser out of a site now waits for room on the Space server like any browser that starts, and two browsers starting at once can no longer go past what the Space browser holds.
 - Room held for Space browsers that stopped is given back every half minute, also after the Space restarts, and a browser waiting for room starts by itself when room opens.
 - Moving an old agent computer's sign-ins into the Space browser no longer cuts off a step the agent is taking or a person who has taken over; it waits for a quiet moment.
+- The browser step that downloads a file now says where it landed in Files in that same step, and typing or sending a held item reports downloads too.
+- A download over 20 MB is reported once in plain words (it stays in the agent's Space browser and is not put in Files) instead of being tried at every step.
