@@ -10,9 +10,10 @@
     {
       "id": "P-L9b_24-agent-pane-asleep",
       "route": "/m/P-L9b_24?screen=pane&asleep=1",
+      "steps": ["click|tab-computer"],
       "proto": "chat,at:demo-agent-computer,{skin}",
-      "waitFor": "[data-testid='step-thumb']",
-      "note": "The Computer tab of a sleeping computer: its last frame with a Wake button, and the last session's steps each with a frame thumbnail, the tool and the time into the session."
+      "waitFor": "[data-testid='terminal-attach']",
+      "note": "The Computer tab of an agent whose workspace sleeps: Terminal asleep with Attach and its session, Browser closed with Take over. (The old tab with the last frame, Wake and a thumbnail per step is no longer drawn: the Terminal and Browser sections replaced it. The prototype side still draws the old tab.)"
     }
   ]
 }

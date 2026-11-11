@@ -11,7 +11,7 @@
       "id": "P-L9f_06c-appearance",
       "route": "/m/P-L9f_06?page=appearance&space=northwind",
       "proto": "settings,at:appearance,{skin}",
-      "waitFor": "[data-testid='skin-preview']",
+      "waitFor": "[data-testid='skin-thumb']",
       "note": "Appearance: Density, Text size, Reduce motion, then the Skin preview with System, Dark and Light."
     },
     {

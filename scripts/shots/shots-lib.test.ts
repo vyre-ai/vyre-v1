@@ -6,7 +6,7 @@ import os from "node:os";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
 // @ts-expect-error plain .mjs helper without types
-import { parseArgs, protoHash, routeUrl, loadTargets, shardTargets, shardIndexName, mergeShotIndexes, sideBySideHtml, countWrongFrames, budgetOf, waitSelector } from "./lib.mjs";
+import { parseArgs, protoHash, routeUrl, loadTargets, shardTargets, shardIndexName, mergeShotIndexes, sideBySideHtml, countWrongFrames, budgetOf, waitSelector, waitForOf, waitIsHard, runTestIdSteps } from "./lib.mjs";
 
 test("parseArgs reads values and flags", () => {
   assert.deepEqual(parseArgs(["--target", "sample", "--skip-export", "--out", "x"]), { target: "sample", "skip-export": true, out: "x" });
@@ -115,4 +115,37 @@ test("only the real app is waited on for a target's waitFor; the prototype never
   assert.equal(waitSelector("real", t), "[data-testid='updating-screen']");
   assert.equal(waitSelector("proto", t), undefined);
   assert.equal(waitSelector("real", { ...t, waitFor: undefined }), undefined);
+});
+
+test("string steps click, scroll to and fill test ids in order; other step shapes are left to their own shooters", async () => {
+  const calls: string[] = [];
+  const page = { locator: (sel: string) => ({ first: () => ({
+    click: async () => { calls.push(`click ${sel}`); }, scrollIntoViewIfNeeded: async () => { calls.push(`see ${sel}`); }, fill: async (v: string) => { calls.push(`fill ${sel} ${v}`); },
+  }) }), waitForTimeout: async () => undefined };
+  assert.deepEqual(await runTestIdSteps(page, ["click|linked-add", "fill|link-url|https://x.test/a|b", "see|ci-fix"], 0), []);
+  assert.deepEqual(calls, ['click [data-testid="linked-add"]', 'fill [data-testid="link-url"] https://x.test/a|b', 'see [data-testid="ci-fix"]']);
+  calls.length = 0;
+  assert.deepEqual(await runTestIdSteps(page, [["click", "x"]], 0), []);
+  assert.deepEqual(await runTestIdSteps(page, undefined, 0), []);
+  assert.deepEqual(calls, []);
+});
+
+test("a waitFor is a string for every size, or an object naming it per size (the phone's bottom rail does not exist on a computer)", () => {
+  const phoneOnly = { id: "X_02", route: "/m/X_02", proto: "home,{skin}", waitFor: { phone: "[data-testid='shell-rail-bottom']", desktop: "[data-testid='shell-rail']" } };
+  assert.equal(waitForOf(phoneOnly, "phone"), "[data-testid='shell-rail-bottom']");
+  assert.equal(waitForOf(phoneOnly, "desktop"), "[data-testid='shell-rail']");
+  assert.equal(waitForOf({ ...phoneOnly, waitFor: { any: "[data-testid='a']", phone: "[data-testid='b']" } }, "desktop"), "[data-testid='a']");
+  assert.equal(waitForOf({ ...phoneOnly, waitFor: "[data-testid='c']" }, "phone"), "[data-testid='c']");
+  assert.equal(waitForOf({ ...phoneOnly, waitFor: undefined }, "phone"), undefined);
+  assert.equal(waitSelector("real", phoneOnly, "phone"), "[data-testid='shell-rail-bottom']");
+  assert.equal(waitSelector("proto", phoneOnly, "phone"), undefined);
+});
+
+test("a missed wait fails at desktop always, and at phone only for a target that names a phone selector", () => {
+  const plain = { id: "X_03", route: "/m/X_03", proto: "home,{skin}", waitFor: "[data-testid='a']" };
+  assert.equal(waitIsHard(plain, "desktop"), true);
+  assert.equal(waitIsHard(plain, "phone"), false);
+  assert.equal(waitIsHard({ ...plain, waitFor: { phone: "[data-testid='b']", desktop: "[data-testid='a']" } }, "phone"), true);
+  assert.equal(waitIsHard({ ...plain, waitFor: { desktop: "[data-testid='a']" } }, "phone"), false);
+  assert.equal(waitIsHard({ ...plain, waitFor: undefined }, "phone"), false);
 });

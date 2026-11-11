@@ -277,7 +277,7 @@ jobs:
         env:
           VYRE_HEAVY_DOCKER: "1"
           VYRE_SHOT_DIR: ${{ runner.temp }}/computer-shots
-        run: node --test --test-force-exit --test-timeout=600000 --test-reporter=spec agent/tests/sandbox.heavy.test.ts modules/terminal/tests/tmux.heavy.test.ts modules/engine/tests/sandbox.heavy.test.ts modules/engine/tests/cli.heavy.test.ts golden/steps/07-reply.heavy.test.ts golden/steps/07-gate.heavy.test.ts host/tests/chat.live.test.ts host/tests/computers.live.test.ts host/tests/automations.code.live.test.ts
+        run: node --test --test-force-exit --test-timeout=600000 --test-reporter=spec agent/tests/sandbox.heavy.test.ts modules/terminal/tests/tmux.heavy.test.ts modules/engine/tests/sandbox.heavy.test.ts modules/engine/tests/cli.heavy.test.ts golden/steps/07-reply.heavy.test.ts golden/steps/07-gate.heavy.test.ts host/tests/chat.live.test.ts host/tests/computers.lifecycle.live.test.ts host/tests/computers.control.live.test.ts host/tests/computers.home-sync.live.test.ts host/tests/computers.home-links.live.test.ts host/tests/computers.home-changes.live.test.ts host/tests/automations.code.live.test.ts
       - name: The agent computer desktop frame (P-L2_31)
         if: always() && steps.scope.outputs.changed == 'true'
         uses: actions/upload-artifact@v4
@@ -316,7 +316,17 @@ jobs:
           grep -E "^ℹ skipped 0$" s9-heavy.out
           grep -E "METRIC s9" s9-heavy.out
   computer-lifecycle:
-    # Release gate for the agent Computer: host/tests/computers.live.test.ts on real Docker, every run, never path-selected. It covers provision, wake, screen, the desktop, the Files home mirror (both ways, the read-only AGENT.md, the symlink and escape cases, conflicts, access removal, downloads), sleep and remove. A skipped test is a failure: the output must say pass 1 and skipped 0. Gates `check`.
+    # Release gate for the agent Computer: host/tests/computers.{lifecycle,control,home-sync,home-links,home-changes}.live.test.ts on real Docker, every run, never path-selected. It covers provision, wake, screen, the desktop, the Files home mirror (both ways, the read-only AGENT.md, the symlink and escape cases, conflicts, access removal, downloads), sleep and remove. A skipped test is a failure: the output must say pass 1 and skipped 0. Gates `check`.
+    # Four jobs, split by behaviour (the one 278 s test was the floor under the 5 minute push budget): lifecycle and control (token, provision, wake, screen, desktop, sleep, remove; download, take the wheel), and three for the Files home mirror (sync, links, changes).
+    name: computer-lifecycle (${{ matrix.part }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { part: lifecycle-control, files: "host/tests/computers.lifecycle.live.test.ts host/tests/computers.control.live.test.ts", tests: 2 }
+          - { part: home-sync, files: "host/tests/computers.home-sync.live.test.ts", tests: 1 }
+          - { part: home-links, files: "host/tests/computers.home-links.live.test.ts", tests: 1 }
+          - { part: home-changes, files: "host/tests/computers.home-changes.live.test.ts", tests: 1 }
     runs-on: [self-hosted, linux, v1]
     timeout-minutes: 30
     steps:
@@ -327,23 +337,23 @@ jobs:
         run: docker version --format 'docker server {{.Server.Version}}'
       - name: Remove computers that earlier runs left behind (older than 2 hours only, other jobs on this host may be mid-test)
         run: bash scripts/ci-comp-cleanup.sh
-      - name: The Computer lifecycle on real Docker, none skipped (host/tests/computers.live.test.ts)
+      - name: The Computer lifecycle on real Docker, none skipped (${{ matrix.files }})
         env:
           VYRE_HEAVY_DOCKER: "1"
           VYRE_SHOT_DIR: ${{ runner.temp }}/computer-lifecycle-shots
         run: |
           set -o pipefail
-          node --test --test-force-exit --test-timeout=1500000 --test-reporter=spec host/tests/computers.live.test.ts 2>&1 | tee computer-lifecycle.out
+          node --test --test-force-exit --test-timeout=1500000 --test-reporter=spec ${{ matrix.files }} 2>&1 | tee computer-lifecycle.out
           grep -E "^ℹ skipped 0$" computer-lifecycle.out
-          grep -E "^ℹ pass 1$" computer-lifecycle.out
+          grep -E "^ℹ pass ${{ matrix.tests }}$" computer-lifecycle.out
           grep -E "^ℹ fail 0$" computer-lifecycle.out
       - name: The Computer desktop frame
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: computer-lifecycle-desktop
+          name: computer-lifecycle-desktop-${{ matrix.part }}
           path: ${{ runner.temp }}/computer-lifecycle-shots
-          if-no-files-found: warn
+          if-no-files-found: ignore
       - name: Containers left behind
         if: always()
         run: docker ps -a --filter "name=vyre-comp" --format '{{.Names}} {{.Status}}' || true

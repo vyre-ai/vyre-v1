@@ -319,6 +319,11 @@ export const DRAWN_ROWS: readonly { key: string; page: PageKey; title: string; s
   { key: "signin.devs", page: "signin", title: "Devices", sub: "Where you are signed in", words: "computers sign out" },
   { key: "signin.spaces", page: "signin", title: "Your Spaces", sub: "Open or leave a Space", words: "switch leave" },
   { key: "shortcuts", page: "appearance", title: "Keyboard shortcuts", sub: "Every shortcut, in one list", words: "keys hotkey keybinding" },
+  // the Display settings are one stored row (appearance.look, hidden above) that the page draws as four rows, so Cmd-F needs these to find them; each key is the id of the row it marks
+  { key: "appearance.text", page: "appearance", title: "Text size", sub: "How big the words are", words: "font zoom larger smaller display" },
+  { key: "appearance.density", page: "appearance", title: "Density", sub: "Comfortable or compact", words: "compact comfortable spacing display" },
+  { key: "appearance.motion", page: "appearance", title: "Reduce motion", sub: "Fewer animations everywhere", words: "animation accessibility display" },
+  { key: "appearance.lang", page: "appearance", title: "Language", sub: "The language of the app", words: "locale display" },
   { key: "model.default", page: "ai", title: "Default model", sub: "For new chats", words: "claude sonnet opus gpt" },
   { key: "voice.cover", page: "ai", title: "Voice", sub: "What covers your Talk, language and model", words: "talk mic microphone speech dictation deepgram transcription language" },
   { key: "model.fallback", page: "ai", title: "Fallback model", sub: "When the default is unavailable", words: "backup" },

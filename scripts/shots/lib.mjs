@@ -104,6 +104,42 @@ export function budgetOf(budgets, name) {
  * The selector a screenshot waits for before it settles. A target's `waitFor` is a test id of the real app: the prototype never carries it, so a wait there ran its whole 30 s timeout
  * on every prototype shot (4 shots a target, 868 of 943 targets: the 35 minute cap of the `shots` shards). Only the real app is waited on; the prototype settles on its own protoSettleMs.
  */
-export function waitSelector(side, target) {
-  return side === "real" ? target.waitFor : undefined;
+export function waitSelector(side, target, size = "desktop") {
+  return side === "real" ? waitForOf(target, size) : undefined;
+}
+
+/**
+ * Does a miss of this target's `waitFor` at this size fail the shard? Always at desktop. At phone only when the target names a selector for phone (the object form): a plain selector was written for the
+ * desktop layout and is often not on the phone's (a list in place of a table, a bottom bar in place of the rail), and 56 targets still miss that way (SHOTS-BUDGET-2026-11-11.md, Round 3). Those are printed, not failed.
+ */
+export function waitIsHard(target, size = "desktop") {
+  return size === "desktop" || (typeof target.waitFor === "object" && target.waitFor !== null && size in target.waitFor);
+}
+
+/** A target's `waitFor` for one size. A string applies to every size; an object names the selector per size ({ desktop, phone }, `any` for the rest), for an element the layout shows on one size only (the phone's bottom rail, its Back button). */
+export function waitForOf(target, size = "desktop") {
+  const w = target.waitFor;
+  return w === undefined || typeof w === "string" ? w : w[size] ?? w.any;
+}
+
+/**
+ * The steps of a target written as strings (LINKED_01): "click|<testid>", "see|<testid>" (scroll into view) and "fill|<testid>|<text>". They are the clicks a person makes to reach the state the target shows, so the real shot
+ * is taken after them; before this the screenshot job stopped at the first frame and the target's `waitFor` (an element of the state the steps reach) never appeared. Steps in other shapes (arrays, objects) belong to their own shooters.
+ * Returns what failed, one line each; a step that fails does not stop the rest.
+ */
+export async function runTestIdSteps(page, steps, settleMs = 350) {
+  const errs = [];
+  if (!Array.isArray(steps) || !steps.length || !steps.every((s) => typeof s === "string")) return errs;
+  for (const step of steps) {
+    const [kind, id, ...rest] = step.split("|");
+    const loc = page.locator(`[data-testid="${id}"]`).first();
+    try {
+      if (kind === "click") await loc.click({ timeout: 5000 });
+      else if (kind === "see") await loc.scrollIntoViewIfNeeded({ timeout: 5000 });
+      else if (kind === "fill") await loc.fill(rest.join("|"), { timeout: 5000 });
+      else errs.push(`unknown step ${step}`);
+    } catch (e) { errs.push(`${kind} ${id}: ${String(e?.message ?? e).split("\n")[0].slice(0, 100)}`); }
+    await page.waitForTimeout(settleMs);
+  }
+  return errs;
 }

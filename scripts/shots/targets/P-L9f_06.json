@@ -16,7 +16,7 @@
     },
     {
       "id": "P-L9f_06-models",
-      "route": "/m/P-L9f_06?page=models&space=northwind",
+      "route": "/m/P-L9f_06?page=ai&space=northwind",
       "proto": "settings,at:models,{skin}",
       "waitFor": "[data-testid='usage']",
       "note": "Models and usage: default and fallback model, usage bars, where work runs, providers with Open Vault."
@@ -32,7 +32,7 @@
       "id": "P-L9f_06-appearance",
       "route": "/m/P-L9f_06?page=appearance&space=northwind",
       "proto": "settings,at:appearance,{skin}",
-      "waitFor": "[data-testid='skins-dark']",
+      "waitFor": "[data-testid='skins-stock']",
       "note": "Appearance: light or dark, skin tiles in Dark and Light with the chosen one outlined, Kit."
     },
     {
