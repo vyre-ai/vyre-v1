@@ -45,6 +45,8 @@ export interface DockerSpaceBrowserOptions {
   log?: (m: string) => void;
   /** How long a container of an earlier release that was busy is used before the next look. Default 30 seconds. */
   recheckMs?: number;
+  /** Where the daemon runs (default: this process's). On macOS and Windows, Docker is a virtual machine that resolves host.docker.internal to the host itself; only on Linux does the name need to be given. */
+  platform?: NodeJS.Platform;
 }
 
 /** `net`: the service's own network was made, and (without the runner) the address of the host on it, which `host.docker.internal` names so the Vault channel is reached on that network. */
@@ -86,8 +88,9 @@ export function browserContainerConfig(o: DockerSpaceBrowserOptions, net?: { gat
       AutoRemove: false,
       Ulimits: [{ Name: "nofile", Soft: 16384, Hard: 32768 }, { Name: "core", Soft: 0, Hard: 0 }],
       LogConfig: { Type: "json-file", Config: { "max-size": "10m", "max-file": "3" } },
-      // behind the runner the daemon is the ingress on the network under its alias; without it the daemon is the host, reached at the network's own gateway so the request arrives on that network
-      ExtraHosts: !o.runner && net?.gateway ? [`host.docker.internal:${net.gateway}`] : [],
+      // behind the runner the daemon is the ingress on the network under its alias. Without it the daemon is the host: on Linux the name does not exist by itself and is pointed at the network's own gateway,
+      // so the request arrives on that network; on macOS and Windows Docker's virtual machine resolves it to the host already, and it is left as Docker has it (pointing it inside the VM would break fills)
+      ExtraHosts: !o.runner && net?.gateway && (o.platform ?? process.platform) === "linux" ? [`host.docker.internal:${net.gateway}`] : [],
       Dns: [],
     },
   };

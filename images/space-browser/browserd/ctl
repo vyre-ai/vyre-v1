@@ -7,8 +7,8 @@ import net from "node:net";
 const SOCKET = process.env.VYRE_BROWSERD_SOCKET || "/tmp/browserd.sock";
 const [action, arg] = process.argv.slice(2);
 
-function die(code, message, exit) {
-  process.stderr.write(JSON.stringify({ code, message }) + "\n");
+function die(code, message, exit, reason) {
+  process.stderr.write(JSON.stringify(reason ? { code, message, reason } : { code, message }) + "\n");
   process.exit(exit);
 }
 
@@ -34,7 +34,7 @@ sock.on("data", (d) => {
   if (r && r.ok === true) {
     process.stdout.write(JSON.stringify(r.result === undefined ? {} : r.result) + "\n", () => process.exit(0));
   } else {
-    die((r && r.code) || "unavailable", (r && r.message) || "browserd refused", 1);
+    die((r && r.code) || "unavailable", (r && r.message) || "browserd refused", 1, r && typeof r.reason === "string" ? r.reason : undefined);
   }
 });
 sock.on("error", (e) => { if (!done) (sent ? die("unavailable", "browserd stopped while it worked on the request: " + e.message, 4) : die("unavailable", "browserd is not up yet: " + e.message, 3)); });

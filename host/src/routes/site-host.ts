@@ -72,6 +72,16 @@ export function agentCaller(_local: string | undefined, remote: string | undefin
   return !subnets.some((c) => { const [base, bits] = c.split("/"); const k = Number(bits); if (!(k >= 0 && k <= 30)) return false; const b = base!.split(".").map(Number); if (b.length !== 4 || b.some((x) => !Number.isInteger(x))) return false; const n = ((b[0]! << 24) | (b[1]! << 16) | (b[2]! << 8) | b[3]!) >>> 0; const mask = k === 0 ? 0 : (0xffffffff << (32 - k)) >>> 0; const gw = ((n & mask) + 1) >>> 0; return `${gw >>> 24}.${(gw >>> 16) & 255}.${(gw >>> 8) & 255}.${gw & 255}` === ip; });
 }
 
+/**
+ * The registry of agent networks the daemon's guard reads (agentCaller): every module that runs agents' containers exports `agentSubnets(): string[]` (computers: the Space browser's and agent computers' networks;
+ * terminal: the workspaces' network), and the host takes the union. Modules never import each other for this; each adds its own through its exports. Called on every request, so a module's answer must be
+ * cheap (a list it keeps); one that throws or answers something else adds nothing.
+ */
+export function agentSubnetsOf(modules: Iterable<Record<string, unknown>>): () => string[] {
+  const sources = [...modules].map((ns) => ns["agentSubnets"]).filter((f): f is () => unknown => typeof f === "function");
+  return () => sources.flatMap((f) => { try { const r = f(); return Array.isArray(r) ? r.filter((x): x is string => typeof x === "string" && /^\d+\.\d+\.\d+\.\d+\/\d+$/.test(x)) : []; } catch { return []; } });
+}
+
 export function cookieOf(header: string | undefined, name: string): string | null {
   for (const part of (header ?? "").split(";")) {
     const [k, ...v] = part.trim().split("=");

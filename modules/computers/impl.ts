@@ -193,8 +193,8 @@ const TOOL_CODES: readonly string[] = ["timeout", "paused", "not_found", "bad_in
 export function toolErrorOf(stderr: string, exitCode: number | null): ToolError {
   const last = stderr.trim().split("\n").pop() ?? "";
   try {
-    const j = JSON.parse(last) as { code?: unknown; message?: unknown };
-    if (typeof j.code === "string" && TOOL_CODES.includes(j.code)) return new ToolError(j.code as ToolCode, typeof j.message === "string" ? j.message : "The tool failed.");
+    const j = JSON.parse(last) as { code?: unknown; message?: unknown; reason?: unknown };
+    if (typeof j.code === "string" && TOOL_CODES.includes(j.code)) return new ToolError(j.code as ToolCode, typeof j.message === "string" ? j.message : "The tool failed.", j.reason === "profile_held" || j.reason === "profile_busy" ? j.reason : undefined);
   } catch { /* not JSON */ }
   return new ToolError("unavailable", `agentd tool failed (${exitCode ?? "no exit code"}): ${stderr.trim().slice(0, 200)}`);
 }
@@ -562,6 +562,8 @@ export function buildComputerHost(c: ComputersHostConfig): ComputerHost & ToolHo
 /** The address of a computer on this machine, for a site served from it; null when there is none or it is not running. */
 export async function localComputerAddress(computerId: string): Promise<string | null> { return (await boundHost()?.address?.(computerId)) ?? null; }
 /** The subnets of the computers' own networks, for the daemon: a connection that arrives on one may reach only the Vault channel. */
+/** This module's part of the daemon's registry of agent networks (host/src/routes/site-host.ts agentSubnetsOf). */
+export const agentSubnets = (): string[] => computerSubnets();
 export function computerSubnets(): string[] { return [...((boundHost() as { subnets?: () => string[] } | null)?.subnets?.() ?? []), ...(spaceBrowser()?.subnets?.() ?? [])]; }
 export async function learnComputerSubnets(ids: readonly string[]): Promise<string[]> { return (await (boundHost() as { knownNetworks?: (i: readonly string[]) => Promise<string[]> } | null)?.knownNetworks?.(ids)) ?? []; }
 export async function localSiteLogs(a: { computerId: string; slug: string; lines: number }): Promise<string[]> { return (await boundHost()?.siteLogs?.(a)) ?? []; }

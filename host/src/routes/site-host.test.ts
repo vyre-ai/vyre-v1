@@ -119,3 +119,20 @@ test("agentCaller: a caller inside an agent network is an agent on whatever addr
   assert.equal(agentCaller("127.0.0.1", "127.0.0.1", nets), false, "this computer");
   assert.equal(agentCaller("172.29.0.1", "172.29.0.2", []), false, "no agent networks known");
 });
+
+// Lead, 12 Nov: lane f-term puts workspaces on one network of their own; its subnet must reach the same guard through the host, never by one module importing another.
+test("agentSubnetsOf: the guard's networks are the union of what each module exports as agentSubnets; a module that throws or answers nonsense adds nothing", async () => {
+  const { agentSubnetsOf, agentCaller } = await import("./site-host.ts");
+  let workspaces = ["172.30.0.0/16"];
+  const of = agentSubnetsOf([
+    { agentSubnets: () => ["172.29.0.0/16"] },             // computers: the Space browser
+    { agentSubnets: () => workspaces },                     // terminal: the workspaces' network
+    { agentSubnets: () => { throw new Error("x"); } },
+    { agentSubnets: () => ["not a subnet", 5] },
+    { somethingElse: () => ["10.0.0.0/8"] },
+  ]);
+  assert.deepEqual(of(), ["172.29.0.0/16", "172.30.0.0/16"]);
+  assert.equal(agentCaller("10.0.0.5", "172.30.0.9", of()), true, "a workspace terminal calling the host's LAN address is an agent");
+  workspaces = [];
+  assert.deepEqual(of(), ["172.29.0.0/16"], "read on every call: a network that went is gone");
+});

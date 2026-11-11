@@ -225,7 +225,7 @@ function serve(c: Socket): void {
       (result) => c.end(JSON.stringify({ ok: true, result }) + "\n"),
       (e: unknown) => {
         const err = e instanceof AgentError ? e : unavailable(e instanceof Error ? e.message : "the browser failed");
-        c.end(JSON.stringify({ ok: false, code: err.code, message: err.message }) + "\n");
+        c.end(JSON.stringify({ ok: false, code: err.code, message: err.message, ...(err.reason ? { reason: err.reason } : {}) }) + "\n");
       },
     );
   });

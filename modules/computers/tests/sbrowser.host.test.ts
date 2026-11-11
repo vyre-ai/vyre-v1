@@ -279,3 +279,35 @@ test("browserd's control program parses (node --check), and the native messaging
   const host = spawnSync("sh", ["-n", path.join(dir, "bridge-host")], { encoding: "utf8" });
   assert.equal(host.status, 0, host.stderr);
 });
+
+// Lead, 12 Nov (6c): on a Mac or Windows the daemon runs on the computer itself and Docker is a virtual machine that already resolves host.docker.internal to it; only Linux needs the name given.
+test("host.docker.internal is pointed at the network's gateway on Linux only; on macOS and Windows Docker's own answer stays", () => {
+  const net = { gateway: "172.29.0.1" };
+  const on = (platform: NodeJS.Platform) => browserContainerConfig({ api: {} as DockerApi, platform }, net).HostConfig.ExtraHosts;
+  assert.deepEqual(on("linux"), ["host.docker.internal:172.29.0.1"]);
+  assert.deepEqual(on("darwin"), []);
+  assert.deepEqual(on("win32"), []);
+  assert.deepEqual(browserContainerConfig({ api: {} as DockerApi, platform: "linux", runner: { ingress: "vyre-vyred" } }, net).HostConfig.ExtraHosts, [], "behind the runner the daemon is the ingress on the network");
+});
+
+// Lead, 12 Nov: lane f-desktop's move treats "a person has the controls" and "the browser is busy" as "try again later" and needs a reason that does not change with the wording.
+test("a refusal's reason travels from browserd through ctl to the module: profile_held and profile_busy", async () => {
+  const { toolErrorOf } = await import("../impl.ts");
+  assert.equal(toolErrorOf(`${JSON.stringify({ code: "unavailable", message: "any words at all", reason: "profile_busy" })}\n`, 1).reason, "profile_busy");
+  assert.equal(toolErrorOf(`${JSON.stringify({ code: "paused", message: "other words", reason: "profile_held" })}\n`, 1).reason, "profile_held");
+  assert.equal(toolErrorOf(`${JSON.stringify({ code: "unavailable", message: "x", reason: "made_up" })}\n`, 1).reason, undefined, "only the known reasons");
+  const { spawn } = await import("node:child_process");
+  const { createServer } = await import("node:net");
+  const fs = await import("node:fs");
+  const os = await import("node:os");
+  const path = await import("node:path");
+  const ctl = path.join(path.dirname(new URL(import.meta.url).pathname), "../../../images/space-browser/browserd/ctl");
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ctl-r-"));
+  const sockPath = path.join(dir, "b.sock");
+  const server = createServer((c) => { c.once("data", () => c.end(`${JSON.stringify({ ok: false, code: "unavailable", message: "This agent's browser is busy", reason: "profile_busy" })}\n`)); });
+  await new Promise<void>((r) => server.listen(sockPath, () => r()));
+  try {
+    const err = await new Promise<string>((resolve) => { const p = spawn(process.execPath, [ctl, "reset_chrome", "{}"], { env: { ...process.env, VYRE_BROWSERD_SOCKET: sockPath } }); let e = ""; p.stderr.on("data", (d: Buffer) => { e += d.toString(); }); p.on("exit", () => resolve(e)); });
+    assert.equal(toolErrorOf(err, 1).reason, "profile_busy", "ctl prints it");
+  } finally { server.close(); fs.rmSync(dir, { recursive: true, force: true }); }
+});

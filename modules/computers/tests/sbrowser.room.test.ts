@@ -216,3 +216,26 @@ test("the periodic pass touches only this Space's profiles on a Space browser tw
     assert.deepEqual(told, ["give_back agt_ours"], "this Space's stale takeover is released; the other Space's is left alone");
   } finally { bindSpaceBrowser(null); resetRoom(); }
 });
+
+test("the Trash retention in force is read from governance: a Space that keeps Trash 45 days keeps the profile 45 days, one that keeps it forever never removes it", async () => {
+  const forgot: string[] = [];
+  sbrowser();
+  const { spaceBrowser } = await import("../sbrowser/port.ts");
+  spaceBrowser()!.forget = async (id) => { forgot.push(id); };
+  let value = "45d";
+  const h = harness({ respond: { "governance.retention.get": () => ({ kinds: [{ key: "logs", value: "1d" }, { key: "trash", value }] }) } });
+  h.db.run("INSERT INTO computers_browser_gone (profile_id, deleted_at) VALUES ('agt_gone', ?)", h.clock.t);
+  try {
+    const { periodic } = await import("../impl.ts") as { periodic: Record<string, { run: (ctx: unknown) => Promise<void> }> };
+    h.advance(44 * 86_400_000);
+    await periodic["computers.browser_room"]!.run(h.ctx);
+    assert.deepEqual(forgot, [], "44 days of 45");
+    value = "forever";
+    h.advance(400 * 86_400_000);
+    await periodic["computers.browser_room"]!.run(h.ctx);
+    assert.deepEqual(forgot, [], "Trash kept forever: never removed");
+    value = "45d";
+    await periodic["computers.browser_room"]!.run(h.ctx);
+    assert.deepEqual(forgot, ["agt_gone"]);
+  } finally { bindSpaceBrowser(null); }
+});

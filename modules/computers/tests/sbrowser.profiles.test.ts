@@ -272,12 +272,12 @@ test("resetChrome never closes a browser under a step in flight or a person at t
   try {
     const step = m.tool({ profileId: "agt_dex", tool: "chrome_state", args: {}, timeoutMs: 5000 });
     await new Promise((res) => setTimeout(res, 20));
-    await assert.rejects(() => m.resetChrome("agt_dex"), refusal("unavailable"), "busy: refused, tried again later");
+    await assert.rejects(() => m.resetChrome("agt_dex"), (e) => refusal("unavailable")(e) && (e as AgentError).reason === "profile_busy", "busy: refused, tried again later, with a reason that does not change with the words");
     assert.equal(stopped.size, 0, "the step's browser was not closed under it");
     gate.forEach((g) => g()); gate.length = 0;
     await step;
     m.takeover("agt_dex", "usr_dana");
-    await assert.rejects(() => m.resetChrome("agt_dex"), refusal("unavailable"), "a person at the controls: refused");
+    await assert.rejects(() => m.resetChrome("agt_dex"), (e) => refusal("unavailable")(e) && (e as AgentError).reason === "profile_held", "a person at the controls: refused, with its reason");
     m.giveBack("agt_dex");
     await m.resetChrome("agt_dex");
     assert.equal(stopped.size, 1, "quiet: closed and emptied");

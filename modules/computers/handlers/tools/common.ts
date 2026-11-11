@@ -28,9 +28,13 @@ export type ToolAnswer = Record<string, unknown>;
 /** The code agentd gave for a refusal. */
 export type ToolCode = "timeout" | "paused" | "not_found" | "bad_input" | "held" | "unavailable";
 
+/** A reason that travels with a refusal and never changes with its wording: `profile_held` (a person has the controls), `profile_busy` (a step is running). Lane f-desktop's move matches on it. */
+export type ToolReason = "profile_held" | "profile_busy";
+
 export class ToolError extends Error {
   readonly code: ToolCode;
-  constructor(code: ToolCode, message: string) { super(message); this.name = "ToolError"; this.code = code; }
+  readonly reason: ToolReason | undefined;
+  constructor(code: ToolCode, message: string, reason?: ToolReason) { super(message); this.name = "ToolError"; this.code = code; this.reason = reason; }
 }
 
 /** What the host binds on top of ComputerHost for the tools; the Docker host (impl.ts) has it. */

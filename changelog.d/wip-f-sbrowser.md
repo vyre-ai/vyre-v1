@@ -25,3 +25,5 @@
 - The cloud metadata block on a Linux server lets DNS through (some clouds answer DNS on that address), is put back by the daily update check after a firewall reload, and `vyre-server doctor` says in plain words when it cannot be put in place and why.
 - A live view whose viewer went away (a closed laptop) is closed after half a minute, so it no longer keeps a takeover going.
 - A workspace or an agent's browser waiting for room now says it starts by itself when there is room, instead of advising a compute server that would not help it.
+- On a Mac or Windows computer, the Space browser reaches the Vault channel as Docker itself resolves it, so Vault fills keep working there.
+- An agent in Trash keeps its browser sign-ins for as long as the Space keeps its Trash (an admin's setting is followed; 30 days by default).

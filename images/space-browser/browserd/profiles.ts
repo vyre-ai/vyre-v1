@@ -6,7 +6,7 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, s
 import { join } from "node:path";
 import { launchChrome } from "../../agent-computer/agentd/chrome.ts";
 import type { Chrome, ChromeOptions, ChromeState } from "../../agent-computer/agentd/chrome.ts";
-import { badInput, notFound, paused, unavailable, within } from "../../agent-computer/agentd/errors.ts";
+import { AgentError, badInput, notFound, paused, unavailable, within } from "../../agent-computer/agentd/errors.ts";
 import { createVault, scrubUsed } from "../../agent-computer/agentd/vault.ts";
 import type { Vault } from "../../agent-computer/agentd/vault.ts";
 
@@ -241,7 +241,7 @@ export function createProfileManager(o: ProfileManagerOptions): ProfileManager {
     if (!name.startsWith("chrome_")) throw badInput(`${name} is not a tool of the Space browser.`);
     const byPerson = a.by === "person" && p.state.takeover !== null;
     // A person at the controls: the agent's tools wait, except the two that only look.
-    if (p.state.takeover && !byPerson && name !== "chrome_status" && name !== "chrome_stop") throw paused("A person has the controls. The tools wait until they give them back.");
+    if (p.state.takeover && !byPerson && name !== "chrome_status" && name !== "chrome_stop") throw new AgentError("paused", "A person has the controls. The tools wait until they give them back.", "profile_held");
     const ms = Math.min(Math.max(a.timeoutMs, 1000), 130_000);
     // A look that needs no browser does not start one.
     if (name === "chrome_status" && !p.chrome?.alive()) return { connected: false, paused: p.state.stopped, held: [] };
@@ -292,11 +292,11 @@ export function createProfileManager(o: ProfileManagerOptions): ProfileManager {
     async stop(id) { const p = profiles.get(checkProfileId(id)); if (p) { p.state.takeover = null; await release(p); } },
     async resetChrome(id) {
       const p = get(id);
-      if (p.state.takeover) throw unavailable("A person has the controls of this agent's browser: its sign-ins move from the old computer when they give it back.");
+      if (p.state.takeover) throw new AgentError("unavailable", "A person has the controls of this agent's browser: its sign-ins move from the old computer when they give it back.", "profile_held");
       const waitMs = o.resetWaitMs ?? 30_000;
       const t0 = Date.now();
       while ((p.state.busy > 0 || p.starting !== null) && Date.now() - t0 < waitMs) await new Promise((r) => setTimeout(r, 100));
-      if (p.state.busy > 0 || p.starting !== null) throw unavailable("This agent's browser is busy: its sign-ins move from the old computer at a quiet moment.");
+      if (p.state.busy > 0 || p.starting !== null) throw new AgentError("unavailable", "This agent's browser is busy: its sign-ins move from the old computer at a quiet moment.", "profile_busy");
       p.importingUntil = now() + 5 * 60_000;
       await release(p);
       rmSync(join(p.dir, "chrome"), { recursive: true, force: true });
