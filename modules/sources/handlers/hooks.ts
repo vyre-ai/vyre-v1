@@ -114,6 +114,13 @@ export function createHooksHandlers(deps: SourcesDeps): HooksHandlers {
     return { unsure: all };
   };
 
+  /** One row through records.bulk_upsert. A row the records module refuses (the source may not edit that record, a locked field, a record on hold) is not a delivery that worked: it throws, so the delivery is kept as failed with the reason, shown on the source, and can be processed again. */
+  const upsert = async (ctx: SourcesCtx, idempotencyKey: string, type: string, row: Record<string, unknown>, match: readonly string[], runAutomations: boolean): Promise<void> => {
+    const out = (await ctx.call("records.bulk_upsert", { idempotencyKey, type, rows: [row], match: [...match], runAutomations })) as { refused?: Array<{ message: string }> } | undefined;
+    const refused = out?.refused?.[0];
+    if (refused) throw new Error(`The record was not changed: ${refused.message}`);
+  };
+
   // ---- the pipeline ----
 
   interface Finish { status: DeliveryStatus; recordIds?: string[]; error?: string; providerId?: string }
@@ -122,6 +129,8 @@ export function createHooksHandlers(deps: SourcesDeps): HooksHandlers {
     ready();
     const now = nowOf(deps);
     const deliveryId = o.deliveryId ?? mintShort("dlv", now);
+    // a delivery processed again is a new try: the answer kept for its first try (a refused row, say) must not be handed back after the cause was fixed
+    const replayed = o.deliveryId === undefined ? "" : `:again${now}`;
     const mapping = mappingOf(src);
     const finish = (f: Finish): IngestOut => {
       tx.run(
@@ -177,14 +186,14 @@ export function createHooksHandlers(deps: SourcesDeps): HooksHandlers {
       }
       if (recordId === undefined) {
         if (mapping.match.length) {
-          await ctx.call("records.bulk_upsert", { idempotencyKey: `sources.delivery:${deliveryId}:upsert`, type: src.type, rows: [row], match: mapping.match, runAutomations: o.runAutomations });
+          await upsert(ctx, `sources.delivery:${deliveryId}${replayed}:upsert`, src.type, row, mapping.match, o.runAutomations);
           recordId = (await find(ctx, src.type, mapping.match, row, 1))[0]?.id;
         } else {
           const made = (await ctx.call("records.create", { idempotencyKey: `sources.delivery:${deliveryId}:create`, type: src.type, fields: row })) as { record: { id: string } };
           recordId = made.record.id;
         }
       } else if (linkedBy === undefined) {
-        await ctx.call("records.bulk_upsert", { idempotencyKey: `sources.delivery:${deliveryId}:update`, type: src.type, rows: [row], match: mapping.match, runAutomations: o.runAutomations });
+        await upsert(ctx, `sources.delivery:${deliveryId}${replayed}:update`, src.type, row, mapping.match, o.runAutomations);
       }
       const recordIds = recordId ? [recordId] : [];
       tx.run("INSERT OR IGNORE INTO source_seen (source, provider_id, seen_at) VALUES (?, ?, ?)", src.key, providerId, now);

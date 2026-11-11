@@ -15,6 +15,7 @@
 import { canonical } from "../../../lib/canonical.ts";
 import { formatHlc } from "../../../lib/hlc.ts";
 import { mintUuid } from "../../../lib/ids.ts";
+import { isHostService } from "../../../lib/trust.ts";
 import { mintRecordId } from "../ids.ts";
 import type { Tx } from "../../../kernel/src/store/projection.ts";
 import { isSealedRef } from "../../../kernel/src/store/values.ts";
@@ -33,8 +34,10 @@ export const XLSX_MAX_ROWS = 1_048_576;
 
 export type MergeCtx = Pick<WriteCtx, "trace" | "emit"> & {
   actor?: string;
+  /** Who is calling. The host's own service (hooks, the scheduler, the engine seams) is pre-authorized by the pipeline for every capability, so it changes records here as it does through records.update. */
+  principal?: { kind: string; id: string };
   /** The host decision for the caller on one record. Writing an existing record, or merging records away, needs the same right the single-record capability needs (records.edit, records.delete), checked here for each record. */
-  authorize?: (action: { perm: string | null; level: "view" | "use" | "edit" | "manage" }, resource: { type: string; id: string | null }) => { effect: "allow" | "deny" | "hold"; reason?: string };
+  authorize?: (action: { perm: string | null; level: "view" | "use" | "edit" | "manage"; cap?: string }, resource: { type: string; id: string | null }) => { effect: "allow" | "deny" | "hold"; reason?: string };
 };
 export type ExportCtx = Pick<WriteCtx, "trace"> & {
   actor?: string;
@@ -55,7 +58,7 @@ export interface MergeDeps {
 
 export interface MergeHandlers {
   "records.merge"(ctx: MergeCtx, input: { type: string; survivorId: string; mergedIds: string[]; picks: Record<string, string> }): Promise<{ record: RecordRow; undoUntil: number }>;
-  "records.bulk_upsert"(ctx: MergeCtx, input: { type: string; rows: Record<string, unknown>[]; match: string[]; runAutomations?: boolean }): Promise<{ created: number; updated: number; skipped: number }>;
+  "records.bulk_upsert"(ctx: MergeCtx, input: { type: string; rows: Record<string, unknown>[]; match: string[]; runAutomations?: boolean }): Promise<{ created: number; updated: number; skipped: number; refused?: Array<{ row: number; reason: string; message: string }> }>;
   "records.export"(ctx: ExportCtx, input: { type: string; format: "csv" | "xlsx"; recordIds?: string[] } & ViewSpec): Promise<{ fileId: string }>;
 }
 
@@ -212,7 +215,8 @@ async function applyMerge(deps: MergeDeps, ctx: MergeCtx, input: { type: string;
   if (!survivor) throw new StoreError("not_found", `no ${input.type} ${input.survivorId}`);
   // the host checked the survivor (records.delete on it); the records merged away are deleted and the survivor is rewritten, so the caller needs the same rights on them
   const may = (perm: string, id: string): void => {
-    const d = ctx.authorize?.({ perm, level: "edit" }, { type: "record", id });
+    if (isHostService(ctx.principal)) return;   // pre-authorized by the pipeline, as for every capability
+    const d = ctx.authorize?.({ perm, level: "edit", cap: perm === "records.delete" ? "records.delete" : "records.update" }, { type: "record", id });
     if (d?.effect !== "allow") fail(ctx as WriteCtx, "permission.no_grant", d === undefined ? "This call cannot check what you may change, so it merges nothing." : "You may not merge these records: you cannot delete or edit one of them.");
   };
   may("records.edit", input.survivorId);
@@ -431,9 +435,12 @@ async function upsert(deps: MergeDeps, ctx: MergeCtx, input: { type: string; row
       const diff: Record<string, unknown> = {};
       for (const [k, v] of Object.entries(plan.values)) if (!same(plan.existing.fields[k], v)) diff[k] = v;
       if (!Object.keys(diff).length) { skipped++; continue; }
-      const allowed = ctx.authorize?.({ perm: "records.edit", level: "edit" }, { type: "record", id: plan.existing.id });
+      const allowed = isHostService(ctx.principal) ? { effect: "allow" as const } : ctx.authorize?.({ perm: "records.edit", level: "edit", cap: "records.update" }, { type: "record", id: plan.existing.id });
       if (allowed?.effect !== "allow") {
-        refused.push({ row: plan.index, reason: "not_allowed", message: allowed === undefined ? "This call cannot check what you may edit, so it changes no existing record." : "You may not edit this record." });
+        // a hold is an edit that waits for someone's approval: it is not written here, and the row says so (a person can make the change on the record, where the approval step runs)
+        refused.push(allowed?.effect === "hold"
+          ? { row: plan.index, reason: "needs_approval", message: "A change to this record needs approval, so this row was not written." }
+          : { row: plan.index, reason: "not_allowed", message: allowed === undefined ? "This call cannot check what you may edit, so it changes no existing record." : "You may not edit this record." });
         continue;
       }
       const rec = await store.update(input.type, plan.existing.id, diff, plan.existing.version);

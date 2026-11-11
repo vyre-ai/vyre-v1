@@ -13,7 +13,7 @@ export async function get(ctx: ImportCtx, input: In): Promise<unknown> {
   ensure(ctx.db);
   const s = findSession(ctx.db, input.importId);
   if (!s) raise(ctx, "validation.bad_input", "That import does not exist.", { importId: input.importId });
-  return { import: row(s) };
+  return { import: { ...row(s), ...(s.errors.length ? { errors: s.errors.slice(0, 50).map((e) => clean({ row: e.row, column: e.column, message: e.message })) } : {}) } };
 }
 
 export async function list(ctx: ImportCtx, input: In): Promise<unknown> {

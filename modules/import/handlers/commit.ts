@@ -35,7 +35,8 @@ export async function commit(ctx: ImportCtx, input: In): Promise<unknown> {
   const rows = buildRows(table, plan.mapping, fields, compileAll(ctx, plan.mapping));
   if (rows.length !== plan.actions.length) raise(ctx, "validation.precondition_failed", "The preview is out of date. Preview again.", { reason: "stale_preview" });
   const runAutomations = input.runAutomations ?? plan.runAutomations;
-  const todo = rows.filter((_b, i) => plan.actions[i] === "c" || plan.actions[i] === "u").map((b) => b.fields as Record<string, unknown>);
+  const todoAt = rows.map((_b, i) => i).filter((i) => plan.actions[i] === "c" || plan.actions[i] === "u");   // the data row each written row came from, so a refusal names the row in the file
+  const todo = todoAt.map((i) => rows[i]!.fields as Record<string, unknown>);
   const errors: RowError[] = rows.flatMap((b) => b.errors);
   const skippedByPlan = [...plan.actions].filter((a) => a === "s").length;
 
@@ -46,7 +47,7 @@ export async function commit(ctx: ImportCtx, input: In): Promise<unknown> {
   ctx.emit("import.started", `entity/${s.importId}`, { importId: s.importId, runId, type: plan.type, source: s.source, rows: todo.length });
 
   const result = { runId, importId: s.importId };
-  let created = 0, updated = 0, skipped = skippedByPlan, refusedRows = 0;
+  let created = 0, updated = 0, skipped = skippedByPlan;
   try {
     if (plan.newFields.length > 0) {
       await call(ctx, "schema.apply", {
@@ -59,14 +60,16 @@ export async function commit(ctx: ImportCtx, input: In): Promise<unknown> {
         s.state = "canceled";
         break;
       }
-      const out = await call<{ created?: number; updated?: number; skipped?: number; refused?: unknown[] }>(ctx, "records.bulk_upsert", {
+      const out = await call<{ created?: number; updated?: number; skipped?: number; refused?: Array<{ row: number; message: string }> }>(ctx, "records.bulk_upsert", {
         type: plan.type, rows: todo.slice(at, at + BATCH), match: plan.onMatch === "create" ? [] : plan.match, runAutomations: runAutomations === true,
       }, { idempotencyKey: `imp:${s.importId}:${n}` });
-      created += out.created ?? 0; updated += out.updated ?? 0; skipped += out.skipped ?? 0; refusedRows += out.refused?.length ?? 0;   // rows the caller may not edit, or the store refused: reported as failed, not written
+      created += out.created ?? 0; updated += out.updated ?? 0; skipped += out.skipped ?? 0;
+      // a row the importer may not change (or the store refused: a locked field, a record on hold) is a failed row with its reason, on the row of the file it came from; the rest of the batch was written
+      for (const r of out.refused ?? []) errors.push({ row: (todoAt[at + r.row] ?? at + r.row) + 1, message: r.message });
     }
   } catch (e) {
     const message = e instanceof Error ? e.message : codeOf(e);
-    Object.assign(s, { state: "failed", created, updated, skipped, failed: errors.length + refusedRows, errors: errors.slice(0, KEPT_ERRORS) });
+    Object.assign(s, { state: "failed", created, updated, skipped, failed: errors.length, errors: errors.slice(0, KEPT_ERRORS) });
     saveSession(ctx.db, s);
     await finish(ctx, runId, "failed", `Stopped after ${created + updated} rows: ${message}`, message);
     ctx.emit("import.failed", `entity/${s.importId}`, { importId: s.importId, runId, type: plan.type, error: message });
@@ -74,15 +77,15 @@ export async function commit(ctx: ImportCtx, input: In): Promise<unknown> {
     return result;
   }
   const canceled = s.state === "canceled";
-  Object.assign(s, { state: canceled ? "canceled" : "done", created, updated, skipped, failed: errors.length + refusedRows, errors: errors.slice(0, KEPT_ERRORS) });
+  Object.assign(s, { state: canceled ? "canceled" : "done", created, updated, skipped, failed: errors.length, errors: errors.slice(0, KEPT_ERRORS) });
   // the rows are not kept once they are written (or the import is canceled): the counts and the errors stay
   s.tables = s.tables.map((t) => ({ ...t, rows: [] }));
   saveSession(ctx.db, s);
-  const line = `${created} created, ${updated} updated, ${skipped} skipped, ${errors.length + refusedRows} failed`;
+  const line = `${created} created, ${updated} updated, ${skipped} skipped, ${errors.length} failed`;
   if (canceled) await finish(ctx, runId, "stopped", `Stopped by a person. ${line}`);
   else {
     await finish(ctx, runId, "succeeded", line);
-    ctx.emit("import.completed", `entity/${s.importId}`, clean({ importId: s.importId, runId, type: plan.type, source: s.source, created, updated, skipped, failed: errors.length + refusedRows, ranAutomations: runAutomations === true }));
+    ctx.emit("import.completed", `entity/${s.importId}`, clean({ importId: s.importId, runId, type: plan.type, source: s.source, created, updated, skipped, failed: errors.length, ranAutomations: runAutomations === true }));
   }
   remember(ctx.db, input.idempotencyKey, "import.commit", result);
   return result;

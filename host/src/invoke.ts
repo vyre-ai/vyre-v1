@@ -595,7 +595,7 @@ export function createInvoke(deps: InvokeDeps): Invoke {
         return r.output;
       },
       authorize(action, resource): Decision {
-        const d = deps.authorize({ principal: seed.principal.id, actingFor: seed.actingFor, action, resource, provider: seed.provider, now: now() });
+        const d = deps.authorize({ principal: seed.principal.id, actingFor: seed.actingFor, action, resource, provider: seed.provider, now: now(), ...(action.cap !== undefined ? { cap: action.cap } : {}) });
         return { effect: d.effect, reason: d.reason, decisionId: d.decisionId };
       },
       // each person on their own grants, as no one's agent: what a chat's audience may open (lib/audience.ts). A check that cannot run says no.

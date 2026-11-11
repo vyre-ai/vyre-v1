@@ -473,3 +473,28 @@ test("merge (909): the caller needs the rights of a delete on every record merge
   await assert.rejects(k.h["records.merge"](blind as never, { type: "party", survivorId: a, mergedIds: [b], picks: {} }), vcode("permission.no_grant"));
   await k.h["records.merge"](k.ctx, { type: "party", survivorId: a, mergedIds: [b], picks: {} });
 });
+
+test("bulk_upsert (909): an edit that would be held for approval is not written and the row says it needs approval", async () => {
+  const k = await kit();
+  const ann = await party(k, { name: "Ann", email: "ann@x.com" });
+  const held = { ...k.ctx, authorize: (a: { perm: string | null }) => (a.perm === "records.edit" ? { effect: "hold" as const, reason: "gate" } : { effect: "allow" as const, reason: "ok" }) };
+  const out = await k.h["records.bulk_upsert"](held, { type: "party", rows: [{ email: "ann@x.com", name: "Hijacked" }], match: ["email"] });
+  assert.deepEqual([out.created, out.updated], [0, 0]);
+  assert.deepEqual(out.refused?.map((r) => [r.row, r.reason]), [[0, "needs_approval"]]);
+  assert.equal((await k.rec.store.get("party", ann))?.data.name, "Ann");
+});
+
+test("bulk_upsert and merge (909): the host's own service is pre-authorized by the pipeline for every capability, so a sync it runs still updates and merges", async () => {
+  const k = await kit();
+  const ann = await party(k, { name: "Ann", email: "ann@x.com" });
+  const b = await party(k, { name: "Ann B" });
+  const host = { ...k.ctx, principal: { kind: "service", id: "svc_host" }, authorize: () => ({ effect: "deny" as const, reason: "not_a_member" }) };
+  const out = await k.h["records.bulk_upsert"](host, { type: "party", rows: [{ email: "ann@x.com", name: "Ann Renamed" }], match: ["email"] });
+  assert.deepEqual([out.created, out.updated, out.refused], [0, 1, undefined]);
+  assert.equal((await k.rec.store.get("party", ann))?.data.name, "Ann Renamed");
+  await k.h["records.merge"](host as never, { type: "party", survivorId: ann, mergedIds: [b], picks: {} });
+  // a tenant's service (an automation, a form) is not the host: it holds only the grants it was given
+  const tenant = { ...host, principal: { kind: "service", id: `svc_${"a".repeat(32)}` } };
+  const out2 = await k.h["records.bulk_upsert"](tenant, { type: "party", rows: [{ email: "ann@x.com", name: "Nope" }], match: ["email"] });
+  assert.deepEqual([out2.updated, out2.refused?.[0]?.reason], [0, "not_allowed"]);
+});

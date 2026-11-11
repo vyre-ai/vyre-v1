@@ -31,6 +31,7 @@ const importRow = t.obj({
   importId, source: sourceKind, type: id.recordType, state: t.enm('staged', 'running', 'done', 'failed', 'canceled'),
   runId: t.opt(id.run), by: t.str(), at: t.ts(), created: t.int(), updated: t.int(), skipped: t.int(), failed: t.int(),
   ranAutomations: t.bool(), errorsFileId: t.opt(id.file),
+  errors: t.opt(t.arr(t.obj({ row: t.int({ description: 'Row of the file, counting from 1 after the header' }), column: t.opt(t.str()), message: t.str() }), { maxItems: 50, description: 'The first rows that were not written, with the reason: a row that would not convert, one the importer may not change, a locked field. Only import.get lists them; failed counts all.' })),
 });
 
 export default defineManifest({

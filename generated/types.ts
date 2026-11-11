@@ -20241,6 +20241,11 @@ export type ImportGetOut = {
     failed: number;
     ranAutomations: boolean;
     errorsFileId?: string;
+    errors?: Array<{
+        row: number;
+        column?: string;
+        message: string;
+      }>;
   };
 };
 export type ImportListIn = {
@@ -20263,6 +20268,11 @@ export type ImportListOut = {
       failed: number;
       ranAutomations: boolean;
       errorsFileId?: string;
+      errors?: Array<{
+          row: number;
+          column?: string;
+          message: string;
+        }>;
     }>;
   next?: string;
   total?: number;

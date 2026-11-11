@@ -227,5 +227,8 @@ test("rows the records module refused (the importer may not edit that contact, o
   const got = (await run(h, "import.get", { importId })).import;
   assert.equal(got.state, "done");
   assert.equal(got.failed, 1, "the refused row is a failed row");
+  assert.equal(got.errors.length, 1, "and it is listed with the reason, so the importer sees which row and why");
+  assert.match(got.errors[0]!.message, /may not edit/);
+  assert.equal(got.errors[0]!.row, 1, "on the row of the file it came from");
   assert.equal(h.named("import.completed")[0]!.payload["failed"], 1);
 });

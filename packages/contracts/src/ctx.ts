@@ -52,7 +52,8 @@ export interface Ctx {
   db: ScopedDb;
   emit<T>(name: EventName, subject: string, payload: T, opts?: EmitOpts): EventEnvelope<T>;
   call<C extends CapName>(cap: C, input: unknown, opts?: CallOpts): Promise<unknown>;
-  authorize(action: { perm: string | null; level: Level }, resource: ResourceRef): Decision;
+  /** `cap` names the capability the check stands in for, so the Space's Gate rules for that capability apply (a handler that changes a record on behalf of records.update asks as records.update). */
+  authorize(action: { perm: string | null; level: Level; cap?: string }, resource: ResourceRef): Decision;
   /**
    * May every one of these people do this on this resource? Their own grants, checked one by one, never the caller's. What goes into a chat other people read is held to what every one of them may
    * open (lib/audience.ts). Answers yes or no only. Present on a booted daemon; a hand-built test ctx may omit it.

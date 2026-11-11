@@ -468,3 +468,34 @@ test("every capability of the manifest has a handler", () => {
   const names = raw.capabilities.filter((c) => c.module === "sources").map((c) => c.name).sort();
   assert.deepEqual(Object.keys(openSources().handlers).sort(), names);
 });
+
+test("a delivery whose update the records module refuses (the source may not edit that record) is a failed delivery with the reason, not an accepted one; processing it again after the cause is fixed writes it", async () => {
+  const k = await kit();
+  const map: Mapping = { dedupe: "/event", fields: [{ from: "/id", to: "ext_id" }, { from: "/email", to: "email" }, { from: "/amount", to: "amount" }], match: ["ext_id"] };
+  const src = await k.leadSource({ mapping: map });
+  assert.equal((await k.ingest("shop-leads", { event: "e1", id: "o1", email: "a@x.com", amount: 1 })).status, "accepted");
+  // from here the caller may not edit the lead that exists: bulk_upsert answers with the row refused, as the records module does for an update it may not make
+  const real = k.ctx.call;
+  let deny = true;
+  const keys: string[] = [];
+  k.ctx.call = ((cap: string, input: Record<string, unknown>) => {
+    if (cap !== "records.bulk_upsert") return real(cap, input);
+    keys.push(String(input["idempotencyKey"]));
+    if (!deny) return real(cap, input);
+    return Promise.resolve({ created: 0, updated: 0, skipped: 0, refused: [{ row: 0, reason: "not_allowed", message: "You may not edit this record." }] });
+  }) as typeof k.ctx.call;
+  const out = await k.ingest("shop-leads", { event: "e2", id: "o1", email: "a@x.com", amount: 50 });
+  assert.equal(out.status, "failed", "a refused row is never reported as accepted");
+  assert.equal(k.events("source.mapping_failed").length, 1, "the person is told (the event notifies the sync attention list)");
+  assert.match(String(k.events("source.mapping_failed")[0]!.error), /not changed.*may not edit/i);
+  const d = (await k.h["sources.deliveries.list"](k.ctx, { sourceId: src.sourceId })).deliveries.find((x) => x.deliveryId === out.deliveryId)!;
+  assert.equal(d.status, "failed");
+  assert.match(d.error!, /may not edit this record/);
+  assert.equal((await k.rows("lead"))[0]!.data.amount, 1, "the lead is as it was");
+  // the cause is fixed (a grant is added): the same delivery is processed again, and it is a new try, not the answer kept for the first
+  deny = false;
+  const again = await k.h["sources.replay"](k.ctx, { deliveryId: out.deliveryId! });
+  assert.equal(again.status, "accepted");
+  assert.equal((await k.rows("lead"))[0]!.data.amount, 50);
+  assert.equal(new Set(keys).size, keys.length, `each try has its own idempotency key: ${keys.join(" ")}`);
+});

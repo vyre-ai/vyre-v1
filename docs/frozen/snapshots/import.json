@@ -3,8 +3,8 @@
   "capabilities": {
     "import.commit@1": "f991ca0e373c1cde0baa74a7e85c61db185fc542d56d4d07f07648193da7881d",
     "import.discard@1": "c27ce5271fadfa7c8596571665ee8072a2678c381bfde1b27d8ae80aa52675bf",
-    "import.get@1": "15e13b4fad6340850228f9756510529f5bff48c9fb0f78ae0182ddab9b9eec0a",
-    "import.list@1": "52dd3b09292aa334b29d54596b02052b9b90d2af700e7cd08fd612f3d42e95b6",
+    "import.get@1": "b2be9ff42b974b10fd65f834e651592cb1d9bad4957cee8e0b3e90954cb62d43",
+    "import.list@1": "f3ab65fa6e3daebca121ab059b34c4aec7a9842343aa3a69e7923840113d11e3",
     "import.parse_airtable@1": "c16d48e13be5c00f40e94a009f2dc123b7cf0fddd1c8b0360c1f92f03cd0b207",
     "import.parse_csv@1": "94bf154f67f193d94f01157111308920b66a46ee422bb688397be8612bc18746",
     "import.parse_excel@1": "cf8bdb687214613317a60f5d373b9e10a3cd06130edd0eaa3b1df3c677bd459a",
