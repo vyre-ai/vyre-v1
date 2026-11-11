@@ -1,3 +1,6 @@
 - Escape now closes a menu that was opened with the mouse, and the arrow keys work in it straight away (since an earlier release neither did until a row was hovered).
 - The first-run setup screen is saved as seen before it appears, so closing it and reloading right away on a slow connection no longer brings it back.
 - In a new webhook, Add event stays greyed out until the list of events has loaded, so it can no longer open an empty list.
+- A pick-one list whose choices are still loading now says "Loading…" and fills in place when they arrive, instead of showing an empty list; an empty list says "Nothing to choose from".
+- A message that arrives while the server is shutting down or starting up is no longer dropped: it is kept and gets its reply after the restart.
+- A goal that reaches its finish line from two places at once now ends once, so the lead still gets its retrospective turn; the clock and a consumer can no longer run two passes over the same goal together.

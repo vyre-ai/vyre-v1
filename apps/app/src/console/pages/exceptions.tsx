@@ -168,7 +168,7 @@ export function InTheApp(): ReactElement {
   const options = (people.data?.principals ?? []).filter((p) => p.kind === "person" || p.kind === "agent").map((p) => ({ key: p.id, title: p.kind === "agent" ? `${p.name} (agent)` : p.name }));
   return <Section title="In the app" right={<Text style={{ fontSize: 12, color: "var(--ink-3)" as string }}>Permissions, with exceptions</Text>} testID="checker-in-app">
     <Group>
-      <Select label="Person or agent" value={who} options={options.length ? options : [{ key: data.me.id, title: data.me.name }]} onChange={setWho} />
+      <Select label="Person or agent" value={who} options={options.length ? options : [{ key: data.me.id, title: data.me.name }]} loading={!people.data && !people.error} onChange={setWho} />
       <Select label="Permission" value={perm} options={areasOf(PERMS).flatMap((a) => a.perms.map((p) => ({ key: p.key, title: `${a.title}: ${p.title}` })))} onChange={setPerm} />
     </Group>
     {out.data ? <View testID="checker-in-app-verdict" style={{ paddingVertical: 10, paddingHorizontal: 12, gap: 4, borderRadius: 10, backgroundColor: "var(--sunk)" as string }}>

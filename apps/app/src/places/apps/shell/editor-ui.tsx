@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
-import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
+import { choiceRows, useLiveRows, useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import { States } from "../../../../../../ui/src/States/index.tsx";
 import { useAppsData } from "./data.tsx";
 import { errorMessage } from "./mutations.ts";
@@ -46,13 +46,16 @@ export function Button({ title, onPress, disabled, testID, primary }: { title: s
 export function Field({ label, value, onChange, multiline = false, disabled = false, placeholder }: { label: string; value: string; onChange(value: string): void; multiline?: boolean; disabled?: boolean; placeholder?: string }): ReactElement {
   return <View style={s.field}><Text style={s.label}>{label}</Text><TextInput accessibilityLabel={label} value={value} onChangeText={onChange} multiline={multiline} editable={!disabled} placeholder={placeholder} style={[s.input, multiline && { minHeight: 100, textAlignVertical: "top" }]} /></View>;
 }
-export function Select({ label, value, options, onChange, disabled, compact }: { compact?: boolean; label: string; value: string; options: readonly { key: string; title: string }[]; onChange(value: string): void; disabled?: boolean }): ReactElement {
-  const { element, show } = useMenu();
+/** `loading`: the options come from a read that has not arrived; the open list says Loading and fills in place, and never reads as empty. */
+export function Select({ label, value, options, onChange, disabled, compact, loading = false }: { loading?: boolean; compact?: boolean; label: string; value: string; options: readonly { key: string; title: string }[]; onChange(value: string): void; disabled?: boolean }): ReactElement {
+  const { element, show, update } = useMenu();
+  const rows = choiceRows(options.map((o) => ({ label: o.title, onSelect: () => onChange(o.key) })), loading);
+  useLiveRows(update, rows);
   return <View style={s.field}>{compact ? null : <Text style={s.label}>{label}</Text>}<Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled: !!disabled }} disabled={disabled} style={[s.button, compact && { minHeight: 26, paddingVertical: 3, paddingHorizontal: 6, borderWidth: 0 }]} onPress={(event) => {
     event.stopPropagation();
     const e = event as unknown as { currentTarget?: { getBoundingClientRect?(): { left: number; bottom: number } }; nativeEvent?: { pageX?: number; pageY?: number } };
     const rect = e.currentTarget?.getBoundingClientRect?.();
-    show(options.map((o) => ({ label: o.title, onSelect: () => onChange(o.key) })), rect?.left ?? e.nativeEvent?.pageX ?? 20, rect?.bottom ?? e.nativeEvent?.pageY ?? 100, "other");
+    show(rows, rect?.left ?? e.nativeEvent?.pageX ?? 20, rect?.bottom ?? e.nativeEvent?.pageY ?? 100, "other");
   }}><Text style={s.buttonText}>{options.find((o) => o.key === value)?.title ?? (value || "Choose…")}</Text></Pressable>{element}</View>;
 }
 export function Frame({ title, children, error, loading, retry, back, offline, testID = "apps-editor", backTitle = "Back to Apps" }: { title: string; children: ReactNode; testID?: string; backTitle?: string; error?: string | null; loading?: boolean; retry?(): void; back(): void; offline?: boolean }): ReactElement {

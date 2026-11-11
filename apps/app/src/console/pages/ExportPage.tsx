@@ -28,7 +28,7 @@ function RecordsOnly(): ReactElement {
           trailing={<Button label="Export…" testID="export-records-open" onPress={() => setOpen(!open)} />} />
         {open ? (
           <View testID="export-records-form">
-            <Select label="Record type" value={chosen} options={(types.data?.types ?? []).map((t) => ({ key: t.key, title: t.title }))} onChange={setType} />
+            <Select label="Record type" value={chosen} options={(types.data?.types ?? []).map((t) => ({ key: t.key, title: t.title }))} loading={!types.data && !types.error} onChange={setType} />
             <Select label="Format" value={format} options={FORMATS.map((f) => ({ key: f.key, title: f.title }))} onChange={(v) => setFormat(v === "xlsx" ? "xlsx" : "csv")} />
             <Actions>
               <Button label="Export records" testID="export-records-go" disabled={!chosen || action.busy} why={!chosen ? "No record types yet" : undefined}

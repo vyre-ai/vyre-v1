@@ -17,7 +17,7 @@ import { ALL_AGENTS, route as routeOf } from "../../../lib/route.ts";
 import { localClock, readPublicTime } from "../../../lib/presence.ts";
 import { hasReads } from "../../../host/src/seams/answer-reads.ts";
 import { findProgram } from "../cli-programs.ts";
-import { engineIfBound, sqlMessages, withMessageId, mintId } from "../projections.ts";
+import { engineIfBound, keepForRestart, sqlMessages, withMessageId, mintId } from "../projections.ts";
 import { setUsing } from "../node-turns.ts";
 import type { EngineCtx } from "../projections.ts";
 import type { TurnEngine } from "../../../agent/src/turn-engine/engine.ts";
@@ -728,6 +728,7 @@ export const bridgeConsumers = {
   "engine.bridge": {
     on: ["message.received", "message.edited"],
     run: async (ctx: EngineCtx, event: BridgeEvent): Promise<{ skipped?: string; receivedAs?: string[] }> => {
+      if (!bound) keepForRestart();   // closing: the host would move past a skipped event, so it is kept for the next start
       const res = bound ? await bound.onEvent(ctx, event) : { skipped: "engine_not_running" };
       // a message that did not reach the engine says why, with the trace and the ids (one trace id, clear logs); the ones that did are not logged here
       if (res.skipped && res.skipped !== "known" && res.skipped !== "own_post") {
