@@ -20,7 +20,7 @@ import { needRoom } from "../../sbrowser/room.ts";
 import { agentInfo } from "../../sbrowser/agentinfo.ts";
 import { faceSvg } from "../../sbrowser/face.ts";
 import { waitingNote } from "../../capacity.ts";
-import { settleMove } from "../../migrate.ts";
+import { moveOf, settleMove } from "../../migrate.ts";
 
 export type ToolArgs = Record<string, unknown>;
 export type ToolAnswer = Record<string, unknown>;
@@ -79,6 +79,13 @@ export function noDesktopLine(tool: string | undefined): string {
     return "You have no desktop computer for these file tools to read. Your Files folder is in Files: use the files tools, or terminal_run to work with it in your workspace.";
   }
   return "You have no desktop computer, and agents no longer get one. You have a terminal in your workspace (terminal_run) and a browser in the Space browser (chrome_open, chrome_snapshot).";
+}
+
+/** What an agent is told when it calls a desktop tool and its older desktop has already moved to its workspace and browser. */
+export function movedDesktopLine(tool: string | undefined): string {
+  return tool !== undefined && tool.startsWith("computer_files_")
+    ? "Your older desktop has moved to your workspace and your browser, so these file tools no longer work. Your Files folder is in Files: use the files tools, or terminal_run to work with it in your workspace."
+    : "Your older desktop has moved to your workspace and your browser, so the screen tools no longer work. To work on a web page use chrome_open, chrome_snapshot and chrome_act. To run commands use terminal_run.";
 }
 
 /** The computer a tool call is for: the one named, else the caller's own (an agent that still has an old desktop). */
@@ -234,6 +241,10 @@ export async function prepare(ctx: CompCtx, computerId: string | undefined, spec
     return { computer: { computerId: profileId, agentId: ctx.principal.id, state: "working" } as unknown as ComputerRow, host: {} as ComputerHost & ToolHost, browser: { profileId } };
   }
   let c = computerFor(ctx, computerId, spec.name);
+  // a desktop whose sign-ins have moved is retired: the screen and file tools tell the agent what to use now (a person removes the desktop)
+  if (computerId === undefined && ctx.principal.kind === "agent" && (spec.name?.startsWith("screen_") || spec.name?.startsWith("computer_files_")) && moveOf(ctx, c.computerId)?.state === "done") {
+    raise(ctx, "validation.not_found", movedDesktopLine(spec.name), { agentId: ctx.principal.id });
+  }
   mayUse(ctx, c);
   // The controls are the person's: the tools wait for an agent, never for the person at the controls (their own click or key through the live view is a tool call as them).
   const atTheControls = ctx.principal.kind === "person" && c.takeoverBy !== undefined && actorOf(ctx) === c.takeoverBy;

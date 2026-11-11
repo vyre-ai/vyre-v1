@@ -1,6 +1,6 @@
 # computers.provision
 
-Give an agent a computer (none unless the agent needs one)
+Make an older-style desktop computer for an agent: a person only, an agent is refused (an agent has a terminal in its workspace and a browser in the Space browser already)
 
 | | |
 |---|---|

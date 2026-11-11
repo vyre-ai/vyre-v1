@@ -1085,7 +1085,7 @@ export const CREATE_AGENT_SKILL = [
   "",
   "Use this when a person asks for a new agent.",
   "",
-  "1. Ask, with ask_question, only what you cannot work out: what the agent is for (the role line), who may chat with it and who may change it, which model, whether it needs its own computer, and what it may touch (tools, Vault key names, limits).",
+  "1. Ask, with ask_question, only what you cannot work out: what the agent is for (the role line), who may chat with it and who may change it, which model, and what it may touch (tools, Vault key names, limits).",
   "2. Do not create anything yet. Propose exactly one plan with plan_propose: the title names the agent, and the steps are what will exist afterwards (the record, the Agents/<name> folder with its files, the role line, the limits).",
   "3. That plan is the one Approve card. Wait for the person to approve it. If they edit a step, follow the edit. If they reject it, stop.",
   "4. After approval call agents.create once with what was approved, then tell the person where the agent lives.",

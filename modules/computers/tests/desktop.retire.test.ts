@@ -7,7 +7,7 @@ import { bindSpaceBrowser } from "../sbrowser/port.ts";
 import type { SpaceBrowser } from "../sbrowser/port.ts";
 import { bindPersonalChrome } from "../projections.ts";
 import { codeOf, DANA, harness } from "../fixtures/harness.ts";
-import { tool } from "./tools.fixture.ts";
+import { tool, world } from "./tools.fixture.ts";
 
 const say = (e: unknown): string => JSON.stringify(e);
 const agentCtx = (id: string) => harness({ principal: { kind: "agent", id }, actingFor: DANA }).ctx;
@@ -71,4 +71,14 @@ test("file tools of the old desktop point an agent with none at Files and its te
       return true;
     });
   } finally { off(); }
+});
+
+test("a desktop whose sign-ins have moved answers screen and file tools with the line that names what to use now; one that has not moved still works", async () => {
+  const w = await world();
+  const agent = w.agent();
+  await tool["computers.screen.screenshot"]!(agent.ctx, {});
+  w.h.db.run("INSERT INTO computers_migration (computer_id, agent_id, state, attempts, at) VALUES (?, ?, 'done', 1, ?)", w.id, "agt_intake", 1);
+  for (const [cap, input, want] of [["computers.screen.screenshot", {}, /screen tools no longer work/], ["computers.files.list", {}, /file tools no longer work/]] as const) {
+    await assert.rejects(() => tool[cap]!(agent.ctx, input), (e) => { assert.equal(codeOf(e), "validation.not_found"); assert.match(say(e), want); assert.match(say(e), /terminal_run/); return true; });
+  }
 });

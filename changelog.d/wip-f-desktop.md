@@ -11,3 +11,4 @@
 - Where an agent's terminal and browser cannot run yet, the Computer tab says what would let this Space run them and, for owners and admins, opens Console > Computers.
 - After an update the server also removes old server images that no kept release uses, not only the agent, workspace and browser ones.
 - A move of an old desktop's sign-ins never overwrites a browser that already holds sign-ins, never starts or copies a desktop that woke meanwhile, waits instead of failing when the Space browser or Docker is not there, and keeps trying once a day after a real failure.
+- A desktop that has moved tells an agent's screen and file calls what to use now. The create-agent instructions, the agent Settings row and the Computer tool description no longer talk about asking for a computer, and outside agents have no "Open Its Computer" item.

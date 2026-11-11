@@ -46,7 +46,7 @@ Requires: chat.
 - [computers.health](../capabilities/computers.health.md): Health of the container runtime and agentd on the host
 - [computers.hosts](../capabilities/computers.hosts.md): The machines an agent computer can run on for you: this computer or the Space server when its container runtime answers, and each server you added that has Docker. Nothing about agent computers is offered until one can run them
 - [computers.list](../capabilities/computers.list.md): List agent computers with state, tabs, disk and last activity
-- [computers.provision](../capabilities/computers.provision.md): Give an agent a computer (none unless the agent needs one)
+- [computers.provision](../capabilities/computers.provision.md): Make an older-style desktop computer for an agent: a person only, an agent is refused (an agent has a terminal in its workspace and a browser in the Space browser already)
 - [computers.record_start](../capabilities/computers.record_start.md): Record while you take over: every click and key with the element, each page, network traffic with secrets masked, and video
 - [computers.record_stop](../capabilities/computers.record_stop.md): Stop recording; the recording is saved in work/recordings/ and one sheet asks what the agent should do with it
 - [computers.recording.delete](../capabilities/computers.recording.delete.md): Delete a recording

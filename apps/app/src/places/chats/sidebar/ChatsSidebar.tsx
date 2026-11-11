@@ -425,7 +425,7 @@ function Sidebar({ window, query, slot, open: shown, startFilter }: { window?: V
     return agentMenu({ name: e.assistant ? data.space.assistant.name : a.name, assistant: e.assistant === true, starred: starred("agent", a.agentId), status: a.status, hasComputer: a.hasComputer, computer: pc, muted: muted("agent", a.agentId), manage: manageAgents }, {
       message: () => { data.nav.openAgentChat(a.agentId); leave(); },
       openProfile: data.nav.openAgent ? () => { data.nav.openAgent?.(a.agentId); leave(); } : undefined,
-      openComputer: pc && data.nav.openSubject ? () => { data.nav.openSubject?.({ type: "computer", id: pc.computerId }); leave(); } : data.nav.openAgent ? () => { data.nav.openAgent?.(a.agentId, "computer"); leave(); } : undefined,
+      openComputer: pc && data.nav.openSubject ? () => { data.nav.openSubject?.({ type: "computer", id: pc.computerId }); leave(); } : data.nav.openAgent && a.runtime !== "outside" ? () => { data.nav.openAgent?.(a.agentId, "computer"); leave(); } : undefined,
       wake: () => { if (pc) again(menuApi.wake(pc.computerId)); readFacts(true); },
       sleep: () => { if (pc) again(menuApi.sleep(pc.computerId)); readFacts(true); },
       pause: () => again(menuApi.pause(a.agentId)),

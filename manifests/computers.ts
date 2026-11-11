@@ -65,7 +65,7 @@ export default defineManifest({
     read('computers.get', 'Read one agent computer: state, caption, tabs, disk and who took over', {
       in: comp, out: { computer: computerRow }, on: ['computer', '/computerId'], perm: 'computers.watch', tool: 'computer', errors: ['validation.not_found'],
     }),
-    create('computers.provision', 'Give an agent a computer (none unless the agent needs one)', {
+    create('computers.provision', 'Make an older-style desktop computer for an agent: a person only, an agent is refused (an agent has a terminal in its workspace and a browser in the Space browser already)', {
       in: { agentId: id.agent, tabLimit: t.opt(t.int({ minimum: 1, maximum: 50 })), nodeId: t.opt(t.str({ description: 'Run it on a computer that joined the Space instead of the Space server' })) }, out: { computer: computerRow }, perm: 'computers.use', level: 'manage',
       emits: ['computer.provisioned'], tool: 'computer', audit: 'sensitive', errors: ['provider.unavailable', 'validation.duplicate'],
     }),
@@ -340,7 +340,7 @@ export default defineManifest({
       slot: 'side',
       q: { computer: ['computers.get', { computerId: '/state/computerId' }, true], sessions: ['computers.sessions.list', { computerId: '/state/computerId' }, true] },
       a: { wake: ['computers.wake', { computerId: '/state/computerId' }] },
-      empty: 'This agent has no desktop computer', primary: 'Wake', needs: ['computers.watch'],
+      empty: 'This agent has no desktop computer', primary: 'Close', needs: ['computers.watch'],
     }),
     screen('chats.recording-sheet', 'chats', 'ui:RecordingSheet', {
       slot: 'sheet',
