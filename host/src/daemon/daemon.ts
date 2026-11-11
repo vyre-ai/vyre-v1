@@ -174,7 +174,7 @@ import type { PushTransportDeps, SeamDeps, SeamDriver, SeamSetters, VaultPort, W
 import { createLiveHub } from "../ws.ts";
 import type { LiveHub, SyncHubPort } from "../ws.ts";
 import { bootstrapSpace, mintOwner } from "./bootstrap.ts";
-import { createAccess, isAccessEvent, isMemberOrGuest, toAccessEvent, touchesAccess } from "./access.ts";
+import { accessBatch, createAccess, isAccessEvent, isMemberOrGuest, toAccessEvent, touchesAccess } from "./access.ts";
 import { ADMIN_DEVICE, createSessionResolver, issueSessionToken, sessionLive } from "./session.ts";
 import { createResourceRegistrar, missingAgentResources } from "../gateway/resources.ts";
 import { createPrincipalRegistrar, lowAgentUpgradeEvents, missingAgentHomeEvents, missingAgentPrincipalEvents, ownPlaceGrant } from "../gateway/principals.ts";
@@ -801,6 +801,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   // Ruling 70: authorize answers from the access module's snapshot. The log's access events wait here until the module has folded them; `syncAccess` (set once the hooks run)
   // hands them over, adopts the snapshot it answers and runs after every commit that may have changed access, so the next call already sees a join, a role change, a share or a removal.
   let accessPending: { seq: number; type: string; payload: unknown }[] = [];
+  /** The last log seq the access module has been handed (in order) and folded; the next sync reads the log after it. Set after the boot read, which hands the log over up to it. */
+  let accessFedTo = 0;
   let syncAccess: (force?: boolean) => Promise<void> = async () => {};
   let accessStale = false, kicking = false, noAccessModule = false;
   /** Agents born Guest (their maker was not yet active in the snapshot) become Member agents once the maker may edit the Space (see lowAgentUpgradeEvents). Runs after each access sync and at boot. */
@@ -885,6 +887,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           if (isAccessEvent(e.type)) accessPending.push(toAccessEvent(e));
           if (e.type === "space.created") { sawSpace = true; if (e.id.startsWith("evt_boot_")) hostMadeSpace = true; }
         }
+        if (page.length > 0) accessFedTo = page[page.length - 1]!.seq;
         if (page.length < 5000) break;
         after = page[page.length - 1]!.seq;
       }
@@ -1370,15 +1373,17 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       let syncChain: Promise<void> = Promise.resolve();
       const runSync = async (force?: boolean): Promise<void> => {
         if (noAccessModule) return;
-        const events = accessPending;
-        if (!events.length && !force && access.adopted() && !accessStale) return;
+        if (!accessPending.length && !force && access.adopted() && !accessStale) return;
+        // in the log's order, read from the log (accessBatch): pushes only say there is something new
+        const batch = await accessBatch({ held: accessPending, fedTo: accessFedTo, booted: access.adopted(), read: (after, limit) => log!.read({ after, limit }) });
+        const events = batch.events;
         accessPending = [];
         const attempt = async (): Promise<void> => { access.adopt((await hookRunner.call("access.sync", { events })) as AccessSnapshot); };
         try { await attempt(); } catch (first) {
           // the seed-shaped fold answers only when the access module is not loaded at all; with access live, a missing access.sync is a failure and fails closed below
           if (first instanceof Error && first.message.startsWith("no host call named access.sync") && loaded.serving.get("access") !== "live") { noAccessModule = true; return; }
           try { await attempt(); } catch (e) {
-            accessPending = [...events, ...accessPending];   // the module could not take them: keep them for the next pass
+            accessPending = [...batch.boot, ...accessPending];   // the module could not take them: the boot replay and the host's own objects are kept, the log is read again from accessFedTo
             const error = e instanceof Error ? e.message : String(e);
             sink.log({ space: spaceId, level: 50, msg: "access.sync_failed", place: "boot", attrs: { error, stale: access.adopted() } });
             if (!access.adopted()) throw e;   // a Space that never had the module's snapshot cannot answer
@@ -1387,6 +1392,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
             return;
           }
         }
+        accessFedTo = batch.upTo;
         accessStale = false;
       };
       const syncOnce = (force?: boolean): Promise<void> => { const run = syncChain.then(() => runSync(force), () => runSync(force)); syncChain = run.then(() => undefined, () => undefined); return run; };

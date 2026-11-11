@@ -86,3 +86,30 @@ export function isMemberOrGuest(snap: AccessSnapshot, principalId: string): bool
   for (const g of snap.allGrantRecs()) if (me.keys.has(g.key)) return true;
   return false;
 }
+
+/**
+ * What the next access.sync folds, in the order of the log (issue #905 review, finding 1). The access store keeps a cursor, the highest seq it folded, and skips anything at or below it, so it
+ * must be handed events in seq order across calls, not only within one. Events used to be handed over in the order their appends returned, and two appends in flight could return out of order:
+ * a suspension at seq 41 handed over after a new record at seq 42 was skipped for good, also after a restart.
+ * The log is the order: one writer commits, a seq is given at commit, and a read sees every commit before it, so an event can never appear in the log below one already read. So the events
+ * after `fedTo` are read from the log itself; what was pushed is only the signal that there is something to read. Kept from what was pushed: the boot replay (at or below `fedTo`, already read
+ * from the log in order) and the host's own boot-time objects (seq -1, never in the log), which go last. `upTo` is the last seq read: the next batch starts after it, once this one is folded.
+ */
+export async function accessBatch(o: {
+  held: readonly { seq: number; type: string; payload: unknown }[];
+  fedTo: number;
+  /** A sync has been folded since the start: from then on nothing at or below `fedTo` is new, so a push of one is dropped (the store would skip it anyway). Before it, those are the boot replay. */
+  booted: boolean;
+  read(after: number, limit: number): Promise<readonly { seq: number; type: string; payload: unknown; enc?: number }[]>;
+}): Promise<{ events: { seq: number; type: string; payload: unknown }[]; upTo: number; boot: { seq: number; type: string; payload: unknown }[] }> {
+  const boot = o.held.filter((e) => e.seq < 0 || (!o.booted && e.seq <= o.fedTo));
+  const fromLog: { seq: number; type: string; payload: unknown }[] = [];
+  let upTo = o.fedTo;
+  for (;;) {
+    const page = await o.read(upTo, 2000);
+    for (const e of page) { upTo = e.seq; if (isAccessEvent(e.type)) fromLog.push(toAccessEvent(e)); }
+    if (page.length < 2000) break;
+  }
+  const replay = boot.filter((e) => e.seq >= 0).sort((a, b) => a.seq - b.seq), own = boot.filter((e) => e.seq < 0);
+  return { events: [...replay, ...fromLog, ...own], upTo, boot };
+}

@@ -61,7 +61,10 @@ function seededGrant(store: AccessStore, p: Record<string, unknown>, at: number)
   };
 }
 
-/** Move the store by one event. True when something changed. */
+/**
+ * Move the store by one event. True when something changed. Rule: a record (role, group, principal, grant, resource) is replaced, never edited in place. The store access.sync keeps lives as
+ * long as the snapshot built from it, which holds some of its objects by reference, and its records are frozen (projections.ts sealStore), so an edit in place would throw.
+ */
 export function applyEvent(store: AccessStore, e: LogEvent, at: number, grantAt: number = at): boolean {
   const p = rec(e.payload);
   switch (e.type) {
@@ -166,6 +169,9 @@ function apply(db: Db, at: number, store: AccessStore, events: readonly LogEvent
   const touched = new Set<string>();
   for (const e of events) {
     if (e.seq >= 0 && e.seq <= cursor) continue;
+    // a boot-time registration (seq -1: the host's record types at every start) makes a resource that is missing and never changes one that exists: its label, owner, parent and
+    // audience are whatever was set since, and the same event at every start reset them (review finding 5)
+    if (e.seq < 0 && e.type === "resource.created" && store.resources.has(str(rec(e.payload)["id"]) ?? "")) continue;
     if (applyEvent(store, e, at, grantAt)) {
       changed = true;
       if (e.type === "resource.created") { const id = str(rec(e.payload)["id"]); if (id) touched.add(id); } else onlyResources = false;
@@ -190,6 +196,14 @@ interface Synced { store: AccessStore; snap: AccessSnapshot; rows: Map<string, R
 const SYNCED = new WeakMap<object, Synced>();
 /** How access.sync answered (tests read it): from the tables, by building the snapshot again from a kept store, or by changing the kept snapshot in place. */
 export const syncCounts = { hydrated: 0, rebuilt: 0, inPlace: 0 };
+
+/** The tables migration 0006 gives a counter trigger. The sync counts its own writes against the counter, so a write to any other table would count a change no trigger saw. */
+export const TRIGGERED: ReadonlySet<string> = new Set(["access_meta", "access_roles", "access_role_changes", "access_groups", "access_principals", "access_assignments", "access_grants", "access_resources", "access_policies", "access_actors", "access_fields", "access_local_cursor"]);
+/** Refuse a statement of the sync that is not one row change on a triggered table (review finding 2). */
+export function mustBeTriggered(sql: string): void {
+  const m = /^\s*(?:INSERT(?:\s+OR\s+\w+)?\s+INTO|DELETE\s+FROM|UPDATE(?:\s+OR\s+\w+)?)\s+"?([A-Za-z0-9_]+)"?/i.exec(sql);
+  if (!m || !TRIGGERED.has(m[1]!)) throw new Error(`access.sync may write only the tables the write counter watches: ${sql.slice(0, 80)}`);
+}
 
 /** The tables' write counter, or null where migration 0006 has not run (no counter: nothing is kept). */
 function stampOf(db: Db): number | null {
@@ -218,13 +232,14 @@ function syncKept(ctx: AccessCtx, key: object, events: readonly LogEvent[]): Acc
     let writes = 0;
     const db: Db = {
       all: (sql, ...args) => ctx.db.all(sql, ...args),
-      run: (sql, ...args) => { const r = ctx.db.run(sql, ...args); writes += r.changes; return r; },
+      run: (sql, ...args) => { mustBeTriggered(sql); const r = ctx.db.run(sql, ...args); writes += r.changes; return r; },
     };
     const before = stampOf(ctx.db);
     let kept = SYNCED.get(key);
     if (kept && kept.stamp !== before) kept = undefined;
     SYNCED.delete(key);   // put back only once this call has written everything and checked the counter
-    const store = kept?.store ?? sealStore(loadStore(db));
+    let complete = true;
+    const store = kept?.store ?? sealStore(loadStore(db, (ok) => { complete = ok; }));
     if (!kept) syncCounts.hydrated++;
     const { touched, rebuild } = apply(db, ctx.now(), store, events, 1);
     let out: { snap: AccessSnapshot; rows: Map<string, ResourceRec> };
@@ -248,7 +263,8 @@ function syncKept(ctx: AccessCtx, key: object, events: readonly LogEvent[]): Acc
     }
     // every row write fires one counter step (the triggers are AFTER ... FOR EACH ROW; a write's `changes` counts the same rows), so anything else that wrote meanwhile shows as a difference
     const after = stampOf(ctx.db);
-    if (before !== null && after !== null && after === before + writes) SYNCED.set(key, { store, snap: out.snap, rows: out.rows, stamp: after, plain });
+    // a seed whose write failed holds what the tables do not (review finding 3): answered once, never kept
+    if (complete && before !== null && after !== null && after === before + writes) SYNCED.set(key, { store, snap: out.snap, rows: out.rows, stamp: after, plain });
     return out.snap;
   });
 }

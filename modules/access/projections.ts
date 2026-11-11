@@ -304,7 +304,7 @@ export class AccessStore {
     const snap = new AccessSnapshot();
     snap.labelNames = ["Public", "Internal", "Confidential", "Restricted"];
     for (const r of this.roles.values()) {
-      snap.putRole({ id: r.id, clearance: labelRank(r.clearance), perms: r.permissions, name: r.name, assignableToAgents: r.assignableToAgents });
+      snap.putRole({ id: r.id, clearance: labelRank(r.clearance), perms: [...r.permissions], name: r.name, assignableToAgents: r.assignableToAgents });
     }
     snap.putRole({ id: "rol_engineer_mcp", clearance: 0, perms: ["engineer.mcp"], name: "Engineer MCP" });
     for (const p of this.principals.values()) {
@@ -624,9 +624,10 @@ export function rowOfResource(r: ResourceRec | undefined): Record<string, unknow
 function kernelGrant(g: GrantRec): GrantRow {
   const c = g.conditions;
   const conditions: NonNullable<GrantRow["conditions"]> = {};
-  if (isExpr(c.rowFilter)) conditions.rowFilter = c.rowFilter;
+  // copies, not the store's own objects: the snapshot must not change if a store record ever did (review finding 4)
+  if (isExpr(c.rowFilter)) conditions.rowFilter = structuredClone(c.rowFilter);
   if (c.labelCeiling !== undefined) conditions.labelCeiling = labelRank(c.labelCeiling);
-  if (c.hiddenFields?.length) conditions.hiddenFields = c.hiddenFields;
+  if (c.hiddenFields?.length) conditions.hiddenFields = [...c.hiddenFields];
   if (c.window) { conditions.notBefore = c.window.from; conditions.notAfter = c.window.to; }
   if (c.export) conditions.export = true;
   if (c.reshare) conditions.reshare = true;
@@ -642,7 +643,7 @@ function kernelGrant(g: GrantRec): GrantRow {
     by: g.by,
   };
   if (g.source?.startsWith(THROUGH_AGENT)) row.source = g.source;
-  if (c.exception) row.exception = { perms: c.exception.perms, effect: c.exception.effect, ...(c.exception.own ? { own: c.exception.own } : {}) };
+  if (c.exception) row.exception = { perms: [...c.exception.perms], effect: c.exception.effect, ...(c.exception.own ? { own: [...c.exception.own] } : {}) };
   return row;
 }
 
@@ -661,7 +662,7 @@ export function storeOf(ctx: AccessCtx): AccessStore {
 }
 
 /** A store read from the tables; a Space whose tables are empty gets the built-in roles and policies, written at once. */
-export function loadStore(db: Db): AccessStore {
+export function loadStore(db: Db, written?: (ok: boolean) => void): AccessStore {
   const s = new AccessStore();
   let rows: unknown[] = [];
   try { rows = db.all("SELECT * FROM access_roles"); } catch { rows = []; }
@@ -669,7 +670,8 @@ export function loadStore(db: Db): AccessStore {
   else {
     try { db.all("SELECT id FROM access_local_cursor LIMIT 1"); s.localCursor = true; } catch { /* a Space from before migration 0004 */ }
     s.seed();
-    try { s.persist(db); } catch { /* a db that cannot take the tables still serves the memory snapshot */ }
+    // a db that cannot take the tables still serves the memory snapshot; `written` says the seed did not reach them, so nobody keeps this store as if it had
+    try { s.persist(db); } catch { written?.(false); }
   }
   return s;
 }
