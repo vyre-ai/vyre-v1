@@ -164,7 +164,7 @@ export function ensure(db: Db): void {
   try { db.all("SELECT site FROM computers_sessions WHERE computer_id = ?", "probe"); } catch { for (const stmt of SCHEMA) db.run(stmt); }
   try { db.all("SELECT claim_key FROM computers_claim WHERE claim_key = ?", "probe"); } catch { for (const stmt of CLAIMS) db.run(stmt); }
   try { db.all("SELECT computer_id FROM computers_migration WHERE computer_id = ?", "probe"); } catch { for (const stmt of MIGRATION) db.run(stmt); }
-  try { db.all("SELECT profile_id FROM computers_browser_hold WHERE profile_id = ?", "probe"); } catch { for (const stmt of HOLD) db.run(stmt); }
+  try { db.all("SELECT profile_id FROM computers_browser_gone WHERE profile_id = ?", "probe"); } catch { for (const stmt of HOLD) db.run(stmt); }
   ready.add(db);
 }
 

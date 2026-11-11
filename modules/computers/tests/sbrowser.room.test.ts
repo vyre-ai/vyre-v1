@@ -140,25 +140,39 @@ test("the live view and sign out start a browser only with room on the host, wit
   } finally { bindSpaceBrowser(null); resetRoom(); }
 });
 
-// Audit bug 7 (12 Nov): SpaceBrowser.forget had no caller, so a deleted agent's cookies and sign-ins stayed in its profile.
-test("a deleted agent's browser profile is removed with its hold and its room; a person's Assistant that goes when they leave is the same event", async () => {
+// Audit bug 7 and review point 8 (12 Nov): SpaceBrowser.forget had no caller; then it removed the profile at once, though agent.deleted means "moved to Trash" and agents.restore exists.
+test("an agent moved to Trash keeps its browser sign-ins while it can be restored; one restored keeps them; one left in Trash past its retention has its profile removed", async () => {
   const forgot: string[] = [];
+  const stopped: string[] = [];
   const { calls } = sbrowser();
   const { spaceBrowser } = await import("../sbrowser/port.ts");
   spaceBrowser()!.forget = async (id) => { forgot.push(id); };
+  spaceBrowser()!.stop = async (id) => { stopped.push(id); };
   const h = harness();
-  h.db.run("INSERT INTO computers_claim (claim_key, kind, host, state, since, note) VALUES ('agt_gone', 'browser', 'space', 'running', ?, NULL)", h.clock.t);
-  h.db.run("INSERT INTO computers_browser_hold (profile_id, person_id, since, seen) VALUES ('agt_gone', ?, ?, ?)", DANA, h.clock.t, h.clock.t);
+  for (const id of ["agt_gone", "agt_back"]) {
+    h.db.run("INSERT INTO computers_claim (claim_key, kind, host, state, since, note) VALUES (?, 'browser', 'space', 'running', ?, NULL)", id, h.clock.t);
+    h.db.run("INSERT INTO computers_browser_hold (profile_id, person_id, since, seen) VALUES (?, ?, ?, ?)", id, DANA, h.clock.t, h.clock.t);
+  }
   try {
-    const { consumers } = await import("../impl.ts") as { consumers?: Record<string, { on: string[]; run: (ctx: unknown, e: unknown) => Promise<unknown> }> };
-    const c = Object.values(consumers ?? {}).find((x) => x.on.includes("agent.deleted"));
-    assert.ok(c, "something hears agent.deleted");
+    const { consumers, periodic } = await import("../impl.ts") as { consumers: Record<string, { on: string[]; run: (ctx: unknown, e: unknown) => Promise<unknown> }>; periodic: Record<string, { run: (ctx: unknown) => Promise<void> }> };
+    const c = Object.values(consumers).find((x) => x.on.includes("agent.deleted"))!;
+    assert.ok(c.on.includes("agent.restored"), "it hears an agent coming back from Trash too");
     await c.run(h.ctx, { name: "agent.deleted", payload: { agentId: "agt_gone", by: DANA } });
-    assert.deepEqual(forgot, ["agt_gone"], "the profile's folder is removed");
-    assert.equal(h.rows("SELECT COUNT(*) AS n FROM computers_claim")[0]?.["n"], 0);
-    assert.equal(h.rows("SELECT COUNT(*) AS n FROM computers_browser_hold")[0]?.["n"], 0);
+    await c.run(h.ctx, { name: "agent.deleted", payload: { agentId: "agt_back", by: DANA } });
+    assert.deepEqual(forgot, [], "nothing is removed while the agents can be restored");
+    assert.deepEqual(stopped.sort(), ["agt_back", "agt_gone"], "their browsers stop");
+    assert.equal(h.rows("SELECT COUNT(*) AS n FROM computers_claim")[0]?.["n"], 0, "and let go of their room");
+    assert.equal(h.rows("SELECT COUNT(*) AS n FROM computers_browser_hold")[0]?.["n"], 0, "and of any hold");
+    await c.run(h.ctx, { name: "agent.restored", payload: { agentId: "agt_back", by: DANA } });
+    h.advance(29 * 86_400_000);
+    await periodic["computers.browser_room"]!.run(h.ctx);
+    assert.deepEqual(forgot, [], "29 days in Trash: kept");
+    h.advance(2 * 86_400_000);
+    await periodic["computers.browser_room"]!.run(h.ctx);
+    assert.deepEqual(forgot, ["agt_gone"], "past Trash's 30 days: removed; the restored agent keeps its profile");
+    await periodic["computers.browser_room"]!.run(h.ctx);
+    assert.deepEqual(forgot, ["agt_gone"], "once");
     await c.run(h.ctx, { name: "agent.deleted", payload: { agentId: "../etc" } });
-    assert.deepEqual(forgot, ["agt_gone"], "an id that is not a profile names nothing");
     assert.deepEqual(calls, []);
   } finally { bindSpaceBrowser(null); }
 });

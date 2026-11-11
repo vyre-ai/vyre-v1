@@ -6,3 +6,8 @@ CREATE TABLE IF NOT EXISTS computers_browser_hold (
   since INTEGER NOT NULL,
   seen INTEGER NOT NULL
 );
+-- An agent moved to Trash (agent.deleted): its Space browser profile keeps its sign-ins while it can still be restored, and is removed once it has been in Trash as long as Trash keeps things (sbrowser/forget.ts).
+CREATE TABLE IF NOT EXISTS computers_browser_gone (
+  profile_id TEXT PRIMARY KEY,
+  deleted_at INTEGER NOT NULL
+);
