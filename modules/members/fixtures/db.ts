@@ -413,7 +413,7 @@ export function harness(now = NOW) {
         if (inv === "invalid") throw fail("auth.invalid_code", TRACE, {});
         if (inv === "expired") throw fail("auth.expired", TRACE, {});
         const id = `usr_${String(i.username)}`;
-        person(id, i.displayName ?? i.username, []);
+        person(id, i.displayName ?? i.username, []).groups = [];   // a new person is in no group until the join's group steps put them in (Everyone is one of those steps)
         seam.accept(inv.inviteId, id);
         events.push({ name: "principal.created", subject: id, payload: { principalId: id, kind: "person" } });
         events.push({ name: "member.joined", subject: id, payload: { personId: id, inviteId: inv.inviteId, role: inv.role, invitedBy: inv.invitedBy } });

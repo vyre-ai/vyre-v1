@@ -4,7 +4,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { handlers } from "../impl.ts";
 import { consumers, drainJoins } from "../impl.ts";
-import { harness, KEYS } from "../fixtures/db.ts";
+import { harness, KEYS, NOW } from "../fixtures/db.ts";
 
 const JOIN = { username: "dana", displayName: "Dana", password: "a long enough password", deviceName: "Dana's Mac", deviceClass: "desktop" as const, keys: KEYS };
 const codeFrom = (link: string): string => decodeURIComponent(new URL(link).pathname.split("/").pop()!);
@@ -41,15 +41,18 @@ const cases: Array<{ name: string; extra: Record<string, unknown>; failing: stri
     gone: (h) => sh(h).project === "guest",
   },
   {
-    name: "a role, when the admin gave the person another role",
+    name: "a role, when an admin changed roles after the invite (access keeps no per-person trace, so any change by a person counts)",
     extra: { role: "rol_admin" }, failing: "access.roles.assign:rol_admin", step: "role:rol_admin",
-    change: (h) => { h.world.principals.get(DANA)!.roles = ["rol_guest"]; },
+    change: async (h) => {
+      h.world.principals.get(DANA)!.roles = ["rol_guest"];
+      await consumers["members.access_seen"].run(h.anon as never, { payload: { what: "assignment", by: "usr_admin" }, actor: "usr_admin", at: NOW + 1_000 });
+    },
     gone: (h) => !sh(h).roles.includes("rol_admin"),
   },
   {
-    name: "a group, when the admin changed the groups the person is in",
+    name: "a group the admin put the person in and took them out of again (no trace left in the groups, only the change's time)",
     extra: { groups: ["grp_sales"] }, failing: "access.groups.add_member:grp_sales", step: "group:grp_sales",
-    change: (h) => { h.world.principals.get(DANA)!.groups.push("grp_other"); h.world.principals.get(DANA)!.groups = h.world.principals.get(DANA)!.groups.filter((g) => g !== "grp_sales"); },
+    change: async (h) => { await consumers["members.access_seen"].run(h.anon as never, { payload: { what: "membership", by: "usr_admin" }, actor: "usr_admin", at: NOW + 1_000 }); },
     gone: (h) => !sh(h).groups.includes("grp_sales"),
   },
 ];
@@ -62,10 +65,43 @@ for (const c of cases) {
     await c.change(h);
     await drainJoins(h.anon, undefined, { periodic: true });
     assert.ok(c.gone(h), `the admin's change stands: ${JSON.stringify(sh(h))}`);
-    assert.equal(stepOf(h, c.step).state, "done");
-    assert.ok(stepOf(h, c.step).dropped, "the step is closed as dropped, not as given");
+    // never silent: the step stays among the failed ones admins see, as needing them, and member.join_stuck says so once
+    assert.ok(stepOf(h, c.step).dropped, "the step was not given");
+    const listed = (await handlers["members.joins.list"](h.as("usr_admin"), {})).joins.find((x: { personId: string }) => x.personId === DANA);
+    assert.match(listed?.steps.find((x: { key: string }) => x.key === c.step)?.error ?? "", /changed this after they joined/, "admins see it as needing them");
+    assert.equal(h.events.filter((e) => e.name === "member.join_stuck" && (e.payload as { step: string }).step === c.step).length, 1, "member.join_stuck says so once");
+    await drainJoins(h.anon, undefined, { periodic: true });
+    assert.ok(c.gone(h), "a later pass does not give it either");
+    assert.equal(h.events.filter((e) => e.name === "member.join_stuck" && (e.payload as { step: string }).step === c.step).length, 1, "and does not say it again");
   });
 }
+
+test("one group step that failed is given on retry even though another group step of the same join worked meanwhile (Everyone is never lost)", async () => {
+  const h = harness();
+  await joinWithFailing(h, { groups: ["grp_sales"] }, "access.groups.add_member:grp_everyone");
+  assert.equal(stepOf(h, "group:grp_everyone").state, "failed");
+  assert.ok(sh(h).groups.includes("grp_sales"), "the other group step worked in the same pass");
+  await drainJoins(h.anon, undefined, { periodic: true });
+  assert.ok(sh(h).groups.includes("grp_everyone"), "Everyone is given");
+  assert.equal(stepOf(h, "group:grp_everyone").state, "done");
+  assert.equal(stepOf(h, "group:grp_everyone").dropped, undefined);
+});
+
+test("a step whose state could not be read when it failed is never given unchecked: it waits for an admin, said plainly", async () => {
+  const h = harness();
+  const out = await handlers["members.invites.create"](h.as("usr_admin"), { role: "rol_member", channels: ["chn_a"], idempotencyKey: "k-unread" });
+  h.world.failing.add("channels.members.add");
+  h.world.failing.add("channels.get");
+  await handlers["members.accept"](h.anon, { code: codeFrom(out.link), ...JOIN });
+  h.world.failing.clear();
+  await drainJoins(h.anon, undefined, { periodic: true });
+  assert.deepEqual(sh(h).channel, [], "not given");
+  assert.ok(stepOf(h, "channel:chn_a").dropped);
+  assert.equal(h.events.filter((e) => e.name === "member.join_stuck").length, 1);
+  h.world.channelMembers.set("chn_a", new Set([DANA]));   // an admin gives it by hand
+  await drainJoins(h.anon, undefined, { periodic: true });
+  assert.equal(stepOf(h, "channel:chn_a").state, "done", "it closes once the person holds it");
+});
 
 test("a retry gives nothing to a person who was removed, and waits while they are suspended; a step nobody touched still runs", async () => {
   const h = harness();
@@ -84,4 +120,5 @@ test("a retry gives nothing to a person who was removed, and waits while they ar
   await drainJoins(g.anon, undefined, { periodic: true });
   assert.deepEqual(sh(g).channel, [], "a removed person is given nothing");
   assert.ok(stepOf(g, "channel:chn_a").dropped);
+  assert.equal(stepOf(g, "channel:chn_a").state, "done", "a removed person's steps close");
 });

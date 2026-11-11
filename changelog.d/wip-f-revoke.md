@@ -8,3 +8,4 @@
 - Your own computer's link to the Space, and any live view of a computer or browser you opened, close the moment you sign out, are suspended or removed.
 - Signing out now works on a session older than 30 days.
 - Removing someone from a project, or lowering their role, now also takes them out of the project's channel whoever does it, and says so plainly if that cannot be done; a remove pressed right after an add is no longer lost.
+- A join step that has to wait for an admin is now shown to admins as needing them, with the reason, instead of being dropped quietly; a failed Everyone or group step is no longer lost because another group step worked.
