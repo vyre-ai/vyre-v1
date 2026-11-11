@@ -145,7 +145,8 @@ test("real Docker: a restart while asleep heals, the sweep sees scripts and back
 
   // ---- 11: the shared network keeps workspaces apart; each still reaches out (a listener on this host stands for the outside: a test never reaches a real outside service)
   const B = `agtheal${Math.random().toString(36).slice(2, 8)}`;
-  t.after(async () => { await docker(["rm", "-f", workspaceName(B)], 60_000); await docker(["volume", "rm", "-f", `${workspaceName(B)}-home`, `${workspaceName(B)}-files`], 60_000); });
+  // the project volumes go last, once no workspace mounts them (the first cleanup ran while this one still did)
+  t.after(async () => { await docker(["rm", "-f", workspaceName(B), NAME], 60_000); await docker(["volume", "rm", "-f", `${workspaceName(B)}-home`, `${workspaceName(B)}-files`, `vyre-wsproj-${P1}`, `vyre-wsproj-${P2}`], 60_000); });
   assert.equal((await m.exec(B, ["sh", "-c", "nohup python3 -m http.server 8099 --bind 0.0.0.0 >/dev/null 2>&1 &"])).code, 0);
   const ipOf = async (name: string): Promise<string> => (await docker(["inspect", "-f", "{{(index .NetworkSettings.Networks \"vyre-workspaces\").IPAddress}}", name], 30_000)).out.trim().split("\n")[0] ?? "";
   const ipB = await ipOf(workspaceName(B));
