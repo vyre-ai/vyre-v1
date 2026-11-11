@@ -25,6 +25,9 @@ test("vyred boots on the seeded Space from modules.json, answers example.echo wi
     assert.equal(info?.pid, process.pid);
     assert.equal(fs.statSync(d.paths.adminToken).mode & 0o777, 0o600, "the admin token is owner-only");
 
+    // the work the start leaves running after it serves (the seeded people's Personal calendars) writes events of its own: the head below is read once it is done
+    await d.startupWork();
+
     // /healthz is public and carries no secret
     const hz = await fetch(`${d.url}/healthz`);
     assert.equal(hz.status, 200);

@@ -38,6 +38,12 @@ test("every person gets one private Personal calendar: owner, new member, existi
     return { status: r.status, body: text ? JSON.parse(text) as Json : {} };
   };
   const device = (name: string) => ({ deviceName: name, deviceClass: "desktop" });
+  /** The start pass runs after the daemon serves, so a read right after boot waits (up to 5 s) for the person's Personal calendar. */
+  const waitPersonal = async (token: string, want: number): Promise<number> => {
+    let n = -1;
+    for (let i = 0; i < 50 && n !== want; i++) { n = (await calendarsOf(token)).filter((c) => c.personal).length; if (n !== want) await new Promise((r) => setTimeout(r, 100)); }
+    return n;
+  };
   const calendarsOf = async (token: string, scope: "mine" | "all" = "all"): Promise<{ id: string; personal: boolean; title: string }[]> => {
     const r = await post(token, "/v1/calendar/list_calendars", { scope });
     assert.equal(r.status, 200, JSON.stringify(r.body));
@@ -49,8 +55,8 @@ test("every person gets one private Personal calendar: owner, new member, existi
     const claimed = await post(null, "/v1/identity/claim_owner", { code, spaceId: "spc_pcal", username: "olivia", displayName: "Olivia", password: PASSWORD, ...device("Mac"), keys: KEYS });
     assert.equal(claimed.status, 200, JSON.stringify(claimed.body));
     const owner = (await post(null, "/v1/identity/sign_in", { username: "olivia", password: PASSWORD, ...device("Laptop") })).body.data.session.token as string;
+    assert.equal(await waitPersonal(owner, 1), 1, "the owner has exactly one Personal calendar after the claim");
     const ownerPersonal = (await calendarsOf(owner)).filter((c) => c.personal);
-    assert.equal(ownerPersonal.length, 1, "the owner has exactly one Personal calendar after the claim");
 
     // a member joins with nothing connected: a Personal calendar is there at once and an event on it is kept
     const invite = await post(owner, "/v1/members/invites/create", { role: "rol_member", idempotencyKey: "pcal-invite" });
@@ -77,18 +83,32 @@ test("every person gets one private Personal calendar: owner, new member, existi
     // a restart makes no second calendar for anyone
     await d.stop();
     d = await boot();
-    assert.equal((await calendarsOf(owner)).filter((c) => c.personal).length, 1, "a restart leaves the owner with one");
-    assert.equal((await calendarsOf(maya)).filter((c) => c.personal).length, 1, "a restart leaves the member with one");
+    assert.equal(await waitPersonal(owner, 1), 1, "a restart leaves the owner with one");
+    assert.equal(await waitPersonal(maya, 1), 1, "a restart leaves the member with one");
+    await new Promise((r) => setTimeout(r, 1000));
+    assert.equal((await calendarsOf(owner)).filter((c) => c.personal).length, 1, "and no second one is made later");
 
     // a person who joined before this rule has none: the start makes theirs, and nothing else of theirs is touched
     d.db!.run(`DELETE FROM calendar_list WHERE "ownerId" = ?`, joined.body.data.personId);
     assert.equal((await calendarsOf(maya)).filter((c) => c.personal).length, 0, "(set up) the member has none");
     await d.stop();
     d = await boot();
+    const atStart = (d.db!.all(`SELECT count(*) AS n FROM calendar_list WHERE "ownerId" = ? AND personal = 1`, joined.body.data.personId)[0] as { n: number }).n;
+    assert.equal(atStart, 0, "the daemon was already serving before the pass made the calendar: the start does not wait for it");
+    assert.equal(await waitPersonal(maya, 1), 1, "the start gave the member a Personal calendar, after the daemon was serving");
     const after = (await calendarsOf(maya)).filter((c) => c.personal);
-    assert.equal(after.length, 1, "the start gave the member a Personal calendar");
     const again = await post(maya, "/v1/calendar/create_event", { idempotencyKey: "pcal-maya-event-2", calendarId: after[0]!.id, title: "After the start", startsAt: when, endsAt: when + 3_600_000 });
     assert.equal(again.status, 200, JSON.stringify(again.body));
     assert.equal((await calendarsOf(owner)).filter((c) => c.personal).length, 1, "the owner still has exactly one");
+
+    // a person who deletes their Personal calendar on purpose does not get it back: not now, not at the next start
+    const gone = await post(maya, "/v1/calendar/delete_calendar", { calendarId: after[0]!.id });
+    assert.equal(gone.status, 200, JSON.stringify(gone.body));
+    assert.equal((await calendarsOf(maya)).filter((c) => c.personal).length, 0, "the deleted calendar is gone");
+    await d.stop();
+    d = await boot();
+    await new Promise((r) => setTimeout(r, 1500));   // longer than the start pass takes on this Space
+    assert.equal((await calendarsOf(maya)).filter((c) => c.personal).length, 0, "a restart does not bring a deleted Personal calendar back");
+    assert.equal((await calendarsOf(owner)).filter((c) => c.personal).length, 1, "and the owner still has theirs");
   } finally { await d.stop(); }
 });

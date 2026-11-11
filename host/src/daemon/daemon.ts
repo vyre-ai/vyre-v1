@@ -377,6 +377,8 @@ export interface DaemonOptions {
 }
 
 export interface Daemon {
+  /** Resolves when the work the start leaves running after the daemon serves has finished (today: the Personal calendars of people who have none). Tests that read the log head wait for it. */
+  startupWork(): Promise<void>;
   url: string;
   /** the one-time link the owner of a fresh Space opens to claim it (ruling 71); null once claimed or when this host did not make the Space */
   claim: { url: string; expiresAt: number } | null;
@@ -804,6 +806,9 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   let claimIssue: () => Promise<{ code: string; expiresAt: number } | null> = async () => null;
   /** Ruling 86: every person has one local Personal calendar, made through calendar.create_calendar in the pipeline as that person so the calendar resource registers in the same commit. Set once the pipeline exists; a no-op before. */
   let ensurePersonalCalendar: (person: string) => Promise<void> = async () => {};
+  /** Starts the pass that gives everyone who has none their Personal calendar; set with ensurePersonalCalendar, run once the daemon serves (never holds the start up). */
+  let startPersonalCalendars: () => void = () => {};
+  let startupWork: () => Promise<void> = async () => {};
   const access = createAccess();
   // Ruling 70: authorize answers from the access module's snapshot. The log's access events wait here until the module has folded them; `syncAccess` (set once the hooks run)
   // hands them over, adopts the snapshot it answers and runs after every commit that may have changed access, so the next call already sees a join, a role change, a share or a removal.
@@ -1419,6 +1424,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
             const mine = await invoke("calendar.list_calendars", { scope: "mine" }, as);
             const calendars = (mine.status === "ok" ? (mine.output as { calendars?: { personal?: boolean }[] }).calendars : undefined) ?? [];
             if (calendars.some((c) => c.personal === true)) return;
+            // made once is enough: a Personal calendar the person deleted on purpose stays deleted (the calendar module soft-deletes, so its row still says one was made)
+            try { if ((db?.all(`SELECT 1 AS x FROM calendar_list WHERE "ownerId" = ? AND personal = 1 LIMIT 1`, person) ?? []).length > 0) return; } catch { /* no calendar table yet: none was made */ }
             await invoke("calendar.create_calendar", { title: "Personal", personal: true, idempotencyKey: `personal-calendar:${person}:${now()}` }, as);
           } catch (e) {
             sink.log({ space: spaceId, level: 40, msg: "calendar.personal_failed", place: "boot", attrs: { person, error: e instanceof Error ? e.message : String(e) } });
@@ -1427,8 +1434,16 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         personalRuns.set(person, run);
         return run;
       };
-      // people who were here before this rule (the owner of a Space this host made, members who joined on an older version) get theirs at start: the read-first check makes it a no-op for anyone who has one, so no migration of user data is needed
-      for (const p of [...access.snap.allPrincipals()]) if (p.kind === "person" && p.status === "active") await ensurePersonalCalendar(p.id);
+      // people who were here before this rule (the owner of a Space this host made, members who joined on an older version) get theirs once the daemon serves, a few at a time, so a Space with many people
+      // starts at once: the read-first check makes it a no-op for anyone who has one, and no migration of user data is needed
+      let personalSweep: Promise<void> = Promise.resolve(), personalStopped = false;
+      startPersonalCalendars = () => {
+        const queue = [...access.snap.allPrincipals()].filter((p) => p.kind === "person" && p.status === "active").map((p) => p.id);
+        const worker = async (): Promise<void> => { for (let id = queue.shift(); id !== undefined && !personalStopped; id = queue.shift()) await ensurePersonalCalendar(id); };
+        personalSweep = Promise.all([worker(), worker(), worker(), worker()]).then(() => undefined);
+      };
+      startupWork = () => personalSweep;
+      closers.push(() => { personalStopped = true; return personalSweep; });
       // the owner of a Space this host made has not claimed it until identity holds an account for them: a fresh one-time link at every start until they do
       claimIssue = async () => {
         const owner = access.owner();
@@ -2660,6 +2675,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     }
     writeInfo(paths, { pid: process.pid, url: `http://${cfg.host}:${boundPort}`, port: boundPort, roles: cfg.roles, space, version: cfg.version, startedAt });
     sink.log({ space: space ?? "-", level: 20, msg: "daemon.started", place: "boot", attrs: { roles: cfg.roles, port: boundPort, version: cfg.version } });
+    startPersonalCalendars();
   } catch (e) {
     for (const c of closers.reverse()) await Promise.resolve(c()).catch(() => {});
     clearInfo(paths);
@@ -2683,6 +2699,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     url: `http://${cfg.host}:${boundPort}`, gitPort, claim, port: boundPort, token, roles: cfg.roles, space, paths, supervisor, scheduler, db, schedule: queue, seams, hooks, projections, sink, log, chromeBridge, personalChrome: composedChrome, nodeRelay: { spawnProc: (n, s) => computeStream.spawnProc(n, s), connected: (n) => computeStream.connected(n), secure: (n) => computeStream.secure(n), devices: (p) => computeStream.devices(p) }, teamLinks: () => teamLinks.ids(),
     runProbes: (names) => runProbes(names), pollCommands: runCommands, ensureIngress: () => ensureIngress(false),
     peers: peerService,
+    startupWork: () => startupWork(),
     stop,
   };
 }
