@@ -269,13 +269,13 @@ test("a module id list selects the daemon tests of each module on it; a change t
   assert.deepEqual(bootedTests(["lib/x.ts"], bootTracked, bootRead), []);
 });
 
-test("a perf file lands in its own v1-perf matrix entry; every other entry runs on v1", () => {
+test("a perf file lands in its own v1-perf matrix entry; every other entry runs hosted", () => {
   const perf = "modules/access/tests/check.perf.test.ts";
   const m = toMatrix(shardFiles([perf, "lib/x.test.ts", "lib/y.test.ts"], {}, [{ file: perf, capSec: 120, owner: "t", reason: "t", perf: true }])).include;
   const hit = m.filter((j) => j.files.split(" ").includes(perf));
   assert.equal(hit.length, 1);
   assert.deepEqual({ files: hit[0]!.files, slow: hit[0]!.slow, runner: hit[0]!.runner }, { files: perf, slow: true, runner: "v1-perf" });
-  assert.ok(m.filter((j) => j !== hit[0]).every((j) => j.runner === "v1"), "fast and slow entries run on the self-hosted v1 runners (the org is out of hosted minutes)");
+  assert.ok(m.filter((j) => j !== hit[0]).every((j) => j.runner === "hosted"), "fast and plain slow entries run on GitHub-hosted runners");
 });
 
 test("a perf file runs only when its own import closure changed, or always on main", () => {

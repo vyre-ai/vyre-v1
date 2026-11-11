@@ -98,7 +98,7 @@ test("a small selection takes few jobs: 5 files give 1 fast shard, 12 plain slow
   const slow = [...slowNames.map((f) => slowEntry(f, 60)), ...perf.map((f) => ({ ...slowEntry(f, 120), perf: true }))];
   const m = toMatrix(shardFiles([...files, ...slowNames, ...perf], timings, slow)).include;
   assert.equal(m.filter((j) => !j.slow).length, 1);
-  const plain = m.filter((j) => j.slow && j.runner === "v1");
+  const plain = m.filter((j) => j.slow && j.runner === "hosted");
   assert.equal(plain.length, 2);
   assert.ok(plain.every((j) => j.files.split(" ").length <= 8));
   assert.deepEqual(plain.flatMap((j) => j.files.split(" ")).sort(), [...slowNames].sort());
@@ -111,7 +111,8 @@ test("a heavy test gets a job to itself on the v1 runners; plain slow files stil
   const m = toMatrix(shardFiles(["images/vyred/smoke.heavy.test.ts", "a.test.ts", "b.test.ts", "c.test.ts"], {}, slow)).include;
   assert.deepEqual(m.filter((j) => j.name.startsWith("heavy-")).map((j) => j.files).sort(), ["c.test.ts", "images/vyred/smoke.heavy.test.ts"]);
   assert.deepEqual(m.filter((j) => j.name.startsWith("slow-")).map((j) => j.files), ["a.test.ts b.test.ts"]);
-  assert.ok(m.filter((j) => j.slow).every((j) => j.runner === "v1"));
+  assert.ok(m.filter((j) => j.slow && j.name.startsWith("heavy-")).every((j) => j.runner === "v1"), "heavy stays self-hosted");
+  assert.ok(m.filter((j) => j.name.startsWith("slow-")).every((j) => j.runner === "hosted"));
 });
 
 test("golden steps are slow by pattern: each lands in a slow job without being listed in test/slow.json", () => {
@@ -171,4 +172,16 @@ test("the set of test files run is the same with and without timings: none dropp
   assert.deepEqual(withReal, without, "same files in the same count");
   assert.deepEqual(without, [...new Set(files)].sort(), "every selected file runs once");
   assert.equal(new Set(withReal).size, withReal.length, "none twice");
+});
+
+test("the runner is the only thing hosted changes: fast and plain slow entries are hosted, heavy on v1, perf on v1-perf, and the files are the same", () => {
+  const slow = [slowEntry("a.test.ts", 60), { ...slowEntry("h.test.ts", 60), heavy: true }, { ...slowEntry("p.perf.test.ts", 120), perf: true }, slowEntry("images/x.heavy.test.ts", 120)];
+  const files = ["f1.test.ts", "f2.test.ts", ...slow.map((e) => e.file)];
+  const m = toMatrix(shardFiles(files, {}, slow)).include;
+  const by = (re: RegExp) => m.filter((j) => re.test(j.name)).map((j) => j.runner);
+  assert.deepEqual([...new Set(by(/^fast-/))], ["hosted"]);
+  assert.deepEqual([...new Set(by(/^slow-/))], ["hosted"]);
+  assert.deepEqual([...new Set(by(/^heavy-/))], ["v1"]);
+  assert.deepEqual([...new Set(by(/^perf-/))], ["v1-perf"]);
+  assert.deepEqual(m.flatMap((j) => j.files.split(" ")).sort(), [...files].sort(), "every file runs once");
 });

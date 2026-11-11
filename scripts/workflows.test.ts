@@ -203,11 +203,16 @@ test("check, main and release run their shards through the one run-shard action:
   assert.match(action, /test-run\.ts --slow --jobs 2 --files/);
   for (const n of ["check", "main", "release"]) { const t = wf(n).text; assert.match(t, /uses: \.\/\.github\/actions\/run-shard/); assert.match(t, /ci-select\.ts/); }
   assert.doesNotMatch(wf("release").text, /--max \d/, "release uses the same shard plan as check: no --max");
-  // The org is out of GitHub Actions minutes (25 Oct): a hosted job dies with 0 steps, so none of the three workflows may name a GitHub-hosted runner, in a runs-on or in the matrix choice.
+  // GitHub-hosted runners are free since the owner made the repo public (25 Oct), so the shards may run on them: the matrix entry says "hosted" and the runs-on expression turns it into ubuntu-latest.
+  // What must stay self-hosted is everything that needs the hosts: heavy and perf entries (Docker, the pinned perf host), the Docker jobs, the gates, and release signing. A hosted runner is named only in that one expression.
   for (const n of ["check", "main", "release"]) {
     const t = wf(n).text;
-    assert.doesNotMatch(t, /runs-on:[^\n]*\b(?:ubuntu|windows|macos)-/i, `${n}.yml names a GitHub-hosted runner`);
-    assert.doesNotMatch(t, /'hosted'|"hosted"/, `${n}.yml picks a hosted runner from the matrix`);
+    assert.doesNotMatch(t, /runs-on:\s*(?:\[[^\]]*)?\b(?:ubuntu|windows|macos)-/i, `${n}.yml names a GitHub-hosted runner outside the matrix expression`);
+    assert.match(t, /runs-on: \$\{\{ fromJSON\(matrix\.runner == 'hosted' && '\["ubuntu-latest"\]' \|\| format\('\["self-hosted","linux","\{0\}"\]', matrix\.runner \|\| 'v1'\)\) \}\}/, `${n}.yml picks its shard runner from the matrix`);
+  }
+  for (const [n, jobs] of [["check", ["images-docker", "l2-heavy", "computer-lifecycle", "gates", "typecheck", "select", "check"]], ["release", ["select", "sign"]]] as const) {
+    const t = wf(n).text;
+    for (const j of jobs) { const m = new RegExp(`\\n  ${j}:[\\s\\S]*?runs-on: ([^\\n]+)`).exec(t); if (m) assert.match(m[1]!, /self-hosted/, `${n}.yml job ${j} stays self-hosted`); }
   }
 });
 
