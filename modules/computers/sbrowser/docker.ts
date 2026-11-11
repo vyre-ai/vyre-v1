@@ -6,7 +6,7 @@ import { computerSeccomp, reviewComputerConfig, toolErrorOf } from "../impl.ts";
 import { LIMITS } from "../capacity.ts";
 import { ToolError } from "../handlers/tools/common.ts";
 import { Readable } from "node:stream";
-import { createSealedStore, streamsOf } from "../handlers/seal.ts";
+import { createSealedStore, NoGuardError, streamsOf } from "../handlers/seal.ts";
 import { createBrowserSeal } from "./seal.ts";
 import type { BrowserAnswer, BrowserToolCall, ProfileRow, SpaceBrowser } from "./port.ts";
 
@@ -96,7 +96,7 @@ const bodyText = (b: Uint8Array): string => { const t = new TextDecoder().decode
 const decode64 = (b64: string): Uint8Array => Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
 const realSleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 
-export function createDockerSpaceBrowser(o: DockerSpaceBrowserOptions): SpaceBrowser & { recover(): Promise<string[]>; sweep(): Promise<string[]>; oversize(): string[]; close(): void } {
+export function createDockerSpaceBrowser(o: DockerSpaceBrowserOptions): SpaceBrowser & { recover(): Promise<string[]>; sweep(): Promise<string[]>; oversize(): string[]; unguarded(): string[]; close(): void } {
   const name = o.name ?? "vyre-sbrowser";
   const sleep = o.sleep ?? realSleep;
   let up: Promise<void> | null = null;
@@ -127,6 +127,15 @@ export function createDockerSpaceBrowser(o: DockerSpaceBrowserOptions): SpaceBro
   }
 
   /** The container exists and runs; made and started on first use, with browserd answering. Calls that arrive together share one check. */
+  /** What this container's browserd says it can do (status.caps). An image from before the guard says nothing. Asked once per container start. */
+  let caps: Set<string> | null = null;
+  let onStarted: (() => void) | undefined;
+  const capsOf = async (): Promise<Set<string>> => {
+    if (caps) return caps;
+    const s = (await exec("status", {})) as { caps?: unknown };
+    caps = new Set(Array.isArray(s.caps) ? s.caps.filter((x): x is string => typeof x === "string") : []);
+    return caps;
+  };
   function ensureUp(): Promise<void> {
     up ??= (async () => {
       if (await o.api.containerRunning(name)) return;
@@ -147,6 +156,7 @@ export function createDockerSpaceBrowser(o: DockerSpaceBrowserOptions): SpaceBro
       await makeNetwork();
       try { await o.api.containerCreate(name, config); } catch (e) { if (!/already in use|409|conflict/i.test(e instanceof Error ? e.message : "")) throw e; }
       await o.api.containerStart(name);
+      caps = null; onStarted?.();   // a new container, maybe from another image (an update, or a roll back): what it can do is asked again
       const deadline = Date.now() + (o.startTimeoutMs ?? 30_000);
       for (;;) {
         try { await exec("status", {}); return; } catch (e) {
@@ -175,13 +185,20 @@ export function createDockerSpaceBrowser(o: DockerSpaceBrowserOptions): SpaceBro
       async reset(id) { await call("reset_chrome", { profileId: id }); },
       async stop(id) { await call("stop", { profileId: id }); },
       // the guard is what keeps a browser off an emptied folder: when it cannot be set (an image from before it existed, or browserd does not answer) the profile is not sealed, and when it cannot be lifted the call fails and is repeated
-      async guard(id, on) { await call("guard", { profileId: id, on }); },
+      // lifting a guard on a container that has none is nothing to do (it never had one); setting one there is refused, and the profile is not sealed
+      async guard(id, on) {
+        await ensureUp();
+        if (!(await capsOf()).has("guard")) { if (on) throw new NoGuardError(); return; }
+        await exec("guard", { profileId: id, on });
+      },
       rows: rowsNow,
       async disk() {
         if (!(await o.api.containerRunning(name))) return [];
         try {
-          const r = await exec("disk", {}) as { ids?: unknown; bytes?: Record<string, unknown> };
-          return Array.isArray(r.ids) ? r.ids.filter((x): x is string => typeof x === "string").map((id) => ({ id, ...(typeof r.bytes?.[id] === "number" ? { bytes: r.bytes[id] as number } : {}) })) : [];
+          // an image from before the sizes has no disk action at all: nothing is listed from the volume (profiles with a state file are still visited)
+          if (!(await capsOf()).has("disk")) return [];
+          const r = await exec("disk", {}) as { ids?: unknown; bytes?: Record<string, unknown>; entries?: Record<string, unknown> };
+          return Array.isArray(r.ids) ? r.ids.filter((x): x is string => typeof x === "string").map((id) => ({ id, ...(typeof r.bytes?.[id] === "number" ? { bytes: r.bytes[id] as number } : {}), ...(typeof r.entries?.[id] === "number" ? { entries: r.entries[id] as number } : {}) })) : [];
         } catch (e) { o.log?.("warn", "computers.browser.disk_unavailable", { error: e instanceof Error ? e.message.slice(0, 160) : "unknown" }); return []; }
       },
       ...(o.sealQuietMs !== undefined ? { quietMs: o.sealQuietMs } : {}),
@@ -189,22 +206,36 @@ export function createDockerSpaceBrowser(o: DockerSpaceBrowserOptions): SpaceBro
     })
     : null;
   const used = <T>(id: string, fn: () => Promise<T>): Promise<T> => (seal ? seal.use(id, fn) : fn());
-  /** A container that died or was stopped while profiles were plain: it is started again and they are sealed, not left until the next call. */
+  // calls in flight and a count of calls started: the sweep never stops a container under a call, nor one a call has used since it started it
+  let active = 0, seq = 0;
+  let restartedAt = 0;
+  onStarted = () => seal?.capsChanged();
+  /**
+   * The periodic check. It looks at a running container as it is. A container that is down is started only when it DIED (Docker records a non-zero exit or an out-of-memory kill; browserd answers a
+   * `docker stop` with a clean exit 0, so a stop by a person or an update reads as on purpose), when a profile is plain that can be sealed (not over the cap, not one this image has no guard for),
+   * and at most once in ten minutes; it is stopped again only if no call has used it since. A Space browser that was removed is not brought back.
+   */
   const sweepAll = async (): Promise<string[]> => {
     if (!seal) return [];
     const wasUp = await o.api.containerRunning(name);
+    let started = false; const before = seq;
     if (!wasUp) {
-      // only a container that still exists is started, only for the plain profiles it holds, and it is stopped again afterwards: a Space browser a person removed is not brought back
-      if (seal.pending().length === 0 || !o.http) return [];
-      if ((await o.http({ method: "GET", path: `/containers/${name}/json` })).status !== 200) return [];
-      await ensureUp();
+      const sealable = seal.pending().filter((id) => !seal.oversize().includes(id) && !seal.unguarded().includes(id));
+      if (sealable.length === 0 || !o.http || Date.now() - restartedAt < 10 * 60_000) return [];
+      const r = await o.http({ method: "GET", path: `/containers/${name}/json` });
+      if (r.status !== 200) return [];
+      const st = (JSON.parse(new TextDecoder().decode(r.body)) as { State?: { ExitCode?: number; OOMKilled?: boolean } }).State;
+      if (!(st?.OOMKilled === true || (st?.ExitCode ?? 0) !== 0)) return [];   // stopped on purpose
+      restartedAt = Date.now();
+      await ensureUp(); started = true;
     }
-    try { return await seal.sweep(); } finally { if (!wasUp) await o.api.containerStop(name, 10).catch(() => undefined); }
+    try { return await seal.sweep(); }
+    finally { if (started && active === 0 && seq === before) await o.api.containerStop(name, 10).catch(() => undefined); }
   };
   let sweepTimer: ReturnType<typeof setInterval> | null = null;
   if (seal && o.sealSweepMs !== 0) { const t = sweepTimer = setInterval(() => { void sweepAll().catch((e: unknown) => o.log?.("warn", "computers.browser.sweep_failed", { error: e instanceof Error ? e.message.slice(0, 160) : "unknown" })); }, o.sealSweepMs ?? 30_000); t.unref?.(); }
 
-  return {
+  const api = {
     /** At boot: the Space browser, if it has ever run here, is started and every profile that is not running is sealed before a call is served. */
     async recover() {
       if (!seal || !o.http) return [];
@@ -215,6 +246,7 @@ export function createDockerSpaceBrowser(o: DockerSpaceBrowserOptions): SpaceBro
     },
     async sweep() { return sweepAll(); },
     oversize: () => seal?.oversize() ?? [],
+    unguarded: () => seal?.unguarded() ?? [],
     /** The sweep timer stops (the host is unbound or replaced). */
     close() { if (sweepTimer) clearInterval(sweepTimer); sweepTimer = null; },
     available: () => o.api.ping().catch(() => false),
@@ -268,4 +300,13 @@ export function createDockerSpaceBrowser(o: DockerSpaceBrowserOptions): SpaceBro
       } catch (e) { return { ok: false, detail: e instanceof Error ? e.message.slice(0, 200) : "unknown" }; }
     },
   };
+  // every call a caller makes is counted while it runs; the checks of the sweep and the host's own are not
+  const internal = new Set(["sweep", "recover", "close", "oversize", "unguarded", "available"]);
+  const wrapped: Record<string, unknown> = {};
+  for (const [k2, v] of Object.entries(api)) {
+    wrapped[k2] = typeof v === "function" && !internal.has(k2)
+      ? async (...a: unknown[]) => { active += 1; seq += 1; try { return await (v as (...x: unknown[]) => unknown)(...a); } finally { active -= 1; } }
+      : v;
+  }
+  return wrapped as typeof api;
 }

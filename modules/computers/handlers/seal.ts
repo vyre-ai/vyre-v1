@@ -78,6 +78,44 @@ export function keyedLock(): <T>(id: string, fn: () => Promise<T>) => Promise<T>
 }
 
 /** Seal a stream of tar bytes to `file`: chunks are made as the bytes arrive, the file is flushed, and nothing is left if it fails or the stream runs past `cap`. Answers the plain size. */
+/**
+ * Walks a tar as it streams by and says whether it ended properly: every header's data arrived whole, and the two blocks of zeros that close a tar came on a header boundary. An archive the Engine cut short
+ * and closed cleanly fails this wherever the cut fell, including inside zero-filled data. Memory is one header.
+ */
+export class TarWalker {
+  private head = Buffer.alloc(512);
+  private have = 0;
+  private skip = 0;          // data and padding still to pass
+  private zeros = 0;         // consecutive zero blocks at a header boundary
+  feed(b: Uint8Array): void {
+    let at = 0;
+    while (at < b.length) {
+      if (this.skip > 0) { const n = Math.min(this.skip, b.length - at); this.skip -= n; at += n; continue; }
+      const n = Math.min(512 - this.have, b.length - at);
+      this.head.set(b.subarray(at, at + n), this.have); this.have += n; at += n;
+      if (this.have < 512) continue;
+      this.have = 0;
+      if (this.head.every((x) => x === 0)) { this.zeros += 1; continue; }
+      if (this.zeros >= 2) continue;   // anything after the end blocks is padding
+      this.zeros = 0;
+      const raw = this.head.subarray(124, 136);
+      const size = (raw[0]! & 0x80) !== 0 ? raw.subarray(1).reduce((s, x) => s * 256 + x, 0) : parseInt(raw.toString("latin1").replace(/\0.*$/, "").trim() || "0", 8) || 0;
+      this.skip = Math.ceil(size / 512) * 512;
+    }
+  }
+  /** Whole: a header boundary, no data owing, and the two end blocks seen. */
+  get complete(): boolean { return this.have === 0 && this.skip === 0 && this.zeros >= 2; }
+}
+
+/** Run a step that may hang with an upper limit: the answer, or `fallback` when the time is up (the step is left to finish or fail on its own). */
+export async function withDeadline<T>(p: Promise<T>, ms: number, fallback: T): Promise<T> {
+  let t: ReturnType<typeof setTimeout> | undefined;
+  try { return await Promise.race([p, new Promise<T>((r) => { t = setTimeout(() => r(fallback), ms); t.unref?.(); })]); } finally { if (t) clearTimeout(t); }
+}
+
+/** The Space browser's container does not know the guard (an image from before it existed): a profile cannot be sealed there. */
+export class NoGuardError extends Error { constructor() { super("the Space browser needs updating before saved browser profiles can be locked"); this.name = "NoGuardError"; } }
+
 export class TruncatedError extends Error { constructor() { super("the profile's archive ended early, so it was not sealed and nothing was removed"); this.name = "TruncatedError"; } }
 
 export async function sealTo(file: string, src: AsyncIterable<Uint8Array>, key: Uint8Array, kind: SealKind, id: string, cap = SEAL_CAP_BYTES, requireTarEnd = false): Promise<number> {
@@ -86,14 +124,15 @@ export async function sealTo(file: string, src: AsyncIterable<Uint8Array>, key: 
   const fh = await fsp.open(file, "w", 0o600);
   let ok = false;
   try {
-    let i = 0, total = 0, parts: Buffer[] = [], len = 0, tail: Buffer = Buffer.alloc(0);
+    let i = 0, total = 0, parts: Buffer[] = [], len = 0;
+    const walker = requireTarEnd ? new TarWalker() : null;
     const emit = async (chunk: Uint8Array, last: boolean): Promise<void> => { await fh.write(`${JSON.stringify(aesWrap(k, chunk, aadOf(kind, id, fid, i++, last)))}\n`); };
     await fh.write(`${JSON.stringify({ v: 2, fid })}\n`);
     for await (const part of src) {
       const b = Buffer.from(part.buffer, part.byteOffset, part.byteLength);
       total += b.length;
       if (total > cap) throw new TooLargeError(total);
-      if (requireTarEnd) tail = Buffer.concat([tail, b]).subarray(-1024);
+      walker?.feed(b);
       parts.push(b); len += b.length;
       if (len > CHUNK) {
         const all = Buffer.concat(parts);
@@ -103,7 +142,7 @@ export async function sealTo(file: string, src: AsyncIterable<Uint8Array>, key: 
       }
     }
     // a tar ends with two blocks of zeros; an archive cut short by the Engine after its header was sent still closes cleanly, and sealing it as whole would let the wipe delete the rest
-    if (requireTarEnd && (tail.length < 1024 || !tail.every((x) => x === 0))) throw new TruncatedError();
+    if (walker && !walker.complete) throw new TruncatedError();
     await emit(Buffer.concat(parts), true);
     await fh.sync();
     ok = true;
@@ -127,13 +166,20 @@ export async function* openFrom(file: string, key: Uint8Array, kind: SealKind, i
       return b;
     } catch { throw new UnopenedError(); }
   };
-  const decrypt = (b: Box, last: boolean): Buffer => { try { return Buffer.from(aesUnwrap(k, b, aadOf(kind, id, fid as string, i++, last))); } catch { throw new UnopenedError(); } };
+  let legacy = false;   // the first version's files (no header, no file id): opened once, and the next seal writes the new form
+  const decrypt = (b: Box, last: boolean): Buffer => { try { return Buffer.from(aesUnwrap(k, b, legacy ? `vyre:${kind}:profile:v1|${id}|${i++}|${last ? 1 : 0}` : aadOf(kind, id, fid as string, i++, last))); } catch { throw new UnopenedError(); } };
   try {
     for await (const line of rl) {
       if (line.length === 0) continue;
       if (fid === null) {
-        try { const h = JSON.parse(line) as { v?: unknown; fid?: unknown }; if (h.v !== 2 || typeof h.fid !== "string" || !/^[0-9a-f]{32}$/.test(h.fid)) throw new Error("header"); fid = h.fid; } catch { throw new UnopenedError(); }
-        continue;
+        let h: { v?: unknown; fid?: unknown; iv?: unknown };
+        try { h = JSON.parse(line) as typeof h; } catch { throw new UnopenedError(); }
+        if (typeof h.iv === "string") { legacy = true; fid = "legacy"; }   // no header: the first chunk itself
+        else {
+          if (h.v !== 2 || typeof h.fid !== "string" || !/^[0-9a-f]{32}$/.test(h.fid)) throw new UnopenedError();
+          fid = h.fid;
+          continue;
+        }
       }
       if (pending !== null) yield decrypt(pending, false);
       pending = parse(line);
@@ -203,10 +249,14 @@ export function createSealedStore(d: SealedStoreDeps) {
     /** A profile over the cap is remembered on disk, so a restart does not forget it and the health can still name it. */
     setOversize(id: string, bytes: number): void { fs.mkdirSync(d.dir, { recursive: true, mode: 0o700 }); fs.writeFileSync(`${file(id)}.big`, String(bytes), { mode: 0o600 }); },
     clearOversize(id: string): void { fs.rmSync(`${file(id)}.big`, { force: true }); },
+    /** A guard that could not be lifted after a whole restore: remembered on disk, so a restart still lifts it. */
+    setLift(id: string): void { fs.mkdirSync(d.dir, { recursive: true, mode: 0o700 }); fs.writeFileSync(`${file(id)}.lift`, "1", { mode: 0o600 }); },
+    clearLift(id: string): void { fs.rmSync(`${file(id)}.lift`, { force: true }); },
+    needsLift(id: string): boolean { return fs.existsSync(`${file(id)}.lift`); },
     oversize(): Array<{ id: string; bytes: number }> {
       try { return fs.readdirSync(d.dir).filter((n) => n.endsWith(`${FILE_SUFFIX}.big`)).map((n) => ({ id: n.slice(0, -`${FILE_SUFFIX}.big`.length), bytes: Number(fs.readFileSync(path.join(d.dir, n), "utf8")) || 0 })).filter((x) => ID[d.kind].test(x.id)); } catch { return []; }
     },
-    discard(id: string): void { for (const p of [file(id), `${file(id)}.tmp`, mark(id), `${mark(id)}.tmp`, `${file(id)}.big`]) fs.rmSync(p, { force: true }); syncDir(d.dir); },
+    discard(id: string): void { for (const p of [file(id), `${file(id)}.tmp`, mark(id), `${mark(id)}.tmp`, `${file(id)}.big`, `${file(id)}.lift`]) fs.rmSync(p, { force: true }); syncDir(d.dir); },
   };
 }
 export type SealedStore = ReturnType<typeof createSealedStore>;

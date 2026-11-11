@@ -68,6 +68,8 @@ export interface SpaceBrowser {
   health(): Promise<{ ok: boolean; detail?: string }>;
   /** The profiles whose saved browser data is over the size limit and so is not locked (seal.ts). */
   oversize?(): string[];
+  /** The profiles kept plain because the browser container's image has no guard yet (an update is due). */
+  unguarded?(): string[];
 }
 
 let bound: SpaceBrowser | null = null;

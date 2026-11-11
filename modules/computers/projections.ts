@@ -79,7 +79,7 @@ export interface ComputerHost {
   removeRecording(a: { computerId: string; recordingId: string; folderPath: string }): Promise<void>;
   sessions(computerId: string): Promise<SessionInfo[]>;
   signOut(a: { computerId: string; site: string }): Promise<boolean>;
-  health(): Promise<{ ok: boolean; detail?: string; latencyMs?: number; unsealed?: number; unsealedIds?: string[] }>;
+  health(): Promise<{ ok: boolean; detail?: string; latencyMs?: number; unsealed?: number; unsealedIds?: string[]; unguarded?: number }>;
   /** What this machine has to give: memory and CPUs, for the host picker (how many more computers fit). */
   capacity?(): Promise<{ totalMb: number; freeMb: number; cpus: number; os: string; diskFreeMb?: number }>;
   /** Chrome's user-data folder of a computer that is asleep (its logins, cookies and history), as a tar, or null when it never had one. For the one-time move to the Space browser. */

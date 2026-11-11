@@ -320,6 +320,7 @@ jobs:
           set -o pipefail
           node --test --test-force-exit --test-timeout=1500000 --test-reporter=spec modules/computers/tests/sbrowser.heavy.test.ts 2>&1 | tee sbrowser-heavy.out
           grep -E "^ℹ skipped 0$" sbrowser-heavy.out
+          grep -E "^ℹ pass 8$" sbrowser-heavy.out
           grep -E "^ℹ fail 0$" sbrowser-heavy.out
           node --test --test-force-exit --test-timeout=1500000 --test-reporter=spec --test-name-pattern="Space browser seals" modules/computers/tests/seal.heavy.test.ts 2>&1 | tee seal-browser-heavy.out
           grep -E "^ℹ skipped 0$" seal-browser-heavy.out

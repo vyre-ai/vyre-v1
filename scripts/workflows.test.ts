@@ -379,6 +379,7 @@ test("the sealed-profile and Space browser real-Docker proofs run in l2-heavy on
   const l2 = wf("check").jobs.find((j) => j.name === "l2-heavy")!;
   assert.ok(l2, "check.yml has l2-heavy");
   for (const f of ["modules/computers/tests/seal.heavy.test.ts", "modules/computers/tests/sbrowser.heavy.test.ts", "modules/computers/tests/lifecycle.heavy.test.ts"]) assert.ok(l2.text.includes(f), `l2-heavy lists ${f}`);
+  assert.match(l2.text, /pass 8\$" sbrowser-heavy\.out/, "the eight Space browser cases are counted, so a file that loads no test is not green");
   assert.match(l2.text, /pass 4\$"? seal-heavy\.out|pass 4\$" seal-heavy\.out/, "the four computers cases of seal.heavy are counted");
   const scope = /grep -Eq '(\^\([^']+\))'/.exec(l2.text)?.[1] ?? "";
   for (const p of ["modules/computers/", "host/src/daemon/", "images/space-browser/", "host/src/sites-runner/"]) assert.ok(new RegExp(scope).test(p + "x"), `${p} selects l2-heavy`);

@@ -30,7 +30,7 @@ import { bindWorkspaceStart, workspaceClaim, workspaceRelease, workspaceWaiting 
 import { bindMigration, bindMigrationPort } from "./migrate.ts";
 import { createHomeSync } from "./handlers/home.ts";
 import { createContainerHomeFs } from "./handlers/home-fs.ts";
-import { computersLock, createProfileSeal } from "./handlers/seal.ts";
+import { computersLock, createProfileSeal, withDeadline } from "./handlers/seal.ts";
 import type { HomeDeps, HomeSync, MadeFile } from "./handlers/home.ts";
 import { createFillService, fillHttp } from "./handlers/fill.ts";
 import type { FillSource, FillUse } from "./handlers/fill.ts";
@@ -99,6 +99,8 @@ export interface DockerHostOptions {
   profile?: { unseal(computerId: string): Promise<void>; seal(computerId: string): Promise<unknown>; state?(computerId: string): string; discard?(computerId: string): Promise<void>; recoverStopped?(): Promise<string[]>; oversize?(): string[] };
   /** Notes from the host: a profile over the size limit, a seal or a recovery that failed. */
   log?: (level: "info" | "warn", msg: string, attrs?: Record<string, unknown>) => void;
+  /** The final home pass at sleep waits this long at most. Default 2 minutes. */
+  homeDeadlineMs?: number;
   /** How often a computer that stopped outside a sleep is looked for and its profile sealed. Default 60 s. */
   recoverEveryMs?: number;
   /** The key and the folder for sealed profiles (handlers/seal.ts). With it and the raw Engine access `http`, the host builds `profile` itself. */
@@ -411,7 +413,8 @@ export function createDockerComputerHost(o: DockerHostOptions): ComputerHost & T
       const home = homes.get(a.computerId);
       if (home?.timer) { clearInterval(home.timer); home.timer = null; }
       await o.api.containerStop(name, 10);
-      const homeSynced = a.reason !== "remove" ? await homePass(a.computerId, a.agentId, true) : false;
+      // a hung engine call must not hold this computer's lock for ever: the final home pass gets two minutes (it reports not synced when it does not finish, as when it fails)
+      const homeSynced = a.reason !== "remove" ? await withDeadline(homePass(a.computerId, a.agentId, true), o.homeDeadlineMs ?? 120_000, false) : false;
       if (profile && a.reason !== "remove") await profile.seal(a.computerId);
       return { ...(sessions ? { sessions } : {}), ...(a.reason !== "remove" ? { homeSynced } : {}) };
     }); },
@@ -525,7 +528,7 @@ export function createDockerComputerHost(o: DockerHostOptions): ComputerHost & T
       try {
         const r = await o.http({ method: "GET", path: "/_ping", timeoutMs: 5000 });
         const big = [...(profile?.oversize?.() ?? []), ...(spaceBrowser()?.oversize?.() ?? [])];
-        if (r.status === 200) return { ok: true, latencyMs: Date.now() - t0, ...(big.length > 0 ? { unsealed: big.length, unsealedIds: big } : {}) };
+        if (r.status === 200) return { ok: true, latencyMs: Date.now() - t0, ...(big.length > 0 ? { unsealed: big.length, unsealedIds: big } : {}), ...((spaceBrowser()?.unguarded?.().length ?? 0) > 0 ? { unguarded: spaceBrowser()!.unguarded!().length } : {}) };
         return { ok: false, latencyMs: Date.now() - t0, detail: explainEngine(r.status, null, o.runner ? "runner" : "engine") };
       } catch (e) { return { ok: false, latencyMs: Date.now() - t0, detail: explainEngine(0, e, o.runner ? "runner" : "engine") }; }
     },

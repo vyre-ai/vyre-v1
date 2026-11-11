@@ -142,7 +142,7 @@ async function signOut(id: string, site: string): Promise<Args> {
 
 async function dispatch(action: string, a: Args): Promise<Args> {
   switch (action) {
-    case "status": return { profiles: await manager.list(), maxRunning: Number(env["VYRE_BROWSER_MAX_RUNNING"] ?? 6) || 6, viewers: views.viewers() };
+    case "status": return { profiles: await manager.list(), maxRunning: Number(env["VYRE_BROWSER_MAX_RUNNING"] ?? 6) || 6, viewers: views.viewers(), caps: ["guard", "disk"] };
     case "configure": {
       const p = manager.get(checkProfileId(a["profileId"]));
       const n = a["tabLimit"];
@@ -192,10 +192,12 @@ async function dispatch(action: string, a: Args): Promise<Args> {
     case "disk": {
       const ids: string[] = [];
       const bytes: Record<string, number> = {};
+      const entries: Record<string, number> = {};
       // the size is read from the folder's own entries (no profile is read into memory): the host skips a profile over the cap without reading it
-      const sizeOf = (dir: string): number => { let n = 0; try { for (const e of readdirSync(dir, { withFileTypes: true })) { const f = `${dir}/${e.name}`; if (e.isDirectory()) n += sizeOf(f); else { try { n += statSync(f).size; } catch { /* gone */ } } } } catch { /* gone */ } return n; };
-      try { for (const id of readdirSync(`${ROOT}/profiles`)) { if (!PROFILE_ID.test(id)) continue; try { if (readdirSync(`${ROOT}/profiles/${id}/chrome`).length > 0) { ids.push(id); bytes[id] = sizeOf(`${ROOT}/profiles/${id}/chrome`); } } catch { /* no Chrome folder */ } } } catch { /* no profiles yet */ }
-      return { ids, bytes };
+      let count = 0;
+      const sizeOf = (dir: string): number => { let n = 0; try { for (const e of readdirSync(dir, { withFileTypes: true })) { const f = `${dir}/${e.name}`; count += 1; if (e.isDirectory()) n += sizeOf(f); else { try { n += statSync(f).size; } catch { /* gone */ } } } } catch { /* gone */ } return n; };
+      try { for (const id of readdirSync(`${ROOT}/profiles`)) { if (!PROFILE_ID.test(id)) continue; try { if (readdirSync(`${ROOT}/profiles/${id}/chrome`).length > 0) { ids.push(id); count = 0; bytes[id] = sizeOf(`${ROOT}/profiles/${id}/chrome`); entries[id] = count; } } catch { /* no Chrome folder */ } } } catch { /* no profiles yet */ }
+      return { ids, bytes, entries };
     }
     // the Space has sealed this profile's Chrome folder (on) or put it back (off): while on, no browser starts on it (profiles.ts blocked)
     case "guard": {

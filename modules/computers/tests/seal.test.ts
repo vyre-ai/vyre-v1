@@ -8,7 +8,8 @@ import path from "node:path";
 import { Readable } from "node:stream";
 import { tarFiles, untar } from "../../../sandbox/src/tar.ts";
 import type { DockerHttp, DockerRequest } from "../../../sandbox/src/docker.ts";
-import { checkId, createProfileSeal, createSealedStore, openFrom, peekTar, sealTo, SEAL_CAP_BYTES, TooLargeError, UNOPENED, UnopenedError, WIPE_SCRIPT, CHUNK, tarIsEmpty } from "../handlers/seal.ts";
+import { checkId, createProfileSeal, createSealedStore, NoGuardError, openFrom, peekTar, sealTo, SEAL_CAP_BYTES, TarWalker, TooLargeError, TruncatedError, UNOPENED, UnopenedError, WIPE_SCRIPT, CHUNK, tarIsEmpty, withDeadline } from "../handlers/seal.ts";
+import { aesWrap, hkdf32 } from "../../../kernel/src/seal/index.ts";
 import { createBrowserSeal } from "../sbrowser/seal.ts";
 import type { ProfileRow } from "../sbrowser/port.ts";
 import { createDockerComputerHost } from "../impl.ts";
@@ -462,7 +463,7 @@ test("F8: a computer whose container dies outside a sleep is sealed by the perio
 
 // ---- the Space browser's profiles ----------------------------------------------------------------------------------------------------------------
 
-type BHooks = { shortRead?: boolean; putFails?: number; rowsFail?: boolean; onRead?: (id: string) => Promise<void>; resetFails?: boolean; sizes?: Record<string, number>; guardFails?: boolean; guardOffFails?: boolean };
+type BHooks = { noGuard?: boolean; shortRead?: boolean; putFails?: number; rowsFail?: boolean; onRead?: (id: string) => Promise<void>; resetFails?: boolean; sizes?: Record<string, number>; guardFails?: boolean; guardOffFails?: boolean };
 function browser(dir: string, o: { k?: Uint8Array; hooks?: BHooks; cap?: number; logs?: Array<[string, string]> } = {}) {
   const hooks = o.hooks ?? {};
   const folders = new Map<string, Map<string, Uint8Array>>();
@@ -489,7 +490,7 @@ function browser(dir: string, o: { k?: Uint8Array; hooks?: BHooks; cap?: number;
     },
     async reset(id) { calls.push(`reset ${id}`); if (hooks.resetFails) throw new Error("reset failed"); f(id).clear(); const r = rows.get(id); if (r) r.running = false; },
     async stop(id) { calls.push(`stop ${id}`); const r = rows.get(id); if (r) r.running = false; },
-    async guard(id, on) { calls.push(`guard ${id} ${on}`); if (hooks.guardFails || (!on && hooks.guardOffFails)) throw new Error("browserd did not answer the guard"); guards.set(id, on); },
+    async guard(id, on) { calls.push(`guard ${id} ${on}`); if (hooks.noGuard) { if (on) throw new NoGuardError(); return; } if (hooks.guardFails || (!on && hooks.guardOffFails)) throw new Error("browserd did not answer the guard"); guards.set(id, on); },
     async rows() { if (hooks.rowsFail) throw new Error("status did not answer"); return [...rows.values()]; },
     async disk() { return [...folders].filter(([, v]) => v.size > 0).map(([id, v]) => ({ id, ...(hooks.sizes ? { bytes: hooks.sizes[id] ?? [...v.values()].reduce((n, x) => n + x.length, 0) } : {}) })); },
   });
@@ -647,14 +648,14 @@ test("F8 (browser container): when the Space browser's container is down and a p
     async containerStart(n: string) { starts.push(n); running = true; }, async containerStop() {}, async containerRemove() {}, async containerRunning() { return running; }, async putArchive() {},
     async exec(_n: string, a: { cmd: readonly string[] }) {
       const action = String(a.cmd[1]); ctl.push(action); const body = JSON.parse(String(a.cmd[2])) as { on?: boolean };
-      if (action === "status") return { exitCode: 0, stdout: '{"profiles":[]}\n', stderr: "" };
+      if (action === "status") return { exitCode: 0, stdout: '{"profiles":[],"caps":["guard","disk"]}\n', stderr: "" };
       if (action === "disk") return { exitCode: 0, stdout: `${JSON.stringify({ ids: folder.size > 0 ? ["agt_dex"] : [] })}\n`, stderr: "" };
       if (action === "reset_chrome") { folder.clear(); return { exitCode: 0, stdout: "{}\n", stderr: "" }; }
       if (action === "guard") { guard = body.on; return { exitCode: 0, stdout: "{}\n", stderr: "" }; }
       return { exitCode: 0, stdout: "{}\n", stderr: "" };
     },
   };
-  const http = (async () => ({ status: 200, body: new Uint8Array() })) as unknown as DockerHttp;
+  const http = (async () => ({ status: 200, body: new TextEncoder().encode(JSON.stringify({ State: { ExitCode: 137, OOMKilled: true } })) })) as unknown as DockerHttp;
   http.stream = {
     async get() { return { status: 200, body: Readable.from([Buffer.from(tarFiles([...folder].map(([p, data]) => ({ path: `chrome/${p}`, data, mode: 0o600, uid: 10001, gid: 10001, mtime: 1 }))))]) as never }; },
     async put() { return { status: 200, body: new Uint8Array() }; },
@@ -769,7 +770,7 @@ test("N3: the health names whose profile is over the cap, keeps that line when a
   (h.fake.host as unknown as { health: () => Promise<unknown> }).health = async () => ({ ok: true, unsealed: 1, unsealedIds: [id] });
   const one = await health(h.ctx, {});
   assert.equal(one.state, "degraded");
-  assert.match(String(one.detail), new RegExp(`over the size limit and not locked on this server \\(agent: ${INTAKE}\\)`));
+  assert.match(String(one.detail), new RegExp(`over the size limit and not locked on this server \\(.+\\)`));
   await wake(h.ctx, { computerId: id });
   fake.crash(id); await get(h.ctx, { computerId: id });
   const both = await health(h.ctx, {});
@@ -832,10 +833,10 @@ test("N7: the browser sweep does not bring back a Space browser that is gone, an
       const action = String(a.cmd[1]);
       if (action === "disk") return { exitCode: 0, stdout: `${JSON.stringify({ ids: folder.size > 0 ? ["agt_dex"] : [] })}\n`, stderr: "" };
       if (action === "reset_chrome") { folder.clear(); return { exitCode: 0, stdout: "{}\n", stderr: "" }; }
-      return { exitCode: 0, stdout: action === "status" ? '{"profiles":[]}\n' : "{}\n", stderr: "" };
+      return { exitCode: 0, stdout: action === "status" ? '{"profiles":[],"caps":["guard","disk"]}\n' : "{}\n", stderr: "" };
     },
   };
-  const http = (async () => ({ status: exists ? 200 : 404, body: new Uint8Array() })) as unknown as DockerHttp;
+  const http = (async () => ({ status: exists ? 200 : 404, body: new TextEncoder().encode(JSON.stringify({ State: { ExitCode: 137, OOMKilled: true } })) })) as unknown as DockerHttp;
   http.stream = { async get() { return { status: 200, body: Readable.from([Buffer.from(tarFiles([...folder].map(([p, data]) => ({ path: `chrome/${p}`, data, mode: 0o600, uid: 10001, gid: 10001, mtime: 1 }))))]) as never }; }, async put() { return { status: 200, body: new Uint8Array() }; } };
   createSealedStore({ key: () => key(1), dir: path.join(dir, "browser"), kind: "sbrowser" }).setState("agt_dex", "hot");
   const sb = createDockerSpaceBrowser({ api: api as never, http, profileSeal: { key: () => key(1), dir }, sealSweepMs: 0, sealQuietMs: 0, sleep: async () => {} });
@@ -874,4 +875,168 @@ test("N10: a dead container is stopped, not running: its profile is sealed", asy
   const dir = dirOf(); const e = engine(dir); const id = CID("aaaa0010"); const name = e.plant(id, planted, "exited");
   await e.seal().unseal(id); e.status.set(name, "dead" as never);
   assert.equal(await e.seal().seal(id), "sealed"); assert.equal(e.vol(name).size, 0);
+});
+
+// ---- round 4 (SEAL-REVIEW-3): R3-1 to R3-6, N11, N12 ----------------------------------------------------------------------------------------------
+
+/** A Space browser container as a scripted Engine: `image: "old"` is browserd from before the guard and the sizes (no `caps` in its status, and no `guard` or `disk` action: its ctl answers "no action"). */
+function sbEngine(dir: string, o: { image: "old" | "new"; exit?: { ExitCode: number; OOMKilled?: boolean }; onDisk?: () => Promise<void>; key?: Uint8Array; sealQuietMs?: number } = { image: "new" }) {
+  const folders = new Map<string, Map<string, Uint8Array>>();
+  const f = (id: string): Map<string, Uint8Array> => { let v = folders.get(id); if (!v) { v = new Map(); folders.set(id, v); } return v; };
+  const st = { running: false, exists: true, starts: 0, stops: 0, ctl: [] as string[], exit: o.exit ?? { ExitCode: 0 } };
+  const refuse = (a: string) => ({ exitCode: 1, stdout: "", stderr: `${JSON.stringify({ code: "bad_input", message: `browserd has no action ${a}.` })}\n` });
+  const api = {
+    async ping() { return true; }, async imageExists() { return true; }, async networkCreate() { throw new Error("no"); }, async networkRemove() {}, async containerCreate() { return "id"; },
+    async containerStart() { st.starts += 1; st.running = true; }, async containerStop() { st.stops += 1; st.running = false; }, async containerRemove() {}, async containerRunning() { return st.running; }, async putArchive() {},
+    async exec(_n: string, a: { cmd: readonly string[] }) {
+      const action = String(a.cmd[1]); const body = JSON.parse(String(a.cmd[2])) as { profileId?: string };
+      st.ctl.push(action);
+      if (action === "status") return { exitCode: 0, stdout: `${JSON.stringify(o.image === "new" ? { profiles: [], caps: ["guard", "disk"] } : { profiles: [] })}\n`, stderr: "" };
+      if (action === "disk") { if (o.image === "old") return refuse(action); await o.onDisk?.(); return { exitCode: 0, stdout: `${JSON.stringify({ ids: [...folders].filter(([, v]) => v.size > 0).map(([id]) => id), bytes: {}, entries: {} })}\n`, stderr: "" }; }
+      if (action === "guard") return o.image === "old" ? refuse(action) : { exitCode: 0, stdout: "{}\n", stderr: "" };
+      if (action === "reset_chrome") { f(body.profileId!).clear(); return { exitCode: 0, stdout: "{}\n", stderr: "" }; }
+      if (action === "tool") { f(body.profileId!).set("Default/Cookies", cookie(`ran-${st.ctl.length}`)); return { exitCode: 0, stdout: '{"ok":true}\n', stderr: "" }; }
+      return { exitCode: 0, stdout: "{}\n", stderr: "" };
+    },
+  };
+  const http = (async (r: DockerRequest) => (r.path.endsWith("/json") ? { status: st.exists ? 200 : 404, body: new TextEncoder().encode(JSON.stringify({ State: st.exit })) } : { status: 200, body: new Uint8Array() })) as unknown as DockerHttp;
+  http.stream = {
+    async get(a) { const id = /profiles\/([^/]+)\/chrome/.exec(a.query?.["path"] ?? "")![1]!; return { status: 200, body: Readable.from([Buffer.from(tarFiles([...f(id)].map(([p, data]) => ({ path: `chrome/${p}`, data, mode: 0o600, uid: 10001, gid: 10001, mtime: 1 }))))]) as never }; },
+    async put(a) { const id = /profiles\/([^/]+)/.exec(a.query?.["path"] ?? "")![1]!; for (const e of untar(await drain(a.body as never)).filter((x) => x.type === "file")) f(id).set(e.path.replace(/^chrome\//, ""), e.data); return { status: 200, body: new Uint8Array() }; },
+  };
+  const make = () => createDockerSpaceBrowser({ api: api as never, http, profileSeal: { key: () => o.key ?? key(1), dir }, sealSweepMs: 0, sealQuietMs: o.sealQuietMs ?? 0, sleep: async () => {} });
+  return { st, f, make, store: createSealedStore({ key: () => o.key ?? key(1), dir: path.join(dir, "browser"), kind: "sbrowser" }) };
+}
+const toolOn = (sb: ReturnType<typeof createDockerSpaceBrowser>, id = "agt_dex") => sb.tool({ profileId: id, tool: "chrome_state", args: {}, timeoutMs: 1000 });
+
+test("R3-1: on a Space browser from before the guard nothing is sealed, every call keeps working, the profile stays whole, and the health says the Space browser needs updating", async () => {
+  const dir = dirOf(); const e = sbEngine(dir, { image: "old" }); const sb = e.make();
+  for (let i = 0; i < 3; i++) { await toolOn(sb); assert.deepEqual(await sb.sweep(), [], `sweep ${i}`); }
+  await toolOn(sb); await toolOn(sb);
+  assert.equal(e.f("agt_dex").size, 1, "the folder is whole and plain");
+  assert.equal(e.store.state("agt_dex"), "hot"); assert.equal(e.store.hasFile("agt_dex"), false, "no sealed file was written");
+  assert.ok(!e.st.ctl.includes("reset_chrome"), "the folder was never emptied");
+  assert.deepEqual(sb.unguarded(), ["agt_dex"], "reported");
+  // the roll back: a profile sealed by the new image is put back by the old one, and opened without a guard action
+  const n = sbEngine(dir, { image: "new" }); const fresh = n.make();
+  await toolOn(fresh); await fresh.stop("agt_dex");
+  assert.equal(n.store.state("agt_dex"), "sealed");
+  const back = sbEngine(dir, { image: "old" }); const rolled = back.make();
+  await toolOn(rolled);
+  assert.equal(back.f("agt_dex").size >= 1, true, "restored on the old image");
+  assert.equal(back.store.state("agt_dex"), "hot");
+  await toolOn(rolled); await toolOn(rolled);
+  assert.deepEqual(await rolled.sweep(), [], "and not sealed again there");
+  e.st.running = false;
+});
+
+test("R3-1: with the guard the order is guard first: if it cannot be set nothing is written, and the state, the file and the next call are all as before", async () => {
+  const dir = dirOf(); const b = browser(dir, { hooks: { guardFails: true } });
+  await b.tool("agt_dex", async () => { b.f("agt_dex").set("Default/Cookies", cookie(`sid=${SECRET}`)); });
+  b.advance(60_000);
+  for (let i = 0; i < 3; i++) { assert.deepEqual(await b.seal.sweep(), []); b.advance(30_000); }
+  assert.equal(b.store.state("agt_dex"), "hot", "never wiping"); assert.equal(b.store.hasFile("agt_dex"), false, "no file");
+  b.hooks.guardFails = false;
+  for (let i = 0; i < 3; i++) assert.equal(await b.tool("agt_dex", async () => "ran"), "ran", `call ${i}`);
+  assert.equal(b.f("agt_dex").size, 1);
+  // noGuard: refused with NoGuardError before anything is saved, remembered, and tried again when the container is replaced
+  const d2 = dirOf(); const c = browser(d2, { hooks: { noGuard: true } });
+  await c.tool("agt_dex", async () => { c.f("agt_dex").set("Default/Cookies", cookie("x")); });
+  c.advance(60_000); assert.deepEqual(await c.seal.sweep(), []);
+  assert.deepEqual(c.seal.unguarded(), ["agt_dex"]); assert.equal(c.store.hasFile("agt_dex"), false);
+  c.hooks.noGuard = false; c.seal.capsChanged(); c.advance(60_000);
+  assert.deepEqual(await c.seal.sweep(), ["agt_dex"], "sealed once the container has the guard");
+});
+
+test("R3-2: the sweep never stops the Space browser under a call, never starts a stopped one, and a died one is started once", async () => {
+  const dir = dirOf();
+  // A: the sweep started a dead container; a call arrives meanwhile and the container is left running
+  let release: () => void = () => {}; const gate = new Promise<void>((r) => { release = r; });
+  const a = sbEngine(dir, { image: "new", exit: { ExitCode: 137, OOMKilled: true }, onDisk: () => gate }); const sbA = a.make();
+  a.store.setState("agt_dex", "hot"); a.f("agt_dex").set("Default/Cookies", cookie("x"));
+  const sweeping = sbA.sweep();
+  await tick(30);
+  assert.equal(a.st.starts, 1, "a container that died is started");
+  const calling = toolOn(sbA, "agt_other");
+  await tick(30); release();
+  await racing(Promise.all([sweeping, calling]), "the sweep and the call");
+  assert.equal(a.st.stops, 0, "the container was not stopped under the agent's call");
+  assert.equal(a.st.running, true);
+  // B: stopped on purpose (clean exit 0): never started, however many sweeps
+  const dirB = dirOf(); const b = sbEngine(dirB, { image: "new", exit: { ExitCode: 0 } }); const sbB = b.make();
+  b.store.setState("agt_dex", "hot");
+  for (let i = 0; i < 5; i++) await sbB.sweep();
+  assert.equal(b.st.starts, 0, "a clean stop is a stop on purpose");
+  // C: died, but the only plain profile cannot be sealed (no guard): not started at all, and a second sweep does not start it either
+  const dirC = dirOf(); const c = sbEngine(dirC, { image: "old", exit: { ExitCode: 1 } }); const sbC = c.make();
+  c.st.running = true; await toolOn(sbC); await sbC.sweep(); c.st.running = false;
+  for (let i = 0; i < 5; i++) await sbC.sweep();
+  assert.equal(c.st.starts, 0, "nothing sealable is plain, so a dead container is left");
+  // D: died with a sealable profile: started once, stopped again, and not started again within ten minutes
+  const dirD = dirOf(); const d = sbEngine(dirD, { image: "new", exit: { ExitCode: 137, OOMKilled: true } }); const sbD = d.make();
+  d.store.setState("agt_dex", "hot"); d.f("agt_dex").set("Default/Cookies", cookie("x"));
+  assert.deepEqual(await sbD.sweep(), ["agt_dex"]); assert.equal(d.st.starts, 1); assert.equal(d.st.stops, 1);
+  d.store.setState("agt_dex2", "hot"); d.f("agt_dex2").set("Default/Cookies", cookie("y"));
+  for (let i = 0; i < 3; i++) await sbD.sweep();
+  assert.equal(d.st.starts, 1, "not started again within ten minutes");
+});
+
+test("R3-3: a profile whose folder is under the cap but whose tar is over it is not read; its entries are counted", async () => {
+  const dir = dirOf(); const b = browser(dir, { cap: 10_000, hooks: { sizes: { agt_dex: 9_000 } } });
+  await b.tool("agt_dex", async () => { b.f("agt_dex").set("Default/Cookies", cookie("x")); });
+  // the fake gives bytes only; give entries through a second fake
+  const seal2 = createBrowserSeal({
+    store: b.store, cap: 10_000, async read() { b.calls.push("read band"); return { status: 200, body: Readable.from([Buffer.from(tarFiles([file("chrome/a", "x")]))]) as never }; },
+    async put() { return { status: 200 }; }, async reset() {}, async stop() {}, async guard() {}, async rows() { return []; }, async disk() { return [{ id: "agt_dex", bytes: 9_000, entries: 5 }]; },
+  });
+  for (let i = 0; i < 3; i++) assert.deepEqual(await seal2.sweep({ quiet: false }), []);
+  assert.ok(!b.calls.includes("read band"), "9,000 bytes and 5 entries make a tar of more than 10,000: skipped without a read");
+  assert.deepEqual(seal2.oversize(), ["agt_dex"]);
+});
+
+test("R3-4: a guard left on across a restart is lifted by the next call", async () => {
+  const dir = dirOf(); const b = browser(dir);
+  await b.tool("agt_dex", async () => { b.f("agt_dex").set("Default/Cookies", cookie(`sid=${SECRET}`)); });
+  b.advance(60_000); await b.seal.sweep();
+  b.hooks.guardOffFails = true;
+  await assert.rejects(b.tool("agt_dex", async () => "ran"), /did not answer the guard/);
+  assert.equal(b.store.needsLift("agt_dex"), true, "remembered on disk");
+  const restarted = browser(dir);                          // a new process: nothing in memory
+  restarted.f("agt_dex").set("Default/Cookies", cookie(`sid=${SECRET}`));
+  assert.equal(await restarted.tool("agt_dex", async () => "ran"), "ran");
+  assert.equal(restarted.guards.get("agt_dex"), false, "the guard was lifted");
+  assert.equal(restarted.store.needsLift("agt_dex"), false);
+});
+
+test("R3-6: an archive cut inside zero-filled data is not sealed, wherever the cut falls; a whole tar with padding after its end is", async () => {
+  const f = path.join(dirOf(), "t.profile");
+  const zeros = tarFiles([{ path: "chrome/Default/Cache/zero", data: new Uint8Array(40_000), mode: 0o600, uid: 1, gid: 1, mtime: 1 }, file("chrome/Cookies", "x")]);
+  for (const cut of [600, 1600, 3000, 5000, 20_000, 40_600, zeros.length - 1100, zeros.length - 1024, zeros.length - 512, zeros.length - 1]) {
+    await assert.rejects(sealTo(f, Readable.from([Buffer.from(zeros.subarray(0, cut))]), key(1), "computers", CID("aaaa1111"), SEAL_CAP_BYTES, true), (e: unknown) => e instanceof TruncatedError, `cut at ${cut}`);
+  }
+  await sealTo(f, Readable.from([Buffer.from(zeros)]), key(1), "computers", CID("aaaa1111"), SEAL_CAP_BYTES, true);
+  const padded = Buffer.concat([Buffer.from(zeros), Buffer.alloc(10240 - (zeros.length % 10240))]);
+  await sealTo(f, Readable.from([padded.subarray(0, 3000), padded.subarray(3000)]), key(1), "computers", CID("aaaa1111"), SEAL_CAP_BYTES, true);
+  const w = new TarWalker(); w.feed(zeros.subarray(0, zeros.length - 1024)); assert.equal(w.complete, false);
+});
+
+test("N11: a sealed file of the first version (no header, no file id) opens once, and the next seal writes the new form", async () => {
+  const dir = dirOf(); const f = path.join(dir, "old.profile"); const id = CID("aaaa1111");
+  const k = hkdf32(key(1), "vyre:computers:profile:v1", id); const tar = Buffer.from(profileTar());
+  fs.writeFileSync(f, `${JSON.stringify(aesWrap(k, tar, `vyre:computers:profile:v1|${id}|0|1`))}\n`);
+  assert.ok(tar.equals(await drain(openFrom(f, key(1), "computers", id))));
+  await assert.rejects(drain(openFrom(f, key(2), "computers", id)), (e: unknown) => e instanceof UnopenedError);
+  const e = engine(dir); e.plant(id); fs.copyFileSync(f, path.join(dir, `${id}.profile`));
+  await e.seal().unseal(id);
+  assert.equal(e.vol(nameOf(id)).size > 0, true, "the old file was restored");
+  await e.seal().seal(id);
+  assert.match(fs.readFileSync(path.join(dir, `${id}.profile`), "utf8").split("\n")[0]!, /"v":2/, "the next seal is the new form");
+});
+
+test("N12: a step that hangs is given up on after its deadline, so a lock is not held for ever", async () => {
+  const hang = new Promise<boolean>(() => {});
+  const t0 = Date.now();
+  assert.equal(await withDeadline(hang, 40, false), false);
+  assert.ok(Date.now() - t0 < 1000);
+  assert.equal(await withDeadline(Promise.resolve(true), 1000, false), true);
 });
