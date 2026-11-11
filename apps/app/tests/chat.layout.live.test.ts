@@ -112,8 +112,12 @@ test("chat layout, team Space: long draft, scrolled feed, thread pane beside a l
     // 19: the same chat opened again and again from the sidebar and by address
     for (const id of [ch.mainThreadId, ch.mainThreadId]) { await page.goto(`${web.origin}/chat#screen=chats.conversation&threadId=${id}`, { waitUntil: "load" }); await page.waitForTimeout(800); }
     await shot("19-tabs-after-repeats");
-    const tabs = await page.getByTestId("tab-strip").innerText().catch(() => "");
+    const tabs = await page.getByTestId("tab-strip").first().innerText().catch(() => "");
     fs.writeFileSync(path.join(shots, "19-tab-text.txt"), tabs + "\n");
+    // a tab has no title of its own: each of the chats opened above reads as that chat's real title, and "New chat" shows nowhere
+    const strip = await page.getByTestId("tab-strip").first().innerText();
+    for (const title of ["Create a landing page", "Set up the onboarding goal", "Write the reminder emails", "Go through the retainer letters"]) assert.ok(strip.includes(title), `the tab for "${title}" reads that title; the strip says: ${strip.replaceAll("\n", " | ")}`);
+    assert.ok(!/New chat/.test(strip), `no tab still reads New chat: ${strip.replaceAll("\n", " | ")}`);
     assert.deepEqual(errors, []);
   } finally { await browser.close(); web.close(); await space.stop(); v.close(); }
 });

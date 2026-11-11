@@ -834,9 +834,10 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   };
   /** While the snapshot is stale only the owner is answered, and each refused call tries the sync again, so the Space heals itself as soon as the module can take the events. */
   const staleFor = (principal: string): boolean => {
-    if (!accessStale || principal === (access.owner() ?? cfg.owner)) return false;
+    if (!accessStale) return false;
+    // the owner is answered from the last snapshot, but a stale one never heals by itself, so the owner's calls kick the retry too (rc.22 bug 15: a chat made while a sync failed stayed "not found" to its owner)
     if (!kicking) { kicking = true; void syncAccess(true).catch(() => {}).finally(() => { kicking = false; }); }
-    return true;
+    return principal !== (access.owner() ?? cfg.owner);
   };
 
   // what each probe last wrote: a scheduled probe whose state and detail have not changed writes again only once a minute, inside the 90 s after which health calls a report stale
@@ -1381,6 +1382,14 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       // One sync at a time. Each access.sync call reads the module's tables when it begins and returns a snapshot of what it read plus its own events; two overlapping calls each missed the other's
       // events, and whichever was adopted last could drop a record's resource, so a read that followed a create answered "Access changed while reading". Run one after another, each begins where the last ended.
       let syncChain: Promise<void> = Promise.resolve();
+      // A sync that failed twice leaves the snapshot stale: whatever the Space made since (a chat, a share) is unknown to it. Try again until one succeeds, without waiting for someone to call.
+      let healTimer: ReturnType<typeof setTimeout> | null = null;
+      const healLater = (): void => {
+        if (healTimer !== null) return;
+        healTimer = setTimeout(() => { healTimer = null; void syncOnce(true).then(() => { if (accessStale) healLater(); }, () => healLater()); }, 500);
+        healTimer.unref?.();
+      };
+      closers.push(() => { if (healTimer !== null) { clearTimeout(healTimer); healTimer = null; } });
       const runSync = async (force?: boolean): Promise<void> => {
         if (noAccessModule) return;
         const events = accessPending;
@@ -1397,6 +1406,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
             if (!access.adopted()) throw e;   // a Space that never had the module's snapshot cannot answer
             // Fail closed (ruling 70): the last snapshot may still let a revoked or removed person through, so everyone but the owner is refused until a sync succeeds.
             accessStale = true;
+            healLater();
             return;
           }
         }
