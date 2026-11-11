@@ -19,6 +19,7 @@ import { ensureTables, seedBuiltins } from "./projections.ts";
 import { refuse, scrubber } from "./projections.ts";
 import type { BuiltinRow, ConnectorsCtx, ConnectionDb, ConnectorDef } from "./projections.ts";
 import type { SyncDeps, SyncEngine } from "./handlers/sync.ts";
+import { runCadence } from "./handlers/cadence.ts";
 
 export function loadBuiltins(path: URL = new URL("../../generated/registry.json", import.meta.url)): BuiltinRow[] {
   return (JSON.parse(readFileSync(path, "utf8")) as { connectors: BuiltinRow[] }).connectors;
@@ -159,4 +160,20 @@ export async function acceptWebhook(tx: Tx, ctx: { origin: string; depth: number
 
 export const hostCalls = {
   "connectors.accept_webhook": (ctx: HostCtx & { origin: string; depth: number }, a: { kind?: string; headers: Record<string, string | undefined>; body: string; url: string }): Promise<unknown> => acceptWebhook(live(ctx as { db?: unknown }).tx, ctx, a),
+};
+
+export { dueSyncs, runCadence } from "./handlers/cadence.ts";
+
+/**
+ * Keeps synced types current without anyone pressing Resync (spec 2.10, 120 s / 900 s / 3600 s). Every 30 seconds the host asks which synced types have no poll coming and are due, and starts one
+ * pass for each through connectors.sync_now; a pass plans the next poll itself. It never starts a pass on a connection that has one running, backs off after failures, and leaves paused or broken connections alone.
+ */
+export const periodic = {
+  "connectors.cadence": {
+    everyMs: 30_000,
+    run: async (ctx: Pick<HostCtx, "call" | "log"> & { db?: unknown }): Promise<void> => {
+      const h = live(ctx);
+      await runCadence({ tx: h.tx, now: h.deps.now ?? Date.now, call: (cap, input) => ctx.call(cap, input) }, { warn: (msg, attrs) => ctx.log?.warn(msg, attrs) });
+    },
+  },
 };

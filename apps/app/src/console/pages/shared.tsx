@@ -1,7 +1,7 @@
 import { createElement, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
-import { useMenu } from "../../../../../ui/src/Menu/index.tsx";
+import { choiceRows, useLiveRows, useMenu } from "../../../../../ui/src/Menu/index.tsx";
 import { Tip, Info } from "../../../../../ui/src/Tip/index.tsx";
 import { Dialog } from "../../../../../ui/src/Dialog/index.tsx";
 import type { CapMap } from "../../../../../generated/types.ts";
@@ -101,8 +101,9 @@ export function Note({ children, testID }: { children: ReactNode; testID?: strin
     </View> : null}</View>;
 }
 export function ReadState({ error, retry }: { error?: string | undefined; retry: () => void }): ReactElement { return error ? <States kind="error" message={error} retryable onRetry={retry} /> : <Text accessibilityRole="progressbar">Loading…</Text>; }
-export function Select({label,value,options,onChange,disabled=false,hint,testID}:{testID?:string;label:string;value:string;options:readonly {key:string;title:string}[];onChange(value:string):void;disabled?:boolean;hint?:string}):ReactElement{
- const menu=useMenu();return <View style={s.field}><Text style={s.label}>{label}</Text><Pressable accessibilityRole="button" accessibilityLabel={label} testID={testID} disabled={disabled} style={s.button} onPress={(event)=>{const rect=(event.currentTarget as unknown as {getBoundingClientRect?():{left:number;bottom:number}})?.getBoundingClientRect?.();menu.show(options.map((item)=>({label:item.title,checked:item.key===value,onSelect:()=>onChange(item.key)})),rect?.left??20,rect?.bottom??100,'other');}}><View style={{flexDirection:"row",alignItems:"center",justifyContent:"space-between",gap:8}}><Text style={[s.buttonText,{flexShrink:1}]} numberOfLines={1}>{options.find((item)=>item.key===value)?.title??(value||'Choose…')}</Text><Glyph name="chevD" size={11} color="var(--ink-3)"/></View></Pressable>{hint ? <Text style={{ fontSize: 11.5, lineHeight: 16, color: "var(--ink-3)" as string }}>{hint}</Text> : null}{menu.element}</View>;
+/** `loading`: the options come from a read that has not arrived; the open list says Loading and fills in place when they do, and never reads as empty. */
+export function Select({label,value,options,onChange,disabled=false,hint,testID,loading=false}:{loading?:boolean;testID?:string;label:string;value:string;options:readonly {key:string;title:string}[];onChange(value:string):void;disabled?:boolean;hint?:string}):ReactElement{
+ const menu=useMenu();const rows=choiceRows(options.map((item)=>({label:item.title,checked:item.key===value,onSelect:()=>onChange(item.key)})),loading);useLiveRows(menu.update,rows);return <View style={s.field}><Text style={s.label}>{label}</Text><Pressable accessibilityRole="button" accessibilityLabel={label} testID={testID} disabled={disabled} style={s.button} onPress={(event)=>{const rect=(event.currentTarget as unknown as {getBoundingClientRect?():{left:number;bottom:number}})?.getBoundingClientRect?.();menu.show(rows,rect?.left??20,rect?.bottom??100,'other');}}><View style={{flexDirection:"row",alignItems:"center",justifyContent:"space-between",gap:8}}><Text style={[s.buttonText,{flexShrink:1}]} numberOfLines={1}>{options.find((item)=>item.key===value)?.title??(value||'Choose…')}</Text><Glyph name="chevD" size={11} color="var(--ink-3)"/></View></Pressable>{hint ? <Text style={{ fontSize: 11.5, lineHeight: 16, color: "var(--ink-3)" as string }}>{hint}</Text> : null}{menu.element}</View>;
 }
 /** A whole number you nudge with - and +, with its explanation as a tooltip. */
 export function Stepper({ label, value, onChange, min = 1, max = 999, help }: { label: string; value: number; onChange: (value: number) => void; min?: number; max?: number; help?: string }): ReactElement {

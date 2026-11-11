@@ -8,13 +8,13 @@ import { createElement, useCallback, useEffect, useMemo, useRef, useState } from
 import type { ReactElement, ReactNode } from "react";
 import { Platform, Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
 import type { ViewStyle } from "react-native";
-import { filterMenuEntries, isHead, isItem, isReportItem, isSeparator, resolveMenuItems } from "./props.ts";
+import { EMPTY_LABEL, LOADING_LABEL, filterMenuEntries, isHead, isItem, isReportItem, isSeparator, resolveMenuItems } from "./props.ts";
 import type { MenuEntry, MenuItem, MenuProps, MenuSource } from "./props.ts";
 import { MenuPortal } from "./portal.tsx";
 import { RADIUS } from "../tokens/radius.ts";
 
 export type { MenuEntry, MenuHead, MenuItem, MenuProps, MenuSeparator, MenuSource } from "./props.ts";
-export { REPORT_A_PROBLEM, appendReportProblem, filterMenuEntries, resolveMenuItems } from "./props.ts";
+export { EMPTY_LABEL, LOADING_LABEL, REPORT_A_PROBLEM, appendReportProblem, filterMenuEntries, resolveMenuItems } from "./props.ts";
 
 /* ---------- Report a problem hook-up ---------- */
 
@@ -252,11 +252,34 @@ export function Menu(props: MenuViewProps): ReactElement | null {
   const [size, setSize] = useState<{ w: number; h: number }>({ w: MENU_W, h: MENU_H });
   const nodes = useRef<Record<number, unknown>>({});
   const typed = useRef<{ text: string; at: number }>({ text: "", at: 0 });
+  const panel = useRef<unknown>(null);
+
+  // A menu opens with no row lit, but keyboard focus still has to be inside it: Escape and the arrow keys are read on the menu, so focus left on the button below would leave them dead.
+  useEffect(() => { if (!searching) focusNode(panel.current); }, [searching]);
 
   const close = useCallback(() => {
     setGone(true);
     if (onClose) onClose();
   }, [onClose]);
+
+  // A menu opens with nothing lit, so focus can still sit on the control that opened it (Shift+F10 on a list row): Escape must close it from there too, not only from inside the panel
+  const goneRef = useRef(false);
+  goneRef.current = gone;
+  useEffect(() => {
+    if (Platform.OS !== "web") return undefined;
+    type Key = { key?: string; preventDefault?: () => void; stopPropagation?: () => void };
+    const doc = (globalThis as { document?: { addEventListener?: (t: string, fn: (e: Key) => void, capture?: boolean) => void; removeEventListener?: (t: string, fn: (e: Key) => void, capture?: boolean) => void } }).document;
+    if (doc === undefined || typeof doc.addEventListener !== "function") return undefined;
+    // in the capture phase and stopped there: the Escape that closes a menu inside a sheet or a dialog must not also close that sheet or dialog
+    const onDocKey = (e: Key): void => {
+      if (e.key !== "Escape" || goneRef.current) return;
+      e.preventDefault?.();
+      e.stopPropagation?.();
+      close();
+    };
+    doc.addEventListener("keydown", onDocKey, true);
+    return () => doc.removeEventListener?.("keydown", onDocKey, true);
+  }, [close]);
 
   const land = useCallback((index: number) => {
     if (index < 0) return;
@@ -351,12 +374,13 @@ export function Menu(props: MenuViewProps): ReactElement | null {
         role="menu"
         aria-label={menuLabel(entries)}
         testID="menu"
+        ref={(node) => { panel.current = node; }}
         onLayout={(event) => {
           const { width, height } = event.nativeEvent.layout;
           if (width !== size.w || height !== size.h) setSize({ w: width, h: height });
         }}
         style={[styles.panel, { left, top, maxHeight: Math.max(120, window.height - 12) }, props.width !== undefined ? { width: props.width, minWidth: props.width, maxWidth: props.width } : null, webProps({ style: { overflowY: "auto" } }).style as object | undefined]}
-        {...webProps({ onKeyDown })}
+        {...webProps({ onKeyDown, tabIndex: -1 })}
       >
         {searching ? (
           <View style={styles.search}>
@@ -400,6 +424,7 @@ function MenuRow({ entry, lit, onHover, onChoose, nodeRef }: {
       aria-checked={entry.checked === true ? true : undefined}
       aria-current={entry.checked === true ? "true" : undefined}
       aria-disabled={entry.disabled === true ? true : undefined}
+      disabled={entry.disabled === true}
       onPress={(event) => { event.stopPropagation(); if (entry.disabled !== true) onChoose(); }}
       onHoverIn={entry.disabled === true ? undefined : onHover}
       onFocus={entry.disabled === true ? undefined : onHover}
@@ -581,6 +606,23 @@ export function useMenu(): {
   return { element, show, hide, update };
 }
 
+/**
+ * The rows of a pick-one list (a Select, a picker) while its data may still be loading. Loading: the rows so far plus a quiet "Loading…" row that cannot be chosen, so the list never reads as "there is nothing".
+ * Loaded and empty: one quiet row that says so. Used by every Select so the rule is one rule.
+ */
+export function choiceRows(rows: readonly MenuItem[], loading: boolean): MenuEntry[] {
+  if (loading) return [...rows, { label: LOADING_LABEL, disabled: true }];
+  return rows.length > 0 ? [...rows] : [{ label: EMPTY_LABEL, disabled: true }];
+}
+
+/** Sends new rows to the menu that is open, in place, when they change (the data arrived while the list was open). Nothing happens while no menu is open. */
+export function useLiveRows(update: (items: readonly MenuEntry[]) => void, rows: readonly MenuEntry[]): void {
+  const key = rows.map((r) => (isItem(r) ? `${r.label}|${r.checked === true ? 1 : 0}|${r.disabled === true ? 1 : 0}` : "-")).join("\n");
+  const latest = useRef(rows);
+  latest.current = rows;
+  useEffect(() => { update(latest.current); }, [key, update]);
+}
+
 /* ---------- styles ---------- */
 
 const styles = StyleSheet.create({
@@ -594,6 +636,7 @@ const styles = StyleSheet.create({
     borderRadius: RADIUS,
     backgroundColor: "var(--raised)" as string,
     boxShadow: "var(--sh-pop)" as string,
+    ...({ outlineStyle: "none" } as unknown as ViewStyle),
   },
   // the lit row is the wash; the browser focus ring would draw a black box around it
   item: { flexDirection: "row", alignItems: "center", height: 28, paddingHorizontal: 9, borderRadius: RADIUS, gap: 9, width: "100%", ...({ outlineStyle: "none" } as unknown as ViewStyle) },

@@ -11,17 +11,17 @@ const draw = (flow: "personal" | "team" | "member", progress: Progress, device: 
   renderToStaticMarkup(<ResumeChip flow={flow} progress={progress} device={device} compact={false} onOpen={() => undefined} />).replaceAll("<!-- -->", "");
 const allDone = (flow: "personal" | "team" | "member", device: "mac" | "web" | "phone"): Progress => Object.fromEntries(visibleSteps(flow, device).map((s) => [s.key, "done" as const]));
 
-test("a brand-new Space has no entry in the bar: nothing is done or put off, so no 0 of 9; setup opens by itself and the landing and the Console carry it", () => {
+test("a brand-new Space has no entry in the bar: nothing is done or put off, so no 0 of 6; setup opens by itself and the landing and the Console carry it", () => {
   assert.equal(draw("team", {}), "");
   assert.equal(startedSetup("team", {}, "web"), false);
-  assert.equal(resumeInfo("team", {}, "web")?.total, 9, "the steps are still known, for the screens that show them in place");
+  assert.equal(resumeInfo("team", {}, "web")?.total, 6, "the steps are still known, for the screens that show them in place");
 });
 
 test("once a step is done the entry says how many of the real steps are done; a step put off moves it on but never the number", () => {
   const one = draw("team", { org: "done" });
-  assert.match(one, /Finish setup, 1 of 9/);
+  assert.match(one, /Finish setup, 1 of 6/);
   const later = draw("team", { org: "done", space_ai: "later" });
-  assert.match(later, /Finish setup, 1 of 9/);
+  assert.match(later, /Finish setup, 1 of 6/);
   assert.equal(resumeInfo("team", { org: "done", space_ai: "later" }, "web")?.step, "workspace", "it opens at the first step still open");
 });
 

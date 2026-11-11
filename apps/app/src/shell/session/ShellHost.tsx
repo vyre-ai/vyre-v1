@@ -16,9 +16,8 @@ import { dropKeyOnOwnNode } from "../../../../../client/src/gateway/local-key.ts
 import { CmdK, NewTabSearch } from "../cmdk/CmdK.tsx";
 import { createGateSearch, loadRecent } from "../cmdk/gate.ts";
 import type { Hit } from "../cmdk/model.ts";
-import { formatHash, parseHash } from "../hash/hash.ts";
-import { tabKey } from "../tabs/store.ts";
-import { followTitle, screenAsk, titleAsk, typeTitleAsk } from "../tabs/titles.ts";
+import { formatHash } from "../hash/hash.ts";
+import { followAllTabs } from "../tabs/titles.ts";
 import { railPlaces } from "../rail/kits.ts";
 import type { PlaceId } from "../rail/kits.ts";
 import { createShellHub } from "../spaces/hub.ts";
@@ -168,7 +167,7 @@ export function ShellHost({ stored, open, onSignedOut, onHub, hub: given, initia
   }, [team]);
   const setAway = useCallback((on: boolean): void => { flags.current.away = on; void team?.away(on); }, [team]);
   const teamProp = useMemo(() => (team ? { invite: () => { void team.invite(); }, away: setAway } : undefined), [team, setAway]);
-  const search = useMemo(() => (session ? (flags.current.terminal = session.def.terminal, createGateSearch({ runtime: session.runtime, nav: hub, state: flags.current, recent: () => recent.current, viewer: () => ({ id: session.runtime.me.id, spaceId: session.def.spaceId, places: new Set(railPlaces(hub.rail())) }), ...(team ? { away: setAway } : {}) })) : null), [session, hub, team, setAway]);
+  const search = useMemo(() => (session ? (flags.current.terminal = session.def.terminal, createGateSearch({ runtime: session.runtime, nav: hub, state: flags.current, recent: () => recent.current, viewer: () => ({ id: session.runtime.me.id, spaceId: session.def.spaceId, places: new Set(railPlaces(hub.rail())) }), ...(team ? { away: setAway } : {}), signOut: () => signOutRef.current() })) : null), [session, hub, team, setAway]);
 
   useEffect(() => {
     if (!session || stored.def.kind !== "team") return undefined;
@@ -197,15 +196,12 @@ export function ShellHost({ stored, open, onSignedOut, onHub, hub: given, initia
     return () => { off = true; made?.close(); setPhone(undefined); };
   }, [session, voice, telephony]);
 
-  // a tab opened on an item is named for it: read the item's name once the tab shows and give the tab that title
+  // a tab has no title of its own: it reads as the current name of the item it shows, for EVERY tab and not only the selected one, so a chat that gets its real title (or is renamed) while another
+  // tab is selected is renamed on its tab at once, and a tab restored from the last launch reads the current name, not the one it was saved with
   useEffect(() => {
-    if (!session) return;
-    const target = parseHash(location.hash);
-    const ask = target.subject ? titleAsk(target.subject, target.args) : screenAsk(target.screen, target.args) ?? typeTitleAsk(location.place, target.args);
-    if (!ask) return;
-    const key = tabKey(location.place, location.hash);
-    return followTitle(session, ask, (t, empty) => hub.retitle(key, t, empty));
-  }, [session, hub, location.place, location.hash]);
+    if (!session) return undefined;
+    return followAllTabs(session, { tabs: () => hub.session().tabs.state().tabs, subscribe: (l) => hub.subscribe(l) }, (key, t, empty) => hub.retitle(key, t, empty));
+  }, [session, hub]);
 
   // Inbox is on the rail once something flows in: the answer follows the mailbox, calendar and number reads (and their change events), and is kept for the next launch
   useEffect(() => {
@@ -301,11 +297,13 @@ export function ShellHost({ stored, open, onSignedOut, onHub, hub: given, initia
   const renderPlace = (ctx: PlaceContext): ReactElement => failed !== null && session === null
     ? <States kind="error" message={`Couldn't reach ${stored.def.name}`} cause={failed} next="Try again" retryable onRetry={() => setAttempt((n) => n + 1)} />
     : <PlaceHost place={ctx.place} runtime={session?.runtime ?? null} hash={ctx.hash} opened={(t) => { const next = formatHash(t); if (next !== ctx.hash) hub.move(ctx.place, next); }} />;
+  const signOutRef = useRef<() => void>(() => undefined);
   const signOut = (): void => {
     forgetKey(stored.token); void dropKeyOnOwnNode(stored.baseUrl, stored.token).catch(() => undefined); void unlinkComputer(stored);
     void session?.call("identity.sign_out", {}).catch(() => undefined);
     onSignedOut("manual");
   };
+  signOutRef.current = signOut;
   const selectSpace=(id:string):void=>{if(id===stored.def.spaceId)return;const target=catalogue.find(item=>item.def.spaceId===id);if(!target||!onSwitchSpace)return;sessionTheme(target,false);onSwitchSpace(id);};
   const renderNewTab = (): ReactElement => (search ? <NewTabSearch data={search} /> : <States kind="empty" title="Open anything, or start something" icon="search" />);
   // the onboarding screen opens over whatever the shell shows, the first time a person enters a Space and when asked

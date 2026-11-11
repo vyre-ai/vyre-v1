@@ -69,7 +69,7 @@ test("a taken username goes back to the account step with the line, keeping what
 
 test("the Space refusing a duplicate username becomes JoinRefused at step 1; any other refusal stays plain", async () => {
   const join = { route: { kind: "join" as const, address: "https://northwind.example", code: "ABCD-EFGH", fingerprint: "abcdef12" }, preview: { spaceId: "spc_x", spaceName: "Northwind", invitedBy: "Maya", role: "Member", expiresAt: 0, fingerprint: "abcdef12" } };
-  const values = { username: "maya", displayName: "Maya", password: "harbor lamp", deviceName: "d", trustDevice: true, ai: { choice: "none" as const } };
+  const values = { username: "maya", displayName: "Maya", password: "harbor lamp", deviceName: "d", ai: { choice: "none" as const } };
   const deps = (e: unknown) => ({ anonymous: async () => { throw e; }, open: async () => { throw new Error("not reached"); }, getSpace: async () => ({ id: "spc_x", marker: "m" }) });
   await assert.rejects(acceptDesktopJoin(join, values, deps(cap(409, "validation.duplicate"))), (e: unknown) => e instanceof JoinRefused && e.step === 1);
   await assert.rejects(acceptDesktopJoin(join, values, deps(new TypeError("offline"))), /Could not finish joining this Space/);

@@ -104,7 +104,9 @@ test("a server-side turn for a member drives the extension on the member's own c
     await page.goto(srv.url + "/");
     const tabId = await r.worker.evaluate(async (u: string) => ((await (globalThis as any).chrome.tabs.query({})).find((t: any) => String(t.url).startsWith(u)) ?? {}).id, srv.url);
     assert.equal((await fetch(`${device.url}/local/chrome/agents`, { method: "POST", headers: dauth, body: JSON.stringify({ spaces: ["spc_stream"] }) })).status, 200);
-    await until("the extension's agent channel", () => device.chromeBridge.connected === 1);
+    // The extension keeps one link to the computer for its agent channel and, once a page asks for a fill or a Space change, a second one for the rest of its work, so the number of
+    // open streams is 1 or 2 depending on timing. What matters is that the agent channel answers: the person's own turn lists the tabs through it.
+    await until("the extension's agent channel", async () => mine.agent("computers.chrome.tabs", { action: "list" }).then(() => true, () => false));
     await wait(500);
 
     // the person's own turn works the page on their computer, and the held card lands in the chat on the server

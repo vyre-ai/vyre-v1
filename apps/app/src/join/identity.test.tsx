@@ -92,7 +92,7 @@ test("join with the existing account: members.accept gets the same wraps and key
     const persisted: StoredSession[] = [];
     const stored = await acceptDesktopJoin(
       { route: { kind: "join", address: "https://acme.example", code: "AB12-CD34", fingerprint: "9f3c" }, preview: { spaceId: "spc_acme", spaceName: "Acme", invitedBy: "Maya", role: "member", expiresAt: 1, fingerprint: "9f3c" } },
-      { username: "irfad", displayName: "Irfad Imtiaz", password: PASSWORD, deviceName: "Vyre desktop", trustDevice: true, ai: { choice: "none" } },
+      { username: "irfad", displayName: "Irfad Imtiaz", password: PASSWORD, deviceName: "Vyre desktop", ai: { choice: "none" } },
       {
         anonymous: async (cap, input) => { assert.equal(cap, "members.accept"); accepted.push(input as Record<string, unknown>); return { token: "vst_member" }; },
         open: async () => ({ def: { spaceId: "spc_acme" }, me: { id: "usr_member" }, close: () => undefined }),
