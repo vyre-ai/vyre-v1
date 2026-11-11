@@ -1,5 +1,6 @@
 // Small pieces of the composer (rc.8): the brand mark of a provider, effort bars, the context ring, the working light, the popover frame and its group heads, and the stylesheet
 // the few animations need. Colours are skin tokens, so light and dark (and every skin) repaint with no re-render.
+import { useEscapeLayer } from "../Overlay/escape.ts";
 import { createElement, useEffect, useRef } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { Platform, StyleSheet, Text, View } from "react-native";
@@ -56,11 +57,10 @@ export function useDismiss(open: boolean, close: () => void, inside: () => reado
       for (const n of cb.current.inside()) if (n?.contains?.(e.target)) return;
       cb.current.close();
     };
-    const key = (e: { key?: string; defaultPrevented?: boolean }): void => { if (e.key === "Escape" && !e.defaultPrevented) cb.current.close(); };
     doc.addEventListener("mousedown", down as never, true);
-    doc.addEventListener("keydown", key as never);
-    return () => { doc.removeEventListener?.("mousedown", down as never, true); doc.removeEventListener?.("keydown", key as never); };
+    return () => { doc.removeEventListener?.("mousedown", down as never, true); };
   }, [open]);
+  useEscapeLayer(open, () => cb.current.close());   // one Escape closes the top layer only
 }
 
 /* ---------- brand marks ---------- */

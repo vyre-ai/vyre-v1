@@ -1,1 +1,2 @@
 - Lane branches (wip/...) no longer start CI runs on every push: they are tested on the lane box, and CI runs on pull requests and integration branches, so runs stop starving each other.
+- The Windows install proof checks that the autostart task is gone without tripping on the message Windows prints when it is.

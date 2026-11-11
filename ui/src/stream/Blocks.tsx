@@ -1,5 +1,6 @@
 // The blocks of a reply beyond paragraphs and lists: code with colour, a language label, Copy and Wrap; diagrams in a sandboxed frame with a fallback to the source; math; charts drawn by our own SVG with a table
 // view and Copy as CSV; callouts; collapsibles; images that enlarge; footnotes. Each is a plain component of the skin's colours (CSS variables on web). The big libraries load only when a message uses them (loaders.ts).
+import { useEscapeLayer } from "../Overlay/escape.ts";
 import { createContext, createElement, useContext, useEffect, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
@@ -164,12 +165,7 @@ export function CheckBox({ id, index, initial, children }: { id: string; index: 
 
 /** A box over the whole screen with one thing in it; a press anywhere or Escape closes it. */
 export function Lightbox({ onClose, children, testID }: { onClose: () => void; children: ReactNode; testID?: string }): ReactElement {
-  useEffect(() => {
-    const d = (globalThis as { document?: { addEventListener(t: string, f: (e: { key: string }) => void): void; removeEventListener(t: string, f: (e: { key: string }) => void): void } }).document;
-    const key = (e: { key: string }): void => { if (e.key === "Escape") onClose(); };
-    d?.addEventListener("keydown", key);
-    return () => d?.removeEventListener("keydown", key);
-  }, [onClose]);
+  useEscapeLayer(true, onClose);
   return (
     <Pressable accessibilityRole="button" accessibilityLabel="Close" testID={testID ?? "lightbox"} onPress={onClose} style={st.lb} {...webProps({ role: "dialog", "aria-modal": "true" })}>
       <View style={st.lbBody}>{children}</View>

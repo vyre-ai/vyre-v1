@@ -227,11 +227,7 @@ export function paneData(rt: ShellRuntime, a: ChatsActions, threadId: string, ag
     me: { id: rt.me.id }, nameOf: nameLookup(rt),
     ownerOf: (id) => { const p = rt.principals.getSnapshot(); return p.status === "ready" ? p.data.find((x) => x.id === id)?.owner : undefined; },
     memory: chatMemory(rt, a),
-    // the agent's workspace: its terminal sessions, Attach and Wake (the Space browser half is bound when it lands)
-    workspace: workspaceData({
-      screens: rt.screens, call: rt.call, newKey: () => `ws-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`, openTerminal: (terminalId) => rt.open({ screen: "chats.terminal-tab", args: { terminalId } }),
-    }),
-    browser: browserData({ call: rt.call, me: rt.me.id, nameOf: nameLookup(rt), spaceUrl: rt.baseUrl }),
+    ...workData(rt),
     ...(rt.baseUrl ? { spaceUrl: rt.baseUrl } : {}),
   };
 }
@@ -242,4 +238,14 @@ export function openMailThread(rt: Pick<ShellRuntime, "call" | "open">, threadId
     const c = (o as { conversationId?: string } | null)?.conversationId;
     if (c) rt.open({ subject: { type: "conversation", id: c }, args: { threadId } });
   }, () => undefined);
+}
+
+/** The Computer tab's two halves, one source for every place that shows the tab: the agent's workspace (its terminal sessions, Attach and Wake) and its profile in the Space browser (live view, Take over). */
+export function workData(rt: ShellRuntime): Pick<ChatRightPaneData, "workspace" | "browser"> {
+  return {
+    workspace: workspaceData({
+      screens: rt.screens, call: rt.call, newKey: () => `ws-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`, openTerminal: (terminalId) => rt.open({ screen: "chats.terminal-tab", args: { terminalId } }),
+    }),
+    browser: browserData({ call: rt.call, me: rt.me.id, nameOf: nameLookup(rt), spaceUrl: rt.baseUrl }),
+  };
 }

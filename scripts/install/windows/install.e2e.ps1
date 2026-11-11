@@ -87,7 +87,8 @@ switch ($Phase) {
         if ($LASTEXITCODE -ne 0) { Fail "install.ps1 -Uninstall exited $LASTEXITCODE" }
         if (Test-Path $installDir) { Fail "$installDir is still there" }
         if (Get-Process -Name "vyre-desktop", "vyred", "Vyre" -ErrorAction SilentlyContinue) { Fail "a Vyre process is still running" }
-        schtasks /query /tn "Vyre" 2>&1 | Out-Null
+        # through cmd: when the task is gone schtasks writes to stderr, which Windows PowerShell 5.1 turns into a terminating error under ErrorActionPreference Stop
+        cmd /c 'schtasks /query /tn "Vyre" >nul 2>&1'
         if ($LASTEXITCODE -eq 0) { Fail "the autostart task is still registered" }
         if ((Get-UninstallEntries).Count -ne 0) { Fail "the uninstall entry is still there" }
         Step "install.ps1 -Uninstall left nothing behind"

@@ -537,17 +537,14 @@ function AgentChat({ rt, go, agentId, list }: { rt: ShellRuntime; go: Go; agentI
   return data ? <Conversation key={data.threadId} data={data} /> : <ConversationLoading />;
 }
 
-function ComputerLayer({ rt, go, nameOf, list, counter, computerId, chat }: {
+function ComputerLayer({ rt, go, computerId }: {
   rt: ShellRuntime; go: Go; nameOf: (id: string) => string; list: readonly Principal[]; counter: CaptureCounter; computerId: string; chat: boolean;
 }): ReactElement {
   const q = useLive<ComputerOut>(rt.screens, "chats.computer-popup", "computer", { computerId });
   const agentId = q.status === "ready" ? q.data.computer.agentId : "";
-  const viewer = useViewer(rt);
-  const data = useMemo(
-    () => (agentId === "" ? null : popupData(rt, go, { computerId, agent: { agentId, name: nameOf(agentId) }, counter, renderChat: (a) => <AgentChat rt={rt} go={go} agentId={a.agentId} list={list} />, ...(viewer ? { reach: { viewer, nameOf, open: (t) => rt.open(shellTarget(t)) } } : {}) })),
-    [rt, go, computerId, agentId, nameOf, counter, list, viewer],
-  );
-  return data ? <ComputerPopup data={data} {...(chat ? { initial: { chat: true } } : {})} /> : <ComputerPopupLoading />;
+  // The single-computer popup is no longer a place a person lands: a link, a card or a route that names a computer opens its agent's Computer tab (Terminal and Browser), the one place for it (owner ruling 6 Nov 2026)
+  useEffect(() => { if (agentId !== "") go.agent(agentId, "computer"); }, [go, agentId]);
+  return <ComputerPopupLoading />;
 }
 
 /** The recording sheet: the popup's own sheet, opened on a recording that was stopped, asking what the agent should do with it. */

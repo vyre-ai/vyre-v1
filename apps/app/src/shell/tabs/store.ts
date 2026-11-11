@@ -81,7 +81,7 @@ function holding(state: TabsState, key: string, except?: TabEntry): TabEntry | u
 }
 
 /** Opens a tab or selects the one already open with that key (or showing it). `background` opens it behind the current tab (Cmd-click). */
-export function openTab(state: TabsState, tab: TabEntry, background = false): TabsState {
+export function openTab(state: TabsState, tab: TabEntry, background = false, exact = false): TabsState {
   const at = holding(state, tab.key);
   if (at !== undefined) {
     if (background) return state;
@@ -90,7 +90,7 @@ export function openTab(state: TabsState, tab: TabEntry, background = false): Ta
     return { tabs: moved ? state.tabs.map((t) => (t === at ? { ...t, hash: tab.hash as string } : t)) : state.tabs, active: at.key };
   }
   // a place that already has a tab is that tab: opening the place (no item named) goes to the one it has, the one on screen first, else the one used last; one tab per place, and one per chat or record
-  if (tab.hash === undefined && tab.isNew !== true) {
+  if (tab.hash === undefined && tab.isNew !== true && !exact) {
     const same = state.tabs.filter((t) => t.place === tab.place && t.isNew !== true);
     const there = same.find((t) => t.key === state.active) ?? [...same].sort((a, b) => (b.at ?? 0) - (a.at ?? 0))[0] ?? undefined;
     if (there !== undefined) return background ? state : { tabs: state.tabs, active: there.key };
@@ -121,6 +121,20 @@ export function moveTab(state: TabsState, place: PlaceId, hash: string | undefin
   };
   if (next.key === cur.key && next.hash === cur.hash && next.title === cur.title) return state;
   return { tabs: state.tabs.map((t) => (t === cur ? next : t)), active: next.key };
+}
+
+/**
+ * The person asked for a place's landing itself (an address with no item, /chat): the tab that shows it is the place's own tab. One that already exists is selected; else the selected tab of that
+ * place becomes it (the same-tab navigation changes that tab, so a tab never names the item it no longer shows); else it is opened. A tab on an item elsewhere is another tab and stays.
+ */
+export function landOn(state: TabsState, place: PlaceId): TabsState {
+  const key = tabKey(place);
+  const own = state.tabs.find((t) => t.key === key && t.isNew !== true);
+  if (own !== undefined) return selectTab(state, own.key);
+  const cur = activeEntry(state);
+  if (cur === undefined || cur.isNew === true || cur.place !== place) return openTab(state, placeTab(place), false, true);
+  const next: TabEntry = { key, title: PLACE_TITLE[place], place, ...(cur.pinned === true ? { pinned: true } : {}) };
+  return { tabs: state.tabs.map((t) => (t === cur ? next : t)), active: key };
 }
 
 /** The tab to select after `closed` goes away: the neighbour on the right, else on the left. */
@@ -315,6 +329,8 @@ export interface TabsController {
   subscribe(listener: () => void): () => void;
   /** Open a place (or an item in it) as a tab, or select it. */
   openPlace(place: PlaceId, hash?: string, title?: string, background?: boolean): void;
+  /** The place's landing was asked for by address: its own tab shows it (landOn). */
+  land(place: PlaceId): void;
   /** The person went somewhere inside the selected tab's place: the tab follows (moveTab). */
   move(place: PlaceId, hash?: string, title?: string): void;
   newTab(from: PlaceId): TabEntry;
@@ -396,6 +412,10 @@ export function createTabsController(options: TabsControllerOptions): TabsContro
     move(place, hash, title) {
       if (hidden.includes(place)) return;
       set(moveTab(state, place, hash, title));
+    },
+    land(place) {
+      if (hidden.includes(place)) return;
+      set(landOn(state, place));
     },
     newTab(from) {
       // a blank chat is already open: New chat goes to it, and no tab is added
