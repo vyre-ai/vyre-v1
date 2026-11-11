@@ -27,9 +27,30 @@ export interface DoctorOptions {
   diskEncrypted?: () => Promise<ProbeResult>;
   /** what the person chose about disk encryption at install */
   diskChoice?: { kind: string; since?: string };
+  /** Docker's data root as the host sees it: agent browser sign-ins live in Docker volumes there */
+  dockerRoot?: { dir: string; state: string };
 }
 
 const finding = (key: string, r: ProbeResult, next: string): Finding => ({ key, state: r.state, detail: r.detail ?? "", next: r.state === "healthy" ? OK : next });
+
+/** The next step for the disk check: a recorded choice has its own (the person is not told to do what they decided not to, or to enable what they said is on). */
+export function diskNext(detail: string | undefined): string {
+  const d = detail ?? "";
+  if (d.startsWith("Not verified: your provider's encryption")) return NEXT.diskProvider;
+  if (d.startsWith("The data is NOT encrypted at rest")) return NEXT.diskPlain;
+  return NEXT.disk;
+}
+
+/** Docker's data root, as the host reported it. A finding of its own; it only reports. */
+export function dockerRootFinding(root: { dir: string; state: string } | undefined, dataVerified: boolean, choice: string | undefined): Finding | null {
+  if (!root) return null;
+  const key = "host.docker_root";
+  if (root.state === "encrypted") return { key, state: "healthy", detail: `Docker's data root ${root.dir} is on an encrypted volume (verified by the host); agent browser sign-ins sit there.`, next: OK };
+  if (dataVerified) return { key, state: "degraded", detail: `Docker's data root (${root.dir}) is not on an encrypted volume, but the Space's data is. Agent browser sign-ins live in Docker volumes there, so they are not encrypted at rest.`, next: NEXT.dockerRoot };
+  if (choice === "plain") return { key, state: "degraded", detail: `Agent browser sign-ins sit on Docker's disk (${root.dir}), which is not encrypted at rest (the plain-disk choice you made covers it).`, next: NEXT.dockerRoot };
+  if (choice === "provider") return { key, state: "degraded", detail: `Not verified: agent browser sign-ins sit on Docker's disk (${root.dir}). Your provider's encryption, as you stated, covers them only if Docker's data root is on that volume.`, next: NEXT.dockerRoot };
+  return { key, state: "degraded", detail: `Agent browser sign-ins sit on Docker's disk (${root.dir}), which is not verified encrypted.`, next: NEXT.dockerRoot };
+}
 
 export interface ChainResult { ok: boolean; seq: number; why?: string }
 
@@ -141,7 +162,10 @@ export async function runDoctor(o: DoctorOptions): Promise<DoctorReport> {
   findings.push(info && alive(info.pid)
     ? { key: "daemon.process", state: "healthy", detail: `vyred runs as pid ${info.pid} on ${info.url}.`, next: OK }
     : { key: "daemon.process", state: "degraded", detail: "vyred is not running.", next: NEXT.process });
-  findings.push(finding("host.disk_encrypted", await (o.diskEncrypted ? o.diskEncrypted() : probes.diskEncrypted(platform, o.dataDir, o.diskChoice)), NEXT.disk));
+  const disk = await (o.diskEncrypted ? o.diskEncrypted() : probes.diskEncrypted(platform, o.dataDir, o.diskChoice));
+  findings.push(finding("host.disk_encrypted", disk, diskNext(disk.detail)));
+  const root = dockerRootFinding(o.dockerRoot, o.diskChoice?.kind === "detected", o.diskChoice?.kind);
+  if (root) findings.push(root);
   findings.push(finding("host.disk_space", probes.diskSpace(platform, o.dataDir), NEXT.space));
   if (space) {
     findings.push(eventsFinding(paths.events, o.chainTail));

@@ -287,17 +287,41 @@ $1	$2	$3"
 
 json_str() { printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' | tr '\n\t' '  '; }
 
+# space_serves_domain: has the Space an own domain (network_config mode own_domain, set at install or later in the Console)? A server whose domain was set in the Console has no VYRE_ADDRESS in compose.env but
+# still needs ports 80 and 443. 0 = yes, or cannot tell (then the ports stay open: closing them wrongly takes the Space's address down); 1 = no.
+space_serves_domain() {
+  db=$DATA_DIR/space/modules.db
+  [ -r "$db" ] || return 1
+  q="SELECT 1 FROM network_config WHERE id = 1 AND mode = 'own_domain'"
+  if command -v sqlite3 >/dev/null 2>&1; then [ "$(sqlite3 -readonly -cmd '.timeout 3000' "$db" "$q" 2>/dev/null)" = 1 ]; return $?; fi
+  if command -v node >/dev/null 2>&1 && node --no-warnings -e "require('node:sqlite')" >/dev/null 2>&1; then
+    node --no-warnings -e "const {DatabaseSync}=require('node:sqlite');const d=new DatabaseSync(process.argv[1],{readOnly:true});process.exit(d.prepare(process.argv[2]).get()?0:1)" "$db" "$q" >/dev/null 2>&1; return $?
+  fi
+  return 0
+}
+
 # refresh_disk_env: at each start the disk is looked at again and what the Console is told (VYRE_DISK_ENCRYPTION in compose.env) follows it: a verified encryption layer, else the person's recorded
 # statement (plain or provider), else nothing. A recorded value is never trusted over what can be seen.
 refresh_disk_env() {
   [ -f "$DIR/compose.env" ] || return 0
   disk_encrypted "$DATA_DIR" && rc=0 || rc=$?
   k=$(sed -n 's/^kind=//p' "$DIR/state/encryption" 2>/dev/null | head -n 1)
-  if [ "$rc" = 0 ]; then k=detected; else case "$k" in plain|provider) ;; *) k="" ;; esac; fi
+  if [ "$rc" = 0 ]; then if crypt_on_file; then k=detected_file; else k=detected; fi; else case "$k" in plain|provider) ;; *) k="" ;; esac; fi
   since=$(sed -n 's/^since=//p' "$DIR/state/encryption" 2>/dev/null | head -n 1)
   [ -n "$since" ] || since=$(date -u +%Y-%m-%d)
-  { grep -v -e '^VYRE_DISK_ENCRYPTION=' -e '^VYRE_DISK_ENCRYPTION_SINCE=' "$DIR/compose.env" || true; [ -z "$k" ] || printf 'VYRE_DISK_ENCRYPTION=%s\nVYRE_DISK_ENCRYPTION_SINCE=%s\n' "$k" "$since"; } >"$DIR/compose.env.new" || { rm -f "$DIR/compose.env.new"; return 1; }
+  # Docker's data root: agent browser sign-ins live in Docker volumes there. The server inside Docker cannot see it, so the host says what it sees.
+  rd=$(docker_root_dir); rstate=""
+  if [ -n "$rd" ]; then disk_encrypted "$rd" && rrc=0 || rrc=$?; case "$rrc" in 0) rstate=encrypted ;; *) rstate=plain ;; esac; fi
+  { grep -v -e '^VYRE_DISK_ENCRYPTION=' -e '^VYRE_DISK_ENCRYPTION_SINCE=' -e '^VYRE_DOCKER_ROOT_DIR=' -e '^VYRE_DOCKER_ROOT_STATE=' "$DIR/compose.env" || true
+    [ -z "$k" ] || printf 'VYRE_DISK_ENCRYPTION=%s\nVYRE_DISK_ENCRYPTION_SINCE=%s\n' "$k" "$since"
+    [ -z "$rstate" ] || printf 'VYRE_DOCKER_ROOT_DIR=%s\nVYRE_DOCKER_ROOT_STATE=%s\n' "$rd" "$rstate"; } >"$DIR/compose.env.new" || { rm -f "$DIR/compose.env.new"; return 1; }
   if cmp -s "$DIR/compose.env" "$DIR/compose.env.new"; then rm -f "$DIR/compose.env.new"; else mv -f "$DIR/compose.env.new" "$DIR/compose.env"; fi
+}
+
+# docker_root_dir: where Docker keeps its data (docker info), or nothing when Docker does not answer.
+docker_root_dir() {
+  if [ "${VYRE_TEST_MODE:-0}" = 1 ] && [ -n "${VYRE_TEST_DOCKER_ROOT:-}" ]; then printf '%s' "$VYRE_TEST_DOCKER_ROOT"; return 0; fi
+  docker info --format '{{.DockerRootDir}}' 2>/dev/null | head -n 1
 }
 
 # crypt_on_file: the encrypted volume under the data directory is a loop device, a file on some disk (its key may sit beside it; this server cannot see where the key is).
@@ -326,6 +350,20 @@ check_all() {
             esac ;;
        esac ;;
   esac
+  # Docker's data root: agent browser sign-ins live in Docker volumes there. A finding of its own; it only ever reports (an existing server is never stopped or refused by it).
+  rd=$(docker_root_dir)
+  if [ -n "$rd" ]; then
+    disk_encrypted "$rd" && rrc=0 || rrc=$?
+    if [ "$rrc" = 0 ]; then finding host.docker_root healthy "Docker's data root $rd is on an encrypted volume (verified here); agent browser sign-ins sit there."
+    elif [ "$rc" = 0 ]; then finding host.docker_root degraded "Docker's data root ($rd) is not on an encrypted volume, but the Space's data is. Agent browser sign-ins live in Docker volumes there, so they are not encrypted at rest. Next: move Docker's data root onto the encrypted volume, or encrypt its disk."
+    else
+      case "$enc_kind" in
+        plain) finding host.docker_root degraded "Agent browser sign-ins sit on Docker's disk ($rd), which is not encrypted at rest (the plain-disk choice you made covers it). Next: move Docker's data root and the data onto an encrypted volume." ;;
+        provider) finding host.docker_root degraded "Not verified: agent browser sign-ins sit on Docker's disk ($rd). Your provider's encryption, as you stated, covers them only if Docker's data root is on that volume. Next: confirm that with your provider, or move Docker's data root onto the encrypted volume." ;;
+        *) finding host.docker_root degraded "Agent browser sign-ins sit on Docker's disk ($rd), which is not verified encrypted. Next: move Docker's data root onto an encrypted volume, or encrypt its disk." ;;
+      esac
+    fi
+  fi
   # room to work
   free_mb=$(df -Pm "$DATA_DIR" 2>/dev/null | awk 'NR==2 {print $4}')
   if [ -z "$free_mb" ]; then finding host.disk_space degraded "Could not read the free space of $DATA_DIR."
@@ -609,6 +647,7 @@ cmd_restore() {
   for a in "$@"; do case "$a" in --yes|-y) yes=1 ;; -*) die "restore takes a backup file and --yes" 2 ;; *) [ -z "$file" ] || die "restore takes one backup file" 2; file=$a ;; esac; done
   [ -n "$file" ] || die "restore needs the backup file: vyre-server restore FILE" 2
   lock_update_operation
+  mkdir -p "$DATA_DIR"
   RSTAGE=$(mktemp -d "$DATA_DIR/.restore.XXXXXX") || die "could not make room to unpack the backup; nothing was changed."
   restore_check "$file" "$RSTAGE"
   if [ "$yes" != 1 ]; then
@@ -617,26 +656,37 @@ cmd_restore() {
     read -r answer || answer=""
     [ "$answer" = yes ] || die "not confirmed; nothing was changed."
   fi
-  say "  Backing up the current data first"
-  backup_data pre-restore
-  say "  Backed up to $BACKUP_FILE"
+  if [ -s "$DATA_DIR/space/events.db" ]; then
+    HAD_SPACE=1
+    say "  Backing up the current data first"
+    backup_data pre-restore
+    say "  Backed up to $BACKUP_FILE"
+  else
+    # restoring into a lost or empty data folder is what restore is for: there is nothing to back up
+    HAD_SPACE=0
+    say "  There is no current Space in $DATA_DIR to back up; restoring."
+    dc stop >/dev/null 2>&1 || true
+    stop_strays
+  fi
   ts=$(date -u +%Y%m%dT%H%M%SZ)
-  mv "$DATA_DIR/space" "$DATA_DIR/space.replaced-$ts" || { dc up -d --remove-orphans >/dev/null 2>&1 || true; resume_strays; die "could not move the current data aside; nothing was changed."; }
+  mkdir -p "$DATA_DIR"
+  if [ -e "$DATA_DIR/space" ]; then mv "$DATA_DIR/space" "$DATA_DIR/space.replaced-$ts" || { dc up -d --remove-orphans >/dev/null 2>&1 || true; resume_strays; die "could not move the current data aside; nothing was changed."; }; fi
   if [ -d "$DATA_DIR/caddy" ]; then mv "$DATA_DIR/caddy" "$DATA_DIR/caddy.replaced-$ts"; fi
   mv "$RSTAGE/space" "$DATA_DIR/space" && mv "$RSTAGE/caddy" "$DATA_DIR/caddy" || restore_undo "$ts" "could not put the backup in place"
   dc up -d --remove-orphans >/dev/null 2>&1 || restore_undo "$ts" "the server did not start on the restored data"
   wait_healthy || restore_undo "$ts" "the server did not pass its health check on the restored data"
   resume_strays
   rm -rf "$DATA_DIR/space.replaced-$ts" "$DATA_DIR/caddy.replaced-$ts" "$RSTAGE"; RSTAGE=""
-  say "Restored from $file. The data it replaced is in $BACKUP_FILE."
+  if [ "$HAD_SPACE" = 1 ]; then say "Restored from $file. The data it replaced is in $BACKUP_FILE."; else say "Restored from $file. There was no Space here before."; fi
 }
 
 # restore_undo TS WHY: put the data that was there back, start the server, and stop with WHY.
 restore_undo() {
   dc stop >/dev/null 2>&1 || true
   rm -rf "$DATA_DIR/space" "$DATA_DIR/caddy"
-  mv "$DATA_DIR/space.replaced-$1" "$DATA_DIR/space"
+  if [ -d "$DATA_DIR/space.replaced-$1" ]; then mv "$DATA_DIR/space.replaced-$1" "$DATA_DIR/space"; fi
   if [ -d "$DATA_DIR/caddy.replaced-$1" ]; then mv "$DATA_DIR/caddy.replaced-$1" "$DATA_DIR/caddy"; else mkdir -p "$DATA_DIR/caddy"; fi
+  [ "${HAD_SPACE:-1}" = 1 ] || die "$2; there was no Space here before, so there is nothing to put back."
   dc up -d --remove-orphans >/dev/null 2>&1 || true
   resume_strays
   die "$2; the data that was there before is back. Backup of it: $BACKUP_FILE"
@@ -722,8 +772,15 @@ sync_image() {
   cp -p "$DIR/compose.env" "$DIR/compose.env.new" || return 1
   { grep -v -e '^VYRE_IMAGE=' -e '^VYRE_AGENT_COMPUTER_IMAGE=' -e '^VYRE_SPACE_BROWSER_IMAGE=' -e '^VYRE_WORKSPACE_IMAGE=' "$DIR/compose.env" || true; printf 'VYRE_IMAGE=%s\n' "$img"; [ -z "$aimg" ] || printf 'VYRE_AGENT_COMPUTER_IMAGE=%s\n' "$aimg"; [ -z "$bimg" ] || printf 'VYRE_SPACE_BROWSER_IMAGE=%s\n' "$bimg"; [ -z "$wimg" ] || printf 'VYRE_WORKSPACE_IMAGE=%s\n' "$wimg"; } >"$DIR/compose.env.new" || { rm -f "$DIR/compose.env.new"; return 1; }
   mv -f "$DIR/compose.env.new" "$DIR/compose.env"
-  # a server with no domain (the relay) opens no port to the internet: 80 and 443 stay on this machine. In relay mode a site cannot have a custom domain (the Space only serves one on its own domain), so nothing is lost.
-  if ! grep -q -e '^VYRE_ADDRESS=' -e '^VYRE_BIND=' "$DIR/compose.env"; then printf 'VYRE_BIND=127.0.0.1\n' >>"$DIR/compose.env"; fi
+  # a server with no domain (the relay) opens no port to the internet: 80 and 443 stay on this machine, unless the Space serves its own domain (set in the Console). In relay mode a site cannot have a custom domain, so nothing else is lost.
+  if ! grep -q '^VYRE_ADDRESS=' "$DIR/compose.env"; then
+    if space_serves_domain; then
+      # the Space's own domain was set in the Console: its ports stay open (and an earlier closing of them is undone)
+      grep -v '^VYRE_BIND=' "$DIR/compose.env" >"$DIR/compose.env.new" || true; mv -f "$DIR/compose.env.new" "$DIR/compose.env"
+    elif ! grep -q '^VYRE_BIND=' "$DIR/compose.env"; then
+      printf 'VYRE_BIND=127.0.0.1\n' >>"$DIR/compose.env"
+    fi
+  fi
   refresh_disk_env || true
 }
 

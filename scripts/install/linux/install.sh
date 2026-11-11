@@ -372,8 +372,11 @@ docker_apt_install() {
   gh=$TMP/gnupg; mkdir -p "$gh"; chmod 0700 "$gh"
   GNUPGHOME=$gh gpg --batch --no-default-keyring --keyring "$gh/in.gpg" --import "$TMP/docker.asc" >>"$log" 2>&1 || die "the Docker repository key could not be read. Its own output is in $log; nothing was installed."
   GNUPGHOME=$gh gpg --batch --no-default-keyring --keyring "$gh/in.gpg" --export "$DOCKER_KEY_FPR" >"$TMP/docker.gpg" 2>>"$log" || true
-  fprs=$(GNUPGHOME=$gh gpg --batch --with-colons --show-keys "$TMP/docker.gpg" 2>/dev/null | awk -F: '$1 == "fpr" { print $10 }')
-  if [ "$fprs" != "$DOCKER_KEY_FPR" ]; then die "the Docker repository key file does not hold the key Docker publishes (${DOCKER_KEY_FPR}); nothing was installed."; fi
+  # the keyring must hold exactly one key, and it must be Docker's: a key has a signing subkey whose own fingerprint line follows its `sub` record, so only the fingerprint after a `pub` record counts
+  listing=$(GNUPGHOME=$gh gpg --batch --with-colons --show-keys "$TMP/docker.gpg" 2>/dev/null || true)
+  pubs=$(printf '%s\n' "$listing" | awk -F: '$1 == "pub" { n++ } END { print n + 0 }')
+  fprs=$(printf '%s\n' "$listing" | awk -F: '$1 == "pub" { p = 1; next } $1 == "sub" { p = 0; next } p && $1 == "fpr" { print $10; p = 0 }')
+  if [ "$pubs" != 1 ] || [ "$fprs" != "$DOCKER_KEY_FPR" ]; then die "the Docker repository key file does not hold the key Docker publishes (${DOCKER_KEY_FPR}); nothing was installed."; fi
   install -m 0644 "$TMP/docker.gpg" "$KEYRING_DIR/docker.gpg"
   say "  ok  Docker's repository key matches the fingerprint Docker publishes (only that key is trusted)"
   {
@@ -494,6 +497,29 @@ space_id() {
   printf '%s' "$_s"
 }
 
+# fs_device PATH: the device the folder holding PATH sits on (first column of df). VYRE_TEST_FS_DEVICE ("prefix=device,...") stands in for df in tests.
+fs_device() {
+  _p=$1
+  if [ "${VYRE_TEST_MODE:-0}" = 1 ] && [ -n "${VYRE_TEST_FS_DEVICE:-}" ]; then
+    printf '%s' "$VYRE_TEST_FS_DEVICE" | tr ',' '\n' | awk -F= -v p="$_p" 'index(p, $1) == 1 { print $2; exit }'
+    return 0
+  fi
+  while [ ! -e "$_p" ]; do _p=$(dirname "$_p"); done
+  df -P "$_p" 2>/dev/null | awk 'NR==2 {print $1}'
+}
+
+# space_serves_domain: has the Space an own domain (network_config mode own_domain, set at install or later in the Console)? 0 = yes, or cannot tell (the ports then stay open); 1 = no.
+space_serves_domain() {
+  db=$DATA_DIR/space/modules.db
+  [ -r "$db" ] || return 1
+  q="SELECT 1 FROM network_config WHERE id = 1 AND mode = 'own_domain'"
+  if command -v sqlite3 >/dev/null 2>&1; then [ "$(sqlite3 -readonly -cmd '.timeout 3000' "$db" "$q" 2>/dev/null)" = 1 ]; return $?; fi
+  if command -v node >/dev/null 2>&1 && node --no-warnings -e "require('node:sqlite')" >/dev/null 2>&1; then
+    node --no-warnings -e "const {DatabaseSync}=require('node:sqlite');const d=new DatabaseSync(process.argv[1],{readOnly:true});process.exit(d.prepare(process.argv[2]).get()?0:1)" "$db" "$q" >/dev/null 2>&1; return $?
+  fi
+  return 0
+}
+
 # enc_since_for KIND: the date the recorded choice was made (today when it is being made now).
 enc_since_for() { if [ "$(enc_prior)" = "$1" ] && [ -n "$(enc_get since)" ]; then enc_get since; else date -u +%Y-%m-%d; fi; }
 
@@ -540,7 +566,7 @@ write_config() {
     [ -z "$RELAY" ] || printf 'VYRE_RELAY_URL=%s\n' "$RELAY"
     [ -z "$rev" ] || printf 'VYRE_NETWORK_REV=%s\n' "$rev"
     # without a domain no port is opened to the internet: 80 and 443 stay on this machine's own loopback address
-    [ -n "$DOMAIN" ] || printf 'VYRE_BIND=127.0.0.1\n'
+    [ -n "$DOMAIN" ] || space_serves_domain || printf 'VYRE_BIND=127.0.0.1\n'
     # what was chosen about disk encryption, for the Console's health page (the server inside Docker cannot see the host's disk); vyre-server start refreshes it from the real disk
     kind=${ENC_KIND:-$(enc_prior)}
     if [ -n "$kind" ]; then printf 'VYRE_DISK_ENCRYPTION=%s\nVYRE_DISK_ENCRYPTION_SINCE=%s\n' "$kind" "$(enc_since_for "$kind")"; fi
@@ -556,7 +582,11 @@ write_config() {
   fi
   # backups live with the data: on a data folder that is another volume (a provider's encrypted one) the backups are written there too, so they are as protected as the data
   if [ ! -f "$DIR/backup-dir" ]; then
-    case "$DATA_DIR" in "$DIR"/*) _b=$DIR/backups ;; *) _b=$DATA_DIR/backups ;; esac
+    # next to the data when the data is under the install folder and on its disk (the old layout), else inside the data folder, so backups are on the same volume as the data
+    case "$DATA_DIR" in
+      "$DIR"/*) if [ "$(fs_device "$DATA_DIR")" = "$(fs_device "$DIR")" ]; then _b=$DIR/backups; else _b=$DATA_DIR/backups; fi ;;
+      *) _b=$DATA_DIR/backups ;;
+    esac
     printf '%s\n' "$_b" >"$DIR/backup-dir"
   fi
   mkdir -p "$(cat "$DIR/backup-dir")"; chmod 0700 "$(cat "$DIR/backup-dir")"

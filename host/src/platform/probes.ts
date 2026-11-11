@@ -36,6 +36,8 @@ export function diskChoiceResult(c: DiskChoice): ProbeResult | null {
     case "provider": return result("degraded", `Not verified: your provider's encryption, as you stated${when}. This server cannot check it; confirm it with your provider.`);
     // looked at again by the host script at every start of the server
     case "detected": return result("healthy", "The data directory is on an encrypted volume (verified by the host at the last start; where its key is kept is not visible).");
+    // an encryption layer on a file: the host cannot tell where its key is, and a key on the same disk protects nothing
+    case "detected_file": return result("degraded", "The data is on an encrypted volume that is a file on this disk. This server cannot tell where its key is kept: a key on this same disk protects nothing.");
     default: return null;
   }
 }
