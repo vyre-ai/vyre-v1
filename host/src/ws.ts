@@ -147,13 +147,18 @@ export interface SyncHubPort {
   close?(): void;
 }
 
-export interface LiveSession { space: string; principal: CtxSeed["principal"]; device: string; actingFor?: string | undefined }
+export interface LiveSession { space: string; principal: CtxSeed["principal"]; device: string; actingFor?: string | undefined; /** the device session behind the socket, when it has one (the local admin token has none) */ sessionId?: string | undefined }
 export interface HelloFrame { t: "hello"; cursor?: number; epoch?: number }
 export interface LiveOptions {
   /** An upgrade another route on this server owns (the node's computer stream): the hub leaves it alone, neither answering nor closing it. */
   claims?(req: http.IncomingMessage): boolean;
   /** Who is this upgrade request? null refuses it (401). */
   session(headers: http.IncomingHttpHeaders, url: URL): LiveSession | null | Promise<LiveSession | null>;
+  /**
+   * Is the session behind an open socket still signed in? Asked before every `call` frame: a session that ended (signed out, revoked from the devices list, its device revoked, its person
+   * suspended or removed) is refused and its socket closed, so ending a session is in force on a socket that was already open the moment the ending call returns. Omitted: never asked.
+   */
+  live?(session: LiveSession): boolean;
   invoke?: Invoke;
   /**
    * Sync's live hub (ARCH 5.9). When given, a socket speaks the sync protocol: hello is answered by the hub (hello_ok { ok: { serverVersion, epoch, serverHlc, mode, head, entityVersions } }),
@@ -191,6 +196,8 @@ export interface LiveHub {
   purge(person: string, epoch: number): number;
   /** One device was revoked: only its socket is told to purge and closed. Returns how many. */
   purgeDevice(person: string, device: string, epoch: number): number;
+  /** A session ended (signed out, revoked) or its person can no longer act (suspended, removed): its open sockets are closed, so nothing more reaches them. Returns how many. */
+  endSessions?(match: { sessionId?: string; person?: string }): number;
   close(): Promise<void>;
 }
 
@@ -230,6 +237,11 @@ export function createLiveHub(o: LiveOptions): LiveHub {
   async function onCall(c: Conn, f: { id?: unknown; cap?: unknown; input?: unknown; tr?: unknown; v?: unknown }): Promise<void> {
     const id = typeof f.id === "string" || typeof f.id === "number" ? f.id : null;
     if (!o.invoke || typeof f.cap !== "string") { send(c, { t: "res", id, ok: false, error: { code: "validation.bad_input", message: "a call names a capability" } }); return; }
+    if (o.live && !o.live(c.session)) {
+      send(c, { t: "res", id, ok: false, error: { code: "auth.unauthenticated", message: "This session has ended. Sign in again." } });
+      close(c, 1008, "auth.session_ended");
+      return;
+    }
     const from = parseTr(f.tr);
     const tracer = createTracer(spans, { ...(from ? { from } : {}), now });
     const log = o.sink?.logger({ space: c.session.space, trace_id: tracer.traceId, actor: c.session.principal.id, device: c.session.device, cap: f.cap });
@@ -355,6 +367,14 @@ export function createLiveHub(o: LiveOptions): LiveHub {
     connections: (space) => [...conns.values()].filter((c) => !space || c.session.space === space).map((c) => ({ device: c.session.device, acked: c.acked, pending: c.pending.length })),
     purge: (person, epoch) => purgeWhere((c) => c.session.principal.id === person, epoch, 4004, "purged"),
     purgeDevice: (person, device, epoch) => purgeWhere((c) => c.session.principal.id === person && c.session.device === device, epoch, 4003, "auth.device_revoked"),
+    endSessions: (m) => {
+      let n = 0;
+      for (const c of [...conns.values()]) {
+        if (c.closed) continue;
+        if ((m.sessionId !== undefined && c.session.sessionId === m.sessionId) || (m.person !== undefined && c.session.principal.id === m.person)) { close(c, 1008, "auth.session_ended"); n++; }
+      }
+      return n;
+    },
     close: () => new Promise((resolve) => {
       clearInterval(timer);
       for (const c of [...conns.values()]) close(c, 1001, "server stopping");
