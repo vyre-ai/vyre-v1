@@ -445,7 +445,10 @@ export async function run(ctx: TermCtx, a: RunInput) {
     },
   };
   const where = WHERE[s.host];
-  const who = { agentId: ctx.principal.id, asker: owner, where };
+  // the computer the value goes into is the workspace's agent's (a helper works in its parent's), which decides the team-agent rule (host/src/seams/team-vault.ts)
+  // a session on a person's own computer names that computer (from the session row, which the agent does not set): the team-agent rule leaves a person's own shell alone
+  const where_ = { ...(s.agentId !== undefined ? { place: s.agentId } : {}), ...(s.host === "device" && s.deviceId !== undefined ? { device: s.deviceId } : {}) };
+  const who = { agentId: ctx.principal.id, asker: owner, where, ...where_ };
   // A handle in the command line never becomes its value in the line (W6): the line names a variable, quoted for where it stands, and the value goes in that variable's environment for this one
   // command. A handle the Vault does not know is left as the text it is (a hashtag, an issue number).
   const env: Record<string, string> = { ...(a.env ?? {}) };
@@ -511,7 +514,7 @@ export async function run(ctx: TermCtx, a: RunInput) {
   if (base) {
     out = await kit.run(
       { source, reportMiss: (m) => { ctx.log.warn("vault.scrub_miss", { itemId: m.itemId, place: m.place }); } },
-      { tool: "terminal_run", args, traceId: ctx.trace.traceId, agentId: ctx.principal.id, asker: owner, where },
+      { tool: "terminal_run", args, traceId: ctx.trace.traceId, agentId: ctx.principal.id, asker: owner, where, ...where_ },
       exec,
     );
   } else {

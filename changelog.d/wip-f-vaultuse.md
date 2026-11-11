@@ -14,3 +14,10 @@
 - A terminal command that carries Vault values is also refused while a shell script, a loop or a program waiting for input runs in the tab: Vyre checks that the tab's shell itself is at its prompt.
 - Vault values left behind by a run that was cut off are removed as soon as a terminal opens again or any command runs, so nothing is left readable after a restart.
 - A browser step whose picture was held back because a Vault value is on the page says so in one line, and a tab whose fill could not be placed gets its pictures back once that tab is closed.
+- In a team agent's workspace or browser, which everyone who can ask the agent shares, a person's own Vault item is not used; the agent says so plainly and suggests sharing the item with the agent or asking your own Assistant. Items shared with the agent, a group it is in or the whole Space work as before, and so does everything in your own Assistant.
+- When a Vault item needs approval before use, an agent's terminal or browser now says that plainly instead of saying it has no access.
+- The Vault share sheet says, when you pick an agent, that everyone who can ask that agent can use the item through it.
+- A tab where a program replaced the shell, or where an unfinished line waits at the prompt, gets no Vault values, and filling one field in the browser no longer stops pictures of the other tabs.
+- A team agent uses a shared Vault field only when the share really gives it: a share that hides that field, has not started, has ended or sits below the item's label no longer counts, and a refusal says whether the item is your own or shared but not for this agent.
+- An agent Vyre cannot place, or one whose askers cannot be told, gets no Vault values; your private agent that only you can ask, and a terminal on your own computer, work like your own Assistant.
+- Asking a team agent for a Vault item you cannot see answers exactly as the Vault does, without saying the item exists, and a value is used only when it is of the very item that was checked.

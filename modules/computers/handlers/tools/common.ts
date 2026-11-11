@@ -8,7 +8,7 @@
 //   recording and every answer can be scrubbed; `frame` is the screen after the step (the timeline's picture); `caption` is its words.
 // Errors are only ones the capabilities declare: a person at the controls, a held item and a bad argument are validation.bad_input; Esc, a computer still starting and a silent agentd are provider.unavailable.
 // Handles are never resolved here: "agent computer logins stay on that computer" (ARCH 6.11), agentd substitutes them at the last moment and scrubs its own output. This module scrubs again.
-import { actorOf, addStep, agentFolder, boundFill, clean, hostFor, ensure, mintId, needComputer, needTeam, filledTabsOf, givenCount, markFilledTab, raise, rememberSecrets, tabsOpen, rowsOf, setComputer } from "../../projections.ts";
+import { actorOf, addStep, agentFolder, boundFill, clean, hostFor, ensure, mintId, needComputer, needTeam, filledTabsOf, givenCount, handedSince, markFilledTab, raise, rememberSecrets, tabsOpen, rowsOf, setComputer } from "../../projections.ts";
 import { personalChrome } from "../../projections.ts";
 import type { CompCtx, ComputerHost, ComputerRow, PersonalChrome, Secret } from "../../projections.ts";
 import { awaken } from "../lifecycle.ts";
@@ -121,10 +121,12 @@ async function pictureAllowed(id: string, list: TabLister, tabId: unknown): Prom
  * filled on its own (an autofill while a page loaded) may be in any tab, including one in the background the call did not aim at, so every tab open now is marked (second look, b). When the
  * tabs cannot be listed, "*" holds them all until they can.
  */
-async function markAfter(id: string, list: TabLister, before: number, tabId: unknown, typed: boolean): Promise<void> {
-  const grew = givenCount(id) - before;
-  if (grew <= 0) return;
-  const byExtension = grew - (typed ? 1 : 0) > 0;
+async function markAfter(id: string, list: TabLister, before: number, tabId: unknown, typed: readonly string[]): Promise<void> {
+  // a value the call typed is handed out by the channel and reported in `used`: one fill, not two (third look); a hand-out the call did not type is Vyre for Chrome's own
+  const handed = handedSince(id, before);
+  const mine = new Set(typed);
+  const byExtension = handed.some((v) => !mine.has(v));
+  if (typed.length === 0 && !byExtension) return;
   let tabs: Array<{ tabId: string; active: boolean }> | null = null;
   try { tabs = await list(); } catch { /* the tabs cannot be told */ }
   if (tabs === null || tabs.length === 0) { markFilledTab(id, "*"); return; }
@@ -289,8 +291,8 @@ export async function call(ctx: CompCtx, r: Resolved, spec: ToolSpec, args: Tool
   }
   if (!isRecord(raw)) raise(ctx, "provider.unavailable", "The computer answered with something that is not an object.");
   const { used, frame, caption, ...rest } = raw;
-  rememberSecrets(c.computerId, secretsOf(used));
-  if (spec.name.startsWith("chrome_")) await markAfter(c.computerId, list, given, args["tabId"], secretsOf(used).length > 0);
+  rememberSecrets(c.computerId, secretsOf(used), { handedOut: false });
+  if (spec.name.startsWith("chrome_")) await markAfter(c.computerId, list, given, args["tabId"], secretsOf(used).map((x) => x.value));
   if (spec.name === "chrome_tabs" && tabsIn(rest).length > 0) tabsOpen(c.computerId, tabsIn(rest).map((t) => t.tabId));
   const out = scrubDeep(c.computerId, rest) as ToolAnswer;
   const at = ctx.now();
@@ -367,9 +369,9 @@ async function browserStep(ctx: CompCtx, sb: NonNullable<ReturnType<typeof space
   }
   if (!isRecord(raw)) raise(ctx, "provider.unavailable", "The browser answered with something that is not an object.");
   const { used, frame: _frame, caption: _caption, ...rest } = raw;
-  rememberSecrets(profileId, secretsOf(used));
+  rememberSecrets(profileId, secretsOf(used), { handedOut: false });
   // the tab a value went into, by a tool or by Vyre for Chrome while this call ran, is never pictured while it is open
-  await markAfter(profileId, list, given, args["tabId"] ?? (spec.name === "chrome_open" ? rest["tabId"] : undefined), secretsOf(used).length > 0);
+  await markAfter(profileId, list, given, args["tabId"] ?? (spec.name === "chrome_open" ? rest["tabId"] : undefined), secretsOf(used).map((x) => x.value));
   if (spec.name === "chrome_tabs" && tabsIn(rest).length > 0) tabsOpen(profileId, tabsIn(rest).map((t) => t.tabId));
   const out = scrubDeep(profileId, rest) as ToolAnswer;
   // what the browser finished downloading goes into the agent's Files (Downloads) and the agent is told where; only the steps that say so carry it
