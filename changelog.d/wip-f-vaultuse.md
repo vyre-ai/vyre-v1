@@ -1,0 +1,16 @@
+- A Vault value an agent uses in a terminal command is never typed into the shell: it reaches the command as its environment for that one command, so it is not left in the terminal's scrollback, the shell's history or a file in the workspace.
+- A Vault handle written inside a command line (for example a password after -p) now works safely: the value is passed exactly, whatever characters it holds, and can never run as a command.
+- Agents can now use Vault handles in terminal commands on a real Space; before, the handle reached the command as plain text.
+- When a team agent works for several people, a value one person's command used is removed from everything the agent shows anyone from that workspace: command output, other tabs, the live view and status lines.
+- A Vault value an agent's Space browser was given, typed by a tool or filled by Vyre for Chrome, no longer comes back in what the browser tools answer (page text, scripts run on the page, element details, console and network), to anyone who asks the same agent.
+- The Space browser keeps no picture of a page that holds a value filled from the Vault, and a screenshot of it is refused until a new page is opened, since a text field shows what it holds.
+- When one team agent browses for two people at once, each person's Vault fills are looked up as that person, and Vyre for Chrome in the agent's browser fills nothing between their turns.
+- An error a browser tool answers (a page's own exception, a failed step) no longer carries a Vault value the agent's browser was given.
+- A browser tab a Vault value was filled into is not pictured while it stays open, whichever tab is opened, used or navigated next; closing the tab ends it.
+- A terminal command that carries Vault values is refused, with a plain line, in a tab that is still running something, and values left behind by an earlier run are removed.
+- A workspace on a server whose link to the Space is not private (no TLS) gets no Vault values, the same rule agent computers follow.
+- A Vault handle in a place of a command line Vyre cannot read for certain (inside $(( )), ${ } or a case) is refused with a line that says how to write it, so a value is never left unquoted; a handle in a # comment is not looked up at all.
+- A tab with set -x or set -v on no longer shows a Vault value a command was given, and a multi-line value or one with quotes is removed from the terminal and its live view in the forms a shell prints it.
+- A terminal command that carries Vault values is also refused while a shell script, a loop or a program waiting for input runs in the tab: Vyre checks that the tab's shell itself is at its prompt.
+- Vault values left behind by a run that was cut off are removed as soon as a terminal opens again or any command runs, so nothing is left readable after a restart.
+- A browser step whose picture was held back because a Vault value is on the page says so in one line, and a tab whose fill could not be placed gets its pictures back once that tab is closed.

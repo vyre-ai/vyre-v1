@@ -8,11 +8,11 @@ import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
 import { CODE_ROOT } from "../../../host/src/daemon/daemon.ts";
 import { createLocalHost, handlers } from "../impl.ts";
-import { bindHost, bindPlace, bindTeam, bindWorkspaces } from "../projections.ts";
+import { bindHost, bindPlace, bindTeam, bindValues, bindWorkspaces } from "../projections.ts";
 import type { TermCtx } from "../projections.ts";
 import { buildWorkspaceManager, workspaceName } from "../workspace.ts";
 import { unixSocketHttp } from "../../../sandbox/src/docker.ts";
-import { harness, reset } from "../fixtures/harness.ts";
+import { fakeValues, harness, reset } from "../fixtures/harness.ts";
 
 const ON = process.env["VYRE_HEAVY_DOCKER"] === "1";
 const skip: string | false = ON ? false : "needs VYRE_HEAVY_DOCKER=1 (the workspace is a real container)";
@@ -116,4 +116,60 @@ test("a real workspace: first terminal_run makes it, a person attaches to the sa
   assert.equal((await second.exec(other, ["sh", "-c", `echo from-other >> /home/agent/projects/${PROJECT}/shared.txt`])).code, 0);
   assert.match(await inBox("cat", `/home/agent/projects/${PROJECT}/shared.txt`), /from-other/);
   assert.equal((await second.exec(other, ["cat", "/home/agent/note.txt"])).code, 1, "but not another agent's home");
+});
+
+test("a real workspace (W6): one person's Vault value used through a team agent never reaches the disk, the history or another person who asks the same agent", { skip, timeout: 900_000 }, async (t) => {
+  const TEAM = `agtw6${Math.random().toString(36).slice(2, 8)}`;
+  const BOX = workspaceName(TEAM);
+  if (PRESET === undefined) {
+    const built = await docker(["build", "-t", IMAGE, "images/agent-workspace"], 800_000);
+    assert.equal(built.code, 0, built.out.slice(-600));
+  }
+  const manager = buildWorkspaceManager({ http: unixSocketHttp(), image: IMAGE, idleMs: 600_000, projectsOf: () => [] });
+  t.after(async () => {
+    manager.close();
+    await docker(["rm", "-f", BOX], 60_000);
+    await docker(["volume", "rm", "-f", `${BOX}-home`, `${BOX}-files`], 60_000);
+    if (PRESET === undefined) await docker(["rmi", "-f", IMAGE], 60_000);
+  });
+  const SECRET = `sk-live-w6-${Math.random().toString(36).slice(2)}${Math.random().toString(36).slice(2)}`;
+  const EVIL = "a$b;touch ~/vyre-pwned;'q\"x";
+  reset();
+  bindTeam(() => true);
+  bindWorkspaces(true);
+  bindPlace(async () => ({ team: true, agentComputer: false, runsOn: "space" }));
+  bindValues(fakeValues({ "#Dana_Api.key": SECRET, "#Db.password": EVIL }));
+  bindHost(createLocalHost({ exec: async () => ({ code: 127, stdout: "", stderr: "" }), shell: async () => ({ exitCode: 1 }), home: "/tmp", runsHere: () => false }, manager));
+  const hn = harness();
+  const dana: TermCtx = { ...hn.as({ kind: "agent", id: TEAM }, "usr_dana", "run_d"), thread: "thr_dana" };
+  const omar: TermCtx = { ...hn.as({ kind: "agent", id: TEAM }, "usr_omar", "run_o"), thread: "thr_omar" };
+  const raw = async (...cmd: string[]): Promise<string> => { const r = await docker(["exec", BOX, ...cmd], 30_000); return r.out; };
+
+  const a = await h["terminal.run"]!(dana, { session: "dana", command: 'printf %s "$K" | wc -c; printf %s #Db.password | wc -c; echo "seen=$K"', env: { K: "#Dana_Api.key" }, idempotencyKey: "w6-live-a" });
+  assert.equal(a.exitCode, 0, a.output);
+  assert.deepEqual(a.output.split("\n").slice(0, 2).map((l: string) => l.trim()), [String(SECRET.length), String(Buffer.byteLength(EVIL))], "both values reached the command exactly");
+  assert.equal(a.output.includes(SECRET), false);
+  assert.match(await raw("sh", "-c", "ls ~/vyre-pwned 2>&1; true"), /No such file/, "the value did not run as shell");
+  const sessA = `vyre-${a.terminalId}`;
+  const pane = (await raw("tmux", "display-message", "-p", "-t", sessA, "#{pane_pid}")).trim();
+  const typed = (await raw("tmux", "capture-pane", "-p", "-J", "-t", sessA, "-S", "-")).split("\n").find((l) => l.includes("__VYRE_BEG_") && l.includes("printf"));
+  assert.ok(typed && !typed.includes(SECRET) && !typed.includes(EVIL), "the typed line names variables only");
+
+  // Omar asks the same agent, in another tab of the same workspace
+  for (const [i, command] of ["history", `tmux capture-pane -p -J -t ${sessA} -S -`, `cat /proc/${pane}/environ | tr '\\0' '\\n'`, "env", "ls -la /tmp; tmux list-buffers; true"].entries()) {
+    const r = await h["terminal.run"]!(omar, { session: "omar", command, idempotencyKey: `w6-live-b${i}` });
+    assert.equal(r.output.includes(SECRET) || r.output.includes(EVIL), false, `Omar's ${command}`);
+  }
+  // the raw container, with no scrubber in between: nothing of either value is in a file, a buffer, or any process's environment
+  const sweep = `grep -rlF -e "$1" -e "$2" /home/agent /tmp 2>/dev/null; tmux list-buffers 2>/dev/null; for p in /proc/[0-9]*; do tr '\\0' '\\n' < $p/environ 2>/dev/null | grep -lF -e "$1" -e "$2" >/dev/null && echo "proc $p"; done; true`;
+  assert.equal((await raw("sh", "-c", sweep, "sh", SECRET, EVIL)).trim(), "", "no file, buffer or process holds a value");
+
+  // Dana's tab closes: bash writes its history to the home volume on the hangup. It holds no agent line, so no value.
+  await h["terminal.close"]!(dana, { terminalId: a.terminalId });
+  await new Promise((r) => setTimeout(r, 800));
+  const hist = await raw("sh", "-c", "cat ~/.bash_history 2>/dev/null; true");
+  assert.equal(hist.includes(SECRET) || hist.includes(EVIL) || hist.includes("__VYRE_BEG_"), false, "the history on the home volume");
+  assert.equal((await raw("sh", "-c", sweep, "sh", SECRET, EVIL)).trim(), "", "nor anywhere else afterwards");
+  const later = await h["terminal.run"]!(omar, { session: "omar", command: "cat ~/.bash_history; true", idempotencyKey: "w6-live-c" });
+  assert.equal(later.output.includes(SECRET), false);
 });

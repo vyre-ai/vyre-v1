@@ -98,6 +98,7 @@ import { homeCallAllowed, homeScopeOf } from "./home-confine.ts";
 import { createComputersHost } from "../seams/computers-host.ts";
 import { releaseImage } from "../seams/release-images.ts";
 import { createTerminalHostSeam } from "../seams/terminal-host.ts";
+import { createEngineSessionHost } from "../seams/engine-session.ts";
 import { findDockerSocket } from "../seams/docker-socket.ts";
 import { READER_LOSS, createEngineHost } from "../seams/engine.ts";
 import { createEmailAskDriver, createFormAskDriver } from "../seams/email-ask.ts";
@@ -1935,8 +1936,10 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           ...(o.computersCapacity ? { capacity: async () => o.computersCapacity as NonNullable<typeof o.computersCapacity> } : {}),
         }),
         // terminals on this machine: the person's own computer when this daemon is it (the desktop app's daemon), and where a person's turn runs, read as that person
-        setTerminalHost: () => createTerminalHostSeam({
-          roles: cfg.roles, team: cfg.spaceKind !== "personal",
+        setTerminalHost: (d) => createTerminalHostSeam({
+          roles: cfg.roles, team: cfg.spaceKind !== "personal", dataDir: paths.root,
+          // a #Handle.field in a command is filled from the Vault: vault.use as the agent for the person (access, the label rule, the audit row), then the value, as the engine and the agent computers do
+          ...(d.vault ? { values: createEngineSessionHost({ invoke, vault: d.vault, space: spaceId }).source } : {}),
           readAs: async (person, cap, input) => { const r = await invoke(cap, input, { space: spaceId, principal: { kind: "person", id: person }, origin: "terminal" }); return r.status === "ok" ? r.output : null; },
           computerOf: (person) => (db!.all("SELECT id FROM devices_device WHERE person = ? AND revokedAt IS NULL AND deleted_at IS NULL AND class IN ('desktop', 'daemon', 'web') ORDER BY CASE WHEN class = 'web' THEN 1 ELSE 0 END, lastSeenAt DESC, id DESC LIMIT 1", person)[0] as { id?: string } | undefined)?.id,
           // agent workspaces (6 Nov): a Team server that has a container runtime (the runner beside vyred, or a Docker socket) gives every agent a workspace, made on first use; the same engine as agent computers
@@ -1947,6 +1950,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
               ...((workspaceRuntime() ?? {}) as object),
               nodes: {
                 ask: (nodeId: string, kind: string, input: unknown, timeoutMs?: number) => computeStream.ask(nodeId, kind, input, timeoutMs),
+                // a Vault value goes to a workspace on a server only over a private link: the same rule, and the same answer, as an agent computer's Vault channel (setComputersFill nodeSecure)
+                secure: (nodeId: string) => computeStream.secure(nodeId),
                 place: async (agentId: string): Promise<string | null> => {
                   const owner = ((await createAgentHomeCaller({ db: db!, spaceId, invoke })(agentId, "agents.get", { agentId })) as { agent?: { ownerId?: string } } | null)?.agent?.ownerId;
                   if (!owner) return null;
