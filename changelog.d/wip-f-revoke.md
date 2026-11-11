@@ -4,3 +4,7 @@
 - A join step that failed and is tried again later no longer gives back a role, group, project role or channel an admin changed in the meantime, and gives nothing to someone who was removed or is suspended.
 - Taking a share off a record, or lowering it, now also takes it off the record's Files folder at once.
 - A form link revoked while someone was still sending the form now refuses that submission.
+- A device whose session ended (signed out, revoked, suspended, removed) can no longer send or receive anything on its live connection, even for an instant; signing out from the app still gets its answer before the connection closes.
+- Your own computer's link to the Space, and any live view of a computer or browser you opened, close the moment you sign out, are suspended or removed.
+- Signing out now works on a session older than 30 days.
+- Removing someone from a project, or lowering their role, now also takes them out of the project's channel whoever does it, and says so plainly if that cannot be done; a remove pressed right after an add is no longer lost.
