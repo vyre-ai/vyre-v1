@@ -1,12 +1,12 @@
 // @heavy docker
 // The agent's home when both sides change (P-L2_35): both sides editing one file between two passes keeps the path in Files, lands the computer's version beside it and gives the owner a task; taking access away removes the file from the computer.
-// One of the tests that replace computers.live.test.ts, split by behaviour (host/tests/computers.kit.ts holds what they share); each runs in its own job so none is the floor under the push budget. Runs only with VYRE_HEAVY_DOCKER=1.
+// One of the tests that replace computers.live.test.ts, split by behaviour (host/tests/computers-kit.test.ts holds what they share); each runs in its own job so none is the floor under the push budget. Runs only with VYRE_HEAVY_DOCKER=1.
 import test from "node:test";
 import assert from "node:assert/strict";
 
 
 
-import { boot, call, ensureImage, finish, homeKit, seededDir, skip, wakeComputer } from "./computers.kit.ts";
+import { boot, call, ensureImage, finish, homeKit, seededDir, skip, wakeComputer } from "./computers-kit.test.ts";
 
 test("computers live: both sides editing one file leaves a conflict copy and a task, and taking access away removes the file", { skip }, async () => {
   await ensureImage();

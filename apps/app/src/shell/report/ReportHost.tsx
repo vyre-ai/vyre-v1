@@ -18,7 +18,7 @@ const deviceLine = (): string => { const n = (globalThis as { navigator?: { plat
  * `call` is null while the session is not open (the Space could not be reached): the sheet still opens from an error panel, and a report is queued until the session is back.
  * The controller is made once, so a queued report survives the session opening.
  */
-export function ReportHost({ call, place }: { call: CapCall | null; place: string }): ReactElement | null {
+export function ReportHost({ call, place, mayReadPolicy = true }: { call: CapCall | null; place: string; /** false when the person's roles do not carry policy.manage: the Space would refuse the read, so it is not asked (the default policy, Ask, applies) */ mayReadPolicy?: boolean }): ReactElement | null {
   const callRef = useRef(call);
   callRef.current = call;
   const placeRef = useRef(place);
@@ -43,9 +43,10 @@ export function ReportHost({ call, place }: { call: CapCall | null; place: strin
     if (!call) return undefined;
     tick((n) => n + 1);
     let off = false;
+    if (!mayReadPolicy) return undefined;
     void (call("reports.policy_get", {}) as Promise<{ policy: "on" | "ask" | "off" }>).then((r) => { if (!off) policy.current = r.policy; }).catch(() => undefined);
     return () => { off = true; };
-  }, [call]);
+  }, [call, mayReadPolicy]);
   useEffect(() => installReport(controller, { currentPlace: () => placeRef.current, platform: /mac/i.test((globalThis as { navigator?: { platform?: string } }).navigator?.platform ?? "") ? "mac" : "other" }), [controller]);
   useEffect(() => {
     const g = globalThis as { addEventListener?: (t: string, f: () => void) => void; removeEventListener?: (t: string, f: () => void) => void };

@@ -5,3 +5,5 @@
 - The push checks run most test jobs on GitHub-hosted runners so they no longer queue behind the few self-hosted ones.
 - The push checks do less waiting: the timing table is refreshed from a real run by a script (scripts/ci-timings.ts), and the agent computer test checks also run in the affected-only heavy job.
 - The push checks run only the slow test groups on GitHub-hosted runners, and the screenshot shards wait for the push checks' shards, so the push checks have the whole hosted pool.
+- Settings search now finds text size, density, reduce motion and language on the Appearance page.
+- The screenshot check fails when a screen it waits for never appears; every screenshot target now waits for a screen the app draws today, and the old Home, Needs you, Models and Connected targets are gone.

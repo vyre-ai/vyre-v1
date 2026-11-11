@@ -5,6 +5,9 @@ import http from "node:http";
 import { blockedAddress, createProviderProbe, pinnedGet, refuseModelAddress } from "../src/seams/vault.ts";
 import type { PinnedRequest } from "../src/seams/vault.ts";
 
+// the slow runner sets VYRE_TEST_KEY_CHECK=accept for live tests; this file tests the real probe
+process.env["VYRE_TEST_KEY_CHECK"] = "real";
+
 const KEY = "sk-local-NEVER-IN-AN-ANSWER";
 const probeOn = (own: boolean, resolve: Record<string, string[]> = {}) => {
   const requested: { url: string; ips: readonly string[]; headers: Record<string, string> }[] = [];

@@ -1,0 +1,2 @@
+- On a phone, Escape on a sheet closes only the topmost layer: a menu or picker drawn over a sheet closes first, and the sheet stays until the next Escape.
+- The Terminals list (and any popover or sheet a link opens) no longer comes back when you reload the page or return to its tab after closing it.

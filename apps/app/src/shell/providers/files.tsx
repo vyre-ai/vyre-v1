@@ -94,6 +94,12 @@ export default function FilesPlace(_props: { place: string }): ReactElement {
   // New folder and Rename ask for a name in a sheet; Upload opens the page's file chooser. `ask` is the sheet that is open, `said` the quiet line after an upload or a refusal.
   const [ask, setAsk] = useState<Ask | null>(null);
   const [said, setSaid] = useState<string | null>(null);
+  // a quiet line is quiet for a few seconds: it used to stay until pressed, and a "Folder made" outlived the page it was about (client walk, 11 Nov 2026)
+  useEffect(() => {
+    if (said === null) return undefined;
+    const t = setTimeout(() => setSaid(null), 5000);
+    return () => clearTimeout(t);
+  }, [said]);
   const [sharing, setSharing] = useState<{ id: string; file?: string } | null>(null);
   // no one to share with in a Personal Space: no door, so no Share item
   const acts = useMemo<FilesActs | undefined>(() => (rt ? {

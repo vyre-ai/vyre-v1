@@ -155,3 +155,11 @@ test("an agent's search of a room that gained a person reads it only from the la
   assert.ok(!/80000/.test(later[0]!.snippet ?? ""), "and the snippet holds none of the earlier text");
   assert.deepEqual((await query(h.ctx, { q: "budget ceiling Acme" })).hits.map((x) => x.id), ["thr_plans"], "a person searching for themselves keeps their own floor");
 });
+
+test("an agent's own home in Files (AGENT.md, MAP.md, agent.toml) never comes back in a person's search, and a firm's own file still does", async () => {
+  const h = harness();
+  seed(h, { id: "fil_agent", title: "AGENT.md", body: "You are their chief of staff: you plan, find, draft the project", kind: "file", path: "Agents/Desk/AGENT.md" });
+  seed(h, { id: "fil_map", title: "MAP.md", body: "project map of the folders", kind: "file", path: "Agents/Desk/MAP.md" });
+  seed(h, { id: "fil_firm", title: "Project plan.docx", body: "the project plan for the firm", kind: "file", path: "Matters/Project plan.docx" });
+  assert.deepEqual(await ids(h, { q: "project" }), ["fil_firm"]);
+});

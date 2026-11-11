@@ -1,12 +1,12 @@
 // @heavy docker
 // The agent's home in Files mirrored onto its computer, both ways (P-L2_35): the folder arrives and AGENT.md is read-only; a file written in Terminal shows in Files and a second edit is a new version; a file the agent makes for a chat is said once as a file card; a file saved in Vyre shows on the computer; an edit of AGENT.md is put back.
-// One of the tests that replace computers.live.test.ts, split by behaviour (host/tests/computers.kit.ts holds what they share); each runs in its own job so none is the floor under the push budget. Runs only with VYRE_HEAVY_DOCKER=1.
+// One of the tests that replace computers.live.test.ts, split by behaviour (host/tests/computers-kit.test.ts holds what they share); each runs in its own job so none is the floor under the push budget. Runs only with VYRE_HEAVY_DOCKER=1.
 import test from "node:test";
 import assert from "node:assert/strict";
 
 
 import path from "node:path";
-import { boot, call, ensureImage, finish, homeKit, seededDir, skip, wakeComputer } from "./computers.kit.ts";
+import { boot, call, ensureImage, finish, homeKit, seededDir, skip, wakeComputer } from "./computers-kit.test.ts";
 
 test("computers live: the agent's home in Files and its computer follow each other, and a file the agent makes is said once in its chat", { skip }, async () => {
   await ensureImage();

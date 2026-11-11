@@ -3,7 +3,7 @@
 // One of five tests that replace computers.live.test.ts, split by behaviour. Runs only with VYRE_HEAVY_DOCKER=1.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { boot, call, docker, ensureImage, finish, homeKit, seededDir, skip, wakeComputer } from "./computers.kit.ts";
+import { boot, call, docker, ensureImage, finish, homeKit, seededDir, skip, wakeComputer } from "./computers-kit.test.ts";
 
 test("computers live: a Chrome download reaches Files, and a person can take the wheel of a working computer and give it back", { skip }, async () => {
   await ensureImage();

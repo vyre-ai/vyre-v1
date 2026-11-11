@@ -8,7 +8,6 @@
     { "id": "CONNECTIONS_01-paste", "route": "/m/CONNECTIONS_01?part=paste", "proto": "vault,{skin}", "waitFor": "[data-testid='draft-rows']", "note": "Paste an address: a command with its key in front; the key goes to the Vault." },
     { "id": "CONNECTIONS_01-import", "route": "/m/CONNECTIONS_01?part=import", "proto": "vault,{skin}", "waitFor": "[data-testid='draft-rows']", "note": "Import a Codex config.toml: three servers, a key split out, a token the config left to the environment." },
     { "id": "CONNECTIONS_01-setup", "route": "/m/CONNECTIONS_01?part=setup", "proto": "vault,{skin}", "waitFor": "[data-testid='connection-setup']", "note": "A registry server that needs a key: the key goes into the Vault, Me and my agents or Everyone in the Space." },
-    { "id": "CONNECTIONS_01-settings", "route": "/m/CONNECTIONS_01?part=settings", "proto": "settings,{skin}", "waitFor": "[data-testid='settings-open-connections']", "note": "Settings > Connected: the summary and Open in Vault." },
     { "id": "CONNECTIONS_01-console", "route": "/m/CONNECTIONS_01?part=console", "proto": "console,{skin}", "waitFor": "[data-testid='console-connections-open']", "note": "Console > Plugins and tools: the Connections summary and Open in Vault." }
   ]
 }

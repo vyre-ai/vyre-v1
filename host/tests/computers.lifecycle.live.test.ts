@@ -6,7 +6,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
-import { boot, call, docker, ensureImage, finish, seededDir, skip } from "./computers.kit.ts";
+import { boot, call, docker, ensureImage, finish, seededDir, skip } from "./computers-kit.test.ts";
 
 test("computers live: an agent's computer on a booted daemon is asleep until woken, shows a screen frame, and sleeps again", { skip }, async () => {
   await ensureImage();

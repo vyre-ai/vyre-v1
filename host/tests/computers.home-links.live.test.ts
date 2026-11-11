@@ -1,12 +1,12 @@
 // @heavy docker
 // The agent's home never follows a link (P-L2_35): a symlink on the computer is never read or sent, and a folder that is a link to the host is never followed, down or up, and cleaning it up does not reach the host.
-// One of the tests that replace computers.live.test.ts, split by behaviour (host/tests/computers.kit.ts holds what they share); each runs in its own job so none is the floor under the push budget. Runs only with VYRE_HEAVY_DOCKER=1.
+// One of the tests that replace computers.live.test.ts, split by behaviour (host/tests/computers-kit.test.ts holds what they share); each runs in its own job so none is the floor under the push budget. Runs only with VYRE_HEAVY_DOCKER=1.
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { boot, call, ensureImage, finish, homeKit, seededDir, skip, wakeComputer } from "./computers.kit.ts";
+import { boot, call, ensureImage, finish, homeKit, seededDir, skip, wakeComputer } from "./computers-kit.test.ts";
 
 test("computers live: the agent's home never follows a symlink, nor a folder that links to the host", { skip }, async () => {
   await ensureImage();
