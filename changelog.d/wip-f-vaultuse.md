@@ -1,0 +1,4 @@
+- A Vault value an agent uses in a terminal command is never typed into the shell: it reaches the command as its environment for that one command, so it is not left in the terminal's scrollback, the shell's history or a file in the workspace.
+- A Vault handle written inside a command line (for example a password after -p) now works safely: the value is passed exactly, whatever characters it holds, and can never run as a command.
+- Agents can now use Vault handles in terminal commands on a real Space; before, the handle reached the command as plain text.
+- When a team agent works for several people, a value one person's command used is removed from everything the agent shows anyone from that workspace: command output, other tabs, the live view and status lines.

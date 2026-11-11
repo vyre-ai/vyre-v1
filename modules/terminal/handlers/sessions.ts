@@ -6,11 +6,14 @@
 // The machine does the work through the TerminalHost port (projections.ts); this module keeps what Vyre knows about a session and enforces who may do what in it.
 import {
   MAX_RULES, MAX_RULE_CHARS, TICKET_MS, actorOf, boundHost, boundKit, boundPlace, boundValues, clean, commandsOf, ensure, forgetSecrets, hostOf, insertSession, isTeam, judge, mintId, raise, rememberSecrets,
-  rulesOf, sessionBy, sessionOf, sha256, ticketSecret, touch, workspacesFor, boundWorkspaceStatus, SESSION_SELECT, insertTab,
+  rulesOf, sessionBy, sessionOf, sha256, ticketSecret, touch, workspacesFor, boundWorkspaceStatus, SESSION_SELECT, insertTab, scopeOf,
 } from "../projections.ts";
+import { QuotedHereDoc, referHandles } from "../fill.ts";
+import type { HandleRef } from "../fill.ts";
+import { HANDLE, SEALED } from "../../../lib/vault-use/index.ts";
 import { judged, isDangerous } from "../risk.ts";
 import { isTrustedService } from "../../../lib/trust.ts";
-import type { HostKind, Lookup, Rules, Secret, SessionRow, TabBy, Target, TermCtx, TermState, TurnPlace, ValueSource, VaultRun, Where } from "../projections.ts";
+import type { HostKind, Lookup, Rules, SessionRow, TabBy, Target, TermCtx, TermState, TurnPlace, ValueSource, VaultRun, Where } from "../projections.ts";
 
 type Row = Record<string, unknown>;
 const DEFAULT_COLS = 120;
@@ -235,7 +238,7 @@ export async function status(ctx: TermCtx, input: { terminalIds: string[] }) {
       // tmux does not know an exit code; a host that does says it, and one that does not leaves the last one Vyre recorded.
       const exitCode = h && h.exitCode !== null ? h.exitCode : x.exitCode;
       if (h && (h.state !== x.state || exitCode !== x.exitCode)) ctx.db.run("UPDATE terminal_sessions SET state = ?, exit_code = ? WHERE terminal_id = ?", h.state, exitCode, x.terminalId);
-      const last = h?.lastLine === undefined ? undefined : clean(x.terminalId, h.lastLine);
+      const last = h?.lastLine === undefined ? undefined : clean(scopeOf(x), h.lastLine);
       return { terminalId: x.terminalId, state, ...(last === undefined ? {} : { lastLine: last }), exitCode };
     }),
   };
@@ -243,18 +246,18 @@ export async function status(ctx: TermCtx, input: { terminalIds: string[] }) {
 
 export async function read(ctx: TermCtx, input: { terminalId: string; lines?: number; since?: number }) {
   ensure(ctx.db);
-  await needAccess(ctx, live(ctx, input.terminalId));
+  const x = await needAccess(ctx, live(ctx, input.terminalId));
   try {
     const r = await hostOf(ctx).read(input.terminalId, { lines: input.lines ?? REPLAY_LINES, ...(input.since === undefined ? {} : { since: input.since }) });
-    return { text: clean(input.terminalId, r.text), next: r.next };
+    return { text: clean(scopeOf(x), r.text), next: r.next };
   } catch (e) { return unexpected(ctx, "read the screen", e); }
 }
 
 export async function attach(ctx: TermCtx, input: { terminalId: string }) {
   ensure(ctx.db);
-  await needAccess(ctx, live(ctx, input.terminalId));
+  const x = await needAccess(ctx, live(ctx, input.terminalId));
   let replay: string;
-  try { replay = clean(input.terminalId, (await hostOf(ctx).read(input.terminalId, { lines: REPLAY_LINES })).text); }
+  try { replay = clean(scopeOf(x), (await hostOf(ctx).read(input.terminalId, { lines: REPLAY_LINES })).text); }
   catch (e) { return unexpected(ctx, "attach", e); }
   const now = ctx.now();
   const ticket = ticketSecret();
@@ -286,7 +289,7 @@ export async function close(ctx: TermCtx, input: { terminalId: string }) {
   const host = boundHost();
   if (host) { try { await host.close(x.terminalId); } catch (e) { ctx.log.warn("terminal: could not kill the session", { reason: e instanceof Error ? e.message.slice(0, 120) : "unknown" }); } }
   ctx.db.run("UPDATE terminal_sessions SET closed_at = ?, state = 'exited' WHERE terminal_id = ?", ctx.now(), x.terminalId);
-  forgetSecrets(x.terminalId);
+  forgetSecrets(scopeOf(x));
   ctx.emit("terminal.closed", x.terminalId, { terminalId: x.terminalId, by: actorOf(ctx) });
   return { closed: true };
 }
@@ -425,29 +428,65 @@ export async function run(ctx: TermCtx, a: RunInput) {
   const host = hostOf(ctx);
   const timeoutMs = (a.timeoutSec ?? DEFAULT_TIMEOUT_SEC) * 1000;
 
-  const captured: Secret[] = [];
+  const scope = scopeOf(s);
   const base: ValueSource | null = boundValues();
+  // Each handle is asked for once per call, however many places name it (the Vault use is checked and recorded once). A value is remembered for the scope the moment it is known, so a person reading the
+  // screen while the command runs never sees it.
+  const asked = new Map<string, Promise<Lookup>>();
   const source: ValueSource = {
-    async lookup(handle, who): Promise<Lookup> {
-      if (!base) return { kind: "unknown" };
-      const r = await base.lookup(handle, who);
-      if (r.kind === "value") captured.push({ handle, itemId: r.itemId, value: r.value });
-      return r;
+    lookup(handle, who): Promise<Lookup> {
+      if (!base) return Promise.resolve({ kind: "unknown" });
+      let p = asked.get(handle);
+      if (!p) {
+        p = base.lookup(handle, who).then((r) => { if (r.kind === "value") rememberSecrets(scope, [{ handle, itemId: r.itemId, value: r.value }]); return r; });
+        asked.set(handle, p);
+      }
+      return p;
     },
   };
+  const where = WHERE[s.host];
+  const who = { agentId: ctx.principal.id, asker: owner, where };
+  // A handle in the command line never becomes its value in the line (W6): the line names a variable, quoted for where it stands, and the value goes in that variable's environment for this one
+  // command. A handle the Vault does not know is left as the text it is (a hashtag, an issue number).
+  const env: Record<string, string> = { ...(a.env ?? {}) };
+  const refs: HandleRef[] = [];
+  let line = command;
+  if (base) {
+    const names = new Map<string, string>();
+    const spots = [...command.matchAll(new RegExp(HANDLE.source, "g")), ...command.matchAll(new RegExp(SEALED.source, "g"))].sort((x, y) => (x.index ?? 0) - (y.index ?? 0));
+    let end = -1;
+    for (const m of spots) {
+      const at = m.index ?? 0;
+      if (at < end) continue;   // inside a spot already taken
+      const handle = m[0];
+      if ((await source.lookup(handle, who)).kind === "unknown") continue;
+      let name = names.get(handle);
+      if (name === undefined) {
+        let n = names.size + 1;
+        while (`VYRE_H_${n}` in env) n++;
+        name = `VYRE_H_${n}`;
+        names.set(handle, name);
+        env[name] = handle;
+      }
+      refs.push({ at, length: handle.length, name });
+      end = at + handle.length;
+    }
+    try { line = referHandles(command, refs); }
+    catch (e) { raise(ctx, "validation.bad_input", e instanceof Error ? e.message : "That command cannot take a Vault value.", e instanceof QuotedHereDoc ? { handle: e.handle } : undefined); }
+  }
   // The command is recorded when the machine is actually asked to run it: a command refused before that (a handle the person may not use) is not a step.
   let started: { at: number; rowId: number } | null = null;
   let result: { exitCode: number | null; truncated: boolean; durationMs: number } | null = null;
   let timedOut = false;
   const exec = async (filled: unknown): Promise<string> => {
-    const f = filled as { command: string; env?: Record<string, string> };
+    const f = filled as { env?: Record<string, string> };
     const at = ctx.now();
     // The record keeps the command as the model wrote it (handles, not values).
     ctx.db.run("INSERT INTO terminal_commands (terminal_id, command, exit_code, started_at, duration_ms, by_principal) VALUES (?, ?, NULL, ?, NULL, ?)", s.terminalId, command, at, ctx.principal.id);
     started = { at, rowId: Number((ctx.db.all("SELECT MAX(seq) AS m FROM terminal_commands WHERE terminal_id = ?", s.terminalId) as Row[])[0]?.["m"]) };
     ctx.db.run("UPDATE terminal_sessions SET state = 'running', last_active_at = ? WHERE terminal_id = ?", at, s.terminalId);
     try {
-      const r = await host.run(s.terminalId, { command: f.command, ...(a.cwd === undefined ? {} : { cwd: a.cwd }), env: f.env ?? {}, timeoutMs });
+      const r = await host.run(s.terminalId, { command: line, ...(a.cwd === undefined ? {} : { cwd: a.cwd }), env: f.env ?? {}, timeoutMs });
       result = { exitCode: r.exitCode, truncated: r.truncated, durationMs: r.durationMs };
       return r.output;
     } catch (e) {
@@ -455,13 +494,14 @@ export async function run(ctx: TermCtx, a: RunInput) {
       throw e;
     }
   };
-  const args = { command, ...(a.env ? { env: a.env } : {}) };
+  // Only the environment is filled: the command line holds references, never a handle the filler would put a value in place of.
+  const args = Object.keys(env).length > 0 ? { env } : {};
   const kit = boundKit();
   let out: VaultRun;
-  if (kit && base) {
+  if (base) {
     out = await kit.run(
       { source, reportMiss: (m) => { ctx.log.warn("vault.scrub_miss", { itemId: m.itemId, place: m.place }); } },
-      { tool: "terminal_run", args, traceId: ctx.trace.traceId, agentId: ctx.principal.id, asker: owner, where: WHERE[s.host] },
+      { tool: "terminal_run", args, traceId: ctx.trace.traceId, agentId: ctx.principal.id, asker: owner, where },
       exec,
     );
   } else {
@@ -469,7 +509,6 @@ export async function run(ctx: TermCtx, a: RunInput) {
     try { out = { ok: true, display: args, output: await exec(args), used: [], scrubMiss: false }; }
     catch (e) { out = { ok: false, display: args, used: [], error: { code: "provider.unavailable", message: e instanceof Error ? e.message : "The terminal failed." } }; }
   }
-  rememberSecrets(s.terminalId, captured);
 
   const begun = started as { at: number; rowId: number } | null;
   const finish = (exitCode: number | null, durationMs: number): void => {
@@ -483,12 +522,13 @@ export async function run(ctx: TermCtx, a: RunInput) {
     finish(null, begun === null ? 0 : ctx.now() - begun.at);
     if (timedOut) raise(ctx, "timeout.deadline", "The command did not finish in time. It was interrupted.", { timeoutSec: a.timeoutSec ?? DEFAULT_TIMEOUT_SEC });
     const code = out.error.code === "permission.provider_label" ? "permission.no_grant" : out.error.code;
-    return raise(ctx, code, out.error.message, out.error.handle === undefined ? undefined : { handle: out.error.handle });
+    return raise(ctx, code, clean(scope, out.error.message), out.error.handle === undefined ? undefined : { handle: out.error.handle });
   }
   const r = result as { exitCode: number | null; truncated: boolean; durationMs: number } | null;
   if (r === null) { finish(null, begun === null ? 0 : ctx.now() - begun.at); return raise(ctx, "internal.unexpected", "The terminal did not report a result."); }
   finish(r.exitCode, r.durationMs);
-  const output = typeof out.output === "string" ? out.output : "";
+  // what this call filled is already out; what other commands of the workspace filled (another person's, through the same agent) is taken out too
+  const output = clean(scope, typeof out.output === "string" ? out.output : "");
   return { terminalId: s.terminalId, exitCode: r.exitCode, output, truncated: r.truncated, durationMs: r.durationMs };
 }
 

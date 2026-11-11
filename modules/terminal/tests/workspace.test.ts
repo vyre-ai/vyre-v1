@@ -314,7 +314,7 @@ test("createTmuxHost is what runs in the container: the same command lines as on
   await r.mgr.ensure(AGENT);
   const host = createTmuxHost({ exec: (argv) => r.mgr.exec(AGENT, argv) });
   await host.open({ terminalId: "trm_9", target: target(), name: "x", cols: 100, rows: 30, folders: [] });
-  assert.deepEqual(r.dk.box(NAME).tmux.calls[0], ["tmux", "new-session", "-d", "-s", "vyre-trm_9", "-x", "100", "-y", "30"]);
+  assert.deepEqual(r.dk.box(NAME).tmux.calls[0], ["tmux", "new-session", "-e", "HISTCONTROL=ignorespace", "-d", "-s", "vyre-trm_9", "-x", "100", "-y", "30"]);
 });
 
 // ---- the Files folder ------------------------------------------------------------------------------------------------------------------------------------

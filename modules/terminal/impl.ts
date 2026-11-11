@@ -4,13 +4,13 @@
 // is read back with capture-pane. Live frames come from a tmux control-mode client (`%output` lines, decoded here).
 import type { Handler } from "../../host/src/invoke.ts";
 import { handlers as table } from "./handlers/index.ts";
-import { bindWorkspaceStatus, bindHost, bindKit, bindMachineHost, bindMachinePlace, bindPlace, bindTeam, bindValues, bindWorkspaces, boundHost, redeemTicket, scrubberFor, spellingsFor } from "./projections.ts";
+import { bindWorkspaceStatus, bindHost, bindKit, bindMachineHost, bindMachinePlace, bindMachineValues, bindPlace, bindTeam, bindValues, bindWorkspaces, boundHost, redeemTicket, scopeOfId, scrubberFor, spellingsFor } from "./projections.ts";
 import { unixSocketHttp } from "../../sandbox/src/docker.ts";
 import { buildWorkspaceManager, createWorkspaceTerminalHost } from "./workspace.ts";
 import type { WorkspaceManager, WorkspaceOptions, WorkspaceTerminalHost } from "./workspace.ts";
 import { createWorkspaceFleet, remoteDockerHttp } from "./fleet.ts";
 import type { WorkspaceFleet } from "./fleet.ts";
-import type { Db, PlaceOf, Target, TermState, TerminalHost } from "./projections.ts";
+import type { Db, PlaceOf, Target, TermState, TerminalHost, ValueSource } from "./projections.ts";
 
 export const handlers: Record<string, Handler> = table as unknown as Record<string, Handler>;
 export { fetchesOutside, isDangerCall, outwardOf } from "./handlers/index.ts";
@@ -19,8 +19,8 @@ export { mayEnterWorkspace } from "./handlers/sessions.ts";
 // ---- tmux ---------------------------------------------------------------------------------------------------------------------------------------------------
 
 export interface ExecResult { code: number; stdout: string; stderr: string }
-/** Run `argv` (argv[0] is "tmux") on the machine the session lives on, without a shell. */
-export type Exec = (argv: readonly string[]) => Promise<ExecResult>;
+/** Run `argv` (argv[0] is "tmux") on the machine the session lives on, without a shell. `stdin`: what the program reads on its standard input (the values of a command, for `tmux load-buffer -`). */
+export type Exec = (argv: readonly string[], o?: { stdin?: string }) => Promise<ExecResult>;
 
 export interface TmuxOptions {
   exec: Exec;
@@ -36,10 +36,14 @@ export interface TmuxOptions {
   scrollback?: number;
   /** tmux session names are `<prefix><terminalId>`. Default "vyre-". */
   prefix?: string;
+  /** How the shell in a session names tmux, to fetch a command's values from it. Default "tmux" (found on the shell's own PATH). */
+  tmuxPath?: string;
 }
 
 const SHELLS: ReadonlySet<string> = new Set(["bash", "zsh", "sh", "dash", "fish", "ksh", "ash", "tmux"]);
 const ENV_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
+/** What a session's shell starts with so that a line typed with a leading space (every agent command) is kept out of its history, in memory and on disk. */
+export const HISTORY_ENV: readonly string[] = ["-e", "HISTCONTROL=ignorespace"];
 const realSleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 const rnd = (n: number): string => Array.from(globalThis.crypto.getRandomValues(new Uint8Array(n)), (b) => b.toString(16).padStart(2, "0")).join("");
 
@@ -81,14 +85,50 @@ export function createTmuxHost(o: TmuxOptions): TerminalHost {
     return r.stdout;
   }
   const tidy = (text: string): string => text.replace(/\s+$/u, "");
+  /** A session's shell keeps no line that starts with a space in its history (agent commands are typed that way). A tmux older than 3.0 has no -e: the session opens without it. */
+  async function newSession(session: string, cols: number, rows: number, cwd: string | undefined): Promise<void> {
+    const rest = ["-d", "-s", session, "-x", String(cols), "-y", String(rows), ...(cwd === undefined ? [] : ["-c", cwd])];
+    const r = await o.exec(["tmux", "new-session", ...HISTORY_ENV, ...rest]);
+    if (r.code === 0) return;
+    if (/unknown option|invalid option|usage:/i.test(r.stderr)) { await tmux(["new-session", ...rest]); return; }
+    throw new Error(`tmux new-session failed: ${r.stderr.trim().slice(0, 200)}`);
+  }
   async function capture(session: string, lines: number): Promise<string> {
     return tidy(await tmux(["capture-pane", "-p", "-J", "-t", session, "-S", `-${Math.max(1, lines)}`]));
+  }
+
+  /** Type one line, press Enter and read the screen until the end marker shows: the output between the markers and the exit code. */
+  async function runLine(session: string, line: string, beg: string, end: string, timeoutMs: number): Promise<{ exitCode: number | null; output: string; truncated: boolean; durationMs: number }> {
+    const t0 = now();
+    await tmux(["send-keys", "-t", session, "-l", "--", line]);
+    await tmux(["send-keys", "-t", session, "Enter"]);
+    const endRe = new RegExp(`^${end}:(\\d+)$`, "m");
+    for (;;) {
+      const screen = await capture(session, scrollback);
+      const m = endRe.exec(screen);
+      if (m && m.index !== undefined) {
+        const before = screen.slice(0, m.index);
+        const lines = before.split("\n");
+        let from = -1;
+        for (let i = lines.length - 1; i >= 0; i--) if (lines[i] === beg) { from = i; break; }
+        let output = tidy(lines.slice(from + 1).join("\n"));
+        const scrolledOff = from < 0;
+        let truncated = scrolledOff;
+        if (output.length > maxOutput) { output = output.slice(output.length - maxOutput); truncated = true; }
+        return { exitCode: Number(m[1]), output, truncated, durationMs: now() - t0 };
+      }
+      if (now() - t0 >= timeoutMs) {
+        await tmux(["send-keys", "-t", session, "C-c"]).catch(() => undefined);
+        throw Object.assign(new Error("the command did not finish in time"), { code: "timeout" });
+      }
+      await sleep(pollMs);
+    }
   }
 
   const host: TerminalHost = {
     async open(a) {
       const session = nameOf(a.terminalId);
-      await tmux(["new-session", "-d", "-s", session, "-x", String(a.cols), "-y", String(a.rows), ...(a.cwd === undefined ? [] : ["-c", a.cwd])]);
+      await newSession(session, a.cols, a.rows, a.cwd);
       const cwd = tidy(await tmux(["display-message", "-p", "-t", session, "#{pane_current_path}"])) || a.cwd || "~";
       return { cwd };
     },
@@ -109,36 +149,24 @@ export function createTmuxHost(o: TmuxOptions): TerminalHost {
       const beg = `__VYRE_BEG_${nonce}__`;
       const end = `__VYRE_END_${nonce}__`;
       for (const k of Object.keys(r.env)) if (!ENV_NAME.test(k)) throw new Error(`${k} is not a name an environment variable can have`);
-      const exports = Object.entries(r.env).map(([k, v]) => `${k}=${shQuote(v)}`);
-      // With variables the command runs in a subshell so they do not stay in the session; without, in braces so `cd` and exports persist like typing it.
-      const body = exports.length > 0 ? `( export ${exports.join(" ")}; ${r.command}\n)` : `{ ${r.command}\n}`;
-      const cd = r.cwd === undefined ? "" : `cd ${shQuote(r.cwd)} && `;
-      // Begin and end markers are printed by the shell, so the typed line (which holds them only inside quotes) never matches a marker line.
-      const line = `printf '%s\\n' ${shQuote(beg)}; ${cd}${body}; printf '\\n%s:%d\\n' ${shQuote(end)} $?`;
-      const t0 = now();
-      await tmux(["send-keys", "-t", session, "-l", "--", line]);
-      await tmux(["send-keys", "-t", session, "Enter"]);
-      const endRe = new RegExp(`^${end}:(\\d+)$`, "m");
-      for (;;) {
-        const screen = await capture(session, scrollback);
-        const m = endRe.exec(screen);
-        if (m && m.index !== undefined) {
-          const before = screen.slice(0, m.index);
-          const lines = before.split("\n");
-          let from = -1;
-          for (let i = lines.length - 1; i >= 0; i--) if (lines[i] === beg) { from = i; break; }
-          let output = tidy(lines.slice(from + 1).join("\n"));
-          const scrolledOff = from < 0;
-          let truncated = scrolledOff;
-          if (output.length > maxOutput) { output = output.slice(output.length - maxOutput); truncated = true; }
-          return { exitCode: Number(m[1]), output, truncated, durationMs: now() - t0 };
-        }
-        if (now() - t0 >= r.timeoutMs) {
-          await tmux(["send-keys", "-t", session, "C-c"]).catch(() => undefined);
-          throw Object.assign(new Error("the command did not finish in time"), { code: "timeout" });
-        }
-        await sleep(pollMs);
+      // Values are never typed (W6): they go into a tmux buffer through the standard input of `tmux load-buffer`, in the tmux server's memory only, never on disk and never in a program's arguments.
+      // The typed line reads the buffer inside a subshell, deletes it before the command starts and exports the values there, so they are the environment of this one command and gone after it.
+      // Without variables the command runs in braces so `cd` and exports persist like typing it.
+      const buffer = Object.keys(r.env).length > 0 ? `vyre-env-${rnd(8)}` : null;
+      if (buffer !== null) {
+        const script = Object.entries(r.env).map(([k, v]) => `export ${k}=${shQuote(v)}\n`).join("");
+        const loaded = await o.exec(["tmux", "load-buffer", "-b", buffer, "-"], { stdin: script });
+        if (loaded.code !== 0) throw new Error(`tmux load-buffer failed: ${loaded.stderr.trim().slice(0, 200)}`);
       }
+      const tm = shQuote(o.tmuxPath ?? "tmux");
+      const body = buffer !== null
+        ? `( __vyre_env="$(${tm} save-buffer -b ${shQuote(buffer)} - 2>/dev/null)"; ${tm} delete-buffer -b ${shQuote(buffer)} 2>/dev/null; [ -n "$__vyre_env" ] || { echo 'Vyre could not hand this command its values.' >&2; exit 125; }; eval "$__vyre_env"; unset __vyre_env; ${r.command}\n)`
+        : `{ ${r.command}\n}`;
+      const cd = r.cwd === undefined ? "" : `cd ${shQuote(r.cwd)} && `;
+      // Begin and end markers are printed by the shell, so the typed line (which holds them only inside quotes) never matches a marker line. The leading space keeps the line out of the shell's history.
+      const line = ` printf '%s\\n' ${shQuote(beg)}; ${cd}${body}; printf '\\n%s:%d\\n' ${shQuote(end)} $?`;
+      try { return await runLine(session, line, beg, end, r.timeoutMs); }
+      finally { if (buffer !== null) await o.exec(["tmux", "delete-buffer", "-b", buffer]).catch(() => undefined); }
     },
     async status(ids) {
       const out: Array<{ terminalId: string; state: TermState; lastLine?: string; exitCode: number | null }> = [];
@@ -191,14 +219,16 @@ export async function openFrames(db: Db, ticket: string, now: number, send: (tex
   if (!who) return null;
   let carry = "";
   let closed = false;
+  // the session's workspace: a value another tab of it filled is taken out too
+  const scope = scopeOfId(db, who.terminalId);
   const stop = host.stream(who.terminalId, (frame) => {
     if (closed) return;
-    const sc = scrubberFor(who.terminalId);
+    const sc = scrubberFor(scope);
     if (!sc) { send(carry + frame); carry = ""; return; }
     // Scrub first, hold back after: a value that is whole in what has arrived is removed whole. Holding the tail before scrubbing cut the value's last character off whenever it could itself start another
     // spelling of the value (an s, a 7 for the hex form, a c for the base64 form) and the frame ended exactly on the value, which left the rest of the value in the stream.
     const text = sc.scrub(carry + frame);
-    const hold = partialSpellingAt(text, spellingsFor(who.terminalId));
+    const hold = partialSpellingAt(text, spellingsFor(scope));
     const out = text.slice(0, text.length - hold);
     carry = text.slice(text.length - hold);
     if (out !== "") send(out);
@@ -353,9 +383,13 @@ export interface TerminalHostSeam {
   shell: ShellRun;
   /** The folder a session starts in when none is named: the person's home folder on this computer. */
   home: string;
+  /** Where tmux is on this computer (TmuxOptions.tmuxPath). */
+  tmuxPath?: string;
   /** A session for this target lives on this machine. Anything else is another machine, which this one cannot reach. */
   runsHere(target: Target): boolean;
   place?: PlaceOf;
+  /** The Space's Vault, for a #Handle.field in a command: the vault.use check as the agent for the person, then the value (host/src/seams/engine-session.ts). Omitted: a handle stays text. */
+  values?: ValueSource;
   /** Agent workspaces on this machine (the Space server): where Docker is and which image, and the Files and project folders to mount. Omitted: this host has none. */
   workspaces?: WorkspaceConfig;
 }
@@ -394,9 +428,9 @@ export function buildWorkspaceFleet(c: WorkspaceConfig): WorkspaceFleet {
   });
 }
 /** The sessions of this machine: tmux when it is installed, else a plain shell. A target on another machine is refused at open. */
-export function createLocalHost(o: Omit<TerminalHostSeam, "place" | "workspaces">, workspaces?: WorkspaceManager | WorkspaceTerminalHost): TerminalHost {
+export function createLocalHost(o: Omit<TerminalHostSeam, "place" | "workspaces" | "values">, workspaces?: WorkspaceManager | WorkspaceTerminalHost): TerminalHost {
   const ws: WorkspaceTerminalHost | null = workspaces === undefined ? null : "has" in workspaces ? workspaces : createWorkspaceTerminalHost({ manager: workspaces });
-  const tmux = createTmuxHost({ exec: o.exec, ...(o.control ? { control: o.control } : {}) });
+  const tmux = createTmuxHost({ exec: o.exec, ...(o.control ? { control: o.control } : {}), ...(o.tmuxPath ? { tmuxPath: o.tmuxPath } : {}) });
   const plain = createShellHost({ run: o.shell, home: o.home });
   let tmuxKnown: boolean | null = null;
   let probe: Promise<boolean> | null = null;
@@ -448,6 +482,7 @@ export function setTerminalHost(seam: TerminalHostSeam | null): void {
   workspaceManager = fleet;
   bindMachineHost(seam === null ? null : createLocalHost(seam, workspaceManager ?? undefined));
   bindMachinePlace(seam?.place ?? null);
+  bindMachineValues(seam?.values ?? null);
   // agent commands go to a workspace when there is a machine for this agent's one right now; with none (no runtime, no server) they go where the turn runs, as before
   bindWorkspaces(fleet ? (agentId) => fleet.available(agentId) : false);
   bindWorkspaceStatus(fleet ? (agentId) => fleet.status(agentId) : null);

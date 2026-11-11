@@ -29,7 +29,8 @@ test("shQuote closes, escapes and reopens around a single quote, so a value cann
 test("open: one tmux session named for the terminal, at the size and folder asked for; the folder it reports is where the shell is", async () => {
   const { tm, host } = rig();
   const r = await open(host, "trm_a1", { cwd: "/work/site" });
-  assert.deepEqual(tm.calls[0], ["tmux", "new-session", "-d", "-s", "vyre-trm_a1", "-x", "100", "-y", "30", "-c", "/work/site"]);
+  // HISTCONTROL: the shell keeps no line typed with a leading space (every agent command) in its history, so none reaches ~/.bash_history
+  assert.deepEqual(tm.calls[0], ["tmux", "new-session", "-e", "HISTCONTROL=ignorespace", "-d", "-s", "vyre-trm_a1", "-x", "100", "-y", "30", "-c", "/work/site"]);
   assert.deepEqual(r, { cwd: "/work/site" });
   const none = await open(host, "trm_a2");
   assert.deepEqual(none, { cwd: "/home/agent" });
@@ -78,19 +79,24 @@ test("run: the shell prints its own markers around the command, and the output i
   assert.deepEqual([c.exitCode, c.output], [2, "cc a.c\ncc b.c\nerror: b.c:3"]);
   // What it typed is one line with the command in braces, so `cd` and exports stay in the session like typed by hand.
   const typed = tm.calls.find((x) => x[1] === "send-keys" && x.includes("-l") && x.at(-1)!.includes("git status"))!.at(-1)!;
-  assert.match(typed, /^printf '%s\\n' '__VYRE_BEG_[0-9a-f]{12}__'; \{ git status\n\}; printf '\\n%s:%d\\n' '__VYRE_END_[0-9a-f]{12}__' \$\?$/);
+  assert.match(typed, /^ printf '%s\\n' '__VYRE_BEG_[0-9a-f]{12}__'; \{ git status\n\}; printf '\\n%s:%d\\n' '__VYRE_END_[0-9a-f]{12}__' \$\?$/);
   assert.ok(tm.calls.some((x) => x[1] === "send-keys" && x.at(-1) === "Enter"));
   // The screen keeps the earlier output; a later command's answer is not mixed with it.
   assert.match(tm.screen("vyre-trm_a1"), /On branch main/);
 });
 
 test("run: a folder to run in, and variables, which live in a subshell and are quoted so a value cannot become a command", async () => {
-  const { tm, host } = rig({ scripts: { "echo $A": { out: "ok", code: 0 } } });
+  const VALUE = "x'; touch /tmp/pwned; '";
+  const { tm, host } = rig({ scripts: { "echo $A": (_c, env) => ({ out: `A=${env["A"]} B=${env["B"]}`, code: 0 }) } });
   await open(host);
-  const r = await host.run("trm_a1", { command: "echo $A", cwd: "/work/it's", env: { A: "x'; touch /tmp/pwned; '", B: "plain" }, timeoutMs: 5000 });
-  assert.deepEqual([r.exitCode, r.output], [0, "ok"]);
+  const r = await host.run("trm_a1", { command: "echo $A", cwd: "/work/it's", env: { A: VALUE, B: "plain" }, timeoutMs: 5000 });
+  assert.deepEqual([r.exitCode, r.output], [0, `A=${VALUE} B=plain`], "the command got both values exactly");
   const typed = tm.calls.find((x) => x[1] === "send-keys" && x.includes("-l") && x.at(-1)!.includes("echo $A"))!.at(-1)!;
-  assert.ok(typed.includes(`cd '/work/it'\\''s' && ( export A='x'\\''; touch /tmp/pwned; '\\''' B='plain'; echo $A\n)`), typed);
+  assert.ok(typed.startsWith(" printf ") && typed.includes(`cd '/work/it'\\''s' && ( __vyre_env=`) && typed.includes(`unset __vyre_env; echo $A\n); printf `), typed);
+  // W6: a value is never typed and never in a program's arguments; it went in on load-buffer's standard input, and the buffer is gone after the command
+  assert.equal(tm.calls.some((x) => x.some((a) => a.includes("touch /tmp/pwned") || a.includes("plain"))), false, JSON.stringify(tm.calls));
+  assert.ok(tm.calls.some((x) => x[1] === "load-buffer" && x.at(-1) === "-"), "the values went in through load-buffer's standard input");
+  assert.equal(tm.buffers.size, 0, "and the buffer is deleted");
   await assert.rejects(() => host.run("trm_a1", { command: "ls", env: { "A B": "x" }, timeoutMs: 5000 }), /not a name/);
   await assert.rejects(() => host.run("trm_a1", { command: "ls", env: { "A;rm": "x" }, timeoutMs: 5000 }), /not a name/);
 });

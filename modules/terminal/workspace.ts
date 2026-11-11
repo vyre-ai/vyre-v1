@@ -15,7 +15,7 @@ import { sha256Hex } from "../../kernel/src/log/hash.ts";
 import { createDockerApi } from "../../sandbox/src/docker.ts";
 import { tarFiles } from "../../sandbox/src/tar.ts";
 import type { ContainerConfig, DockerApi, DockerHttp } from "../../sandbox/src/docker.ts";
-import { createTmuxHost } from "./impl.ts";
+import { createTmuxHost, HISTORY_ENV } from "./impl.ts";
 import type { ExecResult } from "./impl.ts";
 import type { TerminalHost } from "./projections.ts";
 
@@ -759,7 +759,10 @@ export function createWorkspaceTerminalHost(w: WorkspaceTerminalOptions): Worksp
 
   function tmuxFor(agentId: string): TerminalHost {
     let h = tmuxHosts.get(agentId);
-    if (!h) { h = createTmuxHost({ exec: (argv) => m.exec(agentId, argv), control: control(agentId), prefix }); tmuxHosts.set(agentId, h); }
+    // what a program reads on its standard input (a command's values, for tmux load-buffer) goes in by the exec's environment and a pipe, never in its arguments
+    const exec = (argv: readonly string[], x?: { stdin?: string }): Promise<ExecResult> =>
+      x?.stdin === undefined ? m.exec(agentId, argv) : m.exec(agentId, ["sh", "-c", 'printf %s "$VYRE_STDIN" | (unset VYRE_STDIN; exec "$@")', "sh", ...argv], { env: { VYRE_STDIN: x.stdin } });
+    if (!h) { h = createTmuxHost({ exec, control: control(agentId), prefix }); tmuxHosts.set(agentId, h); }
     return h;
   }
 
@@ -776,7 +779,7 @@ export function createWorkspaceTerminalHost(w: WorkspaceTerminalOptions): Worksp
     const gen = m.generation(w0.agentId);
     if (w0.gen !== gen) {
       // tmux died with the container: the session is made again, empty, where it was
-      await m.exec(w0.agentId, ["tmux", "new-session", "-A", "-d", "-s", nameOf(terminalId), "-x", String(w0.cols), "-y", String(w0.rows), ...(w0.cwd === undefined ? [] : ["-c", w0.cwd])]);
+      await m.exec(w0.agentId, ["tmux", "new-session", "-A", ...HISTORY_ENV, "-d", "-s", nameOf(terminalId), "-x", String(w0.cols), "-y", String(w0.rows), ...(w0.cwd === undefined ? [] : ["-c", w0.cwd])]);
       w0.gen = gen;
     }
     return { agentId: w0.agentId, host: tmuxFor(w0.agentId) };

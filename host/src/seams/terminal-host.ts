@@ -17,15 +17,22 @@ export interface TurnPlaceShape { team: boolean; agentComputer: boolean; runsOn:
 
 /** What the terminal module's setTerminalHost takes (modules/terminal/impl.ts TerminalHostSeam). */
 export interface TerminalHostSeamShape {
-  exec(argv: readonly string[]): Promise<ExecResult>;
+  /** `stdin`: what the program reads on its standard input (a command's values, for tmux load-buffer), so a value is never in a program's arguments. */
+  exec(argv: readonly string[], o?: { stdin?: string }): Promise<ExecResult>;
   control(session: string, onLine: (line: string) => void): () => void;
   shell: ShellRun;
   home: string;
+  /** Where tmux is on this computer, for a session's shell to fetch a command's values from it even when its own PATH lacks it (a login shell on a Mac without Homebrew's PATH). */
+  tmuxPath?: string;
   runsHere(target: Target): boolean;
   place(a: { space: string; threadId?: string; agentId: string; person: string }): Promise<TurnPlaceShape | null>;
+  /** The Space's Vault for a #Handle.field in a command (engine-session.ts source): the vault.use check as the agent for the person, then the value. */
+  values?: ValuesShape;
   /** Agent workspaces on this machine, when it can run them (modules/terminal/impl.ts WorkspaceConfig). */
   workspaces?: WorkspacesConfig;
 }
+
+export type ValuesShape = { lookup(handle: string, who: { agentId: string; asker: string; where: "host" | "device" | "computer" }): Promise<{ kind: "value"; itemId: string; value: string; spaceOnly: boolean; injectIntoDeployments: boolean } | { kind: "unknown" } | { kind: "denied"; reason: "no_access" | "provider_label" | "other" }> };
 
 /** Where Docker is and which image is the agent workspace; the module builds the manager from it (agent workspaces, 6 Nov). */
 export interface WorkspacesConfig {
@@ -73,6 +80,8 @@ export interface TerminalHostDeps {
   home?: string;
   /** Agent workspaces on this machine: given when it has a container runtime the Space may use (a Team server's runner or socket). Omitted: agents' commands go where their turn runs. */
   workspaces?: Omit<WorkspacesConfig, "image"> & { image?: string };
+  /** The Space's Vault for handles in commands. Omitted: a handle stays text. */
+  values?: ValuesShape;
 }
 
 const KEEP = ["HOME", "USER", "LOGNAME", "SHELL", "PATH", "LANG", "LC_ALL", "LC_CTYPE", "TMPDIR", "TZ"];
@@ -103,13 +112,16 @@ export function createTerminalHostSeam(d: TerminalHostDeps): TerminalHostSeamSha
   const workspaces: WorkspacesConfig | undefined = d.workspaces ? { ...d.workspaces, image: d.workspaces.image ?? (process.env["VYRE_WORKSPACE_IMAGE"] || "vyre/agent-workspace:1") } : undefined;
   return {
     ...(workspaces ? { workspaces } : {}),
-    exec(argv) {
+    ...(d.values ? { values: d.values } : {}),
+    exec(argv, x) {
       return new Promise((resolve) => {
         const [file, ...args] = argv;
-        execFile(file ?? "tmux", args, { env, cwd: home, maxBuffer: 16 * 1024 * 1024, timeout: 30_000 }, (err, stdout, stderr) => {
+        const child = execFile(file ?? "tmux", args, { env, cwd: home, maxBuffer: 16 * 1024 * 1024, timeout: 30_000 }, (err, stdout, stderr) => {
           const code = err ? (typeof (err as { code?: unknown }).code === "number" ? Number((err as { code: number }).code) : 127) : 0;
           resolve({ code, stdout: String(stdout ?? ""), stderr: String(stderr ?? "") || (err && code === 127 ? `${file}: ${err.message}` : "") });
         });
+        child.stdin?.on("error", () => undefined);
+        child.stdin?.end(x?.stdin ?? "");
       });
     },
     control(session, onLine) {
@@ -136,6 +148,7 @@ export function createTerminalHostSeam(d: TerminalHostDeps): TerminalHostSeamSha
       child.on("close", (code, signal) => { a.signal.removeEventListener("abort", stop); resolve({ exitCode: code ?? (signal ? 130 : null) }); });
     }),
     home,
+    ...((): { tmuxPath?: string } => { const t = (env["PATH"] ?? "").split(":").filter((d) => path.isAbsolute(d)).map((d) => path.join(d, "tmux")).find((f) => { try { fs.accessSync(f, fs.constants.X_OK); return true; } catch { return false; } }); return t ? { tmuxPath: t } : {}; })(),
     runsHere: (t) => t.host === "device" && device,
     async place(a) {
       const decided = a.threadId === undefined ? null

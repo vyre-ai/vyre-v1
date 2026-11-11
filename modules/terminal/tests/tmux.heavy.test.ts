@@ -25,9 +25,11 @@ const work = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "vyre-tmux-he
 const ENV: NodeJS.ProcessEnv = { PATH: process.env["PATH"] ?? "/usr/local/bin:/usr/bin:/bin", HOME: work, TERM: "xterm-256color", SHELL: "/bin/bash", LANG: "C.UTF-8", PS1: "$ " };
 const TMUX = ["-L", SOCK, "-f", "/dev/null"];
 
-function runTmux(args: readonly string[]): Promise<ExecResult> {
+function runTmux(args: readonly string[], stdin?: string): Promise<ExecResult> {
   return new Promise((resolve) => {
-    const p = spawn("tmux", [...TMUX, ...args], { env: ENV, stdio: ["ignore", "pipe", "pipe"] });
+    const p = spawn("tmux", [...TMUX, ...args], { env: ENV, stdio: ["pipe", "pipe", "pipe"] });
+    p.stdin.on("error", () => undefined);
+    p.stdin.end(stdin ?? "");
     let stdout = "", stderr = "";
     p.stdout.on("data", (d) => (stdout += d));
     p.stderr.on("data", (d) => (stderr += d));
@@ -35,7 +37,7 @@ function runTmux(args: readonly string[]): Promise<ExecResult> {
     p.on("close", (code) => resolve({ code: code ?? 1, stdout, stderr }));
   });
 }
-const exec: Exec = (argv) => runTmux(argv.slice(1));
+const exec: Exec = (argv, x) => runTmux(argv.slice(1), x?.stdin);
 
 /** A control-mode client, as the live relay uses: `tmux -C attach`, one line at a time. */
 function control(session: string, onLine: (line: string) => void): () => void {
@@ -199,7 +201,7 @@ test("tmux: a Vault value filled into a command is removed from the result, the 
 
     // The terminal itself held it: this is what makes the scrub mean something.
     const raw = (await runTmux(["capture-pane", "-p", "-J", "-t", session, "-S", "-500"])).stdout;
-    assert.ok(raw.includes(SECRET), "the typed line, on the real screen, holds the value");
+    assert.ok(raw.includes(SECRET), "the command printed it on the real screen");
 
     const read = await h["terminal.read"]!(person, { terminalId, lines: 200 });
     assert.equal(read.text.includes(SECRET), false, "the scrollback a person reads");
@@ -224,5 +226,60 @@ test("tmux: a Vault value filled into a command is removed from the result, the 
     live!.close(); stopRaw();
     const screenAfter = (await runTmux(["capture-pane", "-p", "-J", "-t", session, "-S", "-500"])).stdout;
     assert.ok(screenAfter.includes(SECRET), "and the shell did receive the value, in pieces");
+  } finally { reset(); }
+});
+
+test("tmux (W6): a person's value used through a team agent is never typed, never in history, and another person asking the same agent for history, env, the first tab's scrollback or the shell's /proc gets nothing", { skip }, async () => {
+  const SECRET = `sk-live-${Math.random().toString(36).slice(2)}${Math.random().toString(36).slice(2)}`;
+  // a value that would run as shell if it were pasted into the line
+  const EVIL = "a$b;touch $HOME/vyre-pwned;'q\"x";
+  reset();
+  bindHost(host);
+  bindTeam(() => true);
+  bindValues(fakeValues({ "#Dana_Api.key": SECRET, "#Db.password": EVIL }));
+  const hn = harness();
+  const dana = hn.as(AGENT, "usr_dana", "run_a");
+  const omar = hn.as(AGENT, "usr_omar", "run_b");
+  try {
+    // Dana's turn: the value in env, and a handle inside the command line itself
+    const a = await h["terminal.run"]!(dana, { session: "dana", command: 'printf %s "$K" | wc -c; printf %s #Db.password | wc -c; echo "seen=$K"', env: { K: "#Dana_Api.key" }, idempotencyKey: "w6-a" });
+    assert.equal(a.exitCode, 0, a.output);
+    const counts = a.output.split("\n").map((l: string) => l.trim());
+    assert.deepEqual(counts.slice(0, 2), [String(SECRET.length), String(Buffer.byteLength(EVIL))], "both values reached the command exactly");
+    assert.equal(fs.existsSync(path.join(work, "vyre-pwned")), false, "the value did not run as shell");
+    const sessA = `vyre-${a.terminalId}`;
+    const pane = (await tmuxOut("display-message", "-p", "-t", sessA, "#{pane_pid}"));
+
+    // nothing typed holds a value: the raw screen shows the line, which names variables only (the command's own echo is the only place the value is)
+    const raw = (await runTmux(["capture-pane", "-p", "-J", "-t", sessA, "-S", "-"])).stdout;
+    const typedLine = raw.split("\n").find((l) => l.includes("__VYRE_BEG_") && l.includes("printf"));
+    assert.ok(typedLine, raw.replaceAll(SECRET, "<S>"));
+    assert.equal(typedLine!.includes(SECRET) || typedLine!.includes(EVIL), false, "the typed line holds no value");
+    assert.equal((await runTmux(["list-buffers"])).stdout.includes("vyre-env"), false, "the values' buffer is gone");
+
+    // Omar's turn, same agent, another tab of the same workspace
+    const asks = [
+      "history",
+      `tmux capture-pane -p -J -t ${sessA} -S -`,
+      `cat /proc/${pane}/environ | tr '\\0' '\\n'`,
+      "env",
+      "tmux list-buffers; tmux save-buffer - 2>/dev/null; true",
+    ];
+    for (const [i, command] of asks.entries()) {
+      const r = await h["terminal.run"]!(omar, { session: "omar", command, idempotencyKey: `w6-b${i}` });
+      assert.equal(r.output.includes(SECRET) || r.output.includes(EVIL), false, `Omar's ${command}: ${r.output.replaceAll(SECRET, "<S>").replaceAll(EVIL, "<E>").slice(-400)}`);
+    }
+    const scrolled = await h["terminal.run"]!(omar, { session: "omar", command: `tmux capture-pane -p -J -t ${sessA} -S -`, idempotencyKey: "w6-b9" });
+    assert.match(scrolled.output, /seen=\[#Dana_Api\.key\]/, "the first tab's output, scrubbed");
+
+    // Dana's tab closes: bash writes its history on the hangup. No agent line is in it, so no value either.
+    await h["terminal.close"]!(hn.ctx, { terminalId: a.terminalId });
+    await until("the first tab to end", async () => (await runTmux(["has-session", "-t", sessA])).code !== 0);
+    await sleep(300);
+    const histFile = path.join(work, ".bash_history");
+    const hist = fs.existsSync(histFile) ? fs.readFileSync(histFile, "utf8") : "";
+    assert.equal(hist.includes(SECRET) || hist.includes(EVIL) || hist.includes("__VYRE_BEG_"), false, `history on disk: ${hist.replaceAll(SECRET, "<S>").slice(-400)}`);
+    const later = await h["terminal.run"]!(omar, { session: "omar", command: "cat ~/.bash_history 2>/dev/null; true", idempotencyKey: "w6-c" });
+    assert.equal(later.output.includes(SECRET), false);
   } finally { reset(); }
 });

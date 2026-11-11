@@ -4,7 +4,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { handlers } from "../impl.ts";
 import { openFrames, partialSpellingAt } from "../impl.ts";
-import { bindHost, bindTeam, bindValues, commandsOf, redeemTicket } from "../projections.ts";
+import { bindHost, bindKit, bindTeam, bindValues, commandsOf, redeemTicket } from "../projections.ts";
 import { assertEventsConform, codeOf, contractErrors, fakeHost, fakeValues, harness, reset } from "../fixtures/harness.ts";
 import type { FakeHost, Harness } from "../fixtures/harness.ts";
 
@@ -221,20 +221,24 @@ test("run in a named session goes to that session; a command that fails to start
 
 test("a Vault value filled into a command never comes back: not in the answer, the record, the screen, the replay or the status", async () => {
   const KEY = "sk-live-ABCDEF123456";
+  // the line names a variable, closed out of the single quotes and quoted on its own; the value is that variable's environment for this one command (W6)
+  const LINE = `curl -H 'Authorization: '"\${VYRE_H_1}"'' https://api.example.com`;
   const { hn, host } = setup({
-    "curl -H 'Authorization: sk-live-ABCDEF123456' https://api.example.com": { exitCode: 0, output: `{"echo":"Authorization: ${KEY}","ok":true}` },
+    [LINE]: (_c, env) => ({ exitCode: 0, output: `{"echo":"Authorization: ${env["VYRE_H_1"]}","ok":true}` }),
   });
   bindValues(fakeValues({ "#Dana_Lawmatics.api_key": KEY }));
   const agent = hn.as(AGENT, "usr_dana");
   const r = await call(hn, "terminal.run", { command: "curl -H 'Authorization: #Dana_Lawmatics.api_key' https://api.example.com", idempotencyKey: idem() }, agent);
-  assert.deepEqual((host.calls.at(-1)?.args as { command: string }).command, "curl -H 'Authorization: sk-live-ABCDEF123456' https://api.example.com", "the machine got the value");
+  const sent = host.calls.at(-1)?.args as { command: string; env: Record<string, string> };
+  assert.equal(sent.command, LINE, "the command line never holds the value");
+  assert.deepEqual(sent.env, { VYRE_H_1: KEY }, "the machine got the value, as env of this command");
   assert.equal(r.output.includes(KEY), false);
   assert.match(r.output, /\[#Dana_Lawmatics\.api_key\]/);
   assert.equal(JSON.stringify(commandsOf(hn.db, r.terminalId)).includes(KEY), false, "the record keeps the handle as written");
   assert.match(commandsOf(hn.db, r.terminalId)[0]!.command, /#Dana_Lawmatics\.api_key/);
   assert.equal(JSON.stringify(hn.emitted).includes(KEY), false);
 
-  // The screen of the machine does hold it (the typed line was echoed); every way back out of the module scrubs it.
+  // The screen of the machine does hold it (the command printed it); every way back out of the module scrubs it.
   assert.ok(host.screens.get(r.terminalId)!.join("\n").includes(KEY));
   assert.equal((await call(hn, "terminal.read", { terminalId: r.terminalId })).text.includes(KEY), false);
   assert.equal((await call(hn, "terminal.attach", { terminalId: r.terminalId })).replay.includes(KEY), false);
@@ -266,6 +270,69 @@ test("a value too short to filter safely is refused, and the environment is fill
   const r = await call(hn, "terminal.run", { command: "printenv TOKEN", env: { TOKEN: "#Dana_Api.token" }, idempotencyKey: idem() }, agent);
   assert.deepEqual((host.calls.at(-1)?.args as { env: unknown }).env, { TOKEN: "tok_0123456789" });
   assert.equal(r.output.includes("tok_0123456789"), false);
+});
+
+test("W6: a handle in the command line is never pasted in as its value; a value with shell characters stays data, wherever in the line the handle stands", async () => {
+  const EVIL = "a$b;touch /tmp/vyre-pwned;'x\"";
+  const { hn, host } = setup();
+  bindValues(fakeValues({ "#Db.password": EVIL, "#Api.key": "tok_0123456789" }));
+  const agent = hn.as(AGENT, "usr_dana");
+  const lines: Array<[string, string]> = [
+    ["mysql -p#Db.password", `mysql -p"\${VYRE_H_1}"`],
+    [`echo "pw=#Db.password"`, `echo "pw=\${VYRE_H_1}"`],
+    [`echo 'pw=#Db.password!'`, `echo 'pw='"\${VYRE_H_1}"'!'`],
+    [`cat <<EOF\nuser=#Db.password\nEOF`, `cat <<EOF\nuser=\${VYRE_H_1}\nEOF`],
+    [`x=$(echo #Db.password) && curl -H "k: #Api.key" #Db.password`, `x=$(echo "\${VYRE_H_1}") && curl -H "k: \${VYRE_H_2}" "\${VYRE_H_1}"`],
+    ["echo #general #Db.password", `echo #general "\${VYRE_H_1}"`],
+  ];
+  for (const [command, line] of lines) {
+    await call(hn, "terminal.run", { command, idempotencyKey: idem() }, agent);
+    const sent = host.calls.at(-1)?.args as { command: string; env: Record<string, string> };
+    assert.equal(sent.command, line, `the line for ${JSON.stringify(command)}`);
+    assert.equal(sent.command.includes(EVIL) || sent.command.includes("touch /tmp"), false, "the value is not in the line");
+    assert.equal(sent.env["VYRE_H_1"], EVIL, "it is the command's environment");
+  }
+  // a quoted here-document expands nothing: the value could only be pasted in, so the command is refused before it runs
+  const before = host.count("run");
+  assert.equal(await rejects(() => h["terminal.run"]!(agent, { command: `cat <<'EOF'\n#Db.password\nEOF` })), "validation.bad_input");
+  assert.equal(host.count("run"), before);
+  assert.equal(JSON.stringify(hn.logged).includes(EVIL) || JSON.stringify(hn.emitted).includes(EVIL), false);
+});
+
+test("with no kit bound, as a daemon binds none, a handle is still filled and the real scrubber takes the value out of what comes back", async () => {
+  const KEY = "sk-live-REALKIT-0123456789";
+  const { hn, host } = setup({ "printenv K": (_c, env) => ({ exitCode: 0, output: `${env["K"]} ${Buffer.from(env["K"] ?? "").toString("hex")}` }) });
+  bindKit(null);
+  bindValues(fakeValues({ "#Dana_Api.key": KEY }));
+  const r = await call(hn, "terminal.run", { command: "printenv K", env: { K: "#Dana_Api.key" }, idempotencyKey: idem() }, hn.as(AGENT, "usr_dana"));
+  assert.deepEqual((host.calls.at(-1)?.args as { env: unknown }).env, { K: KEY }, "filled");
+  assert.equal(r.output, "[#Dana_Api.key] [#Dana_Api.key]", "the value and its hex spelling are out");
+  assert.equal((await call(hn, "terminal.read", { terminalId: r.terminalId })).text.includes(KEY), false);
+});
+
+test("W6: a value used through a team agent for one person is scrubbed from everything another person gets from the same workspace: their command's output, the other tab's screen and its status", async () => {
+  const KEY = "sk-live-DANA-ONLY-0123456789";
+  const { hn, host } = setup({
+    "use key": { exitCode: 0, output: "done" },
+    // Omar asks the same agent to print what Dana's tab and the shell hold
+    "tmux capture-pane -p -t vyre-dana": { exitCode: 0, output: `$ use key\nKEY=${KEY}\ndone` },
+    "cat /proc/*/environ": { exitCode: 0, output: `K=${Buffer.from(KEY).toString("base64")}` },
+  });
+  bindValues(fakeValues({ "#Dana_Api.key": KEY }));
+  const dana = hn.as(AGENT, "usr_dana");
+  const omar = hn.as(AGENT, "usr_omar");
+  const a = await call(hn, "terminal.run", { command: "use key", session: "dana", env: { K: "#Dana_Api.key" }, idempotencyKey: idem() }, dana);
+  const b = await call(hn, "terminal.run", { command: "tmux capture-pane -p -t vyre-dana", session: "omar", idempotencyKey: idem() }, omar);
+  assert.notEqual(a.terminalId, b.terminalId, "two tabs of one workspace");
+  assert.equal(b.output.includes(KEY), false, `Omar's command output: ${b.output.replaceAll(KEY, "<KEY>")}`);
+  assert.match(b.output, /KEY=\[#Dana_Api\.key\]/);
+  const env = await call(hn, "terminal.run", { command: "cat /proc/*/environ", session: "omar", idempotencyKey: idem() }, omar);
+  assert.equal(env.output.includes(Buffer.from(KEY).toString("base64")), false, "nor an encoding of it");
+  const read = await call(hn, "terminal.read", { terminalId: b.terminalId });
+  assert.equal(read.text.includes(KEY), false, "Omar's own tab's screen");
+  const st = await call(hn, "terminal.status", { terminalIds: [b.terminalId] });
+  assert.equal(JSON.stringify(st).includes(KEY), false, "its status line");
+  assert.equal(JSON.stringify(host.calls).split(KEY).length - 1, 1, "the value reached the machine once, as Dana's command's env");
 });
 
 // ---- reading

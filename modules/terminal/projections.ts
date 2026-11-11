@@ -4,6 +4,7 @@
 import { readFileSync } from "node:fs";
 import { fail } from "../../host/src/routes/errors.ts";
 import { mintUuid } from "../../lib/ids.ts";
+import { createScrubber, MIN_SECRET_LENGTH, runWithVault, variantsOf } from "../../lib/vault-use/index.ts";
 import type { ErrorCode, EventName } from "../../packages/contracts/src/types.ts";
 
 export interface Db {
@@ -273,8 +274,8 @@ export async function redeemTicket(db: Db, ticket: string, now: number): Promise
 
 // ---- Vault values in a command -------------------------------------------------------------------------------------------------------------------------
 
-// The fill-and-scrub machinery is agent/src/vault-use (ARCH 6.11). Boundary B8 does not let a module import `agent`, so the host binds it here as a kit; the types below are the shapes it takes,
-// written out so the real functions satisfy them as they are. With no kit or no value source bound nothing is ever filled, a #Handle stays literal text, and there is nothing to scrub.
+// The fill-and-scrub machinery is lib/vault-use (ARCH 6.11), the same code the engine uses. The real one is bound from the start, so a daemon that wires nothing still scrubs; a test may bind a stand-in.
+// With no value source bound nothing is ever filled, a #Handle stays literal text, and there is nothing to scrub.
 export interface Secret { handle: string; itemId: string; value: string }
 export type Where = "host" | "device" | "computer";
 export type Lookup =
@@ -295,44 +296,65 @@ export interface VaultKit {
   spellings(value: string): string[];
 }
 
-let vaultKit: VaultKit | null = null;
-export function bindKit(k: VaultKit | null): void { vaultKit = k; }
-export const boundKit = (): VaultKit | null => vaultKit;
+/** The real kit: lib/vault-use. */
+export const REAL_KIT: VaultKit = { run: runWithVault as VaultKit["run"], createScrubber, spellings: variantsOf };
+let vaultKit: VaultKit = REAL_KIT;
+/** A stand-in for tests; null puts the real one back. */
+export function bindKit(k: VaultKit | null): void { vaultKit = k ?? REAL_KIT; }
+export const boundKit = (): VaultKit => vaultKit;
 
 /** Where a value comes from, in the process that runs the command (the host's Vault service, or the device's filler). */
+// Two ways it gets here, as with the host: the daemon hands over the Space's Vault (setTerminalHost), and a test binds a stand-in, which wins.
 let valueSource: ValueSource | null = null;
+let machineValues: ValueSource | null = null;
 export function bindValues(v: ValueSource | null): void { valueSource = v; }
-export const boundValues = (): ValueSource | null => valueSource;
+export function bindMachineValues(v: ValueSource | null): void { machineValues = v; }
+export const boundValues = (): ValueSource | null => valueSource ?? machineValues;
 
-// ---- secrets used in a session ----------------------------------------------------------------------------------------------------------------------
+// ---- secrets used in a session or a workspace ----------------------------------------------------------------------------------------------------------
 
 /**
- * Values the host filled into a session (terminal.run with #Handle.field). Kept in memory only, per session, so everything that reads the screen back (read, attach replay, live frames,
- * status) goes through the same scrubber. A restart forgets them.
+ * Values the host filled into commands (terminal.run with #Handle.field), kept in memory only, so everything that reads a screen back (run output, read, attach replay, live frames, status) goes
+ * through the same scrubber. They are kept per workspace, not per tab: every tab of an agent's workspace is the same computer, where one person's command can print what another person's command
+ * left (a tab's scrollback, a file, a process). A session on another computer keeps its own. A restart forgets them.
  */
-const secretsByTerminal = new Map<string, Secret[]>();
+const secretsByScope = new Map<string, Secret[]>();
 
-export function rememberSecrets(terminalId: string, secrets: readonly Secret[]): void {
-  if (secrets.length === 0) return;
-  const cur = secretsByTerminal.get(terminalId) ?? [];
-  for (const x of secrets) if (!cur.some((c) => c.handle === x.handle && c.value === x.value)) cur.push(x);
-  secretsByTerminal.set(terminalId, cur);
+/** What a session's screens are scrubbed of: its workspace's values when it is in one, else its own. */
+export function scopeOf(x: { terminalId: string; host: string; agentId?: string | undefined }): string {
+  return x.host === "agent_computer" && x.agentId !== undefined ? `ws:${x.agentId}` : `trm:${x.terminalId}`;
 }
-export function scrubberFor(terminalId: string): ScrubberLike | null {
-  const list = secretsByTerminal.get(terminalId);
-  return list && list.length > 0 && vaultKit ? vaultKit.createScrubber(list) : null;
+/** The scope of a session by its id, read from its row (a session nobody knows is its own). */
+export function scopeOfId(db: Db, terminalId: string): string {
+  const r = db.all("SELECT host, agent_id FROM terminal_sessions WHERE terminal_id = ?", terminalId)[0] as { host?: unknown; agent_id?: unknown } | undefined;
+  return scopeOf({ terminalId, host: String(r?.host ?? ""), ...(typeof r?.agent_id === "string" ? { agentId: r.agent_id } : {}) });
 }
-/** Every spelling of every value used in the session: what a live frame must not show, even split across two frames. */
-export function spellingsFor(terminalId: string): string[] {
+
+export function rememberSecrets(scope: string, secrets: readonly Secret[]): void {
+  const keep = secrets.filter((x) => x.value.length >= MIN_SECRET_LENGTH);
+  if (keep.length === 0) return;
+  const cur = secretsByScope.get(scope) ?? [];
+  for (const x of keep) if (!cur.some((c) => c.handle === x.handle && c.value === x.value)) cur.push(x);
+  secretsByScope.set(scope, cur);
+}
+export function scrubberFor(scope: string): ScrubberLike | null {
+  const list = secretsByScope.get(scope);
+  return list && list.length > 0 ? vaultKit.createScrubber(list) : null;
+}
+/** Every spelling of every value used in the scope: what a live frame must not show, even split across two frames. */
+export function spellingsFor(scope: string): string[] {
   const out = new Set<string>();
-  const kit = vaultKit;
-  if (kit) for (const x of secretsByTerminal.get(terminalId) ?? []) for (const v of kit.spellings(x.value)) out.add(v);
+  for (const x of secretsByScope.get(scope) ?? []) for (const v of vaultKit.spellings(x.value)) out.add(v);
   return [...out];
 }
-export const forgetSecrets = (terminalId: string): void => { secretsByTerminal.delete(terminalId); };
+/** A tab of its own is forgotten when it closes; a workspace keeps its values for as long as this process runs, since its other tabs and files may still hold them. */
+export const forgetSecrets = (scope: string): void => { if (scope.startsWith("trm:")) secretsByScope.delete(scope); };
 
-/** Text from a screen, with every value used in the session removed. */
-export function clean(terminalId: string, text: string): string {
-  const sc = scrubberFor(terminalId);
+/** Every remembered value forgotten: a test starting clean. */
+export const forgetAllSecrets = (): void => { secretsByScope.clear(); };
+
+/** Text from a screen, with every value used in the scope removed. */
+export function clean(scope: string, text: string): string {
+  const sc = scrubberFor(scope);
   return sc ? sc.scrub(text) : text;
 }

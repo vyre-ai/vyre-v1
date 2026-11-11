@@ -13,7 +13,7 @@ export interface FakeTmuxOptions {
   version?: string;
 }
 
-const RUN = /^printf '%s\\n' '(__VYRE_BEG_[0-9a-f]+__)'; (?:cd '((?:[^']|'\\'')*)' && )?([\s\S]*); printf '\\n%s:%d\\n' '(__VYRE_END_[0-9a-f]+__)' \$\?$/;
+const RUN = /^ printf '%s\\n' '(__VYRE_BEG_[0-9a-f]+__)'; (?:cd '((?:[^']|'\\'')*)' && )?([\s\S]*); printf '\\n%s:%d\\n' '(__VYRE_END_[0-9a-f]+__)' \$\?$/;
 
 /** Read one shell word starting at `at`: single quotes, a backslash-escaped character, and unquoted text up to a space. Returns the word's value and where it ended. */
 function word(text: string, at: number): { value: string; end: number } {
@@ -28,28 +28,36 @@ function word(text: string, at: number): { value: string; end: number } {
   return { value, end: i };
 }
 
-/** The command and variables inside `{ cmd\n}` or `( export A=1 B=2; cmd\n)`. */
-function unwrap(body: string): { command: string; env: Record<string, string> } {
+/** The variables of a buffer the adapter loaded: `export A='1'` lines. */
+function exportsOf(script: string): Record<string, string> {
+  const env: Record<string, string> = {};
+  for (const line of script.split("\n")) {
+    if (!line.startsWith("export ")) continue;
+    const eq = line.indexOf("=");
+    env[line.slice("export ".length, eq)] = word(line, eq + 1).value;
+  }
+  return env;
+}
+
+const FETCH = /^\( __vyre_env="\$\('[^']*' save-buffer -b '([^']+)' - 2>\/dev\/null\)"; [\s\S]*?unset __vyre_env; /;
+
+/** The command inside `{ cmd\n}`, or inside the subshell that fetches its variables from a buffer, with those variables (the buffer is deleted as the real line does). */
+function unwrap(body: string, buffers: Map<string, string>): { command: string; env: Record<string, string> } {
   if (body.startsWith("{ ") && body.endsWith("\n}")) return { command: body.slice(2, -2), env: {} };
-  if (body.startsWith("( export ") && body.endsWith("\n)")) {
-    const env: Record<string, string> = {};
-    let i = "( export ".length;
-    while (i < body.length) {
-      const eq = body.indexOf("=", i);
-      const name = body.slice(i, eq);
-      const w = word(body, eq + 1);
-      env[name] = w.value;
-      i = w.end;
-      if (body[i] === ";") { i += 2; break; }
-      i += 1;
-    }
-    return { command: body.slice(i, -2), env };
+  const m = FETCH.exec(body);
+  if (m && body.endsWith("\n)")) {
+    const name = m[1] as string;
+    const env = exportsOf(buffers.get(name) ?? "");
+    buffers.delete(name);
+    return { command: body.slice(m[0].length, -2), env };
   }
   return { command: body, env: {} };
 }
 
 export function fakeTmux(o: FakeTmuxOptions = {}) {
   const sessions = new Map<string, Sess>();
+  /** tmux paste buffers by name: what load-buffer read from its standard input. */
+  const buffers = new Map<string, string>();
   const scripts = { ...(o.scripts ?? {}) };
   const calls: string[][] = [];
   const controls = new Map<string, Array<(line: string) => void>>();
@@ -78,7 +86,7 @@ export function fakeTmux(o: FakeTmuxOptions = {}) {
       return;
     }
     const [, beg, , body, end] = m;
-    const { command, env } = unwrap(body as string);
+    const { command, env } = unwrap(body as string, buffers);
     print(s, beg as string);
     const r = result(command.trim(), env);
     if ("hang" in r) { s.hung = true; return; }
@@ -91,7 +99,7 @@ export function fakeTmux(o: FakeTmuxOptions = {}) {
   const bad = (stderr: string): ExecResult => ({ code: 1, stdout: "", stderr });
   const flag = (argv: readonly string[], f: string): string | undefined => { const i = argv.indexOf(f); return i >= 0 ? argv[i + 1] : undefined; };
 
-  const exec: Exec = async (argv) => {
+  const exec: Exec = async (argv, x) => {
     calls.push([...argv]);
     if (argv[0] !== "tmux") return bad("not tmux");
     if (!installed) return { code: 127, stdout: "", stderr: "tmux: command not found" };
@@ -103,6 +111,8 @@ export function fakeTmux(o: FakeTmuxOptions = {}) {
       sessions.set(name, { name, cols: Number(flag(argv, "-x")), rows: Number(flag(argv, "-y")), cwd: flag(argv, "-c") ?? "/home/agent", lines: [], typed: "", hung: false, env: {} });
       return ok();
     }
+    if (sub === "load-buffer") { buffers.set(flag(argv, "-b") as string, x?.stdin ?? ""); return ok(); }
+    if (sub === "delete-buffer") { const b = flag(argv, "-b") as string; return buffers.delete(b) ? ok() : bad(`no buffer ${b}`); }
     if (sub === "list-sessions") return ok([...sessions.keys()].join("\n") + (sessions.size ? "\n" : ""));
     const name = flag(argv, "-t") as string | undefined;
     const s = name === undefined ? undefined : sessions.get(name);
@@ -138,7 +148,7 @@ export function fakeTmux(o: FakeTmuxOptions = {}) {
   };
 
   return {
-    exec, control, calls, sessions, scripts,
+    exec, control, calls, sessions, scripts, buffers,
     /** Print as if the program in the session wrote it. */
     write(session: string, text: string) { const s = sessions.get(session); if (s) print(s, text); },
     screen(session: string): string { return (sessions.get(session)?.lines ?? []).join("\n"); },
