@@ -130,12 +130,17 @@ async function ingestOnce(ctx: MeetCtx, input: IngestInput) {
   if (newRef) { next.providerRef = input.providerRef; patch["provider_ref"] = input.providerRef; }
   if (input.joinUrl && (!l.joinUrl || !isCal)) { next.joinUrl = input.joinUrl; patch["join_url"] = input.joinUrl; }
   if (provider !== "none" && l.provider !== provider) { next.provider = provider; patch["provider"] = provider; }
-  if (!merged && input.startsAt !== l.startsAt) { next.startsAt = input.startsAt; patch["starts_at"] = isoOf(input.startsAt); }
-  if (!merged && input.endsAt !== undefined && input.endsAt !== l.endsAt) { next.endsAt = input.endsAt; patch["ends_at"] = isoOf(input.endsAt); }
+  // One value, by one rule. A meeting can be told about by several sources (each member's copy of the calendar event, a Meet or Teams call), and they disagree about the title and the end. If every
+  // refresh overwrote the last, the record would flip on every pass. So only one source speaks for the title, start and end: the calendar copy with the lowest event id (the first one seen; the
+  // ids sort by time). Other copies and calls add attendees, links and the join address, and a call speaks for the meeting only while no calendar event does.
+  const events = newEvent ? [...l.eventIds, eventId as string] : l.eventIds;
+  const speaks = isCal ? (events.length === 0 || eventId === undefined || [...events].sort()[0] === eventId) : l.eventIds.length === 0;
+  if (!merged && speaks && input.startsAt !== l.startsAt) { next.startsAt = input.startsAt; patch["starts_at"] = isoOf(input.startsAt); }
+  if (!merged && speaks && input.endsAt !== undefined && input.endsAt !== l.endsAt) { next.endsAt = input.endsAt; patch["ends_at"] = isoOf(input.endsAt); }
   // a refresh of the same event or provider meeting may retitle it; a new identity joining keeps the title it finds, unless that was only the placeholder, or the meeting so far came
   // only from a provider (Meet names every call "Google Meet") and this is the calendar event, which carries the name people gave the call
   const providerOnly = isCal && newEvent && l.eventIds.length === 0;
-  if (input.title?.trim() && input.title.trim() !== text(rec.fields["title"]) && (!merged || providerOnly || text(rec.fields["title"]) === "" || text(rec.fields["title"]) === "Meeting")) patch["title"] = input.title.trim();
+  if (input.title?.trim() && input.title.trim() !== text(rec.fields["title"]) && ((!merged && speaks) || providerOnly || text(rec.fields["title"]) === "" || text(rec.fields["title"]) === "Meeting")) patch["title"] = input.title.trim();
   if (newEvent && !text(rec.fields["calendar_event_id"])) patch["calendar_event_id"] = eventId;
   if (who.length) {
     const have = list(rec.fields["attendees"]).filter((x): x is string => typeof x === "string");

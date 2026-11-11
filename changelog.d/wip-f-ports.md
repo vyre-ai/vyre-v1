@@ -6,3 +6,5 @@
 - A Personal calendar you delete stays deleted, and the server no longer waits to make everyone's Personal calendar before it starts, so a large team's server is ready at once.
 - Test only: a hung MCP call in the fake CLI now times out after 20 seconds, and the agent-gate golden flow says what the agent said when no hold appears.
 - The Windows leg of the desktop build now proves the install end to end on a real Windows runner (silent install, install.ps1 against this build, the app starting and answering, a clean uninstall both ways) and runs on any change to the installer; `install.ps1 -Uninstall` now also runs the installer's own uninstaller.
+- `vyre-server update` now backs up your data while the server keeps running and stops it only for the switch, so a team's Space is down for the restart (seconds) instead of the whole backup (minutes); `--stopped-backup` keeps the old order.
+- A meeting that appears in several calendars (or on a call) is now settled once, by one rule (the first calendar copy's title, start and end), instead of being rewritten on every refresh; and saving a record with the values it already has no longer adds an entry to the history.

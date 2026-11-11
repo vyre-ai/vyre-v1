@@ -18,7 +18,7 @@ const KEYS = { personKeyByPassword: "cGVyc29uLWJ5LXBhc3N3b3Jk", publicKey: "cHVi
 const PASSWORD = "correct horse battery staple 9";
 type Json = { data?: any; error?: { code?: string; message?: string } };   // eslint-disable-line @typescript-eslint/no-explicit-any
 
-async function withSpace(run: (api: { post(p: string, body: unknown): Promise<{ status: number; body: Json }>; ok(p: string, body: unknown): Promise<any> }) => Promise<void>): Promise<void> {   // eslint-disable-line @typescript-eslint/no-explicit-any
+async function withSpace(run: (api: { post(p: string, body: unknown): Promise<{ status: number; body: Json }>; ok(p: string, body: unknown): Promise<any> }, d: Daemon) => Promise<void>): Promise<void> {   // eslint-disable-line @typescript-eslint/no-explicit-any
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-ports-"));
   const d: Daemon = await startDaemon({
     config: loadConfig(["--data-dir", dir, "--port", "0", "--space", "spc_ports", "--space-name", "Ports Co", "--address", "team.example.com"], {}, "1.2.3"),
@@ -50,7 +50,7 @@ async function withSpace(run: (api: { post(p: string, body: unknown): Promise<{ 
     };
     // a record type with a name and a company, and one record
     await ok("/v1/schema/apply", { idempotencyKey: "ports-type", ops: [{ op: "type.create", type: "rt_contact", def: { title: "Contact", plural: "Contacts", icon: "user", titleField: "name", fields: [{ key: "name", type: "text", title: "Name", required: true }, { key: "company", type: "text", title: "Company" }] } }] });
-    await run({ post, ok });
+    await run({ post, ok }, d);
   } finally { await d.stop(); }
 }
 
@@ -97,5 +97,21 @@ test("email_builder.html_set and restore_version save through the real pipeline 
     assert.ok(versions.length >= 1, "the HTML was saved as a version");
     const restored = await ok("/v1/email_builder/restore_version", { emailId: email.emailId, version: versions[versions.length - 1]!.version });
     assert.equal(restored.email.emailId, email.emailId);
+  });
+});
+
+test("a record update that changes nothing writes no event and keeps the version", async () => {
+  await withSpace(async ({ ok }, d) => {
+    const rec = (await ok("/v1/records/create", { idempotencyKey: "noop-rec", type: "rt_contact", fields: { name: "Acme Holdings", company: "Acme" } })).record;
+    const events = async (): Promise<number> => (await d.log!.read({ type: "record.updated" })).length;
+    const base = await events();
+    const same = await ok("/v1/records/update", { type: "rt_contact", recordId: rec.id, patch: { company: "Acme", name: "Acme Holdings" } });
+    assert.equal(same.record.version, rec.version, "the version did not move");
+    assert.equal(await events(), base, "an update with the values the record already has appends nothing to the log");
+    for (let i = 0; i < 5; i++) await ok("/v1/records/update", { type: "rt_contact", recordId: rec.id, patch: { company: "Acme" } });
+    assert.equal(await events(), base, "repeating it appends nothing");
+    const changed = await ok("/v1/records/update", { type: "rt_contact", recordId: rec.id, patch: { company: "Acme Ltd" } });
+    assert.equal(changed.record.version, rec.version + 1, "a real change still counts");
+    assert.equal(await events(), base + 1);
   });
 });
