@@ -46,8 +46,14 @@ const SPACE = "space";
 /** The host a workload lives on: a joined computer's id, or "space" for the Space's own server. */
 export const hostKey = (nodeId: string | null | undefined): string => (nodeId === null || nodeId === undefined ? SPACE : nodeId);
 
-/** The line a person reads while their request waits. */
-export const waitingLine = (name: string): string => `Waiting for room on ${name}. Add a compute server in Console > Computers to run more.`;
+/**
+ * The line a person reads while their request waits, saying only what is true for the kind: a desktop can run on a compute server an admin adds, so that is the advice; a workspace on a Space server with
+ * Docker and a Space browser profile (always on the Space host) are not helped by one, and both start by themselves when room opens (the workspace's own line in modules/terminal, the browser's periodic pass).
+ */
+export const waitingLine = (name: string, kind: Workload = "desktop"): string =>
+  kind === "workspace" ? `Waiting for room on ${name}. The workspace starts by itself when there is room.`
+    : kind === "browser" ? `Waiting for room on ${name}. The agent's browser starts by itself when there is room.`
+      : `Waiting for room on ${name}. Add a compute server in Console > Computers to run more.`;
 
 /** Pure: does one more `kind` fit beside what is held? */
 export function verdictOf(f: HostFacts, held: Held, kind: Workload): Verdict {
@@ -139,7 +145,7 @@ export async function checkRoom(ctx: CompCtx, a: { kind: Workload; nodeId?: stri
   const key = hostKey(a.nodeId);
   const facts = await factsOf(ctx, key);
   const verdict = verdictOf(facts, heldOn(ctx.db, key), a.kind);
-  return { verdict, facts, line: waitingLine(facts.name) };
+  return { verdict, facts, line: waitingLine(facts.name, a.kind) };
 }
 
 export interface ClaimResult { state: "running" | "waiting"; line?: string }
@@ -173,8 +179,8 @@ export function releaseRoom(ctx: Pick<CompCtx, "db">, key: string): void {
 
 /** The line a waiting workload shows, or null when it is not waiting. */
 export function waitingNote(db: Db, key: string): string | null {
-  const r = rowsOf(db, "SELECT note FROM computers_claim WHERE claim_key = ? AND state = 'waiting'", key)[0];
-  return r ? String(r["note"] ?? "") || waitingLine("this server") : null;
+  const r = rowsOf(db, "SELECT note, kind FROM computers_claim WHERE claim_key = ? AND state = 'waiting'", key)[0];
+  return r ? String(r["note"] ?? "") || waitingLine("this server", String(r["kind"]) as Workload) : null;
 }
 
 export const isWaiting = (db: Db, key: string): boolean => waitingNote(db, key) !== null;

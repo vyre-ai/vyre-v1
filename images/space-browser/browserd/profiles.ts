@@ -191,7 +191,7 @@ export function createProfileManager(o: ProfileManagerOptions): ProfileManager {
     const taken = (): number => running().length + [...reserved].filter((id) => id !== except && profiles.get(id)?.chrome === null).length;
     if (taken() < maxRunning) { reserved.add(except); return; }
     const idle = running().filter((p) => p.id !== except && quiet(p)).sort((a, b) => a.lastActiveAt - b.lastActiveAt)[0];
-    if (!idle) throw unavailable("Waiting for room on the Space browser: every browser it can hold is busy. Add a compute server, or try again in a minute.");
+    if (!idle) throw unavailable("Waiting for room on the Space browser: every browser it can hold is busy. Try again in a minute.");
     o.log(`profile ${idle.id} stopped to make room`);
     reserved.add(except);
     await release(idle);
