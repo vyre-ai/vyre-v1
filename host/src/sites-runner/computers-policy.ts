@@ -16,7 +16,7 @@ export const computerNet = (id: string): string => `vyre-compnet-${hexOf(id).rep
 export const COMPUTER_NAME = /^vyre-comp-[a-z0-9-]{8,64}$/;
 export const COMPUTER_NET = /^vyre-compnet-[a-z0-9]{1,16}$/;
 export const PROFILE_VOLUME = /^vyre-comp-[a-z0-9-]{8,64}-profile$/;
-export const HELPER_NAME_RE = /^vyre-comp-[a-z0-9-]{8,64}-home-rm$/;
+export const HELPER_NAME_RE = /^vyre-comp-[a-z0-9-]{8,64}-(home-rm|seal-rm)$/;
 /** The agent computer image and its tag: the default, or the registry copy. More can be named for a server in VYRE_COMPUTER_IMAGES (comma separated repositories). */
 export function computerImages(extra = process.env["VYRE_COMPUTER_IMAGES"] ?? ""): RegExp {
   const repos = ["vyre/agent-computer", "ghcr.io/vyre-ai/agent-computer", ...extra.split(",").map((s) => s.trim()).filter((s) => /^[a-z0-9][a-z0-9./_-]{0,100}$/.test(s))];
@@ -99,19 +99,29 @@ export function computerBody(name: string, body: unknown): { body: Record<string
   return { body: { ...body, HostConfig: { ...h, CapAdd: [], Privileged: false, LogConfig: LOGS, Devices: [], PidMode: "" } } };
 }
 
-/** The helper that deletes files in a computer's home (archive cannot delete): the same image on no network, sharing only that computer's volumes, running only the fixed script. */
+/** The command the profile wipe helper runs (modules/computers/handlers/seal.ts WIPE_CMD): it empties the computer's profile disk after the sealed copy is written, and does nothing else. */
+export const SEAL_RM_CMD: readonly string[] = ["find", PROFILE_GUEST, "-mindepth", "1", "-delete"];
+/** The two helpers: `home-rm` deletes files in a computer's home (archive cannot delete), `seal-rm` empties its profile disk once the sealed copy is safe. */
+export const HELPER_KINDS = ["home-rm", "seal-rm"] as const;
+
+/** The helpers of a computer: the same image on no network, sharing only that computer's volumes, running only a fixed command (the removal script, or the profile wipe). */
 export function helperBody(name: string, body: unknown): { body: Record<string, unknown> } | { why: string } {
-  if (!HELPER_NAME_RE.test(name)) return { why: "a helper is named vyre-comp-<its computer>-home-rm" };
+  if (!HELPER_NAME_RE.test(name)) return { why: "a helper is named vyre-comp-<its computer>-home-rm or -seal-rm" };
   if (!isObj(body)) return { why: "the container config is not an object" };
+  const kind = name.endsWith("-seal-rm") ? "seal-rm" : "home-rm";
   const labels = isObj(body["Labels"]) ? body["Labels"] : {};
   const id = String(labels["vyre.computer"] ?? "");
-  if (!COMPUTER_ID.test(id) || `${computerName(id)}-home-rm` !== name || labels["vyre.helper"] !== "home-rm") return { why: "a helper carries vyre.computer=<its computer> and vyre.helper=home-rm" };
+  if (!COMPUTER_ID.test(id) || `${computerName(id)}-${kind}` !== name || labels["vyre.helper"] !== kind) return { why: `a helper carries vyre.computer=<its computer> and vyre.helper=${kind}` };
   for (const k of Object.keys(labels)) if (k !== "vyre.computer" && k !== "vyre.helper") return { why: `a helper may not carry the label ${k}` };
   if (!isComputerImage(String(body["Image"] ?? ""))) return { why: "a helper runs the agent computer image" };
   const cmd = Array.isArray(body["Cmd"]) ? (body["Cmd"] as unknown[]) : [];
-  if (cmd[0] !== "sh" || cmd[1] !== "-c" || cmd[2] !== HOME_RM_SCRIPT || !cmd.every((c) => typeof c === "string")) return { why: "a helper runs only the removal script" };
-  const paths = cmd.slice(4) as string[];
-  if (paths.some((p) => p !== "::" && !(p.startsWith(`${GUEST_HOME}/`) && !p.includes("/../") && !p.endsWith("/.."))) ) return { why: "a helper removes only inside the computer's home" };
+  if (kind === "seal-rm") {
+    if (cmd.length !== SEAL_RM_CMD.length || !cmd.every((c, i) => c === SEAL_RM_CMD[i])) return { why: "a profile helper runs only the profile wipe" };
+  } else {
+    if (cmd[0] !== "sh" || cmd[1] !== "-c" || cmd[2] !== HOME_RM_SCRIPT || !cmd.every((c) => typeof c === "string")) return { why: "a helper runs only the removal script" };
+    const paths = cmd.slice(4) as string[];
+    if (paths.some((p) => p !== "::" && !(p.startsWith(`${GUEST_HOME}/`) && !p.includes("/../") && !p.endsWith("/.."))) ) return { why: "a helper removes only inside the computer's home" };
+  }
   for (const k of Object.keys(body)) if (!["Image", "Entrypoint", "Cmd", "User", "NetworkDisabled", "HostConfig", "Labels"].includes(k) && !emptyish(body[k])) return { why: `a helper may not set ${k}` };
   const h = isObj(body["HostConfig"]) ? body["HostConfig"] : null;
   if (!h) return { why: "a helper needs its host config" };
@@ -134,6 +144,14 @@ export function computerNetworkBody(body: unknown): { body: Record<string, unkno
   if (body["Driver"] !== undefined && body["Driver"] !== "bridge") return { why: "a computer network is a bridge" };
   if (isObj(body["Options"]) && Object.keys(body["Options"]).some((k) => k !== "com.docker.network.bridge.enable_icc")) return { why: "a computer network takes no driver options" };
   return { body: { Name: body["Name"], Driver: "bridge", CheckDuplicate: true, Labels: { "vyre.computer": id }, ...(body["Internal"] === true ? { Internal: true } : {}) } };
+}
+
+/** The list of computers, for the boot recovery of sealed profiles: only the ones that carry the computer label, and only the two query words. */
+export function computerListOk(query: URLSearchParams): boolean {
+  for (const k of query.keys()) if (k !== "all" && k !== "filters") return false;
+  const all = query.get("all");
+  if (all !== null && all !== "true" && all !== "false") return false;
+  try { const f = JSON.parse(query.get("filters") ?? "") as { label?: unknown }; return isObj(f) && Object.keys(f).length === 1 && Array.isArray(f.label) && f.label.length === 1 && f.label[0] === "vyre.computer"; } catch { return false; }
 }
 
 /** Archive on a computer: its own home only, to read or to write. */
@@ -230,7 +248,11 @@ export function sbrowserNetworkBody(body: unknown): { body: Record<string, unkno
 
 /** What the Space browser's container may be asked: read it, start, stop and remove it, run browserd's control program in it. Archive only as a PUT into one profile's folder (Chrome's data from an old computer); no wait. */
 export function sbrowserAllows(action: string, method: string, query: URLSearchParams): boolean {
-  // the one archive: Chrome's user-data of an old computer put into one profile's folder (migration), nothing read out and nothing anywhere else
-  if (action === "archive") return method === "PUT" && /^\/data\/profiles\/[A-Za-z0-9][A-Za-z0-9_-]{2,79}$/.test(query.get("path") ?? "");
+  // the archives: Chrome's user-data put into one profile's folder (migration, and a sealed profile coming back), and one profile's Chrome folder read out to be sealed; nothing anywhere else
+  if (action === "archive") {
+    const p = query.get("path") ?? "";
+    if (method === "PUT") return /^\/data\/profiles\/[A-Za-z0-9][A-Za-z0-9_-]{2,79}$/.test(p);
+    return (method === "GET" || method === "HEAD") && /^\/data\/profiles\/[A-Za-z0-9][A-Za-z0-9_-]{2,79}\/chrome$/.test(p);
+  }
   return ["json", "logs", "start", "stop", "restart", "remove", "exec"].includes(action);
 }

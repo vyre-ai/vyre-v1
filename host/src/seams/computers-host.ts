@@ -28,6 +28,10 @@ export interface ComputersHostSeam {
   capacity?: () => Promise<{ totalMb: number; freeMb: number; cpus: number; os: string; diskFreeMb?: number }>;
   /** How long a wake waits for agentd (Xvfb and Chromium start before it answers). */
   startTimeoutMs?: number;
+  /** The key and the folder for sealed browser profiles (modules/computers/handlers/seal.ts): an agent computer's profile disk and each agent's Chrome folder in the Space browser are sealed whenever nothing runs on them. */
+  profileSeal?: { key(): Uint8Array; dir: string };
+  /** Boot notes from the module (a profile sealed after a crash, a recovery that failed). */
+  log?: (level: "info" | "warn", msg: string, attrs?: Record<string, unknown>) => void;
 }
 
 export interface ComputersHostDeps {
@@ -37,6 +41,12 @@ export interface ComputersHostDeps {
   runner?: { socket: string; token(): string; ingress?: string; alias?: string };
   image?: string;
   startTimeoutMs?: number;
+  /**
+   * The key sealed browser profiles are made under. THE ONE PLACE THE KEY IS CHOSEN. The Space server has no Space key of its own (ruling 72: the Space key is made on a client and sealed to the owner), and an agent's
+   * computer must be able to wake while nobody is signed in, so the Space's at-rest key on the server is the one ctx.seal and the blob store already use (seal.key, the host's seal key, owner-held on the server);
+   * the daemon passes it here and each profile gets its own key from it (HKDF in modules/computers/handlers/seal.ts). Omitted (a computer that joined): profiles stay in plain form.
+   */
+  profileKey?: () => Uint8Array;
   /** See ComputersHostSeam.capacity. */
   capacity?: () => Promise<{ totalMb: number; freeMb: number; cpus: number; os: string; diskFreeMb?: number }>;
   /** Run a capability as the agent (the daemon's invoke pipeline with the agent principal, so access, review rules and the scrubber apply). Omitted: no home mirror. */
@@ -60,6 +70,8 @@ export function createComputersHost(d: ComputersHostDeps): ComputersHostSeam {
     image: d.image ?? process.env["VYRE_AGENT_COMPUTER_IMAGE"] ?? "vyre/agent-computer:1",
     browserImage: process.env["VYRE_SPACE_BROWSER_IMAGE"] ?? "vyre/space-browser:1",
     startTimeoutMs: d.startTimeoutMs ?? 120_000,
+    ...(d.profileKey ? { profileSeal: { key: d.profileKey, dir: path.join(root, ".sealed") } } : {}),
+    ...(d.log ? { log: d.log } : {}),
     ...(d.capacity ? { capacity: d.capacity } : {}),
     ...(d.callAs && d.putBytes ? { home: { callAs: d.callAs as never, putBytes: d.putBytes, ...(d.homeIntervalMs !== undefined ? { intervalMs: d.homeIntervalMs } : {}), manifest: (agentId: string) => path.join(root, agentId, "home-manifest.json"), ...(d.announce ? { announce: d.announce } : {}), ...(d.log ? { log: d.log } : {}) } } : {}),
     filesRoot(agentId) {

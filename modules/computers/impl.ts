@@ -30,6 +30,7 @@ import { bindWorkspaceStart, workspaceClaim, workspaceRelease, workspaceWaiting 
 import { bindMigration, bindMigrationPort } from "./migrate.ts";
 import { createHomeSync } from "./handlers/home.ts";
 import { createContainerHomeFs } from "./handlers/home-fs.ts";
+import { createProfileSeal } from "./handlers/seal.ts";
 import type { HomeDeps, HomeSync, MadeFile } from "./handlers/home.ts";
 import { createFillService, fillHttp } from "./handlers/fill.ts";
 import type { FillSource, FillUse } from "./handlers/fill.ts";
@@ -94,8 +95,10 @@ export interface DockerHostOptions {
   limits?: Partial<{ cpus: number; memoryMb: number; pids: number }>;
   /** Where the live view is served from, for a ticket. Default: the host's /computers/<id>/stream over MJPEG. */
   streamUrl?: (computerId: string, ticket: string) => { transport: "webrtc" | "mjpeg"; url: string };
-  /** The profile disk is sealed under the Space key while the computer sleeps (ARCH 6.6): unseal before the container starts, seal after it stopped. */
-  profile?: { unseal(computerId: string): Promise<void>; seal(computerId: string): Promise<void> };
+  /** The profile disk is sealed while the computer sleeps (ARCH 6.6): unseal before the container starts, seal after it stopped. */
+  profile?: { unseal(computerId: string): Promise<void>; seal(computerId: string): Promise<void>; state?(computerId: string): string; discard?(computerId: string): Promise<void>; recoverStopped?(): Promise<string[]> };
+  /** The key and the folder for sealed profiles (handlers/seal.ts). With it and the raw Engine access `http`, the host builds `profile` itself. */
+  profileSeal?: { key(): Uint8Array; dir: string };
   /** How long start waits for agentd to answer. Default 30 s. */
   startTimeoutMs?: number;
   user?: { uid: number; gid: number };
@@ -220,11 +223,16 @@ export function explainEngine(status: number, error: unknown, where: "engine" | 
   return "Docker did not answer in time. Check that it is running, then set up the computer.";
 }
 
-export function createDockerComputerHost(o: DockerHostOptions): ComputerHost & ToolHost {
+export function createDockerComputerHost(o: DockerHostOptions): ComputerHost & ToolHost & { recover(): Promise<string[]> } {
   const prefix = o.prefix ?? "vyre-comp-";
   const ctlPath = o.ctl ?? AGENTD_CTL;
   const sleep = o.sleep ?? realSleep;
   const nameOf = (computerId: string): string => `${prefix}${computerId.replace(/^cmt_/, "")}`;
+  const profile = o.profile ?? (o.profileSeal && o.http
+    ? createProfileSeal({ http: o.http, key: o.profileSeal.key, dir: o.profileSeal.dir, container: nameOf, image: o.image ?? DEFAULT_COMPUTER_IMAGE, user: { uid: o.user?.uid ?? 10001, gid: o.user?.gid ?? 10001 } })
+    : undefined);
+  // the boot recovery (below) seals what a crash left in plain form; nothing reads or starts a profile until it is done
+  let recovering: Promise<unknown> = Promise.resolve();
 
   async function containerAddress(computerId: string): Promise<string | null> {
     if (!o.http) return null;
@@ -333,7 +341,7 @@ export function createDockerComputerHost(o: DockerHostOptions): ComputerHost & T
     } catch (e) { o.home?.deps.log("warn", "computers.home.pass_failed", { computer: computerId, error: e instanceof Error ? e.message.slice(0, 200) : "unknown" }); return false; }
   }
 
-  const host: ComputerHost & ToolHost = {
+  const host: ComputerHost & ToolHost & { recover(): Promise<string[]> } = {
     address: containerAddress,
     siteLogs,
     kind: o.kind ?? "server",
@@ -360,18 +368,21 @@ export function createDockerComputerHost(o: DockerHostOptions): ComputerHost & T
     async chromeData(computerId) {
       const name = nameOf(computerId);
       if (!o.http) throw new Error("this host cannot read a computer's files");
-      if (o.profile) await o.profile.unseal(computerId);
+      await recovering;
+      const was = profile?.state?.(computerId);
+      if (profile) await profile.unseal(computerId);
       try {
         const r = await o.http({ method: "GET", path: `/containers/${name}/archive`, query: { path: CHROME_DATA }, timeoutMs: 10 * 60_000 });
         if (r.status === 404) return null;
         if (r.status !== 200) throw new Error(`the Chrome profile could not be read (${r.status})`);
         if (r.body.length > MAX_CHROME_DATA) throw new Error("the Chrome profile is over 1 GB");
         return { tar: r.body };
-      } finally { if (o.profile) await o.profile.seal(computerId).catch(() => undefined); }
+      } finally { if (profile && was !== "hot") await profile.seal(computerId).catch(() => undefined); }
     },
     async start(a) {
       const name = nameOf(a.computerId);
-      if (o.profile) await o.profile.unseal(a.computerId);
+      await recovering;
+      if (profile) await profile.unseal(a.computerId);
       await homePass(a.computerId, a.agentId);
       await o.api.containerStart(name);
       await learnSubnet(a.computerId);
@@ -398,7 +409,7 @@ export function createDockerComputerHost(o: DockerHostOptions): ComputerHost & T
       if (home?.timer) { clearInterval(home.timer); home.timer = null; }
       await o.api.containerStop(name, 10);
       const homeSynced = a.reason !== "remove" ? await homePass(a.computerId, a.agentId, true) : false;
-      if (o.profile && a.reason !== "remove") await o.profile.seal(a.computerId);
+      if (profile && a.reason !== "remove") await profile.seal(a.computerId);
       return { ...(sessions ? { sessions } : {}), ...(a.reason !== "remove" ? { homeSynced } : {}) };
     },
     async remove(computerId) {
@@ -409,6 +420,13 @@ export function createDockerComputerHost(o: DockerHostOptions): ComputerHost & T
         const r = await o.http({ method: "DELETE", path: `/volumes/${name}-profile`, query: { force: "true" } });
         if (r.status !== 204 && r.status !== 404) throw new Error(`the profile volume was not removed (${r.status})`);
       }
+      await profile?.discard?.(computerId);
+    },
+    /** At boot: a computer that is not running must not keep a plain profile. Answers the computers it sealed; start and the migration read wait for it. */
+    recover() {
+      const run = (async (): Promise<string[]> => (await profile?.recoverStopped?.()) ?? [])();
+      recovering = run.catch(() => undefined);
+      return run;
     },
     async probe(computerId) {
       if (o.runner && !subnets.has(computerId)) await learnSubnet(computerId);
@@ -536,6 +554,10 @@ export interface ComputersHostConfig {
   browser?: { maxRunning?: number; idleMinutes?: number };
   filesRoot?: (agentId: string) => string | null;
   startTimeoutMs?: number;
+  /** The key and the folder for sealed browser profiles, agent computers' and the Space browser's (handlers/seal.ts). Omitted: profiles stay in plain form (a computer that joined holds no such key). */
+  profileSeal?: { key(): Uint8Array; dir: string };
+  /** Boot notes: what recovery sealed and what went wrong. */
+  log?: (level: "info" | "warn", msg: string, attrs?: Record<string, unknown>) => void;
   /** What the host says it can hold instead of the machine's own figures: a test of room, so it does not depend on what else runs on the runner. */
   capacity?: () => Promise<{ totalMb: number; freeMb: number; cpus: number; os: string; diskFreeMb?: number }>;
   /** The agent's home mirror: calls as the agent principal, the upload of large files, how often a pass runs, where each agent's manifest lives, and a log. */
@@ -543,7 +565,7 @@ export interface ComputersHostConfig {
 }
 
 /** The Docker host for a machine, not yet bound: the Space binds it as its own; a computer that joined runs jobs on it. */
-export function buildComputerHost(c: ComputersHostConfig): ComputerHost & ToolHost {
+export function buildComputerHost(c: ComputersHostConfig): ComputerHost & ToolHost & { recover(): Promise<string[]> } {
   // behind the runner the socket is the runner's and every call carries its token, read again each time (the runner writes a new one at each start)
   const http = c.runner ? unixSocketHttp(c.runner.socket, undefined, () => ({ authorization: `Bearer ${c.runner!.token()}` })) : unixSocketHttp(c.socketPath);
   return createDockerComputerHost({
@@ -552,6 +574,7 @@ export function buildComputerHost(c: ComputersHostConfig): ComputerHost & ToolHo
     ...(c.image !== undefined ? { image: c.image } : {}),
     ...(c.filesRoot !== undefined ? { filesRoot: c.filesRoot } : {}),
     ...(c.startTimeoutMs !== undefined ? { startTimeoutMs: c.startTimeoutMs } : {}),
+    ...(c.profileSeal ? { profileSeal: c.profileSeal } : {}),
     ...(c.capacity ? { capacity: c.capacity } : {}),
     ...(c.home ? { home: { deps: { callAs: c.home.callAs, putBytes: c.home.putBytes, now: Date.now, log: c.home.log ?? (() => undefined) }, ...(c.home.intervalMs !== undefined ? { intervalMs: c.home.intervalMs } : {}), manifest: c.home.manifest, ...(c.home.announce ? { announce: c.home.announce } : {}) } } : {}),
   });
@@ -565,7 +588,7 @@ export async function learnComputerSubnets(ids: readonly string[]): Promise<stri
 export async function localSiteLogs(a: { computerId: string; slug: string; lines: number }): Promise<string[]> { return (await boundHost()?.siteLogs?.(a)) ?? []; }
 
 /** The Space browser for this machine, not yet bound: one container for the Space host, a Chrome profile per agent (sbrowser/). */
-export function buildSpaceBrowser(c: ComputersHostConfig): SpaceBrowser {
+export function buildSpaceBrowser(c: ComputersHostConfig): SpaceBrowser & { recover(): Promise<string[]> } {
   const http = c.runner ? unixSocketHttp(c.runner.socket, undefined, () => ({ authorization: `Bearer ${c.runner!.token()}` })) : unixSocketHttp(c.socketPath);
   return createDockerSpaceBrowser({
     api: createDockerApi(http), http,
@@ -574,12 +597,24 @@ export function buildSpaceBrowser(c: ComputersHostConfig): SpaceBrowser {
     ...(c.browser?.maxRunning !== undefined ? { maxRunning: c.browser.maxRunning } : {}),
     ...(c.browser?.idleMinutes !== undefined ? { idleMinutes: c.browser.idleMinutes } : {}),
     ...(c.startTimeoutMs !== undefined ? { startTimeoutMs: c.startTimeoutMs } : {}),
+    ...(c.profileSeal ? { profileSeal: c.profileSeal } : {}),
+    ...(c.log ? { log: c.log } : {}),
   });
 }
 
 export function setComputerHost(c: ComputersHostConfig | null): void {
-  bindHost(c === null ? null : buildComputerHost(c));
-  bindSpaceBrowser(c === null ? null : buildSpaceBrowser(c));
+  if (c === null) { bindHost(null); bindSpaceBrowser(null); return; }
+  const host = buildComputerHost(c);
+  const browser = buildSpaceBrowser(c);
+  bindHost(host);
+  bindSpaceBrowser(browser);
+  // a browser profile that is not in use must not keep a plain copy: seal what a crash or an older version left; the first start or tool call waits for this
+  const noted = (what: string) => (ids: string[]) => { if (ids.length > 0) c.log?.("info", `computers.${what}.profile_sealed_at_boot`, { profiles: ids.length }); };
+  const failed = (what: string) => (e: unknown) => { c.log?.("warn", `computers.${what}.profile_recover_failed`, { error: e instanceof Error ? e.message.slice(0, 200) : "unknown" }); };
+  if (c.profileSeal) {
+    host.recover().then(noted("computer"), failed("computer"));
+    browser.recover().then(noted("browser"), failed("browser"));
+  }
 }
 
 // Only the setters the daemon wires are host seams (the loader reports any other function here as a driver left unwired); what a computer that joined needs is exported beside them.

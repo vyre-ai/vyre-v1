@@ -8,7 +8,7 @@ import path from "node:path";
 import { test } from "node:test";
 import { readFileSync } from "node:fs";
 import { createSitesRunner } from "./server.ts";
-import { HOME_RM_SCRIPT, computerName, computerNet } from "./computers-policy.ts";
+import { HOME_RM_SCRIPT, SEAL_RM_CMD, computerListOk, computerName, computerNet } from "./computers-policy.ts";
 
 const A = "cmt_01a1b2c3-d4e5-4f60-8a7b-0123456789ab", B = "cmt_02b2c3d4-e5f6-4071-9b8c-123456789abc";
 const SECCOMP = JSON.stringify({ defaultAction: "SCMP_ACT_ERRNO", syscalls: [] });
@@ -27,7 +27,7 @@ async function world() {
   const seen: Array<{ method: string; url: string; body: string }> = [];
   const labels: Record<string, Record<string, string>> = {
     [computerName(A)]: { "vyre.computer": A, "vyre.agent": "agt_1" }, [computerName(B)]: { "vyre.computer": B, "vyre.agent": "agt_2" },
-    helperA: { "vyre.computer": A, "vyre.helper": "home-rm" }, site1: { "vyre.site": "sit_01abc", "vyre.kind": "app" }, vyred: { "vyre.ingress": "1" }, other: {},
+    helperA: { "vyre.computer": A, "vyre.helper": "home-rm" }, helperSeal: { "vyre.computer": A, "vyre.helper": "seal-rm" }, site1: { "vyre.site": "sit_01abc", "vyre.kind": "app" }, vyred: { "vyre.ingress": "1" }, other: {},
   };
   const fake = http.createServer((q, s) => {
     let b = "";
@@ -194,4 +194,35 @@ test("the removal helper: only the fixed script on no network, sharing only its 
   assert.equal((await w.call("POST", `/containers/${name}/start`)).status, 404, "a helper that was not made is not there");
   // the same script is the one home-fs.ts runs
   assert.ok(readFileSync(new URL("../../../modules/computers/handlers/home-fs.ts", import.meta.url), "utf8").includes(HOME_RM_SCRIPT.replace(/\\/g, "\\\\")) || readFileSync(new URL("../../../modules/computers/handlers/home-fs.ts", import.meta.url), "utf8").includes(HOME_RM_SCRIPT), "the policy and the module hold the same script");
+});
+
+test("the profile wipe helper: only the one fixed wipe on no network, sharing only its own computer's volumes; the list of computers is read by its label and nothing else", async (t) => {
+  const w = await world();
+  t.after(w.close);
+  const name = `${computerName(A)}-seal-rm`;
+  const body = (over: Record<string, unknown> = {}, h: Record<string, unknown> = {}) => ({
+    Image: "vyre/agent-computer:1", Entrypoint: [], Labels: { "vyre.computer": A, "vyre.helper": "seal-rm" }, Cmd: [...SEAL_RM_CMD], User: "10001:10001", NetworkDisabled: true,
+    HostConfig: { VolumesFrom: [computerName(A)], CapDrop: ["ALL"], SecurityOpt: ["no-new-privileges:true"], NetworkMode: "none", Privileged: false, AutoRemove: false, ...h }, ...over,
+  });
+  const create = (b: unknown, n = name) => w.call("POST", `/containers/create?name=${n}`, b);
+  assert.equal((await create(body())).status, 201);
+  for (const [what, b, n] of [
+    ["another command", body({ Cmd: ["find", "/", "-delete"] }), name],
+    ["the wipe aimed elsewhere", body({ Cmd: ["find", "/home/agent", "-mindepth", "1", "-delete"] }), name],
+    ["the wipe with a shell", body({ Cmd: ["sh", "-c", "find /home/agent/.profile-disk -delete"] }), name],
+    ["the removal label on the wipe name", body({ Labels: { "vyre.computer": A, "vyre.helper": "home-rm" } }), name],
+    ["the wipe label on the removal name", body(), `${computerName(A)}-home-rm`],
+    ["another computer's volumes", body({}, { VolumesFrom: [computerName(B)] }), name],
+    ["a network", body({}, { NetworkMode: "bridge" }), name],
+    ["a host folder", body({}, { Binds: ["/:/host"] }), name],
+  ] as const) assert.equal((await create(b, n)).status, 403, what);
+  assert.equal(computerListOk(new URLSearchParams({ all: "true", filters: JSON.stringify({ label: ["vyre.computer"] }) })), true);
+  for (const bad of [{ all: "true", filters: JSON.stringify({ label: ["vyre.site"] }) }, { all: "true", filters: JSON.stringify({ label: ["vyre.computer", "x"] }) }, { all: "true", filters: JSON.stringify({ name: ["x"] }) }, { all: "true" }, { all: "true", size: "1", filters: JSON.stringify({ label: ["vyre.computer"] }) }]) assert.equal(computerListOk(new URLSearchParams(bad)), false, JSON.stringify(bad));
+  assert.equal((await w.call("GET", `/containers/json?all=true&filters=${encodeURIComponent(JSON.stringify({ label: ["vyre.computer"] }))}`)).status, 200, "the boot recovery may list the computers");
+  assert.equal((await w.call("GET", `/containers/json?all=true`)).status, 403, "a list of everything is still refused");
+  // the wipe helper is started, waited for and removed, and nothing else is asked of it
+  for (const a of ["start", "wait"]) assert.equal((await w.call("POST", `/containers/helperSeal/${a}`)).status, 200, a);
+  assert.equal((await w.call("DELETE", `/containers/helperSeal?force=true`)).status, 200);
+  assert.equal((await w.call("GET", `/containers/helperSeal/archive?path=/home/agent/.profile-disk/.`)).status, 403, "a helper reads nothing out");
+  assert.equal((await w.call("POST", `/containers/helperSeal/exec`, { Cmd: ["sh"] })).status, 403, "a helper runs nothing more");
 });

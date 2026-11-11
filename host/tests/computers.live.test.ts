@@ -81,7 +81,7 @@ test("computers live: an agent's computer on a booted daemon is asleep until wok
   }
   process.env["VYRE_AGENT_COMPUTER_IMAGE"] = prebuilt ?? IMAGE;
   const dir = seededDir();
-  const d = await boot(dir);
+  let d = await boot(dir);
   let computerId = "";
   try {
     assert.deepEqual(d.seams?.missing, [], "no live module is left without its driver");
@@ -315,9 +315,48 @@ test("computers live: an agent's computer on a booted daemon is asleep until wok
     const steps = (await call(d, "computers.timeline", { computerId })).data.steps as Array<{ caption: string; by: string }>;
     assert.ok(steps.some((x) => x.by === "person" && /^You took over/.test(x.caption)), `the take-over is a step: ${JSON.stringify(steps).slice(0, 300)}`);
 
+    // the profile disk at rest: a marker in the browser profile is not on the volume or in the sealed file while the computer sleeps, and comes back at wake
+    const MARKER = "PROFILE-MARKER-4f9a21";
+    const put = await docker(["exec", "-u", "10001", box, "sh", "-c", `printf ${MARKER} > /home/agent/.profile-disk/marker.txt`], 30_000);
+    assert.equal(put.code, 0, `the marker was written into the profile: ${put.out}`);
+
     const slept = await call(d, "computers.sleep", { computerId });
     assert.equal(slept.status, 200, JSON.stringify(slept.data));
     assert.equal(slept.data.computer.state, "asleep");
+    const emptyVolume = async (): Promise<string> => (await docker(["run", "--rm", "--network", "none", "--entrypoint", "find", "-v", `${box}-profile:/p:ro`, process.env["VYRE_AGENT_COMPUTER_IMAGE"] as string, "/p", "-mindepth", "1"], 120_000)).out.trim();
+    assert.equal(await emptyVolume(), "", "the profile volume is empty while the computer sleeps");
+    const sealedFile = path.join(dir, "computers", ".sealed", `${computerId}.profile`);
+    const blob = fs.readFileSync(sealedFile);
+    assert.ok(blob.length > 0, "the sealed profile is on disk");
+    assert.ok(!blob.includes(MARKER) && !blob.includes("marker.txt"), "the sealed profile holds no plain text of the profile");
+    assert.equal(fs.statSync(path.join(dir, "seal.key")).mode & 0o077, 0, "the key is private to the daemon's user");
+    assert.equal(fs.statSync(sealedFile).mode & 0o077, 0, "the sealed profile is private to the daemon's user");
+
+    // a changed sealed file does not open: the wake fails with a clear reason and no container is started with a half profile
+    const original = fs.readFileSync(sealedFile);
+    const changed = Buffer.from(original); const mid = Math.floor(changed.length / 2); changed[mid] = changed[mid] === 65 ? 66 : 65;
+    fs.writeFileSync(sealedFile, changed, { mode: 0o600 });
+    const tampered = await call(d, "computers.wake", { computerId });
+    assert.notEqual(tampered.status, 200, "a wake over a changed sealed profile is refused");
+    assert.match(JSON.stringify(tampered.data), /sealed profile did not open/, "the reason is readable");
+    assert.equal((await docker(["ps", "-q", "--filter", `name=${box}`], 30_000)).out.trim(), "", "no container was started");
+    assert.ok(fs.readFileSync(sealedFile).equals(changed), "the sealed data was left as it was");
+    fs.writeFileSync(sealedFile, original, { mode: 0o600 });
+
+    const again = await call(d, "computers.wake", { computerId });
+    assert.equal(again.status, 200, JSON.stringify(again.data));
+    const back = await docker(["exec", "-u", "10001", box, "cat", "/home/agent/.profile-disk/marker.txt"], 30_000);
+    assert.equal(back.out.trim(), MARKER, "wake puts the profile back");
+    // a crash between wake and sleep: the container dies with the plain profile on the volume, and the next boot of the daemon seals it before anything else can read it
+    assert.equal((await docker(["kill", box], 30_000)).code, 0, "the computer is killed");
+    const sealedBefore = fs.statSync(sealedFile).mtimeMs;
+    await d.stop();
+    d = await boot(dir);
+    let emptied = false;
+    for (let i = 0; i < 90 && !emptied; i++) { emptied = (await emptyVolume()) === ""; if (!emptied) await new Promise<void>((r) => setTimeout(r, 1_000)); }
+    assert.ok(emptied, "the boot sealed what the crash left on the volume");
+    assert.ok(fs.statSync(sealedFile).mtimeMs > sealedBefore, "the sealed profile was rewritten with the newest state");
+    assert.ok(!fs.readFileSync(sealedFile).includes(MARKER), "and holds no plain text");
 
     // remove: the call succeeds and the container is gone
     const removed = await call(d, "computers.remove", { computerId });

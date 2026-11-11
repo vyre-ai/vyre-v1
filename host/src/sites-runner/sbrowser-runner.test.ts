@@ -141,6 +141,9 @@ test("the Space browser's container may be read, started, stopped, removed and r
   assert.equal((await w.call("PUT", `/containers/${SBROWSER_NAME}/archive?path=/etc`, {})).status, 403);
   assert.equal((await w.call("GET", `/containers/${SBROWSER_NAME}/archive?path=/data/profiles/agt_dex`)).status, 403, "nothing is read out");
   assert.equal((await w.call("PUT", `/containers/${SBROWSER_NAME}/archive?path=/data/profiles/agt_dex`, {})).status, 200, "Chrome's data goes into one profile's folder");
+  // a profile's Chrome folder is read out to be sealed (modules/computers/sbrowser/seal.ts): that folder of one profile and nothing else
+  assert.equal((await w.call("GET", `/containers/${SBROWSER_NAME}/archive?path=/data/profiles/agt_dex/chrome`)).status, 200, "one profile's Chrome folder may be read");
+  for (const bad of ["/data/profiles/agt_dex/chrome/Default", "/data/profiles/agt_dex/downloads", "/data/profiles/../chrome", "/data/profiles/chrome", "/data", "/data/profiles"]) assert.equal((await w.call("GET", `/containers/${SBROWSER_NAME}/archive?path=${bad}`)).status, 403, `no read of ${bad}`);
   assert.equal((await w.call("POST", `/containers/${SBROWSER_NAME}/wait`)).status, 403, "no wait");
   assert.equal((await w.call("POST", `/containers/other/start`)).status, 403, "a container that is not Vyre's");
   assert.equal(sbrowserAllows("exec", "POST", new URLSearchParams()), true);

@@ -5,6 +5,8 @@ import type { ContainerConfig, DockerApi, DockerHttp } from "../../../sandbox/sr
 import { computerSeccomp, reviewComputerConfig, toolErrorOf } from "../impl.ts";
 import { LIMITS } from "../capacity.ts";
 import { ToolError } from "../handlers/tools/common.ts";
+import { createSealedStore } from "../handlers/seal.ts";
+import { createBrowserSeal } from "./seal.ts";
 import type { BrowserAnswer, BrowserToolCall, ProfileRow, SpaceBrowser } from "./port.ts";
 
 export const DEFAULT_BROWSER_IMAGE = "vyre/space-browser:1";
@@ -36,6 +38,13 @@ export interface DockerSpaceBrowserOptions {
   runner?: { ingress?: string; alias?: string };
   sleep?: (ms: number) => Promise<void>;
   startTimeoutMs?: number;
+  /** The key and the folder for sealed profiles (handlers/seal.ts). With it and `http`, a profile whose browser is not running has no Chrome folder on the volume. */
+  profileSeal?: { key(): Uint8Array; dir: string };
+  /** How often idle profiles are looked for, to be sealed. Default 30 s; 0 turns the timer off (tests call sweep). */
+  sealSweepMs?: number;
+  /** How long a profile must have been left alone, not running, before it is sealed. Default 20 s. */
+  sealQuietMs?: number;
+  log?: (level: "info" | "warn", msg: string, attrs?: Record<string, unknown>) => void;
 }
 
 export function browserContainerConfig(o: DockerSpaceBrowserOptions): ContainerConfig {
@@ -86,7 +95,7 @@ const bodyText = (b: Uint8Array): string => { const t = new TextDecoder().decode
 const decode64 = (b64: string): Uint8Array => Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
 const realSleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 
-export function createDockerSpaceBrowser(o: DockerSpaceBrowserOptions): SpaceBrowser {
+export function createDockerSpaceBrowser(o: DockerSpaceBrowserOptions): SpaceBrowser & { recover(): Promise<string[]>; sweep(): Promise<string[]> } {
   const name = o.name ?? "vyre-sbrowser";
   const sleep = o.sleep ?? realSleep;
   let up: Promise<void> | null = null;
@@ -149,11 +158,51 @@ export function createDockerSpaceBrowser(o: DockerSpaceBrowserOptions): SpaceBro
   }
 
   const call = async (action: string, body: Record<string, unknown>): Promise<BrowserAnswer> => { await ensureUp(); return exec(action, body); };
+  const rowsNow = async (): Promise<ProfileRow[]> => {
+    if (!(await o.api.containerRunning(name))) return [];
+    const s = await exec("status", {}) as { profiles?: ProfileRow[] };
+    return Array.isArray(s.profiles) ? s.profiles : [];
+  };
+
+  // a profile's Chrome folder is sealed on the Space's data folder whenever its browser is not running (seal.ts); every call that starts the browser puts it back first
+  const seal = o.profileSeal && o.http
+    ? createBrowserSeal({
+      store: createSealedStore({ key: o.profileSeal.key, dir: `${o.profileSeal.dir}/browser`, kind: "sbrowser" }),
+      async read(id) {
+        const r = await o.http!({ method: "GET", path: `/containers/${name}/archive`, query: { path: `${BROWSER_DATA_GUEST}/profiles/${id}/chrome` }, timeoutMs: 10 * 60_000 });
+        if (r.status === 404) return null;
+        if (r.status !== 200) throw new ToolError("unavailable", `The browser profile could not be read (${r.status}).`);
+        return r.body;
+      },
+      async put(id, tar) { await ensureUp(); await o.api.putArchive(name, `${BROWSER_DATA_GUEST}/profiles/${id}`, tar); },
+      async reset(id) { await call("reset_chrome", { profileId: id }); },
+      async stop(id) { await call("stop", { profileId: id }); },
+      rows: rowsNow,
+      async disk() {
+        if (!(await o.api.containerRunning(name))) return [];
+        try { const r = await exec("disk", {}) as { ids?: unknown }; return Array.isArray(r.ids) ? r.ids.filter((x): x is string => typeof x === "string") : []; } catch (e) { o.log?.("warn", "computers.browser.disk_unavailable", { error: e instanceof Error ? e.message.slice(0, 160) : "unknown" }); return []; }
+      },
+      ...(o.sealQuietMs !== undefined ? { quietMs: o.sealQuietMs } : {}),
+      ...(o.log ? { log: o.log } : {}),
+    })
+    : null;
+  const plain = async (id: string): Promise<void> => { await seal?.plain(id); };
+  if (seal && o.sealSweepMs !== 0) { const t = setInterval(() => { void seal.sweep().catch(() => undefined); }, o.sealSweepMs ?? 30_000); t.unref?.(); }
 
   return {
+    /** At boot: the Space browser, if it has ever run here, is started and every profile that is not running is sealed before a call is served. */
+    async recover() {
+      if (!seal || !o.http) return [];
+      const r = await o.http({ method: "GET", path: `/containers/${name}/json` });
+      if (r.status !== 200) return [];
+      await ensureUp();
+      return seal.recover();
+    },
+    async sweep() { return seal ? seal.sweep() : []; },
     available: () => o.api.ping().catch(() => false),
     async tool(a: BrowserToolCall) {
-      return call("tool", { profileId: a.profileId, tool: a.tool, args: a.args, timeoutMs: a.timeoutMs, ...(a.by ? { by: a.by } : {}), ...(a.fill ? { fillUrl: a.fill.url, fillToken: a.fill.token } : {}), ...(a.space ? { spaceId: a.space } : {}), ...(a.agent ? { agentName: a.agent.name, ...(a.agent.faceSvg ? { faceSvg: a.agent.faceSvg } : {}) } : {}) });
+      await plain(a.profileId);
+      try { return await call("tool", { profileId: a.profileId, tool: a.tool, args: a.args, timeoutMs: a.timeoutMs, ...(a.by ? { by: a.by } : {}), ...(a.fill ? { fillUrl: a.fill.url, fillToken: a.fill.token } : {}), ...(a.space ? { spaceId: a.space } : {}), ...(a.agent ? { agentName: a.agent.name, ...(a.agent.faceSvg ? { faceSvg: a.agent.faceSvg } : {}) } : {}) }) } finally { seal?.touch(a.profileId); }
     },
     async downloads(profileId) {
       if (!(await o.api.containerRunning(name))) return [];
@@ -169,10 +218,12 @@ export function createDockerSpaceBrowser(o: DockerSpaceBrowserOptions): SpaceBro
     async takeover(a) { await call("takeover", { profileId: a.profileId, personId: a.personId }); },
     async giveBack(profileId) { await call("give_back", { profileId }); },
     async screenshot(profileId) {
+      await plain(profileId);
       const s = await call("screenshot", { profileId }) as { png: string; width: number; height: number };
       return { bytes: decode64(s.png), width: Number(s.width), height: Number(s.height) };
     },
     async stream(a) {
+      await plain(a.profileId);
       const s = await call("stream", { profileId: a.profileId }) as { url?: string; ws?: string; width?: number; height?: number };
       return { transport: "mjpeg", url: s.url ?? "", ...(typeof s.ws === "string" ? { ws: s.ws } : {}), ...(typeof s.width === "number" && typeof s.height === "number" ? { width: s.width, height: s.height } : {}) };
     },
@@ -180,14 +231,15 @@ export function createDockerSpaceBrowser(o: DockerSpaceBrowserOptions): SpaceBro
       const r = (await call("sessions", { profileId })) as { sessions?: Array<{ site: string; since: number; lastSeen: number }> };
       return Array.isArray(r.sessions) ? r.sessions : [];
     },
-    async signOut(profileId, site) { return ((await call("sign_out", { profileId, site })) as { ok?: boolean }).ok === true; },
+    async signOut(profileId, site) { await plain(profileId); return ((await call("sign_out", { profileId, site })) as { ok?: boolean }).ok === true; },
     async importChrome(profileId, tar) {
       await call("reset_chrome", { profileId });
       await o.api.putArchive(name, `/data/profiles/${profileId}`, tar);
+      await seal?.imported(profileId);
       return { bytes: tar.length };
     },
-    async stop(profileId) { if (await o.api.containerRunning(name)) await exec("stop", { profileId }); },
-    async forget(profileId) { if (await o.api.containerRunning(name)) await exec("forget", { profileId }); },
+    async stop(profileId) { if (await o.api.containerRunning(name)) { await exec("stop", { profileId }); await seal?.seal(profileId, { quiet: false }).catch((e: unknown) => o.log?.("warn", "computers.browser.seal_failed", { profile: profileId, error: e instanceof Error ? e.message.slice(0, 200) : "unknown" })); } },
+    async forget(profileId) { if (await o.api.containerRunning(name)) await exec("forget", { profileId }); await seal?.forgotten(profileId); },
     async profiles() {
       if (!(await o.api.containerRunning(name))) return { profiles: [], maxRunning: o.maxRunning ?? 6 };
       const s = await exec("status", {}) as { profiles?: ProfileRow[]; maxRunning?: number };

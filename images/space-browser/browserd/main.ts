@@ -8,9 +8,10 @@
 //   screenshot    { profileId }                                     -> { png, width, height }
 //   stream        { profileId }                                     -> { transport: "mjpeg", url, ws }
 //   downloads     { profileId } -> { downloads: [{ name, size, at }] }     download_read { profileId, name } -> { base64 }      download_ack { profileId, name }
+//   disk          {}                                                 -> { ids: [profiles whose Chrome folder holds anything] }
 //   stop          { profileId }  (the browser stops, the folder stays)      forget { profileId }  (the folder goes too)
 //   sessions      { profileId }                                     -> { sessions: [{ site, since, lastSeen }] }      sign_out { profileId, site } -> { ok }
-import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createServer as createNetServer } from "node:net";
 import type { Socket } from "node:net";
 import { networkInterfaces } from "node:os";
@@ -21,7 +22,7 @@ import { createRecentSites, startStartServer } from "./start.ts";
 import type { StartServer } from "./start.ts";
 import { createBridgeHub } from "./bridge.ts";
 import type { BridgeHub } from "./bridge.ts";
-import { createProfileManager, checkProfileId } from "./profiles.ts";
+import { createProfileManager, checkProfileId, PROFILE_ID } from "./profiles.ts";
 import { createCdpInput, createScreencastHub, startViewServer } from "./view.ts";
 import type { Hub, ViewOf } from "./view.ts";
 
@@ -184,6 +185,12 @@ async function dispatch(action: string, a: Args): Promise<Args> {
       let size = { width: 1280, height: 800 };
       try { const c = await p.chrome!.page(); try { const r = await c.send<{ result?: { value?: { w: number; h: number } } }>("Runtime.evaluate", { expression: "({ w: innerWidth, h: innerHeight })", returnByValue: true }); if (r.result?.value) size = { width: r.result.value.w, height: r.result.value.h }; } finally { c.close(); } } catch { /* the configured size */ }
       return { transport: "mjpeg", url: views.url(t, "mjpeg"), ws: views.url(t, "ws"), ...size };
+    }
+    // the profiles whose Chrome folder holds anything: the host seals the ones whose browser is not running (modules/computers/sbrowser/seal.ts)
+    case "disk": {
+      const ids: string[] = [];
+      try { for (const id of readdirSync(`${ROOT}/profiles`)) { if (!PROFILE_ID.test(id)) continue; try { if (readdirSync(`${ROOT}/profiles/${id}/chrome`).length > 0) ids.push(id); } catch { /* no Chrome folder */ } } } catch { /* no profiles yet */ }
+      return { ids };
     }
     case "stop": hubs.delete(checkProfileId(a["profileId"])); await manager.stop(text(a, "profileId")); return {};
     case "reset_chrome": hubs.delete(checkProfileId(a["profileId"])); await manager.resetChrome(text(a, "profileId")); return {};

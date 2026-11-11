@@ -1846,6 +1846,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         },
         setComputerHost: () => createComputersHost({
           dataDir: paths.root,
+          // browser profiles at rest: sealed under keys made from the host's seal key (host/src/seams/computers-host.ts profileKey)
+          profileKey: () => { const k = o.sealKey?.key ?? sealKeyFile(path.join(paths.root, "seal.key")); return typeof k === "string" ? new TextEncoder().encode(k) : k; },
           ...(o.computersSocketPath !== undefined ? { socketPath: o.computersSocketPath } : {}),
           // On a Team server vyred holds no Docker socket: agent computers are made and run through the runner beside it (the same one that runs sites), which refuses anything else
           ...(o.computersSocketPath === undefined && computersRunnerSocket() ? { runner: { socket: computersRunnerSocket() as string, token: computersRunnerToken, ...(ingressContainer() ? { ingress: ingressContainer() as string } : {}) } } : {}),

@@ -3,7 +3,7 @@
 // that site's containers and the ingress (the vyred and Caddy service, labelled vyre.ingress); create a container that carries vyre.site=<site>, sits on its site's network only, runs with
 // every capability dropped, no new privileges, a CPU, memory and process cap, rotated logs, and no host path, device, port or namespace; start, stop, read, remove and log only containers
 // that carry vyre.site; exec only into those, as their own user; remove only vyre-site images, volumes and networks. So one site cannot reach another site or its database.
-import { COMPUTER_NAME, COMPUTER_NET, HELPER_NAME_RE, PROFILE_VOLUME, SBROWSER_NAME, SBROWSER_NET, SBROWSER_VOLUME, archiveOk, isComputerImage, isSbrowserImage } from "./computers-policy.ts";
+import { COMPUTER_NAME, COMPUTER_NET, HELPER_NAME_RE, computerListOk, PROFILE_VOLUME, SBROWSER_NAME, SBROWSER_NET, SBROWSER_VOLUME, archiveOk, isComputerImage, isSbrowserImage } from "./computers-policy.ts";
 import { WS_INIT_NAME, WS_NAME, WS_NET, WS_PROJECT_VOLUME, WS_VOLUME, isWorkspaceImage, workspaceListOk } from "./workspaces-policy.ts";
 
 
@@ -138,7 +138,7 @@ export function judge(r: Request): Verdict | { ok: true; kind: "container"; id: 
     for (const k of r.query.keys()) if (k !== "name") return no(`a create may not set ${k}`);
     return /^vyre-site-[a-z0-9-]{1,100}$/.test(name) || COMPUTER_NAME.test(name) || HELPER_NAME_RE.test(name) || WS_NAME.test(name) || WS_INIT_NAME.test(name) || name === SBROWSER_NAME ? { ok: true, kind: "body", path: name } : no("a site container is named vyre-site-..., a computer's vyre-comp-... and a workspace's vyre-ws-...");
   }
-  if (m === "GET" && p === "/containers/json") return workspaceListOk(r.query) ? { ok: true, kind: "plain" } : no("only the list of agent workspaces may be read");
+  if (m === "GET" && p === "/containers/json") return workspaceListOk(r.query) || computerListOk(r.query) ? { ok: true, kind: "plain" } : no("only the list of agent workspaces and of agent computers may be read");
   const c = /^\/containers\/([A-Za-z0-9_.-]{1,128})(?:\/(json|logs|start|stop|restart|archive|exec|wait))?$/.exec(p);
   if (c) {
     const action = c[2] ?? (m === "DELETE" ? "remove" : "");
