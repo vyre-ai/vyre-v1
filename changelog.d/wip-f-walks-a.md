@@ -4,3 +4,4 @@
 - A pick-one list whose choices are still loading now says "Loading…" and fills in place when they arrive, instead of showing an empty list; an empty list says "Nothing to choose from".
 - A message that arrives while the server is shutting down or starting up is no longer dropped: it is kept and gets its reply after the restart.
 - A goal that reaches its finish line from two places at once now ends once, so the lead still gets its retrospective turn; the clock and a consumer can no longer run two passes over the same goal together.
+- Renaming a team no longer closes the Change managers panel if you opened it before the rename finished saving.

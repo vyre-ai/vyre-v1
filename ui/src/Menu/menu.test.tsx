@@ -350,3 +350,34 @@ test("useLiveRows sends new rows to the open menu when the data arrives, and sta
     assert.deepEqual(sent.at(-1), ["record.*", "record.created"], "the loaded rows replace the loading row in place");
   } finally { restore(); }
 });
+
+test("Escape closes a menu from wherever focus is, plain or with a search field, and only that menu; the search field is the one that takes focus", async () => {
+  for (const search of [undefined, "Find"] as const) {
+    const html = renderToStaticMarkup(<Menu items={[{ label: "Open" }]} x={0} y={0} {...(search ? { search } : {})} />);
+    assert.equal(/data-testid="menu-search"/.test(html), search !== undefined, "the search field is drawn only for a searchable menu");
+    assert.match(html, /tabindex="-1"/, "the panel can take focus; a searchable menu leaves focus to its search field (autoFocus)");
+  }
+  const restore = installDom();
+  const { act } = await import("react");
+  const g = globalThis as unknown as { document: { addEventListener: (t: string, fn: (e: { key: string; preventDefault(): void; stopPropagation(): void }) => void, c?: boolean) => void; removeEventListener: (t: string, fn: unknown, c?: boolean) => void } };
+  const doc = g.document;
+  const was = { add: doc.addEventListener, remove: doc.removeEventListener };
+  const heard: Array<(e: { key: string; preventDefault(): void; stopPropagation(): void }) => void> = [];
+  doc.addEventListener = (t, fn, c) => { if (t === "keydown" && c === true) heard.push(fn); };
+  doc.removeEventListener = () => undefined;
+  try {
+    for (const search of [undefined, "Find"] as const) {
+      heard.length = 0;
+      let closed = 0;
+      const r = createRoot();
+      await act(async () => { r.render(<Menu items={[{ label: "Open" }, { label: "Copy" }]} x={0} y={0} onClose={() => { closed++; }} {...(search ? { search } : {})} />); });
+      assert.equal(heard.length, 1, "one capture-phase key listener while the menu is open");
+      let stopped = 0;
+      await act(async () => { heard[0]!({ key: "a", preventDefault() {}, stopPropagation() { stopped++; } }); });
+      assert.equal(closed, 0, "another key does not close it");
+      await act(async () => { heard[0]!({ key: "Escape", preventDefault() {}, stopPropagation() { stopped++; } }); });
+      assert.equal(closed, 1, "Escape closes it");
+      assert.equal(stopped, 1, "and the key stops there, so a sheet around the menu stays open");
+    }
+  } finally { doc.addEventListener = was.add; doc.removeEventListener = was.remove; restore(); }
+});
