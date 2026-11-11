@@ -233,7 +233,7 @@ health_url() {
 }
 
 # ---- start, stop, status, logs -----------------------------------------------------------------------------------------------------
-cmd_start() { [ ! -f "$(PENDING_FILE)" ] || lock_update_operation; refresh_disk_env || true; dc up -d --remove-orphans --wait --wait-timeout "${VYRE_UP_WAIT:-180}"; }
+cmd_start() { [ ! -f "$(PENDING_FILE)" ] || lock_update_operation; refresh_disk_env || true; ensure_userns_vm || true; dc up -d --remove-orphans --wait --wait-timeout "${VYRE_UP_WAIT:-180}"; }
 cmd_stop() { dc stop; }
 cmd_status() { dc ps; }
 cmd_logs() {
@@ -452,6 +452,12 @@ check_all() {
     if [ "$(cat "$(userns_proc)" 2>/dev/null)" = 1 ]; then finding host.userns degraded "kernel.apparmor_restrict_unprivileged_userns is 1, so the engine sandbox (bubblewrap) fails and agent turns error. Fix: vyre-server fix-userns."
     else finding host.userns healthy "The host allows the user namespaces the engine sandbox needs."
     fi
+  elif [ "$(uname -s)" = Darwin ] && [ "${VYRE_TEST_MODE:-0}" != 1 ]; then
+    # on a Mac the setting lives in Docker's virtual machine; `start` turns it off there each time (ensure_userns_vm)
+    case "$(userns_vm_state)" in
+      1) finding host.userns degraded "Docker's virtual machine has kernel.apparmor_restrict_unprivileged_userns set to 1, so the engine sandbox (bubblewrap) fails and agent turns error. Fix: vyre-server fix-userns." ;;
+      0) finding host.userns healthy "Docker's virtual machine allows the user namespaces the engine sandbox needs." ;;
+    esac
   fi
   # the server answers
   if command -v curl >/dev/null 2>&1 && curl -fsS --max-time 5 "$(health_url)" >/dev/null 2>&1; then
@@ -777,7 +783,7 @@ refresh_bin() {
 userns_proc() { if [ "${VYRE_TEST_MODE:-0}" = 1 ] && [ -n "${VYRE_TEST_USERNS_PROC:-}" ]; then printf '%s' "$VYRE_TEST_USERNS_PROC"; else printf /proc/sys/kernel/apparmor_restrict_unprivileged_userns; fi; }
 # ensure_userns: write /etc/sysctl.d/60-vyre-userns.conf and apply it, only on a kernel that has the setting.
 ensure_userns() {
-  [ -e "$(userns_proc)" ] || return 0
+  [ -e "$(userns_proc)" ] || { ensure_userns_vm; return 0; }
   sd=${VYRE_SYSCTL_DIR:-/etc/sysctl.d}
   conf="$sd/60-vyre-userns.conf"
   mkdir -p "$sd" 2>/dev/null || return 0
@@ -785,6 +791,30 @@ ensure_userns() {
   mv -f "$conf.new" "$conf"
   if command -v sysctl >/dev/null 2>&1; then sysctl -p "$conf" >/dev/null 2>&1 || say "  Could not apply $conf now; it applies at the next boot."; fi
   return 0
+}
+
+# ensure_userns_vm: the same setting on a Mac, where Docker runs in a Linux virtual machine (Docker Desktop, OrbStack, Colima) and this script cannot see its kernel. Colima's machine is
+# Ubuntu 24.04 with the restriction on: there bubblewrap answers "setting up uid map: Permission denied" and every agent turn that runs on the server fails. The setting is read through a
+# container, and when it is 1 a one-shot privileged container of the server's own image (already here, named by digest) turns it off. It belongs to the machine's running kernel and a
+# restart of the machine puts it back, so `start` does this every time. Nothing is done on a kernel without the setting, or when it is already 0.
+ensure_userns_vm() {
+  [ "$(uname -s)" = Darwin ] || return 0
+  command -v docker >/dev/null 2>&1 || return 0
+  _img=$(lock_get VYRE_IMAGE)
+  [ -n "$_img" ] || return 0
+  _f=/proc/sys/kernel/apparmor_restrict_unprivileged_userns
+  _v=$(docker run --rm --network none --entrypoint cat "$_img" "$_f" 2>/dev/null) || return 0
+  [ "$_v" = 1 ] || return 0
+  if docker run --rm --network none --privileged --user 0 --entrypoint sh "$_img" -c "echo 0 > $_f" >/dev/null 2>&1; then return 0; fi
+  say "  Docker's virtual machine does not allow the user namespaces the engine sandbox needs, and this could not be changed. Agent turns that run on this server will fail until, inside that machine, kernel.apparmor_restrict_unprivileged_userns is 0."
+  return 0
+}
+# userns_vm_state: 1, 0, or nothing when it cannot be read (no Docker, no image yet, or a kernel without the setting). For doctor on a Mac.
+userns_vm_state() {
+  command -v docker >/dev/null 2>&1 || return 0
+  _img=$(lock_get VYRE_IMAGE)
+  [ -n "$_img" ] || return 0
+  docker run --rm --network none --entrypoint cat "$_img" /proc/sys/kernel/apparmor_restrict_unprivileged_userns 2>/dev/null || true
 }
 
 # settle_caddy: Caddy shares vyred's network namespace (network_mode: service:vyred). When vyred is recreated, a Caddy left on the old one serves nothing, so it is recreated

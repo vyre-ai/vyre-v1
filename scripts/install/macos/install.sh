@@ -520,6 +520,14 @@ link_current() {
   install -d "$BIN_DIR"
   # The command is a small wrapper that runs the current release's own script, so an update changes it too. It names this install's folder and
   # Docker's usual places, because a launchd agent starts with almost no PATH.
+  # It also names the Docker this server was installed on. A Mac can hold several (Docker Desktop next to OrbStack, two Colima machines), and the one `docker` talks to by default can be
+  # switched at any time by the person or another tool: the server's containers and data volumes are in one of them, so every later start, update and health check must go to that one.
+  # A context named when the installer ran (DOCKER_CONTEXT) wins; otherwise the context in use right now is recorded. `default` is left out: it follows DOCKER_HOST and the socket as before.
+  ctx=${DOCKER_CONTEXT:-$(docker context show 2>/dev/null || true)}
+  case "$ctx" in *[!A-Za-z0-9_.-]*) ctx="" ;; esac
+  ctx_lines=""
+  if [ -n "$ctx" ] && [ "$ctx" != default ]; then ctx_lines="DOCKER_CONTEXT=\"$ctx\"
+export DOCKER_CONTEXT"; fi
   cat >"$BIN_DIR/vyre-server.new" <<EOT
 #!/bin/sh
 # $MARK
@@ -527,6 +535,7 @@ VYRE_DIR="$DIR"
 export VYRE_DIR
 PATH="\$PATH:/usr/local/bin:/opt/homebrew/bin:/Applications/Docker.app/Contents/Resources/bin:\$HOME/.orbstack/bin"
 export PATH
+$ctx_lines
 exec "$DIR/current/bin/vyre-server" "\$@"
 EOT
   chmod 0755 "$BIN_DIR/vyre-server.new"
