@@ -6,7 +6,7 @@ import os from "node:os";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
 // @ts-expect-error plain .mjs helper without types
-import { parseArgs, protoHash, routeUrl, loadTargets, shardTargets, shardIndexName, mergeShotIndexes, sideBySideHtml, countWrongFrames, budgetOf, waitSelector } from "./lib.mjs";
+import { parseArgs, protoHash, routeUrl, loadTargets, shardTargets, shardIndexName, mergeShotIndexes, sideBySideHtml, countWrongFrames, budgetOf, waitSelector, runTestIdSteps } from "./lib.mjs";
 
 test("parseArgs reads values and flags", () => {
   assert.deepEqual(parseArgs(["--target", "sample", "--skip-export", "--out", "x"]), { target: "sample", "skip-export": true, out: "x" });
@@ -115,4 +115,17 @@ test("only the real app is waited on for a target's waitFor; the prototype never
   assert.equal(waitSelector("real", t), "[data-testid='updating-screen']");
   assert.equal(waitSelector("proto", t), undefined);
   assert.equal(waitSelector("real", { ...t, waitFor: undefined }), undefined);
+});
+
+test("string steps click, scroll to and fill test ids in order; other step shapes are left to their own shooters", async () => {
+  const calls: string[] = [];
+  const page = { locator: (sel: string) => ({ first: () => ({
+    click: async () => { calls.push(`click ${sel}`); }, scrollIntoViewIfNeeded: async () => { calls.push(`see ${sel}`); }, fill: async (v: string) => { calls.push(`fill ${sel} ${v}`); },
+  }) }), waitForTimeout: async () => undefined };
+  assert.deepEqual(await runTestIdSteps(page, ["click|linked-add", "fill|link-url|https://x.test/a|b", "see|ci-fix"], 0), []);
+  assert.deepEqual(calls, ['click [data-testid="linked-add"]', 'fill [data-testid="link-url"] https://x.test/a|b', 'see [data-testid="ci-fix"]']);
+  calls.length = 0;
+  assert.deepEqual(await runTestIdSteps(page, [["click", "x"]], 0), []);
+  assert.deepEqual(await runTestIdSteps(page, undefined, 0), []);
+  assert.deepEqual(calls, []);
 });
