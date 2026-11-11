@@ -4,6 +4,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { API, getAll, getJson } from "./lib/gh-api.ts";
 
 export type Job = { name: string; conclusion: string | null; started_at: string | null; completed_at: string | null };
 export type Row = { name: string; conclusion: string; sec: number };
@@ -41,11 +42,16 @@ if (process.argv[1] && path.resolve(process.argv[1]) === self) {
   let runStart = val("--run-start");
   if (val("--jobs")) jobs = JSON.parse(fs.readFileSync(val("--jobs")!, "utf8"));
   else {
-    const res = await fetch(`https://api.github.com/repos/${val("--repo")}/actions/runs/${val("--run-id")}/jobs?per_page=100`, { headers: { authorization: `Bearer ${process.env.GH_TOKEN ?? ""}`, accept: "application/vnd.github+json" } });
-    if (!res.ok) { console.error(`github api ${res.status}`); process.exit(2); }
-    jobs = ((await res.json()) as { jobs: Job[] }).jobs;
-    const rr = await fetch(`https://api.github.com/repos/${val("--repo")}/actions/runs/${val("--run-id")}`, { headers: { authorization: `Bearer ${process.env.GH_TOKEN ?? ""}`, accept: "application/vnd.github+json" } });
-    if (rr.ok) runStart = ((await rr.json()) as { run_started_at: string }).run_started_at;
+    const run = `${API}/repos/${val("--repo")}/actions/runs/${val("--run-id")}`;
+    const token = process.env.GH_TOKEN ?? "";
+    try {
+      jobs = await getAll<Job>(`${run}/jobs?filter=latest`, "jobs", { token });
+      runStart = (await getJson<{ run_started_at: string }>(run, { token })).run_started_at;
+    } catch (e) {
+      // This is a report for the job summary, not a check: when the API stays down after its retries the summary says so and the job does not fail for it.
+      console.log(`job times are not available: ${e instanceof Error ? e.message : "github api failed"}`);
+      process.exit(0);
+    }
   }
   console.log(report(jobs));
   if (runStart) console.log(`\n${queueVsExec(runStart, jobs)}`);

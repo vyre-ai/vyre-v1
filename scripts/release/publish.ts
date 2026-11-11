@@ -17,7 +17,7 @@ export interface PublishOptions {
 }
 
 export interface Asset { id: number; name: string; size?: number; state?: string; digest?: string }
-export interface Release { id: number; assets: Asset[]; tag?: string }
+export interface Release { id: number; assets: Asset[]; tag?: string; prerelease?: boolean }
 
 const API = "https://api.github.com";
 const UPLOADS = "https://uploads.github.com";
@@ -54,6 +54,12 @@ export class GithubReleases {
     const r = await this.call("POST", `${API}/repos/${this.repo}/releases`, { tag_name: o.tag, name: o.tag, body: o.notes, prerelease: o.prerelease, draft: false });
     if (r.status !== 201) throw new Error(`could not create the release ${o.tag} (${r.status})`);
     return { id: r.data.id, assets: [] };
+  }
+
+  /** A release's pre-release mark. A rerun finds the release a cut run made: it keeps the mark the channel says, so no one sets it by hand. */
+  async setPrerelease(id: number, prerelease: boolean): Promise<void> {
+    const r = await this.call("PATCH", `${API}/repos/${this.repo}/releases/${id}`, { prerelease });
+    if (r.status !== 200) throw new Error(`could not set the pre-release mark of release ${id} (${r.status})`);
   }
 
   /** Upload one file, replacing an asset of the same name. A transient failure (network error, 5xx) is retried after the half-written asset it may have left is removed. */
@@ -133,6 +139,8 @@ export async function publishRelease(o: PublishOptions & { parallel?: number; pa
   const found = await gh.byTag(o.tag);
   const rel: Release = found ?? (await gh.create({ tag: o.tag, prerelease: o.prerelease, notes: o.notes }));
   rel.tag = o.tag;
+  // a beta or rc is a pre-release and a stable release is not, whoever made the release first (a cut earlier run, or a person)
+  if (found && found.prerelease !== undefined && found.prerelease !== o.prerelease) await gh.setPrerelease(found.id, o.prerelease);
   return attach(gh, rel, filesIn(o.dir), { ...(o.parallel === undefined ? {} : { parallel: o.parallel }), ...(o.pauseMs === undefined ? {} : { pauseMs: o.pauseMs }), replaceUploaded: false, tag: o.tag });
 }
 
