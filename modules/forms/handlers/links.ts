@@ -38,10 +38,17 @@ export async function resolveLink(ctx: Ctx, form: Row, token: string): Promise<R
   return link;
 }
 
-/** Mark a single-use link used. False when another call got there first. Multi-use links are never consumed. */
+/**
+ * The last check before a submit writes: the link is still not revoked and not expired at this moment (a revoke made while the submit was checking its answers wins), and a single-use link is
+ * marked used. False when the link was revoked or ran out meanwhile, or another call used it first. Multi-use links are never consumed.
+ */
 export function consumeLink(ctx: Ctx, link: Row): boolean {
+  const now = ctx.now();
+  // read again now, in the same synchronous step as the write below: nothing can land between the check and the mark
+  const cur = one(ctx, "SELECT * FROM forms_link WHERE id = ?", str(link.id));
+  if (!cur || !isNull(cur.revoked_at) || num(cur.expires_at) <= now) return false;
   if (!flag(link.single_use)) return true;
-  return ctx.db.run("UPDATE forms_link SET consumed_at = ? WHERE id = ? AND consumed_at IS NULL", ctx.now(), str(link.id)).changes === 1;
+  return ctx.db.run("UPDATE forms_link SET consumed_at = ? WHERE id = ? AND consumed_at IS NULL", now, str(link.id)).changes === 1;
 }
 
 /** Undo consumeLink after a failed write, so the person can try again. */
@@ -158,6 +165,9 @@ async function savePartial(ctx: Ctx, input: unknown): Promise<{ saved: boolean; 
   const text = JSON.stringify(kept);
   if (new TextEncoder().encode(text).length > PARTIAL_MAX_BYTES) fail(ctx, "validation.too_large", "Those answers are too large to save.");
   const expiresAt = Math.min(num(link.expires_at), ctx.now() + PARTIAL_TTL_MS);
+  // a revoke made while this was checking the answers wins: nothing is kept for a revoked link
+  const cur = one(ctx, "SELECT * FROM forms_link WHERE id = ?", str(link.id));
+  if (!cur || !isNull(cur.revoked_at)) fail(ctx, "auth.invalid_code", "This link is not valid any more. Ask for a new one.");
   ctx.db.run("UPDATE forms_link SET partial = ?, partial_step = ?, partial_expires_at = ? WHERE id = ?", text, step ?? null, expiresAt, str(link.id));
   return { saved: true, expiresAt };
 }
