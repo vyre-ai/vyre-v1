@@ -17,3 +17,4 @@
 - In a team agent's workspace or browser, which everyone who can ask the agent shares, a person's own Vault item is not used; the agent says so plainly and suggests sharing the item with the agent or asking your own Assistant. Items shared with the agent, a group it is in or the whole Space work as before, and so does everything in your own Assistant.
 - When a Vault item needs approval before use, an agent's terminal or browser now says that plainly instead of saying it has no access.
 - The Vault share sheet says, when you pick an agent, that everyone who can ask that agent can use the item through it.
+- A tab where a program replaced the shell, or where an unfinished line waits at the prompt, gets no Vault values, and filling one field in the browser no longer stops pictures of the other tabs.

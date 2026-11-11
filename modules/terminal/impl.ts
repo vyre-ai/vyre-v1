@@ -85,12 +85,22 @@ export function frameOf(line: string): string | null {
  * told is a no. (Lane f-term calls this before every run.)
  */
 export async function shellAtPrompt(exec: Exec, target: string): Promise<boolean> {
-  const r = await exec(["tmux", "display-message", "-p", "-t", target, "#{pane_pid} #{pane_dead} #{pane_in_mode}"]).catch(() => null);
+  const r = await exec(["tmux", "display-message", "-p", "-t", target, "#{pane_pid} #{pane_dead} #{pane_in_mode} #{cursor_y} #{pane_current_command}"]).catch(() => null);
   if (!r || r.code !== 0) return false;
-  const [pid, dead, mode] = r.stdout.trim().split(/\s+/);
+  const [pid, dead, mode, cursor, cmd] = r.stdout.trim().split(/\s+/);
   if (pid === undefined || !/^\d+$/.test(pid) || dead === "1" || mode === "1") return false;
+  // the foreground program must be a shell as well: `exec python` keeps the shell's pid and process group (third look, F2)
+  if (cmd === undefined || !SHELLS.has(cmd) || cmd === "tmux") return false;
   const p = await exec(["ps", "-o", "tpgid=", "-p", pid]).catch(() => null);
-  return p !== null && p.code === 0 && p.stdout.trim() === pid;
+  if (p === null || p.code !== 0 || p.stdout.trim() !== pid) return false;
+  // a construct a person left open (an open bracket or quote, a here-document) has the shell on its continuation prompt: the line the cursor is on starts with PS2, by default "> ".
+  // A prompt of one's own that starts with "> " reads as one too, which is the safe side. A `read` a person typed shows no prompt and cannot be seen from here.
+  if (cursor !== undefined && /^\d+$/.test(cursor)) {
+    const line = await exec(["tmux", "capture-pane", "-p", "-t", target, "-S", cursor, "-E", cursor]).catch(() => null);
+    // tmux trims a line's trailing spaces, so an empty continuation line reads as ">"
+    if (line === null || line.code !== 0 || /^>( |\n|$)/.test(line.stdout)) return false;
+  }
+  return true;
 }
 
 /** The tmux host, with the sweep of leftover values buffers for a caller that makes a session itself (a workspace that lost its tmux) or starts using a server. */

@@ -727,6 +727,8 @@ export function createWorkspaceTerminalHost(w: WorkspaceTerminalOptions): Worksp
   const nameOf = (terminalId: string): string => `${prefix}${terminalId}`;
   const where = new Map<string, { agentId: string; cols: number; rows: number; cwd?: string; gen: number }>();
   const tmuxHosts = new Map<string, TmuxHost>();
+  /** The first sweep of each workspace's leftover values buffers in this process: awaited before any use. */
+  const firstSweep = new Map<string, Promise<void>>();
 
   // ---- live frames: tmux pipe-pane into a file in /tmp, read back from an offset, one reader per session however many tabs watch ----
   const streams = new Map<string, { listeners: Set<(line: string) => void>; stop(): void }>();
@@ -773,8 +775,8 @@ export function createWorkspaceTerminalHost(w: WorkspaceTerminalOptions): Worksp
     if (!h) {
       h = createTmuxHost({ exec, control: control(agentId), prefix });
       tmuxHosts.set(agentId, h);
-      // the first use of this workspace in this process: what a run left before a restart is removed before anyone reads (review 12 Nov, 3b)
-      void h.sweep().catch(() => undefined);
+      // the first use of this workspace in this process: what a run left before a restart is removed before anyone reads (review 12 Nov, 3b); every use waits for it (third look)
+      firstSweep.set(agentId, h.sweep().catch(() => undefined));
     }
     return h;
   }
@@ -796,7 +798,9 @@ export function createWorkspaceTerminalHost(w: WorkspaceTerminalOptions): Worksp
       await tmuxFor(w0.agentId).sweep();
       w0.gen = gen;
     }
-    return { agentId: w0.agentId, host: tmuxFor(w0.agentId) };
+    const host = tmuxFor(w0.agentId);
+    await firstSweep.get(w0.agentId);
+    return { agentId: w0.agentId, host };
   }
 
   return {
@@ -805,7 +809,9 @@ export function createWorkspaceTerminalHost(w: WorkspaceTerminalOptions): Worksp
       const agentId = a.target.agentId;
       if (agentId === undefined) throw wsError("Say which agent's workspace to open the terminal in.", "bad_input");
       await m.ensure(agentId);
-      const r = await tmuxFor(agentId).open(a);
+      const t = tmuxFor(agentId);
+      await firstSweep.get(agentId);
+      const r = await t.open(a);
       where.set(a.terminalId, { agentId, cols: a.cols, rows: a.rows, cwd: r.cwd, gen: m.generation(agentId) });
       return { ...r, title: "Workspace" };
     },

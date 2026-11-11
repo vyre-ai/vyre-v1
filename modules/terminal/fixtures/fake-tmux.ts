@@ -129,7 +129,7 @@ export function fakeTmux(o: FakeTmuxOptions = {}) {
     switch (sub) {
       case "display-message": {
         const fmt = argv[argv.length - 1];
-        if (fmt === "#{pane_pid} #{pane_dead} #{pane_in_mode}") return ok(`${pidOf(s.name)} 0 0\n`);
+        if (fmt === "#{pane_pid} #{pane_dead} #{pane_in_mode} #{cursor_y} #{pane_current_command}") return ok(`${pidOf(s.name)} 0 0 0 ${s.hung ? "sleep" : "bash"}\n`);
         return ok(`${fmt === "#{pane_current_path}" ? s.cwd : fmt === "#{pane_current_command}" ? (s.hung ? "sleep" : "bash") : ""}\n`);
       }
       case "send-keys": {
@@ -140,6 +140,8 @@ export function fakeTmux(o: FakeTmuxOptions = {}) {
         return ok();
       }
       case "capture-pane": {
+        // the cursor's line (shellAtPrompt): the prompt, never a continuation line in this stand-in
+        if (argv.includes("-E")) return ok("$ \n");
         const n = Math.abs(Number(flag(argv, "-S")));
         return ok(`${s.lines.slice(-n).join("\n")}\n`);
       }

@@ -4,7 +4,9 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { boot, call, connect, makeAgent, seededDir } from "./support/live.ts";
-import { boundValues } from "../modules/terminal/projections.ts";
+import { bindHost, bindKit, bindPlace, boundValues } from "../modules/terminal/projections.ts";
+import { handlers as terminal } from "../modules/terminal/impl.ts";
+import { fakeHost, harness as termHarness, reset as termReset } from "../modules/terminal/fixtures/harness.ts";
 
 let keys = 0;
 /** A write, with the idempotency key every write takes. */
@@ -55,5 +57,24 @@ test("team agent: private and asker-only items are refused; shared with the agen
     assert.equal(await ask("#For_Everyone.key", team), "value:", "shared with the whole Space");
     assert.equal(await ask("#Olivia_Private.key", own!.agentId), "value:", "a private item in the asker's own Assistant");
     assert.equal(await ask("#Olivia_Only.key", own!.agentId), "value:", "an item shared only with the asker, in the asker's own Assistant");
+
+    // third look F1: the scrubber as an oracle. A team agent's workspace never takes a value of an item it may not hold, so it never remembers or scrubs it: Tess, asking the same agent to print
+    // candidates, gets them all back as printed, and no line coming back replaced tells her which one is Olivia's.
+    termReset();
+    bindKit(null);   // the real scrubber; the Vault is the daemon's own (boundValues above)
+    const PIN = "v-Olivia Private-0123456789";
+    const candidates = ["v-Olivia Private-0123456788", PIN, "v-Olivia Private-0123456790"];
+    const host = fakeHost({ "use pin": { exitCode: 0, output: "ok" }, "print candidates": { exitCode: 0, output: candidates.join("\n") } });
+    bindHost(host.host);
+    // the team agent's own computer (its workspace), whoever asks
+    bindPlace(async () => ({ team: true, agentComputer: true, runsOn: "agent_computer" }));
+    const th = termHarness();
+    const tc = terminal as unknown as Record<string, (ctx: unknown, input: unknown) => Promise<{ output: string }>>;
+    let refused = "";
+    try { await tc["terminal.run"]!(th.as({ kind: "agent", id: team }, "usr_olivia"), { command: "use pin", env: { K: "#Olivia_Private.key" }, idempotencyKey: "f1-a" }); } catch (e) { refused = JSON.stringify(e); }
+    assert.match(refused, /is your own item, and this is a team agent/, "Olivia's private item never reaches the team agent's workspace");
+    const out = await tc["terminal.run"]!(th.as({ kind: "agent", id: team }, "usr_tess"), { command: "print candidates", idempotencyKey: "f1-b" });
+    assert.deepEqual(out.output.split("\n"), candidates, "every candidate comes back as printed: nothing marks the private one");
+    termReset();
   } finally { await d.stop(); }
 });

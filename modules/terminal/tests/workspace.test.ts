@@ -568,3 +568,19 @@ test("with no project mirror configured the project volume is just shared: no ar
   assert.equal(r.dk.ops("archive_get").length, 0);
   r.mgr.close();
 });
+
+test("third look: after a restart, the first use of a workspace removes what a run left in its tmux before anything reads a screen", async () => {
+  const r = rig();
+  const first = termHost(r);
+  await open(first);
+  const box = r.dk.box(NAME).tmux;
+  box.buffers.set("vyre-env-0-dddddddddddddddddddddddddddddddd", "export K='left by a crash'\n");
+  // a new daemon: a new host that knows nothing of the session; a person's read is its first use of the workspace
+  const seen: string[] = [];
+  const exec0 = box.exec;
+  box.exec = async (argv, x) => { if (argv[1] === "capture-pane") seen.push(`read with ${box.buffers.size} buffer(s)`); return exec0(argv, x); };
+  try {
+    await termHost(r).read("trm_1", { lines: 10 });
+    assert.deepEqual(seen, ["read with 0 buffer(s)"], "the leftover was gone before the screen was read");
+  } finally { box.exec = exec0; }
+});

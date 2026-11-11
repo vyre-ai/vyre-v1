@@ -338,3 +338,17 @@ test("rule 7 and finding 9: the Vault channel says why it refuses a team agent's
     ch.leave();
   } finally { srv.close(); }
 });
+
+test("third look (double count): a value a chrome_fill typed through the Vault channel marks only the tab it went into, not every open tab", async () => {
+  const ch = channel({ [DANA]: { "#Dex_Api.key": KEY } });
+  tabbedBrowser({
+    // browserd asks the channel for the handle the call types (the fill service hands it out and remembers it), then reports it as used
+    chrome_fill: async (c) => { assert.equal((await ch.fill(c.fill!.token, "#Dex_Api.key")).status, 200); return { ok: true, filled: 1, used: [{ handle: "#Dex_Api.key", itemId: "itm_Dex_Apikey", value: KEY }] }; },
+  });
+  try {
+    const h = as("agt_dex", DANA);
+    await tool["computers.chrome.fill"]!(h.ctx, { fields: [{ ref: "e3", value: "#Dex_Api.key" }] });
+    await assert.rejects(() => tool["computers.chrome.screenshot"]!(h.ctx, { tabId: "t1" }), refusedPic, "the tab it went into");
+    assert.equal((await tool["computers.chrome.screenshot"]!(h.ctx, { tabId: "t2" })).width, 1280, "the other tab keeps its pictures");
+  } finally { off(); }
+});
