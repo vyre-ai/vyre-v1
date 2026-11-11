@@ -83,7 +83,8 @@ const CODES = {
 
 function refuse(ctx: CompCtx, e: unknown): never {
   if (e instanceof ToolError) {
-    const text = e.code === "paused" ? "Chrome is paused. The person pressed Esc; wait for their answer, then resume." : e.message.slice(0, 300);
+    // "paused" is two things: the person pressed Esc (the Chrome extension), or a person has taken over the browser and holds the controls (the Space browser says so in its own words, and those are the true reason)
+    const text = e.code === "paused" && !/has the controls/i.test(e.message) ? "Chrome is paused. The person pressed Esc; wait for their answer, then resume." : e.message.slice(0, 300);
     raise(ctx, CODES[e.code], text, { agentd: e.code });
   }
   raise(ctx, "provider.unavailable", "The computer did not answer the tool.", { reason: e instanceof Error ? e.message.slice(0, 200) : "unknown" });
