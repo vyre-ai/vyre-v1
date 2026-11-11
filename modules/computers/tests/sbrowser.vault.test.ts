@@ -253,3 +253,68 @@ test("finding 2: a tab a value was filled into is never pictured while it is ope
     assert.ok(shotsAfterOpen >= 1);
   } finally { off(); }
 });
+
+// ---- second look: what the per-tab rule broke ------------------------------------------------------------------------------------------------------
+
+/** A browser with real tabs whose tab list can be made to fail. */
+function tabbedBrowser(extra: Record<string, (c: BrowserToolCall) => BrowserAnswer | Promise<BrowserAnswer>> = {}) {
+  let tabs: Array<{ tabId: string; url: string; title: string; active: boolean }> = [{ tabId: "t1", url: "https://example.com/", title: "a", active: true }, { tabId: "t2", url: "https://example.com/bg", title: "b", active: false }];
+  let listFails = false;
+  const b = browser({
+    chrome_tabs: (c) => {
+      if (c.args["action"] === "list" && listFails) throw new Error("the browser did not answer");
+      if (c.args["action"] === "close") tabs = tabs.filter((t) => t.tabId !== c.args["tabId"]).map((t, i) => ({ ...t, active: i === 0 }));
+      // a browser always has a tab: closing the last one leaves a new, empty one
+      if (tabs.length === 0) tabs = [{ tabId: "t9", url: "about:blank", title: "", active: true }];
+      return { tabs };
+    },
+    chrome_screenshot: () => ({ png: "iVBORw0KGgo=", width: 1280, height: 800 }),
+    ...extra,
+  });
+  return { ...b, failList(v: boolean) { listFails = v; } };
+}
+const refusedPic = (e: unknown): boolean => /holds a value filled from the Vault/.test(JSON.stringify(e)) && /Close that tab/.test(JSON.stringify(e));
+
+test("second look (a): a fill whose tab could not be told ends once every tab open then is closed, and the refusal says how to get pictures back", async () => {
+  const b = tabbedBrowser({ chrome_fill: () => ({ ok: true, filled: 1, used: [{ handle: "#Dex_Api.key", itemId: "itm_1", value: KEY }] }) });
+  try {
+    const h = as("agt_dex", DANA);
+    b.failList(true);
+    await tool["computers.chrome.fill"]!(h.ctx, { fields: [{ ref: "e3", value: "#Dex_Api.key" }] });
+    b.failList(false);
+    await assert.rejects(() => tool["computers.chrome.screenshot"]!(h.ctx, { tabId: "t2" }), refusedPic, "every tab open then is held");
+    await tool["computers.chrome.tabs"]!(h.ctx, { action: "close", tabId: "t1" });
+    await assert.rejects(() => tool["computers.chrome.screenshot"]!(h.ctx, { tabId: "t2" }), refusedPic, "still one of them open");
+    await tool["computers.chrome.tabs"]!(h.ctx, { action: "close", tabId: "t2" });
+    assert.equal((await tool["computers.chrome.screenshot"]!(h.ctx, {})).width, 1280, "with all of them closed, pictures are back");
+  } finally { off(); }
+});
+
+test("second look (b): a value Vyre for Chrome filled during a call, into a tab the call did not aim at, holds every tab open at that moment", async () => {
+  const ch = channel({ [DANA]: { "#Dex_Api.key": KEY } });
+  const b = tabbedBrowser({
+    // a call aimed at t1; the extension autofills the background tab t2 while it runs
+    chrome_state: async (c) => { assert.equal((await ch.fill(c.fill!.token, "#Dex_Api.key")).status, 200); return { url: "https://example.com/", title: "a", loading: false }; },
+  });
+  try {
+    const h = as("agt_dex", DANA);
+    await tool["computers.chrome.state"]!(h.ctx, { tabId: "t1" });
+    await assert.rejects(() => tool["computers.chrome.screenshot"]!(h.ctx, { tabId: "t2" }), refusedPic, "the background tab is held too");
+    await assert.rejects(() => tool["computers.chrome.screenshot"]!(h.ctx, { tabId: "t1" }), refusedPic);
+    void b;
+  } finally { off(); }
+});
+
+test("second look (c): a step whose picture was withheld says so in one plain line, and says the chat got no picture either when its live card was due", async () => {
+  tabbedBrowser({ chrome_fill: () => ({ ok: true, filled: 1, used: [{ handle: "#Dex_Api.key", itemId: "itm_1", value: KEY }] }) });
+  try {
+    const h = harness({ principal: { kind: "agent", id: "agt_dex" }, actingFor: DANA });
+    const ctx = { ...h.ctx, thread: "thr_c" };
+    await tool["computers.chrome.fill"]!(ctx, { fields: [{ ref: "e3", value: "#Dex_Api.key" }] });
+    const steps = h.rows("SELECT caption, frame_file_id FROM computers_timeline ORDER BY idx");
+    const last = steps.at(-1)!;
+    assert.equal(last["frame_file_id"], null);
+    assert.match(String(last["caption"]), /No picture here or in the chat: a Vault value is on this page/);
+    assert.equal(h.calls("chat.post").length, 0, "no live card was posted");
+  } finally { off(); }
+});

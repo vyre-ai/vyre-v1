@@ -501,6 +501,9 @@ export async function run(ctx: TermCtx, a: RunInput) {
       throw e;
     }
   };
+  // A command that carries values is not typed into a tab Vyre knows is still running one (review 12 Nov, 3a): the host checks the shell owns its terminal, and this catches what that check
+  // cannot see (a builtin such as read, or a loop of builtins, typed at the prompt by the agent's last command).
+  if (Object.keys(env).length > 0 && s.state === "running") raise(ctx, "provider.unavailable", "This tab is still running something, so no Vault value is handed to it. Wait for it to finish, or run the command in another tab.", { reason: "busy" });
   // Only the environment is filled: the command line holds references, never a handle the filler would put a value in place of.
   const args = Object.keys(env).length > 0 ? { env } : {};
   const kit = boundKit();

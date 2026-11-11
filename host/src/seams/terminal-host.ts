@@ -24,6 +24,8 @@ export interface TerminalHostSeamShape {
   home: string;
   /** Where tmux is on this computer, for a session's shell to fetch a command's values from it even when its own PATH lacks it (a login shell on a Mac without Homebrew's PATH). */
   tmuxPath?: string;
+  /** This daemon's mark in the names of its tmux values buffers: two daemons on one computer share the person's tmux server, and each sweeps only its own. */
+  mark?: string;
   runsHere(target: Target): boolean;
   place(a: { space: string; threadId?: string; agentId: string; person: string }): Promise<TurnPlaceShape | null>;
   /** The Space's Vault for a #Handle.field in a command (engine-session.ts source): the vault.use check as the agent for the person, then the value. */
@@ -82,6 +84,15 @@ export interface TerminalHostDeps {
   workspaces?: Omit<WorkspacesConfig, "image"> & { image?: string };
   /** The Space's Vault for handles in commands. Omitted: a handle stays text. */
   values?: ValuesShape;
+  /** The daemon's data folder: its tmux mark is made from it, so it stays the same across restarts. */
+  dataDir?: string;
+}
+
+/** A short mark that names one daemon (from its data folder) and stays the same across its restarts: FNV-1a in hex. */
+export function daemonMark(dataDir: string): string {
+  let h = 0x811c9dc5;
+  for (const c of dataDir) { h ^= c.charCodeAt(0); h = Math.imul(h, 0x01000193) >>> 0; }
+  return h.toString(16).padStart(8, "0");
 }
 
 const KEEP = ["HOME", "USER", "LOGNAME", "SHELL", "PATH", "LANG", "LC_ALL", "LC_CTYPE", "TMPDIR", "TZ"];
@@ -113,6 +124,7 @@ export function createTerminalHostSeam(d: TerminalHostDeps): TerminalHostSeamSha
   return {
     ...(workspaces ? { workspaces } : {}),
     ...(d.values ? { values: d.values } : {}),
+    ...(d.dataDir ? { mark: daemonMark(d.dataDir) } : {}),
     exec(argv, x) {
       return new Promise((resolve) => {
         const [file, ...args] = argv;

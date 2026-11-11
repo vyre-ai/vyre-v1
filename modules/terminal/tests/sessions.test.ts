@@ -525,3 +525,17 @@ test("review finding 9: a handle in a # comment is never looked up, so it is nei
   assert.deepEqual(asked, ["#nottag"], "only the word the shell would read was asked about");
   assert.deepEqual((host.calls.at(-1)?.args as { env: unknown }).env, {}, "no value went anywhere");
 });
+
+test("review finding 3a: a command with values is refused while the session row says a command still runs there", async () => {
+  const { hn, host } = setup({ "use key": { exitCode: 0, output: "ok" } });
+  bindValues(fakeValues({ "#Dana_Api.key": "sk-live-ROW-0123456789" }));
+  const agent = hn.as(AGENT, "usr_dana");
+  const r = await call(hn, "terminal.run", { command: "use key", env: { K: "#Dana_Api.key" }, idempotencyKey: idem() }, agent);
+  hn.db.run("UPDATE terminal_sessions SET state = 'running' WHERE terminal_id = ?", r.terminalId);
+  const before = host.count("run");
+  let err: unknown = null;
+  try { await h["terminal.run"]!(agent, { terminalId: r.terminalId, command: "use key", env: { K: "#Dana_Api.key" } }); } catch (e) { err = e; }
+  assert.equal(codeOf(err), "provider.unavailable");
+  assert.match(JSON.stringify(err), /still running something/);
+  assert.equal(host.count("run"), before, "nothing was typed");
+});

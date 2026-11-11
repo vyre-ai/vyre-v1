@@ -38,6 +38,11 @@ export interface TmuxOptions {
   prefix?: string;
   /** How the shell in a session names tmux, to fetch a command's values from it. Default "tmux" (found on the shell's own PATH). */
   tmuxPath?: string;
+  /**
+   * This daemon's mark in the names of its values buffers. Two daemons can share one tmux server (the desktop app runs a Personal Space daemon and a device daemon on one computer, both on the
+   * person's default tmux server): each sweeps only buffers with its own mark. It must stay the same across restarts (the daemon derives it from its data folder). Default "0".
+   */
+  mark?: string;
 }
 
 const SHELLS: ReadonlySet<string> = new Set(["bash", "zsh", "sh", "dash", "fish", "ksh", "ash", "tmux"]);
@@ -73,7 +78,25 @@ export function frameOf(line: string): string | null {
   return m && m[1] !== undefined ? decodeControlOutput(m[1]) : null;
 }
 
-export function createTmuxHost(o: TmuxOptions): TerminalHost {
+/**
+ * Is the tab's shell waiting for a line: does the shell itself own the terminal (review 12 Nov, 3a)? The foreground process group of the pane's terminal must be the pane's shell: `ps -o tpgid=` of
+ * #{pane_pid} equals that pid. A program, a shell script, `sh -c`, a loop running a command or a script blocked on `read` each hold the terminal in a process group of their own, so they say no; a
+ * background job with the prompt back says yes. The name of the foreground program is not enough: a shell script is "bash" too. `target` is a tmux target (a session name). Anything that cannot be
+ * told is a no. (Lane f-term calls this before every run.)
+ */
+export async function shellAtPrompt(exec: Exec, target: string): Promise<boolean> {
+  const r = await exec(["tmux", "display-message", "-p", "-t", target, "#{pane_pid} #{pane_dead} #{pane_in_mode}"]).catch(() => null);
+  if (!r || r.code !== 0) return false;
+  const [pid, dead, mode] = r.stdout.trim().split(/\s+/);
+  if (pid === undefined || !/^\d+$/.test(pid) || dead === "1" || mode === "1") return false;
+  const p = await exec(["ps", "-o", "tpgid=", "-p", pid]).catch(() => null);
+  return p !== null && p.code === 0 && p.stdout.trim() === pid;
+}
+
+/** The tmux host, with the sweep of leftover values buffers for a caller that makes a session itself (a workspace that lost its tmux) or starts using a server. */
+export type TmuxHost = TerminalHost & { sweep(): Promise<void> };
+
+export function createTmuxHost(o: TmuxOptions): TmuxHost {
   const now = o.now ?? Date.now;
   const sleep = o.sleep ?? realSleep;
   const pollMs = o.pollMs ?? 50;
@@ -103,11 +126,15 @@ export function createTmuxHost(o: TmuxOptions): TerminalHost {
   /** Sessions a run of this host is in now, and the values buffers of those runs. */
   const running = new Set<string>();
   const mine = new Set<string>();
-  /** Every values buffer of this tmux server that no run of this host is using: left by a daemon that died between load and delete. Run before every run with values, so also when a host starts. */
+  const own = `${ENV_BUFFER}${(o.mark ?? "0").replace(/[^A-Za-z0-9]/g, "")}-`;
+  /**
+   * Every values buffer of this daemon on this tmux server that no run of this host is using: one a run left when the daemon died between load and delete (review 12 Nov, 3b). After a restart the
+   * scrubber has forgotten that run's values, so nothing it left may stay readable: this runs when a session is opened or made again, and at the start of every run, with values or not.
+   */
   async function sweepBuffers(): Promise<void> {
-    const l = await o.exec(["tmux", "list-buffers", "-F", "#{buffer_name}"]);
-    if (l.code !== 0) return;
-    for (const name of l.stdout.split("\n").map((x) => x.trim())) if (name.startsWith(ENV_BUFFER) && !mine.has(name)) await o.exec(["tmux", "delete-buffer", "-b", name]).catch(() => undefined);
+    const l = await o.exec(["tmux", "list-buffers", "-F", "#{buffer_name}"]).catch(() => null);
+    if (!l || l.code !== 0) return;
+    for (const name of l.stdout.split("\n").map((x) => x.trim())) if (name.startsWith(own) && !mine.has(name)) await o.exec(["tmux", "delete-buffer", "-b", name]).catch(() => undefined);
   }
 
   /** Type one line, press Enter and read the screen until the end marker shows: the output between the markers and the exit code. */
@@ -138,10 +165,12 @@ export function createTmuxHost(o: TmuxOptions): TerminalHost {
     }
   }
 
-  const host: TerminalHost = {
+  const host: TmuxHost = {
+    sweep: sweepBuffers,
     async open(a) {
       const session = nameOf(a.terminalId);
       await newSession(session, a.cols, a.rows, a.cwd);
+      await sweepBuffers();
       const cwd = tidy(await tmux(["display-message", "-p", "-t", session, "#{pane_current_path}"])) || a.cwd || "~";
       return { cwd };
     },
@@ -166,19 +195,18 @@ export function createTmuxHost(o: TmuxOptions): TerminalHost {
       // The typed line reads the buffer inside a subshell, deletes it before the command starts and exports the values there, so they are the environment of this one command and gone after it.
       // Without variables the command runs in braces so `cd` and exports persist like typing it.
       const withValues = Object.keys(r.env).length > 0;
+      // what a run of an earlier daemon left behind is removed first, whatever this run carries; the buffers of runs of this host still in flight are theirs
+      await sweepBuffers();
       // A tab that is not at its prompt would leave the values waiting in the buffer until the run gave up (review 12 Nov, finding 3), and the typed line would go to whatever runs there:
       // a run that carries values goes only to a tab whose shell is waiting for a line, and never while another run of this host is in it.
       if (withValues) {
         if (running.has(session)) throw Object.assign(new Error(BUSY), { code: "busy" });
-        const fg = tidy(await tmux(["display-message", "-p", "-t", session, "#{pane_current_command}"]));
-        if (!SHELLS.has(fg) || fg === "tmux") throw Object.assign(new Error(BUSY), { code: "busy" });
+        if (!(await shellAtPrompt(o.exec, session))) throw Object.assign(new Error(BUSY), { code: "busy" });
       }
       running.add(session);
-      const buffer = withValues ? `${ENV_BUFFER}${rnd(16)}` : null;
+      const buffer = withValues ? `${own}${rnd(16)}` : null;
       try {
         if (buffer !== null) {
-          // what a run of an earlier daemon left behind (it died between load and delete) is removed first; the buffers of runs of this host still in flight are theirs
-          await sweepBuffers();
           const script = Object.entries(r.env).map(([k, v]) => `export ${k}=${shQuote(v)}\n`).join("");
           mine.add(buffer);
           const loaded = await o.exec(["tmux", "load-buffer", "-b", buffer, "-"], { stdin: script });
@@ -415,6 +443,8 @@ export interface TerminalHostSeam {
   home: string;
   /** Where tmux is on this computer (TmuxOptions.tmuxPath). */
   tmuxPath?: string;
+  /** This daemon's mark in its values buffers' names (TmuxOptions.mark). */
+  mark?: string;
   /** A session for this target lives on this machine. Anything else is another machine, which this one cannot reach. */
   runsHere(target: Target): boolean;
   place?: PlaceOf;
@@ -460,11 +490,13 @@ export function buildWorkspaceFleet(c: WorkspaceConfig): WorkspaceFleet {
 /** The sessions of this machine: tmux when it is installed, else a plain shell. A target on another machine is refused at open. */
 export function createLocalHost(o: Omit<TerminalHostSeam, "place" | "workspaces" | "values">, workspaces?: WorkspaceManager | WorkspaceTerminalHost): TerminalHost {
   const ws: WorkspaceTerminalHost | null = workspaces === undefined ? null : "has" in workspaces ? workspaces : createWorkspaceTerminalHost({ manager: workspaces });
-  const tmux = createTmuxHost({ exec: o.exec, ...(o.control ? { control: o.control } : {}), ...(o.tmuxPath ? { tmuxPath: o.tmuxPath } : {}) });
+  const tmux = createTmuxHost({ exec: o.exec, ...(o.control ? { control: o.control } : {}), ...(o.tmuxPath ? { tmuxPath: o.tmuxPath } : {}), ...(o.mark ? { mark: o.mark } : {}) });
   const plain = createShellHost({ run: o.shell, home: o.home });
   let tmuxKnown: boolean | null = null;
   let probe: Promise<boolean> | null = null;
   const hasTmux = (): Promise<boolean> => (probe ??= o.exec(["tmux", "-V"]).then((r) => r.code === 0, () => false).then((v) => { tmuxKnown = v; return v; }));
+  // a host that starts removes what a run of this daemon left on this computer's tmux server before it died (review 12 Nov, 3b)
+  void hasTmux().then((on) => (on ? tmux.sweep() : undefined)).catch(() => undefined);
   const owner = new Map<string, TerminalHost>();
   /** Sessions opened before a restart are tmux ones when tmux is here: they outlive the daemon. */
   const of = async (id: string): Promise<TerminalHost> => owner.get(id) ?? (ws && (await ws.has(id)) ? ws : (await hasTmux()) ? tmux : plain);

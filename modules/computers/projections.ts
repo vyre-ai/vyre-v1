@@ -362,10 +362,14 @@ export function forgetSecrets(computerId: string): void { secretsByComputer.dele
 export const givenCount = (computerId: string): number => givenTimes.get(computerId) ?? 0;
 export function markFilledTab(computerId: string, tabId: string): void { const s = filledTabs.get(computerId) ?? new Set<string>(); s.add(tabId); filledTabs.set(computerId, s); }
 export const filledTabsOf = (computerId: string): ReadonlySet<string> => filledTabs.get(computerId) ?? new Set<string>();
-/** The tabs open now: a filled tab that is not among them was closed. */
+/**
+ * The tabs open now: a filled tab that is not among them was closed. A "*" (a fill whose tab could not be told) becomes a mark on every tab open now, which holds every tab that was open at the time
+ * of the fill and is still open (and perhaps a newer one too: that is the safe side), so it ends like any mark, when those tabs are closed (second look, a).
+ */
 export function tabsOpen(computerId: string, open: readonly string[]): void {
   const s = filledTabs.get(computerId);
   if (!s) return;
+  if (s.has("*") && open.length > 0) { s.delete("*"); for (const t of open) s.add(t); }
   for (const t of [...s]) if (t !== "*" && !open.includes(t)) s.delete(t);
   if (s.size === 0) filledTabs.delete(computerId);
 }

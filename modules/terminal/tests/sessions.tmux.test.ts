@@ -256,15 +256,26 @@ test("review finding 3: a run with values goes only to a tab at its prompt, neve
   const { tm, host } = rig({ scripts: { "echo $A": (_c, env) => ({ out: `A=${env["A"]}`, code: 0 }), "sleep 999": { hang: true } } });
   await open(host);
   // left by a daemon that died between load and delete
-  tm.buffers.set("vyre-env-0000000000000000", "export A='left'\n");
+  tm.buffers.set("vyre-env-0-0000000000000000", "export A='left'\n");
   const r = await host.run("trm_a1", { command: "echo $A", env: { A: "fresh-value" }, timeoutMs: 5000 });
   assert.equal(r.output, "A=fresh-value");
   assert.equal(tm.buffers.size, 0, "the leftover is gone, and so is the run's own");
   const loaded = tm.calls.find((x) => x[1] === "load-buffer")!;
-  assert.match(loaded[3]!, /^vyre-env-[0-9a-f]{32}$/, "a name nobody can guess");
+  assert.match(loaded[3]!, /^vyre-env-0-[0-9a-f]{32}$/, "a name nobody can guess, with this daemon's mark");
   // a tab running something: refused before anything is loaded or typed
   const before = tm.calls.length;
   tm.sessions.get("vyre-trm_a1")!.hung = true;   // a person left a program running in the tab
   await assert.rejects(() => host.run("trm_a1", { command: "echo $A", env: { A: "x-value" }, timeoutMs: 5000 }), /still running something/);
   assert.equal(tm.calls.slice(before).some((x) => x[1] === "load-buffer"), false, "no values were loaded for a busy tab");
+});
+
+test("review finding 3b: a leftover values buffer of this daemon is removed when a session opens and at the start of every run, values or not; another daemon's is left alone", async () => {
+  const { tm, host } = rig({ scripts: { ls: { out: "a", code: 0 } } });
+  tm.buffers.set("vyre-env-0-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "export A='left by a crash'\n");
+  tm.buffers.set("vyre-env-other-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "export B='another daemon, mid-run'\n");
+  await open(host);
+  assert.deepEqual([...tm.buffers.keys()], ["vyre-env-other-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"], "opening a session swept this daemon's leftover, not the other daemon's");
+  tm.buffers.set("vyre-env-0-cccccccccccccccccccccccccccccccc", "export A='left again'\n");
+  await host.run("trm_a1", { command: "ls", env: {}, timeoutMs: 5000 });
+  assert.deepEqual([...tm.buffers.keys()], ["vyre-env-other-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"], "a run without values sweeps too");
 });

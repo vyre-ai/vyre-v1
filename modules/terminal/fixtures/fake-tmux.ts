@@ -56,6 +56,8 @@ function unwrap(body: string, buffers: Map<string, string>): { command: string; 
 
 export function fakeTmux(o: FakeTmuxOptions = {}) {
   const sessions = new Map<string, Sess>();
+  /** A pane's shell pid, made up from its session name. */
+  const pidOf = (name: string): number => 1000 + [...name].reduce((n, c) => (n * 31 + c.charCodeAt(0)) % 50_000, 7) * 2;
   /** tmux paste buffers by name: what load-buffer read from its standard input. */
   const buffers = new Map<string, string>();
   const scripts = { ...(o.scripts ?? {}) };
@@ -101,6 +103,11 @@ export function fakeTmux(o: FakeTmuxOptions = {}) {
 
   const exec: Exec = async (argv, x) => {
     calls.push([...argv]);
+    // the prompt check (shellAtPrompt): the terminal's foreground group is the shell's own pid unless something runs there
+    if (argv[0] === "ps" && argv[1] === "-o" && argv[2] === "tpgid=") {
+      const sess = [...sessions.values()].find((x) => String(pidOf(x.name)) === argv[4]);
+      return sess ? ok(`${sess.hung ? pidOf(sess.name) + 1 : pidOf(sess.name)}\n`) : bad("no such process");
+    }
     if (argv[0] !== "tmux") return bad("not tmux");
     if (!installed) return { code: 127, stdout: "", stderr: "tmux: command not found" };
     const sub = argv[1];
@@ -122,6 +129,7 @@ export function fakeTmux(o: FakeTmuxOptions = {}) {
     switch (sub) {
       case "display-message": {
         const fmt = argv[argv.length - 1];
+        if (fmt === "#{pane_pid} #{pane_dead} #{pane_in_mode}") return ok(`${pidOf(s.name)} 0 0\n`);
         return ok(`${fmt === "#{pane_current_path}" ? s.cwd : fmt === "#{pane_current_command}" ? (s.hung ? "sleep" : "bash") : ""}\n`);
       }
       case "send-keys": {

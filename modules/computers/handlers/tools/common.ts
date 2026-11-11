@@ -116,13 +116,21 @@ async function pictureAllowed(id: string, list: TabLister, tabId: unknown): Prom
   return target !== undefined && !marks.has(target);
 }
 
-/** After a call during which a value was handed to this computer: mark the tab it went into (the one the call named, else the one in front). */
-async function markAfter(id: string, list: TabLister, before: number, tabId: unknown): Promise<void> {
-  if (givenCount(id) === before) return;
-  if (typeof tabId === "string") { markFilledTab(id, tabId); return; }
-  let front: string | undefined;
-  try { front = (await list()).find((t) => t.active)?.tabId; } catch { /* the tab cannot be told */ }
-  markFilledTab(id, front ?? "*");
+/**
+ * After a call during which a value was handed to this computer: mark the tab it went into. A value the call itself typed went into the tab it named, else the one in front. A value Vyre for Chrome
+ * filled on its own (an autofill while a page loaded) may be in any tab, including one in the background the call did not aim at, so every tab open now is marked (second look, b). When the
+ * tabs cannot be listed, "*" holds them all until they can.
+ */
+async function markAfter(id: string, list: TabLister, before: number, tabId: unknown, typed: boolean): Promise<void> {
+  const grew = givenCount(id) - before;
+  if (grew <= 0) return;
+  const byExtension = grew - (typed ? 1 : 0) > 0;
+  let tabs: Array<{ tabId: string; active: boolean }> | null = null;
+  try { tabs = await list(); } catch { /* the tabs cannot be told */ }
+  if (tabs === null || tabs.length === 0) { markFilledTab(id, "*"); return; }
+  if (byExtension) { for (const t of tabs) markFilledTab(id, t.tabId); return; }
+  const target = typeof tabId === "string" ? tabId : tabs.find((t) => t.active)?.tabId;
+  markFilledTab(id, target ?? "*");
 }
 
 /** Every string anywhere in a value with the Vault values filled on this computer removed. */
@@ -185,6 +193,13 @@ async function browserUsable(sb: NonNullable<ReturnType<typeof spaceBrowser>>, n
   const ok = await sb.available().catch(() => false);
   usable = { sb, at: now, ok };
   return ok;
+}
+
+/** Would this step post the chat's live card for the agent's Space browser (the first of a burst), had it a picture? */
+function cardDue(ctx: CompCtx, agentId: string, at: number): boolean {
+  if (!ctx.thread || ctx.principal.kind !== "agent") return false;
+  const prev = lastCard.get(`browser|${agentId}|${ctx.thread}`);
+  return prev === undefined || at - prev >= LIVE_GAP_MS;
 }
 
 /** The chat's live card for work in an agent's Space browser: one per burst of ten quiet minutes. Posting never fails the tool call. */
@@ -275,7 +290,7 @@ export async function call(ctx: CompCtx, r: Resolved, spec: ToolSpec, args: Tool
   if (!isRecord(raw)) raise(ctx, "provider.unavailable", "The computer answered with something that is not an object.");
   const { used, frame, caption, ...rest } = raw;
   rememberSecrets(c.computerId, secretsOf(used));
-  if (spec.name.startsWith("chrome_")) await markAfter(c.computerId, list, given, args["tabId"]);
+  if (spec.name.startsWith("chrome_")) await markAfter(c.computerId, list, given, args["tabId"], secretsOf(used).length > 0);
   if (spec.name === "chrome_tabs" && tabsIn(rest).length > 0) tabsOpen(c.computerId, tabsIn(rest).map((t) => t.tabId));
   const out = scrubDeep(c.computerId, rest) as ToolAnswer;
   const at = ctx.now();
@@ -291,7 +306,10 @@ export async function call(ctx: CompCtx, r: Resolved, spec: ToolSpec, args: Tool
   return out;
 }
 
-export const HOLDS_VALUE = "This tab holds a value filled from the Vault, so no picture of it is taken while it is open. Picture another tab, or close this one first.";
+export const HOLDS_VALUE = "This tab holds a value filled from the Vault, so no picture of it is taken while it is open. Close that tab to have pictures of it again, or picture another tab.";
+/** The line a step shows where its picture would be, when the tab in front held a Vault value (second look, c). */
+const NO_PICTURE = "No picture: a Vault value is on this page";
+const NO_PICTURE_OR_CARD = "No picture here or in the chat: a Vault value is on this page";
 
 // The Vault channel of an agent's profile rides each tool call, as the person whose turn the call is (sbrowser audit bug 5): a token per profile and asker, live only while that person's calls run, so
 // one team agent working for two people at once looks each fill up as the right one, and nobody's access outlives their turn (Vyre for Chrome in the profile fills nothing between turns).
@@ -351,17 +369,19 @@ async function browserStep(ctx: CompCtx, sb: NonNullable<ReturnType<typeof space
   const { used, frame: _frame, caption: _caption, ...rest } = raw;
   rememberSecrets(profileId, secretsOf(used));
   // the tab a value went into, by a tool or by Vyre for Chrome while this call ran, is never pictured while it is open
-  await markAfter(profileId, list, given, args["tabId"] ?? (spec.name === "chrome_open" ? rest["tabId"] : undefined));
+  await markAfter(profileId, list, given, args["tabId"] ?? (spec.name === "chrome_open" ? rest["tabId"] : undefined), secretsOf(used).length > 0);
   if (spec.name === "chrome_tabs" && tabsIn(rest).length > 0) tabsOpen(profileId, tabsIn(rest).map((t) => t.tabId));
   const out = scrubDeep(profileId, rest) as ToolAnswer;
   // what the browser finished downloading goes into the agent's Files (Downloads) and the agent is told where; only the steps that say so carry it
   // a step with a caption is one line of the agent's browser timeline, with a picture of the page, and the chat shows the browser live once per burst of work
   if (spec.caption) {
     const at = ctx.now();
-    const words = clean(profileId, spec.caption(args, out).trim()).slice(0, 200);
+    let words = clean(profileId, spec.caption(args, out).trim()).slice(0, 200);
     let frame: string | undefined;
-    // no picture of a page that holds a value filled from the Vault (it is kept in Files, and a text field shows its value)
+    // no picture of a page that holds a value filled from the Vault (it is kept in Files, and a text field shows its value); the step says so in one line, and so whether the chat's live card,
+    // which needs that picture, was due and not posted
     if (await pictureAllowed(profileId, list, undefined)) { try { const shot = await sb.screenshot(profileId); frame = Buffer.from(shot.bytes).toString("base64"); } catch { /* a step without a picture */ } }
+    else words = `${words} · ${cardDue(ctx, ctx.principal.id, at) ? NO_PICTURE_OR_CARD : NO_PICTURE}`;
     const c = { computerId: profileId, agentId: ctx.principal.id } as unknown as ComputerRow;
     const frameFileId = await keepFrame(ctx, c, frame, at);
     addStep(ctx.db, profileId, at, { by: "agent", caption: words, tool: spec.name, ...(frameFileId ? { frameFileId } : {}), ...(ctx.run ? { runId: ctx.run } : {}), ...(ctx.thread ? { threadId: ctx.thread } : {}) });

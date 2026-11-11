@@ -16,6 +16,7 @@ import { createDockerApi } from "../../sandbox/src/docker.ts";
 import { tarFiles } from "../../sandbox/src/tar.ts";
 import type { ContainerConfig, DockerApi, DockerHttp } from "../../sandbox/src/docker.ts";
 import { createTmuxHost, HISTORY_ENV } from "./impl.ts";
+import type { TmuxHost } from "./impl.ts";
 import type { ExecResult } from "./impl.ts";
 import type { TerminalHost } from "./projections.ts";
 
@@ -725,7 +726,7 @@ export function createWorkspaceTerminalHost(w: WorkspaceTerminalOptions): Worksp
   const streamMs = w.streamMs ?? 150;
   const nameOf = (terminalId: string): string => `${prefix}${terminalId}`;
   const where = new Map<string, { agentId: string; cols: number; rows: number; cwd?: string; gen: number }>();
-  const tmuxHosts = new Map<string, TerminalHost>();
+  const tmuxHosts = new Map<string, TmuxHost>();
 
   // ---- live frames: tmux pipe-pane into a file in /tmp, read back from an offset, one reader per session however many tabs watch ----
   const streams = new Map<string, { listeners: Set<(line: string) => void>; stop(): void }>();
@@ -764,12 +765,17 @@ export function createWorkspaceTerminalHost(w: WorkspaceTerminalOptions): Worksp
     };
   }
 
-  function tmuxFor(agentId: string): TerminalHost {
+  function tmuxFor(agentId: string): TmuxHost {
     let h = tmuxHosts.get(agentId);
     // what a program reads on its standard input (a command's values, for tmux load-buffer) goes in by the exec's environment and a pipe, never in its arguments
     const exec = (argv: readonly string[], x?: { stdin?: string }): Promise<ExecResult> =>
       x?.stdin === undefined ? m.exec(agentId, argv) : m.exec(agentId, ["sh", "-c", 'printf %s "$VYRE_STDIN" | (unset VYRE_STDIN; exec "$@")', "sh", ...argv], { env: { VYRE_STDIN: x.stdin }, values: true });
-    if (!h) { h = createTmuxHost({ exec, control: control(agentId), prefix }); tmuxHosts.set(agentId, h); }
+    if (!h) {
+      h = createTmuxHost({ exec, control: control(agentId), prefix });
+      tmuxHosts.set(agentId, h);
+      // the first use of this workspace in this process: what a run left before a restart is removed before anyone reads (review 12 Nov, 3b)
+      void h.sweep().catch(() => undefined);
+    }
     return h;
   }
 
@@ -787,6 +793,7 @@ export function createWorkspaceTerminalHost(w: WorkspaceTerminalOptions): Worksp
     if (w0.gen !== gen) {
       // tmux died with the container: the session is made again, empty, where it was
       await m.exec(w0.agentId, ["tmux", "new-session", "-A", ...HISTORY_ENV, "-d", "-s", nameOf(terminalId), "-x", String(w0.cols), "-y", String(w0.rows), ...(w0.cwd === undefined ? [] : ["-c", w0.cwd])]);
+      await tmuxFor(w0.agentId).sweep();
       w0.gen = gen;
     }
     return { agentId: w0.agentId, host: tmuxFor(w0.agentId) };

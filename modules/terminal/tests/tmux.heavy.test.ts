@@ -10,7 +10,7 @@ import { spawn, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { createTmuxHost, handlers, openFrames } from "../impl.ts";
+import { createTmuxHost, handlers, openFrames, shellAtPrompt } from "../impl.ts";
 import type { Exec, ExecResult } from "../impl.ts";
 import { bindHost, bindKit, bindTeam, bindValues, scrubberFor, spellingsFor } from "../projections.ts";
 import { fakeValues, harness, reset } from "../fixtures/harness.ts";
@@ -37,7 +37,13 @@ function runTmux(args: readonly string[], stdin?: string): Promise<ExecResult> {
     p.on("close", (code) => resolve({ code: code ?? 1, stdout, stderr }));
   });
 }
-const exec: Exec = (argv, x) => runTmux(argv.slice(1), x?.stdin);
+/** tmux on the test's own server; anything else (ps, for the prompt check) as it is. */
+const exec: Exec = (argv, x) => (argv[0] === "tmux" ? runTmux(argv.slice(1), x?.stdin) : new Promise((resolve) => {
+  const p = spawn(argv[0] as string, argv.slice(1), { env: ENV, stdio: ["ignore", "pipe", "pipe"] });
+  let stdout = "", stderr = "";
+  p.stdout.on("data", (d) => (stdout += d)); p.stderr.on("data", (d) => (stderr += d));
+  p.on("error", (e) => resolve({ code: 127, stdout, stderr: e.message })); p.on("close", (code) => resolve({ code: code ?? 1, stdout, stderr }));
+}));
 
 /** A control-mode client, as the live relay uses: `tmux -C attach`, one line at a time. */
 function control(session: string, onLine: (line: string) => void): () => void {
@@ -289,7 +295,7 @@ test("tmux (review 3, 5): a values buffer an earlier daemon left is removed, a b
   const VALUE = `it's ${PART}\nsecond "line" $(id)`;
   await open("trm_hv7");
   // a daemon that died between load and delete left this
-  await runTmux(["load-buffer", "-b", "vyre-env-00leftover", "-"], "export K='left-behind-value'\n");
+  await runTmux(["load-buffer", "-b", "vyre-env-0-leftover", "-"], "export K='left-behind-value'\n");
   const r1 = await host.run("trm_hv7", { command: 'printf %s "$K" | wc -c', env: { K: VALUE }, timeoutMs: 8000 });
   assert.equal(r1.output.trim(), String(Buffer.byteLength(VALUE)));
   assert.equal((await runTmux(["list-buffers", "-F", "#{buffer_name}"])).stdout.includes("vyre-env-"), false, "no values buffer is left, the old one included");
@@ -379,4 +385,37 @@ test("tmux (review 6): a multi-line value a command prints reaches the live view
     assert.equal(got.join("").includes(LINE2), false, `the live view: ${JSON.stringify(got.join("").slice(-300))}`);
     live!.close(); stopRaw();
   } finally { reset(); }
+});
+
+test("tmux (review 3a): shellAtPrompt is true only when the tab's shell owns its terminal, and a run with values is refused in a tab where a shell script runs", { skip }, async () => {
+  await open("trm_hv8");
+  const s = "vyre-trm_hv8";
+  const script = path.join(work, "deploy.sh");
+  fs.writeFileSync(script, "#!/bin/bash\nsleep 30\n", { mode: 0o755 });
+  const reader = path.join(work, "ask.sh");
+  fs.writeFileSync(reader, "#!/bin/bash\nread -r answer\necho got $answer\n", { mode: 0o755 });
+  const atPrompt = (): Promise<boolean> => shellAtPrompt(exec, s);
+  const settle = (): Promise<void> => sleep(400);
+  const cases: Array<[string, string, boolean]> = [
+    ["an idle prompt", "", true],
+    ["sleep", "sleep 30", false],
+    ["a bash script", script, false],
+    ["sh -c with two commands", "sh -c 'sleep 30; echo done'", false],
+    ["a loop", "while true; do sleep 1; done", false],
+    ["a script blocked on read", reader, false],
+    ["vim", "vim -u NONE -N", false],
+    ["a background job with the prompt back", "sleep 30 &", true],
+  ];
+  for (const [what, line, want] of cases) {
+    if (line !== "") { await host.input("trm_hv8", `${line}\r`); await settle(); }
+    assert.equal(await atPrompt(), want, what);
+    // a run that carries values is refused wherever the shell does not own the terminal (the old name check let every shell script through)
+    if (!want) await assert.rejects(() => host.run("trm_hv8", { command: "true", env: { K: "value-for-3a" }, timeoutMs: 3000 }), /still running something/, what);
+    assert.equal((await runTmux(["list-buffers", "-F", "#{buffer_name}"])).stdout.includes("vyre-env-"), false, `${what}: no values buffer`);
+    // back to the prompt for the next case
+    if (line.startsWith("vim")) { await runTmux(["send-keys", "-t", s, "Escape"]); await runTmux(["send-keys", "-t", s, "-l", ":qa!"]); await runTmux(["send-keys", "-t", s, "Enter"]); }
+    else if (line !== "" && !line.endsWith("&")) await host.interrupt("trm_hv8");
+    await settle();
+  }
+  assert.equal(await atPrompt(), true, "and true again at the prompt");
 });

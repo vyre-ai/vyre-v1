@@ -11,3 +11,6 @@
 - A workspace on a server whose link to the Space is not private (no TLS) gets no Vault values, the same rule agent computers follow.
 - A Vault handle in a place of a command line Vyre cannot read for certain (inside $(( )), ${ } or a case) is refused with a line that says how to write it, so a value is never left unquoted; a handle in a # comment is not looked up at all.
 - A tab with set -x or set -v on no longer shows a Vault value a command was given, and a multi-line value or one with quotes is removed from the terminal and its live view in the forms a shell prints it.
+- A terminal command that carries Vault values is also refused while a shell script, a loop or a program waiting for input runs in the tab: Vyre checks that the tab's shell itself is at its prompt.
+- Vault values left behind by a run that was cut off are removed as soon as a terminal opens again or any command runs, so nothing is left readable after a restart.
+- A browser step whose picture was held back because a Vault value is on the page says so in one line, and a tab whose fill could not be placed gets its pictures back once that tab is closed.

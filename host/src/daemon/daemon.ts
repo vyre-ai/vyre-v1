@@ -1935,7 +1935,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         }),
         // terminals on this machine: the person's own computer when this daemon is it (the desktop app's daemon), and where a person's turn runs, read as that person
         setTerminalHost: (d) => createTerminalHostSeam({
-          roles: cfg.roles, team: cfg.spaceKind !== "personal",
+          roles: cfg.roles, team: cfg.spaceKind !== "personal", dataDir: paths.root,
           // a #Handle.field in a command is filled from the Vault: vault.use as the agent for the person (access, the label rule, the audit row), then the value, as the engine and the agent computers do
           ...(d.vault ? { values: createEngineSessionHost({ invoke, vault: d.vault, space: spaceId }).source } : {}),
           readAs: async (person, cap, input) => { const r = await invoke(cap, input, { space: spaceId, principal: { kind: "person", id: person }, origin: "terminal" }); return r.status === "ok" ? r.output : null; },
