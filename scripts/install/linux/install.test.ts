@@ -1018,3 +1018,42 @@ test("an update prunes images only after it is healthy: never before the switch,
     } finally { fs.rmSync(dir, { recursive: true, force: true }); }
   }
 });
+
+test("an update backs up while the server runs, and the server is down only for the switch; --stopped-backup keeps the old order", () => {
+  for (const mode of ["live", "stopped"]) {
+    const dir = tmp();
+    try {
+      for (const version of ["1.0.0", "1.1.0"]) { fs.mkdirSync(path.join(dir, "releases", version), { recursive: true }); fs.writeFileSync(path.join(dir, "releases", version, "images.lock"), "VYRE_IMAGE=fixture@sha256:" + "a".repeat(64) + "\n"); }
+      fs.symlinkSync("releases/1.0.0", path.join(dir, "current")); fs.writeFileSync(path.join(dir, "compose.env"), "VYRE_IMAGE=fixture@sha256:" + "a".repeat(64) + "\n"); fs.writeFileSync(path.join(dir, "vyre.env"), "");
+      const log = (w: string): string => `echo "${w}" >>"$VYRE_FIXTURE_DIR/order"`;
+      const body = `cur_version(){ printf 1.0.0; }; fetch_release(){ REL_VERSION=1.1.0; }; unpack_release(){ :; }; docker(){ return 0; }; backup_data(){ ${log("backup $*")}; BACKUP_FILE=fixture; [ "\${2:-}" = live ] || ${log("stop (inside the backup)")}; }; `
+        + `dc(){ ${log("dc $*")}; return 0; }; stop_strays(){ ${log("stop strays")}; }; set_current(){ ${log("switch $1")}; }; sync_image(){ :; }; up_stack(){ ${log("start")}; }; wait_healthy(){ ${log("healthy")}; return 0; }; prune_releases(){ :; }; prune_images(){ :; }; `
+        + `cmd_update --yes --version 1.1.0 --sha256 ${"a".repeat(64)} ${mode === "stopped" ? "--stopped-backup" : ""}`;
+      const out = sh(SERVER, body, { VYRE_DIR: dir, VYRE_FIXTURE_DIR: dir, TMPDIR: dir });
+      assert.equal(out.status, 0, out.stderr);
+      const order = read(path.join(dir, "order")).trim().split("\n");
+      if (mode === "live") {
+        assert.deepEqual(order, ["backup pre-1.1.0 live", "dc stop", "stop strays", "switch 1.1.0", "start", "healthy"], "the backup finishes with the server up; only then is it stopped, and the switch follows at once");
+        assert.match(out.stdout, /while the server kept running/);
+      } else {
+        assert.deepEqual(order, ["backup pre-1.1.0", "stop (inside the backup)", "switch 1.1.0", "start", "healthy"], "--stopped-backup stops the server first, for one copy that is consistent across the database files");
+      }
+    } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+  }
+});
+
+test("a live-backup update that fails to start rolls back and starts the previous release again", () => {
+  const dir = tmp();
+  try {
+    for (const version of ["1.0.0", "1.1.0"]) { fs.mkdirSync(path.join(dir, "releases", version), { recursive: true }); fs.writeFileSync(path.join(dir, "releases", version, "images.lock"), "VYRE_IMAGE=fixture@sha256:" + "a".repeat(64) + "\n"); }
+    fs.symlinkSync("releases/1.0.0", path.join(dir, "current")); fs.writeFileSync(path.join(dir, "compose.env"), "VYRE_IMAGE=fixture@sha256:" + "a".repeat(64) + "\n"); fs.writeFileSync(path.join(dir, "vyre.env"), "");
+    const log = (w: string): string => `echo "${w}" >>"$VYRE_FIXTURE_DIR/order"`;
+    const body = `cur_version(){ printf 1.0.0; }; fetch_release(){ REL_VERSION=1.1.0; }; unpack_release(){ :; }; docker(){ return 0; }; backup_data(){ ${log("backup $*")}; BACKUP_FILE=fixture; }; `
+      + `dc(){ ${log("dc $*")}; return 0; }; stop_strays(){ :; }; set_current(){ ${log("switch $1")}; }; sync_image(){ :; }; up_stack(){ ${log("start")}; [ "$(grep -c '^start$' "$VYRE_FIXTURE_DIR/order")" -gt 1 ]; }; wait_healthy(){ return 0; }; prune_releases(){ :; }; prune_images(){ :; }; `
+      + `cmd_update --yes --version 1.1.0 --sha256 ${"a".repeat(64)}`;
+    const out = sh(SERVER, body, { VYRE_DIR: dir, VYRE_FIXTURE_DIR: dir, TMPDIR: dir });
+    assert.equal(out.status, 4, out.stderr);
+    assert.deepEqual(read(path.join(dir, "order")).trim().split("\n"), ["backup pre-1.1.0 live", "dc stop", "switch 1.1.0", "start", "switch 1.0.0", "start"], "back on the previous release, started again");
+    assert.equal(fs.existsSync(path.join(dir, "state", "update.pending")), false);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
