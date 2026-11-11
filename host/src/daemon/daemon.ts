@@ -1,4 +1,5 @@
 import { ownsSubject } from "./own-subject.ts";
+import { defaultSpaceName } from "./space-name.ts";
 import { isExportItself, waitForQuiet } from "./export-quiet.ts";
 import { createChoiceSource } from "./forms-choices.ts";
 import {syncEndpointOrigin} from "./sync-endpoint.ts";
@@ -905,7 +906,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       }
       // Ruling 71: an empty log is a fresh install. The host makes the Space once, with an owner who claims it through a one-time link.
       if (!sawSpace) {
-        const made = await bootstrapSpace(log, { space, name: cfg.spaceName ?? space, owner: mintOwner(cfg.owner) });
+        const made = await bootstrapSpace(log, { space, name: cfg.spaceName ?? defaultSpaceName(cfg.address), owner: mintOwner(cfg.owner) });
         if (made) { hostMadeSpace = true; for (const e of made.events) { access.fold(e); accessPending.push(toAccessEvent(e)); } }
       }
       // Before the generic registrar existed, imported and prototype logs could have a valid

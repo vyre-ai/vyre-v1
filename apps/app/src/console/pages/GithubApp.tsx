@@ -85,17 +85,21 @@ export function GithubAppPage(): ReactElement {
     const back = manifestReturn((globalThis as { location?: { search?: string } }).location?.search ?? "");
     if (back) void action.run("github.app.complete", { ...back, idempotencyKey: back.state }, "Your GitHub app is ready");
   }, []);
+  // The app is read only where the Space has one of its own (saved, or made for it): the server refuses the read on a Space that has none, and a fresh Space has none
+  const ownApp = sign.data ? sign.data.github.source === "space" || Boolean(sign.data.github.clientId) : null;
   useEffect(() => {
+    if (ownApp === null) return undefined;
     let live = true;
     void (async () => {
+      let a: App | null = null;
+      if (ownApp) { try { a = await data.call("github.app.get", {}) as App; } catch { /* no app yet: the page says so */ } }
       try {
-        const a = await data.call("github.app.get", {}) as App;
         const i = await data.call("github.installations.list", {}) as { installations: Installs };
         if (live) { setApp(a); setInstalls(i.installations); }
-      } catch { if (live) { setApp(null); setInstalls([]); } }
+      } catch { if (live) { setApp(a); setInstalls([]); } }
     })();
     return () => { live = false; };
-  }, [rev]);
+  }, [rev, ownApp]);
   const gapp = ci.data?.githubApp;
   const acceptUrl = gapp && gapp.installed && !gapp.ready ? (gapp.acceptUrl ?? gapp.orgAcceptUrl) : null;
   // (above the early return: hooks run on every render) after Accept the person is on GitHub: ask again every few seconds (up to five minutes) so the row clears by itself once the permissions are accepted
