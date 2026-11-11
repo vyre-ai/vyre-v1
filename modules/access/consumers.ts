@@ -8,7 +8,7 @@ import type { AccessSnapshot } from "../../kernel/src/authorize/index.ts";
 import { isElevatedRole } from "../../kernel/src/authorize/snapshot.ts";
 import { fail } from "../../host/src/routes/errors.ts";
 import { rawDbOf } from "../../host/src/ctx/db.ts";
-import { AccessStore, CURSOR_KEY, agentLevel, EVERYONE, changed, kernelResource, labelOf, loadStore, rowOfResource, setPrivate, storeOf } from "./projections.ts";
+import { AccessStore, CURSOR_KEY, agentLevel, asKeptWriter, EVERYONE, changed, kernelResource, labelOf, loadStore, rowOfResource, sealSnapshot, sealStore, setPrivate, setReadView, storeOf } from "./projections.ts";
 import type { AccessCtx, Cond, Db, GrantRec, Label, Level, PKind, Ref, ResourceRec, Status, SubjectKind } from "./projections.ts";
 
 export interface LogEvent { seq: number; type: string; payload: unknown }
@@ -31,10 +31,11 @@ function pkind(k: unknown): PKind {
   return "person";
 }
 
+// The fold replaces a record rather than changing it: the kept store's records are frozen (projections.ts sealStore), and a reader still holding one keeps what it read.
 function setStatus(store: AccessStore, id: string | undefined, status: Status): boolean {
   const p = id ? store.principals.get(id) : undefined;
   if (!p || p.status === status) return false;
-  p.status = status;
+  store.principals.set(p.id, { ...p, status });
   return true;
 }
 
@@ -61,7 +62,7 @@ function seededGrant(store: AccessStore, p: Record<string, unknown>, at: number)
 }
 
 /** Move the store by one event. True when something changed. */
-export function applyEvent(store: AccessStore, e: LogEvent, at: number): boolean {
+export function applyEvent(store: AccessStore, e: LogEvent, at: number, grantAt: number = at): boolean {
   const p = rec(e.payload);
   switch (e.type) {
     case "role.defined": {
@@ -80,7 +81,7 @@ export function applyEvent(store: AccessStore, e: LogEvent, at: number): boolean
       if (have && !seeded) {
         const name=str(p["name"])?.trim();
         const placeholder=have.name===id||(have.name==="Owner"&&[...store.resources.values()].some(resource=>resource.type==="space"&&resource.ownerId===id));
-        if(name&&placeholder&&have.kind===pkind(p["kind"])&&name!==have.name){have.name=name;return true;}
+        if(name&&placeholder&&have.kind===pkind(p["kind"])&&name!==have.name){store.principals.set(id,{...have,name});return true;}
         return false;
       }
       const given = p["status"];
@@ -110,8 +111,7 @@ export function applyEvent(store: AccessStore, e: LogEvent, at: number): boolean
       if (!gid || !mid) return false;
       const g = store.groups.get(gid) ?? { id: gid, name: gid === EVERYONE ? "Everyone" : gid, builtIn: gid === EVERYONE, members: [] as Ref[], managers: [] as Ref[] };
       if (g.members.some((m) => m.id === mid)) return false;
-      g.members.push({ kind: store.principals.get(mid)?.kind ?? "person", id: mid });
-      store.groups.set(gid, g);
+      store.groups.set(gid, { ...g, members: [...g.members, { kind: store.principals.get(mid)?.kind ?? "person", id: mid }] });
       return true;
     }
     case "space.ownership_transferred": {
@@ -136,7 +136,7 @@ export function applyEvent(store: AccessStore, e: LogEvent, at: number): boolean
     case "grant.created": {
       // the module's own shares emit `{ grantId, subject, resource, level }` and already hold the row; only a seeded row has `subject_kind`
       if (p["subject_kind"] === undefined) return false;
-      const g = seededGrant(store, p, at);
+      const g = seededGrant(store, p, grantAt);
       if (!g || store.grants.has(g.id)) return false;
       store.grants.set(g.id, g);
       return true;
@@ -160,12 +160,13 @@ function cursorOf(store: AccessStore): number { return store.fieldLabels.get(CUR
  * never moves the cursor. Objects being created is the common case, so a batch of only `resource.created` writes just those rows (`touched`); anything else rewrites what changed in the
  * tables and asks for the snapshot to be built again (`rebuild`).
  */
-function apply(db: Db, at: number, store: AccessStore, events: readonly LogEvent[]): { touched: Set<string>; rebuild: boolean } {
+/** `grantAt`: the time a folded grant is stamped with. The kept store passes 1, what the tables give back (`version`), so it holds exactly what a store read from them holds. */
+function apply(db: Db, at: number, store: AccessStore, events: readonly LogEvent[], grantAt: number = at): { touched: Set<string>; rebuild: boolean } {
   let cursor = cursorOf(store), changed = false, onlyResources = true;
   const touched = new Set<string>();
   for (const e of events) {
     if (e.seq >= 0 && e.seq <= cursor) continue;
-    if (applyEvent(store, e, at)) {
+    if (applyEvent(store, e, at, grantAt)) {
       changed = true;
       if (e.type === "resource.created") { const id = str(rec(e.payload)["id"]); if (id) touched.add(id); } else onlyResources = false;
     }
@@ -185,7 +186,7 @@ function apply(db: Db, at: number, store: AccessStore, events: readonly LogEvent
  * reads, and where the tables' write counter (migrations/0006_local_stamp.sql) stood after its own last write. Keyed on the database itself (host/src/ctx/db.ts rawDbOf), not the Space:
  * two daemons of one Space in one process, or two copies of one file, each have their own.
  */
-interface Synced { store: AccessStore; snap: AccessSnapshot; rows: Map<string, ResourceRec>; stamp: number }
+interface Synced { store: AccessStore; snap: AccessSnapshot; rows: Map<string, ResourceRec>; stamp: number; plain: AccessSnapshot | null }
 const SYNCED = new WeakMap<object, Synced>();
 /** How access.sync answered (tests read it): from the tables, by building the snapshot again from a kept store, or by changing the kept snapshot in place. */
 export const syncCounts = { hydrated: 0, rebuilt: 0, inPlace: 0 };
@@ -213,35 +214,62 @@ function build(store: AccessStore, space: string): { snap: AccessSnapshot; rows:
  * into the kept snapshot in place (its epoch moves and its derived views are dropped, as the host's own fold does); any other change builds a new snapshot, as before.
  */
 function syncKept(ctx: AccessCtx, key: object, events: readonly LogEvent[]): AccessSnapshot {
-  let writes = 0;
-  const db: Db = {
-    all: (sql, ...args) => ctx.db.all(sql, ...args),
-    run: (sql, ...args) => { const r = ctx.db.run(sql, ...args); writes += r.changes; return r; },
-  };
-  const before = stampOf(ctx.db);
-  let kept = SYNCED.get(key);
-  if (kept && kept.stamp !== before) kept = undefined;
-  SYNCED.delete(key);   // put back only once this call has written everything and checked the counter
-  const store = kept?.store ?? loadStore(db);
-  if (!kept) syncCounts.hydrated++;
-  const { touched, rebuild } = apply(db, ctx.now(), store, events);
-  let out: { snap: AccessSnapshot; rows: Map<string, ResourceRec> };
-  if (!kept || rebuild) { out = build(store, ctx.space); if (kept) syncCounts.rebuilt++; }
-  else {
-    out = { snap: kept.snap, rows: kept.rows };
-    for (const id of touched) {
-      const r = store.resources.get(id);
-      if (!r) continue;
-      out.rows.set(id, r);
-      out.snap.putResource(kernelResource(r));
+  return asKeptWriter(() => {
+    let writes = 0;
+    const db: Db = {
+      all: (sql, ...args) => ctx.db.all(sql, ...args),
+      run: (sql, ...args) => { const r = ctx.db.run(sql, ...args); writes += r.changes; return r; },
+    };
+    const before = stampOf(ctx.db);
+    let kept = SYNCED.get(key);
+    if (kept && kept.stamp !== before) kept = undefined;
+    SYNCED.delete(key);   // put back only once this call has written everything and checked the counter
+    const store = kept?.store ?? sealStore(loadStore(db));
+    if (!kept) syncCounts.hydrated++;
+    const { touched, rebuild } = apply(db, ctx.now(), store, events, 1);
+    let out: { snap: AccessSnapshot; rows: Map<string, ResourceRec> };
+    let plain = kept?.plain ?? null;
+    if (!kept || rebuild) {
+      out = build(store, ctx.space);
+      store.invalidate();   // the snapshot readers get through store.snapshot() has no role grants (as a handler's own store never had): it is built apart, when a reader first asks
+      plain = null;
+      if (kept) syncCounts.rebuilt++;
+    } else {
+      out = { snap: kept.snap, rows: kept.rows };
+      for (const id of touched) {
+        const r = store.resources.get(id);
+        if (!r) continue;
+        out.rows.set(id, r);
+        out.snap.putResource(kernelResource(r));
+        plain?.putResource(kernelResource(r));
+      }
+      if (plain) store.adoptSnapshot(plain);
+      syncCounts.inPlace++;
     }
-    syncCounts.inPlace++;
-  }
-  // every row write fires one counter step (the triggers are AFTER ... FOR EACH ROW; a write's `changes` counts the same rows), so anything else that wrote meanwhile shows as a difference
-  const after = stampOf(ctx.db);
-  if (before !== null && after !== null && after === before + writes) SYNCED.set(key, { store, snap: out.snap, rows: out.rows, stamp: after });
-  return out.snap;
+    // every row write fires one counter step (the triggers are AFTER ... FOR EACH ROW; a write's `changes` counts the same rows), so anything else that wrote meanwhile shows as a difference
+    const after = stampOf(ctx.db);
+    if (before !== null && after !== null && after === before + writes) SYNCED.set(key, { store, snap: out.snap, rows: out.rows, stamp: after, plain });
+    return out.snap;
+  });
 }
+
+/**
+ * The read view for a capability that only reads (projections.ts readOnly): the kept store, brought up to the tables first when anything else wrote since, with a snapshot of its own (no
+ * role grants, as a handler's store always answered). Null where there is no kept store (a test's own db, or a writer that wrote while this read): that caller reads the tables, as before.
+ */
+export function readViewOf(ctx: AccessCtx): AccessStore | null {
+  const key = rawDbOf(ctx.db);
+  if (!key) return null;
+  let kept = SYNCED.get(key);
+  if (!kept || stampOf(ctx.db) !== kept.stamp) { syncKept(ctx, key, []); kept = SYNCED.get(key); if (!kept) return null; }
+  const k = kept;
+  if (!k.plain) asKeptWriter(() => { k.plain = sealSnapshot(k.store.snapshot()); });
+  readCounts.views++;
+  return k.store;
+}
+/** How often a read was answered from the read view (tests read it). */
+export const readCounts = { views: 0 };
+setReadView(readViewOf);
 
 /** The kept store of access.sync, while the tables still hold exactly what it holds; null otherwise. Only for reads that change nothing. */
 function keptStore(ctx: AccessCtx): AccessStore | null {

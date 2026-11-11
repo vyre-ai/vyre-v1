@@ -1,2 +1,3 @@
 - Saving a record, task or file no longer slows down as your Space grows. On a Space with a hundred thousand contacts a new contact saves in about 20 ms instead of most of a second, and the server starts about ten times faster.
-- A folder you mark Restricted stays Restricted after the server restarts. Before, a folder made shortly before the label was set could go back to its old label on the next start.
+- Fixed: a folder marked Restricted could go back to Public after the server restarted, and a file or record given to a new owner could go back to its old owner. This happened to things made shortly before the change. They now keep their label and owner.
+- Looking up people, shares and access in a large Space is fast again: lists of members, the sharing panel and access checks answer in a few milliseconds instead of more than half a second.

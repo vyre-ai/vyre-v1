@@ -257,6 +257,8 @@ export class AccessStore {
 
   bump(): void { this.epoch++; this.snap = null; }
   invalidate(): void { this.snap = null; }
+  /** Take `snap` as this store's snapshot at the current epoch (the kept store of access.sync, after it changed the snapshot in place). */
+  adoptSnapshot(snap: AccessSnapshot): void { this.snap = snap; this.snapEpoch = this.epoch; }
 
   seed(): void {
     const parsed = parseCatalogue(catalogueSource());
@@ -649,6 +651,8 @@ export function pkey(key: string, scope: string): string { return `${scope}\n${k
 const STORES = new WeakMap<Db, AccessStore>();
 
 export function storeOf(ctx: AccessCtx): AccessStore {
+  // a read-only capability (handlers/index.ts readOnly) reads the kept view of access.sync: no read of the tables, and no way to change it
+  if (READERS.has(ctx) && readView) { const v = readView(ctx); if (v) return v; }
   let s = STORES.get(ctx.db);
   if (s) return s;
   s = loadStore(ctx.db);
@@ -671,6 +675,86 @@ export function loadStore(db: Db): AccessStore {
 }
 
 export function dropStore(db: Db): void { STORES.delete(db); }
+
+// ---- the read view -------------------------------------------------------------------------------------------------------
+// access.sync keeps one store per daemon database (consumers.ts). A capability that only reads is handed that store instead of reading every access table again. It is sealed: outside the
+// sync's own synchronous work every map refuses set, delete and clear, every record in it is frozen, its fields and its write methods refuse, and the snapshot it answers through
+// `snapshot()` refuses every mutator. The sync replaces records rather than changing them (consumers.ts applyEvent), so a reader holding one never sees it change under it.
+
+const READERS = new WeakSet<object>();
+let readView: ((ctx: AccessCtx) => AccessStore | null) | null = null;
+/** consumers.ts hands over how to find the kept view of a ctx's database. */
+export function setReadView(f: (ctx: AccessCtx) => AccessStore | null): void { readView = f; }
+
+/** Wrap a capability that never changes the access store: its calls to storeOf get the kept read view when there is one (else a store of their own, as before). */
+export function readOnly<C extends AccessCtx, I, R>(h: (ctx: C, input: I) => Promise<R>): (ctx: C, input: I) => Promise<R> {
+  return (ctx, input) => { READERS.add(ctx); return h(ctx, input); };
+}
+
+let writing = 0;
+/** Run `f` as the writer of sealed stores and snapshots (access.sync only). */
+export function asKeptWriter<T>(f: () => T): T { writing++; try { return f(); } finally { writing--; } }
+export const READ_VIEW_REFUSAL = "The access read view cannot be changed by a capability that reads.";
+function mustWrite(): void { if (writing === 0) throw new Error(READ_VIEW_REFUSAL); }
+
+function deepFreeze<T>(v: T): T {
+  if (v === null || typeof v !== "object" || Object.isFrozen(v)) return v;
+  for (const x of Object.values(v as object)) deepFreeze(x);
+  return Object.freeze(v);
+}
+class SealedMap<K, V> extends Map<K, V> {
+  sealed = false;
+  override set(k: K, v: V): this { if (this.sealed) { mustWrite(); deepFreeze(v); } return super.set(k, v); }
+  override delete(k: K): boolean { if (this.sealed) mustWrite(); return super.delete(k); }
+  override clear(): void { if (this.sealed) mustWrite(); super.clear(); }
+}
+class SealedSet<T> extends Set<T> {
+  sealed = false;
+  override add(v: T): this { if (this.sealed) mustWrite(); return super.add(v); }
+  override delete(v: T): boolean { if (this.sealed) mustWrite(); return super.delete(v); }
+  override clear(): void { if (this.sealed) mustWrite(); super.clear(); }
+}
+/** Every own field becomes an accessor whose setter refuses outside the writer; `methods` refuse outside the writer too; nothing new can be added. */
+function sealFields(o: object, methods: readonly string[]): void {
+  const rec = o as Record<string, unknown>;
+  for (const k of Object.keys(rec)) {
+    let v = rec[k];
+    Object.defineProperty(o, k, { get: () => v, set: (x: unknown) => { mustWrite(); v = x; }, enumerable: true, configurable: false });
+  }
+  for (const m of methods) {
+    const f = rec[m] as (...a: unknown[]) => unknown;
+    Object.defineProperty(o, m, { value: (...a: unknown[]) => { mustWrite(); return f.apply(o, a); }, writable: false, enumerable: false, configurable: false });
+  }
+  Object.preventExtensions(o);
+}
+
+/** Seal a store for the read view (called once, as the writer, on the store access.sync keeps). */
+export function sealStore(store: AccessStore): AccessStore {
+  const rec = store as unknown as Record<string, unknown>;
+  for (const [k, v] of Object.entries(rec)) {
+    if (k === "base" || k === "raw") continue;   // what persist compares against: the store's own, never read by a capability
+    if (v instanceof Map) { const m = new SealedMap(v); for (const x of m.values()) deepFreeze(x); m.sealed = true; rec[k] = m; }
+    else if (v instanceof Set) { const m = new SealedSet(v); m.sealed = true; rec[k] = m; }
+  }
+  sealFields(store, ["bump", "invalidate", "seed", "hydrate", "persist", "persistResources", "setRoles", "adoptSnapshot"]);
+  return store;
+}
+
+const SNAP_MUTATORS = ["putPrincipal", "setAssistant", "putRole", "addPrincipalRole", "removePrincipalRole", "addMember", "removeMember", "putGrant", "revokeGrant", "putResource", "setFieldLabel", "setPolicies", "changed"] as const;
+/** Seal a snapshot of the read view: every mutator and every public field refuses outside the writer. Its derived caches (filled by reading) are private and still fill. */
+export function sealSnapshot(snap: AccessSnapshot): AccessSnapshot {
+  const rec = snap as unknown as Record<string, unknown>;
+  for (const k of ["epoch", "labelNames", "rowSource", "clock"]) {
+    let v = rec[k];
+    if (k === "labelNames") v = Object.freeze([...(v as string[])]);
+    Object.defineProperty(snap, k, { get: () => v, set: (x: unknown) => { mustWrite(); v = x; }, enumerable: true, configurable: false });
+  }
+  for (const m of SNAP_MUTATORS) {
+    const f = (Object.getPrototypeOf(snap) as Record<string, (...a: unknown[]) => unknown>)[m]!;
+    Object.defineProperty(snap, m, { value: (...a: unknown[]) => { mustWrite(); return f.apply(snap, a); }, writable: false, enumerable: false, configurable: false });
+  }
+  return snap;
+}
 
 export function changed(ctx: AccessCtx, store: AccessStore, what: "role" | "group" | "membership" | "label" | "actor" | "assignment"): void {
   store.bump();
