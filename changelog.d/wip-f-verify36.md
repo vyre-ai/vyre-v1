@@ -1,0 +1,1 @@
+- When an agent writes to a teammate as itself, the note the teammate types when they send a request back no longer shows up in the chat of the person who asked; only the outcome does.
