@@ -1027,7 +1027,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           turns: (id: string) => (id === "space" ? Math.max(0, engineTurns - computeStream.running()) : computeStream.connected(id) ? computeStream.running(id) : undefined),
           own: async () => ({ name: reporter.name(), report: (o.machineReport ?? ((r: Report) => r))(reporter.report()) }),
           idle: (_id: string, person?: string) => idleSessions(person),
-          findings: async () => (await runDoctor({ dataDir: paths.root, role: "space" })).findings,
+          findings: async () => (await runDoctor({ dataDir: paths.root, role: "space", ...(cfg.diskChoice ? { diskChoice: cfg.diskChoice } : {}) })).findings,
           fix: async (id: string, fix: string, service?: string, person?: string) => {
             if (!isFix(fix)) throw new Error(`unknown fix ${fix}`);
             // a member's own computer or server: its idle sessions are the owner's, held by the Space's pool, and only theirs stop; nothing of anyone else's
@@ -2375,7 +2375,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     return used ? r : { ...r, state: "healthy", detail: `${r.detail ?? "Not running."} Agent computers need it; none exist yet.` };
   };
   const probeFns: Record<ProbeName, () => Promise<ProbeResult> | ProbeResult> = {
-    disk_encrypted: () => (o.probes?.diskEncrypted ? o.probes.diskEncrypted() : probes.diskEncrypted(platform, paths.root)),
+    disk_encrypted: () => (o.probes?.diskEncrypted ? o.probes.diskEncrypted() : probes.diskEncrypted(platform, paths.root, cfg.diskChoice)),
     events_db: events,
     index_db: () => probes.indexLag(o.probes?.indexLag ? o.probes.indexLag() : null),
     scheduler: () => probes.schedulerTick(scheduler.lastTickAt, now()),
@@ -2406,6 +2406,14 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     const d = db;
     // one commit for the three heartbeats, not three
     d.tx(() => {
+      // The installer changed how this server is reached (a new address or relay, VYRE_NETWORK_REV): apply it once. Without this the row made at the first start keeps the old way and a new domain never gets its site.
+      if (cfg.networkRev) {
+        const seen = (d.all("SELECT value FROM network_info WHERE key = 'network_rev'")[0] as { value?: string } | undefined)?.value;
+        if (seen !== cfg.networkRev) {
+          d.run("DELETE FROM network_config WHERE id = 1");
+          storeInfo(d, "network_rev", cfg.networkRev, t);
+        }
+      }
       storeInfo(d, "space_version", cfg.version, t);
       d.run(
         "INSERT INTO network_config (id, address, mode, domain, relay_address, public_ingress, ingress_detail, reported_at) VALUES (1, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET reported_at = excluded.reported_at, relay_address = COALESCE(excluded.relay_address, network_config.relay_address)",

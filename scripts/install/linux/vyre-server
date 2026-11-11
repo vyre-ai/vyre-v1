@@ -5,7 +5,7 @@
 #   vyre-server doctor [--json] [--quiet]   check this machine and the server; works with the server down. Exit 1 when anything is down.
 #   vyre-server status                      the containers and their health
 #   vyre-server start | stop | restart      what the systemd unit runs
-#   vyre-server logs [SERVICE]              follow the logs (vyred, caddy)
+#   vyre-server logs [SERVICE] [--no-follow]  follow the logs (vyred, caddy); Ctrl-C stops; --no-follow prints the last lines and exits
 #   vyre-server claim-link                  print the one-time link that claims a fresh Space as its owner (valid 24 hours; each start makes a new one)
 #   vyre-server update [--check] [--yes]    read the channel's signed manifest; if it names a newer version: back up the data (server running), then stop, switch, check health, roll back on failure; --stopped-backup stops first
 #   vyre-server rollback                    switch back to the previous release (code only; data written by the newer one stays)
@@ -231,10 +231,61 @@ health_url() {
 }
 
 # ---- start, stop, status, logs -----------------------------------------------------------------------------------------------------
-cmd_start() { [ ! -f "$(PENDING_FILE)" ] || lock_update_operation; dc up -d --remove-orphans --wait --wait-timeout "${VYRE_UP_WAIT:-180}"; }
+cmd_start() { [ ! -f "$(PENDING_FILE)" ] || lock_update_operation; ensure_unlocked; dc up -d --remove-orphans --wait --wait-timeout "${VYRE_UP_WAIT:-180}"; }
 cmd_stop() { dc stop; }
 cmd_status() { dc ps; }
-cmd_logs() { dc logs -f --tail 200 "$@"; }
+cmd_logs() {
+  follow=1; svc=""
+  for a in "$@"; do case "$a" in --no-follow) follow=0 ;; *) svc="$svc $a" ;; esac; done
+  if [ "$follow" = 1 ]; then
+    [ ! -t 1 ] || say "Following the log: new lines appear as they happen. Press Ctrl-C to stop (vyre-server logs --no-follow prints the last lines and exits)."
+    # shellcheck disable=SC2086
+    dc logs -f --tail 200 $svc
+  else
+    # shellcheck disable=SC2086
+    dc logs --tail 200 $svc
+  fi
+}
+
+# ---- an encrypted data volume made by the installer (--encrypt-data) ------------------------------------------------------------------
+# state/crypt.env holds CRYPT_TARGET (the file or disk), CRYPT_NAME, CRYPT_MOUNT and CRYPT_KEYFILE (a key on another volume, or empty: a passphrase is typed). The key is never stored here.
+crypt_env() { [ -f "$DIR/state/crypt.env" ] || return 1; CRYPT_TARGET=; CRYPT_NAME=vyre-data; CRYPT_MOUNT=; CRYPT_KEYFILE=; . "$DIR/state/crypt.env"; }
+crypt_mounted() {
+  m=${VYRE_TEST_PROC_MOUNTS:-/proc/mounts}
+  [ "${VYRE_TEST_MODE:-0}" = 1 ] || m=/proc/mounts
+  awk -v t="$CRYPT_MOUNT" '$2 == t { found = 1 } END { exit !found }' "$m" 2>/dev/null
+}
+# crypt_open KEYFILE_OR_EMPTY: open the volume (a key file, or the passphrase asked on the terminal) and mount it.
+crypt_open() {
+  if [ -e "/dev/mapper/$CRYPT_NAME" ]; then :
+  elif [ -n "$1" ]; then cryptsetup open --key-file "$1" "$CRYPT_TARGET" "$CRYPT_NAME" || return 1
+  else
+    (: </dev/tty) 2>/dev/null || die "there is no terminal to ask the passphrase on. Run this from a terminal: sudo vyre-server unlock" 2
+    printf 'Passphrase for the data volume: ' >/dev/tty
+    stty -echo </dev/tty 2>/dev/null || true
+    read -r pw </dev/tty || pw=""
+    stty echo </dev/tty 2>/dev/null || true
+    printf '\n' >/dev/tty
+    printf '%s' "$pw" | cryptsetup open --key-file=- "$CRYPT_TARGET" "$CRYPT_NAME" || return 1
+    pw=""
+  fi
+  mkdir -p "$CRYPT_MOUNT"
+  mount "/dev/mapper/$CRYPT_NAME" "$CRYPT_MOUNT"
+}
+# ensure_unlocked: a server whose data is on its own encrypted volume does not start until the volume is open (a key file on another volume opens it by itself).
+ensure_unlocked() {
+  crypt_env || return 0
+  crypt_mounted && return 0
+  if [ -n "$CRYPT_KEYFILE" ] && [ -f "$CRYPT_KEYFILE" ]; then crypt_open "$CRYPT_KEYFILE" || die "the key file $CRYPT_KEYFILE did not open the data volume."; return 0; fi
+  die "the Space's data is on an encrypted volume that is closed (after a restart it stays closed). Open it and start the server: sudo vyre-server unlock" 6
+}
+cmd_unlock() {
+  crypt_env || die "this server's data is not on an encrypted volume made by the installer; there is nothing to unlock." 2
+  kf=$CRYPT_KEYFILE
+  while [ $# -gt 0 ]; do case "$1" in --key-file) shift; [ $# -gt 0 ] || die "--key-file needs a path" 2; kf=$1 ;; *) die "unlock takes --key-file PATH, or nothing to be asked for the passphrase" 2 ;; esac; shift; done
+  if crypt_mounted; then say "The data volume is already open."; else crypt_open "$kf" || die "the volume did not open (wrong passphrase or key?)."; say "The data volume is open."; fi
+  cmd_start
+}
 
 # ---- claim ---------------------------------------------------------------------------------------------------------------------------
 # vyred writes the owner's claim link to logs/claim-link.txt in its data directory (mode 0600) at each start while the Space is unclaimed, and deletes it once the claim
@@ -242,7 +293,22 @@ cmd_logs() { dc logs -f --tail 200 "$@"; }
 claim_file() { printf '%s/space/logs/claim-link.txt' "$DATA_DIR"; }
 cmd_claim_link() {
   f=$(claim_file)
-  if [ -r "$f" ]; then cat "$f"; return 0; fi
+  if [ -r "$f" ]; then
+    link=$(cat "$f")
+    printf '%s\n' "$link"
+    # a server with no address of its own prints a link on this machine's own address (0.0.0.0 means "this machine"): say where it opens, on stderr so the link stays alone on stdout
+    case "$link" in
+      http://0.0.0.0:*|http://127.0.0.1:*|http://localhost:*)
+        p=$(printf '%s' "$link" | sed -n 's|^http://[^:/]*:\([0-9]*\)/.*|\1|p')
+        { say ""
+          say "This link opens only on this server: it has no web address yet, and 0.0.0.0 is not an address you can open from another computer."
+          say "  - In the Vyre app: choose Create a Space, then Team Space, and paste the link."
+          say "  - In a browser on your own computer: run  ssh -L ${p:-8420}:127.0.0.1:${p:-8420} root@$(hostname -f 2>/dev/null || hostname)  and, while that stays open, paste the link above with 0.0.0.0 changed to localhost."
+          say "  - For a web address your whole team can open, install with your own name: --domain vyre.example.com (docs/getting-started.md)."
+        } >&2 ;;
+    esac
+    return 0
+  fi
   [ ! -e "$f" ] || die "cannot read $f. Run it as root: sudo vyre-server claim-link"
   die "there is no claim link: the Space is claimed already, or the server has not started yet (vyre-server status)."
 }
@@ -259,14 +325,37 @@ $1	$2	$3"
 
 json_str() { printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' | tr '\n\t' '  '; }
 
+# crypt_on_file: the encrypted volume under the data directory is a loop device, a file on some disk (its key may sit beside it; this server cannot see where the key is).
+crypt_on_file() {
+  m=/proc/mounts; l=lsblk
+  if [ "${VYRE_TEST_MODE:-0}" = 1 ]; then m=${VYRE_TEST_PROC_MOUNTS:-/proc/mounts}; [ -z "${VYRE_TEST_LSBLK:-}" ] || l=$VYRE_TEST_LSBLK; fi
+  src=$(awk -v d="$DATA_DIR" '{ t = $2 } (t == "/" || d == t || index(d, t "/") == 1) && length(t) >= best { best = length(t); line = $1 } END { print line }' "$m" 2>/dev/null)
+  [ -n "$src" ] || return 1
+  "$l" -s -n -o TYPE "$src" 2>/dev/null | grep -qx loop
+}
+
 check_all() {
-  # the volume the data lives on
+  # the volume the data lives on, and what the person chose about it when it is not visibly encrypted
   disk_encrypted "$DATA_DIR" && rc=0 || rc=$?
-  case "$rc" in
-    0) finding host.disk_encrypted healthy "The data directory $DATA_DIR is on an encrypted volume." ;;
-    1) finding host.disk_encrypted down "The data directory $DATA_DIR is not on an encrypted volume. Move it to a LUKS or other encrypted volume." ;;
-    *) finding host.disk_encrypted down "Could not tell whether $DATA_DIR is on an encrypted volume (no /proc/mounts or lsblk answer)." ;;
-  esac
+  enc_kind=$(sed -n 's/^kind=//p' "$DIR/state/encryption" 2>/dev/null | head -n 1)
+  enc_since=$(sed -n 's/^since=//p' "$DIR/state/encryption" 2>/dev/null | head -n 1)
+  if crypt_env && ! crypt_mounted; then
+    finding host.disk_encrypted down "The encrypted data volume is closed, so the Space cannot start. Open it: sudo vyre-server unlock."
+  else
+    case "$rc" in
+      0) if [ -f "$DIR/state/crypt.env" ]; then finding host.disk_encrypted healthy "The data directory $DATA_DIR is on an encrypted volume made by the installer ($( [ -n "${CRYPT_KEYFILE:-}" ] && printf 'key file on another volume' || printf 'passphrase typed after each restart' )). It protects a copy of the disk, not a person logged in to this server."
+         elif crypt_on_file; then finding host.disk_encrypted healthy "The data directory $DATA_DIR is on an encrypted volume that is a file on this disk. If its key is kept on this same disk, it protects nothing: keep the key somewhere else."
+         else finding host.disk_encrypted healthy "The data directory $DATA_DIR is on an encrypted volume."; fi ;;
+      *) case "$enc_kind" in
+           plain) finding host.disk_encrypted degraded "The data is NOT encrypted at rest. You chose to install on a plain disk${enc_since:+ on $enc_since}: anyone who gets a copy of this disk, a snapshot or a backup can read it." ;;
+           provider) finding host.disk_encrypted healthy "You said your cloud provider encrypts the data volume at rest${enc_since:+ ($enc_since)}. This server cannot see that; check it with your provider." ;;
+           *) case "$rc" in
+                1) finding host.disk_encrypted down "The data directory $DATA_DIR is not on an encrypted volume. Re-run the installer with --encrypt-data, --provider-encrypted or --allow-plain-disk (see its --help)." ;;
+                *) finding host.disk_encrypted down "Could not tell whether $DATA_DIR is on an encrypted volume (no /proc/mounts or lsblk answer)." ;;
+              esac ;;
+         esac ;;
+    esac
+  fi
   # room to work
   free_mb=$(df -Pm "$DATA_DIR" 2>/dev/null | awk 'NR==2 {print $4}')
   if [ -z "$free_mb" ]; then finding host.disk_space degraded "Could not read the free space of $DATA_DIR."
@@ -486,11 +575,30 @@ backup_data() {
   BACKUP_FILE=$out
 }
 
+# fs_device PATH: the device the folder holding PATH sits on (first column of df), to tell whether a backup is on the same disk as the data.
+fs_device() {
+  _p=$1
+  if [ "${VYRE_TEST_MODE:-0}" = 1 ] && [ -n "${VYRE_TEST_FS_DEVICE:-}" ]; then
+    printf '%s' "$VYRE_TEST_FS_DEVICE" | tr ',' '\n' | awk -F= -v p="$_p" 'index(p, $1) == 1 { print $2; exit }'
+    return 0
+  fi
+  while [ ! -e "$_p" ]; do _p=$(dirname "$_p"); done
+  df -P "$_p" 2>/dev/null | awk 'NR==2 {print $1}'
+}
+# backup_note: a backup on the same disk as the data is no protection against losing the disk or the server; say so, and the one command that copies it out.
+backup_note() {
+  if [ "$(fs_device "$(dirname "$BACKUP_FILE")")" = "$(fs_device "$DATA_DIR")" ]; then
+    say "  This backup is on the same disk as the Space's data. If this server or its disk is lost, the backup is lost with it. Copy it somewhere else, from your own computer:"
+    say "    scp root@$(hostname -f 2>/dev/null || hostname):$BACKUP_FILE ."
+  fi
+}
+
 # The server keeps running for a plain backup: nothing is stopped, nothing needs starting.
 cmd_backup() {
   lock_update_operation
   backup_data manual live
   say "Backup written: $BACKUP_FILE"
+  backup_note
 }
 
 # restore_check FILE DEST: the backup is a tar.gz of space/ and caddy/ only, no links, no path outside, and every database in it opens and passes integrity_check. Unpacked into DEST.
@@ -790,11 +898,13 @@ cmd_update() {
     # the old order, for a person who wants one copy that is consistent across every database file: the server is down for the whole backup
     backup_data "pre-$REL_VERSION"
     say "  Backed up to $BACKUP_FILE"
+    backup_note
   else
     # The backup is the long part (every database is copied and the folder is compressed). It is taken while the server keeps running, each database as one consistent snapshot, and
     # only then is the server stopped, so the Space is down for the switch and the restart alone. Writes made after a database was copied are not in the backup file.
     backup_data "pre-$REL_VERSION" live
     say "  Backed up to $BACKUP_FILE while the server kept running."
+    backup_note
     dc stop >/dev/null || true
     stop_strays
   fi
@@ -871,6 +981,7 @@ main() {
     update) cmd_update "$@" ;;
     fix-userns) ensure_userns; say "Done." ;;
     rollback) cmd_rollback ;;
+    unlock) cmd_unlock "$@" ;;
     backup) cmd_backup ;;
     restore) cmd_restore "$@" ;;
     version|--version) say "$(cur_version)" ;;

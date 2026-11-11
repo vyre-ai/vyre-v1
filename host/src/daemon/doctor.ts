@@ -25,6 +25,8 @@ export interface DoctorOptions {
   now?: () => number;
   /** replace the disk check (recorded-output version from P-L7b_04) */
   diskEncrypted?: () => Promise<ProbeResult>;
+  /** what the person chose about disk encryption at install */
+  diskChoice?: { kind: string; since?: string };
 }
 
 const finding = (key: string, r: ProbeResult, next: string): Finding => ({ key, state: r.state, detail: r.detail ?? "", next: r.state === "healthy" ? OK : next });
@@ -139,7 +141,7 @@ export async function runDoctor(o: DoctorOptions): Promise<DoctorReport> {
   findings.push(info && alive(info.pid)
     ? { key: "daemon.process", state: "healthy", detail: `vyred runs as pid ${info.pid} on ${info.url}.`, next: OK }
     : { key: "daemon.process", state: "degraded", detail: "vyred is not running.", next: NEXT.process });
-  findings.push(finding("host.disk_encrypted", await (o.diskEncrypted ? o.diskEncrypted() : probes.diskEncrypted(platform, o.dataDir)), NEXT.disk));
+  findings.push(finding("host.disk_encrypted", await (o.diskEncrypted ? o.diskEncrypted() : probes.diskEncrypted(platform, o.dataDir, o.diskChoice)), NEXT.disk));
   findings.push(finding("host.disk_space", probes.diskSpace(platform, o.dataDir), NEXT.space));
   if (space) {
     findings.push(eventsFinding(paths.events, o.chainTail));

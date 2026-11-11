@@ -25,7 +25,23 @@ export function stackIsEncrypted(lsblkTypes: string): boolean {
   return lsblkTypes.split("\n").some((l) => l.trim().toLowerCase() === "crypt");
 }
 
-export async function diskEncrypted(p: Platform, dataDir: string): Promise<ProbeResult> {
+/** What the person chose at install about the disk question (VYRE_DISK_ENCRYPTION, written by the installer): the server inside Docker cannot see the host's disk, so it reports the choice. */
+export interface DiskChoice { kind: string; since?: string }
+
+export function diskChoiceResult(c: DiskChoice): ProbeResult | null {
+  const when = c.since ? ` on ${c.since}` : "";
+  switch (c.kind) {
+    case "plain": return result("degraded", `The data is NOT encrypted at rest. You chose to install on a plain disk${when}: anyone who gets a copy of this disk, a snapshot or a backup can read it.`);
+    case "provider": return result("healthy", `You said your cloud provider encrypts the data volume at rest${when}. This server cannot see that; check it with your provider.`);
+    case "luks": return result("healthy", "The data is on an encrypted (LUKS) volume made by the installer. It protects a copy of the disk, not a person logged in to this server.");
+    case "detected": return result("healthy", "The installer found the data directory on an encrypted volume.");
+    default: return null;
+  }
+}
+
+export async function diskEncrypted(p: Platform, dataDir: string, choice?: DiskChoice | null): Promise<ProbeResult> {
+  const chosen = choice ? diskChoiceResult(choice) : null;
+  if (chosen) return chosen;
   if (p.os === "darwin") {
     const r = await p.run("fdesetup", ["status"]);
     const on = r.code === 0 || r.stdout ? parseFdesetup(r.stdout) : null;

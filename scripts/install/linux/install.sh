@@ -8,7 +8,11 @@
 #   --version V        install release V; the channel's manifest must name exactly that version
 #   --domain NAME      serve this Space on your own domain (Caddy gets the certificate by ACME, ports 80 and 443 must reach this machine)
 #   --relay [URL]      serve through Vyre's relay instead (default https://relay.vyre.run); the machine opens no public port
-#   --data-dir DIR     where the Space's data lives (default $VYRE_DIR/data); must be on an encrypted volume
+#   --data-dir DIR     where the Space's data lives (default $VYRE_DIR/data); must be on an encrypted volume unless you choose one of the three below
+#   --encrypt-data     make an encrypted (LUKS) volume for the data directory: a file ($VYRE_DIR/data.luks, --encrypt-size GB, default 20) or --encrypt-device /dev/xxx.
+#                      You type a passphrase (needed again after every restart: vyre-server unlock) or give --key-file PATH on another volume.
+#   --provider-encrypted   your word that the volume is encrypted at rest by your cloud provider (this server cannot see that); recorded
+#   --allow-plain-disk     install on a plain disk anyway; recorded, and doctor and the Console warn that the data is not encrypted at rest
 #   --role compute     with --server ADDRESS and VYRE_JOIN=<code>: add this machine to your Space as a server (agent computers run here)
 #   --uninstall        stop the server, remove the units and /usr/local/bin/vyre-server; data and backups stay
 #   --purge            with --uninstall: also delete the data and backups, after asking
@@ -19,8 +23,8 @@
 #
 # What it does, in order, and stops at the first thing that is wrong:
 #   1. checks the machine: Linux, root, curl/tar/sha256sum/openssl/jq, 10 GB free, and that the data directory sits on an ENCRYPTED volume
-#      (LUKS or dm-crypt, an encrypted ZFS dataset, or ecryptfs). Without one it refuses and says how to fix it. There is no switch around this.
-#   2. installs Docker Engine and the Compose plugin from Docker's signed apt repository on Debian and Ubuntu when they are missing.
+#      (LUKS or dm-crypt, an encrypted ZFS dataset, or ecryptfs). Without one it refuses and shows three ways forward; the choice is yours and is recorded.
+#   2. installs Docker Engine and the Compose plugin from Docker's signed apt repository on Debian and Ubuntu when they are missing (the repository key's fingerprint is checked).
 #   3. downloads the channel's signed manifest and checks its Ed25519 signature against the Vyre release key in this script (the signature covers
 #      "vyre-release-sums\n" and the exact manifest bytes, the same scheme the server's own updater checks), then downloads the release tarball and
 #      checks its sha256 against the manifest. A bad signature or hash stops everything; nothing from an unchecked file is ever run or read.
@@ -46,6 +50,15 @@ WANT=""
 DOMAIN=""
 RELAY=""
 DATA_DIR_ARG=""
+ENCRYPT=0
+ENCRYPT_DEVICE=""
+ENCRYPT_SIZE_GB=20
+KEY_FILE_ARG=""
+ALLOW_PLAIN=0
+PROVIDER_ENC=0
+ENC_KIND=""
+NETWORK_CHANGED=0
+PASS=""
 ROLE=space
 SERVER_ARG=""
 JOIN_ARG=${VYRE_JOIN:-}
@@ -198,6 +211,12 @@ parse_args() {
       --domain) shift; [ $# -gt 0 ] || die "--domain needs a value"; DOMAIN=$1 ;;
       --relay) if [ $# -gt 1 ] && [ "${2#-}" = "$2" ]; then shift; RELAY=$1; else RELAY=$DEFAULT_RELAY; fi ;;
       --data-dir) shift; [ $# -gt 0 ] || die "--data-dir needs a value"; DATA_DIR_ARG=$1 ;;
+      --encrypt-data) ENCRYPT=1 ;;
+      --encrypt-device) shift; [ $# -gt 0 ] || die "--encrypt-device needs a value"; ENCRYPT=1; ENCRYPT_DEVICE=$1 ;;
+      --encrypt-size) shift; [ $# -gt 0 ] || die "--encrypt-size needs a number of GB"; ENCRYPT_SIZE_GB=$1 ;;
+      --key-file) shift; [ $# -gt 0 ] || die "--key-file needs a path"; KEY_FILE_ARG=$1 ;;
+      --provider-encrypted) PROVIDER_ENC=1 ;;
+      --allow-plain-disk) ALLOW_PLAIN=1 ;;
       --role) shift; [ $# -gt 0 ] || die "--role needs a value"; ROLE=$1 ;;
       --server) shift; [ $# -gt 0 ] || die "--server needs a value"; SERVER_ARG=$1 ;;
       -h|--help) usage; exit 0 ;;
@@ -208,6 +227,10 @@ parse_args() {
   case "$CHANNEL" in stable|beta|nightly) ;; *) die "--channel is stable, beta or nightly" 2 ;; esac
   if [ -n "$DOMAIN" ] && [ -n "$RELAY" ]; then die "--domain and --relay are two ways to reach this server; choose one" 2; fi
   case "$DOMAIN" in ""|*[!A-Za-z0-9.-]*) [ -z "$DOMAIN" ] || die "--domain must be a host name like vyre.example.com" 2 ;; esac
+  case "$ENCRYPT_SIZE_GB" in ""|*[!0-9]*) die "--encrypt-size is a whole number of GB" 2 ;; esac
+  [ "$ENCRYPT_SIZE_GB" -ge 5 ] || die "--encrypt-size must be at least 5 GB" 2
+  [ "$ENCRYPT" = 1 ] || [ -z "$KEY_FILE_ARG" ] || die "--key-file goes with --encrypt-data" 2
+  [ $((ENCRYPT + ALLOW_PLAIN + PROVIDER_ENC)) -le 1 ] || die "--encrypt-data, --provider-encrypted and --allow-plain-disk are three different answers to the disk question; choose one" 2
   node_check_args
   # a machine that joins someone else's Space keeps its own small folder, apart from any server's
   if [ "$ROLE" = compute ] && [ -z "${VYRE_DIR:-}" ]; then DIR=/srv/vyre-node; fi
@@ -257,27 +280,172 @@ check_space() {
   [ "$free_mb" -ge "$MIN_FREE_MB" ] || die "$d has $free_mb MB free; Vyre Server needs at least $MIN_FREE_MB MB (images, the Space, backups)."
 }
 
-# The data directory must sit on an encrypted volume (lead ruling Q1). Refuse, with the next step, when it does not.
+# What this installer remembered about the disk question on an earlier run (state/encryption: kind=luks|provider|plain|detected).
+enc_file() { printf '%s/state/encryption' "$DIR"; }
+enc_prior() { sed -n 's/^kind=//p' "$(enc_file)" 2>/dev/null | head -n 1; }
+
+# fs_device PATH: the device the folder holding PATH sits on (the first column of df), for "is this key on the same disk as the data".
+fs_device() {
+  _p=$1
+  if [ "${VYRE_TEST_MODE:-0}" = 1 ] && [ -n "${VYRE_TEST_FS_DEVICE:-}" ]; then
+    printf '%s' "$VYRE_TEST_FS_DEVICE" | tr ',' '\n' | awk -F= -v p="$_p" 'index(p, $1) == 1 { print $2; exit }'
+    return 0
+  fi
+  while [ ! -e "$_p" ]; do _p=$(dirname "$_p"); done
+  df -P "$_p" 2>/dev/null | awk 'NR==2 {print $1}'
+}
+
+refuse_plain_disk() {
+  d=$1; rc=$2
+  printf 'vyre: the data directory %s is not on an encrypted volume%s.\n' "$d" "$([ "$rc" = 2 ] && printf ' that this installer can verify')" >&2
+  cat >&2 <<EOT
+
+Vyre keeps your Space's data, keys and backups there, so by default it will not install onto a plain disk.
+Choose one of these, then run the installer again:
+
+  1. Use your cloud provider's encrypted volume (the usual choice on a cloud server).
+     Attach an encrypted volume at your provider and mount it, then add:  --data-dir <its folder> --provider-encrypted
+     This server cannot see the provider's encryption from the inside, so --provider-encrypted is your word that it is on. Vyre records that.
+     Which providers do this, and how: docs/getting-started.md, "Encrypting the data disk".
+
+  2. Let this installer make an encrypted volume:  --encrypt-data
+     It makes a LUKS volume of $ENCRYPT_SIZE_GB GB for the data directory (change it with --encrypt-size GB, or give a spare disk with --encrypt-device /dev/xxx).
+     You type a passphrase, and type it again after every restart (vyre-server unlock). Or keep the key on another volume with --key-file PATH.
+     This protects a copy of the disk, a snapshot or a stolen drive. It does not protect against someone who can log in to this server while it runs.
+
+  3. Install on the plain disk anyway:  --allow-plain-disk
+     Vyre records your choice. vyre-server doctor and the Console then say, every time, that the data is not encrypted at rest.
+EOT
+  exit 3
+}
+
+plain_notice() {
+  say "  !!  the data directory $1 is on a plain disk. You chose that: the Space's data is NOT encrypted at rest."
+  say "      Anyone who gets a copy of this disk, a snapshot or a backup can read it. vyre-server doctor and the Console will keep saying so."
+}
+
+# prompt_passphrase: sets PASS from the terminal (typed twice, or made for you), never from an argument or the environment. Needs a terminal.
+prompt_passphrase() {
+  (: </dev/tty) 2>/dev/null || die "the volume needs a passphrase and there is no terminal to ask on. Download the installer and run it from a terminal (curl -fsSLO <the install.sh address>, then sudo sh install.sh --encrypt-data ...), or give --key-file PATH." 2
+  printf 'Choose a passphrase for the data volume (press Enter to have one made for you): ' >/dev/tty
+  stty -echo </dev/tty 2>/dev/null || true
+  read -r PASS </dev/tty || PASS=""
+  stty echo </dev/tty 2>/dev/null || true
+  printf '\n' >/dev/tty
+  if [ -z "$PASS" ]; then
+    PASS=$(openssl rand -base64 24 | tr -d '/+=\n' | cut -c1-24)
+    printf 'Your passphrase is:  %s\nWrite it down or put it in a password manager now. It is not stored on this server and is not shown again; without it the data cannot be opened.\n' "$PASS" >/dev/tty
+    printf 'Type it again to confirm you have it: ' >/dev/tty
+  else
+    printf 'Type it again: ' >/dev/tty
+  fi
+  stty -echo </dev/tty 2>/dev/null || true
+  read -r again </dev/tty || again=""
+  stty echo </dev/tty 2>/dev/null || true
+  printf '\n' >/dev/tty
+  [ "$PASS" = "$again" ] || die "the two did not match; nothing was changed."
+  [ "${#PASS}" -ge 8 ] || die "use at least 8 characters; nothing was changed."
+}
+
+# encrypt_data DIR: make a LUKS volume (a file, or the device given), format it, mount it on DIR, and remember how to open it (state/crypt.env). The key is never written anywhere by this installer
+# unless --key-file names a file on another volume; a key on this same disk would protect nothing, so that is refused.
+encrypt_data() {
+  d=$1
+  if [ "$DRY" = 1 ]; then
+    say "would make an encrypted (LUKS) volume ${ENCRYPT_DEVICE:-of $ENCRYPT_SIZE_GB GB in $DIR/data.luks} and mount it on $d"
+    ENC_KIND=luks
+    return 0
+  fi
+  if ! command -v cryptsetup >/dev/null 2>&1; then
+    say "  Installing cryptsetup (the tool that makes the encrypted volume)."
+    apt_install cryptsetup || die "cryptsetup is not installed and could not be added. Install it (apt-get install cryptsetup) and run this installer again."
+  fi
+  if [ -d "$d" ] && [ -n "$(ls -A "$d" 2>/dev/null)" ]; then die "$d already holds files on the plain disk; move them away first (an encrypted volume would hide them). Nothing was changed."; fi
+  mkdir -p "$DIR/state"
+  if [ -n "$ENCRYPT_DEVICE" ]; then
+    [ -b "$ENCRYPT_DEVICE" ] || [ "${VYRE_TEST_MODE:-0}" = 1 ] || die "$ENCRYPT_DEVICE is not a disk or partition on this machine."
+    target=$ENCRYPT_DEVICE
+    say "  This will ERASE everything on $target."
+    ask "Erase $target and use it for Vyre's data?" || die "not changed. (Run it from a terminal, or add --yes to confirm.)"
+  else
+    target=$DIR/data.luks
+    [ ! -e "$target" ] || die "$target already exists; it may hold an earlier volume. Move it away or open it yourself. Nothing was changed."
+    probe=$DIR; while [ ! -d "$probe" ]; do probe=$(dirname "$probe"); done
+    free_gb=$(( $(df -Pm "$probe" 2>/dev/null | awk 'NR==2 {print $4}') / 1024 ))
+    [ "${free_gb:-0}" -ge $((ENCRYPT_SIZE_GB + 5)) ] || die "the volume needs $ENCRYPT_SIZE_GB GB and this disk has $free_gb GB free (it also needs room for the images). Choose a smaller --encrypt-size, or free space."
+  fi
+  keyfile=""
+  if [ -n "$KEY_FILE_ARG" ]; then
+    keyfile=$KEY_FILE_ARG
+    kd=$(dirname "$keyfile")
+    [ -d "$kd" ] || die "the folder for the key file, $kd, does not exist."
+    if [ "$(fs_device "$kd")" = "$(fs_device "$DIR")" ]; then
+      die "$keyfile is on the same disk as Vyre's data. A key kept beside the data it opens protects nothing. Put it on another volume (a separate disk, a USB drive, a network mount) and give that path. Nothing was changed."
+    fi
+    if [ ! -f "$keyfile" ]; then
+      ( umask 077; openssl rand -base64 48 >"$keyfile" ) || die "could not write $keyfile."
+      say "  Made a new key file: $keyfile. Keep a copy somewhere safe: without it the data cannot be opened."
+    fi
+  else
+    prompt_passphrase
+  fi
+  say "  Making the encrypted volume (this changes nothing but $target)."
+  if [ -z "$ENCRYPT_DEVICE" ]; then
+    fallocate -l "${ENCRYPT_SIZE_GB}G" "$target" 2>/dev/null || dd if=/dev/zero of="$target" bs=1M count=$((ENCRYPT_SIZE_GB * 1024)) status=none || die "could not make $target."
+    chmod 0600 "$target"
+  fi
+  if [ -n "$keyfile" ]; then
+    cryptsetup luksFormat --batch-mode --type luks2 --key-file "$keyfile" "$target" || die "cryptsetup could not format $target."
+    cryptsetup open --key-file "$keyfile" "$target" vyre-data || die "cryptsetup could not open $target."
+  else
+    printf '%s' "$PASS" | cryptsetup luksFormat --batch-mode --type luks2 --key-file=- "$target" || die "cryptsetup could not format $target."
+    printf '%s' "$PASS" | cryptsetup open --key-file=- "$target" vyre-data || die "cryptsetup could not open $target."
+  fi
+  PASS=""
+  mkfs.ext4 -q -L vyre-data /dev/mapper/vyre-data || die "could not make a file system on the encrypted volume."
+  mkdir -p "$d"
+  mount /dev/mapper/vyre-data "$d" || die "could not mount the encrypted volume on $d."
+  printf 'CRYPT_TARGET=%s\nCRYPT_NAME=vyre-data\nCRYPT_MOUNT=%s\nCRYPT_KEYFILE=%s\n' "$target" "$d" "$keyfile" >"$DIR/state/crypt.env"
+  ENC_KIND=luks
+  say "  ok  the data directory $d is on an encrypted (LUKS) volume made by this installer"
+  say ""
+  say "  What this protects, and what it does not:"
+  say "    - It protects a copy of this disk: a snapshot, a stolen or recycled drive, a backup of the disk."
+  say "    - It does not protect against someone who can log in to this server while it runs: the volume is open then."
+  if [ -n "$keyfile" ]; then
+    say "    - The key is the file $keyfile on another volume. After a restart the server opens the data by itself only while that volume is mounted;"
+    say "      otherwise run: sudo vyre-server unlock --key-file <path>"
+  else
+    say "    - The passphrase is not stored on this server. After every restart the Space stays closed until you run: sudo vyre-server unlock"
+    say "      (so a restart, or an update that restarts the machine, needs a person)."
+  fi
+  say ""
+}
+
+# The data directory must sit on an encrypted volume, or the person must choose how to go on (one of three ways, recorded). Refuse, with the three ways, when they have not.
 check_encrypted() {
   d=$1
   probe=$d
   while [ ! -d "$probe" ]; do probe=$(dirname "$probe"); done
   disk_encrypted "$probe" && rc=0 || rc=$?
-  case "$rc" in
-    0) say "  ok  the data directory $d is on an encrypted volume" ;;
-    *)
-      printf 'vyre: the data directory %s is not on an encrypted volume%s.\n' "$d" "$([ "$rc" = 2 ] && printf ' that this installer can verify')" >&2
-      cat >&2 <<EOF
-
-Vyre keeps your Space's data, keys and backups here, so it will not install onto a plain disk.
-Fix it one of these ways, then run the installer again:
-  - put /srv (or the --data-dir you choose) on a LUKS volume:  cryptsetup luksFormat /dev/<device>; cryptsetup open /dev/<device> vyre-data; mkfs.ext4 /dev/mapper/vyre-data; mount /dev/mapper/vyre-data /srv
-  - or choose a directory that is already on an encrypted volume with --data-dir
-  - on a cloud machine, turn on full-disk encryption for the volume (or attach an encrypted one) and mount it there
-EOF
-      exit 3
-      ;;
+  prior=$(enc_prior)
+  if [ "$rc" = 0 ]; then
+    ENC_KIND=detected
+    say "  ok  the data directory $d is on an encrypted volume"
+    return 0
+  fi
+  if [ "$ENCRYPT" = 1 ]; then encrypt_data "$d"; return 0; fi
+  if [ "$PROVIDER_ENC" = 1 ]; then
+    ENC_KIND=provider
+    say "  ok  you said the volume holding $d is encrypted at rest by your provider. This installer cannot check that from the inside; it is recorded as your statement."
+    return 0
+  fi
+  if [ "$ALLOW_PLAIN" = 1 ]; then ENC_KIND=plain; plain_notice "$d"; return 0; fi
+  case "$prior" in
+    provider|plain) ENC_KIND=$prior; say "  ok  $d: your earlier choice stands ($prior); to change it, run the installer with another of the three disk options"; return 0 ;;
+    luks) die "the encrypted volume for $d is not open. Run: sudo vyre-server unlock, then run this installer again." ;;
   esac
+  refuse_plain_disk "$d" "$rc"
 }
 
 # ---- Docker -------------------------------------------------------------------------------------------------------------------------
@@ -289,37 +457,47 @@ compose_ok() {
   [ "$major" -gt 2 ] || { [ "$major" -eq 2 ] && [ "$minor" -ge 24 ]; }
 }
 
+# Docker's apt repository key (the fingerprint Docker publishes at https://docs.docker.com/engine/install/ubuntu/): the key file is checked against it before the repository is trusted.
+DOCKER_KEY_FPR=9DC858229FC7DD38854AE2D88D81803C0EBFCD88
+
 # Docker Engine from Docker's own signed apt repository on Debian and Ubuntu. Anywhere else the person installs Docker and runs this again.
 docker_apt_install() {
   osr=${VYRE_OS_RELEASE:-/etc/os-release}
+  KEYRING_DIR=/etc/apt/keyrings; APT_LIST_DIR=/etc/apt/sources.list.d
+  if [ "${VYRE_TEST_MODE:-0}" = 1 ]; then KEYRING_DIR=${VYRE_KEYRING_DIR:-$KEYRING_DIR}; APT_LIST_DIR=${VYRE_APT_LIST_DIR:-$APT_LIST_DIR}; fi
   [ -r "$osr" ] || return 1
   os_id=$(. "$osr"; printf '%s' "${ID:-}")
   case "$os_id" in ubuntu|debian) ;; *) return 1 ;; esac
   command -v apt-get >/dev/null 2>&1 && command -v dpkg >/dev/null 2>&1 || return 1
   os_code=$(. "$osr"; if [ "${ID:-}" = ubuntu ]; then printf '%s' "${UBUNTU_CODENAME:-${VERSION_CODENAME:-}}"; else printf '%s' "${VERSION_CODENAME:-}"; fi)
   [ -n "$os_code" ] || return 1
-  if [ "$DRY" = 1 ]; then say "would install Docker Engine and the Compose plugin from Docker's apt repository for $os_id $os_code"; return 0; fi
-  say "  Installing Docker (about a minute)."
+  if [ "$DRY" = 1 ]; then say "would install Docker Engine and the Compose plugin from Docker's apt repository for $os_id $os_code (its key checked against Docker's published fingerprint)"; return 0; fi
+  say "  Docker is not installed. Installing Docker Engine and the Compose plugin from Docker's own apt repository (about a minute)."
   export DEBIAN_FRONTEND=noninteractive
   {
-    apt-get update -y && apt-get install -y ca-certificates curl \
-      && install -m 0755 -d /etc/apt/keyrings \
-      && curl -fsSL "https://download.docker.com/linux/$os_id/gpg" -o /etc/apt/keyrings/docker.asc \
-      && chmod a+r /etc/apt/keyrings/docker.asc \
-      && printf 'deb [arch=%s signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/%s %s stable\n' "$(dpkg --print-architecture)" "$os_id" "$os_code" >/etc/apt/sources.list.d/docker.list \
+    apt-get update -y && apt-get install -y ca-certificates curl gnupg \
+      && install -m 0755 -d "$KEYRING_DIR" \
+      && curl -fsSL "https://download.docker.com/linux/$os_id/gpg" -o "$KEYRING_DIR/docker.asc" \
+      && chmod a+r "$KEYRING_DIR/docker.asc"
+  } >"$TMP/docker-install.log" 2>&1 || die "Docker did not install. Its own output is in $TMP/docker-install.log (kept); after fixing that, run this installer again."
+  fpr=$(gpg --show-keys --with-colons "$KEYRING_DIR/docker.asc" 2>/dev/null | awk -F: '$1 == "fpr" { print $10; exit }')
+  if [ "$fpr" != "$DOCKER_KEY_FPR" ]; then rm -f "$KEYRING_DIR/docker.asc"; die "the Docker repository key is not the one Docker publishes (got ${fpr:-nothing}); nothing was installed."; fi
+  say "  ok  Docker's repository key matches the fingerprint Docker publishes"
+  {
+    printf 'deb [arch=%s signed-by=%s/docker.asc] https://download.docker.com/linux/%s %s stable\n' "$(dpkg --print-architecture)" "$KEYRING_DIR" "$os_id" "$os_code" >"$APT_LIST_DIR/docker.list" \
       && apt-get update -y \
       && apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
-  } >"$TMP/docker-install.log" 2>&1 || die "Docker did not install. Its own output is in $TMP/docker-install.log (kept); after fixing that, run this installer again."
+  } >>"$TMP/docker-install.log" 2>&1 || die "Docker did not install. Its own output is in $TMP/docker-install.log (kept); after fixing that, run this installer again."
   command -v systemctl >/dev/null 2>&1 && systemctl enable --now docker >/dev/null 2>&1 || true
   return 0
 }
 
 need_docker() {
   if ! command -v docker >/dev/null 2>&1; then
-    if ask "Docker is not installed. Install Docker Engine from Docker's apt repository now?" && docker_apt_install; then
+    if docker_apt_install; then
       [ "$DRY" = 1 ] && return 0
     else
-      say "Vyre Server runs in Docker. Install Docker Engine and the Compose plugin (https://docs.docker.com/engine/install/), then run this installer again."
+      say "Vyre Server runs in Docker, and this installer adds it only on Debian and Ubuntu. Install Docker Engine and the Compose plugin (https://docs.docker.com/engine/install/), then run this installer again."
       exit 1
     fi
   fi
@@ -422,6 +600,9 @@ space_id() {
   printf '%s' "$_s"
 }
 
+# access_words ADDRESS RELAY: how a server is reached, in a few plain words.
+access_words() { if [ -n "$1" ]; then printf 'your own name, https://%s' "$1"; elif [ -n "$2" ]; then printf "Vyre's relay (%s)" "$2"; else printf 'no way set yet'; fi; }
+
 write_config() {
   if [ "$DRY" = 1 ]; then say "would write $DIR/vyre.env (0600), $DIR/compose.env and $DIR/compose.override.yml, and create $DATA_DIR"; return 0; fi
   mkdir -p "$DIR" "$DATA_DIR/space" "$DATA_DIR/work" "$DATA_DIR/caddy" "$DATA_DIR/caddy-config" "$DIR/backups" "$DIR/state"
@@ -436,6 +617,17 @@ write_config() {
     # a server for a Personal Space (Settings, Computers, Add a server): VYRE_PEER_JOIN is the one-time code; the server joins through the relay, needs no address and holds a full copy
     if [ -n "${VYRE_PEER_JOIN:-}" ]; then printf 'VYRE_SPACE_KIND=personal\nVYRE_PEERS=1\nVYRE_PEER_KIND=server\nVYRE_PEER_JOIN=%s\n' "$VYRE_PEER_JOIN" >>"$DIR/vyre.env"; fi
   fi
+  # How this server is reached: what the flags say, else what the earlier install had. Changing it on an existing install is said out loud and applied (the server is recreated below).
+  old_addr=$(sed -n 's/^VYRE_ADDRESS=//p' "$DIR/compose.env" 2>/dev/null | head -n 1)
+  old_relay=$(sed -n 's/^VYRE_RELAY_URL=//p' "$DIR/compose.env" 2>/dev/null | head -n 1)
+  old_rev=$(sed -n 's/^VYRE_NETWORK_REV=//p' "$DIR/compose.env" 2>/dev/null | head -n 1)
+  if [ -z "$DOMAIN$RELAY" ]; then DOMAIN=$old_addr; RELAY=$old_relay; fi
+  rev=$old_rev
+  if [ -f "$DIR/compose.env" ] && { [ "$DOMAIN" != "$old_addr" ] || [ "$RELAY" != "$old_relay" ]; }; then
+    NETWORK_CHANGED=1
+    rev=$(date +%s)
+    say "  Changing how this server is reached: from $(access_words "$old_addr" "$old_relay") to $(access_words "$DOMAIN" "$RELAY"). The Space's data is kept."
+  fi
   # compose.env: what the compose file reads. Rewritten each install from the release and the choices made here.
   {
     printf 'VYRE_IMAGE=%s\n' "$(lock_get VYRE_IMAGE)"
@@ -449,14 +641,16 @@ write_config() {
     printf 'VYRE_SPACE=%s\n' "$(space_id)"
     [ -z "$DOMAIN" ] || printf 'VYRE_ADDRESS=%s\n' "$DOMAIN"
     [ -z "$RELAY" ] || printf 'VYRE_RELAY_URL=%s\n' "$RELAY"
+    [ -z "$rev" ] || printf 'VYRE_NETWORK_REV=%s\n' "$rev"
+    # without a domain no port is opened to the internet: 80 and 443 stay on this machine's own loopback address
+    [ -n "$DOMAIN" ] || printf 'VYRE_BIND=127.0.0.1\n'
+    # what was chosen about disk encryption, for the Console's health page (the server inside Docker cannot see the host's disk)
+    kind=${ENC_KIND:-$(enc_prior)}
+    if [ -n "$kind" ]; then printf 'VYRE_DISK_ENCRYPTION=%s\nVYRE_DISK_ENCRYPTION_SINCE=%s\n' "$kind" "$(sed -n 's/^since=//p' "$(enc_file)" 2>/dev/null | head -n 1 | grep . || date -u +%Y-%m-%d)"; fi
   } >"$DIR/compose.env.new"
-  # A re-run keeps the address and relay chosen the first time unless a flag changes them.
-  if [ -f "$DIR/compose.env" ]; then
-    for k in VYRE_ADDRESS VYRE_RELAY_URL; do
-      if ! grep -q "^$k=" "$DIR/compose.env.new" && grep -q "^$k=" "$DIR/compose.env" && { [ -z "$DOMAIN" ] && [ -z "$RELAY" ]; }; then grep "^$k=" "$DIR/compose.env" >>"$DIR/compose.env.new"; fi
-    done
-  fi
   mv "$DIR/compose.env.new" "$DIR/compose.env"
+  # the disk choice, written down: a standing fact doctor and the Console read
+  if [ -n "${ENC_KIND:-}" ] && [ "$ENC_KIND" != "$(enc_prior)" ]; then printf 'kind=%s\nsince=%s\n' "$ENC_KIND" "$(date -u +%Y-%m-%d)" >"$(enc_file)"; fi
   printf '%s\n' "$CHANNEL" >"$DIR/channel"
   printf '%s\n' "${UPDATE_URL%/}/" >"$DIR/update-url"
   cat >"$DIR/compose.override.yml" <<EOF
@@ -536,9 +730,9 @@ start_stack() {
   if [ "$DRY" = 1 ]; then say "would start the server: systemctl start vyre-server.service (docker compose up -d)"; return 0; fi
   if command -v systemctl >/dev/null 2>&1 && [ "${VYRE_TEST_MODE:-0}" != 1 ]; then
     systemctl start vyre-server.service || die "the server did not start; read: journalctl -u vyre-server.service"
-  else
-    "$DIR/current/bin/vyre-server" start || die "the server did not start; read: vyre-server logs"
   fi
+  # `up -d` recreates a container whose settings changed (a new address, a new release) and leaves the rest; a plain unit start does nothing when the server already runs
+  "$DIR/current/bin/vyre-server" start || die "the server did not start; read: vyre-server logs"
 }
 
 wait_green() {
@@ -554,20 +748,70 @@ wait_green() {
   die "the server did not become healthy. Read: vyre-server logs"
 }
 
+# public_address: this machine's address as the internet sees it, or nothing.
+public_address() {
+  if [ "${VYRE_TEST_MODE:-0}" = 1 ]; then printf '%s' "${VYRE_TEST_PUBLIC_IP:-}"; return 0; fi
+  for u in https://api.ipify.org https://ifconfig.me/ip; do
+    a=$(curl -fsS --max-time 5 "$u" 2>/dev/null | tr -d ' \r\n') && [ -n "$a" ] && { printf '%s' "$a"; return 0; }
+  done
+  return 0
+}
+
+# resolve_a NAME: the first IPv4 address NAME resolves to, or nothing.
+resolve_a() {
+  if [ "${VYRE_TEST_MODE:-0}" = 1 ]; then [ -z "${VYRE_TEST_RESOLVE:-}" ] || awk -v n="$1" '$1 == n { print $2; exit }' "$VYRE_TEST_RESOLVE"; return 0; fi
+  getent ahostsv4 "$1" 2>/dev/null | awk 'NR == 1 { print $1 }'
+}
+
+# dns_lines NAME: what the name needs, one short line each, checked against this machine's address. Says which one is wrong.
+dns_lines() {
+  _n=$1
+  mine=$(public_address)
+  say "  Before people can open https://$_n, your DNS and firewall need three things:"
+  say "    1. An A record for $_n that points to this machine${mine:+ ($mine)}."
+  say "    2. An A record for a.$_n that points to the same address (artifacts open there)."
+  say "    3. Ports 80 and 443 open to the internet (in the provider's firewall too). The certificate is fetched over port 80."
+  [ -z "${VYRE_TEST_MODE:-}" ] || [ "${VYRE_TEST_MODE:-0}" != 1 ] || [ -n "${VYRE_TEST_PUBLIC_IP:-}" ] || return 0
+  if [ -z "$mine" ]; then say "  This machine's public address could not be read, so the records are not checked here."; return 0; fi
+  for _h in "$_n" "a.$_n"; do
+    got=$(resolve_a "$_h")
+    if [ -z "$got" ]; then say "  !!  $_h has no A record yet. Create one that points to $mine."
+    elif [ "$got" != "$mine" ]; then say "  !!  $_h points to $got, but this machine is $mine. Change the record to $mine."
+    else say "  ok  $_h points to this machine ($mine)"
+    fi
+  done
+}
+
+# relay_words: what the relay is, and is not, for a server installed without the app's install line.
+relay_words() {
+  say "It connects outward to $RELAY. No port is open to the internet on this machine."
+  say ""
+  if grep -q '^VYRE_SETUP_CODE=' "$DIR/vyre.env" 2>/dev/null; then
+    say "This server was installed with a one-time code from the Vyre app. Go back to the app: it finds this server and finishes the setup."
+  else
+    say "A server reached through the relay has no web address that a browser can open. The relay finds it only for the Vyre app (Mac or Windows) that made its install line."
+    say "  - With the Vyre app: in the app choose Create a Space, then Team Space, then add a server. The app shows an install line with a one-time code. Run that line here, then carry on in the app."
+    say "  - With only a browser: install with your own name instead: run this installer again with --domain vyre.example.com (docs/getting-started.md, \"A name for your server\")."
+  fi
+}
+
 finish() {
   say ""
   if [ "$DRY" = 1 ]; then
     say "That is the whole plan. Nothing on this machine changed. Run it again without --dry-run when you are ready."
   else
     say "Vyre Server $REL_VERSION is running."
-    if [ -n "$DOMAIN" ]; then say "Your Space will answer at https://$DOMAIN once its certificate is issued (ports 80 and 443 must reach this machine)."
-         say "Artifacts open on their own address, https://a.$DOMAIN. Add a DNS record for it that points where $DOMAIN points (an A or CNAME record named a.$DOMAIN); Caddy issues its certificate the same way."
-    elif [ -n "$RELAY" ]; then say "It connects outward to $RELAY; no public port is open on this machine."
+    if [ -n "$DOMAIN" ]; then say "Your Space will answer at https://$DOMAIN once the records below are right and its certificate is issued."
+         dns_lines "$DOMAIN"
+    elif [ -n "$RELAY" ]; then relay_words
     else say "Choose how people reach it: run the installer again with --domain NAME or --relay."
     fi
+    case "${ENC_KIND:-$(enc_prior)}" in
+      plain) say ""; say "Reminder: the data is NOT encrypted at rest (you chose --allow-plain-disk). vyre-server doctor says so until that changes." ;;
+      provider) say ""; say "The data volume's encryption is your provider's, as you said. This server cannot check it." ;;
+    esac
     # the link itself is a credential and stays out of this output (it can end up in a provisioning log): the owner asks for it
-    if [ -f "$DATA_DIR/space/logs/claim-link.txt" ]; then say "To claim this Space as its owner, run: sudo vyre-server claim-link and open the link it prints (once, within 24 hours)."; fi
-    say "Go back to the Vyre app to finish setting up this server."
+    if [ -f "$DATA_DIR/space/logs/claim-link.txt" ]; then say ""; say "To claim this Space as its owner, run: sudo vyre-server claim-link and open the link it prints (once, within 24 hours)."; fi
     say "Check it any time with: vyre-server doctor"
   fi
   say ""
@@ -575,7 +819,10 @@ finish() {
 
 uninstall() {
   [ -d "$DIR" ] || die "nothing is installed at $DIR."
-  if [ "$PURGE" = 1 ] && ! ask "Delete the Space's data and every backup under $DIR? This cannot be undone."; then die "not purged."; fi
+  if [ "$PURGE" = 1 ] && ! ask "Delete the Space's data and every backup under $DIR? This cannot be undone."; then
+    if (: </dev/tty) 2>/dev/null; then die "not purged: you did not answer yes. Nothing was removed."; fi
+    die "not purged, and nothing was removed: this installer cannot ask you to confirm because it is reading from a pipe. To confirm, add --yes:  ... | sudo sh -s -- --uninstall --purge --yes"
+  fi
   if command -v systemctl >/dev/null 2>&1; then
     run systemctl disable --now vyre-server-update.timer || true
     run systemctl disable --now vyre-server.service || true

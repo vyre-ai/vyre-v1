@@ -60,6 +60,10 @@ export interface DaemonConfig {
   phoneRelayUrl: string;
   /** the address people reach this Space at (own domain or relay name); the local URL when absent */
   address: string | null;
+  /** the installer's note of when the address or relay was last changed (VYRE_NETWORK_REV): the Space applies a changed value once, so re-running the installer with another address takes effect */
+  networkRev?: string;
+  /** what the person chose about disk encryption at install (VYRE_DISK_ENCRYPTION: luks, provider, plain, detected) and when */
+  diskChoice?: { kind: string; since?: string };
   /** `personal` while this daemon hosts a Personal Space (one person's desktop, ARCH 5.13); anything else, or absent, is a Team Space. */
   spaceKind?: "personal" | "team";
   /** the name a fresh Space is made with (--space-name or VYRE_SPACE_NAME); the Space id when absent */
@@ -109,6 +113,8 @@ export function loadConfig(argv: readonly string[], env: NodeJS.ProcessEnv = pro
     relayUrl: flag(argv, "relay") ?? env["VYRE_RELAY_URL"] ?? null,
     phoneRelayUrl: env["VYRE_PHONE_RELAY_URL"] ?? "wss://relay.vyre.run",
     address: flag(argv, "address") ?? env["VYRE_ADDRESS"] ?? null,
+    ...(env["VYRE_NETWORK_REV"] ? { networkRev: env["VYRE_NETWORK_REV"] } : {}),
+    ...(env["VYRE_DISK_ENCRYPTION"] ? { diskChoice: { kind: env["VYRE_DISK_ENCRYPTION"], ...(env["VYRE_DISK_ENCRYPTION_SINCE"] ? { since: env["VYRE_DISK_ENCRYPTION_SINCE"] } : {}) } } : {}),
     ...spaceKindOf(flag(argv, "space-kind") ?? env["VYRE_SPACE_KIND"]),
     ...((flag(argv, "space-name") ?? env["VYRE_SPACE_NAME"]) ? { spaceName: (flag(argv, "space-name") ?? env["VYRE_SPACE_NAME"])! } : {}),
     ...(argv.includes("--peers") || env["VYRE_PEERS"] === "1" ? { peers: true } : {}),
