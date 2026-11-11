@@ -17,6 +17,7 @@ function ports(log: string[], o: { failProfile?: () => boolean } = {}): Migratio
     async ensureWorkspace(_c, a) { log.push(`workspace ${a.agentId}`); return { workspaceId: `wks_${a.agentId}` }; },
     async ensureBrowserProfile(_c, a) { if (o.failProfile?.()) throw new Error("the browser is not ready"); log.push(`profile ${a.agentId}`); return { profileId: `brw_${a.agentId}` }; },
     async importChromeData(_c, a) { log.push(`import ${a.profileId} ${a.data.tar.length}`); return { bytes: a.data.tar.length }; },
+    async profileInUse() { return false; },
   };
 }
 const withChrome = (h: Harness): void => { h.fake.host.chromeData = async () => ({ tar: TAR }); };

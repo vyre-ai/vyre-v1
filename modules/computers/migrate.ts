@@ -20,7 +20,7 @@ export interface MigrationPorts {
   ensureBrowserProfile(ctx: CompCtx, a: { agentId: string; computerId: string }): Promise<{ profileId: string }>;
   /** Put Chrome's user-data (the tar of the old computer's folder) into the profile, replacing what the profile holds. The profile is not running. (l-sbrowser) */
   importChromeData(ctx: CompCtx, a: { agentId: string; profileId: string; data: ChromeData }): Promise<{ bytes: number }>;
-  /** Does the agent's browser profile already hold sign-ins (made there since its browser calls went to the Space browser)? Then nothing is copied over it. Optional: left out, nothing is checked. */
+  /** Does the agent's browser profile already hold sign-ins (made there since its browser calls went to the Space browser)? Then nothing is copied over it. Optional, but left out the profile is taken to be in use (partial), because an overwrite cannot be undone. */
   profileInUse?(ctx: CompCtx, a: { agentId: string; profileId: string }): Promise<boolean>;
 }
 let ports: MigrationPorts | null = null;
@@ -44,17 +44,16 @@ export interface MigrationResult { done: number; partial: number; failed: number
 
 const say = (e: unknown): string => (e instanceof Error ? e.message.slice(0, 300) : "unknown");
 
-/** What the Space browser says when it will not take the import now (until it gives these a stable reason). */
-const BUSY = /has the controls of this agent|browser is busy/i;
-
 /**
  * A failure that says "not now", not "this will not work": the runtime or the Space browser is not there, an image could not be fetched, the profile is busy or held, the host has no room. It uses no
  * attempt and is tried again at the next pass.
  */
 export function notNow(e: unknown): boolean {
-  const x = e as { code?: unknown; workspace?: unknown; error?: { code?: unknown } } | null;
+  const x = e as { code?: unknown; reason?: unknown; workspace?: unknown; error?: { code?: unknown } } | null;
+  // the Space browser says why it will not take the import now by a stable `reason`, never by its wording
+  if (x?.reason === "profile_held" || x?.reason === "profile_busy") return true;
   if (x?.code === "unavailable" || x?.error?.code === "provider.unavailable" || x?.workspace === true) return true;
-  return BUSY.test(say(e)) || /image .* (is )?not on this server|did not answer|no room|waiting for room|not running/i.test(say(e));
+  return /image .* (is )?not on this server|did not answer|no room|waiting for room|not running/i.test(say(e));
 }
 
 /** After a real failure: wait a minute, then an hour, then a day, and keep trying once a day. */
@@ -104,7 +103,8 @@ function moveOne(ctx: CompCtx, p: MigrationPorts, c: ComputerRow): Promise<Step>
       // the slow steps are over: the desktop must still be asleep, or its Chrome files could be torn (a wake, a take over or a tool call may have started it meanwhile)
       if (!asleep(ctx, c.computerId)) return "retry";
       // a browser profile that already holds sign-ins is never written over: they were made there since the agent's browser calls went to the Space browser
-      if (p.profileInUse && (await p.profileInUse(ctx, { agentId: c.agentId, profileId }))) {
+      // with no way to ask, the profile is taken to be possibly used: it is never overwritten on a guess
+      if (!p.profileInUse || (await p.profileInUse(ctx, { agentId: c.agentId, profileId }))) {
         record(ctx, c, "partial", { workspaceId, profileId, attempts, bytes: 0, error: `${await nameOf(ctx, c.agentId)} already uses its browser on the Space, so the sign-ins from its older desktop were not copied. Open the older desktop to see them, or sign in again.` });
         return "partial";
       }

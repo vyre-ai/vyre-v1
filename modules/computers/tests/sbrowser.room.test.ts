@@ -73,6 +73,7 @@ test("Dex keeps his logins: the old computer's Chrome data goes into his profile
   const TAR = new Uint8Array([9, 8, 7, 6]);
   h.fake.host.chromeData = async () => ({ tar: TAR });
   bindMigrationPort("ensureWorkspace", async (_c, a) => ({ workspaceId: `wks_${a.agentId}` }));
+  bindMigrationPort("profileInUse", async () => false);
   try {
     await provision(h.ctx, { agentId: "agt_dex", idempotencyKey: "k-dex" });
     assert.deepEqual(await migrateComputers(h.ctx), { done: 1, partial: 0, failed: 0, waiting: 0 });
@@ -80,13 +81,14 @@ test("Dex keeps his logins: the old computer's Chrome data goes into his profile
     assert.equal(migrationRows(h.ctx)[0]?.profileId, "agt_dex");
     assert.deepEqual(await migrateComputers(h.ctx), { done: 0, partial: 0, failed: 0, waiting: 0 });
     assert.equal(sb.imports.length, 1);
-  } finally { bindSpaceBrowser(null); bindMigrationPort("ensureWorkspace", null); }
+  } finally { bindSpaceBrowser(null); bindMigrationPort("ensureWorkspace", null); bindMigrationPort("profileInUse", null); }
 });
 
 test("with no Space browser the move of the profile waits and is tried again at the next pass, and a profile that is not the agent's is refused", async () => {
   const h = harness();
   h.fake.host.chromeData = async () => ({ tar: new Uint8Array([1]) });
   bindMigrationPort("ensureWorkspace", async (_c, a) => ({ workspaceId: `wks_${a.agentId}` }));
+  bindMigrationPort("profileInUse", async () => false);
   bindSpaceBrowser(null);
   try {
     await provision(h.ctx, { agentId: "agt_dex", idempotencyKey: "k-dex" });

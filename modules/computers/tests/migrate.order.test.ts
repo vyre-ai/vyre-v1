@@ -27,9 +27,10 @@ function browser() {
   return events;
 }
 const ports = (o: { failWorkspace?: boolean } = {}): void => {
+  bindMigrationPort("profileInUse", async () => signedIn.length > 0);
   bindMigrationPort("ensureWorkspace", async (_c, a) => { if (o.failWorkspace) throw new Error("the workspace is not ready"); return { workspaceId: `wks_${a.agentId}` }; });
 };
-const off = (): void => { signedIn = []; setMoveWait(null); bindSpaceBrowser(null); bindMigration(null); bindMigrationPort("ensureWorkspace", null); };
+const off = (): void => { signedIn = []; setMoveWait(null); bindSpaceBrowser(null); bindMigration(null); bindMigrationPort("ensureWorkspace", null); bindMigrationPort("profileInUse", null); };
 const withChrome = (w: World, data: { tar: Uint8Array } | null): void => { w.d.host.chromeData = async () => data; w.d.rebind(); };
 const open = (w: World) => tool["computers.chrome.open"]!(w.agent().ctx, { url: "https://example.com/" });
 
@@ -117,7 +118,7 @@ test("a busy browser profile is tried again on later passes and never uses up an
   browser();
   ports();
   let busy = true;
-  bindMigrationPort("importChromeData", async (_c, a) => { if (busy) throw new Error("This agent's browser is busy: its sign-ins move from the old computer at a quiet moment."); return { bytes: a.data.tar.length }; });
+  bindMigrationPort("importChromeData", async (_c, a) => { if (busy) throw Object.assign(new Error("Some reworded line that says nothing about busy."), { reason: "profile_busy" }); return { bytes: a.data.tar.length }; });
   try {
     const w = await world({ asleep: true });
     withChrome(w, { tar: TAR });
@@ -178,6 +179,7 @@ test("while a move runs nothing starts the desktop: a wake waits, then says it i
   const events = browser();
   let release: () => void = () => undefined;
   const gate = new Promise<void>((r) => { release = r; });
+  bindMigrationPort("profileInUse", async () => false);
   bindMigrationPort("ensureWorkspace", async (_c, a) => { await gate; return { workspaceId: `wks_${a.agentId}` }; });
   setMoveWait(50);
   try {
@@ -207,4 +209,39 @@ test("chrome_status and chrome_stop never start a move", async () => {
     assert.equal(calls, 0, "no move");
     assert.deepEqual(events, []);
   } finally { off(); bindMigrationPort("ensureWorkspace", null); }
+});
+
+test("the reasons profile_held and profile_busy are recognised whatever the words say, and a similar sentence without a reason is a real failure", async () => {
+  const { notNow } = await import("../migrate.ts");
+  assert.equal(notNow(Object.assign(new Error("anything at all"), { reason: "profile_held" })), true);
+  assert.equal(notNow(Object.assign(new Error("anything at all"), { reason: "profile_busy" })), true);
+  assert.equal(notNow(new Error("This agent's browser is busy: its sign-ins move at a quiet moment.")), false, "the words are not the signal");
+});
+
+test("with no way to ask whether the profile is in use, the move never overwrites it", async () => {
+  const events = browser();
+  ports();
+  bindMigrationPort("profileInUse", null);
+  try {
+    const w = await world({ asleep: true });
+    withChrome(w, { tar: TAR });
+    await migrateComputers(w.h.ctx);
+    assert.equal(migrationRows(w.h.ctx)[0]?.state, "partial");
+    assert.deepEqual(events.filter((e) => e.startsWith("import")), []);
+  } finally { off(); }
+});
+
+test("a desktop that is woken during the slow steps is not even read: the asleep check before the copy", async () => {
+  browser();
+  ports();
+  try {
+    const w = await world({ asleep: true });
+    let read = 0;
+    w.d.host.chromeData = async () => { read++; return { tar: TAR }; };
+    w.d.rebind();
+    bindMigrationPort("ensureWorkspace", async (_c, a) => { w.h.db.run("UPDATE computers_computers SET state = 'working'"); return { workspaceId: `wks_${a.agentId}` }; });
+    await migrateComputers(w.h.ctx);
+    assert.equal(read, 0, "the Chrome folder of a desktop that started is never read");
+    assert.deepEqual(w.h.rows("SELECT attempts FROM computers_migration"), []);
+  } finally { off(); }
 });

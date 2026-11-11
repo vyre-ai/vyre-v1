@@ -5,7 +5,7 @@ import { bindMigration, migrateComputers } from "../migrate.ts";
 import { get, list, provision, sleep, wake } from "../handlers/lifecycle.ts";
 import { contractErrors, harness } from "../fixtures/harness.ts";
 
-const ports = { async ensureWorkspace() { return { workspaceId: "w" }; }, async ensureBrowserProfile() { return { profileId: "p" }; }, async importChromeData() { return { bytes: 1 }; } };
+const ports = { async ensureWorkspace() { return { workspaceId: "w" }; }, async ensureBrowserProfile() { return { profileId: "p" }; }, async importChromeData() { return { bytes: 1 }; }, async profileInUse() { return false; } };
 
 test("a desktop that has not moved has no `moved` field; one that has says how it ended, on list and on get", async () => {
   const h = harness();
