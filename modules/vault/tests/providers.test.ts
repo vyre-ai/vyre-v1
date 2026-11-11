@@ -401,3 +401,14 @@ test("a key is checked with the provider before it is saved or called connected:
     assert.equal(await listed(), 1);
   } finally { u.configureVault(null); h.cleanup(); }
 });
+
+test("a custom endpoint whose key it refuses is not connected and its definition is not left behind", async () => {
+  const h = harness();
+  u.configureVault({ sinks: {}, probe: async () => ({ ok: false, models: [], detail: "401 unauthorized", refused: true }) });
+  try {
+    const err = await p.customAdd(h.ctx, { name: "Gateway", baseUrl: "https://llm.example.com/v1", apiKey: SECRET, scope: "mine", idempotencyKey: key() }).then(() => null, (e: unknown) => e as { error?: { code?: string }; code?: string });
+    assert.equal(err?.error?.code ?? err?.code, "provider.auth_failed");
+    assert.equal((out(await p.customList(h.ctx, {})).endpoints as Json[]).length, 0, "no endpoint definition is left behind");
+    assert.equal((out(await p.list(h.ctx, {})).providers as Json[]).length, 0);
+  } finally { u.configureVault(null); h.cleanup(); }
+});

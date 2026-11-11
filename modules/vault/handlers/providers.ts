@@ -551,7 +551,14 @@ export async function customAdd(ctx: VaultCtx, input: { name: string; baseUrl: s
     ctx.db.run(`INSERT INTO vault_provider_def ("key", "name", "base", "keyless", "models", "createdBy", "createdAt", "deleted_at") VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       key, name, base, hasKey ? 0 : 1, JSON.stringify((input.models ?? []).map((m) => m.trim())), me(ctx), ctx.now(), null);
   }
-  const added = await add(ctx, { providerKey: key, connection: hasKey ? "api_key" : "local_model", scope: input.scope, ...(hasKey ? { apiKey: input.apiKey! } : {}), ...(input.folderId ? { folderId: input.folderId } : {}), idempotencyKey: input.idempotencyKey });
+  let added: Awaited<ReturnType<typeof add>>;
+  try {
+    added = await add(ctx, { providerKey: key, connection: hasKey ? "api_key" : "local_model", scope: input.scope, ...(hasKey ? { apiKey: input.apiKey! } : {}), ...(input.folderId ? { folderId: input.folderId } : {}), idempotencyKey: input.idempotencyKey });
+  } catch (e) {
+    // a key the endpoint refuses leaves nothing behind, not even the endpoint's definition made a moment ago
+    if (!sameBase) ctx.db.run(`DELETE FROM vault_provider_def WHERE "key" = ?`, key);
+    throw e;
+  }
   return { endpoint: defOut(entry(ctx, key)!, ctx), provider: added.provider };
 }
 
