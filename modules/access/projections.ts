@@ -6,7 +6,7 @@ import { fail } from "../../host/src/routes/errors.ts";
 import { AccessSnapshot } from "../../kernel/src/authorize/index.ts";
 import { THROUGH_AGENT } from "../../lib/through-agent.ts";
 import { isElevatedRole, isOwnerRole } from "../../kernel/src/authorize/snapshot.ts";
-import type { Expr, GrantRow, Policy, PrincipalRow } from "../../kernel/src/authorize/index.ts";
+import type { Expr, GrantRow, Policy, PrincipalRow, ResourceRow } from "../../kernel/src/authorize/index.ts";
 
 type ProviderPolicy = Extract<Policy, { kind: "provider_label" }>;
 type GatePolicy = Extract<Policy, { kind: "gate" }>;
@@ -293,9 +293,7 @@ export class AccessStore {
 
   /** Row the checker and scopeFor both read: filter fields, plus label, owner and holds taken from the resource. */
   resourceRow(id: string): Record<string, unknown> | undefined {
-    const r = this.resources.get(id);
-    if (!r) return undefined;
-    return { ...(r.row ?? {}), id: r.id, owner_id: r.ownerId, label: labelRank(r.label), holds: r.holds };
+    return rowOfResource(this.resources.get(id));
   }
 
   /** Cached authorize snapshot. Rebuilt only when the epoch moves. */
@@ -323,14 +321,7 @@ export class AccessStore {
     }
     for (const a of this.actors.values()) if (a.engineerMcp && a.status === "active") snap.addPrincipalRole({ holder: a.id, role: "rol_engineer_mcp" });
     for (const g of this.groups.values()) for (const m of g.members) snap.addMember({ group: g.id, member: m.id });
-    for (const r of this.resources.values()) {
-      // Only people added and Only me cut a resource off from its container (the record from its type, the type from the Space); the row keeps the natural parent, so a seed that re-registers it cannot undo the cut
-      const cut = (r.row?.["audience"] === "added" || r.row?.["audience"] === "me") && r.parentId !== null;
-      snap.putResource({
-        id: r.id, type: r.type, parent_id: cut ? null : r.parentId, label: labelRank(r.label), owner_id: r.ownerId, holds: r.holds,
-        ...(cut ? { home: r.parentId } : {}), ...(r.row?.["exportViewers"] === true ? { export_viewers: true } : {}),
-      });
-    }
+    for (const r of this.resources.values()) snap.putResource(kernelResource(r));
     for (const k of this.fieldLabels.keys()) if (k.startsWith("assistant:")) snap.setAssistant(k.slice("assistant:".length), true);
     for (const g of this.grants.values()) snap.putGrant(kernelGrant(g));
     for (const [k, n] of this.fieldLabels) {
@@ -487,6 +478,39 @@ export class AccessStore {
     this.raw = null;
   }
 
+  /**
+   * Write just these resources and the cursor of the folded events, for a batch that only registered objects (consumers.ts `apply`): two statements per object instead of the comparison of
+   * every row `persist` makes. What was written is noted in that comparison, so a later `persist` of this store neither writes these rows again nor misses one.
+   */
+  persistResources(db: Db, ids: Iterable<string>, cursorMoved: boolean): void {
+    if (!this.base && this.raw) { this.base = this.fromRaw(); this.raw = null; }
+    const note = (table: string, key: unknown[], vals: unknown[]): void => {
+      if (!this.base) return;
+      let t = this.base.get(table);
+      const shape = SHAPES[table]!;
+      if (!t) { t = { pk: shape.pk, cols: shape.cols, vals: new Map() }; this.base.set(table, t); }
+      t.vals.set(JSON.stringify(key), vals);
+    };
+    for (const id of ids) {
+      const r = this.resources.get(id);
+      if (!r) continue;
+      const vals = [r.id, r.type, r.parentId, r.label, r.ownerId, r.holds, r.row ? JSON.stringify(r.row) : null];
+      db.run("DELETE FROM access_resources WHERE id = ?", id);
+      db.run("INSERT INTO access_resources (id,type,parent_id,label,owner_id,holds,row_json) VALUES (?,?,?,?,?,?,?)", ...vals);
+      note("access_resources", [r.id], vals);
+    }
+    if (!cursorMoved) return;
+    const n = this.fieldLabels.get(CURSOR_KEY) ?? 0;
+    // the cursor is this computer's own (migrations/0004_local_cursor.sql): where access_local_cursor exists it is kept there, as `persist` keeps it, and never in access_fields, which travels
+    if (this.localCursor) {
+      db.run("INSERT INTO access_local_cursor (id,seq) VALUES (?,?) ON CONFLICT(id) DO UPDATE SET seq = max(seq, excluded.seq)", CURSOR_KEY, n);
+      note("access_local_cursor", [CURSOR_KEY], [CURSOR_KEY, n]);
+    } else {
+      db.run("INSERT INTO access_fields (k,rank) VALUES (?,?) ON CONFLICT(k) DO UPDATE SET rank = max(rank, excluded.rank)", CURSOR_KEY, n);
+      note("access_fields", [CURSOR_KEY], [CURSOR_KEY, n]);
+    }
+  }
+
   hydrate(db: Db): void {
     // the rows as read are kept: they are what the next persist compares against, and keeping them costs nothing here
     const raw = new Map<string, Record<string, unknown>[]>();
@@ -579,6 +603,22 @@ export class AccessStore {
   }
 }
 
+/** A resource as the authorize snapshot holds it. */
+export function kernelResource(r: ResourceRec): ResourceRow {
+  // Only people added and Only me cut a resource off from its container (the record from its type, the type from the Space); the row keeps the natural parent, so a seed that re-registers it cannot undo the cut
+  const cut = (r.row?.["audience"] === "added" || r.row?.["audience"] === "me") && r.parentId !== null;
+  return {
+    id: r.id, type: r.type, parent_id: cut ? null : r.parentId, label: labelRank(r.label), owner_id: r.ownerId, holds: r.holds,
+    ...(cut && r.parentId !== null ? { home: r.parentId } : {}), ...(r.row?.["exportViewers"] === true ? { export_viewers: true } : {}),
+  };
+}
+
+/** The row the checker and scopeFor both read for a resource: filter fields, plus label, owner and holds taken from the resource. */
+export function rowOfResource(r: ResourceRec | undefined): Record<string, unknown> | undefined {
+  if (!r) return undefined;
+  return { ...(r.row ?? {}), id: r.id, owner_id: r.ownerId, label: labelRank(r.label), holds: r.holds };
+}
+
 function kernelGrant(g: GrantRec): GrantRow {
   const c = g.conditions;
   const conditions: NonNullable<GrantRow["conditions"]> = {};
@@ -611,16 +651,22 @@ const STORES = new WeakMap<Db, AccessStore>();
 export function storeOf(ctx: AccessCtx): AccessStore {
   let s = STORES.get(ctx.db);
   if (s) return s;
-  s = new AccessStore();
-  let rows: unknown[] = [];
-  try { rows = ctx.db.all("SELECT * FROM access_roles"); } catch { rows = []; }
-  if (rows.length) s.hydrate(ctx.db);
-  else {
-    try { ctx.db.all("SELECT id FROM access_local_cursor LIMIT 1"); s.localCursor = true; } catch { /* a Space from before migration 0004 */ }
-    s.seed();
-    try { s.persist(ctx.db); } catch { /* a db that cannot take the tables still serves the memory snapshot */ }
-  }
+  s = loadStore(ctx.db);
   STORES.set(ctx.db, s);
+  return s;
+}
+
+/** A store read from the tables; a Space whose tables are empty gets the built-in roles and policies, written at once. */
+export function loadStore(db: Db): AccessStore {
+  const s = new AccessStore();
+  let rows: unknown[] = [];
+  try { rows = db.all("SELECT * FROM access_roles"); } catch { rows = []; }
+  if (rows.length) s.hydrate(db);
+  else {
+    try { db.all("SELECT id FROM access_local_cursor LIMIT 1"); s.localCursor = true; } catch { /* a Space from before migration 0004 */ }
+    s.seed();
+    try { s.persist(db); } catch { /* a db that cannot take the tables still serves the memory snapshot */ }
+  }
   return s;
 }
 

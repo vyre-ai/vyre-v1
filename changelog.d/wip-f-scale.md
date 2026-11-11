@@ -1,0 +1,2 @@
+- Saving a record, task or file no longer slows down as your Space grows. A Space with a hundred thousand contacts saves as fast as a new one, and the server starts in seconds instead of minutes.
+- A folder you mark Restricted stays Restricted after the server restarts. Before, a folder made shortly before the label was set could go back to its old label on the next start.

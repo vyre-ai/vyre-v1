@@ -38,6 +38,7 @@ const RECOMPILE_MS = 30_000;
 /** scopeFor compiled per (person, access resource type); dropped when the access snapshot changes epoch and after 30 s (grants expire). */
 export class ScopeCache {
   private epoch = -1;
+  private of: AccessSnapshot | null = null;
   private at = 0;
   private map = new Map<string, ScopeResult>();
   private readonly snap: () => AccessSnapshot;
@@ -93,7 +94,8 @@ export class ScopeCache {
   }
   get(person: string, resource: string, now: number): ScopeResult {
     const snap = this.snap();
-    if (snap.epoch !== this.epoch || now - this.at > RECOMPILE_MS || now < this.at) { this.map.clear(); this.epoch = snap.epoch; this.at = now; }
+    // a snapshot adopted anew can carry the same epoch number as the one before it (an epoch counts one object's changes), so the object is compared too
+    if (snap !== this.of || snap.epoch !== this.epoch || now - this.at > RECOMPILE_MS || now < this.at) { this.map.clear(); this.of = snap; this.epoch = snap.epoch; this.at = now; }
     const key = `${person}\0${resource}`;
     let hit = this.map.get(key);
     if (!hit) { hit = scopeFor(snap, { principal: person, entityType: resource, level: "view", now }); this.map.set(key, hit); }

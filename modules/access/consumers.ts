@@ -7,8 +7,9 @@ import type { Ctx } from "../../packages/contracts/src/ctx.ts";
 import type { AccessSnapshot } from "../../kernel/src/authorize/index.ts";
 import { isElevatedRole } from "../../kernel/src/authorize/snapshot.ts";
 import { fail } from "../../host/src/routes/errors.ts";
-import { AccessStore, CURSOR_KEY, agentLevel, EVERYONE, changed, labelOf, setPrivate, storeOf } from "./projections.ts";
-import type { AccessCtx, Cond, GrantRec, Label, Level, PKind, Ref, Status, SubjectKind } from "./projections.ts";
+import { rawDbOf } from "../../host/src/ctx/db.ts";
+import { AccessStore, CURSOR_KEY, agentLevel, EVERYONE, changed, kernelResource, labelOf, loadStore, rowOfResource, setPrivate, storeOf } from "./projections.ts";
+import type { AccessCtx, Cond, Db, GrantRec, Label, Level, PKind, Ref, ResourceRec, Status, SubjectKind } from "./projections.ts";
 
 export interface LogEvent { seq: number; type: string; payload: unknown }
 
@@ -156,12 +157,12 @@ function cursorOf(store: AccessStore): number { return store.fieldLabels.get(CUR
 
 /**
  * Fold events the store has not seen, in the order given. An event with a negative `seq` did not come from the log (the host's own boot-time resources): it is always applied and
- * never moves the cursor. Objects being created is the common case, so a batch of only `resource.created` writes just those rows; anything else rewrites the tables.
+ * never moves the cursor. Objects being created is the common case, so a batch of only `resource.created` writes just those rows (`touched`); anything else rewrites what changed in the
+ * tables and asks for the snapshot to be built again (`rebuild`).
  */
-function apply(ctx: AccessCtx, store: AccessStore, events: readonly LogEvent[]): { cursor: number; changed: boolean } {
+function apply(db: Db, at: number, store: AccessStore, events: readonly LogEvent[]): { touched: Set<string>; rebuild: boolean } {
   let cursor = cursorOf(store), changed = false, onlyResources = true;
   const touched = new Set<string>();
-  const at = ctx.now();
   for (const e of events) {
     if (e.seq >= 0 && e.seq <= cursor) continue;
     if (applyEvent(store, e, at)) {
@@ -172,19 +173,81 @@ function apply(ctx: AccessCtx, store: AccessStore, events: readonly LogEvent[]):
   }
   const moved = cursor !== cursorOf(store);
   if (moved) store.fieldLabels.set(CURSOR, cursor);
-  if (!changed && !moved) return { cursor, changed };
+  if (!changed && !moved) return { touched, rebuild: false };
   store.bump();
-  if (changed && !onlyResources) { store.persist(ctx.db); return { cursor, changed }; }
-  for (const id of touched) {
-    const r = store.resources.get(id);
-    if (!r) continue;
-    ctx.db.run("DELETE FROM access_resources WHERE id = ?", id);
-    ctx.db.run("INSERT INTO access_resources (id,type,parent_id,label,owner_id,holds,row_json) VALUES (?,?,?,?,?,?,?)", r.id, r.type, r.parentId, r.label, r.ownerId, r.holds, r.row ? JSON.stringify(r.row) : null);
+  if (changed && !onlyResources) { store.persist(db); return { touched, rebuild: true }; }
+  store.persistResources(db, touched, moved);
+  return { touched, rebuild: false };
+}
+
+/**
+ * What access.sync keeps between calls for one daemon database: its own store, never handed to a handler, the snapshot it last answered, the resource rows that snapshot's row source
+ * reads, and where the tables' write counter (migrations/0006_local_stamp.sql) stood after its own last write. Keyed on the database itself (host/src/ctx/db.ts rawDbOf), not the Space:
+ * two daemons of one Space in one process, or two copies of one file, each have their own.
+ */
+interface Synced { store: AccessStore; snap: AccessSnapshot; rows: Map<string, ResourceRec>; stamp: number }
+const SYNCED = new WeakMap<object, Synced>();
+/** How access.sync answered (tests read it): from the tables, by building the snapshot again from a kept store, or by changing the kept snapshot in place. */
+export const syncCounts = { hydrated: 0, rebuilt: 0, inPlace: 0 };
+
+/** The tables' write counter, or null where migration 0006 has not run (no counter: nothing is kept). */
+function stampOf(db: Db): number | null {
+  try {
+    const n = (db.all(`SELECT "n" FROM access_local_stamp WHERE "id" = 1`)[0] as { n?: unknown } | undefined)?.n;
+    return typeof n === "number" || typeof n === "bigint" ? Number(n) : null;
+  } catch { return null; }
+}
+
+/** The authorize snapshot of a store, with the row source reading a copy of the resources taken now, so a reader still holding it never sees rows a later sync wrote. */
+function build(store: AccessStore, space: string): { snap: AccessSnapshot; rows: Map<string, ResourceRec> } {
+  const snap = withRoleGrants(store.snapshot(), store, space);
+  const rows = new Map(store.resources);
+  snap.rowSource = (id) => rowOfResource(rows.get(id));
+  return { snap, rows };
+}
+
+/**
+ * access.sync on a daemon database. The kept store and snapshot are used only while the write counter stands exactly where this path's own last write left it: then nothing else (a
+ * handler, a copy from another computer, plain SQL) has written an access row since, and the kept store holds what the tables hold. Otherwise the tables are read again, as every call did
+ * before. The kept store is this path's alone: a handler's change that is not yet written (and may never be) cannot reach it. A batch that only registered objects puts those resources
+ * into the kept snapshot in place (its epoch moves and its derived views are dropped, as the host's own fold does); any other change builds a new snapshot, as before.
+ */
+function syncKept(ctx: AccessCtx, key: object, events: readonly LogEvent[]): AccessSnapshot {
+  let writes = 0;
+  const db: Db = {
+    all: (sql, ...args) => ctx.db.all(sql, ...args),
+    run: (sql, ...args) => { const r = ctx.db.run(sql, ...args); writes += r.changes; return r; },
+  };
+  const before = stampOf(ctx.db);
+  let kept = SYNCED.get(key);
+  if (kept && kept.stamp !== before) kept = undefined;
+  SYNCED.delete(key);   // put back only once this call has written everything and checked the counter
+  const store = kept?.store ?? loadStore(db);
+  if (!kept) syncCounts.hydrated++;
+  const { touched, rebuild } = apply(db, ctx.now(), store, events);
+  let out: { snap: AccessSnapshot; rows: Map<string, ResourceRec> };
+  if (!kept || rebuild) { out = build(store, ctx.space); if (kept) syncCounts.rebuilt++; }
+  else {
+    out = { snap: kept.snap, rows: kept.rows };
+    for (const id of touched) {
+      const r = store.resources.get(id);
+      if (!r) continue;
+      out.rows.set(id, r);
+      out.snap.putResource(kernelResource(r));
+    }
+    syncCounts.inPlace++;
   }
-  if (moved) {
-    ctx.db.run("INSERT INTO access_fields (k,rank) VALUES (?,?) ON CONFLICT(k) DO UPDATE SET rank = max(rank, excluded.rank)", CURSOR, cursor);
-  }
-  return { cursor, changed };
+  // every row write fires one counter step (the triggers are AFTER ... FOR EACH ROW; a write's `changes` counts the same rows), so anything else that wrote meanwhile shows as a difference
+  const after = stampOf(ctx.db);
+  if (before !== null && after !== null && after === before + writes) SYNCED.set(key, { store, snap: out.snap, rows: out.rows, stamp: after });
+  return out.snap;
+}
+
+/** The kept store of access.sync, while the tables still hold exactly what it holds; null otherwise. Only for reads that change nothing. */
+function keptStore(ctx: AccessCtx): AccessStore | null {
+  const key = rawDbOf(ctx.db);
+  const kept = key ? SYNCED.get(key) : undefined;
+  return kept && stampOf(ctx.db) === kept.stamp ? kept.store : null;
 }
 
 const GRANTED = new WeakSet<AccessSnapshot>();
@@ -221,7 +284,8 @@ function withRoleGrants(snap: AccessSnapshot, store: AccessStore, space: string)
 export const hostCalls = {
   /** Who an outside tool is when it presents its long-lived credential: the active actor holding it, or none. Host only; the credential is compared by hash and never stored in clear. */
   "access.actor_by_credential": async (ctx: Ctx, input: { credential: string }): Promise<{ actorId: string } | null> => {
-    const store = storeOf(ctx as unknown as AccessCtx);
+    // asked on every request an outside tool makes with its credential: the kept store of access.sync when the tables have not moved since (this reads, and changes nothing)
+    const store = keptStore(ctx as unknown as AccessCtx) ?? storeOf(ctx as unknown as AccessCtx);
     const bytes = new TextEncoder().encode(input.credential);
     const digest = [...new Uint8Array(await crypto.subtle.digest("SHA-256", bytes))].map((x) => x.toString(16).padStart(2, "0")).join("");
     const actor = [...store.actors.values()].find((a) => a.credHash === digest && a.status === "active");
@@ -230,8 +294,11 @@ export const hostCalls = {
   /** Fold events the store has not seen and answer the authorize snapshot, in one call so a commit pays for one pass over the tables. */
   "access.sync": (ctx: Ctx, input: { events: LogEvent[] }): AccessSnapshot => {
     const actx = ctx as unknown as AccessCtx;
+    const key = rawDbOf(actx.db);
+    if (key) return syncKept(actx, key, input.events);
+    // a db handle the host did not make (a test's own): the store of that handle, as before
     const store = storeOf(actx);
-    apply(actx, store, input.events);
+    apply(actx.db, actx.now(), store, input.events);
     return withRoleGrants(store.snapshot(), store, actx.space);
   },
   /** Files has already authorized folder.settings; this internal seam keeps Personal Spaces out of the public Team-only labels.set gate. */
