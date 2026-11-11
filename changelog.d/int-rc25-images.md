@@ -3,3 +3,4 @@
 - Vyre Server on a Mac with Colima: agent turns that run on the server now start. The server switches on the setting its sandbox needs inside Docker's virtual machine at every start, and `vyre-server doctor` reports it.
 - Vyre Server on a Mac remembers which Docker it was installed on, so it keeps working when the Mac's active Docker is switched to another one.
 - The agent workspace and Space browser images are now built for Apple silicon too, so they run natively on an Apple silicon Mac.
+- Vyre Server installs on a Mac with Apple silicon. Before, the installer stopped while fetching an image that exists for Intel only.
