@@ -1,0 +1,2 @@
+- Removing someone from a project, or giving them a lower project role, now takes effect at once, even while the project is still being set up; before, the setup could quietly give the old access back.
+- Signing out, ending a session from the devices list, revoking a device, suspending or removing a person now also closes that person's open live connection, so the app on that device can do nothing more as them.
