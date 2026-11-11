@@ -38,7 +38,7 @@ import { nodeHomeCheck, nodeJobs, nodeRecordingCheck, nodeResult, nodeStreamInpu
 import { nodeRun } from "./remote.ts";
 import { ToolError } from "./handlers/tools/common.ts";
 import type { ToolAnswer, ToolCode, ToolHost } from "./handlers/tools/common.ts";
-import type { ComputerHost, HostKind, Probe, RecordResult, SessionInfo } from "./projections.ts";
+import type { CompCtx, ComputerHost, HostKind, Probe, RecordResult, SessionInfo } from "./projections.ts";
 import "./sbrowser/migrate.ts";
 import { browserStreamInput, browserStreamOpen } from "./sbrowser/handlers.ts";
 import "./sbrowser/room.ts";
@@ -50,7 +50,15 @@ export const handlers: Record<string, Handler> = table as unknown as Record<stri
 
 export { bindFill, bindHost, bindKit, bindTeam, boundHost, redeemTicket, rememberSecrets, forgetSecrets, addStep, ensure } from "./projections.ts";
 export type { ComputerHost, CompCtx, Probe, RecordResult, SessionInfo } from "./projections.ts";
+import { sleepIdle } from "./handlers/lifecycle.ts";
 export { sleepIdle, awaken } from "./handlers/lifecycle.ts";
+/**
+ * The idle pass, every minute: a desktop that is awake, with nothing running, quiet for its idle time goes to sleep; room that opened starts the waiting line; an asleep desktop moves to a workspace
+ * and a browser profile. Until 12 Nov nothing called sleepIdle, so an old desktop stayed "working" for ever and the move (which needs it asleep) never ran.
+ */
+export const periodic = {
+  "computers.idle": { everyMs: 60_000, run: async (ctx: CompCtx): Promise<string[]> => { const n = await sleepIdle(ctx); return n > 0 ? [`${n} to sleep`] : []; } },
+};
 export { createHomeSync } from "./handlers/home.ts";
 /** What the daemon binds for the agent workspaces: how a waiting one starts, and the workspace half of the one-time move of a computer. */
 export { bindWorkspaceStart, bindMigration, bindMigrationPort };

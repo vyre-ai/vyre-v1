@@ -1,0 +1,1 @@
+- Fixed: an old agent desktop that nobody used stayed awake for ever. The check that puts quiet desktops to sleep now runs every minute, so an unused desktop sleeps after its idle time and then moves to the agent's workspace and browser.
