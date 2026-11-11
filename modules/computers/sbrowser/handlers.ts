@@ -10,6 +10,7 @@ import type { ProfileAccess, ProfileAgent } from "./policy.ts";
 import { spaceBrowser } from "./port.ts";
 import type { ProfileRow, SpaceBrowser } from "./port.ts";
 import { currentHold, dropHold, heldBy, setHold, touchHold } from "./hold.ts";
+import { needRoom } from "./room.ts";
 
 const TICKET_MS = 5 * 60_000;
 
@@ -97,6 +98,8 @@ export async function stream(ctx: CompCtx, input: { agentId: string }) {
   const sb = browserOrRaise(ctx);
   const { person, access } = await mayWatch(ctx, input.agentId);
   // the browser service wakes for a viewer; the address it gives stays in the Space, and the viewer gets the Space's own relay path with a ticket for this person (host/src/routes/browser-stream.ts)
+  // the view wakes the browser: it needs room on the host like any browser that starts
+  await needRoom(ctx, sb, input.agentId);
   let size: { width?: number; height?: number } = {};
   try { const r = await sb.stream({ profileId: input.agentId }); if (r.width && r.height) size = { width: r.width, height: r.height }; } catch (e) { refuse(ctx, e); }
   // the person at the controls opening the view is using the hold; a service that restarted is told about it again
@@ -181,6 +184,9 @@ export async function signOut(ctx: CompCtx, input: { agentId: string; site: stri
   const sb = browserOrRaise(ctx);
   await mayWatch(ctx, input.agentId, true);
   if (!/^[a-z0-9.-]{1,253}$/i.test(input.site)) raise(ctx, "validation.bad_input", "Name the site as its host name, such as app.example.com.");
+  ensure(ctx.db);
+  // signing out starts the browser: it needs room on the host first
+  await needRoom(ctx, sb, input.agentId);
   try { return { ok: await sb.signOut(input.agentId, input.site) }; } catch (e) { refuse(ctx, e); }
 }
 

@@ -235,3 +235,23 @@ test("what the browser holds is noted just before it closes, and a sleeping prof
     r.done();
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
 });
+
+test("two browsers that start at the same moment cannot both take the last place in the service", async () => {
+  const r = rig({ maxRunning: 2 });
+  try {
+    await r.call("agt_aaa");
+    // aaa is busy: hold its tool open
+    const gate: Array<() => void> = [];
+    const orig = r.launched[0]!.chrome.tool.bind(r.launched[0]!.chrome);
+    r.launched[0]!.chrome.tool = async (n, a, s) => { await new Promise<void>((res) => gate.push(res)); return orig(n, a, s); };
+    const busy = r.call("agt_aaa");
+    await new Promise((res) => setTimeout(res, 10));
+    const both = await Promise.allSettled([r.call("agt_bbb"), r.call("agt_ccc")]);
+    const alive = r.launched.filter((x) => !x.stopped).length;
+    assert.ok(alive <= 2, `never more than the service holds (${alive} running)`);
+    assert.equal(both.filter((x) => x.status === "fulfilled").length, 1, "one starts");
+    assert.ok(both.some((x) => x.status === "rejected" && /Waiting for room/.test(String((x as PromiseRejectedResult).reason?.message))), "the other is told plainly to wait");
+    gate.forEach((g) => g());
+    await busy;
+  } finally { r.done(); }
+});

@@ -98,3 +98,44 @@ test("with no Space browser the move of the profile fails and is tried again, an
     assert.equal(sb.imports.length, 1);
   } finally { bindSpaceBrowser(null); bindMigrationPort("ensureWorkspace", null); }
 });
+
+// Audit bugs 9 and 10 (12 Nov): claims were kept in memory, so after a restart of the daemon a claim marked running was never released; a waiting profile started only when some later browser call happened
+// to look; and the live view and sign out started a browser without asking for room.
+test("the periodic pass releases a claim left from before a restart and starts a waiting browser by itself", async () => {
+  const sb = sbrowser({ running: () => [] });
+  resetRoom();
+  const h = harness();
+  // room for one browser: 1536 MB kept back for the OS and Vyre, 256 MB per browser
+  h.fake.host.capacity = async () => ({ totalMb: 1536 + 256 + 10, freeMb: 1000, cpus: 2, os: "linux" });
+  h.db.run("INSERT INTO computers_claim (claim_key, kind, host, state, since, note) VALUES ('agt_old', 'browser', 'space', 'running', ?, NULL)", h.clock.t - 3_600_000);
+  h.db.run("INSERT INTO computers_claim (claim_key, kind, host, state, since, note) VALUES ('agt_next', 'browser', 'space', 'waiting', ?, 'Waiting for room on the Space server.')", h.clock.t - 60_000);
+  try {
+    const { periodic } = await import("../impl.ts") as { periodic?: Record<string, { everyMs: number; run: (ctx: unknown) => Promise<void> }> };
+    const pass = periodic?.["computers.browser_room"];
+    assert.ok(pass && pass.everyMs <= 60_000, "a pass runs at least every minute");
+    await pass.run(h.ctx);
+    assert.deepEqual(h.rows("SELECT claim_key, state FROM computers_claim ORDER BY claim_key").map((r) => [r["claim_key"], r["state"]]), [["agt_next", "running"]], "the stale claim is gone and the waiting one has its room");
+    assert.deepEqual(sb.calls, ["agt_next chrome_tabs"], "and its browser was started");
+  } finally { bindSpaceBrowser(null); resetRoom(); }
+});
+
+test("the live view and sign out start a browser only with room on the host, with the plain line when there is none", async () => {
+  const sb = sbrowser();
+  resetRoom();
+  const respond = { "agents.share_class": () => ({ class: "space", ownerId: DANA, people: [] }) };
+  const h = harness({ principal: { kind: "person", id: DANA }, respond });
+  h.fake.host.capacity = async () => ({ totalMb: 1600, freeMb: 100, cpus: 2, os: "linux" });
+  let streamed = 0;
+  (sb as unknown as { calls: string[] }).calls.length = 0;
+  try {
+    const { spaceBrowser } = await import("../sbrowser/port.ts");
+    const bound = spaceBrowser()!;
+    const orig = bound.stream.bind(bound);
+    bound.stream = async (a) => { streamed += 1; return orig(a); };
+    for (const [cap, input] of [["computers.browser.stream", { agentId: "agt_dex" }], ["computers.browser.sign_out", { agentId: "agt_dex", site: "app.example.com" }]] as const) {
+      await assert.rejects(() => tool[cap]!(h.ctx, input), (e) => codeOf(e) === "provider.unavailable" && /Waiting for room/.test(JSON.stringify(e)), cap);
+    }
+    assert.equal(streamed, 0, "no browser was started for the view");
+    assert.deepEqual(signedOut.filter((s) => s === "app.example.com"), [], "nor for the sign out");
+  } finally { bindSpaceBrowser(null); resetRoom(); }
+});

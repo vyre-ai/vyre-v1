@@ -144,6 +144,8 @@ export function createProfileManager(o: ProfileManagerOptions): ProfileManager {
   const safeName = (name: string): string => { if (!SAFE_NAME.test(name) || name.endsWith(".crdownload")) throw badInput("That is not a download's name."); return name; };
 
   const running = (): Profile[] => [...profiles.values()].filter((p) => p.chrome !== null);
+  // profiles whose browser is being started: they hold a place before their Chromium exists, so two that start at once cannot both take the last one
+  const reserved = new Set<string>();
   const quiet = (p: Profile): boolean => p.state.busy === 0 && p.viewers === 0 && p.state.takeover === null;
 
   async function release(p: Profile): Promise<void> {
@@ -155,11 +157,21 @@ export function createProfileManager(o: ProfileManagerOptions): ProfileManager {
     await c.shutdown().catch(() => c.stop());
   }
 
-  async function makeRoom(except: string): Promise<void> {
-    if (running().length < maxRunning) return;
+  // one room check at a time: a check and the stop it may make are one step, so two browsers that start together never pick the same one to stop or both take the last place
+  let roomTurn: Promise<void> = Promise.resolve();
+  function makeRoom(except: string): Promise<void> {
+    const turn = roomTurn.then(() => roomFor(except));
+    roomTurn = turn.catch(() => undefined);
+    return turn;
+  }
+
+  async function roomFor(except: string): Promise<void> {
+    const taken = (): number => running().length + [...reserved].filter((id) => id !== except && profiles.get(id)?.chrome === null).length;
+    if (taken() < maxRunning) { reserved.add(except); return; }
     const idle = running().filter((p) => p.id !== except && quiet(p)).sort((a, b) => a.lastActiveAt - b.lastActiveAt)[0];
     if (!idle) throw unavailable("Waiting for room on the Space browser: every browser it can hold is busy. Add a compute server, or try again in a minute.");
     o.log(`profile ${idle.id} stopped to make room`);
+    reserved.add(except);
     await release(idle);
   }
 
@@ -169,6 +181,14 @@ export function createProfileManager(o: ProfileManagerOptions): ProfileManager {
     if (p.chrome?.alive()) return p;
     if (p.starting) { await p.starting; return p; }
     p.starting = (async () => {
+      try { await startIn(p); } finally { reserved.delete(p.id); }
+    })();
+    try { await p.starting; } finally { p.starting = null; }
+    return p;
+  }
+
+  async function startIn(p: Profile): Promise<void> {
+    {
       await makeRoom(p.id);
       if (p.chrome) await release(p);
       mkdirSync(join(p.dir, "chrome"), { recursive: true });
@@ -184,9 +204,7 @@ export function createProfileManager(o: ProfileManagerOptions): ProfileManager {
         try { await b.send("Browser.setDownloadBehavior", { behavior: "allow", downloadPath: downloadsOf(p), eventsEnabled: true }).catch(() => undefined); } finally { b.close(); }
       } catch { /* the preferences already say it; a fake browser in a test has no DevTools */ }
       await o.onStarted?.(p.id, c).catch((e: unknown) => o.log(`start page: ${e instanceof Error ? e.message : "failed"}`));
-    })();
-    try { await p.starting; } finally { p.starting = null; }
-    return p;
+    }
   }
 
   async function tool(a: { profileId: string; tool: string; args: Record<string, unknown>; timeoutMs: number; by?: string }): Promise<Record<string, unknown>> {

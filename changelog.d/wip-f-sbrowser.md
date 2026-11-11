@@ -7,3 +7,5 @@
 - A takeover nobody uses for 15 minutes ends by itself and the agent is told so in plain words; giving the browser back always works, even when the Space browser does not answer at that moment.
 - The first browser step after the Space browser restarts waits for it to be ready instead of failing.
 - A member can take over, give back and sign out their own Assistant's Space browser; an admin still cannot touch someone else's Assistant or personal agent's browser.
+- Opening an agent's live view or signing its browser out of a site now waits for room on the Space server like any browser that starts, and two browsers starting at once can no longer go past what the Space browser holds.
+- Room held for Space browsers that stopped is given back every half minute, also after the Space restarts, and a browser waiting for room starts by itself when room opens.

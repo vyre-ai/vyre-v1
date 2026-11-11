@@ -33,12 +33,13 @@ import { createContainerHomeFs } from "./handlers/home-fs.ts";
 import type { HomeDeps, HomeSync, MadeFile } from "./handlers/home.ts";
 import { createFillService, fillHttp } from "./handlers/fill.ts";
 import type { FillSource, FillUse } from "./handlers/fill.ts";
-import { bindFill, bindHost, boundHost } from "./projections.ts";
+import { bindFill, bindHost, boundHost, ensure as ensureSchema } from "./projections.ts";
+import { reconcileClaims } from "./sbrowser/room.ts";
 import { nodeHomeCheck, nodeJobs, nodeRecordingCheck, nodeResult, nodeStreamInput, nodeStreamOpen } from "./handlers/node.ts";
 import { nodeRun } from "./remote.ts";
 import { ToolError } from "./handlers/tools/common.ts";
 import type { ToolAnswer, ToolCode, ToolHost } from "./handlers/tools/common.ts";
-import type { ComputerHost, HostKind, Probe, RecordResult, SessionInfo } from "./projections.ts";
+import type { CompCtx, ComputerHost, HostKind, Probe, RecordResult, SessionInfo } from "./projections.ts";
 import "./sbrowser/migrate.ts";
 import { browserStreamInput, browserStreamOpen } from "./sbrowser/handlers.ts";
 import "./sbrowser/room.ts";
@@ -585,6 +586,14 @@ export function setComputerHost(c: ComputersHostConfig | null): void {
 // Only the setters the daemon wires are host seams (the loader reports any other function here as a driver left unwired); what a computer that joined needs is exported beside them.
 export const hostSeams = { setComputersFill, setComputerHost };
 export { nodeRun };
+
+/** Every half minute: Space browser claims of browsers that stopped are released (also ones left from before a restart), and a profile waiting for room starts when there is room (sbrowser/room.ts). */
+export const periodic = {
+  "computers.browser_room": {
+    everyMs: 30_000,
+    run: async (ctx: CompCtx): Promise<void> => { const sb = spaceBrowser(); if (!sb) return; ensureSchema(ctx.db); await reconcileClaims(ctx, sb, { force: true }); },
+  },
+};
 
 /** What the host asks of this module on behalf of a computer that joined (host/src/routes/compute.ts): never a capability, never reachable from a session. */
 export const hostCalls = { "computers.browser_stream_open": browserStreamOpen, "computers.browser_stream_input": browserStreamInput, "computers.workspace_claim": workspaceClaim, "computers.workspace_release": workspaceRelease, "computers.workspace_waiting": workspaceWaiting, "computers.node_jobs": nodeJobs, "computers.node_result": nodeResult, "computers.node_home_check": nodeHomeCheck, "computers.stream_open": nodeStreamOpen, "computers.stream_input": nodeStreamInput, "computers.node_recording_check": nodeRecordingCheck };
