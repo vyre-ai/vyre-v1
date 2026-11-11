@@ -469,12 +469,17 @@ test("provision makes the workspace stopped, asks for no room and starts nothing
   assert.deepEqual([a, b], [{ workspaceId: NAME }, { workspaceId: NAME }]);
   assert.equal(r.dk.ops("create").filter((x) => x.name === NAME).length, 1);
   assert.equal(r.dk.ops("start").filter((x) => x.name === NAME).length, 0, "the workspace itself was not started (only the one-off project helper ran)");
-  assert.deepEqual([room.log, admitted], [[], []], "no room claimed");
+  // no room claimed; the admission is asked once, for the make (12 Nov, review: an agent in Trash gets nothing built), and not again for the repeat
+  assert.deepEqual([room.log, admitted], [[], ["create"]], "no room claimed, admission asked for the make");
   assert.equal(r.dk.box(NAME).running, false);
   assert.deepEqual((await r.mgr.list()).map((x) => x.state), ["asleep"]);
   assert.equal(await r.mgr.ensure(AGENT), "woke", "the first command wakes what was provisioned");
   assert.equal(r.dk.ops("create").filter((x) => x.name === NAME).length, 1, "it is not made again");
   await assert.rejects(() => r.mgr.provision("../x"), /not an agent/);
+  // an agent the host does not admit (in Trash) gets no container
+  const refused = rigWith({ admit: () => { throw new Error("That agent is in Trash, so it has no workspace."); } });
+  await assert.rejects(() => refused.mgr.provision(AGENT), /in Trash/);
+  assert.equal(refused.dk.boxes.size, 0, "nothing built");
 });
 
 test("the container carries the host's limits: 1 CPU, a 1 GB hard cap with 64 MB held back, low CPU shares, no swap, 512 processes", () => {

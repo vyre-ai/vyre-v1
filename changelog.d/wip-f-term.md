@@ -30,3 +30,6 @@
 - An agent in Trash keeps its workspace files for as long as the Space keeps Trash; after that they are removed, unless the agent was restored.
 - Where a Space cannot run agent workspaces yet, the line says what would let it, true for a Personal and a Team Space alike.
 - A workspace terminal cannot call Vyre's own server routes: the server knows the workspaces' network and treats calls from it as an agent's.
+- An agent's workspace keeps working when Vyre cannot make its shared network (for example when Docker has no address space left); it moves over later on its own.
+- Taking an agent off a project now stops its workspace's access before the change is confirmed.
+- A command with a Vault value right after another in the same tab is no longer refused as busy.

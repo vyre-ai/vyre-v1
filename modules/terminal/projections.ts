@@ -362,6 +362,8 @@ export function spellingsFor(scope: string): string[] {
 }
 /** A tab of its own is forgotten when it closes; a workspace keeps its values for as long as this process runs, since its other tabs and files may still hold them. */
 export const forgetSecrets = (scope: string): void => { if (scope.startsWith("trm:")) secretsByScope.delete(scope); };
+/** An agent gone to Trash: the values its workspace remembered are forgotten too (its tabs are closed, nothing of it is shown again). */
+export const forgetAgentSecrets = (agentId: string): void => { secretsByScope.delete(`ws:${agentId}`); };
 
 /** Every remembered value forgotten: a test starting clean. */
 export const forgetAllSecrets = (): void => { secretsByScope.clear(); };

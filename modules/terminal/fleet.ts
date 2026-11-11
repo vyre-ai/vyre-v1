@@ -102,6 +102,7 @@ export function createWorkspaceFleet(o: FleetOptions): WorkspaceFleet {
     // a hold is taken after the run's wake, so the agent's machine is known by then
     hold(agentId) { return homes.get(agentId)?.hold(agentId) ?? (() => undefined); },
     worked(agentId) { homes.get(agentId)?.worked(agentId); },
+    async cut(agentId, projectId) { for (const m of await where(agentId)) await m.cut(agentId, projectId); },
     async revoke(agentId) { for (const m of await where(agentId)) await m.revoke(agentId); },
     restore(agentId) { for (const m of all()) m.restore(agentId); },
     subnets() { return [...new Set(all().flatMap((m) => m.subnets()))]; },

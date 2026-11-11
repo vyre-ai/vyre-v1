@@ -18,6 +18,8 @@ export interface FakeDockerOptions {
   onExec?: (box: string, argv: readonly string[], env: readonly string[]) => ExecResult | undefined;
   /** What `tmux list-panes` prints in a box. */
   panes?: (box: string) => string;
+  /** A network create fails as when Docker's address pools are used up. */
+  networkFails?: () => boolean;
   /** What the busy check (BUSY_SCRIPT) prints in a box: the ids of processes that are work. Default none. */
   procs?: (box: string) => string;
 }
@@ -39,6 +41,7 @@ export function fakeDocker(o: FakeDockerOptions = {}) {
   const volumes = new Map<string, Record<string, unknown>>();
   const networks = new Set<string>();
   const netLabels = new Map<string, Record<string, string>>();
+  const netOptions = new Map<string, Record<string, string>>();
   const log: Array<{ op: string; name?: string; detail?: unknown }> = [];
   const execs = new Map<string, ExecResult>();
   let image = o.image !== false;
@@ -125,9 +128,9 @@ export function fakeDocker(o: FakeDockerOptions = {}) {
     if (/^\/networks\/[^/]+$/.test(p) && m === "GET") {
       const n = p.slice("/networks/".length);
       const i = [...networks].indexOf(n);
-      return i < 0 ? json(404, { message: "no such network" }) : json(200, { Name: n, Labels: netLabels.get(n) ?? {}, IPAM: { Config: [{ Subnet: `172.31.${i}.0/24` }] } });
+      return i < 0 ? json(404, { message: "no such network" }) : json(200, { Name: n, Labels: netLabels.get(n) ?? {}, Options: netOptions.get(n) ?? {}, IPAM: { Config: [{ Subnet: `172.31.${i}.0/24` }] } });
     }
-    if (p === "/networks/create" && m === "POST") { const n = (req.json as { Name: string }).Name; if (networks.has(n)) return json(409, { message: "network exists" }); networks.add(n); netLabels.set(n, (req.json as { Labels?: Record<string, string> }).Labels ?? {}); note("network", n, req.json); return json(201, { Id: "net" }); }
+    if (p === "/networks/create" && m === "POST") { const n = (req.json as { Name: string }).Name; if (networks.has(n)) return json(409, { message: "network exists" }); if (o.networkFails?.()) return json(400, { message: "all predefined address pools have been fully subnetted" }); networks.add(n); netLabels.set(n, (req.json as { Labels?: Record<string, string> }).Labels ?? {}); netOptions.set(n, (req.json as { Options?: Record<string, string> }).Options ?? {}); note("network", n, req.json); return json(201, { Id: "net" }); }
     r = /^\/networks\/([^/]+)$/.exec(p);
     if (r && m === "DELETE") { networks.delete(r[1] as string); return empty(204); }
     return json(404, { message: `the stand-in does not know ${m} ${p}` });

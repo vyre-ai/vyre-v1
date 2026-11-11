@@ -4,15 +4,15 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createDockerApi } from "../../../sandbox/src/docker.ts";
-import { createWorkspaceManager, createWorkspaceTerminalHost, workspaceName } from "../workspace.ts";
+import { createWorkspaceManager, createWorkspaceTerminalHost, workspaceContainerConfig, workspaceName } from "../workspace.ts";
 import type { WorkspaceManager, WorkspaceOptions } from "../workspace.ts";
 import { createLocalHost, handlers } from "../impl.ts";
-import { bindHost, bindWorkspaces } from "../projections.ts";
+import { bindHost, bindValues, bindWorkspaces } from "../projections.ts";
 import type { TermCtx } from "../projections.ts";
 import { fakeDocker } from "../fixtures/fake-docker.ts";
 import type { FakeDockerOptions } from "../fixtures/fake-docker.ts";
 import { fakeTmux } from "../fixtures/fake-tmux.ts";
-import { codeOf, fakeHost, harness, reset } from "../fixtures/harness.ts";
+import { codeOf, fakeHost, fakeValues, harness, reset } from "../fixtures/harness.ts";
 
 const h = handlers as unknown as Record<string, (ctx: TermCtx, input: any) => Promise<any> | any>;   // eslint-disable-line @typescript-eslint/no-explicit-any
 const AGENT = "agt_dex";
@@ -680,4 +680,95 @@ test("the terminal module registers the subnets its workspaces are on, for the d
   const { agentSubnets } = await import("../impl.ts");
   assert.equal(typeof agentSubnets, "function", "exported as the registry asks (agentSubnets)");
   m.close(); restarted.close();
+});
+
+// ---- second look S1: a shared network that cannot be had never takes a working workspace away ------------------------------------------------------------------
+
+test("S1: a workspace made before the shared network keeps working while the network cannot be made (pools used up), moves when it can, and a network of that name that is not ours is never used", async () => {
+  let fails = true;
+  const logs: string[] = [];
+  const dk = engine({ networkFails: () => fails });
+  // made before 12 Nov: on Docker's default bridge, with the label of that time
+  const old = workspaceContainerConfig(AGENT, "vyre/agent-workspace:1", { projects: [] }, {}, "bridge");
+  await dk.http({ method: "POST", path: "/containers/create", query: { name: NAME }, json: old });
+  await dk.http({ method: "POST", path: `/containers/${NAME}/start` });
+  const m = manager(dk, { log: (_l, msg) => { logs.push(msg); } });
+  assert.equal((await m.exec(AGENT, ["tmux", "-V"])).code, 0, "it still works");
+  assert.equal(dk.ops("remove").filter((x) => x.name === NAME).length, 0, "and was not taken away");
+  assert.ok(logs.includes("workspace.network_fallback"));
+  // a new workspace is made on the bridge too, rather than refused
+  assert.equal(await m.ensure("agt_new"), "created");
+  assert.equal(dk.box(workspaceName("agt_new")).config["HostConfig"]["NetworkMode"], "bridge");
+  // the pools free up: the next quiet wake moves it to the shared network
+  fails = false;
+  await m.ensure(AGENT);
+  assert.equal(dk.box(NAME).config["HostConfig"]["NetworkMode"], "vyre-workspaces", "moved once the network could be made");
+  m.close();
+
+  // a network called vyre-workspaces that is not Vyre's, or lets containers reach each other, is not used
+  const dk2 = engine();
+  await dk2.http({ method: "POST", path: "/networks/create", json: { Name: "vyre-workspaces", Driver: "bridge" } });
+  const logs2: string[] = [];
+  const m2 = manager(dk2, { log: (_l, msg) => { logs2.push(msg); } });
+  await m2.ensure(AGENT);
+  assert.equal(dk2.box(NAME).config["HostConfig"]["NetworkMode"], "bridge", "kept off a network whose isolation is unknown");
+  assert.ok(logs2.includes("workspace.network_not_ours"));
+  m2.close();
+});
+
+// ---- second look S2 and S3 -------------------------------------------------------------------------------------------------------------------------------------
+
+test("S3: a command with a Vault value right behind another in the same tab runs (the tab is idle before the next turn starts), and a status poll does not rewrite a row while a run is in flight", async () => {
+  reset();
+  bindWorkspaces(true);
+  const hn = harness();
+  let release: (() => void) | null = null;
+  const host = fakeHost({
+    "npm test": () => new Promise((r) => { release = () => r({ exitCode: 0, output: "ok" }); }),
+    "deploy": { exitCode: 0, output: "deployed" },
+  });
+  // tmux reads a builtin loop as the idle shell: the host's status says idle while the run goes on
+  bindHost({ ...host.host, status: async (ids) => ids.map((terminalId) => ({ terminalId, state: "idle" as const, exitCode: null })) });
+  bindValues(fakeValues({ "#GH.token": "gh-token-0123456789" }));
+  const agent: TermCtx = { ...hn.as({ kind: "agent", id: AGENT }, "usr_dana", "run_1"), thread: "thr_s3" };
+  const first = h["terminal.run"]!(agent, { command: "npm test", session: "ci", idempotencyKey: idem() });
+  await until(() => release !== null, "npm test to run");
+  const second = h["terminal.run"]!(agent, { command: "deploy", env: { TOKEN: "#GH.token" }, session: "ci", idempotencyKey: idem() });
+  // a status poll while npm test runs: the host says idle (tmux sees the shell), the row stays running
+  const id = (hn.rows("SELECT terminal_id FROM terminal_sessions WHERE name = 'ci'")[0] as { terminal_id: string }).terminal_id;
+  await h["terminal.status"]!(hn.ctx, { terminalIds: [id] });
+  assert.equal((hn.rows("SELECT state FROM terminal_sessions WHERE terminal_id = ?", id)[0] as { state: string }).state, "running", "a poll does not mark it idle under a run in flight");
+  release!();
+  const [a, b] = await Promise.all([first, second]);
+  assert.deepEqual([a.output, b.output], ["ok", "deployed"], "the second, with its value, ran right after");
+});
+
+test("S2: a deleted agent's remembered Vault values leave memory with it", async () => {
+  const { onAgentGone } = await import("../handlers/sessions.ts");
+  const { rememberSecrets, scrubberFor } = await import("../projections.ts");
+  reset();
+  const hn = harness();
+  rememberSecrets(`ws:${AGENT}`, [{ handle: "#GH.token", itemId: "vit_x", value: "gh-token-0123456789" }]);
+  assert.notEqual(scrubberFor(`ws:${AGENT}`), null);
+  await onAgentGone(hn.ctx, { payload: { agentId: AGENT } }, null);
+  assert.equal(scrubberFor(`ws:${AGENT}`), null);
+});
+
+// ---- in force at return: leaving a project, before the removal answers ---------------------------------------------------------------------------------------
+
+test("cut: the removal's own call stops the project's mirror for the agent and stops the running workspace at once; the next use makes it again without the folder, even while the projects list still names it", async () => {
+  let projects = ["prj_site", "prj_secret"];
+  const dk = engine({ procs: () => "4711 sleep 999999" });
+  const m = manager(dk, { projectsOf: () => projects, sleep: fast });
+  await m.ensure(AGENT);
+  const stops = dk.ops("stop").length;
+  await m.cut(AGENT, "prj_secret");
+  assert.equal(dk.box(NAME).running, false, "stopped at once, though busy");
+  assert.equal(dk.ops("stop").length, stops + 1);
+  // the projects list has not caught up yet: the folder still stays out
+  await m.ensure(AGENT);
+  assert.ok(!(dk.box(NAME).config["HostConfig"]["Binds"] as string[]).some((b) => b.includes("prj_secret")), "made again without the folder");
+  projects = ["prj_site"];
+  assert.equal(await m.ensure(AGENT), "running", "and nothing more to do once the list agrees");
+  m.close();
 });

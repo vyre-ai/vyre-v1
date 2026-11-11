@@ -164,11 +164,12 @@ async function scenario(t: import("node:test").TestContext, kind: "team" | "pers
   if (kind === "team") {
     await run(`sleep 999999 >/dev/null 2>&1 &`, "ws-bg");
     await ok(d, token, "projects.members.remove", { projectId, principal: agent });
-    await d.hooks?.pump?.();
-    const left_ = await waitFor(async () => {
-      const out = (await docker(["exec", name, "sh", "-c", `ls -A /home/agent/projects/${projectId} 2>&1; touch /home/agent/projects/${projectId}/x 2>/dev/null && echo WROTE || echo REFUSED`], 30_000)).out;
-      return /REFUSED/.test(out) && !/plan\.md/.test(out) ? out : null;
-    }, 30_000);
+    // in force when the call returns: at that moment no running container of the agent mounts the project (stopped by the removal's own call; a consumer may have made it again since, without it)
+    const at = (await docker(["inspect", "-f", "{{.State.Running}} {{json .HostConfig.Binds}}", name], 30_000)).out.trim().split("\n")[0] ?? "";
+    assert.ok(!(at.startsWith("true") && at.includes(`vyre-wsproj-${projectId}`)), `no running workspace mounts the project when the removal answers: ${at}`);
+    const after = await run(`ls -A ~/projects/${projectId} 2>&1; touch ~/projects/${projectId}/x 2>/dev/null && echo WROTE || echo REFUSED`, "ws-left");
+    const left_ = after.output;
+    assert.doesNotMatch(left_, /plan\.md/, "nor can it see the project's files");
     assert.match(left_, /REFUSED/, "the agent can neither read nor write the project it left");
   }
 

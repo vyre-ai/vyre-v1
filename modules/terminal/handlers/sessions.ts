@@ -5,7 +5,7 @@
 //   rules.get / rules.set / health
 // The machine does the work through the TerminalHost port (projections.ts); this module keeps what Vyre knows about a session and enforces who may do what in it.
 import {
-  MAX_RULES, MAX_RULE_CHARS, TICKET_MS, actorOf, boundHost, boundKit, boundPlace, boundValues, clean, commandsOf, ensure, forgetSecrets, hostOf, insertSession, isTeam, judge, mintId, raise, rememberSecrets,
+  MAX_RULES, MAX_RULE_CHARS, TICKET_MS, actorOf, boundHost, boundKit, boundPlace, boundValues, clean, commandsOf, ensure, forgetAgentSecrets, forgetSecrets, hostOf, insertSession, isTeam, judge, mintId, raise, rememberSecrets,
   rulesOf, sessionBy, sessionOf, sha256, ticketSecret, touch, workspacesFor, boundWorkspaceStatus, SESSION_SELECT, insertTab, scopeOf,
 } from "../projections.ts";
 import { classify, QuotedHereDoc, referHandles, UnsurePlace } from "../fill.ts";
@@ -320,7 +320,8 @@ export async function status(ctx: TermCtx, input: { terminalIds: string[] }) {
       const state: TermState = x.closedAt !== undefined ? "exited" : h?.state ?? x.state;
       // tmux does not know an exit code; a host that does says it, and one that does not leaves the last one Vyre recorded.
       const exitCode = h && h.exitCode !== null ? h.exitCode : x.exitCode;
-      if (h && (h.state !== x.state || exitCode !== x.exitCode)) ctx.db.run("UPDATE terminal_sessions SET state = ?, exit_code = ? WHERE terminal_id = ?", h.state, exitCode, x.terminalId);
+      // a run of this process is queued or running in the tab: its row is that run's to set, not a poll's (tmux reads a builtin loop as the idle shell) (review S3)
+      if (h && !queues.has(x.terminalId) && (h.state !== x.state || exitCode !== x.exitCode)) ctx.db.run("UPDATE terminal_sessions SET state = ?, exit_code = ? WHERE terminal_id = ?", h.state, exitCode, x.terminalId);
       const last = h?.lastLine === undefined ? undefined : clean(scopeOf(x), h.lastLine);
       return { terminalId: x.terminalId, state, ...(last === undefined ? {} : { lastLine: last }), exitCode };
     }).concat(kept.map((x) => ({ terminalId: x.terminalId, state: x.closedAt !== undefined ? ("exited" as TermState) : x.state, exitCode: x.exitCode })))
@@ -600,6 +601,9 @@ export async function run(ctx: TermCtx, a: RunInput) {
     } catch (e) {
       if (e && typeof e === "object" && (e as { code?: unknown }).code === "timeout") timedOut = true;
       throw e;
+    } finally {
+      // the tab is free again before the queue lets the next command in, so a command right behind this one does not read it as running (review S3)
+      ctx.db.run("UPDATE terminal_sessions SET state = 'idle', exit_code = ? WHERE terminal_id = ?", result?.exitCode ?? null, s.terminalId);
     }
   };
   // Only the environment is filled: the command line holds references, never a handle the filler would put a value in place of.
@@ -761,8 +765,11 @@ export async function onAgentGone(ctx: TermCtx, event: { payload: { agentId?: un
   const at = ctx.now();
   for (const id of open) {
     ctx.db.run("UPDATE terminal_sessions SET closed_at = ?, state = 'exited' WHERE terminal_id = ?", at, id);
+    forgetSecrets(scopeOf({ terminalId: id, host: "agent_computer", agentId }));
     ctx.emit("terminal.closed", id, { terminalId: id, by: "svc_host" });
   }
+  // what its workspace remembered of Vault values goes from memory with it (review S2)
+  forgetAgentSecrets(agentId);
   // the clock for its volumes starts now (removed after the Space's Trash retention, unless it is restored first)
   ctx.db.run("INSERT INTO terminal_workspace_gone (agent_id, deleted_at) VALUES (?, ?) ON CONFLICT (agent_id) DO NOTHING", agentId, ctx.now());
   if (remove) await remove(agentId);

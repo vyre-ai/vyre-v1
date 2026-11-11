@@ -703,6 +703,18 @@ export const periodic = {
   },
 };
 
+/**
+ * Work the host hands this module, with the module's own ctx (host/src/daemon/consumers.ts). `terminal.workspace_revoke`: leaving a project, done before the removal answers (the projects module awaits it
+ * inside its per-project queue): the agent's workspace stops mounting and mirroring the project now; the consumer on project.member_removed is the backstop.
+ */
+export const hostCalls = {
+  "terminal.workspace_revoke": async (_ctx: TermCtx, input: { agentId?: unknown; projectId?: unknown }): Promise<{ done: boolean }> => {
+    if (typeof input?.agentId !== "string" || typeof input.projectId !== "string" || !workspaceManager) return { done: false };
+    await workspaceManager.cut(input.agentId, input.projectId);
+    return { done: true };
+  },
+};
+
 /** What the module reads from the event log (host/src/daemon/consumers.ts runs each after commit, at least once). */
 export const consumers = {
   /** An agent went to Trash (deleted, or the Assistant of a person removed from the Space): its sessions close and its workspace's container and room go; what it kept stays (handlers/sessions.ts onAgentGone). */

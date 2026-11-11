@@ -14,7 +14,7 @@
 import { sha256Hex } from "../../kernel/src/log/hash.ts";
 import { NOT_FETCHED_REASON, createDockerApi, fetchableImage } from "../../sandbox/src/docker.ts";
 import { tarFiles } from "../../sandbox/src/tar.ts";
-import type { ContainerConfig, DockerApi, DockerHttp } from "../../sandbox/src/docker.ts";
+import type { ContainerConfig, DockerApi, DockerHttp, DockerResponse } from "../../sandbox/src/docker.ts";
 import { createTmuxHost, HISTORY_ENV } from "./impl.ts";
 import type { TmuxHost } from "./impl.ts";
 import type { ExecResult } from "./impl.ts";
@@ -160,6 +160,11 @@ export interface WorkspaceManager {
    */
   revoke(agentId: string): Promise<void>;
   /**
+   * The part of leaving a project that must be done before the removal answers (review, in force at return): the project's mirror stops for this agent and a running workspace that mounts it is stopped
+   * at once, with no grace; the next use makes it again without the folder. Until the projects list catches up, the project is left out of its mounts.
+   */
+  cut(agentId: string, projectId: string): Promise<void>;
+  /**
    * The subnets of the networks this engine's workspaces are on (the shared one, or each workspace's own behind the runner), as last read: the daemon's guard treats a caller from them as an agent's
    * container and keeps its own routes from it (host/src/routes/site-host.ts agentCaller, through the terminal module's agentSubnets).
    */
@@ -210,7 +215,12 @@ const stable = (m: MountSpec, net?: string): string => sha256Hex(JSON.stringify(
 export const SHARED_NETWORK = "vyre-workspaces";
 export const SHARED_NETWORK_BODY = { Name: SHARED_NETWORK, Driver: "bridge", CheckDuplicate: true, Options: { "com.docker.network.bridge.enable_icc": "false" }, Labels: { "vyre.workspaces": "shared" } };
 
-export function workspaceContainerConfig(agentId: string, image: string, m: MountSpec, o: Pick<WorkspaceOptions, "limits" | "runner">): ContainerConfig {
+/**
+ * `net`: the network it goes on. Default: each workspace's own behind the runner, else the shared one. "bridge" is Docker's default network, where every workspace was before 12 Nov: the fallback when the
+ * shared network cannot be made, so a working workspace is never taken away for want of a network (its label then says bridge, and a later wake moves it).
+ */
+export function workspaceContainerConfig(agentId: string, image: string, m: MountSpec, o: Pick<WorkspaceOptions, "limits" | "runner">, net?: string): ContainerConfig {
+  const network = net ?? (o.runner ? workspaceNetworkName(agentId) : SHARED_NETWORK);
   // the numbers are modules/computers/capacity.ts hostConfigLimits("workspace): a hard cap of 1 GB, 64 MB held back while it runs, low CPU shares, no swap (test/workspace.capacity.test.ts holds the two together)
   const limits = { cpus: 1, memoryMb: 1024, pids: 512, reserveMb: 64, ...o.limits };
   const memory = Math.round(limits.memoryMb * 1024 * 1024);
@@ -222,7 +232,7 @@ export function workspaceContainerConfig(agentId: string, image: string, m: Moun
     WorkingDir: WORKSPACE_HOME,
     Cmd: ["sleep", "infinity"],
     Env: [`VYRE_WORKSPACE_AGENT=${agentId}`, `HOME=${WORKSPACE_HOME}`, "TERM=xterm-256color", "LANG=en_US.UTF-8"],
-    Labels: { "vyre.workspace": agentId, "vyre.mounts": stable(m, o.runner ? undefined : SHARED_NETWORK) },
+    Labels: { "vyre.workspace": agentId, "vyre.mounts": stable(m, network) },
     StopTimeout: 10,
     HostConfig: {
       Binds: [
@@ -236,7 +246,7 @@ export function workspaceContainerConfig(agentId: string, image: string, m: Moun
       CapAdd: [],
       SecurityOpt: ["no-new-privileges:true"],
       Privileged: false,
-      NetworkMode: o.runner ? workspaceNetworkName(agentId) : SHARED_NETWORK,
+      NetworkMode: network,
       PidMode: "",
       IpcMode: "private",
       UsernsMode: "",
@@ -439,14 +449,35 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
     } finally { await http({ method: "DELETE", path: `/containers/${helper}`, query: { force: "true" } }).catch(() => undefined); }
   }
 
-  async function makeNetwork(agentId: string): Promise<void> {
-    if (!o.runner) {
-      // made once per engine; one already there (409) is used as it is
-      const r = await http({ method: "POST", path: "/networks/create", json: SHARED_NETWORK_BODY });
-      if (r.status !== 201 && r.status !== 409) throw wsError(`The workspaces' network was not made (${r.status}: ${bodyText(r.body)}).`);
-      await readSubnets();
-      return;
+  /**
+   * The shared network, made once per engine, or found and checked: Vyre's label and traffic between containers off. A network of that name that is not ours, or lets containers reach each other, is
+   * never used (isolation would fail without a word). False when it cannot be had now (Docker's address pools used up, a limited engine): the caller keeps the default bridge and logs it.
+   */
+  let sharedReady = false;
+  async function sharedNetwork(): Promise<boolean> {
+    if (sharedReady) return true;
+    let made: DockerResponse | null = null;
+    try { made = await http({ method: "POST", path: "/networks/create", json: SHARED_NETWORK_BODY }); } catch { made = null; }
+    if (made?.status === 201) { sharedReady = true; await readSubnets(); return true; }
+    if (made?.status === 409) {
+      const r = await http({ method: "GET", path: `/networks/${SHARED_NETWORK}` }).catch(() => null);
+      const j = r?.status === 200 ? (JSON.parse(dec.decode(r.body)) as { Labels?: Record<string, string>; Options?: Record<string, string> }) : null;
+      if (j && j.Labels?.["vyre.workspaces"] === "shared" && j.Options?.["com.docker.network.bridge.enable_icc"] === "false") { sharedReady = true; await readSubnets(); return true; }
+      log("warn", "workspace.network_not_ours", { network: SHARED_NETWORK });
+      return false;
     }
+    log("warn", "workspace.network_fallback", { network: SHARED_NETWORK, status: made?.status ?? 0, detail: made ? bodyText(made.body) : "no answer" });
+    return false;
+  }
+  /** The network a workspace is made on now: its own behind the runner; else the shared one, or the default bridge while the shared one cannot be had. */
+  async function networkFor(agentId: string): Promise<string> {
+    if (o.runner) return workspaceNetworkName(agentId);
+    return (await sharedNetwork()) ? SHARED_NETWORK : "bridge";
+  }
+
+  async function makeNetwork(agentId: string): Promise<void> {
+    // the shared network was made or checked by networkFor before the config was chosen; on the default bridge there is nothing to make
+    if (!o.runner) return;
     const name = workspaceNetworkName(agentId);
     const r = await http({ method: "POST", path: "/networks/create", json: { Name: name, Driver: "bridge", CheckDuplicate: true, Labels: { "vyre.workspace": agentId } } });
     if (r.status !== 201 && r.status !== 409) throw wsError(`The workspace's network was not made (${r.status}: ${bodyText(r.body)}).`);
@@ -454,8 +485,14 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
     await readSubnets();
   }
 
+  /** Projects an agent was cut from (cut) that the projects list may still name for a moment. */
+  const excluded = new Map<string, Set<string>>();
   async function mounts(agentId: string): Promise<MountSpec> {
-    const projects = [...new Set((await o.projectsOf?.(agentId)) ?? [])].filter((p) => PROJECT_ID.test(p)).sort();
+    const listed = [...new Set((await o.projectsOf?.(agentId)) ?? [])];
+    const out = excluded.get(agentId);
+    // once the list no longer names a cut project, the cut is done with
+    if (out) { for (const p of [...out]) if (!listed.includes(p)) out.delete(p); if (out.size === 0) excluded.delete(agentId); }
+    const projects = listed.filter((p) => PROJECT_ID.test(p) && !(out?.has(p) ?? false)).sort();
     return { projects };
   }
 
@@ -628,7 +665,8 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
     if (gone.has(agentId)) return Promise.reject(wsError(AGENT_GONE_LINE, "gone"));
     return serial(agentId, async () => {
       const name = workspaceName(agentId);
-      if (!(await inspect(name))) { const want = await mounts(agentId); await build(agentId, name, want, workspaceContainerConfig(agentId, image, want, o)); log("info", "workspace.provisioned", { agent: agentId }); }
+      // the same admission as a make or a wake: after a restart the move of an old computer must not build a workspace for an agent in Trash (review, first look 2)
+      if (!(await inspect(name))) { await o.admit?.({ agentId, state: "create" }); const want = await mounts(agentId); await build(agentId, name, want, workspaceContainerConfig(agentId, image, want, o, await networkFor(agentId))); log("info", "workspace.provisioned", { agent: agentId }); }
       return { workspaceId: name };
     });
   }
@@ -657,7 +695,8 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
   async function wake(agentId: string): Promise<"created" | "woke" | "running"> {
     const name = workspaceName(agentId);
     const want = await mounts(agentId);
-    const config = workspaceContainerConfig(agentId, image, want, o);
+    // the network is made or checked BEFORE anything is removed: if it cannot be had, the workspace keeps (or gets) the default bridge it worked on before, and a later wake tries again (review S1)
+    const config = workspaceContainerConfig(agentId, image, want, o, await networkFor(agentId));
     let info = await inspect(name);
     // the projects it is on changed (or the Files folder moved): the container is made again with the new mounts; the volumes, and so everything the agent kept, stay. A running workspace is made
     // again only when it is quiet (no run held, nothing working in it), never in the middle of a command: until then it keeps its mounts, and the change is looked at again on a later use (at most
@@ -876,6 +915,21 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
     restore(agentId) { gone.delete(agentId); restarts.delete(agentId); },
     subnets: () => [...nets],
     takeNote(agentId) { const n = sleptNote.get(agentId) ?? null; sleptNote.delete(agentId); return n; },
+    async cut(agentId, projectId) {
+      if (!AGENT_ID.test(agentId) || !PROJECT_ID.test(projectId)) return;
+      const out = excluded.get(agentId) ?? new Set<string>();
+      out.add(projectId);
+      excluded.set(agentId, out);
+      agentProjects.set(agentId, (agentProjects.get(agentId) ?? []).filter((p) => p !== projectId));
+      if (projectActor.get(projectId) === agentId) projectActor.delete(projectId);
+      const info = await inspect(workspaceName(agentId)).catch(() => null);
+      if (info?.running && info.projects.includes(projectId)) {
+        restarts.set(agentId, { gen: (gens.get(agentId) ?? 0) + 1, line: REMOVED_LINE });
+        stopHome(agentId);
+        await api.containerStop(workspaceName(agentId), 0);
+        log("info", "workspace.project_cut", { agent: agentId, project: projectId });
+      }
+    },
     restartLine(agentId, since) { const r = restarts.get(agentId); return r !== undefined && r.gen > since ? r.line : null; },
     hold(agentId) {
       holds.set(agentId, (holds.get(agentId) ?? 0) + 1);
