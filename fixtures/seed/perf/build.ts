@@ -109,8 +109,9 @@ async function build(into: string, sizes: PerfSizes): Promise<void> {
     log.close();
     const mod = new DatabaseSync(path.join(into, "modules.db"));
     const target = { run: (sql: string, ...args: unknown[]) => mod.prepare(sql).run(...(args as never[])) };
-    fillAccessTables(target, events);
-    fillIdentityTables(target, CORE_SPACE, events);
+    // one transaction: a commit per row made these 100,000 rows take most of half an hour
+    mod.exec("BEGIN IMMEDIATE");
+    try { fillAccessTables(target, events); fillIdentityTables(target, CORE_SPACE, events); mod.exec("COMMIT"); } catch (e) { mod.exec("ROLLBACK"); throw e; }
     mod.close();
   }
   fs.writeFileSync(path.join(into, "perf.json"), JSON.stringify({ gaps, sizes }));
