@@ -138,7 +138,9 @@ test("who may enter: a person their own Assistant's workspace; an owner or admin
   assert.equal(await mayEnterWorkspace(member, "agt_dex"), false, "a member in a team agent's");
   assert.equal(await mayEnterWorkspace(asPerson("usr_lee", false), "agt_dex"), true, "its owner");
   assert.equal(await mayEnterWorkspace(member, "agt_unknown"), false, "an agent nobody can read");
-  assert.equal(await mayEnterWorkspace(admin, "agt_unknown"), true, "an agent the host cannot read: Manage decides");
+  // 12 Nov (audit item 16): agents.get answers not found to everyone but its person for an Assistant or an outside agent (modules/agents/projections.ts canSee), and to an admin for a person's own
+  // agent nobody shared; Manage over agents in general must not open those, so an agent the caller cannot read is not entered (it was: "Manage decides")
+  assert.equal(await mayEnterWorkspace(admin, "agt_unknown"), false, "an agent the caller cannot read is not entered, whatever its role");
   assert.equal(await mayEnterWorkspace({ ...admin, principal: AGENT }, "agt_dex"), true, "an agent in its own");
   assert.equal(await mayEnterWorkspace({ ...admin, principal: AGENT }, "agt_x"), false, "an agent in another's");
 });

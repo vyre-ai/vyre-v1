@@ -400,3 +400,17 @@ test("a workspace waiting for room says only what is true: the host it waits on,
   m.close();
   bare.close();
 });
+
+// ---- 16: an agent the caller cannot read ---------------------------------------------------------------------------------------------------------------
+
+test("an admin whose agents.get of another person's Assistant answers not found is not let into its workspace by holding Manage", async () => {
+  const { mayEnterWorkspace } = await import("../handlers/sessions.ts");
+  reset();
+  const hn = harness();
+  const hidden = async (cap: string): Promise<unknown> => { if (cap === "agents.get") throw Object.assign(new Error("That agent does not exist."), { error: { code: "validation.not_found" } }); return undefined; };
+  const admin: TermCtx = { ...hn.as({ kind: "person", id: "usr_admin" }), call: hidden as never, authorize: () => ({ effect: "allow" }) };
+  assert.equal(await mayEnterWorkspace(admin, "agt_dana_assistant"), false);
+  // a team agent the admin can read is still theirs to enter by Manage
+  const team: TermCtx = { ...admin, call: (async (cap: string) => (cap === "agents.get" ? { agent: { agentId: "agt_dex", ownerId: "usr_dana", kind: "teammate" } } : undefined)) as never };
+  assert.equal(await mayEnterWorkspace(team, "agt_dex"), true);
+});

@@ -91,6 +91,9 @@ export async function mayEnterWorkspace(ctx: TermCtx, agentId: string): Promise<
   const me = actorOf(ctx);
   let agent: AgentFacts | undefined;
   try { agent = ((await ctx.call?.("agents.get", { agentId })) as { agent?: AgentFacts } | undefined)?.agent; } catch { agent = undefined; }
+  // an agent this caller cannot even read is not one it may enter: another person's Assistant or outside agent reads as not found to everyone else, admins included, and Manage held over agents
+  // in general must not open it (12 Nov, audit item 16). Only where nothing can be asked (no ctx.call) does the role decide alone.
+  if (agent === undefined && ctx.call !== undefined) return false;
   if (agent?.ownerId === me) return true;
   if (agent !== undefined && (agent.kind === "assistant" || agent.runtime === "outside")) return false;
   return ctx.authorize({ perm: null, level: "manage" }, { type: "agent", id: agentId }).effect === "allow";

@@ -12,3 +12,4 @@
 - A workspace stopped outside Vyre (out of memory, a restart of the server) no longer holds its room forever.
 - Files history names the agent whose command changed a project file, not another agent that only had a terminal tab open.
 - A workspace waiting for room no longer tells you to add a compute server, which could not take it; it says it starts by itself when there is room.
+- Nobody is let into another person's Assistant's terminal by holding an admin role, even when the Assistant cannot be looked up.
