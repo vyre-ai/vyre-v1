@@ -1,1 +1,2830 @@
-{}
+{
+  "agent/tests/drivers-cli.golden.test.ts": {
+    "ms": 4086,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "agent/tests/drivers-cli.models.test.ts": {
+    "ms": 4192,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "agent/tests/drivers-cli.oneshot.test.ts": {
+    "ms": 2017,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "agent/tests/drivers-cli.redact.test.ts": {
+    "ms": 944,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "agent/tests/drivers-cli.resume.test.ts": {
+    "ms": 1673,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "agent/tests/drivers-cli.session.test.ts": {
+    "ms": 3622,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "agent/tests/drivers-open.test.ts": {
+    "ms": 2119,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "agent/tests/limits.report.test.ts": {
+    "ms": 660,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "agent/tests/skill-evals/skills-tools.test.ts": {
+    "ms": 814,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "apps/app/src/console/tests/console-route.test.tsx": {
+    "ms": 4986,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "apps/app/src/console/tests/critical-pages.test.tsx": {
+    "ms": 9032,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "apps/app/src/hooks-order.test.ts": {
+    "ms": 526,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "apps/app/src/join/entry-paths.test.tsx": {
+    "ms": 10233,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "apps/app/src/join/entry-screens.test.tsx": {
+    "ms": 2449,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "apps/app/src/join/have-account.test.tsx": {
+    "ms": 3128,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "apps/app/src/join/space-entry-escape.test.tsx": {
+    "ms": 1968,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "apps/app/src/oauth/allow.test.tsx": {
+    "ms": 3740,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "apps/app/src/onboarding/styles-class.test.ts": {
+    "ms": 255,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "apps/app/src/places/automations/operations/views.test.tsx": {
+    "ms": 1927,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "apps/app/src/places/chats/addsheet/addsheet.more.test.tsx": {
+    "ms": 9195,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "apps/app/src/places/chats/agentpage/chats-agent.test.tsx": {
+    "ms": 4786,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "apps/app/src/places/chats/conversation/after-this.test.tsx": {
+    "ms": 4960,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "apps/app/src/places/chats/conversation/agent-dm.test.tsx": {
+    "ms": 6227,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "apps/app/src/places/chats/conversation/askagent-view.test.tsx": {
+    "ms": 6610,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "apps/app/src/places/chats/conversation/hook-line-conv.test.tsx": {
+    "ms": 7107,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "apps/app/src/places/chats/conversation/pane-drop.test.tsx": {
+    "ms": 5394,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "apps/app/src/places/chats/conversation/phone-header-actions.test.tsx": {
+    "ms": 5626,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "apps/app/src/places/chats/conversation/status.test.ts": {
+    "ms": 845,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "apps/app/src/places/chats/crew/crew-ui.test.tsx": {
+    "ms": 7868,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "apps/app/src/places/chats/goals/goal-page.test.tsx": {
+    "ms": 6785,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "apps/app/src/places/chats/memory/lessons.test.tsx": {
+    "ms": 6461,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "apps/app/src/places/chats/menus/menus-wired.test.tsx": {
+    "ms": 3913,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "apps/app/src/places/chats/mounts/channel-open.test.tsx": {
+    "ms": 6466,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "apps/app/src/places/chats/mounts/threads-ui.test.tsx": {
+    "ms": 3305,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "apps/app/src/places/chats/rightpane/chats-crew.test.tsx": {
+    "ms": 3892,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "apps/app/src/places/chats/rightpane/chats-hooks.test.tsx": {
+    "ms": 3758,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "apps/app/src/places/chats/rightpane/chats-pane-actions.test.tsx": {
+    "ms": 1912,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "apps/app/src/places/chats/rightpane/chats-rightpane-narrow.test.tsx": {
+    "ms": 3618,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "apps/app/src/places/chats/rightpane/terminal-pane.test.tsx": {
+    "ms": 1889,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "apps/app/src/places/files/tests/files-list-c.test.tsx": {
+    "ms": 2356,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "apps/app/src/places/records/journey/gates.test.tsx": {
+    "ms": 6107,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "apps/app/src/places/records/tests/records-page.test.tsx": {
+    "ms": 4755,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "apps/app/src/places/records/tests/records-stages.test.tsx": {
+    "ms": 6687,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "apps/app/src/places/records/tests/records-sync.test.tsx": {
+    "ms": 6256,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "apps/app/src/shell/cmdk/cmdk.test.tsx": {
+    "ms": 2009,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "apps/app/src/shell/places.test.tsx": {
+    "ms": 18395,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "apps/app/src/shell/providers/chats.test.tsx": {
+    "ms": 9443,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "apps/app/src/shell/reach/open-link.test.tsx": {
+    "ms": 1520,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "apps/app/src/shell/reach/sites.test.ts": {
+    "ms": 455,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "apps/app/src/shell/session/first-launch-link.test.tsx": {
+    "ms": 3995,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "apps/app/src/shell/session/hydration-first-frame.test.tsx": {
+    "ms": 3612,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "apps/app/src/shell/session/join-provider.test.tsx": {
+    "ms": 1785,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "apps/app/src/shell/session/key-gate.test.tsx": {
+    "ms": 2801,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "apps/app/src/shell/session/one-account.test.tsx": {
+    "ms": 2473,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "apps/app/src/shell/session/phone-desktop-only.test.tsx": {
+    "ms": 2698,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "apps/app/src/shell/session/roles.test.ts": {
+    "ms": 730,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "apps/app/src/shell/session/session.test.ts": {
+    "ms": 11026,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "apps/app/src/shell/session/shell-report.test.tsx": {
+    "ms": 5605,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "apps/app/src/shell/spaces/space-label.test.tsx": {
+    "ms": 2465,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "apps/app/src/shell/titlebar/shell.titlebar.test.tsx": {
+    "ms": 2448,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "apps/app/src/startup/routes.test.ts": {
+    "ms": 362,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "apps/app/tests/apps.editors.live.test.ts": {
+    "ms": 831,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "apps/app/tests/apps.email-ask.live.test.ts": {
+    "ms": 654,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "apps/app/tests/apps.form-choices.live.test.ts": {
+    "ms": 420,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "apps/app/tests/apps.form-code.live.test.ts": {
+    "ms": 419,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "apps/app/tests/auth.entry.live.test.ts": {
+    "ms": 446,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "apps/app/tests/auth.personal.live.test.ts": {
+    "ms": 575,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "apps/app/tests/automations.home.live.test.ts": {
+    "ms": 502,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "apps/app/tests/chat.surfaces.live.test.ts": {
+    "ms": 1368,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "apps/app/tests/chats-mounted.test.tsx": {
+    "ms": 11474,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "apps/app/tests/console.access-pages-groups-reviews.live.test.ts": {
+    "ms": 1677,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "apps/app/tests/console.access-pages-policies.live.test.ts": {
+    "ms": 1004,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "apps/app/tests/console.access-pages-roles.live.test.ts": {
+    "ms": 1311,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "apps/app/tests/console.access.live.test.ts": {
+    "ms": 442,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "apps/app/tests/console.ai-data.live.test.ts": {
+    "ms": 421,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "apps/app/tests/console.backup-preview.live.test.ts": {
+    "ms": 394,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "apps/app/tests/console.comms.live.test.ts": {
+    "ms": 570,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "apps/app/tests/console.compute.live.test.ts": {
+    "ms": 624,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "apps/app/tests/console.connectors.live.test.ts": {
+    "ms": 483,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "apps/app/tests/console.ecosystem.live.test.ts": {
+    "ms": 589,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "apps/app/tests/console.error-details.live.test.ts": {
+    "ms": 474,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "apps/app/tests/console.health-fresh.live.test.ts": {
+    "ms": 709,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "apps/app/tests/console.infra.live.test.ts": {
+    "ms": 591,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "apps/app/tests/console.network-metrics.live.test.ts": {
+    "ms": 1100,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "apps/app/tests/console.pages-parity-a.live.test.ts": {
+    "ms": 1044,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "apps/app/tests/console.pages-parity-b.live.test.ts": {
+    "ms": 1327,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "apps/app/tests/console.pages-parity-c.live.test.ts": {
+    "ms": 1017,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "apps/app/tests/console.pages-parity-d.live.test.ts": {
+    "ms": 1224,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "apps/app/tests/console.permissions.live.test.ts": {
+    "ms": 441,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "apps/app/tests/console.records-preview.live.test.ts": {
+    "ms": 488,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "apps/app/tests/console.server-pagination.live.test.ts": {
+    "ms": 429,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "apps/app/tests/console.speed-trace.live.test.ts": {
+    "ms": 546,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "apps/app/tests/console.usage-limits.live.test.ts": {
+    "ms": 508,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "apps/app/tests/console.webhooks.live.test.ts": {
+    "ms": 539,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "apps/app/tests/crew.hookline.live.test.ts": {
+    "ms": 636,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "apps/app/tests/oauth.callback.live.test.ts": {
+    "ms": 537,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "apps/app/tests/onboarding.chip.live.test.ts": {
+    "ms": 464,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "apps/app/tests/onboarding.flow.live.test.ts": {
+    "ms": 23470,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "apps/app/tests/onboarding.reopen.live.test.ts": {
+    "ms": 530,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "apps/app/tests/open-link.live.test.ts": {
+    "ms": 886,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "apps/app/tests/overview.real.live.test.ts": {
+    "ms": 456,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "apps/app/tests/polish.phone.live.test.ts": {
+    "ms": 397,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "apps/app/tests/polish.shots.live.test.ts": {
+    "ms": 416,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "apps/app/tests/projects-shell.live.test.ts": {
+    "ms": 432,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "apps/app/tests/projects.admin-roles.live.test.ts": {
+    "ms": 506,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "apps/app/tests/real-app-harness.test.ts": {
+    "ms": 1043,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "apps/app/tests/real-app.e2e.test.ts": {
+    "ms": 523,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "apps/app/tests/records.sharing.live.test.ts": {
+    "ms": 844,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "apps/app/tests/records.views.live.test.ts": {
+    "ms": 510,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "apps/app/tests/recovery.account.live.test.ts": {
+    "ms": 576,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "apps/app/tests/shell.real.cmdk.test.tsx": {
+    "ms": 3795,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "apps/app/tests/spaces.switch.live.test.ts": {
+    "ms": 461,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "apps/app/tests/speed.producers.live.test.ts": {
+    "ms": 694,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "apps/app/tests/sync.endpoint.live.test.ts": {
+    "ms": 460,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "apps/app/tests/sync.live-update.live.test.ts": {
+    "ms": 634,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "apps/app/tests/tab-switch.live.test.ts": {
+    "ms": 1841,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "apps/app/tests/tasks.page.live.test.ts": {
+    "ms": 445,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "apps/app/tests/vault.add-save.live.test.ts": {
+    "ms": 620,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "apps/chrome/tests/ext-agent.real.test.ts": {
+    "ms": 66150,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "apps/chrome/tests/ext-agent.test.ts": {
+    "ms": 791,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "apps/chrome/tests/ext-core.popup-shot.test.ts": {
+    "ms": 7392,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "apps/chrome/tests/ext-core.test.ts": {
+    "ms": 771,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "apps/desktop/tests/chrome-stage.test.ts": {
+    "ms": 353,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "apps/desktop/tests/personal.heavy.test.ts": {
+    "ms": 400,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "apps/desktop/tests/shell.heavy.test.ts": {
+    "ms": 9112,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "apps/desktop/tests/shell.test.ts": {
+    "ms": 365,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "apps/desktop/tests/stage-runtime.test.ts": {
+    "ms": 527,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "client/src/gateway/key-seal.test.ts": {
+    "ms": 391,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "client/src/query/query.live.test.ts": {
+    "ms": 614,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "contracts/tests/frozen-events.test.ts": {
+    "ms": 1164,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "fixtures/seed/core/core.seed.test.ts": {
+    "ms": 4313,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "fixtures/seed/perf/perf.seed-script.test.ts": {
+    "ms": 26381,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "fixtures/seed/perf/perf.seed.test.ts": {
+    "ms": 38480,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "fixtures/seed/prototype/prototype.seed.test.ts": {
+    "ms": 1633,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "fixtures/seed/small/agent-files.invariant.test.ts": {
+    "ms": 26283,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "fixtures/seed/small/small.seed.test.ts": {
+    "ms": 44424,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "golden/harness.test.ts": {
+    "ms": 49419,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "golden/steps/01-lead.test.ts": {
+    "ms": 10432,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "golden/steps/02-joining.test.ts": {
+    "ms": 9058,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "golden/steps/03-changeset.test.ts": {
+    "ms": 12422,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "golden/steps/04-offline-conflict.test.ts": {
+    "ms": 10625,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "golden/steps/05-lead.test.ts": {
+    "ms": 14588,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "golden/steps/05-senders.test.ts": {
+    "ms": 10999,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "golden/steps/06-artifact-personal.test.ts": {
+    "ms": 8190,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "golden/steps/06-site.test.ts": {
+    "ms": 10880,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "golden/steps/07-gate.heavy.test.ts": {
+    "ms": 400,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "golden/steps/07-mcp-gate.live.test.ts": {
+    "ms": 10472,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "golden/steps/07-reply.heavy.test.ts": {
+    "ms": 400,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "golden/steps/08-memory.test.ts": {
+    "ms": 14468,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "golden/steps/09-offboarding.test.ts": {
+    "ms": 8994,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "golden/steps/10-keyfail.test.ts": {
+    "ms": 11356,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "golden/steps/11-restore.test.ts": {
+    "ms": 15179,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "golden/steps/12-matrix.test.ts": {
+    "ms": 16413,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "golden/steps/13-private.test.ts": {
+    "ms": 11665,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "golden/steps/14-purge.test.ts": {
+    "ms": 12328,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "golden/steps/15-personal.test.ts": {
+    "ms": 10090,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "golden/steps/channel-access.live.test.ts": {
+    "ms": 15909,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "golden/steps/chat-archive.live.test.ts": {
+    "ms": 10359,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "golden/steps/chat-flows.live.test.ts": {
+    "ms": 30300,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "golden/steps/dbg-access.live.test.ts": {
+    "ms": 8561,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "golden/steps/folders.place.test.ts": {
+    "ms": 11252,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "golden/steps/guest.test.ts": {
+    "ms": 17751,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "golden/steps/live.hub.test.ts": {
+    "ms": 1133,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "golden/steps/request.approve.test.ts": {
+    "ms": 11080,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "golden/steps/revoke.hide.test.ts": {
+    "ms": 10063,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/src/routes/public-path.test.ts": {
+    "ms": 597,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/access.grants.live.test.ts": {
+    "ms": 11251,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/access.owner.live.test.ts": {
+    "ms": 8102,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/actor.credential.live.test.ts": {
+    "ms": 13547,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/agent.files.live.test.ts": {
+    "ms": 11110,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/agent.home-grants.quiet.live.test.ts": {
+    "ms": 9955,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/agent.owner.grant.test.ts": {
+    "ms": 17617,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/apps.editors.live.test.ts": {
+    "ms": 8047,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/assistant.turn.live.test.ts": {
+    "ms": 15139,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/authz.single-source.test.ts": {
+    "ms": 29463,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/automations.acceptance.test.ts": {
+    "ms": 38693,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/automations.ai.live.test.ts": {
+    "ms": 27969,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/automations.code-unavailable.live.test.ts": {
+    "ms": 16176,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/automations.code.live.test.ts": {
+    "ms": 400,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/automations.cohort.live.test.ts": {
+    "ms": 20377,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/automations.depth.live.test.ts": {
+    "ms": 8755,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/automations.docs-page.live.test.ts": {
+    "ms": 8715,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/automations.draft-publish.live.test.ts": {
+    "ms": 9945,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/automations.exec.live.test.ts": {
+    "ms": 34383,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/automations.gate.live.test.ts": {
+    "ms": 22574,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/automations.google.live.test.ts": {
+    "ms": 10051,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/automations.grant.live.test.ts": {
+    "ms": 27347,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/automations.http.live.test.ts": {
+    "ms": 23834,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/automations.http.send.live.test.ts": {
+    "ms": 30104,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/automations.killed-host.test.ts": {
+    "ms": 38485,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/automations.killed.live.test.ts": {
+    "ms": 17479,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/automations.limits.live.test.ts": {
+    "ms": 7305,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/automations.matrix.test.ts": {
+    "ms": 34827,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/automations.missed-ticks.live.test.ts": {
+    "ms": 8170,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/automations.offer.live.test.ts": {
+    "ms": 9402,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/automations.open-document.live.test.ts": {
+    "ms": 8039,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/automations.open-mcp.live.test.ts": {
+    "ms": 11640,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/automations.open-redirect.live.test.ts": {
+    "ms": 10337,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/automations.openapi-read.live.test.ts": {
+    "ms": 11511,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/automations.owner.live.test.ts": {
+    "ms": 15637,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/automations.parallel-fail.live.test.ts": {
+    "ms": 18281,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/automations.rerun.live.test.ts": {
+    "ms": 7847,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/automations.retry.live.test.ts": {
+    "ms": 9947,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/automations.sandbox.live.test.ts": {
+    "ms": 9139,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/automations.schedule.live.test.ts": {
+    "ms": 9337,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/automations.share.live.test.ts": {
+    "ms": 8395,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/automations.studio.live.test.ts": {
+    "ms": 12961,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/automations.transcript.live.test.ts": {
+    "ms": 15524,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/automations.try-read.live.test.ts": {
+    "ms": 9952,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/automations.webhook.live.test.ts": {
+    "ms": 12689,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/blobs.route.test.ts": {
+    "ms": 8321,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/blobs.test.ts": {
+    "ms": 13176,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/campaigns-removed.migration.test.ts": {
+    "ms": 3784,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/chat.live.test.ts": {
+    "ms": 400,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/chrome-bridge.live.test.ts": {
+    "ms": 10768,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/chrome-bridge.person.live.test.ts": {
+    "ms": 8791,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/compute.jobs.live.test.ts": {
+    "ms": 28520,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/compute.node.live.test.ts": {
+    "ms": 19928,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/compute.stream.live.test.ts": {
+    "ms": 29644,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/computers.live.test.ts": {
+    "ms": 400,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/computers.personal.live.test.ts": {
+    "ms": 12467,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/computers.runner.live.test.ts": {
+    "ms": 400,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/connectors.builtin.live.test.ts": {
+    "ms": 9415,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/connectors.creation.live.test.ts": {
+    "ms": 9391,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/connectors.files.live.test.ts": {
+    "ms": 8655,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/connectors.oauth.live.test.ts": {
+    "ms": 9783,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/connectors.source.edit.live.test.ts": {
+    "ms": 9754,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/connectors.source.guard.live.test.ts": {
+    "ms": 11523,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/connectors.source.live.test.ts": {
+    "ms": 11769,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/connectors.vault.live.test.ts": {
+    "ms": 9145,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/daemon.audit.test.ts": {
+    "ms": 8693,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/daemon.boot.test.ts": {
+    "ms": 24238,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/daemon.boot.wiring.test.ts": {
+    "ms": 27869,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/daemon.cli.test.ts": {
+    "ms": 5790,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/daemon.commands.test.ts": {
+    "ms": 1494,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/daemon.doctor.test.ts": {
+    "ms": 3444,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/daemon.gate.test.ts": {
+    "ms": 35047,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/deferred.bootstrap.test.ts": {
+    "ms": 8986,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/email.ask.live.test.ts": {
+    "ms": 12314,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/emailblocks.live.test.ts": {
+    "ms": 9225,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/engine.group-account.test.ts": {
+    "ms": 9205,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/engine.live.test.ts": {
+    "ms": 9778,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/files.personal-privacy.live.test.ts": {
+    "ms": 11219,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/files.resources.restart.test.ts": {
+    "ms": 14117,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/forms.ask.live.test.ts": {
+    "ms": 10663,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/forms.choices.live.test.ts": {
+    "ms": 11782,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/forms.page.live.test.ts": {
+    "ms": 18120,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/fresh.install.test.ts": {
+    "ms": 13669,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/gate.requested.trace.test.ts": {
+    "ms": 8213,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/git-proxy.live.test.ts": {
+    "ms": 7137,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/github-admin.live.test.ts": {
+    "ms": 15960,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/github-signin.live.test.ts": {
+    "ms": 8421,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/google.first-pull.live.test.ts": {
+    "ms": 9909,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/health.fresh.live.test.ts": {
+    "ms": 11406,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/hooks.helper.live.test.ts": {
+    "ms": 11831,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/hooks.walk.live.test.ts": {
+    "ms": 12429,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/invoke.kept-personal.test.ts": {
+    "ms": 659,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/journeys.doneby.live.test.ts": {
+    "ms": 8643,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/journeys.live.test.ts": {
+    "ms": 26448,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/kits.live.test.ts": {
+    "ms": 12691,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/kits.shipped.live.test.ts": {
+    "ms": 10388,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/l1.live.test.ts": {
+    "ms": 16480,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/l7.live.test.ts": {
+    "ms": 28383,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/labels.inherit.live.test.ts": {
+    "ms": 11524,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/live.l10.test.ts": {
+    "ms": 8383,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/live.l3.test.ts": {
+    "ms": 20023,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/live.l4.test.ts": {
+    "ms": 15735,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/live.l5.test.ts": {
+    "ms": 12269,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/live.l6.test.ts": {
+    "ms": 8215,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/live.l7b.test.ts": {
+    "ms": 12384,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/live.l8.test.ts": {
+    "ms": 11783,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/local-work.daemon.test.ts": {
+    "ms": 1959,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/logsink.corrupt.test.ts": {
+    "ms": 2105,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/mail-providers.test.ts": {
+    "ms": 19030,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/memory-meaning.test.ts": {
+    "ms": 334,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/network.ingress.test.ts": {
+    "ms": 16487,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/network.managed.live.test.ts": {
+    "ms": 8830,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/node.relay.live.test.ts": {
+    "ms": 14211,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/oauth-daemon.launcher.test.ts": {
+    "ms": 2206,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/onboarding.assistant.live.test.ts": {
+    "ms": 400,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/owned.exports.live.test.ts": {
+    "ms": 9254,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/personal.matrix.test.ts": {
+    "ms": 8792,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/portal.live.test.ts": {
+    "ms": 11019,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/public-address.live.test.ts": {
+    "ms": 7944,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/records.scoped.live.test.ts": {
+    "ms": 6666,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/recovery.challenge.live.test.ts": {
+    "ms": 15664,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/removed.signin.test.ts": {
+    "ms": 9479,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/reset.owner.live.test.ts": {
+    "ms": 8671,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/restore.tombstones.test.ts": {
+    "ms": 17022,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/revoke.e2e.test.ts": {
+    "ms": 11408,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/runs.children.retry.test.ts": {
+    "ms": 26554,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/runs.children.test.ts": {
+    "ms": 23759,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/schema.start.boot.test.ts": {
+    "ms": 10127,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/seams.generic.test.ts": {
+    "ms": 24139,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/seams.second-daemon.test.ts": {
+    "ms": 15278,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/security.sweep10.test.ts": {
+    "ms": 30722,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/seed.grants.test.ts": {
+    "ms": 9036,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/session.revoke.test.ts": {
+    "ms": 9419,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/sessions.import.live.test.ts": {
+    "ms": 9049,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/signin.policy.live.test.ts": {
+    "ms": 7741,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/sites.agent.test.ts": {
+    "ms": 10737,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/space.export.live.test.ts": {
+    "ms": 80801,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/spend.scope.live.test.ts": {
+    "ms": 9944,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/sso.microsoft.live.test.ts": {
+    "ms": 7336,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/sso.signin.live.test.ts": {
+    "ms": 9924,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/store.live.test.ts": {
+    "ms": 10726,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/suite.automatch.live.test.ts": {
+    "ms": 12767,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/suite.google.live.test.ts": {
+    "ms": 13866,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/suite.microsoft.live.test.ts": {
+    "ms": 12931,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/sync.hub.live.test.ts": {
+    "ms": 23550,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/syncengine.live.test.ts": {
+    "ms": 34280,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/team-channel.open.live.test.ts": {
+    "ms": 10639,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/telemetry.live.test.ts": {
+    "ms": 9354,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/unsubscribe.live.test.ts": {
+    "ms": 8180,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/updates.live.test.ts": {
+    "ms": 19876,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/vault.key.test.ts": {
+    "ms": 12794,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/view-as.live.test.ts": {
+    "ms": 11472,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/webhooks.live.test.ts": {
+    "ms": 10262,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/webhooks.recover.test.ts": {
+    "ms": 11655,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "host/tests/workspace.node.live.test.ts": {
+    "ms": 400,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "images/vyred/context.test.ts": {
+    "ms": 530,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "images/vyred/smoke.heavy.test.ts": {
+    "ms": 25703,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "kernel/tests/gsia.typecheck.test.ts": {
+    "ms": 4605,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "manifest/tests/scaffold.module.test.ts": {
+    "ms": 3144,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "modules/backup/tests/run.test.ts": {
+    "ms": 797,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "modules/chat/tests/ask.live.test.ts": {
+    "ms": 3985,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "modules/chat/tests/group-chat.live.test.ts": {
+    "ms": 3579,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "modules/computers/tests/lifecycle.heavy.test.ts": {
+    "ms": 400,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "modules/computers/tests/sbrowser.heavy.test.ts": {
+    "ms": 400,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "modules/computers/tests/sbrowser.profiles.test.ts": {
+    "ms": 552,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "modules/computers/tests/tools.heavy.test.ts": {
+    "ms": 400,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "modules/computers/tests/tools.sandbox.test.ts": {
+    "ms": 733,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "modules/engine/tests/access.heavy.test.ts": {
+    "ms": 400,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "modules/engine/tests/cli-fallback.live.test.ts": {
+    "ms": 1241,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "modules/engine/tests/cli.heavy.test.ts": {
+    "ms": 400,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "modules/engine/tests/crew-git.redact.test.ts": {
+    "ms": 642,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "modules/engine/tests/crew-prepare.test.ts": {
+    "ms": 1519,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "modules/engine/tests/engine-install.test.ts": {
+    "ms": 1735,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "modules/engine/tests/extra.config.test.ts": {
+    "ms": 1402,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "modules/engine/tests/goal-folder.test.ts": {
+    "ms": 1223,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "modules/engine/tests/mac-claude-signin.heavy.test.ts": {
+    "ms": 400,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "modules/engine/tests/node-turn.live.test.ts": {
+    "ms": 9090,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "modules/engine/tests/openweb.heavy.test.ts": {
+    "ms": 400,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "modules/engine/tests/plugin-runtime.heavy.test.ts": {
+    "ms": 400,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "modules/engine/tests/sandbox.heavy.test.ts": {
+    "ms": 400,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "modules/engine/tests/sandbox.lowil.heavy.test.ts": {
+    "ms": 400,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "modules/engine/tests/sandbox.mac.heavy.test.ts": {
+    "ms": 400,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "modules/engine/tests/sandbox.wsl.heavy.test.ts": {
+    "ms": 400,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "modules/engine/tests/skills-native.test.ts": {
+    "ms": 630,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "modules/engine/tests/sudo-shim.win.test.ts": {
+    "ms": 917,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "modules/engine/tests/winfix.heavy.test.ts": {
+    "ms": 910,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "modules/esign/tests/documenso.heavy.test.ts": {
+    "ms": 400,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "modules/esign/tests/dropbox.live.test.ts": {
+    "ms": 11882,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "modules/files/tests/agent-files.guard.test.ts": {
+    "ms": 528,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "modules/files/tests/agent-settings.guard.test.ts": {
+    "ms": 500,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "modules/files/tests/roots.test.ts": {
+    "ms": 416,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "modules/files/tests/space-images.test.ts": {
+    "ms": 606,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "modules/git/tests/ops.test.ts": {
+    "ms": 5298,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "modules/governance/tests/erase.booted.test.ts": {
+    "ms": 12308,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "modules/identity/tests/lockout.booted.test.ts": {
+    "ms": 10320,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "modules/identity/tests/pair.trace.booted.test.ts": {
+    "ms": 13039,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "modules/identity/tests/session.issue.test.ts": {
+    "ms": 9247,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "modules/identity/tests/unknown.signin.booted.test.ts": {
+    "ms": 10032,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "modules/identity/tests/vault.key.booted.test.ts": {
+    "ms": 8955,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "modules/logs/tests/telemetry-caps.test.ts": {
+    "ms": 3470,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "modules/mail/tests/deps.test.ts": {
+    "ms": 313,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "modules/mail/tests/ingest.live.test.ts": {
+    "ms": 1312,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "modules/memory/tests/columns.probe.test.ts": {
+    "ms": 355,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "modules/sites/tests/builders.heavy.test.ts": {
+    "ms": 713,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "modules/sites/tests/deploy-access.heavy.test.ts": {
+    "ms": 400,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "modules/sites/tests/deploy-dockerfile.heavy.test.ts": {
+    "ms": 400,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "modules/sites/tests/deploy-express.heavy.test.ts": {
+    "ms": 400,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "modules/sites/tests/deploy-isolation.heavy.test.ts": {
+    "ms": 400,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "modules/sites/tests/deploy-next.heavy.test.ts": {
+    "ms": 400,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "modules/sites/tests/deploy-postgres.heavy.test.ts": {
+    "ms": 400,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "modules/sites/tests/deploy-python.heavy.test.ts": {
+    "ms": 400,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "modules/sites/tests/deploy-railway.heavy.test.ts": {
+    "ms": 400,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "modules/sites/tests/deploy-sources.heavy.test.ts": {
+    "ms": 400,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "modules/sites/tests/deploy-static.heavy.test.ts": {
+    "ms": 400,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "modules/sites/tests/deploy-vite.heavy.test.ts": {
+    "ms": 400,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "modules/sync/tests/docs.record.booted.test.ts": {
+    "ms": 10798,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "modules/sync/tests/epoch.guard.test.ts": {
+    "ms": 11254,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "modules/sync/tests/revoke.booted.test.ts": {
+    "ms": 9430,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "modules/tasks/tests/action-keys.test.ts": {
+    "ms": 370,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "modules/terminal/tests/tmux.heavy.test.ts": {
+    "ms": 400,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "modules/terminal/tests/workspace.live.test.ts": {
+    "ms": 400,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "packages/contracts/tests/frozen-capabilities.test.ts": {
+    "ms": 1071,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "sandbox/tests/lowrun.test.ts": {
+    "ms": 718,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "scripts/changelog/assemble.test.ts": {
+    "ms": 272,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "scripts/ci-select.test.ts": {
+    "ms": 3629,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "scripts/click/dead-buttons.test.ts": {
+    "ms": 536,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "scripts/import-0.6.test.ts": {
+    "ms": 283,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "scripts/install/linux/install.test.ts": {
+    "ms": 13038,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "scripts/lint/shared-time.test.ts": {
+    "ms": 382,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "scripts/registry-hash.test.ts": {
+    "ms": 544,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "scripts/release/release.test.ts": {
+    "ms": 778,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "scripts/release/runner-label.test.ts": {
+    "ms": 356,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "scripts/release/updater.test.ts": {
+    "ms": 333,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "scripts/shard.test.ts": {
+    "ms": 363,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "scripts/shots/no-seed-in-bundle.test.ts": {
+    "ms": 355,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "scripts/shots/real-app.apps.live.test.ts": {
+    "ms": 521,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "scripts/shots/real-app.test.ts": {
+    "ms": 490,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "scripts/shots/startup.test.ts": {
+    "ms": 2095,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "scripts/workflows.test.ts": {
+    "ms": 392,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "sync/tests/device.engine.heavy.test.ts": {
+    "ms": 818,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/addsheet-footer.live.test.ts": {
+    "ms": 27830,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/agent-credit.live.test.ts": {
+    "ms": 5306,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/agent-dm.holds.team.live.test.ts": {
+    "ms": 11754,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/agent-dm.self.live.test.ts": {
+    "ms": 8621,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/agent-dm.team.live.test.ts": {
+    "ms": 16116,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/agent-toml.gate.live.test.ts": {
+    "ms": 15274,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/agents.can-call.team.live.test.ts": {
+    "ms": 11461,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/agents.principal.test.mjs": {
+    "ms": 17145,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/approval-words.test.ts": {
+    "ms": 1470,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/artifact-host.live.test.ts": {
+    "ms": 14125,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/artifact-host.local.live.test.ts": {
+    "ms": 12069,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/ask-person.live.test.ts": {
+    "ms": 33517,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/ask.default.live.test.ts": {
+    "ms": 9338,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/ask.scope.live.test.ts": {
+    "ms": 10882,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/assistant-task.live.test.ts": {
+    "ms": 9505,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/avatar-draw.live.test.ts": {
+    "ms": 2254,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/avatar-one-path.test.ts": {
+    "ms": 406,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/avatar-scroll.live.test.ts": {
+    "ms": 3217,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/backup.list.after.run.test.mjs": {
+    "ms": 10665,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/chat-brain.bench.no-context.live.test.ts": {
+    "ms": 24412,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/chat-brain.bench.test.ts": {
+    "ms": 24350,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/chat-brain.live.test.ts": {
+    "ms": 28453,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/chat-brain.sessions.live.test.ts": {
+    "ms": 27086,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/chat-ecosystem.live.test.ts": {
+    "ms": 10074,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/chat-flows.journey1.live.test.ts": {
+    "ms": 2232,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/chat-flows.journey2.live.test.ts": {
+    "ms": 1993,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/chat-flows.journey3.live.test.ts": {
+    "ms": 2179,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/chat-flows.journey4.live.test.ts": {
+    "ms": 1727,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/chat-flows.journey5.live.test.ts": {
+    "ms": 2156,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/chat-flows.journey6.live.test.ts": {
+    "ms": 1988,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/chat.activity.journeys.live.test.ts": {
+    "ms": 2034,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/chat.answer-audience.team.live.test.ts": {
+    "ms": 8902,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/chat.ask-agent.team.live.test.ts": {
+    "ms": 18382,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/chat.btw.journeys.live.test.ts": {
+    "ms": 2107,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/chat.calm-activity.journeys.live.test.ts": {
+    "ms": 1844,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/chat.compact.cli.live.test.ts": {
+    "ms": 12170,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/chat.mention-chain.team.live.test.ts": {
+    "ms": 13139,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/chat.no-recall.journeys.live.test.ts": {
+    "ms": 2684,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/chat.owner-notes.journeys.live.test.ts": {
+    "ms": 2343,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/chat.queued.journeys.live.test.ts": {
+    "ms": 2474,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/chat.sessions.cli.live.test.ts": {
+    "ms": 15167,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/chat.streaming.journeys.live.test.ts": {
+    "ms": 2249,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/chat.tool-results.team.live.test.ts": {
+    "ms": 12436,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/chat.two-questions.cli.live.test.ts": {
+    "ms": 14433,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/chat.two-questions.live.test.ts": {
+    "ms": 12690,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/chat.unread.team.live.test.ts": {
+    "ms": 16133,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/chrome-chat.e2e.live.test.ts": {
+    "ms": 5771,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/chrome-chat.live.test.ts": {
+    "ms": 9593,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/chrome-team.live.test.ts": {
+    "ms": 12570,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/cli-skills-connections.live.test.ts": {
+    "ms": 400,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/codex.auto-model.live.test.ts": {
+    "ms": 12376,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/codex.daemon.live.test.ts": {
+    "ms": 400,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/codex.real.errors.live.test.ts": {
+    "ms": 400,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/codex.real.models.live.test.ts": {
+    "ms": 400,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/codex.real.turns.live.test.ts": {
+    "ms": 400,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/computers.journeys.live.test.ts": {
+    "ms": 2168,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/computers.livecard.live.test.ts": {
+    "ms": 12588,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/connections.home.live.test.ts": {
+    "ms": 9811,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/crew.ask.journey.live.test.ts": {
+    "ms": 2289,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/crew.journey.live.test.ts": {
+    "ms": 2142,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/crew.live.test.ts": {
+    "ms": 30639,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/crew.local.live.test.ts": {
+    "ms": 40527,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/crew.plain.journey.live.test.ts": {
+    "ms": 2732,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/crew.plainfirst.live.test.ts": {
+    "ms": 29264,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/crew.restart.live.test.ts": {
+    "ms": 34308,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/crew.status.live.test.ts": {
+    "ms": 15974,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/crew.thread.journey.live.test.ts": {
+    "ms": 1664,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/crm.journey1.live.test.ts": {
+    "ms": 16632,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/crm.journey2.live.test.ts": {
+    "ms": 19390,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/crm.journey3.live.test.ts": {
+    "ms": 21430,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/cut-proof.heavy.test.ts": {
+    "ms": 485,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/dropbox.live.test.ts": {
+    "ms": 10392,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/engine.last-pick.live.test.ts": {
+    "ms": 17185,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/engine.model-gone.live.test.ts": {
+    "ms": 14029,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/engine.my-ai.live.test.ts": {
+    "ms": 20051,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/engine.picked-model.live.test.ts": {
+    "ms": 13844,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/engine.turns.live.test.ts": {
+    "ms": 9951,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/engine.vault-read.live.test.ts": {
+    "ms": 10110,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/fields-panel.live.test.ts": {
+    "ms": 9376,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/files.share.live.test.ts": {
+    "ms": 1657,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/flow-draft.live.test.ts": {
+    "ms": 11900,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/flow-triggers.live.test.ts": {
+    "ms": 73223,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/gate.approver-follows-task.live.test.ts": {
+    "ms": 18185,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/git-proxy.gate.live.test.ts": {
+    "ms": 16277,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/git-proxy.wall.live.test.ts": {
+    "ms": 6830,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/goal-folder.live.test.ts": {
+    "ms": 11568,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/goals.helpers.live.test.ts": {
+    "ms": 15733,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/goals.live.test.ts": {
+    "ms": 20673,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/headless-modes.live.test.ts": {
+    "ms": 12806,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/held-message.live.test.ts": {
+    "ms": 12977,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/held-send.live.test.ts": {
+    "ms": 11036,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/helper.final.live.test.ts": {
+    "ms": 18348,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/helper.model.live.test.ts": {
+    "ms": 20567,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/helper.notes.live.test.ts": {
+    "ms": 20256,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/helper.rows.journey.live.test.ts": {
+    "ms": 2186,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/helper.walk.journey.live.test.ts": {
+    "ms": 2012,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/helpers.real.live.test.ts": {
+    "ms": 1926,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/helpers.state.live.test.ts": {
+    "ms": 15972,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/hooks.cli.live.test.ts": {
+    "ms": 400,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/inbox.add-client.live.test.ts": {
+    "ms": 9362,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/inbox.connect.live.test.ts": {
+    "ms": 15641,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/inbox.resources.live.test.ts": {
+    "ms": 7058,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/install.link.live.test.ts": {
+    "ms": 10966,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/jobs.wake.live.test.ts": {
+    "ms": 11935,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/kit-ecosystem.live.test.ts": {
+    "ms": 12928,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/lessons.live.test.ts": {
+    "ms": 13922,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/machines.live.test.ts": {
+    "ms": 22988,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/mail.personal.journey1.live.test.ts": {
+    "ms": 1740,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/mail.personal.journey2.live.test.ts": {
+    "ms": 2367,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/mail.personal.journey3.live.test.ts": {
+    "ms": 1841,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/mail.personal.live.test.ts": {
+    "ms": 36816,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/mcp.hub.live.test.ts": {
+    "ms": 9672,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/mcp.hub.team.live.test.ts": {
+    "ms": 18592,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/mcp.oauth.live.test.ts": {
+    "ms": 9208,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/member-first-hour.chats.live.test.ts": {
+    "ms": 28106,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/member-first-hour.inbox.live.test.ts": {
+    "ms": 17488,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/member-first-hour.live.test.ts": {
+    "ms": 21385,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/member-key-restart.live.test.ts": {
+    "ms": 17543,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/member-own-account.live.test.ts": {
+    "ms": 19690,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/member-own-signin-channel.live.test.ts": {
+    "ms": 17069,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/member-provider-signin.live.test.ts": {
+    "ms": 11345,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/member-sso-signin.live.test.ts": {
+    "ms": 10477,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/memory-person-key.live.test.ts": {
+    "ms": 12115,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/memory.accounts.live.test.ts": {
+    "ms": 22745,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/memory.brain.live.test.ts": {
+    "ms": 26246,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/memory.chat.live.test.ts": {
+    "ms": 13204,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/memory.core.live.test.ts": {
+    "ms": 23372,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/memory.device.live.test.ts": {
+    "ms": 28265,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/memory.recall.live.test.ts": {
+    "ms": 11277,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/memory.ui.live.test.ts": {
+    "ms": 12002,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/mounts.agent.live.test.ts": {
+    "ms": 11715,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/mounts.live.test.ts": {
+    "ms": 16057,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/needs.asks.live.test.ts": {
+    "ms": 15385,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/needs.decline.live.test.ts": {
+    "ms": 13792,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/no-e2e-claim.test.ts": {
+    "ms": 516,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/officeview.live.test.ts": {
+    "ms": 980,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/one-account-carry.live.test.ts": {
+    "ms": 21137,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/one-account-link.live.test.ts": {
+    "ms": 22184,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/one-account-sso.live.test.ts": {
+    "ms": 17413,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/one-account.live.test.ts": {
+    "ms": 17050,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/outside-agents.browser.live.test.ts": {
+    "ms": 502,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/outside-agents.cli.live.test.ts": {
+    "ms": 400,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/outside-agents.connect.live.test.ts": {
+    "ms": 29456,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/outside-agents.private.live.test.ts": {
+    "ms": 15064,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/outside-agents.work.live.test.ts": {
+    "ms": 38816,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/peers.access.live.test.mjs": {
+    "ms": 16947,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/peers.agents.live.test.mjs": {
+    "ms": 16453,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/peers.enrol.live.test.mjs": {
+    "ms": 18735,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/peers.link.test.mjs": {
+    "ms": 10518,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/peers.phone.live.test.mjs": {
+    "ms": 12646,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/peers.runner.live.test.mjs": {
+    "ms": 22196,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/peers.server.live.test.mjs": {
+    "ms": 13423,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/peers.sync.live.test.mjs": {
+    "ms": 21864,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/peers.trees.live.test.mjs": {
+    "ms": 14718,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/people-popover.live.test.ts": {
+    "ms": 2015,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/perms-defaults.live.test.ts": {
+    "ms": 10732,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/perms-exceptions.live.test.ts": {
+    "ms": 22295,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/person-profile.live.test.ts": {
+    "ms": 2586,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/personal.walk.live.test.ts": {
+    "ms": 2073,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/plain-yes.live.test.ts": {
+    "ms": 9057,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/profile.live.test.ts": {
+    "ms": 12465,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/providers.signin-once.live.test.ts": {
+    "ms": 11088,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/providers.signin-refresh.live.test.ts": {
+    "ms": 12128,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/providers.signin.live.test.ts": {
+    "ms": 10699,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/record-everything.live.test.ts": {
+    "ms": 27206,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/record-types.live.test.ts": {
+    "ms": 22870,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/records.comments.live.test.ts": {
+    "ms": 10579,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/records.sharing.live.test.ts": {
+    "ms": 20636,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/relay.box.test.mjs": {
+    "ms": 10938,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/reports.live.test.ts": {
+    "ms": 15558,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/resources.forms.test.mjs": {
+    "ms": 8553,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/room-digest.vault.live.test.ts": {
+    "ms": 13011,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/room-pack.live.test.ts": {
+    "ms": 40466,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/room-pack.real.live.test.ts": {
+    "ms": 400,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/routine.pause.live.test.ts": {
+    "ms": 13806,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/routines.fire.live.test.ts": {
+    "ms": 27641,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/routines.watch.live.test.ts": {
+    "ms": 13529,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/runson.approvals.device.live.test.ts": {
+    "ms": 16786,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/runson.approvals.space.live.test.ts": {
+    "ms": 10763,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/runson.busy.live.test.ts": {
+    "ms": 17397,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/runson.device.live.test.ts": {
+    "ms": 14209,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/runson.handover.live.test.ts": {
+    "ms": 32215,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/runson.pinned.live.test.ts": {
+    "ms": 23880,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/runson.signin.live.test.ts": {
+    "ms": 15018,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/sealed-fields.live.test.ts": {
+    "ms": 24784,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/search.ask.team.live.test.ts": {
+    "ms": 10968,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/settings.journeys.member-a.live.test.ts": {
+    "ms": 2939,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/settings.journeys.member-b.live.test.ts": {
+    "ms": 2011,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/settings.journeys.member-c.live.test.ts": {
+    "ms": 1766,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/settings.journeys.owner-a.live.test.ts": {
+    "ms": 2055,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/settings.journeys.owner-b.live.test.ts": {
+    "ms": 2097,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/settings.journeys.owner-c.live.test.ts": {
+    "ms": 1491,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/setup-grant.live.test.ts": {
+    "ms": 19066,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/setup-secrets.live.test.ts": {
+    "ms": 16437,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/site-route.heavy.test.ts": {
+    "ms": 400,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/sites-agent.e2e.heavy.test.ts": {
+    "ms": 400,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/sites-deploy.e2e.heavy.test.ts": {
+    "ms": 400,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/space-accounts.live.test.ts": {
+    "ms": 13488,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/space-image.live.test.ts": {
+    "ms": 6207,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/space-key.team.live.test.ts": {
+    "ms": 12979,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/talk.team.live.test.ts": {
+    "ms": 11925,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/task-actions.click.test.ts": {
+    "ms": 330,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/tasks.baton.live.test.ts": {
+    "ms": 35167,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/team-day-one.live.test.ts": {
+    "ms": 16456,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/telephony.line.live.test.ts": {
+    "ms": 9417,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/terminal.agent-personal.live.test.ts": {
+    "ms": 18743,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/terminal.pane.journeys.live.test.ts": {
+    "ms": 2086,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/terminal.request.live.test.ts": {
+    "ms": 18794,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/terminal.runcode.live.test.ts": {
+    "ms": 10674,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/terminal.workspace.live.test.ts": {
+    "ms": 400,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/theme.firstframe.live.test.ts": {
+    "ms": 420,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/threads.notify.team.live.test.ts": {
+    "ms": 19749,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/threads.parent.live.test.ts": {
+    "ms": 11892,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/threads.task-feed.live.test.ts": {
+    "ms": 12247,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/update-wait.live.test.ts": {
+    "ms": 13609,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/usage.cli.live.test.ts": {
+    "ms": 12214,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/vault-matrix.has.live.test.ts": {
+    "ms": 27139,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/vault-matrix.personal-second.live.test.ts": {
+    "ms": 17478,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/vault-matrix.personal.a.live.test.ts": {
+    "ms": 12638,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/vault-matrix.personal.b.live.test.ts": {
+    "ms": 22202,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/vault-matrix.personal.server.a.live.test.ts": {
+    "ms": 23071,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/vault-matrix.personal.server.b.live.test.ts": {
+    "ms": 24332,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/vault-matrix.team-admin.own-computer.desktop.live.test.ts": {
+    "ms": 21839,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/vault-matrix.team-admin.own-computer.mcp.live.test.ts": {
+    "ms": 31569,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/vault-matrix.team-admin.own-computer.phone.live.test.ts": {
+    "ms": 13690,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/vault-matrix.team-admin.own-computer.web.live.test.ts": {
+    "ms": 17762,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/vault-matrix.team-admin.owner-server.desktop.live.test.ts": {
+    "ms": 12377,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/vault-matrix.team-admin.owner-server.mcp.live.test.ts": {
+    "ms": 17223,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/vault-matrix.team-admin.owner-server.phone.live.test.ts": {
+    "ms": 22063,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/vault-matrix.team-admin.owner-server.web.live.test.ts": {
+    "ms": 12844,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/vault-matrix.team-admin.server.desktop.live.test.ts": {
+    "ms": 16179,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/vault-matrix.team-admin.server.mcp.live.test.ts": {
+    "ms": 16510,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/vault-matrix.team-admin.server.phone.live.test.ts": {
+    "ms": 16203,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/vault-matrix.team-admin.server.web.live.test.ts": {
+    "ms": 13289,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/vault-matrix.team-guest.own-computer.desktop.live.test.ts": {
+    "ms": 21517,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/vault-matrix.team-guest.own-computer.mcp.live.test.ts": {
+    "ms": 13774,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/vault-matrix.team-guest.own-computer.phone.live.test.ts": {
+    "ms": 12612,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/vault-matrix.team-guest.own-computer.web.live.test.ts": {
+    "ms": 12937,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/vault-matrix.team-guest.owner-server.desktop.live.test.ts": {
+    "ms": 14086,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/vault-matrix.team-guest.owner-server.mcp.live.test.ts": {
+    "ms": 11310,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/vault-matrix.team-guest.owner-server.phone.live.test.ts": {
+    "ms": 14632,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/vault-matrix.team-guest.owner-server.web.live.test.ts": {
+    "ms": 11924,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/vault-matrix.team-guest.server.desktop.live.test.ts": {
+    "ms": 14159,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/vault-matrix.team-guest.server.mcp.live.test.ts": {
+    "ms": 9114,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/vault-matrix.team-guest.server.phone.live.test.ts": {
+    "ms": 15177,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/vault-matrix.team-guest.server.web.live.test.ts": {
+    "ms": 15234,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/vault-matrix.team-member-sso.own-computer.desktop.live.test.ts": {
+    "ms": 19857,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/vault-matrix.team-member-sso.own-computer.mcp.live.test.ts": {
+    "ms": 20884,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/vault-matrix.team-member-sso.own-computer.phone.live.test.ts": {
+    "ms": 15944,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/vault-matrix.team-member-sso.own-computer.web.live.test.ts": {
+    "ms": 21152,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/vault-matrix.team-member-sso.owner-server.desktop.live.test.ts": {
+    "ms": 21425,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/vault-matrix.team-member-sso.owner-server.mcp.live.test.ts": {
+    "ms": 20627,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/vault-matrix.team-member-sso.owner-server.phone.live.test.ts": {
+    "ms": 17368,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/vault-matrix.team-member-sso.owner-server.web.live.test.ts": {
+    "ms": 15867,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/vault-matrix.team-member-sso.server.desktop.live.test.ts": {
+    "ms": 16362,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/vault-matrix.team-member-sso.server.mcp.live.test.ts": {
+    "ms": 21449,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/vault-matrix.team-member-sso.server.phone.live.test.ts": {
+    "ms": 16352,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/vault-matrix.team-member-sso.server.web.live.test.ts": {
+    "ms": 15378,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/vault-matrix.team-member.own-computer.desktop.live.test.ts": {
+    "ms": 17632,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/vault-matrix.team-member.own-computer.mcp.live.test.ts": {
+    "ms": 16718,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/vault-matrix.team-member.own-computer.phone.live.test.ts": {
+    "ms": 18160,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/vault-matrix.team-member.own-computer.web.live.test.ts": {
+    "ms": 17062,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/vault-matrix.team-member.owner-server.desktop.live.test.ts": {
+    "ms": 17200,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/vault-matrix.team-member.owner-server.mcp.live.test.ts": {
+    "ms": 25799,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/vault-matrix.team-member.owner-server.phone.live.test.ts": {
+    "ms": 17296,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/vault-matrix.team-member.owner-server.web.live.test.ts": {
+    "ms": 18789,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/vault-matrix.team-member.server.desktop.live.test.ts": {
+    "ms": 18315,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/vault-matrix.team-member.server.mcp.live.test.ts": {
+    "ms": 17447,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/vault-matrix.team-member.server.phone.live.test.ts": {
+    "ms": 21656,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/vault-matrix.team-member.server.web.live.test.ts": {
+    "ms": 15636,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/vault-matrix.team-owner.own-computer.desktop.live.test.ts": {
+    "ms": 16136,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/vault-matrix.team-owner.own-computer.mcp.live.test.ts": {
+    "ms": 17511,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/vault-matrix.team-owner.own-computer.phone.live.test.ts": {
+    "ms": 16318,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/vault-matrix.team-owner.own-computer.web.live.test.ts": {
+    "ms": 16223,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/vault-matrix.team-owner.owner-server.desktop.live.test.ts": {
+    "ms": 20204,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/vault-matrix.team-owner.owner-server.mcp.live.test.ts": {
+    "ms": 17944,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/vault-matrix.team-owner.owner-server.phone.live.test.ts": {
+    "ms": 22705,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/vault-matrix.team-owner.owner-server.web.live.test.ts": {
+    "ms": 18249,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/vault-matrix.team-owner.server.desktop.live.test.ts": {
+    "ms": 14151,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/vault-matrix.team-owner.server.mcp.live.test.ts": {
+    "ms": 23842,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/vault-matrix.team-owner.server.phone.live.test.ts": {
+    "ms": 15059,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/vault-matrix.team-owner.server.web.live.test.ts": {
+    "ms": 19349,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/vault.ask-in-chat.live.test.ts": {
+    "ms": 7407,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/vault.ask-in-chat.team.live.test.ts": {
+    "ms": 7120,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/vault.desktop-signin.live.test.ts": {
+    "ms": 16011,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/vault.key-reach.live.test.ts": {
+    "ms": 17028,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/vault.launch-lock.live.test.ts": {
+    "ms": 13386,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/vault.lock-screen.live.test.ts": {
+    "ms": 11587,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/vault.lock-shortcut.live.test.ts": {
+    "ms": 19942,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/vault.personal-share.live.test.ts": {
+    "ms": 8389,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/vault.put.live.test.ts": {
+    "ms": 17410,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/vault.restart-keeps-key.live.test.ts": {
+    "ms": 7484,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/vault.space-shared-provider.live.test.ts": {
+    "ms": 11359,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/work-baton.live.test.ts": {
+    "ms": 16279,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/work-cards.journeys.live.test.ts": {
+    "ms": 1400,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/work-cards.live.test.ts": {
+    "ms": 19583,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "test/work-flows.journeys.live.test.ts": {
+    "ms": 1874,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "tools/gen/test/cli.test.ts": {
+    "ms": 7497,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "tools/gen/test/sql.test.ts": {
+    "ms": 277,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "ui/src/Menu/in-sheet.test.tsx": {
+    "ms": 1503,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "ui/src/SidePane/phone-width.test.ts": {
+    "ms": 423,
+    "at": "2026-11-09T22:56:00.000Z"
+  },
+  "ui/src/tokens/tokens.test.ts": {
+    "ms": 511,
+    "at": "2026-11-09T22:56:00.000Z"
+  }
+}
