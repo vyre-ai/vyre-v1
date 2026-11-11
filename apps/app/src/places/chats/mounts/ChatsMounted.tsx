@@ -171,6 +171,8 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch,
   const openedRef = useRef(opened);
   openedRef.current = opened;
   const routeKey = shown.route.view === "agent" ? `g:${shown.route.agentId}` : shown.route.view === "agent-form" ? `a:${shown.route.agentId ?? ""}` : shown.route.view === "chat" ? `t:${shown.route.threadId ?? ""}` : shown.route.view === "new" ? "new" : shown.route.view === "task" ? `k:${shown.route.taskId}` : shown.route.view === "tasks" ? "tasks" : shown.route.view === "threads" ? "threads" : shown.route.view === "artifacts" ? "artifacts" : shown.route.view === "artifact" ? `x:${shown.route.artifactId}` : shown.route.view === "notes" ? "notes" : shown.route.view === "project" ? `j:${shown.route.projectId}:${shown.route.tab ?? ""}` : "";
+  // a layer a link opened (the terminal list, All agents, a sheet) is a one-time door: once it is up, the tab's address goes back to the page under it, so a reload or a switch back to the tab does not open it again
+  const layer = shown.layer;
   useEffect(() => {
     const report = openedRef.current;
     if (!report || routeKey === "") return;
@@ -184,7 +186,7 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch,
     else if (routeKey.startsWith("a:")) report({ screen: "chats.agent-form", ...(routeKey.length > 2 ? { args: { agentId: routeKey.slice(2) } } : {}) });
     else if (routeKey.startsWith("t:") && routeKey !== "t:") report({ subject: { type: "thread", id: routeKey.slice(2) } });
     else if (routeKey.startsWith("k:")) report({ subject: { type: "task", id: routeKey.slice(2) } });
-  }, [routeKey]);
+  }, [routeKey, layer]);
   // An Ask link names an agent and an object; the thread it opens is found or made, then shown as a chat.
   const asking = shown.route.view === "ask" ? shown.route : null;
   useEffect(() => {
