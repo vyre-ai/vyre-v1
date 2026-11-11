@@ -14,8 +14,9 @@ import { detailsOf, detailsText, errorSentence } from "../../errors/details.ts";
 import { Row } from "../../../../../ui/src/Row/index.tsx";
 import { Glyph } from "../shell/glyphs.tsx";
 
-export function useRead<T>(cap: string, input: Record<string, unknown> = {}, options: { direct?: boolean; enabled?: boolean } = {}) {
+export function useRead<T>(cap: string, input: Record<string, unknown> = {}, options: { direct?: boolean; enabled?: boolean; keepPrevious?: boolean } = {}) {
   const { call, screens } = useConsoleData();
+  const last = useRef<T | undefined>(undefined);
   const key = JSON.stringify(input);
   const enabled = options.enabled !== false;
   const query = useMemo(() => !enabled || options.direct ? undefined : (screens as { capQuery?: (cap: string, input: Record<string, unknown>) => LiveQuery<T> }).capQuery?.(cap, JSON.parse(key)), [screens, cap, key, options.direct, enabled]);
@@ -32,7 +33,11 @@ export function useRead<T>(cap: string, input: Record<string, unknown> = {}, opt
     return () => { alive = false; };
   }, [call, cap, key, revision, query, stateKey, enabled]);
   if (!enabled) return {data: undefined, error: undefined, refresh};
-  return query ? { data: snapshot.status === "ready" ? snapshot.data : undefined, error: snapshot.status === "loading" && snapshot.error ? "Couldn’t load this page. Check access and try again." : undefined, refresh } : { ...(state.key===stateKey?state:{}), refresh };
+  const out: { data?: T | undefined; error?: string | undefined; refresh: () => void } = query ? { data: snapshot.status === "ready" ? snapshot.data : undefined, error: snapshot.status === "loading" && snapshot.error ? "Couldn’t load this page. Check access and try again." : undefined, refresh } : { ...(state.key===stateKey?state:{}), refresh };
+  // `keepPrevious`: while the next answer for the same call is on its way (the next search of a list), the last one stays, so the search box and the rows do not vanish with each keystroke
+  if (out.data !== undefined) last.current = out.data;
+  else if (options.keepPrevious === true && out.error === undefined && last.current !== undefined) return { ...out, data: last.current };
+  return out;
 }
 export function useAction(refresh: () => void) {
   const { call, connection } = useConsoleData();
