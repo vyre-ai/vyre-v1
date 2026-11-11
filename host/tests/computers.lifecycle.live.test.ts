@@ -1,5 +1,5 @@
 // @heavy docker
-// The agent Computer's own lifecycle on a booted daemon (P-L2_25, spec 2.7), one of three tests that replace computers.live.test.ts, split by behaviour (the others: computers.home.live.test.ts, computers.control.live.test.ts).
+// The agent Computer's own lifecycle on a booted daemon (P-L2_25, spec 2.7), one of five tests that replace computers.live.test.ts, split by behaviour (the others: computers.control, computers.home-sync, computers.home-links, computers.home-changes).
 // Here: a caller without the token is refused; an agent is given a computer that is asleep until pressed; it is woken and shows a real screen picture; the desktop around the browser (window manager, dock, sandboxed Chromium,
 // Vyre for Chrome pinned by policy); it sleeps again and is removed with its container gone. The Files home and the take-over are in the other two. Runs only with VYRE_HEAVY_DOCKER=1.
 import test from "node:test";

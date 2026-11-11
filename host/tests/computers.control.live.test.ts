@@ -1,6 +1,6 @@
 // @heavy docker
 // A person at an agent's computer (rc.9 flows 12 and 13): a Chrome download reaches Files whole, the live view ticket opens, the person takes the wheel, clicks, and gives it back with the time recorded in the agent's steps.
-// One of three tests that replace computers.live.test.ts, split by behaviour. Runs only with VYRE_HEAVY_DOCKER=1.
+// One of five tests that replace computers.live.test.ts, split by behaviour. Runs only with VYRE_HEAVY_DOCKER=1.
 import test from "node:test";
 import assert from "node:assert/strict";
 import { boot, call, docker, ensureImage, finish, homeKit, seededDir, skip, wakeComputer } from "./computers.kit.ts";

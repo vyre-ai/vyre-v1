@@ -277,7 +277,7 @@ jobs:
         env:
           VYRE_HEAVY_DOCKER: "1"
           VYRE_SHOT_DIR: ${{ runner.temp }}/computer-shots
-        run: node --test --test-force-exit --test-timeout=600000 --test-reporter=spec agent/tests/sandbox.heavy.test.ts modules/terminal/tests/tmux.heavy.test.ts modules/engine/tests/sandbox.heavy.test.ts modules/engine/tests/cli.heavy.test.ts golden/steps/07-reply.heavy.test.ts golden/steps/07-gate.heavy.test.ts host/tests/chat.live.test.ts host/tests/computers.live.test.ts host/tests/automations.code.live.test.ts
+        run: node --test --test-force-exit --test-timeout=600000 --test-reporter=spec agent/tests/sandbox.heavy.test.ts modules/terminal/tests/tmux.heavy.test.ts modules/engine/tests/sandbox.heavy.test.ts modules/engine/tests/cli.heavy.test.ts golden/steps/07-reply.heavy.test.ts golden/steps/07-gate.heavy.test.ts host/tests/chat.live.test.ts host/tests/computers.lifecycle.live.test.ts host/tests/computers.control.live.test.ts host/tests/computers.home-sync.live.test.ts host/tests/computers.home-links.live.test.ts host/tests/computers.home-changes.live.test.ts host/tests/automations.code.live.test.ts
       - name: The agent computer desktop frame (P-L2_31)
         if: always() && steps.scope.outputs.changed == 'true'
         uses: actions/upload-artifact@v4
