@@ -8,3 +8,11 @@
 - The Computers page and Add a server say computer instead of machine.
 - What needs you in the Console no longer says "since now": a new item says nothing more, an older one says for how long.
 - An empty Console list with nothing searched says "No webhooks yet." rather than "No webhooks match."
+- Space Settings in a Team Space opens Console > Space for an owner or admin, and is not offered to a member who has no Console; a Personal Space keeps it in Settings.
+- Console Home says who joined in plain words ("Maya Lin joined the Space from an invite") and no longer lists the steps Vyre takes for a join; opening the audit log is recorded once per visit, not on every read.
+- Extra access names the folder each grant is on, or says "an item you cannot open", never "Someone".
+- Roles count people and agents apart ("1 person, 3 agents").
+- Keep and delete says every rule in words ("All for 30 days, then daily for 90 days, then monthly", "By its own schedule").
+- A setup step with nothing to preview shows no preview card.
+- Stopping a reply and an unsent message are each said once, under the message.
+- What needs you no longer repeats a row's title as its second line; the health tile says Computer alerts.

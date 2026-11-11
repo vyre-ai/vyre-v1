@@ -57,6 +57,11 @@ export interface PlaceContext {
   kit: KitDef;
 }
 
+/** Where Space Settings goes: a Team Space's own settings are Console > Space (offered only to someone who may open the Console); a Personal Space keeps its Space pages in Settings (owner walk, 12 Nov: it opened Your Profile). */
+export function spaceSettingsTarget(def: { kind: string; console?: boolean }): ["console" | "settings", string] {
+  return def.kind !== "personal" && def.console === true ? ["console", "screen=console.page&page=space"] : ["settings", "page=space"];
+}
+
 export interface ShellProps {
   hub: ShellHub;
   theme?: ShellTheme;
@@ -255,7 +260,7 @@ export function Shell(props: ShellProps): ReactElement {
   const act = (action: SpaceAction): void => {
     props.onSpaceAction?.(action);
     const name = session.def.name;
-    if (action === "settings") hub.go("settings");
+    if (action === "settings") hub.go(...spaceSettingsTarget(session.def));
     else if (action === "terminal") hub.go("chats", `screen=chats.terminal-list&at=${Date.now()}`);
     else if (action === "add-server") { requestAddServer(); hub.go("settings"); }
     else if (action === "profile") hub.go("settings", PROFILE_HASH);

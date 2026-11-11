@@ -58,6 +58,11 @@ test("owner walk fixes: one Settings tab, Add a Space alone, the composer's word
       const field = page.locator('[data-testid="composer-field"]').first();
       await page.waitForFunction(() => document.querySelector('[data-testid="composer-field"]')?.getAttribute("data-placeholder") === "Message Assistant…", null, { timeout: 15_000 })
         .catch(async () => { throw new Error(`the empty composer of a finished chat says "${await field.getAttribute("data-placeholder")}"`); });
+      // said once, under the reply: the composer does not say it again
+      await page.waitForTimeout(800);
+      const said = ((await page.locator("body").innerText()).match(/The steps so far are kept/g) ?? []).length;
+      assert.equal(said, 1, `"The steps so far are kept" is said ${said} times`);
+      assert.equal(await page.getByText("Stopped because Stop was pressed.").count(), 0);
       await w.shot("composer-after-reply", { widths: [1280] });
     });
 
@@ -96,6 +101,30 @@ test("owner walk fixes: one Settings tab, Add a Space alone, the composer's word
       assert.ok(JSON.stringify(made).includes("Spring launch"), "a real project was made");
       await page.waitForTimeout(1500);
       assert.deepEqual(w.notes.slice(seen).filter((n) => /\/v1\/records\/get/.test(n)), [], "the new project opens as a project, never read as another type's record");
+    });
+
+    await w.step("7 Space Settings opens Console > Space for the owner", async () => {
+      await w.go("chat", "chats-place");
+      await page.getByTestId("space-tile").click();
+      await page.getByRole("menuitem", { name: "Space Settings", exact: true }).click();
+      await page.getByTestId("console").waitFor({ timeout: 20_000 });
+      await page.getByTestId("page-space").waitFor({ timeout: 20_000 });
+      assert.equal(await page.getByTestId("page-profile").count(), 0, "not Your Profile");
+      await w.shot("space-settings-console", { widths: [1280] });
+    });
+
+    await w.step("8 Console Home says who joined in plain words, and the audit log has one view per visit", async () => {
+      await w.join("Maya", "Lin", "maya");
+      await page.goto(`${w.web.origin}/console`, { waitUntil: "load" });
+      await page.getByTestId("console").waitFor({ timeout: 30_000 });
+      await page.getByTestId("row-nav-overview").click();
+      await page.getByText(/Maya Lin joined the Space from an invite/).first().waitFor({ timeout: 20_000 });
+      const home = await page.locator("body").innerText();
+      for (const bad of ["create account of an invite", "An outside agent accepted", "created an invite of", "group member in access settings"]) assert.ok(!home.includes(bad), `Home says "${bad}"`);
+      await w.shot("console-home-activity", { widths: [1280] });
+      for (let i = 0; i < 3; i++) { await page.reload({ waitUntil: "load" }); await page.getByTestId("console").waitFor({ timeout: 30_000 }); await page.waitForTimeout(800); }
+      const rows = (await w.api("audit.list", { action: "audit.viewed", limit: 50 })).data.rows as unknown[];
+      assert.ok(rows.length <= 1, `a visit wrote ${rows.length} "opened the audit log" rows`);
     });
 
     await w.step("6 the Computer pane: Browser sits under its label", async () => {

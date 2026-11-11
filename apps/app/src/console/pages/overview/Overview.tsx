@@ -33,6 +33,16 @@ export const ATTENTION_PAGE: Readonly<Record<Attention["kind"], string>> = {
   space_deletion_scheduled: "spacedel",
 };
 
+/** The line under a Needs you row: what it is and for how long, never the title said again (owner walk, 12 Nov: "Your team has no AI account" twice). Null when it would only repeat the title. */
+export function attentionNote(a: { kind: Attention["kind"]; title: string; since: number; next: string }, now: number, compact = false): string | null {
+  if (a.kind === "home_channel") return a.next;
+  if (a.kind === "space_deletion_scheduled") return ATTENTION_SENTENCE[a.kind];
+  const sentence = `${ATTENTION_SENTENCE[a.kind]}${forHowLong(now, a.since)}`;
+  const line = sentence === a.title ? "" : sentence;
+  const out = compact ? [line, a.next].filter(Boolean).join(". ") : line;
+  return out === "" ? null : out;
+}
+
 export const ATTENTION_SENTENCE: Readonly<Record<Attention["kind"], string>> = {
   join_stuck: "A new member's join has not finished",
   home_channel: "Older Spaces start with #general",
@@ -114,7 +124,7 @@ export function Overview(): ReactElement {
     ...(relay ? [relay] : []),
     { page: "machines", label: "Sync", icon: "pulse", big: "Up to date", sub: `${(fleet.data?.machines ?? []).filter((m) => m.kind === "computer").length} computers linked`, tone: "ok" },
     ...(backupAge !== undefined ? [{ page: "backups", label: "Backups", icon: "box", big: backupAge >= 1 ? `${backupAge} h ago` : "Just now", sub: "Last good backup", ...(backupAge > 24 ? { tone: "warn" as Tone } : {}) }] : []),
-    { page: "machines", label: "Machine alerts", icon: "server", big: machineAlerts.length ? String(machineAlerts.length) : "All clear", sub: machineAlerts.length ? [...new Set(machineAlerts.map((a) => a.kind))].join(", ") : "Every machine is fine", ...(machineAlerts.length ? { tone: "warn" as Tone } : {}) },
+    { page: "machines", label: "Computer alerts", icon: "server", big: machineAlerts.length ? String(machineAlerts.length) : "All clear", sub: machineAlerts.length ? [...new Set(machineAlerts.map((a) => a.kind))].join(", ") : "Every computer is fine", ...(machineAlerts.length ? { tone: "warn" as Tone } : {}) },
   ];
   const month: Tile[] = [
     { page: "people", label: "Members", icon: "people", big: String(o.usage.members), sub: "in this Space" },
@@ -147,7 +157,7 @@ export function Overview(): ReactElement {
               key={`${a.kind}-${a.ref ?? i}`}
               id={`attn-${a.kind}-${a.ref ?? i}`}
               title={a.title}
-              note={a.kind === "home_channel" ? a.next : a.kind === "space_deletion_scheduled" ? ATTENTION_SENTENCE[a.kind] : `${ATTENTION_SENTENCE[a.kind]}${forHowLong(now, a.since)}${compact ? `. ${a.next}` : ""}`}
+              {...(attentionNote(a, now, compact) ? { note: attentionNote(a, now, compact)! } : {})}
               leading={<Lead><WarnTile icon="warn" /></Lead>}
               {...(compact ? {} : { trailing: fix(a, i) ?? <Button label={a.next} onPress={() => data.nav.openPage(ATTENTION_PAGE[a.kind])} testID={`attn-go-${i}`} /> })}
               onPress={() => data.nav.openPage(ATTENTION_PAGE[a.kind])}

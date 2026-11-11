@@ -21,3 +21,13 @@ test("an empty list with nothing typed says it is empty yet; with a search or fi
   assert.equal(emptyWords("No webhooks match.", true), "No webhooks match.");
   assert.equal(emptyWords("Nothing set up", false), "Nothing set up", "other words stay as they are");
 });
+
+test("a Needs you row never says its title twice; an older one says for how long", async () => {
+  const { attentionNote, ATTENTION_SENTENCE } = await import("../pages/overview/Overview.tsx");
+  const kind = "no_ai_account" as never;
+  const title = ATTENTION_SENTENCE[kind] as unknown as string;
+  assert.ok(title, "the sentence exists"); {
+    assert.equal(attentionNote({ kind, title, since: NOW - 5_000, next: "Set up" }, NOW), null, "just started: no second line");
+    assert.equal(attentionNote({ kind, title, since: NOW - 3 * 3_600_000, next: "Set up" }, NOW), `${title} for 3 h`);
+  }
+});
