@@ -59,6 +59,8 @@ import { LogSink, invokeLogs, jobRanLog } from "../logsink/index.ts";
 import { nodePlatform } from "../platform/index.ts";
 
 /** The chat capabilities that end a membership: their access.unshare of a chat: grant runs as the host (see the handler wrapper). */
+/** The channel calls a project's role changes make on its own channel; they run as the host (see the projects wrapper). */
+const CHANNEL_FOLLOWS = new Set(["channels.members.add", "channels.members.remove", "channels.agents.add", "channels.agents.remove"]);
 const CHAT_LEAVES = new Set(["threads.members.remove", "channels.members.remove", "channels.leave", "channels.agents.remove", "threads.remove_agent", "threads.outside_agent.remove"]);
 /** Files an agent made on its computer, said in the chat the work was for: one message with a file card each (four at most, the rest counted), posted as the agent for the person it works for. */
 
@@ -1308,9 +1310,18 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           if (h && cap === "agents.set_owner") return ((ctx, input) => h({ ...ctx, call: (name: string, callInput: unknown, opts?: unknown) => (name === "access.transfer_ownership" ? hookRunner.call(name, callInput) : (ctx.call as (n: string, i: unknown, o?: unknown) => Promise<unknown>)(name, callInput, opts)) } as typeof ctx, input)) as Handler;
           // changing a project's roles (a Lead, or a Space owner or admin who holds no grant on the project's things): the call was authorized by projects, which checked the right. The grants it writes or takes back
           // run as the host, and only a grant that carries this project's own source (project:<id>); the access module then lets the host write it only on the project or on a resource already carrying that source.
-          if (h && (cap === "projects.members.set" || cap === "projects.members.remove")) return ((ctx, input) => {
-            const source = `project:${String((input as { projectId?: unknown } | null)?.projectId ?? "")}`;
-            return h({ ...ctx, call: (name: string, callInput: unknown, opts?: unknown) => ((name === "access.share" || name === "access.unshare") && (callInput as { source?: unknown } | null)?.source === source ? system(name, callInput, ctx.trace) : (ctx.call as (n: string, i: unknown, o?: unknown) => Promise<unknown>)(name, callInput, opts)) } as typeof ctx, input);
+          // The project's own channel follows its roles the same way: putting a person or an agent in it, or taking them out, runs as the host, and only for this project's own channel (read from
+          // the projects table, never from the input), so a project remove takes away everything the project gave whoever presses it, provided they may change the project's roles.
+          if (h && (cap === "projects.members.set" || cap === "projects.members.remove" || cap === "projects.teammates.create" || cap === "projects.teammates.remove")) return ((ctx, input) => {
+            const projectId = String((input as { projectId?: unknown } | null)?.projectId ?? "");
+            const source = `project:${projectId}`;
+            const own = (): string | null => { try { return (db!.all(`SELECT "channelId" FROM projects_project WHERE "projectId" = ?`, projectId)[0] as { channelId?: string | null } | undefined)?.channelId ?? null; } catch { return null; } };
+            const raised = (name: string, callInput: unknown): boolean => {
+              const i = (callInput ?? {}) as { source?: unknown; channelId?: unknown };
+              if ((name === "access.share" || name === "access.unshare") && i.source === source) return true;
+              return CHANNEL_FOLLOWS.has(name) && typeof i.channelId === "string" && i.channelId === own();
+            };
+            return h({ ...ctx, call: (name: string, callInput: unknown, opts?: unknown) => (raised(name, callInput) ? system(name, callInput, ctx.trace) : (ctx.call as (n: string, i: unknown, o?: unknown) => Promise<unknown>)(name, callInput, opts)) } as typeof ctx, input);
           }) as Handler;
           // leaving a chat or a channel, or being taken out of one, or an agent taken out: what the membership gave (grants tagged chat:<thread>, written when the person or agent came in) is taken
           // back as the host, because the person leaving may not be the one who gave them. The call itself was authorized; only access.unshare with a chat: source is widened (modules/chat/handlers/owned.ts).

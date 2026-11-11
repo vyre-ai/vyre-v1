@@ -48,7 +48,7 @@ export async function grantOnProject(ctx: ProjectsCtx, projectId: string): Promi
  * another entry of the same project (the calls it makes go to other modules), so it cannot wait on itself.
  */
 export function oneAtATime<T>(ctx: Pick<ProjectsCtx, "space">, projectId: string, work: () => Promise<T>): Promise<T> {
-  return queued(`project:${ctx.space}:${projectId}`, work);
+  return queued(`project:${ctx.space}:${projectId}`, work, { onLimit: (key, ms) => (ctx as Partial<ProjectsCtx>).log?.warn("projects: a role change took too long; the next one runs", { key, limitMs: ms }) });
 }
 
 /** Tasks for counts; a project still opens when Tasks does not answer. */
@@ -147,8 +147,10 @@ export function removeMember(ctx: ProjectsCtx, p: Project, m: Member): Promise<v
 async function removeMemberNow(ctx: ProjectsCtx, p: Project, asked: Member): Promise<void> {
   const m = memberOf(ctx.db, p.projectId, asked.principal) ?? asked;   // the role as it stands now, in the queue (a change may have run while this waited)
   for (const r of resourcesOf(p)) await call(ctx, "access.unshare", { resource: r, subject: subjectOf(m), source: sourceTag(p.projectId) });
-  if (m.kind === "person" && p.channelId) await tolerant(ctx, "channels.members.remove", { channelId: p.channelId, personId: m.principal }, null);
-  if (m.kind === "agent" && p.channelId) await tolerant(ctx, "channels.agents.remove", { channelId: p.channelId, agentId: m.principal }, null);
+  // out of the project's channel too, and plainly: a refusal fails the remove (the role stays, so a retry finishes it), never "removed" while they are still in. A channel that is gone is no refusal.
+  // The daemon runs these two as the host for projects.members.remove and the teammates calls, on this project's own channel only (host/src/daemon/daemon.ts), whoever the caller is.
+  if (m.kind === "person" && p.channelId) await outOfChannel(ctx, "channels.members.remove", { channelId: p.channelId, personId: m.principal });
+  if (m.kind === "agent" && p.channelId) await outOfChannel(ctx, "channels.agents.remove", { channelId: p.channelId, agentId: m.principal });
   dropMember(ctx.db, p.projectId, m.principal);
   if (m.role === "lead") {
     const fields = await readRecord(ctx, p);
@@ -157,13 +159,24 @@ async function removeMemberNow(ctx: ProjectsCtx, p: Project, asked: Member): Pro
   emitP(ctx, "project.member_removed", p.projectId, { principal: m.principal });
 }
 
+async function outOfChannel(ctx: ProjectsCtx, cap: string, input: Record<string, unknown>): Promise<void> {
+  try { await call(ctx, cap, input); } catch (e) { if (codeOf(e) !== "validation.not_found") throw e; }
+}
+
+/** Take this principal off the project if they are on it, reading the row in the project's queue: a role still waiting there (behind the consumer) lands first, and this remove then takes it. */
+export function removeIfMember(ctx: ProjectsCtx, p: Project, principal: string, only?: (m: Member) => boolean): Promise<boolean> {
+  return oneAtATime(ctx, p.projectId, async () => {
+    const m = memberOf(ctx.db, p.projectId, principal);
+    if (!m || (only && !only(m))) return false;
+    await removeMemberNow(ctx, p, m);
+    return true;
+  });
+}
+
 export async function membersRemove(ctx: ProjectsCtx, input: In): Promise<unknown> {
   ensure(ctx.db);
   const p = manageToChangeRoles(ctx, input.projectId);
-  const m = memberOf(ctx.db, p.projectId, input.principal);
-  if (!m) return { removed: false };
-  await removeMember(ctx, p, m);
-  return { removed: true };
+  return { removed: await removeIfMember(ctx, p, input.principal) };
 }
 
 // ---- making a project ----

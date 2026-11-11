@@ -256,6 +256,7 @@ async function areaState(ctx: MembersCtx, personId: string, step: JoinStep): Pro
   return null;
 }
 
+const joinLimit = (ctx: MembersCtx) => ({ onLimit: (key: string, ms: number) => logWarn(ctx, "members: a join pass took too long; the next one runs", { key, limitMs: ms }) });
 const logWarn = (ctx: MembersCtx, msg: string, attrs: Record<string, unknown>): void => { (ctx as { log?: { warn?(m: string, a?: Record<string, unknown>): void } }).log?.warn?.(msg, attrs); };
 
 /**
@@ -269,7 +270,7 @@ export async function drainJoins(ctx: MembersCtx, personId?: string, opts: { per
     : ctx.db.all(`SELECT * FROM members_joins WHERE state = ?`, "pending")) as { person_id: string }[];
   let applied = 0, pending = 0;
   for (const { person_id } of ids) {
-    const r = await oneAtATime(`members-join:${ctx.space}:${person_id}`, () => drainOne(ctx, person_id, opts));
+    const r = await oneAtATime(`members-join:${ctx.space}:${person_id}`, () => drainOne(ctx, person_id, opts), joinLimit(ctx));
     if (r === "applied") applied++; else if (r === "pending") pending++;
   }
   return { applied, pending };
@@ -335,7 +336,7 @@ export async function supersedeJoinStep(ctx: MembersCtx, personId: string, key: 
     drop(ctx, personId, s, why);
     const left = steps.filter((x) => x.state !== "done").length;
     ctx.db.run(`UPDATE members_joins SET steps = ?, state = ?, applied_at = ? WHERE person_id = ?`, JSON.stringify(steps), left === 0 ? "applied" : "pending", left === 0 ? ctx.now() : null, personId);
-  });
+  }, joinLimit(ctx));
 }
 
 /** A retry that would undo a later change is not made: the step is closed as done, with why, and said in the log. */

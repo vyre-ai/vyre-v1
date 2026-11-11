@@ -20,6 +20,8 @@ interface Case {
   give(): Promise<() => Promise<boolean>>;
   /** the check is false before the access is given (the case proves its own give) */
   before?: () => Promise<boolean>;
+  /** after the take, any part of the access still there counts (default: the check given by give) */
+  stillAny?: () => Promise<boolean>;
   /** take it away */
   take(): Promise<void>;
 }
@@ -61,6 +63,11 @@ test("each capability that takes access away answers only once the next request 
     const record = (await ok("records.create", { type: "contact", fields: { name: "Walk contact" } }, "usr_olivia")).record as { id?: string; recordId?: string };
     const recordRef = { type: "record", id: (record.recordId ?? record.id)! };
     await ok("access.audience_set", { resource: recordRef, audience: "added" }, "usr_olivia");
+    // what a project role gives a person: something on the project, on its folder, and a place in its channel
+    const projectGave = async (who: string): Promise<boolean[]> => {
+      const members = ((await ok("channels.get", { channelId: project.channelId }, "usr_olivia")).channel as { members: Array<{ id: string }> }).members;
+      return [(await mine(who, { type: "project", id: projectId })) !== undefined, (await mine(who, folder)) !== undefined, members.some((m) => m.id === who)];
+    };
     // Noah's own agent
     const agentId = ((await ok("agents.create", { name: "Walk helper", computer: false }, "usr_noah")).agent as { agentId: string }).agentId;
     const agent = { type: "agent", id: agentId };
@@ -95,14 +102,16 @@ test("each capability that takes access away answers only once the next request 
         take: async () => { await ok("access.unshare", { resource: recordRef, subject: person("usr_noah") }, "usr_olivia"); },
       },
       {
-        name: "project member removed (projects.members.remove)",
-        give: async () => { await ok("projects.members.set", { projectId, principal: "usr_tess", role: "member" }, "usr_olivia"); return async () => (await mine("usr_tess", { type: "project", id: projectId })) !== undefined; },
-        take: async () => { await ok("projects.members.remove", { projectId, principal: "usr_tess" }, "usr_olivia"); },
+        name: "project member removed by a Space admin who holds nothing on the project: the project, its folder and its channel all go (projects.members.remove)",
+        before: async () => (await projectGave("usr_tess")).some(Boolean),
+        give: async () => { await ok("projects.members.set", { projectId, principal: "usr_tess", role: "member" }, "usr_olivia"); return async () => (await projectGave("usr_tess")).every(Boolean); },
+        take: async () => { await ok("projects.members.remove", { projectId, principal: "usr_tess" }, "usr_adam"); },
+        stillAny: async () => (await projectGave("usr_tess")).some(Boolean),
       },
       {
-        name: "project role lowered, Lead to Guest (projects.members.set)",
-        give: async () => { await ok("projects.members.set", { projectId, principal: "usr_mia", role: "lead" }, "usr_olivia"); return async () => (await mine("usr_mia", { type: "project", id: projectId })) === "manage"; },
-        take: async () => { await ok("projects.members.set", { projectId, principal: "usr_mia", role: "guest" }, "usr_olivia"); },
+        name: "project role lowered, Lead to Guest: the project and its folder drop to View (projects.members.set)",
+        give: async () => { await ok("projects.members.set", { projectId, principal: "usr_mia", role: "lead" }, "usr_olivia"); return async () => (await mine("usr_mia", { type: "project", id: projectId })) === "manage" || (await mine("usr_mia", folder)) === "manage"; },
+        take: async () => { await ok("projects.members.set", { projectId, principal: "usr_mia", role: "guest" }, "usr_adam"); },
       },
       {
         name: "group member removed (access.groups.remove_member)",
@@ -217,7 +226,7 @@ test("each capability that takes access away answers only once the next request 
       const holds = await c.give();
       assert.equal(await holds(), true, `${c.name}: the access is there before`);
       await c.take();
-      const still = await holds();   // the very next request, no wait
+      const still = await (c.stillAny ?? holds)();   // the very next request, no wait
       results.push(`${still ? "STILL" : "gone "} ${c.name}`);
     }
     assert.deepEqual(results.filter((r) => r.startsWith("STILL")), [], results.join("\n"));

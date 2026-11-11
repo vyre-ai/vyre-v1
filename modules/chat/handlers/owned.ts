@@ -66,12 +66,13 @@ async function grant(ctx: ChatCtx, threadId: string, agentId: string, subject: S
 // A person's grants from chats are written and taken back in one queue per person (lib/one-at-a-time.ts): a grant still being written for a newcomer can never land after the same person was
 // taken out, because the removal waits for it and then takes it back, and a grant planned after the removal checks the membership first and finds it gone.
 const queueOf = (ctx: ChatCtx, person: string): string => `chat:${ctx.space}:${person}`;
+const limits = (ctx: ChatCtx) => ({ onLimit: (key: string, ms: number) => ctx.log.warn("chat: a membership change took too long; the next one runs", { key, limitMs: ms }) });
 
 /** A new chat agent: shown to each of these readers (a public channel's is the whole Space). `still` says whether a person reader still reads the chat when their grant is written. */
 export async function shareOwnedWithReaders(ctx: ChatCtx, threadId: string, agentId: string, readers: readonly Subject[], still: (person: string) => boolean = () => true): Promise<void> {
   for (const s of readers) {
     if (s.kind !== "person") { await grant(ctx, threadId, agentId, s); continue; }
-    await oneAtATime(queueOf(ctx, s.id), async () => { if (still(s.id)) await grant(ctx, threadId, agentId, s); });
+    await oneAtATime(queueOf(ctx, s.id), async () => { if (still(s.id)) await grant(ctx, threadId, agentId, s); }, limits(ctx));
   }
 }
 
@@ -82,7 +83,7 @@ export async function shareOwnedWith(ctx: ChatCtx, threadId: string, person: str
       if (!isMember(ctx.db, threadId, person)) return;
       await grant(ctx, threadId, agentId, { kind: "person", id: person });
     }
-  });
+  }, limits(ctx));
 }
 
 /** A thread and the threads under it (a channel's main thread and its threads), to the depth threads nest. */
@@ -114,5 +115,5 @@ export async function unshareOwnedFrom(ctx: ChatCtx, threads: string | readonly 
       }
     }
     return drop();
-  });
+  }, limits(ctx));
 }
