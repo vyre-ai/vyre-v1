@@ -249,6 +249,23 @@ test("a thread with no agents is left alone, and a host without an engine skips"
   assert.deepEqual(await bare.onEvent(s.ctx, { name: "message.received", payload: { messageId: "msg_x", threadId: T } }), { skipped: "engine_not_running" });
 });
 
+test("a thread the bridge cannot read is skipped as unreadable, never as having no agents (rc.22 bug 15: the log said not_found, no_agents for a chat that had its agent)", async () => {
+  const s = setup({ script: reply("x") });
+  s.chat.push({ messageId: "msg_u1", threadId: T, threadSeq: 1, author: { kind: "person", id: "usr_dana" }, body: "hello", blocks: [], mentions: [], depth: 0 });
+  const warns: Array<[string, Record<string, unknown> | undefined]> = [];
+  const blind = { ...s.ctx, log: { ...s.ctx.log, warn: (m: string, a?: Record<string, unknown>) => { warns.push([m, a]); } }, call: async (cap: string, input: unknown) => {
+    if (cap === "threads.get") throw Object.assign(new Error("That chat does not exist or is not yours."), { error: { code: "validation.not_found" } });
+    return s.ctx.call(cap, input);
+  } } as typeof s.ctx;
+  const out = await s.bridge.onEvent(blind, { name: "message.received", payload: { messageId: "msg_u1", threadId: T, author: { kind: "person", id: "usr_dana" }, mentions: [], depth: 0 } });
+  assert.deepEqual(out, { skipped: "thread_unreadable" });
+  assert.equal(warns.length, 1, "and it is logged with the code the read answered");
+  assert.equal(warns[0]![1]?.["code"], "validation.not_found");
+  // the same bridge, the thread readable again: the next message runs (the failure left nothing half-open)
+  const { result } = await s.say("again");
+  assert.deepEqual(result, { receivedAs: [LEAD] });
+});
+
 test("a reply that is addressed to the asker (a reviewer's verdict) carries an @mention of the person, so no agent answers it", async () => {
   const s = setup({ script: reply("Approved."), addressAsker: (_t, agent) => agent === LEAD });
   await s.say("check this");

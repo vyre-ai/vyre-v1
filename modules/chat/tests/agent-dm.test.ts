@@ -336,3 +336,17 @@ test("only two events carry a teammate's words back to an asker (a new message, 
   const others = Object.entries(c).filter(([k]) => k.startsWith("chat.agent_dm")).map(([k]) => k).sort();
   assert.deepEqual(others, ["chat.agent_dm_answer", "chat.agent_dm_reply"], "no third path into agent-dm.ts");
 });
+
+// ---- rc.22 bug 15: a person's own chat never answers "does not exist or is not yours" because of what happened to its agents ----
+
+test("a person who started a chat can still write in it after its agent was switched out, removed, or left in listen mode: never not_found", async () => {
+  const { hn } = world();
+  const origin = (await h["chat.start"]!(hn.ctx, { kind: "chat", agentIds: [INTAKE], idempotencyKey: key() })).thread.threadId as string;
+  const say = async (body: string) => (await h["chat.post"]!(hn.ctx, { threadId: origin, body, idempotencyKey: key() })).message;
+  assert.ok(await say("first"));
+  hn.db.run("UPDATE chat_thread_agent SET mode = 'listen' WHERE thread = ?", origin);                       // demoted by a brain change
+  assert.ok(await say("with the agent only listening"));
+  hn.db.run("UPDATE chat_thread_agent SET deleted_at = ? WHERE thread = ?", NOW, origin);                   // the agent was taken off
+  assert.ok(await say("with no agent at all"));
+  assert.equal(await h["chat.post"]!(hn.person(MAYA), { threadId: origin, body: "someone else", idempotencyKey: key() }).then(() => "wrote", (e: unknown) => codeOf(e)), "validation.not_found", "a stranger still gets not_found, by design");
+});

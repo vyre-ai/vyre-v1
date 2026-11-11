@@ -428,13 +428,17 @@ export function createBridge(o: BridgeOptions): Bridge {
     return person ? (cap, input) => o.callAs!(cap, input, person) : (cap, input) => ctx.call(cap, input);
   };
 
+  /** Threads whose last open failed because the thread could not be read (not because it has no agents): the skip says so, so a log never calls an unreadable chat an empty one. */
+  const unreadable = new Set<string>();
   async function open(ctx: EngineCtx, threadId: string, skipId: string, authorId: string): Promise<boolean> {
+    unreadable.delete(threadId);
     const read = reader(ctx, authorId, threadId);
     if (!engine) return false;
     if (opened.has(threadId)) return true;
     let got: ThreadGet;
     try { got = (await read("threads.get", { threadId })) as ThreadGet; } catch (e) {
       // not "no agents": the thread could not be read at all (a private chat the calling principal is not in, a thread that is gone). Say so, with the trace, instead of skipping in silence.
+      unreadable.add(threadId);
       ctx.log.warn("the bridge could not read the thread, so no turn runs for its message", { traceId: ctx.trace.traceId, threadId, code: (e as { error?: { code?: string } })?.error?.code ?? "unknown", error: e instanceof Error ? e.message : String(e) });
       return false;
     }
@@ -511,7 +515,7 @@ export function createBridge(o: BridgeOptions): Bridge {
         if (/^## Goal\n/.test(String(first.message?.body ?? "")) && (((await reader(ctx, readAs, threadId)("threads.get", { threadId })) as { thread?: { scopeType?: string } }).thread?.scopeType) === "task") return { skipped: "task_brief" };
       } catch { /* not readable: route it as any message */ }
     }
-    if (!(await open(ctx, threadId, messageId, readAs))) return { skipped: "no_agents" };
+    if (!(await open(ctx, threadId, messageId, readAs))) return { skipped: unreadable.delete(threadId) ? "thread_unreadable" : "no_agents" };
     if (store.get(messageId)) return { skipped: "known" };
     const got = (await reader(ctx, readAs, threadId)("chat.message.get", { threadId: home, messageId })) as { message: Row };
     const authorId = str(a.id) || got.message.author.id;

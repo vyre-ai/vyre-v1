@@ -1,2 +1,4 @@
 - When an agent writes to a teammate as itself, the note the teammate types when they send a request back no longer shows up in the chat of the person who asked; only the outcome does.
 - A chat named from your own words no longer ends on a dangling word ("Create a", "Draft the October note for"); with too little to name it, it waits for a fuller request.
+- When a chat cannot be read by the engine, the log now says so ("thread_unreadable") instead of claiming the chat has no agents.
+- Inside an agent computer, Vyre for Chrome is reported as asleep when its worker is idle, and as missing only when it is not installed (it used to read "workers: 0" while fine).
