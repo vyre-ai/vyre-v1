@@ -183,7 +183,7 @@ test("the periodic pass clears a takeover browserd kept after the module let go,
   sbrowser();
   const { spaceBrowser } = await import("../sbrowser/port.ts");
   const sb = spaceBrowser()!;
-  sb.profiles = async () => ({ profiles: [...new Set([...held.keys(), "agt_lost"])].map((id) => ({ profileId: id, running: true, tabs: 1, busy: false, takeover: held.has(id), ...(held.has(id) ? { takeoverBy: held.get(id)! } : {}), viewers: 0, lastActiveAt: 1, held: 0, paused: false })), maxRunning: 6 });
+  sb.profiles = async () => ({ profiles: [...new Set([...held.keys(), "agt_lost"])].map((id) => ({ profileId: id, spaceId: "spc_computerstest", running: true, tabs: 1, busy: false, takeover: held.has(id), ...(held.has(id) ? { takeoverBy: held.get(id)! } : {}), viewers: 0, lastActiveAt: 1, held: 0, paused: false })), maxRunning: 6 });
   sb.giveBack = async (id) => { told.push(`give_back ${id}`); held.delete(id); };
   sb.takeover = async (a) => { told.push(`takeover ${a.profileId} ${a.personId}`); held.set(a.profileId, a.personId); };
   const h = harness();
@@ -192,5 +192,27 @@ test("the periodic pass clears a takeover browserd kept after the module let go,
     const { periodic } = await import("../impl.ts") as { periodic: Record<string, { run: (ctx: unknown) => Promise<void> }> };
     await periodic["computers.browser_room"]!.run(h.ctx);
     assert.deepEqual(told.sort(), ["give_back agt_stale", `takeover agt_lost ${DANA}`]);
+  } finally { bindSpaceBrowser(null); resetRoom(); }
+});
+
+// Second look B (12 Nov): two Spaces on one computer (two daemons on one Docker engine) share the one `vyre-sbrowser` container. The periodic pass gave back every takeover its own table did not know,
+// so each Space released the other's every 30 seconds.
+test("the periodic pass touches only this Space's profiles on a Space browser two Spaces share", async () => {
+  const told: string[] = [];
+  sbrowser();
+  const { spaceBrowser } = await import("../sbrowser/port.ts");
+  const sb = spaceBrowser()!;
+  const h = harness();
+  sb.profiles = async () => ({ profiles: [
+    { profileId: "agt_theirs", spaceId: "spc_other", running: true, tabs: 1, busy: false, takeover: true, takeoverBy: "usr_zed", viewers: 0, lastActiveAt: 1, held: 0, paused: false },
+    { profileId: "agt_ours", spaceId: h.ctx.space, running: true, tabs: 1, busy: false, takeover: true, takeoverBy: DANA, viewers: 0, lastActiveAt: 1, held: 0, paused: false },
+  ], maxRunning: 6 });
+  sb.giveBack = async (id) => { told.push(`give_back ${id}`); };
+  sb.takeover = async (a) => { told.push(`takeover ${a.profileId}`); };
+  h.db.run("INSERT INTO computers_claim (claim_key, kind, host, state, since, note) VALUES ('agt_ours', 'browser', 'space', 'running', ?, NULL)", h.clock.t);
+  try {
+    const { periodic } = await import("../impl.ts") as { periodic: Record<string, { run: (ctx: unknown) => Promise<void> }> };
+    await periodic["computers.browser_room"]!.run(h.ctx);
+    assert.deepEqual(told, ["give_back agt_ours"], "this Space's stale takeover is released; the other Space's is left alone");
   } finally { bindSpaceBrowser(null); resetRoom(); }
 });

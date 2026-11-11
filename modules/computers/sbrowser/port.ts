@@ -4,6 +4,8 @@ export type BrowserAnswer = Record<string, unknown>;
 
 export interface ProfileRow {
   profileId: string;
+  /** The Space whose agent this profile is, as its calls said: one Space browser container can serve two Spaces on one computer (two daemons on one Docker engine share `vyre-sbrowser`). */
+  spaceId?: string;
   running: boolean;
   tabs: number;
   busy: boolean;
@@ -40,7 +42,7 @@ export interface BrowserToolCall {
   space?: string;
   /** The Vault channel of this profile's agent for #Handle.field in the call: held by browserd in memory, for this profile only. */
   fill?: { url: string; token: string };
-  /** Who holds the controls as the module's table says now (null: nobody). browserd follows it, so its own copy can never block the agent after a give back it missed. */
+  /** Who holds the controls as the module's table says (null: nobody). browserd takes on a person it did not know (it restarted); "nobody" never releases a takeover on this path. */
   hold?: string | null;
 }
 
@@ -56,8 +58,10 @@ export interface SpaceBrowser {
   downloadAck(profileId: string, name: string): Promise<void>;
   /** The file is too large to move into Files: the service keeps it out of the list (reported once, never tried again). */
   downloadKeep?(profileId: string, name: string): Promise<void>;
-  takeover(a: { profileId: string; personId: string }): Promise<void>;
-  giveBack(profileId: string): Promise<void>;
+  /** `space`: the Space whose agent it is, kept with the profile (a container two Spaces share). */
+  takeover(a: { profileId: string; personId: string; space?: string }): Promise<void>;
+  /** `before` (ms since the epoch, the host's clock): release only a takeover that began before then, so a release decided on an older reading never undoes a newer takeover. */
+  giveBack(profileId: string, o?: { before?: number }): Promise<void>;
   screenshot(profileId: string): Promise<{ bytes: Uint8Array; width: number; height: number }>;
   /** Where the live view of a profile is served from, for a ticket the viewer presents. `ws` is browserd's own WebSocket address on the machine that runs it, for the host's relay, never for a viewer. */
   stream(a: { profileId: string; personId?: string }): Promise<{ transport: "mjpeg"; url: string; ws?: string; width?: number; height?: number }>;

@@ -143,8 +143,9 @@ export async function takeOver(ctx: CompCtx, input: { agentId: string }) {
   ensure(ctx.db);
   const other = heldBy(ctx, input.agentId);
   if (other !== null && other !== person && (await currentHold(ctx, sb, input.agentId)) !== null) raise(ctx, "validation.precondition_failed", "Someone else has the controls.");
-  try { await sb.takeover({ profileId: input.agentId, personId: person }); } catch (e) { refuse(ctx, e); }
+  // the table first, then browserd: an agent's call that reads the table after this line waits, and one that read it before cannot undo it (browserd never releases on a call)
   setHold(ctx, input.agentId, person);
+  try { await sb.takeover({ profileId: input.agentId, personId: person, space: ctx.space }); } catch (e) { if (other === null) dropHold(ctx, input.agentId); refuse(ctx, e); }
   return { profile: await rowOf(ctx, sb, input.agentId, access) };
 }
 

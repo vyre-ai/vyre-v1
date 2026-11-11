@@ -26,8 +26,9 @@ export async function reconcileClaims(ctx: CompCtx, sb: SpaceBrowser, o: { force
   lastReconcile = at;
   let running: Set<string>;
   let rows: ProfileRow[];
+  const readAt = Date.now();
   try { rows = (await sb.profiles()).profiles; running = new Set(rows.filter((p) => p.running).map((p) => p.profileId)); } catch { return; }
-  await syncHolds(ctx, sb, rows);
+  await syncHolds(ctx, sb, rows, readAt);
   for (const r of claims) {
     const key = String(r["claim_key"]);
     if (!running.has(key) && at - Number(r["since"]) >= START_GRACE_MS) releaseRoom(ctx, key);

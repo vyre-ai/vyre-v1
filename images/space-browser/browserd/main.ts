@@ -161,8 +161,9 @@ async function dispatch(action: string, a: Args): Promise<Args> {
       if (typeof a["fillUrl"] === "string" && typeof a["fillToken"] === "string") manager.get(pid).vault.setFiller(a["fillUrl"], a["fillToken"], pid);
       // Vyre for Chrome in the profile is paired with the Space as this agent as soon as the Space and the Vault channel are known
       if (manager.get(pid).spaceId && manager.get(pid).vault.hasChannel()) bridges?.pair(pid);
-      // the hold as the Space's table has it now: browserd follows it, so a give back or an expiry it missed is repaired by the next call
-      if ("hold" in a) manager.setHold(pid, typeof a["hold"] === "string" && a["hold"] !== "" ? a["hold"] : null);
+      // a person holds it as the Space's table has it: browserd holds it too (a restarted browserd learns it here). "Nobody" never releases one here: a call can carry a reading older than a takeover
+      // that came after it; releasing is for give back and the Space's periodic pass, each with the time of its own reading
+      if (typeof a["hold"] === "string" && a["hold"] !== "") manager.setHold(pid, a["hold"]);
       const args = (typeof a["args"] === "object" && a["args"] !== null ? a["args"] : {}) as Args;
       return manager.tool({ profileId: checkProfileId(a["profileId"]), tool: text(a, "tool"), args, timeoutMs: typeof a["timeoutMs"] === "number" ? a["timeoutMs"] : 30_000, ...(a["by"] === "person" ? { by: "person" } : {}) });
     }
@@ -170,8 +171,13 @@ async function dispatch(action: string, a: Args): Promise<Args> {
     case "download_read": return { base64: manager.downloadRead(checkProfileId(a["profileId"]), text(a, "name")).toString("base64") };
     case "download_ack": manager.downloadAck(checkProfileId(a["profileId"]), text(a, "name")); return {};
     case "download_keep": manager.downloadKeep(checkProfileId(a["profileId"]), text(a, "name")); return {};
-    case "takeover": manager.takeover(checkProfileId(a["profileId"]), text(a, "personId")); return {};
-    case "give_back": manager.giveBack(checkProfileId(a["profileId"])); return {};
+    case "takeover": {
+      const pid = checkProfileId(a["profileId"]);
+      if (typeof a["spaceId"] === "string" && /^[A-Za-z0-9_-]{3,80}$/.test(a["spaceId"])) manager.get(pid).spaceId = a["spaceId"];
+      manager.takeover(pid, text(a, "personId"));
+      return {};
+    }
+    case "give_back": manager.giveBack(checkProfileId(a["profileId"]), typeof a["before"] === "number" ? a["before"] : undefined); return {};
     case "screenshot": {
       const c = await pageOf(checkProfileId(a["profileId"]));
       try {

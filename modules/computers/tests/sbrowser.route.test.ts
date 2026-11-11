@@ -288,9 +288,9 @@ test("each browser step with a caption is a line of the agent's browser timeline
   } finally { off(); }
 });
 
-// A person who has taken over holds the agent's browser (owner ruling 6 Nov, DESIGN-agent-workspaces.md). The rule is the browser service's (browserd, profiles.ts: a call that is not the person's is refused while the controls
-// are held), because it is the one layer every caller goes through; the real one is proved in sbrowser.heavy.test.ts. From the module's side: an agent's call is never marked as the person's, the refusal reaches the agent
-// with the plain reason, nothing else gets in while it is held, and when the person gives back the agent works at once.
+// A person who has taken over holds the agent's browser (owner ruling 6 Nov, DESIGN-agent-workspaces.md). Since the review of 12 Nov the module's own table is the one truth (sbrowser/hold.ts): the module
+// refuses the agent before the browser service is asked, and browserd's copy follows the table. A takeover browserd holds that the table does not know is a give back browserd missed and is released.
+// From the module's side: an agent's call is never marked as the person's, the refusal reaches the agent with the plain reason, nothing gets in while it is held, and on give back the agent works at once.
 test("while a person holds an agent's browser the agent's tools are refused with the reason, never marked as the person's, and work again at once on give back", async () => {
   const held = new Map<string, string>();
   const calls: BrowserToolCall[] = [];
@@ -308,19 +308,21 @@ test("while a person holds an agent's browser the agent's tools are refused with
     async profiles() { return { profiles: [...held].map(([profileId, by]) => ({ profileId, running: true, tabs: 1, busy: false, takeover: true, takeoverBy: by, viewers: 1, lastActiveAt: 1, held: 0, paused: false })), maxRunning: 6 }; }, async health() { return { ok: true }; },
   };
   bindSpaceBrowser(sb);
+  const ag = harness({ principal: { kind: "agent", id: "agt_dex" }, actingFor: DANA });
+  const dana = asPerson(ag, { kind: "person", id: DANA }, { respond: { "agents.share_class": () => ({ class: "space", ownerId: DANA, people: [] }) } });
+  const omar = asPerson(ag, { kind: "person", id: OMAR }, { respond: { "agents.share_class": () => ({ class: "space", ownerId: DANA, people: [] }) } });
   try {
-    await tool["computers.chrome.open"]!(agentCtx("agt_dex"), { url: "https://example.com/" });
+    await tool["computers.chrome.open"]!(ag.ctx, { url: "https://example.com/" });
     assert.equal(calls.at(-1)!.by, undefined, "an agent's call is never the person's");
-    await sb.takeover({ profileId: "agt_dex", personId: DANA });
+    await tool["computers.browser.take_over"]!(dana.ctx, { agentId: "agt_dex" });
     for (const [name, input] of [["computers.chrome.open", { url: "https://example.org/" }], ["computers.chrome.state", {}], ["computers.chrome.snapshot", {}]] as const) {
       const before = calls.length;
-      await assert.rejects(() => (tool[name] as (c: unknown, i: unknown) => Promise<unknown>)(agentCtx("agt_dex"), input), (e) => codeOf(e) === "provider.unavailable" && /A person has the controls/.test(JSON.stringify(e)), `${name} waits with the reason`);
-      assert.equal(calls.length, before + 1);
-      assert.equal(calls.at(-1)!.by, undefined, `${name} reached the browser as the agent's, so the browser could refuse it`);
+      await assert.rejects(() => (tool[name] as (c: unknown, i: unknown) => Promise<unknown>)(ag.ctx, input), (e) => codeOf(e) === "provider.unavailable" && /A person has the controls/.test(JSON.stringify(e)), `${name} waits with the reason`);
+      assert.equal(calls.length, before, `${name} was refused by the module, before the browser service`);
     }
-    await assert.rejects(() => sb.takeover({ profileId: "agt_dex", personId: OMAR }), /Someone else has the controls/, "a second person is refused while it is held");
-    await sb.giveBack("agt_dex");
-    const out = await tool["computers.chrome.state"]!(agentCtx("agt_dex"), {});
+    await assert.rejects(() => tool["computers.browser.take_over"]!(omar.ctx, { agentId: "agt_dex" }), /Someone else has the controls/, "a second person is refused while it is held");
+    await tool["computers.browser.give_back"]!(dana.ctx, { agentId: "agt_dex" });
+    const out = await tool["computers.chrome.state"]!(ag.ctx, {});
     assert.equal(out.loading, false, "given back, the agent works at once");
   } finally { off(); }
 });

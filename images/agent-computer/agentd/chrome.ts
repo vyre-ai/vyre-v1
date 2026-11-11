@@ -200,9 +200,17 @@ export function launchChrome(screen: Screen | null, profileDir: string, extensio
     return connectCdp(t.webSocketDebuggerUrl);
   };
   const withTab = async <T>(tabId: unknown, f: (c: Cdp, t: Target) => Promise<T>): Promise<T> => {
-    const t = await pick(tabId);
+    let t = await pick(tabId);
+    let c: Cdp;
+    // the front tab can close between the list and the attach (a browser that brought back its tabs closes its blank first one): the next one is taken, unless the call named that tab
+    try { c = await connect(t); } catch (e) {
+      if (!(typeof tabId !== "string" || tabId === "") || !/No target with given id/i.test(e instanceof Error ? e.message : "")) throw e;
+      if (active === t.id) active = null;
+      await sleep(100);
+      t = await pick(undefined);
+      c = await connect(t);
+    }
     await watch(t).catch(() => undefined);
-    const c = await connect(t);
     try { return await f(c, t); } finally { c.close(); }
   };
 

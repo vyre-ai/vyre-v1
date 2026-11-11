@@ -909,60 +909,79 @@ test("ensure_userns writes the sysctl file and applies it only where the kernel 
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
 
-test("ensure_metadata_block keeps every container from the cloud metadata address with one DOCKER-USER rule per bridge kind, once; skips a Mac and a host without the chain; doctor says which", () => {
+test("ensure_metadata_block keeps containers from the cloud metadata address but lets DNS to it pass, in order, once; skips a Mac; says why when it cannot; doctor reads the rules back", () => {
   const dir = tmp();
   try {
     installFixture(dir);
     const shim = path.join(dir, "shim"); fs.mkdirSync(shim);
-    const rules = path.join(dir, "rules");
-    // a fake iptables and ip6tables: -L succeeds when the chain file exists, -C finds a rule in the rules file, -I appends it
+    const rules = (t: string): string => path.join(dir, `rules-${t}`);
+    // a fake iptables and ip6tables keeping DOCKER-USER as an ordered file: -L succeeds when the chain file exists, -C FORWARD -j DOCKER-USER when the jump file exists, -C finds a rule, -I N inserts it at
+    // line N, -D removes it once
     for (const t of ["iptables", "ip6tables"]) {
       fs.writeFileSync(path.join(shim, t), `#!/bin/sh
 echo "${t} $*" >> "${dir}/calls"
-shift
-act=$1; shift
-[ -f "${dir}/chain" ] || exit 1
-rule="${t} $(echo "$*" | sed 's/^DOCKER-USER 1 /DOCKER-USER /')"
-case "$act" in -L) exit 0 ;; -C) grep -qxF "$rule" "${rules}" 2>/dev/null ;; -I) echo "$rule" >> "${rules}" ;; esac
+shift; act=$1; shift; chain=$1; shift
+[ -f "${dir}/chain-${t}" ] || exit 1
+f="${rules(t)}"; touch "$f"
+if [ "$chain" = FORWARD ]; then [ -f "${dir}/jump-${t}" ]; exit $?; fi
+pos=""; case "$1" in [0-9]*) pos=$1; shift ;; esac
+rule="$*"
+case "$act" in
+  -L) exit 0 ;;
+  -C) grep -qxF -- "$rule" "$f" ;;
+  -I) n=\${pos:-1}; awk -v n="$n" -v r="$rule" 'NR==n{print r} {print} END{if(NR<n)print r}' "$f" > "$f.new"; mv "$f.new" "$f" ;;
+  -D) grep -qxF -- "$rule" "$f" || exit 1; awk -v r="$rule" '!d && $0==r {d=1; next} {print}' "$f" > "$f.new"; mv "$f.new" "$f" ;;
+esac
 `, { mode: 0o755 });
     }
     const env = { VYRE_DIR: dir, VYRE_TEST_METADATA: "1", PATH: `${shim}:${process.env.PATH ?? ""}` };
     // without the test's own opt-in, a test run never reaches the real firewall (the other tests run start and update as root on the box)
-    assert.equal(sh(SERVER, "meta_state", { ...env, VYRE_TEST_METADATA: "0" }).stdout, "none");
+    assert.equal(sh(SERVER, "meta_state", { ...env, VYRE_TEST_METADATA: "0" }).stdout, "skip");
     const state = (o: Record<string, string> = {}): string => sh(SERVER, "meta_state", { ...env, ...o }).stdout;
     const finding = (): string => sh(SERVER, 'FINDINGS=""; DOWN=0; check_all >/dev/null 2>&1; printf "%s" "$FINDINGS"', env).stdout;
-    // no DOCKER-USER chain (no Docker firewall here): nothing is done, no error, doctor says nothing
+    // a Mac: nothing, no finding
+    assert.equal(state({ VYRE_TEST_OS: "Darwin" }), "skip");
+    // no DOCKER-USER chain: said, in plain words, as degraded; start says it too and changes nothing
+    assert.match(state(), /^broken iptables has no DOCKER-USER chain/);
+    assert.match(finding(), /host\.metadata\tdegraded\tAgents' containers may reach the cloud metadata address \(169\.254\.0\.0\/16\): iptables has no DOCKER-USER chain/);
     let r = sh(SERVER, "ensure_metadata_block", env);
     assert.equal(r.status, 0, r.stderr);
-    assert.equal(fs.existsSync(rules), false);
-    assert.equal(state(), "none");
-    assert.doesNotMatch(finding(), /host\.metadata/);
-    // a Mac: never touched
-    fs.writeFileSync(path.join(dir, "chain"), "");
-    assert.equal(state({ VYRE_TEST_OS: "Darwin" }), "none");
-    r = sh(SERVER, "ensure_metadata_block", { ...env, VYRE_TEST_OS: "Darwin" });
-    assert.equal(r.status, 0);
-    assert.equal(fs.existsSync(rules), false);
-    // Linux with the chain: off until the rules are in, then on; doctor follows
+    assert.match(r.stdout, /may reach the cloud metadata address/);
+    // the chain is there but Docker's traffic does not go through it in this tool's tables (a legacy and nft mismatch): said, never "on"
+    for (const t of ["iptables", "ip6tables"]) fs.writeFileSync(path.join(dir, `chain-${t}`), "");
+    assert.match(state(), /^broken the DOCKER-USER chain iptables shows is not in the path of Docker's traffic/);
+    for (const t of ["iptables", "ip6tables"]) fs.writeFileSync(path.join(dir, `jump-${t}`), "");
+    // Linux with the chain: off, then the rules in order: DNS passes above the drop, for both bridges; IPv6 drops the metadata address
     assert.equal(state(), "off");
-    assert.match(finding(), /host\.metadata\tdegraded\t.*169\.254\.0\.0\/16/);
+    assert.match(finding(), /host\.metadata\tdegraded\t.*Fix: vyre-server start/);
     r = sh(SERVER, "ensure_metadata_block", env);
     assert.equal(r.status, 0, r.stderr);
-    assert.deepEqual(read(rules).trim().split("\n").sort(), [
-      "ip6tables DOCKER-USER -i br-+ -d fd00:ec2::254/128 -m comment --comment vyre-metadata -j DROP",
-      "ip6tables DOCKER-USER -i docker0 -d fd00:ec2::254/128 -m comment --comment vyre-metadata -j DROP",
-      "iptables DOCKER-USER -i br-+ -d 169.254.0.0/16 -m comment --comment vyre-metadata -j DROP",
-      "iptables DOCKER-USER -i docker0 -d 169.254.0.0/16 -m comment --comment vyre-metadata -j DROP",
-    ], "only the metadata range, only from Docker's bridges, inserted at the top");
-    assert.match(read(path.join(dir, "calls")), /iptables -w -I DOCKER-USER 1 -i docker0 -d 169\.254\.0\.0\/16/);
+    const v4 = read(rules("iptables")).trim().split("\n");
+    assert.deepEqual(v4, [
+      "-i br-+ -d 169.254.0.0/16 -p tcp --dport 53 -m comment --comment vyre-metadata -j RETURN",
+      "-i br-+ -d 169.254.0.0/16 -p udp --dport 53 -m comment --comment vyre-metadata -j RETURN",
+      "-i docker0 -d 169.254.0.0/16 -p tcp --dport 53 -m comment --comment vyre-metadata -j RETURN",
+      "-i docker0 -d 169.254.0.0/16 -p udp --dport 53 -m comment --comment vyre-metadata -j RETURN",
+      "-i br-+ -d 169.254.0.0/16 -m comment --comment vyre-metadata -j DROP",
+      "-i docker0 -d 169.254.0.0/16 -m comment --comment vyre-metadata -j DROP",
+    ], "every DNS pass stands above every drop");
+    assert.deepEqual(read(rules("ip6tables")).trim().split("\n").sort(), ["-i br-+ -d fd00:ec2::254/128 -m comment --comment vyre-metadata -j DROP", "-i docker0 -d fd00:ec2::254/128 -m comment --comment vyre-metadata -j DROP"]);
     assert.equal(state(), "on");
-    assert.match(finding(), /host\.metadata\thealthy\t/);
-    // a second start adds nothing
+    assert.match(finding(), /host\.metadata\thealthy\t.*DNS to it still passes/);
+    // a second start adds nothing; an old drop-only rule set (dee49d04c) with a DNS pass missing is put back in order
     sh(SERVER, "ensure_metadata_block", env);
-    assert.equal(read(rules).trim().split("\n").length, 4);
-    // start, the update and the rollback all put it there
+    assert.equal(read(rules("iptables")).trim().split("\n").length, 6);
+    fs.writeFileSync(rules("iptables"), `${v4.slice(4).join("\n")}\n`);
+    assert.equal(state(), "off");
+    sh(SERVER, "ensure_metadata_block", env);
+    assert.deepEqual(read(rules("iptables")).trim().split("\n"), v4, "repaired in order, no duplicate");
+    // no ip6tables at all: said
+    fs.rmSync(path.join(shim, "ip6tables"));
+    assert.match(state({ PATH: `${shim}:/usr/bin:/bin` }), /^broken there is no ip6tables/);
+    // start, the update (also the daily check when there is nothing new) and the rollback all put it there
     const text = read(SERVER);
     assert.match(text, /cmd_start\(\) \{[^\n]*ensure_metadata_block; dc up/, "start (the boot unit runs it)");
+    assert.match(text, /cmd_update\(\) \{\n  parse_update_args "\$@"\n(?:  #[^\n]*\n)*  ensure_metadata_block\n/, "every update run, the daily check included");
     assert.equal((text.match(/  ensure_metadata_block\n  refresh_bin\n  ensure_userns\n/g) ?? []).length, 2, "update and rollback");
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });

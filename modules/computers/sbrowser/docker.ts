@@ -260,8 +260,8 @@ export function createDockerSpaceBrowser(o: DockerSpaceBrowserOptions): SpaceBro
     },
     async downloadAck(profileId, file) { await call("download_ack", { profileId, name: file }); },
     async downloadKeep(profileId, file) { await call("download_keep", { profileId, name: file }); },
-    async takeover(a) { await call("takeover", { profileId: a.profileId, personId: a.personId }); },
-    async giveBack(profileId) { await call("give_back", { profileId }); },
+    async takeover(a) { await call("takeover", { profileId: a.profileId, personId: a.personId, ...(a.space ? { spaceId: a.space } : {}) }); },
+    async giveBack(profileId, g) { await call("give_back", { profileId, ...(g?.before !== undefined ? { before: g.before } : {}) }); },
     async screenshot(profileId) {
       const s = await call("screenshot", { profileId }) as { png: string; width: number; height: number };
       return { bytes: decode64(s.png), width: Number(s.width), height: Number(s.height) };

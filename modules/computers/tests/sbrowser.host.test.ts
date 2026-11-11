@@ -268,3 +268,14 @@ test("a container of an earlier release that is busy or held is kept until it is
   assert.equal(e.created.length, 1);
   assert.equal(e.created[0]!.config.HostConfig.NetworkMode, "vyre-sbrowsernet");
 });
+
+// Second look (12 Nov): ctl is plain JavaScript that no typecheck sees. It must at least parse.
+test("browserd's control program parses (node --check), and the native messaging host is a valid shell script", async () => {
+  const { spawnSync } = await import("node:child_process");
+  const path = await import("node:path");
+  const dir = path.join(path.dirname(new URL(import.meta.url).pathname), "../../../images/space-browser/browserd");
+  const ctl = spawnSync(process.execPath, ["--check", path.join(dir, "ctl")], { encoding: "utf8" });
+  assert.equal(ctl.status, 0, ctl.stderr);
+  const host = spawnSync("sh", ["-n", path.join(dir, "bridge-host")], { encoding: "utf8" });
+  assert.equal(host.status, 0, host.stderr);
+});

@@ -56,12 +56,12 @@ export async function currentHold(ctx: CompCtx, sb: SpaceBrowser, profileId: str
   }
   if (now - h.seen >= HOLD_IDLE_MS) {
     dropHold(ctx, profileId);
-    try { await sb.giveBack(profileId); } catch { /* the service forgets it on its own restart */ }
+    try { await sb.giveBack(profileId, { before: Date.now() }); } catch { /* the periodic pass */ }
     ctx.log.info("sbrowser: a takeover nobody used ended; the agent has its browser back", { profileId, personId: h.personId });
     return null;
   }
   // a service that restarted holds nothing: it is told again, so the person's input keeps reaching the page and the agent's own path through the service waits too
-  if (answered && row?.takeoverBy === undefined) { try { await sb.takeover({ profileId, personId: h.personId }); } catch { /* the module's hold still refuses the agent */ } }
+  if (answered && row?.takeoverBy === undefined) { try { await sb.takeover({ profileId, personId: h.personId, space: ctx.space }); } catch { /* the module's hold still refuses the agent */ } }
   return h;
 }
 
@@ -69,10 +69,13 @@ export async function currentHold(ctx: CompCtx, sb: SpaceBrowser, profileId: str
 export const heldBy = (ctx: Pick<CompCtx, "db">, profileId: string): string | null => holdRow(ctx, profileId)?.personId ?? null;
 
 /** The periodic pass: browserd's copy follows the table both ways (a takeover it kept after a give back or an expiry it missed is cleared; one it lost on a restart is told again). */
-export async function syncHolds(ctx: CompCtx, sb: SpaceBrowser, rows: readonly ProfileRow[]): Promise<void> {
+// `readAt`: when browserd's rows were read (the table is read after them, and a take over writes the table before it tells browserd, so a takeover browserd reports is already in the table);
+// the release carries it, so browserd never lets go of a takeover that began after the reading.
+export async function syncHolds(ctx: CompCtx, sb: SpaceBrowser, rows: readonly ProfileRow[], readAt: number): Promise<void> {
   for (const r of rows) {
+    // another Space's profile on a shared container is never released: its takeovers are in that Space's table, not this one (a profile is this Space's when its calls said so)
     const h = holdRow(ctx, r.profileId);
-    if (r.takeoverBy !== undefined && h === null) { try { await sb.giveBack(r.profileId); } catch { /* the next call carries the hold */ } }
-    else if (h !== null && r.takeoverBy !== h.personId) { try { await sb.takeover({ profileId: r.profileId, personId: h.personId }); } catch { /* the module refuses the agent anyway */ } }
+    if (r.takeoverBy !== undefined && h === null && r.spaceId === ctx.space) { try { await sb.giveBack(r.profileId, { before: readAt }); } catch { /* the next pass */ } }
+    else if (h !== null && r.takeoverBy !== h.personId) { try { await sb.takeover({ profileId: r.profileId, personId: h.personId, space: ctx.space }); } catch { /* the module refuses the agent anyway */ } }
   }
 }

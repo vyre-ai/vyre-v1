@@ -17,7 +17,7 @@ import { spaceBrowser } from "../../sbrowser/port.ts";
 import { profileIdOf } from "../../sbrowser/policy.ts";
 import { takeDownloads } from "../../sbrowser/downloads.ts";
 import { needRoom } from "../../sbrowser/room.ts";
-import { currentHold, DURING_HOLD, HELD_LINE } from "../../sbrowser/hold.ts";
+import { currentHold, DURING_HOLD, HELD_LINE, heldBy } from "../../sbrowser/hold.ts";
 import { agentInfo } from "../../sbrowser/agentinfo.ts";
 import { faceSvg } from "../../sbrowser/face.ts";
 import { waitingNote } from "../../capacity.ts";
@@ -264,6 +264,7 @@ async function browserCall(ctx: CompCtx, profileId: string, spec: ToolSpec, args
   const sb = spaceBrowser();
   if (!sb) raise(ctx, "provider.unavailable", "The Space browser is not running on this host.");
   // a person at the controls: the agent's tools wait here, before the call reaches the browser service, however that service is reached and after it restarts (the hold is the module's own)
+  const readAt = Date.now();
   const hold = await currentHold(ctx, sb, profileId);
   if (hold && !DURING_HOLD.has(spec.name)) raise(ctx, "provider.unavailable", HELD_LINE, { takeoverBy: hold.personId });
   let fill: { url: string; token: string } | undefined;
@@ -291,10 +292,17 @@ async function browserCall(ctx: CompCtx, profileId: string, spec: ToolSpec, args
     if (!faceSent.has(profileId)) { const svg = await faceSvg(who.face); if (svg) agent.faceSvg = svg; faceSent.add(profileId); }
   }
   let raw: ToolAnswer;
+  const send = (): Promise<ToolAnswer> => sb.tool({ profileId, ...(agent ? { agent } : {}), tool: spec.name, args, timeoutMs: Math.min(spec.timeoutMs ?? DEFAULT_TOOL_MS, MAX_TOOL_MS), space: ctx.space, hold: hold?.personId ?? null, ...(fill ? { fill } : {}) });
   try {
-    raw = await sb.tool({ profileId, ...(agent ? { agent } : {}), tool: spec.name, args, timeoutMs: Math.min(spec.timeoutMs ?? DEFAULT_TOOL_MS, MAX_TOOL_MS), space: ctx.space, hold: hold?.personId ?? null, ...(fill ? { fill } : {}) });
+    raw = await send();
   } catch (e) {
-    return refuse(ctx, e);
+    // browserd still holds a takeover the table no longer has (a give back that did not reach it): released only if it began before this call read the table, so a takeover made since stays; the
+    // call was refused before it ran, so it is sent once more
+    if (!(e instanceof ToolError && e.code === "paused" && /has the controls/i.test(e.message)) || heldBy(ctx, profileId) !== null) return refuse(ctx, e);
+    try { await sb.giveBack(profileId, { before: readAt }); raw = await send(); } catch (e2) {
+      if (e2 instanceof ToolError && e2.code === "paused" && /has the controls/i.test(e2.message)) raise(ctx, "provider.unavailable", HELD_LINE);
+      return refuse(ctx, e2);
+    }
   }
   if (!isRecord(raw)) raise(ctx, "provider.unavailable", "The browser answered with something that is not an object.");
   const { used, frame: _frame, caption: _caption, ...rest } = raw;

@@ -83,6 +83,10 @@ export interface Peer {
   onMessage(f: (data: Buffer, binary: boolean) => void): void;
   onClose(f: () => void): void;
   readonly open: boolean;
+  /** Send a ping frame (a browser answers it with a pong by itself). */
+  ping?(): void;
+  /** When anything last came from the other end (a message, a pong, a ping). */
+  heardAt?(): number;
 }
 
 /** The server half of RFC 6455 on a socket node:http has already handed over: masked frames in (fragments joined), unmasked out, ping answered. */
@@ -98,6 +102,7 @@ export function acceptPeer(req: http.IncomingMessage, socket: Duplex, head: Buff
   let message: (data: Buffer, binary: boolean) => void = () => undefined;
   let gone: () => void = () => undefined;
   let open = true;
+  let heard = Date.now();
   const shut = (code: number): void => {
     if (!open) return;
     open = false;
@@ -106,6 +111,7 @@ export function acceptPeer(req: http.IncomingMessage, socket: Duplex, head: Buff
     gone();
   };
   const feed = (chunk: Buffer): void => {
+    heard = Date.now();
     for (const m of reader.push(chunk)) {
       if (m.opcode === 0x1 || m.opcode === 0x2) message(m.data, m.opcode === 0x2);
       else if (m.opcode === 0x9) { try { socket.write(encodeFrame(0xa, m.data)); } catch { /* closing */ } }
@@ -127,6 +133,8 @@ export function acceptPeer(req: http.IncomingMessage, socket: Duplex, head: Buff
     close: shut,
     onMessage(f) { message = f; },
     onClose(f) { gone = f; },
+    ping() { if (open) { try { socket.write(encodeFrame(0x9, Buffer.alloc(0))); } catch { /* closing */ } } },
+    heardAt: () => heard,
   };
 }
 

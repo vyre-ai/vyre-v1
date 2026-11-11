@@ -95,7 +95,7 @@ export interface Profile {
   personActiveAt: number;
 }
 
-export interface ProfileRow { profileId: string; running: boolean; tabs: number; busy: boolean; takeover: boolean; viewers: number; lastActiveAt: number; held: number; paused: boolean; takeoverBy?: string; bridge?: { connected: number; hello: boolean; optin: boolean } }
+export interface ProfileRow { profileId: string; spaceId?: string; running: boolean; tabs: number; busy: boolean; takeover: boolean; viewers: number; lastActiveAt: number; held: number; paused: boolean; takeoverBy?: string; bridge?: { connected: number; hello: boolean; optin: boolean } }
 
 export interface ProfileManager {
   /** The profile's record (made on first mention; no browser starts). */
@@ -105,9 +105,10 @@ export interface ProfileManager {
   /** One browser tool for one profile. `by: "person"` is the person at the controls, through the live view. */
   tool(a: { profileId: string; tool: string; args: Record<string, unknown>; timeoutMs: number; by?: string }): Promise<Record<string, unknown>>;
   takeover(id: string, personId: string): void;
-  giveBack(id: string): void;
-  /** The hold as the Space says it is now (its table is the one truth): a person, or nobody. browserd's own copy follows it on every call that carries it. */
-  setHold(id: string, personId: string | null): void;
+  /** `before`: release only a takeover that began before then (a release decided on a reading taken at that time never undoes a takeover that came after it). */
+  giveBack(id: string, before?: number): void;
+  /** A call says a person holds the profile (the Space's table): browserd holds it too. A call never releases one: only give back and the Space's periodic pass do. */
+  setHold(id: string, personId: string): void;
   /** Stop the browser, keep the folder. */
   stop(id: string): Promise<void>;
   /**
@@ -283,10 +284,9 @@ export function createProfileManager(o: ProfileManagerOptions): ProfileManager {
       p.state.takeover = { personId, since: now() };
       p.lastActiveAt = now();
     },
-    giveBack(id) { const p = get(id); p.state.takeover = null; p.lastActiveAt = now(); },
+    giveBack(id, before) { const p = get(id); if (p.state.takeover && before !== undefined && p.state.takeover.since >= before) return; p.state.takeover = null; p.lastActiveAt = now(); },
     setHold(id, personId) {
       const p = get(id);
-      if (personId === null) { p.state.takeover = null; return; }
       if (p.state.takeover?.personId !== personId) p.state.takeover = { personId, since: now() };
     },
     async stop(id) { const p = profiles.get(checkProfileId(id)); if (p) { p.state.takeover = null; await release(p); } },
@@ -326,7 +326,7 @@ export function createProfileManager(o: ProfileManagerOptions): ProfileManager {
       for (const p of profiles.values()) {
         const alive = p.chrome?.alive() === true;
         const tabs = alive && p.chrome ? (await p.chrome.tabs()).length : 0;
-        rows.push({ profileId: p.id, running: alive, tabs, busy: p.state.busy > 0, takeover: p.state.takeover !== null, viewers: p.viewers, lastActiveAt: p.lastActiveAt, held: p.chrome?.heldIds().length ?? 0, paused: p.state.stopped, ...(p.state.takeover ? { takeoverBy: p.state.takeover.personId } : {}), ...(o.paired ? { bridge: o.paired(p.id) } : {}) });
+        rows.push({ profileId: p.id, ...(p.spaceId ? { spaceId: p.spaceId } : {}), running: alive, tabs, busy: p.state.busy > 0, takeover: p.state.takeover !== null, viewers: p.viewers, lastActiveAt: p.lastActiveAt, held: p.chrome?.heldIds().length ?? 0, paused: p.state.stopped, ...(p.state.takeover ? { takeoverBy: p.state.takeover.personId } : {}), ...(o.paired ? { bridge: o.paired(p.id) } : {}) });
       }
       return rows;
     },

@@ -20,3 +20,7 @@
 - Clicks, typing and opening pages in the Space browser no longer pause a moment after each step to look for a download; a step waits only when it really started one.
 - After an update, a Space browser made by an earlier release is replaced by the new one as soon as no agent is using it, so the protections above reach Spaces that already used it; every profile keeps its sign-ins.
 - A page in an agent's browser can no longer reach the rest of the Space's server by calling the server's other addresses (its LAN or public address); the Space decides by where a request comes from.
+- An agent's browser step that was already on its way when a person took over can no longer undo the takeover or act on the page the person now controls.
+- Two Spaces on one computer no longer release each other's takeovers in the Space browser they share.
+- The cloud metadata block on a Linux server lets DNS through (some clouds answer DNS on that address), is put back by the daily update check after a firewall reload, and `vyre-server doctor` says in plain words when it cannot be put in place and why.
+- A live view whose viewer went away (a closed laptop) is closed after half a minute, so it no longer keeps a takeover going.

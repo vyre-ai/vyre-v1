@@ -28,6 +28,7 @@ import { takeDownloads } from "../sbrowser/downloads.ts";
 import { asPerson, codeOf, harness } from "../fixtures/harness.ts";
 import { tool as cap } from "./tools.fixture.ts";
 import { computerSubnets } from "../impl.ts";
+import { bindFill } from "../projections.ts";
 import { bindSpaceBrowser } from "../sbrowser/port.ts";
 import { agentCaller } from "../../../host/src/routes/site-host.ts";
 import { FILL_PATH } from "../../../host/src/seams/computers.ts";
@@ -50,6 +51,16 @@ const NET_NAME = `${NAME}n`;
 // settings are of the earlier release (the default bridge, no network of its own), which is replaced the same way
 const UPG_NAME = `${NAME}u`;
 const OLD_IMAGE = process.env["VYRE_SPACE_BROWSER_OLD_IMAGE"] ?? IMAGE;
+// Docker's address pools are finite and shared with every other test on the host: a test's own network is made beforehand with a subnet of its own outside the pools (the adapter finds it there, as it finds
+// the network an earlier start made), so the run does not fail with "all predefined address pools have been fully subnetted" when other work holds them
+const ownNetwork = async (net: string): Promise<void> => {
+  for (let i = 0; i < 20; i++) {
+    const third = Math.floor(Math.random() * 250) + 1;
+    const r = await http({ method: "POST", path: "/networks/create", json: { Name: net, Driver: "bridge", CheckDuplicate: true, Labels: { "vyre.sbrowser": "1" }, IPAM: { Config: [{ Subnet: `10.213.${third}.0/24`, Gateway: `10.213.${third}.1` }] } } });
+    if (r.status === 201 || r.status === 409) return;
+  }
+  throw new Error(`could not make ${net}`);
+};
 const sbNet = createDockerSpaceBrowser({ api, http, name: NET_NAME, image: IMAGE, user: { uid: 10001, gid: 10001 }, startTimeoutMs: 90_000 });
 const tool = (profileId: string, name: string, args: Record<string, unknown> = {}, extra: { by?: "person"; fill?: { url: string; token: string }; space?: string } = {}) => sb.tool({ profileId, tool: name, args, timeoutMs: 30_000, ...extra });
 
@@ -476,6 +487,7 @@ test("@heavy space browser: with Engine access the service is on a network of it
     res.writeHead(200, { "content-type": "text/plain" }); res.end(`open ${req.method} ${path}`);
   });
   const port = await listen(daemon);
+  await ownNetwork(`${NET_NAME}net`);
   bindSpaceBrowser(sbNet);
   try {
     await sbNet.tool({ profileId: "agt_netty", tool: "chrome_status", args: {}, timeoutMs: 30_000 });
@@ -630,6 +642,7 @@ test("@heavy space browser: a container of an earlier release is replaced by thi
   const before = JSON.parse(new TextDecoder().decode((await http({ method: "GET", path: `/containers/${UPG_NAME}/json` })).body)) as { Id: string; Image: string; HostConfig: { NetworkMode: string } };
   assert.equal(before.HostConfig.NetworkMode, "bridge", "the earlier release's container is on the default bridge");
   const lines: string[] = [];
+  await ownNetwork(`${UPG_NAME}net`);
   const now = createDockerSpaceBrowser({ api, http, name: UPG_NAME, image: IMAGE, user: { uid: 10001, gid: 10001 }, startTimeoutMs: 90_000, log: (m) => lines.push(m) });
   await now.tool({ profileId: "agt_kept", tool: "chrome_open", args: { url: siteUrl("/whoami") }, timeoutMs: 30_000 });
   const after = JSON.parse(new TextDecoder().decode((await http({ method: "GET", path: `/containers/${UPG_NAME}/json` })).body)) as { Id: string; Image: string; HostConfig: { NetworkMode: string } };
@@ -648,6 +661,34 @@ test("@heavy space browser: a container of an earlier release is replaced by thi
   await again.tool({ profileId: "agt_kept", tool: "chrome_state", args: {}, timeoutMs: 30_000 });
   const third = JSON.parse(new TextDecoder().decode((await http({ method: "GET", path: `/containers/${UPG_NAME}/json` })).body)) as { Id: string };
   assert.equal(third.Id, after.Id, "a container of this release is not replaced");
+});
+
+// Second look A (12 Nov): an agent's call that read "nobody holds it" and was sent after a person took over cleared the fresh takeover in browserd, and the agent's step ran under the person's hands.
+// The call is held between its read of the hold and its send (the Vault grant it asks for on the way), a person takes over in that gap, then the call goes on.
+test("@heavy space browser: an agent's call that read no hold before a person took over cannot undo the takeover or act under the person", { skip, timeout: 300_000 }, async () => {
+  const AG = "agt_racer";
+  const h = harness({ principal: { kind: "agent", id: AG }, actingFor: "usr_dana" });
+  const dana = asPerson(h, { kind: "person", id: "usr_dana" }, { respond: { "agents.share_class": () => ({ class: "personal", ownerId: "usr_dana", people: [] }) } });
+  bindSpaceBrowser(sb);
+  let gate: (() => void) | null = null;
+  let paused = false;
+  bindFill({ url: () => `http://${GATEWAY}:${fillPort}/`, async issue(a) { if (paused) { await new Promise<void>((r) => { gate = r; }); } return fills.issue(a); } });
+  try {
+    await cap["computers.chrome.open"]!(h.ctx, { url: siteUrl("/ticker") });
+    paused = true;
+    // asked for by another person, so the call asks the Vault for a grant of its own: that is where it is held
+    const forOmar = asPerson(h, { kind: "agent", id: AG }, { actingFor: "usr_omar" });
+    const click = cap["computers.chrome.click"]!(forOmar.ctx, { x: 150, y: 150 }).then(() => "clicked", (e: unknown) => (/A person has the controls/.test(JSON.stringify(e)) ? "waited" : `failed: ${JSON.stringify(e).slice(0, 160)}`));
+    for (let i = 0; i < 50 && !gate; i++) await sleep(20);
+    assert.ok(gate, "the agent's call is between its read of the hold and its send");
+    await cap["computers.browser.take_over"]!(dana.ctx, { agentId: AG });
+    paused = false;
+    (gate as unknown as () => void)();
+    assert.equal(await click, "waited", "the agent's step did not run under the person");
+    assert.equal((await sb.profiles()).profiles.find((p) => p.profileId === AG)?.takeoverBy, "usr_dana", "browserd still has the person at the controls");
+    assert.equal(String((await tool(AG, "chrome_eval", { expression: "String(window.clicks||0)" }, { by: "person" }))["result"]), "0", "the page got no click from the agent");
+    await cap["computers.browser.give_back"]!(dana.ctx, { agentId: AG });
+  } finally { bindFill(null); bindSpaceBrowser(null); }
 });
 
 test("@heavy space browser: a profile's tabs come back after its browser stops after idle", { skip, timeout: 300_000 }, async () => {
