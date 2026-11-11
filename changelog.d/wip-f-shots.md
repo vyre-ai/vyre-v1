@@ -1,1 +1,2 @@
 - Fixed the screenshot check that ran out of time: the prototype shot no longer waits 30 seconds for a test id only the real app has.
+- Fixed three screenshot targets that waited for test ids the app no longer has (face picker upload tab, tab strip).
