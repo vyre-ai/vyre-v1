@@ -16,9 +16,8 @@ import { dropKeyOnOwnNode } from "../../../../../client/src/gateway/local-key.ts
 import { CmdK, NewTabSearch } from "../cmdk/CmdK.tsx";
 import { createGateSearch, loadRecent } from "../cmdk/gate.ts";
 import type { Hit } from "../cmdk/model.ts";
-import { formatHash, parseHash } from "../hash/hash.ts";
-import { tabKey } from "../tabs/store.ts";
-import { followTitle, screenAsk, titleAsk, typeTitleAsk } from "../tabs/titles.ts";
+import { formatHash } from "../hash/hash.ts";
+import { followAllTabs } from "../tabs/titles.ts";
 import { railPlaces } from "../rail/kits.ts";
 import type { PlaceId } from "../rail/kits.ts";
 import { createShellHub } from "../spaces/hub.ts";
@@ -197,15 +196,12 @@ export function ShellHost({ stored, open, onSignedOut, onHub, hub: given, initia
     return () => { off = true; made?.close(); setPhone(undefined); };
   }, [session, voice, telephony]);
 
-  // a tab opened on an item is named for it: read the item's name once the tab shows and give the tab that title
+  // a tab has no title of its own: it reads as the current name of the item it shows, for EVERY tab and not only the selected one, so a chat that gets its real title (or is renamed) while another
+  // tab is selected is renamed on its tab at once, and a tab restored from the last launch reads the current name, not the one it was saved with
   useEffect(() => {
-    if (!session) return;
-    const target = parseHash(location.hash);
-    const ask = target.subject ? titleAsk(target.subject, target.args) : screenAsk(target.screen, target.args) ?? typeTitleAsk(location.place, target.args);
-    if (!ask) return;
-    const key = tabKey(location.place, location.hash);
-    return followTitle(session, ask, (t, empty) => hub.retitle(key, t, empty));
-  }, [session, hub, location.place, location.hash]);
+    if (!session) return undefined;
+    return followAllTabs(session, { tabs: () => hub.session().tabs.state().tabs, subscribe: (l) => hub.subscribe(l) }, (key, t, empty) => hub.retitle(key, t, empty));
+  }, [session, hub]);
 
   // Inbox is on the rail once something flows in: the answer follows the mailbox, calendar and number reads (and their change events), and is kept for the next launch
   useEffect(() => {

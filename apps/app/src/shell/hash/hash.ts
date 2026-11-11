@@ -20,6 +20,13 @@ export function parseHash(hash: string): HashTarget {
   return out;
 }
 
+/** The item a hash shows: its subject, or the chat a Chats conversation hash (`screen=chats.conversation&threadId=`, what the place writes as you move inside it) names, so both spellings are one tab with one name. */
+export function subjectOf(t: HashTarget): { type: string; id: string } | undefined {
+  if (t.subject) return t.subject;
+  const id = t.args["threadId"];
+  return t.screen === "chats.conversation" && typeof id === "string" && id !== "" ? { type: "thread", id } : undefined;
+}
+
 export function formatHash(t: { screen?: string; subject?: { type: string; id: string }; args?: Record<string, unknown> }): string {
   const p = new URLSearchParams();
   if (t.screen) p.set("screen", t.screen === "chats.threads" ? "inbox.replies" : t.screen);
