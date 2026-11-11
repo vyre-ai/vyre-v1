@@ -2,7 +2,7 @@
 // and away, working hours, the hourly limit, a mute and the person's private facts all hold it. The handler is the chat module's own; the Gate's ask-first is tested in test/agent-dm.team.live.test.ts.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { handlers } from "../impl.ts";
+import { handlers, consumers } from "../impl.ts";
 import { approveInChat, onCardAnswered, onDirectReply, sendDue, saysFact } from "../handlers/agent-dm.ts";
 import { insertMessage } from "../projections.ts";
 import { DANA, INTAKE, MAYA, NOW, assertEventsConform, codeOf, contractErrors, harness } from "../fixtures/harness.ts";
@@ -327,4 +327,12 @@ test("as itself, the agent asked by Dana cannot search up what Maya wrote in its
   const hits = await h["chat.history.search"]!(agent, { q: "Zanzibar private answer" });
   assert.deepEqual(hits.hits, [], "Dana is not in that chat, so the agent acting for her recalls nothing from it");
   assert.ok(!JSON.stringify(msgs(hn, origin)).includes("Zanzibar"));
+});
+
+test("only two events carry a teammate's words back to an asker (a new message, a card answer): no edit, reaction, delete or rename does", () => {
+  const c = consumers as unknown as Record<string, { on: string[] }>;
+  assert.deepEqual(c["chat.agent_dm_reply"]!.on, ["message.received"]);
+  assert.deepEqual(c["chat.agent_dm_answer"]!.on, ["task.approved", "task.rejected", "task.sent_back", "vault.request_fulfilled", "vault.request_declined"]);
+  const others = Object.entries(c).filter(([k]) => k.startsWith("chat.agent_dm")).map(([k]) => k).sort();
+  assert.deepEqual(others, ["chat.agent_dm_answer", "chat.agent_dm_reply"], "no third path into agent-dm.ts");
 });
