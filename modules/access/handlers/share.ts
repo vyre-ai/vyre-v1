@@ -532,7 +532,12 @@ export async function share(ctx: ShareCtx, input: {
   const ss = shareOf(ctx);
   const trace = ctx.trace.traceId;
   const key = input.idempotencyKey ? `share:${ctx.principal.id}:${input.idempotencyKey}` : "";
-  if (key) { const hit = ss.idem.get(key); if (hit) return hit as { grant: GrantRec }; }
+  // a key means "this same request": its remembered answer stands only while the grant it made is still there. Once that grant was taken away, the same key shares again (the person was
+  // removed and added back), instead of answering with a grant that no longer exists
+  if (key) {
+    const hit = ss.idem.get(key) as { grant?: { id?: string } } | undefined;
+    if (hit) { if (!hit.grant?.id || store.grants.has(hit.grant.id)) return hit as { grant: GrantRec }; ss.idem.delete(key); }
+  }
   const res = resourceOf(ctx, store, input.resource);
   input = { ...input, level: agentLevel(res.type, input.level) };   // Can chat with is Can use
   // a person's Assistant (and an outside agent they connected) is theirs alone: nobody else can be given it, whatever the level

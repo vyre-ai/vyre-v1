@@ -159,11 +159,11 @@ export async function syncAccess(ctx: ProjectsCtx, type: string, recordId: strin
   }
   // the maker keeps Manage for as long as the folder lives: a later sweep does not know who made the record, so this grant has a source the sweep never replaces
   if (by && by.startsWith("usr_") && !want.has(`person:${by}`)) {
-    await call(ctx, "access.share", { resource, subject: { kind: "person", id: by }, level: "manage", source: `projfolder-maker:${recordId}` }, { idempotencyKey: `prj-recfolder-maker:${recordId}:${by}` });
+    await call(ctx, "access.share", { resource, subject: { kind: "person", id: by }, level: "manage", source: `projfolder-maker:${recordId}` }, { idempotencyKey: `prj-recfolder-maker:${recordId}:${by}:${globalThis.crypto.randomUUID()}` });
   }
   for (const [k, w] of want) {
     if (kept.has(k)) continue;
-    await call(ctx, "access.share", { resource, subject: w.subject, level: w.level, source }, { idempotencyKey: `prj-recfolder-share:${recordId}:${k}:${w.level}:${ctx.now()}` });
+    await call(ctx, "access.share", { resource, subject: w.subject, level: w.level, source }, { idempotencyKey: `prj-recfolder-share:${recordId}:${k}:${w.level}:${globalThis.crypto.randomUUID()}` });
   }
 }
 

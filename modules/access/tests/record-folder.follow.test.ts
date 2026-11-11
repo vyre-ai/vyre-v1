@@ -45,3 +45,15 @@ test("lowering a record share lowers its copy on the record's folder in the same
   assert.deepEqual(on("fld_rec"), ["view:projfolder:rec_one"]);
   assert.ok(store.grants.size > 0);
 });
+
+test("the same key shares again once the grant it made was taken away: removed and added back holds the grant", async () => {
+  const { ctx, store, bea } = rig();
+  const first = (await share(ctx, { resource: { type: "folder", id: "fld_other" }, subject: bea, level: "view", source: "chat:thr_x", idempotencyKey: "own:thr_x:fld_other:usr_bea" } as never)).grant as { id: string };
+  assert.ok(store.grants.has(first.id));
+  await unshare(ctx, { resource: { type: "folder", id: "fld_other" }, subject: bea, source: "chat:thr_x" });
+  assert.equal(store.grants.has(first.id), false);
+  const again = (await share(ctx, { resource: { type: "folder", id: "fld_other" }, subject: bea, level: "view", source: "chat:thr_x", idempotencyKey: "own:thr_x:fld_other:usr_bea" } as never)).grant as { id: string };
+  assert.ok(store.grants.has(again.id), "the grant is there again");
+  const repeat = (await share(ctx, { resource: { type: "folder", id: "fld_other" }, subject: bea, level: "view", source: "chat:thr_x", idempotencyKey: "own:thr_x:fld_other:usr_bea" } as never)).grant as { id: string };
+  assert.equal(repeat.id, again.id, "a true repeat still answers the same grant");
+});

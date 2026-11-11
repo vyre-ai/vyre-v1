@@ -59,7 +59,9 @@ type Subject = { kind: "person" | "group"; id: string };
 async function grant(ctx: ChatCtx, threadId: string, agentId: string, subject: Subject): Promise<void> {
   if (!ctx.call) return;
   try {
-    await ctx.call("access.share", { resource: { type: "agent", id: agentId }, subject, level: "view", source: sourceOf(threadId), idempotencyKey: `own:${threadId}:${agentId}:${subject.id}` }, { idempotencyKey: `own:${threadId}:${agentId}:${subject.id}` });
+    // a fresh part per real add: a key names this one request, so the same pair shared again after a removal is written again (a key of ids alone replayed the first answer)
+    const add = globalThis.crypto.randomUUID();
+    await ctx.call("access.share", { resource: { type: "agent", id: agentId }, subject, level: "view", source: sourceOf(threadId), idempotencyKey: `own:${threadId}:${agentId}:${subject.id}:${add}` }, { idempotencyKey: `own:${threadId}:${agentId}:${subject.id}:${add}` });
   } catch (e) { warn(ctx, "a chat's own agent could not be shown to a reader of the chat", e, { threadId, agentId, subject: subject.id }); }
 }
 

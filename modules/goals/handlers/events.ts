@@ -111,7 +111,7 @@ export async function onMention(ctx: GoalsCtx, ev: Ev): Promise<string[]> {
   const goalId = threadId ? goalOfThread(ctx.db, threadId) : undefined;
   const g = goalId ? getGoal(ctx.db, goalId) : undefined;
   if (!g?.folderId || !personId.startsWith("usr_") || personId === g.owner || g.helpers.some((h) => h.id === personId)) return [];
-  await tryCall(ctx, "access.share", { resource: { type: "folder", id: g.folderId }, subject: { kind: "person", id: personId }, level: "view", source: `goal:${g.id}:mention`, idempotencyKey: `goal-mention:${g.id}:${personId}` });
+  await tryCall(ctx, "access.share", { resource: { type: "folder", id: g.folderId }, subject: { kind: "person", id: personId }, level: "view", source: `goal:${g.id}:mention`, idempotencyKey: `goal-mention:${g.id}:${personId}:${globalThis.crypto.randomUUID()}` });
   note(ctx, g.id, "access", `${whoToken(personId)} was mentioned in the goal chat and can now open its folder.`, personId);
   saveGoal(ctx, g);
   return [g.id];

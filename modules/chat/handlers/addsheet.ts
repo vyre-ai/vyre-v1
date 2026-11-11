@@ -283,7 +283,7 @@ export async function outsideAgentAdd(ctx: ChatCtx, input: { threadId: string; a
   try {
     for (const g of wanted) {
       // access.share refuses what the person does not hold themselves (permission.not_contained): the agent never gets more than its person can give
-      await ctx.call("access.share", { resource: { type: g.type, id: g.id }, subject: { kind: "agent", id: input.agentId }, level: g.level, source, idempotencyKey: `outside:${t.id}:${input.agentId}:${g.type}:${g.id}` });
+      await ctx.call("access.share", { resource: { type: g.type, id: g.id }, subject: { kind: "agent", id: input.agentId }, level: g.level, source, idempotencyKey: `outside:${t.id}:${input.agentId}:${g.type}:${g.id}:${globalThis.crypto.randomUUID()}` });
       done.push(g);
     }
     if (!agentsOf(ctx.db, t.id).some((a) => a.agentId === input.agentId)) {

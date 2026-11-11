@@ -422,7 +422,12 @@ test("files.share: the grant is access.share, once, with the file as the resourc
   const fid = (await handlers["files.create"](kit.ctx, { folderId, name: "a.txt", content: { text: "x" } })).file.fileId;
   const res = await handlers["files.share"](kit.ctx, { fileId: fid, subject: { kind: "person", id: "per_sam" }, level: "edit" });
   assert.deepEqual(res, { ok: true });
-  assert.deepEqual(kit.calls, [{ cap: "access.share", input: { idempotencyKey: `files.share:${fid}:person:per_sam:edit`, resource: { type: "file", id: fid }, subject: { kind: "person", id: "per_sam" }, level: "edit" } }]);
+  // once, with the file as the resource; the key names this one request (the file, the person, the level and a fresh part), so sharing again after an unshare is written again
+  assert.equal(kit.calls.length, 1);
+  const { idempotencyKey: shareKey, ...shared } = (kit.calls[0] as { cap: string; input: { idempotencyKey: string } }).input;
+  assert.equal(kit.calls[0]!.cap, "access.share");
+  assert.match(shareKey, new RegExp(`^files\\.share:${fid}:person:per_sam:edit:[0-9a-f-]{36}$`));
+  assert.deepEqual(shared, { resource: { type: "file", id: fid }, subject: { kind: "person", id: "per_sam" }, level: "edit" });
   await expectCode("validation.not_found", () => handlers["files.share"](kit.ctx, { fileId: "fil_none", subject: { kind: "person", id: "per_sam" }, level: "view" }));
   await expectCode("validation.bad_input", () => handlers["files.share"](kit.ctx, { fileId: fid, level: "view" }));
 });

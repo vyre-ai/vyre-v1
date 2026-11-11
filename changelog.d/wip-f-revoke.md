@@ -9,3 +9,4 @@
 - Signing out now works on a session older than 30 days.
 - Removing someone from a project, or lowering their role, now also takes them out of the project's channel whoever does it, and says so plainly if that cannot be done; a remove pressed right after an add is no longer lost.
 - A join step that has to wait for an admin is now shown to admins as needing them, with the reason, instead of being dropped quietly; a failed Everyone or group step is no longer lost because another group step worked.
+- Someone removed from a chat, a project, a skill, a review or a shared file and later added back now gets their access again; before, the second add could quietly do nothing.

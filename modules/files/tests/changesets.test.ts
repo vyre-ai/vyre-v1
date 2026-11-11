@@ -535,7 +535,10 @@ test("review with an outside agent: an actor with Use on the folder, never Edit"
   assert.deepEqual(res, { actorId: "act_rev", expiresAt: 1_760_000_999_000 });
   assert.deepEqual(k.calls.map((c) => c.cap), ["access.actors.create", "access.share"]);
   assert.deepEqual(k.calls[0]?.input, { idempotencyKey: `changesets.review_externally:${w.changesetId}`, name: `Reviewer for ${w.changesetId}`, provider: "outside" });
-  assert.deepEqual(k.calls[1]?.input, { idempotencyKey: `changesets.review:${w.changesetId}:act_rev`, resource: { type: "folder", id: docs }, subject: { kind: "actor", id: "act_rev" }, level: "use" });
+  // the key names this one request: the changeset, the actor, and a fresh part (so a reviewer taken off and asked again is given Use again)
+  const { idempotencyKey: reviewKey, ...reviewShare } = k.calls[1]!.input as { idempotencyKey: string };
+  assert.match(reviewKey, new RegExp(`^changesets\\.review:${w.changesetId}:act_rev:[0-9a-f-]{36}$`));
+  assert.deepEqual(reviewShare, { resource: { type: "folder", id: docs }, subject: { kind: "actor", id: "act_rev" }, level: "use" });
   assert.deepEqual(eventsOf(k.events, "changeset.sent_for_review"), [{ changesetId: w.changesetId, actorId: "act_rev" }]);
   const known = await handlers["changesets.review_externally"](ctx, { changesetId: w.changesetId!, actorId: "act_codex" });
   assert.equal(known.actorId, "act_codex");

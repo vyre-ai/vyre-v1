@@ -36,7 +36,7 @@ export async function grantOnProject(ctx: ProjectsCtx, projectId: string): Promi
     const matrix = await tolerant<{ kind?: string }>(ctx, "spaces.matrix", {}, {});
     for (const m of membersOf(ctx.db, projectId)) {
       if (matrix.kind === "personal" && m.principal === me(ctx)) continue;
-      await call(ctx, "access.share", { resource: { type: "project", id: projectId }, subject: subjectOf(m), level: LEVEL_OF[m.role], source: sourceTag(projectId) }, { idempotencyKey: `prj-share:${projectId}:${m.principal}:${m.role}:project` });
+      await call(ctx, "access.share", { resource: { type: "project", id: projectId }, subject: subjectOf(m), level: LEVEL_OF[m.role], source: sourceTag(projectId) }, { idempotencyKey: `prj-share:${projectId}:${m.principal}:${m.role}:project:${globalThis.crypto.randomUUID()}` });
     }
   });
 }
@@ -94,7 +94,7 @@ async function applyRoleNow(ctx: ProjectsCtx, p: Project, principal: string, rol
  */
 async function shareRole(ctx: ProjectsCtx, p: Project, r: { type: string; id: string }, member: Member, role: Role): Promise<void> {
   try {
-    await call(ctx, "access.share", { resource: r, subject: subjectOf(member), level: LEVEL_OF[role], source: sourceTag(p.projectId) }, { idempotencyKey: `prj-share:${p.projectId}:${member.principal}:${role}:${r.type}:${ctx.now()}` });
+    await call(ctx, "access.share", { resource: r, subject: subjectOf(member), level: LEVEL_OF[role], source: sourceTag(p.projectId) }, { idempotencyKey: `prj-share:${p.projectId}:${member.principal}:${role}:${r.type}:${globalThis.crypto.randomUUID()}` });
   } catch (e) {
     const code = codeOf(e);
     if (code !== "permission.not_contained" && code !== "permission.no_grant") throw e;
