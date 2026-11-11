@@ -70,10 +70,12 @@ test("3 the access sync's log connection is never opened again after shutdown cl
 test("4 a catch-up of many pages lets the event loop run between pages", async () => {
   const N = 100_000;
   const log = Array.from({ length: N }, (_, i) => ({ seq: i + 1, type: "record.created", payload: new Uint8Array([123, 125]) }));
-  let ticks = 0;
-  const timer = setInterval(() => { ticks++; }, 0);
-  const b = await accessBatch({ held: [], fedTo: 0, booted: true, read: async (after, limit) => log.slice(after, after + limit) });
-  clearInterval(timer);
+  // Counted without a clock: each page read queues a task for the event loop, and it can only run if the catch-up hands the loop back before the next page. A timer was counted here
+  // before; on a fast or busy computer the whole catch-up takes a few milliseconds and a timer fires fewer times than there are pages (seen: 8 of 10 wanted), though every page yielded.
+  let between = 0;
+  let pages = 0;
+  const b = await accessBatch({ held: [], fedTo: 0, booted: true, read: async (after, limit) => { pages++; setImmediate(() => { between++; }); return log.slice(after, after + limit); } });
   assert.equal(b.upTo, N);
-  assert.ok(ticks >= 10, `timers ran during the catch-up (${ticks})`);
+  assert.equal(pages, N / 2000 + 1, "fifty full pages and the empty one that ends it");
+  assert.equal(between, N / 2000, `the event loop ran after every full page (${between} of ${N / 2000})`);
 });
