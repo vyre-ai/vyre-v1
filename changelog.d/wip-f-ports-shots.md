@@ -1,0 +1,1 @@
+- Test only: screenshot and speed-probe navigations retry once or twice when Chromium aborts with ERR_NETWORK_CHANGED on the shared CI host; other errors still fail at once.

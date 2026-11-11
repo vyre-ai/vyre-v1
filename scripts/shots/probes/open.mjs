@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { gotoSafe } from "../lib.mjs";
 // Shared open-speed probe (ruling 43, P-CI_17). A target in scripts/shots/targets/*.json declares
 //   "probe": { "kind": "open", "budgetMs": 200, "runs": 6 }
 // and the probe mounts its route fresh `runs` times (a new browser context each), times each open from navigation start to the target's
@@ -47,7 +48,7 @@ export async function timeOpen(browser, { url, selector, viewport, scheme = "lig
   const ctx = await browser.newContext({ viewport, colorScheme: scheme, reducedMotion: "reduce" });
   try {
     const page = await ctx.newPage();
-    await page.goto(url, { waitUntil: "commit", timeout: timeoutMs });
+    await gotoSafe(page, url, { waitUntil: "commit", timeout: timeoutMs });
     const ms = await page.evaluate(({ selector, timeoutMs }) => new Promise((resolve) => {
       const seen = () => { const el = document.querySelector(selector); return el !== null && (el.getClientRects().length > 0); };
       const done = () => resolve(performance.now());

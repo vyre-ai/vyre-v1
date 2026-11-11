@@ -9,7 +9,7 @@ import path from "node:path";
 import { execSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { ensureDeps, ensureChromium } from "./ensure-deps.mjs";
-import { parseArgs, SKINS, SIZES, MAX_EXPORT_S, protoHash, routeUrl, loadTargets, shardTargets, shardIndexName, sideBySideHtml, waitSelector } from "./lib.mjs";
+import { parseArgs, SKINS, SIZES, MAX_EXPORT_S, protoHash, routeUrl, loadTargets, shardTargets, shardIndexName, sideBySideHtml, waitSelector, gotoSafe } from "./lib.mjs";
 import { serve } from "./serve.mjs";
 import { measureScroll, withinBudget, SCROLL_P95_MS } from "./probes/scroll.mjs";
 import { traceScroll } from "./probes/trace.mjs";
@@ -84,7 +84,7 @@ try {
     const shoot = async (url, file, settleMs, scheme, click, first, waitFor) => {
       const ctx = await browser.newContext({ viewport: vp, deviceScaleFactor: 1, colorScheme: scheme, reducedMotion: "reduce" });
       const page = await ctx.newPage();
-      await page.goto(url, { waitUntil: "load", timeout: 60000 });
+      await gotoSafe(page, url, { waitUntil: "load", timeout: 60000 });
       // a target driven by a real click (target "click", as its probe is) is clicked before its waitFor, so the shot shows the state the probe measures
       if (first) await page.click(first, { timeout: 30000 }).catch(() => {});
       // t.waitFor is a test id of the real app: the prototype never carries it, so only the real shot waits for it (the prototype settles on protoSettleMs)
@@ -117,7 +117,7 @@ try {
     try {
       const ctx = await browser.newContext({ viewport: SIZES.desktop, deviceScaleFactor: 1, reducedMotion: "no-preference" });
       const page = await ctx.newPage();
-      await page.goto(routeUrl(real.origin, t.route, "paper"), { waitUntil: "load", timeout: 60000 });
+      await gotoSafe(page, routeUrl(real.origin, t.route, "paper"), { waitUntil: "load", timeout: 60000 });
       // t.count: after the load, wait and count elements, so a probe run prints proof of a state (the idle face swap: how many faces are real against how many rows are on screen)
       if (t.count) {
         await page.waitForSelector(t.waitFor ?? t.scroll.selector, { timeout: 30000 });
@@ -134,7 +134,7 @@ try {
       if (args.trace) {
         const tctx = await browser.newContext({ viewport: SIZES.desktop, deviceScaleFactor: 1, reducedMotion: "no-preference" });
         const tpage = await tctx.newPage();
-        await tpage.goto(routeUrl(real.origin, t.route, "paper"), { waitUntil: "load", timeout: 60000 });
+        await gotoSafe(tpage, routeUrl(real.origin, t.route, "paper"), { waitUntil: "load", timeout: 60000 });
         await traceScroll(browser, tpage, t.id, t.scroll, path.join(out, "traces"));
         await tctx.close();
       }
