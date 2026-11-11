@@ -612,6 +612,9 @@ pull_images() {
     case "$ref" in *@sha256:*) ;; *) die "the release names $k without a digest ($ref); nothing was started." ;; esac
     if [ "$DRY" = 1 ]; then say "would run: docker pull $ref"; continue; fi
     say "  Pulling $ref"
+    # The old per-agent desktop image is built for Intel only and nothing new uses it: agents have a workspace and the Space browser. A computer it cannot be pulled on (Apple silicon:
+    # "no matching manifest for linux/arm64") goes on without it; a server that still has an old desktop already holds its image. Before this, that one pull stopped every install on such a Mac.
+    if [ "$k" = VYRE_AGENT_IMAGE ]; then docker pull -q "$ref" >/dev/null 2>&1 || say "  (skipped: the old agent desktop image is not available for this computer, and nothing new needs it)"; continue; fi
     docker pull -q "$ref" >/dev/null || die "could not pull $ref; check this Mac's network (and the registry) and run the installer again."
   done
 }

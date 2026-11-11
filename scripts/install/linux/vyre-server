@@ -436,9 +436,9 @@ check_all() {
     fi
     ai=$(lock_get VYRE_AGENT_IMAGE)
     if [ -n "$ai" ]; then
-      if docker image inspect "$ai" >/dev/null 2>&1; then finding host.agent_image healthy "The agent computer image is pulled."
-      else finding host.agent_image degraded "The agent computer image is not pulled yet; agent computers cannot start. Run: docker pull $ai"
-      fi
+      # the old per-agent desktop image: only a server that still has an old desktop needs it, and such a server holds it already. Its absence is not a fault (it does not exist for
+      # Apple silicon), so nothing is reported then; agents use a workspace and the Space browser, which have their own lines here.
+      if docker image inspect "$ai" >/dev/null 2>&1; then finding host.agent_image healthy "The agent computer image is pulled."; fi
     fi
     bi=$(lock_get VYRE_BROWSER_IMAGE)
     if [ -n "$bi" ]; then
@@ -998,6 +998,8 @@ cmd_update() {
     ref=$(sed -n "s/^$k=//p" "$DIR/releases/$REL_VERSION/images.lock" | head -n 1)
     [ -n "$ref" ] || continue
     case "$ref" in *@sha256:*) ;; *) die "the release names $k without a digest; nothing was changed." ;; esac
+    # the old per-agent desktop image is Intel only and nothing new uses it: a computer it cannot be pulled on (Apple silicon) updates without it (the installers do the same)
+    if [ "$k" = VYRE_AGENT_IMAGE ]; then docker pull -q "$ref" >/dev/null 2>&1 || say "  (skipped: the old agent desktop image is not available for this computer, and nothing new needs it)"; continue; fi
     docker pull -q "$ref" >/dev/null || die "could not pull $ref; nothing was changed."
   done
   trap update_interrupted INT TERM HUP
