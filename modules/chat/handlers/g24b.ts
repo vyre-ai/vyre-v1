@@ -13,6 +13,7 @@ import {
 import { isTrustedService } from "../../../lib/trust.ts";
 import type { ChannelRec, ChatCtx, Db, Mode } from "../projections.ts";
 import { mayGovernChannel, seesSpace } from "./post.ts";
+import { familyOf, grantsOf, revokeGrants, unshareOwnedFrom } from "./owned.ts";
 
 type Row = Record<string, unknown>;
 const KINDS = ["people", "agents", "runs"] as const;
@@ -65,6 +66,12 @@ function cleanName(ctx: ChatCtx, raw: string): string {
   if (name.length > MAX_NAME) raise(ctx, "validation.bad_input", `A channel name can be at most ${MAX_NAME} characters.`);
   return name;
 }
+/** Out of the channel: what being in it gave (the person's view of the agents the channel and its threads made) goes back first, then the membership (owned.ts). True when they were in it. */
+async function leaveWithGrants(ctx: ChatCtx, ch: ChannelRec, person: string): Promise<boolean> {
+  if (!isMember(ctx.db, ch.mainThread, person)) return false;
+  return unshareOwnedFrom(ctx, familyOf(ctx, ch.mainThread), person, () => dropMember(ctx, ch.mainThread, person));
+}
+
 function dropMember(ctx: ChatCtx, thread: string, person: string): boolean {
   return ctx.db.run("UPDATE chat_thread_member SET deleted_at = ?, updated_at = ? WHERE thread = ? AND principal = ? AND deleted_at IS NULL", ctx.now(), ctx.now(), thread, person).changes > 0;
 }
@@ -124,7 +131,7 @@ export async function channelsJoin(ctx: ChatCtx, input: { channelId: string }) {
 export async function channelsLeave(ctx: ChatCtx, input: { channelId: string }) {
   const ch = load(ctx, input.channelId);
   const asker = askerOf(ctx);
-  if (dropMember(ctx, ch.mainThread, asker)) ctx.emit("channel.member_removed", ch.id, { channelId: ch.id, threadId: ch.mainThread, personId: asker, by: asker });
+  if (await leaveWithGrants(ctx, ch, asker)) ctx.emit("channel.member_removed", ch.id, { channelId: ch.id, threadId: ch.mainThread, personId: asker, by: asker });
   return { ok: true };
 }
 
@@ -204,7 +211,7 @@ export async function channelsMembersAdd(ctx: ChatCtx, input: { channelId: strin
 export async function channelsMembersRemove(ctx: ChatCtx, input: { channelId: string; personId: string }) {
   const ch = loadLive(ctx, input.channelId);
   if (!input.personId.startsWith("usr_")) raise(ctx, "validation.bad_input", "That is not a person.", { id: input.personId });
-  if (dropMember(ctx, ch.mainThread, input.personId)) ctx.emit("channel.member_removed", ch.id, { channelId: ch.id, threadId: ch.mainThread, personId: input.personId, by: askerOf(ctx) });
+  if (await leaveWithGrants(ctx, ch, input.personId)) ctx.emit("channel.member_removed", ch.id, { channelId: ch.id, threadId: ch.mainThread, personId: input.personId, by: askerOf(ctx) });
   return refreshed(ctx, ch.id);
 }
 
@@ -224,6 +231,8 @@ export async function channelsAgentsAdd(ctx: ChatCtx, input: { channelId: string
 
 export async function channelsAgentsRemove(ctx: ChatCtx, input: { channelId: string; agentId: string }) {
   const ch = loadLive(ctx, input.channelId);
+  // what the channel gave the agent (threads.outside_agent.add, tagged chat:<thread>) goes back first, as threads.remove_agent does: if that cannot be done the agent stays, so nothing is left behind
+  await revokeGrants(ctx, ch.mainThread, input.agentId, grantsOf(ctx, ch.mainThread, input.agentId));
   const changed = ctx.db.run("UPDATE chat_thread_agent SET deleted_at = ?, updated_at = ? WHERE thread = ? AND agentId = ? AND deleted_at IS NULL", ctx.now(), ctx.now(), ch.mainThread, input.agentId).changes;
   if (changed > 0) {
     ctx.emit("channel.agent_removed", ch.id, { channelId: ch.id, agentId: input.agentId });

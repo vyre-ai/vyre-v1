@@ -630,6 +630,8 @@ export async function automationSenders(ctx: ShareCtx, input: { automationId: st
 function mayRemove(ctx: ShareCtx, store: AccessStore, g: GrantRec): boolean {
   // the host taking back a project role it wrote (a Space admin removed the person through projects.members.remove, which checked the right): only a grant that carries a project source
   if (isHostService(ctx.principal) && g.source?.startsWith("project:")) return true;
+  // the host taking back what a chat membership gave (grants tagged chat:<thread>) when the person or agent leaves or is taken out (host/src/daemon/daemon.ts CHAT_LEAVES)
+  if (isHostService(ctx.principal) && g.source?.startsWith("chat:")) return true;
   if (g.resource.id === "*") return !!store.snapshot().info(ctx.principal.id)?.perms.has("access.manage");
   const res = store.resources.get(g.resource.id);
   if (!res) return !!store.snapshot().info(ctx.principal.id)?.perms.has("access.manage");

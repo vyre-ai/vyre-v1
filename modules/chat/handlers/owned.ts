@@ -2,8 +2,9 @@
 //   owned     chat_thread_agent.owned = 1: the agent was made with threads.agent.create. It goes to Trash (agents.delete) when the chat is deleted or erased, or when it is removed from the chat, and comes
 //             back with threads.restore. A person who may not delete it cannot move it: the call is tolerated, never swallowed (a warning says so).
 //   grants    chat_thread_agent.grants: the resources threads.outside_agent.add shared with the agent, each with the source tag chat:<threadId>. Removing the agent takes them back at once.
-import { ensure } from "../projections.ts";
+import { ensure, isMember } from "../projections.ts";
 import type { ChatCtx } from "../projections.ts";
+import { oneAtATime } from "../../../lib/one-at-a-time.ts";
 
 type Row = Record<string, unknown>;
 export const sourceOf = (threadId: string): string => `chat:${threadId}`;
@@ -62,21 +63,56 @@ async function grant(ctx: ChatCtx, threadId: string, agentId: string, subject: S
   } catch (e) { warn(ctx, "a chat's own agent could not be shown to a reader of the chat", e, { threadId, agentId, subject: subject.id }); }
 }
 
-/** A new chat agent: shown to each of these readers (a public channel's is the whole Space). */
-export async function shareOwnedWithReaders(ctx: ChatCtx, threadId: string, agentId: string, readers: readonly Subject[]): Promise<void> {
-  for (const s of readers) await grant(ctx, threadId, agentId, s);
-}
+// A person's grants from chats are written and taken back in one queue per person (lib/one-at-a-time.ts): a grant still being written for a newcomer can never land after the same person was
+// taken out, because the removal waits for it and then takes it back, and a grant planned after the removal checks the membership first and finds it gone.
+const queueOf = (ctx: ChatCtx, person: string): string => `chat:${ctx.space}:${person}`;
 
-/** A person joined the chat: every agent the chat made for itself is shown to them. */
-export async function shareOwnedWith(ctx: ChatCtx, threadId: string, person: string): Promise<void> {
-  for (const agentId of ownedIn(ctx, [threadId])) await grant(ctx, threadId, agentId, { kind: "person", id: person });
-}
-
-/** A person left the chat: the chat's own agents go out of their sight again. */
-export async function unshareOwnedFrom(ctx: ChatCtx, threadId: string, person: string): Promise<void> {
-  if (!ctx.call) return;
-  for (const agentId of ownedIn(ctx, [threadId])) {
-    try { await ctx.call("access.unshare", { resource: { type: "agent", id: agentId }, subject: { kind: "person", id: person }, source: sourceOf(threadId) }); }
-    catch (e) { warn(ctx, "a chat's own agent could not be taken out of a leaver's sight", e, { threadId, agentId, subject: person }); }
+/** A new chat agent: shown to each of these readers (a public channel's is the whole Space). `still` says whether a person reader still reads the chat when their grant is written. */
+export async function shareOwnedWithReaders(ctx: ChatCtx, threadId: string, agentId: string, readers: readonly Subject[], still: (person: string) => boolean = () => true): Promise<void> {
+  for (const s of readers) {
+    if (s.kind !== "person") { await grant(ctx, threadId, agentId, s); continue; }
+    await oneAtATime(queueOf(ctx, s.id), async () => { if (still(s.id)) await grant(ctx, threadId, agentId, s); });
   }
+}
+
+/** A person joined the chat: every agent the chat made for itself is shown to them, while they are still in it. */
+export async function shareOwnedWith(ctx: ChatCtx, threadId: string, person: string): Promise<void> {
+  await oneAtATime(queueOf(ctx, person), async () => {
+    for (const agentId of ownedIn(ctx, [threadId])) {
+      if (!isMember(ctx.db, threadId, person)) return;
+      await grant(ctx, threadId, agentId, { kind: "person", id: person });
+    }
+  });
+}
+
+/** A thread and the threads under it (a channel's main thread and its threads), to the depth threads nest. */
+export function familyOf(ctx: ChatCtx, root: string): string[] {
+  ensure(ctx.db);
+  const out = [root];
+  let level = [root];
+  for (let depth = 0; depth < 8 && level.length > 0; depth++) {
+    const next: string[] = [];
+    for (const id of level) for (const r of ctx.db.all(`SELECT "id" FROM chat_thread WHERE "parentThreadId" = ?`, id) as Row[]) next.push(String(r["id"]));
+    out.push(...next);
+    level = next;
+  }
+  return [...new Set(out)];
+}
+
+/**
+ * A person left these chats, or was taken out: what being in them gave (their view of the agents these chats made for themselves, each grant tagged with its chat) is taken back, and only then is
+ * the membership dropped (`drop`), all in the person's queue. A grant that cannot be taken back fails the call and the person stays in, so access never stays behind in silence. A grant the person
+ * holds for another reason (a direct share, another chat) carries another source and is not touched. Answers what `drop` answered.
+ */
+export async function unshareOwnedFrom(ctx: ChatCtx, threads: string | readonly string[], person: string, drop: () => boolean = () => true): Promise<boolean> {
+  const list = typeof threads === "string" ? [threads] : threads;
+  return oneAtATime(queueOf(ctx, person), async () => {
+    if (ctx.call) {
+      for (const threadId of list) for (const agentId of ownedIn(ctx, [threadId])) {
+        try { await ctx.call("access.unshare", { resource: { type: "agent", id: agentId }, subject: { kind: "person", id: person }, source: sourceOf(threadId) }); }
+        catch (e) { warn(ctx, "a chat's own agent could not be taken out of a leaver's sight", e, { threadId, agentId, subject: person }); throw e; }
+      }
+    }
+    return drop();
+  });
 }

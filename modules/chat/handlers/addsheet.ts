@@ -8,7 +8,7 @@
 //   threads.invite_guest         a guest of this chat only, by email.
 //
 // Mode keeps its two values for everything that reads a thread (lead, listen). Listening is `listen` with quiet true: the row says it, the engine never routes to a quiet agent but for a poke.
-import { addAgent, agentsOf, askerOf, channelBy, encOf, insertMessage, lastMessages, membersOf, messageOut, mintId, raise } from "../projections.ts";
+import { addAgent, agentsOf, askerOf, channelBy, encOf, insertMessage, isMember, lastMessages, membersOf, messageOut, mintId, raise } from "../projections.ts";
 import type { ChatCtx, ThreadRec } from "../projections.ts";
 import { agentMayChange, load, out } from "./g24a.ts";
 import { readFloor } from "./floor.ts";
@@ -134,7 +134,7 @@ export async function agentCreate(ctx: ChatCtx, input: { threadId: string; name:
   const readers = channel && channel.visibility !== "invite"
     ? [{ kind: "group" as const, id: "space" }]
     : [...new Set([...(root.starter?.startsWith("usr_") ? [root.starter] : []), ...membersOf(ctx.db, root.id).filter((p) => p.startsWith("usr_"))])].map((id) => ({ kind: "person" as const, id }));
-  await shareOwnedWithReaders(ctx, t.id, agentId, readers);
+  await shareOwnedWithReaders(ctx, t.id, agentId, readers, (person) => person === root.starter || isMember(ctx.db, root.id, person));
   ctx.emit("agent.engaged", t.id, { threadId: t.id, agentId, mode: mode === "lead" ? "lead" : "listen", by: askerOf(ctx) });
   ctx.emit("thread.updated", t.id, { threadId: t.id, fields: ["agents"] });
   if (mode === "lead") await tellEngine(ctx, t.id, agentId, "lead");

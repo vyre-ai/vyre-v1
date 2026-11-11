@@ -58,7 +58,10 @@ import type { RegistryLike } from "../loader.ts";
 import { LogSink, invokeLogs, jobRanLog } from "../logsink/index.ts";
 import { nodePlatform } from "../platform/index.ts";
 
+/** The chat capabilities that end a membership: their access.unshare of a chat: grant runs as the host (see the handler wrapper). */
+const CHAT_LEAVES = new Set(["threads.members.remove", "channels.members.remove", "channels.leave", "channels.agents.remove", "threads.remove_agent", "threads.outside_agent.remove"]);
 /** Files an agent made on its computer, said in the chat the work was for: one message with a file card each (four at most, the rest counted), posted as the agent for the person it works for. */
+
 export function createMadeFilesAnnouncer(a: { db: { all(sql: string, ...args: unknown[]): unknown[] }; call: (agentId: string, cap: string, input: unknown) => Promise<unknown>; log: (msg: string, attrs?: Record<string, unknown>) => void }) {
   return async (m: { agentId: string; computerId: string; files: Array<{ fileId: string; name: string; kind: string; size: number; version: number }> }): Promise<boolean> => {
     const t = a.db.all("SELECT thread_id FROM computers_timeline WHERE computer_id = ? AND thread_id IS NOT NULL ORDER BY idx DESC LIMIT 1", m.computerId)[0] as { thread_id?: string } | undefined;
@@ -1297,6 +1300,9 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
             const source = `project:${String((input as { projectId?: unknown } | null)?.projectId ?? "")}`;
             return h({ ...ctx, call: (name: string, callInput: unknown, opts?: unknown) => ((name === "access.share" || name === "access.unshare") && (callInput as { source?: unknown } | null)?.source === source ? system(name, callInput, ctx.trace) : (ctx.call as (n: string, i: unknown, o?: unknown) => Promise<unknown>)(name, callInput, opts)) } as typeof ctx, input);
           }) as Handler;
+          // leaving a chat or a channel, or being taken out of one, or an agent taken out: what the membership gave (grants tagged chat:<thread>, written when the person or agent came in) is taken
+          // back as the host, because the person leaving may not be the one who gave them. The call itself was authorized; only access.unshare with a chat: source is widened (modules/chat/handlers/owned.ts).
+          if (h && CHAT_LEAVES.has(cap)) return ((ctx, input) => h({ ...ctx, call: (name: string, callInput: unknown, opts?: unknown) => (name === "access.unshare" && String((callInput as { source?: unknown } | null)?.source ?? "").startsWith("chat:") ? system(name, callInput, ctx.trace) : (ctx.call as (n: string, i: unknown, o?: unknown) => Promise<unknown>)(name, callInput, opts)) } as typeof ctx, input)) as Handler;
           if (h && peopleExtras?.(mod, {})) return ((ctx, input) => h({ ...ctx, ...peopleExtras!(mod, ctx) } as typeof ctx, input)) as Handler;
           if (!h || !cap.startsWith("devices.")) return h;
           const wrapped: Handler = (ctx, input) => h({ ...ctx, call: (name, callInput, opts) => (name === "sync.epoch.bump" ? system(name, callInput, ctx.trace) : ctx.call(name, callInput, opts)) } as typeof ctx, input);

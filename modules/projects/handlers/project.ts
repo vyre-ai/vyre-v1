@@ -9,6 +9,7 @@ import {
   isSpaceAdmin, stagesOf, tolerant, updateOf, visible, writeRecord, draftOf, saveDraft, attachesOf, templateBy,
 } from "../projections.ts";
 import { isHostService } from "../../../lib/trust.ts";
+import { oneAtATime as queued } from "../../../lib/one-at-a-time.ts";
 import { seedTemplates, startPage } from "./overview.ts";
 import type { In, Member, Project, ProjectsCtx, Role, Source, TaskView } from "../projections.ts";
 
@@ -46,19 +47,8 @@ export async function grantOnProject(ctx: ProjectsCtx, projectId: string): Promi
  * away. In the queue each one reads and writes as a whole, so a call that takes a role away answers only when nothing still running can write that role back. Nothing in the queue waits for
  * another entry of the same project (the calls it makes go to other modules), so it cannot wait on itself.
  */
-const queues = new Map<string, Promise<void>>();
-export async function oneAtATime<T>(ctx: Pick<ProjectsCtx, "space">, projectId: string, work: () => Promise<T>): Promise<T> {
-  const k = `${ctx.space}:${projectId}`;
-  const before = queues.get(k) ?? Promise.resolve();
-  let done!: () => void;
-  const mine = new Promise<void>((r) => { done = r; });
-  const tail = before.then(() => mine);
-  queues.set(k, tail);
-  await before;
-  try { return await work(); } finally {
-    done();
-    if (queues.get(k) === tail) queues.delete(k);
-  }
+export function oneAtATime<T>(ctx: Pick<ProjectsCtx, "space">, projectId: string, work: () => Promise<T>): Promise<T> {
+  return queued(`project:${ctx.space}:${projectId}`, work);
 }
 
 /** Tasks for counts; a project still opens when Tasks does not answer. */
