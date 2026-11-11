@@ -36,7 +36,6 @@ export interface FlowState {
   pw: string;
   pw2: string;
   device: string;
-  trust: boolean;
   /** false: none, "new": being made in the sheet, true: made and saved */
   rec: false | "new" | true;
   code: string;
@@ -67,7 +66,7 @@ export const RUN_STEPS = (space: string): string[] => ["Securing your keys", `Jo
 export function initialState(invite: JoinInvite, over: Partial<FlowState> = {}): FlowState {
   return {
     stage: "accept", step: 0, first: invite.names?.first ?? "", last: invite.names?.last ?? "", photo: "", user: "", pw: "", pw2: "",
-    device: invite.deviceName ?? deviceNameOf(), trust: true, rec: false, code: "", saved: false, sheet: false, ai: invite.adminKey ? "admin" : "sub", key: "",
+    device: invite.deviceName ?? deviceNameOf(), rec: false, code: "", saved: false, sheet: false, ai: invite.adminKey ? "admin" : "sub", key: "",
     aiProvider: "openrouter", note: "", si: "pw", siUser: "", siPw: "", siCode: "", spaceAddress: "", spaceIntent: "signin", spaceResolving: false, spaceError: "", run: 0, dir: 1, error: "", refused: "", ...over,
   };
 }

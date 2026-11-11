@@ -1,6 +1,6 @@
 // join/AcceptInvite: the invite landing, the three account steps, the setup run and the finish (spec 3.13, ARCH 7.13).
 // Landing: Open in Vyre, Download Vyre, Continue in the browser, and Sign in for people who already have an account.
-// Steps: welcome with name and photo, the sign-in (username, password, strength), this device (name, trust, recovery code), then ConnectAI.
+// Steps: welcome with name and photo, the sign-in (username, password, strength), this device (name, recovery code), then ConnectAI.
 // The page is presentational: the stage machine lives in logic.ts and JoinFlow.tsx owns the timers and the calls.
 import { createElement } from "react";
 import { Platform, Pressable, Text, View } from "react-native";
@@ -8,7 +8,7 @@ import type { Dispatch, ReactNode } from "react";
 import { Avatar } from "../../../../ui/src/Avatar/index.tsx";
 import { ConnectAI } from "./ConnectAI.tsx";
 import {
-  Bar, Button, Caption, Check, CodeShown, ErrorLine, FieldRow, Foot, Group, AgentFace, Links, Meter, Panel, Row, Sheet, Step, Switch, TextButton, Title, CheckBox, Working,
+  Bar, Button, Caption, Check, CodeShown, ErrorLine, FieldRow, Foot, Group, AgentFace, Links, Meter, Panel, Row, Sheet, Step, TextButton, Title, CheckBox, Working,
   baseText, useJoin,
   RECOVERY_WHAT,
 } from "./kit.tsx";
@@ -161,10 +161,6 @@ function DeviceStep({ state, dispatch, newCode }: Pick<AcceptInviteProps, "state
       <Title title="This device" />
       <Group>
         <FieldRow testID="device" label="Device name" value={state.device} onChange={(v) => set({ device: v })} onSubmit={() => dispatch({ t: "next" })} />
-        <Row>
-          <Text style={[baseText(p), { flex: 1, fontSize: 14 }]}>Trust this device</Text>
-          <Switch testID="trust" label="Trust this device" on={state.trust} onChange={(v) => set({ trust: v })} />
-        </Row>
         <Row testID="recovery-row">
           <Text style={[baseText(p), { flex: 1, fontSize: 14 }]}>Recovery code</Text>
           {state.rec ? <Text style={[baseText(p), { fontSize: 13, color: p.ink3 }]}>{state.saved ? "Saved" : "Created"}</Text> : null}
