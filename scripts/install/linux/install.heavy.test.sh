@@ -75,7 +75,7 @@ mkrel() {
   cp "$HERE/vyre-server" "$d/bin/vyre-server"
   cp "$HERE/units/"* "$d/units/"
   if [ "$kind" = good ]; then
-    cmd='["sh","-c","mkdir -p /www && echo ok > /www/healthz && echo \"'"$v"'\" > /data/running-version && exec httpd -f -p 8420 -h /www"]'
+    cmd='["sh","-c","mkdir -p /www && echo ok > /www/healthz && echo \"'"$v"'\" > /data/running-version && { [ -s /data/events.db ] || echo stand-in > /data/events.db; } && exec httpd -f -p 8420 -h /www"]'
     hc='["CMD","wget","-q","-O","-","http://127.0.0.1:8420/healthz"]'
   else
     cmd='["sh","-c","exec sleep 3600"]'

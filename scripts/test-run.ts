@@ -39,6 +39,12 @@ export function runFile(file: string, opts: { cwd?: string; capMs?: number } = {
   const env: NodeJS.ProcessEnv = { ...process.env }; delete env.NODE_TEST_CONTEXT;
   // a key is checked with its provider before it is saved; a test that adds a fixture key has no real provider to ask, so the host probe accepts keys unless the test asks for the real answer (host/src/seams/vault.ts)
   env.VYRE_TEST_KEY_CHECK ??= "accept";
+  // A test daemon uses the images built on this computer and never asks a registry (no test reaches an outside service). Without a setting, a daemon whose version looks like a release
+  // asks ghcr.io/vyre-ai for that version's image (host/src/seams/release-images.ts): test/crew.local.live.test.ts boots version 1.2.3 and its agent computer could not start.
+  // The local build names are never fetched (sandbox/src/docker.ts fetchableImage), so a runner without the image fails with a plain line instead of pulling anything.
+  env.VYRE_AGENT_COMPUTER_IMAGE ??= "vyre/agent-computer:1";
+  env.VYRE_SPACE_BROWSER_IMAGE ??= "vyre/space-browser:1";
+  env.VYRE_WORKSPACE_IMAGE ??= "vyre/agent-workspace:1";
   // Ruling 21 (same rule as test-run.mjs): .tsx files, and .ts files that opt in with `// @tsx`, run through the tsx loader with react-native mapped to react-native-web.
   const cwd0 = opts.cwd ?? process.cwd();
   const tsx = file.endsWith(".tsx") || (() => { try { return /^\s*\/\/\s*@tsx\b/m.test(fs.readFileSync(path.resolve(cwd0, file), "utf8")); } catch { return false; } })();
