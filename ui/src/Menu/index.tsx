@@ -263,11 +263,18 @@ export function Menu(props: MenuViewProps): ReactElement | null {
   goneRef.current = gone;
   useEffect(() => {
     if (Platform.OS !== "web") return undefined;
-    const doc = (globalThis as { document?: { addEventListener?: (t: string, fn: (e: { key?: string }) => void) => void; removeEventListener?: (t: string, fn: (e: { key?: string }) => void) => void } }).document;
+    type Key = { key?: string; preventDefault?: () => void; stopPropagation?: () => void };
+    const doc = (globalThis as { document?: { addEventListener?: (t: string, fn: (e: Key) => void, capture?: boolean) => void; removeEventListener?: (t: string, fn: (e: Key) => void, capture?: boolean) => void } }).document;
     if (doc === undefined || typeof doc.addEventListener !== "function") return undefined;
-    const onDocKey = (e: { key?: string }): void => { if (e.key === "Escape" && !goneRef.current) close(); };
-    doc.addEventListener("keydown", onDocKey);
-    return () => doc.removeEventListener?.("keydown", onDocKey);
+    // in the capture phase and stopped there: the Escape that closes a menu inside a sheet or a dialog must not also close that sheet or dialog
+    const onDocKey = (e: Key): void => {
+      if (e.key !== "Escape" || goneRef.current) return;
+      e.preventDefault?.();
+      e.stopPropagation?.();
+      close();
+    };
+    doc.addEventListener("keydown", onDocKey, true);
+    return () => doc.removeEventListener?.("keydown", onDocKey, true);
   }, [close]);
 
   const land = useCallback((index: number) => {
