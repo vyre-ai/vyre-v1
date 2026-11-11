@@ -209,7 +209,7 @@ export default defineManifest({
     read('providers.own_people', 'Who runs on their own AI sign-ins: the people with a Mine provider and how many each, for the AI accounts switch (never an account name or a value)', { level: 'view', perm: 'ai.models', in: {}, out: { people: t.arr(t.obj({ personId: t.str(), accounts: t.int({ minimum: 1 }) })) }, tool: 'vault' }),
     write('providers.add', 'Connect a provider with a pasted API key (stored once, used by handle) or a local model address', {
       ...V, idem: 'key', in: { providerKey: t.str({ examples: ['anthropic'] }), connection: t.enm('api_key', 'local_model'), name: t.opt(t.str()), apiKey: t.opt(t.str()), address: t.opt(url), scope: t.enm('mine', 'shared'), folderId: t.opt(id.vaultFolder) },
-      out: { provider: providerRow }, emits: ['provider.added', 'vault.item_created', 'vault.folder_created'], audit: 'sensitive', tool: 'vault', offline: 'online', errors: ['validation.duplicate', 'provider.auth_failed'],
+      out: { provider: providerRow }, emits: ['provider.added', 'vault.item_created', 'vault.folder_created'], audit: 'sensitive', tool: 'vault', offline: 'online', errors: ['validation.duplicate', 'provider.auth_failed', 'provider.unavailable'],
     }),
     write('providers.subscription_start', 'Start a subscription sign-in (Claude, ChatGPT through Codex, Grok): the server starts the provider\'s own sign-in and answers its link, and the code to type where the provider shows one. A person does this, never an agent.', {
       // local (owner decision D2, 3 Nov 2026): use the Claude Code or Codex sign-in already on this computer; a Personal Space only. The flow is done at once and has no link.

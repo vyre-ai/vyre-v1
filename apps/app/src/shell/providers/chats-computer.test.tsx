@@ -67,30 +67,21 @@ function goFor(kind: "personal" | "team", fail?: unknown, computers: { agentId: 
   return { go, said, calls, opened, acts };
 }
 
-// Owner ruling 6 Nov 2026 (DESIGN-agent-workspaces.md): there is one Computer tab, Terminal and Browser, and every door to "its computer" opens it. The tab is always there and says in one plain line when
-// the Space has nowhere to run a browser, so a door no longer decides that for itself (it used to do nothing, or toast "has no computer yet"): it asks nothing and says nothing, and goes to the tab.
-const TAB = [{ t: "agent", agentId: "agt_intake", tab: "computer" }];
-
-test("a computer door opens the agent's Computer tab, in a Personal Space with or without a capable host, asking nothing and saying nothing", async () => {
+// owner ruling 6 Nov 2026 (apps/app/src/places/chats/mounts/data.ts): there is one Computer tab, on the agent's page; every door to "its computer" opens it, with or without a host, and the tab says so when there is none
+test("every computer door opens the agent's Computer tab: it asks nothing, says nothing, and needs no host", async () => {
   resetComputersAvailable();
-  const none = goFor("personal");
-  none.go.computerOfAgent("agt_intake");
-  assert.deepEqual([none.acts, none.calls, none.said, none.opened], [TAB, [], [], []], "no capable host: the tab is there and explains itself; no read is made");
+  for (const kind of ["personal", "team"] as const) {
+    const g = goFor(kind, new Error("fetch failed"));
+    g.go.computerOfAgent("agt_intake");
+    await new Promise((r) => setTimeout(r, 0));
+    assert.deepEqual(g.acts, [{ t: "agent", agentId: "agt_intake", tab: "computer" }], kind);
+    assert.deepEqual([g.calls, g.said], [[], []], `${kind}: no query, no line`);
+  }
   setComputersAvailable("s1", true);
   const found = goFor("personal", undefined, [{ agentId: "agt_intake", computerId: "cmp_1" }]);
   found.go.computerOfAgent("agt_intake");
-  await new Promise((r) => setTimeout(r, 0));
-  assert.deepEqual([found.acts, found.calls, found.said], [TAB, [], []], "with a host: the same tab, not the old popup layer");
+  assert.deepEqual(found.acts, [{ t: "agent", agentId: "agt_intake", tab: "computer" }]);
   resetComputersAvailable();
-});
-
-test("the door opens the same tab for an agent with no computer and when the network is down: no toast, no read, never the old popup", async () => {
-  for (const [label, fail, computers] of [["no computer", undefined, []], ["network down", new Error("fetch failed"), []], ["a computer", undefined, [{ agentId: "agt_intake", computerId: "cmp_1" }]]] as const) {
-    const r = goFor("team", fail, [...computers]);
-    r.go.computerOfAgent("agt_intake");
-    await new Promise((res) => setTimeout(res, 0));
-    assert.deepEqual([r.acts, r.said, r.calls], [TAB, [], []], label);
-  }
 });
 
 test("computerLine maps the failures", () => {

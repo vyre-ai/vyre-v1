@@ -35,6 +35,8 @@ export interface GateSearchDeps {
   viewer?: () => Viewer | null;
   /** Set away for real (stored, seen by teammates). Left out: the action only shows it here. */
   away?: (on: boolean) => void;
+  /** Sign out of this Space on this device. Left out: no Sign out action is offered. The Space menu keeps its own Sign Out (the prototype's place); this is the same act found by typing. */
+  signOut?: () => void;
 }
 
 const PLACE_OF: Record<HitKind, PlaceId> = {
@@ -91,7 +93,7 @@ export function shellHitTarget(hit: Hit, state: { inbox?: boolean }): { place: P
   return null;
 }
 
-export function gateActions(state: { away: boolean; offline: boolean; terminal?: boolean}, team = true): readonly CmdAction[] {
+export function gateActions(state: { away: boolean; offline: boolean; terminal?: boolean}, team = true, signOut = false): readonly CmdAction[] {
   return [
     { key: "task.new", title: "New task", icon: "plus" },
     // the Projects group in Chats shows only once a project exists, so on a new Space this is the way to the first one (client walk, 11 Nov 2026)
@@ -102,6 +104,7 @@ export function gateActions(state: { away: boolean; offline: boolean; terminal?:
     { key: "presence.away", title: state.away ? "Back from away" : "Set yourself away", icon: "clock" },
     { key: "network.offline", title: state.offline ? "Go online" : "Go offline", icon: "x" },
     ...(state.terminal === true ? [{ key: "terminal.open", title: "Open terminal", icon: "terminal" }] : []),
+    ...(signOut ? [{ key: "session.sign-out", title: "Sign out", icon: "x" }] : []),
   ];
 }
 
@@ -150,7 +153,7 @@ export function createGateSearch(d: GateSearchDeps): CmdKData {
       return mine(out.hits);
     },
     recent: () => mine(d.recent()),
-    actions: (text) => [...askActions(currentScreen()), ...gateActions(state, rt.space.kind === "team")].filter((a) => !text || a.title.toLowerCase().includes(text.toLowerCase())),
+    actions: (text) => [...askActions(currentScreen()), ...gateActions(state, rt.space.kind === "team", d.signOut !== undefined)].filter((a) => !text || a.title.toLowerCase().includes(text.toLowerCase())),
     skins: () => [{ id: system.id, name: system.name }, ...skins.map((s) => ({ id: s.id, name: s.name, swatch: s.palette.accent }))],
     currentSkin: () => (globalThis as { document?: { documentElement?: { getAttribute(k: string): string | null } } }).document?.documentElement?.getAttribute("data-skin") ?? "system",
     previewSkin: () => undefined,
@@ -172,7 +175,8 @@ export function createGateSearch(d: GateSearchDeps): CmdKData {
         state.offline = !state.offline;
         nav.setOnline(!state.offline && rt.connection.get() === "online", 0);
         nav.flash(state.offline ? "Working offline" : "Back online");
-      } else if (a.key === "terminal.open") nav.go("chats", `screen=chats.terminal-list&at=${Date.now()}`);
+      } else if (a.key === "session.sign-out") d.signOut?.();
+      else if (a.key === "terminal.open") nav.go("chats", `screen=chats.terminal-list&at=${Date.now()}`);
       else if (a.key === "task.new") nav.go("home");
       else if (a.key === "project.new") rt.open({ screen: "records.projects", args: { create: true } });
       else if (a.key === "channel.new") { nav.go("chats"); requestChannelSheet("new"); }

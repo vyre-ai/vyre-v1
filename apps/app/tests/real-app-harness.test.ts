@@ -125,11 +125,11 @@ export async function bootSpace(): Promise<Space> {
 }
 
 /** A fresh install (ruling 71): an empty data directory. The host makes the Space and prints a one-time claim link; the owner becomes the owner by claiming it, as a person does. */
-export async function bootFreshSpace(kind?:"personal", publishLocal=false): Promise<Space> {
+export async function bootFreshSpace(kind?:"personal", publishLocal=false, unnamed=false): Promise<Space> {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-real-app-fresh-"));
   const port=publishLocal?await new Promise<number>((resolve,reject)=>{const server=net.createServer();server.once("error",reject);server.listen(0,"127.0.0.1",()=>{const selected=(server.address()as net.AddressInfo).port;server.close(()=>resolve(selected));});}):0;
   const address=publishLocal?`http://127.0.0.1:${port}`:null;
-  const d = await startDaemon(dir, ["--space", "spc_fresh", "--space-name", kind==="personal"?"Personal":"Fresh Co", ...(kind?["--space-kind",kind]:[]),...(address?["--address",address]:[])],port);
+  const d = await startDaemon(dir, ["--space", "spc_fresh", ...(unnamed?[]:["--space-name", kind==="personal"?"Personal":"Fresh Co"]), ...(kind?["--space-kind",kind]:[]),...(address?["--address",address]:[])],port);
   if(address&&d.url!==address)throw new Error("The fixture must publish its actual listening endpoint");
   return { url: d.url, token: ADMIN_TOKEN, space: "spc_fresh", dir, stop: stopper(d.child), claim: d.claim };
 }

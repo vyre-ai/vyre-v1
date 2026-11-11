@@ -167,7 +167,7 @@ export function ShellHost({ stored, open, onSignedOut, onHub, hub: given, initia
   }, [team]);
   const setAway = useCallback((on: boolean): void => { flags.current.away = on; void team?.away(on); }, [team]);
   const teamProp = useMemo(() => (team ? { invite: () => { void team.invite(); }, away: setAway } : undefined), [team, setAway]);
-  const search = useMemo(() => (session ? (flags.current.terminal = session.def.terminal, createGateSearch({ runtime: session.runtime, nav: hub, state: flags.current, recent: () => recent.current, viewer: () => ({ id: session.runtime.me.id, spaceId: session.def.spaceId, places: new Set(railPlaces(hub.rail())) }), ...(team ? { away: setAway } : {}) })) : null), [session, hub, team, setAway]);
+  const search = useMemo(() => (session ? (flags.current.terminal = session.def.terminal, createGateSearch({ runtime: session.runtime, nav: hub, state: flags.current, recent: () => recent.current, viewer: () => ({ id: session.runtime.me.id, spaceId: session.def.spaceId, places: new Set(railPlaces(hub.rail())) }), ...(team ? { away: setAway } : {}), signOut: () => signOutRef.current() })) : null), [session, hub, team, setAway]);
 
   useEffect(() => {
     if (!session || stored.def.kind !== "team") return undefined;
@@ -297,11 +297,13 @@ export function ShellHost({ stored, open, onSignedOut, onHub, hub: given, initia
   const renderPlace = (ctx: PlaceContext): ReactElement => failed !== null && session === null
     ? <States kind="error" message={`Couldn't reach ${stored.def.name}`} cause={failed} next="Try again" retryable onRetry={() => setAttempt((n) => n + 1)} />
     : <PlaceHost place={ctx.place} runtime={session?.runtime ?? null} hash={ctx.hash} opened={(t) => { const next = formatHash(t); if (next !== ctx.hash) hub.move(ctx.place, next); }} />;
+  const signOutRef = useRef<() => void>(() => undefined);
   const signOut = (): void => {
     forgetKey(stored.token); void dropKeyOnOwnNode(stored.baseUrl, stored.token).catch(() => undefined); void unlinkComputer(stored);
     void session?.call("identity.sign_out", {}).catch(() => undefined);
     onSignedOut("manual");
   };
+  signOutRef.current = signOut;
   const selectSpace=(id:string):void=>{if(id===stored.def.spaceId)return;const target=catalogue.find(item=>item.def.spaceId===id);if(!target||!onSwitchSpace)return;sessionTheme(target,false);onSwitchSpace(id);};
   const renderNewTab = (): ReactElement => (search ? <NewTabSearch data={search} /> : <States kind="empty" title="Open anything, or start something" icon="search" />);
   // the onboarding screen opens over whatever the shell shows, the first time a person enters a Space and when asked

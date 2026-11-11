@@ -64,9 +64,12 @@ export function firstRequest(lines: readonly { person: boolean; body: string }[]
 
 const LEAD = /^(?:please|pls|can you|could you|would you|will you|i need you to|i want you to|i would like you to|i'd like you to|i need|i want|help me|help|let's|lets|how do i|how do we|how can i|what is|what's|tell me|show me)\s+/i;
 
+const OPENING_GREETING = /^\s*(?:h+e+y+|h+i+|h+e+l+o+|good (?:morning|afternoon|evening)|greetings)\b(?:\s+(?:there|all|team|everyone|assistant|vyre))?[\s,!.:;-]*/i;
+
 /** A title from the words of the request alone: the plain fallback when no model is at hand. 2 to 5 words, no greeting, no ending punctuation. */
 export function titleFromRequest(text: string): string | null {
-  let t = words(text.split("\n").find((l) => l.trim() !== "") ?? "").join(" ");
+  // a greeting in front of the real request ("Hello! Can you ...") is not what the chat is about
+  let t = words((text.split("\n").find((l) => l.trim() !== "") ?? "").replace(OPENING_GREETING, "")).join(" ");
   for (let i = 0; i < 3 && LEAD.test(t); i++) t = t.replace(LEAD, "");
   const w = t.split(" ").filter((x) => x !== "").slice(0, 5);
   if (w.length < 2) return null;

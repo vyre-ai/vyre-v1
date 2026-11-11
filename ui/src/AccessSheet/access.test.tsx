@@ -73,6 +73,19 @@ test("the main button is off until someone is picked", () => {
 
 /* ---------- add mode: typing, picking, roles ---------- */
 
+test("while the directory is still loading a search says Loading people, never that nobody matches, and the real rows replace it in place", async () => {
+  await withDom(async () => {
+    const root = await mount(createRoot, <AccessSheet {...add({ directory: { loading: true } })} />);
+    await typeInto(find(root, "as-search"), "zzz");
+    assert.ok(find(root, "as-loading"), "the loading line is drawn");
+    assert.equal(find(root, "as-none"), null, "and the no-match line is not");
+    const loaded = await mount(createRoot, <AccessSheet {...add({ directory: { people: [] } })} />);
+    await typeInto(find(loaded, "as-search"), "zzz");
+    assert.equal(find(loaded, "as-loading"), null);
+    assert.ok(find(loaded, "as-none"), "a loaded directory with no match says so");
+  });
+});
+
 test("typing narrows the lists, an address offers a guest invite, Enter adds the top match", async () => {
   await withDom(async () => {
     const root = await mount(createRoot, <AccessSheet {...add()} />);

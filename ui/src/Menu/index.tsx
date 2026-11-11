@@ -8,14 +8,14 @@ import { createElement, useCallback, useEffect, useMemo, useRef, useState } from
 import type { ReactElement, ReactNode } from "react";
 import { Platform, Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
 import type { ViewStyle } from "react-native";
-import { filterMenuEntries, isHead, isItem, isReportItem, isSeparator, resolveMenuItems } from "./props.ts";
+import { EMPTY_LABEL, LOADING_LABEL, filterMenuEntries, isHead, isItem, isReportItem, isSeparator, resolveMenuItems } from "./props.ts";
 import type { MenuEntry, MenuItem, MenuProps, MenuSource } from "./props.ts";
 import { MenuPortal } from "./portal.tsx";
 import { useEscapeLayer } from "../Overlay/escape.ts";
 import { RADIUS } from "../tokens/radius.ts";
 
 export type { MenuEntry, MenuHead, MenuItem, MenuProps, MenuSeparator, MenuSource } from "./props.ts";
-export { REPORT_A_PROBLEM, appendReportProblem, filterMenuEntries, resolveMenuItems } from "./props.ts";
+export { EMPTY_LABEL, LOADING_LABEL, REPORT_A_PROBLEM, appendReportProblem, filterMenuEntries, resolveMenuItems } from "./props.ts";
 
 /* ---------- Report a problem hook-up ---------- */
 
@@ -596,8 +596,6 @@ export function useMenu(): {
  * The rows of a pick-one list (a Select, a picker) while its data may still be loading. Loading: the rows so far plus a quiet "Loading…" row that cannot be chosen, so the list never reads as "there is nothing".
  * Loaded and empty: one quiet row that says so. Used by every Select so the rule is one rule.
  */
-export const LOADING_LABEL = "Loading…";
-export const EMPTY_LABEL = "Nothing to choose from";
 export function choiceRows(rows: readonly MenuItem[], loading: boolean): MenuEntry[] {
   if (loading) return [...rows, { label: LOADING_LABEL, disabled: true }];
   return rows.length > 0 ? [...rows] : [{ label: EMPTY_LABEL, disabled: true }];

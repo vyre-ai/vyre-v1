@@ -1,4 +1,5 @@
 
+import { isNamed } from '../../shell/spaces/space-label.ts';
 import { belowPhone } from "../../../../../ui/src/SidePane/layout.ts";import { SpaceLogoRow } from './SpaceImage.tsx';
 import { createdLine } from './space-created.ts';
 import { TIME_ZONES, zoneLabel } from './space-zones.ts';
@@ -56,9 +57,9 @@ function Pick({ label, shown, face, options, value, onChange, disabled = false, 
     return <View><Pressable accessibilityRole="button" accessibilityLabel={label} testID={testID} disabled={disabled} style={st.pick} onPress={(event) => { const rect = (event.currentTarget as unknown as { getBoundingClientRect?(): { left: number; bottom: number } })?.getBoundingClientRect?.(); menu.show(options.map((o) => ({ label: o.title, checked: o.key === value, ...(o.face ? { icon: o.face } : {}), onSelect: () => onChange(o.key) })), rect?.left ?? 20, rect?.bottom ?? 100, 'other'); }}>{face}<Text style={st.pickText} numberOfLines={1}>{shown}</Text><Glyph name="chevD" size={11} color="var(--ink-3)"/></Pressable>{menu.element}</View>;
 }
 /** A text field on the right of a row. It saves when the person leaves it, not on a button. */
-function RowField({ label, value, onChange, onCommit, testID, width }: { label: string; value: string; onChange: (value: string) => void; onCommit: () => void; testID: string; width: number }): ReactElement {
+function RowField({ label, value, onChange, onCommit, testID, width, placeholder }: { label: string; placeholder?: string; value: string; onChange: (value: string) => void; onCommit: () => void; testID: string; width: number }): ReactElement {
     const narrow = belowPhone(useWindowDimensions().width);
-    return <TextInput value={value} onChangeText={onChange} onBlur={onCommit} onSubmitEditing={onCommit} accessibilityLabel={label} testID={testID} autoCapitalize="none" autoCorrect={false} style={[st.field, { width: narrow ? Math.min(width, 190) : width }]}/>;
+    return <TextInput value={value} {...(placeholder ? { placeholder } : {})} onChangeText={onChange} onBlur={onCommit} onSubmitEditing={onCommit} accessibilityLabel={label} testID={testID} autoCapitalize="none" autoCorrect={false} style={[st.field, { width: narrow ? Math.min(width, 190) : width }]}/>;
 }
 const skinFace = (id: string): ReactElement => { const k = skins.find(x => x.id === id); return k ? <View style={[st.swatch, { backgroundColor: k.palette.win, borderColor: k.palette.me }]}><View style={[st.dot, { backgroundColor: k.palette.accent }]}/></View> : <View style={[st.swatch, { flexDirection: 'row', overflow: 'hidden', borderColor: '#d8d6d0' }]}><View style={{ width: 8, height: 16, backgroundColor: '#f4f3ef' }}/><View style={{ width: 8, height: 16, backgroundColor: '#1b1b1d' }}/></View>; };
 const skinOptions = [{ key: system.id, title: system.name }, ...skins.map(k => ({ key: k.id, title: k.name }))];
@@ -71,7 +72,7 @@ export function SpaceProfile(): ReactElement {
     const [pendingZone, setPendingZone] = useState<string | null>(null);
     const [zoneUndo, setZoneUndo] = useState<{ was: string; now: string; at: number } | null>(null);
     useEffect(() => { const space = result.data?.space; if (space) {
-        setName(space.name);
+        setName(isNamed(space.name) ? space.name : "");
         setLegal(space.legalName ?? '');
         setMode(space.address.mode === 'own_domain' ? 'own_domain' : 'relay');
         setHost(space.address.host ?? '');
@@ -82,14 +83,14 @@ export function SpaceProfile(): ReactElement {
     const zones = TIME_ZONES.includes(current.timezone) ? TIME_ZONES : [current.timezone, ...TIME_ZONES];
     const skinKnown = skinOptions.some(o => o.key === current.skin);
     // each field saves when it is left (name, legal name) or chosen (skin, time zone), and only when it changed
-    const saveName = (): void => { const next = name.trim(); if (!next) { setName(space.name); return; } if (next !== space.name) void action.run('spaces.update', { name: next }, 'Name saved.'); };
+    const saveName = (): void => { const next = name.trim(); if (!next) { setName(isNamed(space.name) ? space.name : ''); return; } if (next !== space.name) void action.run('spaces.update', { name: next }, 'Name saved.'); };
     const saveLegal = (): void => { const next = legal.trim(); if (next !== (space.legalName ?? '')) void action.run('spaces.update', { legalName: next }, 'Legal name saved.'); };
     const saveDefault = (change: { skin?: string; timezone?: string }, said: string): void => { const next = { skin: current.skin, timezone: current.timezone, ...change }; if (next.skin !== current.skin || next.timezone !== current.timezone) void action.run('spaces.update', { defaults: { ...space.defaults, ...next } }, said); };
     const mono = (text: string): ReactElement => <Text style={st.mono} numberOfLines={1}>{text}</Text>;
     const address = space.address.host ?? 'This device';
     return <View testID="console-space-infra"><Section title="Identity"><Group>
-        <SpaceLogoRow spaceName={space.name} logoFileId={space.logoFileId ?? null} onSaved={result.refresh}/>
-        <Line index={1}><Row id="space-name" title="Name" trailing={<RowField label="Space name" testID="infra-space-name" value={name} onChange={setName} onCommit={saveName} width={220}/>}/></Line>
+        <SpaceLogoRow spaceName={isNamed(space.name) ? space.name : "Vyre"} logoFileId={space.logoFileId ?? null} onSaved={result.refresh}/>
+        <Line index={1}><Row id="space-name" title="Name" trailing={<RowField label="Space name" testID="infra-space-name" placeholder="Name your Space" value={name} onChange={setName} onCommit={saveName} width={220}/>}/></Line>
         <Line index={2}><Row id="space-legal" tall title="Legal name" note="Shown on public pages and emails" trailing={<RowField label="Legal name" testID="infra-space-legal" value={legal} onChange={setLegal} onCommit={saveLegal} width={260}/>}/></Line>
         <Line index={3}><Row id="space-address-now" title="Address" trailing={<View style={st.inline}>{mono(address)}<Button label={copied ? 'Copied' : 'Copy'} testID="space-address-copy" onPress={() => { copyAddress(address); setCopied(true); setTimeout(() => setCopied(false), 1500); }}/></View>}/></Line>
     </Group>{action.note ? <Note>{action.note}</Note> : null}</Section>
