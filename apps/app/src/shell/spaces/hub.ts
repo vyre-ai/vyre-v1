@@ -361,10 +361,15 @@ export function createShellHub(options: HubOptions): ShellHub {
       if (gone) hash = undefined;
       const s = open();
       if (!background && (place !== s.place || (hash ?? "") !== s.hash)) holder?.();
-      s.tabs.openPlace(place, hash, screenTitle(hash), background);
+      // an address with no item (hash "") asks for the place's landing: its own tab shows it. A place asked for with no hash at all (the rail) goes to the tab the place has.
+      if (!background && hash === "") s.tabs.land(place); else s.tabs.openPlace(place, hash, screenTitle(hash), background);
       if (!background) {
-        s.place = place;
-        s.hash = hash ?? "";
+        // the page shows what the selected tab shows, so a tab never names one thing over another
+        const now = s.tabs.state();
+        const t = now.tabs.find((x) => x.key === now.active);
+        const same = t !== undefined && t.isNew !== true && t.place === place;
+        s.place = same ? t.place : place;
+        s.hash = same ? t.hash ?? "" : hash ?? "";
       }
       emit();
     },
