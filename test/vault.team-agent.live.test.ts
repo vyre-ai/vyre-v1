@@ -46,15 +46,33 @@ test("team agent: private and asker-only items are refused; shared with the agen
     const grp = await write(d, "access.groups.create", { name: "Deploy group", members: [{ kind: "agent", id: team }] });
     assert.equal(grp.status, 200, JSON.stringify(grp.data));
     await share(toGroup, { kind: "group", id: grp.data.group.id });
-    // also shared with Olivia herself, so only "the agent" differs
+    // fourth look 1: "Bank" is shared with Everyone with its password hidden, so Tess (Everyone, no role on the Space) may use the user name and not the password
+    const bankPut = await write(d, "vault.item.put", { folderId: shared, name: "Bank", kind: "login", fields: [{ key: "user", value: "bank-user-0123", secret: false }, { key: "password", value: "bank-pass-0123456789", secret: true }] });
+    assert.equal(bankPut.status, 200, JSON.stringify(bankPut.data));
+    const bank = bankPut.data.item?.id ?? bankPut.data.itemId;
+    const hidden = await write(d, "access.share", { resource: { type: "vault_item", id: bank }, subject: { kind: "group", id: "grp_everyone" }, level: "use", conditions: { hiddenFields: ["password"] } });
+    assert.equal(hidden.status, 200, JSON.stringify(hidden.data));
     const values = boundValues();
     assert.ok(values, "the daemon hands the terminal the Space's Vault");
     const ask = async (handle: string, agentId: string) => (await values!.lookup(handle, { agentId, asker: "usr_olivia", where: "computer", place: agentId })).kind + ":" + String((await values!.lookup(handle, { agentId, asker: "usr_olivia", where: "computer", place: agentId }) as { reason?: string }).reason ?? "");
     assert.equal(await ask("#Olivia_Private.key", team), "denied:team_agent", "a private item in a team agent");
-    assert.equal(await ask("#Olivia_Only.key", team), "denied:team_agent", "an item shared only with the asker, in a team agent");
+    assert.equal(await ask("#Olivia_Only.key", team), "denied:team_shared", "an item shared only with the asker (and the members), in a team agent Tess may also ask");
     assert.equal(await ask("#For_Deployer.key", team), "value:", "shared with the agent");
     assert.equal(await ask("#For_Deploy_Group.key", team), "value:", "a group grant that includes the agent");
     assert.equal(await ask("#For_Everyone.key", team), "value:", "shared with the whole Space");
+    assert.equal(await ask("#Bank.user", team), "value:", "the field everyone who may ask the agent may use");
+    assert.equal(await ask("#Bank.password", team), "denied:team_shared", "the field the share hides from Tess never reaches the team agent's computer");
+    // fourth look (d): a refusal is decided before the Vault is asked: the audit shows it as a refusal, and no use of the item
+    const audit = async (action: string, itemId?: string) => ((await call(d, "audit.list", { action, limit: 200 })).data.rows ?? []).filter((r: { resource?: { id?: string } }) => itemId === undefined || r.resource?.id === itemId).length;
+    const beforeAllowed = await audit("vault.use", bank);
+    assert.equal(await ask("#Bank.user", team), "value:");
+    await new Promise((r) => setTimeout(r, 300));
+    const bankUses = await audit("vault.use", bank);
+    assert.ok(bankUses > beforeAllowed, `an allowed value is a recorded use (${beforeAllowed} -> ${bankUses})`);
+    assert.equal(await ask("#Bank.password", team), "denied:team_shared");
+    await new Promise((r) => setTimeout(r, 300));
+    assert.equal(await audit("vault.use", bank), bankUses, "no use recorded for a refused value");
+    assert.ok((await audit("vault.use_refused", bank)) >= 1, "the refusal is recorded as one");
     assert.equal(await ask("#Olivia_Private.key", own!.agentId), "value:", "a private item in the asker's own Assistant");
     assert.equal(await ask("#Olivia_Only.key", own!.agentId), "value:", "an item shared only with the asker, in the asker's own Assistant");
 
@@ -76,5 +94,8 @@ test("team agent: private and asker-only items are refused; shared with the agen
     const out = await tc["terminal.run"]!(th.as({ kind: "agent", id: team }, "usr_tess"), { command: "print candidates", idempotencyKey: "f1-b" });
     assert.deepEqual(out.output.split("\n"), candidates, "every candidate comes back as printed: nothing marks the private one");
     termReset();
+    // fourth look 2: an agent that is gone is refused, whatever the item
+    assert.equal((await write(d, "agents.delete", { agentId: team })).status, 200);
+    assert.equal(await ask("#For_Everyone.key", team), "denied:team_unknown_agent", "a deleted agent has no computer anyone may be trusted with");
   } finally { await d.stop(); }
 });

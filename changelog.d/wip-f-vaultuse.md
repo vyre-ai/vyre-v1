@@ -18,3 +18,5 @@
 - When a Vault item needs approval before use, an agent's terminal or browser now says that plainly instead of saying it has no access.
 - The Vault share sheet says, when you pick an agent, that everyone who can ask that agent can use the item through it.
 - A tab where a program replaced the shell, or where an unfinished line waits at the prompt, gets no Vault values, and filling one field in the browser no longer stops pictures of the other tabs.
+- A team agent uses a shared Vault field only when the share really gives it: a share that hides that field, has not started, has ended or sits below the item's label no longer counts, and a refusal says whether the item is your own or shared but not for this agent.
+- An agent Vyre cannot place, or one whose askers cannot be told, gets no Vault values; your private agent that only you can ask, and a terminal on your own computer, work like your own Assistant.

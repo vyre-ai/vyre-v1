@@ -281,10 +281,10 @@ export type Where = "host" | "device" | "computer";
 export type Lookup =
   | { kind: "value"; itemId: string; value: string; spaceOnly: boolean; injectIntoDeployments: boolean }
   | { kind: "unknown" }
-  | { kind: "denied"; reason: "no_access" | "provider_label" | "other" | "team_agent" | "needs_approval" };
-export interface ValueSource { lookup(handle: string, who: { agentId: string; asker: string; where: Where; place?: string }): Promise<Lookup> }
+  | { kind: "denied"; reason: "no_access" | "provider_label" | "other" | "team_agent" | "team_shared" | "team_unknown_agent" | "needs_approval" };
+export interface ValueSource { lookup(handle: string, who: { agentId: string; asker: string; where: Where; place?: string; device?: string }): Promise<Lookup> }
 export interface VaultRunDeps { source: ValueSource; reportMiss(r: { itemId: string; place: "terminal" | "http" | "browser" | "file" | "chat"; traceId: string }): void | Promise<void> }
-export interface VaultCall { tool: string; args: unknown; traceId: string; agentId: string; asker: string; where: Where; place?: string }
+export interface VaultCall { tool: string; args: unknown; traceId: string; agentId: string; asker: string; where: Where; place?: string; device?: string }
 export type VaultRun =
   | { ok: true; display: unknown; output: string | AsyncIterable<string>; used: Array<{ handle: string; itemId: string }>; scrubMiss: boolean }
   | { ok: false; display: unknown; used: Array<{ handle: string; itemId: string }>; error: { code: "permission.no_grant" | "permission.provider_label" | "validation.bad_input" | "provider.unavailable"; message: string; handle?: string } };

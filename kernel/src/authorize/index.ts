@@ -131,6 +131,29 @@ function evalSubject(snap: AccessSnapshot, s: SubjectInfo, req: Req, res: Resour
 }
 
 /**
+ * Is the resource shared with this subject itself, acting for nobody, through a grant on the resource or a container above it of one of `types` (never a role's grant on the Space, never a
+ * type-wide grant, never owning it)? The grant is held to every condition authorize applies to a grant (rank, start and end, expiry, the ceiling against the effective label with the fields asked
+ * for, hidden fields, the row filter), and the subject's clearance must reach the label. Used to tell "this Vault item was shared with this agent" from "this agent can reach every shared item
+ * through its role" (host/src/seams/team-vault.ts).
+ */
+export function sharedThrough(snap: AccessSnapshot, req: Req, types: readonly string[]): boolean {
+  const s = snap.info(req.principal);
+  if (!s || s.p.status !== "active" || req.resource.id === null) return false;
+  const chain = snap.chain(req.resource.id);
+  if (!chain) return false;
+  const res = chain[0]!;
+  let label = snap.effectiveLabel(req.resource.id);
+  if (req.fields) for (const f of req.fields) { const fl = snap.fieldLabel(res.type, f); if (fl > label) label = fl; }
+  if (label > s.clearance) return false;
+  scratch.length = 0; sawExpired = false; max = 0;
+  const need = rankOf(req.action.level);
+  for (let i = 0; i < chain.length; i++) { if (!types.includes(chain[i]!.type)) continue; const l = snap.grantsOn(chain[i]!.id); if (l) collect(l, s, need, req, res, label); }
+  const held = scratch.length > 0;
+  scratch.length = 0;
+  return held;
+}
+
+/**
  * Does the agent hold a live Use grant on this vault item (or its folders) that a person approved for its key request, naming who may use it through the agent (owner ruling,
  * 3 Nov 2026)? Then the person it acts for needs no access of their own here, up to Use. A vault item or folder only, never more than Use, and only the asker unless the approver chose
  * anyone.
