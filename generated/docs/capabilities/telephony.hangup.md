@@ -19,7 +19,7 @@ End a call
 | HTTP | POST /v1/telephony/hangup |
 | MCP tool | telephony_hangup (inbox) |
 | CLI | none |
-| Emits | call.ended |
+| Emits | call.ended, call.missed |
 
 ## Input
 

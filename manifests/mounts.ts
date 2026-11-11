@@ -91,7 +91,7 @@ export default defineManifest({
       emits: ['mount.synced', 'mount.failed', 'file.version_added', 'file.conflict_kept'], tool: 'files', offline: 'online', cli: 'vyre mounts sync',
     }),
     write('mounts.company_drive', 'Bring the person\'s own Drive or OneDrive into their Personal folder, with nothing to sign in to, once the company connected Files. Runs as the person; nothing for anyone excluded', {
-      in: {}, out: { mounted: t.arr(id.mount) }, emits: ['folder.mounted'],
+      in: {}, out: { mounted: t.arr(id.mount) }, emits: ['folder.mounted', 'mount.failed'],
     }),
     write('mounts.account_pause', 'The connector stops or restarts everything that syncs as one address; the folders stay', {
       in: { account: t.str(), paused: t.bool() }, out: { changed: t.int() }, perm: 'connectors.manage', emits: ['mount.paused', 'mount.resumed'], audit: 'always',
@@ -100,7 +100,7 @@ export default defineManifest({
     write('mounts.resume', 'Resume a paused mount', { in: { mountId: id.mount }, out: { ok: t.bool() }, perm: 'files.write', level: 'manage', emits: ['mount.resumed'], tool: 'files' }),
     write('mounts.local_report', 'A device reports changes in a mounted local folder and uploads their blobs (system)', {
       in: { mountId: id.mount, deviceId: id.device, changes: t.arr(t.obj({ path: t.str(), op: t.enm('add', 'modify', 'delete', 'rename'), blobId: t.opt(id.blob), mtime: t.ts(), from: t.opt(t.str()) })) },
-      out: { applied: t.int(), conflicts: t.int() }, level: 'use', idem: 'key', emits: ['file.version_added', 'file.conflict_kept', 'mount.synced'], offline: 'online',
+      out: { applied: t.int(), conflicts: t.int() }, level: 'use', idem: 'key', emits: ['file.version_added', 'file.conflict_kept', 'mount.synced', 'mount.failed'], offline: 'online',
     }),
     // ---- mounted files at their provider (live folders L3): where they open, and editing them in place through the provider's own API
     read('mounts.file_link', 'Where a mounted file opens at its provider (Google Docs, Sheets, Slides, Word, Excel, PowerPoint, Dropbox) and what an agent can do to it in place', {
