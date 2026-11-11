@@ -834,6 +834,8 @@ export async function makeOwner(ctx: ShareCtx, input: { resource: ResourceRef; p
   // whatever the new owner held directly on it is now the owner's, so those grants go
   for (const g of [...store.grants.values()]) if (g.resource.id === res.id && g.subject.kind === "person" && g.subject.id === input.personId && g.source === undefined) dropGrant(ctx, store, g);
   res.ownerId = input.personId;
+  // handed to a person: theirs, no longer the Space's (the host's mark goes, so a Space transfer leaves it)
+  if (res.row?.["spaceOwned"] === true) { const { spaceOwned: _m, ...rest } = res.row; void _m; if (Object.keys(rest).length) res.row = rest; else delete res.row; }
   if (from) {
     const g: GrantRec = { id: nid("gnt"), subject: { kind: "person", id: from }, resource: { type: res.type, id: res.id }, level: "manage", conditions: {}, by: ctx.principal.id, createdAt: ctx.now() };
     store.grants.set(g.id, g);

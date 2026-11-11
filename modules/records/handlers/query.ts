@@ -253,13 +253,31 @@ export function countOf(tx: Tx, def: TypeDef, filter: unknown): number {
 
 /** The view as SQL when it can be, else the exact in-memory fallback. */
 export function runQuery(tx: Tx, type: string, spec: ViewSpec): { rows: RecordRow[]; next?: string; total: number } {
+  return pageOf(tx, type, spec, true) as { rows: RecordRow[]; next?: string; total: number };
+}
+
+/**
+ * The rows of a view with no total: for a caller that never shows one (the match lookup of an import, an export's pages). The exact count is a scan of the whole type, and every write
+ * invalidates its cache, so asking it per looked-up row made an import of n rows cost n scans.
+ */
+export function findRows(tx: Tx, type: string, spec: ViewSpec): { rows: RecordRow[]; next?: string } {
+  return pageOf(tx, type, spec, false);
+}
+
+/** An index on the fields an import matches rows by, so each lookup reads the matching rows and not the whole type (the same index a sort on those fields makes). */
+export function ensureMatchIndex(tx: Tx, type: string, fields: readonly string[]): void {
+  ensureBase(tx);
+  ensureSortIndex(tx, typeDef(tx, type), fields.map((field) => ({ field, dir: "asc" as const })));
+}
+
+function pageOf(tx: Tx, type: string, spec: ViewSpec, counted: boolean): { rows: RecordRow[]; next?: string; total?: number } {
   ensureBase(tx);
   const def = typeDef(tx, type);
   const sort = effectiveSort(def, spec);
   const keys: Sort[] = [...sort, { field: "id", dir: "asc" }];
   const { limit, offset } = windowOf(spec);
   const fields = spec.fields && spec.fields.length ? spec.fields : undefined;
-  const total = countOf(tx, def, spec.filter);
+  const total = counted ? countOf(tx, def, spec.filter) : undefined;
   let rows: Raw[];
   try {
     const where = compile(def, spec.filter);
@@ -276,14 +294,17 @@ export function runQuery(tx: Tx, type: string, spec: ViewSpec): { rows: RecordRo
     rows = tx.all<Raw>(text, ...args);
   } catch (e) {
     if (!(e instanceof Unsupported)) throw e;
-    return fallback(tx, def, spec, sort, limit, offset, fields, total);
+    const f = fallback(tx, def, spec, sort, limit, offset, fields, total ?? 0);
+    if (counted) return f;
+    const { total: _t, ...rest } = f;
+    return rest;
   }
   const more = rows.length > limit;
   if (more) rows = rows.slice(0, limit);
   const out = rows.map((r) => toRow(type, r, fields));
   const last = rows[rows.length - 1];
   const next = more && last ? encodeCursor({ ...last, data: JSON.parse(last.data) }, sort) : undefined;
-  return { rows: out, ...(next !== undefined ? { next } : {}), total };
+  return { rows: out, ...(next !== undefined ? { next } : {}), ...(total !== undefined ? { total } : {}) };
 }
 
 function fallback(tx: Tx, def: TypeDef, spec: ViewSpec, sort: Sort[], limit: number, offset: number, fields: readonly string[] | undefined, total: number): { rows: RecordRow[]; next?: string; total: number } {

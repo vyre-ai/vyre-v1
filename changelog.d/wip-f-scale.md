@@ -1,0 +1,4 @@
+- Saving a record, task or file no longer slows down as your Space grows. On a Space with a hundred thousand contacts a new contact saves in about 20 ms instead of most of a second, and the server starts about ten times faster.
+- Fixed: a label or owner someone had changed could go back after the server restarted. Every record type went back to Public and to the Space owner on every start, and a folder or other item made shortly before the change went back to the label and owner it was made with. Labels and owners now stay as they were set.
+- Looking up people, shares and access in a large Space is fast again: lists of members, the sharing panel and access checks answer in a few milliseconds instead of more than half a second.
+- Importing a contact list is fast at any size: each row is matched by its email through an index instead of counting and reading every contact again, so a large import no longer slows down row by row.
