@@ -258,6 +258,18 @@ export function Menu(props: MenuViewProps): ReactElement | null {
     if (onClose) onClose();
   }, [onClose]);
 
+  // A menu opens with nothing lit, so focus can still sit on the control that opened it (Shift+F10 on a list row): Escape must close it from there too, not only from inside the panel
+  const goneRef = useRef(false);
+  goneRef.current = gone;
+  useEffect(() => {
+    if (Platform.OS !== "web") return undefined;
+    const doc = (globalThis as { document?: { addEventListener?: (t: string, fn: (e: { key?: string }) => void) => void; removeEventListener?: (t: string, fn: (e: { key?: string }) => void) => void } }).document;
+    if (doc === undefined || typeof doc.addEventListener !== "function") return undefined;
+    const onDocKey = (e: { key?: string }): void => { if (e.key === "Escape" && !goneRef.current) close(); };
+    doc.addEventListener("keydown", onDocKey);
+    return () => doc.removeEventListener?.("keydown", onDocKey);
+  }, [close]);
+
   const land = useCallback((index: number) => {
     if (index < 0) return;
     setActive(index);

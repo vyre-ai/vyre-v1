@@ -126,7 +126,9 @@ test("a person watches a crew build in the real app: the Crew tab, one result ca
         if (!phone) {
           // while the coder is editing, its row names the file
           await page.getByText("Build the site", { exact: false }).first().click({ timeout: 30_000 });
-          await page.getByText("Editing dark-mode.txt").first().waitFor({ timeout: 60_000 }).catch(async (e) => { await shoot(page, `${mode}-FAILED-editing`); throw e; });
+          // the crew rows are closed until a person opens one: press the coder's row, and its steps name the file
+          await page.locator('[data-testid^="row-crew-chip-"][data-testid$="-toggle"]').first().click({ timeout: 60_000 });
+          await page.getByText(/Editing.*dark-mode\.txt/).first().waitFor({ timeout: 60_000 }).catch(async (e) => { await shoot(page, `${mode}-FAILED-editing`); throw e; });
           await shoot(page, `${mode}-0-coder-editing`);
         }
         openEdit();
@@ -149,9 +151,13 @@ test("a person watches a crew build in the real app: the Crew tab, one result ca
       await shoot(page, `${mode}-1-strip`);
       // the coder's row and peek say how its last test run went: counts and the first failing test
       console.log("MEMBERS", JSON.stringify(((await api("engine.crew.status", { threadId: chat })).members as Array<{ id: string; kind: string; state: string; tests?: unknown; step?: string }>).map((m) => [m.id.slice(-6), m.kind, m.state, m.tests, m.step])));
-      assert.match(await page.getByTestId(`crew-chip-${((await api("engine.crew.status", { threadId: chat })).members as Array<{ id: string }>)[0]!.id}-tests`).innerText(), /1 passing, 1 failing/);
+      // the row is closed until a person opens it: its steps then say how the last test run went
+      const coderId = ((await api("engine.crew.status", { threadId: chat })).members as Array<{ id: string }>)[0]!.id;
+      if ((await page.getByTestId(`crew-chip-${coderId}-steps`).count()) === 0) await page.getByTestId(`row-crew-chip-${coderId}-toggle`).click({ timeout: 15_000 });   // the light pass opened it while the coder worked
+      await page.getByTestId(`crew-chip-${coderId}-steps`).waitFor({ timeout: 15_000 });
+      assert.match(await page.getByTestId(`crew-chip-${coderId}-steps`).innerText(), /1 passing, 1 failing/);
       if (mode === "light") {
-        await page.getByTestId("crew-strip").first().locator('[data-testid^="crew-chip-"][role="button"]').first().click({ timeout: 15_000 });
+        await page.getByTestId(`crew-chip-${coderId}-open`).click({ timeout: 15_000 });
         await page.getByTestId("crew-peek-failing").waitFor({ timeout: 20_000 });
         assert.match(await page.getByTestId("crew-peek-failing").innerText(), /toggle survives a reload/);
         // a finished helper says what it did, in the short plain labels that were kept: the file's name and the test counts
@@ -163,8 +169,9 @@ test("a person watches a crew build in the real app: the Crew tab, one result ca
         await page.getByTestId("crew-strip-merged").waitFor({ timeout: 20_000 });
         assert.equal(fs.readFileSync(path.join(repo, "dark-mode.txt"), "utf8"), "toggle: on\n");
         assert.match(git(repo, "log", "--format=%s", "-n", "2"), /Merge crew\/ember-1/);
-        // the chat keeps one quiet line saying what landed where
-        await page.getByText(/^Merged crew\/ember-1 into main · \+\d+ -\d+$/).first().waitFor({ timeout: 20_000 });
+        // the chat keeps one quiet card saying what landed where: the title names the branch and where it went, its body the lines added and removed
+        await page.getByText("Merged crew/ember-1 into main", { exact: true }).first().waitFor({ timeout: 20_000 });
+        await page.getByText(/^\+\d+ -\d+$/).first().waitFor({ timeout: 20_000 });
         await shoot(page, `${mode}-3-merged`);
       } else {
         await page.getByTestId("crew-strip-merged").waitFor({ timeout: 20_000 });

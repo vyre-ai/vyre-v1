@@ -1,0 +1,1 @@
+- Pressing Escape closes a menu you opened with the keyboard (Shift+F10 on a list row), even before you have moved into it, so it no longer blocks the page behind it.
