@@ -20,7 +20,7 @@ function browser() {
     async available() { return true; },
     async tool(a: { profileId: string; tool: string }) { events.push(`tool ${a.profileId} ${a.tool}`); return { tabId: "t1", url: "https://example.com/", title: "Example", loading: false }; },
     async importChrome(profileId: string, tar: Uint8Array) { events.push(`import ${profileId} ${tar.length}`); return { bytes: tar.length }; },
-    async downloads() { return []; }, async stop() {}, async forget() {},
+    async downloads() { return []; }, async stop() {}, async forget() {}, async health() { return { ok: true }; },
     async sessions() { return signedIn.map((site) => ({ site, since: 1, lastSeen: 1 })); },
   } as unknown as SpaceBrowser;
   bindSpaceBrowser(sb);
@@ -125,6 +125,7 @@ test("a busy browser profile is tried again on later passes and never uses up an
     for (let i = 0; i < 6; i++) await migrateComputers(w.h.ctx);
     assert.deepEqual(w.h.rows("SELECT attempts FROM computers_migration"), [], "six busy passes: nothing recorded, no attempt used");
     busy = false;
+    w.h.advance(2 * 3_600_000);
     await migrateComputers(w.h.ctx);
     assert.equal(migrationRows(w.h.ctx)[0]?.state, "done");
   } finally { bindMigrationPort("importChromeData", async (_c, a) => spaceBrowser()!.importChrome(a.profileId, a.data.tar)); off(); }
@@ -151,14 +152,16 @@ test("not now: a runtime that does not answer or a browser that is not running u
   browser();
   ports();
   let down = true;
-  bindMigrationPort("ensureBrowserProfile", async (_c, a) => { if (down) throw Object.assign(new Error("The Space browser is not running on this host."), { code: "unavailable" }); return { profileId: `brw_${a.agentId}` }; });
+  bindMigrationPort("ensureBrowserProfile", async (_c, a) => { if (down) throw Object.assign(new Error("The container runtime did not answer."), { code: "unavailable" }); return { profileId: `brw_${a.agentId}` }; });
   try {
     const w = await world({ asleep: true });
     withChrome(w, { tar: TAR });
     for (let i = 0; i < 5; i++) await migrateComputers(w.h.ctx);
     assert.deepEqual(w.h.rows("SELECT attempts FROM computers_migration"), [], "no attempt used");
     down = false;
-    assert.equal((await migrateComputers(w.h.ctx)).done, 1, "the next pass, with no waiting");
+    assert.equal((await migrateComputers(w.h.ctx)).done, 0, "inside its wait nothing is tried");
+    w.h.advance(2 * 3_600_000);
+    assert.equal((await migrateComputers(w.h.ctx)).done, 1, "when the wait is over");
   } finally { bindMigrationPort("ensureBrowserProfile", async (_c, a) => ({ profileId: a.agentId })); off(); }
 });
 
@@ -218,7 +221,7 @@ test("the reasons profile_held and profile_busy are recognised whatever the word
   assert.equal(notNow(new Error("This agent's browser is busy: its sign-ins move at a quiet moment.")), false, "the words are not the signal");
 });
 
-test("with no way to ask whether the profile is in use, the move never overwrites it", async () => {
+test("with no way to ask whether the profile is in use the move waits: nothing is overwritten and nothing final is recorded from a guess", async () => {
   const events = browser();
   ports();
   bindMigrationPort("profileInUse", null);
@@ -226,8 +229,89 @@ test("with no way to ask whether the profile is in use, the move never overwrite
     const w = await world({ asleep: true });
     withChrome(w, { tar: TAR });
     await migrateComputers(w.h.ctx);
-    assert.equal(migrationRows(w.h.ctx)[0]?.state, "partial");
+    assert.deepEqual(w.h.rows("SELECT state FROM computers_migration"), [], "no row, so nothing final");
     assert.deepEqual(events.filter((e) => e.startsWith("import")), []);
+    bindMigrationPort("profileInUse", async () => false);
+    w.h.advance(2 * 3_600_000);
+    assert.equal((await migrateComputers(w.h.ctx)).done, 1, "once it can be asked the move runs");
+  } finally { off(); }
+});
+
+test("a server that cannot take the import yet is not tried every minute: the wait grows (1, 5, 30 minutes, then hourly), no attempt is used, and the desktop's Chrome is never read", async () => {
+  browser();
+  ports();
+  let asked = 0;
+  let reads = 0;
+  bindMigrationPort("browserReady", async () => { asked++; throw Object.assign(new Error("The Space browser image is not on this server."), { code: "unavailable" }); });
+  try {
+    const w = await world({ asleep: true });
+    w.d.host.chromeData = async () => { reads++; return { tar: TAR }; };
+    w.d.rebind();
+    for (let min = 0; min < 600; min++) { await migrateComputers(w.h.ctx); w.h.advance(60_000); }
+    assert.equal(reads, 0, "readiness is asked before anything is read");
+    assert.equal(asked, 13, "ten hours of one-minute passes: 13 tries, not 600");
+    assert.deepEqual(w.h.rows("SELECT attempts FROM computers_migration"), [], "no attempt, no row");
+  } finally { bindMigrationPort("browserReady", null); off(); }
+});
+
+test("a permanent fault (the Space browser's settings refused) backs off like a real failure and says why", async () => {
+  browser();
+  ports();
+  bindMigrationPort("browserReady", async () => { throw Object.assign(new Error("the Space browser's container config is outside its profile: Privileged"), { code: "unavailable" }); });
+  try {
+    const w = await world({ asleep: true });
+    withChrome(w, { tar: TAR });
+    await migrateComputers(w.h.ctx);
+    const row = migrationRows(w.h.ctx)[0];
+    assert.equal(row?.state, "failed");
+    assert.match(row?.error ?? "", /outside its profile/);
+    const attemptsAfterFirst = Number(w.h.rows("SELECT attempts FROM computers_migration")[0]?.["attempts"]);
+    for (let i = 0; i < 5; i++) { w.h.advance(60_000 - 1); await migrateComputers(w.h.ctx); }
+    assert.equal(Number(w.h.rows("SELECT attempts FROM computers_migration")[0]?.["attempts"]), attemptsAfterFirst + 1, "one more try in five minutes, not five");
+  } finally { bindMigrationPort("browserReady", null); off(); }
+});
+
+test("a restart in the middle of the import: the mark on the row tells the next pass the folder is the import's own, so it is written again, and nothing else is ever overwritten", async () => {
+  const events = browser();
+  ports();
+  try {
+    const w = await world({ asleep: true });
+    withChrome(w, { tar: TAR });
+    let crash = true;
+    bindMigrationPort("importChromeData", async (_c, a) => { if (crash) { signedIn = ["half.example"]; throw new Error("the daemon went away"); } return { bytes: a.data.tar.length }; });
+    await migrateComputers(w.h.ctx);
+    assert.equal(migrationRows(w.h.ctx)[0]?.state, "failed");
+    assert.match(String(w.h.rows("SELECT error FROM computers_migration")[0]?.["error"]), /^importing: /, "the mark stays after a failure mid-import");
+    crash = false;
+    w.h.advance(2 * 60_000);
+    assert.equal((await migrateComputers(w.h.ctx)).done, 1, "the profile now looks used (half.example), but the mark says it is ours: imported again");
+    assert.equal(migrationRows(w.h.ctx)[0]?.state, "done");
+    void events;
+  } finally { bindMigrationPort("importChromeData", async (_c, a) => spaceBrowser()!.importChrome(a.profileId, a.data.tar)); off(); }
+});
+
+test("a profile whose caches are 2 GB but whose sign-ins are small moves: the cap is measured on what is copied", async () => {
+  const events = browser();
+  ports();
+  try {
+    const w = await world({ asleep: true });
+    w.h.db.run("UPDATE computers_computers SET disk_bytes = ?", 2 * 1024 * 1024 * 1024);
+    withChrome(w, { tar: TAR });
+    await migrateComputers(w.h.ctx);
+    assert.equal(migrationRows(w.h.ctx)[0]?.state, "done");
+    assert.deepEqual(events.filter((e) => e.startsWith("import")), ["import agt_intake 5"]);
+  } finally { off(); }
+});
+
+test("what is copied is capped at 512 MB: more is partial, with the reason", async () => {
+  browser();
+  ports();
+  try {
+    const w = await world({ asleep: true });
+    withChrome(w, { tar: { length: 513 * 1024 * 1024 } as unknown as Uint8Array });
+    await migrateComputers(w.h.ctx);
+    assert.equal(migrationRows(w.h.ctx)[0]?.state, "partial");
+    assert.match(migrationRows(w.h.ctx)[0]?.error ?? "", /more than the 512 MB/);
   } finally { off(); }
 });
 

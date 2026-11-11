@@ -21,7 +21,7 @@
 import { readFileSync } from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { Handler } from "../../host/src/invoke.ts";
-import { tarFiles } from "../../sandbox/src/tar.ts";
+import { tarFiles, untar } from "../../sandbox/src/tar.ts";
 import { NOT_FETCHED_REASON, createDockerApi, fetchableImage, unixSocketHttp } from "../../sandbox/src/docker.ts";
 import type { ContainerConfig, DockerApi, DockerHttp } from "../../sandbox/src/docker.ts";
 import { handlers as table } from "./handlers/index.ts";
@@ -42,7 +42,7 @@ import type { CompCtx, ComputerHost, HostKind, Probe, RecordResult, SessionInfo 
 import "./sbrowser/migrate.ts";
 import { browserStreamInput, browserStreamOpen } from "./sbrowser/handlers.ts";
 import "./sbrowser/room.ts";
-import { bindSpaceBrowser } from "./sbrowser/port.ts";
+import { bindSpaceBrowser, spaceBrowser } from "./sbrowser/port.ts";
 import type { SpaceBrowser } from "./sbrowser/port.ts";
 import { createDockerSpaceBrowser, DEFAULT_BROWSER_IMAGE } from "./sbrowser/docker.ts";
 
@@ -77,6 +77,11 @@ export const FILES_GUEST = "/home/agent/Vyre";
 /** Where agentd keeps Chrome's user-data (images/agent-computer/agentd/main.ts: PROFILE/chrome), inside the guest home the archive call is limited to. */
 export const CHROME_DATA = "/home/agent/.profile-disk/chrome";
 const MAX_CHROME_DATA = 1024 * 1024 * 1024;
+/** What of Chrome's folder holds sign-ins and settings (relative to the folder): cookies, saved logins, site storage, preferences, extension state. Everything else (Cache, Code Cache, GPUCache, Service Worker/CacheStorage, history) stays behind. */
+export const CHROME_ESSENTIAL: readonly string[] = [
+  "Local State", "Default/Cookies", "Default/Cookies-journal", "Default/Network/Cookies", "Default/Network/Cookies-journal", "Default/Login Data", "Default/Login Data-journal", "Default/Login Data For Account",
+  "Default/Web Data", "Default/Preferences", "Default/Secure Preferences", "Default/Local Storage", "Default/Session Storage", "Default/IndexedDB", "Default/Extension State", "Default/Local Extension Settings",
+];
 
 export interface DockerHostOptions {
   api: DockerApi;
@@ -365,11 +370,20 @@ export function createDockerComputerHost(o: DockerHostOptions): ComputerHost & T
       if (!o.http) throw new Error("this host cannot read a computer's files");
       if (o.profile) await o.profile.unseal(computerId);
       try {
-        const r = await o.http({ method: "GET", path: `/containers/${name}/archive`, query: { path: CHROME_DATA }, timeoutMs: 10 * 60_000 });
-        if (r.status === 404) return null;
-        if (r.status !== 200) throw new Error(`the Chrome profile could not be read (${r.status})`);
-        if (r.body.length > MAX_CHROME_DATA) throw new Error("the Chrome profile is over 1 GB");
-        return { tar: r.body };
+        // Only what holds sign-ins and settings moves: Chrome's caches are most of a profile's size and worthless to copy. Each path is its own archive request and is renamed into place under `chrome/`.
+        const files: Array<{ path: string; data: Uint8Array; mode: number; uid: number; gid: number; mtime: number }> = [];
+        let total = 0;
+        for (const rel of CHROME_ESSENTIAL) {
+          const r = await o.http({ method: "GET", path: `/containers/${name}/archive`, query: { path: `${CHROME_DATA}/${rel}` }, timeoutMs: 10 * 60_000 });
+          if (r.status === 404) continue;
+          if (r.status !== 200) throw new Error(`the Chrome profile could not be read (${r.status})`);
+          total += r.body.length;
+          if (total > MAX_CHROME_DATA) throw new Error("the Chrome profile data is over 1 GB");
+          const parent = rel.includes("/") ? `${rel.slice(0, rel.lastIndexOf("/"))}/` : "";
+          for (const e of untar(r.body)) if (e.type === "file") files.push({ path: `chrome/${parent}${e.path}`, data: e.data, mode: e.mode, uid: e.uid, gid: e.gid, mtime: Math.floor(Date.now() / 1000) });
+        }
+        if (files.length === 0) return null;
+        return { tar: tarFiles(files) };
       } finally { if (o.profile) await o.profile.seal(computerId).catch(() => undefined); }
     },
     async start(a) {
@@ -588,6 +602,14 @@ export function setComputerHost(c: ComputersHostConfig | null): void {
 // Only the setters the daemon wires are host seams (the loader reports any other function here as a driver left unwired); what a computer that joined needs is exported beside them.
 export const hostSeams = { setComputersFill, setComputerHost };
 export { nodeRun };
+/** The move reads nothing from an old desktop until the Space browser can take it: the container runtime answers and the service is healthy (its image is checked by f-sbrowser's start, not here). */
+bindMigrationPort("browserReady", async () => {
+  const sb = spaceBrowser();
+  if (!sb) throw Object.assign(new Error("The Space browser is not running on this host."), { code: "unavailable" });
+  const h = await sb.health();
+  if (!h.ok) throw Object.assign(new Error(h.detail ?? "The Space browser is not ready."), { code: "unavailable" });
+},
+);
 
 /**
  * The idle pass, every minute: a desktop that is awake, with nothing running, quiet for its idle time goes to sleep; room that opened starts the waiting line; an asleep desktop moves to a workspace
