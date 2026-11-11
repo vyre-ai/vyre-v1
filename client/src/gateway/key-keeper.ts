@@ -2,43 +2,52 @@
 // a daemon that restarts behind an open app or a Space server that restarts gets the key again by itself, with no prompt. Sign-out and a session that ended drop both. The key only ever goes to this
 // computer's own loopback node, or to the Space server the session signed in to over https (local-key.ts keyDoor).
 import { holdKeyOnOwnNode, keyDoor, keyStatusOnOwnNode } from "./local-key.ts";
-import { indexedDbStore, sealKey, unsealGone, unsealKey } from "./key-seal.ts";
+import { indexedDbStore, sealKey, sealRow, unsealGone, unsealKey } from "./key-seal.ts";
 import type { SealStore } from "./key-seal.ts";
 
-let kept: Uint8Array | null = null;
+// One key per signed-in session (rc.23.1). A device signed in to several Spaces holds each account's own key, found by that session's token: a key is only ever handed to the node of the session it
+// was opened for, so one Space never receives another account's key, and signing in to one Space never takes another's away.
+const kept = new Map<string, Uint8Array>();
 let store: SealStore | null | undefined;
 const deviceStore = (): SealStore | null => (store === undefined ? (store = indexedDbStore()) : store);
 /** Tests give the device store; undefined puts the browser's back. */
 export function useSealStore(s: SealStore | null | undefined): void { store = s; }
 
-/** Keeps a copy of the key for this session, in memory and sealed on this device. The caller still wipes its own. Resolves when the sealed copy is written (or could not be). */
-export async function keepKey(key: Uint8Array): Promise<boolean> {
-  memoryOnly(key);
+/** Keeps a copy of the session's key, in memory and sealed on this device. The caller still wipes its own. Resolves when the sealed copy is written (or could not be). */
+export async function keepKey(key: Uint8Array, token: string): Promise<boolean> {
+  memoryOnly(key, token);
   const copy = Uint8Array.from(key);   // the caller wipes its own right after this call returns its promise
-  try { return await sealKey(deviceStore(), copy); } finally { copy.fill(0); }
+  try { const row = await sealRow(token); return row ? await sealKey(deviceStore(), row, copy) : false; } finally { copy.fill(0); }
 }
-function memoryOnly(key: Uint8Array): void { kept?.fill(0); kept = Uint8Array.from(key); }
-/** Signing out, or a session that ended: the key leaves memory and the device. */
-export function forgetKey(): void { kept?.fill(0); kept = null; void unsealGone(deviceStore()); }
-/** The app closed: memory goes, the sealed copy on this device stays for the next launch (the app runs this on its way out; tests use it to stand for a relaunch). */
-export function leaveMemory(): void { kept?.fill(0); kept = null; }
-export const keyIsKept = (): boolean => kept !== null;
-/** After a launch: the sealed key of this device's signed-in session comes back into memory. True when this app holds a key afterwards. */
-export async function restoreKey(): Promise<boolean> {
-  if (kept) return true;
-  const k = await unsealKey(deviceStore());
+function memoryOnly(key: Uint8Array, token: string): void { kept.get(token)?.fill(0); kept.set(token, Uint8Array.from(key)); }
+/** Signing out, or a session that ended: that session's key leaves memory and the device. With no token, every session's key goes (the last Space on this device signed out). */
+export function forgetKey(token?: string): void {
+  if (token === undefined) { for (const k of kept.values()) k.fill(0); kept.clear(); void unsealGone(deviceStore()); return; }
+  kept.get(token)?.fill(0); kept.delete(token);
+  void sealRow(token).then((row) => row ? unsealGone(deviceStore(), row) : undefined);
+}
+/** The app closed: memory goes, the sealed copies on this device stay for the next launch (the app runs this on its way out; tests use it to stand for a relaunch). */
+export function leaveMemory(): void { for (const k of kept.values()) k.fill(0); kept.clear(); }
+/** Whether this app holds a key: the session's own when a token is given, any when not. */
+export const keyIsKept = (token?: string): boolean => token === undefined ? kept.size > 0 : kept.has(token);
+/** After a launch: the sealed key of this session comes back into memory. True when this app holds that session's key afterwards. */
+export async function restoreKey(token: string): Promise<boolean> {
+  if (kept.has(token)) return true;
+  const row = await sealRow(token);
+  const k = row ? await unsealKey(deviceStore(), row) : null;
   if (!k) return false;
-  if (!kept) kept = Uint8Array.from(k);
+  if (!kept.has(token)) kept.set(token, Uint8Array.from(k));
   k.fill(0);
   return true;
 }
 
-/** If the daemon lost the key (a restart) and the app still has it, hands it back. True when the daemon holds the key afterwards. Silent: no prompt, no error. */
+/** If the daemon lost the key (a restart) and the app still has this session's key, hands it back. True when the daemon holds the key afterwards. Silent: no prompt, no error. */
 export async function rehandKey(baseUrl: string, token: string, f?: typeof fetch): Promise<boolean> {
   if (keyDoor(baseUrl) === null) return false;
   if ((await keyStatusOnOwnNode(baseUrl, token, f)) === "held") return true;
-  if (!kept) return false;
-  try { return await holdKeyOnOwnNode(baseUrl, token, kept, f); } catch { return false; }
+  const key = kept.get(token);
+  if (!key) return false;
+  try { return await holdKeyOnOwnNode(baseUrl, token, key, f); } catch { return false; }
 }
 
 /**
@@ -57,6 +66,6 @@ export const KEY_WATCH_MS = 30_000;
 export function watchKey(baseUrl: string, token: () => string | null, o: { every?: number; rehand?: typeof rehandKey; set?: typeof setInterval; clear?: typeof clearInterval } = {}): () => void {
   if (keyDoor(baseUrl) === null) return () => undefined;
   const rehand = o.rehand ?? rehandKey;
-  const timer = (o.set ?? setInterval)(() => { const t = token(); if (kept && t) void rehand(baseUrl, t).catch(() => false); }, o.every ?? KEY_WATCH_MS);
+  const timer = (o.set ?? setInterval)(() => { const t = token(); if (t && kept.has(t)) void rehand(baseUrl, t).catch(() => false); }, o.every ?? KEY_WATCH_MS);
   return () => (o.clear ?? clearInterval)(timer);
 }

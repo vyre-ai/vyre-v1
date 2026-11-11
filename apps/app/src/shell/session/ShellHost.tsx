@@ -302,7 +302,7 @@ export function ShellHost({ stored, open, onSignedOut, onHub, hub: given, initia
     ? <States kind="error" message={`Couldn't reach ${stored.def.name}`} cause={failed} next="Try again" retryable onRetry={() => setAttempt((n) => n + 1)} />
     : <PlaceHost place={ctx.place} runtime={session?.runtime ?? null} hash={ctx.hash} opened={(t) => { const next = formatHash(t); if (next !== ctx.hash) hub.move(ctx.place, next); }} />;
   const signOut = (): void => {
-    forgetKey(); void dropKeyOnOwnNode(stored.baseUrl, stored.token).catch(() => undefined); void unlinkComputer(stored);
+    forgetKey(stored.token); void dropKeyOnOwnNode(stored.baseUrl, stored.token).catch(() => undefined); void unlinkComputer(stored);
     void session?.call("identity.sign_out", {}).catch(() => undefined);
     onSignedOut("manual");
   };

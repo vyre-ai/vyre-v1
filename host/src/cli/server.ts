@@ -90,6 +90,9 @@ function logs(io: CliIo, p: Parsed): number {
   return EXIT.OK;
 }
 
+/** How many of the newest events `doctor --quick` re-verifies. */
+export const QUICK_CHAIN_TAIL = 5000;
+
 export async function doctorCommand(io: CliIo, p: Parsed, o: { alwaysOffline: boolean }): Promise<number> {
   const asJson = p.flags.has("json");
   const target = o.alwaysOffline || p.flags.has("offline") ? null : resolveTarget(io, p.flags);
@@ -110,13 +113,14 @@ export async function doctorCommand(io: CliIo, p: Parsed, o: { alwaysOffline: bo
     }
   }
   const role = flagText(p, "role") === "device" ? "device" : "space";
-  const report = await runDoctor({ dataDir: dataDirOf(io, p), role, platform: io.platform, fetch: io.fetch, now: io.now });
+  // --quick: the container health check's pass, which re-verifies only the newest events of the log
+  const report = await runDoctor({ dataDir: dataDirOf(io, p), role, platform: io.platform, fetch: io.fetch, now: io.now, ...(p.flags.has("quick") ? { chainTail: QUICK_CHAIN_TAIL } : {}) });
   io.out(asJson ? `${JSON.stringify(report, null, 2)}\n` : formatDoctor(report));
   return report.ok ? EXIT.OK : EXIT.FAILED;
 }
 
 export async function serverCommand(io: CliIo, argv: readonly string[]): Promise<number> {
-  const p = parseArgs(argv, new Set(["json", "offline"]));
+  const p = parseArgs(argv, new Set(["json", "offline", "quick"]));
   const sub = p.positional[0];
   switch (sub) {
     case "start": return start(io, p);

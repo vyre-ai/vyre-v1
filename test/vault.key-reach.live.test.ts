@@ -25,7 +25,7 @@ test("a resumed device's server turn runs on the member's Mine sign-in; after a 
     // Sara signs in on her laptop with her password: the app opens the key, hands it to the Space and keeps it in memory
     const sara = await join(d, "sara");
     assert.equal((await door(d, sara.token, "unlock", sara.personKey)).status, 204);
-    keepKey(sara.personKey);
+    keepKey(sara.personKey, sara.token);
     const ref = await connectClaude(d, sara.token, "Sara_Claude", { spaceUse: false });
     const mine = `ran for ${sara.personId} on subscription ${ref}`;
     assert.equal((await ask(d, agentId, sara, "laptop")).reply, mine);

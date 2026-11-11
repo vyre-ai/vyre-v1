@@ -9,7 +9,7 @@ import { fakeServer, settle } from "../../../../../client/src/connection/testing
 import { createLiveLink, socketBase, socketPath } from "./live.ts";
 import { createRemoteScreenHooks, stableJson } from "./remote-hooks.ts";
 import { openRealSession, targetHash } from "./session.ts";
-import { clearStored, openVerifiedSession, phaseForStoredAddress, readStored, readStoredSpace, signInAndVerify, spaceAddress, verifyStoredSession, writeStored } from "./stored.ts";
+import { clearStored, openVerifiedSession, phaseForStoredAddress, readStored, readStoredPersonal, readStoredSpace, signInAndVerify, spaceAddress, verifyStoredSession, writeStored } from "./stored.ts";
 import { hydrationBaseUrl } from "./hydration.ts";
 import { acceptDesktopJoin, consumeDesktopBootstrap, consumeDesktopRoute, previewDesktopJoin, redeemDesktopPair, routeDesktopLink } from "./desktop.ts";
 import type { DesktopDeepLink } from "./desktop.ts";
@@ -913,6 +913,7 @@ test('browser invite acceptance registers a web device instead of a native deskt
  assert.equal(accepted?.['deviceClass'],'web');assert.equal(accepted?.['deviceName'],'Web browser');
 });
 
+test('after an update moves the Personal Space to a new port its saved sign-in is still found (by kind, at loopback), and a team Space is never taken for it',()=>{const store=memoryStore();writeStored({baseUrl:'https://team.example.com',token:'fixture-team',def:{spaceId:'spc_team',name:'Team',kind:'team'} as never,personId:'usr_t',marker:'m1'},store);assert.equal(readStoredPersonal(store),null,'a team Space alone is no Personal Space');writeStored({baseUrl:'http://127.0.0.1:58933',token:'fixture-personal',def:{spaceId:'spc_personal',name:'Personal',kind:'personal'} as never,personId:'usr_p',marker:'m2'},store);assert.equal(readStored(store,'http://127.0.0.1:50283'),null,'the exact address no longer matches');assert.equal(readStoredPersonal(store)?.token,'fixture-personal');assert.equal(readStored(store,'https://team.example.com')?.token,'fixture-team','the team sign-in is kept beside it');});
 test('Stored Personal Space identity survives loopback endpoint changes without selecting another Space',()=>{const store=memoryStore();const def={spaceId:'spc_personal',name:'Personal',kind:'personal'} as never;writeStored({baseUrl:'http://127.0.0.1:41000',token:'fixture-bearer',def,personId:'usr_fixture',marker:'fixture-marker'},store);assert.equal(readStoredSpace('spc_personal',store)?.baseUrl,'http://127.0.0.1:41000');assert.equal(readStoredSpace('spc_other',store),null);});
 
 

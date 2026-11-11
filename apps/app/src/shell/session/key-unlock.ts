@@ -27,7 +27,7 @@ export async function unlockWithPassword(baseUrl: string, token: string, passwor
     let held = false;
     try { held = await holdKeyOnOwnNode(baseUrl, token, heldKeyOf(opened)); } catch { throw new Error(OFFLINE_OWN); }
     if (!held) throw new Error(VAULT_REFUSED);
-    await keepKey(heldKeyOf(opened));
+    await keepKey(heldKeyOf(opened), token);
   } finally { wipeOpened(opened); }
 }
 

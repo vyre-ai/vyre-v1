@@ -31,14 +31,25 @@ const finding = (key: string, r: ProbeResult, next: string): Finding => ({ key, 
 
 export interface ChainResult { ok: boolean; seq: number; why?: string }
 
-/** Re-verify the whole hash chain of an events.db opened read-only: contiguous seq, prev links, envelope hashes, and the head the last commit recorded. */
-export function verifyChainReadOnly(file: string): ChainResult {
+/** Re-verify the hash chain of an events.db opened read-only: contiguous seq, prev links, envelope hashes, and the head the last commit recorded. `tail` checks only the last that-many events, linked
+ * from the hash of the event before them, so the container health check stays fast on a Space with a long history (a full pass over 400,000 events took 12 s and the check gives the doctor 8). */
+export function verifyChainReadOnly(file: string, tail?: number): ChainResult {
   const db = openDb(file, { readOnly: true });
   try {
     const meta = (key: string): string | undefined => (db.all("SELECT value FROM log_meta WHERE key = ?", key)[0] as { value?: string } | undefined)?.value;
     const space = meta("space");
     if (!space) return { ok: false, seq: 0, why: "the file has no Space id, so it is not an event log" };
     let prev = genesis(space), n = 0;
+    if (tail !== undefined && tail > 0) {
+      const head = Number((db.all("SELECT MAX(seq) AS n FROM events")[0] as { n: number | null } | undefined)?.n ?? 0);
+      const from = Math.max(0, head - tail);
+      if (from > 0) {
+        const row = db.all("SELECT event FROM events WHERE seq = ?", from)[0] as { event: string } | undefined;
+        if (!row) return { ok: false, seq: 0, why: `seq is not contiguous at ${from}` };
+        try { prev = (JSON.parse(row.event) as Envelope).hash; } catch { return { ok: false, seq: from - 1, why: `event ${from} is not JSON` }; }
+        n = from;
+      }
+    }
     for (;;) {
       const rows = db.all("SELECT seq, event FROM events WHERE seq > ? ORDER BY seq LIMIT 500", n) as { seq: number; event: string }[];
       if (!rows.length) break;
@@ -58,10 +69,10 @@ export function verifyChainReadOnly(file: string): ChainResult {
   } finally { db.close(); }
 }
 
-function eventsFinding(file: string): Finding {
+function eventsFinding(file: string, tail?: number): Finding {
   if (!fs.existsSync(file)) return { key: "kernel.events_db", state: "degraded", detail: "There is no event log in this data directory yet.", next: "Start the server once so it creates the Space, or point --data-dir at the right folder." };
   try {
-    const r = verifyChainReadOnly(file);
+    const r = verifyChainReadOnly(file, tail);
     return r.ok ? { key: "kernel.events_db", state: "healthy", detail: `Chain verifies through event ${r.seq}.`, next: OK } : { key: "kernel.events_db", state: "down", detail: `The event log failed verification: ${r.why ?? "unknown reason"}.`, next: NEXT.events };
   } catch (e) {
     return { key: "kernel.events_db", state: "down", detail: `events.db cannot be opened read-only: ${e instanceof Error ? e.message : String(e)}`, next: NEXT.events };
@@ -131,7 +142,7 @@ export async function runDoctor(o: DoctorOptions): Promise<DoctorReport> {
   findings.push(finding("host.disk_encrypted", await (o.diskEncrypted ? o.diskEncrypted() : probes.diskEncrypted(platform, o.dataDir)), NEXT.disk));
   findings.push(finding("host.disk_space", probes.diskSpace(platform, o.dataDir), NEXT.space));
   if (space) {
-    findings.push(eventsFinding(paths.events));
+    findings.push(eventsFinding(paths.events, o.chainTail));
     findings.push(finding("host.docker", await probes.docker(platform), NEXT.docker));
     const f = o.fetch === undefined ? (typeof fetch === "function" ? (fetch as unknown as FetchFn) : null) : o.fetch;
     findings.push(finding("host.caddy", f ? await probes.caddy(f, o.caddyAdmin ?? "http://127.0.0.1:2019", now) : { state: "down", detail: "No HTTP client to reach the Caddy admin API." }, NEXT.caddy));

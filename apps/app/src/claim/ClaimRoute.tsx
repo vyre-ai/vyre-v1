@@ -6,7 +6,7 @@ import { holdKeyOnOwnNode } from "../../../../client/src/gateway/local-key.ts";
 import { keepKey } from "../../../../client/src/gateway/key-keeper.ts";
 
 /** The key goes to this computer's node and is kept sealed on this device, so the next launch opens with no password. */
-const holdAndKeep = async (baseUrl: string, token: string, key: Uint8Array): Promise<boolean> => { const held = await holdKeyOnOwnNode(baseUrl, token, key); if (held) await keepKey(key); return held; };
+const holdAndKeep = async (baseUrl: string, token: string, key: Uint8Array): Promise<boolean> => { const held = await holdKeyOnOwnNode(baseUrl, token, key); if (held) await keepKey(key, token); return held; };
 import { loadCryptoKeys } from "../../../../client/src/crypto/load.ts";
 import { makeRecoveryCode } from "../join/JoinFlow.tsx";
 import { createCapCaller } from "../shell/session/caps.ts";
