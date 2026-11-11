@@ -126,13 +126,8 @@ async function moveWithRecord(ctx: ProjectsCtx, cap: "files.folder.delete" | "fi
   }
 }
 
-/** Mirror the grants of the record onto the folder (see the header). */
-export async function syncAccess(ctx: ProjectsCtx, type: string, recordId: string, folderId: string, by?: string, known?: Record<string, unknown>): Promise<void> {
-  ensure(ctx.db);
-  if (projectByRecord(ctx.db, recordId)) return;
-  const matrix = await tolerant<{ kind?: string }>(ctx, "spaces.matrix", {}, {});
-  if (matrix.kind === "personal") return;
-  const fields = known ?? await recordFields(ctx, type, recordId) ?? {};
+/** Who should hold the folder, from the record's shares as they are now, and the lead at Manage. */
+async function wantedOn(ctx: ProjectsCtx, recordId: string, fields: Record<string, unknown>): Promise<Map<string, { subject: { kind: string; id: string }; level: string }>> {
   const want = new Map<string, { subject: { kind: string; id: string }; level: string }>();
   const add = (subject: { kind: string; id: string }, level: string): void => {
     if (subject.kind === "link") return;
@@ -147,7 +142,21 @@ export async function syncAccess(ctx: ProjectsCtx, type: string, recordId: strin
   }
   const lead = fstr(fields["lead"]);
   if (lead && lead.startsWith("usr_")) add({ kind: "person", id: lead }, "manage");
+  return want;
+}
 
+/**
+ * Mirror the grants of the record onto the folder (see the header). It reads the record's shares and then awaits its writes, so a share taken off the record meanwhile (access.unshare also takes
+ * the copy away in its own call) could be written back by a write planned from the older read. So once the writes are done it reads the shares again and takes away every copy the record no
+ * longer gives, or lowers it. A revoke that lands before the second read is seen by it; one that lands after finds the copy there and removes it itself. Either way no copy outlives its share.
+ */
+export async function syncAccess(ctx: ProjectsCtx, type: string, recordId: string, folderId: string, by?: string, known?: Record<string, unknown>): Promise<void> {
+  ensure(ctx.db);
+  if (projectByRecord(ctx.db, recordId)) return;
+  const matrix = await tolerant<{ kind?: string }>(ctx, "spaces.matrix", {}, {});
+  if (matrix.kind === "personal") return;
+  const fields = known ?? await recordFields(ctx, type, recordId) ?? {};
+  const want = await wantedOn(ctx, recordId, fields);
   const source = sourceTag(recordId);
   const resource = { type: "folder", id: folderId };
   const mine = await tolerant<{ grants?: Array<{ id: string; subject: { kind: string; id: string }; level: string }> }>(ctx, "access.grants.list", { resource, source }, {});
@@ -164,6 +173,15 @@ export async function syncAccess(ctx: ProjectsCtx, type: string, recordId: strin
   for (const [k, w] of want) {
     if (kept.has(k)) continue;
     await call(ctx, "access.share", { resource, subject: w.subject, level: w.level, source }, { idempotencyKey: `prj-recfolder-share:${recordId}:${k}:${w.level}:${globalThis.crypto.randomUUID()}` });
+  }
+  // read again: what was taken off the record while the writes above ran does not stay on the folder
+  const now = await wantedOn(ctx, recordId, fields);
+  const after = await tolerant<{ grants?: Array<{ id: string; subject: { kind: string; id: string }; level: string }> }>(ctx, "access.grants.list", { resource, source }, {});
+  for (const g of after.grants ?? []) {
+    const w = now.get(`${g.subject.kind}:${g.subject.id}`);
+    if (w && rank(g.level) <= rank(w.level)) continue;
+    await call(ctx, "access.unshare", { grantId: g.id });
+    if (w) await call(ctx, "access.share", { resource, subject: w.subject, level: w.level, source }, { idempotencyKey: `prj-recfolder-share:${recordId}:${g.subject.kind}:${g.subject.id}:${w.level}:${globalThis.crypto.randomUUID()}` });
   }
 }
 
