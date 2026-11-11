@@ -232,3 +232,25 @@ test("rows the records module refused (the importer may not edit that contact, o
   assert.equal(got.errors[0]!.row, 1, "on the row of the file it came from");
   assert.equal(h.named("import.completed")[0]!.payload["failed"], 1);
 });
+
+test("a bulk upsert that stops part way keeps what it wrote: the import counts it, lists the rows not tried, and ends failed", async () => {
+  const h = harness();
+  const real = h.world.handlers["records.bulk_upsert"]!;
+  h.world.handlers["records.bulk_upsert"] = (i, o) => { const out = real(i, o) as { created: number; updated: number; skipped: number }; return { ...out, stopped: { reason: "unavailable", row: 1, message: "the store is read-only", notDone: [1] } }; };
+  const { importId, previewToken } = await ready(h);
+  await run(h, "import.commit", { importId, previewToken });
+  const got = (await run(h, "import.get", { importId })).import;
+  assert.equal(got.state, "failed");
+  assert.ok(got.created >= 1, "what was written before the stop is counted");
+  assert.match(got.errors.map((e: { message: string }) => e.message).join(" "), /not written/i);
+});
+
+test("an import set to skip matches tells bulk_upsert to leave existing records alone, so a record that appeared after the preview is not overwritten", async () => {
+  const h = harness();
+  const real = h.world.handlers["records.bulk_upsert"]!;
+  const seen: Array<Record<string, unknown>> = [];
+  h.world.handlers["records.bulk_upsert"] = (i, o) => { seen.push(i as Record<string, unknown>); return real(i, o); };
+  const { importId, previewToken } = await ready(h, CSV, { onMatch: "skip", match: ["email"] });
+  await run(h, "import.commit", { importId, previewToken });
+  assert.ok(seen.length > 0 && seen.every((x) => x["skipExisting"] === true));
+});

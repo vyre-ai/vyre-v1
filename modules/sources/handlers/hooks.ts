@@ -116,7 +116,8 @@ export function createHooksHandlers(deps: SourcesDeps): HooksHandlers {
 
   /** One row through records.bulk_upsert. A row the records module refuses (the source may not edit that record, a locked field, a record on hold) is not a delivery that worked: it throws, so the delivery is kept as failed with the reason, shown on the source, and can be processed again. */
   const upsert = async (ctx: SourcesCtx, idempotencyKey: string, type: string, row: Record<string, unknown>, match: readonly string[], runAutomations: boolean): Promise<void> => {
-    const out = (await ctx.call("records.bulk_upsert", { idempotencyKey, type, rows: [row], match: [...match], runAutomations })) as { refused?: Array<{ message: string }> } | undefined;
+    const out = (await ctx.call("records.bulk_upsert", { idempotencyKey, type, rows: [row], match: [...match], runAutomations })) as { refused?: Array<{ message: string }>; stopped?: { message: string } } | undefined;
+    if (out?.stopped) throw new Error(`The record was not written: ${out.stopped.message}`);
     const refused = out?.refused?.[0];
     if (refused) throw new Error(`The record was not changed: ${refused.message}`);
   };

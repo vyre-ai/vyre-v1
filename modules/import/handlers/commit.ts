@@ -60,17 +60,19 @@ export async function commit(ctx: ImportCtx, input: In): Promise<unknown> {
         s.state = "canceled";
         break;
       }
-      const out = await call<{ created?: number; updated?: number; skipped?: number; refused?: Array<{ row: number; message: string }> }>(ctx, "records.bulk_upsert", {
-        type: plan.type, rows: todo.slice(at, at + BATCH), match: plan.onMatch === "create" ? [] : plan.match, runAutomations: runAutomations === true, ...(plan.onMatch === "create" ? { createOnly: true } : {}),   // "create": every row is a new record
+      const out = await call<{ created?: number; updated?: number; skipped?: number; refused?: Array<{ row: number; message: string }>; stopped?: { reason: string; row: number; message: string; notDone: number[] } }>(ctx, "records.bulk_upsert", {
+        type: plan.type, rows: todo.slice(at, at + BATCH), match: plan.onMatch === "create" ? [] : plan.match, runAutomations: runAutomations === true, ...(plan.onMatch === "create" ? { createOnly: true } : {}), ...(plan.onMatch === "skip" ? { skipExisting: true } : {}),   // "create": every row is a new record
       }, { idempotencyKey: `imp:${s.importId}:${n}` });
       created += out.created ?? 0; updated += out.updated ?? 0; skipped += out.skipped ?? 0;
       // a row the importer may not change (or the store refused: a locked field, a record on hold) is a failed row with its reason, on the row of the file it came from; the rest of the batch was written
       for (const r of out.refused ?? []) errors.push({ row: (todoAt[at + r.row] ?? at + r.row) + 1, message: r.message });
+      // the call stopped part way (the store went away, or a record changed under it): what it wrote is kept and counted above, the rows it did not try are listed, and the import ends failed
+      if (out.stopped) {
+        for (const r of out.stopped.notDone) errors.push({ row: (todoAt[at + r] ?? at + r) + 1, message: "Not written: the import stopped before this row." });
+        throw new Error(`row ${(todoAt[at + out.stopped.row] ?? at + out.stopped.row) + 1}: ${out.stopped.message}`);
+      }
     }
   } catch (e) {
-    // a call that failed part way wrote some of its rows (there is no transaction): the failure says how many
-    const w = (e as { error?: { details?: { wrote?: { created?: number; updated?: number; skipped?: number } } } } | null)?.error?.details?.wrote;
-    created += w?.created ?? 0; updated += w?.updated ?? 0; skipped += w?.skipped ?? 0;
     const message = e instanceof Error ? e.message : ((e as { error?: { message?: string } } | null)?.error?.message ?? codeOf(e));
     Object.assign(s, { state: "failed", created, updated, skipped, failed: errors.length, errors: errors.slice(0, KEPT_ERRORS) });
     saveSession(ctx.db, s);

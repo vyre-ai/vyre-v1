@@ -31598,12 +31598,19 @@ export type RecordsBulkUpsertIn = {
   match: Array<string>;
   runAutomations?: boolean;
   createOnly?: boolean;
+  skipExisting?: boolean;
   idempotencyKey: string;
 };
 export type RecordsBulkUpsertOut = {
   created: number;
   updated: number;
   skipped: number;
+  stopped?: {
+    reason: "unavailable" | "version_conflict";
+    row: number;
+    message: string;
+    notDone: Array<number>;
+  };
   refused?: Array<{
       row: number;
       reason: string;

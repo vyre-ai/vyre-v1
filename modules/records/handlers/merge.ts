@@ -48,6 +48,10 @@ export type ExportCtx = Pick<WriteCtx, "trace"> & {
   authorize?: (action: { perm: string | null; level: "view" | "use" | "edit" | "manage" }, resource: { type: string; id: string | null }) => { effect: "allow" | "deny" | "hold"; reason?: string };
 };
 
+/** The rows not done when a bulk upsert stopped part way (the store went away, or a record changed under it): what was written before is kept and committed, these rows were not tried. */
+export interface UpsertStopped { reason: "unavailable" | "version_conflict"; row: number; message: string; notDone: number[] }
+export interface UpsertOut { created: number; updated: number; skipped: number; refused?: Array<{ row: number; reason: string; message: string }>; stopped?: UpsertStopped }
+
 export interface MergeDeps {
   store: Store;
   tx: Tx;
@@ -58,7 +62,7 @@ export interface MergeDeps {
 
 export interface MergeHandlers {
   "records.merge"(ctx: MergeCtx, input: { type: string; survivorId: string; mergedIds: string[]; picks: Record<string, string> }): Promise<{ record: RecordRow; undoUntil: number }>;
-  "records.bulk_upsert"(ctx: MergeCtx, input: { type: string; rows: Record<string, unknown>[]; match: string[]; runAutomations?: boolean; createOnly?: boolean }): Promise<{ created: number; updated: number; skipped: number; refused?: Array<{ row: number; reason: string; message: string }> }>;
+  "records.bulk_upsert"(ctx: MergeCtx, input: { type: string; rows: Record<string, unknown>[]; match: string[]; runAutomations?: boolean; createOnly?: boolean; skipExisting?: boolean }): Promise<UpsertOut>;
   "records.export"(ctx: ExportCtx, input: { type: string; format: "csv" | "xlsx"; recordIds?: string[] } & ViewSpec): Promise<{ fileId: string }>;
 }
 
@@ -250,28 +254,13 @@ async function applyMerge(deps: MergeDeps, ctx: MergeCtx, input: { type: string;
   }
 
   // Relation fields on other records that point at a merged record are repointed to the survivor. That changes those records, so the caller needs edit on each of them, checked before anything is written.
+  // Links other records hold to the merged ones move to the survivor as a consequence of the merge: the system does that, so it needs no edit on those records (each moved link is announced like an edit below).
   const mergedSet = new Set(mergedIds);
   const relationFieldsOf = (other: TypeDef): FieldDef[] => other.fields.filter((f) => {
     if (!isRelation(f)) return false;
     const to = targetOf(f);
     return to === undefined || to === input.type;
   });
-  {
-    const touched = new Set<string>();
-    for (const other of await store.types()) {
-      const fields = relationFieldsOf(other);
-      if (!fields.length) continue;
-      await scan(store, other.name, async (row) => {
-        if (mergedSet.has(row.id) && other.name === input.type) return;
-        for (const f of fields) {
-          const bare = targetOf(f) === input.type;
-          const dropSelf = other.name === input.type && row.id === survivor.id ? survivor.id : null;
-          if (rewriteValue(row.data[f.name], input.type, bare, mergedSet, survivor.id, dropSelf) !== undefined) { touched.add(row.id); break; }
-        }
-      });
-    }
-    for (const id of touched) if (id !== survivor.id) may("records.edit", id);
-  }
   const events: Array<{ type: string; id: string; prev: Record<string, unknown>; rec: StoredRecord }> = [];
 
   const journal: Journal = { mergeId: mintUuid(), type: input.type, survivor: survivor.id, merged: mergedIds, before, rewrites: [] };
@@ -404,7 +393,7 @@ const changedOf = (keys: string[], data: Record<string, unknown>): Record<string
   return out;
 };
 
-async function upsert(deps: MergeDeps, ctx: MergeCtx, input: { type: string; rows: Record<string, unknown>[]; match: string[]; runAutomations?: boolean; createOnly?: boolean }): Promise<{ created: number; updated: number; skipped: number; refused?: Array<{ row: number; reason: string; message: string }> }> {
+async function upsert(deps: MergeDeps, ctx: MergeCtx, input: { type: string; rows: Record<string, unknown>[]; match: string[]; runAutomations?: boolean; createOnly?: boolean; skipExisting?: boolean }): Promise<UpsertOut> {
   const { store, tx } = deps;
   ensure(tx);
   const def = await needType(store, input.type);
@@ -420,7 +409,7 @@ async function upsert(deps: MergeDeps, ctx: MergeCtx, input: { type: string; row
   const quiet = input.runAutomations !== true;
 
   // Plan: one entry per distinct match key; later rows with the same key fold into the first. With createOnly every row is its own new record.
-  interface Plan { existing: { id: string; version: number; fields: Record<string, unknown> } | null; values: Record<string, unknown>; index: number; folded: number[]; blocked?: "hold" | "deny" | "blind" }
+  interface Plan { existing: { id: string; version: number; fields: Record<string, unknown> } | null; values: Record<string, unknown>; index: number; folded: number[]; blocked?: "hold" | "deny" | "blind"; hold?: string; skip?: boolean }
   const plans = new Map<string, Plan>();
   if (!createOnly) ensureMatchIndex(tx, input.type, input.match);
   for (let i = 0; i < input.rows.length; i++) {
@@ -434,14 +423,15 @@ async function upsert(deps: MergeDeps, ctx: MergeCtx, input: { type: string; row
     if (prior) { Object.assign(prior.values, row); prior.folded.push(i); continue; }
     const filter: Filter = { and: input.match.map((m) => ({ field: m, op: "eq" as const, value: row![m] })) };
     // sorted by the match fields, so the match index answers the filter and the order together (by created_at, the planner could walk the whole type in that order instead)
-    const found = findRows(tx, input.type, { filter, sort: input.match.map((field) => ({ field, dir: "asc" as const })), limit: 2 });
-    // Who may change what is decided before anything is compared or counted: a caller who may not edit a record (or read the fields it was matched on) learns nothing about it from this answer,
-    // not its values (no "nothing changed"), not that two records match. Every such row gets the same answer.
-    const verdicts = found.rows.map((r) => judge(ctx, r.id, input.match));
-    const blocked = verdicts.find((v) => v !== "allow");
-    if (blocked) { plans.set(key, { existing: null, values: { ...row! }, index: i, folded: [], blocked }); continue; }
-    if (found.rows.length > 1) throw new StoreError("unique_violation", `row ${i}: ${found.rows.length} records already match ${input.match.join(", ")}; resolve the duplicates first`);
-    const hit = found.rows[0];
+    const found = findRows(tx, input.type, { filter, sort: input.match.map((field) => ({ field, dir: "asc" as const })), limit: ctx.authorize ? 100 : 2 });
+    // Who may see and change what is decided before anything is compared or counted, so the answer carries nothing a caller could not have learned from records.query plus records.create:
+    // a match they cannot see is no match (the row is created), a match they can see but not edit is refused whatever the row holds, two visible matches are told to resolve the duplicates.
+    const seen = found.rows.map((r) => { const note: { approval?: string } = {}; return { r, v: judge(ctx, r.id, input.match, note), note }; }).filter((x) => x.v !== "hidden");
+    if (seen.length && input.skipExisting === true) { plans.set(key, { existing: null, values: { ...row! }, index: i, folded: [], skip: true }); continue; }
+    const blocked = seen.find((x) => x.v !== "allow");
+    if (blocked) { plans.set(key, { existing: null, values: { ...row! }, index: i, folded: [], blocked: blocked.v as "hold" | "deny" | "blind", ...(blocked.note.approval ? { hold: blocked.note.approval } : {}) }); continue; }
+    if (seen.length > 1) throw new StoreError("unique_violation", `row ${i}: ${seen.length} records already match ${input.match.join(", ")}; resolve the duplicates first`);
+    const hit = seen[0]?.r;
     plans.set(key, { existing: hit ? { id: hit.id, version: hit.version, fields: hit.fields } : null, values: { ...row! }, index: i, folded: [] });
   }
 
@@ -451,12 +441,17 @@ async function upsert(deps: MergeDeps, ctx: MergeCtx, input: { type: string; row
   // a row the caller may not write, or the store refuses (a locked field, a record on hold), is reported for that row and the rest of the batch goes on
   const refused: Array<{ row: number; reason: string; message: string }> = [];
   const refuse = (plan: Plan, reason: string, message: string): void => { for (const r of [plan.index, ...plan.folded]) refused.push({ row: r, reason, message }); };
-  // There is no transaction: when the call fails part way the rows already written stay, so the failure says what was written.
-  const wrote = (): Record<string, unknown> => ({ created, updated, skipped, ...(refused.length ? { refused } : {}) });
-  for (const plan of plans.values()) {
+  // There is no transaction: when the call stops part way the rows already written stay.
+  // so a store that goes away (or a record that changes under the batch) stops the loop and the call still answers: what was written is committed with its events, and the rows not tried are listed.
+  const all = [...plans.values()];
+  let stopped: UpsertStopped | undefined;
+  for (let at = 0; at < all.length && !stopped; at++) {
+    const plan = all[at]!;
+    const stop = (reason: UpsertStopped["reason"], message: string): void => { stopped = { reason, row: plan.index, message, notDone: all.slice(at).flatMap((p) => [p.index, ...p.folded]).sort((a, b) => a - b) }; };
     try {
+      if (plan.skip) { skipped += 1 + plan.folded.length; continue; }
       if (plan.blocked) {
-        if (plan.blocked === "hold") refuse(plan, "needs_approval", "A change to this record needs approval, so this row was not written.");
+        if (plan.blocked === "hold") refuse(plan, "needs_approval", `A change to this record needs approval${plan.hold ? ` from ${plan.hold}` : ""}, so this row was not written.`);
         else refuse(plan, "not_allowed", plan.blocked === "blind" ? "This call cannot check what you may edit, so it changes no existing record." : "You may not edit this record.");
         continue;
       }
@@ -483,22 +478,25 @@ async function upsert(deps: MergeDeps, ctx: MergeCtx, input: { type: string; row
     } catch (e) {
       if (e instanceof RecordsError) { refuse(plan, e.reason, e.message); continue; }
       // a store that is down is a failed call, not a refused row; a row that vanished or clashes is that row's result
-      if (e instanceof StoreError && e.code === "unavailable") fail(ctx as WriteCtx, "internal.unavailable", `row ${plan.index}: ${e.message}. Rows already written stay written: ${created} created, ${updated} changed.`, { wrote: wrote() });
-      if (e instanceof StoreError && e.code === "version_conflict") fail(ctx as WriteCtx, "validation.version_conflict", `row ${plan.index}: ${e.message}. Rows already written stay written: ${created} created, ${updated} changed.`, { wrote: wrote() });
+      if (e instanceof StoreError && (e.code === "unavailable" || e.code === "version_conflict")) { stop(e.code, e.message); continue; }
       if (e instanceof StoreError) { refuse(plan, e.code, e.message); continue; }
       throw e;
     }
   }
-  return { created, updated, skipped, ...(refused.length ? { refused } : {}) };
+  return { created, updated, skipped, ...(refused.length ? { refused } : {}), ...(stopped ? { stopped } : {}) };
 }
 
-/** May this caller change this existing record, as records.update would allow? "blind": the call carries no way to check, so nothing is changed. Matching by a field the caller may not read counts as not allowed. */
-function judge(ctx: MergeCtx, id: string, matchFields: readonly string[]): "allow" | "hold" | "deny" | "blind" {
+/**
+ * What this caller may do with an existing record the rows matched. "hidden": they cannot see it (or the fields it was matched on), so the row is treated as unmatched, as records.query plus
+ * records.create would. "deny"/"hold": they can see it but may not edit it, or the edit waits for approval. "blind": the call carries no way to check, so nothing existing is changed.
+ */
+function judge(ctx: MergeCtx, id: string, matchFields: readonly string[], note: { approval?: string } = {}): "allow" | "hold" | "deny" | "blind" | "hidden" {
   if (isHostService(ctx.principal)) return "allow";   // pre-authorized by the pipeline, as for every capability
   if (!ctx.authorize) return "blind";
   const at = { type: "record", id };
-  if (ctx.authorize({ perm: null, level: "view", fields: matchFields }, at).effect !== "allow") return "deny";
+  if (ctx.authorize({ perm: null, level: "view", fields: matchFields }, at).effect !== "allow") return "hidden";
   const d = ctx.authorize({ perm: "records.edit", level: "edit", cap: "records.update" }, at);
+  if (d.effect === "hold") { const who = /^needs_approval: (.+)$/.exec(d.reason ?? "")?.[1]; if (who) note.approval = who; }
   return d.effect === "allow" ? "allow" : d.effect === "hold" ? "hold" : "deny";
 }
 

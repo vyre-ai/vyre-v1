@@ -49988,6 +49988,10 @@
           "runAutomations": {
             "type": "boolean"
           },
+          "skipExisting": {
+            "description": "A row that matches a record the caller can see is left alone and counted as skipped, never changed",
+            "type": "boolean"
+          },
           "type": {
             "examples": [
               "contact"

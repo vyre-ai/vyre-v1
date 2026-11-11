@@ -1,6 +1,8 @@
 // Issue 909, the agent side, end to end on a booted Team Space with only the model a stand-in. An agent's tool call records_bulk_upsert changes an existing record only where the agent may edit it, like
 // records.update: an agent whose role holds records.create and no records.edit adds new contacts but cannot change one (the record is as it was, the row comes back in `refused`), the same agent with
-// records.edit succeeds, a locked field (write-once) is not overwritten, and a Space Gate rule on records.update (an edit that waits for a person's approval) holds the row back as it would hold an edit.
+// records.edit succeeds, a stage gate (a stage that needs a field filled first) is not entered through bulk_upsert, and a Space Gate rule on records.update holds the row back as it would hold an edit.
+// A call a person approved goes through, but the approval clears only the Gate rules the call itself met: a different rule on records.update still holds the rows. An agent's records_merge waits for
+// approval and then goes through. (Write-once fields are covered by the unit test in modules/records/tests/merge.test.ts: the schema module cannot set them.)
 import test from "node:test";
 import assert from "node:assert/strict";
 import { CORE_SPACE } from "../fixtures/seed/core/index.ts";
@@ -17,12 +19,13 @@ interface Answer { ok: boolean; refused?: Array<{ row: number; reason: string; m
 
 test("Team: an agent's bulk_upsert changes an existing contact only where the agent may edit it; refused rows are reported, locked fields and Gate rules hold", async () => {
   const answers: Answer[] = [];
+  let keyN = 0;
   const model = scriptedModel(async function* (input, run) {
     const ask = String(input.trigger?.body ?? "");
     const mg = /^merge (\S+) (\S+)$/.exec(ask);   // merge <survivorId> <mergedId>
     if (mg) {
       yield* run("tool_search", { query: "records merge" });
-      const r = yield* run("records_merge", { type: "contact", survivorId: mg[1], mergedIds: [mg[2]], picks: {}, idempotencyKey: `m-${answers.length}` });
+      const r = yield* run("records_merge", { type: "contact", survivorId: mg[1], mergedIds: [mg[2]], picks: {}, idempotencyKey: `m-${++keyN}` });
       answers.push({ ok: r.ok, text: JSON.stringify(r.content).slice(0, 400) });
       yield { type: "text", text: "done" };
       return;
@@ -31,7 +34,7 @@ test("Team: an agent's bulk_upsert changes an existing contact only where the ag
     if (!m) return;
     const rows: Array<Record<string, unknown>> = [{ email: m[1], [m[2]!]: m[3] }];
     if (m[3] === "WITHNEW") rows.splice(0, 1, { email: m[1], name: "Hijacked" }, { email: "fresh@acme.test", name: "Fresh" });
-    const r = yield* run("records_bulk_upsert", { type: "contact", rows, match: ["email"], idempotencyKey: `u-${answers.length}` });
+    const r = yield* run("records_bulk_upsert", { type: "contact", rows, match: ["email"], idempotencyKey: `u-${++keyN}` });
     const data = ((r.content as { data?: { created?: number; updated?: number; refused?: Answer["refused"] } } | null)?.data ?? {}) as { created?: number; updated?: number; refused?: Answer["refused"] };
     answers.push({ ok: r.ok, ...(data.refused ? { refused: data.refused } : {}), ...(data.created !== undefined ? { created: data.created } : {}), ...(data.updated !== undefined ? { updated: data.updated } : {}), text: JSON.stringify(r.content).slice(0, 400) });
     yield { type: "text", text: "done" };
@@ -154,5 +157,20 @@ test("Team: an agent's bulk_upsert changes an existing contact only where the ag
     assert.equal(await boNow(), 200, "parked: Bo is not merged away yet");
     assert.equal((await api("usr_olivia", "tasks.act", { taskId: mhold.taskId, action: "approve" })).status, 200);
     await waitFor(async () => { await d.hooks?.pump?.(); return (await boNow()) !== 200 ? true : null; }, 60_000, () => hostLog(d));
+
+    // 6. the approval of the call clears only the Gate rule the call met: rule A holds bulk_upsert (the owner approves); rule B holds records.update with another approver and stays for the rows
+    assert.equal((await api("usr_olivia", "access.policies.set", { key: "gate.ua-a", scope: "space", value: { act: "approve", approver: "owner", caps: ["records.bulk_upsert"] } })).status, 200);
+    assert.equal((await api("usr_olivia", "access.policies.set", { key: "gate.ua-b", scope: "space", value: { act: "approve", approver: "admin", caps: ["records.update"] } })).status, 200);
+    await tell(editor, "upsert ann@acme.test phone 999", 7);
+    const holdA = await waitFor(async () => {
+      await d.hooks?.pump?.();
+      const holds = (await api("usr_olivia", "gate.holds.list", { states: ["held"] })).data.holds as Array<{ id: string; taskId: string; capName?: string }>;
+      return holds.find((h) => h.capName === "records.bulk_upsert") ?? null;
+    }, 60_000, () => hostLog(d));
+    assert.equal((await api("usr_olivia", "tasks.act", { taskId: holdA.taskId, action: "approve" })).status, 200);
+    await waitFor(async () => { await d.hooks?.pump?.(); const all = (await api("usr_olivia", "gate.holds.list", {})).data.holds as Array<{ id: string; state: string }>; return all.find((h) => h.id === holdA.id && h.state !== "held") ?? null; }, 60_000, () => hostLog(d));
+    await new Promise((r) => setTimeout(r, 2000));
+    await d.hooks?.pump?.();
+    assert.equal((await annNow())["phone"], "888", "rule B still held the row: the approval of rule A did not clear it");
   } catch (e) { console.error("ANSWERS:", JSON.stringify(answers.slice(-2))); console.error("FAILED:", e instanceof Error ? e.message.slice(0, 1500) : e); throw e; } finally { await stop(d); }
 });

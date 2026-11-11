@@ -290,12 +290,9 @@ export function createReviewHandlers(deps: RvDeps): ReviewHandlers {
       const target = targetOf(f);
       if (!target) return fail(ctx, "validation.bad_input", `${input.field} does not name the type it links to.`);
       const targetDef = await needType(store, target);
-      // The other end of a two-way relation is a change to that record: the caller needs edit on it too, checked before anything is written (a record they may not edit answers like one that is not there).
-      const invCheck = inverseOf(f);
-      if (invCheck && targetDef.fields.some((x) => x.name === invCheck && isRelation(x)) && !isHostService(ctx.principal)) {
-        const d = ctx.authorize?.({ perm: "records.edit", level: "edit", cap: "records.update" }, { type: "record", id: input.toId });
-        if (d?.effect !== "allow") return fail(ctx, "permission.no_grant", "You may not change the other record, so this link was not made.");
-      }
+      // To link, the caller (who the pipeline checked for edit on the record they are changing) must be able to see the other record; one they cannot see answers like one that is not there.
+      // The back-reference on the other record is the system's consequence of the link, so it needs no edit there.
+      if (!isHostService(ctx.principal) && ctx.authorize?.({ perm: null, level: "view" }, { type: "record", id: input.toId }).effect !== "allow") return fail(ctx, "validation.not_found", `no ${target} ${input.toId}`);
       const there = await need(target, input.toId);
       const here = await need(input.type, input.recordId);
       const unlink = input.unlink === true;

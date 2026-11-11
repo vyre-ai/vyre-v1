@@ -238,14 +238,17 @@ test("completeness: only types a person fills in are asked; agent, task, report,
   assert.deepEqual(askedFields({ name: "lead", fields: [f("a"), f("b", { ask: false })] }).map((x) => x.name), ["a"], "a field marked not to ask is left out");
 });
 
-test("relate (909 class): the other end of a two-way relation is a change to that record, so the caller needs edit on it; with no way to check, or no right, nothing is written", async () => {
+test("relate (909 class): to link, the caller must be able to see the other record (one they cannot see answers like one that is not there); the back-reference is the system's, so edit on it is not needed", async () => {
   const k2 = await kit();
   const co2 = await add(k2, "company", { name: "Acme" });
   const p2 = await add(k2, "person", { name: "Ann" });
-  const guarded = { ...k2.ctx, authorize: (_a: unknown, res: { id: string | null }) => ({ effect: res.id === co2 ? "deny" : "allow" }) };
-  await assert.rejects(k2.review["records.relate"](guarded, { type: "person", recordId: p2, field: "company", toId: co2 }), code("permission.no_grant"));
-  assert.deepEqual((await k2.rec.store.get("person", p2))?.data.company ?? [], [], "neither end was written");
-  assert.equal((await k2.rec.store.get("company", co2))?.data.people, undefined);
+  const cantSee = { ...k2.ctx, authorize: (_a: unknown, res: { id: string | null }) => ({ effect: res.id === co2 ? "deny" : "allow" }) };
+  await assert.rejects(k2.review["records.relate"](cantSee, { type: "person", recordId: p2, field: "company", toId: co2 }), code("validation.not_found"));
+  assert.deepEqual((await k2.rec.store.get("person", p2))?.data.company ?? [], [], "nothing was written");
   const { authorize: _n, ...blind } = k2.ctx as typeof k2.ctx & { authorize?: unknown };
-  await assert.rejects(k2.review["records.relate"](blind as never, { type: "person", recordId: p2, field: "company", toId: co2 }), code("permission.no_grant"));
+  await assert.rejects(k2.review["records.relate"](blind as never, { type: "person", recordId: p2, field: "company", toId: co2 }), code("validation.not_found"));
+  const viewOnly = { ...k2.ctx, authorize: (a: { level: string }, res: { id: string | null }) => ({ effect: res.id === co2 && a.level !== "view" ? "deny" : "allow" }) };
+  await k2.review["records.relate"](viewOnly, { type: "person", recordId: p2, field: "company", toId: co2 });
+  assert.ok(((await k2.rec.store.get("company", co2))?.data.people as unknown[]).length === 1, "the other end was written");
+  assert.ok(k2.seen.some((e) => e.name === "record.updated" && e.subject === `record/${co2}`), "and announced");
 });

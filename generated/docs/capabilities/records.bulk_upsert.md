@@ -30,6 +30,7 @@ type In = {
   match: Array<string>;
   runAutomations?: boolean;
   createOnly?: boolean;
+  skipExisting?: boolean;
   idempotencyKey: string;
 };
 ```
@@ -41,6 +42,12 @@ type Out = {
   created: number;
   updated: number;
   skipped: number;
+  stopped?: {
+    reason: "unavailable" | "version_conflict";
+    row: number;
+    message: string;
+    notDone: Array<number>;
+  };
   refused?: Array<{
       row: number;
       reason: string;
@@ -72,6 +79,7 @@ type Out = {
       {}
     ],
     "runAutomations": true,
+    "skipExisting": true,
     "type": "contact"
   },
   "output": {
@@ -84,6 +92,14 @@ type Out = {
       }
     ],
     "skipped": 1,
+    "stopped": {
+      "message": "example",
+      "notDone": [
+        1
+      ],
+      "reason": "unavailable",
+      "row": 1
+    },
     "updated": 1
   }
 }
