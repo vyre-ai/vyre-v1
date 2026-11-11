@@ -71,3 +71,21 @@ test("the runners print skip <file> (<reason>) and count skips apart from passes
     assert.equal(allSkipped(r.stdout + r.stderr), "no key here");
   } finally { fs2.rmSync(dir, { recursive: true, force: true }); }
 });
+
+test("a file that fails a test and then never exits still shows why it failed when the watchdog kills it", async () => {
+  // what an unclosed daemon or browser does: the test fails at once, the process stays alive, and node's own summary (which carries the error) is never printed
+  const hang = path.join(dir, "fails-then-hangs.test.mjs");
+  fs.writeFileSync(hang, `import test from "node:test";
+import assert from "node:assert/strict";
+test("a test that fails and leaves something open", () => {
+  setInterval(() => undefined, 1000);
+  assert.equal("the port the daemon was told to use", "a port someone else took", "FIXTURE-FAILURE-MESSAGE: address already in use");
+});
+`);
+  const r = await runFile(hang, { cwd: dir, capMs: 3000 });
+  assert.equal(r.ok, false);
+  assert.equal(r.overCap, true, "it hung, so the watchdog ended it");
+  assert.match(r.out, /watchdog: .* exceeded its 3 s cap/);
+  assert.match(r.out, /failure detail> a test that fails and leaves something open/, "the failed test is named");
+  assert.match(r.out, /FIXTURE-FAILURE-MESSAGE: address already in use/, "and so is the message it failed with");
+});
