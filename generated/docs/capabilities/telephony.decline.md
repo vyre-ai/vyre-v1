@@ -19,7 +19,7 @@ Decline a ringing call, optionally to voicemail
 | HTTP | POST /v1/telephony/decline |
 | MCP tool | telephony_decline (inbox) |
 | CLI | none |
-| Emits | call.missed, call.voicemail_left |
+| Emits | call.missed, call.voicemail_left, call.ended |
 
 ## Input
 

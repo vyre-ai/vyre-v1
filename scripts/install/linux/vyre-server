@@ -7,7 +7,7 @@
 #   vyre-server start | stop | restart      what the systemd unit runs
 #   vyre-server logs [SERVICE]              follow the logs (vyred, caddy)
 #   vyre-server claim-link                  print the one-time link that claims a fresh Space as its owner (valid 24 hours; each start makes a new one)
-#   vyre-server update [--check] [--yes]    read the channel's signed manifest; if it names a newer version: back up the data, switch, check health, roll back on failure
+#   vyre-server update [--check] [--yes]    read the channel's signed manifest; if it names a newer version: back up the data (server running), then stop, switch, check health, roll back on failure; --stopped-backup stops first
 #   vyre-server rollback                    switch back to the previous release (code only; data written by the newer one stays)
 #   vyre-server backup                      write a backup of the data directory to $VYRE_DIR/backups (the server keeps running)
 #   vyre-server restore FILE [--yes]        put a backup back: checks it, backs up the current data, stops, restores, starts, checks health
@@ -28,6 +28,7 @@ find_dir() {
 DIR=$(find_dir)
 DRY=0
 YES=0
+STOPPED_BACKUP=0
 TMP=""
 LOCKDIR=""
 STAGE=""
@@ -746,11 +747,12 @@ parse_update_args() {
       --check) check_only=1 ;;
       --yes|-y) YES=1 ;;
       --dry-run) DRY=1 ;;
+      --stopped-backup) STOPPED_BACKUP=1 ;;
       --channel) shift; [ $# -gt 0 ] || die "--channel needs a value" 2; CHANNEL=$1 ;;
       --version) shift; [ $# -gt 0 ] || die "--version needs a value" 2; [ -n "$1" ] || die "--version needs a value" 2; WANT=$1 ;;
       --sha256) shift; [ $# -gt 0 ] || die "--sha256 needs a value" 2; [ -n "$1" ] || die "--sha256 needs a value" 2; WANT_SHA256=$1 ;;
       --feed-base) shift; [ $# -gt 0 ] || die "--feed-base needs a value" 2; UPDATE_URL=$1 ;;
-      *) die "update takes --check, --yes, --dry-run, --channel, --version, --sha256 or --feed-base" 2 ;;
+      *) die "update takes --check, --yes, --dry-run, --stopped-backup, --channel, --version, --sha256 or --feed-base" 2 ;;
     esac
     shift
   done
@@ -784,8 +786,18 @@ cmd_update() {
     docker pull -q "$ref" >/dev/null || die "could not pull $ref; nothing was changed."
   done
   trap update_interrupted INT TERM HUP
-  backup_data "pre-$REL_VERSION"
-  say "  Backed up to $BACKUP_FILE"
+  if [ "$STOPPED_BACKUP" = 1 ]; then
+    # the old order, for a person who wants one copy that is consistent across every database file: the server is down for the whole backup
+    backup_data "pre-$REL_VERSION"
+    say "  Backed up to $BACKUP_FILE"
+  else
+    # The backup is the long part (every database is copied and the folder is compressed). It is taken while the server keeps running, each database as one consistent snapshot, and
+    # only then is the server stopped, so the Space is down for the switch and the restart alone. Writes made after a database was copied are not in the backup file.
+    backup_data "pre-$REL_VERSION" live
+    say "  Backed up to $BACKUP_FILE while the server kept running."
+    dc stop >/dev/null || true
+    stop_strays
+  fi
   prev_link=$(readlink "$DIR/current")
   [ -n "$prev_link" ] || { dc up -d --remove-orphans >/dev/null 2>&1 || true; die "the install has no current release to go back to; nothing was changed."; }
   printf '%s\n' "$prev_link" >"$DIR/state/update.pending"

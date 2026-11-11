@@ -69,7 +69,7 @@ import type { DefaultSandbox } from "./sandbox-default.ts";
 import type { SandboxPlan } from "./sandbox.ts";
 import type { EngineSessionPorts } from "./session.ts";
 import type { PostAs } from "./handlers/bridge.ts";
-import { bindEngine, bindOpener, bindStepOpen, mintEngineId, sqlLeases, sqlMessages, sqlQueue, sqlWaits } from "./projections.ts";
+import { bindEngine, bindOpener, bindStepOpen, mintEngineId, setEngineStopping, sqlLeases, sqlMessages, sqlQueue, sqlWaits } from "./projections.ts";
 import type { Db, EngineCtx } from "./projections.ts";
 
 export interface EngineHostSeam {
@@ -160,6 +160,7 @@ export function setEngineHost(h: EngineHostSeam | null): void {
     old.retire = () => { const done = close().catch(() => undefined); old.closing?.(done); return done; };
   }
   closeOpener = null;
+  if (h === null) { if (host !== null) setEngineStopping(true); } else setEngineStopping(false);
   host = h;
   building = null;
   bindRelay(h?.nodes ?? null);

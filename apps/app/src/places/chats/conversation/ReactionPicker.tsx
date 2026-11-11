@@ -1,4 +1,5 @@
 // The reaction picker: the six people reach for, and a search over every emoji. It opens where you pressed, and an outside press or Escape closes it.
+import { useEscapeLayer } from "../../../../../../ui/src/Overlay/escape.ts";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { Platform, Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
@@ -22,11 +23,10 @@ export function ReactionPicker({ x, y, onPick, onClose }: { x: number; y: number
     if (Platform.OS !== "web") return undefined;
     const doc = (globalThis as { document?: { addEventListener(t: string, f: (e: never) => void): void; removeEventListener(t: string, f: (e: never) => void): void } }).document;
     const down = (e: { target?: unknown }): void => { if (!box.current?.contains?.(e.target)) onClose(); };
-    const key = (e: { key?: string }): void => { if (e.key === "Escape") onClose(); };
     doc?.addEventListener("mousedown", down as never);
-    doc?.addEventListener("keydown", key as never);
-    return () => { doc?.removeEventListener("mousedown", down as never); doc?.removeEventListener("keydown", key as never); };
+    return () => { doc?.removeEventListener("mousedown", down as never); };
   }, [onClose]);
+  useEscapeLayer(true, onClose);
   return (
     <View ref={box as never} testID="reaction-picker" accessibilityRole="menu" style={[st.pop, { left: Math.min(x, win.width - 300), top: Math.min(y + 6, win.height - 170) }]}>
       <View style={st.grid}>

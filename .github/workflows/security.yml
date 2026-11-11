@@ -5,7 +5,7 @@ on:
   workflow_call:
   workflow_dispatch:
   push:
-    branches-ignore: [main, 'gh-readonly-queue/**']
+    branches-ignore: [main, 'gh-readonly-queue/**', 'wip/**']   # lane branches are tested on the lane box; CI runs on pull requests and integration branches
   merge_group:
 jobs:
   licenses:

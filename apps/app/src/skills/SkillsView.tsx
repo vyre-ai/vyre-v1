@@ -39,6 +39,9 @@ const lined = (rows: readonly ReactElement[]): ReactElement[] => rows.map((r, i)
 const quietText = (s: string): ReactElement => <Text style={t.quiet}>{s}</Text>;
 
 /** What a skill can touch, as plain lines under a small heading. */
+/** The built-in skills a person is shown. The "focus-" ones are how an agent is told which place it is working in (Records, Vault, onboarding...): not something a person chooses or needs to read, so they are not listed (rc.22 client walk: 25 developer-named rows on Your AI). */
+export const shownToPeople = (name: string): boolean => !/^focus-/.test(name);
+
 export function Touches({ perms, testID }: { perms: Perms; testID?: string }): ReactElement {
   return <View testID={testID} style={{ gap: 2 }}>
     <Text style={[t.quiet, { fontWeight: "600" }]}>What it can touch</Text>
@@ -85,7 +88,7 @@ export function SkillsLists(p: ListsProps): ReactElement {
     onPress={() => p.onOpen({ kind: "space", skillId: s.skillId })}
     trailing={mode === "console" ? <Switch on={s.enabled} label={`${s.name} is on`} testID={`skill-space-on-${s.name}`} onChange={(on) => p.onToggle({ kind: "space", name: s.name }, on)} /> : quietText("For everyone")} />;
   const builtin = <Section title="Built in" testID="skills-builtin">
-    {page.builtin.map((b) => <Row key={b.name} id={`skill-builtin-${b.name}`} title={plainName(b.name)} note={oneLine(b.description)} tall onPress={() => p.onView({ name: b.name })} trailing={quietText("Always on")} />)}
+    {page.builtin.filter((b) => shownToPeople(b.name)).map((b) => <Row key={b.name} id={`skill-builtin-${b.name}`} title={plainName(b.name)} note={oneLine(b.description)} tall onPress={() => p.onView({ name: b.name })} trailing={quietText("Always on")} />)}
   </Section>;
 
   if (mode === "console") {

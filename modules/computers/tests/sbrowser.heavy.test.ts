@@ -231,7 +231,9 @@ test("@heavy space browser: the live view sends screencast frames, and a person 
   };
   assert.equal((await ask({ t: "move", x: 150, y: 150 })).t, "refused", "no input before a person takes over");
   await sb.takeover({ profileId: "agt_dex", personId: "usr_dana" });
-  await assert.rejects(() => tool("agt_dex", "chrome_state"), (e) => e instanceof ToolError && e.code === "paused", "the agent's tools wait");
+  await assert.rejects(() => tool("agt_dex", "chrome_state"), (e) => e instanceof ToolError && e.code === "paused" && /A person has the controls/.test(e.message), "the agent's tools wait, and say why in plain words");
+  await assert.rejects(() => tool("agt_dex", "chrome_open", { url: siteUrl("/whoami") }), (e) => e instanceof ToolError && e.code === "paused", "an agent that tries to act is refused, not let through under the person's hands");
+  await assert.rejects(() => sb.takeover({ profileId: "agt_dex", personId: "usr_omar" }), (e) => e instanceof ToolError && e.code === "bad_input" && /Someone else has the controls/.test(e.message), "a second person is refused while it is held");
   assert.equal((await ask({ t: "move", x: 150, y: 150 })).t, "ack");
   assert.equal((await ask({ t: "down", n: 1 })).t, "ack");
   assert.equal((await ask({ t: "up", n: 1 })).t, "ack");
@@ -242,7 +244,11 @@ test("@heavy space browser: the live view sends screencast frames, and a person 
   assert.equal((await ask({ t: "key", name: "Return", down: true })).t, "ack");
   assert.equal(String((await tool("agt_dex", "chrome_eval", { expression: "document.getElementById('t').value" }, { by: "person" }))["result"]), "hello", "typed text reached the field");
   await sb.giveBack("agt_dex");
-  assert.equal((await tool("agt_dex", "chrome_state"))["loading"], false, "the agent has its tools back");
+  assert.equal((await tool("agt_dex", "chrome_state"))["loading"], false, "the agent has its tools back at once");
+  await sb.takeover({ profileId: "agt_dex", personId: "usr_omar" });   // free again: the second person may now have it, and the agent waits for them just the same
+  await assert.rejects(() => tool("agt_dex", "chrome_state"), (e) => e instanceof ToolError && e.code === "paused");
+  await sb.giveBack("agt_dex");
+  assert.equal((await tool("agt_dex", "chrome_state"))["loading"], false, "and has them back at once again");
   ws.close();
 });
 
