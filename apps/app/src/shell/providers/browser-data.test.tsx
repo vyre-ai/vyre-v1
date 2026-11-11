@@ -109,3 +109,20 @@ test("a browser waiting for room or in error shows the line the server gave; the
   await flush();
   assert.equal(viewer.calls.some((c) => c.cap === "computers.browser.sessions"), false);
 });
+
+test("a Space that cannot run a browser shows one plain line with nothing to press, never a placeholder that does not fill; the next good answer replaces it", async () => {
+  let refuse = true;
+  const ticks: Array<() => void> = [];
+  const data = browserData({
+    call: async (cap) => { if (refuse) throw new Error("The Space browser is not running on this host."); return cap === "computers.browser.profiles" ? { profiles: [row()], maxRunning: 4 } : { sessions: [] }; },
+    ...d, every: (f) => { ticks.push(f); return () => undefined; },
+  });
+  const seen: Array<{ state: string; line?: string | undefined; canTakeOver: boolean }> = [];
+  data.watch("agt_dex", (v) => seen.push({ state: v.state, line: v.line, canTakeOver: v.canTakeOver }));
+  await flush();
+  assert.deepEqual(seen, [{ state: "error", line: "This Space has nowhere to run a browser yet. Add a compute server in Console > Computers.", canTakeOver: false }]);
+  refuse = false;
+  ticks[0]!();
+  await flush();
+  assert.equal(seen[seen.length - 1]!.state, "open", "a host that appears later is picked up");
+});

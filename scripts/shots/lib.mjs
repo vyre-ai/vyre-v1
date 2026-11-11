@@ -99,3 +99,11 @@ export function budgetOf(budgets, name) {
   if (!b || typeof b !== "object") throw new Error(`budgets.json has no row ${name}`);
   return b;
 }
+
+/**
+ * The selector a screenshot waits for before it settles. A target's `waitFor` is a test id of the real app: the prototype never carries it, so a wait there ran its whole 30 s timeout
+ * on every prototype shot (4 shots a target, 868 of 943 targets: the 35 minute cap of the `shots` shards). Only the real app is waited on; the prototype settles on its own protoSettleMs.
+ */
+export function waitSelector(side, target) {
+  return side === "real" ? target.waitFor : undefined;
+}

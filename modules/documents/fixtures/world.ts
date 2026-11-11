@@ -57,6 +57,8 @@ export interface World {
   events: { name: string; subject: string; payload: unknown }[];
   files: Map<string, Stored>;
   records: Map<string, Record<string, unknown>>;
+  /** the type of a record that is not a "contact" */
+  recordTypes: Map<string, string>;
   /** file ids the caller may not open: ctx.authorize denies and files.get/read answer not found */
   denied: Set<string>;
   calls: { cap: string; input: Record<string, unknown> }[];
@@ -99,6 +101,7 @@ export function world(): World {
   const db = memoryDb();
   const files = new Map<string, Stored>();
   const records = new Map<string, Record<string, unknown>>();
+  const recordTypes = new Map<string, string>();   // a record's type when it is not "contact"
   const denied = new Set<string>();
   const events: World["events"] = [];
   const calls: World["calls"] = [];
@@ -150,10 +153,13 @@ export function world(): World {
           const f = need_(i.fileId);
           return { versions: Array.from({ length: f.versions }, (_, k) => ({ versionId: `ver_f${f.id.replace(/\D/g, "")}n${k + 1}`, n: k + 1 })) };
         }
+        // the contracts of the real capabilities: records.get reads a record by type AND id (an id alone is refused), and schema.types.list names the types there are
+        case "schema.types.list": return { types: [...new Set([...records.keys()].map((id) => recordTypes.get(id) ?? "contact"))].map((key) => ({ key })) };
         case "records.get": {
-          const fields = records.get(String(i.recordId));
-          if (!fields) throw err("validation.not_found", "That record does not exist.");
-          return { record: { id: i.recordId, type: i.type ?? "contact", fields } };
+          if (typeof i.type !== "string" || typeof i.recordId !== "string") throw err("validation.bad_input", "Something in what you entered is not right.");
+          const fields = records.get(i.recordId);
+          if (!fields || (recordTypes.get(i.recordId) ?? "contact") !== i.type) throw err("validation.not_found", "That record does not exist.");
+          return { record: { id: i.recordId, type: i.type, fields } };
         }
         default: throw new Error(`unexpected call ${cap}`);
       }
@@ -168,7 +174,7 @@ export function world(): World {
     seal: { seal: () => { throw new Error("seal is not used"); }, unseal: () => { throw new Error("seal is not used"); } },
   };
   return {
-    ctx, events, files, records, denied, calls,
+    ctx, events, files, records, recordTypes, denied, calls,
     add(name: string, bytes: Buffer, folderId = FOLDER, fileId?: string): string {
       const id = fileId ?? `fil_${++n}`;
       files.set(id, { id, name, folderId, bytes, mime: "application/octet-stream", versions: 1 });

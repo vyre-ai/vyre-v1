@@ -6,7 +6,7 @@ import os from "node:os";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
 // @ts-expect-error plain .mjs helper without types
-import { parseArgs, protoHash, routeUrl, loadTargets, shardTargets, shardIndexName, mergeShotIndexes, sideBySideHtml, countWrongFrames, budgetOf } from "./lib.mjs";
+import { parseArgs, protoHash, routeUrl, loadTargets, shardTargets, shardIndexName, mergeShotIndexes, sideBySideHtml, countWrongFrames, budgetOf, waitSelector } from "./lib.mjs";
 
 test("parseArgs reads values and flags", () => {
   assert.deepEqual(parseArgs(["--target", "sample", "--skip-export", "--out", "x"]), { target: "sample", "skip-export": true, out: "x" });
@@ -108,4 +108,11 @@ test("budgets.json has the theme_flash row with its probe", () => {
   assert.equal(row.wrong_frames_max, 0);
   assert.ok(fs.existsSync(new URL("../../" + row.probe, import.meta.url)), "probe file exists");
   assert.throws(() => budgetOf(b, "nope"), /no row nope/);
+});
+
+test("only the real app is waited on for a target's waitFor; the prototype never carries the real test ids", () => {
+  const t = { id: "X_01", route: "/m/X_01", proto: "home,{skin}", waitFor: "[data-testid='updating-screen']" };
+  assert.equal(waitSelector("real", t), "[data-testid='updating-screen']");
+  assert.equal(waitSelector("proto", t), undefined);
+  assert.equal(waitSelector("real", { ...t, waitFor: undefined }), undefined);
 });

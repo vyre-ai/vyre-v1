@@ -18,6 +18,14 @@ runs:
       shell: bash
       run: bash scripts/ci-iolock.sh exclusive
     - uses: ./.github/actions/deps
+    - name: Bubblewrap can start on this runner (slow files run a CLI engine inside it; where Ubuntu 24.04 restricts unprivileged user namespaces a turn ends at once with no words)
+      if: inputs.slow == 'true'
+      shell: bash
+      run: |
+        command -v bwrap >/dev/null || { sudo -n apt-get update -q && sudo -n apt-get install -y -q bubblewrap; } || echo "bwrap is missing and could not be installed here"
+        if [ "$(sysctl -n kernel.apparmor_restrict_unprivileged_userns 2>/dev/null)" = "1" ]; then sudo -n sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || echo "could not lift kernel.apparmor_restrict_unprivileged_userns on this runner"; fi
+        sysctl kernel.apparmor_restrict_unprivileged_userns user.max_user_namespaces 2>/dev/null || true
+        if bwrap --unshare-all --ro-bind /usr /usr --symlink usr/bin /bin --symlink usr/lib /lib --symlink usr/lib64 /lib64 --proc /proc --dev /dev /usr/bin/true; then echo "bwrap namespaces: ok"; else echo "bwrap namespaces: FAILED"; fi
     - name: Run the shard (30 s file cap, pass cache by import hash)
       shell: bash
       env:

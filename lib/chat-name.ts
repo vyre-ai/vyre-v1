@@ -73,10 +73,15 @@ export function titleFromRequest(text: string): string | null {
   return tidyTitle(w.join(" "));
 }
 
+const DANGLING: ReadonlySet<string> = new Set(["a", "an", "the", "for", "to", "of", "with", "and", "or", "in", "on", "at", "by", "from", "that", "my", "our", "your", "their", "his", "her", "this", "these", "those", "about", "into", "as"]);
+
 /** A model's answer made into a title: one line, quotes and endings off, 2 to 5 words, first letter up. Null when nothing usable is left. */
 export function tidyTitle(raw: string): string | null {
   const line = raw.split("\n").map((l) => l.trim()).find((l) => l !== "") ?? "";
   const w = line.replace(/^(?:title\s*:\s*)/i, "").replace(/^["'`*#\s]+|["'`*.!?:;,\s]+$/g, "").split(/\s+/).filter((x) => x !== "").slice(0, 5);
+  if (w.length < 2) return null;
+  // a title cut at five words must not end on a word that wants another ("create a", "note for"): drop those, and when fewer than two words are left there is no title yet
+  while (w.length > 0 && DANGLING.has(w[w.length - 1]!.toLowerCase())) w.pop();
   if (w.length < 2) return null;
   const s = w.join(" ");
   return s.charAt(0).toUpperCase() + s.slice(1);

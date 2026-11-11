@@ -3,7 +3,7 @@
 // the device, the person and the Space. Nothing here calls the server: a tab list that left the device would make Starred and tabs the same thing, and they are not.
 import type { PlaceId } from "../rail/kits.ts";
 import { PLACE_TITLE, livePlace } from "../rail/kits.ts";
-import { parseHash } from "../hash/hash.ts";
+import { parseHash, subjectOf } from "../hash/hash.ts";
 
 /** Tabs are device state. Starred is the synced one (spec 3.0). */
 export const TABS_SYNCED = false;
@@ -40,7 +40,8 @@ export function tabKey(place: PlaceId, hash?: string): string {
   if (hash === undefined || hash === "") return place;
   if (!hash.includes("=")) return `${place}:${hash}`;
   const t = parseHash(hash);
-  if (t.subject !== undefined) return `${place}:subject=${t.subject.type}:${t.subject.id}`;
+  const subject = subjectOf(t);
+  if (subject !== undefined) return `${place}:subject=${subject.type}:${subject.id}`;
   if (t.screen === "tasks.page" && t.args["taskId"]) return `${place}:subject=task:${t.args["taskId"]}`;
   if (t.screen !== undefined && OWN_TAB[t.screen] !== undefined) return `${place}:${t.screen}`;
   const type = t.args["type"];

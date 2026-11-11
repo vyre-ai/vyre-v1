@@ -130,6 +130,9 @@ import { createComputeRoute } from "../routes/compute.ts";
 import { createComputeStream } from "../routes/compute-stream.ts";
 import { createBrowserStream } from "../routes/browser-stream.ts";
 import { createReporter } from "../machines/reporter.ts";
+import { createSampler, realDeps } from "../machines/sample.ts";
+import type { SampleDeps } from "../machines/sample.ts";
+import { machineProbe, writeMachineProbe } from "../machines/probe.ts";
 import type { Report } from "../machines/report.ts";
 import { isFix, runFix } from "./machine-fix.ts";
 import { relayVersionWatch, storeInfo } from "./relay-version.ts";
@@ -344,6 +347,8 @@ export interface DaemonOptions {
    */
   /** Shapes the machine report this daemon records or sends (tests pin the load of the machine they run on) */
   machineReport?: (r: Report) => Report;
+  /** Replace the computer the machine probe reads (tests). */
+  machineDeps?: SampleDeps;
   deviceLink?: { launcher?: import("../compute/node.ts").NodeLauncher; engines?: readonly string[]; name?: string; socket?: (url: string, headers: Record<string, string>) => import("../compute/node.ts").NodeSocket; retryMs?: number; homes?: import("../compute/device-link.ts").OwnHomes; /** how often the computer reports its load (tests); default 30 s */ reportMs?: number };
   /** Where CLI engines run sandboxed (modules/engine/sandbox.ts SandboxPlan). Omitted: a CLI engine refuses to start. */
   engineSandbox?: unknown;
@@ -368,10 +373,12 @@ export interface DaemonOptions {
   now?: () => number;
   sleep?: (ms: number) => Promise<void>;
   /** intervals in ms; tests shorten them */
-  intervals?: { machines?: number; tick?: number; commands?: number; fast?: number; slow?: number; encryption?: number; hooks?: number; sweep?: number; sitesPush?: number };
+  intervals?: { machines?: number; machineProbe?: number; tick?: number; commands?: number; fast?: number; slow?: number; encryption?: number; hooks?: number; sweep?: number; sitesPush?: number };
 }
 
 export interface Daemon {
+  /** Resolves when the work the start leaves running after the daemon serves has finished (today: the Personal calendars of people who have none). Tests that read the log head wait for it. */
+  startupWork(): Promise<void>;
   url: string;
   /** the one-time link the owner of a fresh Space opens to claim it (ruling 71); null once claimed or when this host did not make the Space */
   claim: { url: string; expiresAt: number } | null;
@@ -797,6 +804,11 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   let headSeq = 0;
   let sawSpace = false, hostMadeSpace = false;
   let claimIssue: () => Promise<{ code: string; expiresAt: number } | null> = async () => null;
+  /** Ruling 86: every person has one local Personal calendar, made through calendar.create_calendar in the pipeline as that person so the calendar resource registers in the same commit. Set once the pipeline exists; a no-op before. */
+  let ensurePersonalCalendar: (person: string) => Promise<void> = async () => {};
+  /** Starts the pass that gives everyone who has none their Personal calendar; set with ensurePersonalCalendar, run once the daemon serves (never holds the start up). */
+  let startPersonalCalendars: () => void = () => {};
+  let startupWork: () => Promise<void> = async () => {};
   const access = createAccess();
   // Ruling 70: authorize answers from the access module's snapshot. The log's access events wait here until the module has folded them; `syncAccess` (set once the hooks run)
   // hands them over, adopts the snapshot it answers and runs after every commit that may have changed access, so the next call already sees a join, a role change, a share or a removal.
@@ -827,9 +839,10 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   };
   /** While the snapshot is stale only the owner is answered, and each refused call tries the sync again, so the Space heals itself as soon as the module can take the events. */
   const staleFor = (principal: string): boolean => {
-    if (!accessStale || principal === (access.owner() ?? cfg.owner)) return false;
+    if (!accessStale) return false;
+    // the owner is answered from the last snapshot, but a stale one never heals by itself, so the owner's calls kick the retry too (rc.22 bug 15: a chat made while a sync failed stayed "not found" to its owner)
     if (!kicking) { kicking = true; void syncAccess(true).catch(() => {}).finally(() => { kicking = false; }); }
-    return true;
+    return principal !== (access.owner() ?? cfg.owner);
   };
 
   // what each probe last wrote: a scheduled probe whose state and detail have not changed writes again only once a minute, inside the 90 s after which health calls a report stale
@@ -1253,7 +1266,13 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           // identity opens a device session at sign-in by calling devices.register, which only the server itself may do (P-SEC_08): that one call, from identity, runs as the host. Nothing else is widened.
           if (h && mod === "identity") return ((ctx, input) => h({ ...ctx, ...peopleExtras?.(mod, ctx), call: (name: string, callInput: unknown, opts?: unknown) => (name === "devices.register" ? system(name, callInput, ctx.trace) : (ctx.call as (n: string, i: unknown, o?: unknown) => Promise<unknown>)(name, callInput, opts)) } as typeof ctx, input)) as Handler;
           // accepting an invite: the person proved the code, and the invite's role, groups and starting places were the inviter's to give. Those join effects run as the host, not as the signed-out caller.
-          if (h && cap === "members.accept") return ((ctx, input) => h({ ...ctx, ...peopleExtras?.(mod, ctx), call: (name: string, callInput: unknown) => system(name, callInput, ctx.trace) } as typeof ctx, input)) as Handler;
+          if (h && cap === "members.accept") return (async (ctx, input) => {
+            const out = await h({ ...ctx, ...peopleExtras?.(mod, ctx), call: (name: string, callInput: unknown) => system(name, callInput, ctx.trace) } as typeof ctx, input);
+            // ruling 86: everyone has one local Personal calendar from the day they join
+            const person = (out as { personId?: unknown } | null)?.personId;
+            if (typeof person === "string") await ensurePersonalCalendar(person);
+            return out;
+          }) as Handler;
           // handing an agent to another person: ownership of the agent and its folder moves with the host's authority (ruling 88). The call itself was authorized (manage on the agent, and the Gate for a non-person);
           // only this one call from this one capability is widened, and it is the host-only access.transfer_ownership
           if (h && cap === "agents.set_owner") return ((ctx, input) => h({ ...ctx, call: (name: string, callInput: unknown, opts?: unknown) => (name === "access.transfer_ownership" ? hookRunner.call(name, callInput) : (ctx.call as (n: string, i: unknown, o?: unknown) => Promise<unknown>)(name, callInput, opts)) } as typeof ctx, input)) as Handler;
@@ -1302,6 +1321,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           if (claim && events.some((e) => e.type === "keys.stored" && (e.payload as { personId?: string } | undefined)?.personId === access.owner())) {
             claim = null;
             try { fs.rmSync(path.join(paths.logDir, "claim-link.txt"), { force: true }); } catch { /* already gone */ }
+            // ruling 86: the claim also makes sure the owner has their Personal calendar (covers a start where the calendar module was not ready). It reads first, so nothing is duplicated.
+            void ensurePersonalCalendar(access.owner() ?? "");
           }
           recent.push(...events);
           if (recent.length > RING) recent.splice(0, recent.length - RING);
@@ -1366,6 +1387,14 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       // One sync at a time. Each access.sync call reads the module's tables when it begins and returns a snapshot of what it read plus its own events; two overlapping calls each missed the other's
       // events, and whichever was adopted last could drop a record's resource, so a read that followed a create answered "Access changed while reading". Run one after another, each begins where the last ended.
       let syncChain: Promise<void> = Promise.resolve();
+      // A sync that failed twice leaves the snapshot stale: whatever the Space made since (a chat, a share) is unknown to it. Try again until one succeeds, without waiting for someone to call.
+      let healTimer: ReturnType<typeof setTimeout> | null = null;
+      const healLater = (): void => {
+        if (healTimer !== null) return;
+        healTimer = setTimeout(() => { healTimer = null; void syncOnce(true).then(() => { if (accessStale) healLater(); }, () => healLater()); }, 500);
+        healTimer.unref?.();
+      };
+      closers.push(() => { if (healTimer !== null) { clearTimeout(healTimer); healTimer = null; } });
       const runSync = async (force?: boolean): Promise<void> => {
         if (noAccessModule) return;
         const events = accessPending;
@@ -1382,6 +1411,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
             if (!access.adopted()) throw e;   // a Space that never had the module's snapshot cannot answer
             // Fail closed (ruling 70): the last snapshot may still let a revoked or removed person through, so everyone but the owner is refused until a sync succeeds.
             accessStale = true;
+            healLater();
             return;
           }
         }
@@ -1393,6 +1423,37 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       syncAccess = async (force) => { await syncOnce(force); void healAgents().catch(() => undefined); };
       await syncAccess();
       await healAgents();
+      const personalRuns = new Map<string, Promise<void>>();
+      ensurePersonalCalendar = (person) => {
+        if (!person || loaded.serving.get("calendar") !== "live") return Promise.resolve();
+        const running = personalRuns.get(person);
+        if (running) return running;   // the same person twice at once (a join and a start) makes one calendar
+        const as = { space: spaceId, principal: { kind: "person" as const, id: person }, preAuth: true, origin: "hook" as const };
+        const run = (async (): Promise<void> => {
+          try {
+            const mine = await invoke("calendar.list_calendars", { scope: "mine" }, as);
+            const calendars = (mine.status === "ok" ? (mine.output as { calendars?: { personal?: boolean }[] }).calendars : undefined) ?? [];
+            if (calendars.some((c) => c.personal === true)) return;
+            // made once is enough: a Personal calendar the person deleted on purpose stays deleted (the calendar module soft-deletes, so its row still says one was made)
+            try { if ((db?.all(`SELECT 1 AS x FROM calendar_list WHERE "ownerId" = ? AND personal = 1 LIMIT 1`, person) ?? []).length > 0) return; } catch { /* no calendar table yet: none was made */ }
+            await invoke("calendar.create_calendar", { title: "Personal", personal: true, idempotencyKey: `personal-calendar:${person}:${now()}` }, as);
+          } catch (e) {
+            sink.log({ space: spaceId, level: 40, msg: "calendar.personal_failed", place: "boot", attrs: { person, error: e instanceof Error ? e.message : String(e) } });
+          }
+        })().finally(() => { personalRuns.delete(person); });
+        personalRuns.set(person, run);
+        return run;
+      };
+      // people who were here before this rule (the owner of a Space this host made, members who joined on an older version) get theirs once the daemon serves, a few at a time, so a Space with many people
+      // starts at once: the read-first check makes it a no-op for anyone who has one, and no migration of user data is needed
+      let personalSweep: Promise<void> = Promise.resolve(), personalStopped = false;
+      startPersonalCalendars = () => {
+        const queue = [...access.snap.allPrincipals()].filter((p) => p.kind === "person" && p.status === "active").map((p) => p.id);
+        const worker = async (): Promise<void> => { for (let id = queue.shift(); id !== undefined && !personalStopped; id = queue.shift()) await ensurePersonalCalendar(id); };
+        personalSweep = Promise.all([worker(), worker(), worker(), worker()]).then(() => undefined);
+      };
+      startupWork = () => personalSweep;
+      closers.push(() => { personalStopped = true; return personalSweep; });
       // the owner of a Space this host made has not claimed it until identity holds an account for them: a fresh one-time link at every start until they do
       claimIssue = async () => {
         const owner = access.owner();
@@ -2452,6 +2513,11 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   } });
   scheduler.add({ name: "probes.fast", schedule: { everyMs: fast }, run: async () => { await runProbes(group(["events_db", "index_db", "scheduler", "disk_space"]), false); } });
   scheduler.add({ name: "probes.slow", schedule: { everyMs: slow }, run: async () => { await runProbes(group(["docker", "caddy", "time_skew"]), false); reportNetwork(); await ensureIngress(false); await refreshNetworkCertificate(); } });
+  // CPU, memory and disk for the Console's Infrastructure page: the health_probe row named machine, read by the one sampler the machine report uses, once a minute and once at start
+  const machineSampler = createSampler(o.machineDeps ?? realDeps({ dataDir: paths.root, can: () => [] }));
+  machineSampler.load();   // primes the CPU reading: the first call has no earlier sample to compare with
+  const sampleMachine = (): void => { if (db) writeMachineProbe(db, now(), machineProbe(machineSampler)); };
+  scheduler.add({ name: "probes.machine", schedule: { everyMs: o.intervals?.machineProbe ?? 60_000 }, run: () => { sampleMachine(); } });
   scheduler.add({ name: "probes.encryption", schedule: { everyMs: o.intervals?.encryption ?? 300_000 }, run: async () => { await runProbes(group(["disk_encrypted"]), false); } });
   if (hasSpace) {
     scheduler.add({ name: "commands.poll", schedule: { everyMs: o.intervals?.commands ?? 1000 }, run: async () => { await runCommands(); } });
@@ -2567,6 +2633,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     await supervisor.startAll({ once: ["gateway"] });   // a gateway that cannot listen is a boot that cannot go on: no backoff, the cause comes straight out
     if (supervisor.status("gateway")[0]?.phase !== "running") { const g = supervisor.status("gateway")[0]; throw new Error(`the gateway did not start on ${cfg.host}:${cfg.port}${g?.lastExit?.error ? `: ${g.lastExit.error}` : ""}`); }
     await runProbes();
+    sampleMachine();
     reportNetwork();
     // the gateway is bound, so the upstream port is known; not awaited, so a Caddy that does not answer yet never holds up the start
     void ensureIngress(true);
@@ -2621,6 +2688,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     }
     writeInfo(paths, { pid: process.pid, url: `http://${cfg.host}:${boundPort}`, port: boundPort, roles: cfg.roles, space, version: cfg.version, startedAt });
     sink.log({ space: space ?? "-", level: 20, msg: "daemon.started", place: "boot", attrs: { roles: cfg.roles, port: boundPort, version: cfg.version } });
+    startPersonalCalendars();
   } catch (e) {
     for (const c of closers.reverse()) await Promise.resolve(c()).catch(() => {});
     clearInfo(paths);
@@ -2644,6 +2712,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     url: `http://${cfg.host}:${boundPort}`, gitPort, claim, port: boundPort, token, roles: cfg.roles, space, paths, supervisor, scheduler, db, schedule: queue, seams, hooks, projections, sink, log, chromeBridge, personalChrome: composedChrome, nodeRelay: { spawnProc: (n, s) => computeStream.spawnProc(n, s), connected: (n) => computeStream.connected(n), secure: (n) => computeStream.secure(n), devices: (p) => computeStream.devices(p) }, teamLinks: () => teamLinks.ids(),
     runProbes: (names) => runProbes(names), pollCommands: runCommands, ensureIngress: () => ensureIngress(false),
     peers: peerService,
+    startupWork: () => startupWork(),
     stop,
   };
 }

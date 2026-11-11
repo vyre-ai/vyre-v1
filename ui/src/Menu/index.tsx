@@ -252,11 +252,34 @@ export function Menu(props: MenuViewProps): ReactElement | null {
   const [size, setSize] = useState<{ w: number; h: number }>({ w: MENU_W, h: MENU_H });
   const nodes = useRef<Record<number, unknown>>({});
   const typed = useRef<{ text: string; at: number }>({ text: "", at: 0 });
+  const panel = useRef<unknown>(null);
+
+  // A menu opens with no row lit, but keyboard focus still has to be inside it: Escape and the arrow keys are read on the menu, so focus left on the button below would leave them dead.
+  useEffect(() => { if (!searching) focusNode(panel.current); }, [searching]);
 
   const close = useCallback(() => {
     setGone(true);
     if (onClose) onClose();
   }, [onClose]);
+
+  // A menu opens with nothing lit, so focus can still sit on the control that opened it (Shift+F10 on a list row): Escape must close it from there too, not only from inside the panel
+  const goneRef = useRef(false);
+  goneRef.current = gone;
+  useEffect(() => {
+    if (Platform.OS !== "web") return undefined;
+    type Key = { key?: string; preventDefault?: () => void; stopPropagation?: () => void };
+    const doc = (globalThis as { document?: { addEventListener?: (t: string, fn: (e: Key) => void, capture?: boolean) => void; removeEventListener?: (t: string, fn: (e: Key) => void, capture?: boolean) => void } }).document;
+    if (doc === undefined || typeof doc.addEventListener !== "function") return undefined;
+    // in the capture phase and stopped there: the Escape that closes a menu inside a sheet or a dialog must not also close that sheet or dialog
+    const onDocKey = (e: Key): void => {
+      if (e.key !== "Escape" || goneRef.current) return;
+      e.preventDefault?.();
+      e.stopPropagation?.();
+      close();
+    };
+    doc.addEventListener("keydown", onDocKey, true);
+    return () => doc.removeEventListener?.("keydown", onDocKey, true);
+  }, [close]);
 
   const land = useCallback((index: number) => {
     if (index < 0) return;
@@ -351,12 +374,13 @@ export function Menu(props: MenuViewProps): ReactElement | null {
         role="menu"
         aria-label={menuLabel(entries)}
         testID="menu"
+        ref={(node) => { panel.current = node; }}
         onLayout={(event) => {
           const { width, height } = event.nativeEvent.layout;
           if (width !== size.w || height !== size.h) setSize({ w: width, h: height });
         }}
         style={[styles.panel, { left, top, maxHeight: Math.max(120, window.height - 12) }, props.width !== undefined ? { width: props.width, minWidth: props.width, maxWidth: props.width } : null, webProps({ style: { overflowY: "auto" } }).style as object | undefined]}
-        {...webProps({ onKeyDown })}
+        {...webProps({ onKeyDown, tabIndex: -1 })}
       >
         {searching ? (
           <View style={styles.search}>
@@ -594,6 +618,7 @@ const styles = StyleSheet.create({
     borderRadius: RADIUS,
     backgroundColor: "var(--raised)" as string,
     boxShadow: "var(--sh-pop)" as string,
+    ...({ outlineStyle: "none" } as unknown as ViewStyle),
   },
   // the lit row is the wash; the browser focus ring would draw a black box around it
   item: { flexDirection: "row", alignItems: "center", height: 28, paddingHorizontal: 9, borderRadius: RADIUS, gap: 9, width: "100%", ...({ outlineStyle: "none" } as unknown as ViewStyle) },

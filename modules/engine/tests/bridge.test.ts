@@ -186,6 +186,21 @@ test("a failed turn becomes a status block in the chat", async () => {
   assert.deepEqual(post.blocks, [{ type: "turn_status", v: 1, data: { state: "failed", turnId: s.engine.turns(T)[0]?.id, code: "rate_limited" } }]);
 });
 
+test("an engine that died on the server's sandbox or a missing image carries a fixed `why` word in the chat's status block, never the engine's text (rc.22 bug 11)", async () => {
+  const sandbox = setup({ script: [{ type: "error", code: "engine.cli_error", message: "claude exited with code 1: bwrap: No permissions to create new namespace, likely because the kernel does not allow non-privileged user namespaces" }] });
+  await sandbox.say("Go");
+  const data = (sandbox.chat.find((r) => r.author.id === LEAD)?.blocks[0] as { data: Record<string, unknown> }).data;
+  assert.equal(data["why"], "sandbox");
+  assert.equal(data["exit"], "1");
+  assert.ok(!JSON.stringify(data).includes("bwrap"), "the engine's words are not carried");
+  const image = setup({ script: [{ type: "error", code: "engine.cli_error", message: "Unable to find image 'vyre/agent-computer:1' locally" }] });
+  await image.say("Go");
+  assert.equal((image.chat.find((r) => r.author.id === LEAD)?.blocks[0] as { data: Record<string, unknown> }).data["why"], "image");
+  const plain = setup({ script: [{ type: "error", code: "engine.cli_error", message: "the engine exited with code 137" }] });
+  await plain.say("Go");
+  assert.equal((plain.chat.find((r) => r.author.id === LEAD)?.blocks[0] as { data: Record<string, unknown> }).data["why"], undefined);
+});
+
 test("a missing engine and an unreadable Vault carry what the chat needs to say precisely: the program, the Vault's own code, nothing else", async () => {
   const missing = setup({ script: [{ type: "error", code: "engine.cli_missing", message: "codex is not installed on this computer." }] });
   await missing.say("Go");
@@ -232,6 +247,23 @@ test("a thread with no agents is left alone, and a host without an engine skips"
   assert.equal(s.h.rows("SELECT id FROM engine_messages").length, 0);
   const bare = createBridge({ postAs: async () => {} });
   assert.deepEqual(await bare.onEvent(s.ctx, { name: "message.received", payload: { messageId: "msg_x", threadId: T } }), { skipped: "engine_not_running" });
+});
+
+test("a thread the bridge cannot read is skipped as unreadable, never as having no agents (rc.22 bug 15: the log said not_found, no_agents for a chat that had its agent)", async () => {
+  const s = setup({ script: reply("x") });
+  s.chat.push({ messageId: "msg_u1", threadId: T, threadSeq: 1, author: { kind: "person", id: "usr_dana" }, body: "hello", blocks: [], mentions: [], depth: 0 });
+  const warns: Array<[string, Record<string, unknown> | undefined]> = [];
+  const blind = { ...s.ctx, log: { ...s.ctx.log, warn: (m: string, a?: Record<string, unknown>) => { warns.push([m, a]); } }, call: async (cap: string, input: unknown) => {
+    if (cap === "threads.get") throw Object.assign(new Error("That chat does not exist or is not yours."), { error: { code: "validation.not_found" } });
+    return s.ctx.call(cap, input);
+  } } as typeof s.ctx;
+  const out = await s.bridge.onEvent(blind, { name: "message.received", payload: { messageId: "msg_u1", threadId: T, author: { kind: "person", id: "usr_dana" }, mentions: [], depth: 0 } });
+  assert.deepEqual(out, { skipped: "thread_unreadable" });
+  assert.equal(warns.length, 1, "and it is logged with the code the read answered");
+  assert.equal(warns[0]![1]?.["code"], "validation.not_found");
+  // the same bridge, the thread readable again: the next message runs (the failure left nothing half-open)
+  const { result } = await s.say("again");
+  assert.deepEqual(result, { receivedAs: [LEAD] });
 });
 
 test("a reply that is addressed to the asker (a reviewer's verdict) carries an @mention of the person, so no agent answers it", async () => {

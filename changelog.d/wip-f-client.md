@@ -1,0 +1,1 @@
+- A member who joins by an invite link can choose a profile photo in their first minute, and a Space admin who was never given a project can still change its roles; both are now held by tests that walk a real server.

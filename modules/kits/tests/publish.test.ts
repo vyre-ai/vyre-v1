@@ -4,6 +4,7 @@
 // @reads /modules/kits/migrations/0001_kits.sql
 
 import test from "node:test";
+import { readFileSync } from "node:fs";
 import assert from "node:assert/strict";
 import { checkKit, configureKits, reportDenials, runKitScript, runKitTests } from "../handlers/index.ts";
 import { subset } from "../handlers/publish.ts";
@@ -119,6 +120,32 @@ test("test_run: runs the working copy on a fixture Space and names each failing 
   assert.equal(bad.passed, false);
   assert.equal(bad.failures[0].test, "(manifest)");
   assert.equal(h.rows("kits_test_run").length, 2, "an invalid manifest is reported, not recorded as a run");
+});
+
+test("runner: a seed step that leaves the key out is given one (from its test and its place), so a capability that declares a key accepts it; a key the step has stays", async () => {
+  const registry = JSON.parse(readFileSync(new URL("../../../generated/registry.json", import.meta.url), "utf8")) as { capabilities: { name: string; idempotency: string }[] };
+  const keyed = new Set(registry.capabilities.filter((c) => c.idempotency === "key").map((c) => c.name));
+  assert.ok(keyed.has("records.create") && keyed.has("tasks.create"), "the capabilities this test seeds with are keyed in the real contract");
+  const kit = checkKit(kitManifest({
+    tests: [{ name: "seeded", kind: "space", seed: [
+      { cap: "records.create", input: { type: "matter", fields: { name: "Estate of Dana" } } },
+      { cap: "tasks.create", input: { title: "Call", idempotencyKey: "mine" } },
+    ], expect: {} }],
+  })).kit!;
+  const spaces: FakeSpace[] = [];
+  const failures = await runKitTests(kit, async () => {
+    const s = new FakeSpace();
+    // the real pipeline refuses a keyed capability whose input has no key (host/src/invoke.ts); the fixture does the same
+    const strict = s.call.bind(s);
+    s.call = async (cap, input) => {
+      if (keyed.has(cap) && typeof (input as { idempotencyKey?: unknown } | null)?.idempotencyKey !== "string") throw Object.assign(new Error("/idempotencyKey: required"), { error: { code: "validation.bad_input", message: `${cap}: /idempotencyKey: required` } });
+      return strict(cap, input);
+    };
+    spaces.push(s);
+    return s;
+  });
+  assert.deepEqual(failures, []);
+  assert.deepEqual(spaces[0]!.calls.map((c) => c.input.idempotencyKey), ["kit-apply:law-intake@1.0.0:0", "kit-apply:law-intake@1.0.0:1", "kit-seed:seeded:0", "mine"], "the Kit's own install steps and the seed steps each get a key");
 });
 
 test("runner: seed calls, event payload subsets, and a seed that fails", async () => {
