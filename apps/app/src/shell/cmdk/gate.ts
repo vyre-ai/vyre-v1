@@ -94,6 +94,8 @@ export function shellHitTarget(hit: Hit, state: { inbox?: boolean }): { place: P
 export function gateActions(state: { away: boolean; offline: boolean; terminal?: boolean}, team = true): readonly CmdAction[] {
   return [
     { key: "task.new", title: "New task", icon: "plus" },
+    // the Projects group in Chats shows only once a project exists, so on a new Space this is the way to the first one (client walk, 11 Nov 2026)
+    { key: "project.new", title: "New project", icon: "plus" },
     { key: "mail.connect", title: "Connect email", icon: "plus" },
     ...(team ? [{ key: "channel.new", title: "New channel", icon: "plus" }] : []),
     { key: "appearance.skin", title: "Switch skin", icon: "eye" },
@@ -172,6 +174,7 @@ export function createGateSearch(d: GateSearchDeps): CmdKData {
         nav.flash(state.offline ? "Working offline" : "Back online");
       } else if (a.key === "terminal.open") nav.go("chats", `screen=chats.terminal-list&at=${Date.now()}`);
       else if (a.key === "task.new") nav.go("home");
+      else if (a.key === "project.new") rt.open({ screen: "records.projects", args: { create: true } });
       else if (a.key === "channel.new") { nav.go("chats"); requestChannelSheet("new"); }
       else if (a.key === SKIN) nav.go("settings", "page=appearance");
       else if (a.key === "mail.connect") nav.go("settings", MAIL_PAGE_HASH);

@@ -53,7 +53,7 @@ export async function runFreshPages(t: TestContext, titles: readonly string[], o
           const bad = ERROR_TEXT.exec(text); if (bad) problems.push(`${where}: says "${bad[0]}"`);
           const raw = RAW_ID.exec(text); if (raw) problems.push(`${where}: shows the raw id ${raw[0]}`);
           if (/Never seen/.test(text)) problems.push(`${where}: lists a server that was never seen`);
-          const servers = (text.match(/Space server/g) ?? []).length; if (servers > 1) problems.push(`${where}: the Space server is listed ${servers} times`);
+          const fleet = /(\d+) of (\d+) online/.exec(text); if (fleet && fleet[2] !== "1") problems.push(`${where}: a fresh Space lists ${fleet[2]} machines, not one`);
           await page.screenshot({ path: path.join(shots, `settings-${p.key}.png`), animations: "disabled" });
         } catch (e) { problems.push(`${where}: ${String(e).split("\n")[0]!.slice(0, 140)}`); }
       }
