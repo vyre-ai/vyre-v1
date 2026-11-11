@@ -240,3 +240,28 @@ test("D7: one agent reads another agent's memory when the asker can open that ag
   assert.match(await read(asks([])), /invoices go out/, "Dana may open Billing's folder: Intake, working for her, reads Billing's memory");
   assert.doesNotMatch(await read(asks(["folder:fld_billing"])), /invoices go out/, "without Billing's folder, nothing of it");
 });
+
+// ---- rc.22 bug 34: what an agent learns talking with a teammate as itself stays that teammate's ----
+
+test("an agent that wrote to Maya as itself keeps what Maya says in her own chat with it for Maya: Dana's later chats with the same agent never recall it", async () => {
+  const raw = openRaw();
+  // the agent's own chat with Maya: Maya and the agent, nobody else (Dana, who asked it to write, is not in it)
+  const selfChat = chatOf(MAYA);
+  const inSelf = harness({ raw, principal: { kind: "agent", id: AGENT }, actingFor: MAYA, respond: {
+    "threads.get": (b: Record<string, unknown>) => ({ thread: { threadId: b["threadId"], ...selfChat.thread } }),
+    "agents.get": () => ({ agent: { folderId: "fld_intake", captureMode: "auto", ownerId: DANA } }),
+    "chat.message.get": () => ({ message: { createdAt: NOW + 1 } }),
+  } });
+  (inSelf.ctx as MemCtx & { thread?: string }).thread = "thr_self";
+  // the agent saves what Maya said, even into its own (agent) layer, which Dana can read in her chats
+  const saved = await remember(inSelf.ctx, { text: `Maya's ${SECRET} reply: she cannot do Friday`, layer: "agent", agentId: AGENT, threadId: "thr_self" });
+  // an accepted fact is the strongest case: it is current in the agent's layer, which any chat with this agent reads
+  inSelf.db.run("UPDATE memory_facts SET status = 'current' WHERE id = ?", saved.fact.factId);
+  // Dana, in her own chat with the same agent
+  const dana = harness({ raw, principal: { kind: "person", id: DANA }, respond: { "threads.get": threadsById({ thr_dana: chatOf(DANA), thr_self: selfChat }), "agents.get": () => ({ agent: { folderId: "fld_intake" } }) } });
+  assert.doesNotMatch(JSON.stringify(await pointer(dana.ctx, { threadId: "thr_dana", agentId: AGENT, text: `Maya ${SECRET} reply Friday` })), /cannot do Friday/, `saved as ${saved.fact.layer}`);
+  assert.doesNotMatch(JSON.stringify(await search(dana.ctx, { q: SECRET, mode: "keyword" })), /cannot do Friday/);
+  // and Maya herself still gets it back
+  const maya = harness({ raw, principal: { kind: "person", id: MAYA }, respond: { "threads.get": threadsById({ thr_maya2: chatOf(MAYA), thr_self: selfChat }), "agents.get": () => ({ agent: { folderId: "fld_intake" } }) } });
+  assert.match(JSON.stringify(await pointer(maya.ctx, { threadId: "thr_maya2", agentId: AGENT, text: `Maya ${SECRET} reply Friday` })), /cannot do Friday/);
+});
