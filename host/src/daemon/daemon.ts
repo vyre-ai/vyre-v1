@@ -1403,11 +1403,20 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       };
       closers.push(() => { if (healTimer !== null) { clearTimeout(healTimer); healTimer = null; } });
       // Fail closed (ruling 70) when a sync fails twice: the last snapshot may still let a revoked or removed person through, so everyone but the owner is refused until a sync succeeds.
+      // what a commit made is committed before its append returns, and a new read transaction on another connection sees every commit (WAL), so this reads the log as the worker wrote it
+      let accessLog: HostDb | null = null;
+      const accessLogRead = (after: number, limit: number): { seq: number; type: string; payload: unknown }[] => {
+        accessLog ??= openDb(paths.events, { readOnly: true });
+        return (accessLog.all("SELECT seq, event, payload FROM events WHERE seq > ? ORDER BY seq LIMIT ?", after, limit) as { seq: number; event: string; payload: Uint8Array }[])
+          .map((r) => ({ ...(JSON.parse(r.event) as { type: string }), seq: Number(r.seq), payload: new Uint8Array(r.payload) }));
+      };
+      closers.push(() => { accessLog?.close(); accessLog = null; });
       const runSync = createAccessRun({
         take: () => { const held = accessPending; accessPending = []; return held; },
         putBack: (es) => { accessPending = [...es, ...accessPending]; },
         pending: () => accessPending.length,
-        read: (after, limit) => log!.read({ after, limit }),
+        // read on this thread through a read-only connection: the log worker's queue (every consumer reads through it after a commit) made each access sync wait behind it
+        read: (after, limit) => Promise.resolve(accessLogRead(after, limit)),
         call: async (events) => (await hookRunner.call("access.sync", { events })) as AccessSnapshot,
         adopt: (s) => access.adopt(s), adopted: () => access.adopted(),
         stale: { get: () => accessStale, set: (v) => { accessStale = v; } },
