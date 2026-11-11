@@ -6,3 +6,4 @@
 - Fixed: an agent's first browser call after an update could start a fresh browser profile and the later move of its old sign-ins wiped it. An agent whose old desktop has not moved now keeps using that desktop for the browser, and a sleeping desktop moves at the agent's first browser call.
 - An agent that still has an older desktop shows a row "Older desktop" at the end of its Computer tab. It opens that desktop's live view, where you can wake it, take over and give it back.
 - The plan an agent shows before it creates another agent no longer lists "Give it a computer".
+- A move of an old desktop's sign-ins waits, without giving up, while the agent's browser is busy or someone has its controls.

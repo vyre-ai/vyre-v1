@@ -35,6 +35,9 @@ export interface MigrationResult { done: number; partial: number; failed: number
 
 const say = (e: unknown): string => (e instanceof Error ? e.message.slice(0, 300) : "unknown");
 
+/** What the Space browser says when it will not take the import now. */
+const BUSY = /has the controls of this agent|browser is busy/i;
+
 type Step = "done" | "partial" | "failed" | "retry";
 /** Moves in flight, by computer: the idle pass and an agent's first browser call never move one computer twice at once, and a call waits for the move that is already running. */
 const moving = new Map<string, Promise<Step>>();
@@ -71,6 +74,11 @@ function moveOne(ctx: CompCtx, p: MigrationPorts, c: ComputerRow): Promise<Step>
       ctx.log.warn("computers: moved to a workspace and a browser profile", { computerId: c.computerId, agentId: c.agentId, chromeBytes: bytes });
       return "done";
     } catch (e) {
+      // The Space browser refuses an import while the agent's profile is in use (a step running, a person at the controls). That is not a failure of the move: it is tried again at a quiet moment and no attempt is used.
+      if (BUSY.test(say(e))) {
+        record(ctx, c, "failed", { workspaceId, profileId, attempts: attempts - 1, bytes: null, error: say(e) });
+        return "retry";
+      }
       const final = attempts >= MAX_ATTEMPTS;
       record(ctx, c, "failed", { workspaceId, profileId, attempts, bytes: null, error: say(e) });
       ctx.log.warn("computers: the move to a workspace and a browser profile failed", { computerId: c.computerId, attempts, final, reason: say(e) });

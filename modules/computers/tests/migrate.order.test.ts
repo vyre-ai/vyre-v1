@@ -2,7 +2,7 @@
 // use would lose what was signed in since the update. And a desktop that cannot hand over its Chrome folder is said so, never recorded as a move that carried the sign-ins (audit B10).
 import test from "node:test";
 import assert from "node:assert/strict";
-import { bindMigration, bindMigrationPort, migrationRows } from "../migrate.ts";
+import { bindMigration, bindMigrationPort, migrateComputers, migrationRows } from "../migrate.ts";
 import { sleep, sleepIdle } from "../handlers/lifecycle.ts";
 import { bindSpaceBrowser } from "../sbrowser/port.ts";
 import type { SpaceBrowser } from "../sbrowser/port.ts";
@@ -110,5 +110,22 @@ test("a desktop that ran but has no Chrome folder to hand over is partial with t
     assert.match(row?.error ?? "", /not found/);
     assert.match(row?.error ?? "", /signs in again once/);
     assert.deepEqual(events.filter((e) => e.startsWith("import")), [], "nothing was imported");
+  } finally { off(); }
+});
+
+test("a busy browser profile is tried again on later passes and never uses up an attempt", async () => {
+  browser();
+  ports();
+  let busy = true;
+  bindMigrationPort("importChromeData", async (_c, a) => { if (busy) throw new Error("This agent's browser is busy: its sign-ins move from the old computer at a quiet moment."); return { bytes: a.data.tar.length }; });
+  try {
+    const w = await world({ asleep: true });
+    withChrome(w, { tar: TAR });
+    for (let i = 0; i < 6; i++) await migrateComputers(w.h.ctx);
+    assert.equal(w.h.rows("SELECT attempts, state FROM computers_migration")[0]?.["attempts"], 0, "six busy passes, no attempt used");
+    assert.notEqual(migrationRows(w.h.ctx)[0]?.state, "done");
+    busy = false;
+    await migrateComputers(w.h.ctx);
+    assert.equal(migrationRows(w.h.ctx)[0]?.state, "done");
   } finally { off(); }
 });
