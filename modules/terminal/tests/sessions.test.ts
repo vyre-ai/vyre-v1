@@ -468,3 +468,15 @@ test("partialSpellingAt finds the longest tail that could still become a spellin
   assert.equal(partialSpellingAt("x s", ["sk-live-1", "s3cret"]), 1);
   assert.equal(partialSpellingAt("anything", []), 0);
 });
+
+test("review finding 1, terminal side: the error of a failed run and the status line on failure never carry a value the workspace was given", async () => {
+  const KEY = "sk-live-DANA-ERR-0123456789";
+  const { hn, host } = setup({ "use key": { exitCode: 0, output: "done" } });
+  bindValues(fakeValues({ "#Dana_Api.key": KEY }));
+  await call(hn, "terminal.run", { command: "use key", session: "dana", env: { K: "#Dana_Api.key" }, idempotencyKey: idem() }, hn.as(AGENT, "usr_dana"));
+  host.failRunWith(new Error(`tmux: pane said ${KEY}`));
+  let said = "";
+  try { await h["terminal.run"]!(hn.as(AGENT, "usr_omar"), { command: "anything", session: "omar" }); } catch (e) { said = JSON.stringify(e) + String((e as Error).message); }
+  assert.ok(said !== "" && !said.includes(KEY), said.replaceAll(KEY, "<KEY>"));
+  assert.equal(JSON.stringify(hn.logged).includes(KEY), false, "nor the log");
+});

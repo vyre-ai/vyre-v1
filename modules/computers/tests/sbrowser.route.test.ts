@@ -140,18 +140,20 @@ test("the Vault channel rides every call as its asker, ends with the call, and t
   });
   try {
     const dex = agentCtx("agt_dex", DANA);
+    // the calls the agent made (after a fill the module also lists the tabs, to know which one holds the value)
+    const asked = () => b.calls.filter((c) => c.tool !== "chrome_tabs");
     await tool["computers.chrome.snapshot"]!(dex, {});
-    const first = b.calls[0]!.fill!;
+    const first = asked()[0]!.fill!;
     assert.equal(first.url, "http://vyre-host/fill", "even a look carries the channel: the extension in the profile fills on its own");
     assert.deepEqual(issued, [{ computerId: "agt_dex", agentId: "agt_dex", asker: DANA }], "the token is for this profile and this agent, as the asker");
     // the channel lives only while the person's call runs (sbrowser audit bug 5): it ended with the look, and the next call brings a new one
     assert.equal(revoked, 1, "the look's channel ended with it");
     await tool["computers.chrome.fill"]!(dex, { fields: [{ ref: "e3", value: "#Dex_Site.password" }] });
-    assert.notEqual(b.calls[1]!.fill!.token, first.token, "a later call of the same person has a channel of its own");
+    assert.notEqual(asked()[1]!.fill!.token, first.token, "a later call of the same person has a channel of its own");
     assert.deepEqual([issued.length, revoked], [2, 2]);
     await tool["computers.chrome.fill"]!(agentCtx("agt_dex", OMAR), { fields: [{ ref: "e3", value: "#Dex_Site.password" }] });
     assert.deepEqual(issued.at(-1), { computerId: "agt_dex", agentId: "agt_dex", asker: OMAR }, "another asker's call is a grant as that asker");
-    assert.notEqual(b.calls[2]!.fill!.token, first.token);
+    assert.notEqual(asked()[2]!.fill!.token, first.token);
     await tool["computers.chrome.fill"]!(agentCtx("agt_scout", DANA), { fields: [{ ref: "e3", value: "#Scout_Site.password" }] });
     assert.equal(issued.at(-1)!.computerId, "agt_scout", "another agent is another profile with its own token");
     assert.equal(revoked, issued.length, "no channel outlives its call");

@@ -342,21 +342,33 @@ const REAL_SCRUB: ScrubKit = { createScrubber };
 let scrubKit: ScrubKit = REAL_SCRUB;
 export function bindKit(k: ScrubKit | null): void { scrubKit = k ?? REAL_SCRUB; }
 const secretsByComputer = new Map<string, Secret[]>();
-/** Computers and profiles whose page holds a value filled from the Vault since the last page was opened: no picture of it is kept or handed out (a text field shows what it holds). */
-const filledPage = new Set<string>();
+/** How many times a value was handed to each computer or profile: a call that sees it grow filled something (a tool, or Vyre for Chrome on its own while the call ran). */
+const givenTimes = new Map<string, number>();
+/**
+ * The tabs of each computer or profile that a Vault value was filled into (review 12 Nov, finding 2). No picture of such a tab is kept or handed out while it is open: a text field shows what it holds,
+ * a picture cannot be scrubbed, and going back in the tab's history can bring the filled page back, so navigating away does not end it; closing the tab does. "*" is a fill whose tab could not be told:
+ * then no tab of it is pictured until the browser forgets it.
+ */
+const filledTabs = new Map<string, Set<string>>();
 export function rememberSecrets(computerId: string, secrets: readonly Secret[]): void {
   const keep = secrets.filter((x) => x.value.length >= MIN_SECRET_LENGTH);
   if (keep.length === 0) return;
   const cur = secretsByComputer.get(computerId) ?? [];
   for (const x of keep) if (!cur.some((c) => c.handle === x.handle && c.value === x.value)) cur.push(x);
   secretsByComputer.set(computerId, cur);
-  filledPage.add(computerId);
+  givenTimes.set(computerId, (givenTimes.get(computerId) ?? 0) + 1);
 }
-export function forgetSecrets(computerId: string): void { secretsByComputer.delete(computerId); filledPage.delete(computerId); }
-/** Does the page of this computer hold a value filled from the Vault? */
-export const pageHoldsValue = (computerId: string): boolean => filledPage.has(computerId);
-/** A new page was opened: what was filled into the last one is no longer on screen. */
-export const pageOpened = (computerId: string): void => { filledPage.delete(computerId); };
+export function forgetSecrets(computerId: string): void { secretsByComputer.delete(computerId); givenTimes.delete(computerId); filledTabs.delete(computerId); }
+export const givenCount = (computerId: string): number => givenTimes.get(computerId) ?? 0;
+export function markFilledTab(computerId: string, tabId: string): void { const s = filledTabs.get(computerId) ?? new Set<string>(); s.add(tabId); filledTabs.set(computerId, s); }
+export const filledTabsOf = (computerId: string): ReadonlySet<string> => filledTabs.get(computerId) ?? new Set<string>();
+/** The tabs open now: a filled tab that is not among them was closed. */
+export function tabsOpen(computerId: string, open: readonly string[]): void {
+  const s = filledTabs.get(computerId);
+  if (!s) return;
+  for (const t of [...s]) if (t !== "*" && !open.includes(t)) s.delete(t);
+  if (s.size === 0) filledTabs.delete(computerId);
+}
 /** Text with every value filled on this computer removed. */
 export function clean(computerId: string, text: string): string {
   const list = secretsByComputer.get(computerId);

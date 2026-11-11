@@ -39,7 +39,7 @@ function exportsOf(script: string): Record<string, string> {
   return env;
 }
 
-const FETCH = /^\( __vyre_env="\$\('[^']*' save-buffer -b '([^']+)' - 2>\/dev\/null\)"; [\s\S]*?unset __vyre_env; /;
+const FETCH = /^\( \{ set \+xv; \} 2>\/dev\/null; __vyre_env="\$\('[^']*' save-buffer -b '([^']+)' - 2>\/dev\/null\)"; [\s\S]*?unset __vyre_env; /;
 
 /** The command inside `{ cmd\n}`, or inside the subshell that fetches its variables from a buffer, with those variables (the buffer is deleted as the real line does). */
 function unwrap(body: string, buffers: Map<string, string>): { command: string; env: Record<string, string> } {
@@ -111,6 +111,7 @@ export function fakeTmux(o: FakeTmuxOptions = {}) {
       sessions.set(name, { name, cols: Number(flag(argv, "-x")), rows: Number(flag(argv, "-y")), cwd: flag(argv, "-c") ?? "/home/agent", lines: [], typed: "", hung: false, env: {} });
       return ok();
     }
+    if (sub === "list-buffers") return ok([...buffers.keys()].map((b) => `${b}\n`).join(""));
     if (sub === "load-buffer") { buffers.set(flag(argv, "-b") as string, x?.stdin ?? ""); return ok(); }
     if (sub === "delete-buffer") { const b = flag(argv, "-b") as string; return buffers.delete(b) ? ok() : bad(`no buffer ${b}`); }
     if (sub === "list-sessions") return ok([...sessions.keys()].join("\n") + (sessions.size ? "\n" : ""));

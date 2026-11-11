@@ -44,6 +44,9 @@ const SHELLS: ReadonlySet<string> = new Set(["bash", "zsh", "sh", "dash", "fish"
 const ENV_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
 /** What a session's shell starts with so that a line typed with a leading space (every agent command) is kept out of its history, in memory and on disk. */
 export const HISTORY_ENV: readonly string[] = ["-e", "HISTCONTROL=ignorespace"];
+/** The name every values buffer starts with (a random 32 hex characters follow). */
+export const ENV_BUFFER = "vyre-env-";
+const BUSY = "This tab is still running something, so no Vault value is handed to it. Wait for it to finish, or run the command in another tab.";
 const realSleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 const rnd = (n: number): string => Array.from(globalThis.crypto.getRandomValues(new Uint8Array(n)), (b) => b.toString(16).padStart(2, "0")).join("");
 
@@ -95,6 +98,16 @@ export function createTmuxHost(o: TmuxOptions): TerminalHost {
   }
   async function capture(session: string, lines: number): Promise<string> {
     return tidy(await tmux(["capture-pane", "-p", "-J", "-t", session, "-S", `-${Math.max(1, lines)}`]));
+  }
+
+  /** Sessions a run of this host is in now, and the values buffers of those runs. */
+  const running = new Set<string>();
+  const mine = new Set<string>();
+  /** Every values buffer of this tmux server that no run of this host is using: left by a daemon that died between load and delete. Run before every run with values, so also when a host starts. */
+  async function sweepBuffers(): Promise<void> {
+    const l = await o.exec(["tmux", "list-buffers", "-F", "#{buffer_name}"]);
+    if (l.code !== 0) return;
+    for (const name of l.stdout.split("\n").map((x) => x.trim())) if (name.startsWith(ENV_BUFFER) && !mine.has(name)) await o.exec(["tmux", "delete-buffer", "-b", name]).catch(() => undefined);
   }
 
   /** Type one line, press Enter and read the screen until the end marker shows: the output between the markers and the exit code. */
@@ -152,21 +165,38 @@ export function createTmuxHost(o: TmuxOptions): TerminalHost {
       // Values are never typed (W6): they go into a tmux buffer through the standard input of `tmux load-buffer`, in the tmux server's memory only, never on disk and never in a program's arguments.
       // The typed line reads the buffer inside a subshell, deletes it before the command starts and exports the values there, so they are the environment of this one command and gone after it.
       // Without variables the command runs in braces so `cd` and exports persist like typing it.
-      const buffer = Object.keys(r.env).length > 0 ? `vyre-env-${rnd(8)}` : null;
-      if (buffer !== null) {
-        const script = Object.entries(r.env).map(([k, v]) => `export ${k}=${shQuote(v)}\n`).join("");
-        const loaded = await o.exec(["tmux", "load-buffer", "-b", buffer, "-"], { stdin: script });
-        if (loaded.code !== 0) throw new Error(`tmux load-buffer failed: ${loaded.stderr.trim().slice(0, 200)}`);
+      const withValues = Object.keys(r.env).length > 0;
+      // A tab that is not at its prompt would leave the values waiting in the buffer until the run gave up (review 12 Nov, finding 3), and the typed line would go to whatever runs there:
+      // a run that carries values goes only to a tab whose shell is waiting for a line, and never while another run of this host is in it.
+      if (withValues) {
+        if (running.has(session)) throw Object.assign(new Error(BUSY), { code: "busy" });
+        const fg = tidy(await tmux(["display-message", "-p", "-t", session, "#{pane_current_command}"]));
+        if (!SHELLS.has(fg) || fg === "tmux") throw Object.assign(new Error(BUSY), { code: "busy" });
       }
-      const tm = shQuote(o.tmuxPath ?? "tmux");
-      const body = buffer !== null
-        ? `( __vyre_env="$(${tm} save-buffer -b ${shQuote(buffer)} - 2>/dev/null)"; ${tm} delete-buffer -b ${shQuote(buffer)} 2>/dev/null; [ -n "$__vyre_env" ] || { echo 'Vyre could not hand this command its values.' >&2; exit 125; }; eval "$__vyre_env"; unset __vyre_env; ${r.command}\n)`
-        : `{ ${r.command}\n}`;
-      const cd = r.cwd === undefined ? "" : `cd ${shQuote(r.cwd)} && `;
-      // Begin and end markers are printed by the shell, so the typed line (which holds them only inside quotes) never matches a marker line. The leading space keeps the line out of the shell's history.
-      const line = ` printf '%s\\n' ${shQuote(beg)}; ${cd}${body}; printf '\\n%s:%d\\n' ${shQuote(end)} $?`;
-      try { return await runLine(session, line, beg, end, r.timeoutMs); }
-      finally { if (buffer !== null) await o.exec(["tmux", "delete-buffer", "-b", buffer]).catch(() => undefined); }
+      running.add(session);
+      const buffer = withValues ? `${ENV_BUFFER}${rnd(16)}` : null;
+      try {
+        if (buffer !== null) {
+          // what a run of an earlier daemon left behind (it died between load and delete) is removed first; the buffers of runs of this host still in flight are theirs
+          await sweepBuffers();
+          const script = Object.entries(r.env).map(([k, v]) => `export ${k}=${shQuote(v)}\n`).join("");
+          mine.add(buffer);
+          const loaded = await o.exec(["tmux", "load-buffer", "-b", buffer, "-"], { stdin: script });
+          if (loaded.code !== 0) throw new Error(`tmux load-buffer failed: ${loaded.stderr.trim().slice(0, 200)}`);
+        }
+        const tm = shQuote(o.tmuxPath ?? "tmux");
+        // a tab may have xtrace or verbose on (set -x, set -v): the subshell turns both off before it touches a value, or the shell would print the values, re-quoted, past the scrubber
+        const body = buffer !== null
+          ? `( { set +xv; } 2>/dev/null; __vyre_env="$(${tm} save-buffer -b ${shQuote(buffer)} - 2>/dev/null)"; ${tm} delete-buffer -b ${shQuote(buffer)} 2>/dev/null; [ -n "$__vyre_env" ] || { echo 'Vyre could not hand this command its values.' >&2; exit 125; }; eval "$__vyre_env"; unset __vyre_env; ${r.command}\n)`
+          : `{ ${r.command}\n}`;
+        const cd = r.cwd === undefined ? "" : `cd ${shQuote(r.cwd)} && `;
+        // Begin and end markers are printed by the shell, so the typed line (which holds them only inside quotes) never matches a marker line. The leading space keeps the line out of the shell's history.
+        const line = ` printf '%s\\n' ${shQuote(beg)}; ${cd}${body}; printf '\\n%s:%d\\n' ${shQuote(end)} $?`;
+        return await runLine(session, line, beg, end, r.timeoutMs);
+      } finally {
+        running.delete(session);
+        if (buffer !== null) { await o.exec(["tmux", "delete-buffer", "-b", buffer]).catch(() => undefined); mine.delete(buffer); }
+      }
     },
     async status(ids) {
       const out: Array<{ terminalId: string; state: TermState; lastLine?: string; exitCode: number | null }> = [];
@@ -401,7 +431,7 @@ export interface WorkspaceConfig extends Pick<WorkspaceOptions, "image" | "limit
   /** A Team server: the container runner's socket and its token (read again on each call). vyred holds no Docker socket there. */
   runner?: { socket: string; token(): string };
   /** Servers that joined the Space: a question for one over its live socket, and which one (connected, with Docker) an agent's workspace goes on when the Space has no runtime of its own. */
-  nodes?: { ask(nodeId: string, kind: string, input: unknown, timeoutMs?: number): Promise<unknown>; place(agentId: string): Promise<string | null> };
+  nodes?: { ask(nodeId: string, kind: string, input: unknown, timeoutMs?: number): Promise<unknown>; place(agentId: string): Promise<string | null>; /** Is this server's link to the Space private? Absent: no server's is, so none gets a Vault value. */ secure?(nodeId: string): boolean };
 }
 
 /** The manager of one machine's Docker engine, not yet used: the first terminal command or attach makes the workspace. */
@@ -422,7 +452,7 @@ export function buildWorkspaceFleet(c: WorkspaceConfig): WorkspaceFleet {
       if (!nodes) throw new Error("This Space has no servers to run workspaces on.");
       const { socketPath: _s, runner: _r, nodes: _x, capacity, ...rest } = c;
       const http = remoteDockerHttp((input, timeoutMs) => nodes.ask(nodeId, "docker", input, timeoutMs));
-      return buildWorkspaceManager({ ...rest, ...(capacity ? { capacity: { claim: (a: string) => capacity.claim(a, nodeId), release: (a: string) => capacity.release(a, nodeId) } } : {}), http, runner: true } as Omit<WorkspaceOptions, "api">);
+      return buildWorkspaceManager({ ...rest, valuesAllowed: () => nodes.secure?.(nodeId) === true, ...(capacity ? { capacity: { claim: (a: string) => capacity.claim(a, nodeId), release: (a: string) => capacity.release(a, nodeId) } } : {}), http, runner: true } as Omit<WorkspaceOptions, "api">);
     },
     place: async (agentId) => (nodes ? nodes.place(agentId) : null),
   });

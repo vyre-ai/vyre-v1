@@ -60,7 +60,7 @@ export interface WorkspacesConfig {
     release(agentId: string, nodeId?: string): Promise<void>;
   };
   /** Servers that joined the Space, where an agent's workspace goes when the Space has no container runtime of its own (a Personal Space on a computer without Docker, or a server added for room). */
-  nodes?: { ask(nodeId: string, kind: string, input: unknown, timeoutMs?: number): Promise<unknown>; place(agentId: string): Promise<string | null> };
+  nodes?: { ask(nodeId: string, kind: string, input: unknown, timeoutMs?: number): Promise<unknown>; place(agentId: string): Promise<string | null>; /** Is the server's link to the Space private (compute-stream secure)? A Vault value goes to its workspaces only then. */ secure?(nodeId: string): boolean };
   /** The projects an agent is on, so their shared folders are mounted. */
   projectsOf?(agentId: string): Promise<readonly string[]> | readonly string[];
   log?(level: "info" | "warn", msg: string, attrs?: Record<string, unknown>): void;

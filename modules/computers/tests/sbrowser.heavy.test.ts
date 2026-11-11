@@ -412,6 +412,21 @@ test("@heavy space browser (sbrowser bug 2): a key typed into a text field comes
     assert.match(JSON.stringify(answers[0]), /\[#Api_Site\.key\]/);
     await assert.rejects(() => call["computers.chrome.screenshot"]!(omar.ctx, {}), (e) => /holds a value filled from the Vault/.test(JSON.stringify(e)), "no picture of the page");
     assert.equal(dana.calls("files.create").length + omar.calls("files.create").length, pictures, "no picture of the page was kept for the fill step or after it");
+    // review finding 1: the page's own exception quotes the field; the real browser says so in its error, the module takes it out
+    const thrower = `(() => { throw new Error(${read}); })()`;
+    await assert.rejects(() => tool("agt_vb", "chrome_eval", { expression: thrower }), (e) => e instanceof ToolError && e.message.includes(API_KEY), "browserd's own error carries the key: this is what the module stands between");
+    await assert.rejects(() => call["computers.chrome.eval"]!(omar.ctx, { expression: thrower }), (e) => !JSON.stringify(e).includes(API_KEY) && /\[#Api_Site\.key\]/.test(JSON.stringify(e)), "the module's error answer to Omar does not");
+    // review finding 2: a new tab does not lift the rule for the filled one
+    const tabsNow = (await call["computers.chrome.tabs"]!(omar.ctx, { action: "list" }))["tabs"] as Array<{ tabId: string; active: boolean }>;
+    const filledTab = tabsNow.find((x) => x.active)!.tabId;
+    await call["computers.chrome.open"]!(omar.ctx, { url: siteUrl("/whoami"), newTab: true });
+    assert.ok(Number((await call["computers.chrome.screenshot"]!(omar.ctx, {}))["width"]) > 100, "the new tab, which holds nothing, is pictured");
+    await assert.rejects(() => call["computers.chrome.screenshot"]!(omar.ctx, { tabId: filledTab }), (e) => /holds a value filled from the Vault/.test(JSON.stringify(e)), "the filled tab, named, is not");
+    const kept = dana.calls("files.create").length + omar.calls("files.create").length;
+    await call["computers.chrome.tabs"]!(omar.ctx, { action: "use", tabId: filledTab });
+    assert.equal(dana.calls("files.create").length + omar.calls("files.create").length, kept, "using the filled tab keeps no step picture of it");
+    await call["computers.chrome.tabs"]!(omar.ctx, { action: "close", tabId: filledTab });
+    assert.ok(Number((await call["computers.chrome.screenshot"]!(omar.ctx, {}))["width"]) > 100, "once it is closed, pictures are back");
     forgetSecrets("agt_vb");
   } finally { bindSpaceBrowser(null); bindFill(null); }
 });

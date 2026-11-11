@@ -5,3 +5,7 @@
 - A Vault value an agent's Space browser was given, typed by a tool or filled by Vyre for Chrome, no longer comes back in what the browser tools answer (page text, scripts run on the page, element details, console and network), to anyone who asks the same agent.
 - The Space browser keeps no picture of a page that holds a value filled from the Vault, and a screenshot of it is refused until a new page is opened, since a text field shows what it holds.
 - When one team agent browses for two people at once, each person's Vault fills are looked up as that person, and Vyre for Chrome in the agent's browser fills nothing between their turns.
+- An error a browser tool answers (a page's own exception, a failed step) no longer carries a Vault value the agent's browser was given.
+- A browser tab a Vault value was filled into is not pictured while it stays open, whichever tab is opened, used or navigated next; closing the tab ends it.
+- A terminal command that carries Vault values is refused, with a plain line, in a tab that is still running something, and values left behind by an earlier run are removed.
+- A workspace on a server whose link to the Space is not private (no TLS) gets no Vault values, the same rule agent computers follow.

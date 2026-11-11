@@ -92,7 +92,7 @@ test("run: a folder to run in, and variables, which live in a subshell and are q
   const r = await host.run("trm_a1", { command: "echo $A", cwd: "/work/it's", env: { A: VALUE, B: "plain" }, timeoutMs: 5000 });
   assert.deepEqual([r.exitCode, r.output], [0, `A=${VALUE} B=plain`], "the command got both values exactly");
   const typed = tm.calls.find((x) => x[1] === "send-keys" && x.includes("-l") && x.at(-1)!.includes("echo $A"))!.at(-1)!;
-  assert.ok(typed.startsWith(" printf ") && typed.includes(`cd '/work/it'\\''s' && ( __vyre_env=`) && typed.includes(`unset __vyre_env; echo $A\n); printf `), typed);
+  assert.ok(typed.startsWith(" printf ") && typed.includes(`cd '/work/it'\\''s' && ( { set +xv; } 2>/dev/null; __vyre_env=`) && typed.includes(`unset __vyre_env; echo $A\n); printf `), typed);
   // W6: a value is never typed and never in a program's arguments; it went in on load-buffer's standard input, and the buffer is gone after the command
   assert.equal(tm.calls.some((x) => x.some((a) => a.includes("touch /tmp/pwned") || a.includes("plain"))), false, JSON.stringify(tm.calls));
   assert.ok(tm.calls.some((x) => x[1] === "load-buffer" && x.at(-1) === "-"), "the values went in through load-buffer's standard input");
@@ -250,4 +250,21 @@ test("stream: a viewer that has stopped gets nothing more, even when its tmux cl
   stop();
   push("%output %1 late\\015\\012");
   assert.deepEqual(got.map((f) => f.trim()), ["first"], "the line that arrived after stop() never reaches the viewer");
+});
+
+test("review finding 3: a run with values goes only to a tab at its prompt, never into one another run is in, removes values buffers an earlier daemon left, and names its own unguessably", async () => {
+  const { tm, host } = rig({ scripts: { "echo $A": (_c, env) => ({ out: `A=${env["A"]}`, code: 0 }), "sleep 999": { hang: true } } });
+  await open(host);
+  // left by a daemon that died between load and delete
+  tm.buffers.set("vyre-env-0000000000000000", "export A='left'\n");
+  const r = await host.run("trm_a1", { command: "echo $A", env: { A: "fresh-value" }, timeoutMs: 5000 });
+  assert.equal(r.output, "A=fresh-value");
+  assert.equal(tm.buffers.size, 0, "the leftover is gone, and so is the run's own");
+  const loaded = tm.calls.find((x) => x[1] === "load-buffer")!;
+  assert.match(loaded[3]!, /^vyre-env-[0-9a-f]{32}$/, "a name nobody can guess");
+  // a tab running something: refused before anything is loaded or typed
+  const before = tm.calls.length;
+  tm.sessions.get("vyre-trm_a1")!.hung = true;   // a person left a program running in the tab
+  await assert.rejects(() => host.run("trm_a1", { command: "echo $A", env: { A: "x-value" }, timeoutMs: 5000 }), /still running something/);
+  assert.equal(tm.calls.slice(before).some((x) => x[1] === "load-buffer"), false, "no values were loaded for a busy tab");
 });

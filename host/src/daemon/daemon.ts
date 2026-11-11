@@ -1948,6 +1948,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
               ...((workspaceRuntime() ?? {}) as object),
               nodes: {
                 ask: (nodeId: string, kind: string, input: unknown, timeoutMs?: number) => computeStream.ask(nodeId, kind, input, timeoutMs),
+                // a Vault value goes to a workspace on a server only over a private link: the same rule, and the same answer, as an agent computer's Vault channel (setComputersFill nodeSecure)
+                secure: (nodeId: string) => computeStream.secure(nodeId),
                 place: async (agentId: string): Promise<string | null> => {
                   const owner = ((await createAgentHomeCaller({ db: db!, spaceId, invoke })(agentId, "agents.get", { agentId })) as { agent?: { ownerId?: string } } | null)?.agent?.ownerId;
                   if (!owner) return null;

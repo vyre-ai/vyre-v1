@@ -283,3 +283,43 @@ test("tmux (W6): a person's value used through a team agent is never typed, neve
     assert.equal(later.output.includes(SECRET), false);
   } finally { reset(); }
 });
+
+test("tmux (review 3, 5): a values buffer an earlier daemon left is removed, a busy tab is refused, a tab with set -x on shows no value, and the window in which a buffer exists is measured", { skip }, async (t) => {
+  const PART = `vq${Math.random().toString(36).slice(2, 10)}`;
+  const VALUE = `it's ${PART}\nsecond "line" $(id)`;
+  await open("trm_hv7");
+  // a daemon that died between load and delete left this
+  await runTmux(["load-buffer", "-b", "vyre-env-00leftover", "-"], "export K='left-behind-value'\n");
+  const r1 = await host.run("trm_hv7", { command: 'printf %s "$K" | wc -c', env: { K: VALUE }, timeoutMs: 8000 });
+  assert.equal(r1.output.trim(), String(Buffer.byteLength(VALUE)));
+  assert.equal((await runTmux(["list-buffers", "-F", "#{buffer_name}"])).stdout.includes("vyre-env-"), false, "no values buffer is left, the old one included");
+
+  // xtrace and verbose on in the tab: the run's subshell turns them off before it touches a value
+  await host.input("trm_hv7", "set -xv\r");
+  await sleep(200);
+  const r2 = await host.run("trm_hv7", { command: 'printf %s "$K" | wc -c', env: { K: VALUE }, timeoutMs: 8000 });
+  assert.equal(r2.output.includes(PART), false, r2.output);
+  const raw = (await runTmux(["capture-pane", "-p", "-J", "-t", "vyre-trm_hv7", "-S", "-"])).stdout;
+  assert.equal(raw.includes(PART), false, `the screen, with set -xv on: ${raw.slice(-600)}`);
+  await host.input("trm_hv7", "set +xv\r");
+
+  // the window: a watcher asks the tmux server for its buffers as fast as it can while a run hands over its values
+  const seen = path.join(work, "seen.txt");
+  const watcher = spawn("bash", ["-c", `while :; do tmux -L ${SOCK} list-buffers -F '#{buffer_name}' 2>/dev/null | grep -q vyre-env- && date +%s%N >> ${seen}; done`], { env: ENV, stdio: "ignore" });
+  try {
+    for (let i = 0; i < 10; i++) await host.run("trm_hv7", { command: "true", env: { K: VALUE }, timeoutMs: 8000 });
+  } finally { watcher.kill("SIGKILL"); }
+  const stamps = fs.existsSync(seen) ? fs.readFileSync(seen, "utf8").trim().split("\n").filter(Boolean).map((x) => Number(BigInt(x) / 1_000_000n)) : [];
+  // runs of stamps less than 30 ms apart are one window
+  const windows: number[] = [];
+  for (let i = 0, start = 0; i < stamps.length; i++) if (i === stamps.length - 1 || stamps[i + 1]! - stamps[i]! > 30) { windows.push(stamps[i]! - stamps[start]!); start = i + 1; }
+  t.diagnostic(`values buffer seen by a polling watcher in ${windows.length} of 10 runs; longest window seen ${windows.length ? Math.max(...windows) : 0} ms`);
+  assert.equal((await runTmux(["list-buffers", "-F", "#{buffer_name}"])).stdout.includes("vyre-env-"), false);
+
+  // a tab that runs something: no values are loaded and nothing is typed into the program
+  await host.input("trm_hv7", "sleep 30\r");
+  await until("sleep to run", async () => (await host.status(["trm_hv7"]))[0]?.state === "running");
+  await assert.rejects(() => host.run("trm_hv7", { command: "true", env: { K: VALUE }, timeoutMs: 3000 }), /still running something/);
+  assert.equal((await runTmux(["list-buffers", "-F", "#{buffer_name}"])).stdout.includes("vyre-env-"), false);
+  await host.interrupt("trm_hv7");
+});

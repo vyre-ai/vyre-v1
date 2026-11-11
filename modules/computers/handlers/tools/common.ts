@@ -8,7 +8,7 @@
 //   recording and every answer can be scrubbed; `frame` is the screen after the step (the timeline's picture); `caption` is its words.
 // Errors are only ones the capabilities declare: a person at the controls, a held item and a bad argument are validation.bad_input; Esc, a computer still starting and a silent agentd are provider.unavailable.
 // Handles are never resolved here: "agent computer logins stay on that computer" (ARCH 6.11), agentd substitutes them at the last moment and scrubs its own output. This module scrubs again.
-import { actorOf, addStep, agentFolder, boundFill, clean, hostFor, ensure, mintId, needComputer, needTeam, pageHoldsValue, pageOpened, raise, rememberSecrets, rowsOf, setComputer } from "../../projections.ts";
+import { actorOf, addStep, agentFolder, boundFill, clean, hostFor, ensure, mintId, needComputer, needTeam, filledTabsOf, givenCount, markFilledTab, raise, rememberSecrets, tabsOpen, rowsOf, setComputer } from "../../projections.ts";
 import { personalChrome } from "../../projections.ts";
 import type { CompCtx, ComputerHost, ComputerRow, PersonalChrome, Secret } from "../../projections.ts";
 import { awaken } from "../lifecycle.ts";
@@ -81,16 +81,49 @@ const CODES = {
   timeout: "timeout.deadline", paused: "provider.unavailable", not_found: "validation.not_found", bad_input: "validation.bad_input", held: "validation.bad_input", unavailable: "provider.unavailable",
 } as const;
 
-function refuse(ctx: CompCtx, e: unknown): never {
+/**
+ * A refusal, in the words the computer gave, with every Vault value given to that computer or profile taken out first (review 12 Nov, finding 1: a page's own exception, or agentd's "the page
+ * raised: ...", can quote a filled field). Every error of every tool goes through here, as every answer goes through scrubDeep.
+ */
+function refuse(ctx: CompCtx, e: unknown, computerId: string): never {
   if (e instanceof ToolError) {
     // "paused" is two things: the person pressed Esc (the Chrome extension), or a person has taken over the browser and holds the controls (the Space browser says so in its own words, and those are the true reason)
-    const text = e.code === "paused" && !/has the controls/i.test(e.message) ? "Chrome is paused. The person pressed Esc; wait for their answer, then resume." : e.message.slice(0, 300);
+    const text = e.code === "paused" && !/has the controls/i.test(e.message) ? "Chrome is paused. The person pressed Esc; wait for their answer, then resume." : clean(computerId, e.message).slice(0, 300);
     raise(ctx, CODES[e.code], text, { agentd: e.code });
   }
-  raise(ctx, "provider.unavailable", "The computer did not answer the tool.", { reason: e instanceof Error ? e.message.slice(0, 200) : "unknown" });
+  raise(ctx, "provider.unavailable", "The computer did not answer the tool.", { reason: e instanceof Error ? clean(computerId, e.message).slice(0, 200) : "unknown" });
 }
 
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
+
+/** The tabs of a computer or profile as its browser lists them now. */
+type TabLister = () => Promise<Array<{ tabId: string; active: boolean }>>;
+const tabsIn = (out: unknown): Array<{ tabId: string; active: boolean }> =>
+  isRecord(out) && Array.isArray(out["tabs"]) ? (out["tabs"] as unknown[]).filter(isRecord).filter((t) => typeof t["tabId"] === "string").map((t) => ({ tabId: String(t["tabId"]), active: t["active"] === true })) : [];
+
+/** May the tab named (or the one in front) be pictured? Not while it holds a value filled from the Vault; when the browser cannot say which tab is in front, no. */
+async function pictureAllowed(id: string, list: TabLister, tabId: unknown): Promise<boolean> {
+  if (filledTabsOf(id).size === 0) return true;
+  let tabs: Array<{ tabId: string; active: boolean }>;
+  try { tabs = await list(); } catch { return false; }
+  // a browser always has a tab: an empty list says nothing about which were closed
+  if (tabs.length === 0) return false;
+  tabsOpen(id, tabs.map((t) => t.tabId));
+  const marks = filledTabsOf(id);
+  if (marks.size === 0) return true;
+  if (marks.has("*")) return false;
+  const target = typeof tabId === "string" ? tabId : tabs.find((t) => t.active)?.tabId;
+  return target !== undefined && !marks.has(target);
+}
+
+/** After a call during which a value was handed to this computer: mark the tab it went into (the one the call named, else the one in front). */
+async function markAfter(id: string, list: TabLister, before: number, tabId: unknown): Promise<void> {
+  if (givenCount(id) === before) return;
+  if (typeof tabId === "string") { markFilledTab(id, tabId); return; }
+  let front: string | undefined;
+  try { front = (await list()).find((t) => t.active)?.tabId; } catch { /* the tab cannot be told */ }
+  markFilledTab(id, front ?? "*");
+}
 
 /** Every string anywhere in a value with the Vault values filled on this computer removed. */
 export function scrubDeep(computerId: string, v: unknown): unknown {
@@ -226,27 +259,30 @@ export async function prepare(ctx: CompCtx, computerId: string | undefined, spec
 /** One call to agentd and everything after it: scrub, remember what was filled, keep the frame, add the step. Returns the capability's output. */
 export async function call(ctx: CompCtx, r: Resolved, spec: ToolSpec, args: ToolArgs): Promise<ToolAnswer> {
   if (r.personal) return personalCall(ctx, spec, args);
-  // a page that holds a value filled from the Vault is not pictured: a text field (an API key, a one-time code) shows what it holds, and a picture cannot be scrubbed
-  if (spec.name === "chrome_screenshot" && pageHoldsValue(r.computer.computerId)) raise(ctx, "validation.bad_input", HOLDS_VALUE, { reason: "vault_value_on_page" });
   if (r.browser) return browserCall(ctx, r.browser.profileId, spec, args);
   const c = r.computer;
-  if (spec.name === "chrome_open") pageOpened(c.computerId);
+  const list: TabLister = async () => tabsIn(await r.host.tool({ computerId: c.computerId, tool: "chrome_tabs", args: { action: "list" }, timeoutMs: DEFAULT_TOOL_MS }));
+  // a tab that holds a value filled from the Vault is not pictured: a text field (an API key, a one-time code) shows what it holds, and a picture cannot be scrubbed
+  if (spec.name === "chrome_screenshot" && !(await pictureAllowed(c.computerId, list, args["tabId"]))) raise(ctx, "validation.bad_input", HOLDS_VALUE, { reason: "vault_value_on_page" });
+  const given = givenCount(c.computerId);
   let raw: ToolAnswer;
   try {
     const byPerson = c.state === "takeover" && ctx.principal.kind === "person" && c.takeoverBy !== undefined && actorOf(ctx) === c.takeoverBy;
     raw = await r.host.tool({ computerId: c.computerId, tool: spec.name, args, timeoutMs: Math.min(spec.timeoutMs ?? DEFAULT_TOOL_MS, MAX_TOOL_MS), ...(byPerson ? { by: "person" as const } : {}) });
   } catch (e) {
-    return refuse(ctx, e);
+    return refuse(ctx, e, c.computerId);
   }
   if (!isRecord(raw)) raise(ctx, "provider.unavailable", "The computer answered with something that is not an object.");
   const { used, frame, caption, ...rest } = raw;
   rememberSecrets(c.computerId, secretsOf(used));
+  if (spec.name.startsWith("chrome_")) await markAfter(c.computerId, list, given, args["tabId"]);
+  if (spec.name === "chrome_tabs" && tabsIn(rest).length > 0) tabsOpen(c.computerId, tabsIn(rest).map((t) => t.tabId));
   const out = scrubDeep(c.computerId, rest) as ToolAnswer;
   const at = ctx.now();
   setComputer(ctx.db, c.computerId, { last_active_at: at });
   if (spec.caption) {
     const words = typeof caption === "string" && caption.trim() !== "" ? clean(c.computerId, caption.trim()).slice(0, 200) : spec.caption(args, out);
-    const frameFileId = pageHoldsValue(c.computerId) ? undefined : await keepFrame(ctx, c, frame, at);
+    const frameFileId = filledTabsOf(c.computerId).size > 0 && !(await pictureAllowed(c.computerId, list, undefined)) ? undefined : await keepFrame(ctx, c, frame, at);
     addStep(ctx.db, c.computerId, at, {
       by: ctx.principal.kind === "agent" ? "agent" : "person", caption: words, tool: spec.name, ...(frameFileId ? { frameFileId } : {}), ...(ctx.run ? { runId: ctx.run } : {}), ...(ctx.thread ? { threadId: ctx.thread } : {}),
     });
@@ -255,7 +291,7 @@ export async function call(ctx: CompCtx, r: Resolved, spec: ToolSpec, args: Tool
   return out;
 }
 
-export const HOLDS_VALUE = "This page holds a value filled from the Vault, so no picture of it is taken. Open the next page first.";
+export const HOLDS_VALUE = "This tab holds a value filled from the Vault, so no picture of it is taken while it is open. Picture another tab, or close this one first.";
 
 // The Vault channel of an agent's profile rides each tool call, as the person whose turn the call is (sbrowser audit bug 5): a token per profile and asker, live only while that person's calls run, so
 // one team agent working for two people at once looks each fill up as the right one, and nobody's access outlives their turn (Vyre for Chrome in the profile fills nothing between turns).
@@ -302,17 +338,21 @@ async function browserStep(ctx: CompCtx, sb: NonNullable<ReturnType<typeof space
     agent = { name: who.name };
     if (!faceSent.has(profileId)) { const svg = await faceSvg(who.face); if (svg) agent.faceSvg = svg; faceSent.add(profileId); }
   }
-  // a new page replaces the one a value was filled into (a fill while it loads marks it again)
-  if (spec.name === "chrome_open") pageOpened(profileId);
+  const list: TabLister = async () => tabsIn(await sb.tool({ profileId, tool: "chrome_tabs", args: { action: "list" }, timeoutMs: DEFAULT_TOOL_MS, space: ctx.space }));
+  if (spec.name === "chrome_screenshot" && !(await pictureAllowed(profileId, list, args["tabId"]))) raise(ctx, "validation.bad_input", HOLDS_VALUE, { reason: "vault_value_on_page" });
+  const given = givenCount(profileId);
   let raw: ToolAnswer;
   try {
     raw = await sb.tool({ profileId, ...(agent ? { agent } : {}), tool: spec.name, args, timeoutMs: Math.min(spec.timeoutMs ?? DEFAULT_TOOL_MS, MAX_TOOL_MS), space: ctx.space, ...(fill ? { fill } : {}) });
   } catch (e) {
-    return refuse(ctx, e);
+    return refuse(ctx, e, profileId);
   }
   if (!isRecord(raw)) raise(ctx, "provider.unavailable", "The browser answered with something that is not an object.");
   const { used, frame: _frame, caption: _caption, ...rest } = raw;
   rememberSecrets(profileId, secretsOf(used));
+  // the tab a value went into, by a tool or by Vyre for Chrome while this call ran, is never pictured while it is open
+  await markAfter(profileId, list, given, args["tabId"] ?? (spec.name === "chrome_open" ? rest["tabId"] : undefined));
+  if (spec.name === "chrome_tabs" && tabsIn(rest).length > 0) tabsOpen(profileId, tabsIn(rest).map((t) => t.tabId));
   const out = scrubDeep(profileId, rest) as ToolAnswer;
   // what the browser finished downloading goes into the agent's Files (Downloads) and the agent is told where; only the steps that say so carry it
   // a step with a caption is one line of the agent's browser timeline, with a picture of the page, and the chat shows the browser live once per burst of work
@@ -321,7 +361,7 @@ async function browserStep(ctx: CompCtx, sb: NonNullable<ReturnType<typeof space
     const words = clean(profileId, spec.caption(args, out).trim()).slice(0, 200);
     let frame: string | undefined;
     // no picture of a page that holds a value filled from the Vault (it is kept in Files, and a text field shows its value)
-    if (!pageHoldsValue(profileId)) { try { const shot = await sb.screenshot(profileId); frame = Buffer.from(shot.bytes).toString("base64"); } catch { /* a step without a picture */ } }
+    if (await pictureAllowed(profileId, list, undefined)) { try { const shot = await sb.screenshot(profileId); frame = Buffer.from(shot.bytes).toString("base64"); } catch { /* a step without a picture */ } }
     const c = { computerId: profileId, agentId: ctx.principal.id } as unknown as ComputerRow;
     const frameFileId = await keepFrame(ctx, c, frame, at);
     addStep(ctx.db, profileId, at, { by: "agent", caption: words, tool: spec.name, ...(frameFileId ? { frameFileId } : {}), ...(ctx.run ? { runId: ctx.run } : {}), ...(ctx.thread ? { threadId: ctx.thread } : {}) });

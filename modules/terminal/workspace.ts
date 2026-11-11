@@ -62,6 +62,11 @@ export interface WorkspaceHome {
 }
 
 export interface WorkspaceOptions {
+  /**
+   * May an exec carry Vault values to this machine? A server that joined is reached over its link to the Space, and a value goes over it only when that link is private (TLS, or this machine): the
+   * rule an agent computer's Vault channel follows (modules/computers/handlers/lifecycle.ts connectFill). Omitted: this machine, always.
+   */
+  valuesAllowed?: () => boolean;
   api: DockerApi;
   /** Raw Engine access: inspect, volumes, the list of workspaces, and waiting for the one-off volume helper. */
   http: DockerHttp;
@@ -111,7 +116,7 @@ export interface WorkspaceManager {
   /** Make the workspace if there is none and wake it if it sleeps; counts as use. */
   ensure(agentId: string): Promise<"created" | "woke" | "running">;
   /** Run argv in the workspace (waking it first), as the container's own user (10001): an exec never names another. */
-  exec(agentId: string, argv: readonly string[], o?: { env?: Readonly<Record<string, string>>; quiet?: boolean }): Promise<ExecResult>;
+  exec(agentId: string, argv: readonly string[], o?: { env?: Readonly<Record<string, string>>; quiet?: boolean; /** The env holds Vault values: refused where they would cross a link that is not private. */ values?: boolean }): Promise<ExecResult>;
   /** How many times this process has started the workspace's container: a change says tmux was lost. */
   generation(agentId: string): number;
   /** Stop the container (the volumes stay). False when it was not running. */
@@ -222,6 +227,7 @@ const dec = new TextDecoder();
 const bodyText = (b: Uint8Array): string => { const s = dec.decode(b); try { const m = (JSON.parse(s) as { message?: string }).message; return String(m ?? s).slice(0, 200); } catch { return s.slice(0, 200); } };
 const realSleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 /** A refusal written for a person: the first line is plain words, anything after it (Details: ...) is for Copy details. The terminal says the first line as the reason a session did not open. */
+export const NOT_PRIVATE = "This workspace is on a server whose link to the Space is not private (no TLS), so no Vault value is sent to it. Connect the server over https, or run the command without the value.";
 const wsError = (message: string, code = "unavailable"): Error => Object.assign(new Error(message), { code, workspace: true });
 
 export const IMAGE_MISSING_LINE = "This server can't start agent workspaces yet.";
@@ -540,7 +546,8 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
     return { code: r.exitCode ?? 1, stdout: r.stdout, stderr: r.stderr };
   }
 
-  async function exec(agentId: string, argv: readonly string[], x?: { env?: Readonly<Record<string, string>>; quiet?: boolean }): Promise<ExecResult> {
+  async function exec(agentId: string, argv: readonly string[], x?: { env?: Readonly<Record<string, string>>; quiet?: boolean; values?: boolean }): Promise<ExecResult> {
+    if (x?.values === true && o.valuesAllowed && !o.valuesAllowed()) throw wsError(NOT_PRIVATE);
     // quiet: tidying up after a stream. It neither wakes a sleeping workspace nor counts as use.
     if (x?.quiet === true) return (await api.containerRunning(workspaceName(agentId))) ? execIn(agentId, argv, x.env) : { code: 1, stdout: "", stderr: "the workspace is asleep" };
     await ensure(agentId);
@@ -761,7 +768,7 @@ export function createWorkspaceTerminalHost(w: WorkspaceTerminalOptions): Worksp
     let h = tmuxHosts.get(agentId);
     // what a program reads on its standard input (a command's values, for tmux load-buffer) goes in by the exec's environment and a pipe, never in its arguments
     const exec = (argv: readonly string[], x?: { stdin?: string }): Promise<ExecResult> =>
-      x?.stdin === undefined ? m.exec(agentId, argv) : m.exec(agentId, ["sh", "-c", 'printf %s "$VYRE_STDIN" | (unset VYRE_STDIN; exec "$@")', "sh", ...argv], { env: { VYRE_STDIN: x.stdin } });
+      x?.stdin === undefined ? m.exec(agentId, argv) : m.exec(agentId, ["sh", "-c", 'printf %s "$VYRE_STDIN" | (unset VYRE_STDIN; exec "$@")', "sh", ...argv], { env: { VYRE_STDIN: x.stdin }, values: true });
     if (!h) { h = createTmuxHost({ exec, control: control(agentId), prefix }); tmuxHosts.set(agentId, h); }
     return h;
   }
