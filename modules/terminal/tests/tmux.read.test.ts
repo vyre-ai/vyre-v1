@@ -127,3 +127,21 @@ test("keys typed one at a time reach the shell as typed, a lone semicolon and a 
   await host.input("k1", long);
   assert.equal(tm.sessions.get("vyre-k1")!.typed, long, "a 1,000-character chunk that ends in ';'");
 });
+
+test("review 3: a command is never typed into a tab that runs something: it waits for the prompt within its time, runs once the program ends, and otherwise says what runs there", async () => {
+  const tm = fakeTmux({ scripts: { "build": { hang: true }, "echo hi": { out: "hi", code: 0 } } });
+  const host = createTmuxHost({ exec: tm.exec, pollMs: 10, sleep: async (ms) => { await new Promise((x) => setTimeout(x, Math.min(ms, 20))); } });
+  await host.open({ terminalId: "b1", target, name: "x", cols: 80, rows: 24, folders: [] });
+  // a person's own program in the tab (no run of this process knows of it: a restart, or typed by hand)
+  tm.sessions.get("vyre-b1")!.hung = true;
+  const typedRuns = (): number => tm.calls.filter((c) => c[1] === "send-keys" && String(c.at(-1)).includes("__VYRE_BEG_")).length;
+  await assert.rejects(() => host.run("b1", { command: "echo hi", env: {}, timeoutMs: 300 }), (e: Error) => /still running something \(sleep\)[\s\S]*another tab/.test(e.message) && (e as { code?: string }).code === "busy");
+  assert.equal(typedRuns(), 0, "nothing was typed into the program");
+  // the program ends while a command waits: the command runs then
+  const waiting = host.run("b1", { command: "echo hi", env: {}, timeoutMs: 5000 });
+  await new Promise((x) => setTimeout(x, 100));
+  assert.equal(typedRuns(), 0);
+  tm.sessions.get("vyre-b1")!.hung = false;
+  const r = await waiting;
+  assert.deepEqual([r.exitCode, r.output], [0, "hi"]);
+});

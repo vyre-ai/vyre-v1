@@ -1964,6 +1964,13 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
               image: releaseImage("agent-workspace", cfg.version, process.env["VYRE_WORKSPACE_IMAGE"]),
               ...(o.workspaceIdleMs !== undefined ? { idleMs: o.workspaceIdleMs } : {}),
               projectsOf: (agentId: string) => (db!.all("SELECT projectId FROM projects_member WHERE principal = ? AND kind = 'agent'", agentId) as Array<{ projectId?: string }>).map((r) => String(r.projectId)),
+              // an agent in Trash has no workspace: nothing makes, wakes or claims room for one (review 12 Nov, 2). Asked before every make or wake.
+              admit: ({ agentId }: { agentId: string }) => {
+                let row: { deletedAt?: unknown } | undefined;
+                try { row = db!.all("SELECT deletedAt FROM agents_agent WHERE id = ?", agentId)[0] as { deletedAt?: unknown } | undefined; } catch { row = undefined; }
+                // the same words as the terminal module's AGENT_GONE_LINE (modules/terminal/workspace.ts), which a host file cannot import
+                if (row !== undefined && row.deletedAt !== null && row.deletedAt !== undefined) throw Object.assign(new Error("That agent is in Trash, so it has no workspace. Restore it to use its terminal again."), { code: "unavailable", workspace: true });
+              },
               // ~/Vyre in the workspace mirrors the agent's folder in Files: the computers module's home sync, run as the agent principal like any other writer (access, review rules and the scrubber apply)
               // room on the host: the computers module's capacity, over host calls (this module cannot import that one). A waiting workspace starts by itself when room opens, and a computer that is moved
               // to the new model gets its workspace made (stopped) by the idle pass.

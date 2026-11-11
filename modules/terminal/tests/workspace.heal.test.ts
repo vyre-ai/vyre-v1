@@ -224,7 +224,9 @@ test("two turns of the same agent at once take turns in its tab: the second comm
   assert.equal(begins(), n0 + 1, "the second command waits: nothing was typed into the running build");
   const typed = tm().calls.filter((c) => c[1] === "send-keys" && String(c.at(-1)).includes("build")).at(-1)!;
   const end = /(__VYRE_END_[0-9a-f]+__)/.exec(String(typed.at(-1)))![1];
+  // the build ends: it prints its end, and the shell has its prompt back (12 Nov, review 3: a run now waits for the prompt)
   tm().write(`vyre-${warm.terminalId}`, `built\n\n${end}:0`);
+  tm().sessions.get(`vyre-${warm.terminalId}`)!.hung = false;
   const [ra, rb] = await Promise.all([a, b]);
   assert.deepEqual([ra.terminalId, ra.exitCode, ra.output], [warm.terminalId, 0, "built"]);
   assert.deepEqual([rb.terminalId, rb.exitCode, rb.output], [warm.terminalId, 0, "hi"]);
@@ -413,4 +415,94 @@ test("an admin whose agents.get of another person's Assistant answers not found 
   // a team agent the admin can read is still theirs to enter by Manage
   const team: TermCtx = { ...admin, call: (async (cap: string) => (cap === "agents.get" ? { agent: { agentId: "agt_dex", ownerId: "usr_dana", kind: "teammate" } } : undefined)) as never };
   assert.equal(await mayEnterWorkspace(team, "agt_dex"), true);
+});
+
+// ---- review 1: leaving a project takes effect at once ------------------------------------------------------------------------------------------------------
+
+test("an agent taken off a project loses its folder at once, even with work running: the workspace is made again without it, the project's mirror stops naming it, and the cut-off command says why", async () => {
+  let projects = ["prj_site", "prj_secret"];
+  const passes: Array<{ projectId: string; agentId: string }> = [];
+  const home: NonNullable<WorkspaceOptions["home"]> = {
+    sync: () => ({ async pass() { return { failed: 0 }; } }),
+    readTar: () => ({ files: new Map(), dirs: new Set(), refused: [], complete: true }),
+    manifest: (id) => `/m/${id}.json`,
+    syncProject: (x) => ({ async pass() { passes.push({ projectId: x.projectId, agentId: x.agentId }); return { failed: 0 }; } }),
+    intervalMs: 60_000,
+  };
+  // a job in the background and a held run: the workspace is as busy as it gets
+  const dk = engine({ procs: () => "4711" });
+  const m = manager(dk, { projectsOf: () => projects, home, projectKickMs: 5, sleep: fast });
+  const host = createWorkspaceTerminalHost({ manager: m, sleep: fast });
+  await host.open({ terminalId: "trm_r", target: { host: "agent_computer", agentId: AGENT }, name: "agent", cols: 80, rows: 24, folders: [] });
+  const build = host.run("trm_r", { command: "build", env: {}, timeoutMs: 20_000 });
+  await until(() => dk.box(NAME).tmux.calls.some((c) => c[1] === "send-keys" && String(c.at(-1)).includes("build")), "the build to be typed");
+  projects = ["prj_site"];
+  await m.revoke(AGENT);
+  assert.equal(dk.ops("create").filter((x) => x.name === NAME).length, 2, "made again at once, though it was busy");
+  const binds = dk.box(NAME).config["HostConfig"]["Binds"] as string[];
+  assert.ok(!binds.some((b) => b.includes("prj_secret")), `no prj_secret mount: ${JSON.stringify(binds)}`);
+  assert.ok(binds.some((b) => b.includes("prj_site")), "the project it is still on stays");
+  await assert.rejects(() => build, (e: Error) => /removed from a project/.test(e.message), "the cut-off command says why");
+  const n = passes.length;
+  m.worked(AGENT);
+  await new Promise((x) => setTimeout(x, 40));
+  assert.deepEqual(passes.slice(n).filter((p) => p.projectId === "prj_secret"), [], "the left project is no longer mirrored through this agent");
+  m.close();
+});
+
+// ---- review 2: a deleted agent stays without a workspace ---------------------------------------------------------------------------------------------------
+
+test("an agent deleted while a command of its runs: the command ends with a plain line, and nothing makes the workspace again or takes room for it until it is restored", async () => {
+  const room: string[] = [];
+  const dk = engine();
+  const m = manager(dk, { sleep: fast, capacity: { async claim(id) { room.push(`claim ${id}`); return { state: "running" }; }, async release(id) { room.push(`release ${id}`); } } });
+  const host = createWorkspaceTerminalHost({ manager: m, sleep: fast });
+  await host.open({ terminalId: "trm_d", target: { host: "agent_computer", agentId: AGENT }, name: "agent", cols: 80, rows: 24, folders: [] });
+  const build = host.run("trm_d", { command: "build", env: {}, timeoutMs: 20_000 });
+  await until(() => dk.box(NAME).tmux.calls.some((c) => c[1] === "send-keys" && String(c.at(-1)).includes("build")), "the build to be typed");
+  const { onAgentGone } = await import("../handlers/sessions.ts");
+  reset();
+  const hn = harness();
+  await onAgentGone(hn.ctx, { payload: { agentId: AGENT } }, (id) => m.remove(id, { keepVolumes: true }));
+  await assert.rejects(() => build, (e: Error) => /in Trash/.test(e.message), "the running command ends with the plain line");
+  await new Promise((x) => setTimeout(x, 100));
+  assert.equal(dk.boxes.has(NAME), false, "the container was not made again by the command's screen reads");
+  assert.equal(room.filter((x) => x === `claim ${AGENT}`).length, 1, "no room was taken again");
+  await assert.rejects(() => m.ensure(AGENT), /in Trash/);
+  await assert.rejects(() => m.exec(AGENT, ["tmux", "-V"]), /in Trash/);
+  await assert.rejects(() => m.provision(AGENT), /in Trash/);
+  m.restore(AGENT);
+  assert.equal(await m.ensure(AGENT), "created", "restored: made again over the volumes it kept");
+  m.close();
+});
+
+// ---- review 4: a rebuild keeps its room against the sweep ---------------------------------------------------------------------------------------------------
+
+test("a sweep that runs while a project change is rebuilding the workspace (its container stopped for a moment) does not give its room away", async () => {
+  const room: string[] = [];
+  let projects = ["prj_site"];
+  const dk = engine();
+  // the rebuild's stop is held open until the test lets it go: the sweep runs exactly then
+  let hold: (() => void) | null = null;
+  let stopped: (() => void) | null = null;
+  const stoppedP = new Promise<void>((r) => { stopped = r; });
+  const http: typeof dk.http = async (req) => {
+    const r = await dk.http(req);
+    if (req.method === "POST" && req.path === `/containers/${NAME}/stop` && projects.length === 2) { stopped!(); await new Promise<void>((x) => { hold = x; }); }
+    return r;
+  };
+  const m = createWorkspaceManager({ api: createDockerApi(http), http, idleMs: 600_000, projectsOf: () => projects, capacity: { async claim(id) { room.push(`claim ${id}`); return { state: "running" }; }, async release(id) { room.push(`release ${id}`); } } });
+  await m.ensure(AGENT);
+  projects = ["prj_site", "prj_book"];
+  const rebuild = m.ensure(AGENT);
+  await stoppedP;
+  assert.equal(dk.box(NAME).running, false, "the container is stopped mid-rebuild");
+  const sweep = m.sweep();
+  await new Promise((x) => setTimeout(x, 20));
+  hold!();
+  await rebuild;
+  await sweep;
+  assert.deepEqual(room.filter((x) => x.startsWith("release")), [], `no room given back during the rebuild: ${JSON.stringify(room)}`);
+  assert.equal(dk.box(NAME).running, true);
+  m.close();
 });

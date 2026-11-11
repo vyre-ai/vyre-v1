@@ -144,6 +144,7 @@ const adoptOn = async (h: TerminalHost, x: SessionRow): Promise<void> => {
 // for each other, in order, in this process (the daemon is the one process that types into its sessions). The wait counts against the command's own time limit; a command that waited it all out is not
 // typed and nothing is interrupted, since what runs is another command.
 const queues = new Map<string, Promise<unknown>>();
+export const VALUES_BUSY_LINE = "This tab is still running something, so no Vault value is handed to it. Wait for it to finish, or run the command in another tab.";
 export const BUSY_LINE = "That terminal was busy with another command the whole time, so this one did not run. Name a session of your own (session) to run beside it.";
 async function oneAtATime<T>(terminalId: string, timeoutMs: number, f: (leftMs: number) => Promise<T>): Promise<T> {
   const ahead = queues.get(terminalId);
@@ -158,7 +159,7 @@ async function oneAtATime<T>(terminalId: string, timeoutMs: number, f: (leftMs: 
     // nothing ahead: the command has its whole time
     if (ahead === undefined) return await f(timeoutMs);
     const turn = await Promise.race([before.then(() => true, () => true), new Promise<false>((r) => { timer = setTimeout(() => r(false), timeoutMs); })]);
-    if (!turn) throw Object.assign(new Error(BUSY_LINE), { code: "busy" });
+    if (!turn) throw Object.assign(new Error(BUSY_LINE), { code: "queue_busy" });
     return await f(Math.max(1000, timeoutMs - (Date.now() - t0)));
   } finally {
     if (timer !== undefined) clearTimeout(timer);
@@ -545,11 +546,14 @@ export async function run(ctx: TermCtx, a: RunInput) {
   let timedOut = false;
   let waitedOut = false;
   const exec = (filled: unknown): Promise<string> => oneAtATime(s.terminalId, timeoutMs, (leftMs) => execNow(filled, leftMs)).catch((e: unknown) => {
-    if (e && typeof e === "object" && (e as { code?: unknown }).code === "busy") waitedOut = true;
+    if (e && typeof e === "object" && (e as { code?: unknown }).code === "queue_busy") waitedOut = true;
     throw e;
   });
   const execNow = async (filled: unknown, leftMs: number): Promise<string> => {
     const f = filled as { env?: Record<string, string> };
+    // A command that carries values is not typed into a tab Vyre knows is still running one (review 12 Nov, 3a): the host checks the shell owns its terminal, and this catches what that check
+    // cannot see (a builtin such as read, or a loop of builtins, typed at the prompt by the agent's last command). Read in this command's turn, so one only queued behind another run is not refused.
+    if (Object.keys(f.env ?? {}).length > 0 && sessionBy(ctx.db, s.terminalId)?.state === "running") throw Object.assign(new Error(VALUES_BUSY_LINE), { code: "busy" });
     const at = ctx.now();
     // The record keeps the command as the model wrote it (handles, not values).
     ctx.db.run("INSERT INTO terminal_commands (terminal_id, command, exit_code, started_at, duration_ms, by_principal) VALUES (?, ?, NULL, ?, NULL, ?)", s.terminalId, command, at, ctx.principal.id);
@@ -564,9 +568,6 @@ export async function run(ctx: TermCtx, a: RunInput) {
       throw e;
     }
   };
-  // A command that carries values is not typed into a tab Vyre knows is still running one (review 12 Nov, 3a): the host checks the shell owns its terminal, and this catches what that check
-  // cannot see (a builtin such as read, or a loop of builtins, typed at the prompt by the agent's last command).
-  if (Object.keys(env).length > 0 && s.state === "running") raise(ctx, "provider.unavailable", "This tab is still running something, so no Vault value is handed to it. Wait for it to finish, or run the command in another tab.", { reason: "busy" });
   // Only the environment is filled: the command line holds references, never a handle the filler would put a value in place of.
   const args = Object.keys(env).length > 0 ? { env } : {};
   const kit = boundKit();

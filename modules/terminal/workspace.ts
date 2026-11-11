@@ -145,6 +145,15 @@ export interface WorkspaceManager {
    * Files history. Reading the screen, a resize or a status check is not work and names nobody.
    */
   worked(agentId: string): void;
+  /**
+   * The agent left a project: its workspace stops mounting and mirroring that project now. A running workspace is made again at once without the folder, whatever runs in it; an asleep one gets it at
+   * its next wake. Safe to repeat.
+   */
+  revoke(agentId: string): Promise<void>;
+  /** The agent came back from Trash: its workspace may be made again (over the volumes it kept). */
+  restore(agentId: string): void;
+  /** The line for a command that was running when the workspace was made again under it (generation `since` or before), or null. */
+  restartLine(agentId: string, since: number): string | null;
   /** Stop the idle timer. */
   close(): void;
 }
@@ -278,6 +287,10 @@ export const NOT_PRIVATE = "This workspace is on a server whose link to the Spac
 const wsError = (message: string, code = "unavailable"): Error => Object.assign(new Error(message), { code, workspace: true });
 
 export const IMAGE_MISSING_LINE = "This server can't start agent workspaces yet.";
+/** What a deleted agent's commands answer (the daemon's admit check says the same, host/src/daemon/daemon.ts). */
+export const AGENT_GONE_LINE = "That agent is in Trash, so it has no workspace. Restore it to use its terminal again.";
+/** What a command cut off by a project removal answers. */
+export const REMOVED_LINE = "The agent was removed from a project, so its workspace restarted without that project's folder. What was running in it stopped.";
 
 /**
  * What a workspace waiting for room says. The host's line names the host; its advice to add a compute server is not true for a workspace (12 Nov, audit item 9): a workspace stays on the machine it
@@ -317,6 +330,10 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
   const holds = new Map<string, number>();
   /** A project change waiting for the workspace to be quiet: when it was last looked at, so a busy workspace is not asked on every exec. */
   const pendingMounts = new Map<string, number>();
+  /** Agents removed in this process (in Trash): nothing makes, wakes or runs anything in a workspace for them until they are restored. */
+  const gone = new Set<string>();
+  /** Why the workspace was last made again while it ran (a project removal), and the start it made: a command it cut off says this line. */
+  const restarts = new Map<string, { gen: number; line: string }>();
 
   /** One at a time per workspace: two first commands in the same moment make it once. */
   function serial<T>(agentId: string, f: () => Promise<T>): Promise<T> {
@@ -563,6 +580,7 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
 
   function provision(agentId: string): Promise<{ workspaceId: string }> {
     if (!AGENT_ID.test(agentId)) return Promise.reject(wsError("That is not an agent a workspace can be made for.", "bad_input"));
+    if (gone.has(agentId)) return Promise.reject(wsError(AGENT_GONE_LINE, "gone"));
     return serial(agentId, async () => {
       const name = workspaceName(agentId);
       if (!(await inspect(name))) { const want = await mounts(agentId); await build(agentId, name, want, workspaceContainerConfig(agentId, image, want, o)); log("info", "workspace.provisioned", { agent: agentId }); }
@@ -595,7 +613,14 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
     // every few seconds) or applied when it next wakes.
     if (info && info.labels["vyre.mounts"] !== config.Labels["vyre.mounts"]) {
       let now_ = true;
-      if (info.running) {
+      // a project the agent is no longer on: access is taken away now, whatever runs (12 Nov, lead's decision). Only an addition waits for a quiet moment.
+      const removed = info.projects.filter((p) => !want.projects.includes(p));
+      if (info.running && removed.length > 0) {
+        restarts.set(agentId, { gen: (gens.get(agentId) ?? 0) + 1, line: REMOVED_LINE });
+        agentProjects.set(agentId, (agentProjects.get(agentId) ?? []).filter((p) => !removed.includes(p)));
+        for (const p of removed) if (projectActor.get(p) === agentId) projectActor.delete(p);
+        log("info", "workspace.project_removed", { agent: agentId, projects: removed });
+      } else if (info.running) {
         const last = pendingMounts.get(agentId);
         if ((holds.get(agentId) ?? 0) > 0 || (last !== undefined && now() - last < MOUNT_RECHECK_MS)) now_ = false;
         else if (await busy(agentId)) now_ = false;
@@ -647,6 +672,7 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
 
   function ensure(agentId: string): Promise<"created" | "woke" | "running"> {
     if (!AGENT_ID.test(agentId)) return Promise.reject(wsError("That is not an agent a workspace can be made for.", "bad_input"));
+    if (gone.has(agentId)) return Promise.reject(wsError(AGENT_GONE_LINE, "gone"));
     return serial(agentId, () => wake(agentId));
   }
 
@@ -719,12 +745,16 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
     const dead = new Set<string>([...claimed].filter((id) => !up.has(id)));
     if (firstLook) for (const x of all) if (!x.running && !waitingLine.has(x.agentId)) dead.add(x.agentId);
     for (const id of dead) {
-      claimed.delete(id);
-      lastUsed.delete(id);
-      stopHome(id);
-      stopProjects(id);
-      await o.capacity.release(id).catch(() => undefined);
-      log("warn", "workspace.stopped_outside", { agent: id });
+      // in the workspace's own turn, looked at again there: a rebuild (a project change) stops the container for a moment and must keep its room (review 12 Nov, 4)
+      await serial(id, async () => {
+        if (await api.containerRunning(workspaceName(id)).catch(() => true)) return;
+        claimed.delete(id);
+        lastUsed.delete(id);
+        stopHome(id);
+        stopProjects(id);
+        await o.capacity!.release(id).catch(() => undefined);
+        log("warn", "workspace.stopped_outside", { agent: id });
+      }).catch(() => undefined);
     }
   }
 
@@ -758,6 +788,16 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
   return {
     ensure, exec, provision,
     worked: (agentId) => kickProjects(agentId),
+    async revoke(agentId) {
+      if (!AGENT_ID.test(agentId)) return;
+      // the mirror stops for the projects it left before anything else, then the container follows its projects (wake makes it again at once when one was removed)
+      const want = await mounts(agentId);
+      const left = (agentProjects.get(agentId) ?? []).filter((p) => !want.projects.includes(p));
+      if (left.length > 0) { agentProjects.set(agentId, (agentProjects.get(agentId) ?? []).filter((p) => want.projects.includes(p))); for (const p of left) if (projectActor.get(p) === agentId) projectActor.delete(p); }
+      if (await api.containerRunning(workspaceName(agentId)).catch(() => false)) await ensure(agentId);
+    },
+    restore(agentId) { gone.delete(agentId); restarts.delete(agentId); },
+    restartLine(agentId, since) { const r = restarts.get(agentId); return r !== undefined && r.gen > since ? r.line : null; },
     hold(agentId) {
       holds.set(agentId, (holds.get(agentId) ?? 0) + 1);
       let done = false;
@@ -800,6 +840,9 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
       return null;
     },
     async remove(agentId, x) {
+      // from now on nothing makes or wakes it, not even a command still polling its screen: that command ends with the line below
+      if (x?.keepVolumes === true) { gone.add(agentId); restarts.set(agentId, { gen: Number.MAX_SAFE_INTEGER, line: AGENT_GONE_LINE }); }
+      holds.delete(agentId);
       await serial(agentId, async () => {
         stopHome(agentId);
         stopProjects(agentId);
@@ -1016,7 +1059,14 @@ export function createWorkspaceTerminalHost(w: WorkspaceTerminalOptions): Worksp
       try {
         // a session tmux lost is made again before the line is typed; never after, so a command is never typed twice
         if ((await m.exec(t.agentId, ["tmux", "has-session", "-t", nameOf(id)])).code !== 0) t = await at(id, true);
-        return await t.host.run(id, r);
+        const g0 = m.generation(t.agentId);
+        try { return await t.host.run(id, r); }
+        catch (e) {
+          // the workspace was made again under the command (the agent left a project): say so instead of a tmux error
+          const why = m.restartLine(t.agentId, g0);
+          if (why !== null) throw Object.assign(new Error(why), { code: "restarted", workspace: true });
+          throw e;
+        }
       } finally {
         release();
         // what the command changed in a project folder is put in Files history as this workspace's agent, by the pass that follows its end

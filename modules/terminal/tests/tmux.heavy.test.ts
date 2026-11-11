@@ -453,3 +453,19 @@ test("tmux (review 3a): shellAtPrompt is true only when the tab's shell owns its
   }
   assert.equal(await atPrompt(), true, "and true again at the prompt");
 });
+
+test("real tmux (review 3): a run waits while a person's own program reads the tab, never types into it, and runs once the shell has its prompt back", { skip }, async () => {
+  await open("trm_heavy_busy");
+  const s = "vyre-trm_heavy_busy";
+  await host.input("trm_heavy_busy", "cat\r");
+  await until("cat to own the tab", async () => !(await shellAtPrompt(exec, s)));
+  await assert.rejects(() => host.run("trm_heavy_busy", { command: "echo should-not-reach-cat", env: {}, timeoutMs: 1500 }), /still running something \(cat\)/);
+  await host.interrupt("trm_heavy_busy");
+  const screen = (await runTmux(["capture-pane", "-p", "-J", "-t", s, "-S", "-"])).stdout;
+  assert.equal(screen.includes("should-not-reach-cat"), false, "cat never got the line");
+  await host.input("trm_heavy_busy", "sleep 2\r");
+  await until("sleep to own the tab", async () => !(await shellAtPrompt(exec, s)));
+  const r = await host.run("trm_heavy_busy", { command: "echo after-sleep", env: {}, timeoutMs: 10_000 });
+  assert.deepEqual([r.exitCode, r.output], [0, "after-sleep"], "it waited for the prompt, then ran");
+  await host.close("trm_heavy_busy");
+});

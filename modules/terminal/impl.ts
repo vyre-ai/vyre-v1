@@ -62,6 +62,8 @@ const ENV_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
 export const HISTORY_ENV: readonly string[] = ["-e", "HISTCONTROL=ignorespace"];
 /** The name every values buffer starts with (a random 32 hex characters follow). */
 export const ENV_BUFFER = "vyre-env-";
+/** What a command answers when its tab was busy with something else for all of its time: what runs there, and the two ways on. */
+export const busyLine = (what: string): string => `That tab is still running something${what !== "" ? ` (${what})` : ""}, so this command was not typed into it. Run it in another tab (name a session), or interrupt what runs there first.`;
 const BUSY = "This tab is still running something, so no Vault value is handed to it. Wait for it to finish, or run the command in another tab.";
 const realSleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 const rnd = (n: number): string => Array.from(globalThis.crypto.getRandomValues(new Uint8Array(n)), (b) => b.toString(16).padStart(2, "0")).join("");
@@ -275,6 +277,17 @@ export function createTmuxHost(o: TmuxOptions): TmuxHost {
       // The typed line reads the buffer inside a subshell, deletes it before the command starts and exports the values there, so they are the environment of this one command and gone after it.
       // Without variables the command runs in braces so `cd` and exports persist like typing it.
       const withValues = Object.keys(r.env).length > 0;
+      // Every run waits for the tab's shell to own its terminal (shellAtPrompt) before anything is typed (review 12 Nov, 3): after a restart this process knows nothing of what runs there, and a
+      // person's own program (npm run dev) in the tab would take the line as its input. It waits within the command's own time, then answers what runs there and what to do instead.
+      const t0 = now();
+      while (!(await shellAtPrompt(o.exec, session))) {
+        if (now() - t0 >= r.timeoutMs) {
+          const what = (await o.exec(["tmux", "display-message", "-p", "-t", session, "#{pane_current_command}"]).catch(() => null))?.stdout.trim() ?? "";
+          throw Object.assign(new Error(busyLine(what)), { code: "busy" });
+        }
+        await sleep(Math.max(pollMs, 250));
+      }
+      const leftMs = Math.max(1000, r.timeoutMs - (now() - t0));
       // what a run of an earlier daemon left behind is removed first, whatever this run carries; the buffers of runs of this host still in flight are theirs
       await sweepBuffers();
       // A tab that is not at its prompt would leave the values waiting in the buffer until the run gave up (review 12 Nov, finding 3), and the typed line would go to whatever runs there:
@@ -300,7 +313,7 @@ export function createTmuxHost(o: TmuxOptions): TmuxHost {
         const cd = r.cwd === undefined ? "" : `cd ${shQuote(r.cwd)} && `;
         // Begin and end markers are printed by the shell, so the typed line (which holds them only inside quotes) never matches a marker line. The leading space keeps the line out of the shell's history.
         const line = ` printf '%s\\n' ${shQuote(beg)}; ${cd}${body}; printf '\\n%s:%d\\n' ${shQuote(end)} $?`;
-        return await runLine(session, line, beg, end, r.timeoutMs);
+        return await runLine(session, line, beg, end, leftMs);
       } finally {
         running.delete(session);
         if (buffer !== null) { await o.exec(["tmux", "delete-buffer", "-b", buffer]).catch(() => undefined); mine.delete(buffer); }
@@ -672,6 +685,26 @@ export const consumers = {
   "terminal.agent_gone": {
     on: ["agent.deleted"],
     run: (ctx: TermCtx, event: { payload: { agentId?: unknown } }): Promise<string[]> => onAgentGone(ctx, event, workspaceManager ? (agentId) => (workspaceManager as WorkspaceManager).remove(agentId, { keepVolumes: true }) : null),
+  },
+  /** An agent came back from Trash: its workspace may be made again, over the volumes it kept. */
+  "terminal.agent_restored": {
+    on: ["agent.restored"],
+    run: (_ctx: TermCtx, event: { payload: { agentId?: unknown } }): string[] => {
+      const id = event.payload.agentId;
+      if (typeof id !== "string" || !workspaceManager) return [];
+      workspaceManager.restore(id);
+      return [id];
+    },
+  },
+  /** An agent was taken off a project: its workspace stops mounting and mirroring the project's folder now, even while something runs in it (12 Nov, lead's decision). */
+  "terminal.project_left": {
+    on: ["project.member_removed"],
+    run: async (_ctx: TermCtx, event: { payload: { principal?: unknown } }): Promise<string[]> => {
+      const who = event.payload.principal;
+      if (typeof who !== "string" || !who.startsWith("agt_") || !workspaceManager) return [];
+      await workspaceManager.revoke(who);
+      return [who];
+    },
   },
 };
 

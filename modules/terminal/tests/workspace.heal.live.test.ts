@@ -114,6 +114,26 @@ test("real Docker: a restart while asleep heals, the sweep sees scripts and back
   assert.deepEqual(after.output.split(/\s+/).sort(), [P1, P2].sort(), "the next command sees the new project folder");
   assert.notEqual(await containerId(), id0, "made again once quiet, with the new mount");
 
+  // ---- review 1: taken off a project while a job in the background writes into it: when revoke returns, the folder is gone and nothing more lands in the project's volume
+  const writer = await h["terminal.run"]!(agent, { command: `(while :; do date +%s%N >> ~/projects/${P2}/beat; sleep 0.2; done) >/dev/null 2>&1 & sleep 999999 >/dev/null 2>&1 &`, idempotencyKey: idem() });
+  assert.equal(writer.exitCode, 0);
+  const beats = async (): Promise<number> => Number((await docker(["run", "--rm", "-v", `vyre-wsproj-${P2}:/v:ro`, "--entrypoint", "sh", IMAGE, "-c", "wc -l < /v/beat 2>/dev/null || echo 0"], 60_000)).out.trim().split("\n")[0]);
+  await settle(1000);
+  assert.ok((await beats()) > 0, "the job writes into the project");
+  projects = [P1];
+  const r0 = Date.now();
+  await m.revoke(AGENT);
+  const rebuildMs = Date.now() - r0;
+  const b0 = await beats();
+  await settle(1500);
+  assert.equal(await beats(), b0, "nothing more lands in the project once revoke returns");
+  const look = await h["terminal.run"]!(agent, { command: `ls -A ~/projects/${P2} 2>&1 | head -3; touch ~/projects/${P2}/x 2>/dev/null && echo WROTE || echo REFUSED`, idempotencyKey: idem() });
+  assert.match(look.output, /REFUSED/, `the agent cannot write there: ${look.output}`);
+  assert.doesNotMatch(look.output, /beat/, "nor read the project's files");
+  t.diagnostic(`revoke with a job running: workspace made again in ${rebuildMs} ms`);
+  assert.ok(rebuildMs < 5000, `a rebuild takes about a second, not ten (${rebuildMs} ms)`);
+  projects = [P1, P2];
+
   // ---- 5: two turns of the same agent at once, in its one tab
   const other: TermCtx = { ...agent, thread: "thr_2" };
   const [a, b] = await Promise.all([

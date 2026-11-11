@@ -17,3 +17,7 @@
 - An agent can make your terminal rules stricter, but only you can loosen them (allow a command, remove a rule, add a folder), in Terminal rules.
 - Typing a semicolon in a Terminal tab works: it used to be dropped on the way to the shell.
 - The Terminal tab's view stays on the newest line during long output instead of stopping once it held 2,000 lines; scroll up to read and it stays where you put it.
+- Taking an agent off a project takes its folder away at once, even while something runs in its workspace; what was running stops and says why.
+- A deleted agent's workspace stays gone: a command still running ends with a plain line, and nothing makes the workspace again until the agent is restored.
+- An agent's command is never typed into a tab where something else is running (yours, or one left from before a restart); it waits for the prompt and then says what is running there.
+- A workspace being made again for a project change keeps its room on the server.

@@ -13,6 +13,7 @@ import { boot, standIn, waitFor } from "./memory-live-kit.ts";
 import { loadConfig } from "../host/src/daemon/config.ts";
 import { CODE_ROOT } from "../host/src/daemon/daemon.ts";
 import type { Daemon } from "../host/src/daemon/daemon.ts";
+import { boundWorkspaces } from "../modules/terminal/impl.ts";
 
 const ON = process.env["VYRE_HEAVY_DOCKER"] === "1";
 const skip: string | false = ON ? false : "needs VYRE_HEAVY_DOCKER=1 (the workspace is a real container)";
@@ -158,6 +159,19 @@ async function scenario(t: import("node:test").TestContext, kind: "team" | "pers
   }, 60_000);
   assert.equal(back, "one", "undo from Files reaches the workspace");
 
+  // taken off the project with a job running in the workspace (review 1): once the removal is through, the folder is gone from the workspace
+  // (a Personal Space has no project members to remove: sharing a project needs a Team)
+  if (kind === "team") {
+    await run(`sleep 999999 >/dev/null 2>&1 &`, "ws-bg");
+    await ok(d, token, "projects.members.remove", { projectId, principal: agent });
+    await d.hooks?.pump?.();
+    const left_ = await waitFor(async () => {
+      const out = (await docker(["exec", name, "sh", "-c", `ls -A /home/agent/projects/${projectId} 2>&1; touch /home/agent/projects/${projectId}/x 2>/dev/null && echo WROTE || echo REFUSED`], 30_000)).out;
+      return /REFUSED/.test(out) && !/plan\.md/.test(out) ? out : null;
+    }, 30_000);
+    assert.match(left_, /REFUSED/, "the agent can neither read nor write the project it left");
+  }
+
   const health = await ok(d, token, "terminal.health", {});
   assert.equal(health.state, "healthy");
 
@@ -168,6 +182,14 @@ async function scenario(t: import("node:test").TestContext, kind: "team" | "pers
   assert.equal((await docker(["volume", "inspect", `${name}-home`], 30_000)).code, 0, "what the agent kept stays");
   const left = ((await ok(d, token, "terminal.list", { section: "personal" })).terminals as Array<{ agentId?: string }>).filter((x) => x.agentId === agent);
   assert.deepEqual(left, [], "its tabs are closed");
+  // the daemon's own admission refuses an agent in Trash (review 2): a restarted daemon has no memory of the deletion, which restore() stands for here; the next ensure must still make nothing
+  const ws = boundWorkspaces();
+  assert.ok(ws, "the daemon bound its workspaces");
+  ws!.restore(agent);
+  let refusal = "";
+  try { await ws!.ensure(agent); refusal = "ensure made it"; } catch (e) { refusal = e instanceof Error ? e.message : String(e); }
+  assert.match(refusal, /in Trash/, "admit is bound in production and refuses a deleted agent");
+  assert.notEqual((await docker(["inspect", name], 30_000)).code, 0, "no container was made for it");
 }
 
 test("Team daemon with Docker: an agent's terminal_run makes its workspace, tabs, a project folder with Files history, and the Files mirror", { skip, timeout: 900_000 }, (t) => scenario(t, "team"));
