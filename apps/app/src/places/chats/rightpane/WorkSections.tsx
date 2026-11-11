@@ -164,7 +164,7 @@ export function WorkSections({ deps, window }: { deps: PaneDeps; window?: Virtua
   const older = data.agent.computerId ?? "";
   if (older !== "") {
     entries.push({ key: "l-older", type: "label", text: "Older desktop" });
-    entries.push({ key: "older-desktop", type: "row", title: "Open its desktop", note: "The computer it had before. It stays until its sign-ins have moved to the browser above.", leading: <LeadIcon name="watch" />, testID: "older-desktop", onPress: () => data.nav.openComputer(older) });
+    entries.push({ key: "older-desktop", type: "row", title: "Open its desktop", note: "The computer it had before", leading: <LeadIcon name="watch" />, testID: "older-desktop", onPress: () => data.nav.openComputer(older) });
   }
   return <View style={st.fill}><PaneList entries={entries} {...(window ? { window } : {})} testID="work-list" /></View>;
 }

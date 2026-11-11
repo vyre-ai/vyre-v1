@@ -1,7 +1,7 @@
 // Mount for the Computer tab in the workspace model (l-capacity): a Terminal section (the agent's workspace) and a Browser section (its profile in the Space browser), over the sample Space with
 // stubbed workspace and browser data, the way the workspace and Space browser work will bind them.
 //   ?part=running (both up, sessions, a login), asleep (workspace asleep, browser closed), waiting (the host is full: the plain line), takeover (you are in control of its browser), member (a person who may
-//   not attach or take over), terminal-only (the Space browser is not bound yet), starting
+//   not attach or take over), terminal-only (the Space browser is not bound yet), starting. &old=1 keeps the agent's older desktop computer (the row that opens it).
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { Image, View } from "react-native";
@@ -68,16 +68,17 @@ function bind(ws: WorkspaceView | null, br: BrowserView | null): { workspace?: W
   };
 }
 
-function Pane({ part }: { part: string }): ReactNode {
+function Pane({ part, old }: { part: string; old: boolean }): ReactNode {
   const s = useMemo(() => createSample("northwind"), []);
   const v = VIEWS[part] ?? VIEWS["running"]!;
-  const data: ChatRightPaneData = useMemo(() => ({ ...s.data, agent: { agentId: s.data.agent.agentId, name: s.data.agent.name }, ...bind(v.ws, v.br) }), [s, v]);
+  const data: ChatRightPaneData = useMemo(() => ({ ...s.data, agent: old ? s.data.agent : { agentId: s.data.agent.agentId, name: s.data.agent.name }, ...bind(v.ws, v.br) }), [s, v, old]);
   return <View style={{ flex: 1, alignItems: "flex-end", backgroundColor: "var(--win)" as string }}><ChatRightPane data={data} open onToggle={() => undefined} initialTab="computer" window={{ start: 0, end: 500 }} /></View>;
 }
 
 export default function Mount(): ReactNode {
   const [part, setPart] = useState<string | null>(null);
-  useEffect(() => setPart(new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? "").get("part") ?? "running"), []);
+  const [old, setOld] = useState(false);
+  useEffect(() => { const q = new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? ""); setPart(q.get("part") ?? "running"); setOld(q.get("old") === "1"); }, []);
   if (part === null) return <View style={{ flex: 1, backgroundColor: "var(--win)" as string }} />;
-  return <Pane part={part} />;
+  return <Pane part={part} old={old} />;
 }

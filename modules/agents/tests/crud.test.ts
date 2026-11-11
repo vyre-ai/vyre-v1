@@ -87,7 +87,7 @@ test("create-agent ends in one Approve card: the skill names one plan, and the p
   const plan = createAgentPlan("thr_a1", input);
   assert.deepEqual(contractErrors("chat.plan.propose", "in", plan), [], "it is a valid plan_propose call, which becomes the one plan block");
   assert.equal(plan.title, "Create the agent Intake");
-  assert.deepEqual(plan.steps.map((s) => s.text), ["Create the agent Intake", "Make the folder Agents/Intake with AGENT.md, agent.toml and the decided tree", "Run it on claude-sonnet-5-5", "Give it a computer", "Set what it may use", "Set its limits"]);
+  assert.deepEqual(plan.steps.map((s) => s.text), ["Create the agent Intake", "Make the folder Agents/Intake with AGENT.md, agent.toml and the decided tree", "Run it on claude-sonnet-5-5", "Set what it may use", "Set its limits"]);
   assert.equal(createAgentPlan("thr_a1", { name: "Bare" }).steps.length, 2, "only what was asked appears");
 
   // And what was approved is what is made: the same input to agents.create gives the agent the plan described.

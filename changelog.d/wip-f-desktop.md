@@ -4,3 +4,5 @@
 - When an agent calls a screen or desktop file tool and has no desktop, the answer names the tool that works. When a Space has no browser for agents, the answer says so and says what gives it one (Docker on the Space's computer, or a server with Docker added in Console > Computers).
 - Fixed: an old desktop whose Chrome sign-ins could not be read was recorded as moved with nothing lost. It is now marked as moved without its sign-ins, with the reason, so the agent signs in again once.
 - Fixed: an agent's first browser call after an update could start a fresh browser profile and the later move of its old sign-ins wiped it. An agent whose old desktop has not moved now keeps using that desktop for the browser, and a sleeping desktop moves at the agent's first browser call.
+- An agent that still has an older desktop shows a row "Older desktop" at the end of its Computer tab. It opens that desktop's live view, where you can wake it, take over and give it back.
+- The plan an agent shows before it creates another agent no longer lists "Give it a computer".

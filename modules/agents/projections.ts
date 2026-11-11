@@ -1102,7 +1102,7 @@ export function createAgentPlan(threadId: string, input: CreateAgentInput): { th
     { text: `Make the folder Agents/${input.name.trim()} with AGENT.md, agent.toml and the decided tree`, detail: "memory, skills, routines, knowledge, inbox, work, downloads, logs, chats" },
   ];
   if (input.model !== undefined && input.model !== "") steps.push({ text: `Run it on ${input.model}` });
-  if (input.computer === true) steps.push({ text: "Give it a computer", detail: "Team Space only" });
+  // `computer: true` only marks the agent; every agent has a workspace and a browser of its own (6 Nov), so the plan has no computer step to approve
   const tools = input.tools;
   if (tools && (tools.allowed.length > 0 || tools.denied.length > 0)) steps.push({ text: "Set what it may use", detail: [tools.allowed.length > 0 ? `allowed: ${tools.allowed.join(", ")}` : "", tools.denied.length > 0 ? `denied: ${tools.denied.join(", ")}` : ""].filter(Boolean).join("; ") });
   if (input.limits && Object.keys(input.limits).length > 0) steps.push({ text: "Set its limits", detail: Object.entries(input.limits).map(([k, v]) => `${k} ${String(v)}`).join(", ") });

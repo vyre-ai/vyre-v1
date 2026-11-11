@@ -55,7 +55,7 @@ Never call a supported engine or feature missing. Say plainly what is not built.
 - GitHub: with the Space's GitHub App, agents read, open, comment on and merge pull requests, request reviews, re-run checks and ask the author agent to fix a failing check.
   The lead can wait on a pull request's checks and wake when they end.
 - Where work happens: the engine works in its own folder for each person and chat, in a sandbox whose network reaches only its AI provider.
-  Agents run commands on the computer the chat runs on, under the person's terminal rules, and read web pages through Vyre. An agent computer adds a browser.
+  Agents run commands on the computer the chat runs on, or in their own workspace, under the person's terminal rules, and read web pages through Vyre in a browser of their own.
 - Runs on: pin a chat to this computer, the Team Space server, or one of your own servers. In a Team Space you can let the Space continue your chats while your computer is off.
 
 ## Project management
