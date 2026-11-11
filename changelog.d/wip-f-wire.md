@@ -1,0 +1,5 @@
+- Asking the Space admins about a hook that stopped something in a chat now reaches them: each admin gets the line in their notifications. Before, the request was recorded and nobody was told.
+- Links that open a page a place draws itself now go there: Ask in chat from the Tasks page, the Artifacts example, Ask the Assistant from a project, and Open on a note offered in a chat did nothing when pressed.
+- In a Personal Space, the Google and Microsoft card in the Vault opens Settings on the Mail page; it did nothing when pressed.
+- Run again live on a past run of an Automation starts the run; it was always refused because the confirmation was not sent with it.
+- Remove route on a shared inbox in the Console removes the route; it was always refused because the sending domain was not sent with it.

@@ -191,7 +191,7 @@ export async function warm(ctx: CallCtx, input: { threadId: string; agentId?: st
       if (!agentId) return;
       const acct = (await ctx.call("engine.account.resolve", { threadId: input.threadId, agentId, askerId: asker })) as { accountRef: string | null; payer: string | null; reason: string; itemId?: string };
       if (!acct.accountRef) return;
-      const list = (await ctx.call("engine.accounts.list", { threadId: input.threadId, agentId })) as { accounts?: Array<{ ref: string; driver: string; kind: "api_key" | "subscription"; base?: string; keyless?: boolean }> };
+      const list = (await ctx.call("engine.accounts.list", { agentId })) as { accounts?: Array<{ ref: string; driver: string; kind: "api_key" | "subscription"; base?: string; keyless?: boolean }> };
       const row = list.accounts?.find((x) => x.ref === acct.accountRef);
       if (!row) return;
       const account = { ref: row.ref, driver: row.driver, provider: row.driver, kind: row.kind, payer: acct.payer ?? asker, reason: acct.reason, ...(acct.itemId ? { itemId: acct.itemId } : {}), ...(row.base ? { base: row.base } : {}), ...(row.keyless ? { keyless: true } : {}) } as unknown as ResolvedAccount;
