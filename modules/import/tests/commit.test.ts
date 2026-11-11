@@ -217,3 +217,15 @@ test("the rows are not kept once an import is written", async () => {
   assert.deepEqual(kept.map((t) => t.rows.length), [0]);
   assert.equal(kept[0]!.columns.length, 2, "the columns stay");
 });
+
+test("rows the records module refused (the importer may not edit that contact, or a field is locked) are counted as failed and the rest of the import is written", async () => {
+  const h = harness();
+  const real = h.world.handlers["records.bulk_upsert"]!;
+  h.world.handlers["records.bulk_upsert"] = (i, o) => { const out = real(i, o) as { created: number; updated: number; skipped: number }; return { ...out, refused: [{ row: 0, reason: "not_allowed", message: "You may not edit this record." }] }; };
+  const { importId, previewToken } = await ready(h);
+  await run(h, "import.commit", { importId, previewToken });
+  const got = (await run(h, "import.get", { importId })).import;
+  assert.equal(got.state, "done");
+  assert.equal(got.failed, 1, "the refused row is a failed row");
+  assert.equal(h.named("import.completed")[0]!.payload["failed"], 1);
+});

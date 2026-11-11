@@ -40,6 +40,11 @@ type Out = {
   created: number;
   updated: number;
   skipped: number;
+  refused?: Array<{
+      row: number;
+      reason: string;
+      message: string;
+    }>;
 };
 ```
 
@@ -69,6 +74,13 @@ type Out = {
   },
   "output": {
     "created": 1,
+    "refused": [
+      {
+        "message": "example",
+        "reason": "example",
+        "row": 1
+      }
+    ],
     "skipped": 1,
     "updated": 1
   }

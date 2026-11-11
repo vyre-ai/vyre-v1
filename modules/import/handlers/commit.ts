@@ -46,7 +46,7 @@ export async function commit(ctx: ImportCtx, input: In): Promise<unknown> {
   ctx.emit("import.started", `entity/${s.importId}`, { importId: s.importId, runId, type: plan.type, source: s.source, rows: todo.length });
 
   const result = { runId, importId: s.importId };
-  let created = 0, updated = 0, skipped = skippedByPlan;
+  let created = 0, updated = 0, skipped = skippedByPlan, refusedRows = 0;
   try {
     if (plan.newFields.length > 0) {
       await call(ctx, "schema.apply", {
@@ -59,14 +59,14 @@ export async function commit(ctx: ImportCtx, input: In): Promise<unknown> {
         s.state = "canceled";
         break;
       }
-      const out = await call<{ created?: number; updated?: number; skipped?: number }>(ctx, "records.bulk_upsert", {
+      const out = await call<{ created?: number; updated?: number; skipped?: number; refused?: unknown[] }>(ctx, "records.bulk_upsert", {
         type: plan.type, rows: todo.slice(at, at + BATCH), match: plan.onMatch === "create" ? [] : plan.match, runAutomations: runAutomations === true,
       }, { idempotencyKey: `imp:${s.importId}:${n}` });
-      created += out.created ?? 0; updated += out.updated ?? 0; skipped += out.skipped ?? 0;
+      created += out.created ?? 0; updated += out.updated ?? 0; skipped += out.skipped ?? 0; refusedRows += out.refused?.length ?? 0;   // rows the caller may not edit, or the store refused: reported as failed, not written
     }
   } catch (e) {
     const message = e instanceof Error ? e.message : codeOf(e);
-    Object.assign(s, { state: "failed", created, updated, skipped, failed: errors.length, errors: errors.slice(0, KEPT_ERRORS) });
+    Object.assign(s, { state: "failed", created, updated, skipped, failed: errors.length + refusedRows, errors: errors.slice(0, KEPT_ERRORS) });
     saveSession(ctx.db, s);
     await finish(ctx, runId, "failed", `Stopped after ${created + updated} rows: ${message}`, message);
     ctx.emit("import.failed", `entity/${s.importId}`, { importId: s.importId, runId, type: plan.type, error: message });
@@ -74,15 +74,15 @@ export async function commit(ctx: ImportCtx, input: In): Promise<unknown> {
     return result;
   }
   const canceled = s.state === "canceled";
-  Object.assign(s, { state: canceled ? "canceled" : "done", created, updated, skipped, failed: errors.length, errors: errors.slice(0, KEPT_ERRORS) });
+  Object.assign(s, { state: canceled ? "canceled" : "done", created, updated, skipped, failed: errors.length + refusedRows, errors: errors.slice(0, KEPT_ERRORS) });
   // the rows are not kept once they are written (or the import is canceled): the counts and the errors stay
   s.tables = s.tables.map((t) => ({ ...t, rows: [] }));
   saveSession(ctx.db, s);
-  const line = `${created} created, ${updated} updated, ${skipped} skipped, ${errors.length} failed`;
+  const line = `${created} created, ${updated} updated, ${skipped} skipped, ${errors.length + refusedRows} failed`;
   if (canceled) await finish(ctx, runId, "stopped", `Stopped by a person. ${line}`);
   else {
     await finish(ctx, runId, "succeeded", line);
-    ctx.emit("import.completed", `entity/${s.importId}`, clean({ importId: s.importId, runId, type: plan.type, source: s.source, created, updated, skipped, failed: errors.length, ranAutomations: runAutomations === true }));
+    ctx.emit("import.completed", `entity/${s.importId}`, clean({ importId: s.importId, runId, type: plan.type, source: s.source, created, updated, skipped, failed: errors.length + refusedRows, ranAutomations: runAutomations === true }));
   }
   remember(ctx.db, input.idempotencyKey, "import.commit", result);
   return result;

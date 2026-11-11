@@ -31,7 +31,11 @@ export const MAX_UPSERT_ROWS = 10_000;
 /** Excel's own row limit, header included. */
 export const XLSX_MAX_ROWS = 1_048_576;
 
-export type MergeCtx = Pick<WriteCtx, "trace" | "emit"> & { actor?: string };
+export type MergeCtx = Pick<WriteCtx, "trace" | "emit"> & {
+  actor?: string;
+  /** The host decision for the caller on one record. Writing an existing record, or merging records away, needs the same right the single-record capability needs (records.edit, records.delete), checked here for each record. */
+  authorize?: (action: { perm: string | null; level: "view" | "use" | "edit" | "manage" }, resource: { type: string; id: string | null }) => { effect: "allow" | "deny" | "hold"; reason?: string };
+};
 export type ExportCtx = Pick<WriteCtx, "trace"> & {
   actor?: string;
   /** The Files module, as the caller: an export lands in their own Exports folder when no file port was handed in. */
@@ -206,6 +210,13 @@ async function applyMerge(deps: MergeDeps, ctx: MergeCtx, input: { type: string;
   if (mergedIds.includes(input.survivorId)) bad(ctx, "the survivor cannot be one of the merged records");
   const survivor = await store.get(input.type, input.survivorId);
   if (!survivor) throw new StoreError("not_found", `no ${input.type} ${input.survivorId}`);
+  // the host checked the survivor (records.delete on it); the records merged away are deleted and the survivor is rewritten, so the caller needs the same rights on them
+  const may = (perm: string, id: string): void => {
+    const d = ctx.authorize?.({ perm, level: "edit" }, { type: "record", id });
+    if (d?.effect !== "allow") fail(ctx as WriteCtx, "permission.no_grant", d === undefined ? "This call cannot check what you may change, so it merges nothing." : "You may not merge these records: you cannot delete or edit one of them.");
+  };
+  may("records.edit", input.survivorId);
+  for (const id of mergedIds) may("records.delete", id);
   const merged: StoredRecord[] = [];
   for (const id of mergedIds) {
     const r = await store.get(input.type, id);
@@ -403,6 +414,8 @@ async function upsert(deps: MergeDeps, ctx: MergeCtx, input: { type: string; row
   let created = 0;
   let updated = 0;
   let skipped = folded;
+  // a row the caller may not write, or the store refuses (a locked field, a record on hold), is reported for that row and the rest of the batch goes on
+  const refused: Array<{ row: number; reason: string; message: string }> = [];
   for (const plan of plans.values()) {
     try {
       if (!plan.existing) {
@@ -412,22 +425,30 @@ async function upsert(deps: MergeDeps, ctx: MergeCtx, input: { type: string; row
         ctx.emit("record.created", `record/${rec.id}`, { recordId: rec.id, type: rec.type, fields: { ...rec.data }, ...(quiet ? { quiet: true } : {}) });
         continue;
       }
+      // an existing record is changed under exactly the rules of records.update: edit on that record (its label and holds included), then the store's field locks and write-once rules
       const diff: Record<string, unknown> = {};
       for (const [k, v] of Object.entries(plan.values)) if (!same(plan.existing.fields[k], v)) diff[k] = v;
       if (!Object.keys(diff).length) { skipped++; continue; }
+      const allowed = ctx.authorize?.({ perm: "records.edit", level: "edit" }, { type: "record", id: plan.existing.id });
+      if (allowed?.effect !== "allow") {
+        refused.push({ row: plan.index, reason: "not_allowed", message: allowed === undefined ? "This call cannot check what you may edit, so it changes no existing record." : "You may not edit this record." });
+        continue;
+      }
       const rec = await store.update(input.type, plan.existing.id, diff, plan.existing.version);
       updated++;
       const keys = Object.keys(diff);
+      // the values the row replaced, an empty field as empty (null), so undoing the Run clears what the import filled
       const prev: Record<string, unknown> = {};
-      for (const k of keys) if (Object.prototype.hasOwnProperty.call(plan.existing.fields, k)) prev[k] = plan.existing.fields[k];
+      for (const k of keys) prev[k] = Object.prototype.hasOwnProperty.call(plan.existing.fields, k) ? plan.existing.fields[k] : null;
       ctx.emit("record.updated", `record/${rec.id}`, { recordId: rec.id, type: rec.type, fields: changedOf(keys, rec.data), prev, version: rec.version, ...(quiet ? { quiet: true } : {}) });
     } catch (e) {
-      if (e instanceof RecordsError) throw mapErr(ctx, new RecordsError(e.reason, `row ${plan.index}: ${e.message}`));
+      if (e instanceof RecordsError) { refused.push({ row: plan.index, reason: e.reason, message: e.message }); continue; }
+      if (e instanceof StoreError && e.code !== "version_conflict") { refused.push({ row: plan.index, reason: e.code, message: e.message }); continue; }
       if (e instanceof StoreError) throw mapErr(ctx, new StoreError(e.code, `row ${plan.index}: ${e.message}`));
       throw e;
     }
   }
-  return { created, updated, skipped };
+  return { created, updated, skipped, ...(refused.length ? { refused } : {}) };
 }
 
 function mapErr(ctx: Pick<WriteCtx, "trace">, e: unknown): unknown {

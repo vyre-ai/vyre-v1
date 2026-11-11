@@ -111,7 +111,7 @@ export default defineManifest({
     }),
     create('records.bulk_upsert', 'Create or update many records by match key, quietly (no automations unless asked)', {
       in: { type: id.recordType, rows: t.arr(t.rec()), match: t.arr(t.str()), runAutomations: t.opt(t.bool()) },
-      out: { created: t.int(), updated: t.int(), skipped: t.int() }, make: ['record', '/type'], perm: 'records.create', emits: ['record.created', 'record.updated'], tool: 'records', cli: 'vyre records upsert',
+      out: { created: t.int(), updated: t.int(), skipped: t.int(), refused: t.opt(t.arr(t.obj({ row: t.int({ description: 'Index of the row in the call' }), reason: t.str(), message: t.str() }), { description: 'Rows that were not written: the caller may not edit the record, or the store refused (a locked field, a record on hold). The other rows were written.' })) }, make: ['record', '/type'], perm: 'records.create', emits: ['record.created', 'record.updated'], tool: 'records', cli: 'vyre records upsert',
     }),
     write('records.delete', 'Move a record to Trash', { in: target, out: { deleted: t.bool() }, on: ['record', '/recordId'], perm: 'records.delete', emits: ['record.deleted'], gate: { act: 'delete', when: "actor.kind != 'person'" }, tool: 'records', offline: 'queue', errors: ['permission.on_hold'] }),
     write('records.restore', 'Restore a record from Trash', { in: target, out: { record: recordRow }, on: ['record', '/recordId'], perm: 'records.delete', emits: ['record.restored'], tool: 'records' }),

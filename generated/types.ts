@@ -31592,6 +31592,11 @@ export type RecordsBulkUpsertOut = {
   created: number;
   updated: number;
   skipped: number;
+  refused?: Array<{
+      row: number;
+      reason: string;
+      message: string;
+    }>;
 };
 export type RecordsChangesIn = {
   type: string;
