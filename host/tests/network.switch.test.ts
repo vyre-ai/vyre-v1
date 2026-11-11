@@ -37,11 +37,16 @@ test("a changed way of reaching the server (VYRE_NETWORK_REV) is applied once; t
   await d.stop();
   // the walk's case: a server first installed another way (the relay's row), then the installer is run with a domain
   d = await boot(dir, ["--address", "one.example.com"]);
-  d.db!.run("UPDATE network_config SET mode = 'relay', address = 'http://0.0.0.0:8420' WHERE id = 1");
+  d.db!.run("UPDATE network_config SET mode = 'relay', address = 'http://0.0.0.0:8420', relay_address = 'relay.vyre.run' WHERE id = 1");
+  d.db!.run("INSERT OR REPLACE INTO network_endpoint (kind, url, state, rtt_ms, heartbeat_at) VALUES ('direct', 'https://one.example.com', 'healthy', NULL, 1)");
   await d.stop();
   d = await boot(dir, ["--address", "two.example.com"], { VYRE_NETWORK_REV: "1000" });
   assert.deepEqual(row(d), { address: "two.example.com", mode: "own_domain" }, "the new domain replaced the old way");
   assert.equal((d.db!.all("SELECT value FROM network_info WHERE key = 'network_rev'")[0] as { value: string }).value, "1000");
+  const kept = d.db!.all("SELECT relay_address, domain FROM network_config WHERE id = 1")[0] as { relay_address: string | null; domain: string | null };
+  assert.equal(kept.relay_address, "relay.vyre.run", "the relay address stays, so the Console's own switch back to the relay still has an address to use");
+  assert.equal(kept.domain, "two.example.com");
+  assert.equal((d.db!.all("SELECT state FROM network_endpoint WHERE kind = 'direct' AND url = 'https://one.example.com'")[0] as { state: string }).state, "down", "the old address is no longer offered as a way in");
   assert.equal(d.db!.all("SELECT address FROM network_config WHERE id = 1 AND mode = 'own_domain'").length, 1, "the host the ingress reads is there: Caddy gets its site");
   // somebody changes the address in the Console; a restart with the same rev must not undo it
   d.db!.run("UPDATE network_config SET address = 'console.example.com' WHERE id = 1");
@@ -66,7 +71,10 @@ test("the health probe reports the disk choice made at install: plain is a stand
   assert.equal(plain.state, "degraded");
   assert.match(plain.detail ?? "", /The data is NOT encrypted at rest\. You chose to install on a plain disk on 2026-11-11/);
   const prov = await probe({ VYRE_DISK_ENCRYPTION: "provider", VYRE_DISK_ENCRYPTION_SINCE: "2026-11-11" });
-  assert.equal(prov.state, "healthy");
-  assert.match(prov.detail ?? "", /You said your cloud provider encrypts the data volume at rest on 2026-11-11\. This server cannot see that/);
-  assert.equal((await probe({ VYRE_DISK_ENCRYPTION: "luks" })).state, "healthy");
+  assert.equal(prov.state, "degraded", "the person's word is not a verified volume: never the same state as one");
+  assert.match(prov.detail ?? "", /^Not verified: your provider's encryption, as you stated on 2026-11-11\. This server cannot check it/);
+  const seen = await probe({ VYRE_DISK_ENCRYPTION: "detected" });
+  assert.equal(seen.state, "healthy");
+  assert.match(seen.detail ?? "", /verified by the host at the last start/);
+  assert.equal((await probe({ VYRE_DISK_ENCRYPTION: "luks" })).state, "degraded", "a value this version does not know is not trusted: the old check runs");
 });

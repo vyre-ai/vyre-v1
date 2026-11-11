@@ -24,19 +24,19 @@ You need a Linux machine you control, with root access and at least 10 GB free. 
 There are two ways, and you pick one when you install. You can change it later (see "Changing it later" below).
 
 - **Your own name (`--domain`).** People open `https://vyre.example.com` in any browser, and the Vyre app connects to the same address. This is the way for a team, and the only way for someone who has only a browser. It needs a name you own and two DNS records (below).
-- **Vyre's relay (`--relay`).** The server connects out to Vyre's relay and opens no port to the internet. Only the Vyre app (Mac or Windows) can find a server this way, and only through the install line the app shows you (it carries a one-time code). A server installed with `--relay` and no code has no web address a browser can open.
+- **Vyre's relay (`--relay`).** The server connects out to Vyre's relay and opens no port to the internet (ports 80 and 443 stay on the machine itself; an update closes them on a server installed earlier). Only the Vyre app (Mac or Windows) can find a server this way, and only through the install line the app shows you (it carries a one-time code). A server installed with `--relay` and no code has no web address a browser can open. <!-- verify: that the relay serves no browser address for a bare server, and what a phone does with a relay-only team -->
 
 ### Encrypting the data disk
 
-Vyre keeps your Space's data, keys and backups on this machine's disk. By default the installer refuses to put them on a plain disk, and shows three ways forward. A default cloud server has a plain disk, so you will meet this on your first try.
+Vyre keeps your Space's data and its keys on this machine's disk, and backups beside them (in the data folder, so they sit on the same volume). By default the installer refuses to put them on a plain disk, and shows two ways forward. A default cloud server has a plain disk, so you will meet this on your first try.
 
-1. **Use your provider's encrypted volume.** Attach an encrypted volume to the server, mount it (for example at `/mnt/vyre`), and install with `--data-dir /mnt/vyre/data --provider-encrypted`. The installer cannot see a provider's encryption from inside the server, so `--provider-encrypted` is your word that it is on; Vyre records that, and `vyre-server doctor` says "you said your provider encrypts it; check it with your provider". What the big providers say about themselves (check their current page; this changes, and Vyre cannot check it for you): Google Cloud and Microsoft Azure encrypt their disks at rest by default; Amazon Web Services encrypts a volume when you turn on encryption for it (or "encryption by default" for the region); DigitalOcean and Linode encrypt their block storage volumes, but not the server's own disk; Hetzner Cloud does not encrypt volumes for you, so use the next way there.
-2. **Let the installer make one: `--encrypt-data`.** It makes a LUKS volume of 20 GB (change it with `--encrypt-size 50`), or uses a spare disk you name (`--encrypt-device /dev/sdb`, which erases it), and puts the data there. It asks you for a passphrase, or makes one for you and shows it once. It never stores the passphrase. What this means:
-   - It protects a copy of the disk: a snapshot, a stolen or recycled drive, a backup of the whole disk.
-   - It does not protect against someone who can log in to the server while it runs: the volume is open then.
-   - After every restart the Space stays closed until you run `sudo vyre-server unlock` and type the passphrase. An update that restarts the machine needs you too.
-   - You can instead keep the key in a file on another volume (`--key-file /mnt/usb/vyre.key`), and the server then opens by itself whenever that volume is mounted. The installer refuses a key file on the same disk as the data, because a key beside the data it opens protects nothing.
-3. **Go without: `--allow-plain-disk`.** The installer records your choice. From then on `vyre-server doctor` and the Console's health page say, every time, that the data is not encrypted at rest.
+1. **Use your provider's encrypted volume.** Attach an encrypted volume to the server, mount it (for example at `/mnt/vyre`), and install with `--data-dir /mnt/vyre/data --provider-encrypted`. The installer cannot see a provider's encryption from inside the server, so `--provider-encrypted` is your word that it is on. Vyre records it as your statement, and `vyre-server doctor` and the Console show it as "Not verified: your provider's encryption, as you stated" so it is never mistaken for a volume the server checked. If you later change `--data-dir`, the installer asks the question again. Backups are written inside that data folder, on the same volume. Check with your provider that encryption at rest is on for the volume; what they say about themselves changes, and Vyre cannot check it for you. <!-- verify: which providers encrypt volumes at rest, and by default or on request -->
+   - Google Cloud and Microsoft Azure encrypt their disks at rest by default. <!-- verify -->
+   - Amazon Web Services encrypts a volume when encryption is turned on for it, or for the whole region ("encryption by default"). <!-- verify -->
+   - DigitalOcean encrypts its block storage volumes, not the server's own disk. <!-- verify -->
+2. **Go without: `--allow-plain-disk`.** The installer records your choice. From then on `vyre-server doctor` and the Console's health page say, every time, that the data is not encrypted at rest.
+
+If you would rather encrypt the disk yourself before installing, for example with LUKS, do it first and then install with the data folder on the opened volume. The installer does not make or open encrypted volumes for you. What it checks: that the volume holding the data folder has an encryption layer (`lsblk` shows a `crypt` row), which it reports as "verified here". It cannot see where the key is kept. A key stored on the same disk as the volume it opens protects nothing, so keep the key somewhere else, and plan for how the volume is opened after a restart: Docker starts the server by itself at boot, and a server whose data volume is not mounted yet will not find its data. Put the backup folder on the encrypted volume as well (it is by default when the data folder is on it).
 
 On a Mac the same question is answered by FileVault (section 2), with the same `--allow-plain-disk` choice.
 
@@ -54,7 +54,7 @@ Or, for a server only the Vyre app will use (copy the exact line from the app, w
 curl -fsSL https://github.com/vyre-ai/vyre-v1/releases/download/channel-beta/install.sh | sudo sh -s -- --channel beta --relay
 ```
 
-Add one of the disk options above (`--provider-encrypted`, `--encrypt-data` or `--allow-plain-disk`) if the installer asks for one. `--encrypt-data` asks you for a passphrase, so run it from a terminal.
+Add one of the two disk options above (`--provider-encrypted` or `--allow-plain-disk`) if the installer asks for one.
 
 The installer checks the release against Vyre's signature before it installs anything, starts the server, and waits until it reports healthy. Check it any time with:
 
@@ -70,11 +70,11 @@ Before people can open `https://vyre.example.com`, three things have to be true.
 2. **A second A record, `a.vyre.example.com`, pointing to the same address.** Artifacts (pages your agents make) open on that name.
 3. **Ports 80 and 443 open to the internet,** in the provider's firewall as well as on the machine. Port 80 is how the certificate is fetched, from Let's Encrypt, and 443 is the site.
 
-When the installer finishes it looks the two names up, compares them with the server's own address, and says which one is missing or wrong. The certificate arrives about a minute after the records are right. Nothing else needs doing.
+When the installer finishes it looks the two names up in public DNS, compares them with the server's own address, and says which one is missing or different (a name that points at a proxy or load balancer in front is fine, and is said so). To learn the server's address it asks two outside services (api.ipify.org, then ifconfig.me); they see the server's address and that it is running curl. The certificate arrives about a minute after the records are right. Nothing else needs doing.
 
 ### Changing it later
 
-Run the installer again with the other choice, for example `--domain vyre.example.com` on a server installed with `--relay`. The installer says what changed (`Changing how this server is reached: from ... to ...`), keeps the Space's data, and restarts the server with the new address. The disk choice is remembered between runs. To change it, run again with another of the three disk options.
+Run the installer again with the other choice, for example `--domain vyre.example.com` on a server installed with `--relay`. The installer says what changed (`Changing how this server is reached: from ... to ...`), keeps the Space's data, and recreates the server with the new address. People who were signed in at the old address have to open the new one and sign in again, and the Vyre app needs the new address (add the Space again). The old address stops being offered as a way in. The disk choice is remembered between runs, and a re-run never changes it without saying so; to change it, run again with the other disk option. <!-- verify: what happens to signed-in browsers and saved app addresses -->
 
 ### Day to day
 
@@ -82,7 +82,7 @@ Run the installer again with the other choice, for example `--domain vyre.exampl
 - `vyre-server logs` follows the log until you press Ctrl-C. `vyre-server logs --no-follow` prints the last lines and exits.
 - The server updates itself once a day. It backs up first, with the server still running, then stops it only for the switch, checks that the new version is healthy, and goes back to the old version if it is not. `vyre-server update --check` shows what is available, and `vyre-server rollback` goes back one version.
 - `vyre-server backup` writes a backup while the server runs, and says where. **A backup on the same disk as the data is not protection:** if the server or its disk is lost, the backup goes with it. The command prints the one `scp` line that copies it to your own computer. Keep a copy somewhere else.
-- To remove the server, run the same line with `--uninstall` in place of the other options. Your data and backups stay unless you add `--purge`. From a pipe the installer cannot ask you to confirm a purge, so add `--yes`: `... | sudo sh -s -- --uninstall --purge --yes`.
+- To remove the server, run the same line with `--uninstall` in place of the other options. Your data and backups stay unless you add `--purge`. From a pipe the installer cannot ask you to confirm a purge, so add `--yes`: `... | sudo sh -s -- --uninstall --purge --yes`. A purge says what it removed (the containers and volumes, the data, the backups, the install folder) and what it did not (the Docker images, Docker itself, your DNS records, certificates, copies you made elsewhere). If the data folder is a separate volume's mount point, its contents go and the empty folder stays.
 
 ## 2. Install the server on a Mac
 
@@ -141,7 +141,7 @@ The AI tools that run as command lines (Claude Code, Codex, Grok, Gemini CLI) ne
 
 There is no phone app in the first release. The phone uses the web app, added to the home screen so it opens like an app.
 
-1. On the phone, open your Space's address (the `https` name from `--domain`) in Safari (iPhone) or Chrome (Android). It is the address your team uses to reach the server.
+1. On the phone, open your Space's address (the `https` name from `--domain`; a team on the relay only: see the relay note in section 1) <!-- verify --> in Safari (iPhone) or Chrome (Android). It is the address your team uses to reach the server.
 2. Sign in.
 3. iPhone: tap Share, then Add to Home Screen. Android: open the browser menu and choose Install app or Add to Home screen.
 

@@ -32,9 +32,10 @@ export function diskChoiceResult(c: DiskChoice): ProbeResult | null {
   const when = c.since ? ` on ${c.since}` : "";
   switch (c.kind) {
     case "plain": return result("degraded", `The data is NOT encrypted at rest. You chose to install on a plain disk${when}: anyone who gets a copy of this disk, a snapshot or a backup can read it.`);
-    case "provider": return result("healthy", `You said your cloud provider encrypts the data volume at rest${when}. This server cannot see that; check it with your provider.`);
-    case "luks": return result("healthy", "The data is on an encrypted (LUKS) volume made by the installer. It protects a copy of the disk, not a person logged in to this server.");
-    case "detected": return result("healthy", "The installer found the data directory on an encrypted volume.");
+    // the person's word, not a check: shown as its own thing (not healthy) so a summary never counts it as encrypted
+    case "provider": return result("degraded", `Not verified: your provider's encryption, as you stated${when}. This server cannot check it; confirm it with your provider.`);
+    // looked at again by the host script at every start of the server
+    case "detected": return result("healthy", "The data directory is on an encrypted volume (verified by the host at the last start; where its key is kept is not visible).");
     default: return null;
   }
 }

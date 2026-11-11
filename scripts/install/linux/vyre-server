@@ -9,7 +9,7 @@
 #   vyre-server claim-link                  print the one-time link that claims a fresh Space as its owner (valid 24 hours; each start makes a new one)
 #   vyre-server update [--check] [--yes]    read the channel's signed manifest; if it names a newer version: back up the data (server running), then stop, switch, check health, roll back on failure; --stopped-backup stops first
 #   vyre-server rollback                    switch back to the previous release (code only; data written by the newer one stays)
-#   vyre-server backup                      write a backup of the data directory to $VYRE_DIR/backups (the server keeps running)
+#   vyre-server backup                      write a backup of the data directory to the backup folder, by default next to the data (the server keeps running)
 #   vyre-server restore FILE [--yes]        put a backup back: checks it, backs up the current data, stops, restores, starts, checks health
 #   vyre-server fix-userns                  let the engine sandbox make user namespaces (Ubuntu 24.04 setting); install and update do this themselves
 #   vyre-server version
@@ -38,6 +38,8 @@ WANT_SHA256=""
 CHANNEL=$(cat "$DIR/channel" 2>/dev/null || printf stable)
 UPDATE_URL=${VYRE_UPDATE_URL:-$(cat "$DIR/update-url" 2>/dev/null || printf 'https://github.com/vyre-ai/vyre-v1/releases/latest/download/')}
 DATA_DIR=$(cat "$DIR/data-dir" 2>/dev/null || printf '%s/data' "$DIR")
+# where backups are written: with the data (so a data folder on an encrypted volume holds its backups too); an install made before this was recorded keeps $VYRE_DIR/backups
+BACKUP_DIR=$(cat "$DIR/backup-dir" 2>/dev/null || printf '%s/backups' "$DIR")
 UNIT_DIR=${VYRE_SYSTEMD_DIR:-/etc/systemd/system}
 KEEP_BACKUPS=3
 KEEP_RELEASES=3
@@ -231,7 +233,7 @@ health_url() {
 }
 
 # ---- start, stop, status, logs -----------------------------------------------------------------------------------------------------
-cmd_start() { [ ! -f "$(PENDING_FILE)" ] || lock_update_operation; ensure_unlocked; dc up -d --remove-orphans --wait --wait-timeout "${VYRE_UP_WAIT:-180}"; }
+cmd_start() { [ ! -f "$(PENDING_FILE)" ] || lock_update_operation; refresh_disk_env || true; dc up -d --remove-orphans --wait --wait-timeout "${VYRE_UP_WAIT:-180}"; }
 cmd_stop() { dc stop; }
 cmd_status() { dc ps; }
 cmd_logs() {
@@ -245,46 +247,6 @@ cmd_logs() {
     # shellcheck disable=SC2086
     dc logs --tail 200 $svc
   fi
-}
-
-# ---- an encrypted data volume made by the installer (--encrypt-data) ------------------------------------------------------------------
-# state/crypt.env holds CRYPT_TARGET (the file or disk), CRYPT_NAME, CRYPT_MOUNT and CRYPT_KEYFILE (a key on another volume, or empty: a passphrase is typed). The key is never stored here.
-crypt_env() { [ -f "$DIR/state/crypt.env" ] || return 1; CRYPT_TARGET=; CRYPT_NAME=vyre-data; CRYPT_MOUNT=; CRYPT_KEYFILE=; . "$DIR/state/crypt.env"; }
-crypt_mounted() {
-  m=${VYRE_TEST_PROC_MOUNTS:-/proc/mounts}
-  [ "${VYRE_TEST_MODE:-0}" = 1 ] || m=/proc/mounts
-  awk -v t="$CRYPT_MOUNT" '$2 == t { found = 1 } END { exit !found }' "$m" 2>/dev/null
-}
-# crypt_open KEYFILE_OR_EMPTY: open the volume (a key file, or the passphrase asked on the terminal) and mount it.
-crypt_open() {
-  if [ -e "/dev/mapper/$CRYPT_NAME" ]; then :
-  elif [ -n "$1" ]; then cryptsetup open --key-file "$1" "$CRYPT_TARGET" "$CRYPT_NAME" || return 1
-  else
-    (: </dev/tty) 2>/dev/null || die "there is no terminal to ask the passphrase on. Run this from a terminal: sudo vyre-server unlock" 2
-    printf 'Passphrase for the data volume: ' >/dev/tty
-    stty -echo </dev/tty 2>/dev/null || true
-    read -r pw </dev/tty || pw=""
-    stty echo </dev/tty 2>/dev/null || true
-    printf '\n' >/dev/tty
-    printf '%s' "$pw" | cryptsetup open --key-file=- "$CRYPT_TARGET" "$CRYPT_NAME" || return 1
-    pw=""
-  fi
-  mkdir -p "$CRYPT_MOUNT"
-  mount "/dev/mapper/$CRYPT_NAME" "$CRYPT_MOUNT"
-}
-# ensure_unlocked: a server whose data is on its own encrypted volume does not start until the volume is open (a key file on another volume opens it by itself).
-ensure_unlocked() {
-  crypt_env || return 0
-  crypt_mounted && return 0
-  if [ -n "$CRYPT_KEYFILE" ] && [ -f "$CRYPT_KEYFILE" ]; then crypt_open "$CRYPT_KEYFILE" || die "the key file $CRYPT_KEYFILE did not open the data volume."; return 0; fi
-  die "the Space's data is on an encrypted volume that is closed (after a restart it stays closed). Open it and start the server: sudo vyre-server unlock" 6
-}
-cmd_unlock() {
-  crypt_env || die "this server's data is not on an encrypted volume made by the installer; there is nothing to unlock." 2
-  kf=$CRYPT_KEYFILE
-  while [ $# -gt 0 ]; do case "$1" in --key-file) shift; [ $# -gt 0 ] || die "--key-file needs a path" 2; kf=$1 ;; *) die "unlock takes --key-file PATH, or nothing to be asked for the passphrase" 2 ;; esac; shift; done
-  if crypt_mounted; then say "The data volume is already open."; else crypt_open "$kf" || die "the volume did not open (wrong passphrase or key?)."; say "The data volume is open."; fi
-  cmd_start
 }
 
 # ---- claim ---------------------------------------------------------------------------------------------------------------------------
@@ -325,6 +287,19 @@ $1	$2	$3"
 
 json_str() { printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' | tr '\n\t' '  '; }
 
+# refresh_disk_env: at each start the disk is looked at again and what the Console is told (VYRE_DISK_ENCRYPTION in compose.env) follows it: a verified encryption layer, else the person's recorded
+# statement (plain or provider), else nothing. A recorded value is never trusted over what can be seen.
+refresh_disk_env() {
+  [ -f "$DIR/compose.env" ] || return 0
+  disk_encrypted "$DATA_DIR" && rc=0 || rc=$?
+  k=$(sed -n 's/^kind=//p' "$DIR/state/encryption" 2>/dev/null | head -n 1)
+  if [ "$rc" = 0 ]; then k=detected; else case "$k" in plain|provider) ;; *) k="" ;; esac; fi
+  since=$(sed -n 's/^since=//p' "$DIR/state/encryption" 2>/dev/null | head -n 1)
+  [ -n "$since" ] || since=$(date -u +%Y-%m-%d)
+  { grep -v -e '^VYRE_DISK_ENCRYPTION=' -e '^VYRE_DISK_ENCRYPTION_SINCE=' "$DIR/compose.env" || true; [ -z "$k" ] || printf 'VYRE_DISK_ENCRYPTION=%s\nVYRE_DISK_ENCRYPTION_SINCE=%s\n' "$k" "$since"; } >"$DIR/compose.env.new" || { rm -f "$DIR/compose.env.new"; return 1; }
+  if cmp -s "$DIR/compose.env" "$DIR/compose.env.new"; then rm -f "$DIR/compose.env.new"; else mv -f "$DIR/compose.env.new" "$DIR/compose.env"; fi
+}
+
 # crypt_on_file: the encrypted volume under the data directory is a loop device, a file on some disk (its key may sit beside it; this server cannot see where the key is).
 crypt_on_file() {
   m=/proc/mounts; l=lsblk
@@ -335,27 +310,22 @@ crypt_on_file() {
 }
 
 check_all() {
-  # the volume the data lives on, and what the person chose about it when it is not visibly encrypted
+  # the volume the data lives on, checked now (never trusted from a record), and what the person said about it when it is not visibly encrypted
   disk_encrypted "$DATA_DIR" && rc=0 || rc=$?
   enc_kind=$(sed -n 's/^kind=//p' "$DIR/state/encryption" 2>/dev/null | head -n 1)
   enc_since=$(sed -n 's/^since=//p' "$DIR/state/encryption" 2>/dev/null | head -n 1)
-  if crypt_env && ! crypt_mounted; then
-    finding host.disk_encrypted down "The encrypted data volume is closed, so the Space cannot start. Open it: sudo vyre-server unlock."
-  else
-    case "$rc" in
-      0) if [ -f "$DIR/state/crypt.env" ]; then finding host.disk_encrypted healthy "The data directory $DATA_DIR is on an encrypted volume made by the installer ($( [ -n "${CRYPT_KEYFILE:-}" ] && printf 'key file on another volume' || printf 'passphrase typed after each restart' )). It protects a copy of the disk, not a person logged in to this server."
-         elif crypt_on_file; then finding host.disk_encrypted healthy "The data directory $DATA_DIR is on an encrypted volume that is a file on this disk. If its key is kept on this same disk, it protects nothing: keep the key somewhere else."
-         else finding host.disk_encrypted healthy "The data directory $DATA_DIR is on an encrypted volume."; fi ;;
-      *) case "$enc_kind" in
-           plain) finding host.disk_encrypted degraded "The data is NOT encrypted at rest. You chose to install on a plain disk${enc_since:+ on $enc_since}: anyone who gets a copy of this disk, a snapshot or a backup can read it." ;;
-           provider) finding host.disk_encrypted healthy "You said your cloud provider encrypts the data volume at rest${enc_since:+ ($enc_since)}. This server cannot see that; check it with your provider." ;;
-           *) case "$rc" in
-                1) finding host.disk_encrypted down "The data directory $DATA_DIR is not on an encrypted volume. Re-run the installer with --encrypt-data, --provider-encrypted or --allow-plain-disk (see its --help)." ;;
-                *) finding host.disk_encrypted down "Could not tell whether $DATA_DIR is on an encrypted volume (no /proc/mounts or lsblk answer)." ;;
-              esac ;;
-         esac ;;
-    esac
-  fi
+  case "$rc" in
+    0) if crypt_on_file; then finding host.disk_encrypted degraded "The data directory $DATA_DIR is on an encrypted volume that is a file on this disk. This server cannot tell where its key is kept: a key on this same disk protects nothing."
+       else finding host.disk_encrypted healthy "The data directory $DATA_DIR is on an encrypted volume (verified here; where its key is kept is not visible)."; fi ;;
+    *) case "$enc_kind" in
+         plain) finding host.disk_encrypted degraded "The data is NOT encrypted at rest. You chose to install on a plain disk${enc_since:+ on $enc_since}: anyone who gets a copy of this disk, a snapshot or a backup can read it." ;;
+         provider) finding host.disk_encrypted degraded "Not verified: your provider's encryption, as you stated${enc_since:+ on $enc_since}. This server cannot check it; confirm it with your provider." ;;
+         *) case "$rc" in
+              1) finding host.disk_encrypted down "The data directory $DATA_DIR is not on an encrypted volume. Re-run the installer with --provider-encrypted (the provider's encrypted volume) or --allow-plain-disk (see its --help)." ;;
+              *) finding host.disk_encrypted down "Could not tell whether $DATA_DIR is on an encrypted volume (no /proc/mounts or lsblk answer)." ;;
+            esac ;;
+       esac ;;
+  esac
   # room to work
   free_mb=$(df -Pm "$DATA_DIR" 2>/dev/null | awk 'NR==2 {print $4}')
   if [ -z "$free_mb" ]; then finding host.disk_space degraded "Could not read the free space of $DATA_DIR."
@@ -555,23 +525,25 @@ backup_fail() {
 # still one consistent snapshot (VACUUM INTO reads a single transaction while writers go on).
 backup_data() {
   BACKUP_MODE=${2:-stopped}
-  mkdir -p "$DIR/backups" "$DIR/state"
-  chmod 0700 "$DIR/backups"
-  out="$DIR/backups/vyre-$1-$(date -u +%Y%m%dT%H%M%SZ).tar.gz"
+  [ -s "$DATA_DIR/space/events.db" ] || die "there is no Space in $DATA_DIR (no space/events.db): is the data volume mounted? No backup was written, and the earlier backups were left as they are."
+  mkdir -p "$BACKUP_DIR" "$DIR/state"
+  chmod 0700 "$BACKUP_DIR"
+  out="$BACKUP_DIR/vyre-$1-$(date -u +%Y%m%dT%H%M%SZ).tar.gz"
   need_mb=$(du -sm "$DATA_DIR/space" "$DATA_DIR/caddy" 2>/dev/null | awk '{ n += $1 } END { print n + 0 }')
-  free_mb=$(df -Pm "$DIR/backups" | awk 'NR==2 {print $4}')
+  free_mb=$(df -Pm "$BACKUP_DIR" | awk 'NR==2 {print $4}')
   [ "${free_mb:-0}" -gt "$((need_mb * 2 + 256))" ] || die "not enough room for a backup ($need_mb MB of data, $free_mb MB free); nothing was changed."
   if [ "$BACKUP_MODE" = stopped ]; then dc stop >/dev/null || true; stop_strays; fi
   umask 077
-  STAGE=$(mktemp -d "$DIR/backups/.stage.XXXXXX") || backup_fail "could not make room to stage the backup; nothing was changed."
+  STAGE=$(mktemp -d "$BACKUP_DIR/.stage.XXXXXX") || backup_fail "could not make room to stage the backup; nothing was changed."
   stage_copy "$DATA_DIR/space" "$STAGE/space" || backup_fail "the backup could not be written (a database would not copy cleanly); nothing was changed."
   if [ -d "$DATA_DIR/caddy" ]; then stage_copy "$DATA_DIR/caddy" "$STAGE/caddy" || backup_fail "the backup could not be written; nothing was changed."; else mkdir -p "$STAGE/caddy"; fi
   # The staged copy no longer changes, so tar has nothing to race with.
   tar -czf "$out.part" -C "$STAGE" space caddy || backup_fail "the backup could not be written; nothing was changed."
   tar -tzf "$out.part" >/dev/null || backup_fail "the backup did not read back; nothing was changed."
+  tar -tzf "$out.part" | grep -q '^space/events.db$' || backup_fail "the backup holds no Space (space/events.db is missing); nothing was changed and the earlier backups were kept."
   rm -rf "$STAGE"; STAGE=""
   mv "$out.part" "$out"
-  ls -1t "$DIR"/backups/vyre-*.tar.gz 2>/dev/null | awk -v k="$KEEP_BACKUPS" 'NR > k' | while read -r old; do rm -f "$old"; done
+  ls -1t "$BACKUP_DIR"/vyre-*.tar.gz 2>/dev/null | awk -v k="$KEEP_BACKUPS" 'NR > k' | while read -r old; do rm -f "$old"; done
   BACKUP_FILE=$out
 }
 
@@ -750,6 +722,9 @@ sync_image() {
   cp -p "$DIR/compose.env" "$DIR/compose.env.new" || return 1
   { grep -v -e '^VYRE_IMAGE=' -e '^VYRE_AGENT_COMPUTER_IMAGE=' -e '^VYRE_SPACE_BROWSER_IMAGE=' -e '^VYRE_WORKSPACE_IMAGE=' "$DIR/compose.env" || true; printf 'VYRE_IMAGE=%s\n' "$img"; [ -z "$aimg" ] || printf 'VYRE_AGENT_COMPUTER_IMAGE=%s\n' "$aimg"; [ -z "$bimg" ] || printf 'VYRE_SPACE_BROWSER_IMAGE=%s\n' "$bimg"; [ -z "$wimg" ] || printf 'VYRE_WORKSPACE_IMAGE=%s\n' "$wimg"; } >"$DIR/compose.env.new" || { rm -f "$DIR/compose.env.new"; return 1; }
   mv -f "$DIR/compose.env.new" "$DIR/compose.env"
+  # a server with no domain (the relay) opens no port to the internet: 80 and 443 stay on this machine. In relay mode a site cannot have a custom domain (the Space only serves one on its own domain), so nothing is lost.
+  if ! grep -q -e '^VYRE_ADDRESS=' -e '^VYRE_BIND=' "$DIR/compose.env"; then printf 'VYRE_BIND=127.0.0.1\n' >>"$DIR/compose.env"; fi
+  refresh_disk_env || true
 }
 
 # An update writes state/update.pending (the release it left) before it switches, and removes it once it has settled. If the file is still there when the next
@@ -981,7 +956,6 @@ main() {
     update) cmd_update "$@" ;;
     fix-userns) ensure_userns; say "Done." ;;
     rollback) cmd_rollback ;;
-    unlock) cmd_unlock "$@" ;;
     backup) cmd_backup ;;
     restore) cmd_restore "$@" ;;
     version|--version) say "$(cur_version)" ;;

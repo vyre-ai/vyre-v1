@@ -445,7 +445,10 @@ write_config() {
     if [ -n "$kind" ]; then printf 'VYRE_DISK_ENCRYPTION=%s\nVYRE_DISK_ENCRYPTION_SINCE=%s\n' "$kind" "$(sed -n 's/^since=//p' "$(enc_file)" 2>/dev/null | head -n 1 | grep . || date -u +%Y-%m-%d)"; fi
   } >"$DIR/compose.env.new"
   mv "$DIR/compose.env.new" "$DIR/compose.env"
-  if [ -n "${ENC_KIND:-}" ] && [ "$ENC_KIND" != "$(enc_prior)" ]; then printf 'kind=%s\nsince=%s\n' "$ENC_KIND" "$(date -u +%Y-%m-%d)" >"$(enc_file)"; fi
+  if [ -n "${ENC_KIND:-}" ] && [ "$ENC_KIND" != "$(enc_prior)" ]; then
+    [ -z "$(enc_prior)" ] || say "  The recorded disk choice changed: from $(enc_prior) to $ENC_KIND."
+    printf 'kind=%s\nsince=%s\ndata_dir=%s\n' "$ENC_KIND" "$(date -u +%Y-%m-%d)" "$DATA_DIR" >"$(enc_file)"
+  fi
   printf '%s\n' "$CHANNEL" >"$DIR/channel"
   printf '%s\n' "${UPDATE_URL%/}/" >"$DIR/update-url"
   cat >"$DIR/compose.override.yml" <<EOT
