@@ -406,6 +406,31 @@ space_id() {
   printf '%s' "$_s"
 }
 
+# space_serves_domain: 0 = the Space serves its own domain (network_config mode own_domain, set at install or later in the Console); 1 = it does not (the query ran, the table is there, no row says so);
+# 2 = cannot tell (no reader, a busy or missing database, any error or odd answer). Callers change the ports only on 0 or 1. Readers, in order: sqlite3, this host's node, the release image's own node
+# (docker run of the image already pulled, no network, the data folder mounted read-only).
+space_serves_domain() {
+  db=$DATA_DIR/space/modules.db
+  [ -f "$db" ] || return 2
+  q="SELECT count(*) AS n FROM network_config WHERE id = 1 AND mode = 'own_domain'"
+  to=${VYRE_TEST_SQLITE_TIMEOUT:-3000}
+  if command -v sqlite3 >/dev/null 2>&1; then
+    out=$(sqlite3 -readonly -cmd ".timeout $to" "$db" "$q" 2>/dev/null) || return 2
+    case "$out" in 1) return 0 ;; 0) return 1 ;; *) return 2 ;; esac
+  fi
+  js="try{const {DatabaseSync}=require('node:sqlite');const d=new DatabaseSync(process.argv[1],{readOnly:true});d.exec('PRAGMA busy_timeout='+process.argv[3]);console.log(d.prepare(process.argv[2]).get().n)}catch(e){process.exit(2)}"
+  if command -v node >/dev/null 2>&1 && node --no-warnings -e "require('node:sqlite')" >/dev/null 2>&1; then
+    out=$(node --no-warnings -e "$js" "$db" "$q" "$to" 2>/dev/null) || return 2
+    case "$out" in 1) return 0 ;; 0) return 1 ;; *) return 2 ;; esac
+  fi
+  img=$(sed -n 's/^VYRE_IMAGE=//p' "$DIR/compose.env" 2>/dev/null | head -n 1)
+  if [ -n "$img" ] && command -v docker >/dev/null 2>&1; then
+    out=$(docker run --rm --network none --user 1000:1000 -v "$DATA_DIR/space:/in:ro" --entrypoint node "$img" --no-warnings -e "$js" /in/modules.db "$q" "$to" 2>/dev/null) || return 2
+    case "$out" in 1) return 0 ;; 0) return 1 ;; *) return 2 ;; esac
+  fi
+  return 2
+}
+
 # access_words ADDRESS RELAY: how a server is reached, in a few plain words.
 access_words() { if [ -n "$1" ]; then printf 'your own name, https://%s' "$1"; elif [ -n "$2" ]; then printf "Vyre's relay (%s)" "$2"; else printf 'no way set yet'; fi; }
 
@@ -426,11 +451,24 @@ write_config() {
   old_addr=$(sed -n 's/^VYRE_ADDRESS=//p' "$DIR/compose.env" 2>/dev/null | head -n 1)
   old_relay=$(sed -n 's/^VYRE_RELAY_URL=//p' "$DIR/compose.env" 2>/dev/null | head -n 1)
   rev=$(sed -n 's/^VYRE_NETWORK_REV=//p' "$DIR/compose.env" 2>/dev/null | head -n 1)
+  old_bind=$(sed -n 's/^VYRE_BIND=//p' "$DIR/compose.env" 2>/dev/null | head -n 1)
   if [ -z "$DOMAIN$RELAY" ]; then DOMAIN=$old_addr; RELAY=$old_relay; fi
   if [ -f "$DIR/compose.env" ] && { [ "$DOMAIN" != "$old_addr" ] || [ "$RELAY" != "$old_relay" ]; }; then
     NETWORK_CHANGED=1
     rev=$(date +%s)
     say "  Changing how this server is reached: from $(access_words "$old_addr" "$old_relay") to $(access_words "$DOMAIN" "$RELAY"). The Space's data is kept."
+  fi
+  # ports 80 and 443: open with a domain; closed (loopback only) for the relay. A re-run with no flags decides from what the Space serves; when that cannot be told, what was there stays.
+  if [ -n "$DOMAIN" ]; then bind=open
+  elif [ ! -f "$DIR/compose.env" ] || [ "$NETWORK_CHANGED" = 1 ]; then bind=closed
+  else
+    space_serves_domain && sd=0 || sd=$?
+    case "$sd" in
+      0) bind=open ;;
+      1) bind=closed ;;
+      *) if [ -n "$old_bind" ]; then bind=closed; else bind=open; fi
+         say "  Could not tell whether this server serves its own domain, so ports 80 and 443 were left exactly as they were." ;;
+    esac
   fi
   # compose.env: what the compose file reads. Rewritten each install from the release and the choices made here.
   {
@@ -440,7 +478,7 @@ write_config() {
     [ -z "$DOMAIN" ] || printf 'VYRE_ADDRESS=%s\n' "$DOMAIN"
     [ -z "$RELAY" ] || printf 'VYRE_RELAY_URL=%s\n' "$RELAY"
     [ -z "$rev" ] || printf 'VYRE_NETWORK_REV=%s\n' "$rev"
-    [ -n "$DOMAIN" ] || printf 'VYRE_BIND=127.0.0.1\n'
+    [ "$bind" != closed ] || printf 'VYRE_BIND=127.0.0.1\n'
     kind=${ENC_KIND:-$(enc_prior)}
     if [ -n "$kind" ]; then printf 'VYRE_DISK_ENCRYPTION=%s\nVYRE_DISK_ENCRYPTION_SINCE=%s\n' "$kind" "$(sed -n 's/^since=//p' "$(enc_file)" 2>/dev/null | head -n 1 | grep . || date -u +%Y-%m-%d)"; fi
   } >"$DIR/compose.env.new"

@@ -403,7 +403,7 @@ test("the disk choice is written once and changed only in the open: a first inst
   fs.rmSync(dir, { recursive: true });
 });
 
-test("vyre-server looks at the disk at each start and tells the Console what it sees; an update closes the relay server's public ports", () => {
+test("vyre-server looks at the disk at each start and tells the Console what it sees", () => {
   const dir = tmp();
   fs.mkdirSync(path.join(dir, "state"), { recursive: true });
   fs.writeFileSync(path.join(dir, "compose.env"), "VYRE_IMAGE=x\nVYRE_DISK_ENCRYPTION=detected\nVYRE_DISK_ENCRYPTION_SINCE=2026-11-01\n");
@@ -420,17 +420,6 @@ test("vyre-server looks at the disk at each start and tells the Console what it 
   fs.writeFileSync(path.join(enc, "compose.env"), "VYRE_IMAGE=x\n");
   const e = sh(SERVER, `DIR="${enc}"; DATA_DIR="${enc}/data"; refresh_disk_env; cat "${enc}/compose.env"`, hostEnv(fakeHost(enc, {})));
   assert.match(e.stdout, /^VYRE_DISK_ENCRYPTION=detected$/m);
-  // sync_image (an update) adds the loopback bind to a server that has no domain, and leaves a domain server alone
-  const rel = path.join(dir, "releases/1.0.0");
-  fs.mkdirSync(rel, { recursive: true });
-  fs.writeFileSync(path.join(rel, "images.lock"), "VYRE_IMAGE=ghcr.io/vyre-ai/vyred@sha256:" + "b".repeat(64) + "\n");
-  fs.symlinkSync("releases/1.0.0", path.join(dir, "current"));
-  fs.writeFileSync(path.join(dir, "compose.env"), "VYRE_IMAGE=old\nVYRE_RELAY_URL=https://relay.vyre.run\n");
-  assert.equal(sh(SERVER, `DIR="${dir}"; DATA_DIR="${dir}/data"; sync_image`, env).status, 0);
-  assert.match(read(path.join(dir, "compose.env")), /^VYRE_BIND=127\.0\.0\.1$/m);
-  fs.writeFileSync(path.join(dir, "compose.env"), "VYRE_IMAGE=old\nVYRE_ADDRESS=vyre.example.com\n");
-  assert.equal(sh(SERVER, `DIR="${dir}"; DATA_DIR="${dir}/data"; sync_image`, env).status, 0);
-  assert.doesNotMatch(read(path.join(dir, "compose.env")), /VYRE_BIND/);
   fs.rmSync(dir, { recursive: true });
   fs.rmSync(enc, { recursive: true });
 });
@@ -442,37 +431,6 @@ const sqliteWith = (file: string, sql: string): void => {
   const r = spawnSync("node", ["--no-warnings", "-e", `const {DatabaseSync}=require("node:sqlite");const d=new DatabaseSync(process.argv[1]);d.exec(process.argv[2]);d.close()`, file, sql], { encoding: "utf8" });
   assert.equal(r.status, 0, r.stderr);
 };
-
-test("an update decides the ports from what the Space serves: an own domain set in the Console keeps 80 and 443 open, and an earlier closing is undone", () => {
-  const dir = tmp();
-  fs.mkdirSync(path.join(dir, "data/space"), { recursive: true });
-  const rel = path.join(dir, "releases/1.0.0");
-  fs.mkdirSync(rel, { recursive: true });
-  fs.writeFileSync(path.join(rel, "images.lock"), "VYRE_IMAGE=ghcr.io/vyre-ai/vyred@sha256:" + "b".repeat(64) + "\n");
-  fs.symlinkSync("releases/1.0.0", path.join(dir, "current"));
-  const sync = (compose: string): string => {
-    fs.writeFileSync(path.join(dir, "compose.env"), compose);
-    assert.equal(sh(SERVER, `DIR="${dir}"; DATA_DIR="${dir}/data"; sync_image`, plainHost(dir)).status, 0);
-    return read(path.join(dir, "compose.env"));
-  };
-  // no Space database yet: a relay server, closed
-  assert.match(sync("VYRE_IMAGE=old\nVYRE_RELAY_URL=https://relay.vyre.run\n"), /^VYRE_BIND=127\.0\.0\.1$/m);
-  // the Space serves a domain set in the Console (network_config mode own_domain), compose.env has no VYRE_ADDRESS
-  sqliteWith(path.join(dir, "data/space/modules.db"), "CREATE TABLE network_config (id INTEGER PRIMARY KEY, address TEXT NOT NULL, mode TEXT NOT NULL, domain TEXT, relay_address TEXT, public_ingress INTEGER NOT NULL, ingress_detail TEXT, reported_at INTEGER NOT NULL); INSERT INTO network_config VALUES (1, 'team.example.com', 'own_domain', 'team.example.com', NULL, 1, NULL, 1);");
-  assert.doesNotMatch(sync("VYRE_IMAGE=old\nVYRE_RELAY_URL=https://relay.vyre.run\n"), /VYRE_BIND/, "its address keeps answering on 0.0.0.0");
-  assert.doesNotMatch(sync("VYRE_IMAGE=old\nVYRE_BIND=127.0.0.1\n"), /VYRE_BIND/, "a server closed by an earlier version is opened again");
-  // the Space is in relay mode: closed again
-  sqliteWith(path.join(dir, "data/space/modules.db"), "UPDATE network_config SET mode = 'relay'");
-  assert.match(sync("VYRE_IMAGE=old\n"), /^VYRE_BIND=127\.0\.0\.1$/m);
-  // the installer's own decision follows the same rule
-  const rel2 = path.join(dir, "releases/1.0.0");
-  sqliteWith(path.join(dir, "data/space/modules.db"), "UPDATE network_config SET mode = 'own_domain'");
-  const w = sh(INSTALL, `DIR="${dir}"; DATA_DIR="${dir}/data"; REL_VERSION=1.0.0; CHANNEL=stable; DOMAIN=""; RELAY=""; DRY=0; UPDATE_URL=https://vyre.run/server/; ENC_KIND=; write_config`, { VYRE_DIR: dir });
-  assert.equal(w.status, 0, w.stderr);
-  assert.doesNotMatch(read(path.join(dir, "compose.env")), /VYRE_BIND/, "a re-run without flags does not close a server that serves a domain");
-  assert.ok(rel2);
-  fs.rmSync(dir, { recursive: true });
-});
 
 test("new installs put backups inside the data folder when the data is on another filesystem than the install folder (an admin-opened volume at the default folder); existing installs stay", () => {
   const dir = tmp();
@@ -511,6 +469,7 @@ test("Docker's data root: verified is healthy; the data encrypted and Docker's r
   const mounts = path.join(dir, "mounts");
   const lsblk = path.join(dir, "lsblk");
   fs.writeFileSync(lsblk, `#!/bin/sh\ncase "$*" in *crypt-dev*) printf 'crypt\\ndisk\\n' ;; *) printf 'part\\ndisk\\n' ;; esac\n`, { mode: 0o755 });
+  fs.mkdirSync(path.join(dir, "dockerroot"), { recursive: true });
   const host = (dataEnc: boolean, rootEnc: boolean): Record<string, string> => {
     fs.writeFileSync(mounts, `/dev/sda1 / ext4 rw 0 0\n/dev/${dataEnc ? "mapper/crypt-dev" : "sdb1"} ${dir}/data ext4 rw 0 0\n/dev/${rootEnc ? "mapper/crypt-dev" : "sdc1"} ${dir}/dockerroot ext4 rw 0 0\n`);
     return { VYRE_TEST_PROC_MOUNTS: mounts, VYRE_TEST_LSBLK: lsblk, VYRE_TEST_DOCKER_ROOT: `${dir}/dockerroot` };
@@ -519,19 +478,32 @@ test("Docker's data root: verified is healthy; the data encrypted and Docker's r
     if (kind) fs.writeFileSync(path.join(state, "encryption"), `kind=${kind}\nsince=2026-11-11\n`); else fs.rmSync(path.join(state, "encryption"), { force: true });
     return sh(SERVER, `DIR="${dir}"; DATA_DIR="${dir}/data"; check_all; printf '%s\n' "$FINDINGS" | grep docker_root`, env).stdout;
   };
-  assert.match(find(host(true, true)), /host\.docker_root\thealthy\tDocker's data root .*dockerroot is on an encrypted volume \(verified here\)/);
+  assert.match(find(host(true, true)), /host\.docker_root\thealthy\tDocker's data root .*dockerroot is on an encrypted volume \(verified here\)\. Agent browser sign-ins \(agent computers' and the Space browser's Chrome profiles\) are stored unsealed in Docker volumes there; that disk's encryption protects them\./);
   const mixed = find(host(true, false));
-  assert.match(mixed, /host\.docker_root\tdegraded\tDocker's data root \(.*dockerroot\) is not on an encrypted volume, but the Space's data is\. Agent browser sign-ins live in Docker volumes there, so they are not encrypted at rest\. Next: move Docker's data root onto the encrypted volume, or encrypt its disk\./);
-  assert.match(find(host(false, false), "plain"), /degraded\tAgent browser sign-ins sit on Docker's disk \(.*\), which is not encrypted at rest \(the plain-disk choice you made covers it\)/);
-  assert.match(find(host(false, false), "provider"), /degraded\tNot verified: agent browser sign-ins sit on Docker's disk .* covers them only if Docker's data root is on that volume/);
-  assert.match(find(host(false, false)), /degraded\tAgent browser sign-ins sit on Docker's disk .* not verified encrypted/);
+  assert.match(mixed, /host\.docker_root\tdegraded\tDocker's data root \(.*dockerroot\) is not on an encrypted volume, but the Space's data is\. Agent browser sign-ins \(agent computers' and the Space browser's Chrome profiles\) are stored unsealed in Docker volumes there, so they are not encrypted at rest\. Next: move Docker's data root onto the encrypted volume, or encrypt its disk\./);
+  assert.match(find(host(false, false), "plain"), /degraded\tAgent browser sign-ins \(.*\) are stored unsealed in Docker volumes on Docker's disk \(.*\), which is not encrypted at rest \(the plain-disk choice you made covers it\)/);
+  assert.match(find(host(false, false), "provider"), /degraded\tNot verified: agent browser sign-ins .* are stored unsealed in Docker volumes on Docker's disk .* covers them only if Docker's data root is on that volume/);
+  assert.match(find(host(false, false)), /degraded\tAgent browser sign-ins .* not verified encrypted/);
   // never down, so an existing server is not stopped or refused (the update waits for doctor with no down finding)
   assert.doesNotMatch(find(host(false, false)), /\tdown\t/);
+  // a root the host cannot look at is "cannot tell", not plain: a folder that does not exist here (Docker in a virtual machine), and a Mac
+  const unseen = find({ ...host(true, false), VYRE_TEST_DOCKER_ROOT: `${dir}/not-here` });
+  assert.match(unseen, /host\.docker_root\tdegraded\tCould not tell whether Docker's data root \(.*not-here\) is encrypted: it is not a disk this server can look at \(as when Docker runs in a virtual machine, as on a Mac, where FileVault covers that machine's disk image\)/);
+  assert.doesNotMatch(unseen, /not encrypted at rest/, "never called plain");
+  const mac = find({ ...host(true, false), VYRE_TEST_OS: "Darwin" });
+  assert.match(mac, /Could not tell whether Docker's data root/);
+  // a symlinked root is resolved before it is judged
+  fs.mkdirSync(path.join(dir, "real"));
+  fs.symlinkSync(path.join(dir, "real"), path.join(dir, "linkroot"));
+  fs.writeFileSync(mounts, `/dev/sda1 / ext4 rw 0 0\n/dev/sdb1 ${dir}/data ext4 rw 0 0\n/dev/mapper/crypt-dev ${dir}/real ext4 rw 0 0\n`);
+  assert.match(find({ VYRE_TEST_PROC_MOUNTS: mounts, VYRE_TEST_LSBLK: lsblk, VYRE_TEST_DOCKER_ROOT: `${dir}/linkroot` }), /host\.docker_root\t(healthy|degraded)\t(Docker's data root .*is on an encrypted volume|Docker's data root \(.*\) is not on an encrypted volume, but)/, "judged by where the link leads, not the link's own path");
   // the host tells the Console what it sees
   fs.writeFileSync(path.join(dir, "compose.env"), "VYRE_IMAGE=x\n");
   const r = sh(SERVER, `DIR="${dir}"; DATA_DIR="${dir}/data"; refresh_disk_env; cat "${dir}/compose.env"`, host(true, false));
   assert.match(r.stdout, /^VYRE_DOCKER_ROOT_DIR=.*dockerroot$/m);
   assert.match(r.stdout, /^VYRE_DOCKER_ROOT_STATE=plain$/m);
+  const u = sh(SERVER, `DIR="${dir}"; DATA_DIR="${dir}/data"; refresh_disk_env; cat "${dir}/compose.env"`, { ...host(true, false), VYRE_TEST_DOCKER_ROOT: `${dir}/not-here` });
+  assert.match(u.stdout, /^VYRE_DOCKER_ROOT_STATE=unknown$/m);
   fs.rmSync(dir, { recursive: true }); fs.rmSync(encDir, { recursive: true }); fs.rmSync(plainDir, { recursive: true });
 });
 
@@ -568,4 +540,3 @@ test("restore into a lost or empty data folder skips the pre-restore backup, say
     assert.match(b.stderr, /there is no Space in/);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
-

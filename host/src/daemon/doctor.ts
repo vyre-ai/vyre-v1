@@ -41,15 +41,21 @@ export function diskNext(detail: string | undefined): string {
   return NEXT.disk;
 }
 
-/** Docker's data root, as the host reported it. A finding of its own; it only reports. */
+/**
+ * Docker's data root, as the host reported it: encrypted, plain, or unknown (the host cannot look at it: Docker in a virtual machine as on a Mac, or a root it cannot resolve). Agent browser sign-ins, the Chrome
+ * profiles of agent computers and of the Space browser, are stored unsealed in Docker volumes there (nothing in this version seals them; the hook in modules/computers is not supplied), so only that disk's
+ * encryption protects them. A finding of its own; it only reports.
+ */
 export function dockerRootFinding(root: { dir: string; state: string } | undefined, dataVerified: boolean, choice: string | undefined): Finding | null {
   if (!root) return null;
   const key = "host.docker_root";
-  if (root.state === "encrypted") return { key, state: "healthy", detail: `Docker's data root ${root.dir} is on an encrypted volume (verified by the host); agent browser sign-ins sit there.`, next: OK };
-  if (dataVerified) return { key, state: "degraded", detail: `Docker's data root (${root.dir}) is not on an encrypted volume, but the Space's data is. Agent browser sign-ins live in Docker volumes there, so they are not encrypted at rest.`, next: NEXT.dockerRoot };
-  if (choice === "plain") return { key, state: "degraded", detail: `Agent browser sign-ins sit on Docker's disk (${root.dir}), which is not encrypted at rest (the plain-disk choice you made covers it).`, next: NEXT.dockerRoot };
-  if (choice === "provider") return { key, state: "degraded", detail: `Not verified: agent browser sign-ins sit on Docker's disk (${root.dir}). Your provider's encryption, as you stated, covers them only if Docker's data root is on that volume.`, next: NEXT.dockerRoot };
-  return { key, state: "degraded", detail: `Agent browser sign-ins sit on Docker's disk (${root.dir}), which is not verified encrypted.`, next: NEXT.dockerRoot };
+  const unsealed = "Agent browser sign-ins (agent computers' and the Space browser's Chrome profiles) are stored unsealed in Docker volumes";
+  if (root.state === "encrypted") return { key, state: "healthy", detail: `Docker's data root ${root.dir} is on an encrypted volume (verified by the host). ${unsealed} there; that disk's encryption protects them.`, next: OK };
+  if (root.state === "unknown") return { key, state: "degraded", detail: `Could not tell whether Docker's data root (${root.dir}) is encrypted: it is not a disk this server can look at (as when Docker runs in a virtual machine, as on a Mac, where FileVault covers that machine's disk image). ${unsealed} there.`, next: NEXT.dockerRootUnknown };
+  if (dataVerified) return { key, state: "degraded", detail: `Docker's data root (${root.dir}) is not on an encrypted volume, but the Space's data is. ${unsealed} there, so they are not encrypted at rest.`, next: NEXT.dockerRoot };
+  if (choice === "plain") return { key, state: "degraded", detail: `${unsealed} on Docker's disk (${root.dir}), which is not encrypted at rest (the plain-disk choice you made covers it).`, next: NEXT.dockerRoot };
+  if (choice === "provider") return { key, state: "degraded", detail: `Not verified: ${unsealed.charAt(0).toLowerCase()}${unsealed.slice(1)} on Docker's disk (${root.dir}). Your provider's encryption, as you stated, covers them only if Docker's data root is on that volume.`, next: NEXT.dockerRoot };
+  return { key, state: "degraded", detail: `${unsealed} on Docker's disk (${root.dir}), which is not verified encrypted.`, next: NEXT.dockerRoot };
 }
 
 export interface ChainResult { ok: boolean; seq: number; why?: string }

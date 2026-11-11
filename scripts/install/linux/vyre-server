@@ -287,17 +287,29 @@ $1	$2	$3"
 
 json_str() { printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' | tr '\n\t' '  '; }
 
-# space_serves_domain: has the Space an own domain (network_config mode own_domain, set at install or later in the Console)? A server whose domain was set in the Console has no VYRE_ADDRESS in compose.env but
-# still needs ports 80 and 443. 0 = yes, or cannot tell (then the ports stay open: closing them wrongly takes the Space's address down); 1 = no.
+# space_serves_domain: 0 = the Space serves its own domain (network_config mode own_domain, set at install or later in the Console); 1 = it does not (the query ran, the table is there, no row says so);
+# 2 = cannot tell (no reader, a busy or missing database, any error or odd answer). Callers change the ports only on 0 or 1. Readers, in order: sqlite3, this host's node, the release image's own node
+# (docker run of the image already pulled, no network, the data folder mounted read-only).
 space_serves_domain() {
   db=$DATA_DIR/space/modules.db
-  [ -r "$db" ] || return 1
-  q="SELECT 1 FROM network_config WHERE id = 1 AND mode = 'own_domain'"
-  if command -v sqlite3 >/dev/null 2>&1; then [ "$(sqlite3 -readonly -cmd '.timeout 3000' "$db" "$q" 2>/dev/null)" = 1 ]; return $?; fi
-  if command -v node >/dev/null 2>&1 && node --no-warnings -e "require('node:sqlite')" >/dev/null 2>&1; then
-    node --no-warnings -e "const {DatabaseSync}=require('node:sqlite');const d=new DatabaseSync(process.argv[1],{readOnly:true});process.exit(d.prepare(process.argv[2]).get()?0:1)" "$db" "$q" >/dev/null 2>&1; return $?
+  [ -f "$db" ] || return 2
+  q="SELECT count(*) AS n FROM network_config WHERE id = 1 AND mode = 'own_domain'"
+  to=${VYRE_TEST_SQLITE_TIMEOUT:-3000}
+  if command -v sqlite3 >/dev/null 2>&1; then
+    out=$(sqlite3 -readonly -cmd ".timeout $to" "$db" "$q" 2>/dev/null) || return 2
+    case "$out" in 1) return 0 ;; 0) return 1 ;; *) return 2 ;; esac
   fi
-  return 0
+  js="try{const {DatabaseSync}=require('node:sqlite');const d=new DatabaseSync(process.argv[1],{readOnly:true});d.exec('PRAGMA busy_timeout='+process.argv[3]);console.log(d.prepare(process.argv[2]).get().n)}catch(e){process.exit(2)}"
+  if command -v node >/dev/null 2>&1 && node --no-warnings -e "require('node:sqlite')" >/dev/null 2>&1; then
+    out=$(node --no-warnings -e "$js" "$db" "$q" "$to" 2>/dev/null) || return 2
+    case "$out" in 1) return 0 ;; 0) return 1 ;; *) return 2 ;; esac
+  fi
+  img=$(sed -n 's/^VYRE_IMAGE=//p' "$DIR/compose.env" 2>/dev/null | head -n 1)
+  if [ -n "$img" ] && command -v docker >/dev/null 2>&1; then
+    out=$(docker run --rm --network none --user 1000:1000 -v "$DATA_DIR/space:/in:ro" --entrypoint node "$img" --no-warnings -e "$js" /in/modules.db "$q" "$to" 2>/dev/null) || return 2
+    case "$out" in 1) return 0 ;; 0) return 1 ;; *) return 2 ;; esac
+  fi
+  return 2
 }
 
 # refresh_disk_env: at each start the disk is looked at again and what the Console is told (VYRE_DISK_ENCRYPTION in compose.env) follows it: a verified encryption layer, else the person's recorded
@@ -309,13 +321,23 @@ refresh_disk_env() {
   if [ "$rc" = 0 ]; then if crypt_on_file; then k=detected_file; else k=detected; fi; else case "$k" in plain|provider) ;; *) k="" ;; esac; fi
   since=$(sed -n 's/^since=//p' "$DIR/state/encryption" 2>/dev/null | head -n 1)
   [ -n "$since" ] || since=$(date -u +%Y-%m-%d)
-  # Docker's data root: agent browser sign-ins live in Docker volumes there. The server inside Docker cannot see it, so the host says what it sees.
+  # Docker's data root: agent browser sign-ins live in Docker volumes there. The server inside Docker cannot see it, so the host says what it sees: encrypted, plain, or unknown (cannot tell).
   rd=$(docker_root_dir); rstate=""
-  if [ -n "$rd" ]; then disk_encrypted "$rd" && rrc=0 || rrc=$?; case "$rrc" in 0) rstate=encrypted ;; *) rstate=plain ;; esac; fi
+  [ -z "$rd" ] || rstate=$(docker_root_state "$rd")
   { grep -v -e '^VYRE_DISK_ENCRYPTION=' -e '^VYRE_DISK_ENCRYPTION_SINCE=' -e '^VYRE_DOCKER_ROOT_DIR=' -e '^VYRE_DOCKER_ROOT_STATE=' "$DIR/compose.env" || true
     [ -z "$k" ] || printf 'VYRE_DISK_ENCRYPTION=%s\nVYRE_DISK_ENCRYPTION_SINCE=%s\n' "$k" "$since"
     [ -z "$rstate" ] || printf 'VYRE_DOCKER_ROOT_DIR=%s\nVYRE_DOCKER_ROOT_STATE=%s\n' "$rd" "$rstate"; } >"$DIR/compose.env.new" || { rm -f "$DIR/compose.env.new"; return 1; }
   if cmp -s "$DIR/compose.env" "$DIR/compose.env.new"; then rm -f "$DIR/compose.env.new"; else mv -f "$DIR/compose.env.new" "$DIR/compose.env"; fi
+}
+
+# docker_root_state DIR: encrypted, plain, or unknown. Unknown is not plain: on a Mac the root is inside Docker's virtual machine (no folder here to look at), and a root that cannot be resolved cannot be judged.
+docker_root_state() {
+  _os=$(uname -s); [ "${VYRE_TEST_MODE:-0}" != 1 ] || [ -z "${VYRE_TEST_OS:-}" ] || _os=$VYRE_TEST_OS
+  [ "$_os" != Darwin ] || { printf unknown; return 0; }
+  _r=$(readlink -f "$1" 2>/dev/null || printf '%s' "$1")
+  [ -d "$_r" ] || { printf unknown; return 0; }
+  disk_encrypted "$_r" && _rc=0 || _rc=$?
+  case "$_rc" in 0) printf encrypted ;; 1) printf plain ;; *) printf unknown ;; esac
 }
 
 # docker_root_dir: where Docker keeps its data (docker info), or nothing when Docker does not answer.
@@ -350,19 +372,24 @@ check_all() {
             esac ;;
        esac ;;
   esac
-  # Docker's data root: agent browser sign-ins live in Docker volumes there. A finding of its own; it only ever reports (an existing server is never stopped or refused by it).
+  # Docker's data root: agent browser sign-ins (the Chrome profiles of agent computers and of the Space browser) are stored unsealed in Docker volumes there: Vyre does not encrypt them itself, so only that disk's
+  # encryption protects them. A finding of its own; it only ever reports (an existing server is never stopped or refused by it).
   rd=$(docker_root_dir)
   if [ -n "$rd" ]; then
-    disk_encrypted "$rd" && rrc=0 || rrc=$?
-    if [ "$rrc" = 0 ]; then finding host.docker_root healthy "Docker's data root $rd is on an encrypted volume (verified here); agent browser sign-ins sit there."
-    elif [ "$rc" = 0 ]; then finding host.docker_root degraded "Docker's data root ($rd) is not on an encrypted volume, but the Space's data is. Agent browser sign-ins live in Docker volumes there, so they are not encrypted at rest. Next: move Docker's data root onto the encrypted volume, or encrypt its disk."
-    else
-      case "$enc_kind" in
-        plain) finding host.docker_root degraded "Agent browser sign-ins sit on Docker's disk ($rd), which is not encrypted at rest (the plain-disk choice you made covers it). Next: move Docker's data root and the data onto an encrypted volume." ;;
-        provider) finding host.docker_root degraded "Not verified: agent browser sign-ins sit on Docker's disk ($rd). Your provider's encryption, as you stated, covers them only if Docker's data root is on that volume. Next: confirm that with your provider, or move Docker's data root onto the encrypted volume." ;;
-        *) finding host.docker_root degraded "Agent browser sign-ins sit on Docker's disk ($rd), which is not verified encrypted. Next: move Docker's data root onto an encrypted volume, or encrypt its disk." ;;
-      esac
-    fi
+    rstate=$(docker_root_state "$rd")
+    case "$rstate" in
+      encrypted) finding host.docker_root healthy "Docker's data root $rd is on an encrypted volume (verified here). Agent browser sign-ins (agent computers' and the Space browser's Chrome profiles) are stored unsealed in Docker volumes there; that disk's encryption protects them." ;;
+      unknown) finding host.docker_root degraded "Could not tell whether Docker's data root ($rd) is encrypted: it is not a disk this server can look at (as when Docker runs in a virtual machine, as on a Mac, where FileVault covers that machine's disk image). Agent browser sign-ins (agent computers' and the Space browser's Chrome profiles) are stored unsealed in Docker volumes there. Next: check that disk's encryption yourself." ;;
+      *)
+        if [ "$rc" = 0 ]; then finding host.docker_root degraded "Docker's data root ($rd) is not on an encrypted volume, but the Space's data is. Agent browser sign-ins (agent computers' and the Space browser's Chrome profiles) are stored unsealed in Docker volumes there, so they are not encrypted at rest. Next: move Docker's data root onto the encrypted volume, or encrypt its disk."
+        else
+          case "$enc_kind" in
+            plain) finding host.docker_root degraded "Agent browser sign-ins (agent computers' and the Space browser's Chrome profiles) are stored unsealed in Docker volumes on Docker's disk ($rd), which is not encrypted at rest (the plain-disk choice you made covers it). Next: move Docker's data root and the data onto an encrypted volume." ;;
+            provider) finding host.docker_root degraded "Not verified: agent browser sign-ins (agent computers' and the Space browser's Chrome profiles) are stored unsealed in Docker volumes on Docker's disk ($rd). Your provider's encryption, as you stated, covers them only if Docker's data root is on that volume. Next: confirm that with your provider, or move Docker's data root onto the encrypted volume." ;;
+            *) finding host.docker_root degraded "Agent browser sign-ins (agent computers' and the Space browser's Chrome profiles) are stored unsealed in Docker volumes on Docker's disk ($rd), which is not verified encrypted. Next: move Docker's data root onto an encrypted volume, or encrypt its disk." ;;
+          esac
+        fi ;;
+    esac
   fi
   # room to work
   free_mb=$(df -Pm "$DATA_DIR" 2>/dev/null | awk 'NR==2 {print $4}')
@@ -643,10 +670,21 @@ sqlite_check() {
 }
 
 cmd_restore() {
-  file=""; yes=0
-  for a in "$@"; do case "$a" in --yes|-y) yes=1 ;; -*) die "restore takes a backup file and --yes" 2 ;; *) [ -z "$file" ] || die "restore takes one backup file" 2; file=$a ;; esac; done
+  file=""; yes=0; force=0
+  for a in "$@"; do case "$a" in --yes|-y) yes=1 ;; --force) force=1 ;; -*) die "restore takes a backup file, --yes and --force" 2 ;; *) [ -z "$file" ] || die "restore takes one backup file" 2; file=$a ;; esac; done
   [ -n "$file" ] || die "restore needs the backup file: vyre-server restore FILE" 2
   lock_update_operation
+  # a data folder that was set up on an encrypted volume which is not mounted now would be written onto this machine's plain disk (and covered when the volume is opened later): refuse before anything is made
+  rkind=$(sed -n 's/^kind=//p' "$DIR/state/encryption" 2>/dev/null | head -n 1)
+  rdir=$(sed -n 's/^data_dir=//p' "$DIR/state/encryption" 2>/dev/null | head -n 1)
+  if [ "$force" != 1 ]; then
+    rmiss=0
+    case "$rkind" in
+      detected|detected_file) disk_encrypted "$DATA_DIR" || rmiss=1 ;;
+      provider) [ -z "$rdir" ] || [ "$rdir" != "$DATA_DIR" ] || [ -d "$DATA_DIR" ] || rmiss=1 ;;
+    esac
+    [ "$rmiss" = 0 ] || die "the data folder $DATA_DIR was set up on an encrypted volume ($rkind) that does not seem to be mounted now. Restoring now would write the Space onto this machine's plain disk. Mount or open the volume, then run the restore again. To restore onto the plain disk anyway, add --force. Nothing was changed." 7
+  fi
   mkdir -p "$DATA_DIR"
   RSTAGE=$(mktemp -d "$DATA_DIR/.restore.XXXXXX") || die "could not make room to unpack the backup; nothing was changed."
   restore_check "$file" "$RSTAGE"
@@ -673,6 +711,8 @@ cmd_restore() {
   if [ -e "$DATA_DIR/space" ]; then mv "$DATA_DIR/space" "$DATA_DIR/space.replaced-$ts" || { dc up -d --remove-orphans >/dev/null 2>&1 || true; resume_strays; die "could not move the current data aside; nothing was changed."; }; fi
   if [ -d "$DATA_DIR/caddy" ]; then mv "$DATA_DIR/caddy" "$DATA_DIR/caddy.replaced-$ts"; fi
   mv "$RSTAGE/space" "$DATA_DIR/space" && mv "$RSTAGE/caddy" "$DATA_DIR/caddy" || restore_undo "$ts" "could not put the backup in place"
+  # the server runs as uid 1000 and must be able to read what it is given: a backup taken with the host's sqlite3 holds root-owned 0600 files
+  chown -R 1000:1000 "$DATA_DIR/space" 2>/dev/null || [ "${VYRE_TEST_MODE:-0}" = 1 ] || restore_undo "$ts" "could not give the restored data to the server's user (uid 1000)"
   dc up -d --remove-orphans >/dev/null 2>&1 || restore_undo "$ts" "the server did not start on the restored data"
   wait_healthy || restore_undo "$ts" "the server did not pass its health check on the restored data"
   resume_strays
@@ -683,10 +723,13 @@ cmd_restore() {
 # restore_undo TS WHY: put the data that was there back, start the server, and stop with WHY.
 restore_undo() {
   dc stop >/dev/null 2>&1 || true
+  if [ "${HAD_SPACE:-1}" != 1 ]; then
+    # nothing was here before: the restored copy is all there is, so it is kept (stopped), not deleted
+    die "$2. The restored data is still in $DATA_DIR/space (the server is stopped). Look at it and fix what failed, then start the server: vyre-server start. It came from $file."
+  fi
   rm -rf "$DATA_DIR/space" "$DATA_DIR/caddy"
   if [ -d "$DATA_DIR/space.replaced-$1" ]; then mv "$DATA_DIR/space.replaced-$1" "$DATA_DIR/space"; fi
   if [ -d "$DATA_DIR/caddy.replaced-$1" ]; then mv "$DATA_DIR/caddy.replaced-$1" "$DATA_DIR/caddy"; else mkdir -p "$DATA_DIR/caddy"; fi
-  [ "${HAD_SPACE:-1}" = 1 ] || die "$2; there was no Space here before, so there is nothing to put back."
   dc up -d --remove-orphans >/dev/null 2>&1 || true
   resume_strays
   die "$2; the data that was there before is back. Backup of it: $BACKUP_FILE"
@@ -774,12 +817,14 @@ sync_image() {
   mv -f "$DIR/compose.env.new" "$DIR/compose.env"
   # a server with no domain (the relay) opens no port to the internet: 80 and 443 stay on this machine, unless the Space serves its own domain (set in the Console). In relay mode a site cannot have a custom domain, so nothing else is lost.
   if ! grep -q '^VYRE_ADDRESS=' "$DIR/compose.env"; then
-    if space_serves_domain; then
-      # the Space's own domain was set in the Console: its ports stay open (and an earlier closing of them is undone)
-      grep -v '^VYRE_BIND=' "$DIR/compose.env" >"$DIR/compose.env.new" || true; mv -f "$DIR/compose.env.new" "$DIR/compose.env"
-    elif ! grep -q '^VYRE_BIND=' "$DIR/compose.env"; then
-      printf 'VYRE_BIND=127.0.0.1\n' >>"$DIR/compose.env"
-    fi
+    space_serves_domain && sd=0 || sd=$?
+    case "$sd" in
+      0)
+        # the Space's own domain was set in the Console: its ports stay open (and an earlier closing of them is undone)
+        if grep -q '^VYRE_BIND=' "$DIR/compose.env"; then awk '$0 !~ /^VYRE_BIND=/' "$DIR/compose.env" >"$DIR/compose.env.new" && mv -f "$DIR/compose.env.new" "$DIR/compose.env"; fi ;;
+      1) grep -q '^VYRE_BIND=' "$DIR/compose.env" || printf 'VYRE_BIND=127.0.0.1\n' >>"$DIR/compose.env" ;;
+      *) say "  Could not tell whether this server serves its own domain, so ports 80 and 443 were left exactly as they were." ;;
+    esac
   fi
   refresh_disk_env || true
 }

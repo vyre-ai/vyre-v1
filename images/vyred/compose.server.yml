@@ -26,6 +26,9 @@ services:
       VYRE_NETWORK_REV: ${VYRE_NETWORK_REV:-}
       VYRE_DISK_ENCRYPTION: ${VYRE_DISK_ENCRYPTION:-}
       VYRE_DISK_ENCRYPTION_SINCE: ${VYRE_DISK_ENCRYPTION_SINCE:-}
+      # where Docker keeps its data and whether that disk is encrypted, as the host sees it (agent browser sign-ins live in Docker volumes there)
+      VYRE_DOCKER_ROOT_DIR: ${VYRE_DOCKER_ROOT_DIR:-}
+      VYRE_DOCKER_ROOT_STATE: ${VYRE_DOCKER_ROOT_STATE:-}
       VYRE_SITES_RUNNER: /run/vyre-sites/runner.sock
       # the agent computer image of this release, by digest (compose.env: the installer and vyre-server update write it from images.lock); the default is for a run without them
       VYRE_AGENT_COMPUTER_IMAGE: ${VYRE_AGENT_COMPUTER_IMAGE:-vyre/agent-computer:1}

@@ -508,16 +508,29 @@ fs_device() {
   df -P "$_p" 2>/dev/null | awk 'NR==2 {print $1}'
 }
 
-# space_serves_domain: has the Space an own domain (network_config mode own_domain, set at install or later in the Console)? 0 = yes, or cannot tell (the ports then stay open); 1 = no.
+# space_serves_domain: 0 = the Space serves its own domain (network_config mode own_domain, set at install or later in the Console); 1 = it does not (the query ran, the table is there, no row says so);
+# 2 = cannot tell (no reader, a busy or missing database, any error or odd answer). Callers change the ports only on 0 or 1. Readers, in order: sqlite3, this host's node, the release image's own node
+# (docker run of the image already pulled, no network, the data folder mounted read-only).
 space_serves_domain() {
   db=$DATA_DIR/space/modules.db
-  [ -r "$db" ] || return 1
-  q="SELECT 1 FROM network_config WHERE id = 1 AND mode = 'own_domain'"
-  if command -v sqlite3 >/dev/null 2>&1; then [ "$(sqlite3 -readonly -cmd '.timeout 3000' "$db" "$q" 2>/dev/null)" = 1 ]; return $?; fi
-  if command -v node >/dev/null 2>&1 && node --no-warnings -e "require('node:sqlite')" >/dev/null 2>&1; then
-    node --no-warnings -e "const {DatabaseSync}=require('node:sqlite');const d=new DatabaseSync(process.argv[1],{readOnly:true});process.exit(d.prepare(process.argv[2]).get()?0:1)" "$db" "$q" >/dev/null 2>&1; return $?
+  [ -f "$db" ] || return 2
+  q="SELECT count(*) AS n FROM network_config WHERE id = 1 AND mode = 'own_domain'"
+  to=${VYRE_TEST_SQLITE_TIMEOUT:-3000}
+  if command -v sqlite3 >/dev/null 2>&1; then
+    out=$(sqlite3 -readonly -cmd ".timeout $to" "$db" "$q" 2>/dev/null) || return 2
+    case "$out" in 1) return 0 ;; 0) return 1 ;; *) return 2 ;; esac
   fi
-  return 0
+  js="try{const {DatabaseSync}=require('node:sqlite');const d=new DatabaseSync(process.argv[1],{readOnly:true});d.exec('PRAGMA busy_timeout='+process.argv[3]);console.log(d.prepare(process.argv[2]).get().n)}catch(e){process.exit(2)}"
+  if command -v node >/dev/null 2>&1 && node --no-warnings -e "require('node:sqlite')" >/dev/null 2>&1; then
+    out=$(node --no-warnings -e "$js" "$db" "$q" "$to" 2>/dev/null) || return 2
+    case "$out" in 1) return 0 ;; 0) return 1 ;; *) return 2 ;; esac
+  fi
+  img=$(sed -n 's/^VYRE_IMAGE=//p' "$DIR/compose.env" 2>/dev/null | head -n 1)
+  if [ -n "$img" ] && command -v docker >/dev/null 2>&1; then
+    out=$(docker run --rm --network none --user 1000:1000 -v "$DATA_DIR/space:/in:ro" --entrypoint node "$img" --no-warnings -e "$js" /in/modules.db "$q" "$to" 2>/dev/null) || return 2
+    case "$out" in 1) return 0 ;; 0) return 1 ;; *) return 2 ;; esac
+  fi
+  return 2
 }
 
 # enc_since_for KIND: the date the recorded choice was made (today when it is being made now).
@@ -544,12 +557,25 @@ write_config() {
   old_addr=$(sed -n 's/^VYRE_ADDRESS=//p' "$DIR/compose.env" 2>/dev/null | head -n 1)
   old_relay=$(sed -n 's/^VYRE_RELAY_URL=//p' "$DIR/compose.env" 2>/dev/null | head -n 1)
   old_rev=$(sed -n 's/^VYRE_NETWORK_REV=//p' "$DIR/compose.env" 2>/dev/null | head -n 1)
+  old_bind=$(sed -n 's/^VYRE_BIND=//p' "$DIR/compose.env" 2>/dev/null | head -n 1)
   if [ -z "$DOMAIN$RELAY" ]; then DOMAIN=$old_addr; RELAY=$old_relay; fi
   rev=$old_rev
   if [ -f "$DIR/compose.env" ] && { [ "$DOMAIN" != "$old_addr" ] || [ "$RELAY" != "$old_relay" ]; }; then
     NETWORK_CHANGED=1
     rev=$(date +%s)
     say "  Changing how this server is reached: from $(access_words "$old_addr" "$old_relay") to $(access_words "$DOMAIN" "$RELAY"). The Space's data is kept."
+  fi
+  # ports 80 and 443: open with a domain; closed (loopback only) for the relay. A re-run with no flags decides from what the Space serves; when that cannot be told, what was there stays.
+  if [ -n "$DOMAIN" ]; then bind=open
+  elif [ ! -f "$DIR/compose.env" ] || [ "$NETWORK_CHANGED" = 1 ]; then bind=closed
+  else
+    space_serves_domain && sd=0 || sd=$?
+    case "$sd" in
+      0) bind=open ;;
+      1) bind=closed ;;
+      *) if [ -n "$old_bind" ]; then bind=closed; else bind=open; fi
+         say "  Could not tell whether this server serves its own domain, so ports 80 and 443 were left exactly as they were." ;;
+    esac
   fi
   # compose.env: what the compose file reads. Rewritten each install from the release and the choices made here.
   {
@@ -566,7 +592,7 @@ write_config() {
     [ -z "$RELAY" ] || printf 'VYRE_RELAY_URL=%s\n' "$RELAY"
     [ -z "$rev" ] || printf 'VYRE_NETWORK_REV=%s\n' "$rev"
     # without a domain no port is opened to the internet: 80 and 443 stay on this machine's own loopback address
-    [ -n "$DOMAIN" ] || space_serves_domain || printf 'VYRE_BIND=127.0.0.1\n'
+    [ "$bind" != closed ] || printf 'VYRE_BIND=127.0.0.1\n'
     # what was chosen about disk encryption, for the Console's health page (the server inside Docker cannot see the host's disk); vyre-server start refreshes it from the real disk
     kind=${ENC_KIND:-$(enc_prior)}
     if [ -n "$kind" ]; then printf 'VYRE_DISK_ENCRYPTION=%s\nVYRE_DISK_ENCRYPTION_SINCE=%s\n' "$kind" "$(enc_since_for "$kind")"; fi
