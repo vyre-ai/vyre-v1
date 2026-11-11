@@ -26,6 +26,10 @@ import { ToolError } from "../handlers/tools/common.ts";
 import { createFillService, fillHttp } from "../handlers/fill.ts";
 import { takeDownloads } from "../sbrowser/downloads.ts";
 import { harness } from "../fixtures/harness.ts";
+import { computerSubnets } from "../impl.ts";
+import { bindSpaceBrowser } from "../sbrowser/port.ts";
+import { clientOnNetwork } from "../../../host/src/routes/site-host.ts";
+import { FILL_PATH } from "../../../host/src/seams/computers.ts";
 import type { FillLookup } from "../handlers/fill.ts";
 
 const ON = process.env["VYRE_HEAVY_DOCKER"] === "1";
@@ -39,6 +43,9 @@ const http = unixSocketHttp();
 const api = createDockerApi(http);
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 const sb = createDockerSpaceBrowser({ api, name: NAME, image: IMAGE, user: { uid: 10001, gid: 10001 }, idleMinutes: 0.05, sweepSeconds: 2, startTimeoutMs: 90_000 });
+// a second service with Engine access and no runner, as on a server or a computer with Docker: it gets a network of its own
+const NET_NAME = `${NAME}n`;
+const sbNet = createDockerSpaceBrowser({ api, http, name: NET_NAME, image: IMAGE, user: { uid: 10001, gid: 10001 }, startTimeoutMs: 90_000 });
 const tool = (profileId: string, name: string, args: Record<string, unknown> = {}, extra: { by?: "person"; fill?: { url: string; token: string }; space?: string } = {}) => sb.tool({ profileId, tool: name, args, timeoutMs: 30_000, ...extra });
 
 function host(cmd: string, args: string[], timeoutMs: number): Promise<{ code: number; out: string }> {
@@ -138,9 +145,12 @@ before(async () => {
 
 after(async () => {
   if (!ON) return;
-  await api.containerStop(NAME, 5).catch(() => undefined);
-  await api.containerRemove(NAME).catch(() => undefined);
-  await http({ method: "DELETE", path: `/volumes/${NAME}-data`, query: { force: "true" } }).catch(() => undefined);
+  for (const n of [NAME, NET_NAME]) {
+    await api.containerStop(n, 5).catch(() => undefined);
+    await api.containerRemove(n).catch(() => undefined);
+    await http({ method: "DELETE", path: `/volumes/${n}-data`, query: { force: "true" } }).catch(() => undefined);
+  }
+  await http({ method: "DELETE", path: `/networks/${NET_NAME}net` }).catch(() => undefined);
   site?.close(); fillSite?.close();
 });
 
@@ -439,6 +449,40 @@ test("@heavy space browser: agent B's browser cannot reach agent A's browser: no
   if (after !== before) got["A's tab count"] = `${before} -> ${after}`;
   assert.deepEqual(got, {}, `B reached A's browser: ${JSON.stringify(got)}`);
   assert.equal(await text("agt_victim"), "set victim", "A's page is untouched");
+});
+
+// Audit bug 4 (12 Nov): the comments say the Space browser reaches only the Vault channel of the daemon. A stand-in daemon in this process applies the daemon's own rule (daemon.ts: a request that arrives on
+// a network in computerSubnets() reaches only POST FILL_PATH). A page in the browser asks it for other routes by every name it has for the host.
+test("@heavy space browser: with Engine access the service is on a network of its own, and a page in it reaches only the daemon's Vault channel, by the host's address or by host.docker.internal", { skip, timeout: 300_000 }, async () => {
+  const daemon = createServer((req, res) => {
+    const onNet = clientOnNetwork(req.socket.localAddress, req.socket.remoteAddress, computerSubnets());
+    const path = (req.url ?? "").split("?")[0];
+    res.setHeader("access-control-allow-origin", "*");
+    if (onNet && !(req.method === "POST" && path === FILL_PATH)) { res.writeHead(403, { "content-type": "text/plain" }); res.end("refused"); return; }
+    res.writeHead(200, { "content-type": "text/plain" }); res.end(`open ${req.method} ${path}`);
+  });
+  const port = await listen(daemon);
+  bindSpaceBrowser(sbNet);
+  try {
+    await sbNet.tool({ profileId: "agt_netty", tool: "chrome_status", args: {}, timeoutMs: 30_000 });
+    const info = JSON.parse(new TextDecoder().decode((await http({ method: "GET", path: `/containers/${NET_NAME}/json` })).body)) as { HostConfig: { NetworkMode: string }; NetworkSettings: { Networks: Record<string, { Gateway: string }> } };
+    const gw = Object.values(info.NetworkSettings.Networks)[0]!.Gateway;
+    const t = (name: string, args: Record<string, unknown>) => sbNet.tool({ profileId: "agt_netty", tool: name, args, timeoutMs: 30_000 });
+    const seen: Record<string, string> = {};
+    for (const host of [gw, "host.docker.internal"]) {
+      await t("chrome_open", { url: `http://${host}:${port}/v1/capabilities/files.list` }).catch(() => undefined);
+      seen[`open ${host}`] = String((await t("chrome_eval", { expression: "document.body.innerText.slice(0, 60)" }))["result"]);
+      seen[`get ${host}`] = String((await t("chrome_eval", { expression: `fetch("http://${host}:${port}/local/daemon/stop").then((r) => r.text(), () => "unreachable")` }))["result"]);
+      seen[`fill ${host}`] = String((await t("chrome_eval", { expression: `fetch("http://${host}:${port}${FILL_PATH}", { method: "POST", body: "{}" }).then((r) => r.text(), () => "unreachable")` }))["result"]);
+    }
+    assert.deepEqual(seen, {
+      [`open ${gw}`]: "refused", [`get ${gw}`]: "refused", [`fill ${gw}`]: `open POST ${FILL_PATH}`,
+      "open host.docker.internal": "refused", "get host.docker.internal": "refused", "fill host.docker.internal": `open POST ${FILL_PATH}`,
+    }, "only the Vault channel answers a page in the Space browser");
+    assert.equal(info.HostConfig.NetworkMode, `${NET_NAME}net`, "its own network, not the default bridge");
+    const net = JSON.parse(new TextDecoder().decode((await http({ method: "GET", path: `/networks/${NET_NAME}net` })).body)) as { IPAM: { Config: Array<{ Subnet: string }> } };
+    assert.deepEqual(computerSubnets(), [net.IPAM.Config[0]!.Subnet], "the daemon knows the service's network");
+  } finally { bindSpaceBrowser(null); daemon.close(); }
 });
 
 test("@heavy space browser: a profile's tabs come back after its browser stops after idle", { skip, timeout: 300_000 }, async () => {

@@ -66,6 +66,8 @@ export interface SpaceBrowser {
   forget(profileId: string): Promise<void>;
   profiles(): Promise<{ profiles: ProfileRow[]; maxRunning: number }>;
   health(): Promise<{ ok: boolean; detail?: string }>;
+  /** The subnets of the service's own network: a request from one reaches only the Vault channel of the daemon (computerSubnets). */
+  subnets?(): string[];
 }
 
 let bound: SpaceBrowser | null = null;

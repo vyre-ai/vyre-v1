@@ -11,6 +11,8 @@ export const DEFAULT_BROWSER_IMAGE = "vyre/space-browser:1";
 export const BROWSERD_CTL = "/opt/browserd/ctl";
 export const BROWSER_DATA_GUEST = "/data";
 export const BROWSER_NETWORK = "vyre-sbrowsernet";
+/** The network of a Space browser container: `vyre-sbrowsernet` for the usual one, `<name>net` for another (a test's). */
+export const browserNetworkOf = (name: string | undefined): string => (name === undefined || name === "vyre-sbrowser" ? BROWSER_NETWORK : `${name}net`);
 const MAX_ARG = 125_000;
 
 export interface DockerSpaceBrowserOptions {
@@ -27,7 +29,10 @@ export interface DockerSpaceBrowserOptions {
   idleMinutes?: number;
   /** How often browserd looks for quiet profiles, in seconds. Default 30. */
   sweepSeconds?: number;
-  /** Raw Engine access: for the image pull and, behind the runner, the network. Without it the image must already be on the machine and the container uses the default bridge. */
+  /**
+   * Raw Engine access: for the image pull and the service's own network. With it the container is on a network of its own (with or without the runner), so the daemon knows a request from it by its
+   * subnet and lets it reach only the Vault channel (computerSubnets). Without it the image must already be on the machine and the container uses the default bridge.
+   */
   http?: DockerHttp;
   /**
    * Run behind the container runner (a Team server: vyred holds no Docker socket). The container then gets a network of its own, `vyre-sbrowsernet`, so it cannot reach an agent computer or a site, and the
@@ -38,7 +43,8 @@ export interface DockerSpaceBrowserOptions {
   startTimeoutMs?: number;
 }
 
-export function browserContainerConfig(o: DockerSpaceBrowserOptions): ContainerConfig {
+/** `net`: the service's own network was made, and (without the runner) the address of the host on it, which `host.docker.internal` names so the Vault channel is reached on that network. */
+export function browserContainerConfig(o: DockerSpaceBrowserOptions, net?: { gateway?: string }): ContainerConfig {
   const name = o.name ?? "vyre-sbrowser";
   // the service holds up to maxRunning browsers; each gets half its cap of the service's memory (a browser bursts to its cap when the host has room, capacity.ts LIMITS.browser) on top of a base for browserd
   const many = o.maxRunning ?? 6;
@@ -63,7 +69,7 @@ export function browserContainerConfig(o: DockerSpaceBrowserOptions): ContainerC
       CapAdd: [],
       SecurityOpt: ["no-new-privileges:true", `seccomp=${computerSeccomp()}`],
       Privileged: false,
-      NetworkMode: o.runner ? BROWSER_NETWORK : "bridge",
+      NetworkMode: o.runner || net ? browserNetworkOf(o.name) : "bridge",
       PidMode: "",
       IpcMode: "private",
       UsernsMode: "",
@@ -76,7 +82,8 @@ export function browserContainerConfig(o: DockerSpaceBrowserOptions): ContainerC
       AutoRemove: false,
       Ulimits: [{ Name: "nofile", Soft: 16384, Hard: 32768 }, { Name: "core", Soft: 0, Hard: 0 }],
       LogConfig: { Type: "json-file", Config: { "max-size": "10m", "max-file": "3" } },
-      ExtraHosts: [],
+      // behind the runner the daemon is the ingress on the network under its alias; without it the daemon is the host, reached at the network's own gateway so the request arrives on that network
+      ExtraHosts: !o.runner && net?.gateway ? [`host.docker.internal:${net.gateway}`] : [],
       Dns: [],
     },
   };
@@ -89,7 +96,10 @@ const realSleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r
 export function createDockerSpaceBrowser(o: DockerSpaceBrowserOptions): SpaceBrowser {
   const name = o.name ?? "vyre-sbrowser";
   const sleep = o.sleep ?? realSleep;
+  const netName = browserNetworkOf(o.name);
   let up: Promise<void> | null = null;
+  // the service's network as the Engine reports it: the daemon refuses every route but the Vault channel to a request from it
+  let subnet: string | null = null;
 
   async function exec(action: string, body: Record<string, unknown>): Promise<BrowserAnswer> {
     const arg = JSON.stringify(body);
@@ -104,23 +114,39 @@ export function createDockerSpaceBrowser(o: DockerSpaceBrowserOptions): SpaceBro
     return parsed as BrowserAnswer;
   }
 
-  /** The service's own network behind the runner, with the ingress joined: made once, again if it is gone. */
-  async function makeNetwork(): Promise<void> {
-    if (!o.runner || !o.http) return;
-    const made = await o.http({ method: "POST", path: "/networks/create", json: { Name: BROWSER_NETWORK, Driver: "bridge", CheckDuplicate: true, Labels: { "vyre.sbrowser": "1" } } });
+  /** What the Engine says of the service's network: its subnet and the host's address on it; null when it is not there. */
+  async function learnNetwork(): Promise<{ subnet: string; gateway?: string } | null> {
+    if (!o.http) return null;
+    try {
+      const r = await o.http({ method: "GET", path: `/networks/${netName}` });
+      if (r.status !== 200) return null;
+      const cfg = (JSON.parse(new TextDecoder().decode(r.body)) as { IPAM?: { Config?: Array<{ Subnet?: string; Gateway?: string }> } }).IPAM?.Config?.find((c) => c.Subnet && /^\d+\.\d+\.\d+\.\d+\/\d+$/.test(c.Subnet));
+      if (!cfg?.Subnet) return null;
+      subnet = cfg.Subnet;
+      return { subnet: cfg.Subnet, ...(cfg.Gateway ? { gateway: cfg.Gateway } : {}) };
+    } catch { return null; }
+  }
+
+  /** The service's own network (behind the runner with the ingress joined): made once, again if it is gone. */
+  async function makeNetwork(): Promise<{ gateway?: string } | undefined> {
+    if (!o.http) return undefined;
+    const made = await o.http({ method: "POST", path: "/networks/create", json: { Name: netName, Driver: "bridge", CheckDuplicate: true, Labels: { "vyre.sbrowser": "1" } } });
     if (made.status !== 201 && made.status !== 409) throw new ToolError("unavailable", `The Space browser's network was not made (${made.status}: ${bodyText(made.body)})`);
-    if (o.runner.ingress) {
-      const joined = await o.http({ method: "POST", path: `/networks/${BROWSER_NETWORK}/connect`, json: { Container: o.runner.ingress, EndpointConfig: { Aliases: [o.runner.alias ?? "vyre-host"] } } });
+    if (o.runner?.ingress) {
+      const joined = await o.http({ method: "POST", path: `/networks/${netName}/connect`, json: { Container: o.runner.ingress, EndpointConfig: { Aliases: [o.runner.alias ?? "vyre-host"] } } });
       if (joined.status !== 200 && joined.status !== 403 && !/already exists/i.test(bodyText(joined.body))) throw new ToolError("unavailable", `vyred could not join the Space browser's network (${joined.status}: ${bodyText(joined.body)})`);
       if (joined.status === 403 && !/already/i.test(bodyText(joined.body))) throw new ToolError("unavailable", `The runner refused to join vyred to the Space browser's network: ${bodyText(joined.body)}`);
     }
+    const n = await learnNetwork();
+    return n?.gateway ? { gateway: n.gateway } : {};
   }
 
   /** The container exists and runs; made and started on first use, with browserd answering. Calls that arrive together share one check. */
   function ensureUp(): Promise<void> {
     up ??= (async () => {
-      if (await o.api.containerRunning(name)) return;
-      const config = browserContainerConfig(o);
+      if (await o.api.containerRunning(name)) { if (subnet === null) await learnNetwork(); return; }
+      const net = await makeNetwork();
+      const config = browserContainerConfig(o, net);
       const wrong = reviewComputerConfig(config);
       if (wrong.length > 0) throw new ToolError("unavailable", `The Space browser's container config is outside its profile: ${wrong.join(", ")}`);
       if (!(await o.api.imageExists(config.Image))) {
@@ -134,7 +160,6 @@ export function createDockerSpaceBrowser(o: DockerSpaceBrowserOptions): SpaceBro
         }
         if (!(await o.api.imageExists(config.Image))) throw new ToolError("unavailable", `The Space browser image ${config.Image} is not on this server${why ? ` and could not be fetched (${why.slice(0, 80)})` : ""}. Update the server to fetch it.`);
       }
-      await makeNetwork();
       try { await o.api.containerCreate(name, config); } catch (e) { if (!/already in use|409|conflict/i.test(e instanceof Error ? e.message : "")) throw e; }
       await o.api.containerStart(name);
       const deadline = Date.now() + (o.startTimeoutMs ?? 30_000);
@@ -149,6 +174,8 @@ export function createDockerSpaceBrowser(o: DockerSpaceBrowserOptions): SpaceBro
   }
 
   const call = async (action: string, body: Record<string, unknown>): Promise<BrowserAnswer> => { await ensureUp(); return exec(action, body); };
+  // a daemon that starts while the service already runs knows its network before any page can ask it something
+  void learnNetwork();
 
   return {
     available: () => o.api.ping().catch(() => false),
@@ -187,7 +214,9 @@ export function createDockerSpaceBrowser(o: DockerSpaceBrowserOptions): SpaceBro
       return { bytes: tar.length };
     },
     async stop(profileId) { if (await o.api.containerRunning(name)) await exec("stop", { profileId }); },
-    async forget(profileId) { if (await o.api.containerRunning(name)) await exec("forget", { profileId }); },
+    // the agent is gone: its sign-ins go too, so a service that is not running is started to remove the folder (it starts no browser)
+    async forget(profileId) { await call("forget", { profileId }); },
+    subnets: () => (subnet ? [subnet] : []),
     async profiles() {
       if (!(await o.api.containerRunning(name))) return { profiles: [], maxRunning: o.maxRunning ?? 6 };
       const s = await exec("status", {}) as { profiles?: ProfileRow[]; maxRunning?: number };

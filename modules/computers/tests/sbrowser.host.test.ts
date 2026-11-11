@@ -121,12 +121,15 @@ test("the container is held to the computer profile: no capability, no new privi
   assert.deepEqual(small.HostConfig.Binds, ["vyre-sbrowser-x-data:/data:rw"]);
 });
 
-test("stop and forget do nothing when the container is not running; profiles lists what browserd says", async () => {
+test("stop does nothing when the container is not running, forget starts it to remove a deleted agent's folder (its sign-ins must not stay), and profiles lists what browserd says", async () => {
   const e = engine((a) => (a === "status" ? ok({ profiles: [{ profileId: "agt_dex", running: true, tabs: 1, busy: false, takeover: false, viewers: 0, lastActiveAt: 1, held: 0, paused: false }], maxRunning: 4 }) : ok({})));
   const sb = createDockerSpaceBrowser({ api: e.api, sleep: async () => {} });
-  await sb.stop("agt_dex"); await sb.forget("agt_dex");
+  await sb.stop("agt_dex");
   assert.equal(e.execs.length, 0);
   assert.deepEqual(await sb.profiles(), { profiles: [], maxRunning: 6 });
+  await sb.forget("agt_gone");
+  assert.equal(e.starts, 1, "the service started for the removal");
+  assert.ok(e.execs.some((x) => x.cmd[1] === "forget" && JSON.parse(String(x.cmd[2])).profileId === "agt_gone"), "and the folder was removed");
   await sb.tool({ profileId: "agt_dex", tool: "chrome_status", args: {}, timeoutMs: 1000 });
   const p = await sb.profiles();
   assert.equal(p.profiles[0]!.profileId, "agt_dex");
@@ -171,4 +174,26 @@ test("the container's limits grow with how many browsers it holds, within what t
   assert.equal(huge.HostConfig.Memory, 8192 * 1024 * 1024, "never above the runner's cap");
   assert.equal(huge.HostConfig.NanoCpus, 4e9);
   assert.deepEqual(reviewComputerConfig(huge), []);
+});
+
+test("with Engine access and no runner the service gets a network of its own, names the host on it for the Vault channel, and the daemon learns its subnet", async () => {
+  const e = engine(() => ok({}));
+  const reqs: Array<{ method: string; path: string; json?: unknown }> = [];
+  const http = async (r: { method: string; path: string; json?: unknown }) => {
+    reqs.push({ method: r.method, path: r.path, ...(r.json !== undefined ? { json: r.json } : {}) });
+    if (r.method === "GET" && r.path === "/networks/vyre-sbrowsernet") return { status: 200, body: new TextEncoder().encode(JSON.stringify({ IPAM: { Config: [{ Subnet: "172.29.0.0/16", Gateway: "172.29.0.1" }] } })) };
+    return { status: r.path === "/networks/create" ? 201 : 200, body: new Uint8Array() };
+  };
+  const sb = createDockerSpaceBrowser({ api: e.api, http, sleep: async () => {} });
+  await sb.tool({ profileId: "agt_dex", tool: "chrome_status", args: {}, timeoutMs: 1000 });
+  const c = e.created[0]!.config;
+  assert.equal(c.HostConfig.NetworkMode, "vyre-sbrowsernet", "not the default bridge, beside every other container and the host");
+  assert.deepEqual(c.HostConfig.ExtraHosts, ["host.docker.internal:172.29.0.1"], "the daemon is reached at the network's own gateway, where it knows the caller");
+  assert.ok(!reqs.some((r) => r.path.endsWith("/connect")), "no ingress joins without the runner");
+  assert.deepEqual(sb.subnets?.(), ["172.29.0.0/16"]);
+  const { bindSpaceBrowser } = await import("../sbrowser/port.ts");
+  const { computerSubnets } = await import("../impl.ts");
+  bindSpaceBrowser(sb);
+  try { assert.ok(computerSubnets().includes("172.29.0.0/16"), "a request from the Space browser reaches only the Vault channel of the daemon"); } finally { bindSpaceBrowser(null); }
+  assert.deepEqual(reviewComputerConfig(c), []);
 });

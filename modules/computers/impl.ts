@@ -42,7 +42,7 @@ import type { ComputerHost, HostKind, Probe, RecordResult, SessionInfo } from ".
 import "./sbrowser/migrate.ts";
 import { browserStreamInput, browserStreamOpen } from "./sbrowser/handlers.ts";
 import "./sbrowser/room.ts";
-import { bindSpaceBrowser } from "./sbrowser/port.ts";
+import { bindSpaceBrowser, spaceBrowser } from "./sbrowser/port.ts";
 import type { SpaceBrowser } from "./sbrowser/port.ts";
 import { createDockerSpaceBrowser, DEFAULT_BROWSER_IMAGE } from "./sbrowser/docker.ts";
 
@@ -560,7 +560,7 @@ export function buildComputerHost(c: ComputersHostConfig): ComputerHost & ToolHo
 /** The address of a computer on this machine, for a site served from it; null when there is none or it is not running. */
 export async function localComputerAddress(computerId: string): Promise<string | null> { return (await boundHost()?.address?.(computerId)) ?? null; }
 /** The subnets of the computers' own networks, for the daemon: a connection that arrives on one may reach only the Vault channel. */
-export function computerSubnets(): string[] { return (boundHost() as { subnets?: () => string[] } | null)?.subnets?.() ?? []; }
+export function computerSubnets(): string[] { return [...((boundHost() as { subnets?: () => string[] } | null)?.subnets?.() ?? []), ...(spaceBrowser()?.subnets?.() ?? [])]; }
 export async function learnComputerSubnets(ids: readonly string[]): Promise<string[]> { return (await (boundHost() as { knownNetworks?: (i: readonly string[]) => Promise<string[]> } | null)?.knownNetworks?.(ids)) ?? []; }
 export async function localSiteLogs(a: { computerId: string; slug: string; lines: number }): Promise<string[]> { return (await boundHost()?.siteLogs?.(a)) ?? []; }
 
