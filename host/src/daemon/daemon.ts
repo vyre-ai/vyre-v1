@@ -177,7 +177,7 @@ import type { PushTransportDeps, SeamDeps, SeamDriver, SeamSetters, VaultPort, W
 import { createLiveHub } from "../ws.ts";
 import type { LiveHub, SyncHubPort } from "../ws.ts";
 import { bootstrapSpace, mintOwner } from "./bootstrap.ts";
-import { accessBatch, createAccess, isAccessEvent, isMemberOrGuest, toAccessEvent, touchesAccess } from "./access.ts";
+import { createAccess, createAccessRun, isAccessEvent, isMemberOrGuest, toAccessEvent, touchesAccess } from "./access.ts";
 import { ADMIN_DEVICE, createSessionResolver, issueSessionToken, sessionLive } from "./session.ts";
 import { createResourceRegistrar, missingAgentResources } from "../gateway/resources.ts";
 import { createPrincipalRegistrar, lowAgentUpgradeEvents, missingAgentHomeEvents, missingAgentPrincipalEvents, ownPlaceGrant } from "../gateway/principals.ts";
@@ -1402,31 +1402,21 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         healTimer.unref?.();
       };
       closers.push(() => { if (healTimer !== null) { clearTimeout(healTimer); healTimer = null; } });
-      const runSync = async (force?: boolean): Promise<void> => {
-        if (noAccessModule) return;
-        if (!accessPending.length && !force && access.adopted() && !accessStale) return;
-        // in the log's order, read from the log (accessBatch): pushes only say there is something new
-        const batch = await accessBatch({ held: accessPending, fedTo: accessFedTo, booted: access.adopted(), read: (after, limit) => log!.read({ after, limit }) });
-        const events = batch.events;
-        accessPending = [];
-        const attempt = async (): Promise<void> => { access.adopt((await hookRunner.call("access.sync", { events })) as AccessSnapshot); };
-        try { await attempt(); } catch (first) {
-          // the seed-shaped fold answers only when the access module is not loaded at all; with access live, a missing access.sync is a failure and fails closed below
-          if (first instanceof Error && first.message.startsWith("no host call named access.sync") && loaded.serving.get("access") !== "live") { noAccessModule = true; return; }
-          try { await attempt(); } catch (e) {
-            accessPending = [...batch.boot, ...accessPending];   // the module could not take them: the boot replay and the host's own objects are kept, the log is read again from accessFedTo
-            const error = e instanceof Error ? e.message : String(e);
-            sink.log({ space: spaceId, level: 50, msg: "access.sync_failed", place: "boot", attrs: { error, stale: access.adopted() } });
-            if (!access.adopted()) throw e;   // a Space that never had the module's snapshot cannot answer
-            // Fail closed (ruling 70): the last snapshot may still let a revoked or removed person through, so everyone but the owner is refused until a sync succeeds.
-            accessStale = true;
-            healLater();
-            return;
-          }
-        }
-        accessFedTo = batch.upTo;
-        accessStale = false;
-      };
+      // Fail closed (ruling 70) when a sync fails twice: the last snapshot may still let a revoked or removed person through, so everyone but the owner is refused until a sync succeeds.
+      const runSync = createAccessRun({
+        take: () => { const held = accessPending; accessPending = []; return held; },
+        putBack: (es) => { accessPending = [...es, ...accessPending]; },
+        pending: () => accessPending.length,
+        read: (after, limit) => log!.read({ after, limit }),
+        call: async (events) => (await hookRunner.call("access.sync", { events })) as AccessSnapshot,
+        adopt: (s) => access.adopt(s), adopted: () => access.adopted(),
+        stale: { get: () => accessStale, set: (v) => { accessStale = v; } },
+        fedTo: { get: () => accessFedTo, set: (n) => { accessFedTo = n; } },
+        // the seed-shaped fold answers only when the access module is not loaded at all; with access live, a missing access.sync is a failure and fails closed
+        noModule: (e) => { const gone = e instanceof Error && e.message.startsWith("no host call named access.sync") && loaded.serving.get("access") !== "live"; if (gone) noAccessModule = true; return gone; },
+        failed: (error, adopted) => sink.log({ space: spaceId, level: 50, msg: "access.sync_failed", place: "boot", attrs: { error, stale: adopted } }),
+        healLater: () => healLater(),
+      });
       const syncOnce = (force?: boolean): Promise<void> => { const run = syncChain.then(() => runSync(force), () => runSync(force)); syncChain = run.then(() => undefined, () => undefined); return run; };
       // after every sync an agent born while its person was not yet active in the snapshot is brought up to a Member agent (it heals itself and, on a changed Space, syncs once more)
       if (log) startHealing((event) => log!.appendResult(event), spaceId);

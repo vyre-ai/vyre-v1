@@ -141,3 +141,50 @@ test("5 a boot-time registration makes a missing record type and never resets th
   assert.equal(snap.resource("deal")?.owner_id, "usr_ida", "still Ida's after a restart");
   raw.close();
 });
+
+// ---- review 2 (team/v1/SCALE-REVIEW-2-2026-11-11.md), findings C and D
+
+test("C a Space ownership transfer moves the record types too: the former owner, demoted, holds only what the new role gives, also after a restart", async () => {
+  const { rolesAssign, rolesUnassign } = await import("../handlers/roles.ts");
+  const { file, db: first } = fresh("transfer");
+  const log: LogEvent[] = [
+    { seq: 1, type: "resource.created", payload: { id: SPACE, type: "space", parent_id: null, label: 0, owner_id: "usr_ana", holds: 0 } },
+    person(2, "usr_ana"), person(3, "usr_ben"),
+    { seq: 4, type: "principal.role_set", payload: { holder: "usr_ana", role: "rol_owner" } },
+    { seq: 5, type: "principal.role_set", payload: { holder: "usr_ben", role: "rol_member" } },
+  ];
+  const boot: LogEvent[] = ["contact", "deal"].map((id) => ({ seq: -1, type: "resource.created", payload: { id, type: "record_type", parent_id: SPACE, label: 0, owner_id: "usr_ana", holds: 0 } }));
+  sync(ctxOf(first), { events: [...log, ...boot] });
+  const moved: LogEvent = { seq: 6, type: "space.ownership_transferred", payload: { from: "usr_ana", to: "usr_ben" } };
+  log.push(moved);
+  sync(ctxOf(first), { events: [moved] });
+  // Ben, now the owner, makes Ana a Member
+  await rolesUnassign(ctxOf(first, "usr_ben"), { subject: { kind: "person", id: "usr_ana" }, roleId: "rol_admin" });
+  await rolesAssign(ctxOf(first, "usr_ben"), { subject: { kind: "person", id: "usr_ana" }, roleId: "rol_member" });
+  const check = (snap: AccessSnapshot, where: string): void => {
+    for (const id of ["contact", "deal"]) {
+      assert.equal(snap.resource(id)?.owner_id, "usr_ben", `${where}: ${id} is the new owner's`);
+      assert.equal(authorize(snap, { principal: "usr_ana", action: { perm: null, level: "manage" }, resource: { type: "record_type", id }, now: NOW }).effect, "deny", `${where}: Ana has no Manage on ${id}`);
+      assert.equal(authorize(snap, { principal: "usr_ana", action: { perm: null, level: "edit" }, resource: { type: "record_type", id }, now: NOW }).effect, "allow", `${where}: Ana keeps what a Member has`);
+    }
+  };
+  check(sync(ctxOf(first), { events: [] }), "after the transfer");
+  check(sync(ctxOf(first), { events: boot }), "after the boot events again");
+  first.close();
+  const raw = openDb(file);
+  check(sync(ctxOf(raw), { events: [...log, ...boot] }), "after a restart");
+  raw.close();
+});
+
+test("D a read view held across a rebuild answers store.snapshot() with a fresh sealed snapshot instead of throwing", async () => {
+  const { db: raw } = fresh("held");
+  sync(ctxOf(raw), { events: [res(1, SPACE, "space", null), person(2, "usr_kim")] });
+  let held: AccessStore | null = null;
+  await readOnly(async (ctx: never) => { held = storeOf(ctx); })(ctxOf(raw) as never, {});
+  sync(ctxOf(raw), { events: [{ seq: 3, type: "principal.suspended", payload: { principalId: "usr_kim" } }] });   // a rebuild: the view's own snapshot is dropped
+  const h = held as unknown as AccessStore;
+  const snap = h.snapshot();
+  assert.equal(snap.principal("usr_kim")?.status, "suspended", "what the store holds now");
+  assert.throws(() => snap.putGrant({ id: "x", subject_kind: "actor", subject_id: "usr_kim", resource_type: "space", resource_id: SPACE, level: "manage", by: "x" }));
+  raw.close();
+});

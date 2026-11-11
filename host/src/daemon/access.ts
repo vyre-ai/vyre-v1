@@ -23,7 +23,10 @@ export function foldEvent(snap: AccessSnapshot, e: FoldableEvent): void {
       if(resources.length!==1||(snap.principal(to)?.status!=='active'||snap.principal(to)?.kind!=='person'))return;
       const pref=snap.info(from)?.keys.has('role:rol_owner')?'rol_':'';
       snap.removePrincipalRole({holder:from,role:'owner'});snap.removePrincipalRole({holder:from,role:'rol_owner'});
-      snap.addPrincipalRole({holder:from,role:`${pref}admin`});snap.addPrincipalRole({holder:to,role:`${pref}owner`});snap.putResource({...resources[0]!,owner_id:to});return;
+      snap.addPrincipalRole({holder:from,role:`${pref}admin`});snap.addPrincipalRole({holder:to,role:`${pref}owner`});snap.putResource({...resources[0]!,owner_id:to});
+      // the Space's record types follow its owner, as the access module folds it
+      for (const t of [...snap.allResources()]) if (t.type === "record_type" && t.owner_id === from) snap.putResource({ ...t, owner_id: to });
+      return;
     }
     case "resource.created": snap.putResource(body<ResourceRow>(e)); return;
     case "grant.created": snap.putGrant(body<GrantRow>(e)); return;
@@ -112,4 +115,54 @@ export async function accessBatch(o: {
   }
   const replay = boot.filter((e) => e.seq >= 0).sort((a, b) => a.seq - b.seq), own = boot.filter((e) => e.seq < 0);
   return { events: [...replay, ...fromLog, ...own], upTo, boot };
+}
+
+type Held = { seq: number; type: string; payload: unknown };
+/**
+ * One access sync of the daemon (daemon.ts runSync), apart so it can be tested. What was pushed is taken and cleared in the same tick, before anything waits: a push made while the log is read
+ * stays for the next run (review 2, finding A). Reading the log is part of the attempt, so a read that fails is a sync failure like any other: tried once more, logged, the snapshot marked
+ * stale (only the owner is answered) and a retry armed; after the module's snapshot was adopted, the call that asked for the sync does not throw (finding B).
+ */
+export function createAccessRun(o: {
+  take(): Held[];
+  putBack(es: Held[]): void;
+  pending(): number;
+  read(after: number, limit: number): Promise<readonly { seq: number; type: string; payload: unknown; enc?: number }[]>;
+  call(events: Held[]): Promise<AccessSnapshot>;
+  adopt(s: AccessSnapshot): void;
+  adopted(): boolean;
+  stale: { get(): boolean; set(v: boolean): void };
+  fedTo: { get(): number; set(n: number): void };
+  /** True when the error says the access module is not loaded at all: the run stops for good. */
+  noModule(e: unknown): boolean;
+  failed(error: string, adopted: boolean): void;
+  healLater(): void;
+}): (force?: boolean) => Promise<void> {
+  let gone = false;
+  return async (force) => {
+    if (gone) return;
+    if (!o.pending() && !force && o.adopted() && !o.stale.get()) return;
+    const held = o.take();
+    const booted = o.adopted(), fedTo = o.fedTo.get();
+    let upTo = fedTo;
+    const attempt = async (): Promise<void> => {
+      const batch = await accessBatch({ held, fedTo, booted, read: (after, limit) => o.read(after, limit) });
+      o.adopt(await o.call(batch.events));
+      upTo = batch.upTo;
+    };
+    try { await attempt(); } catch (first) {
+      if (o.noModule(first)) { gone = true; return; }
+      try { await attempt(); } catch (e) {
+        // the boot replay and the host's own objects are put back; the log is read again from fedTo
+        o.putBack(held.filter((x) => x.seq < 0 || (!booted && x.seq <= fedTo)));
+        o.failed(e instanceof Error ? e.message : String(e), o.adopted());
+        if (!o.adopted()) throw e;   // a Space that never had the module's snapshot cannot answer
+        o.stale.set(true);
+        o.healLater();
+        return;
+      }
+    }
+    o.fedTo.set(upTo);
+    o.stale.set(false);
+  };
 }

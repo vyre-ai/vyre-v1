@@ -121,6 +121,8 @@ export function applyEvent(store: AccessStore, e: LogEvent, at: number, grantAt:
       const from=str(p['from']),to=str(p['to']);if(!from||!to||from===to||(store.principals.get(to)?.status!=='active'||store.principals.get(to)?.kind!=='person'))return false;
       const spaces=[...store.resources.values()].filter(row=>row.type==='space'&&row.ownerId===from);if(spaces.length!==1)return false;
       const row=spaces[0]!;store.resources.set(row.id,{...row,ownerId:to});
+      // the record types the host registers for the Space belong to the Space's owner: they follow it, so a former owner keeps no Manage on them by ownership (review 2, finding C)
+      for (const t of [...store.resources.values()]) if (t.type === "record_type" && t.ownerId === from) store.resources.set(t.id, { ...t, ownerId: to });
       const isOwner=(id:string):boolean=>id==='owner'||id==='rol_owner'||store.roles.get(id)?.name.toLowerCase()==='owner';
       for (const [holder, roles] of store.assignments) store.setRoles(holder, roles.filter(id => !isOwner(id)));
       store.assignments.set(from,[...new Set([...store.rolesOf(from),'rol_admin'])]);

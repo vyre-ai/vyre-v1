@@ -301,6 +301,15 @@ export class AccessStore {
   /** Cached authorize snapshot. Rebuilt only when the epoch moves. */
   snapshot(): AccessSnapshot {
     if (this.snap && this.snapEpoch === this.epoch) return this.snap;
+    // the read view held across a rebuild (no snapshot kept for it any more): a fresh sealed one, built but not cached, since a reader may not write the store (review 2, finding D)
+    if (READ_VIEWS.has(this) && writing === 0) return sealSnapshot(this.build());
+    const snap = this.build();
+    this.snap = snap;
+    this.snapEpoch = this.epoch;
+    return snap;
+  }
+
+  private build(): AccessSnapshot {
     const snap = new AccessSnapshot();
     snap.labelNames = ["Public", "Internal", "Confidential", "Restricted"];
     for (const r of this.roles.values()) {
@@ -334,8 +343,6 @@ export class AccessStore {
     for (const p of this.policies.values()) { const k = policyOf(p); if (k) policies.push(k); }
     snap.setPolicies(policies);
     snap.rowSource = (id) => this.resourceRow(id);
-    this.snap = snap;
-    this.snapEpoch = this.epoch;
     return snap;
   }
 
@@ -731,7 +738,9 @@ function sealFields(o: object, methods: readonly string[]): void {
 }
 
 /** Seal a store for the read view (called once, as the writer, on the store access.sync keeps). */
+const READ_VIEWS = new WeakSet<AccessStore>();
 export function sealStore(store: AccessStore): AccessStore {
+  READ_VIEWS.add(store);
   const rec = store as unknown as Record<string, unknown>;
   for (const [k, v] of Object.entries(rec)) {
     if (k === "base" || k === "raw") continue;   // what persist compares against: the store's own, never read by a capability
