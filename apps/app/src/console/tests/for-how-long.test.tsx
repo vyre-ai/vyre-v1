@@ -13,3 +13,11 @@ test("just started says nothing more; then for minutes, hours, days; then since 
   assert.equal(forHowLong(NOW, Date.UTC(2026, 9, 1)), " since 2026-10-01");
   assert.ok(!/since now|ago/.test(forHowLong(NOW, NOW)), "never 'since now' or 'since 3 h ago'");
 });
+
+test("an empty list with nothing typed says it is empty yet; with a search or filter it says nothing matches", async () => {
+  const { emptyWords } = await import("../objects/ObjectList.tsx");
+  assert.equal(emptyWords("No webhooks match.", false), "No webhooks yet.");
+  assert.equal(emptyWords("No outside sessions match.", false), "No outside sessions yet.");
+  assert.equal(emptyWords("No webhooks match.", true), "No webhooks match.");
+  assert.equal(emptyWords("Nothing set up", false), "Nothing set up", "other words stay as they are");
+});

@@ -7,3 +7,4 @@
 - The agent's folder no longer lists Vyre's own hidden folders such as .index and .vyre.
 - The Computers page and Add a server say computer instead of machine.
 - What needs you in the Console no longer says "since now": a new item says nothing more, an older one says for how long.
+- An empty Console list with nothing searched says "No webhooks yet." rather than "No webhooks match."
