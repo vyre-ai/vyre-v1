@@ -7,3 +7,6 @@
 - An agent that still has an older desktop shows a row "Older desktop" at the end of its Computer tab. It opens that desktop's live view, where you can wake it, take over and give it back.
 - The plan an agent shows before it creates another agent no longer lists "Give it a computer".
 - A move of an old desktop's sign-ins waits, without giving up, while the agent's browser is busy or someone has its controls.
+- Console > Computers says in one line, on each old desktop's row, how its move to the agent's workspace and Space browser ended, and when to remove the desktop.
+- Where an agent's terminal and browser cannot run yet, the Computer tab says what would let this Space run them and, for owners and admins, opens Console > Computers.
+- After an update the server also removes old server images that no kept release uses, not only the agent, workspace and browser ones.

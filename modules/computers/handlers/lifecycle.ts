@@ -8,7 +8,7 @@ import {
 } from "../projections.ts";
 import type { CompCtx, ComputerHost, ComputerRow, Probe, SessionInfo } from "../projections.ts";
 import { finishRecording } from "./record.ts";
-import { migrateComputers } from "../migrate.ts";
+import { migrateComputers, moveOf } from "../migrate.ts";
 import { bindStarter, checkRoom, claimRoom, drainWaiting, isWaiting, LIMITS, releaseRoom, waitingNote } from "../capacity.ts";
 
 type Row = Record<string, unknown>;
@@ -52,8 +52,12 @@ async function refresh(ctx: CompCtx, c: ComputerRow): Promise<ComputerRow> {
 export async function get(ctx: CompCtx, input: { computerId: string }) {
   ensure(ctx.db);
   needTeam(ctx);
-  return { computer: computerOut(await refresh(ctx, needComputer(ctx, input.computerId))) };
+  const c = await refresh(ctx, needComputer(ctx, input.computerId));
+  return { computer: { ...computerOut(c), ...withMove(ctx, c.computerId) } };
 }
+
+/** The result of the computer's move, as the optional `moved` field. */
+const withMove = (ctx: CompCtx, computerId: string): { moved?: NonNullable<ReturnType<typeof moveOf>> } => { const m = moveOf(ctx, computerId); return m ? { moved: m } : {}; };
 
 export async function list(ctx: CompCtx, input: { state?: string[]; cursor?: string; limit?: number }) {
   ensure(ctx.db);
@@ -63,7 +67,7 @@ export async function list(ctx: CompCtx, input: { state?: string[]; cursor?: str
   const fresh = await Promise.all(rows.map((c) => refresh(ctx, c)));
   const kept = states ? fresh.filter((c) => states.includes(c.state)) : fresh;
   const p = pageOf(kept, input.cursor, input.limit);
-  return { computers: p.page.map(computerOut), ...(p.next ? { next: p.next } : {}), total: p.total };
+  return { computers: p.page.map((c) => ({ ...computerOut(c), ...withMove(ctx, c.computerId) })), ...(p.next ? { next: p.next } : {}), total: p.total };
 }
 
 export async function health(ctx: CompCtx, _input: Record<string, never>) {

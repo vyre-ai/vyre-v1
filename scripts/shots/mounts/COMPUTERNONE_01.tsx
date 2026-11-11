@@ -62,5 +62,5 @@ export default function Mount(): ReactNode {
   if (part === "setup1" || part === "setup3") return card(<SettingUp name="Dex" step={part === "setup1" ? 1 : 3} where="Northwind server" />);
   if (part === "failed") return card(<FailedBody name="Dex" reason="Docker could not pull the image: the server has no route to the registry. Check the server's network, then try again." details="Dex's computer cmp_demo\nstate: error\nruns on: Northwind server" onCopy={() => undefined} onAgain={() => undefined} />);
   // ?part=none: an agent with no old desktop, in a host where the terminal and the browser are not bound: one plain pane, nothing to set up
-  return card(<ComputerNone name="Dex" />);
+  return card(<ComputerNone name="Dex" onOpenConsole={part === "none-admin" ? () => undefined : undefined} />);
 }

@@ -8935,6 +8935,11 @@ export type ComputersConfigureOut = {
     takeoverBy?: string;
     recording: boolean;
     error?: string;
+    moved?: {
+      state: "done" | "partial" | "failed";
+      at: number;
+      error?: string;
+    };
   };
 };
 export type ComputersFilesDeleteIn = {
@@ -9004,6 +9009,11 @@ export type ComputersGetOut = {
     takeoverBy?: string;
     recording: boolean;
     error?: string;
+    moved?: {
+      state: "done" | "partial" | "failed";
+      at: number;
+      error?: string;
+    };
   };
 };
 export type ComputersGiveBackIn = {
@@ -9025,6 +9035,11 @@ export type ComputersGiveBackOut = {
     takeoverBy?: string;
     recording: boolean;
     error?: string;
+    moved?: {
+      state: "done" | "partial" | "failed";
+      at: number;
+      error?: string;
+    };
   };
 };
 export type ComputersHealthIn = Record<string, unknown>;
@@ -9076,6 +9091,11 @@ export type ComputersListOut = {
       takeoverBy?: string;
       recording: boolean;
       error?: string;
+      moved?: {
+        state: "done" | "partial" | "failed";
+        at: number;
+        error?: string;
+      };
     }>;
   next?: string;
   total?: number;
@@ -9102,6 +9122,11 @@ export type ComputersProvisionOut = {
     takeoverBy?: string;
     recording: boolean;
     error?: string;
+    moved?: {
+      state: "done" | "partial" | "failed";
+      at: number;
+      error?: string;
+    };
   };
 };
 export type ComputersRecordStartIn = {
@@ -9309,6 +9334,11 @@ export type ComputersSleepOut = {
     takeoverBy?: string;
     recording: boolean;
     error?: string;
+    moved?: {
+      state: "done" | "partial" | "failed";
+      at: number;
+      error?: string;
+    };
   };
 };
 export type ComputersStreamIn = {
@@ -9339,6 +9369,11 @@ export type ComputersTakeOverOut = {
     takeoverBy?: string;
     recording: boolean;
     error?: string;
+    moved?: {
+      state: "done" | "partial" | "failed";
+      at: number;
+      error?: string;
+    };
   };
   ticket: string;
 };
@@ -9398,6 +9433,11 @@ export type ComputersWakeOut = {
     takeoverBy?: string;
     recording: boolean;
     error?: string;
+    moved?: {
+      state: "done" | "partial" | "failed";
+      at: number;
+      error?: string;
+    };
   };
 };
 export type ConflictsAssistIn = {

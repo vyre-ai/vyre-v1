@@ -996,6 +996,26 @@ test("prune_images removes agent computer, workspace and browser images no kept 
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
 
+test("prune_images removes old server images no kept release names, keeps those a release still on disk names, and clears a long backlog in one run", () => {
+  const dir = tmp();
+  try {
+    const D = (n: string): string => `sha256:${n.padEnd(64, "0")}`;
+    for (const v of ["1.1.0", "1.0.9"]) fs.mkdirSync(path.join(dir, `releases/${v}`), { recursive: true });
+    fs.writeFileSync(path.join(dir, "releases/1.1.0/images.lock"), `VYRE_IMAGE=ghcr.io/vyre-ai/vyred@${D("5e")}\nVYRE_AGENT_IMAGE=ghcr.io/vyre-ai/agent-computer@${D("c1")}\nVYRE_WORKSPACE_IMAGE=ghcr.io/vyre-ai/agent-workspace@${D("w1")}\nVYRE_BROWSER_IMAGE=ghcr.io/vyre-ai/vyre-browser@${D("b1")}\n`);
+    fs.writeFileSync(path.join(dir, "releases/1.0.9/images.lock"), `VYRE_IMAGE=ghcr.io/vyre-ai/vyred@${D("5d")}\n`);
+    fs.writeFileSync(path.join(dir, "compose.env"), `VYRE_IMAGE=ghcr.io/vyre-ai/vyred@${D("5e")}\n`);
+    const kept = [[D("5e"), `ghcr.io/vyre-ai/vyred@${D("5e")}`], [D("5d"), `ghcr.io/vyre-ai/vyred@${D("5d")}`], [D("c1"), `ghcr.io/vyre-ai/agent-computer@${D("c1")}`], [D("w1"), `ghcr.io/vyre-ai/agent-workspace@${D("w1")}`], [D("b1"), `ghcr.io/vyre-ai/vyre-browser@${D("b1")}`]];
+    const old: string[][] = [];
+    for (let i = 0; i < 9; i++) for (const [k, repo] of ["vyred", "agent-computer", "agent-workspace", "vyre-browser"].entries()) old.push([D(`a${k}${i}`), `ghcr.io/vyre-ai/${repo}@${D(`a${k}${i}`)}`]);
+    const images = [...kept, ...old].map(([id, ref]) => `${id} ${ref}`);
+    const f = fakeDocker(dir, { images });
+    const out = sh(SERVER, "prune_images", { VYRE_DIR: dir, PATH: `${f.bin}:${process.env.PATH ?? ""}` });
+    assert.equal(out.status, 0, out.stderr);
+    assert.deepEqual(f.removed().sort(), old.map(([, ref]) => ref).sort(), "every older image of the four kinds goes, and every image a kept release names stays");
+    assert.match(out.stdout, /Removed 36 old /);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
 test("prune_images does nothing, and says nothing, when Docker is not answering, and a second run has nothing left to remove", () => {
   const dir = tmp();
   try {

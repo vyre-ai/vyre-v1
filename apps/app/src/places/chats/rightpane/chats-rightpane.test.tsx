@@ -571,7 +571,7 @@ test("Computer tab of an agent with no old desktop: one plain pane, nothing to s
   for (const personal of [false, true]) {
     const data = { ...s.data, agent: { agentId: "agt_intake", name: "Dex" }, ...(personal ? { space: { ...s.data.space, computers: false } } : {}) };
     const out = clean(renderToStaticMarkup(<RightPaneDataProvider value={data}><ComputerTab deps={{ call: data.call, note: () => undefined }} /></RightPaneDataProvider>));
-    assert.ok(has(out, 'data-testid="computer-none"') && has(out, "Dex has no desktop computer"), "it says what is true");
+    assert.ok(has(out, 'data-testid="computer-none"') && has(out, "They appear here once this Space can run them") && has(out, "Docker on the computer this Space runs on") && !has(out, "desktop"), "it says what would give this Space a terminal and a browser, and never mentions a desktop");
     assert.ok(!has(out, "computer-provision") && !has(out, "Set up its computer") && !has(out, "own computer") && !has(out, "Give Dex"), "and offers nothing to make");
   }
 });

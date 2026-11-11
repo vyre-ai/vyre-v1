@@ -140,3 +140,12 @@ export function migrationRows(ctx: Pick<CompCtx, "db">): Array<{ computerId: str
     ...(r["chrome_bytes"] !== null && r["chrome_bytes"] !== undefined ? { chromeBytes: Number(r["chrome_bytes"]) } : {}), ...(r["error"] ? { error: String(r["error"]) } : {}),
   }));
 }
+
+/** How this computer's move ended, for the lists a person reads; absent while it is still to be tried (or being retried). */
+export function moveOf(ctx: Pick<CompCtx, "db">, computerId: string): { state: "done" | "partial" | "failed"; at: number; error?: string } | undefined {
+  const r = rowsOf(ctx.db, "SELECT state, at, error, attempts FROM computers_migration WHERE computer_id = ?", computerId)[0];
+  if (!r) return undefined;
+  const state = String(r["state"]);
+  if (state !== "done" && state !== "partial" && !(state === "failed" && Number(r["attempts"]) >= MAX_ATTEMPTS)) return undefined;
+  return { state: state as "done" | "partial" | "failed", at: Number(r["at"]), ...(r["error"] ? { error: String(r["error"]) } : {}) };
+}

@@ -116,3 +116,12 @@ test("Agent computers lists the old desktops and offers no way to make a new one
   assert.ok(pickRow({ id: "r", title: "Docs", picked: true, onPress: () => undefined }).trailing, "a picked row shows its check");
   assert.equal(pickRow({ id: "r", title: "Docs", picked: false, onPress: () => undefined }).trailing, null);
 });
+
+test("an old desktop's row says in one plain line how its move ended", async () => {
+  const { movedLine } = await import("../pages/Agents.tsx");
+  const at = Date.UTC(2026, 10, 12, 12);
+  assert.equal(movedLine(undefined), "");
+  assert.match(movedLine({ state: "done", at }), /^Moved to a workspace and the Space browser on 12 Nov\. Remove this desktop when you no longer need it$/);
+  assert.match(movedLine({ state: "partial", at }), /agent signs in again once/);
+  assert.match(movedLine({ state: "failed", at, error: "The workspace is not ready." }), /did not work: The workspace is not ready$/);
+});

@@ -18,6 +18,7 @@ const cmpState = t.enm('provisioning', 'asleep', 'waking', 'working', 'takeover'
 const computerRow = t.obj({
   computerId: id.computer, agentId: id.agent, state: cmpState, caption: t.opt(t.str({ description: 'What it is doing, shown under the live view' })), tabs: t.int(), tabLimit: t.int(),
   host: t.enm('server', 'vm'), nodeId: t.opt(t.str({ description: 'The computer that joined the Space and runs this one; absent when it runs on the Space server' })), diskBytes: t.opt(t.int()), lastFrameAt: t.opt(t.ts()), lastActiveAt: t.opt(t.ts()), takeoverBy: t.opt(id.user), recording: t.bool(), error: t.opt(t.str({ description: 'Why it is in error, in words' })),
+  moved: t.opt(t.obj({ state: t.enm('done', 'partial', 'failed'), at: t.ts(), error: t.opt(t.str()) })),
 });
 const stepRow = t.obj({ stepId: t.id('stp'), idx: t.int(), at: t.ts(), caption: t.str(), tool: t.str(), frameFileId: t.opt(id.file), by: t.enm('agent', 'person'), runId: t.opt(id.run) });
 const recordingRow = t.obj({

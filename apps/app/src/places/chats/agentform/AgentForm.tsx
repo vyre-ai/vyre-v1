@@ -43,7 +43,7 @@ export interface AgentFormProps {
   sharing?: { directory: ConfigDirectory; meName: string; meId: string; nameOf(id: string): string; spaceName?: string };
 }
 
-const EMPTY: AgentDraft = { name: "", does: "", face: "", instructions: "", model: "", fallbackModel: "", computer: "none", workKey: "" };
+const EMPTY: AgentDraft = { name: "", does: "", face: "", instructions: "", model: "", fallbackModel: "", workKey: "" };
 
 export function AgentForm({ agentId, call, newKey, onDone, onCancel, say, sharing, openVault }: AgentFormProps): ReactElement {
   const [d, setD] = useState<AgentDraft>(() => ({ ...EMPTY, face: agentId === null ? formatFace(suggestFace(takenFaces())) : "" }));

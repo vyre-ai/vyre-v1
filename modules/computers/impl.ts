@@ -52,13 +52,6 @@ export { bindFill, bindHost, bindKit, bindTeam, boundHost, redeemTicket, remembe
 export type { ComputerHost, CompCtx, Probe, RecordResult, SessionInfo } from "./projections.ts";
 import { sleepIdle } from "./handlers/lifecycle.ts";
 export { sleepIdle, awaken } from "./handlers/lifecycle.ts";
-/**
- * The idle pass, every minute: a desktop that is awake, with nothing running, quiet for its idle time goes to sleep; room that opened starts the waiting line; an asleep desktop moves to a workspace
- * and a browser profile. Until 12 Nov nothing called sleepIdle, so an old desktop stayed "working" for ever and the move (which needs it asleep) never ran.
- */
-export const periodic = {
-  "computers.idle": { everyMs: 60_000, run: async (ctx: CompCtx): Promise<string[]> => { const n = await sleepIdle(ctx); return n > 0 ? [`${n} to sleep`] : []; } },
-};
 export { createHomeSync } from "./handlers/home.ts";
 /** What the daemon binds for the agent workspaces: how a waiting one starts, and the workspace half of the one-time move of a computer. */
 export { bindWorkspaceStart, bindMigration, bindMigrationPort };
@@ -595,6 +588,14 @@ export function setComputerHost(c: ComputersHostConfig | null): void {
 // Only the setters the daemon wires are host seams (the loader reports any other function here as a driver left unwired); what a computer that joined needs is exported beside them.
 export const hostSeams = { setComputersFill, setComputerHost };
 export { nodeRun };
+
+/**
+ * The idle pass, every minute: a desktop that is awake, with nothing running, quiet for its idle time goes to sleep; room that opened starts the waiting line; an asleep desktop moves to a workspace
+ * and a browser profile. Until 12 Nov nothing called sleepIdle, so an old desktop stayed "working" for ever and the move (which needs it asleep) never ran.
+ */
+export const periodic = {
+  "computers.idle": { everyMs: 60_000, run: async (ctx: CompCtx): Promise<string[]> => { const n = await sleepIdle(ctx); return n > 0 ? [`${n} to sleep`] : []; } },
+};
 
 /** What the host asks of this module on behalf of a computer that joined (host/src/routes/compute.ts): never a capability, never reachable from a session. */
 export const hostCalls = { "computers.browser_stream_open": browserStreamOpen, "computers.browser_stream_input": browserStreamInput, "computers.workspace_claim": workspaceClaim, "computers.workspace_release": workspaceRelease, "computers.workspace_waiting": workspaceWaiting, "computers.node_jobs": nodeJobs, "computers.node_result": nodeResult, "computers.node_home_check": nodeHomeCheck, "computers.stream_open": nodeStreamOpen, "computers.stream_input": nodeStreamInput, "computers.node_recording_check": nodeRecordingCheck };

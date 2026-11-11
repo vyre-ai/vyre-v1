@@ -54,7 +54,7 @@ for (const skin of ["paper", "graphite"]) {
     await page.evaluate(() => { for (const el of document.querySelectorAll("*")) { const s = getComputedStyle(el); if ((s.overflowY === "auto" || s.overflowY === "scroll") && el.scrollHeight > el.clientHeight + 40) el.scrollTop = el.scrollHeight; } });
     await page.waitForTimeout(400);
     await page.screenshot({ path: path.join(out, `computer-tab-end-${skin}.png`) }); await ctx.close(); }
-  { const { ctx, page, found } = await open(skin, "/m/COMPUTERNONE_01?part=can", "[data-testid='computer-none']"); await page.waitForTimeout(300);
+  { const { ctx, page, found } = await open(skin, "/m/COMPUTERNONE_01?part=none-admin", "[data-testid='computer-none']"); await page.waitForTimeout(300);
     console.log(`computer-none ${skin} found=${found}`);
     await page.screenshot({ path: path.join(out, `computer-none-${skin}.png`) }); await ctx.close(); }
 }

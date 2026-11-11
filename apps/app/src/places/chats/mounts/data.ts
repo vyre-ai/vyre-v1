@@ -42,13 +42,6 @@ type ComputersOut = CapMap["computers.list"]["out"];
 /** The button beside a line the place shows. */
 export interface LineAction { label: string; run(): void }
 
-export const COMPUTER_UNREACHED = "Could not reach the computer. Try again.";
-
-/** What to say when an agent's computer cannot be opened: no failure means the list has no computer for it; anything else is the connection. */
-export function computerLine(failure: unknown, name: string): string {
-  return failure === null ? `${name} has no computer yet.` : COMPUTER_UNREACHED;
-}
-
 let keySeq = 0;
 /** A fresh idempotency key for one write. */
 export const newKey = (): string => `k_${Date.now().toString(36)}_${(keySeq++).toString(36)}`;

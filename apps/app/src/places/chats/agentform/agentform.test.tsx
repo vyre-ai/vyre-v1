@@ -6,7 +6,7 @@ import { AgentForm } from "./AgentForm.tsx";
 import { createInput, draftInstructions, faceChoices, faceSeed, grantsFor, reachOffers, updatePatch, workPatch, chatKeyPatch } from "./model.ts";
 import type { AgentDraft, VaultItem } from "./model.ts";
 
-const draft: AgentDraft = { name: " Collector ", does: "Chases unpaid invoices", face: "f1", instructions: "", model: "", fallbackModel: "", computer: "own" };
+const draft: AgentDraft = { name: " Collector ", does: "Chases unpaid invoices", face: "f1", instructions: "", model: "", fallbackModel: "" };
 const item = (id: string, name: string): VaultItem => ({ id, name } as VaultItem);
 
 test("a new agent's instructions are drafted from what it does", () => {
@@ -38,7 +38,7 @@ test("Can use grants a Shared item at Use and skips a Mine item, which the agent
 });
 
 test("the fields become agents.create and agents.update input", () => {
-  assert.deepEqual(createInput(draft, "k1"), { name: "Collector", role: "Chases unpaid invoices", face: "f1", computer: true, idempotencyKey: "k1" });
+  assert.deepEqual(createInput(draft, "k1"), { name: "Collector", role: "Chases unpaid invoices", face: "f1", idempotencyKey: "k1" });
   assert.deepEqual(updatePatch({ ...draft, model: "opus" }), { name: "Collector", role: "Chases unpaid invoices", face: "f1", model: "opus", fallbackModel: null });
 });
 

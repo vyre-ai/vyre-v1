@@ -13,7 +13,7 @@ export const title = "Console: Agent computers";
 const ROWS: Record<string, unknown> = {
   "computers.health": { state: "healthy", runtime: "ready", awake: 1, asleep: 1 },
   "computers.list": { total: 2, computers: [
-    { computerId: "cmp_dex", agentId: "agt_dex", state: "asleep", tabs: 0, tabLimit: 8, idleSleepMinutes: 10, host: "server", createdAt: 1_760_000_000_000, recording: false },
+    { computerId: "cmp_dex", agentId: "agt_dex", state: "asleep", tabs: 0, tabLimit: 8, idleSleepMinutes: 10, host: "server", createdAt: 1_760_000_000_000, recording: false, moved: { state: "done", at: Date.UTC(2026, 10, 12, 12) } },
     { computerId: "cmp_scout", agentId: "agt_scout", state: "working", caption: "Scout's computer", tabs: 3, tabLimit: 8, idleSleepMinutes: 10, host: "server", createdAt: 1_760_000_000_000, recording: false },
   ] },
   "agents.list": { agents: [

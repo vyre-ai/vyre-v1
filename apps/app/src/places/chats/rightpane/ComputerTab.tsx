@@ -66,7 +66,7 @@ export function ComputerTab({ deps, window }: { deps: PaneDeps; window?: Virtual
   const canProvision = allows(rt, GATE.provisionComputer);
   const name = data.agent.name;
   const computerId = data.agent.computerId ?? "";
-  if (computerId === "") return <ComputerNone name={name} />;
+  if (computerId === "") return <ComputerNone name={name} {...(canProvision && data.nav.openMachines ? { onOpenConsole: () => data.nav.openMachines?.() } : {})} />;
   return <ComputerBody deps={deps} computerId={computerId} admin={canProvision} canTake={allows(rt, GATE.takeOver)} {...(window ? { window } : {})} />;
 }
 
@@ -142,12 +142,13 @@ function useHosts(): HostsAnswer {
   return hosts;
 }
 
-/** An agent with no old-style desktop. Nothing is offered: a new desktop is never made, and its terminal and browser are the two sections of the Computer tab where the workspace and the Space browser are bound. */
-export function ComputerNone({ name }: { name: string }): ReactElement {
+/** The legacy Computer tab for an agent that has no old desktop, drawn only where the terminal and the browser are not bound: what would let this Space run them. Owners and admins get a button to Console > Computers; others read it as plain words. */
+export function ComputerNone({ name, onOpenConsole }: { name: string; onOpenConsole?: (() => void) | undefined }): ReactElement {
   return (
     <View testID="computer-none" style={st.padded}>
-      <Text accessibilityRole="header" style={st.headline}>{`${name}'s computer`}</Text>
-      <Text style={st.none}>{`${name} has no desktop computer. Its terminal and browser appear here once this Space can run them.`}</Text>
+      <Text accessibilityRole="header" style={st.headline}>{`${name}'s terminal and browser`}</Text>
+      <Text style={st.none}>{`They appear here once this Space can run them. That needs Docker on the computer this Space runs on, or a server with Docker added in Console > Computers.`}</Text>
+      {onOpenConsole ? <View style={[st.row2, { marginTop: 10 }]}><TextButton label="Open Console > Computers" primary onPress={onOpenConsole} testID="computer-none-console" /></View> : null}
     </View>
   );
 }
