@@ -45,7 +45,7 @@ export function Groups({ initialId }: { initialId?: string }): ReactElement {
   const [renaming, setRenaming] = useState<{ id: string; name: string } | null>(null);
   const api = useMemo(() => createMenuApiB(data), [data]);
   const [name, setName] = useState("");
-  const list = useRead<AccessGroupsListOut>("access.groups.list", { q: search, limit: 100 });
+  const list = useRead<AccessGroupsListOut>("access.groups.list", { q: search, limit: 100 }, { keepPrevious: true });
   const refresh = () => { setMore(null); list.refresh(); };
   const action = useAction(refresh);
   useEffect(() => { setSelected(initialId ?? ""); }, [initialId]);
@@ -115,16 +115,17 @@ function MemberRows({ members, groupId, refresh }: { members: Ref[]; groupId: st
   const action = useAction(refresh);
   return <Group>{members.map((member) => <Row key={member.id} id={`member-${member.id}`} title={data.name(member.id)} note={member.kind} trailing={<Button label="Remove…" danger onPress={() => setPending(member)} />} onPress={() => setPending(member)} />)}{!members.length ? <Empty icon="doc">No members yet</Empty> : null}{pending ? <><Note>Remove {data.name(pending.id)}? Access inherited through this team ends. Other access remains.</Note><Actions><Button label="Cancel" onPress={() => setPending(null)} /><Button label="Confirm remove member" disabled={action.busy} testID="group-member-remove-confirm" onPress={() => void action.run("access.groups.remove_member", { groupId, member: pending }, "Member removed").then((out) => { if (out) setPending(null); })} /></Actions></> : null}{action.note ? <Note>{action.note}</Note> : null}</Group>;
 }
-function PrincipalPicker({ mode, selected, onPick }: { mode: "member" | "manager"; selected: ReadonlySet<string>; onPick: (principal: Person) => void }): ReactElement {
+export function PrincipalPicker({ mode, selected, onPick }: { mode: "member" | "manager"; selected: ReadonlySet<string>; onPick: (principal: Person) => void }): ReactElement {
   const [search, setSearch] = useState("");
   const searchNow = useRef(search); searchNow.current = search;
-  const list = useRead<AccessPrincipalsListOut>("access.principals.list", { q: search, status: "active", limit: 100, ...(mode === "manager" ? { kind: "person" } : {}) });
+  const list = useRead<AccessPrincipalsListOut>("access.principals.list", { q: search, status: "active", limit: 100, ...(mode === "manager" ? { kind: "person" } : {}) }, { keepPrevious: true });
   const [more, setMore] = useState<AccessPrincipalsListOut | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const data = useConsoleData();
   useEffect(() => { setMore(null); }, [search]);
-  if (!list.data) return <ReadState error={list.error} retry={list.refresh} />;
+  // The search field stays while a search is read: it used to be replaced by the loading line with each keystroke, so the field disappeared under the person typing and took its focus with it.
+  if (!list.data) return <><Field label="Find a person or agent" value={search} onChange={setSearch} testID="group-principal-search" /><ReadState error={list.error} retry={list.refresh} /></>;
   const people = [...list.data.principals, ...(more?.principals ?? [])].filter((person, index, all) => all.findIndex((row) => row.id === person.id) === index && (person.kind === "person" || mode === "member" && person.kind === "agent"));
   const next = more ? more.next : list.data.next;
   return <><Field label="Find a person or agent" value={search} onChange={setSearch} testID="group-principal-search" /><Group>{people.map((person) => <Row key={person.id} id={`pick-${person.id}`} title={person.name} note={`${person.kind}${selected.has(person.id) ? " · Selected" : ""}`} trailing={<Button label={selected.has(person.id) ? mode === "member" ? "Added" : "Remove selection" : "Select"} disabled={mode === "member" && selected.has(person.id)} onPress={() => onPick(person)} />} onPress={() => { if (mode === "manager" || !selected.has(person.id)) onPick(person); }} />)}</Group>{!people.length ? <Empty icon="doc">No matching people or agents</Empty> : null}{next ? <Button label="Load more people" disabled={busy} onPress={() => { setBusy(true); setError(""); void data.call("access.principals.list", { q: search, status: "active", limit: 100, cursor: next, ...(mode === "manager" ? { kind: "person" } : {}) }).then((value) => { const out = value as AccessPrincipalsListOut; if (searchNow.current !== search) return; setMore({ ...out, principals: [...(more?.principals ?? []), ...out.principals] }); }, () => setError("Couldn’t load more people.")).finally(() => setBusy(false)); }} /> : null}{error ? <Note>{error}</Note> : null}</>;

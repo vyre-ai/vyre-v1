@@ -17,7 +17,7 @@ const SITES = [
 export default function Mount(): ReactNode {
   const rt = useMemo(() => ({
     call: async (cap: string): Promise<unknown> => (cap === "sites.list" ? { sites: SITES } : {}),
-    me: { id: "usr_irfad", name: "Irfad Imtiaz" }, space: { id: "spc_1", kind: "team", name: "My Legal Academy" }, open: () => undefined,
+    clock: () => ({ now: T, offsetMin: 0 }), me: { id: "usr_irfad", name: "Irfad Imtiaz" }, space: { id: "spc_1", kind: "team", name: "My Legal Academy" }, open: () => undefined,
   }) as unknown as ShellRuntime, []);
   return <View style={{ flex: 1 }}><ArtifactsPage rt={rt} /></View>;
 }

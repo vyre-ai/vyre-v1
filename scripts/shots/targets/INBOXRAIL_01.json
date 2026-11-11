@@ -20,20 +20,6 @@
       "proto": "inbox,{skin}",
       "waitFor": "[data-testid='inbox-connect-channel']",
       "note": "A saved Inbox tab with nothing connected: the connect tiles in place of an empty Inbox; the rail still has no Inbox."
-    },
-    {
-      "id": "INBOXRAIL_01-settings-empty",
-      "route": "/m/INBOXRAIL_01?view=settings&space=harbor",
-      "proto": "settings,{skin}",
-      "waitFor": "[data-testid='mail-empty']",
-      "note": "Settings > Email and calendar with nothing connected: the Inbox's own connect tiles, under Connected in the page list."
-    },
-    {
-      "id": "INBOXRAIL_01-settings-sources",
-      "route": "/m/INBOXRAIL_01?view=settings",
-      "proto": "settings,{skin}",
-      "waitFor": "[data-testid='mail-sources']",
-      "note": "Settings > Email and calendar with mail, a calendar and a number: each with its state and Remove, the tiles under them to add another."
     }
   ]
 }

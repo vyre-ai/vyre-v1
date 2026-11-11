@@ -1,7 +1,6 @@
 // The real app in a real Chromium in front of a mail world (test/support/mail-world.ts): the production web export served on the address the Space says people reach it at, a signed-in
 // session per person, the provider's sign-in page answered by the fake providers, and screenshots at every step in light and dark, desktop and phone.
 import fs from "node:fs";
-import net from "node:net";
 import path from "node:path";
 import { createCapCaller } from "../../client/src/gateway/index.ts";
 import { holdKeyOnOwnNode } from "../../client/src/gateway/local-key.ts";
@@ -19,11 +18,6 @@ type Page = import("playwright-core").Page;
 
 export interface Screens { browser: Browser; web: Edge; world: MailWorld; seats: Seat[]; /** what every browser shows and what the app was refused, saved when a journey fails */ debug(dir: string): Promise<void>; close(): Promise<void> }
 
-const freePort = (): Promise<number> => new Promise((resolve, reject) => {
-  const s = net.createServer();
-  s.once("error", reject);
-  s.listen(0, "127.0.0.1", () => { const p = (s.address() as net.AddressInfo).port; s.close(() => resolve(p)); });
-});
 
 /** Null (with the reason) when this machine cannot run the journeys: no web export, no Chromium. */
 export async function browserOrSkip(): Promise<{ dist: string; chromium: import("playwright-core").BrowserType; exe: string } | string> {
@@ -40,10 +34,23 @@ export async function browserOrSkip(): Promise<{ dist: string; chromium: import(
 
 /** A mail world whose address is the edge the browser opens, so the redirect a sign-in comes back to lands on the app. */
 export async function bootScreens(o: Omit<WorldOptions, "address">, env: { dist: string; chromium: import("playwright-core").BrowserType; exe: string }): Promise<Screens> {
-  const port = await freePort();
-  const world = await bootMailWorld({ ...o, address: `http://127.0.0.1:${port}` });
-  const web = await edge(env.dist, world.d.url, undefined, port);
-  const browser = await env.chromium.launch({ executablePath: env.exe, args: ["--no-sandbox"] });
+  // The edge listens first, so its port is held from the start. It used to pick a free port, give it back, and bind it only after the world had booted (seconds later, longer on a busy host): another process could take the
+  // port in between, the listen failed with an error nobody caught, the test failed and the world already running kept the process alive until the watchdog killed it.
+  let daemonUrl = "";
+  const web = await edge(env.dist, () => daemonUrl, undefined, 0);
+  let world: MailWorld | undefined;
+  let browser: import("playwright-core").Browser | undefined;
+  try {
+    world = await bootMailWorld({ ...o, address: web.origin });
+    daemonUrl = world.d.url;
+    browser = await env.chromium.launch({ executablePath: env.exe, args: ["--no-sandbox"] });
+  } catch (e) {
+    // a boot that fails part way must not leave what it started running
+    await browser?.close().catch(() => undefined);
+    await world?.stop().catch(() => undefined);
+    web.close();
+    throw e;
+  }
   const seats: Seat[] = [];
   const debug = async (dir: string): Promise<void> => {
     fs.mkdirSync(`${dir}/_failed`, { recursive: true });
@@ -52,7 +59,9 @@ export async function bootScreens(o: Omit<WorldOptions, "address">, env: { dist:
       fs.writeFileSync(`${dir}/_failed/seat${i}-${st.who.username}.log`, `${st.page.url()}\nerrors: ${JSON.stringify(st.errors)}\n${st.logs.join("\n")}\n`);
     }
   };
-  return { browser, web, world, seats, debug, async close() { await browser.close(); web.close(); await world.stop(); } };
+  const live = { browser: browser!, world: world! };
+  // every part is closed even when an earlier one fails to: a close that throws halfway used to leave the daemon running
+  return { browser: live.browser, web, world: live.world, seats, debug, async close() { await live.browser.close().catch(() => undefined); web.close(); await live.world.stop(); } };
 }
 
 /** What the browser holds once signed in as this person. */

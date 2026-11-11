@@ -45,13 +45,16 @@ const TYPES: Record<string, string> = { ".html": "text/html; charset=utf-8", ".j
 export interface Edge { origin: string; close(): void }
 
 /** The app's export on one origin, with the gateway (/v1, /sync, /healthz) and the live socket (/live) passed through to the daemon. */
-export function edge(dist: string, daemonUrl: string, tls?: { key: string; cert: string }, port = 0): Promise<Edge> {
-  const target = new URL(daemonUrl);
+export function edge(dist: string, daemonUrl: string | (() => string), tls?: { key: string; cert: string }, port = 0): Promise<Edge> {
+  // a function gives the daemon's address when the first request needs it: the edge can listen (and so hold its port) before the daemon it fronts has finished starting
+  const targetNow = (): URL => new URL(typeof daemonUrl === "function" ? daemonUrl() : daemonUrl);
   const base = path.resolve(dist);
   const proxied = (p: string): boolean => p.startsWith("/v1/") || p.startsWith("/sync/") || p === "/healthz" || p.startsWith("/live") || p.startsWith("/local/vault/key/") || p === "/mcp" || p.startsWith("/.well-known/oauth-") || /^\/oauth\/(authorize|register|token|wait)$/.test(p);
   const handle: http.RequestListener = (req, res) => {
     const u = new URL(req.url ?? "/", "http://edge");
     if (proxied(u.pathname)) {
+      let target: URL;
+      try { target = targetNow(); } catch { res.writeHead(503); res.end("the daemon is still starting"); return; }
       const up = http.request({ host: target.hostname, port: target.port, path: req.url, method: req.method, headers: req.headers }, (r) => { res.writeHead(r.statusCode ?? 502, r.headers); r.pipe(res); });
       up.on("error", () => { res.writeHead(502); res.end("daemon unreachable"); });
       req.pipe(up);
@@ -66,6 +69,8 @@ export function edge(dist: string, daemonUrl: string, tls?: { key: string; cert:
   };
   const server = tls ? https.createServer(tls, handle) : http.createServer(handle);
   server.on("upgrade", (req, socket, head) => {
+    let target: URL;
+    try { target = targetNow(); } catch { socket.destroy(); return; }
     const up = net.connect(Number(target.port), target.hostname, () => {
       const lines = [`${req.method ?? "GET"} ${req.url ?? "/"} HTTP/1.1`];
       for (let i = 0; i < req.rawHeaders.length; i += 2) lines.push(`${req.rawHeaders[i]}: ${req.rawHeaders[i + 1]}`);
@@ -76,7 +81,7 @@ export function edge(dist: string, daemonUrl: string, tls?: { key: string; cert:
     up.on("error", () => socket.destroy());
     socket.on("error", () => up.destroy());
   });
-  return new Promise((resolve) => server.listen(port, "127.0.0.1", () => resolve({ origin: `${tls ? "https" : "http"}://127.0.0.1:${(server.address() as net.AddressInfo).port}`, close: () => server.close() })));
+  return new Promise((resolve, reject) => { server.once("error", reject); server.listen(port, "127.0.0.1", () => resolve({ origin: `${tls ? "https" : "http"}://127.0.0.1:${(server.address() as net.AddressInfo).port}`, close: () => server.close() })); });
 }
 
 const ADMIN_TOKEN = "e2e-owner-bootstrap-token";
