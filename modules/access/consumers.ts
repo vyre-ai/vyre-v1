@@ -121,8 +121,9 @@ export function applyEvent(store: AccessStore, e: LogEvent, at: number, grantAt:
       const from=str(p['from']),to=str(p['to']);if(!from||!to||from===to||(store.principals.get(to)?.status!=='active'||store.principals.get(to)?.kind!=='person'))return false;
       const spaces=[...store.resources.values()].filter(row=>row.type==='space'&&row.ownerId===from);if(spaces.length!==1)return false;
       const row=spaces[0]!;store.resources.set(row.id,{...row,ownerId:to});
-      // the record types the host registers for the Space belong to the Space's owner: they follow it, so a former owner keeps no Manage on them by ownership (review 2, finding C)
-      for (const t of [...store.resources.values()]) if (t.type === "record_type" && t.ownerId === from) store.resources.set(t.id, { ...t, ownerId: to });
+      // what the host registered in the Space owner's name (marked spaceOwned) follows the Space's owner, so a former owner keeps no Manage on it by ownership; what a person made, or was
+      // given by a per-resource transfer, carries no mark and stays theirs (review 2 C, review 3 N1 and N3)
+      for (const t of [...store.resources.values()]) if (t.row?.["spaceOwned"] === true && t.ownerId === from) store.resources.set(t.id, { ...t, ownerId: to });
       const isOwner=(id:string):boolean=>id==='owner'||id==='rol_owner'||store.roles.get(id)?.name.toLowerCase()==='owner';
       for (const [holder, roles] of store.assignments) store.setRoles(holder, roles.filter(id => !isOwner(id)));
       store.assignments.set(from,[...new Set([...store.rolesOf(from),'rol_admin'])]);
@@ -132,9 +133,12 @@ export function applyEvent(store: AccessStore, e: LogEvent, at: number, grantAt:
       const id = str(p["id"]), type = str(p["type"]);
       if (!id || !type) return false;
       const have = store.resources.get(id);
+      // the host's mark (host/src/daemon/access.ts spaceOwned) is as the latest registration says: a re-registration without it (a Personal root made private) drops it
+      const row: Record<string, unknown> = { ...(have?.row ?? {}) };
+      if (p["space_owned"] === true) row["spaceOwned"] = true; else delete row["spaceOwned"];
       store.resources.set(id, {
         id, type, parentId: str(p["parent_id"]) ?? null, label: labelOf(Number(p["label"]) || 0), ownerId: str(p["owner_id"]) ?? null, holds: Number(p["holds"]) || 0,
-        ...(have?.row ? { row: have.row } : {}),
+        ...(Object.keys(row).length ? { row } : {}),
       });
       return true;
     }
@@ -173,7 +177,19 @@ function apply(db: Db, at: number, store: AccessStore, events: readonly LogEvent
     if (e.seq >= 0 && e.seq <= cursor) continue;
     // a boot-time registration (seq -1: the host's record types at every start) makes a resource that is missing and never changes one that exists: its label, owner, parent and
     // audience are whatever was set since, and the same event at every start reset them (review finding 5)
-    if (e.seq < 0 && e.type === "resource.created" && store.resources.has(str(rec(e.payload)["id"]) ?? "")) continue;
+    if (e.seq < 0 && e.type === "resource.created") {
+      const id = str(rec(e.payload)["id"]) ?? "", have = store.resources.get(id);
+      // a mark only (hostOwnedMarks: a registration in the Space owner's name from before the mark): set the mark on a resource that exists, never make one
+      if (rec(e.payload)["mark_only"] === true) {
+        if (have && have.row?.["spaceOwned"] !== true) { store.resources.set(id, { ...have, row: { ...(have.row ?? {}), spaceOwned: true } }); changed = true; touched.add(id); }
+        continue;
+      }
+      if (have) {
+        // an existing resource keeps everything; only a missing mark is set (a record type registered before the mark)
+        if (rec(e.payload)["space_owned"] === true && have.row?.["spaceOwned"] !== true) { store.resources.set(id, { ...have, row: { ...(have.row ?? {}), spaceOwned: true } }); changed = true; touched.add(id); }
+        continue;
+      }
+    }
     if (applyEvent(store, e, at, grantAt)) {
       changed = true;
       if (e.type === "resource.created") { const id = str(rec(e.payload)["id"]); if (id) touched.add(id); } else onlyResources = false;
@@ -370,8 +386,9 @@ export const hostCalls = {
     const heldBy = (who: string) => [...store.grants.entries()].filter(([, g]) => g.resource.type === r.type && g.resource.id === r.id && (g.subject.kind === "person" || (g.subject.kind === "actor" && who.startsWith("usr_"))) && g.subject.id === who);
     const held = heldBy(input.from);
     if (r.ownerId === input.from) {
-      // theirs: the resource changes owner and their direct grants on it go
+      // theirs: the resource changes owner and their direct grants on it go. Given to a person, it is theirs and no longer the Space's (the host's mark goes, so a Space transfer leaves it)
       r.ownerId = input.to;
+      if (r.row?.["spaceOwned"] === true) { const { spaceOwned: _m, ...rest } = r.row; void _m; if (Object.keys(rest).length) r.row = rest; else delete r.row; }
       for (const [id] of held) store.grants.delete(id);
     } else if (held.length > 0) {
       // not theirs, only a grant of theirs: the grant moves to the heir and the owner stays whoever it was (nobody gains ownership of what they did not own)

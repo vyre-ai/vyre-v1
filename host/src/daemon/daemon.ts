@@ -177,7 +177,7 @@ import type { PushTransportDeps, SeamDeps, SeamDriver, SeamSetters, VaultPort, W
 import { createLiveHub } from "../ws.ts";
 import type { LiveHub, SyncHubPort } from "../ws.ts";
 import { bootstrapSpace, mintOwner } from "./bootstrap.ts";
-import { createAccess, createAccessRun, isAccessEvent, isMemberOrGuest, toAccessEvent, touchesAccess } from "./access.ts";
+import { createAccess, createAccessRun, createLogReader, hostOwned, hostOwnedMarks, isAccessEvent, spaceOwned, isMemberOrGuest, toAccessEvent, touchesAccess } from "./access.ts";
 import { ADMIN_DEVICE, createSessionResolver, issueSessionToken, sessionLive } from "./session.ts";
 import { createResourceRegistrar, missingAgentResources } from "../gateway/resources.ts";
 import { createPrincipalRegistrar, lowAgentUpgradeEvents, missingAgentHomeEvents, missingAgentPrincipalEvents, ownPlaceGrant } from "../gateway/principals.ts";
@@ -894,18 +894,25 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       if (first.ok) verified = { seq: first.seq, hash: first.head }; else chainBroken = true;
       sink.log({ space, level: first.ok ? 20 : 40, msg: "events.verified", place: "boot", result: first.ok ? "ok" : "broken", attrs: first.ok ? { seq: first.seq } : { at: first.at, why: first.why } });
       const agentAccessEvents: { type: string; payload: unknown }[] = [];
+      const ownedScan: { seq: number; id: string; type: string; actor: string; payload: unknown }[] = [];
       for (let after = 0; ;) {
         const page = await log.read({ after, limit: 5000 });
         for (const e of page) {
           if (e.type === "resource.created" || e.type === "principal.created" || e.type === "principal.role_set" || e.type === "grant.created" || e.type === "grant.revoked" || e.type.startsWith("agent.")) agentAccessEvents.push(e);
           access.fold(e);
           if (isAccessEvent(e.type)) accessPending.push(toAccessEvent(e));
+          if (e.type === "resource.created" || e.type === "space.ownership_transferred") ownedScan.push(e);
           if (e.type === "space.created") { sawSpace = true; if (e.id.startsWith("evt_boot_")) hostMadeSpace = true; }
         }
         if (page.length > 0) accessFedTo = page[page.length - 1]!.seq;
         if (page.length < 5000) break;
         after = page[page.length - 1]!.seq;
       }
+      // registrations in the Space owner's name from before the mark: marked at every start (only the mark: an existing resource keeps everything else)
+      // a Vault folder is the Space's only when its row names no owner (one a person made, the Space owner included, stays theirs)
+      const marks = hostOwnedMarks(ownedScan, space).filter((m) => { if (m.type !== "vault_folder") return true; try { return (db!.all("SELECT owner FROM vault_folder WHERE id = ?", m.id)[0] as { owner?: unknown } | undefined)?.owner == null; } catch { return false; } }).map((m) => m.id);
+      access.mark(marks);
+      for (const id of marks) accessPending.push({ seq: -1, type: "resource.created", payload: { id, space_owned: true, mark_only: true } });
       // Ruling 71: an empty log is a fresh install. The host makes the Space once, with an owner who claims it through a one-time link.
       if (!sawSpace) {
         const made = await bootstrapSpace(log, { space, name: cfg.spaceName ?? space, owner: mintOwner(cfg.owner) });
@@ -1404,13 +1411,10 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       closers.push(() => { if (healTimer !== null) { clearTimeout(healTimer); healTimer = null; } });
       // Fail closed (ruling 70) when a sync fails twice: the last snapshot may still let a revoked or removed person through, so everyone but the owner is refused until a sync succeeds.
       // what a commit made is committed before its append returns, and a new read transaction on another connection sees every commit (WAL), so this reads the log as the worker wrote it
-      let accessLog: HostDb | null = null;
-      const accessLogRead = (after: number, limit: number): { seq: number; type: string; payload: unknown }[] => {
-        accessLog ??= openDb(paths.events, { readOnly: true });
-        return (accessLog.all("SELECT seq, event, payload FROM events WHERE seq > ? ORDER BY seq LIMIT ?", after, limit) as { seq: number; event: string; payload: Uint8Array }[])
-          .map((r) => ({ ...(JSON.parse(r.event) as { type: string }), seq: Number(r.seq), payload: new Uint8Array(r.payload) }));
-      };
-      closers.push(() => { accessLog?.close(); accessLog = null; });
+      // a short wait on this connection: it reads on the main thread (review 3, N2)
+      const accessLog = createLogReader(() => { const r = openDb(paths.events, { readOnly: true }); r.exec("PRAGMA busy_timeout = 250"); return r; });
+      const accessLogRead = (after: number, limit: number) => accessLog.read(after, limit);
+      closers.push(() => accessLog.close());
       const runSync = createAccessRun({
         take: () => { const held = accessPending; accessPending = []; return held; },
         putBack: (es) => { accessPending = [...es, ...accessPending]; },
@@ -1598,7 +1602,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
             if (!found) return;
             const r = await spaceLog.appendResult({
               id: `evt_res_${id}`, type: "resource.created", sv: 1, trace_id: "c0".repeat(16), actor: "svc_host", vis: "space", entity: "resource", entity_id: id,
-              payload: { id, type, parent_id: spaceId, label: 0, owner_id: access.owner() ?? cfg.owner ?? "usr_owner", holds: 0 },
+              payload: spaceOwned({ id, type, parent_id: spaceId, label: 0, owner_id: access.owner() ?? cfg.owner ?? "usr_owner", holds: 0 }),
             });
             if (!r.ok) throw new Error(`could not register the ${type} ${id}: ${r.message}`);
             if (!r.duplicate) { access.fold(r.event); accessPending.push(toAccessEvent(r.event)); headSeq = Math.max(headSeq, r.event.seq); await syncAccess(); }
@@ -1614,7 +1618,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
             if (access.snap.resource(key)) return;
             const r = await spaceLog.appendResult({
               id: `evt_res_connector_${key}`, type: "resource.created", sv: 1, trace_id: "c0".repeat(16), actor: "svc_host", vis: "space", entity: "resource", entity_id: key,
-              payload: { id: key, type: "connector", parent_id: spaceId, label: 0, owner_id: access.owner() ?? cfg.owner ?? "usr_owner", holds: 0 },
+              payload: spaceOwned({ id: key, type: "connector", parent_id: spaceId, label: 0, owner_id: access.owner() ?? cfg.owner ?? "usr_owner", holds: 0 }),
             });
             if (!r.ok) throw new Error(`could not register the connector ${key}: ${r.message}`);
             if (!r.duplicate) { access.fold(r.event); accessPending.push(toAccessEvent(r.event)); headSeq = Math.max(headSeq, r.event.seq); await syncAccess(); }
@@ -1647,20 +1651,20 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         if (!privateOwner && old) return;
         const result = await spaceLog.appendResult({
           id: privateOwner ? `evt_private_root_${f.id}_${headSeq}` : `evt_res_${f.id}`, type: "resource.created", sv: 1, trace_id: "c0".repeat(16), actor: "svc_host", vis: "space", entity: "resource", entity_id: f.id,
-          payload: { id: f.id, type: f.type, parent_id: privateOwner ? null : f.parentId ?? spaceId, label: old?.label ?? 0, owner_id: old ? old.owner_id : privateOwner ?? f.ownerId ?? access.owner() ?? cfg.owner ?? "usr_owner", holds: old?.holds ?? 0 },
+          payload: hostOwned(!privateOwner && !old && f.ownerId === undefined, { id: f.id, type: f.type, parent_id: privateOwner ? null : f.parentId ?? spaceId, label: old?.label ?? 0, owner_id: old ? old.owner_id : privateOwner ?? f.ownerId ?? access.owner() ?? cfg.owner ?? "usr_owner", holds: old?.holds ?? 0 }),
         });
         if (!result.ok) throw new Error(`could not register the folder: ${result.message}`);
         if (!result.duplicate) { access.fold(result.event); accessPending.push(toAccessEvent(result.event)); headSeq = Math.max(headSeq, result.event.seq); await syncAccess(); }
         if (privateOwner) await grantOwnPlaces?.(privateOwner);
       };
       // A Vault folder is a resource in access (vault_folder under the Space). One resource.created per folder, with an id made from the folder's own, so a reboot repeats the same event.
-      const registerVaultFolder = async (id: string, owner: string | null, mine = false): Promise<void> => {
+      const registerVaultFolder = async (id: string, owner: string | null, mine = false, spaceFolder = owner === null): Promise<void> => {
         const old = access.snap.resource(id);
         // a Mine folder is a private root: one registered under the Space before this is moved out once, with its own event id, so the repair is not repeated
         if (old && !(mine && old.parent_id !== null && owner)) return;
         const made = await spaceLog.appendResult({
           id: old ? `evt_private_vault_${id}` : `evt_res_${id}`, type: "resource.created", sv: 1, trace_id: "c0".repeat(16), actor: "svc_host", vis: "space", entity: "resource", entity_id: id,
-          payload: { id, type: "vault_folder", parent_id: mine && owner ? null : spaceId, label: old?.label ?? 0, owner_id: (mine ? owner : null) ?? old?.owner_id ?? owner ?? access.owner() ?? cfg.owner ?? "usr_owner", holds: old?.holds ?? 0 },
+          payload: hostOwned(!mine && !old && spaceFolder, { id, type: "vault_folder", parent_id: mine && owner ? null : spaceId, label: old?.label ?? 0, owner_id: (mine ? owner : null) ?? old?.owner_id ?? owner ?? access.owner() ?? cfg.owner ?? "usr_owner", holds: old?.holds ?? 0 }),
         });
         if (made.ok && !made.duplicate) { access.fold(made.event); accessPending.push(toAccessEvent(made.event)); headSeq = Math.max(headSeq, made.event.seq); await syncAccess(); }
       };
@@ -1668,7 +1672,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       const sealedVault = (): ReturnType<typeof createRecordsVaultHost> => (sealed ??= createRecordsVaultHost({
         system: (cap, input) => system(cap, input),
         as: (person, cap, input) => invoke(cap, input, { space: spaceId, principal: { kind: "person", id: person }, origin: "seam" }).then((r) => (r.status === "ok" ? r.output : Promise.reject(new Error(`${cap} was held for approval`)))),
-        registerFolder: (id) => registerVaultFolder(id, access.owner() ?? cfg.owner ?? null),
+        registerFolder: (id) => registerVaultFolder(id, access.owner() ?? cfg.owner ?? null, false, true),
         scrub: (type, field) => scrubSealedField(type, field),
       }));
       // A field was sealed: the plaintext it held is taken out of what only the host reaches. The events of the Space log that carry it lose their payloads (the chain stays), the kept answers of old writes lose the value, and the search documents of the type go and are read again from the records, which now hold references.
@@ -1736,7 +1740,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
             ensure: async (kitId) => {
               const r = await spaceLog.appendResult({
                 id: `evt_res_${kitId}`, type: "resource.created", sv: 1, trace_id: "c0".repeat(16), actor: "svc_host", vis: "space", entity: "resource", entity_id: kitId,
-                payload: { id: kitId, type: "kit", parent_id: spaceId, label: 0, owner_id: access.owner() ?? cfg.owner ?? "usr_owner", holds: 0 },
+                payload: spaceOwned({ id: kitId, type: "kit", parent_id: spaceId, label: 0, owner_id: access.owner() ?? cfg.owner ?? "usr_owner", holds: 0 }),
               });
               if (!r.ok) throw new Error(`could not register the Kit: ${r.message}`);
               if (!r.duplicate) { access.fold(r.event); accessPending.push(toAccessEvent(r.event)); headSeq = Math.max(headSeq, r.event.seq); await syncAccess(); }
@@ -2180,7 +2184,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         const seeding = startSchema().then((pruned) => { if (pruned && pruned.length) sink.log({ space: spaceId, level: 30, msg: "records.types_pruned", place: "boot", attrs: { types: pruned } }); }).catch((e: unknown) => { sink.log({ space: spaceId, level: 50, msg: "schema.seed_failed", place: "boot", attrs: { error: e instanceof Error ? e.message : String(e) } }); });
         closers.push(() => seeding);
         for (const rt of registry.recordTypes) {
-          const created = { type: "resource.created", payload: { id: rt.key, type: "record_type", parent_id: spaceId, label: 0, owner_id: access.owner() ?? cfg.owner ?? "usr_owner", holds: 0 } };
+          const created = { type: "resource.created", payload: spaceOwned({ id: rt.key, type: "record_type", parent_id: spaceId, label: 0, owner_id: access.owner() ?? cfg.owner ?? "usr_owner", holds: 0 }) };
           access.fold(created);
           accessPending.push({ seq: -1, ...created });   // not a log event: the module applies it at every start
         }
@@ -2261,7 +2265,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       const ensureDefaultPortal = (): Promise<void> => (defaultPortal ??= (async () => {
         const r = await spaceLog.appendResult({
           id: "evt_res_sit_default", type: "resource.created", sv: 1, trace_id: "c0".repeat(16), actor: "svc_host", vis: "space", entity: "resource", entity_id: "sit_default",
-          payload: { id: "sit_default", type: "site", parent_id: spaceId, label: 0, owner_id: access.owner() ?? cfg.owner ?? "usr_owner", holds: 0 },
+          payload: spaceOwned({ id: "sit_default", type: "site", parent_id: spaceId, label: 0, owner_id: access.owner() ?? cfg.owner ?? "usr_owner", holds: 0 }),
         });
         if (!r.ok) throw new Error(`could not register the default portal: ${r.message}`);
         if (!r.duplicate) { access.fold(r.event); accessPending.push(toAccessEvent(r.event)); headSeq = Math.max(headSeq, r.event.seq); await syncAccess(); }

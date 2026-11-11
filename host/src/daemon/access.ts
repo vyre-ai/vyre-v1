@@ -24,8 +24,8 @@ export function foldEvent(snap: AccessSnapshot, e: FoldableEvent): void {
       const pref=snap.info(from)?.keys.has('role:rol_owner')?'rol_':'';
       snap.removePrincipalRole({holder:from,role:'owner'});snap.removePrincipalRole({holder:from,role:'rol_owner'});
       snap.addPrincipalRole({holder:from,role:`${pref}admin`});snap.addPrincipalRole({holder:to,role:`${pref}owner`});snap.putResource({...resources[0]!,owner_id:to});
-      // the Space's record types follow its owner, as the access module folds it
-      for (const t of [...snap.allResources()]) if (t.type === "record_type" && t.owner_id === from) snap.putResource({ ...t, owner_id: to });
+      // what the host registered in the Space owner's name (spaceOwned) follows the Space's owner, as the access module folds it; what a person made or was given stays theirs
+      for (const t of [...snap.allResources()]) if ((t as { space_owned?: unknown }).space_owned === true && t.owner_id === from) snap.putResource({ ...t, owner_id: to });
       return;
     }
     case "resource.created": snap.putResource(body<ResourceRow>(e)); return;
@@ -64,7 +64,7 @@ export function toAccessEvent(e: { seq: number; type: string; payload: unknown }
  * Ruling 70: `authorize` answers from the access module's snapshot. `fold` keeps the seed-shaped fold as the snapshot until the module's is adopted (boot, before the first call)
  * and as the answer if the module cannot be reached; `adopt` swaps the module's snapshot in, and `snap` is whichever is current.
  */
-export function createAccess(): { readonly snap: AccessSnapshot; fold(e: FoldableEvent): void; owner(): string | null; adopt(s: AccessSnapshot): void; adopted(): boolean } {
+export function createAccess(): { readonly snap: AccessSnapshot; fold(e: FoldableEvent): void; mark(ids: readonly string[]): void; owner(): string | null; adopt(s: AccessSnapshot): void; adopted(): boolean } {
   const seeded = new AccessSnapshot();
   let current: AccessSnapshot = seeded, own = false;
   let owner: string | null = null;
@@ -76,6 +76,8 @@ export function createAccess(): { readonly snap: AccessSnapshot; fold(e: Foldabl
       if (e.type === "resource.created") { const r = body<ResourceRow>(e); if (r.type === "space" && r.owner_id) owner = r.owner_id; }
     },
     owner: () => owner,
+    /** set the host's mark on resources that exist (hostOwnedMarks), as the access module does for its seq -1 marks */
+    mark(ids) { for (const id of ids) { const r = seeded.resource(id); if (r && (r as { space_owned?: unknown }).space_owned !== true) seeded.putResource({ ...r, space_owned: true } as ResourceRow); } },
     adopt(s) { current = s; own = true; },
     adopted: () => own,
   };
@@ -112,6 +114,7 @@ export async function accessBatch(o: {
     const page = await o.read(upTo, 2000);
     for (const e of page) { upTo = e.seq; if (isAccessEvent(e.type)) fromLog.push(toAccessEvent(e)); }
     if (page.length < 2000) break;
+    await new Promise<void>((done) => setImmediate(done));   // a long catch-up reads on the main thread: let requests in between pages (review 3, N2)
   }
   const replay = boot.filter((e) => e.seq >= 0).sort((a, b) => a.seq - b.seq), own = boot.filter((e) => e.seq < 0);
   return { events: [...replay, ...fromLog, ...own], upTo, boot };
@@ -164,5 +167,50 @@ export function createAccessRun(o: {
     }
     o.fedTo.set(upTo);
     o.stale.set(false);
+  };
+}
+
+/**
+ * The one mark of a resource the host registers in the Space owner's name (a connector, a Kit, the default site, the record types, a repaired conversation or mail message, a Space root
+ * folder, a Space Vault folder). A Space ownership transfer moves every marked resource the former owner holds to the new owner, in the access module's fold and in foldEvent above; nothing
+ * a person made, or was given by a per-resource transfer, carries it, so nothing of theirs moves (review 3, N1 and N3). host/tests/access.host-owned.test.ts fails on a registration in the
+ * Space owner's name made without it.
+ */
+export const spaceOwned = <T extends object>(row: T): T & { space_owned: true } => ({ ...row, space_owned: true });
+/** `spaceOwned(row)` when `when` (the owner is the Space owner because the host chose it), else the row as it is. */
+export const hostOwned = <T extends object>(when: boolean, row: T): T | (T & { space_owned: true }) => (when ? spaceOwned(row) : row);
+
+/**
+ * The resources registered in the Space owner's name before the mark existed, from the log itself: the last registration of each was the host's own (`evt_res_...`, by svc_host), under the
+ * Space, not an agent, and owned by whoever owned the Space at that moment. At every start the host hands these over as seq -1 marks, which only set the mark on a resource that exists.
+ */
+export function hostOwnedMarks(events: readonly { seq: number; id: string; type: string; actor: string; payload: unknown }[], space: string): { id: string; type: string }[] {
+  let owner: string | null = null;
+  const last = new Map<string, { type: string; marked: boolean }>();
+  for (const e of [...events].sort((a, b) => a.seq - b.seq)) {
+    const p = body<Record<string, unknown>>(e);
+    if (e.type === "space.ownership_transferred") { if (p["from"] === owner && typeof p["to"] === "string") owner = p["to"]; continue; }
+    if (e.type !== "resource.created" || typeof p["id"] !== "string") continue;
+    if (p["type"] === "space" && p["id"] === space) { if (typeof p["owner_id"] === "string") owner = p["owner_id"]; continue; }
+    last.set(p["id"], { type: String(p["type"]), marked: e.actor === "svc_host" && e.id.startsWith("evt_res_") && p["type"] !== "agent" && p["parent_id"] === space && owner !== null && p["owner_id"] === owner });
+  }
+  return [...last].filter(([, v]) => v.marked).map(([id, v]) => ({ id, type: v.type }));
+}
+
+/**
+ * The access sync's own read-only connection on the log (daemon.ts): opened on the first read, closed once at shutdown, and never opened again after that, so no handle on events.db outlives
+ * the daemon (review 3, N4). A read after close throws, and the sync fails closed on it.
+ */
+export function createLogReader(open: () => { all(sql: string, ...a: unknown[]): unknown[]; close(): void }): { read(after: number, limit: number): { seq: number; type: string; payload: unknown }[]; close(): void; opened(): boolean } {
+  let db: ReturnType<typeof open> | null = null, closed = false;
+  return {
+    read(after, limit) {
+      if (closed) throw new Error("the server is stopping: the access log is closed");
+      db ??= open();
+      return (db.all("SELECT seq, event, payload FROM events WHERE seq > ? ORDER BY seq LIMIT ?", after, limit) as { seq: number; event: string; payload: Uint8Array }[])
+        .map((r) => ({ ...(JSON.parse(r.event) as { type: string }), seq: Number(r.seq), payload: new Uint8Array(r.payload) }));
+    },
+    close() { closed = true; db?.close(); db = null; },
+    opened: () => db !== null,
   };
 }

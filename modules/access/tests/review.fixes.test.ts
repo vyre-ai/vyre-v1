@@ -144,29 +144,52 @@ test("5 a boot-time registration makes a missing record type and never resets th
 
 // ---- review 2 (team/v1/SCALE-REVIEW-2-2026-11-11.md), findings C and D
 
-test("C a Space ownership transfer moves the record types too: the former owner, demoted, holds only what the new role gives, also after a restart", async () => {
+test("C a Space ownership transfer moves what the host registered in the owner's name (record types, a connector, a Kit, the default site, an old registration marked at start); what a person made or was given stays theirs; the former owner, demoted, holds only their new role's rights, also after a restart", async () => {
   const { rolesAssign, rolesUnassign } = await import("../handlers/roles.ts");
   const { file, db: first } = fresh("transfer");
+  const host = (seq: number, id: string, type: string, mark = true): LogEvent => ({ seq, type: "resource.created", payload: { id, type, parent_id: SPACE, label: 0, owner_id: "usr_ana", holds: 0, ...(mark ? { space_owned: true } : {}) } });
   const log: LogEvent[] = [
     { seq: 1, type: "resource.created", payload: { id: SPACE, type: "space", parent_id: null, label: 0, owner_id: "usr_ana", holds: 0 } },
-    person(2, "usr_ana"), person(3, "usr_ben"),
-    { seq: 4, type: "principal.role_set", payload: { holder: "usr_ana", role: "rol_owner" } },
-    { seq: 5, type: "principal.role_set", payload: { holder: "usr_ben", role: "rol_member" } },
+    person(2, "usr_ana"), person(3, "usr_ben"), person(4, "usr_cara"),
+    { seq: 5, type: "principal.role_set", payload: { holder: "usr_ana", role: "rol_owner" } },
+    { seq: 6, type: "principal.role_set", payload: { holder: "usr_ben", role: "rol_member" } },
+    { seq: 7, type: "principal.role_set", payload: { holder: "usr_cara", role: "rol_member" } },
+    host(8, "google", "connector"), host(9, "kit_crm", "kit"), host(10, "sit_default", "site"),
+    host(11, "cnv_old", "conversation", false),   // registered before the mark existed
+    // made by people: Ana's own custom type, and one Cara made and gave Ana
+    { seq: 12, type: "resource.created", payload: { id: "ana_type", type: "record_type", parent_id: SPACE, label: 0, owner_id: "usr_ana", holds: 0 } },
+    { seq: 13, type: "resource.created", payload: { id: "cara_type", type: "record_type", parent_id: SPACE, label: 0, owner_id: "usr_cara", holds: 0 } },
   ];
-  const boot: LogEvent[] = ["contact", "deal"].map((id) => ({ seq: -1, type: "resource.created", payload: { id, type: "record_type", parent_id: SPACE, label: 0, owner_id: "usr_ana", holds: 0 } }));
+  const boot: LogEvent[] = [
+    ...["contact", "deal", "quote"].map((id): LogEvent => ({ seq: -1, type: "resource.created", payload: { id, type: "record_type", parent_id: SPACE, label: 0, owner_id: "usr_ana", holds: 0, space_owned: true } })),
+    { seq: -1, type: "resource.created", payload: { id: "cnv_old", space_owned: true, mark_only: true } },
+    { seq: -1, type: "resource.created", payload: { id: "cnv_missing", space_owned: true, mark_only: true } },
+  ];
   sync(ctxOf(first), { events: [...log, ...boot] });
-  const moved: LogEvent = { seq: 6, type: "space.ownership_transferred", payload: { from: "usr_ana", to: "usr_ben" } };
+  // a host type given to Ana by a per-resource transfer is hers as a person
+  assert.equal(transfer(ctxOf(first), { resource: { type: "record_type", id: "cara_type" }, from: "usr_cara", to: "usr_ana" }), true);
+  // a host type handed to a person and back is that person's now, not the Space's
+  assert.equal(transfer(ctxOf(first), { resource: { type: "record_type", id: "quote" }, from: "usr_ana", to: "usr_cara" }), true);
+  assert.equal(transfer(ctxOf(first), { resource: { type: "record_type", id: "quote" }, from: "usr_cara", to: "usr_ana" }), true);
+  const moved: LogEvent = { seq: 14, type: "space.ownership_transferred", payload: { from: "usr_ana", to: "usr_ben" } };
   log.push(moved);
   sync(ctxOf(first), { events: [moved] });
-  // Ben, now the owner, makes Ana a Member
   await rolesUnassign(ctxOf(first, "usr_ben"), { subject: { kind: "person", id: "usr_ana" }, roleId: "rol_admin" });
   await rolesAssign(ctxOf(first, "usr_ben"), { subject: { kind: "person", id: "usr_ana" }, roleId: "rol_member" });
+  const SPACE_OWNED: [string, string][] = [["record_type", "contact"], ["record_type", "deal"], ["connector", "google"], ["kit", "kit_crm"], ["site", "sit_default"], ["conversation", "cnv_old"]];
   const check = (snap: AccessSnapshot, where: string): void => {
-    for (const id of ["contact", "deal"]) {
-      assert.equal(snap.resource(id)?.owner_id, "usr_ben", `${where}: ${id} is the new owner's`);
-      assert.equal(authorize(snap, { principal: "usr_ana", action: { perm: null, level: "manage" }, resource: { type: "record_type", id }, now: NOW }).effect, "deny", `${where}: Ana has no Manage on ${id}`);
-      assert.equal(authorize(snap, { principal: "usr_ana", action: { perm: null, level: "edit" }, resource: { type: "record_type", id }, now: NOW }).effect, "allow", `${where}: Ana keeps what a Member has`);
+    for (const [type, id] of SPACE_OWNED) {
+      assert.equal(snap.resource(id)?.owner_id, "usr_ben", `${where}: ${type} ${id} is the new owner's`);
+      assert.equal(authorize(snap, { principal: "usr_ana", action: { perm: null, level: "manage" }, resource: { type, id }, now: NOW }).effect, "deny", `${where}: Ana has no Manage on ${type} ${id}`);
     }
+    for (const [type, id] of [["record_type", "contact"], ["record_type", "deal"]] as const) {
+      assert.equal(authorize(snap, { principal: "usr_ana", action: { perm: null, level: "edit" }, resource: { type, id }, now: NOW }).effect, "allow", `${where}: Ana keeps what a Member has on ${id}`);
+    }
+    for (const id of ["ana_type", "cara_type", "quote"]) {
+      assert.equal(snap.resource(id)?.owner_id, "usr_ana", `${where}: ${id}, hers as a person, stays hers`);
+      assert.equal(authorize(snap, { principal: "usr_ana", action: { perm: null, level: "manage" }, resource: { type: "record_type", id }, now: NOW }).effect, "allow", `${where}: and she manages it`);
+    }
+    assert.equal(snap.resource("cnv_missing"), undefined, `${where}: a mark never makes a resource`);
   };
   check(sync(ctxOf(first), { events: [] }), "after the transfer");
   check(sync(ctxOf(first), { events: boot }), "after the boot events again");
