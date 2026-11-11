@@ -605,6 +605,25 @@ export function useMenu(): {
   return { element, show, hide, update };
 }
 
+/**
+ * The rows of a pick-one list (a Select, a picker) while its data may still be loading. Loading: the rows so far plus a quiet "Loading…" row that cannot be chosen, so the list never reads as "there is nothing".
+ * Loaded and empty: one quiet row that says so. Used by every Select so the rule is one rule.
+ */
+export const LOADING_LABEL = "Loading…";
+export const EMPTY_LABEL = "Nothing to choose from";
+export function choiceRows(rows: readonly MenuItem[], loading: boolean): MenuEntry[] {
+  if (loading) return [...rows, { label: LOADING_LABEL, disabled: true }];
+  return rows.length > 0 ? [...rows] : [{ label: EMPTY_LABEL, disabled: true }];
+}
+
+/** Sends new rows to the menu that is open, in place, when they change (the data arrived while the list was open). Nothing happens while no menu is open. */
+export function useLiveRows(update: (items: readonly MenuEntry[]) => void, rows: readonly MenuEntry[]): void {
+  const key = rows.map((r) => (isItem(r) ? `${r.label}|${r.checked === true ? 1 : 0}|${r.disabled === true ? 1 : 0}` : "-")).join("\n");
+  const latest = useRef(rows);
+  latest.current = rows;
+  useEffect(() => { update(latest.current); }, [key, update]);
+}
+
 /* ---------- styles ---------- */
 
 const styles = StyleSheet.create({

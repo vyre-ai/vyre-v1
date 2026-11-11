@@ -487,6 +487,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   let queue: ScheduleQueue | null = null;
   let seams: WiredSeams | null = null;
   let hooks: HookRunner | null = null;
+  /** False until the module seams are wired at boot. A consumer that hands work to a host half (the engine bridge) finds none before that and would skip the event, and the host moves past a skipped event. */
+  let consumersReady = false;
   // large files go to the Files module in process: the slot's one-time token from files.upload_url is the only authority, and no session or bearer is involved
   const putToSlot = async (url: string, bytes: Uint8Array): Promise<void> => {
     const u = new URL(url, "http://vyred");
@@ -1331,7 +1333,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           if (events.some((e) => READER_LOSS.test(e.type))) engineSeam?.forgetReaders?.();
           // a computer removed from the Space loses its live-view socket this instant
           for (const e of events) if (e.type === "network.server_removed") { const id = (e.payload as { serverId?: unknown } | undefined)?.serverId; if (typeof id === "string") computeStream.closeNode(id); }
-          void hookRunner.pump().catch((e: unknown) => sink.log({ space: spaceId, level: 30, msg: "hooks.pump_failed", place: "hooks", attrs: { error: e instanceof Error ? e.message : String(e) } }));
+          if (consumersReady) void hookRunner.pump().catch((e: unknown) => sink.log({ space: spaceId, level: 30, msg: "hooks.pump_failed", place: "hooks", attrs: { error: e instanceof Error ? e.message : String(e) } }));
           void projectionRunner.pump().catch((e: unknown) => sink.log({ space: spaceId, level: 30, msg: "projections.pump_failed", place: "projections", attrs: { error: e instanceof Error ? e.message : String(e) } }));
         },
         onSpan: invokeLog.onSpan,
@@ -2117,6 +2119,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           );
         } else db!.run("DELETE FROM health_probe WHERE name = ?", "module_drivers");
       }
+
+      consumersReady = true;   // the seams are wired: the consumers may run now (the end of boot pumps what committed meanwhile)
 
       // Repair legacy Personal roots before any HTTP request can use an inherited Space grant.
       for (const row of db!.all("SELECT id FROM files_folder WHERE root_key LIKE 'personal:%'") as { id: string }[]) await ensureFileRoot({ id: row.id, type: "folder", parentId: null, privateRoot: true });
