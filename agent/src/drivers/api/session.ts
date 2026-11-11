@@ -187,8 +187,10 @@ export function createApiSession(deps: SessionDeps, spec: SessionSpec): ApiSessi
         for (;;) {
           // Until the first text, thinking or tool event the deadline runs from the request: pings and usage lines do not keep a silent call alive.
           const left = got ? Infinity : deadline - Date.now();
+          // decided when the wait is set, not by reading the clock when it fires (a timer may fire early on a busy computer): a call that has said nothing hears the first-token line
+          const toFirstToken = left <= (deps.idleMs ?? IDLE_MS);
           const step = await nextWithin(it, Math.min(deps.idleMs ?? IDLE_MS, Math.max(0, left)), () => att.abort());
-          if (step === "idle" && !got && Date.now() >= deadline) { yield noFirstToken(); return; }
+          if (step === "idle" && !got && toFirstToken) { yield noFirstToken(); return; }
           if (step === "idle") { failed = { type: "error", status: 0, code: "provider.unavailable", message: "The provider stopped answering." }; break; }
           if (step.done) break;
           for (const d of dec.push(step.value)) {

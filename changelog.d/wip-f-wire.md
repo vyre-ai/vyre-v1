@@ -6,3 +6,4 @@
 - A Personal Space is no longer treated as a Team Space by Terminal and agent computers when nothing else says where a turn runs.
 - Turning off "let the Space use my subscription" now stops your idle sessions on the server right away.
 - Settings, Notifications no longer shows switches for kinds Vyre does not send yet (Something is down, Incidents you own, Problem reports, Edits that conflict, A device needs attention, Mentions in a reply); they come back when something sends them.
+- When an AI engine says nothing at all, the chat now always says "Your AI didn't answer in time"; on a busy computer it could say "The engine stopped answering" instead.

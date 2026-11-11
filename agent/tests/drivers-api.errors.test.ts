@@ -159,6 +159,19 @@ test("a stream that opens and sends only pings is cut at the first-token deadlin
   assert.equal(f.requests[0]?.signal.aborted, true, "the connection was released");
 });
 
+test("a stream that opens and then says nothing hears the first-token line even when its timer fires before the clock reaches the deadline (the clock held still)", async () => {
+  // the stream loop read the clock again when its wait fired; on a busy runner that is a millisecond short of the deadline, and the call ended as "stopped answering" (f-wire, 12 Nov)
+  const g = gate();
+  const seen: unknown[] = [];
+  const realNow = Date.now;
+  const held = realNow();
+  Date.now = () => held;
+  let r: Awaited<ReturnType<typeof run>>;
+  try { r = await run(() => ({ body: g.body }), { firstTokenMs: 80, idleMs: 5_000, retry: { max: 0 }, onNoFirstToken: (e) => seen.push(e) }); } finally { Date.now = realNow; }
+  assert.equal(errorOf(r.events).code, "engine.no_first_token");
+  assert.equal(seen.length, 1);
+});
+
 test("cancel mid-stream ends the send quietly and releases the connection", async () => {
   const g = gate();
   const wire = fixture("openai-text");
