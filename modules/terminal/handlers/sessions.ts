@@ -10,7 +10,7 @@ import {
 } from "../projections.ts";
 import { judged, isDangerous } from "../risk.ts";
 import { isTrustedService } from "../../../lib/trust.ts";
-import type { HostKind, Lookup, Rules, Secret, SessionRow, TabBy, Target, TermCtx, TermState, TurnPlace, ValueSource, VaultRun, Where } from "../projections.ts";
+import type { HostKind, Lookup, Rules, Secret, SessionRow, TabBy, Target, TermCtx, TerminalHost, TermState, TurnPlace, ValueSource, VaultRun, Where } from "../projections.ts";
 
 type Row = Record<string, unknown>;
 const DEFAULT_COLS = 120;
@@ -110,10 +110,53 @@ async function needAccess(ctx: TermCtx, x: SessionRow): Promise<SessionRow> {
   return x;
 }
 
+/** What terminal.get and terminal.list let a caller see of a session (its own, or one it may view), and needAccess for one in a workspace, as a yes or no: for a call about many sessions at once. */
+async function mayRead(ctx: TermCtx, x: SessionRow): Promise<boolean> {
+  if (x.owner !== actorOf(ctx) && ctx.authorize({ perm: null, level: "view" }, { type: "terminal", id: x.terminalId }).effect !== "allow") return false;
+  try { await needAccess(ctx, x); return true; } catch { return false; }
+}
+
 const unexpected = (ctx: TermCtx, what: string, e: unknown): never => {
   ctx.log.warn(`terminal: ${what} failed`, { reason: e instanceof Error ? e.message.slice(0, 120) : "unknown" });
   return raise(ctx, "internal.unexpected", `The terminal could not ${what}.`);
 };
+
+/** The machine's host for a session Vyre knows, told where the session lives first: after a restart, a sleep or a lost tmux the host finds it again and remakes it on use. */
+async function hostFor(ctx: TermCtx, x: SessionRow): Promise<TerminalHost> {
+  const h = hostOf(ctx);
+  await adoptOn(h, x).catch((e: unknown) => { ctx.log.warn("terminal: could not find the session again", { reason: e instanceof Error ? e.message.slice(0, 120) : "unknown" }); });
+  return h;
+}
+const adoptOn = async (h: TerminalHost, x: SessionRow): Promise<void> => {
+  if (!h.adopt) return;
+  const target: Target = { host: x.host, ...(x.host === "agent_computer" && x.agentId !== undefined ? { agentId: x.agentId } : {}), ...(x.computerId === undefined ? {} : { computerId: x.computerId }), ...(x.deviceId === undefined ? {} : { deviceId: x.deviceId }) };
+  await h.adopt({ terminalId: x.terminalId, target, cols: x.cols, rows: x.rows, ...(x.cwd === "" ? {} : { cwd: x.cwd }) });
+};
+
+// ---- one command at a time in a session ------------------------------------------------------------------------------------------------------------------------
+// Two turns of the same agent (two chats at once, two helpers on one tab) would type into one shell: the second line becomes the first program's input, or their output mixes. Runs in one session wait
+// for each other, in order, in this process (the daemon is the one process that types into its sessions). The wait counts against the command's own time limit; a command that waited it all out is not
+// typed and nothing is interrupted, since what runs is another command.
+const queues = new Map<string, Promise<unknown>>();
+export const BUSY_LINE = "That terminal was busy with another command the whole time, so this one did not run. Name a session of your own (session) to run beside it.";
+async function oneAtATime<T>(terminalId: string, timeoutMs: number, f: (leftMs: number) => Promise<T>): Promise<T> {
+  const before = queues.get(terminalId) ?? Promise.resolve();
+  let free!: () => void;
+  const mine = new Promise<void>((r) => { free = r; });
+  const tail = before.then(() => mine);
+  queues.set(terminalId, tail);
+  const t0 = Date.now();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const turn = await Promise.race([before.then(() => true, () => true), new Promise<false>((r) => { timer = setTimeout(() => r(false), timeoutMs); })]);
+    if (!turn) throw Object.assign(new Error(BUSY_LINE), { code: "busy" });
+    return await f(Math.max(1000, timeoutMs - (Date.now() - t0)));
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+    free();
+    if (queues.get(terminalId) === tail) void tail.then(() => { if (queues.get(terminalId) === tail) queues.delete(terminalId); });
+  }
+}
 
 // ---- opening ------------------------------------------------------------------------------------------------------------------------------------------------
 
@@ -221,10 +264,14 @@ export function get(ctx: TermCtx, input: { terminalId: string }) {
 
 export async function status(ctx: TermCtx, input: { terminalIds: string[] }) {
   ensure(ctx.db);
-  const known = input.terminalIds.map((id) => sessionBy(ctx.db, id)).filter((x): x is SessionRow => x !== null);
+  const rows0 = input.terminalIds.map((id) => sessionBy(ctx.db, id)).filter((x): x is SessionRow => x !== null);
+  // a session in a workspace is read only by who may enter that workspace, like every other call on it; one the caller may not enter is answered as if there were no such terminal
+  const known: SessionRow[] = [];
+  for (const x of rows0) { if (await mayRead(ctx, x)) known.push(x); }
   const host = boundHost();
   let seen = new Map<string, { state: TermState; lastLine?: string; exitCode: number | null }>();
   if (host && known.length > 0) {
+    for (const x of known) if (x.closedAt === undefined) await adoptOn(host, x).catch(() => undefined);
     try { seen = new Map((await host.status(known.filter((x) => x.closedAt === undefined).map((x) => x.terminalId))).map((r) => [r.terminalId, r])); }
     catch (e) { ctx.log.warn("terminal: status failed", { reason: e instanceof Error ? e.message.slice(0, 120) : "unknown" }); }
   }
@@ -243,18 +290,18 @@ export async function status(ctx: TermCtx, input: { terminalIds: string[] }) {
 
 export async function read(ctx: TermCtx, input: { terminalId: string; lines?: number; since?: number }) {
   ensure(ctx.db);
-  await needAccess(ctx, live(ctx, input.terminalId));
+  const x = await needAccess(ctx, live(ctx, input.terminalId));
   try {
-    const r = await hostOf(ctx).read(input.terminalId, { lines: input.lines ?? REPLAY_LINES, ...(input.since === undefined ? {} : { since: input.since }) });
+    const r = await (await hostFor(ctx, x)).read(input.terminalId, { lines: input.lines ?? REPLAY_LINES, ...(input.since === undefined ? {} : { since: input.since }) });
     return { text: clean(input.terminalId, r.text), next: r.next };
   } catch (e) { return unexpected(ctx, "read the screen", e); }
 }
 
 export async function attach(ctx: TermCtx, input: { terminalId: string }) {
   ensure(ctx.db);
-  await needAccess(ctx, live(ctx, input.terminalId));
+  const x = await needAccess(ctx, live(ctx, input.terminalId));
   let replay: string;
-  try { replay = clean(input.terminalId, (await hostOf(ctx).read(input.terminalId, { lines: REPLAY_LINES })).text); }
+  try { replay = clean(input.terminalId, (await (await hostFor(ctx, x)).read(input.terminalId, { lines: REPLAY_LINES })).text); }
   catch (e) { return unexpected(ctx, "attach", e); }
   const now = ctx.now();
   const ticket = ticketSecret();
@@ -284,7 +331,7 @@ export async function close(ctx: TermCtx, input: { terminalId: string }) {
   await needAccess(ctx, x);
   // The tmux session is killed when the machine can be reached; if it cannot, the row is still closed so the person is not stuck with a session they cannot see.
   const host = boundHost();
-  if (host) { try { await host.close(x.terminalId); } catch (e) { ctx.log.warn("terminal: could not kill the session", { reason: e instanceof Error ? e.message.slice(0, 120) : "unknown" }); } }
+  if (host) { try { await adoptOn(host, x); await host.close(x.terminalId); } catch (e) { ctx.log.warn("terminal: could not kill the session", { reason: e instanceof Error ? e.message.slice(0, 120) : "unknown" }); } }
   ctx.db.run("UPDATE terminal_sessions SET closed_at = ?, state = 'exited' WHERE terminal_id = ?", ctx.now(), x.terminalId);
   forgetSecrets(x.terminalId);
   ctx.emit("terminal.closed", x.terminalId, { terminalId: x.terminalId, by: actorOf(ctx) });
@@ -293,25 +340,25 @@ export async function close(ctx: TermCtx, input: { terminalId: string }) {
 
 export async function input(ctx: TermCtx, a: { terminalId: string; data: string }) {
   ensure(ctx.db);
-  await needAccess(ctx, live(ctx, a.terminalId));
+  const x = await needAccess(ctx, live(ctx, a.terminalId));
   if (a.data === "") raise(ctx, "validation.bad_input", "There is nothing to send.");
-  try { await hostOf(ctx).input(a.terminalId, a.data); } catch (e) { return unexpected(ctx, "take that input", e); }
+  try { await (await hostFor(ctx, x)).input(a.terminalId, a.data); } catch (e) { return unexpected(ctx, "take that input", e); }
   touch(ctx.db, a.terminalId, ctx.now());
   return { ok: true };
 }
 
 export async function interrupt(ctx: TermCtx, a: { terminalId: string }) {
   ensure(ctx.db);
-  await needAccess(ctx, live(ctx, a.terminalId));
-  try { await hostOf(ctx).interrupt(a.terminalId); } catch (e) { return unexpected(ctx, "interrupt", e); }
+  const x = await needAccess(ctx, live(ctx, a.terminalId));
+  try { await (await hostFor(ctx, x)).interrupt(a.terminalId); } catch (e) { return unexpected(ctx, "interrupt", e); }
   touch(ctx.db, a.terminalId, ctx.now());
   return { ok: true };
 }
 
 export async function resize(ctx: TermCtx, a: { terminalId: string; cols: number; rows: number }) {
   ensure(ctx.db);
-  await needAccess(ctx, live(ctx, a.terminalId));
-  try { await hostOf(ctx).resize(a.terminalId, a.cols, a.rows); } catch (e) { return unexpected(ctx, "resize", e); }
+  const x = await needAccess(ctx, live(ctx, a.terminalId));
+  try { await (await hostFor(ctx, x)).resize(a.terminalId, a.cols, a.rows); } catch (e) { return unexpected(ctx, "resize", e); }
   ctx.db.run("UPDATE terminal_sessions SET cols = ?, rows = ? WHERE terminal_id = ?", a.cols, a.rows, a.terminalId);
   return { ok: true };
 }
@@ -400,9 +447,14 @@ async function sessionForRun(ctx: TermCtx, a: RunInput): Promise<SessionRow> {
   let scope: WorkScope | undefined;
   if (host === "agent_computer" && ctx.principal.kind === "agent" && agentId === ctx.principal.id) { scope = await workScope(ctx, agentId); agentId = scope.agentId; }
   const tab = (a.session ?? "").trim().slice(0, 80) || (scope?.helper ? `helper: ${scope.helper.name}` : AGENT_SESSION);
+  // A helper's tab is its own, so two helpers with one name never share a shell: a crew member (another agent) has one tab for itself across its helper chats, found by who it is, so a second
+  // agent with the same name gets its own; a helper chat of the agent itself has one per helper chat, found by the chat, so two with the same title get two.
+  const crew = scope?.helper !== undefined && scope.agentId !== ctx.principal.id;
+  const own = scope?.helper === undefined ? "" : crew ? " AND t.kind = 'helper' AND t.actor = ?" : " AND t.kind = 'helper' AND t.actor = ? AND (t.thread_id IS ? OR t.thread_id = ?)";
+  const ownArgs: unknown[] = scope?.helper === undefined ? [] : crew ? [ctx.principal.id] : [ctx.principal.id, ctx.thread ?? null, ctx.thread ?? ""];
   const found = ctx.db.all(
-    `${SESSION_SELECT} WHERE s.owner = ? AND s.host = ? AND s.name = ? AND s.closed_at IS NULL AND (s.agent_id IS ? OR s.agent_id = ?) AND (s.device_id IS ? OR s.device_id = ?) ORDER BY s.created_at DESC LIMIT 1`,
-    owner, host, tab, agentId ?? null, agentId ?? "", deviceId ?? null, deviceId ?? "",
+    `${SESSION_SELECT} WHERE s.owner = ? AND s.host = ? AND s.name = ? AND s.closed_at IS NULL AND (s.agent_id IS ? OR s.agent_id = ?) AND (s.device_id IS ? OR s.device_id = ?)${own} ORDER BY s.created_at DESC LIMIT 1`,
+    owner, host, tab, agentId ?? null, agentId ?? "", deviceId ?? null, deviceId ?? "", ...ownArgs,
   ) as Row[];
   const hit = found[0];
   if (hit) return needAccess(ctx, sessionOf(hit));
@@ -422,7 +474,7 @@ export async function run(ctx: TermCtx, a: RunInput) {
   if (v.verdict === "deny") raise(ctx, "permission.role_lacks_permission", "A rule of yours stops that command.", { reason: "deny_rule", rule: v.entry });
 
   const s = await sessionForRun(ctx, a);
-  const host = hostOf(ctx);
+  const host = await hostFor(ctx, s);
   const timeoutMs = (a.timeoutSec ?? DEFAULT_TIMEOUT_SEC) * 1000;
 
   const captured: Secret[] = [];
@@ -439,7 +491,12 @@ export async function run(ctx: TermCtx, a: RunInput) {
   let started: { at: number; rowId: number } | null = null;
   let result: { exitCode: number | null; truncated: boolean; durationMs: number } | null = null;
   let timedOut = false;
-  const exec = async (filled: unknown): Promise<string> => {
+  let waitedOut = false;
+  const exec = (filled: unknown): Promise<string> => oneAtATime(s.terminalId, timeoutMs, (leftMs) => execNow(filled, leftMs)).catch((e: unknown) => {
+    if (e && typeof e === "object" && (e as { code?: unknown }).code === "busy") waitedOut = true;
+    throw e;
+  });
+  const execNow = async (filled: unknown, leftMs: number): Promise<string> => {
     const f = filled as { command: string; env?: Record<string, string> };
     const at = ctx.now();
     // The record keeps the command as the model wrote it (handles, not values).
@@ -447,7 +504,7 @@ export async function run(ctx: TermCtx, a: RunInput) {
     started = { at, rowId: Number((ctx.db.all("SELECT MAX(seq) AS m FROM terminal_commands WHERE terminal_id = ?", s.terminalId) as Row[])[0]?.["m"]) };
     ctx.db.run("UPDATE terminal_sessions SET state = 'running', last_active_at = ? WHERE terminal_id = ?", at, s.terminalId);
     try {
-      const r = await host.run(s.terminalId, { command: f.command, ...(a.cwd === undefined ? {} : { cwd: a.cwd }), env: f.env ?? {}, timeoutMs });
+      const r = await host.run(s.terminalId, { command: f.command, ...(a.cwd === undefined ? {} : { cwd: a.cwd }), env: f.env ?? {}, timeoutMs: leftMs });
       result = { exitCode: r.exitCode, truncated: r.truncated, durationMs: r.durationMs };
       return r.output;
     } catch (e) {
@@ -482,6 +539,7 @@ export async function run(ctx: TermCtx, a: RunInput) {
   if (!out.ok) {
     finish(null, begun === null ? 0 : ctx.now() - begun.at);
     if (timedOut) raise(ctx, "timeout.deadline", "The command did not finish in time. It was interrupted.", { timeoutSec: a.timeoutSec ?? DEFAULT_TIMEOUT_SEC });
+    if (waitedOut) raise(ctx, "timeout.deadline", BUSY_LINE, { timeoutSec: a.timeoutSec ?? DEFAULT_TIMEOUT_SEC, reason: "busy" });
     const code = out.error.code === "permission.provider_label" ? "permission.no_grant" : out.error.code;
     return raise(ctx, code, out.error.message, out.error.handle === undefined ? undefined : { handle: out.error.handle });
   }

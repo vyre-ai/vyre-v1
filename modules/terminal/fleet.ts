@@ -91,6 +91,8 @@ export function createWorkspaceFleet(o: FleetOptions): WorkspaceFleet {
     async exec(agentId, argv, x) { return (await managerFor(agentId)).exec(agentId, argv, x); },
     generation(agentId) { return homes.get(agentId)?.generation(agentId) ?? 0; },
     async sleep(agentId) { return (await managerFor(agentId)).sleep(agentId); },
+    // a hold is taken after the run's wake, so the agent's machine is known by then
+    hold(agentId) { return homes.get(agentId)?.hold(agentId) ?? (() => undefined); },
     async sweep() { const out: string[] = []; for (const m of all()) out.push(...(await m.sweep().catch(() => []))); return out; },
     async list() { const rows: WorkspaceRow[] = []; for (const m of all()) rows.push(...(await m.list().catch(() => []))); return rows; },
     async find(session) { for (const m of all()) { const id = await m.find(session).catch(() => null); if (id !== null) { homes.set(id, m); return id; } } return null; },

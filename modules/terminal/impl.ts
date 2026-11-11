@@ -341,6 +341,8 @@ export function createShellHost(o: ShellOptions): TerminalHost {
       sessions.delete(terminalId);
     },
     async health() { return { ok: true, detail: "Commands run in a shell on this computer. Install tmux for full terminals.", sessions: sessions.size }; },
+    // a plain session lives in this process: after a restart its row is made a session again, empty, in its folder
+    adopt(a) { if (!sessions.has(a.terminalId)) sessions.set(a.terminalId, { cwd: a.cwd ?? o.home, lines: [], partial: "", typed: "", running: null, exitCode: null, listeners: new Set() }); },
   };
 }
 
@@ -402,6 +404,8 @@ export function createLocalHost(o: Omit<TerminalHostSeam, "place" | "workspaces"
   let probe: Promise<boolean> | null = null;
   const hasTmux = (): Promise<boolean> => (probe ??= o.exec(["tmux", "-V"]).then((r) => r.code === 0, () => false).then((v) => { tmuxKnown = v; return v; }));
   const owner = new Map<string, TerminalHost>();
+  /** Sessions whose row this process has been told about (adopt), so a session is looked for and made again at most once per process. */
+  const adopted = new Set<string>();
   /** Sessions opened before a restart are tmux ones when tmux is here: they outlive the daemon. */
   const of = async (id: string): Promise<TerminalHost> => owner.get(id) ?? (ws && (await ws.has(id)) ? ws : (await hasTmux()) ? tmux : plain);
   return {
@@ -410,12 +414,14 @@ export function createLocalHost(o: Omit<TerminalHostSeam, "place" | "workspaces"
       if (a.target.host === "agent_computer" && ws) {
         const r = await ws.open(a);
         owner.set(a.terminalId, ws);
+        adopted.add(a.terminalId);
         return r;
       }
       if (!o.runsHere(a.target)) throw new Error("that computer is not this one, and this one cannot reach it");
       const h = (await hasTmux()) ? tmux : plain;
       const r = await h.open(a);
       owner.set(a.terminalId, h);
+      adopted.add(a.terminalId);
       return r;
     },
     input: async (id, data) => (await of(id)).input(id, data),
@@ -432,8 +438,29 @@ export function createLocalHost(o: Omit<TerminalHostSeam, "place" | "workspaces"
       const h = owner.get(id) ?? (tmuxKnown === true ? tmux : plain);
       return h.stream ? h.stream(id, onFrame) : () => undefined;
     },
-    async close(id) { await (await of(id)).close(id); owner.delete(id); },
+    async close(id) { await (await of(id)).close(id); owner.delete(id); adopted.delete(id); },
     health: async () => ((await hasTmux()) ? tmux.health() : plain.health()),
+    async adopt(a) {
+      // the first use of a session in this process: an agent's goes to its workspace (asleep or not, made or not); one on this computer to tmux, made again when tmux lost it, or to the plain shell
+      if (adopted.has(a.terminalId)) return;
+      if (a.target.host === "agent_computer") {
+        if (!ws) return;
+        ws.adopt(a);
+        owner.set(a.terminalId, ws);
+        adopted.add(a.terminalId);
+        return;
+      }
+      if (!o.runsHere(a.target)) return;
+      const viaTmux = await hasTmux();
+      if (viaTmux) {
+        const session = `vyre-${a.terminalId}`;
+        if ((await o.exec(["tmux", "has-session", "-t", session])).code !== 0) {
+          await o.exec(["tmux", "new-session", "-d", "-s", session, "-x", String(a.cols), "-y", String(a.rows), ...(a.cwd === undefined ? [] : ["-c", a.cwd])]);
+        }
+      } else plain.adopt?.(a);
+      if (!owner.has(a.terminalId)) owner.set(a.terminalId, viaTmux ? tmux : plain);
+      adopted.add(a.terminalId);
+    },
   };
 }
 

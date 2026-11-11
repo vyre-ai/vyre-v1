@@ -17,7 +17,7 @@ import { tarFiles } from "../../sandbox/src/tar.ts";
 import type { ContainerConfig, DockerApi, DockerHttp } from "../../sandbox/src/docker.ts";
 import { createTmuxHost } from "./impl.ts";
 import type { ExecResult } from "./impl.ts";
-import type { TerminalHost } from "./projections.ts";
+import type { AdoptArgs, TerminalHost } from "./projections.ts";
 
 export const DEFAULT_WORKSPACE_IMAGE = "vyre/agent-workspace:1";
 export const WORKSPACE_PREFIX = "vyre-ws-";
@@ -27,6 +27,8 @@ export const FILES_GUEST = "/home/agent/Vyre";
 export const PROJECTS_GUEST = "/home/agent/projects";
 export const WORKSPACE_UID = 10001;
 export const DEFAULT_IDLE_MS = 10 * 60_000;
+/** How often a project change waiting for a busy workspace is looked at again. */
+export const MOUNT_RECHECK_MS = 5000;
 
 export const AGENT_ID = /^[A-Za-z0-9_-]{1,64}$/;
 const PROJECT_ID = /^[A-Za-z0-9_-]{1,64}$/;
@@ -123,9 +125,35 @@ export interface WorkspaceManager {
   find(session: string): Promise<string | null>;
   remove(agentId: string): Promise<void>;
   health(): Promise<{ ok: boolean; detail?: string }>;
+  /**
+   * A command is running in the workspace (a `terminal_run` from typing it to its end): until the returned function is called the workspace neither sleeps nor is made again for a project change.
+   * The terminal holds it around each run, since between two reads of the screen no exec is in flight and the pane alone cannot say a command is still Vyre's.
+   */
+  hold(agentId: string): () => void;
   /** Stop the idle timer. */
   close(): void;
 }
+
+/**
+ * Prints the id of every process in the workspace that is work: anything but its init, the `sleep infinity` that keeps it up, the tmux server, the shells of the panes, and this check itself (and
+ * what it forks). So `bash build.sh`, `sh -c ...` and a job left in the background (`npm run dev &`) count, where a pane's foreground command alone reads as the shell. Plain sh and /proc, no ps.
+ */
+export const BUSY_SCRIPT = [
+  "t=$(tmux display-message -p '#{pid}' 2>/dev/null)",
+  "panes=\" $(tmux list-panes -a -F '#{pane_pid}' 2>/dev/null | tr '\\n' ' ') \"",
+  "for d in /proc/[0-9]*; do",
+  "  p=${d#/proc/}",
+  "  [ \"$p\" = \"$$\" ] && continue; [ \"$p\" = 1 ] && continue; [ \"$p\" = \"$t\" ] && continue",
+  "  s=$(cat \"$d/stat\" 2>/dev/null) || continue",
+  "  r=${s##*) }; set -- $r",
+  "  [ \"$1\" = Z ] && continue",
+  "  [ \"$2\" = 0 ] || [ \"$2\" = \"$$\" ] || [ \"$2\" = \"$t\" ] && continue",
+  "  case \"$panes\" in *\" $p \"*) continue;; esac",
+  "  if [ \"$2\" = 1 ]; then c=$(tr '\\000' ' ' < \"$d/cmdline\" 2>/dev/null); [ \"$c\" = 'sleep infinity ' ] && continue; fi",
+  "  echo \"$p\"",
+  "done",
+  "true",
+].join("\n");
 
 // ---- the container --------------------------------------------------------------------------------------------------------------------------------------
 
@@ -248,6 +276,10 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
   const projects = new Map<string, { sync: { pass(): Promise<{ failed: number }> } | null; timer: ReturnType<typeof setInterval> | null; kick: ReturnType<typeof setTimeout> | null; holder: string | null }>();
   let imageKnown = false;
   let discovered = false;
+  /** Runs in flight per workspace (hold). */
+  const holds = new Map<string, number>();
+  /** A project change waiting for the workspace to be quiet: when it was last looked at, so a busy workspace is not asked on every exec. */
+  const pendingMounts = new Map<string, number>();
 
   /** One at a time per workspace: two first commands in the same moment make it once. */
   function serial<T>(agentId: string, f: () => Promise<T>): Promise<T> {
@@ -258,12 +290,14 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
     return next;
   }
 
-  async function inspect(name: string): Promise<{ running: boolean; labels: Record<string, string> } | null> {
+  async function inspect(name: string): Promise<{ running: boolean; labels: Record<string, string>; projects: string[] } | null> {
     const r = await http({ method: "GET", path: `/containers/${name}/json` });
     if (r.status === 404) return null;
     if (r.status !== 200) throw wsError(`Docker did not answer for the workspace (${r.status}: ${bodyText(r.body)}).`);
-    const j = JSON.parse(dec.decode(r.body)) as { State?: { Running?: boolean }; Config?: { Labels?: Record<string, string> } };
-    return { running: j.State?.Running === true, labels: j.Config?.Labels ?? {} };
+    const j = JSON.parse(dec.decode(r.body)) as { State?: { Running?: boolean }; Config?: { Labels?: Record<string, string> }; HostConfig?: { Binds?: string[] } };
+    // the project folders it was made with, from its binds: what it mounts until a change is applied
+    const projects = (j.HostConfig?.Binds ?? []).flatMap((b) => { const src = b.split(":")[0] ?? ""; return src.startsWith(PROJECT_VOLUME_PREFIX) ? [src.slice(PROJECT_VOLUME_PREFIX.length)] : []; }).filter((p) => PROJECT_ID.test(p)).sort();
+    return { running: j.State?.Running === true, labels: j.Config?.Labels ?? {}, projects };
   }
 
   async function ensureImage(): Promise<void> {
@@ -492,18 +526,54 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
     });
   }
 
+  /**
+   * Is something working in the workspace: a run Vyre holds, a pane whose foreground command is not a shell, or any process that is not the workspace's own (BUSY_SCRIPT). A workspace that does not
+   * answer is taken as busy: nothing is stopped on a guess.
+   */
+  async function busy(agentId: string): Promise<boolean> {
+    if ((holds.get(agentId) ?? 0) > 0) return true;
+    try {
+      const panes = await execIn(agentId, ["tmux", "list-panes", "-a", "-F", "#{pane_current_command}"], undefined);
+      if (panes.code === 0 && panes.stdout.split("\n").map((l) => l.trim()).some((c) => c !== "" && !SHELLS.has(c))) return true;
+      const procs = await execIn(agentId, ["sh", "-c", BUSY_SCRIPT], undefined);
+      if (procs.code !== 0) return true;
+      return procs.stdout.trim() !== "";
+    } catch { return true; }
+  }
+
   async function wake(agentId: string): Promise<"created" | "woke" | "running"> {
     const name = workspaceName(agentId);
     const want = await mounts(agentId);
     const config = workspaceContainerConfig(agentId, image, want, o);
     let info = await inspect(name);
-    // the projects it is on changed (or the Files folder moved): the container is made again with the new mounts; the volumes, and so everything the agent kept, stay
-    if (info && info.labels["vyre.mounts"] !== config.Labels["vyre.mounts"]) { stopHome(agentId); if (info.running) await homePass(agentId); await removeContainer(name); info = null; gens.set(agentId, (gens.get(agentId) ?? 0) + 1); }
+    // the projects it is on changed (or the Files folder moved): the container is made again with the new mounts; the volumes, and so everything the agent kept, stay. A running workspace is made
+    // again only when it is quiet (no run held, nothing working in it), never in the middle of a command: until then it keeps its mounts, and the change is looked at again on a later use (at most
+    // every few seconds) or applied when it next wakes.
+    if (info && info.labels["vyre.mounts"] !== config.Labels["vyre.mounts"]) {
+      let now_ = true;
+      if (info.running) {
+        const last = pendingMounts.get(agentId);
+        if ((holds.get(agentId) ?? 0) > 0 || (last !== undefined && now() - last < MOUNT_RECHECK_MS)) now_ = false;
+        else if (await busy(agentId)) now_ = false;
+        if (!now_) { if (last === undefined) log("info", "workspace.mounts_deferred", { agent: agentId }); if (last === undefined || now() - last >= MOUNT_RECHECK_MS) pendingMounts.set(agentId, now()); }
+      }
+      if (now_) {
+        pendingMounts.delete(agentId);
+        stopHome(agentId);
+        if (info.running) { await homePass(agentId); await finalProjectPasses(agentId); }
+        // the room it holds stays held: the same workspace starts again at once, and the claim is asked again below
+        await removeContainer(name);
+        info = null;
+        gens.set(agentId, (gens.get(agentId) ?? 0) + 1);
+      }
+    } else pendingMounts.delete(agentId);
     if (info?.running) {
       lastUsed.set(agentId, now());
-      mounted.set(agentId, want.projects);
-      // running before this process started: its projects' mirrors start now
-      if (!agentProjects.has(agentId)) startProjects(agentId, want.projects);
+      if (!pendingMounts.has(agentId)) mounted.set(agentId, want.projects);
+      // running before this process started: its projects' mirrors start now, and so does the idle timer
+      if (!agentProjects.has(agentId)) startProjects(agentId, pendingMounts.has(agentId) ? info.projects : want.projects);
+      if (pendingMounts.has(agentId)) mounted.set(agentId, info.projects);
+      startTimer();
       return "running";
     }
     await o.admit?.({ agentId, state: info ? "wake" : "create" });
@@ -555,9 +625,15 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
     }
   }
 
-  async function sleepNow(agentId: string): Promise<boolean> {
+  /** `ifIdle`: the sweep's sleep. Inside the workspace's turn it looks once more, so a command that began after the sweep looked (its wake came first) is never cut off. */
+  async function sleepNow(agentId: string, ifIdle = false): Promise<boolean> {
     return serial(agentId, async () => {
       if (!(await api.containerRunning(workspaceName(agentId)))) return false;
+      if (ifIdle) {
+        const at = lastUsed.get(agentId);
+        if (at !== undefined && now() - at < idleMs) return false;
+        if (await busy(agentId)) { lastUsed.set(agentId, now() - idleMs + 60_000); return false; }
+      }
       // what the agent made goes to Files before the container stops
       stopHome(agentId);
       const synced = (await homePass(agentId)) && (await finalProjectPasses(agentId));
@@ -588,14 +664,9 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
       const at = lastUsed.get(id);
       if (at === undefined) { lastUsed.set(id, now()); continue; }
       if (now() - at < idleMs) continue;
-      // never sleeps mid-task: a pane that runs something other than a shell is work
-      let busy = false;
-      try {
-        const r = await execIn(id, ["tmux", "list-panes", "-a", "-F", "#{pane_current_command}"], undefined);
-        busy = r.code === 0 && r.stdout.split("\n").map((l) => l.trim()).some((c) => c !== "" && !SHELLS.has(c));
-      } catch { busy = false; }
-      if (busy) { lastUsed.set(id, now() - idleMs + 60_000); continue; }
-      try { if (await sleepNow(id)) slept.push(id); } catch (e) { log("warn", "workspace.sleep_failed", { agent: id, error: e instanceof Error ? e.message.slice(0, 160) : "unknown" }); }
+      // never sleeps mid-task: a run Vyre holds, a pane that runs something other than a shell, or any process of the agent's (a script, a job in the background) is work
+      if (await busy(id)) { lastUsed.set(id, now() - idleMs + 60_000); continue; }
+      try { if (await sleepNow(id, true)) slept.push(id); } catch (e) { log("warn", "workspace.sleep_failed", { agent: id, error: e instanceof Error ? e.message.slice(0, 160) : "unknown" }); }
     }
     return slept;
   }
@@ -606,8 +677,25 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
     timer.unref?.();
   }
 
+  // a workspace left running by the process before this one (an update restarts the daemon) sleeps when idle like any other, whether or not anything uses it again
+  startTimer();
+
   return {
     ensure, exec, provision,
+    hold(agentId) {
+      holds.set(agentId, (holds.get(agentId) ?? 0) + 1);
+      let done = false;
+      return () => {
+        if (done) return;
+        done = true;
+        const n = (holds.get(agentId) ?? 1) - 1;
+        if (n <= 0) holds.delete(agentId); else holds.set(agentId, n);
+        // the run counts as use up to its end
+        if (lastUsed.has(agentId)) lastUsed.set(agentId, now());
+        // a project change that waited for this run is looked at on the next use, not a few seconds later
+        if (n <= 0 && pendingMounts.has(agentId)) pendingMounts.set(agentId, Number.NEGATIVE_INFINITY);
+      };
+    },
     async status(agentId) {
       const row = (await this.list()).find((r) => r.agentId === agentId);
       const projects = mounted.get(agentId);
@@ -616,7 +704,7 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
       return line !== undefined ? { state: "waiting", line } : { state: "none" };
     },
     generation: (agentId) => gens.get(agentId) ?? 0,
-    sleep: sleepNow,
+    sleep: (agentId) => sleepNow(agentId),
     sweep,
     async list() {
       const r = await http({ method: "GET", path: "/containers/json", query: { all: "true", filters: JSON.stringify({ label: ["vyre.workspace"] }) } });
@@ -697,7 +785,7 @@ export function incompleteTail(b: Uint8Array): number {
 }
 
 /** The workspace host also says whether it holds a session (the id was opened here, or a running workspace has its tmux session): how the machine's host tells one of its sessions from another's. */
-export type WorkspaceTerminalHost = TerminalHost & { has(terminalId: string): Promise<boolean> };
+export type WorkspaceTerminalHost = TerminalHost & { has(terminalId: string): Promise<boolean>; adopt(a: AdoptArgs): void };
 
 export interface WorkspaceTerminalOptions {
   manager: WorkspaceManager;
@@ -763,8 +851,9 @@ export function createWorkspaceTerminalHost(w: WorkspaceTerminalOptions): Worksp
     return h;
   }
 
-  /** The workspace a session is in, awake, with its tmux session there (made again when the container was stopped since). */
-  async function at(terminalId: string): Promise<{ agentId: string; host: TerminalHost }> {
+  const LOST = /can't find session|no server running|no such session|error connecting to/i;
+  /** The workspace a session is in, awake, with its tmux session there (made again when the container was stopped since, or when tmux lost it). */
+  async function at(terminalId: string, remake = false): Promise<{ agentId: string; host: TerminalHost }> {
     let w0 = where.get(terminalId);
     if (!w0) {
       const found = await m.find(nameOf(terminalId));
@@ -774,16 +863,33 @@ export function createWorkspaceTerminalHost(w: WorkspaceTerminalOptions): Worksp
     }
     await m.ensure(w0.agentId);
     const gen = m.generation(w0.agentId);
-    if (w0.gen !== gen) {
-      // tmux died with the container: the session is made again, empty, where it was
-      await m.exec(w0.agentId, ["tmux", "new-session", "-A", "-d", "-s", nameOf(terminalId), "-x", String(w0.cols), "-y", String(w0.rows), ...(w0.cwd === undefined ? [] : ["-c", w0.cwd])]);
+    if (remake || w0.gen !== gen) {
+      // tmux died with the container (or this process never saw the session: a restart): the session is made again, empty, where it was; one that is still there is kept as it is
+      const session = nameOf(terminalId);
+      if ((await m.exec(w0.agentId, ["tmux", "has-session", "-t", session])).code !== 0) {
+        await m.exec(w0.agentId, ["tmux", "new-session", "-A", "-d", "-s", session, "-x", String(w0.cols), "-y", String(w0.rows), ...(w0.cwd === undefined ? [] : ["-c", w0.cwd])]);
+      }
       w0.gen = gen;
     }
     return { agentId: w0.agentId, host: tmuxFor(w0.agentId) };
   }
+  /** Do `f` in the session's workspace; a session tmux lost under a running workspace (its server was killed from inside) is made again once and `f` tried again. */
+  async function inSession<T>(terminalId: string, f: (h: TerminalHost) => Promise<T>): Promise<T> {
+    const t = await at(terminalId);
+    try { return await f(t.host); }
+    catch (e) {
+      if (!(e instanceof Error && LOST.test(e.message))) throw e;
+      return f((await at(terminalId, true)).host);
+    }
+  }
 
   return {
     async has(id) { return where.has(id) || (await m.find(nameOf(id))) !== null; },
+    adopt(a) {
+      // what Vyre knows of a session (its row) after a restart: which workspace it is in, at what size and folder. Nothing is woken here; the next use wakes the workspace and remakes the session.
+      if (where.has(a.terminalId) || a.target.agentId === undefined) return;
+      where.set(a.terminalId, { agentId: a.target.agentId, cols: a.cols, rows: a.rows, ...(a.cwd === undefined ? {} : { cwd: a.cwd }), gen: -1 });
+    },
     async open(a) {
       const agentId = a.target.agentId;
       if (agentId === undefined) throw wsError("Say which agent's workspace to open the terminal in.", "bad_input");
@@ -792,19 +898,29 @@ export function createWorkspaceTerminalHost(w: WorkspaceTerminalOptions): Worksp
       where.set(a.terminalId, { agentId, cols: a.cols, rows: a.rows, cwd: r.cwd, gen: m.generation(agentId) });
       return { ...r, title: "Workspace" };
     },
-    async input(id, data) { const t = await at(id); await t.host.input(id, data); },
-    async interrupt(id) { const t = await at(id); await t.host.interrupt(id); },
-    async resize(id, cols, rows) { const t = await at(id); await t.host.resize(id, cols, rows); const x = where.get(id); if (x) { x.cols = cols; x.rows = rows; } },
-    async read(id, r) { const t = await at(id); return t.host.read(id, r); },
-    async run(id, r) { const t = await at(id); return t.host.run(id, r); },
+    async input(id, data) { await inSession(id, (h) => h.input(id, data)); },
+    async interrupt(id) { await inSession(id, (h) => h.interrupt(id)); },
+    async resize(id, cols, rows) { await inSession(id, (h) => h.resize(id, cols, rows)); const x = where.get(id); if (x) { x.cols = cols; x.rows = rows; } },
+    async read(id, r) { return inSession(id, (h) => h.read(id, r)); },
+    async run(id, r) {
+      let t = await at(id);
+      // held from the typed line to its end: the workspace neither sleeps nor is made again for a project change while it runs
+      const release = m.hold(t.agentId);
+      try {
+        // a session tmux lost is made again before the line is typed; never after, so a command is never typed twice
+        if ((await m.exec(t.agentId, ["tmux", "has-session", "-t", nameOf(id)])).code !== 0) t = await at(id, true);
+        return await t.host.run(id, r);
+      } finally { release(); }
+    },
     async status(ids) {
       const out: Awaited<ReturnType<TerminalHost["status"]>> = [];
       for (const id of ids) {
-        // a status read never wakes a sleeping workspace: asleep, its sessions are idle in the list until something uses them
+        // a status read never wakes a sleeping workspace: asleep, its sessions are idle in the list until something uses them; one tmux does not hold (yet) is made again on its next use
         const x = where.get(id);
-        const live = x ? (await m.list()).find((r) => r.agentId === x.agentId)?.state === "running" && x.gen === m.generation(x.agentId) : false;
+        const live = x ? (await m.list()).find((r) => r.agentId === x.agentId)?.state === "running" : false;
         if (!x || !live) { out.push({ terminalId: id, state: x ? "idle" : "exited", exitCode: null }); continue; }
-        out.push(...(await tmuxFor(x.agentId).status([id])));
+        const got = await tmuxFor(x.agentId).status([id]);
+        out.push(...got.map((g) => (g.state === "exited" ? { ...g, state: "idle" as const } : g)));
       }
       return out;
     },

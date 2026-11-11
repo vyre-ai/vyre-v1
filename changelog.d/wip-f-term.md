@@ -1,0 +1,7 @@
+- An agent's terminal keeps working after Vyre restarts (every update does): its next command wakes its workspace and opens the same tab again, even when the workspace was asleep or its sessions were lost.
+- Adding an agent to a project no longer stops a command it is running: the new project folder appears once nothing is running, or the next time the workspace wakes.
+- Two chats with the same agent at once no longer type into one shell: the second command waits for the first, and says so plainly if it waited its whole time.
+- Two helpers with the same name each get a terminal tab of their own.
+- A workspace running a script, a `sh -c` command or a job in the background is no longer put to sleep as idle, and a command that starts just as it would sleep is never cut off.
+- Workspaces that were running when Vyre restarted go to sleep after their idle time again.
+- A terminal's status is shown only to people who may open that workspace.

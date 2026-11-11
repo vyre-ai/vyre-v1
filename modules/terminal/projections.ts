@@ -61,7 +61,14 @@ export interface TerminalHost {
   stream?(terminalId: string, onFrame: (text: string) => void): () => void;
   close(terminalId: string): Promise<void>;
   health(): Promise<{ ok: boolean; detail?: string; sessions: number }>;
+  /**
+   * What Vyre knows of a session, told to the host before it is used: where it lives, its size and folder. A host that forgot it (the daemon restarted, the workspace slept, tmux was lost) finds it
+   * again from this and makes it again, empty, on its next use, so a session row never points at nothing. Never wakes a workspace by itself.
+   */
+  adopt?(a: AdoptArgs): void | Promise<void>;
 }
+
+export interface AdoptArgs { terminalId: string; target: Target; cols: number; rows: number; cwd?: string }
 
 // Two ways a host gets here: the daemon hands over this machine's own (setTerminalHost in impl.ts), and a test binds a stand-in. A stand-in bound in the process wins, so a test that boots a daemon
 // still runs against its own machine.

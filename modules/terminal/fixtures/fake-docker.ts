@@ -3,6 +3,7 @@
 import type { DockerHttp, DockerRequest, DockerResponse } from "../../../sandbox/src/docker.ts";
 import type { ExecResult } from "../impl.ts";
 import { fakeTmux } from "./fake-tmux.ts";
+import { BUSY_SCRIPT } from "../workspace.ts";
 import type { FakeTmux, FakeTmuxOptions } from "./fake-tmux.ts";
 
 interface Box { name: string; config: Record<string, any>; running: boolean; tmux: FakeTmux; starts: number }   // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -17,6 +18,8 @@ export interface FakeDockerOptions {
   onExec?: (box: string, argv: readonly string[], env: readonly string[]) => ExecResult | undefined;
   /** What `tmux list-panes` prints in a box. */
   panes?: (box: string) => string;
+  /** What the busy check (BUSY_SCRIPT) prints in a box: the ids of processes that are work. Default none. */
+  procs?: (box: string) => string;
 }
 
 const frame = (kind: 1 | 2, text: string): Uint8Array => {
@@ -54,6 +57,7 @@ export function fakeDocker(o: FakeDockerOptions = {}) {
     }
     if (argv[0] === "tmux" && argv[1] === "list-panes") return { code: 0, stdout: o.panes?.(b.name) ?? [...b.tmux.sessions.keys()].map(() => "bash").join("\n"), stderr: "" };
     if (argv[0] === "tmux" && argv[1] === "pipe-pane") return { code: 0, stdout: "", stderr: "" };
+    if (argv[0] === "sh" && argv[2] === BUSY_SCRIPT) return { code: 0, stdout: o.procs?.(b.name) ?? "", stderr: "" };
     return b.tmux.exec(argv);
   }
 
@@ -82,7 +86,7 @@ export function fakeDocker(o: FakeDockerOptions = {}) {
       const b = boxes.get(name);
       const act = r[2] ?? (m === "DELETE" ? "remove" : "");
       if (!b) return json(404, { message: "no such container" });
-      if (act === "json") return json(200, { State: { Running: b.running }, Config: { Labels: b.config["Labels"] ?? {} } });
+      if (act === "json") return json(200, { State: { Running: b.running }, Config: { Labels: b.config["Labels"] ?? {} }, HostConfig: { Binds: b.config["HostConfig"]?.["Binds"] ?? [] } });
       if (act === "start") { if (!b.running) { b.running = true; b.starts += 1; b.tmux = fakeTmux(o.tmux); } note("start", name); return empty(204); }
       if (act === "stop") { b.running = false; note("stop", name); return empty(204); }
       if (act === "wait") { note("wait", name); return json(200, { StatusCode: helperExit }); }
