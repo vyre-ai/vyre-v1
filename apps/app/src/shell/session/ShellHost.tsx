@@ -168,7 +168,7 @@ export function ShellHost({ stored, open, onSignedOut, onHub, hub: given, initia
   }, [team]);
   const setAway = useCallback((on: boolean): void => { flags.current.away = on; void team?.away(on); }, [team]);
   const teamProp = useMemo(() => (team ? { invite: () => { void team.invite(); }, away: setAway } : undefined), [team, setAway]);
-  const search = useMemo(() => (session ? (flags.current.terminal = session.def.terminal, createGateSearch({ runtime: session.runtime, nav: hub, state: flags.current, recent: () => recent.current, viewer: () => ({ id: session.runtime.me.id, spaceId: session.def.spaceId, places: new Set(railPlaces(hub.rail())) }), ...(team ? { away: setAway } : {}), signOut: () => signOutRef.current() })) : null), [session, hub, team, setAway]);
+  const search = useMemo(() => (session ? (flags.current.terminal = session.def.terminal, createGateSearch({ runtime: session.runtime, nav: hub, state: flags.current, recent: () => recent.current, viewer: () => ({ id: session.runtime.me.id, spaceId: session.def.spaceId, places: new Set(railPlaces(hub.rail())) }), console: () => session.def.console === true, ...(team ? { away: setAway } : {}), signOut: () => signOutRef.current() })) : null), [session, hub, team, setAway]);
 
   useEffect(() => {
     if (!session || stored.def.kind !== "team") return undefined;

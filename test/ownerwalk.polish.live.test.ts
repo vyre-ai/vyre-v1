@@ -66,6 +66,8 @@ test("owner walk fixes: one Settings tab, Add a Space alone, the composer's word
       await page.getByTestId("cmdk-input").fill("sett");
       await page.getByText("Settings", { exact: true }).first().waitFor({ timeout: 10_000 });
       await w.shot("cmdk-sett", { widths: [1280] });
+      await page.keyboard.press("Escape");
+      await page.keyboard.press("Control+K");
       await page.getByTestId("cmdk-input").fill("notifications");
       await page.getByText("Notifications", { exact: true }).first().waitFor({ timeout: 10_000 });
       await page.keyboard.press("Enter");
@@ -79,6 +81,7 @@ test("owner walk fixes: one Settings tab, Add a Space alone, the composer's word
 
     await w.step("5 New project starts a new project row", async () => {
       await w.go("chat", "chats-place");
+      const seen = w.notes.length;
       await page.keyboard.press("Control+K");
       await page.getByTestId("cmdk-input").fill(">new project");
       await page.getByText("New project", { exact: true }).first().click({ timeout: 10_000 });
@@ -91,6 +94,8 @@ test("owner walk fixes: one Settings tab, Add a Space alone, the composer's word
       await page.getByTestId("project-page").or(page.getByText("Spring launch", { exact: true })).first().waitFor({ timeout: 20_000 });
       const made = (await w.api("projects.list", {})).data;
       assert.ok(JSON.stringify(made).includes("Spring launch"), "a real project was made");
+      await page.waitForTimeout(1500);
+      assert.deepEqual(w.notes.slice(seen).filter((n) => /\/v1\/records\/get/.test(n)), [], "the new project opens as a project, never read as another type's record");
     });
 
     await w.step("6 the Computer pane: Browser sits under its label", async () => {

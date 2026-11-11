@@ -35,6 +35,8 @@ export interface GateSearchDeps {
   viewer?: () => Viewer | null;
   /** Set away for real (stored, seen by teammates). Left out: the action only shows it here. */
   away?: (on: boolean) => void;
+  /** Whether this person may open the Console (the Space card's console flag, the same one the Settings row Console follows). Left out: the Console is judged by the viewer's Console pages. */
+  console?: () => boolean;
   /** Sign out of this Space on this device. Left out: no Sign out action is offered. The Space menu keeps its own Sign Out (the prototype's place); this is the same act found by typing. */
   signOut?: () => void;
 }
@@ -150,15 +152,15 @@ export function askHere(screen: ScreenContext | null = currentScreen()): boolean
 }
 
 /** Keeps the results the viewer can open: a result whose place is not on their rail never shows (reach). */
-export function reachable(hits: readonly Hit[], viewer: Viewer | null, state: { inbox?: boolean }): Hit[] {
-  if (viewer === null) return [...hits];
+export function reachable(hits: readonly Hit[], viewer: Viewer | null, state: { inbox?: boolean }, mayConsole?: boolean): Hit[] {
+  if (viewer === null) return mayConsole === false ? hits.filter((h) => h.id !== CONSOLE_HIT) : [...hits];
   // the Console is no place on the rail: it is listed for whoever may open its first page, as Settings' own Console row is
-  return hits.filter((h) => (h.id === CONSOLE_HIT ? listable({ kind: h.kind, consolePage: "overview" }, viewer) : listable({ kind: h.kind, place: livePlace(shellHitTarget(h, state)?.place ?? placeOfHit(h)) }, viewer)));
+  return hits.filter((h) => (h.id === CONSOLE_HIT ? (mayConsole ?? listable({ kind: h.kind, consolePage: "overview" }, viewer)) : listable({ kind: h.kind, place: livePlace(shellHitTarget(h, state)?.place ?? placeOfHit(h)) }, viewer)));
 }
 
 export function createGateSearch(d: GateSearchDeps): CmdKData {
   const { runtime: rt, nav, state } = d;
-  const mine = (hits: readonly Hit[]): Hit[] => reachable(hits, d.viewer?.() ?? null, state);
+  const mine = (hits: readonly Hit[]): Hit[] => reachable(hits, d.viewer?.() ?? null, state, d.console?.());
   const online = (): boolean => !state.offline && rt.connection.get() === "online";
   const open = (hit: Hit, opts: { newTab: boolean }): void => {
     if (opts.newTab) nav.newTab();

@@ -94,7 +94,8 @@ function RecordsBody({ rt, canEdit }: { rt: ShellRuntime; canEdit: boolean }): R
   const types = useScreenQuery<CapMap["schema.types.list"]["out"]>(SCREENS.types, "types");
   // New project (Cmd-K and the Projects + in Chats) opens the Projects type with its new row started; before, it opened whatever type was last open and nothing else happened (owner walk, 12 Nov)
   const newProject = target.screen === "records.projects" && types.status === "ready" && types.data.types.some((x) => x.key === PROJECT_TYPE);
-  const type = target.args.type ?? effectiveType(state, typeGroups(types.status === "ready" ? types.data.types : []));
+  // the type on screen: the one the address names, Projects for New project (so the new project opens as a project, not as the last type's record), else the sidebar's
+  const type = target.args.type ?? (newProject ? PROJECT_TYPE : effectiveType(state, typeGroups(types.status === "ready" ? types.data.types : [])));
   typeTitle.current = (key) => (types.status === "ready" ? types.data.types.find((x) => x.key === key)?.plural : undefined);
   const canSync = useCanManageSync(rt);
   const data = useMemo(() => {
