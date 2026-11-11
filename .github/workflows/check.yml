@@ -379,15 +379,6 @@ jobs:
           for f in test/memory.recall.live.test.ts test/chat-ecosystem.live.test.ts test/cli-skills-connections.live.test.ts test/terminal.workspace.live.test.ts modules/terminal/tests/workspace.live.test.ts host/tests/workspace.node.live.test.ts host/tests/onboarding.assistant.live.test.ts host/tests/computers.runner.live.test.ts; do
             node scripts/test-run.ts --slow --no-cache --no-skip --jobs 1 --files "$f"
           done
-      - name: The hooks on the real claude and codex, none skipped (needs the engines' sign-ins as repository secrets)
-        if: always()
-        env:
-          VYRE_HEAVY_DOCKER: "1"
-          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-        run: |
-          if [ -z "$CLAUDE_CODE_OAUTH_TOKEN" ] || [ -z "$OPENAI_API_KEY" ]; then echo "::error::CLAUDE_CODE_OAUTH_TOKEN and OPENAI_API_KEY are not set as repository secrets, so test/hooks.cli.live.test.ts cannot run"; exit 1; fi
-          node scripts/test-run.ts --slow --no-cache --no-skip --jobs 1 --files test/hooks.cli.live.test.ts
       - name: Images and containers left behind
         if: always()
         run: |

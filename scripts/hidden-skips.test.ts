@@ -14,6 +14,13 @@ const wfDir = path.join(root, ".github/workflows");
 /** Flags that gate no test: they switch a mode. */
 const MODES: Record<string, string> = { UPDATE_SHARED_TIME: "rewrites scripts/lint/shared-time.baseline.json; the test runs either way" };
 
+/**
+ * Files that gate on a flag no per-push job can set. One entry only; another file goes on this list only with the lead's say-so. The test below fails when an entry names a file that is gone or no longer gates on its flag.
+ */
+export const EXCEPTIONS: Array<{ file: string; flag: string; reason: string; runsAt: string }> = [
+  { file: "test/hooks.cli.live.test.ts", flag: "VYRE_HEAVY_DOCKER", reason: "needs real Claude Code and Codex sign-ins, which the public repository's CI does not hold", runsAt: "by hand in the release rehearsal (team/v1 release checklist), never in per-push CI; the command is at the bottom of team/v1/HIDDEN-SKIPS-2026-11-11.md" },
+];
+
 type Job = { file: string; name: string; text: string };
 
 /** The jobs of every workflow: two-space job keys under jobs:, as scripts/workflows.test.ts reads them. */
@@ -48,13 +55,14 @@ export function flagsOf(source: string): string[] {
 }
 
 /** Files (and flags) that no job covers: a job covers a file when its text names the file's path and sets the flag (NAME: "1" or NAME=1). */
-export function uncovered(files: Array<{ path: string; source: string }>, jobs: Job[]): string[] {
+export function uncovered(files: Array<{ path: string; source: string }>, jobs: Job[], exceptions: typeof EXCEPTIONS = EXCEPTIONS): string[] {
   const out: string[] = [];
   for (const f of files) {
     if (/\.heavy\.test\.[cm]?[jt]sx?$/.test(f.path) || f.path === "scripts/hidden-skips.test.ts") continue;
     if (!/^\s*(?:test|it)(?:\.\w+)?\(/m.test(f.source)) continue;   // a kit other tests import (modules/sites/tests/deploy-kit.test.ts) holds no test of its own
     for (const flag of flagsOf(f.source)) {
       if (flag in MODES) continue;
+      if (exceptions.some((e) => e.file === f.path && e.flag === flag)) continue;
       const sets = new RegExp(`(?:^|\\s)${flag}(?::\\s*["']?1["']?\\s*$|=1\\b)`, "m");
       if (!jobs.some((j) => j.text.includes(f.path) && sets.test(j.text))) out.push(`${f.path} gates a test on ${flag}=1, and no workflow job names it and sets the flag`);
     }
@@ -81,4 +89,21 @@ test("every test file outside *.heavy.test.ts that gates a test on an environmen
   const files = tracked.filter((p) => fs.existsSync(path.join(root, p))).map((p) => ({ path: p, source: fs.readFileSync(path.join(root, p), "utf8") }));
   const jobs = jobsOf(fs.readdirSync(wfDir).filter((f) => /\.ya?ml$/.test(f)).sort().map((f) => ({ file: f, text: fs.readFileSync(path.join(wfDir, f), "utf8") })));
   assert.deepEqual(uncovered(files, jobs), []);
+});
+
+test("the exception list holds exactly the one agreed entry, and each entry names a file that still exists and still gates on its flag", () => {
+  assert.deepEqual(EXCEPTIONS.map((e) => e.file), ["test/hooks.cli.live.test.ts"], "another file goes on the list only with the lead's say-so");
+  for (const e of EXCEPTIONS) {
+    const p = path.join(root, e.file);
+    assert.ok(fs.existsSync(p), `${e.file} no longer exists: remove its entry`);
+    assert.ok(flagsOf(fs.readFileSync(p, "utf8")).includes(e.flag), `${e.file} no longer gates on ${e.flag}: remove its entry`);
+    assert.ok(e.reason !== "" && e.runsAt !== "", `${e.file} names its reason and where it does run`);
+  }
+});
+
+test("an exception covers its file and flag only", () => {
+  const src = 'process.env["VYRE_HEAVY_DOCKER"] === "1";\nconst skip = "needs VYRE_HEAVY_DOCKER=1";\ntest("x", { skip }, () => {});';
+  const ex = [{ file: "test/z.live.test.ts", flag: "VYRE_HEAVY_DOCKER", reason: "r", runsAt: "w" }];
+  assert.equal(uncovered([{ path: "test/z.live.test.ts", source: src }], [], ex).length, 0);
+  assert.equal(uncovered([{ path: "test/y.live.test.ts", source: src }], [], ex).length, 1, "another file is not excused");
 });
