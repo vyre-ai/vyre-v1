@@ -89,7 +89,11 @@ async function ask(f: Filler, handle: string, field: string): Promise<{ value: s
   try {
     res = await fetch(f.url, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${f.token}` }, body: JSON.stringify({ handle, field, computerId: f.computerId }), signal: AbortSignal.timeout(10_000) });
   } catch { throw unavailable("The Vault did not answer. Nothing was typed."); }
-  if (res.status === 403) throw badInput(`This agent may not use #${handle}.${field}. Nothing was typed.`);
+  if (res.status === 403) {
+    // the host may say why in plain words (a team agent's shared computer, an item that needs approval): those words, never a value, go to the agent
+    const why = (await res.json().catch(() => null)) as { message?: unknown } | null;
+    throw badInput(typeof why?.message === "string" && why.message.length < 400 ? `${why.message} Nothing was typed.` : `This agent may not use #${handle}.${field}. Nothing was typed.`);
+  }
   if (res.status === 404) throw notFound(`There is no value for #${handle}.${field}.`);
   if (!res.ok) throw unavailable(`The Vault refused (${res.status}). Nothing was typed.`);
   const j = (await res.json().catch(() => null)) as { value?: unknown; itemId?: unknown } | null;

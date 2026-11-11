@@ -98,6 +98,8 @@ import { homeCallAllowed, homeScopeOf } from "./home-confine.ts";
 import { createComputersHost } from "../seams/computers-host.ts";
 import { createTerminalHostSeam } from "../seams/terminal-host.ts";
 import { createEngineSessionHost } from "../seams/engine-session.ts";
+import { gateTeamAgents } from "../seams/team-vault.ts";
+import type { LookupSource } from "../seams/team-vault.ts";
 import { findDockerSocket } from "../seams/docker-socket.ts";
 import { READER_LOSS, createEngineHost } from "../seams/engine.ts";
 import { createEmailAskDriver, createFormAskDriver } from "../seams/email-ask.ts";
@@ -1717,6 +1719,37 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           await spaceLog.appendResult({ id: `evt_seal_${type}_${field}_${id}`.slice(0, 120), type: "record.updated", sv: 1, trace_id: "5e".repeat(16), actor: "svc_host", vis: "space", entity: "record", entity_id: id, payload: { recordId: id, type, fields: {}, prev: {}, version: 0 } });
         }
       };
+      // a team agent's shared computer (workspace, browser profile, old desktop) holds only Vault items the agent itself may use (host/src/seams/team-vault.ts)
+      const teamVault = <S extends LookupSource>(src: S): S => gateTeamAgents(src, {
+        team: cfg.spaceKind !== "personal",
+        agentOf: (agentId) => { const r = db!.all(`SELECT "kind", "ownerId" FROM agents_agent WHERE "id" = ? AND "deletedAt" IS NULL`, agentId)[0] as { kind?: string; ownerId?: string } | undefined; return r ? { kind: String(r.kind ?? ""), ownerId: String(r.ownerId ?? "") } : null; },
+        // the engine never decides for an agent alone (an agent always acts for a person): asked as the agent acting for the item's owner, who holds it whole, the answer is the agent's own grants
+        agentMayUse: (agentId, itemId) => {
+          try {
+            const owner = (db!.all(`SELECT "owner" FROM vault_meta WHERE "id" = ?`, itemId)[0] as { owner?: string } | undefined)?.owner;
+            if (!owner || !owner.startsWith("usr_")) return false;
+            return authorize(access.snap, { principal: agentId, actingFor: owner, action: { perm: null, level: "use" }, resource: { type: "vault_item", id: itemId } }).effect === "allow";
+          } catch { return false; }
+        },
+        // a share of the item or a Vault folder above it whose subject is the agent, a group it is in, or the whole Space (the built-in Everyone group): never a grant on the Space itself
+        sharedWithAgent: (agentId, itemId) => {
+          try {
+            const mine = new Set([agentId, "grp_everyone", ...access.snap.groupsOf(agentId)]);
+            const chain = access.snap.chain(itemId) ?? [];
+            return chain.some((r) => (r.type === "vault_item" || r.type === "vault_folder") && (access.snap.grantsOn(r.id) ?? []).some((g) => mine.has(g.row.subject_id) && ["use", "view", "edit", "manage"].includes(g.row.level) && g.exp > Date.now()));
+          } catch { return false; }
+        },
+        // everyone who may ask the agent: each person in the Space with Use on it
+        askersOf: (agentId) => {
+          try {
+            const out: string[] = [];
+            for (const p of access.snap.allPrincipals()) if (p.kind === "person" && authorize(access.snap, { principal: p.id, action: { perm: null, level: "use" }, resource: { type: "agent", id: agentId } }).effect === "allow") out.push(p.id);
+            return out;
+          } catch { return null; }
+        },
+        personMayUse: (personId, itemId) => { try { return authorize(access.snap, { principal: personId, action: { perm: null, level: "use" }, resource: { type: "vault_item", id: itemId } }).effect === "allow"; } catch { return false; } },
+        itemScope: (itemId) => { try { const r = db!.all(`SELECT "scope" FROM vault_meta WHERE "id" = ?`, itemId)[0] as { scope?: string } | undefined; return r?.scope ?? null; } catch { return null; } },
+      });
       const hostDrivers: Record<string, SeamDriver> = {
         // sealed fields in Records: values live in the Vault, in a Space owned folder; the folder belongs to the Space owner so the owner can reveal what is in it
         // (schema seals an existing field through the same Vault, so both setters get one driver)
@@ -1937,7 +1970,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         setTerminalHost: (d) => createTerminalHostSeam({
           roles: cfg.roles, team: cfg.spaceKind !== "personal", dataDir: paths.root,
           // a #Handle.field in a command is filled from the Vault: vault.use as the agent for the person (access, the label rule, the audit row), then the value, as the engine and the agent computers do
-          ...(d.vault ? { values: createEngineSessionHost({ invoke, vault: d.vault, space: spaceId }).source } : {}),
+          ...(d.vault ? { values: teamVault(createEngineSessionHost({ invoke, vault: d.vault, space: spaceId }).source) } : {}),
           readAs: async (person, cap, input) => { const r = await invoke(cap, input, { space: spaceId, principal: { kind: "person", id: person }, origin: "terminal" }); return r.status === "ok" ? r.output : null; },
           computerOf: (person) => (db!.all("SELECT id FROM devices_device WHERE person = ? AND revokedAt IS NULL AND deleted_at IS NULL AND class IN ('desktop', 'daemon', 'web') ORDER BY CASE WHEN class = 'web' THEN 1 ELSE 0 END, lastSeenAt DESC, id DESC LIMIT 1", person)[0] as { id?: string } | undefined)?.id,
           // agent workspaces (6 Nov): a Team server that has a container runtime (the runner beside vyred, or a Docker socket) gives every agent a workspace, made on first use; the same engine as agent computers
@@ -1999,7 +2032,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         }),
         // the Vault channel of agent computers (P-L2_21): agentd posts one #Handle.field at a time to /computers/fill with its own token; without a Vault the channel is not offered
         setComputersFill: (d) => d.vault ? createComputersFillHost({
-          space: spaceId, invoke, vault: d.vault, now,
+          space: spaceId, invoke, vault: d.vault, now, gate: teamVault,
           baseUrl: () => o.computersBaseUrl ?? (computersRunnerSocket() && ingressContainer() ? `http://vyre-host:${boundPort}` : `http://host.docker.internal:${boundPort}`),
           nodeSecure: (n) => computeStream.secure(n),
           mount: (h) => fillRoute.mount(h),

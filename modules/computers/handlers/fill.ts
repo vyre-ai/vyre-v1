@@ -10,6 +10,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { linkIsSecure } from "../../../host/src/routes/compute-stream.ts";
 import { rememberSecrets } from "../projections.ts";
+import { deniedLine } from "../../../lib/vault-use/index.ts";
 
 /** The result of asking the Vault for one handle, as host/src/seams/engine-session.ts answers it (structural, so the module imports nothing from the host). */
 export type FillLookup =
@@ -128,7 +129,9 @@ export function createFillService(d: FillServiceDeps): FillService {
       }
       if (found.kind === "denied") {
         await note(use("refused", handle));
-        return { status: 403, body: { code: "forbidden" } };
+        // why, in the agent's words: a team agent's shared computer, or an item that needs approval nothing here can ask for (the other refusals say no more than "forbidden")
+        const why = found.reason === "team_agent" || found.reason === "needs_approval" ? { reason: found.reason, message: deniedLine(handle, found.reason) } : {};
+        return { status: 403, body: { code: "forbidden", ...why } };
       }
       if (found.kind === "unknown") {
         await note(use("missing", handle));

@@ -14,10 +14,10 @@ import type { SigninRefresh } from "./signin-refresh.ts";
 export type VaultLookup =
   | { kind: "value"; itemId: string; value: string; spaceOnly: boolean; injectIntoDeployments: boolean }
   | { kind: "unknown" }
-  | { kind: "denied"; reason: "no_access" | "provider_label" | "other" };
+  | { kind: "denied"; reason: "no_access" | "provider_label" | "other" | "team_agent" | "needs_approval" };
 
 export interface EngineSessionHost {
-  source: { lookup(handle: string, who: { agentId: string; asker: string; where: "host" | "device" | "computer"; account?: boolean }): Promise<VaultLookup> };
+  source: { lookup(handle: string, who: { agentId: string; asker: string; where: "host" | "device" | "computer"; account?: boolean; place?: string }): Promise<VaultLookup> };
   reportMiss(r: { itemId: string; place: "terminal" | "http" | "browser" | "file" | "chat"; traceId: string }): Promise<void>;
   mcp: {
     mint(i: { principal: string; actingFor: string; threadId: string; traceId: string }): Promise<{ sessionId: string; sessionToken: string; url: string; expiresAt: number }>;
@@ -95,7 +95,7 @@ export function createEngineSessionHost(d: EngineSessionHostDeps): EngineSession
   /** An engine trace id is 32 hex; one that is not (a test double) is left out and the pipeline starts its own. */
   const traceOf = (id: string): Pick<CtxSeed, "trace"> => (TRACE_ID.test(id) ? { trace: { traceId: id, spanId: "0".repeat(16) } } : {});
 
-  type Who = { agentId: string; asker: string; where: "host" | "device" | "computer"; account?: boolean };
+  type Who = { agentId: string; asker: string; where: "host" | "device" | "computer"; account?: boolean; place?: string };
   /** Who asks the Vault: the agent acting for the person in a chat; the person, or a Space automation's own service, for an AI step that names no agent. */
   const seedOf = (who: Who) => {
     const agentic = !NOT_AN_AGENT.has(who.agentId);
@@ -141,6 +141,8 @@ export function createEngineSessionHost(d: EngineSessionHostDeps): EngineSession
               ? { space: d.space, principal: { kind: "agent", id: who.agentId }, actingFor: who.asker, origin: "engine" }
               : { space: d.space, principal: { kind: service ? "service" : "person", id: who.asker }, origin: "engine" },
           );
+          // a use the person's rules hold for approval is said as itself: nothing here can ask for that approval yet, and it is not "no access"
+          if (r.status === "held") return { kind: "denied", reason: "needs_approval" };
           if (r.status !== "ok") return { kind: "denied", reason: "no_access" };
           const itemId = (r.output as { itemId?: unknown } | null)?.itemId;
           if (typeof itemId !== "string") return { kind: "unknown" };

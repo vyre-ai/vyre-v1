@@ -10,14 +10,14 @@ export type Where = "host" | "device" | "computer";
 export type Lookup =
   | { kind: "value"; itemId: string; value: string; spaceOnly: boolean; injectIntoDeployments: boolean }
   | { kind: "unknown" }
-  | { kind: "denied"; reason: "no_access" | "provider_label" | "other" };
+  | { kind: "denied"; reason: "no_access" | "provider_label" | "other" | "team_agent" | "needs_approval" };
 
 export interface ValueSource {
   /**
    * Resolve a handle for the agent acting for the asker, in the process that will use it. The value stays in this process. `account`: the turn's own account key going into the provider request
    * (the driver's authorizer), the only place the Space AI key may be filled. A tool call never sets it.
    */
-  lookup(handle: string, who: { agentId: string; asker: string; where: Where; account?: boolean }): Promise<Lookup>;
+  lookup(handle: string, who: { agentId: string; asker: string; where: Where; account?: boolean; /** The agent whose computer the value goes into, when not the caller (a helper in its parent's workspace). */ place?: string }): Promise<Lookup>;
 }
 
 export interface VaultRunDeps {
@@ -26,7 +26,7 @@ export interface VaultRunDeps {
   reportMiss(r: { itemId: string; place: Place; traceId: string }): void | Promise<void>;
 }
 
-export interface VaultCall { tool: string; args: unknown; traceId: string; agentId: string; asker: string; where: Where; /** The driver's account key, never a tool call (see ValueSource). */ account?: boolean }
+export interface VaultCall { tool: string; args: unknown; traceId: string; agentId: string; asker: string; where: Where; /** The driver's account key, never a tool call (see ValueSource). */ account?: boolean; /** The agent whose computer the value goes into (ValueSource). */ place?: string }
 
 export interface Used { handle: string; itemId: string }
 
@@ -45,6 +45,13 @@ export type VaultRun =
 
 export type Executor = (args: unknown) => Promise<string | AsyncIterable<string>>;
 
+/** What the agent is told when the Vault says no, in plain words that say why (a team agent's shared computer; an item that needs approval, which nothing here can ask for yet). */
+export function deniedLine(handle: string, reason: string): string {
+  if (reason === "team_agent") return `${handle} is your own item, and this is a team agent: everyone who can ask it shares its computer. Share the item with the agent, or ask your own Assistant.`;
+  if (reason === "needs_approval") return `${handle} needs approval before it can be used, and approval from the terminal or the agent's browser is not built yet. Ask the person who approves its use to run this step, or use an item that does not need approval.`;
+  return `You cannot use ${handle} here.`;
+}
+
 /** Run one tool call with Vault handles filled in at the last moment. */
 export async function runWithVault(deps: VaultRunDeps, call: VaultCall, exec: Executor): Promise<VaultRun> {
   const place = FILL_TOOLS[call.tool];
@@ -54,11 +61,11 @@ export async function runWithVault(deps: VaultRunDeps, call: VaultCall, exec: Ex
   const used: Used[] = [];
 
   for (const h of named) {
-    const r = await deps.source.lookup(h, { agentId: call.agentId, asker: call.asker, where: call.where, ...(call.account === true ? { account: true } : {}) });
+    const r = await deps.source.lookup(h, { agentId: call.agentId, asker: call.asker, where: call.where, ...(call.account === true ? { account: true } : {}), ...(call.place !== undefined ? { place: call.place } : {}) });
     if (r.kind === "unknown") continue;   // not a Vault handle after all (a hashtag, a color): leave the text alone
     if (r.kind === "denied") {
       const code = r.reason === "provider_label" ? "permission.provider_label" : "permission.no_grant";
-      return { ok: false, display: call.args, used, error: { code, handle: h, message: `You cannot use ${h} here.` } };
+      return { ok: false, display: call.args, used, error: { code, handle: h, message: deniedLine(h, r.reason) } };
     }
     if (r.spaceOnly && call.where !== "host") {
       return { ok: false, display: call.args, used, error: { code: "permission.no_grant", handle: h, message: `${h} fills on the Space host only.` } };

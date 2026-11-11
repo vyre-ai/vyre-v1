@@ -216,6 +216,11 @@ export function shareLines(i: ShareLinesInput): Line[] {
     const people = P.filter((p) => p.kind === "person" || p.kind === "group" || p.kind === "role").map((p) => p.name);
     out.push({ id: "pays", tone: "note", text: sharedBy(i.type, i.name, people) });
   }
+  // a Vault item given to an agent reaches everyone who can ask that agent, through it (owner rule, 12 Nov): said where the agent is picked
+  if (i.type === "vault") {
+    const agents = P.filter((p) => p.kind === "agent").map((p) => p.name);
+    if (agents.length > 0) out.push({ id: "vault-agents", tone: "note", text: `Everyone who can ask ${joinNames(agents)} can use it through ${agents.length === 1 ? agents[0] : "them"}.` });
+  }
   const tail = `${def.tail}${i.limited === true ? " You can give only what you have yourself." : ""}`.trim();
   if (tail !== "") out.push({ id: "tail", tone: "note", text: tail });
   return out;
