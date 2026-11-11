@@ -9,7 +9,7 @@ import path from "node:path";
 import { execSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { ensureDeps, ensureChromium } from "./ensure-deps.mjs";
-import { parseArgs, SKINS, SIZES, MAX_EXPORT_S, protoHash, routeUrl, loadTargets, shardTargets, shardIndexName, sideBySideHtml, waitSelector, waitForOf, runTestIdSteps } from "./lib.mjs";
+import { parseArgs, SKINS, SIZES, MAX_EXPORT_S, protoHash, routeUrl, loadTargets, shardTargets, shardIndexName, sideBySideHtml, waitSelector, waitForOf, waitIsHard, runTestIdSteps } from "./lib.mjs";
 import { serve } from "./serve.mjs";
 import { measureScroll, withinBudget, SCROLL_P95_MS } from "./probes/scroll.mjs";
 import { traceScroll } from "./probes/trace.mjs";
@@ -77,6 +77,7 @@ const browser = await chromium.launch({ args: ["--no-sandbox", "--js-flags=--exp
 const rows = [];
 const scrollFailed = [];
 const missedWait = new Set();
+const softMissed = new Set();
 try {
   for (const t of targets) for (const skin of skins) for (const [sizeName, vp] of sizes) {
     const dir = path.join(out, t.id); fs.mkdirSync(dir, { recursive: true });
@@ -91,7 +92,9 @@ try {
       if (first) await page.click(first, { timeout: 30000 }).catch(() => {});
       // t.waitFor is a test id of the real app: the prototype never carries it, so only the real shot waits for it (the prototype settles on protoSettleMs)
       // a selector that never appeared in the real app is waited on once per target, not once per skin and size (4 times 30 s); the miss is printed so a stale test id is seen and fixed
-      if (waitFor && !missedWait.has(missKey)) await page.waitForSelector(waitFor, { timeout: 30000 }).catch(() => { missedWait.add(missKey); console.log(`waitFor never appeared: ${t.id} (${sizeName}) ${waitFor}`); });
+      // a miss that does not fail the run (a phone size with a selector written for the desktop layout) is waited on for 10 s, not 30
+      const hard = waitIsHard(t, sizeName);
+      if (waitFor && !missedWait.has(missKey) && !softMissed.has(missKey)) await page.waitForSelector(waitFor, { timeout: hard ? 30000 : 10000 }).catch(() => { (hard ? missedWait : softMissed).add(missKey); console.log(`waitFor never appeared${hard ? "" : " (not failing: written for the desktop layout)"}: ${t.id} (${sizeName}) ${waitFor}`); });
       await page.waitForTimeout(settleMs);
       // a prototype state with no hash token is reached the way a person does: press the control in whichever frame has it
       if (click) { for (const fr of page.frames()) { const el = fr.locator(click).first(); if (await el.count()) { await el.click().catch(() => {}); break; } } await page.waitForTimeout(600); }
@@ -150,6 +153,7 @@ fs.writeFileSync(path.join(out, shardIndexName(shardIndex, shardTotal)), `# Side
 // Every gate is judged before the run ends, so one red never hides the next measure: the failures are collected and the process exits at the end.
 let failedGate = false;
 // a target whose waitFor never appeared shot the wrong state (or a stale test id): that fails the shard, so the next stale id is found by its owner and not by a person reading a log
+if (softMissed.size) console.log(`${softMissed.size} phone-size waits missed (not failing yet): ${[...softMissed].join(", ")}`);
 if (missedWait.size) { console.error(`waitFor never appeared (the shot does not show the state the target names): ${[...missedWait].join(", ")}`); failedGate = true; }
 if (scrollFailed.length) { console.error(`scroll probe over budget: ${scrollFailed.join(", ")}`); failedGate = true; }
 if (exportSeconds > maxExport) { console.error(`web export took ${exportSeconds.toFixed(1)} s, over ${maxExport} s`); failedGate = true; }

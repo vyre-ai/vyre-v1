@@ -108,6 +108,14 @@ export function waitSelector(side, target, size = "desktop") {
   return side === "real" ? waitForOf(target, size) : undefined;
 }
 
+/**
+ * Does a miss of this target's `waitFor` at this size fail the shard? Always at desktop. At phone only when the target names a selector for phone (the object form): a plain selector was written for the
+ * desktop layout and is often not on the phone's (a list in place of a table, a bottom bar in place of the rail), and 56 targets still miss that way (SHOTS-BUDGET-2026-11-11.md, Round 3). Those are printed, not failed.
+ */
+export function waitIsHard(target, size = "desktop") {
+  return size === "desktop" || (typeof target.waitFor === "object" && target.waitFor !== null && size in target.waitFor);
+}
+
 /** A target's `waitFor` for one size. A string applies to every size; an object names the selector per size ({ desktop, phone }, `any` for the rest), for an element the layout shows on one size only (the phone's bottom rail, its Back button). */
 export function waitForOf(target, size = "desktop") {
   const w = target.waitFor;

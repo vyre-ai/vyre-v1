@@ -6,7 +6,7 @@ import os from "node:os";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
 // @ts-expect-error plain .mjs helper without types
-import { parseArgs, protoHash, routeUrl, loadTargets, shardTargets, shardIndexName, mergeShotIndexes, sideBySideHtml, countWrongFrames, budgetOf, waitSelector, waitForOf, runTestIdSteps } from "./lib.mjs";
+import { parseArgs, protoHash, routeUrl, loadTargets, shardTargets, shardIndexName, mergeShotIndexes, sideBySideHtml, countWrongFrames, budgetOf, waitSelector, waitForOf, waitIsHard, runTestIdSteps } from "./lib.mjs";
 
 test("parseArgs reads values and flags", () => {
   assert.deepEqual(parseArgs(["--target", "sample", "--skip-export", "--out", "x"]), { target: "sample", "skip-export": true, out: "x" });
@@ -139,4 +139,13 @@ test("a waitFor is a string for every size, or an object naming it per size (the
   assert.equal(waitForOf({ ...phoneOnly, waitFor: undefined }, "phone"), undefined);
   assert.equal(waitSelector("real", phoneOnly, "phone"), "[data-testid='shell-rail-bottom']");
   assert.equal(waitSelector("proto", phoneOnly, "phone"), undefined);
+});
+
+test("a missed wait fails at desktop always, and at phone only for a target that names a phone selector", () => {
+  const plain = { id: "X_03", route: "/m/X_03", proto: "home,{skin}", waitFor: "[data-testid='a']" };
+  assert.equal(waitIsHard(plain, "desktop"), true);
+  assert.equal(waitIsHard(plain, "phone"), false);
+  assert.equal(waitIsHard({ ...plain, waitFor: { phone: "[data-testid='b']", desktop: "[data-testid='a']" } }, "phone"), true);
+  assert.equal(waitIsHard({ ...plain, waitFor: { desktop: "[data-testid='a']" } }, "phone"), false);
+  assert.equal(waitIsHard({ ...plain, waitFor: undefined }, "phone"), false);
 });
