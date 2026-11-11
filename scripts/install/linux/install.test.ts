@@ -909,6 +909,64 @@ test("ensure_userns writes the sysctl file and applies it only where the kernel 
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
 
+test("ensure_metadata_block keeps every container from the cloud metadata address with one DOCKER-USER rule per bridge kind, once; skips a Mac and a host without the chain; doctor says which", () => {
+  const dir = tmp();
+  try {
+    installFixture(dir);
+    const shim = path.join(dir, "shim"); fs.mkdirSync(shim);
+    const rules = path.join(dir, "rules");
+    // a fake iptables and ip6tables: -L succeeds when the chain file exists, -C finds a rule in the rules file, -I appends it
+    for (const t of ["iptables", "ip6tables"]) {
+      fs.writeFileSync(path.join(shim, t), `#!/bin/sh
+echo "${t} $*" >> "${dir}/calls"
+shift
+act=$1; shift
+[ -f "${dir}/chain" ] || exit 1
+rule="${t} $(echo "$*" | sed 's/^DOCKER-USER 1 /DOCKER-USER /')"
+case "$act" in -L) exit 0 ;; -C) grep -qxF "$rule" "${rules}" 2>/dev/null ;; -I) echo "$rule" >> "${rules}" ;; esac
+`, { mode: 0o755 });
+    }
+    const env = { VYRE_DIR: dir, VYRE_TEST_METADATA: "1", PATH: `${shim}:${process.env.PATH ?? ""}` };
+    // without the test's own opt-in, a test run never reaches the real firewall (the other tests run start and update as root on the box)
+    assert.equal(sh(SERVER, "meta_state", { ...env, VYRE_TEST_METADATA: "0" }).stdout, "none");
+    const state = (o: Record<string, string> = {}): string => sh(SERVER, "meta_state", { ...env, ...o }).stdout;
+    const finding = (): string => sh(SERVER, 'FINDINGS=""; DOWN=0; check_all >/dev/null 2>&1; printf "%s" "$FINDINGS"', env).stdout;
+    // no DOCKER-USER chain (no Docker firewall here): nothing is done, no error, doctor says nothing
+    let r = sh(SERVER, "ensure_metadata_block", env);
+    assert.equal(r.status, 0, r.stderr);
+    assert.equal(fs.existsSync(rules), false);
+    assert.equal(state(), "none");
+    assert.doesNotMatch(finding(), /host\.metadata/);
+    // a Mac: never touched
+    fs.writeFileSync(path.join(dir, "chain"), "");
+    assert.equal(state({ VYRE_TEST_OS: "Darwin" }), "none");
+    r = sh(SERVER, "ensure_metadata_block", { ...env, VYRE_TEST_OS: "Darwin" });
+    assert.equal(r.status, 0);
+    assert.equal(fs.existsSync(rules), false);
+    // Linux with the chain: off until the rules are in, then on; doctor follows
+    assert.equal(state(), "off");
+    assert.match(finding(), /host\.metadata\tdegraded\t.*169\.254\.0\.0\/16/);
+    r = sh(SERVER, "ensure_metadata_block", env);
+    assert.equal(r.status, 0, r.stderr);
+    assert.deepEqual(read(rules).trim().split("\n").sort(), [
+      "ip6tables DOCKER-USER -i br-+ -d fd00:ec2::254/128 -m comment --comment vyre-metadata -j DROP",
+      "ip6tables DOCKER-USER -i docker0 -d fd00:ec2::254/128 -m comment --comment vyre-metadata -j DROP",
+      "iptables DOCKER-USER -i br-+ -d 169.254.0.0/16 -m comment --comment vyre-metadata -j DROP",
+      "iptables DOCKER-USER -i docker0 -d 169.254.0.0/16 -m comment --comment vyre-metadata -j DROP",
+    ], "only the metadata range, only from Docker's bridges, inserted at the top");
+    assert.match(read(path.join(dir, "calls")), /iptables -w -I DOCKER-USER 1 -i docker0 -d 169\.254\.0\.0\/16/);
+    assert.equal(state(), "on");
+    assert.match(finding(), /host\.metadata\thealthy\t/);
+    // a second start adds nothing
+    sh(SERVER, "ensure_metadata_block", env);
+    assert.equal(read(rules).trim().split("\n").length, 4);
+    // start, the update and the rollback all put it there
+    const text = read(SERVER);
+    assert.match(text, /cmd_start\(\) \{[^\n]*ensure_metadata_block; dc up/, "start (the boot unit runs it)");
+    assert.equal((text.match(/  ensure_metadata_block\n  refresh_bin\n  ensure_userns\n/g) ?? []).length, 2, "update and rollback");
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
 test("up_stack recreates Caddy when it is not on the vyred that runs now, and leaves it when it is", () => {
   const dir = tmp();
   try {

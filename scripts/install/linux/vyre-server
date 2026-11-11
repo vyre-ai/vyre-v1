@@ -231,7 +231,7 @@ health_url() {
 }
 
 # ---- start, stop, status, logs -----------------------------------------------------------------------------------------------------
-cmd_start() { [ ! -f "$(PENDING_FILE)" ] || lock_update_operation; dc up -d --remove-orphans --wait --wait-timeout "${VYRE_UP_WAIT:-180}"; }
+cmd_start() { [ ! -f "$(PENDING_FILE)" ] || lock_update_operation; ensure_metadata_block; dc up -d --remove-orphans --wait --wait-timeout "${VYRE_UP_WAIT:-180}"; }
 cmd_stop() { dc stop; }
 cmd_status() { dc ps; }
 cmd_logs() { dc logs -f --tail 200 "$@"; }
@@ -329,6 +329,11 @@ check_all() {
     else finding host.userns healthy "The host allows the user namespaces the engine sandbox needs."
     fi
   fi
+  # no container Vyre starts for agents reaches the cloud's metadata address
+  case "$(meta_state)" in
+    on) finding host.metadata healthy "Agents' containers cannot reach the cloud metadata address (169.254.0.0/16)." ;;
+    off) finding host.metadata degraded "Agents' containers can reach the cloud metadata address (169.254.0.0/16), which can hand out this server's credentials. Fix: vyre-server start." ;;
+  esac
   # the server answers
   if command -v curl >/dev/null 2>&1 && curl -fsS --max-time 5 "$(health_url)" >/dev/null 2>&1; then
     finding host.healthz healthy "vyred answers /healthz."
@@ -614,6 +619,38 @@ ensure_userns() {
   return 0
 }
 
+# The cloud's metadata address (169.254.169.254 on most clouds, inside 169.254.0.0/16, and fd00:ec2::254 over IPv6) hands out the server's own details and, on some clouds, credentials. No container
+# Docker runs for Vyre (the Space browser, agents' workspaces, agent computers) may reach it; the rest of their internet stays open. It cannot be done per network (Docker has no option for one
+# blocked range), so it is one rule per bridge kind at the top of Docker's DOCKER-USER chain, which Docker creates at its start and never empties. `vyre-server start` runs at every boot (the systemd
+# unit) and every update, so the rule is back after a restart. Linux only; where there is no iptables or no DOCKER-USER chain (Docker Desktop on a Mac, a host without iptables) nothing is done.
+meta_os() { _m=$(uname -s); [ "${VYRE_TEST_MODE:-0}" != 1 ] || [ -z "${VYRE_TEST_OS:-}" ] || _m=$VYRE_TEST_OS; printf '%s' "$_m"; }
+# meta_rules: "<tool> <destination> <bridge>" per rule
+meta_rules() { for i in docker0 br-+; do printf 'iptables 169.254.0.0/16 %s
+ip6tables fd00:ec2::254/128 %s
+' "$i" "$i"; done; }
+# meta_rule TOOL ACTION DEST IF: check (-C) or insert (-I) one rule
+meta_rule() { "$1" -w "$2" DOCKER-USER $([ "$2" = -I ] && printf 1) -i "$4" -d "$3" -m comment --comment vyre-metadata -j DROP >/dev/null 2>&1; }
+# meta_state: "on" when every rule that can be made is there, "off" when one is missing, "none" when this host has no DOCKER-USER chain to put it in
+meta_state() {
+  [ "$(meta_os)" = Linux ] || { printf none; return 0; }
+  # the script's own tests run start and update with stand-ins for Docker: they never touch the real firewall of the computer that runs them, unless a test asks for it (with stand-ins for iptables)
+  [ "${VYRE_TEST_MODE:-0}" != 1 ] || [ "${VYRE_TEST_METADATA:-0}" = 1 ] || { printf none; return 0; }
+  command -v iptables >/dev/null 2>&1 && iptables -w -L DOCKER-USER -n >/dev/null 2>&1 || { printf none; return 0; }
+  meta_rules | while read -r t d i; do
+    command -v "$t" >/dev/null 2>&1 && "$t" -w -L DOCKER-USER -n >/dev/null 2>&1 || continue
+    meta_rule "$t" -C "$d" "$i" || { printf off; break; }
+  done | grep -q off && printf off || printf on
+}
+# ensure_metadata_block: put the rules there once; never fails the caller
+ensure_metadata_block() {
+  [ "$(meta_state)" = off ] || return 0
+  meta_rules | while read -r t d i; do
+    command -v "$t" >/dev/null 2>&1 && "$t" -w -L DOCKER-USER -n >/dev/null 2>&1 || continue
+    meta_rule "$t" -C "$d" "$i" || meta_rule "$t" -I "$d" "$i" || say "  Could not stop containers reaching $d through $i ($t); vyre-server doctor reports it."
+  done
+  return 0
+}
+
 # settle_caddy: Caddy shares vyred's network namespace (network_mode: service:vyred). When vyred is recreated, a Caddy left on the old one serves nothing, so it is recreated
 # too whenever it is not attached to the vyred that runs now.
 settle_caddy() {
@@ -804,6 +841,7 @@ cmd_update() {
   printf '%s\n' "$prev_link" >"$DIR/previous"
   set_current "$REL_VERSION"
   ln -sfn "$DIR/vyre.env" "$DIR/releases/$REL_VERSION/vyre.env"
+  ensure_metadata_block
   refresh_bin
   ensure_userns
   reason=""
@@ -847,6 +885,7 @@ cmd_rollback() {
   printf 'releases/%s\n' "$from" >"$DIR/previous"
   set_current "$prev"
   sync_image || die "the image of $prev could not be set; read $DIR/releases/$prev/images.lock."
+  ensure_metadata_block
   refresh_bin
   ensure_userns
   up_stack || die "the server did not start on $prev. Read: vyre-server logs."

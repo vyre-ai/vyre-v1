@@ -12,3 +12,4 @@
 - Moving an old agent computer's sign-ins into the Space browser no longer cuts off a step the agent is taking or a person who has taken over; it waits for a quiet moment.
 - The browser step that downloads a file now says where it landed in Files in that same step, and typing or sending a held item reports downloads too.
 - A download over 20 MB is reported once in plain words (it stays in the agent's Space browser and is not put in Files) instead of being tried at every step.
+- On a Linux server, no container Vyre starts for agents (Space browser, workspaces, agent computers) can reach the cloud's metadata address, which can hand out the server's credentials; the rest of their internet is unchanged, and `vyre-server doctor` says whether the block is in place.
