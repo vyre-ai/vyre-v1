@@ -104,3 +104,18 @@ test("clientOnNetwork: a container on the network is a client; the host's own si
   assert.equal(clientOnNetwork(undefined, undefined, computers), false);
   assert.equal(clientOnNetwork("192.168.48.2", "192.168.48.3", []), false);
 });
+
+// Review 6b (12 Nov): the daemon's guard asked whether the request arrived on an address inside an agent network, so a page in an agent's browser that called the host's LAN or public address, or another
+// bridge's gateway, got the whole API. agentCaller decides by where the request comes from.
+test("agentCaller: a caller inside an agent network is an agent on whatever address of the host it reached; the network's gateway (the host, a published port) is not", async () => {
+  const { agentCaller } = await import("./site-host.ts");
+  const nets = ["172.29.0.0/16", "192.168.48.0/20"];
+  for (const local of ["172.29.0.1", "172.17.0.1", "10.0.0.5", "203.0.113.7", "127.0.0.1", undefined]) {
+    assert.equal(agentCaller(local, "172.29.0.2", nets), true, `the Space browser reaching ${String(local)}`);
+    assert.equal(agentCaller(local, "::ffff:192.168.48.3", nets), true, `an agent computer reaching ${String(local)}`);
+  }
+  assert.equal(agentCaller("172.29.0.1", "172.29.0.1", nets), false, "the host's own side of the bridge");
+  assert.equal(agentCaller("10.0.0.5", "10.0.0.9", nets), false, "a person on the LAN");
+  assert.equal(agentCaller("127.0.0.1", "127.0.0.1", nets), false, "this computer");
+  assert.equal(agentCaller("172.29.0.1", "172.29.0.2", []), false, "no agent networks known");
+});

@@ -61,6 +61,17 @@ export function clientOnNetwork(local: string | undefined, remote: string | unde
   return !subnets.some((c) => { const [base, bits] = c.split("/"); const k = Number(bits); if (!(k >= 0 && k <= 30)) return false; const b = base!.split(".").map(Number); if (b.length !== 4 || b.some((x) => !Number.isInteger(x))) return false; const n = ((b[0]! << 24) | (b[1]! << 16) | (b[2]! << 8) | b[3]!) >>> 0; const mask = k === 0 ? 0 : (0xffffffff << (32 - k)) >>> 0; const gw = ((n & mask) + 1) >>> 0; return `${gw >>> 24}.${(gw >>> 16) & 255}.${(gw >>> 8) & 255}.${gw & 255}` === ip; });
 }
 
+/**
+ * Does this request come from an agent's own network (a Space browser, an agent computer, a workspace), on whatever address of this daemon it arrived? The caller's address decides, not the address it
+ * reached: a page in an agent's browser that calls the host's LAN or public address, or another bridge's gateway, arrives with a local address outside the agent network but still comes from inside it.
+ * The network's own gateway is the host itself (a published port, a person), never an agent. `local` is kept for the caller's signature.
+ */
+export function agentCaller(_local: string | undefined, remote: string | undefined, subnets: readonly string[]): boolean {
+  if (!inSubnets(remote, subnets)) return false;
+  const ip = (remote ?? "").replace(/^::ffff:/, "");
+  return !subnets.some((c) => { const [base, bits] = c.split("/"); const k = Number(bits); if (!(k >= 0 && k <= 30)) return false; const b = base!.split(".").map(Number); if (b.length !== 4 || b.some((x) => !Number.isInteger(x))) return false; const n = ((b[0]! << 24) | (b[1]! << 16) | (b[2]! << 8) | b[3]!) >>> 0; const mask = k === 0 ? 0 : (0xffffffff << (32 - k)) >>> 0; const gw = ((n & mask) + 1) >>> 0; return `${gw >>> 24}.${(gw >>> 16) & 255}.${(gw >>> 8) & 255}.${gw & 255}` === ip; });
+}
+
 export function cookieOf(header: string | undefined, name: string): string | null {
   for (const part of (header ?? "").split(";")) {
     const [k, ...v] = part.trim().split("=");

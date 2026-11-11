@@ -29,7 +29,7 @@ import { asPerson, codeOf, harness } from "../fixtures/harness.ts";
 import { tool as cap } from "./tools.fixture.ts";
 import { computerSubnets } from "../impl.ts";
 import { bindSpaceBrowser } from "../sbrowser/port.ts";
-import { clientOnNetwork } from "../../../host/src/routes/site-host.ts";
+import { agentCaller } from "../../../host/src/routes/site-host.ts";
 import { FILL_PATH } from "../../../host/src/seams/computers.ts";
 import type { FillLookup } from "../handlers/fill.ts";
 
@@ -469,7 +469,7 @@ test("@heavy space browser: agent B's browser cannot reach agent A's browser: no
 // a network in computerSubnets() reaches only POST FILL_PATH). A page in the browser asks it for other routes by every name it has for the host.
 test("@heavy space browser: with Engine access the service is on a network of its own, and a page in it reaches only the daemon's Vault channel, by the host's address or by host.docker.internal", { skip, timeout: 300_000 }, async () => {
   const daemon = createServer((req, res) => {
-    const onNet = clientOnNetwork(req.socket.localAddress, req.socket.remoteAddress, computerSubnets());
+    const onNet = agentCaller(req.socket.localAddress, req.socket.remoteAddress, computerSubnets());
     const path = (req.url ?? "").split("?")[0];
     res.setHeader("access-control-allow-origin", "*");
     if (onNet && !(req.method === "POST" && path === FILL_PATH)) { res.writeHead(403, { "content-type": "text/plain" }); res.end("refused"); return; }
@@ -483,16 +483,17 @@ test("@heavy space browser: with Engine access the service is on a network of it
     const gw = Object.values(info.NetworkSettings.Networks)[0]!.Gateway;
     const t = (name: string, args: Record<string, unknown>) => sbNet.tool({ profileId: "agt_netty", tool: name, args, timeoutMs: 30_000 });
     const seen: Record<string, string> = {};
-    for (const host of [gw, "host.docker.internal"]) {
+    // review 6b: every other address the host answers on, too: the default bridge's gateway and the host's own addresses (its LAN or public one)
+    const others = [...new Set([GATEWAY, ...Object.values(os.networkInterfaces()).flat().filter((a): a is os.NetworkInterfaceInfo => !!a && a.family === "IPv4" && !a.internal).map((a) => a.address)])].filter((a) => a !== gw);
+    for (const host of [gw, "host.docker.internal", ...others]) {
       await t("chrome_open", { url: `http://${host}:${port}/v1/capabilities/files.list` }).catch(() => undefined);
       seen[`open ${host}`] = String((await t("chrome_eval", { expression: "document.body.innerText.slice(0, 60)" }))["result"]);
       seen[`get ${host}`] = String((await t("chrome_eval", { expression: `fetch("http://${host}:${port}/local/daemon/stop").then((r) => r.text(), () => "unreachable")` }))["result"]);
       seen[`fill ${host}`] = String((await t("chrome_eval", { expression: `fetch("http://${host}:${port}${FILL_PATH}", { method: "POST", body: "{}" }).then((r) => r.text(), () => "unreachable")` }))["result"]);
     }
-    assert.deepEqual(seen, {
-      [`open ${gw}`]: "refused", [`get ${gw}`]: "refused", [`fill ${gw}`]: `open POST ${FILL_PATH}`,
-      "open host.docker.internal": "refused", "get host.docker.internal": "refused", "fill host.docker.internal": `open POST ${FILL_PATH}`,
-    }, "only the Vault channel answers a page in the Space browser");
+    const want: Record<string, string> = {};
+    for (const host of [gw, "host.docker.internal", ...others]) Object.assign(want, { [`open ${host}`]: "refused", [`get ${host}`]: "refused", [`fill ${host}`]: `open POST ${FILL_PATH}` });
+    assert.deepEqual(seen, want, `only the Vault channel answers a page in the Space browser, on every address of the host (${others.join(", ")})`);
     assert.equal(info.HostConfig.NetworkMode, `${NET_NAME}net`, "its own network, not the default bridge");
     const net = JSON.parse(new TextDecoder().decode((await http({ method: "GET", path: `/networks/${NET_NAME}net` })).body)) as { IPAM: { Config: Array<{ Subnet: string }> } };
     assert.deepEqual(computerSubnets(), [net.IPAM.Config[0]!.Subnet], "the daemon knows the service's network");

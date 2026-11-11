@@ -41,7 +41,7 @@ import { createFormsPageRoute } from "../routes/forms-page.ts";
 import { createPublicPathRoute } from "../routes/public-path.ts";
 import type { PublicPathDeps, ServedSite } from "../routes/public-path.ts";
 import { createDomainEdge, createSitesHost, dnsPointsAt, mimeOf } from "../seams/sites-host.ts";
-import { clientOnNetwork, createSiteHostRoute, createSiteSigninPage } from "../routes/site-host.ts";
+import { agentCaller, clientOnNetwork, createSiteHostRoute, createSiteSigninPage } from "../routes/site-host.ts";
 import { createArtifactHostRoute } from "../routes/artifact-host.ts";
 import type { SiteHostDeps } from "../routes/site-host.ts";
 import { CaddyAdmin, CaddyError, CaddyRouter, ingressHostOf } from "../caddy/index.ts";
@@ -2587,7 +2587,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     const appFiles = createAppFilesRoute({ dir: () => o.appDir !== undefined ? o.appDir : defaultAppDir() });
     server.on("request", (req, res) => {
       // an agent computer reaches this daemon only on its own network, and there only the Vault channel agentd posts to: nothing else of the Space's API
-      const onComputerNet = clientOnNetwork(req.socket.localAddress, req.socket.remoteAddress, computerSubnetsOf());
+      // decided by where the request comes from (review 12 Nov): a page in an agent's browser may call any address of this host, so the address it arrived on proves nothing
+      const onComputerNet = agentCaller(req.socket.localAddress, req.socket.remoteAddress, computerSubnetsOf());
       if (onComputerNet && !(req.method === "POST" && (req.url ?? "").split("?")[0] === FILL_PATH)) { res.writeHead(403, { "content-type": "application/json" }); res.end(JSON.stringify({ code: "refused", message: "A computer reaches only the Vault channel." })); return; }
       if (carryDoor.handle(req, res)) return;
       if(desktopCors(req,res))return;

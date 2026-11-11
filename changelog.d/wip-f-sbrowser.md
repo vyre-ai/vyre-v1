@@ -19,3 +19,4 @@
 - A browser step is never sent a second time on its own after the Space browser stopped while working on it; the agent is told the step did not finish.
 - Clicks, typing and opening pages in the Space browser no longer pause a moment after each step to look for a download; a step waits only when it really started one.
 - After an update, a Space browser made by an earlier release is replaced by the new one as soon as no agent is using it, so the protections above reach Spaces that already used it; every profile keeps its sign-ins.
+- A page in an agent's browser can no longer reach the rest of the Space's server by calling the server's other addresses (its LAN or public address); the Space decides by where a request comes from.
