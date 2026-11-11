@@ -114,3 +114,16 @@ test("a tab left open neither wakes a sleeping workspace nor keeps it awake: its
   assert.equal(dk.box(name).running, true);
   m.close();
 });
+
+test("keys typed one at a time reach the shell as typed, a lone semicolon and a chunk ending in one, or in a backslash and one, included (tmux reads a trailing semicolon as the end of a command)", async () => {
+  const tm = fakeTmux();
+  const host = createTmuxHost({ exec: tm.exec });
+  await host.open({ terminalId: "k1", target, name: "x", cols: 80, rows: 24, folders: [] });
+  const line = "for i in 1 2; do echo $i; done; find . -exec ls {} \;";
+  for (const ch of line) await host.input("k1", ch);
+  assert.equal(tm.sessions.get("vyre-k1")!.typed, line, "key by key");
+  tm.sessions.get("vyre-k1")!.typed = "";
+  const long = `${"x".repeat(999)};${"y".repeat(10)}`;
+  await host.input("k1", long);
+  assert.equal(tm.sessions.get("vyre-k1")!.typed, long, "a 1,000-character chunk that ends in ';'");
+});

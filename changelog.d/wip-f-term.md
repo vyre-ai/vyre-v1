@@ -15,3 +15,5 @@
 - Nobody is let into another person's Assistant's terminal by holding an admin role, even when the Assistant cannot be looked up.
 - Agent workspaces on a computer's own Docker can no longer reach each other's ports; each still reaches the internet.
 - An agent can make your terminal rules stricter, but only you can loosen them (allow a command, remove a rule, add a folder), in Terminal rules.
+- Typing a semicolon in a Terminal tab works: it used to be dropped on the way to the shell.
+- The Terminal tab's view stays on the newest line during long output instead of stopping once it held 2,000 lines; scroll up to read and it stays where you put it.

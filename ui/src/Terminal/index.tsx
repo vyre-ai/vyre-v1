@@ -441,7 +441,12 @@ function Lines({ lines, cursor }: { lines: readonly TermLine[]; cursor: boolean 
 export function Terminal(props: TerminalViewProps): ReactElement {
   const menu = useMenu();
   const scroller = useRef<ScrollView | null>(null);
-  const [, setVersion] = useState(0);
+  const [version, setVersion] = useState(0);
+  /** The person has not scrolled up: new output keeps the view on its last line. */
+  const atEnd = useRef(true);
+  /** When the person last scrolled by hand (wheel, touch, drag). A scroll the browser makes itself (keeping content in place while old rows go) never takes the view off the end. */
+  const gestureAt = useRef(0);
+  const gesture = (): void => { gestureAt.current = Date.now(); };
   const [copied, setCopied] = useState<string | null>(null);
   const exited = props.state === "exited";
   const session = props.state !== undefined;
@@ -459,6 +464,12 @@ export function Terminal(props: TerminalViewProps): ReactElement {
     });
     return stop;
   }, [props.source, feed, locked, props.onGap]);
+
+  // Every frame keeps the view on the last line, unless the person scrolled up to read. Following the content's size alone stopped once the screen held its 2,000 rows: from then on new lines
+  // replace old ones, the size stays the same, and the view stayed where it was (12 Nov).
+  useEffect(() => {
+    if (atEnd.current) scroller.current?.scrollToEnd({ animated: false });
+  }, [version]);
 
   useEffect(() => {
     if (copied === null) return undefined;
@@ -561,14 +572,23 @@ export function Terminal(props: TerminalViewProps): ReactElement {
           </View>
         </View>
       ) : (
-        <View style={[styles.scroll, NO_OUTLINE]} testID="terminal-screen" {...webProps({ tabIndex: 0, onKeyDown: onKey, onMouseUp })}>
+        <View style={[styles.scroll, NO_OUTLINE]} testID="terminal-screen" {...webProps({ tabIndex: 0, onKeyDown: onKey, onMouseUp, onWheel: gesture, onTouchMove: gesture })}>
           <ScrollView
             ref={scroller}
             testID="terminal-scroll"
             accessibilityLabel={`Output on ${props.hostLabel}`}
             style={styles.scroll}
             contentContainerStyle={styles.scrollIn}
-            onContentSizeChange={() => scroller.current?.scrollToEnd({ animated: false })}
+            onContentSizeChange={() => { if (atEnd.current) scroller.current?.scrollToEnd({ animated: false }); }}
+            scrollEventThrottle={100}
+            onScroll={(e: { nativeEvent?: { contentOffset?: { y: number }; layoutMeasurement?: { height: number }; contentSize?: { height: number } } }) => {
+              const n = e.nativeEvent;
+              if (!(n?.contentOffset && n.layoutMeasurement && n.contentSize)) return;
+              const end = n.contentOffset.y + n.layoutMeasurement.height >= n.contentSize.height - 40;
+              if (end) atEnd.current = true;
+              else if (Date.now() - gestureAt.current < 1500) atEnd.current = false;
+            }}
+            onScrollBeginDrag={gesture}
             onLayout={(e: { nativeEvent?: { layout?: { width: number; height: number } } }) => {
               const box = e.nativeEvent?.layout;
               if (box !== undefined && props.onResize !== undefined) { const g = gridSize(box.width, box.height); props.onResize(g.cols, g.rows); }

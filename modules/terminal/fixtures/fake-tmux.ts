@@ -142,7 +142,8 @@ export function fakeTmux(o: FakeTmuxOptions = {}) {
         return ok(`${fmt === "#{pane_current_path}" ? s.cwd : fmt === "#{pane_current_command}" ? (s.hung ? "sleep" : "bash") : ""}\n`);
       }
       case "send-keys": {
-        if (argv.includes("-l")) { s.typed += argv[argv.length - 1] as string; return ok(); }
+        // as tmux: an argument that ends in ";" loses that character, or the backslash before it
+        if (argv.includes("-l")) { const a = argv[argv.length - 1] as string; s.typed += a.endsWith("\\;") ? `${a.slice(0, -2)};` : a.endsWith(";") ? a.slice(0, -1) : a; return ok(); }
         const key = argv[argv.length - 1];
         if (key === "Enter") submit(s);
         else if (key === "C-c") { s.hung = false; s.typed = ""; print(s, "^C"); }

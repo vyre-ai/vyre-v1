@@ -251,3 +251,12 @@ test("real tmux: a tab's live read keeps every line, in order, once, while tmux 
   assert.deepEqual(seen, Array.from({ length: to }, (_, i) => i + 1), "in order");
   await host.close("trm_heavy_hist");
 });
+
+test("real tmux: a ';' typed on its own key, or at the end of a chunk, reaches the shell (12 Nov: tmux took it for the end of a command and dropped it)", { skip }, async () => {
+  await open("trm_heavy_semi");
+  for (const ch of "echo one; echo two") await host.input("trm_heavy_semi", ch);
+  await host.input("trm_heavy_semi", "\r");
+  await until("both commands ran", async () => /^two$/m.test((await host.read("trm_heavy_semi", { lines: 20 })).text));
+  assert.match((await host.read("trm_heavy_semi", { lines: 20 })).text, /^one$/m);
+  await host.close("trm_heavy_semi");
+});

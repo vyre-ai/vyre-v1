@@ -56,6 +56,12 @@ export const HISTORY_ENV: readonly string[] = ["-e", "HISTCONTROL=ignorespace"];
 const realSleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 const rnd = (n: number): string => Array.from(globalThis.crypto.getRandomValues(new Uint8Array(n)), (b) => b.toString(16).padStart(2, "0")).join("");
 
+/**
+ * An argument tmux takes as it is. tmux reads an argument that ends in ";" as the end of a command and drops that character (or, after a backslash, the backslash): a lone ";" key, or a chunk of typing
+ * that ends in one, never reached the shell (12 Nov). A backslash before the final ";" makes tmux keep the text as given (tmux 3.4, checked on the box).
+ */
+export const tmuxLiteral = (t: string): string => (t.endsWith(";") ? `${t.slice(0, -1)}\\;` : t);
+
 /** Quote for a POSIX shell: one pair of single quotes, with every embedded single quote closed, escaped and reopened. */
 export const shQuote = (v: string): string => `'${v.replace(/'/g, `'\\''`)}'`;
 
@@ -168,7 +174,7 @@ export function createTmuxHost(o: TmuxOptions): TerminalHost {
     },
     async input(terminalId, data) {
       const session = nameOf(terminalId);
-      for (let i = 0; i < data.length; i += 1000) await tmux(["send-keys", "-t", session, "-l", "--", data.slice(i, i + 1000)]);
+      for (let i = 0; i < data.length; i += 1000) await tmux(["send-keys", "-t", session, "-l", "--", tmuxLiteral(data.slice(i, i + 1000))]);
     },
     async interrupt(terminalId) { await tmux(["send-keys", "-t", nameOf(terminalId), "C-c"]); },
     async resize(terminalId, cols, rows) { await tmux(["resize-window", "-t", nameOf(terminalId), "-x", String(cols), "-y", String(rows)]); },
