@@ -965,6 +965,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       let peopleExtras: ReturnType<typeof createPeopleExtras> | null = null;   // set once the hook runner exists
       let previews: ReturnType<typeof createViewAs> | null = null;
       let invokeRef: Invoke = () => Promise.reject(new Error("the invoke pipeline is not ready"));
+      const firstCapOf = new Map<string, (typeof registryCaps)[number] | undefined>();
       const hookRunner = createHookRunner({
         space, now, db,
         // a hooks override stands in for the module hooks, except the access module's: authorize reads its snapshot (ruling 70), so its host calls are never replaced
@@ -972,7 +973,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         log: { read: (q) => log!.read(q), currentHead: () => log!.currentHead() },
         invoke: (cap, input, seed) => invokeRef(cap, input, seed),
         emitsOf: (m) => [...new Set(registryCaps.filter((c) => (c as { module?: string }).module === m).flatMap((c) => c.emits as string[]))],
-        capOf: (m) => registryCaps.find((c) => (c as { module?: string }).module === m),
+        // the first capability of each module, looked up once (a search of every capability on every module call was a fifteenth of a write)
+        capOf: (m) => { if (!firstCapOf.has(m)) firstCapOf.set(m, registryCaps.find((c) => (c as { module?: string }).module === m)); return firstCapOf.get(m); },
         warn: (msg, attrs) => sink.log({ space: space!, level: 30, msg, place: "hooks", ...(attrs ? { attrs } : {}) }),
       });
       hooks = hookRunner;
