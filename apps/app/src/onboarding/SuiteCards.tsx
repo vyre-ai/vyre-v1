@@ -1,3 +1,4 @@
+import { CopyRow } from "../console/pages/suite/parts.tsx";
 import { useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
@@ -131,7 +132,7 @@ export function DirectoryCard({ call, by, space, onOpenConsole, onDone, gate }: 
           ) : null}
           <Text style={s.dim}>The links, if you would rather share them yourself:</Text>
           {/* ui-rows-lint: not a list (the links are plain lines of text to copy, not list rows) */}
-          {result.invited.map((i) => <Text key={i.inviteId} selectable style={s.link}>{`${i.email}  ${i.link}`}</Text>)}
+          {result.invited.map((i) => <CopyRow key={i.inviteId} label={i.email} value={i.link} />)}
           {/* ui-rows-lint: not a list (the skipped people are plain lines of text, not list rows) */}
           {result.skipped.map((x) => <Text key={x.email} style={s.dim}>{`${x.email}: ${x.reason}`}</Text>)}
         </View>
@@ -165,7 +166,7 @@ export function InvitesCard({ call, onDone, gate }: { call: CapCall; onDone(): v
       <Text style={s.line}>Make an invite for each person. Nothing is sent until you share it or approve it.</Text>
       {list?.kind === "ready" ? <Text testID="invites-count" style={s.dim}>{`${list.value.filter((i) => i.state === "open").length} open invites.`}</Text> : null}
       <TextInput testID="invite-email" accessibilityLabel="Email" value={email} onChangeText={setEmail} placeholder="Their email, if you know it" autoCapitalize="none" style={s.input} />
-      {link ? <Text selectable testID="invite-link" style={s.link}>{link}</Text> : null}
+      {link ? <CopyRow label="Link, works once" value={link} testID="invite-link" /> : null}
       {error ? <Text testID="invite-error" style={s.err}>{error}</Text> : null}
       <Buttons><Go id="invite-make" label={link ? "Make another" : "Make an invite link"} onPress={() => void make()} />{gate ? null : <Go id="invites-done" label="Done" ghost onPress={onDone} />}</Buttons>
     </View>
