@@ -7,3 +7,4 @@
 - Renaming a team no longer closes the Change managers panel if you opened it before the rename finished saving.
 - The AI account menus (Automations settings, the agent form, the agent page) say "Loading…" while the Space's accounts are read, instead of "None kept", and fill in when they arrive.
 - The share and add-people sheets say "Loading people…" while the people and groups are read, instead of "Nobody by that name".
+- The test runner now prints why a test failed even when the file then hangs and is killed at its time limit, so a failure on the build machine always says what it was.
