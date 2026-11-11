@@ -8,6 +8,7 @@
 //   screenshot    { profileId }                                     -> { png, width, height }
 //   stream        { profileId }                                     -> { transport: "mjpeg", url, ws }
 //   downloads     { profileId } -> { downloads: [{ name, size, at }] }     download_read { profileId, name } -> { base64 }      download_ack { profileId, name }
+//   guard         { profileId, on }  (the Space sealed the Chrome folder: no browser starts on it while on)
 //   disk          {}                                                 -> { ids: [profiles whose Chrome folder holds anything] }
 //   stop          { profileId }  (the browser stops, the folder stays)      forget { profileId }  (the folder goes too)
 //   sessions      { profileId }                                     -> { sessions: [{ site, since, lastSeen }] }      sign_out { profileId, site } -> { ok }
@@ -38,6 +39,7 @@ let starts: StartServer | null = null;
 const recentOf = (id: string) => createRecentSites(manager.get(id).dir);
 const manager = createProfileManager({
   root: ROOT,
+  blocked: (id) => existsSync(`${ROOT}/profiles/${id}/sealed.flag`),
   extensionDir: existsSync("/opt/vyre-chrome") ? "/opt/vyre-chrome" : null,
   log,
   maxRunning: Number(env["VYRE_BROWSER_MAX_RUNNING"] ?? 6) || 6,
@@ -191,6 +193,13 @@ async function dispatch(action: string, a: Args): Promise<Args> {
       const ids: string[] = [];
       try { for (const id of readdirSync(`${ROOT}/profiles`)) { if (!PROFILE_ID.test(id)) continue; try { if (readdirSync(`${ROOT}/profiles/${id}/chrome`).length > 0) ids.push(id); } catch { /* no Chrome folder */ } } } catch { /* no profiles yet */ }
       return { ids };
+    }
+    // the Space has sealed this profile's Chrome folder (on) or put it back (off): while on, no browser starts on it (profiles.ts blocked)
+    case "guard": {
+      const pid = checkProfileId(a["profileId"]);
+      const flag = `${ROOT}/profiles/${pid}/sealed.flag`;
+      if (a["on"] === true) { mkdirSync(`${ROOT}/profiles/${pid}`, { recursive: true }); writeFileSync(flag, "sealed"); } else rmSync(flag, { force: true });
+      return {};
     }
     case "stop": hubs.delete(checkProfileId(a["profileId"])); await manager.stop(text(a, "profileId")); return {};
     case "reset_chrome": hubs.delete(checkProfileId(a["profileId"])); await manager.resetChrome(text(a, "profileId")); return {};

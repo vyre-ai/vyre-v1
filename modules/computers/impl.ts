@@ -30,7 +30,7 @@ import { bindWorkspaceStart, workspaceClaim, workspaceRelease, workspaceWaiting 
 import { bindMigration, bindMigrationPort } from "./migrate.ts";
 import { createHomeSync } from "./handlers/home.ts";
 import { createContainerHomeFs } from "./handlers/home-fs.ts";
-import { createProfileSeal } from "./handlers/seal.ts";
+import { createProfileSeal, keyedLock } from "./handlers/seal.ts";
 import type { HomeDeps, HomeSync, MadeFile } from "./handlers/home.ts";
 import { createFillService, fillHttp } from "./handlers/fill.ts";
 import type { FillSource, FillUse } from "./handlers/fill.ts";
@@ -43,7 +43,7 @@ import type { ComputerHost, HostKind, Probe, RecordResult, SessionInfo } from ".
 import "./sbrowser/migrate.ts";
 import { browserStreamInput, browserStreamOpen } from "./sbrowser/handlers.ts";
 import "./sbrowser/room.ts";
-import { bindSpaceBrowser } from "./sbrowser/port.ts";
+import { bindSpaceBrowser, spaceBrowser } from "./sbrowser/port.ts";
 import type { SpaceBrowser } from "./sbrowser/port.ts";
 import { createDockerSpaceBrowser, DEFAULT_BROWSER_IMAGE } from "./sbrowser/docker.ts";
 
@@ -96,9 +96,13 @@ export interface DockerHostOptions {
   /** Where the live view is served from, for a ticket. Default: the host's /computers/<id>/stream over MJPEG. */
   streamUrl?: (computerId: string, ticket: string) => { transport: "webrtc" | "mjpeg"; url: string };
   /** The profile disk is sealed while the computer sleeps (ARCH 6.6): unseal before the container starts, seal after it stopped. */
-  profile?: { unseal(computerId: string): Promise<void>; seal(computerId: string): Promise<void>; state?(computerId: string): string; discard?(computerId: string): Promise<void>; recoverStopped?(): Promise<string[]> };
+  profile?: { unseal(computerId: string): Promise<void>; seal(computerId: string): Promise<unknown>; state?(computerId: string): string; discard?(computerId: string): Promise<void>; recoverStopped?(): Promise<string[]>; oversize?(): string[] };
+  /** Notes from the host: a profile over the size limit, a seal or a recovery that failed. */
+  log?: (level: "info" | "warn", msg: string, attrs?: Record<string, unknown>) => void;
+  /** How often a computer that stopped outside a sleep is looked for and its profile sealed. Default 60 s. */
+  recoverEveryMs?: number;
   /** The key and the folder for sealed profiles (handlers/seal.ts). With it and the raw Engine access `http`, the host builds `profile` itself. */
-  profileSeal?: { key(): Uint8Array; dir: string };
+  profileSeal?: { key(): Uint8Array; dir: string; cap?: number };
   /** How long start waits for agentd to answer. Default 30 s. */
   startTimeoutMs?: number;
   user?: { uid: number; gid: number };
@@ -228,11 +232,13 @@ export function createDockerComputerHost(o: DockerHostOptions): ComputerHost & T
   const ctlPath = o.ctl ?? AGENTD_CTL;
   const sleep = o.sleep ?? realSleep;
   const nameOf = (computerId: string): string => `${prefix}${computerId.replace(/^cmt_/, "")}`;
+  const withLock = keyedLock();
   const profile = o.profile ?? (o.profileSeal && o.http
-    ? createProfileSeal({ http: o.http, key: o.profileSeal.key, dir: o.profileSeal.dir, container: nameOf, image: o.image ?? DEFAULT_COMPUTER_IMAGE, user: { uid: o.user?.uid ?? 10001, gid: o.user?.gid ?? 10001 } })
+    ? createProfileSeal({ http: o.http, key: o.profileSeal.key, dir: o.profileSeal.dir, container: nameOf, lock: withLock, ...(o.profileSeal.cap !== undefined ? { cap: o.profileSeal.cap } : {}), ...(o.log ? { log: o.log } : {}), image: o.image ?? DEFAULT_COMPUTER_IMAGE, user: { uid: o.user?.uid ?? 10001, gid: o.user?.gid ?? 10001 } })
     : undefined);
   // the boot recovery (below) seals what a crash left in plain form; nothing reads or starts a profile until it is done
   let recovering: Promise<unknown> = Promise.resolve();
+  let recoverTimer: ReturnType<typeof setInterval> | null = null;
 
   async function containerAddress(computerId: string): Promise<string | null> {
     if (!o.http) return null;
@@ -365,7 +371,8 @@ export function createDockerComputerHost(o: DockerHostOptions): ComputerHost & T
       try { await o.api.containerCreate(name, config); } catch (e) { await dropNetwork(a.computerId).catch(() => undefined); throw e; }
       return {};
     },
-    async chromeData(computerId) {
+    // one thing at a time per computer: a wake, a sleep and the migration read never overlap (a seal under a running browser, a wake over a wipe)
+    chromeData(computerId) { return withLock(computerId, async () => {
       const name = nameOf(computerId);
       if (!o.http) throw new Error("this host cannot read a computer's files");
       await recovering;
@@ -377,9 +384,9 @@ export function createDockerComputerHost(o: DockerHostOptions): ComputerHost & T
         if (r.status !== 200) throw new Error(`the Chrome profile could not be read (${r.status})`);
         if (r.body.length > MAX_CHROME_DATA) throw new Error("the Chrome profile is over 1 GB");
         return { tar: r.body };
-      } finally { if (profile && was !== "hot") await profile.seal(computerId).catch(() => undefined); }
-    },
-    async start(a) {
+      } finally { if (profile && was !== "hot") await profile.seal(computerId).catch((e: unknown) => o.log?.("warn", "computers.profile.seal_failed", { computer: computerId, error: e instanceof Error ? e.message.slice(0, 200) : "unknown" })); }
+    }); },
+    start(a) { return withLock(a.computerId, async () => {
       const name = nameOf(a.computerId);
       await recovering;
       if (profile) await profile.unseal(a.computerId);
@@ -398,8 +405,8 @@ export function createDockerComputerHost(o: DockerHostOptions): ComputerHost & T
           await sleep(500);
         }
       }
-    },
-    async stop(a) {
+    }); },
+    stop(a) { return withLock(a.computerId, async () => {
       const name = nameOf(a.computerId);
       let sessions: SessionInfo[] | undefined;
       if (a.reason !== "remove") {
@@ -411,8 +418,8 @@ export function createDockerComputerHost(o: DockerHostOptions): ComputerHost & T
       const homeSynced = a.reason !== "remove" ? await homePass(a.computerId, a.agentId, true) : false;
       if (profile && a.reason !== "remove") await profile.seal(a.computerId);
       return { ...(sessions ? { sessions } : {}), ...(a.reason !== "remove" ? { homeSynced } : {}) };
-    },
-    async remove(computerId) {
+    }); },
+    remove(computerId) { return withLock(computerId, async () => {
       const name = nameOf(computerId);
       await o.api.containerRemove(name);
       await dropNetwork(computerId);
@@ -421,11 +428,16 @@ export function createDockerComputerHost(o: DockerHostOptions): ComputerHost & T
         if (r.status !== 204 && r.status !== 404) throw new Error(`the profile volume was not removed (${r.status})`);
       }
       await profile?.discard?.(computerId);
-    },
+    }); },
     /** At boot: a computer that is not running must not keep a plain profile. Answers the computers it sealed; start and the migration read wait for it. */
     recover() {
       const run = (async (): Promise<string[]> => (await profile?.recoverStopped?.()) ?? [])();
       recovering = run.catch(() => undefined);
+      // and then every minute: a container that dies on its own leaves a plain profile, which is not left until the next boot
+      if (profile?.recoverStopped && !recoverTimer) {
+        recoverTimer = setInterval(() => { void profile.recoverStopped?.().catch((e: unknown) => o.log?.("warn", "computers.profile.recover_failed", { error: e instanceof Error ? e.message.slice(0, 200) : "unknown" })); }, o.recoverEveryMs ?? 60_000);
+        recoverTimer.unref?.();
+      }
       return run;
     },
     async probe(computerId) {
@@ -515,7 +527,8 @@ export function createDockerComputerHost(o: DockerHostOptions): ComputerHost & T
       if (!o.http) { const ok = await o.api.ping(); return { ok, latencyMs: Date.now() - t0, ...(ok ? {} : { detail: "The container runtime did not answer." }) }; }
       try {
         const r = await o.http({ method: "GET", path: "/_ping", timeoutMs: 5000 });
-        if (r.status === 200) return { ok: true, latencyMs: Date.now() - t0 };
+        const big = [...(profile?.oversize?.() ?? []), ...(spaceBrowser()?.oversize?.() ?? [])];
+        if (r.status === 200) return { ok: true, latencyMs: Date.now() - t0, ...(big.length > 0 ? { unsealed: big.length, detail: `${big.length} saved browser ${big.length === 1 ? "profile is" : "profiles are"} over the size limit and not locked on this server. Clear its downloads and cache.` } : {}) };
         return { ok: false, latencyMs: Date.now() - t0, detail: explainEngine(r.status, null, o.runner ? "runner" : "engine") };
       } catch (e) { return { ok: false, latencyMs: Date.now() - t0, detail: explainEngine(0, e, o.runner ? "runner" : "engine") }; }
     },
@@ -575,6 +588,7 @@ export function buildComputerHost(c: ComputersHostConfig): ComputerHost & ToolHo
     ...(c.filesRoot !== undefined ? { filesRoot: c.filesRoot } : {}),
     ...(c.startTimeoutMs !== undefined ? { startTimeoutMs: c.startTimeoutMs } : {}),
     ...(c.profileSeal ? { profileSeal: c.profileSeal } : {}),
+    ...(c.log ? { log: c.log } : {}),
     ...(c.capacity ? { capacity: c.capacity } : {}),
     ...(c.home ? { home: { deps: { callAs: c.home.callAs, putBytes: c.home.putBytes, now: Date.now, log: c.home.log ?? (() => undefined) }, ...(c.home.intervalMs !== undefined ? { intervalMs: c.home.intervalMs } : {}), manifest: c.home.manifest, ...(c.home.announce ? { announce: c.home.announce } : {}) } } : {}),
   });

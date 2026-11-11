@@ -49,6 +49,8 @@ export interface ProfileManagerOptions {
   log: (m: string) => void;
   /** At most this many Chromium processes at once. Default 6. */
   maxRunning?: number;
+  /** A profile whose Chrome folder the Space has sealed and emptied: no browser starts on it until the Space has put the folder back and lifted the guard (the `guard` action). */
+  blocked?: (id: string) => boolean;
   /** A running profile with nobody watching and no work for this long is stopped. Default 10 minutes. */
   idleMs?: number;
   tabLimit?: number;
@@ -172,6 +174,7 @@ export function createProfileManager(o: ProfileManagerOptions): ProfileManager {
   }
 
   async function ensure(id: string): Promise<Profile> {
+    if (o.blocked?.(id)) throw unavailable("This browser's saved data is locked while the Space puts it away. Try again in a moment.");
     const p = get(id);
     p.lastActiveAt = now();
     if (p.chrome?.alive()) return p;

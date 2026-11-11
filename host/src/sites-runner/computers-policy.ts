@@ -99,8 +99,11 @@ export function computerBody(name: string, body: unknown): { body: Record<string
   return { body: { ...body, HostConfig: { ...h, CapAdd: [], Privileged: false, LogConfig: LOGS, Devices: [], PidMode: "" } } };
 }
 
-/** The command the profile wipe helper runs (modules/computers/handlers/seal.ts WIPE_CMD): it empties the computer's profile disk after the sealed copy is written, and does nothing else. */
-export const SEAL_RM_CMD: readonly string[] = ["find", PROFILE_GUEST, "-mindepth", "1", "-delete"];
+/** The script the profile wipe helper runs (modules/computers/handlers/seal.ts WIPE_SCRIPT; a test holds the two together): it opens up folders the agent made read-only and empties the computer's profile disk after the sealed copy is written, and does nothing else. */
+export const SEAL_RM_SCRIPT = `chmod -R u+rwX ${PROFILE_GUEST} 2>/dev/null; find ${PROFILE_GUEST} -mindepth 1 -delete`;
+export const SEAL_RM_CMD: readonly string[] = ["sh", "-c", SEAL_RM_SCRIPT];
+/** The user every helper runs as: the computer's own, never root. */
+export const HELPER_USER = "10001:10001";
 /** The two helpers: `home-rm` deletes files in a computer's home (archive cannot delete), `seal-rm` empties its profile disk once the sealed copy is safe. */
 export const HELPER_KINDS = ["home-rm", "seal-rm"] as const;
 
@@ -123,6 +126,9 @@ export function helperBody(name: string, body: unknown): { body: Record<string, 
     if (paths.some((p) => p !== "::" && !(p.startsWith(`${GUEST_HOME}/`) && !p.includes("/../") && !p.endsWith("/.."))) ) return { why: "a helper removes only inside the computer's home" };
   }
   for (const k of Object.keys(body)) if (!["Image", "Entrypoint", "Cmd", "User", "NetworkDisabled", "HostConfig", "Labels"].includes(k) && !emptyish(body[k])) return { why: `a helper may not set ${k}` };
+  // the command is only what runs if nothing replaces the entrypoint or the user: both are pinned
+  if (!emptyish(body["Entrypoint"])) return { why: "a helper takes no entrypoint of its own" };
+  if (body["User"] !== HELPER_USER) return { why: "a helper runs as the computer's own user" };
   const h = isObj(body["HostConfig"]) ? body["HostConfig"] : null;
   if (!h) return { why: "a helper needs its host config" };
   const from = Array.isArray(h["VolumesFrom"]) ? (h["VolumesFrom"] as unknown[]) : [];
@@ -130,7 +136,7 @@ export function helperBody(name: string, body: unknown): { body: Record<string, 
   if (h["NetworkMode"] !== "none") return { why: "a helper has no network" };
   if (h["Privileged"] === true) return { why: "privileged containers are refused" };
   for (const k of Object.keys(h)) if (!["VolumesFrom", "CapDrop", "SecurityOpt", "NetworkMode", "Privileged", "AutoRemove"].includes(k) && !emptyish(h[k])) return { why: `a helper may not set HostConfig.${k}` };
-  return { body: { ...body, NetworkDisabled: true, HostConfig: { VolumesFrom: from, CapDrop: ["ALL"], SecurityOpt: ["no-new-privileges:true"], NetworkMode: "none", Privileged: false, AutoRemove: false, Memory: 256 * 1024 * 1024, PidsLimit: 64 } } };
+  return { body: { ...body, NetworkDisabled: true, HostConfig: { VolumesFrom: from, CapDrop: ["ALL"], SecurityOpt: ["no-new-privileges:true"], NetworkMode: "none", Privileged: false, AutoRemove: false, Memory: 256 * 1024 * 1024, PidsLimit: 64, NanoCpus: 1e9 } } };
 }
 
 /** A computer's network: a plain bridge with its label. Containers on it reach the internet and the one ingress that joins it, and no other computer's network. */

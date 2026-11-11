@@ -43,8 +43,8 @@ export interface ComputersHostDeps {
   startTimeoutMs?: number;
   /**
    * The key sealed browser profiles are made under. THE ONE PLACE THE KEY IS CHOSEN. The Space server has no Space key of its own (ruling 72: the Space key is made on a client and sealed to the owner), and an agent's
-   * computer must be able to wake while nobody is signed in, so the Space's at-rest key on the server is the one ctx.seal and the blob store already use (seal.key, the host's seal key, owner-held on the server);
-   * the daemon passes it here and each profile gets its own key from it (HKDF in modules/computers/handlers/seal.ts). Omitted (a computer that joined): profiles stay in plain form.
+   * computer must be able to wake while nobody is signed in, so the Space's at-rest key on the server is the one ctx.seal and the blob store already use (seal.key, the host's seal key, kept on the server);
+   * the daemon passes the copy it loaded at start (loadedProfileKey) and each profile gets its own key from it (HKDF in modules/computers/handlers/seal.ts). Omitted (a computer that joined): profiles stay in plain form.
    */
   profileKey?: () => Uint8Array;
   /** See ComputersHostSeam.capacity. */
@@ -58,6 +58,15 @@ export interface ComputersHostDeps {
   /** How often a pass runs while a computer is awake. Default 3 s. */
   homeIntervalMs?: number;
   log?: (level: "info" | "warn", msg: string, attrs?: Record<string, unknown>) => void;
+}
+
+/** The seal key as the daemon loaded it, for sealed profiles. A key that is missing or short is a refusal (the computer does not wake), never a new key. */
+export function loadedProfileKey(get: () => Uint8Array | string | undefined): () => Uint8Array {
+  return () => {
+    const k = get();
+    if (k === undefined || k.length < 16) throw new Error("the seal key is not loaded");
+    return typeof k === "string" ? new TextEncoder().encode(k) : k;
+  };
 }
 
 const AGENT_ID = /^[A-Za-z0-9_-]{1,64}$/;

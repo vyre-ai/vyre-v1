@@ -20,7 +20,15 @@ import type { CredentialFile, ExecResult, ExecSpec, Roots, Sandbox, SandboxSpec 
 
 export interface DockerRequest { method: string; path: string; query?: Record<string, string>; json?: unknown; body?: Uint8Array; contentType?: string; timeoutMs?: number }
 export interface DockerResponse { status: number; body: Uint8Array }
-export type DockerHttp = (req: DockerRequest) => Promise<DockerResponse>;
+/**
+ * The Engine's archive calls as streams, for a tar too large to hold in memory: `get` hands back the response to be read (the caller reads it to the end or destroys it), `put` sends a stream with chunked
+ * transfer. `unixSocketHttp` carries one as `.stream`; a host that has none (a scripted test Engine) answers the same two calls itself.
+ */
+export interface DockerStream {
+  get(a: { path: string; query?: Record<string, string>; timeoutMs?: number }): Promise<{ status: number; body: NodeJS.ReadableStream & { destroy(e?: Error): unknown } }>;
+  put(a: { path: string; query?: Record<string, string>; contentType: string; body: NodeJS.ReadableStream; timeoutMs?: number }): Promise<{ status: number; body: Uint8Array }>;
+}
+export type DockerHttp = ((req: DockerRequest) => Promise<DockerResponse>) & { stream?: DockerStream };
 
 /** Compare two `1.43` style versions as numbers per part, so 1.9 < 1.44. */
 const versionCmp = (a: string, b: string): number => {
@@ -71,7 +79,33 @@ export function unixSocketHttp(socketPath = "/var/run/docker.sock", apiVersion?:
     });
     return negotiated;
   };
-  return async (req) => call(`/v${await version()}${req.path}`, req);
+  const send = async (req: DockerRequest): Promise<DockerResponse> => call(`/v${await version()}${req.path}`, req);
+  const qsOf = (q?: Record<string, string>): string => (q && Object.keys(q).length > 0 ? `?${new URLSearchParams(q).toString()}` : "");
+  const stream: DockerStream = {
+    get: (a) => new Promise((resolve, reject) => {
+      void version().then((v) => {
+        const r = http.request({ socketPath, method: "GET", path: `/v${v}${a.path}${qsOf(a.query)}`, timeout: a.timeoutMs ?? 600_000, headers: { ...(extraHeaders ? extraHeaders() : {}) } }, (res) => resolve({ status: res.statusCode ?? 0, body: res }));
+        r.on("timeout", () => { r.destroy(new Error("the Docker engine did not answer in time")); });
+        r.on("error", reject);
+        r.end();
+      }, reject);
+    }),
+    put: (a) => new Promise((resolve, reject) => {
+      void version().then((v) => {
+        const r = http.request({ socketPath, method: "PUT", path: `/v${v}${a.path}${qsOf(a.query)}`, timeout: a.timeoutMs ?? 600_000, headers: { ...(extraHeaders ? extraHeaders() : {}), "content-type": a.contentType, "transfer-encoding": "chunked" } }, (res) => {
+          const chunks: Buffer[] = [];
+          res.on("data", (c: Buffer) => chunks.push(c));
+          res.on("end", () => resolve({ status: res.statusCode ?? 0, body: new Uint8Array(Buffer.concat(chunks)) }));
+          res.on("error", reject);
+        });
+        r.on("timeout", () => { r.destroy(new Error("the Docker engine did not answer in time")); });
+        r.on("error", reject);
+        a.body.on("error", (e) => r.destroy(e));
+        a.body.pipe(r);
+      }, reject);
+    }),
+  };
+  return Object.assign(send, { stream });
 }
 
 const dec = new TextDecoder();

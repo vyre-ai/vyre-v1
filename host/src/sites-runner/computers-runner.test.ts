@@ -215,7 +215,19 @@ test("the profile wipe helper: only the one fixed wipe on no network, sharing on
     ["another computer's volumes", body({}, { VolumesFrom: [computerName(B)] }), name],
     ["a network", body({}, { NetworkMode: "bridge" }), name],
     ["a host folder", body({}, { Binds: ["/:/host"] }), name],
+    ["F4: the exact command with an entrypoint that takes it as arguments", body({ Entrypoint: ["sh", "-c", "touch /home/agent/pwned; #"] }), name],
+    ["F4: the exact command run as root", body({ User: "0:0" }), name],
+    ["F4: the exact command with no user (the image's own)", body({ User: undefined }), name],
+    ["F4: another user", body({ User: "10002:10001" }), name],
   ] as const) assert.equal((await create(b, n)).status, 403, what);
+  // the older removal helper has the same two pins
+  const rmName = `${computerName(A)}-home-rm`;
+  const rm = (over: Record<string, unknown>) => ({ Image: "vyre/agent-computer:1", Entrypoint: [], Labels: { "vyre.computer": A, "vyre.helper": "home-rm" }, Cmd: ["sh", "-c", HOME_RM_SCRIPT, "sh", "/home/agent/Vyre/a.txt", "::"], User: "10001:10001", NetworkDisabled: true, HostConfig: { VolumesFrom: [computerName(A)], CapDrop: ["ALL"], SecurityOpt: ["no-new-privileges:true"], NetworkMode: "none", Privileged: false, AutoRemove: false }, ...over });
+  assert.equal((await create(rm({}), rmName)).status, 201);
+  for (const [what, b] of [["an entrypoint", rm({ Entrypoint: ["sh", "-c", "id; #"] })], ["root", rm({ User: "0:0" })], ["no user", rm({ User: undefined })]] as const) assert.equal((await create(b, rmName)).status, 403, `home-rm: ${what}`);
+  // what reaches Docker for the wipe is capped in CPU as well as memory and processes
+  const sent = JSON.parse(w.seen.filter((x) => x.url.includes("/containers/create") && x.url.includes("seal-rm")).at(-1)!.body) as { HostConfig: { NanoCpus: number } };
+  assert.equal(sent.HostConfig.NanoCpus, 1e9);
   assert.equal(computerListOk(new URLSearchParams({ all: "true", filters: JSON.stringify({ label: ["vyre.computer"] }) })), true);
   for (const bad of [{ all: "true", filters: JSON.stringify({ label: ["vyre.site"] }) }, { all: "true", filters: JSON.stringify({ label: ["vyre.computer", "x"] }) }, { all: "true", filters: JSON.stringify({ name: ["x"] }) }, { all: "true" }, { all: "true", size: "1", filters: JSON.stringify({ label: ["vyre.computer"] }) }]) assert.equal(computerListOk(new URLSearchParams(bad)), false, JSON.stringify(bad));
   assert.equal((await w.call("GET", `/containers/json?all=true&filters=${encodeURIComponent(JSON.stringify({ label: ["vyre.computer"] }))}`)).status, 200, "the boot recovery may list the computers");

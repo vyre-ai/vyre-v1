@@ -10,7 +10,7 @@ import type { LaunchFn } from "../../../images/space-browser/browserd/profiles.t
 import type { Chrome } from "../../../images/agent-computer/agentd/chrome.ts";
 import { AgentError } from "../../../images/agent-computer/agentd/errors.ts";
 
-function rig(o: { maxRunning?: number; idleMs?: number } = {}) {
+function rig(o: { maxRunning?: number; idleMs?: number; blocked?: Set<string> } = {}) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-sbrowser-"));
   const clock = { t: 1_000_000 };
   const launched: Array<{ dir: string; port: number; chrome: Chrome; stopped: boolean; tools: string[]; held: string[] }> = [];
@@ -25,7 +25,7 @@ function rig(o: { maxRunning?: number; idleMs?: number } = {}) {
     launched.push(rec);
     return rec.chrome;
   };
-  const m = createProfileManager({ root, extensionDir: null, log: () => {}, launch, now: () => clock.t, ...(o.maxRunning ? { maxRunning: o.maxRunning } : {}), ...(o.idleMs ? { idleMs: o.idleMs } : {}) });
+  const m = createProfileManager({ root, extensionDir: null, log: () => {}, launch, now: () => clock.t, ...(o.maxRunning ? { maxRunning: o.maxRunning } : {}), ...(o.idleMs ? { idleMs: o.idleMs } : {}), ...(o.blocked ? { blocked: (id: string) => o.blocked!.has(id) } : {}) });
   const call = (profileId: string, tool = "chrome_state", extra: Record<string, unknown> = {}) => m.tool({ profileId, tool, args: {}, timeoutMs: 5000, ...extra });
   return { m, root, clock, launched, call, done() { void m.stopAll(); fs.rmSync(root, { recursive: true, force: true }); } };
 }
@@ -234,4 +234,19 @@ test("what the browser holds is noted just before it closes, and a sleeping prof
     assert.deepEqual(m.cachedSessions("agt_other"), []);
     r.done();
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});
+
+test("F6: a profile the Space has sealed (guarded) never gets a browser, from a tool or anything else that wakes it, until the guard is lifted", async () => {
+  const blocked = new Set<string>(["agt_dex"]);
+  const r = rig({ blocked });
+  try {
+    await assert.rejects(() => r.call("agt_dex"), refusal("unavailable"));
+    await assert.rejects(() => r.m.ensure("agt_dex"), refusal("unavailable"));
+    assert.equal(r.launched.length, 0, "no browser was started on the emptied folder");
+    await r.call("agt_scout");
+    assert.equal(r.launched.length, 1, "another profile is not held up");
+    blocked.delete("agt_dex");
+    await r.call("agt_dex");
+    assert.equal(r.launched.length, 2);
+  } finally { r.done(); }
 });

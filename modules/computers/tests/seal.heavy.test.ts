@@ -98,7 +98,7 @@ test("@heavy seal: a sleeping computer's volume is empty and its sealed file hol
   const id = "cmt_00000000-aaaa-4000-8000-000000000001";
   await make(host, id);
   await wake(host, id);
-  const planted0 = await execIn(id, `mkdir -p /home/agent/.profile-disk/chrome/Default && printf '${MARKER}' > /home/agent/.profile-disk/chrome/Default/Cookies && printf 'user=dana pw=${MARKER}' > '/home/agent/.profile-disk/chrome/Default/Login Data'`);
+  const planted0 = await execIn(id, `mkdir -p /home/agent/.profile-disk/chrome/Default && printf '${MARKER}' > /home/agent/.profile-disk/chrome/Default/Cookies && printf 'user=dana pw=${MARKER}' > '/home/agent/.profile-disk/chrome/Default/Login Data' && mkdir -p /home/agent/.profile-disk/locked/sub && printf x > /home/agent/.profile-disk/locked/sub/f && chmod 0500 /home/agent/.profile-disk/locked/sub /home/agent/.profile-disk/locked`);   // a folder the agent made read-only must not keep the profile from being emptied (F9)
   assert.equal(planted0.exitCode, 0, `planting the profile failed: ${planted0.stderr}`);
   await sleepIt(host, id);
   assert.equal(await inVolume(id), "", "the profile volume is empty while the computer sleeps");

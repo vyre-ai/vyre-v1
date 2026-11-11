@@ -66,6 +66,8 @@ export interface SpaceBrowser {
   forget(profileId: string): Promise<void>;
   profiles(): Promise<{ profiles: ProfileRow[]; maxRunning: number }>;
   health(): Promise<{ ok: boolean; detail?: string }>;
+  /** The profiles whose saved browser data is over the size limit and so is not locked (seal.ts). */
+  oversize?(): string[];
 }
 
 let bound: SpaceBrowser | null = null;

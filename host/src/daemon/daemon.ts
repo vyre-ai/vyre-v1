@@ -95,7 +95,7 @@ import { bindPayloadHash } from "../../../lib/payload-hasher.ts";
 import { withGateNesting } from "./gate-nesting.ts";
 import { FILL_PATH, createComputersFillHost, createFillRoute } from "../seams/computers.ts";
 import { homeCallAllowed, homeScopeOf } from "./home-confine.ts";
-import { createComputersHost } from "../seams/computers-host.ts";
+import { createComputersHost, loadedProfileKey } from "../seams/computers-host.ts";
 import { createTerminalHostSeam } from "../seams/terminal-host.ts";
 import { findDockerSocket } from "../seams/docker-socket.ts";
 import { READER_LOSS, createEngineHost } from "../seams/engine.ts";
@@ -1847,7 +1847,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         setComputerHost: () => createComputersHost({
           dataDir: paths.root,
           // browser profiles at rest: sealed under keys made from the host's seal key (host/src/seams/computers-host.ts profileKey)
-          profileKey: () => { const k = o.sealKey?.key ?? sealKeyFile(path.join(paths.root, "seal.key")); return typeof k === "string" ? new TextEncoder().encode(k) : k; },
+          // the key the daemon loaded at start, the one ctx.seal and the blob store hold: never read again from disk and never made here, so a missing key refuses to lock or open a profile
+          profileKey: loadedProfileKey(() => sealKey.key),
           ...(o.computersSocketPath !== undefined ? { socketPath: o.computersSocketPath } : {}),
           // On a Team server vyred holds no Docker socket: agent computers are made and run through the runner beside it (the same one that runs sites), which refuses anything else
           ...(o.computersSocketPath === undefined && computersRunnerSocket() ? { runner: { socket: computersRunnerSocket() as string, token: computersRunnerToken, ...(ingressContainer() ? { ingress: ingressContainer() as string } : {}) } } : {}),
