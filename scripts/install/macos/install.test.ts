@@ -269,3 +269,57 @@ test("the compute role on a Mac: the same block as Linux, its own folder under t
   assert.match(sh(INSTALL, "parse_args --role compute").stderr, /needs --server/);
   assert.match(sh(INSTALL, "parse_args --role compute --server https://x.example", { VYRE_JOIN: "x" }).stderr, /looks like VYRE-ABCD-2345/);
 });
+
+test("a Mac without FileVault: the refusal offers FileVault or --allow-plain-disk (recorded), and the Linux installer's wording is the same for the same choice", () => {
+  const dir = tmp();
+  const plain = { VYRE_TEST_DISKUTIL: fakeDiskutil(dir, "   FileVault:                 No") };
+  const bad = sh(INSTALL, `check_encrypted "${dir}/data"`, plain);
+  assert.equal(bad.status, 3);
+  assert.match(bad.stderr, /Turn on FileVault/);
+  assert.match(bad.stderr, /--allow-plain-disk/);
+  assert.match(bad.stderr, /Vyre records your choice\. vyre-server doctor and the Console then say, every time, that the data is not encrypted at rest\./);
+  const linux = spawnSync("sh", ["-c", `. "${LINUX}"\nENC_KIND=; check_encrypted "${dir}/data" 2>&1`], { encoding: "utf8", env: { PATH: process.env.PATH ?? "", VYRE_SOURCE_ONLY: "1", VYRE_TEST_MODE: "1", VYRE_TEST_OS: "Darwin", VYRE_TEST_DISKUTIL: plain.VYRE_TEST_DISKUTIL, ALLOW_PLAIN: "0" } });
+  assert.match(linux.stdout, /Vyre records your choice\. vyre-server doctor and the Console then say, every time, that the data is not encrypted at rest\./, "the same sentence on both installers");
+  const ok = sh(INSTALL, `ALLOW_PLAIN=1; check_encrypted "${dir}/data"; echo "kind=$ENC_KIND"`, plain);
+  assert.equal(ok.status, 0, ok.stderr);
+  assert.match(ok.stdout, /NOT encrypted at rest/);
+  assert.match(ok.stdout, /kind=plain/);
+  fs.rmSync(dir, { recursive: true });
+});
+
+test("the Mac installer switches relay and domain the way the Linux one does, says so, opens no port without a domain, and records the disk choice", () => {
+  const dir = tmp();
+  const dirVyre = path.join(dir, "srv");
+  const rel = path.join(dirVyre, "releases/1.0.0");
+  fs.mkdirSync(rel, { recursive: true });
+  fs.writeFileSync(path.join(rel, "images.lock"), "VYRE_IMAGE=ghcr.io/vyre-ai/vyred@sha256:" + "b".repeat(64) + "\n");
+  const body = (domain: string, relay: string): string => `DIR="${dirVyre}"; DATA_DIR="${dirVyre}/data"; REL_VERSION=1.0.0; CHANNEL=stable; DOMAIN="${domain}"; RELAY="${relay}"; DRY=0; UPDATE_URL=https://vyre.run/server/; ENC_KIND=plain; write_config`;
+  const first = sh(INSTALL, body("", "https://relay.vyre.run"), { VYRE_DIR: dirVyre });
+  assert.equal(first.status, 0, first.stderr);
+  let env = read(path.join(dirVyre, "compose.env"));
+  assert.match(env, /^VYRE_BIND=127\.0\.0\.1$/m);
+  assert.match(env, /^VYRE_DISK_ENCRYPTION=plain$/m);
+  assert.match(read(path.join(dirVyre, "state/encryption")), /^kind=plain$/m);
+  const sw = sh(INSTALL, body("vyre.example.com", ""), { VYRE_DIR: dirVyre });
+  assert.match(sw.stdout, /Changing how this server is reached: from Vyre's relay/);
+  env = read(path.join(dirVyre, "compose.env"));
+  assert.match(env, /^VYRE_ADDRESS=vyre\.example\.com$/m);
+  assert.doesNotMatch(env, /VYRE_BIND|VYRE_RELAY_URL/);
+  assert.match(env, /^VYRE_NETWORK_REV=\d+$/m);
+  fs.rmSync(dir, { recursive: true });
+});
+
+test("the Mac finish text in relay mode says what the relay is for and never offers a 0.0.0.0 link; purge from a pipe says why it cannot ask", () => {
+  const dir = tmp();
+  const body = `DIR="${dir}"; DATA_DIR="${dir}"; DRY=0; REL_VERSION=1.0.0; DOMAIN=""; RELAY="https://relay.vyre.run"; BIN_DIR="${dir}/bin"; finish`;
+  const r = sh(INSTALL, body);
+  assert.doesNotMatch(r.stdout, /0\.0\.0\.0/);
+  assert.match(r.stdout, /no web address that a browser can open/);
+  assert.match(r.stdout, /--domain vyre\.example\.com/);
+  fs.mkdirSync(path.join(dir, "srv"));
+  const purge = sh(INSTALL, `DIR="${dir}/srv"; DATA_DIR="${dir}/srv/data"; PURGE=1; DRY=1; uninstall </dev/null`);
+  assert.notEqual(purge.status, 0);
+  assert.match(purge.stderr, /nothing was removed/);
+  assert.match(purge.stderr, /--uninstall --purge --yes|you did not answer yes/);
+  fs.rmSync(dir, { recursive: true });
+});

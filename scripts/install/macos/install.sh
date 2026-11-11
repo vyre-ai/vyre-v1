@@ -10,6 +10,7 @@
 #   --domain NAME      serve this Space on your own domain (Caddy gets the certificate by ACME, ports 80 and 443 must reach this Mac)
 #   --relay [URL]      serve through Vyre's relay instead (default https://relay.vyre.run); the Mac opens no public port
 #   --data-dir DIR     where the Space's data lives (default $VYRE_DIR/data); must be on an encrypted volume (FileVault)
+#   --allow-plain-disk install on a plain disk anyway; recorded, and doctor and the Console warn that the data is not encrypted at rest
 #   --role compute     with --server ADDRESS and VYRE_JOIN=<code>: add this machine to your Space as a server (agent computers run here)
 #   --uninstall        stop the server, remove the launchd agents and the vyre-server command; data and backups stay
 #   --purge            with --uninstall: also delete the data and backups, after asking
@@ -42,6 +43,9 @@ WANT=""
 DOMAIN=""
 RELAY=""
 DATA_DIR_ARG=""
+ALLOW_PLAIN=0
+ENC_KIND=""
+NETWORK_CHANGED=0
 ROLE=space
 SERVER_ARG=""
 JOIN_ARG=${VYRE_JOIN:-}
@@ -195,6 +199,7 @@ parse_args() {
       --domain) shift; [ $# -gt 0 ] || die "--domain needs a value"; DOMAIN=$1 ;;
       --relay) if [ $# -gt 1 ] && [ "${2#-}" = "$2" ]; then shift; RELAY=$1; else RELAY=$DEFAULT_RELAY; fi ;;
       --data-dir) shift; [ $# -gt 0 ] || die "--data-dir needs a value"; DATA_DIR_ARG=$1 ;;
+      --allow-plain-disk) ALLOW_PLAIN=1 ;;
       --role) shift; [ $# -gt 0 ] || die "--role needs a value"; ROLE=$1 ;;
       --server) shift; [ $# -gt 0 ] || die "--server needs a value"; SERVER_ARG=$1 ;;
       -h|--help) usage; exit 0 ;;
@@ -251,22 +256,37 @@ check_space() {
   [ "$free_mb" -ge "$MIN_FREE_MB" ] || die "$d has $free_mb MB free; Vyre Server needs at least $MIN_FREE_MB MB (images, the Space, backups)."
 }
 
-# The data directory must sit on an encrypted volume. Refuse, with the next step, when it does not.
+# What this installer remembered about the disk question on an earlier run (state/encryption: kind=plain|detected).
+enc_file() { printf '%s/state/encryption' "$DIR"; }
+enc_prior() { sed -n 's/^kind=//p' "$(enc_file)" 2>/dev/null | head -n 1; }
+
+# The data directory must sit on an encrypted volume (FileVault), or the person must choose to go on without (recorded). Refuse, with the ways forward, when they have not.
 check_encrypted() {
   d=$1
   probe=$d
   while [ ! -d "$probe" ]; do probe=$(dirname "$probe"); done
   disk_encrypted "$probe" && rc=0 || rc=$?
   case "$rc" in
-    0) say "  ok  the data directory $d is on an encrypted volume" ;;
+    0) ENC_KIND=detected; say "  ok  the data directory $d is on an encrypted volume" ;;
     *)
+      if [ "$ALLOW_PLAIN" = 1 ]; then
+        ENC_KIND=plain
+        say "  !!  the data directory $d is on a plain disk. You chose that: the Space's data is NOT encrypted at rest."
+        say "      Anyone who gets a copy of this disk, a snapshot or a backup can read it. vyre-server doctor and the Console will keep saying so."
+        return 0
+      fi
+      if [ "$(enc_prior)" = plain ]; then ENC_KIND=plain; say "  ok  $d: your earlier choice stands (plain disk); the data is not encrypted at rest"; return 0; fi
       printf 'vyre: the data directory %s is not on an encrypted volume%s.\n' "$d" "$([ "$rc" = 2 ] && printf ' that this installer can verify')" >&2
       cat >&2 <<EOT
 
-Vyre keeps your Space's data, keys and backups here, so it will not install onto a plain disk.
-Fix it one of these ways, then run the installer again:
-  - turn on FileVault: System Settings > Privacy & Security > FileVault > Turn On
-  - or choose a directory on an encrypted volume with --data-dir
+Vyre keeps your Space's data, keys and backups here, so by default it will not install onto a plain disk.
+Choose one of these, then run the installer again:
+
+  1. Turn on FileVault: System Settings > Privacy & Security > FileVault > Turn On
+     (or choose a folder on an encrypted volume with --data-dir)
+
+  2. Install on the plain disk anyway:  --allow-plain-disk
+     Vyre records your choice. vyre-server doctor and the Console then say, every time, that the data is not encrypted at rest.
 EOT
       exit 3
       ;;
@@ -386,6 +406,34 @@ space_id() {
   printf '%s' "$_s"
 }
 
+# space_serves_domain: 0 = the Space serves its own domain (network_config mode own_domain, set at install or later in the Console); 1 = it does not (the query ran, the table is there, no row says so);
+# 2 = cannot tell (no reader, a busy or missing database, any error or odd answer). Callers change the ports only on 0 or 1. Readers, in order: sqlite3, this host's node, the release image's own node
+# (docker run of the image already pulled, no network, the data folder mounted read-only).
+space_serves_domain() {
+  db=$DATA_DIR/space/modules.db
+  [ -f "$db" ] || return 2
+  q="SELECT count(*) AS n FROM network_config WHERE id = 1 AND mode = 'own_domain'"
+  to=${VYRE_TEST_SQLITE_TIMEOUT:-3000}
+  if command -v sqlite3 >/dev/null 2>&1; then
+    out=$(sqlite3 -readonly -cmd ".timeout $to" "$db" "$q" 2>/dev/null) || return 2
+    case "$out" in 1) return 0 ;; 0) return 1 ;; *) return 2 ;; esac
+  fi
+  js="try{const {DatabaseSync}=require('node:sqlite');const d=new DatabaseSync(process.argv[1],{readOnly:true});d.exec('PRAGMA busy_timeout='+process.argv[3]);console.log(d.prepare(process.argv[2]).get().n)}catch(e){process.exit(2)}"
+  if command -v node >/dev/null 2>&1 && node --no-warnings -e "require('node:sqlite')" >/dev/null 2>&1; then
+    out=$(node --no-warnings -e "$js" "$db" "$q" "$to" 2>/dev/null) || return 2
+    case "$out" in 1) return 0 ;; 0) return 1 ;; *) return 2 ;; esac
+  fi
+  img=$(sed -n 's/^VYRE_IMAGE=//p' "$DIR/compose.env" 2>/dev/null | head -n 1)
+  if [ -n "$img" ] && command -v docker >/dev/null 2>&1; then
+    out=$(docker run --rm --network none --user 1000:1000 -v "$DATA_DIR/space:/in:ro" --entrypoint node "$img" --no-warnings -e "$js" /in/modules.db "$q" "$to" 2>/dev/null) || return 2
+    case "$out" in 1) return 0 ;; 0) return 1 ;; *) return 2 ;; esac
+  fi
+  return 2
+}
+
+# access_words ADDRESS RELAY: how a server is reached, in a few plain words.
+access_words() { if [ -n "$1" ]; then printf 'your own name, https://%s' "$1"; elif [ -n "$2" ]; then printf "Vyre's relay (%s)" "$2"; else printf 'no way set yet'; fi; }
+
 write_config() {
   if [ "$DRY" = 1 ]; then say "would write $DIR/vyre.env (0600), $DIR/compose.env and $DIR/compose.override.yml, and create $DATA_DIR"; return 0; fi
   mkdir -p "$DIR" "$DATA_DIR/space" "$DATA_DIR/work" "$DATA_DIR/caddy" "$DATA_DIR/caddy-config" "$DIR/backups" "$DIR/state"
@@ -399,6 +447,29 @@ write_config() {
     # a server for a Personal Space (Settings, Computers, Add a server): VYRE_PEER_JOIN is the one-time code; the server joins through the relay, needs no address and holds a full copy
     if [ -n "${VYRE_PEER_JOIN:-}" ]; then printf 'VYRE_SPACE_KIND=personal\nVYRE_PEERS=1\nVYRE_PEER_KIND=server\nVYRE_PEER_JOIN=%s\n' "$VYRE_PEER_JOIN" >>"$DIR/vyre.env"; fi
   fi
+  # How this server is reached: what the flags say, else what the earlier install had. Changing it on an existing install is said out loud and applied.
+  old_addr=$(sed -n 's/^VYRE_ADDRESS=//p' "$DIR/compose.env" 2>/dev/null | head -n 1)
+  old_relay=$(sed -n 's/^VYRE_RELAY_URL=//p' "$DIR/compose.env" 2>/dev/null | head -n 1)
+  rev=$(sed -n 's/^VYRE_NETWORK_REV=//p' "$DIR/compose.env" 2>/dev/null | head -n 1)
+  old_bind=$(sed -n 's/^VYRE_BIND=//p' "$DIR/compose.env" 2>/dev/null | head -n 1)
+  if [ -z "$DOMAIN$RELAY" ]; then DOMAIN=$old_addr; RELAY=$old_relay; fi
+  if [ -f "$DIR/compose.env" ] && { [ "$DOMAIN" != "$old_addr" ] || [ "$RELAY" != "$old_relay" ]; }; then
+    NETWORK_CHANGED=1
+    rev=$(date +%s)
+    say "  Changing how this server is reached: from $(access_words "$old_addr" "$old_relay") to $(access_words "$DOMAIN" "$RELAY"). The Space's data is kept."
+  fi
+  # ports 80 and 443: open with a domain; closed (loopback only) for the relay. A re-run with no flags decides from what the Space serves; when that cannot be told, what was there stays.
+  if [ -n "$DOMAIN" ]; then bind=open
+  elif [ ! -f "$DIR/compose.env" ] || [ "$NETWORK_CHANGED" = 1 ]; then bind=closed
+  else
+    space_serves_domain && sd=0 || sd=$?
+    case "$sd" in
+      0) bind=open ;;
+      1) bind=closed ;;
+      *) if [ -n "$old_bind" ]; then bind=closed; else bind=open; fi
+         say "  Could not tell whether this server serves its own domain, so ports 80 and 443 were left exactly as they were." ;;
+    esac
+  fi
   # compose.env: what the compose file reads. Rewritten each install from the release and the choices made here.
   {
     printf 'VYRE_IMAGE=%s\n' "$(lock_get VYRE_IMAGE)"
@@ -406,14 +477,16 @@ write_config() {
     printf 'VYRE_SPACE=%s\n' "$(space_id)"
     [ -z "$DOMAIN" ] || printf 'VYRE_ADDRESS=%s\n' "$DOMAIN"
     [ -z "$RELAY" ] || printf 'VYRE_RELAY_URL=%s\n' "$RELAY"
+    [ -z "$rev" ] || printf 'VYRE_NETWORK_REV=%s\n' "$rev"
+    [ "$bind" != closed ] || printf 'VYRE_BIND=127.0.0.1\n'
+    kind=${ENC_KIND:-$(enc_prior)}
+    if [ -n "$kind" ]; then printf 'VYRE_DISK_ENCRYPTION=%s\nVYRE_DISK_ENCRYPTION_SINCE=%s\n' "$kind" "$(sed -n 's/^since=//p' "$(enc_file)" 2>/dev/null | head -n 1 | grep . || date -u +%Y-%m-%d)"; fi
   } >"$DIR/compose.env.new"
-  # A re-run keeps the address and relay chosen the first time unless a flag changes them.
-  if [ -f "$DIR/compose.env" ]; then
-    for k in VYRE_ADDRESS VYRE_RELAY_URL; do
-      if ! grep -q "^$k=" "$DIR/compose.env.new" && grep -q "^$k=" "$DIR/compose.env" && { [ -z "$DOMAIN" ] && [ -z "$RELAY" ]; }; then grep "^$k=" "$DIR/compose.env" >>"$DIR/compose.env.new"; fi
-    done
-  fi
   mv "$DIR/compose.env.new" "$DIR/compose.env"
+  if [ -n "${ENC_KIND:-}" ] && [ "$ENC_KIND" != "$(enc_prior)" ]; then
+    [ -z "$(enc_prior)" ] || say "  The recorded disk choice changed: from $(enc_prior) to $ENC_KIND."
+    printf 'kind=%s\nsince=%s\ndata_dir=%s\n' "$ENC_KIND" "$(date -u +%Y-%m-%d)" "$DATA_DIR" >"$(enc_file)"
+  fi
   printf '%s\n' "$CHANNEL" >"$DIR/channel"
   printf '%s\n' "${UPDATE_URL%/}/" >"$DIR/update-url"
   cat >"$DIR/compose.override.yml" <<EOT
@@ -562,14 +635,21 @@ finish() {
   else
     say "Vyre Server $REL_VERSION is running."
     if [ -n "$DOMAIN" ]; then say "Your Space will answer at https://$DOMAIN once its certificate is issued (ports 80 and 443 must reach this Mac)."
-    elif [ -n "$RELAY" ]; then say "It connects outward to $RELAY; no public port is open on this Mac."
+    elif [ -n "$RELAY" ]; then
+      say "It connects outward to $RELAY. No port is open to the internet on this Mac."
+      if grep -q '^VYRE_SETUP_CODE=' "$DIR/vyre.env" 2>/dev/null; then say "This server was installed with a one-time code from the Vyre app. Go back to the app: it finds this server and finishes the setup."
+      else
+        say "A server reached through the relay has no web address that a browser can open. The relay finds it only for the Vyre app that made its install line."
+        say "  - With the Vyre app: choose Create a Space, then Team Space, then add a server, and run the install line it shows (it carries a one-time code)."
+        say "  - With only a browser: install with your own name instead: --domain vyre.example.com (docs/getting-started.md)."
+      fi
     else say "Choose how people reach it: run the installer again with --domain NAME or --relay."
     fi
     case ":$PATH:" in *":$BIN_DIR:"*) ;; *) say "Add $BIN_DIR to your PATH to use the vyre-server command (for example: echo 'export PATH=\"$BIN_DIR:\$PATH\"' >> ~/.zshrc)." ;; esac
     say "The server starts when you log in, and Docker has to be open. A Mac that goes to sleep stops serving: in System Settings > Battery (or Energy), keep it awake when plugged in."
     # the link itself is a credential and stays out of this output (it can end up in a provisioning log): the owner asks for it
     if [ -f "$DATA_DIR/space/logs/claim-link.txt" ]; then say "To claim this Space as its owner, run: vyre-server claim-link and open the link it prints (once, within 24 hours)."; fi
-    say "Go back to the Vyre app to finish setting up this server."
+    [ "${ENC_KIND:-$(enc_prior)}" != plain ] || say "Reminder: the data is NOT encrypted at rest (you chose --allow-plain-disk). vyre-server doctor says so until that changes."
     say "Check it any time with: vyre-server doctor"
   fi
   say ""
@@ -577,7 +657,10 @@ finish() {
 
 uninstall() {
   [ -d "$DIR" ] || die "nothing is installed at $DIR."
-  if [ "$PURGE" = 1 ] && ! ask "Delete the Space's data and every backup under $DIR? This cannot be undone."; then die "not purged."; fi
+  if [ "$PURGE" = 1 ] && ! ask "Delete the Space's data and every backup under $DIR? This cannot be undone."; then
+    (: </dev/tty) 2>/dev/null && die "not purged: you did not answer yes. Nothing was removed."
+    die "not purged, and nothing was removed: this installer cannot ask you to confirm because it is reading from a pipe. To confirm, add --yes:  ... | sh -s -- --uninstall --purge --yes"
+  fi
   for l in "$LABEL_SERVER" "$LABEL_UPDATE"; do
     if command -v launchctl >/dev/null 2>&1 && [ "${VYRE_TEST_MODE:-0}" != 1 ]; then run launchctl bootout "$(launchd_domain)/$l" || true; fi
   done

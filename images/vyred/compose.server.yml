@@ -22,6 +22,13 @@ services:
       VYRE_SPACE: ${VYRE_SPACE:-}
       VYRE_ADDRESS: ${VYRE_ADDRESS:-}
       VYRE_RELAY_URL: ${VYRE_RELAY_URL:-}
+      # what the installer recorded: when the address or relay was last changed (the Space applies a change once), and the disk choice (the Console's health page shows it)
+      VYRE_NETWORK_REV: ${VYRE_NETWORK_REV:-}
+      VYRE_DISK_ENCRYPTION: ${VYRE_DISK_ENCRYPTION:-}
+      VYRE_DISK_ENCRYPTION_SINCE: ${VYRE_DISK_ENCRYPTION_SINCE:-}
+      # where Docker keeps its data and whether that disk is encrypted, as the host sees it (agent browser sign-ins live in Docker volumes there)
+      VYRE_DOCKER_ROOT_DIR: ${VYRE_DOCKER_ROOT_DIR:-}
+      VYRE_DOCKER_ROOT_STATE: ${VYRE_DOCKER_ROOT_STATE:-}
       VYRE_SITES_RUNNER: /run/vyre-sites/runner.sock
       # the agent computer image of this release, by digest (compose.env: the installer and vyre-server update write it from images.lock); the default is for a run without them
       VYRE_AGENT_COMPUTER_IMAGE: ${VYRE_AGENT_COMPUTER_IMAGE:-vyre/agent-computer:1}
@@ -37,8 +44,9 @@ services:
       - vyre-work:/work
       - vyre-sites-run:/run/vyre-sites
     ports:
-      - "80:80"
-      - "443:443"
+      # 80 and 443 are open to the internet only with a domain; the installer writes VYRE_BIND=127.0.0.1 otherwise, so a relay server opens no public port
+      - "${VYRE_BIND:-0.0.0.0}:80:80"
+      - "${VYRE_BIND:-0.0.0.0}:443:443"
       - "127.0.0.1:${VYRE_PORT:-8420}:8420"
     labels:
       vyre.ingress: "1"
