@@ -15,6 +15,7 @@ test("first hour on a server whose Space has no name: claim, setup, name, invite
   const { chromium } = await import("playwright-core");
   const exe = process.env["CHROME_BIN"] || chromium.executablePath();
   assert.ok(fs.existsSync(exe), `Chromium is required at ${exe}`);
+  process.env["VYRE_TEST_NO_VENDOR"] = "1";   // this walk wants the real provider's answer to a made-up key
   const space = await bootFreshSpace(undefined, true, true);
   const web = await edge(dist, space.url);
   const browser = await chromium.launch({ executablePath: exe, args: ["--no-sandbox"] });
