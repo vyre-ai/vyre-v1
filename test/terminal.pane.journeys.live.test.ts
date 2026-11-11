@@ -28,7 +28,7 @@ function scriptedTerminal(opened: Array<Record<string, unknown>>): TerminalHost 
   };
 }
 
-for (const kind of ["personal", "team"] as const) for (const own of [false, true]) test(`terminal pane journey, ${kind}, agent ${own ? "with" : "without"} its own computer: Open terminal in the chat pane opens a terminal on ${own ? "the agent's computer" : "this computer"}`, async (t) => {
+for (const kind of ["personal", "team"] as const) for (const own of [false, true]) test(`terminal pane journey, ${kind}, agent ${own ? "with" : "without"} its own computer: Open terminal in the chat pane opens a terminal on ${own ? "the agent's computer" : "its workspace, or this computer"}`, async (t) => {
   const env = await browserOrSkip();
   if (typeof env === "string") { t.skip(env); return; }
   const s = await bootScreens({ kind, engineOpenSession: standIn }, env);
@@ -44,7 +44,7 @@ for (const kind of ["personal", "team"] as const) for (const own of [false, true
       await w.owner.ok("providers.add", { providerKey: "anthropic", connection: "api_key", apiKey: KEY, name: "My Claude", scope: "mine" });
       agentId = (await w.owner.ok("agents.create", { name: "Desk", role: "You help." })).agent.agentId as string;
     }
-    // every agent has a Terminal; with its own computer it opens there, without one it opens on this computer
+    // every agent has a Terminal; with its own computer it opens there, without one in its workspace (or on this computer where the Space has no machine for workspaces)
     if (own) {
       bindComputers({ ...fakeHost().host, async tool() { return { ok: true, frame: "iVBORw0KGgo=" }; } } as unknown as ComputerHost);
       const computerId = (await w.owner.ok("computers.provision", { agentId })).computer.computerId as string;
@@ -69,7 +69,10 @@ for (const kind of ["personal", "team"] as const) for (const own of [false, true
     await me.page.getByTestId("terminal-tab").waitFor({ timeout: 20_000 });
     assert.equal(await me.page.getByText("Could not open").count(), 0, "no dead button");
     assert.equal(opened.length, 1);
+    // 12 Nov (audit item 15): an agent with a workspace the person may enter opens there, the sessions its own commands use; only where the Space has no machine for one does it open on this computer
+    const ws = (await w.owner.ok("terminal.workspace", { agentId })) as { state: string; canAttach: boolean };
     if (own) assert.equal(opened[0]!["host"], "agent_computer", "it opens on the agent's own computer");
+    else if (ws.canAttach && ws.state !== "unavailable") assert.deepEqual([opened[0]!["host"], opened[0]!["agentId"]], ["agent_computer", agentId], "it opens in the agent's workspace");
     else {
       assert.equal(opened[0]!["host"], "device");
       assert.ok(typeof opened[0]!["deviceId"] === "string" && (opened[0]!["deviceId"] as string).length > 0, "the terminal names the computer it opens on");
