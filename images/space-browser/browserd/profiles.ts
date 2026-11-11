@@ -20,9 +20,9 @@ export const checkProfileId = (id: unknown): string => {
 /** A download in a profile's downloads folder that Chrome has finished (not a `.crdownload` or a hidden file). */
 export interface DownloadRow { name: string; size: number; at: number }
 export const MAX_DOWNLOAD = 20 * 1024 * 1024;
-/** The steps that can set off a download: the step waits for one it started to finish (a short look for it to begin, then up to SETTLE_MS), so the step that downloaded is the one that reports it. */
+/** The steps that can set off a download: when the browser said a download began during the step, the step waits for it to finish (up to SETTLE_MS), so the step that downloaded is the one that reports it.
+ * A step that set off no download waits for nothing: no timer runs on every click. */
 const ACTING: ReadonlySet<string> = new Set(["chrome_click", "chrome_act", "chrome_open", "chrome_send", "chrome_type"]);
-const BEGIN_LOOK_MS = 300;
 const SETTLE_MS = 15_000;
 const SAFE_NAME = /^[^/\\\x00-\x1f.][^/\\\x00-\x1f]{0,254}$/;
 
@@ -267,10 +267,10 @@ export function createProfileManager(o: ProfileManagerOptions): ProfileManager {
     } finally { p.state.busy -= 1; p.lastActiveAt = now(); }
   }
 
-  /** A download the step set off begins a moment after it: look for one briefly, and wait for one under way to finish, within bounds. */
+  /** Only when the browser said a download began during the step (Browser.downloadWillBegin over the pipe): wait for it to finish, within a bound. */
   async function settleDownloads(p: Profile, began: number): Promise<void> {
+    if (p.dl.begunAt < began || p.dl.active.size === 0) return;
     const t0 = Date.now();
-    while (p.dl.active.size === 0 && p.dl.begunAt < began && Date.now() - t0 < BEGIN_LOOK_MS) await new Promise((r) => setTimeout(r, 50));
     while (p.dl.active.size > 0 && Date.now() - t0 < SETTLE_MS) await new Promise((r) => setTimeout(r, 100));
   }
 

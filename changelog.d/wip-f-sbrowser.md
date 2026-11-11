@@ -17,3 +17,4 @@
 - A give back that did not reach the Space browser no longer leaves the agent blocked: the agent's next step puts it right.
 - A takeover is kept going only by the person who took over (their open live view or their input); an agent waiting and checking its browser, or someone else watching, no longer keeps it from ending after 15 quiet minutes.
 - A browser step is never sent a second time on its own after the Space browser stopped while working on it; the agent is told the step did not finish.
+- Clicks, typing and opening pages in the Space browser no longer pause a moment after each step to look for a download; a step waits only when it really started one.

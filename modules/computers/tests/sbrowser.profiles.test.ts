@@ -291,3 +291,17 @@ test("resetChrome never closes a browser under a step in flight or a person at t
     assert.equal(starts.length, 2, "and it starts again once the data is in");
   } finally { gate.forEach((g) => g()); await m.stopAll(); fs.rmSync(root, { recursive: true, force: true }); }
 });
+
+// Review (12 Nov): every click, act, open, type and send waited 300 ms for a download that might begin, even when none did.
+test("a step that sets off no download waits for nothing after it", async () => {
+  const r = rig();
+  try {
+    await r.call("agt_dex", "chrome_state");
+    for (const name of ["chrome_click", "chrome_act", "chrome_open", "chrome_type", "chrome_send"]) {
+      const t0 = performance.now();
+      await r.call("agt_dex", name);
+      const ms = performance.now() - t0;
+      assert.ok(ms < 100, `${name} took ${Math.round(ms)} ms with no download`);
+    }
+  } finally { r.done(); }
+});
