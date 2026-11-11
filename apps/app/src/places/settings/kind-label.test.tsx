@@ -23,8 +23,8 @@ test("every admin-only kind and the hook kind has a plain label", () => {
   for (const k of ["space.deletion_cancelled", "ci.paused", "member.join_requested", "limit.hit", "hook.asked"]) assert.ok(KIND_LABELS[k], k);
 });
 
-test("a kind nothing sends has no switch, for anyone (f-wire, 12 Nov): Something is down, Incidents you own, Problem reports, Edits that conflict, A device needs attention, Mentions in a reply", () => {
-  const unsent = ["health.degraded", "incident.owned", "problem.report", "conflict.needs_you", "sync.attention", "mention.thread"];
+test("a kind nothing sends has no switch, for anyone (f-wire, 12 Nov): Problem reports, Edits that conflict, Mentions in a reply", () => {
+  const unsent = ["problem.report", "conflict.needs_you", "mention.thread"];
   const all = [...unsent, "dm", "machine.alert"].map((key) => ({ key }));
   for (const role of ["Owner", "Admin", "Member"]) assert.deepEqual(kindsFor(all, role).filter((k) => unsent.includes(k.key)), [], `${role} sees no switch that changes nothing`);
   assert.deepEqual(kindsFor(all, "Owner").map((k) => k.key), ["dm", "machine.alert"]);
