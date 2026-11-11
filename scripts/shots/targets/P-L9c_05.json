@@ -11,7 +11,7 @@
       "id": "P-L9c_05-call-ended",
       "route": "/m/P-L9c_05?c=elena&phase=ended",
       "proto": "inbox,at:callend,{skin}",
-      "waitFor": "[data-testid='softphone-ended']",
+      "waitFor": "[data-testid='call-ended-strip']",
       "protoSettleMs": 5000,
       "note": "After the call: a full-width strip under the conversation header with Call ended, the clock, where it was saved and Log a task; the call is in the thread as an Incoming call with player, summary and Transcript."
     },

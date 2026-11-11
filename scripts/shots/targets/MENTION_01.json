@@ -4,14 +4,14 @@
       "id": "MENTION_01-owner",
       "route": "/m/MENTION_01?who=owner",
       "proto": "chat,at:mention,{skin}",
-      "waitFor": "[id='pop-1']",
+      "waitFor": "[data-testid='composer-popup']",
       "note": "Typing @ in a shared channel as the owner: Assistant first (the viewer's own, never Irfad Imtiaz (Agent)), then the Space's agents each with its face, then people. No other person's Assistant, no outside agent, no Report a problem row."
     },
     {
       "id": "MENTION_01-guest",
       "route": "/m/MENTION_01?who=guest",
       "proto": "chat,at:mention,{skin}",
-      "waitFor": "[id='pop-1']",
+      "waitFor": "[data-testid='composer-popup']",
       "note": "The same menu for a guest: only the agents this chat allows, then people."
     },
     {

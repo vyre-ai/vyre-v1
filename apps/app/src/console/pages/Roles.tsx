@@ -99,7 +99,7 @@ export function Roles({ initialId }: {initialId?:string}): ReactElement {
   const [selected,setSelected] = useState(initialId ?? "");
   const [search,setSearch] = useState("");
   const searchNow=useRef(search);searchNow.current=search;
-  const list = useRead<AccessRolesListOut>("access.roles.list", {q:search,limit:100});
+  const list = useRead<AccessRolesListOut>("access.roles.list", {q:search,limit:100}, { keepPrevious: true });
   const known=useRef(new Map<string,Role>());
   const [filters,setFilters] = useState<ReadonlySet<string>>(new Set());
   const [picked,setPicked] = useState<ReadonlySet<string>>(new Set());
