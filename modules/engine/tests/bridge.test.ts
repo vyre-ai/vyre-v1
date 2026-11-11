@@ -186,6 +186,21 @@ test("a failed turn becomes a status block in the chat", async () => {
   assert.deepEqual(post.blocks, [{ type: "turn_status", v: 1, data: { state: "failed", turnId: s.engine.turns(T)[0]?.id, code: "rate_limited" } }]);
 });
 
+test("an engine that died on the server's sandbox or a missing image carries a fixed `why` word in the chat's status block, never the engine's text (rc.22 bug 11)", async () => {
+  const sandbox = setup({ script: [{ type: "error", code: "engine.cli_error", message: "claude exited with code 1: bwrap: No permissions to create new namespace, likely because the kernel does not allow non-privileged user namespaces" }] });
+  await sandbox.say("Go");
+  const data = (sandbox.chat.find((r) => r.author.id === LEAD)?.blocks[0] as { data: Record<string, unknown> }).data;
+  assert.equal(data["why"], "sandbox");
+  assert.equal(data["exit"], "1");
+  assert.ok(!JSON.stringify(data).includes("bwrap"), "the engine's words are not carried");
+  const image = setup({ script: [{ type: "error", code: "engine.cli_error", message: "Unable to find image 'vyre/agent-computer:1' locally" }] });
+  await image.say("Go");
+  assert.equal((image.chat.find((r) => r.author.id === LEAD)?.blocks[0] as { data: Record<string, unknown> }).data["why"], "image");
+  const plain = setup({ script: [{ type: "error", code: "engine.cli_error", message: "the engine exited with code 137" }] });
+  await plain.say("Go");
+  assert.equal((plain.chat.find((r) => r.author.id === LEAD)?.blocks[0] as { data: Record<string, unknown> }).data["why"], undefined);
+});
+
 test("a missing engine and an unreadable Vault carry what the chat needs to say precisely: the program, the Vault's own code, nothing else", async () => {
   const missing = setup({ script: [{ type: "error", code: "engine.cli_missing", message: "codex is not installed on this computer." }] });
   await missing.say("Go");
