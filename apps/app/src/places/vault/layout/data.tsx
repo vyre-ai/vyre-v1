@@ -114,13 +114,13 @@ export function retryVaultQueries(screens: ScreenHooks): boolean {
   return true;
 }
 
-export function usePrincipals(): { name(id: string): string; all: readonly Principal[] } {
+export function usePrincipals(): { name(id: string): string; all: readonly Principal[]; loading: boolean } {
   const { principals } = useVaultData();
   const src = principals ?? NEVER;
   const snap = useSyncExternalStore(src.subscribe, src.getSnapshot, src.getSnapshot) as QueryState<Principal[]>;
   return useMemo(() => {
     const by = new Map((snap.status === "ready" ? snap.data : []).map((p) => [p.id, p] as const));
-    return { name: (id: string) => by.get(id)?.name ?? id, all: snap.status === "ready" ? snap.data : [] };
+    return { name: (id: string) => by.get(id)?.name ?? id, all: snap.status === "ready" ? snap.data : [], loading: snap.status !== "ready" };
   }, [snap]);
 }
 

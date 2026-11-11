@@ -17,7 +17,7 @@ import { shareRows } from "../../../share/rows.ts";
 import { accessCount } from "../../../../../../ui/src/AccessSheet/index.tsx";
 import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import { MarkdownEditor } from "../../../../../../ui/src/RichEditor/index.tsx";
-import { aiMenu } from "../../vault/providers/aiMenu.ts";
+import { aiMenu, useAiRefill } from "../../vault/providers/aiMenu.ts";
 import { aiCaption, aiName, automaticLine } from "../../vault/providers/pick.ts";
 import { useSpaceAi } from "../../vault/providers/useSpaceAi.ts";
 import { Glyph as Mark } from "../conversation/parts.tsx";
@@ -74,6 +74,7 @@ export function AgentForm({ agentId, call, newKey, onDone, onCancel, say, sharin
   const spaceAi = useSpaceAi(call);
   const chatOn = d.chatOn === true;
   const aiPop = useMenu();
+  const refill = useAiRefill(aiPop.update, spaceAi);
   // the account the agent was saved with: only a change is sent
   const [savedWork, setSavedWork] = useState("");
   const [savedChat, setSavedChat] = useState("");
@@ -201,7 +202,7 @@ export function AgentForm({ agentId, call, newKey, onDone, onCancel, say, sharin
               role="button" aria-haspopup="menu" aria-label={`AI account: ${aiName(spaceAi ?? [], d.workKey)}. Change`} testID="agent-ai-account"
               onPress={(e) => {
                 const r = (e as unknown as { currentTarget?: { getBoundingClientRect?: () => { left: number; bottom: number } } }).currentTarget?.getBoundingClientRect?.();
-                aiPop.show(aiMenu(spaceAi ?? [], "agentWork", d.workKey || undefined, (h) => set({ workKey: h ?? "" }), { ...(agentId ? { agentId } : {}), ...(openVault ? { openVault } : {}) }), r?.left ?? 0, (r?.bottom ?? 0) + 4, "other");
+                aiPop.show(refill((r) => aiMenu(r, "agentWork", d.workKey || undefined, (h) => set({ workKey: h ?? "" }), { ...(agentId ? { agentId } : {}), ...(openVault ? { openVault } : {}) })), r?.left ?? 0, (r?.bottom ?? 0) + 4, "other");
               }}
               style={st.kv}
             >
@@ -223,7 +224,7 @@ export function AgentForm({ agentId, call, newKey, onDone, onCancel, say, sharin
                 role="button" aria-haspopup="menu" aria-label={`Chat key account: ${(d.chatKey ?? "") === "" ? "choose one" : aiName(spaceAi ?? [], d.chatKey)}. Change`} testID="agent-chat-key-account" disabled={!mayManageAi}
                 onPress={(e) => {
                   const r = (e as unknown as { currentTarget?: { getBoundingClientRect?: () => { left: number; bottom: number } } }).currentTarget?.getBoundingClientRect?.();
-                  aiPop.show(aiMenu(spaceAi ?? [], "chats", d.chatKey || undefined, (h) => set({ chatKey: h ?? "" }), { none: "Choose an account", ...(openVault ? { openVault } : {}) }), r?.left ?? 0, (r?.bottom ?? 0) + 4, "other");
+                  aiPop.show(refill((r) => aiMenu(r, "chats", d.chatKey || undefined, (h) => set({ chatKey: h ?? "" }), { none: "Choose an account", ...(openVault ? { openVault } : {}) })), r?.left ?? 0, (r?.bottom ?? 0) + 4, "other");
                 }}
                 style={[st.kv, { marginTop: 8 }]}
               >
