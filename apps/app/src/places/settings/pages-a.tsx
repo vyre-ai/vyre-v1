@@ -138,8 +138,13 @@ export const KIND_LABELS: Readonly<Record<string, string>> = {
 };
 /** Kinds only a Space's owner or admins are sent: a member does not see them in the list. */
 export const ADMIN_KINDS: ReadonlySet<string> = new Set(["space.deletion_scheduled", "space.deletion_cancelled", "ci.paused", "member.join_requested", "limit.hit", "machine.alert", "vault.rotation_due", "hook.asked"]);
-/** The kinds a person with this role is sent: owners and admins get all, a member none of the admin-only ones. */
-export const kindsFor = <T extends { key: string }>(kinds: readonly T[], role: string): T[] => { const r = role.toLowerCase(); return r === "owner" || r === "admin" ? [...kinds] : kinds.filter((k) => !ADMIN_KINDS.has(k.key)); };
+/**
+ * Kinds nothing in Vyre sends yet (f-wire, 12 Nov): the contract names them, but no event files them and no module sends them, so a switch for one would change nothing. They stay off the page
+ * until something sends them; modules/notifications/tests/wiring.test.ts fails when one of them starts being sent and is still hidden here.
+ */
+export const UNSENT_KINDS: ReadonlySet<string> = new Set(["conflict.needs_you", "health.degraded", "incident.owned", "mention.thread", "problem.report", "sync.attention"]);
+/** The kinds a person with this role is sent: owners and admins get all, a member none of the admin-only ones; nobody sees a kind nothing sends. */
+export const kindsFor = <T extends { key: string }>(kinds: readonly T[], role: string): T[] => { const r = role.toLowerCase(); const sent = kinds.filter((k) => !UNSENT_KINDS.has(k.key)); return r === "owner" || r === "admin" ? sent : sent.filter((k) => !ADMIN_KINDS.has(k.key)); };
 export const kindLabel = (title: string): string => title.replace(/^Replies in your threads$/, "Replies to you").replace(/:\s*\{\{\w+\}\}$/, "").replace(/\{\{(\w+)\}\}/g, (_, w: string) => WORD[w] ?? "something");
 type MutesOut = CapMap["notifications.mute.list"]["out"];
 

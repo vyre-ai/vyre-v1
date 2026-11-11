@@ -93,3 +93,14 @@ test("every event a manifest says files a notification is read by the fanout, fi
     assert.ok(!fanOn.has(n), `${n} is wired now: take it off NOT_YET_FILED`);
   }
 });
+
+test("Settings hides exactly the kinds that nothing files: a kind that starts being sent comes back to the page", () => {
+  const app = fs.readFileSync(fileURLToPath(new URL("../../../apps/app/src/places/settings/pages-a.tsx", import.meta.url)), "utf8");
+  const hidden = new Set([...(/UNSENT_KINDS[^=]*= new Set\(\[([^\]]*)\]\)/.exec(app)?.[1] ?? "").matchAll(/"([a-z_.]+)"/g)].map((m) => m[1]!));
+  assert.ok(hidden.size > 0, "found the hidden kinds in Settings");
+  const notifying = registry.events.filter((e) => typeof (e as { notify?: unknown }).notify === "string") as Array<{ name: string; notify: string }>;
+  const filedKinds = new Set(notifying.filter((e) => fanOn.has(e.name) || FILED_DIRECTLY[e.name] !== undefined).map((e) => e.notify));
+  for (const k of hidden) assert.ok(!filedKinds.has(k), `${k} is filed now (an event that names it is read or sent): show its switch again`);
+  const onlyGaps = new Set(notifying.filter((e) => NOT_YET_FILED.includes(e.name)).map((e) => e.notify).filter((k) => !filedKinds.has(k)));
+  for (const k of onlyGaps) assert.ok(hidden.has(k), `${k} is named only by events nothing files: hide its switch (UNSENT_KINDS)`);
+});
