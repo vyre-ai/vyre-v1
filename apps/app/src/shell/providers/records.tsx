@@ -52,6 +52,9 @@ export function useCanManageSync(rt: ShellRuntime | null): boolean {
   return can;
 }
 
+/** The Projects type every Space has (projects.create's own default). */
+const PROJECT_TYPE = "project";
+
 function RecordsBody({ rt, canEdit }: { rt: ShellRuntime; canEdit: boolean }): ReactElement {
   const { target, opened } = usePlaceHash();
   const id = useOpenedId(["record", "contact", "project"], ["recordId", "projectId"]);
@@ -89,6 +92,8 @@ function RecordsBody({ rt, canEdit }: { rt: ShellRuntime; canEdit: boolean }): R
     copy: (text) => { void (globalThis as { navigator?: { clipboard?: { writeText?(t: string): Promise<void> } } }).navigator?.clipboard?.writeText?.(text); },
   }), [rt, dispatch, opened, canEdit, target.screen]);
   const types = useScreenQuery<CapMap["schema.types.list"]["out"]>(SCREENS.types, "types");
+  // New project (Cmd-K and the Projects + in Chats) opens the Projects type with its new row started; before, it opened whatever type was last open and nothing else happened (owner walk, 12 Nov)
+  const newProject = target.screen === "records.projects" && types.status === "ready" && types.data.types.some((x) => x.key === PROJECT_TYPE);
   const type = target.args.type ?? effectiveType(state, typeGroups(types.status === "ready" ? types.data.types : []));
   typeTitle.current = (key) => (types.status === "ready" ? types.data.types.find((x) => x.key === key)?.plural : undefined);
   const canSync = useCanManageSync(rt);
@@ -104,7 +109,7 @@ function RecordsBody({ rt, canEdit }: { rt: ShellRuntime; canEdit: boolean }): R
       void agentOfRecord(rt.call, recordId).then((r) => { if ("agent" in r) openAgent(rt, r.agent.agentId); else open(); }, open);
     } } };
   }, [rt, type, target.screen, canEdit, canSync, share]);
-  return <RecordsDataProvider value={data}><View testID="records-place" style={{ flex: 1, flexDirection: "row", minHeight: 0 }}><RecordsSidebarSlot />{id ? <RecordDetail key={`${id}:${target.args.type ?? ""}`} rt={rt} recordId={id} {...(target.args.type ? { type: target.args.type } : {})} fields={target.screen === "records.record-page" || target.args.recordView === "fields"} tab={target.screen === "records.project-plan" ? "plan" : isProjectTab(target.args.tab) ? target.args.tab : "overview"} /> : schemaView ? <SchemaDataProvider value={schema}>{schemaView === "types" ? <RecordTypesList /> : <SchemaMap />}</SchemaDataProvider> : syncType ? <SyncPage key={syncType} type={syncType} call={rt.call} title={(types.status === "ready" ? types.data.types.find((x) => x.key === syncType)?.plural : undefined) ?? syncType} nav={{ openRecords: (ty) => { dispatch({ type: "open", key: ty }); opened({}); }, editMapping: (a) => openAskPane({ thing: { kind: ASK_SCOPE, id: `sync:${a.type}`, title: `How ${a.type} syncs` }, first: editMappingOpening(a) }, "records"), closed: () => opened({}) }} canManage /> : <RecordViews extraKinds={EXTRA_KINDS} {...(target.args.type ? { type: target.args.type } : {})} {...(target.args.kind ? { kind: target.args.kind } : {})} />}{sharing ? <RecordShareSheet target={sharing} directory={{ people: directory.people, groups: directory.groups, agents: directory.agents }} spaceName={rt.space.name} meId={rt.me.id} onClose={() => setSharing(null)} /> : null}</View></RecordsDataProvider>;
+  return <RecordsDataProvider value={data}><View testID="records-place" style={{ flex: 1, flexDirection: "row", minHeight: 0 }}><RecordsSidebarSlot />{id ? <RecordDetail key={`${id}:${target.args.type ?? ""}`} rt={rt} recordId={id} {...(target.args.type ? { type: target.args.type } : {})} fields={target.screen === "records.record-page" || target.args.recordView === "fields"} tab={target.screen === "records.project-plan" ? "plan" : isProjectTab(target.args.tab) ? target.args.tab : "overview"} /> : schemaView ? <SchemaDataProvider value={schema}>{schemaView === "types" ? <RecordTypesList /> : <SchemaMap />}</SchemaDataProvider> : syncType ? <SyncPage key={syncType} type={syncType} call={rt.call} title={(types.status === "ready" ? types.data.types.find((x) => x.key === syncType)?.plural : undefined) ?? syncType} nav={{ openRecords: (ty) => { dispatch({ type: "open", key: ty }); opened({}); }, editMapping: (a) => openAskPane({ thing: { kind: ASK_SCOPE, id: `sync:${a.type}`, title: `How ${a.type} syncs` }, first: editMappingOpening(a) }, "records"), closed: () => opened({}) }} canManage /> : <RecordViews extraKinds={EXTRA_KINDS} {...(target.args.type ? { type: target.args.type } : newProject ? { type: PROJECT_TYPE } : {})} {...(target.args.kind ? { kind: target.args.kind } : {})} {...(newProject && String(target.args.create) === "true" ? { startNew: true } : {})} />}{sharing ? <RecordShareSheet target={sharing} directory={{ people: directory.people, groups: directory.groups, agents: directory.agents }} spaceName={rt.space.name} meId={rt.me.id} onClose={() => setSharing(null)} /> : null}</View></RecordsDataProvider>;
 }
 
 export default function RecordsPlace(_props: { place: string }): ReactElement {

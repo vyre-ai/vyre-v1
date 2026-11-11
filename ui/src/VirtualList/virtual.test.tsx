@@ -46,6 +46,18 @@ test("measured heights use the estimate until a row reports its own", () => {
   assert.equal(offsets[3], 80 + 44 + 44);
 });
 
+test("a measured height stays with its row when rows move (a label after an inserted row is not drawn at the skeleton's height)", () => {
+  // the pane measured: Terminal label 30, the browser skeleton 220; then "No sessions yet." (24) is put in before the Browser label and the skeleton became the card (260)
+  const before = ["l-terminal", "terminal-card", "l-browser", "browser-loading"];
+  const after = ["l-terminal", "terminal-card", "no-sessions", "l-browser", "browser-card"];
+  const measured = new Map<string, number>([["l-terminal", 30], ["terminal-card", 120], ["l-browser", 30], ["browser-loading", 220]]);
+  const was = rowOffsets(before.length, "measure", measured, (i) => before[i]!);
+  assert.equal(was[3] - was[2], 30, "the Browser label is its own height");
+  const now = rowOffsets(after.length, "measure", measured, (i) => after[i]!);
+  assert.equal(now[4] - now[3], 30, "the Browser label keeps its 30 px after it moved down one place, not the skeleton's 220");
+  assert.equal(now[5] - now[4], 44, "the new card is estimated until it reports, never given another row's height");
+});
+
 test("an empty list renders no rows and no crash", () => {
   const html = renderToStaticMarkup(<VirtualList data={[] as string[]} rowHeight={28} renderItem={(s) => <Row title={s} />} />);
   assert.doesNotMatch(html, /data-testid="row-/);

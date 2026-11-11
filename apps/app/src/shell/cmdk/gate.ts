@@ -51,6 +51,12 @@ export const placeOfHit = (h: Hit): PlaceId => PLACE_OF[h.kind];
 export const hashOfHit = (h: Hit): string => (h.kind === "note" ? `screen=chats.notes&noteId=${encodeURIComponent(h.id)}` : `subject=${h.kind}:${h.id}`);
 
 const matches = (h: Hit, q: string): boolean => `${h.title} ${h.snippet ?? ""}`.toLowerCase().includes(q.toLowerCase());
+/** Hits whose name holds the words first, the rest after, each group in its own order. */
+export function byTitleFirst(hits: readonly Hit[], q: string): Hit[] {
+  const t = q.trim().toLowerCase();
+  if (t === "") return [...hits];
+  return [...hits.filter((h) => h.title.toLowerCase().includes(t)), ...hits.filter((h) => !h.title.toLowerCase().includes(t))];
+}
 
 /** People and agents from the replica's principals, and the chats the sidebar already holds. Empty until the replica has loaded them. */
 export function replicaHits(rt: ShellRuntime): readonly Hit[] {
@@ -78,18 +84,35 @@ export const MAIL_PAGE_HASH = "page=mail";
 const INBOX_HIT = "shell:inbox";
 const MAIL_HIT = "shell:mail";
 
-/** Inbox and Connect email as results of their own. With nothing connected Inbox is off the rail, and both open the Email and calendar screen in Settings. */
+/** Settings, its pages and the Console, found by their names (owner walk, 12 Nov: typing "settings" said No results). The words under each are the page's own line. */
+const SETTINGS_PAGE = "shell:settings:";
+const CONSOLE_HIT = "shell:console";
+const SETTINGS_HITS: readonly { page: string; title: string; snippet: string }[] = [
+  { page: "", title: "Settings", snippet: "Your profile, AI, notifications and look" },
+  { page: "profile", title: "Profile", snippet: "How people in this Space see you" },
+  { page: "ai", title: "Your AI", snippet: "The AI accounts and models you use" },
+  { page: "notifications", title: "Notifications", snippet: "What reaches you and where" },
+  { page: "appearance", title: "Appearance", snippet: "How Vyre looks for you" },
+  { page: "computer", title: "This device", snippet: "This computer and what Vyre can do on it" },
+  { page: "signin", title: "Privacy and security", snippet: "Your password, two-step sign-in and devices" },
+];
+
+/** Inbox and Connect email as results of their own. With nothing connected Inbox is off the rail, and both open the Email and calendar screen in Settings. Settings, its pages and the Console too. */
 export function shellHits(state: { inbox?: boolean }): readonly Hit[] {
   return [
     { kind: "inbox", id: INBOX_HIT, title: "Inbox", snippet: state.inbox === false ? "Connect email and calendar" : "Mail, texts and calendar", link: "vyre://inbox", score: 0.8 },
     { kind: "setting", id: MAIL_HIT, title: "Connect email", snippet: "Email and calendar", link: "vyre://settings/mail", score: 0.8 },
+    ...SETTINGS_HITS.map((x): Hit => ({ kind: "setting", id: `${SETTINGS_PAGE}${x.page}`, title: x.title, snippet: x.snippet, link: `vyre://settings${x.page ? `/${x.page}` : ""}`, score: 0.8 })),
+    { kind: "setting", id: CONSOLE_HIT, title: "Console", snippet: "Running this Space: people, agents, AI and servers", link: "vyre://console", score: 0.8 },
   ];
 }
 
-/** Where a shell result goes: Inbox itself once something flows in, otherwise the connect screen. Null for any other result. */
+/** Where a shell result goes: Inbox itself once something flows in, otherwise the connect screen; a Settings page; the Console. Null for any other result. */
 export function shellHitTarget(hit: Hit, state: { inbox?: boolean }): { place: PlaceId; hash: string } | null {
   if (hit.id === MAIL_HIT || (hit.id === INBOX_HIT && state.inbox === false)) return { place: "settings", hash: MAIL_PAGE_HASH };
   if (hit.id === INBOX_HIT) return { place: "inbox", hash: "" };
+  if (hit.id.startsWith(SETTINGS_PAGE)) { const page = hit.id.slice(SETTINGS_PAGE.length); return { place: "settings", hash: page ? `page=${page}` : "" }; }
+  if (hit.id === CONSOLE_HIT) return { place: "console", hash: "" };
   return null;
 }
 
@@ -129,7 +152,8 @@ export function askHere(screen: ScreenContext | null = currentScreen()): boolean
 /** Keeps the results the viewer can open: a result whose place is not on their rail never shows (reach). */
 export function reachable(hits: readonly Hit[], viewer: Viewer | null, state: { inbox?: boolean }): Hit[] {
   if (viewer === null) return [...hits];
-  return hits.filter((h) => listable({ kind: h.kind, place: livePlace(shellHitTarget(h, state)?.place ?? placeOfHit(h)) }, viewer));
+  // the Console is no place on the rail: it is listed for whoever may open its first page, as Settings' own Console row is
+  return hits.filter((h) => (h.id === CONSOLE_HIT ? listable({ kind: h.kind, consolePage: "overview" }, viewer) : listable({ kind: h.kind, place: livePlace(shellHitTarget(h, state)?.place ?? placeOfHit(h)) }, viewer)));
 }
 
 export function createGateSearch(d: GateSearchDeps): CmdKData {
@@ -147,7 +171,8 @@ export function createGateSearch(d: GateSearchDeps): CmdKData {
     scope: () => (online() ? "space" : "device"),
     online,
     // Inbox and Connect email answer a typed word only; the replica's people and chats stay the whole of an empty search
-    local: (text, types) => mine([...replicaHits(rt), ...(text.trim() === "" ? [] : shellHits(state))].filter((h) => (!types || types.includes(h.kind)) && (text === "" || matches(h, text)))),
+    // a result named by the words comes before one whose line under the name only mentions them (Notifications before Settings, whose line names notifications)
+    local: (text, types) => byTitleFirst(mine([...replicaHits(rt), ...(text.trim() === "" ? [] : shellHits(state))].filter((h) => (!types || types.includes(h.kind)) && (text === "" || matches(h, text)))), text),
     server: async (text, types) => {
       const out = (await rt.call("search.query", { q: text, ...(types ? { types: [...types] } : {}), limit: 20 })) as { hits: Hit[] };
       return mine(out.hits);

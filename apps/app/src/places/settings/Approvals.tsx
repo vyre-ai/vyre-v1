@@ -12,7 +12,7 @@ type Rule = CapMap["gate.allow.list"]["out"]["rules"][number];
 
 /** What an agent may do without asking, in the words a person says it. */
 const DOES: Record<Rule["act"], string> = {
-  send: "message", post: "post to", pay: "pay", delete: "delete", transfer: "transfer to", enroll_node: "add a machine for", connection_change: "change the connection to",
+  send: "message", post: "post to", pay: "pay", delete: "delete", transfer: "transfer to", enroll_node: "add a computer for", connection_change: "change the connection to",
   push_protected: "push to", secret_export: "export a secret to", site_promote: "publish", signature_send: "send for signature to", spend_raise: "raise the spend limit of", signin_change: "change the sign-in of", approve: "approve", github_approval: "use GitHub for",
 };
 

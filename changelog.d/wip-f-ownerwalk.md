@@ -1,0 +1,9 @@
+- Your Profile opens in the Settings tab you already have, on your profile, instead of a second Settings tab.
+- Add a Space no longer opens Settings with an Add a server dialog behind it.
+- A chat that has finished or been stopped says "Message Assistant…" in its empty box again, not "Steer Assistant…".
+- Search finds Settings, each of its pages and, for admins, the Console by name; a result named by your words comes first.
+- New project (in Search and the Projects + in Chats) opens Projects with a new project row ready to name.
+- The agent's Computer tab no longer leaves a tall gap under Browser or draws the browser card over the line below it.
+- The agent's folder no longer lists Vyre's own hidden folders such as .index and .vyre.
+- The Computers page and Add a server say computer instead of machine.
+- What needs you in the Console no longer says "since now": a new item says nothing more, an older one says for how long.

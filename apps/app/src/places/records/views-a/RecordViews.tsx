@@ -37,9 +37,11 @@ export interface RecordViewsProps {
   /** A starting view on top of the saved one. */
   view?: Partial<TableViewState>;
   extraKinds?: readonly ExtraKind[];
+  /** New project (Cmd-K, the Projects +): the type opens on its table with the new row started. */
+  startNew?: boolean;
 }
 
-function TypeViews({ type, kind, view, extraKinds }: RecordViewsProps & { type: string }): ReactElement {
+function TypeViews({ type, kind, view, extraKinds, startNew = false }: RecordViewsProps & { type: string }): ReactElement {
   const data = useRecordsData();
   const { state } = useRecordsState();
   const describe = useLive("schema.describe", { type });
@@ -58,12 +60,12 @@ function TypeViews({ type, kind, view, extraKinds }: RecordViewsProps & { type: 
   const savedKind = saved ? kindOf(saved, known) : null;
   // a Journey type opens on its board; the table stays in the switch
   const journey = isJourneyDef(def);
-  const active = picked && picked.key === key ? picked.kind : savedKind ?? (kind && known.includes(kind) ? kind : journey ? "board" : "table");
+  const active = picked && picked.key === key ? picked.kind : startNew ? "table" : savedKind ?? (kind && known.includes(kind) ? kind : journey ? "board" : "table");
   const base: TableViewState = { ...fromSaved(saved), ...view };
   const ctx: ViewCtx = { type, def, views: list, saved, base, kind: active, kinds, onKind: (k) => setPicked({ key, kind: k }) };
   // On the phone the table is its list: a face or icon, the title and one line, in the shared Row (no columns to scroll sideways).
   if (active === "table" && phone) return <ListView key={key} ctx={ctx} />;
-  if (active === "table") return <TableView key={key} type={type} {...(view ? { view } : {})} headerExtra={<KindSwitch ctx={ctx} />} />;
+  if (active === "table") return <TableView key={key} type={type} {...(view ? { view } : {})} headerExtra={<KindSwitch ctx={ctx} />} startNew={startNew} />;
   const extra = (extraKinds ?? []).find((k) => k.kind === active);
   if (extra) return <Fragment key={`${key}:${active}`}>{extra.render(ctx)}</Fragment>;
   if (active === "board" && journey) return <JourneyBoard key={key} ctx={ctx} />;

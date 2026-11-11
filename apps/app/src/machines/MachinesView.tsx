@@ -71,7 +71,7 @@ export function MachinesView(props: MachinesViewProps): ReactElement {
   const pick = (id: string | null): void => { setOpen(id); props.onOpen?.(id); };
 
   const body = ((): ReactElement => {
-    if (!data) return <Text style={s.note} testID="machines-loading">{error ? "Couldn't load the machines. Check access and try again." : "Loading machines"}</Text>;
+    if (!data) return <Text style={s.note} testID="machines-loading">{error ? "Couldn't load the computers. Check access and try again." : "Loading computers"}</Text>;
     const m = open ? data.machines.find((x) => x.serverId === open) : undefined;
     if (m) return <MachinePage {...props} row={m} width={width} narrow={narrow} onBack={() => pick(null)} onChanged={() => void reload()} />;
     return <MachineList data={data} who={who} narrow={narrow} now={now} onOpen={pick} onAdd={add.open} onApprove={add.approve} onDecline={add.decline} scope={scope} extra={props.extra} call={call} reload={reload} />;
@@ -132,10 +132,10 @@ export function MachineList({ data, who, narrow, now, onOpen, onAdd, onApprove, 
         <Pressable accessibilityRole="button" accessibilityLabel="Add a server" testID="machines-add" onPress={onAdd} style={[s.primary, pointer]}><Glyph name="plus" size={13} color="var(--win)" /><Text style={s.primaryText}>Add a server</Text></Pressable>
       </View>
       <View style={s.tiles} testID="machines-strip">
-        <Tile icon="server" label="Machines" big={st.online} sub={`${st.offline}`} />
+        <Tile icon="server" label="Computers" big={st.online} sub={`${st.offline}`} />
         <Tile icon="warn" label="Needs attention" big={String(st.attention)} sub={st.attentionWords} warn={st.attention > 0} />
         <Tile icon="ok" label="Running now" big={st.turns.split(",")[0]!} sub={st.turns.split(",").slice(1).join(",").trim()} />
-        <Tile icon="data" label="Room left" big={String(st.room)} sub={`Average across ${plural(st.takingWork, "machine")} that take work`} />
+        <Tile icon="data" label="Room left" big={String(st.room)} sub={`Average across ${plural(st.takingWork, "computer")} that take work`} />
       </View>
       {data.waiting.length > 0 ? (
         <Block title="Waiting for approval" count={data.waiting.length} testID="machines-waiting">
@@ -148,10 +148,10 @@ export function MachineList({ data, who, narrow, now, onOpen, onAdd, onApprove, 
           {data.alerts.map((a) => <Row key={a.alertId} id={`alert-${a.alertId}`} title={a.title} note={a.detail} tall leading={<View style={s.lead36}><Glyph name={a.kind === "offline" ? "server" : "warn"} size={15} color={a.kind === "offline" ? "var(--danger)" : "var(--warn)"} /></View>} trailing={<Pressable accessibilityRole="button" accessibilityLabel={`Open ${a.title}`} testID={`alert-open-${a.serverId}`} onPress={() => onOpen(a.serverId)} style={[s.small, pointer]}><Text style={s.smallText}>Open</Text></Pressable>} />)}
         </Block>
       ) : null}
-      <Block title={scope === "space" ? "All machines" : "My computers and servers"} count={ms.length} testID="machines-table">
+      <Block title={scope === "space" ? "All computers" : "My computers and servers"} count={ms.length} testID="machines-table">
         {/* ui-rows-lint: not a list (the table's column headings) */}
-        {narrow || ms.length === 0 ? null : <View style={[s.mrow, s.mheadRow]} testID="machines-head"><View style={s.mname}><Text style={s.mheadText}>Machine</Text></View><View style={s.cells}>{["Status", "CPU", "Memory", "Disk", "Running", "Can run", "Room left"].map((h) => <View key={h} style={s.cell}><Text style={s.mheadText}>{h}</Text></View>)}</View></View>}
-        {ms.length === 0 ? <Text testID="machines-none" style={s.note}>No machines yet. Add a server to run agents around the clock.</Text> : null}
+        {narrow || ms.length === 0 ? null : <View style={[s.mrow, s.mheadRow]} testID="machines-head"><View style={s.mname}><Text style={s.mheadText}>Computer</Text></View><View style={s.cells}>{["Status", "CPU", "Memory", "Disk", "Running", "Can run", "Room left"].map((h) => <View key={h} style={s.cell}><Text style={s.mheadText}>{h}</Text></View>)}</View></View>}
+        {ms.length === 0 ? <Text testID="machines-none" style={s.note}>No computers yet. Add a server to run agents around the clock.</Text> : null}
         {/* ui-rows-lint: not a list (a table of machines: one row per machine with Status, CPU, Memory, Disk, Running, Can run and Room left cells under shared column headings, hover painted across the full row) */}
         {ms.map((m) => <MachineRowView key={m.serverId} m={m} who={who} narrow={narrow} now={now} onOpen={() => onOpen(m.serverId)} onMenu={(x, y) => rowMenu(m, x, y)} />)}
       </Block>
@@ -262,7 +262,7 @@ export function MachineDetail({ m, detail, own, range, tab, hover, chartW, narro
   const bad = detail ? detail.findings.filter((f) => f.state !== "healthy").length : 0;
   return (
     <View testID="machine-page">
-      <Pressable accessibilityRole="button" accessibilityLabel="Back to machines" testID="machine-back" onPress={onBack} style={[s.crumb, pointer]}><Glyph name="chevR" size={11} color="var(--ink-3)" /><Text style={s.crumbText}>Machines</Text></Pressable>
+      <Pressable accessibilityRole="button" accessibilityLabel="Back to computers" testID="machine-back" onPress={onBack} style={[s.crumb, pointer]}><Glyph name="chevR" size={11} color="var(--ink-3)" /><Text style={s.crumbText}>Computers</Text></Pressable>
       <View style={s.hero}>
         <View style={s.ico44}><Glyph name={m.kind === "linked" ? "device" : "server"} size={20} color="var(--ink-2)" /></View>
         <View style={{ flex: 1, minWidth: 0 }}>
@@ -362,7 +362,7 @@ function HealthTab({ detail, m, goto, onFix, fixed }: { detail: MachineOut | nul
       </Block>
       {sure ? <Text style={s.foot} testID="machine-fix-confirm">{stopLine(detail.idleSessions ?? 0, m.kind === "space")}</Text> : null}
       {fixed || detail.lastFix ? <Text style={s.foot} testID="machine-last-fix">{fixed || detail.lastFix?.detail}</Text> : null}
-      <Text style={s.foot}>The same check runs as vyre-server doctor in a terminal on this machine, so it works even when the Space server is down.</Text>
+      <Text style={s.foot}>The same check runs as vyre-server doctor in a terminal on this server, so it works even when the Space server is down.</Text>
       {m.kind === "space" && goto ? (
         <Block title="More checks" testID="machine-more">
           <Row id="more-logs" title="Server logs" note="Recent log lines, search and export" tall onPress={() => goto("server")} />
@@ -437,7 +437,7 @@ function Placement({ call, m, who, onChanged }: MachinesViewProps & { m: Machine
           trailing={<Pressable accessibilityRole="switch" accessibilityState={{ checked: m.drain }} accessibilityLabel="Drain" testID="machine-drain" onPress={() => { if (!m.drain && (m.runs.turns > 0 || m.runs.agentComputers > 0)) setConfirm(true); else void set({ drain: !m.drain }); }} style={[s.toggle, m.drain && s.toggleOn, pointer]}><View style={[s.knob, m.drain && s.knobOn]} /></Pressable>} />
         {confirm ? (
           <View style={s.confirm} testID="drain-confirm" accessibilityRole="alert">
-            <Text style={s.confirmText}>{`Drain ${displayName(m)}? ${plural(m.runs.turns, "turn")} ${m.runs.agentComputers ? `and ${plural(m.runs.agentComputers, "agent computer")} ` : ""}keep running until they finish. New work goes to the next machine with room.`}</Text>
+            <Text style={s.confirmText}>{`Drain ${displayName(m)}? ${plural(m.runs.turns, "turn")} ${m.runs.agentComputers ? `and ${plural(m.runs.agentComputers, "agent computer")} ` : ""}keep running until they finish. New work goes to the next computer with room.`}</Text>
             <Pressable accessibilityRole="button" testID="drain-cancel" onPress={() => setConfirm(false)} style={[s.small, pointer]}><Text style={s.smallText}>Cancel</Text></Pressable>
             <Pressable accessibilityRole="button" testID="drain-yes" onPress={() => { setConfirm(false); void set({ drain: true }); }} style={[s.primary, pointer]}><Text style={s.primaryText}>Drain</Text></Pressable>
           </View>

@@ -1,4 +1,5 @@
 [
+  {"file":"test/ownerwalk.polish.live.test.ts","capSec":120,"owner":"f-ownerwalk","reason":"the owner walk fixes in the real app: a claimed daemon, the production export in Chromium, six steps each with a picture in light and dark (about 100 s on a busy box)"},
   {"file":"test/routines.fire.live.test.ts","capSec":120,"owner":"l-routinefix","reason":"a routine every minute must fire on the real scheduler: it waits for the next minute boundary and one tick (up to about 70 s)"},
   {"file":"test/crm.journey1.live.test.ts","capSec":120,"owner":"crm-records","reason":"CRM to Records as a person lives it (Personal first hour and later): a booted daemon, a fake CRM over HTTP, an agent stand-in in chat, and the production export in Chromium","heavy":true},
   {"file":"test/crm.journey2.live.test.ts","capSec":120,"owner":"crm-records","reason":"CRM to Records as a person lives it (Team webhook, audience and several locations): a booted daemon, a fake CRM over HTTP, an agent stand-in in chat, and the production export in Chromium","heavy":true},

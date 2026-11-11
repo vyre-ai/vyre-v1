@@ -60,7 +60,7 @@ export function RunCode({ command, cfg }: { command: string; cfg: RunCodeConfig 
         cfg.openTerminal(r.terminalId);
         const out = await finish(cfg.deps, r.terminalId, r.cursor, command);
         setSt({ s: "ran", exitCode: null, output: out });
-      } catch { setSt({ s: "said", text: "Could not reach that machine." }); }
+      } catch { setSt({ s: "said", text: "Could not reach that computer." }); }
     })();
   };
   const entries = hosts.map((h) => ({ label: h.label, checked: h.key === host.key, ...(h.online ? {} : { disabled: true, ...(h.why ? { reason: h.why } : {}) }), onSelect: () => setPick(h.key) }));

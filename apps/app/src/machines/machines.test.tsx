@@ -49,7 +49,7 @@ test("a computer waiting for approval is listed with its fingerprint, Approve an
 
 test("Settings, This device lists my own machines under their own title", () => {
   const out = html(<MachineList data={data([mine, berlin])} who={who} narrow={true} now={NOW} onOpen={noop} onAdd={noop} scope="mine" />);
-  assert.ok(out.includes("My computers and servers") && !out.includes("All machines"));
+  assert.ok(out.includes("My computers and servers") && !out.includes("All computers"));
   assert.ok(out.includes("Add a server"));
 });
 

@@ -6,7 +6,7 @@ import { Avatar } from "../../../../../../ui/src/Avatar/index.tsx";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import { useConsoleData, useScreenQuery } from "../../shell/data.tsx";
-import { activityTitle, ago, money, namedResource } from "../../shell/format.ts";
+import { activityTitle, ago, forHowLong, money, namedResource } from "../../shell/format.ts";
 import { Dot, Glyph } from "../../shell/glyphs.tsx";
 import type { Tone } from "../../shell/glyphs.tsx";
 import { Empty, Group, Lead, LinkButton, Section, pointer } from "../../shell/ui.tsx";
@@ -147,7 +147,7 @@ export function Overview(): ReactElement {
               key={`${a.kind}-${a.ref ?? i}`}
               id={`attn-${a.kind}-${a.ref ?? i}`}
               title={a.title}
-              note={a.kind === "home_channel" ? a.next : a.kind === "space_deletion_scheduled" ? ATTENTION_SENTENCE[a.kind] : `${ATTENTION_SENTENCE[a.kind]} since ${ago(now, a.since)}${compact ? `. ${a.next}` : ""}`}
+              note={a.kind === "home_channel" ? a.next : a.kind === "space_deletion_scheduled" ? ATTENTION_SENTENCE[a.kind] : `${ATTENTION_SENTENCE[a.kind]}${forHowLong(now, a.since)}${compact ? `. ${a.next}` : ""}`}
               leading={<Lead><WarnTile icon="warn" /></Lead>}
               {...(compact ? {} : { trailing: fix(a, i) ?? <Button label={a.next} onPress={() => data.nav.openPage(ATTENTION_PAGE[a.kind])} testID={`attn-go-${i}`} /> })}
               onPress={() => data.nav.openPage(ATTENTION_PAGE[a.kind])}

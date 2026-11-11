@@ -9,9 +9,9 @@ import { Glyph, SmallButton, Tip, pointer } from "../places/settings/ui.tsx";
 import { addressKind, emptySheet, factsLine, joinCommand, peerServerCommand, phaseOf, validNickname } from "../places/settings/computers-model.ts";
 import type { ServerInfo, Sheet } from "../places/settings/computers-model.ts";
 
-const WHERE = "Any Linux machine or Mac that stays on. A small cloud server from Hetzner or DigitalOcean works.";
+const WHERE = "Any Linux computer or Mac that stays on. A small cloud server from Hetzner or DigitalOcean works.";
 const LAN_ONLY = "Works only while the server and this computer are on the same network. Over plain http the server can run agent computers, but not your chats: those need an https address.";
-const NO_ADDRESS = "This Space has no address another machine can reach. Set up Phone access (a vyre.run address) first, then add the server.";
+const NO_ADDRESS = "This Space has no address another computer can reach. Set up Phone access (a vyre.run address) first, then add the server.";
 export const POLL_MS = 2000;
 
 export interface AddSheetProps {
@@ -51,7 +51,7 @@ export function AddServerSheet({ sheet, servers, busy, error, now, onNickname, o
       {phase === "waiting" ? (
         <View style={st.col}>
           {reach === "none" || reach === "loopback" ? (
-            // no address another machine can reach: no command to paste, and the way to get one
+            // no address another computer can reach: no command to paste, and the way to get one
             <View style={st.notice} testID="add-no-address">
               <Tip help={NO_ADDRESS}><Glyph name="globe" size={16} color="var(--warn, #b7791f)" /></Tip>
               <Text style={st.hint}>Needs an address</Text>

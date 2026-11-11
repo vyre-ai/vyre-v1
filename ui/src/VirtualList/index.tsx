@@ -18,11 +18,12 @@ const SCROLL_BUFFER_PX = 456;
 const ESTIMATE = 44;
 const DEFAULT_VIEWPORT = 640;
 
-/** Row offsets: offsets[i] is the top of row i, offsets[n] is the total height. */
-export function rowOffsets(count: number, rowHeight: number | "measure", measured: ReadonlyMap<number, number> = new Map()): Float64Array {
+/** Row offsets: offsets[i] is the top of row i, offsets[n] is the total height. A measured height belongs to the row's key (its index when the list has no keys): a row that moves keeps its height, and the
+ * row that takes its old place is not drawn at the old one's height (owner walk, 12 Nov: a label that moved down one place took a 200 px skeleton's height and left a gap; a card took a label's and overlapped). */
+export function rowOffsets(count: number, rowHeight: number | "measure", measured: ReadonlyMap<number | string, number> = new Map(), keyAt?: (i: number) => string): Float64Array {
   const out = new Float64Array(count + 1);
   for (let i = 0; i < count; i++) {
-    const h = typeof rowHeight === "number" ? rowHeight : measured.get(i) ?? ESTIMATE;
+    const h = typeof rowHeight === "number" ? rowHeight : measured.get(keyAt ? keyAt(i) : i) ?? ESTIMATE;
     out[i + 1] = out[i] + h;
   }
   return out;
@@ -82,18 +83,19 @@ function WindowedList<T>({ data, renderItem, rowHeight, window: controlled, keyO
   const [scrolled, setScrolled] = useState<VirtualWindow | null>(null);
   const scrollTop = useRef(0);
   const [version, setVersion] = useState(0);
-  const measured = useRef(new Map<number, number>());
+  const measured = useRef(new Map<string, number>());
   const ended = useRef(false);
+  const keyAt = (i: number): string => (keyOf ? keyOf(data[i] as T, i) : String(i));
   const offsets = useMemo(
     () => {
-      if (!heightOf) return rowOffsets(data.length, rowHeight, measured.current);
+      if (!heightOf) return rowOffsets(data.length, rowHeight, measured.current, keyAt);
       const out = new Float64Array(data.length + 1);
       for (let i = 0; i < data.length; i++) out[i + 1] = out[i] + heightOf(data[i], i);
       return out;
     },
     // version bumps when a measured height changes; with heightOf the rows themselves decide
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [heightOf ? data : data.length, heightOf, rowHeight, version],
+    [heightOf || keyOf ? data : data.length, heightOf, rowHeight, version],
   );
   const scroller = useRef<ScrollView | null>(null);
   useEffect(() => {
@@ -124,8 +126,8 @@ function WindowedList<T>({ data, renderItem, rowHeight, window: controlled, keyO
     if (!nearEnd) ended.current = false;
   }, [onEndReached, total, offsets, viewport, computed, rowHeight]);
 
-  const onMeasure = useCallback((i: number, h: number) => {
-    if (h > 0 && measured.current.get(i) !== h) { measured.current.set(i, h); setVersion((v) => v + 1); }
+  const onMeasure = useCallback((key: string, h: number) => {
+    if (h > 0 && measured.current.get(key) !== h) { measured.current.set(key, h); setVersion((v) => v + 1); }
   }, []);
 
   const items: ReactNode[] = [];
@@ -135,7 +137,7 @@ function WindowedList<T>({ data, renderItem, rowHeight, window: controlled, keyO
     const top = offsets[i];
     const measuring = rowHeight === "measure" && !heightOf;
     const height = measuring ? 0 : offsets[i + 1] - top;
-    items.push(<Cell key={key} item={item} index={i} top={top} height={height} render={renderItem} onMeasure={measuring ? onMeasure : undefined} />);
+    items.push(<Cell key={key} item={item} index={i} rowKey={key} top={top} height={height} render={renderItem} onMeasure={measuring ? onMeasure : undefined} />);
   }
 
   return (
@@ -155,17 +157,18 @@ function WindowedList<T>({ data, renderItem, rowHeight, window: controlled, keyO
 interface CellProps<T> {
   item: T;
   index: number;
+  rowKey: string;
   top: number;
   height: number;
   render: (item: T, index: number) => unknown;
-  onMeasure?: (index: number, height: number) => void;
+  onMeasure?: (key: string, height: number) => void;
 }
 
 /** One positioned row. Memoised, so a scroll that keeps a row in the window does not re-render it. */
-const Cell = memo(function Cell<T>({ item, index, top, height, render, onMeasure }: CellProps<T>) {
+const Cell = memo(function Cell<T>({ item, index, rowKey, top, height, render, onMeasure }: CellProps<T>) {
   return (
     <View
-      onLayout={onMeasure ? (e: LayoutChangeEvent) => onMeasure(index, Math.round(e.nativeEvent.layout.height)) : undefined}
+      onLayout={onMeasure ? (e: LayoutChangeEvent) => onMeasure(rowKey, Math.round(e.nativeEvent.layout.height)) : undefined}
       style={{ position: "absolute", top, left: 0, right: 0, height: height || undefined }}
     >
       {render(item, index) as ReactNode}
