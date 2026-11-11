@@ -123,6 +123,7 @@ test("Approve calls members.join_requests.approve, then shows the one-time invit
     assert.deepEqual(calls.map((c) => [c.cap, c.input]), [["members.join_requests.approve", { requestId: "jrq_a" }]]);
     assert.match(textOf(root), /Copy this one-time invite link for dana@example\.com:/);
     assert.match(textOf(find(root, "join-approved-link")), /https:\/\/maya\.vyre\.run\/join\/ABCD-EFGH/);
+    assert.ok(find(root, "join-approved-link-copy"), "the link has a Copy button: nobody has to select text to share it");
     assert.ok(find(root, "join-approved-mail"), "the link can be emailed");
     await press(find(root, "join-approved-done"));
     assert.ok(!find(root, "join-approved-link"));

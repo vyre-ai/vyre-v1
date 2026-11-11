@@ -123,6 +123,8 @@ export function AddProvider({ onClose, onAdded, initial, initialFlow, initialSco
     if (!url) { setLine("That does not look like an address. Try http://localhost:11434."); return; }
     const out = (await data.call("providers.add", { providerKey: pick!.key, connection: "local_model", address: url, scope: "mine", idempotencyKey: key(pick!.key) })) as { provider: Provider };
     const t = (await data.call("providers.test", { providerId: out.provider.id })) as { ok: boolean; models: string[]; latencyMs: number; detail?: string };
+    // a local model that did not answer is not connected: it is taken out again and the reason said, not left as a "connected" account
+    if (!t.ok) { await data.call("providers.remove", { providerId: out.provider.id }).catch(() => undefined); setLine(`Nothing answered at ${url}. ${testWords(t)}`); return; }
     setLine(testWords(t));
     done(out.provider);
   });
@@ -147,7 +149,7 @@ export function AddProvider({ onClose, onAdded, initial, initialFlow, initialSco
       <View style={{ flex: 1 }} />
       {finished ? <Btn label="Done" primary onPress={onClose} testID="provider-done" /> : <Btn label="Cancel" onPress={onClose} testID="provider-cancel" />}
       {!finished && pick && kind === "api_key" && scope === "ask" ? <Btn label={busy ? "Asking" : "Ask an admin"} primary disabled={busy} onPress={() => void askAdmin()} testID="provider-ask-admin" /> : null}
-      {!finished && pick && kind === "api_key" && scope !== "ask" ? <Btn label={busy ? "Adding" : "Add"} primary disabled={busy || secret.trim().length === 0} why="Paste the key first" onPress={() => void addKey()} testID="provider-add" /> : null}
+      {!finished && pick && kind === "api_key" && scope !== "ask" ? <Btn label={busy ? "Checking the key" : "Add"} primary disabled={busy || secret.trim().length === 0} why="Paste the key first" onPress={() => void addKey()} testID="provider-add" /> : null}
       {!added && pick && kind === "local_model" ? <Btn label={busy ? "Testing" : "Add and test"} primary disabled={busy} onPress={() => void addLocal()} testID="provider-add-local" /> : null}
       {!added && pick && kind === "subscription" ? (flow ? (flow.url ? null : <Btn label={busy ? "Checking" : "I have signed in"} primary disabled={busy} onPress={() => void finishSignIn()} testID="provider-signed-in" />) : <>{local ? <Btn label={local.button} primary disabled={busy} onPress={() => void takeLocal()} testID="provider-local-signin" /> : null}{local && localNote(local.key, onMacDevice()) ? <Text style={s.quiet} testID="provider-local-note">{localNote(local.key, onMacDevice())}</Text> : null}<Btn label={busy ? "Opening" : `Sign in with ${pick.name}`} primary={!local} disabled={busy} onPress={() => void startSignIn()} testID="provider-signin" /></>) : null}
     </>
