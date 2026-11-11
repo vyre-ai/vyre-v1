@@ -197,6 +197,8 @@ const stub = (ctx: CompCtx): ComputerRow => ({ computerId: MY_CHROME, agentId: c
 
 /** Tools that never need the ask of this turn: they finish or stop what an ask already began (a held item waiting for the person, Stop, Resume, and the look at whether Chrome is connected). */
 const NO_ASK = new Set(["chrome_send", "chrome_stop", "chrome_resume", "chrome_status"]);
+/** Calls that only look or stop: they never start the move of an old desktop. */
+const LOOKS = new Set(["chrome_status", "chrome_stop", "chrome_resume"]);
 
 /** Where a call goes: `inMyChrome: true` is the way to ask for the person's Chrome; the older spelling `computerId: "my-chrome"` means the same. */
 export const whereOf = (input: { computerId?: string | undefined; inMyChrome?: boolean | undefined }): string | undefined => (input.inMyChrome === true ? MY_CHROME : input.computerId);
@@ -226,7 +228,7 @@ export async function prepare(ctx: CompCtx, computerId: string | undefined, spec
   // The Space browser is where an agent browses by default (owner decision 6 Nov): its own profile, on the Space host, whoever asked, so the person's computer is never disturbed and a team agent's logins
   // outlive the person who asked. Only a call that names a computer (a person working one) or the person's own Chrome (`my-chrome`, on request) goes elsewhere.
   // An agent that still has an old desktop moves to the Space browser only after that desktop's sign-ins have moved into its profile (migrate.ts settleMove); until then its browser calls stay on the desktop.
-  if (spec.name !== undefined && spec.name.startsWith("chrome_") && computerId === undefined && ctx.principal.kind === "agent" && spaceBrowser() && await browserUsable(spaceBrowser()!, ctx.now()) && await settleMove(ctx, ctx.principal.id)) {
+  if (spec.name !== undefined && spec.name.startsWith("chrome_") && computerId === undefined && ctx.principal.kind === "agent" && spaceBrowser() && await browserUsable(spaceBrowser()!, ctx.now()) && await settleMove(ctx, ctx.principal.id, { start: !LOOKS.has(spec.name) })) {
     const profileId = profileIdOf(ctx.principal.id);
     if (!profileId) raise(ctx, "validation.bad_input", "This agent cannot have a browser profile: its id is not valid.");
     return { computer: { computerId: profileId, agentId: ctx.principal.id, state: "working" } as unknown as ComputerRow, host: {} as ComputerHost & ToolHost, browser: { profileId } };

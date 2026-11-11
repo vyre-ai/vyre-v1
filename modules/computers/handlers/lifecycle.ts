@@ -8,7 +8,7 @@ import {
 } from "../projections.ts";
 import type { CompCtx, ComputerHost, ComputerRow, Probe, SessionInfo } from "../projections.ts";
 import { finishRecording } from "./record.ts";
-import { migrateComputers, moveOf } from "../migrate.ts";
+import { holdWhileMoving, migrateComputers, moveOf } from "../migrate.ts";
 import { bindStarter, checkRoom, claimRoom, drainWaiting, isWaiting, LIMITS, releaseRoom, waitingNote } from "../capacity.ts";
 
 type Row = Record<string, unknown>;
@@ -273,6 +273,8 @@ async function connectFill(ctx: CompCtx, host: ComputerHost, c: ComputerRow): Pr
 }
 
 export async function awaken(ctx: CompCtx, c: ComputerRow, by: string): Promise<ComputerRow> {
+  // an older desktop is never started while its Chrome folder is being copied
+  await holdWhileMoving(ctx, c.computerId);
   if (c.state === "working" || c.state === "takeover") return c;
   if (c.state === "provisioning") raise(ctx, "validation.bad_input", "This computer is still being set up.");
   // a computer waiting for room is asked again each time something needs it; one that is really starting is left to finish

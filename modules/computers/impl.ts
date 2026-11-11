@@ -42,7 +42,7 @@ import type { CompCtx, ComputerHost, HostKind, Probe, RecordResult, SessionInfo 
 import "./sbrowser/migrate.ts";
 import { browserStreamInput, browserStreamOpen } from "./sbrowser/handlers.ts";
 import "./sbrowser/room.ts";
-import { bindSpaceBrowser } from "./sbrowser/port.ts";
+import { bindSpaceBrowser, spaceBrowser } from "./sbrowser/port.ts";
 import type { SpaceBrowser } from "./sbrowser/port.ts";
 import { createDockerSpaceBrowser, DEFAULT_BROWSER_IMAGE } from "./sbrowser/docker.ts";
 
@@ -588,6 +588,8 @@ export function setComputerHost(c: ComputersHostConfig | null): void {
 // Only the setters the daemon wires are host seams (the loader reports any other function here as a driver left unwired); what a computer that joined needs is exported beside them.
 export const hostSeams = { setComputersFill, setComputerHost };
 export { nodeRun };
+/** A browser profile that already holds sign-ins is not written over by the move of an old desktop (migrate.ts). */
+bindMigrationPort("profileInUse", async (_ctx, a) => { const sb = spaceBrowser(); return sb ? (await sb.sessions(a.profileId)).length > 0 : false; });
 
 /**
  * The idle pass, every minute: a desktop that is awake, with nothing running, quiet for its idle time goes to sleep; room that opened starts the waiting line; an asleep desktop moves to a workspace
