@@ -166,7 +166,17 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch,
     if (personOfHash(hash) !== null) return;
     // a tab switch or a link: the same thing already on screen keeps its pane and its place
     setShown((s) => linkedTo(s, hash));
+    forgetLayerLink(hash);
   }, [hash]);
+  // A popover or sheet a link opened (the terminal list, All agents, the rules) is not a place: if it stayed in the tab's address, closing it and coming back, or a reload, opened it again, and the landing address
+  // /chat could not clear it (the tab shows what the tab holds). The tab goes back to what is really open as soon as the layer has been taken.
+  const forgetLayerLink = (h: string): void => {
+    if (h === "" || fromHash(h).layer === null) return;
+    linked.current = "";
+    setAddressTick((n) => n + 1);
+  };
+  const [addressTick, setAddressTick] = useState(0);
+  useEffect(() => { forgetLayerLink(hash); }, []);   // eslint-disable-line react-hooks/exhaustive-deps
   // what is open follows into the tab and the address (the Chats tab moves with it; tabs/store.ts moveTab), so coming back lands on it
   const openedRef = useRef(opened);
   openedRef.current = opened;
@@ -184,7 +194,7 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch,
     else if (routeKey.startsWith("a:")) report({ screen: "chats.agent-form", ...(routeKey.length > 2 ? { args: { agentId: routeKey.slice(2) } } : {}) });
     else if (routeKey.startsWith("t:") && routeKey !== "t:") report({ subject: { type: "thread", id: routeKey.slice(2) } });
     else if (routeKey.startsWith("k:")) report({ subject: { type: "task", id: routeKey.slice(2) } });
-  }, [routeKey]);
+  }, [routeKey, addressTick]);
   // An Ask link names an agent and an object; the thread it opens is found or made, then shown as a chat.
   const asking = shown.route.view === "ask" ? shown.route : null;
   useEffect(() => {

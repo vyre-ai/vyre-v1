@@ -134,19 +134,19 @@ test("the channel menu: Connect an Outside Agent is on a channel's menu only, an
   assert.ok(has(out, 'data-testid="connect-outside-agent"') && has(out, CONNECT_SUB));
 });
 
-test("the agent's computer opens as a popup over the chat from the pane's door", async () => {
+test("the agent's computer opens as its Computer tab (Terminal and Browser) from the pane's door, for an agent with a computer and for one without", async () => {
   const s = createMountSample();
   const { go, acts, shown, said } = doors(s);
   conversation(s, go).nav.openBeside("computer", "agt_intake");
   await settle();
-  assert.deepEqual(acts, [{ t: "layer", layer: { kind: "computer", computerId: COMPUTER, chat: false } }]);
+  assert.deepEqual(acts, [{ t: "agent", agentId: "agt_intake", tab: "computer" }], "the agent's page on its Computer tab");
   const out = html(s, shown());
-  assert.ok(has(out, 'data-testid="computer-popup"') && has(out, "Intake's computer"), "the popup, with the agent's name");
-  assert.ok(has(out, 'data-testid="rail-take"') && has(out, 'data-testid="rail-close"'));
-  // an agent with no computer says so instead of opening nothing
+  assert.ok(!has(out, 'data-testid="computer-popup"'), "no popup over the chat");
+  // an agent with no computer opens the same tab, which explains what is missing, instead of a toast
   conversation(s, go).nav.openBeside("computer", "agt_docs");
   await settle();
-  assert.deepEqual(said, ["Docs has no computer yet."]);
+  assert.deepEqual(acts.slice(1), [{ t: "agent", agentId: "agt_docs", tab: "computer" }]);
+  assert.deepEqual(said, [], "no toast");
   // any other card still opens beside the chat through the shell
   conversation(s, go).nav.openBeside("file", "fil_1");
   assert.deepEqual(s.opened, [{ subject: { type: "file", id: "fil_1" } }]);

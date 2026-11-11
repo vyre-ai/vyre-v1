@@ -309,7 +309,12 @@ test("a fresh Personal Space: the first hour works end to end in the real app", 
       assert.equal(await page.getByRole("menuitem", { name: "This computer", exact: true }).count(), 0, "no This computer row without a desktop device");
       assert.equal(await page.getByRole("menuitem", { name: "Space server", exact: true }).count(), 0, "no Space server row in a Personal Space");
       assert.equal(await page.getByRole("menuitem", { name: "Agent computer", exact: true }).count(), 0, "no Agent computer row without one");
+      // one Escape closes one layer: the New menu first, the list under it on the next
       await page.keyboard.press("Escape");
+      await page.getByText("No computer here", { exact: true }).waitFor({ state: "detached", timeout: 10_000 });
+      assert.equal(await list.count(), 1, "the list stays while its New menu closes");
+      await page.keyboard.press("Escape");
+      await list.waitFor({ state: "detached", timeout: 10_000 });
       // leave, then open again from Search
       await go("chat", "chats-place");
       await page.keyboard.press("Meta+k");

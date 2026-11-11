@@ -67,32 +67,30 @@ function goFor(kind: "personal" | "team", fail?: unknown, computers: { agentId: 
   return { go, said, calls, opened, acts };
 }
 
-test("a computer door in a Personal Space with no capable host does nothing and asks nothing; with one it opens the agent's computer", async () => {
+// Owner ruling 6 Nov 2026 (DESIGN-agent-workspaces.md): there is one Computer tab, Terminal and Browser, and every door to "its computer" opens it. The tab is always there and says in one plain line when
+// the Space has nowhere to run a browser, so a door no longer decides that for itself (it used to do nothing, or toast "has no computer yet"): it asks nothing and says nothing, and goes to the tab.
+const TAB = [{ t: "agent", agentId: "agt_intake", tab: "computer" }];
+
+test("a computer door opens the agent's Computer tab, in a Personal Space with or without a capable host, asking nothing and saying nothing", async () => {
   resetComputersAvailable();
-  const { go, said, calls, opened } = goFor("personal");
-  go.computerOfAgent("agt_intake");
-  assert.deepEqual([calls, said, opened], [[], [], []]);
+  const none = goFor("personal");
+  none.go.computerOfAgent("agt_intake");
+  assert.deepEqual([none.acts, none.calls, none.said, none.opened], [TAB, [], [], []], "no capable host: the tab is there and explains itself; no read is made");
   setComputersAvailable("s1", true);
   const found = goFor("personal", undefined, [{ agentId: "agt_intake", computerId: "cmp_1" }]);
   found.go.computerOfAgent("agt_intake");
   await new Promise((r) => setTimeout(r, 0));
-  assert.deepEqual(found.acts, [{ t: "layer", layer: { kind: "computer", computerId: "cmp_1", chat: false } }]);
+  assert.deepEqual([found.acts, found.calls, found.said], [TAB, [], []], "with a host: the same tab, not the old popup layer");
   resetComputersAvailable();
 });
 
-test("no computer for the agent says so; a network failure says could not reach; a found one opens", async () => {
-  const none = goFor("team", undefined, []);
-  none.go.computerOfAgent("agt_intake");
-  await new Promise((r) => setTimeout(r, 0));
-  assert.deepEqual(none.said, [{ text: "Intake has no computer yet." }]);
-  const down = goFor("team", new Error("fetch failed"));
-  down.go.computerOfAgent("agt_intake");
-  await new Promise((r) => setTimeout(r, 0));
-  assert.deepEqual(down.said, [{ text: "Could not reach the computer. Try again." }]);
-  const found = goFor("team", undefined, [{ agentId: "agt_intake", computerId: "cmp_1" }]);
-  found.go.computerOfAgent("agt_intake");
-  await new Promise((r) => setTimeout(r, 0));
-  assert.deepEqual(found.acts, [{ t: "layer", layer: { kind: "computer", computerId: "cmp_1", chat: false } }]);
+test("the door opens the same tab for an agent with no computer and when the network is down: no toast, no read, never the old popup", async () => {
+  for (const [label, fail, computers] of [["no computer", undefined, []], ["network down", new Error("fetch failed"), []], ["a computer", undefined, [{ agentId: "agt_intake", computerId: "cmp_1" }]]] as const) {
+    const r = goFor("team", fail, [...computers]);
+    r.go.computerOfAgent("agt_intake");
+    await new Promise((res) => setTimeout(res, 0));
+    assert.deepEqual([r.acts, r.said, r.calls], [TAB, [], []], label);
+  }
 });
 
 test("computerLine maps the failures", () => {
