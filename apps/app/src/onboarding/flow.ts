@@ -87,5 +87,6 @@ export function shouldAutoOpen(flow: FlowKind, progress: Progress, seen: boolean
 /** A Space's name as a person reads it: a raw id ("spc_2a7c98c337e1dfd2e05e1aab") is no name, so it reads empty and the screen says "Your Space" instead. Setup never shows an id. */
 export function readableName(name: string | null | undefined): string {
   const n = (name ?? "").trim();
-  return /^[a-z]{2,6}_[0-9a-z]{8,}$/i.test(n) ? "" : n;
+  // an id is no name, and neither is "your Space", the stand-in for no name: the name field starts empty rather than with something that is not the Space's name
+  return /^[a-z]{2,6}_[0-9a-z]{8,}$/i.test(n) || n === "your Space" ? "" : n;
 }

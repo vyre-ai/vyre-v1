@@ -1,6 +1,7 @@
 // What the shell knows about each Space it can open (spec 2.1, b15): who it is, which Kit and skin it starts with, what waits for you in it.
 // The switcher data comes from the `spaces` module (spaces.switcher); the seeds below are the prototype's three, used by tests and screenshots.
 import type { PlaceId } from "../rail/kits.ts";
+import { isNamed } from "./space-label.ts";
 
 export type SpaceKind = "team" | "personal";
 
@@ -66,7 +67,8 @@ export function tileGradient(def: SpaceDef): string {
 }
 
 export function initialOf(def: SpaceDef): string {
-  return (def.name.trim()[0] ?? "?").toUpperCase();
+  // a Space with no name of its own shows the Vyre letter, never the first character of its address
+  return isNamed(def.name) ? def.name.trim()[0]!.toUpperCase() : "V";
 }
 
 /** The Spaces other than the open one that need you: they put the red dot on the tile. */

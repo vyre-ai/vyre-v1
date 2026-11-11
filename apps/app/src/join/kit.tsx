@@ -119,7 +119,7 @@ export function SpaceTile({ name, image }: { name: string; image?: string | unde
   const given = useContext(SpaceImageContext);
   const src = image ?? given;
   if (src) return <View testID="entry-space-tile" accessible={false} style={{ width: 40, height: 40, borderRadius: 12, overflow: "hidden", backgroundColor: p.sheet }}><Image testID="entry-space-image" source={{ uri: src }} accessibilityLabel={name} style={{ width: 40, height: 40 }} resizeMode="cover" /></View>;
-  return <View testID="entry-space-tile" accessible={false} style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: p.accent, alignItems: "center", justifyContent: "center" }}><Text style={{ fontFamily: FONT, color: p.accentInk, fontSize: 17, fontWeight: "600" }}>{name.slice(0, 1).toUpperCase()}</Text></View>;
+  return <View testID="entry-space-tile" accessible={false} style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: p.accent, alignItems: "center", justifyContent: "center" }}><Text style={{ fontFamily: FONT, color: p.accentInk, fontSize: 17, fontWeight: "600" }}>{name.trim() === "" || name.trim() === "your Space" ? "V" : name.slice(0, 1).toUpperCase()}</Text></View>;
 }
 
 /** The sheet follows its content's height, so a taller step eases open instead of jumping. Web only, and only once the browser can tell us the height. */
