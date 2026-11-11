@@ -661,3 +661,23 @@ test("an agent in Trash keeps its workspace volumes for the Space's Trash retent
   const noGov: TermCtx = { ...hn.ctx, call: (async () => { throw new Error("governance is not here"); }) as never };
   assert.deepEqual(await forgetExpiredWorkspaces(noGov, remove), ["agt_kept"]);
 });
+
+// ---- lead, 12 Nov: the workspaces' subnets are known to the daemon's guard -----------------------------------------------------------------------------------
+
+test("the terminal module registers the subnets its workspaces are on, for the daemon's guard: the shared network on a socket, each workspace's own behind the runner, after a restart too", async () => {
+  const dk = engine();
+  const m = manager(dk);
+  assert.deepEqual(m.subnets(), [], "no workspace yet, no network");
+  await m.ensure(AGENT);
+  assert.deepEqual(m.subnets(), ["172.31.0.0/24"], "the shared network's subnet");
+  const runner = manager(dk, { runner: true });
+  await runner.ensure("agt_pam");
+  assert.equal(runner.subnets().length, 1, "behind the runner, the workspace's own network");
+  runner.close();
+  const restarted = manager(dk, { runner: true });
+  await restarted.sweep();
+  assert.equal(restarted.subnets().length, 1, "read again by name after a restart");
+  const { agentSubnets } = await import("../impl.ts");
+  assert.equal(typeof agentSubnets, "function", "exported as the registry asks (agentSubnets)");
+  m.close(); restarted.close();
+});

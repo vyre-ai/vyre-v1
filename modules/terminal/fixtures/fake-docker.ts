@@ -38,6 +38,7 @@ export function fakeDocker(o: FakeDockerOptions = {}) {
   const boxes = new Map<string, Box>();
   const volumes = new Map<string, Record<string, unknown>>();
   const networks = new Set<string>();
+  const netLabels = new Map<string, Record<string, string>>();
   const log: Array<{ op: string; name?: string; detail?: unknown }> = [];
   const execs = new Map<string, ExecResult>();
   let image = o.image !== false;
@@ -116,7 +117,17 @@ export function fakeDocker(o: FakeDockerOptions = {}) {
     if (r && m === "GET") return volumes.has(r[1] as string) ? json(200, { Name: r[1] }) : json(404, { message: "no such volume" });
     if (p === "/volumes/create" && m === "POST") { const v = req.json as { Name: string }; volumes.set(v.Name, v as Record<string, unknown>); note("volume", v.Name); return json(201, { Name: v.Name }); }
     if (r && m === "DELETE") { volumes.delete(r[1] as string); note("volume_remove", r[1]); return empty(204); }
-    if (p === "/networks/create" && m === "POST") { const n = (req.json as { Name: string }).Name; if (networks.has(n)) return json(409, { message: "network exists" }); networks.add(n); note("network", n, req.json); return json(201, { Id: "net" }); }
+    if (p === "/networks" && m === "GET") {
+      const want = (JSON.parse(String(req.query?.["filters"] ?? "{}")) as { label?: string[] }).label ?? [];
+      const rows = [...networks].map((n, i) => ({ Name: n, Labels: netLabels.get(n) ?? {}, IPAM: { Config: [{ Subnet: `172.31.${i}.0/24` }] } })).filter((x) => want.length === 0 || want.some((l) => l in x.Labels));
+      return json(200, rows);
+    }
+    if (/^\/networks\/[^/]+$/.test(p) && m === "GET") {
+      const n = p.slice("/networks/".length);
+      const i = [...networks].indexOf(n);
+      return i < 0 ? json(404, { message: "no such network" }) : json(200, { Name: n, Labels: netLabels.get(n) ?? {}, IPAM: { Config: [{ Subnet: `172.31.${i}.0/24` }] } });
+    }
+    if (p === "/networks/create" && m === "POST") { const n = (req.json as { Name: string }).Name; if (networks.has(n)) return json(409, { message: "network exists" }); networks.add(n); netLabels.set(n, (req.json as { Labels?: Record<string, string> }).Labels ?? {}); note("network", n, req.json); return json(201, { Id: "net" }); }
     r = /^\/networks\/([^/]+)$/.exec(p);
     if (r && m === "DELETE") { networks.delete(r[1] as string); return empty(204); }
     return json(404, { message: `the stand-in does not know ${m} ${p}` });

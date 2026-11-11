@@ -159,6 +159,11 @@ export interface WorkspaceManager {
    * its next wake. Safe to repeat.
    */
   revoke(agentId: string): Promise<void>;
+  /**
+   * The subnets of the networks this engine's workspaces are on (the shared one, or each workspace's own behind the runner), as last read: the daemon's guard treats a caller from them as an agent's
+   * container and keeps its own routes from it (host/src/routes/site-host.ts agentCaller, through the terminal module's agentSubnets).
+   */
+  subnets(): string[];
   /** The line a workspace put to sleep at the 12-hour ceiling owes its next command, once (then null). */
   takeNote(agentId: string): string | null;
   /** The agent came back from Trash: its workspace may be made again (over the volumes it kept). */
@@ -335,6 +340,26 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
   const projects = new Map<string, { sync: { pass(): Promise<{ failed: number }> } | null; timer: ReturnType<typeof setInterval> | null; kick: ReturnType<typeof setTimeout> | null; holder: string | null }>();
   let imageKnown = false;
   let discovered = false;
+  /** The subnets of the workspaces' networks (subnets()), read when one is made and at every sweep. */
+  let nets: string[] = [];
+  /** Behind the runner the networks are read one by one, by the names this manager made (the runner lets a workspace network be read by name, not listed). */
+  const madeNets = new Set<string>();
+  async function readSubnets(): Promise<void> {
+    type Net = { IPAM?: { Config?: Array<{ Subnet?: string }> } };
+    let list: Net[] = [];
+    if (o.runner) {
+      for (const name of madeNets) {
+        const r = await http({ method: "GET", path: `/networks/${name}` }).catch(() => null);
+        if (r?.status === 200) list.push(JSON.parse(dec.decode(r.body)) as Net);
+        else if (r?.status === 404) madeNets.delete(name);
+      }
+    } else {
+      const r = await http({ method: "GET", path: "/networks", query: { filters: JSON.stringify({ label: ["vyre.workspaces"] }) } }).catch(() => null);
+      if (!r || r.status !== 200) return;
+      list = JSON.parse(dec.decode(r.body)) as Net[];
+    }
+    nets = [...new Set(list.flatMap((n) => (n.IPAM?.Config ?? []).map((c) => c.Subnet ?? "")).filter((x) => /^\d+\.\d+\.\d+\.\d+\/\d+$/.test(x)))];
+  }
   /** Workspaces this process started that hold room on the host: one whose container stopped without Vyre (out of memory, docker stop, a crash) gives its room back at the next sweep. */
   const claimed = new Set<string>();
   /** Runs in flight per workspace (hold). */
@@ -419,11 +444,14 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
       // made once per engine; one already there (409) is used as it is
       const r = await http({ method: "POST", path: "/networks/create", json: SHARED_NETWORK_BODY });
       if (r.status !== 201 && r.status !== 409) throw wsError(`The workspaces' network was not made (${r.status}: ${bodyText(r.body)}).`);
+      await readSubnets();
       return;
     }
     const name = workspaceNetworkName(agentId);
     const r = await http({ method: "POST", path: "/networks/create", json: { Name: name, Driver: "bridge", CheckDuplicate: true, Labels: { "vyre.workspace": agentId } } });
     if (r.status !== 201 && r.status !== 409) throw wsError(`The workspace's network was not made (${r.status}: ${bodyText(r.body)}).`);
+    madeNets.add(name);
+    await readSubnets();
   }
 
   async function mounts(agentId: string): Promise<MountSpec> {
@@ -808,6 +836,9 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
     let live: string[];
     try { live = await running(); } catch { return slept; }
     await giveBackDeadRoom(!discovered);
+    // behind the runner, the networks of workspaces that were running before this process started are read by their names too
+    if (o.runner) for (const id of live) madeNets.add(workspaceNetworkName(id));
+    await readSubnets();
     // workspaces that were running before this process started get a whole idle period from now
     if (!discovered) { discovered = true; for (const id of live) if (!lastUsed.has(id)) lastUsed.set(id, now()); }
     for (const id of live) {
@@ -843,6 +874,7 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
       if (await api.containerRunning(workspaceName(agentId)).catch(() => false)) await ensure(agentId);
     },
     restore(agentId) { gone.delete(agentId); restarts.delete(agentId); },
+    subnets: () => [...nets],
     takeNote(agentId) { const n = sleptNote.get(agentId) ?? null; sleptNote.delete(agentId); return n; },
     restartLine(agentId, since) { const r = restarts.get(agentId); return r !== undefined && r.gen > since ? r.line : null; },
     hold(agentId) {

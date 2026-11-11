@@ -688,6 +688,12 @@ export function setTerminalHost(seam: TerminalHostSeam | null): void {
 // Only the setter the daemon wires is a host seam.
 export const hostSeams = { setTerminalHost };
 
+/**
+ * This module's part of the daemon's registry of agent networks (host/src/routes/site-host.ts agentSubnetsOf, lane f-sbrowser): the subnets agent workspaces are on, so the daemon's guard keeps its own
+ * routes from a workspace terminal as it does from an agent's browser.
+ */
+export const agentSubnets = (): string[] => workspaceManager?.subnets() ?? [];
+
 /** Jobs the host runs on a clock. */
 export const periodic = {
   /** Hourly: the home and Files volumes of an agent in Trash longer than the Space's Trash retention are removed (12 Nov, the Space browser's rule for its profiles). */

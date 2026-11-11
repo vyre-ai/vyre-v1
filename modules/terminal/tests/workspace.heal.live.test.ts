@@ -166,6 +166,23 @@ test("real Docker: a restart while asleep heals, the sweep sees scripts and back
     const out = await m.exec(who, ["sh", "-c", `curl -s -m 5 http://${gw}:${port}/`]);
     assert.equal(out.stdout.trim(), "outside-ok", `${who === AGENT ? "A" : "B"} reaches out of the network`);
   }
+
+  // ---- lead, 12 Nov: the daemon's guard knows the workspaces' network. A stand-in daemon on every address applies the guard's rule (lane f-sbrowser, host/src/routes/site-host.ts agentCaller: a caller
+  // from a registered agent network is an agent's container) with the terminal module's registry (agentSubnets). From the workspace, every address of the host answers it as an agent's, so the daemon
+  // keeps its routes; the workspace still reaches out (the listener above stands for the internet: a test never reaches a real outside service).
+  const subnets = m.subnets();
+  assert.ok(subnets.length >= 1, `the workspaces' network is registered: ${JSON.stringify(subnets)}`);
+  const inSubnets = (ip: string): boolean => subnets.some((c) => { const [b, bits] = c.split("/"); const k = Number(bits); const n = (x: string): number => x.split(".").reduce((a, v) => ((a << 8) | Number(v)) >>> 0, 0); const mask = k === 0 ? 0 : (0xffffffff << (32 - k)) >>> 0; return (n(ip.replace(/^::ffff:/, "")) & mask) === (n(b!) & mask); });
+  const guard = http.createServer((req, res) => { res.end(inSubnets(req.socket.remoteAddress ?? "") ? "refused" : "open"); });
+  await new Promise<void>((r) => guard.listen(0, "0.0.0.0", () => r()));
+  t.after(() => { guard.close(); });
+  const gport = (guard.address() as { port: number }).port;
+  const os = await import("node:os");
+  const hosts = [...new Set([gw, ...Object.values(os.networkInterfaces()).flat().filter((a): a is import("node:os").NetworkInterfaceInfo => !!a && a.family === "IPv4" && !a.internal).map((a) => a.address)])];
+  const seen: Record<string, string> = {};
+  for (const host of hosts) seen[host] = (await m.exec(AGENT, ["sh", "-c", `curl -s -m 5 http://${host}:${gport}/v1/capabilities/files.list || echo unreachable`])).stdout.trim();
+  assert.deepEqual(seen, Object.fromEntries(hosts.map((h0) => [h0, "refused"])), `the daemon's guard refuses the workspace on every address of the host (${hosts.join(", ")})`);
+  assert.equal((await m.exec(AGENT, ["sh", "-c", `curl -s -m 5 http://${gw}:${port}/`])).stdout.trim(), "outside-ok", "and it still reaches out");
 });
 
 async function waitForOk(f: () => Promise<boolean>): Promise<boolean> {
