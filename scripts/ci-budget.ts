@@ -1,10 +1,11 @@
 // CI time budgets (ARCH-DECISIONS 13, binding): a push 5 minutes, a merge to main 10, a tag to live 25.
-//   node scripts/ci-budget.ts --kind push|main|tag|perf (--run-id N --repo owner/name | --start ISO) [--now ISO]
+//   node scripts/ci-budget.ts --kind push|main|tag|perf (--run-id N --repo owner/name [--fallback-start ISO] | --start ISO) [--now ISO]
 // Ruling 12: the budget measures execution only, from the first job start to now (the budget job runs last, with if: always()).
 // Runner queue wait (run_started_at to the first job start) is reported separately and alerts above 2 minutes, but never fails the budget.
 // With --start ISO the old wall-clock behaviour is kept for callers that have no job list.
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { API, getAll, getJson } from "./lib/gh-api.ts";
 
 export type Kind = "push" | "main" | "tag" | "perf";
 // perf: the hourly full perf run (ruling 55) has its own budget and is not on main's 10 minute path; one pinned perf host runs the files one after another.
@@ -62,14 +63,24 @@ if (process.argv[1] && path.resolve(process.argv[1]) === self) {
     console.log(v.line);
     process.exit(v.ok ? 0 : 1);
   }
-  const headers = { authorization: `Bearer ${process.env.GH_TOKEN ?? ""}`, accept: "application/vnd.github+json" };
-  const base = `https://api.github.com/repos/${val("--repo")}/actions/runs/${val("--run-id")}`;
-  const [r1, r2] = await Promise.all([fetch(base, { headers }), fetch(`${base}/jobs?per_page=100`, { headers })]);
-  if (!r1.ok || !r2.ok) { console.error(`github api ${r1.status}/${r2.status}`); process.exit(2); }
-  const runStart = ((await r1.json()) as { run_started_at: string }).run_started_at;
-  const jobs = ((await r2.json()) as { jobs: JobTiming[] }).jobs;
-  const { queueSec, execSec } = split(runStart, jobs, now);
-  const out = budgetLines(kind, queueSec, execSec);
-  console.log(out.lines.join("\n"));
-  process.exit(out.ok ? 0 : 1);
+  const repo = val("--repo"), runId = val("--run-id");
+  const base = `${API}/repos/${repo}/actions/runs/${runId}`;
+  const token = process.env.GH_TOKEN ?? "";
+  try {
+    // the run's job list is read 30 a page and retried on a 502 (a tag run has about 150 jobs, and one 100-item request failed budget-tag on rc.22 and rc.23)
+    const runStart = (await getJson<{ run_started_at: string }>(base, { token })).run_started_at;
+    const jobs = await getAll<JobTiming>(`${base}/jobs?filter=latest`, "jobs", { token });
+    const { queueSec, execSec } = split(runStart, jobs, now);
+    const out = budgetLines(kind, queueSec, execSec);
+    console.log(out.lines.join("\n"));
+    process.exit(out.ok ? 0 : 1);
+  } catch (e) {
+    // The API did not answer after its retries. With --fallback-start the budget is still measured, as wall time from that start (the longer measure, queue wait included, so it can only be stricter).
+    const fb = val("--fallback-start");
+    if (!fb) { console.error(e instanceof Error ? e.message : "github api failed"); process.exit(2); }
+    console.log(`${e instanceof Error ? e.message : "github api failed"}; measuring from ${fb} instead`);
+    const v = checkBudget(kind, wallSec(fb, now));
+    console.log(v.line);
+    process.exit(v.ok ? 0 : 1);
+  }
 }
