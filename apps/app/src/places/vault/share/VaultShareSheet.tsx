@@ -35,7 +35,7 @@ export function VaultShareSheet({ kind, id, name, onClose, onChanged }: { kind: 
       <AccessSheet
         mode="share" itemType="vault" resourceType={kind} resourceId={id} itemName={name} itemLabel={kind === "vault_folder" ? "folder" : "item"} target={kind === "vault_folder" ? "folder" : "item"}
         ownerName={owner ? names.name(owner.grant.subject.id) : data.me.name} {...(owner ? { ownerId: owner.grant.subject.id } : {})} spaceName={data.spaceName}
-        levels={["use", "view", "manage"]} shares={rows} allowExternal={false} density="regular" directory={sheetDirectory({ people, groups: [], roles: [], agents })}
+        levels={["use", "view", "manage"]} shares={rows} allowExternal={false} density="regular" directory={sheetDirectory({ people, groups: [], roles: [], agents, loading: names.loading })}
         {...(out.mine ? { maxLevel: out.mine } : {})}
         meId={data.me.id} notifyPeople onCopyLink={() => copyItemLink(kind, id)}
         onShare={(i: ShareInput, opts) => run(Promise.resolve(data.call("vault.share", withNotify({ resource: { type: kind, id }, subject: i.subject, level: i.level }, opts))))}

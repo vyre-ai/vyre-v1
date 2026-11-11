@@ -677,7 +677,7 @@ test("desktop joining previews first and accepts with a real Space-key bundle", 
     return { personId: "usr_dana", token: "vst_join", sessionId: "ses_join", epoch: 2 };
   };
   const invite = await previewDesktopJoin(route, anonymous);
-  const stored = await acceptDesktopJoin(invite, { username: "dana", displayName: "Dana", password: "a good password", deviceName: "Dana's Mac", trustDevice: true, ai: { choice: "none" } }, {
+  const stored = await acceptDesktopJoin(invite, { username: "dana", displayName: "Dana", password: "a good password", deviceName: "Dana's Mac", ai: { choice: "none" } }, {
     anonymous,
     open: async () => ({ def: { spaceId: "spc_nw", name: "Northwind" }, me: { id: "usr_dana" }, close: () => undefined } as never),
     getSpace: async () => ({ id: "spc_nw", marker: "authenticated-marker" }),
@@ -697,7 +697,7 @@ test("desktop joining never persists when the post-accept authenticated Space di
   assert.ok(route && route.kind === "join");
   const invite = await previewDesktopJoin(route, async () => ({ spaceId: "spc_preview", spaceName: "Northwind", invitedBy: "Maya", role: "Member", expiresAt: 1, fingerprint: "server-display-marker" }));
   let writes = 0;
-  await assert.rejects(acceptDesktopJoin(invite, { username: "dana", displayName: "Dana", password: "a good password", deviceName: "Dana's Mac", trustDevice: true, ai: { choice: "none" } }, {
+  await assert.rejects(acceptDesktopJoin(invite, { username: "dana", displayName: "Dana", password: "a good password", deviceName: "Dana's Mac", ai: { choice: "none" } }, {
     anonymous: async () => ({ personId: "usr_dana", token: "vst_join", sessionId: "ses_join", epoch: 2 }),
     open: async () => ({ def: { spaceId: "spc_authenticated", name: "Elsewhere" }, me: { id: "usr_dana" }, close: () => undefined } as never),
     getSpace: async () => ({ id: "spc_authenticated", marker: "authenticated-marker" }),
@@ -717,7 +717,7 @@ test("desktop join persists the verified session by default, never the identity 
       ? { spaceId: "spc_nw", spaceName: "Northwind", invitedBy: "Maya", role: "Member", expiresAt: 1, fingerprint: "server-display-marker" }
       : { personId: "usr_dana", token: "vst_join", sessionId: "ses_join", epoch: 11 };
     const invite = await previewDesktopJoin(route, anonymous);
-    const stored = await acceptDesktopJoin(invite, { username: "dana", displayName: "Dana", password: "a good password", deviceName: "Dana's Mac", trustDevice: true, ai: { choice: "none" } }, {
+    const stored = await acceptDesktopJoin(invite, { username: "dana", displayName: "Dana", password: "a good password", deviceName: "Dana's Mac", ai: { choice: "none" } }, {
       anonymous,
       open: async () => ({ def: { spaceId: "spc_nw", name: "Northwind" }, me: { id: "usr_dana" }, close: () => undefined } as never),
       getSpace: async () => ({ id: "spc_nw", marker: "authenticated-marker" }),
@@ -909,7 +909,7 @@ test('browser invite acceptance registers a web device instead of a native deskt
  let accepted:Record<string,unknown>|undefined;
  const anonymous=async(cap:string,input:unknown)=>{if(cap==='members.invites.preview')return{spaceId:'spc_nw',spaceName:'Northwind',invitedBy:'Maya',role:'Member',expiresAt:1,fingerprint:'server-display'};accepted=input as Record<string,unknown>;return{token:'vst_webjoin'};};
  const join=await previewDesktopJoin(route,anonymous);
- await acceptDesktopJoin(join,{username:'webmember',displayName:'Web member',password:'fixture browser password',deviceName:'',trustDevice:true,ai:{choice:'none'}},{deviceClass:'web',anonymous,open:async()=>({def:{spaceId:'spc_nw',name:'Northwind'},me:{id:'usr_web'},close:()=>undefined} as never),getSpace:async()=>({id:'spc_nw',marker:'display'}),persist:()=>undefined});
+ await acceptDesktopJoin(join,{username:'webmember',displayName:'Web member',password:'fixture browser password',deviceName:'',ai:{choice:'none'}},{deviceClass:'web',anonymous,open:async()=>({def:{spaceId:'spc_nw',name:'Northwind'},me:{id:'usr_web'},close:()=>undefined} as never),getSpace:async()=>({id:'spc_nw',marker:'display'}),persist:()=>undefined});
  assert.equal(accepted?.['deviceClass'],'web');assert.equal(accepted?.['deviceName'],'Web browser');
 });
 

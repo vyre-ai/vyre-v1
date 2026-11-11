@@ -5,7 +5,8 @@ import { counts, flowFor, isStepKey, nextAfter, resumeAt, shouldAutoOpen, stepsO
 test("each flow has unique step keys and the owner flowchart order", () => {
   for (const f of ["personal", "team", "member"] as const) assert.equal(new Set(stepsOf(f).map((s) => s.key)).size, stepsOf(f).length);
   assert.deepEqual(stepsOf("personal").map((s) => s.key), ["ai", "interview", "sessions", "folders", "chrome", "phone", "win", "team"]);
-  assert.equal(stepsOf("team").length, 9, "the nine team steps");
+  assert.deepEqual(stepsOf("team").map((s) => s.key), ["org", "space_ai", "workspace", "sign_in", "people", "invites"], "the six team steps that have something real behind them: agents, shared data and the first win are not shown until they are built");
+  assert.deepEqual(stepsOf("member").map((s) => s.key), ["mine", "ai", "apps", "interview", "agents"], "a member is not offered a Personal Space step with nothing behind it");
   assert.equal(stepsOf("member")[1]!.card, "connect_ai", "a member's own AI account");
 });
 
@@ -58,4 +59,9 @@ test("any step can be reopened whatever its state, and changing a choice keeps t
       }
     }
   }
+});
+
+test("a step with nothing behind it is not shown anywhere: no flow lists an unbuilt card", async () => {
+  const { UNBUILT } = await import("./flow.ts");
+  for (const f of ["personal", "team", "member"] as const) for (const s of stepsOf(f)) assert.ok(!UNBUILT.has(s.card), `${f}: ${s.key}`);
 });
