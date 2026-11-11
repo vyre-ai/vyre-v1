@@ -129,5 +129,6 @@ test("the image carries the release's own version: the bake passes the tag as VY
   assert.match(dockerfile, /^ENV VYRE_VERSION=\$\{VYRE_VERSION\}/m, "and sets it where host/src/daemon/main.ts and lib/user-agent.ts read it");
   assert.ok(dockerfile.indexOf("ARG VYRE_VERSION") < dockerfile.indexOf("ENV VYRE_VERSION"), "declared before it is used");
   assert.match(bake, /args\s*=\s*\{\s*VYRE_VERSION\s*=\s*"\$\{TAG\}"\s*\}/, "the bake passes the tag it builds");
-  assert.match(release, /TAG="\$VERSION" docker buildx bake -f images\/vyred\/docker-bake\.hcl/, "the release bakes with its own version as the tag");
+  // the bake may run through scripts/release/retry.sh (a dropped registry connection is tried again); the tag it is given is still the release's own version
+  assert.match(release, /TAG="\$VERSION" (?:bash scripts\/release\/retry\.sh \d+ \d+ )?docker buildx bake -f images\/vyred\/docker-bake\.hcl/, "the release bakes with its own version as the tag");
 });
