@@ -1,6 +1,7 @@
 // ui/PeoplePopover: the people popover that opens from the face stack or the count in a chat or project header. One component for both. Title "People and agents", one row per member
 // (face, name, the role right-aligned in muted text), a divider and one footer action. A row opens the person's profile or the agent's page; a right-click (or long press) offers
 // Message, Change role, Remove and Copy Link where allowed. Arrow keys move through the rows and the footer, Enter opens, Escape closes. Rounded 12, the pop shadow, a soft fill under the pointer.
+import { useEscapeLayer } from "../Overlay/escape.ts";
 import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
 import { Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
@@ -47,12 +48,12 @@ export function PeoplePopover({ where, rows, meId, perms, anchor, onOpen, onActi
   const [at, setAt] = useState(-1);
   const footer = footerOf(where);
   const count = rows.length + 1;
+  useEscapeLayer(true, onClose);   // one Escape closes the topmost layer: this popover, not the sheet under it
   useEffect(() => {
     if (!web) return undefined;
     const doc = (globalThis as { document?: { addEventListener(n: string, f: (e: { key: string; preventDefault?(): void }) => void): void; removeEventListener(n: string, f: (e: { key: string; preventDefault?(): void }) => void): void } }).document;
     if (!doc) return undefined;
     const key = (e: { key: string; preventDefault?(): void }): void => {
-      if (e.key === "Escape") { onClose(); return; }
       if (e.key === "ArrowDown" || e.key === "ArrowUp" || e.key === "Home" || e.key === "End") { e.preventDefault?.(); setAt((a) => walk(a, e.key, count)); return; }
       if (e.key === "Enter" && at >= 0) {
         e.preventDefault?.();

@@ -542,6 +542,8 @@ function ComputerLayer({ rt, go, nameOf, list, counter, computerId, chat }: {
 }): ReactElement {
   const q = useLive<ComputerOut>(rt.screens, "chats.computer-popup", "computer", { computerId });
   const agentId = q.status === "ready" ? q.data.computer.agentId : "";
+  // The single-computer popup is no longer a place a person lands: a link, a card or a route that names a computer opens its agent's Computer tab (Terminal and Browser), the one place for it (owner ruling 6 Nov 2026)
+  useEffect(() => { if (agentId !== "") go.agent(agentId, "computer"); }, [go, agentId]);
   const viewer = useViewer(rt);
   const data = useMemo(
     () => (agentId === "" ? null : popupData(rt, go, { computerId, agent: { agentId, name: nameOf(agentId) }, counter, renderChat: (a) => <AgentChat rt={rt} go={go} agentId={a.agentId} list={list} />, ...(viewer ? { reach: { viewer, nameOf, open: (t) => rt.open(shellTarget(t)) } } : {}) })),

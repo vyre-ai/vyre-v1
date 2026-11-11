@@ -39,6 +39,9 @@ export interface AgentPageData {
   /** Whether this person may change the agent (agents.manage or an editor of it). Without it the role line is read-only with a lock. */
   canEdit: boolean;
   space: { name: string; personal: boolean; computers?: boolean };
+  /** The agent's workspace and its Space browser profile: the Computer tab's Terminal and Browser. The same sources the chat pane reads. */
+  workspace?: ChatRightPaneData["workspace"];
+  browser?: ChatRightPaneData["browser"];
   nav: AgentPageNav;
   clock(): Clock;
 }
@@ -61,7 +64,7 @@ export function useAgentPageData(): AgentPageData {
 
 /** The same data the Chats right pane tabs (Memory, Files, Computer) read, so the page shows them without a second copy of their code. */
 export function paneDataOf(d: AgentPageData): ChatRightPaneData {
-  return { screens: d.screens, call: d.call, connection: d.connection, threadId: "", agent: d.agent, space: d.space, nav: d.nav, clock: d.clock };
+  return { screens: d.screens, call: d.call, connection: d.connection, threadId: "", agent: d.agent, space: d.space, nav: d.nav, clock: d.clock, ...(d.workspace ? { workspace: d.workspace } : {}), ...(d.browser ? { browser: d.browser } : {}) };
 }
 
 export const AGENT_PAGE_SCREEN = "chats.agent-page";
