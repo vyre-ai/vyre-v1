@@ -397,7 +397,7 @@ export function AccessSheet(props: AccessSheetProps): ReactElement {
             <Text style={st.empty} testID="as-no-outside">{NO_OUTSIDE}</Text>
           </View>
         ))}
-        {noMatch(secs, q) ? <Text style={st.empty} testID="as-none">{NO_MATCH}</Text> : null}
+        {props.directory.loading === true ? <Text style={st.empty} testID="as-loading">Loading people…</Text> : noMatch(secs, q) ? <Text style={st.empty} testID="as-none">{NO_MATCH}</Text> : null}
         {hereBlock}
       </ScrollView>
       <View style={st.footTop}>

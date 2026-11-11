@@ -6,6 +6,8 @@ import type { TaskState } from "../journeys/model.ts";
 
 export interface DirEntry { id: string; name: string }
 export interface ConfigDirectory {
+  /** The lists are still being read. */
+  loading?: boolean;
   people: readonly DirEntry[];
   groups: readonly DirEntry[];
   roles: readonly DirEntry[];

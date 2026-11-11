@@ -15,7 +15,7 @@ import type { SharesOut } from "./model.ts";
 import { isPhoneWidth } from "../../../../../../ui/src/SidePane/layout.ts";
 
 /** The people, groups and agents a Space offers (id and name; a line under the name is optional). */
-export interface ShareDirectory { people?: readonly { id: string; name: string }[]; groups?: readonly { id: string; name: string }[]; roles?: readonly { id: string; name: string }[]; agents?: readonly { id: string; name: string }[] }
+export interface ShareDirectory { loading?: boolean; people?: readonly { id: string; name: string }[]; groups?: readonly { id: string; name: string }[]; roles?: readonly { id: string; name: string }[]; agents?: readonly { id: string; name: string }[] }
 
 const FIXED = (Platform.OS === "web" ? "fixed" : "absolute") as ViewStyle["position"];
 
@@ -56,7 +56,7 @@ export function RecordShareSheet({ target, directory, spaceName, meId, onClose }
     <View style={s.stack}>
       <AccessSheet
         mode="share" itemType={target.type === "record_type" ? "rtype" : "record"} resourceType={target.type} resourceId={target.id} itemName={target.name} target="item" {...(spaceName ? { spaceName } : {})} ownerName={ownerName} {...(m.owner ? { ownerId: m.owner.id } : {})}
-        levels={RECORD_LEVELS} shares={m.rows} allowExternal={false} density={phone ? "compact" : "regular"} directory={sheetDirectory({ people: directory.people ?? [], groups: directory.groups ?? [], roles: directory.roles ?? [], agents: directory.agents ?? [] })}
+        levels={RECORD_LEVELS} shares={m.rows} allowExternal={false} density={phone ? "compact" : "regular"} directory={sheetDirectory({ people: directory.people ?? [], groups: directory.groups ?? [], roles: directory.roles ?? [], agents: directory.agents ?? [], ...(directory.loading === true ? { loading: true } : {}) })}
         {...(target.typeName ? { folderName: target.typeName } : {})} {...(out.mine ? { maxLevel: out.mine } : {})} records={records}
         {...(meId ? { meId } : {})} notifyPeople onMakeOwner={(s) => run(data.call("access.make_owner", { resource: res, personId: s.id, idempotencyKey: `owner:${target.id}:${s.id}` }))} onCopyLink={() => copyItemLink(target.type, target.id)}
         onShare={(i: ShareInput, opts) => run(data.call("access.share", withNotify(shareCall(res, i.subject, i.level), opts)))}
