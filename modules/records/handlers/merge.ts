@@ -326,7 +326,7 @@ async function applyMerge(deps: MergeDeps, ctx: MergeCtx, input: { type: string;
 }
 
 /** Put everything a merge (or its failed attempt) changed back. Returns the items it could not restore. */
-async function revert(deps: MergeDeps, j: Journal, removed: readonly string[], survivorUpdated: boolean): Promise<string[]> {
+async function revert(deps: MergeDeps, j: Journal, removed: readonly string[], survivorUpdated: boolean, moved?: (w: Journal["rewrites"][number], rec: StoredRecord) => void): Promise<string[]> {
   const { store } = deps;
   const stuck: string[] = [];
   for (const id of removed) {
@@ -337,7 +337,8 @@ async function revert(deps: MergeDeps, j: Journal, removed: readonly string[], s
       const cur = await store.get(w.type, w.id);
       if (!cur) continue;
       if (!same(cur.data[w.field], w.after)) continue; // changed since: leave the newer value
-      await store.update(w.type, w.id, { [w.field]: w.before }, cur.version);
+      const back = await store.update(w.type, w.id, { [w.field]: w.before }, cur.version);
+      moved?.(w, back);
     } catch { stuck.push(`${w.type}/${w.id}.${w.field}`); }
   }
   if (survivorUpdated) {
@@ -375,7 +376,10 @@ export async function undoMerge(deps: MergeDeps, ctx: Pick<WriteCtx, "trace"> & 
   if (row.undone_at !== null) bad(ctx, "this merge was already undone");
   if (now > row.undo_until) bad(ctx, "the 30 days to undo this merge have passed");
   const j: Journal = { mergeId: row.merge_id, type: row.type, survivor: row.survivor, merged: JSON.parse(row.merged) as string[], before: JSON.parse(row.before) as Record<string, unknown>, rewrites: JSON.parse(row.rewrites) as Rewrite[] };
-  const unrestored = await revert(deps, j, j.merged, true);
+  // the links that moved to the survivor move back; each is announced like an edit, so sync and automations that saw them move see them return
+  const unrestored = await revert(deps, j, j.merged, true, (w, rec) => {
+    ctx.emit?.("record.updated", `record/${w.id}`, { recordId: w.id, type: w.type, fields: { [w.field]: w.before ?? null }, prev: { [w.field]: w.after }, version: rec.version });
+  });
   deps.tx.run("DELETE FROM records_field_history WHERE type = ? AND id = ? AND reason LIKE ?", j.type, j.survivor, `merge:${j.mergeId}:%`);
   deps.tx.run("UPDATE qm_merges SET undone_at = ? WHERE merge_id = ?", now, j.mergeId);
   return { restored: j.merged.filter((id) => !unrestored.includes(`restore ${id}`)), unrestored };

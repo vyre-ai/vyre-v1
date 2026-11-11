@@ -592,3 +592,16 @@ test("merge (909 review): links other records hold to a merged record move to th
   assert.equal(upd.length, 1, "the deal's link moved and the change was announced");
   assert.deepEqual(Object.keys(upd[0]!.payload.fields as object), ["owner"]);
 });
+
+test("merge undo (909 review): links that moved back to the merged record are announced like an edit, so sync and automations that saw them move see them return", async () => {
+  const k = await kit();
+  const a = await party(k, { name: "Ann" }), b = await party(k, { name: "Ann B" });
+  const d1 = mintRecordId();
+  await k.rec.store.create("deal", d1, { title: "Deal", owner: link(b) });
+  await k.h["records.merge"](k.ctx, { type: "party", survivorId: a, mergedIds: [b], picks: {} });
+  k.seen.length = 0;
+  await undoMerge(k.deps, { ...k.ctx }, { survivorId: a });
+  const back = k.seen.filter((e) => e.name === "record.updated" && e.subject === `record/${d1}`);
+  assert.equal(back.length, 1);
+  assert.deepEqual(back[0]!.payload.fields, { owner: link(b) });
+});
