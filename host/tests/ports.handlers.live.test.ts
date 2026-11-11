@@ -87,3 +87,15 @@ test("import.preview matches against existing rows even when one key matches mor
     assert.deepEqual([preview.creates, preview.updates, preview.skips], [0, 0, 1], "the one row matches an existing company, however many rows carry it");
   });
 });
+
+test("email_builder.html_set and restore_version save through the real pipeline (their saved event is declared in their emits)", async () => {
+  await withSpace(async ({ ok }) => {
+    const email = (await ok("/v1/email_builder/create", { idempotencyKey: "ports-email-2", name: "Hello", mode: "html" })).email;
+    const set = await ok("/v1/email_builder/html_set", { emailId: email.emailId, html: "<p>Hello again</p>" });
+    assert.equal(set.ok, true);
+    const versions = (await ok("/v1/email_builder/versions", { emailId: email.emailId })).versions as { version: number }[];
+    assert.ok(versions.length >= 1, "the HTML was saved as a version");
+    const restored = await ok("/v1/email_builder/restore_version", { emailId: email.emailId, version: versions[versions.length - 1]!.version });
+    assert.equal(restored.email.emailId, email.emailId);
+  });
+});

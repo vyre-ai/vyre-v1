@@ -19,7 +19,7 @@ Build the site from its repo (the site agent runs in the repo); test and verify
 | HTTP | POST /v1/sites/build |
 | MCP tool | sites_build (sites) |
 | CLI | none |
-| Emits | site.build_failed |
+| Emits | site.build_failed, site.preview_created, site.deployed, site.preview_removed |
 
 ## Input
 

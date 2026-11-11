@@ -19,7 +19,7 @@ Delete a local calendar (provider calendars are disconnected, not deleted)
 | HTTP | POST /v1/calendar/delete_calendar |
 | MCP tool | calendar_delete_calendar (inbox) |
 | CLI | none |
-| Emits | none |
+| Emits | calendar_event.deleted |
 
 ## Input
 
