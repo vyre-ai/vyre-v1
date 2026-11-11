@@ -136,8 +136,8 @@ export default defineManifest({
       errors: ['permission.needs_approval', 'validation.precondition_failed', 'provider.auth_failed'],
     }),
     write('telephony.answer', 'Answer a ringing call', { in: { callId: id.call }, out: { call: callRow }, emits: ['call.started'], tool: 'inbox', offline: 'online', level: 'use' }),
-    write('telephony.decline', 'Decline a ringing call, optionally to voicemail', { in: { callId: id.call, toVoicemail: t.opt(t.bool()) }, out: { call: callRow }, emits: ['call.missed', 'call.voicemail_left'], tool: 'inbox', offline: 'online', level: 'use' }),
-    write('telephony.hangup', 'End a call', { in: { callId: id.call }, out: { call: callRow }, emits: ['call.ended'], tool: 'inbox', offline: 'online', level: 'use' }),
+    write('telephony.decline', 'Decline a ringing call, optionally to voicemail', { in: { callId: id.call, toVoicemail: t.opt(t.bool()) }, out: { call: callRow }, emits: ['call.missed', 'call.voicemail_left', 'call.ended'], tool: 'inbox', offline: 'online', level: 'use' }),
+    write('telephony.hangup', 'End a call', { in: { callId: id.call }, out: { call: callRow }, emits: ['call.ended', 'call.missed'], tool: 'inbox', offline: 'online', level: 'use' }),
     write('telephony.hold', 'Put a call on hold or take it off hold', { in: { callId: id.call, hold: t.bool() }, out: { call: callRow }, tool: 'inbox', offline: 'online', level: 'use' }),
     write('telephony.transfer', 'Transfer a call to a teammate or an agent (warm or cold)', {
       in: { callId: id.call, to: t.obj({ kind: t.enm('person', 'agent'), id: t.str() }), mode: t.enm('warm', 'cold') }, out: { call: callRow }, level: 'use', emits: ['call.transferred'],
@@ -179,7 +179,7 @@ export default defineManifest({
     // ---- inbound pipeline (called by the twilio connector after signature check and dedupe)
     write('telephony.ingest_voice', 'Land an incoming call and answer with the routing instruction for the number, hours and consent', {
       in: { callSid: t.str(), from: t.str(), to: phone, status: t.str(), callerName: t.opt(t.str()), forwardedFrom: t.opt(t.str()) },
-      out: { callId: id.call, instruction: ringInstruction }, emits: ['call.ringing'], idem: 'natural', offline: 'online',
+      out: { callId: id.call, instruction: ringInstruction }, emits: ['call.ringing', 'call.ended', 'call.missed'], idem: 'natural', offline: 'online',
     }),
     write('telephony.ingest_sms', 'Land an incoming text; STOP and UNSUBSCRIBE suppress the sender and link the contact', {
       in: { messageSid: t.str(), from: phone, to: phone, body: t.str(), mediaUrls: t.opt(t.arr(t.str())), at: t.ts() },
@@ -190,7 +190,7 @@ export default defineManifest({
       out: { applied: t.bool() }, emits: ['call.started', 'call.ended', 'call.missed', 'call.voicemail_left', 'message.delivered', 'message.bounced', 'message.failed'], idem: 'natural', offline: 'online',
     }),
     write('telephony.ingest_recording', 'Download a finished recording or voicemail into Files and attach it to the call', {
-      in: { callSid: t.str(), recordingSid: t.str(), url: t.str(), durationSec: t.opt(t.int()) }, out: { callId: id.call, fileId: id.file }, emits: ['call.recording_ready'], idem: 'natural', offline: 'online',
+      in: { callSid: t.str(), recordingSid: t.str(), url: t.str(), durationSec: t.opt(t.int()) }, out: { callId: id.call, fileId: id.file }, emits: ['call.recording_ready', 'call.voicemail_left'], idem: 'natural', offline: 'online',
     }),
     // ---- texting registration
     read('telephony.registration.get', 'Read the US texting registration (brand and campaign) for this Space', {

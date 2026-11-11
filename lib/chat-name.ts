@@ -64,19 +64,27 @@ export function firstRequest(lines: readonly { person: boolean; body: string }[]
 
 const LEAD = /^(?:please|pls|can you|could you|would you|will you|i need you to|i want you to|i would like you to|i'd like you to|i need|i want|help me|help|let's|lets|how do i|how do we|how can i|what is|what's|tell me|show me)\s+/i;
 
+const OPENING_GREETING = /^\s*(?:h+e+y+|h+i+|h+e+l+o+|good (?:morning|afternoon|evening)|greetings)\b(?:\s+(?:there|all|team|everyone|assistant|vyre))?[\s,!.:;-]*/i;
+
 /** A title from the words of the request alone: the plain fallback when no model is at hand. 2 to 5 words, no greeting, no ending punctuation. */
 export function titleFromRequest(text: string): string | null {
-  let t = words(text.split("\n").find((l) => l.trim() !== "") ?? "").join(" ");
+  // a greeting in front of the real request ("Hello! Can you ...") is not what the chat is about
+  let t = words((text.split("\n").find((l) => l.trim() !== "") ?? "").replace(OPENING_GREETING, "")).join(" ");
   for (let i = 0; i < 3 && LEAD.test(t); i++) t = t.replace(LEAD, "");
   const w = t.split(" ").filter((x) => x !== "").slice(0, 5);
   if (w.length < 2) return null;
   return tidyTitle(w.join(" "));
 }
 
+const DANGLING: ReadonlySet<string> = new Set(["a", "an", "the", "for", "to", "of", "with", "and", "or", "in", "on", "at", "by", "from", "that", "my", "our", "your", "their", "his", "her", "this", "these", "those", "about", "into", "as"]);
+
 /** A model's answer made into a title: one line, quotes and endings off, 2 to 5 words, first letter up. Null when nothing usable is left. */
 export function tidyTitle(raw: string): string | null {
   const line = raw.split("\n").map((l) => l.trim()).find((l) => l !== "") ?? "";
   const w = line.replace(/^(?:title\s*:\s*)/i, "").replace(/^["'`*#\s]+|["'`*.!?:;,\s]+$/g, "").split(/\s+/).filter((x) => x !== "").slice(0, 5);
+  if (w.length < 2) return null;
+  // a title cut at five words must not end on a word that wants another ("create a", "note for"): drop those, and when fewer than two words are left there is no title yet
+  while (w.length > 0 && DANGLING.has(w[w.length - 1]!.toLowerCase())) w.pop();
   if (w.length < 2) return null;
   const s = w.join(" ");
   return s.charAt(0).toUpperCase() + s.slice(1);

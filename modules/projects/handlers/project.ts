@@ -28,12 +28,36 @@ function resourcesOf(p: Project): Array<{ type: string; id: string }> {
  * and channel (which exist already) and the host runs this for `project.created` right after the commit. The project resource itself is only ever shared here (applyRole skips it while a project is being made).
  */
 export async function grantOnProject(ctx: ProjectsCtx, projectId: string): Promise<void> {
-  const p = projectBy(ctx.db, projectId);
-  if (!p) return;
-  const matrix = await tolerant<{ kind?: string }>(ctx, "spaces.matrix", {}, {});
-  for (const m of membersOf(ctx.db, projectId)) {
-    if (matrix.kind === "personal" && m.principal === me(ctx)) continue;
-    await call(ctx, "access.share", { resource: { type: "project", id: projectId }, subject: subjectOf(m), level: LEVEL_OF[m.role], source: sourceTag(projectId) }, { idempotencyKey: `prj-share:${projectId}:${m.principal}:${m.role}:project` });
+  // in the project's queue: the members it reads are still the members when its grants land, so a remove or a role change made meanwhile is never undone by it
+  await oneAtATime(ctx, projectId, async () => {
+    const p = projectBy(ctx.db, projectId);
+    if (!p) return;
+    const matrix = await tolerant<{ kind?: string }>(ctx, "spaces.matrix", {}, {});
+    for (const m of membersOf(ctx.db, projectId)) {
+      if (matrix.kind === "personal" && m.principal === me(ctx)) continue;
+      await call(ctx, "access.share", { resource: { type: "project", id: projectId }, subject: subjectOf(m), level: LEVEL_OF[m.role], source: sourceTag(projectId) }, { idempotencyKey: `prj-share:${projectId}:${m.principal}:${m.role}:project` });
+    }
+  });
+}
+
+/**
+ * One queue per project for everything that writes its role grants: the starting-roles consumer (grantOnProject), a role given or changed (applyRole) and a role taken away (removeMember). Each reads the
+ * members and then awaits its access.share and access.unshare calls; run side by side, a write planned from an older read landed after a newer change and gave back access that had just been taken
+ * away. In the queue each one reads and writes as a whole, so a call that takes a role away answers only when nothing still running can write that role back. Nothing in the queue waits for
+ * another entry of the same project (the calls it makes go to other modules), so it cannot wait on itself.
+ */
+const queues = new Map<string, Promise<void>>();
+export async function oneAtATime<T>(ctx: Pick<ProjectsCtx, "space">, projectId: string, work: () => Promise<T>): Promise<T> {
+  const k = `${ctx.space}:${projectId}`;
+  const before = queues.get(k) ?? Promise.resolve();
+  let done!: () => void;
+  const mine = new Promise<void>((r) => { done = r; });
+  const tail = before.then(() => mine);
+  queues.set(k, tail);
+  await before;
+  try { return await work(); } finally {
+    done();
+    if (queues.get(k) === tail) queues.delete(k);
   }
 }
 
@@ -48,7 +72,10 @@ async function tasksOrNone(ctx: ProjectsCtx, p: Project): Promise<TaskView[]> {
 // ---- people ----
 
 /** Give a principal a role: the previous grants of that source go, the new ones are written on the project, its folder and its channel. */
-export async function applyRole(ctx: ProjectsCtx, p: Project, principal: string, role: Role, announce = true, deferProject = false): Promise<{ member: Member; previous?: Role }> {
+export function applyRole(ctx: ProjectsCtx, p: Project, principal: string, role: Role, announce = true, deferProject = false): Promise<{ member: Member; previous?: Role }> {
+  return oneAtATime(ctx, p.projectId, () => applyRoleNow(ctx, p, principal, role, announce, deferProject));
+}
+async function applyRoleNow(ctx: ProjectsCtx, p: Project, principal: string, role: Role, announce: boolean, deferProject: boolean): Promise<{ member: Member; previous?: Role }> {
   const kind = kindOfPrincipal(principal);
   if (!kind) raise(ctx, "validation.bad_input", "A person, an agent or a group holds a project role.", { principal });
   const before = memberOf(ctx.db, p.projectId, principal);
@@ -124,7 +151,11 @@ export async function membersSet(ctx: ProjectsCtx, input: In): Promise<unknown> 
 }
 
 /** Take a principal off a project: its grants of this project go, the lead field is cleared if it was the lead, and the project says so. */
-export async function removeMember(ctx: ProjectsCtx, p: Project, m: Member): Promise<void> {
+export function removeMember(ctx: ProjectsCtx, p: Project, m: Member): Promise<void> {
+  return oneAtATime(ctx, p.projectId, () => removeMemberNow(ctx, p, m));
+}
+async function removeMemberNow(ctx: ProjectsCtx, p: Project, asked: Member): Promise<void> {
+  const m = memberOf(ctx.db, p.projectId, asked.principal) ?? asked;   // the role as it stands now, in the queue (a change may have run while this waited)
   for (const r of resourcesOf(p)) await call(ctx, "access.unshare", { resource: r, subject: subjectOf(m), source: sourceTag(p.projectId) });
   if (m.kind === "person" && p.channelId) await tolerant(ctx, "channels.members.remove", { channelId: p.channelId, personId: m.principal }, null);
   if (m.kind === "agent" && p.channelId) await tolerant(ctx, "channels.agents.remove", { channelId: p.channelId, agentId: m.principal }, null);

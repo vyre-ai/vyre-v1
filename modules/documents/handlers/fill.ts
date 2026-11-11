@@ -8,13 +8,14 @@
 // payment or deposit shows a number as $1,234.50. The signing date is an explicit input in ISO form; from it the engine sets signing_date, signing_date_iso, signing_day,
 // signing_day_ordinal, signing_month, signing_month_number and signing_year, unless the caller gave that value itself.
 // Records: when recordId is given the record's fields feed the tags (mapping names which record field feeds which tag; without a mapping a field feeds the tag of the same name).
-// The record type comes from values.recordType when present; otherwise records.get is asked with the id alone.
+// The record type comes from values.recordType when present; otherwise it is looked up from the id (records.get reads a record by type and id).
 // Names: a given name keeps its own spelling; the default is the template name and "(filled)"; a taken name gets " 2", " 3" and so on, an existing file is never replaced.
 // PDF: format "pdf" converts the filled Word file through the converter the host gave to configureDocuments; without one the request is refused and the Word file works anywhere.
 
 import { createRequire } from "node:module";
 import { ERROR_CODES, VyreErr } from "../../../packages/contracts/src/errors.ts";
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
+import { findRecord } from "../../../lib/record-type.ts";
 import type { ErrorCode, NextStep, VyreError } from "../../../packages/contracts/src/types.ts";
 
 type Row = Record<string, unknown>;
@@ -507,8 +508,11 @@ async function valuesOf(ctx: Ctx, o: Record<string, unknown>): Promise<{ values:
   let values: Record<string, unknown> = {};
   const given = leafKeys(explicit);
   if (recordId !== undefined) {
-    const type = typeof explicit.recordType === "string" ? explicit.recordType : undefined;
-    const got = (await ctx.call("records.get", type ? { type, recordId } : { recordId })) as { record?: { fields?: unknown } };
+    // records.get reads a record by type and id: the type comes from values.recordType, or is looked up from the id (the read that finds it is the read)
+    const typeGiven = typeof explicit.recordType === "string" ? explicit.recordType : undefined;
+    const call = (cap: string, input: unknown): Promise<unknown> => ctx.call(cap as never, input as never);
+    const got = typeGiven !== undefined ? (await call("records.get", { type: typeGiven, recordId })) as { record?: { fields?: unknown } } : { record: (await findRecord(call, recordId))?.record };
+    if (!got.record) fail(ctx, "validation.not_found", "That record does not exist.");
     const rawFields = got.record?.fields;
     const fields = isPlain(rawFields) ? rawFields : {};
     if (mapping) {

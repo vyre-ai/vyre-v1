@@ -4,6 +4,7 @@
 // Escape leaves the settings popover, then a sub-view, then the sheet. Enter in the search adds the top match; Backspace on an empty search removes the last chip.
 // Colours are skin tokens (CSS variables on web), so paper and graphite both work.
 
+import { useEscapeLayer } from "../Overlay/escape.ts";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { Platform, Pressable, ScrollView, Text, TextInput, View, useWindowDimensions } from "react-native";
@@ -174,14 +175,7 @@ export function AccessSheet(props: AccessSheetProps): ReactElement {
     else if (view !== "main") setView("main");
     else props.onClose();
   };
-  useEffect(() => {
-    if (Platform.OS !== "web") return undefined;
-    const doc = (globalThis as { document?: { addEventListener(n: string, f: (e: { key: string; stopPropagation(): void }) => void): void; removeEventListener(n: string, f: (e: { key: string; stopPropagation(): void }) => void): void } }).document;
-    if (!doc) return undefined;
-    const key = (e: { key: string; stopPropagation(): void }): void => { if (e.key === "Escape") { e.stopPropagation(); escape.current(); } };
-    doc.addEventListener("keydown", key);
-    return () => doc.removeEventListener("keydown", key);
-  }, []);
+  useEscapeLayer(true, () => escape.current());
 
   /* ---------- picking ---------- */
 
@@ -403,7 +397,7 @@ export function AccessSheet(props: AccessSheetProps): ReactElement {
             <Text style={st.empty} testID="as-no-outside">{NO_OUTSIDE}</Text>
           </View>
         ))}
-        {noMatch(secs, q) ? <Text style={st.empty} testID="as-none">{NO_MATCH}</Text> : null}
+        {props.directory.loading === true ? <Text style={st.empty} testID="as-loading">Loading people…</Text> : noMatch(secs, q) ? <Text style={st.empty} testID="as-none">{NO_MATCH}</Text> : null}
         {hereBlock}
       </ScrollView>
       <View style={st.footTop}>

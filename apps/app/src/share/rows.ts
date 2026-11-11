@@ -26,8 +26,8 @@ export function shareRows(out: SharesOut, name: (id: string) => string, resource
 export const entries = (list: readonly { id: string; name: string; sub?: string }[], kind: AccessEntry["kind"]): AccessEntry[] => list.map((e) => ({ id: e.id, name: e.name, kind, ...(e.sub ? { sub: e.sub } : {}) }));
 
 /** The people, groups, roles and agents a Space offers, as the sheet's directory. */
-export function sheetDirectory(d: { people: readonly { id: string; name: string }[]; groups: readonly { id: string; name: string }[]; roles: readonly { id: string; name: string }[]; agents: readonly { id: string; name: string }[] }) {
-  return { people: entries(d.people, "person"), groups: entries(d.groups, "group"), roles: entries(d.roles, "role"), agents: entries(d.agents, "agent") };
+export function sheetDirectory(d: { people: readonly { id: string; name: string }[]; groups: readonly { id: string; name: string }[]; roles: readonly { id: string; name: string }[]; agents: readonly { id: string; name: string }[]; loading?: boolean }) {
+  return { people: entries(d.people, "person"), groups: entries(d.groups, "group"), roles: entries(d.roles, "role"), agents: entries(d.agents, "agent"), ...(d.loading === true ? { loading: true } : {}) };
 }
 
 /** access.share (or vault.share) input from what the sheet hands back, with the Notify people choice folded in as `notify`. */

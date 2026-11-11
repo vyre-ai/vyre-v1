@@ -18,7 +18,7 @@ import { useConfigExtras } from "./data.tsx";
 import { Glyph } from "./glyphs.tsx";
 import { aiKeys, hasWebhook, withAutomationAi } from "./model.ts";
 import type { Automation } from "./model.ts";
-import { aiMenu } from "../../vault/providers/aiMenu.ts";
+import { aiMenu, useAiRefill } from "../../vault/providers/aiMenu.ts";
 import { aiName, automaticLine } from "../../vault/providers/pick.ts";
 import { useSpaceAi } from "../../vault/providers/useSpaceAi.ts";
 import { Overlay } from "./Overlay.tsx";
@@ -40,7 +40,7 @@ export function SettingsTab({ automation, openPromote = false, openShare = false
   const openConnect = useOpenConnect();
   const extras = useConfigExtras();
   const saved = useSaved();
-  const { element, show } = useMenu();
+  const { element, show, update } = useMenu();
   const a = automation;
   const personal = a.kind === "personal";
   const mine = a.ownerId === data.me.id;
@@ -52,6 +52,7 @@ export function SettingsTab({ automation, openPromote = false, openShare = false
   const webhook = useWebhook(a.id, hasWebhook(a.definition));
   const roster = [...extras.directory.people, ...extras.directory.groups];
   const spaceAi = useSpaceAi(data.call);
+  const refill = useAiRefill(update, spaceAi);
   const hasAi = a.definition.nodes.some((n) => n.key === "ai");
   /** Main and backup AI account of the automation, saved with the definition (automations.update): the Vault's uses and caps decide whether they can pay. */
   const setAi = (field: "keyId" | "backupKeyId", handle: string | undefined, said: string): void => {
@@ -194,13 +195,13 @@ export function SettingsTab({ automation, openPromote = false, openShare = false
                 >
                   <PickButton
                     label="Main AI account" value={aiName(spaceAi ?? [], a.definition.ai?.keyId)} testID="ai-main"
-                    onPress={(x, y) => show(aiMenu(spaceAi ?? [], "automations", a.definition.ai?.keyId, (h) => setAi("keyId", h, h ? `Runs on ${aiName(spaceAi ?? [], h)}` : "Runs on Automatic"), { ...(data.nav.openKeys ? { openVault: data.nav.openKeys } : {}), skip: a.definition.ai?.backupKeyId ? [a.definition.ai.backupKeyId] : [] }), x, y, "other")}
+                    onPress={(x, y) => show(refill((r) => aiMenu(r, "automations", a.definition.ai?.keyId, (h) => setAi("keyId", h, h ? `Runs on ${aiName(spaceAi ?? [], h)}` : "Runs on Automatic"), { ...(data.nav.openKeys ? { openVault: data.nav.openKeys } : {}), skip: a.definition.ai?.backupKeyId ? [a.definition.ai.backupKeyId] : [] })), x, y, "other")}
                   />
                 </SRow>
                 <SRow last minHeight={52} label="Backup" sub="Takes over when the main one is out of credits or not answering">
                   <PickButton
                     label="Backup AI account" value={a.definition.ai?.backupKeyId ? aiName(spaceAi ?? [], a.definition.ai.backupKeyId) : "None"} empty={!a.definition.ai?.backupKeyId} testID="ai-backup"
-                    onPress={(x, y) => show(aiMenu(spaceAi ?? [], "automations", a.definition.ai?.backupKeyId, (h) => setAi("backupKeyId", h, h ? `${aiName(spaceAi ?? [], h)} is the backup` : "No backup"), { none: "None", ...(data.nav.openKeys ? { openVault: data.nav.openKeys } : {}), skip: a.definition.ai?.keyId ? [a.definition.ai.keyId] : [] }), x, y, "other")}
+                    onPress={(x, y) => show(refill((r) => aiMenu(r, "automations", a.definition.ai?.backupKeyId, (h) => setAi("backupKeyId", h, h ? `${aiName(spaceAi ?? [], h)} is the backup` : "No backup"), { none: "None", ...(data.nav.openKeys ? { openVault: data.nav.openKeys } : {}), skip: a.definition.ai?.keyId ? [a.definition.ai.keyId] : [] })), x, y, "other")}
                   />
                 </SRow>
               </Group>

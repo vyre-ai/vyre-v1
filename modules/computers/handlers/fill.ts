@@ -9,6 +9,7 @@
 // implementation. This file mounts nothing: the daemon routes POST <fillUrl> to fillHttp().
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { linkIsSecure } from "../../../host/src/routes/compute-stream.ts";
+import { rememberSecrets } from "../projections.ts";
 
 /** The result of asking the Vault for one handle, as host/src/seams/engine-session.ts answers it (structural, so the module imports nothing from the host). */
 export type FillLookup =
@@ -41,8 +42,11 @@ export interface FillServiceDeps {
 export interface FillGrant { fillToken: string; revoke(): void }
 export interface FillResponse { status: 200 | 400 | 401 | 403 | 404 | 503; body: Record<string, unknown> }
 
-/** `nodeId` is set for a computer that lives on a computer that joined the Space: its fill crosses a network link, which must be private. */
-interface Holder { computerId: string; agentId: string; asker: string; nodeId?: string }
+/**
+ * `nodeId` is set for a computer that lives on a computer that joined the Space: its fill crosses a network link, which must be private. `turn`: a token for one person's tool calls in a Space browser
+ * profile, ended when they finish; several live side by side (one team agent working for two people at once), so a fill is always looked up as the person whose call it rides.
+ */
+interface Holder { computerId: string; agentId: string; asker: string; nodeId?: string; turn?: boolean }
 
 const HANDLE = /^[A-Za-z][A-Za-z0-9_]*$/;
 const FIELD = /^[A-Za-z0-9_]+$/;
@@ -54,7 +58,7 @@ async function sha256(text: string): Promise<string> {
 }
 
 export interface FillService {
-  /** A token for one computer, held as a hash. Issuing again for the same computer ends the earlier token. */
+  /** A token for one computer, held as a hash. Issuing again for the same computer ends the earlier token, except a `turn` token, which lives beside the others until it is revoked. */
   issue(h: Holder): Promise<FillGrant>;
   /** The endpoint, without the transport: header and parsed body in, status and body out. */
   serve(req: { authorization: string | undefined; body: unknown; /** is the link the request came over private (TLS, or this machine)? */ secure?: boolean }): Promise<FillResponse>;
@@ -71,10 +75,12 @@ export function createFillService(d: FillServiceDeps): FillService {
     async issue(h) {
       const token = hex(24);
       const hash = await sha256(token);
-      const old = hashOf.get(h.computerId);
-      if (old) byHash.delete(old);
+      if (h.turn !== true) {
+        const old = hashOf.get(h.computerId);
+        if (old) byHash.delete(old);
+        hashOf.set(h.computerId, hash);
+      }
       byHash.set(hash, h);
-      hashOf.set(h.computerId, hash);
       return {
         fillToken: token,
         revoke() {
@@ -133,6 +139,8 @@ export function createFillService(d: FillServiceDeps): FillService {
       } catch {
         return { status: 503, body: { code: "unavailable" } };   // the use could not be recorded, so the value is not handed out
       }
+      // every value handed to a computer is taken out of all it answers from now on, whoever fills it (a tool, or Vyre for Chrome on its own): agentd and browserd report only what a tool typed
+      rememberSecrets(holder.computerId, [{ handle, itemId: found.itemId, value: found.value }]);
       return { status: 200, body: { value: found.value, itemId: found.itemId } };
     },
 

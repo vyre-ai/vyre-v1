@@ -3,6 +3,7 @@
 //   node scripts/release/cli.ts bump <version> | --check
 //   node scripts/release/cli.ts lineage <sha> <tag>
 //   VYRE_SIGNING_KEY=<pkcs8 pem> node scripts/release/cli.ts pubkey [outfile]    prints the public half (hex) and its key id; with outfile writes {"publicKey","keyId"} for compiling into the servers
+//   node scripts/release/cli.ts reuse <sha>    a finished main.yml run that ran the whole suite green on exactly <sha> (scripts/release/reuse.ts): writes run=, url= and tests= to GITHUB_OUTPUT, or run= empty; never fails for a missing run
 //   node scripts/release/cli.ts assets <dir>    writes <channel>.json, <channel>.json.sig (and <channel>-<kind>... for the others) from <dir>/feed.json: the files attached to the GitHub Release
 //   VYRE_SIGNING_KEY=<pkcs8 pem> node scripts/release/cli.ts sign <dir> <channel> <pinned-public-key-hex>
 //   node scripts/release/cli.ts updater-digest <file>    the "<BLAKE2b-512 hex>  <name>" line for a desktop update artifact (written beside it by the desktop build)
@@ -22,6 +23,7 @@ import type { ImageKey } from "./pack.ts";
 import { imageHasChrome, stageBridge, stageChrome } from "./computer.ts";
 import { GithubReleases, publishRelease, updateRolling } from "./publish.ts";
 import { smokeRelease } from "./smoke.ts";
+import { findReusable, wholeSuiteShards } from "./reuse.ts";
 import { checkDesktopArtifacts, digestLine, feedNotes, signDesktop } from "./updater.ts";
 import { WHATS_NEW_FILE } from "../changelog/assemble.ts";
 import { lineage, newestStable } from "./lineage.ts";
@@ -137,7 +139,7 @@ export function main(argv: string[]): number {
         console.log(`release: wrote ${names.join(", ")}`);
         return 0;
       }
-      default: console.error("usage: counter | bump | tag | lineage | pack | stage-chrome | stage-bridge | image-has-chrome | pubkey | sign | updater-digest | updater | updater-check | assets | feed-base | publish | rolling | unpublish | smoke"); return 2;
+      default: console.error("usage: counter | bump | tag | lineage | pack | stage-chrome | stage-bridge | image-has-chrome | pubkey | sign | updater-digest | updater | updater-check | assets | feed-base | publish | rolling | unpublish | smoke | reuse"); return 2;
     }
   } catch (e) { console.error(`release: ${e instanceof Error ? e.message : "failed"}`); return 1; }
 }
@@ -160,6 +162,30 @@ export async function publishMain(argv: string[]): Promise<number> {
   } catch (e) { console.error(`release: ${e instanceof Error ? e.message : "failed"}`); return 1; }
 }
 
+/** reuse <sha>: names a finished whole-suite main.yml run for exactly <sha>, or says why none qualifies. It exits 0 either way (no run means the release runs the suite itself); it only fails on a usage error. */
+export async function reuseMain(argv: string[]): Promise<number> {
+  const sha = argv[1] ?? "";
+  const repo = process.env["GITHUB_REPOSITORY"] ?? "", token = process.env["GH_TOKEN"] ?? "";
+  if (!/^[0-9a-f]{40}$/.test(sha) || repo === "" || token === "") { console.error("usage: reuse <40-hex sha>   (env: GITHUB_REPOSITORY, GH_TOKEN)"); return 2; }
+  const out = (k: string, v: string) => { const f = process.env["GITHUB_OUTPUT"]; if (f) fs.appendFileSync(f, `${k}=${v}\n`); };
+  const summary = (t: string) => { const f = process.env["GITHUB_STEP_SUMMARY"]; if (f) fs.appendFileSync(f, `${t}\n`); };
+  const none = (why: string[]) => {
+    const line = `Tests: no reusable whole-suite run, so this release ran the whole suite itself (${why.join(" | ")})`;
+    console.log(line); summary(line);
+    out("run", ""); out("tests", line.replace(/\n/g, " "));
+    return 0;
+  };
+  try {
+    const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
+    const found = await findReusable({ repo, sha, shards: wholeSuiteShards(root), token });
+    for (const r of found.refused) console.log(`reuse: ${r}`);
+    if (!found.found) return none(found.refused);
+    console.log(found.found.line); summary(found.found.line);
+    out("run", String(found.found.run.id)); out("url", found.found.run.html_url); out("tests", found.found.line);
+    return 0;
+  } catch (e) { return none([e instanceof Error ? e.message : "lookup failed"]); }
+}
+
 /** smoke <base> <stable|beta|nightly> <public-key-hex> <version>: asynchronous, so it is not a case of main(). */
 export async function smokeMain(argv: string[]): Promise<number> {
   const [, base, channel, key, version] = argv;
@@ -174,6 +200,7 @@ export async function smokeMain(argv: string[]): Promise<number> {
 if (process.argv[1] !== undefined && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) {
   const args = process.argv.slice(2);
   if (args[0] === "smoke") void smokeMain(args).then((code) => process.exit(code));
+  else if (args[0] === "reuse") void reuseMain(args).then((code) => process.exit(code));
   else if (args[0] === "publish" || args[0] === "rolling" || args[0] === "unpublish") void publishMain(args).then((code) => process.exit(code));
   else process.exit(main(args));
 }

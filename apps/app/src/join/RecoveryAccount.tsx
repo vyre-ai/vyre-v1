@@ -22,14 +22,14 @@ function RecoveryBody({ username: known, onBack, onAdminReset, onRecover }: Prop
       else setError(recoveryFailureLine(failure));
     } finally { flight.current = false; setBusy(false); }
   };
-  if (applied) return <Panel bar={<Bar cont={<Button label="Sign in" testID="recovery-submit" onPress={onBack} />} />}><Step id="recover-done"><Title title="Password updated" /></Step></Panel>;
+  if (applied) return <Panel bar={<Bar cont={<Button label="Sign in" testID="recovery-submit" onPress={onBack} />} />}><Step id="recover-done"><Title title="Password updated" sub="Your recovery code still works. Keep it somewhere safe." /></Step></Panel>;
   return (
     <Panel
       below={<Links><TextButton label="I have a reset code" testID="recovery-admin-reset" disabled={busy} onPress={onAdminReset} /></Links>}
       bar={<Bar onBack={() => { if (!busy) onBack(); }} cont={<Button label={busy ? "Recovering" : "Set password"} testID="recovery-submit" busy={busy} disabled={!valid} onPress={() => void submit()} />} />}
     >
       <Step id="recover-account">
-        <Title title="Forgot password" />
+        <Title title="Forgot password" sub="Use the recovery code you saved when you made your account. It keeps working after you use it." />
         <Group>
           <FieldRow label="Username" testID="recovery-username" value={username} onChange={setUsername} disabled={busy} autoComplete="username" />
           <FieldRow label="Recovery code" testID="recovery-code" value={code} onChange={(v) => { setCode(v); setError(""); }} disabled={busy} secure autoComplete="off" error={!!error} />

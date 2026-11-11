@@ -2,7 +2,7 @@
 // tabs saved with duplicates close the older ones when the Space opens, keeping the one used last.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { EMPTY_TABS, createTabsController, dedupeTabs, openTab, placeTab, readTabs, screenTitle, tabsStorageKey, writeTabs } from "./store.ts";
+import { EMPTY_TABS, createTabsController, landOn, dedupeTabs, openTab, placeTab, readTabs, screenTitle, tabsStorageKey, writeTabs } from "./store.ts";
 import { titleAsk } from "./titles.ts";
 import type { TabEntry, TabsState, TabsStorage } from "./store.ts";
 
@@ -135,4 +135,17 @@ test("saved chat tabs titled New chat (read as blank, saved before the mark) loa
   assert.deepEqual(keys(out), ["files", "chats:subject=thread:b", "chats:subject=thread:c", "inbox:subject=conversation:cnv_1"]);
   assert.equal(out.tabs.filter((t) => t.place === "inbox").length, 1);
   assert.equal(dedupeTabs(out), out, "loading again changes nothing");
+});
+
+test("the landing asked for by address: the selected tab of the place becomes it, an existing landing tab is selected, otherwise one opens; a tab on an item elsewhere stays", () => {
+  const task = tab("chats", "screen=tasks.page&taskId=tsk_1", "Fix the mailbox");
+  const became = landOn(state([task], task.key), "chats");
+  assert.deepEqual([keys(became), became.active, became.tabs[0]?.title, became.tabs[0]?.hash], [["chats"], "chats", "Chats", undefined], "the task tab is the landing now; nothing still names the task");
+  const landing = tab("chats"), thr = tab("chats", "thr_1", "Renewal");
+  assert.equal(landOn(state([landing, thr], thr.key), "chats").active, "chats", "an existing landing tab is selected");
+  const files = tab("files");
+  const opened = landOn(state([files, thr], files.key), "chats");
+  assert.deepEqual([keys(opened), opened.active], [["files", "chats:thr_1", "chats"], "chats"], "the chat tab stays; the landing is its own tab");
+  const pinned = { ...task, pinned: true };
+  assert.equal(landOn(state([pinned], pinned.key), "chats").tabs[0]?.pinned, true, "a pinned tab stays pinned");
 });

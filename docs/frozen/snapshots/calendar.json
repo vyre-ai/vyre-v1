@@ -2,10 +2,10 @@
   "module": "calendar",
   "capabilities": {
     "calendar.availability@1": "5033567176638de283346d7657e5703301726176d2b56b625670b7769774842f",
-    "calendar.connect_provider@1": "de38e623591cc1ac5ea74e1b3291182f34cfe0704cdc207dfe0e6f7a3981344a",
+    "calendar.connect_provider@1": "0774ee06a8cecacd5685214eded57bbe45b7ee887931110286890308e226e97d",
     "calendar.create_calendar@1": "6b251ac17ccd0bce9c3a74e0b51042ba7ad31437e2615d248d1f79d54fd783a5",
     "calendar.create_event@1": "4425993f426383092b51d0cb8e1122c60432a1519d34e1fd1e37b4cfe5d03d6c",
-    "calendar.delete_calendar@1": "436a7d3d816888649c34288bf6f228efa4caf1d083391c3323e27076d7c8cb76",
+    "calendar.delete_calendar@1": "2600090eb9f3dad9e2e346cac74aab8aa7dfc74504e78eeccf11120f19bd74e7",
     "calendar.delete_event@1": "1330f9ca30527415a2941222ef0759d385af9e0d6ca0431688b97a57e171903f",
     "calendar.duplicate_event@1": "9ce30400fc03250f0136bd83d51649cf829537a1fde68c0d6b5e96be971c0e77",
     "calendar.find_time@1": "1e6dc1931744d5b7d7edb5902732500f1fec72b506fa2d6b6f645afce556a880",

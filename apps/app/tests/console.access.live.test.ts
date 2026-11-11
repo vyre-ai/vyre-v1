@@ -107,7 +107,8 @@ test("production Console Access: People directory, person object, groups, device
       await page.getByRole("menuitem", { name: "Guest", exact: true }).click();
       assert.equal(await page.getByRole("button", { name: "Role", exact: true }).innerText(), "Guest");
       await page.getByTestId("invite-sheet").getByRole("button", { name: "Create invite", exact: true }).click(); await page.getByTestId("console-invite-link").waitFor();
-      assert.match(await page.getByTestId("console-invite-link").innerText(), /^https?:\/\//);
+      assert.match(await page.getByTestId("console-invite-link").innerText(), /https?:\/\/\S+\/join\//, "the one-time link, with its Copy button beside it");
+      assert.ok(await page.getByTestId("console-invite-link-copy").count() > 0, "Copy button");
     });
 
     await t.test("bulk: add several people to a group and assign a role, each applied and read back", async () => {

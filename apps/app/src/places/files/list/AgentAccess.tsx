@@ -1,7 +1,8 @@
 // Files list, Redaction for AI (owner 3 Nov, rc.20): the folder's Agent access control in the header (Available, Redacted or Not available, where it comes from, and what is set differently
 // inside, each with Reset), the "3 files need review" line with Review next, and each line's badge (Needs review, Reviewed, Not available to AI, an agent waiting). It reads files.agent_states
 // for the open folder; a change is files.agent_access.set. Mounted Drive, OneDrive and SharePoint folders are Files folders, so the same control covers them.
-import { useEffect, useState } from "react";
+import { useEscapeLayer } from "../../../../../../ui/src/Overlay/escape.ts";
+import { useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { MenuIcon } from "../../../../../../ui/src/Menu/index.tsx";
@@ -90,12 +91,7 @@ export function AccessControl({ states, open, onToggle }: { states: AgentStates 
 export function AccessPopover({ folderId, folderName, parentName, states, onClose }: { folderId: string; folderName: string; parentName: string; states: AgentStates | null; onClose: () => void }): ReactElement | null {
   const data = useFilesData();
   const [said, setSaid] = useState<string | null>(null);
-  useEffect(() => {
-    if (typeof document === "undefined") return undefined;
-    const key = (e: KeyboardEvent): void => { if (e.key === "Escape") onClose(); };
-    document.addEventListener("keydown", key);
-    return () => document.removeEventListener("keydown", key);
-  }, [onClose]);
+  useEscapeLayer(true, onClose);
   if (!states) return null;
   const a = states.access;
   const set = async (value: Access | null, target = folderId): Promise<void> => {

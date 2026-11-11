@@ -19,7 +19,7 @@ Download a finished recording or voicemail into Files and attach it to the call
 | HTTP | POST /v1/telephony/ingest_recording |
 | MCP tool | none |
 | CLI | none |
-| Emits | call.recording_ready |
+| Emits | call.recording_ready, call.voicemail_left |
 
 ## Input
 

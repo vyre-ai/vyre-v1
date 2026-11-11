@@ -32,7 +32,7 @@
       "id": "EDITOR_02-view",
       "route": "/m/EDITOR_02?file=1&part=view",
       "proto": "files,at:ed-view,{skin}",
-      "waitFor": "[data-testid='agent-file-text']",
+      "waitFor": "[data-testid='agent-file-view']",
       "note": "AGENT.md read in View."
     }
   ]

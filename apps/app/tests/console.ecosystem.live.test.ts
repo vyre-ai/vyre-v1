@@ -67,7 +67,11 @@ test("production Console: Skills and Plugins add, install, configure and connect
 
     // ---- Skills
     await open("skills", '[data-testid="console-skills"]');
-    await page.getByText("working-in-vyre", { exact: true }).first().waitFor();
+    // the built-in skill is listed by its plain name ("Working in vyre"), one row per built-in, marked Always on
+    const builtinRow = page.getByTestId("row-skill-builtin-working-in-vyre");
+    await builtinRow.waitFor();
+    assert.match(await builtinRow.innerText(), /Working in vyre/);
+    assert.match(await builtinRow.innerText(), /Always on/);
     await page.getByTestId("skill-add").click();
     await page.getByTestId("skill-link").fill(SKILL);
     await page.getByTestId("skill-link-read").click();
@@ -168,5 +172,5 @@ test("production Console: Skills and Plugins add, install, configure and connect
   } catch (e) {
     console.error("FAILED:", e instanceof Error ? e.message.slice(0, 600) : e, "| on screen:", (await page.locator("body").innerText({ timeout: 2000 }).catch(() => "")).replace(/\s+/g, " ").slice(0, 700), "| refused:", refused.join(" | "), "| errors:", errors.join(" | "));
     throw e;
-  } finally { await browser.close(); await space.stop?.(); }
+  } finally { await browser.close(); web.close(); await space.stop?.(); }
 });

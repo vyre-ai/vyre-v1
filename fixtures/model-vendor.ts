@@ -8,6 +8,11 @@ export async function vendor() {
   /** The Authorization header of each request, so a test can prove the key reached the vendor (and only there). */
   const auth: string[] = [];
   const server = http.createServer((req, res) => {
+    // a key check (the Vault asks the provider for its models before it saves a key) is not a turn: it answers at once and never takes a scripted answer. A key with "invalid" in it is refused, as a real provider refuses a bad one.
+    if (req.method === "GET" && /\/models\/?$/.test(String(req.url))) {
+      if (/invalid/i.test(String(req.headers.authorization ?? ""))) { res.writeHead(401, { "content-type": "application/json" }); res.end(JSON.stringify({ error: { message: "Incorrect API key provided", type: "invalid_request_error" } })); return; }
+      res.writeHead(200, { "content-type": "application/json" }); res.end(JSON.stringify({ data: [{ id: "gpt-4o-mini" }, { id: "gpt-4o" }] })); return;
+    }
     let body = "";
     req.on("data", (c) => (body += c));
     req.on("end", () => {

@@ -128,7 +128,7 @@ test("what the browser refuses with keeps its meaning", async () => {
   } finally { off(); }
 });
 
-test("the Vault channel rides every call, one token per profile and asker, and the values it filled are scrubbed from every answer", async () => {
+test("the Vault channel rides every call as its asker, ends with the call, and the values it filled are scrubbed from every answer", async () => {
   const issued: Array<{ computerId: string; agentId: string; asker: string }> = [];
   let revoked = 0;
   bindFill({ async issue(h) { issued.push({ computerId: h.computerId, agentId: h.agentId, asker: h.asker }); return { fillToken: `tok${issued.length}`.padEnd(24, "x"), revoke() { revoked += 1; } }; }, url: () => "http://vyre-host/fill" });
@@ -140,20 +140,23 @@ test("the Vault channel rides every call, one token per profile and asker, and t
   });
   try {
     const dex = agentCtx("agt_dex", DANA);
+    // the calls the agent made (after a fill the module also lists the tabs, to know which one holds the value)
+    const asked = () => b.calls.filter((c) => c.tool !== "chrome_tabs");
     await tool["computers.chrome.snapshot"]!(dex, {});
-    const first = b.calls[0]!.fill!;
+    const first = asked()[0]!.fill!;
     assert.equal(first.url, "http://vyre-host/fill", "even a look carries the channel: the extension in the profile fills on its own");
     assert.deepEqual(issued, [{ computerId: "agt_dex", agentId: "agt_dex", asker: DANA }], "the token is for this profile and this agent, as the asker");
+    // the channel lives only while the person's call runs (sbrowser audit bug 5): it ended with the look, and the next call brings a new one
+    assert.equal(revoked, 1, "the look's channel ended with it");
     await tool["computers.chrome.fill"]!(dex, { fields: [{ ref: "e3", value: "#Dex_Site.password" }] });
-    assert.equal(b.calls[1]!.fill!.token, first.token, "the same asker reuses the token");
-    assert.equal(issued.length, 1);
+    assert.notEqual(asked()[1]!.fill!.token, first.token, "a later call of the same person has a channel of its own");
+    assert.deepEqual([issued.length, revoked], [2, 2]);
     await tool["computers.chrome.fill"]!(agentCtx("agt_dex", OMAR), { fields: [{ ref: "e3", value: "#Dex_Site.password" }] });
-    assert.equal(issued.length, 2, "another asker is a new grant");
-    assert.equal(revoked, 1, "and the old one ends");
-    assert.notEqual(b.calls[2]!.fill!.token, first.token);
+    assert.deepEqual(issued.at(-1), { computerId: "agt_dex", agentId: "agt_dex", asker: OMAR }, "another asker's call is a grant as that asker");
+    assert.notEqual(asked()[2]!.fill!.token, first.token);
     await tool["computers.chrome.fill"]!(agentCtx("agt_scout", DANA), { fields: [{ ref: "e3", value: "#Scout_Site.password" }] });
     assert.equal(issued.at(-1)!.computerId, "agt_scout", "another agent is another profile with its own token");
-    assert.equal(revoked, 1, "and does not end Dex's");
+    assert.equal(revoked, issued.length, "no channel outlives its call");
     const snap = await tool["computers.chrome.snapshot"]!(dex, {});
     assert.ok(!JSON.stringify(snap).includes(value), "the value is scrubbed after it was filled on this profile");
     assert.match(snap.tree, /\[#Dex_Site\.password\]/);
@@ -285,5 +288,42 @@ test("each browser step with a caption is a line of the agent's browser timeline
     assert.ok(mine, "the timeline is a capability of its own for people");
     await tool["computers.chrome.snapshot"]!(h.ctx, {});
     assert.equal(h.rows("SELECT COUNT(*) AS n FROM computers_timeline")[0]?.["n"], 2, "a look is not a step");
+  } finally { off(); }
+});
+
+// A person who has taken over holds the agent's browser (owner ruling 6 Nov, DESIGN-agent-workspaces.md). The rule is the browser service's (browserd, profiles.ts: a call that is not the person's is refused while the controls
+// are held), because it is the one layer every caller goes through; the real one is proved in sbrowser.heavy.test.ts. From the module's side: an agent's call is never marked as the person's, the refusal reaches the agent
+// with the plain reason, nothing else gets in while it is held, and when the person gives back the agent works at once.
+test("while a person holds an agent's browser the agent's tools are refused with the reason, never marked as the person's, and work again at once on give back", async () => {
+  const held = new Map<string, string>();
+  const calls: BrowserToolCall[] = [];
+  const sb: SpaceBrowser = {
+    async available() { return true; },
+    async tool(a) {
+      calls.push(a);
+      if (held.has(a.profileId) && a.by !== "person") throw new ToolError("paused", "A person has the controls. The tools wait until they give them back.");
+      return { url: "https://example.com/", title: "Example", tree: "- page [e1]", truncated: false, ok: true, tabId: "t1", loading: false };
+    },
+    async downloads() { return []; }, async downloadRead() { return new Uint8Array(); }, async downloadAck() {},
+    async takeover(a) { const by = held.get(a.profileId); if (by && by !== a.personId) throw new ToolError("bad_input", "Someone else has the controls."); held.set(a.profileId, a.personId); },
+    async giveBack(id) { held.delete(id); },
+    async screenshot() { return { bytes: new Uint8Array([1]), width: 1, height: 1 }; }, async stream() { return { transport: "mjpeg", url: "http://x" }; }, async sessions() { return []; }, async signOut() { return true; }, async importChrome() { return { bytes: 0 }; }, async stop() {}, async forget() {},
+    async profiles() { return { profiles: [...held].map(([profileId, by]) => ({ profileId, running: true, tabs: 1, busy: false, takeover: true, takeoverBy: by, viewers: 1, lastActiveAt: 1, held: 0, paused: false })), maxRunning: 6 }; }, async health() { return { ok: true }; },
+  };
+  bindSpaceBrowser(sb);
+  try {
+    await tool["computers.chrome.open"]!(agentCtx("agt_dex"), { url: "https://example.com/" });
+    assert.equal(calls.at(-1)!.by, undefined, "an agent's call is never the person's");
+    await sb.takeover({ profileId: "agt_dex", personId: DANA });
+    for (const [name, input] of [["computers.chrome.open", { url: "https://example.org/" }], ["computers.chrome.state", {}], ["computers.chrome.snapshot", {}]] as const) {
+      const before = calls.length;
+      await assert.rejects(() => (tool[name] as (c: unknown, i: unknown) => Promise<unknown>)(agentCtx("agt_dex"), input), (e) => codeOf(e) === "provider.unavailable" && /A person has the controls/.test(JSON.stringify(e)), `${name} waits with the reason`);
+      assert.equal(calls.length, before + 1);
+      assert.equal(calls.at(-1)!.by, undefined, `${name} reached the browser as the agent's, so the browser could refuse it`);
+    }
+    await assert.rejects(() => sb.takeover({ profileId: "agt_dex", personId: OMAR }), /Someone else has the controls/, "a second person is refused while it is held");
+    await sb.giveBack("agt_dex");
+    const out = await tool["computers.chrome.state"]!(agentCtx("agt_dex"), {});
+    assert.equal(out.loading, false, "given back, the agent works at once");
   } finally { off(); }
 });

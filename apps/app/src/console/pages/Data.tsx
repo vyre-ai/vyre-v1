@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { worthShowing } from "../../places/records/sidebar/model.ts";
 import type { ReactElement } from "react";
 import { View } from "react-native";
 import { Dialog } from "../../../../../ui/src/Dialog/index.tsx";
@@ -24,6 +25,8 @@ export function exactSchemaApplyInput(preview: CapMap["schema.diff"]["out"], ops
 
 export function SchemaPage(): ReactElement {
   const types = useRead<Schema>("schema.describe", {});
+  // a new Space shows Contacts only: the types modules need stay out of the list while they are empty (owner ruling 31 Oct 2026, the same rule as the Records sidebar)
+  const used = useRead<CapMap["schema.types.list"]["out"]>("schema.types.list", { section: "space" });
   const changes = useRead<CapMap["schema.changes.list"]["out"]>("schema.changes.list", {});
   const trash = useRead<CapMap["schema.trash.list"]["out"]>("schema.trash.list", {});
   const fieldTypes = useRead<CapMap["schema.field_types"]["out"]>("schema.field_types", {});
@@ -42,7 +45,7 @@ export function SchemaPage(): ReactElement {
   const [previewOps, setPreviewOps] = useState<SchemaOp[] | null>(null);
   const action = useAction(() => { types.refresh(); changes.refresh(); trash.refresh(); fieldTypes.refresh(); });
   if (!types.data || !changes.data || !trash.data || !fieldTypes.data) return <ReadState error={types.error ?? changes.error ?? trash.error ?? fieldTypes.error} retry={() => { types.refresh(); changes.refresh(); trash.refresh(); fieldTypes.refresh(); }} />;
-  const rows = types.data.types.map((type) => <Row key={type.key} id={`console-schema-${type.key}`} title={type.title} note={`${type.fields.length} fields · ${type.label} · Version ${type.version}${type.syncedFrom ? ` · Synced from ${type.syncedFrom}` : ""}`} onPress={() => setSelected(type)} />);
+  const rows = types.data.types.filter((type) => { const u = used.data?.types.find((x) => x.key === type.key); return u === undefined || worthShowing({ key: type.key, rowCount: u.rowCount, ...(u.syncedFrom ? { syncedFrom: u.syncedFrom } : {}) }); }).map((type) => <Row key={type.key} id={`console-schema-${type.key}`} title={type.title} note={`${type.fields.length} fields · ${type.label} · Version ${type.version}${type.syncedFrom ? ` · Synced from ${type.syncedFrom}` : ""}`} onPress={() => setSelected(type)} />);
   const knownFieldType = fieldTypes.data.fieldTypes.some((item) => item.key === fieldType);
   const op = ((): SchemaOp | null => {
     if (mode === "type.create") return typeKey.trim() && typeTitle.trim() ? { op: mode, type: typeKey.trim(), def: { title: typeTitle.trim(), plural: typePlural.trim() || `${typeTitle.trim()}s`, icon: "table", label: "internal", titleField: "name", fields: [{ key: "name", type: "text", title: "Name", required: true }] } } : null;

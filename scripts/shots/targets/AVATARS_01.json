@@ -67,7 +67,7 @@
       "id": "AVATARS_01-picker-upload",
       "route": "/m/AVATARS_01?part=picker-upload",
       "proto": "chat,{skin}",
-      "waitFor": "[data-testid='face-picker-upload']",
+      "waitFor": "[data-testid='face-picker-upload-tab']",
       "note": "Choose a face: Upload."
     },
     {

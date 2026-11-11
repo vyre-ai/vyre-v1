@@ -30,7 +30,7 @@ const CURRENT: Row = { title: "Draft the renewal note", due: NOW + 3 * DAY, prio
 
 interface RootLike { setAttribute(name: string, value: string): void; style: { setProperty(name: string, value: string): void; removeProperty(name: string): void } }
 type Pick1 = { click?: () => void; focus?: () => void; blur?: () => void; textContent?: string | null; value?: string; dispatchEvent?: (e: unknown) => boolean };
-type Doc = { querySelector(s: string): Pick1 | null; querySelectorAll(s: string): ArrayLike<Pick1>; documentElement?: RootLike };
+type Doc = { execCommand?(cmd: string, ui?: boolean, value?: string): boolean; querySelector(s: string): Pick1 | null; querySelectorAll(s: string): ArrayLike<Pick1>; documentElement?: RootLike };
 
 function runtime(): unknown {
   const kept = new Map<string, unknown>();
@@ -102,7 +102,16 @@ function Page({ view, skin }: { view: string; skin: string }): ReactNode {
     if (wide) { at(500, () => d.querySelector("[data-testid='task-rail-toggle']")?.click?.()); at(1000, () => pick("rail-due", "Tomorrow")); at(1700, () => pick("rail-priority", "Urgent")); }
     at(2500, () => type("task-title", "HTMLTextAreaElement", "Draft the Northwind renewal note"));
     at(3000, () => d.querySelector("[data-testid='task-brief']")?.click?.());
-    at(3400, () => type("task-brief-edit", "HTMLTextAreaElement", view === "long" ? MINE_LONG : MINE_BRIEF));
+    // the brief is a rich editor now (a contenteditable page, not a text area): a person selects the text and types over it
+    const typeRich = (text: string): void => {
+      const el = d.querySelector("[data-testid='markdown-editor-page']");
+      if (!el) return;
+      el.focus?.();
+      d.execCommand?.("selectAll");
+      d.execCommand?.("insertText", false, text);
+      at(300, () => el.blur?.());
+    };
+    at(3400, () => typeRich(view === "long" ? MINE_LONG : MINE_BRIEF));
     const takeTheirs = (): void => { (d.querySelector("[data-testid='task-conflict-current-priority']") ?? d.querySelector("[data-testid='task-conflict-current-title']"))?.click?.(); };
     if (view === "conflict" || view === "long") at(4300, takeTheirs);
     if (view === "saved") { at(4300, takeTheirs); at(4800, () => d.querySelector("[data-testid='task-conflict-save']")?.click?.()); }

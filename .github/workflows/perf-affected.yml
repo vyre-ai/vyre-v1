@@ -2,7 +2,7 @@ name: affected-perf
 
 on:
   push:
-    branches-ignore: [main, 'gh-readonly-queue/**']
+    branches-ignore: [main, 'gh-readonly-queue/**', 'wip/**']   # lane branches are tested on the lane box; CI runs on pull requests and integration branches
   merge_group:
   workflow_dispatch:
 

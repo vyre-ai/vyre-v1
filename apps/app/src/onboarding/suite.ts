@@ -6,7 +6,9 @@ export type Probe<T> = { kind: "ready"; value: T } | { kind: "not_yet" } | { kin
 
 const missing = (e: unknown): boolean => {
   const c = (e as { code?: string; error?: { code?: string } }).code ?? (e as { error?: { code?: string } }).error?.code;
-  return c === "validation.unknown_capability" || c === "internal.not_implemented" || c === "internal.unavailable";
+  // a connection that is not made yet ("Google delegation is not set up.") is the Space's normal state on day one, not a failure
+  const said = (e as { message?: string }).message ?? "";
+  return c === "validation.unknown_capability" || c === "internal.not_implemented" || c === "internal.unavailable" || (c === "validation.precondition_failed" && /not set up/i.test(said));
 };
 
 /** Reads a capability that may not exist here yet. */
@@ -21,8 +23,8 @@ export async function connections(call: CapCall): Promise<{ google: Probe<Connec
   const g = await probe<{ configured: boolean; lastProbeOk: boolean | null }>(call, "google.dwd.status");
   const m = await probe<{ configured: boolean; consentGiven: boolean }>(call, "ms.consent.status");
   return {
-    google: g.kind !== "ready" ? g : { kind: "ready", value: { name: "Google Workspace", configured: g.value.configured, ok: g.value.configured && g.value.lastProbeOk === true, note: !g.value.configured ? "Not set up. Open the setup in the Console." : g.value.lastProbeOk === true ? "Connected. The last test passed." : "Set up, but the last test has not passed yet." } },
-    microsoft: m.kind !== "ready" ? m : { kind: "ready", value: { name: "Microsoft 365", configured: m.value.configured, ok: m.value.configured && m.value.consentGiven, note: !m.value.configured ? "Not set up. Open the setup in the Console." : m.value.consentGiven ? "Connected. Admin consent is given." : "Set up, waiting for admin consent." } },
+    google: g.kind !== "ready" ? g : { kind: "ready", value: { name: "Google Workspace", configured: g.value.configured, ok: g.value.configured && g.value.lastProbeOk === true, note: !g.value.configured ? "Not connected yet." : g.value.lastProbeOk === true ? "Connected. The last test passed." : "Set up, but the last test has not passed yet." } },
+    microsoft: m.kind !== "ready" ? m : { kind: "ready", value: { name: "Microsoft 365", configured: m.value.configured, ok: m.value.configured && m.value.consentGiven, note: !m.value.configured ? "Not connected yet." : m.value.consentGiven ? "Connected. Admin consent is given." : "Set up, waiting for admin consent." } },
   };
 }
 

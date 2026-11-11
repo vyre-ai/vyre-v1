@@ -19,7 +19,7 @@ Build the site from its source (GitHub repo, folder or zip in Files, or a folder
 | HTTP | POST /v1/sites/deploy |
 | MCP tool | sites_deploy (sites) |
 | CLI | none |
-| Emits | site.deployed |
+| Emits | site.deployed, site.build_failed, site.preview_removed |
 
 ## Input
 

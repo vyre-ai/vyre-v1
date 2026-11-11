@@ -125,7 +125,7 @@ test("render: desktop, mobile, dark and plain previews; warnings list what a sen
   const dana = await render("desktop", { asRecordId: "rec_dana" });
   assert.match(dana.html, /Dear Dana, welcome\./);
   assert.match(dana.html, /<title>Hi Dana<\/title>/);
-  assert.deepEqual(w.calls.at(-1), { cap: "records.get", input: { recordId: "rec_dana" } });
+  assert.deepEqual(w.calls.at(-1), { cap: "records.get", input: { type: "contact", recordId: "rec_dana" } }, "the record is read by type and id");
   const mobile = await render("mobile"), dark = await render("dark");
   assert.ok(mobile.html.split(".col{display:block!important").length === 3);
   assert.ok(dark.html.split("background:#0F0F11!important").length === 3);

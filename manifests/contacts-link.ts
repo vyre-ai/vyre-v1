@@ -82,8 +82,7 @@ export default defineManifest({
       in: { contactId: id.record, addressId: adrId }, out: { removed: t.bool() }, on: ['record', '/contactId'], perm: 'records.edit', emits: ['contact.address_removed'], tool: 'inbox', offline: 'queue',
     }),
     write('contacts.address.set_primary', 'Make one address the primary email or phone of a contact', {
-      in: { contactId: id.record, addressId: adrId }, out: { address: addrRow }, on: ['record', '/contactId'], perm: 'records.edit', tool: 'inbox',
-    }),
+      in: { contactId: id.record, addressId: adrId }, out: { address: addrRow }, on: ['record', '/contactId'], perm: 'records.edit', tool: 'inbox', emits: ['contact.address_added'] }),
     read('contacts.preferences.get', 'Read the Contact preferences group of a contact', { in: { contactId: id.record }, out: prefs, on: ['record', '/contactId'], tool: 'inbox', label: 'check' }),
     write('contacts.preferences.set', 'Set consent, Do-not-contact and channel opt-outs (source and time are stamped)', {
       in: {

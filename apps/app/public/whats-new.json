@@ -1,9 +1,10 @@
 {
-  "version": "1.0.0-rc.24",
+  "version": "1.0.0-rc.25",
   "lines": [
-    "Every Space stays signed in after an update, your Personal Space included.",
-    "Each Space keeps its own Vault key on this computer, so signing in to one never signs you out of another.",
-    "Signing out of one Space keeps you signed in to the others.",
-    "Sign in on a computer that already has its own Personal Space opens that Space's sign-in."
+    "Vyre Server now installs on a Mac with Apple silicon.",
+    "Vault items work in an agent's terminal, and their values never show up in what the agent prints.",
+    "Removing someone from a project takes their access away at once. Signing out ends that session everywhere.",
+    "Links that did nothing now open: Ask in chat from Tasks, Ask the Assistant from a project, Open on a note.",
+    "A large Space starts in seconds, and creating records stays fast as it grows."
   ]
 }

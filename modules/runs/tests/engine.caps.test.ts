@@ -384,3 +384,13 @@ test("status: healthy when Runs move, degraded when one has stopped moving or th
 });
 
 // run on the final commit
+
+// Client walk, 11 Nov 2026: the Console's Activity page said "Couldn't load this page" for the Space's owner on a Space with no runs. The kernel owns no "any run" resource: who manages runs is asked of the Space.
+test("who manages runs is asked of the Space, so the Space's manager lists every run and sees the counts before any run exists", async () => {
+  const asked: string[] = [];
+  const h = harness({ authorize: (who, a, r) => { asked.push(`${a.perm}:${r.type}`); return who.id === admin.id && a.perm === "runs.manage" && r.type === "space"; } });
+  assert.deepEqual((await h.call("runs.list", { scope: "all" }, admin)).runs, []);
+  assert.deepEqual((await h.call("runs.people_counts", {}, admin)).people, []);
+  assert.ok(asked.includes("runs.manage:space"));
+  await refused(h.call("runs.list", { scope: "all" }, bob), "permission.role_lacks_permission");
+});

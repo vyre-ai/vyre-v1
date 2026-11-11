@@ -9,6 +9,7 @@ import { Group, Section } from "../shell/ui.tsx";
 import { useConsoleData } from "../shell/data.tsx";
 import { draftInvites, ownMailbox, sendDrafts } from "../../onboarding/suite.ts";
 import type { SendOutcome } from "../../onboarding/suite.ts";
+import { CopyRow } from "./suite/parts.tsx";
 import { Actions, Button, Field, FormSheet, Note, Select, attempt, useAction, useRead } from "./shared.tsx";
 import { EMPTY_START, InviteStart, startInput } from "./InviteStart.tsx";
 import type { StartSet } from "./InviteStart.tsx";
@@ -53,7 +54,7 @@ export function InviteSheet({ onClose, onCreated }: { onClose: () => void; onCre
     void action.run<CapMap["members.invites.create"]["out"]>("members.invites.create", { role: chosenRole, ...(email.trim() ? { email: email.trim() } : {}), ...startInput(start), expiresInDays: Number(days), idempotencyKey: attempt() }, "Invite created").then((out) => { if (out) { setLink(out.link); onCreated?.(); } });
   };
   return <FormSheet title="Invite people" testID="invite-sheet" onClose={onClose} submit={link ? "Done" : "Create invite"} disabled={!link && (!chosenRole || action.busy)} why={!chosenRole ? "Pick a role first" : undefined} onSubmit={submit}>
-    {link ? <><Note>Copy this one-time invite link:</Note><Text selectable testID="console-invite-link">{link}</Text>
+    {link ? <><Note>Copy this one-time invite link:</Note><CopyRow label="Link, works once" value={link} testID="console-invite-link" />
       {email.trim() ? <Actions><Button label={`Email it to ${email.trim()}`} testID="console-invite-mail" disabled={mailNote === "Sending"} onPress={() => { setMailNote("Sending"); void emailInvite(data.call, { to: email.trim(), link, by: data.me.name, space: data.space.name }).then((line) => setMailNote(line ?? "Connect your own mailbox in Inbox to send from here. Copy the link instead."), () => setMailNote("Could not send. Copy the link and send it yourself.")); }} /></Actions> : null}
       {mailNote ? <Note>{mailNote}</Note> : null}</>
       : <><Field label="Email (optional)" testID="console-invite-email" value={email} onChange={setEmail} /><Select label="Role" value={chosenRole} options={inviteRoles.map((r) => ({ key: r.id, title: r.name }))} onChange={setRole} /><Select label="Ends after" value={days} options={EXPIRY_CHOICES} onChange={setDays} /><InviteStart value={start} onChange={setStart} groups={groups.data.groups} /></>}
@@ -92,7 +93,7 @@ export function OpenInvites({ roleName, showEmpty = false, right }: { roleName: 
       {rows.map((inv) => <Row key={inv.id} id={`console-invite-${inv.id}`} title={inv.email ?? "Invite link"} note={`${roleName(inv.role)} · Ends ${endsOn(inv.expiresAt)}`}
         trailing={<Actions><Button label="New link" testID={`console-invite-again-${inv.id}`} disabled={action.busy} onPress={() => void again(inv)} /><Button label="Revoke" danger testID={`console-invite-revoke-${inv.id}`} disabled={action.busy} onPress={() => setConfirm(inv)} /></Actions>} />)}
       {confirm ? <><Note>{confirm.email ? `Revoke the invite for ${confirm.email}?` : "Revoke this invite?"} The link stops working.</Note><Actions><Button label="Cancel" onPress={() => setConfirm(null)} /><Button label="Revoke invite" danger testID="console-invite-revoke-confirm" disabled={action.busy} onPress={() => void action.run("members.invites.revoke", { inviteId: confirm.id }, "Invite revoked.").then(() => setConfirm(null))} /></Actions></> : null}
-      {fresh ? <><Note>Copy this one-time invite link:</Note><Text selectable testID="console-invite-fresh-link">{fresh.link}</Text>{fresh.email ? <Actions><Button label={`Email it to ${fresh.email}`} testID="console-invite-fresh-mail" disabled={mailNote === "Sending"} onPress={() => void mail()} /></Actions> : null}{mailNote ? <Note>{mailNote}</Note> : null}</> : null}
+      {fresh ? <><Note>Copy this one-time invite link:</Note><CopyRow label="Link, works once" value={fresh.link} testID="console-invite-fresh-link" />{fresh.email ? <Actions><Button label={`Email it to ${fresh.email}`} testID="console-invite-fresh-mail" disabled={mailNote === "Sending"} onPress={() => void mail()} /></Actions> : null}{mailNote ? <Note>{mailNote}</Note> : null}</> : null}
       {action.note ? <Note>{action.note}</Note> : null}
     </Group>
   </Section>;

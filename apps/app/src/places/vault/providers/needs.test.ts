@@ -35,3 +35,11 @@ test("Windows: the one-time 'Set up the Windows sandbox for team chats' shows on
   assert.equal(WIN_SANDBOX.label, "Set up the Windows sandbox for team chats");
   assert.match(WIN_SANDBOX.help, /administrator consent once/);
 });
+
+import { rightNow } from "./model.ts";
+test("an AI account's Right now line: a failing key never says it works, a working key a chat cannot use says why, a sign-in a computer cannot run says what it needs", () => {
+  assert.deepEqual(rightNow("failing", undefined, null, "This account is not working. Open it in the Vault to test it."), { text: "Failing, check the key", tone: "failing" });
+  assert.deepEqual(rightNow("ok", undefined, null, "The Space has no room"), { text: "Works, but not in chats: The Space has no room", tone: "needs_sign_in" });
+  assert.deepEqual(rightNow("ok", undefined, null, null), { text: "Working", tone: "ok" });
+  assert.deepEqual(rightNow("ok", undefined, "Needs Docker", "x"), { text: "Needs Docker", tone: "needs_sign_in" });
+});

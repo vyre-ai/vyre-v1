@@ -8,6 +8,7 @@ import { OnboardingScreen } from "../../../apps/app/src/onboarding/OnboardingScr
 import { AddProvider } from "../../../apps/app/src/places/vault/providers/AddProvider.tsx";
 import { VaultDataProvider } from "../../../apps/app/src/places/vault/layout/data.tsx";
 import { createSampleVault, northwind } from "../../../apps/app/src/places/vault/layout/sample.ts";
+import { withProviders } from "../../../apps/app/src/places/vault/providers/sample.ts";
 import type { Flow } from "../../../apps/app/src/ai-signin/flow.ts";
 
 export const title = "Direct AI sign-in";
@@ -20,7 +21,17 @@ const CHATGPT: Flow & { provider: string } = { provider: "codex", flowId: "sub_2
 export default function Mount(): ReactNode {
   const [part, setPart] = useState<string | null>(null);
   useEffect(() => setPart(new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? "").get("part") ?? "onboarding"), []);
-  const sample = useMemo(() => createSampleVault(northwind), []);
+  // the Add a provider gallery asks the Space for its provider catalog (providers.catalog), which the plain Vault sample does not answer: without it the sheet says "Could not load providers" and never reaches the sign-in
+  // the sample's catalog stops before Codex (the ChatGPT sign-in), so the mount adds the entry the Space's own catalog carries
+  const sample = useMemo(() => {
+    const s = withProviders(createSampleVault(northwind));
+    const call = s.data.call.bind(s.data) as (cap: string, input: unknown) => Promise<unknown>;
+    const withCodex = async (cap: string, input: unknown): Promise<unknown> => {
+      const out = await call(cap, input);
+      return cap === "providers.catalog" ? { providers: [...(out as { providers: unknown[] }).providers, { key: "codex", name: "Codex", connections: ["subscription", "api_key"], modelsSource: "openai", engine: "codex" }] } : out;
+    };
+    return { ...s, data: { ...s.data, call: withCodex as never } };
+  }, []);
   if (part === null) return <View style={{ flex: 1, backgroundColor: "var(--win)" as string }} />;
   if (part.startsWith("settings")) {
     const grok = part === "settings-grok-missing";

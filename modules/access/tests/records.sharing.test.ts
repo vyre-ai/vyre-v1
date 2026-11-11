@@ -172,7 +172,8 @@ test("the caller's rights come back with the shares, so the app draws Share and 
   assert.deepEqual((await sharesOf(r.as("usr_cal"), { resource: deal })).can, { manage: false, edit: false, share: false, export: false });
   assert.deepEqual((await sharesOf(r.as("usr_bea"), { resource: one })).can, { manage: false, edit: true, share: true, export: true });
   assert.deepEqual((await recordMarks(r.as("usr_cal"), { type: "deal" })).can, { manage: false, edit: false, share: false, export: false });
-  assert.equal(await code(recordMarks(r.as("usr_dee"), { type: "deal" })), "permission.no_grant", "Dee was not added, so she is told nothing about the type");
+  // Dee was not added: she is told nothing about the type (no rights, not shared with her, no rows, and not the type's own audience), and the call is not refused
+  assert.deepEqual(await recordMarks(r.as("usr_dee"), { type: "deal" }), { can: { manage: false, edit: false, share: false, export: false }, typeShared: false, audience: "added", rows: [] });
   await share(r.ctx, { resource: deal, subject: person("usr_cal"), level: "view", export: true });
   assert.equal((await recordMarks(r.as("usr_cal"), { type: "deal" })).can.export, true);
 });

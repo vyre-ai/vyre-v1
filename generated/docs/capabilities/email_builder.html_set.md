@@ -19,7 +19,7 @@ Set full HTML (an agent can write it and place it)
 | HTTP | POST /v1/email_builder/html_set |
 | MCP tool | email_builder_html_set (inbox) |
 | CLI | none |
-| Emits | none |
+| Emits | email_template.saved |
 
 ## Input
 

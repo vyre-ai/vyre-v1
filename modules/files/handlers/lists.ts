@@ -82,10 +82,27 @@ async function sharedWithMe(ctx: Ctx, input: unknown): Promise<ListOut> {
   const kind = kindOf(ctx, o);
   const { offset, limit } = pageArgs(ctx, o, 100);
 
+  // "Shared with me" is what other people gave the caller. What the caller owns is not that, even when they have shared it on: the owner's own Agents, People and Projects folders carry grants to their agents, so on a
+  // Space where nobody had shared anything the owner saw ten, and an agent's home is its owner's (client walk, 11 Nov 2026).
+  const me = (ctx as { actingFor?: string }).actingFor ?? ctx.principal.id;
+  // a Space folder (Agents, People, Projects ...) is owned by the Space itself: the whole Space holds it; an agent's home (system key agent:<id>) and everything in it is the agent's own working folder, reached from the agent
+  const inAgentHome = (folderId: unknown): boolean => {
+    const seen = new Set<string>();
+    let at: unknown = folderId;
+    while (typeof at === "string" && at !== "" && !seen.has(at)) {
+      seen.add(at);
+      const f = one(ctx, "SELECT * FROM files_folder WHERE id = ?", at);
+      if (!f) return false;
+      if (String(f.system_key ?? "").startsWith("agent:")) return true;
+      at = f.parent_id;
+    }
+    return false;
+  };
+  const notMine = (row: Row, folderId: unknown): boolean => String(row.owner ?? "") !== me && String(row.owner ?? "") !== ctx.space && !inAgentHome(folderId);
   const sharedFolders = new Map<string, Row>();
   for (const r of await accessRows(ctx, "folder", "shared")) {
     const row = liveFolder(ctx, r.id);
-    if (row) sharedFolders.set(r.id, row);
+    if (row && notMine(row, r.id)) sharedFolders.set(r.id, row);
   }
   const folderIds = new Set(sharedFolders.keys());
 
@@ -93,7 +110,7 @@ async function sharedWithMe(ctx: Ctx, input: unknown): Promise<ListOut> {
   const items: Item[] = [];
   for (const r of await accessRows(ctx, "file", "shared")) {
     const row = liveFile(ctx, r.id);
-    if (!row || under(ctx, row.folder_id, folderIds)) continue;
+    if (!row || !notMine(row, row.folder_id) || under(ctx, row.folder_id, folderIds)) continue;
     if (kind !== undefined && String(row.kind) !== kind) continue;
     items.push({ kind: "file", id: r.id, name: String(row.name), at: 0, row });
   }

@@ -1,4 +1,4 @@
-// The Finish setup entry in a real browser (lane l-addsheet-22): a brand-new Space has none in the title bar (no "0 of 9"); after a step is done it says "1 of 9"; when every step is done or put off it is gone.
+// The Finish setup entry in a real browser (lane l-addsheet-22): a brand-new Space has none in the title bar (no "0 of 6"); after a step is done it says "1 of 6"; when every step is done or put off it is gone.
 // Shots of the bar (paper and graphite, 1440 wide) go to VYRE_SETUP_CHIP_SHOTS. A crash or a failed check makes the run red.
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -60,7 +60,7 @@ test("Finish setup entry: none on a brand-new Space, a true count once a step is
     await page.getByTestId("shell").waitFor({ timeout: 30_000 });
     await dismissOnboarding(page, { wait: 1500 });
     await page.getByTestId("resume-chip").waitFor({ timeout: 15_000 });
-    assert.match(await page.getByTestId("resume-open").getAttribute("aria-label") ?? "", /Finish setup, 1 of 9/, "one step done of the nine");
+    assert.match(await page.getByTestId("resume-open").getAttribute("aria-label") ?? "", /Finish setup, 1 of 6/, "one step done of the six");
     await shoot("setup-2-one-done");
 
     for (const k of TEAM.slice(1)) await call("spaces.onboarding.mark", { flow: "team", step: k, state: k === "win" ? "later" : "done" });

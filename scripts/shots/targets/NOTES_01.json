@@ -46,7 +46,7 @@
       "id": "NOTES_01-share",
       "route": "/m/NOTES_01?part=share",
       "proto": "share,{skin}",
-      "waitFor": "[data-testid='share-sheet']",
+      "waitFor": "[data-testid='as-sheet']",
       "note": "The share sheet: add a person, the owner, the Space Off, and which agents can read it."
     },
     {

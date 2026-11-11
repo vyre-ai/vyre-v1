@@ -1,0 +1,1 @@
+- Releases publish themselves after the tag is pushed: a green test run of the same commit is reused instead of run again, publishing runs where downloads are fast, and a dropped network call is retried instead of ending the release.

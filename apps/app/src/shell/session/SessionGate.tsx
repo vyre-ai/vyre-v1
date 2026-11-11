@@ -326,7 +326,7 @@ function DesktopJoinScreen({ route, open, onSignedIn, onBack, onSignIn, deviceCl
   if (required.length > 0 && !sso) return <JoinSso providers={required} started={ssoStarted} onStart={(key) => { void Promise.resolve(anonymous("identity.sso_join_start", { code: route.code, provider: key })).then((out) => { const start = (out as { start?: string }).start; if (start) { (globalThis as { open?: (url: string, target: string) => unknown }).open?.(`${route.address}${start}`, "_blank"); setSsoStarted(key); } }); }} onDone={() => setSso(ssoStarted)} />;
   // one join for every way the account was proved: its username and name, the password this Space signs in with, and its bundle carried here; this device then remembers who it is
   const joinWith = async (c: Carried, from?: KnownIdentity): Promise<void> => {
-    const values: JoinValues = { username: c.username, displayName: c.name, password: c.password, deviceName: deviceFor(deviceClass).deviceName, trustDevice: true, ai: { choice: "none" } };
+    const values: JoinValues = { username: c.username, displayName: c.name, password: c.password, deviceName: deviceFor(deviceClass).deviceName, ai: { choice: "none" } };
     try {
       const stored = await acceptDesktopJoin(join, values, { anonymous, deviceClass, ...(sso ? { ssoProvider: sso } : {}), open: (token) => open({ baseUrl: route.address, token }), getSpace: (token) => authenticatedSpace(route.address, token), carry: c.carry });
       const remembered: StoredSession = { ...stored, username: c.username, displayName: c.name };

@@ -75,7 +75,11 @@ function visible(ctx: SearchCtx, d: DocRow): boolean {
  * The kernel's view grant covers a whole Space, but a chat is the people in it: an invite-only channel's text is not for a manager who was not invited. So a chat or channel document also has to be one
  * the asker can open through the chat module's own rule (the same answer chat gives when they press it), asked as the asker. Anything else that says no, or fails, is not shown.
  */
+/** An agent's own home in Files (Agents/<name>/: AGENT.md, MAP.md, agent.toml and what the template put there) is Vyre's working set for the agent, not a firm's document: a person's search never offers it (client walk, 11 Nov 2026). */
+export const inAgentHome = (d: Pick<DocRow, "kind" | "path">): boolean => d.kind === "file" && d.path !== null && d.path.startsWith("Agents/");
+
 async function readable(ctx: SearchCtx, d: DocRow, seen: Map<string, boolean> = new Map()): Promise<boolean> {
+  if (ctx.principal.kind !== "agent" && inAgentHome(d)) return false;
   if (!visible(ctx, d)) return false;
   if (d.kind !== "chat" && d.kind !== "channel") return true;
   const k = `${d.kind}:${d.id}`;

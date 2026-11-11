@@ -4,7 +4,7 @@
 import { useReducer, useState } from "react";
 import type { ReactElement } from "react";
 import { View } from "react-native";
-import { Bar, Button, CheckBox, CodeShown, ErrorLine, Field, Foot, Group, JoinFrame, Links, Meter, Panel, Step, TextButton, Title, Working } from "../join/kit.tsx";
+import { Bar, Button, CheckBox, CodeShown, ErrorLine, Field, Foot, Group, JoinFrame, Links, Meter, Panel, Step, TextButton, Title, Working, RECOVERY_WHAT } from "../join/kit.tsx";
 import { ContinueAs } from "../join/ContinueAs.tsx";
 import { FAILURE_LINE, PASSWORD_MIN, cleanUsername, isDeadLink, meter, problemOf, strength, usernameOk } from "./logic.ts";
 import type { ClaimFailure, Details, Problem } from "./logic.ts";
@@ -91,7 +91,7 @@ function DetailsStep({ s, space, fingerprint, dispatch, next }: { s: State; spac
         <Field testID="claim-confirm" label="Confirm" value={s.confirm} onChange={(v) => set({ confirm: v })} placeholder="Type it again" secure autoComplete="new-password" onSubmit={next} valid={!!s.confirm && !mism} error={mism} />
       </Group>
       <ErrorLine testID={userBad ? "claim-username-error" : mism ? "claim-mismatch" : "claim-error"}>{line}</ErrorLine>
-      {fingerprint ? <Foot testID="claim-fingerprint" top={4}>{`Fingerprint ${fingerprint}`}</Foot> : null}
+      {fingerprint ? <Foot testID="claim-fingerprint" top={4}>{`Server fingerprint ${fingerprint}. It matches the link your server printed.`}</Foot> : null}
     </Step>
   );
 }
@@ -99,7 +99,7 @@ function DetailsStep({ s, space, fingerprint, dispatch, next }: { s: State; spac
 function RecoveryStep({ s, dispatch, onCopyCode, onSaveCode }: { s: State; dispatch: (a: Action) => void } & Pick<ClaimOwnerProps, "onCopyCode" | "onSaveCode">): ReactElement {
   return (
     <Step id="claim-recovery" dir={s.dir}>
-      <Title title="Your recovery code" />
+      <Title title="Your recovery code" sub={RECOVERY_WHAT} />
       <CodeShown code={s.code} testID="claim-code" />
       <View style={{ flexDirection: "row", gap: 8, marginTop: 8 }}>
         <View style={{ flex: 1 }}><Button quiet testID="claim-copy" label="Copy" onPress={() => onCopyCode?.(s.code)} /></View>

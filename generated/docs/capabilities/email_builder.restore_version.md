@@ -19,7 +19,7 @@ Restore a version
 | HTTP | POST /v1/email_builder/restore_version |
 | MCP tool | email_builder_restore_version (inbox) |
 | CLI | none |
-| Emits | none |
+| Emits | email_template.saved |
 
 ## Input
 

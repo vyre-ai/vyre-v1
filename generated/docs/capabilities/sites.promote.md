@@ -19,7 +19,7 @@ Put a site on the public internet at its address. Held for approval unless the p
 | HTTP | POST /v1/sites/promote |
 | MCP tool | sites_promote (sites) |
 | CLI | none |
-| Emits | site.published |
+| Emits | site.published, site.promoted |
 
 ## Input
 

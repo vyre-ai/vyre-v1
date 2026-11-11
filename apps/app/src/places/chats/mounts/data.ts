@@ -7,7 +7,7 @@ import { createElement } from "react";
 import { FolderShareSheet } from "../../../shell/providers/files-share.tsx";
 import type { QueryState } from "../../../../../../client/src/index.ts";
 import type { CapMap } from "../../../../../../generated/types.ts";
-import { conversationData, paneData, sidebarData } from "../../../shell/providers/chats-data.ts";
+import { conversationData, paneData, sidebarData, workData } from "../../../shell/providers/chats-data.ts";
 import type { ChatsActions } from "../../../shell/providers/chats-data.ts";
 import type { ShellRuntime } from "../../../shell/providers/runtime.tsx";
 import type { Principal } from "../../../shell/session/runtime-data.ts";
@@ -115,6 +115,7 @@ export function agentPageData(rt: ShellRuntime, go: Go, o: { agent: PaneAgent; c
   return {
     screens: rt.screens, call: rt.call, connection: rt.connection, agent: o.agent, me: { id: rt.me.id, name: rt.me.name }, nameOf: o.nameOf, canEdit: o.canEdit,
     space: { name: rt.space.name, personal: rt.space.kind === "personal", computers: computersAvailableNow(rt.space) },
+    ...workData(rt),
     nav: {
       openThread: (id) => go.thread(id),
       openHelper: (id) => go.thread(id),
@@ -288,18 +289,8 @@ export function createGo(rt: ShellRuntime, act: (a: Act) => void, nameOf: (id: s
       void chatWith(rt, agentId).then((id) => { if (id) act({ t: "chat", threadId: id, pane: true }); else say("Could not start the chat. Try again."); });
     },
     computer: (computerId, chat = false) => act({ t: "layer", layer: { kind: "computer", computerId, chat } }),
-    computerOfAgent: (agentId) => {
-      // no capable host: the door is not drawn, and a stray one does nothing and asks nothing
-      if (!computersAvailableNow(rt.space)) return;
-      void rt.call("computers.list", {}).then(
-        (out) => {
-          const c = (out as ComputersOut).computers.find((x) => x.agentId === agentId);
-          if (c) act({ t: "layer", layer: { kind: "computer", computerId: c.computerId, chat: false } });
-          else say(computerLine(null, nameOf(agentId)));
-        },
-        (e: unknown) => say(computerLine(e, nameOf(agentId))),
-      );
-    },
+    // there is one Computer tab: Terminal and Browser, on the agent's page (owner ruling 6 Nov 2026). Every door to "its computer" opens it, with or without a host to run it: the tab says so in a line when there is none.
+    computerOfAgent: (agentId) => act({ t: "agent", agentId, tab: "computer" }),
     terminal: (terminalId) => act({ t: "terminal", terminalId }),
     terminalOfComputer: (computerId) => {
       void rt.call("terminal.list", { host: "agent_computer", state: ["running", "idle"] }).then(

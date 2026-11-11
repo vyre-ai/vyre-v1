@@ -41,20 +41,22 @@ const NEVER: LiveQuery<never> = { subscribe: () => () => undefined, getSnapshot:
 
 export function useDirectory(rt: ShellRuntime): ConfigDirectory {
   const people = useSyncExternalStore(rt.principals?.subscribe ?? NEVER.subscribe, rt.principals?.getSnapshot ?? NEVER.getSnapshot, rt.principals?.getSnapshot ?? NEVER.getSnapshot) as QueryState<{ id: string; name: string; kind: string }[]>;
+  const [settled, setSettled] = useState(false);
   const [loaded, setLoaded] = useState<{ groups: unknown; roles: unknown; channels: unknown; automations: unknown }>({ groups: null, roles: null, channels: null, automations: null });
   useEffect(() => {
     let live = true;
     const read = (cap: string, input: unknown): Promise<unknown> => rt.call(cap, input).catch(() => null);
     void Promise.all([read("access.groups.list", {}), read("access.roles.list", {}), read("channels.list", {}), read("automations.list", { limit: 200 })])
-      .then(([groups, roles, channels, automations]) => { if (live) setLoaded({ groups, roles, channels, automations }); });
+      .then(([groups, roles, channels, automations]) => { if (live) { setLoaded({ groups, roles, channels, automations }); setSettled(true); } });
     return () => { live = false; };
   }, [rt]);
   const list = people.status === "ready" ? people.data : [];
-  return useMemo(() => directoryFrom({
+  const loading = people.status !== "ready" || !settled;
+  return useMemo(() => ({ ...directoryFrom({
     people: list.filter((p) => p.kind === "person").map((p) => ({ id: p.id, name: p.name })),
     agents: list.filter((p) => p.kind === "agent" && (p as { private?: boolean }).private !== true).map((p) => ({ id: p.id, name: p.name })),
     ...loaded,
-  }), [list, loaded]);
+  }), ...(loading ? { loading: true } : {}) }), [list, loaded, loading]);
 }
 
 export function configExtras(directory: ConfigDirectory, nav: Pick<AutomationsNav, "openAutomation"> & { openRuns(id: string): void; openRecords?(recordType: string, stage?: string): void }): ConfigExtras {

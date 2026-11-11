@@ -8,3 +8,7 @@ test("Open terminal is an action only when the Space has a terminal", () => {
   assert.ok(!gateActions({ away: false, offline: false }).some((a) => a.key === "terminal.open"));
   assert.ok(!gateActions({ away: false, offline: false, terminal: false }).some((a) => a.key === "terminal.open"));
 });
+
+test("New project is an action, so a Space with no project yet (no Projects group in Chats) can make its first", () => {
+  assert.ok(gateActions({ away: false, offline: false }).some((a) => a.key === "project.new" && a.title === "New project"));
+});

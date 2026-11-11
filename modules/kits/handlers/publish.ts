@@ -42,11 +42,15 @@ function errorText(e: unknown): string {
   return String(m).slice(0, 200);
 }
 
+/** A seed step is Kit data and may leave the key out; a capability that declares idempotency "key" reads it from its input, so the runner gives each step one from its test and its place. */
+const withKey = (input: unknown, key: string): unknown =>
+  input !== null && typeof input === "object" && !Array.isArray(input) && !("idempotencyKey" in input) ? { ...(input as Record<string, unknown>), idempotencyKey: key } : input;
+
 async function applyKit(space: FixtureSpace, kit: KitManifest): Promise<string | null> {
-  for (const it of kit.items) {
+  for (const [i, it] of kit.items.entries()) {
     if (!it.apply) continue;
     try {
-      await space.call(it.apply.cap, it.apply.input);
+      await space.call(it.apply.cap, withKey(it.apply.input, `kit-apply:${kit.key}@${kit.version}:${i}`));
     } catch (e) {
       return `installing "${it.title}" failed: ${errorText(e)}`;
     }
@@ -54,10 +58,10 @@ async function applyKit(space: FixtureSpace, kit: KitManifest): Promise<string |
   return null;
 }
 
-async function seedSpace(space: FixtureSpace, steps: KitStep[] | undefined): Promise<string | null> {
-  for (const s of steps ?? []) {
+async function seedSpace(space: FixtureSpace, steps: KitStep[] | undefined, test: string): Promise<string | null> {
+  for (const [i, s] of (steps ?? []).entries()) {
     try {
-      await space.call(s.cap, s.input);
+      await space.call(s.cap, withKey(s.input, `kit-seed:${test}:${i}`));
     } catch (e) {
       return `seed call ${s.cap} failed: ${errorText(e)}`;
     }
@@ -117,7 +121,7 @@ export async function runKitTests(kit: KitManifest, open: () => Promise<FixtureS
     let space: FixtureSpace | null = null;
     try {
       space = await open();
-      const applied = (await applyKit(space, kit)) ?? (t.kind === "space" ? await seedSpace(space, t.seed) : null);
+      const applied = (await applyKit(space, kit)) ?? (t.kind === "space" ? await seedSpace(space, t.seed, t.name) : null);
       if (applied) {
         failures.push({ test: t.name, message: applied });
         continue;

@@ -242,7 +242,7 @@ export default defineManifest({
     create('files.create', 'Create a file in a folder from text, base64 or an uploaded blob', {
       in: { folderId: id.folder, name: t.str(), content: t.opt(content), mime: t.opt(t.str()), kind: t.opt(fileKind) },
       out: { file: fileRow, changesetId: t.opt(id.changeset) }, make: ['folder', '/folderId'], perm: 'files.write',
-      emits: ['file.created', 'file.version_added', 'changeset.opened'], tool: 'files', offline: 'queue', cli: 'vyre files put', errors: ['validation.duplicate', 'validation.too_large'],
+      emits: ['file.created', 'file.version_added', 'changeset.opened', 'changeset.updated'], tool: 'files', offline: 'queue', cli: 'vyre files put', errors: ['validation.duplicate', 'validation.too_large'],
     }),
     write('files.write', 'Replace the content of a file. In a Review changes folder an agent write lands in a changeset and syncs only on Approve', {
       in: { fileId: id.file, content, baseVersion: t.opt(t.int({ minimum: 1 })), reason: t.opt(t.str()) },

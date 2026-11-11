@@ -51,6 +51,18 @@ export const actorOf = (ctx: Pick<EngineCtx, "principal" | "actingFor">): string
 // The engine that runs on this host. The host binds it at boot (impl.ts); handlers reach it through boundEngine().
 let bound: TurnEngine | null = null;
 export function bindEngine(engine: TurnEngine | null): void { bound = engine; }
+/**
+ * True from the moment the server starts closing its engine until the next engine host half is bound. An event the engine cannot take in that time is NOT consumed: the host moves a consumer's
+ * cursor past an event it answers (even with "skipped"), so a message that arrived while the server was shutting down would never get its turn. The consumers throw instead and the event is
+ * delivered again after the restart.
+ */
+let stopping = false;
+export const setEngineStopping = (v: boolean): void => { stopping = v; };
+export const engineStopping = (): boolean => stopping;
+/** Called by an engine consumer that finds no engine: while the server is stopping the event must be kept for the next start, never skipped. */
+export function keepForRestart(): void {
+  if (stopping) throw new Error("The engine is stopping, so this event is kept and delivered again when the server is back.");
+}
 /** The engine on this host, or null where none runs. */
 export const engineIfBound = (): TurnEngine | null => bound;
 

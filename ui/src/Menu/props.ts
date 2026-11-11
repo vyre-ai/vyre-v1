@@ -113,3 +113,7 @@ export function resolveMenuItems(props: MenuProps): MenuEntry[] {
   if (source === "other") return props.items.slice();
   return appendReportProblem(props.items);
 }
+
+/** The quiet rows of a pick-one list: its choices are still on the way, or there are none. Neither can be chosen. */
+export const LOADING_LABEL = "Loading…";
+export const EMPTY_LABEL = "Nothing to choose from";

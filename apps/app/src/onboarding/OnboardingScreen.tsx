@@ -191,8 +191,8 @@ function Finished({ flow, steps, progress, device, onOpen, onHome, onChats, two 
     <View testID="onboarding-finished" style={s.endWrap}>
       <ScrollView style={s.flex} contentContainerStyle={s.endIn}>
         <Mark size={40} />
-        <Text style={s.endTitle} accessibilityRole="header">You are set up</Text>
-        <Text style={s.endLead}>{left > 0 ? `${left} left for later` : "All done"}</Text>
+        <Text style={s.endTitle} accessibilityRole="header">{left > 0 ? "You can start now" : "You are set up"}</Text>
+        <Text style={s.endLead}>{left > 0 ? `${left} ${left === 1 ? "step is" : "steps are"} still open. Finish ${left === 1 ? "it" : "them"} any time from the list below.` : "All done"}</Text>
         <View style={s.grid}>{rows}</View>
       </ScrollView>
       <View style={s.endFoot}>{onHome ? <Pressable testID="onboarding-close" accessibilityRole="button" onPress={onHome} style={s.primaryLg}><Text style={s.primaryText}>Open Vyre</Text></Pressable> : null}</View>

@@ -8,6 +8,7 @@
 // @reads /modules/connectors/migrations/0001_connectors.sql
 // @reads /modules/sources/migrations/0001_sources.sql
 import type { Tx } from "../../../kernel/src/store/projection.ts";
+import { clearRunning, markRunning, noteResult } from "./cadence.ts";
 import { ensureTables, mintShort, nowOf, PAGE, refuse, seedBuiltins } from "../projections.ts";
 import type { ConnectionDb, ConnectorDef, ConnectorsCtx, ConnectorsDeps } from "../projections.ts";
 import { executeAction } from "./runtime.ts";
@@ -532,6 +533,8 @@ export function createSyncHandlers(deps: SyncDeps): SyncHandlers {
         if (r.paused && mode !== "dry_run") refuse(ctx, "validation.precondition_failed", `Sync of ${r.type} is paused: resume it first.`);
       }
       const one = rows.length === 1 ? rows[0]! : undefined;
+      // a pass is on its way: the periodic driver leaves these connections alone until it ends (sync_run clears the mark)
+      for (const r of rows) markRunning(tx, r.connection_id, nowOf(deps));
       const started = (await ctx.call("runs.start", {
         idempotencyKey: `connectors.sync_now:${input.idempotencyKey}`,
         kind: "connector_sync", name: one ? `Sync ${one.type}` : `Sync ${rows.length} types`, owner: actorOf(ctx),
@@ -599,12 +602,15 @@ export function createSyncHandlers(deps: SyncDeps): SyncHandlers {
       for (const id of req.syncTypeIds) {
         const r = tx.get<SyncDb>("SELECT * FROM cn_synced_types WHERE sync_type_id = ?", id);
         if (!r) continue;
+        markRunning(tx, r.connection_id, nowOf(deps));
         try {
           const out = await engine.run(ctx, rowOf(r), { mode: req.mode, runAutomations: req.runAutomations, ...(req.by ? { by: req.by } : {}) });
           parts.push(`${r.type}: ${out.summary}`);
+          if (!out.dryRun) noteResult(tx, r.sync_type_id, parse<PollingRow>(r.polling), true, nowOf(deps));
           if (out.more) more = true;
           else if (!out.dryRun) await planPoll(ctx, r);
         } catch (e) {
+          noteResult(tx, r.sync_type_id, parse<PollingRow>(r.polling), false, nowOf(deps));   // the driver waits longer after each failure in a row
           const err = (e as { error?: { code?: string; message?: string } }).error;
           const message = err?.message ?? (e instanceof Error ? e.message : "The sync failed.");
           failed = { code: err?.code ?? "provider.unavailable", message };
@@ -617,6 +623,8 @@ export function createSyncHandlers(deps: SyncDeps): SyncHandlers {
       if (more && !failed && ctx.schedule) {
         try { await ctx.schedule(nowOf(deps) + 1000, "connectors.sync_run", { runId: input.runId }); return { ok: true, summary }; } catch { /* nothing can schedule: finish here; the next poll carries on */ }
       }
+      // the pass ended (a run that carries on keeps its mark)
+      for (const id of req.syncTypeIds) { const r = tx.get<SyncDb>("SELECT connection_id FROM cn_synced_types WHERE sync_type_id = ?", id); if (r) clearRunning(tx, r.connection_id); }
       await ctx.call("runs.finish", failed ? { runId: input.runId, status: "failed", error: failed } : { runId: input.runId, status: "succeeded", summary });
       return { ok: failed === undefined, summary };
     },
@@ -632,18 +640,22 @@ export function createSyncHandlers(deps: SyncDeps): SyncHandlers {
       if (due !== undefined && due > nowOf(deps) && hasHook(r) && !hooked(r)) { await planPoll(ctx, r, due); return { ran: false }; }
       const conn = connRow(r.connection_id);
       let summary: string | undefined;
+      let retryAt: number | undefined;
       if (conn && conn.state === "active") {
+        markRunning(tx, r.connection_id, nowOf(deps));
         try {
           const out = await engineOf(ctx).run(ctx, rowOf(r), { mode: "incremental" });
           summary = out.summary;
+          noteResult(tx, r.sync_type_id, parse<PollingRow>(r.polling), true, nowOf(deps));
           // a first pull still going carries on straight away, not at the idle interval
           if (out.more && ctx.schedule) { tx.run("INSERT INTO cn_sync_poll (sync_type_id, at) VALUES (?, ?) ON CONFLICT(sync_type_id) DO UPDATE SET at = excluded.at", r.sync_type_id, nowOf(deps) + 1000); await ctx.schedule(nowOf(deps) + 1000, "connectors.sync_poll", { type: r.type }); return { ran: true, summary }; }
         } catch (e) {
           const err = (e as { error?: { message?: string } }).error;
           logError(r.sync_type_id, `sync of ${r.type} failed: ${err?.message ?? (e instanceof Error ? e.message : "failed")}`);
-        }
+          retryAt = noteResult(tx, r.sync_type_id, parse<PollingRow>(r.polling), false, nowOf(deps));   // a failing app is asked less and less often, up to once an hour
+        } finally { clearRunning(tx, r.connection_id); }
       }
-      await planPoll(ctx, r);
+      await planPoll(ctx, r, retryAt);
       return { ran: summary !== undefined, ...(summary !== undefined ? { summary } : {}) };
     },
   };

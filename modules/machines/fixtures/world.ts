@@ -31,7 +31,7 @@ export function report(o: { cpu?: number; mem?: number; diskFree?: number; turns
 }
 
 export interface Fakes {
-  servers?: Array<{ serverId: string; name: string; enrollment?: "approved" | "pending" }>;
+  servers?: Array<{ serverId: string; name: string; enrollment?: "approved" | "pending"; role?: "space" | "compute" }>;
   devices?: Array<{ id: string; name: string; person: string; revokedAt?: number }>;
   computers?: Array<{ computerId: string; agentId: string; state: string; tabs: number; tabLimit: number; nodeId?: string }>;
   updates?: { current: string; available?: string };

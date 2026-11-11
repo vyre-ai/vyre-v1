@@ -1,5 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { shardCount, shardFiles, toMatrix, MAX_SHARDS, FAST_CAP_SEC, FILES_PER_SHARD, type Timings } from "./shard.ts";
 import type { SlowEntry } from "./slow-check.ts";
 
@@ -134,4 +137,38 @@ test("a test that boots a daemon is slow by rule: *.live.test, *.booted.test, an
   const slowFiles = m.filter((j) => j.slow).flatMap((j) => j.files.split(" ")).sort();
   assert.deepEqual(slowFiles, ["host/tests/blobs.test.ts", "host/tests/portal.live.test.ts", "host/tests/seed.grants.test.ts", "modules/identity/tests/lockout.booted.test.ts", "test/backup.list.after.run.test.mjs"]);
   assert.deepEqual(m.filter((j) => !j.slow).flatMap((j) => j.files.split(" ")).sort(), ["fixtures/seed/small/build.ts", "lib/plain.test.ts"], "a non-test source that exports the helper stays fast");
+});
+
+test("quick heavy files (measured at most 15 s) share jobs; an unmeasured, a slow and a *.heavy.test file keep a job to themselves", () => {
+  const h = (f: string) => ({ ...slowEntry(f, 120), heavy: true });
+  const slow = [h("q1.test.ts"), h("q2.test.ts"), h("q3.test.ts"), h("slowish.test.ts"), h("unmeasured.test.ts"), slowEntry("images/vyred/smoke.heavy.test.ts", 120)];
+  const timings = { "q1.test.ts": { ms: 400 }, "q2.test.ts": { ms: 2000 }, "q3.test.ts": { ms: 1500 }, "slowish.test.ts": { ms: 21000 }, "images/vyred/smoke.heavy.test.ts": { ms: 500 } };
+  const files = slow.map((e) => e.file);
+  const m = toMatrix(shardFiles(files, timings, slow)).include.filter((j) => j.name.startsWith("heavy-")).map((j) => j.files.split(" ").sort());
+  assert.deepEqual(m.filter((g) => g.length > 1), [["q1.test.ts", "q2.test.ts", "q3.test.ts"]]);
+  assert.deepEqual(m.filter((g) => g.length === 1).flat().sort(), ["images/vyred/smoke.heavy.test.ts", "slowish.test.ts", "unmeasured.test.ts"]);
+});
+
+test("a quick heavy job holds at most 8 files and 60 s of measured time", () => {
+  const slow = Array.from({ length: 20 }, (_, i) => ({ ...slowEntry(`q${i}.test.ts`, 120), heavy: true }));
+  const timings = Object.fromEntries(slow.map((e, i) => [e.file, { ms: i < 5 ? 14000 : 300 }]));
+  const jobs = toMatrix(shardFiles(slow.map((e) => e.file), timings, slow)).include.filter((j) => j.name.startsWith("heavy-"));
+  for (const j of jobs) {
+    const fs_ = j.files.split(" ");
+    assert.ok(fs_.length <= 8, `${j.name} holds ${fs_.length} files`);
+    assert.ok(fs_.reduce((n, f) => n + (timings[f]!.ms / 1000), 0) <= 60, `${j.name} holds more than 60 s`);
+  }
+});
+
+test("the set of test files run is the same with and without timings: none dropped, none run twice", () => {
+  const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+  const slowList = JSON.parse(fs.readFileSync(path.join(root, "test/slow.json"), "utf8")) as { file: string; capSec: number; perf?: boolean; heavy?: boolean }[];
+  const real = JSON.parse(fs.readFileSync(path.join(root, "test/timings.json"), "utf8")) as Record<string, { ms: number }>;
+  const fast = Array.from({ length: 130 }, (_, i) => `fast/f${i}.test.ts`);
+  const files = [...slowList.map((e) => e.file), ...fast, "golden/steps/a.test.ts", "host/tests/x.live.test.ts"];
+  const flat = (t: Record<string, { ms: number }>) => toMatrix(shardFiles(files, t, slowList)).include.flatMap((j) => j.files.split(" ")).sort();
+  const without = flat({}), withReal = flat({ ...real, ...Object.fromEntries(fast.map((f, i) => [f, { ms: 500 + i * 40 }])) });
+  assert.deepEqual(withReal, without, "same files in the same count");
+  assert.deepEqual(without, [...new Set(files)].sort(), "every selected file runs once");
+  assert.equal(new Set(withReal).size, withReal.length, "none twice");
 });

@@ -294,7 +294,8 @@ test("recall live: a CLI engine reaches the same words over Vyre's MCP server, i
     await mapped(d, helper);
     const guided = await say(d, helper, "hello", "rc-cli-guide");
     assert.ok(guided.threadId);
-    const work = path.join(dir, "work", "usr_olivia", guided.threadId);
+    // one folder per person, thread and agent (modules/engine/sandbox.ts workFolder, since rc.18): the chat's own folder is shared by its agents, so the guide lives in this agent's
+    const work = path.join(dir, "work", "usr_olivia", guided.threadId, helper);
     const inFolder = (name: string): string => fs.readFileSync(path.join(work, name), "utf8");
     assert.equal(inFolder("CLAUDE.md"), inFolder("AGENTS.md"));
     assert.ok(inFolder("CLAUDE.md").includes(AGENT_FACT), inFolder("CLAUDE.md"));

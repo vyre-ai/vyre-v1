@@ -15,6 +15,10 @@ import {
   kitMenuEntries,
   menuEntries,
   LONG_PRESS_MS,
+  EMPTY_LABEL,
+  LOADING_LABEL,
+  choiceRows,
+  useLiveRows,
   menuTrigger,
   moveActive,
   reportProblem,
@@ -26,6 +30,8 @@ import type { KitMenuItem, MenuEntry } from "./index.tsx";
 import { isItem, isReportItem, isSeparator } from "./props.ts";
 import { useContextMenu } from "./context.tsx";
 import { tabMenuEntries } from "../TabStrip/index.tsx";
+import { createRoot } from "test-renderer";
+import { find, installDom, mount } from "../testing/dom.ts";
 
 // KitScreenDef.menus entries, shaped as the generated screens carry them.
 const KIT_MENUS: readonly { target: string; items: readonly KitMenuItem[] }[] = [
@@ -148,6 +154,16 @@ test("nothing is lit on open: hover or an arrow key lights a row, and the lit ro
   const html = renderToStaticMarkup(<Menu items={[{ label: "Open" }, { label: "Copy" }]} x={0} y={0} />);
   assert.equal(html.match(/background-color:var\(--accent\)/g)?.length ?? 0, 0, "no row is filled when the menu opens");
   assert.match(html, /r-width-/, "rows carry a full width style");
+});
+
+test("the menu panel can take focus, so Escape and the arrow keys reach it even though no row is lit on open", () => {
+  const html = renderToStaticMarkup(<Menu items={[{ label: "Open" }, { label: "Copy" }]} x={0} y={0} />);
+  assert.match(html, /<div[^>]*role="menu"[^>]*tabindex="-1"|<div[^>]*tabindex="-1"[^>]*role="menu"/, "the panel is focusable by script, not a tab stop");
+});
+
+test("a row that cannot be chosen (the Loading row) tells assistive tech it is disabled", () => {
+  const html = renderToStaticMarkup(<Menu items={choiceRows([{ label: "Acme" }], true)} x={0} y={0} />);
+  assert.match(html, /aria-disabled="true"[^>]*aria-label="Loading…"|aria-label="Loading…"[^>]*aria-disabled="true"/);
 });
 
 test("arrow keys wrap over actionable items only", () => {
@@ -301,4 +317,80 @@ test("a menu opened from a button near the right edge lines up with the button's
   // room on the right: no flip
   assert.equal(menuLeft(100, 220, 1280, 160), 100);
   resetAnchor();
+});
+
+test("choiceRows: a list still loading says so and cannot be chosen; a loaded empty list says it is empty; a loaded list is unchanged", () => {
+  const rows = [{ label: "Acme" }, { label: "Birch" }];
+  const loading = choiceRows(rows, true);
+  assert.deepEqual(labels(loading), ["Acme", "Birch", LOADING_LABEL]);
+  const last = loading[2]!;
+  assert.ok(isItem(last) && last.disabled === true, "the loading row cannot be chosen");
+  const none = choiceRows([], true);
+  assert.deepEqual(labels(none), [LOADING_LABEL], "no rows yet still shows the loading row, never an empty list");
+  const empty = choiceRows([], false);
+  assert.deepEqual(labels(empty), [EMPTY_LABEL]);
+  assert.ok(isItem(empty[0]!) && (empty[0] as { disabled?: boolean }).disabled === true);
+  assert.deepEqual(labels(choiceRows(rows, false)), ["Acme", "Birch"]);
+});
+
+test("useLiveRows sends new rows to the open menu when the data arrives, and stays quiet while they are the same", async () => {
+  const restore = installDom();
+  const { act } = await import("react");
+  const sent: string[][] = [];
+  const update = (items: readonly MenuEntry[]): void => { sent.push(labels(items)); };
+  function Probe({ rows }: { rows: MenuEntry[] }) { useLiveRows(update, rows); return null; }
+  const r = createRoot();
+  try {
+    await act(async () => { r.render(<Probe rows={choiceRows([], true)} />); });
+    assert.deepEqual(sent.at(-1), [LOADING_LABEL]);
+    const before = sent.length;
+    await act(async () => { r.render(<Probe rows={choiceRows([], true)} />); });
+    assert.equal(sent.length, before, "same rows, nothing sent");
+    await act(async () => { r.render(<Probe rows={choiceRows([{ label: "record.*" }, { label: "record.created" }], false)} />); });
+    assert.deepEqual(sent.at(-1), ["record.*", "record.created"], "the loaded rows replace the loading row in place");
+  } finally { restore(); }
+});
+
+test("Escape closes a menu from wherever focus is, plain or with a search field, and only that menu; the search field is the one that takes focus", async () => {
+  for (const search of [undefined, "Find"] as const) {
+    const html = renderToStaticMarkup(<Menu items={[{ label: "Open" }]} x={0} y={0} {...(search ? { search } : {})} />);
+    assert.equal(/data-testid="menu-search"/.test(html), search !== undefined, "the search field is drawn only for a searchable menu");
+    assert.match(html, /tabindex="-1"/, "the panel can take focus; a searchable menu leaves focus to its search field (autoFocus)");
+  }
+  const restore = installDom();
+  const { act } = await import("react");
+  const g = globalThis as unknown as { document: { addEventListener: (t: string, fn: (e: { key: string; preventDefault(): void; stopPropagation(): void }) => void, c?: boolean) => void; removeEventListener: (t: string, fn: unknown, c?: boolean) => void } };
+  const doc = g.document;
+  const was = { add: doc.addEventListener, remove: doc.removeEventListener };
+  const heard: Array<(e: { key: string; preventDefault(): void; stopPropagation(): void }) => void> = [];
+  doc.addEventListener = (t, fn, c) => { if (t === "keydown" && c === true) heard.push(fn); };
+  doc.removeEventListener = () => undefined;
+  try {
+    for (const search of [undefined, "Find"] as const) {
+      heard.length = 0;
+      let closed = 0;
+      const r = createRoot();
+      await act(async () => { r.render(<Menu items={[{ label: "Open" }, { label: "Copy" }]} x={0} y={0} onClose={() => { closed++; }} {...(search ? { search } : {})} />); });
+      assert.equal(heard.length, 1, "one capture-phase key listener while the menu is open");
+      let stopped = 0;
+      await act(async () => { heard[0]!({ key: "a", preventDefault() {}, stopPropagation() { stopped++; } }); });
+      assert.equal(closed, 0, "another key does not close it");
+      await act(async () => { heard[0]!({ key: "Escape", preventDefault() {}, stopPropagation() { stopped++; } }); });
+      assert.equal(closed, 1, "Escape closes it");
+      assert.equal(stopped, 1, "and the key stops there, so a sheet around the menu stays open");
+    }
+  } finally { doc.addEventListener = was.add; doc.removeEventListener = was.remove; restore(); }
+});
+
+test("a menu with a search field opens with the caret in the search field (autoFocus), not on its panel, and a plain menu has no search field to steal it", async () => {
+  const restore = installDom();
+  try {
+    const withSearch = await mount(createRoot, <Menu items={[{ label: "Open" }, { label: "Copy" }]} x={0} y={0} search="Find" />);
+    const field = find(withSearch, "menu-search");
+    assert.ok(field, "the search field is drawn");
+    assert.equal(field!.props["autoFocus"], true, "and it asks for the caret on open");
+    const plain = await mount(createRoot, <Menu items={[{ label: "Open" }, { label: "Copy" }]} x={0} y={0} />);
+    assert.equal(find(plain, "menu-search"), null);
+    assert.ok(find(plain, "menu"), "the panel is there to take focus");
+  } finally { restore(); }
 });

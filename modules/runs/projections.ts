@@ -373,7 +373,8 @@ export function listRuns(ctx: RunsCtx, f: ListFilter): Run[] {
   }
 }
 function holdsAll(ctx: RunsCtx): boolean {
-  return !!ctx.authorize && ctx.authorize({ perm: "runs.manage", level: "manage" }, { type: "run", id: null }).effect === "allow";
+  // asked of the Space, the way every "manages all of these" check is: a Run type has no owner and no type-wide grant, so asking about "any run" refused even the Space's owner on a Space with no runs yet
+  return !!ctx.authorize && ctx.authorize({ perm: "runs.manage", level: "manage" }, { type: "space", id: ctx.space }).effect === "allow";
 }
 /** Counts for badges. mine = owned by me; all needs Manage. */
 export function countRuns(ctx: RunsCtx, scope: "mine" | "all", statuses?: readonly string[]): number {

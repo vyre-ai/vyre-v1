@@ -144,7 +144,10 @@ export async function nextTimes(ctx: SchedCtx, input: In): Promise<unknown> {
 /** Make the call of a schedule once, for scheduledFor, and write it down. Shared by fire, catch_up and the tick. */
 async function callIt(ctx: SchedCtx, s: Schedule, scheduledFor: number, key: string): Promise<string | undefined> {
   if (!ctx.call) raise(ctx, "internal.unavailable", "The scheduler cannot make calls right now.");
-  const out = (await ctx.call(s.cap, s.input ?? {}, { idempotencyKey: key })) as { runId?: unknown } | null;
+  // the pipeline reads the key of a keyed capability from the call's input: the one this firing owns goes there too, so a scheduled call of such a capability is accepted
+  const given = s.input ?? {};
+  const body = typeof given === "object" && given !== null && !Array.isArray(given) && !("idempotencyKey" in given) ? { ...(given as Record<string, unknown>), idempotencyKey: key } : given;
+  const out = (await ctx.call(s.cap, body, { idempotencyKey: key })) as { runId?: unknown } | null;
   const id = out && typeof out === "object" ? out.runId : undefined;
   return typeof id === "string" && id.startsWith("run_") ? id : undefined;
 }

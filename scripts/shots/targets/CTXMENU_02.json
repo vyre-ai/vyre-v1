@@ -4,7 +4,7 @@
       "id": "CTXMENU_02-artifact",
       "route": "/m/CTXMENU_02",
       "proto": "chats,{skin}",
-      "waitFor": "[data-testid='row-artifact-sit_funnel']",
+      "waitFor": "[data-testid='artifact-card-sit_funnel']",
       "note": "Right-click on your artifact: Open, Share, Copy Link, Rename, Delete (asks first)."
     },
     {

@@ -15,7 +15,6 @@ export interface JoinValues {
   displayName: string;
   password: string;
   deviceName: string;
-  trustDevice: boolean;
   recoveryCode?: string;
   ai: { choice: "sub" | "key" | "admin" | "none"; key?: string; providerKey?: "openrouter" | "anthropic" | "openai" };
 }
@@ -94,7 +93,7 @@ function JoinFlowForHost(props: JoinFlowProps) {
     let failed = false;
     const total = RUN_STEPS(invite.space).length;
     const values: JoinValues = {
-      username: state.user, displayName: fullName(state), password: state.pw, deviceName: state.device, trustDevice: state.trust,
+      username: state.user, displayName: fullName(state), password: state.pw, deviceName: state.device,
       ...(state.rec ? { recoveryCode: state.code } : {}), ai: { choice: state.ai, providerKey: state.aiProvider, ...(state.ai === "key" ? { key: state.key } : {}) },
     };
     const joined = props.onJoin ? props.onJoin(values).catch((e: unknown) => { failed = true; if (!off) dispatch({ t: "failed", message: messageOf(e), ...((e as { step?: FlowState["step"] }).step === undefined ? {} : { step: (e as { step: FlowState["step"] }).step }) }); }) : Promise.resolve();

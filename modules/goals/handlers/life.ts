@@ -1,7 +1,7 @@
 // The life of a goal, shared by the capabilities, the consumers and the clock: its chat, root task, folder and grants; reading the source; check-ins; stuck; budget; the end.
 // Everything that touches another module goes through ctx.call and is best effort where the goal can carry on without it: the activity says what could not be done, and the clock tries again.
 import {
-  DAY, HOUR, LIVE, POLL_MS, addReading, addTask, addThread, afterQuiet, better, clean, dispatch, emit, ensure, getGoal, goalOfTask, inQuiet, label, note, money, nextCheckin, progressOf, queueWake,
+  DAY, ENDED, HOUR, LIVE, POLL_MS, addReading, addTask, addThread, afterQuiet, better, clean, dispatch, emit, ensure, getGoal, goalOfTask, inQuiet, label, note, money, nextCheckin, progressOf, queueWake,
   reached, saveGoal, setStatus, signalOf, threadsOf, when,
 } from "../projections.ts";
 import type { Ended, Goal, GoalsCtx, Who } from "../projections.ts";
@@ -319,8 +319,18 @@ export function summaryOf(ctx: GoalsCtx, g: Goal, outcome: Ended, extra?: string
   if (extra) lines.push(extra);
   return lines.join(" ");
 }
+/** Goals being ended right now. Two readers of the same goal (the clock and a read of the number) each hold their own copy, so both can pass the status check below while the first is still at an await. */
+const ending = new Set<string>();
 export async function endGoal(ctx: GoalsCtx, g: Goal, outcome: Ended, extra?: string): Promise<void> {
   if (!LIVE.has(g.status) && g.status !== "paused" && g.status !== "draft") return;
+  // the second ending would drop the first one's retrospective wake-up (below) and queue none of its own, so the lead never wrote the retrospective
+  if (ending.has(g.id)) return;
+  const saved = getGoal(ctx.db, g.id);
+  if (saved && ENDED.has(saved.status)) return;
+  ending.add(g.id);
+  try { await endGoalOnce(ctx, g, outcome, extra); } finally { ending.delete(g.id); }
+}
+async function endGoalOnce(ctx: GoalsCtx, g: Goal, outcome: Ended, extra?: string): Promise<void> {
   const now = ctx.now();
   g.summary = summaryOf(ctx, g, outcome, extra);
   g.ended = outcome; g.endedAt = now;
@@ -392,7 +402,15 @@ export async function addPlan(ctx: GoalsCtx, g: Goal, children: PlanChild[]): Pr
 // ---- the clock ----
 
 /** One pass over a goal: the deadline, the source, the check-in, wake-ups that went unanswered, and sending what is due. Safe to repeat. */
-export async function tick(ctx: GoalsCtx, id: string): Promise<void> {
+const ticking = new Map<string, Promise<void>>();
+/** One pass at a time per goal: a second pass (the clock and a consumer can both ask) waits for the first and then reads the goal as the first left it, so a stuck notice or a wake-up is made once. */
+export function tick(ctx: GoalsCtx, id: string): Promise<void> {
+  const before = ticking.get(id) ?? Promise.resolve();
+  const run = before.catch(() => undefined).then(() => tickOnce(ctx, id));
+  ticking.set(id, run);
+  return run.finally(() => { if (ticking.get(id) === run) ticking.delete(id); });
+}
+async function tickOnce(ctx: GoalsCtx, id: string): Promise<void> {
   const g = getGoal(ctx.db, id);
   if (!g) return;
   const now = ctx.now();

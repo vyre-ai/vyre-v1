@@ -61,7 +61,7 @@ export function PluginsPage(): ReactElement {
     </Section>
     <Section title="Plugins to install" count={browse.data?.total ?? ""}><Group>
       <Field label="Search" value={q} onChange={setQ} />
-      <Select label="Install into" value={target} options={agentOptions} onChange={setTarget} />
+      <Select label="Install into" value={target} options={agentOptions} loading={!agents.data && !agents.error} onChange={setTarget} />
       {!browse.data ? <ReadState error={browse.error} retry={browse.refresh} /> : browse.data.plugins.length === 0 ? <Empty icon="plug">Nothing to install yet</Empty> : browse.data.plugins.map((p) => {
         const here = p.installed.some((i) => (target === "space" ? i.scope === "space" : i.agentId === target));
         return <Row key={`${p.marketplaceId}:${p.name}`} id={`browse-${p.name}`} title={p.name} note={`${p.description ?? "No description"} · ${p.marketplace}${p.allowed ? "" : " · Not allowed"}`}

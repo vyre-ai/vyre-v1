@@ -85,17 +85,22 @@ export function GithubAppPage(): ReactElement {
     const back = manifestReturn((globalThis as { location?: { search?: string } }).location?.search ?? "");
     if (back) void action.run("github.app.complete", { ...back, idempotencyKey: back.state }, "Your GitHub app is ready");
   }, []);
+  // The app and its installs are read only where the Space has an app of its own (saved, or made for it): the server refuses both reads on a Space that has none, and a fresh Space has none
+  const ownApp = sign.data ? sign.data.github.source === "space" || Boolean(sign.data.github.clientId) : null;
   useEffect(() => {
+    if (ownApp === null) return undefined;
     let live = true;
     void (async () => {
-      try {
-        const a = await data.call("github.app.get", {}) as App;
-        const i = await data.call("github.installations.list", {}) as { installations: Installs };
-        if (live) { setApp(a); setInstalls(i.installations); }
-      } catch { if (live) { setApp(null); setInstalls([]); } }
+      let a: App | null = null;
+      let i: Installs = [];
+      if (ownApp) {
+        try { a = await data.call("github.app.get", {}) as App; } catch { /* no app yet: the page says so */ }
+        try { i = ((await data.call("github.installations.list", {})) as { installations: Installs }).installations; } catch { /* none to list */ }
+      }
+      if (live) { setApp(a); setInstalls(i); }
     })();
     return () => { live = false; };
-  }, [rev]);
+  }, [rev, ownApp]);
   const gapp = ci.data?.githubApp;
   const acceptUrl = gapp && gapp.installed && !gapp.ready ? (gapp.acceptUrl ?? gapp.orgAcceptUrl) : null;
   // (above the early return: hooks run on every render) after Accept the person is on GitHub: ask again every few seconds (up to five minutes) so the row clears by itself once the permissions are accepted

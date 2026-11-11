@@ -38,7 +38,7 @@ function ResetBody({ onBack, onReset }: Props): ReactElement {
         </Step>
       ) : (
         <Step id="reset-recovery-code">
-          <Title title="Your recovery code" />
+          <Title title="Your new recovery code" sub="This is your recovery code from now on. Keep it somewhere safe, like a password manager. It is shown only now." />
           <CodeShown code={recovery.current} testID="reset-recovery" />
           <CheckBox testID="reset-saved" checked={saved} label="I saved it" onChange={setSaved} />
           <ErrorLine testID="reset-error">{error}</ErrorLine>

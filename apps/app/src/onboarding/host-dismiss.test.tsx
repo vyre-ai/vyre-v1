@@ -49,3 +49,25 @@ test("a Space the person has already seen does not open onboarding over the shel
     assert.ok(find(t.root, "shell-body"));
   } finally { t.restore(); }
 });
+
+test("the first-run screen is saved as seen before it shows, so a reload right after closing it cannot open it again", async () => {
+  const restore = installDom();
+  let release: () => void = () => undefined;
+  const saved = new Promise<void>((resolve) => { release = resolve; });
+  const call = (async (cap: string) => {
+    if (cap === "spaces.switcher") return { role: "Owner" };
+    if (cap === "spaces.onboarding.flow") return { seen: false, steps: [] };
+    if (cap === "spaces.onboarding.get") return { dismissed: false, steps: [] };
+    if (cap === "engine.accounts.list") return { accounts: [] };
+    if (cap === "spaces.onboarding.seen") { await saved; return { ok: true }; }
+    return { ok: true };
+  }) as unknown as CapCall;
+  const root = await mount(createRoot, <OnboardingHost call={call} space={{ kind: "team", name: "Fresh Co" }}><Text testID="shell-body">shell</Text></OnboardingHost>);
+  try {
+    await flush(); await flush();
+    assert.equal(find(root, "onboarding"), null, "not shown while the Space has not saved that it was seen");
+    release();
+    await flush(); await flush();
+    assert.ok(find(root, "onboarding"), "shown once saved");
+  } finally { restore(); }
+});

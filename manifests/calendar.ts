@@ -83,8 +83,7 @@ const manifest = defineManifest({
       in: { calendarId: calId, title: t.opt(t.str()), color: t.opt(t.str()) }, out: { calendar: calendarRow }, tool: 'inbox',
     }),
     write('calendar.delete_calendar', 'Delete a local calendar (provider calendars are disconnected, not deleted)', {
-      in: { calendarId: calId }, out: { deleted: t.bool() }, tool: 'inbox', gate: { act: 'delete', when: "actor.kind != 'person'" },
-    }),
+      in: { calendarId: calId }, out: { deleted: t.bool() }, tool: 'inbox', gate: { act: 'delete', when: "actor.kind != 'person'" }, emits: ['calendar_event.deleted'] }),
     read('calendar.list_events', 'Events in a time range for chosen calendars (Day, Week and Month views)', {
       in: { from: t.ts(), to: t.ts(), calendarIds: t.opt(t.arr(calId)), query: t.opt(t.str()), ...pageIn }, out: { events: t.arr(eventRow), ...pageOut }, tool: 'inbox', label: 'filter',
     }),
@@ -134,7 +133,7 @@ const manifest = defineManifest({
     }),
     write('calendar.connect_provider', "Put a member's Google or Microsoft calendar in Calendar, owned by them and read as their account; connected false (an excluded member) removes it", {
       in: { provider: t.enm('google', 'microsoft'), ownerId: id.user, account: email, connectionId: id.connection, remoteId: t.opt(t.str()), title: t.opt(t.str()), connected: t.opt(t.bool()) },
-      out: { calendarId: t.opt(calId), created: t.bool() }, perm: 'connectors.manage', emits: ['calendar.created'], audit: 'always', idem: 'natural', tool: 'meta',
+      out: { calendarId: t.opt(calId), created: t.bool() }, perm: 'connectors.manage', emits: ['calendar.created', 'calendar_event.deleted'], audit: 'always', idem: 'natural', tool: 'meta',
     }),
     read('calendar.health', 'Calendar sync health: age of the last successful sync per calendar', { in: {}, out: healthOut }),
   ],

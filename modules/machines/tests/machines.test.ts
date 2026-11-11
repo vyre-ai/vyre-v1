@@ -415,3 +415,10 @@ test("machines.rooms carries the most agent computers a machine runs, the same n
   assert.equal(typeof room.maxAgentComputers, "number");
   assert.equal(room.maxAgentComputers, list.find((m: { machineId: string }) => m.machineId === "space").limits.maxAgentComputers);
 });
+
+test("the Space's own server is one machine: its network row (role space, srv_local) is not listed a second time as an added server that was never seen", async () => {
+  const w = world({ servers: [{ serverId: "srv_local", name: "Northwind server", role: "space" }, { serverId: "srv_quiet1", name: "Office Linux box" }] });
+  w.feed("space", "space", "Northwind server", report({ cpu: 30, mem: 55, cores: 8, can: ["docker"], turns: 0 }));
+  const list = await w.call("machines.list", {}, admin);
+  assert.deepEqual(list.machines.map((m: any) => m.machineId).sort(), ["space", "srv_quiet1"]);
+});

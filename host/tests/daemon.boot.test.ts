@@ -25,6 +25,9 @@ test("vyred boots on the seeded Space from modules.json, answers example.echo wi
     assert.equal(info?.pid, process.pid);
     assert.equal(fs.statSync(d.paths.adminToken).mode & 0o777, 0o600, "the admin token is owner-only");
 
+    // the work the start leaves running after it serves (the seeded people's Personal calendars) writes events of its own: the head below is read once it is done
+    await d.startupWork();
+
     // /healthz is public and carries no secret
     const hz = await fetch(`${d.url}/healthz`);
     assert.equal(hz.status, 200);
@@ -60,8 +63,10 @@ test("vyred boots on the seeded Space from modules.json, answers example.echo wi
     const bad = await fetch(`${d.url}/v1/example/echo`, { method: "POST", headers: { authorization: `Bearer ${d.token}`, "content-type": "application/json" }, body: "{not json" });
     assert.equal(bad.status, 400);
 
-    // probes: all eight rows, healthy against the recorded machine
-    const probes = Object.fromEntries((d.db!.all("SELECT name, state FROM health_probe ORDER BY name") as { name: string; state: string }[]).map((p) => [p.name, p.state]));
+    // probes: the eight host probes and the machine reading, healthy against the recorded machine
+    const probeRows = d.db!.all("SELECT name, state FROM health_probe ORDER BY name") as { name: string; state: string }[];
+    assert.ok(probeRows.some((p) => p.name === "machine"), "the machine reading is written at start (its state follows the real computer, so only its presence is pinned here; machine.probe.test.ts pins the numbers)");
+    const probes = Object.fromEntries(probeRows.filter((p) => p.name !== "machine").map((p) => [p.name, p.state]));
     assert.deepEqual(probes, { caddy: "healthy", disk_encrypted: "healthy", disk_space: "healthy", docker: "healthy", events_db: "healthy", index_db: "healthy", scheduler: "healthy", time_skew: "healthy" });
     assert.equal(JSON.parse(String(one(d, "SELECT values_json FROM health_probe WHERE name = 'disk_space'")["values_json"])).freeBytes, 80e9);
     const again = await d.runProbes(["events_db"]);

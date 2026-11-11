@@ -151,7 +151,7 @@ test("fire: makes the call with the schedule's input and a key per time, records
   h.setNow(t + 5_000);
   const out = await h.call("scheduler.fire", { scheduleId, scheduledFor: t }, host);
   assert.deepEqual(out, { runId: started[0] });
-  assert.deepEqual(h.calls.at(-1), { cap: "automations.fire", input: { automationId: "aut_a1b2c3", note: "daily" }, opts: { idempotencyKey: `sch:${scheduleId}:${t}` } });
+  assert.deepEqual(h.calls.at(-1), { cap: "automations.fire", input: { automationId: "aut_a1b2c3", note: "daily", idempotencyKey: `sch:${scheduleId}:${t}` }, opts: { idempotencyKey: `sch:${scheduleId}:${t}` } });
   const fired = h.allEvents.at(-1)!;
   assert.equal(fired.name, "schedule.fired");
   assert.deepEqual(fired.payload, { scheduleId, owner, runId: started[0], scheduledFor: t, late: false });

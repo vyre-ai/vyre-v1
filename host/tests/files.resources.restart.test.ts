@@ -38,11 +38,13 @@ test("booting twice on one data directory registers the Files root folders once 
     rows: Number((d.db!.all("SELECT COUNT(*) AS n FROM access_resources")[0] as { n: number }).n),
   });
   const first = await boot();
+  await first.startupWork();   // the start's background work (Personal calendars) registers resources of its own: count once it is done
   const one = count(first);
   await first.stop();
   assert.ok(one.folders > 0, "the Files root folders are in the access module's tables");
   const second = await boot();
   try {
+    await second.startupWork();
     assert.deepEqual(count(second), one, "a second boot adds nothing");
   } finally { await second.stop(); }
 });

@@ -11,7 +11,7 @@
       "id": "P-L9_06-share-sheet",
       "route": "/m/P-L9_06?part=share",
       "proto": "automations,at:share-sheet,{skin}",
-      "waitFor": "[data-testid=\"share-sheet-fld_intake\"]",
+      "waitFor": "[data-testid='as-sheet']",
       "note": "ui/ShareSheet for a folder with an owner and two grants, against the prototype share sheet."
     },
     {

@@ -10,7 +10,8 @@ import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { VirtualWindow } from "../../../../../../ui/src/VirtualList/index.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import { RightPaneDataProvider, hasComputers } from "../rightpane/data.tsx";
-import { ComputerTab } from "../rightpane/ComputerTab.tsx";
+import { ComputerPane } from "../rightpane/ComputerPane.tsx";
+import { usesWorkModel } from "../rightpane/WorkSections.tsx";
 import { FilesTab } from "../rightpane/FilesTab.tsx";
 import { MemoryTab } from "../rightpane/MemoryTab.tsx";
 import { Face, Notice, TextButton, Tool } from "../rightpane/parts.tsx";
@@ -76,7 +77,7 @@ function PageView({ tab: controlled, initialTab, onTab, window }: AgentPageProps
   const win = useWindowDimensions();
   const narrow = win.width > 0 && win.width < NARROW;
   // no capable host, no agent computers: no Computer tab, and the page opens on Chats
-  const noComputers = !hasComputers(data.space);
+  const noComputers = !usesWorkModel(data) && !hasComputers(data.space);   // the Computer tab (Terminal and Browser) is always there once the workspace and Space browser are bound
   const agentId = data.agent.agentId;
   const agentQ = useScreenQuery<AgentOut>("agent", { agentId });
   const outside = agentQ.status !== "loading" && isOutside(agentQ.data.agent);
@@ -124,7 +125,7 @@ function PageView({ tab: controlled, initialTab, onTab, window }: AgentPageProps
       { label: "Chat", onSelect: chat },
       { label: "Automation Runs", onSelect: () => data.nav.openAutomationRuns(agentId) },
       { label: "Open Folder", onSelect: () => data.nav.openFolder(agent.folderId) },
-      ...(!noComputers && agent.hasComputer && data.agent.computerId ? [{ label: "Open Computer", onSelect: () => data.nav.openComputer(data.agent.computerId ?? "") }] : []),
+      ...(!noComputers && agent.hasComputer && data.agent.computerId ? [{ label: "Open Computer", onSelect: () => { setOwn("computer"); onTab?.("computer"); } }] : []),
       ...(outside ? [{ separator: true as const }, { label: "Remove", onSelect: () => setSure(true) }] : data.canEdit ? [{ separator: true as const }, paused ? { label: "Resume", onSelect: () => void resume(deps, agentId, name) } : { label: "Pause", onSelect: () => void pause(deps, agentId, name, "Paused from the agent page") }] : []),
     ], x, y, "other", { label: `${name}'s page` });
   };
@@ -152,7 +153,7 @@ function PageView({ tab: controlled, initialTab, onTab, window }: AgentPageProps
             {outside && !sure ? <TextButton label="Remove" testID="remove-button" onPress={() => setSure(true)} /> : null}
             {outside ? null : <TextButton label="Automation runs" testID="runs-button" onPress={() => data.nav.openAutomationRuns(agentId)} />}
             <Tool icon="folder" label="Open folder" testID="folder-button" onPress={() => data.nav.openFolder(agent.folderId)} />
-            {!noComputers && agent.hasComputer && data.agent.computerId ? <Tool icon="watch" label="Computer" testID="computer-button" onPress={() => data.nav.openComputer(data.agent.computerId ?? "")} /> : null}
+            {!noComputers && agent.hasComputer && data.agent.computerId ? <Tool icon="watch" label="Computer" testID="computer-button" onPress={() => { setOwn("computer"); onTab?.("computer"); }} /> : null}
             <Tool icon="more" label="More" testID="more-button" onPress={moreMenu} />
           </View>
         </View>
@@ -178,7 +179,7 @@ function PageView({ tab: controlled, initialTab, onTab, window }: AgentPageProps
             {tab === "chats" ? (summary ? <ChatsTab summary={summary} {...(window ? { window } : {})} /> : <View testID="chats-loading" accessibilityLabel="Loading" style={st.skStrip} />) : null}
             {tab === "memory" ? <MemoryTab deps={deps} spaceName={data.space.name} {...(window ? { window } : {})} /> : null}
             {tab === "files" ? <FilesTab deps={deps} folderId={agent.folderId} {...(window ? { window } : {})} /> : null}
-            {tab === "computer" ? <ComputerTab deps={deps} {...(window ? { window } : {})} /> : null}
+            {tab === "computer" ? <ComputerPane deps={deps} {...(window ? { window } : {})} /> : null}
           </RightPaneDataProvider>
           {tab === "settings" ? <SettingsTab agent={agent} deps={deps} {...(window ? { window } : {})} /> : null}
         </View>

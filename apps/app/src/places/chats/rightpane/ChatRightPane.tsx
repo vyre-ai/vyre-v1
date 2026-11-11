@@ -15,7 +15,8 @@ import { useKnowsFocus } from "../memory/data.tsx";
 import type { ChatMemoryData } from "../memory/data.tsx";
 import { RightPaneDataProvider, hasComputers, useOnline, useOptionalPaneData, usePaneData, useScreenQuery } from "./data.tsx";
 import type { ChatRightPaneData, RightPaneNav } from "./data.tsx";
-import { COMPUTER_SCREEN, ComputerTab } from "./ComputerTab.tsx";
+import { COMPUTER_SCREEN } from "./ComputerTab.tsx";
+import { ComputerPane } from "./ComputerPane.tsx";
 import { WorkSections, usesWorkModel } from "./WorkSections.tsx";
 import { AboutTab } from "./AboutTab.tsx";
 import { ProfileHeader, roleLine } from "./ProfileHeader.tsx";
@@ -179,7 +180,7 @@ function PaneView({ open, onToggle, tab: controlled, initialTab, hookSel, setup:
     <View testID={`pane-body-${tab}`} style={st.body}>
       {tab === "overview" && session ? <SessionOverview call={data.call} threadId={data.threadId} agentId={data.agent.agentId} summary={session.summary} status={crewLive?.status ?? null} clock={(ts) => timeWords(ts, data.clock())} onHelper={(id) => crewLive?.show(id)} who={(id) => (data.me && id === data.me.id ? "You" : data.nameOf?.(id) ?? id)} onJump={(id) => session.jump(id)} /> : null}
       {tab === "about" ? <AboutTab agent={agent} name={data.agent.name} hasComputer={showComputer} {...(!noComputers && !showComputer ? { onGive: () => { setSetup(true); setOwn("computer"); onTab?.("computer"); } } : {})} onOpenFiles={() => { setOwn("files"); onTab?.("files"); }} onOpenKnows={() => { setOwn("memory"); onTab?.("memory"); }} /> : null}
-      {tab === "computer" ? (work ? <WorkSections deps={deps} {...(window ? { window } : {})} /> : <ComputerTab deps={deps} {...(window ? { window } : {})} />) : null}
+      {tab === "computer" ? <ComputerPane deps={deps} {...(window ? { window } : {})} /> : null}
       {tab === "threads" ? <ThreadsTab deps={deps} {...(window ? { window } : {})} /> : null}
       {tab === "hooks" ? <HooksTab deps={deps} selected={hookSel ?? null} {...(window ? { window } : {})} /> : null}
       {tab === "crew" ? <CrewTab deps={deps} {...(window ? { window } : {})} /> : null}

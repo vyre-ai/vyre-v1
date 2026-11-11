@@ -22,20 +22,6 @@
       "note": "A helper from the header's helper icon, opened read-only with its address bar in the place's middle column."
     },
     {
-      "id": "P-L9b_23-needs-you",
-      "route": "/m/P-L9b_23?screen=needs",
-      "proto": "chat,needs,{skin}",
-      "waitFor": "[data-testid='needs-you']",
-      "note": "The Needs you page from the sidebar's Needs you row, two columns, mounted in the Chats place."
-    },
-    {
-      "id": "P-L9b_23-computer-popup",
-      "route": "/m/P-L9b_23?screen=popup",
-      "proto": "chat,at:demo-popup,{skin}",
-      "waitFor": "[data-testid='computer-popup']",
-      "note": "The computer popup opened from the Computer chip in the composer bar."
-    },
-    {
       "id": "P-L9b_23-recording-sheet",
       "route": "/m/P-L9b_23?screen=sheet",
       "proto": "chat,at:demo-popup-sheet,{skin}",

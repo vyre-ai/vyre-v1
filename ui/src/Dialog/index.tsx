@@ -1,6 +1,7 @@
 // ui/Dialog: the one dialog. A veil over the window, a centred card with a title, the caller's content and a row of actions (the quiet ones left of the primary one). It draws in the
 // Overlay layer so nothing in the app covers it, Escape and a press on the veil close it, and the first field inside takes focus. Every sheet that asks the person
 // something uses this card, so the radius, padding, veil and buttons are the same everywhere.
+import { useEscapeLayer } from "../Overlay/escape.ts";
 import { useEffect, useRef } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
@@ -61,18 +62,14 @@ export function Dialog({ title, children, actions = [], onClose, width = 440, fi
   const card = useRef<unknown>(null);
   const winW = useWindowDimensions().width;
   const full = fill && winW > 0 && winW < 560;
+  useEscapeLayer(true, onClose);
   useEffect(() => {
     if (!web) return;
     ensureCss();
-    const doc = (globalThis as { document?: { addEventListener(t: string, f: (e: { key: string; stopPropagation(): void }) => void): void; removeEventListener(t: string, f: (e: { key: string; stopPropagation(): void }) => void): void } }).document;
-    if (!doc) return;
-    const key = (e: { key: string; stopPropagation(): void }): void => { if (e.key === "Escape") { e.stopPropagation(); onClose(); } };
-    doc.addEventListener("keydown", key);
     // the first field inside the card takes focus (a dialog with only buttons keeps none, so no button wears a focus ring before a key is pressed), so the keyboard works at once
     const el = card.current as { querySelector?: (q: string) => { focus?: () => void } | null } | null;
     el?.querySelector?.("input,textarea,select")?.focus?.();
-    return () => doc.removeEventListener("keydown", key);
-  }, [onClose]);
+  }, []);
   // quiet buttons first, then the primary or danger one, each built in a loop (not a list of rows)
   const buttons: ReactElement[] = [];
   for (const a of actions) if (!a.primary && !a.danger) buttons.push(<ActionButton key={a.label} a={a} />);

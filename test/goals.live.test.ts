@@ -4,6 +4,7 @@
 // stuck, then the number rises past the line, the goal is done and the lead writes its retrospective into the goal's folder.
 import test from "node:test";
 import assert from "node:assert/strict";
+import { DatabaseSync } from "node:sqlite";
 import { boot, call, clock, connect, hostLog, newAgent, seededDir, waitFor } from "./memory-live-kit.ts";
 import type { Daemon } from "../host/src/daemon/daemon.ts";
 import type { DriverEvent, EngineSession, OpenSession, TurnInput } from "../agent/src/turn-engine/types.ts";
@@ -86,6 +87,8 @@ async function up(dir: string, open: OpenSession): Promise<{ d: Daemon; stop: ()
   const pumping = setInterval(() => void d.hooks?.pump?.(), 100);
   return { d, stop: async () => { clearInterval(pumping); await d.stop(); } };
 }
+/** The wake-ups the goal sent and what became of each: a wake with no turn to report it holds the next one back, so a stuck run shows it here. */
+const wakesOf = (d: Daemon): string => { try { return JSON.stringify(new DatabaseSync(d.paths.modules, { readOnly: true }).prepare("SELECT reason, state, attempt FROM goals_wake ORDER BY created_at").all()); } catch (e) { return `no wake table: ${String(e)}`; } };
 const goalOf = async (d: Daemon, goalId: string): Promise<any> => (await ok(d, "goals.get", { goalId }));   // eslint-disable-line @typescript-eslint/no-explicit-any
 async function contacts(d: Daemon, n: number, tag: string): Promise<void> { for (let i = 0; i < n; i++) await ok(d, "records.create", { type: "contact", fields: { name: `Lab 8 guest ${tag}${i}` } }); }
 
@@ -157,7 +160,7 @@ test("goals live: research, plan as tasks, the baton does them, one ask, a resta
     await w.d.hooks!.runPeriodic("goals.clock");
     const ended = await waitFor(async () => { const g = (await goalOf(w.d, goalId)).goal; return g.status === "done" ? g : null; }, 20_000, () => hostLog(w.d));
     assert.match(ended.summary, /^Reached 3 of 3 registrations \(100%\)\. 2 of 2 tasks done\./);
-    const retro = await waitFor(async () => { const g = (await goalOf(w.d, goalId)).goal; return g.retro ? g.retro : null; }, 30_000, () => `${hostLog(w.d)} ${JSON.stringify(m.turns.slice(-3).map((t) => [t.kind, t.reason, t.tools]))}`);
+    const retro = await waitFor(async () => { const g = (await goalOf(w.d, goalId)).goal; return g.retro ? g.retro : null; }, 30_000, () => `wakes ${wakesOf(w.d)} ${hostLog(w.d)} ${JSON.stringify(m.turns.slice(-3).map((t) => [t.kind, t.reason, t.tools]))}`).catch(async (e: Error) => { const a = ((await ok(w.d, "goals.activity", { goalId, limit: 80 })).activity as Array<{ kind: string; text: string }>).filter((x) => ["wake", "status", "ended", "error"].includes(x.kind)).map((x) => `${x.kind}: ${x.text}`); throw new Error(`${e.message} ACTIVITY ${JSON.stringify(a)}`); });
     assert.equal(retro.summary, "Reached the line at 3.");
     const reports = await ok(w.d, "goals.folder", { goalId, sub: "Reports" });
     const files = (await ok(w.d, "files.list", { folder: reports.folderId })).files as Array<{ name: string }>;

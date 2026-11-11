@@ -12,6 +12,7 @@ import { boundedScope } from "../../../kernel/src/seal/scope.ts";
 import { dropRecent, touchRecent } from "../projections.ts";
 import { sharedCount } from "./lists.ts";
 import { setFolderLabel } from "./host.ts";
+import { rawDbOf } from "../../../host/src/ctx/db.ts";
 
 export const TRASH_MS = 30 * 24 * 60 * 60 * 1000;
 export const MAX_INLINE = 256 * 1024;
@@ -594,9 +595,19 @@ function ensurePersonal(ctx: Ctx): Row {
   return mustFolder(ctx, id);
 }
 
+/**
+ * The Space roots and the caller's Personal root, made once per database and person while the server runs: every files call asked for them (twice, through withRoots), which was a
+ * seventh of a start. Keyed on the daemon database (rawDbOf), so two daemons in one process each make their own; a handle the host did not make (a test's own db) is its own key.
+ * A root removed while the server runs (a restore replaces the files and restarts it) is made again at the next start.
+ */
+const ready = new WeakMap<object, Set<string>>();
 export function ensureReady(ctx: Ctx): void {
-  ensureSpaceRoots(ctx);
-  ensurePersonal(ctx);
+  const key = rawDbOf(ctx.db) ?? (ctx.db as object);
+  let done = ready.get(key);
+  if (!done) { done = new Set(); ready.set(key, done); }
+  if (!done.has("")) { ensureSpaceRoots(ctx); done.add(""); }
+  const holder = personalHolder(ctx);
+  if (!done.has(holder)) { ensurePersonal(ctx); done.add(holder); }
 }
 
 function isRoot(row: Row): boolean {

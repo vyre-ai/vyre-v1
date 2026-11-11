@@ -117,3 +117,13 @@ test("Add to Vault: the key goes to the Vault only and the skill keeps the handl
   assert.deepEqual(await checkServer(down, { skillId: "s", server: "x", agentId: "a" }), { state: "down", error: "spawn npx ENOENT" });
   assert.equal((await checkServer(down, { skillId: "s", server: "x", agentId: undefined })).state, "down");
 });
+
+test("the built-in list leaves out the focus- skills (how an agent is told which place it is in); the rest stay", async () => {
+  const { shownToPeople } = await import("./SkillsView.tsx");
+  for (const n of ["focus-records", "focus-vault", "focus-onboarding-team", "focus-console"]) assert.equal(shownToPeople(n), false, n);
+  for (const n of ["about-vyre", "forms", "sites", "working-on-goals", "installing-skills"]) assert.equal(shownToPeople(n), true, n);
+  const page = samplePage();
+  const withFocus = { ...page, builtin: [...page.builtin, { name: "focus-records", description: "Work in Records." }] };
+  const t = lists({ page: withFocus });
+  assert.ok(!/Focus records/i.test(t), "no Focus row is drawn");
+});

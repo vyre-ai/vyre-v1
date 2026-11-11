@@ -1,7 +1,7 @@
 import { createElement, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
-import { useMenu } from "../../../../../ui/src/Menu/index.tsx";
+import { choiceRows, useLiveRows, useMenu } from "../../../../../ui/src/Menu/index.tsx";
 import { Tip, Info } from "../../../../../ui/src/Tip/index.tsx";
 import { Dialog } from "../../../../../ui/src/Dialog/index.tsx";
 import type { CapMap } from "../../../../../generated/types.ts";
@@ -14,8 +14,9 @@ import { detailsOf, detailsText, errorSentence } from "../../errors/details.ts";
 import { Row } from "../../../../../ui/src/Row/index.tsx";
 import { Glyph } from "../shell/glyphs.tsx";
 
-export function useRead<T>(cap: string, input: Record<string, unknown> = {}, options: { direct?: boolean; enabled?: boolean } = {}) {
+export function useRead<T>(cap: string, input: Record<string, unknown> = {}, options: { direct?: boolean; enabled?: boolean; keepPrevious?: boolean } = {}) {
   const { call, screens } = useConsoleData();
+  const last = useRef<T | undefined>(undefined);
   const key = JSON.stringify(input);
   const enabled = options.enabled !== false;
   const query = useMemo(() => !enabled || options.direct ? undefined : (screens as { capQuery?: (cap: string, input: Record<string, unknown>) => LiveQuery<T> }).capQuery?.(cap, JSON.parse(key)), [screens, cap, key, options.direct, enabled]);
@@ -32,17 +33,50 @@ export function useRead<T>(cap: string, input: Record<string, unknown> = {}, opt
     return () => { alive = false; };
   }, [call, cap, key, revision, query, stateKey, enabled]);
   if (!enabled) return {data: undefined, error: undefined, refresh};
-  return query ? { data: snapshot.status === "ready" ? snapshot.data : undefined, error: snapshot.status === "loading" && snapshot.error ? "Couldn’t load this page. Check access and try again." : undefined, refresh } : { ...(state.key===stateKey?state:{}), refresh };
+  const out: { data?: T | undefined; error?: string | undefined; refresh: () => void } = query ? { data: snapshot.status === "ready" ? snapshot.data : undefined, error: snapshot.status === "loading" && snapshot.error ? "Couldn’t load this page. Check access and try again." : undefined, refresh } : { ...(state.key===stateKey?state:{}), refresh };
+  // `keepPrevious`: while the next answer for the same call is on its way (the next search of a list), the last one stays, so the search box and the rows do not vanish with each keystroke
+  if (out.data !== undefined) last.current = out.data;
+  else if (options.keepPrevious === true && out.error === undefined && last.current !== undefined) return { ...out, data: last.current };
+  return out;
 }
+/** Failures of changes whose page was closed before they finished: the next page that makes changes says so, since the one they were made on cannot. */
+const ORPHANED: string[] = [];
+/** The most changes that may wait behind the running one; a held key or a runaway loop cannot grow the queue without bound. */
+export const MAX_WAITING_CHANGES = 20;
 export function useAction(refresh: () => void) {
   const { call, connection } = useConsoleData();
   const retryKey = useRef<{ digest: string; key: string } | null>(null);
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const inflight = useRef(false);
-  const run = async <T,>(cap: string, input: unknown, success: string | ((out: T) => string | Promise<string>)): Promise<T | undefined> => {
-    if (inflight.current) return undefined;
-    if(connection?.get()==='offline'){setNote('Reconnect to this Space before changing it.');return undefined;}
+  const mounted = useRef(true);
+  /** What earlier calls of this burst reported as failed: it stays in the note while later ones run, so a failure is never replaced by the next call's success. */
+  const carry = useRef("");
+  const join = (text: string): string => (carry.current ? `${carry.current} ${text}` : text);
+  useEffect(() => {
+    mounted.current = true;
+    if (ORPHANED.length > 0) setNote(`A change you made before leaving the last page did not go through: ${ORPHANED.splice(0).join(" ")}`);
+    return () => { mounted.current = false; };
+  }, []);
+  // What is running now and what waits behind it, by call. A press while another call runs used to be dropped without a word: pick two people one after the other and the second was lost.
+  // A different call now waits its turn; the same call again (a double press) is the one already on its way, so it is ignored.
+  const running = useRef("");
+  const waiting = useRef(new Set<string>());
+  const tail = useRef<Promise<unknown>>(Promise.resolve());
+  const run = <T,>(cap: string, input: unknown, success: string | ((out: T) => string | Promise<string>)): Promise<T | undefined> => {
+    const digest = cap + JSON.stringify(input);
+    if ((inflight.current && running.current === digest) || waiting.current.has(digest)) return Promise.resolve(undefined);
+    if (waiting.current.size >= MAX_WAITING_CHANGES) { fail("Too many changes are waiting. Let the earlier ones finish, then try again."); return Promise.resolve(undefined); }
+    if (!inflight.current && waiting.current.size === 0) carry.current = "";
+    waiting.current.add(digest);
+    const mine = tail.current.then(() => { waiting.current.delete(digest); running.current = digest; return exec<T>(cap, input, success); });
+    tail.current = mine.catch(() => undefined);
+    return mine;
+  };
+  /** A change that did not go through: said in the note, kept while later calls run, and handed to the next page if this one is already gone. */
+  const fail = (sentence: string): void => { carry.current = join(sentence); if (mounted.current) setNote(carry.current); else ORPHANED.push(sentence); };
+  const exec = async <T,>(cap: string, input: unknown, success: string | ((out: T) => string | Promise<string>)): Promise<T | undefined> => {
+    if(connection?.get()==='offline'){fail('Reconnect to this Space before changing it.');return undefined;}
     let payload=input;
     const value=input&&typeof input==='object'&&!Array.isArray(input)?input as Record<string,unknown>:null;
     if(value&&('idempotencyKey' in value||['health.support_bundle','backup.run','backup.export_start','spaces.export'].includes(cap))){
@@ -50,9 +84,9 @@ export function useAction(refresh: () => void) {
       if(retryKey.current?.digest!==digest)retryKey.current={digest,key:attempt()};
       payload={...rest,idempotencyKey:retryKey.current.key};
     }
-    inflight.current = true; setBusy(true); setNote("");
-    try { const out = await call(cap, payload);const pending=pendingAction(out);if(pending){setNote(pending);return undefined;}const status=out as {status?:string;message?:string};if(status?.status==='failed'||status?.status==='error')throw new Error(status.message??'This action failed.'); setNote(typeof success === "function" ? await success(out as T) : success); retryKey.current=null;refresh(); return out as T; }
-    catch (e) { setNote(errorSentence(e)); return undefined; }
+    inflight.current = true; setBusy(true); setNote(carry.current);
+    try { const out = await call(cap, payload);const pending=pendingAction(out);if(pending){setNote(join(pending));return undefined;}const status=out as {status?:string;message?:string};if(status?.status==='failed'||status?.status==='error')throw new Error(status.message??'This action failed.'); setNote(join(typeof success === "function" ? await success(out as T) : success)); retryKey.current=null;refresh(); return out as T; }
+    catch (e) { fail(errorSentence(e)); return undefined; }
     finally { inflight.current = false; setBusy(false); }
   };
   return { note, busy, run };
@@ -101,8 +135,9 @@ export function Note({ children, testID }: { children: ReactNode; testID?: strin
     </View> : null}</View>;
 }
 export function ReadState({ error, retry }: { error?: string | undefined; retry: () => void }): ReactElement { return error ? <States kind="error" message={error} retryable onRetry={retry} /> : <Text accessibilityRole="progressbar">Loading…</Text>; }
-export function Select({label,value,options,onChange,disabled=false,hint,testID}:{testID?:string;label:string;value:string;options:readonly {key:string;title:string}[];onChange(value:string):void;disabled?:boolean;hint?:string}):ReactElement{
- const menu=useMenu();return <View style={s.field}><Text style={s.label}>{label}</Text><Pressable accessibilityRole="button" accessibilityLabel={label} testID={testID} disabled={disabled} style={s.button} onPress={(event)=>{const rect=(event.currentTarget as unknown as {getBoundingClientRect?():{left:number;bottom:number}})?.getBoundingClientRect?.();menu.show(options.map((item)=>({label:item.title,checked:item.key===value,onSelect:()=>onChange(item.key)})),rect?.left??20,rect?.bottom??100,'other');}}><View style={{flexDirection:"row",alignItems:"center",justifyContent:"space-between",gap:8}}><Text style={[s.buttonText,{flexShrink:1}]} numberOfLines={1}>{options.find((item)=>item.key===value)?.title??(value||'Choose…')}</Text><Glyph name="chevD" size={11} color="var(--ink-3)"/></View></Pressable>{hint ? <Text style={{ fontSize: 11.5, lineHeight: 16, color: "var(--ink-3)" as string }}>{hint}</Text> : null}{menu.element}</View>;
+/** `loading`: the options come from a read that has not arrived; the open list says Loading and fills in place when they do, and never reads as empty. */
+export function Select({label,value,options,onChange,disabled=false,hint,testID,loading=false}:{loading?:boolean;testID?:string;label:string;value:string;options:readonly {key:string;title:string}[];onChange(value:string):void;disabled?:boolean;hint?:string}):ReactElement{
+ const menu=useMenu();const rows=choiceRows(options.map((item)=>({label:item.title,checked:item.key===value,onSelect:()=>onChange(item.key)})),loading);useLiveRows(menu.update,rows);return <View style={s.field}><Text style={s.label}>{label}</Text><Pressable accessibilityRole="button" accessibilityLabel={label} testID={testID} disabled={disabled} style={s.button} onPress={(event)=>{const rect=(event.currentTarget as unknown as {getBoundingClientRect?():{left:number;bottom:number}})?.getBoundingClientRect?.();menu.show(rows,rect?.left??20,rect?.bottom??100,'other');}}><View style={{flexDirection:"row",alignItems:"center",justifyContent:"space-between",gap:8}}><Text style={[s.buttonText,{flexShrink:1}]} numberOfLines={1}>{options.find((item)=>item.key===value)?.title??(value||'Choose…')}</Text><Glyph name="chevD" size={11} color="var(--ink-3)"/></View></Pressable>{hint ? <Text style={{ fontSize: 11.5, lineHeight: 16, color: "var(--ink-3)" as string }}>{hint}</Text> : null}{menu.element}</View>;
 }
 /** A whole number you nudge with - and +, with its explanation as a tooltip. */
 export function Stepper({ label, value, onChange, min = 1, max = 999, help }: { label: string; value: number; onChange: (value: number) => void; min?: number; max?: number; help?: string }): ReactElement {

@@ -19,7 +19,7 @@ Land a calendar event or provider meeting: merge on time plus attendees or on li
 | HTTP | POST /v1/meetings/ingest |
 | MCP tool | none |
 | CLI | none |
-| Emits | meeting.merged |
+| Emits | meeting.merged, meeting.canceled |
 
 ## Input
 

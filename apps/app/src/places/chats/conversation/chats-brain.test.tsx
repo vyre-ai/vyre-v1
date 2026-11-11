@@ -119,6 +119,34 @@ test("the wired panel: usage is asked for the account in use and again for the a
   } finally { restore(); resetMissing(); }
 });
 
+test("choosing the account already in use writes nothing and says nothing; choosing another one does both (rc.22 bug 14)", async () => {
+  resetMissing();
+  const restore = installDom();
+  try {
+    const s = stub({
+      "engine.models.list": () => ({ models: [] }),
+      "engine.usage.get": () => null,
+      "agents.get": () => ({ agent: {} }),
+      "agents.update": (i) => ({ agent: i }),
+      "threads.agent.configure": () => ({ thread: {} }),
+    });
+    const said: string[] = [];
+    const root = await mount(createRoot, <ChatBrain data={s.data} thread={thread} agent={{ id: "agt_intake", name: "Intake" }} accounts={connectedAccounts(ROWS)} mode="ask" onMode={() => undefined} close={() => undefined} narrow={false} say={(t) => said.push(t)} />);
+    await flush();
+    await press(find(root, "model-account"));
+    await press(find(root, "row-model-account-#cl_work"));   // the account this chat already runs on
+    await flush();
+    assert.equal(s.calls.filter((c) => c.cap === "threads.agent.configure").length, 0, "nothing written");
+    assert.deepEqual(said, [], "nothing said");
+    await press(find(root, "model-account"));
+    await press(find(root, "row-model-account-#key"));
+    await flush();
+    assert.equal(s.calls.filter((c) => c.cap === "threads.agent.configure").length, 1);
+    assert.equal(said.length, 1, "a real change says so once");
+    assert.ok(!said[0]!.includes("@"), "and never an email");
+  } finally { restore(); resetMissing(); }
+});
+
 test("the model menu shows the saved list at once, then the vendor's new model by its own name, its default marked, an alias pick checked, and a quiet line on freshness", async () => {
   resetMissing();
   const restore = installDom();

@@ -677,7 +677,7 @@ test("desktop joining previews first and accepts with a real Space-key bundle", 
     return { personId: "usr_dana", token: "vst_join", sessionId: "ses_join", epoch: 2 };
   };
   const invite = await previewDesktopJoin(route, anonymous);
-  const stored = await acceptDesktopJoin(invite, { username: "dana", displayName: "Dana", password: "a good password", deviceName: "Dana's Mac", trustDevice: true, ai: { choice: "none" } }, {
+  const stored = await acceptDesktopJoin(invite, { username: "dana", displayName: "Dana", password: "a good password", deviceName: "Dana's Mac", ai: { choice: "none" } }, {
     anonymous,
     open: async () => ({ def: { spaceId: "spc_nw", name: "Northwind" }, me: { id: "usr_dana" }, close: () => undefined } as never),
     getSpace: async () => ({ id: "spc_nw", marker: "authenticated-marker" }),
@@ -697,7 +697,7 @@ test("desktop joining never persists when the post-accept authenticated Space di
   assert.ok(route && route.kind === "join");
   const invite = await previewDesktopJoin(route, async () => ({ spaceId: "spc_preview", spaceName: "Northwind", invitedBy: "Maya", role: "Member", expiresAt: 1, fingerprint: "server-display-marker" }));
   let writes = 0;
-  await assert.rejects(acceptDesktopJoin(invite, { username: "dana", displayName: "Dana", password: "a good password", deviceName: "Dana's Mac", trustDevice: true, ai: { choice: "none" } }, {
+  await assert.rejects(acceptDesktopJoin(invite, { username: "dana", displayName: "Dana", password: "a good password", deviceName: "Dana's Mac", ai: { choice: "none" } }, {
     anonymous: async () => ({ personId: "usr_dana", token: "vst_join", sessionId: "ses_join", epoch: 2 }),
     open: async () => ({ def: { spaceId: "spc_authenticated", name: "Elsewhere" }, me: { id: "usr_dana" }, close: () => undefined } as never),
     getSpace: async () => ({ id: "spc_authenticated", marker: "authenticated-marker" }),
@@ -717,7 +717,7 @@ test("desktop join persists the verified session by default, never the identity 
       ? { spaceId: "spc_nw", spaceName: "Northwind", invitedBy: "Maya", role: "Member", expiresAt: 1, fingerprint: "server-display-marker" }
       : { personId: "usr_dana", token: "vst_join", sessionId: "ses_join", epoch: 11 };
     const invite = await previewDesktopJoin(route, anonymous);
-    const stored = await acceptDesktopJoin(invite, { username: "dana", displayName: "Dana", password: "a good password", deviceName: "Dana's Mac", trustDevice: true, ai: { choice: "none" } }, {
+    const stored = await acceptDesktopJoin(invite, { username: "dana", displayName: "Dana", password: "a good password", deviceName: "Dana's Mac", ai: { choice: "none" } }, {
       anonymous,
       open: async () => ({ def: { spaceId: "spc_nw", name: "Northwind" }, me: { id: "usr_dana" }, close: () => undefined } as never),
       getSpace: async () => ({ id: "spc_nw", marker: "authenticated-marker" }),
@@ -909,7 +909,7 @@ test('browser invite acceptance registers a web device instead of a native deskt
  let accepted:Record<string,unknown>|undefined;
  const anonymous=async(cap:string,input:unknown)=>{if(cap==='members.invites.preview')return{spaceId:'spc_nw',spaceName:'Northwind',invitedBy:'Maya',role:'Member',expiresAt:1,fingerprint:'server-display'};accepted=input as Record<string,unknown>;return{token:'vst_webjoin'};};
  const join=await previewDesktopJoin(route,anonymous);
- await acceptDesktopJoin(join,{username:'webmember',displayName:'Web member',password:'fixture browser password',deviceName:'',trustDevice:true,ai:{choice:'none'}},{deviceClass:'web',anonymous,open:async()=>({def:{spaceId:'spc_nw',name:'Northwind'},me:{id:'usr_web'},close:()=>undefined} as never),getSpace:async()=>({id:'spc_nw',marker:'display'}),persist:()=>undefined});
+ await acceptDesktopJoin(join,{username:'webmember',displayName:'Web member',password:'fixture browser password',deviceName:'',ai:{choice:'none'}},{deviceClass:'web',anonymous,open:async()=>({def:{spaceId:'spc_nw',name:'Northwind'},me:{id:'usr_web'},close:()=>undefined} as never),getSpace:async()=>({id:'spc_nw',marker:'display'}),persist:()=>undefined});
  assert.equal(accepted?.['deviceClass'],'web');assert.equal(accepted?.['deviceName'],'Web browser');
 });
 
@@ -958,6 +958,25 @@ test("session: a tab change inside the page already open is not a new door: it n
   s.close();
   assert.deepEqual(went, ["chats subject=project%3Aprj_1&tab=plan"], "the local move goes; the same open as a new door is refused");
   assert.equal(said.length, 1);
+});
+
+test("session: a screen a place draws from its own hash (chats.ask, chats.notes, files.knowledge) opens that place; a screen of no place opens nothing (f-wire, 12 Nov)", async () => {
+  // these ids are not registry screens: the Chats and Files places read them from the hash (places/chats/mounts/route.ts SCREEN, places/files/memory/know.ts). The door looked them up in the
+  // registry only, found no place and dropped the click: the Tasks page's Ask in chat, the Artifacts example, Ask the Assistant from a project and a note's Open did nothing.
+  const { screensById } = await import("../../../../../generated/screens.ts");
+  const gw = sessionGateway();
+  const went: string[] = [];
+  const s = await openRealSession({ baseUrl: "http://s.test", token: "t", fetch: gw.fetch, routes: async () => ROUTES, screens: async () => screensById, dial: fakeServer().dial, navigate: (p, h) => went.push(`${p} ${h}`), pollMs: 1_000_000 });
+  s.runtime.open({ screen: "chats.ask", args: { with: "assistant", first: "Draft the agenda" } });
+  s.runtime.open({ screen: "chats.notes", args: { noteId: "nte_1" } });
+  s.runtime.open({ screen: "chats.artifacts" });
+  s.runtime.open({ screen: "files.knowledge", args: { v: "graph" } });
+  s.runtime.open({ screen: "nowhere.at_all" });
+  await new Promise((r) => setTimeout(r, 40));
+  s.close();
+  assert.deepEqual(went.map((w) => w.split(" ")[0]), ["chats", "chats", "chats", "files"], "each opens its place; an id of no place goes nowhere");
+  assert.match(went[0]!, /screen=chats\.ask/);
+  assert.match(went[0]!, /first=Draft/);
 });
 
 test("session: a person's profile that reach refuses opens nothing and says so in plain words; an allowed one opens", async () => {

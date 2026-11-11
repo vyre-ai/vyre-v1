@@ -3,6 +3,7 @@
 // What it does not answer yet (none now) and a #Handle.field is filled by main.ts from the host (vault.ts).
 //
 // Outward acts are held, not done: a click on something that sends, posts, pays or deletes answers with a heldId, and only chrome_send (behind the Gate) does it.
+import { extensionStatus } from "./extension-state.ts";
 import { spawn } from "node:child_process";
 import type { ChildProcess } from "node:child_process";
 import { existsSync, rmSync } from "node:fs";
@@ -37,7 +38,7 @@ export interface Chrome {
   page(): Promise<Cdp>;
   heldIds(): string[];
   /** Is Vyre for Chrome loaded: the flag it was started with, and its running workers. */
-  extension(): Promise<{ configured: boolean; workers: number }>;
+  extension(): Promise<{ configured: boolean; workers: number; state?: "running" | "asleep" | "missing" }>;
   stop(): void;
   /** Close the browser the way a person does (Browser.close), so cookies and local storage are written to the profile folder, then stop it if it is still there after a few seconds. */
   shutdown(): Promise<void>;
@@ -459,7 +460,7 @@ export function launchChrome(screen: Screen | null, profileDir: string, extensio
     extension: async () => {
       let workers = 0;
       try { workers = (await getJson<Target[]>("/json/list")).filter((t) => t.url.startsWith("chrome-extension://")).length; } catch { /* the browser is not up */ }
-      return { configured: extensionDir !== null && existsSync(join(extensionDir, "manifest.json")), workers };
+      return extensionStatus(extensionDir !== null && existsSync(join(extensionDir, "manifest.json")), workers);
     },
     stop() { proc?.kill("SIGTERM"); },
     async shutdown() {

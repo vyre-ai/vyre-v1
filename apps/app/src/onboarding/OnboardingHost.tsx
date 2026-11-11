@@ -86,8 +86,15 @@ export function OnboardingHost({ call, space, children, cards, onAddSpace, mac =
         const before = state.seen ? true : await usedChecklistBefore(call).catch(() => false);
         if (off) return;
         // "Set up my team" made this Personal Space first: open straight on the team step
-        if (f === "personal" && takeTeamNext()) { setStep("team"); setShown(true); void markSeen(call, f).catch(() => undefined); return; }
-        if (shouldAutoOpen(f, state.progress, before)) { setShown(true); void markSeen(call, f).catch(() => undefined); }
+        if (f === "personal" && takeTeamNext()) {
+          // saved as seen before the screen shows, so a reload right after closing it (a slow network may still be sending the close) cannot open it again
+          await markSeen(call, f).catch(() => undefined);
+          setStep("team"); setShown(true); return;
+        }
+        if (shouldAutoOpen(f, state.progress, before)) {
+          await markSeen(call, f).catch(() => undefined);
+          setShown(true);
+        }
       } catch { /* the app works without it; the checklist can reopen it */ }
     })();
     return () => { off = true; };

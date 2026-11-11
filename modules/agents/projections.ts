@@ -772,7 +772,10 @@ export function fingerprint(text: string): string {
 /** Call another module's capability through the host. */
 export async function call<T>(ctx: AgentsCtx, cap: string, input: unknown, opts?: { idempotencyKey?: string }): Promise<T> {
   if (!ctx.call) raise(ctx, "internal.unexpected", "That part of the app is not available right now.", { cap });
-  return (await ctx.call(cap, input, opts)) as T;
+  // the pipeline reads the key of a keyed capability from the call's input, so a key the caller gave as an option goes into the input too (a neighbour that needs one refuses its absence)
+  const body = opts?.idempotencyKey !== undefined && input !== null && typeof input === "object" && !Array.isArray(input) && !("idempotencyKey" in input)
+    ? { ...(input as Record<string, unknown>), idempotencyKey: opts.idempotencyKey } : input;
+  return (await ctx.call(cap, body, opts)) as T;
 }
 /** Like `call`, but a module that is not there (or refuses) gives the fallback: what is shown on the agent page must not fail because a neighbour is down. */
 export async function tolerant<T>(ctx: AgentsCtx, cap: string, input: unknown, fallback: T): Promise<T> {

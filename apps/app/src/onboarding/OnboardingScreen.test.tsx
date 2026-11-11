@@ -32,7 +32,7 @@ test("done steps tick, skipped steps say Skipped, and a finished flow shows the 
   const end = renderToStaticMarkup(<OnboardingScreen flow="member" spaceName="Acme" progress={all} onStep={noop} onClose={noop} device="mac" />);
   assert.ok(end.includes("You are set up") && end.includes("All done") && end.includes("Open Vyre") && !end.includes("Home") && end.includes('data-testid="onboarding-finished"'));
   const some = renderToStaticMarkup(<OnboardingScreen flow="member" spaceName="Acme" progress={{ ...all, apps: "later" }} stepKey="summary" onStep={noop} onClose={noop} device="mac" />);
-  assert.ok(some.includes('data-testid="onboarding-finished"') && some.includes('data-testid="done-set-apps"') && some.includes("1 left for later") && some.includes(">Skipped<"), "the summary names what was put off, with Set up");
+  assert.ok(some.includes('data-testid="onboarding-finished"') && some.includes('data-testid="done-set-apps"') && some.includes("1 step is still open") && some.includes("You can start now") && !some.includes("You are set up") && some.includes(">Skipped<"), "the summary names what was put off, with Set up");
   assert.ok(!some.includes('data-testid="done-set-mine"'), "a done step has no Set up");
 });
 
@@ -135,7 +135,7 @@ test("the suite cards draw their first frame with the buttons the owner needs", 
   const { WorkspaceCard, SignInDomainCard, DirectoryCard, InvitesCard } = await import("./SuiteCards.tsx");
   const call = (async () => ({})) as never;
   const w = renderToStaticMarkup(<WorkspaceCard call={call} onOpenConsole={noop} onDone={noop} />);
-  assert.ok(w.includes('data-testid="workspace-open"') && w.includes("Open the setup in the Console"));
+  assert.ok(w.includes('data-testid="workspace-open"') && w.includes("Set up Google or Microsoft") && !/Console/.test(w));
   assert.ok(renderToStaticMarkup(<SignInDomainCard call={call} onOpenConsole={noop} onDone={noop} />).includes('data-testid="signin-open"'));
   assert.ok(renderToStaticMarkup(<DirectoryCard call={call} by="Dana" space="Northwind" onOpenConsole={noop} onDone={noop} />).includes('data-testid="directory-open"'));
   const inv = renderToStaticMarkup(<InvitesCard call={call} onDone={noop} />);
@@ -222,4 +222,15 @@ test("with every step done, any step in the rail reopens and shows its card; Con
   await press(find(root, "step-next")); await flush();
   assert.deepEqual(ran, ["connect_ai"], "Continue on a done step ran the card's action before moving on");
   assert.ok(find(root, "card-interview"), "then it moved on");
+});
+
+test("the people step on a server with no Google or Microsoft says why it is empty and offers nothing that looks broken; a real failure offers Try again", async () => {
+  const { probe } = await import("./suite.ts");
+  const refused = (message: string) => (async () => { throw Object.assign(new Error(message), { code: "validation.precondition_failed" }); }) as never;
+  assert.deepEqual(await probe(refused("Google delegation is not set up."), "google.directory.list"), { kind: "not_yet" }, "a connection not made yet is the normal first-day state");
+  assert.deepEqual(await probe(refused("Microsoft 365 is not set up."), "ms.directory.list"), { kind: "not_yet" });
+  assert.deepEqual(await probe((async () => { throw Object.assign(new Error("boom"), { code: "internal.unexpected" }); }) as never, "google.directory.list"), { kind: "failed" }, "anything else is a failure");
+  const { DirectoryCard } = await import("./SuiteCards.tsx");
+  const out = renderToStaticMarkup(<DirectoryCard call={(async () => ({})) as never} by="Dana" space="Northwind" onOpenConsole={noop} onDone={noop} />);
+  assert.ok(!/Could not read this right now/.test(out));
 });

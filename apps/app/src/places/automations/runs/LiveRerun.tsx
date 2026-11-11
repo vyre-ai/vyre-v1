@@ -15,7 +15,7 @@ export function LiveRerun({ run, stepKeys }: { run: Run; stepKeys: readonly stri
   const warning = liveRerunWarning(outwardEffects(stepKeys));
   const go = (): void => {
     if (!automationId) return;
-    void data.call("automations.replay", { automationId, runId: run.id, version: "current" }).then((out) => {
+    void data.call("automations.replay", { automationId, runId: run.id, version: "current", confirm: true }).then((out) => {
       const id = out && typeof out === "object" && typeof (out as { runId?: unknown }).runId === "string" ? (out as { runId: string }).runId : null;
       setOpen(false);
       setNote("Live re-run started");

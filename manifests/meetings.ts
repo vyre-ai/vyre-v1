@@ -111,7 +111,7 @@ export default defineManifest({
         source: t.enm('calendar', 'zoom', 'meet', 'teams'), providerRef: t.str(), calendarEventId: t.opt(cevId), title: t.opt(t.str()), startsAt: t.ts(), endsAt: t.opt(t.ts()),
         joinUrl: t.opt(t.str()), attendees: t.arr(attendeeIn), status: t.opt(mstatus),
       },
-      out: { meetingId: id.record, created: t.bool(), merged: t.bool() }, emits: ['meeting.merged'], idem: 'natural',
+      out: { meetingId: id.record, created: t.bool(), merged: t.bool() }, emits: ['meeting.merged', 'meeting.canceled'], idem: 'natural',
     }),
     write('meetings.set_state', 'Mark a meeting live or ended from a provider or calendar signal', {
       in: { meetingId: id.record, state: t.enm('live', 'ended') }, out: { meetingId: id.record }, on: ['record', '/meetingId'], emits: ['meeting.started', 'meeting.ended'], idem: 'natural',

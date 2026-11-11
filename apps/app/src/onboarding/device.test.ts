@@ -11,7 +11,7 @@ test("a browser has no sessions or folders; a phone also has no Chrome step; the
   assert.ok(!keys("phone").includes("chrome") && !keys("phone").includes("sessions"));
   assert.equal(keys("web").length, 6);
   assert.equal(keys("phone").length, 5);
-  assert.equal(visibleSteps("team", "phone").length, 9, "team steps do not depend on the device");
+  assert.equal(visibleSteps("team", "phone").length, 6, "team steps do not depend on the device");
 });
 
 test("on a phone, Your phone is already done, and the counts, resume and next follow the visible steps", () => {

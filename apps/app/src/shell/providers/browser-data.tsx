@@ -19,6 +19,12 @@ export function browserView(agentId: string, rows: readonly BrowserRowLike[], d:
   return { ...base, state: r.running ? "open" : "closed", ...(r.running ? { tabs: r.tabs, ...(r.busy ? { caption: "Working in it now" } : {}) } : {}) };
 }
 
+/** The line for a Space with no browser to run: what the server said, with the way out. */
+export function unavailableLine(e: unknown): string {
+  const said = e instanceof Error ? e.message : "";
+  return /not running on this host/i.test(said) ? "This Space has nowhere to run a browser yet. Add a compute server in Console > Computers." : said || "The browser could not be reached. It will try again.";
+}
+
 const sentence = (e: unknown): string => (e instanceof Error && e.message ? e.message : "That did not work. Try again.");
 const POLL_MS = 3000;
 
@@ -35,6 +41,7 @@ export function browserData(d: {
   return {
     watch(agentId, on) {
       let live = true;
+      let shown = false;
       const pull = (): void => {
         void (async () => {
           const rows = ((await d.call("computers.browser.profiles", {})) as { profiles?: BrowserRowLike[] }).profiles ?? [];
@@ -44,8 +51,11 @@ export function browserData(d: {
           if (r && (r.access === "owner" || r.access === "admin")) {
             try { sites = ((await d.call("computers.browser.sessions", { agentId })) as { sessions?: Array<{ site: string; signedInAs?: string; since: number }> }).sessions?.map((x) => ({ site: x.site, ...(x.signedInAs ? { signedInAs: x.signedInAs } : {}), since: x.since })) ?? []; } catch { /* the list stays empty */ }
           }
-          if (live) on(browserView(agentId, rows, d, sites));
-        })().catch(() => undefined);
+          if (live) { shown = true; on(browserView(agentId, rows, d, sites)); }
+        })().catch((e: unknown) => {
+          // a Space that cannot run a browser answers every read with a refusal: say so in one plain line instead of drawing a placeholder that never fills. A later good answer replaces it.
+          if (live && !shown) on({ state: "error", canTakeOver: false, sites: [], line: unavailableLine(e) });
+        });
       };
       refreshers.add(pull);
       pull();

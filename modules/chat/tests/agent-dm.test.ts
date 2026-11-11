@@ -2,7 +2,7 @@
 // and away, working hours, the hourly limit, a mute and the person's private facts all hold it. The handler is the chat module's own; the Gate's ask-first is tested in test/agent-dm.team.live.test.ts.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { handlers } from "../impl.ts";
+import { handlers, consumers } from "../impl.ts";
 import { approveInChat, onCardAnswered, onDirectReply, sendDue, saysFact } from "../handlers/agent-dm.ts";
 import { insertMessage } from "../projections.ts";
 import { DANA, INTAKE, MAYA, NOW, assertEventsConform, codeOf, contractErrors, harness } from "../fixtures/harness.ts";
@@ -284,4 +284,69 @@ test("a Space agent's hourly limit is its own, per teammate; an Assistant's stay
   const { agent } = await asked(hn);
   for (let i = 0; i < 3; i++) assert.equal((await h["chat.message_person"]!(agent, { to: MAYA, body: `Note ${i}`, idempotencyKey: key() })).state, "sent");
   assert.equal((await h["chat.message_person"]!(agent, { to: MAYA, body: "Note 4", idempotencyKey: key() })).state, "scheduled", "the fourth in an hour waits");
+});
+
+// ---- privacy: what a teammate writes to an agent that wrote as itself stays theirs (rc.22 bug 34) ----
+
+test("as itself, a teammate's card answer reaches the asker's chat as the outcome only, never the words she typed with it", async () => {
+  const { hn } = world({ kind: "agent" });
+  const { origin, agent } = await asked(hn, "ask Maya to approve the Rivera discount");
+  const out = await h["chat.message_person"]!(agent, { to: MAYA, body: "Can you approve the 10% discount?", card: { kind: "approval", title: "the 10% Rivera discount" }, idempotencyKey: key() });
+  assert.equal(out.as, "self");
+  const before = msgs(hn, origin).length;
+  await onCardAnswered(hn.ctx, { name: "task.sent_back", payload: { taskId: out.taskId, by: MAYA, note: "SECRET-NOTE my kid is sick, can't do Friday" } });
+  const added = msgs(hn, origin).slice(before);
+  assert.ok(!JSON.stringify(added).includes("SECRET-NOTE"), "none of her words");
+  assert.ok(!JSON.stringify(added).includes("kid is sick"), "none of her words");
+});
+
+test("as itself, a late reply (after the day's window) and a reply after the connected line was written add nothing to the asker's chat", async () => {
+  const { hn } = world({ kind: "agent" });
+  const { origin, agent } = await asked(hn);
+  const out = await h["chat.message_person"]!(agent, { to: MAYA, body: "Is Friday fine?", idempotencyKey: key() });
+  const before = msgs(hn, origin).length;
+  const reply = (await h["chat.post"]!(hn.person(MAYA), { threadId: out.threadId, body: "LATE-WORDS", idempotencyKey: key() })).message;
+  const event = { payload: { messageId: reply.messageId, threadId: out.threadId, author: { kind: "person", id: MAYA } } };
+  // the window is a day: far past it, nothing at all is written, not even the connected line
+  const later = { ...hn.ctx, now: () => NOW + 3 * 24 * 3600 * 1000 } as typeof hn.ctx;
+  assert.deepEqual(await onDirectReply(later, event as never), []);
+  assert.equal(msgs(hn, origin).length, before, "nothing after the window");
+  // inside the window: the one line, and the flag that stops every later reply is stored in the database, so a restart does not bring the words back
+  assert.equal((await onDirectReply(hn.ctx, event as never)).length, 1);
+  assert.equal(hn.rows("SELECT replied_at FROM chat_agent_dm WHERE dm = ? AND mode = 'self'", out.threadId).every((r) => r["replied_at"] !== null), true);
+  const again = (await h["chat.post"]!(hn.person(MAYA), { threadId: out.threadId, body: "AFTER-WORDS", idempotencyKey: key() })).message;
+  assert.deepEqual(await onDirectReply(hn.ctx, { payload: { messageId: again.messageId, threadId: out.threadId, author: { kind: "person", id: MAYA } } } as never), []);
+  assert.ok(!JSON.stringify(msgs(hn, origin)).includes("LATE-WORDS") && !JSON.stringify(msgs(hn, origin)).includes("AFTER-WORDS"));
+});
+
+test("as itself, the agent asked by Dana cannot search up what Maya wrote in its chat with her", async () => {
+  const { hn } = world({ kind: "agent" });
+  const { origin, agent } = await asked(hn);
+  const out = await h["chat.message_person"]!(agent, { to: MAYA, body: "Is Friday fine?", idempotencyKey: key() });
+  await h["chat.post"]!(hn.person(MAYA), { threadId: out.threadId, body: "Zanzibar is my private answer", idempotencyKey: key() });
+  const hits = await h["chat.history.search"]!(agent, { q: "Zanzibar private answer" });
+  assert.deepEqual(hits.hits, [], "Dana is not in that chat, so the agent acting for her recalls nothing from it");
+  assert.ok(!JSON.stringify(msgs(hn, origin)).includes("Zanzibar"));
+});
+
+test("only two events carry a teammate's words back to an asker (a new message, a card answer): no edit, reaction, delete or rename does", () => {
+  const c = consumers as unknown as Record<string, { on: string[] }>;
+  assert.deepEqual(c["chat.agent_dm_reply"]!.on, ["message.received"]);
+  assert.deepEqual(c["chat.agent_dm_answer"]!.on, ["task.approved", "task.rejected", "task.sent_back", "vault.request_fulfilled", "vault.request_declined"]);
+  const others = Object.entries(c).filter(([k]) => k.startsWith("chat.agent_dm")).map(([k]) => k).sort();
+  assert.deepEqual(others, ["chat.agent_dm_answer", "chat.agent_dm_reply"], "no third path into agent-dm.ts");
+});
+
+// ---- rc.22 bug 15: a person's own chat never answers "does not exist or is not yours" because of what happened to its agents ----
+
+test("a person who started a chat can still write in it after its agent was switched out, removed, or left in listen mode: never not_found", async () => {
+  const { hn } = world();
+  const origin = (await h["chat.start"]!(hn.ctx, { kind: "chat", agentIds: [INTAKE], idempotencyKey: key() })).thread.threadId as string;
+  const say = async (body: string) => (await h["chat.post"]!(hn.ctx, { threadId: origin, body, idempotencyKey: key() })).message;
+  assert.ok(await say("first"));
+  hn.db.run("UPDATE chat_thread_agent SET mode = 'listen' WHERE thread = ?", origin);                       // demoted by a brain change
+  assert.ok(await say("with the agent only listening"));
+  hn.db.run("UPDATE chat_thread_agent SET deleted_at = ? WHERE thread = ?", NOW, origin);                   // the agent was taken off
+  assert.ok(await say("with no agent at all"));
+  assert.equal(await h["chat.post"]!(hn.person(MAYA), { threadId: origin, body: "someone else", idempotencyKey: key() }).then(() => "wrote", (e: unknown) => codeOf(e)), "validation.not_found", "a stranger still gets not_found, by design");
 });

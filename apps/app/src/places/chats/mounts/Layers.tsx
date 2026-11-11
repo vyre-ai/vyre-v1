@@ -1,5 +1,6 @@
 // The two layers the screens of this folder open: a popover that hangs under the control that opened it (All agents, the terminal list) and a sheet in the middle of the window
 // (Connect an outside agent, the terminal rules). Both draw in the shared Overlay layer over a veil that closes them, both close on Escape, and both hand back the focus they took.
+import { useEscapeLayer } from "../../../../../../ui/src/Overlay/escape.ts";
 import { useEffect, useRef } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
@@ -23,10 +24,9 @@ function useDismiss(onClose: () => void): void {
     const doc = (globalThis as { document?: DocLike }).document;
     if (!doc) return undefined;
     const before = doc.activeElement ?? null;
-    const onKey = (e: { key: string; preventDefault(): void }): void => { if (e.key === "Escape") { e.preventDefault(); close.current(); } };
-    doc.addEventListener("keydown", onKey);
-    return () => { doc.removeEventListener("keydown", onKey); before?.focus?.(); };
+    return () => { before?.focus?.(); };
   }, []);
+  useEscapeLayer(true, () => close.current());   // one Escape closes the topmost layer only
 }
 
 export interface PopoverProps {

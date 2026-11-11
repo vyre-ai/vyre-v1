@@ -1,6 +1,6 @@
 // A chat turn parked at the Gate (turn.waiting { task }) goes on once the person answers: approved, with what the call answered (the Gate keeps it on the hold), or turned down. Without this the
 // turn would wait for ever, because the approval runs the held call but nothing told the engine. A host that does not hold the thread leaves it to the host that does (resume returns null).
-import { boundEngine } from "../projections.ts";
+import { boundEngine, keepForRestart } from "../projections.ts";
 import type { EngineCtx } from "../projections.ts";
 import { openFor } from "../runtime.ts";
 
@@ -13,7 +13,7 @@ export const gateResumeConsumers = {
     run: async (ctx: EngineCtx, event: { name: string; payload: { blockId?: string } }): Promise<{ skipped?: string; released?: boolean }> => {
       if (typeof event.payload.blockId !== "string") return { skipped: "no_block" };
       let engine;
-      try { engine = boundEngine(ctx); } catch { return { skipped: "engine_not_running" }; }
+      try { engine = boundEngine(ctx); } catch { keepForRestart(); return { skipped: "engine_not_running" }; }
       return { released: engine.release(event.payload.blockId) };
     },
   },
@@ -23,7 +23,7 @@ export const gateResumeConsumers = {
       // an outside agent asked its person (docs/ask-the-person.md): no turn here waits on it, and its answer is the outside agent's to take (modules/mcp)
       if (event.payload.askedBy !== undefined) return { skipped: "outside_ask" };
       let engine;
-      try { engine = boundEngine(ctx); } catch { return { skipped: "engine_not_running" }; }
+      try { engine = boundEngine(ctx); } catch { keepForRestart(); return { skipped: "engine_not_running" }; }
       // only a turn that parked on this hold (an API engine's) is resumed here; a CLI engine's held call over MCP ended its turn, and engine.hold_answered wakes it with the answer (held-notes.ts)
       try { if (ctx.db.all("SELECT 1 AS x FROM engine_waits WHERE task_id = ?", event.payload.taskId).length === 0) return { skipped: "no_parked_turn" }; } catch { /* the table is made with the first parked turn */ return { skipped: "no_parked_turn" }; }
       const approved = event.name === "gate.approved";

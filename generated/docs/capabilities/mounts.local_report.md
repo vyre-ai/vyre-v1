@@ -19,7 +19,7 @@ A device reports changes in a mounted local folder and uploads their blobs (syst
 | HTTP | POST /v1/mounts/local_report |
 | MCP tool | none |
 | CLI | none |
-| Emits | file.version_added, file.conflict_kept, mount.synced |
+| Emits | file.version_added, file.conflict_kept, mount.synced, mount.failed |
 
 ## Input
 

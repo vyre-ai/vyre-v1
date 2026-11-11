@@ -94,6 +94,7 @@ type Out = {
 - permission.above_clearance
 - permission.no_grant
 - provider.auth_failed
+- provider.unavailable
 - validation.bad_input
 - validation.duplicate
 

@@ -186,7 +186,7 @@ test("a record feeds the tags through a mapping; explicit values win; without a 
   const id = w.add("Letter.docx", docx(para("Dear {client.name},") + para("Fee {matter.fee} for {matter.title}.") + para("{firm}")));
   const out = await filled(w, id, { recordId: "rec_1", mapping: { "client.name": "full_name", "matter.fee": "retainer" }, values: { matter: { title: "Estate plan" }, firm: "Acme" } });
   assert.deepEqual(textOf(out.bytes), ["Dear Dana Harlow,", "Fee $2,500.00 for Estate plan.", "Acme"]);
-  assert.deepEqual(w.calls.filter((c) => c.cap === "records.get").map((c) => c.input), [{ recordId: "rec_1" }]);
+  assert.deepEqual(w.calls.filter((c) => c.cap === "records.get").map((c) => c.input), [{ type: "contact", recordId: "rec_1" }], "the type is looked up, then the record is read by type and id");
   assert.deepEqual((w.events.at(-1)?.payload as { recordId?: string }).recordId, "rec_1");
 
   const typed = await filled(w, id, { recordId: "rec_1", mapping: { "client.name": "full_name", "matter.fee": "retainer" }, values: { recordType: "contact", client: { name: "Override" }, matter: { title: "T" }, firm: "Acme" }, name: "typed" });

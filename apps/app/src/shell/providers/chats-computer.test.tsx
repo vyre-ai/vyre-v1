@@ -67,32 +67,21 @@ function goFor(kind: "personal" | "team", fail?: unknown, computers: { agentId: 
   return { go, said, calls, opened, acts };
 }
 
-test("a computer door in a Personal Space with no capable host does nothing and asks nothing; with one it opens the agent's computer", async () => {
+// owner ruling 6 Nov 2026 (apps/app/src/places/chats/mounts/data.ts): there is one Computer tab, on the agent's page; every door to "its computer" opens it, with or without a host, and the tab says so when there is none
+test("every computer door opens the agent's Computer tab: it asks nothing, says nothing, and needs no host", async () => {
   resetComputersAvailable();
-  const { go, said, calls, opened } = goFor("personal");
-  go.computerOfAgent("agt_intake");
-  assert.deepEqual([calls, said, opened], [[], [], []]);
+  for (const kind of ["personal", "team"] as const) {
+    const g = goFor(kind, new Error("fetch failed"));
+    g.go.computerOfAgent("agt_intake");
+    await new Promise((r) => setTimeout(r, 0));
+    assert.deepEqual(g.acts, [{ t: "agent", agentId: "agt_intake", tab: "computer" }], kind);
+    assert.deepEqual([g.calls, g.said], [[], []], `${kind}: no query, no line`);
+  }
   setComputersAvailable("s1", true);
   const found = goFor("personal", undefined, [{ agentId: "agt_intake", computerId: "cmp_1" }]);
   found.go.computerOfAgent("agt_intake");
-  await new Promise((r) => setTimeout(r, 0));
-  assert.deepEqual(found.acts, [{ t: "layer", layer: { kind: "computer", computerId: "cmp_1", chat: false } }]);
+  assert.deepEqual(found.acts, [{ t: "agent", agentId: "agt_intake", tab: "computer" }]);
   resetComputersAvailable();
-});
-
-test("no computer for the agent says so; a network failure says could not reach; a found one opens", async () => {
-  const none = goFor("team", undefined, []);
-  none.go.computerOfAgent("agt_intake");
-  await new Promise((r) => setTimeout(r, 0));
-  assert.deepEqual(none.said, [{ text: "Intake has no computer yet." }]);
-  const down = goFor("team", new Error("fetch failed"));
-  down.go.computerOfAgent("agt_intake");
-  await new Promise((r) => setTimeout(r, 0));
-  assert.deepEqual(down.said, [{ text: "Could not reach the computer. Try again." }]);
-  const found = goFor("team", undefined, [{ agentId: "agt_intake", computerId: "cmp_1" }]);
-  found.go.computerOfAgent("agt_intake");
-  await new Promise((r) => setTimeout(r, 0));
-  assert.deepEqual(found.acts, [{ t: "layer", layer: { kind: "computer", computerId: "cmp_1", chat: false } }]);
 });
 
 test("computerLine maps the failures", () => {

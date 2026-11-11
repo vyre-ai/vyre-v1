@@ -13,7 +13,7 @@ import { Info } from "../../../../../../ui/src/Tip/index.tsx";
 import { SignInPanel } from "../../../ai-signin/SignInPanel.tsx";
 import { startFlow } from "../../../ai-signin/flow.ts";
 import type { Flow } from "../../../ai-signin/flow.ts";
-import { canShare, cliDriverOf, countWords, howConnected, needsWords, scopeWords, stateWords, testWords, usageWords, userKind } from "./model.ts";
+import { canShare, cliDriverOf, countWords, howConnected, needsWords, rightNow, scopeWords, testWords, usageWords, userKind } from "./model.ts";
 
 export interface ProviderPanelProps {
   provider: Provider;
@@ -77,7 +77,7 @@ export function ProviderPanel({ provider, onNote, onRemoved }: ProviderPanelProp
         <View style={s.facts}>
           <View style={s.fact}><Text style={s.k}>Connects with</Text><Text style={s.v} testID="provider-how">{howConnected(provider)}</Text></View>
           <View style={s.fact}><Text style={s.k}>Belongs to</Text><Text style={s.v} testID="provider-scope">{scopeWords(provider)}</Text></View>
-          <View style={s.fact}><Text style={s.k}>Right now</Text><View style={s.state}><View style={[s.dot, { backgroundColor: (needs !== null || chatWhy !== null ? STATE_COLOR.needs_sign_in : STATE_COLOR[provider.state]) as string }]} /><Text style={s.v} testID="provider-state">{needs ?? (chatWhy !== null ? `Works, but not in chats: ${chatWhy}` : stateWords(provider.state, provider.unopenable))}</Text></View></View>
+          <View style={s.fact}><Text style={s.k}>Right now</Text><View style={s.state}><View style={[s.dot, { backgroundColor: STATE_COLOR[rightNow(provider.state, provider.unopenable, needs, chatWhy).tone] as string }]} /><Text style={s.v} testID="provider-state">{rightNow(provider.state, provider.unopenable, needs, chatWhy).text}</Text></View></View>
           <View style={s.fact}><Text style={s.k}>This month</Text><Text style={s.v} testID="provider-usage">{usageWords(provider)}</Text></View>
         </View>
 

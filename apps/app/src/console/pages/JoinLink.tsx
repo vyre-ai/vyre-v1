@@ -9,6 +9,7 @@ import { Switch } from "../../places/settings/ui.tsx";
 import { useConsoleData } from "../shell/data.tsx";
 import { Group, Section } from "../shell/ui.tsx";
 import { emailInvite, endsOn } from "./Invites.tsx";
+import { CopyRow } from "./suite/parts.tsx";
 import { Actions, Button, Note, Segmented, useAction } from "./shared.tsx";
 
 export type JoinLink = CapMap["members.join_link.get"]["out"]["link"];
@@ -65,7 +66,7 @@ export function JoinLinkSection({ link, requests, roles, roleName, refresh }: { 
           <Button label="Allow" testID={`join-approve-${r.id}`} disabled={action.busy} onPress={() => void approve(r)} />
         </Actions>} />)}
       {link.on && requests.length === 0 ? <Row id="join-none" title="No one has asked to join" note="When someone opens the link and asks, they show up here." /> : null}
-      {fresh ? <><Note>{`Copy this one-time invite link for ${fresh.email}:`}</Note><Text selectable testID="join-approved-link">{fresh.link}</Text><Actions><Button label={`Email it to ${fresh.email}`} testID="join-approved-mail" disabled={mailNote === "Sending"} onPress={() => void mail()} /><Button label="Done" testID="join-approved-done" onPress={() => { setFresh(null); setMailNote(""); }} /></Actions>{mailNote ? <Note>{mailNote}</Note> : null}</> : null}
+      {fresh ? <><Note>{`Copy this one-time invite link for ${fresh.email}:`}</Note><CopyRow label="Link, works once" value={fresh.link} testID="join-approved-link" /><Actions><Button label={`Email it to ${fresh.email}`} testID="join-approved-mail" disabled={mailNote === "Sending"} onPress={() => void mail()} /><Button label="Done" testID="join-approved-done" onPress={() => { setFresh(null); setMailNote(""); }} /></Actions>{mailNote ? <Note>{mailNote}</Note> : null}</> : null}
       {action.note ? <Note>{action.note}</Note> : null}
     </Group>
   </Section>;

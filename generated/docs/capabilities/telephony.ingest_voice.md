@@ -19,7 +19,7 @@ Land an incoming call and answer with the routing instruction for the number, ho
 | HTTP | POST /v1/telephony/ingest_voice |
 | MCP tool | none |
 | CLI | none |
-| Emits | call.ringing |
+| Emits | call.ringing, call.ended, call.missed |
 
 ## Input
 

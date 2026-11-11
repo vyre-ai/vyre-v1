@@ -23,7 +23,7 @@ const personal: StepDef[] = [
 ];
 
 const team: StepDef[] = [
-  { key: "org", title: "Your organisation", card: "org", line: "Name and kit" },
+  { key: "org", title: "Your organisation", card: "org", line: "Name your Space" },
   { key: "space_ai", title: "AI for the Space", card: "space_ai", line: "Yours and a shared key" },
   { key: "workspace", title: "Google or Microsoft", card: "google_microsoft", line: "Mail, calendar, files" },
   { key: "sign_in", title: "Sign in for your domain", card: "sign_in_domain", line: "Same app" },
@@ -43,7 +43,10 @@ const member: StepDef[] = [
   { key: "personal", title: "A Personal Space", card: "optional_personal", line: "Optional" },
 ];
 
-const FLOWS: Record<FlowKind, readonly StepDef[]> = { personal, team, member };
+/** Cards nothing is built behind yet (their step would only say "not set up yet"). A step with nothing real in it is not shown, in the rail, the count, the checklist or the end screen. */
+export const UNBUILT: ReadonlySet<CardKind> = new Set<CardKind>(["agents", "shared_data", "team_win", "optional_personal"]);
+const built = (steps: readonly StepDef[]): readonly StepDef[] => steps.filter((s) => !UNBUILT.has(s.card));
+const FLOWS: Record<FlowKind, readonly StepDef[]> = { personal: built(personal), team: built(team), member: built(member) };
 export const stepsOf = (flow: FlowKind): readonly StepDef[] => FLOWS[flow];
 export const stepDef = (flow: FlowKind, key: string): StepDef | undefined => FLOWS[flow].find((s) => s.key === key);
 export const isStepKey = (flow: FlowKind, key: string): boolean => stepDef(flow, key) !== undefined;
@@ -84,5 +87,6 @@ export function shouldAutoOpen(flow: FlowKind, progress: Progress, seen: boolean
 /** A Space's name as a person reads it: a raw id ("spc_2a7c98c337e1dfd2e05e1aab") is no name, so it reads empty and the screen says "Your Space" instead. Setup never shows an id. */
 export function readableName(name: string | null | undefined): string {
   const n = (name ?? "").trim();
-  return /^[a-z]{2,6}_[0-9a-z]{8,}$/i.test(n) ? "" : n;
+  // an id is no name, and neither is "your Space", the stand-in for no name: the name field starts empty rather than with something that is not the Space's name
+  return /^[a-z]{2,6}_[0-9a-z]{8,}$/i.test(n) || n === "your Space" ? "" : n;
 }

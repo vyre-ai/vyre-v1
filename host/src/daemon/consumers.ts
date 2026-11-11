@@ -193,13 +193,27 @@ export function createHookRunner(d: HookRunnerDeps): HookRunner {
   }
   const seed = (extra: Partial<CtxSeed> = {}): CtxSeed => ({ space: d.space, principal: { ...SYSTEM_PRINCIPAL }, preAuth: true, origin: "hook", ...extra });
 
+  // Each consumer's cursor, as stored (`saved`) and as far as this process has read (`read`). A delivered event is stored at once, so a crash repeats at most the one in flight. Moving past
+  // events a consumer does not take is stored once at the end of a pass, and only when it moved: a crash before that only reads those events again, and a consumer is never handed an event twice
+  // for it (an event it takes is stored before the next is read). Before, every consumer wrote its cursor after every page of every pass, moved or not.
+  const saved = new Map<string, number>(), read = new Map<string, number>();
   const cursor = (name: string): number | undefined => {
+    const have = read.get(name);
+    if (have !== undefined) return have;
     const r = d.db.all("SELECT seq FROM host_hook_cursor WHERE name = ?", name)[0] as { seq: number } | undefined;
-    return r ? Number(r.seq) : undefined;
+    if (!r) return undefined;
+    saved.set(name, Number(r.seq)); read.set(name, Number(r.seq));
+    return Number(r.seq);
   };
   const setCursor = (name: string, seq: number): void => {
+    read.set(name, seq);
+    if (saved.get(name) === seq) return;
     d.db.run("INSERT INTO host_hook_cursor (name, seq, at) VALUES (?, ?, ?) ON CONFLICT(name) DO UPDATE SET seq = excluded.seq, at = excluded.at", name, seq, d.now());
+    saved.set(name, seq);
   };
+  /** Past events the consumer does not take: kept in memory until the end of the pass. */
+  const readPast = (name: string, seq: number): void => { read.set(name, seq); };
+  const flush = (): void => { for (const [name, seq] of read) if (saved.get(name) !== seq) setCursor(name, seq); };
   const tries = new Map<string, number>();
 
   async function deliver(c: ConsumerDef, e: StoredEvent): Promise<boolean> {
@@ -236,7 +250,7 @@ export function createHookRunner(d: HookRunnerDeps): HookRunner {
           if (performance.now() - since >= YIELD_EVERY_MS) { await yieldLoop(); since = performance.now(); }
         } else at = e.seq;
       }
-      setCursor(c.name, at);
+      readPast(c.name, at);
       if (page.length < PAGE) return;
       await yieldLoop();
     }
@@ -249,6 +263,7 @@ export function createHookRunner(d: HookRunnerDeps): HookRunner {
       do {
         again = false;
         for (const c of byConsumer.values()) await passFor(c);
+        flush();
       } while (again);
     } finally { running = null; }   // set in the same tick as the last check of `again`, so a call can never be told "a pass is running" by a pass that has finished
   })();

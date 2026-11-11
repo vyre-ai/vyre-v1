@@ -8,7 +8,6 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
-import net from "node:net";
 import path from "node:path";
 import type { Page } from "playwright-core";
 import { fakePlatform } from "../host/src/platform/index.ts";
@@ -29,18 +28,20 @@ test("a fresh Personal Space: the first hour works end to end in the real app", 
   assert.ok(fs.existsSync(exe), `Chromium is required at ${exe}`);
 
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-walk-"));
-  const port = await new Promise<number>((r) => { const s = net.createServer(); s.listen(0, "127.0.0.1", () => { const p = (s.address() as net.AddressInfo).port; s.close(() => r(p)); }); });
+  // the edge listens first and keeps its port; the daemon takes any port and is told the edge's address (a port picked, given back and bound later can be taken in between)
+  let daemonUrl = "";
+  const web = await edge(dist, () => daemonUrl);
   const daemon = await startDaemon({
-    config: loadConfig(["--role", "space", "--data-dir", dir, "--port", String(port), "--space", "spc_walk", "--space-name", "Personal", "--space-kind", "personal", "--address", `http://127.0.0.1:${port}`], {}, "1.2.3"),
+    config: loadConfig(["--role", "space", "--data-dir", dir, "--port", "0", "--space", "spc_walk", "--space-name", "Personal", "--space-kind", "personal", "--address", web.origin], {}, "1.2.3"),
     codeRoot: CODE_ROOT,
     platform: fakePlatform({ os: "linux", hostname: "walk", free: 80e9, commands: { [`findmnt -n -o SOURCE --target ${dir}`]: { stdout: "/dev/mapper/vyre\n" }, "lsblk -s -n -o TYPE /dev/mapper/vyre": { stdout: "crypt\ndisk\n" }, "docker info --format {{.ServerVersion}}": { stdout: "27.1.1\n" } } }),
     fetch: () => Promise.resolve({ ok: true, status: 200, headers: { get: () => null }, text: () => Promise.resolve('{"apps":{"http":{}}}') }),
     intervals: { fast: 3_600_000, slow: 3_600_000, encryption: 3_600_000, commands: 3_600_000, hooks: 3_600_000 },
     engineOpenSession: standIn,
-  });
+  }).catch((e: unknown) => { web.close(); throw e; });   // a daemon that does not start must not leave the edge listening
+  daemonUrl = daemon.url;
   assert.ok(daemon.claim, "a fresh Personal Space prints a claim link");
-  const web = await edge(dist, daemon.url);
-  const browser = await chromium.launch({ executablePath: exe, args: ["--no-sandbox"] });
+  const browser = await chromium.launch({ executablePath: exe, args: ["--no-sandbox"] }).catch(async (e: unknown) => { web.close(); await daemon.stop(); fs.rmSync(dir, { recursive: true, force: true }); throw e; });
   const context = await browser.newContext({ viewport: { width: 1280, height: 860 } });
   const page = await context.newPage();
   const errors: string[] = [];
@@ -309,7 +310,13 @@ test("a fresh Personal Space: the first hour works end to end in the real app", 
       assert.equal(await page.getByRole("menuitem", { name: "This computer", exact: true }).count(), 0, "no This computer row without a desktop device");
       assert.equal(await page.getByRole("menuitem", { name: "Space server", exact: true }).count(), 0, "no Space server row in a Personal Space");
       assert.equal(await page.getByRole("menuitem", { name: "Agent computer", exact: true }).count(), 0, "no Agent computer row without one");
+      // one Escape closes one layer: the New menu first, the terminal list under it on the next
       await page.keyboard.press("Escape");
+      await page.getByText("No computer here", { exact: true }).waitFor({ state: "detached", timeout: 10_000 });
+      assert.equal(await list.count(), 1, "the first Escape closed the menu only; the list is still open");
+      await page.keyboard.press("Escape");
+      await list.waitFor({ state: "detached", timeout: 10_000 });
+      assert.equal(await page.getByTestId("terminal-list-veil").count(), 0, "the list's veil went with it");
       // leave, then open again from Search
       await go("chat", "chats-place");
       await page.keyboard.press("Meta+k");

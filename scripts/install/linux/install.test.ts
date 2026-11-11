@@ -91,14 +91,17 @@ test("disk_encrypted uses the longest matching mount, not the root", () => {
   fs.rmSync(dir, { recursive: true });
 });
 
-test("check_encrypted refuses a plain disk with exit 3 and the LUKS steps, and passes an encrypted one", () => {
+test("check_encrypted refuses a plain disk with exit 3 and the two ways forward, and passes an encrypted one", () => {
   const dir = tmp();
   const plain = fakeHost(dir, { src: "/dev/sdb1", layers: ["part", "disk"] });
   const bad = sh(INSTALL, `check_encrypted "${dir}/data"`, hostEnv(plain));
   assert.equal(bad.status, 3);
   assert.match(bad.stderr, /not on an encrypted volume/);
-  assert.match(bad.stderr, /cryptsetup luksFormat/);
-  assert.match(bad.stderr, /--data-dir/);
+  assert.match(bad.stderr, /--provider-encrypted/, "way 1: the provider's encrypted volume");
+  assert.match(bad.stderr, /--allow-plain-disk/, "way 2: an explicit, recorded choice");
+  assert.doesNotMatch(bad.stderr, /--encrypt-data/, "the installer does not make an encrypted volume");
+  assert.match(bad.stderr, /Backups are kept on that volume too/);
+  assert.match(bad.stderr, /encrypt the disk yourself/, "and points at the docs for someone who sets LUKS up first");
   const unknown = sh(INSTALL, `check_encrypted "${dir}/data"`, { VYRE_TEST_PROC_MOUNTS: path.join(dir, "missing") });
   assert.equal(unknown.status, 3, "a volume it cannot verify is refused too");
   assert.match(unknown.stderr, /that this installer can verify/);
@@ -716,7 +719,7 @@ test("an update backup also stops a container outside compose that still mounts 
   const dir = tmp();
   try {
     fs.mkdirSync(path.join(dir, "data", "space"), { recursive: true });
-    fs.writeFileSync(path.join(dir, "data", "space", "events.db-x"), "x");
+    fs.writeFileSync(path.join(dir, "data", "space", "events.db"), "x");   // a Space has its event log: a backup refuses a folder with none
     const fake = `docker(){ echo "docker $*" >>"${dir}/docker.log"; case "$1 $2" in "volume ls") echo vyre-server_vyre-data ;; "volume inspect") printf '%s' "${dir}/data/space" ;; "ps -q") echo abc123 ;; "inspect -f") echo /vyre-site-9-app ;; esac; return 0; }`;
     const r = sh(SERVER, `DATA_DIR="${dir}/data"; dc(){ echo "dc $*" >>"${dir}/docker.log"; }; ${fake}; backup_data pre; resume_strays`, { VYRE_DIR: dir });
     assert.equal(r.status, 0, r.stderr);
@@ -1017,4 +1020,43 @@ test("an update prunes images only after it is healthy: never before the switch,
       assert.deepEqual(order, healthy ? ["releases", "images"] : [], "images are pruned after the old releases are, and only on a healthy update");
     } finally { fs.rmSync(dir, { recursive: true, force: true }); }
   }
+});
+
+test("an update backs up while the server runs, and the server is down only for the switch; --stopped-backup keeps the old order", () => {
+  for (const mode of ["live", "stopped"]) {
+    const dir = tmp();
+    try {
+      for (const version of ["1.0.0", "1.1.0"]) { fs.mkdirSync(path.join(dir, "releases", version), { recursive: true }); fs.writeFileSync(path.join(dir, "releases", version, "images.lock"), "VYRE_IMAGE=fixture@sha256:" + "a".repeat(64) + "\n"); }
+      fs.symlinkSync("releases/1.0.0", path.join(dir, "current")); fs.writeFileSync(path.join(dir, "compose.env"), "VYRE_IMAGE=fixture@sha256:" + "a".repeat(64) + "\n"); fs.writeFileSync(path.join(dir, "vyre.env"), "");
+      const log = (w: string): string => `echo "${w}" >>"$VYRE_FIXTURE_DIR/order"`;
+      const body = `cur_version(){ printf 1.0.0; }; fetch_release(){ REL_VERSION=1.1.0; }; unpack_release(){ :; }; docker(){ return 0; }; backup_data(){ ${log("backup $*")}; BACKUP_FILE=fixture; [ "\${2:-}" = live ] || ${log("stop (inside the backup)")}; }; `
+        + `dc(){ ${log("dc $*")}; return 0; }; stop_strays(){ ${log("stop strays")}; }; set_current(){ ${log("switch $1")}; }; sync_image(){ :; }; up_stack(){ ${log("start")}; }; wait_healthy(){ ${log("healthy")}; return 0; }; prune_releases(){ :; }; prune_images(){ :; }; `
+        + `cmd_update --yes --version 1.1.0 --sha256 ${"a".repeat(64)} ${mode === "stopped" ? "--stopped-backup" : ""}`;
+      const out = sh(SERVER, body, { VYRE_DIR: dir, VYRE_FIXTURE_DIR: dir, TMPDIR: dir });
+      assert.equal(out.status, 0, out.stderr);
+      const order = read(path.join(dir, "order")).trim().split("\n");
+      if (mode === "live") {
+        assert.deepEqual(order, ["backup pre-1.1.0 live", "dc stop", "stop strays", "switch 1.1.0", "start", "healthy"], "the backup finishes with the server up; only then is it stopped, and the switch follows at once");
+        assert.match(out.stdout, /while the server kept running/);
+      } else {
+        assert.deepEqual(order, ["backup pre-1.1.0", "stop (inside the backup)", "switch 1.1.0", "start", "healthy"], "--stopped-backup stops the server first, for one copy that is consistent across the database files");
+      }
+    } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+  }
+});
+
+test("a live-backup update that fails to start rolls back and starts the previous release again", () => {
+  const dir = tmp();
+  try {
+    for (const version of ["1.0.0", "1.1.0"]) { fs.mkdirSync(path.join(dir, "releases", version), { recursive: true }); fs.writeFileSync(path.join(dir, "releases", version, "images.lock"), "VYRE_IMAGE=fixture@sha256:" + "a".repeat(64) + "\n"); }
+    fs.symlinkSync("releases/1.0.0", path.join(dir, "current")); fs.writeFileSync(path.join(dir, "compose.env"), "VYRE_IMAGE=fixture@sha256:" + "a".repeat(64) + "\n"); fs.writeFileSync(path.join(dir, "vyre.env"), "");
+    const log = (w: string): string => `echo "${w}" >>"$VYRE_FIXTURE_DIR/order"`;
+    const body = `cur_version(){ printf 1.0.0; }; fetch_release(){ REL_VERSION=1.1.0; }; unpack_release(){ :; }; docker(){ return 0; }; backup_data(){ ${log("backup $*")}; BACKUP_FILE=fixture; }; `
+      + `dc(){ ${log("dc $*")}; return 0; }; stop_strays(){ :; }; set_current(){ ${log("switch $1")}; }; sync_image(){ :; }; up_stack(){ ${log("start")}; [ "$(grep -c '^start$' "$VYRE_FIXTURE_DIR/order")" -gt 1 ]; }; wait_healthy(){ return 0; }; prune_releases(){ :; }; prune_images(){ :; }; `
+      + `cmd_update --yes --version 1.1.0 --sha256 ${"a".repeat(64)}`;
+    const out = sh(SERVER, body, { VYRE_DIR: dir, VYRE_FIXTURE_DIR: dir, TMPDIR: dir });
+    assert.equal(out.status, 4, out.stderr);
+    assert.deepEqual(read(path.join(dir, "order")).trim().split("\n"), ["backup pre-1.1.0 live", "dc stop", "switch 1.1.0", "start", "switch 1.0.0", "start"], "back on the previous release, started again");
+    assert.equal(fs.existsSync(path.join(dir, "state", "update.pending")), false);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });

@@ -1,7 +1,7 @@
 {
   "module": "vault",
   "capabilities": {
-    "providers.add@1": "2e0e583c3f187be5cfdcee3b876da68110fc4005e2e8490d0134f70ee6f4f241",
+    "providers.add@1": "d9e5225e42bd7c26fd34a10588430de3356e6461d15f06cffac418d6292f281f",
     "providers.catalog@1": "99ce5e52af3c5ef06ee1f2e644211d6d1ed76f3e41dd3115245103dd79baf0c3",
     "providers.custom_add@1": "04b793131021e049840251415a3e4face158a5648ca56cded080a7bbb4b0b395",
     "providers.custom_list@1": "805a3207aae35cac4953cf1a46d47723296ac9f65ce140f75797eb04a979e004",

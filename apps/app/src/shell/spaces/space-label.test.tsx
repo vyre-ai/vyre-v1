@@ -7,20 +7,20 @@ import { fileURLToPath } from "node:url";
 import { SPACE_ID, spaceHost, spaceLabel } from "./space-label.ts";
 import { signInInvite } from "../session/SessionGate.tsx";
 
-test("a Space's label is its name, else its address, never its id", () => {
+test("a Space's label is its name, else \"your Space\", never its id and never its address", () => {
   assert.equal(spaceLabel("MLA", "https://mla.vyre.run"), "MLA");
-  assert.equal(spaceLabel("spc_2a7c98c337e1dfd2e05e1aab", "https://mla.vyre.run"), "mla.vyre.run");
-  assert.equal(spaceLabel("  ", "https://mla.vyre.run:443/"), "mla.vyre.run");
-  assert.equal(spaceLabel(undefined, "mla.vyre.run"), "mla.vyre.run");
+  assert.equal(spaceLabel("spc_2a7c98c337e1dfd2e05e1aab", "https://mla.vyre.run"), "your Space", "an id is no name and the address does not stand in for one");
+  assert.equal(spaceLabel("  ", "https://mla.vyre.run:443/"), "your Space");
+  assert.equal(spaceLabel(undefined, "mla.vyre.run"), "your Space");
   assert.equal(spaceLabel("spc_x", ""), "your Space");
   assert.equal(spaceHost("http://127.0.0.1:4100"), "127.0.0.1");
 });
 
-test("the sign-in screen names the Space, or its address when the server answers an id", () => {
+test("the sign-in screen names the Space, or \"your Space\" when the server answers an id: the address is not a name", () => {
   const opts = { fingerprint: "", password: true, github: false, sso: [], secondFactorRequired: false };
-  assert.equal(signInInvite("https://mla.vyre.run", { ...opts, name: "spc_2a7c98c337e1dfd2e05e1aab" }).space, "mla.vyre.run");
+  assert.equal(signInInvite("https://mla.vyre.run", { ...opts, name: "spc_2a7c98c337e1dfd2e05e1aab" }).space, "your Space");
   assert.equal(signInInvite("https://mla.vyre.run", { ...opts, name: "My Legal Academy" }).space, "My Legal Academy");
-  assert.equal(signInInvite("https://mla.vyre.run", null).space, "mla.vyre.run");
+  assert.equal(signInInvite("https://mla.vyre.run", null).space, "your Space");
 });
 
 // ---- lint: no UI string carries a Space id
@@ -68,4 +68,13 @@ test("lint: the rule catches what it is for", () => {
   assert.ok(!hits("const key = `vyre.tabs.v1:${deviceId}:${spaceId}`;"), "a storage key is not prose");
   assert.ok(!hits("const space = session.def.spaceId;"), "a variable that holds the id is not a label");
   assert.ok(SPACE_ID.test("spc_2a7c98c337e1dfd2e05e1aab"));
+});
+
+test("the tile letter comes from the Space's name; a Space with no name of its own shows the Vyre letter, never the first character of its address", async () => {
+  const { initialOf } = await import("./model.ts");
+  const def = (name: string) => ({ name } as never);
+  assert.equal(initialOf(def("Northwind")), "N");
+  assert.equal(initialOf(def("your Space")), "V");
+  assert.equal(initialOf(def("143-244-130-25.sslip.io")), "1", "a real name is whatever the person typed");
+  assert.equal(initialOf(def(spaceLabel("spc_2a7c98c337e1dfd2e05e1aab", "https://143-244-130-25.sslip.io"))), "V");
 });

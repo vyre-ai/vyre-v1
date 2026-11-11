@@ -18,7 +18,7 @@ test("Google is done when configured and the live test passed; Microsoft when co
   const none = await connections(fake({ "google.dwd.status": { configured: false, lastProbeOk: null } }).call);
   assert.equal(stepDoneBy(none), false);
   assert.equal(none.microsoft.kind, "not_yet");
-  assert.match((none.google as any).value.note, /Not set up/);
+  assert.match((none.google as any).value.note, /Not connected yet/);
 });
 
 test("sign-in providers and the directory come from the suite's names and are honest when absent", async () => {

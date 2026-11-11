@@ -93,3 +93,22 @@ test("whoever posts, the owner, a member or a hook (an agent), the bridge consum
     } finally { hostSeams.setEngineHost(null); }
   }
 });
+
+test("a message that reaches the bridge while the server is closing its engine is kept for the next start, never skipped: the host moves past a skipped event and the message would never get its turn", async () => {
+  bindEngine(null);
+  const h = harness({ threads: [{ threadId: T, kind: "chat", starter: "usr_dana", agents: [{ agentId: AGENT, mode: "lead" as const }] }] });
+  const provider = scriptedProvider({ script: reply });
+  const host: EngineHostSeam = {
+    holder: "host:spc_stop", openSession: provider.openSession, now: () => 1_760_000_000_000,
+    async call() { return {}; },
+    postAs: async () => undefined,
+  };
+  const run = consumers["engine.bridge"].run as (ctx: EngineCtx, event: { name: string; payload: Record<string, unknown> }) => Promise<unknown>;
+  const event = { name: "message.received", payload: { messageId: "msg_late", threadId: T, author: { kind: "person", id: "usr_dana" }, mentions: [{ kind: "agent", id: AGENT }], depth: 0 } };
+  hostSeams.setEngineHost(host);
+  hostSeams.setEngineHost(null);   // the daemon is stopping: the engine host half goes first, the hooks' last pass comes after
+  await assert.rejects(() => run(h.ctx, event), /kept and delivered again/, "the consumer throws, so the host keeps its cursor on this event");
+  // the next start binds a host half again: the same event is handled, not refused
+  hostSeams.setEngineHost(host);
+  try { await run(h.ctx, event).catch(() => undefined); } finally { hostSeams.setEngineHost(null); }
+});

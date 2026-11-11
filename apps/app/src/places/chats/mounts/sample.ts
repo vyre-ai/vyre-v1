@@ -147,6 +147,9 @@ export function createMountSample(o: { conversation?: ConversationVariant; who?:
     "threads.get": (i: { threadId: string }) => ({ thread: threadFor(i.threadId) }),
     "threads.list": () => ({ threads: [] }),
     "computers.list": () => replica.run("computers.list", {})?.data,
+    // the Computer tab reads the workspace and the browser profile of the agent when it opens (a sleeping computer is only read, never woken); without answers it drew "no write for terminal.workspace" as a failure
+    "terminal.workspace": () => ({ state: o.asleep ? "asleep" : "running", host: "space", canAttach: true }),
+    "computers.browser.profiles": () => ({ profiles: [] }),
     "terminal.list": (i: CapMap["terminal.list"]["in"]) => replica.run("terminal.list", i)?.data,
     "terminal.open": (i: CapMap["terminal.open"]["in"]) => mk(i.host === "device" ? "device" : "agent_computer", i),
     "terminal.open_server": (i: CapMap["terminal.open_server"]["in"]) => { if (refused) throw refusal(); return mk("space_server", i); },

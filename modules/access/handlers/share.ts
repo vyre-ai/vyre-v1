@@ -834,6 +834,8 @@ export async function makeOwner(ctx: ShareCtx, input: { resource: ResourceRef; p
   // whatever the new owner held directly on it is now the owner's, so those grants go
   for (const g of [...store.grants.values()]) if (g.resource.id === res.id && g.subject.kind === "person" && g.subject.id === input.personId && g.source === undefined) dropGrant(ctx, store, g);
   res.ownerId = input.personId;
+  // handed to a person: theirs, no longer the Space's (the host's mark goes, so a Space transfer leaves it)
+  if (res.row?.["spaceOwned"] === true) { const { spaceOwned: _m, ...rest } = res.row; void _m; if (Object.keys(rest).length) res.row = rest; else delete res.row; }
   if (from) {
     const g: GrantRec = { id: nid("gnt"), subject: { kind: "person", id: from }, resource: { type: res.type, id: res.id }, level: "manage", conditions: {}, by: ctx.principal.id, createdAt: ctx.now() };
     store.grants.set(g.id, g);
@@ -876,7 +878,9 @@ export async function recordMarks(ctx: ShareCtx, input: { type: string }) {
   const trace = ctx.trace.traceId;
   const typeRes = store.resources.get(input.type);
   if (!typeRes || typeRes.type !== "record_type") raise(trace, "validation.not_found", "no such record type");
-  must(ctx, store, typeRes, "view", "listing it");
+  // A person who cannot view the type may still hold rows of it by name, and the Records place asks about every type it lists (its "Shared with me" depends on the answer). They are told only what they can already see:
+  // their own rows, no rights, and nothing about the type itself. Refusing here made every member's page load fire a 403 (client walk, 11 Nov 2026).
+  const mayList = atLeast(typeRes.type, callerLevel(ctx, store, typeRes), "view");
   const snap = store.snapshot();
   const me = snap.info(ctx.principal.id);
   const now = ctx.now();
@@ -903,6 +907,7 @@ export async function recordMarks(ctx: ShareCtx, input: { type: string }) {
     if (audience === "space" && n === 0 && !mine) continue;
     rows.push({ id: r.id, audience, direct: n, mine });
   }
+  if (!mayList) return { can: { manage: false, edit: false, share: false, export: false }, typeShared: false, audience: "added" as const, rows: rows.sort((a, b) => (a.id < b.id ? -1 : 1)) };
   return { can: rightsOf(ctx, store, typeRes), typeShared: !!me && typeRes.ownerId !== ctx.principal.id && named(input.type, true), audience: audienceOf(typeRes), rows: rows.sort((a, b) => (a.id < b.id ? -1 : 1)) };
 }
 

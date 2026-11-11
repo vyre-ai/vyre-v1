@@ -56,6 +56,16 @@ export function stateWords(state: Provider["state"], unopenable?: boolean): stri
   return state === "ok" ? "Working" : state === "needs_sign_in" ? "Needs you to sign in again" : "Failing, check the key";
 }
 
+/**
+ * The "Right now" line of an AI account: what the key does, and when it works but a chat still cannot use it, why. A key that is failing does not "work", so it never says "Works, but ..." (client walk,
+ * 11 Nov 2026: a failed Anthropic key read "Works, but not in chats: This account is not working").
+ */
+export function rightNow(state: Provider["state"], unopenable: boolean | undefined, needs: string | null, chatWhy: string | null): { text: string; tone: Provider["state"] } {
+  if (needs !== null) return { text: needs, tone: "needs_sign_in" };
+  if (state === "ok" && chatWhy !== null) return { text: `Works, but not in chats: ${chatWhy}`, tone: "needs_sign_in" };
+  return { text: stateWords(state, unopenable), tone: state };
+}
+
 export function tokenWords(tokens: number): string {
   if (tokens >= 1_000_000) return `${trim(tokens / 1_000_000)}M tokens`;
   if (tokens >= 1_000) return `${Math.round(tokens / 1_000)}k tokens`;

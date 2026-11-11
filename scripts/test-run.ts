@@ -37,6 +37,14 @@ export function breakdown(out: string, top = 5): { name: string; ms: number }[] 
 export function runFile(file: string, opts: { cwd?: string; capMs?: number } = {}): Promise<RunResult> {
   // A runner started from inside `node --test` must not inherit its test context, or the child file runs as a subtest.
   const env: NodeJS.ProcessEnv = { ...process.env }; delete env.NODE_TEST_CONTEXT;
+  // a key is checked with its provider before it is saved; a test that adds a fixture key has no real provider to ask, so the host probe accepts keys unless the test asks for the real answer (host/src/seams/vault.ts)
+  env.VYRE_TEST_KEY_CHECK ??= "accept";
+  // A test daemon uses the images built on this computer and never asks a registry (no test reaches an outside service). Without a setting, a daemon whose version looks like a release
+  // asks ghcr.io/vyre-ai for that version's image (host/src/seams/release-images.ts): test/crew.local.live.test.ts boots version 1.2.3 and its agent computer could not start.
+  // The local build names are never fetched (sandbox/src/docker.ts fetchableImage), so a runner without the image fails with a plain line instead of pulling anything.
+  env.VYRE_AGENT_COMPUTER_IMAGE ??= "vyre/agent-computer:1";
+  env.VYRE_SPACE_BROWSER_IMAGE ??= "vyre/space-browser:1";
+  env.VYRE_WORKSPACE_IMAGE ??= "vyre/agent-workspace:1";
   // Ruling 21 (same rule as test-run.mjs): .tsx files, and .ts files that opt in with `// @tsx`, run through the tsx loader with react-native mapped to react-native-web.
   const cwd0 = opts.cwd ?? process.cwd();
   const tsx = file.endsWith(".tsx") || (() => { try { return /^\s*\/\/\s*@tsx\b/m.test(fs.readFileSync(path.resolve(cwd0, file), "utf8")); } catch { return false; } })();
@@ -44,7 +52,7 @@ export function runFile(file: string, opts: { cwd?: string; capMs?: number } = {
   const loader = tsx ? ["--import", "tsx", "--import", path.join(cwd0, "scripts/shots/rn-alias.mjs")] : [];
   const capMs = opts.capMs ?? DEFAULT_CAP_MS, cwd = opts.cwd ?? process.cwd(), t0 = Date.now();
   return new Promise((resolve) => {
-    const p = spawn(process.execPath, [...loader, "--test", "--test-reporter=spec", `--test-timeout=${capMs}`, file], { cwd, stdio: ["ignore", "pipe", "pipe"], env });
+    const p = spawn(process.execPath, [...loader, "--test", "--test-reporter=spec", "--test-reporter-destination=stdout", `--test-reporter=${path.join(path.dirname(fileURLToPath(import.meta.url)), "lib/failure-reporter.mjs")}`, "--test-reporter-destination=stdout", `--test-timeout=${capMs}`, file], { cwd, stdio: ["ignore", "pipe", "pipe"], env });
     let out = "", overCap = false;
     p.stdout.on("data", (d) => (out += d)); p.stderr.on("data", (d) => (out += d));
     const dog = setTimeout(() => { overCap = true; p.kill("SIGKILL"); }, capMs + 2000); // watchdog 2 s after the cap, so a file just over it is reported over-cap with its breakdown, not killed mid-test

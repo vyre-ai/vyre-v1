@@ -144,6 +144,8 @@ export function createWriteHandlers(deps: WriteDeps): WriteHandlers {
       const prior = await deps.store.get(input.type, input.recordId);
       const rec = await deps.store.update(input.type, input.recordId, input.patch, base);
       const keys = Object.keys(input.patch);
+      // the store answers the same version when the patch changed nothing: that is no write, so no event
+      if (prior && rec.version === prior.version) return { record: toRow(rec, deps.meta(rec.type, rec.id)) };
       ctx.emit("record.updated", subject(rec.id), {
         recordId: rec.id, type: rec.type, fields: changed(keys, rec.data), prev: before(keys, prior?.data ?? {}), version: rec.version,
       });

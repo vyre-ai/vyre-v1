@@ -117,6 +117,24 @@ test("the source rises to the finish line: done, honest summary, one last wake-u
   assert.equal(past.goals[0].retro.summary, retro.summary);
 });
 
+test("two readers reach the finish line at once (the clock and a read of the number): the goal ends once and the lead keeps its one retrospective wake-up", async () => {
+  const w = world({ count: 250 });
+  const { goal } = await w.call("goals.create", labGoal({ projectId: "prj_lab8" }));
+  await w.call("goals.plan", { goalId: goal.id, children: [step("a", "Remind Lab 7")] }, lead);
+  const child = [...w.state.tasks.values()].find((t) => t.parentTaskId === goal.rootTaskId)!;
+  child.state = "done";
+  await w.task("task.completed", child.id);
+  w.state.count = 301;
+  w.tick(20 * 60_000);
+  await Promise.all([w.sweep(), w.sweep()]);
+  const g = getGoal(w.db, goal.id)!;
+  assert.equal(g.status, "done");
+  const ended = (w.db.all("SELECT state FROM goals_wake WHERE goal_id = ? AND reason LIKE '%ended%'", goal.id) as Array<{ state: string }>);
+  assert.deepEqual(ended.map((r) => r.state), ["sent"], "one retrospective wake-up, still open for the lead; the second ending did not drop it");
+  const activity = (w.db.all("SELECT kind FROM goals_activity WHERE goal_id = ? AND kind = 'ended'", goal.id) as unknown[]);
+  assert.equal(activity.length, 1, "the goal ended once");
+});
+
 test("stuck after N flat check-ins: the reason in plain words, the owner hears once, and the number moving again ends it", async () => {
   const w = world({ count: 212 });
   const { goal } = await w.call("goals.create", labGoal({ stuckAfter: 3 }));
