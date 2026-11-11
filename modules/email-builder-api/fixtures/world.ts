@@ -20,6 +20,8 @@ export function harness(o: { principal?: string; now?: number } = {}) {
   const scripts = {
     mailboxes: [{ id: "mbx_mine", address: "alex@example.com" }] as { id: string; address: string }[],
     records: {} as Record<string, Record<string, unknown>>,
+    /** the type of a record that is not a "contact" */
+    recordTypes: {} as Record<string, string>,
     types: {} as Record<string, { key: string; title: string }[]>,
     sendStatus: "sent",
   };
@@ -39,10 +41,14 @@ export function harness(o: { principal?: string; now?: number } = {}) {
       calls.push({ cap, input });
       if (cap === "mail.mailbox.list") return { mailboxes: scripts.mailboxes };
       if (cap === "mail.send") return { status: scripts.sendStatus };
+      // the contracts of the real capabilities: records.get reads a record by type AND id (an id alone is refused), and schema.types.list names the types there are
+      if (cap === "schema.types.list") return { types: [...new Set(Object.keys(scripts.records).map((id) => scripts.recordTypes[id] ?? "contact"))].map((key) => ({ key })) };
       if (cap === "records.get") {
-        const fields = scripts.records[(input as { recordId: string }).recordId];
-        if (!fields) throw new Error("no such record");
-        return { record: { id: (input as { recordId: string }).recordId, fields } };
+        const { type, recordId } = input as { type?: unknown; recordId?: unknown };
+        if (typeof type !== "string" || typeof recordId !== "string") throw Object.assign(new Error("/type: required"), { error: { code: "validation.bad_input" } });
+        const fields = scripts.records[recordId];
+        if (!fields || (scripts.recordTypes[recordId] ?? "contact") !== type) throw Object.assign(new Error("no such record"), { error: { code: "validation.not_found" } });
+        return { record: { id: recordId, type, fields } };
       }
       if (cap === "schema.types.get") {
         const fields = scripts.types[(input as { type: string }).type];
