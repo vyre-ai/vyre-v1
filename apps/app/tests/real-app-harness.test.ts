@@ -109,7 +109,7 @@ async function startDaemon(dir: string, extra: string[], port=0): Promise<{ chil
     let out = "";
     let url: string | null = null;
     let settle: ReturnType<typeof setTimeout> | null = null;
-    const timer = setTimeout(() => reject(new Error(`the daemon did not start in 30 s: ${out}`)), 30_000);
+    const timer = setTimeout(() => { child.kill("SIGKILL"); reject(new Error(`the daemon did not start in 30 s: ${out}`)); }, 30_000);   // a daemon that never came up must not outlive the failed boot
     const done = (): void => {
       clearTimeout(timer);
       if (settle) clearTimeout(settle);
@@ -142,11 +142,20 @@ export async function bootSpace(): Promise<Space> {
 /** A fresh install (ruling 71): an empty data directory. The host makes the Space and prints a one-time claim link; the owner becomes the owner by claiming it, as a person does. */
 export async function bootFreshSpace(kind?:"personal", publishLocal=false, unnamed=false): Promise<Space> {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-real-app-fresh-"));
-  const port=publishLocal?await new Promise<number>((resolve,reject)=>{const server=net.createServer();server.once("error",reject);server.listen(0,"127.0.0.1",()=>{const selected=(server.address()as net.AddressInfo).port;server.close(()=>resolve(selected));});}):0;
-  const address=publishLocal?`http://127.0.0.1:${port}`:null;
-  const d = await startDaemon(dir, ["--space", "spc_fresh", ...(unnamed?[]:["--space-name", kind==="personal"?"Personal":"Fresh Co"]), ...(kind?["--space-kind",kind]:[]),...(address?["--address",address]:[])],port);
-  if(address&&d.url!==address)throw new Error("The fixture must publish its actual listening endpoint");
-  return { url: d.url, token: ADMIN_TOKEN, space: "spc_fresh", dir, stop: stopper(d.child), claim: d.claim };
+  // A walk that publishes the daemon's own address needs the port before the daemon starts, and the daemon binds it itself, so a port picked and given back can be taken in between. When that happens the daemon exits
+  // (or never starts) and the boot is tried again on another port; whatever a failed try started is stopped first.
+  for (let attempt = 1; ; attempt++) {
+    const port=publishLocal?await new Promise<number>((resolve,reject)=>{const server=net.createServer();server.once("error",reject);server.listen(0,"127.0.0.1",()=>{const selected=(server.address()as net.AddressInfo).port;server.close(()=>resolve(selected));});}):0;
+    const address=publishLocal?`http://127.0.0.1:${port}`:null;
+    try {
+      const d = await startDaemon(dir, ["--space", "spc_fresh", ...(unnamed?[]:["--space-name", kind==="personal"?"Personal":"Fresh Co"]), ...(kind?["--space-kind",kind]:[]),...(address?["--address",address]:[])],port);
+      if(address&&d.url!==address){ d.child.kill("SIGKILL"); throw new Error("The fixture must publish its actual listening endpoint"); }
+      return { url: d.url, token: ADMIN_TOKEN, space: "spc_fresh", dir, stop: stopper(d.child), claim: d.claim };
+    } catch (e) {
+      if (!publishLocal || attempt >= 4) throw e;
+      fs.rmSync(dir, { recursive: true, force: true }); fs.mkdirSync(dir, { recursive: true });
+    }
+  }
 }
 
 /** The claim link as the browser opens it: the daemon prints its own address, the page is served from the edge, so the path and fragment move to the edge's origin. */

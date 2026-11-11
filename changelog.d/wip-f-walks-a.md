@@ -10,3 +10,4 @@
 - The test runner now prints why a test failed even when the file then hangs and is killed at its time limit, so a failure on the build machine always says what it was.
 - Console buttons pressed one after another (adding two people to a team in a row) no longer lose the second press: it waits for the first and is then done; a repeated press of the same button is still done once.
 - The search box in Teams, Roles and the people picker no longer disappears while results load, so you can keep typing; the last results stay until the new ones arrive.
+- Console changes made in a row are each done in order: if one fails you still see that it failed after the next one finishes, and a change that fails after you left the page is reported on the next page; at most 20 changes can wait at once.
