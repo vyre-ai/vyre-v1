@@ -150,6 +150,11 @@ test("nothing is lit on open: hover or an arrow key lights a row, and the lit ro
   assert.match(html, /r-width-/, "rows carry a full width style");
 });
 
+test("the menu panel can take focus, so Escape and the arrow keys reach it even though no row is lit on open", () => {
+  const html = renderToStaticMarkup(<Menu items={[{ label: "Open" }, { label: "Copy" }]} x={0} y={0} />);
+  assert.match(html, /<div[^>]*role="menu"[^>]*tabindex="-1"|<div[^>]*tabindex="-1"[^>]*role="menu"/, "the panel is focusable by script, not a tab stop");
+});
+
 test("arrow keys wrap over actionable items only", () => {
   const entries = menuEntries({ items: [{ head: "A" }, { label: "One" }, { separator: true }, { label: "Two" }] });
   const pick = selectableIndices(entries);

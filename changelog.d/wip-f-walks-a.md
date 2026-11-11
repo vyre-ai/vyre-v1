@@ -1,0 +1,3 @@
+- Escape now closes a menu that was opened with the mouse, and the arrow keys work in it straight away (since an earlier release neither did until a row was hovered).
+- The first-run setup screen is saved as seen before it appears, so closing it and reloading right away on a slow connection no longer brings it back.
+- In a new webhook, Add event stays greyed out until the list of events has loaded, so it can no longer open an empty list.
