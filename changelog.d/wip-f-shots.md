@@ -1,0 +1,1 @@
+- Fixed the screenshot check that ran out of time: the prototype shot no longer waits 30 seconds for a test id only the real app has.
