@@ -1,3 +1,4 @@
 - Lane branches (wip/...) no longer start CI runs on every push: they are tested on the lane box, and CI runs on pull requests and integration branches, so runs stop starving each other.
 - The Windows install proof checks that the autostart task is gone without tripping on the message Windows prints when it is.
 - A Space nobody has named is shown one way everywhere: "your Space" with the Vyre letter, and an empty Name field to fill in. A second, competing rule that named it after its address is gone.
+- The fresh Space Console walks keep their shared steps in a file that follows the test-helper naming, so the layer rules pass.
