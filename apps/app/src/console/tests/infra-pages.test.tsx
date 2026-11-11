@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {renderToStaticMarkup} from 'react-dom/server';
 import {ConsoleDataProvider} from '../shell/data.tsx';
 import {createSampleConsole} from '../shell/sample.ts';
-import {Server,Diagnostics,Support} from '../pages/Infrastructure.tsx';
+import {Server,Diagnostics,Support,Storage} from '../pages/Infrastructure.tsx';
 import {pendingAction,logFilter,safeDownload} from '../pages/infra-model.ts';
 const draw=(element:React.ReactElement,rows:Record<string,unknown>):string=>{const base=createSampleConsole().data;const data={...base,screens:{...base.screens,capQuery:(cap:string)=>{const value={status:'ready',data:rows[cap]};return{subscribe:()=>()=>undefined,getSnapshot:()=>value};}} as never};return renderToStaticMarkup(<ConsoleDataProvider value={data}>{element}</ConsoleDataProvider>);};
 test('held and queued actions do not imply completion; filters omit blank values and downloads refuse executable URLs',()=>{
@@ -11,6 +11,12 @@ test('held and queued actions do not imply completion; filters omit blank values
 });
 test('Diagnostics renders real failed checks with next steps and a run action',()=>{
  const html=draw(<Diagnostics/>,{'health.status':{overall:'degraded',checks:[{key:'host.disk_space',title:'Disk space',state:'degraded',checkedAt:1,module:'host',next:'Free disk space',detail:'Low disk'}]},'health.machine':{state:'healthy',machine:{diskFreeBytes:2e9}},'health.disk_space':{state:'healthy',freeBytes:2e9}});assert.match(html,/Disk space/);assert.match(html,/Low disk|Free disk space/);assert.match(html,/infra-run-checks/);assert.doesNotMatch(html,/not implemented/);
+});
+test('Storage shows memory and total disk as numbers when the host has reported them, and Unavailable only when it has not',()=>{
+ const reported=draw(<Storage/>,{'health.machine':{state:'healthy',machine:{cpuPercent:12,memoryUsedBytes:6e9,memoryTotalBytes:16e9,diskFreeBytes:300e9,diskTotalBytes:500e9}},'health.disk_space':{state:'healthy',freeBytes:300e9},'health.disk_encrypted':{state:'healthy'}});
+ assert.match(reported,/6\.0 GB of 16\.0 GB/);assert.match(reported,/500\.0 GB/);assert.match(reported,/300\.0 GB/);assert.doesNotMatch(reported,/Unavailable/);
+ const silent=draw(<Storage/>,{'health.machine':{state:'degraded',detail:'The host has not reported this yet.'},'health.disk_space':{state:'healthy',freeBytes:300e9},'health.disk_encrypted':{state:'healthy'}});
+ assert.match(silent,/Unavailable/);
 });
 test('Support shows actual doctor findings and a bundle action; Server mounts typed filters',()=>{
  assert.match(draw(<Support/>,{'health.doctor':{ok:false,findings:[{key:'test',state:'degraded',next:'Run the check again'}]}}),/Run the check again|infra-support-create/);

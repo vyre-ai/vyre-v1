@@ -1,0 +1,4 @@
+- Everyone now has a private Personal calendar from the day they join (the owner from the start), so you can add an event without connecting Google or Microsoft first. People who joined earlier get theirs the next time the server starts.
+- The Console's Infrastructure page now shows the server's memory and total disk size (it said Unavailable because nothing reported them); the server updates them every minute.
+- Synced record types (from a CRM or other outside app) now refresh on their own at their set pace, even after a failed sync or a missed poll, wait longer after repeated failures, and skip paused or disconnected apps; they no longer depend on someone pressing Resync.
+- Filling a document from a record, previewing an email as a record and checking an import against existing rows no longer fail with "Something in what you entered is not right"; a scheduled call and an agent's own calls to other parts of the app also carry their idempotency key.
