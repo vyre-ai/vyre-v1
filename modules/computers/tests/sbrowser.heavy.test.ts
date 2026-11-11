@@ -497,7 +497,13 @@ test("@heavy space browser: with Engine access the service is on a network of it
     assert.equal(info.HostConfig.NetworkMode, `${NET_NAME}net`, "its own network, not the default bridge");
     const net = JSON.parse(new TextDecoder().decode((await http({ method: "GET", path: `/networks/${NET_NAME}net` })).body)) as { IPAM: { Config: Array<{ Subnet: string }> } };
     assert.deepEqual(computerSubnets(), [net.IPAM.Config[0]!.Subnet], "the daemon knows the service's network");
-  } finally { bindSpaceBrowser(null); daemon.close(); }
+  } finally {
+    bindSpaceBrowser(null); daemon.close();
+    // the Docker address pools are finite on a shared host: this test's network goes as soon as it is done
+    await api.containerStop(NET_NAME, 5).catch(() => undefined);
+    await api.containerRemove(NET_NAME).catch(() => undefined);
+    await http({ method: "DELETE", path: `/networks/${NET_NAME}net` }).catch(() => undefined);
+  }
 });
 
 // Audit B4 (12 Nov): the hold was enforced only inside browserd, which keeps it in memory. Through the module's own path (the capabilities an agent calls), every chrome_* tool must wait while a person has the
