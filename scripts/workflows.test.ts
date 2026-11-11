@@ -374,3 +374,14 @@ test("release: publish runs hosted, holds no signing key, fetches its artifacts 
   const b = rel.jobs.find((j) => j.name === "budget-tag")!;
   assert.match(b.text, /--fallback-start "\$\{\{ needs\.guard\.outputs\.started \}\}"/);
 });
+
+test("the sealed-profile and Space browser real-Docker proofs run in l2-heavy on pull requests that touch modules/computers, the daemon, the runner policy or the browser image", () => {
+  const l2 = wf("check").jobs.find((j) => j.name === "l2-heavy")!;
+  assert.ok(l2, "check.yml has l2-heavy");
+  for (const f of ["modules/computers/tests/seal.heavy.test.ts", "modules/computers/tests/sbrowser.heavy.test.ts", "modules/computers/tests/lifecycle.heavy.test.ts"]) assert.ok(l2.text.includes(f), `l2-heavy lists ${f}`);
+  assert.match(l2.text, /pass 4\$"? seal-heavy\.out|pass 4\$" seal-heavy\.out/, "the four computers cases of seal.heavy are counted");
+  const scope = /grep -Eq '(\^\([^']+\))'/.exec(l2.text)?.[1] ?? "";
+  for (const p of ["modules/computers/", "host/src/daemon/", "images/space-browser/", "host/src/sites-runner/"]) assert.ok(new RegExp(scope).test(p + "x"), `${p} selects l2-heavy`);
+  const tests = fs.readdirSync(path.resolve(dir, "../../modules/computers/tests")).filter((f) => /\.heavy\.test\.ts$/.test(f));
+  for (const t of tests) assert.ok(all.some((w) => w.text.includes(`modules/computers/tests/${t}`)), `${t} runs in some workflow`);
+});

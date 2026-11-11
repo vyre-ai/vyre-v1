@@ -78,12 +78,17 @@ export async function health(ctx: CompCtx, _input: Record<string, never>) {
   const NO_RUNTIME = "No agent computers yet, and no container runtime on this host. Install Docker to start one.";
   if (!host) return idle ? { state: "healthy" as const, detail: NO_RUNTIME, runtime: "missing" as const, awake, asleep } : { state: "down" as const, detail: "Agent computers are not running on this host.", runtime: "missing" as const, awake, asleep };
   const t0 = Date.now();
-  let h: { ok: boolean; detail?: string; latencyMs?: number; unsealed?: number };
+  let h: { ok: boolean; detail?: string; latencyMs?: number; unsealed?: number; unsealedIds?: string[] };
   try { h = await host.health(); } catch (e) { h = { ok: false, detail: e instanceof Error ? e.message.slice(0, 200) : "The host did not answer." }; }
   if (!h.ok && idle) return { state: "healthy" as const, detail: NO_RUNTIME, runtime: "missing" as const, latencyMs: h.latencyMs ?? Math.max(0, Date.now() - t0), awake, asleep };
   const broken = rows.filter((s) => s === "error").length;
   const state = !h.ok ? ("down" as const) : broken > 0 || (h.unsealed ?? 0) > 0 ? ("degraded" as const) : ("healthy" as const);
-  const detail = !h.ok ? h.detail : broken > 0 ? `${broken} ${broken === 1 ? "computer is" : "computers are"} in an error state` : h.detail;
+  // a saved browser profile over the size limit is not locked on the server: a person sees whose it is, and it stays in the line when a computer is also in error
+  const agentOf = new Map(rowsOf(ctx.db, "SELECT computer_id, agent_id FROM computers_computers").map((r) => [String(r["computer_id"]), String(r["agent_id"])]));
+  const big = [...new Set((h.unsealedIds ?? []).map((id) => agentOf.get(id) ?? id))];
+  const bigText = big.length > 0 ? `${big.length} saved browser ${big.length === 1 ? "profile is" : "profiles are"} over the size limit and not locked on this server (agent: ${big.slice(0, 5).join(", ")}${big.length > 5 ? ", ..." : ""}). Clear its downloads and cache; it is locked at its next sleep.` : undefined;
+  const errText = broken > 0 ? `${broken} ${broken === 1 ? "computer is" : "computers are"} in an error state` : undefined;
+  const detail = !h.ok ? h.detail : [errText, bigText].filter(Boolean).join(". ") || h.detail;
   return { state, ...(detail ? { detail } : {}), runtime: h.ok ? ("ready" as const) : ("missing" as const), latencyMs: h.latencyMs ?? Math.max(0, Date.now() - t0), awake, asleep };
 }
 

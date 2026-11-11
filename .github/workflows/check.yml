@@ -231,7 +231,7 @@ jobs:
     # P-L2_HEAVY (security sign-off, spec S8): real Docker, real bubblewrap and real tmux against the sandbox and the terminal module; P-L2_16b adds the agent computers module (lifecycle and the 35 tools). The tests skip unless VYRE_HEAVY_DOCKER=1 and, with it on,
     # fail instead of skipping when Docker, the image, bwrap or tmux is missing, so a green job means the proofs ran. Not part of the `check` gate below: it reports its own result on the run.
     runs-on: [self-hosted, linux, v1]
-    timeout-minutes: 30
+    timeout-minutes: 50
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
@@ -244,7 +244,7 @@ jobs:
           if [ "${{ github.event_name }}" = "schedule" ] || { [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ github.ref_name }}" = "main" ]; }; then echo "changed=true" >> "$GITHUB_OUTPUT"; echo "full run on main"; exit 0; fi
           git fetch -q origin main
           base="$(git merge-base origin/main HEAD)"
-          if git diff --name-only --no-renames "$base"...HEAD | grep -Eq '^(sandbox/|host/src/(ws|daemon/)|modules/(sync|chat)/|modules/terminal/|modules/computers/|modules/engine/(sandbox|tests/(sandbox|cli))|modules/steps-core/code-sandbox|host/tests/(chat|computers|automations\.code)\.live|images/person-sandbox/|images/agent-computer/|agent/tests/sandbox\.(net\.)?heavy|golden/steps/07-(reply|gate)\.heavy)'; then echo "changed=true" >> "$GITHUB_OUTPUT"; else echo "changed=false" >> "$GITHUB_OUTPUT"; echo "nothing the heavy tests cover changed"; fi
+          if git diff --name-only --no-renames "$base"...HEAD | grep -Eq '^(sandbox/|host/src/(ws|daemon/)|modules/(sync|chat)/|modules/terminal/|modules/computers/|modules/engine/(sandbox|tests/(sandbox|cli))|modules/steps-core/code-sandbox|host/tests/(chat|computers|automations\.code)\.live|images/person-sandbox/|images/agent-computer/|images/space-browser/|sandbox/src/docker|host/src/sites-runner/|agent/tests/sandbox\.(net\.)?heavy|golden/steps/07-(reply|gate)\.heavy)'; then echo "changed=true" >> "$GITHUB_OUTPUT"; else echo "changed=false" >> "$GITHUB_OUTPUT"; echo "nothing the heavy tests cover changed"; fi
       - name: Install bubblewrap and tmux when the runner does not have them
         if: steps.scope.outputs.changed == 'true'
         run: |
@@ -302,6 +302,29 @@ jobs:
           node --test --test-force-exit --test-timeout=600000 --test-reporter=spec modules/computers/tests/lifecycle.heavy.test.ts modules/computers/tests/tools.heavy.test.ts 2>&1 | tee computers-heavy.out
           grep -E "^ℹ skipped 0$" computers-heavy.out
           grep -E "^ℹ pass 2$" computers-heavy.out
+      - name: Sealed browser profiles of agent computers on real Docker, none skipped (modules/computers/tests/seal.heavy.test.ts, the four computers cases)
+        if: always() && steps.scope.outputs.changed == 'true'
+        env:
+          VYRE_HEAVY_DOCKER: "1"
+        run: |
+          set -o pipefail
+          node --test --test-force-exit --test-timeout=900000 --test-reporter=spec --test-name-pattern="@heavy seal: a " modules/computers/tests/seal.heavy.test.ts 2>&1 | tee seal-heavy.out
+          grep -E "^ℹ skipped 0$" seal-heavy.out
+          grep -E "^ℹ pass 4$" seal-heavy.out
+          grep -E "^ℹ fail 0$" seal-heavy.out
+      - name: The Space browser on real Docker, none skipped (modules/computers/tests/sbrowser.heavy.test.ts, then the sealed-profile case of seal.heavy.test.ts; both build the browser image, the second from the cache)
+        if: always() && steps.scope.outputs.changed == 'true'
+        env:
+          VYRE_HEAVY_DOCKER: "1"
+        run: |
+          set -o pipefail
+          node --test --test-force-exit --test-timeout=1500000 --test-reporter=spec modules/computers/tests/sbrowser.heavy.test.ts 2>&1 | tee sbrowser-heavy.out
+          grep -E "^ℹ skipped 0$" sbrowser-heavy.out
+          grep -E "^ℹ fail 0$" sbrowser-heavy.out
+          node --test --test-force-exit --test-timeout=1500000 --test-reporter=spec --test-name-pattern="Space browser seals" modules/computers/tests/seal.heavy.test.ts 2>&1 | tee seal-browser-heavy.out
+          grep -E "^ℹ skipped 0$" seal-browser-heavy.out
+          grep -E "^ℹ pass 1$" seal-browser-heavy.out
+          grep -E "^ℹ fail 0$" seal-browser-heavy.out
       - name: Agent computer S9 on real Docker, none skipped (sandbox/computer/stream.heavy.test.ts)
         if: always() && steps.scope.outputs.changed == 'true'
         env:

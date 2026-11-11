@@ -4,8 +4,9 @@
 // its start page's face and recent sites, downloads not yet taken into Files, and a fresh per-run token for the pairing with Vyre for Chrome.
 //
 // A sealed profile cannot be launched by anything else: after the Chrome folder is emptied the host sets a guard on the profile in browserd, which refuses to start a browser on it until the host has put the
-// folder back and lifted the guard. So a viewer's wake or a take-over cannot start Chrome on an empty folder over a sealed profile.
-import { checkId, createSealedStore, keyedLock, peekTar, TooLargeError, UNOPENED } from "../handlers/seal.ts";
+// folder back and lifted the guard. The guard goes on BEFORE the folder is emptied, so there is no moment when an empty folder can be launched over a sealed profile. If the guard cannot be set (an image from
+// before it existed, or browserd does not answer) nothing is sealed. The lock order is in handlers/seal.ts: nothing here waits for a lock or for recovery while holding a lock.
+import { browserLock, checkId, createSealedStore, peekTar, SEAL_CAP_BYTES, TooLargeError, UNOPENED } from "../handlers/seal.ts";
 import type { SealedStore } from "../handlers/seal.ts";
 import type { ProfileRow } from "./port.ts";
 
@@ -22,8 +23,8 @@ export interface BrowserSealDeps {
   guard(profileId: string, on: boolean): Promise<void>;
   /** The profiles browserd knows and whether each runs. Throws when it cannot be asked: a profile that cannot be looked at is never sealed. */
   rows(): Promise<ProfileRow[]>;
-  /** The ids of the profiles whose Chrome folder holds anything (browserd disk). */
-  disk(): Promise<string[]>;
+  /** The profiles whose Chrome folder holds anything, with its size in bytes when browserd can say (browserd disk). The size lets a profile over the cap be skipped without reading it. */
+  disk(): Promise<Array<{ id: string; bytes?: number }>>;
   now?: () => number;
   /** How long a profile must have been left alone, not running, before it is sealed (a viewer attaches right after a stream call). Default 20 s. */
   quietMs?: number;
@@ -34,17 +35,19 @@ export interface BrowserSealDeps {
 export function createBrowserSeal(d: BrowserSealDeps) {
   const now = d.now ?? Date.now;
   const quietMs = d.quietMs ?? 20_000;
-  const lock = keyedLock();
+  const lock = browserLock;
   const touched = new Map<string, number>();
   const inflight = new Map<string, number>();
-  const tooLarge = new Map<string, number>();
-  let recovering: Promise<unknown> = Promise.resolve();
+  /** A guard that could not be lifted after a whole restore: lifted again at the next call. */
+  const needLift = new Set<string>();
+  /** Profiles found over the cap by reading (no size from browserd): skipped until the next call uses them. */
+  const skipUntilUse = new Set<string>();
   const note = (msg: string, e: unknown, attrs: Record<string, unknown> = {}): void => { d.log?.("warn", msg, { ...attrs, error: e instanceof Error ? e.message.slice(0, 200) : "unknown" }); };
 
   /** Under the lock, with the browser not running. */
   async function sealNow(id: string): Promise<boolean> {
     const s = d.store.state(id);
-    if (s === "wiping") { await d.reset(id); await d.guard(id, true); d.store.clearState(id); return true; }
+    if (s === "wiping") { await d.guard(id, true); await d.reset(id); d.store.clearState(id); return true; }
     if (s === "sealed") return false;
     if (s === "none") d.store.setState(id, "hot");   // before the file exists: a crash after the save still reads as plain data to seal
     const r = await d.read(id);
@@ -53,17 +56,17 @@ export function createBrowserSeal(d: BrowserSealDeps) {
     if (r.status === 404) { for await (const _ of r.body) void _; }
     else if (r.status !== 200) { r.body.destroy(); throw new Error(`The browser profile could not be read (${r.status}).`); }
     else { const p = await peekTar(r.body); empty = p.empty; bytes = p.bytes; if (empty) r.body.destroy(); }
-    if (empty) { d.store.discard(id); tooLarge.delete(id); await d.guard(id, false).catch(() => undefined); return false; }   // hot and empty: the person cleared it, the old file does not come back
-    try { await d.store.saveFrom(id, bytes as AsyncIterable<Uint8Array>, d.cap); }
+    if (empty) { d.store.discard(id); await d.guard(id, false).catch(() => undefined); return false; }   // hot and empty: the person cleared it, the old file does not come back
+    try { await d.store.saveFrom(id, bytes as AsyncIterable<Uint8Array>, d.cap, true); }
     catch (e) {
       r.body.destroy();
-      if (e instanceof TooLargeError) { tooLarge.set(id, e.bytes); d.log?.("warn", "computers.browser.profile_too_large", { profile: id, mb: Math.round(e.bytes / 1024 ** 2) }); return false; }
+      if (e instanceof TooLargeError) { d.store.setOversize(id, e.bytes); skipUntilUse.add(id); d.log?.("warn", "computers.browser.profile_too_large", { profile: id, mb: Math.round(e.bytes / 1024 ** 2) }); return false; }
       throw e;
     }
-    tooLarge.delete(id);
+    d.store.clearOversize(id); skipUntilUse.delete(id);
     d.store.setState(id, "wiping");
+    await d.guard(id, true);   // before the folder is emptied: no moment when an empty folder can be launched over the sealed profile
     await d.reset(id);
-    await d.guard(id, true);
     d.store.clearState(id);
     return true;
   }
@@ -71,7 +74,7 @@ export function createBrowserSeal(d: BrowserSealDeps) {
   /** Under the lock. */
   async function plainNow(id: string): Promise<void> {
     const s = d.store.state(id);
-    if (s === "hot") return;
+    if (s === "hot") { if (needLift.has(id)) { await d.guard(id, false); needLift.delete(id); } return; }
     if (s === "none") { d.store.setState(id, "hot"); await d.guard(id, false).catch(() => undefined); return; }
     // sealed, or wiping: the file is the profile. It is checked end to end before anything is touched.
     await d.store.verify(id);
@@ -87,13 +90,14 @@ export function createBrowserSeal(d: BrowserSealDeps) {
       await d.reset(id).catch(() => undefined);   // the good file stays the truth; the partial copy goes
       throw e;
     }
-    await d.guard(id, false);
     d.store.setState(id, "hot");
+    // a guard that cannot be lifted must not leave the profile locked: the call fails, the state is hot (the folder is whole), and the next call lifts it again
+    try { await d.guard(id, false); } catch (e) { needLift.add(id); throw e; }
   }
 
   const self = {
     state: (id: string) => d.store.state(checkId("sbrowser", id)),
-    oversize: (): string[] => [...tooLarge.keys()],
+    oversize: (): string[] => d.store.oversize().map((x) => x.id),
     /** Profiles whose folder may hold a plain copy (a state file). */
     pending: (): string[] => d.store.pending(),
     /**
@@ -102,14 +106,13 @@ export function createBrowserSeal(d: BrowserSealDeps) {
      */
     async use<T>(id: string, fn: () => Promise<T>): Promise<T> {
       checkId("sbrowser", id);
-      await lock(id, async () => { await recovering; touched.set(id, now()); await plainNow(id); inflight.set(id, (inflight.get(id) ?? 0) + 1); });
+      await lock(id, async () => { touched.set(id, now()); skipUntilUse.delete(id); await plainNow(id); inflight.set(id, (inflight.get(id) ?? 0) + 1); });
       try { return await fn(); } finally { inflight.set(id, (inflight.get(id) ?? 1) - 1); touched.set(id, now()); }
     },
     /** Seal one profile now if its browser is not running and nothing is using it (an explicit stop passes quiet: false). A status that cannot be read means it is not sealed. */
     seal(id: string, opts: { quiet?: boolean; boot?: boolean } = {}): Promise<boolean> {
       checkId("sbrowser", id);
       return lock(id, async () => {
-        if (opts.boot !== true) await recovering;
         if ((inflight.get(id) ?? 0) > 0) return false;
         const row = (await d.rows()).find((r) => r.profileId === id);
         if (row?.running || (row?.viewers ?? 0) > 0) return false;
@@ -123,26 +126,34 @@ export function createBrowserSeal(d: BrowserSealDeps) {
      */
     async sweep(opts: { quiet?: boolean; boot?: boolean } = {}): Promise<string[]> {
       const out: string[] = [];
-      const onDisk = (await d.disk()).filter((id) => { try { checkId("sbrowser", id); return true; } catch { d.log?.("warn", "computers.browser.bad_profile_id", {}); return false; } });
-      for (const id of new Set([...onDisk, ...d.store.pending()])) {
+      const onDisk = (await d.disk()).filter((x) => { try { checkId("sbrowser", x.id); return true; } catch { d.log?.("warn", "computers.browser.bad_profile_id", {}); return false; } });
+      const cap = d.cap ?? SEAL_CAP_BYTES;
+      for (const id of new Set([...onDisk.map((x) => x.id), ...d.store.pending()])) {
         try {
-          if (d.store.state(id) === "sealed") { if (onDisk.includes(id)) d.log?.("warn", "computers.browser.sealed_profile_has_plain_folder", { profile: id }); continue; }
+          const here = onDisk.find((x) => x.id === id);
+          // over the cap: found from the size browserd gives, without reading the profile, and looked at again every pass so it is sealed once it is back under
+          if (here?.bytes !== undefined) {
+            if (here.bytes > cap) { if (!d.store.oversize().some((x) => x.id === id)) d.log?.("warn", "computers.browser.profile_too_large", { profile: id, mb: Math.round(here.bytes / 1024 ** 2) }); d.store.setOversize(id, here.bytes); continue; }
+            d.store.clearOversize(id);
+          } else if (skipUntilUse.has(id)) continue;
+          if (d.store.state(id) === "sealed") {
+            // a plain Chrome folder beside a sealed profile is a stray (the sealed file is the profile): it is not left plain, it is emptied behind the guard
+            if (here) await lock(id, async () => { if ((inflight.get(id) ?? 0) > 0 || (await d.rows()).some((r) => r.profileId === id && r.running) || d.store.state(id) !== "sealed") return; d.log?.("warn", "computers.browser.sealed_profile_has_plain_folder", { profile: id }); await d.guard(id, true); await d.reset(id); });
+            continue;
+          }
           if (await self.seal(id, opts)) out.push(id);
         } catch (e) { note("computers.browser.seal_failed", e, { profile: id }); }
       }
       return out;
     },
     /** At boot, before anything is served: every profile that is not running is sealed, a half-finished wipe is finished. */
-    recover(): Promise<string[]> {
-      const run = self.sweep({ quiet: false, boot: true });
-      recovering = run.catch(() => undefined);
-      return run;
-    },
+    recover(): Promise<string[]> { return self.sweep({ quiet: false, boot: true }); },
     /** Chrome data is replaced (migration): `fn` empties and fills the folder under the profile's lock, and the old sealed copy is not the profile any more. */
     replace<T>(id: string, fn: () => Promise<T>): Promise<T> {
       checkId("sbrowser", id);
       return lock(id, async () => {
-        const r = await fn();
+        let r: T;
+        try { r = await fn(); } catch (e) { await d.reset(id).catch(() => undefined); throw e; }   // a failed import leaves no partial plain data
         d.store.discard(id);
         d.store.setState(id, "hot");
         await d.guard(id, false).catch(() => undefined);
@@ -151,7 +162,7 @@ export function createBrowserSeal(d: BrowserSealDeps) {
       });
     },
     /** The agent is gone. */
-    forgotten(id: string): Promise<void> { return lock(checkId("sbrowser", id), async () => { d.store.discard(id); tooLarge.delete(id); }); },
+    forgotten(id: string): Promise<void> { return lock(checkId("sbrowser", id), async () => { d.store.discard(id); skipUntilUse.delete(id); needLift.delete(id); }); },
   };
   return self;
 }

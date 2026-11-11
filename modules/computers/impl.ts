@@ -30,7 +30,7 @@ import { bindWorkspaceStart, workspaceClaim, workspaceRelease, workspaceWaiting 
 import { bindMigration, bindMigrationPort } from "./migrate.ts";
 import { createHomeSync } from "./handlers/home.ts";
 import { createContainerHomeFs } from "./handlers/home-fs.ts";
-import { createProfileSeal, keyedLock } from "./handlers/seal.ts";
+import { computersLock, createProfileSeal } from "./handlers/seal.ts";
 import type { HomeDeps, HomeSync, MadeFile } from "./handlers/home.ts";
 import { createFillService, fillHttp } from "./handlers/fill.ts";
 import type { FillSource, FillUse } from "./handlers/fill.ts";
@@ -227,17 +227,15 @@ export function explainEngine(status: number, error: unknown, where: "engine" | 
   return "Docker did not answer in time. Check that it is running, then set up the computer.";
 }
 
-export function createDockerComputerHost(o: DockerHostOptions): ComputerHost & ToolHost & { recover(): Promise<string[]> } {
+export function createDockerComputerHost(o: DockerHostOptions): ComputerHost & ToolHost & { recover(): Promise<string[]>; close(): void } {
   const prefix = o.prefix ?? "vyre-comp-";
   const ctlPath = o.ctl ?? AGENTD_CTL;
   const sleep = o.sleep ?? realSleep;
   const nameOf = (computerId: string): string => `${prefix}${computerId.replace(/^cmt_/, "")}`;
-  const withLock = keyedLock();
+  const withLock = computersLock;
   const profile = o.profile ?? (o.profileSeal && o.http
     ? createProfileSeal({ http: o.http, key: o.profileSeal.key, dir: o.profileSeal.dir, container: nameOf, lock: withLock, ...(o.profileSeal.cap !== undefined ? { cap: o.profileSeal.cap } : {}), ...(o.log ? { log: o.log } : {}), image: o.image ?? DEFAULT_COMPUTER_IMAGE, user: { uid: o.user?.uid ?? 10001, gid: o.user?.gid ?? 10001 } })
     : undefined);
-  // the boot recovery (below) seals what a crash left in plain form; nothing reads or starts a profile until it is done
-  let recovering: Promise<unknown> = Promise.resolve();
   let recoverTimer: ReturnType<typeof setInterval> | null = null;
 
   async function containerAddress(computerId: string): Promise<string | null> {
@@ -347,7 +345,7 @@ export function createDockerComputerHost(o: DockerHostOptions): ComputerHost & T
     } catch (e) { o.home?.deps.log("warn", "computers.home.pass_failed", { computer: computerId, error: e instanceof Error ? e.message.slice(0, 200) : "unknown" }); return false; }
   }
 
-  const host: ComputerHost & ToolHost & { recover(): Promise<string[]> } = {
+  const host: ComputerHost & ToolHost & { recover(): Promise<string[]>; close(): void } = {
     address: containerAddress,
     siteLogs,
     kind: o.kind ?? "server",
@@ -375,7 +373,6 @@ export function createDockerComputerHost(o: DockerHostOptions): ComputerHost & T
     chromeData(computerId) { return withLock(computerId, async () => {
       const name = nameOf(computerId);
       if (!o.http) throw new Error("this host cannot read a computer's files");
-      await recovering;
       const was = profile?.state?.(computerId);
       if (profile) await profile.unseal(computerId);
       try {
@@ -388,7 +385,6 @@ export function createDockerComputerHost(o: DockerHostOptions): ComputerHost & T
     }); },
     start(a) { return withLock(a.computerId, async () => {
       const name = nameOf(a.computerId);
-      await recovering;
       if (profile) await profile.unseal(a.computerId);
       await homePass(a.computerId, a.agentId);
       await o.api.containerStart(name);
@@ -429,10 +425,9 @@ export function createDockerComputerHost(o: DockerHostOptions): ComputerHost & T
       }
       await profile?.discard?.(computerId);
     }); },
-    /** At boot: a computer that is not running must not keep a plain profile. Answers the computers it sealed; start and the migration read wait for it. */
+    /** At boot: a computer that is not running must not keep a plain profile. Answers the computers it sealed. Nothing waits for it: it takes one computer's lock at a time (handlers/seal.ts, LOCK ORDER). */
     recover() {
       const run = (async (): Promise<string[]> => (await profile?.recoverStopped?.()) ?? [])();
-      recovering = run.catch(() => undefined);
       // and then every minute: a container that dies on its own leaves a plain profile, which is not left until the next boot
       if (profile?.recoverStopped && !recoverTimer) {
         recoverTimer = setInterval(() => { void profile.recoverStopped?.().catch((e: unknown) => o.log?.("warn", "computers.profile.recover_failed", { error: e instanceof Error ? e.message.slice(0, 200) : "unknown" })); }, o.recoverEveryMs ?? 60_000);
@@ -440,6 +435,8 @@ export function createDockerComputerHost(o: DockerHostOptions): ComputerHost & T
       }
       return run;
     },
+    /** The recovery timer stops (the host is unbound or replaced). */
+    close() { if (recoverTimer) clearInterval(recoverTimer); recoverTimer = null; },
     async probe(computerId) {
       if (o.runner && !subnets.has(computerId)) await learnSubnet(computerId);
       const running = await o.api.containerRunning(nameOf(computerId));
@@ -528,7 +525,7 @@ export function createDockerComputerHost(o: DockerHostOptions): ComputerHost & T
       try {
         const r = await o.http({ method: "GET", path: "/_ping", timeoutMs: 5000 });
         const big = [...(profile?.oversize?.() ?? []), ...(spaceBrowser()?.oversize?.() ?? [])];
-        if (r.status === 200) return { ok: true, latencyMs: Date.now() - t0, ...(big.length > 0 ? { unsealed: big.length, detail: `${big.length} saved browser ${big.length === 1 ? "profile is" : "profiles are"} over the size limit and not locked on this server. Clear its downloads and cache.` } : {}) };
+        if (r.status === 200) return { ok: true, latencyMs: Date.now() - t0, ...(big.length > 0 ? { unsealed: big.length, unsealedIds: big } : {}) };
         return { ok: false, latencyMs: Date.now() - t0, detail: explainEngine(r.status, null, o.runner ? "runner" : "engine") };
       } catch (e) { return { ok: false, latencyMs: Date.now() - t0, detail: explainEngine(0, e, o.runner ? "runner" : "engine") }; }
     },
@@ -578,7 +575,7 @@ export interface ComputersHostConfig {
 }
 
 /** The Docker host for a machine, not yet bound: the Space binds it as its own; a computer that joined runs jobs on it. */
-export function buildComputerHost(c: ComputersHostConfig): ComputerHost & ToolHost & { recover(): Promise<string[]> } {
+export function buildComputerHost(c: ComputersHostConfig): ComputerHost & ToolHost & { recover(): Promise<string[]>; close(): void } {
   // behind the runner the socket is the runner's and every call carries its token, read again each time (the runner writes a new one at each start)
   const http = c.runner ? unixSocketHttp(c.runner.socket, undefined, () => ({ authorization: `Bearer ${c.runner!.token()}` })) : unixSocketHttp(c.socketPath);
   return createDockerComputerHost({
@@ -602,7 +599,7 @@ export async function learnComputerSubnets(ids: readonly string[]): Promise<stri
 export async function localSiteLogs(a: { computerId: string; slug: string; lines: number }): Promise<string[]> { return (await boundHost()?.siteLogs?.(a)) ?? []; }
 
 /** The Space browser for this machine, not yet bound: one container for the Space host, a Chrome profile per agent (sbrowser/). */
-export function buildSpaceBrowser(c: ComputersHostConfig): SpaceBrowser & { recover(): Promise<string[]> } {
+export function buildSpaceBrowser(c: ComputersHostConfig): SpaceBrowser & { recover(): Promise<string[]>; close(): void } {
   const http = c.runner ? unixSocketHttp(c.runner.socket, undefined, () => ({ authorization: `Bearer ${c.runner!.token()}` })) : unixSocketHttp(c.socketPath);
   return createDockerSpaceBrowser({
     api: createDockerApi(http), http,
@@ -617,6 +614,9 @@ export function buildSpaceBrowser(c: ComputersHostConfig): SpaceBrowser & { reco
 }
 
 export function setComputerHost(c: ComputersHostConfig | null): void {
+  // the host being replaced stops its timers first: a second host with its own timer must not seal a computer under the new one
+  (boundHost() as { close?: () => void } | null)?.close?.();
+  (spaceBrowser() as { close?: () => void } | null)?.close?.();
   if (c === null) { bindHost(null); bindSpaceBrowser(null); return; }
   const host = buildComputerHost(c);
   const browser = buildSpaceBrowser(c);

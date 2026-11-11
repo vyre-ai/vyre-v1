@@ -126,7 +126,7 @@ test("F16: only the id of a computer or a profile names a file, never a rewritte
 
 // ---- an Engine that can fail, stop halfway and hold things up ------------------------------------------------------------------------------------
 
-type Hooks = { onWait?: (helper: string) => Promise<void>; onGet?: (name: string) => Promise<void>; putFailAfterFiles?: number; putThrows?: boolean; wipeExit?: number; failCreate?: boolean };
+type Hooks = { shortGet?: boolean; onWait?: (helper: string) => Promise<void>; onGet?: (name: string) => Promise<void>; putFailAfterFiles?: number; putThrows?: boolean; wipeExit?: number; failCreate?: boolean };
 function engine(dir: string, hooks: Hooks = {}) {
   const vols = new Map<string, Map<string, Uint8Array>>();
   const status = new Map<string, "running" | "exited" | "created" | "paused">();
@@ -166,7 +166,8 @@ function engine(dir: string, hooks: Hooks = {}) {
       log.push(`GET-STREAM ${a.path}`);
       await hooks.onGet?.(m![1]!);
       if (!m || !status.has(m[1]!)) return { status: 404, body: Readable.from([]) as never };
-      const tar = Buffer.from(tarOf(m[1]!));
+      let tar = Buffer.from(tarOf(m[1]!));
+      if (hooks.shortGet) tar = tar.subarray(0, tar.length - 1024);   // the Engine ended the archive early and closed cleanly
       const pieces: Buffer[] = []; for (let i = 0; i < tar.length; i += 65536) pieces.push(tar.subarray(i, i + 65536));
       return { status: 200, body: Readable.from(pieces) as never };
     },
@@ -461,7 +462,7 @@ test("F8: a computer whose container dies outside a sleep is sealed by the perio
 
 // ---- the Space browser's profiles ----------------------------------------------------------------------------------------------------------------
 
-type BHooks = { putFails?: number; rowsFail?: boolean; onRead?: () => Promise<void>; resetFails?: boolean };
+type BHooks = { shortRead?: boolean; putFails?: number; rowsFail?: boolean; onRead?: (id: string) => Promise<void>; resetFails?: boolean; sizes?: Record<string, number>; guardFails?: boolean; guardOffFails?: boolean };
 function browser(dir: string, o: { k?: Uint8Array; hooks?: BHooks; cap?: number; logs?: Array<[string, string]> } = {}) {
   const hooks = o.hooks ?? {};
   const folders = new Map<string, Map<string, Uint8Array>>();
@@ -474,9 +475,10 @@ function browser(dir: string, o: { k?: Uint8Array; hooks?: BHooks; cap?: number;
   const seal = createBrowserSeal({
     store, now: () => clock, quietMs: 20_000, ...(o.cap ? { cap: o.cap } : {}), ...(o.logs ? { log: (l, m) => { o.logs!.push([l, m]); } } : {}),
     async read(id) {
-      calls.push(`read ${id}`); await hooks.onRead?.();
+      calls.push(`read ${id}`); await hooks.onRead?.(id);
       if (f(id).size === 0) return { status: 404, body: Readable.from([]) as never };
-      return { status: 200, body: Readable.from([Buffer.from(tarFiles([...f(id)].map(([p, data]) => ({ path: `chrome/${p}`, data, mode: 0o600, uid: 10001, gid: 10001, mtime: 1 }))))]) as never };
+      const whole = Buffer.from(tarFiles([...f(id)].map(([p, data]) => ({ path: `chrome/${p}`, data, mode: 0o600, uid: 10001, gid: 10001, mtime: 1 }))));
+      return { status: 200, body: Readable.from([hooks.shortRead ? whole.subarray(0, whole.length - 1024) : whole]) as never };
     },
     async put(id, body) {
       calls.push(`put ${id}`);
@@ -487,9 +489,9 @@ function browser(dir: string, o: { k?: Uint8Array; hooks?: BHooks; cap?: number;
     },
     async reset(id) { calls.push(`reset ${id}`); if (hooks.resetFails) throw new Error("reset failed"); f(id).clear(); const r = rows.get(id); if (r) r.running = false; },
     async stop(id) { calls.push(`stop ${id}`); const r = rows.get(id); if (r) r.running = false; },
-    async guard(id, on) { calls.push(`guard ${id} ${on}`); guards.set(id, on); },
+    async guard(id, on) { calls.push(`guard ${id} ${on}`); if (hooks.guardFails || (!on && hooks.guardOffFails)) throw new Error("browserd did not answer the guard"); guards.set(id, on); },
     async rows() { if (hooks.rowsFail) throw new Error("status did not answer"); return [...rows.values()]; },
-    async disk() { return [...folders].filter(([, v]) => v.size > 0).map(([id]) => id); },
+    async disk() { return [...folders].filter(([, v]) => v.size > 0).map(([id, v]) => ({ id, ...(hooks.sizes ? { bytes: hooks.sizes[id] ?? [...v.values()].reduce((n, x) => n + x.length, 0) } : {}) })); },
   });
   const row = (id: string, x: Partial<ProfileRow> = {}): void => { rows.set(id, { profileId: id, running: false, tabs: 0, busy: false, takeover: false, viewers: 0, lastActiveAt: 0, held: 0, paused: false, ...x }); };
   return { seal, store, f, row, rows, guards, calls, hooks, advance(ms: number) { clock += ms; }, tool: <T>(id: string, fn: () => Promise<T>) => seal.use(id, fn) };
@@ -543,10 +545,11 @@ test("F6: a browser started by a viewer or a take-over cannot run over a sealed 
   b.advance(60_000); await b.seal.sweep();
   assert.equal(b.guards.get("agt_dex"), true);
   const guardIdx = b.calls.lastIndexOf("guard agt_dex true"), resetIdx = b.calls.lastIndexOf("reset agt_dex");
-  assert.ok(guardIdx > resetIdx, "the guard goes on right after the folder is emptied");
+  assert.ok(guardIdx < resetIdx, "N5: the guard goes on BEFORE the folder is emptied, so there is no moment when an empty folder can be launched");
   b.f("agt_dex").set("Default/Cookies", cookie("signed-in-by-a-stray-launch"));   // something put a plain folder over the sealed profile
   assert.deepEqual(await b.seal.sweep(), []);
-  assert.ok(logs.some(([, m]) => m === "computers.browser.sealed_profile_has_plain_folder"), "it is logged, not skipped");
+  assert.ok(logs.some(([, m]) => m === "computers.browser.sealed_profile_has_plain_folder"), "it is logged");
+  assert.equal(b.f("agt_dex").size, 0, "and the stray plain folder is emptied behind the guard: the sealed file is the profile, nothing plain is left");
   const manager = fs.readFileSync(new URL("../../../images/space-browser/browserd/profiles.ts", import.meta.url), "utf8");
   assert.match(manager, /if \(o\.blocked\?\.\(id\)\) throw unavailable/, "browserd refuses to start a browser on a guarded profile");
   const main = fs.readFileSync(new URL("../../../images/space-browser/browserd/main.ts", import.meta.url), "utf8");
@@ -622,7 +625,7 @@ test("F16 (browser): ids that browserd returns are checked, not rewritten: a bad
   const b = browser(dir, { logs });
   const seal = createBrowserSeal({
     store: b.store, async read() { return { status: 404, body: Readable.from([]) as never }; }, async put() { return { status: 200 }; }, async reset() {}, async stop() {}, async guard() {},
-    async rows() { return []; }, async disk() { return ["agt+dex", "agt_ok1"]; }, log: (l, m) => { logs.push([l, m]); },
+    async rows() { return []; }, async disk() { return [{ id: "agt+dex" }, { id: "agt_ok1" }]; }, log: (l, m) => { logs.push([l, m]); },
   });
   await seal.sweep({ quiet: false });
   assert.ok(logs.some(([, m]) => m === "computers.browser.bad_profile_id"));
@@ -675,6 +678,200 @@ test("F1: a profile over the cap shows in the computers health, as a finding a p
   assert.equal((await host.health()).unsealed, undefined);
   await host.recover();
   const h = await host.health();
-  assert.equal(h.ok, true); assert.equal(h.unsealed, 1);
-  assert.match(String(h.detail), /1 saved browser profile is over the size limit and not locked/);
+  assert.equal(h.ok, true); assert.equal(h.unsealed, 1); assert.deepEqual(h.unsealedIds, [id]);
+  // N3: remembered across a restart, so the health can still name it before anything is read again
+  const again = createDockerComputerHost({ api: api as never, http: e.http, image: "img", profileSeal: { key: () => key(1), dir, cap: 1024 * 1024 }, user: { uid: 10001, gid: 10001 } });
+  assert.deepEqual((await again.health()).unsealedIds, [id]);
+});
+
+// ---- round 3 (SEAL-REVIEW-2): N1 to N10 -----------------------------------------------------------------------------------------------------------
+
+const racing = async <T>(p: Promise<T>, what: string, ms = 3000): Promise<T> => Promise.race([p, new Promise<never>((_, rej) => setTimeout(() => rej(new Error(`DEADLOCK: ${what} did not finish in ${ms} ms`)), ms))]);
+const fakeApi = (e: ReturnType<typeof engine>) => ({
+  async ping() { return true; }, async imageExists() { return true; }, async networkCreate() { throw new Error("no"); }, async networkRemove() {}, async containerCreate() { return "x"; },
+  async containerStart(n: string) { e.status.set(n, "running"); }, async containerStop(n: string) { e.status.set(n, "exited"); }, async containerRemove() {}, async containerRunning(n: string) { return e.status.get(n) === "running"; },
+  async exec() { return { exitCode: 0, stdout: "{}", stderr: "" }; }, async putArchive() {},
+});
+
+test("N1 (computers): a wake during boot recovery does not deadlock, for another computer or for the one being recovered", async () => {
+  const dir = dirOf(); const e = engine(dir);
+  const A = CID("aaaa00a1"), B = CID("bbbb00b2");
+  const an = e.plant(A), bn = e.plant(B);
+  await e.seal().unseal(A);                                  // A: plain after a crash
+  await e.seal().unseal(B); await e.seal().seal(B);          // B: sealed
+  let release: () => void = () => {}; const gate = new Promise<void>((r) => { release = r; });
+  e.hooks.onGet = async (n) => { if (n === an) await gate; };
+  const host = createDockerComputerHost({ api: fakeApi(e) as never, http: e.http, image: "img", profileSeal: { key: () => key(1), dir }, startTimeoutMs: 3000, user: { uid: 10001, gid: 10001 }, sleep: async () => {} });
+  const recovering = host.recover();                         // seals A, held at A's read
+  await tick(30);
+  await racing(host.start({ computerId: B, agentId: "agt_b", tabLimit: 4 }), "the wake of B during recovery of A");
+  assert.equal(e.vol(bn).size, 2, "B woke with its profile back");
+  const wakingA = host.start({ computerId: A, agentId: "agt_a", tabLimit: 4 });   // A is being recovered right now
+  await tick(30);
+  release();
+  await racing(Promise.all([recovering, wakingA]), "recovery of A and the wake of A");
+  assert.equal(e.status.get(an), "running"); assert.equal(e.vol(an).size, 2, "A woke with its whole profile, after it was sealed and restored in turn");
+  assert.equal(wipeLines(e.log) >= 1, true);
+});
+
+test("N1 (browser): a call during boot recovery does not deadlock, for another profile or for the one being recovered", async () => {
+  const dir = dirOf(); const b = browser(dir);
+  await b.tool("agt_a", async () => { b.f("agt_a").set("Default/Cookies", cookie(`a=${SECRET}`)); });
+  await b.tool("agt_b", async () => { b.f("agt_b").set("Default/Cookies", cookie(`b=${SECRET}`)); });
+  b.advance(60_000); await b.seal.sweep({ quiet: true });                      // both sealed
+  const again = browser(dir);                                                   // a restart: nothing remembered but the files
+  await again.tool("agt_a", async () => { again.f("agt_a").set("Default/Cookies", cookie(`a2=${SECRET}`)); });   // A is plain again after the crash
+  let release: () => void = () => {}; const gate = new Promise<void>((r) => { release = r; });
+  again.hooks.onRead = async (id) => { if (id === "agt_a") await gate; };
+  const rec = again.seal.recover();                                             // seals A, held at A's read
+  await tick(30);
+  await racing(again.tool("agt_b", async () => "b ran"), "a call on B during recovery of A");
+  const useA = again.tool("agt_a", async () => "a ran");
+  await tick(30);
+  release();
+  assert.equal(await racing(useA, "a call on A during its own recovery"), "a ran");
+  await racing(rec, "boot recovery");
+});
+
+test("N2: a Space browser profile over the cap is found from its size and is not read, every sweep, until it is back under; one found by reading is skipped until it is used again", async () => {
+  const dir = dirOf(); const logs: Array<[string, string]> = []; const b = browser(dir, { logs });
+  await b.tool("agt_dex", async () => { b.f("agt_dex").set("Default/Cookies", cookie(`sid=${SECRET}`)); });
+  b.advance(60_000);
+  b.hooks.sizes = { agt_dex: 5 * 1024 ** 3 };
+  for (let i = 0; i < 3; i++) { assert.deepEqual(await b.seal.sweep(), []); b.advance(30_000); }
+  assert.ok(!b.calls.includes("read agt_dex"), "the profile was never read: its size said it is over the cap");
+  assert.deepEqual(b.seal.oversize(), ["agt_dex"]);
+  assert.equal(logs.filter(([, m]) => m === "computers.browser.profile_too_large").length, 1, "said once, not every pass");
+  b.hooks.sizes = { agt_dex: 1000 };                       // cleared back under
+  assert.deepEqual(await b.seal.sweep(), ["agt_dex"], "sealed as soon as it is back under the cap");
+  assert.deepEqual(b.seal.oversize(), []);
+  // no size from browserd (an older image): found by reading once, then skipped until the profile is used
+  const dir2 = dirOf(); const c = browser(dir2, { cap: 1024 });
+  await c.tool("agt_dex", async () => { c.f("agt_dex").set("Default/Big", new Uint8Array(4096)); });
+  c.advance(60_000); await c.seal.sweep();
+  const reads = c.calls.filter((x) => x === "read agt_dex").length;
+  assert.equal(reads, 1);
+  for (let i = 0; i < 3; i++) { c.advance(30_000); await c.seal.sweep(); }
+  assert.equal(c.calls.filter((x) => x === "read agt_dex").length, reads, "not read again every pass");
+  await c.tool("agt_dex", async () => {});                  // used again: looked at again
+  c.advance(60_000); await c.seal.sweep();
+  assert.equal(c.calls.filter((x) => x === "read agt_dex").length, reads + 1);
+});
+
+test("N3: the health names whose profile is over the cap, keeps that line when a computer is also in error, and the list survives a restart", async () => {
+  const { health } = await import("../handlers/lifecycle.ts");
+  const { harness, INTAKE } = await import("../fixtures/harness.ts");
+  const { provision, get, wake } = await import("../handlers/lifecycle.ts");
+  const h = harness();
+  const made = await provision(h.ctx, { agentId: INTAKE, idempotencyKey: "k-n3" });
+  const id = made.computer.computerId;
+  const fake = h.fake as unknown as { crash: (i: string) => void };
+  (h.fake.host as unknown as { health: () => Promise<unknown> }).health = async () => ({ ok: true, unsealed: 1, unsealedIds: [id] });
+  const one = await health(h.ctx, {});
+  assert.equal(one.state, "degraded");
+  assert.match(String(one.detail), new RegExp(`over the size limit and not locked on this server \\(agent: ${INTAKE}\\)`));
+  await wake(h.ctx, { computerId: id });
+  fake.crash(id); await get(h.ctx, { computerId: id });
+  const both = await health(h.ctx, {});
+  assert.match(String(both.detail), /error state/); assert.match(String(both.detail), /over the size limit/, "the oversize line is kept beside an error");
+});
+
+test("N4: a guard that cannot be lifted does not lock the profile: the call fails, the folder is whole, and the next call lifts it without restoring again", async () => {
+  const dir = dirOf(); const b = browser(dir);
+  await b.tool("agt_dex", async () => { b.f("agt_dex").set("Default/Cookies", cookie(`sid=${SECRET}`)); });
+  b.advance(60_000); await b.seal.sweep();
+  b.hooks.guardOffFails = true;
+  await assert.rejects(b.tool("agt_dex", async () => "ran"), /did not answer the guard/);
+  assert.equal(b.store.state("agt_dex"), "hot", "the folder is whole");
+  b.hooks.guardOffFails = false;
+  assert.equal(await b.tool("agt_dex", async () => "ran"), "ran");
+  assert.equal(b.guards.get("agt_dex"), false, "lifted");
+  assert.equal(b.calls.filter((c) => c === "put agt_dex").length, 1, "the profile was restored once, not again");
+});
+
+test("N5: when the guard cannot be set nothing is emptied or sealed; the profile stays whole and plain", async () => {
+  const dir = dirOf(); const logs: Array<[string, string]> = []; const b = browser(dir, { logs });
+  await b.tool("agt_dex", async () => { b.f("agt_dex").set("Default/Cookies", cookie(`sid=${SECRET}`)); });
+  b.advance(60_000); b.hooks.guardFails = true;
+  assert.deepEqual(await b.seal.sweep(), []);
+  assert.equal(b.f("agt_dex").size, 1, "the folder was not emptied"); assert.ok(!b.calls.includes("reset agt_dex"));
+  assert.ok(logs.some(([, m]) => m === "computers.browser.seal_failed"));
+});
+
+test("N6: a host that is closed stops its timer, and two hosts share one lock per computer", async () => {
+  const dir = dirOf(); const e = engine(dir);
+  const id = CID("aaaa00c6"); const name = e.plant(id);
+  const mk = (every?: number) => createDockerComputerHost({ api: fakeApi(e) as never, http: e.http, image: "img", profileSeal: { key: () => key(1), dir }, startTimeoutMs: 3000, user: { uid: 10001, gid: 10001 }, sleep: async () => {}, ...(every ? { recoverEveryMs: every } : {}) });
+  const old = mk(20); await old.recover();
+  old.close();
+  await e.seal().unseal(id);                                  // plain and stopped
+  await tick(120);
+  assert.equal(e.vol(name).size, 2, "the closed host's timer did not seal it");
+  // two hosts, one computer: a sleep on one and a wake on the other take turns
+  const h1 = mk(), h2 = mk();
+  e.status.set(name, "running");
+  let release: () => void = () => {}; const gate = new Promise<void>((r) => { release = r; });
+  e.hooks.onWait = () => gate;
+  const sleeping = h1.stop({ computerId: id, agentId: "agt_x", reason: "sleep" });
+  await tick(30);
+  const waking = h2.start({ computerId: id, agentId: "agt_x", tabLimit: 4 });
+  await tick(30);
+  assert.equal(e.status.get(name), "exited", "the second host's wake waits for the first host's sleep");
+  e.hooks.onWait = undefined; release();
+  await racing(Promise.all([sleeping, waking]), "the sleep and the wake");
+  assert.equal(e.vol(name).size, 2);
+});
+
+test("N7: the browser sweep does not bring back a Space browser that is gone, and stops again one it had to start", async () => {
+  const dir = dirOf(); const folder = new Map<string, Uint8Array>([["Default/Cookies", cookie(`sid=${SECRET}`)]]);
+  let running = false, exists = true; const starts: string[] = []; const stops: string[] = [];
+  const api = {
+    async ping() { return true; }, async imageExists() { return true; }, async networkCreate() { throw new Error("no"); }, async networkRemove() {}, async containerCreate() { return "id"; },
+    async containerStart(n: string) { starts.push(n); running = true; }, async containerStop(n: string) { stops.push(n); running = false; }, async containerRemove() {}, async containerRunning() { return running; }, async putArchive() {},
+    async exec(_n: string, a: { cmd: readonly string[] }) {
+      const action = String(a.cmd[1]);
+      if (action === "disk") return { exitCode: 0, stdout: `${JSON.stringify({ ids: folder.size > 0 ? ["agt_dex"] : [] })}\n`, stderr: "" };
+      if (action === "reset_chrome") { folder.clear(); return { exitCode: 0, stdout: "{}\n", stderr: "" }; }
+      return { exitCode: 0, stdout: action === "status" ? '{"profiles":[]}\n' : "{}\n", stderr: "" };
+    },
+  };
+  const http = (async () => ({ status: exists ? 200 : 404, body: new Uint8Array() })) as unknown as DockerHttp;
+  http.stream = { async get() { return { status: 200, body: Readable.from([Buffer.from(tarFiles([...folder].map(([p, data]) => ({ path: `chrome/${p}`, data, mode: 0o600, uid: 10001, gid: 10001, mtime: 1 }))))]) as never }; }, async put() { return { status: 200, body: new Uint8Array() }; } };
+  createSealedStore({ key: () => key(1), dir: path.join(dir, "browser"), kind: "sbrowser" }).setState("agt_dex", "hot");
+  const sb = createDockerSpaceBrowser({ api: api as never, http, profileSeal: { key: () => key(1), dir }, sealSweepMs: 0, sealQuietMs: 0, sleep: async () => {} });
+  exists = false;
+  assert.deepEqual(await sb.sweep(), []); assert.deepEqual(starts, [], "a container that was removed is not recreated");
+  exists = true;
+  assert.deepEqual(await sb.sweep(), ["agt_dex"]); assert.deepEqual(starts, ["vyre-sbrowser"]);
+  assert.deepEqual(stops, ["vyre-sbrowser"], "and it was stopped again, as it was found");
+  sb.close();
+});
+
+test("N8: an archive the Engine ended early, and closed cleanly, is not sealed and nothing is wiped (computers and browser)", async () => {
+  const dir = dirOf(); const e = engine(dir);
+  const id = CID("aaaa00d8"); const name = e.plant(id);
+  await e.seal().unseal(id);
+  e.hooks.shortGet = true;
+  await assert.rejects(e.seal().seal(id), /ended early/);
+  assert.equal(e.vol(name).size, 2, "nothing was removed"); assert.equal(wipeLines(e.log), 0);
+  assert.equal(e.seal().state(id), "hot"); assert.deepEqual(fs.readdirSync(dir).filter((n) => n.endsWith(".profile") || n.endsWith(".tmp")), []);
+  e.hooks.shortGet = false; assert.equal(await e.seal().seal(id), "sealed");
+  const b = browser(dirOf(), { hooks: { shortRead: true } });
+  await b.tool("agt_dex", async () => { b.f("agt_dex").set("Default/Cookies", cookie("x")); });
+  b.advance(60_000); assert.deepEqual(await b.seal.sweep(), []);
+  assert.equal(b.f("agt_dex").size, 1); assert.ok(!b.calls.includes("reset agt_dex"));
+});
+
+test("N9: an import that fails leaves no partial plain data", async () => {
+  const dir = dirOf(); const b = browser(dir);
+  await b.tool("agt_dex", async () => { b.f("agt_dex").set("Default/Cookies", cookie("old")); });
+  b.advance(60_000); await b.seal.sweep();
+  await assert.rejects(b.seal.replace("agt_dex", async () => { b.f("agt_dex").set("Default/Cookies", cookie(`half=${SECRET}`)); throw new Error("the archive broke"); }), /archive broke/);
+  assert.equal(b.f("agt_dex").size, 0, "the partial folder was emptied"); assert.equal(b.store.state("agt_dex"), "sealed", "the sealed profile is still the truth");
+});
+
+test("N10: a dead container is stopped, not running: its profile is sealed", async () => {
+  const dir = dirOf(); const e = engine(dir); const id = CID("aaaa0010"); const name = e.plant(id, planted, "exited");
+  await e.seal().unseal(id); e.status.set(name, "dead" as never);
+  assert.equal(await e.seal().seal(id), "sealed"); assert.equal(e.vol(name).size, 0);
 });

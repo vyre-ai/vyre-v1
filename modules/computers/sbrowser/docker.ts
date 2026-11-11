@@ -96,7 +96,7 @@ const bodyText = (b: Uint8Array): string => { const t = new TextDecoder().decode
 const decode64 = (b64: string): Uint8Array => Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
 const realSleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 
-export function createDockerSpaceBrowser(o: DockerSpaceBrowserOptions): SpaceBrowser & { recover(): Promise<string[]>; sweep(): Promise<string[]>; oversize(): string[] } {
+export function createDockerSpaceBrowser(o: DockerSpaceBrowserOptions): SpaceBrowser & { recover(): Promise<string[]>; sweep(): Promise<string[]>; oversize(): string[]; close(): void } {
   const name = o.name ?? "vyre-sbrowser";
   const sleep = o.sleep ?? realSleep;
   let up: Promise<void> | null = null;
@@ -174,12 +174,15 @@ export function createDockerSpaceBrowser(o: DockerSpaceBrowserOptions): SpaceBro
       async put(id, body) { await ensureUp(); return streams.put({ path: `/containers/${name}/archive`, query: { path: `${BROWSER_DATA_GUEST}/profiles/${id}` }, contentType: "application/x-tar", body: Readable.from(body), timeoutMs: 10 * 60_000 }); },
       async reset(id) { await call("reset_chrome", { profileId: id }); },
       async stop(id) { await call("stop", { profileId: id }); },
-      // an image from before the guard has no such action: the folder is still emptied and put back, only the refusal of a stray launch is missing
-      async guard(id, on) { try { await call("guard", { profileId: id, on }); } catch (e) { o.log?.("warn", "computers.browser.guard_unavailable", { error: e instanceof Error ? e.message.slice(0, 160) : "unknown" }); } },
+      // the guard is what keeps a browser off an emptied folder: when it cannot be set (an image from before it existed, or browserd does not answer) the profile is not sealed, and when it cannot be lifted the call fails and is repeated
+      async guard(id, on) { await call("guard", { profileId: id, on }); },
       rows: rowsNow,
       async disk() {
         if (!(await o.api.containerRunning(name))) return [];
-        try { const r = await exec("disk", {}) as { ids?: unknown }; return Array.isArray(r.ids) ? r.ids.filter((x): x is string => typeof x === "string") : []; } catch (e) { o.log?.("warn", "computers.browser.disk_unavailable", { error: e instanceof Error ? e.message.slice(0, 160) : "unknown" }); return []; }
+        try {
+          const r = await exec("disk", {}) as { ids?: unknown; bytes?: Record<string, unknown> };
+          return Array.isArray(r.ids) ? r.ids.filter((x): x is string => typeof x === "string").map((id) => ({ id, ...(typeof r.bytes?.[id] === "number" ? { bytes: r.bytes[id] as number } : {}) })) : [];
+        } catch (e) { o.log?.("warn", "computers.browser.disk_unavailable", { error: e instanceof Error ? e.message.slice(0, 160) : "unknown" }); return []; }
       },
       ...(o.sealQuietMs !== undefined ? { quietMs: o.sealQuietMs } : {}),
       ...(o.log ? { log: o.log } : {}),
@@ -189,10 +192,17 @@ export function createDockerSpaceBrowser(o: DockerSpaceBrowserOptions): SpaceBro
   /** A container that died or was stopped while profiles were plain: it is started again and they are sealed, not left until the next call. */
   const sweepAll = async (): Promise<string[]> => {
     if (!seal) return [];
-    if (!(await o.api.containerRunning(name)) && seal.pending().length > 0) await ensureUp();
-    return seal.sweep();
+    const wasUp = await o.api.containerRunning(name);
+    if (!wasUp) {
+      // only a container that still exists is started, only for the plain profiles it holds, and it is stopped again afterwards: a Space browser a person removed is not brought back
+      if (seal.pending().length === 0 || !o.http) return [];
+      if ((await o.http({ method: "GET", path: `/containers/${name}/json` })).status !== 200) return [];
+      await ensureUp();
+    }
+    try { return await seal.sweep(); } finally { if (!wasUp) await o.api.containerStop(name, 10).catch(() => undefined); }
   };
-  if (seal && o.sealSweepMs !== 0) { const t = setInterval(() => { void sweepAll().catch((e: unknown) => o.log?.("warn", "computers.browser.sweep_failed", { error: e instanceof Error ? e.message.slice(0, 160) : "unknown" })); }, o.sealSweepMs ?? 30_000); t.unref?.(); }
+  let sweepTimer: ReturnType<typeof setInterval> | null = null;
+  if (seal && o.sealSweepMs !== 0) { const t = sweepTimer = setInterval(() => { void sweepAll().catch((e: unknown) => o.log?.("warn", "computers.browser.sweep_failed", { error: e instanceof Error ? e.message.slice(0, 160) : "unknown" })); }, o.sealSweepMs ?? 30_000); t.unref?.(); }
 
   return {
     /** At boot: the Space browser, if it has ever run here, is started and every profile that is not running is sealed before a call is served. */
@@ -205,6 +215,8 @@ export function createDockerSpaceBrowser(o: DockerSpaceBrowserOptions): SpaceBro
     },
     async sweep() { return sweepAll(); },
     oversize: () => seal?.oversize() ?? [],
+    /** The sweep timer stops (the host is unbound or replaced). */
+    close() { if (sweepTimer) clearInterval(sweepTimer); sweepTimer = null; },
     available: () => o.api.ping().catch(() => false),
     async tool(a: BrowserToolCall) {
       return used(a.profileId, () => call("tool", { profileId: a.profileId, tool: a.tool, args: a.args, timeoutMs: a.timeoutMs, ...(a.by ? { by: a.by } : {}), ...(a.fill ? { fillUrl: a.fill.url, fillToken: a.fill.token } : {}), ...(a.space ? { spaceId: a.space } : {}), ...(a.agent ? { agentName: a.agent.name, ...(a.agent.faceSvg ? { faceSvg: a.agent.faceSvg } : {}) } : {}) }));

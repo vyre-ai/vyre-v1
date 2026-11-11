@@ -9,10 +9,10 @@
 //   stream        { profileId }                                     -> { transport: "mjpeg", url, ws }
 //   downloads     { profileId } -> { downloads: [{ name, size, at }] }     download_read { profileId, name } -> { base64 }      download_ack { profileId, name }
 //   guard         { profileId, on }  (the Space sealed the Chrome folder: no browser starts on it while on)
-//   disk          {}                                                 -> { ids: [profiles whose Chrome folder holds anything] }
+//   disk          {}                                                 -> { ids: [profiles whose Chrome folder holds anything], bytes: { id: size } }
 //   stop          { profileId }  (the browser stops, the folder stays)      forget { profileId }  (the folder goes too)
 //   sessions      { profileId }                                     -> { sessions: [{ site, since, lastSeen }] }      sign_out { profileId, site } -> { ok }
-import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { createServer as createNetServer } from "node:net";
 import type { Socket } from "node:net";
 import { networkInterfaces } from "node:os";
@@ -191,8 +191,11 @@ async function dispatch(action: string, a: Args): Promise<Args> {
     // the profiles whose Chrome folder holds anything: the host seals the ones whose browser is not running (modules/computers/sbrowser/seal.ts)
     case "disk": {
       const ids: string[] = [];
-      try { for (const id of readdirSync(`${ROOT}/profiles`)) { if (!PROFILE_ID.test(id)) continue; try { if (readdirSync(`${ROOT}/profiles/${id}/chrome`).length > 0) ids.push(id); } catch { /* no Chrome folder */ } } } catch { /* no profiles yet */ }
-      return { ids };
+      const bytes: Record<string, number> = {};
+      // the size is read from the folder's own entries (no profile is read into memory): the host skips a profile over the cap without reading it
+      const sizeOf = (dir: string): number => { let n = 0; try { for (const e of readdirSync(dir, { withFileTypes: true })) { const f = `${dir}/${e.name}`; if (e.isDirectory()) n += sizeOf(f); else { try { n += statSync(f).size; } catch { /* gone */ } } } } catch { /* gone */ } return n; };
+      try { for (const id of readdirSync(`${ROOT}/profiles`)) { if (!PROFILE_ID.test(id)) continue; try { if (readdirSync(`${ROOT}/profiles/${id}/chrome`).length > 0) { ids.push(id); bytes[id] = sizeOf(`${ROOT}/profiles/${id}/chrome`); } } catch { /* no Chrome folder */ } } } catch { /* no profiles yet */ }
+      return { ids, bytes };
     }
     // the Space has sealed this profile's Chrome folder (on) or put it back (off): while on, no browser starts on it (profiles.ts blocked)
     case "guard": {

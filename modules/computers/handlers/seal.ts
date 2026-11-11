@@ -14,6 +14,13 @@
 //   hot      the volume is the truth (a profile restored whole, or one that has never been sealed). A boot, and the periodic check, seal every hot profile that is not running.
 //   wiping   the sealed file is the truth; the volume still has to be emptied (after a seal, or after a restore that did not finish). It is never read again, so half-emptied or half-restored data cannot
 //            replace the file. A restore that fails leaves this state, so the good file is never lost to a broken restore.
+//
+// LOCK ORDER (one rule, followed everywhere; round 3 of the review found a deadlock where this was not true):
+//   1. There is one lock per computer and one per browser profile, and each is module-wide (computersLock, browserLock), so a rebound host shares it with the one it replaces.
+//   2. Code that holds a lock never waits for another lock, for a boot recovery, or for anything that takes a lock. Nothing is ever held in two locks at once.
+//   3. Boot recovery and the periodic checks take one lock at a time, for one computer or profile, and give it back before the next. Nobody waits for recovery: a wake or a call simply takes its own lock and
+//      finds the profile sealed, plain or being sealed, in order.
+//   4. Waiting for a lock holder is the only waiting there is, and a holder only waits for Docker.
 import fs from "node:fs";
 import fsp from "node:fs/promises";
 import path from "node:path";
@@ -58,7 +65,7 @@ function loaded(key: () => Uint8Array): Uint8Array {
   return k;
 }
 
-/** One chunk at a time under a lock per name. */
+/** One thing at a time per name. */
 export function keyedLock(): <T>(id: string, fn: () => Promise<T>) => Promise<T> {
   const tails = new Map<string, Promise<unknown>>();
   return <T>(id: string, fn: () => Promise<T>): Promise<T> => {
@@ -71,19 +78,22 @@ export function keyedLock(): <T>(id: string, fn: () => Promise<T>) => Promise<T>
 }
 
 /** Seal a stream of tar bytes to `file`: chunks are made as the bytes arrive, the file is flushed, and nothing is left if it fails or the stream runs past `cap`. Answers the plain size. */
-export async function sealTo(file: string, src: AsyncIterable<Uint8Array>, key: Uint8Array, kind: SealKind, id: string, cap = SEAL_CAP_BYTES): Promise<number> {
+export class TruncatedError extends Error { constructor() { super("the profile's archive ended early, so it was not sealed and nothing was removed"); this.name = "TruncatedError"; } }
+
+export async function sealTo(file: string, src: AsyncIterable<Uint8Array>, key: Uint8Array, kind: SealKind, id: string, cap = SEAL_CAP_BYTES, requireTarEnd = false): Promise<number> {
   const fid = globalThis.crypto.getRandomValues(new Uint8Array(16)).reduce((s, b) => s + b.toString(16).padStart(2, "0"), "");
   const k = keyOf(key, kind, id);
   const fh = await fsp.open(file, "w", 0o600);
   let ok = false;
   try {
-    let i = 0, total = 0, parts: Buffer[] = [], len = 0;
+    let i = 0, total = 0, parts: Buffer[] = [], len = 0, tail: Buffer = Buffer.alloc(0);
     const emit = async (chunk: Uint8Array, last: boolean): Promise<void> => { await fh.write(`${JSON.stringify(aesWrap(k, chunk, aadOf(kind, id, fid, i++, last)))}\n`); };
     await fh.write(`${JSON.stringify({ v: 2, fid })}\n`);
     for await (const part of src) {
       const b = Buffer.from(part.buffer, part.byteOffset, part.byteLength);
       total += b.length;
       if (total > cap) throw new TooLargeError(total);
+      if (requireTarEnd) tail = Buffer.concat([tail, b]).subarray(-1024);
       parts.push(b); len += b.length;
       if (len > CHUNK) {
         const all = Buffer.concat(parts);
@@ -92,6 +102,8 @@ export async function sealTo(file: string, src: AsyncIterable<Uint8Array>, key: 
         parts = [all.subarray(off)]; len = all.length - off;
       }
     }
+    // a tar ends with two blocks of zeros; an archive cut short by the Engine after its header was sent still closes cleanly, and sealing it as whole would let the wipe delete the rest
+    if (requireTarEnd && (tail.length < 1024 || !tail.every((x) => x === 0))) throw new TruncatedError();
     await emit(Buffer.concat(parts), true);
     await fh.sync();
     ok = true;
@@ -171,11 +183,11 @@ export function createSealedStore(d: SealedStoreDeps) {
       try { return fs.readdirSync(d.dir).filter((n) => n.endsWith(`${FILE_SUFFIX}.state`)).map((n) => n.slice(0, -`${FILE_SUFFIX}.state`.length)).filter((id) => ID[d.kind].test(id)); } catch { return []; }
     },
     /** Seal the stream and make it the profile's file, atomically and durably. A stream past the cap or a failure leaves the old file as it was. Answers the plain size. */
-    async saveFrom(id: string, src: AsyncIterable<Uint8Array>, cap = SEAL_CAP_BYTES): Promise<number> {
+    async saveFrom(id: string, src: AsyncIterable<Uint8Array>, cap = SEAL_CAP_BYTES, requireTarEnd = false): Promise<number> {
       const f = file(id);
       fs.mkdirSync(d.dir, { recursive: true, mode: 0o700 });
       const tmp = `${f}.tmp`;
-      const bytes = await sealTo(tmp, src, loaded(d.key), d.kind, id, cap);
+      const bytes = await sealTo(tmp, src, loaded(d.key), d.kind, id, cap, requireTarEnd);
       fs.renameSync(tmp, f);
       syncDir(d.dir);
       return bytes;
@@ -188,7 +200,13 @@ export function createSealedStore(d: SealedStoreDeps) {
       return n;
     },
     open(id: string): AsyncGenerator<Buffer> { return openFrom(file(id), loaded(d.key), d.kind, id); },
-    discard(id: string): void { for (const p of [file(id), `${file(id)}.tmp`, mark(id), `${mark(id)}.tmp`]) fs.rmSync(p, { force: true }); syncDir(d.dir); },
+    /** A profile over the cap is remembered on disk, so a restart does not forget it and the health can still name it. */
+    setOversize(id: string, bytes: number): void { fs.mkdirSync(d.dir, { recursive: true, mode: 0o700 }); fs.writeFileSync(`${file(id)}.big`, String(bytes), { mode: 0o600 }); },
+    clearOversize(id: string): void { fs.rmSync(`${file(id)}.big`, { force: true }); },
+    oversize(): Array<{ id: string; bytes: number }> {
+      try { return fs.readdirSync(d.dir).filter((n) => n.endsWith(`${FILE_SUFFIX}.big`)).map((n) => ({ id: n.slice(0, -`${FILE_SUFFIX}.big`.length), bytes: Number(fs.readFileSync(path.join(d.dir, n), "utf8")) || 0 })).filter((x) => ID[d.kind].test(x.id)); } catch { return []; }
+    },
+    discard(id: string): void { for (const p of [file(id), `${file(id)}.tmp`, mark(id), `${mark(id)}.tmp`, `${file(id)}.big`]) fs.rmSync(p, { force: true }); syncDir(d.dir); },
   };
 }
 export type SealedStore = ReturnType<typeof createSealedStore>;
@@ -268,13 +286,17 @@ export interface ProfileSealDeps {
 export const SEAL_HELPER = "seal-rm";
 export const WIPE_SCRIPT = `chmod -R u+rwX ${PROFILE_GUEST} 2>/dev/null; find ${PROFILE_GUEST} -mindepth 1 -delete`;
 
+/** The one lock per computer, shared by every host in this process (a rebound host takes the same one). */
+export const computersLock = keyedLock();
+/** The one lock per Space browser profile. */
+export const browserLock = keyedLock();
+
 export function createProfileSeal(d: ProfileSealDeps) {
   const timeoutMs = d.timeoutMs ?? 600_000;
   const cap = d.cap ?? SEAL_CAP_BYTES;
-  const lock = d.lock ?? (<T>(_id: string, fn: () => Promise<T>) => fn());
+  const lock = d.lock ?? computersLock;
   const store = createSealedStore({ key: d.key, dir: d.dir, kind: "computers" });
   const streams = streamsOf(d.http);
-  const tooLarge = new Map<string, number>();
   const looked = new Set<string>();
 
   /**
@@ -310,13 +332,13 @@ export function createProfileSeal(d: ProfileSealDeps) {
     if (r.status === 404) return "gone";
     if (r.status !== 200) throw new Error(`the computer could not be looked at (${r.status})`);
     const s = (JSON.parse(new TextDecoder().decode(r.body)) as { State?: { Status?: string; Running?: boolean } }).State;
-    return s?.Running === true || (s?.Status !== undefined && s.Status !== "exited" && s.Status !== "created") ? "running" : "stopped";
+    return s?.Running === true || (s?.Status !== undefined && s.Status !== "exited" && s.Status !== "created" && s.Status !== "dead") ? "running" : "stopped";
   }
 
   const self = {
     state: (computerId: string): SealState => store.state(checkId("computers", computerId)),
-    /** The computers whose profile is over the cap and stays plain. */
-    oversize: (): string[] => [...tooLarge.keys()],
+    /** The computers whose profile is over the cap and stays plain (remembered across restarts). */
+    oversize: (): string[] => store.oversize().map((x) => x.id),
     /**
      * The container must be stopped (it is looked at here, and a running or paused one is refused). The sealed file is written, flushed and renamed before the volume is touched. A profile that reads as empty
      * while its state is hot means the person cleared it: the old sealed file is dropped, it is not brought back. A profile over the cap is left as it is, plain, and reported. Answers what happened.
@@ -336,14 +358,14 @@ export function createProfileSeal(d: ProfileSealDeps) {
       if (r.status === 404) { empty = true; for await (const _ of r.body as AsyncIterable<Uint8Array>) void _; }
       else if (r.status !== 200) { r.body.destroy(); throw new Error(`the profile could not be read (${r.status})`); }
       else { const p = await peekTar(r.body as AsyncIterable<Uint8Array>); empty = p.empty; bytes = p.bytes; if (empty) r.body.destroy(); }
-      if (empty) { store.discard(computerId); tooLarge.delete(computerId); return "empty"; }
-      try { await store.saveFrom(computerId, bytes as AsyncGenerator<Uint8Array>, cap); }
+      if (empty) { store.discard(computerId); return "empty"; }
+      try { await store.saveFrom(computerId, bytes as AsyncGenerator<Uint8Array>, cap, true); }
       catch (e) {
         r.body.destroy();
-        if (e instanceof TooLargeError) { tooLarge.set(computerId, e.bytes); d.log?.("warn", "computers.profile.too_large", { computer: computerId, mb: Math.round(e.bytes / 1024 ** 2), capMb: Math.round(cap / 1024 ** 2) }); return "oversize"; }
+        if (e instanceof TooLargeError) { store.setOversize(computerId, e.bytes); d.log?.("warn", "computers.profile.too_large", { computer: computerId, mb: Math.round(e.bytes / 1024 ** 2), capMb: Math.round(cap / 1024 ** 2) }); return "oversize"; }
         throw e;
       }
-      tooLarge.delete(computerId);
+      store.clearOversize(computerId);
       store.setState(computerId, "wiping");
       await wipe(computerId);
       store.clearState(computerId);
@@ -383,7 +405,7 @@ export function createProfileSeal(d: ProfileSealDeps) {
       for (const r of rows) {
         const id = r.Labels?.["vyre.computer"];
         if (!id || r.State === "running" || r.State === "restarting" || r.State === "paused" || r.Labels?.["vyre.helper"]) continue;
-        if (tooLarge.has(id)) continue;   // left plain and reported; the next sleep looks again, a timer does not read a gigabyte every minute
+        if (store.oversize().some((x) => x.id === id)) continue;   // left plain and reported; the next sleep looks again, a timer does not read a gigabyte every minute
         try {
           await lock(checkId("computers", id), async () => {
             const s = store.state(id);
@@ -397,7 +419,7 @@ export function createProfileSeal(d: ProfileSealDeps) {
       return sealed;
     },
     /** The computer is removed: its sealed profile goes with it. */
-    async discard(computerId: string): Promise<void> { store.discard(computerId); tooLarge.delete(computerId); },
+    async discard(computerId: string): Promise<void> { store.discard(computerId); },
   };
   return self;
 }
