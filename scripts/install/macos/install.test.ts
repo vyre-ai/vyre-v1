@@ -217,6 +217,27 @@ test("link_current writes a vyre-server command that names this install and Dock
   fs.rmSync(dir, { recursive: true });
 });
 
+test("the vyre-server command remembers the Docker the server was installed on, so a switched default never sends it to another one", () => {
+  // found on a Mac mini with two Colima machines: the active context belonged to another stack, and every later start would have gone there
+  const make = (ctx: string | undefined): string => {
+    const dir = tmp();
+    const d = path.join(dir, "vyre");
+    fs.mkdirSync(path.join(d, "releases/1.0.0"), { recursive: true });
+    fs.mkdirSync(path.join(d, "state"));
+    const r = sh(INSTALL, `DIR="${d}"; BIN_DIR="${dir}/bin"; REL_VERSION=1.0.0; DRY=0; link_current`, ctx === undefined ? {} : { DOCKER_CONTEXT: ctx });
+    assert.equal(r.status, 0, r.stderr);
+    const cmd = read(path.join(dir, "bin/vyre-server"));
+    fs.rmSync(dir, { recursive: true });
+    return cmd;
+  };
+  const named = make("colima-vyre");
+  assert.match(named, /^DOCKER_CONTEXT="colima-vyre"\nexport DOCKER_CONTEXT$/m);
+  assert.ok(named.indexOf("export DOCKER_CONTEXT") < named.indexOf("exec "), "set before the release's script runs");
+  assert.equal(spawnSync("sh", ["-n", "-c", named]).status, 0, "still valid sh");
+  assert.doesNotMatch(make("default"), /DOCKER_CONTEXT/, "the default context follows the socket as before");
+  for (const odd of ['x"; rm -rf ~; "', "a b", "$(id)", "a`id`"]) assert.doesNotMatch(make(odd), /DOCKER_CONTEXT/, `a name that is not a plain context name is not written (${odd})`);
+});
+
 test("sudo is refused, and an agent or command that is not ours is never removed", () => {
   const asRoot = spawnSync("sh", ["-c", `. "${INSTALL}"\nis_user`], { encoding: "utf8", env: { PATH: process.env.PATH ?? "", HOME: os.tmpdir(), VYRE_SOURCE_ONLY: "1" } });
   assert.equal(asRoot.status, process.getuid?.() === 0 ? 1 : 0);
