@@ -11,6 +11,7 @@ import type { ViewStyle } from "react-native";
 import { filterMenuEntries, isHead, isItem, isReportItem, isSeparator, resolveMenuItems } from "./props.ts";
 import type { MenuEntry, MenuItem, MenuProps, MenuSource } from "./props.ts";
 import { MenuPortal } from "./portal.tsx";
+import { useEscapeLayer } from "../Overlay/escape.ts";
 import { RADIUS } from "../tokens/radius.ts";
 
 export type { MenuEntry, MenuHead, MenuItem, MenuProps, MenuSeparator, MenuSource } from "./props.ts";
@@ -262,24 +263,9 @@ export function Menu(props: MenuViewProps): ReactElement | null {
     if (onClose) onClose();
   }, [onClose]);
 
-  // A menu opens with nothing lit, so focus can still sit on the control that opened it (Shift+F10 on a list row): Escape must close it from there too, not only from inside the panel
-  const goneRef = useRef(false);
-  goneRef.current = gone;
-  useEffect(() => {
-    if (Platform.OS !== "web") return undefined;
-    type Key = { key?: string; preventDefault?: () => void; stopPropagation?: () => void };
-    const doc = (globalThis as { document?: { addEventListener?: (t: string, fn: (e: Key) => void, capture?: boolean) => void; removeEventListener?: (t: string, fn: (e: Key) => void, capture?: boolean) => void } }).document;
-    if (doc === undefined || typeof doc.addEventListener !== "function") return undefined;
-    // in the capture phase and stopped there: the Escape that closes a menu inside a sheet or a dialog must not also close that sheet or dialog
-    const onDocKey = (e: Key): void => {
-      if (e.key !== "Escape" || goneRef.current) return;
-      e.preventDefault?.();
-      e.stopPropagation?.();
-      close();
-    };
-    doc.addEventListener("keydown", onDocKey, true);
-    return () => doc.removeEventListener?.("keydown", onDocKey, true);
-  }, [close]);
+  // A menu opens with nothing lit, so focus can still sit on the control that opened it (Shift+F10 on a list row): Escape closes it from there too, not only from inside the panel. As a layer it closes alone: the sheet
+  // or dialog it was opened from stays, and the key is taken before that sheet's own handlers see it.
+  useEscapeLayer(!gone, close);
 
   const land = useCallback((index: number) => {
     if (index < 0) return;

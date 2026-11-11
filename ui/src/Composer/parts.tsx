@@ -60,7 +60,7 @@ export function useDismiss(open: boolean, close: () => void, inside: () => reado
     doc.addEventListener("mousedown", down as never, true);
     return () => { doc.removeEventListener?.("mousedown", down as never, true); };
   }, [open]);
-  useEscapeLayer(open, () => cb.current.close());   // one Escape closes the top layer only
+  useEscapeLayer(open, () => cb.current.close(), { respectHandled: true });   // one Escape closes the top layer only
 }
 
 /* ---------- brand marks ---------- */

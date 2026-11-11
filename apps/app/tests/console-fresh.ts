@@ -8,6 +8,7 @@ import path from "node:path";
 import { SECTIONS } from "../src/console/shell/sections.ts";
 import { bootFreshSpace, claimOnEdge, edge, dismissOnboarding } from "./real-app-harness.test.ts";
 import { openConsolePage } from "./console-nav.ts";
+import { PAGES } from "../src/places/settings/model.ts";
 
 const PASSWORD = "fixture password 123";
 /** What a page says when it failed to show what a fresh Space has nothing of. */
@@ -15,7 +16,7 @@ const ERROR_TEXT = /Couldn[’']t load|Couldn[’']t draw|Check access and try a
 /** A raw id where a person's name belongs. */
 const RAW_ID = /\b(spc|usr|agt|thr|msg|grp|rol|prj|itm|cmp)_[0-9a-f]{8,}\b/;
 
-export async function runFreshPages(t: TestContext, titles: readonly string[]): Promise<void> {
+export async function runFreshPages(t: TestContext, titles: readonly string[], opts: { settings?: boolean } = {}): Promise<void> {
   const dist = process.env["VYRE_APP_DIST"];
   if (!dist) { if (process.env["VYRE_REQUIRE_CHROME"] === "1") assert.fail("VYRE_APP_DIST required"); t.skip("VYRE_APP_DIST required"); return; }
   const pw = await import("playwright-core");
@@ -38,6 +39,25 @@ export async function runFreshPages(t: TestContext, titles: readonly string[]): 
     await page.getByTestId("claim-password").fill(PASSWORD); await page.getByTestId("claim-confirm").fill(PASSWORD);
     await page.getByTestId("claim-next").click(); await page.getByTestId("claim-saved").click(); await page.getByTestId("claim-create").click(); await dismissOnboarding(page);
     await page.getByTestId("shell").waitFor({ timeout: 30_000 });
+    if (opts.settings) {
+      // Settings, You and the Space: each page of the list opened through the real navigation
+      await page.goto(`${web.origin}/settings`, { waitUntil: "load" });
+      await page.getByTestId("settings-place").waitFor({ timeout: 30_000 });
+      for (const p of PAGES.filter((x) => x.hidden !== true && x.group === "you")) {
+        where = `settings ${p.key}`;
+        try {
+          await page.getByTestId(`row-page-${p.key}`).click({ timeout: 15_000 });
+          await page.waitForFunction(() => !document.body.innerText.split("\n").some((l) => l.trim() === "Loading…"), null, { timeout: 15_000 }).catch(() => problems.push(`${where}: still loading after 15 s`));
+          await page.waitForTimeout(500);
+          const text = await page.getByTestId("settings-place").innerText({ timeout: 5000 }).catch(() => "");
+          const bad = ERROR_TEXT.exec(text); if (bad) problems.push(`${where}: says "${bad[0]}"`);
+          const raw = RAW_ID.exec(text); if (raw) problems.push(`${where}: shows the raw id ${raw[0]}`);
+          if (/Never seen/.test(text)) problems.push(`${where}: lists a server that was never seen`);
+          const servers = (text.match(/Space server/g) ?? []).length; if (servers > 1) problems.push(`${where}: the Space server is listed ${servers} times`);
+          await page.screenshot({ path: path.join(shots, `settings-${p.key}.png`), animations: "disabled" });
+        } catch (e) { problems.push(`${where}: ${String(e).split("\n")[0]!.slice(0, 140)}`); }
+      }
+    } else {
     await page.goto(`${web.origin}/console`, { waitUntil: "load" });
     await page.getByTestId("console").waitFor({ timeout: 30_000 });
     for (const section of SECTIONS.filter((x) => titles.includes(x.title))) {
@@ -56,6 +76,7 @@ export async function runFreshPages(t: TestContext, titles: readonly string[]): 
           await page.screenshot({ path: path.join(shots, `${view.page}.png`), animations: "disabled" });
         } catch (e) { problems.push(`${where}: ${String(e).split("\n")[0]!.slice(0, 140)}`); }
       }
+    }
     }
     fs.writeFileSync(path.join(shots, `problems-${titles[0]}.txt`), problems.join("\n"));
     assert.deepEqual(problems, []);
