@@ -122,4 +122,33 @@ test("real Docker: a restart while asleep heals, the sweep sees scripts and back
   ]);
   assert.equal(a.terminalId, b.terminalId, "one tab");
   assert.deepEqual([a.exitCode, a.output, b.exitCode, b.output], [0, "from-a", 0, "from-b"], "each got its own output, nothing typed into the other");
+
+  // ---- 11: the shared network keeps workspaces apart; each still reaches out (a listener on this host stands for the outside: a test never reaches a real outside service)
+  const B = `agtheal${Math.random().toString(36).slice(2, 8)}`;
+  t.after(async () => { await docker(["rm", "-f", workspaceName(B)], 60_000); await docker(["volume", "rm", "-f", `${workspaceName(B)}-home`, `${workspaceName(B)}-files`], 60_000); });
+  assert.equal((await m.exec(B, ["sh", "-c", "nohup python3 -m http.server 8099 --bind 0.0.0.0 >/dev/null 2>&1 &"])).code, 0);
+  const ipOf = async (name: string): Promise<string> => (await docker(["inspect", "-f", "{{(index .NetworkSettings.Networks \"vyre-workspaces\").IPAddress}}", name], 30_000)).out.trim().split("\n")[0] ?? "";
+  const ipB = await ipOf(workspaceName(B));
+  assert.match(ipB, /^\d+\.\d+\.\d+\.\d+$/, "B is on the shared network");
+  assert.equal((await docker(["network", "inspect", "-f", "{{index .Options \"com.docker.network.bridge.enable_icc\"}}", "vyre-workspaces"], 30_000)).out.trim().split("\n")[0], "false");
+  // B answers itself, so the server is up
+  const self = await waitForOk(async () => (await m.exec(B, ["sh", "-c", "curl -s -o /dev/null -w '%{http_code}' -m 3 http://127.0.0.1:8099/"])).stdout.trim() === "200");
+  assert.ok(self, "B's server answers inside B");
+  const cross = await m.exec(AGENT, ["sh", "-c", `curl -s -o /dev/null -m 4 http://${ipB}:8099/; echo $?`]);
+  assert.notEqual(cross.stdout.trim(), "0", `workspace A cannot reach the port B listens on (curl exit ${cross.stdout.trim()})`);
+  const http = await import("node:http");
+  const srv = http.createServer((_q, res) => { res.end("outside-ok"); });
+  await new Promise<void>((r) => srv.listen(0, "0.0.0.0", () => r()));
+  t.after(() => { srv.close(); });
+  const port = (srv.address() as { port: number }).port;
+  const gw = (await docker(["network", "inspect", "-f", "{{(index .IPAM.Config 0).Gateway}}", "vyre-workspaces"], 30_000)).out.trim().split("\n")[0] ?? "";
+  for (const who of [AGENT, B]) {
+    const out = await m.exec(who, ["sh", "-c", `curl -s -m 5 http://${gw}:${port}/`]);
+    assert.equal(out.stdout.trim(), "outside-ok", `${who === AGENT ? "A" : "B"} reaches out of the network`);
+  }
 });
+
+async function waitForOk(f: () => Promise<boolean>): Promise<boolean> {
+  for (let i = 0; i < 40; i++) { if (await f()) return true; await new Promise((r) => setTimeout(r, 250)); }
+  return false;
+}

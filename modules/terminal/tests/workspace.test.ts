@@ -57,7 +57,7 @@ test("the container profile: non-root, no capability, no new privileges, no Dock
   assert.match(wrong((c) => { c.Labels["vyre.workspace"] = "agt_other"; }), /not this agent's workspace/);
 });
 
-test("the first use makes the workspace and starts it, with no grant; two first uses at once make it once", async () => {
+test("the first use makes the workspace and starts it, with no grant; two first uses at once make it once; it is on the shared network that keeps workspaces from reaching each other", async () => {
   const r = rig();
   assert.equal(r.dk.boxes.size, 0, "nothing exists before the first use");
   const [a, b] = await Promise.all([r.mgr.exec(AGENT, ["tmux", "-V"]), r.mgr.exec(AGENT, ["tmux", "-V"])]);
@@ -68,7 +68,9 @@ test("the first use makes the workspace and starts it, with no grant; two first 
   const cfg = r.dk.box(NAME).config;
   assert.equal(cfg["Labels"]["vyre.workspace"], AGENT);
   assert.equal(cfg["User"], "10001:10001");
-  assert.equal(cfg["HostConfig"]["NetworkMode"], "bridge", "a Space with a Docker socket of its own uses the default network");
+  // 12 Nov (audit item 11, lead's decision): not the default bridge, where every workspace reached every other's ports, but one shared network with traffic between containers off
+  assert.equal(cfg["HostConfig"]["NetworkMode"], "vyre-workspaces", "a Space with a Docker socket of its own puts workspaces on the shared network that keeps them apart");
+  assert.deepEqual(r.dk.ops("network").map((x) => [x.name, (x.detail as { Options?: Record<string, string> }).Options?.["com.docker.network.bridge.enable_icc"]]), [["vyre-workspaces", "false"]], "made once, with traffic between containers off");
   assert.equal(await r.mgr.ensure(AGENT), "running");
   assert.deepEqual((await r.mgr.list()).map((x) => [x.agentId, x.state]), [[AGENT, "running"]]);
 });

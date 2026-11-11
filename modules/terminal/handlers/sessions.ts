@@ -574,6 +574,20 @@ const tidy = (ctx: TermCtx, what: string, list: readonly string[]): string[] => 
   return out;
 };
 
+export const AGENT_LOOSENS_LINE = "An agent can only make your terminal rules stricter. To allow a command, remove a rule or add a folder, change it yourself in Terminal rules.";
+
+/**
+ * What in `next` is looser than `cur`, or null when nothing is: a new allow entry, an ask or deny entry gone (an ask entry that moved to deny is stricter), or a new folder. Stricter is a new ask or deny
+ * entry, an allow entry gone, a folder gone.
+ */
+export function loosens(cur: Rules, next: Rules): string | null {
+  for (const e of next.allow) if (!cur.allow.includes(e)) return e;
+  for (const e of cur.deny) if (!next.deny.includes(e)) return e;
+  for (const e of cur.ask) if (!next.ask.includes(e) && !next.deny.includes(e)) return e;
+  for (const e of next.folders) if (!cur.folders.includes(e)) return e;
+  return null;
+}
+
 export function rulesSet(ctx: TermCtx, input: { rules: Rules }) {
   ensure(ctx.db);
   const rules: Rules = {
@@ -584,6 +598,11 @@ export function rulesSet(ctx: TermCtx, input: { rules: Rules }) {
   rules.allow = rules.allow.filter((e) => !rules.deny.includes(e) && !rules.ask.includes(e));
   rules.ask = rules.ask.filter((e) => !rules.deny.includes(e));
   const me = actorOf(ctx);
+  // an agent may make the person's rules stricter by itself, never looser (12 Nov, lead's decision): looser needs the person, in Terminal rules
+  if (ctx.principal.kind === "agent") {
+    const loose = loosens(rulesOf(ctx.db, me), rules);
+    if (loose !== null) raise(ctx, "permission.role_lacks_permission", AGENT_LOOSENS_LINE, { reason: "loosens_rules", entry: loose });
+  }
   ctx.db.run(
     "INSERT OR REPLACE INTO terminal_rules (person_id, allow, ask, deny, folders, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
     me, JSON.stringify(rules.allow), JSON.stringify(rules.ask), JSON.stringify(rules.deny), JSON.stringify(rules.folders), ctx.now(),

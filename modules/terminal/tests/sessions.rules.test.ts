@@ -64,11 +64,40 @@ test("rules.get and rules.set: per person, tidied, with the stricter list winnin
   assert.deepEqual((await call(hn, "terminal.rules.get", {}, ravi)).rules, rules({}));
   await call(hn, "terminal.rules.set", { rules: rules({ allow: ["make"] }) }, ravi);
   assert.deepEqual(rulesOf(hn.db, "usr_dana").allow, ["ls", "npm test"]);
-  // An agent acting for Dana changes Dana's rules, not its own.
+  // An agent acting for Dana changes Dana's rules, not its own; and since 12 Nov (lead's decision) only to make them stricter: a looser change needs Dana herself.
   const agent = hn.as({ kind: "agent", id: "agt_intake" }, "usr_dana");
-  await call(hn, "terminal.rules.set", { rules: rules({ allow: ["pwd"] }) }, agent);
-  assert.deepEqual(rulesOf(hn.db, "usr_dana").allow, ["pwd"]);
+  const before = rulesOf(hn.db, "usr_dana");
+  await call(hn, "terminal.rules.set", { rules: { ...before, allow: before.allow.slice(1), ask: [...before.ask, "git push"], deny: [...before.deny, "curl"] } }, agent);
+  const after = rulesOf(hn.db, "usr_dana");
+  assert.deepEqual([after.allow, after.ask.includes("git push"), after.deny.includes("curl")], [before.allow.slice(1), true, true], "stricter: an allow entry gone, an ask and a deny entry added");
   assert.deepEqual(rulesOf(hn.db, "agt_intake").allow, []);
+});
+
+test("an agent cannot loosen the rules of the person it acts for: a new allow entry, an ask or deny entry gone, a new folder; it is told where the person changes them", async () => {
+  reset();
+  const hn = harness();
+  await call(hn, "terminal.rules.set", { rules: rules({ allow: ["ls"], ask: ["git push"], deny: ["rm -rf"] }) });
+  const agent = hn.as({ kind: "agent", id: "agt_intake" }, "usr_dana");
+  const base = rulesOf(hn.db, "usr_dana");
+  for (const [what, next] of [
+    ["a new allow entry", { ...base, allow: ["ls", "pwd"] }],
+    ["a deny entry gone", { ...base, deny: [] }],
+    ["an ask entry gone", { ...base, ask: [] }],
+    ["an ask entry made an allow", { ...base, ask: [], allow: ["ls", "git push"] }],
+    ["a new folder", { ...base, folders: ["fld_abc"] }],
+  ] as const) {
+    let err: unknown;
+    try { await h["terminal.rules.set"]!(agent, { rules: next }); } catch (e) { err = e; }
+    assert.equal(codeOf(err), "permission.role_lacks_permission", what);
+    assert.match((err as { error: { message: string } }).error.message, /only make your terminal rules stricter[\s\S]*Terminal rules/, what);
+    assert.deepEqual(rulesOf(hn.db, "usr_dana"), base, `${what}: nothing changed`);
+  }
+  // an ask entry moved to deny is stricter
+  await call(hn, "terminal.rules.set", { rules: { ...base, ask: [], deny: ["rm -rf", "git push"] } }, agent);
+  assert.deepEqual(rulesOf(hn.db, "usr_dana").deny, ["rm -rf", "git push"]);
+  // the person loosens them herself
+  await call(hn, "terminal.rules.set", { rules: rules({ allow: ["ls", "pwd"] }) });
+  assert.deepEqual(rulesOf(hn.db, "usr_dana").allow, ["ls", "pwd"]);
 });
 
 test("rules.set refuses an entry that is too long or more than 200 rules in all", async () => {

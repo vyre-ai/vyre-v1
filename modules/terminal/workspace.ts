@@ -15,7 +15,7 @@ import { sha256Hex } from "../../kernel/src/log/hash.ts";
 import { NOT_FETCHED_REASON, createDockerApi, fetchableImage } from "../../sandbox/src/docker.ts";
 import { tarFiles } from "../../sandbox/src/tar.ts";
 import type { ContainerConfig, DockerApi, DockerHttp } from "../../sandbox/src/docker.ts";
-import { createTmuxHost } from "./impl.ts";
+import { createTmuxHost, HISTORY_ENV } from "./impl.ts";
 import type { ExecResult } from "./impl.ts";
 import type { AdoptArgs, TerminalHost } from "./projections.ts";
 
@@ -168,7 +168,16 @@ export const BUSY_SCRIPT = [
 
 export interface MountSpec { projects: string[] }
 
-const stable = (m: MountSpec): string => sha256Hex(JSON.stringify({ p: [...m.projects].sort() })).slice(0, 16);
+/** The label that says what a container was made with: its project folders, and the shared network when it is on it (a workspace made on the default bridge before 12 Nov is made again once, when quiet). */
+const stable = (m: MountSpec, net?: string): string => sha256Hex(JSON.stringify({ p: [...m.projects].sort(), ...(net === SHARED_NETWORK ? { n: net } : {}) })).slice(0, 16);
+
+/**
+ * Where workspaces live on an engine with no runner in front (a Personal Space with Docker Desktop, a Team server on the computers socket option): one network for all of them with traffic between
+ * containers switched off, so one workspace cannot reach a port another listens on, while each still reaches the internet, and only one address pool is used (a network per workspace would run
+ * Docker out of pools at about thirty). Behind the runner each workspace has a network of its own.
+ */
+export const SHARED_NETWORK = "vyre-workspaces";
+export const SHARED_NETWORK_BODY = { Name: SHARED_NETWORK, Driver: "bridge", CheckDuplicate: true, Options: { "com.docker.network.bridge.enable_icc": "false" }, Labels: { "vyre.workspaces": "shared" } };
 
 export function workspaceContainerConfig(agentId: string, image: string, m: MountSpec, o: Pick<WorkspaceOptions, "limits" | "runner">): ContainerConfig {
   // the numbers are modules/computers/capacity.ts hostConfigLimits("workspace): a hard cap of 1 GB, 64 MB held back while it runs, low CPU shares, no swap (test/workspace.capacity.test.ts holds the two together)
@@ -182,7 +191,7 @@ export function workspaceContainerConfig(agentId: string, image: string, m: Moun
     WorkingDir: WORKSPACE_HOME,
     Cmd: ["sleep", "infinity"],
     Env: [`VYRE_WORKSPACE_AGENT=${agentId}`, `HOME=${WORKSPACE_HOME}`, "TERM=xterm-256color", "LANG=en_US.UTF-8"],
-    Labels: { "vyre.workspace": agentId, "vyre.mounts": stable(m) },
+    Labels: { "vyre.workspace": agentId, "vyre.mounts": stable(m, o.runner ? undefined : SHARED_NETWORK) },
     StopTimeout: 10,
     HostConfig: {
       Binds: [
@@ -196,7 +205,7 @@ export function workspaceContainerConfig(agentId: string, image: string, m: Moun
       CapAdd: [],
       SecurityOpt: ["no-new-privileges:true"],
       Privileged: false,
-      NetworkMode: o.runner ? workspaceNetworkName(agentId) : "bridge",
+      NetworkMode: o.runner ? workspaceNetworkName(agentId) : SHARED_NETWORK,
       PidMode: "",
       IpcMode: "private",
       UsernsMode: "",
@@ -365,7 +374,12 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
   }
 
   async function makeNetwork(agentId: string): Promise<void> {
-    if (!o.runner) return;
+    if (!o.runner) {
+      // made once per engine; one already there (409) is used as it is
+      const r = await http({ method: "POST", path: "/networks/create", json: SHARED_NETWORK_BODY });
+      if (r.status !== 201 && r.status !== 409) throw wsError(`The workspaces' network was not made (${r.status}: ${bodyText(r.body)}).`);
+      return;
+    }
     const name = workspaceNetworkName(agentId);
     const r = await http({ method: "POST", path: "/networks/create", json: { Name: name, Driver: "bridge", CheckDuplicate: true, Labels: { "vyre.workspace": agentId } } });
     if (r.status !== 201 && r.status !== 409) throw wsError(`The workspace's network was not made (${r.status}: ${bodyText(r.body)}).`);
@@ -912,7 +926,8 @@ export function createWorkspaceTerminalHost(w: WorkspaceTerminalOptions): Worksp
   function tmuxFor(agentId: string): TerminalHost {
     let h = tmuxHosts.get(agentId);
     // a tab's live read is quiet: it neither wakes the workspace nor counts as use, so a tab left open does not keep the workspace awake, and a person watching is not taken for the agent at work
-    if (!h) { h = createTmuxHost({ exec: (argv) => m.exec(agentId, argv), quietExec: (argv) => m.exec(agentId, argv, { quiet: true }), control: control(agentId), prefix }); tmuxHosts.set(agentId, h); }
+    const exec = (argv: readonly string[]): Promise<ExecResult> => m.exec(agentId, argv);
+    if (!h) { h = createTmuxHost({ exec, quietExec: (argv) => m.exec(agentId, argv, { quiet: true }), control: control(agentId), prefix }); tmuxHosts.set(agentId, h); }
     return h;
   }
 
@@ -932,7 +947,7 @@ export function createWorkspaceTerminalHost(w: WorkspaceTerminalOptions): Worksp
       // tmux died with the container (or this process never saw the session: a restart): the session is made again, empty, where it was; one that is still there is kept as it is
       const session = nameOf(terminalId);
       if ((await m.exec(w0.agentId, ["tmux", "has-session", "-t", session])).code !== 0) {
-        await m.exec(w0.agentId, ["tmux", "new-session", "-A", "-d", "-s", session, "-x", String(w0.cols), "-y", String(w0.rows), ...(w0.cwd === undefined ? [] : ["-c", w0.cwd])]);
+        await m.exec(w0.agentId, ["tmux", "new-session", "-A", ...HISTORY_ENV, "-d", "-s", session, "-x", String(w0.cols), "-y", String(w0.rows), ...(w0.cwd === undefined ? [] : ["-c", w0.cwd])]);
       }
       w0.gen = gen;
     }

@@ -51,6 +51,8 @@ const POS = "#{history_size} #{cursor_y} #{history_limit}";
 
 const SHELLS: ReadonlySet<string> = new Set(["bash", "zsh", "sh", "dash", "fish", "ksh", "ash", "tmux"]);
 const ENV_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
+/** What a session's shell starts with so that a line typed with a leading space (every agent command) is kept out of its history, in memory and on disk. */
+export const HISTORY_ENV: readonly string[] = ["-e", "HISTCONTROL=ignorespace"];
 const realSleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 const rnd = (n: number): string => Array.from(globalThis.crypto.getRandomValues(new Uint8Array(n)), (b) => b.toString(16).padStart(2, "0")).join("");
 
@@ -532,7 +534,10 @@ export function createLocalHost(o: Omit<TerminalHostSeam, "place" | "workspaces"
       if (viaTmux) {
         const session = `vyre-${a.terminalId}`;
         if ((await o.exec(["tmux", "has-session", "-t", session])).code !== 0) {
-          await o.exec(["tmux", "new-session", "-d", "-s", session, "-x", String(a.cols), "-y", String(a.rows), ...(a.cwd === undefined ? [] : ["-c", a.cwd])]);
+          // made again with the same history rule as a new one (HISTORY_ENV); a tmux older than 3.0 has no -e
+          const rest = ["-d", "-s", session, "-x", String(a.cols), "-y", String(a.rows), ...(a.cwd === undefined ? [] : ["-c", a.cwd])];
+          const made = await o.exec(["tmux", "new-session", ...HISTORY_ENV, ...rest]);
+          if (made.code !== 0 && /unknown option|invalid option|usage:/i.test(made.stderr)) await o.exec(["tmux", "new-session", ...rest]);
         }
       } else plain.adopt?.(a);
       if (!owner.has(a.terminalId)) owner.set(a.terminalId, viaTmux ? tmux : plain);

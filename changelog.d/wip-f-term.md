@@ -13,3 +13,5 @@
 - Files history names the agent whose command changed a project file, not another agent that only had a terminal tab open.
 - A workspace waiting for room no longer tells you to add a compute server, which could not take it; it says it starts by itself when there is room.
 - Nobody is let into another person's Assistant's terminal by holding an admin role, even when the Assistant cannot be looked up.
+- Agent workspaces on a computer's own Docker can no longer reach each other's ports; each still reaches the internet.
+- An agent can make your terminal rules stricter, but only you can loosen them (allow a command, remove a rule, add a folder), in Terminal rules.
