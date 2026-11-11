@@ -32,7 +32,7 @@
       "id": "P-L9c_03-calendar-harbor",
       "route": "/m/P-L9c_03?space=harbor",
       "proto": "inbox,space:harbor,at:calendar,{skin}",
-      "waitFor": "[data-testid='event:h_studio']",
+      "waitFor": "[data-testid='band:h_studio']",
       "note": "The Harbor Studio space: one calendar and three events."
     }
   ]

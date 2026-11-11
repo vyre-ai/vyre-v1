@@ -9,7 +9,7 @@ import path from "node:path";
 import { execSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { ensureDeps, ensureChromium } from "./ensure-deps.mjs";
-import { parseArgs, SKINS, SIZES, MAX_EXPORT_S, protoHash, routeUrl, loadTargets, shardTargets, shardIndexName, sideBySideHtml, waitSelector, runTestIdSteps } from "./lib.mjs";
+import { parseArgs, SKINS, SIZES, MAX_EXPORT_S, protoHash, routeUrl, loadTargets, shardTargets, shardIndexName, sideBySideHtml, waitSelector, waitForOf, runTestIdSteps } from "./lib.mjs";
 import { serve } from "./serve.mjs";
 import { measureScroll, withinBudget, SCROLL_P95_MS } from "./probes/scroll.mjs";
 import { traceScroll } from "./probes/trace.mjs";
@@ -82,6 +82,7 @@ try {
     const dir = path.join(out, t.id); fs.mkdirSync(dir, { recursive: true });
     const stem = `${skin}-${sizeName}`;
     const shoot = async (url, file, settleMs, scheme, click, first, waitFor, steps) => {
+      const missKey = `${t.id}:${sizeName}`;
       const ctx = await browser.newContext({ viewport: vp, deviceScaleFactor: 1, colorScheme: scheme, reducedMotion: "reduce" });
       const page = await ctx.newPage();
       await page.goto(url, { waitUntil: "load", timeout: 60000 });
@@ -90,7 +91,7 @@ try {
       if (first) await page.click(first, { timeout: 30000 }).catch(() => {});
       // t.waitFor is a test id of the real app: the prototype never carries it, so only the real shot waits for it (the prototype settles on protoSettleMs)
       // a selector that never appeared in the real app is waited on once per target, not once per skin and size (4 times 30 s); the miss is printed so a stale test id is seen and fixed
-      if (waitFor && !missedWait.has(t.id)) await page.waitForSelector(waitFor, { timeout: 30000 }).catch(() => { missedWait.add(t.id); console.log(`waitFor never appeared: ${t.id} ${waitFor}`); });
+      if (waitFor && !missedWait.has(missKey)) await page.waitForSelector(waitFor, { timeout: 30000 }).catch(() => { missedWait.add(missKey); console.log(`waitFor never appeared: ${t.id} (${sizeName}) ${waitFor}`); });
       await page.waitForTimeout(settleMs);
       // a prototype state with no hash token is reached the way a person does: press the control in whichever frame has it
       if (click) { for (const fr of page.frames()) { const el = fr.locator(click).first(); if (await el.count()) { await el.click().catch(() => {}); break; } } await page.waitForTimeout(600); }
@@ -98,8 +99,8 @@ try {
       await ctx.close();
     };
     const scheme = skin === "graphite" ? "dark" : "light";
-    await shoot(routeUrl(real.origin, t.route, skin), path.join(dir, `${stem}-real.png`), 800, scheme, undefined, t.click, waitSelector("real", t), t.steps);
-    await shoot(`${proto.origin}/vyre-v1.html#${protoHash(t.proto, skin)}`, path.join(dir, `${stem}-proto.png`), t.protoSettleMs ?? 3000, scheme, t.protoClick, undefined, waitSelector("proto", t));
+    await shoot(routeUrl(real.origin, t.route, skin), path.join(dir, `${stem}-real.png`), 800, scheme, undefined, t.click, waitSelector("real", t, sizeName), t.steps);
+    await shoot(`${proto.origin}/vyre-v1.html#${protoHash(t.proto, skin)}`, path.join(dir, `${stem}-proto.png`), t.protoSettleMs ?? 3000, scheme, t.protoClick, undefined, waitSelector("proto", t, sizeName));
     const cmp = path.join(dir, `${stem}-compare.html`);
     fs.writeFileSync(cmp, sideBySideHtml({ title: `${t.id} - ${skin} - ${sizeName} ${vp.width}x${vp.height}`, real: `${stem}-real.png`, proto: `${stem}-proto.png` }));
     const ctx = await browser.newContext({ viewport: { width: vp.width * 2 + 36, height: vp.height + 70 } });
@@ -121,7 +122,7 @@ try {
       await page.goto(routeUrl(real.origin, t.route, "paper"), { waitUntil: "load", timeout: 60000 });
       // t.count: after the load, wait and count elements, so a probe run prints proof of a state (the idle face swap: how many faces are real against how many rows are on screen)
       if (t.count) {
-        await page.waitForSelector(t.waitFor ?? t.scroll.selector, { timeout: 30000 });
+        await page.waitForSelector(waitForOf(t, "desktop") ?? t.scroll.selector, { timeout: 30000 });
         await page.waitForTimeout(t.count.waitMs ?? 400);
         const got = await page.evaluate(({ real, rows }) => ({ real: document.querySelectorAll(real).length, rows: document.querySelectorAll(rows).length }), t.count);
         console.log(`METRIC ${JSON.stringify({ name: t.count.name ?? "count", target: t.id, real: got.real, rows: got.rows, wait_ms: t.count.waitMs ?? 400 })}`);
@@ -148,6 +149,8 @@ try {
 fs.writeFileSync(path.join(out, shardIndexName(shardIndex, shardTotal)), `# Side-by-side screenshots\n\nExport: ${exportSeconds ? exportSeconds.toFixed(1) + " s" : "skipped"} (budget ${maxExport} s)\n\n| target | skin | size | file |\n|---|---|---|---|\n${rows.join("\n")}\n`);
 // Every gate is judged before the run ends, so one red never hides the next measure: the failures are collected and the process exits at the end.
 let failedGate = false;
+// a target whose waitFor never appeared shot the wrong state (or a stale test id): that fails the shard, so the next stale id is found by its owner and not by a person reading a log
+if (missedWait.size) { console.error(`waitFor never appeared (the shot does not show the state the target names): ${[...missedWait].join(", ")}`); failedGate = true; }
 if (scrollFailed.length) { console.error(`scroll probe over budget: ${scrollFailed.join(", ")}`); failedGate = true; }
 if (exportSeconds > maxExport) { console.error(`web export took ${exportSeconds.toFixed(1)} s, over ${maxExport} s`); failedGate = true; }
 console.log(`${rows.length} side-by-side images in ${out}`);

@@ -62,6 +62,11 @@ test("search finds rows by words in any order, ranks a title that starts with th
   assert.deepEqual(searchRows(rows, "zzzzz"), []);
   assert.ok(searchRows(rows, "side tabs agents").some((h) => h.key === "chat.agent_tabs"));
   assert.ok(searchRows(rows, "appearance").some((h) => h.key === "appearance.skin"), "the page name is searched too");
+  for (const [word, key] of [["density", "appearance.density"], ["text size", "appearance.text"], ["reduce motion", "appearance.motion"], ["language", "appearance.lang"]] as const) {
+    const hit = searchRows(rows, word).find((h) => h.key === key);
+    assert.ok(hit, `Cmd-F finds the Display setting "${word}" on the Appearance page`);
+    assert.equal(hit.page, "appearance");
+  }
 });
 
 test("the page list in a Team Space is You, then one way to the Console, and no Space pages", () => {

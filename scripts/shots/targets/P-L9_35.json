@@ -4,7 +4,7 @@
       "id": "P-L9_35-files-opened",
       "route": "/m/P-L9_35?place=files&open=1",
       "proto": "files,{skin}",
-      "waitFor": "[data-testid='sidebar-back']",
+      "waitFor": { "phone": "[data-testid='sidebar-back']", "desktop": "[data-testid='place-sidebar']" },
       "note": "Phone: a folder chosen in the Files sidebar. The body fills the screen with the Back arrow and the place name; the sidebar is gone. The prototype side is its Files place at the same width. A computer shows both."
     },
     {

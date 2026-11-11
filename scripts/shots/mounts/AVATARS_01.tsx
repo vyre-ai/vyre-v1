@@ -47,7 +47,8 @@ function Page({ search }: { search: string }): ReactNode {
     const theme = createThemeController({ personId: "irfad", spaceId: "nw", spaceSkin: { nw: skin, hb: skin, me: skin }, prefersDark: skin === "graphite", root: themeRoot, storage: null });
     const hub = createSampleShell({ openId: "nw", theme });
     hub.go("chats");
-    const sample = createMountSample();
+    // the agent page shows its Change the face button only to a person who may edit the agent: the owner
+    const sample = createMountSample(part === "agent" ? { who: "owner" } : {});
     const shown: Shown = part === "agent" ? step(START, { t: "agent", agentId: "agt_intake" }) : part === "newagent" ? step(START, { t: "agent-form" }) : part === "tasks" ? step(START, { t: "tasks" }) : step(START, { t: "chat", threadId: "c1" });
     return { hub, theme, sample, shown };
   }, [part, skin]);

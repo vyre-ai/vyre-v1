@@ -104,8 +104,14 @@ export function budgetOf(budgets, name) {
  * The selector a screenshot waits for before it settles. A target's `waitFor` is a test id of the real app: the prototype never carries it, so a wait there ran its whole 30 s timeout
  * on every prototype shot (4 shots a target, 868 of 943 targets: the 35 minute cap of the `shots` shards). Only the real app is waited on; the prototype settles on its own protoSettleMs.
  */
-export function waitSelector(side, target) {
-  return side === "real" ? target.waitFor : undefined;
+export function waitSelector(side, target, size = "desktop") {
+  return side === "real" ? waitForOf(target, size) : undefined;
+}
+
+/** A target's `waitFor` for one size. A string applies to every size; an object names the selector per size ({ desktop, phone }, `any` for the rest), for an element the layout shows on one size only (the phone's bottom rail, its Back button). */
+export function waitForOf(target, size = "desktop") {
+  const w = target.waitFor;
+  return w === undefined || typeof w === "string" ? w : w[size] ?? w.any;
 }
 
 /**
