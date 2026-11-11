@@ -50,6 +50,13 @@ test("the learning pass for a member on a CLI subscription runs on her computer,
     const stopped = await learn("ml-l3");
     assert.equal(stopped.status, 200, `learning is never an error: ${JSON.stringify(stopped.data)}`);
     const via = (stopped.data as { via?: string }).via;
+    // The message that gave the pass something to read also starts her turn, and the turn is placed a moment after the pass answers. Reading the count the instant the pass returned saw
+    // "pass via model, 1 server processes" on a busy runner: the pass's process was there and the turn's was still on its way. So wait for the processes this outcome must have, then look once
+    // more after a short settle so one too many is still caught.
+    const want = via === "rules" ? 1 : via === "model" ? 2 : -1;
+    assert.notEqual(want, -1, `the pass answered via ${via}`);
+    await waitFor(async () => ((await hostSpawns(s)) - spaceSpawns >= want ? true : null), 15_000, () => hostLog(s.d));
+    await new Promise<void>((r) => setTimeout(r, 400));
     const onServer = (await hostSpawns(s)) - spaceSpawns;
     process.stdout.write(`# step3 computer stopped: pass via ${via}, engine processes the server started for it ${onServer}\n`);
     // Two honest outcomes, and no third. While the Space still lists the stopped computer as hers, the pass is refused (engine.device_off) and the rules learn, with nothing on the server (the

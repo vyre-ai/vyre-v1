@@ -9,9 +9,20 @@ const GLOBAL = /#([A-Za-z][A-Za-z0-9_]*)\.([A-Za-z0-9_]+)/g;
 export interface Used { handle: string; itemId: string; value: string }
 export interface Filler { url: string; token: string; computerId: string }
 
+/** A channel that one tool call brings and takes away again: the Vault as the person whose call it is, for that call only. */
+export interface CallChannel {
+  fillArgs<T>(args: T): Promise<{ args: T; used: Used[] }>;
+  leave(): void;
+}
+
 /** One Vault channel, held in memory. An agent computer has one (the module-level functions below). The Space browser has one per profile, so a profile fills only as its own agent (createVault). */
 export interface Vault {
   setFiller(url: string | null, token: string | null, computerId: string): void;
+  /**
+   * The channel of one tool call (the Space browser: the host sends one with each call, as the person whose turn it is). While calls are in, Vyre for Chrome in the profile asks the Vault through the
+   * one channel they share; calls of two people at once share none, so the extension fills nothing rather than as the wrong person. When the last call leaves, nothing is left to fill with.
+   */
+  enter(url: string, token: string, computerId: string): CallChannel;
   fillArgs<T>(args: T): Promise<{ args: T; used: Used[] }>;
   hasChannel(): boolean;
   /** One value, for a `#Handle.field` the extension's vault.fill names (the filler pushes it to the page and drops it). */
@@ -20,23 +31,42 @@ export interface Vault {
   invoke(capability: string, input: Record<string, unknown>): Promise<unknown>;
 }
 
+const checked = (url: string, token: string, computerId: string): Filler => {
+  if (!/^https?:\/\//.test(url) || token.length < 16) throw badInput("The Vault channel needs an http(s) address and a token of at least 16 characters.");
+  return { url, token, computerId };
+};
+
 export function createVault(): Vault {
   let filler: Filler | null = null;
+  const calls = new Map<symbol, Filler>();
+  /** What the extension fills with: the channel every call now in shares, else none while calls are in; with no call in, only a channel set for the whole profile (setFiller). */
+  const live = (): Filler | null => {
+    if (calls.size === 0) return filler;
+    const all = [...calls.values()];
+    return all.every((f) => f.token === all[0]!.token) ? all[0]! : null;
+  };
   return {
     setFiller(url, token, computerId) {
       if (url === null || token === null) { filler = null; return; }
-      if (!/^https?:\/\//.test(url) || token.length < 16) throw badInput("The Vault channel needs an http(s) address and a token of at least 16 characters.");
-      filler = { url, token, computerId };
+      filler = checked(url, token, computerId);
     },
-    hasChannel: () => filler !== null,
-    async fillArgs<T>(args: T) { return fillWith(filler, args); },
+    enter(url, token, computerId) {
+      const f = checked(url, token, computerId);
+      const key = Symbol("call");
+      calls.set(key, f);
+      return { fillArgs: (args) => fillWith(f, args), leave() { calls.delete(key); } };
+    },
+    hasChannel: () => live() !== null,
+    async fillArgs<T>(args: T) { return fillWith(live(), args); },
     async value(handleText) {
       const m = /^#([A-Za-z][A-Za-z0-9_]*)\.([A-Za-z0-9_]+)$/.exec(handleText);
       if (!m) throw badInput("A handle is written #Handle.field.");
+      const filler = live();
       if (!filler) throw unavailable("This profile has no channel to the Vault.");
       return ask(filler, m[1]!, m[2]!);
     },
     async invoke(capability, input) {
+      const filler = live();
       if (!filler) throw unavailable("This profile has no channel to the Vault.");
       let res: Response;
       try {

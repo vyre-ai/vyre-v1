@@ -5,11 +5,11 @@
 #   vyre-server doctor [--json] [--quiet]   check this machine and the server; works with the server down. Exit 1 when anything is down.
 #   vyre-server status                      the containers and their health
 #   vyre-server start | stop | restart      what the systemd unit runs
-#   vyre-server logs [SERVICE]              follow the logs (vyred, caddy)
+#   vyre-server logs [SERVICE] [--no-follow]  follow the logs (vyred, caddy); Ctrl-C stops; --no-follow prints the last lines and exits
 #   vyre-server claim-link                  print the one-time link that claims a fresh Space as its owner (valid 24 hours; each start makes a new one)
 #   vyre-server update [--check] [--yes]    read the channel's signed manifest; if it names a newer version: back up the data (server running), then stop, switch, check health, roll back on failure; --stopped-backup stops first
 #   vyre-server rollback                    switch back to the previous release (code only; data written by the newer one stays)
-#   vyre-server backup                      write a backup of the data directory to $VYRE_DIR/backups (the server keeps running)
+#   vyre-server backup                      write a backup of the data directory to the backup folder, by default next to the data (the server keeps running)
 #   vyre-server restore FILE [--yes]        put a backup back: checks it, backs up the current data, stops, restores, starts, checks health
 #   vyre-server fix-userns                  let the engine sandbox make user namespaces (Ubuntu 24.04 setting); install and update do this themselves
 #   vyre-server version
@@ -38,6 +38,8 @@ WANT_SHA256=""
 CHANNEL=$(cat "$DIR/channel" 2>/dev/null || printf stable)
 UPDATE_URL=${VYRE_UPDATE_URL:-$(cat "$DIR/update-url" 2>/dev/null || printf 'https://github.com/vyre-ai/vyre-v1/releases/latest/download/')}
 DATA_DIR=$(cat "$DIR/data-dir" 2>/dev/null || printf '%s/data' "$DIR")
+# where backups are written: with the data (so a data folder on an encrypted volume holds its backups too); an install made before this was recorded keeps $VYRE_DIR/backups
+BACKUP_DIR=$(cat "$DIR/backup-dir" 2>/dev/null || printf '%s/backups' "$DIR")
 UNIT_DIR=${VYRE_SYSTEMD_DIR:-/etc/systemd/system}
 KEEP_BACKUPS=3
 KEEP_RELEASES=3
@@ -231,10 +233,21 @@ health_url() {
 }
 
 # ---- start, stop, status, logs -----------------------------------------------------------------------------------------------------
-cmd_start() { [ ! -f "$(PENDING_FILE)" ] || lock_update_operation; dc up -d --remove-orphans --wait --wait-timeout "${VYRE_UP_WAIT:-180}"; }
+cmd_start() { [ ! -f "$(PENDING_FILE)" ] || lock_update_operation; refresh_disk_env || true; ensure_userns_vm || true; dc up -d --remove-orphans --wait --wait-timeout "${VYRE_UP_WAIT:-180}"; }
 cmd_stop() { dc stop; }
 cmd_status() { dc ps; }
-cmd_logs() { dc logs -f --tail 200 "$@"; }
+cmd_logs() {
+  follow=1; svc=""
+  for a in "$@"; do case "$a" in --no-follow) follow=0 ;; *) svc="$svc $a" ;; esac; done
+  if [ "$follow" = 1 ]; then
+    [ ! -t 1 ] || say "Following the log: new lines appear as they happen. Press Ctrl-C to stop (vyre-server logs --no-follow prints the last lines and exits)."
+    # shellcheck disable=SC2086
+    dc logs -f --tail 200 $svc
+  else
+    # shellcheck disable=SC2086
+    dc logs --tail 200 $svc
+  fi
+}
 
 # ---- claim ---------------------------------------------------------------------------------------------------------------------------
 # vyred writes the owner's claim link to logs/claim-link.txt in its data directory (mode 0600) at each start while the Space is unclaimed, and deletes it once the claim
@@ -242,7 +255,22 @@ cmd_logs() { dc logs -f --tail 200 "$@"; }
 claim_file() { printf '%s/space/logs/claim-link.txt' "$DATA_DIR"; }
 cmd_claim_link() {
   f=$(claim_file)
-  if [ -r "$f" ]; then cat "$f"; return 0; fi
+  if [ -r "$f" ]; then
+    link=$(cat "$f")
+    printf '%s\n' "$link"
+    # a server with no address of its own prints a link on this machine's own address (0.0.0.0 means "this machine"): say where it opens, on stderr so the link stays alone on stdout
+    case "$link" in
+      http://0.0.0.0:*|http://127.0.0.1:*|http://localhost:*)
+        p=$(printf '%s' "$link" | sed -n 's|^http://[^:/]*:\([0-9]*\)/.*|\1|p')
+        { say ""
+          say "This link opens only on this server: it has no web address yet, and 0.0.0.0 is not an address you can open from another computer."
+          say "  - In the Vyre app: choose Create a Space, then Team Space, and paste the link."
+          say "  - In a browser on your own computer: run  ssh -L ${p:-8420}:127.0.0.1:${p:-8420} root@$(hostname -f 2>/dev/null || hostname)  and, while that stays open, paste the link above with 0.0.0.0 changed to localhost."
+          say "  - For a web address your whole team can open, install with your own name: --domain vyre.example.com (docs/getting-started.md)."
+        } >&2 ;;
+    esac
+    return 0
+  fi
   [ ! -e "$f" ] || die "cannot read $f. Run it as root: sudo vyre-server claim-link"
   die "there is no claim link: the Space is claimed already, or the server has not started yet (vyre-server status)."
 }
@@ -259,14 +287,110 @@ $1	$2	$3"
 
 json_str() { printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' | tr '\n\t' '  '; }
 
-check_all() {
-  # the volume the data lives on
+# space_serves_domain: 0 = the Space serves its own domain (network_config mode own_domain, set at install or later in the Console); 1 = it does not (the query ran, the table is there, no row says so);
+# 2 = cannot tell (no reader, a busy or missing database, any error or odd answer). Callers change the ports only on 0 or 1. Readers, in order: sqlite3, this host's node, the release image's own node
+# (docker run of the image already pulled, no network, the data folder mounted read-only).
+space_serves_domain() {
+  db=$DATA_DIR/space/modules.db
+  [ -f "$db" ] || return 2
+  q="SELECT count(*) AS n FROM network_config WHERE id = 1 AND mode = 'own_domain'"
+  to=${VYRE_TEST_SQLITE_TIMEOUT:-3000}
+  if command -v sqlite3 >/dev/null 2>&1; then
+    out=$(sqlite3 -readonly -cmd ".timeout $to" "$db" "$q" 2>/dev/null) || return 2
+    case "$out" in 1) return 0 ;; 0) return 1 ;; *) return 2 ;; esac
+  fi
+  js="try{const {DatabaseSync}=require('node:sqlite');const d=new DatabaseSync(process.argv[1],{readOnly:true});d.exec('PRAGMA busy_timeout='+process.argv[3]);console.log(d.prepare(process.argv[2]).get().n)}catch(e){process.exit(2)}"
+  if command -v node >/dev/null 2>&1 && node --no-warnings -e "require('node:sqlite')" >/dev/null 2>&1; then
+    out=$(node --no-warnings -e "$js" "$db" "$q" "$to" 2>/dev/null) || return 2
+    case "$out" in 1) return 0 ;; 0) return 1 ;; *) return 2 ;; esac
+  fi
+  img=$(sed -n 's/^VYRE_IMAGE=//p' "$DIR/compose.env" 2>/dev/null | head -n 1)
+  if [ -n "$img" ] && command -v docker >/dev/null 2>&1; then
+    out=$(docker run --rm --network none --user 1000:1000 -v "$DATA_DIR/space:/in:ro" --entrypoint node "$img" --no-warnings -e "$js" /in/modules.db "$q" "$to" 2>/dev/null) || return 2
+    case "$out" in 1) return 0 ;; 0) return 1 ;; *) return 2 ;; esac
+  fi
+  return 2
+}
+
+# refresh_disk_env: at each start the disk is looked at again and what the Console is told (VYRE_DISK_ENCRYPTION in compose.env) follows it: a verified encryption layer, else the person's recorded
+# statement (plain or provider), else nothing. A recorded value is never trusted over what can be seen.
+refresh_disk_env() {
+  [ -f "$DIR/compose.env" ] || return 0
   disk_encrypted "$DATA_DIR" && rc=0 || rc=$?
+  k=$(sed -n 's/^kind=//p' "$DIR/state/encryption" 2>/dev/null | head -n 1)
+  if [ "$rc" = 0 ]; then if crypt_on_file; then k=detected_file; else k=detected; fi; else case "$k" in plain|provider) ;; *) k="" ;; esac; fi
+  since=$(sed -n 's/^since=//p' "$DIR/state/encryption" 2>/dev/null | head -n 1)
+  [ -n "$since" ] || since=$(date -u +%Y-%m-%d)
+  # Docker's data root: agent browser sign-ins live in Docker volumes there. The server inside Docker cannot see it, so the host says what it sees: encrypted, plain, or unknown (cannot tell).
+  rd=$(docker_root_dir); rstate=""
+  [ -z "$rd" ] || rstate=$(docker_root_state "$rd")
+  { grep -v -e '^VYRE_DISK_ENCRYPTION=' -e '^VYRE_DISK_ENCRYPTION_SINCE=' -e '^VYRE_DOCKER_ROOT_DIR=' -e '^VYRE_DOCKER_ROOT_STATE=' "$DIR/compose.env" || true
+    [ -z "$k" ] || printf 'VYRE_DISK_ENCRYPTION=%s\nVYRE_DISK_ENCRYPTION_SINCE=%s\n' "$k" "$since"
+    [ -z "$rstate" ] || printf 'VYRE_DOCKER_ROOT_DIR=%s\nVYRE_DOCKER_ROOT_STATE=%s\n' "$rd" "$rstate"; } >"$DIR/compose.env.new" || { rm -f "$DIR/compose.env.new"; return 1; }
+  if cmp -s "$DIR/compose.env" "$DIR/compose.env.new"; then rm -f "$DIR/compose.env.new"; else mv -f "$DIR/compose.env.new" "$DIR/compose.env"; fi
+}
+
+# docker_root_state DIR: encrypted, plain, or unknown. Unknown is not plain: on a Mac the root is inside Docker's virtual machine (no folder here to look at), and a root that cannot be resolved cannot be judged.
+docker_root_state() {
+  _os=$(uname -s); [ "${VYRE_TEST_MODE:-0}" != 1 ] || [ -z "${VYRE_TEST_OS:-}" ] || _os=$VYRE_TEST_OS
+  [ "$_os" != Darwin ] || { printf unknown; return 0; }
+  _r=$(readlink -f "$1" 2>/dev/null || printf '%s' "$1")
+  [ -d "$_r" ] || { printf unknown; return 0; }
+  disk_encrypted "$_r" && _rc=0 || _rc=$?
+  case "$_rc" in 0) printf encrypted ;; 1) printf plain ;; *) printf unknown ;; esac
+}
+
+# docker_root_dir: where Docker keeps its data (docker info), or nothing when Docker does not answer.
+docker_root_dir() {
+  if [ "${VYRE_TEST_MODE:-0}" = 1 ] && [ -n "${VYRE_TEST_DOCKER_ROOT:-}" ]; then printf '%s' "$VYRE_TEST_DOCKER_ROOT"; return 0; fi
+  docker info --format '{{.DockerRootDir}}' 2>/dev/null | head -n 1
+}
+
+# crypt_on_file: the encrypted volume under the data directory is a loop device, a file on some disk (its key may sit beside it; this server cannot see where the key is).
+crypt_on_file() {
+  m=/proc/mounts; l=lsblk
+  if [ "${VYRE_TEST_MODE:-0}" = 1 ]; then m=${VYRE_TEST_PROC_MOUNTS:-/proc/mounts}; [ -z "${VYRE_TEST_LSBLK:-}" ] || l=$VYRE_TEST_LSBLK; fi
+  src=$(awk -v d="$DATA_DIR" '{ t = $2 } (t == "/" || d == t || index(d, t "/") == 1) && length(t) >= best { best = length(t); line = $1 } END { print line }' "$m" 2>/dev/null)
+  [ -n "$src" ] || return 1
+  "$l" -s -n -o TYPE "$src" 2>/dev/null | grep -qx loop
+}
+
+check_all() {
+  # the volume the data lives on, checked now (never trusted from a record), and what the person said about it when it is not visibly encrypted
+  disk_encrypted "$DATA_DIR" && rc=0 || rc=$?
+  enc_kind=$(sed -n 's/^kind=//p' "$DIR/state/encryption" 2>/dev/null | head -n 1)
+  enc_since=$(sed -n 's/^since=//p' "$DIR/state/encryption" 2>/dev/null | head -n 1)
   case "$rc" in
-    0) finding host.disk_encrypted healthy "The data directory $DATA_DIR is on an encrypted volume." ;;
-    1) finding host.disk_encrypted down "The data directory $DATA_DIR is not on an encrypted volume. Move it to a LUKS or other encrypted volume." ;;
-    *) finding host.disk_encrypted down "Could not tell whether $DATA_DIR is on an encrypted volume (no /proc/mounts or lsblk answer)." ;;
+    0) if crypt_on_file; then finding host.disk_encrypted degraded "The data directory $DATA_DIR is on an encrypted volume that is a file on this disk. This server cannot tell where its key is kept: a key on this same disk protects nothing."
+       else finding host.disk_encrypted healthy "The data directory $DATA_DIR is on an encrypted volume (verified here; where its key is kept is not visible)."; fi ;;
+    *) case "$enc_kind" in
+         plain) finding host.disk_encrypted degraded "The data is NOT encrypted at rest. You chose to install on a plain disk${enc_since:+ on $enc_since}: anyone who gets a copy of this disk, a snapshot or a backup can read it." ;;
+         provider) finding host.disk_encrypted degraded "Not verified: your provider's encryption, as you stated${enc_since:+ on $enc_since}. This server cannot check it; confirm it with your provider." ;;
+         *) case "$rc" in
+              1) finding host.disk_encrypted down "The data directory $DATA_DIR is not on an encrypted volume. Re-run the installer with --provider-encrypted (the provider's encrypted volume) or --allow-plain-disk (see its --help)." ;;
+              *) finding host.disk_encrypted down "Could not tell whether $DATA_DIR is on an encrypted volume (no /proc/mounts or lsblk answer)." ;;
+            esac ;;
+       esac ;;
   esac
+  # Docker's data root: agent browser sign-ins (the Chrome profiles of agent computers and of the Space browser) are stored unsealed in Docker volumes there: Vyre does not encrypt them itself, so only that disk's
+  # encryption protects them. A finding of its own; it only ever reports (an existing server is never stopped or refused by it).
+  rd=$(docker_root_dir)
+  if [ -n "$rd" ]; then
+    rstate=$(docker_root_state "$rd")
+    case "$rstate" in
+      encrypted) finding host.docker_root healthy "Docker's data root $rd is on an encrypted volume (verified here). Agent browser sign-ins (agent computers' and the Space browser's Chrome profiles) are stored unsealed in Docker volumes there; that disk's encryption protects them." ;;
+      unknown) finding host.docker_root degraded "Could not tell whether Docker's data root ($rd) is encrypted: it is not a disk this server can look at (as when Docker runs in a virtual machine, as on a Mac, where FileVault covers that machine's disk image). Agent browser sign-ins (agent computers' and the Space browser's Chrome profiles) are stored unsealed in Docker volumes there. Next: check that disk's encryption yourself." ;;
+      *)
+        if [ "$rc" = 0 ]; then finding host.docker_root degraded "Docker's data root ($rd) is not on an encrypted volume, but the Space's data is. Agent browser sign-ins (agent computers' and the Space browser's Chrome profiles) are stored unsealed in Docker volumes there, so they are not encrypted at rest. Next: move Docker's data root onto the encrypted volume, or encrypt its disk."
+        else
+          case "$enc_kind" in
+            plain) finding host.docker_root degraded "Agent browser sign-ins (agent computers' and the Space browser's Chrome profiles) are stored unsealed in Docker volumes on Docker's disk ($rd), which is not encrypted at rest (the plain-disk choice you made covers it). Next: move Docker's data root and the data onto an encrypted volume." ;;
+            provider) finding host.docker_root degraded "Not verified: agent browser sign-ins (agent computers' and the Space browser's Chrome profiles) are stored unsealed in Docker volumes on Docker's disk ($rd). Your provider's encryption, as you stated, covers them only if Docker's data root is on that volume. Next: confirm that with your provider, or move Docker's data root onto the encrypted volume." ;;
+            *) finding host.docker_root degraded "Agent browser sign-ins (agent computers' and the Space browser's Chrome profiles) are stored unsealed in Docker volumes on Docker's disk ($rd), which is not verified encrypted. Next: move Docker's data root onto an encrypted volume, or encrypt its disk." ;;
+          esac
+        fi ;;
+    esac
+  fi
   # room to work
   free_mb=$(df -Pm "$DATA_DIR" 2>/dev/null | awk 'NR==2 {print $4}')
   if [ -z "$free_mb" ]; then finding host.disk_space degraded "Could not read the free space of $DATA_DIR."
@@ -312,9 +436,9 @@ check_all() {
     fi
     ai=$(lock_get VYRE_AGENT_IMAGE)
     if [ -n "$ai" ]; then
-      if docker image inspect "$ai" >/dev/null 2>&1; then finding host.agent_image healthy "The agent computer image is pulled."
-      else finding host.agent_image degraded "The agent computer image is not pulled yet; agent computers cannot start. Run: docker pull $ai"
-      fi
+      # the old per-agent desktop image: only a server that still has an old desktop needs it, and such a server holds it already. Its absence is not a fault (it does not exist for
+      # Apple silicon), so nothing is reported then; agents use a workspace and the Space browser, which have their own lines here.
+      if docker image inspect "$ai" >/dev/null 2>&1; then finding host.agent_image healthy "The agent computer image is pulled."; fi
     fi
     bi=$(lock_get VYRE_BROWSER_IMAGE)
     if [ -n "$bi" ]; then
@@ -328,6 +452,12 @@ check_all() {
     if [ "$(cat "$(userns_proc)" 2>/dev/null)" = 1 ]; then finding host.userns degraded "kernel.apparmor_restrict_unprivileged_userns is 1, so the engine sandbox (bubblewrap) fails and agent turns error. Fix: vyre-server fix-userns."
     else finding host.userns healthy "The host allows the user namespaces the engine sandbox needs."
     fi
+  elif [ "$(uname -s)" = Darwin ] && [ "${VYRE_TEST_MODE:-0}" != 1 ]; then
+    # on a Mac the setting lives in Docker's virtual machine; `start` turns it off there each time (ensure_userns_vm)
+    case "$(userns_vm_state)" in
+      1) finding host.userns degraded "Docker's virtual machine has kernel.apparmor_restrict_unprivileged_userns set to 1, so the engine sandbox (bubblewrap) fails and agent turns error. Fix: vyre-server fix-userns." ;;
+      0) finding host.userns healthy "Docker's virtual machine allows the user namespaces the engine sandbox needs." ;;
+    esac
   fi
   # the server answers
   if command -v curl >/dev/null 2>&1 && curl -fsS --max-time 5 "$(health_url)" >/dev/null 2>&1; then
@@ -466,24 +596,44 @@ backup_fail() {
 # still one consistent snapshot (VACUUM INTO reads a single transaction while writers go on).
 backup_data() {
   BACKUP_MODE=${2:-stopped}
-  mkdir -p "$DIR/backups" "$DIR/state"
-  chmod 0700 "$DIR/backups"
-  out="$DIR/backups/vyre-$1-$(date -u +%Y%m%dT%H%M%SZ).tar.gz"
+  [ -s "$DATA_DIR/space/events.db" ] || die "there is no Space in $DATA_DIR (no space/events.db): is the data volume mounted? No backup was written, and the earlier backups were left as they are."
+  mkdir -p "$BACKUP_DIR" "$DIR/state"
+  chmod 0700 "$BACKUP_DIR"
+  out="$BACKUP_DIR/vyre-$1-$(date -u +%Y%m%dT%H%M%SZ).tar.gz"
   need_mb=$(du -sm "$DATA_DIR/space" "$DATA_DIR/caddy" 2>/dev/null | awk '{ n += $1 } END { print n + 0 }')
-  free_mb=$(df -Pm "$DIR/backups" | awk 'NR==2 {print $4}')
+  free_mb=$(df -Pm "$BACKUP_DIR" | awk 'NR==2 {print $4}')
   [ "${free_mb:-0}" -gt "$((need_mb * 2 + 256))" ] || die "not enough room for a backup ($need_mb MB of data, $free_mb MB free); nothing was changed."
   if [ "$BACKUP_MODE" = stopped ]; then dc stop >/dev/null || true; stop_strays; fi
   umask 077
-  STAGE=$(mktemp -d "$DIR/backups/.stage.XXXXXX") || backup_fail "could not make room to stage the backup; nothing was changed."
+  STAGE=$(mktemp -d "$BACKUP_DIR/.stage.XXXXXX") || backup_fail "could not make room to stage the backup; nothing was changed."
   stage_copy "$DATA_DIR/space" "$STAGE/space" || backup_fail "the backup could not be written (a database would not copy cleanly); nothing was changed."
   if [ -d "$DATA_DIR/caddy" ]; then stage_copy "$DATA_DIR/caddy" "$STAGE/caddy" || backup_fail "the backup could not be written; nothing was changed."; else mkdir -p "$STAGE/caddy"; fi
   # The staged copy no longer changes, so tar has nothing to race with.
   tar -czf "$out.part" -C "$STAGE" space caddy || backup_fail "the backup could not be written; nothing was changed."
   tar -tzf "$out.part" >/dev/null || backup_fail "the backup did not read back; nothing was changed."
+  tar -tzf "$out.part" | grep -q '^space/events.db$' || backup_fail "the backup holds no Space (space/events.db is missing); nothing was changed and the earlier backups were kept."
   rm -rf "$STAGE"; STAGE=""
   mv "$out.part" "$out"
-  ls -1t "$DIR"/backups/vyre-*.tar.gz 2>/dev/null | awk -v k="$KEEP_BACKUPS" 'NR > k' | while read -r old; do rm -f "$old"; done
+  ls -1t "$BACKUP_DIR"/vyre-*.tar.gz 2>/dev/null | awk -v k="$KEEP_BACKUPS" 'NR > k' | while read -r old; do rm -f "$old"; done
   BACKUP_FILE=$out
+}
+
+# fs_device PATH: the device the folder holding PATH sits on (first column of df), to tell whether a backup is on the same disk as the data.
+fs_device() {
+  _p=$1
+  if [ "${VYRE_TEST_MODE:-0}" = 1 ] && [ -n "${VYRE_TEST_FS_DEVICE:-}" ]; then
+    printf '%s' "$VYRE_TEST_FS_DEVICE" | tr ',' '\n' | awk -F= -v p="$_p" 'index(p, $1) == 1 { print $2; exit }'
+    return 0
+  fi
+  while [ ! -e "$_p" ]; do _p=$(dirname "$_p"); done
+  df -P "$_p" 2>/dev/null | awk 'NR==2 {print $1}'
+}
+# backup_note: a backup on the same disk as the data is no protection against losing the disk or the server; say so, and the one command that copies it out.
+backup_note() {
+  if [ "$(fs_device "$(dirname "$BACKUP_FILE")")" = "$(fs_device "$DATA_DIR")" ]; then
+    say "  This backup is on the same disk as the Space's data. If this server or its disk is lost, the backup is lost with it. Copy it somewhere else, from your own computer:"
+    say "    scp root@$(hostname -f 2>/dev/null || hostname):$BACKUP_FILE ."
+  fi
 }
 
 # The server keeps running for a plain backup: nothing is stopped, nothing needs starting.
@@ -491,6 +641,7 @@ cmd_backup() {
   lock_update_operation
   backup_data manual live
   say "Backup written: $BACKUP_FILE"
+  backup_note
 }
 
 # restore_check FILE DEST: the backup is a tar.gz of space/ and caddy/ only, no links, no path outside, and every database in it opens and passes integrity_check. Unpacked into DEST.
@@ -525,10 +676,22 @@ sqlite_check() {
 }
 
 cmd_restore() {
-  file=""; yes=0
-  for a in "$@"; do case "$a" in --yes|-y) yes=1 ;; -*) die "restore takes a backup file and --yes" 2 ;; *) [ -z "$file" ] || die "restore takes one backup file" 2; file=$a ;; esac; done
+  file=""; yes=0; force=0
+  for a in "$@"; do case "$a" in --yes|-y) yes=1 ;; --force) force=1 ;; -*) die "restore takes a backup file, --yes and --force" 2 ;; *) [ -z "$file" ] || die "restore takes one backup file" 2; file=$a ;; esac; done
   [ -n "$file" ] || die "restore needs the backup file: vyre-server restore FILE" 2
   lock_update_operation
+  # a data folder that was set up on an encrypted volume which is not mounted now would be written onto this machine's plain disk (and covered when the volume is opened later): refuse before anything is made
+  rkind=$(sed -n 's/^kind=//p' "$DIR/state/encryption" 2>/dev/null | head -n 1)
+  rdir=$(sed -n 's/^data_dir=//p' "$DIR/state/encryption" 2>/dev/null | head -n 1)
+  if [ "$force" != 1 ]; then
+    rmiss=0
+    case "$rkind" in
+      detected|detected_file) disk_encrypted "$DATA_DIR" || rmiss=1 ;;
+      provider) [ -z "$rdir" ] || [ "$rdir" != "$DATA_DIR" ] || [ -d "$DATA_DIR" ] || rmiss=1 ;;
+    esac
+    [ "$rmiss" = 0 ] || die "the data folder $DATA_DIR was set up on an encrypted volume ($rkind) that does not seem to be mounted now. Restoring now would write the Space onto this machine's plain disk. Mount or open the volume, then run the restore again. To restore onto the plain disk anyway, add --force. Nothing was changed." 7
+  fi
+  mkdir -p "$DATA_DIR"
   RSTAGE=$(mktemp -d "$DATA_DIR/.restore.XXXXXX") || die "could not make room to unpack the backup; nothing was changed."
   restore_check "$file" "$RSTAGE"
   if [ "$yes" != 1 ]; then
@@ -537,25 +700,41 @@ cmd_restore() {
     read -r answer || answer=""
     [ "$answer" = yes ] || die "not confirmed; nothing was changed."
   fi
-  say "  Backing up the current data first"
-  backup_data pre-restore
-  say "  Backed up to $BACKUP_FILE"
+  if [ -s "$DATA_DIR/space/events.db" ]; then
+    HAD_SPACE=1
+    say "  Backing up the current data first"
+    backup_data pre-restore
+    say "  Backed up to $BACKUP_FILE"
+  else
+    # restoring into a lost or empty data folder is what restore is for: there is nothing to back up
+    HAD_SPACE=0
+    say "  There is no current Space in $DATA_DIR to back up; restoring."
+    dc stop >/dev/null 2>&1 || true
+    stop_strays
+  fi
   ts=$(date -u +%Y%m%dT%H%M%SZ)
-  mv "$DATA_DIR/space" "$DATA_DIR/space.replaced-$ts" || { dc up -d --remove-orphans >/dev/null 2>&1 || true; resume_strays; die "could not move the current data aside; nothing was changed."; }
+  mkdir -p "$DATA_DIR"
+  if [ -e "$DATA_DIR/space" ]; then mv "$DATA_DIR/space" "$DATA_DIR/space.replaced-$ts" || { dc up -d --remove-orphans >/dev/null 2>&1 || true; resume_strays; die "could not move the current data aside; nothing was changed."; }; fi
   if [ -d "$DATA_DIR/caddy" ]; then mv "$DATA_DIR/caddy" "$DATA_DIR/caddy.replaced-$ts"; fi
   mv "$RSTAGE/space" "$DATA_DIR/space" && mv "$RSTAGE/caddy" "$DATA_DIR/caddy" || restore_undo "$ts" "could not put the backup in place"
+  # the server runs as uid 1000 and must be able to read what it is given: a backup taken with the host's sqlite3 holds root-owned 0600 files
+  chown -R 1000:1000 "$DATA_DIR/space" 2>/dev/null || [ "${VYRE_TEST_MODE:-0}" = 1 ] || restore_undo "$ts" "could not give the restored data to the server's user (uid 1000)"
   dc up -d --remove-orphans >/dev/null 2>&1 || restore_undo "$ts" "the server did not start on the restored data"
   wait_healthy || restore_undo "$ts" "the server did not pass its health check on the restored data"
   resume_strays
   rm -rf "$DATA_DIR/space.replaced-$ts" "$DATA_DIR/caddy.replaced-$ts" "$RSTAGE"; RSTAGE=""
-  say "Restored from $file. The data it replaced is in $BACKUP_FILE."
+  if [ "$HAD_SPACE" = 1 ]; then say "Restored from $file. The data it replaced is in $BACKUP_FILE."; else say "Restored from $file. There was no Space here before."; fi
 }
 
 # restore_undo TS WHY: put the data that was there back, start the server, and stop with WHY.
 restore_undo() {
   dc stop >/dev/null 2>&1 || true
+  if [ "${HAD_SPACE:-1}" != 1 ]; then
+    # nothing was here before: the restored copy is all there is, so it is kept (stopped), not deleted
+    die "$2. The restored data is still in $DATA_DIR/space (the server is stopped). Look at it and fix what failed, then start the server: vyre-server start. It came from $file."
+  fi
   rm -rf "$DATA_DIR/space" "$DATA_DIR/caddy"
-  mv "$DATA_DIR/space.replaced-$1" "$DATA_DIR/space"
+  if [ -d "$DATA_DIR/space.replaced-$1" ]; then mv "$DATA_DIR/space.replaced-$1" "$DATA_DIR/space"; fi
   if [ -d "$DATA_DIR/caddy.replaced-$1" ]; then mv "$DATA_DIR/caddy.replaced-$1" "$DATA_DIR/caddy"; else mkdir -p "$DATA_DIR/caddy"; fi
   dc up -d --remove-orphans >/dev/null 2>&1 || true
   resume_strays
@@ -604,7 +783,7 @@ refresh_bin() {
 userns_proc() { if [ "${VYRE_TEST_MODE:-0}" = 1 ] && [ -n "${VYRE_TEST_USERNS_PROC:-}" ]; then printf '%s' "$VYRE_TEST_USERNS_PROC"; else printf /proc/sys/kernel/apparmor_restrict_unprivileged_userns; fi; }
 # ensure_userns: write /etc/sysctl.d/60-vyre-userns.conf and apply it, only on a kernel that has the setting.
 ensure_userns() {
-  [ -e "$(userns_proc)" ] || return 0
+  [ -e "$(userns_proc)" ] || { ensure_userns_vm; return 0; }
   sd=${VYRE_SYSCTL_DIR:-/etc/sysctl.d}
   conf="$sd/60-vyre-userns.conf"
   mkdir -p "$sd" 2>/dev/null || return 0
@@ -612,6 +791,30 @@ ensure_userns() {
   mv -f "$conf.new" "$conf"
   if command -v sysctl >/dev/null 2>&1; then sysctl -p "$conf" >/dev/null 2>&1 || say "  Could not apply $conf now; it applies at the next boot."; fi
   return 0
+}
+
+# ensure_userns_vm: the same setting on a Mac, where Docker runs in a Linux virtual machine (Docker Desktop, OrbStack, Colima) and this script cannot see its kernel. Colima's machine is
+# Ubuntu 24.04 with the restriction on: there bubblewrap answers "setting up uid map: Permission denied" and every agent turn that runs on the server fails. The setting is read through a
+# container, and when it is 1 a one-shot privileged container of the server's own image (already here, named by digest) turns it off. It belongs to the machine's running kernel and a
+# restart of the machine puts it back, so `start` does this every time. Nothing is done on a kernel without the setting, or when it is already 0.
+ensure_userns_vm() {
+  [ "$(uname -s)" = Darwin ] || return 0
+  command -v docker >/dev/null 2>&1 || return 0
+  _img=$(lock_get VYRE_IMAGE)
+  [ -n "$_img" ] || return 0
+  _f=/proc/sys/kernel/apparmor_restrict_unprivileged_userns
+  _v=$(docker run --rm --network none --entrypoint cat "$_img" "$_f" 2>/dev/null) || return 0
+  [ "$_v" = 1 ] || return 0
+  if docker run --rm --network none --privileged --user 0 --entrypoint sh "$_img" -c "echo 0 > $_f" >/dev/null 2>&1; then return 0; fi
+  say "  Docker's virtual machine does not allow the user namespaces the engine sandbox needs, and this could not be changed. Agent turns that run on this server will fail until, inside that machine, kernel.apparmor_restrict_unprivileged_userns is 0."
+  return 0
+}
+# userns_vm_state: 1, 0, or nothing when it cannot be read (no Docker, no image yet, or a kernel without the setting). For doctor on a Mac.
+userns_vm_state() {
+  command -v docker >/dev/null 2>&1 || return 0
+  _img=$(lock_get VYRE_IMAGE)
+  [ -n "$_img" ] || return 0
+  docker run --rm --network none --entrypoint cat "$_img" /proc/sys/kernel/apparmor_restrict_unprivileged_userns 2>/dev/null || true
 }
 
 # settle_caddy: Caddy shares vyred's network namespace (network_mode: service:vyred). When vyred is recreated, a Caddy left on the old one serves nothing, so it is recreated
@@ -642,6 +845,18 @@ sync_image() {
   cp -p "$DIR/compose.env" "$DIR/compose.env.new" || return 1
   { grep -v -e '^VYRE_IMAGE=' -e '^VYRE_AGENT_COMPUTER_IMAGE=' -e '^VYRE_SPACE_BROWSER_IMAGE=' -e '^VYRE_WORKSPACE_IMAGE=' "$DIR/compose.env" || true; printf 'VYRE_IMAGE=%s\n' "$img"; [ -z "$aimg" ] || printf 'VYRE_AGENT_COMPUTER_IMAGE=%s\n' "$aimg"; [ -z "$bimg" ] || printf 'VYRE_SPACE_BROWSER_IMAGE=%s\n' "$bimg"; [ -z "$wimg" ] || printf 'VYRE_WORKSPACE_IMAGE=%s\n' "$wimg"; } >"$DIR/compose.env.new" || { rm -f "$DIR/compose.env.new"; return 1; }
   mv -f "$DIR/compose.env.new" "$DIR/compose.env"
+  # a server with no domain (the relay) opens no port to the internet: 80 and 443 stay on this machine, unless the Space serves its own domain (set in the Console). In relay mode a site cannot have a custom domain, so nothing else is lost.
+  if ! grep -q '^VYRE_ADDRESS=' "$DIR/compose.env"; then
+    space_serves_domain && sd=0 || sd=$?
+    case "$sd" in
+      0)
+        # the Space's own domain was set in the Console: its ports stay open (and an earlier closing of them is undone)
+        if grep -q '^VYRE_BIND=' "$DIR/compose.env"; then awk '$0 !~ /^VYRE_BIND=/' "$DIR/compose.env" >"$DIR/compose.env.new" && mv -f "$DIR/compose.env.new" "$DIR/compose.env"; fi ;;
+      1) grep -q '^VYRE_BIND=' "$DIR/compose.env" || printf 'VYRE_BIND=127.0.0.1\n' >>"$DIR/compose.env" ;;
+      *) say "  Could not tell whether this server serves its own domain, so ports 80 and 443 were left exactly as they were." ;;
+    esac
+  fi
+  refresh_disk_env || true
 }
 
 # An update writes state/update.pending (the release it left) before it switches, and removes it once it has settled. If the file is still there when the next
@@ -783,6 +998,8 @@ cmd_update() {
     ref=$(sed -n "s/^$k=//p" "$DIR/releases/$REL_VERSION/images.lock" | head -n 1)
     [ -n "$ref" ] || continue
     case "$ref" in *@sha256:*) ;; *) die "the release names $k without a digest; nothing was changed." ;; esac
+    # the old per-agent desktop image is Intel only and nothing new uses it: a computer it cannot be pulled on (Apple silicon) updates without it (the installers do the same)
+    if [ "$k" = VYRE_AGENT_IMAGE ]; then docker pull -q "$ref" >/dev/null 2>&1 || say "  (skipped: the old agent desktop image is not available for this computer, and nothing new needs it)"; continue; fi
     docker pull -q "$ref" >/dev/null || die "could not pull $ref; nothing was changed."
   done
   trap update_interrupted INT TERM HUP
@@ -790,11 +1007,13 @@ cmd_update() {
     # the old order, for a person who wants one copy that is consistent across every database file: the server is down for the whole backup
     backup_data "pre-$REL_VERSION"
     say "  Backed up to $BACKUP_FILE"
+    backup_note
   else
     # The backup is the long part (every database is copied and the folder is compressed). It is taken while the server keeps running, each database as one consistent snapshot, and
     # only then is the server stopped, so the Space is down for the switch and the restart alone. Writes made after a database was copied are not in the backup file.
     backup_data "pre-$REL_VERSION" live
     say "  Backed up to $BACKUP_FILE while the server kept running."
+    backup_note
     dc stop >/dev/null || true
     stop_strays
   fi

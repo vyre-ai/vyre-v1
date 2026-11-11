@@ -203,6 +203,14 @@ export interface ContainerConfig {
 export const HOME = "/home/agent";
 export const CRED_DIR = "/run/vyre-creds";
 export const DEFAULT_IMAGE = "vyre/person-sandbox:1";
+/**
+ * May this image be fetched from a registry? Vyre publishes its images on ghcr.io/vyre-ai and nowhere else. A name in the `vyre/` namespace has no registry host, so Docker would look for it
+ * on Docker Hub, where that namespace is not Vyre's: whoever registered it could hand a server their own image. Such a name is only ever a local build (a test, a developer's own image):
+ * it is used when it is already on the computer and is never fetched. host/src/sites-runner/policy.ts refuses the same fetch at the runner (a test holds the two together).
+ */
+export function fetchableImage(ref: string): boolean { return !/^((index\.)?docker\.io\/)?vyre\//.test(ref); }
+/** What a person reads when a server has only a local name for an image and the image is not there. */
+export const NOT_FETCHED_REASON = "this name is a local build and is never fetched; update the server so it names this release's image";
 const UID = 10001;
 
 export function networkName(id: string): string { return `${id}-net`; }

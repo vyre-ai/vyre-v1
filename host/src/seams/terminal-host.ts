@@ -17,15 +17,24 @@ export interface TurnPlaceShape { team: boolean; agentComputer: boolean; runsOn:
 
 /** What the terminal module's setTerminalHost takes (modules/terminal/impl.ts TerminalHostSeam). */
 export interface TerminalHostSeamShape {
-  exec(argv: readonly string[]): Promise<ExecResult>;
+  /** `stdin`: what the program reads on its standard input (a command's values, for tmux load-buffer), so a value is never in a program's arguments. */
+  exec(argv: readonly string[], o?: { stdin?: string }): Promise<ExecResult>;
   control(session: string, onLine: (line: string) => void): () => void;
   shell: ShellRun;
   home: string;
+  /** Where tmux is on this computer, for a session's shell to fetch a command's values from it even when its own PATH lacks it (a login shell on a Mac without Homebrew's PATH). */
+  tmuxPath?: string;
+  /** This daemon's mark in the names of its tmux values buffers: two daemons on one computer share the person's tmux server, and each sweeps only its own. */
+  mark?: string;
   runsHere(target: Target): boolean;
   place(a: { space: string; threadId?: string; agentId: string; person: string }): Promise<TurnPlaceShape | null>;
+  /** The Space's Vault for a #Handle.field in a command (engine-session.ts source): the vault.use check as the agent for the person, then the value. */
+  values?: ValuesShape;
   /** Agent workspaces on this machine, when it can run them (modules/terminal/impl.ts WorkspaceConfig). */
   workspaces?: WorkspacesConfig;
 }
+
+export type ValuesShape = { lookup(handle: string, who: { agentId: string; asker: string; where: "host" | "device" | "computer" }): Promise<{ kind: "value"; itemId: string; value: string; spaceOnly: boolean; injectIntoDeployments: boolean } | { kind: "unknown" } | { kind: "denied"; reason: "no_access" | "provider_label" | "other" }> };
 
 /** Where Docker is and which image is the agent workspace; the module builds the manager from it (agent workspaces, 6 Nov). */
 export interface WorkspacesConfig {
@@ -53,7 +62,7 @@ export interface WorkspacesConfig {
     release(agentId: string, nodeId?: string): Promise<void>;
   };
   /** Servers that joined the Space, where an agent's workspace goes when the Space has no container runtime of its own (a Personal Space on a computer without Docker, or a server added for room). */
-  nodes?: { ask(nodeId: string, kind: string, input: unknown, timeoutMs?: number): Promise<unknown>; place(agentId: string): Promise<string | null> };
+  nodes?: { ask(nodeId: string, kind: string, input: unknown, timeoutMs?: number): Promise<unknown>; place(agentId: string): Promise<string | null>; /** Is the server's link to the Space private (compute-stream secure)? A Vault value goes to its workspaces only then. */ secure?(nodeId: string): boolean };
   /** The projects an agent is on, so their shared folders are mounted. */
   projectsOf?(agentId: string): Promise<readonly string[]> | readonly string[];
   log?(level: "info" | "warn", msg: string, attrs?: Record<string, unknown>): void;
@@ -73,6 +82,17 @@ export interface TerminalHostDeps {
   home?: string;
   /** Agent workspaces on this machine: given when it has a container runtime the Space may use (a Team server's runner or socket). Omitted: agents' commands go where their turn runs. */
   workspaces?: Omit<WorkspacesConfig, "image"> & { image?: string };
+  /** The Space's Vault for handles in commands. Omitted: a handle stays text. */
+  values?: ValuesShape;
+  /** The daemon's data folder: its tmux mark is made from it, so it stays the same across restarts. */
+  dataDir?: string;
+}
+
+/** A short mark that names one daemon (from its data folder) and stays the same across its restarts: FNV-1a in hex. */
+export function daemonMark(dataDir: string): string {
+  let h = 0x811c9dc5;
+  for (const c of dataDir) { h ^= c.charCodeAt(0); h = Math.imul(h, 0x01000193) >>> 0; }
+  return h.toString(16).padStart(8, "0");
 }
 
 const KEEP = ["HOME", "USER", "LOGNAME", "SHELL", "PATH", "LANG", "LC_ALL", "LC_CTYPE", "TMPDIR", "TZ"];
@@ -103,13 +123,17 @@ export function createTerminalHostSeam(d: TerminalHostDeps): TerminalHostSeamSha
   const workspaces: WorkspacesConfig | undefined = d.workspaces ? { ...d.workspaces, image: d.workspaces.image ?? (process.env["VYRE_WORKSPACE_IMAGE"] || "vyre/agent-workspace:1") } : undefined;
   return {
     ...(workspaces ? { workspaces } : {}),
-    exec(argv) {
+    ...(d.values ? { values: d.values } : {}),
+    ...(d.dataDir ? { mark: daemonMark(d.dataDir) } : {}),
+    exec(argv, x) {
       return new Promise((resolve) => {
         const [file, ...args] = argv;
-        execFile(file ?? "tmux", args, { env, cwd: home, maxBuffer: 16 * 1024 * 1024, timeout: 30_000 }, (err, stdout, stderr) => {
+        const child = execFile(file ?? "tmux", args, { env, cwd: home, maxBuffer: 16 * 1024 * 1024, timeout: 30_000 }, (err, stdout, stderr) => {
           const code = err ? (typeof (err as { code?: unknown }).code === "number" ? Number((err as { code: number }).code) : 127) : 0;
           resolve({ code, stdout: String(stdout ?? ""), stderr: String(stderr ?? "") || (err && code === 127 ? `${file}: ${err.message}` : "") });
         });
+        child.stdin?.on("error", () => undefined);
+        child.stdin?.end(x?.stdin ?? "");
       });
     },
     control(session, onLine) {
@@ -136,6 +160,7 @@ export function createTerminalHostSeam(d: TerminalHostDeps): TerminalHostSeamSha
       child.on("close", (code, signal) => { a.signal.removeEventListener("abort", stop); resolve({ exitCode: code ?? (signal ? 130 : null) }); });
     }),
     home,
+    ...((): { tmuxPath?: string } => { const t = (env["PATH"] ?? "").split(":").filter((d) => path.isAbsolute(d)).map((d) => path.join(d, "tmux")).find((f) => { try { fs.accessSync(f, fs.constants.X_OK); return true; } catch { return false; } }); return t ? { tmuxPath: t } : {}; })(),
     runsHere: (t) => t.host === "device" && device,
     async place(a) {
       const decided = a.threadId === undefined ? null
