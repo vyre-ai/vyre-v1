@@ -95,7 +95,11 @@ test("the booted daemon, the real extension and a scripted chat turn: the person
     await page.goto(srv.url + "/");
     const tabId = await r.worker.evaluate(async (u: string) => ((await (globalThis as any).chrome.tabs.query({})).find((t: any) => String(t.url).startsWith(u)) ?? {}).id, srv.url);
     assert.equal((await fetch(`${d.url}/local/chrome/agents`, { method: "POST", headers: auth, body: JSON.stringify({ spaces: [who.spaceId] }) })).status, 200);
-    await new Promise((x) => { const t = setInterval(() => { if (d.chromeBridge.connected === 1) { clearInterval(t); x(null); } }, 50); });
+    // not a count of open streams (the extension may hold a second link for its other work): the agent channel is ready when it answers
+    for (const end = Date.now() + 20_000; ; await new Promise((x) => setTimeout(x, 50))) {
+      if (await agent("computers.chrome.tabs", { action: "list" }).then(() => true, () => false)) break;
+      if (Date.now() > end) assert.fail("the extension's agent channel did not come up");
+    }
     await new Promise((x) => setTimeout(x, 400));
 
     await agent("computers.chrome.tabs", { action: "use", tabId: String(tabId) });
