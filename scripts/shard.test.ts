@@ -174,12 +174,12 @@ test("the set of test files run is the same with and without timings: none dropp
   assert.equal(new Set(withReal).size, withReal.length, "none twice");
 });
 
-test("the runner is the only thing hosted changes: fast and plain slow entries are hosted, heavy on v1, perf on v1-perf, and the files are the same", () => {
+test("the runner is the only thing hosted changes: plain slow entries are hosted, fast and heavy on v1, perf on v1-perf, and the files are the same", () => {
   const slow = [slowEntry("a.test.ts", 60), { ...slowEntry("h.test.ts", 60), heavy: true }, { ...slowEntry("p.perf.test.ts", 120), perf: true }, slowEntry("images/x.heavy.test.ts", 120)];
   const files = ["f1.test.ts", "f2.test.ts", ...slow.map((e) => e.file)];
   const m = toMatrix(shardFiles(files, {}, slow)).include;
   const by = (re: RegExp) => m.filter((j) => re.test(j.name)).map((j) => j.runner);
-  assert.deepEqual([...new Set(by(/^fast-/))], ["hosted"]);
+  assert.deepEqual([...new Set(by(/^fast-/))], ["v1"]);
   assert.deepEqual([...new Set(by(/^slow-/))], ["hosted"]);
   assert.deepEqual([...new Set(by(/^heavy-/))], ["v1"]);
   assert.deepEqual([...new Set(by(/^perf-/))], ["v1-perf"]);

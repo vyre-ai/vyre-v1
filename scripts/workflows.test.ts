@@ -65,6 +65,13 @@ test("shots shards the complete visual suite and publishes release evidence thro
   assert.match(capture.text, /name: shots-part-\$\{\{ matrix\.shard \}\}/);
   assert.doesNotMatch(capture.text, /pwa-mobile|real-app\.e2e/, "release evidence does not wait behind visual shards");
   assert.deepEqual(evidence.needs, [], "release evidence starts independently");
+  // check's slow shards need the whole hosted pool (the push budget): the 36 screenshot shards wait for check's shard jobs, and the waiting job always succeeds
+  const wait = shots.jobs.find((j) => j.name === "after-check")!;
+  assert.ok(wait, "shots.yml has the after-check job");
+  assert.deepEqual(capture.needs, ["after-check"], "the screenshot shards start after check's shards");
+  assert.match(wait.text, /actions\/workflows\/check\.yml\/runs\?head_sha=\$SHA/);
+  assert.match(wait.text, /going on/, "a missing or slow check run lets the shards start anyway");
+  assert.doesNotMatch(wait.text, /exit 1/, "waiting is an ordering, not a gate");
   assert.match(evidence.text, /pwa-mobile\/evidence\.json/);
   assert.match(evidence.text, /pwa-mobile\/iphone-390x844-standalone-simulated\.png/);
   assert.deepEqual(aggregate.needs, ["shots", "release-evidence"]);

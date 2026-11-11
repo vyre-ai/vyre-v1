@@ -72,9 +72,10 @@ export function shardFiles(files: string[], timings: Timings, slow: SlowEntry[],
 /** The select job's output: plain jobs, not matrix-expanded workflows. */
 export type Runner = "v1" | "v1-perf" | "hosted";
 /**
- * Where a matrix entry runs. Fast shards and plain slow groups run on GitHub-hosted runners (free, since the repo is public; 4 cores each, nothing shared with the other jobs of the push), which takes about 70 percent of the
- * work off the 24 self-hosted slots (rc.24 run 42716223489: 126 shard jobs, 8,654 job-seconds, shards ended at +418 s on the fleet). Heavy entries (Docker, one job each or a quick group), perf entries (the pinned perf host) and
- * every non-shard job (gates, release signing, the Docker jobs) stay self-hosted. Only the runner differs: the files, their grouping and their order are the same as they were.
+ * Where a matrix entry runs. Plain slow groups run on GitHub-hosted runners (free, since the repo is public; 4 cores each, nothing shared with the other jobs of the push): they are the biggest share of the work
+ * (67 of 105 jobs, about 60 percent of the job-seconds), and with the whole hosted pool free (shots.yml waits for check, see its `after-check` job) the model finishes the push run in about 4m35s against 8m53s. Fast shards,
+ * heavy entries (Docker, one job each or a quick group), perf entries (the pinned perf host) and every non-shard job (gates, release signing, the Docker jobs) stay self-hosted: fast shards are short, so the hosted
+ * setup (about 15 s more than a host's) would cost more than it saves. Only the runner differs: the files, their grouping and their order are the same as they were.
  */
 export const HOSTED = "hosted" as const;
 export function toMatrix(s: Shards): { include: { name: string; files: string; slow: boolean; runner: Runner }[] } {
@@ -100,7 +101,7 @@ export function toMatrix(s: Shards): { include: { name: string; files: string; s
   }
   return {
     include: [
-      ...s.fast.map((b, i) => ({ name: `fast-${i + 1}`, files: b.files.join(" "), slow: false, runner: HOSTED })),
+      ...s.fast.map((b, i) => ({ name: `fast-${i + 1}`, files: b.files.join(" "), slow: false, runner: "v1" as const })),
       ...groups.map((g, i) => ({ name: `slow-${i + 1}`, files: g.files.sort().join(" "), slow: true, runner: HOSTED })),
       ...heavyJobs.map((files, i) => ({ name: `heavy-${i + 1}`, files, slow: true, runner: "v1" as const })),
       ...perf.map((j, i) => ({ name: `perf-${i + 1}`, files: j.file, slow: true, runner: "v1-perf" as const })),
