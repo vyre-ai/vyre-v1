@@ -100,6 +100,8 @@ export function createProviderProbe(o: { fetch?: typeof globalThis.fetch; own?: 
       const make = LISTS[p.providerKey];
       if (!make) return { ok: false, models: [], detail: "This provider cannot be tested from here." };
       if (!p.apiKey) return { ok: false, models: [], detail: "There is no key to test." };
+      // Tests only (scripts/test-run.ts sets it): a fixture key is checked against no real provider, which would refuse it. A key with "invalid" in it is refused, as a real provider refuses a bad one.
+      if (process.env["VYRE_TEST_KEY_CHECK"] === "accept") return /invalid/i.test(p.apiKey) ? { ok: false, models: [], detail: "The provider did not accept this key.", refused: true } : { ok: true, models: [] };
       ({ url, headers, pick } = make(p.apiKey));
     }
     try {
