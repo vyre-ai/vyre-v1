@@ -1,1 +1,2 @@
 - Everyone now has a private Personal calendar from the day they join (the owner from the start), so you can add an event without connecting Google or Microsoft first. People who joined earlier get theirs the next time the server starts.
+- The Console's Infrastructure page now shows the server's memory and total disk size (it said Unavailable because nothing reported them); the server updates them every minute.

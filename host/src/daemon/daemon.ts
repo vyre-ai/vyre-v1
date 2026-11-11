@@ -130,6 +130,9 @@ import { createComputeRoute } from "../routes/compute.ts";
 import { createComputeStream } from "../routes/compute-stream.ts";
 import { createBrowserStream } from "../routes/browser-stream.ts";
 import { createReporter } from "../machines/reporter.ts";
+import { createSampler, realDeps } from "../machines/sample.ts";
+import type { SampleDeps } from "../machines/sample.ts";
+import { machineProbe, writeMachineProbe } from "../machines/probe.ts";
 import type { Report } from "../machines/report.ts";
 import { isFix, runFix } from "./machine-fix.ts";
 import { relayVersionWatch, storeInfo } from "./relay-version.ts";
@@ -344,6 +347,8 @@ export interface DaemonOptions {
    */
   /** Shapes the machine report this daemon records or sends (tests pin the load of the machine they run on) */
   machineReport?: (r: Report) => Report;
+  /** Replace the computer the machine probe reads (tests). */
+  machineDeps?: SampleDeps;
   deviceLink?: { launcher?: import("../compute/node.ts").NodeLauncher; engines?: readonly string[]; name?: string; socket?: (url: string, headers: Record<string, string>) => import("../compute/node.ts").NodeSocket; retryMs?: number; homes?: import("../compute/device-link.ts").OwnHomes; /** how often the computer reports its load (tests); default 30 s */ reportMs?: number };
   /** Where CLI engines run sandboxed (modules/engine/sandbox.ts SandboxPlan). Omitted: a CLI engine refuses to start. */
   engineSandbox?: unknown;
@@ -368,7 +373,7 @@ export interface DaemonOptions {
   now?: () => number;
   sleep?: (ms: number) => Promise<void>;
   /** intervals in ms; tests shorten them */
-  intervals?: { machines?: number; tick?: number; commands?: number; fast?: number; slow?: number; encryption?: number; hooks?: number; sweep?: number; sitesPush?: number };
+  intervals?: { machines?: number; machineProbe?: number; tick?: number; commands?: number; fast?: number; slow?: number; encryption?: number; hooks?: number; sweep?: number; sitesPush?: number };
 }
 
 export interface Daemon {
@@ -2480,6 +2485,11 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   } });
   scheduler.add({ name: "probes.fast", schedule: { everyMs: fast }, run: async () => { await runProbes(group(["events_db", "index_db", "scheduler", "disk_space"]), false); } });
   scheduler.add({ name: "probes.slow", schedule: { everyMs: slow }, run: async () => { await runProbes(group(["docker", "caddy", "time_skew"]), false); reportNetwork(); await ensureIngress(false); await refreshNetworkCertificate(); } });
+  // CPU, memory and disk for the Console's Infrastructure page: the health_probe row named machine, read by the one sampler the machine report uses, once a minute and once at start
+  const machineSampler = createSampler(o.machineDeps ?? realDeps({ dataDir: paths.root, can: () => [] }));
+  machineSampler.load();   // primes the CPU reading: the first call has no earlier sample to compare with
+  const sampleMachine = (): void => { if (db) writeMachineProbe(db, now(), machineProbe(machineSampler)); };
+  scheduler.add({ name: "probes.machine", schedule: { everyMs: o.intervals?.machineProbe ?? 60_000 }, run: () => { sampleMachine(); } });
   scheduler.add({ name: "probes.encryption", schedule: { everyMs: o.intervals?.encryption ?? 300_000 }, run: async () => { await runProbes(group(["disk_encrypted"]), false); } });
   if (hasSpace) {
     scheduler.add({ name: "commands.poll", schedule: { everyMs: o.intervals?.commands ?? 1000 }, run: async () => { await runCommands(); } });
@@ -2595,6 +2605,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     await supervisor.startAll({ once: ["gateway"] });   // a gateway that cannot listen is a boot that cannot go on: no backoff, the cause comes straight out
     if (supervisor.status("gateway")[0]?.phase !== "running") { const g = supervisor.status("gateway")[0]; throw new Error(`the gateway did not start on ${cfg.host}:${cfg.port}${g?.lastExit?.error ? `: ${g.lastExit.error}` : ""}`); }
     await runProbes();
+    sampleMachine();
     reportNetwork();
     // the gateway is bound, so the upstream port is known; not awaited, so a Caddy that does not answer yet never holds up the start
     void ensureIngress(true);
