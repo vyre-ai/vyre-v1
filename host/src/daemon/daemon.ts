@@ -1342,6 +1342,13 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           recent.push(...events);
           if (recent.length > RING) recent.splice(0, recent.length - RING);
           hub?.publish(spaceId, events);
+          // a session that ended, or a person who can no longer act: their open sockets close now, so no more events or answers reach them (every call frame is also checked, ws.ts `live`)
+          for (const e of events) {
+            const p = (e.payload ?? {}) as { sessionId?: unknown; principalId?: unknown; personId?: unknown };
+            if (e.type === "session.revoked" && typeof p.sessionId === "string") hub?.endSessions?.({ sessionId: p.sessionId });
+            else if (e.type === "principal.suspended" && typeof p.principalId === "string") hub?.endSessions?.({ person: p.principalId });
+            else if (e.type === "member.removed" && typeof p.personId === "string") hub?.endSessions?.({ person: p.personId });
+          }
           // someone left a chat or lost a grant: whoever was watching a reply being written is asked about again before the next piece reaches them
           if (events.some((e) => READER_LOSS.test(e.type))) engineSeam?.forgetReaders?.();
           // a computer removed from the Space loses its live-view socket this instant
@@ -1799,7 +1806,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         // identity opens a device session at sign-in: the token is minted here for that devices session, and ending a session stops it at the gateway (P-SEC_05)
         setSessionTokens: () => ({
           mint: (sessionId: string) => issueSessionToken(db!, sessionId, now),
-          end: (sessionId: string) => { db!.run("UPDATE devices_session SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL", now(), sessionId); },
+          end: (sessionId: string) => { db!.run("UPDATE devices_session SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL", now(), sessionId); hub?.endSessions?.({ sessionId }); },
         }),
         // sites are routes: an address pointing at a port on a computer, or at a folder in Files. Site code never runs here; only its bytes pass
         configureRoutes: () => {
@@ -2357,6 +2364,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           const ticket = url.searchParams.get("ticket");
           return identify(bearer(h["authorization"]) ?? (ticket === null ? null : liveTickets.spend(ticket)));
         },
+        // the same test identify makes for every HTTP request, made again for every call on an open socket: the session row and its device, and the person still active in the snapshot
+        live: (s) => s.principal.kind !== "person" || (s.sessionId === undefined ? s.device === ADMIN_DEVICE : sessionLive(db!, s.sessionId) && access.snap.principal(s.principal.id)?.status === "active"),
         invoke, sink,
         eventsSince: (_s, cursor) => (recent.length && recent[0]!.seq <= cursor + 1 ? recent.filter((e) => e.seq > cursor) : []),
         head: () => headSeq,
