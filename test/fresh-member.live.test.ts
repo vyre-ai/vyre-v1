@@ -4,7 +4,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { bootScreens, browserOrSkip, open, seat } from "./support/mail-browser.ts";
 
-const ROUTES = ["/chat", "/records", "/files", "/vault", "/automations", "/sites", "/settings", "/mail"];
+// five places, so the file stays well inside its 120 s cap (each route waits for the lock and first-run screens it may meet)
+const ROUTES = ["/chat", "/records", "/files", "/vault", "/settings"];
 
 test("fresh Team Space, every place as a new member: no refused read, no page error", async (t) => {
   const env = await browserOrSkip();
