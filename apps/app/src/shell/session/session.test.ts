@@ -960,6 +960,25 @@ test("session: a tab change inside the page already open is not a new door: it n
   assert.equal(said.length, 1);
 });
 
+test("session: a screen a place draws from its own hash (chats.ask, chats.notes, files.knowledge) opens that place; a screen of no place opens nothing (f-wire, 12 Nov)", async () => {
+  // these ids are not registry screens: the Chats and Files places read them from the hash (places/chats/mounts/route.ts SCREEN, places/files/memory/know.ts). The door looked them up in the
+  // registry only, found no place and dropped the click: the Tasks page's Ask in chat, the Artifacts example, Ask the Assistant from a project and a note's Open did nothing.
+  const { screensById } = await import("../../../../../generated/screens.ts");
+  const gw = sessionGateway();
+  const went: string[] = [];
+  const s = await openRealSession({ baseUrl: "http://s.test", token: "t", fetch: gw.fetch, routes: async () => ROUTES, screens: async () => screensById, dial: fakeServer().dial, navigate: (p, h) => went.push(`${p} ${h}`), pollMs: 1_000_000 });
+  s.runtime.open({ screen: "chats.ask", args: { with: "assistant", first: "Draft the agenda" } });
+  s.runtime.open({ screen: "chats.notes", args: { noteId: "nte_1" } });
+  s.runtime.open({ screen: "chats.artifacts" });
+  s.runtime.open({ screen: "files.knowledge", args: { v: "graph" } });
+  s.runtime.open({ screen: "nowhere.at_all" });
+  await new Promise((r) => setTimeout(r, 40));
+  s.close();
+  assert.deepEqual(went.map((w) => w.split(" ")[0]), ["chats", "chats", "chats", "files"], "each opens its place; an id of no place goes nowhere");
+  assert.match(went[0]!, /screen=chats\.ask/);
+  assert.match(went[0]!, /first=Draft/);
+});
+
 test("session: a person's profile that reach refuses opens nothing and says so in plain words; an allowed one opens", async () => {
   const routes: RouteRow[] = [...ROUTES, { method: "POST", path: "/v1/memory/profile/get", cap: "memory.profile.get", v: 1 }];
   const screens = async (): Promise<Map<string, ScreenIndexEntry>> => new Map();

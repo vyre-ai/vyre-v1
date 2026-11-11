@@ -390,7 +390,8 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
     return consoleRead;
   };
   const open = (t: ShellTarget): void => {
-    const where = t.screen ? (screens.get(t.screen)?.place ?? "") : (t.subject ? (placeForSubject(t.subject.type) ?? "") : "");
+    // a screen the registry lacks is one a place draws from its own hash (chats.ask, chats.notes, files.knowledge): the place its id starts with; an id of no place opens nothing
+    const where = t.screen ? (screens.get(t.screen)?.place ?? (railPlace(t.screen.split(".")[0] ?? "") ?? "")) : (t.subject ? (placeForSubject(t.subject.type) ?? "") : "");
     if (where === "shell") { if (t.screen) o.shell?.(t.screen, t.args ?? {}); return; }
     const place = railPlace(where);
     if (!place || !o.navigate) return;
