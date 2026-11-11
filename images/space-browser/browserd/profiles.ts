@@ -56,6 +56,8 @@ export interface ProfileManagerOptions {
   launch?: LaunchFn;
   /** Extra browser flags and environment for one profile, such as its bridge folder (bridge.ts). Called each time the profile's browser starts. */
   extra?: (profileId: string) => ChromeOptions;
+  /** How long resetChrome waits for a step in flight to finish before it refuses. Default 30 seconds. */
+  resetWaitMs?: number;
   /** Called just before a profile's browser closes: the chance to note what it holds (the sites it is signed in to) so they can be listed while it sleeps. */
   onClosing?: (p: Profile) => Promise<void>;
   /** Called when a profile's browser is up: the start page's cookie and first tab (main.ts). */
@@ -81,6 +83,8 @@ export interface Profile {
   agentName: string | undefined;
   spaceId: string | undefined;
   starting: Promise<void> | null;
+  /** Chrome's data of an old computer is being put into the folder until then (resetChrome to importDone): the browser does not start meanwhile. */
+  importingUntil: number;
 }
 
 export interface ProfileRow { profileId: string; running: boolean; tabs: number; busy: boolean; takeover: boolean; viewers: number; lastActiveAt: number; held: number; paused: boolean; takeoverBy?: string; bridge?: { connected: number; hello: boolean; optin: boolean } }
@@ -96,8 +100,12 @@ export interface ProfileManager {
   giveBack(id: string): void;
   /** Stop the browser, keep the folder. */
   stop(id: string): Promise<void>;
-  /** Stop the browser and empty the profile's Chrome folder, ready for Chrome's data from an old computer to be put there (migration). */
+  /**
+   * Stop the browser and empty the profile's Chrome folder, ready for Chrome's data from an old computer to be put there (migration). Never under a step in flight or a person at the controls: it waits for
+   * the step to finish (resetWaitMs) and otherwise refuses, so the move is tried again later. Until importDone the browser does not start, so nothing writes into the folder while the data goes in.
+   */
   resetChrome(id: string): Promise<void>;
+  importDone(id: string): void;
   /** Stop the browser and delete the folder (the agent was removed). */
   forget(id: string): Promise<void>;
   /** One pass of the idle check; returns the profiles it stopped. Called on a timer by main.ts, and by tests. */
@@ -133,7 +141,7 @@ export function createProfileManager(o: ProfileManagerOptions): ProfileManager {
       p = {
         id, dir, vault: createVault(),
         state: { stopped: false, tabLimit: o.tabLimit ?? 10, takeover: null, busy: 0, caption: undefined },
-        chrome: null, lastActiveAt: now(), viewers: 0, agentId: undefined, agentName: undefined, spaceId: undefined, starting: null,
+        chrome: null, lastActiveAt: now(), viewers: 0, agentId: undefined, agentName: undefined, spaceId: undefined, starting: null, importingUntil: 0,
       };
       profiles.set(id, p);
     }
@@ -179,6 +187,7 @@ export function createProfileManager(o: ProfileManagerOptions): ProfileManager {
     const p = get(id);
     p.lastActiveAt = now();
     if (p.chrome?.alive()) return p;
+    if (p.importingUntil > now()) throw unavailable("This agent's browser is taking in its sign-ins from its old computer. Try again in a minute.");
     if (p.starting) { await p.starting; return p; }
     p.starting = (async () => {
       try { await startIn(p); } finally { reserved.delete(p.id); }
@@ -251,11 +260,17 @@ export function createProfileManager(o: ProfileManagerOptions): ProfileManager {
     async stop(id) { const p = profiles.get(checkProfileId(id)); if (p) { p.state.takeover = null; await release(p); } },
     async resetChrome(id) {
       const p = get(id);
-      p.state.takeover = null;
+      if (p.state.takeover) throw unavailable("A person has the controls of this agent's browser: its sign-ins move from the old computer when they give it back.");
+      const waitMs = o.resetWaitMs ?? 30_000;
+      const t0 = Date.now();
+      while ((p.state.busy > 0 || p.starting !== null) && Date.now() - t0 < waitMs) await new Promise((r) => setTimeout(r, 100));
+      if (p.state.busy > 0 || p.starting !== null) throw unavailable("This agent's browser is busy: its sign-ins move from the old computer at a quiet moment.");
+      p.importingUntil = now() + 5 * 60_000;
       await release(p);
       rmSync(join(p.dir, "chrome"), { recursive: true, force: true });
       mkdirSync(p.dir, { recursive: true });
     },
+    importDone(id) { get(id).importingUntil = 0; },
     async forget(id) {
       const p = profiles.get(checkProfileId(id));
       if (p) { await release(p); profiles.delete(p.id); rmSync(p.dir, { recursive: true, force: true }); }

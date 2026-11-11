@@ -35,6 +35,7 @@ import { createFillService, fillHttp } from "./handlers/fill.ts";
 import type { FillSource, FillUse } from "./handlers/fill.ts";
 import { bindFill, bindHost, boundHost, ensure as ensureSchema } from "./projections.ts";
 import { reconcileClaims } from "./sbrowser/room.ts";
+import { forgetBrowserOf } from "./sbrowser/forget.ts";
 import { nodeHomeCheck, nodeJobs, nodeRecordingCheck, nodeResult, nodeStreamInput, nodeStreamOpen } from "./handlers/node.ts";
 import { nodeRun } from "./remote.ts";
 import { ToolError } from "./handlers/tools/common.ts";
@@ -586,6 +587,11 @@ export function setComputerHost(c: ComputersHostConfig | null): void {
 // Only the setters the daemon wires are host seams (the loader reports any other function here as a driver left unwired); what a computer that joined needs is exported beside them.
 export const hostSeams = { setComputersFill, setComputerHost };
 export { nodeRun };
+
+/** A deleted agent (also a person's Assistant when the person leaves) leaves no sign-ins behind: its Space browser profile is removed (sbrowser/forget.ts). */
+export const consumers = {
+  "computers.browser_forget": { on: ["agent.deleted"], run: async (ctx: CompCtx, event: { payload: { agentId?: unknown } }): Promise<boolean> => forgetBrowserOf(ctx, event.payload.agentId) },
+};
 
 /** Every half minute: Space browser claims of browsers that stopped are released (also ones left from before a restart), and a profile waiting for room starts when there is room (sbrowser/room.ts). */
 export const periodic = {

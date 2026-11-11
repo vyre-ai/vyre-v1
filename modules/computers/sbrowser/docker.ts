@@ -221,9 +221,10 @@ export function createDockerSpaceBrowser(o: DockerSpaceBrowserOptions): SpaceBro
       return Array.isArray(r.sessions) ? r.sessions : [];
     },
     async signOut(profileId, site) { return ((await call("sign_out", { profileId, site })) as { ok?: boolean }).ok === true; },
+    // browserd refuses (and the move is tried again) while a step is in flight or a person has the controls, and starts no browser for the profile until the data is in
     async importChrome(profileId, tar) {
       await call("reset_chrome", { profileId });
-      await o.api.putArchive(name, `/data/profiles/${profileId}`, tar);
+      try { await o.api.putArchive(name, `/data/profiles/${profileId}`, tar); } finally { await exec("import_done", { profileId }).catch(() => undefined); }
       return { bytes: tar.length };
     },
     async stop(profileId) { if (await o.api.containerRunning(name)) await exec("stop", { profileId }); },

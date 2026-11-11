@@ -139,3 +139,26 @@ test("the live view and sign out start a browser only with room on the host, wit
     assert.deepEqual(signedOut.filter((s) => s === "app.example.com"), [], "nor for the sign out");
   } finally { bindSpaceBrowser(null); resetRoom(); }
 });
+
+// Audit bug 7 (12 Nov): SpaceBrowser.forget had no caller, so a deleted agent's cookies and sign-ins stayed in its profile.
+test("a deleted agent's browser profile is removed with its hold and its room; a person's Assistant that goes when they leave is the same event", async () => {
+  const forgot: string[] = [];
+  const { calls } = sbrowser();
+  const { spaceBrowser } = await import("../sbrowser/port.ts");
+  spaceBrowser()!.forget = async (id) => { forgot.push(id); };
+  const h = harness();
+  h.db.run("INSERT INTO computers_claim (claim_key, kind, host, state, since, note) VALUES ('agt_gone', 'browser', 'space', 'running', ?, NULL)", h.clock.t);
+  h.db.run("INSERT INTO computers_browser_hold (profile_id, person_id, since, seen) VALUES ('agt_gone', ?, ?, ?)", DANA, h.clock.t, h.clock.t);
+  try {
+    const { consumers } = await import("../impl.ts") as { consumers?: Record<string, { on: string[]; run: (ctx: unknown, e: unknown) => Promise<unknown> }> };
+    const c = Object.values(consumers ?? {}).find((x) => x.on.includes("agent.deleted"));
+    assert.ok(c, "something hears agent.deleted");
+    await c.run(h.ctx, { name: "agent.deleted", payload: { agentId: "agt_gone", by: DANA } });
+    assert.deepEqual(forgot, ["agt_gone"], "the profile's folder is removed");
+    assert.equal(h.rows("SELECT COUNT(*) AS n FROM computers_claim")[0]?.["n"], 0);
+    assert.equal(h.rows("SELECT COUNT(*) AS n FROM computers_browser_hold")[0]?.["n"], 0);
+    await c.run(h.ctx, { name: "agent.deleted", payload: { agentId: "../etc" } });
+    assert.deepEqual(forgot, ["agt_gone"], "an id that is not a profile names nothing");
+    assert.deepEqual(calls, []);
+  } finally { bindSpaceBrowser(null); }
+});

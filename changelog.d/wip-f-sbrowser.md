@@ -9,3 +9,4 @@
 - A member can take over, give back and sign out their own Assistant's Space browser; an admin still cannot touch someone else's Assistant or personal agent's browser.
 - Opening an agent's live view or signing its browser out of a site now waits for room on the Space server like any browser that starts, and two browsers starting at once can no longer go past what the Space browser holds.
 - Room held for Space browsers that stopped is given back every half minute, also after the Space restarts, and a browser waiting for room starts by itself when room opens.
+- Moving an old agent computer's sign-ins into the Space browser no longer cuts off a step the agent is taking or a person who has taken over; it waits for a quiet moment.

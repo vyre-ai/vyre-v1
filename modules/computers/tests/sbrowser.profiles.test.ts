@@ -214,6 +214,7 @@ test("resetChrome stops the browser and empties its Chrome folder for an import,
     assert.equal(r.launched[0]!.stopped, true);
     assert.ok(!fs.existsSync(chrome));
     assert.ok(fs.existsSync(path.join(r.root, "profiles", "agt_dex", "downloads", "keep.pdf")));
+    r.m.importDone("agt_dex");   // the import is in (docker.ts importChrome says so after it put the data there)
     await r.call("agt_dex");
     assert.equal(r.launched.length, 2, "it starts again, from an empty folder, or from what an import put there");
   } finally { r.done(); }
@@ -254,4 +255,39 @@ test("two browsers that start at the same moment cannot both take the last place
     gate.forEach((g) => g());
     await busy;
   } finally { r.done(); }
+});
+
+// Audit bug 6, the part in the Space browser (12 Nov): resetChrome closed a busy browser, killing the step in flight; and a tool between the reset and the import started Chrome on the emptied folder.
+test("resetChrome never closes a browser under a step in flight or a person at the controls, and no browser starts while the old computer's data goes in", async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-reset-"));
+  const gate: Array<() => void> = [];
+  const stopped = new Set<string>();
+  const starts: string[] = [];
+  const launch: LaunchFn = (dir) => {
+    starts.push(dir);
+    return { port: null, async ready() {}, alive: () => !stopped.has(dir), async tabs() { return []; }, async page() { throw new Error("x"); }, async browser() { throw new Error("x"); }, async attach() { throw new Error("x"); },
+      async tool() { await new Promise<void>((res) => gate.push(res)); return { ok: true }; }, heldIds: () => [], async extension() { return { configured: false, workers: 0 }; }, stop() { stopped.add(dir); }, async shutdown() { stopped.add(dir); } } as unknown as Chrome;
+  };
+  const m = createProfileManager({ root, extensionDir: null, log: () => {}, resetWaitMs: 50, launch });
+  try {
+    const step = m.tool({ profileId: "agt_dex", tool: "chrome_state", args: {}, timeoutMs: 5000 });
+    await new Promise((res) => setTimeout(res, 20));
+    await assert.rejects(() => m.resetChrome("agt_dex"), refusal("unavailable"), "busy: refused, tried again later");
+    assert.equal(stopped.size, 0, "the step's browser was not closed under it");
+    gate.forEach((g) => g()); gate.length = 0;
+    await step;
+    m.takeover("agt_dex", "usr_dana");
+    await assert.rejects(() => m.resetChrome("agt_dex"), refusal("unavailable"), "a person at the controls: refused");
+    m.giveBack("agt_dex");
+    await m.resetChrome("agt_dex");
+    assert.equal(stopped.size, 1, "quiet: closed and emptied");
+    await assert.rejects(() => m.tool({ profileId: "agt_dex", tool: "chrome_state", args: {}, timeoutMs: 5000 }), refusal("unavailable"), "no browser starts while the data goes in");
+    assert.equal(starts.length, 1);
+    m.importDone("agt_dex");
+    const next = m.tool({ profileId: "agt_dex", tool: "chrome_state", args: {}, timeoutMs: 5000 });
+    await new Promise((res) => setTimeout(res, 20));
+    gate.forEach((g) => g());
+    await next;
+    assert.equal(starts.length, 2, "and it starts again once the data is in");
+  } finally { gate.forEach((g) => g()); await m.stopAll(); fs.rmSync(root, { recursive: true, force: true }); }
 });
