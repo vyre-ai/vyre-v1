@@ -83,7 +83,7 @@ test("Dex keeps his logins: the old computer's Chrome data goes into his profile
   } finally { bindSpaceBrowser(null); bindMigrationPort("ensureWorkspace", null); }
 });
 
-test("with no Space browser the move of the profile fails and is tried again, and a profile that is not the agent's is refused", async () => {
+test("with no Space browser the move of the profile waits and is tried again at the next pass, and a profile that is not the agent's is refused", async () => {
   const h = harness();
   h.fake.host.chromeData = async () => ({ tar: new Uint8Array([1]) });
   bindMigrationPort("ensureWorkspace", async (_c, a) => ({ workspaceId: `wks_${a.agentId}` }));
@@ -91,8 +91,7 @@ test("with no Space browser the move of the profile fails and is tried again, an
   try {
     await provision(h.ctx, { agentId: "agt_dex", idempotencyKey: "k-dex" });
     await migrateComputers(h.ctx);
-    assert.equal(migrationRows(h.ctx)[0]?.state, "failed");
-    assert.match(String(migrationRows(h.ctx)[0]?.error), /Space browser is not running/);
+    assert.deepEqual(migrationRows(h.ctx), [], "no Space browser is a not-now: nothing recorded, no attempt used");
     const sb = sbrowser();
     assert.deepEqual(await migrateComputers(h.ctx), { done: 1, partial: 0, failed: 0, waiting: 0 }, "the next pass moves it");
     assert.equal(sb.imports.length, 1);
