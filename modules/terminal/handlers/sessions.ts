@@ -451,8 +451,9 @@ async function targetForRun(ctx: TermCtx, a: RunInput, person: string, agentId: 
   return device();
 }
 
-export const NO_WORKSPACE_PERSONAL = "Your Assistant runs commands on this computer. Install Docker or add a server in Console > Computers to give it a workspace of its own.";
-export const NO_WORKSPACE_TEAM = "This Space has no machine to run agent workspaces on. Add a server in Console > Computers.";
+// What is true for each kind of Space (12 Nov, the browser's voice, lane f-desktop): a Personal Space runs on the person's own computer; a Team Space on its server, which is not the computer the person is on.
+export const NO_WORKSPACE_PERSONAL = "Your Assistant runs commands on this computer for now. A workspace of its own needs Docker on this computer, or a server with Docker added in Console > Computers.";
+export const NO_WORKSPACE_TEAM = "This Space can't run agent workspaces yet. That needs Docker on the Space's server, or another server with Docker added in Console > Computers.";
 
 /**
  * An agent's workspace as the Terminal tab shows it: asleep, running, waiting for room (with the line) or not made yet; where it is; the projects it has folders for; whether this person may attach, and why not

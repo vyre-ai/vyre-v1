@@ -17,7 +17,7 @@ export interface WorkspaceRead {
 
 /**
  * The workspace as the pane draws it: its state from terminal.workspace, its sessions from the agent's live terminal rows. A workspace not made yet (none) is Asleep: it is made and woken by the first
- * Attach. One with no machine to run it (unavailable) is a line the person can act on.
+ * Attach. One with no computer to run it (unavailable) is a line the person can act on.
  */
 export function workspaceView(agentId: string, read: WorkspaceRead, rows: readonly TerminalRowLike[], projectNames: readonly string[] = []): WorkspaceView {
   const mine = rows.filter((r) => r.agentId === agentId && r.host === "agent_computer" && r.state !== "exited");

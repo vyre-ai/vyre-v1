@@ -210,9 +210,10 @@ test("terminal.workspace: the state, where it is and whether this person may att
   bindWorkspaces(async () => false);
   bindTeamFor(() => false);
   const personal = await wsOf(dana, { agentId: "agt_dana_assistant" });
-  assert.deepEqual([personal.state, personal.canAttach, personal.line], ["unavailable", false, "Your Assistant runs commands on this computer. Install Docker or add a server in Console > Computers to give it a workspace of its own."]);
+  // 12 Nov (lead, from lane f-desktop): "computer", not "machine", and what is true for each kind of Space, in the browser's voice
+  assert.deepEqual([personal.state, personal.canAttach, personal.line], ["unavailable", false, "Your Assistant runs commands on this computer for now. A workspace of its own needs Docker on this computer, or a server with Docker added in Console > Computers."]);
   bindTeamFor(() => true);
-  assert.match((await wsOf(admin, { agentId: "agt_dex" })).line, /^This Space has no machine to run agent workspaces on\. Add a server in Console > Computers\.$/);
+  assert.match((await wsOf(admin, { agentId: "agt_dex" })).line, /^This Space can't run agent workspaces yet\. That needs Docker on the Space's server, or another server with Docker added in Console > Computers\.$/);
   bindWorkspaceStatus(null);
   bindWorkspaces(false);
   bindTeamFor(null);
