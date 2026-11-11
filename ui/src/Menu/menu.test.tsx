@@ -31,7 +31,7 @@ import { isItem, isReportItem, isSeparator } from "./props.ts";
 import { useContextMenu } from "./context.tsx";
 import { tabMenuEntries } from "../TabStrip/index.tsx";
 import { createRoot } from "test-renderer";
-import { installDom, mount } from "../testing/dom.ts";
+import { find, installDom, mount } from "../testing/dom.ts";
 
 // KitScreenDef.menus entries, shaped as the generated screens carry them.
 const KIT_MENUS: readonly { target: string; items: readonly KitMenuItem[] }[] = [
@@ -380,4 +380,17 @@ test("Escape closes a menu from wherever focus is, plain or with a search field,
       assert.equal(stopped, 1, "and the key stops there, so a sheet around the menu stays open");
     }
   } finally { doc.addEventListener = was.add; doc.removeEventListener = was.remove; restore(); }
+});
+
+test("a menu with a search field opens with the caret in the search field (autoFocus), not on its panel, and a plain menu has no search field to steal it", async () => {
+  const restore = installDom();
+  try {
+    const withSearch = await mount(createRoot, <Menu items={[{ label: "Open" }, { label: "Copy" }]} x={0} y={0} search="Find" />);
+    const field = find(withSearch, "menu-search");
+    assert.ok(field, "the search field is drawn");
+    assert.equal(field!.props["autoFocus"], true, "and it asks for the caret on open");
+    const plain = await mount(createRoot, <Menu items={[{ label: "Open" }, { label: "Copy" }]} x={0} y={0} />);
+    assert.equal(find(plain, "menu-search"), null);
+    assert.ok(find(plain, "menu"), "the panel is there to take focus");
+  } finally { restore(); }
 });
