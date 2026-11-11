@@ -247,6 +247,8 @@ export function createRecordStore(host: ProjectionHost, o: RecordStoreOptions = 
       for (const [k, v] of Object.entries(patch)) { if (v === null) delete merged[k]; else merged[k] = clone(v); }
       validate(def, merged);
       checkUnique(def, merged, id);
+      // an update that changes nothing is not a write: no event, no new version (a writer that repeats itself every pass must not grow the log)
+      if (sameValue(before, merged)) return record(type, rowOf(type, id)!);
       emit("record.updated", type, id, { type, id, data: merged, before, version: r.version + 1, at: clock() });
       return record(type, rowOf(type, id)!);
     },
@@ -324,3 +326,13 @@ export function openRecordStore(o: { path: string; space: string; actor?: string
   return { host, store: createRecordStore(host, { ...(o.actor ? { actor: o.actor } : {}), ...(o.clock ? { clock: o.clock } : {}) }) };
 }
 
+
+/** Structural equality of two JSON values (object key order does not matter). */
+export function sameValue(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  if (typeof a !== "object" || typeof b !== "object" || a === null || b === null) return false;
+  if (Array.isArray(a) !== Array.isArray(b)) return false;
+  if (Array.isArray(a) && Array.isArray(b)) return a.length === b.length && a.every((x, i) => sameValue(x, b[i]));
+  const ka = Object.keys(a as object), kb = Object.keys(b as object);
+  return ka.length === kb.length && ka.every((k) => Object.prototype.hasOwnProperty.call(b, k) && sameValue((a as Record<string, unknown>)[k], (b as Record<string, unknown>)[k]));
+}
