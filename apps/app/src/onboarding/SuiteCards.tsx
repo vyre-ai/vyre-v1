@@ -7,7 +7,10 @@ import type { DirectoryPage, DirectoryPerson, ImportResult, MailSender, Probe, S
 import { CARD } from "./card-style.ts";
 import { RADIUS } from "../../../../ui/src/tokens/radius.ts";
 
-const NOT_YET = "This part is not set up yet. You can come back to it from the checklist.";
+const NOT_YET = "This part is not available on this server yet. You can come back to it from the checklist.";
+/** The company directory needs Google Workspace or Microsoft 365; until one is connected there is nothing to read, and that is not a fault. */
+const NO_DIRECTORY = "Your company directory is not connected yet. Connect Google Workspace or Microsoft 365 in the step before, or make invite links in the next step.";
+const FAILED = "Vyre could not read this. Check the connection, then try again.";
 
 function Buttons({ children }: { children: ReactElement | (ReactElement | null)[] }): ReactElement { return <View style={s.row}>{children}</View>; }
 function Go({ id, label, onPress, ghost }: { id: string; label: string; onPress(): void; ghost?: boolean }): ReactElement {
@@ -22,7 +25,7 @@ function useGate(gate: Gate | undefined, ready: boolean): void {
     return () => gate(null);
   }, [gate, ready]);
 }
-const line = (p: Probe<unknown>, ok: string): string => (p.kind === "ready" ? ok : p.kind === "not_yet" ? NOT_YET : "Could not read this right now.");
+const line = (p: Probe<unknown>, ok: string): string => (p.kind === "ready" ? ok : p.kind === "not_yet" ? NOT_YET : FAILED);
 
 /** Step 3: Google Workspace or Microsoft 365. Setup itself lives in the Console pages; the secure fields there send keys straight to the Vault. */
 export function WorkspaceCard({ call, onOpenConsole, onDone, gate }: { call: CapCall; onOpenConsole(): void; onDone(): void; gate?: Gate }): ReactElement {
@@ -32,10 +35,10 @@ export function WorkspaceCard({ call, onOpenConsole, onDone, gate }: { call: Cap
   const rows = c ? [c.google, c.microsoft] : [];
   return (
     <View testID="workspace-card" style={s.col}>
-      <Text style={s.line}>Connect Google Workspace or Microsoft 365.</Text>
+      <Text style={s.line}>Connect Google Workspace or Microsoft 365 so Vyre can use your team's mail, calendar and files.</Text>
       {/* ui-rows-lint: not a list (two status lines of text, not list rows) */}
       {c === null ? <Text style={s.dim}>Checking</Text> : rows.map((p, i) => <Text key={i} testID={`workspace-${i === 0 ? "google" : "microsoft"}`} style={s.dim}>{p.kind === "ready" ? `${p.value.name}: ${p.value.note}` : `${i === 0 ? "Google Workspace" : "Microsoft 365"}: ${line(p, "")}`}</Text>)}
-      <Buttons><Go id="workspace-open" label="Open the setup in the Console" onPress={onOpenConsole} />{!gate && c && stepDoneBy(c) ? <Go id="workspace-done" label="Done" ghost onPress={onDone} /> : null}</Buttons>
+      <Buttons><Go id="workspace-open" label="Set up Google or Microsoft" onPress={onOpenConsole} />{!gate && c && stepDoneBy(c) ? <Go id="workspace-done" label="Done" ghost onPress={onDone} /> : null}</Buttons>
     </View>
   );
 }
@@ -104,7 +107,7 @@ export function DirectoryCard({ call, by, space, onOpenConsole, onDone, gate }: 
   return (
     <View testID="directory-card" style={s.col}>
       <Text style={s.line}>Tick the people to bring in. Nothing sends until you press send.</Text>
-      {state === "loading" ? <Text style={s.dim}>Checking</Text> : state !== "ready" ? <Text testID="directory-status" style={s.dim}>{state === "not_yet" ? NOT_YET : "Could not read this right now."}</Text> : shown.length === 0 ? <Text testID="directory-status" style={s.dim}>Everyone in your directory is already here.</Text> : (
+      {state === "loading" ? <Text style={s.dim}>Checking</Text> : state !== "ready" ? <Text testID="directory-status" style={s.dim}>{state === "not_yet" ? NO_DIRECTORY : FAILED}</Text> : shown.length === 0 ? <Text testID="directory-status" style={s.dim}>Everyone in your directory is already here.</Text> : (
         <View style={s.col}>
           {/* ui-rows-lint: not a list (the people to bring in are checkbox choices on a card, not list rows) */}
           {shown.map((p) => (
@@ -136,7 +139,8 @@ export function DirectoryCard({ call, by, space, onOpenConsole, onDone, gate }: 
       {error ? <Text testID="directory-error" style={s.err}>{error}</Text> : null}
       <Buttons>
         {shown.length > 0 && !result ? <Go id="directory-import" label={busy ? "Inviting" : `Invite ${ticked.size} ${ticked.size === 1 ? "person" : "people"}`} onPress={() => void run()} /> : null}
-        <Go id="directory-open" label="Open People in the Console" ghost onPress={onOpenConsole} />
+        {state === "failed" ? <Go id="directory-retry" label="Try again" onPress={() => { setState("loading"); void load(); }} /> : null}
+        <Go id="directory-open" label="Manage people" ghost onPress={onOpenConsole} />
         {gate ? null : <Go id="directory-done" label="Done" ghost onPress={onDone} />}
       </Buttons>
     </View>
