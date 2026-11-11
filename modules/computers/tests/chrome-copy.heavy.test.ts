@@ -75,3 +75,52 @@ test("@heavy the sign-in paths of a real Chrome profile are read from a stopped 
     fs.rmSync(filesRoot, { recursive: true, force: true });
   }
 });
+
+// ---- the sleep path must not lose what was just signed in (the move is lossless only if sleeping a desktop is)
+
+import { DatabaseSync } from "node:sqlite";
+import { bindHost } from "../projections.ts";
+import { provision, remove, sleep, wake } from "../handlers/lifecycle.ts";
+import { harness, INTAKE } from "../fixtures/harness.ts";
+
+test("@heavy sleeping the desktop through the product's own sleep, seconds after a sign-in, keeps the cookie and the localStorage value in the stored files", { skip, timeout: 600_000 }, async () => {
+  const root2 = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "vyre-chrome-copy2-")));
+  fs.chmodSync(root2, 0o777);
+  const host = createDockerComputerHost({ api, http, image: IMAGE, prefix: PREFIX, filesRoot: () => root2, startTimeoutMs: 120_000 });
+  const h = harness();
+  bindHost(host);
+  let computerId = "";
+  try {
+    computerId = (await provision(h.ctx, { agentId: INTAKE, idempotencyKey: "k-cc2" })).computer.computerId;
+    await wake(h.ctx, { computerId });
+    const name = `${PREFIX}${computerId.replace(/^cmt_/, "")}`;
+    await api.exec(name, { cmd: ["sh", "-c", `nohup node -e "${SERVER.replace(/"/g, '\\"')}" >/dev/null 2>&1 &`], env: [], user: "10001:10001" });
+    await sleepMs(1500);
+    const t = (tool: string, args: Record<string, unknown>) => host.tool!({ computerId, tool, args, timeoutMs: 60_000 });
+    await t("chrome_open", { url: PAGE });
+    await t("chrome_eval", { expression: `document.cookie = "vyre_cookie2=fresh-cookie; max-age=31536000; path=/"; localStorage.setItem("vyre_ls2", "fresh-ls-value"); "set"` });
+    const t0 = Date.now();
+    await sleep(h.ctx, { computerId });   // the product's own sleep, no waiting for a flush
+    console.log(`METRIC sleep right after sign-in took ${Date.now() - t0} ms`);
+    const got = await host.chromeData!(computerId);
+    assert.ok(got, "Chrome's folder was found");
+    const files = untar(got.tar).filter((e) => e.type === "file");
+    const cookies = files.find((e) => e.path === "chrome/Default/Cookies" || e.path === "chrome/Default/Network/Cookies");
+    assert.ok(cookies, "the cookie store was copied");
+    const dbFile = path.join(root2, "cookies-check.sqlite");
+    fs.writeFileSync(dbFile, cookies.data);
+    const journal = files.find((e) => e.path === `${cookies.path}-journal`);
+    if (journal && journal.data.length > 0) fs.writeFileSync(`${dbFile}-journal`, journal.data);
+    const db = new DatabaseSync(dbFile, { readOnly: false });
+    const names = (db.prepare("SELECT name FROM cookies").all() as Array<{ name: string }>).map((r) => r.name);
+    db.close();
+    console.log(`COOKIES after sleep: ${names.join(",")}`);
+    assert.ok(names.includes("vyre_cookie2"), `the cookie set seconds before sleeping is in the stored cookie store (rows: ${names.join(",")})`);
+    const ls = files.filter((e) => e.path.startsWith("chrome/Default/Local Storage/")).map((e) => Buffer.from(e.data).toString("latin1")).join("\n");
+    assert.ok(ls.includes("fresh-ls-value"), "the localStorage value set seconds before sleeping is in the leveldb files");
+  } finally {
+    if (computerId) await remove(h.ctx, { computerId }).catch(() => undefined);
+    bindHost(null);
+    fs.rmSync(root2, { recursive: true, force: true });
+  }
+});

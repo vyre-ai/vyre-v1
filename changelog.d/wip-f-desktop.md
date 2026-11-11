@@ -14,3 +14,4 @@
 - A desktop that has moved tells an agent's screen and file calls what to use now. The create-agent instructions, the agent Settings row and the Computer tool description no longer talk about asking for a computer, and outside agents have no "Open Its Computer" item.
 - An old desktop's sign-ins are never copied over a browser whose state cannot be checked.
 - Moving an old desktop's sign-ins copies only cookies, saved logins, site storage and settings (never Chrome's caches), checks the Space browser is ready before reading anything, waits longer between tries when the server cannot take it yet, and finishes the import even if the server restarted in the middle.
+- Putting an older desktop to sleep now closes its Chrome cleanly first, so a sign-in made seconds before is kept.
