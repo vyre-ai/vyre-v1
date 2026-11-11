@@ -10,6 +10,7 @@ import { livePlace } from "../rail/kits.ts";
 import type { CmdKData } from "./controller.ts";
 import type { AskAnswer, CmdAction, Hit, HitKind } from "./model.ts";
 import { requestChannelSheet } from "../../places/chats/channels/request.ts";
+import { requestImport } from "../../places/records/import/request.ts";
 import { offered } from "../session/private-agents.ts";
 import { activePlace, openAskPane, placeTitle, thingOfScreen } from "../ask/pane.ts";
 import { currentScreen } from "../ask/screen.ts";
@@ -95,6 +96,7 @@ export function gateActions(state: { away: boolean; offline: boolean; terminal?:
   return [
     { key: "task.new", title: "New task", icon: "plus" },
     { key: "mail.connect", title: "Connect email", icon: "plus" },
+    { key: "records.import", title: "Import contacts from a spreadsheet (CSV)", icon: "plus" },
     ...(team ? [{ key: "channel.new", title: "New channel", icon: "plus" }] : []),
     { key: "appearance.skin", title: "Switch skin", icon: "eye" },
     { key: "presence.away", title: state.away ? "Back from away" : "Set yourself away", icon: "clock" },
@@ -172,6 +174,7 @@ export function createGateSearch(d: GateSearchDeps): CmdKData {
         nav.flash(state.offline ? "Working offline" : "Back online");
       } else if (a.key === "terminal.open") nav.go("chats", `screen=chats.terminal-list&at=${Date.now()}`);
       else if (a.key === "task.new") nav.go("home");
+      else if (a.key === "records.import") { nav.go("records", "type=contact"); requestImport("contact"); }
       else if (a.key === "channel.new") { nav.go("chats"); requestChannelSheet("new"); }
       else if (a.key === SKIN) nav.go("settings", "page=appearance");
       else if (a.key === "mail.connect") nav.go("settings", MAIL_PAGE_HASH);

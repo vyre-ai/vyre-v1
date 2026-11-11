@@ -1,2 +1,4 @@
 - A member who joins by an invite link can choose a profile photo in their first minute, and a Space admin who was never given a project can still change its roles; both are now held by tests that walk a real server.
 - Opening the app at the Chats address while a task or chat tab is selected now makes that tab the Chats tab, so a tab never names an item the page is no longer showing; the Chats rail still goes to the tab Chats already has and shows what it shows.
+- Records has Import: choose a CSV, see each column matched to a field (change any), see what would be new, updated or skipped, bring it in with the count going up, and read a plain summary. It works with no AI account. Import is in the Records toolbar next to Export, in a record type's menu, in the phone's More menu, and in the command palette (type "import").
+- A CSV uploaded to Files opens with its rows and columns in the viewer instead of "0 rows · 0 columns".

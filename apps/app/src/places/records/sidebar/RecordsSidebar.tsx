@@ -19,6 +19,7 @@ import { MANAGE_TYPE, SCREENS, compact, effectiveType, sortedViews, typeGroups, 
 import { Glyph, TypeTile, typeHue, typeIcon, viewGlyph } from "./parts.tsx";
 import type { IconName } from "./parts.tsx";
 import { useRecordsState } from "./state.tsx";
+import { requestImport } from "../import/request.ts";
 
 type TypesOut = CapMap["schema.types.list"]["out"];
 type ViewsOut = CapMap["views.list"]["out"];
@@ -113,12 +114,13 @@ function Sidebar({ starred, query, slot }: { starred: ReactNode | undefined; que
     if (closed(g.key)) continue;
     for (const t of items) {
       const menuOf = (): ReturnType<typeof typeMenu> => typeMenu(
-        { starred: starredTypes.has(t.key), canEdit },
+        { starred: starredTypes.has(t.key), canEdit, canImport: true },
         {
           open: () => { dispatch({ type: "open", key: t.key }); choose(); },
           star: (on) => { void Promise.resolve(data.call("stars.toggle", { resource: { type: "record_type", id: t.key }, on })).catch(() => undefined); },
           copyName: () => copyText(t.label),
           editType: () => { data.nav.openRecordTypes(); choose(); },
+          importRows: () => { dispatch({ type: "open", key: t.key }); choose(); requestImport(t.key); },
         },
       );
       sections.push(

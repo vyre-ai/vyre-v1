@@ -1,6 +1,6 @@
 // What every view of part A shares: the context a view is given (type, saved views, the kind switch), the state of the view being edited, and the header with its quiet buttons. Filter, Fields and
 // the kind switch open the one ui/Menu with checkmarks and counts; nothing here is a row of chips.
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { Dispatch, ReactElement, ReactNode, SetStateAction } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
 import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
@@ -13,6 +13,8 @@ import { Glyph, HeadButton, anchorOf, pointOf, typeIcon } from "../sidebar/parts
 import { useRecordsState } from "../sidebar/state.tsx";
 import { useRecordAccess } from "../sharing/useRecordAccess.ts";
 import { chosen, clearClauses, countSpec, isEdited, optionValue, optionsOf, setSort, sortable, toSaved, toggleHidden, toggleOption } from "../table/model.ts";
+import { ImportSheet } from "../import/ImportSheet.tsx";
+import { onImportRequest, takeImportRequest } from "../import/request.ts";
 import { each, filterable, toggleable } from "./model.ts";
 import type { FieldDef, TableViewState, TypeDef } from "./model.ts";
 import type { JourneyBinding } from "../journey/model.ts";
@@ -125,10 +127,19 @@ export function ViewHead({ ctx, st, lanes, sort = false, fields = true, extra }:
   const access = useRecordAccess(ctx.type);
   const [exported, setExported] = useState<"busy" | "done" | "failed" | null>(null);
   const exportAll = (): void => { setExported("busy"); data.call("records.export", { type: ctx.type, format: "csv" }).then(() => setExported("done"), () => setExported("failed")); };
+  // Import: a spreadsheet of rows into this type (the sheet is the table's; the phone reaches it from here)
+  const [importing, setImporting] = useState(false);
+  useEffect(() => {
+    const take = (): void => { if (takeImportRequest(ctx.type)) setImporting(true); };
+    take();
+    return onImportRequest(take);
+  }, [ctx.type]);
+  const canImport = !access.on || access.can.manage || access.can.edit === true;
   const canShare = access.on && (access.can.manage || access.can.share);
   const canExport = access.on && access.can.export;
   const shareEntries = (): MenuEntry[] => [
     ...(canShare ? [{ label: "Share", onSelect: () => data.share?.open({ type: "record_type", id: ctx.type, name: def.plural }) } as MenuEntry] : []),
+    ...(canImport ? [{ label: "Import…", onSelect: () => setImporting(true) } as MenuEntry] : []),
     ...(canExport ? [{ label: "Export as CSV", onSelect: exportAll } as MenuEntry] : []),
   ];
   const { v, set } = st;
@@ -231,6 +242,7 @@ export function ViewHead({ ctx, st, lanes, sort = false, fields = true, extra }:
       )}
       {slim ? null : <>
         {canShare ? <HeadButton icon="share" label="Share" testID="records-share-btn" onPress={() => data.share?.open({ type: "record_type", id: ctx.type, name: def.plural })} /> : null}
+        {canImport ? <HeadButton icon="upload" label="Import" testID="records-import-btn" onPress={() => setImporting(true)} /> : null}
         {canExport ? <HeadButton icon="download" label="Export" testID="records-export-btn" onPress={exportAll} /> : null}
       </>}
       {exported === null ? null : <Text style={s.offline} accessibilityRole="alert" testID="records-export-note">{exported === "busy" ? "Exporting" : exported === "done" ? "Exported to Files" : "Export failed"}</Text>}
@@ -239,6 +251,7 @@ export function ViewHead({ ctx, st, lanes, sort = false, fields = true, extra }:
       {ctx.journey ? null : <HeadButton icon="plus" label="New" bare={slim} testID="records-new" onPress={() => st.newRecord()} />}
       {online ? null : <Text style={s.offline} accessibilityRole="alert" testID="records-offline">Offline</Text>}
       {menu.element}
+      {importing ? <ImportSheet call={data.call} type={ctx.type} plural={def.plural} onClose={() => setImporting(false)} /> : null}
     </View>
   );
 }

@@ -69,6 +69,19 @@ test("viewer_data: a Markdown file shows its text and what the caller may do; a 
   assert.equal(await code(call(ctx, "files.viewer_data", { fileId: id })), "validation.precondition_failed");
 });
 
+test("viewer_data: an uploaded CSV carries its text, so the viewer shows its rows and columns; an Excel file does not carry its bytes as text", async () => {
+  const { ctx } = world((cap) => (cap === "sheets.info" ? { sheets: [] } : undefined));
+  const csv = "Name,Email\nAda Alder,ada@example.test\nBram Birch,bram@example.test\n";
+  const id = await make(ctx, "people.csv", "spreadsheet", { base64: Buffer.from(csv).toString("base64") });
+  const v = await call(ctx, "files.viewer_data", { fileId: id });
+  assert.equal(v.file.kind, "spreadsheet");
+  assert.equal(v.text, csv);
+  const tsv = await make(ctx, "people.tsv", "spreadsheet", { base64: Buffer.from("a\tb\n1\t2\n").toString("base64") });
+  assert.equal((await call(ctx, "files.viewer_data", { fileId: tsv })).text, "a\tb\n1\t2\n");
+  const xls = await make(ctx, "fees.xlsx", "spreadsheet", { base64: "UEsDBA==" });
+  assert.equal((await call(ctx, "files.viewer_data", { fileId: xls })).text, undefined);
+});
+
 test("viewer_data: a PDF gets its pages, extracted text and preview address from previews; an image can be drawn on; a spreadsheet lists its sheets; a failing neighbour leaves its part out", async () => {
   const { ctx } = world((cap) => {
     if (cap === "previews.text") return { text: "Page one text", pages: 3, truncated: false, source: "pdf" };

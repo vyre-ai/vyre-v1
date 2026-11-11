@@ -23,6 +23,8 @@ export const MAX_STROKES = 2000;
 export const MAX_POINTS = 5000;
 export const MAX_MARKUP_BYTES = 1_000_000;
 const TEXT_KINDS = new Set(["text", "markdown", "code"]);
+/** The largest CSV the viewer reads whole (the sheet draws the rows it needs). */
+const MAX_DELIMITED = 4 * 1024 * 1024;
 const PAGED_KINDS = new Set(["pdf", "document", "presentation"]);
 const MARKABLE_KINDS = new Set(["image", "pdf", "document", "presentation"]);
 const ANCHOR_KINDS = ["file", "line", "range", "area", "page", "cell"];
@@ -103,7 +105,9 @@ async function viewerData(ctx: Ctx, input: unknown): Promise<Obj> {
   const at = versionId !== undefined ? { fileId, versionId } : { fileId };
   const out: Obj = { file };
 
-  if (TEXT_KINDS.has(kind) && num(file.size) <= 256 * 1024) {
+  // a CSV or TSV is a spreadsheet by kind but plain text by content: the viewer reads its rows from the text. An Excel file is bytes, not text, and goes the sheets way below.
+  const delimited = kind === "spreadsheet" && (/\.(csv|tsv)$/i.test(str(file.name)) || str(file.mime).startsWith("text/"));
+  if ((TEXT_KINDS.has(kind) && num(file.size) <= 256 * 1024) || (delimited && num(file.size) <= MAX_DELIMITED)) {
     const r = await tryCall<{ text?: string }>(ctx, "files.read", { ...at, as: "text" });
     if (typeof r?.text === "string") out.text = r.text;
   }

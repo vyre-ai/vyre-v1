@@ -21,3 +21,12 @@ test("a starred type says Remove Star; a person who may not edit gets no Edit Ty
   its[1]!.onSelect?.();
   assert.deepEqual(did, ["star:false"]);
 });
+
+test("Import… is in the menu when the type can take rows, after Copy Name, and reaches its call", () => {
+  const did: string[] = [];
+  const its = items(typeMenu({ starred: false, canEdit: false, canImport: true }, { open: () => undefined, copyName: () => undefined, importRows: () => void did.push("import") }));
+  assert.deepEqual(its.map((x) => x.label), ["Open", "Copy Name", "Import…"]);
+  its[2]?.onSelect?.();
+  assert.deepEqual(did, ["import"]);
+  assert.ok(!items(typeMenu({ starred: false, canEdit: false }, { open: () => undefined, importRows: () => undefined })).some((x) => x.label === "Import…"), "not offered when the type cannot take rows");
+});

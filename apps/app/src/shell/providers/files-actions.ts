@@ -35,14 +35,15 @@ interface Chosen { name: string; mime: string; file: unknown }
 type Doc = { createElement(t: string): unknown; body?: { appendChild(n: unknown): void; removeChild(n: unknown): void } };
 
 /** The page's file chooser for any number of files; an empty list when it is cancelled or the page has none. */
-export function pickFiles(): Promise<Chosen[]> {
+export function pickFiles(options: { accept?: string; multiple?: boolean; testID?: string } = {}): Promise<Chosen[]> {
   const doc = (globalThis as { document?: Doc }).document;
   if (!doc) return Promise.resolve([]);
   return new Promise((resolve) => {
-    const input = doc.createElement("input") as { type: string; multiple: boolean; style?: { display: string }; files?: ArrayLike<{ name: string; type: string }>; onchange: (() => void) | null; oncancel: (() => void) | null; click(): void; setAttribute?(k: string, v: string): void };
+    const input = doc.createElement("input") as { type: string; accept?: string; multiple: boolean; style?: { display: string }; files?: ArrayLike<{ name: string; type: string }>; onchange: (() => void) | null; oncancel: (() => void) | null; click(): void; setAttribute?(k: string, v: string): void };
     input.type = "file";
-    input.multiple = true;
-    input.setAttribute?.("data-testid", "files-upload-input");
+    input.multiple = options.multiple !== false;
+    if (options.accept !== undefined) input.accept = options.accept;
+    input.setAttribute?.("data-testid", options.testID ?? "files-upload-input");
     if (input.style) input.style.display = "none";
     // WKWebView (the desktop app on a Mac) only opens a chooser for an input that is in the page: attach it, hidden, for the click, and take it out when it answers.
     doc.body?.appendChild(input);

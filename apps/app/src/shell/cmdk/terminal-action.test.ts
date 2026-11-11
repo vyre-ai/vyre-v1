@@ -8,3 +8,8 @@ test("Open terminal is an action only when the Space has a terminal", () => {
   assert.ok(!gateActions({ away: false, offline: false }).some((a) => a.key === "terminal.open"));
   assert.ok(!gateActions({ away: false, offline: false, terminal: false }).some((a) => a.key === "terminal.open"));
 });
+
+test("typing import in the palette finds the spreadsheet import", () => {
+  const hit = gateActions({ away: false, offline: false }).filter((a) => a.title.toLowerCase().includes("import"));
+  assert.deepEqual(hit.map((a) => a.key), ["records.import"]);
+});

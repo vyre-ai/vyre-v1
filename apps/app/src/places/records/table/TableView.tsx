@@ -30,6 +30,8 @@ import { useRecordAccess } from "../sharing/useRecordAccess.ts";
 import type { RowMark } from "../sharing/model.ts";
 import { Tooltip } from "../../../../../../ui/src/Tooltip/index.tsx";
 import { FieldsPanel, fieldMenuEntries } from "../typeedit/index.ts";
+import { ImportSheet } from "../import/ImportSheet.tsx";
+import { onImportRequest, takeImportRequest } from "../import/request.ts";
 import type { FieldMode } from "../typeedit/index.ts";
 import { recordMenu } from "../menus/record.ts";
 import { NO_PICK, isPickedRow, pickCount, toggleHeader, togglePick } from "./model.ts";
@@ -478,6 +480,14 @@ function Grid({ type, def, views, base, saved, headerExtra }: { type: string; de
   const tight = phone > 0 && phone < 1180;   // beside the sidebar a 1024 window has no room for seven labelled buttons: icons only, so the type and view names keep their room
   const typeList = useScreenQuery<TypesOut>(SCREENS.types, "types");
   const access = useRecordAccess(type);
+  // Import: a spreadsheet of rows into this type. The command palette and the sidebar ask for it through request.ts; a request waiting when the table is drawn is taken at once
+  const [importing, setImporting] = useState(false);
+  useEffect(() => {
+    const take = (): void => { if (takeImportRequest(type)) setImporting(true); };
+    take();
+    return onImportRequest(take);
+  }, [type]);
+  const canImport = !access.on || access.can.manage || access.can.edit === true;
   const [sharedOnly, setSharedOnly] = useState(false);
   const [v, setV] = useState<TableViewState>(base);
   /** The view with "Shared with me" on top of it: the rows given to the viewer by name. Not saved with the view. */
@@ -766,6 +776,7 @@ function Grid({ type, def, views, base, saved, headerExtra }: { type: string; de
         <HeadButton icon="colour" label="Colour" detail={colourField?.title} on={lit(colourField !== undefined)} bare={tight} testID="records-colour" onPress={keep("colour")} />
         {access.on && access.hasShared ? <HeadButton icon="people" label="Shared with me" bare={tight} on={lit(sharedOnly)} testID="records-shared" onPress={() => setSharedOnly(!sharedOnly)} /> : null}
         {access.on && (access.can.manage || access.can.share) ? <HeadButton icon="share" label="Share" bare={tight} testID="records-share-btn" onPress={() => data.share?.open({ type: "record_type", id: type, name: def.plural })} /> : null}
+        {canImport ? <HeadButton icon="upload" label="Import" bare={tight} testID="records-import-btn" onPress={() => setImporting(true)} /> : null}
         {access.on && access.can.export ? <HeadButton icon="download" label="Export" bare={tight} testID="records-export-btn" onPress={exportView} /> : null}
         {headerExtra}
         <HeadButton icon="plus" label="New" bare={tight} filled testID="records-new" onPress={startNew} />
@@ -880,6 +891,7 @@ function Grid({ type, def, views, base, saved, headerExtra }: { type: string; de
         </View>
       )}
       {menu.element}
+      {importing ? <ImportSheet call={data.call} type={type} plural={def.plural} onClose={() => setImporting(false)} /> : null}
       {panel ? <FieldsPanel key={`${panel.field ?? ""}:${panel.mode ?? ""}`} call={data.call} type={def} hidden={v.hidden} onToggleHidden={(field) => set(toggleHidden(v, field))} onClose={() => setPanel(null)} {...(panel.field && panel.mode ? { initial: { field: panel.field, mode: panel.mode } } : {})} /> : null}
     </View>
   );
