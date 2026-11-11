@@ -347,6 +347,52 @@ jobs:
       - name: Containers left behind
         if: always()
         run: docker ps -a --filter "name=vyre-comp" --format '{{.Names}} {{.Status}}' || true
+  heavy-live:
+    # Issue 908: live test files that hold Docker-gated tests and are not named *.heavy.test.ts. The slow shards run them without VYRE_HEAVY_DOCKER=1, so their gated tests were skipped and the shard still passed.
+    # Here the flag is set and --no-skip makes any skip a failure, so a green job means every one of them ran. scripts/hidden-skips.test.ts fails when a file like these is named in no job that sets its flag.
+    # Not part of the `check` gate and not in `budget`'s needs, so it is outside the 5 minute push budget: it reports its own result on the run (the same as l2-heavy). computers.live and chat.live run in computer-lifecycle and l2-heavy.
+    runs-on: [self-hosted, linux, v1]
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - name: Disk lock (heavy jobs share the disk, perf jobs run alone on it)
+        run: bash scripts/ci-iolock.sh shared
+      - name: Install bubblewrap and tmux when the runner does not have them
+        run: |
+          missing=""
+          command -v bwrap >/dev/null || missing="$missing bubblewrap"
+          command -v tmux >/dev/null || missing="$missing tmux"
+          if [ -n "$missing" ]; then sudo -n apt-get update -q && sudo -n apt-get install -y -q $missing; fi
+          bwrap --version
+          tmux -V
+      - name: The agent workspace and agent computer images, built once for this run
+        run: |
+          docker build -t "vyre/agent-workspace:ci-${{ github.run_id }}" images/agent-workspace
+          docker build -t "vyre/agent-computer:ci-${{ github.run_id }}" images/agent-computer
+      - name: The Docker-gated live tests, none skipped
+        env:
+          VYRE_HEAVY_DOCKER: "1"
+          VYRE_WORKSPACE_TEST_IMAGE: vyre/agent-workspace:ci-${{ github.run_id }}
+          VYRE_AGENT_COMPUTER_IMAGE: vyre/agent-computer:ci-${{ github.run_id }}
+        run: |
+          set -o pipefail
+          for f in test/memory.recall.live.test.ts test/chat-ecosystem.live.test.ts test/cli-skills-connections.live.test.ts test/terminal.workspace.live.test.ts modules/terminal/tests/workspace.live.test.ts host/tests/workspace.node.live.test.ts host/tests/onboarding.assistant.live.test.ts host/tests/computers.runner.live.test.ts; do
+            node scripts/test-run.ts --slow --no-cache --no-skip --jobs 1 --files "$f"
+          done
+      - name: The hooks on the real claude and codex, none skipped (needs the engines' sign-ins as repository secrets)
+        if: always()
+        env:
+          VYRE_HEAVY_DOCKER: "1"
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          if [ -z "$CLAUDE_CODE_OAUTH_TOKEN" ] || [ -z "$OPENAI_API_KEY" ]; then echo "::error::CLAUDE_CODE_OAUTH_TOKEN and OPENAI_API_KEY are not set as repository secrets, so test/hooks.cli.live.test.ts cannot run"; exit 1; fi
+          node scripts/test-run.ts --slow --no-cache --no-skip --jobs 1 --files test/hooks.cli.live.test.ts
+      - name: Images and containers left behind
+        if: always()
+        run: |
+          docker rmi -f "vyre/agent-workspace:ci-${{ github.run_id }}" "vyre/agent-computer:ci-${{ github.run_id }}" || true
+          docker ps -a --filter "name=vyre" --format '{{.Names}} {{.Status}}' || true
   chrome-real:
     # P-L10_06b: the Chrome extension's agent tools against a real Chromium page. VYRE_REQUIRE_CHROME=1 turns a missing Chromium into a failure (a skip is not a pass), so a green job means the
     # three real-page tests ran. Chromium comes from playwright-core the way scripts/shots does (cached by playwright after the first run); CHROME_BIN points the test at it. Gates `check`.
