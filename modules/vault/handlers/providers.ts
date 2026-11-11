@@ -208,6 +208,10 @@ export async function add(ctx: VaultCtx, input: { providerKey: string; connectio
     const why = addressProblem(address, input.connection === "api_key") ?? await refusedByHost(ctx, address);
     if (why) return bad(ctx, why);
   }
+  // A key is checked with the provider before anything is written or called connected: a refused key is said so in the provider's own words and nothing is saved; a provider that cannot be reached
+  // says the key could not be checked, and nothing is saved either (rc.22 client walk: a made-up key was "connected" and "Working" until a later check flipped it to Failed). No host probe at all (a module
+  // run on its own) leaves the old behaviour.
+  if (input.connection === "api_key") await checkKey(ctx, c, input.apiKey!.trim());
   // shared with the Space and no folder chosen: the Space's one shared folder, else "AI accounts" made now and shared with Everyone (lib/space-folder.ts)
   const folderId = input.folderId ?? (input.scope === "shared" ? await spaceFolder(ctx, input.idempotencyKey) : await mineFolder(ctx));
   const n = rowsOf(ctx.db.all(`SELECT * FROM vault_provider`)).filter((p) => live(p) && entry(ctx, str(p, "providerKey"))?.name === c.name && str(p, "owner") === me(ctx)).length;
@@ -225,6 +229,20 @@ export async function add(ctx: VaultCtx, input: { providerKey: string; connectio
   if (address) ctx.db.run(`INSERT INTO vault_provider_extra ("providerId", "address") VALUES (?, ?)`, id, address.trim());
   ctx.emit("provider.added", `entity/${id}`, { providerId: id, providerKey: c.key, connection: input.connection, scope: input.scope }, { vis: "participants" });
   return { provider: rowOut(ctx, providerById(ctx, id)) };
+}
+
+/** Asks the provider whether it accepts this key (the host reaches it; the module has no network). Throws provider.auth_failed with the provider's reason, or provider.unavailable when it could not be asked. */
+async function checkKey(ctx: VaultCtx, c: CatalogEntry, apiKey: string): Promise<void> {
+  const run = hostOf()?.probe;
+  if (!run) return;
+  let r: { ok: boolean; models: string[]; detail?: string; refused?: boolean };
+  try { r = await run({ providerKey: c.key, connection: "api_key", caller: me(ctx), apiKey, ...(c.custom && c.base ? { address: c.base } : {}), engine: c.engine }); } catch { r = { ok: false, models: [], detail: "The provider could not be reached." }; }
+  if (r.ok) return;
+  const said = (r.detail ?? "").replace(/sk-[A-Za-z0-9_-]+/g, "[key]").replace(/\s+/g, " ").trim();
+  if (r.refused === true || /accept|invalid|unauthori[sz]ed|incorrect|key/i.test(said) && !/reach|answer|time/i.test(said)) {
+    throw fail("provider.auth_failed", ctx.trace.traceId, { message: `${c.name} did not accept that key.${said && said.length <= 140 ? ` It said: ${said.replace(/\.$/, "")}.` : ""} Check the key and try again.` });
+  }
+  throw fail("provider.unavailable", ctx.trace.traceId, { message: `Vyre could not reach ${c.name} to check the key, so it was not saved. Check this server's internet connection and try again.` });
 }
 
 /** The host's network guard says no (link-local always; loopback and private unless this is the caller's own computer). No host, no DNS: the syntax check stands. */

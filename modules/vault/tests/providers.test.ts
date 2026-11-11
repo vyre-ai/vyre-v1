@@ -374,3 +374,30 @@ test("a subscription account whose item holds neither credentials nor setup_toke
     assert.equal(out((out(await p.list(h.ctx, {})).providers as unknown[])[0]).state, "ok", "credentials is enough");
   } finally { u.configureVault(null); h.cleanup(); }
 });
+
+test("a key is checked with the provider before it is saved or called connected: refused says why and saves nothing, unreachable saves nothing, accepted is saved (rc.22 client walk)", async () => {
+  const h = harness();
+  const seen: unknown[] = [];
+  let answer = { ok: false, models: [], detail: "invalid x-api-key", refused: true } as { ok: boolean; models: string[]; detail?: string; refused?: boolean };
+  u.configureVault({ sinks: {}, probe: async (q) => { seen.push(q); return answer; } });
+  const listed = async (): Promise<number> => (out(await p.list(h.ctx, {})).providers as Json[]).length;
+  try {
+    // refused: the provider's reason, no account, no item, and the key is in no row
+    const refused = await p.add(h.ctx, { providerKey: "anthropic", connection: "api_key", scope: "mine", apiKey: "sk-ant-api03-invalidinvalid", idempotencyKey: key() }).then(() => null, (e: unknown) => e as { code?: string; error?: { code?: string; message?: string }; message?: string });
+    assert.equal(refused?.error?.code ?? refused?.code, "provider.auth_failed");
+    assert.match(String(refused?.error?.message ?? refused?.message), /Anthropic did not accept that key\. It said: invalid x-api-key\. Check the key and try again\./);
+    assert.equal(await listed(), 0, "nothing is saved for a key the provider refuses");
+    assert.ok(!h.everything().includes("sk-ant-api03-invalidinvalid"), "and the refused key is stored nowhere");
+    // not reachable: said, and not saved
+    answer = { ok: false, models: [], detail: "The provider could not be reached." };
+    const down = await p.add(h.ctx, { providerKey: "anthropic", connection: "api_key", scope: "mine", apiKey: SECRET, idempotencyKey: key() }).then(() => null, (e: unknown) => e as { code?: string; error?: { code?: string; message?: string }; message?: string });
+    assert.equal(down?.error?.code ?? down?.code, "provider.unavailable");
+    assert.match(String(down?.error?.message ?? down?.message), /could not reach Anthropic to check the key, so it was not saved/);
+    assert.equal(await listed(), 0);
+    // accepted: saved, connected
+    answer = { ok: true, models: ["claude-sonnet-5-5"] };
+    const row = out(out(await p.add(h.ctx, { providerKey: "anthropic", connection: "api_key", scope: "mine", apiKey: SECRET, idempotencyKey: key() })).provider);
+    assert.equal(row.state, "ok");
+    assert.equal(await listed(), 1);
+  } finally { u.configureVault(null); h.cleanup(); }
+});
