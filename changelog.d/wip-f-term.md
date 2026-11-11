@@ -21,3 +21,9 @@
 - A deleted agent's workspace stays gone: a command still running ends with a plain line, and nothing makes the workspace again until the agent is restored.
 - An agent's command is never typed into a tab where something else is running (yours, or one left from before a restart); it waits for the prompt and then says what is running there.
 - A workspace being made again for a project change keeps its room on the server.
+- After an update, a workspace waiting for room keeps its place in the queue, and one that was already running gives its room back if it later stops on its own.
+- A job left running keeps a workspace awake for at most 12 hours after the last command or keystroke; the Computer tab shows what keeps it awake, and the next command says if it slept with something still running.
+- A terminal you ended with exit shows as exited, and checking its status no longer starts it again.
+- Home's terminal status stays steady when Vyre cannot look up an agent for a moment, and asks for each agent once.
+- A command waiting its turn in a tab that you close says so instead of failing oddly.
+- The Terminal tab's live view no longer repeats old lines after an editor such as vim closes.

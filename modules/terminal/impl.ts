@@ -11,7 +11,7 @@ import { buildWorkspaceManager, createWorkspaceTerminalHost } from "./workspace.
 import type { WorkspaceManager, WorkspaceOptions, WorkspaceTerminalHost } from "./workspace.ts";
 import { createWorkspaceFleet, remoteDockerHttp } from "./fleet.ts";
 import type { WorkspaceFleet } from "./fleet.ts";
-import type { Db, PlaceOf, Target, TermCtx, TermState, TerminalHost, ValueSource } from "./projections.ts";
+import type { AdoptArgs, Db, PlaceOf, Target, TermCtx, TermState, TerminalHost, ValueSource } from "./projections.ts";
 
 export const handlers: Record<string, Handler> = table as unknown as Record<string, Handler>;
 export { fetchesOutside, isDangerCall, outwardOf } from "./handlers/index.ts";
@@ -200,6 +200,8 @@ export function createTmuxHost(o: TmuxOptions): TmuxHost {
    */
   async function readSince(run: Exec, session: string, since: number): Promise<{ text: string; next: number }> {
     const r = await locate(run, session, since);
+    // the cursor went up (a full-screen program, tput): nothing new for an append-only view, and the place read up to stays, so the lines are not sent again when the program ends
+    if (r.cursor < since) return { text: "", next: since };
     return { text: r.lines.join("\n"), next: r.cursor };
   }
 
@@ -580,7 +582,7 @@ export function buildWorkspaceFleet(c: WorkspaceConfig): WorkspaceFleet {
       if (!nodes) throw new Error("This Space has no servers to run workspaces on.");
       const { socketPath: _s, runner: _r, nodes: _x, capacity, ...rest } = c;
       const http = remoteDockerHttp((input, timeoutMs) => nodes.ask(nodeId, "docker", input, timeoutMs));
-      return buildWorkspaceManager({ ...rest, valuesAllowed: () => nodes.secure?.(nodeId) === true, ...(capacity ? { capacity: { claim: (a: string) => capacity.claim(a, nodeId), release: (a: string) => capacity.release(a, nodeId) } } : {}), http, runner: true } as Omit<WorkspaceOptions, "api">);
+      return buildWorkspaceManager({ ...rest, valuesAllowed: () => nodes.secure?.(nodeId) === true, ...(capacity ? { capacity: { claim: (a: string) => capacity.claim(a, nodeId), release: (a: string) => capacity.release(a, nodeId), ...(capacity.waiting ? { waiting: (a: string) => capacity.waiting!(a, nodeId) } : {}) } } : {}), http, runner: true } as Omit<WorkspaceOptions, "api">);
     },
     place: async (agentId) => (nodes ? nodes.place(agentId) : null),
   });
@@ -599,6 +601,18 @@ export function createLocalHost(o: Omit<TerminalHostSeam, "place" | "workspaces"
   /** Sessions whose row this process has been told about (adopt), so a session is looked for and made again at most once per process. */
   const adopted = new Set<string>();
   /** Sessions opened before a restart are tmux ones when tmux is here: they outlive the daemon. */
+  const revive = new Map<string, AdoptArgs>();
+  /** A session on this computer that tmux lost (a reboot), made again for the first thing done in it, with the same history rule as a new one (HISTORY_ENV; a tmux older than 3.0 has no -e). */
+  const ready = async (id: string): Promise<void> => {
+    const a = revive.get(id);
+    if (a === undefined) return;
+    revive.delete(id);
+    const session = `vyre-${id}`;
+    if ((await o.exec(["tmux", "has-session", "-t", session])).code === 0) return;
+    const rest = ["-d", "-s", session, "-x", String(a.cols), "-y", String(a.rows), ...(a.cwd === undefined ? [] : ["-c", a.cwd])];
+    const made = await o.exec(["tmux", "new-session", ...HISTORY_ENV, ...rest]);
+    if (made.code !== 0 && /unknown option|invalid option|usage:/i.test(made.stderr)) await o.exec(["tmux", "new-session", ...rest]);
+  };
   const of = async (id: string): Promise<TerminalHost> => owner.get(id) ?? (ws && (await ws.has(id)) ? ws : (await hasTmux()) ? tmux : plain);
   return {
     async open(a) {
@@ -616,11 +630,12 @@ export function createLocalHost(o: Omit<TerminalHostSeam, "place" | "workspaces"
       adopted.add(a.terminalId);
       return r;
     },
-    input: async (id, data) => (await of(id)).input(id, data),
-    interrupt: async (id) => (await of(id)).interrupt(id),
-    resize: async (id, cols, rows) => (await of(id)).resize(id, cols, rows),
-    read: async (id, r) => (await of(id)).read(id, r),
-    run: async (id, r) => (await of(id)).run(id, r),
+    input: async (id, data) => { await ready(id); return (await of(id)).input(id, data); },
+    interrupt: async (id) => { await ready(id); return (await of(id)).interrupt(id); },
+    resize: async (id, cols, rows) => { await ready(id); return (await of(id)).resize(id, cols, rows); },
+    // an attach (the replay) makes it again; the live read of an open tab does not
+    read: async (id, r) => { if (r.since === undefined) await ready(id); return (await of(id)).read(id, r); },
+    run: async (id, r) => { await ready(id); return (await of(id)).run(id, r); },
     async status(ids) {
       const out: Awaited<ReturnType<TerminalHost["status"]>> = [];
       for (const id of ids) out.push(...(await (await of(id)).status([id])));
@@ -644,15 +659,9 @@ export function createLocalHost(o: Omit<TerminalHostSeam, "place" | "workspaces"
       }
       if (!o.runsHere(a.target)) return;
       const viaTmux = await hasTmux();
-      if (viaTmux) {
-        const session = `vyre-${a.terminalId}`;
-        if ((await o.exec(["tmux", "has-session", "-t", session])).code !== 0) {
-          // made again with the same history rule as a new one (HISTORY_ENV); a tmux older than 3.0 has no -e
-          const rest = ["-d", "-s", session, "-x", String(a.cols), "-y", String(a.rows), ...(a.cwd === undefined ? [] : ["-c", a.cwd])];
-          const made = await o.exec(["tmux", "new-session", ...HISTORY_ENV, ...rest]);
-          if (made.code !== 0 && /unknown option|invalid option|usage:/i.test(made.stderr)) await o.exec(["tmux", "new-session", ...rest]);
-        }
-      } else plain.adopt?.(a);
+      // a tmux session is made again only when something is done in it (a command, keys, an attach), never by a status read: one the person ended with exit reads as exited until then
+      if (viaTmux) revive.set(a.terminalId, a);
+      else plain.adopt?.(a);
       if (!owner.has(a.terminalId)) owner.set(a.terminalId, viaTmux ? tmux : plain);
       adopted.add(a.terminalId);
     },

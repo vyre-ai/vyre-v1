@@ -103,6 +103,7 @@ export function createWorkspaceFleet(o: FleetOptions): WorkspaceFleet {
     worked(agentId) { homes.get(agentId)?.worked(agentId); },
     async revoke(agentId) { for (const m of await where(agentId)) await m.revoke(agentId); },
     restore(agentId) { for (const m of all()) m.restore(agentId); },
+    takeNote(agentId) { for (const m of all()) { const n = m.takeNote(agentId); if (n !== null) return n; } return null; },
     restartLine(agentId, since) { for (const m of all()) { const l = m.restartLine(agentId, since); if (l !== null) return l; } return null; },
     async sweep() { const out: string[] = []; for (const m of all()) out.push(...(await m.sweep().catch(() => []))); return out; },
     async list() { const rows: WorkspaceRow[] = []; for (const m of all()) rows.push(...(await m.list().catch(() => []))); return rows; },

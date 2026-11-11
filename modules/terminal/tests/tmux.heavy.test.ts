@@ -469,3 +469,22 @@ test("real tmux (review 3): a run waits while a person's own program reads the t
   assert.deepEqual([r.exitCode, r.output], [0, "after-sleep"], "it waited for the prompt, then ran");
   await host.close("trm_heavy_busy");
 });
+
+test("real tmux (review 7): while vim is open and after it exits, the live read sends no line of the screen before it again", { skip }, async () => {
+  await open("trm_heavy_up");
+  const r = await host.run("trm_heavy_up", { command: "seq 1 40", env: {}, timeoutMs: 10_000 });
+  assert.equal(r.exitCode, 0);
+  let cursor = (await host.read("trm_heavy_up", { lines: 1 })).next;
+  const seen: string[] = [];
+  const poll = async (): Promise<void> => { const x = await host.read("trm_heavy_up", { lines: 1, since: cursor }); seen.push(...x.text.split("\n")); cursor = x.next; };
+  await host.input("trm_heavy_up", "vim -u NONE -N\r");
+  await until("vim to own the tab", async () => !(await shellAtPrompt(exec, "vyre-trm_heavy_up")));
+  for (let i = 0; i < 3; i++) { await poll(); await sleep(200); }
+  await runTmux(["send-keys", "-t", "vyre-trm_heavy_up", "Escape"]); await runTmux(["send-keys", "-t", "vyre-trm_heavy_up", "-l", ":q!"]); await runTmux(["send-keys", "-t", "vyre-trm_heavy_up", "Enter"]);
+  await until("the prompt to come back", async () => shellAtPrompt(exec, "vyre-trm_heavy_up"));
+  await host.input("trm_heavy_up", "seq 101 103\r");
+  await until("the new lines in the live read", async () => { await poll(); return seen.includes("103"); });
+  const old = seen.filter((l) => /^\d+$/.test(l.trim()) && Number(l) <= 40);
+  assert.deepEqual(old, [], `no line of the screen before vim was sent again: ${JSON.stringify(seen.slice(-30))}`);
+  await host.close("trm_heavy_up");
+});

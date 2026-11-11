@@ -88,28 +88,53 @@ async function tabFor(ctx: TermCtx, scope: WorkScope | undefined): Promise<TabBy
  * nobody else, and never in another person's Assistant or outside agent, whatever their role, since that is private to its person.
  */
 export async function mayEnterWorkspace(ctx: TermCtx, agentId: string): Promise<boolean> {
-  if (ctx.principal.kind === "agent") return ctx.principal.id === agentId || (await workScope(ctx, ctx.principal.id)).agentId === agentId;
-  // the host and the services it runs; never a service a tenant made (an Automation, a public form, a site), which holds only the grants it was given
-  if (isTrustedService(ctx.principal)) return true;
-  const me = actorOf(ctx);
-  let agent: AgentFacts | undefined;
-  try { agent = ((await ctx.call?.("agents.get", { agentId })) as { agent?: AgentFacts } | undefined)?.agent; } catch { agent = undefined; }
-  // an agent this caller cannot even read is not one it may enter: another person's Assistant or outside agent reads as not found to everyone else, admins included, and Manage held over agents
-  // in general must not open it (12 Nov, audit item 16). Only where nothing can be asked (no ctx.call) does the role decide alone.
-  if (agent === undefined && ctx.call !== undefined) return false;
-  if (agent?.ownerId === me) return true;
-  if (agent !== undefined && (agent.kind === "assistant" || agent.runtime === "outside")) return false;
-  return ctx.authorize({ perm: null, level: "manage" }, { type: "agent", id: agentId }).effect === "allow";
+  return (await entry(ctx, agentId)) === "yes";
 }
 
-async function needWorkspace(ctx: TermCtx, agentId: string): Promise<void> {
-  if (!(await mayEnterWorkspace(ctx, agentId))) raise(ctx, "permission.role_lacks_permission", "That workspace is not yours to open. A person opens their own Assistant's; an owner or admin opens a team agent's.", { reason: "workspace_private" });
+/** What agents.get said of an agent, asked once per call however many sessions it has (a status poll of many tabs). */
+type Facts = Map<string, Promise<{ agent?: AgentFacts; failed?: "not_found" | "error" }>>;
+const lookup = (ctx: TermCtx, agentId: string, facts?: Facts): Promise<{ agent?: AgentFacts; failed?: "not_found" | "error" }> => {
+  const have = facts?.get(agentId);
+  if (have) return have;
+  const p = (async () => {
+    try {
+      const agent = ((await ctx.call?.("agents.get", { agentId })) as { agent?: AgentFacts } | undefined)?.agent;
+      return agent === undefined ? { failed: "not_found" as const } : { agent };
+    } catch (e) {
+      return { failed: (e as { error?: { code?: unknown } } | null)?.error?.code === "validation.not_found" ? ("not_found" as const) : ("error" as const) };
+    }
+  })();
+  facts?.set(agentId, p);
+  return p;
+};
+
+/** May the caller enter this agent's workspace: yes, no, or unknown (agents.get failed for another reason than not found: try again, never a refusal that is not true). */
+async function entry(ctx: TermCtx, agentId: string, facts?: Facts): Promise<"yes" | "no" | "unknown"> {
+  if (ctx.principal.kind === "agent") return ctx.principal.id === agentId || (await workScope(ctx, ctx.principal.id)).agentId === agentId ? "yes" : "no";
+  // the host and the services it runs; never a service a tenant made (an Automation, a public form, a site), which holds only the grants it was given
+  if (isTrustedService(ctx.principal)) return "yes";
+  const me = actorOf(ctx);
+  const got = ctx.call === undefined ? {} : await lookup(ctx, agentId, facts);
+  // an agent this caller cannot even read is not one it may enter: another person's Assistant or outside agent reads as not found to everyone else, admins included, and Manage held over agents
+  // in general must not open it (12 Nov, audit item 16). Any other failure is not an answer: unknown. Only where nothing can be asked (no ctx.call) does the role decide alone.
+  if (got.failed === "not_found") return "no";
+  if (got.failed === "error") return "unknown";
+  const agent = got.agent;
+  if (agent?.ownerId === me) return "yes";
+  if (agent !== undefined && (agent.kind === "assistant" || agent.runtime === "outside")) return "no";
+  return ctx.authorize({ perm: null, level: "manage" }, { type: "agent", id: agentId }).effect === "allow" ? "yes" : "no";
+}
+
+async function needWorkspace(ctx: TermCtx, agentId: string, facts?: Facts): Promise<void> {
+  const e = await entry(ctx, agentId, facts);
+  if (e === "unknown") raise(ctx, "internal.unavailable", "Vyre could not check who may open this workspace just now. Try again in a moment.", { reason: "agent_unreadable" });
+  if (e === "no") raise(ctx, "permission.role_lacks_permission", "That workspace is not yours to open. A person opens their own Assistant's; an owner or admin opens a team agent's.", { reason: "workspace_private" });
 }
 
 /** A session in a workspace is entered only by who may enter that workspace. */
-async function needAccess(ctx: TermCtx, x: SessionRow): Promise<SessionRow> {
+async function needAccess(ctx: TermCtx, x: SessionRow, facts?: Facts): Promise<SessionRow> {
   if (x.host === "agent_computer" && x.agentId !== undefined) {
-    await needWorkspace(ctx, x.agentId);
+    await needWorkspace(ctx, x.agentId, facts);
     // a helper from another agent works in the parent's workspace in its own tab: it does not type in the parent's or a sibling's
     if (ctx.principal.kind === "agent" && ctx.principal.id !== x.agentId && x.actor !== undefined && x.actor !== ctx.principal.id) raise(ctx, "permission.role_lacks_permission", "That tab belongs to another agent in this workspace.", { reason: "tab_not_yours" });
   }
@@ -117,9 +142,9 @@ async function needAccess(ctx: TermCtx, x: SessionRow): Promise<SessionRow> {
 }
 
 /** What terminal.get and terminal.list let a caller see of a session (its own, or one it may view), and needAccess for one in a workspace, as a yes or no: for a call about many sessions at once. */
-async function mayRead(ctx: TermCtx, x: SessionRow): Promise<boolean> {
-  if (x.owner !== actorOf(ctx) && ctx.authorize({ perm: null, level: "view" }, { type: "terminal", id: x.terminalId }).effect !== "allow") return false;
-  try { await needAccess(ctx, x); return true; } catch { return false; }
+async function mayRead(ctx: TermCtx, x: SessionRow, facts?: Facts): Promise<"yes" | "no" | "unknown"> {
+  if (x.owner !== actorOf(ctx) && ctx.authorize({ perm: null, level: "view" }, { type: "terminal", id: x.terminalId }).effect !== "allow") return "no";
+  try { await needAccess(ctx, x, facts); return "yes"; } catch (e) { return (e as { error?: { code?: unknown } } | null)?.error?.code === "internal.unavailable" ? "unknown" : "no"; }
 }
 
 const unexpected = (ctx: TermCtx, what: string, e: unknown): never => {
@@ -144,6 +169,7 @@ const adoptOn = async (h: TerminalHost, x: SessionRow): Promise<void> => {
 // for each other, in order, in this process (the daemon is the one process that types into its sessions). The wait counts against the command's own time limit; a command that waited it all out is not
 // typed and nothing is interrupted, since what runs is another command.
 const queues = new Map<string, Promise<unknown>>();
+export const CLOSED_LINE = "That tab was closed before this command's turn came, so it did not run.";
 export const VALUES_BUSY_LINE = "This tab is still running something, so no Vault value is handed to it. Wait for it to finish, or run the command in another tab.";
 export const BUSY_LINE = "That terminal was busy with another command the whole time, so this one did not run. Name a session of your own (session) to run beside it.";
 async function oneAtATime<T>(terminalId: string, timeoutMs: number, f: (leftMs: number) => Promise<T>): Promise<T> {
@@ -276,8 +302,11 @@ export async function status(ctx: TermCtx, input: { terminalIds: string[] }) {
   ensure(ctx.db);
   const rows0 = input.terminalIds.map((id) => sessionBy(ctx.db, id)).filter((x): x is SessionRow => x !== null);
   // a session in a workspace is read only by who may enter that workspace, like every other call on it; one the caller may not enter is answered as if there were no such terminal
+  // agents.get is asked once per agent for the whole poll; an agent that could not be read just now keeps its row as last recorded rather than vanishing for one poll
+  const facts: Facts = new Map();
   const known: SessionRow[] = [];
-  for (const x of rows0) { if (await mayRead(ctx, x)) known.push(x); }
+  const kept: SessionRow[] = [];
+  for (const x of rows0) { const may = await mayRead(ctx, x, facts); if (may === "yes") known.push(x); else if (may === "unknown") kept.push(x); }
   const host = boundHost();
   let seen = new Map<string, { state: TermState; lastLine?: string; exitCode: number | null }>();
   if (host && known.length > 0) {
@@ -294,7 +323,8 @@ export async function status(ctx: TermCtx, input: { terminalIds: string[] }) {
       if (h && (h.state !== x.state || exitCode !== x.exitCode)) ctx.db.run("UPDATE terminal_sessions SET state = ?, exit_code = ? WHERE terminal_id = ?", h.state, exitCode, x.terminalId);
       const last = h?.lastLine === undefined ? undefined : clean(scopeOf(x), h.lastLine);
       return { terminalId: x.terminalId, state, ...(last === undefined ? {} : { lastLine: last }), exitCode };
-    }),
+    }).concat(kept.map((x) => ({ terminalId: x.terminalId, state: x.closedAt !== undefined ? ("exited" as TermState) : x.state, exitCode: x.exitCode })))
+      .sort((p, q) => input.terminalIds.indexOf(p.terminalId) - input.terminalIds.indexOf(q.terminalId)),
   };
 }
 
@@ -553,7 +583,10 @@ export async function run(ctx: TermCtx, a: RunInput) {
     const f = filled as { env?: Record<string, string> };
     // A command that carries values is not typed into a tab Vyre knows is still running one (review 12 Nov, 3a): the host checks the shell owns its terminal, and this catches what that check
     // cannot see (a builtin such as read, or a loop of builtins, typed at the prompt by the agent's last command). Read in this command's turn, so one only queued behind another run is not refused.
-    if (Object.keys(f.env ?? {}).length > 0 && sessionBy(ctx.db, s.terminalId)?.state === "running") throw Object.assign(new Error(VALUES_BUSY_LINE), { code: "busy" });
+    const nowRow = sessionBy(ctx.db, s.terminalId);
+    // its tab was closed while it waited its turn: it is not typed anywhere (review 12 Nov, 7)
+    if (nowRow === null || nowRow.closedAt !== undefined) throw Object.assign(new Error(CLOSED_LINE), { code: "closed" });
+    if (Object.keys(f.env ?? {}).length > 0 && nowRow.state === "running") throw Object.assign(new Error(VALUES_BUSY_LINE), { code: "busy" });
     const at = ctx.now();
     // The record keeps the command as the model wrote it (handles, not values).
     ctx.db.run("INSERT INTO terminal_commands (terminal_id, command, exit_code, started_at, duration_ms, by_principal) VALUES (?, ?, NULL, ?, NULL, ?)", s.terminalId, command, at, ctx.principal.id);

@@ -145,3 +145,21 @@ test("review 3: a command is never typed into a tab that runs something: it wait
   const r = await waiting;
   assert.deepEqual([r.exitCode, r.output], [0, "hi"]);
 });
+
+test("review 7: when a program moves the cursor up (an editor, tput), the live read sends nothing old again, then and after it ends", async () => {
+  const tm = fakeTmux();
+  const host = createTmuxHost({ exec: tm.exec });
+  await host.open({ terminalId: "v1", target, name: "x", cols: 80, rows: 24, folders: [] });
+  for (let i = 1; i <= 40; i++) tm.write("vyre-v1", `line ${i}`);
+  let cursor = (await host.read("v1", { lines: 1 })).next;
+  // the cursor goes up ten rows
+  tm.sessions.get("vyre-v1")!.up = 10;
+  const up = await host.read("v1", { lines: 1, since: cursor });
+  assert.deepEqual(up, { text: "", next: cursor }, "nothing, and the place read up to stays");
+  cursor = up.next;
+  // the program ends: the cursor is back at the bottom and new output follows
+  tm.sessions.get("vyre-v1")!.up = 0;
+  for (let i = 41; i <= 45; i++) tm.write("vyre-v1", `new ${i}`);
+  const after = await host.read("v1", { lines: 1, since: cursor });
+  assert.equal(/line \d+/.test(after.text), false, `no old line sent again: ${after.text}`);
+});

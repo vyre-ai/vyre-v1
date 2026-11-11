@@ -2,6 +2,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { workspaceData, workspaceView } from "./workspace-data.ts";
+import { workspaceWords } from "../../places/chats/rightpane/work-model.ts";
 import type { TerminalRowLike, WorkspaceRead } from "./workspace-data.ts";
 
 const row = (o: Partial<TerminalRowLike> & { terminalId: string; name: string }): TerminalRowLike => ({ host: "agent_computer", agentId: "agt_dex", state: "running", ...o });
@@ -95,4 +96,10 @@ test("wake opens a session without showing it; a refusal comes back as the serve
   const b = wire([], { fail: LINE });
   await assert.rejects(() => b.data.attach("agt_dex"), /Waiting for room on the Space server/);
   assert.deepEqual(b.opened, []);
+});
+
+test("a workspace kept awake by running work shows what runs in its line (12 Nov, review 6)", () => {
+  const v = workspaceView("agt_dex", { state: "running", canAttach: true, line: "running: tail -f app.log" } as never, []);
+  assert.equal(v.line, "running: tail -f app.log");
+  assert.deepEqual(workspaceWords(v), { chip: "Running", tone: "ok", note: "running: tail -f app.log" });
 });

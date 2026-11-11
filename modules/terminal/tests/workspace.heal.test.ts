@@ -506,3 +506,131 @@ test("a sweep that runs while a project change is rebuilding the workspace (its 
   assert.equal(dk.box(NAME).running, true);
   m.close();
 });
+
+// ---- review 5: room after a restart --------------------------------------------------------------------------------------------------------------------------
+
+test("after a restart a workspace waiting in the host's queue keeps its place, and one that was already running holds room, given back if it then dies outside Vyre", async () => {
+  const room: string[] = [];
+  const queue = new Set<string>(["agt_waits"]);
+  const capacity = {
+    async claim(id: string) { room.push(`claim ${id}`); return { state: "running" as const }; },
+    async release(id: string) { room.push(`release ${id}`); queue.delete(id); },
+    async waiting(id: string) { return queue.has(id) ? "Waiting for room on the Space server. Add a compute server in Console > Computers to run more." : null; },
+  };
+  const dk = engine();
+  const before = manager(dk, { capacity });
+  await before.ensure(AGENT);
+  await before.provision("agt_waits");
+  before.close();
+  // the daemon restarts: one workspace runs, the other is stopped and waits in the queue the database keeps
+  const after = manager(dk, { capacity });
+  room.length = 0;
+  await after.sweep();
+  assert.deepEqual(room, [], "the waiting place is kept, and the running workspace's room is not touched");
+  assert.deepEqual(await after.status("agt_waits"), { state: "waiting", line: "Waiting for room on the Space server. The workspace starts by itself when there is room." }, "and still says it waits");
+  // the running one dies outside Vyre (out of memory): its room goes back at the next sweep
+  dk.kill(NAME);
+  await after.sweep();
+  assert.deepEqual(room, [`release ${AGENT}`]);
+  after.close();
+});
+
+// ---- review 6: running work keeps a workspace awake for at most 12 hours ---------------------------------------------------------------------------------------
+
+test("a job left running keeps the workspace awake, says so in its status line, and for at most 12 hours after the last command or keystroke; then it sleeps and the next command says why, once", async () => {
+  const clock = { t: 1_000_000 };
+  const dk = engine({ procs: () => "4711 tail -f app.log" });
+  const m = manager(dk, { now: () => clock.t, sleep: fast });
+  const host = createWorkspaceTerminalHost({ manager: m, sleep: fast });
+  await host.open({ terminalId: "trm_c", target: { host: "agent_computer", agentId: AGENT }, name: "agent", cols: 80, rows: 24, folders: [] });
+  await host.run("trm_c", { command: "echo hi", env: {}, timeoutMs: 5000 });
+  for (let h = 0; h < 11; h++) { clock.t += 60 * 60_000; await m.sweep(); }
+  assert.equal(dk.box(NAME).running, true, "11 hours on: still awake, the job runs");
+  assert.deepEqual(await m.status(AGENT), { state: "running", line: "running: tail -f app.log" }, "and the status line says why");
+  clock.t += 61 * 60_000;
+  assert.deepEqual(await m.sweep(), [AGENT], "past 12 hours with no command or keystroke: it sleeps anyway");
+  const woke = await host.run("trm_c", { command: "echo hi", env: {}, timeoutMs: 5000 });
+  assert.match(woke.output, /^The workspace went to sleep after 12 hours with no command or keystroke, though it was still running tail -f app\.log\./);
+  assert.match(woke.output, /\nhi$/);
+  const again = await host.run("trm_c", { command: "echo hi", env: {}, timeoutMs: 5000 });
+  assert.equal(again.output, "hi", "said once");
+  m.close();
+});
+
+// ---- review 7 ---------------------------------------------------------------------------------------------------------------------------------------------
+
+test("review 7: a status read never makes a session; one the person ended with exit reads as exited, here and after a restart, and the next command makes it again", async () => {
+  reset();
+  const hn = harness();
+  const local = fakeTmux({ scripts: { "echo hi": { out: "hi", code: 0 } } });
+  const seam = { exec: local.exec, shell: async () => ({ exitCode: 0 }), home: "/home/person", runsHere: () => true };
+  bindHost(createLocalHost(seam));
+  const t = await h["terminal.open"]!(hn.ctx, { host: "device", deviceId: "dev_mac", idempotencyKey: idem() });
+  local.sessions.delete(`vyre-${t.terminal.terminalId}`);   // the person typed exit
+  bindHost(createLocalHost(seam));   // a restart
+  const made = (): number => local.calls.filter((c) => c[1] === "new-session").length;
+  const n0 = made();
+  assert.equal((await h["terminal.status"]!(hn.ctx, { terminalIds: [t.terminal.terminalId] })).rows[0].state, "exited");
+  assert.equal(made(), n0, "the status read made nothing");
+  const r = await h["terminal.run"]!(hn.ctx, { command: "echo hi", terminalId: t.terminal.terminalId, host: "device", idempotencyKey: idem() });
+  assert.equal(r.output, "hi", "a command makes it again");
+
+  // a workspace session ended with exit, in the container it lived in: exited; after the workspace slept and woke: idle, made again on use
+  const dk = engine();
+  const m = manager(dk);
+  const wh = createWorkspaceTerminalHost({ manager: m, sleep: fast });
+  await wh.open({ terminalId: "trm_x", target: { host: "agent_computer", agentId: AGENT }, name: "agent", cols: 80, rows: 24, folders: [] });
+  dk.box(NAME).tmux.sessions.delete("vyre-trm_x");
+  assert.equal((await wh.status(["trm_x"]))[0]!.state, "exited");
+  await m.sleep(AGENT);
+  await m.ensure(AGENT);
+  assert.equal((await wh.status(["trm_x"]))[0]!.state, "idle");
+  m.close();
+});
+
+test("review 7: status asks agents.get once per agent per poll, and an agent that cannot be read just now keeps its row instead of vanishing; only not found refuses entry", async () => {
+  reset();
+  bindWorkspaces(true);
+  const hn = harness();
+  const host = fakeHost({ "echo hi": { exitCode: 0, output: "hi" } });
+  bindHost(host.host);
+  const agentCtx: TermCtx = { ...hn.as({ kind: "agent", id: "agt_dex" }, "usr_dana", "run_1"), thread: "thr_a" };
+  const ids: string[] = [];
+  for (const session of ["a", "b", "c"]) ids.push((await h["terminal.run"]!(agentCtx, { command: "echo hi", session, idempotencyKey: idem() })).terminalId);
+  let asks = 0;
+  let broken = false;
+  const call = async (cap: string): Promise<unknown> => {
+    if (cap !== "agents.get") return undefined;
+    asks += 1;
+    if (broken) throw Object.assign(new Error("agents did not answer"), { error: { code: "internal.unexpected" } });
+    return { agent: { agentId: "agt_dex", ownerId: "usr_dana", kind: "teammate" } };
+  };
+  const dana: TermCtx = { ...hn.as({ kind: "person", id: "usr_dana" }), call: call as never };
+  assert.equal((await h["terminal.status"]!(dana, { terminalIds: ids })).rows.length, 3);
+  assert.equal(asks, 1, "one agents.get for three tabs of one agent");
+  broken = true;
+  const kept = (await h["terminal.status"]!(dana, { terminalIds: ids })).rows as Array<{ terminalId: string }>;
+  assert.deepEqual(kept.map((r) => r.terminalId), ids, "the rows stay, as last recorded");
+  let err: unknown;
+  try { await h["terminal.read"]!(dana, { terminalId: ids[0], lines: 5 }); } catch (e) { err = e; }
+  assert.equal(codeOf(err), "internal.unavailable", "any other failure is unavailable, not a refusal");
+});
+
+test("review 7: a command queued behind another whose tab is closed before its turn says so and is never typed", async () => {
+  const { agent } = setup();
+  const dk = engine();
+  const m = manager(dk);
+  bindHost(daemonHost(m));
+  const warm = await h["terminal.run"]!(agent, { command: "echo hi", idempotencyKey: idem() });
+  const a = h["terminal.run"]!(agent, { command: "build", idempotencyKey: idem() });
+  await until(() => dk.box(NAME).tmux.calls.some((c) => c[1] === "send-keys" && String(c.at(-1)).includes("build")), "the build to be typed");
+  let err: unknown;
+  const b = h["terminal.run"]!(agent, { command: "echo queued", idempotencyKey: idem() }).catch((e: unknown) => { err = e; });
+  await new Promise((x) => setTimeout(x, 50));
+  await h["terminal.close"]!(agent, { terminalId: warm.terminalId });
+  await a.catch(() => undefined);
+  await b;
+  assert.match((err as { error?: { message?: string } }).error?.message ?? "", /closed before this command's turn came/);
+  assert.equal(dk.box(NAME).tmux.calls.some((c) => String(c.at(-1)).includes("echo queued")), false, "never typed");
+  m.close();
+});

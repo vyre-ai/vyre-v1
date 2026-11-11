@@ -74,7 +74,7 @@ export interface Words { chip: string; tone: Tone; /** the one line under the ch
 
 export function workspaceWords(v: WorkspaceView): Words {
   switch (v.state) {
-    case "running": return v.sessions.length === 0 ? { chip: "Running", tone: "ok", note: "No session open yet. A command starts one." } : { chip: "Running", tone: "ok" };
+    case "running": return v.line !== undefined ? { chip: "Running", tone: "ok", note: v.line } : v.sessions.length === 0 ? { chip: "Running", tone: "ok", note: "No session open yet. A command starts one." } : { chip: "Running", tone: "ok" };
     case "asleep": return { chip: "Asleep", tone: "quiet", note: "Wakes in about a second on the next command." };
     case "starting": return { chip: "Starting", tone: "quiet" };
     case "waiting": return { chip: "Waiting for room", tone: "warn", note: v.line ?? "Waiting for room on the Space server. The workspace starts by itself when there is room." };

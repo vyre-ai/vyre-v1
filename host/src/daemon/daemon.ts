@@ -1988,6 +1988,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
                 return { capacity: {
                   claim: async (agentId: string, nodeId?: string) => (await call("computers.workspace_claim", { agentId, ...(nodeId ? { nodeId } : {}) })) as { state: "running" | "waiting"; line?: string },
                   release: async (agentId: string, nodeId?: string) => { await call("computers.workspace_release", { agentId, ...(nodeId ? { nodeId } : {}) }); },
+                  waiting: async (agentId: string) => ((await call("computers.workspace_waiting", { agentId })) as { line?: string | null }).line ?? null,
                 } };
               })(),
               ...((): Record<string, unknown> => {

@@ -28,3 +28,10 @@ test("answers that repeat the unfinished line draw it as it is now, never twice;
   assert.ok(frames.every((f) => f.startsWith(REDRAW_LINE)));
   assert.ok(frames.length <= 5 && frames.every((f, i) => i === 0 || f !== frames[i - 1]), `an unchanged answer makes no frame (${frames.length} frames over many reads)`);
 });
+
+test("review 7: a long unfinished line redrawn shorter leaves no fragment (the screen's rows are whole lines, wrapped only when drawn)", () => {
+  const screen = new TerminalBuffer();
+  screen.write(`welcome\r\n$ ${"x".repeat(300)}`);
+  screen.write(`${REDRAW_LINE}$ ok`);
+  assert.equal(screen.text(), "welcome\n$ ok");
+});

@@ -25,7 +25,8 @@ export function workspaceView(agentId: string, read: WorkspaceRead, rows: readon
   const state = read.state === "unavailable" ? "error" : read.state === "none" ? "asleep" : read.state;
   return {
     state, sessions, canAttach: read.canAttach && read.state !== "unavailable",
-    ...(read.state === "waiting" || read.state === "unavailable" ? (read.line ? { line: read.line } : {}) : {}),
+    // waiting and unavailable say why; running says what keeps it awake past its idle time ("running: tail -f app.log")
+    ...(read.state === "waiting" || read.state === "unavailable" || read.state === "running" ? (read.line ? { line: read.line } : {}) : {}),
     ...(read.cannotAttach ? { cannotAttach: read.cannotAttach } : read.state === "unavailable" && read.line ? { cannotAttach: read.line } : {}),
     ...(projectNames.length > 0 ? { projects: projectNames } : {}),
   };

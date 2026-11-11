@@ -5,7 +5,7 @@ import type { Exec, ExecResult } from "../impl.ts";
 export type ScriptResult = { out: string; code: number } | { hang: true };
 export type Script = ScriptResult | ((command: string, env: Record<string, string>) => ScriptResult);
 
-interface Sess { name: string; cols: number; rows: number; cwd: string; lines: string[]; typed: string; hung: boolean; env: Record<string, string> }
+interface Sess { name: string; cols: number; rows: number; cwd: string; lines: string[]; typed: string; hung: boolean; env: Record<string, string>; up?: number }
 
 export interface FakeTmuxOptions {
   scripts?: Record<string, Script>;
@@ -79,7 +79,8 @@ export function fakeTmux(o: FakeTmuxOptions = {}) {
   const grid = (s: Sess): { all: string[]; h: number; cy: number } => {
     const all = [...s.lines, s.typed];
     const h = Math.max(0, all.length - s.rows);
-    return { all, h, cy: all.length - 1 - h };
+    // `up`: rows the program moved the cursor above the last line (an editor, tput); tmux's history size does not change for it
+    return { all, h, cy: Math.max(0, all.length - 1 - h - (s.up ?? 0)) };
   };
   const result = (command: string, env: Record<string, string>): ScriptResult => {
     const sc = scripts[command];
