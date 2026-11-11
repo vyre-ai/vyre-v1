@@ -1726,7 +1726,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           const r = db!.all(`SELECT "id", "scope", "fieldKeys" FROM vault_meta WHERE ${where} AND "deleted_at" IS NULL`, ...args)[0] as { id?: string; scope?: string; fieldKeys?: string } | undefined;
           if (!r?.id) return null;
           let keys: string[] = [];
-          try { const k = JSON.parse(String(r.fieldKeys ?? "[]")) as unknown; if (Array.isArray(k)) keys = k.map(String); } catch { /* none known: the item is judged on all its fields, which is the narrow side */ }
+          try { const k = JSON.parse(String(r.fieldKeys ?? "[]")) as unknown; if (Array.isArray(k)) keys = k.map(String); } catch { /* none known: a handle with no field is then refused (team-vault.ts decide) */ }
           return { itemId: r.id, scope: String(r.scope ?? ""), fieldKeys: keys };
         } catch { return null; }
       };
@@ -1737,7 +1737,14 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         resolve: (handle, asker) => {
           const name = (/^#([^.]+)/.exec(handle)?.[1] ?? "").toLowerCase();
           if (name === "") return null;
-          return vaultRow(`lower(ltrim("handle", '#')) = ? AND "scope" = 'mine' AND "owner" = ?`, name, asker) ?? vaultRow(`lower(ltrim("handle", '#')) = ? AND "scope" = 'shared'`, name);
+          const mine = vaultRow(`lower(ltrim("handle", '#')) = ? AND "scope" = 'mine' AND "owner" = ?`, name, asker);
+          if (mine) return mine;
+          // a shared item counts only when the asker may see it, as the Vault's own lookup sees it: one they cannot see is not judged (and so never named back to them)
+          try {
+            const ids = (db!.all(`SELECT "id" FROM vault_meta WHERE lower(ltrim("handle", '#')) = ? AND "scope" = 'shared' AND "deleted_at" IS NULL ORDER BY rowid`, name) as Array<{ id?: string }>).map((r) => String(r.id ?? ""));
+            const seen = ids.find((id) => { try { return authorize(access.snap, { principal: asker, action: { perm: null, level: "use" }, resource: { type: "vault_item", id }, now: now() }).effect === "allow"; } catch { return false; } });
+            return seen ? vaultRow(`"id" = ?`, seen) : null;
+          } catch { return null; }
         },
         itemById: (itemId) => vaultRow(`"id" = ?`, itemId),
         sharedWithAgent: (agentId, itemId, fields) => { try { return sharedThrough(access.snap, { principal: agentId, action: { perm: null, level: "use" }, resource: { type: "vault_item", id: itemId }, fields, now: now() }, ["vault_item", "vault_folder"]); } catch { return false; } },

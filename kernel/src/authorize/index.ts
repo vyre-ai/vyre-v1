@@ -135,6 +135,8 @@ function evalSubject(snap: AccessSnapshot, s: SubjectInfo, req: Req, res: Resour
  * type-wide grant, never owning it)? The grant is held to every condition authorize applies to a grant (rank, start and end, expiry, the ceiling against the effective label with the fields asked
  * for, hidden fields, the row filter), and the subject's clearance must reach the label. Used to tell "this Vault item was shared with this agent" from "this agent can reach every shared item
  * through its role" (host/src/seams/team-vault.ts).
+ * NOT AN ALLOW BY ITSELF: it skips holds, the deny and exception rules, the agent-needs-a-person rule and the policies (provider label, Gate). It answers "was this shared with them", nothing more;
+ * whatever it gates must still go through authorize (team-vault.ts runs the real vault.use after it).
  */
 export function sharedThrough(snap: AccessSnapshot, req: Req, types: readonly string[]): boolean {
   const s = snap.info(req.principal);

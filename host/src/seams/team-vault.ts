@@ -23,7 +23,7 @@ export interface TeamVaultDeps {
   team: boolean;
   /** The agent's kind and owner; null for no such agent. */
   agentOf(agentId: string): { kind: string; ownerId: string } | null;
-  /** The item a handle names for this asker, as the Vault resolves it (their own Mine item first, else a shared one); null when none. */
+  /** The item a handle names for this asker, as the Vault resolves it: their own Mine item first, else a shared one they may see; null when none they may see (then only the Vault answers). */
   resolve(handle: string, asker: string): TeamItem | null;
   /** The same by id, for a handle the Vault resolved some other way (an alias). */
   itemById(itemId: string): TeamItem | null;
@@ -50,6 +50,8 @@ export function decide(d: TeamVaultDeps, at: string, asker: string, item: TeamIt
   if (agent.ownerId === asker && (agent.kind === "assistant" || (askers !== null && askers.length === 1 && askers[0] === asker))) return null;
   if (item.scope !== "shared") return "team_agent";
   const fields = field !== undefined ? [field] : [...item.fieldKeys];
+  // no field named and none known: nothing to hold a hidden-field rule to, so no
+  if (fields.length === 0) return "team_shared";
   if (d.sharedWithAgent(at, item.itemId, fields)) return null;
   if (askers !== null && askers.length > 0 && askers.includes(asker) && askers.every((p) => d.personMayUse(p, item.itemId, fields))) return null;
   return "team_shared";
@@ -72,8 +74,12 @@ export function gateTeamAgents<S extends LookupSource>(source: S, d: TeamVaultDe
       if (item !== null) {
         const why = decide(d, at, who.asker, item, field);
         if (why !== null) return refuse(item.itemId, why);
-        return source.lookup(handle, who);
+        // the value must be of the very item that was judged: two items can share a handle, and the Vault also matches names and aliases (fifth look, 2)
+        const r = await source.lookup(handle, who);
+        if (r.kind === "value" && r.itemId !== item.itemId) return refuse(r.itemId, "team_shared");
+        return r;
       }
+      // no item the asker may see answers to this handle: the Vault's own answer, exactly as for a handle that does not exist (a refusal here would say that a hidden item exists: fifth look, 1)
       // a handle only the Vault itself can resolve (an alias): decided on what it resolved to, and refused when that cannot be read
       const r = await source.lookup(handle, who);
       if (r.kind !== "value") return r;

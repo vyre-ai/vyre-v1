@@ -34,7 +34,7 @@ function rig(over: Partial<TeamVaultDeps> = {}) {
     refused: (r) => { refused.push({ handle: r.handle, reason: r.reason }); },
     ...over,
   };
-  const value = (h: string): VaultLookup => ({ kind: "value", itemId: h, value: "v-0123456789", spaceOnly: false, injectIntoDeployments: false });
+  const value = (h: string): VaultLookup => ({ kind: "value", itemId: ITEMS[h.replace(/\..*$/, "")]?.itemId ?? h, value: "v-0123456789", spaceOnly: false, injectIntoDeployments: false });
   const g = gateTeamAgents({ lookup: async (h: string) => { asked.push(h); return value(h); } }, deps);
   const ask = async (h: string, agentId: string, extra: Record<string, unknown> = {}) => {
     const r = await g.lookup(h, { agentId, asker: "usr_dana", where: "computer", ...extra });
@@ -81,4 +81,23 @@ test("over-blocks: the asker's own Assistant, their private agent, their own com
   assert.equal(await r.ask("#Dana_Mine.key", "agt_scout", { where: "device" }), "denied:team_agent", "a device the session does not name");
   assert.equal(await rig({ team: false }).ask("#Dana_Mine.key", "agt_scout"), "value", "a Personal Space");
   assert.equal(await r.ask("#Dana_Mine.key", "agt_scout", { account: true }), "value", "the turn's own account key goes to the engine on the host");
+});
+
+test("fifth look 2: the value is used only when the Vault returned the very item the gate judged", async () => {
+  const refused: string[] = [];
+  const g = gateTeamAgents({ lookup: async () => ({ kind: "value", itemId: "vit_other_api", value: "v-0123456789", spaceOnly: false, injectIntoDeployments: false }) }, {
+    team: true, agentOf: () => ({ kind: "agent", ownerId: "usr_owner" }), resolve: () => ({ itemId: "vit_api_a", scope: "shared", fieldKeys: ["key"] }), itemById: () => null,
+    sharedWithAgent: (_a, i) => i === "vit_api_a", askersOf: () => ["usr_dana"], personMayUse: () => false, deviceOwner: () => null, refused: (r) => { refused.push(String(r.itemId)); },
+  });
+  const r = await g.lookup("#Api.key", { agentId: "agt_scout", asker: "usr_dana", where: "computer" });
+  assert.deepEqual(r, { kind: "denied", reason: "team_shared" }, "the gate judged A; the Vault answered with B");
+  assert.deepEqual(refused, ["vit_other_api"]);
+});
+
+test("fifth look: a handle with no field on an item whose fields cannot be read is refused", async () => {
+  const g = gateTeamAgents({ lookup: async () => ({ kind: "value", itemId: "vit_x", value: "v-0123456789", spaceOnly: false, injectIntoDeployments: false }) }, {
+    team: true, agentOf: () => ({ kind: "agent", ownerId: "usr_owner" }), resolve: () => ({ itemId: "vit_x", scope: "shared", fieldKeys: [] }), itemById: () => null,
+    sharedWithAgent: () => true, askersOf: () => ["usr_dana"], personMayUse: () => true, deviceOwner: () => null, refused: () => undefined,
+  });
+  assert.deepEqual(await g.lookup("#X", { agentId: "agt_scout", asker: "usr_dana", where: "computer" }), { kind: "denied", reason: "team_shared" });
 });

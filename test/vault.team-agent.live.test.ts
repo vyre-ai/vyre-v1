@@ -12,7 +12,7 @@ let keys = 0;
 /** A write, with the idempotency key every write takes. */
 const write = (d: Parameters<typeof call>[0], cap: string, input: Record<string, unknown>) => call(d, cap, { idempotencyKey: `ta-${++keys}`, ...input });
 
-test("team agent: private and asker-only items are refused; shared with the agent, a group it is in or the whole Space is used; the asker's own Assistant uses them all", async () => {
+test("team agent: private and asker-only items are refused; shared with the agent, a group it is in or the whole Space is used; the asker's own Assistant uses them all", async (t) => {
   const dir = seededDir();
   const d = await boot(dir, null);
   try {
@@ -62,6 +62,21 @@ test("team agent: private and asker-only items are refused; shared with the agen
     assert.equal(await ask("#For_Everyone.key", team), "value:", "shared with the whole Space");
     assert.equal(await ask("#Bank.user", team), "value:", "the field everyone who may ask the agent may use");
     assert.equal(await ask("#Bank.password", team), "denied:team_shared", "the field the share hides from Tess never reaches the team agent's computer");
+    // fifth look 1: Tess may ask the team agent but cannot see Payroll Bank; asking for it must answer exactly as for a handle that does not exist (nothing says a hidden item is there)
+    const payrollFolder = (await write(d, "vault.folders.create", { name: "Payroll", scope: "shared" })).data.folder.id as string;
+    await put(payrollFolder, "Payroll Bank");
+    const askAs = async (asker: string, handle: string, agentId: string) => { const r = await values!.lookup(handle, { agentId, asker, where: "computer", place: agentId }); return JSON.stringify(r); };
+    // the gate adds nothing: Tess gets the Vault's own answer for an item she may not use (no_access, as from vault.use itself), never the line that it is shared
+    assert.equal(await askAs("usr_tess", "#Payroll_Bank.key", team), JSON.stringify({ kind: "denied", reason: "no_access" }), "the Vault's own answer, not team_shared");
+    t.diagnostic(`a handle that does not exist answers ${await askAs("usr_tess", "#No_Such_Item_Here.key", team)} (the Vault's own distinction, before any gate)`);
+    // the answer a Routine gets that runs as the agent with no person behind it: no person's item, whatever is shared
+    assert.notEqual(JSON.parse(await askAs(team, "#For_Everyone.key", team)).kind, "value", "a turn with no person asker gets no Vault value");
+    // fifth look 2: two items can carry the same handle; the value is used only when it is of the item that was judged
+    const apiA = await put(shared, "Api");
+    const apiB = await put(payrollFolder, "Api");
+    const handles = ((await call(d, "vault.items.list", { section: "space", q: "Api" })).data.items ?? []).filter((x: { id?: string }) => x.id === apiA || x.id === apiB).map((x: { handle?: string }) => x.handle);
+    t.diagnostic(`two items named Api carry the handles ${JSON.stringify(handles)}`);
+    assert.equal(new Set(handles).size, 2, "the Vault gives two items with one name two handles; the id check in the gate covers names and aliases that still meet");
     // fourth look (d): a refusal is decided before the Vault is asked: the audit shows it as a refusal, and no use of the item
     const audit = async (action: string, itemId?: string) => ((await call(d, "audit.list", { action, limit: 200 })).data.rows ?? []).filter((r: { resource?: { id?: string } }) => itemId === undefined || r.resource?.id === itemId).length;
     const beforeAllowed = await audit("vault.use", bank);
