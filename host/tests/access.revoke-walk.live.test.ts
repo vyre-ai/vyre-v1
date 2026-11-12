@@ -68,6 +68,15 @@ test("each capability that takes access away answers only once the next request 
       const members = ((await ok("channels.get", { channelId: project.channelId }, "usr_olivia")).channel as { members: Array<{ id: string }> }).members;
       return [(await mine(who, { type: "project", id: projectId })) !== undefined, (await mine(who, folder)) !== undefined, members.some((m) => m.id === who)];
     };
+    // what a project role gives a person on any project: something on the project, on its folder, and a place in its channel (read as its owner, archived or not)
+    type P = { projectId: string; folderId: string; channelId: string };
+    let walkArchived: P | undefined, walkLead: P | undefined;
+    const archived = (): P => walkArchived ?? { projectId: "", folderId: "", channelId: "" };
+    const gaveOn = async (p: P, who: string): Promise<boolean[]> => {
+      if (!p.projectId) return [false, false, false];
+      const members = ((await ok("channels.get", { channelId: p.channelId }, "usr_olivia")).channel as { members: Array<{ id: string }> }).members;
+      return [(await mine(who, { type: "project", id: p.projectId })) !== undefined, (await mine(who, { type: "folder", id: p.folderId })) !== undefined, members.some((m) => m.id === who)];
+    };
     // Noah's own agent
     const agentId = ((await ok("agents.create", { name: "Walk helper", computer: false }, "usr_noah")).agent as { agentId: string }).agentId;
     const agent = { type: "agent", id: agentId };
@@ -200,6 +209,35 @@ test("each capability that takes access away answers only once the next request 
           };
         },
         take: async () => { await ok("forms.link_revoke", { formId: walkLink!.formId, token: walkLink!.token }, "usr_olivia"); },
+      },
+      {
+        name: "project member removed while the project's channel is archived: gone from the project, its folder and the archived channel (projects.members.remove)",
+        before: async () => (await gaveOn(archived(), "usr_mia")).some(Boolean),
+        give: async () => {
+          const p2 = (await ok("projects.create", { type: "project", title: "Archived room" }, "usr_olivia")) as { projectId: string; folderId: string; channelId: string };
+          walkArchived = p2;
+          await ok("projects.members.set", { projectId: p2.projectId, principal: "usr_mia", role: "member" }, "usr_olivia");
+          await ok("channels.archive", { channelId: p2.channelId }, "usr_olivia");
+          return async () => (await gaveOn(archived(), "usr_mia")).every(Boolean);
+        },
+        take: async () => { await ok("projects.members.remove", { projectId: archived().projectId, principal: "usr_mia" }, "usr_adam"); },
+        stillAny: async () => (await gaveOn(archived(), "usr_mia")).some(Boolean),
+      },
+      {
+        name: "a project Lead removed from the Space while the project's channel is archived: the project is handed over and they are out of it (members.remove)",
+        give: async () => {
+          const p3 = (await ok("projects.create", { type: "project", title: "Lead room" }, "usr_olivia")) as { projectId: string; folderId: string; channelId: string };
+          walkLead = p3;
+          await ok("projects.members.set", { projectId: p3.projectId, principal: "usr_sana", role: "lead" }, "usr_olivia");
+          await ok("channels.archive", { channelId: p3.channelId }, "usr_olivia");
+          return async () => (await gaveOn(walkLead!, "usr_sana")).some(Boolean);
+        },
+        take: async () => { await ok("members.remove", { personId: "usr_sana", plan: [{ kind: "projects", action: "reassign", to: "usr_olivia" }] }, "usr_olivia"); },
+        stillAny: async () => {
+          const members = (await ok("projects.members.list", { projectId: walkLead!.projectId }, "usr_olivia")).members as Array<{ principal: string; role: string }>;
+          const inChannel = ((await ok("channels.get", { channelId: walkLead!.channelId }, "usr_olivia")).channel as { members: Array<{ id: string }> }).members.some((m) => m.id === "usr_sana");
+          return members.some((m) => m.principal === "usr_sana") || inChannel || !members.some((m) => m.principal === "usr_olivia" && m.role === "lead");
+        },
       },
       {
         name: "Space member suspended (members.suspend)",

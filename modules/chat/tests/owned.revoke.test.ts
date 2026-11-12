@@ -115,3 +115,17 @@ test("leaving a channel keeps what a thread under it gives when the person is st
   await h["channels.leave"]!(hn.as({ kind: "person", id: LEO }), { channelId: ch.channelId });
   assert.equal(on(grants, LEO, a).length, 1, "still a member of the side thread, he keeps it");
 });
+
+test("an archived channel never keeps someone in: the host takes a person and an agent out of it; anyone else is still told to bring it back first", async () => {
+  const { hn } = world();
+  const ch = (await h["channels.create"]!(hn.ctx, { name: "old", visibility: "invite", memberIds: [LEO], idempotencyKey: key() })).channel as { channelId: string; mainThreadId: string };
+  await h["channels.agents.add"]!(hn.ctx, { channelId: ch.channelId, agentId: INTAKE });
+  await h["channels.archive"]!(hn.ctx, { channelId: ch.channelId });
+  const refused = await h["channels.members.remove"]!(hn.ctx, { channelId: ch.channelId, personId: LEO }).then(() => "none", (e: { error?: { code?: string } }) => e.error?.code);
+  assert.equal(refused, "validation.bad_input", "a person's own change to an archived channel is refused as before");
+  const host = hn.as({ kind: "service", id: "svc_host" });
+  await h["channels.members.remove"]!(host, { channelId: ch.channelId, personId: LEO });
+  await h["channels.agents.remove"]!(host, { channelId: ch.channelId, agentId: INTAKE });
+  assert.equal(hn.rows("SELECT * FROM chat_thread_member WHERE thread = ? AND principal = ? AND deleted_at IS NULL", ch.mainThreadId, LEO).length, 0, "Leo is out of the archived channel");
+  assert.equal(hn.rows("SELECT * FROM chat_thread_agent WHERE thread = ? AND agentId = ? AND deleted_at IS NULL", ch.mainThreadId, INTAKE).length, 0, "and so is the agent");
+});

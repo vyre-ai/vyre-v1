@@ -44,6 +44,14 @@ function loadLive(ctx: ChatCtx, channelId: string, o: { anyone?: boolean } = {})
   return ch;
 }
 
+/**
+ * A channel someone is being taken out of. An archived channel takes no other change, but it never blocks taking a person or an agent out: the host does that on a project's own channel when the
+ * project removes them (host/src/daemon/daemon.ts CHANNEL_FOLLOWS), and an archived channel must not keep them in it or fail the project's remove.
+ */
+function loadForRemoval(ctx: ChatCtx, channelId: string): ChannelRec {
+  return isTrustedService(ctx.principal) ? load(ctx, channelId) : loadLive(ctx, channelId);
+}
+
 const humans = (db: Db, thread: string): string[] => membersOf(db, thread).filter((p) => !p.startsWith("agt_"));
 
 /** Messages in the main thread after my read cursor that someone else wrote. */
@@ -209,7 +217,7 @@ export async function channelsMembersAdd(ctx: ChatCtx, input: { channelId: strin
 }
 
 export async function channelsMembersRemove(ctx: ChatCtx, input: { channelId: string; personId: string }) {
-  const ch = loadLive(ctx, input.channelId);
+  const ch = loadForRemoval(ctx, input.channelId);
   if (!input.personId.startsWith("usr_")) raise(ctx, "validation.bad_input", "That is not a person.", { id: input.personId });
   if (await leaveWithGrants(ctx, ch, input.personId)) ctx.emit("channel.member_removed", ch.id, { channelId: ch.id, threadId: ch.mainThread, personId: input.personId, by: askerOf(ctx) });
   return refreshed(ctx, ch.id);
@@ -230,7 +238,7 @@ export async function channelsAgentsAdd(ctx: ChatCtx, input: { channelId: string
 }
 
 export async function channelsAgentsRemove(ctx: ChatCtx, input: { channelId: string; agentId: string }) {
-  const ch = loadLive(ctx, input.channelId);
+  const ch = loadForRemoval(ctx, input.channelId);
   // what the channel gave the agent (threads.outside_agent.add, tagged chat:<thread>) goes back first, as threads.remove_agent does: if that cannot be done the agent stays, so nothing is left behind
   await revokeGrants(ctx, ch.mainThread, input.agentId, grantsOf(ctx, ch.mainThread, input.agentId));
   const changed = ctx.db.run("UPDATE chat_thread_agent SET deleted_at = ?, updated_at = ? WHERE thread = ? AND agentId = ? AND deleted_at IS NULL", ctx.now(), ctx.now(), ch.mainThread, input.agentId).changes;

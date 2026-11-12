@@ -91,3 +91,17 @@ test("a remove decides its channel is gone only when the channel itself cannot b
   h.world.handlers["channels.get"] = () => { throw Object.assign(new Error("gone"), { error: { code: "validation.not_found", message: "That channel does not exist." } }); };
   assert.deepEqual(await run(h, "projects.members.remove", { projectId: made.projectId, principal: LEO }), { removed: true });
 });
+
+test("a remove that failed half-way is finished by the next call: everything the project gave is gone", async () => {
+  const h = harness();
+  const made = await run(h, "projects.create", { type: "project", title: "Half", idempotencyKey: key() });
+  await run(h, "projects.members.set", { projectId: made.projectId, principal: LEO, role: "member" });
+  const real = h.world.handlers["channels.members.remove"]!;
+  let once = true;
+  h.world.handlers["channels.members.remove"] = (i, o) => { if (once) { once = false; throw Object.assign(new Error("busy"), { error: { code: "internal.unavailable", message: "busy" } }); } return real(i, o); };
+  await assert.rejects(run(h, "projects.members.remove", { projectId: made.projectId, principal: LEO }));
+  assert.deepEqual(await run(h, "projects.members.remove", { projectId: made.projectId, principal: LEO }), { removed: true }, "the second call finishes the job");
+  assert.equal(h.rows("SELECT * FROM projects_member WHERE projectId = ? AND principal = ?", made.projectId, LEO).length, 0);
+  assert.deepEqual(h.world.grants.filter((g) => g.subject.id === LEO), [], "nothing on the project, its folder or its channel");
+  assert.equal(h.world.channelPeople.get(made.channelId)?.has(LEO) ?? false, false, "out of the channel");
+});
