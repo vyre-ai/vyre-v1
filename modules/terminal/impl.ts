@@ -15,6 +15,15 @@ import type { AdoptArgs, Db, PlaceOf, Target, TermCtx, TermState, TerminalHost, 
 import { networkRoom, networkRoomFinding, siteRoom } from "./netroom.ts";
 import type { RoomFinding } from "./netroom.ts";
 
+/**
+ * The folders and file a Files event names: every folder it touches, so a mirror on either side is brought forward (a file or folder moved between two agents' folders: both; sixth look W2,
+ * folder.moved names the parents as fromParentId and toParentId).
+ */
+export function filesChangeOf(p: Record<string, unknown>): { folderIds: string[]; fileId?: string } {
+  const folderIds = ["folderId", "fromFolderId", "toFolderId", "parentId", "fromParentId", "toParentId"].map((k) => p[k]).filter((v): v is string => typeof v === "string");
+  return { folderIds: [...new Set(folderIds)], ...(typeof p["fileId"] === "string" ? { fileId: p["fileId"] } : {}) };
+}
+
 /** What a command whose turn was stopped answers, and what its tab shows (release gate, 12 Nov). */
 export const STOPPED_LINE = "^C Interrupted: the turn that started this command was stopped.";
 
@@ -797,12 +806,7 @@ export const consumers = {
   /** Something changed in Files: awake workspaces whose Files mirror slowed down while quiet make their next pass within seconds, so a file a person drops appears without a command (fourth look U2). */
   "terminal.files_changed": {
     on: ["file.created", "file.version_added", "file.moved", "file.renamed", "file.deleted", "file.restored", "folder.created", "folder.moved", "folder.renamed", "folder.deleted"],
-    run: (_ctx: TermCtx, event: { payload: Record<string, unknown> }): string[] => {
-      const p = event.payload ?? {};
-      const folderIds = ["folderId", "fromFolderId", "toFolderId", "parentId"].map((k) => p[k]).filter((v): v is string => typeof v === "string");
-      workspaceManager?.filesChanged({ folderIds, ...(typeof p["fileId"] === "string" ? { fileId: p["fileId"] } : {}) });
-      return [];
-    },
+    run: (_ctx: TermCtx, event: { payload: Record<string, unknown> }): string[] => { workspaceManager?.filesChanged(filesChangeOf(event.payload ?? {})); return []; },
   },
   /** A turn was stopped: the commands it started in a terminal are interrupted at once (release gate, 12 Nov). */
   "terminal.turn_stopped": {
@@ -810,6 +814,10 @@ export const consumers = {
     run: (_ctx: TermCtx, event: { payload: Record<string, unknown> }): string[] => {
       const p = event.payload ?? {};
       const str = (k: string): string | undefined => (typeof p[k] === "string" ? (p[k] as string) : undefined);
+      // only a Stop someone pressed (a person, or an agent stopping its helpers). The same event is written by the host when a daemon stops or updates, when a turn's end is recorded, and when
+      // recovery closes a "stopping" turn after a restart: a workspace outlives the daemon, so those never interrupt what runs in it (lead, 12 Nov). A run with no mark here (it ended, or this
+      // process started after it) is left alone; a second event for the same run finds it already stopped.
+      if (!/^(usr|agt)_/.test(str("by") ?? "")) return [];
       const n = stopRuns({ ...(str("agentId") ? { agentId: str("agentId") as string } : {}), ...(str("threadId") ? { threadId: str("threadId") as string } : {}), ...(str("runId") ? { runId: str("runId") as string } : {}) });
       return n > 0 ? [String(n)] : [];
     },

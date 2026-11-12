@@ -1309,3 +1309,73 @@ test("turn.cancelled interrupts the command that turn started (its agent and thr
   waits.get("sleep 121")?.();
   await theirs;
 });
+
+test("W2: a folder moved between two agents' folders names both parents, so both mirrors are brought forward", async () => {
+  const { filesChangeOf } = await import("../impl.ts");
+  assert.deepEqual(filesChangeOf({ folderId: "fld_m", fromParentId: "fld_a", toParentId: "fld_b" }).folderIds.sort(), ["fld_a", "fld_b", "fld_m"]);
+  assert.deepEqual(filesChangeOf({ fileId: "fil_1", fromFolderId: "fld_a", toFolderId: "fld_b" }), { folderIds: ["fld_a", "fld_b"], fileId: "fil_1" });
+});
+
+test("W3: at the quick pace, a command right after the agent's own Files write waits for one pass, though the Files event's consumer has not run yet", async () => {
+  let inPass = 0;
+  let lastWrite: number | null = null;
+  const home: NonNullable<WorkspaceOptions["home"]> = {
+    sync: () => ({ async pass() { inPass++; await new Promise((r) => setTimeout(r, 200)); return { failed: 0 }; } }),
+    readTar: () => ({ files: new Map(), dirs: new Set(), refused: [], complete: true }),
+    manifest: (id) => `/m/${id}.json`,
+    intervalMs: 3000,
+  };
+  const folders = { agentRoot: () => "fld_a", projectRoot: () => null, ancestors: () => null, ofFile: () => null, lastWriteBy: () => lastWrite };
+  const m = manager(engine(), { home, folders });
+  const host = createWorkspaceTerminalHost({ manager: m, sleep: fast });
+  await host.open({ terminalId: "trm_w3", target: { host: "agent_computer", agentId: AGENT }, name: "agent", cols: 80, rows: 24, folders: [] });
+  await new Promise((r) => setTimeout(r, 300));
+  const before = inPass;
+  await host.run("trm_w3", { command: "echo hi", env: {}, timeoutMs: 5000 });
+  assert.equal(inPass, before, "no own write since the last pass: no wait");
+  lastWrite = Date.now();   // the agent wrote through Files; no event consumed yet
+  await host.run("trm_w3", { command: "cat note.md", env: {}, timeoutMs: 5000 });
+  assert.ok(inPass > before, "a pass ran before the command");
+  m.close();
+});
+
+test("Stop: only a pressed Stop interrupts (never the host's turn.cancelled on a daemon stop, an update, a turn's end or after a restart); twice is once; no mark does nothing; a person's command is never interrupted", async () => {
+  const { consumers } = await import("../impl.ts");
+  const { agent, hn } = setup();
+  const fh = fakeHost();
+  const ended = new Map<string, number>();
+  const host = {
+    ...fh.host,
+    async run(_id: string, r: { command: string; signal?: AbortSignal }) {
+      return await new Promise<{ exitCode: number; output: string; truncated: boolean; durationMs: number }>((resolve) => {
+        const done = (): void => { ended.set(r.command, (ended.get(r.command) ?? 0) + 1); resolve({ exitCode: 130, output: "stopped", truncated: false, durationMs: 1 }); };
+        r.signal?.addEventListener("abort", done, { once: true });
+        if (r.command.startsWith("finish")) resolve({ exitCode: 0, output: "ok", truncated: false, durationMs: 1 });
+      });
+    },
+  };
+  bindHost(host as never);
+  const stop = consumers["terminal.turn_stopped"]!;
+  const ev = (by: string, extra: Record<string, unknown> = {}) => ({ payload: { agentId: AGENT, threadId: "thr_chat", turnId: "trn_1", by, ...extra } });
+  const running = h["terminal.run"]!(agent, { command: "sleep 120", idempotencyKey: idem() });
+  await until(() => [...fh.calls].length >= 0 && true, "started");
+  await new Promise((x) => setTimeout(x, 30));
+  // the host's own turn.cancelled: daemon stop, update, the turn's end record, recovery after a restart
+  assert.deepEqual(stop.run(hn.ctx, ev("svc_host")), [], "a daemon stop or a turn's end record interrupts nothing");
+  assert.equal(ended.get("sleep 120") ?? 0, 0);
+  // the press: once; the second event of the same Stop finds it stopped already
+  assert.deepEqual(stop.run(hn.ctx, ev("usr_dana")), ["1"]);
+  assert.deepEqual(stop.run(hn.ctx, ev("usr_dana")), []);
+  await running;
+  assert.equal(ended.get("sleep 120"), 1, "interrupted once");
+  // a Stop for a run that already ended, or one this process never started: nothing is sent
+  await h["terminal.run"]!(agent, { command: "finish now", idempotencyKey: idem() });
+  assert.deepEqual(stop.run(hn.ctx, ev("usr_dana", { turnId: "trn_2" })), [], "no mark: nothing to interrupt");
+  // a person's own command in that chat is never interrupted by an agent's Stop
+  const person: TermCtx = { ...hn.ctx, thread: "thr_chat" };
+  const theirs = h["terminal.run"]!(person, { command: "sleep 99", idempotencyKey: idem() }).catch(() => undefined);
+  await new Promise((x) => setTimeout(x, 30));
+  assert.deepEqual(stop.run(hn.ctx, ev("usr_dana", { turnId: "trn_3" })), [], "the person's command is not the agent's turn's");
+  assert.equal(ended.get("sleep 99") ?? 0, 0);
+  void theirs;
+});

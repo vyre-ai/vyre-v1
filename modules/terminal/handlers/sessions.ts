@@ -611,9 +611,10 @@ export async function run(ctx: TermCtx, a: RunInput) {
     started = { at, rowId: Number((ctx.db.all("SELECT MAX(seq) AS m FROM terminal_commands WHERE terminal_id = ?", s.terminalId) as Row[])[0]?.["m"]) };
     ctx.db.run("UPDATE terminal_sessions SET state = 'running', last_active_at = ? WHERE terminal_id = ?", at, s.terminalId);
     // the turn that started it can be stopped while it runs: its command is interrupted then (stopRuns, the consumer on turn.cancelled and run.stopped)
+    // only an agent's command, from its turn, is marked: a command a person runs or types is never interrupted by an agent's Stop
     const ac = new AbortController();
-    const mark = { ac, ...(ctx.principal.kind === "agent" ? { agentId: ctx.principal.id } : {}), ...(ctx.thread !== undefined ? { threadId: ctx.thread } : {}), ...(ctx.run !== undefined ? { runId: ctx.run } : {}) };
-    inflight.set(s.terminalId, mark);
+    const mark = ctx.principal.kind === "agent" ? { ac, agentId: ctx.principal.id, ...(ctx.thread !== undefined ? { threadId: ctx.thread } : {}), ...(ctx.run !== undefined ? { runId: ctx.run } : {}) } : null;
+    if (mark) inflight.set(s.terminalId, mark);
     try {
       const r = await host.run(s.terminalId, { command: line, ...(a.cwd === undefined ? {} : { cwd: a.cwd }), env: f.env ?? {}, timeoutMs: leftMs, signal: ac.signal });
       result = { exitCode: r.exitCode, truncated: r.truncated, durationMs: r.durationMs };
@@ -622,7 +623,7 @@ export async function run(ctx: TermCtx, a: RunInput) {
       if (e && typeof e === "object" && (e as { code?: unknown }).code === "timeout") timedOut = true;
       throw e;
     } finally {
-      if (inflight.get(s.terminalId) === mark) inflight.delete(s.terminalId);
+      if (mark && inflight.get(s.terminalId) === mark) inflight.delete(s.terminalId);
       // the tab is free again before the queue lets the next command in, so a command right behind this one does not read it as running (review S3)
       ctx.db.run("UPDATE terminal_sessions SET state = 'idle', exit_code = ? WHERE terminal_id = ?", result?.exitCode ?? null, s.terminalId);
     }

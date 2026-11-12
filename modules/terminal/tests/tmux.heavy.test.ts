@@ -570,5 +570,14 @@ test("real tmux (release gate, 12 Nov): a command whose turn was stopped is inte
   assert.equal((await trap).exitCode, 130);
   assert.ok(Date.now() - t2 < 12_000, `a command that ignores Ctrl-C is ended within the grace (${Date.now() - t2} ms)`);
   assert.deepEqual((await host.run("trm_heavy_stop", { command: "echo after-trap", env: {}, timeoutMs: 20_000 })).output, "after-trap");
+  // a background job the agent started earlier in the turn is left running when a later command of that turn is stopped
+  await host.run("trm_heavy_stop", { command: "sleep 300 & echo $! > /tmp/vyre-bg.pid", env: {}, timeoutMs: 20_000 });
+  const later = new AbortController();
+  const fg = host.run("trm_heavy_stop", { command: "sleep 120", env: {}, timeoutMs: 150_000, signal: later.signal });
+  await sleep(1500);
+  later.abort();
+  assert.equal((await fg).exitCode, 130);
+  assert.equal((await host.run("trm_heavy_stop", { command: "kill -0 $(cat /tmp/vyre-bg.pid) && echo alive", env: {}, timeoutMs: 20_000 })).output, "alive", "the background job is still running");
+  await host.run("trm_heavy_stop", { command: "kill $(cat /tmp/vyre-bg.pid)", env: {}, timeoutMs: 20_000 });
   await host.close("trm_heavy_stop");
 });

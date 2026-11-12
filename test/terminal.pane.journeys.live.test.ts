@@ -78,8 +78,8 @@ for (const kind of ["personal", "team"] as const) for (const own of [false, true
       assert.ok(typeof opened[0]!["deviceId"] === "string" && (opened[0]!["deviceId"] as string).length > 0, "the terminal names the computer it opens on");
     }
     await shoot(me.page, dir, "pane-open");
-    // the phone pass looks at the same chat screen in every scenario, about 12 s each: once is enough (it kept the file near its 120 s cap)
-    if (kind === "team" && !own) await phonePass(me, s, dir, [{ name: "chat", route: "/chat" }]);
+    // the phone pass looks at the same chat screen in every scenario, about 12 s each: once per kind of Space (the four kept the file near its 120 s cap)
+    if (!own) await phonePass(me, s, dir, [{ name: "chat", route: "/chat" }]);
     assert.deepEqual(me.errors, [], "no page errors");
   } finally { bindComputers(null); bindTerminal(null); await s.close(); }
 });

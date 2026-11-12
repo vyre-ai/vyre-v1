@@ -119,6 +119,8 @@ export interface RunnerLink {
   socketPath: string;
   /** its token, read each time (the runner makes a new one when it restarts) */
   token(): string;
+  /** the container this process runs in (the ingress), when the caller knows it; read from /.dockerenv otherwise (tests name it) */
+  self?: string | null;
 }
 
 interface Req { method: string; path: string; query?: Record<string, string>; json?: unknown; body?: Uint8Array; contentType?: string; timeoutMs?: number }
@@ -135,7 +137,7 @@ function selfContainer(): string | null {
 
 export function dockerRunner(link: RunnerLink): Runner {
   let quota: boolean | null = null;
-  const self = selfContainer();
+  const self = link.self !== undefined ? link.self : selfContainer();
   const nets = new Map<string, { name: string; subnet: string | null }>();
 
   type NetInfo = { IPAM?: { Config?: Array<{ Subnet?: string }> }; Containers?: Record<string, unknown> } | null;

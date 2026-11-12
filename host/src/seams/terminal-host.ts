@@ -55,7 +55,7 @@ export interface WorkspacesConfig {
   /** Is this agent in Trash now (agents_agent.deletedAt)? undefined when it cannot be told (third look T2). */
   inTrash?: (agentId: string) => boolean | undefined;
   /** Where mirrors are rooted in Files (agent and project folders, a folder's ancestors, a file's folder): a Files change brings forward only the mirrors it touches. */
-  folders?: { agentRoot(agentId: string): string | null; projectRoot(projectId: string): string | null; ancestors(folderId: string): string[] | null; ofFile(fileId: string): string | null };
+  folders?: { agentRoot(agentId: string): string | null; projectRoot(projectId: string): string | null; ancestors(folderId: string): string[] | null; ofFile(fileId: string): string | null; lastWriteBy?(agentId: string): number | null };
   /** Does this agent have a turn running now? Making room never puts its workspace to sleep while it does. */
   inTurn?: (agentId: string) => boolean | undefined;
   /** The mirror of each agent's folder in Files onto ~/Vyre in its workspace: the computers module's home sync and tar reader, made by the daemon as the agent principal. Omitted: no mirror. */

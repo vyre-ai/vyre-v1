@@ -84,7 +84,7 @@ export interface WorkspaceOptions {
    * Where mirrors are rooted in Files, for a Files change to bring forward only the mirrors it touches (lead, 12 Nov): the agent's folder, the project's folder, a folder's ancestors (itself first),
    * a file's folder. Null where it cannot be told. Omitted: every slowed mirror is brought forward on any change.
    */
-  folders?: { agentRoot(agentId: string): string | null; projectRoot(projectId: string): string | null; ancestors(folderId: string): string[] | null; ofFile(fileId: string): string | null };
+  folders?: { agentRoot(agentId: string): string | null; projectRoot(projectId: string): string | null; ancestors(folderId: string): string[] | null; ofFile(fileId: string): string | null; lastWriteBy?(agentId: string): number | null };
   /** Does this agent have a turn running now (the engine's turns)? undefined when that cannot be read. A workspace is never put to sleep to make room while it does (lead, 12 Nov). */
   inTurn?: (agentId: string) => boolean | undefined;
   /** The longest a mirror waits between passes when nothing happens in the workspace. Default 60 s. */
@@ -648,9 +648,12 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
   /** Passes in flight, shared: a pass asked for while one runs waits for that one (a run's freshen, the paced timer and a wake never run two at once on one mirror). When each mirror last finished one. */
   const inflight = new Map<string, Promise<boolean>>();
   const lastPass = new Map<string, number>();
+  /** When each mirror's latest pass started: a Files write after it is not in the workspace yet. */
+  const passStarted = new Map<string, number>();
   function shared(key: string, f: () => Promise<boolean>): Promise<boolean> {
     const have = inflight.get(key);
     if (have) return have;
+    passStarted.set(key, now());
     const p = f().finally(() => { inflight.delete(key); lastPass.set(key, now()); });
     inflight.set(key, p);
     return p;
@@ -673,6 +676,9 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
     const slowed = (x: Paced | undefined): boolean => x !== undefined && x.delay > mirrorBase();
     // not on age alone: at the quick pace a command would wait for a pass on every command (fifth look V3); a mirror at the quick pace is caught up within its next pass anyway
     const stale = (key: string): boolean => { const x = key.startsWith("h:") ? homes.get(key.slice(2)) : projects.get(key.slice(2)); return slowed(x) || (x?.dirty ?? false); };
+    // the agent's own last Files write, read now from the tables (the Files event's consumer may not have run yet): one made after the latest pass started is copied in first (sixth look W3)
+    const wrote = o.folders?.lastWriteBy?.(agentId) ?? null;
+    if (wrote !== null && homes.has(agentId) && wrote >= (passStarted.get(`h:${agentId}`) ?? 0)) { const h = homes.get(agentId); if (h) h.dirty = true; }
     // a pass already running may have read Files before the drop: it is waited for, then a new one runs
     const after = async (key: string, f: () => Promise<boolean>): Promise<boolean> => { const have = inflight.get(key); if (have) await have.catch(() => false); return f(); };
     const work: Array<Promise<boolean>> = [];

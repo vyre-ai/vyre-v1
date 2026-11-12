@@ -2137,6 +2137,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
                     return out;
                   } catch { return null; }
                 },
+                // the agent's latest write through Files (files_file.updated_by has no index: one scan of the files table per command)
+                lastWriteBy: (agentId: string) => { try { const v = (db!.all("SELECT MAX(updated_at) AS t FROM files_file WHERE updated_by = ?", agentId)[0] as { t?: number | null } | undefined)?.t; return typeof v === "number" ? v : null; } catch { return null; } },
                 ofFile: (fileId: string) => { try { return (db!.all("SELECT folder_id FROM files_file WHERE id = ?", fileId)[0] as { folder_id?: string | null } | undefined)?.folder_id ?? null; } catch { return null; } },
               },
               // in Trash now: a row with deletedAt, or no row (purged from Trash); undefined when the table cannot be read (third look T2)
