@@ -82,7 +82,7 @@ export function watchSheet(s) {
       h("div.note", { css: { marginTop: "8px" } }, ic(run === "computer" ? "server" : "monitor", "s"),
         run === "computer"
           ? h("div", null, `Runs on ${agent ? agent.name : "the agent"}'s computer, so your computer can sleep. ${agent ? agent.name : "It"} signs in with the Vault and never sees the password.`, w.run ? null : h("div.xs.mut", { css: { marginTop: "3px" } }, `Default, because ${agent ? agent.name : "the agent"} has a computer.`))
-          : h("div", null, "Runs in your Chrome in the background while it is open, with your own sessions.", hasPc ? null : h("div.xs.mut", { css: { marginTop: "3px" } }, `Default, because ${agent ? agent.name : "the agent"} has no computer. `, agent ? h("button.lnk", act("givePc"), `Give ${agent.name} one`) : null))),
+          : h("div", null, "Runs in your Chrome in the background while it is open, with your own sessions.", hasPc ? null : h("div.xs.mut", { css: { marginTop: "3px" } }, `Default, because ${agent ? agent.name : "the agent"} has no computer. `))),
       h("div.lbl", null, "Tell"),
       h("button.trow", act("wTell", { "aria-expanded": String(w.tellOpen) }), h("span", { css: { color: "var(--ink-3)", display: "grid" } }, ic("chat", "s")),
         h("div.grow", null, h("div.b5", null, `You, in a chat with ${agent ? agent.name : "the agent"}`), h("div.xs.mut", null, tellWords(w, s.dir))), ic("chev", "xs")),

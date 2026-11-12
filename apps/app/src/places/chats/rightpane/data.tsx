@@ -31,6 +31,8 @@ export interface RightPaneNav {
   poke?(agentId: string, threadId: string): void;
   share?(agentId: string): void;
   openMachines?(nodeId?: string): void;
+  /** Console > Computers > Agent computers with this agent computer's page open (where an older desktop is removed). */
+  openComputerInConsole?(computerId: string): void;
 }
 
 export interface Connection { get(): "online" | "offline"; subscribe(l: () => void): () => void }

@@ -240,13 +240,6 @@ export function createWorker(ext) {
       case "panel.watch.save": return { data: await watches.save(await panelTab(msg), msg.watch || {}) };
       case "panel.watch.change": return { data: await watches.change(String(msg.watchId || ""), msg.op === "remove" ? "remove" : msg.op === "resume" ? "resume" : "pause") };
       case "panel.watch.check": return { data: await watches.checkNow(String(msg.watchId || "")) };
-      case "panel.watch.givePc": {
-        // The agent sets up its own computer (it has the tool for it); the person's click is the yes. The chat is where they follow it.
-        const agentId = String(msg.agentId || "").slice(0, 80);
-        if (!agentId) throw new BridgeFailure("not_allowed", "");
-        const out = await bridge.op("chat.ask", { agentId, text: "Please set up your own computer. I want to give you pages to watch and check for me while my computer is off.", from: "chrome" });
-        return { data: { threadId: out && out.threadId ? String(out.threadId) : null } };
-      }
       case "panel.watch.pick": {
         const tab = await panelTab(msg);
         await watches.guard(tab);
