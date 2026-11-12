@@ -92,6 +92,8 @@ export function namedIds(body: string, nameOf?: (id: string) => string): string 
 }
 
 export interface MessageActions {
+  /** A quiet line under the sender's own message (a person mentioned who is not in the chat, with Add). */
+  belowMine?: (m: Message) => ReactElement | null;
   copy(text: string): void;
   edit(messageId: string, body: string): void;
   setPinned(messageId: string, pinned: boolean): void;
@@ -186,6 +188,8 @@ export interface MessageViewProps {
   mark?: "match" | "active" | "selected" | undefined;
   /** The thread under this message, when anyone has replied in it: the line that opens it. */
   replies?: { s: ReplySummary; clock: Clock } | undefined;
+  /** What the quiet line under your own message says now (actions.belowMine draws it): the row draws again when it changes, so Add, a dismiss or someone else adding the person shows at once. */
+  below?: string | undefined;
 }
 
 /** Where a forked chat came from: the first line of a fork carries the chat, the message and the chat's title. */
@@ -221,7 +225,7 @@ export function sameData(a: unknown, b: unknown, depth: number): boolean {
 
 /** Draw a row again only when something it shows changed. */
 export function sameRow(a: MessageViewProps, b: MessageViewProps): boolean {
-  return a.meId === b.meId && a.stream === b.stream && a.sending === b.sending && a.openWork === b.openWork && a.mark === b.mark
+  return a.meId === b.meId && a.stream === b.stream && a.sending === b.sending && a.openWork === b.openWork && a.mark === b.mark && a.below === b.below
     && sameData(a.item, b.item, 6) && sameData(a.actions, b.actions, 5) && sameData(a.replies, b.replies, 3);
 }
 
@@ -457,6 +461,7 @@ function Mine({ item, actions, sending, mark, replies, meId }: MessageViewProps 
       {m.editedAt !== undefined ? <Text style={st.edited}>edited</Text> : null}
       {m.pinned ? <Text testID={`pinned-${m.messageId}`} style={st.edited}>pinned</Text> : null}
       {sending === "sending" ? <Text testID={`sending-${m.messageId}`} style={st.edited}>Sending</Text> : null}
+      {!editing && sending === undefined && actions.belowMine ? actions.belowMine(m) : null}
       {sending === "failed" ? (
         <View testID={`failed-${m.messageId}`} accessibilityRole="alert" style={st.failed}>
           <Text style={st.failedText}>Not sent.</Text>
@@ -646,7 +651,7 @@ function Theirs({ item, actions, stream, openWork, mark, meId, replies }: Messag
         : x.kind === "approval" && actions.files ? <ApprovalCard key={x.id} taskId={x.taskId} agent={helperName(m, item.who.name, actions.crew?.status ?? null)} {...(raisedHelperCard(m) ? { othersLine: `${helperName(m, item.who.name, actions.crew?.status ?? null)} is waiting for the OK of the person who asked.` } : {})} agentId={item.who.id} {...(item.who.face ? { face: item.who.face } : {})} data={actions.files} /> : null))}
       {item.who.forPerson && actions.agentMute && actions.agentMute.offerFor === m.messageId && onBehalfOf(m)?.teammate === actions.agentMute.me ? (
         <Pressable accessibilityRole="button" testID={`agent-mute-${m.messageId}`} onPress={() => actions.agentMute!.mute(item.who.forPerson!)}>
-          <Text style={[st.via, st.muteLine]}>{`Mute agent messages from ${firstName(item.who.name.replace(/ \(Agent\)$/, ""))} for today`}</Text>
+          <Text style={[st.via, st.muteLine]}>{`Mute agent messages from ${firstName(item.who.forPerson && actions.nameOf ? actions.nameOf(item.who.forPerson) : item.who.name.replace(/ \(Agent\)$/, ""))} for today`}</Text>
         </Pressable>
       ) : null}
       <Reactions m={m} a={actions} mine={false} meId={meId} />

@@ -70,7 +70,7 @@ export async function channelsHome(ctx: ChatCtx, _input: Record<string, never>) 
 
 /** The join step: put one person in the first channel, making #vyre first when there is none. Only another capability (members' join) or the host calls it. */
 export async function channelsHomeJoin(ctx: ChatCtx, input: { personId: string }) {
-  if (!isSystemCall({ depth: ctx.depth ?? 0, principal: ctx.principal })) raise(ctx, "permission.role_lacks_permission", "This is the join step, not a direct call.");
+  if (!isSystemCall({ depth: ctx.depth ?? 0, principal: ctx.principal, forwarded: ctx.forwarded })) raise(ctx, "permission.role_lacks_permission", "This is the join step, not a direct call.");
   if (!input.personId.startsWith("usr_")) raise(ctx, "validation.bad_input", "Only a person joins a channel.");
   const h = await ensureHome(ctx);
   if (!h) return { channelId: null, added: false };

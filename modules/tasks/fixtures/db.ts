@@ -59,7 +59,7 @@ export function harness(o: HarnessOptions = {}) {
   function ctxFor(cap: string, who: Caller): TasksCtx {
     const allowed = emitsOf(cap);
     return {
-      space: "spc_test", principal: { kind: who.kind ?? "person", id: who.id }, ...(who.actingFor ? { actingFor: who.actingFor } : {}),
+      space: "spc_test", principal: { kind: who.kind ?? "person", id: who.id }, ...(who.actingFor ? { actingFor: who.actingFor } : {}), origin: (who as { origin?: string }).origin ?? "user",   // a call as from the app, as the gateway makes it
       trace: { traceId: TRACE }, ...(who.device ? { device: who.device } : {}),
       now: () => clock,
       db: scopedDb("tasks", raw, TRACE),

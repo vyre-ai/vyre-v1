@@ -3,6 +3,7 @@
 // nav is `Go`: the place's own doors, so a click on a face or a helper or the Computer chip changes what the place shows instead of asking the shell to open somewhere else.
 // Nothing here touches the network.
 import { computersAvailableNow, requestAddServer } from "../../../shell/computers-available.ts";
+import { GATE, allows } from "../../../shell/session/gates.ts";
 import { createElement } from "react";
 import { FolderShareSheet } from "../../../shell/providers/files-share.tsx";
 import type { QueryState } from "../../../../../../client/src/index.ts";
@@ -124,7 +125,8 @@ export function agentPageData(rt: ShellRuntime, go: Go, o: { agent: PaneAgent; c
       openChat: (id) => go.chat(id),
       openFolder: (folderId) => rt.open({ subject: { type: "folder", id: folderId } }),
       openAgentFile: (agentId, file) => rt.open({ subject: { type: "agent", id: agentId }, args: { file } }),
-      openAddServer: () => { requestAddServer(); rt.open({ screen: "settings.page", args: { page: "computer" } }); },
+      // a server runs work for the whole Space: only those who may add one (owners and admins; anyone in a Personal Space) are offered it, the Space menu's rule (review F4)
+      ...(allows(rt, GATE.provisionComputer) ? { openAddServer: () => { requestAddServer(); rt.open({ screen: "settings.page", args: { page: "computer" } }); } } : {}),
       openAutomationRuns: (agentId) => rt.open({ screen: "runs.history", subject: { type: "agent", id: agentId } }),
       openTask: (taskId) => rt.open({ subject: { type: "task", id: taskId } }),
       closePage: () => go.chat(""),

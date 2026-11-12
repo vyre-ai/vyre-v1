@@ -120,7 +120,7 @@ async function stopWith(ctx: EngineCtx, threadId: string, o: { agentId?: string;
   const by = actorOf(ctx);
   for (const c of r.stopped) ctx.emit("turn.cancelled", threadId, { turnId: c.turnId, threadId, agentId: c.agentId, by });
   for (const c of r.released) ctx.emit("turn.cancelled", threadId, { turnId: c.turnId, threadId, agentId: c.agentId, by });
-  return { stopped: r.stopped.length + r.released.length + r.dropped.length };
+  return { stopped: r.stopped.length + r.released.length + r.dropped.length + (r.starting ?? 0) };   // a turn marked while starting counts: it will not run
 }
 
 /** Stop one agent working in a thread (its running turn, its queued turns and its parked turns). Without an agent, the turn that is running. */

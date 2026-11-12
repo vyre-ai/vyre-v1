@@ -67,6 +67,10 @@ type Out = {
     editedAt?: number;
     createdAt: number;
     enc?: number;
+    mentions?: Array<{
+        kind: "person" | "agent";
+        id: string;
+      }>;
   };
 };
 ```
@@ -113,6 +117,12 @@ type Out = {
       "editedAt": 1760000000000,
       "enc": 1,
       "kind": "text",
+      "mentions": [
+        {
+          "id": "usr_a1b2c3",
+          "kind": "person"
+        }
+      ],
       "messageId": "msg_a1b2c3",
       "paidBy": "usr_a1b2c3",
       "pinned": true,

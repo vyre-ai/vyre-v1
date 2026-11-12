@@ -205,6 +205,16 @@ test("runner: script tests check the value, the error and the denials; an unexpe
 
 // ---- denials, health, running a script ----------------------------------------------------------------------------------------
 
+test("a script's api.call is forwarded for the caller (asCaller): the capability a Kit's author chose is never taken for module code", async () => {
+  const h = harness();
+  const kitId = await h.shipped(kitManifest({ scripts: [{ name: "lookup", source: "const r = await api.call('records.query', { type: 'matter' }); return r.rows.length;", caps: ["records.query"] }] }));
+  await h.call("kits.install", { kitId, accepted: true });
+  h.callee("records.query", () => ({ rows: [{ id: 1 }] }));
+  const res = await runKitScript(h.ctxFor(null), kitId, "lookup");
+  assert.deepEqual([res.ok, res.value], [true, 1]);
+  assert.deepEqual(h.callsTo("records.query").map((c) => c.opts), [{ asCaller: true }]);
+});
+
 test("denials from a real script run are stored with the trace id and emit sandbox.denied; the Kit's health turns degraded", async () => {
   const h = harness();
   const kitId = await h.shipped(kitManifest({

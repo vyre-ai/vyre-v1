@@ -204,7 +204,7 @@ test("who is in: presence, local time, hours, a mute and when a message would go
   const maya = out.people[0];
   assert.match(maya.handle, /^maya-/);
   assert.doesNotMatch(JSON.stringify(out), /usr_/, "no id in what the model reads");
-  assert.match(out.how, /signed as Dana Reyes \(Agent\)/);
+  assert.match(out.how, /signed as Dana’s Assistant\./, "the one name for a person's Assistant (lead, 12 Nov), never \"Dana Reyes (Agent)\"");
   assert.equal(maya.state, "away");
   assert.equal(maya.localTime, "1:53 PM");
   assert.equal(maya.hours, "Mon to Fri, 09:00 to 18:00");

@@ -13,6 +13,7 @@ import { requestChannelSheet } from "../../places/chats/channels/request.ts";
 import { offered } from "../session/private-agents.ts";
 import { activePlace, openAskPane, placeTitle, thingOfScreen } from "../ask/pane.ts";
 import { currentScreen } from "../ask/screen.ts";
+import { PAGES, PAGE_SUB, pageByKey, searchRows } from "../../places/settings/model.ts";
 import type { ScreenContext } from "../ask/screen.ts";
 
 /** The slice of the hub the search drives. */
@@ -89,15 +90,18 @@ const MAIL_HIT = "shell:mail";
 /** Settings, its pages and the Console, found by their names (owner walk, 12 Nov: typing "settings" said No results). The words under each are the page's own line. */
 const SETTINGS_PAGE = "shell:settings:";
 const CONSOLE_HIT = "shell:console";
+/** Settings and its pages from the Settings model's own list (one list, so the two never drift apart; review O6): the "you" pages a person has, each with its own line. */
 const SETTINGS_HITS: readonly { page: string; title: string; snippet: string }[] = [
   { page: "", title: "Settings", snippet: "Your profile, AI, notifications and look" },
-  { page: "profile", title: "Profile", snippet: "How people in this Space see you" },
-  { page: "ai", title: "Your AI", snippet: "The AI accounts and models you use" },
-  { page: "notifications", title: "Notifications", snippet: "What reaches you and where" },
-  { page: "appearance", title: "Appearance", snippet: "How Vyre looks for you" },
-  { page: "computer", title: "This device", snippet: "This computer and what Vyre can do on it" },
-  { page: "signin", title: "Privacy and security", snippet: "Your password, two-step sign-in and devices" },
+  ...PAGES.filter((p) => p.group === "you" && p.hidden !== true).map((p) => ({ page: p.key, title: p.title, snippet: (PAGE_SUB[p.key] ?? "").replace(/\.$/, "") })),
 ];
+const SETTINGS_ROW = "shell:setting-row:";
+
+/** Rows inside Settings found by their name ("Passkeys", "Password"), through the Settings page's own search; each opens its page. */
+export function settingRowHits(text: string): Hit[] {
+  if (text.trim().length < 3) return [];
+  return searchRows([], text).slice(0, 6).map((h): Hit => ({ kind: "setting", id: `${SETTINGS_ROW}${h.page}:${h.key}`, title: h.title, snippet: pageByKey(h.page).title, link: `vyre://settings/${h.page}`, score: 0.7 }));
+}
 
 /** Inbox and Connect email as results of their own. With nothing connected Inbox is off the rail, and both open the Email and calendar screen in Settings. Settings, its pages and the Console too. */
 export function shellHits(state: { inbox?: boolean }): readonly Hit[] {
@@ -113,6 +117,7 @@ export function shellHits(state: { inbox?: boolean }): readonly Hit[] {
 export function shellHitTarget(hit: Hit, state: { inbox?: boolean }): { place: PlaceId; hash: string } | null {
   if (hit.id === MAIL_HIT || (hit.id === INBOX_HIT && state.inbox === false)) return { place: "settings", hash: MAIL_PAGE_HASH };
   if (hit.id === INBOX_HIT) return { place: "inbox", hash: "" };
+  if (hit.id.startsWith(SETTINGS_ROW)) { const page = hit.id.slice(SETTINGS_ROW.length).split(":")[0] ?? ""; return { place: "settings", hash: `page=${page}` }; }
   if (hit.id.startsWith(SETTINGS_PAGE)) { const page = hit.id.slice(SETTINGS_PAGE.length); return { place: "settings", hash: page ? `page=${page}` : "" }; }
   if (hit.id === CONSOLE_HIT) return { place: "console", hash: "" };
   return null;
@@ -174,7 +179,7 @@ export function createGateSearch(d: GateSearchDeps): CmdKData {
     online,
     // Inbox and Connect email answer a typed word only; the replica's people and chats stay the whole of an empty search
     // a result named by the words comes before one whose line under the name only mentions them (Notifications before Settings, whose line names notifications)
-    local: (text, types) => byTitleFirst(mine([...replicaHits(rt), ...(text.trim() === "" ? [] : shellHits(state))].filter((h) => (!types || types.includes(h.kind)) && (text === "" || matches(h, text)))), text),
+    local: (text, types) => byTitleFirst(mine([...replicaHits(rt), ...(text.trim() === "" ? [] : [...shellHits(state), ...settingRowHits(text)])].filter((h) => (!types || types.includes(h.kind)) && (text === "" || matches(h, text)))), text),
     server: async (text, types) => {
       const out = (await rt.call("search.query", { q: text, ...(types ? { types: [...types] } : {}), limit: 20 })) as { hits: Hit[] };
       return mine(out.hits);

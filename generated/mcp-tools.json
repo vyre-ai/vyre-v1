@@ -6447,6 +6447,46 @@
     },
     {
       "blocks": [],
+      "cap": "automations.runs_as.get",
+      "deferred": false,
+      "description": "Whose yes a Space automation's agent work runs on, and whether that person may still give it to this agent; for one Run, its trigger",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "automationId": {
+            "examples": [
+              "aut_a1b2c3"
+            ],
+            "pattern": "^aut_[a-z0-9]+$",
+            "type": "string"
+          },
+          "runId": {
+            "examples": [
+              "run_a1b2c3"
+            ],
+            "pattern": "^run_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "automationId"
+        ],
+        "type": "object"
+      },
+      "name": "automations_runs_as_get",
+      "planMode": "allowed",
+      "toolset": "automations",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "automations.schedule_choose",
       "deferred": false,
       "description": "Apply one recovery choice to a schedule whose backlog is over its cap",
@@ -9741,7 +9781,7 @@
       "blocks": [],
       "cap": "channels.members.add",
       "deferred": false,
-      "description": "Add people to a channel",
+      "description": "Add people to a channel. With mentionedIn (the line under a message that mentioned them), the message must be in the channel and mention each of them",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -9759,6 +9799,13 @@
               "edit",
               "manage"
             ],
+            "type": "string"
+          },
+          "mentionedIn": {
+            "examples": [
+              "msg_a1b2c3"
+            ],
+            "pattern": "^msg_[a-z0-9]+$",
             "type": "string"
           },
           "personIds": {
@@ -45349,42 +45396,10 @@
           },
           "kind": {
             "enum": [
-              "approval.requested",
-              "answer.requested",
-              "unblock.requested",
-              "approval.backstop",
               "dm",
               "mention",
-              "call.incoming",
-              "agent.blocked",
-              "incident.owned",
-              "task.assigned",
-              "reply.followed",
-              "agent.task_finished",
-              "digest.away",
-              "mention.thread",
-              "run.failed",
-              "conflict.needs_you",
-              "access.requested",
-              "access.decided",
-              "sync.attention",
-              "health.degraded",
-              "problem.report",
-              "member.joined",
-              "member.join_requested",
-              "limit.hit",
-              "vault.rotation_due",
-              "reply.thread",
-              "task.turn",
-              "task.returned",
-              "task.finished",
-              "task.due",
-              "machine.alert",
               "item.shared",
-              "space.deletion_scheduled",
-              "space.deletion_cancelled",
-              "ci.paused",
-              "hook.asked"
+              "agent.task_finished"
             ],
             "type": "string"
           },
@@ -67365,6 +67380,13 @@
           "fromStart": {
             "description": "The newcomer reads the messages from before they were added. Default: false in a private chat, true in a goal chat and a channel.",
             "type": "boolean"
+          },
+          "mentionedIn": {
+            "examples": [
+              "msg_a1b2c3"
+            ],
+            "pattern": "^msg_[a-z0-9]+$",
+            "type": "string"
           },
           "personId": {
             "examples": [

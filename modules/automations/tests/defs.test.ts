@@ -377,7 +377,7 @@ test("Promote refuses until the subscription keys are replaced, then makes a Spa
   const ask = r.automation.definition.nodes.find((n: { id: string }) => n.id === "ask");
   assert.deepEqual(ask.ai, { keyId: "vit_shared1", backupKeyId: "vit_api9" }, "only the subscription key is replaced");
   assert.equal(r.diff.grants.length, 3);
-  assert.deepEqual(h.events.map((e) => e.name), ["automation.promoted"]);
+  assert.deepEqual(h.events.map((e) => e.name), ["automation.promoted", "automation.runs_as_changed"], "putting it on the Space makes the presser its runs-as person, and says so (review 12 Nov, 4)");
   assert.deepEqual(h.events[0]!.payload, { automationId: id, ownerId: bob.id, grants: 3, keysReplaced: 1 });
   const versions = (await h.call("automations.versions", { automationId: id }, alice)).versions;
   assert.deepEqual(versions.map((v: { n: number }) => v.n), [2, 1], "history and versions are kept");
@@ -451,4 +451,32 @@ test("a Space automation's AI account: Automatic needs a Space account kept for 
   // so is a backup that is gone
   const gone = liveHarness({ providers: [kept] });
   await assert.rejects(turnOn(gone, await spaceDraft(gone, { ai: { keyId: "#Team_Key", backupKeyId: "#Missing" } })), (e) => { assert.match(messageOf(e), /#Missing is not in the Vault/); return true; });
+});
+
+test("an agent's press on a live Space automation clears whom it runs as, and its accountable owner is told, once (review 12 Nov, pass 2)", async () => {
+  const h = harness({ authorize: () => false });
+  h.callee("vault.items.list", () => ({ items: [sub] }));
+  const told: Array<{ to?: string; title?: string }> = [];
+  h.callee("tasks.create", (i: { assigned?: { id?: string }; title?: string }) => { told.push({ to: i.assigned?.id, title: i.title }); return { task: { id: `tsk_${told.length}` } }; });
+  h.callee("audit.append", () => ({ auditId: "aud_1" }));
+  h.callee("access.principals.get", (i: { principal: { id: string } }) => ({ principal: { name: i.principal.id === alice.id ? "Alice" : "Bob" } }));
+  const id = (await h.call("automations.create", promotable(), alice)).automation.id as string;
+  const r = await h.call("automations.promote", { automationId: id, confirm: true, ownerId: bob.id, replaceKeys: [{ stepId: "ask", keyId: "vit_shared1" }] }, alice);
+  assert.equal(r.automation.runsAs, alice.id, "the person who put it on the Space");
+  h.db.run("UPDATE automations_defs SET status = 'on' WHERE id = ?", id);
+  // an agent working for Bob, who owns it, presses On again: that is not a person's own press
+  await h.call("automations.set_enabled", { automationId: id, enabled: true }, { kind: "agent", id: "agt_helper", actingFor: bob.id } as never);
+  const after = (await h.call("automations.get", { automationId: id }, alice)).automation;
+  assert.equal(after.runsAs, undefined, "an agent's change carries nobody's yes");
+  assert.deepEqual(told.filter((t) => t.to === bob.id).map((t) => t.title), [`${after.name} now runs as nobody, since a change no person pressed. Its agent work waits until someone turns it on again.`], "the accountable owner is told, once");
+});
+
+test("a Run an agent starts by hand is marked as started by an agent, so its steps treat it as from outside; a person's is not (runs-as review pass 4)", async () => {
+  const h = harness();
+  const id = await makeLive(h);
+  const mine = await h.call("automations.run", { automationId: id }, alice);
+  assert.equal(loadRunPlan({ db: h.db }, mine.runId)!.link.origin, undefined, "a person's press");
+  const byAgent = await h.call("automations.run", { automationId: id, payload: { note: "from a stranger" } }, { kind: "agent", id: "agt_helper", actingFor: alice.id } as never).catch((e: unknown) => ({ error: e }));
+  if ("runId" in (byAgent as object)) assert.equal(loadRunPlan({ db: h.db }, (byAgent as { runId: string }).runId)!.link.origin, "agent:agt_helper");
+  else assert.fail(`an agent working for the owner may start it: ${JSON.stringify(byAgent)}`);
 });

@@ -471,3 +471,30 @@ test("two daemons in one process: a second host half wired over the first does n
   assert.equal(closing.length, 1, "retire closed the opener and told the host half");
   hostSeams.setEngineHost(null);
 });
+
+test("a stopped turn a dead host left, closed by the sweep while another reply runs: the busy count stays 1, and the dead turn's record says cancelled, not running", async () => {
+  bindEngine(null);
+  const h = harness({ threads: THREADS });
+  let release = (): void => undefined;
+  const held = new Promise<void>((r) => { release = r; });
+  const p = scriptedProvider({ script: say, beforeEvent: async (i) => { if (i === 0) await held; } });
+  const f: Fake = { calls: [], haveKey: true, accountsDown: false };
+  const counts: number[] = [];
+  hostSeams.setEngineHost(recording(f, p, h, { turns: (n) => { counts.push(n); }, postAs: async () => ({}) }));
+  const engine = (await ensureRuntime(h.ctx))!;
+  // a reply is running in another chat
+  engine.openThread({ id: "thr_live", kind: "chat", starter: "usr_dana", agents: [{ id: "agt_intake", mode: "lead" }] });
+  engine.receive({ threadId: "thr_live", author: { kind: "person", id: "usr_dana" }, body: "write it" });
+  await until(() => p.sessions.length === 1);
+  assert.equal(counts.at(-1), 1);
+  // a dead host's turn the person stopped before the host died: its row says stopping
+  const { turnId } = deadTurn(h, { touched: false });
+  h.db.run("UPDATE engine_thread_queue SET state = 'stopping' WHERE thread_id = ?", THREAD);
+  const { recoverStale } = await import("../runtime.ts");
+  await recoverStale(h.ctx, engine);
+  await until(() => h.db.all("SELECT state FROM engine_turns WHERE turn_id = ?", turnId).some((r) => (r as { state: string }).state === "cancelled"));
+  assert.equal(counts.at(-1), 1, "the reply still running keeps the server busy: an update must not stop it");
+  release();
+  await engine.idle("thr_live");
+  hostSeams.setEngineHost(null);
+});

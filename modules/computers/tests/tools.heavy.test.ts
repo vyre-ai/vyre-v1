@@ -145,7 +145,7 @@ test("@heavy computers tools: Chrome, Screen and Files tools on a real Docker ho
   // a screen key reaches agentd with its arguments, and its step is on the timeline
   assert.deepEqual(await tool["computers.screen.key"]!(h.ctx, { computerId: id, combo: "ctrl+l" }), { ok: true });
   assert.deepEqual(JSON.parse((await run(name, ["cat", `${STATE}/last-screen_key`])).stdout).args, { combo: "ctrl+l" });
-  assert.deepEqual(h.rows("SELECT caption FROM computers_timeline ORDER BY idx").map((r) => r["caption"]), ["Opened example.com", "Pressed ctrl+l"]);
+  assert.deepEqual(h.rows("SELECT caption FROM computers_timeline ORDER BY idx").map((r) => r["caption"]), ["Opened example.com/a", "Pressed ctrl+l"]);
 
   // the picture goes to the agent's folder
   const shot = await tool["computers.chrome.screenshot"]!(h.ctx, { computerId: id });

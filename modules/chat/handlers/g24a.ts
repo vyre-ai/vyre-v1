@@ -2,10 +2,11 @@
 //   The pipeline has already checked the capability level on the thread. Here a private chat (or Ask pane) also answers to its members, so another person gets "not found", never "not yours".
 //   The read cursor lives in chat_thread_read (one row per thread and person). Channels count unread messages from it through unreadOf.
 import {
-  addAgent, addMember, agentsOf, askerOf, encOf, ensure, isMember, membersOf, raise, refOf, threadBy, threadOut,
+  addAgent, addMember, agentsOf, askerOf, encOf, ensure, isMember, membersOf, messageBy, raise, refOf, threadBy, threadOut,
 } from "../projections.ts";
 import type { ChatCtx, Mode, ThreadKind, ThreadRec } from "../projections.ts";
 import { canSpeak, mayGovernChannel, rootOf } from "./post.ts";
+import { mentions } from "./pace.ts";
 import { applyMode } from "./modes.ts";
 import { followMode, placeOf } from "./follow.ts";
 import { markRenamed } from "./title-state.ts";
@@ -244,7 +245,7 @@ export async function removeAgent(ctx: ChatCtx, input: { threadId: string; agent
 
 // ---- members ----------------------------------------------------------------------------------------------------------------------------------------
 
-export async function membersAdd(ctx: ChatCtx, input: { threadId: string; personId: string; fromStart?: boolean }) {
+export async function membersAdd(ctx: ChatCtx, input: { threadId: string; personId: string; fromStart?: boolean; mentionedIn?: string }) {
   const t = load(ctx, input.threadId, { govern: true });
   if (!input.personId.startsWith("usr_")) raise(ctx, "validation.bad_input", "That is not a person.", { personId: input.personId });
   const root = rootOf(ctx, t);
@@ -257,11 +258,17 @@ export async function membersAdd(ctx: ChatCtx, input: { threadId: string; person
     if (input.fromStart === true) ctx.db.run("UPDATE chat_thread_member SET fromAt = NULL, version = version + 1, updated_at = ? WHERE thread = ? AND principal = ? AND deleted_at IS NULL", ctx.now(), t.id, input.personId);
     return out(ctx, t.id);
   }
+  // added from "Maya is not in this chat. Add" under the message that mentioned them: they read from that message on, and are told about it like any mention (owner, 12 Nov)
+  const mentioned = input.mentionedIn !== undefined ? messageBy(ctx.db, input.mentionedIn) : null;
+  if (input.mentionedIn !== undefined && (!mentioned || mentioned.thread !== t.id)) raise(ctx, "validation.bad_input", "That message is not in this chat.", { mentionedIn: input.mentionedIn });
+  // only a real mention tells anyone they were mentioned: the message's own chips, never a name in its words, never the adder's say-so
+  if (mentioned && !mentions(ctx, mentioned.id, input.personId)) raise(ctx, "validation.bad_input", "That message does not mention them.", { mentionedIn: input.mentionedIn, personId: input.personId });
   addMember(ctx, t.id, input.personId);
-  if (!fromStart) ctx.db.run("UPDATE chat_thread_member SET fromAt = ? WHERE thread = ? AND principal = ? AND deleted_at IS NULL", ctx.now(), t.id, input.personId);
+  if (!fromStart) ctx.db.run("UPDATE chat_thread_member SET fromAt = ? WHERE thread = ? AND principal = ? AND deleted_at IS NULL", mentioned ? mentioned.createdAt : ctx.now(), t.id, input.personId);
   // the agents this chat made for itself are visible to everyone who reads the chat
   await shareOwnedWith(ctx, t.id, input.personId);
   ctx.emit("channel.member_added", input.personId, { personId: input.personId, by: askerOf(ctx), threadId: t.id, ...(t.channelId !== undefined ? { channelId: t.channelId } : {}) });
+  if (mentioned && mentioned.author !== input.personId) ctx.emit("message.mentioned", t.id, { messageId: mentioned.id, threadId: t.id, personId: input.personId, author: refOf(mentioned.author), inThread: t.kind === "thread" });
   return out(ctx, t.id);
 }
 

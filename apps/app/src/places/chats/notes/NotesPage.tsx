@@ -6,6 +6,7 @@
 import { createElement, useCallback, useEffect, useMemo, useReducer, useRef, useState, useSyncExternalStore } from "react";
 import type { ComponentRef, ReactElement } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
+import { namesItsPerson } from "../../../../../../lib/words/agent-name.ts";
 import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry, MenuItem } from "../../../../../../ui/src/Menu/index.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
@@ -621,7 +622,7 @@ export function NotesPage({ rt, nameOf, noteId = null, initial, store: given, ph
   const sheetNoteFor = noteOf(phoneSheet);
   const edited = (n: Note): string => editedWords(n, clock.now, clock.offsetMin);
   // every agent this person may ask, the Assistant first as itself (never as an outside agent credited to a person)
-  const askAgents = useMemo((): AskAgent[] => [{ id: rt.assistant.id, name: rt.assistant.name, assistant: true }, ...people.filter((p) => p.kind === "agent" && p.id !== rt.assistant.id && !p.name.endsWith(" (Agent)")).map((p) => ({ id: p.id, name: p.name }))], [rt.assistant.id, rt.assistant.name, people]);
+  const askAgents = useMemo((): AskAgent[] => [{ id: rt.assistant.id, name: rt.assistant.name, assistant: true }, ...people.filter((p) => p.kind === "agent" && p.id !== rt.assistant.id && !namesItsPerson(p.name)).map((p) => ({ id: p.id, name: p.name }))], [rt.assistant.id, rt.assistant.name, people]);
   const choices: Person[] = useMemo(() => [me, { id: rt.assistant.id, name: rt.assistant.name, kind: "agent" as const }, ...people.filter((p) => p.id !== me.id && p.id !== rt.assistant.id)], [me, rt.assistant.id, rt.assistant.name, people]);
 
   let layer: ReactElement | null = null;

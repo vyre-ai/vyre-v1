@@ -10,6 +10,7 @@ import {
   nextCron, openWaits, readPolicy, saveFire, saveMissed, saveSchedule, scheduleOut, validTimeZone,
 } from "../projections.ts";
 import type { IfMissed, MissedRow, SchedCtx, Schedule, When } from "../projections.ts";
+import { isTrustedService } from "../../../lib/trust.ts";
 
 type In = Record<string, any>;   // eslint-disable-line @typescript-eslint/no-explicit-any
 
@@ -147,7 +148,9 @@ async function callIt(ctx: SchedCtx, s: Schedule, scheduledFor: number, key: str
   // the pipeline reads the key of a keyed capability from the call's input: the one this firing owns goes there too, so a scheduled call of such a capability is accepted
   const given = s.input ?? {};
   const body = typeof given === "object" && given !== null && !Array.isArray(given) && !("idempotencyKey" in given) ? { ...(given as Record<string, unknown>), idempotencyKey: key } : given;
-  const out = (await ctx.call(s.cap, body, { idempotencyKey: key })) as { runId?: unknown } | null;
+  // a schedule a person or an agent made stores a capability they chose: it runs with their own standing (asCaller), never as this module's code. One Vyre itself made is module code.
+  const byVyre = s.createdBy.startsWith("svc_") && isTrustedService({ kind: "service", id: s.createdBy });   // the host or a system service; an automation's own svc_<id> is a tenant service and is not Vyre
+  const out = (await ctx.call(s.cap, body, byVyre ? { idempotencyKey: key } : { idempotencyKey: key, asCaller: true })) as { runId?: unknown } | null;
   const id = out && typeof out === "object" ? out.runId : undefined;
   return typeof id === "string" && id.startsWith("run_") ? id : undefined;
 }

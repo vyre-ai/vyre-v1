@@ -207,9 +207,9 @@ export function plan(ctx: NotifCtx, e: Ev): Promise<SendIn | SendIn[] | undefine
     if (e.name === "sync.op_rejected") return typeof p.personId === "string" ? { to: p.personId, kind: "sync.attention", title: device, data: { device }, collapseKey: `sync.attention:${e.name}:${String(p.deviceId ?? "")}` } : undefined;
     return toAdmins(ctx, { kind: "sync.attention", subject: { type: "space", id: ctx.space }, title: device, data: { device }, collapseKey: `sync.attention:${e.name}:${id}` });
   }
-  // an import or a site build that failed: the person who started it hears it as a failed run (a system start has nobody to tell)
-  if ((e.name === "import.failed" || e.name === "site.build_failed") && typeof e.actor === "string" && e.actor.startsWith("usr_")) {
-    const name = e.name === "import.failed" ? `The import of ${String(p.type ?? "records")}` : "The site build";
+  // a site build that failed: the person who started it hears it as a failed run (a system start has nobody to tell). A failed import needs nothing here: its own Run fails, and run.failed tells its owner
+  if (e.name === "site.build_failed" && typeof e.actor === "string" && e.actor.startsWith("usr_")) {
+    const name = "The site build";
     return { to: e.actor, kind: "run.failed", ...(typeof p.runId === "string" && p.runId !== "" ? { subject: { type: "run", id: p.runId }, runId: p.runId } : {}), data: { name, message: String(p.error ?? p.reason ?? "it stopped") } } as never;
   }
   if (e.name === "run.succeeded" && p.kind === "routine" && ctx.call) {
@@ -255,7 +255,7 @@ const FANOUT_KEEP_MS = 30 * 86_400_000;
 export const consumers = {
   "notifications.fanout": {
     on: ["task.requested", "task.assigned", "task.completed", "task.due", "task.nudged", "run.failed", "run.succeeded", "member.joined", "member.join_requested", "access.granted", "access.declined", "machine.alert", "access.shared_with", "space.deletion_scheduled", "space.deletion_cancelled", "ci.paused", "ci.blocked", "hook.admin_asked",
-      "health.changed", "backup.failed", "update.failed", "network.certificate_failed", "incident.opened", "incident.assigned", "import.failed", "site.build_failed",
+      "health.changed", "backup.failed", "update.failed", "network.certificate_failed", "incident.opened", "incident.assigned", "site.build_failed",
       "connection.needs_reconnect", "connector.publish_failed", "mount.failed", "mount.conflict", "source.mapping_failed", "source.link_pending", "sync.deletes_paused", "sync.push_failed", "sync.schema_changed", "sync.op_rejected"],
     async run(ctx: NotifCtx, event: Ev): Promise<string[]> {
       const planned = await plan(ctx, event);

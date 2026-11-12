@@ -117,6 +117,8 @@ test("install: apply steps run in order as the installer, the ledger and the eve
   assert.deepEqual([out.kit.installed, out.kit.version], [true, "1.0.0"]);
   assert.deepEqual(h.calls.filter((c) => c.cap !== "settings.kit.set_space").map((c) => c.cap), ["schema.apply", "automations.create"]);
   assert.deepEqual(h.callsTo("schema.apply")[0]!.input.changes, [{ op: "create_type", name: "matter" }]);
+  // an apply step is a capability the Kit's author chose: it is forwarded for the installer (asCaller), never taken for this module's own code
+  for (const c of [...h.callsTo("schema.apply"), ...h.callsTo("automations.create")]) assert.deepEqual(c.opts, { asCaller: true }, `${c.cap} is forwarded for the installer`);
   const ledger = h.rows("kits_applied");
   assert.deepEqual(ledger.map((r) => r.item_key).sort(), ["agent.clerk", "auto.new-matter", "conn.stripe", "rt.matter", "ui.words"]);
   assert.equal(ledger.filter((r) => r.undo !== null).length, 2);

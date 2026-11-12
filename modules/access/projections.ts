@@ -5,6 +5,7 @@ import { readFileSync } from "node:fs";
 import { fail } from "../../host/src/routes/errors.ts";
 import { AccessSnapshot } from "../../kernel/src/authorize/index.ts";
 import { THROUGH_AGENT } from "../../lib/through-agent.ts";
+import { agentOfName } from "../../lib/words/agent-name.ts";
 import { isElevatedRole, isOwnerRole } from "../../kernel/src/authorize/snapshot.ts";
 import type { Expr, GrantRow, Policy, PrincipalRow, ResourceRow } from "../../kernel/src/authorize/index.ts";
 
@@ -819,7 +820,7 @@ export function grantView(g: GrantRec): GrantRec {
   return out;
 }
 
-type PrincipalOut = { id: string; kind: PKind; name: string; owner?: string; private?: boolean; agentName?: string; status: Status; roles: string[]; groups: string[]; title?: string; createdAt: number };
+type PrincipalOut = { id: string; kind: PKind; name: string; owner?: string; private?: boolean; assistant?: boolean; agentName?: string; status: Status; roles: string[]; groups: string[]; title?: string; createdAt: number };
 
 /** The access_fields key that marks an agent private to its person (no dot: never a field label). */
 const PRIVATE_KEY = (id: string): string => `private:${id}`;
@@ -836,8 +837,8 @@ export function setPrivate(store: AccessStore, id: string, on: boolean, assistan
 /** The access_fields key that marks an agent as its person's own Assistant (their hands on what they own; see kernel authorize). */
 const ASSISTANT_KEY = (id: string): string => `assistant:${id}`;
 export const isPrivateAgent = (store: AccessStore, id: string): boolean => store.fieldLabels.has(PRIVATE_KEY(id));
-/** How someone else's private agent is named: its person, marked as their agent (owner ruling 3 Nov). */
-export const asAgentOf = (personName: string): string => `${personName} (Agent)`;
+/** How someone else's private agent is named (lib/words/agent-name, lead 12 Nov): their Assistant as "Maya’s Assistant", an outside agent they connected as "Maya Lin (Agent)". */
+export const asAgentOf = (personName: string, assistant = false): string => agentOfName(personName, assistant ? "assistant" : "outside");
 
 /**
  * A principal as `viewer` sees it. Someone else's private agent (their assistant, an outside agent they connected) is named as its person, "Irfad Imtiaz (Agent)", wears its person's face (`owner`),
@@ -852,7 +853,9 @@ export function principalView(store: AccessStore, p: PrincipalRec, viewer?: { id
   if (p.title) out.title = p.title;
   if (viewer !== undefined && p.kind === "agent" && p.owner !== undefined && p.owner !== viewer.id && isPrivateAgent(store, p.id)) {
     out.private = true;
-    out.name = asAgentOf(store.principals.get(p.owner)?.name ?? "Someone");
+    const assistant = store.fieldLabels.has(ASSISTANT_KEY(p.id));
+    out.name = asAgentOf(store.principals.get(p.owner)?.name ?? "Someone", assistant);
+    if (assistant) out.assistant = true;
     if (viewer.admin) out.agentName = p.name;
   }
   return out;

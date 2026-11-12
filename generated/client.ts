@@ -256,6 +256,9 @@ export function createClient(transport: Transport) {
       restore_version: call("automations.restore_version", 1),
       retry: call("automations.retry", 1),
       run: call("automations.run", 1),
+      runs_as: {
+        get: call("automations.runs_as.get", 1),
+      },
       schedule_choose: call("automations.schedule_choose", 1),
       senders: call("automations.senders", 1),
       set_enabled: call("automations.set_enabled", 1),

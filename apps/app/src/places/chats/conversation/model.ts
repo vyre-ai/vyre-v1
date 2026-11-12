@@ -11,6 +11,7 @@ import { createIncrementalMarkdown } from "../../../../../../ui/src/stream/markd
 import type { Block as MdBlock } from "../../../../../../ui/src/stream/markdown.ts";
 import { isTurnStatus } from "./status.ts";
 import { route } from "../../../../../../lib/route.ts";
+import { agentForPerson } from "../../../../../../lib/words/agent-name.ts";
 import { chatName } from "../../../../../../lib/chat-name.ts";
 
 export type Thread = CapMap["threads.get"]["out"]["thread"];
@@ -308,7 +309,8 @@ export function muteOfferFor(messages: readonly Pick<Message, "messageId" | "aut
 /** The header of a row: its author, or for an agent writing for its person, that person marked as their agent and wearing their face. */
 export function whoOf(m: Pick<Message, "author" | "blocks">, ctx: Pick<TimelineCtx, "nameOf" | "kindOf">): Who {
   const ob = onBehalfOf(m);
-  if (ob) return { id: m.author.id, name: `${ctx.nameOf(ob.person)} (Agent)`, kind: "agent", face: ob.person, forPerson: ob.person };
+  // one name for an agent writing for its person (lead, 12 Nov): "Maya’s Assistant", or "Maya Lin (Agent)" for an outside agent; the directory names it
+  if (ob) return { id: m.author.id, name: agentForPerson(ob.agentId, ob.person, { nameOf: ctx.nameOf, known: (id) => ctx.kindOf(id) === "agent" }), kind: "agent", face: ob.person, forPerson: ob.person };
   return { id: m.author.id, name: ctx.nameOf(m.author.id), kind: ctx.kindOf(m.author.id) };
 }
 

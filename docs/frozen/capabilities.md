@@ -34,6 +34,12 @@ Nothing blocks the freeze. The sample read cleanly: summaries match the declared
 
 `threads.remove_agent@1` now has `audit: 'always'`, as `threads.outside_agent.remove` has. Nothing else in its contract changed: same input, output, level, permission, events and errors. Why: since the f-revoke round, taking an agent out of a chat also takes back, as the host, every grant that chat gave it, whoever gave it; the Console's audit log must show who took that access away, as it already does for an outside agent. Snapshot: docs/frozen/snapshots/chat.json, regenerated with `node tools/gen/src/cli.ts --snapshots`.
 
+## 12 Nov 2026: the computer tools bind to the calling agent when the id is left out
+
+- What changed: the resource binding of the 22 `computers.chrome.*` tools, the 8 `computers.screen.*` tools and the 5 `computers.files.*` tools on an agent's computer gains `self: 'agent'` (`local()` in `manifests/computers.ts`, `orSelf: true`). An agent that leaves `computerId` out is bound to its own computer or Space browser. No input, output, permission, level or error changed; only `docs/frozen/snapshots/computers.json` moved.
+- Why: every real agent call that left the optional id out was refused before its handler ("/computerId: the id is missing") in rc.24 and rc.25, so an agent could not use its own browser or computer without naming it.
+- What the gateway does with such a call (`host/src/routes/resource.ts`): the chat answer check and the audit row name what it reaches (the asker's own Chrome, the agent's browser profile, or the agent's own computer), the handler asks `computers.use` on the agent's computer, and a person who leaves the id out is told to pass it.
+
 Signed: lead, 12 Nov 2026
 
 ## 12 Nov 2026: access.grants.update may emit grant.revoked, and access.unshare may emit grant.updated (lane f-revoke)
@@ -58,3 +64,40 @@ Signed: lead, 12 Nov 2026 (all of the above: slots, browser_full, reopened and n
 Added on the reviewer's seventh look and signed below: `computers.browser.take_over@1` gains an optional output `note`, one line for the pane when the browser was reopened since the person last saw it and its page was reloaded; and acts on the page (`click`, `act`, `type`, `fill`, `send`, `api`, `eval`) may now be refused with the reason `browser_reopened` until the agent has seen the reloaded page.
 
 Signed: lead, 12 Nov 2026 (the optional note on computers.browser.take_over, and the browser_reopened refusal on acts)
+
+## 12 Nov 2026: notifications.send narrows the agent tool's kinds (lane f-notify, paragraph added by lane f-trust)
+
+The hash of `notifications.send@1` changed from 4274fa4300adf0432f0d36182549c6e83f4df16f52880bc20ca874d66fd9f1d0 to 7e92d4bebba03ae2536cbd528ddb29d7d150d12ba8cd75ed70ae70df6a62490d in commit 9bc1392c8. The manifest gained `surfaces.agent.only`, a generator option that cuts one enum on the agent's tool only: an agent may send only the kinds about it talking to someone (dm, mention, item.shared, agent.task_finished). The capability itself is unchanged: the same input, output, level, permission, events and errors, and module code still sends every kind. Why: the other kinds come from Vyre and its modules, so the agent's tool should not offer them; the server refuses them anyway (SENDABLE_KINDS in modules/notifications/handlers/rules.ts). The lane f-trust change that makes a forwarded call (a stored schedule, a template step, a Kit step) count as its caller's own call touches no manifest and no snapshot. Snapshot: docs/frozen/snapshots/notifications.json, regenerated with `node tools/gen/src/cli.ts --snapshots`.
+
+## 12 Nov 2026: an Automation's runs-as person, and its read (lane f-vaultuse)
+
+Changed contracts, all in `manifests/automations.ts`; no version moved, because every change is an optional output field, a new read, a new event, or an event a write may now also emit:
+
+- The automation row (every capability that returns one: `automations.get@1`, `list`, `create`, `update`, `set_enabled`, `promote`, `restore_version`, `move`, `make_personal_copy`, `undelete`, `set_owner`, `templates.use`, `packages.import`) gains an optional `runsAs`: for a Space automation, the person whose yes its agent work runs on (who last turned it on, published a change to it while on, restored a version while on, or put it on the Space, by their own press); absent when nobody has.
+- New read `automations.runs_as.get@1` `{ automationId, agentId?, runId? }` -> `{ kind, runsAs?, name?, trigger?, ok, reason?: nobody | not_active | assistant, line? }`, level view on the automation: whose yes the automation's agent work runs on now, and why not when it cannot.
+- New event `automation.runs_as_changed` `{ automationId, from, to, by, why: on | save | restore | promote | cleared }`, retention audit.
+- `automations.update@1`, `automations.set_enabled@1`, `automations.restore_version@1` and `automations.promote@1` may now also emit `automation.runs_as_changed`, when the call moves the runs-as person.
+
+The fix that lets an outside-started Run finish (an agent's own reports on its own task in Ask first) changed no contract: it is a host rule in the invoke pipeline.
+
+Holds from an Automation's outside-started Run (no capability contract changed): the host holds, with Gate act `approve`, the capabilities in `lib/automation-content.ts` `HELD_FROM_AUTOMATION_CONTENT` (giving someone access: shares, grants, groups, roles, invites, join links, adding people or agents to a chat or channel, outside reviewers, portal, webhooks, publishing; keeping words for later: automations, starting another Automation's Run, agents and their instructions, Routines, watches, goals, hooks, skills, plugins, installs from a link) when an agent calls one at the top of a call in a thread whose chain carries an uncleared Automation-origin mark (`automation:<id>:<trigger>:<person>`, written on an outside-started Run's task thread and carried only to a thread its agent makes from there with a call in `CARRIES_MARK` (a task, helper, crew job, chat or channel), never to a thread a read names). A Run is from outside unless its trigger is schedule, manual or button (`INTERNAL_TRIGGERS`), and a manual or button Run an agent starts (`automations.run` by an agent: origin `agent:<id>`) is from outside too. A read never replaces an uncleared Automation mark. Ordinary chats, marked by a page the agent read or not, and every person's own call, behave as in rc.25; the holds apply only in a thread carrying an Automation-origin mark. test/automation-content.test.ts checks each listed name is a capability with its own hold words.
+
+Signed: lead, 12 Nov 2026
+
+## 12 Nov 2026: the computers.chrome.* snapshot after two signed changes met (lead, at the merge)
+
+The hashes of the twenty-two `computers.chrome.*@1` capabilities in `docs/frozen/snapshots/computers.json` were written again at the merge of lanes f-desktop and f-wire into int/rc25. Each lane's own change is described and signed in its paragraph above (the browser tools an agent may call without naming its computer, and the reopen refusal with the optional note on take_over); neither changed after review. The two changes touch the same capabilities, so the hash of the merged manifest is new and neither lane's snapshot matched it. No field, version or behaviour beyond those two signed changes is in this snapshot; it was regenerated on the build box with `node tools/gen/src/cli.ts --snapshots`.
+
+## 12 Nov 2026: the "Maya is not in this chat." line and one name for an Assistant (lane f-ownerwalk)
+
+What changed:
+- `threads.members.add@1` gains an optional `mentionedIn` (a message id) and may emit `message.mentioned`. Nothing else in it changes. With `mentionedIn`, the message must be in that thread and must mention the person with a chip (`chat_mention`); the person reads from that message on and is told about it like any mention.
+- `channels.members.add@1` gains the same optional `mentionedIn` (review M3). The message must be in the channel or a reply thread under it and must mention each person added. It emits nothing new: a channel is not private, so `chat.post` already told the people its chips name, member or not, and Add does not tell them twice.
+- The chat message row gains an optional `mentions` (review M4): the message's own chips as `chat.post` kept them, each `{ kind, id }` of a person or agent named in it. It holds ids only, no names or other display data, and only on a message the caller may already read; `chat.messages.list` fills it. Every capability that answers that row changes its hash for this field alone.
+- The access principal row gains an optional `assistant`: a flag (`true`), never a person. It is set only on someone else's private agent that is their Assistant, a row whose `owner` the caller already gets, so it names nobody the caller cannot see. With it the agent is named "Maya’s Assistant" everywhere, never "Maya Lin (Agent)" (lead, 12 Nov). Every capability that answers that row changes its hash for this field alone.
+
+All four changes are additive and optional; nothing existing changes shape.
+
+Why: the owner's line "Maya is not in this chat." with Add under the sender's message (owner, 12 Nov 2026), its review (M2 to M4), and the lead's rule of one name for a person's Assistant.
+
+Signed: lead, 12 Nov 2026

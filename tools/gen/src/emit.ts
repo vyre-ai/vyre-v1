@@ -188,6 +188,20 @@ ${mc.map((c) => `  ${q(c.name)}: async () => (${JSON.stringify(c.examples[0]?.ou
   }
 
   // ---- MCP tools
+  /** An agent's tool that offers only some values of an input field (surfaces.agent.only): the same schema with that field's enum cut to those values. */
+  const narrowed = (input: unknown, only: Record<string, readonly string[]> | undefined): unknown => {
+    if (!only) return input;
+    const s = input as { properties?: Record<string, { enum?: unknown[] }> };
+    const props = { ...(s.properties ?? {}) };
+    for (const [field, values] of Object.entries(only)) {
+      const was = props[field];
+      if (!was || !Array.isArray(was.enum)) throw new Error(`surfaces.agent.only names ${field}, which is not an enum input`);
+      const bad = values.filter((v) => !was.enum!.includes(v));
+      if (bad.length) throw new Error(`surfaces.agent.only offers ${bad.join(", ")} for ${field}, which the capability does not take`);
+      props[field] = { ...was, enum: [...values] };
+    }
+    return { ...s, properties: props };
+  };
   {
     const byCap = new Map(caps.map((c) => [c.name, c] as const));
     const tools: unknown[] = [];
@@ -196,7 +210,7 @@ ${mc.map((c) => `  ${q(c.name)}: async () => (${JSON.stringify(c.examples[0]?.ou
       if (!name || !agentVisible(c)) continue;
       const a = c.surfaces.agent;
       const planMode = typeof a === 'object' ? a.planMode : c.effects === 'read' ? 'allowed' : 'blocked';
-      tools.push({ name, description: c.summary, inputSchema: c.input, toolset: c.surfaces.mcp?.toolset, deferred: c.surfaces.mcp?.deferred ?? false, cap: c.name, v: c.v, effects: c.effects, planMode, blocks: typeof a === 'object' ? a.blocks ?? [] : [] });
+      tools.push({ name, description: c.summary, inputSchema: narrowed(c.input, typeof a === 'object' ? a.only : undefined), toolset: c.surfaces.mcp?.toolset, deferred: c.surfaces.mcp?.deferred ?? false, cap: c.name, v: c.v, effects: c.effects, planMode, blocks: typeof a === 'object' ? a.blocks ?? [] : [] });
     }
     const have = new Set(tools.map((x) => (x as { name: string }).name));
     for (const t of reg.agentTools) {

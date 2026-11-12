@@ -19,12 +19,28 @@ export const isTrustedService = (p: PrincipalLike | null | undefined): boolean =
 
 /**
  * The system halves of sign-in, devices, audit and sessions are for other modules and the host, not for a person typing a URL. A call another capability made carries depth above zero; a call from the gateway
- * carries zero. The host (svc_host) may call them directly.
+ * carries zero. The host (svc_host) may call them directly. A call another module only forwarded for someone (ctx.forwarded) is that someone's own call and is refused.
  */
-export const isSystemCall = (ctx: { depth?: number; principal?: PrincipalLike | undefined }): boolean => isHostService(ctx.principal) || (ctx.depth ?? 0) > 0;
+export const isSystemCall = (ctx: { depth?: number | undefined; principal?: PrincipalLike | undefined; forwarded?: boolean | undefined }): boolean =>
+  isHostService(ctx.principal) || (!isForwarded(ctx) && (ctx.depth ?? 0) > 0);
+
+/**
+ * A call another module only forwarded for someone (CallOpts.asCaller: a schedule a person stored, a template's step, a Kit's step) carries that someone's standing, not the module's. It runs one level down like module
+ * code, so every check that trusts "a call another capability made" (depth above zero, or a server origin) must refuse it first. The host's own identity stays trusted: no member can be it.
+ */
+export const isForwarded = (ctx: { forwarded?: boolean | undefined }): boolean => ctx.forwarded === true;
 
 /**
  * A person's own press: a person, and not a call that came through the MCP door. Under the setup grant (owner ruling 3 Nov) an outside agent's call runs as its person, but it is still the agent's act:
  * it never writes what only a press may write, such as an automation's standing permission to send (docs/ask-the-person.md).
  */
 export const isPersonPress = (ctx: { principal?: PrincipalLike | undefined; origin?: string | undefined }): boolean => !!ctx.principal && ctx.principal.kind === "person" && ctx.origin !== "mcp";
+
+/**
+ * A person's own direct call with their session: the app or the API ("user"), or their own offline writes ("sync"), and never on someone's behalf. An allowlist, not a denylist: a call the
+ * engine, a hook, a schedule or any other part of the server makes as a person is not their press (review 12 Nov, 7). What an Automation runs as, and who starts an agent's waiting task, count
+ * only this.
+ */
+export const OWN_PRESS_ORIGINS: ReadonlySet<string> = new Set(["user", "sync"]);
+export const isOwnPress = (ctx: { principal?: PrincipalLike | undefined; origin?: string | undefined; actingFor?: string | undefined }): boolean =>
+  !!ctx.principal && ctx.principal.kind === "person" && ctx.actingFor === undefined && typeof ctx.origin === "string" && OWN_PRESS_ORIGINS.has(ctx.origin);

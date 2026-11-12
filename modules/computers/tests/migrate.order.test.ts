@@ -358,3 +358,16 @@ test("a profile that was ever marked importing is only finished by a complete im
     void events;
   } finally { bindMigrationPort("importChromeData", async (_c, a) => spaceBrowser()!.importChrome(a.profileId, a.data.tar)); off(); }
 });
+
+test("a move whose import is cut by a not-now refusal is counted as waiting and its row says why", async () => {
+  browser();
+  ports();
+  try {
+    const w = await world({ asleep: true });
+    withChrome(w, { tar: TAR });
+    bindMigrationPort("importChromeData", async () => { throw Object.assign(new Error("The Space browser did not answer in time."), { code: "unavailable" }); });
+    const r = await migrateComputers(w.h.ctx);
+    assert.deepEqual(r, { done: 0, partial: 0, failed: 0, waiting: 1 }, "a move that stopped for later is counted, not lost");
+    assert.match(String(migrationRows(w.h.ctx)[0]?.error), /^importing: The Space browser did not answer in time\./, "the mark carries the reason in words");
+  } finally { bindMigrationPort("importChromeData", async (_c, a) => spaceBrowser()!.importChrome(a.profileId, a.data.tar)); off(); }
+});

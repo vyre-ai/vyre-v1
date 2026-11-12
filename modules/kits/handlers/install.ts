@@ -736,7 +736,8 @@ async function ensureTypes(ctx: Ctx, step: KitStep): Promise<{ step: KitStep | n
 /** The record types an apply step found already there (the manifest seeds the Default Kit's note_board). */
 async function runStep(ctx: Ctx, step: KitStep): Promise<string[]> {
   const { step: run, reused } = await ensureTypes(ctx, step);
-  if (run !== null) await ctx.call(run.cap as never, run.input);
+  // the step is a capability the Kit's author chose: it runs with the installer's own standing (asCaller), never as this module's code
+  if (run !== null) await ctx.call(run.cap as never, run.input, { asCaller: true });
   return reused;
 }
 

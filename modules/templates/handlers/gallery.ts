@@ -233,7 +233,8 @@ async function install(ctx: Ctx, input: unknown): Promise<{ installed: { kind: s
     }
     let made: unknown;
     try {
-      made = await ctx.call(step.cap as never, stepInput);
+      // the step is a capability someone chose when they saved the template: it runs with the installer's own standing, never as this module's code
+      made = await ctx.call(step.cap as never, stepInput, { asCaller: true });
     } catch (e) {
       const msg = (e as { error?: { message?: unknown } } | null)?.error?.message ?? (e instanceof Error ? e.message : "The step failed.");
       ctx.log.warn("templates: install failed", { templateId, item: it.key });

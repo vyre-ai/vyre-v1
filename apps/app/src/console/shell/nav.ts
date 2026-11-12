@@ -62,7 +62,7 @@ export const PAGES: readonly PageDef[] = [
   p("connections", "Connections", "Integrations", "link", "console.access", "console.integrations"),
   p("webhooks", "Webhooks", "Integrations", "bolt", "console.access", "events.webhooks"),
   p("keys", "API keys", "Integrations", "code", "console.access", "console.mcp-sessions"),
-  p("machines", "Machines", "Infrastructure", "monitor", "console.access", "console.machines"),
+  p("machines", "Computers", "Infrastructure", "monitor", "console.access", "console.machines"),
   p("network", "Address and network", "Infrastructure", "globe", "server.network", "console.network"),
   p("server", "Server logs", "Infrastructure", "server", "server.logs", "console.server-logs"),
   p("updates", "Updates", "Infrastructure", "up", "server.update", "console.server-updates"),

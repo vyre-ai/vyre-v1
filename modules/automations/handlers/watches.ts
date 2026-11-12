@@ -135,7 +135,7 @@ async function linkGoal(ctx: AutoCtx, r: Row, goalId: string | null): Promise<vo
 
 export async function list(ctx: AutoCtx, input: { watchId?: string; runsOn?: "computer" | "chrome"; person?: string }): Promise<{ watches: WatchOut[] }> {
   // a goal reads its owner's watch for its progress: only a call another capability made (depth above zero) may name the person, never the gateway
-  const person = input.person !== undefined && (ctx.depth ?? 0) > 0 ? input.person : personOf(ctx);
+  const person = input.person !== undefined && (ctx.depth ?? 0) > 0 && ctx.forwarded !== true ? input.person : personOf(ctx);
   const rows = (ctx.db.all(`SELECT * FROM ${WATCH_TABLE} WHERE owner = ? AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 200`, person) as Row[])
     .filter((r) => (input.watchId === undefined || r["id"] === input.watchId) && (input.runsOn === undefined || r["runs_on"] === input.runsOn));
   return { watches: rows.map(watchOut) };

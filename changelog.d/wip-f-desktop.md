@@ -24,3 +24,6 @@
 - A turn's Vault channel on an older desktop can no longer be given to two people at once or left live after the calls end; it also expires on its own a little after a call's time limit.
 - On a joined server a computer's Vault channel is paused between calls, so a page loading between turns fills nothing; the Space browser's and the desktop's turn channels now share one lease with the same expiry.
 - A browser call that waits for room no longer sends with an expired Vault token, and holds no Vault access while it waits; the access starts when the call is sent.
+- A move of an older desktop that stops to try again is now counted as waiting, and its row keeps the reason in words.
+- The Space browser image build now fails when its bridge module is a link instead of a real file, and a move that cannot start the Space browser says so in plain words.
+- The app now says "Reconnecting…" in the top bar within about 1.5 seconds of losing the server (and "Offline" only when this device has no network), and the line goes away by itself when the server is back.

@@ -64,6 +64,8 @@ export interface GateCtx {
   trace: { traceId: string };
   /** 0 for a call from the gateway, above 0 for a call another capability or the host made (P-SEC_10) */
   depth?: number;
+  /** forwarded for its caller by another module (a stored schedule, a template or Kit step): the caller's own call, never module code (lib/trust.ts isForwarded) */
+  forwarded?: boolean | undefined;
   /** where the call began: the gateway's callers are "user", the Gate hook's own questions and parked calls are "gate" */
   origin?: string;
   device?: string;

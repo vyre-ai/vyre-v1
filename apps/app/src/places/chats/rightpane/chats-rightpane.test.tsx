@@ -7,7 +7,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { ChatRightPane, ChatRightPaneLoading } from "./ChatRightPane.tsx";
 import { RightPaneDataProvider } from "./data.tsx";
 import { FilesTab, treeOrder } from "./FilesTab.tsx";
-import { ComputerTab } from "./ComputerTab.tsx";
+import { ComputerNone, ComputerTab } from "./ComputerTab.tsx";
 import {
   accept, correct, deleteRoutine, duplicateRoutine, reasonOf, reject, removeFact, renameRoutine, saveInstructions, setRoutine, signOut, takeOver, giveBack, wake, wakeFailure, computerWords,
 } from "./actions.ts";
@@ -85,7 +85,7 @@ test("Computer, working: the live caption, steps in order, and the sites it is s
   assert.ok(has(out, ">Session<") && has(out, ">5 steps<"));
   const session = out.slice(at(out, ">Session<"));
   inOrder(session, ["Opened the county records site", "Searched for Rivera, Elena", "Saved the 2019 deed to Files", "Checked the filing date", "Filling the county records form"]);
-  assert.ok(has(out, "Chrome · now") && has(out, "Chrome · 9 min ago"));
+  assert.ok(has(out, "Chrome · just now") && has(out, "Chrome · 9 min ago"));
   inOrder(out, ["Signed in on its computer", "Google Workspace", "Web form inbox", "Calendar"]);
   assert.ok(has(out, "intake@northwind.example · since 2 Oct"));
   assert.ok(!has(out, 'data-testid="computer-wake"'));
@@ -143,12 +143,12 @@ test("Files: the tree order and the counts", () => {
   assert.deepEqual([count("fld_memory"), count("fld_skills"), count("fld_routines"), count("fld_knowledge")], ["5", "2", "3", "2"]);
 });
 
-test("Files: Vyre's own dot folders and files (.index, .vyre) are not listed in the agent's folder", () => {
+test("Files: Vyre's own .index and .vyre are not listed in the agent's folder; the agent's own dot files are (review O5)", () => {
   const folders = [{ folderId: "f1", parentId: "root", name: "memory" }, { folderId: "f2", parentId: "root", name: ".index" }, { folderId: "f3", parentId: "root", name: ".vyre" }];
-  const files = [{ fileId: "a", folderId: "root", name: "AGENT.md" }, { fileId: "b", folderId: "root", name: ".lock" }];
-  const out = folderEntries(folders as never, files as never, "root");
-  assert.deepEqual(out.folders.map((f) => f.name), ["memory"]);
-  assert.deepEqual(out.files.map((f) => f.name), ["AGENT.md"]);
+  const files = [{ fileId: "a", folderId: "root", name: "AGENT.md" }, { fileId: "b", folderId: "root", name: ".env" }, { fileId: "c", folderId: "root", name: ".gitignore" }];
+  const out = folderEntries([...folders, { folderId: "f4", parentId: "root", name: ".github" }] as never, files as never, "root");
+  assert.deepEqual(out.folders.map((f) => f.name), [".github", "memory"], "only Vyre's own .index and .vyre stay out");
+  assert.deepEqual(out.files.map((f) => f.name), [".env", ".gitignore", "AGENT.md"], "an agent's own dot files show");
 });
 
 test("Files: an empty folder says so", () => {
@@ -582,6 +582,10 @@ test("Computer tab of an agent with no old desktop: one plain pane, nothing to s
     assert.ok(has(out, 'data-testid="computer-none"') && has(out, "They appear here once this Space can run them") && has(out, "Docker on the computer this Space runs on") && !has(out, "desktop"), "it says what would give this Space a terminal and a browser, and never mentions a desktop");
     assert.ok(!has(out, "computer-provision") && !has(out, "Set up its computer") && !has(out, "own computer") && !has(out, "Give Dex"), "and offers nothing to make");
   }
+  // without the Console link (a member), the words do not send them there (review F4)
+  const member = clean(renderToStaticMarkup(<ComputerNone name="Dex" />));
+  assert.ok(!has(member, "Console") && has(member, "which an owner or admin adds"), member);
+  assert.ok(has(clean(renderToStaticMarkup(<ComputerNone name="Dex" onOpenConsole={() => undefined} />)), "added in Console"));
 });
 
 test("a failed write says why in the app's own words", async () => {

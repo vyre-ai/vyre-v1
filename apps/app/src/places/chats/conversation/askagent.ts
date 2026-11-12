@@ -5,6 +5,7 @@
 // Pure and free of the conversation's views (model.ts draws in blocks), so the server's tests can read it too.
 import type { CapMap } from "../../../../../../generated/types.ts";
 import { route } from "../../../../../../lib/route.ts";
+import { namesItsPerson } from "../../../../../../lib/words/agent-name.ts";
 import type { Candidate, Message, Thread } from "./model.ts";
 
 /** The people and agents @mentioned in the text, by the first word of their name, as the composer line counts them. model.ts re-exports it. */
@@ -37,7 +38,8 @@ export function pickerAgents(thread: Pick<Thread, "agents">, meta: readonly Agen
     const assistant = m?.kind === "assistant";
     const mine = m?.ownerId === meId;
     const name = m?.name ?? nameOf(a.agentId);
-    if ((assistant && !mine) || name.endsWith(" (Agent)")) continue;
+    // someone else's Assistant or outside agent: named as its person's ("Maya’s Assistant", "Maya Lin (Agent)"), never offered
+    if ((assistant && !mine) || (!assistant && namesItsPerson(name))) continue;
     out.push({ id: a.agentId, label: assistant ? "Assistant" : name, mine, assistant });
   }
   return [...out.filter((a) => a.assistant), ...out.filter((a) => !a.assistant && a.mine), ...out.filter((a) => !a.assistant && !a.mine)];

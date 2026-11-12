@@ -9,13 +9,13 @@ import type { Hlc } from "../../lib/hlc.ts";
 import { mintId } from "../../lib/ids.ts";
 import {isHostService} from "../../lib/trust.ts";
 import { mintEventId } from "./ids.ts";
-import { noteRead } from "./seams/answer-reads.ts";
+import { noteRead, takeFallback } from "./seams/answer-reads.ts";
 import type { Decision as KernelDecision, Req as AuthReq, ResourceRef } from "../../kernel/src/authorize/index.ts";
 import type { EventEnvelope } from "../../packages/contracts/src/envelope.ts";
 import type { CallOpts, Ctx, Decision, EmitOpts, Logger, StepRef } from "../../packages/contracts/src/ctx.ts";
 import type { CapabilityDef, CapName, ErrorCode, EventName, TraceContext } from "../../packages/contracts/src/types.ts";
 import type { AgentGate } from "./seams/agent-read.ts";
-import { BindingError, resolveResource } from "./routes/resource.ts";
+import { BindingError, OUTSIDE_AGENT_LINE, SELF_BINDING_LINE, isSelfBound, resolveResource, selfAuditNote, selfTarget } from "./routes/resource.ts";
 import { auditTargets } from "./routes/audit-targets.ts";
 import type { AuditTarget } from "./routes/audit-targets.ts";
 import { codeForReason, fail, HostError, toVyreError } from "./routes/errors.ts";
@@ -29,6 +29,9 @@ export const MAX_DEPTH = 8;
 export type Handler = (ctx: Ctx, input: any) => Promise<unknown> | unknown;
 
 export interface CapIndex { get(name: string, v?: number): CapabilityDef | undefined }
+/** What a Vault name or handle that names nothing the caller may use answers, hidden or missing alike. */
+export const NO_SUCH_ITEM = "There is no Vault item by that name that you can use. Check the name, or ask for the key.";
+
 /** Latest version when `v` is omitted. */
 export function indexCapabilities(caps: readonly CapabilityDef[]): CapIndex {
   const m = new Map<string, CapabilityDef>(), latest = new Map<string, CapabilityDef>();
@@ -43,6 +46,8 @@ export function indexCapabilities(caps: readonly CapabilityDef[]): CapIndex {
 export interface PrincipalSeed { kind: Ctx["principal"]["kind"]; id: string }
 /** What the caller knows before the pipeline starts: who, for whom, where from. */
 export interface CtxSeed {
+  /** made through CallOpts.asCaller: the capability sees ctx.forwarded (only that one call; its own nested calls are ordinary) */
+  forwarded?: boolean | undefined;
   sessionId?: string | undefined;
   previewToken?: string | undefined;
   space: string;
@@ -103,6 +108,8 @@ export interface AuditRow {
   resource: ResourceRef | null; traceId: string; spanId: string; at: number; risk: CapabilityDef["risk"];
   /** Whitelisted object identifiers for Activity views; never request/response bodies. */
   targets?: AuditTarget[];
+  /** A self-bound call: the place it really reached (routes/resource.ts selfAuditNote), kept beside the bound resource. */
+  where?: string;
 }
 /** One atomic commit: the events a handler emitted plus its audit row (ARCH 4.4 step 7). Returns the events as stored (seq set). */
 export interface CommitBatch { cap: string; v: number; principal: string; events: EventEnvelope[]; audit: AuditRow | null }
@@ -117,6 +124,8 @@ export interface SpanRecord {
 export interface GateHook {
   /** Does a Gate apply to this call (capability `gate` with its `when`)? Null lets the call through. */
   applies(cap: CapabilityDef, input: unknown, seed: CtxSeed): { act: string } | null | Promise<{ act: string } | null>;
+  /** Held with act "approve": an agent giving access, or keeping words for later, in a thread an Automation's outside-started Run marked (lib/automation-content.ts). Top-level calls only. */
+  fromAutomationContent?(cap: CapabilityDef, seed: CtxSeed): Promise<boolean>;
   /** A call the Gate let through on a person's yes failed before it went out: the yes goes back for a corrected retry. */
   giveBack?(input: unknown): Promise<void>;
   /** Park the call as an approval task (4.6) and return its ids. `runAs: "person"`: an agent asked the person it acts for (CtxSeed.askPerson); the hold runs as that person, and only they approve it. */
@@ -133,7 +142,8 @@ export interface GateHook {
   /** Does an Always allow rule let this call past Ask first? Read at act time. */
   allowed?(cap: CapabilityDef, input: unknown, seed: CtxSeed): Promise<boolean>;
   /** A call finished and its answer goes to a model: if it brought outside words into the turn, the Gate marks the thread (chat design, hole 2). */
-  seen?(cap: CapabilityDef, input: unknown, output: unknown, seed: CtxSeed): Promise<void>;
+  /** `startedAt`: when the call began, so a thread the call made can be told from one it only named. */
+  seen?(cap: CapabilityDef, input: unknown, output: unknown, seed: CtxSeed, startedAt?: number): Promise<void>;
 }
 
 /** The reason a step's outward act was refused on a computer that does not hold the schedule lease now; the Run waits for the one that does (modules/runs). */
@@ -182,8 +192,13 @@ export interface InvokeDeps {
    * decision finds it. Nothing to do for any other resource.
    */
   ensureResource?(resource: ResourceRef): Promise<void>;
-  /** vault name or handle to item id, for `resolve` bindings */
-  resolveItem?(type: string, kind: "name" | "handle", value: string): string | null;
+  /** vault name or handle to item id, for `resolve` bindings; `person`: whose items come first (their own, then the ones they may see), so a hidden item never shadows a visible one */
+  resolveItem?(type: string, kind: "name" | "handle", value: string, person?: string): string | null;
+  /** Is this Vault item hidden from this person (another person's Mine item, or one they may not use)? A name or handle that resolves to one reads as one that does not exist. */
+  /** An agent's own report on its own task in an outside-started Automation Run's thread (submit, ask, block, its notes, a post there): Ask first does not park it. */
+  ownTaskReport?(c: CapabilityDef, input: unknown, seed: CtxSeed): Promise<boolean>;
+  /** Why a Vault item is not this person's to see: "mine" (another person's Mine item, hidden always), "other" (the person alone may not use it), or false. */
+  vaultHidden?(itemId: string, person: string): "mine" | "other" | false;
   /** spend so far per meter, for the spend policies */
   spend?(principal: string): Record<string, number> | undefined;
   /** module services for the handler context: db, vault, http, schedule, seal */
@@ -327,7 +342,7 @@ export function createInvoke(deps: InvokeDeps): Invoke {
 
       let collectionRateChecked=false;
       if(!(seed.preAuth&&isHostService(seed.principal))&&deps.recordAccess?.collection&&["records.query","records.search","records.counts"].includes(c.name)){
-        const resource=resolveResource(c,input,seed.space,deps.resolveItem);
+        const resource=resolveResource(c,input,seed.space,deps.resolveItem,seed.principal);
         const req:AuthReq={principal:seed.principal.id,actingFor:seed.actingFor,provider:seed.provider,action:{perm:c.permission,level:"view"},resource,now:now(),cap:c.name,input};
         if(c.rate&&deps.rate){const key=c.rate.scope==="space"?`space:${seed.space}:${c.name}`:`${seed.principal.id}:${c.name}`;if(!deps.rate.take(key,c.rate,now()))throw fail("rate_limit.exceeded",traceId,{details:{cap:c.name,perSeconds:c.rate.perSeconds}});collectionRateChecked=true;}
         const scoped=await deps.recordAccess.collection(c.name,input,seed,req,traceId);
@@ -383,10 +398,13 @@ export function createInvoke(deps: InvokeDeps): Invoke {
     let approved = false;
     let approvedGates: readonly { act: string; approver: string }[] = [];
     if (!seed.preAuth) {
-      try { resource = resolveResource(c, input, seed.space, deps.resolveItem); }
+      // whose Vault the name is looked up in: the person, or the person an agent acts for
+      const vaultPerson = seed.actingFor ?? (seed.principal.kind === "person" ? seed.principal.id : undefined);
+      const resolveFor = deps.resolveItem ? (type: string, kind: "name" | "handle", value: string): string | null => deps.resolveItem!(type, kind, value, vaultPerson) : undefined;
+      try { resource = resolveResource(c, input, seed.space, resolveFor, seed.principal); }
       catch (e) {
         // a Vault name or handle that names nothing the caller may use reads the same as one that does not exist, in words a person or an agent can act on
-        if (e instanceof BindingError) throw fail("validation.bad_input", traceId, { ...(e.message === "no such item" ? { message: "There is no Vault item by that name that you can use. Check the name, or ask for the key." } : {}), details: { errors: [`${e.pointer}: ${e.message}`], cap: c.name } });
+        if (e instanceof BindingError) throw fail("validation.bad_input", traceId, { ...((c.resource as { self?: string }).self === "agent" && e.message === "the id is missing" ? { message: seed.forAgent !== undefined ? OUTSIDE_AGENT_LINE : SELF_BINDING_LINE } : {}), ...(e.message === "no such item" ? { message: NO_SUCH_ITEM } : {}), details: { errors: [`${e.pointer}: ${e.message}`], cap: c.name } });
         throw e;
       }
       if (resource && deps.ensureResource) await deps.ensureResource(resource);
@@ -403,10 +421,25 @@ export function createInvoke(deps: InvokeDeps): Invoke {
       kd = d;
       // an approval covers the Gate rules this call itself met (the same act asked of the same approver), not every Gate rule of every check made inside it
       if (approved) approvedGates = deps.authorize({ ...req, approved: false }).obligations.flatMap((o) => (o.type === "gate" ? [{ act: o.act, approver: o.approver }] : []));
+      // a self-bound call (an agent left the id out) is authorized on the Space, but the audit row and the chat answer check name what it really reaches (review S1, S4)
+      const self = resource !== null && isSelfBound(c, input, seed.principal);
+      const target = self ? selfTarget(c, input, seed.principal.id) : resource;
+      // the audit names whose computer or browser it was even when the gateway cannot tell the computer's id yet: the agent's own
+      const note = selfAuditNote(c, input, seed.principal, seed.actingFor);
       const audit = (cls: AuditRow["class"], reason: string): AuditRow => ({
         class: cls, cap: c.name, v: c.v, principal: seed.principal.id, actingFor: seed.actingFor, decisionId: d.decisionId, reason,
-        resource, traceId, spanId: trace.spanId, at: t, risk: c.risk,
+        resource, traceId, spanId: trace.spanId, at: t, risk: c.risk, ...(note ? { where: note.where, targets: note.targets } : {}),
       });
+      // first, before any ask-the-person step, so no path answers a hidden item differently from a missing one (pass 2): a Vault item named by name or handle that the person cannot see answers exactly as a name that names nothing, whatever authorize said (an admin's yes on another person's Mine item
+      // included: the Vault hides those too), so nobody can probe which items exist. The refusal is in the audit, for admins; nothing more comes back.
+      const named = c.resource !== undefined && "resolve" in c.resource && Boolean((c.resource as { resolve?: unknown }).resolve) && resource !== null && resource.type === "vault_item" && resource.id !== null;
+      // another person's Mine item is hidden always; any other item only when the real decision (the agent and whom it acts for) is no, since a key approved for an agent through a key
+      // request needs no access of the person's own (kernel throughAgent; review 12 Nov, 1)
+      const hidden = named && vaultPerson !== undefined ? deps.vaultHidden?.(resource!.id as string, vaultPerson) : undefined;
+      if (hidden === "mine" || (hidden === "other" && d.effect === "deny")) {
+        await deps.audit?.(audit("deny", "vault_item_hidden"));
+        throw fail("validation.bad_input", traceId, { message: NO_SUCH_ITEM, details: { errors: [`${(c.resource as { id: string }).id}: no such item`], cap: c.name } });
+      }
       // Ask the person: an outside agent stopped at what only a person does, or at a role its person holds, asks that person instead of hitting a wall. The person's own access decides, alone,
       // as it will again when the call runs on their yes; nothing here lets the agent itself past anything.
       const mustAsk = seed.askPerson === "always" && depth === 0 && seed.approval === undefined;
@@ -459,9 +492,11 @@ export function createInvoke(deps: InvokeDeps): Invoke {
       }
       // what an agent reads for a person inside a chat is noted, so its answer is checked against everyone who reads that chat before it is posted there (seams/answer-reads.ts, gap 6)
       if (c.effects === "read" && depth === 0 && resource !== null && seed.principal.kind === "agent" && seed.actingFor?.startsWith("usr_") && seed.thread !== undefined) {
-        noteRead({ thread: seed.thread, agent: seed.principal.id, asker: seed.actingFor, resource: { type: resource.type, id: resource.id } });
+        noteRead({ thread: seed.thread, agent: seed.principal.id, asker: seed.actingFor, resource: { type: target!.type, id: target!.id } });
       }
     }
+    // a stranger's words, carried in by an Automation's outside-started Run, never give anyone access or become a standing Automation, agent, Routine, hook or skill without a yes (lead 12 Nov)
+    if (!approved && depth === 0 && (await deps.gate?.fromAutomationContent?.(c, seed).catch(() => true)) === true) return park(c, input, seed, traceId, did(), "approve", null);
     // the capability's own Gate (spec 2.14): fail closed when a Gate is declared and nothing can park the call
     if (c.gate && c.gate.act !== "none" && !approved) {
       if (!deps.gate) throw fail("internal.unavailable", traceId, { message: "Approvals are not available right now.", details: { cap: c.name, act: c.gate.act } });
@@ -474,7 +509,8 @@ export function createInvoke(deps: InvokeDeps): Invoke {
     // Ask first (chat mode): the Gate parks any call that is not read-only, once, at the top of the call. The approval token of the resume path skips it, as it skips the capability's own Gate.
     if (seed.chatMode === "plan" && seed.askable === true && !approved && depth === 0) throw fail("permission.plan_mode", traceId, { details: { cap: c.name } });
     if ((seed.askFirst === true || (seed.askable === true && seed.chatMode === "ask")) && !approved && depth === 0 && c.effects !== "read") {
-      if (seed.mustAsk === true || !(await deps.gate?.allowed?.(c, input, seed))) return park(c, input, seed, traceId, did(), c.gate?.act ?? "approve", null);
+      const ownReport = seed.mustAsk !== true && (await deps.ownTaskReport?.(c, input, seed).catch(() => false)) === true;
+      if (!ownReport && (seed.mustAsk === true || !(await deps.gate?.allowed?.(c, input, seed)))) return park(c, input, seed, traceId, did(), c.gate?.act ?? "approve", null);
     }
 
     // the read gate, before: an agent may not copy, move or send a file out of its Redacted or Not available folder (Redaction for AI)
@@ -523,14 +559,14 @@ export function createInvoke(deps: InvokeDeps): Invoke {
     const audited = shouldAudit(c) || seed.auditAll === true || (seed.principal.kind === "agent" && c.effects !== "read");
     const targets = audited ? auditTargets(c.name, input, output) : undefined;
     const auditRow: AuditRow | null = audited
-      ? { class: "allow", cap: c.name, v: c.v, principal: seed.principal.id, actingFor: seed.actingFor, decisionId: did(), reason: "ok", resource, traceId, spanId: trace.spanId, at: t, risk: c.risk, ...(targets ? { targets } : {}) }
+      ? { class: "allow", cap: c.name, v: c.v, principal: seed.principal.id, actingFor: seed.actingFor, decisionId: did(), reason: "ok", resource, traceId, spanId: trace.spanId, at: t, risk: c.risk, ...withNote(targets, fellBackNote(selfAuditNote(c, input, seed.principal, seed.actingFor), takeFallback(traceId))) }
       : null;
     let stored = events;
     if (events.length || auditRow) stored = await deps.commit({ cap: c.name, v: c.v, principal: seed.principal.id, events, audit: auditRow });
     // 8 publish after commit
     if (stored.length) deps.publish?.(stored);
     // Before the answer reaches the model: a failure to mark costs the next outward act nothing it should have, so it is logged and the answer still goes. The grant check reads the mark.
-    if (deps.gate?.seen && (depth === 0 || approved)) await deps.gate.seen(c, input, output, seed).catch((e: unknown) => log.warn("the Gate did not hear what a call brought in", { cap: c.name, traceId, error: e instanceof Error ? e.message : String(e) }));
+    if (deps.gate?.seen && (depth === 0 || approved)) await deps.gate.seen(c, input, output, seed, t).catch((e: unknown) => log.warn("the Gate did not hear what a call brought in", { cap: c.name, traceId, error: e instanceof Error ? e.message : String(e) }));
     let answer = finishOutput ? await finishOutput() : output;
     // the read gate, after: what a call an agent is behind hands back is the redacted rendition, or a refusal (Redaction for AI, seams/agent-read.ts)
     if (deps.agentGate && (depth === 0 || approved)) {
@@ -567,7 +603,7 @@ export function createInvoke(deps: InvokeDeps): Invoke {
     const unavailable = (what: string) => (): never => { throw fail("internal.not_implemented", trace.traceId, { details: { service: what, cap: c.name } }); };
     const ctx: Ctx = {
       space: seed.space, principal: seed.principal, ...(seed.actingFor ? { actingFor: seed.actingFor } : {}), trace,
-      ...(seed.run ? { run: seed.run } : {}), ...(seed.thread ? { thread: seed.thread } : {}), origin: seed.origin ?? "user", depth,
+      ...(seed.run ? { run: seed.run } : {}), ...(seed.thread ? { thread: seed.thread } : {}), origin: seed.origin ?? "user", depth, ...(seed.forwarded ? { forwarded: true } : {}),
       ...(seed.device ? { device: seed.device } : {}), now,
       ...(seed.sharedKey ? { sharedKey: true } : {}),
       ...(seed.sessionId ? { sessionId: seed.sessionId } : {}),
@@ -593,7 +629,7 @@ export function createInvoke(deps: InvokeDeps): Invoke {
         }
         // CallOpts.traceId: a call that continues earlier work (a provider's callback about a call a person placed) runs on that work's trace
         const nested: TraceContext = opts?.traceId !== undefined && /^[0-9a-f]{32}$/.test(opts.traceId) && !/^0+$/.test(opts.traceId) ? { ...trace, traceId: opts.traceId } : trace;
-        const r = await invoke(name, callInput, { ...base, depth: depth + 1, trace: nested, approval: resume?.approvalToken, v: undefined, clearedActs: resume ? undefined : cleared, gateMode: opts?.gate ?? seed.gateMode, step: opts?.step ?? base.step });
+        const r = await invoke(name, callInput, { ...base, depth: depth + 1, forwarded: opts?.asCaller === true ? true : undefined, trace: nested, approval: resume?.approvalToken, v: undefined, clearedActs: resume ? undefined : cleared, gateMode: opts?.gate ?? seed.gateMode, step: opts?.step ?? base.step });
         if (r.status === "held") throw fail("permission.needs_approval", trace.traceId, { details: { taskId: r.taskId, cap: name } });
         return r.output;
       },
@@ -640,3 +676,14 @@ export function withoutPersonalWords(v: unknown): unknown {
   return out;
 }
 const isPersonPage = (p: unknown): boolean => p !== null && typeof p === "object" && (p as { layer?: unknown }).layer === "person";
+
+/** An audit row's targets and, for a self-bound call, where it went (the note's targets join the call's own). */
+function withNote(targets: AuditTarget[] | undefined, note: { where: string; targets: AuditTarget[] } | undefined): { targets?: AuditTarget[]; where?: string } {
+  const all = [...(targets ?? []), ...(note?.targets ?? []).filter((n) => !(targets ?? []).some((x) => x.kind === n.kind && x.id === n.id))];
+  return { ...(all.length ? { targets: all } : {}), ...(note ? { where: note.where } : {}) };
+}
+
+/** A self-bound chrome call its handler sent to the agent's computer (the Space browser was not usable) is audited as that computer. */
+function fellBackNote(note: { where: string; targets: AuditTarget[] } | undefined, computerId: string | undefined): { where: string; targets: AuditTarget[] } | undefined {
+  return note && computerId && note.where.startsWith("browser:") ? { ...note, where: `computer:${computerId}` } : note;
+}

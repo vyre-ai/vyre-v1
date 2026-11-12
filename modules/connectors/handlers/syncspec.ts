@@ -358,7 +358,9 @@ export function createSpecHandlers(deps: SyncDeps): SpecHandlers {
 
     // 5. the first pull, in the background, one Run per type in dependency order
     for (const o of out) {
-      const started = await sync["connectors.sync_now"](ctx, { type: o.type, mode: spec.plan.backfill === "now" ? "backfill" : "incremental", idempotencyKey: `${idem}:pull:${o.type}` } as Parameters<typeof sync["connectors.sync_now"]>[1]).catch(() => undefined);
+      // a first pull that cannot start (the sync is paused, the connection cannot be used) was dropped without a word (f-wire, 12 Nov, import starters): it is a failed Run now, so its owner is told why
+      const started = await sync["connectors.sync_now"](ctx, { type: o.type, mode: spec.plan.backfill === "now" ? "backfill" : "incremental", idempotencyKey: `${idem}:pull:${o.type}` } as Parameters<typeof sync["connectors.sync_now"]>[1])
+        .catch((e: unknown) => failedPull(ctx, actorOf(ctx), o.type, `${idem}:pull:${o.type}`, e));
       if (started) o.runId = started.runId;
     }
     // live: a Team Space has a public address, so the app can call it when something changes; a Personal one has none and polls while it is open
@@ -431,3 +433,13 @@ export function createSpecHandlers(deps: SyncDeps): SpecHandlers {
   };
 }
 
+/** A first pull that could not start: one failed Run for it, owned by the person who applied the spec, so they are told (run.failed) with the reason. Never throws; null when even that fails. */
+async function failedPull(ctx: { call(cap: string, input: unknown): Promise<unknown> }, owner: string, type: string, key: string, e: unknown): Promise<{ runId: string } | undefined> {
+  const why = (e as { error?: { message?: string } } | null)?.error?.message ?? (e instanceof Error ? e.message : "it could not start");
+  const message = `The first pull of ${type} did not start: ${why}`.slice(0, 500);
+  try {
+    const run = (await ctx.call("runs.start", { idempotencyKey: `${key}:failed`, kind: "connector_sync", name: `Sync ${type}`, owner, subject: { type: "record_type", id: type } })) as { runId: string };
+    await ctx.call("runs.finish", { runId: run.runId, status: "failed", summary: message, error: { code: "internal.unexpected", message } });
+    return { runId: run.runId };
+  } catch { return undefined; }
+}
