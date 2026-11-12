@@ -136,7 +136,7 @@ import { createKitsHost } from "../seams/kits.ts";
 import { createTelemetryRecorder } from "../seams/telemetry.ts";
 import { connectorReadSender } from "../seams/connector-read.ts";
 import { createRelayHooksCheck } from "../seams/relay-hooks.ts";
-import { adoptPersonBindings, handleOfItem, keyHostListed, resolveKeyRef } from "../seams/key-ref.ts";
+import { adoptPersonBindings, handleOfItem, keyHostListed, resolveKeyRef, syncSpecHostAllowed } from "../seams/key-ref.ts";
 import type { KeyHostCheck } from "../seams/connectors.ts";
 import { documentPin } from "../seams/document-pin.ts";
 import type { DocumentFetch } from "../seams/document-pin.ts";
@@ -825,14 +825,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
    * that sync_specs.apply made, going to exactly its own spec's app.domain. Nothing is recorded. Every other connector and host keeps the rule. The approval card for a key's first use on
    * a new host in the CRM flow is rc.27 (BACKLOG: "Key card for the CRM flow"); remove this then.
    */
-  const syncSpecOwnHost = (k: { connector: string; connectionId: string }, host: string): boolean => {
-    if (k.connector === "sync_spec" && k.connectionId === "probe") return true;
-    try {
-      const row = connectorTables?.all("SELECT spec FROM cn_sync_specs WHERE connector = ? AND connection_id = ?", k.connector, k.connectionId)[0] as { spec?: string } | undefined;
-      const domain = row?.spec ? (JSON.parse(row.spec) as { app?: { domain?: unknown } }).app?.domain : undefined;
-      return typeof domain === "string" && domain.trim().toLowerCase().replace(/\.$/, "") === host;
-    } catch { return false; }
-  };
+  const syncSpecOwnHost = (k: { connector: string; connectionId: string }, host: string): boolean => syncSpecHostAllowed(connectorTables, k, host);
   const keyHostCheck: KeyHostCheck = async (keys, host, caller) => {
     const h = db;
     if (!h) return "The Vault is not open, so the request was not sent.";
