@@ -1,0 +1,121 @@
+// @heavy docker
+// Release gate, 12 Nov (lane f-gate, job C6): an agent runs `sleep 120` in its workspace through terminal_run, the person presses Stop, and the agent's next command (echo next-ok) answers
+// within seconds in a usable shell, on a real daemon with real Docker and the stand-in model. Needs VYRE_HEAVY_DOCKER=1; VYRE_WORKSPACE_TEST_IMAGE names an image built from images/agent-workspace.
+import test from "node:test";
+import assert from "node:assert/strict";
+import { execFile } from "node:child_process";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { DatabaseSync } from "node:sqlite";
+import { boot, standIn, waitFor } from "./memory-live-kit.ts";
+import { loadConfig } from "../host/src/daemon/config.ts";
+import { CODE_ROOT } from "../host/src/daemon/daemon.ts";
+import type { Daemon } from "../host/src/daemon/daemon.ts";
+import { boundWorkspaces } from "../modules/terminal/impl.ts";
+
+const ON = process.env["VYRE_HEAVY_DOCKER"] === "1";
+const skip: string | false = ON ? false : "needs VYRE_HEAVY_DOCKER=1 (the workspace is a real container)";
+const PRESET = process.env["VYRE_WORKSPACE_TEST_IMAGE"];
+const IMAGE = PRESET ?? `vyre/agent-workspace:daemon-${process.pid}${Math.random().toString(36).slice(2, 6)}`;
+const KEY = "sk-ant-oat01-TESTsecretVALUE0123456789abcdefXYZ"; // secret-scan: fake
+const KEYS = { personKeyByPassword: "cGVyc29uLWJ5LXBhc3N3b3Jk", publicKey: "cHVibGljLWtleQ==", privateKeyWrapped: "cHJpdmF0ZS13cmFwcGVk", spaceKeys: [{ epoch: 1, wrapped: "c3BhY2Uta2V5LTE=" }] };
+const PASSWORD = "correct horse battery staple 9";
+
+function docker(args: string[], timeoutMs: number): Promise<{ code: number; out: string }> {
+  return new Promise((resolve) => {
+    execFile("docker", args, { cwd: CODE_ROOT, timeout: timeoutMs, maxBuffer: 64 * 1024 * 1024 }, (err, stdout, stderr) => {
+      resolve({ code: err ? ((err as NodeJS.ErrnoException & { code?: number }).code as number | undefined) ?? 1 : 0, out: `${stdout}\n${stderr}` });
+    });
+  });
+}
+type Reply = { status: number; data: any };   // eslint-disable-line @typescript-eslint/no-explicit-any
+async function call(d: Daemon, token: string | null, cap: string, input: unknown): Promise<Reply> {
+  const r = await fetch(`${d.url}/v1/${cap.replaceAll(".", "/")}`, { method: "POST", headers: { "content-type": "application/json", ...(token ? { authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify(input) });
+  const body = (await r.json()) as { data?: unknown; error?: unknown };
+  return { status: r.status, data: body.data ?? body };
+}
+let keys = 0;
+const ok = async (d: Daemon, token: string, cap: string, input: Record<string, unknown>): Promise<any> => {   // eslint-disable-line @typescript-eslint/no-explicit-any
+  const r = await call(d, token, cap, { idempotencyKey: `ws-${cap}-${++keys}`, ...input });
+  assert.equal(r.status, 200, `${cap}: ${JSON.stringify(r.data)}`);
+  return r.data;
+};
+
+
+
+test("Stop during sleep 120: the command is interrupted and the next command answers within seconds", { skip, timeout: 600_000 }, async (t) => {
+  const savedImage = process.env["VYRE_WORKSPACE_IMAGE"];
+  process.env["VYRE_WORKSPACE_IMAGE"] = IMAGE;
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-stop-"));
+  const d = await boot(dir, standIn, undefined, {
+    config: loadConfig(["--data-dir", dir, "--port", "0", "--space", "spc_stop", "--space-name", "Personal", "--space-kind", "personal", "--role", "space,device"], {}, "1.2.3"),
+    computersHomeIntervalMs: 300, workspaceIdleMs: 600_000,
+  });
+  let name = "";
+  t.after(async () => {
+    process.env["VYRE_WORKSPACE_IMAGE"] = savedImage ?? "";
+    if (savedImage === undefined) delete process.env["VYRE_WORKSPACE_IMAGE"];
+    await d.stop();
+    if (name !== "") { await docker(["rm", "-f", name], 60_000); await docker(["volume", "rm", "-f", `${name}-home`, `${name}-files`], 60_000); }
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+  const code = decodeURIComponent(new URL(d.claim!.url).pathname.split("/").pop() ?? "");
+  const device = { deviceName: "Dana's Mac", deviceClass: "desktop" };
+  assert.equal((await call(d, null, "identity.claim_owner", { code, spaceId: "spc_stop", username: "dana", displayName: "Dana Reyes", password: PASSWORD, ...device, keys: KEYS })).status, 200);
+  const token = ((await call(d, null, "identity.sign_in", { username: "dana", password: PASSWORD, ...device })).data.session as { token: string }).token;
+  const unlock = await fetch(`${d.url}/local/vault/key/unlock`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${token}` }, body: JSON.stringify({ key: Buffer.alloc(32, 7).toString("base64") }) });
+  assert.equal(unlock.status, 204);
+  const folder = await ok(d, token, "vault.folders.create", { name: "Accounts", scope: "mine" });
+  const flow = await ok(d, token, "providers.subscription_start", { providerKey: "claude-code" });
+  await ok(d, token, "vault.item.put", { folderId: folder.folder.id, name: "Dana_Claude", kind: "ai_subscription", fields: [{ key: "setup_token", value: KEY, secret: true }] });
+  await ok(d, token, "providers.subscription_complete", { flowId: flow.flowId });
+  const agent = (await ok(d, token, "agents.create", { name: "Dex", role: "You help." })).agent.agentId as string;
+  name = `vyre-ws-${agent}`;
+  const threadId = (await ok(d, token, "chat.start", { kind: "chat", agentIds: [agent] })).thread.threadId as string;
+  await ok(d, token, "threads.set_mode", { threadId, mode: "auto" });
+  const results = async (): Promise<string[]> => { await d.hooks?.pump?.(); const m = ((await call(d, token, "chat.messages.list", { threadId })).data.messages as Array<{ author?: { kind?: string }; body?: string }> | undefined) ?? []; return m.filter((x) => x.author?.kind === "agent" && /TOOL RESULT/.test(x.body ?? "")).map((x) => x.body ?? ""); };
+  const post = (command: string, key: string) => ok(d, token, "chat.post", { threadId, body: `TOOL terminal_run ${JSON.stringify({ command, idempotencyKey: key })}`, mentions: [{ kind: "agent", id: agent }] });
+  // the workspace is made by a first command, so the sleep starts at once
+  await post("echo ready", "stop-ready");
+  await waitFor(async () => ((await results()).length >= 1 ? true : null), 120_000);
+  await post("sleep 120", "stop-sleep");
+  // it runs in the workspace's tab
+  await waitFor(async () => { const r = await docker(["exec", name, "pgrep", "-f", "^sleep 120$"], 10_000); return r.code === 0 ? true : null; }, 60_000);
+  const stopped = await call(d, token, "engine.stop", { threadId, agentId: agent });
+  assert.equal(stopped.status, 200, JSON.stringify(stopped.data));
+  console.log(`STOPPED ${JSON.stringify(stopped.data)}`);
+  try { await waitFor(async () => { await d.hooks?.pump?.(); const r = await docker(["exec", name, "pgrep", "-f", "^sleep 120$"], 10_000); return r.code !== 0 ? true : null; }, 15_000); }
+  catch (e) {
+    d.sink.flush();
+    const { DatabaseSync } = await import("node:sqlite");
+    const rows = new DatabaseSync(d.paths.logs, { readOnly: true }).prepare("SELECT msg, attrs FROM logs WHERE msg LIKE '%consumer%' OR msg LIKE '%turn%' OR msg LIKE '%terminal%' ORDER BY id DESC LIMIT 25").all();
+    console.log(`LOGS ${JSON.stringify(rows).slice(0, 3000)}`);
+    throw e;
+  }
+  const before = (await results()).length;
+  const t0 = Date.now();
+  await post("echo next-ok", "stop-next");
+  let said: string;
+  try { said = await waitFor(async () => { const r = await results(); return r.length > before ? r.at(-1)! : null; }, 60_000); }
+  catch (e) {
+    const m = ((await call(d, token, "chat.messages.list", { threadId })).data.messages as Array<{ author?: { kind?: string }; body?: string; kind?: string }>).map((x) => `${x.author?.kind}: ${(x.body ?? "").slice(0, 160)}`);
+    console.log(`MSGS ${JSON.stringify(m)}`);
+    const st = await call(d, token, "terminal.list", { section: "personal" });
+    console.log(`TERMS ${JSON.stringify(st.data).slice(0, 800)}`);
+    const { DatabaseSync } = await import("node:sqlite");
+    for (const f of Object.values(d.paths as Record<string, unknown>).filter((v): v is string => typeof v === "string" && v.endsWith(".db"))) {
+      try {
+        const db = new DatabaseSync(f, { readOnly: true });
+        const q = db.prepare("SELECT thread_id, qseq, state FROM engine_thread_queue ORDER BY qseq").all();
+        const tr = db.prepare("SELECT turn_id, state, started_at FROM engine_turns").all();
+        console.log(`ENGINE ${f} queue ${JSON.stringify(q)} turns ${JSON.stringify(tr)}`);
+      } catch { /* not this file */ }
+    }
+    throw e;
+  }
+  const ms = Date.now() - t0;
+  assert.match(said, /next-ok/, said);
+  assert.ok(ms < 20_000, `the next command answered in ${ms} ms, not after the sleep`);
+  console.log(`STOP-NEXT ${ms} ms`);
+});
