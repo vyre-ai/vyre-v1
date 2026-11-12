@@ -1298,6 +1298,9 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           outward: moduleOutward(loaded.moduleExports), fetches: moduleFetches(loaded.moduleExports),
           threads: threadChain,
           // an uncleared Automation mark on the thread or one above it; when the table cannot be read, held only for a thread that belongs to an Automation's outside-started Run
+          madeSince: (threadId, at) => {
+            try { const r = db!.all(`SELECT "createdAt" AS c FROM chat_thread WHERE id = ?`, threadId)[0] as { c?: number } | undefined; return typeof r?.c === "number" && r.c >= at; } catch { return false; }
+          },
           automationMarked: async (ids) => {
             if (ids.length === 0) return null;
             try { return (db!.all(`SELECT source FROM gate_taint WHERE thread_id IN (${ids.map(() => "?").join(", ")}) AND cleared_at IS NULL AND source LIKE 'automation:%' LIMIT 1`, ...ids)[0] as { source?: string } | undefined)?.source ?? null; }

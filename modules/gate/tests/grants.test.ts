@@ -276,3 +276,16 @@ test("a read never replaces an Automation's mark: the holds it carries stay, and
   await h.call("gate.taint.mark", { threads: ["thr_run"], source: "automations.read_link" }, gate);
   assert.equal(source(), "automations.read_link");
 });
+
+test("when runs-as moves, the new Automation mark replaces the old one, so the person the work now acts for can clear it (pass 4b)", async () => {
+  const h = harness();
+  const source = (): string => String((h.db.all("SELECT source FROM gate_taint WHERE thread_id = 'thr_run'")[0] as { source?: string } | undefined)?.source);
+  const cleared = (): unknown => (h.db.all("SELECT cleared_at FROM gate_taint WHERE thread_id = 'thr_run'")[0] as { cleared_at: unknown }).cleared_at;
+  await h.call("gate.taint.mark", { threads: ["thr_run"], source: `automation:aut_0123456789abcdef0123456789abcdef:webhook:${alice.id}` }, gate);
+  await h.call("gate.taint.mark", { threads: ["thr_run"], source: `automation:aut_0123456789abcdef0123456789abcdef:webhook:${bob.id}` }, gate);
+  assert.equal(source(), `automation:aut_0123456789abcdef0123456789abcdef:webhook:${bob.id}`, "names the new person");
+  await ask(h, "msg_a", [], "thr_run", alice);
+  assert.equal(cleared(), null, "the old person no longer clears it");
+  await ask(h, "msg_b", [], "thr_run", bob);
+  assert.notEqual(cleared(), null, "the new person does");
+});

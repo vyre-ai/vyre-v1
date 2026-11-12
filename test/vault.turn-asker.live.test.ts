@@ -598,3 +598,52 @@ test("(p) the webhook makes the agent read first, then try a listed call: the re
     assert.equal(x.d.db!.all(`SELECT 1 FROM automations_defs WHERE name = 'After the read'`).length, 0);
   } finally { await x.w.stop(); }
 });
+
+test("(q) reads in a marked Run never spread its mark: an ordinary task and chat the Run's agent lists or finds stay unmarked, and an agent's share there goes through with no card (pass 4b)", async () => {
+  const waiting = new Map<string, (r: { ok: boolean; content: unknown }) => void>();
+  const done: string[] = [];
+  let q3 = "";
+  const open: OpenSession = async () => ({
+    warm: true,
+    async *send(input: TurnInput): AsyncGenerator<DriverEvent> {
+      let n = 0;
+      const call = async function* (name: string, i: Record<string, unknown>): AsyncGenerator<DriverEvent, unknown> { const id = `q${++n}`; const p = new Promise<{ ok: boolean; content: unknown }>((r) => waiting.set(id, r)); yield { type: "tool_call", id, name, input: i }; return await p; };
+      const section = input.context?.sections.find((x) => x.id === "task")?.text ?? "";
+      const taskId = /taskId (tsk_[a-z0-9]+)/.exec(section)?.[1];
+      if (taskId && /it is your turn/.test(section) && /Triage/.test(section)) {
+        yield* call("tool_search", { query: "tasks_list" });
+        done.push(`list:${JSON.stringify(yield* call("tasks_list", { scope: "all" })).slice(0, 100)}`);
+        yield* call("tool_search", { query: "chat_search" });
+        done.push(`search:${JSON.stringify(yield* call("chat_search", { q: "Ordinary" })).slice(0, 100)}`);
+        yield* call("task_submit", { taskId, outputs: { note: "Looked" }, summary: "Looked" });
+        yield { type: "text", text: "Done." }; yield { type: "done" }; return;
+      }
+      if (/share Q3 with Tess here/.test(JSON.stringify(input))) {
+        yield* call("tool_search", { query: "access_share" });
+        done.push(`share:${JSON.stringify(yield* call("access_share", { resource: { type: "folder", id: q3 }, subject: { kind: "person", id: "usr_tess" }, level: "view", idempotencyKey: "q-sh" })).slice(0, 120)}`);
+      }
+      yield { type: "text", text: "Ok." }; yield { type: "done" };
+    },
+    sendToolResult(callId: string, result: { ok: boolean; content: unknown }) { waiting.get(callId)?.(result); },
+    inject() {}, async cancel() {}, async close() {},
+  } as EngineSession);
+  const x = await webhookWorld(open);
+  q3 = x.q3;
+  try {
+    // an ordinary chat and an ordinary task, made by Olivia before the Run
+    const chat = await ok(x.d, "chat.start", { kind: "chat", agentIds: [x.agent.id], title: "Ordinary planning" });
+    const chatThread = String(chat.thread.threadId);
+    await ok(x.d, "chat.post", { threadId: chatThread, body: "Ordinary planning notes." });
+    const task = (await ok(x.d, "tasks.create", { kind: "work", title: "Ordinary follow-up", assigned: { kind: "person", id: "usr_noah" } })).task as { id: string; threadId?: string };
+    const run = await x.fire("A new lead wrote in.", "hook-q");
+    await waitFor(async () => ((await x.status(run)) === "succeeded" ? true : null), 60_000, () => `${hostLog(x.d)} ${done.join(" / ")}`);
+    assert.ok(done.some((d0) => d0.startsWith("list:")) && done.some((d0) => d0.startsWith("search:")), done.join(" / "));
+    const autoMark = (t: string): number => x.d.db!.all("SELECT 1 FROM gate_taint WHERE thread_id = ? AND source LIKE 'automation:%'", t).length;
+    assert.equal(autoMark(chatThread), 0, "the ordinary chat the search could name is not marked");
+    if (task.threadId) assert.equal(autoMark(task.threadId), 0, "the ordinary task's thread the list names is not marked");
+    // and in that chat an agent's share goes through with no card
+    await ok(x.d, "chat.post", { threadId: chatThread, body: "Please share Q3 with Tess here.", mentions: [{ kind: "agent", id: x.agent.id }] });
+    await waitFor(async () => (done.some((d0) => d0.startsWith("share:")) ? true : null), 60_000, () => `${hostLog(x.d)} ${done.join(" / ")}`);
+    assert.match(done.find((d0) => d0.startsWith("share:"))!, /"ok":true/);
+  } finally { await x.w.stop(); }
+});

@@ -3,10 +3,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import { HELD_FROM_AUTOMATION_CONTENT, INTERNAL_TRIGGERS, isOutsideTrigger, triggerWords } from "../lib/automation-content.ts";
+import { CARRIES_MARK, HELD_FROM_AUTOMATION_CONTENT, INTERNAL_TRIGGERS, isOutsideTrigger, NOT_CARRYING, triggerWords } from "../lib/automation-content.ts";
 import { HOLD_PHRASES } from "../lib/hold-phrases.ts";
 
-const registry = JSON.parse(fs.readFileSync(new URL("../generated/registry.json", import.meta.url), "utf8")) as { capabilities: Array<{ name: string; effects: string }>; triggers?: Array<{ key: string }> };
+const registry = JSON.parse(fs.readFileSync(new URL("../generated/registry.json", import.meta.url), "utf8")) as { capabilities: Array<{ name: string; effects: string; emits?: string[] }>; triggers?: Array<{ key: string }> };
 const caps = new Map(registry.capabilities.map((c) => [c.name, c]));
 
 test("every capability held from Automation content exists, changes something, and has its own words for the card", () => {
@@ -32,4 +32,13 @@ test("every declared trigger but schedule, manual and button is from outside, wi
   }
   assert.equal(isOutsideTrigger("a_trigger_added_later"), true);
   assert.equal(isOutsideTrigger(undefined), true, "unknown counts as outside");
+});
+
+test("every capability that makes a thread or a task either carries the Run's mark or says why not, and only those (pass 4b)", () => {
+  const MAKES = new Set(["thread.started", "crew.job_started", "task.created", "project.task_thread_opened"]);
+  const making = registry.capabilities.filter((c) => c.effects !== "read" && (c.emits ?? []).some((e) => MAKES.has(e))).map((c) => c.name).sort();
+  const covered = [...CARRIES_MARK, ...Object.keys(NOT_CARRYING)].sort();
+  assert.deepEqual(making.filter((n) => !covered.includes(n)), [], "a capability that makes a thread or task is in CARRIES_MARK or NOT_CARRYING");
+  for (const n of covered) assert.ok(caps.has(n), `${n} is a capability`);
+  for (const n of CARRIES_MARK) assert.notEqual(caps.get(n)!.effects, "read", `${n} makes something`);
 });

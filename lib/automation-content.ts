@@ -48,3 +48,18 @@ export const HELD_FROM_AUTOMATION_CONTENT: readonly string[] = [
   "plugins.marketplace.remove", "plugins.set_enabled", "plugins.uninstall",
 ];
 export const HELD_FROM_AUTOMATION_SET: ReadonlySet<string> = new Set(HELD_FROM_AUTOMATION_CONTENT);
+
+/**
+ * Capabilities whose call makes a new thread for the work (a task, a helper, a crew job, a chat or channel it starts). Only these carry the Run's mark onto a thread, and only onto a thread made
+ * by that very call: a read that names threads (a task or chat list, a search) never marks anything (runs-as review pass 4b). test/automation-content.test.ts checks every capability that
+ * announces a new thread or task is here or in NOT_CARRYING, so a new one cannot be forgotten silently.
+ */
+export const CARRIES_MARK: ReadonlySet<string> = new Set([
+  "tasks.create", "tasks.plan", "tasks.ask", "tasks.block", "chat.start", "chat.helper.start", "chat.aside", "chat.fork", "chat.handoff", "chat.thread", "channels.create", "engine.crew.start",
+]);
+/** Capabilities that announce a thread but do not carry the mark, and why. */
+export const NOT_CARRYING: Readonly<Record<string, string>> = {
+  "chat.message_person": "a direct message to a teammate, which may reuse their existing chat; a post into another chat does not mark it (lead 12 Nov)",
+  "channels.home_join": "joins the Space's home channel, which other people use",
+  "projects.open_task_thread": "opens the thread of a task that already exists",
+};

@@ -7,11 +7,12 @@ import { HELD_FROM_AUTOMATION_CONTENT } from "../../lib/automation-content.ts";
 import type { CapabilityDef } from "../../packages/contracts/src/types.ts";
 
 const AUTO = "automation:aut_0123456789abcdef0123456789abcdef:webhook:usr_olivia";
-function hook(marks: Record<string, string>) {
+function hook(marks: Record<string, string>, made: Record<string, number> = { thr_new: 10, thr_help: 10, thr_new2: 10, thr_new3: 10 }) {
   const calls: Array<[string, unknown]> = [];
   const h = createGateHook({
     call: async (cap, input) => { calls.push([cap, input]); return { ok: true }; }, unseal: () => new Uint8Array(), now: () => 0, hold: () => null,
     automationMarked: (ids) => { for (const id of ids) if (marks[id]?.startsWith("automation:")) return marks[id]!; return null; },
+    madeSince: (id, at) => (made[id] ?? -1) >= at,
     threads: (id) => (id === "thr_child" ? ["thr_child", "thr_run"] : [id]),
   });
   return { h, calls };
@@ -36,11 +37,20 @@ test("every listed capability is held for an agent in an Automation-marked threa
 
 test("a task, helper or crew job the Run's agent starts gets the Run's mark; from a page-read or unmarked chat, nothing is marked", async () => {
   const { h, calls } = hook({ thr_run: AUTO, thr_read: "automations.read_docs" });
-  await h.seen!(cap("tasks.create"), {}, { task: { id: "tsk_1", threadId: "thr_new" } }, agent("thr_run") as never);
-  await h.seen!(cap("chat.helper.start"), {}, { helper: { threadId: "thr_help" } }, agent("thr_run") as never);
+  await h.seen!(cap("tasks.create"), {}, { task: { id: "tsk_1", threadId: "thr_new" } }, agent("thr_run") as never, 5);
+  await h.seen!(cap("chat.helper.start"), {}, { helper: { threadId: "thr_help" } }, agent("thr_run") as never, 5);
   assert.deepEqual(calls.filter(([c]) => c === "gate.taint.mark").map(([, i]) => i), [{ threads: ["thr_new"], source: AUTO }, { threads: ["thr_help"], source: AUTO }]);
   calls.length = 0;
-  await h.seen!(cap("tasks.create"), {}, { task: { threadId: "thr_new2" } }, agent("thr_read") as never);
-  await h.seen!(cap("tasks.create"), {}, { task: { threadId: "thr_new3" } }, agent("thr_plain") as never);
+  await h.seen!(cap("tasks.create"), {}, { task: { threadId: "thr_new2" } }, agent("thr_read") as never, 5);
+  await h.seen!(cap("tasks.create"), {}, { task: { threadId: "thr_new3" } }, agent("thr_plain") as never, 5);
   assert.deepEqual(calls.filter(([c]) => c === "gate.taint.mark"), []);
+});
+
+test("a read that names threads never marks them, and a creating call marks only the thread it made, not one it names that existed before (pass 4b)", async () => {
+  const { h, calls } = hook({ thr_run: AUTO }, { thr_made: 10, thr_old: 1 });
+  await h.seen!({ name: "tasks.list", v: 1, effects: "read" } as unknown as CapabilityDef, {}, { tasks: [{ threadId: "thr_old" }, { threadId: "thr_made" }] }, agent("thr_run") as never, 5);
+  await h.seen!({ name: "chat.search", v: 1, effects: "read" } as unknown as CapabilityDef, {}, { hits: [{ threadId: "thr_old" }] }, agent("thr_run") as never, 5);
+  assert.deepEqual(calls.filter(([c]) => c === "gate.taint.mark"), [], "reads mark nothing");
+  await h.seen!(cap("tasks.plan"), {}, { tasks: [{ threadId: "thr_old" }, { threadId: "thr_made" }] }, agent("thr_run") as never, 5);
+  assert.deepEqual(calls.filter(([c]) => c === "gate.taint.mark").map(([, i]) => i), [{ threads: ["thr_made"], source: AUTO }], "only the thread this call made");
 });

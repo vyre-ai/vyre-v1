@@ -6,7 +6,7 @@
 //   verify   the sealed approval token tasks.act minted must carry the hash of exactly this call, for this caller, and not be past its expiry. gate.release then re-invokes the parked
 //            call as its original caller with that token (CallOpts.approvalToken and .onBehalfOf, honoured by the pipeline for gate.release alone).
 // The daemon wraps this hook with withGateNesting, so one approval covers one send and not its provider call.
-import { HELD_FROM_AUTOMATION_SET } from "../../../lib/automation-content.ts";
+import { CARRIES_MARK, HELD_FROM_AUTOMATION_SET } from "../../../lib/automation-content.ts";
 import { canonical, sha256b64 } from "../../../kernel/src/seal/index.ts";
 import { evalExpr, parseExpr } from "../../../lib/expr/expr.ts";
 import { OUTWARD_ACTS, bringsOutside, linksIn, targetsOf } from "../../../lib/grants.ts";
@@ -28,6 +28,8 @@ export interface GateHookDeps {
   evaluators?: Record<string, (input: unknown, seed: Pick<CtxSeed, "principal" | "thread">) => boolean | Promise<boolean>>;
   /** The uncleared mark from an Automation's outside-started Run ("automation:...") on any of these threads, as opposed to a page an agent read on a person's ask; null when none. */
   automationMarked?(threads: readonly string[]): string | null | Promise<string | null>;
+  /** Was this thread made at or after this time (the call that names it made it)? */
+  madeSince?(threadId: string, at: number): boolean;
   /** The held row an approval names (the host owns modules.db): who asked, whom for, run and thread, the stored payload hash and its state. Null when there is none. */
   /** What a capability that can go out without saying so does on this call: the act and where it goes. Null when this call stays here. */
   outward?(cap: string, input: unknown): { act: string; targets: string[] } | null;
@@ -128,11 +130,12 @@ export function createGateHook(d: GateHookDeps): GateHook {
       const g = (await d.call("gate.grants.take", { act: cap.gate?.act && cap.gate.act !== "none" ? cap.gate.act : "approve", targets: targetsOf(input), always: a })) as { granted?: unknown } | null;
       return g?.granted === true;
     },
-    async seen(cap, input, output, seed) {
+    async seen(cap, input, output, seed, startedAt) {
       if (!seed.thread || seed.principal.kind !== "agent") return;
       // the mark follows the work: a task, a helper, a crew job or a chat the agent starts from a thread an Automation's outside-started Run marked carries the same mark, so the work it
       // does there is held as the Run's own is (lead 12 Nov)
-      const made = threadsIn(output).filter((t) => t !== seed.thread);
+      // only a call that makes a thread, and only the threads it made in this call (a read that names threads never marks them: pass 4b)
+      const made = CARRIES_MARK.has(cap.name) ? threadsIn(output).filter((t) => t !== seed.thread && d.madeSince?.(t, startedAt ?? 0) === true) : [];
       if (made.length > 0) {
         const mark = (await d.automationMarked?.(threads(seed.thread))) ?? null;
         if (mark !== null) await d.call("gate.taint.mark", { threads: made, source: mark });

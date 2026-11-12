@@ -138,7 +138,8 @@ export interface GateHook {
   /** Does an Always allow rule let this call past Ask first? Read at act time. */
   allowed?(cap: CapabilityDef, input: unknown, seed: CtxSeed): Promise<boolean>;
   /** A call finished and its answer goes to a model: if it brought outside words into the turn, the Gate marks the thread (chat design, hole 2). */
-  seen?(cap: CapabilityDef, input: unknown, output: unknown, seed: CtxSeed): Promise<void>;
+  /** `startedAt`: when the call began, so a thread the call made can be told from one it only named. */
+  seen?(cap: CapabilityDef, input: unknown, output: unknown, seed: CtxSeed, startedAt?: number): Promise<void>;
 }
 
 /** The reason a step's outward act was refused on a computer that does not hold the schedule lease now; the Run waits for the one that does (modules/runs). */
@@ -556,7 +557,7 @@ export function createInvoke(deps: InvokeDeps): Invoke {
     // 8 publish after commit
     if (stored.length) deps.publish?.(stored);
     // Before the answer reaches the model: a failure to mark costs the next outward act nothing it should have, so it is logged and the answer still goes. The grant check reads the mark.
-    if (deps.gate?.seen && (depth === 0 || approved)) await deps.gate.seen(c, input, output, seed).catch((e: unknown) => log.warn("the Gate did not hear what a call brought in", { cap: c.name, traceId, error: e instanceof Error ? e.message : String(e) }));
+    if (deps.gate?.seen && (depth === 0 || approved)) await deps.gate.seen(c, input, output, seed, t).catch((e: unknown) => log.warn("the Gate did not hear what a call brought in", { cap: c.name, traceId, error: e instanceof Error ? e.message : String(e) }));
     let answer = finishOutput ? await finishOutput() : output;
     // the read gate, after: what a call an agent is behind hands back is the redacted rendition, or a refusal (Redaction for AI, seams/agent-read.ts)
     if (deps.agentGate && (depth === 0 || approved)) {
