@@ -138,3 +138,9 @@ Signed: lead, 12 Nov 2026 (the optional reason update on engine.stop_all)
 `engine.step_turn@1` now lists `validation.precondition_failed` among its errors, with reason `no_model`. When the API driver refuses a turn for a missing model (`engine.no_model`, on open or mid-turn), the step fails with "This AI step has no model. Give it an agent that has a model, or set a model on its agent." It used to fail as `provider.unavailable`, "The AI provider could not answer this step." Nothing else changes: no new check at save or turn-on, and no new model source. A subscription keeps running on its CLI's own default. Additive: one more declared error.
 
 Signed: lead, 12 Nov 2026
+
+## 12 Nov 2026: automations.vault_usage `blocked` description reworded (lane f-auto)
+
+The description of the optional `blocked` line on `automations.vault_usage` steps now reads "a host not allowed for it" instead of "a host no longer allowed for it". The line itself (key-run.ts) is now one neutral sentence for a host that was removed and one never approved: "#Key is not allowed to go to <host>. Allow it on the key's page, or change this step." Description only: no field, type or error changes.
+
+Signed: lead, 12 Nov 2026
