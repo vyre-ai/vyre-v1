@@ -890,3 +890,23 @@ test("many newcomers at once on a full host each get room: one taking another's 
   assert.deepEqual(outcomes.map((x) => x.status), ["fulfilled", "fulfilled", "fulfilled", "fulfilled"], JSON.stringify(outcomes.map((x) => (x.status === "rejected" ? String((x.reason as Error).message) : "ok"))));
   m.close();
 });
+
+test("twenty newcomers at once on a full host all start: none puts another newcomer to sleep, and ones already put to sleep are passed over", async () => {
+  const clock = { t: 5_000_000 };
+  const dk = engine();
+  const slots = new Set<string>();
+  const capacity = {
+    async claim(id: string) { if (slots.has(id) || slots.size < 20) { slots.add(id); return { state: "running" as const }; } return { state: "waiting" as const, line: "Waiting for room on the Space server." }; },
+    async release(id: string) { slots.delete(id); },
+  };
+  const m = manager(dk, { capacity, now: () => clock.t });
+  const old = Array.from({ length: 20 }, (_, i) => `agt_old${i}`);
+  for (const id of old) await m.exec(id, ["tmux", "-V"]);
+  clock.t += 120_000;
+  const fresh = Array.from({ length: 20 }, (_, i) => `agt_new${i}`);
+  const outcomes = await Promise.allSettled(fresh.map((id) => m.ensure(id)));
+  assert.equal(outcomes.filter((x) => x.status === "fulfilled").length, 20, JSON.stringify(outcomes.filter((x) => x.status === "rejected").map((x) => String((x as PromiseRejectedResult).reason))));
+  for (const id of fresh) assert.equal(dk.box(workspaceName(id)).running, true, `${id} awake`);
+  for (const id of old) assert.equal(dk.box(workspaceName(id)).running, false, `${id} slept for room`);
+  m.close();
+});

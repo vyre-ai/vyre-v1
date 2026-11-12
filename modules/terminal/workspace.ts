@@ -389,6 +389,11 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
   const holds = new Map<string, number>();
   /** A project change waiting for the workspace to be quiet: when it was last looked at, so a busy workspace is not asked on every exec. */
   const pendingMounts = new Map<string, number>();
+  /** When each workspace was last given room to start: for a minute, until its first command, it is not put to sleep to make room for another. */
+  const wokenAt = new Map<string, number>();
+  const JUST_WOKEN_MS = 60_000;
+  /** Workspaces a newcomer is putting to sleep for room right now: other newcomers pass them over. */
+  const forRoom = new Set<string>();
   /** The last command or keystroke in each workspace (a run, typed keys, any exec that counts as use): what the 12-hour ceiling counts from. */
   const lastTouch = new Map<string, number>();
   /** What keeps each workspace awake, for its status line. */
@@ -811,10 +816,12 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
     if (o.capacity) {
       let room = await o.capacity.claim(agentId);
       // a full host first puts its longest-quiet workspace to sleep (nothing held, nothing running) and starts this one; only when every awake one is truly busy does this one wait (12 Nov)
-      // newcomers at the same moment can take each other's freed room: it tries again a few times, each time putting another quiet one to sleep
-      for (let i = 0; i < 5 && room.state === "waiting" && (await makeRoom(agentId)); i++) room = await o.capacity.claim(agentId);
+      // newcomers at the same moment can take each other's freed room: it tries again as long as it can put another quiet one to sleep (each try sleeps one, so this ends)
+      while (room.state === "waiting" && (await makeRoom(agentId))) room = await o.capacity.claim(agentId);
       if (room.state === "waiting") { const line = workspaceWaitLine(room.line); waitingLine.set(agentId, line); throw wsError(line, "waiting"); }
       waitingLine.delete(agentId);
+      // it was just asked for: not the one another newcomer puts to sleep for room while it starts
+      wokenAt.set(agentId, now());
     }
     try {
       if (!info) await build(agentId, name, want, config);
@@ -873,9 +880,21 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
   async function makeRoom(forAgent: string): Promise<boolean> {
     let live: string[];
     try { live = await running(); } catch { return false; }
-    const quiet = live.filter((id) => id !== forAgent && (holds.get(id) ?? 0) === 0).sort((a, b) => (lastTouch.get(a) ?? 0) - (lastTouch.get(b) ?? 0));
-    for (const id of quiet.slice(0, 8)) {
-      if (await sleepNow(id, false, true)) { log("info", "workspace.slept_for_room", { agent: id, for: forAgent }); return true; }
+    // one that was given room in the last minute and has had no command since is a newcomer still starting: never the one put to sleep
+    const starting = (id: string): boolean => { const w = wokenAt.get(id); return w !== undefined && now() - w < JUST_WOKEN_MS && (lastTouch.get(id) ?? 0) < w; };
+    const quiet = live.filter((id) => id !== forAgent && (holds.get(id) ?? 0) === 0 && !starting(id))
+      .sort((a, b) => (lastTouch.get(a) ?? 0) - (lastTouch.get(b) ?? 0));
+    // at most a few awake ones are asked whether they are busy; ones another newcomer already put to sleep (newcomers at once share one list) are passed over without counting
+    let asked = 0;
+    for (const id of quiet) {
+      if (asked >= 8) break;
+      if (forRoom.has(id)) continue;   // another newcomer is putting this one to sleep
+      forRoom.add(id);
+      try {
+        if (!(await api.containerRunning(workspaceName(id)).catch(() => false))) continue;
+        asked++;
+        if (await sleepNow(id, false, true)) { log("info", "workspace.slept_for_room", { agent: id, for: forAgent }); return true; }
+      } finally { forRoom.delete(id); }
     }
     return false;
   }
