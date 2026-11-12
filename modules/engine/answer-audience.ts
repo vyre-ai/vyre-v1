@@ -79,10 +79,29 @@ export async function screenAnswer(d: AnswerAudienceDeps, q: { threadId: string;
   let closed: ReadResource[];
   if (others === null || !d.mayAll) closed = reads;   // who reads the chat, or what they may open, cannot be known: never share
   else if (others.length === 0) closed = [];
-  else closed = reads.filter((r) => r.type === "*" || !d.mayAll!(others, { perm: null, level: "view" }, r));
+  else {
+    closed = [];
+    for (const r of reads) {
+      if (r.type === "*") closed.push(r);
+      // a read in an agent's own Space browser profile (a chrome tool with no computer named): shared with the readers who could have got the same by asking the agent themselves (lead, 12 Nov;
+      // the rule the Vault set for a team agent's shared computer). Who may ask an agent is who may see it (view on the agent, the check that lets a person address it), asked of the kernel in one
+      // pass for every reader. A private agent or an Assistant (personal) is asked by its person alone, so its answers stay private. Watching the live view is a different question (sbrowser/policy.ts).
+      else if (r.type === "browser_profile") { if (!(await allMayAsk(d, others, q.asker, String(r.id ?? "")))) closed.push(r); }
+      else if (!d.mayAll!(others, { perm: null, level: "view" }, r)) closed.push(r);
+    }
+  }
   if (closed.length === 0) return { body: q.reply, withheld: false, closed };
   await sendPrivately(d, q);
   return { body: PRIVATELY, withheld: true, closed };
+}
+
+/** May every one of these people ask this agent themselves? Fails closed: an agent whose class cannot be read, a private or personal one, or a reader the kernel does not allow. */
+async function allMayAsk(d: AnswerAudienceDeps, people: readonly string[], asker: string, agentId: string): Promise<boolean> {
+  if (agentId === "" || !d.mayAll) return false;
+  let cls: string | undefined;
+  try { cls = ((await d.call("agents.share_class", { agentId }, asker)) as { class?: string }).class; } catch { return false; }
+  if (cls !== "shared" && cls !== "space") return false;
+  return d.mayAll(people, { perm: null, level: "view" }, { type: "agent", id: agentId });
 }
 
 /** The whole answer, in the asker's own chat with the agent (made once per chat it came from, and kept). */

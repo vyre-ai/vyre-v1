@@ -149,7 +149,10 @@ function ensureExports(ctx: VaultCtx): void {
 function itemBy(ctx: VaultCtx, ref: string, forTurn = false): Row {
   if (isId("vit", ref)) return reachable(ctx, ref, "use", { forTurn });
   const want = ref.replace(/^#/, "").toLowerCase();
-  const rows = rowsOf(ctx.db.all(`SELECT * FROM vault_meta`)).filter((r) => visible(ctx, r) || (forTurn && str(r, "scope") === "mine" && live(r) && turnFor(ctx, r)));
+  // a handle that can name two items resolves the same way everywhere: the asker's own Mine item first, then a Shared one (as secretPort.read and the host's resolver do), never table order
+  const asker = ctx.actingFor ?? ctx.principal.id;
+  const rank = (r: Row): number => (str(r, "scope") === "mine" && str(r, "owner") === asker ? 0 : str(r, "scope") === "shared" ? 1 : 2);
+  const rows = rowsOf(ctx.db.all(`SELECT * FROM vault_meta`)).filter((r) => visible(ctx, r) || (forTurn && str(r, "scope") === "mine" && live(r) && turnFor(ctx, r))).sort((a, b) => rank(a) - rank(b));
   const byHandle = (w: string): Row | undefined => rows.find((r) => str(r, "handle").replace(/^#/, "").toLowerCase() === w);
   const folded = (): Row | undefined => { const to = aliasTarget(ctx.db, want); return to ? byHandle(to.replace(/^#/, "").toLowerCase()) : undefined; };
   const hit = byHandle(want) ?? rows.find((r) => str(r, "name").toLowerCase() === ref.trim().toLowerCase()) ?? folded();

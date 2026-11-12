@@ -32,6 +32,8 @@ import { ScheduleQueue } from "../ctx/schedule.ts";
 import type { ScheduledCall } from "../ctx/schedule.ts";
 import { createBlobStore } from "../ctx/blobs.ts";
 import { createSpacePorts } from "../seams/space-ports.ts";
+import { createNotifyMailer } from "../seams/notify-mail.ts";
+import type { NoticeEmail } from "../seams/notify-mail.ts";
 import { rawDbOf, scopedDb } from "../ctx/db.ts";
 import { createBlobRoute } from "../routes/blobs.ts";
 import { createPortalLinkRoute } from "../routes/portal-link.ts";
@@ -90,6 +92,9 @@ export function createMadeFilesAnnouncer(a: { db: { all(sql: string, ...args: un
   };
 }
 
+/** An agent's own reports on its own task: what an outside-started Automation Run may do in Ask first without a card (ownTaskReport). */
+const OWN_TASK_REPORTS: ReadonlySet<string> = new Set(["tasks.submit", "tasks.ask", "tasks.block", "tasks.working_notes.set", "chat.post"]);
+
 export function createAgentHomeCaller(a: { db: { all(sql: string, ...args: unknown[]): unknown[] }; spaceId: string; invoke: Invoke }) {
   return async (agentId: string, cap: string, input: unknown): Promise<unknown> => {
     const owner = a.db.all("SELECT ownerId FROM agents_agent WHERE id = ? AND deletedAt IS NULL", agentId)[0] as { ownerId?: string } | undefined;
@@ -104,6 +109,7 @@ import type { Platform } from "../platform/index.ts";
 import * as probes from "../platform/probes.ts";
 import type { FetchFn, ProbeName, ProbeResult } from "../platform/probes.ts";
 import { Scheduler } from "../scheduler/index.ts";
+import { endOfDeadJob } from "./dead-jobs.ts";
 import { loopLag } from "../scheduler/looplag.ts";
 import { Supervisor } from "../supervisor/index.ts";
 import type { RunningUnit, ServiceSpec, UnitExit } from "../supervisor/index.ts";
@@ -117,6 +123,7 @@ import { releaseImage } from "../seams/release-images.ts";
 import { createTerminalHostSeam } from "../seams/terminal-host.ts";
 import { createEngineSessionHost } from "../seams/engine-session.ts";
 import { gateTeamAgents } from "../seams/team-vault.ts";
+import { isOutsideTrigger } from "../../../lib/automation-content.ts";
 import type { LookupSource, TeamItem } from "../seams/team-vault.ts";
 import { findDockerSocket } from "../seams/docker-socket.ts";
 import { READER_LOSS, createEngineHost } from "../seams/engine.ts";
@@ -1042,6 +1049,22 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       let previews: ReturnType<typeof createViewAs> | null = null;
       let invokeRef: Invoke = () => Promise.reject(new Error("the invoke pipeline is not ready"));
       const firstCapOf = new Map<string, (typeof registryCaps)[number] | undefined>();
+      /** The task a thread is about, when an Automation's Run made it: its automation, the trigger kind, and whether a stranger could have started it (email, form, webhook). */
+      const automationTaskOfThread = async (threadId: string): Promise<{ taskId: string; automationId: string; trigger: string; outside: boolean } | null> => {
+        try {
+          // read as the server itself (capabilities, not host calls)
+          const read = async (cap: string, input: Record<string, unknown>): Promise<unknown> => {
+            const r = await invokeRef(cap, input, { space: spaceId, principal: { ...SYSTEM_PRINCIPAL }, preAuth: true, origin: "seam" });
+            return r.status === "ok" ? r.output : null;
+          };
+          const th = ((await read("threads.get", { threadId })) as { thread?: { scopeType?: string; scopeId?: string } } | null)?.thread;
+          if (th?.scopeType !== "task" || typeof th.scopeId !== "string") return null;
+          const t = ((await read("tasks.get", { taskId: th.scopeId })) as { task?: { createdBy?: string; workingNotes?: Record<string, string> } } | null)?.task;
+          const automationId = t?.workingNotes?.["automation.id"], trigger = t?.workingNotes?.["automation.trigger"] ?? "";
+          if (typeof automationId !== "string" || !/^aut_[a-z0-9]+$/.test(automationId) || t?.createdBy !== `svc_${automationId.slice(4)}`) return null;
+          return { taskId: th.scopeId, automationId, trigger, outside: isOutsideTrigger(trigger) };
+        } catch { return null; }
+      };
       const hookRunner = createHookRunner({
         space, now, db,
         // a hooks override stands in for the module hooks, except the access module's: authorize reads its snapshot (ruling 70), so its host calls are never replaced
@@ -1077,11 +1100,12 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       closeIdleSessions = async (person) => (await pool()?.closeIdle?.(person)) ?? 0;
       idleSessions = (person) => pool()?.idleCount?.(person) ?? 0;
       // the Space kind for terminal and computers (unbound they assume a Team Space) and how a person's sessions here stop when they turn subscription sharing off (modules/engine extra/config.ts)
-      boundPorts = bindSpacePorts(loaded.moduleExports, {
+      const portDeps = {
         team: cfg.spaceKind !== "personal",
-        stopSandbox: async (person) => { const p = pool(); if (!p?.closeIdle) return false; await p.closeIdle(person); return true; },
-      });
-      closers.push(() => unbindSpacePorts(loaded.moduleExports));
+        stopSandbox: async (person: string) => { const p = pool(); if (!p?.closeIdle) return false; await p.closeIdle(person); return true; },
+      };
+      boundPorts = bindSpacePorts(loaded.moduleExports, portDeps);
+      closers.push(() => unbindSpacePorts(loaded.moduleExports, portDeps));
       // Machines (lane l-machines): a machine's report goes to the module; the Space server reads itself every 30 s; the module asks the host how many turns a connected machine runs, for the Doctor and for the Fixes
       machinesSync = () => { void hookRunner.call("machines.sync", {}).catch(() => undefined); };
       machinesIngest = (from, r) => {
@@ -1216,7 +1240,12 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       let runScheduled: (call: ScheduledCall) => Promise<void> = () => Promise.reject(new Error("the invoke pipeline is not ready"));
       const scheduleQueue = new ScheduleQueue({
         db, now, run: (c) => runScheduled(c),
-        onError: (c, e, final) => sinkLog.warn("schedule.failed", { cap: c.cap, id: c.id, tries: c.tries + 1, final, error: e instanceof Error ? e.message : String(e) }),
+        onError: (c, e, final) => {
+          sinkLog.warn("schedule.failed", { cap: c.cap, id: c.id, tries: c.tries + 1, final, error: e instanceof Error ? e.message : String(e) });
+          // a dead job that drove a Run ends that Run failed, so its owner is told (dead-jobs.ts)
+          const end = final ? endOfDeadJob(c, e) : null;
+          if (end) void runScheduled(end).catch((err: unknown) => sinkLog.error("schedule.dead_run_not_ended", { cap: c.cap, id: c.id, error: err instanceof Error ? err.message : String(err) }));
+        },
       });
       queue = scheduleQueue;
       const sealKey = o.sealKey ?? { key: sealKeyFile(path.join(paths.root, "seal.key")), keyId: "k1" };
@@ -1275,6 +1304,15 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           evaluators: moduleWhens(loaded.moduleExports, () => db, (cap, input) => system(cap, input)),
           outward: moduleOutward(loaded.moduleExports), fetches: moduleFetches(loaded.moduleExports),
           threads: threadChain,
+          // an uncleared Automation mark on the thread or one above it; when the table cannot be read, held only for a thread that belongs to an Automation's outside-started Run
+          madeSince: (threadId, at) => {
+            try { const r = db!.all(`SELECT "createdAt" AS c FROM chat_thread WHERE id = ?`, threadId)[0] as { c?: number } | undefined; return typeof r?.c === "number" && r.c >= at; } catch { return false; }
+          },
+          automationMarked: async (ids) => {
+            if (ids.length === 0) return null;
+            try { return (db!.all(`SELECT source FROM gate_taint WHERE thread_id IN (${ids.map(() => "?").join(", ")}) AND cleared_at IS NULL AND source LIKE 'automation:%' LIMIT 1`, ...ids)[0] as { source?: string } | undefined)?.source ?? null; }
+            catch { for (const id of ids) { const at = await automationTaskOfThread(id); if (at?.outside) return `automation:${at.automationId}:${at.trigger}:`; } return null; }
+          },
           mode: (id) => {
             // 1 plan, 2 auto, anything else ask (modules/chat/projections.ts): a Job is never looser than the chat above it
             try {
@@ -1312,7 +1350,25 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           if (!previews) throw fail("permission.no_grant", trace);
           return previews.read(token, cap, input, trace);
         } },
-        resolveItem: (type, kind, value) => resolveVaultItem(db!, type, kind, value),
+        resolveItem: (type, kind, value, person) => resolveVaultItem(db!, type, kind, value, person),
+        // a Vault item this person cannot see: another person's Mine item (hidden even from an admin, as the Vault hides it), or one they may not use
+        // an agent's own report on the task it holds, in a task thread an Automation's outside-started Run made (submit, ask, block, its notes, a post in that thread): it acts on nothing
+        // outside the task, so Ask first does not stop it there (lead 12 Nov, pass 2: an outside-started Run must be able to finish); every other write in that thread still asks
+        ownTaskReport: async (cap, input, seed) => {
+          if (seed.principal.kind !== "agent" || !seed.thread || !OWN_TASK_REPORTS.has(cap.name)) return false;
+          const at = await automationTaskOfThread(seed.thread);
+          if (at === null || !at.outside) return false;
+          const i = (input ?? {}) as { taskId?: unknown; threadId?: unknown };
+          return cap.name === "chat.post" ? i.threadId === seed.thread : i.taskId === at.taskId;
+        },
+        vaultHidden: (itemId, person) => {
+          try {
+            const r = db!.all(`SELECT "scope", "owner" FROM vault_meta WHERE "id" = ? AND "deleted_at" IS NULL`, itemId)[0] as { scope?: string; owner?: string } | undefined;
+            if (!r) return "other";
+            if (r.scope === "mine") return r.owner !== person ? "mine" : false;
+            return authorize(access.snap, { principal: person, action: { perm: null, level: "use" }, resource: { type: "vault_item", id: itemId }, now: now() }).effect !== "allow" ? "other" : false;
+          } catch { return "other"; }
+        },
         ensureResource: async (r) => {
           if ((r.type === "conversation" || r.type === "mail_message") && r.id !== null) { await ensureRow(r.type, r.id); return; }
           const key = r.type === "connector" ? r.id : r.id === null && r.type === "connection" ? r.parent ?? null : null;
@@ -1840,12 +1896,26 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         deviceOwner: (deviceId) => { if (!cfg.roles.includes("device")) return null; try { const r = db!.all(`SELECT "person" FROM devices_device WHERE "id" = ? AND "revokedAt" IS NULL AND "deleted_at" IS NULL`, deviceId)[0] as { person?: string } | undefined; return r?.person ?? null; } catch { return null; } },
         refused: (r) => { void invoke("audit.append", { action: "vault.use_refused", class: "deny", onBehalfOf: { kind: "person", id: r.asker }, ...(r.itemId ? { resource: { type: "vault_item", id: r.itemId } } : {}), detail: { agentId: r.agentId, handle: r.handle, reason: r.reason } }, { space: spaceId, principal: { ...SYSTEM_PRINCIPAL }, preAuth: true, origin: "seam" }).catch(() => undefined); },
       });
+      // the notifications module's email through the Space's own mail (seams/notify-mail.ts); the members' addresses come from the space ports wired below
+      const membersPortRef: { ports: ReturnType<typeof createSpacePorts> | null } = { ports: null };
+      const notifyMailer = createNotifyMailer({
+        invoke: (cap, input, seed) => invoke(cap, input, seed),
+        space: spaceId,
+        owner: () => access.owner() ?? cfg.owner ?? null,
+        emails: async () => (o.seams?.members ?? membersPortRef.ports?.members)?.emails(spaceId) ?? [],
+        // the Space's own https address (the one portal links use); none on a Space only this computer reaches
+        address: () => publicOrigin()?.origin ?? null,
+        spaceName: async () => String((db?.all("SELECT name FROM identity_space WHERE id = ?", spaceId)[0] as { name?: string } | undefined)?.name ?? cfg.spaceName ?? ""),
+        warn: (msg, attrs) => sink.log({ space: spaceId, level: 30, msg, place: "notifications", ...(attrs ? { attrs } : {}) }),
+      });
       const hostDrivers: Record<string, SeamDriver> = {
         // sealed fields in Records: values live in the Vault, in a Space owned folder; the folder belongs to the Space owner so the owner can reveal what is in it
         // (schema seals an existing field through the same Vault, so both setters get one driver)
         setRecordsVault: () => sealedVault(),
         setSchemaVault: () => sealedVault(),
-        setPushPort: () => createPushPort(o.seams?.push),
+        // the notifications module's email goes out through the Space's own mail (seams/notify-mail.ts): the service mailbox with a verified domain, or nothing and a health line; a test or a
+        // host that passes its own email transport keeps it
+        setPushPort: () => createPushPort({ ...(o.seams?.push ?? {}), ...(o.seams?.push?.email ? {} : { email: (m: NoticeEmail) => notifyMailer.email(m), gaveUp: (m: { to: string; kind: string }) => notifyMailer.gaveUp(m) }) }),
         // portal invitations and sign-in links go out through mail.send from the service mailbox (P-L8_17)
         configurePortal: (d) => createPortalHost({ invoke: (cap, input, seed) => invoke(cap, input, seed), space: spaceId, publicUrl: o.seams?.publicUrl ? d.publicUrl : async () => {
           // a portal link has to reach someone outside and keeps a sign-in, so it needs an address of the Space's own: not loopback, and not /p/, which carries no session
@@ -2223,7 +2293,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       const setters = o.seams?.setters ?? loaded.hostSeams;
       if (Object.keys(setters).length) {
         // who the members are by work email, Space files by id, and where downloaded bytes go: built from the Space's own database and the Files module
-        const spacePorts = createSpacePorts({
+        const spacePorts = membersPortRef.ports = createSpacePorts({
           db: db!, active: (id) => access.snap.principal(id)?.status === "active", putToSlot,
           // the Files calls run as the server itself, through the pipeline, so the scrubber and the audit still see them
           call: async (cap, input) => {

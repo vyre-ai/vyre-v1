@@ -8,7 +8,8 @@
 //   recording and every answer can be scrubbed; `frame` is the screen after the step (the timeline's picture); `caption` is its words.
 // Errors are only ones the capabilities declare: a person at the controls, a held item and a bad argument are validation.bad_input; Esc, a computer still starting and a silent agentd are provider.unavailable.
 // Handles are never resolved here: "agent computer logins stay on that computer" (ARCH 6.11), agentd substitutes them at the last moment and scrubs its own output. This module scrubs again.
-import { actorOf, addStep, agentFolder, boundFill, clean, hostFor, ensure, mintId, needComputer, needTeam, filledTabsOf, givenCount, handedSince, markFilledTab, raise, rememberSecrets, tabsOpen, rowsOf, setComputer } from "../../projections.ts";
+import { retargetRead } from "../../../../host/src/seams/answer-reads.ts";
+import { actorOf, addStep, agentFolder, boundFill, clean, hostFor, nodeOf, ensure, mintId, needComputer, needTeam, filledTabsOf, givenCount, handedSince, markFilledTab, raise, rememberSecrets, tabsOpen, rowsOf, setComputer } from "../../projections.ts";
 import { personalChrome } from "../../projections.ts";
 import type { CompCtx, ComputerHost, ComputerRow, PersonalChrome, Secret } from "../../projections.ts";
 import { awaken } from "../lifecycle.ts";
@@ -31,6 +32,7 @@ import { currentHold, DURING_HOLD, HELD_LINE, heldBy } from "../../sbrowser/hold
 import { agentInfo } from "../../sbrowser/agentinfo.ts";
 import { faceSvg } from "../../sbrowser/face.ts";
 import { waitingNote } from "../../capacity.ts";
+import { moveOf, settleMove } from "../../migrate.ts";
 
 export type ToolArgs = Record<string, unknown>;
 export type ToolAnswer = Record<string, unknown>;
@@ -80,13 +82,40 @@ function toolHost(ctx: CompCtx, computerId: string): ComputerHost & ToolHost {
   return host as ComputerHost & ToolHost;
 }
 
-/** The computer a tool call is for: the one named, else the caller's own (an agent has one). */
-export function computerFor(ctx: CompCtx, computerId: string | undefined): ComputerRow {
+/**
+ * What an agent with no old-style desktop is told when a tool needs one. Agents no longer get a desktop (6 Nov): they have a terminal in their workspace and a browser in the Space browser, so each line
+ * names the tool that works for what the call was after, in words an agent can pass on to a person. `tool` is the tool's name; any other call gets the general line.
+ */
+export function noDesktopLine(tool: string | undefined): string {
+  if (tool !== undefined && tool.startsWith("chrome_")) {
+    return "This Space has no browser for agents right now: the container runtime (Docker) does not answer on the computer this Space runs on, and the Space browser needs it. Docker on that computer, or a server with Docker added in Console > Computers, gives agents a browser. Tell the person that. Use their own Chrome only if they ask for it.";
+  }
+  if (tool !== undefined && tool.startsWith("screen_")) {
+    return "You have no desktop screen: the screen tools work only on an old-style agent computer, and agents no longer get one. To work on a web page use chrome_open, chrome_snapshot and chrome_act in the Space browser. To run commands use terminal_run in your workspace.";
+  }
+  if (tool !== undefined && tool.startsWith("computer_files_")) {
+    return "You have no desktop computer for these file tools to read. Your Files folder is in Files: use the files tools, or terminal_run to work with it in your workspace.";
+  }
+  return "You have no desktop computer, and agents no longer get one. You have a terminal in your workspace (terminal_run) and a browser in the Space browser (chrome_open, chrome_snapshot).";
+}
+
+/** What an agent is told when it calls a desktop tool and its older desktop has already moved to its workspace and browser. */
+export function movedDesktopLine(tool: string | undefined): string {
+  return tool !== undefined && tool.startsWith("computer_files_")
+    ? "Your older desktop has moved to your workspace and your browser, so these file tools no longer work. Your Files folder is in Files: use the files tools, or terminal_run to work with it in your workspace."
+    : "Your older desktop has moved to your workspace and your browser, so the screen tools no longer work. To work on a web page use chrome_open, chrome_snapshot and chrome_act. To run commands use terminal_run.";
+}
+
+/** The computer a tool call is for: the one named, else the caller's own (an agent that still has an old desktop). */
+export function computerFor(ctx: CompCtx, computerId: string | undefined, tool?: string): ComputerRow {
   if (computerId) return needComputer(ctx, computerId);
   if (ctx.principal.kind !== "agent") raise(ctx, "validation.bad_input", "Say which computer. Only an agent can leave it out.");
   const r = rowsOf(ctx.db, "SELECT computer_id FROM computers_computers WHERE agent_id = ?", ctx.principal.id)[0];
-  if (!r) raise(ctx, "validation.not_found", "This agent has no computer. Give it one first.", { agentId: ctx.principal.id });
-  return needComputer(ctx, String(r["computer_id"]));
+  if (!r) raise(ctx, "validation.not_found", noDesktopLine(tool), { agentId: ctx.principal.id });
+  // the id left out (the gateway bound the call to the Space): the same question the named spelling asks at the gateway is asked here, on this computer, so an admin's deny on it stops both ways in
+  const own = String(r["computer_id"]);
+  if (ctx.authorize({ perm: "computers.use", level: "use" }, { type: "computer", id: own }).effect !== "allow") raise(ctx, "permission.no_grant", "This agent may not use its computer right now.", { computerId: own });
+  return needComputer(ctx, own);
 }
 
 function mayUse(ctx: CompCtx, c: ComputerRow): void {
@@ -247,6 +276,8 @@ const stub = (ctx: CompCtx): ComputerRow => ({ computerId: MY_CHROME, agentId: c
 
 /** Tools that never need the ask of this turn: they finish or stop what an ask already began (a held item waiting for the person, Stop, Resume, and the look at whether Chrome is connected). */
 const NO_ASK = new Set(["chrome_send", "chrome_stop", "chrome_resume", "chrome_status"]);
+/** Calls that only look or stop: they never start the move of an old desktop. */
+const LOOKS = new Set(["chrome_status", "chrome_stop", "chrome_resume"]);
 
 /** Where a call goes: `inMyChrome: true` is the way to ask for the person's Chrome; the older spelling `computerId: "my-chrome"` means the same. */
 export const whereOf = (input: { computerId?: string | undefined; inMyChrome?: boolean | undefined }): string | undefined => (input.inMyChrome === true ? MY_CHROME : input.computerId);
@@ -275,13 +306,22 @@ export async function prepare(ctx: CompCtx, computerId: string | undefined, spec
   if (await wantsMyChrome(ctx, computerId, spec.name)) return { computer: stub(ctx), host: {} as ComputerHost & ToolHost, personal: true };
   // The Space browser is where an agent browses by default (owner decision 6 Nov): its own profile, on the Space host, whoever asked, so the person's computer is never disturbed and a team agent's logins
   // outlive the person who asked. Only a call that names a computer (a person working one) or the person's own Chrome (`my-chrome`, on request) goes elsewhere.
-  if (spec.name !== undefined && spec.name.startsWith("chrome_") && computerId === undefined && ctx.principal.kind === "agent" && spaceBrowser() && await browserUsable(spaceBrowser()!, ctx.now())) {
+  // An agent that still has an old desktop moves to the Space browser only after that desktop's sign-ins have moved into its profile (migrate.ts settleMove); until then its browser calls stay on the desktop.
+  if (spec.name !== undefined && spec.name.startsWith("chrome_") && computerId === undefined && ctx.principal.kind === "agent" && spaceBrowser() && await browserUsable(spaceBrowser()!, ctx.now()) && await settleMove(ctx, ctx.principal.id, { start: !LOOKS.has(spec.name) })) {
     const profileId = profileIdOf(ctx.principal.id);
     if (!profileId) raise(ctx, "validation.bad_input", "This agent cannot have a browser profile: its id is not valid.");
     return { computer: { computerId: profileId, agentId: ctx.principal.id, state: "working" } as unknown as ComputerRow, host: {} as ComputerHost & ToolHost, browser: { profileId } };
   }
-  let c = computerFor(ctx, computerId);
+  let c = computerFor(ctx, computerId, spec.name);
+  // a desktop whose sign-ins have moved is retired: the screen and file tools tell the agent what to use now (a person removes the desktop)
+  if (computerId === undefined && ctx.principal.kind === "agent" && (spec.name?.startsWith("screen_") || spec.name?.startsWith("computer_files_")) && moveOf(ctx, c.computerId)?.state === "done") {
+    raise(ctx, "validation.not_found", movedDesktopLine(spec.name), { agentId: ctx.principal.id });
+  }
   mayUse(ctx, c);
+  // a chrome call the gateway took for the agent's Space browser goes to its computer (the browser is not usable): the answer check and the audit name that computer (review A2)
+  if (spec.name !== undefined && spec.name.startsWith("chrome_") && computerId === undefined && ctx.principal.kind === "agent") {
+    retargetRead({ thread: ctx.thread, agent: ctx.principal.id, asker: ctx.actingFor, traceId: ctx.trace.traceId, computerId: c.computerId });
+  }
   // The controls are the person's: the tools wait for an agent, never for the person at the controls (their own click or key through the live view is a tool call as them).
   const atTheControls = ctx.principal.kind === "person" && c.takeoverBy !== undefined && actorOf(ctx) === c.takeoverBy;
   if (c.state === "takeover" && !spec.duringTakeover && !atTheControls) raise(ctx, "validation.bad_input", "A person has the controls. The tools wait until they give them back.", { takeoverBy: c.takeoverBy });
@@ -292,6 +332,92 @@ export async function prepare(ctx: CompCtx, computerId: string | undefined, spec
 }
 
 /** One call to agentd and everything after it: scrub, remember what was filled, keep the frame, add the step. Returns the capability's output. */
+// The Vault channel of an older desktop acts for the person whose turn is using it, for as long as that turn's calls run, as the Space browser's does (a token per turn): never for the agent's owner for the
+// computer's whole life. With no person behind the call there is no channel at all. agentd holds one filler, so one person's calls hold the desktop's channel at a time; another person's call waits briefly,
+// then says so. A token that ended leaves agentd holding a dead one, which the host refuses.
+// ---- the Vault channel of one person's turn, for the Space browser and for an older desktop: one slot-first lease
+interface Slot { token: string; calls: number; revoke(): void; extend?(): void; pause?(): void; resume?(): void; ready: Promise<boolean>; err?: unknown; timer?: ReturnType<typeof setTimeout> }
+interface Made { token: string; revoke(): void; extend?(): void; pause?(): void; resume?(): void }
+/** A token for a turn's calls cannot outlive the call's own time limit by more than this: a revoke that is missed is never for ever. */
+const TOKEN_TTL_MS = MAX_TOOL_MS + 30_000;
+function dropSlot(slots: Map<string, Slot>, key: string, s: Slot): void {
+  if (s.timer) clearTimeout(s.timer);
+  if (slots.get(key) === s) slots.delete(key);
+  s.revoke();
+}
+/**
+ * One token per key, for as long as calls use it. The slot is taken before anything is awaited, so calls that start together share one token; a call that joins a slot another call dropped meanwhile takes a
+ * fresh one; the token is extended each time a call joins (its ttl starts again) and revoked once, when the last call has ended. With `lingerMs` the token is only paused for that long after the last call
+ * (it answers nothing, 401), so the next call of the same person resumes it without making another; then it is revoked. `make` issues the token and does what has to be done with it; a failure is returned as null,
+ * or thrown when `throwErrors`.
+ */
+async function turnLease(slots: Map<string, Slot>, key: string, make: () => Promise<Made>, o: { lingerMs?: number; throwErrors?: boolean } = {}): Promise<{ token: string; done(): void } | null> {
+  const lease = (s: Slot): { token: string; done(): void } => ({
+    token: s.token,
+    done() {
+      s.calls -= 1;
+      if (s.calls > 0 || slots.get(key) !== s) return;
+      if (o.lingerMs !== undefined && o.lingerMs > 0) { s.pause?.(); s.timer = setTimeout(() => dropSlot(slots, key, s), o.lingerMs); s.timer.unref?.(); return; }
+      dropSlot(slots, key, s);
+    },
+  });
+  for (;;) {
+    const held = slots.get(key);
+    if (held) {
+      held.calls += 1;   // counted at once, so the slot cannot be dropped under this call while it waits
+      if (!(await held.ready)) { held.calls -= 1; if (o.throwErrors && held.err !== undefined) throw held.err; return null; }
+      if (slots.get(key) !== held) { held.calls -= 1; continue; }   // dropped in the meantime: a fresh slot
+      if (held.timer) { clearTimeout(held.timer); delete held.timer; }
+      held.resume?.(); held.extend?.();
+      return lease(held);
+    }
+    const s: Slot = { token: "", calls: 1, revoke: () => undefined, ready: Promise.resolve(false) };
+    s.ready = (async () => {
+      try { const m = await make(); s.token = m.token; s.revoke = m.revoke; if (m.extend) s.extend = m.extend; if (m.pause) s.pause = m.pause; if (m.resume) s.resume = m.resume; return true; }
+      catch (e) { s.err = e; if (slots.get(key) === s) slots.delete(key); s.revoke(); return false; }
+    })();
+    slots.set(key, s);
+    if (!(await s.ready)) { if (o.throwErrors && s.err !== undefined) throw s.err; return null; }
+    return lease(s);
+  }
+}
+
+// An older desktop: its Vault channel acts for the person whose turn is using it, for as long as that turn's calls run, as the Space browser's does: never for the agent's owner for the computer's whole life.
+// With no person behind the call there is no channel at all. agentd holds one filler, so one person's calls hold the desktop's channel at a time; another person's call waits briefly, then says so. A token that
+// ended leaves agentd holding a dead one, which the host refuses.
+const deskSlots = new Map<string, Slot>();
+let fillWaitMs = 5_000;
+/** For tests: how long a person's call waits for another person's calls on the same desktop. */
+export function setFillWait(ms: number | null): void { fillWaitMs = ms ?? 5_000; }
+/** On a computer that joined the Space, configuring agentd is a node job (up to one poll away), so the same person's next call within this time reuses the channel (paused between calls) instead of making another. */
+let lingerMs = 15_000;
+/** For tests. */
+export function setFillLinger(ms: number | null): void { lingerMs = ms ?? 15_000; }
+export async function leaseFill(ctx: CompCtx, c: ComputerRow, host: ComputerHost): Promise<{ done(): void } | null> {
+  const binding = boundFill();
+  if (!binding) return null;
+  if (ctx.principal.kind === "agent" && ctx.actingFor === undefined) return null;   // no turn, no Vault
+  const asker = actorOf(ctx);
+  const node = nodeOf(ctx.db, c.computerId);
+  // a computer on a server of the person's reaches the Space over a network link: it gets a channel only when that link is private
+  if (node !== null && binding.nodeSecure?.(node) !== true) return null;
+  const mine = `${c.computerId}|${asker}`;
+  const until = Date.now() + fillWaitMs;
+  for (;;) {
+    const other = [...deskSlots].find(([k]) => k.startsWith(`${c.computerId}|`) && k !== mine);
+    if (!other) break;
+    if (other[1].calls <= 0) { dropSlot(deskSlots, other[0], other[1]); continue; }   // another person's channel that only lingers: ended at once
+    if (Date.now() >= until) raise(ctx, "provider.unavailable", "Someone else's request is using this desktop's Vault channel right now. Try again in a moment.");
+    await new Promise((res) => setTimeout(res, 50));
+  }
+  const l = await turnLease(deskSlots, mine, async () => {
+    const issued = await binding.issue({ computerId: c.computerId, agentId: c.agentId, asker, turn: true, ttlMs: TOKEN_TTL_MS, ...(node !== null ? { nodeId: node } : {}) });
+    try { await host.configure({ computerId: c.computerId, tabLimit: c.tabLimit, fillUrl: binding.url(), fillToken: issued.fillToken }); } catch (e) { issued.revoke(); throw e; }
+    return { token: issued.fillToken, revoke: issued.revoke, ...(issued.extend ? { extend: issued.extend } : {}), ...(issued.pause ? { pause: issued.pause } : {}), ...(issued.resume ? { resume: issued.resume } : {}) };
+  }, { lingerMs: node !== null ? lingerMs : 0 });
+  return l ? { done: l.done } : null;
+}
+
 export async function call(ctx: CompCtx, r: Resolved, spec: ToolSpec, args: ToolArgs): Promise<ToolAnswer> {
   if (r.personal) return personalCall(ctx, spec, args);
   if (r.browser) return browserCall(ctx, r.browser.profileId, spec, args);
@@ -301,12 +427,13 @@ export async function call(ctx: CompCtx, r: Resolved, spec: ToolSpec, args: Tool
   if (spec.name === "chrome_screenshot" && !(await pictureAllowed(c.computerId, list, args["tabId"]))) raise(ctx, "validation.bad_input", HOLDS_VALUE, { reason: "vault_value_on_page" });
   const given = givenCount(c.computerId);
   let raw: ToolAnswer;
+  const lease = await leaseFill(ctx, c, r.host);
   try {
     const byPerson = c.state === "takeover" && ctx.principal.kind === "person" && c.takeoverBy !== undefined && actorOf(ctx) === c.takeoverBy;
     raw = await r.host.tool({ computerId: c.computerId, tool: spec.name, args, timeoutMs: Math.min(spec.timeoutMs ?? DEFAULT_TOOL_MS, MAX_TOOL_MS), ...(byPerson ? { by: "person" as const } : {}) });
   } catch (e) {
     return refuse(ctx, e, c.computerId);
-  }
+  } finally { lease?.done(); }
   if (!isRecord(raw)) raise(ctx, "provider.unavailable", "The computer answered with something that is not an object.");
   const { used, frame, caption, ...rest } = raw;
   rememberSecrets(c.computerId, secretsOf(used), { handedOut: false });
@@ -336,19 +463,13 @@ const NO_PICTURE_OR_CARD = "No picture here or in the chat: a Vault value is on 
 const faceSent = new Set<string>();
 // the steps that can set off a download report it (browserd waits for it to finish within a short bound), and the looks report what arrived after
 const REPORTS_DOWNLOADS = new Set(["chrome_open", "chrome_click", "chrome_act", "chrome_type", "chrome_send", "chrome_wait", "chrome_state"]);
-const fillGrants = new Map<string, { token: string; revoke(): void; calls: number }>();
-async function grantFor(binding: NonNullable<ReturnType<typeof boundFill>>, profileId: string, agentId: string, asker: string): Promise<{ token: string; done(): void }> {
-  const key = `${profileId}|${asker}`;
-  let g = fillGrants.get(key);
-  if (!g) {
-    const issued = await binding.issue({ computerId: profileId, agentId, asker, turn: true });
-    g = fillGrants.get(key) ?? { token: issued.fillToken, revoke: issued.revoke, calls: 0 };
-    if (g.token !== issued.fillToken) issued.revoke();   // another call of the same person got there first
-    fillGrants.set(key, g);
-  }
-  g.calls += 1;
-  const held = g;
-  return { token: held.token, done() { held.calls -= 1; if (held.calls <= 0 && fillGrants.get(key) === held) { fillGrants.delete(key); held.revoke(); } } };
+const fillGrants = new Map<string, Slot>();
+export async function grantFor(binding: NonNullable<ReturnType<typeof boundFill>>, profileId: string, agentId: string, asker: string): Promise<{ token: string; done(): void }> {
+  const l = await turnLease(fillGrants, `${profileId}|${asker}`, async () => {
+    const issued = await binding.issue({ computerId: profileId, agentId, asker, turn: true, ttlMs: TOKEN_TTL_MS });
+    return { token: issued.fillToken, revoke: issued.revoke, ...(issued.extend ? { extend: issued.extend } : {}) };
+  }, { throwErrors: true });
+  return l!;
 }
 
 /** One tool in the agent's profile of the Space browser. What comes back is scrubbed of the Vault values filled for this profile; no desktop frame exists, so there is no timeline step (the live view shows the page). */
@@ -359,19 +480,17 @@ async function browserCall(ctx: CompCtx, profileId: string, spec: ToolSpec, args
   const readAt = Date.now();
   const hold = await currentHold(ctx, sb, profileId);
   if (hold && !DURING_HOLD.has(spec.name)) refuse(ctx, new ToolError("paused", HELD_LINE, "profile_held"), profileId, { takeoverBy: hold.personId });
-  let fill: { url: string; token: string } | undefined;
   const binding = boundFill();
-  // every call carries the channel, not only the typing ones: Vyre for Chrome in the profile fills logins on its own when a page loads, and asks the Vault through it, as this call's person, during this call
-  let grant: { token: string; done(): void } | null = null;
-  if (binding) {
-    grant = await grantFor(binding, profileId, ctx.principal.id, actorOf(ctx));
-    fill = { url: binding.url(), token: grant.token };
-  }
-  try { return await browserStep(ctx, sb, profileId, spec, args, fill, { hold: hold?.personId ?? null, readAt }); }
-  finally { grant?.done(); }
+  // every call carries the channel, not only the typing ones: Vyre for Chrome in the profile fills logins on its own when a page loads, and asks the Vault through it, as this call's person, during this call.
+  // The grant is taken right before each send and dropped right after it, so no Vault authority is held while the call waits for room, and its life always starts from the moment it is used.
+  const lease = binding ? async <T>(run: (fill: { url: string; token: string }) => Promise<T>): Promise<T> => {
+    const grant = await grantFor(binding, profileId, ctx.principal.id, actorOf(ctx));
+    try { return await run({ url: binding.url(), token: grant.token }); } finally { grant.done(); }
+  } : undefined;
+  return browserStep(ctx, sb, profileId, spec, args, lease, { hold: hold?.personId ?? null, readAt });
 }
 
-async function browserStep(ctx: CompCtx, sb: NonNullable<ReturnType<typeof spaceBrowser>>, profileId: string, spec: ToolSpec, args: ToolArgs, fill: { url: string; token: string } | undefined, h: { hold: string | null; readAt: number }): Promise<ToolAnswer> {
+async function browserStep(ctx: CompCtx, sb: NonNullable<ReturnType<typeof spaceBrowser>>, profileId: string, spec: ToolSpec, args: ToolArgs, lease: (<T>(run: (fill: { url: string; token: string }) => Promise<T>) => Promise<T>) | undefined, h: { hold: string | null; readAt: number }): Promise<ToolAnswer> {
   // a browser that would start needs room on the host first (a claim on a running one is the same ask); from here to its answer the call is in flight, so making room never closes this browser
   // an agent's own call refreshes its turn's protection (sbrowser/room.ts)
   if (ctx.principal.kind === "agent") callStarted(profileId, ctx.space, ctx.now()); else callStarted(profileId);
@@ -393,7 +512,8 @@ async function browserStep(ctx: CompCtx, sb: NonNullable<ReturnType<typeof space
   given = givenCount(profileId);
   // a step on refs says which start of the browser they came from: browserd refuses it, with the line, when the browser has started again since (its pages reloaded, the refs gone or moved)
   const from = spec.name !== "chrome_snapshot" && namesRef(args) ? refsStart(profileId) : undefined;
-  const send = (): Promise<ToolAnswer> => sb.tool({ profileId, ...(agent ? { agent } : {}), tool: spec.name, args, timeoutMs: Math.min(spec.timeoutMs ?? DEFAULT_TOOL_MS, MAX_TOOL_MS), space: ctx.space, hold: h.hold, ...(fill ? { fill } : {}), ...(from ? { refsFrom: from } : {}), ...(ACTS.has(spec.name) ? { seenFrom: lastSeenStart(profileId) } : {}) });
+  const sendWith = (fill?: { url: string; token: string }): Promise<ToolAnswer> => sb.tool({ profileId, ...(agent ? { agent } : {}), tool: spec.name, args, timeoutMs: Math.min(spec.timeoutMs ?? DEFAULT_TOOL_MS, MAX_TOOL_MS), space: ctx.space, hold: h.hold, ...(fill ? { fill } : {}), ...(from ? { refsFrom: from } : {}), ...(ACTS.has(spec.name) ? { seenFrom: lastSeenStart(profileId) } : {}) });
+  const send = (): Promise<ToolAnswer> => lease ? lease((f) => sendWith(f)) : sendWith();
   try {
     try { raw = await send(); } catch (e) {
       // the browser service is full though this profile holds room (another Space filled it): wait for room like any start, then send once more (it was refused before it ran)
@@ -518,6 +638,11 @@ export function defined(o: Record<string, unknown>): ToolArgs {
 export function siteOf(url: unknown): string {
   if (typeof url !== "string") return "a page";
   try { return new URL(url).host || url.slice(0, 60); } catch { return url.slice(0, 60); }
+}
+/** A page for a caption: its host and path (no query), so two steps on one site name different pages ("Opened harborquotes.com/pricing"). */
+export function pageOf(url: unknown): string {
+  if (typeof url !== "string") return "a page";
+  try { const u = new URL(url); const path = u.pathname === "/" ? "" : u.pathname.replace(/\/$/, ""); return clip(`${u.host}${path}`, 80) || url.slice(0, 60); } catch { return url.slice(0, 60); }
 }
 export const clip = (v: unknown, n = 50): string => { const s = String(v ?? "").replace(/\s+/g, " ").trim(); return s.length > n ? `${s.slice(0, n - 1)}…` : s; };
 

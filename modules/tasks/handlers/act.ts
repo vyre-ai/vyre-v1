@@ -9,7 +9,7 @@ import {
   actionableByMe, actionableSlot, allTasks, clean, emitTask, getTask, isOpen, isRequest, openIndex, out, raise, readPolicy, sameAssignee, touch, visibleTo, whoIs,
 } from "../projections.ts";
 import type { Assignee, Task, TasksCtx } from "../projections.ts";
-import { KIND_ACTIONS, afterReview, checkMove, commitMove, guardGateSlots, submitTarget, checkOutside } from "./state.ts";
+import { KIND_ACTIONS, afterReview, checkMove, commitMove, guardGateSlots, submitTarget, checkOutside, mayStartWaiting } from "./state.ts";
 import type { Policy } from "../projections.ts";
 import { syncThread } from "./thread.ts";
 import { markResumed } from "./resume.ts";
@@ -115,6 +115,7 @@ export async function act(ctx: TasksCtx, input: In): Promise<unknown> {
   if (gate && edits && Object.keys(edits).length > 0) raise(ctx, "validation.field_locked", "A held act is approved exactly as it was shown.", { field: "edits" });
 
   const policy: Policy = readPolicy(ctx.db);
+  if (to === "doing") await mayStartWaiting(ctx, t);
   const checked = checkMove(ctx, t, to, { note }, policy);   // nothing is written or released before every rule has passed
 
   const result: Record<string, unknown> = { action: key };

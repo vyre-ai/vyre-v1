@@ -66,6 +66,7 @@ export interface CapOpts {
   on?: readonly [ResourceType, string];            // resource type and JSON pointer to its id in the input
   parent?: string;                                 // with `on`: pointer to the parent id
   resolve?: 'name' | 'handle';                     // with `on`: the input holds a name or handle, not an id
+  orSelf?: true;                                   // with `on`: an agent may leave the id out, and the call is about its own things (see ResourceBinding.self)
   make?: readonly [ResourceType, string];          // creation: resource type and pointer to the parent id
   dyn?: string | { ref: string; allowed?: ResourceType[]; parent?: string };   // resource named in the input as a {type,id} ResourceRef (see resourceRef in _common.ts)
   row?: readonly [string, string];                 // resource is an entity row: entity key and pointer to its id; access follows the EntityDef acl
@@ -85,7 +86,8 @@ export interface CapOpts {
   tool?: Toolset;                                  // MCP toolset; omitted = no MCP tool
   mcpName?: string;
   deferred?: boolean;
-  agent?: boolean | { planMode: 'allowed' | 'blocked'; blocks?: string[] };
+  /** only: the agent's tool offers only these values for these input fields (the capability itself takes more, from module code) */
+  agent?: boolean | { planMode: 'allowed' | 'blocked'; blocks?: string[]; only?: Record<string, readonly string[]> };
   http?: 'auto' | { method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'; path: string };
   cli?: string;
   hook?: boolean;                                  // may be subscribed as an outbound webhook
@@ -112,7 +114,7 @@ function makeCap(kind: CapabilityDef['effects'], name: string, summary: string, 
   const risk: Risk = o.risk ?? (kind === 'read' ? 'low' : kind === 'write' ? 'medium' : 'high');
   const permission = o.perm === undefined ? null : o.perm;
   let resource: ResourceBinding = { type: 'space' };
-  if (o.on) resource = { type: o.on[0], id: o.on[1], ...(o.parent ? { parent: o.parent } : {}), ...(o.resolve ? { resolve: o.resolve } : {}) };
+  if (o.on) resource = { type: o.on[0], id: o.on[1], ...(o.parent ? { parent: o.parent } : {}), ...(o.resolve ? { resolve: o.resolve } : {}), ...(o.orSelf ? { self: 'agent' as const } : {}) };
   if (o.make) resource = { type: o.make[0], create: true, parent: o.make[1] };
   if (o.row) resource = { type: 'entity', entity: o.row[0], id: o.row[1] };
   const refProp = input.properties?.resource;

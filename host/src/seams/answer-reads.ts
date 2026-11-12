@@ -36,3 +36,24 @@ export function takeReads(thread: string, agent: string, asker: string): ReadRes
 }
 
 export function clearReads(thread: string, agent: string, asker: string): void { notes.delete(keyOf(thread, agent, asker)); }
+
+// A call the gateway noted as the agent's own Space browser that its handler sent to the agent's computer instead (the browser was not usable; review A2, 12 Nov): the handler puts the computer in
+// the browser's place, so the answer check and the audit row name the place the call really went.
+const fellBack = new Map<string, string>();
+
+/** The handler sent a call noted as the agent's browser profile to its computer: note the computer instead, and remember it for this trace's audit row. */
+export function retargetRead(n: { thread?: string | undefined; agent: string; asker?: string | undefined; traceId: string; computerId: string }): void {
+  if (fellBack.size >= MAX_KEYS) fellBack.delete(fellBack.keys().next().value as string);
+  fellBack.set(n.traceId, n.computerId);
+  if (n.thread === undefined || n.asker === undefined) return;
+  const m = notes.get(keyOf(n.thread, n.agent, n.asker));
+  if (!m || !m.delete(`browser_profile:${n.agent}`)) return;
+  m.set(`computer:${n.computerId}`, { type: "computer", id: n.computerId });
+}
+
+/** The computer a call of this trace fell back to, taken once (for its audit row). */
+export function takeFallback(traceId: string): string | undefined {
+  const c = fellBack.get(traceId);
+  fellBack.delete(traceId);
+  return c;
+}

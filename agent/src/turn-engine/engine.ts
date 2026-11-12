@@ -407,6 +407,8 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
     // an agent's message with no person behind it never borrows the starter's access, account or Vault: the turn is refused (no_asker)
     if (said && said.author.kind === "agent" && item.from === said.author.id) return { asker: st.thread.starter, reason: "starter", personless: true };
     if (personFrom && item.from !== st.thread.starter) return { asker: item.from, reason: "steerer" };
+    // a Routine's wake names the person who set it: it runs for them, never for whoever started the chat it posts in (lead 12 Nov sweep). Only a Routine's wake names one.
+    if (item.kind === "wake" && item.routine && item.from.startsWith("usr_") && item.from !== st.thread.starter) return { asker: item.from, reason: "steerer" };
     return { asker: st.thread.starter, reason: "starter" };
   }
 

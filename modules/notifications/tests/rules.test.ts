@@ -6,6 +6,8 @@ import { harness } from "../fixtures/db.ts";
 import type { Harness } from "../fixtures/db.ts";
 import { HOUR, MIN, NOW, alice, as, bob, bot, bot2, sendInput, svc } from "../fixtures/seed.ts";
 import { KINDS, consumers, kindOf, withinHours } from "../impl.ts";
+import { NOT_SENT_KINDS } from "../projections.ts";
+import { send } from "../handlers/rules.ts";
 import { registry } from "../../../generated/registry.ts";
 
 const me = as(alice);
@@ -52,7 +54,8 @@ const SAMPLE: Record<string, Record<string, unknown>> = {
 for (const def of KINDS.filter((k) => k.key !== "vault.rotation_due")) {
   test(`kind ${def.key}: lands at ${def.level} in ${def.place} with its actions and a readable line`, async () => {
     const h = harness();
-    const r = await h.call("notifications.send", sendInput({ kind: def.key, data: SAMPLE[def.key] }), sender);
+    // a kind nothing files is refused at the capability (NOT_SENT_KINDS, review W4); how it lands is still what a future filer gets, so it is sent the way the fanout sends
+    const r = NOT_SENT_KINDS.has(def.key) ? await send(h.ctxFor("notifications.send", sender), sendInput({ kind: def.key, data: SAMPLE[def.key] })) as any : await h.call("notifications.send", sendInput({ kind: def.key, data: SAMPLE[def.key] }), sender);   // eslint-disable-line @typescript-eslint/no-explicit-any
     assert.equal(r.outcome, def.level);
     const n = row(h, r.notificationId);
     assert.equal(n.level, def.level);
@@ -201,7 +204,8 @@ test("agent cap: an agent cannot interrupt a person more than 3 times an hour; t
 
 test("agent cap: counted per agent and per person, and the hour rolls", async () => {
   const h = harness();
-  const send = (agentId: string, to = alice.id) => h.call("notifications.send", sendInput({ to, kind: "agent.blocked", data: { agent: "A", reason: "r", agentId } }), as(bot));
+  // agent.blocked is a system kind, filed by the agents module's code (a call one level down) for the agent
+  const send = (agentId: string, to = alice.id) => h.call("notifications.send", sendInput({ to, kind: "agent.blocked", data: { agent: "A", reason: "r", agentId } }), as(bot, { depth: 1 }));
   for (let i = 0; i < 3; i++) assert.equal((await send(bot.id)).outcome, "interrupt");
   assert.equal((await send(bot.id)).outcome, "capped");
   assert.equal((await send(bot2.id)).outcome, "interrupt", "another agent has its own 3");
@@ -213,7 +217,8 @@ test("agent cap: counted per agent and per person, and the hour rolls", async ()
 test("agent cap: a person's own and a service's notifications are not capped, nor are kinds without an agent rate key, nor a repeat into a row that is already loud", async () => {
   const h = harness();
   for (let i = 0; i < 5; i++) assert.equal((await h.call("notifications.send", sendInput({ kind: "dm", data: { from: "Bob" } }), sender)).outcome, "interrupt");
-  for (let i = 0; i < 5; i++) assert.equal((await h.call("notifications.send", sendInput({ kind: "call.incoming", data: { from: "Scout", agentId: bot.id } }), as(bot))).outcome, "interrupt");
+  // call.incoming is a system kind, filed by the telephony module's code (a call one level down)
+  for (let i = 0; i < 5; i++) assert.equal((await h.call("notifications.send", sendInput({ kind: "call.incoming", data: { from: "Scout", agentId: bot.id } }), as(bot, { depth: 1 }))).outcome, "interrupt");
   const same = (n: number) => h.call("notifications.send", sendInput({ kind: "dm", data: { from: "Scout", agentId: bot2.id, n }, collapseKey: "one-thread" }), as(bot2));
   for (let i = 0; i < 6; i++) assert.equal((await same(i)).outcome, "interrupt", "six messages in one thread are one banner, not six interrupts");
 });
@@ -280,7 +285,7 @@ test("the reminder emails once per approval, and says nothing when the approval 
   const input = sendInput({ kind: "approval.backstop", subject: s, title: "Retainer", collapseKey: "approval.backstop:tsk_5" });
   await h.call("notifications.send", input, sender);
   await h.call("notifications.send", input, sender);
-  assert.deepEqual(h.emails, [{ to: alice.id, subject: "Something is waiting on you", deepLink: "vyre://task/tsk_5" }]);
+  assert.deepEqual(h.emails, [{ to: alice.id, subject: "Something is waiting on you", line: "An approval or an answer is waiting on you in Vyre.", open: { kind: "task", id: "tsk_5" } }]);
   const g = harness();
   g.callee("tasks.get", () => ({ task: { state: "done" } }));
   assert.deepEqual(await g.call("notifications.send", input, sender), { outcome: "dropped_muted" });
@@ -297,7 +302,7 @@ test("the fanout consumer files a row for the events that name a kind and ignore
   const h = harness();
   const ctx = h.ctxFor(null, sender);
   const fan = consumers["notifications.fanout"];
-  assert.deepEqual(fan.on, ["task.requested", "task.assigned", "task.completed", "task.due", "task.nudged", "run.failed", "run.succeeded", "member.joined", "member.join_requested", "access.granted", "access.declined", "machine.alert", "access.shared_with", "space.deletion_scheduled", "space.deletion_cancelled", "ci.paused", "ci.blocked", "hook.admin_asked", "health.changed", "backup.failed", "update.failed", "network.certificate_failed", "incident.opened", "incident.assigned", "import.failed", "site.build_failed", "connection.needs_reconnect", "connector.publish_failed", "mount.failed", "mount.conflict", "source.mapping_failed", "source.link_pending", "sync.deletes_paused", "sync.push_failed", "sync.schema_changed", "sync.op_rejected"]);
+  assert.deepEqual(fan.on, ["task.requested", "task.assigned", "task.completed", "task.due", "task.nudged", "run.failed", "run.succeeded", "member.joined", "member.join_requested", "access.granted", "access.declined", "machine.alert", "access.shared_with", "space.deletion_scheduled", "space.deletion_cancelled", "ci.paused", "ci.blocked", "hook.admin_asked", "health.changed", "backup.failed", "update.failed", "network.certificate_failed", "incident.opened", "incident.assigned", "site.build_failed", "connection.needs_reconnect", "connector.publish_failed", "mount.failed", "mount.conflict", "source.mapping_failed", "source.link_pending", "sync.deletes_paused", "sync.push_failed", "sync.schema_changed", "sync.op_rejected"]);
   const shared = await fan.run(ctx, { name: "access.shared_with", payload: { to: alice.id, resource: { type: "agent", id: "agt_dex" }, level: "use", byName: "Irfad", title: "Dex", message: "Take a look" } });
   assert.equal(shared.length, 1);
   assert.equal(row(h, shared[0]!).kind, "item.shared");
@@ -379,7 +384,8 @@ test("a Space scheduled for deletion, and the deletion cancelled, reach every ad
   assert.equal(first.place, "inbox");
   assert.equal(first.title, "The Space is scheduled for deletion on 18 November 2026. Everything is removed then.");
   assert.deepEqual(JSON.parse(first.actions), [{ label: "Cancel deletion", cap: "spaces.delete_cancel" }]);
-  assert.deepEqual(h.emails.map((m) => [m.to, m.subject]).sort(), [alice.id, bob.id].sort().map((to) => [to, first.title]));
+  // the email is fixed copy with the date (email.copy.test.ts), not the line's title
+  assert.deepEqual(h.emails.map((m) => [m.to, m.subject]).sort(), [alice.id, bob.id].sort().map((to) => [to, "Scheduled for deletion on 18 November 2026"]));
   const cancelled = await fan.run(ctx, { name: "space.deletion_cancelled", payload: { by: bob.id } });
   assert.equal(cancelled.length, 2);
   assert.equal(row(h, cancelled[0]!).title, "The scheduled deletion of the Space was cancelled.");

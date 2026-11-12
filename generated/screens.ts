@@ -1257,10 +1257,6 @@ export const screens: ScreenIndexEntry[] = [
         "input": {
           "computerId": "/state/computerId"
         }
-      },
-      "provision": {
-        "cap": "computers.provision",
-        "input": {}
       }
     },
     "needs": [

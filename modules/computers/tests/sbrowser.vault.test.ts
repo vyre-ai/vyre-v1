@@ -24,7 +24,7 @@ function browser(answers: Record<string, (c: BrowserToolCall) => BrowserAnswer |
     async tool(a) { calls.push(a); return (answers[a.tool] ?? (() => ({ url: "https://example.com/", title: "Example", tree: "- page [e1]", truncated: false, ok: true, tabId: "t1", loading: false })))(a); },
     async downloads() { return []; }, async downloadRead() { return new Uint8Array(); }, async downloadAck() {},
     async takeover() {}, async giveBack() {}, async screenshot() { shots += 1; return { bytes: new Uint8Array([1, 2, 3]), width: 1, height: 1 }; },
-    async stream() { return { transport: "mjpeg", url: "http://x" }; }, async sessions() { return []; }, async signOut() { return true; }, async importChrome() { return { bytes: 0 }; }, async stop() {}, async forget() {},
+    async stream() { return { transport: "mjpeg", url: "http://x" }; }, async sessions() { return []; }, async signOut() { return true; }, async profileUsed() { return false; }, async importChrome() { return { bytes: 0 }; }, async stop() {}, async forget() {},
     async profiles() { return { profiles: [], maxRunning: 6 }; }, async health() { return { ok: true }; },
   };
   bindSpaceBrowser(sb);

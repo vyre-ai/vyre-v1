@@ -1,0 +1,3 @@
+- A schedule, template step or Kit step that someone chose can no longer run Vyre's own behind-the-scenes actions as if the server had asked, such as writing audit entries, minting a session for another person, recording an email or calendar notice from a provider, or joining someone to a chat or a share.
+- A Kit script's calls to Vyre now run with the standing of the person who ran the script, as Kit install steps already do.
+- A schedule made by an automation's own service no longer counts as one Vyre made itself.

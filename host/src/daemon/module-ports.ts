@@ -12,8 +12,16 @@ export interface SpacePortDeps {
 type Ns = Record<string, unknown>;
 const fn = (ns: Ns | undefined, name: string): ((...a: never[]) => unknown) | null => (ns && typeof ns[name] === "function" ? (ns[name] as (...a: never[]) => unknown) : null);
 
+// Two daemons in one process (tests) share the modules: each binding is kept, the newest is the one in force, and a daemon that stops puts back the one before it instead of the defaults.
+const live: Array<{ modules: ReadonlyMap<string, Ns>; d: SpacePortDeps }> = [];
+
 /** Bind every port this file knows on the modules that offer it; returns `<module>.<port>` for each one bound. */
 export function bindSpacePorts(modules: ReadonlyMap<string, Ns>, d: SpacePortDeps): string[] {
+  live.push({ modules, d });
+  return apply(modules, d);
+}
+
+function apply(modules: ReadonlyMap<string, Ns>, d: SpacePortDeps): string[] {
   const bound: string[] = [];
   for (const id of ["terminal", "computers"]) {
     const bindTeam = fn(modules.get(id), "bindTeam") as ((f: ((space: string) => boolean) | null) => void) | null;
@@ -24,8 +32,16 @@ export function bindSpacePorts(modules: ReadonlyMap<string, Ns>, d: SpacePortDep
   return bound;
 }
 
-/** Put the module defaults back (a daemon that stops, so a later one in the same process starts clean). */
-export function unbindSpacePorts(modules: ReadonlyMap<string, Ns>): void {
+/** A daemon stops: its binding goes, and the binding of a daemon still running in this process (if any) is in force again; with none left, the module defaults are back. */
+export function unbindSpacePorts(modules: ReadonlyMap<string, Ns>, d?: SpacePortDeps): void {
+  const at = live.findLastIndex((x) => x.modules === modules && (d === undefined || x.d === d));
+  if (at >= 0) live.splice(at, 1);
+  const top = live.at(-1);
+  if (top) { apply(top.modules, top.d); return; }
+  reset(modules);
+}
+
+function reset(modules: ReadonlyMap<string, Ns>): void {
   for (const id of ["terminal", "computers"]) (fn(modules.get(id), "bindTeam") as ((f: null) => void) | null)?.(null);
   (fn(modules.get("engine"), "bindSandboxStopper") as ((f: null) => void) | null)?.(null);
 }

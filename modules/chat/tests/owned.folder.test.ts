@@ -143,3 +143,39 @@ test("the start sweep brings an agent made before folders followed their chats i
   assert.equal(w.audience.get(`fld_${a}`), "added");
   for (const who of [DANA, LEO]) assert.equal(folderOf(w.grants, who, a).length, 1, `${who} holds the folder`);
 });
+
+test("added to an open channel as well, the agent keeps one folder, as private as its home chat: the open channel gives no one the folder", async () => {
+  const w = world();
+  const { a } = await inviteThread(w);
+  const open = (await h["channels.create"]!(w.hn.ctx, { name: "open", visibility: "public", idempotencyKey: key() })).channel as { channelId: string; mainThreadId: string };
+  await h["threads.add_agent"]!(w.hn.ctx, { threadId: open.mainThreadId, agentId: a }).catch(() => undefined);
+  await h["channels.agents.add"]!(w.hn.ctx, { channelId: open.channelId, agentId: a }).catch(() => undefined);
+  assert.equal(w.audience.get(`fld_${a}`), "added", "still closed");
+  assert.equal(w.grants.some((g) => g.resource.id === `fld_${a}` && g.subject.kind === "group"), false, "no group holds the folder");
+  await (periodic as unknown as Record<string, { run: (ctx: Harness["ctx"]) => Promise<void> }>)["chat.agent_homes"]!.run(w.hn.ctx);
+  assert.equal(w.audience.get(`fld_${a}`), "added", "the sweep keeps it closed: only its home chat counts");
+});
+
+test("the start sweep run twice, or run after one stopped half way, ends in the same place", async () => {
+  const w = world();
+  const { a } = await inviteThread(w);
+  const run = (periodic as unknown as Record<string, { run: (ctx: Harness["ctx"]) => Promise<void> }>)["chat.agent_homes"]!.run;
+  await run(w.hn.ctx);
+  const once = JSON.stringify([...w.grants].sort((x, y) => JSON.stringify(x).localeCompare(JSON.stringify(y))));
+  await run(w.hn.ctx);
+  assert.equal(JSON.stringify([...w.grants].sort((x, y) => JSON.stringify(x).localeCompare(JSON.stringify(y)))), once, "twice: the same grants");
+  // stopped half way: Leo's folder grant written, the cut not yet made
+  w.audience.set(`fld_${a}`, "space");
+  await run(w.hn.ctx);
+  assert.equal(w.audience.get(`fld_${a}`), "added");
+  assert.equal(JSON.stringify([...w.grants].sort((x, y) => JSON.stringify(x).localeCompare(JSON.stringify(y)))), once, "and after a stop: the same grants");
+});
+
+test("a Space-wide agent added to an invite-only channel is not touched: its folder keeps the Space, and the channel gives no one its folder", async () => {
+  const w = world();
+  const { ch } = await inviteThread(w);
+  await h["channels.agents.add"]!(w.hn.ctx, { channelId: ch.channelId, agentId: INTAKE }).catch(() => undefined);
+  await (periodic as unknown as Record<string, { run: (ctx: Harness["ctx"]) => Promise<void> }>)["chat.agent_homes"]!.run(w.hn.ctx);
+  assert.equal(w.audience.has(`fld_${INTAKE}`), false, "no audience is set on a Space agent's folder");
+  assert.equal(w.grants.some((g) => g.resource.id === `fld_${INTAKE}`), false, "and no one is given it");
+});

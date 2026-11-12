@@ -18,6 +18,7 @@ const cmpState = t.enm('provisioning', 'asleep', 'waking', 'working', 'takeover'
 const computerRow = t.obj({
   computerId: id.computer, agentId: id.agent, state: cmpState, caption: t.opt(t.str({ description: 'What it is doing, shown under the live view' })), tabs: t.int(), tabLimit: t.int(),
   host: t.enm('server', 'vm'), nodeId: t.opt(t.str({ description: 'The computer that joined the Space and runs this one; absent when it runs on the Space server' })), diskBytes: t.opt(t.int()), lastFrameAt: t.opt(t.ts()), lastActiveAt: t.opt(t.ts()), takeoverBy: t.opt(id.user), recording: t.bool(), error: t.opt(t.str({ description: 'Why it is in error, in words' })),
+  moved: t.opt(t.obj({ state: t.enm('done', 'partial', 'failed'), at: t.ts(), error: t.opt(t.str()) })),
 });
 const stepRow = t.obj({ stepId: t.id('stp'), idx: t.int(), at: t.ts(), caption: t.str(), tool: t.str(), frameFileId: t.opt(id.file), by: t.enm('agent', 'person'), runId: t.opt(id.run) });
 const recordingRow = t.obj({
@@ -47,7 +48,9 @@ const intent = t.enm('make_skill', 'learn_routine', 'work_out_backend_calls', 'l
 
 /** Local tool capability on the agent computer: bound to the computer resource, Team Space only, never queued offline. */
 const local = (extra: Partial<CapOpts> = {}): CapOpts => ({
-  on: ['computer', '/computerId'], perm: 'computers.use', tool: 'computer', offline: 'online', errors: ['provider.unavailable', 'timeout.deadline'], ...extra,
+  // an agent may leave computerId out: its own computer, or its own profile in the Space browser for the chrome tools; a person must name the computer (f-wire, 12 Nov: the binding refused every
+  // call that left it out, so no agent without an old desktop could browse)
+  on: ['computer', '/computerId'], orSelf: true, perm: 'computers.use', tool: 'computer', offline: 'online', errors: ['provider.unavailable', 'timeout.deadline'], ...extra,
 });
 
 export default defineManifest({
@@ -66,7 +69,7 @@ export default defineManifest({
     read('computers.get', 'Read one agent computer: state, caption, tabs, disk and who took over', {
       in: comp, out: { computer: computerRow }, on: ['computer', '/computerId'], perm: 'computers.watch', tool: 'computer', errors: ['validation.not_found'],
     }),
-    create('computers.provision', 'Give an agent a computer (none unless the agent needs one)', {
+    create('computers.provision', 'Make an older-style desktop computer for an agent: a person only, an agent is refused (an agent has a terminal in its workspace and a browser in the Space browser already)', {
       in: { agentId: id.agent, tabLimit: t.opt(t.int({ minimum: 1, maximum: 50 })), nodeId: t.opt(t.str({ description: 'Run it on a computer that joined the Space instead of the Space server' })) }, out: { computer: computerRow }, perm: 'computers.use', level: 'manage',
       emits: ['computer.provisioned'], tool: 'computer', audit: 'sensitive', errors: ['provider.unavailable', 'validation.duplicate'],
     }),
@@ -343,8 +346,8 @@ export default defineManifest({
     screen('chats.agent-computer', 'chats', 'ui:AgentComputerTab', {
       slot: 'side',
       q: { computer: ['computers.get', { computerId: '/state/computerId' }, true], sessions: ['computers.sessions.list', { computerId: '/state/computerId' }, true] },
-      a: { wake: ['computers.wake', { computerId: '/state/computerId' }], provision: ['computers.provision', {}] },
-      empty: 'This agent has no computer', primary: 'Give it a computer', needs: ['computers.watch'],
+      a: { wake: ['computers.wake', { computerId: '/state/computerId' }] },
+      empty: 'This agent has no desktop computer', primary: 'Close', needs: ['computers.watch'],
     }),
     screen('chats.recording-sheet', 'chats', 'ui:RecordingSheet', {
       slot: 'sheet',

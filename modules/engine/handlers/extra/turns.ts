@@ -372,7 +372,7 @@ export function turnsList(ctx: EngineCtx, input: { threadId: string; state?: Tur
  */
 export function turnsRunning(ctx: EngineCtx, _input: Record<string, never>): { turns: Array<{ turnId: string; agentId: string; asker: string; startedAt: number; where: { kind: "computer" | "server" | "space"; name: string; nodeId?: string } }> } {
   ensureExtra(ctx.db);
-  if (!isSystemCall(ctx as { depth?: number; principal?: { kind: string; id: string } })) return raise(ctx, "permission.no_grant", "Only the Space reads which turns are running.");
+  if (!isSystemCall(ctx as { depth?: number; principal?: { kind: string; id: string }; forwarded?: boolean })) return raise(ctx, "permission.no_grant", "Only the Space reads which turns are running.");
   const out = rows(ctx, "SELECT * FROM engine_turns WHERE state = 'running' ORDER BY started_at DESC LIMIT 200").map((r) => withNode(ctx, r));
   return { turns: out.map((t) => {
     const ran = (Array.isArray(t["ran_on"]) ? (t["ran_on"] as Array<{ kind: "computer" | "server" | "space"; name: string; nodeId?: string }>) : []).at(-1);

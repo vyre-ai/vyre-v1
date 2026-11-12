@@ -23,6 +23,8 @@ export interface ChatCtx {
   thread?: string | undefined;
   /** 0 for a call from outside, above 0 for a call a capability made */
   depth?: number | undefined;
+  /** forwarded for its caller by another module (a stored schedule, a template or Kit step): the caller's own call, never module code (lib/trust.ts isForwarded) */
+  forwarded?: boolean | undefined;
   /** where the call began: the gateway's callers are "user", a device's offline queue is "sync" */
   origin?: string | undefined;
   trace: { traceId: string };

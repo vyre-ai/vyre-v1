@@ -1,12 +1,11 @@
 // Desktop notifications (spec 2.24, 3.13): what the shell shows when the window is not in front, and where a click on it goes.
-// Pure functions: the page decides when to call them; the shell's Rust side (src-tauri/src/native.rs) shows the banner and keeps the link.
+// Pure functions: the page decides when to call them; the shell's Rust side (src-tauri/src/native.rs) shows the banner and checks its link.
 // Rules from 2.24 that live here: only Interrupt level reaches the operating system; a push carries no content ("Northwind needs you");
-// the same key collapses to one banner; at most 3 banners at a time; a click opens the thread it was about through a vyre://open link.
+// the same key collapses to one banner; at most 3 banners at a time. A banner's link is a vyre://open link, but the desktop notification plugin reports
+// no press, and a window coming forward is not one, so nothing opens it on its own (review 12 Nov 2026: reading a focus as a press pulled people away).
 
 export const SCHEME = "vyre";
 export const MAX_BANNERS = 3;
-/** A window that comes forward within this long of a notification is read as the click on it (desktop notification plugins report no click). */
-export const CLICK_WINDOW_MS = 30_000;
 export const MAX_TITLE = 120;
 export const MAX_BODY = 240;
 export const MAX_LINK = 2048;
@@ -90,18 +89,6 @@ export function pushBanner(list: readonly Banner[], n: NotificationInput, max = 
   const prev = list.find((b) => b.key === n.key);
   const next: Banner = { key: n.key, title: clean(n.title, MAX_TITLE), body: clean(n.body ?? "", MAX_BODY), link, count: (prev?.count ?? 0) + 1, at: n.at };
   return [next, ...list.filter((b) => b.key !== n.key)].slice(0, max);
-}
-
-export type ShownNotification = { link: string; at: number };
-
-/**
- * The link to open when the window comes forward at `focusedAt`: the last notification's, if it was shown within the click window and not yet used.
- * The caller clears `last` after a non-null answer, so one banner opens one thread once.
- */
-export function activationLink(last: ShownNotification | null, focusedAt: number, windowMs = CLICK_WINDOW_MS): string | null {
-  if (!last || !parseOpenLink(last.link)) return null;
-  const age = focusedAt - last.at;
-  return age >= 0 && age <= windowMs ? last.link : null;
 }
 
 /** "9+" past nine, "" for none: the dock and tray badge text. */
