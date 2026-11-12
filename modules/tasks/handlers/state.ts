@@ -200,6 +200,10 @@ export async function checkOutside(ctx: TasksCtx, who: ReadonlyArray<Assignee | 
     if (a?.kind !== "agent" || !ctx.call) continue;
     const r = await ctx.call("agents.outside.usable", { agentId: a.id }).catch(() => null) as { usable?: boolean } | null;
     if (r?.usable === false) raise(ctx, "validation.precondition_failed", "Only the person who connected this outside agent can give it work.", { reason: "outside_agent" });
+    // an agent the caller may not know of (one that does not exist, or one a private chat made that they cannot read) is not given work: the same answer for both. Only "not found" refuses;
+    // a permission refusal from agents.get (reading settings is not giving work) does not
+    const known = await ctx.call("agents.get", { agentId: a.id }).then(() => true, (e: unknown) => String((e as { error?: { code?: string }; code?: string })?.error?.code ?? (e as { code?: string })?.code ?? "") !== "validation.not_found");
+    if (!known) raise(ctx, "validation.not_found", "That agent does not exist.", { agentId: a.id });
   }
 }
 

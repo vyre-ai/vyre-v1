@@ -45,6 +45,9 @@ export function harness(o: HarnessOptions = {}) {
   const emitted: Emitted[] = [];
   const callLog: CallLog[] = [];
   const answers: Record<string, (input: Record<string, unknown>) => unknown> = {
+    // a chat's own agent, and its folder, follow the chat's audience (owned.ts followHome) and the sweep reads who a chat gave it to: a test that does not care gets a quiet answer
+    "access.audience_set": (i) => ({ audience: i["audience"] }),
+    "access.grants.list": () => ({ grants: [] }),
     ...(o.calls ?? {}),
   };
   const db = scopedDb("chat", raw, TRACE);

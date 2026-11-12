@@ -73,8 +73,8 @@ const CHAT_GIVES = new Set(["threads.agent.create", "threads.members.add", "chan
 // making an agent raises only the folder's audience: its first grants to the chat's readers are the maker's own act (the agent carries no grant of the chat yet for the host to follow)
 const chatHostCall = (name: string, input: unknown, leaves: boolean, cap = ""): boolean => {
   const i = (input ?? {}) as { source?: unknown; resource?: { type?: unknown } };
-  if (String(i.source ?? "").startsWith("chat:")) return name === "access.unshare" || (!leaves && name === "access.share" && cap !== "threads.agent.create");
-  return !leaves && name === "access.audience_set" && i.resource?.type === "folder";
+  if (String(i.source ?? "").startsWith("chat:")) return name === "access.unshare" || (!leaves && (name === "access.grants.list" || (name === "access.share" && cap !== "threads.agent.create")));
+  return !leaves && name === "access.audience_set" && (i.resource?.type === "folder" || i.resource?.type === "agent");
 };
 /** Files an agent made on its computer, said in the chat the work was for: one message with a file card each (four at most, the rest counted), posted as the agent for the person it works for. */
 
@@ -1396,6 +1396,13 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           return authorize(access.snap, r);
         },
         membership: (principal, actingFor) => isMemberOrGuest(access.snap, principal) && (actingFor === undefined || isMemberOrGuest(access.snap, actingFor)),
+        // an agent cut off from the Space (made in a private chat) that this caller may not view: it reads as not found (invoke.ts)
+        hidden: (resource, principal, actingFor) => {
+          if (resource.type !== "agent" || resource.id === null) return false;
+          const row = access.snap.chain(resource.id)?.[0] as { home?: string } | undefined;
+          if (row?.home === undefined) return false;
+          return authorize(access.snap, { principal, actingFor, action: { perm: null, level: "view" }, resource: { type: "agent", id: resource.id } }).effect !== "allow";
+        },
         // the read gate (Redaction for AI): every call an agent is behind hands back the redacted rendition of a file, or a refusal
         agentGate: createAgentGate({ call: (n, i) => hookRunner.call(n, i), warn: (msg, attrs) => sink.log({ space: spaceId, level: 40, msg, place: "agent-read", attrs }) }),
         sourceGuard: createSourceGuard({ db: { all: (sql, ...args) => db!.all(sql, ...args) }, connectors: { all: (sql, ...args) => spaceStore.open().tx.all(sql, ...args) }, authorize: (r) => authorize(access.snap, r), space: spaceId }),
@@ -1462,18 +1469,29 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           // run as the host, and only a grant that carries this project's own source (project:<id>); the access module then lets the host write it only on the project or on a resource already carrying that source.
           // The project's own channel follows its roles the same way: putting a person or an agent in it, or taking them out, runs as the host, and only for this project's own channel (read from
           // the projects table, never from the input), so a project remove takes away everything the project gave whoever presses it, provided they may change the project's roles.
-          // projects.teammates.create is not wrapped: making a teammate shares the project's things with a new agent as the caller (who must manage the project, checked first), as it did before;
-          // run as the host, a share on a resource that carries no project grant yet is a delegation the host cannot make, and the owner's Assistant could no longer add a teammate
-          if (h && (cap === "projects.members.set" || cap === "projects.members.remove" || cap === "projects.teammates.remove")) return ((ctx, input) => {
+          // projects.teammates.create keeps its shares as the caller (who must manage the project, checked first): as the host, a share on a resource that carries no project grant yet is a
+          // delegation the host cannot make. Only its calls on the project's OWN channel run as the host, so a teammate made by the owner's Assistant (Manage on the project through its person,
+          // which does not reach the channel) is in the project's channel
+          // projects.create the same: its first members go into the channel it just made, as the host, while its shares stay the caller's
+          const sharesAsHost = cap !== "projects.teammates.create" && cap !== "projects.create";
+          if (h && (cap === "projects.members.set" || cap === "projects.members.remove" || cap === "projects.teammates.remove" || cap === "projects.teammates.create" || cap === "projects.create")) return ((ctx, input) => {
             const projectId = String((input as { projectId?: unknown } | null)?.projectId ?? "");
             const source = `project:${projectId}`;
             const own = (): string | null => { try { return (db!.all(`SELECT "channelId" FROM projects_project WHERE "projectId" = ?`, projectId)[0] as { channelId?: string | null } | undefined)?.channelId ?? null; } catch { return null; } };
+            // projects.create has no project id yet: its own channel is the one this very call makes (channels.create, answered to it)
+            const made = new Set<string>();
             const raised = (name: string, callInput: unknown): boolean => {
               const i = (callInput ?? {}) as { source?: unknown; channelId?: unknown };
-              if ((name === "access.share" || name === "access.unshare") && i.source === source) return true;
-              return CHANNEL_FOLLOWS.has(name) && typeof i.channelId === "string" && i.channelId === own();
+              if (sharesAsHost && (name === "access.share" || name === "access.unshare") && i.source === source) return true;
+              return CHANNEL_FOLLOWS.has(name) && typeof i.channelId === "string" && (made.has(i.channelId) || (projectId !== "" && i.channelId === own()));
             };
-            return h({ ...ctx, call: (name: string, callInput: unknown, opts?: unknown) => (raised(name, callInput) ? system(name, callInput, ctx.trace) : (ctx.call as (n: string, i: unknown, o?: unknown) => Promise<unknown>)(name, callInput, opts)) } as typeof ctx, input);
+            const pass = ctx.call as (n: string, i: unknown, o?: unknown) => Promise<unknown>;
+            return h({ ...ctx, call: async (name: string, callInput: unknown, opts?: unknown) => {
+              if (raised(name, callInput)) return system(name, callInput, ctx.trace);
+              const out = await pass(name, callInput, opts);
+              if (cap === "projects.create" && name === "channels.create") { const id = (out as { channel?: { channelId?: unknown } } | null)?.channel?.channelId; if (typeof id === "string") made.add(id); }
+              return out;
+            } } as typeof ctx, input);
           }) as Handler;
           // leaving a chat or a channel, or being taken out of one, or an agent taken out: what the membership gave (grants tagged chat:<thread>, written when the person or agent came in) is taken
           // back as the host, because the person leaving may not be the one who gave them. The call itself was authorized; only access.unshare with a chat: source is widened (modules/chat/handlers/owned.ts).
@@ -1491,7 +1509,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         ...(gate ? { gate } : {}),
         personal,
         // P-H_16: an object a call creates is a resource in the same commit, so it is authorizable at once
-        resources: createResourceRegistrar({ events: registry.events, exists: (id) => access.snap.resource(id) !== undefined, resource: (id) => access.snap.resource(id) }),
+        resources: createResourceRegistrar({ events: registry.events, exists: (id) => access.snap.resource(id) !== undefined, resource: (id) => access.snap.resource(id), agentHome: (id) => homeScopeOf(db!, id)?.homeFolder ?? null }),
         principals: createPrincipalRegistrar({
           exists: (id) => access.snap.info(id) !== null,
           levelOf: (person, space) => {

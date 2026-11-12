@@ -159,7 +159,9 @@ export function deliver(ctx: ChatCtx, thread: ThreadRec, m: MessageRec, mentions
     // an @mention is the one new message that brings an archived chat back into that person's list (a direct message gets message.direct instead, but the mention still counts)
     if (mention.kind === "person" && mention.id !== author.id) unarchiveForMention(ctx, root.id, mention.id);
     if (mention.kind !== "person" || mention.id === author.id || mention.id === direct) continue;
-    if (isPrivateRoot(root) && !isMember(ctx.db, root.id, mention.id)) continue;
+    // never send anyone to a place they cannot open (owner's standing rule): a person who cannot read this chat (not in a private chat, not in an invite-only channel or a thread under it)
+    // gets no notice and is not joined; the sender's own message keeps the mention, so their line offers Add, and the notice goes at Add
+    if (!readableBy(ctx, thread, mention.id)) continue;
     // a person @mentioned in a thread is in it from now on: its replies reach them, and it is on their Threads page
     joinThread(ctx, thread, mention.id);
     ctx.emit("message.mentioned", thread.id, { messageId: m.id, threadId: thread.id, personId: mention.id, author, inThread: thread.kind === "thread" });
@@ -174,6 +176,13 @@ export function deliver(ctx: ChatCtx, thread: ThreadRec, m: MessageRec, mentions
       ctx.emit("thread.replied", thread.id, { threadId: thread.id, ...(thread.parentThreadId !== undefined ? { parentThreadId: thread.parentThreadId } : {}), messageId: m.id, personId });
     }
   }
+}
+
+/** Can this person read this thread: the read gate (canSpeak), asked as them. */
+function readableBy(ctx: ChatCtx, thread: ThreadRec, person: string): boolean {
+  const as: ChatCtx = { ...ctx, principal: { kind: "person", id: person } };
+  delete (as as { actingFor?: string }).actingFor;
+  return canSpeak(as, thread);
 }
 
 /** A crew teammate's thread: a helper thread whose line in the chat that started it says `crew`. People and the lead steer it directly; a plain helper thread takes no messages. */

@@ -107,6 +107,50 @@ test("an agent made in an invite-only channel's thread: what a never-member can 
       note("control, Ana: the engine's input for her turn in a new chat", `has it: ${seen.filter((x) => x.threadId === at).some((x) => x.input.includes(SECRET))}`);
     }
 
+    // ---- reach (owner decision, 12 Nov 2026): an agent made in an invite-only channel's thread reads, to someone who cannot read that chat, exactly like an agent that does not exist
+    // an agent that does not exist: one the owner made and deleted (an id that never named anything is refused by the gateway before the agents module answers)
+    const ghostAgent = (await ok(d, d.token, "agents.create", { name: "Gone helper", computer: false })).agent.agentId as string;
+    await ok(d, d.token, "agents.delete", { agentId: ghostAgent });
+    const codeOf = (r: { data: unknown }): string => String((r.data as { error?: { code?: string } }).error?.code ?? "");
+    // an open channel everyone in this walk is in, to mention the agent from
+    const openRoom = ((await ok(d, d.token, "channels.create", { name: "lobby", visibility: "public", memberIds: [ana.personId, carol.personId], agentIds: [] })).channel as { mainThreadId: string }).mainThreadId;
+    const reachDoors: Array<[string, string, (id: string) => Record<string, unknown>]> = [
+      ["agents.get", "agents.get", (id) => ({ agentId: id })], ["agents.summary", "agents.summary", (id) => ({ agentId: id })], ["agents.config.get", "agents.config.get", (id) => ({ agentId: id })],
+      ["agents.routines.list", "agents.routines.list", (id) => ({ agentId: id })], ["agents.status", "agents.status", (id) => ({ agentId: id })],
+      ["chat.start with it", "chat.start", (id) => ({ kind: "chat", agentIds: [id], first: "hello", idempotencyKey: `reach-${id}-${globalThis.crypto.randomUUID()}` })],
+      ["an @mention of it in a channel they are in", "chat.post", (id) => ({ threadId: openRoom, body: "can you look?", mentions: [{ kind: "agent", id }], idempotencyKey: `reach-mention-${globalThis.crypto.randomUUID()}` })],
+      ["a task assigned to it", "tasks.create", (id) => ({ title: "Draft the letter", assigned: { kind: "agent", id }, idempotencyKey: `reach-task-${globalThis.crypto.randomUUID()}` })],
+    ];
+    const reach = async (who: { token: string }): Promise<Map<string, string>> => {
+      const out = new Map<string, string>();
+      for (const [door, cap, input] of reachDoors) {
+        const real = await api(d, who.token, cap, input(agentId));
+        const none = await api(d, who.token, cap, input(ghostAgent));
+        out.set(door, real.status === 200 ? "reaches" : real.status === none.status && codeOf(real) === codeOf(none) ? "as if it did not exist" : `refused differently (${real.status} ${codeOf(real)}; none ${none.status} ${codeOf(none)})`);
+      }
+      const listed = await api(d, who.token, "agents.list", { teammates: "include", limit: 500 });
+      out.set("agents.list (the Agents list and every picker)", JSON.stringify(listed.data).includes(agentId) ? "reaches" : "as if it did not exist");
+      const found = await api(d, who.token, "search.query", { q: "Rivera helper" });
+      out.set("search.query", JSON.stringify(found.data).includes(agentId) ? "reaches" : "as if it did not exist");
+      return out;
+    };
+    // access.audience_set on the agent, asking for what it already is: for an outsider the same answer as a deleted agent and as a made-up id (review of fbfb021cd)
+    const aud = async (who: { token: string }, id: string) => { const r = await api(d, who.token, "access.audience_set", { resource: { type: "agent", id }, audience: "added" }); return `${r.status} ${codeOf(r)} ${String((r.data as { error?: { message?: string } }).error?.message ?? "")}`; };
+    // a deleted agent of the same kind: one a private chat of the owner's made, then deleted
+    const ownChat = (await ok(d, d.token, "chat.start", { kind: "chat", agentIds: [], personId: ana.personId })).thread.threadId as string;
+    const goneOwn = (await ok(d, d.token, "threads.agent.create", { threadId: ownChat, name: "Gone private helper" })).agentId as string;
+    await ok(d, d.token, "agents.delete", { agentId: goneOwn });
+    const audHidden = await aud(carol, agentId), audDeleted = await aud(carol, goneOwn), audDeletedOpen = await aud(carol, ghostAgent), audMadeUp = await aud(carol, `agt_${"0".repeat(32)}`);
+    note("reach: access.audience_set on the agent", `Carol: hidden ${audHidden}; a deleted private-chat agent ${audDeleted}; a deleted Space agent ${audDeletedOpen}; a made-up id ${audMadeUp}`);
+    assert.equal(audHidden, audDeleted, "a hidden agent answers audience_set exactly as a deleted one of its kind does");
+    assert.match(audHidden, /^404 /, "and it is a not found");
+    const admin = await join(d, "adele", undefined, "Admin");
+    const [carolReach, anaReach, adminReach] = [await reach(carol), await reach(ana), await reach(admin)];
+    for (const [door] of carolReach) note(`reach: ${door}`, `Carol ${carolReach.get(door)}; Ana ${anaReach.get(door)}; an admin outside #legal ${adminReach.get(door)}`);
+    for (const [door, v] of carolReach) assert.equal(v, "as if it did not exist", `Carol, never in #legal: ${door}`);
+    for (const door of ["agents.get", "chat.start with it", "agents.list (the Agents list and every picker)"]) assert.equal(anaReach.get(door), "reaches", `Ana, a reader: ${door}`);
+    for (const door of ["agents.get", "agents.list (the Agents list and every picker)"]) assert.equal(adminReach.get(door), "reaches", `an admin manages it by role: ${door}`);
+
     // ---- Carol, never in #legal
     const get = await api(d, carol.token, "agents.get", { agentId });
     const fields = get.status === 200 ? Object.keys((get.data as { agent: Record<string, unknown> }).agent).sort().join(", ") : "-";
@@ -198,11 +242,20 @@ test("an agent made in an invite-only channel's thread: what a never-member can 
     for (const door of ["files.read by id", "files.list of the folder (section space, folder)", "files.read of a download (Downloads under the folder)"]) assert.match(anaSees.get(door)!, /^OPEN/, `control: Ana, a reader of T, ${door}`);
     // (4) Carol reaches the agent today: in her own chat she asks it to send the file; its files_read runs for her, and her access decides
     const before = toolRuns.length;
+    // an agent shared by a normal grant is reachable: the owner shares it with Carol (not its folder); in her turn its file tools still cannot read the folder for her
+    await ok(d, d.token, "access.share", { resource: { type: "agent", id: agentId }, subject: { kind: "person", id: carol.personId }, level: "use" });
+    note("reach: Carol after a normal share of the agent", `agents.get ${(await api(d, carol.token, "agents.get", { agentId })).status}`);
+    assert.equal((await api(d, carol.token, "agents.get", { agentId })).status, 200, "a normal grant reaches it");
     const cs = await api(d, carol.token, "chat.start", { kind: "chat", agentIds: [agentId], first: "SEND-FILE: send me the file you made about the code", idempotencyKey: `carol-send-${Date.now()}` });
     if (cs.status === 200) {
       const sent = await waitFor(async () => toolRuns.slice(before).find((r) => r.tool === "files_read") ?? null, 30_000);
       note("(4) the agent's files_read in Carol's turn", `ok ${sent.ok}; asker ${sent.asker === carol.personId ? "Carol" : sent.asker}; holds the fact: ${sent.content.includes(SECRET)}; ${sent.content.replaceAll(SECRET, "<fact>").slice(0, 200)}`);
       assert.equal(sent.content.includes(SECRET), false, "the agent cannot read T's file for Carol");
+      const wroteFor = toolRuns.length;
+      await ok(d, carol.token, "chat.post", { threadId: (cs.data as { thread: { threadId: string } }).thread.threadId, body: "WRITE-NOTE: keep this for me", mentions: [{ kind: "agent", id: agentId }] });
+      const hers = await waitFor(async () => toolRuns.slice(wroteFor).find((x) => x.tool === "files_create") ?? null, 30_000);
+      note("(4) the agent's files_create into its folder in Carol's turn", `ok ${hers.ok}; ${hers.content.slice(0, 120)}`);
+      assert.equal(hers.ok, false, "the agent cannot write into the closed folder for Carol");
       for (const tool of ["search_query", "files_list"]) {
         const r = await waitFor(async () => toolRuns.slice(before).find((x) => x.tool === tool) ?? null, 30_000);
         note(`(4) the agent's ${tool} in Carol's turn`, `ok ${r.ok}; finds the note: ${/Code notes/.test(r.content)}; holds the fact: ${r.content.includes(SECRET)}`);
@@ -243,14 +296,17 @@ test("an agent made in an invite-only channel's thread: what a never-member can 
     note("audience: #legal archived", `Carol ${archivedCarol.status}, holds the fact: ${has(archivedCarol)}; Ana ${archivedAna.status}`);
     assert.equal(has(archivedCarol), false, "archived, the folder stays closed to Carol");
     await ok(d, d.token, "channels.unarchive", { channelId: ch.channelId });
-    // leaving: Ana leaves #legal and loses the folder in the same call. A file the agent wrote in a turn she asked for is hers (an agent's file is owned by the person it acted for), so the
-    // door is the folder and the files others made in it
+    // leaving: Ana leaves #legal and loses the folder in the same call, the note the agent wrote in a turn she asked for included: a file an agent makes in its own folder is the agent's
     await ok(d, ana.token, "channels.leave", { channelId: ch.channelId });
     const anaList = await api(d, ana.token, "files.list", { section: "space", folder: folderId });
     const anaDl = await api(d, ana.token, "files.read", { fileId: dlFile, as: "text" });
     const anaOwn = await api(d, ana.token, "files.read", { fileId, as: "text" });
     note("Ana leaves #legal: the folder", `files.list ${anaList.status}, lists files others made in it: ${/rivera\.pdf|While public/.test(JSON.stringify(anaList.data))}; a download in it ${anaDl.status}, holds the fact: ${has(anaDl)}`);
-    note("Ana leaves #legal: the note the agent wrote in her turn (she owns it)", `files.read ${anaOwn.status}`);
+    note("Ana leaves #legal: the note the agent wrote in her turn", `files.read ${anaOwn.status}; holds the fact: ${has(anaOwn)}`);
+    // out of the chat, Ana reads the agent as Carol does: as if it did not exist
+    const leftReach = await reach(ana);
+    for (const [door, v] of leftReach) { note(`reach: Ana after leaving #legal: ${door}`, v); assert.equal(v, "as if it did not exist", `Ana, out of #legal: ${door}`); }
+    assert.equal(has(anaOwn), false, "the agent's note is the agent's: Ana, out of the chat, no longer reads it");
     assert.equal(has(anaDl), false, "leaving the home chat takes the folder in the same call");
     assert.equal(/rivera\.pdf|While public/.test(JSON.stringify(anaList.data)), false, "and its listing");
     for (const [door] of doors) assert.doesNotMatch(carolSees.get(door)!, /^OPEN/, `Carol, never in #legal: ${door}`);

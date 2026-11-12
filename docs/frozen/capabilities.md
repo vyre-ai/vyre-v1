@@ -112,4 +112,8 @@ Signed: lead, 12 Nov 2026
 
 The hashes in `docs/frozen/snapshots/automations.json` were written again at the merge of lane f-auto into int/rc25, which already held lane f-vaultuse. Each lane's own contract change is described and signed in its paragraph in this file (f-vaultuse: the runs-as field, `automations.runs_as.get@1`, `automation.runs_as_changed`; f-auto: the key-host capabilities `automations.key_hosts.*` and the held test read). Both touch `manifests/automations.ts`, so the merged manifest's hashes are new and neither lane's snapshot matched. Nothing beyond those two reviewed changes is in this snapshot; it was regenerated on the build box with `node tools/gen/src/cli.ts --snapshots`.
 
+## 12 Nov 2026: previews.get, previews.pages and previews.text may emit preview.ready and preview.failed (lane f-revoke)
+
+`previews.get@1`, `previews.pages@1` and `previews.text@1` now declare `emits: ['preview.ready', 'preview.failed']`. The first read of a file version whose preview was never made renders it inline and announces the result, as `previews.render` does; an undeclared event was refused at run time, so that first read answered 500 "event not declared in emits". Nothing else in their contracts changed: same input, output, level, permission and errors; the events carry their own declared payloads.
+
 Signed: lead, 12 Nov 2026

@@ -115,7 +115,8 @@ test("an agent the chat made is shown to everyone who reads the chat, whoever ma
   await h["threads.members.add"]!(hn.ctx, { threadId: id, personId: MAYA });
   hn.advance(10);
   await h["threads.agent.create"]!(hn.person(MAYA), { threadId: id, name: "Checker", idempotencyKey: key() });
-  const toPeople = (l: Array<Record<string, any>>) => l.map((g) => g["subject"].id).sort();
+  // the people it is shown to (the agent's own hold on itself, written when its chat closes it off from the Space, is not a person)
+  const toPeople = (l: Array<Record<string, any>>) => l.filter((g) => g["subject"].kind === "person").map((g) => g["subject"].id).sort();
   assert.deepEqual(toPeople(log.shared), [DANA, MAYA], "Dana made nothing, and still sees what Maya's chat made");
   assert.ok(log.shared.every((g) => g["resource"].type === "agent" && g["source"] === `chat:${id}`));
   await h["threads.members.add"]!(hn.ctx, { threadId: id, personId: LEO });
