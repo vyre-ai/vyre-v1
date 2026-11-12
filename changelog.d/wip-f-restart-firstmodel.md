@@ -1,0 +1,3 @@
+- A person who adds their own OpenAI, Anthropic, Google or xAI API key and says hello gets a reply, even before they pick a model. The chat runs on a balanced model from the key's own list, such as a Sonnet model on Anthropic, and the reply's label names it. Nothing is saved, so picking a model in the chat's menu takes over at once. AI steps and other one-off answers use the same rule.
+- The default skips costly or special models (pro, preview, audio, realtime, search, image) unless nothing else is on the key, and keeps to the models the Space's AI policy allows. When the policy allows none of the key's models, the chat says so in the policy's words.
+- A subscription sign-in keeps its own default, and OpenRouter still runs on its own default.

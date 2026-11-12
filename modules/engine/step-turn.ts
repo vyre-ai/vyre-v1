@@ -15,6 +15,7 @@ import { ensure, raise, stepOpenOf } from "./projections.ts";
 import type { EngineCtx } from "./projections.ts";
 import { providerOfDriver } from "./runtime.ts";
 import { PROVIDER_DEFAULT_DRIVERS, PROVIDER_DEFAULT_WORDS, providerDefaultBlocked } from "./handlers/extra/config.ts";
+import { defaultModelFor } from "./first-model.ts";
 import { fitModel } from "./space-key-turns.ts";
 
 export interface StepTurnIn {
@@ -171,7 +172,7 @@ export async function stepTurn(ctx: EngineCtx, input: StepTurnIn): Promise<StepT
     }
   }
   // on the Space AI key the step runs on a model the key unlocks: the agent's when the key serves it, else the first one
-  const stepModel = paid.row.spaceKey === true
+  let stepModel = paid.row.spaceKey === true
     ? fitModel(withAgent?.agent.model, await (ctx.call("providers.space_key.get", {}) as Promise<{ models?: string[] }>).then((r) => r.models ?? [], () => [] as string[]))
     : withAgent?.agent.model;
   // no model named, on a provider that runs its own default (OpenRouter): the Space policy is checked first, before anything is sent (one rule with chat: config.ts providerDefaultBlocked)
@@ -179,6 +180,15 @@ export async function stepTurn(ctx: EngineCtx, input: StepTurnIn): Promise<StepT
     const limits = (await ctx.call("engine.policy.get", {})) as PolicyOut;
     const why = providerDefaultBlocked({ allowedModels: limits.allowedModels ?? [], allowedProviders: limits.allowedProviders ?? [] }, paid.row.driver);
     if (why !== null) raise(ctx as never, "permission.provider_label", PROVIDER_DEFAULT_WORDS, { reason: why });
+  }
+  // nothing names a model, on a person's API key: the default nobody chose, from the key's own list (first-model.ts; one rule with chat); never written, the step's record names what ran
+  if (!stepModel && paid.row.spaceKey !== true) {
+    const limits = (await ctx.call("engine.policy.get", {})) as PolicyOut & { labelProviders?: Record<string, string[]> };
+    const providerId = (await load(ctx as never)).idByRef.get(paid.row.ref);
+    const d = await defaultModelFor({ db: ctx.db as never, now: ctx.now(), call: (cap, i) => ctx.call(cap as never, i as never), policy: { allowedModels: limits.allowedModels ?? [], allowedProviders: limits.allowedProviders ?? [], labelProviders: limits.labelProviders ?? {} } },
+      { ref: paid.row.ref, driver: paid.row.driver, provider: paid.row.provider ?? paid.row.driver, kind: paid.row.kind, providerId, models: paid.row.models });
+    if (d.why === "policy") raise(ctx as never, "permission.provider_label", PROVIDER_DEFAULT_WORDS, { reason: "policy_model" });
+    stepModel = d.model;
   }
   const agent: EngineAgent = { id: agentKey, ...(withAgent ? { name: withAgent.agent.name } : {}), mode: "lead", ...(stepModel ? { model: stepModel } : {}) };
   const slug = hex(input.idempotencyKey);

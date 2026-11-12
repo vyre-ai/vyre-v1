@@ -11,6 +11,7 @@ import { savedTested } from "../live-models.ts";
 import { unavailableFor } from "../model-health.ts";
 import { applyRememberedPick, stateOf } from "./control.ts";
 import { raise } from "../projections.ts";
+import { defaultModelFor } from "../first-model.ts";
 import { PROVIDER_DEFAULT_DRIVERS, PROVIDER_DEFAULT_WORDS, providerDefaultBlocked } from "./extra/config.ts";
 
 interface ProviderRow {
@@ -27,7 +28,7 @@ interface ProviderRow {
 }
 interface ThreadOut { thread: { label?: string; starter: string; agents: Array<{ agentId: string; accountRef?: string; provider?: string; model?: string }> } }
 interface AgentOut { agent: { accountPolicy: "asker" | "key"; accountKey?: string; workKey?: string; accountFallback?: string[]; model?: string } }
-interface PolicyOut { allowedAccounts: "any" | "company"; allowedModels?: string[]; allowedProviders?: string[] }
+interface PolicyOut { allowedAccounts: "any" | "company"; allowedModels?: string[]; allowedProviders?: string[]; labelProviders?: Record<string, string[]> }
 interface DefaultsOut { fallback: Array<{ accountRef?: string }> }
 interface PlacementOut { placement: "host" | "device" | "wait" }
 
@@ -181,11 +182,19 @@ export async function accountResolve(ctx: Ctx, input: { threadId: string; agentI
     const why = providerDefaultBlocked({ allowedModels: policy.allowedModels ?? [], allowedProviders: policy.allowedProviders ?? [] }, payingRow.driver);   // the driver is the provider id for these
     if (why !== null) raise(ctx as never, "permission.provider_label", PROVIDER_DEFAULT_WORDS, { reason: why });
   }
+  // nothing names a model, on a person's API key: the default nobody chose, from the key's own list (first-model.ts). Resolved per turn and never written: the label shows what ran.
+  let runModel = model;
+  if (model === undefined && payingRow && input.dry !== true) {
+    const d = await defaultModelFor({ db: ctx.db as never, now: typeof ctx.now === "function" ? ctx.now() : Date.now(), call: (cap, i) => ctx.call(cap as never, i as never), policy: { allowedModels: policy.allowedModels ?? [], allowedProviders: policy.allowedProviders ?? [], labelProviders: policy.labelProviders ?? {} } },
+      { ref: payingRow.ref, driver: payingRow.driver, provider: payingRow.provider ?? payingRow.driver, kind: payingRow.kind, providerId: accounts.idByRef.get(payingRow.ref), models: payingRow.models });
+    if (d.why === "policy") raise(ctx as never, "permission.provider_label", PROVIDER_DEFAULT_WORDS, { reason: "policy_model" });
+    runModel = d.model;
+  }
   // the Vault item behind the account, so the turn worker can meter usage against it (record_usage itemId)
   const itemId = res.accountRef ? accounts.itemByRef.get(res.accountRef) : undefined;
   // an account ahead of this one was passed over: what pays is a fallback, whatever the reason word says
   const fellBack = res.accountRef !== null && res.tried.some((a) => !a.used && (a.why === "expired" || a.why === "failed" || a.why === "failed_this_turn" || a.why === "capped"));
-  return { accountRef: res.accountRef, payer: res.payer, reason: res.reason, allowed: res.allowed, ...(itemId ? { itemId } : {}), ...(fellBack ? { fellBack: true } : {}), ...(res.pin ? { pin: res.pin } : {}), ...(fellBack ? (() => { const c = res.tried.find((a) => !a.used && a.why === "capped"); return c ? { cappedFrom: c.ref } : {}; })() : {}), ...(res.via && ["chat_key", "thread", "work", "step", "space", "backup"].includes(res.via) ? { via: res.via } : {}), ...(res.allowed && model ? { model } : {}), ...(!res.allowed && res.noModel ? { why: "no_model" as const, ...(model ? { model } : {}), servedModels: res.servedModels ?? [] } : !res.allowed && res.unblock ? { why: res.unblock.why } : {}),
+  return { accountRef: res.accountRef, payer: res.payer, reason: res.reason, allowed: res.allowed, ...(itemId ? { itemId } : {}), ...(fellBack ? { fellBack: true } : {}), ...(res.pin ? { pin: res.pin } : {}), ...(fellBack ? (() => { const c = res.tried.find((a) => !a.used && a.why === "capped"); return c ? { cappedFrom: c.ref } : {}; })() : {}), ...(res.via && ["chat_key", "thread", "work", "step", "space", "backup"].includes(res.via) ? { via: res.via } : {}), ...(res.allowed && runModel ? { model: runModel } : {}), ...(!res.allowed && res.noModel ? { why: "no_model" as const, ...(model ? { model } : {}), servedModels: res.servedModels ?? [] } : !res.allowed && res.unblock ? { why: res.unblock.why } : {}),
     ...(res.modelFallback && res.accountRef && model ? { modelFallback: { from: model, ...(accounts.rows.find((r) => r.ref === res.accountRef)?.models?.[0] ? { to: accounts.rows.find((r) => r.ref === res.accountRef)!.models![0]! } : {}) } } : {}) };
 }
 

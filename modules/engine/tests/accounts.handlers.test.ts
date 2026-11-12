@@ -228,3 +228,31 @@ test("account.resolve: a turn with no model on OpenRouter runs on OpenRouter's o
       (e: unknown) => (e as { error?: { code?: string; details?: { reason?: string } } }).error?.code === "permission.provider_label" && (e as { error: { details: { reason?: string } } }).error.details.reason === "policy_model", JSON.stringify(policy));
   }
 });
+
+test("account.resolve: with nothing naming a model, a person's own API key runs on its default chat model from the key's own list (read once, no completion), never written anywhere", async () => {
+  const noModel = { "threads.get": () => ({ thread: { starter: "usr_dana", agents: [{ agentId: "agt_1" }] } }), "agents.get": () => ({ agent: { accountPolicy: "asker" } }), "engine.defaults.get": () => ({ fallback: [] }) };
+  const { harness } = await import("../fixtures/harness.ts");
+  const db = harness().ctx.db;
+  const asked: string[] = [];
+  const at = (providers: ReturnType<typeof prov>[], over: Record<string, (i: unknown) => unknown> = {}) => {
+    const f = fake(routes(providers, { ...noModel, "providers.test": () => { asked.push("providers.test"); return { ok: true, models: ["dall-e-3", "o3-pro", "gpt-5-mini", "gpt-5", "gpt-4.1", "whisper-1"] }; }, "engine.complete": () => { asked.push("engine.complete"); return {}; }, ...over }));
+    (f.ctx as unknown as { db: unknown }).db = db;
+    return f.ctx;
+  };
+  const openai = [prov({ id: "prv_1", handle: "#Dana_OpenAI", providerKey: "openai", engine: "openai" })];
+  assert.equal((await accountResolve(at(openai), { threadId: "thr_1", agentId: "agt_1" })).model, "gpt-5");
+  assert.equal((await accountResolve(at(openai), { threadId: "thr_1", agentId: "agt_1" })).model, "gpt-5", "the kept list answers the second time");
+  assert.deepEqual(asked, ["providers.test"], "the key's list was read once; no completion was spent choosing");
+  assert.deepEqual(db.all("SELECT * FROM engine_agent_state"), [], "nothing is written as the chat's pick");
+  // a policy that allows only gpt-4.1 picks it; one that allows no listed chat model gives the policy words
+  assert.equal((await accountResolve(at(openai, { "engine.policy.get": () => ({ allowedAccounts: "any", allowedModels: ["gpt-4.1"], allowedProviders: [] }) }), { threadId: "thr_1", agentId: "agt_1" })).model, "gpt-4.1");
+  await assert.rejects(() => accountResolve(at(openai, { "engine.policy.get": () => ({ allowedAccounts: "any", allowedModels: ["claude-sonnet-5-5"], allowedProviders: [] }) }), { threadId: "thr_1", agentId: "agt_1" }),
+    (e: unknown) => (e as { error?: { details?: { reason?: string } } }).error?.details?.reason === "policy_model");
+  // a chat pick or an agent model still wins
+  assert.equal((await accountResolve(at(openai, { "agents.get": () => ({ agent: { accountPolicy: "asker", model: "gpt-4.1" } }) }), { threadId: "thr_1", agentId: "agt_1" })).model, "gpt-4.1");
+  // a subscription keeps its CLI's own default, and OpenRouter its own
+  const sub = await accountResolve(at([prov({ id: "prv_2", handle: "#Dana_Claude", providerKey: "claude-code", engine: "claude-code", connection: "subscription", spaceMayUse: true })]), { threadId: "thr_1", agentId: "agt_1" });
+  assert.equal(sub.model, undefined);
+  const router = await accountResolve(at([prov({ id: "prv_3", handle: "#Dana_Router", providerKey: "openrouter", engine: "openrouter" })]), { threadId: "thr_1", agentId: "agt_1" });
+  assert.equal(router.model, undefined);
+});

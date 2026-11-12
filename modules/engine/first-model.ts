@@ -1,0 +1,71 @@
+// The model a turn runs on when nothing names one (no chat pick, no thread record, no agent model) on a person's API key: the first hour of a Personal Space, where the Assistant has no
+// model and the person has not picked one (lead, 12 Nov 2026). It is the default nobody chose, so it is resolved per turn and never written anywhere: a later pick or agent model wins at
+// once, and the reply's label shows the model that ran, so the person sees it and can change it.
+//   source   the list the key's check kept (one GET /models through providers.test when the engine has none kept): never a completion, never the model checks the menu starts
+//   chat     the adapter's chat filter where it has one (OpenAI), and abilities().tools for the rest: no image, speech, embedding or moderation model
+//   order    a model already run on this account ("ok"), then the provider's balanced tier below (newest first), then the vendor's order (the rule fitModel uses for the Space AI key)
+//   avoid    pro, preview, audio, realtime, search, transcribe and image models, unless nothing else passes
+//   policy   only what the Space's AI policy allows; when the key lists chat models but the policy allows none, the turn says so in the policy's words
+//   never    a subscription (its CLI keeps its own default) or OpenRouter (it runs its own default)
+import { ADAPTERS } from "../../agent/src/drivers/api/driver.ts";
+import { blockedBy, PROVIDER_DEFAULT_DRIVERS } from "./handlers/extra/config.ts";
+import { abilities } from "./handlers/extra/models.ts";
+import type { Policy } from "./handlers/extra/config.ts";
+import { confirmedFor } from "./model-health.ts";
+import { saveTested, savedTested } from "./live-models.ts";
+
+/**
+ * The default nobody chose: balanced cost and ability per provider, newest first. The owner may change this table. A provider with no entry takes the vendor's first chat model.
+ */
+export const BALANCED_TIER: Readonly<Record<string, RegExp>> = {
+  anthropic: /sonnet/i,
+  openai: /^gpt-\d[\d.]*o?$/i,   // the plain flagship: gpt-5, gpt-5.5, gpt-4o, gpt-4.1; no -mini, -nano, -pro, no dated or preview suffix
+  google: /gemini-[\d.]+-flash$/i,
+  xai: /^grok-\d[\d.]*$/i,
+};
+/** Never the default while anything else passes: costly or not a plain chat model. */
+export const AVOID_DEFAULT = /pro$|-pro-|preview|audio|realtime|search|transcribe|image/i;
+
+const newestFirst = (a: string, b: string): number => b.localeCompare(a, "en", { numeric: true });
+
+/** The pure rule. `blocked(model)` is the Space policy's answer for that model on this provider. */
+export function pickDefault(models: readonly string[], o: { provider: string; driver?: string; confirmed: ReadonlySet<string>; blocked: (model: string) => boolean }): string | undefined {
+  const filter = (ADAPTERS as Record<string, { chatModels?: RegExp }>)[o.driver ?? o.provider]?.chatModels;
+  const chat = models.filter((m) => (filter === undefined || filter.test(m)) && abilities(m, o.provider).tools);
+  const allowed = chat.filter((m) => !o.blocked(m));
+  const plain = allowed.filter((m) => !AVOID_DEFAULT.test(m));
+  const pool = plain.length > 0 ? plain : allowed;
+  const ran = pool.find((m) => o.confirmed.has(m));
+  if (ran) return ran;
+  const tier = BALANCED_TIER[o.provider];
+  const balanced = tier ? pool.filter((m) => tier.test(m)).sort(newestFirst)[0] : undefined;
+  return balanced ?? pool[0];
+}
+
+type Db = Parameters<typeof savedTested>[0];
+export interface DefaultFor {
+  db: Db; now: number;
+  call(cap: string, input: unknown): Promise<unknown>;
+  policy: Pick<Policy, "allowedModels" | "allowedProviders" | "labelProviders">;
+}
+/** What a turn with no model named runs on for this account: { model }, { why: "policy" } when the key lists chat models but the policy allows none, or {} (none: the plain words). */
+export async function defaultModelFor(d: DefaultFor, account: { ref: string; driver: string; provider: string; kind: string; providerId?: string | undefined; models?: readonly string[] | undefined }): Promise<{ model?: string; why?: "policy" }> {
+  if (account.kind !== "api_key" || PROVIDER_DEFAULT_DRIVERS.has(account.driver)) return {};
+  let listed: string[] = account.models?.length ? [...account.models] : [];
+  if (listed.length === 0) { try { listed = savedTested(d.db, account.ref); } catch { /* nothing kept */ } }
+  if (listed.length === 0 && account.providerId) {
+    // the key's own check: one GET /models, kept; no completion and no model checks are started here
+    try {
+      const r = (await d.call("providers.test", { providerId: account.providerId })) as { ok?: boolean; models?: string[] };
+      if (r.ok === true && Array.isArray(r.models) && r.models.length > 0) { listed = r.models; try { saveTested(d.db, account.ref, account.driver, d.now, listed); } catch { /* kept next time */ } }
+    } catch { /* the key could not be asked now: none */ }
+  }
+  if (listed.length === 0) return {};
+  const pol = { allowedAccounts: "any", allowedModels: d.policy.allowedModels ?? [], allowedProviders: d.policy.allowedProviders ?? [], labelProviders: d.policy.labelProviders ?? {} } as unknown as Policy;
+  let confirmed: ReadonlySet<string> = new Set();
+  try { confirmed = confirmedFor(d.db, account.ref, d.now); } catch { /* none known */ }
+  const model = pickDefault(listed, { provider: account.provider, driver: account.driver, confirmed, blocked: (m) => blockedBy(pol, { provider: account.provider, model: m }) !== null });
+  if (model) return { model };
+  const anyChat = pickDefault(listed, { provider: account.provider, driver: account.driver, confirmed, blocked: () => false });
+  return anyChat ? { why: "policy" } : {};
+}

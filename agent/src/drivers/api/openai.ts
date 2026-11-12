@@ -138,6 +138,7 @@ function decoder(): StreamDecoder {
 export function openaiCompatible(o: CompatOptions): ProviderAdapter {
   return {
     ...(o.router ? { defaultsModel: true } : {}),
+    ...(o.modelFilter ? { chatModels: o.modelFilter } : {}),
     id: o.id,
     defaultBase: o.base,
     defaultMaxOutput: o.defaultMaxOutput,
