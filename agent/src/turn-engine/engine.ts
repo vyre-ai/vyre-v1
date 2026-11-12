@@ -163,6 +163,19 @@ interface ThreadState {
   starting?: { agentId: string; qseq: number; stop?: string } | null;
 }
 
+/**
+ * What the next turn of an agent is told after a turn of its was stopped (lead, 12 Nov 2026: after Stop the next message made the agent redo the stopped job). The chat keeps the person's ask and
+ * the next turn reads it again, merged with the new one, and an engine that resumes its own session still holds the interrupted call: without this the model finished the stopped work first.
+ */
+/** The stopped turn's own entry in the history the next turn reads. */
+export const STOPPED_MARK = "(Stopped by the person before it finished.)";
+
+export function stopNote(why: string, ask: string): string {
+  const how = why === "interrupt" ? "sent a new message instead" : why === "limit" ? "reached a spending limit" : why === "left" ? "removed you" : why === "moved" ? "moved the task" : "pressed Stop";
+  const what = ask.trim() === "" ? "" : ` ("${ask.trim().length > 200 ? `${ask.trim().slice(0, 200)}...` : ask.trim()}")`;
+  return `Your previous turn${what} was stopped: the person ${how}. That turn is closed and anything it started did not finish. Do not redo or continue it unless they ask again. Answer only the newest message.`;
+}
+
 const defaultSchedule = (fn: () => void, ms: number): (() => void) => {
   const h = setInterval(fn, ms);
   if (typeof h === "object" && "unref" in h) h.unref();
@@ -367,6 +380,38 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
     // a Stop always answers: a store that cannot be written now leaves the turn stopped in memory, as before, and says so in the log
     try { if (queue.list(threadId).find((r) => r.qseq === qseq)?.state === "running") queue.setState(threadId, qseq, "stopping", why); }
     catch (e) { opts.log?.("a Stop could not be written on its queue row; it holds until this host stops", { threadId, qseq, error: e instanceof Error ? e.message : String(e) }); }
+  }
+
+  /**
+   * Was this agent's last finished turn in the thread stopped? Read from the queue rows, which outlive a restart: the newest row of the agent before this one that ran to an end. A stopped turn's
+   * row ends cancelled (or still stopping, before recover) with the reason it was stopped; a queued message dropped unrun is cancelled with no reason and does not count. A turn that completed
+   * after it ends the matter, so the note is read once.
+   */
+  function stoppedBefore(st: ThreadState, item: QueueItem): { why: string; ask: string; askId: string | null } | null {
+    let last: QueueItem | undefined;
+    for (const row of queue.list(st.thread.id)) {
+      if (row.agentId !== item.agentId || row.qseq >= item.qseq) continue;
+      // a turn put back for a host that was closing, or one whose lease was lost, is redelivered and goes on: it was never stopped by anyone
+      const stopped = (row.state === "cancelled" || row.state === "stopping") && row.stopReason !== undefined && row.stopReason !== "closing" && row.stopReason !== "lease";
+      if (row.state === "done" || stopped) last = row;
+    }
+    if (!last || last.state === "done") return null;
+    return { why: last.stopReason ?? "stop", ask: last.messageId ? findMessage(st, last.messageId)?.body ?? "" : "", askId: last.messageId ?? null };
+  }
+
+  /**
+   * The history the next turn reads, with the stopped turn closed in it: an entry of the agent's own, STOPPED_MARK, right after the stopped ask (or after what the agent had written to it), so
+   * the old ask and the new one are never one message to the model (the API merges a run of a person's messages into one).
+   */
+  function closedHistory(rows: readonly StoredMessage[], agentId: string, askId: string | null): StoredMessage[] {
+    const out = [...rows];
+    const at = askId ? out.findIndex((m) => m.id === askId) : -1;
+    if (at < 0) return out;
+    let end = at;
+    for (let i = at + 1; i < out.length && out[i]!.author.kind === "agent" && out[i]!.author.id === agentId; i++) end = i;
+    const ask = out[at]!;
+    out.splice(end + 1, 0, { id: `${ask.id}:stopped`, threadId: ask.threadId, threadSeq: out[end]!.threadSeq, author: { kind: "agent", id: agentId }, mentions: [], depth: ask.depth, body: STOPPED_MARK });
+    return out;
   }
 
   async function cancelRunning(st: ThreadState, why: string): Promise<void> {
@@ -578,11 +623,18 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
         stop(await ask({ ...base, event: "prompt.submit", prompt: trigger?.body ?? "" }));
       }
       let switchTo: ResolvedAccount | null = null;
+      const stoppedTurn = stoppedBefore(st, item);
+      const recent = st.messages.slice(-(pokeRows.has(`${st.thread.id}:${item.qseq}`) ? POKE_WINDOW : historyWindow));
       const input = {
         threadId: st.thread.id, turnId: turn.id, agent, trigger, asker,
-        history: st.messages.slice(-(pokeRows.has(`${st.thread.id}:${item.qseq}`) ? POKE_WINDOW : historyWindow)),
+        history: stoppedTurn ? closedHistory(recent, item.agentId, stoppedTurn.askId) : recent,
         listeners: st.thread.agents.filter((a) => a.mode === "listen" && a.id !== agent.id).map((a) => (a.role === undefined ? { id: a.id } : { id: a.id, role: a.role })),
-        ...(hookNotes.length > 0 ? { notice: hookNotes.join("\n") } : {}),
+        // a stopped turn of this agent before this one is closed in what the model reads (stopNote), together with any note a hook left
+        ...((): { notice?: string } => {
+          const stopped = stoppedTurn;
+          const notes = [...(stopped ? [stopNote(stopped.why, stopped.ask)] : []), ...hookNotes];
+          return notes.length > 0 ? { notice: notes.join("\n") } : {};
+        })(),
         ...(wait && wait.resolution ? { resumed: { taskId: wait.taskId, callId: wait.callId, toolName: wait.toolName, approved: wait.resolution.approved, result: wait.resolution.result } } : {}),
       };
       if (wait) waits.remove(wait.taskId);
