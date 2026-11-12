@@ -25,18 +25,18 @@ export default defineManifest({
     read('previews.get', 'Get the preview of one file version at a size, or one page of it', {
       in: { fileId: id.file, versionId: t.opt(id.version), size: t.opt(size), page: t.opt(t.int({ minimum: 1 })) },
       out: { ready: t.bool(), url: t.opt(t.str()), width: t.opt(t.int()), height: t.opt(t.int()), pages: t.opt(t.int()), reason: t.opt(t.str()) },
-      on: ['file', '/fileId'], tool: 'files', label: 'check',
+      on: ['file', '/fileId'], tool: 'files', label: 'check', emits: ['preview.ready', 'preview.failed'],
     }),
     read('previews.thumbnails', 'Thumbnails for a grid of files in one call', {
       in: { fileIds: t.arr(id.file, { minItems: 1, maxItems: 200 }), size: t.opt(size) }, out: { items: t.arr(thumb) }, tool: 'files', label: 'filter',
     }),
     read('previews.pages', 'Page images of a PDF or Office file', {
       in: { fileId: id.file, versionId: t.opt(id.version), from: t.opt(t.int({ minimum: 1 })), count: t.opt(t.int({ minimum: 1, maximum: 50 })), size: t.opt(size) },
-      out: { total: t.int(), pages: t.arr(t.obj({ n: t.int(), url: t.str(), width: t.int(), height: t.int() })) }, on: ['file', '/fileId'], tool: 'files', label: 'check',
+      out: { total: t.int(), pages: t.arr(t.obj({ n: t.int(), url: t.str(), width: t.int(), height: t.int() })) }, on: ['file', '/fileId'], tool: 'files', label: 'check', emits: ['preview.ready', 'preview.failed'],
     }),
     read('previews.text', 'Extracted text of a PDF, Office, image-free or plain file, for the viewer, search and agents', {
       in: { fileId: id.file, versionId: t.opt(id.version), page: t.opt(t.int({ minimum: 1 })) },
-      out: { text: t.str(), pages: t.opt(t.int()), truncated: t.bool(), source: t.enm('native', 'pdf', 'office', 'none') }, on: ['file', '/fileId'], tool: 'files', label: 'check',
+      out: { text: t.str(), pages: t.opt(t.int()), truncated: t.bool(), source: t.enm('native', 'pdf', 'office', 'none') }, on: ['file', '/fileId'], tool: 'files', label: 'check', emits: ['preview.ready', 'preview.failed'],
     }),
     write('previews.render', 'Make or remake the preview of a file version (system; also run by the consumer after every new version)', {
       in: { fileId: id.file, versionId: t.opt(id.version), force: t.opt(t.bool()) }, out: { queued: t.bool() },

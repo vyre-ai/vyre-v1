@@ -33,7 +33,7 @@ function rig() {
     async giveBack(id) { const { takeoverBy: _t, ...r } = rows.get(id)!; rows.set(id, { ...r, takeover: false }); seen.push(`give_back ${id}`); },
     async screenshot() { return { bytes: new Uint8Array(), width: 1, height: 1 }; },
     async stream(a) { seen.push(`stream ${a.profileId}`); return { transport: "mjpeg", url: `http://10.0.0.2:7002/stream?t=abc&p=${a.profileId}`, ws: "ws://10.0.0.2:7002/ws?t=abc" }; },
-    async sessions() { return sessionsNow(); }, async signOut(_p, site) { signedOut.push(site); return true; }, async importChrome() { return { bytes: 0 }; }, async stop() {}, async forget() {},
+    async sessions() { return sessionsNow(); }, async signOut(_p, site) { signedOut.push(site); return true; }, async profileUsed() { return false; }, async importChrome() { return { bytes: 0 }; }, async stop() {}, async forget() {},
     async profiles() { return { profiles: [...rows.values()], maxRunning: 6 }; }, async health() { return { ok: true }; },
   };
   bindSpaceBrowser(sb);
@@ -174,4 +174,62 @@ test("the sites a browser is signed in to are listed for people who may watch, a
     await assert.rejects(() => tool["computers.browser.sign_out"]!(as(OMAR, true).ctx, { agentId: "agt_dana_ast", site: "x.test" }), (e) => codeOf(e) === "permission.no_grant");
     assert.deepEqual(signedOut, ["app.clio.com", "x.test"]);
   } finally { sessionsNow = () => []; off(); }
+});
+
+// Audit B6 (12 Nov): computers.browser.take_over asked for computers.take_over, which a member does not hold, so a plain member could not take over their own Assistant's browser. The decision: a personal agent's
+// browser belongs to its owner (see, take over, give back, sign out); owners and admins see and take over team agents' browsers; nobody else, an admin included, touches someone's personal agent's browser.
+test("a plain member's rights cover taking over, giving back and signing out their own Assistant's browser: the capabilities ask only for what every member holds", async () => {
+  const { registry } = await import("../../../generated/registry.ts");
+  const { PERMISSIONS } = await import("../../../manifests/permissions.ts");
+  const memberHas = new Set(PERMISSIONS.filter((p) => p.defaults.member === true).map((p) => p.key));
+  for (const name of ["computers.browser.take_over", "computers.browser.give_back", "computers.browser.sign_out", "computers.browser.stream", "computers.browser.sessions", "computers.browser.timeline", "computers.browser.profiles"]) {
+    const c = (registry.capabilities as Array<{ name: string; permission?: string | null }>).find((x) => x.name === name)!;
+    assert.ok(c, name);
+    assert.ok(c.permission === null || c.permission === undefined || memberHas.has(c.permission), `${name} asks for ${String(c.permission)}, which a member does not hold`);
+  }
+});
+
+test("who takes over: a member their own Assistant (yes), a member someone else's team agent (no), an admin a team agent (yes), an admin someone else's personal agent or Assistant (no)", async () => {
+  const r = rig();
+  try {
+    // a plain member, not an admin: their own Assistant and their own personal agent
+    for (const id of ["agt_dana_ast", "agt_mine"]) {
+      const dana = as(DANA, false);
+      const took = await tool["computers.browser.take_over"]!(dana.ctx, { agentId: id });
+      assert.equal(took.profile.takeoverBy, DANA, `${id}: taken over by its owner`);
+      await tool["computers.browser.sign_out"]!(dana.ctx, { agentId: id, site: "app.example.com" });
+      const back = await tool["computers.browser.give_back"]!(dana.ctx, { agentId: id });
+      assert.equal(back.profile.takeoverBy, undefined, `${id}: given back`);
+    }
+    // a plain member and someone else's team agent
+    await assert.rejects(() => tool["computers.browser.take_over"]!(as(OMAR, false).ctx, { agentId: "agt_dex" }), (e) => codeOf(e) === "permission.no_grant");
+    // an admin and a team agent
+    const admin = as(OMAR, true);
+    assert.equal((await tool["computers.browser.take_over"]!(admin.ctx, { agentId: "agt_dex" })).profile.takeoverBy, OMAR);
+    await tool["computers.browser.give_back"]!(admin.ctx, { agentId: "agt_dex" });
+    // an admin and someone else's personal agent or Assistant: refused, take over, give back and sign out alike
+    for (const id of ["agt_dana_ast", "agt_mine"]) {
+      for (const [cap, input] of [["computers.browser.take_over", { agentId: id }], ["computers.browser.give_back", { agentId: id }], ["computers.browser.sign_out", { agentId: id, site: "app.example.com" }], ["computers.browser.stream", { agentId: id }]] as const) {
+        await assert.rejects(() => tool[cap]!(as(OMAR, true).ctx, input), (e) => codeOf(e) === "permission.no_grant", `${cap} ${id} by an admin`);
+      }
+    }
+    assert.ok(!r.seen.some((s) => s.includes(OMAR) && (s.includes("agt_dana_ast") || s.includes("agt_mine"))), "nothing reached the browser service for them");
+  } finally { off(); }
+});
+
+test("give back tells the browser service when it was decided, so a later takeover is never undone by it", async () => {
+  rig();
+  const { spaceBrowser } = await import("../sbrowser/port.ts");
+  const sb = spaceBrowser()!;
+  const seen: Array<{ before?: number }> = [];
+  const orig = sb.giveBack.bind(sb);
+  sb.giveBack = async (id, o) => { seen.push(o ?? {}); await orig(id, o); };
+  try {
+    const dana = as(DANA, false);
+    await tool["computers.browser.take_over"]!(dana.ctx, { agentId: "agt_mine" });
+    const t0 = Date.now();
+    await tool["computers.browser.give_back"]!(dana.ctx, { agentId: "agt_mine" });
+    assert.equal(seen.length, 1);
+    assert.ok(typeof seen[0]!.before === "number" && seen[0]!.before >= t0 && seen[0]!.before <= Date.now(), JSON.stringify(seen));
+  } finally { off(); }
 });

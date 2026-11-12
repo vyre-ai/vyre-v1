@@ -38,12 +38,13 @@ export const isOutside = (a: Pick<AgentRow, "runtime">): boolean => a.runtime ==
 
 /* ---------- status ---------- */
 
-export const STATUS_WORDS: Record<AgentRow["status"], string> = { awake: "Awake", working: "Working", asleep: "Asleep", paused: "Paused" };
+// The agent's own state (a turn in the last two minutes, or not), worded apart from its workspace's sleep, which the Computer tab says as Asleep (owner walk, 12 Nov: "Awake" over "Asleep" on one screen)
+export const STATUS_WORDS: Record<AgentRow["status"], string> = { awake: "Active", working: "Working", asleep: "Idle", paused: "Paused" };
 
 /** An outside agent is not asleep: it is somewhere else, and may be off. */
 const OUTSIDE_WORDS: Record<AgentRow["status"], string> = { awake: "Online", working: "Working", asleep: "Offline", paused: "Paused" };
 
-/** "Working", "Asleep", or "Paused by Maya Chen: Waiting for the new retainer terms". */
+/** "Working", "Idle", or "Paused by Maya Chen: Waiting for the new retainer terms". */
 export function statusLine(a: AgentRow, nameOf: (id: string) => string): string {
   if (isOutside(a)) return OUTSIDE_WORDS[a.status];
   if (a.status !== "paused") return STATUS_WORDS[a.status];
@@ -229,4 +230,11 @@ export function collect<T, U>(list: readonly T[], fn: (item: T, index: number) =
 /** The AI account for the agent's own work (routines, watchers, helpers), in a line: Automatic, or the Space AI account by name. */
 export function workKeyNote(a: Pick<AgentRow, "workKey">, accounts: readonly AccountChoice[]): string {
   return a.workKey ? `Its own work runs on ${accountName(accounts, a.workKey)}, where the Space keeps it for this agent` : "Its own work runs on the cheapest Space AI account kept for it. In a chat, the person's own account comes first";
+}
+
+/** The Settings row for an agent's computer: what the Computer tab knows. A bound workspace and Space browser say so; an older desktop alone is named as it is; when neither is known here the row is neutral, never a claim. */
+export function computerRowNote(bound: boolean, hasOlderDesktop: boolean): string {
+  if (bound) return "A terminal and a browser of its own";
+  if (hasOlderDesktop) return "Has an older desktop";
+  return "Its terminal and browser are on the Computer tab";
 }

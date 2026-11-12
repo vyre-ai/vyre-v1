@@ -18,7 +18,11 @@ export interface EmitOpts { idempotencyKey?: string; vis?: EventEnvelope['vis'];
 /** `gate: 'admin_only'` lets a call through the Gate unless a Space, owner or agent rule asks for approval; without it the Gate's default (hold) applies. */
 /** The automation step a call comes from. The Gate matches the definition hash against the grants the automation holds; only steps-core sets it. */
 export interface StepRef { automationId: string; nodeId: string; defHash: string; ask?: boolean }
-export interface CallOpts { idempotencyKey?: string; traceId?: string; approvalToken?: string; onBehalfOf?: string; gate?: "admin_only"; step?: StepRef }
+/**
+ * asCaller: this call forwards a capability someone else chose (a stored schedule, a template's step), so it runs with that caller's own standing, not as this module's code: the called
+ * capability sees ctx.forwarded and must not trust it the way it trusts module code one level down.
+ */
+export interface CallOpts { idempotencyKey?: string; traceId?: string; approvalToken?: string; onBehalfOf?: string; gate?: "admin_only"; step?: StepRef; asCaller?: boolean }
 export interface Logger { debug(msg: string, attrs?: Record<string, unknown>): void; info(msg: string, attrs?: Record<string, unknown>): void; warn(msg: string, attrs?: Record<string, unknown>): void; error(msg: string, attrs?: Record<string, unknown>): void }
 /** What the host knows about one stored blob. `id` is opaque; `sha256` is the hex digest of the plain bytes. */
 export interface BlobMeta { id: string; contentType: string; size: number; sha256: string; createdAt: number }
@@ -47,12 +51,17 @@ export interface Ctx {
   thread?: string;
   origin: string;
   depth: number;
+  /** this call was forwarded for its caller by another module (CallOpts.asCaller): it carries the caller's standing, not that module's */
+  forwarded?: boolean;
+  /** On a nested call: the capability whose handler made it (the pipeline sets it; a caller cannot). */
+  callerCap?: string;
   device?: string;
   now(): number;
   db: ScopedDb;
   emit<T>(name: EventName, subject: string, payload: T, opts?: EmitOpts): EventEnvelope<T>;
   call<C extends CapName>(cap: C, input: unknown, opts?: CallOpts): Promise<unknown>;
-  authorize(action: { perm: string | null; level: Level }, resource: ResourceRef): Decision;
+  /** `cap` names the capability the check stands in for, so the Space's Gate rules for that capability apply (a handler that changes a record on behalf of records.update asks as records.update). `fields` names the fields the check is about, so a field the caller may not read counts against them. When the call itself was approved by a person (a parked call that was released), a check made inside it that meets only the Gate rules the call met (the same act and approver) is cleared; a check that meets any other Gate rule still answers hold, and its reason names who approves. */
+  authorize(action: { perm: string | null; level: Level; cap?: string; fields?: readonly string[] }, resource: ResourceRef): Decision;
   /**
    * May every one of these people do this on this resource? Their own grants, checked one by one, never the caller's. What goes into a chat other people read is held to what every one of them may
    * open (lib/audience.ts). Answers yes or no only. Present on a booted daemon; a hand-built test ctx may omit it.

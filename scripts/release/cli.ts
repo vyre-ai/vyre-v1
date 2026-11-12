@@ -33,9 +33,10 @@ import { bump, channelOfVersion, releaseCounter, tagVersion, versionProblems } f
 const run = (a: string[]): string => execFileSync(a[0] ?? "", a.slice(1), { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
 const isAncestor = (x: string, y: string): boolean => { try { execFileSync("git", ["merge-base", "--is-ancestor", x, y], { stdio: "ignore" }); return true; } catch { return false; } };
 
-export function main(argv: string[]): number {
+/** `repoRoot`: the tree to read; a test passes its own copy so it never packs folders other tests are writing to at the same moment. */
+export function main(argv: string[], repoRoot?: string): number {
   const [cmd, a, b, c] = argv;
-  const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
+  const root = repoRoot ?? path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
   try {
     switch (cmd) {
       case "counter": console.log(releaseCounter(a ?? "")); return 0;

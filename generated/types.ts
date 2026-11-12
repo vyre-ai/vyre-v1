@@ -778,6 +778,7 @@ export type AccessPrincipalsGetOut = {
     name: string;
     owner?: string;
     private?: boolean;
+    assistant?: boolean;
     agentName?: string;
     status: "invited" | "active" | "suspended" | "removed";
     roles: Array<string>;
@@ -800,6 +801,7 @@ export type AccessPrincipalsListOut = {
       name: string;
       owner?: string;
       private?: boolean;
+      assistant?: boolean;
       agentName?: string;
       status: "invited" | "active" | "suspended" | "removed";
       roles: Array<string>;
@@ -2878,6 +2880,7 @@ export type AutomationsCreateOut = {
     };
     createdAt: number;
     updatedAt: number;
+    runsAs?: string;
   };
 };
 export type AutomationsDeleteIn = {
@@ -3120,6 +3123,7 @@ export type AutomationsGetOut = {
     };
     createdAt: number;
     updatedAt: number;
+    runsAs?: string;
   };
   canEdit?: boolean;
 };
@@ -3202,6 +3206,72 @@ export type AutomationsHttpSendOut = {
   ok: boolean;
   headers: Record<string, string>;
   body: unknown;
+};
+export type AutomationsKeyHostsAllowIn = {
+  vaultItemId: string;
+  host: string;
+};
+export type AutomationsKeyHostsAllowOut = {
+  hosts: Array<{
+      host: string;
+      by: string;
+      at: number;
+    }>;
+};
+export type AutomationsKeyHostsListIn = {
+  itemId: string;
+};
+export type AutomationsKeyHostsListOut = {
+  hosts: Array<{
+      host: string;
+      by: string;
+      at: number;
+      usedBy: Array<string>;
+      hidden?: number;
+    }>;
+};
+export type AutomationsKeyHostsPendingIn = {
+  method?: string;
+  path: string;
+  domains: Array<string>;
+  vaultItemId: string;
+  header?: string;
+  prefix?: string;
+  actionKey?: string;
+  markedSafe?: boolean;
+};
+export type AutomationsKeyHostsPendingOut = {
+  found: boolean;
+  itemId?: string;
+  handle?: string;
+  name?: string;
+  host?: string;
+};
+export type AutomationsKeyHostsPendingBindIn = {
+  connector?: string;
+  secrets?: Record<string, string>;
+  connectionId?: string;
+  slot?: string;
+  handle?: string;
+  title?: string;
+  ownerKind?: string;
+  scopes?: Array<string>;
+};
+export type AutomationsKeyHostsPendingBindOut = {
+  found: boolean;
+  items: Array<{
+      itemId: string;
+      handle: string;
+      name: string;
+    }>;
+  hosts: Array<string>;
+};
+export type AutomationsKeyHostsRemoveIn = {
+  itemId: string;
+  host: string;
+};
+export type AutomationsKeyHostsRemoveOut = {
+  removed: boolean;
 };
 export type AutomationsListIn = {
   section?: "personal" | "shared" | "space";
@@ -3332,6 +3402,7 @@ export type AutomationsMakePersonalCopyOut = {
     };
     createdAt: number;
     updatedAt: number;
+    runsAs?: string;
   };
 };
 export type AutomationsMigrateRunsIn = {
@@ -3462,6 +3533,7 @@ export type AutomationsMoveOut = {
     };
     createdAt: number;
     updatedAt: number;
+    runsAs?: string;
   };
 };
 export type AutomationsOpenDocumentIn = {
@@ -3605,6 +3677,7 @@ export type AutomationsPackagesImportOut = {
     };
     createdAt: number;
     updatedAt: number;
+    runsAs?: string;
   };
   needs: {
     connections: Array<{
@@ -3757,6 +3830,7 @@ export type AutomationsPromoteOut = {
     };
     createdAt: number;
     updatedAt: number;
+    runsAs?: string;
   };
   diff: {
     grants: Array<{
@@ -3925,6 +3999,7 @@ export type AutomationsRestoreVersionOut = {
     };
     createdAt: number;
     updatedAt: number;
+    runsAs?: string;
   };
 };
 export type AutomationsRetryIn = {
@@ -3943,6 +4018,20 @@ export type AutomationsRunIn = {
 };
 export type AutomationsRunOut = {
   runId: string;
+};
+export type AutomationsRunsAsGetIn = {
+  automationId: string;
+  agentId?: string;
+  runId?: string;
+};
+export type AutomationsRunsAsGetOut = {
+  kind: "personal" | "space";
+  runsAs?: string;
+  name?: string;
+  trigger?: string;
+  ok: boolean;
+  reason?: "nobody" | "not_active" | "cannot_ask" | "assistant";
+  line?: string;
 };
 export type AutomationsScheduleChooseIn = {
   automationId: string;
@@ -4076,6 +4165,7 @@ export type AutomationsSetEnabledOut = {
     };
     createdAt: number;
     updatedAt: number;
+    runsAs?: string;
   };
 };
 export type AutomationsSetOwnerIn = {
@@ -4176,6 +4266,7 @@ export type AutomationsSetOwnerOut = {
     };
     createdAt: number;
     updatedAt: number;
+    runsAs?: string;
   };
 };
 export type AutomationsStepsListIn = {
@@ -4316,6 +4407,7 @@ export type AutomationsTemplatesUseOut = {
     };
     createdAt: number;
     updatedAt: number;
+    runsAs?: string;
   };
 };
 export type AutomationsTestIn = {
@@ -4450,6 +4542,7 @@ export type AutomationsUndeleteOut = {
     };
     createdAt: number;
     updatedAt: number;
+    runsAs?: string;
   };
 };
 export type AutomationsUpdateIn = {
@@ -4610,6 +4703,7 @@ export type AutomationsUpdateOut = {
     };
     createdAt: number;
     updatedAt: number;
+    runsAs?: string;
   };
 };
 export type AutomationsValidateIn = {
@@ -4694,8 +4788,10 @@ export type AutomationsVaultUsageOut = {
           steps: Array<{
               nodeId: string;
               title: string;
+              blocked?: string;
             }>;
         }>;
+      hidden?: number;
     }>;
 };
 export type AutomationsVersionsIn = {
@@ -6380,6 +6476,7 @@ export type ChannelsMembersAddIn = {
   channelId: string;
   personIds: Array<string>;
   level?: "view" | "use" | "edit" | "manage";
+  mentionedIn?: string;
 };
 export type ChannelsMembersAddOut = {
   channel: {
@@ -6804,6 +6901,10 @@ export type ChatEditOut = {
     editedAt?: number;
     createdAt: number;
     enc?: number;
+    mentions?: Array<{
+        kind: "person" | "agent";
+        id: string;
+      }>;
   };
 };
 export type ChatFlowCardIn = {
@@ -7124,6 +7225,10 @@ export type ChatHistoryPageOut = {
       editedAt?: number;
       createdAt: number;
       enc?: number;
+      mentions?: Array<{
+          kind: "person" | "agent";
+          id: string;
+        }>;
     }>;
   hasMore: boolean;
   next?: number;
@@ -7236,6 +7341,10 @@ export type ChatMessageGetOut = {
     editedAt?: number;
     createdAt: number;
     enc?: number;
+    mentions?: Array<{
+        kind: "person" | "agent";
+        id: string;
+      }>;
   };
 };
 export type ChatMessagePersonIn = {
@@ -7302,6 +7411,10 @@ export type ChatMessagesListOut = {
       editedAt?: number;
       createdAt: number;
       enc?: number;
+      mentions?: Array<{
+          kind: "person" | "agent";
+          id: string;
+        }>;
     }>;
   hasMore: boolean;
 };
@@ -7495,6 +7608,10 @@ export type ChatPinsListOut = {
       editedAt?: number;
       createdAt: number;
       enc?: number;
+      mentions?: Array<{
+          kind: "person" | "agent";
+          id: string;
+        }>;
     }>;
 };
 export type ChatPlanProposeIn = {
@@ -7611,6 +7728,10 @@ export type ChatPostOut = {
     editedAt?: number;
     createdAt: number;
     enc?: number;
+    mentions?: Array<{
+        kind: "person" | "agent";
+        id: string;
+      }>;
   };
 };
 export type ChatQuestionAskIn = {
@@ -8560,6 +8681,11 @@ export type ComputersBrowserProfilesOut = {
       access: "owner" | "admin" | "viewer";
     }>;
   maxRunning: number;
+  slots?: {
+    running: number;
+    limit: number;
+    waiting: number;
+  };
 };
 export type ComputersBrowserSessionsIn = {
   agentId: string;
@@ -8607,6 +8733,7 @@ export type ComputersBrowserTakeOverOut = {
     paired: boolean;
     access: "owner" | "admin" | "viewer";
   };
+  note?: string;
 };
 export type ComputersBrowserTimelineIn = {
   agentId: string;
@@ -8638,13 +8765,16 @@ export type ComputersChromeActIn = {
   value?: string;
 };
 export type ComputersChromeActOut = {
+  reopened?: boolean;
+  note?: string;
   ok: boolean;
   heldId?: string;
   snapshot?: string;
   downloads?: Array<{
       name: string;
       path: string;
-      fileId: string;
+      fileId?: string;
+      note?: string;
     }>;
 };
 export type ComputersChromeApiIn = {
@@ -8657,6 +8787,8 @@ export type ComputersChromeApiIn = {
   idempotencyKey: string;
 };
 export type ComputersChromeApiOut = {
+  reopened?: boolean;
+  note?: string;
   status: number;
   headers: Record<string, string>;
   body: unknown;
@@ -8688,12 +8820,15 @@ export type ComputersChromeClickIn = {
   button?: "left" | "right" | "middle";
 };
 export type ComputersChromeClickOut = {
+  reopened?: boolean;
+  note?: string;
   ok: boolean;
   heldId?: string;
   downloads?: Array<{
       name: string;
       path: string;
-      fileId: string;
+      fileId?: string;
+      note?: string;
     }>;
 };
 export type ComputersChromeConsoleIn = {
@@ -8704,6 +8839,8 @@ export type ComputersChromeConsoleIn = {
   limit?: number;
 };
 export type ComputersChromeConsoleOut = {
+  reopened?: boolean;
+  note?: string;
   messages: Array<{
       level: string;
       text: string;
@@ -8717,6 +8854,8 @@ export type ComputersChromeEvalIn = {
   expression: string;
 };
 export type ComputersChromeEvalOut = {
+  reopened?: boolean;
+  note?: string;
   result: unknown;
 };
 export type ComputersChromeFillIn = {
@@ -8729,6 +8868,8 @@ export type ComputersChromeFillIn = {
     }>;
 };
 export type ComputersChromeFillOut = {
+  reopened?: boolean;
+  note?: string;
   ok: boolean;
   filled: number;
 };
@@ -8739,6 +8880,8 @@ export type ComputersChromeInspectIn = {
   ref: string;
 };
 export type ComputersChromeInspectOut = {
+  reopened?: boolean;
+  note?: string;
   element: Record<string, unknown>;
 };
 export type ComputersChromeNetIn = {
@@ -8750,6 +8893,8 @@ export type ComputersChromeNetIn = {
   limit?: number;
 };
 export type ComputersChromeNetOut = {
+  reopened?: boolean;
+  note?: string;
   requests: Array<{
       method: string;
       url: string;
@@ -8765,13 +8910,16 @@ export type ComputersChromeOpenIn = {
   newTab?: boolean;
 };
 export type ComputersChromeOpenOut = {
+  reopened?: boolean;
+  note?: string;
   tabId: string;
   url: string;
   title: string;
   downloads?: Array<{
       name: string;
       path: string;
-      fileId: string;
+      fileId?: string;
+      note?: string;
     }>;
 };
 export type ComputersChromePlanIn = {
@@ -8781,6 +8929,8 @@ export type ComputersChromePlanIn = {
   steps?: Array<string>;
 };
 export type ComputersChromePlanOut = {
+  reopened?: boolean;
+  note?: string;
   ok: boolean;
 };
 export type ComputersChromeResumeIn = {
@@ -8788,6 +8938,8 @@ export type ComputersChromeResumeIn = {
   inMyChrome?: boolean;
 };
 export type ComputersChromeResumeOut = {
+  reopened?: boolean;
+  note?: string;
   resumed: boolean;
 };
 export type ComputersChromeScreenshotIn = {
@@ -8798,6 +8950,8 @@ export type ComputersChromeScreenshotIn = {
   fullPage?: boolean;
 };
 export type ComputersChromeScreenshotOut = {
+  reopened?: boolean;
+  note?: string;
   fileId: string;
   width: number;
   height: number;
@@ -8809,8 +8963,16 @@ export type ComputersChromeSendIn = {
   idempotencyKey: string;
 };
 export type ComputersChromeSendOut = {
+  reopened?: boolean;
+  note?: string;
   sent: boolean;
   taskId?: string;
+  downloads?: Array<{
+      name: string;
+      path: string;
+      fileId?: string;
+      note?: string;
+    }>;
 };
 export type ComputersChromeSnapshotIn = {
   computerId?: string;
@@ -8820,6 +8982,8 @@ export type ComputersChromeSnapshotIn = {
   format?: "tree" | "text";
 };
 export type ComputersChromeSnapshotOut = {
+  reopened?: boolean;
+  note?: string;
   url: string;
   title: string;
   tree: string;
@@ -8831,6 +8995,8 @@ export type ComputersChromeSourcesIn = {
   tabId?: string;
 };
 export type ComputersChromeSourcesOut = {
+  reopened?: boolean;
+  note?: string;
   scripts: Array<string>;
   endpoints: Array<{
       method: string;
@@ -8843,13 +9009,16 @@ export type ComputersChromeStateIn = {
   tabId?: string;
 };
 export type ComputersChromeStateOut = {
+  reopened?: boolean;
+  note?: string;
   url: string;
   title: string;
   loading: boolean;
   downloads?: Array<{
       name: string;
       path: string;
-      fileId: string;
+      fileId?: string;
+      note?: string;
     }>;
 };
 export type ComputersChromeStatusIn = {
@@ -8857,6 +9026,8 @@ export type ComputersChromeStatusIn = {
   inMyChrome?: boolean;
 };
 export type ComputersChromeStatusOut = {
+  reopened?: boolean;
+  note?: string;
   connected: boolean;
   paused: boolean;
   held: Array<string>;
@@ -8867,6 +9038,8 @@ export type ComputersChromeStopIn = {
   reason?: string;
 };
 export type ComputersChromeStopOut = {
+  reopened?: boolean;
+  note?: string;
   stopped: boolean;
 };
 export type ComputersChromeTabsIn = {
@@ -8878,6 +9051,8 @@ export type ComputersChromeTabsIn = {
   site?: string;
 };
 export type ComputersChromeTabsOut = {
+  reopened?: boolean;
+  note?: string;
   tabs: Array<{
       tabId: string;
       url: string;
@@ -8894,8 +9069,16 @@ export type ComputersChromeTypeIn = {
   submit?: boolean;
 };
 export type ComputersChromeTypeOut = {
+  reopened?: boolean;
+  note?: string;
   ok: boolean;
   heldId?: string;
+  downloads?: Array<{
+      name: string;
+      path: string;
+      fileId?: string;
+      note?: string;
+    }>;
 };
 export type ComputersChromeWaitIn = {
   computerId?: string;
@@ -8906,12 +9089,15 @@ export type ComputersChromeWaitIn = {
   timeoutMs?: number;
 };
 export type ComputersChromeWaitOut = {
+  reopened?: boolean;
+  note?: string;
   ok: boolean;
   waitedMs: number;
   downloads?: Array<{
       name: string;
       path: string;
-      fileId: string;
+      fileId?: string;
+      note?: string;
     }>;
 };
 export type ComputersConfigureIn = {
@@ -8935,6 +9121,11 @@ export type ComputersConfigureOut = {
     takeoverBy?: string;
     recording: boolean;
     error?: string;
+    moved?: {
+      state: "done" | "partial" | "failed";
+      at: number;
+      error?: string;
+    };
   };
 };
 export type ComputersFilesDeleteIn = {
@@ -9004,6 +9195,11 @@ export type ComputersGetOut = {
     takeoverBy?: string;
     recording: boolean;
     error?: string;
+    moved?: {
+      state: "done" | "partial" | "failed";
+      at: number;
+      error?: string;
+    };
   };
 };
 export type ComputersGiveBackIn = {
@@ -9025,6 +9221,11 @@ export type ComputersGiveBackOut = {
     takeoverBy?: string;
     recording: boolean;
     error?: string;
+    moved?: {
+      state: "done" | "partial" | "failed";
+      at: number;
+      error?: string;
+    };
   };
 };
 export type ComputersHealthIn = Record<string, unknown>;
@@ -9076,6 +9277,11 @@ export type ComputersListOut = {
       takeoverBy?: string;
       recording: boolean;
       error?: string;
+      moved?: {
+        state: "done" | "partial" | "failed";
+        at: number;
+        error?: string;
+      };
     }>;
   next?: string;
   total?: number;
@@ -9102,6 +9308,11 @@ export type ComputersProvisionOut = {
     takeoverBy?: string;
     recording: boolean;
     error?: string;
+    moved?: {
+      state: "done" | "partial" | "failed";
+      at: number;
+      error?: string;
+    };
   };
 };
 export type ComputersRecordStartIn = {
@@ -9309,6 +9520,11 @@ export type ComputersSleepOut = {
     takeoverBy?: string;
     recording: boolean;
     error?: string;
+    moved?: {
+      state: "done" | "partial" | "failed";
+      at: number;
+      error?: string;
+    };
   };
 };
 export type ComputersStreamIn = {
@@ -9339,6 +9555,11 @@ export type ComputersTakeOverOut = {
     takeoverBy?: string;
     recording: boolean;
     error?: string;
+    moved?: {
+      state: "done" | "partial" | "failed";
+      at: number;
+      error?: string;
+    };
   };
   ticket: string;
 };
@@ -9398,6 +9619,11 @@ export type ComputersWakeOut = {
     takeoverBy?: string;
     recording: boolean;
     error?: string;
+    moved?: {
+      state: "done" | "partial" | "failed";
+      at: number;
+      error?: string;
+    };
   };
 };
 export type ConflictsAssistIn = {
@@ -12399,6 +12625,7 @@ export type EngineStopOut = {
 };
 export type EngineStopAllIn = {
   threadId: string;
+  reason?: "update";
 };
 export type EngineStopAllOut = {
   stopped: number;
@@ -12670,6 +12897,7 @@ export type EngineTurnRecordIn = {
   costMicros?: number;
   code?: string;
   message?: string;
+  reason?: string;
   info?: {
     effort?: string;
     account?: {
@@ -20241,6 +20469,11 @@ export type ImportGetOut = {
     failed: number;
     ranAutomations: boolean;
     errorsFileId?: string;
+    errors?: Array<{
+        row: number;
+        column?: string;
+        message: string;
+      }>;
   };
 };
 export type ImportListIn = {
@@ -20263,6 +20496,11 @@ export type ImportListOut = {
       failed: number;
       ranAutomations: boolean;
       errorsFileId?: string;
+      errors?: Array<{
+          row: number;
+          column?: string;
+          message: string;
+        }>;
     }>;
   next?: string;
   total?: number;
@@ -20391,6 +20629,7 @@ export type ImportPreviewOut = {
   creates: number;
   updates: number;
   skips: number;
+  refused?: number;
   errors: Array<{
       row: number;
       column?: string;
@@ -31586,12 +31825,25 @@ export type RecordsBulkUpsertIn = {
   rows: Array<Record<string, unknown>>;
   match: Array<string>;
   runAutomations?: boolean;
+  createOnly?: boolean;
+  skipExisting?: boolean;
   idempotencyKey: string;
 };
 export type RecordsBulkUpsertOut = {
   created: number;
   updated: number;
   skipped: number;
+  stopped?: {
+    reason: "unavailable" | "version_conflict";
+    row: number;
+    message: string;
+    notDone: Array<number>;
+  };
+  refused?: Array<{
+      row: number;
+      reason: string;
+      message: string;
+    }>;
 };
 export type RecordsChangesIn = {
   type: string;
@@ -42450,6 +42702,7 @@ export type ThreadsMembersAddIn = {
   threadId: string;
   personId: string;
   fromStart?: boolean;
+  mentionedIn?: string;
 };
 export type ThreadsMembersAddOut = {
   thread: {
@@ -44888,6 +45141,11 @@ export interface CapMap {
   "automations.groups.rename": { in: AutomationsGroupsRenameIn; out: AutomationsGroupsRenameOut };
   "automations.http_read": { in: AutomationsHttpReadIn; out: AutomationsHttpReadOut };
   "automations.http_send": { in: AutomationsHttpSendIn; out: AutomationsHttpSendOut };
+  "automations.key_hosts.allow": { in: AutomationsKeyHostsAllowIn; out: AutomationsKeyHostsAllowOut };
+  "automations.key_hosts.list": { in: AutomationsKeyHostsListIn; out: AutomationsKeyHostsListOut };
+  "automations.key_hosts.pending": { in: AutomationsKeyHostsPendingIn; out: AutomationsKeyHostsPendingOut };
+  "automations.key_hosts.pending_bind": { in: AutomationsKeyHostsPendingBindIn; out: AutomationsKeyHostsPendingBindOut };
+  "automations.key_hosts.remove": { in: AutomationsKeyHostsRemoveIn; out: AutomationsKeyHostsRemoveOut };
   "automations.list": { in: AutomationsListIn; out: AutomationsListOut };
   "automations.make_personal_copy": { in: AutomationsMakePersonalCopyIn; out: AutomationsMakePersonalCopyOut };
   "automations.migrate_runs": { in: AutomationsMigrateRunsIn; out: AutomationsMigrateRunsOut };
@@ -44906,6 +45164,7 @@ export interface CapMap {
   "automations.restore_version": { in: AutomationsRestoreVersionIn; out: AutomationsRestoreVersionOut };
   "automations.retry": { in: AutomationsRetryIn; out: AutomationsRetryOut };
   "automations.run": { in: AutomationsRunIn; out: AutomationsRunOut };
+  "automations.runs_as.get": { in: AutomationsRunsAsGetIn; out: AutomationsRunsAsGetOut };
   "automations.schedule_choose": { in: AutomationsScheduleChooseIn; out: AutomationsScheduleChooseOut };
   "automations.senders": { in: AutomationsSendersIn; out: AutomationsSendersOut };
   "automations.set_enabled": { in: AutomationsSetEnabledIn; out: AutomationsSetEnabledOut };
@@ -47243,6 +47502,13 @@ export type AutomationRunStartedPayload = {
   test: boolean;
   depth: number;
   origin?: string;
+};
+export type AutomationRunsAsChangedPayload = {
+  automationId: string;
+  from: string | null;
+  to: string | null;
+  by: string;
+  why: "on" | "save" | "restore" | "promote" | "cleared";
 };
 export type AutomationRunsMigratedPayload = {
   automationId: string;
@@ -50856,6 +51122,8 @@ export type TurnCancelledPayload = {
   threadId: string;
   agentId: string;
   by: string;
+  reason?: string;
+  pressed?: boolean;
 };
 export type TurnCompactedPayload = {
   threadId: string;
@@ -51231,6 +51499,7 @@ export interface EventMap {
   "automation.promoted": AutomationPromotedPayload;
   "automation.restored": AutomationRestoredPayload;
   "automation.run_started": AutomationRunStartedPayload;
+  "automation.runs_as_changed": AutomationRunsAsChangedPayload;
   "automation.runs_migrated": AutomationRunsMigratedPayload;
   "automation.trigger_dropped": AutomationTriggerDroppedPayload;
   "automation.updated": AutomationUpdatedPayload;

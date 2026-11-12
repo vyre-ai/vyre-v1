@@ -18,10 +18,23 @@
 
 set -eu
 
+# real_path PATH: PATH with every link resolved. readlink -f where it works; macOS before 12.3 has no -f, so links are followed one by one there.
+real_path() {
+  readlink -f "$1" 2>/dev/null && return 0
+  _rp=$1; _rn=0
+  while [ -L "$_rp" ] && [ "$_rn" -lt 40 ]; do
+    _rl=$(readlink "$_rp") || break
+    case "$_rl" in /*) _rp=$_rl ;; *) _rp=$(dirname "$_rp")/$_rl ;; esac
+    _rn=$((_rn + 1))
+  done
+  _rd=$(cd -P "$(dirname "$_rp")" 2>/dev/null && pwd -P) || { printf '%s\n' "$1"; return 0; }
+  printf '%s/%s\n' "$_rd" "$(basename "$_rp")"
+}
+
 # Where the install lives: VYRE_DIR, else four levels above this file (DIR/releases/<version>/bin/vyre-server), else /srv/vyre.
 find_dir() {
   if [ -n "${VYRE_DIR:-}" ]; then printf '%s' "$VYRE_DIR"; return 0; fi
-  self=$(readlink -f "$0" 2>/dev/null || printf '%s' "$0")
+  self=$(real_path "$0")
   cand=$(dirname "$(dirname "$(dirname "$(dirname "$self")")")")
   if [ -f "$cand/compose.env" ]; then printf '%s' "$cand"; else printf '/srv/vyre'; fi
 }
@@ -45,8 +58,8 @@ KEEP_BACKUPS=3
 KEEP_RELEASES=3
 
 say() { printf '%s\n' "$*"; }
-die() { printf 'vyre-server: %s\n' "$*" >&2; exit "${2:-1}"; }
-cleanup() { [ -z "$TMP" ] || rm -rf "$TMP"; [ -z "${STAGE:-}" ] || rm -rf "$STAGE"; [ -z "${RSTAGE:-}" ] || rm -rf "$RSTAGE"; [ -z "${LOCKDIR:-}" ] || rm -f "$LOCKDIR/pid"; rmdir "$LOCKDIR" 2>/dev/null || true; return 0; }
+die() { printf 'vyre-server: %s\n' "$1" >&2; exit "${2:-1}"; }
+cleanup() { [ -z "$TMP" ] || rm -rf "$TMP"; [ -z "${STAGE:-}" ] || rm -rf "$STAGE"; [ -z "${RSTAGE:-}" ] || rm -rf "$RSTAGE"; [ -z "${LOCKDIR:-}" ] || rm -f "$LOCKDIR/pid" "$LOCKDIR/child"; rmdir "$LOCKDIR" 2>/dev/null || true; return 0; }
 
 # BEGIN diskcheck
 # disk_encrypted DIR: 0 when the volume that holds DIR is encrypted, 1 when it is not, 2 when it cannot be told.
@@ -170,7 +183,9 @@ fetch_release() {
   fetch "$base/$CHANNEL.json.sig" "$TMP/manifest.sig" 30 || die "could not fetch the manifest's signature; nothing was installed."
   verify_manifest "$TMP/manifest.json" "$TMP/manifest.sig" || die "the release signature does not match the Vyre release key in this installer; nothing was installed."
   say "  ok  the release signature verifies"
-  [ "$(jq -r '.v // empty' "$TMP/manifest.json")" = 1 ] || die "the release manifest is not a version this installer reads; nothing was installed."
+  # v 1, or v 2: a release that needs this newer updater. Every script of rc.25 and older reads only v 1 and stops right here, before any image pull or backup, saying "nothing was
+  # installed": a release published with v 2 is never carried out by the old updater (whose backup on a Mac reads the live databases from macOS). Run the install line again to update.
+  case "$(jq -r '.v // empty' "$TMP/manifest.json")" in 1|2) ;; *) die "the release manifest is not a version this installer reads; nothing was installed." ;; esac
   [ "$(jq -r '.channel // empty' "$TMP/manifest.json")" = "$CHANNEL" ] || die "the manifest is for another channel than $CHANNEL; nothing was installed."
   REL_VERSION=$(jq -r '.server.version // empty' "$TMP/manifest.json")
   url=$(jq -r '.server.tarball // empty' "$TMP/manifest.json")
@@ -215,7 +230,7 @@ unpack_release() {
 # END release
 
 
-cur_dir() { readlink -f "$DIR/current" 2>/dev/null || printf '%s' "$DIR/current"; }
+cur_dir() { real_path "$DIR/current"; }
 cur_version() { cat "$DIR/current/VERSION" 2>/dev/null || printf unknown; }
 
 # dc ARGS...: docker compose for this install, project folder = the current release.
@@ -233,8 +248,10 @@ health_url() {
 }
 
 # ---- start, stop, status, logs -----------------------------------------------------------------------------------------------------
-cmd_start() { [ ! -f "$(PENDING_FILE)" ] || lock_update_operation; refresh_disk_env || true; ensure_userns_vm || true; dc up -d --remove-orphans --wait --wait-timeout "${VYRE_UP_WAIT:-180}"; }
-cmd_stop() { dc stop; }
+cmd_start() { [ ! -f "$(PENDING_FILE)" ] || lock_update_operation; refresh_disk_env || true; ensure_userns_vm || true; ensure_metadata_block; dc up -d --remove-orphans --wait --wait-timeout "${VYRE_UP_WAIT:-180}"; }
+# The Space browser container (vyre-sbrowser) is not part of compose: the daemon makes it and it outlives a daemon restart on purpose (agents stay signed in through an update). Stopping the server stops it
+# too, so an uninstall (which runs stop) leaves no browser running; its volume, with the profiles, stays.
+cmd_stop() { dc stop; if command -v docker >/dev/null 2>&1; then docker stop -t 10 vyre-sbrowser >/dev/null 2>&1 || true; fi; }
 cmd_status() { dc ps; }
 cmd_logs() {
   follow=1; svc=""
@@ -253,6 +270,8 @@ cmd_logs() {
 # vyred writes the owner's claim link to logs/claim-link.txt in its data directory (mode 0600) at each start while the Space is unclaimed, and deletes it once the claim
 # succeeds. The link is a credential: this prints it to the terminal that asked, and nowhere else.
 claim_file() { printf '%s/space/logs/claim-link.txt' "$DATA_DIR"; }
+# login_name: who to ssh in as: root on a Linux server, the person's own account on a Mac (the server runs under it there)
+login_name() { if [ "$(spacedb_os)" = Darwin ]; then id -un 2>/dev/null || printf you; else printf root; fi; }
 cmd_claim_link() {
   f=$(claim_file)
   if [ -r "$f" ]; then
@@ -265,12 +284,13 @@ cmd_claim_link() {
         { say ""
           say "This link opens only on this server: it has no web address yet, and 0.0.0.0 is not an address you can open from another computer."
           say "  - In the Vyre app: choose Create a Space, then Team Space, and paste the link."
-          say "  - In a browser on your own computer: run  ssh -L ${p:-8420}:127.0.0.1:${p:-8420} root@$(hostname -f 2>/dev/null || hostname)  and, while that stays open, paste the link above with 0.0.0.0 changed to localhost."
+          say "  - In a browser on your own computer: run  ssh -L ${p:-8420}:127.0.0.1:${p:-8420} $(login_name)@$(hostname -f 2>/dev/null || hostname)  and, while that stays open, paste the link above with 0.0.0.0 changed to localhost."
           say "  - For a web address your whole team can open, install with your own name: --domain vyre.example.com (docs/getting-started.md)."
         } >&2 ;;
     esac
     return 0
   fi
+  if [ -e "$f" ] && [ "$(spacedb_os)" = Darwin ]; then die "cannot read $f. Run it as the account that installed the server."; fi
   [ ! -e "$f" ] || die "cannot read $f. Run it as root: sudo vyre-server claim-link"
   die "there is no claim link: the Space is claimed already, or the server has not started yet (vyre-server status)."
 }
@@ -287,39 +307,157 @@ $1	$2	$3"
 
 json_str() { printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' | tr '\n\t' '  '; }
 
-# space_serves_domain: 0 = the Space serves its own domain (network_config mode own_domain, set at install or later in the Console); 1 = it does not (the query ran, the table is there, no row says so);
-# 2 = cannot tell (no reader, a busy or missing database, any error or odd answer). Callers change the ports only on 0 or 1. Readers, in order: sqlite3, this host's node, the release image's own node
-# (docker run of the image already pulled, no network, the data folder mounted read-only).
-space_serves_domain() {
-  db=$DATA_DIR/space/modules.db
-  [ -f "$db" ] || return 2
-  q="SELECT count(*) AS n FROM network_config WHERE id = 1 AND mode = 'own_domain'"
-  to=${VYRE_TEST_SQLITE_TIMEOUT:-3000}
-  if command -v sqlite3 >/dev/null 2>&1; then
-    out=$(sqlite3 -readonly -cmd ".timeout $to" "$db" "$q" 2>/dev/null) || return 2
-    case "$out" in 1) return 0 ;; 0) return 1 ;; *) return 2 ;; esac
-  fi
-  js="try{const {DatabaseSync}=require('node:sqlite');const d=new DatabaseSync(process.argv[1],{readOnly:true});d.exec('PRAGMA busy_timeout='+process.argv[3]);console.log(d.prepare(process.argv[2]).get().n)}catch(e){process.exit(2)}"
-  if command -v node >/dev/null 2>&1 && node --no-warnings -e "require('node:sqlite')" >/dev/null 2>&1; then
-    out=$(node --no-warnings -e "$js" "$db" "$q" "$to" 2>/dev/null) || return 2
-    case "$out" in 1) return 0 ;; 0) return 1 ;; *) return 2 ;; esac
-  fi
-  img=$(sed -n 's/^VYRE_IMAGE=//p' "$DIR/compose.env" 2>/dev/null | head -n 1)
-  if [ -n "$img" ] && command -v docker >/dev/null 2>&1; then
-    out=$(docker run --rm --network none --user 1000:1000 -v "$DATA_DIR/space:/in:ro" --entrypoint node "$img" --no-warnings -e "$js" /in/modules.db "$q" "$to" 2>/dev/null) || return 2
-    case "$out" in 1) return 0 ;; 0) return 1 ;; *) return 2 ;; esac
-  fi
-  return 2
+# BEGIN spacedb
+# The Space's databases (the data folder's space/, SQLite in WAL mode) are open in vyred while it runs. A tool on this computer opens one only when the Docker engine runs on this
+# computer's own kernel: then its locks and its shared-memory index are the ones the server uses. On a Mac, and with any engine in a virtual machine (Docker Desktop, OrbStack,
+# Colima), the server runs on another kernel: a host sqlite3 or node that opens the file through the shared folder cannot see the server's locks, runs recovery and checkpoints
+# against a file the server is writing, and damages it (12 Nov 2026, a Mac mini: logs.db and modules.db, during an update's backup). There every read, snapshot and check goes into
+# the virtual machine: `docker exec` into the running vyred (the writer's own kernel), else `docker run` of the server's image (in the same VM, so the same kernel as the server). A copy the server never has
+# open (a staged backup, an unpacked one) may still use host tools. This block is the same text in vyre-server and in both installers (a test compares them).
+SPACEDB_SAME=""
+spacedb_os() { if [ "${VYRE_TEST_MODE:-0}" = 1 ] && [ -n "${VYRE_TEST_OS:-}" ]; then printf '%s' "$VYRE_TEST_OS"; else uname -s; fi; }
+# engine_same_kernel: 0 when the Docker engine's containers run on this computer's own kernel. Decided by the kernel itself, not its version: the boot id
+# (/proc/sys/kernel/random/boot_id, a new random value at each boot that no namespace changes) read here and read inside a container (the running vyred, else a one-shot
+# container of the server image). Equal version strings prove nothing: a Linux host running Colima, Lima or Multipass on the same Ubuntu kernel package reports the same
+# KernelVersion from a VM. A Mac is never the same kernel, nor is Docker Desktop. It fails safe: an engine that does not answer, a boot id that cannot be read on either side,
+# or any other doubt means "not the same kernel" (the container path, or a plain failure), never host tools. VYRE_TEST_ENGINE ("<OperatingSystem>|<boot id>") stands in for
+# Docker's two answers in test mode only.
+spacedb_host_boot() {
+  _sbf=/proc/sys/kernel/random/boot_id
+  [ "${VYRE_TEST_MODE:-0}" != 1 ] || [ -z "${VYRE_TEST_BOOT_ID_FILE:-}" ] || _sbf=$VYRE_TEST_BOOT_ID_FILE
+  head -n 1 "$_sbf" 2>/dev/null || true
 }
+# spacedb_engine_boot: "vyred|<boot id>" from the running vyred, or "oneshot|<boot id>" from a one-shot container when this engine runs no vyred of this install
+spacedb_engine_boot() {
+  if _sbc=$(spacedb_vyred); then printf 'vyred|'; docker exec "$_sbc" cat /proc/sys/kernel/random/boot_id 2>/dev/null | head -n 1; return 0; fi
+  _sbi=$(sed -n 's/^VYRE_IMAGE=//p' "$DIR/compose.env" 2>/dev/null | head -n 1)
+  printf 'oneshot|'
+  [ -z "$_sbi" ] || docker run --rm --network none --entrypoint cat "$_sbi" /proc/sys/kernel/random/boot_id 2>/dev/null | head -n 1
+  return 0
+}
+engine_same_kernel() {
+  if [ -z "$SPACEDB_SAME" ]; then
+    SPACEDB_SAME=1
+    if [ "$(spacedb_os)" != Darwin ]; then
+      if [ "${VYRE_TEST_MODE:-0}" = 1 ] && [ -n "${VYRE_TEST_ENGINE:-}" ]; then _sk=${VYRE_TEST_ENGINE%%|*}; _seb=vyred\|${VYRE_TEST_ENGINE#*|}
+      else _sk=$(docker info --format '{{.OperatingSystem}}' 2>/dev/null | head -n 1) || _sk=""; _seb=""; [ -z "$_sk" ] || _seb=$(spacedb_engine_boot); fi
+      _shb=$(spacedb_host_boot)
+      case "$_sk" in ""|*"Docker Desktop"*) ;; *) [ -z "$_shb" ] || [ "$_shb" != "${_seb#*|}" ] || SPACEDB_SAME=0 ;; esac
+      # the engine this shell talks to runs no vyred of this install: the server may be running under another Docker context (another kernel). The one-shot container speaks
+      # for this engine only, so host tools are trusted only when no database in the Space has a -wal or -shm beside it (nothing has it open)
+      if [ "$SPACEDB_SAME" = 0 ] && [ "${_seb%%|*}" = oneshot ] && [ -n "$(find "$DATA_DIR/space" \( -name '*-wal' -o -name '*-shm' \) 2>/dev/null | head -n 1)" ]; then SPACEDB_SAME=1; fi
+    fi
+  fi
+  return "$SPACEDB_SAME"
+}
+# spacedb_live FILE: the file is under the Space folder the server has open.
+spacedb_live() { case "$1" in "$DATA_DIR/space/"*) return 0 ;; esac; return 1; }
+# spacedb_vyred: the running vyred container whose /data is this install's Space folder (a bind of it, or a local volume bound to it), or nothing.
+spacedb_vyred() {
+  for _sc in $(docker ps -q --filter "label=com.docker.compose.service=vyred" 2>/dev/null); do
+    _sm=$(docker inspect -f '{{range .Mounts}}{{if eq .Destination "/data"}}{{.Type}} {{.Name}} {{.Source}}{{end}}{{end}}' "$_sc" 2>/dev/null) || continue
+    _st=${_sm%% *}; _sr=${_sm#* }; _sn=${_sr%% *}; _ss=${_sr#* }
+    case "$_st" in
+      bind) [ "$_ss" = "$DATA_DIR/space" ] || continue ;;
+      volume) [ "$(docker volume inspect -f '{{index .Options "device"}}' "$_sn" 2>/dev/null)" = "$DATA_DIR/space" ] || continue ;;
+      *) continue ;;
+    esac
+    [ "$(docker inspect -f '{{.State.Running}} {{.State.Restarting}}' "$_sc" 2>/dev/null)" = "true false" ] || continue
+    printf '%s' "$_sc"; return 0
+  done
+  return 1
+}
+# The node programs (argv[1] is the database). The snapshot is VACUUM INTO a private file in the container's own /tmp, checked with integrity_check, then streamed to stdout: the host
+# writes it where the backup wants it, under the host's own umask and owner, and no host folder is opened to the container for writing.
+SPACEDB_SNAP_JS='const{DatabaseSync}=require("node:sqlite"),fs=require("node:fs"),os=require("node:os"),p=require("node:path");const w=fs.mkdtempSync(p.join(os.tmpdir(),"vyre-snap-")),t=p.join(w,"s.db");let c=0;try{const d=new DatabaseSync(process.argv[1],{readOnly:true});d.exec("PRAGMA busy_timeout=30000");d.prepare("VACUUM INTO ?").run(t);d.close();const o=new DatabaseSync(t,{readOnly:true});const r=o.prepare("PRAGMA integrity_check").get();o.close();if(r.integrity_check!=="ok")throw new Error("integrity_check: "+r.integrity_check);const f=fs.openSync(t,"r"),b=Buffer.alloc(1048576);let n;while((n=fs.readSync(f,b,0,b.length,null))>0){let k=0;while(k<n){try{k+=fs.writeSync(1,b,k,n-k)}catch(e){if(e.code!=="EAGAIN")throw e;Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,5)}}}fs.closeSync(f)}catch(e){process.stderr.write(String(e&&e.message||e)+"\n");c=1}finally{fs.rmSync(w,{recursive:true,force:true})}process.exit(c)'
+# the host's own node writes the copy itself (the same program as before this block; a host folder is its own to write)
+SPACEDB_HOST_SNAP_JS='const{DatabaseSync}=require("node:sqlite");const d=new DatabaseSync(process.argv[1]);d.exec("PRAGMA busy_timeout=30000");d.prepare("VACUUM INTO ?").run(process.argv[2]);d.close();const o=new DatabaseSync(process.argv[2]);const r=o.prepare("PRAGMA integrity_check").get();o.close();if(r.integrity_check!=="ok"){console.error("integrity_check: "+r.integrity_check);process.exit(1)}'
+SPACEDB_CHECK_JS='const{DatabaseSync}=require("node:sqlite");const d=new DatabaseSync(process.argv[1],{readOnly:true});process.exit(d.prepare("PRAGMA integrity_check").get().integrity_check==="ok"?0:1)'
+SPACEDB_QUERY_JS="try{const {DatabaseSync}=require('node:sqlite');const d=new DatabaseSync(process.argv[1],{readOnly:true});d.exec('PRAGMA busy_timeout='+process.argv[3]);console.log(d.prepare(process.argv[2]).get().n)}catch(e){process.exit(2)}"
+# spacedb_node JS ARGS...: node in the virtual machine with /data = the Space folder: in the running vyred when there is one (SPACEDB_CID), else a one-shot container of the server's image.
+spacedb_node() {
+  if [ -n "$SPACEDB_CID" ]; then docker exec "$SPACEDB_CID" node --no-warnings -e "$@"
+  else docker run --rm --network none --user 1000:1000 -v "$DATA_DIR/space:/data" --entrypoint node "$SPACEDB_IMG" --no-warnings -e "$@"; fi
+}
+# spacedb_vm KIND DB [ARG]: as space_db, inside the virtual machine. 3 when there is no safe reader (no Docker, no running vyred and no server image named).
+spacedb_vm() {
+  command -v docker >/dev/null 2>&1 || return 3
+  docker info >/dev/null 2>&1 || return 3
+  SPACEDB_CID=$(spacedb_vyred) || SPACEDB_CID=""
+  SPACEDB_IMG=$(sed -n 's/^VYRE_IMAGE=//p' "$DIR/compose.env" 2>/dev/null | head -n 1)
+  [ -n "$SPACEDB_CID$SPACEDB_IMG" ] || return 3
+  _sp=/data/${2#"$DATA_DIR/space/"}
+  case "$1" in
+    snapshot)
+      rm -f "$3" "$3.part"
+      # the container checked its own copy; what reached this computer is checked again here (a copy nobody has open, so host tools are safe on it): a stream cut short is a failure
+      if spacedb_node "$SPACEDB_SNAP_JS" "$_sp" >"$3.part" && [ "$(head -c 15 "$3.part" 2>/dev/null)" = "SQLite format 3" ]; then
+        mv -f "$3.part" "$3"
+        spacedb_host check "$3" && return 0 || _sc=$?
+        rm -f "$3"; [ "$_sc" = 3 ] && return 3; return 1
+      fi
+      rm -f "$3.part"; return 1 ;;
+    check) spacedb_node "$SPACEDB_CHECK_JS" "$_sp" ;;
+    query) spacedb_node "$SPACEDB_QUERY_JS" "$_sp" "$3" "${VYRE_TEST_SQLITE_TIMEOUT:-3000}" 2>/dev/null ;;
+    *) return 1 ;;
+  esac
+}
+# spacedb_host KIND DB [ARG]: the host's own tools, in order: sqlite3, node (22.5 or newer), else the server image with only that folder mounted.
+spacedb_host() {
+  _sd=$(dirname "$2"); _sb=$(basename "$2")
+  _simg=$(sed -n 's/^VYRE_IMAGE=//p' "$DIR/compose.env" 2>/dev/null | head -n 1)
+  _snode=0
+  if command -v node >/dev/null 2>&1 && node --no-warnings -e "require('node:sqlite')" >/dev/null 2>&1; then _snode=1; fi
+  case "$1" in
+    snapshot)
+      rm -f "$3"
+      if command -v sqlite3 >/dev/null 2>&1; then
+        sqlite3 -cmd ".timeout 30000" "$2" "VACUUM INTO '$(printf '%s' "$3" | sed "s/'/''/g")'" >/dev/null && [ "$(sqlite3 "$3" 'PRAGMA integrity_check')" = ok ] && return 0
+        rm -f "$3"
+      fi
+      if [ "$_snode" = 1 ]; then node --no-warnings -e "$SPACEDB_HOST_SNAP_JS" "$2" "$3" && return 0; rm -f "$3"; return 1; fi
+      [ -n "$_simg" ] && command -v docker >/dev/null 2>&1 || return 3
+      docker run --rm --network none --user 1000:1000 -v "$_sd:/in" --entrypoint node "$_simg" --no-warnings -e "$SPACEDB_SNAP_JS" "/in/$_sb" >"$3.part" && mv -f "$3.part" "$3" && return 0
+      rm -f "$3.part"; return 1 ;;
+    check)
+      if command -v sqlite3 >/dev/null 2>&1; then [ "$(sqlite3 "$2" 'PRAGMA integrity_check' 2>/dev/null)" = ok ]; return; fi
+      if [ "$_snode" = 1 ]; then node --no-warnings -e "$SPACEDB_CHECK_JS" "$2"; return; fi
+      [ -n "$_simg" ] && command -v docker >/dev/null 2>&1 || return 3
+      docker run --rm --network none --user 1000:1000 -v "$_sd:/in:ro" --entrypoint node "$_simg" --no-warnings -e "$SPACEDB_CHECK_JS" "/in/$_sb" ;;
+    query)
+      _sto=${VYRE_TEST_SQLITE_TIMEOUT:-3000}
+      if command -v sqlite3 >/dev/null 2>&1; then sqlite3 -readonly -cmd ".timeout $_sto" "$2" "$3" 2>/dev/null; return; fi
+      if [ "$_snode" = 1 ]; then node --no-warnings -e "$SPACEDB_QUERY_JS" "$2" "$3" "$_sto" 2>/dev/null; return; fi
+      [ -n "$_simg" ] && command -v docker >/dev/null 2>&1 || return 3
+      docker run --rm --network none --user 1000:1000 -v "$_sd:/in:ro" --entrypoint node "$_simg" --no-warnings -e "$SPACEDB_QUERY_JS" "/in/$_sb" "$3" "$_sto" 2>/dev/null ;;
+    *) return 1 ;;
+  esac
+}
+# space_db KIND DB [ARG]: the one way to open a database. KIND is snapshot (ARG = where the checked copy goes), check (integrity_check is ok) or query (ARG = SQL with one row and a
+# column n; n is printed). 0 = done, 1 = it failed (a damaged or busy database), 3 = no safe reader on this computer. Every caller in these scripts goes through here.
+space_db() {
+  if spacedb_live "$2" && ! engine_same_kernel; then spacedb_vm "$@" && return 0 || return $?; fi
+  spacedb_host "$@" && return 0 || return $?
+}
+
+# space_serves_domain: 0 = the Space serves its own domain (network_config mode own_domain, set at install or later in the Console); 1 = it does not (the query ran, the table is there,
+# no row says so); 2 = cannot tell (no reader, a busy or missing database, any error or odd answer). Callers change the ports only on 0 or 1.
+space_serves_domain() {
+  [ -f "$DATA_DIR/space/modules.db" ] || return 2
+  _so=$(space_db query "$DATA_DIR/space/modules.db" "SELECT count(*) AS n FROM network_config WHERE id = 1 AND mode = 'own_domain'") || return 2
+  case "$_so" in 1) return 0 ;; 0) return 1 ;; *) return 2 ;; esac
+}
+# END spacedb
 
 # refresh_disk_env: at each start the disk is looked at again and what the Console is told (VYRE_DISK_ENCRYPTION in compose.env) follows it: a verified encryption layer, else the person's recorded
 # statement (plain or provider), else nothing. A recorded value is never trusted over what can be seen.
 refresh_disk_env() {
   [ -f "$DIR/compose.env" ] || return 0
   disk_encrypted "$DATA_DIR" && rc=0 || rc=$?
-  k=$(sed -n 's/^kind=//p' "$DIR/state/encryption" 2>/dev/null | head -n 1)
+  enc_choice
+  k=$enc_kind
   if [ "$rc" = 0 ]; then if crypt_on_file; then k=detected_file; else k=detected; fi; else case "$k" in plain|provider) ;; *) k="" ;; esac; fi
-  since=$(sed -n 's/^since=//p' "$DIR/state/encryption" 2>/dev/null | head -n 1)
+  since=$enc_since
   [ -n "$since" ] || since=$(date -u +%Y-%m-%d)
   # Docker's data root: agent browser sign-ins live in Docker volumes there. The server inside Docker cannot see it, so the host says what it sees: encrypted, plain, or unknown (cannot tell).
   rd=$(docker_root_dir); rstate=""
@@ -332,9 +470,8 @@ refresh_disk_env() {
 
 # docker_root_state DIR: encrypted, plain, or unknown. Unknown is not plain: on a Mac the root is inside Docker's virtual machine (no folder here to look at), and a root that cannot be resolved cannot be judged.
 docker_root_state() {
-  _os=$(uname -s); [ "${VYRE_TEST_MODE:-0}" != 1 ] || [ -z "${VYRE_TEST_OS:-}" ] || _os=$VYRE_TEST_OS
-  [ "$_os" != Darwin ] || { printf unknown; return 0; }
-  _r=$(readlink -f "$1" 2>/dev/null || printf '%s' "$1")
+  [ "$(spacedb_os)" != Darwin ] || { printf unknown; return 0; }
+  _r=$(real_path "$1")
   [ -d "$_r" ] || { printf unknown; return 0; }
   disk_encrypted "$_r" && _rc=0 || _rc=$?
   case "$_rc" in 0) printf encrypted ;; 1) printf plain ;; *) printf unknown ;; esac
@@ -355,11 +492,26 @@ crypt_on_file() {
   "$l" -s -n -o TYPE "$src" 2>/dev/null | grep -qx loop
 }
 
+# enc_choice: sets enc_kind and enc_since to what the person chose about a disk that is not visibly encrypted: state/encryption, else (an install made before that file, or one whose
+# file was lost) the plain or provider choice compose.env carries for the Console.
+enc_choice() {
+  enc_kind=$(sed -n 's/^kind=//p' "$DIR/state/encryption" 2>/dev/null | head -n 1)
+  enc_since=$(sed -n 's/^since=//p' "$DIR/state/encryption" 2>/dev/null | head -n 1)
+  if [ -z "$enc_kind" ]; then
+    case "$(sed -n 's/^VYRE_DISK_ENCRYPTION=//p' "$DIR/compose.env" 2>/dev/null | head -n 1)" in
+      plain) enc_kind=plain ;;
+      provider) enc_kind=provider ;;
+    esac
+    [ -z "$enc_kind" ] || enc_since=$(sed -n 's/^VYRE_DISK_ENCRYPTION_SINCE=//p' "$DIR/compose.env" 2>/dev/null | head -n 1)
+  fi
+  return 0
+}
+
 check_all() {
   # the volume the data lives on, checked now (never trusted from a record), and what the person said about it when it is not visibly encrypted
   disk_encrypted "$DATA_DIR" && rc=0 || rc=$?
-  enc_kind=$(sed -n 's/^kind=//p' "$DIR/state/encryption" 2>/dev/null | head -n 1)
-  enc_since=$(sed -n 's/^since=//p' "$DIR/state/encryption" 2>/dev/null | head -n 1)
+  enc_choice
+  host=$(spacedb_os)
   case "$rc" in
     0) if crypt_on_file; then finding host.disk_encrypted degraded "The data directory $DATA_DIR is on an encrypted volume that is a file on this disk. This server cannot tell where its key is kept: a key on this same disk protects nothing."
        else finding host.disk_encrypted healthy "The data directory $DATA_DIR is on an encrypted volume (verified here; where its key is kept is not visible)."; fi ;;
@@ -367,8 +519,10 @@ check_all() {
          plain) finding host.disk_encrypted degraded "The data is NOT encrypted at rest. You chose to install on a plain disk${enc_since:+ on $enc_since}: anyone who gets a copy of this disk, a snapshot or a backup can read it." ;;
          provider) finding host.disk_encrypted degraded "Not verified: your provider's encryption, as you stated${enc_since:+ on $enc_since}. This server cannot check it; confirm it with your provider." ;;
          *) case "$rc" in
-              1) finding host.disk_encrypted down "The data directory $DATA_DIR is not on an encrypted volume. Re-run the installer with --provider-encrypted (the provider's encrypted volume) or --allow-plain-disk (see its --help)." ;;
-              *) finding host.disk_encrypted down "Could not tell whether $DATA_DIR is on an encrypted volume (no /proc/mounts or lsblk answer)." ;;
+              1) if [ "$host" = Darwin ]; then finding host.disk_encrypted down "The data directory $DATA_DIR is not on an encrypted volume. Turn on FileVault (System Settings > Privacy & Security > FileVault), or run the Mac installer again with --allow-plain-disk."
+                 else finding host.disk_encrypted down "The data directory $DATA_DIR is not on an encrypted volume. Re-run the installer with --provider-encrypted (the provider's encrypted volume) or --allow-plain-disk (see its --help)."; fi ;;
+              *) if [ "$host" = Darwin ]; then finding host.disk_encrypted down "Could not tell whether $DATA_DIR is on an encrypted volume (diskutil gave no FileVault answer for it)."
+                 else finding host.disk_encrypted down "Could not tell whether $DATA_DIR is on an encrypted volume (no /proc/mounts or lsblk answer)."; fi ;;
             esac ;;
        esac ;;
   esac
@@ -402,7 +556,7 @@ check_all() {
   if ! command -v docker >/dev/null 2>&1; then
     finding host.docker down "Docker is not installed."
   elif ! docker info >/dev/null 2>&1; then
-    if [ "$(uname -s)" = Darwin ]; then finding host.docker down "Docker is not running. Open Docker Desktop (or OrbStack) and wait for it to start."
+    if [ "$host" = Darwin ]; then finding host.docker down "Docker is not running. Open Docker Desktop or OrbStack (or run: colima start) and wait for it to start."
     else finding host.docker down "Docker is not running. Start it: systemctl start docker."
     fi
   else
@@ -459,12 +613,33 @@ check_all() {
       0) finding host.userns healthy "Docker's virtual machine allows the user namespaces the engine sandbox needs." ;;
     esac
   fi
+  # no container Vyre starts for agents reaches the cloud's metadata address
+  mst=$(meta_state)
+  case "$mst" in
+    on) if [ "$(meta_v6)" = missing ]; then finding host.metadata degraded "Agents' containers cannot reach the cloud metadata address over IPv4 (169.254.0.0/16), but the IPv6 one (fd00:ec2::254) is not blocked: there is no ip6tables on this server."
+        else finding host.metadata healthy "Agents' containers cannot reach the cloud metadata address (169.254.0.0/16); DNS to it still passes."; fi ;;
+    off) finding host.metadata degraded "Agents' containers can reach the cloud metadata address (169.254.0.0/16), which can hand out this server's credentials. Fix: vyre-server start." ;;
+    broken*) finding host.metadata degraded "Agents' containers may reach the cloud metadata address (169.254.0.0/16): ${mst#broken }." ;;
+  esac
   # the server answers
   if command -v curl >/dev/null 2>&1 && curl -fsS --max-time 5 "$(health_url)" >/dev/null 2>&1; then
     finding host.healthz healthy "vyred answers /healthz."
   else
-    finding host.healthz down "vyred does not answer on 127.0.0.1:$(port)."
+    # a server holding on a damaged database answers 503 with the line that names the file (host/src/daemon/damaged-db.ts)
+    held=$(curl -sS --max-time 5 "$(health_url)" 2>/dev/null | sed -n 's/.*"code":"space\.damaged","message":"\([^"]*\)".*/\1/p' | head -n 1)
+    if [ -n "$held" ]; then finding host.healthz down "vyred is holding, not serving: $held Backups are in $BACKUP_DIR."
+    else finding host.healthz down "vyred does not answer on 127.0.0.1:$(port)."; fi
   fi
+  # an update that was rolled back is not tried again (update_skipped); say so until a newer release goes on
+  skipped=$(update_skipped_line)
+  [ -z "$skipped" ] || finding host.update degraded "$skipped"
+  # damaged data a restore set aside is never deleted by Vyre: say how much there is and the command that removes it
+  dmg=""; dmg_kb=0; dmg_n=0
+  for d in "$DATA_DIR"/space.damaged-*; do
+    [ -d "$d" ] || continue
+    dmg="$dmg $d"; dmg_n=$((dmg_n + 1)); dmg_kb=$((dmg_kb + $(du -sk "$d" 2>/dev/null | awk '{print $1 + 0}')))
+  done
+  [ "$dmg_n" = 0 ] || finding host.damaged_data degraded "$dmg_n folder(s) of damaged data that a restore set aside are still here ($((dmg_kb / 1024)) MB). Nothing uses them. Once the Space works, delete them: rm -rf$dmg"
   # the install itself
   if [ -f "$DIR/current/VERSION" ] && [ -f "$DIR/vyre.env" ]; then finding host.release healthy "Vyre Server $(cur_version) on the $CHANNEL channel."
   else finding host.release down "No release is installed at $DIR. Run the installer again."
@@ -509,44 +684,33 @@ cmd_doctor() {
 # The caller starts the server again. Why a copy first: tar over live files fails with "file changed as we read it" whenever anything still writes under the data
 # folder (agent computers, a daemon that is slow to stop). Each SQLite database is taken with VACUUM INTO, which reads one consistent snapshot even while a writer
 # keeps going and leaves out the -wal and -shm files. Every other file is copied; a file that vanishes or changes during that copy cannot fail the backup.
-SNAP_JS='const{DatabaseSync}=require("node:sqlite");const d=new DatabaseSync(process.argv[1]);d.exec("PRAGMA busy_timeout=30000");d.prepare("VACUUM INTO ?").run(process.argv[2]);d.close();const o=new DatabaseSync(process.argv[2]);const r=o.prepare("PRAGMA integrity_check").get();o.close();if(r.integrity_check!=="ok"){console.error("integrity_check: "+r.integrity_check);process.exit(1)}'
 
 # is_sqlite FILE: the file starts with the SQLite header.
 is_sqlite() { [ "$(head -c 15 "$1" 2>/dev/null)" = "SQLite format 3" ]; }
 
-# sqlite_snapshot SRC DST: one consistent copy of a live database, checked with integrity_check. Uses the sqlite3 tool when the host has it, else the host's node
-# (22.5 or newer), else the server image's node.
-sqlite_snapshot() {
-  rm -f "$2"
-  if command -v sqlite3 >/dev/null 2>&1; then
-    sqlite3 -cmd ".timeout 30000" "$1" "VACUUM INTO '$(printf '%s' "$2" | sed "s/'/''/g")'" >/dev/null && [ "$(sqlite3 "$2" 'PRAGMA integrity_check')" = ok ] && return 0
-    rm -f "$2"
-  fi
-  if command -v node >/dev/null 2>&1 && node --no-warnings -e "require('node:sqlite')" >/dev/null 2>&1; then
-    rm -f "$2"
-    node --no-warnings -e "$SNAP_JS" "$1" "$2" && return 0
-    return 1
-  fi
-  img=$(sed -n 's/^VYRE_IMAGE=//p' "$DIR/compose.env" 2>/dev/null | head -n 1)
-  [ -n "$img" ] || return 1
-  chmod 0777 "$(dirname "$2")"
-  rm -f "$2"
-  docker run --rm --network none --user 1000:1000 -v "$(dirname "$1"):/in" -v "$(dirname "$2"):/out" --entrypoint node "$img" -e "$SNAP_JS" "/in/$(basename "$1")" "/out/$(basename "$2")"
-}
+# sqlite_snapshot SRC DST: one consistent copy of a database, checked with integrity_check (space_db: through the server's own kernel when the database is live and Docker runs in a VM).
+sqlite_snapshot() { space_db snapshot "$1" "$2"; }
 
-# stage_copy SRC_ROOT DST_ROOT: every file under SRC_ROOT into DST_ROOT; SQLite databases by snapshot, the rest by copy.
+# stage_copy SRC_ROOT DST_ROOT: every file under SRC_ROOT into DST_ROOT; SQLite databases by snapshot, the rest by copy. Returns 1 when a database would not copy cleanly, 3 when this
+# computer has no safe way to read the live databases (space_db), after saying so.
 stage_copy() {
   mkdir -p "$2"
-  # Files other than databases and their journals. tar exits 1 for a file that changed or vanished while it was read; the copy still holds the rest.
-  tar -C "$1" -cf - --exclude='*.db-wal' --exclude='*.db-shm' --exclude='*.db-journal' --exclude='*.sqlite-wal' --exclude='*.sqlite-shm' --exclude='*.sqlite3-wal' --exclude='*.sqlite3-shm' . 2>/dev/null | tar -C "$2" -xf - 2>/dev/null || true
+  # Files other than databases and their journals. tar exits 1 for a file that changed or vanished while it was read; the copy still holds the rest. Databases are left out here: a plain
+  # copy of a live one is torn, and each is taken below as a snapshot (a file with a database's name that is not SQLite is copied there as it is).
+  tar -C "$1" -cf - --exclude='*.db' --exclude='*.sqlite' --exclude='*.sqlite3' --exclude='*.db-wal' --exclude='*.db-shm' --exclude='*.db-journal' --exclude='*.sqlite-wal' --exclude='*.sqlite-shm' --exclude='*.sqlite3-wal' --exclude='*.sqlite3-shm' . 2>/dev/null | tar -C "$2" -xf - 2>/dev/null || true
   list=$2.dblist
   find "$1" -type f \( -name '*.db' -o -name '*.sqlite' -o -name '*.sqlite3' \) >"$list" 2>/dev/null || true
   while IFS= read -r f; do
-    is_sqlite "$f" || continue
     dst=$2/${f#"$1"/}
     mkdir -p "$(dirname "$dst")"
+    if ! is_sqlite "$f"; then cp -p "$f" "$dst" 2>/dev/null || true; continue; fi
     n=0
-    until sqlite_snapshot "$f" "$dst"; do
+    while :; do
+      sqlite_snapshot "$f" "$dst" && break || src=$?
+      if [ "$src" = 3 ]; then
+        printf 'vyre-server: the server runs in a virtual machine on this computer, so its databases are read only from inside it, and neither the server'"'"'s container nor its image is there (%s). Start Docker (and the server), then run this again.\n' "$f" >&2
+        rm -f "$list"; return 3
+      fi
       n=$((n + 1))
       if [ "$n" -ge 3 ]; then printf 'vyre-server: could not take a consistent copy of %s\n' "$f" >&2; rm -f "$list"; return 1; fi
       sleep 1
@@ -585,11 +749,12 @@ resume_strays() {
   return 0
 }
 
-# backup_fail MESSAGE: remove the partial backup, put the server back as it was (it was stopped for the backup unless the backup was live), then stop with MESSAGE.
+# backup_fail MESSAGE [CODE]: remove the partial backup, put the server back as it was (it was stopped for the backup unless the backup was live), then stop with MESSAGE. A restore sets
+# BACKUP_KEEP_STOPPED=1: it goes on with the server stopped whatever the backup of the current data did. CODE 6 means a database would not copy cleanly (it may be damaged).
 backup_fail() {
   rm -rf "$out.part" "${STAGE:-/nonexistent-stage}"; STAGE=""
-  if [ "${BACKUP_MODE:-stopped}" = stopped ]; then dc up -d --remove-orphans >/dev/null 2>&1 || true; resume_strays; fi
-  die "$1"
+  if [ "${BACKUP_MODE:-stopped}" = stopped ] && [ "${BACKUP_KEEP_STOPPED:-0}" != 1 ]; then dc up -d --remove-orphans >/dev/null 2>&1 || true; resume_strays; fi
+  die "$1" "${2:-1}"
 }
 
 # backup_data TAG [live]: without `live` the server is stopped first (an update wants the data still while it switches); with `live` it keeps running, and every database is
@@ -599,23 +764,45 @@ backup_data() {
   [ -s "$DATA_DIR/space/events.db" ] || die "there is no Space in $DATA_DIR (no space/events.db): is the data volume mounted? No backup was written, and the earlier backups were left as they are."
   mkdir -p "$BACKUP_DIR" "$DIR/state"
   chmod 0700 "$BACKUP_DIR"
-  out="$BACKUP_DIR/vyre-$1-$(date -u +%Y%m%dT%H%M%SZ).tar.gz"
+  # a name no backup has yet: two backups in the same second get -2, -3 (before, the second silently replaced the first)
+  stamp=$(date -u +%Y%m%dT%H%M%SZ); out="$BACKUP_DIR/vyre-$1-$stamp.tar.gz"; bn=1
+  while [ -e "$out" ] || [ -e "$out.part" ]; do bn=$((bn + 1)); out="$BACKUP_DIR/vyre-$1-$stamp-$bn.tar.gz"; done
   need_mb=$(du -sm "$DATA_DIR/space" "$DATA_DIR/caddy" 2>/dev/null | awk '{ n += $1 } END { print n + 0 }')
   free_mb=$(df -Pm "$BACKUP_DIR" | awk 'NR==2 {print $4}')
   [ "${free_mb:-0}" -gt "$((need_mb * 2 + 256))" ] || die "not enough room for a backup ($need_mb MB of data, $free_mb MB free); nothing was changed."
   if [ "$BACKUP_MODE" = stopped ]; then dc stop >/dev/null || true; stop_strays; fi
   umask 077
   STAGE=$(mktemp -d "$BACKUP_DIR/.stage.XXXXXX") || backup_fail "could not make room to stage the backup; nothing was changed."
-  stage_copy "$DATA_DIR/space" "$STAGE/space" || backup_fail "the backup could not be written (a database would not copy cleanly); nothing was changed."
+  stage_copy "$DATA_DIR/space" "$STAGE/space" && sc=0 || sc=$?
+  [ "$sc" != 3 ] || backup_fail "no backup was written; nothing was changed."
+  [ "$sc" = 0 ] || backup_fail "the backup could not be written (a database would not copy cleanly); nothing was changed." 6
   if [ -d "$DATA_DIR/caddy" ]; then stage_copy "$DATA_DIR/caddy" "$STAGE/caddy" || backup_fail "the backup could not be written; nothing was changed."; else mkdir -p "$STAGE/caddy"; fi
   # The staged copy no longer changes, so tar has nothing to race with.
   tar -czf "$out.part" -C "$STAGE" space caddy || backup_fail "the backup could not be written; nothing was changed."
   tar -tzf "$out.part" >/dev/null || backup_fail "the backup did not read back; nothing was changed."
   tar -tzf "$out.part" | grep -q '^space/events.db$' || backup_fail "the backup holds no Space (space/events.db is missing); nothing was changed and the earlier backups were kept."
   rm -rf "$STAGE"; STAGE=""
-  mv "$out.part" "$out"
-  ls -1t "$BACKUP_DIR"/vyre-*.tar.gz 2>/dev/null | awk -v k="$KEEP_BACKUPS" 'NR > k' | while read -r old; do rm -f "$old"; done
+  mv "$out.part" "$out" || backup_fail "the backup could not be put in place; nothing was changed."
+  [ -s "$out" ] || backup_fail "the backup is empty after it was written; nothing was changed."
   BACKUP_FILE=$out
+  prune_backups
+}
+
+# prune_backups: old backups go by kind, never across kinds, so many manual backups never push out the one taken before an update or a restore (12 Nov: twelve manual backups
+# evicted the only good copy from before a failed update). Kept: the newest 3 manual (and other) backups, the newest 2 taken before an update (vyre-pre-<version>-...), the newest 2
+# taken before a restore. What goes is named.
+prune_backups() {
+  ls -1t "$BACKUP_DIR"/vyre-*.tar.gz 2>/dev/null | awk -v k="$KEEP_BACKUPS" '
+    { n = $0; sub(/.*\//, "", n)
+      if (n ~ /^vyre-pre-restore-/) { kind = "pre-restore"; keep = 2 }
+      else if (n ~ /^vyre-pre-[0-9]/) { kind = "pre-update"; keep = 2 }
+      else { kind = "other"; keep = k }
+      if (++seen[kind] > keep) print $0 }' | while IFS= read -r old; do
+    [ "$old" != "$out" ] || continue
+    [ "$old" != "$(cat "$DIR/state/keep-backup" 2>/dev/null)" ] || continue
+    rm -f "$old" && say "  Removed an older backup: $(basename "$old")"
+  done
+  return 0
 }
 
 # fs_device PATH: the device the folder holding PATH sits on (first column of df), to tell whether a backup is on the same disk as the data.
@@ -631,8 +818,14 @@ fs_device() {
 # backup_note: a backup on the same disk as the data is no protection against losing the disk or the server; say so, and the one command that copies it out.
 backup_note() {
   if [ "$(fs_device "$(dirname "$BACKUP_FILE")")" = "$(fs_device "$DATA_DIR")" ]; then
-    say "  This backup is on the same disk as the Space's data. If this server or its disk is lost, the backup is lost with it. Copy it somewhere else, from your own computer:"
-    say "    scp root@$(hostname -f 2>/dev/null || hostname):$BACKUP_FILE ."
+    if [ "$(spacedb_os)" = Darwin ]; then
+      # a Mac's own name (name.local) rarely answers from elsewhere, and the server runs as the person, not root: give the file and say where it must go
+      say "  This backup is on the same disk as the Space's data. If this Mac or its disk is lost, the backup is lost with it. Copy this file off this Mac (an external disk, or another computer):"
+      say "    $BACKUP_FILE"
+    else
+      say "  This backup is on the same disk as the Space's data. If this server or its disk is lost, the backup is lost with it. Copy it somewhere else, from your own computer:"
+      say "    scp root@$(hostname -f 2>/dev/null || hostname):$BACKUP_FILE ."
+    fi
   fi
 }
 
@@ -664,16 +857,8 @@ restore_check() {
   rm -f "$list"
 }
 
-# sqlite_check DB: integrity_check is ok (sqlite3 tool, else node, else the server image).
-sqlite_check() {
-  if command -v sqlite3 >/dev/null 2>&1; then [ "$(sqlite3 "$1" 'PRAGMA integrity_check' 2>/dev/null)" = ok ]; return; fi
-  if command -v node >/dev/null 2>&1 && node --no-warnings -e "require('node:sqlite')" >/dev/null 2>&1; then
-    node --no-warnings -e 'const{DatabaseSync}=require("node:sqlite");const d=new DatabaseSync(process.argv[1],{readOnly:true});process.exit(d.prepare("PRAGMA integrity_check").get().integrity_check==="ok"?0:1)' "$1"; return
-  fi
-  img=$(sed -n 's/^VYRE_IMAGE=//p' "$DIR/compose.env" 2>/dev/null | head -n 1)
-  [ -n "$img" ] || return 1
-  docker run --rm --network none --user 1000:1000 -v "$(dirname "$1"):/in:ro" --entrypoint node "$img" -e 'const{DatabaseSync}=require("node:sqlite");const d=new DatabaseSync(process.argv[1],{readOnly:true});process.exit(d.prepare("PRAGMA integrity_check").get().integrity_check==="ok"?0:1)' "/in/$(basename "$1")"
-}
+# sqlite_check DB: integrity_check is ok (space_db).
+sqlite_check() { space_db check "$1"; }
 
 cmd_restore() {
   file=""; yes=0; force=0
@@ -700,11 +885,22 @@ cmd_restore() {
     read -r answer || answer=""
     [ "$answer" = yes ] || die "not confirmed; nothing was changed."
   fi
+  DAMAGED=0
   if [ -s "$DATA_DIR/space/events.db" ]; then
     HAD_SPACE=1
     say "  Backing up the current data first"
-    backup_data pre-restore
-    say "  Backed up to $BACKUP_FILE"
+    # In a subshell so that a failure is this restore's to handle: with BACKUP_KEEP_STOPPED the server stays stopped either way. A database that will not copy (code 6) is what a damaged
+    # Space looks like, and putting a backup back is the cure, so the current folder is kept whole under a dated name instead of being backed up.
+    if ( trap - EXIT; BACKUP_KEEP_STOPPED=1; backup_data pre-restore; printf '%s\n' "$BACKUP_FILE" >"$RSTAGE/.backup-file" ); then
+      BACKUP_FILE=$(cat "$RSTAGE/.backup-file" 2>/dev/null || true); rm -f "$RSTAGE/.backup-file"
+      [ -n "$BACKUP_FILE" ] && [ -s "$BACKUP_FILE" ] || { dc up -d --remove-orphans >/dev/null 2>&1 || true; resume_strays; die "the backup of the current data is missing after it was written; nothing was changed."; }
+      say "  Backed up to $BACKUP_FILE"
+    else
+      brc=$?
+      if [ "$brc" != 6 ]; then dc up -d --remove-orphans >/dev/null 2>&1 || true; resume_strays; exit "$brc"; fi
+      DAMAGED=1; BACKUP_FILE=""
+      say "  The current data would not back up (a database in it is damaged or unreadable). It is kept whole beside the restored data instead, under a dated name."
+    fi
   else
     # restoring into a lost or empty data folder is what restore is for: there is nothing to back up
     HAD_SPACE=0
@@ -717,11 +913,20 @@ cmd_restore() {
   if [ -e "$DATA_DIR/space" ]; then mv "$DATA_DIR/space" "$DATA_DIR/space.replaced-$ts" || { dc up -d --remove-orphans >/dev/null 2>&1 || true; resume_strays; die "could not move the current data aside; nothing was changed."; }; fi
   if [ -d "$DATA_DIR/caddy" ]; then mv "$DATA_DIR/caddy" "$DATA_DIR/caddy.replaced-$ts"; fi
   mv "$RSTAGE/space" "$DATA_DIR/space" && mv "$RSTAGE/caddy" "$DATA_DIR/caddy" || restore_undo "$ts" "could not put the backup in place"
-  # the server runs as uid 1000 and must be able to read what it is given: a backup taken with the host's sqlite3 holds root-owned 0600 files
-  chown -R 1000:1000 "$DATA_DIR/space" 2>/dev/null || [ "${VYRE_TEST_MODE:-0}" = 1 ] || restore_undo "$ts" "could not give the restored data to the server's user (uid 1000)"
+  # the server runs as uid 1000 and must be able to read what it is given: a backup taken with the host's sqlite3 holds root-owned 0600 files. On a Mac, Docker shares the folder under the
+  # person's own account (and a person cannot chown to another user), so nothing is changed there.
+  if [ "$(spacedb_os)" != Darwin ]; then
+    chown -R 1000:1000 "$DATA_DIR/space" 2>/dev/null || [ "${VYRE_TEST_MODE:-0}" = 1 ] || restore_undo "$ts" "could not give the restored data to the server's user (uid 1000)"
+  fi
   dc up -d --remove-orphans >/dev/null 2>&1 || restore_undo "$ts" "the server did not start on the restored data"
   wait_healthy || restore_undo "$ts" "the server did not pass its health check on the restored data"
   resume_strays
+  if [ "$DAMAGED" = 1 ]; then
+    mv "$DATA_DIR/space.replaced-$ts" "$DATA_DIR/space.damaged-$ts"
+    rm -rf "$DATA_DIR/caddy.replaced-$ts" "$RSTAGE"; RSTAGE=""
+    say "Restored from $file. The damaged data it replaced is kept in $DATA_DIR/space.damaged-$ts; delete it once the Space works."
+    return 0
+  fi
   rm -rf "$DATA_DIR/space.replaced-$ts" "$DATA_DIR/caddy.replaced-$ts" "$RSTAGE"; RSTAGE=""
   if [ "$HAD_SPACE" = 1 ]; then say "Restored from $file. The data it replaced is in $BACKUP_FILE."; else say "Restored from $file. There was no Space here before."; fi
 }
@@ -738,7 +943,30 @@ restore_undo() {
   if [ -d "$DATA_DIR/caddy.replaced-$1" ]; then mv "$DATA_DIR/caddy.replaced-$1" "$DATA_DIR/caddy"; else mkdir -p "$DATA_DIR/caddy"; fi
   dc up -d --remove-orphans >/dev/null 2>&1 || true
   resume_strays
+  if [ "${DAMAGED:-0}" = 1 ]; then die "$2; the data that was there before (which would not back up) is back in $DATA_DIR/space."; fi
   die "$2; the data that was there before is back. Backup of it: $BACKUP_FILE"
+}
+
+# failed_here VERSION: an update to VERSION was rolled back here, or failed (not counting a manual rollback). Prints the date it happened.
+failed_here() {
+  _fh=$(awk -F '\t' -v v="$1" '$3 == v && ($4 == "rolled_back" || $4 == "failed") && $6 != "manual rollback" { d = $1 } END { print d }' "$DIR/state/updates.tsv" 2>/dev/null || true)
+  [ -n "$_fh" ] || return 1
+  printf '%s' "$_fh"
+}
+# update_skipped_line [VERSION]: "<v> did not start here and was rolled back on 12 Nov. It will not be tried again; the next release will." for VERSION, else for the newest version
+# that failed here and is newer than the one running (nothing when there is none).
+update_skipped_line() {
+  _sv=${1:-}
+  if [ -z "$_sv" ]; then
+    _sv=$(awk -F '\t' '($4 == "rolled_back" || $4 == "failed") && $6 != "manual rollback" { v = $3 } $4 == "ok" { v = "" } END { print v }' "$DIR/state/updates.tsv" 2>/dev/null || true)
+    [ -n "$_sv" ] || return 0
+    _c=$(ver_cmp "$_sv" "$(cur_version)" 2>/dev/null) || return 0
+    [ "$_c" = 1 ] || return 0
+  fi
+  _sd=$(failed_here "$_sv") || return 0
+  _day=$(printf '%s' "$_sd" | cut -c9-10 | sed 's/^0//'); _mon=$(printf '%s' "$_sd" | cut -c6-7)
+  case "$_mon" in 01) _mon=Jan ;; 02) _mon=Feb ;; 03) _mon=Mar ;; 04) _mon=Apr ;; 05) _mon=May ;; 06) _mon=Jun ;; 07) _mon=Jul ;; 08) _mon=Aug ;; 09) _mon=Sep ;; 10) _mon=Oct ;; 11) _mon=Nov ;; 12) _mon=Dec ;; esac
+  printf '%s did not start here and was rolled back on %s %s. It will not be tried again; the next release will.' "$_sv" "$_day" "$_mon"
 }
 
 record_update() {
@@ -762,8 +990,8 @@ hand_off() {
   [ "${VYRE_HANDOFF:-0}" != 1 ] || return 0
   cur="$DIR/current/bin/vyre-server"
   [ -f "$cur" ] || return 0
-  me=$(readlink -f "$0" 2>/dev/null || printf '%s' "$0")
-  there=$(readlink -f "$cur" 2>/dev/null || printf '%s' "$cur")
+  me=$(real_path "$0")
+  there=$(real_path "$cur")
   [ "$me" != "$there" ] || return 0
   VYRE_HANDOFF=1 VYRE_DIR="$DIR" exec sh "$cur" "$@"
 }
@@ -775,6 +1003,8 @@ refresh_bin() {
   want=$(printf '#!/bin/sh\n# %s\nexec "%s/current/bin/vyre-server" "$@"\n' "$MARK" "$DIR")
   [ "$(cat "$BIN_FILE" 2>/dev/null)" != "$want" ] || return 0
   grep -q -e "$MARK" -e '^# vyre-server: run and look after Vyre Server' "$BIN_FILE" 2>/dev/null || return 0
+  # a wrapper of ours that already runs the current release (the Mac installer's names Docker's folders and the Docker it was installed on) is left as it is
+  if grep -q "$MARK" "$BIN_FILE" 2>/dev/null && grep -qx "exec \"$DIR/current/bin/vyre-server\" \"\$@\"" "$BIN_FILE" 2>/dev/null; then return 0; fi
   printf '%s\n' "$want" >"$BIN_FILE.new" 2>/dev/null || { rm -f "$BIN_FILE.new"; return 0; }
   chmod 0755 "$BIN_FILE.new" && mv -f "$BIN_FILE.new" "$BIN_FILE" || rm -f "$BIN_FILE.new"
 }
@@ -793,6 +1023,57 @@ ensure_userns() {
   return 0
 }
 
+# The cloud's metadata address (169.254.169.254 on most clouds, inside 169.254.0.0/16, and fd00:ec2::254 over IPv6) hands out the server's own details and, on some clouds, credentials. No container
+# Docker runs for Vyre (the Space browser, agents' workspaces, agent computers) may reach it; the rest of their internet stays open. On Google Cloud and Oracle Cloud the server's DNS resolver is that same
+# address (and AWS's can be 169.254.169.253), so DNS (port 53, UDP and TCP) to the range still passes and everything else to it is dropped. It cannot be done per network (Docker has no option for one
+# blocked range), so the rules sit at the top of Docker's DOCKER-USER chain, for the default bridge and every user bridge. Docker creates that chain at its start and never empties it; `vyre-server start`
+# runs at every boot (the systemd unit), every update, and the daily update check (which runs even when there is nothing to update), so a firewall reload that emptied the chain is repaired within a day.
+# Linux only. Where the rules cannot be put in place, doctor says why (never nothing, never "on"); the check reads the rules back with the same tool that put them there.
+meta_os() { _m=$(uname -s); [ "${VYRE_TEST_MODE:-0}" != 1 ] || [ -z "${VYRE_TEST_OS:-}" ] || _m=$VYRE_TEST_OS; printf '%s' "$_m"; }
+# meta_rules: "<tool> <destination> <bridge> <proto> <port> <target>" per rule, in the order they stand in the chain (DNS first, then the drop)
+meta_rules() { for i in docker0 br-+; do printf 'iptables 169.254.0.0/16 %s udp 53 RETURN\niptables 169.254.0.0/16 %s tcp 53 RETURN\niptables 169.254.0.0/16 %s - - DROP\nip6tables fd00:ec2::254/128 %s - - DROP\n' "$i" "$i" "$i" "$i"; done; }
+# meta_rule TOOL ACTION DEST IF PROTO PORT TARGET [POS]: check (-C), insert (-I, at POS) or delete (-D) one rule
+meta_rule() {
+  _p=""; [ "$5" = - ] || _p="-p $5 --dport $6"
+  # shellcheck disable=SC2086
+  "$1" -w "$2" DOCKER-USER ${8:-} -i "$4" -d "$3" $_p -m comment --comment vyre-metadata -j "$7" >/dev/null 2>&1
+}
+# meta_chain TOOL: the tool exists, has Docker's DOCKER-USER chain, and Docker's forwarded traffic goes through it in that tool's tables (an iptables-legacy and iptables-nft mismatch fails here)
+meta_chain() { command -v "$1" >/dev/null 2>&1 && "$1" -w -L DOCKER-USER -n >/dev/null 2>&1 && "$1" -w -C FORWARD -j DOCKER-USER >/dev/null 2>&1; }
+# meta_state: on | off (a rule is missing; start puts it there) | skip (not Linux, or a test that did not ask) | "broken <why>" (the rules cannot be put in place here)
+meta_state() {
+  [ "$(meta_os)" = Linux ] || { printf skip; return 0; }
+  # the script's own tests run start and update with stand-ins for Docker: they never touch the real firewall of the computer that runs them, unless a test asks for it (with stand-ins for iptables)
+  [ "${VYRE_TEST_MODE:-0}" != 1 ] || [ "${VYRE_TEST_METADATA:-0}" = 1 ] || { printf skip; return 0; }
+  command -v iptables >/dev/null 2>&1 || { printf 'broken there is no iptables on this server'; return 0; }
+  if command -v docker >/dev/null 2>&1 && docker info 2>/dev/null | grep -i 'firewall backend' | grep -qi nftables; then printf 'broken Docker uses its nftables firewall, which has no DOCKER-USER chain'; return 0; fi
+  iptables -w -L DOCKER-USER -n >/dev/null 2>&1 || { printf "broken iptables has no DOCKER-USER chain: Docker's firewall rules are off, or Docker uses the other iptables backend"; return 0; }
+  iptables -w -C FORWARD -j DOCKER-USER >/dev/null 2>&1 || { printf "broken the DOCKER-USER chain iptables shows is not in the path of Docker's traffic (iptables-legacy and iptables-nft do not match)"; return 0; }
+  meta_rules | while read -r t d i pr po tg; do
+    # IPv6 rules only where Docker forwards IPv6 (its ip6tables chain is there)
+    [ "$t" = iptables ] || meta_chain "$t" || continue
+    meta_rule "$t" -C "$d" "$i" "$pr" "$po" "$tg" || { printf off; break; }
+  done | grep -q off && printf off || printf on
+}
+# meta_v6: "missing" when there is no ip6tables (the IPv4 rules still go in; doctor reports the IPv6 half on its own), "ok" otherwise
+meta_v6() { command -v ip6tables >/dev/null 2>&1 && printf ok || printf missing; }
+# ensure_metadata_block: when a rule is missing, every rule of ours is taken out and put back in order (the drops first, each DNS pass inserted above them); never fails the caller
+ensure_metadata_block() {
+  st=$(meta_state)
+  case "$st" in
+    broken*) say "  Containers may reach the cloud metadata address: ${st#broken }. vyre-server doctor reports it."; return 0 ;;
+    off) ;;
+    *) return 0 ;;
+  esac
+  for t in iptables ip6tables; do
+    [ "$t" = iptables ] || meta_chain "$t" || continue
+    meta_rules | while read -r rt d i pr po tg; do [ "$rt" = "$t" ] || continue; while meta_rule "$t" -D "$d" "$i" "$pr" "$po" "$tg"; do :; done; done
+    for want in DROP RETURN; do
+      meta_rules | while read -r rt d i pr po tg; do [ "$rt" = "$t" ] && [ "$tg" = "$want" ] || continue; meta_rule "$t" -I "$d" "$i" "$pr" "$po" "$tg" 1 || say "  Could not put the metadata rule ($tg $pr $po to $d through $i) in place with $t; vyre-server doctor reports it."; done
+    done
+  done
+  return 0
+}
 # ensure_userns_vm: the same setting on a Mac, where Docker runs in a Linux virtual machine (Docker Desktop, OrbStack, Colima) and this script cannot see its kernel. Colima's machine is
 # Ubuntu 24.04 with the restriction on: there bubblewrap answers "setting up uid map: Permission denied" and every agent turn that runs on the server fails. The setting is read through a
 # container, and when it is 1 a one-shot privileged container of the server's own image (already here, named by digest) turns it off. It belongs to the machine's running kernel and a
@@ -900,12 +1181,12 @@ prune_releases() {
   done
 }
 
-# prune_images: after a healthy update, remove the agent computer, workspace and Space browser images that no kept release names, so each update does not leave the last one behind (MLA had 16.6 GB).
+# prune_images: after a healthy update, remove the server (vyred), agent computer, workspace and Space browser images that no kept release names, so each update does not leave the last one behind (MLA had 16.6 GB).
 # An image goes only when all of these hold: it is one of ours (pulled by digest from a repository named agent-computer, workspace or space-browser; or carrying the label ai.vyre.image; or an
 # untagged image whose command is the agent computer's agentd), no kept release or compose.env names it, and no container, running or stopped, was made from it. A kept release is one prune_releases
 # left: the current one and the one a rollback goes to. Images built or tagged by hand (no digest) are never touched. Docker itself refuses to remove an image a container uses, a second guard.
 # A failure never fails the update: it prints what was removed, if anything, and returns 0.
-PRUNE_IMAGE_NAMES=${VYRE_PRUNE_IMAGE_NAMES:-'agent-computer|workspace|space-browser|vyre-browser'}
+PRUNE_IMAGE_NAMES=${VYRE_PRUNE_IMAGE_NAMES:-'vyred|agent-computer|agent-workspace|workspace|space-browser|vyre-browser'}
 prune_images() {
   command -v docker >/dev/null 2>&1 || return 0
   docker info >/dev/null 2>&1 || return 0
@@ -945,7 +1226,11 @@ lock_update_operation() {
   # A lock whose owner has died (pid file names a process that is gone) is reclaimed; one with no pid file is left for a person to look at.
   if [ -d "$operation_lock_path" ] && [ -f "$operation_lock_path/pid" ]; then
     owner=$(cat "$operation_lock_path/pid" 2>/dev/null || true)
-    case "$owner" in ""|*[!0-9]*) ;; *) kill -0 "$owner" 2>/dev/null || { rm -f "$operation_lock_path/pid"; rmdir "$operation_lock_path" 2>/dev/null || true; } ;; esac
+    # the second half of an update (a child of the first) writes its own pid as `child`: the lock is live while either is alive, so a first half killed alone never lets
+    # another command take the lock and roll back while the second half is still bringing the new release up
+    kid=$(cat "$operation_lock_path/child" 2>/dev/null || true)
+    case "$kid" in ""|*[!0-9]*) kid_alive=1; [ -n "$kid" ] || kid_alive=0 ;; *) kill -0 "$kid" 2>/dev/null && kid_alive=1 || kid_alive=0 ;; esac
+    case "$owner" in ""|*[!0-9]*) ;; *) kill -0 "$owner" 2>/dev/null || [ "$kid_alive" = 1 ] || { rm -f "$operation_lock_path/pid" "$operation_lock_path/child"; rmdir "$operation_lock_path" 2>/dev/null || true; } ;; esac
   fi
   # A failed contender owns nothing: EXIT cleanup must leave the active lock alone.
   if mkdir "$operation_lock_path" 2>/dev/null; then LOCKDIR=$operation_lock_path; printf '%s\n' "$$" >"$operation_lock_path/pid"
@@ -980,8 +1265,41 @@ parse_update_args() {
   case "$UPDATE_URL" in http://*|https://*) ;; *) die "--feed-base must be an HTTP or HTTPS address" 2 ;; esac
 }
 
+# An update has two halves. The first (any release from this one on) reads the signed manifest, checks and unpacks the new release, and holds the update lock. The rest (pulls, backup,
+# stop, switch, health check, roll back) is carried out by the NEW release's own script, so a fix to the updater applies to the update that delivers it: before, an update was always run
+# whole by the old release's script, and rc.24 died on an image pull that rc.25 had made optional. The trust is the same as before: it is the signed, verified release that runs after
+# the switch anyway. VYRE_UPDATE_CONTINUE=1 marks the second half: it never hands off again and never delegates, so nothing can loop. The second half runs as a child, not by exec: the
+# first half keeps the lock (the child checks that the lock names its parent) and, should the child stop without finishing, puts the old version back and starts it.
+# A new release whose script cannot carry out an update (none in the field yet; a script with no VYRE_UPDATE_CONTINUE) gets the old behaviour: this script does it all.
+update_delegate() {
+  new="$DIR/releases/$REL_VERSION/bin/vyre-server"
+  [ "${VYRE_UPDATE_CONTINUE:-0}" != 1 ] || return 1
+  [ -f "$new" ] && grep -q 'VYRE_UPDATE_CONTINUE' "$new" 2>/dev/null || return 1
+  # a signal to this half does nothing until the child (which has its own traps and puts the old release back itself) has ended; then only the child's exit code decides,
+  # so this half can never undo what the child finished
+  trap ':' INT TERM HUP
+  # VYRE_SOURCE_ONLY=0: a first half that was itself sourced (a test, a proof script) must not make the child load its functions and quietly do nothing
+  VYRE_SOURCE_ONLY=0 VYRE_UPDATE_CONTINUE=1 VYRE_UPDATE_FROM=$from VYRE_UPDATE_TO=$REL_VERSION VYRE_UPDATE_STARTED=$started VYRE_UPDATE_LOCK_PID=$$ VYRE_HANDOFF=1 VYRE_DIR=$DIR \
+    sh "$new" update "$@" && urc=0 || urc=$?
+  trap - INT TERM HUP
+  # a child that says it finished must have switched: anything else is a second half that did not run
+  if [ "$urc" = 0 ] && [ "$(cur_version)" != "$REL_VERSION" ]; then printf 'vyre-server: the new release'"'"'s updater ended without installing %s.\n' "$REL_VERSION" >&2; urc=1; fi
+  case "$urc" in
+    0|4|5) ;;
+    *)
+      # the second half stopped before it finished: the old version back (an update cut off mid-switch left update.pending), and the server started
+      if [ -f "$(PENDING_FILE)" ]; then recover_pending; else dc up -d --remove-orphans >/dev/null 2>&1 || true; resume_strays; fi
+      if [ "$(cur_version)" = "$from" ] && [ -f "$DIR/state/update.started" ]; then printf 'vyre-server: the new release'"'"'s updater stopped before it finished (exit %s); the server was started again on %s.\n' "$urc" "$from" >&2; fi ;;
+  esac
+  rm -f "$DIR/state/update.started"
+  exit "$urc"
+}
+
 cmd_update() {
+  if [ "${VYRE_UPDATE_CONTINUE:-0}" = 1 ]; then update_continue "$@"; return; fi
   parse_update_args "$@"
+  # the daily check runs this even when there is nothing to update: a firewall reload that emptied Docker's DOCKER-USER chain is repaired within a day
+  ensure_metadata_block
   TMP=$(mktemp -d "${TMPDIR:-/tmp}/vyre-update.XXXXXX")
   lock_update_operation
   started=$(date +%s)
@@ -989,11 +1307,31 @@ cmd_update() {
   fetch_release
   c=$(ver_cmp "$REL_VERSION" "$from") || die "the running version ($from) or the offered one ($REL_VERSION) is not a version."
   if [ "$c" -le 0 ]; then say "Vyre Server $from is the newest on the $CHANNEL channel."; return 0; fi
+  # a version that already failed here is not tried again, night after night (each try would take a new pre-update backup holding what the failed version wrote, and push out the one
+  # from before it); --version naming it tries it once more on purpose
+  if [ "$WANT" != "$REL_VERSION" ] && failed_here "$REL_VERSION" >/dev/null; then say "$(update_skipped_line "$REL_VERSION")"; return 0; fi
   say "Vyre Server $REL_VERSION is available (running $from)."
   [ "$check_only" = 0 ] || return 10
   if [ "$DRY" = 1 ]; then say "Would install $REL_VERSION from the $CHANNEL channel; no images, backups or running services were changed."; return 0; fi
   unpack_release
   [ -n "$(sed -n 's/^VYRE_IMAGE=//p' "$DIR/releases/$REL_VERSION/images.lock")" ] || die "the release names no server image; nothing was changed."
+  update_delegate "$@" || true
+  update_apply
+}
+
+# update_continue ARGS...: the second half, in the new release's script. What the first half learned comes in the environment; the flags are parsed again from the same arguments.
+update_continue() {
+  parse_update_args "$@"
+  lp=$(cat "$DIR/state/update.lock/pid" 2>/dev/null || true)
+  [ -n "$lp" ] && [ "$lp" = "${VYRE_UPDATE_LOCK_PID:-}" ] && kill -0 "$lp" 2>/dev/null || die "this is the second half of an update, but the update lock is not held by the first half that started it; nothing was changed."
+  printf '%s\n' "$$" >"$DIR/state/update.lock/child"
+  from=${VYRE_UPDATE_FROM:-}; REL_VERSION=${VYRE_UPDATE_TO:-}; started=${VYRE_UPDATE_STARTED:-$(date +%s)}
+  [ -n "$from" ] && [ -f "$DIR/releases/$REL_VERSION/.complete" ] || die "the second half of the update was not told which release to install; nothing was changed."
+  update_apply
+}
+
+# update_apply: pulls, backup, stop, switch, health check, roll back. Run by the new release's script (update_continue) or, for a new release that cannot, by the old one.
+update_apply() {
   for k in VYRE_IMAGE VYRE_AGENT_IMAGE VYRE_BROWSER_IMAGE VYRE_WORKSPACE_IMAGE VYRE_SANDBOX_IMAGE; do
     ref=$(sed -n "s/^$k=//p" "$DIR/releases/$REL_VERSION/images.lock" | head -n 1)
     [ -n "$ref" ] || continue
@@ -1017,12 +1355,15 @@ cmd_update() {
     dc stop >/dev/null || true
     stop_strays
   fi
+  # past the backup: from here on the server has been stopped by this update (the first half says so if this half stops early)
+  : >"$DIR/state/update.started" 2>/dev/null || true
   prev_link=$(readlink "$DIR/current")
   [ -n "$prev_link" ] || { dc up -d --remove-orphans >/dev/null 2>&1 || true; die "the install has no current release to go back to; nothing was changed."; }
   printf '%s\n' "$prev_link" >"$DIR/state/update.pending"
   printf '%s\n' "$prev_link" >"$DIR/previous"
   set_current "$REL_VERSION"
   ln -sfn "$DIR/vyre.env" "$DIR/releases/$REL_VERSION/vyre.env"
+  ensure_metadata_block
   refresh_bin
   ensure_userns
   reason=""
@@ -1032,27 +1373,62 @@ cmd_update() {
   fi
   secs=$(( $(date +%s) - started ))
   resume_strays
+  rm -f "$DIR/state/update.started"
   if [ -z "$reason" ]; then
     # Only a healthy install changes the daily updater's selected feed.
     printf '%s\n' "$CHANNEL" >"$DIR/channel"
     printf '%s\n' "$UPDATE_URL" >"$DIR/update-url"
     rm -f "$DIR/state/update.pending"
     record_update "$from" "$REL_VERSION" ok "$secs" ""
-    prune_releases
+    rm -f "$DIR/state/keep-backup"
+    prune_releases || true
     prune_images || true
     say "Updated to $REL_VERSION in $secs s."
     return 0
   fi
-  # Roll back: the previous release's code and image. Data written by the new version stays; the backup is kept.
+  # Roll back: the previous release's code and image. Data written by the new version stays; the backup is kept. What the new version said last is kept first, so the reason is never lost.
+  said=$(server_said "$DIR/state/update-$REL_VERSION-failed.log")
   say "  $reason; going back to $from."
+  [ -z "$said" ] || say "  The new version said: $said"
   set_current "${prev_link#releases/}"
   sync_image || true
   rm -f "$DIR/state/update.pending"
   refresh_bin
   up_stack || true
+  # the backup from before this failed update is the one a person needs after a bad night: kept until an update succeeds (the first one since the last success)
+  [ -s "$DIR/state/keep-backup" ] || printf '%s\n' "$BACKUP_FILE" >"$DIR/state/keep-backup"
   if wait_healthy; then record_update "$from" "$REL_VERSION" rolled_back "$secs" "$reason"; die "the update to $REL_VERSION failed ($reason) and the server is back on $from. Backup: $BACKUP_FILE" 4; fi
   record_update "$from" "$REL_VERSION" failed "$secs" "$reason"
-  die "the update to $REL_VERSION failed ($reason) and the server did not come back healthy on $from either. Read: vyre-server logs. Backup: $BACKUP_FILE" 5
+  said_old=$(server_said "$DIR/state/update-$REL_VERSION-rollback.log")
+  printf 'vyre-server: the update to %s failed (%s) and the server did not come back healthy on %s either.\n' "$REL_VERSION" "$reason" "$from" >&2
+  [ -z "$said_old" ] || printf '  The server says: %s\n' "$said_old" >&2
+  bad=$(damaged_db_in "$DIR/state/update-$REL_VERSION-rollback.log" "$DIR/state/update-$REL_VERSION-failed.log")
+  [ -z "$bad" ] || printf '  The database %s is damaged (the server does not repair it).\n' "$DATA_DIR/space/$bad" >&2
+  printf '  To put back the data from just before this update, run:\n    vyre-server restore %s --yes\n' "$BACKUP_FILE" >&2
+  if [ "$STOPPED_BACKUP" = 1 ]; then printf '  That backup was taken with the server stopped, so nothing written before the update is lost. The data now in place is kept beside it.\n' >&2
+  else printf '  It loses what the Space wrote after that backup, which was taken moments before the server stopped for the switch. The data now in place is kept beside it.\n' >&2; fi
+  printf '  The server'"'"'s last log lines are in %s.\n' "$DIR/state/update-$REL_VERSION-rollback.log" >&2
+  exit 5
+}
+
+# server_said FILE: keeps vyred's last log lines in FILE and prints the one line that says why it stopped (the last line naming an error, else the last line), without the compose prefix.
+server_said() {
+  # vyred prints the one-time claim link at start: no line of it, and nothing shaped like a code or token, is kept or printed; the file is the owner's alone
+  ( umask 077; dc logs --no-color --tail 80 vyred 2>&1 | scrub_secrets >"$1" ) || true
+  chmod 0600 "$1" 2>/dev/null || true
+  sed 's/^[^|]*| //' "$1" | awk 'NF { last = $0 } /[Ee]rror|malformed|damaged|cannot|could not|did not|failed|vyred: / { hit = $0 } END { if (hit != "") print hit; else print last }' | cut -c1-400
+}
+# scrub_secrets: stdin to stdout without claim links, one-time codes, bearer tokens or long key-like strings.
+scrub_secrets() {
+  sed -E -e '/Claim this Space|\/claim\/clm_/d' \
+    -e 's/(clm|vas|vat|tok|sk|key|sec)_[A-Za-z0-9_-]{8,}/[removed]/g' \
+    -e 's/VYRE-[A-Z2-9]{4}-[A-Z2-9]{4}/[removed]/g' \
+    -e 's/([Bb]earer|[Tt]oken|[Pp]assword|[Ss]ecret)([=: ]+)[^ ,;"]+/\1\2[removed]/g' \
+    -e 's/[A-Za-z0-9+_=-]{32,}/[removed]/g'
+}
+# damaged_db_in FILE...: the database a log names as damaged (vyred says "vyred: space/<name>.db is damaged"), or nothing.
+damaged_db_in() {
+  cat "$@" 2>/dev/null | sed -n 's/.*vyred: \([^ ]*\.db\) is damaged.*/\1/p' | tail -n 1
 }
 
 cmd_rollback() {
@@ -1066,6 +1442,7 @@ cmd_rollback() {
   printf 'releases/%s\n' "$from" >"$DIR/previous"
   set_current "$prev"
   sync_image || die "the image of $prev could not be set; read $DIR/releases/$prev/images.lock."
+  ensure_metadata_block
   refresh_bin
   ensure_userns
   up_stack || die "the server did not start on $prev. Read: vyre-server logs."

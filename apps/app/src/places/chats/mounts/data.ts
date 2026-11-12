@@ -3,6 +3,7 @@
 // nav is `Go`: the place's own doors, so a click on a face or a helper or the Computer chip changes what the place shows instead of asking the shell to open somewhere else.
 // Nothing here touches the network.
 import { computersAvailableNow, requestAddServer } from "../../../shell/computers-available.ts";
+import { GATE, allows } from "../../../shell/session/gates.ts";
 import { createElement } from "react";
 import { FolderShareSheet } from "../../../shell/providers/files-share.tsx";
 import type { QueryState } from "../../../../../../client/src/index.ts";
@@ -33,7 +34,7 @@ import type { HelperChatData } from "../helper/data.tsx";
 import type { NeedsYouData } from "../needsyou/data.tsx";
 import type { PaneAgent } from "../rightpane/data.tsx";
 import type { TerminalData } from "../terminal/data.ts";
-import { machinesTarget } from "../../../console/shell/route.ts";   // the one way into Console > Computers with a machine selected (l-consolidate)
+import { computersTarget, machinesTarget } from "../../../console/shell/route.ts";   // the one way into Console > Computers with a machine selected (l-consolidate)
 
 type RecentOut = CapMap["chat.recent"]["out"];
 type ThreadOut = CapMap["threads.get"]["out"];
@@ -41,13 +42,6 @@ type ComputersOut = CapMap["computers.list"]["out"];
 
 /** The button beside a line the place shows. */
 export interface LineAction { label: string; run(): void }
-
-export const COMPUTER_UNREACHED = "Could not reach the computer. Try again.";
-
-/** What to say when an agent's computer cannot be opened: no failure means the list has no computer for it; anything else is the connection. */
-export function computerLine(failure: unknown, name: string): string {
-  return failure === null ? `${name} has no computer yet.` : COMPUTER_UNREACHED;
-}
 
 let keySeq = 0;
 /** A fresh idempotency key for one write. */
@@ -131,7 +125,10 @@ export function agentPageData(rt: ShellRuntime, go: Go, o: { agent: PaneAgent; c
       openChat: (id) => go.chat(id),
       openFolder: (folderId) => rt.open({ subject: { type: "folder", id: folderId } }),
       openAgentFile: (agentId, file) => rt.open({ subject: { type: "agent", id: agentId }, args: { file } }),
-      openAddServer: () => { requestAddServer(); rt.open({ screen: "settings.page", args: { page: "computer" } }); },
+      // a server runs work for the whole Space: only those who may add one (owners and admins; anyone in a Personal Space) are offered it, the Space menu's rule (review F4)
+      ...(allows(rt, GATE.provisionComputer) ? { openAddServer: () => { requestAddServer(); rt.open({ screen: "settings.page", args: { page: "computer" } }); } } : {}),
+      // the agent page's Computer tab sends an owner to Console > Computers the way the chat pane does (owner walk, 12 Nov)
+      openMachines: (nodeId?: string) => rt.open(machinesTarget(nodeId)),
       openAutomationRuns: (agentId) => rt.open({ screen: "runs.history", subject: { type: "agent", id: agentId } }),
       openTask: (taskId) => rt.open({ subject: { type: "task", id: taskId } }),
       closePage: () => go.chat(""),
@@ -364,6 +361,7 @@ export function wirePane(rt: ShellRuntime, go: Go, threadId: string, agent: Pane
       ...base.nav, openThread: (id: string) => go.thread(id), openHelper: (id: string) => go.thread(id), openComputer: (id: string) => go.computer(id),
       openTerminal: (id: string) => go.terminalOfComputer(id), openAgentPage: (id: string) => go.agent(id),
       openMachines: (nodeId?: string) => rt.open(machinesTarget(nodeId)),
+      openComputerInConsole: (computerId: string) => rt.open(computersTarget(computerId)),
     },
   };
 }

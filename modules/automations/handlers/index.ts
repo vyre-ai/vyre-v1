@@ -1,7 +1,7 @@
 // One handler per automations capability. Definitions, versions, Groups, alerts, followers, webhook and Promote live in defs.ts; Runs and triggers in triggers.ts. An OpenAPI draft lives in draft-connector.ts.
 import {
   alertsGet, alertsSet, create, followersAdd, followersRemove, get, groupsCreate, groupsDelete, groupsList, groupsRename, list, makePersonalCopy, move, previewPromote, promote, remove,
-  restoreVersion, senders, setEnabled, setOwner, stepsList, triggersList, undelete, update, validate, versions, webhookGet, webhookRotate,
+  restoreVersion, senders, setEnabled, setOwner, stepsList, triggersList, undelete, update, validate, versions, webhookGet, webhookRotate, runsAsGet,
 } from "./defs.ts";
 import { accountPicks } from "./accounts.ts";
 import { draftConnector } from "./draft-connector.ts";
@@ -11,6 +11,7 @@ import { openDocument } from "./open-document.ts";
 import { openMcp } from "./open-mcp.ts";
 import { readDocs } from "./read-docs.ts";
 import { connectorCard } from "./connector-card.ts";
+import { keyHostsAllow, keyHostsList, keyHostsPending, keyHostsPendingBind, keyHostsRemove } from "./key-hosts.ts";
 import { vaultUsage } from "./vault-usage.ts";
 import { allLevels } from "../connector-level.ts";
 import type { LevelDb } from "../connector-level.ts";
@@ -52,6 +53,11 @@ export const handlers = {
   "automations.connector_offer.accept": acceptConnectorOffer,
   "automations.open_mcp": openMcp,
   "automations.try_read": tryConnectorRead,
+  "automations.key_hosts.list": keyHostsList,
+  "automations.key_hosts.allow": keyHostsAllow,
+  "automations.key_hosts.remove": keyHostsRemove,
+  "automations.key_hosts.pending": keyHostsPending,
+  "automations.key_hosts.pending_bind": keyHostsPendingBind,
   "automations.connector_share": shareConnector,
   "automations.connector_shares": connectorShares,
   "automations.fire": fire,
@@ -94,5 +100,6 @@ export const handlers = {
   "automations.validate": validate,
   "automations.versions": versions,
   "automations.webhook_url.get": webhookGet,
+  "automations.runs_as.get": runsAsGet,
   "automations.webhook_url.rotate": webhookRotate,
 };

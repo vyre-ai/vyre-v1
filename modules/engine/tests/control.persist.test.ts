@@ -1,6 +1,7 @@
 // The engine's rows survive the host (ARCH 6.1, 6.2): messages, the thread queue, the thread lease and parked tool calls live in SQL, so a second host that
 // takes a thread over with recover() has the message bodies, and a Gate answer reaches a turn that another host parked.
 import test from "node:test";
+import { DatabaseSync } from "node:sqlite";
 import assert from "node:assert/strict";
 import { sqlLeases, sqlMessages, sqlQueue, sqlWaits } from "../projections.ts";
 import { harness, openRaw } from "../fixtures/harness.ts";
@@ -162,4 +163,22 @@ test("the SQL waits and messages keep what the memory stores keep", () => {
   assert.deepEqual(messages.recent(THREAD, 10).map((m) => m.id), ["msg_1", "msg_2"]);
   assert.deepEqual(messages.get("msg_2")?.author, { kind: "agent", id: "agt_docs" });
   assert.equal(messages.get("msg_9"), null);
+});
+
+test("a lease call on a database the host has closed does nothing and never throws: a turn still ending as the daemon stops cannot raise into nowhere (rc.26 tag blocker)", () => {
+  // a real sqlite database, closed the way the daemon closes modules.db on stop: its calls then throw "database is not open"
+  const lite = new DatabaseSync(":memory:");
+  const raw = { all: (q: string, ...a: unknown[]) => lite.prepare(q).all(...(a as never[])) as never, run: (q: string, ...a: unknown[]) => ({ changes: Number(lite.prepare(q).run(...(a as never[])).changes) }) };
+  const sql = sqlLeases(scopedDb("engine", raw as never, "t".repeat(32)));
+  assert.ok(sql.acquire(THREAD, "host:a", 1000));
+  sql.setTurn(THREAD, "host:a", "trn_one");
+  lite.close();
+  assert.throws(() => raw.run("SELECT 1"), /database is not open/, "the database is closed");
+  assert.doesNotThrow(() => {
+    assert.equal(sql.renew(THREAD, "host:a", 2000), false, "renew on a closed database: not ours any more");
+    sql.setTurn(THREAD, "host:a", null);
+    assert.equal(sql.release(THREAD, "host:a"), false);
+    assert.equal(sql.acquire(THREAD, "host:a", 3000), null, "nothing to acquire: the worker stops");
+    assert.equal(sql.get(THREAD, 3000), null);
+  });
 });

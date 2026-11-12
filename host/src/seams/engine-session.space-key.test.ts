@@ -9,11 +9,14 @@ import type { Invoke } from "../invoke.ts";
 const VALUE = "ocg-space-FAKEkey-0123456789abcdefGHIJ"; // secret-scan: fake
 const HANDLE = "#OpenCode_Go_for_everyone";
 
-function rig(spaceKey = true) {
+function rig(spaceKey = true, gone = false) {
   const asked: Array<{ cap: string; principal: string; actingFor?: string }> = [];
   const invoke: Invoke = async (cap, input, seed) => {
     asked.push({ cap, principal: `${seed.principal.kind}:${seed.principal.id}`, ...(seed.actingFor ? { actingFor: seed.actingFor } : {}) });
-    if (cap === "vault.use") throw fail("permission.no_grant", "0".repeat(32), { message: "That needs use access to the item." });
+    // gone: the Vault has nothing under the name this person may use (a missing item and one hidden from them answer alike, invoke.ts)
+    if (cap === "vault.use") throw gone
+      ? fail("permission.not_found", "0".repeat(32), { message: "There is no Vault item by that name that you can use. Check the name, or ask for the key.", details: { reason: "no_such_item" } })
+      : fail("permission.no_grant", "0".repeat(32), { message: "That needs use access to the item." });
     if (cap === "providers.space_key.use") {
       if (!spaceKey || (input as { handle: string }).handle !== HANDLE) throw fail("validation.not_found", "0".repeat(32), { message: "That is not the Space AI key." });
       return { status: "ok", output: { handle: HANDLE, itemId: "vit_space" } } as never;
@@ -54,4 +57,26 @@ test("an account that is not the Space AI key stays refused for someone without 
   const got = await host.source.lookup("#Robs_Own_Key", { agentId: "agt_helper", asker: "usr_mia", where: "host", account: true });
   assert.deepEqual(got, { kind: "denied", reason: "no_access" });
   assert.deepEqual(reads, []);
+});
+
+test("a member's turn on the Space AI key, which reads to them as no such item, runs on the key through providers.space_key.use", async () => {
+  const { host, asked, reads } = rig(true, true);
+  const got = await host.source.lookup(HANDLE, { agentId: "agt_helper", asker: "usr_mia", where: "host", account: true });
+  assert.deepEqual(got, { kind: "value", itemId: "vit_space", value: VALUE, spaceOnly: false, injectIntoDeployments: false });
+  assert.deepEqual(asked.map((a) => a.cap), ["vault.use", "providers.space_key.use"]);
+  assert.deepEqual(reads, [{ handle: HANDLE }]);
+});
+
+test("who pays does not widen: an own sign-in that is gone, where the Space key does not answer for it, still says sign in again", async () => {
+  // the Space allows no key for this turn (no Space AI key set, a Personal Space, or a handle that is not the key): providers.space_key.use refuses and the person signs in again
+  for (const handle of [HANDLE, "#Mias_Claude"]) {
+    const { host, asked, reads } = rig(false, true);
+    await assert.rejects(host.source.lookup(handle, { agentId: "agt_helper", asker: "usr_mia", where: "host", account: true }), (e) => (e as { code?: string }).code === "engine.signin_missing", handle);
+    assert.deepEqual(asked.map((a) => a.cap), ["vault.use", "providers.space_key.use"]);
+    assert.deepEqual(reads, [], "nothing is read");
+  }
+  // a tool call with a gone name is never an account: no Space key try, no sign-in line
+  const { host, asked } = rig(true, true);
+  assert.deepEqual(await host.source.lookup(HANDLE, { agentId: "agt_helper", asker: "usr_mia", where: "host" }), { kind: "unknown" });
+  assert.deepEqual(asked.map((a) => a.cap), ["vault.use"]);
 });

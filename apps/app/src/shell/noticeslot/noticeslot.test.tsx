@@ -102,3 +102,14 @@ test("the phone has one slim row with the bell only while something needs the pe
   s.tick();
   assert.equal(renderToStaticMarkup(<PhoneNotices store={s} />), "", "and the row goes when it has passed");
 });
+
+test("on a phone the bar says the connection in a word while that notice is the top one, and shows only the dot for other notices", () => {
+  const s = createNoticeStore();
+  s.raise({ id: "offline", kind: "offline", text: "Reconnecting…, 2 changes waiting" });
+  const phone = renderToStaticMarkup(<NoticeSlot store={s} compact />).replaceAll("<!-- -->", "");
+  assert.match(phone, /data-testid="notice-word"[^>]*>Reconnecting…</, "a short word, not only a dot");
+  assert.doesNotMatch(phone, /data-testid="notice-dot"/);
+  const other = createNoticeStore();
+  other.raise({ id: "update", kind: "update", text: "Update available" });
+  assert.doesNotMatch(renderToStaticMarkup(<NoticeSlot store={other} compact />), /notice-word/);
+});

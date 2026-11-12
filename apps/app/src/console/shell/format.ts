@@ -15,6 +15,19 @@ export function ago(now: number, at: number): string {
   return new Date(at).toISOString().slice(0, 10);
 }
 
+const SHORT_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"] as const;
+
+/** How long something has been so, after its sentence: "" when it just started (never "since now"), " for 5 min", " for 3 h", " for 2 d", else " since 1 Oct 2026", the way dates read elsewhere in the app (owner walk, 12 Nov; review O6). */
+export function forHowLong(now: number, at: number): string {
+  const d = Math.max(0, now - at);
+  if (d < MIN) return "";
+  if (d < HOUR) return ` for ${Math.floor(d / MIN)} min`;
+  if (d < DAY) return ` for ${Math.floor(d / HOUR)} h`;
+  if (d < 14 * DAY) return ` for ${Math.floor(d / DAY)} d`;
+  const day = new Date(at);
+  return ` since ${day.getUTCDate()} ${SHORT_MONTHS[day.getUTCMonth()]} ${day.getUTCFullYear()}`;
+}
+
 /** Micros of a dollar to "$1,234" (whole dollars; the Console is a dense table, not a bill). */
 export function money(micros: number): string {
   return "$" + Math.round(micros / 1_000_000).toLocaleString("en-US");

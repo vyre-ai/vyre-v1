@@ -112,7 +112,13 @@ test("Team: the owner sets a Space AI key; members with no account each get a re
       const models = (await api(who, "engine.models.list", { accountRef: handle })).data.models as Array<{ model: string; allowed: boolean }>;
       assert.deepEqual(models.map((m) => [m.model, m.allowed]), [["glm-test", true], ["kimi-test", true]]);
       const use = await api(who, "vault.use", { item: handle });
-      assert.ok([403, 404].includes(use.status), `${who} cannot use the key by name: ${use.status} ${JSON.stringify(use.data)}`);
+      // hidden reads exactly as missing: 404 permission.not_found, reason no_such_item, the same words with the name swapped
+      const shape = (r: { status: number; data: any }, name: string): string => JSON.stringify({ status: r.status, code: r.data?.error?.code, reason: r.data?.error?.details?.reason, message: String(r.data?.error?.message ?? "").replaceAll(name, "<name>") });   // eslint-disable-line @typescript-eslint/no-explicit-any
+      assert.equal(use.status, 404, `${who} cannot use the key by name: ${use.status} ${JSON.stringify(use.data)}`);
+      assert.equal(use.data?.error?.code, "permission.not_found", JSON.stringify(use.data));
+      assert.equal(use.data?.error?.details?.reason, "no_such_item", JSON.stringify(use.data));
+      const none = await api(who, "vault.use", { item: "#No_Such_Key_Anywhere" });
+      assert.equal(shape(use, handle), shape(none, "#No_Such_Key_Anywhere"), `${who}: the Space AI key by name answers exactly as a name that holds nothing`);
       const listed = (await api(who, "vault.items.list", {})).data.items as Array<{ handle: string }>;
       assert.ok(!listed.some((i) => i.handle === handle), `${who} does not see the item`);
 

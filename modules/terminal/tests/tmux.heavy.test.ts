@@ -235,6 +235,40 @@ test("tmux: a Vault value filled into a command is removed from the result, the 
   } finally { reset(); }
 });
 
+test("real tmux: a tab's live read keeps every line, in order, once, while tmux drops old history between reads (12 Nov, audit item 14)", { skip }, async () => {
+  await open("trm_heavy_hist");
+  const s = "vyre-trm_heavy_hist";
+  // a small history, so tmux drops a tenth of it many times between two reads: the window is made again under the limit
+  assert.equal((await runTmux(["set-option", "-t", s, "history-limit", "200"])).code, 0);
+  assert.equal((await runTmux(["new-window", "-t", s])).code, 0);
+  assert.equal((await runTmux(["kill-window", "-t", `${s}:0`])).code, 0);
+  let cursor = (await host.read("trm_heavy_hist", { lines: 1 })).next;
+  const seen: number[] = [];
+  let to = 0;
+  for (let round = 0; round < 30; round++) {
+    const from = to + 1;
+    to += 150;
+    const r = await host.run("trm_heavy_hist", { command: `seq ${from} ${to}`, env: {}, timeoutMs: 20_000 });
+    assert.equal(r.exitCode, 0);
+    const got = await host.read("trm_heavy_hist", { lines: 1, since: cursor });
+    // the last line of an answer is the cursor's (the prompt), sent again next time; the rest are finished
+    seen.push(...got.text.split("\n").slice(0, -1).filter((l) => /^\d+$/.test(l)).map(Number));
+    cursor = got.next;
+  }
+  assert.equal(seen.length, to, `every line once (${seen.length} of ${to})`);
+  assert.deepEqual(seen, Array.from({ length: to }, (_, i) => i + 1), "in order");
+  await host.close("trm_heavy_hist");
+});
+
+test("real tmux: a ';' typed on its own key, or at the end of a chunk, reaches the shell (12 Nov: tmux took it for the end of a command and dropped it)", { skip }, async () => {
+  await open("trm_heavy_semi");
+  for (const ch of "echo one; echo two") await host.input("trm_heavy_semi", ch);
+  await host.input("trm_heavy_semi", "\r");
+  await until("both commands ran", async () => /^two$/m.test((await host.read("trm_heavy_semi", { lines: 20 })).text));
+  assert.match((await host.read("trm_heavy_semi", { lines: 20 })).text, /^one$/m);
+  await host.close("trm_heavy_semi");
+});
+
 test("tmux (W6): a person's value used through a team agent is never typed, never in history, and another person asking the same agent for history, env, the first tab's scrollback or the shell's /proc gets nothing", { skip }, async () => {
   const SECRET = `sk-live-${Math.random().toString(36).slice(2)}${Math.random().toString(36).slice(2)}`;
   // a value that would run as shell if it were pasted into the line
@@ -418,4 +452,132 @@ test("tmux (review 3a): shellAtPrompt is true only when the tab's shell owns its
     await settle();
   }
   assert.equal(await atPrompt(), true, "and true again at the prompt");
+});
+
+test("real tmux (review 3): a run waits while a person's own program reads the tab, never types into it, and runs once the shell has its prompt back", { skip }, async () => {
+  await open("trm_heavy_busy");
+  const s = "vyre-trm_heavy_busy";
+  await host.input("trm_heavy_busy", "cat\r");
+  await until("cat to own the tab", async () => !(await shellAtPrompt(exec, s)));
+  await assert.rejects(() => host.run("trm_heavy_busy", { command: "echo should-not-reach-cat", env: {}, timeoutMs: 1500 }), /still running something \(cat\)/);
+  await host.interrupt("trm_heavy_busy");
+  const screen = (await runTmux(["capture-pane", "-p", "-J", "-t", s, "-S", "-"])).stdout;
+  assert.equal(screen.includes("should-not-reach-cat"), false, "cat never got the line");
+  await host.input("trm_heavy_busy", "sleep 2\r");
+  await until("sleep to own the tab", async () => !(await shellAtPrompt(exec, s)));
+  const r = await host.run("trm_heavy_busy", { command: "echo after-sleep", env: {}, timeoutMs: 10_000 });
+  assert.deepEqual([r.exitCode, r.output], [0, "after-sleep"], "it waited for the prompt, then ran");
+  await host.close("trm_heavy_busy");
+});
+
+test("real tmux (review 7): while vim is open and after it exits, the live read sends no line of the screen before it again", { skip }, async () => {
+  await open("trm_heavy_up");
+  const r = await host.run("trm_heavy_up", { command: "seq 1 40", env: {}, timeoutMs: 10_000 });
+  assert.equal(r.exitCode, 0);
+  let cursor = (await host.read("trm_heavy_up", { lines: 1 })).next;
+  const seen: string[] = [];
+  const poll = async (): Promise<void> => { const x = await host.read("trm_heavy_up", { lines: 1, since: cursor }); seen.push(...x.text.split("\n")); cursor = x.next; };
+  await host.input("trm_heavy_up", "vim -u NONE -N\r");
+  await until("vim to own the tab", async () => !(await shellAtPrompt(exec, "vyre-trm_heavy_up")));
+  for (let i = 0; i < 3; i++) { await poll(); await sleep(200); }
+  await runTmux(["send-keys", "-t", "vyre-trm_heavy_up", "Escape"]); await runTmux(["send-keys", "-t", "vyre-trm_heavy_up", "-l", ":q!"]); await runTmux(["send-keys", "-t", "vyre-trm_heavy_up", "Enter"]);
+  await until("the prompt to come back", async () => shellAtPrompt(exec, "vyre-trm_heavy_up"));
+  await host.input("trm_heavy_up", "seq 101 103\r");
+  await until("the new lines in the live read", async () => { await poll(); return seen.includes("103"); });
+  const old = seen.filter((l) => /^\d+$/.test(l.trim()) && Number(l) <= 40);
+  assert.deepEqual(old, [], `no line of the screen before vim was sent again: ${JSON.stringify(seen.slice(-30))}`);
+  await host.close("trm_heavy_up");
+});
+
+test("real tmux (12 Nov): a run ends at once with its exit code after it moved the cursor up, cleared the screen or drew a progress bar with carriage returns", { skip }, async () => {
+  await open("trm_heavy_draw", { rows: 12 });
+  const cases: Array<[string, string, number, RegExp]> = [
+    // rows longer than the end marker: the marker written over one keeps the old row's tail, so the marker line never reads clean
+    ["the cursor moved up over earlier, longer rows", "for i in $(seq 1 30); do echo \"row $i $(printf 'x%.0s' $(seq 1 70))\"; done; printf '\\033[8A'; exit_with() { return $1; }; exit_with 4", 4, /row 1 x/],
+    ["the screen cleared", "seq 1 30; clear; echo after-clear", 0, /after-clear/],
+    ["a progress bar", "for i in 10 20 30 40 50 60 70 80 90 100; do printf '\\r%3d%% %s' $i 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'; sleep 0.05; done; printf '\\r'", 0, /100%/],
+  ];
+  for (const [what, command, code, shows] of cases) {
+    const r = await host.run("trm_heavy_draw", { command, env: {}, timeoutMs: 20_000 });
+    assert.equal(r.exitCode, code, what);
+    assert.ok(r.durationMs < 6000, `${what}: ended in ${r.durationMs} ms, not at the limit`);
+    assert.match(r.output, shows, `${what}: ${JSON.stringify(r.output.slice(-200))}`);
+  }
+  assert.equal((await runTmux(["show-options", "-t", "vyre-trm_heavy_draw"])).stdout.includes("@vyre_rc_"), false, "no stored code is left on the session");
+  await host.close("trm_heavy_draw");
+});
+
+test("real tmux (lead, 12 Nov): a run with a value that moves the cursor up, clears the screen or draws a progress bar ends at once with its code, and its values buffer is gone at its true end", { skip }, async () => {
+  await open("trm_heavy_vals", { rows: 12 });
+  const cases: Array<[string, string, number]> = [
+    ["tput cuu over longer rows", "for i in $(seq 1 30); do echo \"row $i $(printf 'x%.0s' $(seq 1 70))\"; done; tput cuu 8 2>/dev/null || printf '\\033[8A'; test -n \"$K\" && exit_with() { return $1; } && exit_with 3", 3],
+    ["clear", "seq 1 30; clear; test -n \"$K\"", 0],
+    ["a progress bar", "for i in 10 50 100; do printf '\\r%3d%% %s' $i 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'; sleep 0.05; done; printf '\\r'; test -n \"$K\"", 0],
+  ];
+  for (const [what, command, code] of cases) {
+    const t0 = Date.now();
+    const r = await host.run("trm_heavy_vals", { command, env: { K: "the-value" }, timeoutMs: 20_000 });
+    assert.equal(r.exitCode, code, what);
+    assert.ok(Date.now() - t0 < 6000, `${what}: ended in ${Date.now() - t0} ms, not at the 20 s limit`);
+    const buffers = (await runTmux(["list-buffers", "-F", "#{buffer_name}"])).stdout.split("\n").filter((b) => b.startsWith("vyre-"));
+    assert.deepEqual(buffers, [], `${what}: the values buffer is gone when the run returns`);
+  }
+  await host.close("trm_heavy_vals");
+});
+
+test("tmux (third look F2): shellAtPrompt says no for a program a shell exec'd into, and for a construct a person left open at the prompt", { skip }, async () => {
+  const atPrompt = (s: string): Promise<boolean> => shellAtPrompt(exec, s);
+  const settle = (): Promise<void> => sleep(400);
+  // exec replaces the shell under the same pid and process group: the terminal's owner is still that pid
+  await open("trm_hv9");
+  await host.input("trm_hv9", "exec python3 -q\r"); await settle();
+  assert.equal(await atPrompt("vyre-trm_hv9"), false, "exec python3");
+  await host.close("trm_hv9");
+  // a person typed the start of something and left it: the shell waits for the rest on a continuation line
+  const left: Array<[string, string]> = [["an open (", "(echo a\r"], ["an open quote", "echo 'abc\r"], ["a here-document", "cat <<EOF\r"]];
+  for (const [i, [what, line]] of left.entries()) {
+    const id = `trm_hva${i}`;
+    await open(id);
+    await settle();
+    assert.equal(await atPrompt(`vyre-${id}`), true, `${what}: at the prompt before`);
+    await host.input(id, line); await settle();
+    assert.equal(await atPrompt(`vyre-${id}`), false, what);
+    await host.close(id);
+  }
+});
+
+test("real tmux (release gate, 12 Nov): a command whose turn was stopped is interrupted at once, and the next command runs in a usable shell right away", { skip }, async () => {
+  await open("trm_heavy_stop");
+  const ac = new AbortController();
+  const t0 = Date.now();
+  const long = host.run("trm_heavy_stop", { command: "sleep 120", env: {}, timeoutMs: 150_000, signal: ac.signal });
+  await sleep(1500);
+  ac.abort();
+  const r = await long;
+  assert.equal(r.exitCode, 130, "interrupted");
+  assert.ok(Date.now() - t0 < 8000, `the stopped run answered in ${Date.now() - t0} ms, not after the sleep`);
+  assert.match(r.output, /Interrupted: the turn that started this command was stopped/);
+  const t1 = Date.now();
+  const next = await host.run("trm_heavy_stop", { command: "echo next-ok", env: {}, timeoutMs: 20_000 });
+  assert.deepEqual([next.exitCode, next.output], [0, "next-ok"]);
+  assert.ok(Date.now() - t1 < 4000, `the next command ran at once (${Date.now() - t1} ms)`);
+  // one that ignores Ctrl-C is killed after the grace
+  const stubborn = new AbortController();
+  const t2 = Date.now();
+  const trap = host.run("trm_heavy_stop", { command: "sh -c 'trap \"\" INT; sleep 120'", env: {}, timeoutMs: 150_000, signal: stubborn.signal });
+  await sleep(1500);
+  stubborn.abort();
+  assert.equal((await trap).exitCode, 130);
+  assert.ok(Date.now() - t2 < 12_000, `a command that ignores Ctrl-C is ended within the grace (${Date.now() - t2} ms)`);
+  assert.deepEqual((await host.run("trm_heavy_stop", { command: "echo after-trap", env: {}, timeoutMs: 20_000 })).output, "after-trap");
+  // a background job the agent started earlier in the turn is left running when a later command of that turn is stopped
+  await host.run("trm_heavy_stop", { command: "sleep 300 & echo $! > /tmp/vyre-bg.pid", env: {}, timeoutMs: 20_000 });
+  const later = new AbortController();
+  const fg = host.run("trm_heavy_stop", { command: "sleep 120", env: {}, timeoutMs: 150_000, signal: later.signal });
+  await sleep(1500);
+  later.abort();
+  assert.equal((await fg).exitCode, 130);
+  assert.equal((await host.run("trm_heavy_stop", { command: "kill -0 $(cat /tmp/vyre-bg.pid) && echo alive", env: {}, timeoutMs: 20_000 })).output, "alive", "the background job is still running");
+  await host.run("trm_heavy_stop", { command: "kill $(cat /tmp/vyre-bg.pid)", env: {}, timeoutMs: 20_000 });
+  await host.close("trm_heavy_stop");
 });

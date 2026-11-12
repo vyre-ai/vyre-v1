@@ -10,6 +10,7 @@ import { handlers } from "../impl.ts";
 import { QUARTERLY } from "../handlers/review.ts";
 import { codeOf, NOW } from "../fixtures/requestdb.ts";
 import { can, grant, world } from "../fixtures/askworld.ts";
+import type { GrantRec } from "../projections.ts";
 
 interface RegCap { name: string; output: JsonSchema }
 const registry = JSON.parse(readFileSync(new URL("../../../generated/registry.json", import.meta.url), "utf8")) as { $defs: Record<string, JsonSchema>; capabilities: RegCap[] };
@@ -161,4 +162,52 @@ test("the list filters by state, newest first, and counts decisions", async () =
   assert.deepEqual((await handlers["access.reviews.list"](h.as("usr_admin"), { state: "open" })).reviews.map((r) => r.id), [b.review.id]);
   const first = await handlers["access.reviews.list"](h.as("usr_admin"), { limit: 1 });
   assert.deepEqual([first.total, first.next], [2, "1"]);
+});
+
+test("a review leaves out the grants the host keeps for an agent (its own folder, its owner's Manage there), matched exactly; a person's share on that folder is reviewed and can be removed", async () => {
+  const { h, store } = world();
+  const AGENT = "agt_0123456789abcdef0123456789abcdef";
+  const home = `gnt_${AGENT.slice(4)}home`, owner = `gnt_${AGENT.slice(4)}owner`;
+  store.principals.set(AGENT, { id: AGENT, kind: "agent", name: "Maya's Assistant", status: "active", owner: "usr_maya", createdAt: 1 } as never);
+  store.grants.set(home, { id: home, subject: { kind: "agent", id: AGENT }, resource: { type: "folder", id: "fld_1" }, level: "edit", conditions: {}, by: "usr_admin", createdAt: NOW - 1000 });
+  store.grants.set(owner, grant(owner, "usr_maya", { type: "folder", id: "fld_1" }, "manage"));
+  // a share a person made on the agent's folder is a share like any other
+  store.grants.set("gnt_byhand1", grant("gnt_byhand1", "usr_other", { type: "folder", id: "fld_1" }, "view"));
+  // an id that only looks like an owner grant: for no agent of this Space, or naming the agent for someone who is not its owner
+  store.grants.set("gnt_feedbeefowner", grant("gnt_feedbeefowner", "usr_maya", { type: "folder", id: "fld_2" }, "view"));
+  store.grants.set(`gnt_${AGENT.slice(4)}x`, grant(`gnt_${AGENT.slice(4)}x`, "usr_other", { type: "folder", id: "fld_2" }, "view"));
+  store.bump();
+  const { review } = await start(h, { scope: ["folder"] });
+  const ids = (itemRows(h) as Array<{ grant_id: string }>).map((r) => r.grant_id);
+  assert.equal(ids.includes(home), false, "the agent's hold on its own folder is not reviewed");
+  assert.equal(ids.includes(owner), false, "nor its owner's Manage there");
+  for (const id of ["gnt_byhand1", "gnt_feedbeefowner", `gnt_${AGENT.slice(4)}x`]) assert.equal(ids.includes(id), true, `${id} is a share and is reviewed`);
+  assert.equal(review.items, ids.length, "the review's count is its items");
+  // and the share by hand on the agent's folder is removed like any other
+  await handlers["access.reviews.decide"](h.as("usr_admin"), { reviewId: review.id, grantId: "gnt_byhand1", decision: "remove" } as never);
+  assert.equal(store.grants.has("gnt_byhand1"), false, "removed");
+  assert.equal(store.grants.has(home) && store.grants.has(owner), true, "the agent's own grants stay");
+});
+
+test("a review keeps an agent's Space reach (space, grown) and an Assistant's own (own) to decide; it leaves out home and owner, a second home's too", async () => {
+  const { h, store } = world();
+  const AGENT = "agt_0123456789abcdef0123456789abcdef";
+  const g = (id: string, subject: { kind: "agent" | "person"; id: string }, resource: { type: string; id: string }, level: GrantRec["level"]): GrantRec => ({ id, subject, resource, level, conditions: {}, by: "usr_admin", createdAt: NOW - 1000 });
+  store.principals.set(AGENT, { id: AGENT, kind: "agent", name: "Maya's Assistant", status: "active", owner: "usr_maya", createdAt: 1 } as never);
+  const base = AGENT.slice(4);
+  for (const x of [
+    g(`gnt_${base}space`, { kind: "agent", id: AGENT }, { type: "folder", id: "fld_1" }, "edit"),
+    g(`gnt_${base}grown`, { kind: "agent", id: AGENT }, { type: "folder", id: "fld_1" }, "view"),
+    g(`gnt_${base}own`, { kind: "agent", id: AGENT }, { type: "folder", id: "fld_2" }, "edit"),
+    // a second home: the first home's id followed by the new folder's 8 characters (principals.ts:159)
+    g(`gnt_${base}homenewfold1`, { kind: "agent", id: AGENT }, { type: "folder", id: "fld_newfold1xx" }, "edit"),
+    g(`gnt_${base}ownernewfold1`, { kind: "person", id: "usr_maya" }, { type: "folder", id: "fld_newfold1xx" }, "manage"),
+  ]) store.grants.set(x.id, x);
+  store.bump();
+  const { review } = await start(h, { scope: ["folder"] });
+  const ids = (itemRows(h) as Array<{ grant_id: string }>).map((r) => r.grant_id);
+  for (const id of [`gnt_${base}space`, `gnt_${base}grown`, `gnt_${base}own`]) assert.equal(ids.includes(id), true, `${id}: an agent's reach is reviewed`);
+  for (const id of [`gnt_${base}homenewfold1`, `gnt_${base}ownernewfold1`]) assert.equal(ids.includes(id), false, `${id}: a second home is the same kept grant`);
+  await handlers["access.reviews.decide"](h.as("usr_admin"), { reviewId: review.id, grantId: `gnt_${base}space`, decision: "remove" } as never);
+  assert.equal(store.grants.has(`gnt_${base}space`), false, "and the agent's Space reach can be removed in a review");
 });

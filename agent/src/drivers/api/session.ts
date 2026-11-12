@@ -93,6 +93,8 @@ export function conversationId(spec: Pick<SessionSpec, "threadId" | "agent" | "a
   return `vyre-${sha256b64(where).slice(0, 32)}`;
 }
 
+export const NO_MODEL_LINE = "No model is set for this chat. Pick one in the chat's model menu, or set the agent's model in its settings.";
+
 export function createApiSession(deps: SessionDeps, spec: SessionSpec): ApiSession {
   const policy: RetryPolicy = { ...RETRY_DEFAULTS, ...deps.retry };
   const rnd = deps.random ?? Math.random;
@@ -113,7 +115,8 @@ export function createApiSession(deps: SessionDeps, spec: SessionSpec): ApiSessi
 
   /** One provider call. Yields decoded events as they arrive; the last one is `stop`, `error`, or the end of the stream. */
   async function* call(req: CallRequest, signal: AbortSignal): AsyncGenerator<Decoded> {
-    const wire = deps.adapter.request(req);
+    let wire = deps.adapter.request(req);
+    let amended = false;
     const url = `${deps.base.replace(/\/+$/, "")}${wire.path}`;
     for (let attempt = 0; ; attempt++) {
       if (signal.aborted) return;
@@ -171,6 +174,9 @@ export function createApiSession(deps: SessionDeps, spec: SessionSpec): ApiSessi
       if (!res.ok) {
         signal.removeEventListener("abort", relay);
         const text = scrub((await res.text().catch(() => "")).slice(0, 2_000), secrets);
+        // a refusal the provider says how to fix (openai.ts amend: reasoning_effort with function tools): the corrected request goes once, nothing having been streamed yet
+        const fixed = amended ? undefined : deps.adapter.amend?.(req, wire, res.status, text);
+        if (fixed) { wire = fixed; amended = true; continue; }
         if (await retryOrFail(res.status, text, res)) continue;
         const c = classify(res.status, text);
         const after = c.code === "provider.rate_limited" ? retryAfterMs(res.headers.get("retry-after"), deps.clock.now()) : undefined;
@@ -186,9 +192,11 @@ export function createApiSession(deps: SessionDeps, spec: SessionSpec): ApiSessi
       try {
         for (;;) {
           // Until the first text, thinking or tool event the deadline runs from the request: pings and usage lines do not keep a silent call alive.
-          const left = got ? Infinity : deadline - Date.now();
-          const step = await nextWithin(it, Math.min(deps.idleMs ?? IDLE_MS, Math.max(0, left)), () => att.abort());
-          if (step === "idle" && !got && Date.now() >= deadline) { yield noFirstToken(); return; }
+          // Before the first text, thinking or tool event the first-token deadline is the only clock: pings do not count as the provider speaking and the idle limit does not apply, so a call
+          // that says nothing always ends with the first-token line (decided by state, never by reading the clock again when the wait fires). After it, the idle limit is the clock.
+          const wait = got ? (deps.idleMs ?? IDLE_MS) : Math.max(0, deadline - Date.now());
+          const step = await nextWithin(it, wait, () => att.abort());
+          if (step === "idle" && !got) { yield noFirstToken(); return; }
           if (step === "idle") { failed = { type: "error", status: 0, code: "provider.unavailable", message: "The provider stopped answering." }; break; }
           if (step.done) break;
           for (const d of dec.push(step.value)) {
@@ -229,6 +237,8 @@ export function createApiSession(deps: SessionDeps, spec: SessionSpec): ApiSessi
 
   async function* send(input: TurnInput): AsyncGenerator<DriverEvent> {
     sends += 1;
+    // no model: a provider answers 400 "`model` must be a non-empty string", which reads as a refusal. Nothing is sent; the turn says how to pick one.
+    if (model === "" && deps.adapter.defaultsModel !== true) { yield { type: "error", status: 0, code: "engine.no_model", message: NO_MODEL_LINE }; return; }
     const ac = new AbortController();
     abort = ac;
     results.clear();
@@ -270,6 +280,8 @@ export function createApiSession(deps: SessionDeps, spec: SessionSpec): ApiSessi
             type: "usage", inputTokens: inTokens, outputTokens: u.outputTokens, contextTokens: inTokens,
             ...(told.has("cacheReadTokens") ? { cacheReadTokens: u.cacheReadTokens } : {}), ...(told.has("cacheWriteTokens") ? { cacheWriteTokens: u.cacheWriteTokens } : {}),
             ...(u.reasoningTokens !== undefined ? { reasoningTokens: u.reasoningTokens } : {}), ...(u.costUsd !== undefined ? { costUsd: u.costUsd } : {}),
+            // a request that named no model ran on the provider's default: its label is the model the provider reported, else the provider's name, never blank
+            ...(model === "" ? { model: u.model ?? deps.adapter.id } : {}),
           };
         }
         if (stop === "filtered" && text === "" && pending.length === 0) { yield { type: "error", code: "provider.filtered", message: "The provider declined to answer." }; return; }

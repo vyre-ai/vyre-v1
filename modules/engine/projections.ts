@@ -8,7 +8,7 @@
 // plus the id minting and the period keys the handlers share. Every statement names an engine_* table, which is all ctx.db lets a module touch.
 // The migration file is the one source of the schema: ensure() runs it statement by statement (all IF NOT EXISTS), so a handler call on a fresh database works.
 import { readFileSync } from "node:fs";
-import { fail } from "../../host/src/routes/errors.ts";
+import { fail, keptForRestart } from "../../host/src/routes/errors.ts";
 import { mintUuid } from "../../lib/ids.ts";
 import type { TurnEngine } from "../../agent/src/turn-engine/engine.ts";
 import { LEASE_TTL_MS } from "../../agent/src/turn-engine/lease.ts";
@@ -51,17 +51,30 @@ export const actorOf = (ctx: Pick<EngineCtx, "principal" | "actingFor">): string
 // The engine that runs on this host. The host binds it at boot (impl.ts); handlers reach it through boundEngine().
 let bound: TurnEngine | null = null;
 export function bindEngine(engine: TurnEngine | null): void { bound = engine; }
+
+// Holds a parked turn waited on, kept after its wait row is gone (lane f-wire, 12 Nov): the wake that continues the turn removes the row when it starts, and engine.hold_answered, which hears the same
+// gate.approved, must still know the hold was a parked turn's, or it wakes the agent a second time with the person's newest message as its trigger, before that message's ask is read.
+const parkedHolds = new Set<string>();
+const noteParked = (taskId: string): void => { parkedHolds.add(taskId); if (parkedHolds.size > 2_000) parkedHolds.delete(parkedHolds.values().next().value as string); };
+/** Did a parked turn wait on this hold (its row may be gone already)? */
+export const wasParked = (taskId: string): boolean => parkedHolds.has(taskId);
 /**
  * True from the moment the server starts closing its engine until the next engine host half is bound. An event the engine cannot take in that time is NOT consumed: the host moves a consumer's
  * cursor past an event it answers (even with "skipped"), so a message that arrived while the server was shutting down would never get its turn. The consumers throw instead and the event is
  * delivered again after the restart.
  */
 let stopping = false;
-export const setEngineStopping = (v: boolean): void => { stopping = v; };
+/** Whose databases the stopping engine served (EngineHostSeam.ours): where two daemons share the process, the one that keeps running is not held up by the other's stop. */
+let stoppingOurs: ((db: unknown) => boolean) | null = null;
+export const setEngineStopping = (v: boolean, ours?: (db: unknown) => boolean): void => { stopping = v; stoppingOurs = v ? ours ?? null : null; };
 export const engineStopping = (): boolean => stopping;
-/** Called by an engine consumer that finds no engine: while the server is stopping the event must be kept for the next start, never skipped. */
-export function keepForRestart(): void {
-  if (stopping) throw new Error("The engine is stopping, so this event is kept and delivered again when the server is back.");
+/**
+ * Called by an engine consumer before it does anything, and again where it finds no engine: while the server is stopping the event must be kept for the next start, never skipped. It throws the
+ * host's kept error (internal.unavailable, reason kept_for_restart), which the hook runner does not count as a failed try, so no number of passes during one shutdown can turn it into a skip.
+ * Call it before the consumer's first side effect (a claim, a post, a deleted row): the event is delivered again in full.
+ */
+export function keepForRestart(ctx?: Pick<EngineCtx, "trace"> & Partial<Pick<EngineCtx, "db">>): void {
+  if (stopping && !(stoppingOurs && ctx?.db && !stoppingOurs(ctx.db))) throw keptForRestart(ctx?.trace.traceId ?? "0".repeat(32), "The engine is stopping, so this event is kept and delivered again when the server is back.");
 }
 /** The engine on this host, or null where none runs. */
 export const engineIfBound = (): TurnEngine | null => bound;
@@ -82,7 +95,7 @@ export function boundEngine(ctx: Pick<EngineCtx, "trace">): TurnEngine {
   return bound;
 }
 
-const SCHEMA = ["0001_init.sql", "0002_usage_item.sql", "0003_unblock.sql", "0004_capture_state.sql", "0005_step_turns.sql", "0006_task_baton.sql", "0007_mcp_oauth.sql", "0008_crew.sql", "0009_crew_wait.sql", "0010_queue_touched.sql", "0011_paid_fallback.sql", "0012_model_cache.sql", "0013_tool_use.sql"].map((f) => readFileSync(new URL(`./migrations/${f}`, import.meta.url), "utf8")).join("\n")
+const SCHEMA = ["0001_init.sql", "0002_usage_item.sql", "0003_unblock.sql", "0004_capture_state.sql", "0005_step_turns.sql", "0006_task_baton.sql", "0007_mcp_oauth.sql", "0008_crew.sql", "0009_crew_wait.sql", "0010_queue_touched.sql", "0011_paid_fallback.sql", "0012_model_cache.sql", "0013_tool_use.sql", "0014_queue_stop_reason.sql"].map((f) => readFileSync(new URL(`./migrations/${f}`, import.meta.url), "utf8")).join("\n")
   .split("\n").filter((l) => !l.trimStart().startsWith("--")).join("\n")
   .split(";").map((s) => s.trim()).filter((s) => s.length > 0);
 
@@ -104,6 +117,7 @@ export function ensure(db: Db): void {
     db.all("SELECT ref FROM engine_paid_ok WHERE thread_id = ?", "probe");
     db.all("SELECT account_ref FROM engine_model_cache WHERE account_ref = ?", "probe");
     db.all("SELECT agent_id FROM engine_tool_use WHERE agent_id = ?", "probe");
+    db.all("SELECT stop_reason FROM engine_thread_queue WHERE thread_id = ?", "probe");
   } catch {
     for (const stmt of SCHEMA) db.run(stmt);
   }
@@ -191,7 +205,7 @@ function itemOf(r: Row): QueueItem {
   return {
     threadId: str(r["thread_id"]), qseq: num(r["qseq"]), kind: str(r["kind"]) as QueueKind, messageId: orNull(r["message_id"]), agentId: str(r["agent_id"]),
     from: str(r["from_principal"]), priority: num(r["priority"]), state: str(r["state"]) as QueueState, enqueuedAt: num(r["enqueued_at"]),
-    routine: num(r["routine"]) === 1, steer: num(r["steer"]) === 1, ...(num(r["touched"]) === 1 ? { touched: true } : {}),
+    routine: num(r["routine"]) === 1, steer: num(r["steer"]) === 1, ...(num(r["touched"]) === 1 ? { touched: true } : {}), ...(typeof r["stop_reason"] === "string" && r["stop_reason"] !== "" ? { stopReason: r["stop_reason"] as string } : {}),
   };
 }
 
@@ -224,8 +238,9 @@ export function sqlQueue(db: Db): QueueStore {
       return { ...next, state: "running" };
     },
     steerable: (threadId, agentId) => queued(threadId).filter((r) => r.steer && r.kind === "message" && r.agentId === agentId).sort((a, b) => a.qseq - b.qseq),
-    setState(threadId, qseq, state) {
-      db.run("UPDATE engine_thread_queue SET state = ? WHERE thread_id = ? AND qseq = ?", state, threadId, qseq);
+    setState(threadId, qseq, state, stopReason) {
+      if (stopReason === undefined) db.run("UPDATE engine_thread_queue SET state = ? WHERE thread_id = ? AND qseq = ?", state, threadId, qseq);
+      else db.run("UPDATE engine_thread_queue SET state = ?, stop_reason = ? WHERE thread_id = ? AND qseq = ?", state, stopReason, threadId, qseq);
     },
     touch(threadId, qseq) {
       db.run("UPDATE engine_thread_queue SET touched = 1 WHERE thread_id = ? AND qseq = ?", threadId, qseq);
@@ -246,8 +261,27 @@ function leaseOf(r: Row): LeaseRow {
   return { threadId: str(r["thread_id"]), holder: str(r["holder"]), expiresAt: num(r["expires_at"]), turnId: orNull(r["turn_id"]) };
 }
 
+/** The host closed its database under a turn that was still ending (the daemon stopped): no lease is held any more, and nothing is written. */
+const isClosedDb = (e: unknown): boolean => e instanceof Error && /database is not open/i.test(e.message);
+function closedAs<T>(f: () => T, closed: T): T {
+  try { return f(); } catch (e) { if (isClosedDb(e)) return closed; throw e; }
+}
+
 export function sqlLeases(db: Db, ttlMs: number = LEASE_TTL_MS): LeaseStore {
   ensure(db);
+  const store = sqlLeaseStore(db, ttlMs);
+  // a lease call after the host closed the database is answered as "not held": a turn still ending as the daemon stops then ends as lease_lost and its worker stops, instead of throwing
+  // into nowhere from a timer or a finally (rc.26 tag blocker, 12 Nov). Any other error is thrown as before.
+  return {
+    acquire: (threadId, holder, now, turnId) => closedAs(() => store.acquire(threadId, holder, now, turnId), null),
+    renew: (threadId, holder, now) => closedAs(() => store.renew(threadId, holder, now), false),
+    setTurn: (threadId, holder, turnId) => closedAs(() => store.setTurn(threadId, holder, turnId), undefined),
+    release: (threadId, holder) => closedAs(() => store.release(threadId, holder), false),
+    get: (threadId, now) => closedAs(() => store.get(threadId, now), null),
+  };
+}
+
+function sqlLeaseStore(db: Db, ttlMs: number): LeaseStore {
   const read = (threadId: string): LeaseRow | null => {
     const r = rows(db, "SELECT * FROM engine_thread_lease WHERE thread_id = ?", threadId)[0];
     return r ? leaseOf(r) : null;
@@ -304,13 +338,17 @@ export function sqlWaits(db: Db): WaitStore {
       const r = rows(db, "SELECT * FROM engine_waits WHERE task_id = ?", taskId)[0];
       return r ? waitOf(r) : null;
     },
-    resolve: (taskId, resolution, wakeQseq) =>
-      db.run("UPDATE engine_waits SET resolution = ?, wake_qseq = ? WHERE task_id = ? AND resolution IS NULL", JSON.stringify(resolution), wakeQseq, taskId).changes > 0,
+    resolve: (taskId, resolution, wakeQseq) => {
+      const done = db.run("UPDATE engine_waits SET resolution = ?, wake_qseq = ? WHERE task_id = ? AND resolution IS NULL", JSON.stringify(resolution), wakeQseq, taskId).changes > 0;
+      if (done) noteParked(taskId);
+      return done;
+    },
     forWake(threadId, qseq) {
       const r = rows(db, "SELECT * FROM engine_waits WHERE thread_id = ? AND wake_qseq = ?", threadId, qseq)[0];
       return r ? waitOf(r) : null;
     },
     remove(taskId) {
+      noteParked(taskId);
       db.run("DELETE FROM engine_waits WHERE task_id = ?", taskId);
     },
     open: (threadId) => rows(db, "SELECT * FROM engine_waits WHERE thread_id = ? ORDER BY at ASC", threadId).map(waitOf),

@@ -26,7 +26,8 @@ export function seededDir(bootCore: () => { store: { db: { exec(sql: string): vo
   return dir;
 }
 
-export const boot = (dir: string, seen: Seen[]): Promise<Daemon> => startDaemon({
+/** `respond` answers a request instead of the default 200 (a test that needs a redirect or an error status). */
+export const boot = (dir: string, seen: Seen[], respond?: (r: { url: URL; method: string; headers: Record<string, string> }) => Response | undefined, people: Record<string, string> = {}): Promise<Daemon> => startDaemon({
   config: loadConfig(["--data-dir", dir, "--port", "0"], {}, "1.2.3"),
   platform: fakePlatform({
     os: "linux", hostname: "http-live", free: 80e9,
@@ -46,6 +47,8 @@ export const boot = (dir: string, seen: Seen[]): Promise<Daemon> => startDaemon(
         fetch: async () => { throw new Error("the pinned connect is used"); },
         connect: async (r: { url: URL; method?: string; headers?: Record<string, string>; body?: string }) => {
           seen.push({ url: r.url.href, method: r.method ?? "GET", headers: { ...(r.headers ?? {}) }, ...(r.body !== undefined ? { body: r.body } : {}) });
+          const own = respond?.({ url: r.url, method: r.method ?? "GET", headers: { ...(r.headers ?? {}) } });
+          if (own) return own;
           return new Response(JSON.stringify({ ok: true, path: r.url.pathname, echoedAuth: r.headers?.["authorization"] ?? null }), { status: 200, headers: { "content-type": "application/json", "x-request-id": "req_1" } });
         },
       }),
@@ -53,7 +56,9 @@ export const boot = (dir: string, seen: Seen[]): Promise<Daemon> => startDaemon(
   },
   session: (h) => {
     const t = /^Bearer (.+)$/.exec(String(h["authorization"] ?? ""))?.[1];
-    return t === OWNER ? { space: "spc_core", principal: { kind: "person", id: "usr_olivia" }, device: "http-live" } : null;
+    if (t === OWNER) return { space: "spc_core", principal: { kind: "person", id: "usr_olivia" }, device: "http-live" };
+    // another person a test signs in (token to person id)
+    return t && people[t] ? { space: "spc_core", principal: { kind: "person", id: people[t]! }, device: "http-live" } : null;
   },
   intervals: { fast: 3_600_000, slow: 3_600_000, encryption: 3_600_000, commands: 3_600_000, hooks: 200, tick: 200 },
 } satisfies DaemonOptions);

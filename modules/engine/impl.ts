@@ -9,7 +9,7 @@ import { forgetProvider } from "./model-health.ts";
 import { createTurnEngine } from "../../agent/src/turn-engine/engine.ts";
 import type { EngineOptions, TurnEngine } from "../../agent/src/turn-engine/engine.ts";
 import { handlers as table } from "./handlers/index.ts";
-import { bindEngine, mintEngineId, sqlLeases, sqlMessages, sqlQueue, sqlWaits } from "./projections.ts";
+import { wasParked, bindEngine, keepForRestart, mintEngineId, sqlLeases, sqlMessages, sqlQueue, sqlWaits } from "./projections.ts";
 import type { Db } from "./projections.ts";
 import type { Handler } from "../../host/src/invoke.ts";
 import { bridgeConsumers } from "./handlers/bridge.ts";
@@ -20,7 +20,7 @@ import { captureConsumers, capturePeriodic } from "./handlers/capture.ts";
 import { checkGroupAccount } from "./group-account.ts";
 import { closeNoAccountTasks, engineHost, ensureRuntime, openAs, recoverStale, setEngineHost, wakeAfterUnblock } from "./runtime.ts";
 import { onTaskEvent, sweepBaton } from "./handlers/task-baton.ts";
-import { onRoutineRun } from "./handlers/routine-run.ts";
+import { onRoutineRun, onRoutineRunStopped } from "./handlers/routine-run.ts";
 import type { RoutineRunEvent } from "./handlers/routine-run.ts";
 import { onGoalEvent } from "./handlers/goal-wake.ts";
 import { markLostJobs, ownerChanged, resumeAgent, stopAgent, stopPerson } from "./handlers/departures.ts";
@@ -40,6 +40,8 @@ export { nodeCliLauncher, nodeCliReport } from "./node-cli.ts";
 export const hostSeams = { setEngineHost };
 /** The warm pool the Machines page can empty (host/src/daemon/machine-fix.ts). */
 export { openerOf } from "./projections.ts";
+// the host binds how a person's sessions on this server stop when they turn subscription sharing off (host/src/daemon/module-ports.ts)
+export { bindSandboxStopper } from "./handlers/extra/config.ts";
 
 /** The runtime is built at boot, not at the first message, and recovers threads a dead host left mid-turn. */
 export const periodic = {
@@ -76,8 +78,18 @@ export const periodic = {
 const withRuntime = <C extends Record<string, { run: (ctx: EngineCtx, event: never) => Promise<unknown> }>>(consumers: C): C => Object.fromEntries(
   Object.entries(consumers).map(([name, c]) => [name, { ...c, run: async (ctx: EngineCtx, event: never): Promise<unknown> => { await ensureRuntime(ctx); return c.run(ctx, event); } }]),
 ) as C;
+/**
+ * Every engine consumer, while the server is stopping its engine: the event is kept for the next start before the consumer does anything (keepForRestart throws the host's kept error, which the hook
+ * runner does not count as a try). The host moves a consumer's cursor past any event it answers, so a consumer that answered "no engine" here lost the event for good: a goal's wake-up that arrived
+ * while the server shut down was never run (its wake stayed "sent" until the goal's 45-minute retry), a baton, a routine run, an approved hold.
+ * The engine stops only after the hook runner has closed (daemon stop): a consumer still running then is past the stop's bound, and the runner drops its answer, so its event is delivered again
+ * whatever it returns. The only checks inside a consumer are the ones that guard a write made before it finds no engine (runtime.ts wakeAfterUnblock, departures.ts resumeAgent).
+ */
+const keptWhileStopping = <C extends Record<string, { run: (ctx: EngineCtx, event: never) => unknown }>>(consumers: C): C => Object.fromEntries(
+  Object.entries(consumers).map(([name, c]) => [name, { ...c, run: async (ctx: EngineCtx, event: never): Promise<unknown> => { keepForRestart(ctx); return c.run(ctx, event); } }]),
+) as C;
 
-export const consumers = {
+export const consumers = keptWhileStopping({
   ...withRuntime(bridgeConsumers),
   ...withRuntime(gateResumeConsumers),
   ...captureConsumers,
@@ -90,6 +102,15 @@ export const consumers = {
       if (event.name === "agent.deleted") return stopAgent(ctx, engine, id, "stopped");
       if (event.name === "agent.paused") return stopAgent(ctx, engine, id, "paused");
       return resumeAgent(ctx, engine, id, async (threadId, asker) => { await openAs(ctx, threadId, asker); });
+    },
+  },
+  /** A routine's Run was stopped: the turn it woke stops too, durably (handlers/routine-run.ts onRoutineRunStopped). */
+  "engine.run_stopped": {
+    on: ["run.stopped"],
+    run: async (ctx: EngineCtx, event: { payload: { runId: string } }): Promise<string[]> => {
+      const engine = await ensureRuntime(ctx);
+      if (!engine) return [];
+      return onRoutineRunStopped(ctx, engine, async (threadId, person) => { await openAs(ctx, threadId, person); }, event.payload.runId);
     },
   },
   /** A machine was drained, its limits changed, or it ran out of room or has room again: where a chat runs may differ now, so the per-chat placement words are read again (placement-cache.ts). */
@@ -223,6 +244,8 @@ export const consumers = {
       const person = p.actingFor?.startsWith("usr_") ? p.actingFor : p.askedBy?.kind === "agent" && p.by?.startsWith("usr_") ? p.by : undefined;
       if (!host || !p.taskId || !p.holdId || !p.threadId?.startsWith("thr_") || !agentId || !person) return [];
       try { if (ctx.db.all("SELECT 1 AS x FROM engine_waits WHERE task_id = ?", p.taskId).length > 0) return []; } catch { /* no parked turns yet */ }
+      // a parked turn's hold whose wait row the resume already removed: that turn continues by itself; a second wake here would start a turn the person's newest message did not open
+      if (wasParked(p.taskId)) return [];
       const engine = await ensureRuntime(ctx);
       if (!engine) return [];
       const approved = event.name === "gate.approved";
@@ -280,7 +303,7 @@ export const consumers = {
     on: ["task.completed"],
     run: async (ctx: EngineCtx, event: { payload: { taskId: string } }): Promise<string[]> => ((await wakeAfterUnblock(ctx, event.payload.taskId)) ? [event.payload.taskId] : []),
   },
-};
+});
 
 export interface RuntimeOptions extends Omit<EngineOptions, "queue" | "leases" | "messages" | "waits" | "newId"> {
   db: Db;

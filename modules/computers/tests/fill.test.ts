@@ -147,7 +147,7 @@ test("issuing again for a computer ends its earlier token, and revoke ends the c
 
 import { setComputersFill } from "../impl.ts";
 import { sleep, wake, provision, remove } from "../handlers/lifecycle.ts";
-import { bindFill } from "../projections.ts";
+import { bindFill, computerBy } from "../projections.ts";
 import { harness as chatHarness, INTAKE } from "../fixtures/harness.ts";
 
 function seam(h: ReturnType<typeof world>) {
@@ -156,14 +156,19 @@ function seam(h: ReturnType<typeof world>) {
   return () => mounted;
 }
 
-test("waking a computer passes fillUrl and a fillToken of at least 16 characters to agentd, and the token works against the mounted route; sleeping ends it", async () => {
+test("a tool call on a computer passes agentd the Vault address and a token of at least 16 characters for the person whose call it is, the token works against the mounted route as that person, and it ends with the call; waking gives none", async () => {
+  const { leaseFill } = await import("../handlers/tools/common.ts");
   const w = world();
-  const hn = chatHarness({ respond: { "agents.get": (i: Record<string, unknown>) => ({ agent: { agentId: i["agentId"], ownerId: "usr_dana", folderId: "fld_x" } }) } });
+  const respond = { "agents.get": (i: Record<string, unknown>) => ({ agent: { agentId: i["agentId"], ownerId: "usr_dana", folderId: "fld_x" } }) };
+  const hn = chatHarness({ respond });
   const mounted = seam(w);
   try {
     const p = await provision(hn.ctx, { agentId: INTAKE, idempotencyKey: "kf" });
     const id = p.computer.computerId;
     await wake(hn.ctx, { computerId: id });
+    assert.equal(hn.fake.named("configure").filter((c) => (c.args as { fillToken?: string }).fillToken !== undefined).length, 0, "no channel at wake");
+    const turn = chatHarness({ principal: { kind: "agent", id: INTAKE }, actingFor: "usr_omar", respond, raw: hn.raw, clock: hn.clock, fake: hn.fake });
+    const lease = (await leaseFill(turn.ctx, computerBy(hn.ctx.db, id)!, hn.fake.host))!;
     const cfg = hn.fake.named("configure").map((c) => c.args as { computerId: string; fillUrl?: string; fillToken?: string }).find((a) => a.fillToken !== undefined)!;
     assert.equal(cfg.computerId, id);
     assert.equal(cfg.fillUrl, "http://host.docker.internal:7000/computers/fill");
@@ -174,15 +179,9 @@ test("waking a computer passes fillUrl and a fillToken of at least 16 characters
     try {
       const ok = await post(url, cfg.fillToken!, { handle: "Stripe", field: "api_key", computerId: id });
       assert.deepEqual([ok.status, ok.json], [200, { value: SECRET, itemId: "vit_stripe" }]);
-      assert.deepEqual(w.asked[0]!.who, { agentId: INTAKE, asker: "usr_dana", where: "computer" });
-      await sleep(hn.ctx, { computerId: id });
-      assert.equal((await post(url, cfg.fillToken!, { handle: "Stripe", field: "api_key", computerId: id })).status, 401, "the token ends when the computer sleeps");
-      await wake(hn.ctx, { computerId: id });
-      const again = hn.fake.named("configure").map((c) => c.args as { fillToken?: string }).filter((a) => a.fillToken !== undefined);
-      assert.equal(again.length, 2);
-      assert.notEqual(again[1]!.fillToken, cfg.fillToken, "a new wake gets a new token");
-      await remove(hn.ctx, { computerId: id });
-      assert.equal((await post(url, again[1]!.fillToken!, { handle: "Stripe", field: "api_key", computerId: id })).status, 401, "the token ends when the computer is removed");
+      assert.deepEqual(w.asked[0]!.who, { agentId: INTAKE, asker: "usr_omar", where: "computer" }, "asked as the person whose turn it is, not the owner");
+      lease.done();
+      assert.equal((await post(url, cfg.fillToken!, { handle: "Stripe", field: "api_key", computerId: id })).status, 401, "the token ends with the call");
     } finally { await new Promise<void>((ok) => server.close(() => ok())); }
   } finally { bindFill(null); setComputersFill(null); }
 });

@@ -19,6 +19,8 @@ export const MIGRATION = fileURLToPath(new URL("../migrations/0001_members.sql",
 export const JOIN_LINK_MIGRATION = fileURLToPath(new URL("../migrations/0004_join_link.sql", import.meta.url));
 /** The table a guest invited from a chat is scoped by (lane l-addsheet). */
 export const GUEST_MIGRATION = fileURLToPath(new URL("../migrations/0003_guest_scope.sql", import.meta.url));
+/** The earlier codes of an invite, kept when a replayed create hands out a fresh one. */
+export const INVITE_CODES_MIGRATION = fileURLToPath(new URL("../migrations/0005_invite_codes.sql", import.meta.url));
 
 type Cell = string | number | null;
 export type Row = Record<string, Cell>;
@@ -177,7 +179,7 @@ export class FakeMembersDb implements RawDb {
   readonly log: string[] = [];
 
   constructor(migrationPath: string = MIGRATION) {
-    this.tables = parseMigration(readFileSync(migrationPath, "utf8") + (migrationPath === MIGRATION ? "\n" + readFileSync(GUEST_MIGRATION, "utf8") + "\n" + readFileSync(JOIN_LINK_MIGRATION, "utf8") : ""));
+    this.tables = parseMigration(readFileSync(migrationPath, "utf8") + (migrationPath === MIGRATION ? "\n" + readFileSync(GUEST_MIGRATION, "utf8") + "\n" + readFileSync(JOIN_LINK_MIGRATION, "utf8") + "\n" + readFileSync(INVITE_CODES_MIGRATION, "utf8") : ""));
   }
 
   rows(table: string): Row[] { return this.table(table).rows.map((r) => ({ ...r })); }
@@ -347,6 +349,11 @@ export function harness(now = NOW) {
     roles: new Map<string, string>([["rol_owner", "Owner"], ["rol_admin", "Admin"], ["rol_member", "Member"], ["rol_guest", "Guest"]]),
     groups: new Set<string>(["grp_everyone", "grp_sales", "grp_ops"]),
     principals: new Map<string, FakePrincipal>(),
+    /** who is in each channel and holds a role on each project, as channels and projects keep them */
+    channelMembers: new Map<string, Set<string>>(),
+    /** audit rows, as audit.list answers them: a test puts an admin's change here */
+    audit: [] as Array<{ at: number; actor: { kind: string; id: string }; action: string; class: string; after: { targets: Array<{ kind: string; id: string }> } }>,
+    projectRoles: new Map<string, Map<string, string>>(),
     devices: new Map<string, { id: string; revokedAt?: number }[]>(),
     holds: [] as { id: string; taskId: string; principal: { id: string }; actingFor?: string }[],
     owned: new Map<string, Partial<Record<RemovalKind, OwnedItem>>>(),
@@ -389,7 +396,15 @@ export function harness(now = NOW) {
         if (world.vaultDenied.has(item)) throw fail("permission.no_grant", TRACE, {});
         return { handle: i.item, itemId: "vit_members1", fields: ["value"] };
       }
-      case "access.share": case "projects.members.set": case "channels.members.add": return { ok: true };
+      case "projects.members.set": { const m = world.projectRoles.get(i.projectId) ?? new Map<string, string>(); m.set(i.principal, i.role); world.projectRoles.set(i.projectId, m); return { member: { principal: i.principal, role: i.role } }; }
+      case "projects.members.remove": { const had = world.projectRoles.get(i.projectId)?.delete(i.principal) ?? false; return { removed: had }; }
+      case "projects.members.list": return { members: [...(world.projectRoles.get(i.projectId) ?? new Map<string, string>())].map(([principal, role]) => ({ principal, role })) };
+      case "channels.members.add": { const m = world.channelMembers.get(i.channelId) ?? new Set<string>(); for (const id of i.personIds as string[]) m.add(id); world.channelMembers.set(i.channelId, m); return { ok: true }; }
+      case "channels.members.remove": { world.channelMembers.get(i.channelId)?.delete(i.personId); return { ok: true }; }
+      case "channels.get": return { channel: { channelId: i.channelId, members: [...(world.channelMembers.get(i.channelId) ?? new Set<string>())].map((id) => ({ kind: "person", id })) } };
+      case "access.shares_of": return { shares: [] };
+      case "audit.list": return { rows: world.audit.filter((r) => r.at >= Number(i.from ?? 0) && (!i.target || r.after.targets.some((t) => t.kind === i.target.kind && t.id === i.target.id))) };
+      case "access.share": return { ok: true };
       case "channels.home_join": return { channelId: "chn_vyre", added: true };
       case "access.join_share": return { grant: { id: "gnt_join" } };
       case "devices.list": return { devices: (world.devices.get(i.person) ?? []).map((d) => ({ ...d })) };
@@ -403,7 +418,7 @@ export function harness(now = NOW) {
         if (inv === "invalid") throw fail("auth.invalid_code", TRACE, {});
         if (inv === "expired") throw fail("auth.expired", TRACE, {});
         const id = `usr_${String(i.username)}`;
-        person(id, i.displayName ?? i.username, []);
+        person(id, i.displayName ?? i.username, []).groups = [];   // a new person is in no group until the join's group steps put them in (Everyone is one of those steps)
         seam.accept(inv.inviteId, id);
         events.push({ name: "principal.created", subject: id, payload: { principalId: id, kind: "person" } });
         events.push({ name: "member.joined", subject: id, payload: { personId: id, inviteId: inv.inviteId, role: inv.role, invitedBy: inv.invitedBy } });

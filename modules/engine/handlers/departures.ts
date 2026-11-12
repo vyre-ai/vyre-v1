@@ -1,7 +1,7 @@
 // What the engine does when whoever a piece of work belongs to is gone or paused (holes 10 and 12). A Job is running, paused, lost or stopped, and nothing runs for an agent that was deleted or for a person
 // who left. Everything here repeats safely: the events are delivered at least once and a second pass finds nothing to stop.
 import type { TurnEngine } from "../../../agent/src/turn-engine/engine.ts";
-import { sqlQueue } from "../projections.ts";
+import { keepForRestart, sqlQueue } from "../projections.ts";
 import type { EngineCtx } from "../projections.ts";
 
 type Row = Record<string, unknown>;
@@ -12,11 +12,11 @@ const isOpen = (engine: TurnEngine, threadId: string): boolean => { try { engine
 async function stopAgentIn(ctx: EngineCtx, engine: TurnEngine | null, threadId: string, agentId: string): Promise<void> {
   if (engine && isOpen(engine, threadId)) {
     const r = await engine.stop(threadId, { agentId, reason: "left" });
-    for (const c of [...r.stopped, ...r.released]) ctx.emit("turn.cancelled", threadId, { turnId: c.turnId, threadId, agentId: c.agentId, by: ctx.principal.id });
+    for (const c of [...r.stopped, ...r.released]) ctx.emit("turn.cancelled", threadId, { turnId: c.turnId, threadId, agentId: c.agentId, by: ctx.principal.id, pressed: true });
     return;
   }
   sqlQueue(ctx.db).cancelQueued(threadId, agentId);
-  ctx.db.run("UPDATE engine_thread_queue SET state = 'cancelled' WHERE thread_id = ? AND agent_id = ? AND state = 'running'", threadId, agentId);
+  ctx.db.run("UPDATE engine_thread_queue SET state = 'cancelled' WHERE thread_id = ? AND agent_id = ? AND state IN ('running', 'stopping')", threadId, agentId);
   ctx.db.run("DELETE FROM engine_waits WHERE thread_id = ? AND agent_id = ?", threadId, agentId);
 }
 
@@ -43,6 +43,8 @@ export async function stopAgent(ctx: EngineCtx, engine: TurnEngine | null, agent
 
 /** An agent came back: a Job that paused with it carries on in its own thread. */
 export async function resumeAgent(ctx: EngineCtx, engine: TurnEngine | null, agentId: string, open: (threadId: string, asker: string) => Promise<void>): Promise<string[]> {
+  // the Job rows move to working before the agent is woken: with no engine because the server is stopping, they are left paused and the event is kept, so the next start wakes the agent
+  if (!engine) keepForRestart(ctx);
   const rows = ctx.db.all("SELECT job_id, thread_id, asker FROM engine_crew_job WHERE agent_id = ? AND state = 'paused'", agentId) as Row[];
   const woken: string[] = [];
   for (const r of rows) {
@@ -59,6 +61,8 @@ export async function resumeAgent(ctx: EngineCtx, engine: TurnEngine | null, age
 export async function stopPerson(ctx: EngineCtx, engine: TurnEngine | null, person: string): Promise<string[]> {
   const hit = [...workOf(ctx, "from_principal = ?", person), ...parkedOf(ctx, "asker = ?", person)];
   for (const h of hit) await stopAgentIn(ctx, engine, h.threadId, h.agentId);
+  // said in the log, with who and where: the person is gone, so there is nobody in the chat to tell, and a dropped turn must never be silent
+  if (hit.length > 0) ctx.log.warn("a queued turn was not run: the person who asked for it can no longer use this Space", { person, threads: [...new Set(hit.map((h) => h.threadId))] });
   const now = ctx.now();
   ctx.db.run("UPDATE engine_crew_job SET state = 'stopped', ended_at = ? WHERE asker = ? AND state IN ('working', 'waiting', 'paused', 'lost')", now, person);
   ctx.db.run("UPDATE engine_crew_wait SET state = 'stopped', ended_at = ? WHERE asker = ? AND state = 'pending'", now, person);
@@ -81,7 +85,7 @@ export const LOST_AFTER_MS = 60_000;
 export function markLostJobs(ctx: EngineCtx): string[] {
   const rows = ctx.db.all(
     `SELECT j.job_id AS id FROM engine_crew_job j WHERE j.state = 'working' AND j.started_at < ?
-       AND NOT EXISTS (SELECT 1 FROM engine_thread_queue q WHERE q.thread_id = j.thread_id AND q.state IN ('queued', 'running'))
+       AND NOT EXISTS (SELECT 1 FROM engine_thread_queue q WHERE q.thread_id = j.thread_id AND q.state IN ('queued', 'running', 'stopping'))
        AND NOT EXISTS (SELECT 1 FROM engine_waits w WHERE w.thread_id = j.thread_id)`, ctx.now() - LOST_AFTER_MS,
   ) as Row[];
   const ids = rows.map((r) => str(r["id"]));

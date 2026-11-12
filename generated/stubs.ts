@@ -236,6 +236,13 @@ export function stubs(ctx: CallCtx) {
       },
       http_read: call("automations.http_read"),
       http_send: call("automations.http_send"),
+      key_hosts: {
+        allow: call("automations.key_hosts.allow"),
+        list: call("automations.key_hosts.list"),
+        pending: call("automations.key_hosts.pending"),
+        pending_bind: call("automations.key_hosts.pending_bind"),
+        remove: call("automations.key_hosts.remove"),
+      },
       list: call("automations.list"),
       make_personal_copy: call("automations.make_personal_copy"),
       migrate_runs: call("automations.migrate_runs"),
@@ -256,6 +263,9 @@ export function stubs(ctx: CallCtx) {
       restore_version: call("automations.restore_version"),
       retry: call("automations.retry"),
       run: call("automations.run"),
+      runs_as: {
+        get: call("automations.runs_as.get"),
+      },
       schedule_choose: call("automations.schedule_choose"),
       senders: call("automations.senders"),
       set_enabled: call("automations.set_enabled"),

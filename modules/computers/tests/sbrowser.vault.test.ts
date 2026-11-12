@@ -24,7 +24,7 @@ function browser(answers: Record<string, (c: BrowserToolCall) => BrowserAnswer |
     async tool(a) { calls.push(a); return (answers[a.tool] ?? (() => ({ url: "https://example.com/", title: "Example", tree: "- page [e1]", truncated: false, ok: true, tabId: "t1", loading: false })))(a); },
     async downloads() { return []; }, async downloadRead() { return new Uint8Array(); }, async downloadAck() {},
     async takeover() {}, async giveBack() {}, async screenshot() { shots += 1; return { bytes: new Uint8Array([1, 2, 3]), width: 1, height: 1 }; },
-    async stream() { return { transport: "mjpeg", url: "http://x" }; }, async sessions() { return []; }, async signOut() { return true; }, async importChrome() { return { bytes: 0 }; }, async stop() {}, async forget() {},
+    async stream() { return { transport: "mjpeg", url: "http://x" }; }, async sessions() { return []; }, async signOut() { return true; }, async profileUsed() { return false; }, async importChrome() { return { bytes: 0 }; }, async stop() {}, async forget() {},
     async profiles() { return { profiles: [], maxRunning: 6 }; }, async health() { return { ok: true }; },
   };
   bindSpaceBrowser(sb);
@@ -316,5 +316,39 @@ test("second look (c): a step whose picture was withheld says so in one plain li
     assert.equal(last["frame_file_id"], null);
     assert.match(String(last["caption"]), /No picture here or in the chat: a Vault value is on this page/);
     assert.equal(h.calls("chat.post").length, 0, "no live card was posted");
+  } finally { off(); }
+});
+
+test("rule 7 and finding 9: the Vault channel says why it refuses a team agent's private item or an item that needs approval, and agentd hands those words to the agent", async () => {
+  const service = createFillService({ source: { async lookup(handle) { return { kind: "denied", reason: handle.startsWith("#Dana") ? "team_agent" : "needs_approval" }; } }, log: () => undefined });
+  const g = await service.issue({ computerId: "agt_dex", agentId: "agt_dex", asker: DANA, turn: true });
+  const r1 = await service.serve({ authorization: `Bearer ${g.fillToken}`, body: { handle: "Dana_Private", field: "key", computerId: "agt_dex" } });
+  assert.equal(r1.status, 403);
+  assert.match(String(r1.body["message"]), /is your own item, and this is a team agent/);
+  const r2 = await service.serve({ authorization: `Bearer ${g.fillToken}`, body: { handle: "Needs_Ok", field: "key", computerId: "agt_dex" } });
+  assert.match(String(r2.body["message"]), /needs approval before it can be used/);
+  // agentd's side: the words come back as the refusal of the fill (here through a stand-in for the host's route)
+  const { createServer } = await import("node:http");
+  const srv = createServer((req, res) => { let b = ""; req.on("data", (c) => (b += c)); req.on("end", () => { void service.serve({ authorization: req.headers.authorization, body: JSON.parse(b) }).then((o) => { res.writeHead(o.status, { "content-type": "application/json" }); res.end(JSON.stringify(o.body)); }); }); });
+  await new Promise<void>((ok) => srv.listen(0, "127.0.0.1", () => ok()));
+  try {
+    const v = createVault();
+    const ch = v.enter(`http://127.0.0.1:${(srv.address() as { port: number }).port}/`, g.fillToken, "agt_dex");
+    await assert.rejects(() => ch.fillArgs({ value: "#Dana_Private.key" }), /is your own item, and this is a team agent: everyone who can ask it shares its computer\. Share the item with the agent, or ask your own Assistant\. Nothing was typed\./);
+    ch.leave();
+  } finally { srv.close(); }
+});
+
+test("third look (double count): a value a chrome_fill typed through the Vault channel marks only the tab it went into, not every open tab", async () => {
+  const ch = channel({ [DANA]: { "#Dex_Api.key": KEY } });
+  tabbedBrowser({
+    // browserd asks the channel for the handle the call types (the fill service hands it out and remembers it), then reports it as used
+    chrome_fill: async (c) => { assert.equal((await ch.fill(c.fill!.token, "#Dex_Api.key")).status, 200); return { ok: true, filled: 1, used: [{ handle: "#Dex_Api.key", itemId: "itm_Dex_Apikey", value: KEY }] }; },
+  });
+  try {
+    const h = as("agt_dex", DANA);
+    await tool["computers.chrome.fill"]!(h.ctx, { fields: [{ ref: "e3", value: "#Dex_Api.key" }] });
+    await assert.rejects(() => tool["computers.chrome.screenshot"]!(h.ctx, { tabId: "t1" }), refusedPic, "the tab it went into");
+    assert.equal((await tool["computers.chrome.screenshot"]!(h.ctx, { tabId: "t2" })).width, 1280, "the other tab keeps its pictures");
   } finally { off(); }
 });

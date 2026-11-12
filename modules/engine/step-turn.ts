@@ -14,6 +14,8 @@ import { isPaused, limitReached, recordStepUsage } from "./handlers/spend.ts";
 import { ensure, raise, stepOpenOf } from "./projections.ts";
 import type { EngineCtx } from "./projections.ts";
 import { providerOfDriver } from "./runtime.ts";
+import { PROVIDER_DEFAULT_DRIVERS, PROVIDER_DEFAULT_WORDS, providerDefaultBlocked } from "./handlers/extra/config.ts";
+import { defaultModelFor } from "./first-model.ts";
 import { fitModel } from "./space-key-turns.ts";
 
 export interface StepTurnIn {
@@ -42,7 +44,7 @@ let msPerMinute = 60_000;
 export function setMinuteForTests(ms: number): void { msPerMinute = ms; }
 
 interface AgentOut { agent: { agentId: string; name: string; role?: string; model?: string; accountPolicy: "asker" | "key"; accountKey?: string; status?: string } }
-interface PolicyOut { allowedAccounts: "any" | "company" }
+interface PolicyOut { allowedAccounts: "any" | "company"; allowedModels?: string[]; allowedProviders?: string[] }
 interface FactsOut { facts?: Array<{ text?: string; layer?: string }> }
 
 const codeOfDriver = (code: string): { code: string; retryable: boolean } => {
@@ -63,6 +65,8 @@ const WHY: Readonly<Record<string, string>> = {
   "timeout.deadline": "The AI step did not answer in time.",
 };
 const whyOf = (code: string): string => WHY[code] ?? "The AI provider could not answer this step.";
+/** The step's own words when the AI account needs a model and the step gives it none (the API driver refuses an empty model before sending). */
+export const NO_MODEL_STEP = "This AI step has no model. Give it an agent that has a model, or set a model on its agent.";
 
 const hex = (s: string): string => {
   let h = 0x811c9dc5;
@@ -168,9 +172,24 @@ export async function stepTurn(ctx: EngineCtx, input: StepTurnIn): Promise<StepT
     }
   }
   // on the Space AI key the step runs on a model the key unlocks: the agent's when the key serves it, else the first one
-  const stepModel = paid.row.spaceKey === true
+  let stepModel = paid.row.spaceKey === true
     ? fitModel(withAgent?.agent.model, await (ctx.call("providers.space_key.get", {}) as Promise<{ models?: string[] }>).then((r) => r.models ?? [], () => [] as string[]))
     : withAgent?.agent.model;
+  // no model named, on a provider that runs its own default (OpenRouter): the Space policy is checked first, before anything is sent (one rule with chat: config.ts providerDefaultBlocked)
+  if (!stepModel && PROVIDER_DEFAULT_DRIVERS.has(paid.row.driver)) {
+    const limits = (await ctx.call("engine.policy.get", {})) as PolicyOut;
+    const why = providerDefaultBlocked({ allowedModels: limits.allowedModels ?? [], allowedProviders: limits.allowedProviders ?? [] }, paid.row.driver);
+    if (why !== null) raise(ctx as never, "permission.provider_label", PROVIDER_DEFAULT_WORDS, { reason: why });
+  }
+  // nothing names a model, on a person's API key: the default nobody chose, from the key's own list (first-model.ts; one rule with chat); never written, the step's record names what ran
+  if (!stepModel && paid.row.spaceKey !== true) {
+    const limits = (await ctx.call("engine.policy.get", {})) as PolicyOut & { labelProviders?: Record<string, string[]> };
+    const providerId = (await load(ctx as never)).idByRef.get(paid.row.ref);
+    const d = await defaultModelFor({ db: ctx.db as never, now: ctx.now(), call: (cap, i) => ctx.call(cap as never, i as never), policy: { allowedModels: limits.allowedModels ?? [], allowedProviders: limits.allowedProviders ?? [], labelProviders: limits.labelProviders ?? {} } },
+      { ref: paid.row.ref, driver: paid.row.driver, provider: paid.row.provider ?? paid.row.driver, kind: paid.row.kind, providerId, models: paid.row.models });
+    if (d.why === "policy") raise(ctx as never, "permission.provider_label", PROVIDER_DEFAULT_WORDS, { reason: "policy_model" });
+    stepModel = d.model;
+  }
   const agent: EngineAgent = { id: agentKey, ...(withAgent ? { name: withAgent.agent.name } : {}), mode: "lead", ...(stepModel ? { model: stepModel } : {}) };
   const slug = hex(input.idempotencyKey);
   const threadId = `thr_step${slug}`;
@@ -185,6 +204,7 @@ export async function stepTurn(ctx: EngineCtx, input: StepTurnIn): Promise<StepT
   const minutes = Math.min(30, Math.max(1, input.timeoutMinutes ?? DEFAULT_MINUTES));
   const session = await open(spec).catch((e: unknown) => {
     const c = (e as { code?: unknown } | null)?.code;
+    if (c === "engine.no_model") raise(ctx, "validation.precondition_failed", NO_MODEL_STEP, { reason: "no_model" });
     const mapped = codeOfDriver(typeof c === "string" ? c : "");
     raise(ctx, mapped.code as never, whyOf(mapped.code), { reason: "open_failed" });
   });
@@ -211,6 +231,8 @@ export async function stepTurn(ctx: EngineCtx, input: StepTurnIn): Promise<StepT
   recordStepUsage(ctx, { turnId, agentId: agentKey, asker, model, tokensIn, tokensOut, ...(paid.itemId ? { itemId: paid.itemId } : {}) });
   if (timedOut) raise(ctx, "timeout.deadline", `The AI step did not answer within ${minutes} minutes.`, { reason: "timeout" });
   if (failure) {
+    // the account needs a model and the step gave it none: plain words, not "the provider could not answer" (a subscription runs on its CLI's own default and never says this)
+    if (failure.code === "engine.no_model") raise(ctx, "validation.precondition_failed", NO_MODEL_STEP, { reason: "no_model" });
     const mapped = codeOfDriver(failure.code);
     raise(ctx, mapped.code as never, whyOf(mapped.code), { reason: "engine" });
   }

@@ -5,7 +5,7 @@
 //   next      the one call that takes work: the agent's own tool. The chat it names is where its work shows from then on.
 //   seen      a tool call happened: Working for a minute, Awake for two, then Offline.
 import { isHostService, isSystemCall } from "../../../lib/trust.ts";
-import { MAX_NAME, NAME_BAD, agentBy, agentByName, allows, askerOf, ensure, isAssistant, mintId, nameKey, raise, seesAll, tolerant } from "../projections.ts";
+import { MAX_NAME, NAME_BAD, agentBy, agentByName, allows, askerOf, canSee, chatOf, ensure, isAssistant, mintId, nameKey, raise, seesAll, tolerant } from "../projections.ts";
 import type { AgentRec, AgentsCtx } from "../projections.ts";
 
 type Row = Record<string, unknown>;
@@ -41,7 +41,7 @@ function jobOf(r: Row): OutsideJob {
 export const isOutside = (a: Pick<AgentRec, "runtime">): boolean => a.runtime === "outside";
 
 export function enqueue(ctx: AgentsCtx, input: { agentId: string; kind: "mention" | "task" | "answer"; threadId?: string; taskId?: string; messageId?: string; asker: string; title?: string; text?: string }) {
-  if (!isSystemCall({ depth: ctx.depth ?? 0, principal: ctx.principal })) raise(ctx, "permission.no_grant", "Only the server puts work in this queue.");
+  if (!isSystemCall({ depth: ctx.depth ?? 0, principal: ctx.principal, forwarded: ctx.forwarded })) raise(ctx, "permission.no_grant", "Only the server puts work in this queue.");
   ensure(ctx.db);
   const a = agentBy(ctx.db, input.agentId);
   // owner only: a teammate's ask never runs on someone else's machine or on someone else's access
@@ -77,21 +77,24 @@ export function next(ctx: AgentsCtx, _input: Record<string, never>) {
 /**
  * May the person asking give this agent work: a task, an automation step, a crew? An outside agent takes work from its owner only. Any other agent also needs Can use on it (Share's second level):
  * Can chat with lets a person add it to their chats and talk to it, nothing more, because work on an agent runs on the person's own AI account and acts for them. The owner, the host and a
- * person who sees all agents (an admin) pass; the private Assistant is its person's alone. An agent that is not there says yes, as before: the caller finds that out where it matters.
+ * person who sees all agents (an admin) pass; the private Assistant is its person's alone. An agent that is not there is not usable.
  */
 export function usable(ctx: AgentsCtx, input: { agentId: string }) {
   ensure(ctx.db);
   const a = agentBy(ctx.db, input.agentId);
-  if (!a) return { usable: true };
+  if (!a) return { usable: false };   // an agent that is not there takes no work (review 12 Nov, 9: not found is not usable)
   const who = askerOf(ctx);
   if (isHostService(ctx.principal)) return { usable: true };
   if (isAssistant(a)) return { usable: a.ownerId === who };   // a person's Assistant is theirs alone
+  // an agent a private chat made, to someone who may not see it, is one that does not exist (owner decision, 12 Nov 2026): the answer an agent that is not there gets here, above
+  // ("not usable"), so a task, a hand-off or an Add for it reads exactly as one for a missing agent
+  if (chatOf(a) !== undefined && !canSee(ctx, a)) return { usable: false };
   if (!isOutside(a) && a.ownerId !== who && ctx.principal.kind === "person" && !allows(ctx, null, "use", "agent", a.id) && !seesAll(ctx)) return { usable: false };
   return { usable: !isOutside(a) || a.ownerId === who };
 }
 
 export function seen(ctx: AgentsCtx, input: { agentId: string }) {
-  if (!isSystemCall({ depth: ctx.depth ?? 0, principal: ctx.principal })) raise(ctx, "permission.no_grant", "Only the server says that.");
+  if (!isSystemCall({ depth: ctx.depth ?? 0, principal: ctx.principal, forwarded: ctx.forwarded })) raise(ctx, "permission.no_grant", "Only the server says that.");
   ensure(ctx.db);
   const a = agentBy(ctx.db, input.agentId);
   if (!a || !isOutside(a)) return { ok: false };

@@ -29,6 +29,8 @@ type In = {
   rows: Array<Record<string, unknown>>;
   match: Array<string>;
   runAutomations?: boolean;
+  createOnly?: boolean;
+  skipExisting?: boolean;
   idempotencyKey: string;
 };
 ```
@@ -40,6 +42,17 @@ type Out = {
   created: number;
   updated: number;
   skipped: number;
+  stopped?: {
+    reason: "unavailable" | "version_conflict";
+    row: number;
+    message: string;
+    notDone: Array<number>;
+  };
+  refused?: Array<{
+      row: number;
+      reason: string;
+      message: string;
+    }>;
 };
 ```
 
@@ -57,6 +70,7 @@ type Out = {
 {
   "name": "example",
   "input": {
+    "createOnly": true,
     "idempotencyKey": "idem_1",
     "match": [
       "example"
@@ -65,11 +79,27 @@ type Out = {
       {}
     ],
     "runAutomations": true,
+    "skipExisting": true,
     "type": "contact"
   },
   "output": {
     "created": 1,
+    "refused": [
+      {
+        "message": "example",
+        "reason": "example",
+        "row": 1
+      }
+    ],
     "skipped": 1,
+    "stopped": {
+      "message": "example",
+      "notDone": [
+        1
+      ],
+      "reason": "unavailable",
+      "row": 1
+    },
     "updated": 1
   }
 }

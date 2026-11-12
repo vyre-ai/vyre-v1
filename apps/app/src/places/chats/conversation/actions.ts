@@ -7,6 +7,7 @@ import type { ConversationData } from "./data.tsx";
 import { exportAs } from "./export.ts";
 import type { ExportFormat } from "./export.ts";
 import { mentionsIn, postInput } from "./model.ts";
+import type { Pending } from "./model.ts";
 import { screenForThread } from "../../../shell/ask/screen.ts";
 import type { AgentMode, Message, SendKind, Thread } from "./model.ts";
 
@@ -45,6 +46,25 @@ export async function sendMessage(data: ConversationData, input: { text: string;
   const out = (await data.call("chat.post", { ...post, ...(screen ? { screen } : {}) })) as CapMap["chat.post"]["out"];
   if (input.kind === "interrupt" && input.working) await data.call("engine.interrupt", { threadId: data.threadId, messageId: out.message.messageId } satisfies CapMap["engine.interrupt"]["in"]);
   return { messageId: out.message.messageId, threadSeq: out.message.threadSeq };
+}
+
+/**
+ * One try of a pending send: its files are stored first (those the send already holds are attached as they are), then chat.post. `onStored` is told the ids of the files stored, also when a
+ * later upload or the post fails, so the pending item keeps them and a retry uploads nothing again (a large file uploaded again is a new blob, which the same key refuses).
+ */
+export async function sendPending(data: ConversationData, p: Pending, onStored: (ids: string[]) => void): Promise<SendResult> {
+  const kept = (p.files ?? []).flatMap((f) => (f.fileId !== undefined ? [f.fileId] : []));
+  const fresh = (p.files ?? []).filter((f) => f.fileId === undefined);
+  let uploaded: string[] = [];
+  // the files stored by an earlier try are not stored again, so the ones left count from zero again: their keys name how many were already kept, or they would collide with the kept files' keys
+  if (fresh.length > 0) {
+    try { uploaded = await uploadAttachments(data, fresh, kept.length === 0 ? `chat-attach:${p.key}` : `chat-attach:${p.key}:after${kept.length}`); } catch (e) { const stored = (e as { stored?: string[] } | null)?.stored; if (stored && stored.length > 0) onStored(stored); throw e; }
+    onStored(uploaded);
+  }
+  // the files go in the order they were picked: the ones stored before and the ones stored now, interleaved as they were in the tray
+  const fresh2 = [...uploaded];
+  const inOrder = (p.files ?? []).flatMap((f) => (f.fileId !== undefined ? [f.fileId] : fresh2.length > 0 ? [fresh2.shift()!] : []));
+  return sendMessage(data, { text: p.body, mentions: p.mentions, key: p.key, kind: p.kind, working: p.working, ...(p.refs && p.refs.length > 0 ? { refs: p.refs } : {}), attachments: inOrder, ...(p.alsoToChat === true ? { alsoToChat: true } : {}) });
 }
 
 /** Stop one agent's work, or every agent's in the thread. The steps so far are kept. */
@@ -306,6 +326,7 @@ export async function postWithFiles(data: Pick<ConversationData, "call" | "putBl
 /** Store each file in a folder and return their ids, in order (the same rules as an attachment: inline up to INLINE_LIMIT, else through the upload address; a taken name gets (2), (3)). */
 export async function storeFiles(data: Pick<ConversationData, "call" | "putBlob">, folderId: string, files: readonly Upload[], key: string): Promise<string[]> {
   const ids: string[] = [];
+  try {
   for (const [i, f] of files.entries()) {
     if (!isBlob(f.file)) throw new Error(`${f.name} cannot be read`);
     const bytes = new Uint8Array(await f.file.arrayBuffer());
@@ -328,6 +349,11 @@ export async function storeFiles(data: Pick<ConversationData, "call" | "putBlob"
     }
     if (!made) throw new Error(`${f.name} could not be saved`);
     ids.push(made.file.fileId);
+  }
+  } catch (e) {
+    // the files stored before the failure are handed back on the error, so the send keeps them and a retry does not upload them again
+    if (e !== null && typeof e === "object") (e as { stored?: string[] }).stored = [...ids];
+    throw e;
   }
   return ids;
 }

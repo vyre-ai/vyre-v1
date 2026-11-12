@@ -20,6 +20,8 @@ interface Case {
   give(): Promise<() => Promise<boolean>>;
   /** the check is false before the access is given (the case proves its own give) */
   before?: () => Promise<boolean>;
+  /** after the take, any part of the access still there counts (default: the check given by give) */
+  stillAny?: () => Promise<boolean>;
   /** take it away */
   take(): Promise<void>;
 }
@@ -61,11 +63,32 @@ test("each capability that takes access away answers only once the next request 
     const record = (await ok("records.create", { type: "contact", fields: { name: "Walk contact" } }, "usr_olivia")).record as { id?: string; recordId?: string };
     const recordRef = { type: "record", id: (record.recordId ?? record.id)! };
     await ok("access.audience_set", { resource: recordRef, audience: "added" }, "usr_olivia");
+    // what a project role gives a person: something on the project, on its folder, and a place in its channel
+    const projectGave = async (who: string): Promise<boolean[]> => {
+      const members = ((await ok("channels.get", { channelId: project.channelId }, "usr_olivia")).channel as { members: Array<{ id: string }> }).members;
+      return [(await mine(who, { type: "project", id: projectId })) !== undefined, (await mine(who, folder)) !== undefined, members.some((m) => m.id === who)];
+    };
+    // what a project role gives a person on any project: something on the project, on its folder, and a place in its channel (read as its owner, archived or not)
+    type P = { projectId: string; folderId: string; channelId: string };
+    let walkArchived: P | undefined, walkLead: P | undefined;
+    const archived = (): P => walkArchived ?? { projectId: "", folderId: "", channelId: "" };
+    const gaveOn = async (p: P, who: string): Promise<boolean[]> => {
+      if (!p.projectId) return [false, false, false];
+      const members = ((await ok("channels.get", { channelId: p.channelId }, "usr_olivia")).channel as { members: Array<{ id: string }> }).members;
+      return [(await mine(who, { type: "project", id: p.projectId })) !== undefined, (await mine(who, { type: "folder", id: p.folderId })) !== undefined, members.some((m) => m.id === who)];
+    };
     // Noah's own agent
     const agentId = ((await ok("agents.create", { name: "Walk helper", computer: false }, "usr_noah")).agent as { agentId: string }).agentId;
     const agent = { type: "agent", id: agentId };
     const folderOpens = (who: string) => async () => (await call("files.folder.get", { folderId: folder.id }, who)).status === 200;
 
+    let walkChannel: { channelId: string; mainThreadId: string } | undefined;
+    let walkFileId = "";
+    const walkFile = () => ({ type: "file", id: walkFileId || "fil_none" });
+    let walkAgent = "";
+    let walkLeave: { channelId: string; mainThreadId: string } | undefined;
+    let walkLeaveAgent = "";
+    let walkLink: { formId: string; slug: string; token: string } | undefined;
     const cases: Case[] = [
       {
         name: "share revoke on a folder (access.unshare)",
@@ -90,14 +113,16 @@ test("each capability that takes access away answers only once the next request 
         take: async () => { await ok("access.unshare", { resource: recordRef, subject: person("usr_noah") }, "usr_olivia"); },
       },
       {
-        name: "project member removed (projects.members.remove)",
-        give: async () => { await ok("projects.members.set", { projectId, principal: "usr_tess", role: "member" }, "usr_olivia"); return async () => (await mine("usr_tess", { type: "project", id: projectId })) !== undefined; },
-        take: async () => { await ok("projects.members.remove", { projectId, principal: "usr_tess" }, "usr_olivia"); },
+        name: "project member removed by a Space admin who holds nothing on the project: the project, its folder and its channel all go (projects.members.remove)",
+        before: async () => (await projectGave("usr_tess")).some(Boolean),
+        give: async () => { await ok("projects.members.set", { projectId, principal: "usr_tess", role: "member" }, "usr_olivia"); return async () => (await projectGave("usr_tess")).every(Boolean); },
+        take: async () => { await ok("projects.members.remove", { projectId, principal: "usr_tess" }, "usr_adam"); },
+        stillAny: async () => (await projectGave("usr_tess")).some(Boolean),
       },
       {
-        name: "project role lowered, Lead to Guest (projects.members.set)",
-        give: async () => { await ok("projects.members.set", { projectId, principal: "usr_mia", role: "lead" }, "usr_olivia"); return async () => (await mine("usr_mia", { type: "project", id: projectId })) === "manage"; },
-        take: async () => { await ok("projects.members.set", { projectId, principal: "usr_mia", role: "guest" }, "usr_olivia"); },
+        name: "project role lowered, Lead to Guest: the project and its folder drop to View (projects.members.set)",
+        give: async () => { await ok("projects.members.set", { projectId, principal: "usr_mia", role: "lead" }, "usr_olivia"); return async () => (await mine("usr_mia", { type: "project", id: projectId })) === "manage" || (await mine("usr_mia", folder)) === "manage"; },
+        take: async () => { await ok("projects.members.set", { projectId, principal: "usr_mia", role: "guest" }, "usr_adam"); },
       },
       {
         name: "group member removed (access.groups.remove_member)",
@@ -126,6 +151,108 @@ test("each capability that takes access away answers only once the next request 
         take: async () => { await ok("agents.set_owner", { agentId, ownerId: "usr_sana" }, "usr_noah"); },
       },
       {
+        name: "a join step retried after an admin lowered the role (members.joins.retry never undoes a later change)",
+        before: async () => (await mine("usr_sana", { type: "project", id: projectId })) === "edit",
+        give: async () => {
+          // the join's project step failed when Sana joined (she held no role there then); since, an admin gave her Member
+          daemon.db!.run("INSERT OR REPLACE INTO members_joins (person_id, invite_id, steps, state, joined_at, applied_at) VALUES (?, ?, ?, ?, ?, NULL)", "usr_sana", "inv_walk",
+            JSON.stringify([{ k: `project:${projectId}`, state: "failed", tries: 1, error: "internal.unexpected", seen: "none" }]), "pending", Date.now());
+          await ok("projects.members.set", { projectId, principal: "usr_sana", role: "member" }, "usr_olivia");
+          return async () => (await mine("usr_sana", { type: "project", id: projectId })) === "edit";
+        },
+        take: async () => {
+          await ok("projects.members.set", { projectId, principal: "usr_sana", role: "guest" }, "usr_olivia");
+          await ok("members.joins.retry", { personId: "usr_sana" }, "usr_olivia");
+        },
+      },
+      {
+        name: "record share revoked takes its copy on the record's folder (access.unshare on a record)",
+        before: async () => (await mine("usr_sana", folder)) === "edit",
+        give: async () => {
+          await ok("access.share", { resource: recordRef, subject: person("usr_sana"), level: "edit" }, "usr_olivia");
+          await ok("access.share", { resource: folder, subject: person("usr_sana"), level: "edit", source: `projfolder:${recordRef.id}` }, "usr_olivia");
+          return async () => (await mine("usr_sana", folder)) === "edit";
+        },
+        take: async () => { await ok("access.unshare", { resource: recordRef, subject: person("usr_sana") }, "usr_olivia"); },
+      },
+      {
+        name: "taken out of a channel: its own agents go out of sight (channels.members.remove)",
+        give: async () => {
+          const ch = (await ok("channels.create", { name: "walk-room", visibility: "invite", memberIds: ["usr_tess"], agentIds: [] }, "usr_olivia")).channel as { channelId: string; mainThreadId: string };
+          walkChannel = ch;
+          walkAgent = (await ok("threads.agent.create", { threadId: ch.mainThreadId, name: "Room helper" }, "usr_olivia")).agentId as string;
+          return async () => (await mine("usr_tess", { type: "agent", id: walkAgent })) !== undefined;
+        },
+        take: async () => { await ok("channels.members.remove", { channelId: walkChannel!.channelId, personId: "usr_tess" }, "usr_olivia"); },
+      },
+      {
+        name: "leaving a channel oneself: the channel's own agents go out of sight, though someone else gave that view (channels.leave)",
+        give: async () => {
+          const ch = (await ok("channels.create", { name: "walk-leave", visibility: "invite", memberIds: ["usr_sana"], agentIds: [] }, "usr_olivia")).channel as { channelId: string; mainThreadId: string };
+          walkLeave = ch;
+          walkLeaveAgent = (await ok("threads.agent.create", { threadId: ch.mainThreadId, name: "Leave helper" }, "usr_olivia")).agentId as string;
+          return async () => ((await call("access.shares_of", { resource: { type: "agent", id: walkLeaveAgent } }, "usr_olivia")).data?.shares ?? []).some((x: { grant: { subject: { id: string }; source?: string } }) => x.grant.subject.id === "usr_sana" && x.grant.source === `chat:${walkLeave!.mainThreadId}`);
+        },
+        take: async () => { await ok("channels.leave", { channelId: walkLeave!.channelId }, "usr_sana"); },
+      },
+      {
+        name: "a record link revoked refuses its next use (forms.link_revoke)",
+        give: async () => {
+          const form = (await ok("forms.create", { name: "Walk intake", recordType: "contact", kind: "public" }, "usr_olivia")).form as { formId: string; slug: string };
+          await ok("forms.fields_set", { formId: form.formId, fields: [{ field: "name", mode: "ask" }, { field: "email", mode: "ask" }, { field: "phone", mode: "ask" }] }, "usr_olivia");
+          await ok("forms.publish", { formId: form.formId }, "usr_olivia");
+          const url = (await ok("forms.link_create", { formId: form.formId, recordId: recordRef.id, singleUse: false }, "usr_olivia")).url as string;
+          walkLink = { formId: form.formId, slug: form.slug, token: new URL(url, "https://walk.test").searchParams.get("t")! };
+          // the public door a visitor's page uses (POST /f/submit): no signed-in caller, only the link's token; each try sends a new answer
+          let tries = 0;
+          return async () => {
+            const r = await fetch(`${daemon.url}/f/submit`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ slug: walkLink!.slug, token: walkLink!.token, answers: { phone: `555 01${++tries}` } }) });
+            return r.status === 200;
+          };
+        },
+        take: async () => { await ok("forms.link_revoke", { formId: walkLink!.formId, token: walkLink!.token }, "usr_olivia"); },
+      },
+      {
+        name: "project member removed while the project's channel is archived: gone from the project, its folder and the archived channel (projects.members.remove)",
+        before: async () => (await gaveOn(archived(), "usr_mia")).some(Boolean),
+        give: async () => {
+          const p2 = (await ok("projects.create", { type: "project", title: "Archived room" }, "usr_olivia")) as { projectId: string; folderId: string; channelId: string };
+          walkArchived = p2;
+          await ok("projects.members.set", { projectId: p2.projectId, principal: "usr_mia", role: "member" }, "usr_olivia");
+          await ok("channels.archive", { channelId: p2.channelId }, "usr_olivia");
+          return async () => (await gaveOn(archived(), "usr_mia")).every(Boolean);
+        },
+        take: async () => { await ok("projects.members.remove", { projectId: archived().projectId, principal: "usr_mia" }, "usr_adam"); },
+        stillAny: async () => (await gaveOn(archived(), "usr_mia")).some(Boolean),
+      },
+      {
+        name: "a project Lead removed from the Space while the project's channel is archived: the project is handed over and they are out of it (members.remove)",
+        give: async () => {
+          const p3 = (await ok("projects.create", { type: "project", title: "Lead room" }, "usr_olivia")) as { projectId: string; folderId: string; channelId: string };
+          walkLead = p3;
+          await ok("projects.members.set", { projectId: p3.projectId, principal: "usr_sana", role: "lead" }, "usr_olivia");
+          await ok("channels.archive", { channelId: p3.channelId }, "usr_olivia");
+          return async () => (await gaveOn(walkLead!, "usr_sana")).some(Boolean);
+        },
+        take: async () => { await ok("members.remove", { personId: "usr_sana", plan: [{ kind: "projects", action: "reassign", to: "usr_olivia" }] }, "usr_olivia"); },
+        stillAny: async () => {
+          const members = (await ok("projects.members.list", { projectId: walkLead!.projectId }, "usr_olivia")).members as Array<{ principal: string; role: string }>;
+          const inChannel = ((await ok("channels.get", { channelId: walkLead!.channelId }, "usr_olivia")).channel as { members: Array<{ id: string }> }).members.some((m) => m.id === "usr_sana");
+          return members.some((m) => m.principal === "usr_sana") || inChannel || !members.some((m) => m.principal === "usr_olivia" && m.role === "lead");
+        },
+      },
+      {
+        name: "a file share lowered from Edit to View through files.share, over an Edit given without a source (files.share)",
+        before: async () => (await mine("usr_noah", walkFile())) === "edit",
+        give: async () => {
+          const f = (await ok("files.create", { folderId: folder.id, name: "Walk lowering.txt", content: { text: "lower me" } }, "usr_olivia")).file as { fileId?: string; id?: string };
+          walkFileId = (f.fileId ?? f.id)!;
+          await ok("access.share", { resource: walkFile(), subject: person("usr_noah"), level: "edit" }, "usr_olivia");   // a share made before files.share had a source, or from the Console
+          return async () => (await mine("usr_noah", walkFile())) === "edit";
+        },
+        take: async () => { await ok("files.share", { fileId: walkFileId, subject: person("usr_noah"), level: "view" }, "usr_olivia"); },
+      },
+      {
         name: "Space member suspended (members.suspend)",
         before: folderOpens("usr_tess"),
         give: async () => { await ok("access.share", { resource: folder, subject: person("usr_tess"), level: "view" }, "usr_olivia"); return folderOpens("usr_tess"); },
@@ -150,7 +277,7 @@ test("each capability that takes access away answers only once the next request 
       const holds = await c.give();
       assert.equal(await holds(), true, `${c.name}: the access is there before`);
       await c.take();
-      const still = await holds();   // the very next request, no wait
+      const still = await (c.stillAny ?? holds)();   // the very next request, no wait
       results.push(`${still ? "STILL" : "gone "} ${c.name}`);
     }
     assert.deepEqual(results.filter((r) => r.startsWith("STILL")), [], results.join("\n"));

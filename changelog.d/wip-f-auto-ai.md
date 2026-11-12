@@ -1,0 +1,2 @@
+- An AI step whose account needs a model and has none now fails with plain words instead of a provider error.
+- A fresh Space with no connectors yet no longer logs a failed host adoption at boot.

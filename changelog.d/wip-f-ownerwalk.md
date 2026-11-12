@@ -1,0 +1,33 @@
+- Your Profile opens in the Settings tab you already have, on your profile, instead of a second Settings tab.
+- Add a Space no longer opens Settings with an Add a server dialog behind it.
+- A chat that has finished or been stopped says "Message Assistant…" in its empty box again, not "Steer Assistant…".
+- Search finds Settings, each of its pages and, for admins, the Console by name; a result named by your words comes first.
+- New project (in Search and the Projects + in Chats) opens Projects with a new project row ready to name.
+- The agent's Computer tab no longer leaves a tall gap under Browser or draws the browser card over the line below it.
+- The agent's folder no longer lists Vyre's own hidden folders such as .index and .vyre.
+- The Computers page and Add a server say computer instead of machine.
+- What needs you in the Console no longer says "since now": a new item says nothing more, an older one says for how long.
+- An empty Console list with nothing searched says "No webhooks yet." rather than "No webhooks match."
+- Space Settings in a Team Space opens Console > Space for an owner or admin, and is not offered to a member who has no Console; a Personal Space keeps it in Settings.
+- Console Home says who joined in plain words ("Maya Lin joined the Space from an invite") and no longer lists the steps Vyre takes for a join; opening the audit log is recorded once per visit, not on every read.
+- Extra access names the folder each grant is on, or says "an item you cannot open", never "Someone".
+- Roles count people and agents apart ("1 person, 3 agents").
+- Keep and delete says every rule in words ("All for 30 days, then daily for 90 days, then monthly", "By its own schedule").
+- A setup step with nothing to preview shows no preview card.
+- Stopping a reply and an unsent message are each said once, under the message.
+- What needs you no longer repeats a row's title as its second line; the health tile says Computer alerts.
+- After New project, the Records sidebar switches types again and a reload starts no second new row; New project works at the phone width.
+- The Console calls the Computers page Computers in its list too, and a person's own computer no longer points them to vyre-server doctor.
+- The agent's folder shows the agent's own dot files (.env, .gitignore); only Vyre's .index and .vyre stay out.
+- Search finds rows inside Settings by name (Passkeys, Password), from the Settings page's own list.
+- When you @mention someone who is not in the chat, a quiet line under your message says "Maya is not in this chat." with Add (Add both, Add all 3); only you see it. Add brings them in from that message on and tells them about it; someone who cannot add people sees who can instead.
+- A member's Space menu no longer offers Add a Server: a server is added by an owner or admin of a Team Space, or by the owner of a Personal Space. Every other entry was checked against what a member, an admin and an owner may do.
+- A person's Assistant has one name everywhere, "Maya’s Assistant", never "Maya Lin (Agent)": the directory, a message written for its person, catch-up, file marks and their Activity, version history and the line agents read all come through one function (lib/words/agent-name). An outside agent a person connected is still credited to them, "Maya Lin (Agent)".
+- "Maya is not in this chat." with Add is now one component in two places: the strip on top of the composer while the message is written, and the line under the sent message. An agent named in a message who is not in the chat gets the same line and Add, and the "No agent will reply" line steps aside so a message has one line, not two.
+- Console > Computers says how the Space browser's slots stand on this server, in one quiet line: "Agent browsers: 7 of 24 in use.", with ", 3 waiting" while this Space's calls wait for one. Nothing is said without a Space browser.
+- A finished helper's row in the crew strip no longer loses its test counts when its one read of the helper's chat fails on a busy server: the read is tried again.
+- An invite link already sent keeps working when the create is sent again with the same key (a slow answer and a retry): the earlier code is kept beside the fresh one, as a hash, until the invite is used, revoked or expires.
+- A Stop pressed while a reply is starting stops that reply: the press answers at once and the turn ends cancelled as it starts.
+- A replayed invite create says plainly when the invite was already used, revoked or has expired, and makes no new code for it. On a Space reached at its phone address, the first link of a replayed invite opens too.
+- A reply stopped while it was starting opens no session, fires no hook, sends nothing, asks nobody for an account, and is not run again after a restart.
+- A Team member is no longer offered Add a server on an agent's page or told to add one in its Computer tab; an owner or admin is named instead.

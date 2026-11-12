@@ -1,0 +1,1 @@
+- Approvals: an Allow (or Deny) pressed while a held call's turn was still winding down on a busy server is no longer lost. The turn records that it waits before it lets its model session go, so the answer resumes it once with what the call gave back, and the agent is not also woken a second time. A turn stopped in that moment leaves nothing waiting behind it.

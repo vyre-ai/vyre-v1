@@ -38,9 +38,9 @@ const rights = t.obj({ manage: t.bool(), edit: t.opt(t.bool()), share: t.bool(),
 const roleHolderRef = t.obj({ kind: t.enm('person', 'agent', 'actor', 'service', 'group'), id: t.str({ pattern: '^(usr|agt|act|svc|grp)_[a-z0-9]+$', examples: ['usr_a1b2c3'] }) });
 const principalRow = t.obj({
   id: pid, kind: t.enm('person', 'agent', 'actor', 'service'), name: t.str(), owner: t.opt(pid),
-  // someone else's private agent (their assistant, an outside agent they connected): `name` is its person's, "Irfad Imtiaz (Agent)", and it wears `owner`'s face (owner ruling 3 Nov).
-  // `agentName` is its own name, for owners and admins only (the audit details line).
-  private: t.opt(t.bool()), agentName: t.opt(t.str()),
+  // someone else's private agent (their assistant, an outside agent they connected) wears `owner`'s face (owner ruling 3 Nov). `name` says whose it is: "Maya’s Assistant" for their Assistant
+  // (`assistant`), "Maya Lin (Agent)" for an outside agent (lead, 12 Nov). `agentName` is its own name, for owners and admins only (the audit details line).
+  private: t.opt(t.bool()), assistant: t.opt(t.bool()), agentName: t.opt(t.str()),
   status: t.enm('invited', 'active', 'suspended', 'removed'), roles: t.arr(id.role), groups: t.arr(id.group),
   title: t.opt(t.str()), createdAt: t.ts(),
 });
@@ -165,7 +165,7 @@ export default defineManifest({
       ...V, in: { resource: resourceRef, person: id.user, level, inviter: id.user, source: t.str({ examples: ['invite:inv_a1b2c3'] }) }, out: { grant: grantRow },
       emits: ['grant.created', 'access.changed'], audit: 'always', errors: ['permission.not_contained'],
     }),
-    write('access.unshare', 'Remove a grant, or every grant of one source on a resource', { ...V, in: { grantId: t.opt(id.grant), resource: t.opt(resourceRef), subject: t.opt(subjectRef), source: t.opt(t.str()) }, out: { revoked: t.int({ minimum: 0 }) }, emits: ['grant.revoked', 'access.changed', 'folder.shared'], audit: 'always', tool: 'meta', team: true }),
+    write('access.unshare', 'Remove a grant, or every grant of one source on a resource', { ...V, in: { grantId: t.opt(id.grant), resource: t.opt(resourceRef), subject: t.opt(subjectRef), source: t.opt(t.str()) }, out: { revoked: t.int({ minimum: 0 }) }, emits: ['grant.revoked', 'grant.updated', 'access.changed', 'folder.shared'], audit: 'always', tool: 'meta', team: true }),
     read('access.shares_of', 'Who has access to a resource, through what (direct, group, role, folder), with conditions and expiry; for a record type or a record also who it is open to and who may export', { ...V, in: { resource: resourceRef }, out: { shares: t.arr(t.obj({ grant: grantRow, through: t.enm('direct', 'group', 'role', 'folder', 'owner') })), mine: t.opt(level), agentsCanCall: t.opt(t.bool()), audience: t.opt(audience), exporters: t.opt(exporters), inherits: t.opt(t.str({ description: 'The container this resource follows (the record type of a record), when it follows it' })), outside: t.opt(t.bool()), can: t.opt(rights) }, tool: 'meta' }),
     // DECISION (owner, 4 Nov): "Agents in this Space can call X" is a flag on the agent, On unless a person turns it Off. A real group would need a join event at every agent creation; the flag reads the same everywhere (the Share sheet, the handoff check).
     write('access.agents_can_call.set', 'A person with Manage on an agent says whether other agents in the Space may hand work to it (On unless turned Off)', {
@@ -186,7 +186,7 @@ export default defineManifest({
     read('access.record_marks', 'For the rows of one record type: which differ from the type (their own audience or direct grants), and whether the caller was given the type or a row by name', { ...V, in: { type: id.recordType }, out: { typeShared: t.bool(), audience, can: rights, rows: t.arr(t.obj({ id: id.record, audience, direct: t.int({ minimum: 0 }), mine: t.bool() })) }, tool: 'meta' }),
     read('access.deciders', 'The people who hold Manage on a resource and so may decide a request about it. Used to route a request to a person even when the caller, an agent, cannot see the resource itself; it names people and shows nothing else', { ...V, in: { resource: resourceRef }, out: { people: t.arr(id.user) }, tool: 'meta' }),
     read('access.grants.list', 'List grants by resource, subject or source (Console Grants)', { ...V, in: { resource: t.opt(resourceRef), subject: t.opt(subjectRef), source: t.opt(t.str()), ...pageIn }, out: { grants: t.arr(grantRow), ...pageOut }, perm: 'access.manage', tool: 'engineer' }),
-    write('access.grants.update', 'Change the level, conditions or expiry of a grant', { ...V, in: { grantId: id.grant, level: t.opt(level), conditions: t.opt(conditions) }, out: { grant: grantRow }, emits: ['grant.updated', 'access.changed'], audit: 'always', tool: 'meta', team: true, errors: ['permission.not_contained'] }),
+    write('access.grants.update', 'Change the level, conditions or expiry of a grant', { ...V, in: { grantId: id.grant, level: t.opt(level), conditions: t.opt(conditions) }, out: { grant: grantRow }, emits: ['grant.updated', 'grant.revoked', 'access.changed'], audit: 'always', tool: 'meta', team: true, errors: ['permission.not_contained'] }),
     read('access.lists', 'Items of one type in a section (Personal, Shared with me, Space, Starred, Following) with folder counts', {
       ...V, in: { type: resourceType, section: t.opt(section), folder: t.opt(id.folder), ...pageIn },
       out: { rows: t.arr(listRow), counts: t.rec(t.int({ minimum: 0 })), ...pageOut }, tool: 'meta', label: 'filter',

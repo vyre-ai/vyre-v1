@@ -60,6 +60,9 @@ export async function reviewsStart(ctx: ReviewCtx, input: { scope?: string[]; id
   const live = [...store.grants.values()]
     .filter((g) => (g.conditions.expiresAt === undefined || g.conditions.expiresAt > now) && g.conditions.exception === undefined)
     .filter((g) => !input.scope || input.scope.length === 0 || input.scope.includes(g.resource.type))
+    // the grants the host keeps for an agent (its hold on its own folder, its owner's Manage there, its Space role grants) are not shares anyone gave: a review that removed one would leave
+    // an agent without its folder or a person without their Assistant's home, and the host does not write a removed one again
+    .filter((g) => !agentKept(store, g))
     .sort((a, b) => (a.id < b.id ? -1 : 1));
   const id = nid("rvw");
   const byReviewer = new Map<string, GrantRec[]>();
@@ -130,6 +133,21 @@ async function finishCard(ctx: ReviewCtx, taskId: string, note: string): Promise
   } catch (e) {
     ctx.log.warn("access review card did not close", { taskId, error: e instanceof Error ? e.message : String(e) });
   }
+}
+
+/**
+ * A grant the host writes and keeps for an agent, matched exactly (lead and r-revoke, 13 Nov 2026), home and owner only: the agent's own Edit on its home folder (subject the agent) and its
+ * owner's Manage there (subject the agent's owner). The ids are recomputed for that agent as host/src/gateway/principals.ts writes them: agentGrantId(agent, purpose), or for a second home (a new
+ * folder while the first id is still live) that id followed by the folder id's 8 characters after fld_ (principals.ts:159). Never by the shape of the text. An agent's Space grants (space, grown)
+ * and an Assistant's Edit on its person's Files (own) are reach a review is for, and stay in it.
+ */
+function agentKept(store: AccessStore, g: GrantRec): boolean {
+  if (g.resource.type !== "folder") return false;
+  const ids = (agentId: string, purpose: "home" | "owner"): string[] => { const base = `gnt_${agentId.slice(4)}${purpose}`; return [base, `${base}${g.resource.id.slice(4, 12)}`]; };
+  if (g.subject.kind === "agent") return store.principals.get(g.subject.id)?.kind === "agent" && ids(g.subject.id, "home").includes(g.id);
+  if (g.subject.kind !== "person") return false;
+  for (const p of store.principals.values()) if (p.kind === "agent" && p.owner === g.subject.id && ids(p.id, "owner").includes(g.id)) return true;
+  return false;
 }
 
 export async function reviewsDecide(ctx: ReviewCtx, input: { reviewId: string; grantId: string; decision: "keep" | "remove" }) {

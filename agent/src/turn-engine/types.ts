@@ -10,7 +10,8 @@ export type AgentMode = "lead" | "listen";
 export type ChatMode = "ask" | "auto" | "plan";
 export type Effort = "low" | "medium" | "high" | "max";
 export type QueueKind = "message" | "interrupt" | "wake" | "handoff";
-export type QueueState = "queued" | "running" | "done" | "consumed" | "cancelled";
+/** stopping: the person (or an interrupt) stopped this running or starting turn; written before the Stop answers, so a restart before the turn has ended closes it as cancelled instead of running it again */
+export type QueueState = "queued" | "running" | "stopping" | "done" | "consumed" | "cancelled";
 export type TurnState = "running" | "waiting" | "completed" | "failed" | "cancelled";
 export type AccountReason = "starter" | "steerer";
 export type Placement = "host" | "device";
@@ -95,6 +96,8 @@ export interface QueueItem {
   qseq: number;
   /** The turn this row started has called a tool: it may have acted on the world, so it is never run again without a person saying so. */
   touched?: boolean;
+  /** why a Stop stopped this row (stop, interrupt, limit, left, moved), kept with "stopping" so the line after a restart says the right thing */
+  stopReason?: string;
   kind: QueueKind;
   messageId: string | null;
   agentId: string;
@@ -177,7 +180,9 @@ export type EngineEvent =
   | { type: "turn.resumed"; threadId: string; turnId: string; agentId: string }
   | { type: "turn.completed"; threadId: string; turnId: string; agentId: string }
   | { type: "turn.failed"; threadId: string; turnId: string; agentId: string; code: string; /** the account the turn ran on (its reference and engine), so the chat can say which sign-in needs doing */ account?: { ref: string; driver: string }; /** a turn a dead host left (code host_lost): its queue row and whom it ran for */ qseq?: number; asker?: string; /** what the engine knows of the failure, for the log only: never stored in an event, never shown to the person, scrubbed by the bridge before it is written */ message?: string; /** a usage-limit failure that said when the account is usable again (epoch ms) */ resetsAt?: number }
-  | { type: "turn.cancelled"; threadId: string; turnId: string; agentId: string; /** why it was stopped: interrupt, stop, limit, left, moved, lease */ reason?: string }
+  | { type: "turn.cancelled"; threadId: string; turnId: string; agentId: string; /** why it was stopped: interrupt, stop, limit, left, moved, lease */ reason?: string;
+      /** set on a stopped turn a dead host left (recover): who it ran for, so the agent can still say in the chat that it stopped */ asker?: string;
+      /** set with asker by recover: the queue row, so the dead turn's record is closed */ qseq?: number }
   | { type: "agent.handoff"; threadId: string; to: Placement }
   | { type: "queue.consumed"; threadId: string; qseq: number; messageId: string | null };
 
@@ -285,6 +290,8 @@ export interface ResolvedAccount { ref: string; driver: string; provider: string
   spaceKey?: boolean;
   /** No account serving the chat's model could pay: the turn runs on this account's default model (`to`, else the engine's default), and the chat says so (owner ruling 9). */
   modelFallback?: { from: string; to?: string };
+  /** The model the resolver chose for this turn (the chat's pick, else the agent's own model): what an agent the thread names no model for runs on, so no opener's view can leave it empty. */
+  model?: string;
   /** An OpenAI-compatible endpoint names its own address (custom, local); `keyless` is a local server with no key. */
   base?: string; keyless?: boolean }
 export interface AccountQuery {

@@ -6,6 +6,7 @@ import { iconsAllOrNone, menuEntries } from "../../../../../ui/src/Menu/index.ts
 import { isHead, isItem, isReportItem } from "../../../../../ui/src/Menu/props.ts";
 import type { MenuEntry } from "../../../../../ui/src/Menu/index.tsx";
 import { SpaceTile, spaceMenuEntries } from "../spaces/SpaceSwitcher.tsx";
+import { spaceSettingsTarget } from "../spaces/Shell.tsx";
 import { HARBOR, NORTHWIND, PERSONAL, SEED_DEFS, othersNeedingYou } from "../spaces/model.ts";
 import { PLACE_TITLE, kitById, railFor, railPlaces } from "./kits.ts";
 import { Rail } from "./Rail.tsx";
@@ -73,6 +74,14 @@ test("the Space menu: your Spaces with the open one checked, then the actions; T
   assert.ok(labels(spaceMenuEntries({ ...input, away: true })).includes("I'm Back"));
   // Invite People copies a real invite link: only for someone who may invite (Owner, Admin), never in a Personal Space, where nobody else can join
   assert.ok(!labels(spaceMenuEntries({ ...input, openId: "hb" })).includes("Invite People"), "a member cannot invite, so the item is absent");
+  // Space Settings: a Team Space's settings are the Console's; a member who has no Console is not offered a door to it (owner walk, 12 Nov)
+  assert.ok(!labels(spaceMenuEntries({ ...input, openId: "hb" })).includes("Space Settings"), "a member of a Team Space has no Space Settings to open");
+  // every entry against who may do it (lead, 12 Nov): a member, an owner of a Team Space, the owner of a Personal Space
+  assert.deepEqual(labels(spaceMenuEntries({ ...input, openId: "hb" })).filter((l) => !/^(Northwind|Harbor Studio|Personal)/.test(l)), ["Add a Space", "Set Yourself Away", "Your Profile", "Sign Out"], "a member: nothing they cannot do");
+  assert.ok(labels(spaceMenuEntries({ ...input, openId: "me" })).includes("Add a Server"), "the owner of a Personal Space adds their own server");
+  assert.ok(labels(spaceMenuEntries({ ...input, openId: "me" })).includes("Space Settings"), "a Personal Space keeps its Space Settings");
+  assert.deepEqual(spaceSettingsTarget({ kind: "team", console: true }), ["console", "screen=console.page&page=space"], "an owner goes to Console > Space, not to Your Profile");
+  assert.deepEqual(spaceSettingsTarget({ kind: "personal", console: false }), ["settings", "page=space"]);
   assert.ok(!labels(spaceMenuEntries({ ...input, openId: "me", spaces: SEED_DEFS.map((d) => (d.spaceId === "me" ? { ...d, invite: true } : d)) })).includes("Invite People"), "never in a Personal Space");
   const shown = menuEntries({ items: nw, source: "context" });
   assert.ok(isReportItem(shown[shown.length - 1] as MenuEntry), "ui/Menu appends Report a problem; the switcher never adds it by hand");

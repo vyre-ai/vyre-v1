@@ -39,7 +39,8 @@ test("a Personal Space with no runtime of its own runs an agent's workspace on a
     await joinedRef.running?.catch(() => undefined);
     process.env["VYRE_WORKSPACE_IMAGE"] = savedImage ?? "";
     if (savedImage === undefined) delete process.env["VYRE_WORKSPACE_IMAGE"];
-    if (name !== "") { await docker(["rm", "-f", name]); await docker(["volume", "rm", "-f", `${name}-home`, `${name}-files`]); }
+    // behind the runner the workspace has a network of its own: it goes too, or every run leaves one behind and Docker runs out of address pools (12 Nov: 29 left on the CI box)
+    if (name !== "") { await docker(["rm", "-f", name]); await docker(["volume", "rm", "-f", `${name}-home`, `${name}-files`]); const nets = (await docker(["network", "ls", "-q", "--filter", `label=vyre.workspace=${name.slice("vyre-ws-".length)}`])).out.split(/\s+/).filter((x) => /^[0-9a-f]{6,}$/.test(x)); if (nets.length > 0) await docker(["network", "rm", ...nets]); }
     await d.stop();
     await node.close();
     fs.rmSync(dir, { recursive: true, force: true }); fs.rmSync(nodeDir, { recursive: true, force: true });

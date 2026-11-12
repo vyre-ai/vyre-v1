@@ -64,7 +64,7 @@ LABEL_SERVER=ai.vyre.server
 LABEL_UPDATE=ai.vyre.server-update
 
 say() { printf '%s\n' "$*"; }
-die() { printf 'vyre: %s\n' "$*" >&2; exit "${2:-1}"; }
+die() { printf 'vyre: %s\n' "$1" >&2; exit "${2:-1}"; }
 cleanup() { [ -z "$TMP" ] || rm -rf "$TMP"; return 0; }
 
 # show CMD...: the command as one line, for "would run:".
@@ -350,7 +350,9 @@ fetch_release() {
   fetch "$base/$CHANNEL.json.sig" "$TMP/manifest.sig" 30 || die "could not fetch the manifest's signature; nothing was installed."
   verify_manifest "$TMP/manifest.json" "$TMP/manifest.sig" || die "the release signature does not match the Vyre release key in this installer; nothing was installed."
   say "  ok  the release signature verifies"
-  [ "$(jq -r '.v // empty' "$TMP/manifest.json")" = 1 ] || die "the release manifest is not a version this installer reads; nothing was installed."
+  # v 1, or v 2: a release that needs this newer updater. Every script of rc.25 and older reads only v 1 and stops right here, before any image pull or backup, saying "nothing was
+  # installed": a release published with v 2 is never carried out by the old updater (whose backup on a Mac reads the live databases from macOS). Run the install line again to update.
+  case "$(jq -r '.v // empty' "$TMP/manifest.json")" in 1|2) ;; *) die "the release manifest is not a version this installer reads; nothing was installed." ;; esac
   [ "$(jq -r '.channel // empty' "$TMP/manifest.json")" = "$CHANNEL" ] || die "the manifest is for another channel than $CHANNEL; nothing was installed."
   REL_VERSION=$(jq -r '.server.version // empty' "$TMP/manifest.json")
   url=$(jq -r '.server.tarball // empty' "$TMP/manifest.json")
@@ -406,30 +408,147 @@ space_id() {
   printf '%s' "$_s"
 }
 
-# space_serves_domain: 0 = the Space serves its own domain (network_config mode own_domain, set at install or later in the Console); 1 = it does not (the query ran, the table is there, no row says so);
-# 2 = cannot tell (no reader, a busy or missing database, any error or odd answer). Callers change the ports only on 0 or 1. Readers, in order: sqlite3, this host's node, the release image's own node
-# (docker run of the image already pulled, no network, the data folder mounted read-only).
-space_serves_domain() {
-  db=$DATA_DIR/space/modules.db
-  [ -f "$db" ] || return 2
-  q="SELECT count(*) AS n FROM network_config WHERE id = 1 AND mode = 'own_domain'"
-  to=${VYRE_TEST_SQLITE_TIMEOUT:-3000}
-  if command -v sqlite3 >/dev/null 2>&1; then
-    out=$(sqlite3 -readonly -cmd ".timeout $to" "$db" "$q" 2>/dev/null) || return 2
-    case "$out" in 1) return 0 ;; 0) return 1 ;; *) return 2 ;; esac
-  fi
-  js="try{const {DatabaseSync}=require('node:sqlite');const d=new DatabaseSync(process.argv[1],{readOnly:true});d.exec('PRAGMA busy_timeout='+process.argv[3]);console.log(d.prepare(process.argv[2]).get().n)}catch(e){process.exit(2)}"
-  if command -v node >/dev/null 2>&1 && node --no-warnings -e "require('node:sqlite')" >/dev/null 2>&1; then
-    out=$(node --no-warnings -e "$js" "$db" "$q" "$to" 2>/dev/null) || return 2
-    case "$out" in 1) return 0 ;; 0) return 1 ;; *) return 2 ;; esac
-  fi
-  img=$(sed -n 's/^VYRE_IMAGE=//p' "$DIR/compose.env" 2>/dev/null | head -n 1)
-  if [ -n "$img" ] && command -v docker >/dev/null 2>&1; then
-    out=$(docker run --rm --network none --user 1000:1000 -v "$DATA_DIR/space:/in:ro" --entrypoint node "$img" --no-warnings -e "$js" /in/modules.db "$q" "$to" 2>/dev/null) || return 2
-    case "$out" in 1) return 0 ;; 0) return 1 ;; *) return 2 ;; esac
-  fi
-  return 2
+# BEGIN spacedb
+# The Space's databases (the data folder's space/, SQLite in WAL mode) are open in vyred while it runs. A tool on this computer opens one only when the Docker engine runs on this
+# computer's own kernel: then its locks and its shared-memory index are the ones the server uses. On a Mac, and with any engine in a virtual machine (Docker Desktop, OrbStack,
+# Colima), the server runs on another kernel: a host sqlite3 or node that opens the file through the shared folder cannot see the server's locks, runs recovery and checkpoints
+# against a file the server is writing, and damages it (12 Nov 2026, a Mac mini: logs.db and modules.db, during an update's backup). There every read, snapshot and check goes into
+# the virtual machine: `docker exec` into the running vyred (the writer's own kernel), else `docker run` of the server's image (in the same VM, so the same kernel as the server). A copy the server never has
+# open (a staged backup, an unpacked one) may still use host tools. This block is the same text in vyre-server and in both installers (a test compares them).
+SPACEDB_SAME=""
+spacedb_os() { if [ "${VYRE_TEST_MODE:-0}" = 1 ] && [ -n "${VYRE_TEST_OS:-}" ]; then printf '%s' "$VYRE_TEST_OS"; else uname -s; fi; }
+# engine_same_kernel: 0 when the Docker engine's containers run on this computer's own kernel. Decided by the kernel itself, not its version: the boot id
+# (/proc/sys/kernel/random/boot_id, a new random value at each boot that no namespace changes) read here and read inside a container (the running vyred, else a one-shot
+# container of the server image). Equal version strings prove nothing: a Linux host running Colima, Lima or Multipass on the same Ubuntu kernel package reports the same
+# KernelVersion from a VM. A Mac is never the same kernel, nor is Docker Desktop. It fails safe: an engine that does not answer, a boot id that cannot be read on either side,
+# or any other doubt means "not the same kernel" (the container path, or a plain failure), never host tools. VYRE_TEST_ENGINE ("<OperatingSystem>|<boot id>") stands in for
+# Docker's two answers in test mode only.
+spacedb_host_boot() {
+  _sbf=/proc/sys/kernel/random/boot_id
+  [ "${VYRE_TEST_MODE:-0}" != 1 ] || [ -z "${VYRE_TEST_BOOT_ID_FILE:-}" ] || _sbf=$VYRE_TEST_BOOT_ID_FILE
+  head -n 1 "$_sbf" 2>/dev/null || true
 }
+# spacedb_engine_boot: "vyred|<boot id>" from the running vyred, or "oneshot|<boot id>" from a one-shot container when this engine runs no vyred of this install
+spacedb_engine_boot() {
+  if _sbc=$(spacedb_vyred); then printf 'vyred|'; docker exec "$_sbc" cat /proc/sys/kernel/random/boot_id 2>/dev/null | head -n 1; return 0; fi
+  _sbi=$(sed -n 's/^VYRE_IMAGE=//p' "$DIR/compose.env" 2>/dev/null | head -n 1)
+  printf 'oneshot|'
+  [ -z "$_sbi" ] || docker run --rm --network none --entrypoint cat "$_sbi" /proc/sys/kernel/random/boot_id 2>/dev/null | head -n 1
+  return 0
+}
+engine_same_kernel() {
+  if [ -z "$SPACEDB_SAME" ]; then
+    SPACEDB_SAME=1
+    if [ "$(spacedb_os)" != Darwin ]; then
+      if [ "${VYRE_TEST_MODE:-0}" = 1 ] && [ -n "${VYRE_TEST_ENGINE:-}" ]; then _sk=${VYRE_TEST_ENGINE%%|*}; _seb=vyred\|${VYRE_TEST_ENGINE#*|}
+      else _sk=$(docker info --format '{{.OperatingSystem}}' 2>/dev/null | head -n 1) || _sk=""; _seb=""; [ -z "$_sk" ] || _seb=$(spacedb_engine_boot); fi
+      _shb=$(spacedb_host_boot)
+      case "$_sk" in ""|*"Docker Desktop"*) ;; *) [ -z "$_shb" ] || [ "$_shb" != "${_seb#*|}" ] || SPACEDB_SAME=0 ;; esac
+      # the engine this shell talks to runs no vyred of this install: the server may be running under another Docker context (another kernel). The one-shot container speaks
+      # for this engine only, so host tools are trusted only when no database in the Space has a -wal or -shm beside it (nothing has it open)
+      if [ "$SPACEDB_SAME" = 0 ] && [ "${_seb%%|*}" = oneshot ] && [ -n "$(find "$DATA_DIR/space" \( -name '*-wal' -o -name '*-shm' \) 2>/dev/null | head -n 1)" ]; then SPACEDB_SAME=1; fi
+    fi
+  fi
+  return "$SPACEDB_SAME"
+}
+# spacedb_live FILE: the file is under the Space folder the server has open.
+spacedb_live() { case "$1" in "$DATA_DIR/space/"*) return 0 ;; esac; return 1; }
+# spacedb_vyred: the running vyred container whose /data is this install's Space folder (a bind of it, or a local volume bound to it), or nothing.
+spacedb_vyred() {
+  for _sc in $(docker ps -q --filter "label=com.docker.compose.service=vyred" 2>/dev/null); do
+    _sm=$(docker inspect -f '{{range .Mounts}}{{if eq .Destination "/data"}}{{.Type}} {{.Name}} {{.Source}}{{end}}{{end}}' "$_sc" 2>/dev/null) || continue
+    _st=${_sm%% *}; _sr=${_sm#* }; _sn=${_sr%% *}; _ss=${_sr#* }
+    case "$_st" in
+      bind) [ "$_ss" = "$DATA_DIR/space" ] || continue ;;
+      volume) [ "$(docker volume inspect -f '{{index .Options "device"}}' "$_sn" 2>/dev/null)" = "$DATA_DIR/space" ] || continue ;;
+      *) continue ;;
+    esac
+    [ "$(docker inspect -f '{{.State.Running}} {{.State.Restarting}}' "$_sc" 2>/dev/null)" = "true false" ] || continue
+    printf '%s' "$_sc"; return 0
+  done
+  return 1
+}
+# The node programs (argv[1] is the database). The snapshot is VACUUM INTO a private file in the container's own /tmp, checked with integrity_check, then streamed to stdout: the host
+# writes it where the backup wants it, under the host's own umask and owner, and no host folder is opened to the container for writing.
+SPACEDB_SNAP_JS='const{DatabaseSync}=require("node:sqlite"),fs=require("node:fs"),os=require("node:os"),p=require("node:path");const w=fs.mkdtempSync(p.join(os.tmpdir(),"vyre-snap-")),t=p.join(w,"s.db");let c=0;try{const d=new DatabaseSync(process.argv[1],{readOnly:true});d.exec("PRAGMA busy_timeout=30000");d.prepare("VACUUM INTO ?").run(t);d.close();const o=new DatabaseSync(t,{readOnly:true});const r=o.prepare("PRAGMA integrity_check").get();o.close();if(r.integrity_check!=="ok")throw new Error("integrity_check: "+r.integrity_check);const f=fs.openSync(t,"r"),b=Buffer.alloc(1048576);let n;while((n=fs.readSync(f,b,0,b.length,null))>0){let k=0;while(k<n){try{k+=fs.writeSync(1,b,k,n-k)}catch(e){if(e.code!=="EAGAIN")throw e;Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,5)}}}fs.closeSync(f)}catch(e){process.stderr.write(String(e&&e.message||e)+"\n");c=1}finally{fs.rmSync(w,{recursive:true,force:true})}process.exit(c)'
+# the host's own node writes the copy itself (the same program as before this block; a host folder is its own to write)
+SPACEDB_HOST_SNAP_JS='const{DatabaseSync}=require("node:sqlite");const d=new DatabaseSync(process.argv[1]);d.exec("PRAGMA busy_timeout=30000");d.prepare("VACUUM INTO ?").run(process.argv[2]);d.close();const o=new DatabaseSync(process.argv[2]);const r=o.prepare("PRAGMA integrity_check").get();o.close();if(r.integrity_check!=="ok"){console.error("integrity_check: "+r.integrity_check);process.exit(1)}'
+SPACEDB_CHECK_JS='const{DatabaseSync}=require("node:sqlite");const d=new DatabaseSync(process.argv[1],{readOnly:true});process.exit(d.prepare("PRAGMA integrity_check").get().integrity_check==="ok"?0:1)'
+SPACEDB_QUERY_JS="try{const {DatabaseSync}=require('node:sqlite');const d=new DatabaseSync(process.argv[1],{readOnly:true});d.exec('PRAGMA busy_timeout='+process.argv[3]);console.log(d.prepare(process.argv[2]).get().n)}catch(e){process.exit(2)}"
+# spacedb_node JS ARGS...: node in the virtual machine with /data = the Space folder: in the running vyred when there is one (SPACEDB_CID), else a one-shot container of the server's image.
+spacedb_node() {
+  if [ -n "$SPACEDB_CID" ]; then docker exec "$SPACEDB_CID" node --no-warnings -e "$@"
+  else docker run --rm --network none --user 1000:1000 -v "$DATA_DIR/space:/data" --entrypoint node "$SPACEDB_IMG" --no-warnings -e "$@"; fi
+}
+# spacedb_vm KIND DB [ARG]: as space_db, inside the virtual machine. 3 when there is no safe reader (no Docker, no running vyred and no server image named).
+spacedb_vm() {
+  command -v docker >/dev/null 2>&1 || return 3
+  docker info >/dev/null 2>&1 || return 3
+  SPACEDB_CID=$(spacedb_vyred) || SPACEDB_CID=""
+  SPACEDB_IMG=$(sed -n 's/^VYRE_IMAGE=//p' "$DIR/compose.env" 2>/dev/null | head -n 1)
+  [ -n "$SPACEDB_CID$SPACEDB_IMG" ] || return 3
+  _sp=/data/${2#"$DATA_DIR/space/"}
+  case "$1" in
+    snapshot)
+      rm -f "$3" "$3.part"
+      # the container checked its own copy; what reached this computer is checked again here (a copy nobody has open, so host tools are safe on it): a stream cut short is a failure
+      if spacedb_node "$SPACEDB_SNAP_JS" "$_sp" >"$3.part" && [ "$(head -c 15 "$3.part" 2>/dev/null)" = "SQLite format 3" ]; then
+        mv -f "$3.part" "$3"
+        spacedb_host check "$3" && return 0 || _sc=$?
+        rm -f "$3"; [ "$_sc" = 3 ] && return 3; return 1
+      fi
+      rm -f "$3.part"; return 1 ;;
+    check) spacedb_node "$SPACEDB_CHECK_JS" "$_sp" ;;
+    query) spacedb_node "$SPACEDB_QUERY_JS" "$_sp" "$3" "${VYRE_TEST_SQLITE_TIMEOUT:-3000}" 2>/dev/null ;;
+    *) return 1 ;;
+  esac
+}
+# spacedb_host KIND DB [ARG]: the host's own tools, in order: sqlite3, node (22.5 or newer), else the server image with only that folder mounted.
+spacedb_host() {
+  _sd=$(dirname "$2"); _sb=$(basename "$2")
+  _simg=$(sed -n 's/^VYRE_IMAGE=//p' "$DIR/compose.env" 2>/dev/null | head -n 1)
+  _snode=0
+  if command -v node >/dev/null 2>&1 && node --no-warnings -e "require('node:sqlite')" >/dev/null 2>&1; then _snode=1; fi
+  case "$1" in
+    snapshot)
+      rm -f "$3"
+      if command -v sqlite3 >/dev/null 2>&1; then
+        sqlite3 -cmd ".timeout 30000" "$2" "VACUUM INTO '$(printf '%s' "$3" | sed "s/'/''/g")'" >/dev/null && [ "$(sqlite3 "$3" 'PRAGMA integrity_check')" = ok ] && return 0
+        rm -f "$3"
+      fi
+      if [ "$_snode" = 1 ]; then node --no-warnings -e "$SPACEDB_HOST_SNAP_JS" "$2" "$3" && return 0; rm -f "$3"; return 1; fi
+      [ -n "$_simg" ] && command -v docker >/dev/null 2>&1 || return 3
+      docker run --rm --network none --user 1000:1000 -v "$_sd:/in" --entrypoint node "$_simg" --no-warnings -e "$SPACEDB_SNAP_JS" "/in/$_sb" >"$3.part" && mv -f "$3.part" "$3" && return 0
+      rm -f "$3.part"; return 1 ;;
+    check)
+      if command -v sqlite3 >/dev/null 2>&1; then [ "$(sqlite3 "$2" 'PRAGMA integrity_check' 2>/dev/null)" = ok ]; return; fi
+      if [ "$_snode" = 1 ]; then node --no-warnings -e "$SPACEDB_CHECK_JS" "$2"; return; fi
+      [ -n "$_simg" ] && command -v docker >/dev/null 2>&1 || return 3
+      docker run --rm --network none --user 1000:1000 -v "$_sd:/in:ro" --entrypoint node "$_simg" --no-warnings -e "$SPACEDB_CHECK_JS" "/in/$_sb" ;;
+    query)
+      _sto=${VYRE_TEST_SQLITE_TIMEOUT:-3000}
+      if command -v sqlite3 >/dev/null 2>&1; then sqlite3 -readonly -cmd ".timeout $_sto" "$2" "$3" 2>/dev/null; return; fi
+      if [ "$_snode" = 1 ]; then node --no-warnings -e "$SPACEDB_QUERY_JS" "$2" "$3" "$_sto" 2>/dev/null; return; fi
+      [ -n "$_simg" ] && command -v docker >/dev/null 2>&1 || return 3
+      docker run --rm --network none --user 1000:1000 -v "$_sd:/in:ro" --entrypoint node "$_simg" --no-warnings -e "$SPACEDB_QUERY_JS" "/in/$_sb" "$3" "$_sto" 2>/dev/null ;;
+    *) return 1 ;;
+  esac
+}
+# space_db KIND DB [ARG]: the one way to open a database. KIND is snapshot (ARG = where the checked copy goes), check (integrity_check is ok) or query (ARG = SQL with one row and a
+# column n; n is printed). 0 = done, 1 = it failed (a damaged or busy database), 3 = no safe reader on this computer. Every caller in these scripts goes through here.
+space_db() {
+  if spacedb_live "$2" && ! engine_same_kernel; then spacedb_vm "$@" && return 0 || return $?; fi
+  spacedb_host "$@" && return 0 || return $?
+}
+
+# space_serves_domain: 0 = the Space serves its own domain (network_config mode own_domain, set at install or later in the Console); 1 = it does not (the query ran, the table is there,
+# no row says so); 2 = cannot tell (no reader, a busy or missing database, any error or odd answer). Callers change the ports only on 0 or 1.
+space_serves_domain() {
+  [ -f "$DATA_DIR/space/modules.db" ] || return 2
+  _so=$(space_db query "$DATA_DIR/space/modules.db" "SELECT count(*) AS n FROM network_config WHERE id = 1 AND mode = 'own_domain'") || return 2
+  case "$_so" in 1) return 0 ;; 0) return 1 ;; *) return 2 ;; esac
+}
+# END spacedb
 
 # access_words ADDRESS RELAY: how a server is reached, in a few plain words.
 access_words() { if [ -n "$1" ]; then printf 'your own name, https://%s' "$1"; elif [ -n "$2" ]; then printf "Vyre's relay (%s)" "$2"; else printf 'no way set yet'; fi; }
@@ -586,8 +705,18 @@ EOT
 # launchd_domain: the login session the agents live in.
 launchd_domain() { printf 'gui/%s' "$(id -u)"; }
 
+# update_job_safe: the daily update may run here only when the release `current` points at carries an updater that reads the Space's databases inside Docker's machine
+# (the spacedb block). An older one (rc.25 and before) backs them up with the Mac's own sqlite3 while the server writes them from the VM, which damaged a Mac's databases on
+# 12 Nov 2026. link_current runs before write_agents, so on a re-run over an old install `current` is already this release when this is asked.
+update_job_safe() { grep -q '^# BEGIN spacedb' "$DIR/current/bin/vyre-server" 2>/dev/null; }
+
 write_agents() {
   if [ "$DRY" = 1 ]; then say "would write $AGENT_DIR/$LABEL_SERVER.plist and $LABEL_UPDATE.plist and load them with launchctl"; return 0; fi
+  load_update=1
+  if ! update_job_safe; then
+    load_update=0
+    say "  The daily update is not turned on: the release in $DIR/current has an updater that would back up the live databases from macOS. Run this installer again with a current release."
+  fi
   install -d "$AGENT_DIR"
   plist "$LABEL_SERVER" start >"$AGENT_DIR/$LABEL_SERVER.plist.new"
   plist "$LABEL_UPDATE" update --yes >"$AGENT_DIR/$LABEL_UPDATE.plist.new"
@@ -601,7 +730,8 @@ write_agents() {
       launchctl enable "$(launchd_domain)/$l" >/dev/null 2>&1 || true
     done
     # Only the update agent is loaded now; the server is started by start_stack, and the agent takes over at the next login.
-    launchctl bootstrap "$(launchd_domain)" "$AGENT_DIR/$LABEL_UPDATE.plist" >/dev/null 2>&1 || true
+    if [ "$load_update" = 1 ]; then launchctl bootstrap "$(launchd_domain)" "$AGENT_DIR/$LABEL_UPDATE.plist" >/dev/null 2>&1 || true
+    else launchctl disable "$(launchd_domain)/$LABEL_UPDATE" >/dev/null 2>&1 || true; fi
   fi
 }
 
@@ -667,6 +797,68 @@ finish() {
   say ""
 }
 
+# The Space browser's container, its profiles volume (every agent's sign-ins) and its network are made by the daemon, not by compose, so compose's down and its project label never name them. One
+# container and one volume serve every Space on this Docker engine (profiles kept apart by agent and by Space), so a purge of THIS install removes only THIS Space's profiles: browserd closes their
+# browsers cleanly and deletes their folders (purge_space, by the Space id each profile's folder records). The container, the volume and the network go only when nothing else is on the volume and
+# no other install's server is on this engine; otherwise they stay and the purge says so. A purge that left this Space's sign-ins on disk would not be a purge; one that took another Space's would be
+# worse. (Fifth look, 12 Nov.)
+SBROWSER=vyre-sbrowser
+[ "${VYRE_TEST_MODE:-0}" != 1 ] || [ -z "${VYRE_TEST_SBROWSER:-}" ] || SBROWSER=$VYRE_TEST_SBROWSER
+# space_id_of: this install's Space id, from its own event log (through space_db, the one way to open a database), or nothing
+space_id_of() {
+  _sid=$(DATA_DIR=$(cat "$DIR/data-dir" 2>/dev/null || printf '%s' "$DATA_DIR"); export DATA_DIR; space_db query "$DATA_DIR/space/events.db" "SELECT value AS n FROM log_meta WHERE key = 'space'" 2>/dev/null) || _sid=""
+  case "$_sid" in *[!A-Za-z0-9_-]*|"") return 1 ;; esac
+  printf '%s' "$_sid"
+}
+# other_installs: 0 when another install's server is on this engine (its compose service vyred; this install's was removed by compose down before this runs)
+other_installs() {
+  if [ "${VYRE_TEST_MODE:-0}" = 1 ] && [ -n "${VYRE_TEST_OTHER_INSTALLS:-}" ]; then [ "$VYRE_TEST_OTHER_INSTALLS" = 1 ]; return; fi
+  [ -n "$(docker ps -aq --filter "label=com.docker.compose.service=vyred" 2>/dev/null)" ]
+}
+# browser_remove_all: the container, every volume it mounts, the usual volume and the Space browser's networks
+browser_remove_all() {
+  vols=$(docker inspect -f '{{range .Mounts}}{{if eq .Type "volume"}}{{.Name}} {{end}}{{end}}' "$SBROWSER" 2>/dev/null || true)
+  docker rm -f "$SBROWSER" >/dev/null 2>&1 || true
+  for v in $vols "$SBROWSER-data"; do docker volume rm -f "$v" >/dev/null 2>&1 || true; done
+  [ "$SBROWSER" != vyre-sbrowser ] || for n in $(docker network ls -q --filter "label=vyre.sbrowser=1" 2>/dev/null); do docker network rm "$n" >/dev/null 2>&1 || true; done
+  [ "$SBROWSER" = vyre-sbrowser ] || docker network rm "${SBROWSER}net" >/dev/null 2>&1 || true
+}
+# purge_browser [SPACE_ID]: as above. The Space id is read from this install's data when not given.
+purge_browser() {
+  command -v docker >/dev/null 2>&1 || return 0
+  sid=${1:-}; [ -n "$sid" ] || sid=$(space_id_of) || sid=""
+  if ! docker inspect "$SBROWSER" >/dev/null 2>&1; then
+    # no container: its volume holds profiles nobody can sort by Space now; it goes only when no other install is here
+    if other_installs; then say "  The Space browser's volume stays: another Space's server is on this Docker engine and may keep its agents' sign-ins there."
+    else docker volume rm -f "$SBROWSER-data" >/dev/null 2>&1 || true; fi
+    return 0
+  fi
+  was=$(docker inspect -f '{{.State.Running}}' "$SBROWSER" 2>/dev/null || printf false)
+  [ "$was" = true ] || docker start "$SBROWSER" >/dev/null 2>&1 || true
+  res=""
+  if [ -n "$sid" ]; then
+    _pt=0
+    while [ "$_pt" -lt 30 ]; do
+      res=$(docker exec "$SBROWSER" /opt/browserd/ctl purge_space "{\"spaceId\":\"$sid\"}" 2>/dev/null) && break
+      res=""; _pt=$((_pt + 1)); sleep 1
+    done
+  fi
+  others=$(printf '%s' "$res" | sed -n 's/.*"others":\([0-9]*\).*/\1/p'); unmarked=$(printf '%s' "$res" | sed -n 's/.*"unmarked":\([0-9]*\).*/\1/p'); removed=$(printf '%s' "$res" | sed -n 's/.*"removed":\([0-9]*\).*/\1/p')
+  if [ -z "$res" ]; then
+    # browserd could not be asked (or this Space's id is not known): everything goes only when this install is the engine's only one
+    if other_installs; then
+      say "  The Space browser was left as it is: this Space's browser profiles could not be told apart from another Space's on this Docker engine. Remove them from that Space's Console, or run this again."
+      [ "$was" = true ] || docker stop -t 10 "$SBROWSER" >/dev/null 2>&1 || true
+    else browser_remove_all; fi
+    return 0
+  fi
+  # everything goes only when the volume holds nothing but this Space's (removed now): no other Space's profile, no profile that names no Space (it may be another Space's from before Spaces were
+  # written down), and no other install on this engine
+  if [ "${others:-0}" = 0 ] && [ "${unmarked:-0}" = 0 ] && ! other_installs; then browser_remove_all; return 0; fi
+  say "  Removed this Space's ${removed:-0} agent browser profiles. The Space browser stays: it also holds $((${others:-0} + ${unmarked:-0})) other profiles (another Space's on this Docker engine, or older ones that name no Space)."
+  [ "$was" = true ] || docker stop -t 10 "$SBROWSER" >/dev/null 2>&1 || true
+}
+
 uninstall() {
   [ -d "$DIR" ] || die "nothing is installed at $DIR."
   if [ "$PURGE" = 1 ] && ! ask "Delete the Space's data and every backup under $DIR? This cannot be undone."; then
@@ -688,6 +880,7 @@ uninstall() {
     for c in $(docker ps -aq --filter "label=com.docker.compose.project=$proj" 2>/dev/null); do docker rm -f "$c" >/dev/null 2>&1 || true; done
     for v in $(docker volume ls -q --filter "label=com.docker.compose.project=$proj" 2>/dev/null); do docker volume rm -f "$v" >/dev/null 2>&1 || true; done
   fi
+  if [ "$PURGE" = 1 ] && [ "$DRY" != 1 ]; then purge_browser; fi
   for l in "$LABEL_SERVER" "$LABEL_UPDATE"; do
     if [ -f "$AGENT_DIR/$l.plist" ] && grep -q "$MARK" "$AGENT_DIR/$l.plist"; then run rm -f "$AGENT_DIR/$l.plist"; fi
   done

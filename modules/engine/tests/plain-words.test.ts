@@ -32,7 +32,7 @@ test("every agent's context carries the rule, and the helper guidance says one s
   assert.match(text("where"), /Never paste a helper's reply/);
 });
 
-import { stepWords, oneLine } from "../../../lib/plain-words.ts";
+import { doneWords, stepWords, oneLine } from "../../../lib/plain-words.ts";
 test("the step a helper is on is said in plain words, never a tool name", () => {
   assert.equal(stepWords("Read", "pricing.md"), "Reading pricing.md");
   assert.equal(stepWords("WebSearch"), "Searching the web");
@@ -67,4 +67,10 @@ test("what a finished step keeps: only a file's name and a test run's counts, sa
   assert.equal(doneWords("Bash", undefined, "1 passing, 1 failing"), "Ran the tests: 1 passing, 1 failing");
   assert.equal(doneWords("Bash"), "Ran a command");
   assert.deepEqual(internalNames(["Edited a file", "Ran a command", "Ran the tests: 2 passing"].join(" ")), []);
+});
+
+test("read_link reads as a page, not files (lead, 12 Nov)", () => {
+  assert.equal(stepWords("read_link"), "Reading a page");
+  assert.equal(doneWords("read_link"), "Read a page");
+  assert.equal(stepWords("terminal_run"), "Running a command");
 });

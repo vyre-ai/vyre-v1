@@ -8,7 +8,7 @@ import type { Definition } from "./model.ts";
 export const MAX_TABS = 4;
 
 const TRIGGER_SHORT: Record<string, string> = {
-  record_change: "Record changes", schedule: "On a schedule", webhook: "Webhook", form_submit: "Form submitted", email_received: "Email received", chat_message: "Chat message",
+  record_change: "Record changes", schedule: "On a schedule", webhook: "Web request", form_submit: "Form submitted", email_received: "Email received", chat_message: "Chat message",
   spreadsheet_row: "Spreadsheet row", ci_check: "CI check", meeting_transcript_ready: "Transcript ready", journey_stage_entered: "Stage entered", journey_stage_left: "Stage left",
   button: "Button", manual: "Run by hand",
 };

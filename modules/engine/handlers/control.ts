@@ -8,6 +8,8 @@ import { probePick } from "./extra/models.ts";
 import type { TurnEngine } from "../../../agent/src/turn-engine/engine.ts";
 import type { EngineAgent, ThreadKind } from "../../../agent/src/turn-engine/types.ts";
 import { noteHandoff } from "../context.ts";
+import { engineThreadOf } from "../thread-open.ts";
+import type { ThreadGet } from "../thread-open.ts";
 import { modelName } from "../model-fallback.ts";
 import { actorOf, boundEngine, ensure, mintId, raise } from "../projections.ts";
 import type { EngineCtx } from "../projections.ts";
@@ -68,18 +70,16 @@ export async function open(ctx: EngineCtx, threadId: string, read?: (threadId: s
     raise(ctx, "validation.not_found", "There is no such conversation.", { threadId });
   }
   const t = out.thread;
-  const agents: EngineAgent[] = t.agents.map((a) => {
-    const saved = stateOf(ctx, threadId, a.agentId);
-    const mode = (saved?.mode ?? a.mode) === "lead" ? "lead" : "listen";
-    const model = saved?.model ?? a.model;
-    const accountRef = saved?.accountRef ?? a.accountRef;
-    return { id: a.agentId, mode, ...(model === undefined ? {} : { model }), ...(accountRef === undefined ? {} : { accountRef }), ...(a.watches === true ? { watching: true } : {}) };
-  });
   const kind: ThreadKind = t.kind !== undefined && KINDS.has(t.kind) ? (t.kind as ThreadKind) : "thread";
-  // Two leads in one thread would break the unique lead rule; the saved mode wins for the agent that was set last, so demote extras.
-  let leadSeen = false;
-  for (const a of agents) { if (a.mode === "lead") { if (leadSeen) a.mode = "listen"; leadSeen = true; } }
-  engine.openThread({ id: threadId, kind, starter: t.starter ?? actorOf(ctx), agents });
+  // the same thread the bridge builds for a new message (thread-open.ts): whichever opens it first, the agents carry their model, name, settings, outside flag and task lead
+  const reading = (cap: string, input: unknown): Promise<unknown> => (read && cap === "threads.get" ? read((input as { threadId: string }).threadId) : ctx.call(cap as never, input as never));
+  const built = await engineThreadOf({
+    threadId, got: out as unknown as ThreadGet, read: reading, kind, starter: actorOf(ctx),
+    agentInfo: (agentId) => ctx.call("agents.get", { agentId }).then((r) => (r as { agent?: { model?: string; runtime?: string } } | null)?.agent ?? null),
+    saved: (agentId) => stateOf(ctx, threadId, agentId),
+  });
+  try { engine.openThread(built); }
+  catch (e) { if (!(e instanceof RangeError) || !/already open/.test(e.message)) throw e; }   // opened meanwhile by the bridge: the same thread
   return engine;
 }
 
@@ -102,7 +102,7 @@ export async function interrupt(ctx: EngineCtx, input: { threadId: string; messa
     throw e;
   }
   const by = actorOf(ctx);
-  for (const c of r.cancelled) ctx.emit("turn.cancelled", input.threadId, { turnId: c.turnId, threadId: input.threadId, agentId: c.agentId, by });
+  for (const c of r.cancelled) ctx.emit("turn.cancelled", input.threadId, { turnId: c.turnId, threadId: input.threadId, agentId: c.agentId, by, pressed: true });
   const queue = engine.queue(input.threadId);
   for (const qseq of r.qseqs) {
     const row = queue.find((q) => q.qseq === qseq);
@@ -114,13 +114,15 @@ export async function interrupt(ctx: EngineCtx, input: { threadId: string; messa
   return { queued: r.queued };
 }
 
-async function stopWith(ctx: EngineCtx, threadId: string, o: { agentId?: string; all: boolean }): Promise<{ stopped: number }> {
+async function stopWith(ctx: EngineCtx, threadId: string, o: { agentId?: string; all: boolean; reason?: "update" }): Promise<{ stopped: number }> {
   const engine = await open(ctx, threadId);
-  const r = await engine.stop(threadId, { ...(o.agentId === undefined ? {} : { agentId: o.agentId }), clearQueue: o.all });
+  const r = await engine.stop(threadId, { ...(o.agentId === undefined ? {} : { agentId: o.agentId }), clearQueue: o.all, ...(o.reason ? { reason: o.reason } : {}) });
   const by = actorOf(ctx);
-  for (const c of r.stopped) ctx.emit("turn.cancelled", threadId, { turnId: c.turnId, threadId, agentId: c.agentId, by });
-  for (const c of r.released) ctx.emit("turn.cancelled", threadId, { turnId: c.turnId, threadId, agentId: c.agentId, by });
-  return { stopped: r.stopped.length + r.released.length + r.dropped.length };
+  // a person's Stop is pressed; the app stopping its turns for an update is not (its terminal commands outlive the app), and says why
+  const why = o.reason ? { reason: o.reason } : { pressed: true };
+  for (const c of r.stopped) ctx.emit("turn.cancelled", threadId, { turnId: c.turnId, threadId, agentId: c.agentId, by, ...why });
+  for (const c of r.released) ctx.emit("turn.cancelled", threadId, { turnId: c.turnId, threadId, agentId: c.agentId, by, ...why });
+  return { stopped: r.stopped.length + r.released.length + r.dropped.length + (r.starting ?? 0) };   // a turn marked while starting counts: it will not run
 }
 
 /** Stop one agent working in a thread (its running turn, its queued turns and its parked turns). Without an agent, the turn that is running. */
@@ -128,7 +130,7 @@ export const stop = (ctx: EngineCtx, input: { threadId: string; agentId?: string
   stopWith(ctx, input.threadId, { ...(input.agentId === undefined ? {} : { agentId: input.agentId }), all: false });
 
 /** Stop every agent working in the thread: the running turn, everything queued, everything parked. */
-export const stopAll = (ctx: EngineCtx, input: { threadId: string }): Promise<{ stopped: number }> => stopWith(ctx, input.threadId, { all: true });
+export const stopAll = (ctx: EngineCtx, input: { threadId: string; reason?: "update" }): Promise<{ stopped: number }> => stopWith(ctx, input.threadId, { all: true, ...(input.reason === "update" ? { reason: "update" as const } : {}) });
 
 // ---- set_mode, set_model, switch
 

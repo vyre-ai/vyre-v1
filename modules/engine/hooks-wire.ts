@@ -22,13 +22,14 @@ export function wireHooks(h: { call(cap: string, input: unknown, as?: string): P
     check: async (who, instruction, event) => {
       const run = completerOf();
       if (!run || !who.threadId) return null;
-      const acct = (await h.call("engine.account.resolve", { threadId: who.threadId, agentId: who.agentId, askerId: who.asker }, who.asker)) as { accountRef?: string | null; allowed?: boolean } | undefined;
+      const acct = (await h.call("engine.account.resolve", { threadId: who.threadId, agentId: who.agentId, askerId: who.asker }, who.asker)) as { accountRef?: string | null; allowed?: boolean; model?: string } | undefined;
       if (!acct?.accountRef || acct.allowed === false) return null;
       const list = (await h.call("engine.accounts.list", {}, who.asker)) as { accounts: Array<{ ref: string; driver: string; kind: "api_key" | "subscription"; base?: string; keyless?: boolean; itemId?: string }> };
       const row = list.accounts.find((a) => a.ref === acct.accountRef);
       if (!row) return null;
       const account = { ref: row.ref, driver: row.driver, provider: providerOfDriver(row.driver), kind: row.kind, payer: who.asker, reason: "starter", ...(row.itemId ? { itemId: row.itemId } : {}), ...(row.base ? { base: row.base } : {}), ...(row.keyless ? { keyless: true } : {}) } as ResolvedAccount;
-      const out = await run({ account, agentId: who.agentId, system: CHECK_SYSTEM, prompt: `Rule: ${instruction}\n\nEvent:\n${JSON.stringify(event).slice(0, 6000)}` });
+      // on the model the chat's turns run on (the resolver's): an API key needs one, and a check never goes out with none
+      const out = await run({ account, agentId: who.agentId, ...(acct.model ? { model: acct.model } : {}), system: CHECK_SYSTEM, prompt: `Rule: ${instruction}\n\nEvent:\n${JSON.stringify(event).slice(0, 6000)}` });
       return parseCheck(out.text);
     },
     action: async (who, cap, input) => {

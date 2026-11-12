@@ -3,3 +3,17 @@
 - In a Personal Space, the Google and Microsoft card in the Vault opens Settings on the Mail page; it did nothing when pressed.
 - Run again live on a past run of an Automation starts the run; it was always refused because the confirmation was not sent with it.
 - Remove route on a shared inbox in the Console removes the route; it was always refused because the sending domain was not sent with it.
+- A Personal Space is no longer treated as a Team Space by Terminal and agent computers when nothing else says where a turn runs.
+- Turning off "let the Space use my subscription" now stops your idle sessions on the server right away.
+- Settings, Notifications no longer shows switches for kinds Vyre does not send yet (Something is down, Incidents you own, Problem reports, Edits that conflict, A device needs attention, Mentions in a reply); they come back when something sends them.
+- When an AI engine says nothing at all, the chat now always says "Your AI didn't answer in time"; on a busy computer it could say "The engine stopped answering" instead.
+- Admins are told when something is down (a health check, a backup, an update or a certificate) and when a connection, connected folder, source or sync needs a person; an AI incident reaches its owner at once; a failed import or site build tells the person who started it. Settings shows these switches again.
+- An agent's work in its Space browser now shows in the chat as the same live card as its computer (the live page while it works, the picture once done), and the Computer tab's Browser section lists its steps; picking one shows its picture.
+- A runbook set to run on an agent's computer now runs there; it was always refused because the agent was not named. When no computer can run it, the line says so instead of asking for a Team Space.
+- A provider that opens a reply and then says nothing now ends with "Your AI didn't answer in time" at the first-token deadline, instead of "The provider stopped answering" and a retry.
+- An agent can use its own browser again without being given a computer first: its pages, steps and pictures show in the chat and in its Computer tab.
+- When an agent reads from your own Chrome, its answer in a shared chat comes to you privately. When it reads in its own browser, the answer is shared with the people there who may ask that agent themselves; an Assistant's or a private agent's answers stay private.
+- The audit export has a where column: an agent's own browser, a person's own Chrome or an agent's own computer, for acts that did not name a computer.
+- The chat card and the Steps list say Browser for an agent's own browser, name each page by its address, say "just now" for a recent step, and show the page with "Opening…" instead of an empty dark box; the card no longer says Live once the agent has stopped.
+- An import cut off by a server restart now ends as failed and its owner is told, instead of staying "running" for ever. Bringing in a CRM whose first pull cannot start now tells you why.
+- An import whose end the server could not record is ended on the next minute's check, and a background sync that gave up after its last try now ends its Run as failed, so the person who started it is told.

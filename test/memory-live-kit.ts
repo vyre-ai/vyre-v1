@@ -33,6 +33,8 @@ export const clock = { t: Date.now() };
 /** The model stand-in. A message `TOOL <name> <json>` becomes a tool call; the reply is the tool's result. Anything else is answered with the engine's prompt. */
 export const standIn: OpenSession = async () => {
   const waiting = new Map<string, (r: { ok: boolean; content: unknown }) => void>();
+  // a stopped turn ends as a real model's does when its process is killed: what it waits for is let go and the turn says nothing more (it waited forever before, so a stopped turn never ended)
+  let cancelled = false;
   return {
     warm: true,
     async *send(input: TurnInput): AsyncGenerator<DriverEvent> {
@@ -52,15 +54,19 @@ export const standIn: OpenSession = async () => {
       const found = new Promise<{ ok: boolean; content: unknown }>((resolve) => waiting.set(first, resolve));
       yield { type: "tool_call", id: first, name: "tool_search", input: { query: m[1]! } };
       await found;
+      if (cancelled) return;
       const id = `call_${waiting.size + 1}`;
       const result = new Promise<{ ok: boolean; content: unknown }>((resolve) => waiting.set(id, resolve));
       yield { type: "tool_call", id, name: m[1]!, input: JSON.parse(m[2]!) };
       const r = await result;
+      if (cancelled) return;
       yield { type: "text", text: `TOOL RESULT ${r.ok ? "ok" : "failed"} ${JSON.stringify(r.content)}` };
       yield { type: "done" };
     },
     sendToolResult(callId: string, result: { ok: boolean; content: unknown }) { waiting.get(callId)?.(result); },
-    inject() {}, async cancel() {}, async close() {},
+    inject() {},
+    async cancel() { cancelled = true; for (const f of waiting.values()) f({ ok: false, content: "cancelled" }); },
+    async close() {},
   } as EngineSession;
 };
 

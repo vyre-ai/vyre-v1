@@ -125,7 +125,9 @@ test("every module trust of kind service is reviewed: the sites below are the wh
     "forms/handlers/submit.ts",           // a public form submits as its own svc_form_<id> and may not use another form's
     "engine/step-turn.ts",                // an AI step run by a service caller may use only the Space's shared accounts, never a person's own (a restriction, not a power)
     "git/handlers/ops.ts",                // a label in a log line, not a decision
+    "members/handlers/invite.ts",         // the join retry reads the audit log for role and group changes made to the invited person since the step failed; read only (lane f-revoke, signed: lead, 12 Nov 2026)
     "spaces/handlers/extra/core.ts",      // spaces.delete_due runs only for the host's minute job, so a person or agent cannot trigger a due deletion early
+    "tasks/handlers/state.ts",            // automation.* notes are taken at create only from a service; every reader honours them only when createdBy is that automation's own svc_<id>, so any other service's note is inert, and after create they are server-only (r-runsas, 12 Nov)
     "telephony/projections.ts",           // classifies who started a call for the log, not a decision
   ].sort());
 });

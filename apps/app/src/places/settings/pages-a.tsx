@@ -9,6 +9,7 @@ import type { CapMap } from "../../../../../generated/types.ts";
 import { Avatar, assistantId, assistantLook, setAssistantLook, subscribeAssistant } from "../../../../../ui/src/Avatar/index.tsx";
 import { Bar, RegistrySections, useRead } from "./blocks.tsx";
 import { ContactVerify } from "./ContactVerify.tsx";
+import { bannersRefused } from "../../shell/notifications/os-shell.ts";
 import { CopyFromSpace } from "./CopyFromSpace.tsx";
 import { SignInApps } from "./SignInApps.tsx";
 import { SignInPanel } from "../../ai-signin/SignInPanel.tsx";
@@ -138,8 +139,14 @@ export const KIND_LABELS: Readonly<Record<string, string>> = {
 };
 /** Kinds only a Space's owner or admins are sent: a member does not see them in the list. */
 export const ADMIN_KINDS: ReadonlySet<string> = new Set(["space.deletion_scheduled", "space.deletion_cancelled", "ci.paused", "member.join_requested", "limit.hit", "machine.alert", "vault.rotation_due", "hook.asked"]);
-/** The kinds a person with this role is sent: owners and admins get all, a member none of the admin-only ones. */
-export const kindsFor = <T extends { key: string }>(kinds: readonly T[], role: string): T[] => { const r = role.toLowerCase(); return r === "owner" || r === "admin" ? [...kinds] : kinds.filter((k) => !ADMIN_KINDS.has(k.key)); };
+/**
+ * Kinds nothing in Vyre sends yet (f-wire, 12 Nov): the contract names them, but nothing files them (an edit conflict and a problem report already reach people as a task; nothing names a
+ * thread mention), so a switch for one would change nothing. They stay off the page
+ * until something sends them; modules/notifications/tests/wiring.test.ts fails when one of them starts being sent and is still hidden here.
+ */
+export const UNSENT_KINDS: ReadonlySet<string> = new Set(["conflict.needs_you", "mention.thread", "problem.report"]);
+/** The kinds a person with this role is sent: owners and admins get all, a member none of the admin-only ones; nobody sees a kind nothing sends. */
+export const kindsFor = <T extends { key: string }>(kinds: readonly T[], role: string): T[] => { const r = role.toLowerCase(); const sent = kinds.filter((k) => !UNSENT_KINDS.has(k.key)); return r === "owner" || r === "admin" ? sent : sent.filter((k) => !ADMIN_KINDS.has(k.key)); };
 export const kindLabel = (title: string): string => title.replace(/^Replies in your threads$/, "Replies to you").replace(/:\s*\{\{\w+\}\}$/, "").replace(/\{\{(\w+)\}\}/g, (_, w: string) => WORD[w] ?? "something");
 type MutesOut = CapMap["notifications.mute.list"]["out"];
 
@@ -169,6 +176,8 @@ export function NotificationsPage({ rows, found }: PageProps): ReactElement {
   const mutes = useScreenQuery<MutesOut>(NOTIFICATIONS, "mutes", {});
   const [levels, setLevels] = useState<Record<string, string>>({});
   const [chans, setChans] = useState<Record<string, Channel[]>>({});
+  // the desktop shell could not show a banner (the system turned them off for Vyre): said once, quietly, never asked again
+  const refused = useSyncExternalStore(bannersRefused.subscribe, bannersRefused.get, bannersRefused.get);
   /** One press on a channel: the channels now carrying the kind, saved; Undo puts the old ones back. */
   const toggle = (key: string, was: Channel[], c: Channel): void => {
     const next = toggleChannel(was, c);
@@ -200,6 +209,7 @@ export function NotificationsPage({ rows, found }: PageProps): ReactElement {
   return (
     <>
       <Section title="Notify me on" testID="notify-me-on">{list}</Section>
+      {refused ? <Text testID="banners-off" style={s.offLine}>Banners are off for Vyre in your system settings. Notices still show here in the app.</Text> : null}
       <RegistrySections page="notifications" rows={rows} found={found} />
       <QuietHours rows={rows} found={found} />
       <AwayHand rows={rows} found={found} />
@@ -454,4 +464,5 @@ const s = StyleSheet.create({
   useTitle: { fontSize: 13.5, color: "var(--ink)" as string },
   useCost: { fontSize: 13, color: "var(--ink-2)" as string },
   useSub: { fontSize: 12, color: "var(--ink-3)" as string },
+  offLine: { fontSize: 12.5, color: "var(--ink-3)" as string, marginTop: 8, marginBottom: 4 },
 });

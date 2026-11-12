@@ -102,7 +102,8 @@ test("status: a manager says asleep, running, waiting (with the line) or none, w
   const m = createWorkspaceManager({ api: createDockerApi(space.http), http: space.http, idleMs: 600_000, capacity: cap, projectsOf: () => ["prj_a"] });
   assert.deepEqual(await m.status(A), { state: "none" });
   await assert.rejects(() => m.ensure(A));
-  assert.deepEqual(await m.status(A), { state: "waiting", line: "Waiting for room on the Space server." });
+  // the host's line, with what is true for a workspace after it (12 Nov, audit item 9)
+  assert.deepEqual(await m.status(A), { state: "waiting", line: "Waiting for room on the Space server. The workspace starts by itself when there is room." });
   assert.equal(space.boxes.size, 0, "a status read makes nothing");
   full = false;
   await m.ensure(A);

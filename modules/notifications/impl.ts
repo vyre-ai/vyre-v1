@@ -1,10 +1,11 @@
 // Notifications module (lane L6). The host loads these handlers once the host/modules.json row is live (ARCH 12.4, ruling 25).
 // setPushPort is the host's door for the APNs/FCM transport and the computer's idle time (call it at boot); the fanout consumer turns events that name a notification kind into rows.
 import { handlers } from "./handlers/index.ts";
-import { setPushPort } from "./handlers/push.ts";
-import { clearForSubject, send } from "./handlers/rules.ts";
+import { pushPort, setPushPort } from "./handlers/push.ts";
+import { clearForSubject, dayOf, resendKindEmail, send, sendOne, setTellAdmins, tellEmailGaveUp } from "./handlers/rules.ts";
 import { readSettings, syncSetting } from "./handlers/deliver.ts";
 import type { NotifCtx } from "./projections.ts";
+import { registry } from "../../generated/registry.ts";
 
 export { handlers, setPushPort };
 
@@ -15,7 +16,7 @@ export { buildPush } from "./handlers/push.ts";
 export type { PushMessage, PushPort } from "./handlers/push.ts";
 
 type Assignee = { kind: string; id: string } | null | undefined;
-interface Ev { name: string; subject?: string; payload: Record<string, unknown>; actor?: string }
+interface Ev { name: string; subject?: string; payload: Record<string, unknown>; actor?: string; /** the event's id (the host's HookEvent has one): the fanout remembers who it reached for it */ id?: string }
 type SendIn = Parameters<typeof send>[1];
 
 /** The name a person reads for whoever acted: the server's one resolver, so someone's private agent reads "Irfad Imtiaz (Agent)", never a raw id. */
@@ -99,9 +100,28 @@ async function planTask(ctx: NotifCtx, e: Ev): Promise<SendIn[]> {
   return [];
 }
 
-const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-/** A date in words, in UTC: 18 November 2026. */
-export const dayOf = (ms: number): string => { const d = new Date(ms); return `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}`; };
+/** A date in words, in UTC: 18 November 2026 (rules.ts, where the email copy uses it too). */
+export { dayOf };
+
+/** One line for each admin. */
+function toAdmins(ctx: NotifCtx, line: Omit<SendIn, "to">): Promise<SendIn[]> {
+  return adminsOf(ctx).then((to) => to.map((id) => ({ ...line, to: id }) as SendIn));
+}
+/** A health check's name, as the Console names it. */
+const healthTitle = (key: string): string => (registry.health as ReadonlyArray<{ key: string; title?: string }>).find((h) => h.key === key)?.title ?? (key || "A service");
+/** The events that file sync.attention, and what each names in its line. */
+const SYNC_ATTENTION: Readonly<Record<string, (p: Record<string, unknown>) => string>> = {
+  "connection.needs_reconnect": (p) => `the ${String(p.connector ?? "")} connection`.replace("the  ", "a "),
+  "connector.publish_failed": (p) => `the ${String(p.key ?? "")} connector`.replace("the  ", "a "),
+  "mount.failed": () => "a connected folder",
+  "mount.conflict": (p) => (typeof p.name === "string" && p.name !== "" ? p.name : "a connected folder"),
+  "source.mapping_failed": () => "a source",
+  "source.link_pending": () => "a source",
+  "sync.deletes_paused": (p) => `${String(p.type ?? "a record type")} sync`,
+  "sync.push_failed": (p) => `${String(p.type ?? "a record type")} sync`,
+  "sync.schema_changed": (p) => `${String(p.type ?? "a record type")} sync`,
+  "sync.op_rejected": () => "your device",
+};
 
 /** Everyone who holds the Owner or Admin role: the people a machine alert is for. */
 async function adminsOf(ctx: NotifCtx): Promise<string[]> {
@@ -110,10 +130,32 @@ async function adminsOf(ctx: NotifCtx): Promise<string[]> {
     const roles = ((await ctx.call("access.roles.list", {})) as { roles?: Array<{ id: string; name: string; permissions?: string[] }> }).roles ?? [];
     const ids = roles.filter((r) => (r.permissions ?? []).includes("server.network") || r.name === "Owner" || r.name === "Admin").map((r) => r.id);
     const out = new Set<string>();
-    for (const roleId of ids) for (const h of ((await ctx.call("access.roles.get", { roleId })) as { holders?: Array<{ kind?: string; id?: string }> }).holders ?? []) if (h.kind === "person" && typeof h.id === "string") out.add(h.id);
+    // one role that cannot be read (an id the reader refuses) leaves the others: before, one refusal emptied the whole list and no admin heard anything
+    for (const roleId of ids) {
+      let holders: Array<{ kind?: string; id?: string }> = [];
+      try { holders = ((await ctx.call("access.roles.get", { roleId })) as { holders?: Array<{ kind?: string; id?: string }> }).holders ?? []; }
+      catch (e) { ctx.log?.warn("notifications: role not readable", { roleId, error: (e as Error).message }); continue; }
+      for (const h of holders) if (h.kind === "person" && typeof h.id === "string") out.add(h.id);
+    }
+    // the Space's owner always hears it, read straight from the Space: an Owner role that cannot be read must not drop them
+    await ownerOf(ctx).then((o) => { if (o) out.add(o); });
     return [...out].slice(0, 100);
-  } catch { return []; }
+  } catch (e) {
+    ctx.log?.warn("notifications: roles not readable", { error: (e as Error).message });
+    const o = await ownerOf(ctx);
+    return o ? [o] : [];
+  }
 }
+async function ownerOf(ctx: NotifCtx): Promise<string | null> {
+  try {
+    const o = ((await ctx.call?.("spaces.get", {})) as { space?: { owner?: unknown } } | undefined)?.space?.owner;
+    return typeof o === "string" && o !== "" ? o : null;
+  } catch (e) { ctx.log?.warn("notifications: the Space owner not readable", { error: (e as Error).message }); return null; }
+}
+// a notice email that could not go is said to every admin through the line they already read (health.degraded, Console)
+setTellAdmins(async (ctx, data, collapseKey) => {
+  for (const line of await toAdmins(ctx, { kind: "health.degraded", subject: { type: "space", id: ctx.space }, title: data.service, data, collapseKey })) await sendOne(ctx, line);
+});
 
 const TASK_EVENTS: ReadonlySet<string> = new Set(["task.requested", "task.assigned", "task.completed", "task.due", "task.nudged"]);
 
@@ -142,6 +184,33 @@ export function plan(ctx: NotifCtx, e: Ev): Promise<SendIn | SendIn[] | undefine
   if (e.name === "hook.admin_asked") {
     // one line for each admin: who asked, and which hook stopped what
     return adminsOf(ctx).then((to) => to.filter((id) => id !== p.by).map((id) => ({ to: id, kind: "hook.asked", subject: { type: "thread", id: String(p.threadId ?? "") }, title: `${String(p.line ?? "A hook stopped something")}${typeof p.note === "string" && p.note !== "" ? `: ${p.note}` : ""}`.slice(0, 200), collapseKey: `hook.asked:${String(p.hookId ?? "")}:${String(p.by ?? "")}` })));
+  }
+  // Something is down (f-wire, 12 Nov): a health check that turned degraded or down, a backup, an update or a certificate that failed reaches every admin; it collapses while the same thing stays down
+  if (e.name === "health.changed") {
+    if (p.to !== "degraded" && p.to !== "down") return undefined;
+    const key = String(p.key ?? "");
+    return toAdmins(ctx, { kind: "health.degraded", subject: { type: "space", id: ctx.space }, title: healthTitle(key), data: { service: healthTitle(key), state: p.to === "down" ? "down" : "slow" }, collapseKey: `health.degraded:${key}` });
+  }
+  if (e.name === "backup.failed" || e.name === "update.failed" || e.name === "network.certificate_failed") {
+    const service = e.name === "backup.failed" ? "The backup" : e.name === "update.failed" ? "The update" : `The certificate for ${String(p.host ?? "this Space")}`;
+    return toAdmins(ctx, { kind: "health.degraded", subject: { type: "space", id: ctx.space }, title: service, data: { service, state: "failing" }, collapseKey: `health.degraded:${e.name}` });
+  }
+  // an AI incident goes to the person who owns it, at once (an Interrupt that respects no hours)
+  if ((e.name === "incident.opened" || e.name === "incident.assigned") && typeof p.ownerId === "string" && p.ownerId.startsWith("usr_")) {
+    const what = typeof p.kind === "string" && p.kind !== "" ? p.kind.replaceAll("_", " ") : "an AI incident";
+    return { to: p.ownerId, kind: "incident.owned", title: what, collapseKey: `incident.owned:${String(p.incidentId ?? "")}` } as never;
+  }
+  // A sync that needs a person: every admin hears it once per thing that needs them; a device's own rejected change goes to that device's person
+  if (SYNC_ATTENTION[e.name]) {
+    const device = SYNC_ATTENTION[e.name]!(p);
+    const id = String(p.connectionId ?? p.mountId ?? p.sourceId ?? p.syncTypeId ?? p.key ?? "");
+    if (e.name === "sync.op_rejected") return typeof p.personId === "string" ? { to: p.personId, kind: "sync.attention", title: device, data: { device }, collapseKey: `sync.attention:${e.name}:${String(p.deviceId ?? "")}` } : undefined;
+    return toAdmins(ctx, { kind: "sync.attention", subject: { type: "space", id: ctx.space }, title: device, data: { device }, collapseKey: `sync.attention:${e.name}:${id}` });
+  }
+  // a site build that failed: the person who started it hears it as a failed run (a system start has nobody to tell). A failed import needs nothing here: its own Run fails, and run.failed tells its owner
+  if (e.name === "site.build_failed" && typeof e.actor === "string" && e.actor.startsWith("usr_")) {
+    const name = "The site build";
+    return { to: e.actor, kind: "run.failed", ...(typeof p.runId === "string" && p.runId !== "" ? { subject: { type: "run", id: p.runId }, runId: p.runId } : {}), data: { name, message: String(p.error ?? p.reason ?? "it stopped") } } as never;
   }
   if (e.name === "run.succeeded" && p.kind === "routine" && ctx.call) {
     // Alerts: a routine that succeeded is told only to people who asked for successes too (failures always come through run.failed)
@@ -179,17 +248,60 @@ export function plan(ctx: NotifCtx, e: Ev): Promise<SendIn | SendIn[] | undefine
   return undefined;
 }
 
+/** How long the fanout remembers who it reached for an event (a redelivery after a stop or a crash comes at the next start). */
+const FANOUT_KEEP_MS = 30 * 86_400_000;
+
 /** Async consumers by name: the events each one reads and what it does with one. */
 export const consumers = {
   "notifications.fanout": {
-    on: ["task.requested", "task.assigned", "task.completed", "task.due", "task.nudged", "run.failed", "run.succeeded", "member.joined", "member.join_requested", "access.granted", "access.declined", "machine.alert", "access.shared_with", "space.deletion_scheduled", "space.deletion_cancelled", "ci.paused", "ci.blocked", "hook.admin_asked"],
+    on: ["task.requested", "task.assigned", "task.completed", "task.due", "task.nudged", "run.failed", "run.succeeded", "member.joined", "member.join_requested", "access.granted", "access.declined", "machine.alert", "access.shared_with", "space.deletion_scheduled", "space.deletion_cancelled", "ci.paused", "ci.blocked", "hook.admin_asked",
+      "health.changed", "backup.failed", "update.failed", "network.certificate_failed", "incident.opened", "incident.assigned", "site.build_failed",
+      "connection.needs_reconnect", "connector.publish_failed", "mount.failed", "mount.conflict", "source.mapping_failed", "source.link_pending", "sync.deletes_paused", "sync.push_failed", "sync.schema_changed", "sync.op_rejected"],
     async run(ctx: NotifCtx, event: Ev): Promise<string[]> {
       const planned = await plan(ctx, event);
       const out: string[] = [];
+      if (event.id) {
+        // a redelivery comes within minutes; a month is far past any
+        ctx.db.run("DELETE FROM notifications_fanout_sent WHERE at < ?", ctx.now() - FANOUT_KEEP_MS);
+        ctx.db.run("DELETE FROM notifications_fanout_email WHERE at < ?", ctx.now() - FANOUT_KEEP_MS);
+      }
+      // one dead mail server for the whole delivery: once a recipient's email has failed every try, the others are not tried again and again (rules.ts emailWithRetry)
+      const mail = { down: false };
+      let unsent = 0;
       for (const input of planned === undefined ? [] : Array.isArray(planned) ? planned : [planned]) {
-        const r = await send(ctx, input);
+        // The host hands a consumer the same event again after a crash or after a stop let it go mid-run (it is at least once). Each recipient is written down before it is sent to, and the
+        // notification it got is written once the send answered:
+        //   mark with a notification   reached: not sent again; an email that failed every try (notifications_fanout_email) is sent again, alone
+        //   mark with none            cut off before the send answered: sent again, the kind's email included even when the row collapses into the one filed
+        //   no mark                   not reached yet: sent
+        // A send that throws takes its mark back. One mark covers the row and the push: a failed push is not tried again. An event with no id is not remembered.
+        // A pending email is sent again by the next delivery of the same event, or by the periodic pass (retryPendingEmails, bounded).
+        const target = `${input.to}|${input.kind}|${input.subject ? `${input.subject.type}:${input.subject.id}` : ""}|${input.collapseKey ?? ""}`;
+        let redo = false;
+        if (event.id) {
+          const fresh = ctx.db.run("INSERT OR IGNORE INTO notifications_fanout_sent (event_id, target, notification_id, at) VALUES (?, ?, NULL, ?)", event.id, target, ctx.now()).changes > 0;
+          if (!fresh) {
+            const had = (ctx.db.all("SELECT notification_id FROM notifications_fanout_sent WHERE event_id = ? AND target = ?", event.id, target)[0] as { notification_id?: string | null } | undefined)?.notification_id;
+            if (had) {
+              if (ctx.db.all("SELECT 1 AS x FROM notifications_fanout_email WHERE event_id = ? AND target = ?", event.id, target).length > 0) {
+                if ((DELETION_KINDS.has(input.kind) && supersededFor(ctx, input.to, had)) || await resendKindEmail(ctx, input.to, had, mail)) ctx.db.run("DELETE FROM notifications_fanout_email WHERE event_id = ? AND target = ?", event.id, target);
+                else unsent++;
+              }
+              out.push(had);
+              continue;
+            }
+            redo = true;
+          }
+        }
+        let r: Awaited<ReturnType<typeof sendOne>>;
+        try { r = await sendOne(ctx, input, false, redo, mail); }
+        catch (e) { if (event.id) ctx.db.run("DELETE FROM notifications_fanout_sent WHERE event_id = ? AND target = ?", event.id, target); throw e; }
+        if (event.id && r.notificationId) ctx.db.run("UPDATE notifications_fanout_sent SET notification_id = ? WHERE event_id = ? AND target = ?", r.notificationId, event.id, target);
+        if (event.id && r.emailFailed) ctx.db.run("INSERT OR IGNORE INTO notifications_fanout_email (event_id, target, at) VALUES (?, ?, ?)", event.id, target, ctx.now());
+        if (r.emailFailed) unsent++;
         if (r.notificationId) out.push(r.notificationId);
       }
+      if (unsent > 0) ctx.log?.warn("the fanout could not send every email; the ones left are tried again by the periodic pass", { unsent });
       return out;
     },
   },
@@ -208,4 +320,53 @@ export const consumers = {
     on: ["settings.changed"],
     async run(ctx: NotifCtx, event: Ev): Promise<string[]> { return syncSetting(ctx.db, event.payload) ? [String(event.payload.key)] : []; },
   },
+};
+
+const EMAIL_LOG_KEEP_MS = 90 * 86_400_000;
+const DELETION_KINDS: ReadonlySet<string> = new Set(["space.deletion_scheduled", "space.deletion_cancelled"]);
+/** A newer deletion notice of either kind for the person than this one: this one's email is old news. */
+function supersededFor(ctx: NotifCtx, person: string, notificationId: string): boolean {
+  return ctx.db.all(`SELECT 1 AS x FROM notifications_items n, notifications_items o WHERE o.id = ? AND n.person = ? AND n.id <> o.id
+    AND n.kind IN ('space.deletion_scheduled', 'space.deletion_cancelled') AND (n.at > o.at OR (n.at = o.at AND n.rowid > o.rowid))`, notificationId, person).length > 0;
+}
+/** How many times the periodic pass tries a pending email before it gives up and admins are told. */
+export const EMAIL_RETRY_TRIES = 5;
+
+/**
+ * A Space deletion email that failed every try in its delivery (notifications_fanout_email) is tried again every ten minutes, up to EMAIL_RETRY_TRIES times; then it is given up and every admin's
+ * Console names the person once ("Notice email to Bob is failing: a notice about deleting this Space could not be emailed."). A pending deletion email that a newer deletion notice superseded is dropped. A pass that finds the mail server down stops for this round.
+ */
+export async function retryPendingEmails(ctx: NotifCtx): Promise<{ sent: number; failed: number; gaveUp: number }> {
+  const rows = ctx.db.all(`SELECT e.event_id AS eventId, e.target AS target, s.notification_id AS notificationId, COALESCE(t.tries, 0) AS tries
+    FROM notifications_fanout_email e JOIN notifications_fanout_sent s ON s.event_id = e.event_id AND s.target = e.target
+    LEFT JOIN notifications_email_tries t ON t.event_id = e.event_id AND t.target = e.target ORDER BY e.at LIMIT 50`) as Array<{ eventId: string; target: string; notificationId: string | null; tries: number }>;
+  // the record of what became of each email (sent, or why not) keeps ninety days
+  ctx.db.run("DELETE FROM notifications_email_log WHERE at < ?", ctx.now() - EMAIL_LOG_KEEP_MS);
+  const mail = { down: false };
+  const out = { sent: 0, failed: 0, gaveUp: 0 };
+  const clear = (r: { eventId: string; target: string }): void => {
+    ctx.db.run("DELETE FROM notifications_fanout_email WHERE event_id = ? AND target = ?", r.eventId, r.target);
+    ctx.db.run("DELETE FROM notifications_email_tries WHERE event_id = ? AND target = ?", r.eventId, r.target);
+  };
+  for (const r of rows) {
+    if (mail.down) break;
+    const [person = "", kind = ""] = r.target.split("|");
+    if (!r.notificationId || !person) { clear(r); continue; }
+    if (DELETION_KINDS.has(kind) && supersededFor(ctx, person, r.notificationId)) { clear(r); continue; }
+    if (Number(r.tries) >= EMAIL_RETRY_TRIES) {
+      clear(r);
+      out.gaveUp++;
+      await pushPort()?.gaveUp?.({ to: person, kind }).catch(() => undefined);
+      await tellEmailGaveUp(ctx, person, kind);
+      continue;
+    }
+    if (await resendKindEmail(ctx, person, r.notificationId, mail)) { clear(r); out.sent++; continue; }
+    out.failed++;
+    ctx.db.run("INSERT INTO notifications_email_tries (event_id, target, tries, at) VALUES (?, ?, 1, ?) ON CONFLICT(event_id, target) DO UPDATE SET tries = tries + 1, at = excluded.at", r.eventId, r.target, ctx.now());
+  }
+  return out;
+}
+
+export const periodic = {
+  "notifications.email_retry": { everyMs: 10 * 60_000, run: (ctx: NotifCtx): Promise<{ sent: number; failed: number; gaveUp: number }> => retryPendingEmails(ctx) },
 };

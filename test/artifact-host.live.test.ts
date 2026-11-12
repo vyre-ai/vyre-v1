@@ -65,3 +65,27 @@ test("an artifact opens only on its own host, by a one-time code, for the people
     assert.equal((await ask(d, `/${id}/`, { cookie })).status, 403, "removed from the share: out at once");
   } finally { delete process.env["VYRE_ARTIFACT_HOST"]; await d.stop(); fs.rmSync(dir, { recursive: true, force: true }); }
 });
+
+test("an artifact's cookie ends with the person: signing out, or the owner being suspended, refuses the very next request", { timeout: 120_000 }, async () => {
+  process.env["VYRE_ARTIFACT_HOST"] = HOST;
+  const dir = seededDir();
+  const d = await boot(dir, standIn, undefined, { vault: undefined } as unknown as NonNullable<Parameters<typeof boot>[3]>);
+  try {
+    const open = async (who: { token: string }, key: string): Promise<{ id: string; cookie: string }> => {
+      const made = await ok(d, who.token, "sites.artifact_publish", { title: `Mine ${key}`, html: "<p>mine</p>", idempotencyKey: `ah-own-${key}` });
+      const id = made.artifactId as string;
+      const code = await ok(d, who.token, "sites.artifact_open", { artifactId: id, idempotencyKey: `ah-own-open-${key}` });
+      const cookie = cookieOf((await ask(d, code.path)).headers);
+      assert.equal((await ask(d, `/${id}/`, { cookie })).status, 200, `${key}: the owner sees their own page`);
+      return { id, cookie };
+    };
+    const rubab = await join(d, "rubab");
+    const mine = await open(rubab, "out");
+    await ok(d, rubab.token, "identity.sign_out", {});
+    assert.equal((await ask(d, `/${mine.id}/`, { cookie: mine.cookie })).status, 403, "signed out: the cookie is refused at once");
+    const sara = await join(d, "sara");
+    const hers = await open(sara, "susp");
+    await ok(d, d.token, "members.suspend", { personId: sara.personId });
+    assert.equal((await ask(d, `/${hers.id}/`, { cookie: hers.cookie })).status, 403, "the owner suspended: refused at once");
+  } finally { delete process.env["VYRE_ARTIFACT_HOST"]; await d.stop(); fs.rmSync(dir, { recursive: true, force: true }); }
+});

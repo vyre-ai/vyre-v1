@@ -7,17 +7,23 @@ export async function vendor() {
   const requests: string[] = [];
   /** The Authorization header of each request, so a test can prove the key reached the vendor (and only there). */
   const auth: string[] = [];
+  /** What the key check lists (GET /models). A test may change it in place, for a key that serves no chat model. */
+  const models: string[] = ["gpt-4o-mini", "gpt-4o"];
   const server = http.createServer((req, res) => {
     // a key check (the Vault asks the provider for its models before it saves a key) is not a turn: it answers at once and never takes a scripted answer. A key with "invalid" in it is refused, as a real provider refuses a bad one.
     if (req.method === "GET" && /\/models\/?$/.test(String(req.url))) {
       if (/invalid/i.test(String(req.headers.authorization ?? ""))) { res.writeHead(401, { "content-type": "application/json" }); res.end(JSON.stringify({ error: { message: "Incorrect API key provided", type: "invalid_request_error" } })); return; }
-      res.writeHead(200, { "content-type": "application/json" }); res.end(JSON.stringify({ data: [{ id: "gpt-4o-mini" }, { id: "gpt-4o" }] })); return;
+      res.writeHead(200, { "content-type": "application/json" }); res.end(JSON.stringify({ data: models.map((id) => ({ id })) })); return;
     }
     let body = "";
     req.on("data", (c) => (body += c));
     req.on("end", () => {
       requests.push(body);
       auth.push(String(req.headers.authorization ?? ""));
+      // as a real vendor: a request with no model, or an empty one, is refused before anything is scripted
+      let model: unknown;
+      try { model = (JSON.parse(body) as { model?: unknown }).model; } catch { model = undefined; }
+      if (typeof model !== "string" || model.trim() === "") { res.writeHead(400, { "content-type": "application/json" }); res.end(JSON.stringify({ error: { message: "you must provide a model parameter", type: "invalid_request_error" } })); return; }
       const next = script.shift() ?? { text: "{}" };
       if (next.status && next.status !== 200) { res.writeHead(next.status, { "content-type": "application/json" }); res.end(JSON.stringify({ error: { message: "vendor says no", type: "invalid_request_error" } })); return; }
       res.writeHead(200, { "content-type": "text/event-stream" });
@@ -30,6 +36,6 @@ export async function vendor() {
     });
   });
   await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
-  return { script, requests, auth, base: `http://127.0.0.1:${(server.address() as { port: number }).port}`, close: () => { server.close(); server.closeAllConnections(); } };
+  return { script, requests, auth, models, base: `http://127.0.0.1:${(server.address() as { port: number }).port}`, close: () => { server.close(); server.closeAllConnections(); } };
 }
 

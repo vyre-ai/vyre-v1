@@ -100,6 +100,9 @@ export function isMemberOrGuest(snap: AccessSnapshot, principalId: string): bool
  * after `fedTo` are read from the log itself; what was pushed is only the signal that there is something to read. Kept from what was pushed: the boot replay (at or below `fedTo`, already read
  * from the log in order) and the host's own boot-time objects (seq -1, never in the log), which go last. `upTo` is the last seq read: the next batch starts after it, once this one is folded.
  */
+/** How many times a sync reads the log again when it trails an event already committed and pushed, 5 ms apart. */
+const READ_BEHIND_ROUNDS = 40;
+
 export async function accessBatch(o: {
   held: readonly { seq: number; type: string; payload: unknown }[];
   fedTo: number;
@@ -110,11 +113,19 @@ export async function accessBatch(o: {
   const boot = o.held.filter((e) => e.seq < 0 || (!o.booted && e.seq <= o.fedTo));
   const fromLog: { seq: number; type: string; payload: unknown }[] = [];
   let upTo = o.fedTo;
-  for (;;) {
-    const page = await o.read(upTo, 2000);
-    for (const e of page) { upTo = e.seq; if (isAccessEvent(e.type)) fromLog.push(toAccessEvent(e)); }
-    if (page.length < 2000) break;
-    await new Promise<void>((done) => setImmediate(done));   // a long catch-up reads on the main thread: let requests in between pages (review 3, N2)
+  // the batch reaches at least every event that was pushed: a commit that asked for this sync (a person's account, then their role in the same call) is in it, or the sync fails and says so.
+  // The reader can trail the writer for a moment under load (lane f-revoke, 12 Nov 2026: a new person's role step ran against a store that did not have them yet, "no such principal")
+  const must = o.held.reduce((m, e) => (e.seq > m ? e.seq : m), o.fedTo);
+  for (let round = 0; ; round++) {
+    for (;;) {
+      const page = await o.read(upTo, 2000);
+      for (const e of page) { upTo = e.seq; if (isAccessEvent(e.type)) fromLog.push(toAccessEvent(e)); }
+      if (page.length < 2000) break;
+      await new Promise<void>((done) => setImmediate(done));   // a long catch-up reads on the main thread: let requests in between pages (review 3, N2)
+    }
+    if (upTo >= must) break;
+    if (round >= READ_BEHIND_ROUNDS) throw new Error(`the log read ends at ${upTo} but event ${must} was committed: the sync is tried again`);
+    await new Promise<void>((done) => setTimeout(done, 5));
   }
   const replay = boot.filter((e) => e.seq >= 0).sort((a, b) => a.seq - b.seq), own = boot.filter((e) => e.seq < 0);
   return { events: [...replay, ...fromLog, ...own], upTo, boot };

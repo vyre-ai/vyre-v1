@@ -151,13 +151,14 @@ test("a taint in a Job's thread reaches the chat above, and taint is the server'
   await assert.rejects(h.call("gate.taint.mark", { threads: ["thr_chat"], source: "x" }, as(bot)), (e) => codeOf(e) === "permission.role_lacks_permission");
 });
 
-test("a link the person gave or a page linked to is known; one put together is not; the table holds hashes", async () => {
+test("under an Automation's mark: a link the person gave or a page linked to is known; one put together is not; the table holds hashes", async () => {
   const h = harness();
   await h.call("gate.grants.ask", { threadId: "thr_chat", messageId: "msg_1", asked: [], links: ["https://acme.test/a?x=1#top"] }, alice as never);
+  for (const t of ["thr_chat", "thr_other"]) await h.call("gate.taint.mark", { threads: [t], source: `automation:aut_0123456789abcdef0123456789abcdef:${alice.id}` }, gate);
   assert.equal(await known(h, "https://acme.test/a?x=1"), true);
   assert.equal(await known(h, "https://acme.test/a?x=2"), false, "a changed query is a new link");
   assert.equal(await known(h, "https://acme.test/a?x=1", ["thr_other"]), false);
-  await mark(h, ["thr_chat"], ["https://acme.test/b"]);
+  await h.call("gate.taint.mark", { threads: ["thr_chat"], source: "automations.read_link", links: ["https://acme.test/b"] }, gate);
   assert.equal(await known(h, "https://acme.test/b"), true);
   assert.equal(JSON.stringify(h.db.all("SELECT * FROM gate_links")).includes("acme.test"), false);
 });
@@ -248,4 +249,57 @@ test("an ask is taken back by the next message only when the agent has replied s
   h.advance(1000);
   await askFor("msg_4", [], h.now());                                     // the agent replied after message 3: it is taken back
   assert.equal(await granted(take(h, ["lee@acme.test"])), false);
+});
+
+
+// lead's ruling for rc.26, 12 Nov: in an ordinary chat an agent may open any link; only a chain an Automation's trigger marked holds a link the agent put together
+test("a composed link is free in an ordinary chat, before and after a page was read; under an Automation's mark it is held unless the content linked to it", async () => {
+  const h = harness();
+  assert.equal(await known(h, "https://harbor.test/rates"), true, "nothing read yet");
+  await mark(h, ["thr_helper", "thr_chat"], ["https://harbor.test/plans"]);
+  assert.equal(await known(h, "https://other.test/x", ["thr_helper", "thr_chat"]), true, "a page was read: a link to a new host is still a read");
+  await h.call("gate.taint.mark", { threads: ["thr_run"], source: `automation:aut_0123456789abcdef0123456789abcdef:${alice.id}`, links: ["https://harbor.test/form"] }, gate);
+  assert.equal(await known(h, "https://other.test/x", ["thr_run"]), false, "a stranger-started Run's chain holds a composed link");
+  assert.equal(await known(h, "https://harbor.test/form", ["thr_run"]), true, "a link the content gave is a read there too");
+  await assert.rejects(known(h, "https://other.test/x", []), "no thread to judge is refused by the contract (and the hook counts it as composed before asking)");
+});
+
+test("in the task thread of an Automation's outside-started Run only the person the work acts for clears the outside-content mark by speaking; anyone else's message leaves it (pass 2)", async () => {
+  const h = harness();
+  const taints = (): Array<{ cleared_at: number | null }> => h.db.all("SELECT cleared_at FROM gate_taint WHERE thread_id = 'thr_task'") as never;
+  await h.call("gate.taint.mark", { threads: ["thr_task"], source: `automation:aut_0123456789abcdef0123456789abcdef:${alice.id}` }, gate);
+  await ask(h, "msg_b", [], "thr_task", bob);
+  assert.equal(taints()[0]?.cleared_at, null, "Bob spoke: the stranger's words still drive a turn that acts for Alice");
+  await ask(h, "msg_a", [], "thr_task", alice);
+  assert.notEqual(taints()[0]?.cleared_at, null, "Alice, whom it acts for, spoke: cleared");
+  // any other mark is cleared by any person speaking, as before
+  await h.call("gate.taint.mark", { threads: ["thr_chat2"], source: "automations.read_link" }, gate);
+  await ask(h, "msg_c", [], "thr_chat2", bob);
+  assert.notEqual((h.db.all("SELECT cleared_at FROM gate_taint WHERE thread_id = 'thr_chat2'")[0] as { cleared_at: number | null }).cleared_at, null);
+});
+
+test("a read never replaces an Automation's mark: the holds it carries stay, and the read's links are still kept (runs-as review pass 4)", async () => {
+  const h = harness();
+  const source = (): string => String((h.db.all("SELECT source FROM gate_taint WHERE thread_id = 'thr_run'")[0] as { source?: string } | undefined)?.source);
+  await h.call("gate.taint.mark", { threads: ["thr_run"], source: `automation:aut_0123456789abcdef0123456789abcdef:webhook:${alice.id}` }, gate);
+  await h.call("gate.taint.mark", { threads: ["thr_run"], source: "automations.read_link", links: ["https://acme.test/page"] }, gate);
+  assert.match(source(), /^automation:/, "the Automation mark stays");
+  assert.equal(await known(h, "https://acme.test/page", ["thr_run"]), true, "the read's links are kept");
+  // once its person cleared it, a later read marks the thread as an ordinary read
+  await ask(h, "msg_a", [], "thr_run", alice);
+  await h.call("gate.taint.mark", { threads: ["thr_run"], source: "automations.read_link" }, gate);
+  assert.equal(source(), "automations.read_link");
+});
+
+test("when runs-as moves, the new Automation mark replaces the old one, so the person the work now acts for can clear it (pass 4b)", async () => {
+  const h = harness();
+  const source = (): string => String((h.db.all("SELECT source FROM gate_taint WHERE thread_id = 'thr_run'")[0] as { source?: string } | undefined)?.source);
+  const cleared = (): unknown => (h.db.all("SELECT cleared_at FROM gate_taint WHERE thread_id = 'thr_run'")[0] as { cleared_at: unknown }).cleared_at;
+  await h.call("gate.taint.mark", { threads: ["thr_run"], source: `automation:aut_0123456789abcdef0123456789abcdef:webhook:${alice.id}` }, gate);
+  await h.call("gate.taint.mark", { threads: ["thr_run"], source: `automation:aut_0123456789abcdef0123456789abcdef:webhook:${bob.id}` }, gate);
+  assert.equal(source(), `automation:aut_0123456789abcdef0123456789abcdef:webhook:${bob.id}`, "names the new person");
+  await ask(h, "msg_a", [], "thr_run", alice);
+  assert.equal(cleared(), null, "the old person no longer clears it");
+  await ask(h, "msg_b", [], "thr_run", bob);
+  assert.notEqual(cleared(), null, "the new person does");
 });

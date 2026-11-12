@@ -39,6 +39,7 @@ type In = {
   costMicros?: number;
   code?: string;
   message?: string;
+  reason?: string;
   info?: {
     effort?: string;
     account?: {
@@ -174,6 +175,7 @@ type Out = {
     "model": "example",
     "phase": "started",
     "qseq": 1,
+    "reason": "example",
     "threadId": "thr_a1b2c3",
     "tokensIn": 1,
     "tokensOut": 1,

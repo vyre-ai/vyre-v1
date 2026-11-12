@@ -1,4 +1,5 @@
 // @reads /modules/terminal/migrations/0001_init.sql
+// @reads /modules/terminal/migrations/0003_gone.sql
 // Durable rows of the terminal module (sessions, commands, rules, attach tickets), the port to the machine a session lives on, the rule matcher and the per-session secret scrubbers.
 // Every statement names a terminal_* table, which is all ctx.db lets a module touch. The migration file is the one source of the schema.
 import { readFileSync } from "node:fs";
@@ -56,13 +57,21 @@ export interface TerminalHost {
   resize(terminalId: string, cols: number, rows: number): Promise<void>;
   read(terminalId: string, o: { lines: number; since?: number }): Promise<{ text: string; next: number }>;
   /** Run to completion in the session. Rejects with `code: "timeout"` when the command does not finish in time (the host sends Ctrl-C). */
-  run(terminalId: string, o: { command: string; cwd?: string; env: Readonly<Record<string, string>>; timeoutMs: number }): Promise<{ exitCode: number | null; output: string; truncated: boolean; durationMs: number }>;
+  /** `signal`: the turn that started the command was stopped: the command is interrupted and the run answers at once (release gate, 12 Nov). */
+  run(terminalId: string, o: { command: string; cwd?: string; env: Readonly<Record<string, string>>; timeoutMs: number; signal?: AbortSignal }): Promise<{ exitCode: number | null; output: string; truncated: boolean; durationMs: number }>;
   status(terminalIds: readonly string[]): Promise<Array<{ terminalId: string; state: TermState; lastLine?: string; exitCode: number | null }>>;
   /** Live frames: what the session prints, as it prints it (tmux control mode). Returns the function that stops it. */
   stream?(terminalId: string, onFrame: (text: string) => void): () => void;
   close(terminalId: string): Promise<void>;
   health(): Promise<{ ok: boolean; detail?: string; sessions: number }>;
+  /**
+   * What Vyre knows of a session, told to the host before it is used: where it lives, its size and folder. A host that forgot it (the daemon restarted, the workspace slept, tmux was lost) finds it
+   * again from this and makes it again, empty, on its next use, so a session row never points at nothing. Never wakes a workspace by itself.
+   */
+  adopt?(a: AdoptArgs): void | Promise<void>;
 }
+
+export interface AdoptArgs { terminalId: string; target: Target; cols: number; rows: number; cwd?: string }
 
 // Two ways a host gets here: the daemon hands over this machine's own (setTerminalHost in impl.ts), and a test binds a stand-in. A stand-in bound in the process wins, so a test that boots a daemon
 // still runs against its own machine.
@@ -130,6 +139,9 @@ const SCHEMA = readFileSync(new URL("./migrations/0001_init.sql", import.meta.ur
 const TABS_SCHEMA = readFileSync(new URL("./migrations/0002_tabs.sql", import.meta.url), "utf8")
   .split("\n").filter((l) => !l.trimStart().startsWith("--")).join("\n")
   .split(";").map((x) => x.trim()).filter((x) => x.length > 0);
+const GONE_SCHEMA = readFileSync(new URL("./migrations/0003_gone.sql", import.meta.url), "utf8")
+  .split("\n").filter((l) => !l.trimStart().startsWith("--")).join("\n")
+  .split(";").map((x) => x.trim()).filter((x) => x.length > 0);
 const ready = new WeakSet<object>();
 
 export function ensure(db: Db): void {
@@ -137,6 +149,8 @@ export function ensure(db: Db): void {
   try { db.all("SELECT ticket_hash FROM terminal_tickets WHERE terminal_id = ?", "probe"); } catch { for (const stmt of SCHEMA) db.run(stmt); }
   // a Space made before tabs has the first schema only
   try { db.all("SELECT terminal_id FROM terminal_tabs WHERE terminal_id = ?", "probe"); } catch { for (const stmt of TABS_SCHEMA) db.run(stmt); }
+  // and before the Trash clock for workspace volumes
+  try { db.all("SELECT agent_id FROM terminal_workspace_gone WHERE agent_id = ?", "probe"); } catch { for (const stmt of GONE_SCHEMA) db.run(stmt); }
   ready.add(db);
 }
 
@@ -281,10 +295,10 @@ export type Where = "host" | "device" | "computer";
 export type Lookup =
   | { kind: "value"; itemId: string; value: string; spaceOnly: boolean; injectIntoDeployments: boolean }
   | { kind: "unknown" }
-  | { kind: "denied"; reason: "no_access" | "provider_label" | "other" };
-export interface ValueSource { lookup(handle: string, who: { agentId: string; asker: string; where: Where }): Promise<Lookup> }
+  | { kind: "denied"; reason: "no_access" | "provider_label" | "other" | "team_agent" | "team_shared" | "team_unknown_agent" | "needs_approval" };
+export interface ValueSource { lookup(handle: string, who: { agentId: string; asker: string; where: Where; place?: string; device?: string }): Promise<Lookup> }
 export interface VaultRunDeps { source: ValueSource; reportMiss(r: { itemId: string; place: "terminal" | "http" | "browser" | "file" | "chat"; traceId: string }): void | Promise<void> }
-export interface VaultCall { tool: string; args: unknown; traceId: string; agentId: string; asker: string; where: Where }
+export interface VaultCall { tool: string; args: unknown; traceId: string; agentId: string; asker: string; where: Where; place?: string; device?: string }
 export type VaultRun =
   | { ok: true; display: unknown; output: string | AsyncIterable<string>; used: Array<{ handle: string; itemId: string }>; scrubMiss: boolean }
   | { ok: false; display: unknown; used: Array<{ handle: string; itemId: string }>; error: { code: "permission.no_grant" | "permission.provider_label" | "validation.bad_input" | "provider.unavailable"; message: string; handle?: string } };
@@ -349,6 +363,8 @@ export function spellingsFor(scope: string): string[] {
 }
 /** A tab of its own is forgotten when it closes; a workspace keeps its values for as long as this process runs, since its other tabs and files may still hold them. */
 export const forgetSecrets = (scope: string): void => { if (scope.startsWith("trm:")) secretsByScope.delete(scope); };
+/** An agent gone to Trash: the values its workspace remembered are forgotten too (its tabs are closed, nothing of it is shown again). */
+export const forgetAgentSecrets = (agentId: string): void => { secretsByScope.delete(`ws:${agentId}`); };
 
 /** Every remembered value forgotten: a test starting clean. */
 export const forgetAllSecrets = (): void => { secretsByScope.clear(); };

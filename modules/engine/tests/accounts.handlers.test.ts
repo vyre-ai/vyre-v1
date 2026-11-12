@@ -71,10 +71,10 @@ test("accounts.list says which accounts keep nothing (a local model always does)
 
 test("account.resolve: the starter's key, then the Space's fallback key when it is signed out", async () => {
   const live = fake(routes([prov({ id: "prv_1", handle: "#Dana_Anthropic" }), prov({ id: "prv_3", handle: "#Team_Anthropic_Key", scope: "shared" })]));
-  assert.deepEqual(await accountResolve(live.ctx, { threadId: "thr_1", agentId: "agt_1" }), { accountRef: "#Dana_Anthropic", payer: "usr_dana", reason: "starter", allowed: true, itemId: "vit_prv_1" });
+  assert.deepEqual(await accountResolve(live.ctx, { threadId: "thr_1", agentId: "agt_1" }), { accountRef: "#Dana_Anthropic", payer: "usr_dana", reason: "starter", allowed: true, model: "claude-sonnet-5-5", itemId: "vit_prv_1" });
 
   const down = fake(routes([prov({ id: "prv_1", handle: "#Dana_Anthropic", state: "failing" }), prov({ id: "prv_3", handle: "#Team_Anthropic_Key", scope: "shared" })]));
-  assert.deepEqual(await accountResolve(down.ctx, { threadId: "thr_1", agentId: "agt_1" }), { accountRef: "#Team_Anthropic_Key", payer: "usr_dana", reason: "backup_key", allowed: true, itemId: "vit_prv_3", fellBack: true, via: "backup" });
+  assert.deepEqual(await accountResolve(down.ctx, { threadId: "thr_1", agentId: "agt_1" }), { accountRef: "#Team_Anthropic_Key", payer: "usr_dana", reason: "backup_key", allowed: true, model: "claude-sonnet-5-5", itemId: "vit_prv_3", fellBack: true, via: "backup" });
 
   const none = fake(routes([prov({ id: "prv_1", handle: "#Dana_Anthropic", state: "failing" })], { "engine.defaults.get": () => ({ fallback: [] }) }));
   assert.deepEqual(await accountResolve(none.ctx, { threadId: "thr_1", agentId: "agt_1" }), { accountRef: null, payer: null, reason: "none", allowed: false, why: "failed" });
@@ -82,7 +82,7 @@ test("account.resolve: the starter's key, then the Space's fallback key when it 
 
 test("account.resolve: the steerer pays when the call acts for them; Dana's Mine key is never in their list", async () => {
   const sam = fake(routes([prov({ id: "prv_9", handle: "#Sam_Anthropic" })]), { actingFor: "usr_sam" });
-  assert.deepEqual(await accountResolve(sam.ctx, { threadId: "thr_1", agentId: "agt_1", askerId: "usr_sam" }), { accountRef: "#Sam_Anthropic", payer: "usr_sam", reason: "steerer", allowed: true, itemId: "vit_prv_9" });
+  assert.deepEqual(await accountResolve(sam.ctx, { threadId: "thr_1", agentId: "agt_1", askerId: "usr_sam" }), { accountRef: "#Sam_Anthropic", payer: "usr_sam", reason: "steerer", allowed: true, model: "claude-sonnet-5-5", itemId: "vit_prv_9" });
 });
 
 test("account.resolve: a step key makes it a task; Company only drops personal accounts; the person's own sign-in pays for their turn on the host and on a device", async () => {
@@ -174,7 +174,7 @@ test("turning the Space's use of my subscription off stops my sandbox; turning i
 
 test("account.resolve dry: the composer's check answers for the caller, not the chat's starter, and says why nothing can pay", async () => {
   const sam = fake(routes([prov({ id: "prv_9", handle: "#Sam_Anthropic" })], { "engine.defaults.get": () => ({ fallback: [] }) }), { actingFor: "usr_sam" });
-  assert.deepEqual(await accountResolve(sam.ctx, { threadId: "thr_1", agentId: "agt_1", dry: true }), { accountRef: "#Sam_Anthropic", payer: "usr_sam", reason: "steerer", allowed: true, itemId: "vit_prv_9" });
+  assert.deepEqual(await accountResolve(sam.ctx, { threadId: "thr_1", agentId: "agt_1", dry: true }), { accountRef: "#Sam_Anthropic", payer: "usr_sam", reason: "steerer", allowed: true, model: "claude-sonnet-5-5", itemId: "vit_prv_9" });
   const none = fake(routes([], { "engine.defaults.get": () => ({ fallback: [] }) }), { actingFor: "usr_mia" });
   const out = await accountResolve(none.ctx, { threadId: "thr_1", agentId: "agt_1", dry: true });
   assert.deepEqual([out.allowed, out.payer, out.why], [false, null, "no_account"]);
@@ -187,7 +187,7 @@ test("account.resolve: the agent's AI account for its own work pays a routine, w
   const agent = (o: Record<string, unknown> = {}) => ({ "agents.get": () => ({ agent: { accountPolicy: "asker", workKey: "#Work_Credits", ...o } }), "engine.defaults.get": () => ({ fallback: [] }) });
   // the pick pays for a routine, though a cheaper account also covers it
   const ok = fake(routes([mine, cheap, work], agent()));
-  assert.deepEqual(await accountResolve(ok.ctx, { threadId: "thr_1", agentId: "agt_1", kind: "agent_work" }), { accountRef: "#Work_Credits", payer: "usr_dana", reason: "starter", allowed: true, itemId: "vit_prv_w", pin: { ref: "#Work_Credits", used: true }, via: "work" });
+  assert.deepEqual(await accountResolve(ok.ctx, { threadId: "thr_1", agentId: "agt_1", kind: "agent_work" }), { accountRef: "#Work_Credits", payer: "usr_dana", reason: "starter", allowed: true, model: "claude-sonnet-5-5", itemId: "vit_prv_w", pin: { ref: "#Work_Credits", used: true }, via: "work" });
   // Automatic (no pick) is the cheapest account that covers the work
   const auto = await accountResolve(fake(routes([mine, cheap, work], agent({ workKey: undefined }))).ctx, { threadId: "thr_1", agentId: "agt_1", kind: "agent_work" });
   assert.equal(auto.accountRef, "#Cheap_Work");
@@ -216,4 +216,43 @@ test("account.resolve: a backup that pays because the account ahead hit its cap 
   const mine = prov({ id: "prv_2", handle: "#Other_Team", scope: "shared", uses: { teamChats: { who: "everyone" } }, models: ["claude-sonnet-5-5"] });
   const r = await accountResolve(fake(routes([mine, team], { "agents.get": () => ({ agent: { accountPolicy: "key", accountKey: "#Team_Credits" } }), "engine.defaults.get": () => ({ fallback: [] }) })).ctx, { threadId: "thr_1", agentId: "agt_1" });
   assert.deepEqual([r.accountRef, r.cappedFrom, r.fellBack], ["#Other_Team", "#Team_Credits", true]);
+});
+
+test("account.resolve: a turn with no model on OpenRouter runs on OpenRouter's own default, unless the Space's AI policy limits models or excludes OpenRouter: then it is refused before anything is sent", async () => {
+  const noModel = { "threads.get": () => ({ thread: { starter: "usr_dana", agents: [{ agentId: "agt_1" }] } }), "agents.get": () => ({ agent: { accountPolicy: "asker" } }), "engine.defaults.get": () => ({ fallback: [] }) };
+  const router = [prov({ id: "prv_1", handle: "#Dana_Router", providerKey: "openrouter", engine: "openrouter" })];
+  const free = await accountResolve(fake(routes(router, { ...noModel, "engine.policy.get": () => ({ allowedAccounts: "any", allowedModels: [], allowedProviders: [] }) })).ctx, { threadId: "thr_1", agentId: "agt_1" });
+  assert.deepEqual([free.allowed, free.model], [true, undefined], "no policy: it runs on the provider's default");
+  for (const policy of [{ allowedModels: ["anthropic/claude-sonnet-5-5"], allowedProviders: [] }, { allowedModels: [], allowedProviders: ["anthropic"] }]) {
+    await assert.rejects(() => accountResolve(fake(routes(router, { ...noModel, "engine.policy.get": () => ({ allowedAccounts: "any", ...policy }) })).ctx, { threadId: "thr_1", agentId: "agt_1" }),
+      (e: unknown) => (e as { error?: { code?: string; details?: { reason?: string } } }).error?.code === "permission.provider_label" && (e as { error: { details: { reason?: string } } }).error.details.reason === "policy_model", JSON.stringify(policy));
+  }
+});
+
+test("account.resolve: with nothing naming a model, a person's own API key runs on its default chat model from the key's own list (read once, no completion), never written anywhere", async () => {
+  const noModel = { "threads.get": () => ({ thread: { starter: "usr_dana", agents: [{ agentId: "agt_1" }] } }), "agents.get": () => ({ agent: { accountPolicy: "asker" } }), "engine.defaults.get": () => ({ fallback: [] }) };
+  const { harness } = await import("../fixtures/harness.ts");
+  const db = harness().ctx.db;
+  const asked: string[] = [];
+  const at = (providers: ReturnType<typeof prov>[], over: Record<string, (i: unknown) => unknown> = {}) => {
+    const f = fake(routes(providers, { ...noModel, "providers.test": () => { asked.push("providers.test"); return { ok: true, models: ["dall-e-3", "o3-pro", "gpt-5-mini", "gpt-5", "gpt-4.1", "whisper-1"] }; }, "engine.complete": () => { asked.push("engine.complete"); return {}; }, ...over }));
+    (f.ctx as unknown as { db: unknown }).db = db;
+    return f.ctx;
+  };
+  const openai = [prov({ id: "prv_1", handle: "#Dana_OpenAI", providerKey: "openai", engine: "openai" })];
+  assert.equal((await accountResolve(at(openai), { threadId: "thr_1", agentId: "agt_1" })).model, "gpt-5");
+  assert.equal((await accountResolve(at(openai), { threadId: "thr_1", agentId: "agt_1" })).model, "gpt-5", "the kept list answers the second time");
+  assert.deepEqual(asked, ["providers.test"], "the key's list was read once; no completion was spent choosing");
+  assert.deepEqual(db.all("SELECT * FROM engine_agent_state"), [], "nothing is written as the chat's pick");
+  // a policy that allows only gpt-4.1 picks it; one that allows no listed chat model gives the policy words
+  assert.equal((await accountResolve(at(openai, { "engine.policy.get": () => ({ allowedAccounts: "any", allowedModels: ["gpt-4.1"], allowedProviders: [] }) }), { threadId: "thr_1", agentId: "agt_1" })).model, "gpt-4.1");
+  await assert.rejects(() => accountResolve(at(openai, { "engine.policy.get": () => ({ allowedAccounts: "any", allowedModels: ["claude-sonnet-5-5"], allowedProviders: [] }) }), { threadId: "thr_1", agentId: "agt_1" }),
+    (e: unknown) => (e as { error?: { details?: { reason?: string } } }).error?.details?.reason === "policy_model");
+  // a chat pick or an agent model still wins
+  assert.equal((await accountResolve(at(openai, { "agents.get": () => ({ agent: { accountPolicy: "asker", model: "gpt-4.1" } }) }), { threadId: "thr_1", agentId: "agt_1" })).model, "gpt-4.1");
+  // a subscription keeps its CLI's own default, and OpenRouter its own
+  const sub = await accountResolve(at([prov({ id: "prv_2", handle: "#Dana_Claude", providerKey: "claude-code", engine: "claude-code", connection: "subscription", spaceMayUse: true })]), { threadId: "thr_1", agentId: "agt_1" });
+  assert.equal(sub.model, undefined);
+  const router = await accountResolve(at([prov({ id: "prv_3", handle: "#Dana_Router", providerKey: "openrouter", engine: "openrouter" })]), { threadId: "thr_1", agentId: "agt_1" });
+  assert.equal(router.model, undefined);
 });

@@ -232,3 +232,12 @@ export function reanchor(oldText: string, newText: string, marks: readonly Mark[
   }
   return { placed, unplaced };
 }
+
+/** The common forms an app may echo a filled secret in: the value, its base64 and base64url, its URL encoding, and for a user name the base64 of "user:value" (Basic auth). For a scrubber. */
+export function secretForms(value: string, users: readonly string[] = []): string[] {
+  if (!value) return [];
+  const b64 = (x: string): string => Buffer.from(x, "utf8").toString("base64");
+  const out = new Set<string>([value, b64(value), b64(value).replace(/=+$/, ""), Buffer.from(value, "utf8").toString("base64url"), encodeURIComponent(value)]);
+  for (const u of users) { const b = b64(`${u}:${value}`); out.add(b); out.add(b.replace(/=+$/, "")); }
+  return [...out].filter((x) => x.length >= 4);
+}

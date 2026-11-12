@@ -39,7 +39,7 @@ async function subjectOf(data: Data, cap: string, input: Record<string, unknown>
 /** 24-hour clock time of a moment, in a zone or the viewer's own. */
 const clock = (at: number, timeZone?: string): string => { try { return new Date(at).toLocaleTimeString("en-GB", { hour: "numeric", minute: "2-digit", hour12: false, ...(timeZone ? { timeZone } : {}) }); } catch { return new Date(at).toLocaleTimeString("en-GB", { hour: "numeric", minute: "2-digit", hour12: false }); } };
 
-export function ApprovalCard({ taskId, agent, agentId, data, face, faceSeed, editor }: { taskId: string; /** a helper's request wears the helper's own face: the id its face is drawn from */ faceSeed?: string; agent: string; agentId: string; data: Data; /** an agent asking for its person wears that person's face (lane l-agentdm) */ face?: string; /** the held card's editor, when a test or a screenshot puts its own in */ editor?: HeldEditor }): ReactElement | null {
+export function ApprovalCard({ taskId, agent, agentId, data, face, faceSeed, editor, othersLine }: { taskId: string; /** what a reader who may not see the request reads instead (lead, 12 Nov, H3): it waits for someone else, said plainly; without it they see nothing */ othersLine?: string; /** a helper's request wears the helper's own face: the id its face is drawn from */ faceSeed?: string; agent: string; agentId: string; data: Data; /** an agent asking for its person wears that person's face (lane l-agentdm) */ face?: string; /** the held card's editor, when a test or a screenshot puts its own in */ editor?: HeldEditor }): ReactElement | null {
   const [task, setTask] = useState<Task | null | undefined>(undefined);
   const [subject, setSubject] = useState<string | undefined>(undefined);
   const [theirTz, setTheirTz] = useState<string | undefined>(undefined);
@@ -49,6 +49,10 @@ export function ApprovalCard({ taskId, agent, agentId, data, face, faceSeed, edi
   const [busy, setBusy] = useState(false);
   const [line, setLine] = useState<string | null>(null);
   const [outcome, setOutcome] = useState<"allowed" | "denied" | null>(null);
+  /** A held test read of a Vault key: what the server says it would send (the item and the host), never what the agent wrote. */
+  const [keyRead, setKeyRead] = useState<{ found: boolean; itemId?: string; handle?: string; name?: string; host?: string } | null>(null);
+  /** A held binding of a Vault key to a connector: the keys and every domain it would send them to, as the server reads them. */
+  const [keyBind, setKeyBind] = useState<{ found: boolean; items: { itemId: string; handle: string; name: string }[]; hosts: string[] } | null>(null);
   const mounted = useRef(true);
   const described = useRef(false);
 
@@ -73,12 +77,15 @@ export function ApprovalCard({ taskId, agent, agentId, data, face, faceSeed, edi
           if (typeof cur === "string") d = diffLines(cur, next);
         } catch { /* no current text: the new text is shown */ }
       }
-      if (mounted.current) { setSubject(s); setDiff(d); setTheirTz(tz); }
+      const k = h.cap === "automations.try_read" ? await Promise.resolve(data.call("automations.key_hosts.pending", h.input)).then((r) => r as { found: boolean; itemId?: string; handle?: string; name?: string; host?: string }, () => ({ found: false })) : null;
+      const b = h.cap === "connections.create" || h.cap === "connections.set_secret" ? await Promise.resolve(data.call("automations.key_hosts.pending_bind", h.input)).then((r) => r as { found: boolean; items: { itemId: string; handle: string; name: string }[]; hosts: string[] }, () => ({ found: false, items: [], hosts: [] })) : null;
+      if (mounted.current) { setSubject(s); setDiff(d); setTheirTz(tz); setKeyRead(k); setKeyBind(b); }
     } catch { if (mounted.current) setTask((was) => was ?? null); }
   }, [data, taskId]);
   useEffect(() => { mounted.current = true; void load(); return () => { mounted.current = false; }; }, [load]);
   useFollow(data.changes, load, task === undefined || (task !== null && outcomeOf(task.state) === null && outcome === null));
 
+  if (task === null && othersLine) return <Text testID={`approval-others-${taskId}`} style={{ fontSize: 13, color: "var(--ink-3)" as string, marginVertical: 4 }}>{othersLine}</Text>;
   if (task === undefined || task === null) return null;
   const held = heldOf(task.blocks);
   // a held message, email, text or post: the one held card (held-card.tsx). The Gate writes who, how, when and what into the hold; a hold parked before that is read from its input the same way.
@@ -127,7 +134,9 @@ export function ApprovalCard({ taskId, agent, agentId, data, face, faceSeed, edi
     );
   }
   // a change held only because the chat is in Ask first is a person's to always allow; any other act needs an admin, so the card does not offer it
-  const allowable = held.act === "approve";
+  // a connector's test read that would send a Vault key to a host nobody approved: Always allow saves that host on the key (the Vault item page lists it and takes it back), then sends this one
+  const keyApprove = held.cap === "automations.try_read" && keyRead?.found === true && keyRead.itemId && keyRead.host ? { itemId: keyRead.itemId, host: keyRead.host } : null;
+  const allowable = held.act === "approve" || keyApprove !== null;
   const ended = outcome ?? outcomeOf(task.state);
   if (ended) {
     return (
@@ -136,6 +145,15 @@ export function ApprovalCard({ taskId, agent, agentId, data, face, faceSeed, edi
   }
   const act = (key: "approve" | "reject", note?: string): void => {
     setBusy(true); setLine(null);
+    // allowing a key binding approves every domain it names for every key it binds, then lets the binding through: the key's page lists them under Sent to
+    if (key === "approve" && keyBind?.found) {
+      const saves = keyBind.items.flatMap((i) => keyBind.hosts.map((host) => Promise.resolve(data.call("automations.key_hosts.allow", { vaultItemId: i.itemId, host }))));
+      void Promise.all(saves).then(() => answerTask(key, note), () => { setBusy(false); setLine("Could not save where the key may go. Try again."); });
+      return;
+    }
+    answerTask(key, note);
+  };
+  const answerTask = (key: "approve" | "reject", note?: string): void => {
     void Promise.resolve(data.call("tasks.act", { taskId, action: key, ...(note !== undefined ? { note } : {}) })).then(
       () => setOutcome(key === "approve" ? "allowed" : "denied"),
       (e: unknown) => { setLine(isDecided(e) ? DECIDED_LINE : e instanceof Error && e.message ? `Failed. ${e.message}` : "Failed. Try again."); if (isDecided(e)) void load(); },
@@ -144,14 +162,21 @@ export function ApprovalCard({ taskId, agent, agentId, data, face, faceSeed, edi
   /** Allow this and every call like it from this agent in this chat, for 30 days. The rule is the Gate's; /permissions lists it and takes it back. */
   const always = (): void => {
     setBusy(true); setLine(null);
-    void Promise.resolve(data.call("gate.allow.set", { act: "approve", target: held.cap, agentId, threadId: data.threadId })).then(
+    const keep = keyApprove !== null
+      ? data.call("automations.key_hosts.allow", { vaultItemId: keyApprove.itemId, host: keyApprove.host })
+      : data.call("gate.allow.set", { act: "approve", target: held.cap, agentId, threadId: data.threadId });
+    void Promise.resolve(keep).then(
       () => act("approve"),
       () => { setBusy(false); setLine("Could not keep that rule. Try Allow."); },
     );
   };
   // an outside agent asking its person: what happens, that it runs as them, and every input
   const rows = held.plain ? plainRows(held) : held.what ? askRows(task.blocks) : excerptLines(held.input, 5, held.cap);
-  const headline = held.what ? askLine(agent, held.what) : wantsLine(agent, held.cap, subject, held.input);
+  // a key's test read names the key the server resolved, with its name, and the host: "Scout wants to send #Notely (Notely API key) to api.notely.com"
+  const both = (xs: readonly string[]): string => (xs.length > 1 ? `${xs.slice(0, -1).join(", ")} and ${xs[xs.length - 1]}` : xs[0] ?? "");
+  const bindLine = keyBind?.found ? `${agent} wants to use ${both(keyBind.items.map((i) => i.handle))} with ${both(keyBind.hosts)}` : null;
+  const keyLine = bindLine ?? (held.cap === "automations.try_read" ? (keyRead?.found ? `${agent} wants to send ${keyRead.handle} (${keyRead.name}) to ${keyRead.host}` : `${agent} wants to send a key you cannot see${keyRead?.host ? ` to ${keyRead.host}` : ""}`) : null);
+  const headline = held.what ? askLine(agent, held.what) : keyLine ?? wantsLine(agent, held.cap, subject, held.input);
   return (
     <Card kind="decision" testID={`approval-${taskId}`} label={headline} onCancel={denying ? () => setDenying(false) : undefined}>
       <CardHead title={headline} lead={<Face name={agent} seedId={face ?? faceSeed ?? agentId} kind={face ? "person" : "agent"} size={20} />} />

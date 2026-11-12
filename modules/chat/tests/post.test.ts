@@ -209,3 +209,22 @@ test("size limits: a message holds 100,000 characters, a post 50 mentions", asyn
   const many = Array.from({ length: 51 }, (_, i) => ({ kind: "person", id: `usr_p${i}` }));
   assert.equal(await failure(() => say(hn.ctx, t, "hi", { mentions: many })), "validation.bad_input");
 });
+
+test("an invite-only channel, and a thread under it: a mentioned person who is not in it gets no notice and is not joined (they could not open it); a member is", async () => {
+  const hn = harness();
+  // Maya is in #legal; Leo is in the Space but not in the channel
+  const c = await channel(hn, { name: "legal", visibility: "invite", memberIds: [MAYA] });
+  hn.clear();
+  await say(hn.ctx, c.mainThreadId, "Maya and Leo please look", { mentions: [{ kind: "person", id: MAYA }, { kind: "person", id: LEO }] });
+  assert.deepEqual(hn.named("message.mentioned").map((e) => e.payload["personId"]), [MAYA], "only the member hears it");
+  assert.equal(hn.rows("SELECT * FROM chat_thread_member WHERE thread = ? AND principal = ? AND deleted_at IS NULL", c.mainThreadId, LEO).length, 0, "Leo is not put in the channel");
+  // a thread under the channel: the same
+  const posted = await say(hn.ctx, c.mainThreadId, "The filing is due Friday.");
+  const t = (await h["chat.thread"]!(hn.ctx, { threadId: c.mainThreadId, messageId: posted.message.messageId ?? posted.message.id })).thread.threadId as string;
+  hn.clear();
+  await say(hn.ctx, t, "Leo, can you check?", { mentions: [{ kind: "person", id: LEO }, { kind: "person", id: MAYA }] });
+  assert.deepEqual(hn.named("message.mentioned").map((e) => e.payload["personId"]), [MAYA], "in the thread too");
+  assert.equal(hn.rows("SELECT * FROM chat_thread_member WHERE thread = ? AND principal = ? AND deleted_at IS NULL", t, LEO).length, 0, "Leo is not joined to the thread");
+  // the message itself keeps the mention, so the sender's own line can offer Add
+  assert.deepEqual(hn.named("message.received")[0]!.payload["mentions"], [{ kind: "person", id: LEO }, { kind: "person", id: MAYA }]);
+});

@@ -113,7 +113,7 @@ test("Overview: what needs you, the server tiles and the last admin acts, each w
   const out = html(createSampleConsole());
   assert.ok(has(out, 'data-testid="overview"'));
   assert.ok(has(out, 'data-testid="row-attn-failing_check-chk_disk"') && has(out, 'data-testid="row-attn-expiring_certificate-crt_main"') && has(out, 'data-testid="row-attn-access_review_due-2"'));
-  assert.ok(has(out, "Disk space on the server is under 15 percent") && has(out, "A health check is failing since 3 h ago"));
+  assert.ok(has(out, "Disk space on the server is under 15 percent") && has(out, "A health check is failing for 3 h"));
   assert.ok(has(out, "Open Server") && has(out, "Start the review"));
   for (const t of ["Space server", "Members", "Agents", "Turns today", "Spend"]) assert.ok(has(out, `data-testid="tile-${t}"`), t);
   assert.ok(has(out, "Degraded") && has(out, ">14<") && has(out, ">6<") && has(out, "1,284") && has(out, "$412"));

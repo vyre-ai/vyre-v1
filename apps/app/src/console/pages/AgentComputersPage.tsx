@@ -2,6 +2,6 @@
 import type { ReactElement } from "react";
 import { AgentComputers } from "./Agents.tsx";
 
-export function AgentComputersPage(): ReactElement {
-  return <AgentComputers />;
+export function AgentComputersPage({ computerId }: { computerId?: string | undefined } = {}): ReactElement {
+  return <AgentComputers initialComputerId={computerId ?? null} />;
 }

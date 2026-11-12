@@ -1,0 +1,1 @@
+- A running agent or helper on an API model shows what it is doing on its row ("Running a command", "Reading a page"), not only Working; no tool's own name shows in the step or the thinking line.

@@ -21,7 +21,7 @@
 import { readFileSync } from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { Handler } from "../../host/src/invoke.ts";
-import { tarFiles } from "../../sandbox/src/tar.ts";
+import { tarFiles, untar } from "../../sandbox/src/tar.ts";
 import { NOT_FETCHED_REASON, createDockerApi, fetchableImage, unixSocketHttp } from "../../sandbox/src/docker.ts";
 import type { ContainerConfig, DockerApi, DockerHttp } from "../../sandbox/src/docker.ts";
 import { handlers as table } from "./handlers/index.ts";
@@ -33,16 +33,18 @@ import { createContainerHomeFs } from "./handlers/home-fs.ts";
 import type { HomeDeps, HomeSync, MadeFile } from "./handlers/home.ts";
 import { createFillService, fillHttp } from "./handlers/fill.ts";
 import type { FillSource, FillUse } from "./handlers/fill.ts";
-import { bindFill, bindHost, boundHost } from "./projections.ts";
+import { bindFill, bindHost, boundHost, ensure as ensureSchema } from "./projections.ts";
+import { markOwnProfiles, reconcileClaims, turnActive, turnEnded, turnStarted } from "./sbrowser/room.ts";
+import { browserOfDeleted, browserOfRestored, forgetExpired } from "./sbrowser/forget.ts";
 import { nodeHomeCheck, nodeJobs, nodeRecordingCheck, nodeResult, nodeStreamInput, nodeStreamOpen } from "./handlers/node.ts";
 import { nodeRun } from "./remote.ts";
 import { ToolError } from "./handlers/tools/common.ts";
 import type { ToolAnswer, ToolCode, ToolHost } from "./handlers/tools/common.ts";
-import type { ComputerHost, HostKind, Probe, RecordResult, SessionInfo } from "./projections.ts";
+import type { CompCtx, ComputerHost, HostKind, Probe, RecordResult, SessionInfo } from "./projections.ts";
 import "./sbrowser/migrate.ts";
 import { browserStreamInput, browserStreamOpen } from "./sbrowser/handlers.ts";
 import "./sbrowser/room.ts";
-import { bindSpaceBrowser } from "./sbrowser/port.ts";
+import { bindSpaceBrowser, spaceBrowser } from "./sbrowser/port.ts";
 import type { SpaceBrowser } from "./sbrowser/port.ts";
 import { createDockerSpaceBrowser, DEFAULT_BROWSER_IMAGE } from "./sbrowser/docker.ts";
 
@@ -50,6 +52,7 @@ export const handlers: Record<string, Handler> = table as unknown as Record<stri
 
 export { bindFill, bindHost, bindKit, bindTeam, boundHost, redeemTicket, rememberSecrets, forgetSecrets, addStep, ensure } from "./projections.ts";
 export type { ComputerHost, CompCtx, Probe, RecordResult, SessionInfo } from "./projections.ts";
+import { sleepIdle } from "./handlers/lifecycle.ts";
 export { sleepIdle, awaken } from "./handlers/lifecycle.ts";
 export { createHomeSync } from "./handlers/home.ts";
 /** What the daemon binds for the agent workspaces: how a waiting one starts, and the workspace half of the one-time move of a computer. */
@@ -76,6 +79,11 @@ export const FILES_GUEST = "/home/agent/Vyre";
 /** Where agentd keeps Chrome's user-data (images/agent-computer/agentd/main.ts: PROFILE/chrome), inside the guest home the archive call is limited to. */
 export const CHROME_DATA = "/home/agent/.profile-disk/chrome";
 const MAX_CHROME_DATA = 1024 * 1024 * 1024;
+/** What of Chrome's folder holds sign-ins and settings (relative to the folder): cookies, saved logins, site storage, preferences, extension state. Everything else (Cache, Code Cache, GPUCache, Service Worker/CacheStorage, history) stays behind. */
+export const CHROME_ESSENTIAL: readonly string[] = [
+  "Local State", "Default/Cookies", "Default/Cookies-journal", "Default/Network/Cookies", "Default/Network/Cookies-journal", "Default/Login Data", "Default/Login Data-journal", "Default/Login Data For Account",
+  "Default/Web Data", "Default/Preferences", "Default/Secure Preferences", "Default/Local Storage", "Default/Session Storage", "Default/IndexedDB", "Default/Extension State", "Default/Local Extension Settings",
+];
 
 export interface DockerHostOptions {
   api: DockerApi;
@@ -191,8 +199,12 @@ const TOOL_CODES: readonly string[] = ["timeout", "paused", "not_found", "bad_in
 export function toolErrorOf(stderr: string, exitCode: number | null): ToolError {
   const last = stderr.trim().split("\n").pop() ?? "";
   try {
-    const j = JSON.parse(last) as { code?: unknown; message?: unknown };
-    if (typeof j.code === "string" && TOOL_CODES.includes(j.code)) return new ToolError(j.code as ToolCode, typeof j.message === "string" ? j.message : "The tool failed.");
+    const j = JSON.parse(last) as { code?: unknown; message?: unknown; reason?: unknown; start?: unknown };
+    if (typeof j.code === "string" && TOOL_CODES.includes(j.code)) {
+      const e = new ToolError(j.code as ToolCode, typeof j.message === "string" ? j.message : "The tool failed.", j.reason === "profile_held" || j.reason === "profile_busy" || j.reason === "browser_full" || j.reason === "browser_reopened" ? j.reason : undefined);
+      if (typeof j.start === "string" || j.start === null) e.start = j.start;
+      return e;
+    }
   } catch { /* not JSON */ }
   return new ToolError("unavailable", `agentd tool failed (${exitCode ?? "no exit code"}): ${stderr.trim().slice(0, 200)}`);
 }
@@ -364,11 +376,20 @@ export function createDockerComputerHost(o: DockerHostOptions): ComputerHost & T
       if (!o.http) throw new Error("this host cannot read a computer's files");
       if (o.profile) await o.profile.unseal(computerId);
       try {
-        const r = await o.http({ method: "GET", path: `/containers/${name}/archive`, query: { path: CHROME_DATA }, timeoutMs: 10 * 60_000 });
-        if (r.status === 404) return null;
-        if (r.status !== 200) throw new Error(`the Chrome profile could not be read (${r.status})`);
-        if (r.body.length > MAX_CHROME_DATA) throw new Error("the Chrome profile is over 1 GB");
-        return { tar: r.body };
+        // Only what holds sign-ins and settings moves: Chrome's caches are most of a profile's size and worthless to copy. Each path is its own archive request and is renamed into place under `chrome/`.
+        const files: Array<{ path: string; data: Uint8Array; mode: number; uid: number; gid: number; mtime: number }> = [];
+        let total = 0;
+        for (const rel of CHROME_ESSENTIAL) {
+          const r = await o.http({ method: "GET", path: `/containers/${name}/archive`, query: { path: `${CHROME_DATA}/${rel}` }, timeoutMs: 10 * 60_000 });
+          if (r.status === 404) continue;
+          if (r.status !== 200) throw new Error(`the Chrome profile could not be read (${r.status})`);
+          total += r.body.length;
+          if (total > MAX_CHROME_DATA) throw new Error("the Chrome profile data is over 1 GB");
+          const parent = rel.includes("/") ? `${rel.slice(0, rel.lastIndexOf("/"))}/` : "";
+          for (const e of untar(r.body)) if (e.type === "file") files.push({ path: `chrome/${parent}${e.path}`, data: e.data, mode: e.mode, uid: e.uid, gid: e.gid, mtime: Math.floor(Date.now() / 1000) });
+        }
+        if (files.length === 0) return null;
+        return { tar: tarFiles(files) };
       } finally { if (o.profile) await o.profile.seal(computerId).catch(() => undefined); }
     },
     async start(a) {
@@ -535,7 +556,7 @@ export interface ComputersHostConfig {
   /** The Space browser image (images/space-browser). Default vyre/space-browser:1. */
   browserImage?: string;
   /** How many browsers the Space browser holds at once and how long a quiet one stays (minutes). */
-  browser?: { maxRunning?: number; idleMinutes?: number };
+  browser?: { maxRunning?: number; idleMinutes?: number; name?: string };
   filesRoot?: (agentId: string) => string | null;
   startTimeoutMs?: number;
   /** What the host says it can hold instead of the machine's own figures: a test of room, so it does not depend on what else runs on the runner. */
@@ -562,7 +583,9 @@ export function buildComputerHost(c: ComputersHostConfig): ComputerHost & ToolHo
 /** The address of a computer on this machine, for a site served from it; null when there is none or it is not running. */
 export async function localComputerAddress(computerId: string): Promise<string | null> { return (await boundHost()?.address?.(computerId)) ?? null; }
 /** The subnets of the computers' own networks, for the daemon: a connection that arrives on one may reach only the Vault channel. */
-export function computerSubnets(): string[] { return (boundHost() as { subnets?: () => string[] } | null)?.subnets?.() ?? []; }
+/** This module's part of the daemon's registry of agent networks (host/src/routes/site-host.ts agentSubnetsOf). */
+export const agentSubnets = (): string[] => computerSubnets();
+export function computerSubnets(): string[] { return [...((boundHost() as { subnets?: () => string[] } | null)?.subnets?.() ?? []), ...(spaceBrowser()?.subnets?.() ?? [])]; }
 export async function learnComputerSubnets(ids: readonly string[]): Promise<string[]> { return (await (boundHost() as { knownNetworks?: (i: readonly string[]) => Promise<string[]> } | null)?.knownNetworks?.(ids)) ?? []; }
 export async function localSiteLogs(a: { computerId: string; slug: string; lines: number }): Promise<string[]> { return (await boundHost()?.siteLogs?.(a)) ?? []; }
 
@@ -575,6 +598,8 @@ export function buildSpaceBrowser(c: ComputersHostConfig): SpaceBrowser {
     ...(c.runner ? { runner: { ...(c.runner.ingress ? { ingress: c.runner.ingress } : {}), ...(c.runner.alias ? { alias: c.runner.alias } : {}) } } : {}),
     ...(c.browser?.maxRunning !== undefined ? { maxRunning: c.browser.maxRunning } : {}),
     ...(c.browser?.idleMinutes !== undefined ? { idleMinutes: c.browser.idleMinutes } : {}),
+    // a container of its own (and so a volume of its own) for a test on a machine that may run a real Space browser; behind the runner the name stays vyre-sbrowser, the only one it allows
+    ...(c.browser?.name !== undefined && !c.runner ? { name: c.browser.name } : {}),
     ...(c.startTimeoutMs !== undefined ? { startTimeoutMs: c.startTimeoutMs } : {}),
   });
 }
@@ -587,6 +612,44 @@ export function setComputerHost(c: ComputersHostConfig | null): void {
 // Only the setters the daemon wires are host seams (the loader reports any other function here as a driver left unwired); what a computer that joined needs is exported beside them.
 export const hostSeams = { setComputersFill, setComputerHost };
 export { nodeRun };
+/** The move reads nothing from an old desktop until the Space browser can take it: the container runtime answers and the service is healthy (its image is checked by f-sbrowser's start, not here). */
+bindMigrationPort("browserReady", async () => {
+  const sb = spaceBrowser();
+  if (!sb) throw Object.assign(new Error("The Space browser is not running on this host."), { code: "unavailable" });
+  const h = await sb.health();
+  if (!h.ok) throw Object.assign(new Error(h.detail ?? "The Space browser is not ready."), { code: "unavailable" });
+},
+);
+
+/** An agent moved to Trash (also a person's Assistant when the person leaves): its Space browser stops and its profile is kept while it can be restored, then removed (sbrowser/forget.ts). */
+export const consumers = {
+  // an agent mid-turn keeps its Space browser: make room never closes it (sbrowser/room.ts). turn.block says a running turn is alive; turn.waiting (parked on a person, a task or a time) ends the
+  // protection, and the turn's continuation starts again with turn.started
+  "computers.browser_turns": {
+    on: ["turn.started", "turn.block", "turn.waiting", "turn.completed", "turn.failed", "turn.cancelled"],
+    run: async (ctx: CompCtx, event: { name: string; payload: { agentId?: unknown; turnId?: unknown } }): Promise<void> => {
+      const a = event.payload.agentId, t = event.payload.turnId;
+      if (typeof t !== "string") return;
+      if (event.name === "turn.block") { turnActive(t, ctx.now()); return; }
+      if (event.name === "turn.started") { if (typeof a === "string") turnStarted(ctx.space, a, t, ctx.now()); return; }
+      turnEnded(ctx.space, typeof a === "string" ? a : "", t);
+    },
+  },
+  "computers.browser_forget": {
+    on: ["agent.deleted", "agent.restored"],
+    run: async (ctx: CompCtx, event: { name: string; payload: { agentId?: unknown } }): Promise<boolean> => (event.name === "agent.restored" ? browserOfRestored(ctx, event.payload.agentId) : browserOfDeleted(ctx, event.payload.agentId)),
+  },
+};
+
+/** Every half minute: Space browser claims of browsers that stopped are released (also ones left from before a restart), and a profile waiting for room starts when there is room (sbrowser/room.ts). */
+export const periodic = {
+  /** The idle pass, every minute: a desktop that is awake, with nothing running, quiet for its idle time goes to sleep; room that opened starts the waiting line; an asleep desktop moves to a workspace and a browser profile. */
+  "computers.idle": { everyMs: 60_000, run: async (ctx: CompCtx): Promise<string[]> => { const n = await sleepIdle(ctx); return n > 0 ? [`${n} to sleep`] : []; } },
+  "computers.browser_room": {
+    everyMs: 30_000,
+    run: async (ctx: CompCtx): Promise<void> => { const sb = spaceBrowser(); if (!sb) return; ensureSchema(ctx.db); await reconcileClaims(ctx, sb, { force: true }); await markOwnProfiles(ctx, sb); await forgetExpired(ctx); },
+  },
+};
 
 /** What the host asks of this module on behalf of a computer that joined (host/src/routes/compute.ts): never a capability, never reachable from a session. */
 export const hostCalls = { "computers.browser_stream_open": browserStreamOpen, "computers.browser_stream_input": browserStreamInput, "computers.workspace_claim": workspaceClaim, "computers.workspace_release": workspaceRelease, "computers.workspace_waiting": workspaceWaiting, "computers.node_jobs": nodeJobs, "computers.node_result": nodeResult, "computers.node_home_check": nodeHomeCheck, "computers.stream_open": nodeStreamOpen, "computers.stream_input": nodeStreamInput, "computers.node_recording_check": nodeRecordingCheck };

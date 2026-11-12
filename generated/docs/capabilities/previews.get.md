@@ -19,7 +19,7 @@ Get the preview of one file version at a size, or one page of it
 | HTTP | POST /v1/previews/get |
 | MCP tool | previews_get (files) |
 | CLI | none |
-| Emits | none |
+| Emits | preview.ready, preview.failed |
 
 ## Input
 

@@ -35,7 +35,8 @@ interface Scenario { cap: string; run: (hn: Harness, id: () => Promise<string>) 
 const scenarios: Scenario[] = [
   { cap: "terminal.open", run: (hn) => h["terminal.open"]!(hn.ctx, { host: "agent_computer", agentId: "agt_a" }) },
   { cap: "terminal.open", run: (hn) => h["terminal.open"]!(hn.ctx, { host: "device" }), expect: "validation.bad_input" },
-  { cap: "terminal.open", run: () => { bindTeam(() => false); return h["terminal.open"]!(harness().ctx, { host: "agent_computer", agentId: "agt_a" }); }, expect: "permission.needs_team" },
+  // a Personal Space with nothing to run a workspace on now: the plain reason, not "needs a Team Space" (12 Nov)
+  { cap: "terminal.open", run: () => { bindTeam(() => false); return h["terminal.open"]!(harness().ctx, { host: "agent_computer", agentId: "agt_a" }); }, expect: "provider.unavailable" },
   { cap: "terminal.open", run: (hn) => { bindHost(null); return h["terminal.open"]!(hn.ctx, { host: "device", deviceId: "dev_x" }); }, expect: "provider.unavailable" },
   { cap: "terminal.open_server", run: (hn) => h["terminal.open_server"]!(hn.ctx, {}) },
   { cap: "terminal.get", run: async (hn, id) => h["terminal.get"]!(hn.ctx, { terminalId: await id() }) },

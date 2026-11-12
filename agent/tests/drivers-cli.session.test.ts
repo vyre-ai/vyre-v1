@@ -196,6 +196,21 @@ test("a process that never says anything is ended at the first-token deadline, b
   await session.close();
 });
 
+test("a silent process hears the first-token line even when its timer fires before the clock says the deadline has passed (the clock held still)", async () => {
+  // a busy runner fired the wait a millisecond before Date.now() reached the deadline, and the old check read the clock again and answered engine.timeout (CI fast-22 on int/rc25, 12 Nov)
+  const spy = newSpy();
+  const seen: Array<{ provider: string }> = [];
+  const session = await claude(spy, { idleMs: 60_000, firstTokenMs: 250, onNoFirstToken: (e) => seen.push(e) }).open(specOf());
+  const realNow = Date.now;
+  const held = realNow();
+  Date.now = () => held;
+  let events: unknown[];
+  try { events = await collect(session.send(turnOf("hang"))); } finally { Date.now = realNow; }
+  assert.deepEqual(events, [{ type: "error", code: "engine.no_first_token", message: "Your AI didn't answer in time" }]);
+  assert.equal(seen.length, 1);
+  await session.close();
+});
+
 test("a second send while one is running is refused, a closed session says so, and close is safe twice", async () => {
   const session = await claude().open(specOf());
   const first = collect(session.send(turnOf("slow 200")));

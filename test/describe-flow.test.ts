@@ -23,7 +23,7 @@ test("steps are told in the order they run, not the order they are listed", () =
     start: ["z"],
     nodes: [{ id: "y", key: "wait", input: {} }, { id: "z", key: "send_sms", input: {}, askBeforeSending: false, next: ["y"] }],
   });
-  assert.deepEqual(lines, ["When on a schedule or a webhook is received", "Then send a text message, goes out once you turn this on", "Then wait"]);
+  assert.deepEqual(lines, ["When on a schedule or a web request arrives", "Then send a text message, goes out once you turn this on", "Then wait"]);
 });
 
 test("Turn on names what leaves: a step set to ask is held for a yes, and a code step that names hosts goes out", () => {

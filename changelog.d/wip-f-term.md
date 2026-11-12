@@ -1,0 +1,58 @@
+- An agent's terminal keeps working after Vyre restarts (every update does): its next command wakes its workspace and opens the same tab again, even when the workspace was asleep or its sessions were lost.
+- Adding an agent to a project no longer stops a command it is running: the new project folder appears once nothing is running, or the next time the workspace wakes.
+- Two chats with the same agent at once no longer type into one shell: the second command waits for the first, and says so plainly if it waited its whole time.
+- Two helpers with the same name each get a terminal tab of their own.
+- A workspace running a script, a `sh -c` command or a job in the background is no longer put to sleep as idle, and a command that starts just as it would sleep is never cut off.
+- Workspaces that were running when Vyre restarted go to sleep after their idle time again.
+- A terminal's status is shown only to people who may open that workspace.
+- The Terminal tab in a chat opens in the agent's workspace, the same sessions its commands use, instead of on this computer.
+- The Terminal tab's live view keeps showing new lines on long sessions (past 5,000 lines), and a line being typed or a prompt that changes shows as it is now instead of going missing.
+- A Terminal tab left open no longer keeps an agent's workspace awake: it sleeps after its idle time like any other, and wakes when you type or the agent runs something.
+- When an agent goes to Trash (or a person leaves and their Assistant goes with them), its workspace stops and gives its room back; what it kept stays, so a restored agent has its files.
+- A workspace stopped outside Vyre (out of memory, a restart of the server) no longer holds its room forever.
+- Files history names the agent whose command changed a project file, not another agent that only had a terminal tab open.
+- A workspace waiting for room no longer tells you to add a compute server, which could not take it; it says it starts by itself when there is room.
+- Nobody is let into another person's Assistant's terminal by holding an admin role, even when the Assistant cannot be looked up.
+- Agent workspaces on a computer's own Docker can no longer reach each other's ports; each still reaches the internet.
+- An agent can make your terminal rules stricter, but only you can loosen them (allow a command, remove a rule, add a folder), in Terminal rules.
+- Typing a semicolon in a Terminal tab works: it used to be dropped on the way to the shell.
+- The Terminal tab's view stays on the newest line during long output instead of stopping once it held 2,000 lines; scroll up to read and it stays where you put it.
+- Taking an agent off a project takes its folder away at once, even while something runs in its workspace; what was running stops and says why.
+- A deleted agent's workspace stays gone: a command still running ends with a plain line, and nothing makes the workspace again until the agent is restored.
+- An agent's command is never typed into a tab where something else is running (yours, or one left from before a restart); it waits for the prompt and then says what is running there.
+- A workspace being made again for a project change keeps its room on the server.
+- After an update, a workspace waiting for room keeps its place in the queue, and one that was already running gives its room back if it later stops on its own.
+- A job left running keeps a workspace awake for at most 12 hours after the last command or keystroke; the Computer tab shows what keeps it awake, and the next command says if it slept with something still running.
+- A terminal you ended with exit shows as exited, and checking its status no longer starts it again.
+- Home's terminal status stays steady when Vyre cannot look up an agent for a moment, and asks for each agent once.
+- A command waiting its turn in a tab that you close says so instead of failing oddly.
+- The Terminal tab's live view no longer repeats old lines after an editor such as vim closes.
+- An agent in Trash keeps its workspace files for as long as the Space keeps Trash; after that they are removed, unless the agent was restored.
+- Where a Space cannot run agent workspaces yet, the line says what would let it, true for a Personal and a Team Space alike.
+- A workspace terminal cannot call Vyre's own server routes: the server knows the workspaces' network and treats calls from it as an agent's.
+- An agent's workspace keeps working when Vyre cannot make its shared network (for example when Docker has no address space left); it moves over later on its own.
+- Taking an agent off a project now stops its workspace's access before the change is confirmed.
+- A command with a Vault value right after another in the same tab is no longer refused as busy.
+- A command that moves the cursor, clears the screen or draws a progress bar no longer looks like it ran until its time ran out; it ends when it ends, with its exit code.
+- In a Personal Space whose workspace cannot run right now, the terminal says why and what fixes it, not that a Team Space is needed.
+- Two Vyre servers on one computer (the desktop app's Personal Space and device ones) no longer put each other's workspaces to sleep or give away each other's room.
+- In a Space that cannot run agent workspaces yet, an agent's Computer tab says what would make it work, offers owners and admins Console > Computers, and no longer offers an Attach that cannot work.
+- An agent's own state reads Active or Idle, so it no longer says Awake while its workspace says Asleep on the same screen.
+- Agent workspaces on a Team server now share one network with traffic between them off, as on a computer's own Docker, so a server holds far more than 30 of them; workspaces on a network of their own move over when quiet and their old network goes.
+- When a server is full, the workspace that has been quiet longest goes to sleep so a new one starts at once; a new one waits only when every awake workspace is busy.
+- A server with many awake agent workspaces stays quiet when nothing happens: the Files mirror slows down while a workspace is idle and is quick again as soon as someone works in it.
+- A site that cannot get a network because the server has run out of room for networks now says "This server has no room for another site's network yet" instead of Docker's error.
+- Server health shows how many networks the server's Docker has left, and warns when fewer than five are.
+- An agent's workspace volumes are removed once it has been in Trash longer than the Space keeps things, and a restored agent never loses them.
+- When agent workspaces have to use Docker's default network, server health says so and what to do; Vyre tries the shared network again once a minute instead of on every command.
+- A person with an agent's tab open sees why it went blank when the agent was taken off a project.
+- Opening an agent's terminal with no computer to run it on says "No computer can run <agent>'s commands right now" and how to fix it.
+- Making room on a full server never puts a workspace to sleep while its agent has a turn running, within 90 seconds of its last command, or while someone has its tab open; an agent whose workspace was put to sleep for room is told so on its next command.
+- Each site now has a small network of its own in a range Vyre keeps for sites, so a server holds thousands of sites instead of about 30; sites made before move over when none of their containers is running, never while they serve.
+- A file dropped into an agent's Files while its workspace is quiet is there for the agent's next command, and appears within seconds without one.
+- A workspace whose network went while it slept is set up again on a network that exists instead of failing every command.
+- Making room puts a workspace to sleep 10 seconds after its agent's last command when no turn is running (90 seconds only when that cannot be told), and never one that was given room in the last minute.
+- Stopping a turn now stops the command it started in the agent's terminal at once, so the next command runs right away; the terminal pane shows a refusal in its own words instead of a server-shell lock for a workspace.
+- A message sent into a busy chat interrupts the agent's running turn, and now also stops the terminal command that turn started (the person redirected the agent). A Stop never interrupts a later turn's command, a command waiting its turn in the tab is never typed once its turn is stopped, and a daemon stop or update leaves running commands alone.
+- The owner can open an agent's terminal tab while the agent's first command in it is still running, and after that command was stopped (it answered "not found" until the command ended, or for good when it was stopped).
+- Stopping a Run stops the terminal command it started again; the desktop app updating itself leaves agents' running terminal commands alone.

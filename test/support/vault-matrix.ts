@@ -140,7 +140,13 @@ export function fakeProvider(): Provider {
     const key = keyOf(headers);
     seen.push({ url, key: key === "" ? "none" : sha12(key) });
     if (url.endsWith("/models")) return new Response(JSON.stringify({ data: [{ id: "matrix-model" }] }), { headers: { "content-type": "application/json" } });
-    if (url.endsWith("/chat/completions")) return sse(`key=${key === "" ? "none" : sha12(key)} ran-on=space`);
+    if (url.endsWith("/chat/completions")) {
+      // as OpenRouter does: a request that names no model runs on the account's default; a model field that is there but empty is refused ("`model` must be a non-empty string")
+      let body: { model?: unknown } = {};
+      try { body = JSON.parse(String(init?.body ?? "{}")) as { model?: unknown }; } catch { /* no body */ }
+      if ("model" in body && (typeof body.model !== "string" || body.model === "")) return new Response(JSON.stringify({ error: { message: "`model` must be a non-empty string" } }), { status: 400, headers: { "content-type": "application/json" } });
+      return sse(`key=${key === "" ? "none" : sha12(key)} ran-on=space`);
+    }
     return new Response("{}", { status: 404, headers: { "content-type": "application/json" } });
   }) as typeof fetch;
   const network: Provider["network"] = {
@@ -573,6 +579,9 @@ export async function chatUse(rig: Rig, token: string, handle: string, pin?: { s
 export async function automationUse(rig: Rig, a: Actor, handle: string): Promise<Outcome> {
   const before = rig.p.seen.length;
   const input = { method: "GET", url: "https://api.hubapi.com/crm/v3/objects/contacts", auth: { kind: "bearer", handle } };
+  // a key goes only to a host approved for it: the person approves the provider's host on the key's page first, as they would (a person who may not use the key is refused
+  // here, and the cell then shows the Vault's own refusal on the step, as before)
+  await api(rig.d, a.token, "automations.key_hosts.allow", { vaultItemId: handle, host: "api.hubapi.com" });
   const o = a.mcp ? fromTool(await tool(a.mcp.c, "automations_http_read", input)) : outcome(await api(rig.d, a.token, "automations.http_read", input));
   const got = rig.p.seen.slice(before).find((s) => s.url.includes("hubapi"))?.key;
   return { ...o, ...(got ? { got } : {}) };

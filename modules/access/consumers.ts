@@ -386,6 +386,9 @@ export const hostCalls = {
     const heldBy = (who: string) => [...store.grants.entries()].filter(([, g]) => g.resource.type === r.type && g.resource.id === r.id && (g.subject.kind === "person" || (g.subject.kind === "actor" && who.startsWith("usr_"))) && g.subject.id === who);
     const held = heldBy(input.from);
     if (r.ownerId === input.from) {
+      // an agent handed over: the access engine's own record of who owns it moves in the same change, first, so nothing reads the previous owner as the agent's person (whose authority a turn
+      // nobody asked for used to borrow, and whose owner's rights on the agent stayed) while the new owner lacks them (lead 12 Nov)
+      if (r.type === "agent") { const p = store.principals.get(r.id); if (p && p.kind === "agent" && p.owner === input.from) p.owner = input.to; }
       // theirs: the resource changes owner and their direct grants on it go. Given to a person, it is theirs and no longer the Space's (the host's mark goes, so a Space transfer leaves it)
       r.ownerId = input.to;
       if (r.row?.["spaceOwned"] === true) { const { spaceOwned: _m, ...rest } = r.row; void _m; if (Object.keys(rest).length) r.row = rest; else delete r.row; }

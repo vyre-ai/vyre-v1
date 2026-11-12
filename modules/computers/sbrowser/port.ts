@@ -4,6 +4,10 @@ export type BrowserAnswer = Record<string, unknown>;
 
 export interface ProfileRow {
   profileId: string;
+  /** The Space whose agent this profile is, as its calls said: one Space browser container can serve two Spaces on one computer (two daemons on one Docker engine share `vyre-sbrowser`). */
+  spaceId?: string;
+  /** When a person last had it in front of them (a view opened or closed, a takeover began or ended, their input): kept longer than an agent's last step (PERSON_GRACE_MS). */
+  personSeenAt?: number;
   running: boolean;
   tabs: number;
   busy: boolean;
@@ -16,6 +20,9 @@ export interface ProfileRow {
   lastActiveAt: number;
   held: number;
   paused: boolean;
+  /** How many views the person at the controls has open now, and when they last sent input through one: what keeps a takeover in use. */
+  holderViews?: number;
+  personActiveAt?: number;
   /** Vyre for Chrome in the profile, paired with the Space as the agent: the extensions connected, whether it said hello, and whether the Space opened the browser to the agent's Space. */
   bridge?: { connected: number; hello: boolean; optin: boolean };
 }
@@ -37,6 +44,14 @@ export interface BrowserToolCall {
   space?: string;
   /** The Vault channel of this profile's agent for #Handle.field in the call: held by browserd in memory, for this profile only. */
   fill?: { url: string; token: string };
+  /** The start of the browser the refs this act uses were taken under (the `browserStart` of the last snapshot's answer): browserd refuses the act with reason browser_reopened when the browser has
+   * started again since, so a stale ref never clicks something else. */
+  refsFrom?: string;
+  /** On every act: the start of the browser the agent's last answer came from ("" when this daemon has seen none). browserd refuses the act (browser_reopened) when the browser has started since, or
+   * would start for it, before any Vault value is asked for. */
+  seenFrom?: string;
+  /** Who holds the controls as the module's table says (null: nobody). browserd takes on a person it did not know (it restarted); "nobody" never releases a takeover on this path. */
+  hold?: string | null;
 }
 
 export interface SpaceBrowser {
@@ -49,11 +64,16 @@ export interface SpaceBrowser {
   downloadRead(profileId: string, name: string): Promise<Uint8Array>;
   /** The file is in Files: it leaves the browser service. */
   downloadAck(profileId: string, name: string): Promise<void>;
-  takeover(a: { profileId: string; personId: string }): Promise<void>;
-  giveBack(profileId: string): Promise<void>;
+  /** The file is too large to move into Files: the service keeps it out of the list (reported once, never tried again). */
+  downloadKeep?(profileId: string, name: string): Promise<void>;
+  /** `space`: the Space whose agent it is, kept with the profile (a container two Spaces share). */
+  /** `reopened`: the browser was reopened since a person last saw it, so its page was reloaded (the pane says so). */
+  takeover(a: { profileId: string; personId: string; space?: string }): Promise<{ reopened?: boolean } | void>;
+  /** `before` (ms since the epoch, the host's clock): release only a takeover that began before then, so a release decided on an older reading never undoes a newer takeover. */
+  giveBack(profileId: string, o?: { before?: number }): Promise<void>;
   screenshot(profileId: string): Promise<{ bytes: Uint8Array; width: number; height: number }>;
   /** Where the live view of a profile is served from, for a ticket the viewer presents. `ws` is browserd's own WebSocket address on the machine that runs it, for the host's relay, never for a viewer. */
-  stream(a: { profileId: string }): Promise<{ transport: "mjpeg"; url: string; ws?: string; width?: number; height?: number }>;
+  stream(a: { profileId: string; personId?: string }): Promise<{ transport: "mjpeg"; url: string; ws?: string; width?: number; height?: number }>;
   /** Replace the profile's Chrome data with a tar whose root entry is the folder `chrome` (the old computer's Chrome user-data). The profile's browser is stopped first. */
   importChrome(profileId: string, tar: Uint8Array): Promise<{ bytes: number }>;
   /** The sites the profile holds cookies for (starts its browser when it is asleep). */
@@ -62,10 +82,21 @@ export interface SpaceBrowser {
   signOut(profileId: string, site: string): Promise<boolean>;
   /** The browser of the profile stops; the folder stays. */
   stop(profileId: string): Promise<void>;
+  /**
+   * Has this profile ever held Chrome data or sign-ins (its browser ran in it, or it lists sites it was signed in to)? Starts neither a browser nor the container; false for a profile that does not exist.
+   * Throws (unavailable) only when it cannot tell (the service's volume is there but there is no container to read it through). Lane f-desktop's move asks this before it puts an old desktop's Chrome in.
+   */
+  profileUsed(profileId: string): Promise<boolean>;
   /** The agent is gone: the browser stops and the folder is deleted. */
   forget(profileId: string): Promise<void>;
   profiles(): Promise<{ profiles: ProfileRow[]; maxRunning: number }>;
+  /** Close the least recently used quiet browser of another Space that has been quiet for `quietMs` (this Space has nothing of its own to close and the service is full). The id, or null. */
+  closeOther?(space: string, quietMs: number): Promise<string | null>;
+  /** Write this Space into its own profiles' folders that name none yet (so a purge of another install never takes them, and one of this install finds them). How many were marked; -1: the service is not up. */
+  markSpace?(space: string, profileIds: readonly string[]): Promise<number>;
   health(): Promise<{ ok: boolean; detail?: string }>;
+  /** The subnets of the service's own network: a request from one reaches only the Vault channel of the daemon (computerSubnets). */
+  subnets?(): string[];
 }
 
 let bound: SpaceBrowser | null = null;

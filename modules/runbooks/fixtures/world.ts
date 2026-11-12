@@ -109,6 +109,8 @@ export function world(): World {
         }
         case "terminal.open": {
           if (!state.team) throw err("permission.needs_team", "Agent computers are part of a Team Space.");
+          // as the terminal module does (modules/terminal/handlers/sessions.ts openSession): an agent's terminal is opened by its agent, a computer id alone opens nothing
+          if (i.host === "agent_computer" && typeof i.agentId !== "string") throw err("validation.bad_input", "Say which agent's workspace to open the terminal in.");
           return { terminal: { terminalId: `trm_${++terminals}` } };
         }
         case "terminal.run": {

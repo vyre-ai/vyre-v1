@@ -9,7 +9,7 @@ import { ChatRightPane } from "./ChatRightPane.tsx";
 import { RightPaneDataProvider } from "./data.tsx";
 import type { ChatRightPaneData } from "./data.tsx";
 import { BrowserCard, TerminalCard, WorkSections, usesWorkModel } from "./WorkSections.tsx";
-import { attachedNote, browserAction, browserWords, orderSessions, ownerLabel, sessionsLine, sharedWait, terminalAction, workspaceWords } from "./work-model.ts";
+import { olderDesktopMenu, olderDesktopNote, attachedNote, browserAction, browserWords, orderSessions, ownerLabel, sessionsLine, sharedWait, terminalAction, workspaceWords } from "./work-model.ts";
 import type { BrowserData, BrowserView, WorkspaceData, WorkspaceView } from "./work-model.ts";
 import { createSample } from "./sample.ts";
 import type { PaneDeps } from "./actions.ts";
@@ -33,7 +33,8 @@ test("the Terminal words: running, asleep, starting, waiting for room (the plain
   assert.equal(workspaceWords(ws({ state: "asleep" })).note, "Wakes in about a second on the next command.");
   assert.equal(workspaceWords(ws({ state: "starting" })).chip, "Starting");
   assert.deepEqual(workspaceWords(ws({ state: "waiting", line: LINE })), { chip: "Waiting for room", tone: "warn", note: LINE });
-  assert.equal(workspaceWords(ws({ state: "waiting" })).note, LINE, "the same words when the host sends none");
+  // when the host sends none: the plain line, saying only what is true for a workspace (12 Nov, audit item 9: a compute server cannot take it)
+  assert.equal(workspaceWords(ws({ state: "waiting" })).note, "Waiting for room on the Space server. The workspace starts by itself when there is room.", "plain words when the host sends none");
   assert.deepEqual(workspaceWords(ws({ state: "error", line: "The image is missing." })), { chip: "Needs attention", tone: "bad", note: "The image is missing." });
 });
 
@@ -118,6 +119,23 @@ test("mounted: Terminal then Browser, the agent has no computer and nothing asks
     assert.ok(t.indexOf("Terminal") >= 0 && t.indexOf("Terminal") < t.indexOf("Browser"), "Terminal first");
     assert.ok(t.includes("2 sessions") && t.includes("main") && t.includes("build") && t.includes("Client portal launch") && t.includes("app.example.com"));
     assert.ok(!/Give .* its own computer|Set up its computer/.test(t), "no setup step");
+  } finally { off(); }
+});
+
+test("mounted: an agent that still has an older desktop gets one row that opens it; an agent without one gets none, and neither is offered a new one", async () => {
+  const off = installDom();
+  try {
+    const s = createSample();
+    const k = stub(ws(), br());
+    const withOld = paneOver(s, { workspace: k.workspace, browser: k.browser, agent: { agentId: s.data.agent.agentId, name: s.data.agent.name, computerId: "cmp_old" } }, depsOf([]));
+    const root = await mount(createRoot, withOld);
+    const t = textOf(root);
+    assert.ok(t.includes("Older desktop") && t.includes("Open its desktop"), "the older desktop has its row");
+    assert.ok(t.indexOf("Browser") < t.indexOf("Older desktop"), "after the terminal and the browser");
+    await press(find(root, "row-older-desktop"));
+    assert.deepEqual(s.opened.slice(-1), ["computer:cmp_old"], "it opens the desktop's own view: live view, wake, take over");
+    const none = await mount(createRoot, paneOver(s, { workspace: k.workspace, browser: k.browser, agent: { agentId: s.data.agent.agentId, name: s.data.agent.name } }, depsOf([])));
+    assert.ok(!textOf(none).includes("Older desktop") && !/Give .* a computer|Set up its computer/.test(textOf(none)));
   } finally { off(); }
 });
 
@@ -260,4 +278,70 @@ test("an agent that still has a legacy desktop computer keeps the single-compute
   const s = createSample();
   const legacy = clean(renderToStaticMarkup(<ChatRightPane data={{ ...s.data, workspace: w }} open onToggle={() => undefined} tab="computer" window={ALL} paneWidth={640} />));
   assert.ok(!legacy.includes('data-testid="terminal-card"') && legacy.includes('data-testid="pane-body-computer"'), "the sample agent has a computer: today's tab");
+});
+
+test("mounted: the Browser section lists what the agent did in its browser, step by step, with the caption as it comes; a step shows its picture where the live view is (f-wire, 12 Nov)", async () => {
+  const off = installDom();
+  try {
+    const s = createSample();
+    const k = stub(ws(), br());
+    const asked: Array<[string, unknown]> = [];
+    const steps = [
+      { stepId: "stp_b2", idx: 2, at: 2_000, caption: "Opened the bank login · No picture: a Vault value is on this page", tool: "chrome_open", by: "agent" },
+      { stepId: "stp_b1", idx: 1, at: 1_000, caption: "Opened the pricing page", tool: "chrome_open", by: "agent", frameFileId: "fil_pricing" },
+    ];
+    const call = async (cap: string, input: unknown): Promise<unknown> => {
+      asked.push([cap, input]);
+      if (cap === "computers.browser.timeline") return { steps };
+      if (cap === "files.read") return { base64: "iVBORw0KGgo=" };
+      return {};
+    };
+    const root = await mount(createRoot, paneOver(s, { workspace: k.workspace, browser: k.browser, call }, depsOf([])));
+    await flush(); await flush();
+    assert.ok(asked.some(([c, i]) => c === "computers.browser.timeline" && (i as { agentId?: string }).agentId === s.data.agent.agentId), "the agent's own browser timeline is read");
+    const t = textOf(root);
+    assert.ok(t.includes("2 steps"));
+    assert.ok(t.includes("Browser · ") && !t.includes("Chrome · ") && !t.includes("chrome_open"), "a step in the agent's Space browser reads Browser (review, 12 Nov), never the tool's own name");
+    assert.ok(!/· now\b/.test(t), "one wording for a recent step");
+    assert.ok(t.indexOf("Opened the pricing page") < t.indexOf("Opened the bank login · No picture: a Vault value is on this page"), "oldest first, the caption as it came");
+    await press(find(root, "row-step-stp_b1"));
+    await flush(); await flush();
+    assert.ok(asked.some(([c, i]) => c === "files.read" && (i as { fileId?: string }).fileId === "fil_pricing"), "the step's picture is read from Files");
+    assert.ok(find(root, "browser-step-picture"), "and shown where the live view is");
+  } finally { off(); }
+});
+
+test("the older desktop's row says what will happen, what happened or why, in plain words, and never an internal mark", () => {
+  const day = (): string => "12 Nov";
+  assert.match(olderDesktopNote(undefined, day), /move to this agent's browser when the desktop is asleep/);
+  assert.equal(olderDesktopNote({ state: "done", at: 1 }, day), "Its sign-ins moved to this agent's browser on 12 Nov. The old desktop is kept until you remove it.");
+  assert.match(olderDesktopNote({ state: "partial", at: 1, error: "Dex already uses its browser on the Space, so the sign-ins were not copied." }, day), /not copied\. The old desktop is kept/);
+  assert.equal(olderDesktopNote({ state: "failed", at: 1, error: "Moving its sign-ins was interrupted. It will be tried again." }, day), "Moving its sign-ins was interrupted. It will be tried again.");
+  assert.match(olderDesktopNote({ state: "failed", at: 1, error: "The workspace is not ready." }, day), /did not work yet: The workspace is not ready\. It will be tried again\.$/);
+});
+
+test("the older desktop's Remove entry: an owner or admin gets it and it opens the Console at that computer; a member gets none; where the pane cannot open the Console it is absent", async () => {
+  const { allows, GATE } = await import("../../../shell/providers/runtime.tsx");
+  const team = (perms: string[]) => ({ permissions: new Set(perms), space: { kind: "team" } });
+  const opened: string[] = [];
+  const open = (): void => { opened.push("cmp_old"); };
+  for (const [who, perms] of [["owner", ["access.manage", "chats.private"]], ["admin", ["access.manage"]]] as const) {
+    const menu = olderDesktopMenu({ canRemove: allows(team([...perms]), GATE.provisionComputer), open });
+    assert.deepEqual(menu.map((m) => m.label), ["Remove in Console > Computers"], who);
+    menu[0]!.onSelect();
+  }
+  assert.deepEqual(opened, ["cmp_old", "cmp_old"], "it opens the Console at that computer");
+  assert.deepEqual(olderDesktopMenu({ canRemove: allows(team(["chats.private"]), GATE.provisionComputer), open }), [], "a member is shown nothing to press");
+  assert.deepEqual(olderDesktopMenu({ canRemove: true, open: undefined }), [], "no way to open the Console, no entry");
+});
+
+test("one word for where work happened: Browser for the agent's Space browser, Your Chrome for the person's own, the app on an agent's computer", async () => {
+  const { placeWord, stepWho } = await import("./model.ts");
+  assert.equal(placeWord("chrome_open", "browser"), "Browser");
+  assert.equal(placeWord("chrome_open", "my-chrome"), "Your Chrome");
+  assert.equal(placeWord("chrome_open"), "Chrome");
+  assert.equal(placeWord("terminal_run"), "Terminal");
+  assert.equal(placeWord(null, "browser"), "Browser");
+  assert.equal(stepWho({ by: "agent", tool: "chrome_open" } as never, "browser"), "Browser");
+  assert.equal(stepWho({ by: "person", tool: "chrome_open" } as never, "browser"), "You");
 });

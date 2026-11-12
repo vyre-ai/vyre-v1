@@ -34,6 +34,8 @@ type In = {
 
 ```ts
 type Out = {
+  reopened?: boolean;
+  note?: string;
   resumed: boolean;
 };
 ```
@@ -59,6 +61,8 @@ type Out = {
     "inMyChrome": true
   },
   "output": {
+    "note": "example",
+    "reopened": true,
     "resumed": true
   }
 }

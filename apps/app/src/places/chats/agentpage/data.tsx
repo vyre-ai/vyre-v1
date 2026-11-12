@@ -19,6 +19,8 @@ export interface AgentPageNav extends RightPaneNav {
   openAgentFile(agentId: string, file: "AGENT.md" | "agent.toml"): void;
   /** Opens Settings, Computers, with the Add a server sheet. Absent where there is no Settings (a sample). */
   openAddServer?(): void;
+  /** Console > Computers (owners and admins), from the Computer tab when nothing can run the agent's workspace. */
+  openMachines?(nodeId?: string): void;
   /** "Automation runs": every run of this agent's routines, as a place of its own. */
   openAutomationRuns(agentId: string): void;
   /** A task the agent is working on, on the task page. Optional so a sample without the shell still renders. */

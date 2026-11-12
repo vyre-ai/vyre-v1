@@ -86,6 +86,8 @@ test("walk: an assistant adds its own chat hook, cannot set a Space rule, the ho
     });
     const provider = await call(d, token, "providers.add", { idempotencyKey: "h-provider", providerKey: "openai", connection: "api_key", apiKey: KEY, scope: "mine" });
     assert.equal((await call(d, token, "providers.set_space_use", { idempotencyKey: "h-use", providerId: provider.data.provider.id, allow: true })).status, 200);
+    // an API key needs a model: the assistant names one, as a person sets it up on such a key (the stand-in vendor serves any)
+    assert.equal((await call(d, token, "agents.update", { idempotencyKey: "h-use-model", agentId: assistant.agentId, patch: { model: "openai/gpt-4o-mini" } })).status, 200);
     const started = await call(d, token, "chat.start", { kind: "chat", agentIds: [assistant.agentId], title: "Rules", idempotencyKey: "h-chat" });
     const threadId = started.data.thread.threadId as string;
     const say = async (body: string, key: string): Promise<void> => { assert.equal((await call(d, token, "chat.post", { threadId, body, mentions: [{ kind: "agent", id: assistant.agentId }], idempotencyKey: key })).status, 200); };

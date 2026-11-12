@@ -13,6 +13,7 @@ import { requestChannelSheet } from "../../places/chats/channels/request.ts";
 import { offered } from "../session/private-agents.ts";
 import { activePlace, openAskPane, placeTitle, thingOfScreen } from "../ask/pane.ts";
 import { currentScreen } from "../ask/screen.ts";
+import { PAGES, PAGE_SUB, pageByKey, searchRows } from "../../places/settings/model.ts";
 import type { ScreenContext } from "../ask/screen.ts";
 
 /** The slice of the hub the search drives. */
@@ -35,6 +36,8 @@ export interface GateSearchDeps {
   viewer?: () => Viewer | null;
   /** Set away for real (stored, seen by teammates). Left out: the action only shows it here. */
   away?: (on: boolean) => void;
+  /** Whether this person may open the Console (the Space card's console flag, the same one the Settings row Console follows). Left out: the Console is judged by the viewer's Console pages. */
+  console?: () => boolean;
   /** Sign out of this Space on this device. Left out: no Sign out action is offered. The Space menu keeps its own Sign Out (the prototype's place); this is the same act found by typing. */
   signOut?: () => void;
 }
@@ -51,6 +54,12 @@ export const placeOfHit = (h: Hit): PlaceId => PLACE_OF[h.kind];
 export const hashOfHit = (h: Hit): string => (h.kind === "note" ? `screen=chats.notes&noteId=${encodeURIComponent(h.id)}` : `subject=${h.kind}:${h.id}`);
 
 const matches = (h: Hit, q: string): boolean => `${h.title} ${h.snippet ?? ""}`.toLowerCase().includes(q.toLowerCase());
+/** Hits whose name holds the words first, the rest after, each group in its own order. */
+export function byTitleFirst(hits: readonly Hit[], q: string): Hit[] {
+  const t = q.trim().toLowerCase();
+  if (t === "") return [...hits];
+  return [...hits.filter((h) => h.title.toLowerCase().includes(t)), ...hits.filter((h) => !h.title.toLowerCase().includes(t))];
+}
 
 /** People and agents from the replica's principals, and the chats the sidebar already holds. Empty until the replica has loaded them. */
 export function replicaHits(rt: ShellRuntime): readonly Hit[] {
@@ -78,18 +87,39 @@ export const MAIL_PAGE_HASH = "page=mail";
 const INBOX_HIT = "shell:inbox";
 const MAIL_HIT = "shell:mail";
 
-/** Inbox and Connect email as results of their own. With nothing connected Inbox is off the rail, and both open the Email and calendar screen in Settings. */
+/** Settings, its pages and the Console, found by their names (owner walk, 12 Nov: typing "settings" said No results). The words under each are the page's own line. */
+const SETTINGS_PAGE = "shell:settings:";
+const CONSOLE_HIT = "shell:console";
+/** Settings and its pages from the Settings model's own list (one list, so the two never drift apart; review O6): the "you" pages a person has, each with its own line. */
+const SETTINGS_HITS: readonly { page: string; title: string; snippet: string }[] = [
+  { page: "", title: "Settings", snippet: "Your profile, AI, notifications and look" },
+  ...PAGES.filter((p) => p.group === "you" && p.hidden !== true).map((p) => ({ page: p.key, title: p.title, snippet: (PAGE_SUB[p.key] ?? "").replace(/\.$/, "") })),
+];
+const SETTINGS_ROW = "shell:setting-row:";
+
+/** Rows inside Settings found by their name ("Passkeys", "Password"), through the Settings page's own search; each opens its page. */
+export function settingRowHits(text: string): Hit[] {
+  if (text.trim().length < 3) return [];
+  return searchRows([], text).slice(0, 6).map((h): Hit => ({ kind: "setting", id: `${SETTINGS_ROW}${h.page}:${h.key}`, title: h.title, snippet: pageByKey(h.page).title, link: `vyre://settings/${h.page}`, score: 0.7 }));
+}
+
+/** Inbox and Connect email as results of their own. With nothing connected Inbox is off the rail, and both open the Email and calendar screen in Settings. Settings, its pages and the Console too. */
 export function shellHits(state: { inbox?: boolean }): readonly Hit[] {
   return [
     { kind: "inbox", id: INBOX_HIT, title: "Inbox", snippet: state.inbox === false ? "Connect email and calendar" : "Mail, texts and calendar", link: "vyre://inbox", score: 0.8 },
     { kind: "setting", id: MAIL_HIT, title: "Connect email", snippet: "Email and calendar", link: "vyre://settings/mail", score: 0.8 },
+    ...SETTINGS_HITS.map((x): Hit => ({ kind: "setting", id: `${SETTINGS_PAGE}${x.page}`, title: x.title, snippet: x.snippet, link: `vyre://settings${x.page ? `/${x.page}` : ""}`, score: 0.8 })),
+    { kind: "setting", id: CONSOLE_HIT, title: "Console", snippet: "Running this Space: people, agents, AI and servers", link: "vyre://console", score: 0.8 },
   ];
 }
 
-/** Where a shell result goes: Inbox itself once something flows in, otherwise the connect screen. Null for any other result. */
+/** Where a shell result goes: Inbox itself once something flows in, otherwise the connect screen; a Settings page; the Console. Null for any other result. */
 export function shellHitTarget(hit: Hit, state: { inbox?: boolean }): { place: PlaceId; hash: string } | null {
   if (hit.id === MAIL_HIT || (hit.id === INBOX_HIT && state.inbox === false)) return { place: "settings", hash: MAIL_PAGE_HASH };
   if (hit.id === INBOX_HIT) return { place: "inbox", hash: "" };
+  if (hit.id.startsWith(SETTINGS_ROW)) { const page = hit.id.slice(SETTINGS_ROW.length).split(":")[0] ?? ""; return { place: "settings", hash: `page=${page}` }; }
+  if (hit.id.startsWith(SETTINGS_PAGE)) { const page = hit.id.slice(SETTINGS_PAGE.length); return { place: "settings", hash: page ? `page=${page}` : "" }; }
+  if (hit.id === CONSOLE_HIT) return { place: "console", hash: "" };
   return null;
 }
 
@@ -127,14 +157,15 @@ export function askHere(screen: ScreenContext | null = currentScreen()): boolean
 }
 
 /** Keeps the results the viewer can open: a result whose place is not on their rail never shows (reach). */
-export function reachable(hits: readonly Hit[], viewer: Viewer | null, state: { inbox?: boolean }): Hit[] {
-  if (viewer === null) return [...hits];
-  return hits.filter((h) => listable({ kind: h.kind, place: livePlace(shellHitTarget(h, state)?.place ?? placeOfHit(h)) }, viewer));
+export function reachable(hits: readonly Hit[], viewer: Viewer | null, state: { inbox?: boolean }, mayConsole?: boolean): Hit[] {
+  if (viewer === null) return mayConsole === false ? hits.filter((h) => h.id !== CONSOLE_HIT) : [...hits];
+  // the Console is no place on the rail: it is listed for whoever may open its first page, as Settings' own Console row is
+  return hits.filter((h) => (h.id === CONSOLE_HIT ? (mayConsole ?? listable({ kind: h.kind, consolePage: "overview" }, viewer)) : listable({ kind: h.kind, place: livePlace(shellHitTarget(h, state)?.place ?? placeOfHit(h)) }, viewer)));
 }
 
 export function createGateSearch(d: GateSearchDeps): CmdKData {
   const { runtime: rt, nav, state } = d;
-  const mine = (hits: readonly Hit[]): Hit[] => reachable(hits, d.viewer?.() ?? null, state);
+  const mine = (hits: readonly Hit[]): Hit[] => reachable(hits, d.viewer?.() ?? null, state, d.console?.());
   const online = (): boolean => !state.offline && rt.connection.get() === "online";
   const open = (hit: Hit, opts: { newTab: boolean }): void => {
     if (opts.newTab) nav.newTab();
@@ -147,7 +178,8 @@ export function createGateSearch(d: GateSearchDeps): CmdKData {
     scope: () => (online() ? "space" : "device"),
     online,
     // Inbox and Connect email answer a typed word only; the replica's people and chats stay the whole of an empty search
-    local: (text, types) => mine([...replicaHits(rt), ...(text.trim() === "" ? [] : shellHits(state))].filter((h) => (!types || types.includes(h.kind)) && (text === "" || matches(h, text)))),
+    // a result named by the words comes before one whose line under the name only mentions them (Notifications before Settings, whose line names notifications)
+    local: (text, types) => byTitleFirst(mine([...replicaHits(rt), ...(text.trim() === "" ? [] : [...shellHits(state), ...settingRowHits(text)])].filter((h) => (!types || types.includes(h.kind)) && (text === "" || matches(h, text)))), text),
     server: async (text, types) => {
       const out = (await rt.call("search.query", { q: text, ...(types ? { types: [...types] } : {}), limit: 20 })) as { hits: Hit[] };
       return mine(out.hits);

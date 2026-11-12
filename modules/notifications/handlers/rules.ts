@@ -3,11 +3,13 @@
 // asks push.ts to deliver an Interrupt. Everything is per person; a caller reads and changes only their own settings.
 import { makeId } from "../../../packages/contracts/src/ids.ts";
 import {
+  NOT_SENT_KINDS,
   AGENT_INTERRUPTS_PER_HOUR, COLLAPSE_WINDOW_MS, DIRECT_KINDS, HOUR, KINDS, NEEDS_YOU_KINDS, UNMUTABLE_KINDS, activeMutes, clean, isMuted, isService, kindOf, meOf, outRow,
   raise, readAway, readChain, readRules, render, rowOf, sourcesOf, withinHours, writeRules,
 } from "../projections.ts";
 import type { Delegate, Hours, KindDef, Level, NotifCtx, ResourceRef, Row, Target } from "../projections.ts";
 import { deliverPush, pushPort } from "./push.ts";
+import type { NoticeEmail } from "./push.ts";
 import { levelOverride, readChoice } from "./kinds.ts";
 import { alertLevel, heldByQuiet, readSettings, scheduleQuietSummary } from "./deliver.ts";
 
@@ -35,7 +37,48 @@ function levelFor(ctx: NotifCtx, def: KindDef, person: string, urgent: boolean):
   return { level };
 }
 
+/** The notifications.send capability: what an agent, a module or the schedule asks for. A kind nothing files and nobody can switch off is refused (NOT_SENT_KINDS). */
+export async function sendCap(ctx: NotifCtx, input: SendIn): Promise<{ outcome: Outcome; notificationId?: string }> {
+  if (NOT_SENT_KINDS.has(input.kind)) raise(ctx, "validation.bad_input", "That kind of notification is Vyre's own and is not sent this way. Use a direct message or a task instead.", { errors: ["/kind: not sent"] });
+  return send(ctx, input);
+}
+
+/** notifications.send. */
 export async function send(ctx: NotifCtx, input: SendIn, handed = false): Promise<{ outcome: Outcome; notificationId?: string }> {
+  const r = await sendOne(ctx, input, handed);
+  return r.notificationId === undefined ? { outcome: r.outcome } : { outcome: r.outcome, notificationId: r.notificationId };
+}
+
+/**
+ * One notification. `emailFailed`: an email that is the point of this kind (EMAIL_KINDS, the approval reminder) did not go out. `redo`: this recipient was cut off mid-send before (the fanout's
+ * mark has no notification), so the kind's email goes out even when the row collapses into the one already filed: whether it went is unknown, and never told is worse than told twice.
+ */
+/**
+ * The kinds a person or an agent may send themselves through notifications.send (depth 0, not the service): the ones that are about them talking to someone. Their line always names the real
+ * sender (callerName below), never a name the call carries. Every other kind is a system notice (an approval, a reminder, health, an incident, the Space's deletion) and comes from Vyre itself or
+ * from another module's code (a call one level down, whose code chose the kind). The kinds that email are Vyre's alone: the Space's mailbox never sends words a member or an agent wrote.
+ */
+export const SENDABLE_KINDS: ReadonlySet<string> = new Set(["dm", "mention", "item.shared", "agent.task_finished"]);
+/** Calls the host makes for the Space and not for a person's own words: a scheduled job (the Gate's approval reminder runs as the owner who asked), the Gate itself, a module hook or seam. */
+const SYSTEM_ORIGINS: ReadonlySet<string> = new Set(["schedule", "gate", "hook", "seam", "module", "routine"]);
+/** The name the line shows for the caller: theirs as the Space knows it, never one they typed. */
+async function callerName(ctx: NotifCtx): Promise<string> {
+  try {
+    const r = (await ctx.call?.("access.principals.get", { principal: { kind: ctx.principal.kind, id: ctx.principal.id } })) as { principal?: { name?: unknown } } | undefined;
+    if (typeof r?.principal?.name === "string" && r.principal.name.trim() !== "") return r.principal.name.trim();
+  } catch { /* a name is not always readable */ }
+  return ctx.principal.kind === "agent" ? "An agent" : "Someone";
+}
+
+export async function sendOne(ctx: NotifCtx, input: SendIn, handed = false, redo = false, mail: MailState = { down: false }): Promise<{ outcome: Outcome; notificationId?: string; emailFailed?: true }> {
+  // module code one level down, or a host job, files system kinds; a call another module only forwarded for someone (ctx.forwarded) is that someone's own send
+  const system = isService(ctx) || (ctx.forwarded !== true && ((ctx.depth ?? 0) > 0 || SYSTEM_ORIGINS.has(ctx.origin ?? "")));
+  if (EMAIL_KINDS.has(input.kind) && !isService(ctx)) raise(ctx, "permission.no_grant", "Only Vyre itself sends notices about deleting the Space.", { reason: "system_kind", kind: input.kind });
+  if (!system && !SENDABLE_KINDS.has(input.kind)) raise(ctx, "permission.no_grant", "That kind of notice is sent by Vyre itself, not by a person or an agent.", { reason: "system_kind", kind: input.kind });
+  if (!system) {
+    const name = await callerName(ctx);
+    input = { ...input, data: { ...(input.data ?? {}), ...(input.kind === "agent.task_finished" ? { agent: name } : { from: name }) } };
+  }
   const def = kindOf(input.kind);
   if (!def || !LISTED.includes(def)) raise(ctx, "validation.bad_input", "That kind of notification does not exist.", { errors: ["/kind: unknown"] });
   let person = input.to;
@@ -45,7 +88,7 @@ export async function send(ctx: NotifCtx, input: SendIn, handed = false): Promis
     const away = readAway(ctx.db, person, now);
     const hand = readSettings(ctx.db, person).handTo;
     if (away && away.delegate.kind === "none" && hand && hand !== person) {
-      return send(ctx, { ...input, to: hand, data: { ...(input.data ?? {}), handedFrom: person } }, true);
+      return sendOne(ctx, { ...input, to: hand, data: { ...(input.data ?? {}), handedFrom: person } }, true, redo, mail);
     }
   }
   const rules = readRules(ctx.db, person);
@@ -111,9 +154,17 @@ export async function send(ctx: NotifCtx, input: SendIn, handed = false): Promis
   }), { vis: "owner" });
 
   if (def.key === "approval.requested" && !collapsed) await scheduleBackstop(ctx, def, person, rules.emailBackstop, input, title);
-  if (def.key === "approval.backstop" && rules.emailBackstop) await sendBackstopEmail(ctx, person, row, collapseKey ?? row.id);
-  if (EMAIL_KINDS.has(def.key) && !collapsed) await sendKindEmail(ctx, person, row);
-  return { outcome: capped ? "capped" : row.level, notificationId: row.id };
+  let emailed = true;
+  if (def.key === "approval.backstop" && rules.emailBackstop) {
+    emailed = await sendBackstopEmail(ctx, person, row, collapseKey ?? row.id, mail);
+    // not sent after its tries: the reminder is scheduled once more, a while later (the mail server may be back); a reminder that was already the second try is not rescheduled again
+    if (!emailed && input.data?.["emailRetry"] !== true && ctx.schedule) {
+      try { await ctx.schedule(ctx.now() + BACKSTOP_RETRY_MS, "notifications.send", { ...input, data: { ...(input.data ?? {}), emailRetry: true } }); }
+      catch (e) { ctx.log?.warn("reminder not rescheduled", (e as Error).message); }
+    }
+  }
+  if (EMAIL_KINDS.has(def.key) && (!collapsed || redo)) emailed = await sendKindEmail(ctx, person, row, mail);
+  return { outcome: capped ? "capped" : row.level, notificationId: row.id, ...(emailed ? {} : { emailFailed: true as const }) };
 }
 
 /** One reminder, four hours after an approval starts waiting (the Gate schedules its own for held calls, with the same collapse key, so they land on one row). */
@@ -126,20 +177,105 @@ async function scheduleBackstop(ctx: NotifCtx, def: KindDef, person: string, wan
   } catch (e) { ctx.log?.warn("backstop not scheduled", (e as Error).message); }
 }
 /** Kinds that also go out as one email to the person, whatever their backstop setting: a Space scheduled for deletion, and the deletion cancelled. */
-const EMAIL_KINDS: ReadonlySet<string> = new Set(["space.deletion_scheduled", "space.deletion_cancelled"]);
-async function sendKindEmail(ctx: NotifCtx, person: string, row: Row): Promise<void> {
-  const p = pushPort();
-  if (!p?.email) return;
-  try { await p.email({ to: person, subject: row.title, deepLink: row.kind === "space.deletion_scheduled" ? "vyre://console/spacedel" : "vyre://inbox" }); }
-  catch (e) { ctx.log?.warn("notification email failed", (e as Error).message); }
+export const EMAIL_KINDS: ReadonlySet<string> = new Set(["space.deletion_scheduled", "space.deletion_cancelled"]);
+/**
+ * How an email that is the point of its kind is tried: up to three tries, `retryMs` apart, each given `tryMs` to answer (a try that does not answer counts as failed; it may still arrive).
+ * A test may change these.
+ */
+export const emailTiming = { retryMs: [300, 1_000] as readonly number[], tryMs: 10_000 };
+/** One delivery's view of the mail server: once an email has failed every try, the rest of the delivery does not try (a dead mail server must not hold the fanout). */
+export interface MailState { down: boolean }
+/** How long before a reminder whose email failed every try is sent once more. */
+const BACKSTOP_RETRY_MS = 15 * 60_000;
+/** What became of one email, kept for the record (notifications_email_log): sent, or why not. */
+export type EmailOutcome = "sent" | "no_transport" | "no_mailbox" | "no_address" | "suppressed" | "held" | "off" | "failed";
+function record(ctx: NotifCtx, person: string, kind: string, ref: string, outcome: EmailOutcome): void {
+  try { ctx.db.run("INSERT INTO notifications_email_log (person, kind, ref, outcome, at) VALUES (?, ?, ?, ?, ?)", person, kind, ref, outcome, ctx.now()); } catch { /* the record is a courtesy; the send stands */ }
 }
-async function sendBackstopEmail(ctx: NotifCtx, person: string, row: Row, key: string): Promise<void> {
+/**
+ * False when the email was meant to go and did not (it is tried again: the next delivery of the event, the periodic pass, or the reminder's reschedule). True when it went, and also when it was
+ * never going to: no email transport, no sending mailbox in this Space (the host's health line says so to admins), no address for the person, the person turned email off for this kind, a
+ * suppressed address. Those are recorded with their reason and never counted as sent, and nothing retries them.
+ */
+async function emailWithRetry(ctx: NotifCtx, msg: NoticeEmail, kind: string, mail: MailState): Promise<boolean> {
   const p = pushPort();
-  if (!p?.email) return;
+  if (!p?.email) { ctx.log?.warn(`${kind} email not sent: this server has no email transport`); record(ctx, msg.to, kind, msg.key, "no_transport"); return true; }
+  const choice = readChoice(ctx.db, msg.to, kind);
+  if (choice && !choice.channels.includes("email")) { record(ctx, msg.to, kind, msg.key, "off"); return true; }
+  if (mail.down) return false;
+  for (let i = 0; ; i++) {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      const said = await Promise.race([p.email(msg), new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error(`no answer in ${emailTiming.tryMs} ms`)), emailTiming.tryMs); })]);
+      const outcome: EmailOutcome = said === undefined || said === "sent" ? "sent" : said;
+      // the first email that could not go because the Space has no sending mailbox, since the last one that went: admins hear it once, in Console (no standing "degraded" state)
+      if (outcome === "no_mailbox" && lastMailboxOutcome(ctx) !== "no_mailbox") await tellAdmins(ctx, { service: "Notice email", state: "off: this Space has no sending mailbox, so people see notices in the app only. Set one up in Console, Messaging, Email, Sending domains." }, "health.degraded:email_notices");
+      record(ctx, msg.to, kind, msg.key, outcome);
+      return true;
+    } catch (e) {
+      if (i >= emailTiming.retryMs.length) { ctx.log?.warn(`${kind} email failed`, (e as Error).message); record(ctx, msg.to, kind, msg.key, "failed"); mail.down = true; return false; }
+      await new Promise((r) => setTimeout(r, emailTiming.retryMs[i]));
+    } finally { if (timer) clearTimeout(timer); }
+  }
+}
+const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+/** A day as people write it: 18 November 2026 (UTC, the day the server holds). */
+export const dayOf = (ms: number): string => { const d = new Date(ms); return `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}`; };
+/**
+ * What a notice email says: fixed copy per kind, filled only with values the server holds. The deletion date is the number the fanout read from space.deletion_scheduled into the row's
+ * collapse key (impl.ts plan); a row's title is never used, so no caller's words reach a mailbox. Null for a kind with no email copy.
+ */
+export function emailCopy(kind: string, row: { collapseKey?: string | undefined; subject?: ResourceRef | undefined }): { subject: string; line: string; open: { kind: string; id: string } } | null {
+  if (kind === "space.deletion_scheduled") {
+    const at = Number(String(row.collapseKey ?? "").split(":")[1]);
+    const day = Number.isFinite(at) && at > 0 ? dayOf(at) : null;
+    return day
+      ? { subject: `Scheduled for deletion on ${day}`, line: `Everything in this Space is removed on ${day}. An admin can cancel the deletion in Console until then.`, open: { kind: "place", id: "console" } }
+      : { subject: "Scheduled for deletion", line: "Everything in this Space is going to be removed. An admin can cancel the deletion in Console.", open: { kind: "place", id: "console" } };
+  }
+  if (kind === "space.deletion_cancelled") return { subject: "Deletion cancelled", line: "The scheduled deletion of this Space was cancelled. Nothing will be removed.", open: { kind: "place", id: "console" } };
+  if (kind === "approval.backstop") return { subject: "Something is waiting on you", line: "An approval or an answer is waiting on you in Vyre.", open: row.subject ? { kind: row.subject.type, id: row.subject.id } : { kind: "place", id: "inbox" } };
+  return null;
+}
+/** The last email whose answer said something about the Space's mailbox: "sent" (it works) or "no_mailbox". */
+function lastMailboxOutcome(ctx: NotifCtx): string | null {
+  try { return (ctx.db.all("SELECT outcome FROM notifications_email_log WHERE outcome IN ('sent', 'no_mailbox') ORDER BY at DESC, rowid DESC LIMIT 1")[0] as { outcome?: string } | undefined)?.outcome ?? null; } catch { return null; }
+}
+/** Files one line for every admin (impl.ts registers how: its adminsOf, the owner included). Set once the module loads. */
+let admins: ((ctx: NotifCtx, data: { service: string; state: string }, collapseKey: string) => Promise<void>) | null = null;
+export function setTellAdmins(f: typeof admins): void { admins = f; }
+async function tellAdmins(ctx: NotifCtx, data: { service: string; state: string }, collapseKey: string): Promise<void> {
+  try { await admins?.(ctx, data, collapseKey); } catch (e) { ctx.log?.warn("notifications: admins could not be told about notice email", (e as Error).message); }
+}
+/** An email the periodic pass gave up on: every admin's Console names the person, once. */
+export async function tellEmailGaveUp(ctx: NotifCtx, person: string, kind: string): Promise<void> {
+  let name = "a person";
+  try {
+    const r = (await ctx.call?.("access.principals.get", { principal: { kind: "person", id: person } })) as { principal?: { name?: unknown } } | undefined;
+    if (typeof r?.principal?.name === "string" && r.principal.name.trim() !== "") name = r.principal.name.trim();
+  } catch { /* a name is not always readable */ }
+  const what = kind.startsWith("space.deletion") ? "a notice about deleting this Space" : "a reminder";
+  await tellAdmins(ctx, { service: `Notice email to ${name}`, state: `failing: ${what} could not be emailed.` }, `health.degraded:email_failed:${person}:${kind}`);
+}
+async function sendKindEmail(ctx: NotifCtx, person: string, row: Row, mail: MailState): Promise<boolean> {
+  const copy = emailCopy(String(row.kind), row);
+  if (!copy) return true;
+  return emailWithRetry(ctx, { to: person, ...copy, key: row.id }, String(row.kind), mail);
+}
+/** The email of a notification already filed, again (the fanout's next delivery, or the periodic pass, for a recipient whose email failed). */
+export async function resendKindEmail(ctx: NotifCtx, person: string, notificationId: string, mail: MailState = { down: false }): Promise<boolean> {
+  const r = ctx.db.all("SELECT * FROM notifications_items WHERE id = ? AND person = ?", notificationId, person)[0] as Record<string, unknown> | undefined;
+  if (!r || !EMAIL_KINDS.has(String(r["kind"]))) return true;
+  return sendKindEmail(ctx, person, { id: notificationId, kind: String(r["kind"]), title: String(r["title"]), ...(typeof r["collapse_key"] === "string" ? { collapseKey: r["collapse_key"] } : {}) } as Row, mail);
+}
+async function sendBackstopEmail(ctx: NotifCtx, person: string, row: Row, key: string, mail: MailState): Promise<boolean> {
+  if (!pushPort()?.email) { ctx.log?.warn("approval.backstop email not sent: this server has no email transport"); record(ctx, person, "approval.backstop", key, "no_transport"); return true; }
   const fresh = ctx.db.run("INSERT OR IGNORE INTO notifications_backstops (key, at) VALUES (?, ?)", key, ctx.now()).changes > 0;
-  if (!fresh) return;   // once per approval
-  try { await p.email({ to: person, subject: "Something is waiting on you", deepLink: row.subject ? `vyre://${row.subject.type}/${row.subject.id}` : `vyre://${row.place}` }); }
-  catch (e) { ctx.log?.warn("backstop email failed", (e as Error).message); }
+  if (!fresh) return true;   // once per approval
+  const ok = await emailWithRetry(ctx, { to: person, ...emailCopy("approval.backstop", row)!, key }, "approval.backstop", mail);
+  // not sent after its tries: the once-mark goes, so the next reminder for this approval (the Gate's own, which lands on the same key) sends it, rather than "once" meaning never
+  if (!ok) ctx.db.run("DELETE FROM notifications_backstops WHERE key = ?", key);
+  return ok;
 }
 
 // ---- lists and counts ----

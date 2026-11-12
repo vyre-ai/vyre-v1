@@ -57,3 +57,90 @@ test("a screenshot block marked live reads as a card titled by its caption", () 
   assert.equal(line.title, "Opened the form");
   assert.equal(line.data["live"], true);
 });
+
+// f-wire, 12 Nov: an agent's steps in its Space browser profile post a browser_screenshot block, which was drawn as a bare line with no picture and nothing to open. The same card now draws it,
+// keyed by the agent: live from the browser while the agent uses it, its picture once it is done, the caption as it comes.
+function browserRig(row: Record<string, unknown> | null) {
+  const calls: Array<[string, unknown]> = [];
+  const opened: string[] = [];
+  const cfg: LiveCardConfig = {
+    call: async (cap, input) => {
+      calls.push([cap, input]);
+      if (cap === "computers.browser.profiles") return { profiles: row ? [{ agentId: "agt_web", tabs: 1, viewers: 0, ...row }] : [] };
+      if (cap === "computers.browser.stream") return { url: "/live/browser/agt_web" };
+      if (cap === "files.read") return { base64: "iVBORw0KGgo=", truncated: false };
+      return {};
+    },
+    now: () => 1, openComputer: (id) => void opened.push(id), agentId: "agt_lead",
+  };
+  return { cfg, calls, opened };
+}
+
+test("a browser step while the agent uses its browser is the browser's live view; pressing it opens that agent's Computer tab", async () => {
+  const restore = installDom();
+  try {
+    const r = browserRig({ running: true, busy: true });
+    const root = await mount(createRoot, <LiveCard id="b3" agentId="agt_web" fileId="fil_1" caption="Opened the pricing page" cfg={r.cfg} />);
+    await flush(); await flush();
+    assert.ok(find(root, "live-card-stream-b3"), "the browser's live view is drawn");
+    assert.ok(r.calls.some(([c, i]) => c === "computers.browser.stream" && (i as { agentId?: string }).agentId === "agt_web"), "the stream is the agent's profile");
+    assert.ok(!r.calls.some(([c]) => c === "computers.get"), "no computer is asked for");
+    assert.match(textOf(find(root, "live-card-b3")), /Live/);
+    await press(find(root, "live-card-screen-b3"));
+    assert.deepEqual(r.opened, ["agt_web"], "the agent that browsed, not the chat's lead");
+  } finally { restore(); }
+});
+
+test("a browser step once the browser is idle is its picture, Done, with the caption as it comes (a withheld picture says why)", async () => {
+  const restore = installDom();
+  try {
+    const r = browserRig({ running: true, busy: false });
+    const caption = "Opened the bank login · No picture: a Vault value is on this page";
+    const root = await mount(createRoot, <LiveCard id="b4" agentId="agt_web" fileId="fil_1" caption={caption} cfg={r.cfg} />);
+    await flush(); await flush();
+    assert.ok(find(root, "live-card-still-b4"));
+    assert.match(textOf(find(root, "live-card-b4")), /Done/);
+    assert.ok(textOf(find(root, "live-card-b4")).includes(caption));
+  } finally { restore(); }
+});
+
+// review, 12 Nov: never "Live" unless the browser is really driven, never an empty dark box, and the card names where the work was by the same word the Steps list uses
+test("before the first read the card says nothing is live and shows the page with a quiet Opening line, not a dark box", async () => {
+  const restore = installDom();
+  try {
+    let answer: (v: unknown) => void = () => undefined;
+    const cfg: LiveCardConfig = { call: (cap) => (cap === "computers.browser.profiles" ? new Promise((r) => { answer = r; }) : Promise.resolve({})), now: () => 1, openComputer: () => undefined, agentId: "agt_lead" };
+    const root = await mount(createRoot, <LiveCard id="b5" agentId="agt_web" fileId="fil_1" caption="Opened harborquotes.com/pricing" cfg={cfg} />);
+    await flush();
+    const text = textOf(find(root, "live-card-b5"));
+    assert.ok(!/Live/.test(text), text);
+    assert.equal(textOf(find(root, "live-card-waiting-line-b5")), "Opening…");
+    assert.ok(textOf(find(root, "live-card-waiting-b5")).includes("harborquotes.com/pricing"), "the page address");
+    answer({ profiles: [] });
+  } finally { restore(); }
+});
+
+test("after the turn (the browser running but not driven) the card says Done, never Live, and is labelled Browser", async () => {
+  const restore = installDom();
+  try {
+    const r = browserRig({ running: true, busy: false });
+    const root = await mount(createRoot, <LiveCard id="b6" agentId="agt_web" fileId="fil_1" caption="Opened harborquotes.com/plans" cfg={r.cfg} />);
+    await flush(); await flush();
+    assert.equal(textOf(find(root, "live-card-when-b6")), "Done");
+    assert.ok(textOf(find(root, "live-card-b6")).includes("Browser · Opened harborquotes.com/plans"), textOf(find(root, "live-card-b6")));
+    assert.ok(!textOf(find(root, "live-card-b6")).includes("Chrome"));
+  } finally { restore(); }
+});
+
+test("a picture that could not be had says so in one line instead of a dark box", async () => {
+  const restore = installDom();
+  try {
+    const cfg: LiveCardConfig = {
+      call: async (cap) => { if (cap === "computers.browser.profiles") return { profiles: [] }; if (cap === "files.read") throw new Error("gone"); return {}; },
+      now: () => 1, openComputer: () => undefined, agentId: "agt_lead",
+    };
+    const root = await mount(createRoot, <LiveCard id="b7" agentId="agt_web" fileId="fil_x" caption="Opened harborquotes.com" cfg={cfg} />);
+    await flush(); await flush(); await flush();
+    assert.equal(textOf(find(root, "live-card-waiting-line-b7")), "No picture of this step could be taken.");
+  } finally { restore(); }
+});

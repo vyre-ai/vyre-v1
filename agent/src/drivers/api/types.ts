@@ -52,6 +52,8 @@ export interface Usage {
   reasoningTokens?: number;
   /** The provider's own price for the call in dollars (OpenRouter's usage.cost). */
   costUsd?: number;
+  /** The model the provider says it ran (a chunk's "model"), for a request that named none and ran on the provider's default. */
+  model?: string;
 }
 
 /** What a decoder yields for one server-sent event. */
@@ -79,9 +81,19 @@ export interface ProviderAdapter {
   modelName(model: string): string;
   /** Default output cap when the agent sets none. */
   readonly defaultMaxOutput: number;
+  /**
+   * The provider runs a request that names no model on the account's own default, so such a request goes out without a model field (never an empty string), not refused. OpenRouter only:
+   * its API reference for the chat completions request says "If the model parameter is omitted, the user or payer's default is used" (openrouter.ai/docs, request schema; checked against the
+   * documentation, not the live API). Every other provider answers 400 to a request with no model, so the session refuses it in plain words first.
+   */
+  readonly defaultsModel?: boolean;
+  /** The provider's chat models, by id (OpenAI's list also holds image, speech and embedding models): what a turn may run on when nothing names a model. */
+  readonly chatModels?: RegExp;
   /** True when the provider's input token count already includes cached tokens (OpenAI style). Anthropic reports them apart, so the session adds them. */
   readonly inputIncludesCache: boolean;
   request(req: CallRequest): WireRequest;
+  /** A request the provider refused and said how to fix (a 4xx before any output): the corrected request, which the session sends once. Undefined when the refusal is not one it knows. */
+  amend?(req: CallRequest, wire: WireRequest, status: number, text: string): WireRequest | undefined;
   decoder(): StreamDecoder;
   /** `url` is set when the model list lives outside the base address (OpenCode Go). */
   modelsRequest(): { path: string; headers: Record<string, string>; url?: string };

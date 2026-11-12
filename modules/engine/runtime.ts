@@ -8,6 +8,7 @@ import { createTurnEngine } from "../../agent/src/turn-engine/engine.ts";
 import type { TurnEngine } from "../../agent/src/turn-engine/engine.ts";
 import type { SessionSpec, AccountQuery, EngineEvent, OpenSession, ResolvedAccount, TurnRow } from "../../agent/src/turn-engine/types.ts";
 import { open } from "./handlers/control.ts";
+import { PROVIDER_DEFAULT_WORDS } from "./handlers/extra/config.ts";
 import { BRIDGE_PREFIX, bindBridge, createBridge } from "./handlers/bridge.ts";
 import { screenAnswer, settleAnswer } from "./answer-audience.ts";
 import { ANSWER_HELD } from "../../agent/src/turn-engine/engine.ts";
@@ -30,7 +31,7 @@ import { withChatSettings } from "./chat-settings.ts";
 import { withSpaceKeyTurns } from "./space-key-turns.ts";
 import { createLimitSwitch } from "./switch-on-limit.ts";
 import { createModelSwitch } from "./model-switch.ts";
-import { markConfirmed } from "./model-health.ts";
+import { afterChatTurn } from "./first-model.ts";
 import { checkedOpen, createRunnableAccount } from "./runnable-account.ts";
 import { skipLocked } from "./locked-account.ts";
 import type { NodeCliProbe } from "./cli-programs.ts";
@@ -69,7 +70,7 @@ import type { DefaultSandbox } from "./sandbox-default.ts";
 import type { SandboxPlan } from "./sandbox.ts";
 import type { EngineSessionPorts } from "./session.ts";
 import type { PostAs } from "./handlers/bridge.ts";
-import { bindEngine, bindOpener, bindStepOpen, mintEngineId, setEngineStopping, sqlLeases, sqlMessages, sqlQueue, sqlWaits } from "./projections.ts";
+import { bindEngine, bindOpener, bindStepOpen, keepForRestart, mintEngineId, setEngineStopping, sqlLeases, sqlMessages, sqlQueue, sqlWaits } from "./projections.ts";
 import type { Db, EngineCtx } from "./projections.ts";
 
 export interface EngineHostSeam {
@@ -160,7 +161,7 @@ export function setEngineHost(h: EngineHostSeam | null): void {
     old.retire = () => { const done = close().catch(() => undefined); old.closing?.(done); return done; };
   }
   closeOpener = null;
-  if (h === null) { if (host !== null) setEngineStopping(true); } else setEngineStopping(false);
+  if (h === null) { if (host !== null) setEngineStopping(true, host.ours); } else setEngineStopping(false);
   host = h;
   building = null;
   bindRelay(h?.nodes ?? null);
@@ -190,7 +191,13 @@ export function sandboxPlan(): Promise<SandboxPlan> {
 }
 
 export async function resolveOne(h: Pick<EngineHostSeam, "call" | "log">, q: AccountQuery): Promise<ResolvedAccount | null> {
-  const res = (await h.call("engine.account.resolve", { threadId: q.threadId, agentId: q.agentId, askerId: q.askerId, ...(q.stepKey ? { stepKey: q.stepKey } : {}), ...(q.unavailable?.length ? { unavailable: [...q.unavailable] } : {}), ...(q.kind ? { kind: q.kind } : {}) }, q.askerId)) as ResolveOut;
+  // a refusal by the Space's AI policy (a provider-default turn where the policy limits models or the provider) reaches the turn as an engine.* code, so the chat shows the policy's words
+  // with a model to pick, not "Your AI account could not be reached"; the host's error carries its code under .error
+  const res = (await h.call("engine.account.resolve", { threadId: q.threadId, agentId: q.agentId, askerId: q.askerId, ...(q.stepKey ? { stepKey: q.stepKey } : {}), ...(q.unavailable?.length ? { unavailable: [...q.unavailable] } : {}), ...(q.kind ? { kind: q.kind } : {}) }, q.askerId).catch((e: unknown) => {
+    const err = (e as { error?: { code?: unknown; details?: { reason?: unknown } } } | null)?.error;
+    if (err?.code === "permission.provider_label" && err.details?.reason === "policy_model") throw Object.assign(new Error(PROVIDER_DEFAULT_WORDS), { code: "engine.policy_model" });
+    throw e;
+  })) as ResolveOut;
   if (res.why === "no_model") throw Object.assign(new Error(noModelWords(res.model ?? null, res.servedModels ?? [])), { code: "engine.model_unavailable" });
   if (!res.allowed || !res.accountRef || !res.payer) {
     h.log?.("no account can pay for this turn", { threadId: q.threadId, agentId: q.agentId, asker: q.askerId, allowed: res.allowed, reason: res.reason, accountRef: res.accountRef ?? null });
@@ -199,7 +206,7 @@ export async function resolveOne(h: Pick<EngineHostSeam, "call" | "log">, q: Acc
   const list = (await h.call("engine.accounts.list", {}, res.payer)) as { accounts: AccountRow[] };
   const row = list.accounts.find((a) => a.ref === res.accountRef);
   if (!row) { h.log?.("the account the turn resolved is not in the payer's list", { threadId: q.threadId, accountRef: res.accountRef, payer: res.payer }); return null; }   // the key vanished between the two calls: treat as none, the next turn asks again
-  return { ref: row.ref, ...((row as { name?: string; title?: string }).name ?? (row as { title?: string }).title ? { name: (row as { name?: string }).name ?? (row as { title?: string }).title } : {}), driver: row.driver, provider: providerOfDriver(row.driver), kind: row.kind, payer: res.payer, reason: res.reason, ...(row.mine ? {} : { shared: true }), ...(res.itemId ? { itemId: res.itemId } : {}), ...(res.fellBack ? { fellBack: true } : {}), ...(res.via ? { via: res.via } : {}), ...(res.cappedFrom ? { cappedFrom: res.cappedFrom } : {}), ...(row.base ? { base: row.base } : {}), ...(row.keyless ? { keyless: true } : {}), ...(row.spaceKey ? { spaceKey: true } : {}), ...(res.modelFallback ? { modelFallback: res.modelFallback } : {}) };
+  return { ref: row.ref, ...((row as { name?: string; title?: string }).name ?? (row as { title?: string }).title ? { name: (row as { name?: string }).name ?? (row as { title?: string }).title } : {}), driver: row.driver, provider: providerOfDriver(row.driver), kind: row.kind, payer: res.payer, reason: res.reason, ...(row.mine ? {} : { shared: true }), ...(res.itemId ? { itemId: res.itemId } : {}), ...(res.fellBack ? { fellBack: true } : {}), ...(res.via ? { via: res.via } : {}), ...(res.cappedFrom ? { cappedFrom: res.cappedFrom } : {}), ...(row.base ? { base: row.base } : {}), ...(row.keyless ? { keyless: true } : {}), ...(row.spaceKey ? { spaceKey: true } : {}), ...(res.modelFallback ? { modelFallback: res.modelFallback } : {}), ...(res.model ? { model: res.model } : {}) };
 }
 
 /** An account whose engine can run on this computer: the pick, or another account of the person when the pick's program is not installed (runnable-account.ts). */
@@ -541,6 +548,7 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
       queue: sqlQueue(ctx.db), leases: sqlLeases(ctx.db), messages: sqlMessages(ctx.db, now), waits: sqlWaits(ctx.db), newId: (p) => mintEngineId(p, now()),
       admit: (q) => admission(h, q),
       lostTurn: (row) => lostTurnId(ctx.db, row, () => mintEngineId("trn", now())),
+      ...(h.log ? { log: (msg: string, attrs?: Record<string, unknown>) => h.log!(msg, attrs) } : {}),
       resolveAccount: (q) => limitSwitch.resolve(q),
       nextAccount: (q) => limitSwitch.next(q),
       nextModel: async (q) => { try { return await modelSwitch(q); } catch (e) { if (typeof (e as { code?: unknown } | null)?.code !== "string") h.log?.("the model swap failed", { threadId: q.threadId, error: e instanceof Error ? e.message : String(e) }); throw e; } },
@@ -550,7 +558,7 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
       },
       // memory learns from the turn in the background (learn.ts): scheduled here, never awaited, so the reply is not held for it
       onQuestionsLeft: async (turn, blocks) => { for (const blockId of blocks) { try { await h.call("chat.question.withdraw", { threadId: turn.threadId, blockId }, turn.agentId); } catch { /* it stays in its chat */ } } },
-      onTurnEnd: (turn, account) => { if (turn.state === "completed" && account && turn.model) { try { markConfirmed(ctx.db, account.ref, turn.model, now()); } catch { /* a mark that stays only hides a model a little longer */ } } roller.ranOn(turn.id, account); learnAfterTurn(h, turn, account); titleAfterTurn(h, turn, account); return meter(h, turn, account); },
+      onTurnEnd: (turn, account) => { if (account && turn.model) { try { afterChatTurn(ctx.db as never, turn, account.ref, now()); } catch { /* a mark that stays only hides a model a little longer */ } } roller.ranOn(turn.id, account); learnAfterTurn(h, turn, account); titleAfterTurn(h, turn, account); return meter(h, turn, account); },
       onLimits: (account, reading) => recordAccountLimits(ctx.db, account.ref, reading, now()),
       // the answer check (gap 6): an answer built on something not everyone in the chat may open goes to the asker privately
       ...(h.mayAll ? {
@@ -586,6 +594,8 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
         ...(phase === "started" ? {} : { tokensIn: turn.tokensIn, tokensOut: turn.tokensOut }),
         // what the reply's Details show: the engine and account it ended on, and what the turn engine saw (reply-info.ts)
         ...(phase !== "started" && turn.info ? { info: turn.info, ...(turn.info.account ? { engine: turn.info.account.driver, accountRef: turn.info.account.ref } : {}) } : {}), ...(ev.type === "turn.failed" ? { code: ev.code, ...(ev.message ? { message: ev.message.slice(0, 500) } : {}) } : {}),
+        // why a cancelled turn was stopped travels to the kernel event, so its readers can tell a person's Stop from a daemon stopping (reason closing): the terminal interrupts only the first
+        ...(ev.type === "turn.cancelled" && typeof ev.reason === "string" ? { reason: ev.reason } : {}),
       };
       const done = (recording.get(turnId) ?? Promise.resolve()).then(() => h.call("engine.turn.record", input, turn.asker)).then(() => undefined, (err: unknown) => {
         h.log?.("a turn could not be recorded", { turnId, phase, error: err instanceof Error ? err.message : String(err) });
@@ -630,11 +640,17 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
         return;
       }
       if (ev.type === "turn.started") { awake.up(); clearReads(ev.threadId, ev.agentId, ev.asker); h.turns?.(awake.running()); }
-      else if (ev.type === "turn.completed" || ev.type === "turn.cancelled" || (ev.type === "turn.failed" && ev.code !== "host_lost") || (ev.type === "turn.waiting" && ev.reason === "approval")) { awake.down(); h.turns?.(awake.running()); }
+      // a turn a dead host left (host_lost, or a stopped one recover closes: only recover sets asker on turn.cancelled) never counted up here, so it does not count down
+      else if (ev.type === "turn.completed" || (ev.type === "turn.cancelled" && ev.asker === undefined) || (ev.type === "turn.failed" && ev.code !== "host_lost") || (ev.type === "turn.waiting" && ev.reason === "approval")) { awake.down(); h.turns?.(awake.running()); }
       // a turn a dead host left is not in this engine's rows: its record is closed from what recover() knows, so the turn list, Try again and the agent's Working status are right
       if (ev.type === "turn.failed" && ev.code === "host_lost") {
         void h.call("engine.turn.record", { threadId: ev.threadId, turnId: ev.turnId, agentId: ev.agentId, phase: "failed", qseq: ev.qseq ?? 0, ...(ev.asker ? { asker: ev.asker } : {}), code: ev.code }, ev.asker)
           .catch((err: unknown) => h.log?.("a lost turn could not be recorded", { turnId: ev.turnId, error: err instanceof Error ? err.message : String(err) }));
+      }
+      else if (ev.type === "turn.cancelled" && ev.asker !== undefined) {
+        // a stopped turn a dead host left: its record is closed as cancelled from what recover() knows, as host_lost is above
+        void h.call("engine.turn.record", { threadId: ev.threadId, turnId: ev.turnId, agentId: ev.agentId, phase: "cancelled", qseq: ev.qseq ?? 0, asker: ev.asker }, ev.asker)
+          .catch((err: unknown) => h.log?.("a stopped turn could not be recorded", { turnId: ev.turnId, error: err instanceof Error ? err.message : String(err) }));
       }
       else if (ev.type === "turn.started" || ev.type === "turn.completed" || ev.type === "turn.failed" || ev.type === "turn.cancelled" || ev.type === "turn.resumed" || (ev.type === "turn.waiting" && ev.reason === "approval")) report(ev.turnId, ev);
       // a sign-in the turn found missing or refused: the account reads "Sign in again" in Settings (the person's own subscription account only; the Vault decides)
@@ -665,7 +681,7 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
     bindStepOpen(openSession);
     bindBridge(bridge);
     // threads with work a dead host left: queued or running rows with no live lease
-    await recoverStale(ctx, engine, ["queued", "running"]);
+    await recoverStale(ctx, engine, ["queued", "running", "stopping"]);
     void closeNoAccountTasks(ctx.db).catch((e) => h.log?.("the no-account sweep failed", { error: e instanceof Error ? e.message : String(e) }));
     // the tasks agents hold pick up from their own state after a restart
     void resumeTasks(ctx, { call: h.call, ...(h.log ? { log: h.log } : {}) }, engine).catch((e) => h.log?.("tasks could not be picked up after a restart", { error: e instanceof Error ? e.message : String(e) }));
@@ -678,13 +694,26 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
  * Threads with work a dead host left: rows still marked running (or queued) whose lease nobody beats any more. At boot this runs once, but a restart inside the lease's 20 seconds finds the dead host's lease still
  * alive and recover() answers false, so the sweep runs again from the periodic job until the lease has run out. A turn this host is running keeps its own lease, so it is never touched.
  */
-export async function recoverStale(ctx: Pick<EngineCtx, "db">, engine: TurnEngine, states: readonly string[] = ["running"]): Promise<void> {
-  const stale = ctx.db.all(`SELECT thread_id, MIN(from_principal) AS person FROM engine_thread_queue WHERE state IN (${states.map(() => "?").join(", ")}) GROUP BY thread_id`, ...states) as Array<{ thread_id: string; person: string }>;
+export async function recoverStale(ctx: Pick<EngineCtx, "db">, engine: TurnEngine, states: readonly string[] = ["running", "stopping"]): Promise<void> {
+  const marks = states.map(() => "?").join(", ");
+  const stale = ctx.db.all(`SELECT thread_id, MIN(from_principal) AS person FROM engine_thread_queue WHERE state IN (${marks}) GROUP BY thread_id`, ...states) as Array<{ thread_id: string; person: string }>;
   for (const r of stale) {
-    try {
-      await open(ctx as EngineCtx, r.thread_id, asPerson(ctx.db, r.thread_id, r.person));
-      engine.recover(r.thread_id);
-    } catch { /* a thread that cannot be opened now is opened by its next message */ }
+    let person: string | undefined = r.person;
+    // A person who can no longer act here (removed or suspended while the server was stopping: their departure reached the engine only after the restart) has their queued work dropped, with the
+    // reason in the log; the work of the others in the chat is picked up as one of them. Before, the thread was never opened for them and their rows waited for ever, silently.
+    for (let i = 0; i < 8 && person; i++) {
+      try {
+        await open(ctx as EngineCtx, r.thread_id, asPerson(ctx.db, r.thread_id, person));
+        engine.recover(r.thread_id);
+        break;
+      } catch (e) {
+        const code = String((e as { error?: { code?: unknown }; code?: unknown } | null)?.error?.code ?? (e as { code?: unknown } | null)?.code ?? "");
+        if (!person.startsWith("usr_") || !(code === "permission.suspended" || code.startsWith("auth."))) break;   // not active: removed or suspended (kernel "suspended")   // a thread that cannot be opened now for another reason is opened by its next message
+        const dropped = ctx.db.run(`UPDATE engine_thread_queue SET state = 'cancelled' WHERE thread_id = ? AND from_principal = ? AND state IN (${marks})`, r.thread_id, person, ...states).changes;
+        host?.log?.("a queued turn was not run: the person who asked for it can no longer use this Space", { threadId: r.thread_id, person, code, dropped });
+        person = (ctx.db.all(`SELECT MIN(from_principal) AS person FROM engine_thread_queue WHERE thread_id = ? AND state IN (${marks})`, r.thread_id, ...states)[0] as { person?: string | null } | undefined)?.person ?? undefined;
+      }
+    }
   }
 }
 
@@ -713,13 +742,21 @@ export function lostTurnId(db: Db, row: { threadId: string; qseq: number }, mint
   return r?.turn_id ?? mint();
 }
 
-/** A paused agent takes no turn and a deleted one is gone. What the agents module answers decides; if it cannot answer, the turn goes on. */
+/**
+ * A paused agent takes no turn, a deleted one is gone, and nothing runs for a person who may no longer ask (removed or suspended: every call made as them is refused "suspended"). The agents module
+ * answers as the person the turn is for; when it cannot answer at all, the turn does not run (it fails closed: a turn the server cannot check is not one it runs on someone's word).
+ */
 async function admission(h: EngineHostSeam, q: { threadId: string; agentId: string; asker: string }): Promise<{ code: string; message: string } | null> {
   let status: { status?: string; reason?: string };
   try { status = (await h.call("agents.status", { agentId: q.agentId }, q.asker)) as { status?: string; reason?: string }; }
   catch (e) {
-    const code = (e as { error?: { code?: string } } | null)?.error?.code;
-    return code === "validation.not_found" ? { code: "agent_gone", message: "That agent is not here any more." } : null;
+    const code = String((e as { error?: { code?: string } } | null)?.error?.code ?? "");
+    if (code === "validation.not_found") return { code: "agent_gone", message: "That agent is not here any more." };
+    // the kernel refuses every call of a principal who is not active (removed or suspended) with "suspended"; one it does not know at all is not a member
+    if (code === "permission.suspended" || code.startsWith("auth.")) return { code: "asker_gone", message: "The person who asked for this can no longer use this Space, so it did not run." };
+    // a refusal about the agent itself (the person may not see it: a chat with someone's own agent in it) is an answer, and the turn goes on as it always did; no answer at all fails closed
+    if (code.startsWith("permission.")) return null;
+    return { code: "agent_unchecked", message: "Vyre could not check this agent just now, so the turn did not run. Send the message again in a moment." };
   }
   return status.status === "paused" ? { code: "agent_paused", message: status.reason ?? "This agent is paused." } : null;
 }
@@ -729,9 +766,11 @@ export async function wakeAfterUnblock(ctx: EngineCtx, taskId: string): Promise<
   const row = (ctx.db.all("SELECT thread_id, agent_id, asker, paid_ref FROM engine_unblock WHERE task_id = ?", taskId) as Array<{ thread_id: string; agent_id: string; asker: string; paid_ref: string | null }>)[0];
   if (!row) return false;
   const asker = row.asker;
+  // the engine first: while the server stops, the event is kept with its row, so the next start wakes the agent (deleting the row first lost both)
+  const engine = await ensureRuntime(ctx);
+  if (!engine) keepForRestart(ctx);
   ctx.db.run("DELETE FROM engine_unblock WHERE task_id = ?", taskId);
   if (row.paid_ref) ctx.db.run("INSERT OR REPLACE INTO engine_paid_ok (thread_id, agent_id, ref, by_person, at) VALUES (?, ?, ?, ?, ?)", row.thread_id, row.agent_id, row.paid_ref, asker, ctx.now());
-  const engine = await ensureRuntime(ctx);
   if (!engine) return false;
   await open(ctx, row.thread_id, asPerson(ctx.db, row.thread_id, asker));
   engine.wake(row.thread_id, row.agent_id);

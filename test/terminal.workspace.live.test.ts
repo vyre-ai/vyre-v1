@@ -9,10 +9,12 @@ import { execFile } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import { boot, standIn, waitFor } from "./memory-live-kit.ts";
 import { loadConfig } from "../host/src/daemon/config.ts";
 import { CODE_ROOT } from "../host/src/daemon/daemon.ts";
 import type { Daemon } from "../host/src/daemon/daemon.ts";
+import { boundWorkspaces } from "../modules/terminal/impl.ts";
 
 const ON = process.env["VYRE_HEAVY_DOCKER"] === "1";
 const skip: string | false = ON ? false : "needs VYRE_HEAVY_DOCKER=1 (the workspace is a real container)";
@@ -158,8 +160,42 @@ async function scenario(t: import("node:test").TestContext, kind: "team" | "pers
   }, 60_000);
   assert.equal(back, "one", "undo from Files reaches the workspace");
 
+  // taken off the project with a job running in the workspace (review 1): once the removal is through, the folder is gone from the workspace
+  // (a Personal Space has no project members to remove: sharing a project needs a Team)
+  if (kind === "team") {
+    await run(`sleep 999999 >/dev/null 2>&1 &`, "ws-bg");
+    await ok(d, token, "projects.members.remove", { projectId, principal: agent });
+    // the removal itself reached the cut through its host call (third look: a mis-wire would be swallowed by tolerant(), and the consumer would hide it): the cut's log line is there when it answers
+    d.sink.flush();
+    const cutLines = new DatabaseSync(d.paths.logs, { readOnly: true }).prepare("SELECT attrs FROM logs WHERE msg = 'workspace.project_cut'").all() as Array<{ attrs: string | null }>;
+    assert.ok(cutLines.some((r) => (r.attrs ?? "").includes(projectId) && (r.attrs ?? "").includes(agent)), "projects.members.remove reached terminal.workspace_revoke and its cut");
+    // in force when the call returns: at that moment no running container of the agent mounts the project (stopped by the removal's own call; a consumer may have made it again since, without it)
+    const at = (await docker(["inspect", "-f", "{{.State.Running}} {{json .HostConfig.Binds}}", name], 30_000)).out.trim().split("\n")[0] ?? "";
+    assert.ok(!(at.startsWith("true") && at.includes(`vyre-wsproj-${projectId}`)), `no running workspace mounts the project when the removal answers: ${at}`);
+    const after = await run(`ls -A ~/projects/${projectId} 2>&1; touch ~/projects/${projectId}/x 2>/dev/null && echo WROTE || echo REFUSED`, "ws-left");
+    const left_ = after.output;
+    assert.doesNotMatch(left_, /plan\.md/, "nor can it see the project's files");
+    assert.match(left_, /REFUSED/, "the agent can neither read nor write the project it left");
+  }
+
   const health = await ok(d, token, "terminal.health", {});
   assert.equal(health.state, "healthy");
+
+  // the agent goes to Trash (12 Nov, audit item 13): its workspace's container goes and its tabs close; its home and Files volumes stay, since it can be restored
+  await ok(d, token, "agents.delete", { agentId: agent });
+  const gone = await waitFor(async () => { await d.hooks?.pump?.(); return (await docker(["inspect", name], 30_000)).code !== 0 ? true : null; }, 60_000);
+  assert.equal(gone, true, "the container is gone");
+  assert.equal((await docker(["volume", "inspect", `${name}-home`], 30_000)).code, 0, "what the agent kept stays");
+  const left = ((await ok(d, token, "terminal.list", { section: "personal" })).terminals as Array<{ agentId?: string }>).filter((x) => x.agentId === agent);
+  assert.deepEqual(left, [], "its tabs are closed");
+  // the daemon's own admission refuses an agent in Trash (review 2): a restarted daemon has no memory of the deletion, which restore() stands for here; the next ensure must still make nothing
+  const ws = boundWorkspaces();
+  assert.ok(ws, "the daemon bound its workspaces");
+  ws!.restore(agent);
+  let refusal = "";
+  try { await ws!.ensure(agent); refusal = "ensure made it"; } catch (e) { refusal = e instanceof Error ? e.message : String(e); }
+  assert.match(refusal, /in Trash/, "admit is bound in production and refuses a deleted agent");
+  assert.notEqual((await docker(["inspect", name], 30_000)).code, 0, "no container was made for it");
 }
 
 test("Team daemon with Docker: an agent's terminal_run makes its workspace, tabs, a project folder with Files history, and the Files mirror", { skip, timeout: 900_000 }, (t) => scenario(t, "team"));

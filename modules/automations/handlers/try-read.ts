@@ -1,17 +1,46 @@
 // Try one safe connector read. The Vault key value is not planned, sent, or returned.
 // A successful read stores tested for the action key. The row holds no secret.
+// The address is checked like every other fetch here (https, a public host, also after DNS) before the key leaves the Vault, and a failed read says why in one line with what to do next.
+import { lookup } from "node:dns/promises";
+import { documentNetwork } from "../document-network.ts";
+import { vetPublic, vetShape } from "../public-fetch.ts";
+import type { FetchDeps } from "../public-fetch.ts";
 import { recordConnectorLevel } from "../connector-level.ts";
 import type { LevelDb } from "../connector-level.ts";
 import { planSafeTest, runSafeTest } from "../connector-test.ts";
 import type { AutoCtx } from "../projections.ts";
 
 /** `asker` is the person the read is for: a key in their own Mine folder is released to them and no one else. */
-type ReadSender = (plan: { method: string; url: string; vaultItemId: string; header?: string; prefix?: string }, asker?: string) => Promise<{ status: number }>;
+/** `failed` says which side a status 0 came from: the Vault did not give the key, or the app never answered. */
+type Failed = "vault" | "network" | "private";
+/** `net` is the pinned network docs and the HTTP step use: the host dials only the addresses it checked. */
+type ReadSender = (plan: { method: string; url: string; vaultItemId: string; header?: string; prefix?: string }, asker?: string, net?: FetchDeps | null) => Promise<{ status: number; failed?: Failed }>;
 
 const HEADER = /^[A-Za-z0-9-]{1,40}$/;
 const PREFIX = /^[\x20-\x7e]{0,20}$/;
 
 const NO_SUCCESS = "The read did not succeed.";
+
+async function lookupHost(h: string): Promise<string[]> {
+  const rows = await lookup(h, { all: true, verbatim: true });
+  return rows.map((r) => r.address);
+}
+
+/** The line a person reads for a read that did not pass: what the app said, and the next thing to check. */
+export function readFailureLine(status: number | undefined, failed: Failed | undefined, vaultItemId: string): string {
+  // only a handle-shaped name (or an item id) goes back into a line the agent reads; any other text the caller wrote stays out
+  const base = vaultItemId.trim().replace(/\.[A-Za-z][A-Za-z0-9_]*$/, "");
+  const item = /^#[A-Za-z0-9_]{1,80}$/.test(base) || /^vit_[a-z0-9]{1,64}$/.test(base) ? `the key ${base}` : "the key";
+  if (failed === "private") return "That address is not a public host.";
+  if (failed === "vault") return `The Vault did not give this read ${item}. Check the item is there and that you can use it.`;
+  if (status === undefined || status <= 0) return "The app did not answer. Check the base address, then try again.";
+  if (status === 401 || status === 403) return `The app refused the key (${status}). Check the key in the Vault, and how it is sent (header and prefix).`;
+  if (status === 404) return `Nothing at that address (${status}). Check the base address and the path.`;
+  if (status === 429) return `The app asked to slow down (${status}). Try again in a minute.`;
+  if (status >= 500) return `The app had a problem (${status}). Try again later.`;
+  if (status >= 300 && status < 400) return `The app sent the read somewhere else (${status}). Use the address it moved to.`;
+  return `The read did not pass (${status}). Check the path and what the app expects.`;
+}
 
 let readSender: ReadSender | null = null;
 
@@ -70,10 +99,18 @@ export async function tryConnectorRead(ctx: AutoCtx, input: unknown): Promise<{ 
   });
   if (!planned.ok) return { level: "draft", reason: planned.reason };
   if (readSender === null) return { level: "draft", reason: NO_SUCCESS };
+  // the key is about to go on this request: a private, loopback or metadata address (or a name that resolves to one) is refused first, as the docs fetcher and the HTTP step refuse it
+  // with the pinned network the host looks the name up once, checks it and dials those addresses (one lookup, no rebinding); without it the name is checked here before the key goes out
+  const net = documentNetwork();
+  const vetted = net?.connect ? vetShape(planned.plan.url) : await vetPublic(planned.plan.url, net?.lookup ?? lookupHost);
+  if (!vetted.ok) return { level: "draft", reason: vetted.reason };
 
   let status: number | undefined;
+  let failed: Failed | undefined;
   const sender = readSender;
-  const outcome = await runSafeTest(planned.plan, async (plan) => { const r = await sender({ ...plan, ...(fields.header ? { header: fields.header } : {}), ...(fields.prefix !== undefined ? { prefix: fields.prefix } : {}) }, ctx.actingFor ?? ctx.principal?.id); status = r.status; return r; });
+  // the same asker the Gate's hold used (key_host_unapproved): the person an agent acts for, or the person themselves; an agent acting for no one reads Shared only, at the hold and at the send
+  const asker = ctx.actingFor?.startsWith("usr_") ? ctx.actingFor : ctx.principal?.kind === "person" ? ctx.principal.id : undefined;
+  const outcome = await runSafeTest(planned.plan, async (plan) => { const r = await sender({ ...plan, ...(fields.header ? { header: fields.header } : {}), ...(fields.prefix !== undefined ? { prefix: fields.prefix } : {}) }, asker, documentNetwork()); status = r.status; failed = r.failed; return r; });
   // the status the app answered, so the person sees "401" and not only "did not succeed"; 0 means the request never got an answer
   const answered = status !== undefined && status > 0 ? { status } : {};
   if (outcome.level === "tested") {
@@ -81,5 +118,5 @@ export async function tryConnectorRead(ctx: AutoCtx, input: unknown): Promise<{ 
     if (actionKey !== "" && ctx.db) recordConnectorLevel(ctx.db as LevelDb, actionKey, "tested", ctx.now());
     return { level: "tested", ...answered };
   }
-  return { level: "draft", reason: outcome.reason, ...answered };
+  return { level: "draft", reason: readFailureLine(status, failed, fields.vaultItemId), ...answered };
 }

@@ -31,6 +31,23 @@ export function hostConfigLimits(kind: Workload): { NanoCpus: number; Memory: nu
 }
 /** Memory kept for the OS and the Space itself. */
 export const HEADROOM_MB = 1536;
+
+/**
+ * The Space browser's one memory budget (fourth look, 12 Nov): the host's budget above is the container's memory, browserd keeps BROWSER_BASE_MB of it for itself, and every browser holds back the same
+ * LIMITS.browser.reserveMb the Space's book counts. The container's limit, its task cap and the number of browsers browserd runs all follow from these numbers; the runner's bound
+ * (host/src/sites-runner/computers-policy.ts sbrowserBounds) and browserd (images/space-browser/browserd/profiles.ts slotsFor) keep the same numbers, and a test holds the three together.
+ */
+export const BROWSER_BASE_MB = 512;
+export const BROWSER_TASKS = 120;
+export const BROWSER_BASE_TASKS = 100;
+export function browserService(hostMb: number): { memoryMb: number; slots: number; pids: number } {
+  const memoryMb = Math.max(1024, Math.round(hostMb) - HEADROOM_MB);
+  return { memoryMb, slots: browserSlots(memoryMb), pids: browserTasks(memoryMb) };
+}
+/** The task cap of a container of this much memory: browserd's own and about BROWSER_TASKS a browser. */
+export const browserTasks = (memoryMb: number): number => Math.max(2048, BROWSER_BASE_TASKS + BROWSER_TASKS * browserSlots(memoryMb));
+/** How many browsers a container of this much memory runs at once. */
+export const browserSlots = (memoryMb: number): number => Math.max(1, Math.floor((memoryMb - BROWSER_BASE_MB) / LIMITS.browser.reserveMb));
 /** Disk a host must have free before it starts or makes another container (images, profiles and Files grow on it). */
 export const MIN_DISK_MB = 2048;
 /** The kinds the machine's `maxAgentComputers` counts: full desktops. */
@@ -46,8 +63,14 @@ const SPACE = "space";
 /** The host a workload lives on: a joined computer's id, or "space" for the Space's own server. */
 export const hostKey = (nodeId: string | null | undefined): string => (nodeId === null || nodeId === undefined ? SPACE : nodeId);
 
-/** The line a person reads while their request waits. */
-export const waitingLine = (name: string): string => `Waiting for room on ${name}. Add a compute server in Console > Computers to run more.`;
+/**
+ * The line a person reads while their request waits, saying only what is true for the kind: a desktop can run on a compute server an admin adds, so that is the advice; a workspace on a Space server with
+ * Docker and a Space browser profile (always on the Space host) are not helped by one, and both start by themselves when room opens (the workspace's own line in modules/terminal, the browser's periodic pass).
+ */
+export const waitingLine = (name: string, kind: Workload = "desktop"): string =>
+  kind === "workspace" ? `Waiting for room on ${name}. The workspace starts by itself when there is room.`
+    : kind === "browser" ? `Waiting for room on ${name}. The agent's browser starts by itself when there is room.`
+      : `Waiting for room on ${name}. Add a compute server in Console > Computers to run more.`;
 
 /** Pure: does one more `kind` fit beside what is held? */
 export function verdictOf(f: HostFacts, held: Held, kind: Workload): Verdict {
@@ -139,7 +162,7 @@ export async function checkRoom(ctx: CompCtx, a: { kind: Workload; nodeId?: stri
   const key = hostKey(a.nodeId);
   const facts = await factsOf(ctx, key);
   const verdict = verdictOf(facts, heldOn(ctx.db, key), a.kind);
-  return { verdict, facts, line: waitingLine(facts.name) };
+  return { verdict, facts, line: waitingLine(facts.name, a.kind) };
 }
 
 export interface ClaimResult { state: "running" | "waiting"; line?: string }
@@ -173,8 +196,8 @@ export function releaseRoom(ctx: Pick<CompCtx, "db">, key: string): void {
 
 /** The line a waiting workload shows, or null when it is not waiting. */
 export function waitingNote(db: Db, key: string): string | null {
-  const r = rowsOf(db, "SELECT note FROM computers_claim WHERE claim_key = ? AND state = 'waiting'", key)[0];
-  return r ? String(r["note"] ?? "") || waitingLine("this server") : null;
+  const r = rowsOf(db, "SELECT note, kind FROM computers_claim WHERE claim_key = ? AND state = 'waiting'", key)[0];
+  return r ? String(r["note"] ?? "") || waitingLine("this server", String(r["kind"]) as Workload) : null;
 }
 
 export const isWaiting = (db: Db, key: string): boolean => waitingNote(db, key) !== null;

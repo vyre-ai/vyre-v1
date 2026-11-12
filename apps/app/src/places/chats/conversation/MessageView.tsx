@@ -1,14 +1,14 @@
 // One entry of the conversation. Yours is a bubble on the right; anyone else's has a header (face, name, time) when the author changes; an agent's work folds into one line; native
 // cards (question, plan, terminal, changeset, file) sit under the text; an error is one inline row (what, why, next). Hover shows Copy and Edit and the rest; right-click opens the same
 // list; the keyboard reaches both. Every row is memoised on its item, so a streaming message re-renders alone.
-import { HelperRow } from "./helper-row.tsx";
+import { helperRowOf, HelperRow } from "./helper-row.tsx";
 import { CrewBlock } from "../session/CrewBlock.tsx";
 import { QuestionCard } from "./question-card.tsx";
 import { StatusCard, isStatusCard } from "./status-cards.tsx";
 import { AwayRow, HourMark, JumpRow } from "../session/rows.tsx";
 import type { SessionItem } from "../session/model.ts";
 import { memberFromBlock, memberOf } from "../crew/status.ts";
-import { holdsOf, mergeStateOf, withTeammates } from "../crew/model.ts";
+import { mergeStateOf, withTeammates } from "../crew/model.ts";
 import { FROM_THREAD_LINE } from "../crew/also.tsx";
 import { barShows, citable, citeBody, citeRender } from "../crew/cite.tsx";
 import type { CrewMember, CrewStatusOut } from "../crew/model.ts";
@@ -92,6 +92,8 @@ export function namedIds(body: string, nameOf?: (id: string) => string): string 
 }
 
 export interface MessageActions {
+  /** A quiet line under the sender's own message (a person mentioned who is not in the chat, with Add). */
+  belowMine?: (m: Message) => ReactElement | null;
   copy(text: string): void;
   edit(messageId: string, body: string): void;
   setPinned(messageId: string, pinned: boolean): void;
@@ -186,6 +188,8 @@ export interface MessageViewProps {
   mark?: "match" | "active" | "selected" | undefined;
   /** The thread under this message, when anyone has replied in it: the line that opens it. */
   replies?: { s: ReplySummary; clock: Clock } | undefined;
+  /** What the quiet line under your own message says now (actions.belowMine draws it): the row draws again when it changes, so Add, a dismiss or someone else adding the person shows at once. */
+  below?: string | undefined;
 }
 
 /** Where a forked chat came from: the first line of a fork carries the chat, the message and the chat's title. */
@@ -221,7 +225,7 @@ export function sameData(a: unknown, b: unknown, depth: number): boolean {
 
 /** Draw a row again only when something it shows changed. */
 export function sameRow(a: MessageViewProps, b: MessageViewProps): boolean {
-  return a.meId === b.meId && a.stream === b.stream && a.sending === b.sending && a.openWork === b.openWork && a.mark === b.mark
+  return a.meId === b.meId && a.stream === b.stream && a.sending === b.sending && a.openWork === b.openWork && a.mark === b.mark && a.below === b.below
     && sameData(a.item, b.item, 6) && sameData(a.actions, b.actions, 5) && sameData(a.replies, b.replies, 3);
 }
 
@@ -457,6 +461,7 @@ function Mine({ item, actions, sending, mark, replies, meId }: MessageViewProps 
       {m.editedAt !== undefined ? <Text style={st.edited}>edited</Text> : null}
       {m.pinned ? <Text testID={`pinned-${m.messageId}`} style={st.edited}>pinned</Text> : null}
       {sending === "sending" ? <Text testID={`sending-${m.messageId}`} style={st.edited}>Sending</Text> : null}
+      {!editing && sending === undefined && actions.belowMine ? actions.belowMine(m) : null}
       {sending === "failed" ? (
         <View testID={`failed-${m.messageId}`} accessibilityRole="alert" style={st.failed}>
           <Text style={st.failedText}>Not sent.</Text>
@@ -593,7 +598,11 @@ function Theirs({ item, actions, stream, openWork, mark, meId, replies }: Messag
         if (isQuote(b.type)) return <QuoteCard key={b.id} id={b.id} data={b.data} />;
         if (isChromeHeld(b.type)) return <HeldSendCard key={b.id} id={b.id} data={b.data} agentId={item.who.id} agentName={item.who.name} actions={actions.chrome} />;
         if (isChromeStep(b.type)) return <ChromeStepCard key={b.id} id={b.id} data={b.data} agentId={item.who.id} agentName={item.who.name} actions={actions.chrome} />;
+        // a helper's raised card is the card itself; it neither repeats "needs your OK in a thread" nor links to the helper's thread (lead, 12 Nov, H3)
+        if (isApprovalUp(b) && raisedHelperCard(m)) return null;
         if (isApprovalUp(b)) return <ApprovalLine key={b.id} id={m.messageId} who={item.who.name} threadId={String((b.data as { threadId?: unknown } | null)?.threadId ?? "")} open={(t) => actions.openMessage?.(t, "")} />;
+        // a helper's raised approval card links nowhere: the helper's chat is its asker's, and a reader who may not open it is never sent there (lead, 12 Nov, H3)
+        if (b.type === "from_thread" && raisedHelperCard(m)) return null;
         if (b.type === "from_thread") {
           const tid = String((b.data as { threadId?: unknown } | null)?.threadId ?? "");
           return <Pressable key={b.id} accessibilityRole="link" testID={`from-thread-${m.messageId}`} onPress={() => (tid !== "" ? actions.openMessage?.(tid, "") : undefined)}><Text style={st.fromThread}>{typeof (b.data as { messageId?: unknown } | null)?.messageId === "string" && (b.data as { messageId: string }).messageId !== "" ? FROM_THREAD_LINE : "Open the thread"}</Text></Pressable>;
@@ -606,12 +615,10 @@ function Theirs({ item, actions, stream, openWork, mark, meId, replies }: Messag
           const totals = live && members.every((x) => memberOf(live, x.id) !== undefined) && live.members.filter((x) => x.kind === "helper").length === rows ? live.totals
             : { members: rows, working: members.filter((x) => x.state === "working").length, done: members.filter((x) => x.state === "done").length, needsYou: members.filter((x) => x.state === "needs_you").length, failed: members.filter((x) => x.state === "failed").length, stopped: members.filter((x) => x.state === "stopped").length, tokensIn: 0, tokensOut: 0, costMicros: 0, filesChanged: 0, added: 0, deleted: 0, elapsedMs: Math.max(0, ...members.map((x) => x.elapsedMs)) };
           const c = actions.crew;
-          // a helper that waits for a person's yes shows its held request here, in the chat the person reads: the same approval card as anywhere (Allow, Always allow, Deny)
           // the coders on this strip: Review all and Merge sit in its header, and nothing is posted per coder
           const coders = members.filter((x) => (x as { kind?: string }).kind === "teammate") as Array<CrewMember & { jobId?: string }>;
           const mergeState = mergeStateOf(members);
           const coderMerge = mergeState !== "none" && c?.merge ? { state: mergeState, onReview: () => c.openPane(), onMerge: () => c.merge(coders.flatMap((x) => (x.jobId ? [x.jobId] : []))) } : null;
-          const holds = holdsOf(members);
           return (
             <View key={b.id}>
               <CrewBlock members={members} totals={totals} {...(actions.files ? { call: actions.files.call as unknown as (cap: string, input: unknown) => Promise<unknown> } : {})} {...(coderMerge ? { merge: coderMerge } : {})} selectedId={c?.selected ?? null} onPeek={(x) => (c ? c.peek(x.id) : actions.openMessage?.(x.id, ""))} {...(c ? { onStopAll: c.stopAll, onOpenPane: c.openPane, onRetry: (x: { id: string }) => c.retry(x.id) } : {})} />
@@ -620,12 +627,15 @@ function Theirs({ item, actions, stream, openWork, mark, meId, replies }: Messag
                   <MarkdownBlocks blocks={bodyBlocks(`${m.messageId}#answer`, citeBody(namedIds((b.data as { after: string }).after, actions.nameOf), crewRows.length))} {...(citeLink ? { renderLink: ((href: string, kids: ReactNode, key: number) => citeLink(href, kids, key) ?? null) as never } : {})} />
                 </View>
               ) : null}
-              {/* ui-rows-lint: not a list (the approval cards of helpers that wait for a yes, each the same card as anywhere else in the chat) */}
-              {actions.files ? holds.map((x) => <ApprovalCard key={`hold-${x.id}`} taskId={x.holdTaskId} agent={x.name ?? x.title} agentId={x.agentId} faceSeed={x.id} data={actions.files!} />) : null}
+              {/* a helper that waits for a yes: its approval card is the helper's own message in this chat, raised there when it parked (engine bridge), the same card as anywhere; its row here says what it waits for */}
             </View>
           );
         }
-        if (b.type === "helper" && !isCrewStart(b)) return <HelperRow key={b.id} block={b} onOpen={(id) => actions.openMessage?.(id, "")} />;
+        if (b.type === "helper" && !isCrewStart(b)) {
+          const tid = helperRowOf(b).threadId;
+          const w = actions.crew?.status?.members.find((x) => x.id === tid && x.state === "needs_you");
+          return <HelperRow key={b.id} block={b} onOpen={(id) => actions.openMessage?.(id, "")} {...(w ? { waiting: (w as { step?: string }).step ?? "Needs your OK" } : {})} />;
+        }
         if (isStatusCard(b.type)) return <StatusCard key={b.id} id={b.id} type={b.type} data={b.data} host={cardHost(actions)} />;
         if (b.type === "question" && b.state === "waiting") {
           const d = (b.data ?? {}) as Record<string, unknown>;
@@ -640,10 +650,10 @@ function Theirs({ item, actions, stream, openWork, mark, meId, replies }: Messag
       {collect(errors, (b) => <ErrorRowView key={b.id} block={b} actions={actions} />)}
       {collect(m.blocks.some(isApprovalUp) ? statuses.filter((x) => x.kind !== "note") : statuses, (x) => (x.kind === "note" ? <Text key={x.id} testID={`status-${x.id}`} style={st.edited}>{x.text}</Text>
         : x.kind === "wait" ? <View key={x.id} testID={`status-${x.id}`} style={st.waitRow}><Text style={st.edited}>{x.text}</Text><TextButton link label={x.action.label} testID={`status-${x.action.key}`} onPress={() => actions.errorNext(x.action.key)} /></View>
-        : x.kind === "approval" && actions.files ? <ApprovalCard key={x.id} taskId={x.taskId} agent={item.who.name} agentId={item.who.id} {...(item.who.face ? { face: item.who.face } : {})} data={actions.files} /> : null))}
+        : x.kind === "approval" && actions.files ? <ApprovalCard key={x.id} taskId={x.taskId} agent={helperName(m, item.who.name, actions.crew?.status ?? null)} {...(raisedHelperCard(m) ? { othersLine: `${helperName(m, item.who.name, actions.crew?.status ?? null)} is waiting for the OK of the person who asked.` } : {})} agentId={item.who.id} {...(item.who.face ? { face: item.who.face } : {})} data={actions.files} /> : null))}
       {item.who.forPerson && actions.agentMute && actions.agentMute.offerFor === m.messageId && onBehalfOf(m)?.teammate === actions.agentMute.me ? (
         <Pressable accessibilityRole="button" testID={`agent-mute-${m.messageId}`} onPress={() => actions.agentMute!.mute(item.who.forPerson!)}>
-          <Text style={[st.via, st.muteLine]}>{`Mute agent messages from ${firstName(item.who.name.replace(/ \(Agent\)$/, ""))} for today`}</Text>
+          <Text style={[st.via, st.muteLine]}>{`Mute agent messages from ${firstName(item.who.forPerson && actions.nameOf ? actions.nameOf(item.who.forPerson) : item.who.name.replace(/ \(Agent\)$/, ""))} for today`}</Text>
         </Pressable>
       ) : null}
       <Reactions m={m} a={actions} mine={false} meId={meId} />
@@ -737,6 +747,10 @@ function Card({ line, actions }: { line: CardLine; actions: MessageActions }): R
   const steps = line.type === "plan" ? planSteps(line.data) : [];
   if (line.type === "screenshot" && line.data.live === true && typeof line.data.computerId === "string" && typeof line.data.fileId === "string" && actions.liveCard) {
     return <LiveCard id={line.id} computerId={line.data.computerId} fileId={line.data.fileId} caption={line.title} cfg={actions.liveCard} />;
+  }
+  // the same card for an agent's steps in its Space browser profile: keyed by the agent, with the caption as it comes (it may say why a picture was withheld)
+  if (line.type === "browser_screenshot" && typeof line.data.agentId === "string" && typeof line.data.fileId === "string" && actions.liveCard) {
+    return <LiveCard id={line.id} agentId={line.data.agentId} fileId={line.data.fileId} caption={typeof line.data.caption === "string" && line.data.caption !== "" ? line.data.caption : line.title} cfg={actions.liveCard} />;
   }
   const head = (
     <>
@@ -916,3 +930,19 @@ export const st = StyleSheet.create({
   kvK: { width: 72, fontSize: 12, color: "var(--ink-3)" as string },
   kvV: { flex: 1, fontSize: 12.5, color: "var(--ink-2)" as string },
 });
+
+/**
+ * Whose card it is (lead, 12 Nov, H4): a helper's held call raised into the chat it was started from (a message with a from_thread line) names the helper, so two waiting helpers of one agent read
+ * apart: "Rates on the web (Scout)". Any other card names the agent.
+ */
+export function helperName(m: { blocks: ReadonlyArray<{ type: string; data?: unknown }> }, agent: string, crew: { members: ReadonlyArray<{ id: string; title?: string }> } | null): string {
+  const from = m.blocks.find((b) => b.type === "from_thread");
+  const tid = String((from?.data as { threadId?: unknown } | undefined)?.threadId ?? "");
+  const title = tid !== "" ? crew?.members.find((x) => x.id === tid)?.title : undefined;
+  return title ? `${title} (${agent})` : agent;
+}
+
+/** A helper's held call raised into the chat it was started from (engine bridge): a waiting turn_status with a from_thread line. */
+export function raisedHelperCard(m: { blocks: ReadonlyArray<{ type: string; data?: unknown }> }): boolean {
+  return m.blocks.some((b) => b.type === "from_thread") && m.blocks.some((b) => b.type === "turn_status" && (b.data as { state?: unknown } | undefined)?.state === "waiting");
+}

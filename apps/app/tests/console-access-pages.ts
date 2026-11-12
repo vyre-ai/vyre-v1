@@ -206,14 +206,19 @@ export async function runAccessPages(t: TestContext, parts: readonly AccessPart[
       await page.reload({ waitUntil: "load" }); await goTo(page, "reviews"); await page.getByTestId("console-reviews").waitFor();
       await page.getByTestId("row-object-row-" + id).click(); await page.getByTestId("object-header").waitFor();
       await page.locator('[data-testid^="object-tab-"]').filter({ hasText: /^To review/ }).click();
-      const items = (await api("access.reviews.get", { reviewId: id })).items as { grant: { id: string; subject: { id: string } }; decision?: string }[];
-      const keep = items.find((i) => i.grant.subject.id === maya.personId)!, drop = items.find((i) => i.grant.subject.id === guest.personId)!;
+      const items = (await api("access.reviews.get", { reviewId: id })).items as { grant: { id: string; subject: { id: string }; resource?: { id?: string } }; decision?: string }[];
+      // the fixture's two shares, by person and by the fixture folder: the guest may hold other folder grants in the review (and it lists the first one first)
+      const onFixture = (i: { grant: { resource?: { id?: string } } }) => i.grant.resource?.id === made;
+      const keep = items.find((i) => i.grant.subject.id === maya.personId && onFixture(i))!, drop = items.find((i) => i.grant.subject.id === guest.personId && onFixture(i))!;
       await page.getByTestId("row-review-grant-" + keep.grant.id).getByRole("button", { name: "Keep", exact: true }).click();
       await eventually(async () => ((await api("access.reviews.get", { reviewId: id })).items as { grant: { id: string }; decision?: string }[]).find((i) => i.grant.id === keep.grant.id)?.decision === "keep", "the grant was kept");
       await page.getByTestId("row-review-grant-" + drop.grant.id).click();
       await page.getByRole("button", { name: "Remove selected…" }).click(); await page.getByRole("button", { name: "Remove selected access", exact: true }).click();
       await eventually(async () => !((await api("access.grants.list", { resource: { type: "folder", id: made } })).grants as { id: string }[]).some((g) => g.id === drop.grant.id), "the removed grant ended");
-      assert.ok(!((await api("access.principals.effective", { principal: { kind: "person", id: guest.personId } })).grants as { resource: { id: string } }[]).some((g) => g.resource.id === made), "the person whose grant was removed no longer holds it");
+      // the assertion is the same; when it fails it names what the guest still holds on the folder, and what the folder's own list shows, so a CI failure says which grant it was
+      const stillHeld = ((await api("access.principals.effective", { principal: { kind: "person", id: guest.personId } })).grants as { id?: string; resource: { id: string }; subject?: unknown; source?: string; level?: string }[]).filter((g) => g.resource.id === made);
+      const listed = (await api("access.grants.list", { resource: { type: "folder", id: made } })).grants as unknown[];
+      assert.ok(stillHeld.length === 0, `the person whose grant was removed no longer holds it: removed ${drop.grant.id}; still held ${JSON.stringify(stillHeld)}; the folder lists ${JSON.stringify(listed)}`);
       await page.locator('[data-testid^="object-tab-"]').filter({ hasText: /^Review tasks/ }).click();
       await page.locator('[data-testid^="object-tab-"]').filter({ hasText: /^Activity/ }).click(); await page.getByTestId("object-body").getByText(/review/i).first().waitFor();
       await matrix("review-object", async (p) => { await goTo(p, "reviews"); await p.getByTestId("console-reviews").waitFor(); await p.getByTestId("row-object-row-" + id).click(); await p.getByTestId("object-header").waitFor(); await p.locator('[data-testid^="object-tab-"]').filter({ hasText: /^To review/ }).click(); });

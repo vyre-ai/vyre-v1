@@ -217,3 +217,99 @@ test("the rows are not kept once an import is written", async () => {
   assert.deepEqual(kept.map((t) => t.rows.length), [0]);
   assert.equal(kept[0]!.columns.length, 2, "the columns stay");
 });
+
+test("rows the records module refused (the importer may not edit that contact, or a field is locked) are counted as failed and the rest of the import is written", async () => {
+  const h = harness();
+  const real = h.world.handlers["records.bulk_upsert"]!;
+  h.world.handlers["records.bulk_upsert"] = (i, o) => { const out = real(i, o) as { created: number; updated: number; skipped: number }; return { ...out, refused: [{ row: 0, reason: "not_allowed", message: "You may not edit this record." }] }; };
+  const { importId, previewToken } = await ready(h);
+  await run(h, "import.commit", { importId, previewToken });
+  const got = (await run(h, "import.get", { importId })).import;
+  assert.equal(got.state, "done");
+  assert.equal(got.failed, 1, "the refused row is a failed row");
+  assert.equal(got.errors.length, 1, "and it is listed with the reason, so the importer sees which row and why");
+  assert.match(got.errors[0]!.message, /may not edit/);
+  assert.equal(got.errors[0]!.row, 1, "on the row of the file it came from");
+  assert.equal(h.named("import.completed")[0]!.payload["failed"], 1);
+});
+
+test("a bulk upsert that stops part way keeps what it wrote: the import counts it, lists the rows not tried, and ends failed", async () => {
+  const h = harness();
+  const real = h.world.handlers["records.bulk_upsert"]!;
+  h.world.handlers["records.bulk_upsert"] = (i, o) => { const out = real(i, o) as { created: number; updated: number; skipped: number }; return { ...out, stopped: { reason: "unavailable", row: 1, message: "the store is read-only", notDone: [1] } }; };
+  const { importId, previewToken } = await ready(h);
+  await run(h, "import.commit", { importId, previewToken });
+  const got = (await run(h, "import.get", { importId })).import;
+  assert.equal(got.state, "failed");
+  assert.ok(got.created >= 1, "what was written before the stop is counted");
+  assert.match(got.errors.map((e: { message: string }) => e.message).join(" "), /not written/i);
+});
+
+test("an import set to skip matches tells bulk_upsert to leave existing records alone, so a record that appeared after the preview is not overwritten", async () => {
+  const h = harness();
+  const real = h.world.handlers["records.bulk_upsert"]!;
+  const seen: Array<Record<string, unknown>> = [];
+  h.world.handlers["records.bulk_upsert"] = (i, o) => { seen.push(i as Record<string, unknown>); return real(i, o); };
+  const { importId, previewToken } = await ready(h, CSV, { onMatch: "skip", match: ["email"] });
+  await run(h, "import.commit", { importId, previewToken });
+  assert.ok(seen.length > 0 && seen.every((x) => x["skipExisting"] === true));
+});
+
+// f-wire, 12 Nov (import starters): an import that a restart cut off mid-write was left "running" with its Run running for ever, and nobody was told. The boot check ends it failed, so the Run's
+// owner gets run.failed with a line that says what happened; an import this process is still writing is left alone.
+test("an import a restart cut off ends failed at boot, and its Run's owner is told why; one still being written is left alone", async () => {
+  const { interrupted, CUT_OFF } = await import("../handlers/commit.ts");
+  const { findSession, saveSession } = await import("../projections.ts");
+  const h = harness();
+  const { importId } = await ready(h);
+  // the state a restart leaves: the session says running and its Run is running, but no commit in this process is writing it
+  const s = findSession(h.db, importId)!;
+  Object.assign(s, { state: "running", runId: "run_cut" });
+  saveSession(h.db, s);
+  assert.deepEqual(await interrupted(h.ctx), [importId]);
+  assert.equal(findSession(h.db, importId)!.state, "failed");
+  const fin = h.only("runs.finish");
+  assert.equal(fin.length, 1);
+  assert.equal(fin[0]!.input.runId, "run_cut");
+  assert.equal(fin[0]!.input.status, "failed", "a failed Run: its owner gets run.failed (modules/runs/handlers/engine.ts)");
+  assert.equal(fin[0]!.input.error.message, CUT_OFF);
+  assert.deepEqual(await interrupted(h.ctx), [], "once");
+
+  // an import being written now: the check runs while its batch is on its way and leaves it alone
+  const w = harness();
+  const live = await ready(w);
+  const upsert = w.world.handlers["records.bulk_upsert"]!;
+  let release!: () => void;
+  const gate = new Promise<void>((r) => { release = r; });
+  let during: string[] | null = null;
+  w.world.handlers["records.bulk_upsert"] = async (i: unknown, o: unknown) => { during = await interrupted(w.ctx); await gate; return (upsert as (a: unknown, b: unknown) => unknown)(i, o); };
+  const done = run(w, "import.commit", live);
+  for (let i = 0; i < 50 && during === null; i++) await new Promise((r) => setImmediate(r));
+  assert.deepEqual(during, [], "the import being written is not touched");
+  release();
+  await done;
+  assert.equal(findSession(w.db, live.importId)!.state, "done");
+});
+
+// lead, 12 Nov: a runs.finish that fails when an import ends is not swallowed: it is logged with the Run id and kept, and the next check ends the Run, so the owner is told
+test("a Run that did not take its end is ended by the next check, as the import meant to end it", async () => {
+  const { interrupted } = await import("../handlers/commit.ts");
+  const h = harness();
+  const a = await ready(h);
+  const finish = h.world.handlers["runs.finish"]!;
+  h.world.down.add("runs.finish");
+  await run(h, "import.commit", a);
+  assert.ok(h.warned.some((w) => /did not take its end/.test(w)), "logged");
+  const kept = h.rows("SELECT runId, status FROM import_unfinished");
+  assert.equal(kept.length, 1);
+  assert.equal(kept[0]!["status"], "succeeded");
+  h.world.down.delete("runs.finish");
+  h.world.handlers["runs.finish"] = finish;
+  const before = h.only("runs.finish").length;
+  const ended = await interrupted(h.ctx);
+  assert.deepEqual(ended, [kept[0]!["runId"]]);
+  assert.equal(h.only("runs.finish").length, before + 1);
+  assert.equal(h.only("runs.finish").at(-1)!.input.status, "succeeded");
+  assert.equal(h.rows("SELECT runId FROM import_unfinished").length, 0, "taken once");
+  assert.deepEqual(await interrupted(h.ctx), []);
+});

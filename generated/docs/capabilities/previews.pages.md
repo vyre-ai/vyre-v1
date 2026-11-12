@@ -19,7 +19,7 @@ Page images of a PDF or Office file
 | HTTP | POST /v1/previews/pages |
 | MCP tool | previews_pages (files) |
 | CLI | none |
-| Emits | none |
+| Emits | preview.ready, preview.failed |
 
 ## Input
 

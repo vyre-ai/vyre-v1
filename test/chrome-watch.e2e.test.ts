@@ -69,10 +69,11 @@ test("a watch: pick a part of the page, start it, a change tells the chat what i
     await panel.click('[data-a="wWho"]');
     await panel.click("#menu .mi:has-text('Scout')");
     assert.match(await panel.textContent(".seg .on") ?? "", /My Chrome/);
-    assert.match(await panel.textContent(".sheet .note:has(.lnk)") ?? "", /Give Scout one/);
-    await panel.click('[data-a="givePc"]');
-    await r.waitFor(() => r.callsTo("chat.ask")[0], 4000, "chat.ask for the computer");
-    assert.match(r.callsTo("chat.ask")[0]!.input.text, /set up your own computer/);
+    // an agent without a computer is not offered one from here any more (the old desktop is retired): the note only says why this runs in the person's Chrome
+    assert.match(await panel.textContent(".sheet .note") ?? "", /Runs in your Chrome in the background/);
+    assert.doesNotMatch(await panel.textContent(".sheet") ?? "", /has no computer|Agent computer/, "a watch runs in the person's Chrome: no greyed Agent computer option and no claim about a computer");
+    assert.equal(await panel.$('[data-a="givePc"]'), null, "no Give Scout one");
+    assert.equal(r.callsTo("chat.ask").length, 0, "nothing asks the agent to set up a computer");
     await panel.click('[data-a="wFreq"]');
     await panel.click("#menu .mi:has-text('Every 15 minutes')");
     await shootAll(r, panel, "chrome2b-watch-sheet-picked");

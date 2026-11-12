@@ -57,7 +57,7 @@ test("the container profile: non-root, no capability, no new privileges, no Dock
   assert.match(wrong((c) => { c.Labels["vyre.workspace"] = "agt_other"; }), /not this agent's workspace/);
 });
 
-test("the first use makes the workspace and starts it, with no grant; two first uses at once make it once", async () => {
+test("the first use makes the workspace and starts it, with no grant; two first uses at once make it once; it is on the shared network that keeps workspaces from reaching each other", async () => {
   const r = rig();
   assert.equal(r.dk.boxes.size, 0, "nothing exists before the first use");
   const [a, b] = await Promise.all([r.mgr.exec(AGENT, ["tmux", "-V"]), r.mgr.exec(AGENT, ["tmux", "-V"])]);
@@ -68,7 +68,9 @@ test("the first use makes the workspace and starts it, with no grant; two first 
   const cfg = r.dk.box(NAME).config;
   assert.equal(cfg["Labels"]["vyre.workspace"], AGENT);
   assert.equal(cfg["User"], "10001:10001");
-  assert.equal(cfg["HostConfig"]["NetworkMode"], "bridge", "a Space with a Docker socket of its own uses the default network");
+  // 12 Nov (audit item 11, lead's decision): not the default bridge, where every workspace reached every other's ports, but one shared network with traffic between containers off
+  assert.equal(cfg["HostConfig"]["NetworkMode"], "vyre-workspaces", "a Space with a Docker socket of its own puts workspaces on the shared network that keeps them apart");
+  assert.deepEqual(r.dk.ops("network").map((x) => [x.name, (x.detail as { Options?: Record<string, string> }).Options?.["com.docker.network.bridge.enable_icc"]]), [["vyre-workspaces", "false"]], "made once, with traffic between containers off");
   assert.equal(await r.mgr.ensure(AGENT), "running");
   assert.deepEqual((await r.mgr.list()).map((x) => [x.agentId, x.state]), [[AGENT, "running"]]);
 });
@@ -79,12 +81,16 @@ test("an id that is not an agent's is refused before anything is made", async ()
   assert.equal(r.dk.boxes.size, 0);
 });
 
-test("behind the runner each workspace is on a network of its own, and only named volumes are bound", async () => {
+// 12 Nov (lead's decision, owner: "more than 30 workspaces ... smoothly"): a network each ran Docker out of address pools at about 30, so behind the runner too every workspace shares one network with
+// traffic between containers off; a network of its own is now only the fallback while the shared one cannot be made
+test("behind the runner workspaces share the one network with traffic between containers off, and only named volumes are bound", async () => {
   const r = rig({ runner: true });
   await r.mgr.ensure(AGENT);
-  assert.equal(r.dk.ops("network").length, 1);
+  await r.mgr.ensure("agt_pam");
+  assert.equal(r.dk.ops("network").length, 1, "one network for both");
   const net = r.dk.ops("network")[0]!.name!;
-  assert.match(net, /^vyre-wsnet-[0-9a-f]{16}$/);
+  assert.equal(net, "vyre-workspaces");
+  assert.equal((r.dk.ops("network")[0]!.detail as { Options?: Record<string, string> }).Options?.["com.docker.network.bridge.enable_icc"], "false");
   assert.equal(r.dk.box(NAME).config["HostConfig"]["NetworkMode"], net);
   assert.ok(r.dk.box(NAME).config["HostConfig"]["Binds"].every((b: string) => !b.startsWith("/")), "named volumes only");
 });
@@ -467,12 +473,17 @@ test("provision makes the workspace stopped, asks for no room and starts nothing
   assert.deepEqual([a, b], [{ workspaceId: NAME }, { workspaceId: NAME }]);
   assert.equal(r.dk.ops("create").filter((x) => x.name === NAME).length, 1);
   assert.equal(r.dk.ops("start").filter((x) => x.name === NAME).length, 0, "the workspace itself was not started (only the one-off project helper ran)");
-  assert.deepEqual([room.log, admitted], [[], []], "no room claimed");
+  // no room claimed; the admission is asked once, for the make (12 Nov, review: an agent in Trash gets nothing built), and not again for the repeat
+  assert.deepEqual([room.log, admitted], [[], ["create"]], "no room claimed, admission asked for the make");
   assert.equal(r.dk.box(NAME).running, false);
   assert.deepEqual((await r.mgr.list()).map((x) => x.state), ["asleep"]);
   assert.equal(await r.mgr.ensure(AGENT), "woke", "the first command wakes what was provisioned");
   assert.equal(r.dk.ops("create").filter((x) => x.name === NAME).length, 1, "it is not made again");
   await assert.rejects(() => r.mgr.provision("../x"), /not an agent/);
+  // an agent the host does not admit (in Trash) gets no container
+  const refused = rigWith({ admit: () => { throw new Error("That agent is in Trash, so it has no workspace."); } });
+  await assert.rejects(() => refused.mgr.provision(AGENT), /in Trash/);
+  assert.equal(refused.dk.boxes.size, 0, "nothing built");
 });
 
 test("the container carries the host's limits: 1 CPU, a 1 GB hard cap with 64 MB held back, low CPU shares, no swap, 512 processes", () => {
@@ -515,12 +526,15 @@ test("a project's folder is mirrored with Files when a workspace on it wakes, an
   // a second agent on the same project
   await r.mgr.ensure(B_AGENT);
   const n = ph.passes.length;
+  // B works (a command of B's ran to its end): 12 Nov, any exec was taken for work, so another agent's tab reading its screen took the authorship
   await r.mgr.exec(B_AGENT, ["tmux", "-V"]);
+  r.mgr.worked(B_AGENT);
   await later(40);
   const after = ph.passes.slice(n);
   assert.ok(after.length >= 1 && after.every((p) => p.agentId === B_AGENT), `the pass after B's command is B's: ${JSON.stringify(after.map((p) => p.agentId))}`);
   const m = ph.passes.length;
   await r.mgr.exec(AGENT, ["tmux", "-V"]);
+  r.mgr.worked(AGENT);
   await later(40);
   assert.ok(ph.passes.slice(m).every((p) => p.agentId === AGENT) && ph.passes.length > m, "and then A's");
   assert.deepEqual([...new Set(ph.made.map((x) => x.manifest))], ["/m/projects/prj_site.json"], "one manifest for the project, whoever ran the pass");
@@ -578,4 +592,21 @@ test("with no project mirror configured the project volume is just shared: no ar
   await r.mgr.exec(AGENT, ["tmux", "-V"]);
   assert.equal(r.dk.ops("archive_get").length, 0);
   r.mgr.close();
+});
+
+test("third look: after a restart, the first use of a workspace removes what a run left in its tmux before anything reads a screen", async () => {
+  const r = rig();
+  const first = termHost(r);
+  await open(first);
+  const box = r.dk.box(NAME).tmux;
+  box.buffers.set("vyre-env-0-dddddddddddddddddddddddddddddddd", "export K='left by a crash'\n");
+  // a new daemon: a new host that knows nothing of the session; a person's read is its first use of the workspace
+  const seen: string[] = [];
+  const exec0 = box.exec;
+  box.exec = async (argv, x) => { if (argv[1] === "capture-pane") seen.push(`read with ${box.buffers.size} buffer(s)`); return exec0(argv, x); };
+  try {
+    await termHost(r).read("trm_1", { lines: 10 });
+    // every read of the screen (a read may take more than one capture: f-term's line cursor) came after the leftover was gone
+    assert.ok(seen.length > 0 && seen.every((x) => x === "read with 0 buffer(s)"), `the leftover was gone before the screen was read: ${JSON.stringify(seen)}`);
+  } finally { box.exec = exec0; }
 });

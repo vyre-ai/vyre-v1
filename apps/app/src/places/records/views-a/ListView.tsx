@@ -3,9 +3,10 @@
 // the cached count sits under it.
 import { useRecordAccess } from "../sharing/useRecordAccess.ts";
 import { Glyph } from "../sidebar/parts.tsx";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { makeRecord } from "../table/make.ts";
 import { menuTrigger, useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import { Row as UiRow } from "../../../../../../ui/src/Row/index.tsx";
 import { States } from "../../../../../../ui/src/States/index.tsx";
@@ -37,7 +38,32 @@ function Row({ r, title, note, selected, person, badge, names, mark, onOpen, onM
   );
 }
 
-export function ListView({ ctx }: { ctx: ViewCtx }): ReactElement {
+/** New on the phone (New project from Search or the Projects +): a name row on top of the list, Enter makes it with the table's own makeRecord and opens it. */
+function AddingRow({ ctx, onDone }: { ctx: ViewCtx; onDone: () => void }): ReactElement {
+  const data = useRecordsData();
+  const [name, setName] = useState(`New ${ctx.def.title.toLowerCase()}`);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const make = (): void => {
+    const n = name.trim();
+    if (n === "" || busy) return;
+    setBusy(true);
+    makeRecord(data.call, ctx.def, n, `new-${ctx.type}-${Date.now()}`).then((id) => { onDone(); if (id) data.nav.openRecord(id); }, (e: unknown) => { setBusy(false); setError(e instanceof Error ? e.message : `Could not make the ${ctx.def.title.toLowerCase()}.`); });
+  };
+  return (
+    <View style={l.adding} testID="records-adding">
+      <TextInput value={name} onChangeText={setName} autoFocus selectTextOnFocus editable={!busy} onSubmitEditing={make} accessibilityLabel={`New ${ctx.def.title.toLowerCase()}`} testID="records-adding-input" style={l.addingInput} />
+      <Pressable accessibilityRole="button" testID="records-adding-create" onPress={make}><Text style={l.addingLink}>Create</Text></Pressable>
+      <Pressable accessibilityRole="button" testID="records-adding-cancel" onPress={onDone}><Text style={l.addingCancel}>Cancel</Text></Pressable>
+      {error ? <Text style={l.addingError}>{error}</Text> : null}
+    </View>
+  );
+}
+
+export function ListView({ ctx, startNew = false, onStarted }: { ctx: ViewCtx; startNew?: boolean; onStarted?: () => void }): ReactElement {
+  const [adding, setAdding] = useState(false);
+  // on the phone a change of address redraws the place, so the request is spent when the row is done (made or cancelled), not when it is shown
+  useEffect(() => { if (startNew) setAdding(true); }, [startNew]);
   const data = useRecordsData();
   const st = useViewState(ctx);
   const menu = useMenu();
@@ -60,6 +86,7 @@ export function ListView({ ctx }: { ctx: ViewCtx }): ReactElement {
   return (
     <View style={l.main} testID="records-list" accessibilityLabel={`${def.plural} list`}>
       <ViewHead ctx={ctx} st={st} sort />
+      {adding ? <AddingRow ctx={ctx} onDone={() => { setAdding(false); onStarted?.(); }} /> : null}
       <View style={l.sheet}>
         {count === 0 && rows.length === 0 ? (
           <States kind="empty" title={st.v.clauses.length > 0 || st.v.find ? "Nothing matches these filters." : `No ${def.plural.toLowerCase()} yet.`} icon="records" />
@@ -84,6 +111,11 @@ export function ListView({ ctx }: { ctx: ViewCtx }): ReactElement {
 }
 
 const l = StyleSheet.create({
+  adding: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 12, paddingHorizontal: 14, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string, backgroundColor: "var(--sel)" as string },
+  addingInput: { flex: 1, minWidth: 140, height: 34, paddingHorizontal: 10, borderRadius: 8, borderWidth: 1, borderColor: "var(--accent)" as string, backgroundColor: "var(--win)" as string, color: "var(--ink)" as string, fontSize: 15 },
+  addingLink: { fontSize: 14, fontWeight: "600", color: "var(--accent)" as string },
+  addingCancel: { fontSize: 14, color: "var(--ink-2)" as string },
+  addingError: { width: "100%", fontSize: 12.5, color: "var(--danger)" as string },
   main: { flex: 1, minWidth: 0, backgroundColor: "var(--win)" as string },
   sheet: { flex: 1, minHeight: 0, paddingHorizontal: 10, paddingTop: 6 },
   face: { marginRight: 8, marginLeft: 2 },

@@ -3,6 +3,8 @@ import{sessionTheme}from'./space-theme.ts';
 import{sessionCatalogue}from'./space-catalog.ts';
 // The authenticated application shell. Kept behind SessionGate's lazy boundary so a signed-out
 // first paint does not parse the screen registry, virtual lists, command surface, or place chrome.
+import { osShell } from "../notifications/os-shell.ts";
+import { windowFocused } from "../notifications/os-banner.ts";
 import { OpenLink } from "../reach/OpenLink.tsx";
 import { subscribeUpdates, updateState, updateWaiting } from "../../startup/update/store.ts";
 import { ConsoleAlone, onConsoleHost } from "../console-host.ts";
@@ -27,6 +29,7 @@ import { watchPurge, webPurgeClient, wipeBrowserStorage } from "../spaces/purge.
 import type { ShellPurge } from "../spaces/purge.ts";
 import { HubProvider, useHubState } from "../spaces/context.tsx";
 import { Shell } from "../spaces/Shell.tsx";
+import { PROFILE_HASH } from "../tabs/store.ts";
 import type { PlaceContext } from "../spaces/Shell.tsx";
 import { CapError, createCapCaller } from "./caps.ts";
 import { isLoopbackUrl } from "../../../../../client/src/gateway/local-key.ts";
@@ -167,7 +170,7 @@ export function ShellHost({ stored, open, onSignedOut, onHub, hub: given, initia
   }, [team]);
   const setAway = useCallback((on: boolean): void => { flags.current.away = on; void team?.away(on); }, [team]);
   const teamProp = useMemo(() => (team ? { invite: () => { void team.invite(); }, away: setAway } : undefined), [team, setAway]);
-  const search = useMemo(() => (session ? (flags.current.terminal = session.def.terminal, createGateSearch({ runtime: session.runtime, nav: hub, state: flags.current, recent: () => recent.current, viewer: () => ({ id: session.runtime.me.id, spaceId: session.def.spaceId, places: new Set(railPlaces(hub.rail())) }), ...(team ? { away: setAway } : {}), signOut: () => signOutRef.current() })) : null), [session, hub, team, setAway]);
+  const search = useMemo(() => (session ? (flags.current.terminal = session.def.terminal, createGateSearch({ runtime: session.runtime, nav: hub, state: flags.current, recent: () => recent.current, viewer: () => ({ id: session.runtime.me.id, spaceId: session.def.spaceId, places: new Set(railPlaces(hub.rail())) }), console: () => session.def.console === true, ...(team ? { away: setAway } : {}), signOut: () => signOutRef.current() })) : null), [session, hub, team, setAway]);
 
   useEffect(() => {
     if (!session || stored.def.kind !== "team") return undefined;
@@ -310,11 +313,28 @@ export function ShellHost({ stored, open, onSignedOut, onHub, hub: given, initia
   // the Personal Space on this computer, so a Team Space can offer "use the same AI account" (never copied without a yes)
   const personalCall = useMemo(() => { const p = catalogue.find((item) => item.def.kind === "personal" && item.def.spaceId !== stored.def.spaceId && isLoopbackUrl(item.baseUrl)); return p ? createCapCaller({ baseUrl: p.baseUrl, token: () => p.token }) : null; }, [catalogueKey, stored.def.spaceId]);
   // what needs me (replies, mentions, held approvals, alerts) and an update that is ready are persisting notices in the top bar's slot; pressing one opens what it is about
+  // in the desktop app the same notices also reach the operating system's banner while the window is not in front ("<Space> needs you", no content), and the dock or taskbar badge shows the
+  // Needs you count
+  const shellOs = useMemo(() => osShell(), []);
+  // the kinds the person keeps off the desktop ("Notify me on" without Desktop): no banner for them
+  const offDesktop = useRef<ReadonlySet<string>>(new Set());
+  useEffect(() => {
+    if (!session || !shellOs) return undefined;
+    const q = session.hooks.capQuery<{ kinds: readonly { key: string; mine?: { channels?: readonly string[] } }[] }>("notifications.kinds.list");
+    const read = (): void => { const s = q.getSnapshot(); if (s.status === "ready") offDesktop.current = new Set(s.data.kinds.filter((k) => k.mine?.channels !== undefined && !k.mine.channels.includes("desktop")).map((k) => k.key)); };
+    const off = q.subscribe(read);
+    read();
+    return off;
+  }, [session, shellOs]);
   const banners = useMemo<NotificationNoticesProps | null>(() => (session ? {
     query: (cap, input) => session.hooks.capQuery(cap, input),
     call: (cap, input) => session.call(cap, input),
     open: (t) => { if (t.subject) session.runtime.open({ subject: t.subject }); else if (t.place) hub.go(t.place as PlaceId); },
-  } : null), [session, hub]);
+    ...(shellOs ? { os: { view: () => ({ focused: windowFocused(), address: stored.baseUrl, spaceName: stored.def.name, now: Date.now(), allows: (kind) => !offDesktop.current.has(kind) }), show: (b) => shellOs.notify(b) } } : {}),
+  } : null), [session, hub, shellOs, stored.baseUrl, stored.def.name]);
+  useEffect(() => { shellOs?.badge(needsYou); }, [shellOs, needsYou]);
+  // signed out, or another Space or person (the shell is keyed by both, so it unmounts): the dock keeps no one's count
+  useEffect(() => () => { shellOs?.badge(0); }, [shellOs]);
   useNotificationNotices(banners);
   const updateSource = useMemo<UpdateSource | null>(() => {
     const u = desktopUpdates();
@@ -339,7 +359,7 @@ export function ShellHost({ stored, open, onSignedOut, onHub, hub: given, initia
   if (narrow) return wrap(<Suspense fallback={<View style={{ flex: 1, backgroundColor: "var(--win)" as string }} />}><PhoneHost session={session} location={{ place: location.place, hash: location.hash }} needsYou={needsYou} registerGo={registerGo} onSignOut={signOut} {...(onSwitchSpace?{onSwitchSpace:selectSpace}:{})} {...(onAddSpace?{onAddSpace}:{})} /></Suspense>);
   return wrap(
     <>
-      <Shell hub={hub} {...(teamProp ? { team: teamProp } : {})} {...(session ? { me: { id: session.me.id, name: session.me.name } } : {})} onOpenMe={() => hub.go("settings", "profile")} {...(runsOnProp ? { runsOn: runsOnProp } : {})} {...(theme?{theme}:{})} {...(onSwitchSpace?{onSwitchSpace:selectSpace}:{})} renderPlace={renderPlace} renderNewTab={renderNewTab} onSearch={() => setSearchOpen(true)} onSpaceAction={(a) => { if (a === "sign-out") signOut(); else if(a==='add')onAddSpace?.(); }} {...(phone ? { phone: { device: phone.device, data: phone.data } } : {})} {...(purge ? { purge } : {})} />
+      <Shell hub={hub} {...(teamProp ? { team: teamProp } : {})} {...(session ? { me: { id: session.me.id, name: session.me.name } } : {})} onOpenMe={() => hub.go("settings", PROFILE_HASH)} {...(runsOnProp ? { runsOn: runsOnProp } : {})} {...(theme?{theme}:{})} {...(onSwitchSpace?{onSwitchSpace:selectSpace}:{})} renderPlace={renderPlace} renderNewTab={renderNewTab} onSearch={() => setSearchOpen(true)} onSpaceAction={(a) => { if (a === "sign-out") signOut(); else if(a==='add')onAddSpace?.(); }} addsSpace={onAddSpace !== undefined} {...(phone ? { phone: { device: phone.device, data: phone.data } } : {})} {...(purge ? { purge } : {})} />
       {searchOpen && search ? <CmdK data={search} onClose={() => setSearchOpen(false)} onTiming={(name, ms) => { if (name === "local" && session) speed.record(session.runtime.space.id, "search", ms); }} /> : null}
     </>
   );

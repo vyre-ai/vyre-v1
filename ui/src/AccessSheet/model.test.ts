@@ -144,6 +144,15 @@ test("a Vault pick that can only use it says so, and the value stays out of chat
   assert.match(lines[lines.length - 1] ?? "", /The value is never shown or sent in chat/);
 });
 
+test("a Vault item given to an agent says that everyone who can ask the agent can use it through the agent", () => {
+  const one = shareLines({ type: "vault", name: "GHL API key", ownerName: "Irfad", picks: [sara("use", "agent", "Scout")] }).map((l) => l.text);
+  assert.ok(one.includes("Everyone who can ask Scout can use it through Scout."), JSON.stringify(one));
+  const two = shareLines({ type: "vault", name: "GHL API key", ownerName: "Irfad", picks: [sara("use", "agent", "Scout"), sara("use", "agent", "Dex")] }).map((l) => l.text);
+  assert.ok(two.includes("Everyone who can ask Scout and Dex can use it through them."), JSON.stringify(two));
+  assert.equal(shareLines({ type: "vault", name: "GHL API key", ownerName: "Irfad", picks: [sara("use", "person", "Dana Fox")] }).some((l) => l.id === "vault-agents"), false, "no agent, no line");
+  assert.equal(shareLines({ type: "file", name: "Q4", ownerName: "Irfad", picks: [sara("view", "agent", "Scout")] }).some((l) => l.id === "vault-agents"), false, "only for the Vault");
+});
+
 test("sharing an agent: the pays-with-their-own-account note, named and never guessed, and no legend with nobody picked", () => {
   const picked = shareLines({ type: "agent", name: "Ember", ownerName: "Irfad", picks: [sara("use", "person", "Omar Reyes")] }).map((l) => l.text);
   assert.equal(picked[0], "Omar Reyes can use Ember in Omar Reyes's chats, tasks and automations.");

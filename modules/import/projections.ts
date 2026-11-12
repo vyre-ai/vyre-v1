@@ -29,8 +29,10 @@ export interface ImportCtx {
   db: Db;
   emit(name: EventName, subject: string, payload: unknown): unknown;
   call?(cap: string, input: unknown, opts?: { idempotencyKey?: string }): Promise<unknown>;
+  /** The host decision for the caller on one thing (the preview uses it to say which rows the importer may not change). */
+  authorize?(action: { perm: string | null; level: "view" | "use" | "edit" | "manage"; cap?: string }, resource: { type: string; id: string | null }): { effect: string };
   http?(url: string, init?: { method?: string; headers?: Record<string, string>; body?: string }): Promise<{ status: number; text(): Promise<string> }>;
-  log: { warn(msg: string, attrs?: Record<string, unknown>): void };
+  log: { warn(msg: string, attrs?: Record<string, unknown>): void; error?(msg: string, attrs?: Record<string, unknown>): void };
 }
 
 type Row = Record<string, unknown>;
@@ -63,6 +65,9 @@ const SCHEMA = readFileSync(new URL("./migrations/0001_import.sql", import.meta.
 const TOOLS = readFileSync(new URL("./migrations/0002_tools.sql", import.meta.url), "utf8")
   .split("\n").filter((l) => !l.trimStart().startsWith("--")).join("\n")
   .split(";").map((s) => s.trim()).filter((s) => s.length > 0);
+const UNFINISHED = readFileSync(new URL("./migrations/0004_unfinished.sql", import.meta.url), "utf8")
+  .split("\n").filter((l) => !l.trimStart().startsWith("--")).join("\n")
+  .split(";").map((s) => s.trim()).filter((s) => s.length > 0);
 const MANAGE = readFileSync(new URL("./migrations/0003_manage.sql", import.meta.url), "utf8")
   .split("\n").filter((l) => !l.trimStart().startsWith("--")).join("\n")
   .split(";").map((s) => s.trim()).filter((s) => s.length > 0);
@@ -74,6 +79,7 @@ export function ensure(db: Db): void {
   try { db.all("SELECT key FROM import_key WHERE key = ?", "probe"); } catch { for (const stmt of SCHEMA) db.run(stmt); }
   try { db.all("SELECT messageId FROM import_message_tool WHERE messageId = ?", "probe"); } catch { for (const stmt of TOOLS) db.run(stmt); }
   try { db.all("SELECT deletedAt FROM import_conversation WHERE conversationId = ?", "probe"); } catch { for (const stmt of MANAGE) db.run(stmt); }
+  try { db.all("SELECT runId FROM import_unfinished WHERE runId = ?", "probe"); } catch { for (const stmt of UNFINISHED) db.run(stmt); }
   ready.add(db);
 }
 
@@ -130,7 +136,7 @@ export interface RowError { row: number; column?: string | undefined; message: s
 export interface Plan {
   table: string; type: string; mapping: Mapping[]; match: string[]; onMatch: "update" | "skip" | "create"; createFields: boolean; runAutomations: boolean;
   newFields: NewField[];
-  /** One letter per data row: c create, u update, s skip, e error. */
+  /** One letter per data row: c create, u update, s skip, e error, r refused (matches a record the importer may not edit). */
   actions: string;
 }
 export type State = "staged" | "running" | "done" | "failed" | "canceled";

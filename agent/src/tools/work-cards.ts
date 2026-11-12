@@ -2,6 +2,7 @@
 // a Routine, a handoff, a computer, a send waiting on a yes) is noted against its turn here, and the bridge puts the cards under the agent's reply when the turn ends, so several from one turn are one group
 // under the words, not a pile. The card carries only a name and where it lives; its state (running, done, waiting on you) and whether the reader may see it are read by the app when it draws the card.
 
+import { holdTitle } from "../../../lib/hold-words.ts";
 /** The link_card block fields a work card fills (the agent layer cannot import ui; the shape is the link_card block's). */
 export interface WorkCard {
   icon: string; lead: string; title: string; target: { type: string; id: string }; via?: string; /** one card per thing: a record changed twice is one card */ key: string;
@@ -92,7 +93,8 @@ export function heldCard(cap: string, taskId: string, input?: unknown): WorkCard
   const i = rec(input);
   const send = /(^|\.)send($|_)/.test(cap) || cap.startsWith("mail.") || cap === "chat.message_person";
   const to = Array.isArray(i["to"]) ? s(rec((i["to"] as unknown[])[0])["address"]) : "";
-  const title = send ? clip(first(i["subject"], to ? `To ${to}` : "", i["body"], "Message to send")) : clip(cap.replace(/[._]/g, " "));
+  // anything else reads in the held act's own words, as the task and the card say it ("Open harborquotes.com"), never the capability's name (lane f-gate, 12 Nov: "automations read link")
+  const title = send ? clip(first(i["subject"], to ? `To ${to}` : "", i["body"], "Message to send")) : clip(holdTitle(cap, input));
   return { key: `task:${taskId}`, icon: "approval", lead: send ? "Message" : "Approval", title, target: { type: "task", id: taskId } };
 }
 

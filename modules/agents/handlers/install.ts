@@ -166,7 +166,7 @@ export async function skillsGrant(ctx: AgentsCtx, input: In) {
   if (ctx.call) {
     try {
       if (off) await ctx.call("access.unshare", { resource, subject, source: "skill:grant" });
-      else await ctx.call("access.share", { resource, subject, level: input.level, source: "skill:grant", idempotencyKey: `skill-grant:${o.id}:${a!.id}:${input.level}` }, { idempotencyKey: `skill-grant:${o.id}:${a!.id}:${input.level}` });
+      else { const add = globalThis.crypto.randomUUID(); await ctx.call("access.share", { resource, subject, level: input.level, source: "skill:grant", idempotencyKey: `skill-grant:${o.id}:${a!.id}:${input.level}:${add}` }, { idempotencyKey: `skill-grant:${o.id}:${a!.id}:${input.level}:${add}` }); }
     } catch (e) { ctx.log.warn("agents: the skill grant could not be written to access", { error: e instanceof Error ? e.message : String(e) }); }
   }
   setGrant(ctx, o.id, a!.id, off ? null : (input.level as Level), me(ctx));

@@ -53,12 +53,35 @@ export function forgetMentions(ctx: Pick<ChatCtx, "db">, what: { message?: strin
   if (what.person !== undefined) ctx.db.run('DELETE FROM chat_mention WHERE "person" = ?', what.person);
 }
 
-/** Keeps who a message mentioned, by person id: the composer's chips. The reply-time read matches on these, never on a name in the words. */
+/** Keeps who a message mentioned, by id: the composer's chips, people and agents. The reply-time read matches on these (people only), never on a name in the words. */
 export function recordMentions(ctx: Pick<ChatCtx, "db" | "now">, messageId: string, threadId: string, mentions: ReadonlyArray<{ kind: string; id: string }>): void {
-  const people = [...new Set(mentions.filter((m) => m.kind === "person").map((m) => m.id))];
+  const people = [...new Set(mentions.filter((m) => m.kind === "person" || m.kind === "agent").map((m) => m.id))];
   if (people.length === 0) return;
   ensureMentionTable(ctx);
   for (const id of people) ctx.db.run('INSERT OR IGNORE INTO chat_mention ("message", "thread", "person", "at") VALUES (?, ?, ?, ?)', messageId, threadId, id, ctx.now());
+}
+
+/** Did this message @mention this person or agent with a chip (12 Nov: a "mentioned you" is only ever sent for a real mention)? */
+export function mentions(ctx: Pick<ChatCtx, "db">, messageId: string, id: string): boolean {
+  ensureMentionTable(ctx);
+  return ctx.db.all('SELECT 1 AS x FROM chat_mention WHERE "message" = ? AND "person" = ? LIMIT 1', messageId, id).length > 0;
+}
+
+/** The chips of each message, in the order they were kept: what chat.messages.list answers as `mentions`. */
+export function mentionsOf(ctx: Pick<ChatCtx, "db">, messageIds: readonly string[]): Map<string, Array<{ kind: "person" | "agent"; id: string }>> {
+  const out = new Map<string, Array<{ kind: "person" | "agent"; id: string }>>();
+  if (messageIds.length === 0) return out;
+  ensureMentionTable(ctx);
+  for (let i = 0; i < messageIds.length; i += 200) {
+    const part = messageIds.slice(i, i + 200);
+    for (const r of ctx.db.all(`SELECT "message", "person" FROM chat_mention WHERE "message" IN (${part.map(() => "?").join(", ")}) ORDER BY rowid`, ...part) as Row[]) {
+      const id = String(r["person"]);
+      const list = out.get(String(r["message"])) ?? [];
+      list.push({ kind: id.startsWith("usr_") ? "person" : "agent", id });
+      out.set(String(r["message"]), list);
+    }
+  }
+  return out;
 }
 
 export async function paceOfPerson(ctx: ChatCtx, input: { personId: string; threadId?: string }): Promise<{ replies: Pace; samples: number; notifies?: Notifies }> {

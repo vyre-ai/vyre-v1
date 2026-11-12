@@ -47,12 +47,12 @@ jobs:
           echo "bin=$d/docker-compose" >> "$GITHUB_OUTPUT"
       - name: python3 serves the test's release channel over 127.0.0.1 HTTP (install.heavy.test.sh)
         run: python3 --version
-      - name: The Linux install on real Docker, none skipped (scripts/install/linux/install.test.ts)
+      - name: The Linux install on real Docker, and the backup read through a running container while it writes, none skipped (scripts/install/linux/install.test.ts, install.round8.heavy.test.ts) and the damaged-database cycle end to end (host/tests/daemon.damaged-cycle.heavy.test.ts)
         env:
           VYRE_HEAVY_DOCKER: "1"
           VYRE_COMPOSE_BIN: ${{ steps.compose.outputs.bin }}
         run: |
           set -o pipefail
-          node --test --test-force-exit --test-timeout=1500000 --test-reporter=spec scripts/install/linux/install.test.ts 2>&1 | tee install-heavy.out
+          node --test --test-force-exit --test-timeout=1500000 --test-reporter=spec scripts/install/linux/install.test.ts scripts/install/linux/install.round8.heavy.test.ts host/tests/daemon.damaged-cycle.heavy.test.ts 2>&1 | tee install-heavy.out
           grep -E "^ℹ skipped 0$" install-heavy.out
           grep -E "^ℹ fail 0$" install-heavy.out

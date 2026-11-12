@@ -5,7 +5,7 @@ import fs from "node:fs";
 import http from "node:http";
 import { bare, buildQuery, containerBody, execBody, judge, networkBody, networkOf, SITE_ID, siteAllows, computerAllows } from "./policy.ts";
 import { COMPUTER_ID, HELPER_NAME_RE, computerBody, computerNet, computerNetworkBody, computerOf, helperBody, SBROWSER_NAME, SBROWSER_NET, sbrowserAllows, sbrowserBody, sbrowserNetworkBody, sbrowserOf } from "./computers-policy.ts";
-import { WS_AGENT, WS_INIT_NAME, WS_NET, workspaceAllows, workspaceBody, workspaceHelperOf, workspaceInitBody, workspaceNetworkBody, workspaceOf, workspaceVolumeBody } from "./workspaces-policy.ts";
+import { WS_AGENT, WS_INIT_NAME, WS_NET, WS_SHARED_NET, workspaceAllows, workspaceBody, workspaceHelperOf, workspaceInitBody, workspaceNetworkBody, workspaceOf, workspaceVolumeBody } from "./workspaces-policy.ts";
 import { sha256Hex } from "../../../kernel/src/log/hash.ts";
 
 export interface RunnerOptions { dockerSocket: string; listen: string; token: string; log?: (line: string) => void }
@@ -61,7 +61,8 @@ export function createSitesRunner(o: RunnerOptions): { server: http.Server; clos
   }
 
   /** A workspace's network is named for its agent: vyre-wsnet- and the first 16 hex of the agent id's sha-256 (modules/terminal/workspace.ts workspaceNetworkName). */
-  const wsNetOk = (agent: string, net: string): boolean => WS_NET.test(net) && net === `vyre-wsnet-${sha256Hex(agent).slice(0, 16)}`;
+  // a workspace is made on the shared workspaces' network, or (as before 12 Nov) on its own
+  const wsNetOk = (agent: string, net: string): boolean => net === WS_SHARED_NET || (WS_NET.test(net) && net === `vyre-wsnet-${sha256Hex(agent).slice(0, 16)}`);
 
   async function labelsOf(id: string): Promise<Record<string, string> | null> {
     const r = await docker("GET", `/containers/${encodeURIComponent(id)}/json`, null, {}, null);
@@ -79,6 +80,15 @@ export function createSitesRunner(o: RunnerOptions): { server: http.Server; clos
     if (!v.ok) { say(`refused ${label}: ${v.why}`); refuse(res, v.status, `Refused by the sites runner: ${v.why}.`); return; }
     const fwdHeaders: http.OutgoingHttpHeaders = { ...(req.headers["content-type"] ? { "content-type": req.headers["content-type"] } : {}) };
     if (v.kind === "plain") { await docker(method, `${url.pathname}${url.search}`, method === "GET" || method === "HEAD" || method === "DELETE" ? null : await readBody(req, 1024 * 1024) ?? Buffer.alloc(0), fwdHeaders, res); return; }
+    if (v.kind === "network-subnets") {
+      const r = await docker("GET", url.pathname, null, {}, null);
+      let out: Array<{ IPAM: { Config: Array<{ Subnet: string }> } }> = [];
+      try { out = (JSON.parse(r.body.toString("utf8")) as Array<{ IPAM?: { Config?: Array<{ Subnet?: string }> } }>).map((n) => ({ IPAM: { Config: (n.IPAM?.Config ?? []).filter((c) => typeof c.Subnet === "string").map((c) => ({ Subnet: c.Subnet as string })) } })); } catch { /* not JSON: an empty list */ }
+      const b = Buffer.from(JSON.stringify(out));
+      res.writeHead(r.status, { "content-type": "application/json", "content-length": b.length });
+      res.end(b);
+      return;
+    }
     if (v.kind === "build") {
       const b = buildQuery(url.searchParams);
       if ("why" in b) { say(`refused ${label}: ${b.why}`); refuse(res, 403, `Refused by the sites runner: ${b.why}.`); return; }
@@ -134,6 +144,26 @@ export function createSitesRunner(o: RunnerOptions): { server: http.Server; clos
       await docker("POST", `${url.pathname}`, data, { "content-type": "application/json", "content-length": data.length }, res);
       return;
     }
+    if (v.kind === "network-disconnect") {
+      const raw = await readBody(req, 64 * 1024);
+      let parsed: { Container?: unknown } = {};
+      try { parsed = JSON.parse((raw ?? Buffer.alloc(0)).toString("utf8") || "{}") as { Container?: unknown }; } catch { parsed = {}; }
+      const who = parsed?.Container;
+      const labels = typeof who === "string" ? await labelsOf(who) : null;
+      if (!labels || labels["vyre.ingress"] !== "1") { say(`refused leaving ${v.network}`); refuse(res, 403, "Refused by the sites runner: only the ingress leaves a site's network."); return; }
+      // never while it serves (fifth look V4): no container of a site may be on the network when the ingress leaves it
+      const inspected = await docker("GET", `/networks/${v.network}`, null, {}, null);
+      let members: string[] = [];
+      try { members = Object.keys((JSON.parse(inspected.body.toString("utf8")) as { Containers?: Record<string, unknown> }).Containers ?? {}); } catch { members = []; }
+      if (inspected.status !== 200) { refuse(res, 403, "Refused by the sites runner: the site's network could not be read."); return; }
+      for (const id of members) {
+        const l = await labelsOf(id);
+        if (l === null || l["vyre.ingress"] !== "1") { say(`refused leaving ${v.network}: in use`); refuse(res, 403, "Refused by the sites runner: a site's container is on that network, so the ingress stays."); return; }
+      }
+      const data = Buffer.from(JSON.stringify({ Container: who, Force: false }));
+      await docker("POST", url.pathname, data, { "content-type": "application/json", "content-length": data.length }, res);
+      return;
+    }
     if (v.kind === "network-create" || v.kind === "network-connect") {
       const raw = await readBody(req, 64 * 1024);
       let parsed: unknown;
@@ -142,13 +172,13 @@ export function createSitesRunner(o: RunnerOptions): { server: http.Server; clos
       if (v.kind === "network-create") {
         const wantsComputer = typeof parsed === "object" && parsed !== null && COMPUTER_ID.test(String(((parsed as { Labels?: Record<string, unknown> }).Labels ?? {})["vyre.computer"] ?? ""));
         const wantsSbrowser = typeof parsed === "object" && parsed !== null && ((parsed as { Labels?: Record<string, unknown> }).Labels ?? {})["vyre.sbrowser"] === "1";
-        const wantsWorkspace = typeof parsed === "object" && parsed !== null && WS_AGENT.test(String(((parsed as { Labels?: Record<string, unknown> }).Labels ?? {})["vyre.workspace"] ?? ""));
+        const wantsWorkspace = typeof parsed === "object" && parsed !== null && (WS_AGENT.test(String(((parsed as { Labels?: Record<string, unknown> }).Labels ?? {})["vyre.workspace"] ?? "")) || (parsed as { Name?: unknown }).Name === WS_SHARED_NET);
         const n = wantsSbrowser ? sbrowserNetworkBody(parsed) : wantsWorkspace ? workspaceNetworkBody(parsed) : wantsComputer ? computerNetworkBody(parsed) : networkBody(parsed);
         if ("why" in n) { say(`refused network: ${n.why}`); refuse(res, 403, `Refused by the sites runner: ${n.why}.`); return; }
         body = n.body;
       } else {
         // nothing joins a workspace's network but its own container, at create: no route into a workspace from vyred or Caddy
-        if (WS_NET.test(v.network)) { say(`refused joining ${v.network}`); refuse(res, 403, "Refused by the sites runner: nothing joins an agent workspace's network."); return; }
+        if (WS_NET.test(v.network) || v.network === WS_SHARED_NET) { say(`refused joining ${v.network}`); refuse(res, 403, "Refused by the sites runner: nothing joins an agent workspace's network."); return; }
         // only the site's own containers and the ingress (vyred and Caddy, labelled vyre.ingress) join a site's network
         const who = (parsed as { Container?: unknown })?.Container;
         const labels = typeof who === "string" ? await labelsOf(who) : null;

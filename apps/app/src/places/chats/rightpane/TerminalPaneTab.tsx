@@ -1,4 +1,5 @@
-// The Terminal tab of the chat's right pane (rc.8): a terminal on the machine this chat runs on. The first open picks the session already there (the newest of this host) or starts one; the host chip
+// The Terminal tab of the chat's right pane (rc.8): a terminal in the chat's agent's workspace (12 Nov: the same sessions its commands use), else on the machine this chat runs on. The first open picks
+// the session already there or starts one; the host chip
 // switches to any other computer. Everything else is the terminal tab of the terminal place, drawn in the pane.
 import { useEffect, useMemo, useState } from "react";
 import type { ReactElement } from "react";
@@ -8,21 +9,33 @@ import type { TerminalData } from "../terminal/data.ts";
 import { TerminalTab } from "../terminal/TerminalTab.tsx";
 import { loadHosts, openHostCall, thisDeviceId } from "../terminal/hosts.ts";
 import type { HostChoice } from "../terminal/hosts.ts";
-import { errorWords } from "../mounts/live.ts";
+import { errorCode, errorWords } from "../mounts/live.ts";
 import { collect } from "../conversation/model.ts";
 import { Icon } from "./parts.tsx";
 
 type Row = CapMap["terminal.list"]["out"]["terminals"][number];
 
-/** The session this chat's pane starts on: the newest live one on the lead agent's computer, else on this computer. */
-export function startSession(rows: readonly Row[], agentComputer: string | undefined): Row | undefined {
+/**
+ * The session this chat's pane starts on: in the lead agent's workspace, the agent's own tab (the one its commands go to), else its newest tab there; else the newest live one on this computer. An agent
+ * computer named by its id alone (an older desktop) is matched by that id.
+ */
+export function startSession(rows: readonly Row[], agent: { agentId?: string; computerId?: string } | string | undefined): Row | undefined {
+  const who = typeof agent === "string" ? { computerId: agent } : agent ?? {};
   const live = rows.filter((r) => r.state !== "exited").sort((a, b) => b.lastActiveAt - a.lastActiveAt);
-  return (agentComputer ? live.find((r) => r.host === "agent_computer" && r.computerId === agentComputer) : undefined) ?? live.find((r) => r.host === "device");
+  const theirs = live.filter((r) => r.host === "agent_computer" && ((who.agentId !== undefined && r.agentId === who.agentId) || (who.computerId !== undefined && r.computerId === who.computerId)));
+  return theirs.find((r) => r.by === undefined || r.by.kind === "agent") ?? theirs[0] ?? live.find((r) => r.host === "device");
 }
 
 /** A name for the new session, and where it starts (a helper's terminal is named for the helper and starts in its workspace). */
 export interface OpenOpts { name?: string; cwd?: string }
 export type Opened = { s: "opened"; terminalId: string } | { s: "choose"; hosts: HostChoice[] } | { s: "none" };
+
+/** Why a workspace would not start, from the server (modules/terminal/handlers/sessions.ts unavailable): only these mean it cannot run on this server at all (no image, no machine
+ * with Docker for it). Waiting for room, an agent in Trash, Docker not answering for a moment, or anything unnamed keeps its own line, so the pane never quietly opens a shell
+ * somewhere the agent does not work (r-term P1, 12 Nov). */
+const CANNOT_RUN_HERE = new Set(["image_missing", "no_place"]);
+const cannotRunHere = (e: unknown): boolean => errorCode(e) === "provider.unavailable" && CANNOT_RUN_HERE.has(String((e as { details?: { reason?: unknown } } | null)?.details?.reason ?? ""));
+
 
 /**
  * What Open terminal does. The chat's agent computer when it has one. Otherwise this computer, named by its device (a terminal on a computer must say which); when this one is not a computer
@@ -30,6 +43,13 @@ export type Opened = { s: "opened"; terminalId: string } | { s: "choose"; hosts:
  */
 export async function openHere(d: Pick<TerminalData, "call" | "newKey" | "agent" | "team" | "nameOf" | "clock">, opts: OpenOpts = {}): Promise<Opened> {
   let host: HostChoice | undefined;
+  // the chat's agent has a workspace this person may enter: the terminal opens there, in the same sessions the agent's commands use. A server that cannot run one at all (no image,
+  // no machine with Docker) is not where the pane stops: it goes on to this computer or the hosts there are, and says so when there are none (Personal first hour, 12 Nov).
+  // Waiting for room, an agent in Trash or Docker not answering for a moment is the workspace's own answer and is shown.
+  if (d.agent && (await inWorkspace(d, d.agent.agentId))) {
+    try { return { s: "opened", terminalId: await openOn(d, { key: `agent:${d.agent.agentId}`, label: "", kind: "agent", online: true, agentId: d.agent.agentId }, opts) }; }
+    catch (e) { if (!cannotRunHere(e)) throw e; }
+  }
   if (d.agent?.computerId) host = { key: `agent:${d.agent.computerId}`, label: "", kind: "agent", online: true, agentId: d.agent.agentId, computerId: d.agent.computerId };
   else {
     const deviceId = await thisDeviceId(d.call);
@@ -40,6 +60,14 @@ export async function openHere(d: Pick<TerminalData, "call" | "newKey" | "agent"
     return hosts.length > 0 ? { s: "choose", hosts } : { s: "none" };
   }
   return { s: "opened", terminalId: await openOn(d, host, opts) };
+}
+
+/** Does this agent have a workspace this person may open (terminal.workspace: running, asleep or not made yet, and theirs to enter)? */
+async function inWorkspace(d: Pick<TerminalData, "call">, agentId: string): Promise<boolean> {
+  try {
+    const w = (await d.call("terminal.workspace", { agentId })) as { state?: string; canAttach?: boolean } | undefined;
+    return w?.canAttach === true && w.state !== "unavailable";
+  } catch { return false; }
 }
 
 /** Open a session on one host and return its id. */
@@ -55,7 +83,7 @@ export function TerminalPaneTab({ data }: { data: TerminalData }): ReactElement 
   useEffect(() => {
     let live = true;
     void (data.call("terminal.list", {}) as Promise<CapMap["terminal.list"]["out"]>).then(
-      (o) => { if (live) setId(startSession(o.terminals, data.agent?.computerId)?.terminalId ?? null); },
+      (o) => { if (live) setId(startSession(o.terminals, data.agent)?.terminalId ?? null); },
       () => { if (live) setId(null); },
     );
     return () => { live = false; };

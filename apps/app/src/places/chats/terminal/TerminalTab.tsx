@@ -11,7 +11,7 @@ import type { TerminalHost, TerminalSource, TerminalViewProps } from "../../../.
 import { menuTrigger, useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
-import { errorWords, isRefusal, useLive, useOnline } from "../mounts/live.ts";
+import { errorCode, errorWords, isRefusal, useLive, useOnline } from "../mounts/live.ts";
 import { TextButton } from "../rightpane/parts.tsx";
 import { STARS_SCREEN, TAB_SCREEN } from "./data.ts";
 import type { TerminalData } from "./data.ts";
@@ -29,7 +29,7 @@ type StarsOut = CapMap["stars.list"]["out"];
 type Attach =
   | { status: "loading" }
   | { status: "ready"; replay: string; source: TerminalSource }
-  | { status: "locked" }
+  | { status: "locked"; error: unknown }
   | { status: "error"; message: string };
 
 /** What ui/Terminal is given for one session: its name and host, whether it still runs, the scrollback attach returned and the live output after it. */
@@ -38,6 +38,16 @@ export function sessionProps(row: TerminalRow, o: { replay: string; source?: Ter
     sessionId: row.terminalId, title: row.name, host: uiHost(row.host), hostLabel: chipLabel(row), state: uiState(row.state), output: o.replay, starred: o.starred,
     ...(o.source ? { source: o.source } : {}), ...(o.note !== undefined ? { note: o.note } : {}),
   };
+}
+
+/**
+ * What a refused attach shows (release gate, 12 Nov): the server shell's lock only for a session on the Space server, the one that needs server.services. Any other session (an agent's
+ * workspace, a computer) shows the refusal's own words and Try again, so a person is never told to ask for a permission that has nothing to do with it; one the server cannot find says so.
+ */
+export function attachRefusal(e: unknown, host: string): { kind: "locked" } | { kind: "error"; message: string } {
+  if (host === "space_server") return { kind: "locked" };
+  if (errorCode(e) === "permission.not_found" || errorCode(e) === "validation.not_found") return { kind: "error", message: "This terminal is no longer available, or it is not one you can open. Open the agent's Terminal again from its chat." };
+  return { kind: "error", message: errorWords(e, "This terminal could not be opened.") };
 }
 
 /** The key of the host a session runs on, as the host list names it. */
@@ -72,7 +82,7 @@ export function TerminalTab({ data, terminalId }: { data: TerminalData; terminal
     setAtt({ status: "loading" });
     void attach(deps, terminalId).then(
       (a) => { if (live) setAtt({ status: "ready", replay: a.replay, source: a.source }); },
-      (e: unknown) => { if (live) setAtt(isRefusal(e) ? { status: "locked" } : { status: "error", message: errorWords(e, "Could not attach to this terminal.") }); },
+      (e: unknown) => { if (live) setAtt(isRefusal(e) ? { status: "locked", error: e } : { status: "error", message: errorWords(e, "Could not attach to this terminal.") }); },
     );
     return () => { live = false; };
   }, [deps, terminalId, again]);
@@ -135,6 +145,20 @@ export function TerminalTab({ data, terminalId }: { data: TerminalData; terminal
   ];
   const trigger = menuTrigger((x, y) => menu.show(items, x, y, "context", { label: "Terminal" }));
 
+  // a refused attach on a session that is not the server shell is shown as an error with its own words, not as the server's lock
+  const refusal = att.status === "locked" ? attachRefusal(att.error, row.host) : null;
+  if (refusal?.kind === "error") {
+    return (
+      <View testID="terminal-tab" style={st.root} {...trigger}>
+        <View testID="terminal-error" accessibilityRole="alert" style={st.err}>
+          <Text style={st.errTitle}>This terminal did not open</Text>
+          <Text style={st.errText}>{refusal.message}</Text>
+          <TextButton label="Try again" primary onPress={onGap} testID="terminal-retry" />
+        </View>
+        {menu.element}
+      </View>
+    );
+  }
   if (att.status === "locked" || serverLocked) {
     return (
       <View testID="terminal-tab" style={st.root} {...trigger}>

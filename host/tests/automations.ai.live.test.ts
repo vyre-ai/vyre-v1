@@ -15,7 +15,11 @@ import { CODE_ROOT, startDaemon } from "../src/daemon/daemon.ts";
 import type { Daemon } from "../src/daemon/daemon.ts";
 
 const caddyFetch: FetchFn = () => Promise.resolve({ ok: true, status: 200, headers: { get: () => null }, text: () => Promise.resolve('{"apps":{"http":{}}}') });
+// the Vault's key check asks the stand-in vendor for real, as it asks a real provider: a Space account then lists the models it serves (the runner's "accept" check lists none)
+delete process.env["VYRE_TEST_KEY_CHECK"];
 const KEY = "sk-test-aistep-0123456789abcdef"; // secret-scan: fake
+/** An agent with a model, as a person sets one up: an AI step runs on its agent's model (a step with no model runs on the key's default: modules/engine/first-model.ts). */
+const writer = async (d: Daemon, tag: string, model = "openai/gpt-4o-mini"): Promise<string> => String((await ok(d, "agents.create", { idempotencyKey: `ai-writer-${tag}`, name: `Writer ${tag}`, role: "You write short answers.", model, computer: false })).agent.agentId);
 
 function seededDir(): string {
   const core = bootCore();
@@ -91,7 +95,8 @@ test("a Personal AI step answers on its owner's own key, with no tools, and the 
   try {
     await unlock(w.d);
     await ok(w.d, "providers.add", { idempotencyKey: "ai-mine", providerKey: "openai", connection: "api_key", apiKey: KEY, scope: "mine" });
-    const made = await ok(w.d, "automations.create", { idempotencyKey: "ai-personal", name: "Say hello", definition: { triggers: [{ key: "manual" }], nodes: [{ id: "ask", key: "ai", input: { prompt: "Say hello to the person in the input.", inputs: { name: "Dana" } } }] } });
+    const agentId = await writer(w.d, "personal");
+    const made = await ok(w.d, "automations.create", { idempotencyKey: "ai-personal", name: "Say hello", definition: { triggers: [{ key: "manual" }], nodes: [{ id: "ask", key: "ai", input: { agentId, prompt: "Say hello to the person in the input.", inputs: { name: "Dana" } } }] } });
     const id = String(made.automation.id);
     const on = await call(w.d, "automations.set_enabled", { automationId: id, enabled: true });
     assert.equal(on.status, 200, JSON.stringify(on.data));
@@ -106,10 +111,11 @@ test("a Personal AI step answers on its owner's own key, with no tools, and the 
     assert.match(JSON.stringify(sent.messages), /Say hello to the person in the input\./);
     assert.match(JSON.stringify(sent.messages), /Dana/, "the mapped input is in the prompt");
     assert.ok(!sent.tools || sent.tools.length === 0, "the model was offered no tools");
+    assert.equal((sent as { model?: string }).model, "gpt-4o-mini", "the step runs on its agent's model");
     assert.equal(w.v.auth[0], `Bearer ${KEY}`, "the key reached the vendor");
     noKey(await everything(w.d, runId, id), "the run, step log, definition, kept turn or usage");
     const usage = await ok(w.d, "engine.usage.query", { by: "agent" });
-    assert.deepEqual(usage.rows.map((r: { key: string }) => r.key), ["step"]);
+    assert.deepEqual(usage.rows.map((r: { key: string }) => r.key), [agentId], "counted to the agent it ran as");
     assert.equal(usage.totals.turns, 1);
     // a step test (sandbox) uses the recorded sample and asks nothing
     const tested = await ok(w.d, "automations.test", { automationId: id });
@@ -125,7 +131,8 @@ test("an output schema is enforced: a wrong answer fails the step by name and a 
     await unlock(w.d);
     await ok(w.d, "providers.add", { idempotencyKey: "ai-mine2", providerKey: "openai", connection: "api_key", apiKey: KEY, scope: "mine" });
     const schema = { type: "object", required: ["score"], properties: { score: { type: "integer", minimum: 0, maximum: 10 } } };
-    const made = await ok(w.d, "automations.create", { idempotencyKey: "ai-schema", name: "Score", definition: { triggers: [{ key: "manual" }], nodes: [{ id: "ask", key: "ai", title: "Scorer", input: { prompt: "Score it", outputSchema: schema }, onError: { mode: "fail" } }] } });
+    const agentId = await writer(w.d, "schema");
+    const made = await ok(w.d, "automations.create", { idempotencyKey: "ai-schema", name: "Score", definition: { triggers: [{ key: "manual" }], nodes: [{ id: "ask", key: "ai", title: "Scorer", input: { agentId, prompt: "Score it", outputSchema: schema }, onError: { mode: "fail" } }] } });
     const id = String(made.automation.id);
     await ok(w.d, "automations.set_enabled", { automationId: id, enabled: true });
     w.v.script.push({ text: '{"score": 42}' });
@@ -147,9 +154,10 @@ test("a reviewer holds the answer as a task; accepting it lets the Run go on wit
   try {
     await unlock(w.d);
     await ok(w.d, "providers.add", { idempotencyKey: "ai-mine3", providerKey: "openai", connection: "api_key", apiKey: KEY, scope: "mine" });
+    const agentId = await writer(w.d, "review");
     const made = await ok(w.d, "automations.create", {
       idempotencyKey: "ai-review", name: "Review me",
-      definition: { triggers: [{ key: "manual" }], nodes: [{ id: "ask", key: "ai", input: { prompt: "Draft it" }, ai: { reviewer: { kind: "person", id: "usr_olivia" } } }] },
+      definition: { triggers: [{ key: "manual" }], nodes: [{ id: "ask", key: "ai", input: { agentId, prompt: "Draft it" }, ai: { reviewer: { kind: "person", id: "usr_olivia" } } }] },
     });
     const id = String(made.automation.id);
     await ok(w.d, "automations.set_enabled", { automationId: id, enabled: true });
@@ -181,21 +189,21 @@ test("a Personal AI step with no account of its own is refused when turned on, a
   } finally { await w.stop(); }
 });
 
-test("a Space AI step runs as its service on a Space-shared key, and refuses a key that belongs to one person", async () => {
+test("a Space AI step runs as its service on the Space AI key, and refuses a key that belongs to one person", async () => {
   const w = await world();
   try {
     await unlock(w.d);
-    const folder = await ok(w.d, "vault.folders.create", { name: "AI keys", scope: "shared", idempotencyKey: "ai-folder" });
-    const team = await ok(w.d, "providers.add", { idempotencyKey: "ai-team", providerKey: "openai", connection: "api_key", apiKey: KEY, scope: "shared", name: "Team OpenAI", folderId: folder.folder.id });
-    const handle = String(team.provider.id);   // the place names a key by its provider id
     const mine = await ok(w.d, "providers.add", { idempotencyKey: "ai-own", providerKey: "openai", connection: "api_key", apiKey: `${KEY}-own`, scope: "mine", name: "My OpenAI" });
     const made = await ok(w.d, "automations.create", { idempotencyKey: "ai-space", name: "Team answer" });
     const id = String(made.automation.id);
     const serviceId = `svc_${id.slice(4)}`;
+    // the Space AI key: checked with the provider at once, which keeps its model list, and a step on it runs on the first model the key lists
+    const sk = await ok(w.d, "providers.space_key.set", { idempotencyKey: "ai-space-key", providerKey: "openai", apiKey: KEY });
+    assert.ok((sk.models as string[]).length > 0, JSON.stringify(sk));
+    const handle = String(sk.providerId);
     await ok(w.d, "automations.update", { automationId: id, definition: { triggers: [{ key: "manual" }], nodes: [{ id: "ask", key: "ai", input: { prompt: "Say hi" }, ai: { keyId: handle } }] } });
     await ok(w.d, "automations.promote", { automationId: id, confirm: true });
     await ok(w.d, "access.share", { idempotencyKey: "ai-share-space", resource: { type: "space", id: "spc_core" }, subject: { kind: "service", id: serviceId }, level: "view" });
-    await ok(w.d, "access.share", { idempotencyKey: "ai-share-key", resource: { type: "vault_item", id: String(team.provider.itemId) }, subject: { kind: "service", id: serviceId }, level: "use" });
     await ok(w.d, "automations.set_enabled", { automationId: id, enabled: true });
     w.v.script.push({ text: "Hi from the team key." });
     const runId = String((await ok(w.d, "automations.run", { automationId: id, idempotencyKey: "ai-space-run" })).runId);
@@ -230,12 +238,13 @@ test("a restricted record read by records.find follows the chat label rule into 
   try {
     await unlock(w.d);
     await ok(w.d, "providers.add", { idempotencyKey: "ai-lbl", providerKey: "openai", connection: "api_key", apiKey: KEY, scope: "mine" });
+    const agentId = await writer(w.d, "label");
     const secret = await ok(w.d, "records.create", { idempotencyKey: "lbl-secret", type: "note_board", fields: { title: "Client X settlement" } });
     const plain = await ok(w.d, "records.create", { idempotencyKey: "lbl-plain", type: "note_board", fields: { title: "Lunch order" } });
     await ok(w.d, "access.labels.set", { resource: { type: "record", id: secret.record.id }, label: "restricted" });
     const def = (title: string) => ({ triggers: [{ key: "manual" }], nodes: [
       { id: "find", key: "records.find", input: { type: "note_board", filter: { field: "title", op: "eq", value: title } }, next: ["ask"] },
-      { id: "ask", key: "ai", input: { prompt: "Summarise the notes.", inputs: { notes: "{{ steps.find.out.rows }}" } } },
+      { id: "ask", key: "ai", input: { agentId, prompt: "Summarise the notes.", inputs: { notes: "{{ steps.find.out.rows }}" } } },
     ] });
     const bad = String((await ok(w.d, "automations.create", { idempotencyKey: "ai-label-1", name: "Secret", definition: def("Client X settlement") })).automation.id);
     await ok(w.d, "automations.set_enabled", { automationId: bad, enabled: true });
@@ -254,5 +263,102 @@ test("a restricted record read by records.find follows the chat label rule into 
     assert.match(w.v.requests[0]!, /Lunch order/);
     assert.equal(w.v.requests[0]!.includes("settlement"), false);
     void plain;
+  } finally { await w.stop(); }
+});
+
+test("a step that runs as an agent uses that agent's model on the owner's key", async () => {
+  const w = await world();
+  try {
+    await unlock(w.d);
+    await ok(w.d, "providers.add", { idempotencyKey: "ai-mine-agent", providerKey: "openai", connection: "api_key", apiKey: KEY, scope: "mine" });
+    const agentId = String((await ok(w.d, "agents.create", { idempotencyKey: "ai-agent-model", name: "Writer", role: "You write short answers.", model: "openai/gpt-4o" })).agent.agentId);
+    const made = await ok(w.d, "automations.create", { idempotencyKey: "ai-as-agent", name: "As agent", definition: { triggers: [{ key: "manual" }], nodes: [{ id: "ask", key: "ai", input: { prompt: "Say hi.", agentId } }] } });
+    const id = String(made.automation.id);
+    assert.equal((await call(w.d, "automations.set_enabled", { automationId: id, enabled: true })).status, 200);
+    w.v.script.push({ text: "Hi." });
+    const runId = String((await ok(w.d, "automations.run", { automationId: id, idempotencyKey: "ai-as-agent-run" })).runId);
+    await finished(w.d, runId, "succeeded");
+    assert.equal((JSON.parse(w.v.requests.at(-1)!) as { model?: string }).model, "gpt-4o", "the agent's own model");
+  } finally { await w.stop(); }
+});
+
+test("an agent-less AI step on an API key that lists chat models runs on the default nobody chose: the balanced pick from the key's own list, never written to the step", async () => {
+  const w = await world();
+  try {
+    await unlock(w.d);
+    await ok(w.d, "providers.add", { idempotencyKey: "ai-mine-default", providerKey: "openai", connection: "api_key", apiKey: KEY, scope: "mine" });
+    const made = await ok(w.d, "automations.create", { idempotencyKey: "ai-default", name: "Default model", definition: { triggers: [{ key: "manual" }], nodes: [{ id: "ask", key: "ai", input: { prompt: "Say hi." } }] } });
+    const id = String(made.automation.id);
+    assert.equal((await call(w.d, "automations.set_enabled", { automationId: id, enabled: true })).status, 200);
+    w.v.script.push({ text: "Hi." });
+    const runId = String((await ok(w.d, "automations.run", { automationId: id, idempotencyKey: "ai-default-run" })).runId);
+    await finished(w.d, runId, "succeeded");
+    // the key lists gpt-4o-mini and gpt-4o; the balanced tier for OpenAI is the plain flagship (modules/engine/first-model.ts)
+    assert.equal((JSON.parse(w.v.requests.at(-1)!) as { model?: string }).model, "gpt-4o", "the default from the key's list");
+    assert.doesNotMatch(JSON.stringify((await ok(w.d, "automations.get", { automationId: id })).automation), /gpt-4o/, "the default is never written to the step");
+  } finally { await w.stop(); }
+});
+
+test("an agent-less AI step on an API key that lists no chat model fails its Run in plain words: nothing reaches the vendor, and the notice carries the words", async () => {
+  const w = await world();
+  try {
+    await unlock(w.d);
+    w.v.models.splice(0, w.v.models.length, "whisper-1", "dall-e-3", "text-embedding-3-small");   // a key that serves only speech, image and embedding models
+    await ok(w.d, "providers.add", { idempotencyKey: "ai-mine-nomodel", providerKey: "openai", connection: "api_key", apiKey: KEY, scope: "mine" });
+    const made = await ok(w.d, "automations.create", { idempotencyKey: "ai-nomodel", name: "No model", definition: { triggers: [{ key: "manual" }], nodes: [{ id: "ask", key: "ai", input: { prompt: "Say hi." } }] } });
+    const id = String(made.automation.id);
+    // nothing new is refused at turn-on tonight (rc.27 brings the model choice)
+    assert.equal((await call(w.d, "automations.set_enabled", { automationId: id, enabled: true })).status, 200);
+    const before = w.v.requests.length;
+    const runId = String((await ok(w.d, "automations.run", { automationId: id, idempotencyKey: "ai-nomodel-run" })).runId);
+    const done = await finished(w.d, runId, "failed");
+    const failed = JSON.stringify(done.steps);
+    assert.match(failed, /This AI step has no model\. Give it an agent that has a model, or set a model on its agent\./, failed);
+    assert.doesNotMatch(failed, /could not answer this step/);
+    assert.equal(w.v.requests.length, before, "nothing was sent");
+    const notes = await until("the failed-Run notice", 10_000, async () => {
+      const n = ((await ok(w.d, "notifications.list", { limit: 50 })).notifications as { kind?: string; title?: string; subject?: { id?: string } }[]).filter((x) => x.kind === "run.failed" && x.subject?.id === runId);
+      return n.length > 0 ? n : undefined;
+    });
+    assert.match(String(notes[0]?.title), /This AI step has no model/);
+  } finally { await w.stop(); }
+});
+
+test("a Space AI step that names an agent with a model starts its Run: a step row within 10 seconds", async () => {
+  const w = await world();
+  try {
+    await unlock(w.d);
+    const agentId = await writer(w.d, "space-agent");
+    const sk = await ok(w.d, "providers.space_key.set", { idempotencyKey: "ai-space-key-2", providerKey: "openai", apiKey: KEY });
+    const made = await ok(w.d, "automations.create", { idempotencyKey: "ai-space-agent", name: "Team agent answer" });
+    const id = String(made.automation.id);
+    await ok(w.d, "automations.update", { automationId: id, definition: { triggers: [{ key: "manual" }], nodes: [{ id: "ask", key: "ai", input: { agentId, prompt: "Say hi" }, ai: { keyId: String(sk.providerId) } }] } });
+    await ok(w.d, "automations.promote", { automationId: id, confirm: true });
+    await ok(w.d, "access.share", { idempotencyKey: "ai-share-space-2", resource: { type: "space", id: "spc_core" }, subject: { kind: "service", id: `svc_${id.slice(4)}` }, level: "view" });
+    await ok(w.d, "automations.set_enabled", { automationId: id, enabled: true });
+    w.v.script.push({ text: "Hi from the agent." });
+    const runId = String((await ok(w.d, "automations.run", { automationId: id, idempotencyKey: "ai-space-agent-run" })).runId);
+    await until("a step row", 10_000, async () => ((await ok(w.d, "runs.steps", { runId })).steps as unknown[]).length > 0 ? true : undefined);
+  } finally { await w.stop(); }
+});
+
+test("a Space AI step that names an agent with a model, on a Space-shared key, starts its Run: a step row within 10 seconds", async () => {
+  const w = await world();
+  try {
+    await unlock(w.d);
+    const agentId = await writer(w.d, "shared-agent");
+    const folder = await ok(w.d, "vault.folders.create", { name: "AI keys", scope: "shared", idempotencyKey: "ai-folder-3" });
+    const team = await ok(w.d, "providers.add", { idempotencyKey: "ai-team-3", providerKey: "openai", connection: "api_key", apiKey: KEY, scope: "shared", name: "Team OpenAI", folderId: folder.folder.id });
+    const made = await ok(w.d, "automations.create", { idempotencyKey: "ai-shared-agent", name: "Shared agent answer" });
+    const id = String(made.automation.id);
+    const serviceId = `svc_${id.slice(4)}`;
+    await ok(w.d, "automations.update", { automationId: id, definition: { triggers: [{ key: "manual" }], nodes: [{ id: "ask", key: "ai", input: { agentId, prompt: "Say hi" }, ai: { keyId: String(team.provider.id) } }] } });
+    await ok(w.d, "automations.promote", { automationId: id, confirm: true });
+    await ok(w.d, "access.share", { idempotencyKey: "ai-share-space-3", resource: { type: "space", id: "spc_core" }, subject: { kind: "service", id: serviceId }, level: "view" });
+    await ok(w.d, "access.share", { idempotencyKey: "ai-share-key-3", resource: { type: "vault_item", id: String(team.provider.itemId) }, subject: { kind: "service", id: serviceId }, level: "use" });
+    await ok(w.d, "automations.set_enabled", { automationId: id, enabled: true });
+    w.v.script.push({ text: "Hi from the agent." });
+    const runId = String((await ok(w.d, "automations.run", { automationId: id, idempotencyKey: "ai-shared-agent-run" })).runId);
+    await until("a step row", 10_000, async () => ((await ok(w.d, "runs.steps", { runId })).steps as unknown[]).length > 0 ? true : undefined);
   } finally { await w.stop(); }
 });

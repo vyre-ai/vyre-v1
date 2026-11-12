@@ -190,7 +190,16 @@ function callerLevel(ctx: ShareCtx, store: AccessStore, res: ResourceRec): Level
   return levelFor(store, ctx.principal.id, res, ctx.now(), actingId(ctx));
 }
 
+/**
+ * A thing cut off from the Space (only people added, only me) that the caller holds nothing on reads as one that does not exist: the same answer resourceOf gives a made-up id, so neither a
+ * refusal nor a quiet "nothing to do" tells an outsider a hidden agent, folder or record is there (review of fbfb021cd). Run before any early answer.
+ */
+function hideFrom(ctx: ShareCtx, store: AccessStore, res: ResourceRec): void {
+  if ((res.row?.["audience"] === "added" || res.row?.["audience"] === "me") && callerLevel(ctx, store, res) === null) raise(ctx.trace.traceId, "validation.not_found", "no such resource");
+}
+
 function must(ctx: ShareCtx, store: AccessStore, res: ResourceRec, need: Level, what: string): Level {
+  hideFrom(ctx, store, res);
   const have = callerLevel(ctx, store, res);
   if (!atLeast(res.type, have, need)) raise(ctx.trace.traceId, "permission.no_grant", `${what} needs ${need} on this`);
   return have!;
@@ -465,7 +474,10 @@ export async function updateGrant(ctx:ShareCtx,input:{grantId:string;level?:Leve
  assertFlags(ctx,store,res,conditions,grant.conditions);assertDelegation(ctx,store,res,grant.subject,level,conditions,grant.id);
  const ss=shareOf(ctx),wasFresh=isFresh(ctx,store,ss);grant.level=level;grant.conditions=conditions;
  const updated:{grantId:string;level:Level;expiresAt?:number}={grantId:grant.id,level};if(conditions.expiresAt!==undefined)updated.expiresAt=conditions.expiresAt;
- ctx.emit("grant.updated",grant.id,updated);changed(ctx,store,"assignment");commit(ctx,store,ss,wasFresh,[res.id],false);return {grant:grantView(grant)};
+ ctx.emit("grant.updated",grant.id,updated);
+ // a record share lowered lowers its copy on the record's folder in the same call
+ const roots=[res.id,...(grant.resource.type==="record"?followRecordShare(ctx,store,grant.resource.id,grant.subject):[])];
+ changed(ctx,store,"assignment");commit(ctx,store,ss,wasFresh,roots,false);return {grant:grantView(grant)};
 }
 
 /**
@@ -492,7 +504,7 @@ function assertEveryone(ctx: ShareCtx, store: AccessStore, res: ResourceRec, lev
  */
 export async function joinShare(ctx: ShareCtx, input: { resource: ResourceRef; person: string; level: Level; inviter: string; source: string }) {
   const trace = ctx.trace.traceId;
-  if (((ctx as { depth?: number }).depth ?? 0) === 0 && !isHostService(ctx.principal)) raise(trace, "permission.role_lacks_permission", "This is the join step of an invite, not a direct call.");
+  if ((((ctx as { depth?: number }).depth ?? 0) === 0 || (ctx as { forwarded?: boolean }).forwarded === true) && !isHostService(ctx.principal)) raise(trace, "permission.role_lacks_permission", "This is the join step of an invite, not a direct call.");
   const store = storeOf(ctx);
   const ss = shareOf(ctx);
   const res = resourceOf(ctx, store, input.resource);
@@ -512,11 +524,34 @@ export async function joinShare(ctx: ShareCtx, input: { resource: ResourceRef; p
 }
 
 /**
+ * The host writing what a chat gives its readers (modules/chat/handlers/owned.ts, run as the host for the chat calls that change who reads a chat): only on the chat's own agents and their files
+ * folders. An agent qualifies when it already carries a grant of this chat (the chat gave it to its readers when it made it); a folder qualifies when it is the files folder of such an agent (it
+ * grants that agent its home Edit). A host write labelled chat:X on anything else goes through the delegation check like anyone's.
+ */
+function hostWritesChatGrant(store: AccessStore, res: ResourceRec, source: string): boolean {
+  const carries = (id: string): boolean => [...store.grants.values()].some((g) => g.source === source && g.resource.id === id);
+  if (res.type === "agent") return carries(res.id);
+  if (res.type !== "folder") return false;
+  // the agent's home grant on its own folder is written by the host with a fixed id (gnt_<agent id without agt_>home)
+  return [...store.grants.values()].some((g) => g.resource.id === res.id && g.subject.kind === "agent" && g.id === `gnt_${g.subject.id.replace(/^agt_/, "")}home` && carries(g.subject.id));
+}
+
+/** A folder the host may open or close without Manage: the files folder of an agent a chat made (it holds that agent's home grant, and the agent carries a grant of a chat). */
+function hostMayCloseFolder(store: AccessStore, res: ResourceRec): boolean {
+  // the agent itself: one a chat made carries that chat's grants
+  if (res.type === "agent") return [...store.grants.values()].some((x) => x.resource.type === "agent" && x.resource.id === res.id && x.source?.startsWith("chat:") === true);
+  if (res.type !== "folder") return false;
+  return [...store.grants.values()].some((g) => g.resource.id === res.id && g.subject.kind === "agent" && g.id === `gnt_${g.subject.id.replace(/^agt_/, "")}home`
+    && [...store.grants.values()].some((x) => x.resource.type === "agent" && x.resource.id === g.subject.id && x.source?.startsWith("chat:") === true));
+}
+
+/**
  * The host writing a project's roles is not a person delegating (a Space admin without Manage on the project changes a role through projects.members.set, which checked the right; the host then writes
  * the grants). It is only that for the project's own things: the grant carries source project:<id>, and the resource is project <id> itself, or one that already carries a grant of that same source
  * (the project's folder and channel, shared by the person who made the project). A host write labelled project:X on any other resource goes through the delegation check like anyone's.
  */
 function hostWritesProjectGrant(ctx: ShareCtx, store: AccessStore, res: ResourceRec, source: string | undefined): boolean {
+  if (isHostService(ctx.principal) && source?.startsWith("chat:")) return hostWritesChatGrant(store, res, source);
   if (!isHostService(ctx.principal) || !source?.startsWith("project:")) return false;
   if (res.type === "project") return res.id === source.slice("project:".length);
   return [...store.grants.values()].some((g) => g.source === source && g.resource.type === res.type && g.resource.id === res.id);
@@ -529,7 +564,12 @@ export async function share(ctx: ShareCtx, input: {
   const ss = shareOf(ctx);
   const trace = ctx.trace.traceId;
   const key = input.idempotencyKey ? `share:${ctx.principal.id}:${input.idempotencyKey}` : "";
-  if (key) { const hit = ss.idem.get(key); if (hit) return hit as { grant: GrantRec }; }
+  // a key means "this same request": its remembered answer stands only while the grant it made is still there. Once that grant was taken away, the same key shares again (the person was
+  // removed and added back), instead of answering with a grant that no longer exists
+  if (key) {
+    const hit = ss.idem.get(key) as { grant?: { id?: string } } | undefined;
+    if (hit) { if (!hit.grant?.id || store.grants.has(hit.grant.id)) return hit as { grant: GrantRec }; ss.idem.delete(key); }
+  }
   const res = resourceOf(ctx, store, input.resource);
   input = { ...input, level: agentLevel(res.type, input.level) };   // Can chat with is Can use
   // a person's Assistant (and an outside agent they connected) is theirs alone: nobody else can be given it, whatever the level
@@ -590,7 +630,7 @@ export async function share(ctx: ShareCtx, input: {
  */
 export async function automationSenders(ctx: ShareCtx, input: { automationId: string; give: ResourceRef[]; keep: ResourceRef[] }) {
   const trace = ctx.trace.traceId;
-  if (((ctx as { depth?: number }).depth ?? 0) === 0 || ctx.principal.kind !== "person") raise(trace, "permission.role_lacks_permission", "A person gives an Automation its senders by turning it on.");
+  if (((ctx as { depth?: number }).depth ?? 0) === 0 || (ctx as { forwarded?: boolean }).forwarded === true || ctx.principal.kind !== "person") raise(trace, "permission.role_lacks_permission", "A person gives an Automation its senders by turning it on.");
   const store = storeOf(ctx);
   const ss = shareOf(ctx);
   const source = `automation:${input.automationId}`;
@@ -630,6 +670,8 @@ export async function automationSenders(ctx: ShareCtx, input: { automationId: st
 function mayRemove(ctx: ShareCtx, store: AccessStore, g: GrantRec): boolean {
   // the host taking back a project role it wrote (a Space admin removed the person through projects.members.remove, which checked the right): only a grant that carries a project source
   if (isHostService(ctx.principal) && g.source?.startsWith("project:")) return true;
+  // the host taking back what a chat membership gave (grants tagged chat:<thread>) when the person or agent leaves or is taken out (host/src/daemon/daemon.ts CHAT_LEAVES)
+  if (isHostService(ctx.principal) && g.source?.startsWith("chat:")) return true;
   if (g.resource.id === "*") return !!store.snapshot().info(ctx.principal.id)?.perms.has("access.manage");
   const res = store.resources.get(g.resource.id);
   if (!res) return !!store.snapshot().info(ctx.principal.id)?.perms.has("access.manage");
@@ -665,6 +707,8 @@ export async function unshare(ctx: ShareCtx, input: { grantId?: string; resource
     if (g.resource.id !== "*") roots.add(g.resource.id);
     ctx.emit("grant.revoked", g.id, { grantId: g.id, subject: g.subject, resource: g.resource, reason: "unshared" });
   }
+  // a record share that goes takes its copy on the record's folder with it, in this call
+  for (const g of doomed) if (g.resource.type === "record") for (const f of followRecordShare(ctx, store, g.resource.id, g.subject)) roots.add(f);
   changed(ctx, store, "assignment");
   for (const g of doomed) {
     if (g.resource.type === "folder") ctx.emit("folder.shared", g.resource.id, { folderId: g.resource.id, subject: g.subject, removed: true });
@@ -760,6 +804,30 @@ function exportersOf(store: AccessStore, res: ResourceRec): Exporters {
   return "admins";
 }
 
+/**
+ * A share on a record was taken away or lowered: the copy of it the projects module made on the record's Files folder (source projfolder:<recordId>, modules/projects/handlers/folders.ts
+ * syncAccess) follows in the same call, so the person cannot keep the folder after losing the record. The copy keeps at most the highest level the same subject still holds directly on the record;
+ * with nothing left there it goes. Answers the folders it changed.
+ */
+const MIRROR_ORDER = ["view", "use", "edit", "manage"];
+function followRecordShare(ctx: ShareCtx, store: AccessStore, recordId: string, subject: SubjectRef): string[] {
+  const source = `projfolder:${recordId}`;
+  const left = [...store.grants.values()].filter((g) => g.resource.type === "record" && g.resource.id === recordId && g.subject.kind === subject.kind && g.subject.id === subject.id);
+  const keep = left.reduce((m, g) => Math.max(m, MIRROR_ORDER.indexOf(g.level)), -1);
+  const touched: string[] = [];
+  for (const g of [...store.grants.values()]) {
+    if (g.source !== source || g.resource.type !== "folder" || g.subject.kind !== subject.kind || g.subject.id !== subject.id) continue;
+    if (keep < 0) { dropGrant(ctx, store, g); touched.push(g.resource.id); continue; }
+    if (MIRROR_ORDER.indexOf(g.level) > keep) {
+      const level = MIRROR_ORDER[keep] as Level;
+      store.grants.set(g.id, { ...g, level });
+      ctx.emit("grant.updated", g.id, { grantId: g.id, level });
+      touched.push(g.resource.id);
+    }
+  }
+  return touched;
+}
+
 function dropGrant(ctx: ShareCtx, store: AccessStore, g: GrantRec): void {
   store.grants.delete(g.id);
   ctx.emit("grant.revoked", g.id, { grantId: g.id, subject: g.subject, resource: g.resource, reason: "unshared" });
@@ -789,8 +857,20 @@ export async function audienceSet(ctx: ShareCtx, input: { resource: ResourceRef;
     commit(ctx, store, ss, false && wasFresh, [res.id], false);
     return { audience: "space" as Audience, exporters: "admins" as Exporters, outside: false };
   }
-  if (!RECORDS.has(res.type)) raise(trace, "validation.bad_input", "who it is open to is set on a record type or a record");
-  must(ctx, store, res, "manage", "changing who it is open to");
+  // A folder too, with Only people added or the whole Space, never Only me: the files folder of an agent a private chat made follows that chat (modules/chat/handlers/owned.ts), cut off from
+  // the Space so the Space roles do not reach it, open to the chat's readers by grants, its owner, and the Space's owners and admins (KEEPERS) as a record only for people added is.
+  // a folder, or an agent a private chat made (owner decision, 12 Nov 2026): cut off from the Space as a record only for people added is, so the Space roles do not reach it; the chat's readers
+  // hold it by grants of the chat's source, its owner keeps it, and the Space's owners and admins keep Manage (KEEPERS). An agent nobody may see reads as one that does not exist (host invoke)
+  const folder = res.type === "folder" || res.type === "agent";
+  if (!RECORDS.has(res.type) && !folder) raise(trace, "validation.bad_input", "who it is open to is set on a record type, a record, a folder or an agent");
+  if (folder && (input.audience === "me" || input.exporters !== undefined || input.outside !== undefined)) raise(trace, "validation.bad_input", "a folder or an agent is open to the Space or only to people added");
+  // the host's own no-op (the sweep over an agent an open channel made, already open) needs nothing: the host is no outsider
+  if (folder && isHostService(ctx.principal) && input.audience !== undefined && input.audience === audienceOf(res)) return { audience: audienceOf(res), exporters: "admins" as Exporters, outside: false };
+  // the host's own sweep brings a chat's own agents and their folders in line with their chats: without Manage only on those (hostMayCloseFolder), never on any other folder or agent
+  if (!(folder && isHostService(ctx.principal) && hostMayCloseFolder(store, res))) must(ctx, store, res, "manage", "changing who it is open to");
+  // asking a folder or an agent to be what it already is changes nothing: answered quietly, but only after the rights check, so it tells an outsider nothing (an agent an open channel made:
+  // its folder is open to the Space from the start, and the maker's own followHome asks for that)
+  if (folder && input.audience !== undefined && input.audience === audienceOf(res)) return { audience: audienceOf(res), exporters: "admins" as Exporters, outside: false };
   if ((input.exporters !== undefined || input.outside !== undefined) && res.type !== "record_type") raise(trace, "validation.bad_input", "who may export and links outside the Space are set on the record type");
   const wasFresh = isFresh(ctx, store, ss);
   const row: Record<string, unknown> = { ...(res.row ?? {}) };
@@ -1102,6 +1182,7 @@ export async function foldersPlace(ctx: ShareCtx, input: { resource: ResourceRef
   if (folder.type !== res.type) raise(trace, "validation.precondition_failed", `this folder holds ${folder.type} items`);
   const key = pk(res.type, res.id);
   const current = ss.placement.get(key) ?? null;
+  hideFrom(ctx, store, res);
   if (current === folder.id) return { ok: true };
   const have = must(ctx, store, res, current ? "manage" : "edit", "moving it");
   must(ctx, store, folderRes, "edit", "adding to this folder");
@@ -1126,6 +1207,7 @@ export async function foldersUnplace(ctx: ShareCtx, input: { resource: ResourceR
   const res = resourceOf(ctx, store, input.resource);
   const key = pk(res.type, res.id);
   const current = ss.placement.get(key);
+  hideFrom(ctx, store, res);
   if (!current) return { ok: true };
   // taking it out removes what the folder gave others, so it needs Manage
   must(ctx, store, res, "manage", "taking it out of the folder");

@@ -1,2 +1,34 @@
 - Removing someone from a project, or giving them a lower project role, now takes effect at once, even while the project is still being set up; before, the setup could quietly give the old access back.
 - Signing out, ending a session from the devices list, revoking a device, suspending or removing a person now also closes that person's open live connection, so the app on that device can do nothing more as them.
+- Leaving a chat or channel, or being taken out of one, now also takes away your view of the agents that chat made, at once; an agent taken out of a channel loses what the channel gave it.
+- A join step that failed and is tried again later no longer gives back a role, group, project role or channel an admin changed in the meantime, and gives nothing to someone who was removed or is suspended.
+- Taking a share off a record, or lowering it, now also takes it off the record's Files folder at once.
+- A form link revoked while someone was still sending the form now refuses that submission.
+- A device whose session ended (signed out, revoked, suspended, removed) can no longer send or receive anything on its live connection, even for an instant; signing out from the app still gets its answer before the connection closes.
+- Your own computer's link to the Space, and any live view of a computer or browser you opened, close the moment you sign out, are suspended or removed.
+- Signing out now works on a session older than 30 days.
+- Removing someone from a project, or lowering their role, now also takes them out of the project's channel whoever does it, and says so plainly if that cannot be done; a remove pressed right after an add is no longer lost.
+- A join step that has to wait for an admin is now shown to admins as needing them, with the reason, instead of being dropped quietly; a failed Everyone or group step is no longer lost because another group step worked.
+- Someone removed from a chat, a project, a skill, a review or a shared file and later added back now gets their access again; before, the second add could quietly do nothing.
+- No session is ended by its age any more anywhere in Vyre: a sign-in older than 30 days keeps working for previews and single sign-on keys as it already did for everything else, and still ends at once when you sign out or revoke it.
+- A failed join step for a role or a group is now held back only when someone changed that one role or group of the person after the step failed, and a step Vyre could not check says so plainly.
+- An artifact or site page you opened stops working the moment you sign out, are suspended or removed, including on pages you own.
+- Taken out of a channel, you keep of its threads only what you can still read: in an invite-only channel you are out of its threads too, and its agents are no longer yours to see or chat with.
+- Lowering a file share now lowers it, even over a share made before or from the Console.
+- The files of an agent made in a private chat or in a thread of an invite-only channel are now only for the people who can read that chat, the agent's owner, and the Space's owners and admins. Other members no longer open, list or find them, and the agent cannot read them for someone who is not in that chat.
+- Leaving or being taken out of that chat takes its agent's files away at once. Making the channel public opens them to the Space, and making it invite-only again closes them. Someone added to the channel gets them.
+- Agents made in private chats before this update have their files closed the same way when the server starts.
+- When the server closes the files of an agent made in a private chat, the chat's people get them first, so an update stopped half way never locks them out.
+- A teammate an Assistant adds to a project, and the first members of a project an Assistant makes, are now in the project's chat too. If Vyre cannot put them there, it says so instead of reporting success.
+- An agent made in a chat always belongs to that one chat, and its files stay as private as that chat, even when the same request is sent again from another chat.
+- Files an agent keeps in its own folder belong to the agent. Someone who leaves the private chat it works for no longer opens the notes it wrote for them.
+- The first preview of a new file (its text, picture or pages) no longer fails with "Something went wrong".
+- A person who accepts an invite has their role and groups the moment the join finishes, even when the server is busy. A role that could not be given at once is no longer left for an admin when nothing stands in its way.
+- An agent made in a private chat or in a thread of an invite-only channel can now be reached only by the people who read that chat, the people it was shared with, its owner, and the Space's owners and admins. Everyone else sees no such agent: it is not in their lists or pickers, they cannot open it, chat with it, mention it or give it a task, and Vyre answers as it does for an agent that does not exist.
+- Someone who leaves or is taken out of that chat loses the agent at once. A grant that was still being written when they left no longer comes back.
+- Starting a chat with, or giving a task to, an agent that does not exist is now refused.
+- Mentioning someone in an invite-only channel, or a thread under one, no longer notifies them or puts them in the thread if they cannot open the channel. The sender's message still offers Add.
+- Asking Vyre to change who can open an agent, folder or record that you cannot see now answers as if it did not exist, even when nothing would change.
+- Leaving a private chat also takes away the notes its agent wrote for you in its own folder; they stay with the agent for the chat's other people.
+- If you lose access to an agent made in a private chat, a chat you already had with it no longer gets answers. It says "This agent is no longer available to you.", the same words it shows for a deleted agent.
+- An access review no longer lists the grants Vyre keeps for an agent (its own folder, and its owner's access there), so a reviewer cannot remove them by mistake and break an agent or a person's Assistant.

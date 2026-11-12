@@ -35,14 +35,16 @@ const HANDLE_FORM = (name: string): string => `#${name.trim().replace(/[^A-Za-z0
  * The invoke pipeline's `resolveItem` (a vault name or handle becomes the item id before authorize). Handles are unique across the vault, so a handle (or the handle a name makes) is tried first; a name
  * that is not a handle falls back to a shared item of that name. A handle may carry `.field`, which is not part of the lookup. Authorize then decides whether the caller may use what was found.
  */
-export function resolveVaultItem(db: { all(sql: string, ...a: unknown[]): unknown[] }, type: string, kind: "name" | "handle", value: string): string | null {
+export function resolveVaultItem(db: { all(sql: string, ...a: unknown[]): unknown[] }, type: string, kind: "name" | "handle", value: string, person?: string): string | null {
   if (type !== "vault_item") return null;
   if (/^vit_[a-z0-9]+$/.test(value)) return value;
   const bare = kind === "handle" ? value.replace(/\.[A-Za-z][A-Za-z0-9_]*$/, "") : value;
   const handle = (bare.startsWith("#") ? bare : kind === "handle" ? `#${bare}` : HANDLE_FORM(bare)).toLowerCase();
   try {
-    const live = db.all("SELECT id, name, handle, scope FROM vault_meta WHERE deleted_at IS NULL") as { id: string; name: string; handle: string; scope: string }[];
-    const byHandle = live.find((r) => String(r.handle).toLowerCase() === handle);
+    const live = db.all("SELECT id, name, handle, scope, owner FROM vault_meta WHERE deleted_at IS NULL") as { id: string; name: string; handle: string; scope: string; owner: string }[];
+    // the person's own items first, then shared ones, then anyone else's (which the decision then hides): a hidden item never shadows one the person may use
+    const rank = (r: { scope: string; owner: string }): number => (r.scope === "mine" && person !== undefined && r.owner === person ? 0 : r.scope === "shared" ? 1 : 2);
+    const byHandle = live.filter((r) => String(r.handle).toLowerCase() === handle).sort((a, b) => rank(a) - rank(b))[0];
     if (byHandle) return byHandle.id;
     if (kind === "name") return live.find((r) => r.scope === "shared" && String(r.name).toLowerCase() === bare.trim().toLowerCase())?.id ?? null;
   } catch { /* the vault has no tables yet: nothing to find */ }
@@ -60,6 +62,9 @@ import type { PinnedRequest } from "../../../lib/net-guard.ts";
  * `own(person)` is the same rule as the key's: this is the caller's own computer. The socket connects to the address that was checked (pinnedGet), so a name that answers differently the second time
  * (DNS rebinding) changes nothing. Redirects are not followed.
  */
+/** Tests only (accept mode): one model of the kind each provider's real list holds, a chat model the provider's own filter keeps (OpenAI's list is filtered to gpt, o and chatgpt ids). */
+const TEST_KEY_MODEL: Readonly<Record<string, string>> = { openai: "gpt-4o-mini", codex: "gpt-4o-mini", anthropic: "claude-sonnet-4-5", google: "gemini-2.5-flash", xai: "grok-4" };
+
 export function createProviderProbe(o: { fetch?: typeof globalThis.fetch; own?: (personId: string) => boolean; resolve?: (host: string) => Promise<string[]>; request?: PinnedRequest } = {}) {
   const fetchFn = o.fetch ?? globalThis.fetch;
   const LISTS: Record<string, (key: string) => { url: string; headers: Record<string, string>; pick: (j: unknown) => string[] }> = {
@@ -101,7 +106,11 @@ export function createProviderProbe(o: { fetch?: typeof globalThis.fetch; own?: 
       if (!make) return { ok: false, models: [], detail: "This provider cannot be tested from here." };
       if (!p.apiKey) return { ok: false, models: [], detail: "There is no key to test." };
       // Tests only (scripts/test-run.ts sets it): a fixture key is checked against no real provider, which would refuse it. A key with "invalid" in it is refused, as a real provider refuses a bad one.
-      if (process.env["VYRE_TEST_KEY_CHECK"] === "accept") return /invalid/i.test(p.apiKey) ? { ok: false, models: [], detail: "The provider did not accept this key.", refused: true } : { ok: true, models: [] };
+      // It lists what a real check of that provider lists: one stand-in model (TEST_KEY_MODEL, else "<provider>-test-model") where the provider's check lists models, none for OpenRouter, whose check (/auth/key)
+      // lists none. Tests only. Every key's probe models become its account row's models, which the resolver reads (whether a named model fits, the strict no_model refusal, modelFallback.to):
+      // so in tests a shared non-OpenRouter key serves only "<provider>-test-model", and a team turn that names another model on such a key takes the fallback path to it. The Space AI key's
+      // fitModel reads the same list. It is test-only and the suites are green on it.
+      if (process.env["VYRE_TEST_KEY_CHECK"] === "accept") return /invalid/i.test(p.apiKey) ? { ok: false, models: [], detail: "The provider did not accept this key.", refused: true } : { ok: true, models: p.providerKey === "openrouter" ? [] : [TEST_KEY_MODEL[p.providerKey] ?? `${p.providerKey}-test-model`] };
       ({ url, headers, pick } = make(p.apiKey));
     }
     try {

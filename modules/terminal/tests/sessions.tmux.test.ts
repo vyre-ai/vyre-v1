@@ -63,7 +63,8 @@ test("read: the last lines of the screen, or only what came after a cursor", asy
   assert.equal(all.text, "one\ntwo\nthree\nfour");
   tm.write("vyre-trm_a1", "five");
   const fresh = await host.read("trm_a1", { lines: 100, since: all.next });
-  assert.deepEqual([fresh.text, fresh.next], ["five", all.next + 1]);
+  // the answer runs through the cursor's line (empty here, under "five"), which is `next` and comes again until it is finished (12 Nov: a line that changes between reads was lost)
+  assert.deepEqual([fresh.text, fresh.next], ["five\n", all.next + 1]);
 });
 
 // ---- run
@@ -79,7 +80,8 @@ test("run: the shell prints its own markers around the command, and the output i
   assert.deepEqual([c.exitCode, c.output], [2, "cc a.c\ncc b.c\nerror: b.c:3"]);
   // What it typed is one line with the command in braces, so `cd` and exports stay in the session like typed by hand.
   const typed = tm.calls.find((x) => x[1] === "send-keys" && x.includes("-l") && x.at(-1)!.includes("git status"))!.at(-1)!;
-  assert.match(typed, /^ printf '%s\\n' '__VYRE_BEG_[0-9a-f]{12}__'; \{ git status\n\}; printf '\\n%s:%d\\n' '__VYRE_END_[0-9a-f]{12}__' \$\?$/);
+  // 12 Nov: the exit code is also stored in a tmux option of the session, which a program cannot draw over on the screen
+  assert.match(typed, /^ printf '%s\\n' '__VYRE_BEG_[0-9a-f]{12}__'; \{ git status\n\}; __vyre_rc=\$\?; 'tmux' set-option -q -t 'vyre-trm_a1' @vyre_rc_[0-9a-f]{12} "\$__vyre_rc" 2>\/dev\/null; printf '\\n%s:%d\\n' '__VYRE_END_[0-9a-f]{12}__' "\$__vyre_rc"; unset __vyre_rc$/);
   assert.ok(tm.calls.some((x) => x[1] === "send-keys" && x.at(-1) === "Enter"));
   // The screen keeps the earlier output; a later command's answer is not mixed with it.
   assert.match(tm.screen("vyre-trm_a1"), /On branch main/);
@@ -92,7 +94,7 @@ test("run: a folder to run in, and variables, which live in a subshell and are q
   const r = await host.run("trm_a1", { command: "echo $A", cwd: "/work/it's", env: { A: VALUE, B: "plain" }, timeoutMs: 5000 });
   assert.deepEqual([r.exitCode, r.output], [0, `A=${VALUE} B=plain`], "the command got both values exactly");
   const typed = tm.calls.find((x) => x[1] === "send-keys" && x.includes("-l") && x.at(-1)!.includes("echo $A"))!.at(-1)!;
-  assert.ok(typed.startsWith(" printf ") && typed.includes(`cd '/work/it'\\''s' && ( { set +xv; } 2>/dev/null; __vyre_env=`) && typed.includes(`unset __vyre_env; echo $A\n); printf `), typed);
+  assert.ok(typed.startsWith(" printf ") && typed.includes(`cd '/work/it'\\''s' && ( { set +xv; } 2>/dev/null; __vyre_env=`) && typed.includes(`unset __vyre_env; echo $A\n); __vyre_rc=$?; `), typed);
   // W6: a value is never typed and never in a program's arguments; it went in on load-buffer's standard input, and the buffer is gone after the command
   assert.equal(tm.calls.some((x) => x.some((a) => a.includes("touch /tmp/pwned") || a.includes("plain"))), false, JSON.stringify(tm.calls));
   assert.ok(tm.calls.some((x) => x[1] === "load-buffer" && x.at(-1) === "-"), "the values went in through load-buffer's standard input");
@@ -177,7 +179,7 @@ test("health: tmux missing, or present with the number of Vyre sessions in it", 
   const { tm, host } = rig({ version: "tmux 3.5a" });
   await open(host, "trm_a1");
   await open(host, "trm_a2");
-  tm.sessions.set("someone-elses", { name: "someone-elses", cols: 1, rows: 1, cwd: "/", lines: [], typed: "", hung: false, env: {} });
+  tm.sessions.set("someone-elses", { name: "someone-elses", cols: 1, rows: 1, cwd: "/", lines: [], typed: "", hung: false, env: {}, opts: new Map() });
   assert.deepEqual(await host.health(), { ok: true, detail: "tmux 3.5a", sessions: 2 });
 });
 

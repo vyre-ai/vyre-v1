@@ -27,8 +27,8 @@ test("@mentioning someone who is not in the chat shows one strip on the composer
     await flush();
     const strip = find(root, "channel-offer");
     assert.ok(strip, "the strip shows");
-    assert.match(textOf(find(root, "channel-offer-text")), /^Maya isn't in this chat$/);
-    assert.equal(textOf(find(root, "channel-add")).trim(), "Add Maya");
+    assert.match(textOf(find(root, "channel-offer-text")), /^Maya is not in this chat\.$/, "the owner's words (12 Nov), the same as the line under a sent message");
+    assert.equal(textOf(find(root, "channel-add")).trim(), "Add");
     // the loose lines and the switch are gone
     const text = textOf(strip);
     assert.ok(!/They will read|Earlier messages stay hidden|Include earlier messages|never gains people/i.test(text), text);

@@ -21,7 +21,7 @@ test("the role line is the kind, then the role with its first letter lowered", (
 test("the header draws Message and only the actions it is given, a presence dot, and one menu", () => {
   const out = clean(renderToStaticMarkup(<ProfileHeader name="Dex" kind="agent" presence="asleep" line="Agent · runs the builds" actions={[{ key: "message", icon: "chat", label: "Message", onPress: () => undefined }]} onMore={() => undefined} />));
   assert.ok(has(out, 'data-testid="profile-message"') && !has(out, 'data-testid="profile-poke"') && !has(out, 'data-testid="profile-share"'), "no button for what cannot be done");
-  assert.ok(has(out, 'aria-label="Asleep"'), "the presence dot says its word");
+  assert.ok(has(out, 'aria-label="Idle"'), "the presence dot says its word (Idle: Asleep is the workspace's word, owner walk 12 Nov)");
   assert.equal(out.split('data-testid="pane-more"').length - 1, 1, "one menu");
   assert.ok(has(out, 'aria-expanded="false"'), "the role line is closed until pressed");
 });
@@ -37,14 +37,14 @@ test("the pane for an agent with a computer: About first, Computer, Chats, Files
   assert.ok(has(full, 'data-testid="profile-poke"') && has(full, 'data-testid="profile-share"'));
 });
 
-test("an agent with no computer: no Computer tab, and About says so in one row with the offer", () => {
+test("an agent with no terminal or browser bound here: no Computer tab, and About says so in one row that offers nothing to set up", () => {
   const s = createSample();
   const data = { ...s.data, agent: { agentId: "agt_intake", name: "Intake" } };
   const out = clean(renderToStaticMarkup(<ChatRightPane data={data} open onToggle={() => undefined} window={ALL} />));
   assert.ok(!has(out, ">Computer<") && !has(out, ">Terminal<"), "no Computer or Terminal tab");
-  assert.ok(has(out, 'data-testid="about-no-computer"') && has(out, "Intake works through tools and your Chrome") && has(out, "Give Intake a computer"));
+  assert.ok(has(out, 'data-testid="about-no-computer"') && has(out, "No terminal or browser here yet") && has(out, "Intake works through tools") && !has(out, "Give Intake a computer") && !has(out, 'data-testid="about-give"'));
   const none = clean(renderToStaticMarkup(<ChatRightPane data={{ ...data, space: { ...data.space, computers: false } }} open onToggle={() => undefined} window={ALL} />));
-  assert.ok(has(none, 'data-testid="about-no-computer"') && !has(none, 'data-testid="about-give"'), "no offer where no machine can run one");
+  assert.ok(has(none, 'data-testid="about-no-computer"') && !has(none, 'data-testid="about-give"'), "no offer where no computer can run one");
 });
 
 test("About reads from the Space: what it is responsible for, and the shared folder", () => {
@@ -54,10 +54,11 @@ test("About reads from the Space: what it is responsible for, and the shared fol
   assert.ok(!/\b(he|she|her|his|hers)\b/i.test(out.replace(/<[^>]+>/g, " ")), "the pane never guesses pronouns");
 });
 
-test("no computer: the offer is the first thing in About, above Responsible for, so it shows without scrolling", () => {
+test("no computer: the quiet row is the first thing in About, above Responsible for, and it has no button", () => {
   const s = createSample();
   const out = clean(renderToStaticMarkup(<ChatRightPane data={{ ...s.data, agent: { agentId: "agt_intake", name: "Intake" } }} open onToggle={() => undefined} window={ALL} />));
-  assert.ok(out.indexOf('data-testid="about-give"') > 0 && out.indexOf('data-testid="about-give"') < out.indexOf("Responsible for"));
+  assert.ok(out.indexOf('data-testid="about-no-computer"') > 0 && out.indexOf('data-testid="about-no-computer"') < out.indexOf("Responsible for"));
+  assert.ok(!has(out, 'data-testid="about-give"'), "nothing to press");
 });
 
 test("Runs on opens Console, Computers with that machine selected; without a shell that can, it is a plain line", () => {

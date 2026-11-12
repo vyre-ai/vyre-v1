@@ -4,8 +4,9 @@
 //   run                                                            the terminal_run tool: one command, run in a session, output scrubbed of every Vault value filled into it
 //   rules.get / rules.set / health
 // The machine does the work through the TerminalHost port (projections.ts); this module keeps what Vyre knows about a session and enforces who may do what in it.
+import { STOPPED_LINE } from "../stop-line.ts";
 import {
-  MAX_RULES, MAX_RULE_CHARS, TICKET_MS, actorOf, boundHost, boundKit, boundPlace, boundValues, clean, commandsOf, ensure, forgetSecrets, hostOf, insertSession, isTeam, judge, mintId, raise, rememberSecrets,
+  MAX_RULES, MAX_RULE_CHARS, TICKET_MS, actorOf, boundHost, boundKit, boundPlace, boundValues, clean, commandsOf, ensure, forgetAgentSecrets, forgetSecrets, hostOf, insertSession, isTeam, judge, mintId, raise, rememberSecrets,
   rulesOf, sessionBy, sessionOf, sha256, ticketSecret, touch, workspacesFor, boundWorkspaceStatus, SESSION_SELECT, insertTab, scopeOf,
 } from "../projections.ts";
 import { classify, QuotedHereDoc, referHandles, UnsurePlace } from "../fill.ts";
@@ -13,7 +14,8 @@ import type { HandleRef } from "../fill.ts";
 import { HANDLE, SEALED } from "../../../lib/vault-use/index.ts";
 import { judged, isDangerous } from "../risk.ts";
 import { isTrustedService } from "../../../lib/trust.ts";
-import type { HostKind, Lookup, Rules, SessionRow, TabBy, Target, TermCtx, TermState, TurnPlace, ValueSource, VaultRun, Where } from "../projections.ts";
+import { NO_PLACE } from "../fleet.ts";
+import type { HostKind, Lookup, Rules, SessionRow, TabBy, Target, TermCtx, TerminalHost, TermState, TurnPlace, ValueSource, VaultRun, Where } from "../projections.ts";
 
 type Row = Record<string, unknown>;
 const DEFAULT_COLS = 120;
@@ -43,7 +45,7 @@ function live(ctx: TermCtx, id: string): SessionRow {
 
 // ---- who may be in a workspace ---------------------------------------------------------------------------------------------------------------------------
 
-interface AgentFacts { ownerId?: string; kind?: string; runtime?: string }
+interface AgentFacts { ownerId?: string; kind?: string; runtime?: string; name?: string }
 
 // ---- the workspace a call works in, and who it is there ----------------------------------------------------------------------------------------------------
 
@@ -88,35 +90,117 @@ async function tabFor(ctx: TermCtx, scope: WorkScope | undefined): Promise<TabBy
  * nobody else, and never in another person's Assistant or outside agent, whatever their role, since that is private to its person.
  */
 export async function mayEnterWorkspace(ctx: TermCtx, agentId: string): Promise<boolean> {
-  if (ctx.principal.kind === "agent") return ctx.principal.id === agentId || (await workScope(ctx, ctx.principal.id)).agentId === agentId;
-  // the host and the services it runs; never a service a tenant made (an Automation, a public form, a site), which holds only the grants it was given
-  if (isTrustedService(ctx.principal)) return true;
-  const me = actorOf(ctx);
-  let agent: AgentFacts | undefined;
-  try { agent = ((await ctx.call?.("agents.get", { agentId })) as { agent?: AgentFacts } | undefined)?.agent; } catch { agent = undefined; }
-  if (agent?.ownerId === me) return true;
-  if (agent !== undefined && (agent.kind === "assistant" || agent.runtime === "outside")) return false;
-  return ctx.authorize({ perm: null, level: "manage" }, { type: "agent", id: agentId }).effect === "allow";
+  return (await entry(ctx, agentId)) === "yes";
 }
 
-async function needWorkspace(ctx: TermCtx, agentId: string): Promise<void> {
-  if (!(await mayEnterWorkspace(ctx, agentId))) raise(ctx, "permission.role_lacks_permission", "That workspace is not yours to open. A person opens their own Assistant's; an owner or admin opens a team agent's.", { reason: "workspace_private" });
+/** What agents.get said of an agent, asked once per call however many sessions it has (a status poll of many tabs). */
+type Facts = Map<string, Promise<{ agent?: AgentFacts; failed?: "not_found" | "error" }>>;
+const lookup = (ctx: TermCtx, agentId: string, facts?: Facts): Promise<{ agent?: AgentFacts; failed?: "not_found" | "error" }> => {
+  const have = facts?.get(agentId);
+  if (have) return have;
+  const p = (async () => {
+    try {
+      const agent = ((await ctx.call?.("agents.get", { agentId })) as { agent?: AgentFacts } | undefined)?.agent;
+      return agent === undefined ? { failed: "not_found" as const } : { agent };
+    } catch (e) {
+      return { failed: (e as { error?: { code?: unknown } } | null)?.error?.code === "validation.not_found" ? ("not_found" as const) : ("error" as const) };
+    }
+  })();
+  facts?.set(agentId, p);
+  return p;
+};
+
+/** May the caller enter this agent's workspace: yes, no, or unknown (agents.get failed for another reason than not found: try again, never a refusal that is not true). */
+async function entry(ctx: TermCtx, agentId: string, facts?: Facts): Promise<"yes" | "no" | "unknown"> {
+  if (ctx.principal.kind === "agent") return ctx.principal.id === agentId || (await workScope(ctx, ctx.principal.id)).agentId === agentId ? "yes" : "no";
+  // the host and the services it runs; never a service a tenant made (an Automation, a public form, a site), which holds only the grants it was given
+  if (isTrustedService(ctx.principal)) return "yes";
+  const me = actorOf(ctx);
+  const got = ctx.call === undefined ? {} : await lookup(ctx, agentId, facts);
+  // an agent this caller cannot even read is not one it may enter: another person's Assistant or outside agent reads as not found to everyone else, admins included, and Manage held over agents
+  // in general must not open it (12 Nov, audit item 16). Any other failure is not an answer: unknown. Only where nothing can be asked (no ctx.call) does the role decide alone.
+  if (got.failed === "not_found") return "no";
+  if (got.failed === "error") return "unknown";
+  const agent = got.agent;
+  if (agent?.ownerId === me) return "yes";
+  if (agent !== undefined && (agent.kind === "assistant" || agent.runtime === "outside")) return "no";
+  return ctx.authorize({ perm: null, level: "manage" }, { type: "agent", id: agentId }).effect === "allow" ? "yes" : "no";
+}
+
+async function needWorkspace(ctx: TermCtx, agentId: string, facts?: Facts): Promise<void> {
+  const e = await entry(ctx, agentId, facts);
+  if (e === "unknown") raise(ctx, "internal.unavailable", "Vyre could not check who may open this workspace just now. Try again in a moment.", { reason: "agent_unreadable" });
+  if (e === "no") raise(ctx, "permission.role_lacks_permission", "That workspace is not yours to open. A person opens their own Assistant's; an owner or admin opens a team agent's.", { reason: "workspace_private" });
 }
 
 /** A session in a workspace is entered only by who may enter that workspace. */
-async function needAccess(ctx: TermCtx, x: SessionRow): Promise<SessionRow> {
+async function needAccess(ctx: TermCtx, x: SessionRow, facts?: Facts): Promise<SessionRow> {
   if (x.host === "agent_computer" && x.agentId !== undefined) {
-    await needWorkspace(ctx, x.agentId);
+    await needWorkspace(ctx, x.agentId, facts);
     // a helper from another agent works in the parent's workspace in its own tab: it does not type in the parent's or a sibling's
     if (ctx.principal.kind === "agent" && ctx.principal.id !== x.agentId && x.actor !== undefined && x.actor !== ctx.principal.id) raise(ctx, "permission.role_lacks_permission", "That tab belongs to another agent in this workspace.", { reason: "tab_not_yours" });
   }
   return x;
 }
 
+/** What terminal.get and terminal.list let a caller see of a session (its own, or one it may view), and needAccess for one in a workspace, as a yes or no: for a call about many sessions at once. */
+async function mayRead(ctx: TermCtx, x: SessionRow, facts?: Facts): Promise<"yes" | "no" | "unknown"> {
+  if (x.owner !== actorOf(ctx) && ctx.authorize({ perm: null, level: "view" }, { type: "terminal", id: x.terminalId }).effect !== "allow") return "no";
+  try { await needAccess(ctx, x, facts); return "yes"; } catch (e) { return (e as { error?: { code?: unknown } } | null)?.error?.code === "internal.unavailable" ? "unknown" : "no"; }
+}
+
 const unexpected = (ctx: TermCtx, what: string, e: unknown): never => {
   ctx.log.warn(`terminal: ${what} failed`, { reason: e instanceof Error ? e.message.slice(0, 120) : "unknown" });
   return raise(ctx, "internal.unexpected", `The terminal could not ${what}.`);
 };
+
+/** The machine's host for a session Vyre knows, told where the session lives first: after a restart, a sleep or a lost tmux the host finds it again and remakes it on use. */
+async function hostFor(ctx: TermCtx, x: SessionRow): Promise<TerminalHost> {
+  const h = hostOf(ctx);
+  await adoptOn(h, x).catch((e: unknown) => { ctx.log.warn("terminal: could not find the session again", { reason: e instanceof Error ? e.message.slice(0, 120) : "unknown" }); });
+  return h;
+}
+const adoptOn = async (h: TerminalHost, x: SessionRow): Promise<void> => {
+  if (!h.adopt) return;
+  const target: Target = { host: x.host, ...(x.host === "agent_computer" && x.agentId !== undefined ? { agentId: x.agentId } : {}), ...(x.computerId === undefined ? {} : { computerId: x.computerId }), ...(x.deviceId === undefined ? {} : { deviceId: x.deviceId }) };
+  await h.adopt({ terminalId: x.terminalId, target, cols: x.cols, rows: x.rows, ...(x.cwd === "" ? {} : { cwd: x.cwd }) });
+};
+
+// ---- one command at a time in a session ------------------------------------------------------------------------------------------------------------------------
+// Two turns of the same agent (two chats at once, two helpers on one tab) would type into one shell: the second line becomes the first program's input, or their output mixes. Runs in one session wait
+// for each other, in order, in this process (the daemon is the one process that types into its sessions). The wait counts against the command's own time limit; a command that waited it all out is not
+// typed and nothing is interrupted, since what runs is another command.
+const queues = new Map<string, Promise<unknown>>();
+export const CLOSED_LINE = "That tab was closed before this command's turn came, so it did not run.";
+export const VALUES_BUSY_LINE = "This tab is still running something, so no Vault value is handed to it. Wait for it to finish, or run the command in another tab.";
+export const BUSY_LINE = "That terminal was busy with another command the whole time, so this one did not run. Name a session of your own (session) to run beside it.";
+async function oneAtATime<T>(terminalId: string, timeoutMs: number, f: (leftMs: number) => Promise<T>, signal?: AbortSignal): Promise<T> {
+  const ahead = queues.get(terminalId);
+  const before = ahead ?? Promise.resolve();
+  let free!: () => void;
+  const mine = new Promise<void>((r) => { free = r; });
+  const tail = before.then(() => mine);
+  queues.set(terminalId, tail);
+  const t0 = Date.now();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    // nothing ahead: the command has its whole time
+    if (ahead === undefined) return await f(timeoutMs);
+    // a command waiting its turn whose own turn is stopped meanwhile leaves the queue and is never typed (seventh look X3)
+    let onStop: (() => void) | undefined;
+    const stopped = new Promise<"stopped">((r) => { onStop = () => r("stopped"); if (signal?.aborted) r("stopped"); else signal?.addEventListener("abort", onStop, { once: true }); });
+    const turn = await Promise.race([before.then(() => true, () => true), new Promise<false>((r) => { timer = setTimeout(() => r(false), timeoutMs); }), stopped]);
+    if (onStop) signal?.removeEventListener("abort", onStop);
+    if (turn === "stopped") throw Object.assign(new Error(STOPPED_LINE), { code: "stopped" });
+    if (!turn) throw Object.assign(new Error(BUSY_LINE), { code: "queue_busy" });
+    if (signal?.aborted) throw Object.assign(new Error(STOPPED_LINE), { code: "stopped" });
+    return await f(Math.max(1000, timeoutMs - (Date.now() - t0)));
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+    free();
+    if (queues.get(terminalId) === tail) void tail.then(() => { if (queues.get(terminalId) === tail) queues.delete(terminalId); });
+  }
+}
 
 // ---- opening ------------------------------------------------------------------------------------------------------------------------------------------------
 
@@ -125,9 +209,14 @@ interface OpenInput { by?: TabBy; threadId?: string; host: HostKind; agentId?: s
 async function openSession(ctx: TermCtx, a: OpenInput, mapHostError: (e: unknown) => never): Promise<SessionRow> {
   ensure(ctx.db);
   if (a.host === "agent_computer") {
-    // a workspace is every Space's (a Personal Space has one when the person's computer has a container runtime); the desktop computer an agent can be given is a Team Space's
-    if (!isTeam(ctx.space) && !(a.agentId !== undefined && (await workspacesFor(a.agentId)))) raise(ctx, "permission.needs_team", "Agent computers are part of a Team Space.");
+    // an agent's terminal needs a workspace, or a computer, that can run now, in any kind of Space
     if (a.agentId === undefined) raise(ctx, "validation.bad_input", "Say which agent's workspace to open the terminal in.");
+    // in a Personal Space with nothing to run it on now, say why and what would fix it (12 Nov, f-wire binds the real Space kind): a Team Space is not the answer
+    if (!isTeam(ctx.space) && !(await workspacesFor(a.agentId))) {
+      // the agent's name when this caller may read it (agents.get answers another person's private agent as not found)
+      const name = ctx.call === undefined ? undefined : (await lookup(ctx, a.agentId)).agent?.name;
+      raise(ctx, "provider.unavailable", noComputerLine(name), { reason: "no_workspace_computer" });
+    }
     await needWorkspace(ctx, a.agentId);
   }
   if (a.host === "device" && a.deviceId === undefined) raise(ctx, "validation.bad_input", "Say which computer to open the terminal on.");
@@ -162,7 +251,10 @@ const unavailable = (ctx: TermCtx) => (e: unknown): never => {
   if (e instanceof Error && (e as { workspace?: unknown }).workspace === true) {
     ctx.log.warn("terminal: workspace did not start", { reason: e.message.slice(0, 160) });
     const [first = "The workspace did not start.", ...rest] = e.message.split("\n");
-    return raise(ctx, "provider.unavailable", first.slice(0, 300), rest.length > 0 ? { detail: rest.join("\n").slice(0, 600) } : undefined);
+    // why, for the app: no image, no Docker or no machine for workspaces (it cannot run here) apart from waiting for room or an agent in Trash (it will, or it is gone)
+    const code = (e as { code?: unknown }).code;
+    const reason = e.message === NO_PLACE ? "no_place" : typeof code === "string" ? code : "unavailable";
+    return raise(ctx, "provider.unavailable", first.slice(0, 300), { reason, ...(rest.length > 0 ? { detail: rest.join("\n").slice(0, 600) } : {}) });
   }
   ctx.log.warn("terminal: open failed", { reason: e instanceof Error ? e.message.slice(0, 120) : "unknown" });
   return raise(ctx, "provider.unavailable", "That computer did not start a terminal. Check that it is on and try again.");
@@ -224,10 +316,17 @@ export function get(ctx: TermCtx, input: { terminalId: string }) {
 
 export async function status(ctx: TermCtx, input: { terminalIds: string[] }) {
   ensure(ctx.db);
-  const known = input.terminalIds.map((id) => sessionBy(ctx.db, id)).filter((x): x is SessionRow => x !== null);
+  const rows0 = input.terminalIds.map((id) => sessionBy(ctx.db, id)).filter((x): x is SessionRow => x !== null);
+  // a session in a workspace is read only by who may enter that workspace, like every other call on it; one the caller may not enter is answered as if there were no such terminal
+  // agents.get is asked once per agent for the whole poll; an agent that could not be read just now keeps its row as last recorded rather than vanishing for one poll
+  const facts: Facts = new Map();
+  const known: SessionRow[] = [];
+  const kept: SessionRow[] = [];
+  for (const x of rows0) { const may = await mayRead(ctx, x, facts); if (may === "yes") known.push(x); else if (may === "unknown") kept.push(x); }
   const host = boundHost();
   let seen = new Map<string, { state: TermState; lastLine?: string; exitCode: number | null }>();
   if (host && known.length > 0) {
+    for (const x of known) if (x.closedAt === undefined) await adoptOn(host, x).catch(() => undefined);
     try { seen = new Map((await host.status(known.filter((x) => x.closedAt === undefined).map((x) => x.terminalId))).map((r) => [r.terminalId, r])); }
     catch (e) { ctx.log.warn("terminal: status failed", { reason: e instanceof Error ? e.message.slice(0, 120) : "unknown" }); }
   }
@@ -237,10 +336,12 @@ export async function status(ctx: TermCtx, input: { terminalIds: string[] }) {
       const state: TermState = x.closedAt !== undefined ? "exited" : h?.state ?? x.state;
       // tmux does not know an exit code; a host that does says it, and one that does not leaves the last one Vyre recorded.
       const exitCode = h && h.exitCode !== null ? h.exitCode : x.exitCode;
-      if (h && (h.state !== x.state || exitCode !== x.exitCode)) ctx.db.run("UPDATE terminal_sessions SET state = ?, exit_code = ? WHERE terminal_id = ?", h.state, exitCode, x.terminalId);
+      // a run of this process is queued or running in the tab: its row is that run's to set, not a poll's (tmux reads a builtin loop as the idle shell) (review S3)
+      if (h && !queues.has(x.terminalId) && (h.state !== x.state || exitCode !== x.exitCode)) ctx.db.run("UPDATE terminal_sessions SET state = ?, exit_code = ? WHERE terminal_id = ?", h.state, exitCode, x.terminalId);
       const last = h?.lastLine === undefined ? undefined : clean(scopeOf(x), h.lastLine);
       return { terminalId: x.terminalId, state, ...(last === undefined ? {} : { lastLine: last }), exitCode };
-    }),
+    }).concat(kept.map((x) => ({ terminalId: x.terminalId, state: x.closedAt !== undefined ? ("exited" as TermState) : x.state, exitCode: x.exitCode })))
+      .sort((p, q) => input.terminalIds.indexOf(p.terminalId) - input.terminalIds.indexOf(q.terminalId)),
   };
 }
 
@@ -248,7 +349,7 @@ export async function read(ctx: TermCtx, input: { terminalId: string; lines?: nu
   ensure(ctx.db);
   const x = await needAccess(ctx, live(ctx, input.terminalId));
   try {
-    const r = await hostOf(ctx).read(input.terminalId, { lines: input.lines ?? REPLAY_LINES, ...(input.since === undefined ? {} : { since: input.since }) });
+    const r = await (await hostFor(ctx, x)).read(input.terminalId, { lines: input.lines ?? REPLAY_LINES, ...(input.since === undefined ? {} : { since: input.since }) });
     return { text: clean(scopeOf(x), r.text), next: r.next };
   } catch (e) { return unexpected(ctx, "read the screen", e); }
 }
@@ -257,7 +358,7 @@ export async function attach(ctx: TermCtx, input: { terminalId: string }) {
   ensure(ctx.db);
   const x = await needAccess(ctx, live(ctx, input.terminalId));
   let replay: string;
-  try { replay = clean(scopeOf(x), (await hostOf(ctx).read(input.terminalId, { lines: REPLAY_LINES })).text); }
+  try { replay = clean(scopeOf(x), (await (await hostFor(ctx, x)).read(input.terminalId, { lines: REPLAY_LINES })).text); }
   catch (e) { return unexpected(ctx, "attach", e); }
   const now = ctx.now();
   const ticket = ticketSecret();
@@ -287,7 +388,7 @@ export async function close(ctx: TermCtx, input: { terminalId: string }) {
   await needAccess(ctx, x);
   // The tmux session is killed when the machine can be reached; if it cannot, the row is still closed so the person is not stuck with a session they cannot see.
   const host = boundHost();
-  if (host) { try { await host.close(x.terminalId); } catch (e) { ctx.log.warn("terminal: could not kill the session", { reason: e instanceof Error ? e.message.slice(0, 120) : "unknown" }); } }
+  if (host) { try { await adoptOn(host, x); await host.close(x.terminalId); } catch (e) { ctx.log.warn("terminal: could not kill the session", { reason: e instanceof Error ? e.message.slice(0, 120) : "unknown" }); } }
   ctx.db.run("UPDATE terminal_sessions SET closed_at = ?, state = 'exited' WHERE terminal_id = ?", ctx.now(), x.terminalId);
   forgetSecrets(scopeOf(x));
   ctx.emit("terminal.closed", x.terminalId, { terminalId: x.terminalId, by: actorOf(ctx) });
@@ -296,25 +397,25 @@ export async function close(ctx: TermCtx, input: { terminalId: string }) {
 
 export async function input(ctx: TermCtx, a: { terminalId: string; data: string }) {
   ensure(ctx.db);
-  await needAccess(ctx, live(ctx, a.terminalId));
+  const x = await needAccess(ctx, live(ctx, a.terminalId));
   if (a.data === "") raise(ctx, "validation.bad_input", "There is nothing to send.");
-  try { await hostOf(ctx).input(a.terminalId, a.data); } catch (e) { return unexpected(ctx, "take that input", e); }
+  try { await (await hostFor(ctx, x)).input(a.terminalId, a.data); } catch (e) { return unexpected(ctx, "take that input", e); }
   touch(ctx.db, a.terminalId, ctx.now());
   return { ok: true };
 }
 
 export async function interrupt(ctx: TermCtx, a: { terminalId: string }) {
   ensure(ctx.db);
-  await needAccess(ctx, live(ctx, a.terminalId));
-  try { await hostOf(ctx).interrupt(a.terminalId); } catch (e) { return unexpected(ctx, "interrupt", e); }
+  const x = await needAccess(ctx, live(ctx, a.terminalId));
+  try { await (await hostFor(ctx, x)).interrupt(a.terminalId); } catch (e) { return unexpected(ctx, "interrupt", e); }
   touch(ctx.db, a.terminalId, ctx.now());
   return { ok: true };
 }
 
 export async function resize(ctx: TermCtx, a: { terminalId: string; cols: number; rows: number }) {
   ensure(ctx.db);
-  await needAccess(ctx, live(ctx, a.terminalId));
-  try { await hostOf(ctx).resize(a.terminalId, a.cols, a.rows); } catch (e) { return unexpected(ctx, "resize", e); }
+  const x = await needAccess(ctx, live(ctx, a.terminalId));
+  try { await (await hostFor(ctx, x)).resize(a.terminalId, a.cols, a.rows); } catch (e) { return unexpected(ctx, "resize", e); }
   ctx.db.run("UPDATE terminal_sessions SET cols = ?, rows = ? WHERE terminal_id = ?", a.cols, a.rows, a.terminalId);
   return { ok: true };
 }
@@ -367,8 +468,15 @@ async function targetForRun(ctx: TermCtx, a: RunInput, person: string, agentId: 
   return device();
 }
 
-export const NO_WORKSPACE_PERSONAL = "Your Assistant runs commands on this computer. Install Docker or add a server in Console > Computers to give it a workspace of its own.";
-export const NO_WORKSPACE_TEAM = "This Space has no machine to run agent workspaces on. Add a server in Console > Computers.";
+// What is true for each kind of Space (12 Nov, the browser's voice, lane f-desktop): a Personal Space runs on the person's own computer; a Team Space on its server, which is not the computer the person is on.
+export const NO_WORKSPACE_PERSONAL = "Your Assistant runs commands on this computer for now. A workspace of its own needs Docker on this computer, or a server with Docker added in Console > Computers.";
+/** What opening an agent's terminal says when no computer can run it now (lane f-wire's review, 12 Nov): the agent's name when the caller may see it, else "this agent". */
+export function noComputerLine(name?: string): string {
+  const whose = (name !== undefined && name.trim() !== "" ? name.trim() : "this agent") + "'s";
+  return "No computer can run " + whose + " commands right now. Turn on the computer it runs on, or add a computer with Docker in Settings, Computer.";
+}
+export const NO_WORKSPACE_NOW_PERSONAL = noComputerLine();
+export const NO_WORKSPACE_TEAM = "This Space can't run agent workspaces yet. That needs Docker on the Space's server, or another server with Docker added in Console > Computers.";
 
 /**
  * An agent's workspace as the Terminal tab shows it: asleep, running, waiting for room (with the line) or not made yet; where it is; the projects it has folders for; whether this person may attach, and why not
@@ -382,7 +490,9 @@ export async function workspace(ctx: TermCtx, input: { agentId: string }) {
   const probe = boundWorkspaceStatus();
   const available = probe !== null && (await workspacesFor(input.agentId));
   if (!available) return { state: "unavailable" as const, canAttach: false, line: isTeam(ctx.space) ? NO_WORKSPACE_TEAM : NO_WORKSPACE_PERSONAL, cannotAttach: "There is no workspace to attach to." };
-  const st = await (probe as NonNullable<typeof probe>)(input.agentId).catch(() => ({ state: "none" as const }));
+  // Docker that does not answer is not a workspace that sleeps: say what would make it work, and offer nothing that cannot (owner walk, 12 Nov)
+  const st = await (probe as NonNullable<typeof probe>)(input.agentId).catch(() => null);
+  if (st === null) return { state: "unavailable" as const, canAttach: false, line: isTeam(ctx.space) ? NO_WORKSPACE_TEAM : NO_WORKSPACE_PERSONAL, cannotAttach: "There is no workspace to attach to." };
   return { ...st, canAttach: st.state === "running" || st.state === "asleep" || st.state === "none" };
 }
 
@@ -403,13 +513,36 @@ async function sessionForRun(ctx: TermCtx, a: RunInput): Promise<SessionRow> {
   let scope: WorkScope | undefined;
   if (host === "agent_computer" && ctx.principal.kind === "agent" && agentId === ctx.principal.id) { scope = await workScope(ctx, agentId); agentId = scope.agentId; }
   const tab = (a.session ?? "").trim().slice(0, 80) || (scope?.helper ? `helper: ${scope.helper.name}` : AGENT_SESSION);
+  // A helper's tab is its own, so two helpers with one name never share a shell: a crew member (another agent) has one tab for itself across its helper chats, found by who it is, so a second
+  // agent with the same name gets its own; a helper chat of the agent itself has one per helper chat, found by the chat, so two with the same title get two.
+  const crew = scope?.helper !== undefined && scope.agentId !== ctx.principal.id;
+  const own = scope?.helper === undefined ? "" : crew ? " AND t.kind = 'helper' AND t.actor = ?" : " AND t.kind = 'helper' AND t.actor = ? AND (t.thread_id IS ? OR t.thread_id = ?)";
+  const ownArgs: unknown[] = scope?.helper === undefined ? [] : crew ? [ctx.principal.id] : [ctx.principal.id, ctx.thread ?? null, ctx.thread ?? ""];
   const found = ctx.db.all(
-    `${SESSION_SELECT} WHERE s.owner = ? AND s.host = ? AND s.name = ? AND s.closed_at IS NULL AND (s.agent_id IS ? OR s.agent_id = ?) AND (s.device_id IS ? OR s.device_id = ?) ORDER BY s.created_at DESC LIMIT 1`,
-    owner, host, tab, agentId ?? null, agentId ?? "", deviceId ?? null, deviceId ?? "",
+    `${SESSION_SELECT} WHERE s.owner = ? AND s.host = ? AND s.name = ? AND s.closed_at IS NULL AND (s.agent_id IS ? OR s.agent_id = ?) AND (s.device_id IS ? OR s.device_id = ?)${own} ORDER BY s.created_at DESC LIMIT 1`,
+    owner, host, tab, agentId ?? null, agentId ?? "", deviceId ?? null, deviceId ?? "", ...ownArgs,
   ) as Row[];
   const hit = found[0];
   if (hit) return needAccess(ctx, sessionOf(hit));
-  return openSession(ctx, { host, ...(agentId === undefined ? {} : { agentId }), ...(deviceId === undefined ? {} : { deviceId }), name: tab, named: a.session !== undefined && a.session.trim() !== "", by: await tabFor(ctx, scope), ...(a.cwd === undefined ? {} : { cwd: a.cwd }) }, unavailable(ctx));
+  const spec: OpenInput = { host, ...(agentId === undefined ? {} : { agentId }), ...(deviceId === undefined ? {} : { deviceId }), name: tab, named: a.session !== undefined && a.session.trim() !== "", by: await tabFor(ctx, scope), ...(a.cwd === undefined ? {} : { cwd: a.cwd }) };
+  // The new tab is opened in a call of its own, which commits at once: its access resource (terminal/<id>) is registered in the commit of the call that opened it, and this call commits only
+  // when its command ends (or never, when it is stopped or fails). Opened here, the owner could not read the tab while the agent's first command in it ran, nor ever after a stopped one
+  // (release gate, 12 Nov: "The server shell is locked" for the Owner). Where no pipeline is around it (a test calling the handler), it is opened here as before.
+  if (ctx.call) {
+    // the call failing (a pipeline that refuses it, a host call not there) opens the tab here as before, rather than failing the command
+    let r: { terminalId?: unknown } | undefined;
+    try { r = (await ctx.call("host.hook.call.terminal.open_tab", { input: spec })) as { terminalId?: unknown } | undefined; }
+    catch (e) { ctx.log.warn("terminal: the run's tab was opened in its own call's stead", { reason: e instanceof Error ? e.message.slice(0, 120) : "unknown" }); r = undefined; }
+    const row = typeof r?.terminalId === "string" ? sessionBy(ctx.db, r.terminalId) : null;
+    if (row) return row;
+  }
+  return openSession(ctx, spec, unavailable(ctx));
+}
+
+/** The run's new tab, opened in its own call (sessionForRun): the same session terminal_run would have made, committed before its command runs. */
+export async function openTabForRun(ctx: TermCtx, spec: OpenInput): Promise<{ terminalId: string }> {
+  const row = await openSession(ctx, spec, unavailable(ctx));
+  return { terminalId: row.terminalId };
 }
 
 export async function run(ctx: TermCtx, a: RunInput) {
@@ -425,7 +558,7 @@ export async function run(ctx: TermCtx, a: RunInput) {
   if (v.verdict === "deny") raise(ctx, "permission.role_lacks_permission", "A rule of yours stops that command.", { reason: "deny_rule", rule: v.entry });
 
   const s = await sessionForRun(ctx, a);
-  const host = hostOf(ctx);
+  const host = await hostFor(ctx, s);
   const timeoutMs = (a.timeoutSec ?? DEFAULT_TIMEOUT_SEC) * 1000;
 
   const scope = scopeOf(s);
@@ -445,7 +578,10 @@ export async function run(ctx: TermCtx, a: RunInput) {
     },
   };
   const where = WHERE[s.host];
-  const who = { agentId: ctx.principal.id, asker: owner, where };
+  // the computer the value goes into is the workspace's agent's (a helper works in its parent's), which decides the team-agent rule (host/src/seams/team-vault.ts)
+  // a session on a person's own computer names that computer (from the session row, which the agent does not set): the team-agent rule leaves a person's own shell alone
+  const where_ = { ...(s.agentId !== undefined ? { place: s.agentId } : {}), ...(s.host === "device" && s.deviceId !== undefined ? { device: s.deviceId } : {}) };
+  const who = { agentId: ctx.principal.id, asker: owner, where, ...where_ };
   // A handle in the command line never becomes its value in the line (W6): the line names a variable, quoted for where it stands, and the value goes in that variable's environment for this one
   // command. A handle the Vault does not know is left as the text it is (a hashtag, an issue number).
   const env: Record<string, string> = { ...(a.env ?? {}) };
@@ -485,25 +621,43 @@ export async function run(ctx: TermCtx, a: RunInput) {
   let started: { at: number; rowId: number } | null = null;
   let result: { exitCode: number | null; truncated: boolean; durationMs: number } | null = null;
   let timedOut = false;
-  const exec = async (filled: unknown): Promise<string> => {
+  let waitedOut = false;
+  // only an agent's command, from its turn, is marked: a command a person runs or types is never interrupted by an agent's Stop. The mark is made before the command waits for its tab, so a
+  // Stop reaches it in the queue too (seventh look X3), and it keeps when the command was asked for, so a cancel committed before then is not this command's (X1)
+  const mark: Mark | null = ctx.principal.kind === "agent" ? { ac: new AbortController(), startedAt: ctx.now(), agentId: ctx.principal.id, ...(ctx.thread !== undefined ? { threadId: ctx.thread } : {}), ...(ctx.run !== undefined ? { runId: ctx.run } : {}) } : null;
+  const exec = (filled: unknown): Promise<string> => {
+    if (mark) inflight.add(mark);
+    return oneAtATime(s.terminalId, timeoutMs, (leftMs) => execNow(filled, leftMs), mark?.ac.signal).catch((e: unknown) => {
+      if (e && typeof e === "object" && (e as { code?: unknown }).code === "queue_busy") waitedOut = true;
+      throw e;
+    }).finally(() => { if (mark) inflight.delete(mark); });
+  };
+  const execNow = async (filled: unknown, leftMs: number): Promise<string> => {
     const f = filled as { env?: Record<string, string> };
+    // A command that carries values is not typed into a tab Vyre knows is still running one (review 12 Nov, 3a): the host checks the shell owns its terminal, and this catches what that check
+    // cannot see (a builtin such as read, or a loop of builtins, typed at the prompt by the agent's last command). Read in this command's turn, so one only queued behind another run is not refused.
+    const nowRow = sessionBy(ctx.db, s.terminalId);
+    // its tab was closed while it waited its turn: it is not typed anywhere (review 12 Nov, 7)
+    if (nowRow === null || nowRow.closedAt !== undefined) throw Object.assign(new Error(CLOSED_LINE), { code: "closed" });
+    if (Object.keys(f.env ?? {}).length > 0 && nowRow.state === "running") throw Object.assign(new Error(VALUES_BUSY_LINE), { code: "busy" });
     const at = ctx.now();
     // The record keeps the command as the model wrote it (handles, not values).
     ctx.db.run("INSERT INTO terminal_commands (terminal_id, command, exit_code, started_at, duration_ms, by_principal) VALUES (?, ?, NULL, ?, NULL, ?)", s.terminalId, command, at, ctx.principal.id);
     started = { at, rowId: Number((ctx.db.all("SELECT MAX(seq) AS m FROM terminal_commands WHERE terminal_id = ?", s.terminalId) as Row[])[0]?.["m"]) };
     ctx.db.run("UPDATE terminal_sessions SET state = 'running', last_active_at = ? WHERE terminal_id = ?", at, s.terminalId);
+    // the turn that started it can be stopped while it runs: its command is interrupted then (stopRuns, the consumer on turn.cancelled and run.stopped)
     try {
-      const r = await host.run(s.terminalId, { command: line, ...(a.cwd === undefined ? {} : { cwd: a.cwd }), env: f.env ?? {}, timeoutMs });
+      const r = await host.run(s.terminalId, { command: line, ...(a.cwd === undefined ? {} : { cwd: a.cwd }), env: f.env ?? {}, timeoutMs: leftMs, ...(mark ? { signal: mark.ac.signal } : {}) });
       result = { exitCode: r.exitCode, truncated: r.truncated, durationMs: r.durationMs };
       return r.output;
     } catch (e) {
       if (e && typeof e === "object" && (e as { code?: unknown }).code === "timeout") timedOut = true;
       throw e;
+    } finally {
+      // the tab is free again before the queue lets the next command in, so a command right behind this one does not read it as running (review S3)
+      ctx.db.run("UPDATE terminal_sessions SET state = 'idle', exit_code = ? WHERE terminal_id = ?", result?.exitCode ?? null, s.terminalId);
     }
   };
-  // A command that carries values is not typed into a tab Vyre knows is still running one (review 12 Nov, 3a): the host checks the shell owns its terminal, and this catches what that check
-  // cannot see (a builtin such as read, or a loop of builtins, typed at the prompt by the agent's last command).
-  if (Object.keys(env).length > 0 && s.state === "running") raise(ctx, "provider.unavailable", "This tab is still running something, so no Vault value is handed to it. Wait for it to finish, or run the command in another tab.", { reason: "busy" });
   // Only the environment is filled: the command line holds references, never a handle the filler would put a value in place of.
   const args = Object.keys(env).length > 0 ? { env } : {};
   const kit = boundKit();
@@ -511,7 +665,7 @@ export async function run(ctx: TermCtx, a: RunInput) {
   if (base) {
     out = await kit.run(
       { source, reportMiss: (m) => { ctx.log.warn("vault.scrub_miss", { itemId: m.itemId, place: m.place }); } },
-      { tool: "terminal_run", args, traceId: ctx.trace.traceId, agentId: ctx.principal.id, asker: owner, where },
+      { tool: "terminal_run", args, traceId: ctx.trace.traceId, agentId: ctx.principal.id, asker: owner, where, ...where_ },
       exec,
     );
   } else {
@@ -531,6 +685,7 @@ export async function run(ctx: TermCtx, a: RunInput) {
   if (!out.ok) {
     finish(null, begun === null ? 0 : ctx.now() - begun.at);
     if (timedOut) raise(ctx, "timeout.deadline", "The command did not finish in time. It was interrupted.", { timeoutSec: a.timeoutSec ?? DEFAULT_TIMEOUT_SEC });
+    if (waitedOut) raise(ctx, "timeout.deadline", BUSY_LINE, { timeoutSec: a.timeoutSec ?? DEFAULT_TIMEOUT_SEC, reason: "busy" });
     const code = out.error.code === "permission.provider_label" ? "permission.no_grant" : out.error.code;
     return raise(ctx, code, clean(scope, out.error.message), out.error.handle === undefined ? undefined : { handle: out.error.handle });
   }
@@ -560,6 +715,20 @@ const tidy = (ctx: TermCtx, what: string, list: readonly string[]): string[] => 
   return out;
 };
 
+export const AGENT_LOOSENS_LINE = "An agent can only make your terminal rules stricter. To allow a command, remove a rule or add a folder, change it yourself in Terminal rules.";
+
+/**
+ * What in `next` is looser than `cur`, or null when nothing is: a new allow entry, an ask or deny entry gone (an ask entry that moved to deny is stricter), or a new folder. Stricter is a new ask or deny
+ * entry, an allow entry gone, a folder gone.
+ */
+export function loosens(cur: Rules, next: Rules): string | null {
+  for (const e of next.allow) if (!cur.allow.includes(e)) return e;
+  for (const e of cur.deny) if (!next.deny.includes(e)) return e;
+  for (const e of cur.ask) if (!next.ask.includes(e) && !next.deny.includes(e)) return e;
+  for (const e of next.folders) if (!cur.folders.includes(e)) return e;
+  return null;
+}
+
 export function rulesSet(ctx: TermCtx, input: { rules: Rules }) {
   ensure(ctx.db);
   const rules: Rules = {
@@ -570,6 +739,12 @@ export function rulesSet(ctx: TermCtx, input: { rules: Rules }) {
   rules.allow = rules.allow.filter((e) => !rules.deny.includes(e) && !rules.ask.includes(e));
   rules.ask = rules.ask.filter((e) => !rules.deny.includes(e));
   const me = actorOf(ctx);
+  // an agent may make the person's rules stricter by itself, never looser (12 Nov, lead's decision): looser needs the person, in Terminal rules
+  // every caller that is not a person (an agent, an Automation or another service acting for someone) may only tighten them (review S4)
+  if (ctx.principal.kind !== "person") {
+    const loose = loosens(rulesOf(ctx.db, me), rules);
+    if (loose !== null) raise(ctx, "permission.role_lacks_permission", AGENT_LOOSENS_LINE, { reason: "loosens_rules", entry: loose });
+  }
   ctx.db.run(
     "INSERT OR REPLACE INTO terminal_rules (person_id, allow, ask, deny, folders, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
     me, JSON.stringify(rules.allow), JSON.stringify(rules.ask), JSON.stringify(rules.deny), JSON.stringify(rules.folders), ctx.now(),
@@ -628,6 +803,107 @@ export async function request(ctx: TermCtx, input: { threadId: string; command: 
 export async function isDangerCall(_ctx: unknown, input: unknown): Promise<boolean> {
   const c = (input as { command?: unknown } | null)?.command;
   return typeof c !== "string" || isDangerous(c);
+}
+
+/**
+ * An agent went to Trash (deleted, or the Assistant of a person who left the Space): its workspace stops for good. Its open sessions close, its container and network go and the room it held on the
+ * host is given back; its home and Files volumes stay, since an agent in Trash can be restored and they hold what it made (the next command after a restore makes the workspace again over them).
+ * Safe to run twice. `remove` is the machine's (the workspace fleet), absent where this host has no workspaces.
+ */
+/** Is this agent in Trash now (agents_agent.deletedAt, bound by the daemon)? undefined when it cannot be told. */
+export type InTrash = (agentId: string) => boolean | undefined;
+
+export async function onAgentGone(ctx: TermCtx, event: { payload: { agentId?: unknown } }, remove: ((agentId: string) => Promise<void>) | null, inTrash?: InTrash | null): Promise<string[]> {
+  ensure(ctx.db);
+  const agentId = event.payload.agentId;
+  if (typeof agentId !== "string" || !/^agt_[A-Za-z0-9_-]+$/.test(agentId)) return [];
+  // a delete delivered (or retried) after the agent was restored: it is not in Trash, so nothing is closed, removed or marked (third look T2)
+  if (inTrash?.(agentId) === false) return [];
+  const open = (ctx.db.all("SELECT terminal_id FROM terminal_sessions WHERE host = 'agent_computer' AND agent_id = ? AND closed_at IS NULL", agentId) as Row[]).map((r) => String(r["terminal_id"]));
+  const at = ctx.now();
+  for (const id of open) {
+    ctx.db.run("UPDATE terminal_sessions SET closed_at = ?, state = 'exited' WHERE terminal_id = ?", at, id);
+    forgetSecrets(scopeOf({ terminalId: id, host: "agent_computer", agentId }));
+    ctx.emit("terminal.closed", id, { terminalId: id, by: "svc_host" });
+  }
+  // what its workspace remembered of Vault values goes from memory with it (review S2)
+  forgetAgentSecrets(agentId);
+  // the clock for its volumes starts now (removed after the Space's Trash retention, unless it is restored first)
+  ctx.db.run("INSERT INTO terminal_workspace_gone (agent_id, deleted_at) VALUES (?, ?) ON CONFLICT (agent_id) DO NOTHING", agentId, ctx.now());
+  if (remove) await remove(agentId);
+  return open;
+}
+
+/** An agent's command, waiting for its tab or running, with the turn that asked for it and when. */
+interface Mark { ac: AbortController; startedAt: number; agentId?: string; threadId?: string; runId?: string }
+const inflight = new Set<Mark>();
+
+/**
+ * A turn was stopped (turn.cancelled: its agent and thread; run.stopped: its run): the commands it started are interrupted now, so the next command finds a shell at its prompt instead of
+ * waiting behind them (release gate, 12 Nov). Returns how many were interrupted.
+ */
+export function stopRuns(match: { agentId?: string; threadId?: string; runId?: string; at?: number }): number {
+  let n = 0;
+  for (const x of inflight) {
+    // asked for after the cancel was committed: a later turn's command (each chat's queue is serial, so a turn's cancel commits before a later turn's command starts), never stopped by it (X1)
+    if (match.at !== undefined && x.startedAt > match.at) continue;
+    const byRun = match.runId !== undefined && x.runId === match.runId;
+    const byTurn = match.threadId !== undefined && x.threadId === match.threadId && (match.agentId === undefined || x.agentId === match.agentId);
+    if ((byRun || byTurn) && !x.ac.signal.aborted) { x.ac.abort(); n++; }
+  }
+  return n;
+}
+
+/** agent.restored: back from Trash, so its volumes stay. */
+export function onAgentRestored(ctx: TermCtx, agentId: unknown): boolean {
+  if (typeof agentId !== "string") return false;
+  ensure(ctx.db);
+  return ctx.db.run("DELETE FROM terminal_workspace_gone WHERE agent_id = ?", agentId).changes > 0;
+}
+
+/**
+ * How long Trash keeps things when governance cannot be read: governance's default trash retention ('30d', manifests/governance.ts). The Space browser keeps the same constant (modules/computers/sbrowser/
+ * forget.ts TRASH_KEEP_MS); test/trash-retention.workspace.test.ts holds this one to governance's default.
+ */
+export const TRASH_KEEP_MS = 30 * 86_400_000;
+
+/** A retention value as governance writes it ("30d", "12w", "6m", "2y", "forever") in ms; null for forever; undefined when it is not one of those. */
+export function retentionMs(v: string): number | null | undefined {
+  if (v === "forever") return null;
+  const m = /^(\d{1,5})([dwmy])$/.exec(v.trim());
+  if (!m) return undefined;
+  return Number(m[1]) * { d: 1, w: 7, m: 30, y: 365 }[m[2] as "d" | "w" | "m" | "y"] * 86_400_000;
+}
+
+/** The Space's Trash retention in force, read from governance now; its default when that cannot be read; null when Trash is kept forever. */
+export async function trashKeepMs(ctx: TermCtx): Promise<number | null> {
+  try {
+    const out = (await ctx.call?.("governance.retention.get", {})) as { kinds?: Array<{ key?: string; value?: string }> } | undefined;
+    const v = out?.kinds?.find((k) => k.key === "trash")?.value;
+    const ms = typeof v === "string" ? retentionMs(v) : undefined;
+    // under a day ("0d") would remove at the next hourly pass: governance's default instead (third look nit)
+    if (ms === null || (ms !== undefined && ms >= 86_400_000)) return ms;
+  } catch { /* governance is not running here (a Personal Space has no retention settings): its default */ }
+  return TRASH_KEEP_MS;
+}
+
+/** The periodic pass: the home and Files volumes of agents in Trash longer than Trash keeps things are removed. Returns the agents whose volumes went. */
+export async function forgetExpiredWorkspaces(ctx: TermCtx, remove: ((agentId: string) => Promise<void>) | null, inTrash?: InTrash | null): Promise<string[]> {
+  ensure(ctx.db);
+  if (!remove || (ctx.db.all("SELECT 1 FROM terminal_workspace_gone LIMIT 1") as Row[]).length === 0) return [];
+  const keep = await trashKeepMs(ctx);
+  if (keep === null) return [];
+  const due = (ctx.db.all("SELECT agent_id FROM terminal_workspace_gone WHERE deleted_at <= ?", ctx.now() - keep) as Row[]).map((r) => String(r["agent_id"]));
+  const done: string[] = [];
+  for (const id of due) {
+    // read right before removing: one restored since (its agent.restored not consumed yet) keeps its volumes, and its row goes; one that cannot be told is kept for the next pass (third look T2)
+    const t = inTrash ? inTrash(id) : true;
+    if (t === false) { ctx.db.run("DELETE FROM terminal_workspace_gone WHERE agent_id = ?", id); continue; }
+    if (t === undefined) continue;
+    try { await remove(id); ctx.db.run("DELETE FROM terminal_workspace_gone WHERE agent_id = ?", id); done.push(id); }
+    catch (e) { ctx.log.warn("terminal: the workspace volumes of an agent in Trash could not be removed; tried again later", { agentId: id, reason: e instanceof Error ? e.message.slice(0, 160) : "unknown" }); }
+  }
+  return done;
 }
 
 export { commandsOf, judge, rulesOf };

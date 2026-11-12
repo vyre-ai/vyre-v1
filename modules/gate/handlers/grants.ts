@@ -27,7 +27,7 @@ function targetsAfter(s: StepIn, kept: string[], press: "save" | "on"): string[]
 
 export async function grantsSet(ctx: GateCtx, input: In): Promise<unknown> {
   // the automation capability a person pressed calls this, and it checked their access to the automation; nobody calls it from outside
-  if ((ctx.depth ?? 0) === 0 && !isHostService(ctx.principal)) raise(ctx, "permission.role_lacks_permission", "An automation sets this when it is saved.", { reason: "system_only" });
+  if (((ctx.depth ?? 0) === 0 || ctx.forwarded === true) && !isHostService(ctx.principal)) raise(ctx, "permission.role_lacks_permission", "An automation sets this when it is saved.", { reason: "system_only" });
   const by = ctx.principal;
   // a person's own press; an outside agent working under its person's setup grant runs as them but has not pressed anything (lib/trust.ts isPersonPress)
   const pressed = isPersonPress(ctx) || isHostService(by);
@@ -55,10 +55,19 @@ function stepCovered(ctx: GateCtx, step: StepRef, act: string, targets: readonly
 }
 
 /** Spend the person's own ask on this call. Every target must be one they named. A request that named none covers any target, and a call that shows none (a crew push, a saved draft) takes any ask for its act: once, and only in a thread no outside content has reached, because nothing checks where it goes. */
+/** The chain's outside-content marks: what a stranger wrote was read in one of these threads. `marked` when one is not cleared yet (the person has not spoken since). */
+function taintOf(ctx: GateCtx, threads: readonly string[], source?: string): { any: boolean; marked: boolean } {
+  if (threads.length === 0) return { any: false, marked: false };
+  const rows = ctx.db.all(`SELECT cleared_at, source FROM gate_taint WHERE thread_id IN (${threads.map(() => "?").join(", ")})`, ...threads) as unknown as { cleared_at: number | null; source: string | null }[];
+  const mine = source === undefined ? rows : rows.filter((t) => String(t.source ?? "").startsWith(source));
+  return { any: mine.length > 0, marked: mine.some((t) => t.cleared_at === null) };
+}
+
 function turnSpent(ctx: GateCtx, act: string, targets: readonly string[], turn: { person: string; threads: string[] }): string[] {
   const marks = turn.threads.map(() => "?").join(", ");
-  const taint = ctx.db.all(`SELECT cleared_at FROM gate_taint WHERE thread_id IN (${marks})`, ...turn.threads) as unknown as { cleared_at: number | null }[];
-  if (taint.some((t) => t.cleared_at === null)) return [];
+  const t = taintOf(ctx, turn.threads);
+  if (t.marked) return [];
+  const taint = t.any ? [1] : [];
   const rows = ctx.db.all(`SELECT id, target FROM gate_grants WHERE kind = 'turn' AND person = ? AND act = ? AND used_at IS NULL AND expires_at > ? AND thread_id IN (${marks}) ORDER BY created_at ASC, id ASC`,
     turn.person, act, ctx.now(), ...turn.threads) as unknown as { id: string; target: string }[];
   const named = targets.map((t) => rows.find((r) => r.target !== "" && namedCovers(r.target, t)));
@@ -101,7 +110,7 @@ export async function grantsTake(ctx: GateCtx, input: In): Promise<unknown> {
  * chats they hold in (`threads`, kept as goal rows that alwaysCovered matches), and ends them with an empty list when the goal pauses, stops or ends. A call without a press changes only the chats.
  */
 export async function grantsGoal(ctx: GoalsGrantCtx, input: In): Promise<unknown> {
-  if ((ctx.depth ?? 0) === 0 && !isHostService(ctx.principal)) raise(ctx, "permission.role_lacks_permission", "A goal sets this when its owner starts or edits it.", { reason: "system_only" });
+  if (((ctx.depth ?? 0) === 0 || ctx.forwarded === true) && !isHostService(ctx.principal)) raise(ctx, "permission.role_lacks_permission", "A goal sets this when its owner starts or edits it.", { reason: "system_only" });
   const now = ctx.now();
   if (input.set !== undefined) {
     if (!(isPersonPress(ctx) && ctx.principal.id === input.person)) raise(ctx, "permission.role_lacks_permission", "Only the owner's own press grants a goal a permission.", { reason: "press_only" });
@@ -176,13 +185,20 @@ export async function linksKnown(ctx: GateCtx, input: In): Promise<unknown> {
   const l = normalLink(String(input.url));
   if (l === null) return { known: false };
   const threads = input.threads as string[];
+  // In an ordinary chat an agent may open any link (owner, 2 Nov; lead's ruling for rc.26, 12 Nov): read_link and read_docs are GET only, keyless and public hosts only, so a link the agent put
+  // together is a read, before or after it read a page. Only a chain that carries an uncleared mark from an Automation's trigger (a stranger-started Run that nobody watches) holds a composed link:
+  // there only a link the person gave or the content itself linked to is a read. Residual risk (BACKLOG): a page can ask the agent to open an address that carries chat text. No thread to judge is
+  // never free: the hook counts that as composed before it asks.
+  if (threads.length > 0 && !taintOf(ctx, threads, "automation:").marked) return { known: true };
   return { known: ctx.db.all(`SELECT 1 AS x FROM gate_links WHERE link = ? AND thread_id IN (${threads.map(() => "?").join(", ")})`, await sha(l), ...threads).length > 0 };
 }
 
 export async function taintMark(ctx: GateCtx, input: In): Promise<unknown> {
   if (!isHostService(ctx.principal) && !((ctx.origin === "gate" || ctx.origin === "engine") && (ctx.depth ?? 0) === 0)) raise(ctx, "permission.role_lacks_permission", "Only the server marks this.", { reason: "system_only" });
   for (const t of input.threads as string[]) {
-    ctx.db.run("INSERT INTO gate_taint (thread_id, source, at) VALUES (?, ?, ?) ON CONFLICT (thread_id) DO UPDATE SET source = excluded.source, at = excluded.at, cleared_at = NULL", t, input.source, ctx.now());
+    // an uncleared Automation mark is never replaced by a later read's: a stranger's "first open this link" must not lift the holds the mark carries (runs-as review pass 4); the read's links
+    // are still kept below, and the mark stays uncleared. A new Automation mark does replace it: when runs-as moves, the mark names the person the work now acts for, who can clear it (pass 4b)
+    ctx.db.run("INSERT INTO gate_taint (thread_id, source, at) VALUES (?, ?, ?) ON CONFLICT (thread_id) DO UPDATE SET source = CASE WHEN excluded.source LIKE 'automation:%' THEN excluded.source WHEN gate_taint.cleared_at IS NULL AND gate_taint.source LIKE 'automation:%' THEN gate_taint.source ELSE excluded.source END, at = excluded.at, cleared_at = NULL", t, input.source, ctx.now());
     await keepLinks(ctx, t, (input.links ?? []) as string[]);
   }
   return { ok: true };
@@ -194,7 +210,9 @@ export async function grantsAsk(ctx: GateCtx, input: In): Promise<unknown> {
   const person = ctx.principal.id, now = ctx.now();
   // an older ask is taken back when this message arrives, unless the agent has not replied since it: every message the person sends between two replies is one ask
   ctx.db.run("UPDATE gate_grants SET expires_at = ? WHERE kind = 'turn' AND person = ? AND thread_id = ? AND used_at IS NULL AND message_id <> ? AND created_at <= ?", now, person, input.threadId, input.messageId, input.since ?? now);
-  ctx.db.run("UPDATE gate_taint SET cleared_at = ? WHERE thread_id = ? AND cleared_at IS NULL", now, input.threadId);
+  // the person spoke, so what an outside page said no longer drives the turn. In a task thread an Automation's outside-started Run made, only the person the work acts for clears it: anyone
+  // else who types there has not taken the stranger's words off the turn that acts with that person's access (lead 12 Nov, pass 2, 2). The mark reads "automation:<id>:<person>".
+  ctx.db.run("UPDATE gate_taint SET cleared_at = ? WHERE thread_id = ? AND cleared_at IS NULL AND (source NOT LIKE 'automation:%' OR source LIKE ?)", now, input.threadId, `automation:%:${person}`);
   for (const a of input.asked as { act: string; target: string }[]) {
     ctx.db.run("INSERT OR IGNORE INTO gate_grants (id, kind, person, act, target, thread_id, message_id, expires_at, created_at) VALUES (?, 'turn', ?, ?, ?, ?, ?, ?, ?)", newGrantId(), person, a.act, a.target, input.threadId, input.messageId, now + TURN_MS, now);
   }

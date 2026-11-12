@@ -49,7 +49,7 @@ test("a computer waiting for approval is listed with its fingerprint, Approve an
 
 test("Settings, This device lists my own machines under their own title", () => {
   const out = html(<MachineList data={data([mine, berlin])} who={who} narrow={true} now={NOW} onOpen={noop} onAdd={noop} scope="mine" />);
-  assert.ok(out.includes("My computers and servers") && !out.includes("All machines"));
+  assert.ok(out.includes("My computers and servers") && !out.includes("All computers"));
   assert.ok(out.includes("Add a server"));
 });
 
@@ -121,4 +121,9 @@ test("an added server's page ends with the danger row, and the confirm counts th
   const out = page(berlin, null, { removal: { word: "Remove this server", pcs: 0, run: async () => undefined } });
   assert.ok(out.includes("Remove this server…") && out.includes("Its agent computers stop and their local data is wiped. Its access ends at once."), "the danger row with its quiet line");
   assert.ok(!out.includes("machine-remove-confirm"), "the confirm card waits until it is asked for");
+});
+
+test("the doctor line names vyre-server only on a server: a person's own computer has none (review O4)", () => {
+  assert.ok(page(space, detail(space), { tab: "health" }).includes("vyre-server doctor"), "the Space server says where its check also runs");
+  assert.ok(!page(mine, detail(mine), { tab: "health" }).includes("vyre-server doctor"), "my own computer does not");
 });

@@ -40,7 +40,7 @@ function seededDir(): string {
   return dir;
 }
 
-import { findChromium, launch, site } from "../apps/chrome/tests/e2e/rig.ts";
+import { extensionChromeProblem, findChromium, launch, site } from "../apps/chrome/tests/e2e/rig.ts";
 import { bindPersonalChrome } from "../lib/personal-chrome.ts";
 import { harness } from "../modules/computers/fixtures/harness.ts";
 import { tool } from "../modules/computers/tests/tools.fixture.ts";
@@ -52,6 +52,9 @@ const MAIL = `<!doctype html><meta charset="utf-8"><title>Mail</title><main><for
 <label for="subject">Subject</label><input id="subject" name="subject" value="Your signed deed"><label for="body">Message</label><textarea id="body" name="body">Hi Dana, the deed is attached.</textarea><button type="submit">Send</button></form></main>`;
 
 test("the booted daemon, the real extension and a scripted chat turn: the person opens Chrome to agents, the held send is a card in the chat, Send sends once, Don't send is declined", { skip: !found && "no Chromium on this machine", timeout: 120_000 }, async () => {
+  // a Chromium that cannot run the extension fails here, in one line, before anything is started that could keep this file alive
+  const why = extensionChromeProblem(found!);
+  assert.equal(why, null, why ?? "");
   const dir = seededDir();
   const d = await startDaemon({
     config: loadConfig(["--data-dir", dir, "--port", "0"], {}, "1.2.3"),

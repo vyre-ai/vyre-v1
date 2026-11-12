@@ -593,3 +593,35 @@ test("a server setup cause in the engine's own words becomes a fixed word, and n
   assert.equal(serverCause("the engine exited with code 137"), undefined);
   assert.equal(serverCause(""), undefined);
 });
+
+test("an API model's tool call is a plain step on the live row while it runs: terminal_run reads Running a command, read_link reads Reading a page; never the tool's name (lead, 12 Nov)", async () => {
+  for (const [name, words] of [["terminal_run", "Running a command"], ["read_link", "Reading a page"]] as const) {
+    const seen: StreamEvent[] = [];
+    let mid: Array<{ step?: string }> = [];
+    let b: Bridge | null = null;
+    const s = setup({
+      // the API driver yields a tool_call event (not a block): the engine runs it and hands the result back with sendToolResult
+      stream: (e) => { seen.push(e); if (e.kind === "step" && e.phase === "call" && b) mid = b.liveTurns(T); },
+      script: [{ type: "tool_call", id: "c1", name, input: { command: "sleep 1" } }, { type: "text", text: "Done." }, { type: "done" }],
+    });
+    b = s.bridge;
+    await s.say("go");
+    assert.deepEqual(mid.map((t) => t.step), [words], `${name}: the row says what it is doing`);
+    const steps = seen.filter((e) => e.kind === "step") as Array<Extract<StreamEvent, { kind: "step" }>>;
+    assert.deepEqual(steps.map((e) => e.phase), ["call", "result"], `${name}: the call and its end are both said`);
+    assert.ok(!JSON.stringify(mid).includes(name), "the tool's own name never shows");
+  }
+});
+
+test("a helper's running row says the same step (helpers.status reads the helper thread's live turn)", async () => {
+  let mid: Array<{ step?: string }> = [];
+  let b: Bridge | null = null;
+  const s = setup({
+    thread: { kind: "helper", parentThreadId: "thr_lead" },
+    stream: (e) => { if (e.kind === "step" && e.phase === "call" && b) mid = b.liveTurns(T); },
+    script: [{ type: "tool_call", id: "c1", name: "terminal_run", input: { command: "npm test" } }, { type: "text", text: "Done." }, { type: "done" }],
+  });
+  b = s.bridge;
+  await s.say("run the tests");
+  assert.deepEqual(mid.map((t) => t.step), ["Running a command"]);
+});

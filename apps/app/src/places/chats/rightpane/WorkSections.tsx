@@ -1,18 +1,21 @@
 // Right pane > Computer in the workspace model: a Terminal section (the agent's workspace: its state, the tmux sessions, Attach for people who may) and a Browser section (the agent's profile in
 // the Space browser: its live view, Take over, and the logins it keeps). Nothing to set up and no "give it a computer" step. The logic and the two interfaces the workspace and Space browser
 // lanes fill are in work-model.ts; a half that is not bound says so in one line.
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import type { VirtualWindow } from "../../../../../../ui/src/VirtualList/index.tsx";
-import { reasonOf } from "./actions.ts";
+import { copyText, reasonOf } from "./actions.ts";
 import type { PaneDeps } from "./actions.ts";
 import { usePaneData, useOnline } from "./data.tsx";
-import { dayMonth } from "./model.ts";
+import { GATE, allows, useOptionalShellRuntime } from "../../../shell/providers/runtime.tsx";
+import { dayMonth, stepRows, stepsLine } from "./model.ts";
+import type { Step } from "./model.ts";
+import { stepEntries } from "./ComputerTab.tsx";
 import { Icon, LeadIcon, PaneList, TextButton } from "./parts.tsx";
 import type { Entry } from "./parts.tsx";
-import { attachedNote, browserAction, browserWords, orderSessions, sessionsLine, sharedWait, terminalAction, workspaceWords } from "./work-model.ts";
+import { olderDesktopMenu, olderDesktopNote, attachedNote, browserAction, browserWords, orderSessions, sessionsLine, sharedWait, terminalAction, workspaceWords } from "./work-model.ts";
 import type { BrowserData, BrowserView, Tone, WorkspaceData, WorkspaceView } from "./work-model.ts";
 
 /** Is the new layout wanted: the browser half is bound, or the workspace is and the agent has no legacy desktop computer. An agent that still has one keeps today's Computer tab until the browser half is bound. */
@@ -44,7 +47,7 @@ export function Chip({ text, tone, testID }: { text: string; tone: Tone; testID?
 }
 
 /** The Terminal section's card: where the workspace runs and its state, and Attach for a person who may. */
-export function TerminalCard({ view, name, busy = false, onAttach, quietWait = false }: { view: WorkspaceView; name: string; busy?: boolean; onAttach(): void; /** the waiting line is said once above, not here */ quietWait?: boolean }): ReactElement {
+export function TerminalCard({ view, name, busy = false, onAttach, quietWait = false, onOpenConsole }: { view: WorkspaceView; name: string; busy?: boolean; onAttach(): void; /** the waiting line is said once above, not here */ quietWait?: boolean; /** where the person can make it work (owners and admins), when nothing can run it */ onOpenConsole?: (() => void) | undefined }): ReactElement {
   const w = workspaceWords(view);
   const action = terminalAction(view);
   return (
@@ -55,7 +58,8 @@ export function TerminalCard({ view, name, busy = false, onAttach, quietWait = f
         {action === "attach" ? <TextButton label="Attach" primary disabled={busy} onPress={onAttach} testID="terminal-attach" /> : null}
       </View>
       {w.note && !(quietWait && view.state === "waiting") ? <Text testID="terminal-note" style={[st.note, view.state === "waiting" && st.noteWarn, view.state === "error" && st.noteBad]}>{w.note}</Text> : null}
-      {!view.canAttach && view.cannotAttach ? <Text testID="terminal-cannot" style={st.note}>{view.cannotAttach}</Text> : null}
+      {!view.canAttach && view.cannotAttach && view.state !== "unavailable" ? <Text testID="terminal-cannot" style={st.note}>{view.cannotAttach}</Text> : null}
+      {view.state === "unavailable" && onOpenConsole ? <View style={{ marginTop: 10, flexDirection: "row" }}><TextButton label="Open Console > Computers" primary onPress={onOpenConsole} testID="terminal-open-console" /></View> : null}
       <Text style={st.sub}>{`${name}'s shell, git and the usual tools${view.host ? ` · on ${view.host}` : ""}`}</Text>
     </View>
   );
@@ -76,7 +80,7 @@ function Frame({ dim, caption, children }: { dim: boolean; caption?: string | un
 }
 
 /** The Browser section's card: the live view (or its picture), the state, and Take over or Give back. */
-export function BrowserCard({ view, name, live, busy = false, onTake, onGive, onOpen, quietWait = false }: { view: BrowserView; name: string; live?: ReactElement | undefined; busy?: boolean; onTake(): void; onGive(): void; onOpen(): void; quietWait?: boolean }): ReactElement {
+export function BrowserCard({ view, name, live, busy = false, onTake, onGive, onOpen, quietWait = false, page }: { view: BrowserView; name: string; live?: ReactElement | undefined; busy?: boolean; page?: string | undefined; onTake(): void; onGive(): void; onOpen(): void; quietWait?: boolean }): ReactElement {
   const w = browserWords(view);
   const action = browserAction(view);
   const dim = view.state === "closed" || view.state === "starting" || view.state === "waiting" || view.state === "error";
@@ -90,7 +94,16 @@ export function BrowserCard({ view, name, live, busy = false, onTake, onGive, on
       </View>
       {view.canTakeOver
         ? (live && (view.state === "open" || view.state === "takeover")
-          ? <View testID="browser-live" style={st.liveBox}>{live}</View>
+          ? (
+            // under the live view, until its first frame: what it is on and a quiet line, never an empty dark box (review, 12 Nov)
+            <View testID="browser-live" style={st.liveBox}>
+              <View testID="browser-live-waiting" style={st.liveWait}>
+                {view.caption ?? page ?? view.host ? <Text numberOfLines={1} style={st.liveWaitPage}>{view.caption ?? page ?? view.host}</Text> : null}
+                <Text style={st.liveWaitLine}>Opening…</Text>
+              </View>
+              <View style={st.liveOver}>{live}</View>
+            </View>
+          )
           : (
             <Frame dim={dim} caption={view.state === "open" ? view.caption : undefined}>
               {view.state === "closed" ? <View style={st.center}><Pressable accessibilityRole="button" accessibilityLabel={`Open ${name}'s browser`} testID="browser-open" onPress={onOpen} style={st.pill}><Icon name="globe" size={13} color="var(--ink-2)" /><Text style={st.pillText}>Open</Text></Pressable></View> : null}
@@ -109,6 +122,35 @@ export function NotYet({ what, testID }: { what: string; testID: string }): Reac
   return <Text testID={testID} style={[st.note, { paddingHorizontal: 24 }]}>{`${what} is not available on this server yet.`}</Text>;
 }
 
+/** The agent's steps in its Space browser profile, read again when the browser's state or caption changes (a new step moves the caption). */
+function useBrowserSteps(call: (cap: string, input: unknown) => Promise<unknown>, agentId: string, tick: string): Step[] {
+  const [steps, setSteps] = useState<Step[]>([]);
+  // the pane data (and its call) is rebuilt with the page: the read follows the agent and the browser, not the function's identity
+  const ref = useRef(call);
+  ref.current = call;
+  useEffect(() => {
+    let live = true;
+    void ref.current("computers.browser.timeline", { agentId, limit: 100 }).then((o) => { if (live) setSteps(stepRows((o as { steps?: Step[] }).steps ?? [])); }, () => undefined);
+    return () => { live = false; };
+  }, [agentId, tick]);
+  return steps;
+}
+
+/** The picture of a step, from Files. */
+function useStepPicture(call: (cap: string, input: unknown) => Promise<unknown>, fileId: string | undefined): string | null {
+  const [uri, setUri] = useState<string | null>(null);
+  const ref = useRef(call);
+  ref.current = call;
+  useEffect(() => {
+    setUri(null);
+    if (!fileId) return undefined;
+    let live = true;
+    void ref.current("files.read", { fileId, as: "base64" }).then((r) => { const b = (r as { base64?: string }).base64; if (live && typeof b === "string" && b !== "") setUri(`data:image/png;base64,${b}`); }, () => undefined);
+    return () => { live = false; };
+  }, [fileId]);
+  return uri;
+}
+
 /** The pane: Terminal, then Browser. */
 export function WorkSections({ deps, window }: { deps: PaneDeps; window?: VirtualWindow }): ReactElement {
   const data = usePaneData();
@@ -119,6 +161,21 @@ export function WorkSections({ deps, window }: { deps: PaneDeps; window?: Virtua
   const ws = useWatched<WorkspaceView>(data.workspace, agentId);
   const br = useWatched<BrowserView>(data.browser, agentId);
   const [busy, setBusy] = useState<"attach" | "take" | "give" | "open" | null>(null);
+  // the older desktop's move, read once from the computer itself (an optional field: absent until the move has ended)
+  const olderId = data.agent.computerId ?? "";
+  const rt = useOptionalShellRuntime();
+  const [moved, setMoved] = useState<{ state: "done" | "partial" | "failed"; at: number; error?: string } | undefined>(undefined);
+  useEffect(() => {
+    if (olderId === "") return;
+    let live = true;
+    void Promise.resolve(data.call("computers.get", { computerId: olderId })).then((o) => { if (live) setMoved((o as { computer?: { moved?: typeof moved } }).computer?.moved); }, () => undefined);
+    return () => { live = false; };
+  }, [data, olderId]);
+  // Console > Computers is for the people who may add a computer (owners and admins), as on the Computer tab's other screens
+  const canManageComputers = allows(rt, GATE.provisionComputer);
+  const steps = useBrowserSteps(data.call, agentId, br.status === "ready" ? `${br.view.state}:${br.view.caption ?? ""}` : br.status);
+  const [sel, setSel] = useState<number | null>(null);
+  const picture = useStepPicture(data.call, sel !== null ? steps[sel]?.frameFileId : undefined);
   const run = (what: NonNullable<typeof busy>, f: () => Promise<void>): void => {
     setBusy(what);
     void f().catch((e: unknown) => deps.note(reasonOf(e) || "That did not work. Try again.")).finally(() => setBusy(null));
@@ -132,7 +189,7 @@ export function WorkSections({ deps, window }: { deps: PaneDeps; window?: Virtua
   else if (ws.status === "loading") entries.push({ key: "terminal-loading", type: "block", node: <View testID="terminal-loading" accessibilityLabel="Loading" style={st.sk} /> });
   else {
     const v = ws.view;
-    entries.push({ key: "terminal-card", type: "block", node: <TerminalCard view={v} name={name} quietWait={wait !== null} busy={busy === "attach" || !online} onAttach={() => run("attach", () => data.workspace!.attach(agentId))} /> });
+    entries.push({ key: "terminal-card", type: "block", node: <TerminalCard view={v} name={name} quietWait={wait !== null} busy={busy === "attach" || !online} onAttach={() => run("attach", () => data.workspace!.attach(agentId))} {...(canManageComputers && data.nav.openMachines ? { onOpenConsole: () => data.nav.openMachines?.() } : {})} /> });
     // what is open in a terminal is for the people who may attach to it
     for (const s of v.canAttach ? orderSessions(v.sessions) : []) {
       entries.push({ key: `session-${s.name}`, type: "row", title: s.name, note: attachedNote(s, name), leading: <LeadIcon name="terminal" />, testID: `session-${s.name}` });
@@ -148,9 +205,14 @@ export function WorkSections({ deps, window }: { deps: PaneDeps; window?: Virtua
     const v = br.view;
     entries.push({
       key: "browser-card", type: "block",
-      node: <BrowserCard view={v} name={name} quietWait={wait !== null} busy={!online || busy !== null} live={data.browser?.renderLive?.(agentId, { state: v.state, control: v.state === "takeover" && v.mine === true })}
+      // a step picked in the list below shows its picture where the live view is; Live goes back
+      node: <BrowserCard view={v} name={name} page={steps[steps.length - 1]?.caption} quietWait={wait !== null} busy={!online || busy !== null} live={picture !== null ? <Pressable accessibilityRole="button" accessibilityLabel="Back to live" testID="browser-step-picture" onPress={() => setSel(null)} style={st.fill}><Image source={{ uri: picture }} resizeMode="contain" style={st.fill} /></Pressable> : data.browser?.renderLive?.(agentId, { state: v.state, control: v.state === "takeover" && v.mine === true })}
         onOpen={() => run("open", () => data.browser!.open(agentId))} onTake={() => run("take", () => data.browser!.takeOver(agentId))} onGive={() => run("give", () => data.browser!.giveBack(agentId))} />,
     });
+    // what the agent did in its browser, step by step: the same list a computer's session has (computers.browser.timeline, f-wire 12 Nov)
+    entries.push({ key: "l-browser-steps", type: "label", text: "Steps", right: stepsLine(steps.length) });
+    if (steps.length === 0) entries.push({ key: "no-browser-steps", type: "empty", text: "Nothing yet. Steps appear as it works." });
+    entries.push(...stepEntries({ steps, live: v.state === "open" && v.caption !== undefined, asleep: v.state === "closed", clock, sel, onSelect: setSel, onCopy: (text) => void copyText(deps, text), key: "browser-step", where: "browser" }));
     // the logins its profile keeps are for the people who may see and take over the browser
     if (v.canTakeOver) entries.push({ key: "l-sites", type: "label", text: "Signed in on its browser" });
     if (v.canTakeOver && v.sites.length === 0) entries.push({ key: "no-sites", type: "empty", text: "Not signed in anywhere yet." });
@@ -159,6 +221,16 @@ export function WorkSections({ deps, window }: { deps: PaneDeps; window?: Virtua
       const menu: MenuEntry[] = [{ label: "Sign Out", danger: true, onSelect: out }];
       entries.push({ key: `site-${x.site}`, type: "row", title: x.site, note: `${x.signedInAs ? `${x.signedInAs} · ` : ""}since ${dayMonth(x.since, clock)}`, leading: <LeadIcon name="lock" />, testID: `site-${x.site}`, menu });
     }
+  }
+  // An agent that still has an older desktop keeps a way to watch it, wake it and take it over until its sign-ins have moved to the browser above (Console > Computers removes it afterwards)
+  const older = data.agent.computerId ?? "";
+  if (older !== "") {
+    entries.push({ key: "l-older", type: "label", text: "Older desktop" });
+    // Remove is an owner's or admin's, and it lives in Console > Computers: the row offers it only to them
+    const menu: MenuEntry[] = olderDesktopMenu({ canRemove: allows(rt, GATE.provisionComputer), open: data.nav.openComputerInConsole ? () => data.nav.openComputerInConsole?.(older) : undefined });
+    entries.push({ key: "older-desktop", type: "row", title: "Open its desktop", note: "The computer it had before", leading: <LeadIcon name="watch" />, testID: "older-desktop", onPress: () => data.nav.openComputer(older), ...(menu.length > 0 ? { menu } : {}) });
+    // the line about the move can be long: its own block, wrapped, never cut off in a row
+    entries.push({ key: "older-note", type: "block", node: <View style={{ marginHorizontal: 24, marginBottom: 8 }}><Text testID="older-note" style={st.note}>{olderDesktopNote(moved, (ms) => dayMonth(ms, clock))}</Text></View> });
   }
   return <View style={st.fill}><PaneList entries={entries} {...(window ? { window } : {})} testID="work-list" /></View>;
 }
@@ -179,6 +251,10 @@ const st = StyleSheet.create({
   sub: { fontSize: 11.5, lineHeight: 16, color: "var(--ink-3)" as string },
   sk: { height: 90, marginHorizontal: 24, borderRadius: 10, backgroundColor: "var(--sunk)" as string },
   liveBox: { height: 180, borderRadius: 14, overflow: "hidden", backgroundColor: "#17161f" as string },
+  liveWait: { flex: 1, alignItems: "center", justifyContent: "center", gap: 4, paddingHorizontal: 16 },
+  liveWaitPage: { fontSize: 13, color: "rgba(255,255,255,0.85)" as string, maxWidth: "100%" as unknown as number },
+  liveWaitLine: { fontSize: 12, color: "rgba(255,255,255,0.6)" as string },
+  liveOver: { position: "absolute", left: 0, top: 0, right: 0, bottom: 0 },
   frame: { height: 180, borderRadius: 14, backgroundColor: "#17161f" as string, backgroundImage: "radial-gradient(120% 120% at 20% 10%, #3a3468, #17161f 70%)", overflow: "hidden" } as object,
   window: { position: "absolute", left: "8%", right: "8%", top: 34, bottom: 12, borderRadius: 8, backgroundColor: "#f8f8fb" as string, overflow: "hidden" },
   bar: { height: 18, flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, backgroundColor: "#e9e8ef" as string },

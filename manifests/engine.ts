@@ -165,7 +165,8 @@ export default defineManifest({
       tool: 'chats', offline: 'online', idem: 'natural', risk: 'low',
     }),
     write('engine.stop_all', 'Stop every agent working in a thread (Stop all in the conversation header)', {
-      in: threadT, out: { stopped: t.int() }, on: ['thread', '/threadId'], level: 'use', emits: ['turn.cancelled'], tool: 'chats', offline: 'online', idem: 'natural', risk: 'low',
+      // reason update: the desktop app stops its turns to update itself (its kept messages run again after); what those turns ran in a terminal is left running
+      in: { ...threadT, reason: t.opt(t.enm('update')) }, out: { stopped: t.int() }, on: ['thread', '/threadId'], level: 'use', emits: ['turn.cancelled'], tool: 'chats', offline: 'online', idem: 'natural', risk: 'low',
     }),
     write('engine.set_mode', 'Set an agent to Leading or Listening in a thread; exactly one lead per thread', {
       in: { ...threadT, agentId: id.agent, mode: agentMode }, out: { mode: agentMode, leadAgentId: t.nullable(id.agent) }, on: ['thread', '/threadId'], level: 'use',
@@ -248,6 +249,8 @@ export default defineManifest({
       in: {
         ...threadT, turnId: id.turn, agentId: id.agent, phase: t.enm('started', 'waiting', 'completed', 'failed', 'cancelled'), qseq: t.int(), asker: t.opt(t.str()), engine: t.opt(t.str()), model: t.opt(t.str()), accountRef: t.opt(accountRef),
         tokensIn: t.opt(t.int()), tokensOut: t.opt(t.int()), costMicros: t.opt(t.int()), code: t.opt(t.str()), message: t.opt(t.str()),
+        // a cancelled turn: why the engine stopped it (stop, interrupt, limit, left, moved; closing when a daemon stops or updates; lease when its host was lost)
+        reason: t.opt(t.str()),
         info: t.opt(turnInfoIn),
       },
       out: { turn: turnRow }, emits: ['turn.started', 'turn.completed', 'turn.failed', 'turn.cancelled', 'agent.task_finished'], idem: 'natural', risk: 'low',
@@ -315,7 +318,7 @@ export default defineManifest({
       },
       out: { text: t.str(), keyUsed: accountRef, modelUsed: t.str(), tokensIn: t.int({ minimum: 0 }), tokensOut: t.int({ minimum: 0 }), agentName: t.opt(t.str()) },
       level: 'view', idem: 'key', risk: 'medium', audit: 'sensitive', agent: false,
-      errors: ['provider.auth_failed', 'provider.rate_limited', 'provider.unavailable', 'provider.overloaded', 'permission.limit', 'permission.provider_label', 'timeout.deadline', 'internal.unavailable'],
+      errors: ['provider.auth_failed', 'provider.rate_limited', 'provider.unavailable', 'provider.overloaded', 'permission.limit', 'permission.provider_label', 'timeout.deadline', 'internal.unavailable', 'validation.precondition_failed'],
     }),
     // ---- accounts and models
     read('engine.accounts.list', 'Accounts the caller can run on: API keys by handle and subscription sign-ins (Mine), with status. With a place (chat, automation, agent, space) each says whether it can run there and why not', {
@@ -565,7 +568,8 @@ export default defineManifest({
       p: { turnId: id.turn, threadId: id.thread, agentId: id.agent, code: t.str(), message: t.str() }, subject: ['thread', '/threadId'], vis: 'participants',
     }),
     ev('turn.cancelled', 'A turn was cancelled by Stop or Interrupt', {
-      p: { turnId: id.turn, threadId: id.thread, agentId: id.agent, by: t.str() }, subject: ['thread', '/threadId'], vis: 'participants',
+      // pressed: written when Stop, Interrupt or an agent leaving is pressed, while the turn may still be running; reason: on the turn's end record, why the engine stopped it
+      p: { turnId: id.turn, threadId: id.thread, agentId: id.agent, by: t.str(), reason: t.opt(t.str()), pressed: t.opt(t.bool()) }, subject: ['thread', '/threadId'], vis: 'participants',
     }),
     ev('turn.engine_switched', 'The engine of a chat changed (the quiet line in the thread)', {
       p: { threadId: id.thread, agentId: id.agent, from: t.str(), to: t.str(), handoffTurns: t.int(), by: t.str() }, subject: ['thread', '/threadId'], vis: 'participants',

@@ -88,6 +88,9 @@ export async function test(ctx: AutoCtx, input: In): Promise<unknown> {
   return { runId };
 }
 
+/** The origin of a Run an agent started by hand (runs.ts reads it as the trigger "agent_run", which is from outside). */
+export const AGENT_RUN_ORIGIN = "agent:";
+
 export async function run(ctx: AutoCtx, input: In): Promise<unknown> {
   const a = getAutomation(ctx, input.automationId);
   onlyAsOwner(ctx, a);
@@ -99,7 +102,9 @@ export async function run(ctx: AutoCtx, input: In): Promise<unknown> {
   const manual = "manual" in def.source || "button" in def.source;
   if (!manual) raise(ctx, "validation.precondition_failed", "Only the manual and button triggers start by hand.", { reason: "not_manual", trigger: key });
   const payload = key === "manual" ? { startedBy: me(ctx), ...(input.payload ? { input: input.payload } : {}) } : { pressedBy: me(ctx), ...(input.payload ?? {}) };
-  const runId = await startRun(ctx, a, { trigger: key, payload, test: false, depth: 0, key: `run:${a.id}:${input.idempotencyKey}` });
+  // a Run an agent starts by hand carries what the agent put in its payload, which may be a stranger's text: it counts as from outside (its brief fences it, its task thread is marked)
+  const byAgent = ctx.principal.kind === "agent";
+  const runId = await startRun(ctx, a, { trigger: key, payload, test: false, depth: 0, key: `run:${a.id}:${input.idempotencyKey}`, ...(byAgent ? { origin: `${AGENT_RUN_ORIGIN}${ctx.principal.id}` } : {}) });
   return { runId };
 }
 

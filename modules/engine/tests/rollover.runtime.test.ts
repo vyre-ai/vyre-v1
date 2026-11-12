@@ -27,6 +27,7 @@ test("a turn whose last call was shown 170k of a 200k window is followed by a ro
       if (cap === "chat.transcript.summarize") return {};
       if (cap === "chat.transcript.summary") return { summary: "Asked (turn 1): hello" };
       if (cap === "threads.get") return { thread: { mode: "auto", agents: [{ agentId: "agt_intake", model: "claude-sonnet-5-5" }] } };
+      if (cap === "agents.status") return { status: "awake" };   // the host answers whether the agent may take a turn (admission fails closed when it cannot)
       throw new Error(`unexpected ${cap} ${JSON.stringify(input)}`);
     },
   };

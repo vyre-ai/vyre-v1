@@ -57,7 +57,7 @@ export function factsOf(view: string, mode: "before" | "after"): Facts {
     ...(m(/You are talking with (.+?) \(usr_/) ? { askerName: m(/You are talking with (.+?) \(usr_/)! } : {}),
     ...(now ? { tz: now[5]!, localNow: { weekday: now[1]!, hour: Number(now[3]), minute: Number(now[4]) } } : {}),
     vaultHandles: handles ? [...handles.matchAll(/#([A-Za-z0-9_]+)/g)].map((h) => h[1]!) : [],
-    ...(/You have no agent computer/.test(view) ? { hasComputer: false } : /Your computer is/.test(view) ? { hasComputer: true } : {}),
+    ...(/Your computer is/.test(view) ? { hasComputer: true } : /You have no desktop computer/.test(view) ? { hasComputer: false } : {}),
     routines, open,
     teaches: {
       utc: /cron runs in UTC/i.test(view), inPlace: /give routineId to change/.test(view) || /pass its `?routineId`?/.test(view),

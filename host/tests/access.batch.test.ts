@@ -46,3 +46,18 @@ test("at start: the boot replay (already read from the log) goes first in order,
   const later = await accessBatch({ held, fedTo: 43, booted: true, read: read(LOG) });
   assert.deepEqual(seqs(later.events), [-1]);
 });
+
+test("a pushed event the log read does not show yet: the batch reads again until it does, so what a commit pushed is folded before its sync returns", async () => {
+  let calls = 0;
+  // the first read trails the writer: it ends at 41
+  const trailing = async (after: number, limit: number) => { calls++; return LOG.filter((e) => e.seq > after && (calls > 1 || e.seq <= 41)).slice(0, limit); };
+  const one = await accessBatch({ held: [{ seq: 42, type: "resource.created", payload: {} }], fedTo: 39, booted: true, read: trailing });
+  assert.deepEqual(seqs(one.events), [41, 42], "42 is in the batch");
+  assert.equal(one.upTo, 43);
+  assert.ok(calls >= 2, "it read again");
+});
+
+test("a log that never shows a pushed event: the batch fails, so the sync is retried and the snapshot is marked stale instead of folding without it", async () => {
+  const never = async (after: number, limit: number) => LOG.filter((e) => e.seq > after && e.seq <= 41).slice(0, limit);
+  await assert.rejects(() => accessBatch({ held: [{ seq: 42, type: "resource.created", payload: {} }], fedTo: 39, booted: true, read: never }), /event 42 was committed/);
+});

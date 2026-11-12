@@ -133,6 +133,10 @@ jobs:
             while [ "$d" != "." ] && [ ! -f "$d/tsconfig.json" ]; do d="$(dirname "$d")"; done
             [ -f "$d/tsconfig.json" ] && dirs="$dirs $d"
           done
+          # a change to the shared compiler settings is a change to every package that extends them (images/ among them)
+          if git diff --name-only --no-renames "$base"...HEAD | grep -qx 'tsconfig.base.json'; then
+            for t in $(git ls-files '*tsconfig.json' | xargs grep -l 'tsconfig.base.json' || true); do dirs="$dirs $(dirname "$t")"; done
+          fi
           dirs="$(echo $dirs | tr ' ' '\n' | sort -u)"
           [ -z "$dirs" ] && { echo "no package with a tsconfig.json changed"; exit 0; }
           tsc=tools/gen/node_modules/.bin/tsc
@@ -146,6 +150,8 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+        # the whole history: the ratchet compares the baseline with the one on the branch this merges into (sixth look W1)
+        with: { fetch-depth: 0 }
       - uses: actions/setup-node@v4
         with: { node-version: 24 }
       - uses: ./.github/actions/deps
@@ -153,6 +159,8 @@ jobs:
         run: '[ -x tools/gen/node_modules/.bin/tsc ] || bash tools/gen/check.sh'
       - name: Typecheck ratchet (the count may only fall)
         run: node scripts/typecheck-ratchet.ts
+      - name: Typecheck ratchet for modules, host and packages/contracts (the count may only fall; nothing typechecked them before 12 Nov)
+        run: node scripts/typecheck-ratchet.ts --project tsconfig.typecheck.server.json --baseline scripts/typecheck-baseline.server.json
   images-docker:
     # Ruling 31 and P-L8_HEAVY: when images/ or a heavy test changes, run the tests the 20 s shard cannot: the vyred image boots in Docker, the site builders
     # build and serve samples on real Docker, and a pinned Documenso container takes an envelope from create to completed. VYRE_HEAVY_DOCKER=1 turns the
@@ -386,9 +394,20 @@ jobs:
           VYRE_AGENT_COMPUTER_IMAGE: vyre/agent-computer:ci-${{ github.run_id }}
         run: |
           set -o pipefail
-          for f in test/memory.recall.live.test.ts test/chat-ecosystem.live.test.ts test/cli-skills-connections.live.test.ts test/terminal.workspace.live.test.ts modules/terminal/tests/workspace.live.test.ts host/tests/workspace.node.live.test.ts host/tests/onboarding.assistant.live.test.ts host/tests/computers.runner.live.test.ts; do
+          for f in test/memory.recall.live.test.ts test/chat-ecosystem.live.test.ts test/cli-skills-connections.live.test.ts test/terminal.workspace.live.test.ts modules/terminal/tests/workspace.live.test.ts modules/terminal/tests/workspace.heal.live.test.ts host/tests/workspace.node.live.test.ts host/tests/onboarding.assistant.live.test.ts host/tests/computers.runner.live.test.ts; do
             node scripts/test-run.ts --slow --no-cache --no-skip --jobs 1 --files "$f"
           done
+      - name: Agent workspaces and sites at scale on real Docker (100 workspaces, isolation, Trash volumes, 60 sites), none skipped
+        env:
+          VYRE_HEAVY_DOCKER: "1"
+          VYRE_WORKSPACE_TEST_IMAGE: vyre/agent-workspace:ci-${{ github.run_id }}
+        run: |
+          set -o pipefail
+          node --test --test-force-exit --test-timeout=1800000 --test-reporter=spec modules/terminal/tests/workspace.isolation.heavy.test.ts modules/terminal/tests/workspace.trash.heavy.test.ts modules/sites/tests/site-networks.heavy.test.ts test/terminal.assistant-attach.heavy.test.ts test/terminal.stop.heavy.test.ts test/terminal.restart.heavy.test.ts modules/terminal/tests/workspace.scale.heavy.test.ts 2>&1 | tee workspace-scale.log
+          grep -a -E "SCALE-NUMBERS|SITES-NUMBERS" workspace-scale.log || true
+          # a skip is not a pass: node --test reports skipped tests on its own line
+          grep -a -q -E "^ℹ skipped 0$" workspace-scale.log || { echo "a heavy test was skipped (is Docker or the image missing?)" >&2; exit 1; }
+          grep -a -q -E "^ℹ fail 0$" workspace-scale.log
       - name: Images and containers left behind
         if: always()
         run: |

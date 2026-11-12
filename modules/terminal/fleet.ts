@@ -52,7 +52,8 @@ export interface WorkspaceFleet extends WorkspaceManager {
   available(agentId: string): Promise<boolean>;
 }
 
-export const NO_PLACE = "There is no machine to run an agent workspace on. Install Docker on this computer, or add a server in Console > Computers.";
+/** True on either kind of Space (12 Nov, in the voice of the browser's line, lane f-desktop): the computer this Space runs on is the person's own in a Personal Space and the Space's server in a Team one. */
+export const NO_PLACE = "This Space can't run agent workspaces yet. That needs Docker on the computer this Space runs on, or a server with Docker added in Console > Computers.";
 
 export function createWorkspaceFleet(o: FleetOptions): WorkspaceFleet {
   const homes = new Map<string, WorkspaceManager>();
@@ -67,7 +68,8 @@ export function createWorkspaceFleet(o: FleetOptions): WorkspaceFleet {
     if (known) return known;
     let pick: WorkspaceManager | undefined;
     if (o.space && (await has(o.space, agentId))) pick = o.space;
-    const node = pick ? null : await o.place(agentId);
+    // a placement that cannot be read (an agent in Trash has no owner to ask for) is no server: the Space runtime decides, and its admission refuses what it must
+    const node = pick ? null : await o.place(agentId).catch(() => null);
     if (!pick && node !== null && (await has(nodeOf(node), agentId))) pick = nodeOf(node);
     if (!pick && o.space) pick = o.space;
     if (!pick && node !== null) pick = nodeOf(node);
@@ -76,13 +78,22 @@ export function createWorkspaceFleet(o: FleetOptions): WorkspaceFleet {
     return pick;
   }
 
+  /** The machines an agent's workspace is on now: the one it is known on, else every one that has it. Nothing is placed. */
+  const where = async (agentId: string): Promise<WorkspaceManager[]> => {
+    const known = homes.get(agentId);
+    return known ? [known] : (await Promise.all(all().map(async (m) => ((await has(m, agentId)) ? m : null)))).filter((m): m is WorkspaceManager => m !== null);
+  };
+
   return {
     async status(agentId): Promise<WorkspaceStatus> {
       const nodeIdOf = (m: WorkspaceManager): string | undefined => [...nodes].find(([, x]) => x === m)?.[0];
       const known = homes.get(agentId);
       const tag = (m: WorkspaceManager, st: WorkspaceStatus): WorkspaceStatus => { const n = nodeIdOf(m); return { ...st, host: n === undefined ? "space" : "server", ...(n === undefined ? {} : { nodeId: n }) }; };
       if (known) return tag(known, await known.status(agentId));
-      for (const m of all()) { const st = await m.status(agentId).catch(() => null); if (st && st.state !== "none") return tag(m, st); }
+      // no machine that answers: it cannot run, which is not "not made yet"
+      let answered = false;
+      for (const m of all()) { const st = await m.status(agentId).catch(() => null); if (st) answered = true; if (st && st.state !== "none") return tag(m, st); }
+      if (!answered) throw Object.assign(new Error("No machine for workspaces answers."), { code: "unavailable", workspace: true });
       return { state: "none" };
     },
     async available(agentId) { return o.space !== null || (homes.has(agentId) ? true : (await o.place(agentId).catch(() => null)) !== null); },
@@ -91,10 +102,38 @@ export function createWorkspaceFleet(o: FleetOptions): WorkspaceFleet {
     async exec(agentId, argv, x) { return (await managerFor(agentId)).exec(agentId, argv, x); },
     generation(agentId) { return homes.get(agentId)?.generation(agentId) ?? 0; },
     async sleep(agentId) { return (await managerFor(agentId)).sleep(agentId); },
+    // a hold is taken after the run's wake, so the agent's machine is known by then
+    hold(agentId) { return homes.get(agentId)?.hold(agentId) ?? (() => undefined); },
+    worked(agentId) { homes.get(agentId)?.worked(agentId); },
+    async freshen(agentId, ms) { const k = homes.get(agentId); return k ? k.freshen(agentId, ms) : true; },
+    filesChanged(change) { for (const m of all()) m.filesChanged(change); },
+    viewed(agentId) { const k = homes.get(agentId); for (const m of k ? [k] : all()) m.viewed(agentId); },
+    async cut(agentId, projectId) { for (const m of await where(agentId)) await m.cut(agentId, projectId); },
+    async revoke(agentId) { for (const m of await where(agentId)) await m.revoke(agentId); },
+    restore(agentId) { for (const m of all()) m.restore(agentId); },
+    async awake(agentId) { const m = homes.get(agentId); if (m) return m.awake(agentId); for (const x of all()) if (await x.awake(agentId).catch(() => false)) return true; return false; },
+    // the health of the Space's own server: its own Docker (a server added in Console reports its own)
+    async ready() { await Promise.all(all().map((m) => m.ready().catch(() => undefined))); },
+    networkNote() { return o.space ? o.space.networkNote() : null; },
+    async hostSubnets() { return o.space ? o.space.hostSubnets() : null; },
+    subnets() { return [...new Set(all().flatMap((m) => m.subnets()))]; },
+    takeNote(agentId) { for (const m of all()) { const n = m.takeNote(agentId); if (n !== null) return n; } return null; },
+    restartLine(agentId, since) { for (const m of all()) { const l = m.restartLine(agentId, since); if (l !== null) return l; } return null; },
     async sweep() { const out: string[] = []; for (const m of all()) out.push(...(await m.sweep().catch(() => []))); return out; },
     async list() { const rows: WorkspaceRow[] = []; for (const m of all()) rows.push(...(await m.list().catch(() => []))); return rows; },
     async find(session) { for (const m of all()) { const id = await m.find(session).catch(() => null); if (id !== null) { homes.set(id, m); return id; } } return null; },
-    async remove(agentId) { await (await managerFor(agentId)).remove(agentId); homes.delete(agentId); },
+    async remove(agentId, x) {
+      // keeping the volumes (agent.deleted): only where its container is; nothing is made or placed for it
+      if (x?.keepVolumes === true) { for (const m of await where(agentId)) await m.remove(agentId, x); homes.delete(agentId); return; }
+      // the volumes too (the Trash pass, third look T1): the container went at agent.deleted, so it is asked of every machine, and of the server it was placed on; a volume that is not there
+      // answers 404, which is fine. Any machine that does not answer throws, so the pass keeps the agent and tries again.
+      const placed = await o.place(agentId).catch(() => null);
+      const ms = new Set<WorkspaceManager>([...all(), ...(placed !== null ? [nodeOf(placed)] : [])]);
+      const failed: unknown[] = [];
+      for (const m of ms) await m.remove(agentId, x).catch((e: unknown) => { failed.push(e); });
+      homes.delete(agentId);
+      if (failed.length > 0) throw failed[0];
+    },
     async health() {
       const hs = await Promise.all(all().map((m) => m.health().catch(() => ({ ok: false }))));
       if (hs.length === 0) return { ok: false, detail: NO_PLACE };

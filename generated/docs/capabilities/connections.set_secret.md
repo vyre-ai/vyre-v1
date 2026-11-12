@@ -11,7 +11,7 @@ Fill one empty secret slot of a connection from a Vault handle (a name such as #
 | Grant level | manage |
 | Risk | medium |
 | Resource | connection (/connectionId) |
-| Gate | none |
+| Gate | send when automations.bind_hosts_unapproved(input) |
 | Idempotency | natural |
 | Offline | online |
 | Audit | always |
@@ -58,6 +58,7 @@ type Out = {
 
 - internal.unexpected
 - permission.above_clearance
+- permission.needs_approval
 - permission.no_grant
 - validation.bad_input
 - validation.not_found

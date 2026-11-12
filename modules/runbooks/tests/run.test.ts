@@ -167,10 +167,13 @@ test("a run uses the saved Runs on target, an explicit one overrides it, and wit
   assert.equal(w.calls.slice(before).some((c) => c.cap.startsWith("terminal.")), false);
   assert.equal(w.db.rows("runbooks_run").length, 0);
 
+  w.computers = [{ computerId: "cmt_7", agentId: "agt_ops", state: "working" }];
   await handlers["runbooks.set_target"](w.ctx, { fileId, target: { kind: "computer", computerId: "cmt_7" } });
   const saved = await handlers["runbooks.run"](w.ctx, { fileId, all: true });
   const open = w.calls.find((c) => c.cap === "terminal.open");
-  assert.deepEqual(open?.input, { idempotencyKey: `runbooks.run:${saved.runId}:open`, host: "agent_computer", computerId: "cmt_7", name: "Runbook deploy.md" });
+  // the terminal of an agent's computer is opened by naming its agent (f-wire, 12 Nov: a computer id alone was refused, so a runbook never ran on an agent's computer)
+  assert.deepEqual(open?.input, { idempotencyKey: `runbooks.run:${saved.runId}:open`, host: "agent_computer", agentId: "agt_ops", computerId: "cmt_7", name: "Runbook deploy.md" });
+  assert.ok(w.ran.length > 0, "the run reached its terminal and its blocks were sent");
   assert.deepEqual((await handlers["runbooks.runs.get"](w.ctx, { runId: saved.runId })).run.target, { kind: "computer", computerId: "cmt_7" });
 
   const explicit = await handlers["runbooks.run"](w.ctx, { fileId, all: true, target: SERVER });

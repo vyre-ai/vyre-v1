@@ -58,7 +58,8 @@ test("open: the folders a person's rules add are handed to the machine", async (
 test("open: refused in a Personal Space, without something to open it on, when the machine does not answer, and on a host with no terminals", async () => {
   const { hn, host } = setup();
   bindTeam(() => false);
-  assert.equal(await rejects(() => h["terminal.open"]!(hn.ctx, { host: "agent_computer", agentId: "agt_intake" })), "permission.needs_team");
+  // 12 Nov: a Personal Space is told why its workspace cannot run now and what would fix it, not that it needs a Team Space
+  assert.equal(await rejects(() => h["terminal.open"]!(hn.ctx, { host: "agent_computer", agentId: "agt_intake" })), "provider.unavailable");
   bindTeam(null);
   assert.equal(await rejects(() => h["terminal.open"]!(hn.ctx, { host: "agent_computer" })), "validation.bad_input");
   assert.equal(await rejects(() => h["terminal.open"]!(hn.ctx, { host: "device" })), "validation.bad_input");
@@ -538,4 +539,15 @@ test("review finding 3a: a command with values is refused while the session row 
   assert.equal(codeOf(err), "provider.unavailable");
   assert.match(JSON.stringify(err), /still running something/);
   assert.equal(host.count("run"), before, "nothing was typed");
+});
+
+test("rule 7 and finding 9: a refusal for a team agent's shared computer, or for an item that needs approval, reaches the agent in plain words, and nothing runs or is retried", async () => {
+  const { hn, host } = setup();
+  bindKit(null);   // the real kit: its refusal lines are what an agent reads
+  bindValues({ async lookup(handle) { return { kind: "denied", reason: handle === "#Dana_Private.key" ? "team_agent" : "needs_approval" }; } });
+  const agent = hn.as(AGENT, "usr_dana");
+  const said = async (command: string): Promise<string> => { try { await h["terminal.run"]!(agent, { command }); return "ran"; } catch (e) { return JSON.stringify(e); } };
+  assert.match(await said("deploy --token #Dana_Private.key"), /#Dana_Private\.key is your own item, and this is a team agent: everyone who can ask it shares its computer\. Share the item with the agent, or ask your own Assistant\./);
+  assert.match(await said("deploy --token #Needs_Ok.key"), /#Needs_Ok\.key needs approval before it can be used, and approval from the terminal or the agent's browser is not built yet\./);
+  assert.equal(host.count("run"), 0, "nothing ran");
 });

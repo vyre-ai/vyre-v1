@@ -3,6 +3,7 @@
 // An import makes a Personal Draft, puts the importer's own connections into the slots they chose, and lists what is still left to connect.
 import { canView, create } from "./defs.ts";
 import { getAutomation, me, newId, raise } from "../projections.ts";
+import { guardKeySteps } from "../key-steps.ts";
 import type { AutoCtx, Definition } from "../projections.ts";
 
 type In = Record<string, unknown>;
@@ -142,6 +143,8 @@ export async function importPackage(ctx: AutoCtx, input: In): Promise<unknown> {
   } catch {
     raise(ctx, "validation.bad_input", "That package does not hold a definition.");
   }
+  // an imported definition is a new one: every step that names a key needs a key the importer may use
+  await guardKeySteps(ctx, undefined, definition);
   const requires = parseRequires(row.requires);
   const chosen = input.connections && typeof input.connections === "object" && !Array.isArray(input.connections) ? input.connections as Record<string, unknown> : {};
   const pick = new Map<string, string>();

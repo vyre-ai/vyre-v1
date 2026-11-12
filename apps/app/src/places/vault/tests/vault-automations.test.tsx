@@ -158,3 +158,98 @@ test("a pending connection built on this key asks for its missing secret inline:
   assert.deepEqual(set.input, { connectionId: "con_r", slot: "Resend_Webhook", handle: "#Northwind_Resend_Webhook.secret" });
   assert.equal(JSON.stringify(calls.filter((c) => c.cap !== "vault.item.put")).includes("whsec_fake"), false, "no other call carries it");
 });
+
+test("an AI account's key is not an app: its item has no Add to Automations", async () => {
+  const v = createSampleVault();
+  const ai = await open(v, "vit_opencode");
+  await settle();
+  assert.equal(textOf(ai).includes("Add to Automations"), false, "the AI account's key offers no connector");
+  const app = await open(v, "vit_ghl");
+  await settle();
+  assert.equal(textOf(app).includes("Add to Automations"), true, "an app key still offers one");
+});
+
+test("Move to Trash names the Automations that use the item", async () => {
+  const v = createSampleVault();
+  // the Delete key in the list asks this item to confirm its move to Trash
+  const root = await mount(createRoot, <Wrap data={v.data}><ItemEnv itemId="vit_ghl" askDelete={1} onEdit={() => undefined} onGone={() => undefined} onNote={() => undefined} /></Wrap>);
+  await settle();
+  const confirm = find(root, "item-confirm-delete");
+  assert.ok(confirm, "the confirm shows");
+  assert.match(textOf(confirm), /New lead to GoHighLevel/, `the confirm names the Automation: ${textOf(confirm)}`);
+});
+
+test("Automations the person cannot open are counted, never linked, in Used in and in the Trash confirm", async () => {
+  const v = createSampleVault();
+  const base = v.data.call.bind(v.data);
+  v.data = { ...v.data, call: async (cap, input) => (cap === "automations.vault_usage"
+    ? { uses: [{ handle: "#Northwind_GHL", automations: [{ automationId: "aut_nightly", name: "New lead to GoHighLevel", status: "on", steps: [{ nodeId: "n1", title: "Create contact" }] }], hidden: 2 }] }
+    : base(cap, input)) };
+  const root = await mount(createRoot, <Wrap data={v.data}><ItemEnv itemId="vit_ghl" askDelete={1} onEdit={() => undefined} onGone={() => undefined} onNote={() => undefined} /></Wrap>);
+  await settle();
+  assert.match(textOf(find(root, "item-used-hidden")), /2 more you cannot open/);
+  const confirm = textOf(find(root, "item-confirm-delete"));
+  assert.match(confirm, /3 automations use this key: New lead to GoHighLevel and 2 you cannot open/, confirm);
+  assert.match(confirm, /Agents that ask for #Northwind_GHL lose it too/, confirm);
+});
+
+test("Sent to lists the hosts approved for the key, and removing one asks the server to forget it", async () => {
+  const v = createSampleVault();
+  const base = v.data.call.bind(v.data);
+  const removed: unknown[] = [];
+  let hosts = [{ host: "api.gohighlevel.example", by: "usr_irfad", at: 1 }];
+  v.data = { ...v.data, call: async (cap, input) => {
+    if (cap === "automations.key_hosts.list") return { hosts };
+    if (cap === "automations.key_hosts.remove") { removed.push(input); hosts = []; return { removed: true }; }
+    return base(cap, input);
+  } };
+  const root = await open(v, "vit_ghl");
+  await settle();
+  assert.match(textOf(find(root, "item-sent-to")), /Sent to.*api\.gohighlevel\.example/);
+  await press(find(root, "item-sent-to-remove-api.gohighlevel.example"));
+  await settle();
+  assert.deepEqual(removed, [{ itemId: "vit_ghl", host: "api.gohighlevel.example" }]);
+  assert.equal(find(root, "item-sent-to-remove-api.gohighlevel.example"), null, "the host is no longer listed once it is removed");
+});
+
+test("removing a host an Automation uses warns first, naming it; a host can be allowed again from the key's page", async () => {
+  const v = createSampleVault();
+  const base = v.data.call.bind(v.data);
+  const calls: { cap: string; input: unknown }[] = [];
+  let hosts: { host: string; by: string; at: number; usedBy: string[]; hidden?: number }[] = [{ host: "api.gohighlevel.example", by: "usr_irfad", at: 1, usedBy: ["New lead to GoHighLevel"], hidden: 1 }];
+  v.data = { ...v.data, call: async (cap, input) => {
+    calls.push({ cap, input });
+    if (cap === "automations.key_hosts.list") return { hosts };
+    if (cap === "automations.key_hosts.remove") { hosts = []; return { removed: true }; }
+    if (cap === "automations.key_hosts.allow") { hosts = [{ host: String((input as { host: string }).host), by: "me", at: 2, usedBy: [] }]; return { hosts }; }
+    return base(cap, input);
+  } };
+  const root = await open(v, "vit_ghl");
+  await settle();
+  assert.match(textOf(find(root, "item-sent-to")), /Removing one stops/);
+  await press(find(root, "item-sent-to-remove-api.gohighlevel.example"));
+  await settle();
+  assert.equal(calls.some((c) => c.cap === "automations.key_hosts.remove"), false, "a host in use asks first");
+  assert.match(textOf(find(root, "item-sent-to-confirm")), /New lead to GoHighLevel and 1 you cannot open send this key there/);
+  await press(find(root, "item-sent-to-confirm-yes"));
+  await settle();
+  assert.ok(calls.some((c) => c.cap === "automations.key_hosts.remove"));
+  await press(find(root, "item-sent-to-add"));
+  await settle();
+  await typeInto(find(root, "item-sent-to-host"), "api.gohighlevel.example");
+  await press(find(root, "item-sent-to-allow"));
+  await settle();
+  assert.deepEqual(calls.find((c) => c.cap === "automations.key_hosts.allow")?.input, { vaultItemId: "vit_ghl", host: "api.gohighlevel.example" });
+});
+
+test("an Automation whose step may no longer send the key to its host says so on its Used in row, before its next Run", async () => {
+  const v = createSampleVault();
+  const base = v.data.call.bind(v.data);
+  v.data = { ...v.data, call: async (cap, input) => (cap === "automations.vault_usage"
+    ? { uses: [{ handle: "#Northwind_GHL", automations: [{ automationId: "aut_nightly", name: "New lead to GoHighLevel", status: "on", steps: [{ nodeId: "n1", title: "Create contact", blocked: "#Northwind_GHL is not allowed to go to api.gohighlevel.example. Allow it on the key's page, or change this step." }] }] }] }
+    : base(cap, input)) };
+  const root = await open(v, "vit_ghl");
+  await settle();
+  const row = find(root, "row-aut_nightly");
+  assert.match(textOf(row), /Not allowed to go to api\.gohighlevel\.example/);
+});

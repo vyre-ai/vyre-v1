@@ -5,6 +5,7 @@ import assert from "node:assert/strict";
 import { generateKeyPairSync } from "node:crypto";
 import { ed25519Signer } from "../../../kernel/src/audit/index.ts";
 import { handlers } from "../impl.ts";
+import { VIEW_VISIT_MS } from "../handlers/log.ts";
 import { classOfInvoke, genesis, hashOf } from "../projections.ts";
 import type { AuditSeams, RowRec } from "../projections.ts";
 import { codeOf, harness, NOW, SPACE } from "../fixtures/db.ts";
@@ -196,6 +197,19 @@ test("list: newest first, filters, search, paging; viewing the log is itself rec
   assert.deepEqual((await handlers["audit.list"](ctx, { cursor: "garbage", limit: 1 })).rows.length, 1);
 });
 
+test("opening the log is one row per visit: reads inside fifteen minutes add nothing, a read after the visit is recorded again", async () => {
+  const h = await chain();
+  const views = (): number => rowsOf(h).filter((r) => r.action === "audit.viewed").length;
+  const ctx = h.as(ADMIN);
+  for (let i = 0; i < 9; i++) { await handlers["audit.list"](ctx, i % 2 ? { class: "admin" } : {}); h.advance(5_000); }
+  assert.equal(views(), 1, "nine reads in one visit (a load, polls, a filter) are one view, not nine");
+  await handlers["audit.list"](h.as("usr_other_admin"), {});
+  assert.equal(views(), 2, "another person's visit is their own row");
+  h.advance(VIEW_VISIT_MS);
+  await handlers["audit.list"](ctx, {});
+  assert.equal(views(), 3, "coming back after the visit is over is recorded again");
+});
+
 test("get returns one row and records the view; an unknown id is not found", async () => {
   const h = await chain();
   const id = (await handlers["audit.list"](h.as(ADMIN), { action: "vault.revealed" })).rows[0]!.id;
@@ -215,7 +229,7 @@ test("export writes a CSV through the file seam, keeps formulas inert, and says 
   assert.deepEqual(out, { fileId: "fil_export1", rows: 2 });
   assert.match(saved[0]!.name, /^audit-2025-10-\d\d-\d\d-\d\d-\d\d\.csv$/);
   const lines = saved[0]!.csv.trimEnd().split("\n");
-  assert.equal(lines[0], "at,actor,on_behalf_of,action,resource,class,trace_id,seq");
+  assert.equal(lines[0], "at,actor,on_behalf_of,action,resource,class,trace_id,seq,where");
   assert.equal(lines.length, 3);
   assert.ok(lines[1]!.includes(",grant.created,folder:fld_1,change,"), "oldest first");
   assert.ok(lines[2]!.includes(`"'=HYPERLINK(""http://x"")"`), "a leading = is quoted as text");
@@ -266,4 +280,13 @@ test("the class an invoke row gets", () => {
   assert.equal(classOfInvoke("hold", "high"), "sensitive");
   assert.equal(classOfInvoke("allow", "low"), "change");
   assert.equal(classOfInvoke("allow", "medium"), "sensitive");
+});
+
+test("the host reading the audit log for itself records no view; a person's read still does", async () => {
+  const h = await chain();
+  const before = rowsOf(h).length;
+  await handlers["audit.list"](h.as("svc_host", undefined, "service"), { action: "vault.revealed" });
+  assert.equal(rowsOf(h).length, before, "a join retry's own read leaves no audit.viewed row");
+  await handlers["audit.list"](h.as(ADMIN), { action: "vault.revealed" });
+  assert.equal(rowsOf(h).at(-1)!.action, "audit.viewed");
 });

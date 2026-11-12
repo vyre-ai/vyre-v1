@@ -291,11 +291,16 @@ export function cell(v: string | number | null | undefined): string {
   if (CELL_TRIGGERS.test(s)) s = `'${s}`;
   return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
+const placeOf = (after: string | null): string => {
+  if (!after) return "";
+  try { const w = (JSON.parse(after) as { where?: unknown }).where; return typeof w === "string" ? w.slice(0, 120) : ""; } catch { return ""; }
+};
 export function csvOf(rows: RowRec[]): string {
-  const head = "at,actor,on_behalf_of,action,resource,class,trace_id,seq";
+  // where: the place a call reached when the resource the kernel bound says less (an agent's own browser or computer, a person's own Chrome: "browser:agt_x")
+  const head = "at,actor,on_behalf_of,action,resource,class,trace_id,seq,where";
   const lines = rows.map((r) => [
     new Date(r.at).toISOString(), `${r.actor_kind}:${r.actor_id}`, r.behalf_id ? `${r.behalf_kind}:${r.behalf_id}` : "", r.action,
-    r.resource_type ? `${r.resource_type}:${r.resource_id}` : "", r.class, r.trace_id, r.seq,
+    r.resource_type ? `${r.resource_type}:${r.resource_id}` : "", r.class, r.trace_id, r.seq, placeOf(r.after_json),
   ].map(cell).join(","));
   return [head, ...lines].join("\n") + "\n";
 }

@@ -48,6 +48,8 @@ export interface RegisterArgs {
   space: string;
   /** who the call acts for, or the principal */
   owner: string;
+  /** who made the call: an agent's file or folder made inside its own home folder is the agent's, whoever it acted for */
+  principal?: { kind: string; id: string };
   /** the events the handler emitted, in order */
   events: readonly Pick<EventEnvelope, "type" | "payload">[];
 }
@@ -63,6 +65,8 @@ export interface RegistrarDeps {
   exists(id: string): boolean;
   /** the access row of a known resource, so a move can register it again under its new folder (labels and grants follow the folder it is in) */
   resource?(id: string): ResourceRow | undefined;
+  /** the agent's own home folder (agents_agent.folderId), or null */
+  agentHome?(agentId: string): string | null;
 }
 
 type EventLike = Pick<EventEnvelope, "type" | "payload">;
@@ -123,6 +127,16 @@ const MOVES: ReadonlyMap<string, { id: string; to: string }> = new Map([
   ["folder.moved", { id: "/folderId", to: "/toParentId" }],
 ]);
 
+/** Is this resource the folder `home`, or inside it? Walks parents in the access snapshot, bounded. A folder cut off from the Space keeps its own id, so the walk still meets it. */
+function insideOf(deps: RegistrarDeps, from: string, home: string): boolean {
+  let at: string | null = from;
+  for (let depth = 0; at !== null && depth < 64; depth++) {
+    if (at === home) return true;
+    at = deps.resource?.(at)?.parent_id ?? null;
+  }
+  return false;
+}
+
 export function createResourceRegistrar(deps: RegistrarDeps): ResourceRegistrar {
   const subjects = new Map<string, SubjectDef["subject"]>();
   for (const e of deps.events) if (e.subject.type !== "entity" && !ENDS.test(e.name)) subjects.set(e.name, e.subject);
@@ -174,7 +188,11 @@ export function createResourceRegistrar(deps: RegistrarDeps): ResourceRegistrar 
         // a calendar, mailbox or site that says it is private (a member's own Google or Outlook calendar or mail, a Personal calendar, an artifact) does not inherit the Space's access: the owner has it, and anyone they share it with
         // a Vault folder that is someone's Mine is theirs alone: it never passes the Space's access, or any agent's grant on the Space, to what is in it
         const privateRoot = ((s.type === "calendar" || s.type === "mailbox" || s.type === "site") && pointer(ev.payload, "/private") === true) || (s.type === "vault_folder" && pointer(ev.payload, "/scope") === "mine");
-        out.push({ id, type: s.type, parent_id: s.type === "space" || privateRoot ? null : container, label: 0, owner_id: typeof named === "string" && /^usr_[a-z0-9]+$/.test(named) ? named : a.owner, holds: 0 });
+        // a file or folder an agent makes in its own home folder (or below it) is the agent's: its manager manages it through the folder, and a person the agent worked for keeps it only while
+        // they may read the folder (review, 12 Nov 2026: a reader who left a closed chat kept Manage on the agent's notes they had asked for)
+        const home = a.principal?.kind === "agent" && (s.type === "file" || s.type === "folder") ? deps.agentHome?.(a.principal.id) ?? null : null;
+        const agentsOwn = home !== null && insideOf(deps, container, home);
+        out.push({ id, type: s.type, parent_id: s.type === "space" || privateRoot ? null : container, label: 0, owner_id: agentsOwn ? a.principal!.id : typeof named === "string" && /^usr_[a-z0-9]+$/.test(named) ? named : a.owner, holds: 0 });
       }
       return out;
     },

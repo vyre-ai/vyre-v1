@@ -1,8 +1,8 @@
 // The Docker host of the computers module against a scripted Engine API: what the container is and is not given, how agentd is asked, what a recording save writes, and the whole
 // lifecycle through the handlers on top of it. The same host against real Docker is lifecycle.heavy.test.ts.
 import test from "node:test";
+import { tarFiles, untar } from "../../../sandbox/src/tar.ts";
 import assert from "node:assert/strict";
-import { untar } from "../../../sandbox/src/tar.ts";
 import type { ContainerConfig, DockerApi, DockerHttp } from "../../../sandbox/src/docker.ts";
 import { AGENTD_CTL, computerContainerConfig, createDockerComputerHost, DEFAULT_COMPUTER_IMAGE, FILES_GUEST, reviewComputerConfig } from "../impl.ts";
 import { bindHost } from "../projections.ts";
@@ -248,20 +248,25 @@ test("the whole lifecycle through the handlers on the Docker host: provision, wa
   assert.deepEqual(ctlCalls(f.execs).map((c) => c.split(" ")[0]), ["configure", "status", "takeover", "record_start", "record_stop", "give_back", "status", "status", "sessions"]);
 });
 
-test("chromeData reads Chrome's folder out of the computer's guest home, unseals and seals the profile around it, and says nothing when there is none", async () => {
+test("chromeData reads only what holds sign-ins and settings out of Chrome's folder (never the caches), renamed into place under chrome/, unseals and seals around it, and says nothing when there is none", async () => {
   const f = fakeApi();
-  const reqs: Array<{ method: string; path: string; path_q: string }> = [];
+  const asked: string[] = [];
   const steps: string[] = [];
   let status = 200;
-  const http: DockerHttp = async (r) => { reqs.push({ method: r.method, path: r.path, path_q: String(r.query?.["path"] ?? "") }); return { status, body: status === 200 ? new Uint8Array([9, 9, 9]) : new Uint8Array() }; };
+  const have = new Set(["Local State", "Default/Cookies", "Default/Local Storage"]);
+  const http: DockerHttp = async (r) => {
+    const rel = String(r.query?.["path"] ?? "").replace("/home/agent/.profile-disk/chrome/", "");
+    asked.push(rel);
+    if (status !== 200 || !have.has(rel)) return { status: status === 200 ? 404 : status, body: new Uint8Array() };
+    const base = rel.split("/").pop()!;
+    return { status: 200, body: tarFiles(rel === "Default/Local Storage" ? [{ path: `${base}/leveldb/000003.log`, data: new Uint8Array([2]), mode: 0o600, uid: 10001, gid: 10001, mtime: 1 }] : [{ path: base, data: new Uint8Array([1]), mode: 0o600, uid: 10001, gid: 10001, mtime: 1 }]) };
+  };
   const host = createDockerComputerHost({ api: f.api, http, profile: { async unseal() { steps.push("unseal"); }, async seal() { steps.push("seal"); } } });
   const got = await host.chromeData!("cmt_abc123");
-  assert.deepEqual(Array.from(got!.tar), [9, 9, 9]);
-  assert.equal(reqs[0]?.method, "GET");
-  assert.match(reqs[0]?.path ?? "", /^\/containers\/vyre-comp-[a-z0-9]+\/archive$/);
-  assert.equal(reqs[0]?.path_q, "/home/agent/.profile-disk/chrome");
+  assert.deepEqual(untar(got!.tar).filter((e) => e.type === "file").map((e) => e.path).sort(), ["chrome/Default/Cookies", "chrome/Default/Local Storage/leveldb/000003.log", "chrome/Local State"]);
+  assert.ok(!asked.some((p) => /Cache|GPUCache|History|Service Worker/.test(p)), `no cache is read: ${asked.join(", ")}`);
   assert.deepEqual(steps, ["unseal", "seal"]);
-  status = 404;
+  have.clear();
   assert.equal(await host.chromeData!("cmt_abc123"), null);
   status = 500;
   steps.length = 0;

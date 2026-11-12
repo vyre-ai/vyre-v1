@@ -1,0 +1,1 @@
+- For builders: the server code (modules, host, contracts) now has a type-error count that may only fall. It starts at 1315, the true count of the rc.26 tree; the 44 above the count the check was written against came in with today's merged fixes and are listed for each lane to clear.

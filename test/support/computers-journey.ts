@@ -61,7 +61,7 @@ export function fakeSpaceBrowser(): { sb: SpaceBrowser; rows: Map<string, Profil
     async giveBack(id) { const { takeoverBy: _t, ...r } = rows.get(id)!; rows.set(id, { ...r, takeover: false }); },
     async screenshot() { return { bytes: new Uint8Array(), width: 1, height: 1 }; },
     async stream(a) { return { transport: "mjpeg", url: `http://127.0.0.1:9/stream?p=${a.profileId}`, ws: `ws://127.0.0.1:9/ws?p=${a.profileId}` }; },
-    async sessions() { return []; }, async signOut() { return true; }, async importChrome() { return { bytes: 0 }; }, async stop() {}, async forget() {},
+    async sessions() { return []; }, async signOut() { return true; }, async profileUsed() { return false; }, async importChrome() { return { bytes: 0 }; }, async stop() {}, async forget() {},
     async profiles() { return { profiles: [...rows.values()], maxRunning: 6 }; }, async health() { return { ok: true }; },
   };
   return { sb, rows };

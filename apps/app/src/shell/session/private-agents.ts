@@ -3,11 +3,16 @@
 // whatever it did is credited to its person, "Irfad Imtiaz (Agent)", with the person's face; its own name never shows. It is never offered: not to @mention, not in Cmd-K, not as a chat.
 // The person themselves sees their agents by name. Logs (Console audit) add which agent it was in a details line, from `agentName`.
 import type { Principal } from "./runtime-data.ts";
+import { agentForPerson, agentOfName, creditedName, namesItsPerson } from "../../../../../lib/words/agent-name.ts";
+export { agentForPerson };
 
-export interface PrincipalIn { id: string; name: string; kind: string; owner?: string; private?: boolean; agentName?: string; roles?: readonly string[] }
+export interface PrincipalIn { id: string; name: string; kind: string; owner?: string; private?: boolean; assistant?: boolean; agentName?: string; roles?: readonly string[]; status?: string }
 
-/** How someone else's private agent is named: its person, marked as their agent. The server already answers it so (access.principals.list); this is the same words. */
-export const asAgentOf = (personName: string): string => `${personName} (Agent)`;
+/** How someone else's private agent is named: "Maya’s Assistant" for their Assistant, "Maya Lin (Agent)" for an outside agent. The server already answers it so (access.principals.list); this is the same function. */
+export const asAgentOf = (personName: string, assistant = false): string => agentOfName(personName, assistant ? "assistant" : "outside");
+
+/** Is this someone else's agent, named as its person's (never offered to @mention or ask)? */
+export const creditedToPerson = (p: { kind: string; name: string; private?: boolean }): boolean => p.kind === "agent" && (p.private === true || / \(Agent\)$/.test(p.name));
 
 /**
  * The shell's directory from access.principals.list and the set agents.list answered (`usable`, null while it loads). The server names someone else's private agent as its person and marks it
@@ -22,12 +27,15 @@ export function directoryOf(rows: readonly PrincipalIn[], own: { id: string; nam
     const out: Principal = { id: x.id, name: x.id === own.id ? own.name : x.name, kind };
     // a guest works inside what was shared with them: the one built-in role they hold is Guest
     if (kind === "person" && x.roles && x.roles.length > 0 && x.roles.every((r) => r === "rol_guest")) out.guest = true;
+    // invited, suspended or removed: still named where they wrote, never offered (the people picker offers active people only)
+    if (kind === "person" && x.status !== undefined && x.status !== "active") out.inactive = true;
     if (kind !== "agent" || x.owner === undefined) return out;
     out.owner = x.owner;
     if (x.private === true) {
       out.private = true;
       // an older server names it by its own name: never show that to someone else
-      if (!x.name.endsWith(" (Agent)")) out.name = asAgentOf(people.get(x.owner) ?? "Someone");
+      if (!namesItsPerson(x.name)) out.name = asAgentOf(people.get(x.owner) ?? "Someone", x.assistant === true);
+      if (x.assistant === true) out.assistant = true;
       if (x.agentName !== undefined) out.agentName = x.agentName;
     } else if (x.owner !== meId && x.id.startsWith("agt_") && usable !== null && !usable.has(x.id)) out.hidden = true;
     return out;
@@ -54,5 +62,8 @@ export function creditLine(by: { kind: string; id: string }, o: { me: string; na
   const person = o.for ?? o.ownerOf?.(by.id);
   if (person === undefined || !person.startsWith("usr_")) return o.nameOf(by.id);
   if (person === o.me) return `You, through ${o.nameOf(by.id)}`;
-  return asAgentOf(o.nameOf(person));
+  // someone else's private agent: the directory already names it by its person ("Maya’s Assistant", "Maya Lin (Agent)"), the one name (lib/words/agent-name); any other agent of theirs is
+  // credited to its person, "Maya Lin (Agent)"
+  const shown = o.nameOf(by.id);
+  return creditedName(shown) ? shown : asAgentOf(o.nameOf(person));
 }
