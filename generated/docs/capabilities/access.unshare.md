@@ -19,7 +19,7 @@ Remove a grant, or every grant of one source on a resource
 | HTTP | POST /v1/access/unshare |
 | MCP tool | access_unshare (meta) |
 | CLI | none |
-| Emits | grant.revoked, access.changed, folder.shared |
+| Emits | grant.revoked, grant.updated, access.changed, folder.shared |
 
 ## Input
 

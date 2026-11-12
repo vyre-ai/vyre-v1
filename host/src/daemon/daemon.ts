@@ -62,6 +62,18 @@ import { nodePlatform } from "../platform/index.ts";
 /** The channel calls a project's role changes make on its own channel, and the read that tells whether it is gone; they run as the host (see the projects wrapper). */
 const CHANNEL_FOLLOWS = new Set(["channels.members.add", "channels.members.remove", "channels.agents.add", "channels.agents.remove", "channels.get"]);
 const CHAT_LEAVES = new Set(["threads.members.remove", "channels.members.remove", "channels.leave", "channels.agents.remove", "threads.remove_agent", "threads.outside_agent.remove"]);
+/**
+ * The chat calls that change who reads a chat, or make an agent in one: what the chat gives its readers (grants tagged chat:<thread> on the chat's own agents and their files folders) is written
+ * as the host, because the person adding someone, or making the agent, may not manage the agent's folder. Access lets the host write chat: grants only on a chat's own agents and their folders
+ * (modules/access/handlers/share.ts hostWritesChatGrant), and set who a folder is open to only for a folder (audience_set). The calls themselves were authorized as the caller.
+ */
+const CHAT_GIVES = new Set(["threads.agent.create", "threads.members.add", "channels.members.add", "channels.join", "channels.update"]);
+// making an agent raises only the folder's audience: its first grants to the chat's readers are the maker's own act (the agent carries no grant of the chat yet for the host to follow)
+const chatHostCall = (name: string, input: unknown, leaves: boolean, cap = ""): boolean => {
+  const i = (input ?? {}) as { source?: unknown; resource?: { type?: unknown } };
+  if (String(i.source ?? "").startsWith("chat:")) return name === "access.unshare" || (!leaves && name === "access.share" && cap !== "threads.agent.create");
+  return !leaves && name === "access.audience_set" && i.resource?.type === "folder";
+};
 /** Files an agent made on its computer, said in the chat the work was for: one message with a file card each (four at most, the rest counted), posted as the agent for the person it works for. */
 
 export function createMadeFilesAnnouncer(a: { db: { all(sql: string, ...args: unknown[]): unknown[] }; call: (agentId: string, cap: string, input: unknown) => Promise<unknown>; log: (msg: string, attrs?: Record<string, unknown>) => void }) {
@@ -1360,7 +1372,9 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           // run as the host, and only a grant that carries this project's own source (project:<id>); the access module then lets the host write it only on the project or on a resource already carrying that source.
           // The project's own channel follows its roles the same way: putting a person or an agent in it, or taking them out, runs as the host, and only for this project's own channel (read from
           // the projects table, never from the input), so a project remove takes away everything the project gave whoever presses it, provided they may change the project's roles.
-          if (h && (cap === "projects.members.set" || cap === "projects.members.remove" || cap === "projects.teammates.create" || cap === "projects.teammates.remove")) return ((ctx, input) => {
+          // projects.teammates.create is not wrapped: making a teammate shares the project's things with a new agent as the caller (who must manage the project, checked first), as it did before;
+          // run as the host, a share on a resource that carries no project grant yet is a delegation the host cannot make, and the owner's Assistant could no longer add a teammate
+          if (h && (cap === "projects.members.set" || cap === "projects.members.remove" || cap === "projects.teammates.remove")) return ((ctx, input) => {
             const projectId = String((input as { projectId?: unknown } | null)?.projectId ?? "");
             const source = `project:${projectId}`;
             const own = (): string | null => { try { return (db!.all(`SELECT "channelId" FROM projects_project WHERE "projectId" = ?`, projectId)[0] as { channelId?: string | null } | undefined)?.channelId ?? null; } catch { return null; } };
@@ -1373,7 +1387,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           }) as Handler;
           // leaving a chat or a channel, or being taken out of one, or an agent taken out: what the membership gave (grants tagged chat:<thread>, written when the person or agent came in) is taken
           // back as the host, because the person leaving may not be the one who gave them. The call itself was authorized; only access.unshare with a chat: source is widened (modules/chat/handlers/owned.ts).
-          if (h && CHAT_LEAVES.has(cap)) return ((ctx, input) => h({ ...ctx, call: (name: string, callInput: unknown, opts?: unknown) => (name === "access.unshare" && String((callInput as { source?: unknown } | null)?.source ?? "").startsWith("chat:") ? system(name, callInput, ctx.trace) : (ctx.call as (n: string, i: unknown, o?: unknown) => Promise<unknown>)(name, callInput, opts)) } as typeof ctx, input)) as Handler;
+          if (h && (CHAT_LEAVES.has(cap) || CHAT_GIVES.has(cap))) { const leaves = CHAT_LEAVES.has(cap); return ((ctx, input) => h({ ...ctx, call: (name: string, callInput: unknown, opts?: unknown) => (chatHostCall(name, callInput, leaves, cap) ? system(name, callInput, ctx.trace) : (ctx.call as (n: string, i: unknown, o?: unknown) => Promise<unknown>)(name, callInput, opts)) } as typeof ctx, input)) as Handler; }
           if (h && peopleExtras?.(mod, {})) return ((ctx, input) => h({ ...ctx, ...peopleExtras!(mod, ctx) } as typeof ctx, input)) as Handler;
           if (!h || !cap.startsWith("devices.")) return h;
           const wrapped: Handler = (ctx, input) => h({ ...ctx, call: (name, callInput, opts) => (name === "sync.epoch.bump" ? system(name, callInput, ctx.trace) : ctx.call(name, callInput, opts)) } as typeof ctx, input);

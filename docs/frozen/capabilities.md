@@ -40,3 +40,9 @@ Signed: lead, 12 Nov 2026
 
 - 12 Nov 2026, lane f-auto: `automations.try_read` is now held (gate `send`, when `automations.key_host_unapproved(input)`, risk medium, error `permission.needs_approval`): an agent's test read that would send a Vault key to a host nobody approved for that item waits for a person (Allow, Always allow, Deny). New `automations.key_hosts.list`, `automations.key_hosts.allow` and `automations.key_hosts.remove`: the hosts approved per Vault item (table `automations_key_hosts`, migration 0013). Signed: lead, 12 Nov 2026.
 - 12 Nov 2026, lane f-auto, second look: `automations.key_hosts.pending` and `automations.key_hosts.pending_bind` (what a held read or binding would send, read by the server for the card); `connections.create` and `connections.set_secret` are held (gate `send`, when `automations.bind_hosts_unapproved(input)`, error `permission.needs_approval`) when an agent binds a key to hosts not approved for it. `automations.vault_usage` gains an optional `hidden` count. Signed: lead, 12 Nov 2026.
+
+## 12 Nov 2026: access.grants.update may emit grant.revoked, and access.unshare may emit grant.updated (lane f-revoke)
+
+12 Nov 2026: access.grants.update may emit grant.revoked and access.unshare may emit grant.updated, because a record share's folder copy follows in the same call (lane f-revoke). Lowering a share on a record drops its copy on the record's folder when the person keeps no level there (`grant.revoked`), and taking one of several record shares away lowers the copy to what is left (`grant.updated`). Nothing else in either contract changed: same input, output, level, permission and errors; the events carry their own declared payloads.
+
+Signed: lead, 12 Nov 2026
