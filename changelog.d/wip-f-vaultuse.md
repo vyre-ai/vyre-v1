@@ -40,3 +40,4 @@
 - In work an automation starts from outside, reading something first no longer lifts the holds on that work, and an agent starting another automation by hand counts as from outside too; what earlier steps returned always reaches the AI step as data, not instructions. Moving a file from such work is not held.
 - An automation's agent looking through lists or searching no longer marks other people's chats and tasks: only a task, helper or chat it starts carries the automation's "outside content" mark, and when the automation runs as someone new, that person can clear it.
 - Stopping the server while an agent's turn is still ending no longer raises an error after it stops.
+- A team member's chats and automations run on the Space AI key again; a Vault name you cannot use, or one that does not exist, answers "not found" the same way.
