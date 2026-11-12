@@ -90,6 +90,7 @@ test("a helper's held link: the lead chat shows its row as Needs you and the app
     assert.match(await card.innerText(), /harborquotes\.example/);
     assert.doesNotMatch(await card.innerText(), /automations|read link|read_link/);
     assert.ok(await page.getByText("Needs your OK to open harborquotes.example", { exact: false }).count() > 0, "the helper's row says what it waits for");
+    assert.equal(await page.getByText("Open the thread", { exact: true }).count(), 0, "the raised card links to no thread");
     await shot("helper-hold-card");
     await card.getByText("Allow", { exact: true }).first().click();
     await waitFor(async () => (((await api("engine.helpers.status", { threadId: chat })).helpers as Array<{ state: string }>).every((h) => h.state === "done") ? true : null), 60_000, () => hostLog(d));

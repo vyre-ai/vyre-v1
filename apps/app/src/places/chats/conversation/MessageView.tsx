@@ -598,6 +598,8 @@ function Theirs({ item, actions, stream, openWork, mark, meId, replies }: Messag
         if (isQuote(b.type)) return <QuoteCard key={b.id} id={b.id} data={b.data} />;
         if (isChromeHeld(b.type)) return <HeldSendCard key={b.id} id={b.id} data={b.data} agentId={item.who.id} agentName={item.who.name} actions={actions.chrome} />;
         if (isChromeStep(b.type)) return <ChromeStepCard key={b.id} id={b.id} data={b.data} agentId={item.who.id} agentName={item.who.name} actions={actions.chrome} />;
+        // a helper's raised card is the card itself; it neither repeats "needs your OK in a thread" nor links to the helper's thread (lead, 12 Nov, H3)
+        if (isApprovalUp(b) && raisedHelperCard(m)) return null;
         if (isApprovalUp(b)) return <ApprovalLine key={b.id} id={m.messageId} who={item.who.name} threadId={String((b.data as { threadId?: unknown } | null)?.threadId ?? "")} open={(t) => actions.openMessage?.(t, "")} />;
         // a helper's raised approval card links nowhere: the helper's chat is its asker's, and a reader who may not open it is never sent there (lead, 12 Nov, H3)
         if (b.type === "from_thread" && raisedHelperCard(m)) return null;
