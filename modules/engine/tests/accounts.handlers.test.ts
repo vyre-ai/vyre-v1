@@ -229,3 +229,15 @@ test("account.resolve: a chat and an agent that name no model run on the paying 
   const named = await accountResolve(fake(routes([prov({ id: "prv_1", handle: "#Dana_Anthropic", models: ["claude-haiku-5-5", "claude-sonnet-5-5"] })], { "engine.defaults.get": () => ({ fallback: [] }) })).ctx, { threadId: "thr_1", agentId: "agt_1" });
   assert.equal(named.model, "claude-sonnet-5-5");
 });
+
+test("account.resolve: a person's own key whose model list was never kept is asked once (the same check as the model menu), and its first model runs the turn", async () => {
+  const noModel = { "threads.get": () => ({ thread: { starter: "usr_dana", agents: [{ agentId: "agt_1" }] } }), "agents.get": () => ({ agent: { accountPolicy: "asker" } }), "engine.defaults.get": () => ({ fallback: [] }) };
+  let tested = 0;
+  const { ctx } = fake(routes([prov({ id: "prv_1", handle: "#Dana_OpenAI", providerKey: "openai", engine: "openai" })], { ...noModel, "providers.test": () => { tested += 1; return { ok: true, models: ["gpt-4o-mini", "gpt-4o"] }; } }));
+  (ctx as unknown as { db: unknown }).db = (await import("../fixtures/harness.ts")).harness().ctx.db;
+  const out = await accountResolve(ctx, { threadId: "thr_1", agentId: "agt_1" });
+  assert.equal(out.model, "gpt-4o-mini");
+  const again = await accountResolve(ctx, { threadId: "thr_1", agentId: "agt_1" });
+  assert.equal(again.model, "gpt-4o-mini");
+  assert.equal(tested, 1, "asked once, then the kept list answers");
+});

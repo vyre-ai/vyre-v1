@@ -77,12 +77,13 @@ export function maybeRefreshDigest(d: DigestDeps, o: { threadId: string; agentId
   running.add(key);
   void (async () => {
     try {
-      const resolved = (await d.call("engine.account.resolve", { threadId: o.threadId, agentId: o.agentId }, o.asker)) as { accountRef?: string | null; allowed?: boolean } | null;
+      const resolved = (await d.call("engine.account.resolve", { threadId: o.threadId, agentId: o.agentId }, o.asker)) as { accountRef?: string | null; allowed?: boolean; model?: string } | null;
       if (!resolved?.allowed || !resolved.accountRef) return;
       const usage = (await d.call("engine.usage.get", { threadId: o.threadId, agentId: o.agentId, accountRef: resolved.accountRef }, o.asker).catch(() => undefined)) as Obj | undefined;
       if (!limitAllows(usage)) return;
       const listed = (await d.call("engine.models.list", { accountRef: resolved.accountRef, probe: false }, o.asker)) as { models?: Array<{ model: string; allowed: boolean }> };
-      const model = cheapestModel(listed.models ?? []);
+      // the cheapest the account lists, else the model this chat's turns run on (a key whose list was never read yet still has one): never none
+      const model = cheapestModel(listed.models ?? []) ?? resolved.model;
       let source = fresh.map((m) => `${o.nameOf(m.author.id)}: ${m.body.replace(/\s+/g, " ").trim()}`).join("\n");
       if (source.length > SOURCE_CHARS) source = source.slice(source.length - SOURCE_CHARS);
       const prompt = `${have ? `Previous digest:\n${have.text}\n\n` : ""}New messages:\n${source}\n\nWrite the updated digest.`;

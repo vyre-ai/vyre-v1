@@ -3,7 +3,7 @@
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
 import type { ResolvedAccount } from "../../../agent/src/turn-engine/types.ts";
 import { ensureRuntime, completerOf, providerOfDriver } from "../runtime.ts";
-import { accountsList } from "./accounts.ts";
+import { accountsList, firstModelOf } from "./accounts.ts";
 import { turnsRunHere } from "./place.ts";
 import { raise } from "../projections.ts";
 import type { EngineCtx } from "../projections.ts";
@@ -28,7 +28,9 @@ export async function complete(ctx: Ctx, input: { accountRef: string; prompt: st
     ...(row.itemId ? { itemId: row.itemId } : {}), ...(row.base ? { base: row.base } : {}), ...(row.keyless ? { keyless: true } : {}),
   } as ResolvedAccount;
   // a pass that waits on a computer must not wait for ever: the learning it serves is background work and is skipped when the computer does not answer
-  const call = run({ account, prompt: input.prompt, ...(here ? {} : { onDevice: true }), ...(input.system ? { system: input.system } : {}), ...(input.model ? { model: input.model } : {}) });
+  // a job that names no model runs on the key's first listed model (an API key needs one; a request never goes out with none)
+  const model = input.model ?? (row.kind === "api_key" ? await firstModelOf(ctx, row.ref) : undefined);
+  const call = run({ account, prompt: input.prompt, ...(here ? {} : { onDevice: true }), ...(input.system ? { system: input.system } : {}), ...(model ? { model } : {}) });
   const out = here ? await call : await Promise.race([call, new Promise<never>((_, rej) => { const t = setTimeout(() => rej(Object.assign(new Error("The computer did not answer in time."), { code: "engine.device_off" })), DEVICE_ONESHOT_MS); t.unref?.(); })]);
   return { text: out.text, tokensIn: out.tokensIn, tokensOut: out.tokensOut };
 }
