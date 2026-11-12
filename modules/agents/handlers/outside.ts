@@ -86,8 +86,9 @@ export function usable(ctx: AgentsCtx, input: { agentId: string }) {
   const who = askerOf(ctx);
   if (isHostService(ctx.principal)) return { usable: true };
   if (isAssistant(a)) return { usable: a.ownerId === who };   // a person's Assistant is theirs alone
-  // an agent a private chat made, to someone who may not see it, is one that does not exist (owner decision, 12 Nov 2026): the same answer agents.get gives, not "not usable"
-  if (chatOf(a) !== undefined && !canSee(ctx, a)) raise(ctx, "validation.not_found", "That agent does not exist.");
+  // an agent a private chat made, to someone who may not see it, is one that does not exist (owner decision, 12 Nov 2026): the answer an agent that is not there gets here, above
+  // ("not usable"), so a task, a hand-off or an Add for it reads exactly as one for a missing agent
+  if (chatOf(a) !== undefined && !canSee(ctx, a)) return { usable: false };
   if (!isOutside(a) && a.ownerId !== who && ctx.principal.kind === "person" && !allows(ctx, null, "use", "agent", a.id) && !seesAll(ctx)) return { usable: false };
   return { usable: !isOutside(a) || a.ownerId === who };
 }
