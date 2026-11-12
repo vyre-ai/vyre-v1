@@ -15,6 +15,7 @@ import { rememberAccountPicks } from "../accounts.ts";
 import { regrant, sendersOf, shareSenders } from "../grants.ts";
 import { guardKeySteps, recordStepHosts, usableKeyIds } from "../key-steps.ts";
 import { blockedKeySteps } from "../key-run.ts";
+import { hookBase } from "../key-ref-port.ts";
 import { publishAllowed } from "../connector-breadth.ts";
 import { storedLevel } from "../connector-level.ts";
 import { admit, contractOf } from "../val.ts";
@@ -763,7 +764,8 @@ export async function followersRemove(ctx: AutoCtx, input: In): Promise<unknown>
   return { followers: a.followers };
 }
 
-function webhookUrl(ctx: AutoCtx, id: string, secret: string): string { return `${ctx.baseUrl ?? ""}/hooks/automation/${id}/${secret}`; }
+/** The address an app posts to: the Space's own public address from the host (a context's own base first, for a host that sets one); a bare path when the Space has none that carries web requests. */
+function webhookUrl(ctx: AutoCtx, id: string, secret: string): string { return `${(ctx.baseUrl ?? hookBase() ?? "").replace(/\/+$/, "")}/hooks/automation/${id}/${secret}`; }
 function needWebhookTrigger(ctx: AutoCtx, a: Automation): void {
   if (!a.definition.triggers.some((t) => t.key === "webhook")) raise(ctx, "validation.precondition_failed", "Add a webhook trigger first.", { reason: "no_webhook_trigger" });
 }

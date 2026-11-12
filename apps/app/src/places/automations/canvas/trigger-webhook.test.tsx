@@ -73,7 +73,7 @@ test("with no public address the card says so, gives an admin the door and a mem
     await new Promise((r) => setTimeout(r, 30));
     const row = find(root, "trigger-webhook");
     assert.ok(row);
-    assert.match(textOf(row), /no public address/);
+    assert.match(textOf(row), /No app outside can reach this yet/);
     assert.equal(textOf(row).includes("/hooks/"), false, "a bare path is never shown as an address");
     assert.equal(find(root, "trigger-webhook-copy"), null);
     if (admin) { await press(find(root, "trigger-webhook-set-address")); assert.deepEqual(opened, ["address"]); }

@@ -211,7 +211,7 @@ function WebhookAddress({ automationId }: { automationId: string }): ReactElemen
     const open = data?.nav.openAddress;
     return (
       <View style={s.hook} testID="trigger-webhook">
-        <Text style={s.hookNote}>{open ? "This Space has no public address yet, so no app can reach it." : "This Space has no public address yet, so no app can reach it. Ask an admin to give this Space a public address."}</Text>
+        <Text style={s.hookNote}>{open ? "No app outside can reach this yet. The Space needs a public address of its own." : "No app outside can reach this yet. Ask an admin to give this Space a public address."}</Text>
         {open ? <View style={s.hookCopy}><TextButton label="Set the address" onPress={open} testID="trigger-webhook-set-address" /></View> : null}
       </View>
     );

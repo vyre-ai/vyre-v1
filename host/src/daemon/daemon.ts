@@ -2236,6 +2236,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         setConnectorReadSender: (d) => connectorReadSender(d, (ref, asker) => resolveKeyRef(db!, ref, asker)),
         // the same reading of a key reference for the module (the held test read's card names the item a person approves)
         setKeyRefResolver: () => (ref: unknown, asker?: string) => resolveKeyRef(db!, ref, asker),
+        // the web request trigger's address: the Space's own public address. A relay (vyre.run) name is not given: the relay carries only /p/* (forms and sites), never /hooks/
+        setPublicBase: () => () => { const p = publicOrigin(); return p && !p.relay ? p.origin : null; },
         // the HTTP request step's key: the Vault fills the handle for one call through the same per-execution port connectors use (access is checked by vault.fill as the Run's principal)
         // Run code runs in bubblewrap under the data directory; where bwrap is missing the step is refused, never run in the daemon
         setCodeHost: () => ({ dataDir: paths.root }),
