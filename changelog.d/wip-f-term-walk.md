@@ -1,0 +1,1 @@
+- The Terminal tab in a chat's pane: on a server that cannot start agent workspaces, it opens on this computer or the ones you have, or says there is no computer to open one on, instead of stopping on the server's error.
