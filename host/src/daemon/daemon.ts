@@ -666,6 +666,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     if (o.liveCloseOnEnd !== false) hub?.endSessions?.(everyone ? { person: m.person! } : { ...(m.sessionId ? { sessionId: m.sessionId } : {}) });
     computeStream.endSessions(everyone ? { person: m.person! } : { ...(m.sessionId ? { sessionId: m.sessionId } : {}) }, m.person);
     if (m.person) browserStream.endPerson(m.person);
+    // the cookie sessions of artifacts and sites a person opened (sites_ticket rows of theirs) hold no session id: they end with any session end of the person, as the live views do
+    if (m.person) { try { db?.run("DELETE FROM sites_ticket WHERE principal = ?", m.person); } catch { /* no sites tables in this Space */ } }
   };
   closers.push(() => computeStream.close());
   // A device-role daemon (the Vyre app's, on the person's own computer) links to each Team Space its person is signed in to here, so their chats there can run on this computer (lane l-runson).
@@ -1910,7 +1912,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
             site: (h) => (sitesExports?.["routeByHost"] as ((c: { db: unknown }, h: string, d: string | null) => HostRow | null) | undefined)?.({ db: db! }, h, sitesDomain()) ?? null,
             ticket: async (id, t) => (await (sitesExports?.["routeByTicket"] as ((c: { db: unknown }, id: string, t: string, n: number) => Promise<{ principal: string } | null>) | undefined)?.({ db: db! }, id, t, now()))?.principal ?? null,
             // the same rule as an artifact's address: the owner, an active member for a Space site, or a grant on the site for a private one; asked on every request
-            may: (p, x) => p === x.owner || (x.access !== "private" && access.snap.principal(p)?.status === "active") || (!staleFor(p) && authorize(access.snap, { principal: p, action: { perm: null, level: "view" }, resource: { type: "site", id: x.siteId } }).effect === "allow"),
+            may: (p, x) => (p === x.owner && access.snap.principal(p)?.status === "active") || (x.access !== "private" && access.snap.principal(p)?.status === "active") || (!staleFor(p) && authorize(access.snap, { principal: p, action: { perm: null, level: "view" }, resource: { type: "site", id: x.siteId } }).effect === "allow"),
             checkPassword: (g, h) => (sitesExports?.["checkPassword"] as (g: string, h: string) => Promise<boolean>)(g, h),
             newSession: (id, p) => (sitesExports?.["newTicket"] as (db: unknown, id: string, p: string, ms: number, n: number) => Promise<string>)(db!, id, p, sitesExports?.["SESSION_MS"] as number, now()),
             address: (c) => (sitesExports?.["containerAddress"] as ((c: string) => Promise<string | null>) | undefined)?.(c) ?? Promise.resolve(null),
@@ -1942,7 +1944,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
               const got = await sitesMod?.routeByArtifactSession?.({ db: db! }, id, token, now());
               if (!got) return null;
               // access is asked on every request, so ending a share ends the session
-              const may = got.principal === got.owner || (got.route.access === "space" && access.snap.principal(got.principal)?.status === "active") || (!staleFor(got.principal) && authorize(access.snap, { principal: got.principal, action: { perm: null, level: "view" }, resource: { type: "site", id } }).effect === "allow");
+              const may = (got.principal === got.owner && access.snap.principal(got.principal)?.status === "active") || (got.route.access === "space" && access.snap.principal(got.principal)?.status === "active") || (!staleFor(got.principal) && authorize(access.snap, { principal: got.principal, action: { perm: null, level: "view" }, resource: { type: "site", id } }).effect === "allow");
               return may ? got.route : null;
             },
             artifactExchange: async (code) => (await sitesMod?.exchangeArtifactCode?.({ db: db! }, code, now())) ?? null,
