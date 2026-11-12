@@ -51,6 +51,7 @@ test("a message to an agent on a Claude Code account streams a reply into the ch
       if (cap === "engine.accounts.list") return { accounts: [{ ref: "#Dana_Claude", driver: "claude_code", kind: "subscription" }] };
       if (cap === "engine.turn.record_usage") return {};
       if (cap === "agents.get") return { agent: { name: "Intake", role: "You answer intake questions." } };
+      if (cap === "agents.status") return { status: "awake" };   // the host answers whether the agent may take a turn (admission fails closed when it cannot)
       throw new Error(`unexpected ${cap}`);
     },
     session: {
