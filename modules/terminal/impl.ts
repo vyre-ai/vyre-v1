@@ -12,6 +12,8 @@ import type { WorkspaceManager, WorkspaceOptions, WorkspaceTerminalHost } from "
 import { createWorkspaceFleet, remoteDockerHttp } from "./fleet.ts";
 import type { WorkspaceFleet } from "./fleet.ts";
 import type { AdoptArgs, Db, PlaceOf, Target, TermCtx, TermState, TerminalHost, ValueSource } from "./projections.ts";
+import { networkRoom, networkRoomFinding } from "./netroom.ts";
+import type { RoomFinding } from "./netroom.ts";
 
 export const handlers: Record<string, Handler> = table as unknown as Record<string, Handler>;
 export { fetchesOutside, isDangerCall, outwardOf } from "./handlers/index.ts";
@@ -705,6 +707,12 @@ export const hostSeams = { setTerminalHost };
  * routes from a workspace terminal as it does from an agent's browser.
  */
 export const agentSubnets = (): string[] => workspaceManager?.subnets() ?? [];
+
+/** Server health's count of the networks this host's Docker has left (12 Nov: each site takes one; agent workspaces share one), or nothing when Docker does not answer. */
+export async function networkRoomFindings(ok: string): Promise<RoomFinding[]> {
+  const subnets = await workspaceManager?.hostSubnets().catch(() => null);
+  return subnets ? [networkRoomFinding(networkRoom(subnets), ok)] : [];
+}
 
 /** Jobs the host runs on a clock. */
 export const periodic = {

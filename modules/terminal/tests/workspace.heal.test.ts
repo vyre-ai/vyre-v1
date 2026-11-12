@@ -876,3 +876,17 @@ test("the Files mirror slows down while nothing happens in a workspace (each qui
   assert.ok(at2.some((x) => x >= t1 && x - t1 < 60), "a pass within a few ms of the command, not after the long wait");
   m2.close();
 });
+
+test("many newcomers at once on a full host each get room: one taking another's freed room makes room again", async () => {
+  const dk = engine();
+  const slots = new Set<string>();
+  const capacity = {
+    async claim(id: string) { if (slots.has(id) || slots.size < 4) { slots.add(id); return { state: "running" as const }; } return { state: "waiting" as const, line: "Waiting for room on the Space server." }; },
+    async release(id: string) { slots.delete(id); },
+  };
+  const m = manager(dk, { capacity });
+  for (const id of ["agt_q0", "agt_q1", "agt_q2", "agt_q3"]) await m.exec(id, ["tmux", "-V"]);
+  const outcomes = await Promise.allSettled(["agt_n0", "agt_n1", "agt_n2", "agt_n3"].map((id) => m.ensure(id)));
+  assert.deepEqual(outcomes.map((x) => x.status), ["fulfilled", "fulfilled", "fulfilled", "fulfilled"], JSON.stringify(outcomes.map((x) => (x.status === "rejected" ? String((x.reason as Error).message) : "ok"))));
+  m.close();
+});

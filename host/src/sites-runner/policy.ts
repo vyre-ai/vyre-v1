@@ -115,7 +115,7 @@ export function execBody(body: unknown): { body: Record<string, unknown> } | { w
 /** An image name Docker would look for on Docker Hub under `vyre/`: never fetched (see the pull rule in judge). */
 export const LOCAL_ONLY = /^((index\.)?docker\.io\/)?vyre\//;
 /** The first look at a request: what kind it is, or why it is refused. Requests on a container are checked again once its labels are read (siteContainer). */
-export function judge(r: Request): Verdict | { ok: true; kind: "container"; id: string; action: string } | { ok: true; kind: "exec-start" | "exec-inspect"; id: string } | { ok: true; kind: "network-create" } | { ok: true; kind: "volume-create" } | { ok: true; kind: "network-connect"; network: string } {
+export function judge(r: Request): Verdict | { ok: true; kind: "container"; id: string; action: string } | { ok: true; kind: "exec-start" | "exec-inspect"; id: string } | { ok: true; kind: "network-create" } | { ok: true; kind: "volume-create" } | { ok: true; kind: "network-connect"; network: string } | { ok: true; kind: "network-subnets" } {
   const p = bare(r.path);
   const m = r.method.toUpperCase();
   if ((m === "GET" || m === "HEAD") && (p === "/_ping" || p === "/version")) return { ok: true, kind: "plain" };
@@ -157,6 +157,8 @@ export function judge(r: Request): Verdict | { ok: true; kind: "container"; id: 
   const e = /^\/exec\/([a-f0-9]{64})\/(start|json)$/.exec(p);
   if (e) return m === "POST" && e[2] === "start" ? { ok: true, kind: "exec-start", id: e[1] as string } : m === "GET" && e[2] === "json" ? { ok: true, kind: "exec-inspect", id: e[1] as string } : no("that exec call is refused");
   if (m === "POST" && p === "/networks/create") return { ok: true, kind: "network-create" };
+  // how many networks the host has left (server health, 12 Nov): the list of networks, answered with their subnets only (no names, labels or containers), and with no filters asked for
+  if (m === "GET" && p === "/networks") return [...r.query.keys()].length === 0 ? { ok: true, kind: "network-subnets" } : no("the list of networks is read whole, as subnets only");
   const net = /^\/networks\/([a-z0-9-]{1,40})(?:\/(connect))?$/.exec(p);
   // the shared workspaces' network may be read (its subnet and options, for the daemon's guard and the module's check), never removed or joined here
   if (net && net[1] === WS_SHARED_NET && m === "GET" && !net[2]) return { ok: true, kind: "plain" };

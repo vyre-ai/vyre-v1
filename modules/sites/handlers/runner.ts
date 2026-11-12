@@ -106,6 +106,9 @@ export function frames(body: Uint8Array): string[] {
   return out.map((l) => l.replace(/\r$/, ""));
 }
 
+/** What a site that cannot get a network of its own says: the server's address space for networks is used up. */
+export const NO_ROOM_FOR_SITE_NETWORK = "This server has no room for another site's network yet. Remove a site you no longer use, or ask for help to make room.";
+
 /** A site's own network (host/src/sites-runner/policy.ts names it the same). */
 export const networkName = (siteId: string): string => `vyre-site-${hex(siteId).slice(-16)}`;
 export const addonHost = (siteId: string, kind: AddonKind): string => `${kind}-${hex(siteId).slice(-12)}`;
@@ -141,6 +144,8 @@ export function dockerRunner(link: RunnerLink): Runner {
     let info = await call({ method: "GET", path: `/networks/${name}` });
     if (info.status === 404) {
       const made = await call({ method: "POST", path: "/networks/create", json: { Name: name, Driver: "bridge", CheckDuplicate: true, Labels: { "vyre.site": siteId } } });
+      // Docker's address pools used up (each site has a network of its own; a host holds about 30 networks): a plain line, the raw answer after it for Copy details (12 Nov)
+      if (made.status !== 201 && made.status !== 409 && /address pools|subnetted|no available network/i.test(message(made.body, made.status))) throw new Error(`${NO_ROOM_FOR_SITE_NETWORK}\nDetails: ${message(made.body, made.status)}`);
       if (made.status !== 201 && made.status !== 409) throw new Error(`Could not make the site's network: ${message(made.body, made.status)}`);
       info = await call({ method: "GET", path: `/networks/${name}` });
     }

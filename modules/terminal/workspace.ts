@@ -175,6 +175,8 @@ export interface WorkspaceManager {
    * container and keeps its own routes from it (host/src/routes/site-host.ts agentCaller, through the terminal module's agentSubnets).
    */
   subnets(): string[];
+  /** The subnets of every network on this host's Docker (behind the runner: subnets only), for the count of networks it has left; null when Docker does not answer. */
+  hostSubnets(): Promise<string[] | null>;
   /** Is its container running now: one look at that container only (a tab's 400 ms read asks this, so it must not list every workspace). */
   awake(agentId: string): Promise<boolean>;
   /** The line a workspace put to sleep at the 12-hour ceiling owes its next command, once (then null). */
@@ -809,7 +811,8 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
     if (o.capacity) {
       let room = await o.capacity.claim(agentId);
       // a full host first puts its longest-quiet workspace to sleep (nothing held, nothing running) and starts this one; only when every awake one is truly busy does this one wait (12 Nov)
-      if (room.state === "waiting" && (await makeRoom(agentId))) room = await o.capacity.claim(agentId);
+      // newcomers at the same moment can take each other's freed room: it tries again a few times, each time putting another quiet one to sleep
+      for (let i = 0; i < 5 && room.state === "waiting" && (await makeRoom(agentId)); i++) room = await o.capacity.claim(agentId);
       if (room.state === "waiting") { const line = workspaceWaitLine(room.line); waitingLine.set(agentId, line); throw wsError(line, "waiting"); }
       waitingLine.delete(agentId);
     }
@@ -1014,6 +1017,11 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
     },
     restore(agentId) { gone.delete(agentId); restarts.delete(agentId); },
     subnets: () => [...nets],
+    hostSubnets: async () => {
+      const r = await http({ method: "GET", path: "/networks" }).catch(() => null);
+      if (!r || r.status !== 200) return null;
+      try { return (JSON.parse(dec.decode(r.body)) as Net[]).flatMap((n) => (n.IPAM?.Config ?? []).map((c) => c.Subnet ?? "")).filter(Boolean); } catch { return null; }
+    },
     awake: (agentId) => (AGENT_ID.test(agentId) ? api.containerRunning(workspaceName(agentId)).catch(() => false) : Promise.resolve(false)),
     takeNote(agentId) { const n = sleptNote.get(agentId) ?? null; sleptNote.delete(agentId); return n; },
     async cut(agentId, projectId) {

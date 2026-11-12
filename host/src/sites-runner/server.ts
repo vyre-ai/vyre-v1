@@ -80,6 +80,15 @@ export function createSitesRunner(o: RunnerOptions): { server: http.Server; clos
     if (!v.ok) { say(`refused ${label}: ${v.why}`); refuse(res, v.status, `Refused by the sites runner: ${v.why}.`); return; }
     const fwdHeaders: http.OutgoingHttpHeaders = { ...(req.headers["content-type"] ? { "content-type": req.headers["content-type"] } : {}) };
     if (v.kind === "plain") { await docker(method, `${url.pathname}${url.search}`, method === "GET" || method === "HEAD" || method === "DELETE" ? null : await readBody(req, 1024 * 1024) ?? Buffer.alloc(0), fwdHeaders, res); return; }
+    if (v.kind === "network-subnets") {
+      const r = await docker("GET", url.pathname, null, {}, null);
+      let out: Array<{ IPAM: { Config: Array<{ Subnet: string }> } }> = [];
+      try { out = (JSON.parse(r.body.toString("utf8")) as Array<{ IPAM?: { Config?: Array<{ Subnet?: string }> } }>).map((n) => ({ IPAM: { Config: (n.IPAM?.Config ?? []).filter((c) => typeof c.Subnet === "string").map((c) => ({ Subnet: c.Subnet as string })) } })); } catch { /* not JSON: an empty list */ }
+      const b = Buffer.from(JSON.stringify(out));
+      res.writeHead(r.status, { "content-type": "application/json", "content-length": b.length });
+      res.end(b);
+      return;
+    }
     if (v.kind === "build") {
       const b = buildQuery(url.searchParams);
       if ("why" in b) { say(`refused ${label}: ${b.why}`); refuse(res, 403, `Refused by the sites runner: ${b.why}.`); return; }

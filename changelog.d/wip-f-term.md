@@ -41,3 +41,5 @@
 - Agent workspaces on a Team server now share one network with traffic between them off, as on a computer's own Docker, so a server holds far more than 30 of them; workspaces on a network of their own move over when quiet and their old network goes.
 - When a server is full, the workspace that has been quiet longest goes to sleep so a new one starts at once; a new one waits only when every awake workspace is busy.
 - A server with many awake agent workspaces stays quiet when nothing happens: the Files mirror slows down while a workspace is idle and is quick again as soon as someone works in it.
+- A site that cannot get a network because the server has run out of room for networks now says "This server has no room for another site's network yet" instead of Docker's error.
+- Server health shows how many networks the server's Docker has left, and warns when fewer than five are.

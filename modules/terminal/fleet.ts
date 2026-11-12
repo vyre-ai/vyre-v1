@@ -109,6 +109,8 @@ export function createWorkspaceFleet(o: FleetOptions): WorkspaceFleet {
     async revoke(agentId) { for (const m of await where(agentId)) await m.revoke(agentId); },
     restore(agentId) { for (const m of all()) m.restore(agentId); },
     async awake(agentId) { const m = homes.get(agentId); if (m) return m.awake(agentId); for (const x of all()) if (await x.awake(agentId).catch(() => false)) return true; return false; },
+    // the health of the Space's own server: its own Docker (a server added in Console reports its own)
+    async hostSubnets() { return o.space ? o.space.hostSubnets() : null; },
     subnets() { return [...new Set(all().flatMap((m) => m.subnets()))]; },
     takeNote(agentId) { for (const m of all()) { const n = m.takeNote(agentId); if (n !== null) return n; } return null; },
     restartLine(agentId, since) { for (const m of all()) { const l = m.restartLine(agentId, since); if (l !== null) return l; } return null; },
