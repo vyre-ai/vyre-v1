@@ -40,6 +40,8 @@ import { reportWindow } from "../transcript/windows.ts";
 const CLI_DRIVERS: ReadonlySet<string> = new Set(["claude_code", "codex", "grok"]);
 
 export interface StopResult {
+  /** A turn that was starting (off the queue, not running yet): marked, it ends cancelled as it starts. Its turn id is not known yet; the engine says turn.cancelled when it ends. */
+  starting?: number;
   /** Turns that were running and were cancelled. */
   stopped: Array<{ turnId: string; agentId: string }>;
   /** Turns parked on a held tool call that were released. */
@@ -154,12 +156,10 @@ const MENTION_HOPS = 3;
 const MAX_PAIR_PASSES = 2;
 interface ThreadState {
   thread: OpenThread; messages: StoredMessage[]; running: Running | null; worker: Promise<void> | null; active: boolean;
-  /** A turn taken off the queue that is not running yet (admit and the account are being read): a Stop pressed now waits for it and stops it, instead of missing it. */
-  starting?: { agentId: string; ready: Promise<void>; open(): void } | null;
+  /** A turn taken off the queue that is not running yet (admit and the account are being read). A Stop pressed now marks it (`stop`), answers at once, and the turn ends cancelled the moment it
+   *  starts, instead of the Stop missing it. The mark belongs to this one turn: the next turn has a starting of its own. */
+  starting?: { agentId: string; stop?: string } | null;
 }
-
-/** How long a Stop waits for a turn that is starting (its account being read) before it answers with what it found. */
-const STOP_WAIT_MS = 10_000;
 
 const defaultSchedule = (fn: () => void, ms: number): (() => void) => {
   const h = setInterval(fn, ms);
@@ -402,10 +402,9 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
       }
       const item = queue.dequeue(id);
       if (!item) continue;
-      let open = (): void => undefined;
-      const ready = new Promise<void>((res) => { open = res; });
-      st.starting = { agentId: item.agentId, ready, open };
-      try { await runTurn(st, item); } finally { if (st.starting?.ready === ready) { st.starting = null; } open(); }
+      const starting = { agentId: item.agentId } as NonNullable<ThreadState["starting"]>;
+      st.starting = starting;
+      try { await runTurn(st, item); } finally { if (st.starting === starting) st.starting = null; }
       if (!st.active) { leases.release(id, opts.holder); return; }   // the host is closing: what is queued waits for the next start
     }
   }
@@ -486,7 +485,8 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
     if (turnRows.length > KEEP_TURNS) turnRows.splice(0, turnRows.length - KEEP_TURNS);
     const run: Running = { turnId: turn.id, agentId: item.agentId, asker, qseq: item.qseq, session: null, cancelled: false, lostLease: false };
     st.running = run;
-    { const s0 = st.starting; st.starting = null; s0?.open(); }   // a Stop that came while this turn was starting stops it now
+    // a Stop that came while this turn was starting: it ends cancelled before anything runs (the session opens and is cancelled at once; the reply loop breaks on its first event)
+    { const s0 = st.starting; st.starting = null; if (s0?.stop !== undefined) { run.cancelled = true; run.why = s0.stop; } }
     leases.setTurn(st.thread.id, opts.holder, turn.id);
     emit({ type: "turn.started", threadId: st.thread.id, turnId: turn.id, agentId: item.agentId, qseq: item.qseq, asker });
     // The same beat watches for a session that went quiet: no event for idleMs and no tool running ends the turn as turn_timeout.
@@ -846,9 +846,10 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
     async stop(threadId, o) {
       const st = need(threadId);
       const only = o?.agentId;
-      // pressed in the moment between the queue and the run (the account is being read): wait for the run, so this Stop stops it rather than finding nothing (lead, 12 Nov: a Stop under load)
+      // pressed in the moment between the queue and the run (the account is being read): mark that turn, so it ends cancelled as it starts. The press answers at once (lead, 12 Nov: a Stop under load)
       const starting = st.starting;
-      if (!st.running && starting && (only === undefined || starting.agentId === only)) await Promise.race([starting.ready, new Promise<void>((res) => { const t = setTimeout(res, STOP_WAIT_MS); (t as { unref?: () => void }).unref?.(); })]);
+      const early = !st.running && starting && (only === undefined || starting.agentId === only) ? starting : null;
+      if (early) early.stop = o?.reason ?? "stop";
       const everything = o?.clearQueue === true;
       const run = st.running;
       const hit = run !== null && !run.cancelled && (only === undefined || run.agentId === only) ? run : null;
@@ -865,7 +866,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
         }
       }
       if (hit) await cancelRunning(st, o?.reason ?? "stop");
-      return { stopped, released, dropped };
+      return { stopped, released, dropped, ...(early ? { starting: 1 } : {}) };
     },
     dropQueued(threadId, messageId) { need(threadId); return dropRows(threadId, messageId); },
     async interrupt(threadId, messageId) {

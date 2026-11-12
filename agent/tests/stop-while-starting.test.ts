@@ -19,10 +19,28 @@ test("Stop while the turn's account is still being read stops that turn", async 
   engine.receive({ threadId: "T", author: person, body: "write the long plan" });
   for (let i = 0; i < 50 && asked === 0; i++) await new Promise((r) => setTimeout(r, 5));
   assert.equal(asked, 1, "the turn is off the queue, reading its account");
-  const stopping = engine.stop("T");
-  setTimeout(release, 30);
-  const r = await stopping;
-  assert.equal(r.stopped.length, 1, "the Stop found the turn");
+  const t0 = Date.now();
+  const r = await engine.stop("T");
+  assert.ok(Date.now() - t0 < 200, "the press answers at once, it does not wait for the turn to start");
+  assert.equal(r.starting, 1, "the Stop found the starting turn");
+  release();
   await engine.idle("T");
-  assert.notEqual(engine.turns("T")[0]?.state, "completed", "it did not run to the end");
+  assert.equal(engine.turns("T")[0]?.state, "cancelled", "it ended cancelled, nothing ran to the end");
+  assert.equal(p.sessions[0]?.cancelled ?? true, true);
+});
+
+test("a Stop that marked a starting turn never stops the next one", async () => {
+  const p = scriptedProvider({ script: () => [{ type: "text", text: "ok" }, { type: "done" }] });
+  let release = (): void => undefined;
+  let n = 0;
+  const engine = createTurnEngine({ holder: "host:s", openSession: p.openSession, resolveAccount: async () => { n += 1; if (n === 1) await new Promise<void>((res) => { release = res; }); return account(); } });
+  engine.openThread(thread());
+  engine.receive({ threadId: "T", author: person, body: "first" });
+  for (let i = 0; i < 50 && n === 0; i++) await new Promise((r) => setTimeout(r, 5));
+  await engine.stop("T");
+  release();
+  await engine.idle("T");
+  engine.receive({ threadId: "T", author: person, body: "second" });
+  await engine.idle("T");
+  assert.deepEqual(engine.turns("T").map((x) => x.state), ["cancelled", "completed"], "the second turn runs");
 });
