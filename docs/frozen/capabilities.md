@@ -29,3 +29,19 @@ Nothing blocks the freeze. The sample read cleanly: summaries match the declared
 - 39 capabilities carry a gate while their effects are `write`, for example `mail.domain.remove` and `network.server_remove` (gate `delete`). This is intended: the gate applies to destructive inward writes too.
 
 
+
+## Changes since the freeze
+
+### 12 Nov 2026: the "Maya is not in this chat." line (lane f-ownerwalk)
+
+What changed:
+- `threads.members.add@1` gains an optional `mentionedIn` (a message id) and may emit `message.mentioned`. Nothing else in it changes. With `mentionedIn`, the message must be in that thread and must mention the person with a chip (`chat_mention`); the person reads from that message on and is told about it like any mention.
+- `channels.members.add@1` gains the same optional `mentionedIn` and may emit `message.mentioned` (review M3): the message must be in the channel or a reply thread under it and must mention each person added.
+- The chat message row gains an optional `mentions` (review M4): the message's own chips as `chat.post` kept them, each `{ kind, id }` of a person or agent named in it. It holds ids only, no names or other display data, and only on a message the caller may already read; `chat.messages.list` fills it. Every capability that answers that row changes its hash for this field alone.
+- The access principal row gains an optional `assistant`: a flag (`true`), never a person. It is set only on someone else's private agent that is their Assistant, a row whose `owner` the caller already gets, so it names nobody the caller cannot see. With it the agent is named "Maya’s Assistant" everywhere, never "Maya Lin (Agent)" (lead, 12 Nov). Every capability that answers that row changes its hash for this field alone.
+
+All four changes are additive and optional; nothing existing changes shape.
+
+Why: the owner's line "Maya is not in this chat." with Add under the sender's message (owner, 12 Nov 2026), its review (M2 to M4), and the lead's rule of one name for a person's Assistant.
+
+Signed: lead, 12 Nov 2026

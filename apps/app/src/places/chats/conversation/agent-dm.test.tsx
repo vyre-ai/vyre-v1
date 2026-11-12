@@ -1,4 +1,4 @@
-// An agent's message to a teammate for its person (lane l-agentdm), as the teammate reads it: "<Person> (Agent)" with the person's face, a quiet line to mute that person's agents for today, the same
+// An agent's message to a teammate for its person (lane l-agentdm), as the teammate reads it: by its one name, "Dana’s Assistant" (lead, 12 Nov), with the person's face, a quiet line to mute that person's agents for today, the same
 // in the message menu; the person who sent it sees the credit and no mute; the server's own blocks never draw as cards.
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -8,7 +8,7 @@ import { muteOfferFor, onBehalfOf, timeline } from "./model.ts";
 import type { Message } from "./model.ts";
 import { excerptLines, sentLine, wantsPhrase, heldOf } from "./approval-model.ts";
 
-const NAMES: Record<string, string> = { usr_dana: "Dana Reyes", usr_maya: "Maya Chen", agt_intake: "Intake" };
+const NAMES: Record<string, string> = { usr_dana: "Dana Reyes", usr_maya: "Maya Chen", agt_intake: "Dana’s Assistant" };   // as the directory answers someone else's Assistant (access.principals.list)
 const nameOf = (id: string): string => NAMES[id] ?? id;
 const kindOf = (id: string): "person" | "agent" => (id.startsWith("agt_") ? "agent" : "person");
 const clock = { now: Date.UTC(2025, 9, 9, 10, 0), zone: "UTC" } as never;
@@ -28,12 +28,16 @@ function view(me: string): { html: string; muted: string[]; menu: string[] } {
   return { html, muted, menu };
 }
 
-test("Maya reads it as Dana (Agent), wearing Dana's face, with a quiet line and a menu entry to mute Dana's agents for today", () => {
+test("Maya reads it as Dana’s Assistant, wearing Dana's face, with a quiet line and a menu entry to mute Dana's agents for today", () => {
   assert.deepEqual(onBehalfOf(m), { person: "usr_dana", agentId: "agt_intake", teammate: "usr_maya" });
   const item = timeline([m], { meId: "usr_maya", nameOf, kindOf, clock }).find((i) => i.kind === "other");
-  assert.deepEqual(item && "who" in item ? item.who : null, { id: "agt_intake", name: "Dana Reyes (Agent)", kind: "agent", face: "usr_dana", forPerson: "usr_dana" });
+  assert.deepEqual(item && "who" in item ? item.who : null, { id: "agt_intake", name: "Dana’s Assistant", kind: "agent", face: "usr_dana", forPerson: "usr_dana" });
   const maya = view("usr_maya");
-  assert.match(maya.html, /Dana Reyes \(Agent\)/);
+  assert.match(maya.html, /Dana’s Assistant/);
+  assert.ok(!/Dana Reyes \(Agent\)/.test(maya.html), "never the old credit for an Assistant");
+  // an agent the directory does not know is credited to its person
+  const unknown = timeline([{ ...m, author: { kind: "agent", id: "agt_gone" }, blocks: [{ id: "b", type: "on_behalf", v: 1, state: "done", data: { person: "usr_dana", agentId: "agt_gone", teammate: "usr_maya" } }] } as never], { meId: "usr_maya", nameOf, kindOf: (id) => (id === "agt_gone" ? "person" : kindOf(id)), clock }).find((i) => i.kind === "other");
+  assert.equal(unknown && "who" in unknown ? unknown.who.name : null, "Dana Reyes (Agent)");
   assert.ok(!/Intake/.test(maya.html), "never the agent's own name");
   assert.match(maya.html, /Mute agent messages from Dana for today/);
   assert.ok(!/on behalf|on_behalf/.test(maya.html), "the block is not drawn as a card");
@@ -42,7 +46,7 @@ test("Maya reads it as Dana (Agent), wearing Dana's face, with a quiet line and 
 
 test("Dana sees the same credit and no mute; a message with no block is the agent's own", () => {
   const dana = view("usr_dana");
-  assert.match(dana.html, /Dana Reyes \(Agent\)/);
+  assert.match(dana.html, /Dana’s Assistant/);
   assert.ok(!/Mute agent messages/.test(dana.html));
   assert.ok(!dana.menu.some((l) => l.startsWith("Mute Agent")));
   const plain = { ...m, blocks: [] } as unknown as Message;

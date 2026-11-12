@@ -15,7 +15,7 @@ import { KNOW_SCREEN, routeToArgs } from "../../places/files/memory/know.ts";
 import { nameLookup } from "./records-live.ts";
 import type { ShellRuntime } from "./runtime.tsx";
 import { nameOr } from "../../places/chats/names.ts";
-import { offered } from "../session/private-agents.ts";
+import { creditedToPerson, offered } from "../session/private-agents.ts";
 import { workspaceData } from "./workspace-data.ts";
 import { browserData } from "./browser-data.tsx";
 import { requestChannelSheet } from "../../places/chats/channels/request.ts";
@@ -39,7 +39,7 @@ export interface OwnAssistant { id: string; name: string }
  * An agent someone else's person is credited for ("Irfad Imtiaz (Agent)": an outside agent such as Claude Code or Codex, or another person's Assistant) is never a mention. The server names such an agent
  * so; a Space agent never carries that suffix.
  */
-const credited = (p: Principal): boolean => p.kind === "agent" && p.name.endsWith(" (Agent)");
+const credited = (p: Principal): boolean => creditedToPerson(p);
 
 /**
  * Who a message may @mention, by name: people, every agent of the Space and the chat's teammates, each as itself, and the viewer's own Assistant as "Assistant" (owner ruling 3 Nov). Another person's
@@ -47,7 +47,7 @@ const credited = (p: Principal): boolean => p.kind === "agent" && p.name.endsWit
  */
 export function candidates(list: readonly Principal[], meId: string, assistant?: OwnAssistant): Candidate[] {
   const out: Candidate[] = assistant ? [{ id: assistant.id, name: assistant.name, kind: "agent" }] : [];
-  for (const p of list) if (p.id !== meId && p.id !== assistant?.id && offered(p) && !credited(p) && (p.kind === "person" || p.kind === "agent")) out.push({ id: p.id, name: p.name, kind: p.kind });
+  for (const p of list) if (p.id !== meId && p.id !== assistant?.id && offered(p) && !credited(p) && p.inactive !== true && (p.kind === "person" || p.kind === "agent")) out.push({ id: p.id, name: p.name, kind: p.kind });
   return out;
 }
 

@@ -8,11 +8,12 @@
 // The access level of each capability was checked on the channel before these run. Read cursors belong to threads.mark_read (table chat_thread_read, made here if it is not there yet).
 import { readFloor } from "./floor.ts";
 import {
-  MAX_NAME, askerOf, channelBy, channelByName, channelOfRecord, channelOut, ensure, membersOf, agentsOf, isMember, addAgent, addMember, messageOf, nameKey, raise, threadBy, threadOf,
+  MAX_NAME, askerOf, channelBy, channelByName, channelOfRecord, channelOut, ensure, membersOf, agentsOf, isMember, addAgent, addMember, messageBy, messageOf, nameKey, raise, refOf, threadBy, threadOf,
 } from "../projections.ts";
 import { isTrustedService } from "../../../lib/trust.ts";
 import type { ChannelRec, ChatCtx, Db, Mode } from "../projections.ts";
-import { mayGovernChannel, seesSpace } from "./post.ts";
+import { mayGovernChannel, rootOf, seesSpace } from "./post.ts";
+import { mentions } from "./pace.ts";
 
 type Row = Record<string, unknown>;
 const KINDS = ["people", "agents", "runs"] as const;
@@ -184,19 +185,25 @@ export async function channelsUnarchive(ctx: ChatCtx, input: { channelId: string
   return refreshed(ctx, ch.id);
 }
 
-export async function channelsMembersAdd(ctx: ChatCtx, input: { channelId: string; personIds: string[]; level?: string }) {
+export async function channelsMembersAdd(ctx: ChatCtx, input: { channelId: string; personIds: string[]; level?: string; mentionedIn?: string }) {
   const ch = loadLive(ctx, input.channelId);
+  // added from "Maya is not in this chat. Add" under a message in this channel (or a reply thread under it): each is told about it like any mention, the same as threads.members.add (12 Nov)
+  const mentioned = input.mentionedIn !== undefined ? messageBy(ctx.db, input.mentionedIn) : null;
+  const where = mentioned ? threadBy(ctx.db, mentioned.thread) : null;
+  if (input.mentionedIn !== undefined && (!mentioned || !where || rootOf(ctx, where).id !== ch.mainThread)) raise(ctx, "validation.bad_input", "That message is not in this channel.", { mentionedIn: input.mentionedIn });
   const ids: string[] = [];
   for (const id of input.personIds) {
     if (!id.startsWith("usr_")) raise(ctx, "validation.bad_input", "That is not a person.", { id });
     if (!ids.includes(id)) ids.push(id);
   }
   if (ids.length === 0) raise(ctx, "validation.bad_input", "Pick at least one person.");
+  if (mentioned) for (const id of ids) if (!mentions(ctx, mentioned.id, id)) raise(ctx, "validation.bad_input", "That message does not mention them.", { mentionedIn: input.mentionedIn, personId: id });
   const by = askerOf(ctx);
   for (const personId of ids) {
     if (isMember(ctx.db, ch.mainThread, personId)) continue;
     addMember(ctx, ch.mainThread, personId);
     ctx.emit("channel.member_added", ch.id, { channelId: ch.id, threadId: ch.mainThread, personId, by });
+    if (mentioned && where && mentioned.author !== personId) ctx.emit("message.mentioned", where.id, { messageId: mentioned.id, threadId: where.id, personId, author: refOf(mentioned.author), inThread: where.kind === "thread" });
   }
   return refreshed(ctx, ch.id);
 }

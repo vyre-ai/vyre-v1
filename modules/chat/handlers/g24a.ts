@@ -6,6 +6,7 @@ import {
 } from "../projections.ts";
 import type { ChatCtx, Mode, ThreadKind, ThreadRec } from "../projections.ts";
 import { canSpeak, mayGovernChannel, rootOf } from "./post.ts";
+import { mentions } from "./pace.ts";
 import { applyMode } from "./modes.ts";
 import { followMode, placeOf } from "./follow.ts";
 import { markRenamed } from "./title-state.ts";
@@ -260,6 +261,8 @@ export async function membersAdd(ctx: ChatCtx, input: { threadId: string; person
   // added from "Maya is not in this chat. Add" under the message that mentioned them: they read from that message on, and are told about it like any mention (owner, 12 Nov)
   const mentioned = input.mentionedIn !== undefined ? messageBy(ctx.db, input.mentionedIn) : null;
   if (input.mentionedIn !== undefined && (!mentioned || mentioned.thread !== t.id)) raise(ctx, "validation.bad_input", "That message is not in this chat.", { mentionedIn: input.mentionedIn });
+  // only a real mention tells anyone they were mentioned: the message's own chips, never a name in its words, never the adder's say-so
+  if (mentioned && !mentions(ctx, mentioned.id, input.personId)) raise(ctx, "validation.bad_input", "That message does not mention them.", { mentionedIn: input.mentionedIn, personId: input.personId });
   addMember(ctx, t.id, input.personId);
   if (!fromStart) ctx.db.run("UPDATE chat_thread_member SET fromAt = ? WHERE thread = ? AND principal = ? AND deleted_at IS NULL", mentioned ? mentioned.createdAt : ctx.now(), t.id, input.personId);
   // the agents this chat made for itself are visible to everyone who reads the chat

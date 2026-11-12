@@ -216,15 +216,15 @@ if ("e164" in o780) lf(o780["e164"], p + "/e164", e, L209);
 
 function d_s_a62f360c59(v: unknown, p: string, e: string[]): void {
 {
-const x845 = v;
-const g845 = typeOf(x845);
-const b845: string[] = []; lf(x845, p, b845, L0); if (b845.length) e.push(...b845);
-if (g845 === "object") {
-if (g845 === 'object') { const o845 = x845 as Record<string, unknown>;
-if (!("kind" in o845)) e.push(p + "/kind" + ': required');
-if (!("id" in o845)) e.push(p + "/id" + ': required');
-if ("kind" in o845) lf(o845["kind"], p + "/kind", e, L306);
-if ("id" in o845) lf(o845["id"], p + "/id", e, L1);
+const x842 = v;
+const g842 = typeOf(x842);
+const b842: string[] = []; lf(x842, p, b842, L0); if (b842.length) e.push(...b842);
+if (g842 === "object") {
+if (g842 === 'object') { const o842 = x842 as Record<string, unknown>;
+if (!("kind" in o842)) e.push(p + "/kind" + ': required');
+if (!("id" in o842)) e.push(p + "/id" + ': required');
+if ("kind" in o842) lf(o842["kind"], p + "/kind", e, L306);
+if ("id" in o842) lf(o842["id"], p + "/id", e, L1);
 }
 }
 }

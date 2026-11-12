@@ -1,7 +1,7 @@
 // The shell's directory (owner ruling 3 Nov): someone else's private agent is credited to its person, "Irfad Imtiaz (Agent)", with their face, and is never offered; its own name is kept for logs only.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { asAgentOf, directoryOf, offered, standInsOf } from "./private-agents.ts";
+import { asAgentOf, creditLine, directoryOf, offered, standInsOf } from "./private-agents.ts";
 import { connectedNote, lastActive } from "../../console/pages/connected-model.ts";
 import { agentDetails } from "../../console/pages/audit/model.ts";
 
@@ -70,4 +70,22 @@ test("Console: who connected it, its setup grant and its last activity", () => {
   assert.equal(lastActive(now - 5 * 60_000, now), "Active 5 min ago");
   const row = { agentId: "agt_simba", clientName: "Claude Code", connectedAt: now - 86_400_000, lastSeenAt: now - 2 * 3_600_000, calls: 9, setup: true, person: IRFAD };
   assert.equal(connectedNote(row, "Irfad Imtiaz", now), "Connected by Irfad Imtiaz · Acts for them, including setup · Active 2 h ago");
+});
+
+test("someone else's Assistant reads by one name everywhere, \"Irfad’s Assistant\" (lead, 12 Nov): the directory, an older server's answer and every credit line", () => {
+  const rows = [{ id: IRFAD, name: "Irfad Imtiaz", kind: "person" }, { id: "agt_ia", name: "Irfad’s Assistant", kind: "agent", owner: IRFAD, private: true, assistant: true }, { id: "agt_cc2", name: "Irfad Imtiaz (Agent)", kind: "agent", owner: IRFAD, private: true }];
+  const dir = new Map(directoryOf(rows, { id: "agt_mine", name: "Assistant" }, "usr_noah", null).map((p) => [p.id, p]));
+  assert.equal(dir.get("agt_ia")?.name, "Irfad’s Assistant");
+  assert.equal(dir.get("agt_ia")?.assistant, true);
+  assert.equal(dir.get("agt_cc2")?.name, "Irfad Imtiaz (Agent)", "an outside agent keeps its person's credit");
+  const older = directoryOf([{ id: IRFAD, name: "Irfad Imtiaz", kind: "person" }, { id: "agt_ia", name: "Helper", kind: "agent", owner: IRFAD, private: true, assistant: true }], { id: "agt_mine", name: "Assistant" }, "usr_noah", null);
+  assert.equal(older.find((p) => p.id === "agt_ia")?.name, "Irfad’s Assistant", "its own name never shows");
+  const nameOf = (id: string): string => dir.get(id)?.name ?? "Someone";
+  assert.equal(creditLine({ kind: "agent", id: "agt_ia" }, { me: "usr_noah", nameOf, ownerOf: (id) => dir.get(id)?.owner }), "Irfad’s Assistant");
+  assert.equal(creditLine({ kind: "agent", id: "agt_gone" }, { me: "usr_noah", nameOf, ownerOf: () => undefined, for: IRFAD }), "Irfad Imtiaz (Agent)", "an agent nobody knows is credited to its person");
+});
+
+test("a person who is not active is named but marked, so nobody is offered them (the people picker's rule)", () => {
+  const dir = directoryOf([{ id: "usr_s", name: "Sam Hill", kind: "person", status: "suspended" }, { id: "usr_a", name: "Ana Bell", kind: "person", status: "active" }], { id: "agt_mine", name: "Assistant" }, "usr_noah", null);
+  assert.deepEqual(dir.map((p) => [p.name, p.inactive === true]), [["Sam Hill", true], ["Ana Bell", false]]);
 });

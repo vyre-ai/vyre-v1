@@ -46,16 +46,18 @@ export function useLastSteps(call: Call | undefined, member: Pick<CrewMember, "i
   useEffect(() => {
     if (!open || !call) return undefined;
     let dead = false;
-    const read = (): void => {
+    let retry: ReturnType<typeof setTimeout> | undefined;
+    // a finished helper is read once; a read that fails (a busy server) is tried again, a few times, so the row is never left without its steps for good
+    const read = (tries = 0): void => {
       void Promise.resolve(call("chat.messages.list", { threadId: member.id })).then((r) => {
         if (dead) return;
         setSteps(stepsOf(((r as { messages?: Array<{ blocks: Array<{ id: string; type: string; data?: unknown; state?: string }> }> } | undefined)?.messages ?? []).flatMap((m) => m.blocks)).slice(-3));
-      }, () => undefined);
+      }, () => { if (!dead && !live && tries < 4) { retry = setTimeout(() => read(tries + 1), 1500 * (tries + 1)); (retry as { unref?: () => void }).unref?.(); } });
     };
     read();
     const t = live ? setInterval(read, 2500) : undefined;
     (t as { unref?: () => void } | undefined)?.unref?.();
-    return () => { dead = true; if (t) clearInterval(t); };
+    return () => { dead = true; if (t) clearInterval(t); if (retry) clearTimeout(retry); };
   }, [call, member.id, live, open]);
   return steps;
 }

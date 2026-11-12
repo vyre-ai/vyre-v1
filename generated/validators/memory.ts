@@ -420,13 +420,13 @@ lf(v, p, e, L1);
 
 function d_s_9b04e3008f(v: unknown, p: string, e: string[]): void {
 {
-const x803 = v;
-const g803 = typeOf(x803);
-const b803: string[] = []; lf(x803, p, b803, L0); if (b803.length) e.push(...b803);
-if (g803 === "object") {
-if (g803 === 'object') { const o803 = x803 as Record<string, unknown>;
-if (!("fact" in o803)) e.push(p + "/fact" + ': required');
-if ("fact" in o803) d_s_7e14c0bf20(o803["fact"], p + "/fact", e);
+const x800 = v;
+const g800 = typeOf(x800);
+const b800: string[] = []; lf(x800, p, b800, L0); if (b800.length) e.push(...b800);
+if (g800 === "object") {
+if (g800 === 'object') { const o800 = x800 as Record<string, unknown>;
+if (!("fact" in o800)) e.push(p + "/fact" + ': required');
+if ("fact" in o800) d_s_7e14c0bf20(o800["fact"], p + "/fact", e);
 }
 }
 }

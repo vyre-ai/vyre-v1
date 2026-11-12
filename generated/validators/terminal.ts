@@ -98,30 +98,30 @@ if ("terminal" in o742) d_s_63620c6e43(o742["terminal"], p + "/terminal", e);
 
 function d_s_9ef7e94539(v: unknown, p: string, e: string[]): void {
 {
-const x827 = v;
-const g827 = typeOf(x827);
-const b827: string[] = []; lf(x827, p, b827, L0); if (b827.length) e.push(...b827);
-if (g827 === "object") {
-if (g827 === 'object') { const o827 = x827 as Record<string, unknown>;
-if (!("terminalId" in o827)) e.push(p + "/terminalId" + ': required');
-if (!("exitCode" in o827)) e.push(p + "/exitCode" + ': required');
-if (!("output" in o827)) e.push(p + "/output" + ': required');
-if (!("truncated" in o827)) e.push(p + "/truncated" + ': required');
-if (!("durationMs" in o827)) e.push(p + "/durationMs" + ': required');
-if ("terminalId" in o827) lf(o827["terminalId"], p + "/terminalId", e, L114);
-if ("exitCode" in o827) {
+const x824 = v;
+const g824 = typeOf(x824);
+const b824: string[] = []; lf(x824, p, b824, L0); if (b824.length) e.push(...b824);
+if (g824 === "object") {
+if (g824 === 'object') { const o824 = x824 as Record<string, unknown>;
+if (!("terminalId" in o824)) e.push(p + "/terminalId" + ': required');
+if (!("exitCode" in o824)) e.push(p + "/exitCode" + ': required');
+if (!("output" in o824)) e.push(p + "/output" + ': required');
+if (!("truncated" in o824)) e.push(p + "/truncated" + ': required');
+if (!("durationMs" in o824)) e.push(p + "/durationMs" + ': required');
+if ("terminalId" in o824) lf(o824["terminalId"], p + "/terminalId", e, L114);
+if ("exitCode" in o824) {
 {
-const x828 = o827["exitCode"];
-const t828_0: string[] = [];
-lf(x828, p + "/exitCode", t828_0, L2);
-const t828_1: string[] = [];
-lf(x828, p + "/exitCode", t828_1, L86);
-if (![t828_0, t828_1].some((x) => x.length === 0)) e.push(p + "/exitCode" + ': matches none of anyOf');
+const x825 = o824["exitCode"];
+const t825_0: string[] = [];
+lf(x825, p + "/exitCode", t825_0, L2);
+const t825_1: string[] = [];
+lf(x825, p + "/exitCode", t825_1, L86);
+if (![t825_0, t825_1].some((x) => x.length === 0)) e.push(p + "/exitCode" + ': matches none of anyOf');
 }
 }
-if ("output" in o827) lf(o827["output"], p + "/output", e, L1);
-if ("truncated" in o827) lf(o827["truncated"], p + "/truncated", e, L3);
-if ("durationMs" in o827) lf(o827["durationMs"], p + "/durationMs", e, L2);
+if ("output" in o824) lf(o824["output"], p + "/output", e, L1);
+if ("truncated" in o824) lf(o824["truncated"], p + "/truncated", e, L3);
+if ("durationMs" in o824) lf(o824["durationMs"], p + "/durationMs", e, L2);
 }
 }
 }

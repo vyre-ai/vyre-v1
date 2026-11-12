@@ -49961,6 +49961,10 @@
       "effects": "write",
       "inputSchema": {
         "properties": {
+          "createOnly": {
+            "description": "Every row is made as a new record and nothing is matched (match is ignored)",
+            "type": "boolean"
+          },
           "idempotencyKey": {
             "examples": [
               "idem_1"
@@ -49982,6 +49986,10 @@
             "type": "array"
           },
           "runAutomations": {
+            "type": "boolean"
+          },
+          "skipExisting": {
+            "description": "A row that matches a record the caller can see is left alone and counted as skipped, never changed",
             "type": "boolean"
           },
           "type": {

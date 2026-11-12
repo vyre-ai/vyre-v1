@@ -339,16 +339,16 @@ if ("fileId" in o757) lf(o757["fileId"], p + "/fileId", e, L1);
 
 function d_s_a5a386f9c8(v: unknown, p: string, e: string[]): void {
 {
-const x844 = v;
-const g844 = typeOf(x844);
-const b844: string[] = []; lf(x844, p, b844, L0); if (b844.length) e.push(...b844);
-if (g844 === "object") {
-if (g844 === 'object') { const o844 = x844 as Record<string, unknown>;
-if (!("connectionId" in o844)) e.push(p + "/connectionId" + ': required');
-if (!("conferenceRecord" in o844)) e.push(p + "/conferenceRecord" + ': required');
-if ("connectionId" in o844) lf(o844["connectionId"], p + "/connectionId", e, L40);
-if ("as" in o844) lf(o844["as"], p + "/as", e, L6);
-if ("conferenceRecord" in o844) lf(o844["conferenceRecord"], p + "/conferenceRecord", e, L1);
+const x841 = v;
+const g841 = typeOf(x841);
+const b841: string[] = []; lf(x841, p, b841, L0); if (b841.length) e.push(...b841);
+if (g841 === "object") {
+if (g841 === 'object') { const o841 = x841 as Record<string, unknown>;
+if (!("connectionId" in o841)) e.push(p + "/connectionId" + ': required');
+if (!("conferenceRecord" in o841)) e.push(p + "/conferenceRecord" + ': required');
+if ("connectionId" in o841) lf(o841["connectionId"], p + "/connectionId", e, L40);
+if ("as" in o841) lf(o841["as"], p + "/as", e, L6);
+if ("conferenceRecord" in o841) lf(o841["conferenceRecord"], p + "/conferenceRecord", e, L1);
 }
 }
 }

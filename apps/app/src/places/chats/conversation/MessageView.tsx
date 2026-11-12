@@ -648,7 +648,7 @@ function Theirs({ item, actions, stream, openWork, mark, meId, replies }: Messag
         : x.kind === "approval" && actions.files ? <ApprovalCard key={x.id} taskId={x.taskId} agent={item.who.name} agentId={item.who.id} {...(item.who.face ? { face: item.who.face } : {})} data={actions.files} /> : null))}
       {item.who.forPerson && actions.agentMute && actions.agentMute.offerFor === m.messageId && onBehalfOf(m)?.teammate === actions.agentMute.me ? (
         <Pressable accessibilityRole="button" testID={`agent-mute-${m.messageId}`} onPress={() => actions.agentMute!.mute(item.who.forPerson!)}>
-          <Text style={[st.via, st.muteLine]}>{`Mute agent messages from ${firstName(item.who.name.replace(/ \(Agent\)$/, ""))} for today`}</Text>
+          <Text style={[st.via, st.muteLine]}>{`Mute agent messages from ${firstName(item.who.forPerson && actions.nameOf ? actions.nameOf(item.who.forPerson) : item.who.name.replace(/ \(Agent\)$/, ""))} for today`}</Text>
         </Pressable>
       ) : null}
       <Reactions m={m} a={actions} mine={false} meId={meId} />

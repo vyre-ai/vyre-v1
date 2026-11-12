@@ -53,6 +53,8 @@ const messageRow = t.obj({
   kind: t.enm('text', 'agent', 'system', 'quiet'), body: t.str(), blocks: t.arr(blockSchema), replyTo: t.opt(id.message),
   via: t.opt(t.obj({ routineOwner: id.user })), paidBy: t.opt(id.user), depth: t.int({ minimum: 0 }), attachments: t.arr(id.file), reactions: t.arr(reaction),
   pinned: t.bool(), editedAt: t.opt(t.ts()), createdAt: t.ts(), enc: t.opt(t.int({ minimum: 0, maximum: 2 })),
+  // the composer's chips, as chat.post kept them (a name typed as plain words is not one): the "Maya is not in this chat." line reads these, never names in the body (12 Nov)
+  mentions: t.opt(t.arr(t.obj({ kind: t.enm('person', 'agent'), id: t.str({ examples: ['usr_a1b2c3'] }) }))),
 });
 const channelRow = t.obj({
   channelId: id.channel, mainThreadId: id.thread, name: t.str({ examples: ['intake'] }), topic: t.opt(t.str()), visibility: t.enm('public', 'invite'),
@@ -590,9 +592,9 @@ export default defineManifest({
     write('channels.leave', 'Leave a channel', {
       in: channelT, out: { ok: t.bool() }, on: ['channel', '/channelId'], level: 'view', emits: ['channel.member_removed'], tool: 'chats', idem: 'natural',
     }),
-    write('channels.members.add', 'Add people to a channel', {
-      in: { ...channelT, personIds: t.arr(id.user, { minItems: 1 }), level: t.opt(level) }, out: { channel: channelRow }, on: ['channel', '/channelId'], level: 'manage',
-      emits: ['channel.member_added'], tool: 'chats',
+    write('channels.members.add', 'Add people to a channel. With mentionedIn, each added person is told about that message like any mention; the message must be in the channel and mention them', {
+      in: { ...channelT, personIds: t.arr(id.user, { minItems: 1 }), level: t.opt(level), mentionedIn: t.opt(id.message) }, out: { channel: channelRow }, on: ['channel', '/channelId'], level: 'manage',
+      emits: ['channel.member_added', 'message.mentioned'], tool: 'chats',
     }),
     write('channels.members.remove', 'Remove a person from a channel', {
       in: { ...channelT, personId: id.user }, out: { channel: channelRow }, on: ['channel', '/channelId'], level: 'manage', emits: ['channel.member_removed'], tool: 'chats',

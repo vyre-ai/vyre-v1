@@ -5,7 +5,7 @@
 //   chat.recent / chat.composer.suggest                      the sidebar and the @ # / tables, built from chat rows only
 //   chat.open_tab                                            an agent opens a side tab for the person it acts for and leaves a line
 // Private chats and Ask panes (enc=2) hold what the device gave the server: edit stores the new text as given, reads return it as stored, and Recent shows no preview of it.
-import { forgetMentions } from "./pace.ts";
+import { forgetMentions, mentionsOf } from "./pace.ts";
 import { attachReach } from "./reach-attach.ts";
 import { readFloor } from "./floor.ts";
 import {
@@ -56,7 +56,9 @@ export async function messagesList(ctx: ChatCtx, input: { threadId: string; befo
   const page = rows.slice(0, limit).map(messageOf);
   if (!forward) page.reverse();
   const enc = encOf(ctx.db, t);
-  return { messages: await attachReach(ctx, page.map((m) => messageOut(m, enc))), hasMore };
+  // each message's chips (chat.post kept them), so the app reads who it really mentioned, never names in its words
+  const chips = mentionsOf(ctx, page.map((m) => m.id));
+  return { messages: await attachReach(ctx, page.map((m) => ({ ...messageOut(m, enc), ...(chips.has(m.id) ? { mentions: chips.get(m.id)! } : {}) }))), hasMore };
 }
 
 export async function messageGet(ctx: ChatCtx, input: { threadId: string; messageId: string }) {

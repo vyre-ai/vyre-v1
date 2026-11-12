@@ -91,13 +91,13 @@ if ("comment" in o778) d_s_cdc7d96e9b(o778["comment"], p + "/comment", e);
 
 function d_s_a56f3dc8f1(v: unknown, p: string, e: string[]): void {
 {
-const x841 = v;
-const g841 = typeOf(x841);
-const b841: string[] = []; lf(x841, p, b841, L4); if (b841.length) e.push(...b841);
-if (g841 === "array") {
-if (g841 === 'array') { const a841 = x841 as unknown[];
-for (let i841 = 0; i841 < a841.length; i841++) {
-d_s_b87b1cfef9(a841[i841], p + '/' + i841, e);
+const x838 = v;
+const g838 = typeOf(x838);
+const b838: string[] = []; lf(x838, p, b838, L4); if (b838.length) e.push(...b838);
+if (g838 === "array") {
+if (g838 === 'array') { const a838 = x838 as unknown[];
+for (let i838 = 0; i838 < a838.length; i838++) {
+d_s_b87b1cfef9(a838[i838], p + '/' + i838, e);
 }
 }
 }

@@ -12,6 +12,7 @@ import type { LayerAct, ViewerMark } from "../../../../../../ui/src/Viewer/index
 import type { FilesViewerData } from "./data.tsx";
 import { fileEventWords } from "../../../../../../lib/words/files.ts";
 import type { FileWords } from "../../../../../../lib/words/files.ts";
+import { agentForPerson, markedAgent, namesItsPerson } from "../../../../../../lib/words/agent-name.ts";
 import { belowPhone } from "../../../../../../ui/src/SidePane/layout.ts";
 
 export type Access = "on" | "redact" | "off";
@@ -40,8 +41,10 @@ export function whenText(at: number, now: number): string {
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
-/** Who made a mark, as people read it: the person, or "Irfad Imtiaz (Agent)" when an agent made it for them. */
-export const creditOf = (m: { by: string; byAgent?: string | undefined }, name: (id: string) => string): string => (m.byAgent ? `${name(m.by)} (Agent)` : name(m.by));
+/** Who made a mark, as people read it: the person, or the agent that made it for them by its one name ("Maya’s Assistant", "Maya Lin (Agent)"; lib/words/agent-name). */
+export const creditOf = (m: { by: string; byAgent?: string | undefined }, name: (id: string) => string): string => (m.byAgent ? byAgentFor(m.byAgent, m.by, name) : name(m.by));
+/** `name` here answers a plain word for an id it does not know, never the id; an agent it knows is named as the directory names it. */
+const byAgentFor = (agentId: string, person: string, name: (id: string) => string): string => agentForPerson(agentId, person, { nameOf: name, known: (id) => namesItsPerson(name(id)) });
 
 /** The file's marks as the shared Viewer draws them. */
 export function viewerMarks(list: LayerList | null, name: (id: string) => string, now: number): ViewerMark[] {
@@ -61,10 +64,10 @@ export function activityOf(e: { id: string; type: string; actor: string; at: num
   if (text === null) return null;
   const at = typeof p["markId"] === "string" ? { markId: p["markId"] as string } : {};
   const mine = (e.type === "file.agent_read" || e.type === "file.redact_requested");
-  if (mine) return agentId ? { id: e.id, who: `${name(agentId)} (Agent)`, agent: true, text, at: e.at } : null;
+  if (mine) return agentId ? { id: e.id, who: markedAgent(name(agentId)), agent: true, text, at: e.at } : null;
   if (e.type === "file.needs_review") return { id: e.id, who: "Vyre", agent: false, text, at: e.at };
   const byAgent = typeof p["byAgent"] === "string";
-  return { id: e.id, ...at, who: byAgent ? `${name(by)} (Agent)` : name(by), agent: byAgent, text, at: e.at };
+  return { id: e.id, ...at, who: byAgent ? byAgentFor(p["byAgent"] as string, by, name) : name(by), agent: byAgent, text, at: e.at };
 }
 
 /** Show a mark in the file: scroll it to the middle and flash it (web). */

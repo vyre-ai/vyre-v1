@@ -6,6 +6,7 @@ import { handlers } from "../impl.ts";
 import { g24aHandlers, ensureReadTable, unreadOf } from "../handlers/g24a.ts";
 import { DANA, DRAFTER, INTAKE, LEO, MAYA, NOW, REVIEWER, assertEventsConform, codeOf, contractErrors, harness } from "../fixtures/harness.ts";
 import type { Harness } from "../fixtures/harness.ts";
+import { isMember } from "../projections.ts";
 
 type Fn = (ctx: Harness["ctx"], input: any) => Promise<any>;
 const h = handlers as unknown as Record<string, Fn>;
@@ -211,6 +212,36 @@ test("threads.members.add with mentionedIn: the person added from the line under
   assert.ok(bodies.some((b) => /pricing copy/.test(b)), "Leo reads the message that mentioned him");
   assert.ok(!bodies.some((b) => /earlier line/.test(b)), "and not what came before it");
   await refused("threads.members.add", hn.ctx, { threadId: chat, personId: MAYA, mentionedIn: "msg_missing" }, "validation.bad_input");
+  assert.deepEqual(assertEventsConform(hn), []);
+});
+
+test("threads.members.add with mentionedIn: only a message that really mentions the person tells them; a name typed as words is not a mention (lead review M2, 12 Nov)", async () => {
+  const hn = harness();
+  const chat = await chatOf(hn);
+  const plain = (await h["chat.post"]!(hn.ctx, { threadId: chat, body: "Leo said the copy is fine", idempotencyKey: key() })).message;
+  await refused("threads.members.add", hn.ctx, { threadId: chat, personId: LEO, mentionedIn: plain.messageId }, "validation.bad_input");
+  const chip = (await h["chat.post"]!(hn.ctx, { threadId: chat, body: "@Leo can you check this?", mentions: [{ kind: "person", id: LEO }], idempotencyKey: key() })).message;
+  await refused("threads.members.add", hn.ctx, { threadId: chat, personId: MAYA, mentionedIn: chip.messageId }, "validation.bad_input");
+  assert.equal(hn.named("message.mentioned").length, 0, "no fake mentioned-you");
+  assert.equal(isMember(hn.ctx.db, chat, MAYA), false, "and nobody was added by the refused call");
+  // the chips come back on the message, so the app reads who it really mentioned
+  const listed = (await h["chat.messages.list"]!(hn.ctx, { threadId: chat })).messages as Array<{ messageId: string; mentions?: unknown }>;
+  assert.deepEqual(listed.find((m) => m.messageId === chip.messageId)?.mentions, [{ kind: "person", id: LEO }]);
+  assert.equal(listed.find((m) => m.messageId === plain.messageId)?.mentions, undefined);
+  assert.deepEqual(assertEventsConform(hn), []);
+});
+
+test("channels.members.add with mentionedIn tells each added person the same way as a chat (lead review M3, 12 Nov)", async () => {
+  const hn = harness();
+  const ch = await channelOf(hn);
+  const posted = (await h["chat.post"]!(hn.ctx, { threadId: ch.mainThreadId, body: "@Leo please look", mentions: [{ kind: "person", id: LEO }], idempotencyKey: key() })).message;
+  await h["channels.members.add"]!(hn.ctx, { channelId: ch.channelId, personIds: [LEO], mentionedIn: posted.messageId });
+  const told = hn.named("message.mentioned").filter((e) => e.payload["personId"] === LEO);
+  assert.equal(told.length, 1, "Leo is told once");
+  assert.equal(told[0]!.payload["messageId"], posted.messageId);
+  const other = await chatOf(hn);
+  const elsewhere = (await h["chat.post"]!(hn.ctx, { threadId: other, body: "@Maya hi", mentions: [{ kind: "person", id: MAYA }], idempotencyKey: key() })).message;
+  await refused("channels.members.add", hn.ctx, { channelId: ch.channelId, personIds: [MAYA], mentionedIn: elsewhere.messageId }, "validation.bad_input");
   assert.deepEqual(assertEventsConform(hn), []);
 });
 

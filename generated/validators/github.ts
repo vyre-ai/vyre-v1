@@ -274,15 +274,15 @@ if ("author" in o708) lf(o708["author"], p + "/author", e, L1);
 
 function d_s_a6d34a645d(v: unknown, p: string, e: string[]): void {
 {
-const x850 = v;
-const g850 = typeOf(x850);
-const b850: string[] = []; lf(x850, p, b850, L0); if (b850.length) e.push(...b850);
-if (g850 === "object") {
-if (g850 === 'object') { const o850 = x850 as Record<string, unknown>;
-if (!("repo" in o850)) e.push(p + "/repo" + ': required');
-if (!("number" in o850)) e.push(p + "/number" + ': required');
-if ("repo" in o850) lf(o850["repo"], p + "/repo", e, L87);
-if ("number" in o850) lf(o850["number"], p + "/number", e, L12);
+const x847 = v;
+const g847 = typeOf(x847);
+const b847: string[] = []; lf(x847, p, b847, L0); if (b847.length) e.push(...b847);
+if (g847 === "object") {
+if (g847 === 'object') { const o847 = x847 as Record<string, unknown>;
+if (!("repo" in o847)) e.push(p + "/repo" + ': required');
+if (!("number" in o847)) e.push(p + "/number" + ': required');
+if ("repo" in o847) lf(o847["repo"], p + "/repo", e, L87);
+if ("number" in o847) lf(o847["number"], p + "/number", e, L12);
 }
 }
 }

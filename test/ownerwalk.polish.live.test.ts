@@ -5,11 +5,14 @@
 //   4 Cmd-K finds Settings and its pages by name, and the Console for the owner.
 //   5 New project (Cmd-K) opens Projects with its new row started.
 //   6 The agent's Computer pane draws Browser right under its label: no tall gap, no card over the next label.
+//   7, 8 Space Settings opens Console > Space; Console Home and the audit log speak plainly.
+//   9 to 14 The @mention line: one quiet line with Add under the sender's own message, for the sender only; a reload keeps it; Add brings them in from that message on and tells them; an agent
+//          gets the same line; in a channel Add goes through the channel and tells them the same way.
 import test from "node:test";
 import assert from "node:assert/strict";
 import { bootWalk, composer, connectAi } from "./ownerwalk-kit.test.ts";
 
-test("owner walk fixes: one Settings tab, Add a Space alone, the composer's words, Cmd-K finds Settings, New project, the Computer pane's layout", async (t) => {
+test("owner walk fixes: one Settings tab, Add a Space alone, the composer's words, Cmd-K finds Settings, New project, the Computer pane's layout, the @mention line", async (t) => {
   const w = await bootWalk(t, "polish");
   if (!w) return;
   const { page } = w;
@@ -166,28 +169,14 @@ test("owner walk fixes: one Settings tab, Add a Space alone, the composer's word
       assert.ok(gap >= 0 && gap < 80, `the Browser card starts ${Math.round(gap)} px under its label`);
       await w.shot("computer-pane", { widths: [1280] });
     });
-  } finally {
-    if (w.failures.length) console.log(`NOTES:\n${w.notes.join("\n")}`);
-    await w.stop();
-  }
-  assert.deepEqual(w.failures, [], `${w.failures.length} step(s) fail`);
-});
 
-// The @mention line (owner, 12 Nov 2026: "Maya is not in this chat" with Add, exactly like Slack): one quiet line under the sender's own message, for the sender only; a reload keeps it while it is true;
-// Add brings the person in from that message on, the line goes, and they are told and can open the message. Pictures in light and dark at 1280 and 390.
-test("a mention of someone not in the chat: one quiet line with Add for the sender only, and Add brings them in and tells them", async (t) => {
-  const w = await bootWalk(t, "mention");
-  if (!w) return;
-  const { page } = w;
-  try {
-    await connectAi(w);
-    const dex = (await w.api("agents.create", { name: "Dex", role: "You help the team plan and ship launches.", idempotencyKey: "mw-dex" })).data.agent.agentId as string;
+    // 9 to 14: the @mention line (owner, 12 Nov 2026: "Maya is not in this chat." with Add, like Slack), in the same daemon and browser (review M6: one boot for the file)
     const maya = await w.join("Maya", "Lin", "maya");
     const omar = await w.join("Omar", "Haddad", "omar");
     const thread = (await w.api("chat.start", { kind: "chat", agentIds: [dex], title: "Pricing copy", idempotencyKey: "mw-th" })).data.thread.threadId as string;
     assert.equal((await w.api("threads.members.add", { threadId: thread, personId: omar.personId })).status, 200);
 
-    await w.step("the owner mentions Maya and sees the line with Add", async () => {
+    await w.step("9 the owner mentions Maya and sees the line with Add", async () => {
       await page.goto(`${w.web.origin}/chat#subject=thread:${thread}`, { waitUntil: "load" });
       const c = composer(page); await c.waitFor({ timeout: 20_000 });
       await c.type("@May", { delay: 60 });
@@ -198,29 +187,29 @@ test("a mention of someone not in the chat: one quiet line with Add for the send
       await line.waitFor({ timeout: 20_000 });
       assert.equal(await line.innerText(), "Maya is not in this chat.");
       assert.equal(await page.getByTestId("not-in-chat-add").innerText(), "Add");
-      await w.shot("line-under-message", { widths: [1280] });
-      await w.shot("line-under-message-phone", { widths: [390], after: async () => { await page.getByTestId("not-in-chat-text").first().waitFor({ timeout: 15_000 }).catch(() => undefined); } });
+      await w.shot("mention-line-under-message", { widths: [1280] });
+      await w.shot("mention-line-under-message-phone", { widths: [390], after: async () => { await page.getByTestId("not-in-chat-text").first().waitFor({ timeout: 15_000 }).catch(() => undefined); } });
     });
 
-    await w.step("Omar, in the same chat, does not see it", async () => {
+    await w.step("10 Omar, in the same chat, does not see the line", async () => {
       await omar.page.goto(`${w.web.origin}/chat#subject=thread:${thread}`, { waitUntil: "load" });
       await omar.page.getByText(/check the pricing copy/).first().waitFor({ timeout: 20_000 });
       await omar.page.waitForTimeout(1000);
       assert.equal(await omar.page.getByTestId("not-in-chat-text").count(), 0, "only the sender sees the line");
-      await w.shot("omar-sees-no-line", { page: omar.page, widths: [1280] });
+      await w.shot("mention-omar-sees-no-line", { page: omar.page, widths: [1280] });
     });
 
-    await w.step("a reload keeps the line while it is true", async () => {
+    await w.step("11 a reload keeps the line while it is true", async () => {
       await page.reload({ waitUntil: "load" });
       await page.getByTestId("not-in-chat-text").waitFor({ timeout: 20_000 });
     });
 
-    await w.step("Add: Maya is in the chat, the line goes, Maya is told and can open the message", async () => {
+    await w.step("12 Add: Maya is in the chat, the line goes, Maya is told and can open the message", async () => {
       await page.getByTestId("not-in-chat-add").click();
       await page.getByTestId("not-in-chat-text").waitFor({ state: "detached", timeout: 20_000 });
       const members = (await w.api("threads.get", { threadId: thread })).data.thread.members as Array<{ id: string }>;
       assert.ok(members.some((m) => m.id === maya.personId), "Maya is a member now");
-      await w.shot("after-add", { widths: [1280] });
+      await w.shot("mention-after-add", { widths: [1280] });
       let told = false;
       for (let i = 0; i < 30 && !told; i++) {
         const list = (await w.api("notifications.list", {}, maya.token)).data.notifications as Array<{ kind: string; subject?: { id: string } }> | undefined;
@@ -230,7 +219,48 @@ test("a mention of someone not in the chat: one quiet line with Add for the send
       assert.ok(told, "Maya has a mention notification for the chat");
       await maya.page.goto(`${w.web.origin}/chat#subject=thread:${thread}`, { waitUntil: "load" });
       await maya.page.getByText(/check the pricing copy/).first().waitFor({ timeout: 20_000 });
-      await w.shot("maya-opens-the-message", { page: maya.page, widths: [1280] });
+      await w.shot("mention-maya-opens-the-message", { page: maya.page, widths: [1280] });
+    });
+
+    await w.step("13 an agent who is not in the chat gets the same line and Add", async () => {
+      const iris = (await w.api("agents.create", { name: "Iris", role: "You draft emails.", idempotencyKey: "mw-iris" })).data.agent.agentId as string;
+      await page.reload({ waitUntil: "load" });
+      const c = composer(page); await c.waitFor({ timeout: 20_000 });
+      await c.type("@Iri", { delay: 60 });
+      await page.getByText("Iris", { exact: true }).last().click({ timeout: 10_000 });
+      await c.type(" draft the follow-up email", { delay: 5 });
+      await c.press("Enter");
+      const line = page.getByTestId("not-in-chat-text");
+      await line.waitFor({ timeout: 20_000 });
+      assert.equal(await line.innerText(), "Iris is not in this chat.");
+      assert.equal(await page.getByTestId("no-agent-line").count(), 0, "one line for the message, not two");
+      await w.shot("mention-agent-line", { widths: [1280] });
+      await page.getByTestId("not-in-chat-add").click();
+      await line.waitFor({ state: "detached", timeout: 20_000 });
+      const agents = (await w.api("threads.get", { threadId: thread })).data.thread.agents as Array<{ agentId: string }>;
+      assert.ok(agents.some((a) => a.agentId === iris), "Iris is in the chat");
+    });
+
+    await w.step("14 in a channel, Add goes through the channel and Maya's teammate Omar is told the same way", async () => {
+      const ch = (await w.api("channels.create", { name: "launch", visibility: "public", memberIds: [], agentIds: [], idempotencyKey: "mw-ch" })).data.channel as { channelId: string; mainThreadId: string };
+      await page.goto(`${w.web.origin}/chat#subject=thread:${ch.mainThreadId}`, { waitUntil: "load" });
+      const c = composer(page); await c.waitFor({ timeout: 20_000 });
+      await c.type("@Oma", { delay: 60 });
+      await page.getByText("Omar Haddad", { exact: true }).last().click({ timeout: 10_000 });
+      await c.type(" the launch post is ready", { delay: 5 });
+      await c.press("Enter");
+      const line = page.getByTestId("not-in-chat-text");
+      await line.waitFor({ timeout: 20_000 });
+      assert.equal(await line.innerText(), "Omar is not in this chat.");
+      await page.getByTestId("not-in-chat-add").click();
+      await line.waitFor({ state: "detached", timeout: 20_000 });
+      let told = false;
+      for (let i = 0; i < 30 && !told; i++) {
+        const list = (await w.api("notifications.list", {}, omar.token)).data.notifications as Array<{ kind: string; subject?: { id: string } }> | undefined;
+        told = (list ?? []).some((n) => n.kind === "mention" && n.subject?.id === ch.mainThreadId);
+        if (!told) await page.waitForTimeout(500);
+      }
+      assert.ok(told, "Omar has a mention notification for the channel");
     });
   } finally {
     if (w.failures.length) console.log(`NOTES:\n${w.notes.join("\n")}`);

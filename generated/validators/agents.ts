@@ -1146,13 +1146,13 @@ lf(a661[i661], p + "/diff" + "/changed" + '/' + i658 + "/minus" + '/' + i661, e,
 
 function d_s_9a4733107e(v: unknown, p: string, e: string[]): void {
 {
-const x785 = v;
-const g785 = typeOf(x785);
-const b785: string[] = []; lf(x785, p, b785, L0); if (b785.length) e.push(...b785);
-if (g785 === "object") {
-if (g785 === 'object') { const o785 = x785 as Record<string, unknown>;
-if (!("suggestion" in o785)) e.push(p + "/suggestion" + ': required');
-if ("suggestion" in o785) d_s_d3f792e294(o785["suggestion"], p + "/suggestion", e);
+const x782 = v;
+const g782 = typeOf(x782);
+const b782: string[] = []; lf(x782, p, b782, L0); if (b782.length) e.push(...b782);
+if (g782 === "object") {
+if (g782 === 'object') { const o782 = x782 as Record<string, unknown>;
+if (!("suggestion" in o782)) e.push(p + "/suggestion" + ': required');
+if ("suggestion" in o782) d_s_d3f792e294(o782["suggestion"], p + "/suggestion", e);
 }
 }
 }

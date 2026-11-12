@@ -50,6 +50,7 @@ import type { AsideItem } from "./Aside.tsx";
 import { commandItems, lastActionable, runSlash } from "./commands.ts";
 import type { CommandEnv } from "./commands.ts";
 import { parseSlash } from "../../../../../../lib/chat-commands.ts";
+import { agentForPerson } from "../../../../../../lib/words/agent-name.ts";
 import { pluginNames } from "./commands.ts";
 import { composerSuggest, previewOf } from "./suggest.ts";
 import { ThreadParent } from "./ThreadParent.tsx";
@@ -70,6 +71,7 @@ import { Glyph, IconButton, PeopleCount, RenameField, TextButton } from "./parts
 import { CONTINUE_TEXT, DEFAULT_AGENT_HOPS, limitOf, parkedAtLimit, parkedLine } from "./hops.ts";
 import { addedAgentMentions, askPost, pickerAgents, unansweredOwn } from "./askagent.ts";
 import { notInChatLine } from "./notinchat.ts";
+import { NotInChatBar } from "./NotInChatBar.tsx";
 import { MemorySwitch } from "./memory-switch.tsx";
 import { SWITCH_NOTE, SWITCH_TITLE, hasSwitch, repliesOf } from "../thread-replies/model.ts";
 import { useReplySwitch } from "../thread-replies/ThreadSwitch.tsx";
@@ -317,7 +319,20 @@ function ConversationView(): ReactElement {
   const [notHereGone, setNotHereGone] = useState<ReadonlySet<string>>(() => readDismissed(dismissKey));
   const [notHereError, setNotHereError] = useState<Readonly<Record<string, string>>>({});
   const [notHereBusy, setNotHereBusy] = useState<string | null>(null);
-  const channelHere = threadQ.status === "ready" && threadQ.data.thread.kind === "channel" ? (threadQ.data.thread.channelId ?? threadQ.data.thread.threadId) : null;
+  // the channel this chat belongs to: a channel itself, or the channel a reply thread hangs under (its own row carries no channelId), with that channel's people
+  const [channelOfThread, setChannelOfThread] = useState<{ threadId: string; channelId: string; members: ReadonlySet<string> } | null>(null);
+  const hereT = threadQ.status === "ready" ? threadQ.data.thread : null;
+  useEffect(() => {
+    if (!hereT || hereT.kind !== "thread" || !hereT.parentThreadId) { setChannelOfThread(null); return undefined; }
+    let alive = true;
+    void Promise.resolve(data.call("threads.get", { threadId: hereT.parentThreadId })).then((o) => {
+      const p = (o as { thread?: { threadId: string; kind: string; channelId?: string; members?: Array<{ id: string }> } } | null)?.thread;
+      if (alive) setChannelOfThread(p && p.kind === "channel" ? { threadId: hereT.threadId, channelId: p.channelId ?? p.threadId, members: new Set((p.members ?? []).map((x) => x.id)) } : null);
+    }, () => { if (alive) setChannelOfThread(null); });
+    return () => { alive = false; };
+  }, [hereT?.threadId, hereT?.parentThreadId]);   // eslint-disable-line react-hooks/exhaustive-deps
+  const underChannel = channelOfThread && hereT && channelOfThread.threadId === hereT.threadId ? channelOfThread : null;
+  const channelHere = hereT && hereT.kind === "channel" ? (hereT.channelId ?? hereT.threadId) : underChannel ? underChannel.channelId : null;
   const [mayManageChannel, setMayManageChannel] = useState<boolean>(false);
   useEffect(() => {
     if (channelHere === null) return undefined;
@@ -570,7 +585,8 @@ function ConversationView(): ReactElement {
   const details = openDetails
     ? { read: (messageId: string) => readReplyDetails(data.call as Call, thread.threadId, messageId), open: (messageId: string) => openDetails(thread.threadId, messageId), meId: data.me.id, nameOf }
     : undefined;
-  const notHereLineOf = (m: Message) => notInChatLine(m, { meId: data.me.id, members: new Set(thread.members.map((x) => x.id)), directory: data.directory, mayAdd: thread.kind === "channel" ? mayManageChannel : true, dismissed: notHereGone });
+  // in a reply thread under a channel, "in this chat" means in the channel, and adding needs the channel's manage check, the same as in the channel itself (review M4)
+  const notHereLineOf = (m: Message) => notInChatLine(m, { meId: data.me.id, members: new Set([...thread.members.map((x) => x.id), ...(underChannel ? underChannel.members : [])]), agents: new Set(thread.agents.map((a) => a.agentId)), directory: data.directory, mayAdd: channelHere !== null ? mayManageChannel : true, dismissed: notHereGone });
   const notHereSig = (m: Message): string | undefined => { const l = notHereLineOf(m); return l ? `${l.text}|${l.button ?? ""}|${notHereBusy === m.messageId ? "busy" : ""}|${notHereError[m.messageId] ?? ""}` : undefined; };
   const notHereFor = (m: Message): ReactElement | null => {
     const line = notHereLineOf(m);
@@ -578,19 +594,19 @@ function ConversationView(): ReactElement {
     const addAll = (): void => {
       setNotHereBusy(m.messageId);
       setNotHereError((cur) => { const { [m.messageId]: _gone, ...rest } = cur; return rest; });
-      const done = thread.kind === "channel" && thread.channelId
-        ? Promise.resolve(data.call("channels.members.add", { channelId: thread.channelId, personIds: line.ids }))
-        : line.ids.reduce<Promise<unknown>>((at, personId) => at.then(() => data.call("threads.members.add", { threadId: thread.threadId, personId, mentionedIn: m.messageId })), Promise.resolve());
+      // the same calls the Add people sheet makes: people join (a channel's through channels.members.add), agents are added to the chat
+      const people = line.who.filter((x) => x.kind === "person").map((x) => x.id), agents = line.who.filter((x) => x.kind === "agent").map((x) => x.id);
+      const addPeople = people.length === 0 ? Promise.resolve<unknown>(null) : channelHere !== null
+        ? Promise.resolve(data.call("channels.members.add", { channelId: channelHere, personIds: people, mentionedIn: m.messageId }))
+        : people.reduce<Promise<unknown>>((at, personId) => at.then(() => data.call("threads.members.add", { threadId: thread.threadId, personId, mentionedIn: m.messageId })), Promise.resolve());
+      const done = agents.reduce<Promise<unknown>>((at, agentId) => at.then(() => data.call("threads.add_agent", { threadId: thread.threadId, agentId, mode: "listen" })), addPeople);
       void done.then(() => setNotHereBusy(null), (e: unknown) => { setNotHereBusy(null); setNotHereError((cur) => ({ ...cur, [m.messageId]: `${addFailedWords(e)}` })); });
     };
     const dismiss = (): void => setNotHereGone((cur) => { const next = new Set([...cur, m.messageId]); writeDismissed(dismissKey, next); return next; });
     const err = notHereError[m.messageId];
     return (
-      <View testID={`not-in-chat-${m.messageId}`} style={st.notHereRow}>
-        <Text style={[st.lineText, st.quietLine]} testID="not-in-chat-text">{err ?? line.text}</Text>
-        {line.button && !err ? <TextButton label={line.button} testID="not-in-chat-add" disabled={notHereBusy === m.messageId} onPress={addAll} /> : null}
-        <IconButton icon="x" label="Dismiss" size={20} testID="not-in-chat-dismiss" onPress={dismiss} />
-      </View>
+      <NotInChatBar place="message" testID={`not-in-chat-${m.messageId}`} textTestID="not-in-chat-text" addTestID="not-in-chat-add" text={err ?? line.text}
+        add={line.button && !err ? { label: line.button, onPress: addAll, disabled: notHereBusy === m.messageId } : undefined} onDismiss={dismiss} />
     );
   };
   const actions: MessageActions = {
@@ -711,7 +727,9 @@ function ConversationView(): ReactElement {
     : undefined;
   const closed = isClosed(thread);
   const parked = !closed && parkedAtLimit(win.rows[win.rows.length - 1], hopLimit, isWorking);
-  const unanswered = closed || isWorking ? null : unansweredOwn(thread, win.rows, data.me.id, data.directory, (id) => replies.has(id));
+  const unansweredRaw = closed || isWorking ? null : unansweredOwn(thread, win.rows, data.me.id, data.directory, (id) => replies.has(id));
+  // one line per message: when the message names someone who is not here, that line says it, and "No agent will reply" does not
+  const unanswered = unansweredRaw && !notHereLineOf(unansweredRaw) ? unansweredRaw : null;
   // an Ask drawn in its own pane is already titled Ask Vyre: the quiet "Ask pane" line is for an Ask opened in Chats
   const note = data.head || (compact && thread.kind === "ask") ? "" : threadKindNote(thread, nameOf);
   const title = titleOf(thread, nameOf, data.me.id);
@@ -783,7 +801,7 @@ function ConversationView(): ReactElement {
         </View>
       ) : null}
       <SessionPublisher messages={all} meId={data.me.id} jump={(id) => setFocusId(id)} />
-      <CatchUpLine onSince={setReadTo} onJump={(id) => setFocusId(id)} newest={live[live.length - 1]?.messageId ?? ""} credit={(id) => { const m = all.find((x) => x.author.id === id && onBehalfOf(x)); const ob = m ? onBehalfOf(m) : null; return ob ? `${nameOf(ob.person)} (Agent)` : undefined; }} />
+      <CatchUpLine onSince={setReadTo} onJump={(id) => setFocusId(id)} newest={live[live.length - 1]?.messageId ?? ""} credit={(id) => { const m = all.find((x) => x.author.id === id && onBehalfOf(x)); const ob = m ? onBehalfOf(m) : null; return ob ? agentForPerson(ob.agentId, ob.person, { nameOf, known: (a) => data.kindOf(a) === "agent" }) : undefined; }} />
       {note ? <Text testID="conversation-note" style={st.noteLine}>{note}</Text> : null}
       {sharedChat ? <Text testID="zone-note" accessibilityLabel={`Times in this chat use ${zoneName(zones.space)}`} style={{ fontSize: 11.5, color: "var(--ink-3)" as string, textAlign: "center", paddingTop: 6, paddingHorizontal: 12 }}>{`Times here use ${zoneName(zones.space)}, the Space's time zone${zones.viewer !== zones.space && offsetMinAt(Date.now(), zones.viewer) !== offsetMinAt(Date.now(), zones.space) ? `. Hover a time to see yours.` : "."}`}</Text> : null}
       {thread.kind === "thread" ? <ThreadParent threadId={thread.parentThreadId} messageId={thread.parentMessageId} call={data.call as never} nameOf={nameOf} kindOf={data.kindOf} clock={data.clock()} count={thread.replyCount ?? all.length} writing={writingName} onOpen={thread.parentThreadId && thread.parentMessageId ? () => data.nav.openThread(thread.parentThreadId!, thread.parentMessageId!) : undefined} /> : null}
@@ -865,18 +883,14 @@ function ConversationView(): ReactElement {
             const first = nameOf(personMention.id).split(" ")[0] ?? "";
             const addIt = (fromStart: boolean): void => void act.addPerson(data, personMention.id, fromStart).then(() => say(`${first} was added. This is now a group chat.`), fail("Could not add them."));
             return (
-              <View testID="channel-offer" accessibilityRole="alert" style={st.offerStrip}>
-                <Text numberOfLines={1} testID="channel-offer-text" style={st.offerStripText}>{`${first} isn't in this chat`}</Text>
-                <View style={st.offerBtns}>
-                  <TextButton primary label={`Add ${first}`} testID="channel-add" onPress={() => addIt(false)} />
-                  <IconButton icon="chevd" label="Other ways to add" size={24} testID="channel-add-menu" onPress={(x, y) => menu.show([
-                    { label: "Add, from now on", checked: true, onSelect: () => addIt(false) },
-                    { label: "Add, with earlier messages", onSelect: () => addIt(true) },
-                    { separator: true },
-                    { label: "Start a channel instead", onSelect: () => void act.startChannel(data, personMention.id, data.newKey()).then(() => say("Channel started, linked back to this chat."), fail("Could not start the channel.")) },
-                  ], x, y, "other", { label: `Add ${first}` })} />
-                </View>
-              </View>
+              <NotInChatBar place="composer" testID="channel-offer" textTestID="channel-offer-text" addTestID="channel-add" text={`${first} is not in this chat.`}
+                add={{ label: "Add", onPress: () => addIt(false) }}
+                extra={<IconButton icon="chevd" label="Other ways to add" size={24} testID="channel-add-menu" onPress={(x, y) => menu.show([
+                  { label: "Add, from now on", checked: true, onSelect: () => addIt(false) },
+                  { label: "Add, with earlier messages", onSelect: () => addIt(true) },
+                  { separator: true },
+                  { label: "Start a channel instead", onSelect: () => void act.startChannel(data, personMention.id, data.newKey()).then(() => say("Channel started, linked back to this chat."), fail("Could not start the channel.")) },
+                ], x, y, "other", { label: `Add ${first}` })} />} />
             );
           })() : null}
           {thread.kind === "thread" && thread.parentThreadId ? <View testID="also-to-chat-row" style={st.alsoRow}><AlsoToChat on={alsoOn} onChange={setAlso} /></View> : null}
@@ -1000,14 +1014,10 @@ const st = StyleSheet.create({
   toLatestText: { fontSize: 12.5, color: "var(--ink-2)" as string },
   queueRow: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", justifyContent: "center", columnGap: 10, rowGap: 2, paddingHorizontal: 24, paddingVertical: 4 },
   queue: { fontSize: 12.5, color: "var(--ink-3)" as string, textAlign: "center" },
-  notHereRow: { flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 6, marginTop: 2 },
   lineBox: { paddingHorizontal: 24, paddingVertical: 4, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
   lineText: { fontSize: 12.5, color: "var(--ink-2)" as string },
   /** A quiet line: muted ink, no underline. */
   quietLine: { color: "var(--ink-3)" as string },
-  offerStrip: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10, minHeight: 38, paddingLeft: 14, paddingRight: 6, marginHorizontal: 10, marginBottom: -1, borderTopLeftRadius: RADIUS, borderTopRightRadius: RADIUS, borderWidth: 1, borderColor: "var(--line)" as string, backgroundColor: "var(--side)" as string },
-  offerStripText: { flex: 1, minWidth: 0, fontSize: 12.5, color: "var(--ink-2)" as string },
-  offerBtns: { flexDirection: "row", alignItems: "center", gap: 2, flexShrink: 0 },
   closed: { minHeight: 48, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, borderTopWidth: 1, borderTopColor: "var(--line)" as string, backgroundColor: "var(--side)" as string },
   typingRow: { height: 20, justifyContent: "center", paddingLeft: 6 },
   typingText: { fontSize: 12, color: "var(--ink-3)" as string },
