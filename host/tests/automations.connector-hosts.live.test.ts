@@ -182,6 +182,15 @@ test("a connector request carries a Vault key only to hosts a person approved fo
     await post(OWNER, "connectors.test", { key: "goodapp" }).then((r) => console.log(`DRAFTTEST ${r.status} ${r.text.slice(0, 200)}`));
     assert.ok(sent.filter((x) => x.key).slice(before6).every((x) => x.host === "api.good.example"), `a filled key went only to the approved host: ${JSON.stringify(sent.slice(before6))}`);
     assert.equal(sent.filter((x) => x.host === "exfil.other.example" && x.key).length, 0);
+
+    // 7. WHAT IS ALLOWED TODAY (rc.25 behaviour kept for rc.26, an rc.27 item): an agent's sync spec sample sends the key to a host nobody approved for it. The sync-spec path has no per-key
+    // host check yet; the card for a key's first use on a new host in the CRM flow comes in rc.27. Nothing is recorded, and any other connector to that host is still refused.
+    const before7 = sent.filter((x) => x.key).length;
+    const probe = await post(AGENT, "sync_specs.sample", { auth: { vaultHandle: handle3, style: "header", header: "X-Api-Key" }, domain: "nobody-approved.example", path: "/v1/people" });
+    assert.doesNotMatch(probe.text, /is not allowed to go to/, `the sync-spec sample goes, as in rc.25: ${probe.text.slice(0, 300)}`);
+    assert.deepEqual(sent.filter((x) => x.key).slice(before7).map((x) => x.host), ["nobody-approved.example"], "the key went to the spec's own domain");
+    assert.deepEqual(await hostsOf(handle3), [["api.good.example", "usr_olivia"]], "nothing was recorded for the key");
+    assert.match((await post(OWNER, "connectors.run", { key: "agentapp", action: "list", connectionId: agentConn, input: {} })).text, /is not allowed to go to take\.attacker\.example/, "another connector is still refused");
   } finally {
     await d.stop();
     fs.rmSync(dir, { recursive: true, force: true });

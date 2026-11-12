@@ -817,6 +817,22 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   let keyHostCallAs: ((cap: string, input: unknown, person: string) => Promise<unknown>) | null = null;
   // the update's one-time adoption of connector hosts (set once the modules are loaded, run once after the scheduler starts)
   let adoptBindingsOnce: (() => Promise<void>) | null = null;
+  // the connectors module's tables in the Space store (set once that store is open): the sync-spec path below reads its own spec there
+  let connectorTables: { all(sql: string, ...a: unknown[]): unknown[] } | null = null;
+  /**
+   * rc.25 behaviour, kept for rc.26 on the sync-spec path ONLY (lead, 12 Nov 2026): bringing a CRM in through a sync spec sends the key to the spec's own domain with no per-key host check,
+   * as before. Two cases and nothing else: the spec's sample and survey probe (connector "sync_spec", connection "probe"; the port already holds it to the spec's domain), and a connection
+   * that sync_specs.apply made, going to exactly its own spec's app.domain. Nothing is recorded. Every other connector and host keeps the rule. The approval card for a key's first use on
+   * a new host in the CRM flow is rc.27 (BACKLOG: "Key card for the CRM flow"); remove this then.
+   */
+  const syncSpecOwnHost = (k: { connector: string; connectionId: string }, host: string): boolean => {
+    if (k.connector === "sync_spec" && k.connectionId === "probe") return true;
+    try {
+      const row = connectorTables?.all("SELECT spec FROM cn_sync_specs WHERE connector = ? AND connection_id = ?", k.connector, k.connectionId)[0] as { spec?: string } | undefined;
+      const domain = row?.spec ? (JSON.parse(row.spec) as { app?: { domain?: unknown } }).app?.domain : undefined;
+      return typeof domain === "string" && domain.trim().toLowerCase().replace(/\.$/, "") === host;
+    } catch { return false; }
+  };
   const keyHostCheck: KeyHostCheck = async (keys, host, caller) => {
     const h = db;
     if (!h) return "The Vault is not open, so the request was not sent.";
@@ -824,6 +840,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     for (const k of keys) {
       const id = k.itemId;
       if (keyHostListed(h, id, host)) continue;
+      if (syncSpecOwnHost(k, host)) continue;
       if (person && keyHostCallAs && await ownAddress(keyHostCallAs, person, id, host)) continue;
       return `${handleOfItem(h, id)} is not allowed to go to ${host}. Allow it on the key's page, or change this step.`;
     }
@@ -1799,6 +1816,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       };
       // the Space record store the L3 data modules share (P-H_08): one file in the data directory, opened by the first module that needs it, closed at shutdown
       const spaceStore = createSpaceStore({ path: spaceStorePath(paths.root), space: spaceId, ours: (x: unknown) => { const r = rawDbOf(x); return r === null || r === db; } });
+      connectorTables = { all: (sql: string, ...a: unknown[]) => spaceStore.open().tx.all(sql, ...a) };
       closers.push(() => spaceStore.close());
       dispatchSystem = system;
       // The connectors that ship with the server (Google, Microsoft, Stripe, HubSpot...) are resources in the access projection so that a connection can be made under one: connections.create
