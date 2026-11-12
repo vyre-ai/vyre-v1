@@ -30,6 +30,7 @@ function hostFor(p: ReturnType<typeof scriptedProvider>, seen: Seen, learnMs: nu
         if (learnMs === "held") await seen.gate; else await new Promise((r) => setTimeout(r, learnMs));
         return { proposed: 1, merged: 1, via: "model" };
       }
+      if (cap === "agents.status") return { status: "awake" };   // the host answers whether the agent may take a turn (admission fails closed when it cannot)
       throw new Error(`unexpected ${cap}`);
     },
   };

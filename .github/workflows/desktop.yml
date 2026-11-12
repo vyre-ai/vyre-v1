@@ -501,6 +501,6 @@ jobs:
         with:
           node-version: 24
       - name: The unit tests, on a real Mac as well
-        run: node --test scripts/install/macos/install.test.ts scripts/install/linux/install.test.ts
+        run: node --test scripts/install/macos/install.test.ts scripts/install/linux/install.test.ts scripts/install/linux/install.backup.test.ts scripts/install/linux/install.release.test.ts
       - name: The installer's steps on this Mac's own tools
         run: sh scripts/install/macos/install.real.test.sh
