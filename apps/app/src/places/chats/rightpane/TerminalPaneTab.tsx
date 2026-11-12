@@ -9,7 +9,7 @@ import type { TerminalData } from "../terminal/data.ts";
 import { TerminalTab } from "../terminal/TerminalTab.tsx";
 import { loadHosts, openHostCall, thisDeviceId } from "../terminal/hosts.ts";
 import type { HostChoice } from "../terminal/hosts.ts";
-import { errorWords } from "../mounts/live.ts";
+import { errorCode, errorWords } from "../mounts/live.ts";
 import { collect } from "../conversation/model.ts";
 import { Icon } from "./parts.tsx";
 
@@ -30,15 +30,27 @@ export function startSession(rows: readonly Row[], agent: { agentId?: string; co
 export interface OpenOpts { name?: string; cwd?: string }
 export type Opened = { s: "opened"; terminalId: string } | { s: "choose"; hosts: HostChoice[] } | { s: "none" };
 
+/** Why a workspace would not start, from the server (modules/terminal/handlers/sessions.ts unavailable): only these mean it cannot run on this server at all (no image, no machine
+ * with Docker for it). Waiting for room, an agent in Trash, Docker not answering for a moment, or anything unnamed keeps its own line, so the pane never quietly opens a shell
+ * somewhere the agent does not work (r-term P1, 12 Nov). */
+const CANNOT_RUN_HERE = new Set(["image_missing", "no_place"]);
+const cannotRunHere = (e: unknown): boolean => errorCode(e) === "provider.unavailable" && CANNOT_RUN_HERE.has(String((e as { details?: { reason?: unknown } } | null)?.details?.reason ?? ""));
+
+
 /**
  * What Open terminal does. The chat's agent computer when it has one. Otherwise this computer, named by its device (a terminal on a computer must say which); when this one is not a computer
  * (the web, a phone) the person picks among the online hosts they do have, and when there are none the pane says so.
  */
 export async function openHere(d: Pick<TerminalData, "call" | "newKey" | "agent" | "team" | "nameOf" | "clock">, opts: OpenOpts = {}): Promise<Opened> {
   let host: HostChoice | undefined;
-  // the chat's agent has a workspace this person may enter: the terminal opens there, in the same sessions the agent's commands use
-  if (d.agent && (await inWorkspace(d, d.agent.agentId))) host = { key: `agent:${d.agent.agentId}`, label: "", kind: "agent", online: true, agentId: d.agent.agentId };
-  else if (d.agent?.computerId) host = { key: `agent:${d.agent.computerId}`, label: "", kind: "agent", online: true, agentId: d.agent.agentId, computerId: d.agent.computerId };
+  // the chat's agent has a workspace this person may enter: the terminal opens there, in the same sessions the agent's commands use. A server that cannot run one at all (no image,
+  // no machine with Docker) is not where the pane stops: it goes on to this computer or the hosts there are, and says so when there are none (Personal first hour, 12 Nov).
+  // Waiting for room, an agent in Trash or Docker not answering for a moment is the workspace's own answer and is shown.
+  if (d.agent && (await inWorkspace(d, d.agent.agentId))) {
+    try { return { s: "opened", terminalId: await openOn(d, { key: `agent:${d.agent.agentId}`, label: "", kind: "agent", online: true, agentId: d.agent.agentId }, opts) }; }
+    catch (e) { if (!cannotRunHere(e)) throw e; }
+  }
+  if (d.agent?.computerId) host = { key: `agent:${d.agent.computerId}`, label: "", kind: "agent", online: true, agentId: d.agent.agentId, computerId: d.agent.computerId };
   else {
     const deviceId = await thisDeviceId(d.call);
     if (deviceId) host = { key: `device:${deviceId}`, label: "This computer", kind: "device", online: true, deviceId };

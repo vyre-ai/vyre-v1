@@ -6,6 +6,8 @@ import { handlers, mayEnterWorkspace } from "../impl.ts";
 import { bindHost, bindPlace, bindTeam, bindWorkspaces, commandsOf } from "../projections.ts";
 import type { TermCtx, TurnPlace } from "../projections.ts";
 import { codeOf, contractErrors, fakeHost, harness, reset } from "../fixtures/harness.ts";
+import { IMAGE_MISSING_LINE } from "../workspace.ts";
+import { NO_PLACE } from "../fleet.ts";
 
 const h = handlers as unknown as Record<string, (ctx: TermCtx, input: any) => Promise<any> | any>;   // eslint-disable-line @typescript-eslint/no-explicit-any
 const AGENT = { kind: "agent" as const, id: "agt_dex" };
@@ -239,4 +241,20 @@ test("owner walk: a Space whose Docker does not answer shows its workspace as no
   const w = await h["terminal.workspace"]!(admin, { agentId: "agt_dex" });
   assert.deepEqual([w.state, w.canAttach], ["unavailable", false]);
   assert.match(w.line, /^This Space can't run agent workspaces yet\. That needs Docker on the Space's server/);
+});
+
+test("a workspace that will not start says why in details.reason: no image and no Docker (it cannot run here) apart from waiting for room and an agent in Trash (it will, or it is gone), so the app falls through only for the first (r-term P1, 12 Nov)", async () => {
+  const cases: Array<[Error & { code?: string; workspace?: boolean }, string]> = [
+    [Object.assign(new Error(`${IMAGE_MISSING_LINE}\nDetails: the workspace image x is not on this server.`), { code: "image_missing", workspace: true }), "image_missing"],
+    [Object.assign(new Error("The container runtime does not answer."), { code: "docker_down", workspace: true }), "docker_down"],
+    [Object.assign(new Error(NO_PLACE), { code: "unavailable", workspace: true }), "no_place"],
+    [Object.assign(new Error("Waiting for room on this server. The workspace starts by itself when there is room."), { code: "waiting", workspace: true }), "waiting"],
+    [Object.assign(new Error("This agent is in Trash."), { code: "gone", workspace: true }), "gone"],
+  ];
+  for (const [err, reason] of cases) {
+    const { agent, host } = setup(TEAM_ON_MAC);
+    bindHost({ ...host.host, open: async () => { throw err; } });
+    const f = await failure(() => h["terminal.open"]!(agent, { host: "agent_computer", agentId: "agt_dex", idempotencyKey: idem() }));
+    assert.deepEqual([f.code, f.reason, f.message], ["provider.unavailable", reason, err.message.split("\n")[0]], reason);
+  }
 });
