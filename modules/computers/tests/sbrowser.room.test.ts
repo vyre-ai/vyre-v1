@@ -569,3 +569,31 @@ test("taking over a browser reopened since the person last saw it: the pane says
     assert.equal((await tool["computers.browser.take_over"]!(h.ctx, { agentId: "agt_dex" }) as { note?: string }).note, undefined);
   } finally { bindSpaceBrowser(null); resetRoom(); }
 });
+
+test("a call that waits for room holds no Vault authority while it waits, and sends with a token issued when it sends", async () => {
+  const { bindFill } = await import("../projections.ts");
+  const { spaceBrowser } = await import("../sbrowser/port.ts");
+  sbrowser();
+  resetRoom();
+  setRoomWaitMs(3000);
+  const sb = spaceBrowser()!;
+  let issued = 0, revoked = 0;
+  const seen: Array<{ issued: number; revoked: number; token?: string }> = [];
+  const send = sb.tool.bind(sb);
+  sb.tool = async (a) => { seen.push({ issued, revoked, ...(a.fill ? { token: a.fill.token } : {}) }); return send(a); };
+  bindFill({ issue: async () => { issued++; return { fillToken: "t".repeat(48), revoke() { revoked++; }, extend() {} }; }, url: () => "http://vault.test/fill" } as never);
+  const waiter = agent("agt_wait");
+  waiter.fake.host.capacity = async () => ({ totalMb: 1600, freeMb: 100, cpus: 2, os: "linux" });
+  try {
+    const call = tool["computers.chrome.state"]!(waiter.ctx, {});
+    await new Promise((r) => setTimeout(r, 700));
+    assert.equal(issued, 0, "nothing is issued while the call only waits for room");
+    waiter.fake.host.capacity = async () => ({ totalMb: 8192, freeMb: 6000, cpus: 4, os: "linux" });
+    await call;
+    const sent = seen.filter((x) => x.token);
+    assert.equal(sent.length, 1, "the send carried the channel");
+    assert.equal(sent[0]!.issued, 1, "the token was issued after the room wait, right before the send");
+    assert.equal(sent[0]!.revoked, 0);
+    assert.equal(revoked, 1, "and revoked when the send ended");
+  } finally { bindFill(null); bindSpaceBrowser(null); resetRoom(); setRoomWaitMs(null); }
+});

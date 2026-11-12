@@ -472,19 +472,17 @@ async function browserCall(ctx: CompCtx, profileId: string, spec: ToolSpec, args
   const readAt = Date.now();
   const hold = await currentHold(ctx, sb, profileId);
   if (hold && !DURING_HOLD.has(spec.name)) refuse(ctx, new ToolError("paused", HELD_LINE, "profile_held"), profileId, { takeoverBy: hold.personId });
-  let fill: { url: string; token: string } | undefined;
   const binding = boundFill();
-  // every call carries the channel, not only the typing ones: Vyre for Chrome in the profile fills logins on its own when a page loads, and asks the Vault through it, as this call's person, during this call
-  let grant: { token: string; done(): void } | null = null;
-  if (binding) {
-    grant = await grantFor(binding, profileId, ctx.principal.id, actorOf(ctx));
-    fill = { url: binding.url(), token: grant.token };
-  }
-  try { return await browserStep(ctx, sb, profileId, spec, args, fill, { hold: hold?.personId ?? null, readAt }); }
-  finally { grant?.done(); }
+  // every call carries the channel, not only the typing ones: Vyre for Chrome in the profile fills logins on its own when a page loads, and asks the Vault through it, as this call's person, during this call.
+  // The grant is taken right before each send and dropped right after it, so no Vault authority is held while the call waits for room, and its life always starts from the moment it is used.
+  const lease = binding ? async <T>(run: (fill: { url: string; token: string }) => Promise<T>): Promise<T> => {
+    const grant = await grantFor(binding, profileId, ctx.principal.id, actorOf(ctx));
+    try { return await run({ url: binding.url(), token: grant.token }); } finally { grant.done(); }
+  } : undefined;
+  return browserStep(ctx, sb, profileId, spec, args, lease, { hold: hold?.personId ?? null, readAt });
 }
 
-async function browserStep(ctx: CompCtx, sb: NonNullable<ReturnType<typeof spaceBrowser>>, profileId: string, spec: ToolSpec, args: ToolArgs, fill: { url: string; token: string } | undefined, h: { hold: string | null; readAt: number }): Promise<ToolAnswer> {
+async function browserStep(ctx: CompCtx, sb: NonNullable<ReturnType<typeof spaceBrowser>>, profileId: string, spec: ToolSpec, args: ToolArgs, lease: (<T>(run: (fill: { url: string; token: string }) => Promise<T>) => Promise<T>) | undefined, h: { hold: string | null; readAt: number }): Promise<ToolAnswer> {
   // a browser that would start needs room on the host first (a claim on a running one is the same ask); from here to its answer the call is in flight, so making room never closes this browser
   // an agent's own call refreshes its turn's protection (sbrowser/room.ts)
   if (ctx.principal.kind === "agent") callStarted(profileId, ctx.space, ctx.now()); else callStarted(profileId);
@@ -506,7 +504,8 @@ async function browserStep(ctx: CompCtx, sb: NonNullable<ReturnType<typeof space
   given = givenCount(profileId);
   // a step on refs says which start of the browser they came from: browserd refuses it, with the line, when the browser has started again since (its pages reloaded, the refs gone or moved)
   const from = spec.name !== "chrome_snapshot" && namesRef(args) ? refsStart(profileId) : undefined;
-  const send = (): Promise<ToolAnswer> => sb.tool({ profileId, ...(agent ? { agent } : {}), tool: spec.name, args, timeoutMs: Math.min(spec.timeoutMs ?? DEFAULT_TOOL_MS, MAX_TOOL_MS), space: ctx.space, hold: h.hold, ...(fill ? { fill } : {}), ...(from ? { refsFrom: from } : {}), ...(ACTS.has(spec.name) ? { seenFrom: lastSeenStart(profileId) } : {}) });
+  const sendWith = (fill?: { url: string; token: string }): Promise<ToolAnswer> => sb.tool({ profileId, ...(agent ? { agent } : {}), tool: spec.name, args, timeoutMs: Math.min(spec.timeoutMs ?? DEFAULT_TOOL_MS, MAX_TOOL_MS), space: ctx.space, hold: h.hold, ...(fill ? { fill } : {}), ...(from ? { refsFrom: from } : {}), ...(ACTS.has(spec.name) ? { seenFrom: lastSeenStart(profileId) } : {}) });
+  const send = (): Promise<ToolAnswer> => lease ? lease((f) => sendWith(f)) : sendWith();
   try {
     try { raw = await send(); } catch (e) {
       // the browser service is full though this profile holds room (another Space filled it): wait for room like any start, then send once more (it was refused before it ran)

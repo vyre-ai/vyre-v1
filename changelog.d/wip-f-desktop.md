@@ -23,3 +23,4 @@
 - An older desktop's Vault channel now acts for the person whose turn is using it, only while their calls run: not for the agent's owner for the computer's whole life. With no person behind a call there is no channel, and an owner change leaves nothing of the old owner's access.
 - A turn's Vault channel on an older desktop can no longer be given to two people at once or left live after the calls end; it also expires on its own a little after a call's time limit.
 - On a joined server a computer's Vault channel is paused between calls, so a page loading between turns fills nothing; the Space browser's and the desktop's turn channels now share one lease with the same expiry.
+- A browser call that waits for room no longer sends with an expired Vault token, and holds no Vault access while it waits; the access starts when the call is sent.
