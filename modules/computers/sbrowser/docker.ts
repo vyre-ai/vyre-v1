@@ -3,7 +3,8 @@
 // the agent computer's host talks to agentd (modules/computers/impl.ts). The container is started on the first browser tool and stays up: it holds nothing while no profile runs a browser.
 import type { ContainerConfig, DockerApi, DockerHttp } from "../../../sandbox/src/docker.ts";
 import { computerSeccomp, reviewComputerConfig, toolErrorOf } from "../impl.ts";
-import { LIMITS } from "../capacity.ts";
+import { HEADROOM_MB, LIMITS } from "../capacity.ts";
+import { cpus, totalmem } from "node:os";
 import { ToolError } from "../handlers/tools/common.ts";
 import type { BrowserAnswer, BrowserToolCall, ProfileRow, SpaceBrowser } from "./port.ts";
 
@@ -23,8 +24,13 @@ export interface DockerSpaceBrowserOptions {
   cmd?: readonly string[];
   limits?: Partial<{ cpus: number; memoryMb: number; pids: number }>;
   user?: { uid: number; gid: number };
-  /** How many browsers may run at once inside it (VYRE_BROWSER_MAX_RUNNING). Default 6. */
+  /**
+   * An upper bound an admin may set on how many browsers run at once (VYRE_BROWSER_MAX_RUNNING). Without it the number comes from memory: the container gets the host's memory budget (its memory less what
+   * the OS and Vyre keep, up to the runner's 8 GB) and browserd runs as many browsers as that holds, 256 MB each (owner, 12 Nov).
+   */
   maxRunning?: number;
+  /** The host's memory and cores the container is sized from. Default: this computer's. */
+  host?: { memoryMb: number; cpus: number };
   /** Minutes of quiet before a profile's browser stops. Default 10. */
   idleMinutes?: number;
   /** How often browserd looks for quiet profiles, in seconds. Default 30. */
@@ -52,9 +58,15 @@ export interface DockerSpaceBrowserOptions {
 /** `net`: the service's own network was made, and (without the runner) the address of the host on it, which `host.docker.internal` names so the Vault channel is reached on that network. */
 export function browserContainerConfig(o: DockerSpaceBrowserOptions, net?: { gateway?: string }): ContainerConfig {
   const name = o.name ?? "vyre-sbrowser";
-  // the service holds up to maxRunning browsers; each gets half its cap of the service's memory (a browser bursts to its cap when the host has room, capacity.ts LIMITS.browser) on top of a base for browserd
-  const many = o.maxRunning ?? 6;
-  const limits = { cpus: Math.min(4, Math.max(1, Math.round((many * LIMITS.browser.cpus) / 2))), memoryMb: Math.min(8192, 512 + Math.round((many * LIMITS.browser.memoryMb) / 2)), pids: 2048, ...o.limits };
+  // with an admin's bound: up to that many browsers, each half its cap of the service's memory (a browser bursts to its cap when the host has room, capacity.ts LIMITS.browser) on top of a base for browserd.
+  // Without one: the host's memory budget (less what the OS and Vyre keep, capacity.ts HEADROOM_MB), never above the runner's 8 GB, and half the host's cores up to 4; browserd fits browsers into it.
+  const host = o.host ?? { memoryMb: Math.round(totalmem() / 1048576), cpus: cpus().length };
+  const many = o.maxRunning;
+  const limits = many !== undefined
+    ? { cpus: Math.min(4, Math.max(1, Math.round((many * LIMITS.browser.cpus) / 2))), memoryMb: Math.min(8192, 512 + Math.round((many * LIMITS.browser.memoryMb) / 2)), pids: 2048, ...o.limits }
+    // a browser counts about 120 tasks: the cap follows the memory (30 browsers in 8 GB need about 3700); behind the runner its policy caps it at 2048 (about 16 browsers, said in the lane report)
+    : { cpus: Math.min(4, Math.max(1, Math.floor(host.cpus / 2))), memoryMb: Math.min(o.runner ? 8192 : Number.MAX_SAFE_INTEGER, Math.max(1024, host.memoryMb - HEADROOM_MB)), pids: 2048, ...o.limits };
+  if (many === undefined && !o.runner && o.limits?.pids === undefined) limits.pids = Math.max(2048, 100 + 120 * Math.floor((limits.memoryMb - 512) / 256));
   const memory = Math.round(limits.memoryMb * 1024 * 1024);
   const uid = o.user?.uid ?? 10001;
   const gid = o.user?.gid ?? 10001;
@@ -64,7 +76,7 @@ export function browserContainerConfig(o: DockerSpaceBrowserOptions, net?: { gat
     User: "",
     WorkingDir: "/home/browser",
     Cmd: [...(o.cmd ?? [])],
-    Env: [`VYRE_BROWSER_MAX_RUNNING=${o.maxRunning ?? 6}`, `VYRE_BROWSER_IDLE_MINUTES=${o.idleMinutes ?? 10}`, ...(o.sweepSeconds !== undefined ? [`VYRE_BROWSER_SWEEP_SECONDS=${o.sweepSeconds}`] : [])],
+    Env: [...(o.maxRunning !== undefined ? [`VYRE_BROWSER_MAX_RUNNING=${o.maxRunning}`] : []), `VYRE_BROWSER_IDLE_MINUTES=${o.idleMinutes ?? 10}`, ...(o.sweepSeconds !== undefined ? [`VYRE_BROWSER_SWEEP_SECONDS=${o.sweepSeconds}`] : [])],
     Labels: { "vyre.sbrowser": "1" },
     StopTimeout: 10,
     HostConfig: {
@@ -342,9 +354,9 @@ export function createDockerSpaceBrowser(o: DockerSpaceBrowserOptions): SpaceBro
       throw new ToolError("unavailable", "Whether this agent's Space browser profile holds sign-ins cannot be told now; try again later.");
     },
     async profiles() {
-      if (!(await o.api.containerRunning(name))) return { profiles: [], maxRunning: o.maxRunning ?? 6 };
+      if (!(await o.api.containerRunning(name))) return { profiles: [], maxRunning: o.maxRunning ?? Math.max(1, Math.floor((browserContainerConfig(o).HostConfig.Memory / 1048576 - 512) / 256)) };
       const s = await call("status", {}) as { profiles?: ProfileRow[]; maxRunning?: number };
-      return { profiles: Array.isArray(s.profiles) ? s.profiles : [], maxRunning: Number(s.maxRunning ?? o.maxRunning ?? 6) };
+      return { profiles: Array.isArray(s.profiles) ? s.profiles : [], maxRunning: Number(s.maxRunning ?? o.maxRunning ?? 0) };
     },
     async health() {
       try {

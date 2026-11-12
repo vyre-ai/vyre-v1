@@ -101,7 +101,7 @@ export function launchChrome(screen: Screen | null, profileDir: string, extensio
       const args = [
         ...(headless ? ["--headless=new"] : []),
         "--disable-dev-shm-usage", "--disable-gpu", `--user-data-dir=${profileDir}`, ...(PIPE ? ["--remote-debugging-pipe"] : [`--remote-debugging-port=${PORT}`, "--remote-debugging-address=127.0.0.1"]),
-        `--window-position=${bounds.x},${bounds.y}`, `--window-size=${bounds.width},${bounds.height}`, ...(opts.flags ?? []), "--no-first-run", "--no-default-browser-check", "--password-store=basic", "--disable-features=Translate,MediaRouter",
+        `--window-position=${bounds.x},${bounds.y}`, `--window-size=${bounds.width},${bounds.height}`, ...(opts.flags ?? []), "--no-first-run", "--no-default-browser-check", "--password-store=basic", "--disable-features=Translate,MediaRouter,Vulkan",
         ...(extensionDir && existsSync(join(extensionDir, "manifest.json")) ? [`--load-extension=${extensionDir}`] : []),
         "about:blank",
       ];
@@ -109,6 +109,9 @@ export function launchChrome(screen: Screen | null, profileDir: string, extensio
       proc = p;
       p.stderr!.on("data", (c: Buffer) => { const t = c.toString("utf8").trim(); if (/error|fatal/i.test(t)) log(`chromium: ${t.slice(0, 300)}`); });
       p.on("exit", () => { if (proc === p) { proc = null; pipe = null; order.length = 0; } up = null; });
+      // a process that could not be made (EAGAIN: the container's process cap is reached) is this start's failure, never an unhandled error that ends the program holding every other browser
+      let spawnError: Error | null = null;
+      p.on("error", (e) => { spawnError = e; if (proc === p) { proc = null; pipe = null; } up = null; log(`chromium: ${e.message.slice(0, 200)}`); });
       if (PIPE) {
         // fd 3 is what the browser reads, fd 4 what it writes
         const conn = connectPipe(p.stdio[3] as NodeJS.WritableStream, p.stdio[4] as NodeJS.ReadableStream);
@@ -117,6 +120,7 @@ export function launchChrome(screen: Screen | null, profileDir: string, extensio
         conn.onBrowser("Target.targetDestroyed", (e) => { const i = order.indexOf(String(e["targetId"])); if (i >= 0) order.splice(i, 1); });
       }
       for (let i = 0; i < 300; i++) {
+        if (spawnError) throw unavailable(`the browser could not be started: ${(spawnError as Error).message.slice(0, 120)}`);
         if (p.exitCode !== null) throw unavailable("the browser exited while starting");
         try {
           if (PIPE) { await needPipe().browser.send("Target.setDiscoverTargets", { discover: true }, 1000); return; }
@@ -211,7 +215,17 @@ export function launchChrome(screen: Screen | null, profileDir: string, extensio
       c = await connect(t);
     }
     await watch(t).catch(() => undefined);
-    try { return await f(c, t); } finally { c.close(); }
+    try { return await f(c, t); } catch (e) {
+      // the front tab went while the step worked on it (a browser that just started brings back its tabs and closes its blank one): nothing happened on a page that is gone, so a call that named no tab is
+      // done once more on the tab that is in front now
+      if ((typeof tabId === "string" && tabId !== "") || !/Session with given id not found|No target with given id/i.test(e instanceof Error ? e.message : "")) throw e;
+      c.close();
+      await sleep(150);
+      if (active === t.id) active = null;
+      const t2 = await pick(undefined);
+      const c2 = await connect(t2);
+      try { return await f(c2, t2); } finally { c2.close(); }
+    } finally { c.close(); }
   };
 
   const evalIn = async <T>(c: Cdp, expression: string): Promise<T> => {

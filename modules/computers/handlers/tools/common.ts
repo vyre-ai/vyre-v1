@@ -16,7 +16,7 @@ import { askedThisTurn } from "./my-chrome-ask.ts";
 import { spaceBrowser } from "../../sbrowser/port.ts";
 import { profileIdOf } from "../../sbrowser/policy.ts";
 import { takeDownloads } from "../../sbrowser/downloads.ts";
-import { needRoom } from "../../sbrowser/room.ts";
+import { callEnded, callStarted, needRoom } from "../../sbrowser/room.ts";
 import { currentHold, DURING_HOLD, HELD_LINE, heldBy } from "../../sbrowser/hold.ts";
 import { agentInfo } from "../../sbrowser/agentinfo.ts";
 import { faceSvg } from "../../sbrowser/face.ts";
@@ -286,7 +286,10 @@ async function browserCall(ctx: CompCtx, profileId: string, spec: ToolSpec, args
     }
     fill = { url: binding.url(), token: g.token };
   }
-  // a browser that would start needs room on the host first (a claim on a running one is the same ask)
+  // a browser that would start needs room on the host first (a claim on a running one is the same ask); from here to its answer the call is in flight, so making room never closes this browser
+  callStarted(profileId);
+  let raw!: ToolAnswer;
+  try {
   if (spec.name !== "chrome_status" && spec.name !== "chrome_stop" && spec.name !== "chrome_resume" && spec.name !== "chrome_plan") await needRoom(ctx, sb, profileId);
   // the agent's name rides every call (the service keeps it in memory); its face is drawn once and kept with the profile
   let agent: { name: string; faceSvg?: string } | undefined;
@@ -295,7 +298,6 @@ async function browserCall(ctx: CompCtx, profileId: string, spec: ToolSpec, args
     agent = { name: who.name };
     if (!faceSent.has(profileId)) { const svg = await faceSvg(who.face); if (svg) agent.faceSvg = svg; faceSent.add(profileId); }
   }
-  let raw: ToolAnswer;
   const send = (): Promise<ToolAnswer> => sb.tool({ profileId, ...(agent ? { agent } : {}), tool: spec.name, args, timeoutMs: Math.min(spec.timeoutMs ?? DEFAULT_TOOL_MS, MAX_TOOL_MS), space: ctx.space, hold: hold?.personId ?? null, ...(fill ? { fill } : {}) });
   try {
     raw = await send();
@@ -308,6 +310,7 @@ async function browserCall(ctx: CompCtx, profileId: string, spec: ToolSpec, args
       return refuse(ctx, e2);
     }
   }
+  } finally { callEnded(profileId); }
   if (!isRecord(raw)) raise(ctx, "provider.unavailable", "The browser answered with something that is not an object.");
   const { used, frame: _frame, caption: _caption, ...rest } = raw;
   rememberSecrets(profileId, secretsOf(used));

@@ -20,7 +20,7 @@ import { createRecentSites, startStartServer } from "./start.ts";
 import type { StartServer } from "./start.ts";
 import { createBridgeHub } from "./bridge.ts";
 import type { BridgeHub } from "./bridge.ts";
-import { createProfileManager, checkProfileId } from "./profiles.ts";
+import { createProfileManager, checkProfileId, memoryLimitMb, pidsLimit, slotsFor } from "./profiles.ts";
 import { createCdpInput, createScreencastHub, startViewServer } from "./view.ts";
 import type { Hub, ViewOf } from "./view.ts";
 
@@ -31,6 +31,8 @@ const PORT = Number(env["VYRE_STREAM_PORT"] ?? 7002);
 const MAX_LINE = 12 * 1024 * 1024;
 const log = (m: string): void => { process.stderr.write(`browserd: ${m}\n`); };
 
+const MAX_RUNNING = slotsFor(memoryLimitMb(), Number(env["VYRE_BROWSER_MAX_RUNNING"] ?? 0) || undefined, pidsLimit());
+
 let bridges: BridgeHub | null = null;
 let starts: StartServer | null = null;
 const recentOf = (id: string) => createRecentSites(manager.get(id).dir);
@@ -38,7 +40,7 @@ const manager = createProfileManager({
   root: ROOT,
   extensionDir: existsSync("/opt/vyre-chrome") ? "/opt/vyre-chrome" : null,
   log,
-  maxRunning: Number(env["VYRE_BROWSER_MAX_RUNNING"] ?? 6) || 6,
+  maxRunning: MAX_RUNNING,
   idleMs: (Number(env["VYRE_BROWSER_IDLE_MINUTES"] ?? 10) || 10) * 60_000,
   tabLimit: Number(env["VYRE_TAB_LIMIT"] ?? 10) || 10,
   // Vyre for Chrome in a profile talks to the Space through browserd (bridge.ts); the bridge is up before the first browser starts
@@ -140,7 +142,7 @@ async function signOut(id: string, site: string): Promise<Args> {
 async function dispatch(action: string, a: Args): Promise<Args> {
   switch (action) {
     // each row also says how many views the person at the controls has open and when they last sent input: what keeps a takeover in use (never the agent's calls, never someone else watching)
-    case "status": return { profiles: (await manager.list()).map((r) => { const p = manager.get(r.profileId); return { ...r, holderViews: r.takeoverBy ? views.viewersOf(r.profileId, r.takeoverBy) : 0, ...(p.personActiveAt ? { personActiveAt: p.personActiveAt } : {}) }; }), maxRunning: Number(env["VYRE_BROWSER_MAX_RUNNING"] ?? 6) || 6, viewers: views.viewers() };
+    case "status": return { profiles: (await manager.list()).map((r) => { const p = manager.get(r.profileId); return { ...r, holderViews: r.takeoverBy ? views.viewersOf(r.profileId, r.takeoverBy) : 0, ...(p.personActiveAt ? { personActiveAt: p.personActiveAt } : {}) }; }), maxRunning: MAX_RUNNING, viewers: views.viewers() };
     case "configure": {
       const p = manager.get(checkProfileId(a["profileId"]));
       const n = a["tabLimit"];

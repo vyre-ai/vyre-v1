@@ -126,7 +126,9 @@ test("stop does nothing when the container is not running, forget starts it to r
   const sb = createDockerSpaceBrowser({ api: e.api, sleep: async () => {} });
   await sb.stop("agt_dex");
   assert.equal(e.execs.length, 0);
-  assert.deepEqual(await sb.profiles(), { profiles: [], maxRunning: 6 });
+  const est = await sb.profiles();
+  assert.deepEqual(est.profiles, []);
+  assert.ok(est.maxRunning >= 1, "a service that is not running says how many it would hold, from memory");
   await sb.forget("agt_gone");
   assert.equal(e.starts, 1, "the service started for the removal");
   assert.ok(e.execs.some((x) => x.cmd[1] === "forget" && JSON.parse(String(x.cmd[2])).profileId === "agt_gone"), "and the folder was removed");
@@ -167,9 +169,23 @@ test("Chrome's data of an old computer replaces the profile's: the folder is emp
 });
 
 test("the container's limits grow with how many browsers it holds, within what the runner allows", () => {
-  const six = browserContainerConfig({ api: {} as DockerApi });
+  // an admin's bound of six: the old sizing
+  const six = browserContainerConfig({ api: {} as DockerApi, maxRunning: 6 });
   assert.equal(six.HostConfig.Memory, (512 + 6 * 512) * 1024 * 1024);
   assert.equal(six.HostConfig.NanoCpus, 3e9);
+  // no bound (owner, 12 Nov): the host's memory budget, never above the runner's 8 GB, and half its cores up to 4; no fixed count is passed to browserd
+  const small = browserContainerConfig({ api: {} as DockerApi, host: { memoryMb: 4096, cpus: 2 } });
+  assert.equal(small.HostConfig.Memory, (4096 - 1536) * 1024 * 1024);
+  assert.equal(small.HostConfig.NanoCpus, 1e9);
+  assert.ok(!small.Env.some((x) => x.startsWith("VYRE_BROWSER_MAX_RUNNING=")));
+  assert.equal(small.HostConfig.PidsLimit, 2048, "a small host: the usual cap");
+  assert.equal(browserContainerConfig({ api: {} as DockerApi, host: { memoryMb: 16384, cpus: 8 } }).HostConfig.PidsLimit, 100 + 120 * Math.floor((16384 - 1536 - 512) / 256), "the process cap follows the browsers memory holds (about 120 tasks each)");
+  assert.equal(browserContainerConfig({ api: {} as DockerApi, host: { memoryMb: 32768, cpus: 16 }, runner: {} }).HostConfig.PidsLimit, 2048, "behind the runner: its policy's cap");
+  const big = browserContainerConfig({ api: {} as DockerApi, host: { memoryMb: 32768, cpus: 16 }, runner: {} });
+  assert.equal(big.HostConfig.Memory, 8192 * 1024 * 1024, "behind the runner: never above its 8 GB");
+  assert.equal(browserContainerConfig({ api: {} as DockerApi, host: { memoryMb: 32768, cpus: 16 } }).HostConfig.Memory, (32768 - 1536) * 1024 * 1024, "without it: the host's whole budget");
+  assert.equal(big.HostConfig.NanoCpus, 4e9);
+  assert.deepEqual(reviewComputerConfig(big), []);
   const huge = browserContainerConfig({ api: {} as DockerApi, maxRunning: 40 });
   assert.equal(huge.HostConfig.Memory, 8192 * 1024 * 1024, "never above the runner's cap");
   assert.equal(huge.HostConfig.NanoCpus, 4e9);

@@ -9,7 +9,7 @@ import { bindSpaceBrowser } from "../sbrowser/port.ts";
 import type { ProfileRow, SpaceBrowser } from "../sbrowser/port.ts";
 import { resetRoom } from "../sbrowser/room.ts";
 import "../sbrowser/migrate.ts";
-import { codeOf, DANA, harness } from "../fixtures/harness.ts";
+import { asPerson, codeOf, DANA, harness } from "../fixtures/harness.ts";
 import { tool } from "./tools.fixture.ts";
 
 let sessionsNow: () => Array<{ site: string; since: number; lastSeen: number }> = () => [];
@@ -238,4 +238,48 @@ test("the Trash retention in force is read from governance: a Space that keeps T
     await periodic["computers.browser_room"]!.run(h.ctx);
     assert.deepEqual(forgot, ["agt_gone"]);
   } finally { bindSpaceBrowser(null); }
+});
+
+// Owner, 12 Nov: "It needs to work on more than 30 ... smoothly without doing anything extra." When the host is full, the least recently used quiet browser makes room at once; only when every one is in use
+// does a newcomer wait.
+test("a full host closes the least recently used quiet browser for a newcomer and releases its room; one in use, watched or held is never closed; all in use, the newcomer waits", async () => {
+  const stopped: string[] = [];
+  let rows: ProfileRow[] = [];
+  sbrowser();
+  const { spaceBrowser } = await import("../sbrowser/port.ts");
+  const sb = spaceBrowser()!;
+  sb.profiles = async () => ({ profiles: rows, maxRunning: 30 });
+  sb.stop = async (id) => { stopped.push(id); rows = rows.filter((r) => r.profileId !== id); };
+  resetRoom();
+  const h = harness({ principal: { kind: "agent", id: "agt_new" }, actingFor: DANA });
+  // room for exactly three browsers: 1536 MB kept back, 256 MB each
+  h.fake.host.capacity = async () => ({ totalMb: 1536 + 3 * 256, freeMb: 4000, cpus: 4, os: "linux" });
+  const row = (id: string, over: Partial<ProfileRow> = {}): ProfileRow => ({ profileId: id, spaceId: h.ctx.space, running: true, tabs: 1, busy: false, takeover: false, viewers: 0, lastActiveAt: 1, held: 0, paused: false, ...over });
+  for (const id of ["agt_old", "agt_busy", "agt_watched"]) h.db.run("INSERT INTO computers_claim (claim_key, kind, host, state, since, note) VALUES (?, 'browser', 'space', 'running', ?, NULL)", id, h.clock.t);
+  rows = [row("agt_busy", { busy: true, lastActiveAt: 0 }), row("agt_watched", { viewers: 1, lastActiveAt: 0 }), row("agt_old", { lastActiveAt: 5 })];
+  try {
+    await tool["computers.chrome.state"]!(h.ctx, {});
+    assert.deepEqual(stopped, ["agt_old"], "the quiet one went; the busy and the watched ones stayed");
+    assert.deepEqual(h.rows("SELECT claim_key, state FROM computers_claim ORDER BY claim_key").map((r) => [r["claim_key"], r["state"]]), [["agt_busy", "running"], ["agt_new", "running"], ["agt_watched", "running"]], "its room went to the newcomer");
+    // now all three are in use: a fourth waits with the plain line
+    rows = [row("agt_busy", { busy: true }), row("agt_watched", { viewers: 1 }), row("agt_new", { busy: true })];
+    const late = asPerson(h, { kind: "agent", id: "agt_late" }, { actingFor: DANA });
+    await assert.rejects(() => tool["computers.chrome.state"]!(late.ctx, {}), (e) => /Waiting for room/.test(JSON.stringify(e)) && /starts by itself/.test(JSON.stringify(e)));
+    assert.deepEqual(stopped, ["agt_old"]);
+  } finally { bindSpaceBrowser(null); resetRoom(); }
+});
+
+test("browsers that ask for room at the same moment never go past the budget", async () => {
+  sbrowser({ running: () => [] });
+  resetRoom();
+  const h = harness();
+  // the host's answer takes a moment, as a real one does: every claim reads what is held, waits, then writes
+  h.fake.host.capacity = async () => { await new Promise((r) => setTimeout(r, 5)); return { totalMb: 1536 + 3 * 256, freeMb: 4000, cpus: 4, os: "linux" }; };
+  try {
+    const { needRoom } = await import("../sbrowser/room.ts");
+    const { spaceBrowser } = await import("../sbrowser/port.ts");
+    const results = await Promise.allSettled(["agt_c1", "agt_c2", "agt_c3", "agt_c4", "agt_c5", "agt_c6"].map((id) => needRoom(asPerson(h, { kind: "agent", id }).ctx, spaceBrowser()!, id)));
+    assert.equal(results.filter((r) => r.status === "fulfilled").length, 3, "three fit");
+    assert.equal(h.rows("SELECT COUNT(*) AS n FROM computers_claim WHERE state = 'running'")[0]?.["n"], 3);
+  } finally { bindSpaceBrowser(null); resetRoom(); }
 });

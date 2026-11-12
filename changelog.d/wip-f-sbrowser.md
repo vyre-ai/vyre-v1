@@ -29,3 +29,5 @@
 - An agent in Trash keeps its browser sign-ins for as long as the Space keeps its Trash (an admin's setting is followed; 30 days by default).
 - A Linux server without ip6tables still blocks the cloud metadata address over IPv4, and `vyre-server doctor` names the missing IPv6 half.
 - An abandoned live view no longer keeps a takeover going when the page shows nothing new.
+- The Space browser runs as many agents' browsers at once as the server's memory holds, instead of a fixed six; when the server is full, the browser nobody has used longest (and nobody is using now) is closed to make room and opens again, signed in, at its next step.
+- Many agents starting their browsers at the same moment no longer stall or stop the Space browser: starts take turns, and a browser that cannot be started is a plain refusal.

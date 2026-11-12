@@ -4,6 +4,7 @@
 // nothing on 127.0.0.1 to open another agent's browser with (all profiles share the container's loopback).
 import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { cpus, totalmem } from "node:os";
 import { launchChrome } from "../../agent-computer/agentd/chrome.ts";
 import type { Chrome, ChromeOptions, ChromeState } from "../../agent-computer/agentd/chrome.ts";
 import { AgentError, badInput, notFound, paused, unavailable, within } from "../../agent-computer/agentd/errors.ts";
@@ -40,11 +41,47 @@ export function writeDownloadPrefs(chromeDir: string, downloadsDir: string): voi
   writeFileSync(file, JSON.stringify(prefs));
 }
 
+// How many browsers may run at once (owner, 12 Nov: "it needs to work on more than 30 ... smoothly"): as many as this container's memory holds, BROWSER_MB each on top of BASE_MB for browserd itself
+// (the same 256 MB a browser holds back in the Space's book, modules/computers/capacity.ts). VYRE_BROWSER_MAX_RUNNING, when an admin sets it, is an upper bound only. A container with no memory limit
+// that can be read counts the computer's own memory.
+const BROWSER_MB = 256;
+const BASE_MB = 512;
+export function memoryLimitMb(read: (f: string) => string = (f) => readFileSync(f, "utf8"), total: () => number = () => Math.round(totalmem() / 1048576)): number {
+  for (const f of ["/sys/fs/cgroup/memory.max", "/sys/fs/cgroup/memory/memory.limit_in_bytes"]) {
+    try { const v = read(f).trim(); if (/^\d+$/.test(v)) { const mb = Math.round(Number(v) / 1048576); if (mb > 0 && mb < 4_194_304) return Math.min(mb, total()); } } catch { /* not this cgroup version */ }
+  }
+  return total();
+}
+/** The cores this container may use (cgroup v2 cpu.max quota over period, or v1 cfs), else the computer's. */
+export function cpuLimit(read: (f: string) => string = (f) => readFileSync(f, "utf8"), total: () => number = () => cpus().length): number {
+  try { const [q, per] = read("/sys/fs/cgroup/cpu.max").trim().split(/\s+/); if (q && q !== "max" && Number(per) > 0) return Math.max(1, Math.round(Number(q) / Number(per))); } catch { /* v1 or none */ }
+  try { const q = Number(read("/sys/fs/cgroup/cpu/cpu.cfs_quota_us").trim()); const per = Number(read("/sys/fs/cgroup/cpu/cpu.cfs_period_us").trim()); if (q > 0 && per > 0) return Math.max(1, Math.round(q / per)); } catch { /* none */ }
+  return Math.max(1, total());
+}
+/** The container's process and thread cap (cgroup pids.max), or null when there is none. A headless Chromium counts about PIDS_PER_BROWSER tasks (its processes and their threads). */
+export const PIDS_PER_BROWSER = 120;
+const BASE_PIDS = 100;
+export function pidsLimit(read: (f: string) => string = (f) => readFileSync(f, "utf8")): number | null {
+  for (const f of ["/sys/fs/cgroup/pids.max", "/sys/fs/cgroup/pids/pids.max"]) {
+    try { const v = read(f).trim(); if (/^\d+$/.test(v)) return Number(v); if (v === "max") return null; } catch { /* not this cgroup version */ }
+  }
+  return null;
+}
+/** As many browsers as the container's memory holds, and as its process cap allows (scale test, 12 Nov: a cap of 2048 tasks stopped new browsers at about seventeen with EAGAIN); an admin's number only caps it. */
+export function slotsFor(limitMb: number, bound: number | undefined, pidsMax: number | null = null): number {
+  const byMemory = Math.floor((limitMb - BASE_MB) / BROWSER_MB);
+  const byTasks = pidsMax === null ? Infinity : Math.floor((pidsMax - BASE_PIDS) / PIDS_PER_BROWSER);
+  const fit = Math.max(1, Math.min(byMemory, byTasks));
+  return bound !== undefined && bound > 0 ? Math.min(fit, bound) : fit;
+}
 export type LaunchFn = (profileDir: string, extensionDir: string | null, log: (m: string) => void, o: ChromeOptions) => Chrome;
 // headless=new reserves 87 px of the window for the browser's own bar, so the page gets 1280x800 from a window of 1280x887: every tab, new ones too, has the same viewport, which the live view's pointer maths relies on
 export const VIEWPORT = { width: 1280, height: 800 };
 const BAR_PX = 87;
-const realLaunch: LaunchFn = (dir, ext, log, o) => launchChrome(null, dir, ext, log, { headless: true, size: { width: VIEWPORT.width, height: VIEWPORT.height + BAR_PX }, ...o, pipe: true });
+// what a headless agent browser does not need at start and in the background (component downloads, safe-browsing lists, crash upload, metrics): with many browsers on a few cores these made every start slow
+// (scale test, 12 Nov). Downloads, sign-ins, the extension and the pages themselves are untouched.
+const QUIET_FLAGS = ["--disable-background-networking", "--disable-component-update", "--disable-domain-reliability", "--disable-breakpad", "--disable-client-side-phishing-detection", "--metrics-recording-only", "--no-pings"];
+const realLaunch: LaunchFn = (dir, ext, log, o) => launchChrome(null, dir, ext, log, { headless: true, size: { width: VIEWPORT.width, height: VIEWPORT.height + BAR_PX }, ...o, flags: [...QUIET_FLAGS, ...(o.flags ?? [])], pipe: true });
 
 export interface ProfileManagerOptions {
   /** The data volume: profiles live in `<root>/profiles/<id>/chrome`. */
@@ -60,6 +97,8 @@ export interface ProfileManagerOptions {
   launch?: LaunchFn;
   /** Extra browser flags and environment for one profile, such as its bridge folder (bridge.ts). Called each time the profile's browser starts. */
   extra?: (profileId: string) => ChromeOptions;
+  /** How many browsers may be starting at the same moment (a start is mostly CPU; many at once on a few cores all crawl and time out). Default: the container's cores. */
+  maxStarting?: number;
   /** How long resetChrome waits for a step in flight to finish before it refuses. Default 30 seconds. */
   resetWaitMs?: number;
   /** Called just before a profile's browser closes: the chance to note what it holds (the sites it is signed in to) so they can be listed while it sleeps. */
@@ -212,7 +251,21 @@ export function createProfileManager(o: ProfileManagerOptions): ProfileManager {
     return p;
   }
 
+  // starts take turns, a few at a time: twelve Chromiums launched at once on four cores each took 12 s and fourteen missed the 30 s start limit (scale test, 12 Nov); in turns each takes about one start's time
+  const maxStarting = Math.max(1, o.maxStarting ?? cpuLimit());
+  let starting = 0;
+  const startQueue: Array<() => void> = [];
+  async function startTurn<T>(f: () => Promise<T>): Promise<T> {
+    if (starting >= maxStarting) await new Promise<void>((r) => startQueue.push(r));
+    starting += 1;
+    try { return await f(); } finally { starting -= 1; startQueue.shift()?.(); }
+  }
+
   async function startIn(p: Profile): Promise<void> {
+    await startTurn(() => startNow(p));
+  }
+
+  async function startNow(p: Profile): Promise<void> {
     {
       await makeRoom(p.id);
       if (p.chrome) await release(p);

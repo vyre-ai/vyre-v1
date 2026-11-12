@@ -344,3 +344,25 @@ test("a release carries the time it was decided: browserd never undoes a takeove
     await r.call("agt_dex");
   } finally { r.done(); }
 });
+
+// Owner, 12 Nov: how many browsers run at once comes from memory, not a fixed six; an admin's number is an upper bound only.
+test("browserd runs as many browsers as its memory holds (256 MB each after 512 MB for itself); an admin's number only caps it", async () => {
+  const { memoryLimitMb, slotsFor } = await import("../../../images/space-browser/browserd/profiles.ts");
+  assert.equal(slotsFor(8192, undefined), 30, "an 8 GB container: thirty");
+  assert.equal(slotsFor(2560, undefined), 8);
+  assert.equal(slotsFor(600, undefined), 1, "never none");
+  assert.equal(slotsFor(8192, 6), 6, "the admin's bound");
+  assert.equal(slotsFor(2560, 50), 8, "a bound above what memory holds changes nothing");
+  assert.equal(memoryLimitMb((f) => (f.endsWith("memory.max") ? "4294967296\n" : ""), () => 16000), 4096, "cgroup v2");
+  assert.equal(memoryLimitMb((f) => { if (f.endsWith("memory.max")) return "max\n"; throw new Error("no"); }, () => 16000), 16000, "no limit: the computer's memory");
+  assert.equal(memoryLimitMb((f) => { if (f.endsWith("memory.max")) throw new Error("v1"); return "2147483648"; }, () => 16000), 2048, "cgroup v1");
+});
+
+test("the container's process cap limits how many browsers run too (a Chromium is about 120 tasks), and a browser that cannot be made is a refusal, not a crash", async () => {
+  const { slotsFor, pidsLimit } = await import("../../../images/space-browser/browserd/profiles.ts");
+  assert.equal(slotsFor(8192, undefined, 2048), 16, "2048 tasks: sixteen, though memory holds thirty");
+  assert.equal(slotsFor(8192, undefined, 3700), 30);
+  assert.equal(slotsFor(8192, undefined, null), 30, "no cap: memory decides");
+  assert.equal(pidsLimit((f) => (f.endsWith("pids.max") && !f.includes("/pids/") ? "2048\n" : "")), 2048);
+  assert.equal(pidsLimit((f) => (f.includes("/pids/") ? "" : "max\n")), null);
+});
