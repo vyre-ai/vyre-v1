@@ -56,6 +56,8 @@ const FILED_DIRECTLY: Record<string, string> = {
   "message.direct": "modules/chat/handlers/notify.ts",
   "message.mentioned": "modules/chat/handlers/notify.ts",
   "vault.rotation_due": "modules/notifications/handlers/rules.ts",
+  // the import's own Run fails with it (runs.finish), and run.failed reaches the Run's owner through the fanout: a second line would repeat it
+  "import.failed": "modules/runs/handlers/engine.ts",
 };
 
 /**
@@ -104,7 +106,7 @@ test("Settings hides exactly the kinds that nothing files: a kind that starts be
   for (const k of onlyGaps) assert.ok(hidden.has(k), `${k} is named only by events nothing files: hide its switch (UNSENT_KINDS)`);
 });
 
-test("the lines the lead's decision wired (12 Nov): health and sync trouble to every admin, an incident to its owner, a failed import or site build to who started it", async () => {
+test("the lines the lead's decision wired (12 Nov): health and sync trouble to every admin, an incident to its owner, a failed site build to who started it (a failed import is told by its Run)", async () => {
   const h = harness();
   h.callee("access.roles.list", () => ({ roles: [{ id: "rol_admin", name: "Admin", permissions: [] }] }));
   h.callee("access.roles.get", () => ({ holders: [{ kind: "person", id: alice.id }, { kind: "person", id: bob.id }] }));
@@ -112,13 +114,14 @@ test("the lines the lead's decision wired (12 Nov): health and sync trouble to e
   const ctx = h.ctxFor(null, as(svc));
   const rows = (ids: string[]): Array<{ person: string; kind: string; title: string }> => ids.map((id) => h.sqlite.prepare("SELECT person, kind, title FROM notifications_items WHERE id = ?").get(id) as { person: string; kind: string; title: string });
   const run = async (name: string, payload: Record<string, unknown>, actor?: string) => rows(await fan.run(ctx, { name, subject: "", id: `evt_${name}`, payload, ...(actor ? { actor } : {}) } as never));
-  for (const name of ["health.changed", "backup.failed", "incident.opened", "import.failed", "site.build_failed", "connection.needs_reconnect", "sync.op_rejected"]) assert.ok(fanOn.has(name), `the fanout reads ${name}`);
+  for (const name of ["health.changed", "backup.failed", "incident.opened", "site.build_failed", "connection.needs_reconnect", "sync.op_rejected"]) assert.ok(fanOn.has(name), `the fanout reads ${name}`);
   const down = await run("health.changed", { key: "access.projection", from: "healthy", to: "down" });
   assert.deepEqual(down.map((r) => [r.person, r.kind, r.title]).sort(), [[alice.id, "health.degraded", "Access projections is down"], [bob.id, "health.degraded", "Access projections is down"]].sort());
   assert.deepEqual(await run("health.changed", { key: "access.projection", from: "down", to: "healthy" }), [], "a check that recovers files nothing");
   assert.deepEqual((await run("backup.failed", { reason: "disk full" })).map((r) => r.title), ["The backup is failing", "The backup is failing"]);
   assert.deepEqual((await run("incident.opened", { incidentId: "inc_1", kind: "data_leak", ownerId: cara.id })).map((r) => [r.person, r.kind, r.title]), [[cara.id, "incident.owned", "Incident you own: data leak"]]);
-  assert.deepEqual((await run("import.failed", { importId: "imp_1", runId: "run_9", type: "contact", error: "bad file" }, cara.id)).map((r) => [r.person, r.kind, r.title]), [[cara.id, "run.failed", "The import of contact failed: bad file"]]);
+  assert.deepEqual((await run("site.build_failed", { siteId: "sit_1", deploymentId: "dep_1", reason: "npm install failed" }, cara.id)).map((r) => [r.person, r.kind, r.title]), [[cara.id, "run.failed", "The site build failed: npm install failed"]]);
+  assert.deepEqual(await run("import.failed", { importId: "imp_1", runId: "run_9", type: "contact", error: "bad file" }, cara.id), [], "a failed import is told once, by its Run's run.failed");
   assert.deepEqual(await run("site.build_failed", { siteId: "sit_1", deploymentId: "dep_1", reason: "x" }, "system"), [], "a build nobody started tells nobody");
   assert.deepEqual((await run("connection.needs_reconnect", { connectionId: "con_1", connector: "hubspot" })).map((r) => [r.kind, r.title]), [["sync.attention", "Sync needs attention on the hubspot connection"], ["sync.attention", "Sync needs attention on the hubspot connection"]]);
   assert.deepEqual((await run("sync.op_rejected", { cap: "records.update", code: "x", deviceId: "dev_1", opId: "op_1", personId: cara.id })).map((r) => [r.person, r.title]), [[cara.id, "Sync needs attention on your device"]]);
