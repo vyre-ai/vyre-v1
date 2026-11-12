@@ -3,6 +3,7 @@
 // images/space-browser). With the web export (VYRE_APP_DIST) it also takes the picture of the card in the app.
 import test from "node:test";
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import http from "node:http";
 import os from "node:os";
@@ -33,6 +34,15 @@ test("an agent's turn opens a page in its own profile of the real Space browser,
     }
   });
   const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "vyre-browser-real-")));
+  // a Space browser of its own: never the machine's vyre-sbrowser, removed with its volume at the end however the test ends
+  const name = `vyre-sbrowser-test-${process.pid}`;
+  const before = process.env["VYRE_SPACE_BROWSER_NAME"];
+  process.env["VYRE_SPACE_BROWSER_NAME"] = name;
+  const cleanup = (): void => {
+    try { execFileSync("docker", ["rm", "-f", "-v", name], { stdio: "ignore" }); } catch { /* not there */ }
+    try { execFileSync("docker", ["volume", "rm", "-f", `${name}-data`], { stdio: "ignore" }); } catch { /* not there */ }
+    if (before === undefined) delete process.env["VYRE_SPACE_BROWSER_NAME"]; else process.env["VYRE_SPACE_BROWSER_NAME"] = before;
+  };
   const d = await boot(dir, model, { config: loadConfig(["--data-dir", dir, "--port", "0", "--space", "spc_fresh", "--space-name", "Real Co"], {}, "1.2.3") });
   try {
     const code = /claim\/([^#]+)/.exec(d.claim!.url)![1]!;
@@ -71,5 +81,14 @@ test("an agent's turn opens a page in its own profile of the real Space browser,
     const card = await waitFor(async () => (((await api("chat.messages.list", { threadId })).messages as Array<{ blocks?: Array<{ type: string; data?: { fileId?: string; agentId?: string } }> }>).flatMap((m) => m.blocks ?? []).find((b) => b.type === "browser_screenshot") ?? null), 30_000, () => hostLog(d));
     assert.equal(card.data?.agentId, agent);
     assert.ok(card.data?.fileId, "the card carries the page's picture");
-  } finally { await stop(d); page.close(); fs.rmSync(dir, { recursive: true, force: true }); }
+    // the test's browser ran in its own container, not the machine's
+    assert.match(execFileSync("docker", ["ps", "--filter", `name=^${name}$`, "--format", "{{.Names}}"], { encoding: "utf8" }), new RegExp(name));
+  } finally {
+    await stop(d).catch(() => undefined);
+    page.close();
+    cleanup();
+    fs.rmSync(dir, { recursive: true, force: true });
+    assert.equal(execFileSync("docker", ["ps", "-a", "--filter", `name=^${name}$`, "--format", "{{.Names}}"], { encoding: "utf8" }).trim(), "", "the test's container is gone");
+    assert.equal(execFileSync("docker", ["volume", "ls", "--filter", `name=^${name}-data$`, "--format", "{{.Name}}"], { encoding: "utf8" }).trim(), "", "and its volume");
+  }
 });

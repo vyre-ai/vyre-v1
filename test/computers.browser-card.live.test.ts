@@ -25,7 +25,8 @@ function scriptedBrowser(): { sb: SpaceBrowser; rows: Map<string, ProfileRow> } 
   const row = (id: string): ProfileRow => rows.get(id) ?? { profileId: id, running: true, tabs: 1, busy: false, takeover: false, viewers: 0, lastActiveAt: Date.now(), held: 0, paused: false };
   const sb: SpaceBrowser = {
     async available() { return true; },
-    async tool(a) { rows.set(a.profileId, { ...row(a.profileId), busy: true, lastActiveAt: Date.now() }); return { url: "https://www.harborquotes.com/pricing", title: "Pricing", tree: "- page [e1]", truncated: false, ok: true, tabId: "t1", loading: false }; },
+    // busy only while the call runs, as browserd says it (images/space-browser/browserd/profiles.ts): once the turn is over the card must not say Live
+    async tool(a) { rows.set(a.profileId, { ...row(a.profileId), busy: false, lastActiveAt: Date.now() }); return { url: "https://www.harborquotes.com/pricing", title: "Pricing", tree: "- page [e1]", truncated: false, ok: true, tabId: "t1", loading: false }; },
     async downloads() { return []; }, async downloadRead() { return new Uint8Array(); }, async downloadAck() {},
     async takeover() {}, async giveBack() {},
     async screenshot() { return { bytes: PNG, width: 1, height: 1 }; },
@@ -118,6 +119,12 @@ test("an agent's Space browser work shows in the chat as the live card and in th
     const card = page.locator("[data-testid^=live-card-]").first();
     await card.waitFor({ timeout: 40_000 });
     assert.match(await card.innerText(), /Open|pricing/i);
+    // the turn is over and the browser is not being driven: the card says Done, never Live, names the Browser, and is never an empty dark box
+    const when = page.locator("[data-testid^=live-card-when-]").first();
+    for (let i = 0; i < 100 && (await when.innerText()) !== "Done"; i++) await page.waitForTimeout(100);
+    assert.equal(await when.innerText(), "Done");
+    assert.match(await card.innerText(), /Browser · Opened www\.harborquotes\.com\/(pricing|plans)/);
+    assert.doesNotMatch(await card.innerText(), /Chrome/);
     await shot("browser-card-chat");
     // the Computer tab: the Browser section lists the step with its caption; picking it shows its picture
     if (await page.getByTestId("pane-agent").count() === 0) await page.getByTestId("pane-button").click();
@@ -125,6 +132,10 @@ test("an agent's Space browser work shows in the chat as the live card and in th
     await page.getByTestId("tab-computer").click();
     await page.getByText("Steps", { exact: true }).first().waitFor({ timeout: 20_000 });
     assert.ok(await page.getByText(steps[0]!.caption, { exact: true }).count() > 0, "the step's caption is listed");
+    assert.notEqual(steps[0]!.caption, steps[1]!.caption, "two pages, two names");
+    assert.equal(await page.getByText("Browser · just now", { exact: true }).count(), 2, "each step says Browser, in one wording for a recent time");
+    // until the live view has a frame it shows the page and a quiet line, never an empty dark box
+    if (await page.getByTestId("browser-live-waiting").count()) assert.match(await page.getByTestId("browser-live-waiting").innerText(), /harborquotes\.com\/(pricing|plans)[\s\S]*Opening…/);
     await shot("browser-steps-tab");
     // the older step (the newest is the live view); its caption is the chat card's too, so the row is picked by its own id
     await page.getByTestId(`row-step-${steps[0]!.stepId}`).click();

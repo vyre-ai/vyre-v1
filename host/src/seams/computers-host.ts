@@ -62,6 +62,8 @@ export function createComputersHost(d: ComputersHostDeps): ComputersHostSeam {
     ...(d.runner ? { runner: d.runner } : {}),
     image: d.image ?? releaseImage("agent-computer", d.version, process.env["VYRE_AGENT_COMPUTER_IMAGE"]),
     browserImage: releaseImage("vyre-browser", d.version, process.env["VYRE_SPACE_BROWSER_IMAGE"]),
+    // tests only: a Space browser container (and volume) of their own, never the machine's vyre-sbrowser
+    ...(/^vyre-sbrowser-test-[a-z0-9-]{1,40}$/.test(process.env["VYRE_SPACE_BROWSER_NAME"] ?? "") ? { browser: { name: process.env["VYRE_SPACE_BROWSER_NAME"]! } } : {}),
     startTimeoutMs: d.startTimeoutMs ?? 120_000,
     ...(d.capacity ? { capacity: d.capacity } : {}),
     ...(d.callAs && d.putBytes ? { home: { callAs: d.callAs as never, putBytes: d.putBytes, ...(d.homeIntervalMs !== undefined ? { intervalMs: d.homeIntervalMs } : {}), manifest: (agentId: string) => path.join(root, agentId, "home-manifest.json"), ...(d.announce ? { announce: d.announce } : {}), ...(d.log ? { log: d.log } : {}) } } : {}),

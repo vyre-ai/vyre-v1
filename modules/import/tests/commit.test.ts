@@ -254,3 +254,39 @@ test("an import set to skip matches tells bulk_upsert to leave existing records 
   await run(h, "import.commit", { importId, previewToken });
   assert.ok(seen.length > 0 && seen.every((x) => x["skipExisting"] === true));
 });
+
+// f-wire, 12 Nov (import starters): an import that a restart cut off mid-write was left "running" with its Run running for ever, and nobody was told. The boot check ends it failed, so the Run's
+// owner gets run.failed with a line that says what happened; an import this process is still writing is left alone.
+test("an import a restart cut off ends failed at boot, and its Run's owner is told why; one still being written is left alone", async () => {
+  const { interrupted, CUT_OFF } = await import("../handlers/commit.ts");
+  const { findSession, saveSession } = await import("../projections.ts");
+  const h = harness();
+  const { importId } = await ready(h);
+  // the state a restart leaves: the session says running and its Run is running, but no commit in this process is writing it
+  const s = findSession(h.db, importId)!;
+  Object.assign(s, { state: "running", runId: "run_cut" });
+  saveSession(h.db, s);
+  assert.deepEqual(await interrupted(h.ctx), [importId]);
+  assert.equal(findSession(h.db, importId)!.state, "failed");
+  const fin = h.only("runs.finish");
+  assert.equal(fin.length, 1);
+  assert.equal(fin[0]!.input.runId, "run_cut");
+  assert.equal(fin[0]!.input.status, "failed", "a failed Run: its owner gets run.failed (modules/runs/handlers/engine.ts)");
+  assert.equal(fin[0]!.input.error.message, CUT_OFF);
+  assert.deepEqual(await interrupted(h.ctx), [], "once");
+
+  // an import being written now: the check runs while its batch is on its way and leaves it alone
+  const w = harness();
+  const live = await ready(w);
+  const upsert = w.world.handlers["records.bulk_upsert"]!;
+  let release!: () => void;
+  const gate = new Promise<void>((r) => { release = r; });
+  let during: string[] | null = null;
+  w.world.handlers["records.bulk_upsert"] = async (i: unknown, o: unknown) => { during = await interrupted(w.ctx); await gate; return (upsert as (a: unknown, b: unknown) => unknown)(i, o); };
+  const done = run(w, "import.commit", live);
+  for (let i = 0; i < 50 && during === null; i++) await new Promise((r) => setImmediate(r));
+  assert.deepEqual(during, [], "the import being written is not touched");
+  release();
+  await done;
+  assert.equal(findSession(w.db, live.importId)!.state, "done");
+});
