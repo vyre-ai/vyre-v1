@@ -53,3 +53,13 @@ test("a replay of a used, revoked or expired invite says so plainly and mints no
   await assert.rejects(handlers["members.invites.preview"](h.anon, { code: late }), (e) => codeOf(e) === "auth.expired");
   assert.equal(h.raw.rows("members_invites").length, rows + 1, "nothing new was made");
 });
+
+test("a replay of a revoked invite says it was revoked and mints no code (Pass 9)", async () => {
+  const h = harness();
+  const code1 = await create(h, "k5");
+  await create(h, "k5");
+  await handlers["members.invites.revoke"](h.as("usr_admin"), { inviteId: seamId(h, code1) });
+  const rows = JSON.stringify(h.raw.rows("members_invites"));
+  await assert.rejects(handlers["members.invites.create"](h.as("usr_admin"), { role: "rol_member", idempotencyKey: "k5" }), (e: unknown) => codeOf(e) === "validation.precondition_failed" && /was revoked/.test(String((e as { message?: string }).message ?? JSON.stringify(e))));
+  assert.equal(JSON.stringify(h.raw.rows("members_invites")), rows, "nothing changed: no fresh code");
+});
