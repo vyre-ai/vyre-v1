@@ -316,3 +316,42 @@ test("an AI step with no model is refused at turn-on in its own words, and one a
     assert.match(String(notes[0]?.title), /This AI step has no model/);
   } finally { await w.stop(); }
 });
+
+test("a Space AI step that names an agent with a model starts its Run: a step row within 10 seconds", async () => {
+  const w = await world();
+  try {
+    await unlock(w.d);
+    const agentId = await writer(w.d, "space-agent");
+    const sk = await ok(w.d, "providers.space_key.set", { idempotencyKey: "ai-space-key-2", providerKey: "openai", apiKey: KEY });
+    const made = await ok(w.d, "automations.create", { idempotencyKey: "ai-space-agent", name: "Team agent answer" });
+    const id = String(made.automation.id);
+    await ok(w.d, "automations.update", { automationId: id, definition: { triggers: [{ key: "manual" }], nodes: [{ id: "ask", key: "ai", input: { agentId, prompt: "Say hi" }, ai: { keyId: String(sk.providerId) } }] } });
+    await ok(w.d, "automations.promote", { automationId: id, confirm: true });
+    await ok(w.d, "access.share", { idempotencyKey: "ai-share-space-2", resource: { type: "space", id: "spc_core" }, subject: { kind: "service", id: `svc_${id.slice(4)}` }, level: "view" });
+    await ok(w.d, "automations.set_enabled", { automationId: id, enabled: true });
+    w.v.script.push({ text: "Hi from the agent." });
+    const runId = String((await ok(w.d, "automations.run", { automationId: id, idempotencyKey: "ai-space-agent-run" })).runId);
+    await until("a step row", 10_000, async () => ((await ok(w.d, "runs.steps", { runId })).steps as unknown[]).length > 0 ? true : undefined);
+  } finally { await w.stop(); }
+});
+
+test("a Space AI step that names an agent with a model, on a Space-shared key, starts its Run: a step row within 10 seconds", async () => {
+  const w = await world();
+  try {
+    await unlock(w.d);
+    const agentId = await writer(w.d, "shared-agent");
+    const folder = await ok(w.d, "vault.folders.create", { name: "AI keys", scope: "shared", idempotencyKey: "ai-folder-3" });
+    const team = await ok(w.d, "providers.add", { idempotencyKey: "ai-team-3", providerKey: "openai", connection: "api_key", apiKey: KEY, scope: "shared", name: "Team OpenAI", folderId: folder.folder.id });
+    const made = await ok(w.d, "automations.create", { idempotencyKey: "ai-shared-agent", name: "Shared agent answer" });
+    const id = String(made.automation.id);
+    const serviceId = `svc_${id.slice(4)}`;
+    await ok(w.d, "automations.update", { automationId: id, definition: { triggers: [{ key: "manual" }], nodes: [{ id: "ask", key: "ai", input: { agentId, prompt: "Say hi" }, ai: { keyId: String(team.provider.id) } }] } });
+    await ok(w.d, "automations.promote", { automationId: id, confirm: true });
+    await ok(w.d, "access.share", { idempotencyKey: "ai-share-space-3", resource: { type: "space", id: "spc_core" }, subject: { kind: "service", id: serviceId }, level: "view" });
+    await ok(w.d, "access.share", { idempotencyKey: "ai-share-key-3", resource: { type: "vault_item", id: String(team.provider.itemId) }, subject: { kind: "service", id: serviceId }, level: "use" });
+    await ok(w.d, "automations.set_enabled", { automationId: id, enabled: true });
+    w.v.script.push({ text: "Hi from the agent." });
+    const runId = String((await ok(w.d, "automations.run", { automationId: id, idempotencyKey: "ai-shared-agent-run" })).runId);
+    await until("a step row", 10_000, async () => ((await ok(w.d, "runs.steps", { runId })).steps as unknown[]).length > 0 ? true : undefined);
+  } finally { await w.stop(); }
+});
