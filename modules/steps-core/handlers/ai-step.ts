@@ -142,6 +142,23 @@ async function taskStep(env: StepEnv, node: StepNode, cfg: Rec, call: StepCall, 
   if (!assigned) throw stepError("validation.precondition_failed", `The AI step "${title}" is a task and needs someone to do it. Pick an agent.`, false);
   const reviewer = assigneeOf(cfg["reviewer"]);
   const approver = assigneeOf(cfg["approver"]);
+  // checked again as it runs (it was checked when saved): the agent may have become someone's Assistant since. A Space Automation, which runs as itself, never gives work to anyone's Assistant;
+  // a Personal one only to its owner's own (lead 12 Nov, rule 4)
+  for (const w of [assigned, reviewer, approver]) {
+    if (w?.kind !== "agent") continue;
+    const got = (await env.ctx.call!("agents.get", { agentId: w.id }).catch((e: unknown) => ({ error: e instanceof Error ? e.message : String(e) }))) as { agent?: { kind?: string; ownerId?: string; name?: string }; error?: string } | null;
+    const a = got?.agent;
+    const p = env.ctx.principal;
+    if (!a && p.kind !== "person") {
+      // the Automation may not read the agent: whether it may give it work is the same check a task makes
+      const u = (await env.ctx.call!("agents.outside.usable", { agentId: w.id }).catch(() => null)) as { usable?: boolean } | null;
+      if (u?.usable === false) throw stepError("validation.precondition_failed", `A Space automation cannot give work to a person's Assistant or to an agent on someone's own computer: choose a team agent in "${title}".`, false);
+      continue;
+    }
+    if (a?.kind !== "assistant") continue;
+    if (p.kind !== "person") throw stepError("validation.precondition_failed", `${a.name ?? "That agent"} is a person's Assistant. A Space automation cannot give work to anyone's Assistant: choose a team agent in "${title}".`, false);
+    if (a.ownerId !== p.id) throw stepError("validation.precondition_failed", `${a.name ?? "That agent"} is someone else's Assistant. Choose your own Assistant or a team agent in "${title}".`, false);
+  }
   const schema = rec(cfg["outputSchema"]) ? (cfg["outputSchema"] as JsonSchema) : undefined;
   const doneMeans = stringsOf(cfg["doneMeans"]);
   const escalateTo = assigneeOf(cfg["escalateTo"]);
@@ -160,7 +177,7 @@ async function taskStep(env: StepEnv, node: StepNode, cfg: Rec, call: StepCall, 
   }
   const owner = env.ctx.principal.kind === "person" ? env.ctx.principal.id : undefined;
   const notes: Record<string, string> = {
-    brief, "run.step": node.id, ...(doneMeans && doneMeans.length > 0 ? { done_means: JSON.stringify(doneMeans) } : {}), ...(schema ? { output_schema: JSON.stringify(schema) } : {}),
+    brief, "run.step": node.id, ...(env.run.automation ? { "automation.id": env.run.automation } : {}), ...(doneMeans && doneMeans.length > 0 ? { done_means: JSON.stringify(doneMeans) } : {}), ...(schema ? { output_schema: JSON.stringify(schema) } : {}),
     ...(typeof cfg["nudgeMinutes"] === "number" ? { "baton.nudge_minutes": String(cfg["nudgeMinutes"]) } : {}), ...(escalateTo ? { "baton.escalate_to": JSON.stringify(escalateTo) } : {}), ...(owner ? { "baton.owner": owner } : {}),
   };
   const made = (await env.ctx.call!("tasks.create", {

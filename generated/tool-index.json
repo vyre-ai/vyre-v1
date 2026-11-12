@@ -854,6 +854,12 @@
     },
     {
       "deferred": false,
+      "name": "automations_runs_as_get",
+      "summary": "Whose yes a Space automation's agent work runs on, and whether that person may still give it to this agent; for one Run, its trigger",
+      "toolset": "automations"
+    },
+    {
+      "deferred": false,
       "name": "automations_schedule_choose",
       "summary": "Apply one recovery choice to a schedule whose backlog is over its cap",
       "toolset": "automations"

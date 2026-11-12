@@ -31,6 +31,11 @@ const MAX_OFFERED = 5;
 const HISTORY = 30;
 const str = (v: unknown): string => (typeof v === "string" ? v : "");
 const isPerson = (id: unknown): id is string => typeof id === "string" && id.startsWith("usr_");
+const isAgentId = (id: unknown): id is string => typeof id === "string" && id.startsWith("agt_");
+/** What a task that waits for a person says in its thread, once. */
+export const WAITING_NOTE = "baton.waiting";
+export const WAITING_LINE = "This came from an automation and has nobody's permission to act yet. Open it to run it as yourself.";
+export const WAITING_LINE_OTHER = "Nobody asked for this work, so it has nobody's permission to act yet. Open it to run it as yourself.";
 
 const ensureBaton = ensure;
 
@@ -75,9 +80,55 @@ async function ownerOfAgent(host: BatonHost, agentId: string): Promise<string | 
   } catch { return undefined; }
 }
 
-/** The person a turn runs for: who asked for the work, else the owner of the agent that does it, else the person behind the automation run. */
+/**
+ * The person a turn runs for: who asked for the work (the task's creator, or the person who started it, baton.owner). A task a service made (an Automation's step, a form, a timer) has nobody else:
+ * owning the agent it went to, owning the Automation's Run or being named its reviewer is not a yes to act now (owner ruling 2 Nov, lead 12 Nov), so it waits until a person starts it. A task an
+ * agent made keeps the older fallbacks (the agent's owner, the run's person), which acted for the asker of the turn that made it.
+ */
 export async function askerOf(host: BatonHost, t: BatonTask): Promise<string | undefined> {
-  for (const id of [t.createdBy, t.workingNotes["baton.owner"]]) if (isPerson(id)) return id;
+  return (await askerFor(host, t)).asker;
+}
+
+/** askerOf with the reason a task acts for nobody, in the words its page shows. */
+export async function askerFor(host: BatonHost, t: BatonTask): Promise<{ asker?: string; line?: string; automation?: AutomationAsker }> {
+  for (const id of [t.createdBy, t.workingNotes["baton.owner"]]) if (isPerson(id)) return { asker: id };
+  if (!isAgentId(t.createdBy)) {
+    // a Space automation's step: it runs as the person who turned the automation on, while they still may (lead 12 Nov); anything else waits for a person
+    const auto = await automationAsker(host, t);
+    if (auto?.asker) return { asker: auto.asker, automation: auto };
+    return { line: auto?.line ?? (t.source?.kind === "run" ? WAITING_LINE : WAITING_LINE_OTHER) };
+  }
+  return { asker: await agentTaskAsker(host, t) };
+}
+
+export interface AutomationAsker { automationId: string; asker?: string; trigger?: string; line?: string }
+
+/**
+ * The runs-as person of the Space automation whose step made this task, checked now: they turned it on (or published it), are an active member, may ask this agent, and the agent is not someone's
+ * Assistant or own computer's agent. The task names its automation only when that automation's own service made it, so nobody else's task can borrow it.
+ */
+async function automationAsker(host: BatonHost, t: BatonTask): Promise<AutomationAsker | undefined> {
+  const automationId = t.workingNotes["automation.id"];
+  if (t.source?.kind !== "run" || typeof automationId !== "string" || !/^aut_[a-z0-9]+$/.test(automationId)) return undefined;
+  if (t.createdBy !== `svc_${automationId.slice(4)}`) return undefined;
+  const agentId = t.assigned.kind === "agent" ? t.assigned.id : undefined;
+  let r: { kind?: string; runsAs?: string; name?: string; trigger?: string; ok?: boolean; line?: string } | null = null;
+  try { r = (await host.call("automations.runs_as.get", { automationId, runId: t.source.id, ...(agentId ? { agentId } : {}) })) as typeof r; }
+  catch (e) { host.log?.("the automation's runs-as person could not be read", { taskId: t.id, error: e instanceof Error ? e.message : String(e) }); return { automationId }; }
+  const base: AutomationAsker = { automationId, ...(r?.trigger ? { trigger: r.trigger } : {}) };
+  if (!r?.ok || !isPerson(r.runsAs)) return { ...base, ...(r?.line ? { line: r.line } : {}) };
+  if (agentId) {
+    const u = (await host.call("agents.outside.usable", { agentId }, r.runsAs).catch(() => null)) as { usable?: boolean } | null;
+    if (u?.usable !== true) {
+      const agentName = ((await host.call("agents.get", { agentId }).catch(() => null)) as { agent?: { name?: string } } | null)?.agent?.name ?? "this agent";
+      return { ...base, line: `${r.name ?? "The person who turned this automation on"} turned this automation on and can no longer ask ${agentName}. Open it to run it as yourself.` };
+    }
+  }
+  return { ...base, asker: r.runsAs };
+}
+
+/** A task an agent made: the older fallbacks (the agent's owner, the run's person, a person reviewer or approver), which acted for the asker of the turn that made it. */
+async function agentTaskAsker(host: BatonHost, t: BatonTask): Promise<string | undefined> {
   for (const w of [t.assigned, t.reviewer, t.approver]) {
     if (w?.kind !== "agent") continue;
     const owner = await ownerOfAgent(host, w.id);
@@ -229,7 +280,8 @@ export async function onTaskEvent(ctx: Pick<EngineCtx, "db">, host: BatonHost, e
     }
   }
   const answered = [...(fresh ? [] : before?.answered ?? []), ...(answeredChild ? [answeredChild] : [])].slice(-50);
-  const asker = await askerOf(host, task);
+  const who = await askerFor(host, task);
+  const asker = who.asker;
   const now = clockOf(host);
   if (targets.length === 0) {
     saveBaton(ctx.db, { taskId: task.id, sig, woken: [], answered, wokeAt: now, ...(asker ? { asker } : {}) });
@@ -237,10 +289,23 @@ export async function onTaskEvent(ctx: Pick<EngineCtx, "db">, host: BatonHost, e
   }
   if (!asker) {
     host.log?.("an agent holds the baton of a task nobody asked for, so it was not woken", { taskId: task.id, role: holder.role });
+    // the task says so on its page, once (a task a service made has no thread yet): a person who starts it becomes the one the agent acts for, and the line goes (tasks stampStarter)
+    const body = who.line ?? (task.source?.kind === "run" ? WAITING_LINE : WAITING_LINE_OTHER);
+    if (task.workingNotes[WAITING_NOTE] !== body) {
+      await host.call("tasks.working_notes.set", { taskId: task.id, key: WAITING_NOTE, value: body, idempotencyKey: `baton-waiting:${task.id}` })
+        .catch((e: unknown) => host.log?.("the waiting line could not be written", { taskId: task.id, error: e instanceof Error ? e.message : String(e) }));
+    }
     return [];
   }
   const threadId = await threadOf(host, task, targets, asker);
   if (!threadId) return [];
+  // an automation's work acting for the person who turned it on: the audit says which automation, what set it off and for whom, so an admin sees why their name is on an act they did not press
+  if (who.automation && fresh) {
+    await host.call("audit.append", { action: "automation.acts_for", class: "sensitive", resource: { type: "automation", id: who.automation.automationId }, onBehalfOf: { kind: "person", id: asker },
+      detail: { trigger: who.automation.trigger ?? null, taskId: task.id, agentIds: targets, runId: task.source?.id ?? null, role: holder.role } })
+      .catch((e: unknown) => host.log?.("the automation's act could not be audited", { taskId: task.id, error: e instanceof Error ? e.message : String(e) }));
+    if (task.workingNotes[WAITING_NOTE] !== undefined) await host.call("tasks.working_notes.delete", { taskId: task.id, key: WAITING_NOTE, idempotencyKey: `baton-waiting-off:${task.id}:${sig}` }).catch(() => undefined);
+  }
   const woken: string[] = [];
   let outside = false;
   for (const agentId of targets) {
@@ -293,7 +358,10 @@ export async function resumeTasks(ctx: Pick<EngineCtx, "db">, host: BatonHost, e
       let busy = false;
       try { busy = engine.turns(row.threadId).some((x) => x.state === "running" || x.state === "waiting"); } catch { /* not open on this host yet */ }
       if (busy || await runsOutside(host, holder.who.id)) continue;
-      if (await openThread(ctx.db, host, engine, row.threadId, holder.who.id, row.asker ?? t.createdBy)) { engine.wake(row.threadId, holder.who.id); out.push(holder.who.id); }
+      // a row with no asker was never woken for a person: it is picked up only when one starts it (askerOf), never as its creator when that is a service
+      const resumeAs = row.asker ?? (isPerson(t.createdBy) ? t.createdBy : undefined);
+      if (resumeAs === undefined) continue;
+      if (await openThread(ctx.db, host, engine, row.threadId, holder.who.id, resumeAs)) { engine.wake(row.threadId, holder.who.id); out.push(holder.who.id); }
     }
     cursor = got.next;
     if (!cursor) break;

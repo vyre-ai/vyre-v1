@@ -380,6 +380,8 @@ export async function setOwner(ctx: AgentsCtx, input: { agentId: string; ownerId
   if (input.ownerId === a.ownerId) return { agent: agentOut(a, ctx.now()) };
   // it acts for the person who pressed Allow, on that person's machine: it cannot change hands
   if (isOutside(a)) raise(ctx, "validation.precondition_failed", "An outside agent stays with the person who connected it.", { reason: "outside" });
+  // a person's Assistant is theirs for as long as they are here: it never changes hands
+  if (isAssistant(a)) raise(ctx, "validation.precondition_failed", "An Assistant stays with its person. Make a team agent to hand over instead.", { reason: "assistant_stays" });
   const who = await tolerant<{ principal?: { status?: string; kind?: string } }>(ctx, "access.principals.get", { principal: { kind: "person", id: input.ownerId } }, {});
   if (who.principal?.kind !== "person" || who.principal.status !== "active") raise(ctx, "validation.bad_input", "The new owner has to be an active person in this Space.", { ownerId: input.ownerId });
   const from = a.ownerId, now = ctx.now();
@@ -397,6 +399,9 @@ export async function setOwner(ctx: AgentsCtx, input: { agentId: string; ownerId
     raise(ctx, "internal.unexpected", "The agent could not be handed over, so nothing changed. Try again.", { cause: e instanceof Error ? e.message.slice(0, 120) : "error" });
   }
   ctx.db.run("UPDATE agents_agent SET ownerId = ?, updatedAt = ? WHERE id = ?", input.ownerId, now, a.id);
+  // Routines the previous owner set on this agent ran as them: they pause, so they neither go on acting for someone who gave the agent away nor start acting for the new owner unasked.
+  // The previous owner still sees them in their list, off.
+  ctx.db.run("UPDATE agents_routine SET enabled = 0, updatedAt = ? WHERE agentId = ? AND ownerId = ? AND enabled = 1", now, a.id, from);
   ctx.emit("agent.owner_changed", a.id, { agentId: a.id, from, to: input.ownerId, by: by(ctx) });
   return { agent: agentOut(agentBy(ctx.db, a.id)!, now) };
 }

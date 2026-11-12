@@ -70,6 +70,7 @@ const packageRow = t.obj({
 const row = t.obj({
   id: id.automation, name: t.str(), description: t.opt(t.str()), kind: kindEnum, groupId: t.opt(groupId), ownerId: t.str(), status, pausedReason: t.opt(t.str()),
   version: t.int({ minimum: 1 }), definition, followers: t.arr(t.str()), alerts, createdAt: t.ts(), updatedAt: t.ts(),
+  runsAs: t.opt(t.str({ description: 'A Space automation: the person whose yes its agent work runs on (who last turned it on or published a change to it); absent when nobody has', examples: ['usr_a1b2c3'] })),
 });
 const groupRow = t.obj({ id: groupId, name: t.str(), count: t.int(), order: t.int() });
 const accessDiff = t.obj({
@@ -370,6 +371,11 @@ export default defineManifest({
     }),
     write('automations.followers.remove', 'Stop following an Automation', {
       in: { ...target, follower: t.str({ examples: ['usr_a1b2c3'] }) }, out: { followers: t.arr(t.str()) }, on: ['automation', '/automationId'], emits: ['automation.follower_removed'], tool: 'automations',
+    }),
+    read('automations.runs_as.get', 'Whose yes a Space automation\'s agent work runs on, and whether that person may still give it to this agent; for one Run, its trigger', {
+      in: { ...target, agentId: t.opt(id.agent), runId: t.opt(id.run) },
+      out: { kind: kindEnum, runsAs: t.opt(t.str()), name: t.opt(t.str()), trigger: t.opt(t.str()), ok: t.bool(), reason: t.opt(t.enm('nobody', 'not_active', 'cannot_ask', 'assistant')), line: t.opt(t.str()) },
+      on: ['automation', '/automationId'], tool: 'automations',
     }),
     read('automations.webhook_url.get', 'The inbound webhook URL of an Automation that has a webhook trigger', {
       in: target, out: { url: t.str(), method: t.lit('POST') }, on: ['automation', '/automationId'], level: 'edit', tool: 'automations', team: true,

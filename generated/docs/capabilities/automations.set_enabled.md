@@ -127,6 +127,7 @@ type Out = {
     };
     createdAt: number;
     updatedAt: number;
+    runsAs?: string;
   };
 };
 ```
@@ -260,6 +261,7 @@ type Out = {
       "name": "example",
       "ownerId": "example",
       "pausedReason": "example",
+      "runsAs": "usr_a1b2c3",
       "status": "on",
       "updatedAt": 1760000000000,
       "version": 1

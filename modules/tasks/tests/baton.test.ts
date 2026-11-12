@@ -227,3 +227,24 @@ test("a task starts with the notes it is given, so the agent woken the moment it
   const t = findTask(h.db, id)!;
   assert.equal(t.decisionId, undefined);
 });
+
+test("baton.owner (whom an agent's turns on a task act for) is written only by a person for themselves or by the server; a person who starts a waiting task becomes it (lead 12 Nov)", async () => {
+  const h = withThreads();
+  const auto = { id: "svc_0123456789abcdef0123456789abcdef", kind: "service" as const };
+  // an Automation's service makes the task and cannot name a person for it, at create or after
+  const id = (await h.call("tasks.create", newTask({ assigned: bot, reviewer: cara, notes: { brief: "Triage it", "baton.owner": cara.id } }), auto)).task.id as string;
+  assert.equal(notes(h, id)["baton.owner"], undefined, "a service cannot name a person at create");
+  await refused(h.call("tasks.working_notes.set", { taskId: id, key: "baton.owner", value: cara.id }, auto), "validation.field_locked");
+  await refused(h.call("tasks.working_notes.set", { taskId: id, key: "baton.owner", value: cara.id }, doer), "validation.field_locked");
+  await refused(h.call("tasks.working_notes.set", { taskId: id, key: "baton.owner", value: cara.id }, me), "validation.field_locked");
+  await refused(h.call("tasks.working_notes.set", { taskId: id, key: "baton.waiting", value: "anything" }, doer), "validation.field_locked");
+  // the server writes the waiting line; Cara, who is on the task, starts it: her press names her and the line goes
+  await h.call("tasks.working_notes.set", { taskId: id, key: "baton.waiting", value: "This came from an automation and has nobody's permission to act yet. Open it to run it as yourself." }, svc);
+  await h.call("tasks.act", { taskId: id, action: "start" }, boss);
+  assert.equal(notes(h, id)["baton.owner"], cara.id, "the person who started it");
+  assert.equal(notes(h, id)["baton.waiting"], undefined, "the line goes");
+  assert.equal(state(h, id), "doing");
+  // a person may still name themselves (a person handing a task on is a person's yes)
+  const mine = (await h.call("tasks.create", newTask({ assigned: bot, notes: { "baton.owner": owner.id } }), me)).task.id as string;
+  assert.equal(notes(h, mine)["baton.owner"], owner.id);
+});
