@@ -213,7 +213,10 @@ export async function runAccessPages(t: TestContext, parts: readonly AccessPart[
       await page.getByTestId("row-review-grant-" + drop.grant.id).click();
       await page.getByRole("button", { name: "Remove selected…" }).click(); await page.getByRole("button", { name: "Remove selected access", exact: true }).click();
       await eventually(async () => !((await api("access.grants.list", { resource: { type: "folder", id: made } })).grants as { id: string }[]).some((g) => g.id === drop.grant.id), "the removed grant ended");
-      assert.ok(!((await api("access.principals.effective", { principal: { kind: "person", id: guest.personId } })).grants as { resource: { id: string } }[]).some((g) => g.resource.id === made), "the person whose grant was removed no longer holds it");
+      // the assertion is the same; when it fails it names what the guest still holds on the folder, and what the folder's own list shows, so a CI failure says which grant it was
+      const stillHeld = ((await api("access.principals.effective", { principal: { kind: "person", id: guest.personId } })).grants as { id?: string; resource: { id: string }; subject?: unknown; source?: string; level?: string }[]).filter((g) => g.resource.id === made);
+      const listed = (await api("access.grants.list", { resource: { type: "folder", id: made } })).grants as unknown[];
+      assert.ok(stillHeld.length === 0, `the person whose grant was removed no longer holds it: removed ${drop.grant.id}; still held ${JSON.stringify(stillHeld)}; the folder lists ${JSON.stringify(listed)}`);
       await page.locator('[data-testid^="object-tab-"]').filter({ hasText: /^Review tasks/ }).click();
       await page.locator('[data-testid^="object-tab-"]').filter({ hasText: /^Activity/ }).click(); await page.getByTestId("object-body").getByText(/review/i).first().waitFor();
       await matrix("review-object", async (p) => { await goTo(p, "reviews"); await p.getByTestId("console-reviews").waitFor(); await p.getByTestId("row-object-row-" + id).click(); await p.getByTestId("object-header").waitFor(); await p.locator('[data-testid^="object-tab-"]').filter({ hasText: /^To review/ }).click(); });
