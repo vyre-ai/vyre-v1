@@ -5,7 +5,7 @@
 //   next      the one call that takes work: the agent's own tool. The chat it names is where its work shows from then on.
 //   seen      a tool call happened: Working for a minute, Awake for two, then Offline.
 import { isHostService, isSystemCall } from "../../../lib/trust.ts";
-import { MAX_NAME, NAME_BAD, agentBy, agentByName, allows, askerOf, ensure, isAssistant, mintId, nameKey, raise, seesAll, tolerant } from "../projections.ts";
+import { MAX_NAME, NAME_BAD, agentBy, agentByName, allows, askerOf, canSee, chatOf, ensure, isAssistant, mintId, nameKey, raise, seesAll, tolerant } from "../projections.ts";
 import type { AgentRec, AgentsCtx } from "../projections.ts";
 
 type Row = Record<string, unknown>;
@@ -86,6 +86,8 @@ export function usable(ctx: AgentsCtx, input: { agentId: string }) {
   const who = askerOf(ctx);
   if (isHostService(ctx.principal)) return { usable: true };
   if (isAssistant(a)) return { usable: a.ownerId === who };   // a person's Assistant is theirs alone
+  // an agent a private chat made, to someone who may not see it, is one that does not exist (owner decision, 12 Nov 2026): the same answer agents.get gives, not "not usable"
+  if (chatOf(a) !== undefined && !canSee(ctx, a)) raise(ctx, "validation.not_found", "That agent does not exist.");
   if (!isOutside(a) && a.ownerId !== who && ctx.principal.kind === "person" && !allows(ctx, null, "use", "agent", a.id) && !seesAll(ctx)) return { usable: false };
   return { usable: !isOutside(a) || a.ownerId === who };
 }
