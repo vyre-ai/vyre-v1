@@ -12,7 +12,7 @@ import { ResumeContext } from "../../onboarding/resume-context.ts";
 import { ResumeChip } from "../../onboarding/ResumeChip.tsx";
 import type { TitleBarProps } from "./TitleBar.tsx";
 import { skins } from "../../../../../ui/src/tokens/skins.ts";
-import { SYSTEM_SKIN, skinMenuEntries, skinName, syncLabel } from "./model.ts";
+import { SYSTEM_SKIN, skinMenuEntries, skinName, syncLabel, reconnectingNow } from "./model.ts";
 
 const props = (over: Partial<TitleBarProps> = {}): TitleBarProps => ({
   title: "Vyre · Northwind · Chats", status: null, onUndo: () => undefined, online: true, waiting: 0, onOpenWaiting: () => undefined, onSearch: () => undefined, skin: "paper", onSkin: () => undefined, ...over,
@@ -118,4 +118,14 @@ test("the sync chip says Reconnecting when the device has a network but the Spac
   assert.deepEqual(syncLabel(false, 0, true), { text: "Reconnecting…", tone: "offline", opens: false });
   assert.deepEqual(syncLabel(false, 2, true), { text: "Reconnecting…, 2 changes waiting", tone: "offline", opens: true });
   assert.deepEqual(syncLabel(false, 0), { text: "Offline", tone: "offline", opens: false }, "no network on the device keeps the old word");
+});
+
+test("a shell that cannot tell whether the device has a network says Reconnecting, and Offline only when the device positively has none", () => {
+  const had = Object.getOwnPropertyDescriptor(globalThis, "navigator");
+  try {
+    for (const [onLine, want] of [[undefined, true], [true, true], [false, false]] as const) {
+      Object.defineProperty(globalThis, "navigator", { value: { onLine }, configurable: true });
+      assert.equal(reconnectingNow(), want, `onLine ${String(onLine)}`);
+    }
+  } finally { if (had) Object.defineProperty(globalThis, "navigator", had); else delete (globalThis as { navigator?: unknown }).navigator; }
 });

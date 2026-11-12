@@ -79,7 +79,7 @@ import { CONNECT_YOURS, NO_AI_LINE, SET_SPACE_KEY, aiReady } from "./ai-ready.ts
 import type { AiReady } from "./ai-ready.ts";
 import { useOpenConnect } from "../../../shell/connect/context.ts";
 import {
-  WINDOW, beforeCursor, byOrder, collect, ghostMessages, findMatches, isClosed, lastMessages, leadOf, matchLine, mentionsIn, mergePages, modelLabel, pendingMessage, placeholderFor, queueNote, queuedCount, queuedIds, sendKind, stillPending, stopLabel,
+  WINDOW, beforeCursor, byOrder, collect, keyAlreadyUsed, ghostMessages, findMatches, isClosed, lastMessages, leadOf, matchLine, mentionsIn, mergePages, modelLabel, pendingMessage, placeholderFor, queueNote, queuedCount, queuedIds, sendKind, stillPending, stopLabel,
   directWith, mentionable, muteOfferFor, onBehalfOf, threadKindNote, timeLabel, timeline, titleOf, whoLine, workingAgents, withoutAnswered, faceDoor } from "./model.ts";
 import type { Message, Pending, SendKind, Thread } from "./model.ts";
 import { LoadFailed, failureOf } from "../../../../../../ui/src/States/Loads.tsx";
@@ -323,7 +323,8 @@ function ConversationView(): ReactElement {
       return act.sendMessage(data, { text: p.body, mentions: p.mentions, key: p.key, kind: p.kind, working: p.working, ...(p.refs && p.refs.length > 0 ? { refs: p.refs } : {}), attachments, ...(p.alsoToChat === true ? { alsoToChat: true } : {}) });
     })().then(
       (r) => setPending((cur) => collect(cur, (x) => (x.key === p.key ? { ...x, messageId: r.messageId, state: "sending" as const } : x))),
-      (e) => { setPending((cur) => collect(cur, (x) => (x.key === p.key ? { ...x, state: "failed" as const } : x))); // "Not sent" with Retry and Discard is under the message itself; the composer line only adds why, when a file was the reason (owner walk, 12 Nov: said twice)
+      (e) => { if (keyAlreadyUsed(e)) { setPending((cur) => cur.filter((x) => x.key !== p.key)); return; }   // the server has this key: the message is in the thread, so the bubble goes
+        setPending((cur) => collect(cur, (x) => (x.key === p.key ? { ...x, state: "failed" as const } : x))); // "Not sent" with Retry and Discard is under the message itself; the composer line only adds why, when a file was the reason (owner walk, 12 Nov: said twice)
         if (p.files && p.files.length > 0 && e instanceof Error && e.message.length < 120) say(`Not sent: ${e.message}.`); },
     );
   }, [data, say]);

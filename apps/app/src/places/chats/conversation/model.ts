@@ -624,6 +624,12 @@ export function openVerdict(r: OpenResult): string {
 }
 
 /** Builds a list from a list. Written as a function (not `.map`) so a list of JSX is plainly the composition of its parts. */
+/** The server says this send's key was used before (with other input, such as a changed screen): the message is already in the thread, so the "Not sent" bubble is not true and goes. */
+export function keyAlreadyUsed(e: unknown): boolean {
+  const d = (e as { details?: { reason?: unknown } } | null)?.details;
+  return d?.reason === "idempotency_conflict";
+}
+
 export function collect<T, U>(list: readonly T[], fn: (item: T, index: number) => U): U[] {
   const out: U[] = [];
   for (const [i, x] of list.entries()) out.push(fn(x, i));
