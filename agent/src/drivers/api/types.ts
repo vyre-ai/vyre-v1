@@ -87,6 +87,8 @@ export interface ProviderAdapter {
    * documentation, not the live API). Every other provider answers 400 to a request with no model, so the session refuses it in plain words first.
    */
   readonly defaultsModel?: boolean;
+  /** The provider's chat models, by id (OpenAI's list also holds image, speech and embedding models): what a turn may run on when nothing names a model. */
+  readonly chatModels?: RegExp;
   /** True when the provider's input token count already includes cached tokens (OpenAI style). Anthropic reports them apart, so the session adds them. */
   readonly inputIncludesCache: boolean;
   request(req: CallRequest): WireRequest;

@@ -6,6 +6,7 @@ import { ensureRuntime, completerOf, providerOfDriver } from "../runtime.ts";
 import { accountsList } from "./accounts.ts";
 import { PROVIDER_DEFAULT_DRIVERS, PROVIDER_DEFAULT_WORDS, providerDefaultBlocked, readPolicy } from "./extra/config.ts";
 import { turnsRunHere } from "./place.ts";
+import { defaultModelFor } from "../first-model.ts";
 import { raise } from "../projections.ts";
 import type { EngineCtx } from "../projections.ts";
 
@@ -29,12 +30,21 @@ export async function complete(ctx: Ctx, input: { accountRef: string; prompt: st
     ...(row.itemId ? { itemId: row.itemId } : {}), ...(row.base ? { base: row.base } : {}), ...(row.keyless ? { keyless: true } : {}),
   } as ResolvedAccount;
   // a pass that waits on a computer must not wait for ever: the learning it serves is background work and is skipped when the computer does not answer
+  // a job that names no model on a person's API key: the default nobody chose, from the key's own list (first-model.ts; one rule with chat and the step)
+  let jobModel = input.model;
+  if (!jobModel) {
+    const pol = await readPolicy(ctx as unknown as EngineCtx);
+    const d = await defaultModelFor({ db: (ctx as unknown as EngineCtx).db as never, now: ctx.now(), call: (cap, i) => ctx.call(cap as never, i as never), policy: pol },
+      { ref: row.ref, driver: row.driver, provider: providerOfDriver(row.driver), kind: row.kind });
+    if (d.why === "policy") raise(ctx as unknown as EngineCtx, "permission.provider_label", PROVIDER_DEFAULT_WORDS, { reason: "policy_model" });
+    jobModel = d.model;
+  }
   // a job that names no model on a provider that runs its own default (OpenRouter): the Space policy is checked first, before anything is sent (one rule: config.ts providerDefaultBlocked)
-  if (!input.model && PROVIDER_DEFAULT_DRIVERS.has(row.driver)) {
+  if (!jobModel && PROVIDER_DEFAULT_DRIVERS.has(row.driver)) {
     const why = providerDefaultBlocked(await readPolicy(ctx as unknown as EngineCtx), row.driver);
     if (why !== null) raise(ctx as unknown as EngineCtx, "permission.provider_label", PROVIDER_DEFAULT_WORDS, { reason: why });
   }
-  const call = run({ account, prompt: input.prompt, ...(here ? {} : { onDevice: true }), ...(input.system ? { system: input.system } : {}), ...(input.model ? { model: input.model } : {}) });
+  const call = run({ account, prompt: input.prompt, ...(here ? {} : { onDevice: true }), ...(input.system ? { system: input.system } : {}), ...(jobModel ? { model: jobModel } : {}) });
   const out = here ? await call : await Promise.race([call, new Promise<never>((_, rej) => { const t = setTimeout(() => rej(Object.assign(new Error("The computer did not answer in time."), { code: "engine.device_off" })), DEVICE_ONESHOT_MS); t.unref?.(); })]);
   return { text: out.text, tokensIn: out.tokensIn, tokensOut: out.tokensOut };
 }

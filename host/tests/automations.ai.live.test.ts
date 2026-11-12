@@ -18,7 +18,7 @@ const caddyFetch: FetchFn = () => Promise.resolve({ ok: true, status: 200, heade
 // the Vault's key check asks the stand-in vendor for real, as it asks a real provider: a Space account then lists the models it serves (the runner's "accept" check lists none)
 delete process.env["VYRE_TEST_KEY_CHECK"];
 const KEY = "sk-test-aistep-0123456789abcdef"; // secret-scan: fake
-/** An agent with a model, as a person sets one up: an AI step runs on its agent's model (a step on a person's own key has no default model yet: rc.27). */
+/** An agent with a model, as a person sets one up: an AI step runs on its agent's model (a step with no model runs on the key's default: modules/engine/first-model.ts). */
 const writer = async (d: Daemon, tag: string, model = "openai/gpt-4o-mini"): Promise<string> => String((await ok(d, "agents.create", { idempotencyKey: `ai-writer-${tag}`, name: `Writer ${tag}`, role: "You write short answers.", model, computer: false })).agent.agentId);
 
 function seededDir(): string {
@@ -282,10 +282,28 @@ test("a step that runs as an agent uses that agent's model on the owner's key", 
   } finally { await w.stop(); }
 });
 
-test("an agent-less AI step on an API key, which needs a model, fails its Run in plain words: nothing reaches the vendor, and the notice carries the words", async () => {
+test("an agent-less AI step on an API key that lists chat models runs on the default nobody chose: the balanced pick from the key's own list, never written to the step", async () => {
   const w = await world();
   try {
     await unlock(w.d);
+    await ok(w.d, "providers.add", { idempotencyKey: "ai-mine-default", providerKey: "openai", connection: "api_key", apiKey: KEY, scope: "mine" });
+    const made = await ok(w.d, "automations.create", { idempotencyKey: "ai-default", name: "Default model", definition: { triggers: [{ key: "manual" }], nodes: [{ id: "ask", key: "ai", input: { prompt: "Say hi." } }] } });
+    const id = String(made.automation.id);
+    assert.equal((await call(w.d, "automations.set_enabled", { automationId: id, enabled: true })).status, 200);
+    w.v.script.push({ text: "Hi." });
+    const runId = String((await ok(w.d, "automations.run", { automationId: id, idempotencyKey: "ai-default-run" })).runId);
+    await finished(w.d, runId, "succeeded");
+    // the key lists gpt-4o-mini and gpt-4o; the balanced tier for OpenAI is the plain flagship (modules/engine/first-model.ts)
+    assert.equal((JSON.parse(w.v.requests.at(-1)!) as { model?: string }).model, "gpt-4o", "the default from the key's list");
+    assert.doesNotMatch(JSON.stringify((await ok(w.d, "automations.get", { automationId: id })).automation), /gpt-4o/, "the default is never written to the step");
+  } finally { await w.stop(); }
+});
+
+test("an agent-less AI step on an API key that lists no chat model fails its Run in plain words: nothing reaches the vendor, and the notice carries the words", async () => {
+  const w = await world();
+  try {
+    await unlock(w.d);
+    w.v.models.splice(0, w.v.models.length, "whisper-1", "dall-e-3", "text-embedding-3-small");   // a key that serves only speech, image and embedding models
     await ok(w.d, "providers.add", { idempotencyKey: "ai-mine-nomodel", providerKey: "openai", connection: "api_key", apiKey: KEY, scope: "mine" });
     const made = await ok(w.d, "automations.create", { idempotencyKey: "ai-nomodel", name: "No model", definition: { triggers: [{ key: "manual" }], nodes: [{ id: "ask", key: "ai", input: { prompt: "Say hi." } }] } });
     const id = String(made.automation.id);
