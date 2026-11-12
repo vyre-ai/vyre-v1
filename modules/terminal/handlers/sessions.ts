@@ -14,6 +14,7 @@ import type { HandleRef } from "../fill.ts";
 import { HANDLE, SEALED } from "../../../lib/vault-use/index.ts";
 import { judged, isDangerous } from "../risk.ts";
 import { isTrustedService } from "../../../lib/trust.ts";
+import { NO_PLACE } from "../fleet.ts";
 import type { HostKind, Lookup, Rules, SessionRow, TabBy, Target, TermCtx, TerminalHost, TermState, TurnPlace, ValueSource, VaultRun, Where } from "../projections.ts";
 
 type Row = Record<string, unknown>;
@@ -250,7 +251,10 @@ const unavailable = (ctx: TermCtx) => (e: unknown): never => {
   if (e instanceof Error && (e as { workspace?: unknown }).workspace === true) {
     ctx.log.warn("terminal: workspace did not start", { reason: e.message.slice(0, 160) });
     const [first = "The workspace did not start.", ...rest] = e.message.split("\n");
-    return raise(ctx, "provider.unavailable", first.slice(0, 300), rest.length > 0 ? { detail: rest.join("\n").slice(0, 600) } : undefined);
+    // why, for the app: no image, no Docker or no machine for workspaces (it cannot run here) apart from waiting for room or an agent in Trash (it will, or it is gone)
+    const code = (e as { code?: unknown }).code;
+    const reason = e.message === NO_PLACE ? "no_place" : typeof code === "string" ? code : "unavailable";
+    return raise(ctx, "provider.unavailable", first.slice(0, 300), { reason, ...(rest.length > 0 ? { detail: rest.join("\n").slice(0, 600) } : {}) });
   }
   ctx.log.warn("terminal: open failed", { reason: e instanceof Error ? e.message.slice(0, 120) : "unknown" });
   return raise(ctx, "provider.unavailable", "That computer did not start a terminal. Check that it is on and try again.");
