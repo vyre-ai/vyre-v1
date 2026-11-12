@@ -24,6 +24,8 @@ RUN groupadd --gid 10001 browser \
 COPY agent-computer/agentd/ /opt/images/agent-computer/agentd/
 COPY space-browser/browserd/ /opt/images/space-browser/browserd/
 RUN ln -s /opt/images/space-browser/browserd /opt/browserd
+# the build fails when the bridge module is a link (a dangling one in the repository layout): the build context must hold a real copy (scripts/release stage-bridge)
+RUN test -f /opt/images/space-browser/browserd/vendor/chrome-bridge.ts && ! test -L /opt/images/space-browser/browserd/vendor/chrome-bridge.ts || { echo "vendor/chrome-bridge.ts must be a regular file in the build context (stage-bridge)"; exit 1; }
 COPY agent-computer/vyre-chrome/ /opt/vyre-chrome/
 # An agent's browser never signs in to Google or syncs; Vyre for Chrome is pinned to the toolbar and its native messaging host `run.vyre.bridge` points at browserd (setup-extension.mjs works out the id from the
 # manifest's key, as Chromium does). The vendor/ folder holds lib/chrome-bridge.ts: a link in the repository, a copy in the build context (scripts/release stage-bridge).

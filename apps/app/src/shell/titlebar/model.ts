@@ -14,8 +14,12 @@ export interface SyncLabel {
 
 const changes = (n: number): string => `${n} change${n === 1 ? "" : "s"}`;
 
-export function syncLabel(online: boolean, waiting: number): SyncLabel {
-  if (!online) return { text: waiting > 0 ? `Offline, ${changes(waiting)} waiting` : "Offline", tone: "offline", opens: waiting > 0 };
+/** `reconnecting`: this device has a network but the Space is not answering (a restart, an update): the app is trying again, so it says that instead of "Offline". */
+export function syncLabel(online: boolean, waiting: number, reconnecting = false): SyncLabel {
+  if (!online) {
+    const word = reconnecting ? "Reconnecting…" : "Offline";
+    return { text: waiting > 0 ? `${word}, ${changes(waiting)} waiting` : word, tone: "offline", opens: waiting > 0 };
+  }
   if (waiting > 0) return { text: `Sending ${changes(waiting)}`, tone: "busy", opens: true };
   return { text: "Connected", tone: "ok", opens: false };
 }

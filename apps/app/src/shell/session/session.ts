@@ -27,6 +27,8 @@ import { aiHomeOf } from "../../ai-signin/own-ai.ts";
 import { spaceLabel } from "../spaces/space-label.ts";
 import { createDeferred } from "../../../../../client/src/runtime/deferred.ts";
 import { createLiveLink } from "./live.ts";
+import { realScheduler } from "../../../../../client/src/connection/scheduler.ts";
+
 import { createTurnStreams } from "./turn-streams.ts";
 import { readStoredSessions } from "./stored.ts";
 import type { LiveLink, LiveStatus } from "./live.ts";
@@ -42,6 +44,9 @@ import type { RemoteHooks } from "./remote-hooks.ts";
 import { onRetryLoads } from "../../../../../ui/src/States/retry.ts";
 import { speed } from "../../speed/recorder.ts";
 import { GATE, hiddenPlaces } from "./gates.ts";
+/** How long the live link may be down before the app says it is reconnecting. */
+const LOST_AFTER_MS = 1_500;
+
 
 export interface OpenSessionOptions {
   /** The sign-in name this device typed, when it did. */
@@ -263,6 +268,10 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
   const purgeListeners = new Set<(epoch: number) => void>();
   let live: LiveStatus = "offline";
   let everLive = false;
+  // The link was live and has not been for LOST_AFTER_MS: the title bar says the app is reconnecting. A blip shorter than that shows nothing, and neither does a first connect.
+  let linkLost = false;
+  let lostTimer: (() => void) | null = null;
+  const clock = o.scheduler ?? realScheduler;
   const turns = createTurnStreams();
   const link: LiveLink = createLiveLink({
     baseUrl: o.baseUrl,
@@ -275,7 +284,10 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
     onStatus: (s) => {
       // back after a drop (the server restarted or deployed): hand the kept key back through the key door before anything needs it, so the next turn runs on the person's own account
       if (handOnLive(live, s, door)) void rehandKey(o.baseUrl, token ?? "").catch(() => false);
-      live = s; if (s === "live") everLive = true; else turns.reset(); tell();
+      live = s; if (s === "live") everLive = true; else turns.reset();
+      if (s === "live") { lostTimer?.(); lostTimer = null; linkLost = false; }
+      else if (everLive && !linkLost && lostTimer === null) lostTimer = clock.after(LOST_AFTER_MS, () => { lostTimer = null; if (!closed && live !== "live") { linkLost = true; tell(); } });
+      tell();
     },
     onTurn: (f) => turns.onFrame(f),
     onPurge: (epoch) => { for (const l of [...purgeListeners]) l(epoch); },
@@ -459,7 +471,7 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
     // a Space server keeps a wrap of the person's key for their Google or GitHub sign-ins: the Vault shows it, with Forget on this server
     serverKey: { state: () => serverKeyState(o.baseUrl, token ?? ""), keep: (keep: boolean) => setServerKeyKept(o.baseUrl, token ?? "", keep) },
     connection: {
-      get: () => (reachable && !(everLive && live === "offline") ? "online" : "offline"),
+      get: () => (reachable && !linkLost && !(everLive && live === "offline") ? "online" : "offline"),
       subscribe: (l) => { listeners.add(l); return () => { listeners.delete(l); }; },
     },
     principals,
@@ -504,6 +516,7 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
       page?.removeEventListener?.("pointerdown", touch);
       page?.removeEventListener?.("keydown", touch);
       offRetry();
+      lostTimer?.(); lostTimer = null;
       link.stop();
       turns.dispose();
       for (const off of keep) off();
