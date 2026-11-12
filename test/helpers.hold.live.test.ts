@@ -9,7 +9,7 @@ import { claimedSpace, hostLog, scriptedModel, stop, waitFor } from "./support/e
 type Msg = { author: { kind: string; id: string }; body: string; blocks: Array<{ type: string; data?: Record<string, unknown> }> };
 
 test("a helper's composed link waits for the person in the chat they asked in: its row says what for, the card is there, and Allow lets it finish", async () => {
-  let lead = ""; let chat = "";
+  let lead = ""; let chat = ""; let go = false;
   const reads: string[] = [];
   const model = scriptedModel(async function* (input, run) {
     if (input.agent.id !== lead) return;
@@ -28,6 +28,7 @@ test("a helper's composed link waits for the person in the chat they asked in: i
     yield* run("tool_search", { query: "notes create" }); yield* run("tool_search", { query: "read link" });
     // a link it puts together is a read in an ordinary chat (lead's ruling, 12 Nov): it goes through; the note it writes in Ask first is the change that waits for the person
     yield* run("read_link", { url: "https://www.other-rates.example/compare" });
+    while (!go) await new Promise((r) => setTimeout(r, 100));   // the test puts the helper's own chat in Ask first first
     const out = yield* run("notes_create", { title: "Harbor rates", body: "From harborquotes.example", idempotencyKey: "hh-note" });
     reads.push(JSON.stringify(out).slice(0, 300));
     yield { type: "text", text: "I could not open the rates page, so I have nothing to add." };
@@ -36,8 +37,13 @@ test("a helper's composed link waits for the person in the chat they asked in: i
   lead = s.assistant;
   try {
     chat = (await s.api("chat.start", { kind: "chat", agentIds: [lead], title: "Rates", idempotencyKey: "hh-chat" })).thread.threadId as string;
-    await s.api("threads.set_mode", { threadId: chat, mode: "ask", idempotencyKey: "hh-auto" });
+    await s.api("threads.set_mode", { threadId: chat, mode: "auto", idempotencyKey: "hh-auto" });
     await s.api("chat.post", { threadId: chat, body: "look up the rates with a helper", mentions: [{ kind: "agent", id: lead }], idempotencyKey: "hh-ask" });
+    // the change the helper makes waits in Ask first: its own chat is put in Ask first (the lead chat stays in Auto, so starting the helper is not held)
+    const helperThread = await waitFor(async () => (((await s.api("engine.helpers.status", { threadId: chat })).helpers as Array<{ threadId: string }>)[0]?.threadId ?? null), 40_000, () => "no helper");
+    // the helper's chat may not be readable for an instant after it is listed: try again until it is
+    await waitFor(async () => { try { await s.api("threads.set_mode", { threadId: helperThread, mode: "ask", idempotencyKey: "helper-ask" }); return true; } catch { return null; } }, 20_000, () => "the helper's chat could not be put in Ask first");
+    go = true;
     // the helper waits: its row in the lead chat says what for, and carries the hold's task
     const held = await waitFor(async () => {
       const r = (await s.api("engine.helpers.status", { threadId: chat })).helpers as Array<{ threadId: string; state: string; holdTaskId?: string; step?: string }>;

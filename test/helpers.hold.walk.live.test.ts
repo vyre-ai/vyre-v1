@@ -23,7 +23,7 @@ test("a helper's held link: the lead chat shows its row as Needs you and the app
   assert.ok(fs.existsSync(exe), `a browser is required at ${exe}`);
   const shots = process.env["VYRE_TEST_CAPTURE_DIR"] ?? fs.mkdtempSync(path.join(os.tmpdir(), "vyre-helper-hold-"));
   fs.mkdirSync(shots, { recursive: true });
-  let agent = ""; let chat = "";
+  let agent = ""; let chat = ""; let go = false;
   const model = scriptedModel(async function* (input, run) {
     if (input.agent.id !== agent) return;
     if (input.threadId === chat) {
@@ -39,6 +39,7 @@ test("a helper's held link: the lead chat shows its row as Needs you and the app
     yield* run("tool_search", { query: "notes create" }); yield* run("tool_search", { query: "read link" });
     // a link it puts together is a read in an ordinary chat (lead's ruling, 12 Nov): it goes through; the note it writes in Ask first is the change that waits for the person
     yield* run("read_link", { url: "https://www.other-rates.example/compare" });
+    while (!go) await new Promise((r) => setTimeout(r, 100));   // the test puts the helper\'s own chat in Ask first first
     yield* run("notes_create", { title: "Harbor rates", body: "From harborquotes.example", idempotencyKey: "hx-note" });
     yield { type: "text", text: "Done." };
   });
@@ -67,9 +68,14 @@ test("a helper's held link: the lead chat shows its row as Needs you and the app
     await api("providers.set_space_use", { idempotencyKey: "b-spaceuse", providerId: provider, allow: true });
     agent = (await api("agents.create", { name: "Scout", role: "You look things up for the team.", idempotencyKey: "h-agent" })).agent.agentId as string;
     chat = (await api("chat.start", { kind: "chat", agentIds: [agent], title: "Rates check", idempotencyKey: "h-chat" })).thread.threadId as string;
-    await api("threads.set_mode", { threadId: chat, mode: "ask", idempotencyKey: "h-auto" });
+    await api("threads.set_mode", { threadId: chat, mode: "auto", idempotencyKey: "h-auto" });
     for (const flow of ["team", "personal", "member"]) await api("spaces.onboarding.seen", { flow }).catch(() => undefined);
     await api("chat.post", { threadId: chat, body: "Look up the rates with a helper", mentions: [{ kind: "agent", id: agent }], idempotencyKey: "h-ask" });
+    // the change the helper makes waits in Ask first: its own chat is put in Ask first (the lead chat stays in Auto, so starting the helper is not held)
+    const helperThread = await waitFor(async () => (((await api("engine.helpers.status", { threadId: chat })).helpers as Array<{ threadId: string }>)[0]?.threadId ?? null), 40_000, () => "no helper");
+    // the helper's chat may not be readable for an instant after it is listed: try again until it is
+    await waitFor(async () => { try { await api("threads.set_mode", { threadId: helperThread, mode: "ask", idempotencyKey: "helper-ask" }); return true; } catch { return null; } }, 20_000, () => "the helper's chat could not be put in Ask first");
+    go = true;
     const held = await waitFor(async () => (((await api("engine.helpers.status", { threadId: chat })).helpers as Array<{ state: string; holdTaskId?: string }>).find((h) => h.state === "needs_you" && h.holdTaskId) ?? null), 60_000, () => hostLog(d));
     const me = (await api("identity.whoami", {})).principal.id as string;
     const marker = (await api("spaces.get", {})).space.fingerprint as string;
