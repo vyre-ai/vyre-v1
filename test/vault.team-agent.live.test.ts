@@ -66,9 +66,13 @@ test("team agent: private and asker-only items are refused; shared with the agen
     const payrollFolder = (await write(d, "vault.folders.create", { name: "Payroll", scope: "shared" })).data.folder.id as string;
     await put(payrollFolder, "Payroll Bank");
     const askAs = async (asker: string, handle: string, agentId: string) => { const r = await values!.lookup(handle, { agentId, asker, where: "computer", place: agentId }); return JSON.stringify(r); };
-    // the gate adds nothing: Tess gets the Vault's own answer for an item she may not use (no_access, as from vault.use itself), never the line that it is shared
-    assert.equal(await askAs("usr_tess", "#Payroll_Bank.key", team), JSON.stringify({ kind: "denied", reason: "no_access" }), "the Vault's own answer, not team_shared");
-    t.diagnostic(`a handle that does not exist answers ${await askAs("usr_tess", "#No_Such_Item_Here.key", team)} (the Vault's own distinction, before any gate)`);
+    // the gate adds nothing, and the Vault no longer tells a hidden item from a missing one: Tess gets exactly the answer of a handle that does not exist
+    assert.equal(await askAs("usr_tess", "#Payroll_Bank.key", team), await askAs("usr_tess", "#No_Such_Item_Here.key", team), "a hidden item reads as a missing one, never as shared");
+    // lead follow-up 1: in the Vault itself, a handle for an item the asker cannot see resolves exactly like one that does not exist, for every asker (Olivia's private item, asked by Adam and by Noah)
+    for (const asker of ["usr_adam", "usr_noah"]) {
+      assert.equal(await askAs(asker, "#Olivia_Private.key", team), await askAs(asker, "#No_Such_Item_Here.key", team), `${asker}: a hidden item reads as a missing one`);
+      assert.equal(await askAs(asker, "#Olivia_Private.key", own!.agentId), await askAs(asker, "#No_Such_Item_Here.key", own!.agentId), `${asker}: the same through another agent`);
+    }
     // the answer a Routine gets that runs as the agent with no person behind it: no person's item, whatever is shared
     assert.notEqual(JSON.parse(await askAs(team, "#For_Everyone.key", team)).kind, "value", "a turn with no person asker gets no Vault value");
     // fifth look 2: two items can carry the same handle; the value is used only when it is of the item that was judged

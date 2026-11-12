@@ -21,3 +21,4 @@
 - A team agent uses a shared Vault field only when the share really gives it: a share that hides that field, has not started, has ended or sits below the item's label no longer counts, and a refusal says whether the item is your own or shared but not for this agent.
 - An agent Vyre cannot place, or one whose askers cannot be told, gets no Vault values; your private agent that only you can ask, and a terminal on your own computer, work like your own Assistant.
 - Asking a team agent for a Vault item you cannot see answers exactly as the Vault does, without saying the item exists, and a value is used only when it is of the very item that was checked.
+- A Vault name or handle for an item you cannot see now answers exactly like one that does not exist, so nobody can learn which items are there by guessing names; when two people's own items share a handle, yours is the one used.

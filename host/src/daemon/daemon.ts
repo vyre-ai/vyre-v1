@@ -1257,7 +1257,16 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           if (!previews) throw fail("permission.no_grant", trace);
           return previews.read(token, cap, input, trace);
         } },
-        resolveItem: (type, kind, value) => resolveVaultItem(db!, type, kind, value),
+        resolveItem: (type, kind, value, person) => resolveVaultItem(db!, type, kind, value, person),
+        // a Vault item this person cannot see: another person's Mine item (hidden even from an admin, as the Vault hides it), or one they may not use
+        vaultHidden: (itemId, person) => {
+          try {
+            const r = db!.all(`SELECT "scope", "owner" FROM vault_meta WHERE "id" = ? AND "deleted_at" IS NULL`, itemId)[0] as { scope?: string; owner?: string } | undefined;
+            if (!r) return true;
+            if (r.scope === "mine") return r.owner !== person;
+            return authorize(access.snap, { principal: person, action: { perm: null, level: "use" }, resource: { type: "vault_item", id: itemId }, now: now() }).effect !== "allow";
+          } catch { return true; }
+        },
         ensureResource: async (r) => {
           if ((r.type === "conversation" || r.type === "mail_message") && r.id !== null) { await ensureRow(r.type, r.id); return; }
           const key = r.type === "connector" ? r.id : r.id === null && r.type === "connection" ? r.parent ?? null : null;

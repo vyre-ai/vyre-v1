@@ -29,6 +29,9 @@ export const MAX_DEPTH = 8;
 export type Handler = (ctx: Ctx, input: any) => Promise<unknown> | unknown;
 
 export interface CapIndex { get(name: string, v?: number): CapabilityDef | undefined }
+/** What a Vault name or handle that names nothing the caller may use answers, hidden or missing alike. */
+export const NO_SUCH_ITEM = "There is no Vault item by that name that you can use. Check the name, or ask for the key.";
+
 /** Latest version when `v` is omitted. */
 export function indexCapabilities(caps: readonly CapabilityDef[]): CapIndex {
   const m = new Map<string, CapabilityDef>(), latest = new Map<string, CapabilityDef>();
@@ -182,8 +185,10 @@ export interface InvokeDeps {
    * decision finds it. Nothing to do for any other resource.
    */
   ensureResource?(resource: ResourceRef): Promise<void>;
-  /** vault name or handle to item id, for `resolve` bindings */
-  resolveItem?(type: string, kind: "name" | "handle", value: string): string | null;
+  /** vault name or handle to item id, for `resolve` bindings; `person`: whose items come first (their own, then the ones they may see), so a hidden item never shadows a visible one */
+  resolveItem?(type: string, kind: "name" | "handle", value: string, person?: string): string | null;
+  /** Is this Vault item hidden from this person (another person's Mine item, or one they may not use)? A name or handle that resolves to one reads as one that does not exist. */
+  vaultHidden?(itemId: string, person: string): boolean;
   /** spend so far per meter, for the spend policies */
   spend?(principal: string): Record<string, number> | undefined;
   /** module services for the handler context: db, vault, http, schedule, seal */
@@ -382,10 +387,13 @@ export function createInvoke(deps: InvokeDeps): Invoke {
     const did = (): string => (kd ? kd.decisionId : (fallbackId ??= mintId("dec", t)));   // minted only when an audit row or a parked task needs it
     let approved = false;
     if (!seed.preAuth) {
-      try { resource = resolveResource(c, input, seed.space, deps.resolveItem); }
+      // whose Vault the name is looked up in: the person, or the person an agent acts for
+      const vaultPerson = seed.actingFor ?? (seed.principal.kind === "person" ? seed.principal.id : undefined);
+      const resolveFor = deps.resolveItem ? (type: string, kind: "name" | "handle", value: string): string | null => deps.resolveItem!(type, kind, value, vaultPerson) : undefined;
+      try { resource = resolveResource(c, input, seed.space, resolveFor); }
       catch (e) {
         // a Vault name or handle that names nothing the caller may use reads the same as one that does not exist, in words a person or an agent can act on
-        if (e instanceof BindingError) throw fail("validation.bad_input", traceId, { ...(e.message === "no such item" ? { message: "There is no Vault item by that name that you can use. Check the name, or ask for the key." } : {}), details: { errors: [`${e.pointer}: ${e.message}`], cap: c.name } });
+        if (e instanceof BindingError) throw fail("validation.bad_input", traceId, { ...(e.message === "no such item" ? { message: NO_SUCH_ITEM } : {}), details: { errors: [`${e.pointer}: ${e.message}`], cap: c.name } });
         throw e;
       }
       if (resource && deps.ensureResource) await deps.ensureResource(resource);
@@ -432,6 +440,13 @@ export function createInvoke(deps: InvokeDeps): Invoke {
           return stepsFour(c, input, asPerson, trace, depth, true);
         }
         return park(c, input, seed, traceId, pd.decisionId, c.gate?.act && c.gate.act !== "none" ? c.gate.act : "approve", audit("hold", "asks_person"), "person");
+      }
+      // a Vault item named by name or handle that the person cannot see answers exactly as a name that names nothing, whatever authorize said (an admin's yes on another person's Mine item
+      // included: the Vault hides those too), so nobody can probe which items exist. The refusal is in the audit, for admins; nothing more comes back.
+      const named = c.resource !== undefined && "resolve" in c.resource && Boolean((c.resource as { resolve?: unknown }).resolve) && resource !== null && resource.type === "vault_item" && resource.id !== null;
+      if (named && vaultPerson !== undefined && deps.vaultHidden?.(resource!.id as string, vaultPerson) === true) {
+        await deps.audit?.(audit("deny", "vault_item_hidden"));
+        throw fail("validation.bad_input", traceId, { message: NO_SUCH_ITEM, details: { errors: [`${(c.resource as { id: string }).id}: no such item`], cap: c.name } });
       }
       if (d.effect === "deny") {
         await deps.audit?.(audit("deny", d.reason));
