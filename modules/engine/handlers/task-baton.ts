@@ -13,7 +13,7 @@
 import type { TurnEngine } from "../../../agent/src/turn-engine/engine.ts";
 import type { EngineAgent } from "../../../agent/src/turn-engine/types.ts";
 import { ensure, sqlMessages, withMessageId } from "../projections.ts";
-import { AUTOMATION_MARK, isOutsideTrigger } from "../../../lib/automation-content.ts";
+import { automationMark, isOutsideTrigger } from "../../../lib/automation-content.ts";
 import type { EngineCtx } from "../projections.ts";
 
 type Obj = Record<string, unknown>;
@@ -327,7 +327,7 @@ export async function onTaskEvent(ctx: Pick<EngineCtx, "db">, host: BatonHost, e
   // (Auto by default), like a chat where the agent read a page: the Gate's own rules stop the dangerous acts, and the mark means no earlier typed ask lets one through (lead 12 Nov)
   const made = automationMade(task);
   if (made !== null && isOutsideTrigger(made.trigger)) {
-    await host.call("gate.taint.mark", { threads: [threadId], source: `${AUTOMATION_MARK}${made.automationId}:${asker}` })
+    await host.call("gate.taint.mark", { threads: [threadId], source: automationMark(made.automationId, made.trigger, asker) })
       .catch((e: unknown) => host.log?.("an automation's thread could not be marked as outside content", { taskId: task.id, error: e instanceof Error ? e.message : String(e) }));
   }
   const woken: string[] = [];

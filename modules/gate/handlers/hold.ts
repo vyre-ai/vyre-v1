@@ -2,7 +2,7 @@
 // the hold lists, and the two things the module does on its own: recover() after a crash and rejectAllOf() when a person leaves.
 // gate.park is called by the invoke pipeline with the payload hash it computed; the Gate stores it with the decision id, writes both onto the task as reserved working notes
 // (tasks.working_notes.set decision_id and payload_hash, once each) and sets two timers: gate.expire at the timeout and one approval.backstop notification at the backstop hour.
-import { isOutsideTrigger, triggerWords } from "../../../lib/automation-content.ts";
+import { isOutsideTrigger, readAutomationMark, triggerWords } from "../../../lib/automation-content.ts";
 import { holdSentence, holdTitle } from "../../../lib/hold-words.ts";
 import type { HoldNames } from "../../../lib/hold-words.ts";
 import { outwardOf } from "../../../lib/outward.ts";
@@ -38,14 +38,22 @@ async function askerOf(ctx: GateCtx, p: PrincipalRef, actingFor: string | undefi
 /** "Started by the automation <name> (<trigger>)" for a thread that is the task thread of an Automation's outside-started Run, else "". */
 async function automationStartLine(ctx: GateCtx, threadId: string): Promise<string> {
   if (!ctx.call) return "";
+  // a thread the Run's agent started from there (a task, a helper, a crew job) carries the Run's mark: the line comes from it, whether or not a message since cleared it for outward acts
+  const named = async (automationId: string, trigger: string): Promise<string> => {
+    const name = ((await ctx.call!("automations.get", { automationId }).catch(() => null)) as { automation?: { name?: string } } | null)?.automation?.name ?? "an automation";
+    return `Started by the automation ${name} (${triggerWords(trigger)})`;
+  };
+  const fromMark = async (): Promise<string> => {
+    const m = readAutomationMark((ctx.db.all("SELECT source FROM gate_taint WHERE thread_id = ?", threadId)[0] as { source?: string } | undefined)?.source);
+    return m && isOutsideTrigger(m.trigger) ? named(m.automationId, m.trigger) : "";
+  };
   try {
     const th = ((await ctx.call("threads.get", { threadId })) as { thread?: { scopeType?: string; scopeId?: string } } | null)?.thread;
-    if (th?.scopeType !== "task" || typeof th.scopeId !== "string") return "";
+    if (th?.scopeType !== "task" || typeof th.scopeId !== "string") return await fromMark();
     const t = ((await ctx.call("tasks.get", { taskId: th.scopeId })) as { task?: { createdBy?: string; workingNotes?: Record<string, string> } } | null)?.task;
     const automationId = t?.workingNotes?.["automation.id"], trigger = t?.workingNotes?.["automation.trigger"] ?? "";
-    if (typeof automationId !== "string" || t?.createdBy !== `svc_${automationId.slice(4)}` || !isOutsideTrigger(trigger)) return "";
-    const name = ((await ctx.call("automations.get", { automationId })) as { automation?: { name?: string } } | null)?.automation?.name ?? "an automation";
-    return `Started by the automation ${name} (${triggerWords(trigger)})`;
+    if (typeof automationId !== "string" || t?.createdBy !== `svc_${automationId.slice(4)}` || !isOutsideTrigger(trigger)) return await fromMark();
+    return await named(automationId, trigger);
   } catch { return ""; }
 }
 /** Open asks one agent may have waiting for one person (lead ruling, 3 Nov). */

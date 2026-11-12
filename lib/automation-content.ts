@@ -14,8 +14,14 @@ const TRIGGER_WORDS: Readonly<Record<string, string>> = {
 };
 export const triggerWords = (trigger: string | undefined): string => TRIGGER_WORDS[trigger ?? ""] ?? "outside trigger";
 
-/** The mark the engine's task baton writes on an outside-started Run's task thread: "automation:<automationId>:<person the work acts for>". */
+/** The mark on an outside-started Run's task thread, and on any thread its agent starts from there: "automation:<automationId>:<trigger>:<person the work acts for>". */
 export const AUTOMATION_MARK = "automation:";
+export const automationMark = (automationId: string, trigger: string, person: string): string => `${AUTOMATION_MARK}${automationId}:${trigger}:${person}`;
+/** The automation and trigger a mark names, or null. */
+export function readAutomationMark(source: string | undefined): { automationId: string; trigger: string } | null {
+  const m = /^automation:(aut_[a-z0-9]+):([a-z_]*):/.exec(source ?? "");
+  return m ? { automationId: m[1]!, trigger: m[2]! } : null;
+}
 
 /**
  * Held with act "approve" when an agent calls one in a thread whose chain carries an uncleared Automation mark (host/src/daemon/gate-hook.ts). Giving access, then keeping words for later.
@@ -28,6 +34,8 @@ export const HELD_FROM_AUTOMATION_CONTENT: readonly string[] = [
   "members.invites.create", "members.invites.extend", "members.join_link.create", "members.join_requests.approve", "members.reactivate", "projects.members.set",
   "skills.share", "skills.grant", "portal.account_create", "portal.file_link", "portal.post", "webhooks.create", "webhooks.update", "memory.page.set_visibility",
   "sites.publish", "sites.artifact_publish",
+  // the outer call, so nothing is half done before the card (a nested share inside these is not held on its own)
+  "threads.members.add", "channels.members.add", "changesets.review_externally",
   // keeping the stranger's words for later turns
   "automations.create", "automations.update", "automations.set_enabled", "automations.restore_version", "automations.templates.use", "automations.packages.import",
   "automations.make_personal_copy", "agents.create", "agents.update", "agents.instruction.append", "agents.routine.save", "agents.routine.delegate", "channels.agent_watch.set",

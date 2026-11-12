@@ -200,7 +200,7 @@ test("a task a record change started is marked as holding outside content; one a
   const changed = scene({ tsk_t1: mk("record_change") }, stubs);
   assert.deepEqual(await changed.run("task.created", "tsk_t1"), [DOER]);
   const mark = changed.h.called.find((c) => c.cap === "gate.taint.mark");
-  assert.equal(mark?.input.source, `automation:${auto}:${BOSS}`);
+  assert.equal(mark?.input.source, `automation:${auto}:record_change:${BOSS}`);
   const timed = scene({ tsk_t1: mk("schedule") }, stubs);
   assert.deepEqual(await timed.run("task.created", "tsk_t1"), [DOER]);
   assert.equal(timed.h.called.some((c) => c.cap === "gate.taint.mark"), false);

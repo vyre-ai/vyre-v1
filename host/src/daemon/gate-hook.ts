@@ -26,8 +26,8 @@ export interface GateHookDeps {
    * expression language has no such functions, so the Gate asks the module; an evaluator that throws counts as holding, like an unreadable expression.
    */
   evaluators?: Record<string, (input: unknown, seed: Pick<CtxSeed, "principal" | "thread">) => boolean | Promise<boolean>>;
-  /** Does any of these threads carry an uncleared mark from an Automation's outside-started Run ("automation:..."), as opposed to a page an agent read on a person's ask? */
-  automationMarked?(threads: readonly string[]): boolean | Promise<boolean>;
+  /** The uncleared mark from an Automation's outside-started Run ("automation:...") on any of these threads, as opposed to a page an agent read on a person's ask; null when none. */
+  automationMarked?(threads: readonly string[]): string | null | Promise<string | null>;
   /** The held row an approval names (the host owns modules.db): who asked, whom for, run and thread, the stored payload hash and its state. Null when there is none. */
   /** What a capability that can go out without saying so does on this call: the act and where it goes. Null when this call stays here. */
   outward?(cap: string, input: unknown): { act: string; targets: string[] } | null;
@@ -77,6 +77,21 @@ function claimsOf(d: Pick<GateHookDeps, "unseal">, token: string): Claims | null
   } catch { return null; }
 }
 
+/** Thread ids a call's output names (a new task's thread, a helper's, a crew job's, a chat it started), a level or two deep. */
+function threadsIn(output: unknown): string[] {
+  const out = new Set<string>();
+  const look = (v: unknown, depth: number): void => {
+    if (v === null || typeof v !== "object" || depth > 3) return;
+    if (Array.isArray(v)) { for (const x of v.slice(0, 50)) look(x, depth + 1); return; }
+    for (const [k, x] of Object.entries(v as Record<string, unknown>)) {
+      if ((k === "threadId" || k === "workerThread") && typeof x === "string" && x.startsWith("thr_")) out.add(x);
+      else if (typeof x === "object") look(x, depth + 1);
+    }
+  };
+  look(output, 0);
+  return [...out];
+}
+
 export function createGateHook(d: GateHookDeps): GateHook {
   const threads = (id: string): string[] => d.threads?.(id) ?? [id];
   // A link the person gave, or one found on a page already read, is a read. One the model put together can carry anything in its address, so it is outward (chat design, hole 2).
@@ -105,7 +120,7 @@ export function createGateHook(d: GateHookDeps): GateHook {
     // as in rc.25 (lead 12 Nov).
     async fromAutomationContent(cap, seed) {
       if (!HELD_FROM_AUTOMATION_SET.has(cap.name) || seed.principal.kind !== "agent" || seed.thread === undefined) return false;
-      return (await d.automationMarked?.(threads(seed.thread))) === true;
+      return ((await d.automationMarked?.(threads(seed.thread))) ?? null) !== null;
     },
     async allowed(cap, input, seed) {
       const a = always(cap, seed);
@@ -115,6 +130,13 @@ export function createGateHook(d: GateHookDeps): GateHook {
     },
     async seen(cap, input, output, seed) {
       if (!seed.thread || seed.principal.kind !== "agent") return;
+      // the mark follows the work: a task, a helper, a crew job or a chat the agent starts from a thread an Automation's outside-started Run marked carries the same mark, so the work it
+      // does there is held as the Run's own is (lead 12 Nov)
+      const made = threadsIn(output).filter((t) => t !== seed.thread);
+      if (made.length > 0) {
+        const mark = (await d.automationMarked?.(threads(seed.thread))) ?? null;
+        if (mark !== null) await d.call("gate.taint.mark", { threads: made, source: mark });
+      }
       if (!bringsOutside(cap.name, cap.effects) && d.fetches?.(cap.name, input) !== true) return;
       const text = typeof (output as { text?: unknown } | null)?.text === "string" ? (output as { text: string }).text : "";
       const listed = (output as { links?: { url?: unknown }[] } | null)?.links;

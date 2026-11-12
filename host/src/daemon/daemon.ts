@@ -1297,9 +1297,9 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           threads: threadChain,
           // an uncleared Automation mark on the thread or one above it; when the table cannot be read, held only for a thread that belongs to an Automation's outside-started Run
           automationMarked: async (ids) => {
-            if (ids.length === 0) return false;
-            try { return db!.all(`SELECT 1 FROM gate_taint WHERE thread_id IN (${ids.map(() => "?").join(", ")}) AND cleared_at IS NULL AND source LIKE 'automation:%' LIMIT 1`, ...ids).length > 0; }
-            catch { for (const id of ids) { const at = await automationTaskOfThread(id); if (at?.outside) return true; } return false; }
+            if (ids.length === 0) return null;
+            try { return (db!.all(`SELECT source FROM gate_taint WHERE thread_id IN (${ids.map(() => "?").join(", ")}) AND cleared_at IS NULL AND source LIKE 'automation:%' LIMIT 1`, ...ids)[0] as { source?: string } | undefined)?.source ?? null; }
+            catch { for (const id of ids) { const at = await automationTaskOfThread(id); if (at?.outside) return `automation:${at.automationId}:${at.trigger}:`; } return null; }
           },
           mode: (id) => {
             // 1 plan, 2 auto, anything else ask (modules/chat/projections.ts): a Job is never looser than the chat above it
