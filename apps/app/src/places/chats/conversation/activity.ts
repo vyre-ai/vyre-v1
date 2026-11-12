@@ -7,7 +7,7 @@ export function stepWords(name: string): string {
   const key = n.toLowerCase();
   const table: Record<string, string> = {
     read: "Reading", glob: "Looking for files", grep: "Searching", bash: "Running a command", edit: "Editing", multiedit: "Editing", write: "Writing a file", notebookedit: "Editing a notebook",
-    websearch: "Searching the web", toolsearch: "Looking for tools", webfetch: "Reading a page", task: "Working with a helper", agent: "Working with a helper", sub_task_model: "Starting a helper", crew_start: "Starting a teammate", crew_merge: "Asking to merge", crew_push: "Asking to push", todowrite: "Planning", exitplanmode: "Planning", askuserquestion: "Asking you",
+    websearch: "Searching the web", toolsearch: "Looking for tools", webfetch: "Reading a page", terminal_run: "Running a command", read_link: "Reading a page", web_search: "Searching the web", task: "Working with a helper", agent: "Working with a helper", sub_task_model: "Starting a helper", crew_start: "Starting a teammate", crew_merge: "Asking to merge", crew_push: "Asking to push", todowrite: "Planning", exitplanmode: "Planning", askuserquestion: "Asking you",
   };
   if (table[key]) return table[key]!;
   const words = n.replace(/([a-z0-9])([A-Z])/g, "$1 $2").toLowerCase().split(/[_\s-]+/).filter(Boolean);
@@ -22,7 +22,8 @@ export function stepWords(name: string): string {
 
 /** The last stretch of thinking as one short line, or "". */
 export function thinkingExcerpt(text: string, max = 72): string {
-  const one = text.replace(/\s+/g, " ").trim();
+  // a tool's own name never shows (owner, 4 Nov): a snake_case or mcp__ name in the thinking is said as what it does ("I'll call terminal_run" reads "I'll call running a command")
+  const one = text.replace(/\bmcp__[a-z0-9]+__[A-Za-z0-9_]+|\b[a-z][a-z0-9]*(?:_[a-z0-9]+)+\b/g, (m) => stepWords(m).toLowerCase()).replace(/\s+/g, " ").trim();
   if (one === "") return "";
   return one.length > max ? `…${one.slice(one.length - max).trimStart()}` : one;
 }

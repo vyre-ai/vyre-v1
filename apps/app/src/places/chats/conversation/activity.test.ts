@@ -64,3 +64,12 @@ test("tools running together read as one line that says how many, with the calls
   const one = activityLine(snap({ steps: [step("a", "calendar_list_events"), step("b", "tasks_list", "done")] }));
   assert.equal(one.label, "Using calendar list events", "one running step keeps its own words");
 });
+
+test("the API model's tools read as what they do, and no tool name leaks through the thinking line (lead, 12 Nov)", () => {
+  assert.equal(stepWords("terminal_run"), "Running a command");
+  assert.equal(stepWords("read_link"), "Reading a page");
+  assert.equal(stepWords("web_search"), "Searching the web");
+  const t = thinkingExcerpt("I will call terminal_run to start it, then mcp__vyre__records_search for the deal", 200);
+  assert.ok(!/terminal_run|mcp__|records_search/.test(t), t);
+  assert.match(t, /running a command/);
+});
