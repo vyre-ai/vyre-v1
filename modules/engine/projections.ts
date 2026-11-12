@@ -51,6 +51,13 @@ export const actorOf = (ctx: Pick<EngineCtx, "principal" | "actingFor">): string
 // The engine that runs on this host. The host binds it at boot (impl.ts); handlers reach it through boundEngine().
 let bound: TurnEngine | null = null;
 export function bindEngine(engine: TurnEngine | null): void { bound = engine; }
+
+// Holds a parked turn waited on, kept after its wait row is gone (lane f-wire, 12 Nov): the wake that continues the turn removes the row when it starts, and engine.hold_answered, which hears the same
+// gate.approved, must still know the hold was a parked turn's, or it wakes the agent a second time with the person's newest message as its trigger, before that message's ask is read.
+const parkedHolds = new Set<string>();
+const noteParked = (taskId: string): void => { parkedHolds.add(taskId); if (parkedHolds.size > 2_000) parkedHolds.delete(parkedHolds.values().next().value as string); };
+/** Did a parked turn wait on this hold (its row may be gone already)? */
+export const wasParked = (taskId: string): boolean => parkedHolds.has(taskId);
 /**
  * True from the moment the server starts closing its engine until the next engine host half is bound. An event the engine cannot take in that time is NOT consumed: the host moves a consumer's
  * cursor past an event it answers (even with "skipped"), so a message that arrived while the server was shutting down would never get its turn. The consumers throw instead and the event is
@@ -312,13 +319,17 @@ export function sqlWaits(db: Db): WaitStore {
       const r = rows(db, "SELECT * FROM engine_waits WHERE task_id = ?", taskId)[0];
       return r ? waitOf(r) : null;
     },
-    resolve: (taskId, resolution, wakeQseq) =>
-      db.run("UPDATE engine_waits SET resolution = ?, wake_qseq = ? WHERE task_id = ? AND resolution IS NULL", JSON.stringify(resolution), wakeQseq, taskId).changes > 0,
+    resolve: (taskId, resolution, wakeQseq) => {
+      const done = db.run("UPDATE engine_waits SET resolution = ?, wake_qseq = ? WHERE task_id = ? AND resolution IS NULL", JSON.stringify(resolution), wakeQseq, taskId).changes > 0;
+      if (done) noteParked(taskId);
+      return done;
+    },
     forWake(threadId, qseq) {
       const r = rows(db, "SELECT * FROM engine_waits WHERE thread_id = ? AND wake_qseq = ?", threadId, qseq)[0];
       return r ? waitOf(r) : null;
     },
     remove(taskId) {
+      noteParked(taskId);
       db.run("DELETE FROM engine_waits WHERE task_id = ?", taskId);
     },
     open: (threadId) => rows(db, "SELECT * FROM engine_waits WHERE thread_id = ? ORDER BY at ASC", threadId).map(waitOf),

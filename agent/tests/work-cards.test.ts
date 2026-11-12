@@ -26,7 +26,10 @@ test("a send waiting on a yes is a card that says so", () => {
   assert.deepEqual(heldCard("mail.send", "tsk_9", { subject: "Your engagement letter", to: [{ address: "d@x.test" }] }), { key: "task:tsk_9", icon: "approval", lead: "Message", title: "Your engagement letter", target: { type: "task", id: "tsk_9" } });
   assert.equal(heldCard("mail.send", "tsk_9", { to: [{ address: "d@x.test" }] }).title, "To d@x.test", "no subject: the recipient");
   assert.equal(heldCard("mail.send", "tsk_9").title, "Message to send");
-  assert.deepEqual([heldCard("records.delete", "tsk_8").lead, heldCard("records.delete", "tsk_8").title], ["Approval", "records delete"]);
+  assert.equal(heldCard("records.delete", "tsk_8").lead, "Approval");
+  // the held act in words, never the capability's name (lane f-gate saw "automations read link", 12 Nov)
+  assert.equal(heldCard("automations.read_link", "tsk_7", { url: "https://www.harborquotes.com/rates" }).title, "Open harborquotes.com");
+  for (const cap of ["records.delete", "automations.read_link", "automations.read_docs", "files.delete"]) assert.doesNotMatch(heldCard(cap, "tsk_6").title, /[._]|\b(automations|records) (read|delete)\b/, cap);
 });
 
 test("a turn's cards come out in the order made, once each, and are gone once taken", () => {
