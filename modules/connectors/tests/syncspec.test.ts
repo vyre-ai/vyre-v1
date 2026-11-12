@@ -3,6 +3,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { KEY_A, KEY_B, ledgerSpec, orbitSpec } from "../fixtures/crm.ts";
 import { KEYS, world } from "../fixtures/crm-world.ts";
+import type { ConnectorsCtx } from "../projections.ts";
 import { executeAction } from "../handlers/runtime.ts";
 import { coerceValue, compileSpec, nextLink, parseSpec, readPage } from "../syncspec.ts";
 import type { SyncSpec } from "../syncspec.ts";
@@ -281,4 +282,21 @@ test("compile: updatedSince puts the since shape on both list actions and marks 
   assert.equal(c.connector.objects!["organizations"]!.since, undefined);
   const bad = parseSpec(mutate(ledgerSpec(), (s) => { s["objects"][1]["list"]["updatedSince"] = { param: "x", format: "yesterday" }; }));
   assert.match(JSON.stringify(bad.problems), /epoch_ms/);
+});
+
+// f-wire, 12 Nov (import starters): Bring in from your CRM ends in sync_specs.apply, whose first pull of each type could fail to start and was dropped without a word (no Run, nobody told).
+// Now it is one failed Run per type, owned by the person who applied the spec, with the reason: the owner gets run.failed like any other failed Run.
+test("apply: a first pull that cannot start is a failed Run with the reason, so the person who applied it is told", async () => {
+  const w = world();
+  const ctx: ConnectorsCtx = { ...w.ctx, call: async (cap, input) => {
+    if (cap === "runs.start" && String((input as { idempotencyKey?: string }).idempotencyKey ?? "").startsWith("connectors.sync_now:")) { w.calls.push({ cap, input }); throw Object.assign(new Error("down"), { error: { code: "internal.unavailable", message: "Runs are not available right now." } }); }
+    return w.ctx.call(cap, input);
+  } };
+  const out = await w.k.hs["sync_specs.apply"](ctx, { spec: ledgerSpec(), idempotencyKey: "k-fail" });
+  assert.ok(out.types.every((t) => t.runId), "each type still names a Run: the failed one");
+  const finished = w.calls.filter((c) => c.cap === "runs.finish");
+  assert.equal(finished.length, 2);
+  assert.ok(finished.every((c) => c.input.status === "failed" && /did not start: Runs are not available right now\./.test(c.input.error.message)), JSON.stringify(finished));
+  const failedStarts = w.calls.filter((c) => c.cap === "runs.start" && String(c.input.idempotencyKey).endsWith(":failed"));
+  assert.deepEqual(failedStarts.map((c) => c.input.owner), [w.ctx.actor ?? "system", w.ctx.actor ?? "system"], "owned by the person who applied it");
 });

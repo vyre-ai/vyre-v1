@@ -85,7 +85,7 @@ test("Computer, working: the live caption, steps in order, and the sites it is s
   assert.ok(has(out, ">Session<") && has(out, ">5 steps<"));
   const session = out.slice(at(out, ">Session<"));
   inOrder(session, ["Opened the county records site", "Searched for Rivera, Elena", "Saved the 2019 deed to Files", "Checked the filing date", "Filling the county records form"]);
-  assert.ok(has(out, "Chrome · now") && has(out, "Chrome · 9 min ago"));
+  assert.ok(has(out, "Chrome · just now") && has(out, "Chrome · 9 min ago"));
   inOrder(out, ["Signed in on its computer", "Google Workspace", "Web form inbox", "Calendar"]);
   assert.ok(has(out, "intake@northwind.example · since 2 Oct"));
   assert.ok(!has(out, 'data-testid="computer-wake"'));

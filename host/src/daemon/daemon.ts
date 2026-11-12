@@ -106,6 +106,7 @@ import type { Platform } from "../platform/index.ts";
 import * as probes from "../platform/probes.ts";
 import type { FetchFn, ProbeName, ProbeResult } from "../platform/probes.ts";
 import { Scheduler } from "../scheduler/index.ts";
+import { endOfDeadJob } from "./dead-jobs.ts";
 import { loopLag } from "../scheduler/looplag.ts";
 import { Supervisor } from "../supervisor/index.ts";
 import type { RunningUnit, ServiceSpec, UnitExit } from "../supervisor/index.ts";
@@ -1079,11 +1080,12 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       closeIdleSessions = async (person) => (await pool()?.closeIdle?.(person)) ?? 0;
       idleSessions = (person) => pool()?.idleCount?.(person) ?? 0;
       // the Space kind for terminal and computers (unbound they assume a Team Space) and how a person's sessions here stop when they turn subscription sharing off (modules/engine extra/config.ts)
-      boundPorts = bindSpacePorts(loaded.moduleExports, {
+      const portDeps = {
         team: cfg.spaceKind !== "personal",
-        stopSandbox: async (person) => { const p = pool(); if (!p?.closeIdle) return false; await p.closeIdle(person); return true; },
-      });
-      closers.push(() => unbindSpacePorts(loaded.moduleExports));
+        stopSandbox: async (person: string) => { const p = pool(); if (!p?.closeIdle) return false; await p.closeIdle(person); return true; },
+      };
+      boundPorts = bindSpacePorts(loaded.moduleExports, portDeps);
+      closers.push(() => unbindSpacePorts(loaded.moduleExports, portDeps));
       // Machines (lane l-machines): a machine's report goes to the module; the Space server reads itself every 30 s; the module asks the host how many turns a connected machine runs, for the Doctor and for the Fixes
       machinesSync = () => { void hookRunner.call("machines.sync", {}).catch(() => undefined); };
       machinesIngest = (from, r) => {
@@ -1218,7 +1220,12 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       let runScheduled: (call: ScheduledCall) => Promise<void> = () => Promise.reject(new Error("the invoke pipeline is not ready"));
       const scheduleQueue = new ScheduleQueue({
         db, now, run: (c) => runScheduled(c),
-        onError: (c, e, final) => sinkLog.warn("schedule.failed", { cap: c.cap, id: c.id, tries: c.tries + 1, final, error: e instanceof Error ? e.message : String(e) }),
+        onError: (c, e, final) => {
+          sinkLog.warn("schedule.failed", { cap: c.cap, id: c.id, tries: c.tries + 1, final, error: e instanceof Error ? e.message : String(e) });
+          // a dead job that drove a Run ends that Run failed, so its owner is told (dead-jobs.ts)
+          const end = final ? endOfDeadJob(c, e) : null;
+          if (end) void runScheduled(end).catch((err: unknown) => sinkLog.error("schedule.dead_run_not_ended", { cap: c.cap, id: c.id, error: err instanceof Error ? err.message : String(err) }));
+        },
       });
       queue = scheduleQueue;
       const sealKey = o.sealKey ?? { key: sealKeyFile(path.join(paths.root, "seal.key")), keyId: "k1" };
