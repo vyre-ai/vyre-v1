@@ -85,7 +85,9 @@ test("computers behind the runner: set up, wake, run a command, two agents isola
   t.after(async () => {
     await d.stop();
     delete process.env["VYRE_SITES_RUNNER"];
-    const left = (await docker(["ps", "-aq", "--filter", "label=vyre.computer"])).out.split("\n").filter((x) => /^[0-9a-f]{12}/.test(x));
+    // only this test's own computers: a filter on the label alone removed the computers of every other test running on the same Docker (computers.home-sync failed that way when run beside this file)
+    const mine = new Set(ids.map((id) => id.replace(/^cmt_/, "")));
+    const left = (await docker(["ps", "-a", "--filter", "label=vyre.computer", "--format", "{{.ID}} {{.Names}}"])).out.split("\n").map((l) => l.trim().split(" ")).filter(([id, n]) => /^[0-9a-f]{12}/.test(id ?? "") && mine.has((n ?? "").replace(/^vyre-comp-/, ""))).map(([id]) => id as string);
     if (left.length) await docker(["rm", "-f", "-v", ...left]);
     for (const id of ids) {
       const n = `vyre-comp-${id.replace(/^cmt_/, "")}`;
