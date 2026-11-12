@@ -145,8 +145,10 @@ test("a routine's switch turns it on or off with an Undo; the row says when it r
 test("Settings: AGENT.md against 150 lines, agent.toml, model, account, memory, computer, limits, access and keys (names only)", () => {
   const s = createSample("owner");
   const out = html(s, "settings");
-  inOrder(out, ['data-testid="label-l-files"', "93 of 150 lines", 'data-testid="row-setting-toml"', 'data-testid="row-setting-model"', "opus, then sonnet", "Runs on the account of whoever asks", "Proposes facts for you to accept", "Has its own computer", 'data-testid="label-l-limits"', "Spend per day", "Turns per day", "Minutes per run", 'data-testid="label-l-access"', "calendar.read", "#CRM_API, #CALENDAR_BOOKING (names only)"]);
+  inOrder(out, ['data-testid="label-l-files"', "93 of 150 lines", 'data-testid="row-setting-toml"', 'data-testid="row-setting-model"', "opus, then sonnet", "Runs on the account of whoever asks", "Proposes facts for you to accept", "A terminal and a browser of its own", 'data-testid="label-l-limits"', "Spend per day", "Turns per day", "Minutes per run", 'data-testid="label-l-access"', "calendar.read", "#CRM_API, #CALENDAR_BOOKING (names only)"]);
   assert.ok(has(out, "Instructions") && has(out, "AGENT.md") && has(out, "agent.toml") && has(out, "Limits"));
+  // every agent has a workspace and a browser now (an old desktop, where one exists, is the Computer tab's business): the row says that for all, and never "None yet" or "Has its own computer"
+  assert.ok(!has(out, "None yet") && !has(out, "Has its own computer"));
   assert.equal(instructionsLine(93), "93 of 150 lines");
   assert.equal(instructionsLine(140), "140 of 150 lines, nearly full");
   assert.equal(instructionsLine(AGENT_MD_LIMIT + 1), "151 of 150 lines, over the limit");
