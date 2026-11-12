@@ -14,6 +14,7 @@ import { isTrustedService } from "../../../lib/trust.ts";
 import type { ChannelRec, ChatCtx, Db, Mode } from "../projections.ts";
 import { mayGovernChannel, rootOf, seesSpace } from "./post.ts";
 import { mentions } from "./pace.ts";
+import { convergeHome, grantsOf, joinThreads, leaveThreads, revokeGrants } from "./owned.ts";
 
 type Row = Record<string, unknown>;
 const KINDS = ["people", "agents", "runs"] as const;
@@ -44,6 +45,14 @@ function loadLive(ctx: ChatCtx, channelId: string, o: { anyone?: boolean } = {})
   return ch;
 }
 
+/**
+ * A channel someone is being taken out of. An archived channel takes no other change, but it never blocks taking a person or an agent out: the host does that on a project's own channel when the
+ * project removes them (host/src/daemon/daemon.ts CHANNEL_FOLLOWS), and an archived channel must not keep them in it or fail the project's remove.
+ */
+function loadForRemoval(ctx: ChatCtx, channelId: string): ChannelRec {
+  return isTrustedService(ctx.principal) ? load(ctx, channelId) : loadLive(ctx, channelId);
+}
+
 const humans = (db: Db, thread: string): string[] => membersOf(db, thread).filter((p) => !p.startsWith("agt_"));
 
 /** Messages in the main thread after my read cursor that someone else wrote. */
@@ -66,6 +75,12 @@ function cleanName(ctx: ChatCtx, raw: string): string {
   if (name.length > MAX_NAME) raise(ctx, "validation.bad_input", `A channel name can be at most ${MAX_NAME} characters.`);
   return name;
 }
+/** Out of the channel: what being in it gave (the person's view of the agents the channel and its threads made) goes back first, then the membership (owned.ts). True when they were in it. */
+async function leaveWithGrants(ctx: ChatCtx, ch: ChannelRec, person: string): Promise<boolean> {
+  if (!isMember(ctx.db, ch.mainThread, person)) return false;
+  return leaveThreads(ctx, ch.mainThread, person, () => dropMember(ctx, ch.mainThread, person));
+}
+
 function dropMember(ctx: ChatCtx, thread: string, person: string): boolean {
   return ctx.db.run("UPDATE chat_thread_member SET deleted_at = ?, updated_at = ? WHERE thread = ? AND principal = ? AND deleted_at IS NULL", ctx.now(), ctx.now(), thread, person).changes > 0;
 }
@@ -118,6 +133,7 @@ export async function channelsJoin(ctx: ChatCtx, input: { channelId: string }) {
   if (isMember(ctx.db, ch.mainThread, asker)) return view(ctx, ch);
   if (ch.visibility !== "public") raise(ctx, "validation.bad_input", "This channel is invite-only. Ask a member to add you.");
   addMember(ctx, ch.mainThread, asker);
+  await joinThreads(ctx, ch.mainThread, asker);
   ctx.emit("channel.member_added", ch.id, { channelId: ch.id, threadId: ch.mainThread, personId: asker, by: asker });
   return view(ctx, ch);
 }
@@ -125,7 +141,7 @@ export async function channelsJoin(ctx: ChatCtx, input: { channelId: string }) {
 export async function channelsLeave(ctx: ChatCtx, input: { channelId: string }) {
   const ch = load(ctx, input.channelId);
   const asker = askerOf(ctx);
-  if (dropMember(ctx, ch.mainThread, asker)) ctx.emit("channel.member_removed", ch.id, { channelId: ch.id, threadId: ch.mainThread, personId: asker, by: asker });
+  if (await leaveWithGrants(ctx, ch, asker)) ctx.emit("channel.member_removed", ch.id, { channelId: ch.id, threadId: ch.mainThread, personId: asker, by: asker });
   return { ok: true };
 }
 
@@ -157,6 +173,8 @@ export async function channelsUpdate(ctx: ChatCtx, input: { channelId: string; n
   if (input.visibility !== undefined && input.visibility !== ch.visibility) {
     ctx.db.run("UPDATE chat_channel SET visibility = ?, updatedAt = ? WHERE id = ?", input.visibility, now, ch.id);
     fields.push("visibility");
+    // the agents its threads made, and their folders, follow who reads the channel now (owned.ts convergeHome)
+    await convergeHome(ctx, ch.mainThread);
   }
   if (fields.length > 0) ctx.emit("channel.updated", ch.id, { channelId: ch.id, fields });
   return refreshed(ctx, ch.id);
@@ -202,6 +220,7 @@ export async function channelsMembersAdd(ctx: ChatCtx, input: { channelId: strin
   for (const personId of ids) {
     if (isMember(ctx.db, ch.mainThread, personId)) continue;
     addMember(ctx, ch.mainThread, personId);
+    await joinThreads(ctx, ch.mainThread, personId);
     ctx.emit("channel.member_added", ch.id, { channelId: ch.id, threadId: ch.mainThread, personId, by });
     if (mentioned && where && mentioned.author !== personId) ctx.emit("message.mentioned", where.id, { messageId: mentioned.id, threadId: where.id, personId, author: refOf(mentioned.author), inThread: where.kind === "thread" });
   }
@@ -209,9 +228,9 @@ export async function channelsMembersAdd(ctx: ChatCtx, input: { channelId: strin
 }
 
 export async function channelsMembersRemove(ctx: ChatCtx, input: { channelId: string; personId: string }) {
-  const ch = loadLive(ctx, input.channelId);
+  const ch = loadForRemoval(ctx, input.channelId);
   if (!input.personId.startsWith("usr_")) raise(ctx, "validation.bad_input", "That is not a person.", { id: input.personId });
-  if (dropMember(ctx, ch.mainThread, input.personId)) ctx.emit("channel.member_removed", ch.id, { channelId: ch.id, threadId: ch.mainThread, personId: input.personId, by: askerOf(ctx) });
+  if (await leaveWithGrants(ctx, ch, input.personId)) ctx.emit("channel.member_removed", ch.id, { channelId: ch.id, threadId: ch.mainThread, personId: input.personId, by: askerOf(ctx) });
   return refreshed(ctx, ch.id);
 }
 
@@ -230,7 +249,9 @@ export async function channelsAgentsAdd(ctx: ChatCtx, input: { channelId: string
 }
 
 export async function channelsAgentsRemove(ctx: ChatCtx, input: { channelId: string; agentId: string }) {
-  const ch = loadLive(ctx, input.channelId);
+  const ch = loadForRemoval(ctx, input.channelId);
+  // what the channel gave the agent (threads.outside_agent.add, tagged chat:<thread>) goes back first, as threads.remove_agent does: if that cannot be done the agent stays, so nothing is left behind
+  await revokeGrants(ctx, ch.mainThread, input.agentId, grantsOf(ctx, ch.mainThread, input.agentId));
   const changed = ctx.db.run("UPDATE chat_thread_agent SET deleted_at = ?, updated_at = ? WHERE thread = ? AND agentId = ? AND deleted_at IS NULL", ctx.now(), ctx.now(), ch.mainThread, input.agentId).changes;
   if (changed > 0) {
     ctx.emit("channel.agent_removed", ch.id, { channelId: ch.id, agentId: input.agentId });

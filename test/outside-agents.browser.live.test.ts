@@ -98,7 +98,8 @@ test("the tab, the Allow page, the hand back, and the agent's page", { skip: DIS
     await page.goto(`${web.origin}/chat#screen=chats.connect-outside-agent&channelId=none`);
     await page.getByTestId("connect-outside-agent").waitFor({ timeout: 20_000 }).catch(() => undefined);
     await shot("sheet");
-    await page.goto(`${web.origin}/settings#page=connected`);
+    // Outside agents sit on the Sign-in page (SettingsPlace.tsx "signin"); "connected" is a page that moved to the Vault and never shows them, so its 30 s wait ran out every run
+    await page.goto(`${web.origin}/settings#page=signin`);
     await page.getByTestId("outside-agents").waitFor({ timeout: 30_000 }).catch(() => undefined);
     await page.getByTestId("outside-agents").scrollIntoViewIfNeeded().catch(() => undefined);
     await shot("settings");

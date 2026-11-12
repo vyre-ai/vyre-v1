@@ -10,7 +10,7 @@ import { mentions } from "./pace.ts";
 import { applyMode } from "./modes.ts";
 import { followMode, placeOf } from "./follow.ts";
 import { markRenamed } from "./title-state.ts";
-import { grantsOf, revokeGrants, shareOwnedWith, unshareOwnedFrom, trashOwned } from "./owned.ts";
+import { grantsOf, leaveThreads, revokeGrants, shareOwnedWith, trashOwned } from "./owned.ts";
 
 type Row = Record<string, unknown>;
 const MAX_AGENTS = 20;
@@ -283,8 +283,11 @@ export async function membersRemove(ctx: ChatCtx, input: { threadId: string; per
     if (String(mine?.["role"]) !== "owner" && !governs) raise(ctx, "permission.no_grant", "Only the owner removes other people.");
   }
   if (membersOf(ctx.db, t.id).filter((p) => p.startsWith("usr_")).length <= 1) raise(ctx, "validation.bad_input", "A chat keeps at least one person.");
-  ctx.db.run("UPDATE chat_thread_member SET deleted_at = ?, version = version + 1, updated_at = ? WHERE thread = ? AND principal = ? AND deleted_at IS NULL", ctx.now(), ctx.now(), t.id, input.personId);
-  await unshareOwnedFrom(ctx, t.id, input.personId);
+  // out of the chat, and out of what it gave them in every thread under it they can no longer read, in the person's queue (owned.ts leaveThreads): a grant still being written cannot land afterwards
+  await leaveThreads(ctx, t.id, input.personId, () => {
+    ctx.db.run("UPDATE chat_thread_member SET deleted_at = ?, version = version + 1, updated_at = ? WHERE thread = ? AND principal = ? AND deleted_at IS NULL", ctx.now(), ctx.now(), t.id, input.personId);
+    return true;
+  });
   ctx.emit("channel.member_removed", input.personId, { personId: input.personId, by: asker, threadId: t.id, ...(t.channelId !== undefined ? { channelId: t.channelId } : {}) });
   return out(ctx, t.id);
 }

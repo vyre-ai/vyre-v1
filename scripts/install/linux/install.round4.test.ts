@@ -14,9 +14,15 @@ const SERVER = path.join(HERE, "vyre-server");
 const read = (f: string): string => fs.readFileSync(f, "utf8");
 const tmp = (): string => fs.mkdtempSync(path.join(os.tmpdir(), "vyre-install-test-"));
 
+// These tests model a Linux server whose Docker runs on its own kernel. vyre-server decides that by the boot id read here and inside Docker; the model gives both sides
+// the same one (VYRE_TEST_ENGINE for Docker's answers, VYRE_TEST_BOOT_ID_FILE for this computer's, test mode only), so the tests do not depend on this computer's /proc:
+// a macOS runner (the desktop workflow's installer-macos job) has none, and there the missing boot id read as "another kernel".
+const SAME_BOOT = "0b0e1d2c-3a4f-4b5c-8d6e-same-kernel-test";
+const BOOT_FILE = ((): string => { const f = path.join(os.tmpdir(), `vyre-test-boot-id-${process.pid}`); fs.writeFileSync(f, `${SAME_BOOT}\n`); return f; })();
+const SAME_ENGINE = `Ubuntu|${SAME_BOOT}`;
 type Out = { status: number | null; stdout: string; stderr: string };
 function sh(script: string, body: string, env: Record<string, string> = {}): Out {
-  const r = spawnSync("sh", ["-c", `. "${script}"\n${body}`], { encoding: "utf8", env: { PATH: process.env.PATH ?? "", VYRE_SOURCE_ONLY: "1", VYRE_TEST_MODE: "1", VYRE_TEST_OS: "Linux", ...env } });
+  const r = spawnSync("sh", ["-c", `. "${script}"\n${body}`], { encoding: "utf8", env: { PATH: process.env.PATH ?? "", VYRE_SOURCE_ONLY: "1", VYRE_TEST_MODE: "1", VYRE_TEST_ENGINE: SAME_ENGINE, VYRE_TEST_BOOT_ID_FILE: BOOT_FILE, VYRE_TEST_OS: "Linux", ...env } });
   return { status: r.status, stdout: r.stdout, stderr: r.stderr };
 }
 function fakeHost(dir: string, opts: { fs?: string; src?: string; layers?: string[] }): { mounts: string; lsblk: string } {
@@ -354,7 +360,7 @@ test("--uninstall --purge does what it says and says what it did: contents of a 
   assert.ok(fs.existsSync(data), "a mount point cannot be removed");
   assert.deepEqual(fs.readdirSync(data), [], "but it is emptied, backups included");
   assert.ok(!fs.existsSync(dirVyre));
-  assert.match(out.stdout, /Removed: the server's containers and Docker volumes, the Space's data \(the folder .* stays, because it is a separate volume's mount point, but it is empty\), every backup in .*backups, the install folder/);
+  assert.match(out.stdout, /Removed: the server's containers and Docker volumes \(this Space's agents' browser sign-ins too\), the Space's data \(the folder .* stays, because it is a separate volume's mount point, but it is empty\), every backup in .*backups, the install folder/);
   assert.match(out.stdout, /Not removed: the Docker images it pulled .*, Docker itself, your DNS records, certificates issued for the name, and any backup you copied somewhere else\./);
   fs.rmSync(dir, { recursive: true });
 });

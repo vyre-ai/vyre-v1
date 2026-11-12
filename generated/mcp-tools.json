@@ -9741,7 +9741,7 @@
       "blocks": [],
       "cap": "channels.members.add",
       "deferred": false,
-      "description": "Add people to a channel",
+      "description": "Add people to a channel. With mentionedIn, each added person is told about that message like any mention; the message must be in the channel and mention them",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -9759,6 +9759,13 @@
               "edit",
               "manage"
             ],
+            "type": "string"
+          },
+          "mentionedIn": {
+            "examples": [
+              "msg_a1b2c3"
+            ],
+            "pattern": "^msg_[a-z0-9]+$",
             "type": "string"
           },
           "personIds": {

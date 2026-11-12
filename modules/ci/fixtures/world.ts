@@ -36,6 +36,8 @@ export function world(f: Fakes = {}) {
     droplets: [] as FakeDroplet[], nextId: 1000, cloudCalls: [] as Array<{ method: string; path: string }>, keysUsed: [] as string[], jit: [] as Array<Record<string, unknown>>, removed: [] as number[],
     secrets: f.secrets === undefined ? 0 : f.secrets, links: f.links ?? { "northwind/site": "prj_site" }, members: f.members ?? {},
     links_: [] as Array<Record<string, unknown>>, noLinkCap: false, appPerms: { actions: "read", administration: "write", secrets: "read" } as Record<string, string>, appEvents: ["push", "workflow_job"], runnerDigest: "sha256:baebf204307bac6193480852732f0aba2ae97b6c5597c244f4d5558390147c40" as string | null, releaseDown: false, linkRules: {} as Record<string, string>, linkedPrs: {} as Record<string, string>, noRemote: new Set<string>(), failCreate: 0, failList: false, failDelete: false, jitFails: false, runnerSeq: 1,
+    /** the start is cut off (a stop let the consumer go): hang in the runner call, or after the machine was made */
+    hangJit: false, hangCreate: false,
   };
   const cloud: CiHost = {
     async cloud(_ctx, handle, req) {
@@ -47,11 +49,12 @@ export function world(f: Fakes = {}) {
         const b = req.body as { name: string; size: string; tags: string[]; user_data: string };
         const d: FakeDroplet = { id: String(st.nextId++), created_at: new Date(st.now).toISOString(), tags: b.tags, user_data: b.user_data, name: b.name, size: b.size };
         st.droplets.push(d);
+        if (st.hangCreate) return new Promise<never>(() => undefined);
         return json(202, { droplet: { id: Number(d.id) } });
       }
       if (req.method === "GET" && req.path === "/v2/droplets") {
         if (st.failList) return json(500, {});
-        return json(200, { droplets: st.droplets.filter((d) => d.tags.includes(String(req.query?.["tag_name"]))).map((d) => ({ id: Number(d.id), created_at: d.created_at, tags: d.tags })) });
+        return json(200, { droplets: st.droplets.filter((d) => d.tags.includes(String(req.query?.["tag_name"]))).map((d) => ({ id: Number(d.id), name: d.name, created_at: d.created_at, tags: d.tags })) });
       }
       const del = /^\/v2\/droplets\/(\d+)$/.exec(req.path);
       if (req.method === "DELETE" && del) {
@@ -80,6 +83,7 @@ export function world(f: Fakes = {}) {
       if (cap === "github.runners.jit_config") {
         if (st.jitFails) throw Object.assign(new Error("x"), { error: { code: "provider.auth_failed" } });
         st.jit.push(i);
+        if (st.hangJit) return new Promise<never>(() => undefined);
         return { runnerId: 7000 + st.runnerSeq++, jitConfig: "eyJhbGciOiJIUzI1NiJ9abc123==" };
       }
       if (cap === "github.runner_release") { if (st.releaseDown) throw Object.assign(new Error("x"), { error: { code: "provider.unavailable" } }); return { assets: [{ name: "actions-runner-linux-x64-2.338.2.tar.gz", digest: st.runnerDigest }, { name: "other.tar.gz", digest: null }] }; }

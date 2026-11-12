@@ -1,6 +1,6 @@
 # channels.members.add
 
-Add people to a channel
+Add people to a channel. With mentionedIn, each added person is told about that message like any mention; the message must be in the channel and mention them
 
 | | |
 |---|---|
@@ -19,7 +19,7 @@ Add people to a channel
 | HTTP | POST /v1/channels/members/add |
 | MCP tool | channels_members_add (chats) |
 | CLI | none |
-| Emits | channel.member_added |
+| Emits | channel.member_added, message.mentioned |
 
 ## Input
 
@@ -28,6 +28,7 @@ type In = {
   channelId: string;
   personIds: Array<string>;
   level?: "view" | "use" | "edit" | "manage";
+  mentionedIn?: string;
 };
 ```
 
@@ -87,6 +88,7 @@ type Out = {
   "input": {
     "channelId": "chn_a1b2c3",
     "level": "view",
+    "mentionedIn": "msg_a1b2c3",
     "personIds": [
       "usr_a1b2c3"
     ]

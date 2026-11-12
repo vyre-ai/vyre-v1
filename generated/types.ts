@@ -6382,6 +6382,7 @@ export type ChannelsMembersAddIn = {
   channelId: string;
   personIds: Array<string>;
   level?: "view" | "use" | "edit" | "manage";
+  mentionedIn?: string;
 };
 export type ChannelsMembersAddOut = {
   channel: {
@@ -6806,6 +6807,10 @@ export type ChatEditOut = {
     editedAt?: number;
     createdAt: number;
     enc?: number;
+    mentions?: Array<{
+        kind: "person" | "agent";
+        id: string;
+      }>;
   };
 };
 export type ChatFlowCardIn = {
@@ -7126,6 +7131,10 @@ export type ChatHistoryPageOut = {
       editedAt?: number;
       createdAt: number;
       enc?: number;
+      mentions?: Array<{
+          kind: "person" | "agent";
+          id: string;
+        }>;
     }>;
   hasMore: boolean;
   next?: number;
@@ -7238,6 +7247,10 @@ export type ChatMessageGetOut = {
     editedAt?: number;
     createdAt: number;
     enc?: number;
+    mentions?: Array<{
+        kind: "person" | "agent";
+        id: string;
+      }>;
   };
 };
 export type ChatMessagePersonIn = {
@@ -7304,6 +7317,10 @@ export type ChatMessagesListOut = {
       editedAt?: number;
       createdAt: number;
       enc?: number;
+      mentions?: Array<{
+          kind: "person" | "agent";
+          id: string;
+        }>;
     }>;
   hasMore: boolean;
 };
@@ -7497,6 +7514,10 @@ export type ChatPinsListOut = {
       editedAt?: number;
       createdAt: number;
       enc?: number;
+      mentions?: Array<{
+          kind: "person" | "agent";
+          id: string;
+        }>;
     }>;
 };
 export type ChatPlanProposeIn = {
@@ -7613,6 +7634,10 @@ export type ChatPostOut = {
     editedAt?: number;
     createdAt: number;
     enc?: number;
+    mentions?: Array<{
+        kind: "person" | "agent";
+        id: string;
+      }>;
   };
 };
 export type ChatQuestionAskIn = {
@@ -8562,6 +8587,11 @@ export type ComputersBrowserProfilesOut = {
       access: "owner" | "admin" | "viewer";
     }>;
   maxRunning: number;
+  slots?: {
+    running: number;
+    limit: number;
+    waiting: number;
+  };
 };
 export type ComputersBrowserSessionsIn = {
   agentId: string;
@@ -8609,6 +8639,7 @@ export type ComputersBrowserTakeOverOut = {
     paired: boolean;
     access: "owner" | "admin" | "viewer";
   };
+  note?: string;
 };
 export type ComputersBrowserTimelineIn = {
   agentId: string;
@@ -8640,13 +8671,16 @@ export type ComputersChromeActIn = {
   value?: string;
 };
 export type ComputersChromeActOut = {
+  reopened?: boolean;
+  note?: string;
   ok: boolean;
   heldId?: string;
   snapshot?: string;
   downloads?: Array<{
       name: string;
       path: string;
-      fileId: string;
+      fileId?: string;
+      note?: string;
     }>;
 };
 export type ComputersChromeApiIn = {
@@ -8659,6 +8693,8 @@ export type ComputersChromeApiIn = {
   idempotencyKey: string;
 };
 export type ComputersChromeApiOut = {
+  reopened?: boolean;
+  note?: string;
   status: number;
   headers: Record<string, string>;
   body: unknown;
@@ -8690,12 +8726,15 @@ export type ComputersChromeClickIn = {
   button?: "left" | "right" | "middle";
 };
 export type ComputersChromeClickOut = {
+  reopened?: boolean;
+  note?: string;
   ok: boolean;
   heldId?: string;
   downloads?: Array<{
       name: string;
       path: string;
-      fileId: string;
+      fileId?: string;
+      note?: string;
     }>;
 };
 export type ComputersChromeConsoleIn = {
@@ -8706,6 +8745,8 @@ export type ComputersChromeConsoleIn = {
   limit?: number;
 };
 export type ComputersChromeConsoleOut = {
+  reopened?: boolean;
+  note?: string;
   messages: Array<{
       level: string;
       text: string;
@@ -8719,6 +8760,8 @@ export type ComputersChromeEvalIn = {
   expression: string;
 };
 export type ComputersChromeEvalOut = {
+  reopened?: boolean;
+  note?: string;
   result: unknown;
 };
 export type ComputersChromeFillIn = {
@@ -8731,6 +8774,8 @@ export type ComputersChromeFillIn = {
     }>;
 };
 export type ComputersChromeFillOut = {
+  reopened?: boolean;
+  note?: string;
   ok: boolean;
   filled: number;
 };
@@ -8741,6 +8786,8 @@ export type ComputersChromeInspectIn = {
   ref: string;
 };
 export type ComputersChromeInspectOut = {
+  reopened?: boolean;
+  note?: string;
   element: Record<string, unknown>;
 };
 export type ComputersChromeNetIn = {
@@ -8752,6 +8799,8 @@ export type ComputersChromeNetIn = {
   limit?: number;
 };
 export type ComputersChromeNetOut = {
+  reopened?: boolean;
+  note?: string;
   requests: Array<{
       method: string;
       url: string;
@@ -8767,13 +8816,16 @@ export type ComputersChromeOpenIn = {
   newTab?: boolean;
 };
 export type ComputersChromeOpenOut = {
+  reopened?: boolean;
+  note?: string;
   tabId: string;
   url: string;
   title: string;
   downloads?: Array<{
       name: string;
       path: string;
-      fileId: string;
+      fileId?: string;
+      note?: string;
     }>;
 };
 export type ComputersChromePlanIn = {
@@ -8783,6 +8835,8 @@ export type ComputersChromePlanIn = {
   steps?: Array<string>;
 };
 export type ComputersChromePlanOut = {
+  reopened?: boolean;
+  note?: string;
   ok: boolean;
 };
 export type ComputersChromeResumeIn = {
@@ -8790,6 +8844,8 @@ export type ComputersChromeResumeIn = {
   inMyChrome?: boolean;
 };
 export type ComputersChromeResumeOut = {
+  reopened?: boolean;
+  note?: string;
   resumed: boolean;
 };
 export type ComputersChromeScreenshotIn = {
@@ -8800,6 +8856,8 @@ export type ComputersChromeScreenshotIn = {
   fullPage?: boolean;
 };
 export type ComputersChromeScreenshotOut = {
+  reopened?: boolean;
+  note?: string;
   fileId: string;
   width: number;
   height: number;
@@ -8811,8 +8869,16 @@ export type ComputersChromeSendIn = {
   idempotencyKey: string;
 };
 export type ComputersChromeSendOut = {
+  reopened?: boolean;
+  note?: string;
   sent: boolean;
   taskId?: string;
+  downloads?: Array<{
+      name: string;
+      path: string;
+      fileId?: string;
+      note?: string;
+    }>;
 };
 export type ComputersChromeSnapshotIn = {
   computerId?: string;
@@ -8822,6 +8888,8 @@ export type ComputersChromeSnapshotIn = {
   format?: "tree" | "text";
 };
 export type ComputersChromeSnapshotOut = {
+  reopened?: boolean;
+  note?: string;
   url: string;
   title: string;
   tree: string;
@@ -8833,6 +8901,8 @@ export type ComputersChromeSourcesIn = {
   tabId?: string;
 };
 export type ComputersChromeSourcesOut = {
+  reopened?: boolean;
+  note?: string;
   scripts: Array<string>;
   endpoints: Array<{
       method: string;
@@ -8845,13 +8915,16 @@ export type ComputersChromeStateIn = {
   tabId?: string;
 };
 export type ComputersChromeStateOut = {
+  reopened?: boolean;
+  note?: string;
   url: string;
   title: string;
   loading: boolean;
   downloads?: Array<{
       name: string;
       path: string;
-      fileId: string;
+      fileId?: string;
+      note?: string;
     }>;
 };
 export type ComputersChromeStatusIn = {
@@ -8859,6 +8932,8 @@ export type ComputersChromeStatusIn = {
   inMyChrome?: boolean;
 };
 export type ComputersChromeStatusOut = {
+  reopened?: boolean;
+  note?: string;
   connected: boolean;
   paused: boolean;
   held: Array<string>;
@@ -8869,6 +8944,8 @@ export type ComputersChromeStopIn = {
   reason?: string;
 };
 export type ComputersChromeStopOut = {
+  reopened?: boolean;
+  note?: string;
   stopped: boolean;
 };
 export type ComputersChromeTabsIn = {
@@ -8880,6 +8957,8 @@ export type ComputersChromeTabsIn = {
   site?: string;
 };
 export type ComputersChromeTabsOut = {
+  reopened?: boolean;
+  note?: string;
   tabs: Array<{
       tabId: string;
       url: string;
@@ -8896,8 +8975,16 @@ export type ComputersChromeTypeIn = {
   submit?: boolean;
 };
 export type ComputersChromeTypeOut = {
+  reopened?: boolean;
+  note?: string;
   ok: boolean;
   heldId?: string;
+  downloads?: Array<{
+      name: string;
+      path: string;
+      fileId?: string;
+      note?: string;
+    }>;
 };
 export type ComputersChromeWaitIn = {
   computerId?: string;
@@ -8908,12 +8995,15 @@ export type ComputersChromeWaitIn = {
   timeoutMs?: number;
 };
 export type ComputersChromeWaitOut = {
+  reopened?: boolean;
+  note?: string;
   ok: boolean;
   waitedMs: number;
   downloads?: Array<{
       name: string;
       path: string;
-      fileId: string;
+      fileId?: string;
+      note?: string;
     }>;
 };
 export type ComputersConfigureIn = {

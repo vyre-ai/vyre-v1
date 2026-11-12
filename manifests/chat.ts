@@ -220,7 +220,7 @@ export default defineManifest({
       emits: ['agent.engaged'], tool: 'chats', errors: ['validation.precondition_failed'],
     }),
     write('threads.remove_agent', 'Remove an agent from a thread', {
-      in: { ...threadT, agentId: id.agent }, out: { thread: threadRow }, on: ['thread', '/threadId'], perm: 'channels.agents', emits: ['agent.disengaged'], tool: 'chats',
+      in: { ...threadT, agentId: id.agent }, out: { thread: threadRow }, on: ['thread', '/threadId'], perm: 'channels.agents', audit: 'always', emits: ['agent.disengaged'], tool: 'chats',
     }),
     write('threads.agent_settings.set', 'Set how and when one agent answers in one chat: mode lead (answers everything), listen (when tagged) or quiet (listening, posts only when poked); when always, topics or hours; topics, hours and style (short or full). A tag or a poke still reaches an agent that is not quiet', {
       in: {

@@ -4,10 +4,13 @@
 // A host that never had an engine (no seam, a unit test) answers as before, and so does a second daemon in the process whose databases the stopping engine did not serve.
 // @reads /modules/engine/migrations/0001_init.sql
 // @reads /modules/engine/migrations/0003_unblock.sql
+// @reads /modules/engine/migrations/0008_crew.sql
 import test from "node:test";
 import assert from "node:assert/strict";
 import { consumers, hostSeams } from "../impl.ts";
-import { bindEngine, setEngineStopping } from "../projections.ts";
+import { bindEngine, ensure, setEngineStopping } from "../projections.ts";
+import { wakeAfterUnblock } from "../runtime.ts";
+import { resumeAgent } from "../handlers/departures.ts";
 import { harness } from "../fixtures/harness.ts";
 import { isKeptForRestart } from "../../../host/src/routes/errors.ts";
 import type { EngineCtx } from "../projections.ts";
@@ -77,4 +80,26 @@ test("a host that never had an engine, and a second daemon whose databases the s
     assert.ok(mine !== null && isKeptForRestart(mine), `${name}: the stopping daemon's own events are kept`);
     setEngineStopping(false);
   }
+});
+
+test("inside a consumer, the two writes made before the engine is looked for are not made while the engine is stopping: the unblock row and the paused Job stay for the next start", async () => {
+  // reached only when the engine stops under a consumer that is already past the wrapper (a pass that outran the stop's bound): the runner drops that answer and delivers the event again, so the
+  // rows these two consumers would have changed first must still be there
+  bindEngine(null);
+  const h = harness();
+  ensure(h.ctx.db);
+  h.ctx.db.run("INSERT INTO engine_unblock (task_id, thread_id, agent_id, asker, at) VALUES (?, ?, ?, ?, ?)", "tsk_unblock", "thr_kept", "agt_kept", "usr_kept", 1);
+  h.ctx.db.run("INSERT INTO engine_crew_job (job_id, thread_id, lead_thread_id, project_id, agent_id, asker, title, branch, base_branch, repo_path, state, started_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'paused', 1)",
+    "job_kept", "thr_job", "thr_lead", "prj_kept", "agt_kept", "usr_kept", "Fix the form", "crew/fix", "main", "/work");
+  const calls: string[] = [];
+  hostSeams.setEngineHost(stoppingHost(calls));
+  hostSeams.setEngineHost(null);
+  try {
+    await assert.rejects(() => wakeAfterUnblock(h.ctx, "tsk_unblock"), (e: unknown) => isKeptForRestart(e));
+    assert.equal(h.ctx.db.all("SELECT 1 AS x FROM engine_unblock WHERE task_id = ?", "tsk_unblock").length, 1, "the unblock row is still there, so the next start wakes the agent");
+    await assert.rejects(() => resumeAgent(h.ctx, null, "agt_kept", async () => undefined), (e: unknown) => isKeptForRestart(e));
+    assert.deepEqual((h.ctx.db.all("SELECT state FROM engine_crew_job WHERE job_id = ?", "job_kept") as Array<{ state: string }>).map((r) => r.state), ["paused"], "the Job is still paused, so the next start resumes it and wakes the agent");
+  } finally { setEngineStopping(false); }
+  // with no engine for good (not stopping), the unblock behaves as it always did: the row goes, nothing is woken
+  assert.equal(await wakeAfterUnblock(h.ctx, "tsk_unblock"), false);
 });

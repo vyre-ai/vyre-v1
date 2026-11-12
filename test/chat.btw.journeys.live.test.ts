@@ -70,7 +70,8 @@ test("/btw: the slash menu lists it, the aside answers on the side while the mai
 
     // Keep posts one card into the chat
     await me.page.locator('[data-testid^="aside-keep-"]').first().click();
-    await me.page.getByText(/Aside: what is the deadline|Aside by/).first().waitFor({ timeout: 15_000 }).catch(() => undefined);
+    // the kept answer is a kept-aside card (KeptAside.tsx); its text carries no "Aside:" or "Aside by" label, so waiting for that text ran out its 15 s every run
+    await me.page.locator('[data-testid^="kept-aside-"]').first().waitFor({ timeout: 15_000 }).catch(() => undefined);
     await me.page.waitForFunction(() => document.body.innerText.includes("Aside answer to what is the deadline"), undefined, { timeout: 15_000 });
     assert.equal(await me.page.locator('[data-testid^="kept-aside-"]').first().count(), 1, "the kept answer is a quiet note in the chat");
     assert.ok(!(await me.page.locator('[data-testid^="kept-aside-body-"]').first().innerText()).includes("**"), "no raw markdown in the kept answer");

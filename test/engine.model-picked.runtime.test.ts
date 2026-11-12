@@ -24,6 +24,7 @@ test("a picked model no account serves ends the turn with one plain line, and no
       if (cap === "engine.account.resolve") return { accountRef: null, payer: null, reason: "none", allowed: false, why: "no_model", model: "claude-sonnet-5-5", servedModels: ["glm-5.3", "kimi-k3"] };
       if (cap === "engine.turn.record" || cap === "engine.turn.record_usage") return {};
       if (cap === "threads.get") return { thread: THREADS[0] };
+      if (cap === "agents.status") return { status: "awake" };   // the host answers whether the agent may take a turn (admission fails closed when it cannot)
       throw new Error(`unexpected ${cap}`);
     },
   };

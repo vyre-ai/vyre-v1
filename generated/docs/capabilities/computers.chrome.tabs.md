@@ -38,6 +38,8 @@ type In = {
 
 ```ts
 type Out = {
+  reopened?: boolean;
+  note?: string;
   tabs: Array<{
       tabId: string;
       url: string;
@@ -72,6 +74,8 @@ type Out = {
     "url": "example"
   },
   "output": {
+    "note": "example",
+    "reopened": true,
     "tabs": [
       {
         "active": true,
