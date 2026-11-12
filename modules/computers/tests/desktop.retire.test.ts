@@ -11,18 +11,29 @@ import { tool, world } from "./tools.fixture.ts";
 
 const say = (e: unknown): string => JSON.stringify(e);
 const agentCtx = (id: string) => harness({ principal: { kind: "agent", id }, actingFor: DANA }).ctx;
-const noBrowser = (): SpaceBrowser => ({ async available() { return false; } } as unknown as SpaceBrowser);
-const off = (): void => { bindSpaceBrowser(null); bindPersonalChrome(null); };
+const noBrowser = (): SpaceBrowser =>
+  ({
+    async available() {
+      return false;
+    },
+  }) as unknown as SpaceBrowser;
+const off = (): void => {
+  bindSpaceBrowser(null);
+  bindPersonalChrome(null);
+};
 
 test("an agent cannot make itself an old desktop: the refusal names what it has, and nothing is made", async () => {
   const h = harness({ principal: { kind: "agent", id: "agt_dex" }, actingFor: DANA });
-  await assert.rejects(() => provision(h.ctx, { agentId: "agt_dex", idempotencyKey: "k1" }), (e) => {
-    assert.equal(codeOf(e), "validation.precondition_failed");
-    assert.match(say(e), /terminal/i);
-    assert.match(say(e), /browser/i);
-    assert.doesNotMatch(say(e), /Give it one|ask for a computer/i);
-    return true;
-  });
+  await assert.rejects(
+    () => provision(h.ctx, { agentId: "agt_dex", idempotencyKey: "k1" }),
+    (e) => {
+      assert.equal(codeOf(e), "validation.precondition_failed");
+      assert.match(say(e), /terminal/i);
+      assert.match(say(e), /browser/i);
+      assert.doesNotMatch(say(e), /Give it one|ask for a computer/i);
+      return true;
+    },
+  );
   assert.equal(h.rows("SELECT COUNT(*) AS n FROM computers_computers")[0]?.["n"], 0, "no row");
   assert.equal(h.fake.named("create").length, 0, "no container");
 });
@@ -30,55 +41,86 @@ test("an agent cannot make itself an old desktop: the refusal names what it has,
 test("chrome tools in a Space with no browser say so plainly, and name what would give it one; they never tell the agent to ask for a computer", async () => {
   bindSpaceBrowser(noBrowser());
   try {
-    await assert.rejects(() => tool["computers.chrome.state"]!(agentCtx("agt_dex"), {}), (e) => {
-      assert.equal(codeOf(e), "validation.not_found", "the code stays");
-      const s = say(e);
-      assert.match(s, /no browser for agents/i);
-      assert.match(s, /Docker/);
-      assert.match(s, /Console > Computers/);
-      assert.match(s, /own Chrome only if they ask/i, "the person's own Chrome is used only on request");
-      assert.doesNotMatch(s, /Give it one|has no computer/i);
-      return true;
-    });
-  } finally { off(); }
+    await assert.rejects(
+      () => tool["computers.chrome.state"]!(agentCtx("agt_dex"), {}),
+      (e) => {
+        assert.equal(codeOf(e), "validation.not_found", "the code stays");
+        const s = say(e);
+        assert.match(s, /no browser for agents/i);
+        assert.match(s, /Docker/);
+        assert.match(s, /Console > Computers/);
+        assert.match(s, /own Chrome only if they ask/i, "the person's own Chrome is used only on request");
+        assert.doesNotMatch(s, /Give it one|has no computer/i);
+        return true;
+      },
+    );
+  } finally {
+    off();
+  }
 });
 
 test("screen tools tell an agent with no desktop which tools work: the browser and the terminal", async () => {
   bindSpaceBrowser(noBrowser());
   try {
     for (const cap of ["computers.screen.screenshot", "computers.screen.click"]) {
-      await assert.rejects(() => tool[cap]!(agentCtx("agt_dex"), { x: 1, y: 1 }), (e) => {
-        assert.equal(codeOf(e), "validation.not_found");
-        const s = say(e);
-        assert.match(s, /no desktop screen/i);
-        assert.match(s, /chrome_open/);
-        assert.match(s, /terminal_run/);
-        assert.doesNotMatch(s, /Give it one/i);
-        return true;
-      });
+      await assert.rejects(
+        () => tool[cap]!(agentCtx("agt_dex"), { x: 1, y: 1 }),
+        (e) => {
+          assert.equal(codeOf(e), "validation.not_found");
+          const s = say(e);
+          assert.match(s, /no desktop screen/i);
+          assert.match(s, /chrome_open/);
+          assert.match(s, /terminal_run/);
+          assert.doesNotMatch(s, /Give it one/i);
+          return true;
+        },
+      );
     }
-  } finally { off(); }
+  } finally {
+    off();
+  }
 });
 
 test("file tools of the old desktop point an agent with none at Files and its terminal", async () => {
   try {
-    await assert.rejects(() => tool["computers.files.list"]!(agentCtx("agt_dex"), {}), (e) => {
-      assert.equal(codeOf(e), "validation.not_found");
-      const s = say(e);
-      assert.match(s, /files_list|Files tools/i);
-      assert.match(s, /terminal_run/);
-      assert.doesNotMatch(s, /Give it one/i);
-      return true;
-    });
-  } finally { off(); }
+    await assert.rejects(
+      () => tool["computers.files.list"]!(agentCtx("agt_dex"), {}),
+      (e) => {
+        assert.equal(codeOf(e), "validation.not_found");
+        const s = say(e);
+        assert.match(s, /files_list|Files tools/i);
+        assert.match(s, /terminal_run/);
+        assert.doesNotMatch(s, /Give it one/i);
+        return true;
+      },
+    );
+  } finally {
+    off();
+  }
 });
 
 test("a desktop whose sign-ins have moved answers screen and file tools with the line that names what to use now; one that has not moved still works", async () => {
   const w = await world();
   const agent = w.agent();
   await tool["computers.screen.screenshot"]!(agent.ctx, {});
-  w.h.db.run("INSERT INTO computers_migration (computer_id, agent_id, state, attempts, at) VALUES (?, ?, 'done', 1, ?)", w.id, "agt_intake", 1);
-  for (const [cap, input, want] of [["computers.screen.screenshot", {}, /screen tools no longer work/], ["computers.files.list", {}, /file tools no longer work/]] as const) {
-    await assert.rejects(() => tool[cap]!(agent.ctx, input), (e) => { assert.equal(codeOf(e), "validation.not_found"); assert.match(say(e), want); assert.match(say(e), /terminal_run/); return true; });
+  w.h.db.run(
+    "INSERT INTO computers_migration (computer_id, agent_id, state, attempts, at) VALUES (?, ?, 'done', 1, ?)",
+    w.id,
+    "agt_intake",
+    1,
+  );
+  for (const [cap, input, want] of [
+    ["computers.screen.screenshot", {}, /screen tools no longer work/],
+    ["computers.files.list", {}, /file tools no longer work/],
+  ] as const) {
+    await assert.rejects(
+      () => tool[cap]!(agent.ctx, input),
+      (e) => {
+        assert.equal(codeOf(e), "validation.not_found");
+        assert.match(say(e), want);
+        assert.match(say(e), /terminal_run/);
+        return true;
+      },
+    );
   }
 });

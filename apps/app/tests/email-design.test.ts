@@ -14,5 +14,8 @@ test("visual columns, saved blocks, merge tokens, button URLs and HTML convert t
   assert.equal(copied.children?.[0].field, "first_name");
   assert.equal(copied.children?.[1].href, "https://example.com");
   assert.equal(copied.children?.[2].text, "<p>Hello</p>");
-  assert.equal((serverBlock({ id: "saved", kind: "saved", children: [blocks[0]] }).props.block as { type: string }).type, "merge");
+  assert.equal(
+    (serverBlock({ id: "saved", kind: "saved", children: [blocks[0]] }).props.block as { type: string }).type,
+    "merge",
+  );
 });

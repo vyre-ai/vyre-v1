@@ -13,7 +13,12 @@ import { screens } from "../../../../generated/screens.ts";
 import { isScreenPlace, type KitSlot, type ScreenPlace } from "../types.ts";
 import { fakeEnv, listDef, people } from "./fakes.tsx";
 
-const scope: Scope = { queries: { people, n: 0 }, state: { q: "ma", flag: true, kind: "lead" }, row: people[0], index: 0 };
+const scope: Scope = {
+  queries: { people, n: 0 },
+  state: { q: "ma", flag: true, kind: "lead" },
+  row: people[0],
+  index: 0,
+};
 
 test("pointers read queries, state and the row; a missing step is undefined", () => {
   assert.equal(resolvePointer(scope, "/row/name"), "Maya Chen");
@@ -21,7 +26,10 @@ test("pointers read queries, state and the row; a missing step is undefined", ()
   assert.equal(resolvePointer(scope, "/state/q"), "ma");
   assert.equal(resolvePointer(scope, "/state/nope/deeper"), undefined);
   assert.equal(resolvePointer(scope, "state/q"), undefined);
-  assert.deepEqual(resolveInputMap({ q: "/state/q", id: "/row/id", gone: "/state/missing" }, scope), { q: "ma", id: "p1" });
+  assert.deepEqual(resolveInputMap({ q: "/state/q", id: "/row/id", gone: "/state/missing" }, scope), {
+    q: "ma",
+    id: "p1",
+  });
   assert.equal(interpolate("{/row/name} at {/row/company}{/state/missing}", scope), "Maya Chen at Northwind");
 });
 
@@ -48,7 +56,10 @@ test("the query set gives one stable snapshot until a query changes", () => {
   const env = fakeEnv({
     hooks: {
       query: () => ({
-        subscribe: (l) => { listeners.add(l); return () => listeners.delete(l); },
+        subscribe: (l) => {
+          listeners.add(l);
+          return () => listeners.delete(l);
+        },
         getSnapshot: () => (data === undefined ? { status: "loading" as const } : { status: "ready" as const, data }),
       }),
     },
@@ -84,7 +95,12 @@ test("status: error wins, offline needs a server read, empty is the first query 
 test("a one-shot query reads through env.read only while online, and errors without it", async () => {
   const remote = { ...listDef, queries: { people: { ...listDef.queries.people!, live: false } } };
   const calls: unknown[] = [];
-  const env = fakeEnv({ read: async (cap, input) => { calls.push([cap, input]); return people; } });
+  const env = fakeEnv({
+    read: async (cap, input) => {
+      calls.push([cap, input]);
+      return people;
+    },
+  });
   const set = createQuerySet(remote, env, { q: "ma" });
   set.subscribe(() => {});
   await new Promise((r) => setTimeout(r, 5));
@@ -92,12 +108,20 @@ test("a one-shot query reads through env.read only while online, and errors with
   assert.equal(set.getSnapshot().people?.status, "ready");
   const none = createQuerySet(remote, fakeEnv(), {});
   assert.equal(none.getSnapshot().people?.status, "error");
-  const offline = fakeEnv({ online: false, read: async () => { throw new Error("must not be called"); } });
+  const offline = fakeEnv({
+    online: false,
+    read: async () => {
+      throw new Error("must not be called");
+    },
+  });
   createQuerySet(remote, offline, {}).subscribe(() => {});
 });
 
 test("key combos: mod is Command on a Mac and Control elsewhere", () => {
-  const ev = (key: string, o: Partial<{ metaKey: boolean; ctrlKey: boolean; shiftKey: boolean; altKey: boolean }> = {}) => ({ key, metaKey: false, ctrlKey: false, shiftKey: false, altKey: false, ...o });
+  const ev = (
+    key: string,
+    o: Partial<{ metaKey: boolean; ctrlKey: boolean; shiftKey: boolean; altKey: boolean }> = {},
+  ) => ({ key, metaKey: false, ctrlKey: false, shiftKey: false, altKey: false, ...o });
   assert.ok(matchCombo(parseCombo("mod+k"), ev("k", { metaKey: true }), true));
   assert.ok(!matchCombo(parseCombo("mod+k"), ev("k", { ctrlKey: true }), true));
   assert.ok(matchCombo(parseCombo("mod+k"), ev("k", { ctrlKey: true }), false));
@@ -111,13 +135,23 @@ test("the screens index holds every generated screen by id, place and slot", () 
   // The contract names a "join" place (join.accept, join.checklist, join.reset, join.sign-in) that ScreenPlace in
   // ui/src/kit/types.ts does not list yet. Those four are the only ones left out here; a new gap fails this test.
   const known = screens.filter((s) => isScreenPlace(s.place));
-  assert.deepEqual(screens.filter((s) => !isScreenPlace(s.place)).map((s) => s.id).sort(), ["join.accept", "join.checklist", "join.reset", "join.sign-in"]);
+  assert.deepEqual(
+    screens
+      .filter((s) => !isScreenPlace(s.place))
+      .map((s) => s.id)
+      .sort(),
+    ["join.accept", "join.checklist", "join.reset", "join.sign-in"],
+  );
   const registry = createScreenRegistry(known.map(previewDef));
   assert.equal(registry.all().length, known.length);
   assert.deepEqual(registry.diffAgainst(known.map((s) => s.id)), { missing: [], extra: [] });
   assert.ok(registry.diffAgainst(["access.checker", "ghost.screen"]).extra.includes("access.grants"));
   assert.deepEqual(registry.diffAgainst(["ghost.screen"]).missing, ["ghost.screen"]);
-  for (const s of known) assert.ok(registry.forSlot(s.place as ScreenPlace, s.slot as KitSlot).some((d) => d.id === s.id), s.id);
+  for (const s of known)
+    assert.ok(
+      registry.forSlot(s.place as ScreenPlace, s.slot as KitSlot).some((d) => d.id === s.id),
+      s.id,
+    );
   assert.throws(() => registry.register(previewDef(known[0]!)), /already registered/);
   assert.throws(() => registry.register({ id: "", place: "home", slot: "main" } as never), /not a Kit screen/);
 });
@@ -128,7 +162,13 @@ test("a list row shows its first text as title, the rest as note, and presses th
   const sc: Scope = { queries: {}, state: {}, row: people[1], index: 1 };
   assert.deepEqual(presentRow(row, sc), { title: "Omar Haddad", note: "Harbor Legal", action: "open" });
   assert.deepEqual(presentRow({ t: "text", value: "Only a title" }, sc), { title: "Only a title" });
-  assert.deepEqual(presentRow({ t: "when", expr: "/row/missing", then: { t: "text", value: "yes" }, else: { t: "text", value: "no" } }, sc), { title: "no" });
+  assert.deepEqual(
+    presentRow(
+      { t: "when", expr: "/row/missing", then: { t: "text", value: "yes" }, else: { t: "text", value: "no" } },
+      sc,
+    ),
+    { title: "no" },
+  );
 });
 
 test("rowIndexOf reads the row index from the nearest Row test id", () => {

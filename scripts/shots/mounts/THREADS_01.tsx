@@ -14,44 +14,131 @@ export const title = "Threads folded into chats";
 
 const NOW = Date.UTC(2026, 10, 3, 15, 0);
 const at = (h: number, m: number): number => Date.UTC(2026, 10, 3, h, m);
-const NAMES: Record<string, string> = { usr_leo: "Leo Park", usr_maya: "Maya Chen", usr_priya: "Priya Nair", usr_irfad: "Irfad Imtiaz" };
+const NAMES: Record<string, string> = {
+  usr_leo: "Leo Park",
+  usr_maya: "Maya Chen",
+  usr_priya: "Priya Nair",
+  usr_irfad: "Irfad Imtiaz",
+};
 
 /** The sample sidebar's own rows, with unread replies on two chats (as chat.recent returns them) and two Ask rows for the Asks filter. */
 function sidebar(): ReturnType<typeof createSampleSidebar>["data"] {
   const sb = createSampleSidebar(northwind);
   const rows = sb.replica.rows("threads") as unknown as { id: string; threadId: string; lastAt: number }[];
-  const today = rows.filter((r) => Math.floor(r.lastAt / 86_400_000) === Math.floor(SAMPLE_NOW / 86_400_000)).slice(0, 2);
+  const today = rows
+    .filter((r) => Math.floor(r.lastAt / 86_400_000) === Math.floor(SAMPLE_NOW / 86_400_000))
+    .slice(0, 2);
   today.forEach((r, i) => sb.replica.put("threads", [{ ...r, repliesUnread: i === 0 ? 3 : 1 }]));
   const s = sb.data;
   return {
     ...s,
     call: async (cap: string, input: unknown) => {
-      if (cap === "threads.list" && ((input as { kind?: string[] }).kind ?? []).includes("ask")) return { threads: [{ threadId: "ask_1", title: "Summarise the Rivera intake", agents: ["agt_assistant"] }, { threadId: "ask_2", title: "What changed on the lease?", agents: ["agt_docs"] }], total: 2 };
+      if (cap === "threads.list" && ((input as { kind?: string[] }).kind ?? []).includes("ask"))
+        return {
+          threads: [
+            { threadId: "ask_1", title: "Summarise the Rivera intake", agents: ["agt_assistant"] },
+            { threadId: "ask_2", title: "What changed on the lease?", agents: ["agt_docs"] },
+          ],
+          total: 2,
+        };
       return s.call(cap, input);
     },
   };
 }
 
-const row = (id: string, over: Record<string, unknown>) => ({ threadId: id, kind: "thread", listed: false, planMode: false, members: [], agents: [], createdAt: at(9, 0), ...over });
-const REPLIES = { threads: [
-  row("thr_1", { parentTitle: "#intake", preview: "Rivera is with me, I will send the form by noon", repliers: [{ kind: "person", id: "usr_leo" }], unread: 3, following: true, lastMessageAt: at(14, 5) }),
-  row("thr_2", { parentTitle: "Weinberger intake", preview: "Done. The field list is in the folder", repliers: [{ kind: "person", id: "usr_maya" }], unread: 1, following: true, lastMessageAt: at(13, 20) }),
-  row("thr_3", { parentTitle: "#sales", preview: "Thanks, I booked it", repliers: [{ kind: "person", id: "usr_priya" }], unread: 0, following: true, lastMessageAt: at(11, 2) }),
-  row("thr_4", { parentTitle: "Lease documents", preview: "Muted: Docs is still drafting", repliers: [{ kind: "person", id: "usr_leo" }], unread: 0, following: true, muted: true, lastMessageAt: at(9, 40) }),
-], total: 4 };
+const row = (id: string, over: Record<string, unknown>) => ({
+  threadId: id,
+  kind: "thread",
+  listed: false,
+  planMode: false,
+  members: [],
+  agents: [],
+  createdAt: at(9, 0),
+  ...over,
+});
+const REPLIES = {
+  threads: [
+    row("thr_1", {
+      parentTitle: "#intake",
+      preview: "Rivera is with me, I will send the form by noon",
+      repliers: [{ kind: "person", id: "usr_leo" }],
+      unread: 3,
+      following: true,
+      lastMessageAt: at(14, 5),
+    }),
+    row("thr_2", {
+      parentTitle: "Weinberger intake",
+      preview: "Done. The field list is in the folder",
+      repliers: [{ kind: "person", id: "usr_maya" }],
+      unread: 1,
+      following: true,
+      lastMessageAt: at(13, 20),
+    }),
+    row("thr_3", {
+      parentTitle: "#sales",
+      preview: "Thanks, I booked it",
+      repliers: [{ kind: "person", id: "usr_priya" }],
+      unread: 0,
+      following: true,
+      lastMessageAt: at(11, 2),
+    }),
+    row("thr_4", {
+      parentTitle: "Lease documents",
+      preview: "Muted: Docs is still drafting",
+      repliers: [{ kind: "person", id: "usr_leo" }],
+      unread: 0,
+      following: true,
+      muted: true,
+      lastMessageAt: at(9, 40),
+    }),
+  ],
+  total: 4,
+};
 
 const SNAP = { status: "ready", data: REPLIES };
 
 export default function Mount(): ReactNode {
   const [part, setPart] = useState<string | null>(null);
-  useEffect(() => setPart(new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? "").get("part") ?? "list"), []);
+  useEffect(
+    () =>
+      setPart(
+        new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? "").get("part") ??
+          "list",
+      ),
+    [],
+  );
   const data = useMemo(sidebar, []);
-  const rt = useMemo(() => ({
-    screens: { query(screenId: string) { if (screenId !== THREADS_SCREEN) throw new Error(screenId); return { subscribe: () => () => undefined, getSnapshot: () => SNAP }; } },
-    clock: () => ({ now: NOW, offsetMin: 0 }),
-    call: async () => ({ threads: [], total: 4 }),
-  } as unknown as ShellRuntime), []);
+  const rt = useMemo(
+    () =>
+      ({
+        screens: {
+          query(screenId: string) {
+            if (screenId !== THREADS_SCREEN) throw new Error(screenId);
+            return { subscribe: () => () => undefined, getSnapshot: () => SNAP };
+          },
+        },
+        clock: () => ({ now: NOW, offsetMin: 0 }),
+        call: async () => ({ threads: [], total: 4 }),
+      }) as unknown as ShellRuntime,
+    [],
+  );
   if (part === null) return <View style={{ flex: 1, backgroundColor: "var(--win)" as string }} />;
-  if (part === "replies") return <View style={{ flex: 1, backgroundColor: "var(--win)" as string }}><RepliesPage rt={rt} nameOf={(id) => NAMES[id] ?? id} openChat={() => undefined} /></View>;
-  return <View style={{ flex: 1, flexDirection: "row", backgroundColor: "var(--win)" as string }}><View style={{ flex: 1, maxWidth: 272, minWidth: 272 }}><ChatsSidebar data={data} window={{ start: 0, end: 500 }} {...(part === "asks" ? { startFilter: "asks" as const } : {})} /></View><View style={{ flex: 1 }} /></View>;
+  if (part === "replies")
+    return (
+      <View style={{ flex: 1, backgroundColor: "var(--win)" as string }}>
+        <RepliesPage rt={rt} nameOf={(id) => NAMES[id] ?? id} openChat={() => undefined} />
+      </View>
+    );
+  return (
+    <View style={{ flex: 1, flexDirection: "row", backgroundColor: "var(--win)" as string }}>
+      <View style={{ flex: 1, maxWidth: 272, minWidth: 272 }}>
+        <ChatsSidebar
+          data={data}
+          window={{ start: 0, end: 500 }}
+          {...(part === "asks" ? { startFilter: "asks" as const } : {})}
+        />
+      </View>
+      <View style={{ flex: 1 }} />
+    </View>
+  );
 }

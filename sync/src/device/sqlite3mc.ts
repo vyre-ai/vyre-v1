@@ -60,29 +60,45 @@ export function openCipherOpfs(o: CipherOpfsOpen): SqlDriver {
   const vfs = o.vfs;
   if (vfs !== null) {
     let made = wrapped.get(o.mod);
-    if (!made) { made = new Set<string>(); wrapped.set(o.mod, made); }
+    if (!made) {
+      made = new Set<string>();
+      wrapped.set(o.mod, made);
+    }
     if (!made.has(vfs)) {
       const rc = o.mod.capi.sqlite3mc_vfs_create(vfs, 0);
       if (rc !== 0) throw new ReplicaError("no_cipher", `sqlite3mc_vfs_create(${vfs}) returned ${rc}`);
       made.add(vfs);
     }
   }
-  const db = new o.mod.oo1.DB(o.uri ?? (vfs === null ? `/${o.file}` : `file:/${o.file}?vfs=multipleciphers-${vfs}`), "c");
+  const db = new o.mod.oo1.DB(
+    o.uri ?? (vfs === null ? `/${o.file}` : `file:/${o.file}?vfs=multipleciphers-${vfs}`),
+    "c",
+  );
   try {
     db.exec(`PRAGMA cipher = '${CIPHER}'`);
     db.exec(`PRAGMA key = ${hexKey(o.key)}`);
     // The first page read fails on a missing or wrong key ("file is not a database").
     oneRow(db, "SELECT count(*) AS n FROM sqlite_master");
   } catch (e) {
-    try { db.close(); } catch { /* already closed */ }
+    try {
+      db.close();
+    } catch {
+      /* already closed */
+    }
     if (e instanceof ReplicaError) throw e;
     // the engine's own words (no key material in them) tell a wrong key from a setup fault
-    throw new ReplicaError("wrong_key", `the replica key does not open this database (${e instanceof Error ? e.message : String(e)})`);
+    throw new ReplicaError(
+      "wrong_key",
+      `the replica key does not open this database (${e instanceof Error ? e.message : String(e)})`,
+    );
   }
   const cache = new Map<string, McStatement>();
   const stmt = (sql: string): McStatement => {
     let s = cache.get(sql);
-    if (!s) { s = db.prepare(sql); cache.set(sql, s); }
+    if (!s) {
+      s = db.prepare(sql);
+      cache.set(sql, s);
+    }
     return s;
   };
   const dropCache = (): void => {
@@ -96,8 +112,12 @@ export function openCipherOpfs(o: CipherOpfsOpen): SqlDriver {
     },
     run(sql, params) {
       const s = stmt(sql);
-      try { if (params.length) s.bind(params);
-      s.step(); } finally { s.reset(true); }
+      try {
+        if (params.length) s.bind(params);
+        s.step();
+      } finally {
+        s.reset(true);
+      }
     },
     all(sql, params) {
       const s = stmt(sql);
@@ -105,7 +125,9 @@ export function openCipherOpfs(o: CipherOpfsOpen): SqlDriver {
       try {
         if (params.length) s.bind(params);
         while (s.step()) out.push(s.get({}));
-      } finally { s.reset(true); }
+      } finally {
+        s.reset(true);
+      }
       return out;
     },
     close() {

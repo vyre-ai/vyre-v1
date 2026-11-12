@@ -8,7 +8,15 @@ export type Work = "automations" | "agentWork" | "chats";
 
 /** The part of a providers.list row the picker reads. */
 export interface PickRow {
-  id: string; name: string; handle?: string; scope: string; state?: string; spaceKey?: boolean; uses?: Uses; capCents?: number | null; capped?: boolean;
+  id: string;
+  name: string;
+  handle?: string;
+  scope: string;
+  state?: string;
+  spaceKey?: boolean;
+  uses?: Uses;
+  capCents?: number | null;
+  capped?: boolean;
   /** Per kind of work, the resolver's answer from engine.accounts.list: whether the account can run it, and the word for why not ("capped": kept for it, at its monthly cap). */
   usableIn?: Partial<Record<Work, { usable: boolean; code?: string }>>;
 }
@@ -26,7 +34,9 @@ const ALL: Uses = { teamChats: { who: "everyone" }, automations: true, goals: tr
 
 /** The Space AI accounts in a providers.list answer: shared keys, and the old single Space AI key. Rows with no handle cannot be stored, so they are left out. */
 export function spaceAccounts(rows: readonly PickRow[]): PickRow[] {
-  return rows.filter((r) => (r.scope === "shared" || r.spaceKey === true) && typeof r.handle === "string" && r.handle !== "");
+  return rows.filter(
+    (r) => (r.scope === "shared" || r.spaceKey === true) && typeof r.handle === "string" && r.handle !== "",
+  );
 }
 
 /** Is this Space account kept for this work (and for this agent, when the work is an agent's)? The resolver's own answer when the row carries it; else the row's own `uses`. */
@@ -43,7 +53,11 @@ export function keptFor(row: PickRow, work: Work, agentId?: string): boolean {
   return which === "all" || which.length === 0 || (agentId !== undefined && which.includes(agentId));
 }
 
-const WHAT: Readonly<Record<Work, string>> = { automations: "automations", agentWork: "this agent's own work", chats: "chats" };
+const WHAT: Readonly<Record<Work, string>> = {
+  automations: "automations",
+  agentWork: "this agent's own work",
+  chats: "chats",
+};
 
 /** Automatic first, then each Space account that works and is kept for the work (its cap says how far it goes). An account the resolver would refuse is not offered. */
 export function aiOptions(rows: readonly PickRow[], work: Work, agentId?: string): AiOption[] {
@@ -57,7 +71,8 @@ export function aiOptions(rows: readonly PickRow[], work: Work, agentId?: string
 }
 
 /** The one plain line when no Space account is kept for the work. */
-export const noAccountLine = (work: Work): string => `No Space AI account is kept for ${WHAT[work]} yet. An admin sets one in the Vault, under AI accounts.`;
+export const noAccountLine = (work: Work): string =>
+  `No Space AI account is kept for ${WHAT[work]} yet. An admin sets one in the Vault, under AI accounts.`;
 
 /** The name to show for a stored handle: the account's name, else the handle as written (an account that has since gone). */
 export function aiName(rows: readonly PickRow[], handle: string | undefined): string {
@@ -67,7 +82,10 @@ export function aiName(rows: readonly PickRow[], handle: string | undefined): st
 
 /** The cheapest-that-fits line under Automatic: which Space accounts it would use today, by name. */
 export function automaticLine(rows: readonly PickRow[], work: Work, agentId?: string): string {
-  const names = spaceAccounts(rows).filter((r) => r.state === undefined || r.state === "ok").filter((r) => keptFor(r, work, agentId) && r.capped !== true).map((r) => r.name);
+  const names = spaceAccounts(rows)
+    .filter((r) => r.state === undefined || r.state === "ok")
+    .filter((r) => keptFor(r, work, agentId) && r.capped !== true)
+    .map((r) => r.name);
   if (names.length === 0) return noAccountLine(work);
   return `Today: ${names.length === 1 ? names[0] : `${names.slice(0, -1).join(", ")} or ${names[names.length - 1]}`}.`;
 }

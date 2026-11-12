@@ -14,12 +14,25 @@ import { InboxUnmatched, addedLine, matchMenuEntries, newestFirst, waitingLine }
 import type { Suggestion, Unmatched } from "../unmatched/index.ts";
 import { createUnmatchedSample } from "../unmatched/sample.ts";
 import type { UnmatchedSample } from "../unmatched/sample.ts";
-import { InboxPhoneDock, callerOf, numbersOf, phoneHooks, prettyNumber, sameNumber, savedLine, suggestionsFor } from "../softphone/index.ts";
+import {
+  InboxPhoneDock,
+  callerOf,
+  numbersOf,
+  phoneHooks,
+  prettyNumber,
+  sameNumber,
+  savedLine,
+  suggestionsFor,
+} from "../softphone/index.ts";
 import type { CallOut, CallsOut, NumbersOut } from "../softphone/index.ts";
 import type { ContactRow } from "../sidebar/model.ts";
 
 const html = (s: UnmatchedSample, child: ReactElement): string =>
-  renderToStaticMarkup(<InboxDataProvider value={s.data}><InboxStateProvider initial={{}}>{child}</InboxStateProvider></InboxDataProvider>).replaceAll("<!-- -->", "");
+  renderToStaticMarkup(
+    <InboxDataProvider value={s.data}>
+      <InboxStateProvider initial={{}}>{child}</InboxStateProvider>
+    </InboxDataProvider>,
+  ).replaceAll("<!-- -->", "");
 const snap = <T,>(s: UnmatchedSample, screen: string, name: string, state: Record<string, unknown> = {}): T => {
   const q = s.data.screens.query(screen, name, state).getSnapshot() as { status: string; data?: T };
   assert.equal(q.status, "ready", `${screen}.${name}`);
@@ -27,20 +40,35 @@ const snap = <T,>(s: UnmatchedSample, screen: string, name: string, state: Recor
 };
 const waiting = (s: UnmatchedSample): Unmatched[] => snap<{ rows: Unmatched[] }>(s, "inbox.unmatched", "rows").rows;
 const thread = (s: UnmatchedSample, id: string): { kind: string; id: string; preview?: string }[] =>
-  (s.base.replica.rows("thread_items") as unknown as { conversationId: string; kind: string; id: string; preview?: string }[]).filter((x) => x.conversationId === id);
+  (
+    s.base.replica.rows("thread_items") as unknown as {
+      conversationId: string;
+      kind: string;
+      id: string;
+      preview?: string;
+    }[]
+  ).filter((x) => x.conversationId === id);
 const items = (menu: ReturnType<typeof matchMenuEntries>): MenuItem[] => menu.filter(isItem);
 
 test("Unmatched lists the senders that match no record, newest first, each with the Match button", () => {
   const s = createUnmatchedSample();
-  assert.deepEqual(newestFirst(waiting(s)).map((r) => r.id), ["unk"], "the one unmatched sender");
+  assert.deepEqual(
+    newestFirst(waiting(s)).map((r) => r.id),
+    ["unk"],
+    "the one unmatched sender",
+  );
   const out = html(s, <InboxUnmatched />);
   assert.ok(out.includes("Unmatched") && out.includes("1 waiting for a match"));
-  for (const id of ["unk"]) assert.ok(out.includes(`data-testid="unmatched-${id}"`) && out.includes(`data-testid="match-${id}"`), id);
+  for (const id of ["unk"])
+    assert.ok(out.includes(`data-testid="unmatched-${id}"`) && out.includes(`data-testid="match-${id}"`), id);
   assert.ok(out.includes("+1 628 555 0194"), "the number is the name");
   assert.ok(out.includes("Match to a record") && out.includes('data-testid="face-ghost"'), "ghost face and the button");
   assert.ok(out.includes("background-color:var(--accent-wash)"), "the accent-wash block, not a Row");
   assert.ok(!out.includes('data-testid="row-line:'), "not a ui/Row");
-  assert.ok(out.includes("Showing") && out.includes("Show all") && out.includes('data-testid="unmatched-filter"'), "the Showing line and the lit filter, as the prototype");
+  assert.ok(
+    out.includes("Showing") && out.includes("Show all") && out.includes('data-testid="unmatched-filter"'),
+    "the Showing line and the lit filter, as the prototype",
+  );
   assert.equal(waitingLine(0), "");
   assert.equal(waitingLine(1), "1 waiting for a match");
 });
@@ -57,14 +85,34 @@ test("the Match menu lists suggestions best first with their score in the count 
     { recordId: "rec_b", type: "contact", name: "Hannah Cole", score: 0.92, why: "y" },
   ];
   const picked: string[] = [];
-  const menu = matchMenuEntries(sg, { match: (x) => void picked.push(x.recordId), search: () => void picked.push("search"), create: (t) => void picked.push(`new:${t}`) });
+  const menu = matchMenuEntries(sg, {
+    match: (x) => void picked.push(x.recordId),
+    search: () => void picked.push("search"),
+    create: (t) => void picked.push(`new:${t}`),
+  });
   assert.equal((menu[0] as { head: string }).head, "Suggested");
   const it = items(menu);
-  assert.deepEqual(it.map((x) => [x.label, x.count]), [["Hannah Cole", 92], ["Cole Dental, company", 61], ["Search Records…", undefined], ["Create a contact", undefined], ["Create a company", undefined]]);
-  assert.ok(it.every((x) => !/\d+%/.test(x.label)), "no number in a label");
+  assert.deepEqual(
+    it.map((x) => [x.label, x.count]),
+    [
+      ["Hannah Cole", 92],
+      ["Cole Dental, company", 61],
+      ["Search Records…", undefined],
+      ["Create a contact", undefined],
+      ["Create a company", undefined],
+    ],
+  );
+  assert.ok(
+    it.every((x) => !/\d+%/.test(x.label)),
+    "no number in a label",
+  );
   for (const x of it) x.onSelect?.();
   assert.deepEqual(picked, ["rec_b", "rec_a", "search", "new:contact", "new:company"]);
-  assert.ok(matchMenuEntries([], { match() {}, search() {}, create() {} }).some((e) => "head" in e && e.head === "No suggestions yet"));
+  assert.ok(
+    matchMenuEntries([], { match() {}, search() {}, create() {} }).some(
+      (e) => "head" in e && e.head === "No suggestions yet",
+    ),
+  );
 });
 
 test("a match moves the conversation to the record's person; Undo puts it back", async () => {
@@ -72,37 +120,83 @@ test("a match moves the conversation to the record's person; Undo puts it back",
   const before = thread(s, "unk").length;
   assert.ok(before > 0);
   const hannahBefore = thread(s, "hannah").length;
-  const sg = ((await s.data.call("inbox.match_suggestions", { conversationId: "unk" })) as { suggestions: Suggestion[] }).suggestions;
-  assert.deepEqual(sg.map((x) => x.name), ["Hannah Cole", "Cole Dental"]);
-  const out = (await s.data.call("inbox.match", { conversationId: "unk", recordId: sg[0]!.recordId, idempotencyKey: "k1" })) as { conversation: ContactRow; undoToken: string };
+  const sg = (
+    (await s.data.call("inbox.match_suggestions", { conversationId: "unk" })) as { suggestions: Suggestion[] }
+  ).suggestions;
+  assert.deepEqual(
+    sg.map((x) => x.name),
+    ["Hannah Cole", "Cole Dental"],
+  );
+  const out = (await s.data.call("inbox.match", {
+    conversationId: "unk",
+    recordId: sg[0]!.recordId,
+    idempotencyKey: "k1",
+  })) as { conversation: ContactRow; undoToken: string };
   assert.equal(out.conversation.id, "hannah");
-  assert.deepEqual(waiting(s).map((r) => r.id), [], "the line left Unmatched");
+  assert.deepEqual(
+    waiting(s).map((r) => r.id),
+    [],
+    "the line left Unmatched",
+  );
   assert.equal(thread(s, "unk").length, 0);
   assert.equal(thread(s, "hannah").length, hannahBefore + before, "its messages are in Hannah's conversation now");
   assert.ok(out.conversation.unreadCount >= 1, "unread counts add up");
   await s.data.call("inbox.unmatch", { conversationId: "unk", undoToken: out.undoToken });
-  assert.deepEqual(waiting(s).map((r) => r.id), ["unk"], "Undo brings it back");
+  assert.deepEqual(
+    waiting(s).map((r) => r.id),
+    ["unk"],
+    "Undo brings it back",
+  );
   assert.equal(thread(s, "hannah").length, hannahBefore);
   assert.equal(thread(s, "unk").length, before);
-  await assert.rejects(() => s.data.call("inbox.unmatch", { conversationId: "unk", undoToken: out.undoToken }), /nothing to undo/, "an undo works once");
-  assert.deepEqual(s.matches.map((m) => m.cap), ["inbox.match", "inbox.unmatch", "inbox.unmatch"]);
+  await assert.rejects(
+    () => s.data.call("inbox.unmatch", { conversationId: "unk", undoToken: out.undoToken }),
+    /nothing to undo/,
+    "an undo works once",
+  );
+  assert.deepEqual(
+    s.matches.map((m) => m.cap),
+    ["inbox.match", "inbox.unmatch", "inbox.unmatch"],
+  );
 });
 
 test("Create a Record turns the line into a new contact and it leaves Unmatched", async () => {
   const s = createUnmatchedSample();
-  const out = (await s.data.call("inbox.match_new", { conversationId: "unk", type: "contact", idempotencyKey: "k2" })) as { recordId: string; conversation: ContactRow };
+  const out = (await s.data.call("inbox.match_new", {
+    conversationId: "unk",
+    type: "contact",
+    idempotencyKey: "k2",
+  })) as { recordId: string; conversation: ContactRow };
   assert.match(out.recordId, /^rec_new_/);
   assert.equal(out.conversation.needsMatch, false);
-  assert.deepEqual(waiting(s).map((r) => r.id), []);
+  assert.deepEqual(
+    waiting(s).map((r) => r.id),
+    [],
+  );
 });
 
 test("Add as a client is one tap: the line offers it, the call carries both extras, and the note says what happened", async () => {
   const s = createUnmatchedSample();
   assert.ok(html(s, <InboxUnmatched />).includes('data-testid="add-client-unk"'), "the button is on the line");
-  const out = (await s.data.call("inbox.match_new", { conversationId: "unk", type: "contact", fileAttachments: true, replyTask: true, idempotencyKey: "k3" })) as { recordId: string; filed?: number; skipped?: number; taskId?: string };
-  assert.deepEqual(s.matches.at(-1)!.input, { conversationId: "unk", type: "contact", fileAttachments: true, replyTask: true, idempotencyKey: "k3" });
+  const out = (await s.data.call("inbox.match_new", {
+    conversationId: "unk",
+    type: "contact",
+    fileAttachments: true,
+    replyTask: true,
+    idempotencyKey: "k3",
+  })) as { recordId: string; filed?: number; skipped?: number; taskId?: string };
+  assert.deepEqual(s.matches.at(-1)!.input, {
+    conversationId: "unk",
+    type: "contact",
+    fileAttachments: true,
+    replyTask: true,
+    idempotencyKey: "k3",
+  });
   assert.equal(addedLine("Dana", out), "Dana added as a client. 2 files filed. Reply task on your list");
-  assert.equal(addedLine("Dana", { filed: 1, skipped: 2 }), "Dana added as a client. 1 file filed. 2 could not be filed");
+  assert.equal(
+    addedLine("Dana", { filed: 1, skipped: 2 }),
+    "Dana added as a client. 1 file filed. 2 could not be filed",
+  );
   assert.equal(addedLine("Dana", {}), "Dana added as a client");
 });
 
@@ -116,7 +210,10 @@ test("numbers, callers and suggestions come from the Space's own numbers and cal
   const rows = snap<{ rows: ContactRow[] }>(s, "inbox.contact-list", "rows").rows;
   assert.equal(callerOf("+1 917 555 0126", calls, rows).name, "Dana Whitfield", "a caller the Space knows");
   assert.equal(callerOf("+1 202 555 0100", calls, rows).name, undefined, "an unknown caller is just a number");
-  assert.deepEqual(suggestionsFor("917", calls, rows).map((x) => x.name), ["Dana Whitfield"]);
+  assert.deepEqual(
+    suggestionsFor("917", calls, rows).map((x) => x.name),
+    ["Dana Whitfield"],
+  );
   assert.deepEqual(suggestionsFor("9", calls, rows), [], "one digit suggests nothing");
   assert.equal(prettyNumber("+14155550132"), "+1 415 555 0132");
   assert.ok(sameNumber("(415) 555-0132", "+1 415 555 0132"));
@@ -124,14 +221,35 @@ test("numbers, callers and suggestions come from the Space's own numbers and cal
   assert.equal(savedLine("Elena Rivera"), "Saved to Elena Rivera's conversation");
 });
 
-async function settle(): Promise<void> { for (let i = 0; i < 8; i++) await new Promise<void>((r) => setImmediate(r)); }
+async function settle(): Promise<void> {
+  for (let i = 0; i < 8; i++) await new Promise<void>((r) => setImmediate(r));
+}
 
 function controllerFor(s: UnmatchedSample, hung: CallOut[] = []) {
   let callId: string | undefined;
   let contactId: string | undefined;
-  const hooks = phoneHooks((cap, input) => s.data.call(cap, input), { numberId: () => "+1 415 555 0132", callId: () => callId, setCallId: (id) => { callId = id; }, contactId: () => contactId },
-    { targets: [{ name: "Omar Haddad", kind: "teammate", id: "usr_omar", kind2: "person" }], onHungUp: (c) => void hung.push(c) });
-  return { controller: createPhoneController(s.device, hooks), setContact: (c: string | undefined) => { contactId = c; }, callId: () => callId };
+  const hooks = phoneHooks(
+    (cap, input) => s.data.call(cap, input),
+    {
+      numberId: () => "+1 415 555 0132",
+      callId: () => callId,
+      setCallId: (id) => {
+        callId = id;
+      },
+      contactId: () => contactId,
+    },
+    {
+      targets: [{ name: "Omar Haddad", kind: "teammate", id: "usr_omar", kind2: "person" }],
+      onHungUp: (c) => void hung.push(c),
+    },
+  );
+  return {
+    controller: createPhoneController(s.device, hooks),
+    setContact: (c: string | undefined) => {
+      contactId = c;
+    },
+    callId: () => callId,
+  };
 }
 
 test("a call to a person the Space knows is saved to that person's conversation; hold, record, transfer and Log a task run their capabilities", async () => {
@@ -152,14 +270,23 @@ test("a call to a person the Space knows is saved to that person's conversation;
   assert.equal(controller.state().transferredTo, "Omar Haddad");
   await s.data.call("telephony.call.log_task", { callId: callId()!, title: "Send the lease" });
   const caps = s.telephony.map((t) => t.cap);
-  assert.deepEqual(caps, ["telephony.dial", "telephony.hold", "telephony.record", "telephony.transfer", "telephony.call.log_task"]);
+  assert.deepEqual(caps, [
+    "telephony.dial",
+    "telephony.hold",
+    "telephony.record",
+    "telephony.transfer",
+    "telephony.call.log_task",
+  ]);
   assert.deepEqual(s.telephony[2]!.input, { callId: callId(), action: "start", consent: { announced: true } });
   assert.deepEqual(s.telephony[3]!.input, { callId: callId(), to: { kind: "person", id: "usr_omar" }, mode: "warm" });
   // the call is hung up (saved) once; the person's thread has it
   await s.data.call("telephony.hangup", { callId: callId()! });
   const t = thread(s, "elena");
   assert.equal(t.length, elenaBefore + 1);
-  assert.ok(t.some((x) => x.kind === "call" && x.id === `c_${callId()}`), "the call is in Elena's conversation");
+  assert.ok(
+    t.some((x) => x.kind === "call" && x.id === `c_${callId()}`),
+    "the call is in Elena's conversation",
+  );
   assert.ok(hung.length === 0 || hung[0]!.contactId === "ct_elena");
   const row = snap<{ rows: ContactRow[] }>(s, "inbox.contact-list", "rows").rows.find((r) => r.id === "elena")!;
   assert.equal(row.lastChannel, "call", "the list shows the call as the newest thing");
@@ -198,5 +325,8 @@ test("an incoming call rings the dock, can be answered and ends; the idle dock s
   assert.equal(controller.state().phase, "ended");
   assert.equal(controller.state().ended?.reason, "remote");
   const out = html(s, <InboxPhoneDock device={s.device} placement="inline" />);
-  assert.ok(out.includes('data-testid="softphone-pill"') && out.includes("+1 415 555 0132"), "the idle pill shows the Space's number");
+  assert.ok(
+    out.includes('data-testid="softphone-pill"') && out.includes("+1 415 555 0132"),
+    "the idle pill shows the Space's number",
+  );
 });

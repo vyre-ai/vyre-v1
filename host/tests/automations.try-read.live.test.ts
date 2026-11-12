@@ -12,7 +12,13 @@ import { startDaemon } from "../src/daemon/daemon.ts";
 import type { Daemon, DaemonOptions } from "../src/daemon/daemon.ts";
 import type { SeamFetch } from "../src/seams/ports.ts";
 
-const caddyFetch: FetchFn = () => Promise.resolve({ ok: true, status: 200, headers: { get: () => null }, text: () => Promise.resolve('{"apps":{"http":{}}}') });
+const caddyFetch: FetchFn = () =>
+  Promise.resolve({
+    ok: true,
+    status: 200,
+    headers: { get: () => null },
+    text: () => Promise.resolve('{"apps":{"http":{}}}'),
+  });
 const OWNER = "tok-usr_olivia";
 const SECRET = "sk_live_SECRET";
 
@@ -30,13 +36,19 @@ test("a safe read marks the connector tested and the reply has no key", async ()
   const seamFetch: SeamFetch = async (url, init) => {
     const body = SECRET;
     seen.push({ url, authorization: init?.headers?.["authorization"], body });
-    return { status: url.startsWith("https://api.stripe.com/") ? 204 : 500, text: async () => body, arrayBuffer: async () => new ArrayBuffer(0) };
+    return {
+      status: url.startsWith("https://api.stripe.com/") ? 204 : 500,
+      text: async () => body,
+      arrayBuffer: async () => new ArrayBuffer(0),
+    };
   };
   const dir = seededDir();
   const daemon = await startDaemon({
     config: loadConfig(["--data-dir", dir, "--port", "0"], {}, "1.2.3"),
     platform: fakePlatform({
-      os: "linux", hostname: "exec-live", free: 80e9,
+      os: "linux",
+      hostname: "exec-live",
+      free: 80e9,
       commands: {
         [`findmnt -n -o SOURCE --target ${dir}`]: { stdout: "/dev/mapper/vyre\n" },
         "lsblk -s -n -o TYPE /dev/mapper/vyre": { stdout: "crypt\ndisk\n" },
@@ -45,12 +57,32 @@ test("a safe read marks the connector tested and the reply has no key", async ()
     }),
     fetch: caddyFetch,
     // names resolve without the outside DNS (the safe read checks the host is public before the key is put on it)
-    seams: { vaultSinks: { env: () => undefined }, fetch: seamFetch, drivers: { setDocumentNetwork: () => ({ lookup: async () => ["93.184.216.34"], fetch: async () => { throw new Error("not used"); } }) } },
+    seams: {
+      vaultSinks: { env: () => undefined },
+      fetch: seamFetch,
+      drivers: {
+        setDocumentNetwork: () => ({
+          lookup: async () => ["93.184.216.34"],
+          fetch: async () => {
+            throw new Error("not used");
+          },
+        }),
+      },
+    },
     session: (h) => {
       const token = /^Bearer (.+)$/.exec(String(h["authorization"] ?? ""))?.[1];
-      return token === OWNER ? { space: "spc_core", principal: { kind: "person", id: "usr_olivia" }, device: "exec-live" } : null;
+      return token === OWNER
+        ? { space: "spc_core", principal: { kind: "person", id: "usr_olivia" }, device: "exec-live" }
+        : null;
     },
-    intervals: { fast: 3_600_000, slow: 3_600_000, encryption: 3_600_000, commands: 3_600_000, hooks: 3_600_000, tick: 200 },
+    intervals: {
+      fast: 3_600_000,
+      slow: 3_600_000,
+      encryption: 3_600_000,
+      commands: 3_600_000,
+      hooks: 3_600_000,
+      tick: 200,
+    },
   } satisfies DaemonOptions);
   const post = async (route: string, body: unknown) => {
     const response = await fetch(`${daemon.url}${route}`, {
@@ -61,22 +93,38 @@ test("a safe read marks the connector tested and the reply has no key", async ()
     });
     const text = await response.text();
     let json: Record<string, unknown> = {};
-    try { json = JSON.parse(text) as Record<string, unknown>; } catch { /* the body is not JSON */ }
+    try {
+      json = JSON.parse(text) as Record<string, unknown>;
+    } catch {
+      /* the body is not JSON */
+    }
     return { status: response.status, data: (json["data"] as Record<string, unknown> | undefined) ?? {}, json, text };
   };
   try {
-    const folder = await post("/v1/vault/folders/create", { name: "Keys", scope: "shared", idempotencyKey: "try-read-folder" });
+    const folder = await post("/v1/vault/folders/create", {
+      name: "Keys",
+      scope: "shared",
+      idempotencyKey: "try-read-folder",
+    });
     assert.equal(folder.status, 200, folder.text);
     const folderId = String((folder.data["folder"] as { id?: string } | undefined)?.id ?? "");
     const put = await post("/v1/vault/item/put", {
-      folderId, name: "Stripe", kind: "api_key", fields: [{ key: "api_key", value: SECRET }], idempotencyKey: "try-read-stripe",
+      folderId,
+      name: "Stripe",
+      kind: "api_key",
+      fields: [{ key: "api_key", value: SECRET }],
+      idempotencyKey: "try-read-stripe",
     });
     assert.equal(put.status, 200, put.text);
     const handle = String((put.data["item"] as { handle?: string } | undefined)?.handle ?? "");
     assert.match(handle, /^#/);
 
     const read = await post("/v1/automations/try_read", {
-      method: "GET", path: "/v1/customers", domains: ["api.stripe.com"], vaultItemId: `${handle}.api_key`, actionKey: "stripe-listcustomers",
+      method: "GET",
+      path: "/v1/customers",
+      domains: ["api.stripe.com"],
+      vaultItemId: `${handle}.api_key`,
+      actionKey: "stripe-listcustomers",
     });
     assert.equal(read.status, 200, read.text);
     assert.equal(read.data["level"], "tested", read.text);
@@ -93,7 +141,14 @@ test("a safe read marks the connector tested and the reply has no key", async ()
       automationId,
       definition: {
         triggers: [{ key: "manual" }],
-        nodes: [{ id: "list-customers", key: "stripe-listcustomers", title: "Stripe: List customers", input: { connectorLevel: "tested" } }],
+        nodes: [
+          {
+            id: "list-customers",
+            key: "stripe-listcustomers",
+            title: "Stripe: List customers",
+            input: { connectorLevel: "tested" },
+          },
+        ],
       },
     });
     assert.equal(saved.status, 200, saved.text);
@@ -104,7 +159,10 @@ test("a safe read marks the connector tested and the reply has no key", async ()
 
     const before = seen.length;
     const foreign = await post("/v1/automations/try_read", {
-      method: "GET", path: "https://evil.example/v1", domains: ["api.stripe.com"], vaultItemId: `${handle}.api_key`,
+      method: "GET",
+      path: "https://evil.example/v1",
+      domains: ["api.stripe.com"],
+      vaultItemId: `${handle}.api_key`,
     });
     assert.equal(foreign.data["level"], "draft", foreign.text);
     assert.equal(foreign.text.includes(SECRET), false, foreign.text);

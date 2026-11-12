@@ -10,10 +10,17 @@ export type RecentOut = CapMap["chat.recent"]["out"];
 /** How many things that need you sit under the composer; the rest are "N more in Tasks". */
 export const LANDING_NEEDS = 3;
 
-export interface WithEntry { id: string; name: string; kind: "agent" | "assistant" | "person" }
+export interface WithEntry {
+  id: string;
+  name: string;
+  kind: "agent" | "assistant" | "person";
+}
 
 /** What chat.start takes for the people and agents picked in With. Nobody picked is the Assistant: a new chat always has someone to answer. */
-export function startInput(picked: readonly WithEntry[], assistantId: string): { agentIds: string[]; personId?: string } {
+export function startInput(
+  picked: readonly WithEntry[],
+  assistantId: string,
+): { agentIds: string[]; personId?: string } {
   // the Assistant picked before it existed carries the placeholder id: it is the real one now
   const agentIds = picked.filter((w) => w.kind !== "person").map((w) => (w.kind === "assistant" ? assistantId : w.id));
   const person = picked.find((w) => w.kind === "person");
@@ -25,10 +32,17 @@ export function startInput(picked: readonly WithEntry[], assistantId: string): {
  * The Assistant is made a moment after the account, so the id can still be the placeholder when a person sends at once. The first message waits for the real one and is never refused for it.
  * Null only if none appeared in about ten seconds.
  */
-export async function realAssistant(id: string, call: (cap: string, input: unknown) => Promise<unknown> | unknown, wait: (ms: number) => Promise<void> = (ms) => new Promise((r) => setTimeout(r, ms)), tries = 40): Promise<string | null> {
+export async function realAssistant(
+  id: string,
+  call: (cap: string, input: unknown) => Promise<unknown> | unknown,
+  wait: (ms: number) => Promise<void> = (ms) => new Promise((r) => setTimeout(r, ms)),
+  tries = 40,
+): Promise<string | null> {
   if (id !== "assistant") return id;
   for (let i = 0; i < tries; i++) {
-    const out = await Promise.resolve(call("agents.list", {})).catch(() => null) as { agents?: (AgentKindRow & { agentId: string })[] } | null;
+    const out = (await Promise.resolve(call("agents.list", {})).catch(() => null)) as {
+      agents?: (AgentKindRow & { agentId: string })[];
+    } | null;
     const found = out?.agents?.find(isAssistantRow);
     if (found) return found.agentId;
     await wait(250);
@@ -37,11 +51,19 @@ export async function realAssistant(id: string, call: (cap: string, input: unkno
 }
 
 /** What the composer says when the first message could not start a chat: plain words, the draft stays. */
-export const startFailure = (e: unknown): string => (e instanceof Error && e.message === "no assistant yet" ? "Your Assistant is not ready yet. Try again in a moment." : "Could not start the chat.");
+export const startFailure = (e: unknown): string =>
+  e instanceof Error && e.message === "no assistant yet"
+    ? "Your Assistant is not ready yet. Try again in a moment."
+    : "Could not start the chat.";
 
-export const moreLine = (total: number, shown: number): string | null => (total > shown ? `${total - shown} more in Tasks` : null);
+export const moreLine = (total: number, shown: number): string | null =>
+  total > shown ? `${total - shown} more in Tasks` : null;
 
-export interface WorkingChat { threadId: string; title: string; agents: readonly string[] }
+export interface WorkingChat {
+  threadId: string;
+  title: string;
+  agents: readonly string[];
+}
 
 /** The chats with work moving, newest first. Starred or not, each counts once. */
 export function workingChats(recent: RecentOut | undefined): WorkingChat[] {

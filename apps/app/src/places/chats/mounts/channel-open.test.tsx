@@ -17,15 +17,24 @@ test("a channel id is turned into its main thread, and a channel that cannot be 
   const asked: unknown[] = [];
   const call = async (cap: string, input: unknown): Promise<unknown> => {
     asked.push([cap, input]);
-    if ((input as { channelId: string }).channelId === "chn_test01") return { channel: { channelId: "chn_test01", mainThreadId: "thr_test01" } };
+    if ((input as { channelId: string }).channelId === "chn_test01")
+      return { channel: { channelId: "chn_test01", mainThreadId: "thr_test01" } };
     throw Object.assign(new Error("That channel does not exist."), { code: "validation.not_found", traceId: "tr_chn" });
   };
   assert.equal(isChannelId("chn_test01"), true);
   assert.equal(isChannelId("thr_test01"), false);
   assert.deepEqual(await channelThread(call, "chn_test01"), { threadId: "thr_test01" });
-  assert.deepEqual(asked, [["channels.get", { channelId: "chn_test01" }]], "one read, and it is channels.get, never threads.get");
-  assert.deepEqual(await channelThread(call, "chn_gone"), { failure: { message: "That channel does not exist.", code: "validation.not_found", traceId: "tr_chn" } });
-  assert.deepEqual(await channelThread(async () => ({ channel: {} }), "chn_empty"), { failure: { message: "That channel has no conversation yet." } });
+  assert.deepEqual(
+    asked,
+    [["channels.get", { channelId: "chn_test01" }]],
+    "one read, and it is channels.get, never threads.get",
+  );
+  assert.deepEqual(await channelThread(call, "chn_gone"), {
+    failure: { message: "That channel does not exist.", code: "validation.not_found", traceId: "tr_chn" },
+  });
+  assert.deepEqual(await channelThread(async () => ({ channel: {} }), "chn_empty"), {
+    failure: { message: "That channel has no conversation yet." },
+  });
 });
 
 test("every way into a channel lands on the chat route with the channel id, which the place resolves before it reads", () => {
@@ -37,7 +46,13 @@ test("every way into a channel lands on the chat route with the channel id, whic
 
 test("a conversation whose reads fail shows Couldn't load this chat with Retry, not the loading mark", () => {
   const s = createSample("idle");
-  const failing = { subscribe: () => () => undefined, getSnapshot: () => ({ status: "loading" as const, error: { message: "threadId: not a thread id", code: "validation.bad_input", traceId: "tr_bad" } }) };
+  const failing = {
+    subscribe: () => () => undefined,
+    getSnapshot: () => ({
+      status: "loading" as const,
+      error: { message: "threadId: not a thread id", code: "validation.bad_input", traceId: "tr_bad" },
+    }),
+  };
   const data = { ...s.data, screens: { ...s.data.screens, query: () => failing } } as typeof s.data;
   const out = renderToStaticMarkup(<Conversation data={data} />).replaceAll("&#x27;", "'");
   assert.ok(out.includes('data-testid="conversation-failed"'), out.slice(0, 400));
@@ -46,6 +61,8 @@ test("a conversation whose reads fail shows Couldn't load this chat with Retry, 
   assert.ok(!out.includes('data-testid="conversation-loading"'));
   // while the reads are only waiting, the quiet frame is drawn as before
   const waiting = { subscribe: () => () => undefined, getSnapshot: () => ({ status: "loading" as const }) };
-  const quiet = renderToStaticMarkup(<Conversation data={{ ...s.data, screens: { ...s.data.screens, query: () => waiting } } as typeof s.data} />);
+  const quiet = renderToStaticMarkup(
+    <Conversation data={{ ...s.data, screens: { ...s.data.screens, query: () => waiting } } as typeof s.data} />,
+  );
   assert.ok(quiet.includes('data-testid="conversation-loading"'));
 });

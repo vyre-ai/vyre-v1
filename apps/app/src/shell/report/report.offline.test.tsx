@@ -58,17 +58,36 @@ test("queued reports go in the order they were made; a failure stops the run and
   b.open({ place: "files" });
   b.setNote("second");
   await b.send();
-  assert.deepEqual(run.outbox.list().map((o) => o.input.bundle.note), ["first", "second"]);
+  assert.deepEqual(
+    run.outbox.list().map((o) => o.input.bundle.note),
+    ["first", "second"],
+  );
   run.setOnline(true);
   let calls = 0;
-  const flaky = { ...run.deps, submit: async (i: Parameters<typeof run.deps.submit>[0]) => { calls += 1; if (calls === 2) throw new Error("down"); return run.deps.submit(i); } };
+  const flaky = {
+    ...run.deps,
+    submit: async (i: Parameters<typeof run.deps.submit>[0]) => {
+      calls += 1;
+      if (calls === 2) throw new Error("down");
+      return run.deps.submit(i);
+    },
+  };
   const ctl = new ReportController(flaky);
   await ctl.reconnect();
-  assert.deepEqual(run.submitted.map((s) => s.bundle.note), ["first"]);
-  assert.deepEqual(run.outbox.list().map((o) => o.input.bundle.note), ["second"]);
+  assert.deepEqual(
+    run.submitted.map((s) => s.bundle.note),
+    ["first"],
+  );
+  assert.deepEqual(
+    run.outbox.list().map((o) => o.input.bundle.note),
+    ["second"],
+  );
   assert.equal(ctl.getState().waiting, 1);
   await ctl.reconnect();
-  assert.deepEqual(run.submitted.map((s) => s.bundle.note), ["first", "second"]);
+  assert.deepEqual(
+    run.submitted.map((s) => s.bundle.note),
+    ["first", "second"],
+  );
   assert.equal(run.outbox.list().length, 0);
 });
 
@@ -83,5 +102,8 @@ test("the sheet offline says Send queues the report", () => {
   const run = createSampleDeps({ online: false });
   const ctl = new ReportController(run.deps);
   ctl.open(ctx);
-  assert.match(renderToStaticMarkup(<ReportSheet controller={ctl} online={false} autoFocus={false} />), /You are offline\. Send queues the report/);
+  assert.match(
+    renderToStaticMarkup(<ReportSheet controller={ctl} online={false} autoFocus={false} />),
+    /You are offline\. Send queues the report/,
+  );
 });

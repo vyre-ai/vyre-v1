@@ -1,5 +1,13 @@
 // Fake Zoom behind api.zoom.us (ARCH 8.3, 10.1). Health is GET /users/me.
-import { handledFetch, hostIs, recordingFetch, type FetchLike, type Handler, type ReplayTape, type SeenCall } from "./replay.ts";
+import {
+  handledFetch,
+  hostIs,
+  recordingFetch,
+  type FetchLike,
+  type Handler,
+  type ReplayTape,
+  type SeenCall,
+} from "./replay.ts";
 
 export interface ZoomMeetingInput {
   topic: string;
@@ -35,7 +43,7 @@ export function fakeZoom(opts: { tape?: ReplayTape; fetch?: FetchLike } = {}): Z
       match: (u) => hostIs(u, "zoom.us") && u.pathname === "/v2/users/me/meetings",
       run: (_u, init) => {
         n += 1;
-        const parsed = init.body ? JSON.parse(init.body) as Record<string, unknown> : {};
+        const parsed = init.body ? (JSON.parse(init.body) as Record<string, unknown>) : {};
         const id = String(80000000000 + n);
         const topic = typeof parsed.topic === "string" ? parsed.topic : "Meeting";
         return { body: { id, topic, join_url: `https://zoom.us/j/${id}`, start_time: parsed.start_time ?? null } };

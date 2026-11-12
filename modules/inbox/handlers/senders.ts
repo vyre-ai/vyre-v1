@@ -24,10 +24,16 @@ export interface Sender {
   why?: string;
 }
 
-export const DEFAULT_KEY: Readonly<Record<SenderChannel, string>> = { email: "comms.default_sender_email", text: "comms.default_sender_text" };
+export const DEFAULT_KEY: Readonly<Record<SenderChannel, string>> = {
+  email: "comms.default_sender_email",
+  text: "comms.default_sender_text",
+};
 const PAGES = 20;
 const SPACE_DOMAIN_VIA: Readonly<Record<string, string>> = { resend: "Resend", mailgun: "Mailgun" };
-const MEMBER_VIA: Readonly<Record<string, { via: string; provider: string }>> = { google: { via: "Gmail", provider: "google" }, microsoft: { via: "Outlook", provider: "microsoft" } };
+const MEMBER_VIA: Readonly<Record<string, { via: string; provider: string }>> = {
+  google: { via: "Gmail", provider: "google" },
+  microsoft: { via: "Outlook", provider: "microsoft" },
+};
 const me = (ctx: InboxCtx): string => ctx.actingFor ?? ctx.principal.id;
 
 /** Every page of a list capability that pages with `next`. */
@@ -64,9 +70,13 @@ async function readSetting(ctx: InboxCtx, key: string): Promise<unknown> {
 // ---- email
 
 async function emailSenders(ctx: InboxCtx): Promise<Sender[]> {
-  const boxes = await guarded(ctx, "mail.mailbox.list", [] as Json[], () => allPages(ctx, "mail.mailbox.list", { scope: "all" }, "mailboxes"));
+  const boxes = await guarded(ctx, "mail.mailbox.list", [] as Json[], () =>
+    allPages(ctx, "mail.mailbox.list", { scope: "all" }, "mailboxes"),
+  );
   if (boxes.length === 0) return [];
-  const domains = await guarded(ctx, "mail.domain.list", [] as Json[], () => allPages(ctx, "mail.domain.list", {}, "domains"));
+  const domains = await guarded(ctx, "mail.domain.list", [] as Json[], () =>
+    allPages(ctx, "mail.domain.list", {}, "domains"),
+  );
   const chosen = await readSetting(ctx, "mail.provider");
   const spaceProvider = chosen === "mailgun" ? "mailgun" : "resend";
   const spaceVia = SPACE_DOMAIN_VIA[spaceProvider] ?? "Resend";
@@ -94,13 +104,22 @@ async function emailSenders(ctx: InboxCtx): Promise<Sender[]> {
     else if (state === "paused") why = "Paused. Resume it in Console, Comms.";
     else if (state === "error") why = "It needs to be reconnected. Sign in again in Console, Comms.";
     else if (!viaMailbox && !hasDomain) {
-      why = member === undefined
-        ? `Receive only. Add and verify a ${spaceVia} sending domain in Console, Comms to send from it.`
-        : `No verified ${spaceVia} sending domain. Add one in Console, Comms.`;
+      why =
+        member === undefined
+          ? `Receive only. Add and verify a ${spaceVia} sending domain in Console, Comms to send from it.`
+          : `No verified ${spaceVia} sending domain. Add one in Console, Comms.`;
     }
     out.push({
-      id, channel: "email", name: text(m.title) || address, address, via: route.via, provider: route.provider,
-      scope: kind === "personal" && own ? "mine" : "space", default: false, usable: why === undefined, ...(why ? { why } : {}),
+      id,
+      channel: "email",
+      name: text(m.title) || address,
+      address,
+      via: route.via,
+      provider: route.provider,
+      scope: kind === "personal" && own ? "mine" : "space",
+      default: false,
+      usable: why === undefined,
+      ...(why ? { why } : {}),
     });
   }
   return out;
@@ -109,7 +128,9 @@ async function emailSenders(ctx: InboxCtx): Promise<Sender[]> {
 // ---- text
 
 async function textSenders(ctx: InboxCtx): Promise<Sender[]> {
-  const numbers = await guarded(ctx, "telephony.number.list", [] as Json[], () => allPages(ctx, "telephony.number.list", {}, "numbers"));
+  const numbers = await guarded(ctx, "telephony.number.list", [] as Json[], () =>
+    allPages(ctx, "telephony.number.list", {}, "numbers"),
+  );
   const out: Sender[] = [];
   for (const n of numbers) {
     const id = text(n.id);
@@ -123,8 +144,16 @@ async function textSenders(ctx: InboxCtx): Promise<Sender[]> {
     if (!canText) why = "This number cannot send texts.";
     else if (state !== "active") why = "Still being set up.";
     out.push({
-      id, channel: "text", name: text(n.displayName) || text(n.title) || address, address, via: "Twilio", provider: "twilio",
-      scope: text(n.assigneeKind) === "person" && text(n.assigneeId) === me(ctx) ? "mine" : "space", default: false, usable: why === undefined, ...(why ? { why } : {}),
+      id,
+      channel: "text",
+      name: text(n.displayName) || text(n.title) || address,
+      address,
+      via: "Twilio",
+      provider: "twilio",
+      scope: text(n.assigneeKind) === "person" && text(n.assigneeId) === me(ctx) ? "mine" : "space",
+      default: false,
+      usable: why === undefined,
+      ...(why ? { why } : {}),
     });
   }
   return out;
@@ -140,20 +169,30 @@ function markDefault(rows: Sender[], stored: unknown): void {
 
 export async function sendersList(ctx: InboxCtx, input: { channel?: SenderChannel }): Promise<{ senders: Sender[] }> {
   ensure(ctx);
-  if (input.channel !== undefined && input.channel !== "email" && input.channel !== "text") bad(ctx, "The channel is email or text.");
+  if (input.channel !== undefined && input.channel !== "email" && input.channel !== "text")
+    bad(ctx, "The channel is email or text.");
   const channels: SenderChannel[] = input.channel ? [input.channel] : ["email", "text"];
   const senders: Sender[] = [];
   for (const channel of channels) {
     const rows = channel === "email" ? await emailSenders(ctx) : await textSenders(ctx);
     // usable first, then the caller's own, then by name, so the picker reads in the order a person would choose
-    rows.sort((a, b) => Number(b.usable) - Number(a.usable) || Number(b.scope === "mine") - Number(a.scope === "mine") || a.name.localeCompare(b.name) || a.address.localeCompare(b.address));
+    rows.sort(
+      (a, b) =>
+        Number(b.usable) - Number(a.usable) ||
+        Number(b.scope === "mine") - Number(a.scope === "mine") ||
+        a.name.localeCompare(b.name) ||
+        a.address.localeCompare(b.address),
+    );
     markDefault(rows, await readSetting(ctx, DEFAULT_KEY[channel]));
     senders.push(...rows);
   }
   return { senders };
 }
 
-export async function sendersSetDefault(ctx: InboxCtx, input: { channel: SenderChannel; senderId: string }): Promise<{ channel: SenderChannel; senderId: string }> {
+export async function sendersSetDefault(
+  ctx: InboxCtx,
+  input: { channel: SenderChannel; senderId: string },
+): Promise<{ channel: SenderChannel; senderId: string }> {
   ensure(ctx);
   if (input.channel !== "email" && input.channel !== "text") bad(ctx, "The channel is email or text.");
   if (typeof input.senderId !== "string" || input.senderId === "") bad(ctx, "Pick a sender.");
@@ -164,4 +203,3 @@ export async function sendersSetDefault(ctx: InboxCtx, input: { channel: SenderC
   await ctx.call("settings.set", { key: DEFAULT_KEY[input.channel], value: input.senderId });
   return { channel: input.channel, senderId: input.senderId };
 }
-

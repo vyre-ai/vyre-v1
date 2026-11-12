@@ -13,7 +13,10 @@ test("python: FastAPI under uvicorn, and Flask from a Procfile", { skip: SKIP },
   assert.equal(a.deployment.state, "ready", `${a.deployment.problem ?? ""}\n${await w.buildLog(api.siteId)}`);
   assert.match(await w.buildLog(api.siteId), /uvicorn main:app --host 0\.0\.0\.0 --port \$PORT/);
   await w.h["sites.promote"](w.ctx, { siteId: api.siteId });
-  assert.deepEqual(JSON.parse((await w.get(api.slug, "/")).body), { fastapi: "fastapi-fixture-ok", greeting: "hi-python" });
+  assert.deepEqual(JSON.parse((await w.get(api.slug, "/")).body), {
+    fastapi: "fastapi-fixture-ok",
+    greeting: "hi-python",
+  });
 
   const { site, deployment } = await w.deploy("flask-procfile", { access: "public" });
   assert.equal(deployment.state, "ready", `${deployment.problem ?? ""}\n${await w.buildLog(site.siteId)}`);

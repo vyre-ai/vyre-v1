@@ -25,7 +25,12 @@ export interface RunCodeConfig {
 }
 
 const ICON: Record<HostChoice["kind"], GlyphName> = { device: "monitor", server: "server", agent: "monitor" };
-type State = { s: "idle" } | { s: "working" } | { s: "typed"; terminalId: string } | { s: "ran"; exitCode: number | null; output: string } | { s: "said"; text: string };
+type State =
+  | { s: "idle" }
+  | { s: "working" }
+  | { s: "typed"; terminalId: string }
+  | { s: "ran"; exitCode: number | null; output: string }
+  | { s: "said"; text: string };
 
 const TAIL = 1500;
 
@@ -41,9 +46,15 @@ export function RunCode({ command, cfg }: { command: string; cfg: RunCodeConfig 
   useEffect(() => {
     let live = true;
     const c = now.current;
-    void loadHosts(c.deps.call, { team: c.team, now: c.now(), nameOf: c.nameOf }).then((h) => { if (live) setHosts(h); });
-    void riskOf(c.deps, command).then((r) => { if (live) setRisk(r); });
-    return () => { live = false; };
+    void loadHosts(c.deps.call, { team: c.team, now: c.now(), nameOf: c.nameOf }).then((h) => {
+      if (live) setHosts(h);
+    });
+    void riskOf(c.deps, command).then((r) => {
+      if (live) setRisk(r);
+    });
+    return () => {
+      live = false;
+    };
   }, [command, cfg.team]);
   const usable = hosts.filter((h) => h.online);
   const host = hosts.find((h) => h.key === pick) ?? usable.find((h) => h.kind === "device") ?? usable[0];
@@ -54,35 +65,71 @@ export function RunCode({ command, cfg }: { command: string; cfg: RunCodeConfig 
     void (async () => {
       try {
         const r = await runThis(cfg.deps, host, command, risk ?? "change");
-        if (r.s === "ran") { setSt({ s: "ran", exitCode: r.exitCode, output: r.output }); return; }
-        if (r.s === "refused") { setSt({ s: "said", text: r.why }); return; }
+        if (r.s === "ran") {
+          setSt({ s: "ran", exitCode: r.exitCode, output: r.output });
+          return;
+        }
+        if (r.s === "refused") {
+          setSt({ s: "said", text: r.why });
+          return;
+        }
         setSt({ s: "typed", terminalId: r.terminalId });
         cfg.openTerminal(r.terminalId);
         const out = await finish(cfg.deps, r.terminalId, r.cursor, command);
         setSt({ s: "ran", exitCode: null, output: out });
-      } catch { setSt({ s: "said", text: "Could not reach that computer." }); }
+      } catch {
+        setSt({ s: "said", text: "Could not reach that computer." });
+      }
     })();
   };
-  const entries = hosts.map((h) => ({ label: h.label, checked: h.key === host.key, ...(h.online ? {} : { disabled: true, ...(h.why ? { reason: h.why } : {}) }), onSelect: () => setPick(h.key) }));
+  const entries = hosts.map((h) => ({
+    label: h.label,
+    checked: h.key === host.key,
+    ...(h.online ? {} : { disabled: true, ...(h.why ? { reason: h.why } : {}) }),
+    onSelect: () => setPick(h.key),
+  }));
   return (
     <View testID="run-code" style={s.bar}>
       {element}
       {risk ? <RiskDot risk={risk} /> : null}
-      <Pressable accessibilityRole="button" accessibilityLabel={`Runs on ${host.label}`} testID="run-code-host" {...(Platform.OS === "web" ? ({ title: `Runs on ${host.label}` } as object) : {})}
-        onPress={(e) => { const p = anchorOf(e); show(entries, p.x, p.y, "other", { label: "Runs on" }); }} style={s.chip}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`Runs on ${host.label}`}
+        testID="run-code-host"
+        {...(Platform.OS === "web" ? ({ title: `Runs on ${host.label}` } as object) : {})}
+        onPress={(e) => {
+          const p = anchorOf(e);
+          show(entries, p.x, p.y, "other", { label: "Runs on" });
+        }}
+        style={s.chip}
+      >
         <Glyph name={ICON[host.kind]} size={13} color="var(--ink-2)" />
-        <Text numberOfLines={1} style={s.chipText}>{host.label}</Text>
+        <Text numberOfLines={1} style={s.chipText}>
+          {host.label}
+        </Text>
         <Glyph name="chevd" size={11} color="var(--ink-4)" />
       </Pressable>
       <View style={{ flex: 1 }} />
       <TextButton label="Copy" onPress={() => cfg.copy(command)} testID="run-code-copy" />
-      {st.s === "typed" ? <TextButton label="Show" onPress={() => cfg.openTerminal(st.terminalId)} testID="run-code-show" /> : null}
+      {st.s === "typed" ? (
+        <TextButton label="Show" onPress={() => cfg.openTerminal(st.terminalId)} testID="run-code-show" />
+      ) : null}
       <TextButton label={st.s === "working" ? "Running" : "Run"} primary onPress={go} testID="run-code-run" />
-      {st.s === "typed" ? <Text testID="run-code-wait" style={s.note}>Press Enter in the terminal</Text> : null}
-      {st.s === "said" ? <Text accessibilityRole="alert" testID="run-code-said" style={s.err}>{st.text}</Text> : null}
+      {st.s === "typed" ? (
+        <Text testID="run-code-wait" style={s.note}>
+          Press Enter in the terminal
+        </Text>
+      ) : null}
+      {st.s === "said" ? (
+        <Text accessibilityRole="alert" testID="run-code-said" style={s.err}>
+          {st.text}
+        </Text>
+      ) : null}
       {st.s === "ran" ? (
         <View testID="run-code-out" style={s.out}>
-          <Text selectable style={s.outText}>{st.output.length > TAIL ? `…${st.output.slice(-TAIL)}` : st.output === "" ? "No output" : st.output}</Text>
+          <Text selectable style={s.outText}>
+            {st.output.length > TAIL ? `…${st.output.slice(-TAIL)}` : st.output === "" ? "No output" : st.output}
+          </Text>
           {st.exitCode !== null && st.exitCode !== 0 ? <Text style={s.err}>{`Exit ${st.exitCode}`}</Text> : null}
         </View>
       ) : null}
@@ -93,7 +140,16 @@ export function RunCode({ command, cfg }: { command: string; cfg: RunCodeConfig 
 const MONO = "ui-monospace, SFMono-Regular, Menlo, monospace";
 const s = StyleSheet.create({
   bar: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 8, marginTop: 4, marginBottom: 6 },
-  chip: { flexDirection: "row", alignItems: "center", gap: 5, height: 24, paddingHorizontal: 8, borderRadius: 12, backgroundColor: "var(--hover)" as string, maxWidth: 200 },
+  chip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    height: 24,
+    paddingHorizontal: 8,
+    borderRadius: 12,
+    backgroundColor: "var(--hover)" as string,
+    maxWidth: 200,
+  },
   chipText: { fontSize: 12, color: "var(--ink-2)" as string, flexShrink: 1 },
   note: { fontSize: 12.5, color: "var(--ink-3)" as string, width: "100%" },
   err: { fontSize: 12.5, color: "var(--danger)" as string },

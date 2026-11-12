@@ -13,8 +13,20 @@ export default async function* failureReporter(source) {
     // node wraps what a test threw in a "test failed" error whose cause is the real one
     const real = error?.cause && typeof error.cause === "object" ? error.cause : error;
     const message = String(real?.message ?? error?.message ?? "no message");
-    const stack = typeof real?.stack === "string" ? real.stack.split("\n").filter((l) => /^\s+at /.test(l)).slice(0, 4).join("\n") : "";
-    const lines = [`failure detail> ${d?.name ?? "a test"} (${d?.file ?? ""})`, ...clip(message, 4000).split("\n").map((l) => `failure detail>   ${l}`)];
+    const stack =
+      typeof real?.stack === "string"
+        ? real.stack
+            .split("\n")
+            .filter((l) => /^\s+at /.test(l))
+            .slice(0, 4)
+            .join("\n")
+        : "";
+    const lines = [
+      `failure detail> ${d?.name ?? "a test"} (${d?.file ?? ""})`,
+      ...clip(message, 4000)
+        .split("\n")
+        .map((l) => `failure detail>   ${l}`),
+    ];
     if (stack) lines.push(...stack.split("\n").map((l) => `failure detail> ${l}`));
     yield `${lines.join("\n")}\n`;
   }

@@ -15,7 +15,14 @@ test("run counts use the statuses on the list and add cost only when it is a num
 test("event rows show type, time, subject, and run, and a sealed row hides the payload", () => {
   const rows = eventRows({
     events: [
-      { id: "evt_1", type: "record.updated", at: Date.UTC(2026, 0, 2), subject: { type: "record", id: "rec_1" }, runId: "run_1", payload: { secret: "no" } },
+      {
+        id: "evt_1",
+        type: "record.updated",
+        at: Date.UTC(2026, 0, 2),
+        subject: { type: "record", id: "rec_1" },
+        runId: "run_1",
+        payload: { secret: "no" },
+      },
       { id: "evt_2", type: "dm.sent", at: Date.UTC(2026, 0, 2), payload: { sealed: true, body: "hidden" } },
     ],
   });
@@ -29,27 +36,42 @@ test("event rows show type, time, subject, and run, and a sealed row hides the p
 });
 
 test("package rows and export choices keep only named ids", () => {
-  assert.deepEqual(packageRows({ packages: [{ id: "pkg_1", name: "Welcome" }, { id: 1, name: "skip" }] }), [{ id: "pkg_1", name: "Welcome" }]);
+  assert.deepEqual(
+    packageRows({
+      packages: [
+        { id: "pkg_1", name: "Welcome" },
+        { id: 1, name: "skip" },
+      ],
+    }),
+    [{ id: "pkg_1", name: "Welcome" }],
+  );
   assert.equal(packageRows({}), null);
-  assert.deepEqual(exportChoices({ automations: [{ id: "aut_1", name: "Welcome" }] }), [{ id: "aut_1", name: "Welcome" }]);
+  assert.deepEqual(exportChoices({ automations: [{ id: "aut_1", name: "Welcome" }] }), [
+    { id: "aut_1", name: "Welcome" },
+  ]);
 });
 
 test("dependencies come from named ids on the definition", () => {
-  const rows = dependenciesFrom([{
-    id: "aut_1",
-    name: "Welcome",
-    nodes: [
-      { key: "send_email", input: { mailboxId: "mbx_main", to: "{{ trigger.email }}" } },
-      { key: "call_automation", input: { automationId: "aut_next", journeyId: "jrn_1" } },
-      { key: "send_sms", input: { numberId: "num_1" } },
-      { key: "records.update", input: { connectionId: "con_1" } },
-    ],
-  }]);
-  assert.deepEqual(rows.map((row) => row.line), [
-    "Automation Welcome uses mailbox mbx_main",
-    "Automation Welcome uses automation aut_next",
-    "Automation Welcome uses journey jrn_1",
-    "Automation Welcome uses number num_1",
-    "Automation Welcome uses connection con_1",
+  const rows = dependenciesFrom([
+    {
+      id: "aut_1",
+      name: "Welcome",
+      nodes: [
+        { key: "send_email", input: { mailboxId: "mbx_main", to: "{{ trigger.email }}" } },
+        { key: "call_automation", input: { automationId: "aut_next", journeyId: "jrn_1" } },
+        { key: "send_sms", input: { numberId: "num_1" } },
+        { key: "records.update", input: { connectionId: "con_1" } },
+      ],
+    },
   ]);
+  assert.deepEqual(
+    rows.map((row) => row.line),
+    [
+      "Automation Welcome uses mailbox mbx_main",
+      "Automation Welcome uses automation aut_next",
+      "Automation Welcome uses journey jrn_1",
+      "Automation Welcome uses number num_1",
+      "Automation Welcome uses connection con_1",
+    ],
+  );
 });

@@ -3,12 +3,20 @@ import assert from "node:assert/strict";
 import { specifiers, resolve, imports, dependents, testsReaching, cacheKey } from "../scripts/lib/graph.mjs";
 import { select } from "../scripts/ci-select.mjs";
 
-const files = { "lib/a.mjs": 'export const a = 1;', "lib/a.test.mjs": 'import "./a.mjs";', "lib/b.mjs": 'import { a } from "./a.mjs";', "lib/c.mjs": "export const c = 1;" };
+const files = {
+  "lib/a.mjs": "export const a = 1;",
+  "lib/a.test.mjs": 'import "./a.mjs";',
+  "lib/b.mjs": 'import { a } from "./a.mjs";',
+  "lib/c.mjs": "export const c = 1;",
+};
 const tracked = new Set(Object.keys(files));
 const read = (f) => files[f];
 
 test("specifiers finds imports and @reads", () => {
-  assert.deepEqual(specifiers('import x from "./x.mjs";\n// @reads fixtures/y.json').sort(), ["./x.mjs", "fixtures/y.json"]);
+  assert.deepEqual(specifiers('import x from "./x.mjs";\n// @reads fixtures/y.json').sort(), [
+    "./x.mjs",
+    "fixtures/y.json",
+  ]);
 });
 test("resolve maps relative specifiers", () => assert.equal(resolve("lib/b.mjs", "./a.mjs", tracked), "lib/a.mjs"));
 test("tests reaching a file follow the chain", () => {

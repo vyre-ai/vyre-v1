@@ -10,12 +10,19 @@ export const workspaceKey = (agentId: string): string => `vyre-ws-${agentId}`;
 
 let startPort: ((agentId: string) => Promise<void>) | null = null;
 /** The daemon's way to start a workspace (the terminal module's manager), bound once both modules are loaded. */
-export function bindWorkspaceStart(f: ((agentId: string) => Promise<void>) | null): void { startPort = f; }
+export function bindWorkspaceStart(f: ((agentId: string) => Promise<void>) | null): void {
+  startPort = f;
+}
 
 // a waiting workspace starts by itself when room opens
-bindStarter("workspace", async (_ctx, key) => { await startPort?.(key.replace(/^vyre-ws-/, "")); });
+bindStarter("workspace", async (_ctx, key) => {
+  await startPort?.(key.replace(/^vyre-ws-/, ""));
+});
 
-export async function workspaceClaim(ctx: CompCtx, input: { agentId: string; nodeId?: string | null }): Promise<{ state: "running" | "waiting"; line?: string }> {
+export async function workspaceClaim(
+  ctx: CompCtx,
+  input: { agentId: string; nodeId?: string | null },
+): Promise<{ state: "running" | "waiting"; line?: string }> {
   ensure(ctx.db);
   return claimRoom(ctx, { kind: "workspace", key: workspaceKey(String(input.agentId)), nodeId: input.nodeId ?? null });
 }
@@ -24,7 +31,11 @@ export async function workspaceRelease(ctx: CompCtx, input: { agentId: string })
   ensure(ctx.db);
   releaseRoom(ctx, workspaceKey(String(input.agentId)));
   // room opened: the oldest waiting workload that now fits starts; this one's release never fails because another did not start
-  try { await drainWaiting(ctx); } catch { ctx.log.warn("capacity: the waiting line could not be checked"); }
+  try {
+    await drainWaiting(ctx);
+  } catch {
+    ctx.log.warn("capacity: the waiting line could not be checked");
+  }
   return { released: true };
 }
 

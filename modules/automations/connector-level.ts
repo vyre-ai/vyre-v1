@@ -9,23 +9,29 @@ export interface LevelDb {
 export function recordConnectorLevel(db: LevelDb, actionKey: string, level: "draft" | "tested", now: number): void {
   db.run(
     `INSERT OR REPLACE INTO automations_connector_levels (action_key, level, updated_at) VALUES (?, ?, ?)`,
-    actionKey, level, now,
+    actionKey,
+    level,
+    now,
   );
 }
 
 export function storedLevel(db: LevelDb, actionKey: string): "draft" | "tested" | undefined {
-  const rows = db.all(
-    `SELECT level FROM automations_connector_levels WHERE action_key = ?`,
-    actionKey,
-  ) as { level?: unknown }[];
+  const rows = db.all(`SELECT level FROM automations_connector_levels WHERE action_key = ?`, actionKey) as {
+    level?: unknown;
+  }[];
   const level = rows[0]?.level;
   return level === "draft" || level === "tested" ? level : undefined;
 }
 
 /** Every action with a recorded level, by key. An action with no row was never tried. */
 export function allLevels(db: LevelDb): { actionKey: string; level: "draft" | "tested" }[] {
-  const rows = db.all(`SELECT action_key, level FROM automations_connector_levels ORDER BY action_key`) as { action_key?: unknown; level?: unknown }[];
+  const rows = db.all(`SELECT action_key, level FROM automations_connector_levels ORDER BY action_key`) as {
+    action_key?: unknown;
+    level?: unknown;
+  }[];
   const out: { actionKey: string; level: "draft" | "tested" }[] = [];
-  for (const r of rows) if (typeof r.action_key === "string" && (r.level === "draft" || r.level === "tested")) out.push({ actionKey: r.action_key, level: r.level });
+  for (const r of rows)
+    if (typeof r.action_key === "string" && (r.level === "draft" || r.level === "tested"))
+      out.push({ actionKey: r.action_key, level: r.level });
   return out;
 }

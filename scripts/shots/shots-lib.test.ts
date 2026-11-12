@@ -6,10 +6,29 @@ import os from "node:os";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
 // @ts-expect-error plain .mjs helper without types
-import { parseArgs, protoHash, routeUrl, loadTargets, shardTargets, shardIndexName, mergeShotIndexes, sideBySideHtml, countWrongFrames, budgetOf, waitSelector, waitForOf, waitIsHard, runTestIdSteps } from "./lib.mjs";
+import {
+  parseArgs,
+  protoHash,
+  routeUrl,
+  loadTargets,
+  shardTargets,
+  shardIndexName,
+  mergeShotIndexes,
+  sideBySideHtml,
+  countWrongFrames,
+  budgetOf,
+  waitSelector,
+  waitForOf,
+  waitIsHard,
+  runTestIdSteps,
+} from "./lib.mjs";
 
 test("parseArgs reads values and flags", () => {
-  assert.deepEqual(parseArgs(["--target", "sample", "--skip-export", "--out", "x"]), { target: "sample", "skip-export": true, out: "x" });
+  assert.deepEqual(parseArgs(["--target", "sample", "--skip-export", "--out", "x"]), {
+    target: "sample",
+    "skip-export": true,
+    out: "x",
+  });
 });
 
 test("the prototype hash takes the skin and the route url carries skin and mode", () => {
@@ -21,10 +40,22 @@ test("the prototype hash takes the skin and the route url carries skin and mode"
 test("targets load from targets.json and targets/*.json, and a duplicate id is refused", () => {
   const d = fs.mkdtempSync(path.join(os.tmpdir(), "shots-"));
   fs.mkdirSync(path.join(d, "targets"));
-  fs.writeFileSync(path.join(d, "targets.json"), JSON.stringify({ targets: [{ id: "a", route: "/", proto: "home,{skin}" }] }));
-  fs.writeFileSync(path.join(d, "targets", "p1.json"), JSON.stringify({ targets: [{ id: "b", route: "/b", proto: "files,{skin}" }] }));
-  assert.deepEqual(loadTargets(d).map((t: { id: string }) => t.id), ["a", "b"]);
-  fs.writeFileSync(path.join(d, "targets", "p2.json"), JSON.stringify({ targets: [{ id: "a", route: "/", proto: "x" }] }));
+  fs.writeFileSync(
+    path.join(d, "targets.json"),
+    JSON.stringify({ targets: [{ id: "a", route: "/", proto: "home,{skin}" }] }),
+  );
+  fs.writeFileSync(
+    path.join(d, "targets", "p1.json"),
+    JSON.stringify({ targets: [{ id: "b", route: "/b", proto: "files,{skin}" }] }),
+  );
+  assert.deepEqual(
+    loadTargets(d).map((t: { id: string }) => t.id),
+    ["a", "b"],
+  );
+  fs.writeFileSync(
+    path.join(d, "targets", "p2.json"),
+    JSON.stringify({ targets: [{ id: "a", route: "/", proto: "x" }] }),
+  );
   assert.throws(() => loadTargets(d), /duplicate target id a/);
   fs.writeFileSync(path.join(d, "targets", "p2.json"), JSON.stringify({ targets: [{ id: "c" }] }));
   assert.throws(() => loadTargets(d), /needs id, route and proto/);
@@ -48,7 +79,10 @@ test("thirty-six screenshot shards cover every target once without overlap", () 
 
 test("screenshot shard selection is deterministic and rejects invalid coordinates", () => {
   const targets = Array.from({ length: 8 }, (_, id) => ({ id }));
-  assert.deepEqual(shardTargets(targets, 1, 3).map((t: { id: number }) => t.id), [1, 4, 7]);
+  assert.deepEqual(
+    shardTargets(targets, 1, 3).map((t: { id: number }) => t.id),
+    [1, 4, 7],
+  );
   assert.deepEqual(shardTargets(targets, 1, 3), shardTargets(targets, 1, 3));
   assert.throws(() => shardTargets(targets, -1, 3), /shard index/);
   assert.throws(() => shardTargets(targets, 3, 3), /shard index/);
@@ -58,43 +92,89 @@ test("screenshot shard selection is deterministic and rejects invalid coordinate
 test("shard indexes merge into one canonical screenshot index", () => {
   assert.equal(shardIndexName(0, 1), "index.md");
   assert.equal(shardIndexName(2, 18), "index-shard-02-of-18.md");
-  const first = "# Side-by-side screenshots\n\nExport: 1.0 s\n\n| target | skin | size | file |\n|---|---|---|---|\n| b | paper | phone | b.png |\n";
-  const second = "# Side-by-side screenshots\n\nExport: 2.0 s\n\n| target | skin | size | file |\n|---|---|---|---|\n| a | graphite | desktop | a.png |\n";
-  const merged = mergeShotIndexes([
-    { name: "index-shard-00-of-2.md", text: first },
-    { name: "index-shard-01-of-2.md", text: second },
-  ], 2);
+  const first =
+    "# Side-by-side screenshots\n\nExport: 1.0 s\n\n| target | skin | size | file |\n|---|---|---|---|\n| b | paper | phone | b.png |\n";
+  const second =
+    "# Side-by-side screenshots\n\nExport: 2.0 s\n\n| target | skin | size | file |\n|---|---|---|---|\n| a | graphite | desktop | a.png |\n";
+  const merged = mergeShotIndexes(
+    [
+      { name: "index-shard-00-of-2.md", text: first },
+      { name: "index-shard-01-of-2.md", text: second },
+    ],
+    2,
+  );
   assert.match(merged, /^# Side-by-side screenshots/m);
   assert.match(merged, /2 shards/);
   assert.ok(merged.indexOf("| a |") < merged.indexOf("| b |"), "canonical rows are stable");
   assert.throws(() => mergeShotIndexes([{ name: "index-shard-00-of-2.md", text: first }], 2), /expected shard indexes/);
-  assert.throws(() => mergeShotIndexes([
-    { name: "index-shard-00-of-3.md", text: first },
-    { name: "index-shard-01-of-3.md", text: second },
-  ], 2), /expected shard indexes/);
-  assert.throws(() => mergeShotIndexes([
-    { name: "index-shard-00-of-2.md", text: first },
-    { name: "index-shard-00-of-2.md", text: second },
-  ], 2), /expected shard indexes/);
+  assert.throws(
+    () =>
+      mergeShotIndexes(
+        [
+          { name: "index-shard-00-of-3.md", text: first },
+          { name: "index-shard-01-of-3.md", text: second },
+        ],
+        2,
+      ),
+    /expected shard indexes/,
+  );
+  assert.throws(
+    () =>
+      mergeShotIndexes(
+        [
+          { name: "index-shard-00-of-2.md", text: first },
+          { name: "index-shard-00-of-2.md", text: second },
+        ],
+        2,
+      ),
+    /expected shard indexes/,
+  );
 });
 
 test("a packet without visual targets emits an empty uploadable index", () => {
   const out = fs.mkdtempSync(path.join(os.tmpdir(), "shots-empty-"));
-  execFileSync(process.execPath, [new URL("./shots.mjs", import.meta.url).pathname, "--target", "P-NO_VISUAL_TARGETS", "--out", out, "--skip-export", "--no-probes", "--shard-index", "0", "--shard-total", "1"]);
+  execFileSync(process.execPath, [
+    new URL("./shots.mjs", import.meta.url).pathname,
+    "--target",
+    "P-NO_VISUAL_TARGETS",
+    "--out",
+    out,
+    "--skip-export",
+    "--no-probes",
+    "--shard-index",
+    "0",
+    "--shard-total",
+    "1",
+  ]);
   assert.ok(fs.existsSync(path.join(out, "index.md")));
   assert.match(fs.readFileSync(path.join(out, "index.md"), "utf8"), /0 side-by-side images/);
 });
 
 test("P-UI_14 emits an empty uploadable index after its startup-only path", () => {
   const out = fs.mkdtempSync(path.join(os.tmpdir(), "shots-ui14-"));
-  execFileSync(process.execPath, [new URL("./shots.mjs", import.meta.url).pathname, "--target", "P-UI_14", "--out", out, "--skip-startup", "--skip-export", "--no-probes", "--shard-index", "0", "--shard-total", "1"]);
+  execFileSync(process.execPath, [
+    new URL("./shots.mjs", import.meta.url).pathname,
+    "--target",
+    "P-UI_14",
+    "--out",
+    out,
+    "--skip-startup",
+    "--skip-export",
+    "--no-probes",
+    "--shard-index",
+    "0",
+    "--shard-total",
+    "1",
+  ]);
   assert.ok(fs.existsSync(path.join(out, "index.md")));
   assert.match(fs.readFileSync(path.join(out, "index.md"), "utf8"), /0 side-by-side images/);
 });
 
 test("side-by-side page shows both images with captions", () => {
   const h = sideBySideHtml({ title: "t <x>", real: "r.png", proto: "p.png" });
-  assert.match(h, /src="r\.png"/); assert.match(h, /src="p\.png"/); assert.match(h, /t &lt;x>/);
+  assert.match(h, /src="r\.png"/);
+  assert.match(h, /src="p\.png"/);
+  assert.match(h, /t &lt;x>/);
 });
 
 test("wrong frames are those off the expected color", () => {
@@ -119,11 +199,31 @@ test("only the real app is waited on for a target's waitFor; the prototype never
 
 test("string steps click, scroll to and fill test ids in order; other step shapes are left to their own shooters", async () => {
   const calls: string[] = [];
-  const page = { locator: (sel: string) => ({ first: () => ({
-    click: async () => { calls.push(`click ${sel}`); }, scrollIntoViewIfNeeded: async () => { calls.push(`see ${sel}`); }, fill: async (v: string) => { calls.push(`fill ${sel} ${v}`); },
-  }) }), waitForTimeout: async () => undefined };
-  assert.deepEqual(await runTestIdSteps(page, ["click|linked-add", "fill|link-url|https://x.test/a|b", "see|ci-fix"], 0), []);
-  assert.deepEqual(calls, ['click [data-testid="linked-add"]', 'fill [data-testid="link-url"] https://x.test/a|b', 'see [data-testid="ci-fix"]']);
+  const page = {
+    locator: (sel: string) => ({
+      first: () => ({
+        click: async () => {
+          calls.push(`click ${sel}`);
+        },
+        scrollIntoViewIfNeeded: async () => {
+          calls.push(`see ${sel}`);
+        },
+        fill: async (v: string) => {
+          calls.push(`fill ${sel} ${v}`);
+        },
+      }),
+    }),
+    waitForTimeout: async () => undefined,
+  };
+  assert.deepEqual(
+    await runTestIdSteps(page, ["click|linked-add", "fill|link-url|https://x.test/a|b", "see|ci-fix"], 0),
+    [],
+  );
+  assert.deepEqual(calls, [
+    'click [data-testid="linked-add"]',
+    'fill [data-testid="link-url"] https://x.test/a|b',
+    'see [data-testid="ci-fix"]',
+  ]);
   calls.length = 0;
   assert.deepEqual(await runTestIdSteps(page, [["click", "x"]], 0), []);
   assert.deepEqual(await runTestIdSteps(page, undefined, 0), []);
@@ -131,10 +231,18 @@ test("string steps click, scroll to and fill test ids in order; other step shape
 });
 
 test("a waitFor is a string for every size, or an object naming it per size (the phone's bottom rail does not exist on a computer)", () => {
-  const phoneOnly = { id: "X_02", route: "/m/X_02", proto: "home,{skin}", waitFor: { phone: "[data-testid='shell-rail-bottom']", desktop: "[data-testid='shell-rail']" } };
+  const phoneOnly = {
+    id: "X_02",
+    route: "/m/X_02",
+    proto: "home,{skin}",
+    waitFor: { phone: "[data-testid='shell-rail-bottom']", desktop: "[data-testid='shell-rail']" },
+  };
   assert.equal(waitForOf(phoneOnly, "phone"), "[data-testid='shell-rail-bottom']");
   assert.equal(waitForOf(phoneOnly, "desktop"), "[data-testid='shell-rail']");
-  assert.equal(waitForOf({ ...phoneOnly, waitFor: { any: "[data-testid='a']", phone: "[data-testid='b']" } }, "desktop"), "[data-testid='a']");
+  assert.equal(
+    waitForOf({ ...phoneOnly, waitFor: { any: "[data-testid='a']", phone: "[data-testid='b']" } }, "desktop"),
+    "[data-testid='a']",
+  );
   assert.equal(waitForOf({ ...phoneOnly, waitFor: "[data-testid='c']" }, "phone"), "[data-testid='c']");
   assert.equal(waitForOf({ ...phoneOnly, waitFor: undefined }, "phone"), undefined);
   assert.equal(waitSelector("real", phoneOnly, "phone"), "[data-testid='shell-rail-bottom']");
@@ -145,7 +253,10 @@ test("a missed wait fails at desktop always, and at phone only for a target that
   const plain = { id: "X_03", route: "/m/X_03", proto: "home,{skin}", waitFor: "[data-testid='a']" };
   assert.equal(waitIsHard(plain, "desktop"), true);
   assert.equal(waitIsHard(plain, "phone"), false);
-  assert.equal(waitIsHard({ ...plain, waitFor: { phone: "[data-testid='b']", desktop: "[data-testid='a']" } }, "phone"), true);
+  assert.equal(
+    waitIsHard({ ...plain, waitFor: { phone: "[data-testid='b']", desktop: "[data-testid='a']" } }, "phone"),
+    true,
+  );
   assert.equal(waitIsHard({ ...plain, waitFor: { desktop: "[data-testid='a']" } }, "phone"), false);
   assert.equal(waitIsHard({ ...plain, waitFor: undefined }, "phone"), false);
 });

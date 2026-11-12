@@ -45,8 +45,8 @@ test("list-sections requires ListSections for a listed sidebar", () => {
 test("no-em-dash-or-section-sign flags the em dash and the section sign", () => {
   const dash = "Hover the row " + "\u2014" + " then click.\n";
   const sign = "Read " + "\u00A7" + " 4 before editing.\n";
-  const escapedDash = "const label = \"see \\u2014 here\";\n";
-  const escapedSign = "const label = \"see \\u00A7 here\";\n";
+  const escapedDash = 'const label = "see \\u2014 here";\n';
+  const escapedSign = 'const label = "see \\u00A7 here";\n';
   const plain = "Hover the row - then click. Read section 4.\n";
   const en = "Range " + "\u2013" + " done.\n";
   for (const source of [dash, escapedDash]) {

@@ -18,7 +18,10 @@ let lastReconcile = 0;
 export async function reconcileClaims(ctx: CompCtx, sb: SpaceBrowser, o: { force?: boolean } = {}): Promise<void> {
   const at = ctx.now();
   if (!o.force && at - lastReconcile < RECONCILE_MS) return;
-  const claims = rowsOf(ctx.db, "SELECT claim_key, since FROM computers_claim WHERE kind = 'browser' AND state = 'running'");
+  const claims = rowsOf(
+    ctx.db,
+    "SELECT claim_key, since FROM computers_claim WHERE kind = 'browser' AND state = 'running'",
+  );
   const waiting = rowsOf(ctx.db, "SELECT 1 FROM computers_claim WHERE state = 'waiting' LIMIT 1").length > 0;
   const holds = rowsOf(ctx.db, "SELECT 1 FROM computers_browser_hold LIMIT 1").length > 0;
   // a browser that runs holds a claim, so a takeover browserd kept on its own (it missed a give back) is seen here too
@@ -27,7 +30,12 @@ export async function reconcileClaims(ctx: CompCtx, sb: SpaceBrowser, o: { force
   let running: Set<string>;
   let rows: ProfileRow[];
   const readAt = Date.now();
-  try { rows = (await sb.profiles()).profiles; running = new Set(rows.filter((p) => p.running).map((p) => p.profileId)); } catch { return; }
+  try {
+    rows = (await sb.profiles()).profiles;
+    running = new Set(rows.filter((p) => p.running).map((p) => p.profileId));
+  } catch {
+    return;
+  }
   await syncHolds(ctx, sb, rows, readAt);
   for (const r of claims) {
     const key = String(r["claim_key"]);
@@ -43,7 +51,11 @@ export function callStarted(profileId: string, space?: string, at?: number): voi
   inFlight.set(profileId, (inFlight.get(profileId) ?? 0) + 1);
   if (space !== undefined && at !== undefined) agentActive(space, profileId, at);
 }
-export function callEnded(profileId: string): void { const n = (inFlight.get(profileId) ?? 1) - 1; if (n > 0) inFlight.set(profileId, n); else inFlight.delete(profileId); }
+export function callEnded(profileId: string): void {
+  const n = (inFlight.get(profileId) ?? 1) - 1;
+  if (n > 0) inFlight.set(profileId, n);
+  else inFlight.delete(profileId);
+}
 
 // One make-room at a time in this process, first come first served: the call at the head of the line looks for room, closes one browser if one may be closed, or waits for one to free up; the others queue
 // behind it. Each call waits at most ROOM_WAIT_MS in all (queue and look), then fails with the plain line; a Docker call that hangs is cut off after DOCKER_MS, so one stuck call never stalls the daemon.
@@ -51,7 +63,9 @@ let roomTurn: Promise<unknown> = Promise.resolve();
 const line: string[] = [];
 let ROOM_WAIT_MS = 300_000;
 /** Tests: a shorter wait for room (default 5 minutes). */
-export function setRoomWaitMs(ms: number | null): void { ROOM_WAIT_MS = ms ?? 300_000; }
+export function setRoomWaitMs(ms: number | null): void {
+  ROOM_WAIT_MS = ms ?? 300_000;
+}
 /**
  * How long after its last step a browser is kept although nothing else holds it (lead, 12 Nov, after the fourth look). With the agent's turn state known, the turn is the protection, and the grace only
  * covers the gap between a turn's last tool call and its end event, and a person who has just stopped watching: SHORT_GRACE_MS. When the turn state is not known (this daemon just started, or the agent is
@@ -64,13 +78,16 @@ export const PERSON_GRACE_MS = 60_000;
 /** A call waiting this long says so, with its place in line, in the browser's row (so nobody thinks it is stuck). */
 let SAY_WAIT_MS = 10_000;
 /** Tests: say the wait sooner (default 10 s). */
-export function setSayWaitMs(ms: number | null): void { SAY_WAIT_MS = ms ?? 10_000; }
+export function setSayWaitMs(ms: number | null): void {
+  SAY_WAIT_MS = ms ?? 10_000;
+}
 const DOCKER_MS = 15_000;
 const LOOK_EVERY_MS = 2_000;
 export const FULL_LINE = "Every browser on this server is in use. Yours opens as soon as one is free.";
 /** The line every answer after a reopen carries once, and the refusal of an act on stale refs (browserd gives the same line). */
 export const REOPENED_LINE = "Your browser was reopened and its pages reloaded. Take a new snapshot before you click.";
-export const waitLineOf = (ahead: number): string => `Waiting for a free browser on this server. ${ahead === 0 ? "Next in line." : `${ahead} ahead.`}`;
+export const waitLineOf = (ahead: number): string =>
+  `Waiting for a free browser on this server. ${ahead === 0 ? "Next in line." : `${ahead} ahead.`}`;
 
 /**
  * Agents' turns, from the engine's turn events (computers.browser_turns) and from the agent's own browser calls. A turn in progress keeps its browser however long it thinks between steps. Read from the
@@ -81,12 +98,22 @@ export const waitLineOf = (ahead: number): string => `Waiting for a free browser
  * - an agent whose state is not known (nothing heard since this daemon started, or a call with no turn of it heard of) gets UNKNOWN_GRACE_MS, never the short grace. After a daemon restart the map is
  *   empty, so every browser is "unknown" until its agent's next turn event: kept for 90 s after its last step, as before turns were tracked.
  */
-interface AgentTurns { turns: Map<string, number>; known: boolean }
+interface AgentTurns {
+  turns: Map<string, number>;
+  known: boolean;
+}
 const agents = new Map<string, AgentTurns>();
 const turnOwner = new Map<string, string>();
 export const TURN_STALE_MS = 30 * 60_000;
 const keyOf = (space: string, agentId: string): string => `${space}|${agentId}`;
-const entry = (k: string): AgentTurns => { let a = agents.get(k); if (!a) { a = { turns: new Map(), known: false }; agents.set(k, a); } return a; };
+const entry = (k: string): AgentTurns => {
+  let a = agents.get(k);
+  if (!a) {
+    a = { turns: new Map(), known: false };
+    agents.set(k, a);
+  }
+  return a;
+};
 export function turnStarted(space: string, agentId: string, turnId: string, at: number): void {
   const k = keyOf(space, agentId);
   const a = entry(k);
@@ -110,7 +137,10 @@ export function turnActive(turnId: string, at: number): void {
 }
 function agentActive(space: string, agentId: string, at: number): void {
   const a = entry(keyOf(space, agentId));
-  if (a.turns.size > 0) { for (const id of a.turns.keys()) a.turns.set(id, at); return; }
+  if (a.turns.size > 0) {
+    for (const id of a.turns.keys()) a.turns.set(id, at);
+    return;
+  }
   // a call with no turn of it heard of: the engine's events are behind (or this daemon just started); not known until they arrive
   a.known = false;
 }
@@ -118,11 +148,16 @@ function agentActive(space: string, agentId: string, at: number): void {
 export function turnState(space: string, agentId: string, now: number): "turn" | "idle" | "unknown" {
   const a = agents.get(keyOf(space, agentId));
   if (!a) return "unknown";
-  for (const [id, at] of a.turns) { if (now - at < TURN_STALE_MS) return "turn"; a.turns.delete(id); turnOwner.delete(id); }
+  for (const [id, at] of a.turns) {
+    if (now - at < TURN_STALE_MS) return "turn";
+    a.turns.delete(id);
+    turnOwner.delete(id);
+  }
   return a.known ? "idle" : "unknown";
 }
 /** Has this agent a turn in progress now? */
-export const inTurn = (space: string, agentId: string, now: number): boolean => turnState(space, agentId, now) === "turn";
+export const inTurn = (space: string, agentId: string, now: number): boolean =>
+  turnState(space, agentId, now) === "turn";
 
 /**
  * Which start of each profile's browser this daemon last heard from, and which start its last snapshot was taken under (browserd's `browserStart` on every answer). A browser closed to make room, or
@@ -138,7 +173,9 @@ export function answerFrom(profileId: string, start: string): boolean {
   seenStart.set(profileId, start);
   return prev !== undefined && prev !== start;
 }
-export function snapshotFrom(profileId: string, start: string): void { if (start) snapStart.set(profileId, start); }
+export function snapshotFrom(profileId: string, start: string): void {
+  if (start) snapStart.set(profileId, start);
+}
 /** The start the agent's last answer came from, or "" (none seen by this daemon). */
 export const lastSeenStart = (profileId: string): string => seenStart.get(profileId) ?? "";
 /** A refused act tells the agent once: what it now has to look at. With a known start before (a reopen this daemon saw), the refusal itself is the notice and the next act goes on; with none
@@ -150,7 +187,9 @@ export function refusedAt(profileId: string, start: string | null | undefined): 
 export const refsStart = (profileId: string): string | undefined => snapStart.get(profileId);
 
 /** How many of this daemon's browser calls are waiting for room now (the Console's line). */
-export function waitingForRoom(): number { return line.length; }
+export function waitingForRoom(): number {
+  return line.length;
+}
 /** The line a profile waiting for room for more than SAY_WAIT_MS shows in its row, with how many are ahead of it, or null. */
 const waitStarted = new Map<string, number>();
 export function roomWaitLine(profileId: string): string | null {
@@ -162,10 +201,20 @@ export function roomWaitLine(profileId: string): string | null {
 /** The profiles waiting for room now, in line. */
 export const waitingProfiles = (): readonly string[] => [...line];
 
-const within = <T>(ms: number, p: Promise<T>, what: string): Promise<T> => new Promise<T>((ok, fail) => {
-  const t = setTimeout(() => fail(new Error(`${what} did not answer in ${Math.round(ms / 1000)} s`)), ms);
-  p.then((v) => { clearTimeout(t); ok(v); }, (e: unknown) => { clearTimeout(t); fail(e); });
-});
+const within = <T>(ms: number, p: Promise<T>, what: string): Promise<T> =>
+  new Promise<T>((ok, fail) => {
+    const t = setTimeout(() => fail(new Error(`${what} did not answer in ${Math.round(ms / 1000)} s`)), ms);
+    p.then(
+      (v) => {
+        clearTimeout(t);
+        ok(v);
+      },
+      (e: unknown) => {
+        clearTimeout(t);
+        fail(e);
+      },
+    );
+  });
 
 /**
  * Room for this profile's browser (owner, 12 Nov: it has to work for many agents without anything extra; fourth look: and never break work in progress). Two limits apply: the host's memory budget
@@ -174,10 +223,20 @@ const within = <T>(ms: number, p: Promise<T>, what: string): Promise<T> => new P
  * quiet for UNKNOWN_GRACE_MS (it cannot see that Space's turns, so the longer grace). When nothing may be closed the call waits its turn and gets the first room that frees up, or the plain line.
  * `force`: the browser service said it is full although this profile holds a claim (another Space filled it): look again.
  */
-export async function needRoom(ctx: CompCtx, sb: SpaceBrowser, profileId: string, o: { force?: boolean } = {}): Promise<void> {
+export async function needRoom(
+  ctx: CompCtx,
+  sb: SpaceBrowser,
+  profileId: string,
+  o: { force?: boolean } = {},
+): Promise<void> {
   // a claim that is already running is the same ask and needs no turn (read again after the reconcile, which may have released it)
-  const running = (): boolean => String(rowsOf(ctx.db, "SELECT state FROM computers_claim WHERE claim_key = ?", profileId)[0]?.["state"] ?? "") === "running";
-  if (!o.force && running()) { await reconcileClaims(ctx, sb); if (running()) return; }
+  const running = (): boolean =>
+    String(rowsOf(ctx.db, "SELECT state FROM computers_claim WHERE claim_key = ?", profileId)[0]?.["state"] ?? "") ===
+    "running";
+  if (!o.force && running()) {
+    await reconcileClaims(ctx, sb);
+    if (running()) return;
+  }
   // in line from the moment it asks: first come, first served
   const deadline = Date.now() + ROOM_WAIT_MS;
   line.push(profileId);
@@ -199,34 +258,66 @@ export async function needRoom(ctx: CompCtx, sb: SpaceBrowser, profileId: string
   }
 }
 
-class RoomError extends Error { readonly line: string | undefined; constructor(said: string | undefined) { super(FULL_LINE); this.line = said; } }
+class RoomError extends Error {
+  readonly line: string | undefined;
+  constructor(said: string | undefined) {
+    super(FULL_LINE);
+    this.line = said;
+  }
+}
 
 async function admit(ctx: CompCtx, sb: SpaceBrowser, profileId: string, deadline: number): Promise<void> {
   let said: string | undefined;
   while (Date.now() < deadline) {
     let rows: ProfileRow[] = [];
     let limit = Infinity;
-    try { const got = await within(DOCKER_MS, sb.profiles(), "the browser service"); rows = got.profiles; if (got.maxRunning > 0) limit = got.maxRunning; } catch { /* unknown: the budget alone decides this look */ }
+    try {
+      const got = await within(DOCKER_MS, sb.profiles(), "the browser service");
+      rows = got.profiles;
+      if (got.maxRunning > 0) limit = got.maxRunning;
+    } catch {
+      /* unknown: the budget alone decides this look */
+    }
     const others = rows.filter((r) => r.running && r.profileId !== profileId).length;
     const mineRuns = rows.some((r) => r.running && r.profileId === profileId);
     const got = await claimRoom(ctx, { kind: "browser", key: profileId });
     if (got.state === "running" && (mineRuns || others < limit)) return;
     // no room in the budget or in the container: the claim does not stand while this one does not run
     if (got.state === "running") releaseRoom(ctx, profileId);
-    const oursRun = rows.some((r) => r.running && r.profileId !== profileId && (r.spaceId === undefined || r.spaceId === ctx.space));
+    const oursRun = rows.some(
+      (r) => r.running && r.profileId !== profileId && (r.spaceId === undefined || r.spaceId === ctx.space),
+    );
     said = got.state === "waiting" && !oursRun && others < limit ? got.line : FULL_LINE;
     const pick = closable(ctx, rows, profileId);
     if (pick) {
-      ctx.log.info("sbrowser: closed the least recently used quiet browser to make room", { closed: pick, for: profileId });
-      try { await within(DOCKER_MS, sb.stop(pick), "the browser service"); } catch { /* looked at again */ }
+      ctx.log.info("sbrowser: closed the least recently used quiet browser to make room", {
+        closed: pick,
+        for: profileId,
+      });
+      try {
+        await within(DOCKER_MS, sb.stop(pick), "the browser service");
+      } catch {
+        /* looked at again */
+      }
       releaseRoom(ctx, pick);
       continue;
     }
     // the container (not this Space's budget) is what is full, and of another Space's browsers: browserd closes the longest quiet of those, by the unknown-turn rule
-    if (others >= limit && sb.closeOther && rows.some((r) => r.running && r.spaceId !== undefined && r.spaceId !== ctx.space)) {
+    if (
+      others >= limit &&
+      sb.closeOther &&
+      rows.some((r) => r.running && r.spaceId !== undefined && r.spaceId !== ctx.space)
+    ) {
       let closed: string | null = null;
-      try { closed = await within(DOCKER_MS, sb.closeOther(ctx.space, UNKNOWN_GRACE_MS), "the browser service"); } catch { /* looked at again */ }
-      if (closed) { ctx.log.info("sbrowser: another Space's quiet browser was closed to make room", { for: profileId }); continue; }
+      try {
+        closed = await within(DOCKER_MS, sb.closeOther(ctx.space, UNKNOWN_GRACE_MS), "the browser service");
+      } catch {
+        /* looked at again */
+      }
+      if (closed) {
+        ctx.log.info("sbrowser: another Space's quiet browser was closed to make room", { for: profileId });
+        continue;
+      }
     }
     await new Promise((r) => setTimeout(r, Math.min(LOOK_EVERY_MS, Math.max(0, deadline - Date.now()))));
   }
@@ -238,12 +329,31 @@ async function admit(ctx: CompCtx, sb: SpaceBrowser, profileId: string, deadline
  * approval, with anyone watching or at the controls; and not within the grace of its last step: SHORT_GRACE_MS when its agent is known to have no turn, UNKNOWN_GRACE_MS when that is not known.
  */
 function closable(ctx: CompCtx, rows: readonly ProfileRow[], profileId: string): string | null {
-  const held = new Set(rowsOf(ctx.db, "SELECT profile_id FROM computers_browser_hold").map((r) => String(r["profile_id"])));
+  const held = new Set(
+    rowsOf(ctx.db, "SELECT profile_id FROM computers_browser_hold").map((r) => String(r["profile_id"])),
+  );
   // this Space's own browsers (another Space's are never closed by this module: browserd is asked, by the longer rule, only when the container is what is full)
-  const ours = new Set(rowsOf(ctx.db, "SELECT claim_key FROM computers_claim WHERE kind = 'browser' AND state = 'running'").map((r) => String(r["claim_key"])));
+  const ours = new Set(
+    rowsOf(ctx.db, "SELECT claim_key FROM computers_claim WHERE kind = 'browser' AND state = 'running'").map((r) =>
+      String(r["claim_key"]),
+    ),
+  );
   const now = Date.now();
-  const quiet = rows.filter((r) => r.running && ours.has(r.profileId) && (r.spaceId === undefined || r.spaceId === ctx.space) && r.profileId !== profileId && !inFlight.has(r.profileId)
-    && !r.busy && !r.takeover && r.viewers === 0 && r.held === 0 && !held.has(r.profileId)).sort((a, b) => a.lastActiveAt - b.lastActiveAt);
+  const quiet = rows
+    .filter(
+      (r) =>
+        r.running &&
+        ours.has(r.profileId) &&
+        (r.spaceId === undefined || r.spaceId === ctx.space) &&
+        r.profileId !== profileId &&
+        !inFlight.has(r.profileId) &&
+        !r.busy &&
+        !r.takeover &&
+        r.viewers === 0 &&
+        r.held === 0 &&
+        !held.has(r.profileId),
+    )
+    .sort((a, b) => a.lastActiveAt - b.lastActiveAt);
   for (const r of quiet) {
     const st = turnState(ctx.space, r.profileId, ctx.now());
     if (st === "turn") continue;
@@ -266,8 +376,18 @@ export async function markOwnProfiles(ctx: CompCtx, sb: SpaceBrowser): Promise<v
     "SELECT DISTINCT computer_id AS id FROM computers_timeline WHERE computer_id NOT IN (SELECT computer_id FROM computers_computers)",
     "SELECT claim_key AS id FROM computers_claim WHERE kind = 'browser'",
     "SELECT profile_id AS id FROM computers_browser_hold",
-  ]) { try { for (const r of rowsOf(ctx.db, q)) ids.add(String(r["id"])); } catch { /* a table not there yet */ } }
-  try { if ((await within(DOCKER_MS, sb.markSpace(ctx.space, [...ids]), "the browser service")) >= 0) marked.add(ctx.space); } catch { /* the next pass */ }
+  ]) {
+    try {
+      for (const r of rowsOf(ctx.db, q)) ids.add(String(r["id"]));
+    } catch {
+      /* a table not there yet */
+    }
+  }
+  try {
+    if ((await within(DOCKER_MS, sb.markSpace(ctx.space, [...ids]), "the browser service")) >= 0) marked.add(ctx.space);
+  } catch {
+    /* the next pass */
+  }
 }
 
 /** A profile that waited and now has room is opened: a tab list starts its browser, and nothing else of the agent's turn is guessed. */
@@ -278,4 +398,14 @@ bindStarter("browser", async (_ctx, key) => {
 });
 
 /** Tests: forget what was claimed. */
-export function resetRoom(): void { lastReconcile = 0; marked.clear(); seenStart.clear(); snapStart.clear(); agents.clear(); turnOwner.clear(); line.length = 0; waitStarted.clear(); roomTurn = Promise.resolve(); }
+export function resetRoom(): void {
+  lastReconcile = 0;
+  marked.clear();
+  seenStart.clear();
+  snapStart.clear();
+  agents.clear();
+  turnOwner.clear();
+  line.length = 0;
+  waitStarted.clear();
+  roomTurn = Promise.resolve();
+}

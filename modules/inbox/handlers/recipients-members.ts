@@ -14,9 +14,15 @@ import { match, matchNew } from "./match.ts";
 import { recipientsSearch } from "./views.ts";
 
 type Kind = "contact" | "member" | "inbox" | "group";
-export interface RecipientHit { kind: Kind; id: string; label: string; address?: string; score: number }
+export interface RecipientHit {
+  kind: Kind;
+  id: string;
+  label: string;
+  address?: string;
+  score: number;
+}
 
-const PAGES = 5;          // at most this many pages of projects are read for one search
+const PAGES = 5; // at most this many pages of projects are read for one search
 const PAGE = 100;
 const PROJECT_BOOST = 0.05;
 
@@ -39,7 +45,9 @@ async function pages(ctx: InboxCtx, cap: string, input: Json, key: string): Prom
   const out: Json[] = [];
   let cursor: string | undefined;
   for (let i = 0; i < PAGES; i++) {
-    const res = obj(await ctx.call(cap, cursor === undefined ? { ...input, limit: PAGE } : { ...input, limit: PAGE, cursor }));
+    const res = obj(
+      await ctx.call(cap, cursor === undefined ? { ...input, limit: PAGE } : { ...input, limit: PAGE, cursor }),
+    );
     out.push(...list(res[key]).map(obj));
     cursor = typeof res.next === "string" && res.next ? res.next : undefined;
     if (cursor === undefined) break;
@@ -77,7 +85,7 @@ export async function projectReach(ctx: InboxCtx): Promise<ProjectReach> {
     if (!projectId) continue;
     const members = list(obj(await ctx.call("projects.members.list", { projectId })).members).map(obj);
     const ids = members.map((m) => text(m.principal));
-    if (!ids.includes(ctx.principal.id)) continue;     // listed for the caller but not a member: no reason
+    if (!ids.includes(ctx.principal.id)) continue; // listed for the caller but not a member: no reason
     for (const id of ids) if (id && id !== ctx.principal.id) peers.add(id);
     const records = new Set<string>();
     if (text(p.recordId)) records.add(text(p.recordId));
@@ -89,16 +97,24 @@ export async function projectReach(ctx: InboxCtx): Promise<ProjectReach> {
 }
 
 /** The "project" reason of the Inbox: true when the contact's record is linked to a project the caller is a member of. */
-export async function hasProjectReason(ctx: InboxCtx, contactId: string | null, reach?: ProjectReach): Promise<boolean> {
+export async function hasProjectReason(
+  ctx: InboxCtx,
+  contactId: string | null,
+  reach?: ProjectReach,
+): Promise<boolean> {
   if (!contactId) return false;
-  const r = reach ?? (await soft<ProjectReach>(ctx, "projects", { linked: new Map(), peers: new Set() }, () => projectReach(ctx)));
+  const r =
+    reach ??
+    (await soft<ProjectReach>(ctx, "projects", { linked: new Map(), peers: new Set() }, () => projectReach(ctx)));
   for (const records of r.linked.values()) if (records.has(contactId)) return true;
   return false;
 }
 
 /** The contact ids that reach the caller by project reason, for a list of candidates (one projects read for all of them). */
 export async function projectContacts(ctx: InboxCtx, contactIds: string[]): Promise<Set<string>> {
-  const reach = await soft<ProjectReach>(ctx, "projects", { linked: new Map(), peers: new Set() }, () => projectReach(ctx));
+  const reach = await soft<ProjectReach>(ctx, "projects", { linked: new Map(), peers: new Set() }, () =>
+    projectReach(ctx),
+  );
   const out = new Set<string>();
   for (const id of contactIds) if (await hasProjectReason(ctx, id, reach)) out.add(id);
   return out;
@@ -108,7 +124,8 @@ export async function projectContacts(ctx: InboxCtx, contactIds: string[]): Prom
 
 /** inbox.recipients_search with team members and project members added, ranked together and deduped by email. */
 export async function recipientsSearchWithMembers(
-  ctx: InboxCtx, input: { q: string; kinds?: Kind[]; limit?: number },
+  ctx: InboxCtx,
+  input: { q: string; kinds?: Kind[]; limit?: number },
 ): Promise<{ results: RecipientHit[] }> {
   ensure(ctx);
   const q = typeof input.q === "string" ? input.q.trim() : "";
@@ -116,7 +133,11 @@ export async function recipientsSearchWithMembers(
   if (!Number.isSafeInteger(limit) || limit < 1 || limit > 50) bad(ctx, "The limit is 1 to 50.");
   const wantMembers = input.kinds === undefined || input.kinds.includes("member");
   // The base search validates q, limit and kinds and answers contacts, inboxes and groups. Ask it for the full cap so dedupe cannot starve the page.
-  const base = await recipientsSearch(ctx, { ...input, kinds: (input.kinds ?? ["contact", "member", "inbox", "group"]).filter((k) => k !== "member"), limit: 50 });
+  const base = await recipientsSearch(ctx, {
+    ...input,
+    kinds: (input.kinds ?? ["contact", "member", "inbox", "group"]).filter((k) => k !== "member"),
+    limit: 50,
+  });
   if (!wantMembers) return { results: base.results.slice(0, limit) };
 
   const hits: RecipientHit[] = base.results.filter((r) => r.kind !== "member");
@@ -137,7 +158,8 @@ export async function recipientsSearchWithMembers(
       byAddress.set(key, h);
       continue;
     }
-    if (h.score > have.score || (h.score === have.score && h.kind === "member" && have.kind !== "member")) byAddress.set(key, h);
+    if (h.score > have.score || (h.score === have.score && h.kind === "member" && have.kind !== "member"))
+      byAddress.set(key, h);
   }
   const merged = [...keep, ...byAddress.values()];
   merged.sort((a, b) => b.score - a.score || a.label.localeCompare(b.label) || a.id.localeCompare(b.id));
@@ -147,14 +169,18 @@ export async function recipientsSearchWithMembers(
 async function memberHits(ctx: InboxCtx, q: string): Promise<RecipientHit[]> {
   const people = await pages(ctx, "access.principals.list", { kind: "person", status: "active", q }, "principals");
   if (!people.length) return [];
-  const boxes = await soft<Json[]>(ctx, "mailboxes", [], () => pages(ctx, "mail.mailbox.list", { scope: "all", kind: "personal" }, "mailboxes"));
+  const boxes = await soft<Json[]>(ctx, "mailboxes", [], () =>
+    pages(ctx, "mail.mailbox.list", { scope: "all", kind: "personal" }, "mailboxes"),
+  );
   const addressOf = new Map<string, string>();
   for (const b of boxes) {
     const owner = text(b.ownerId);
     const address = text(b.address);
     if (owner && address && !addressOf.has(owner)) addressOf.set(owner, address);
   }
-  const reach = await soft<ProjectReach>(ctx, "projects", { linked: new Map(), peers: new Set() }, () => projectReach(ctx));
+  const reach = await soft<ProjectReach>(ctx, "projects", { linked: new Map(), peers: new Set() }, () =>
+    projectReach(ctx),
+  );
   const out: RecipientHit[] = [];
   for (const p of people) {
     const id = text(p.id);
@@ -162,7 +188,7 @@ async function memberHits(ctx: InboxCtx, q: string): Promise<RecipientHit[]> {
     const label = text(p.name) || id;
     const address = addressOf.get(id) ?? "";
     let score = scoreOf(label, address, q);
-    if (score <= 0) score = 0.5;           // the access search already judged it a hit on a field this module cannot see (title, role)
+    if (score <= 0) score = 0.5; // the access search already judged it a hit on a field this module cannot see (title, role)
     if (reach.peers.has(id)) score = Math.min(1, Math.round((score + PROJECT_BOOST) * 100) / 100);
     out.push(address ? { kind: "member", id, label, address, score } : { kind: "member", id, label, score });
   }
@@ -181,14 +207,16 @@ export async function closeMatchTask(ctx: InboxCtx, conversationId: string): Pro
     await ctx.call("tasks.transition", { taskId, to: "done", note: "Matched to a record." });
   } catch (e) {
     const code = codeOf(e);
-    if (code !== "validation.precondition_failed" && code !== "validation.not_found") ctx.log.warn("inbox: could not close Needs a match", { code });
+    if (code !== "validation.precondition_failed" && code !== "validation.not_found")
+      ctx.log.warn("inbox: could not close Needs a match", { code });
     return undefined;
   }
   return taskId;
 }
 
 export async function matchClosingTask(
-  ctx: InboxCtx, input: { conversationId: string; recordId: string; rememberAddress?: boolean },
+  ctx: InboxCtx,
+  input: { conversationId: string; recordId: string; rememberAddress?: boolean },
 ): Promise<{ conversation: ConversationRow; undoToken: string }> {
   const out = await match(ctx, input);
   await closeMatchTask(ctx, input.conversationId);
@@ -196,7 +224,8 @@ export async function matchClosingTask(
 }
 
 export async function matchNewClosingTask(
-  ctx: InboxCtx, input: { conversationId: string; type: "contact" | "company"; name?: string },
+  ctx: InboxCtx,
+  input: { conversationId: string; type: "contact" | "company"; name?: string },
 ): Promise<{ recordId: string; conversation: ConversationRow }> {
   const out = await matchNew(ctx, input);
   await closeMatchTask(ctx, input.conversationId);

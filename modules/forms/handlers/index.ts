@@ -6,7 +6,26 @@
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
 import type { FieldMode, FormKind } from "../projections.ts";
 import {
-  fail, fieldsOf, formsConfig, formOut, insertForm, isNull, isRec, many, mustForm, num, one, optBool, optInt, optStr, pageOf, parseJson, publicUrl, rec, reqStr, str,
+  fail,
+  fieldsOf,
+  formsConfig,
+  formOut,
+  insertForm,
+  isNull,
+  isRec,
+  many,
+  mustForm,
+  num,
+  one,
+  optBool,
+  optInt,
+  optStr,
+  pageOf,
+  parseJson,
+  publicUrl,
+  rec,
+  reqStr,
+  str,
 } from "../projections.ts";
 import { askCancel, askDiff } from "./ask.ts";
 import { choicesCandidates, choicesOf, choicesSet, needsChoices } from "./choices.ts";
@@ -32,8 +51,10 @@ async function create(ctx: Ctx, input: unknown) {
   const name = reqStr(ctx, o, "name").trim();
   const recordType = reqStr(ctx, o, "recordType");
   const kind = reqStr(ctx, o, "kind") as FormKind;
-  if (name.length === 0 || name.length > NAME_MAX) fail(ctx, "validation.bad_input", "Give the form a name.", { field: "name" });
-  if (!RECORD_TYPE.test(recordType)) fail(ctx, "validation.bad_input", "That record type is not valid.", { field: "recordType" });
+  if (name.length === 0 || name.length > NAME_MAX)
+    fail(ctx, "validation.bad_input", "Give the form a name.", { field: "name" });
+  if (!RECORD_TYPE.test(recordType))
+    fail(ctx, "validation.bad_input", "That record type is not valid.", { field: "recordType" });
   if (!KINDS.includes(kind)) fail(ctx, "validation.bad_input", "That kind of form is not known.", { field: "kind" });
   if (kind === "booking") fail(ctx, "validation.precondition_failed", "Make a booking page with bookings.page_create.");
   const form = insertForm(ctx, { name, recordType, kind });
@@ -46,7 +67,12 @@ async function get(ctx: Ctx, input: unknown) {
   const form = mustForm(ctx, reqStr(ctx, o, "formId"));
   const out: Record<string, unknown> = {
     form: formOut(ctx, form),
-    settings: { consentText: str(form.consent_text), captcha: Number(form.captcha) === 1, rateLimit: Number(form.rate_limit), ...(parseJson(form.thank_you) ? { thankYou: parseJson(form.thank_you) } : {}) },
+    settings: {
+      consentText: str(form.consent_text),
+      captcha: Number(form.captcha) === 1,
+      rateLimit: Number(form.rate_limit),
+      ...(parseJson(form.thank_you) ? { thankYou: parseJson(form.thank_you) } : {}),
+    },
     fields: fieldsOf(ctx, str(form.id)).map((f) => {
       const row: Record<string, unknown> = { field: str(f.field), mode: str(f.mode) };
       if (!isNull(f.prefill_key)) row.prefillKey = str(f.prefill_key);
@@ -57,7 +83,8 @@ async function get(ctx: Ctx, input: unknown) {
   const published = choicesOf(ctx, str(form.id)) as (ReturnType<typeof choicesOf>[number] & { field: string })[];
   if (published.length > 0) {
     const byField: Record<string, unknown[]> = {};
-    for (const c of published) (byField[c.field] ??= []).push({ key: c.key, refId: c.refId, kind: c.kind, label: c.label });
+    for (const c of published)
+      (byField[c.field] ??= []).push({ key: c.key, refId: c.refId, kind: c.kind, label: c.label });
     out.choices = byField;
   }
   if (!isNull(form.css)) out.css = str(form.css);
@@ -74,12 +101,21 @@ async function list(ctx: Ctx, input: unknown) {
   const o = rec(ctx, input);
   const section = optStr(ctx, o, "section");
   const folderId = optStr(ctx, o, "folderId");
-  if (section !== undefined && !SECTIONS.includes(section)) fail(ctx, "validation.bad_input", "That section is not known.", { field: "section" });
+  if (section !== undefined && !SECTIONS.includes(section))
+    fail(ctx, "validation.bad_input", "That section is not known.", { field: "section" });
   const { offset, limit } = pageOf(ctx, o);
   const rows = many(ctx, "SELECT * FROM forms_form")
-    .filter((r) => isNull(r.deleted_at) && (section === undefined || r.section === section) && (folderId === undefined || r.folder_id === folderId))
+    .filter(
+      (r) =>
+        isNull(r.deleted_at) &&
+        (section === undefined || r.section === section) &&
+        (folderId === undefined || r.folder_id === folderId),
+    )
     .sort((a, b) => num(b.created_at) - num(a.created_at) || str(b.id).localeCompare(str(a.id)));
-  const out: { forms: ReturnType<typeof formOut>[]; next?: string; total: number } = { forms: rows.slice(offset, offset + limit).map((r) => formOut(ctx, r)), total: rows.length };
+  const out: { forms: ReturnType<typeof formOut>[]; next?: string; total: number } = {
+    forms: rows.slice(offset, offset + limit).map((r) => formOut(ctx, r)),
+    total: rows.length,
+  };
   if (offset + limit < rows.length) out.next = String(offset + limit);
   return out;
 }
@@ -90,28 +126,43 @@ async function update(ctx: Ctx, input: unknown) {
   const sets: [string, unknown][] = [];
   const name = optStr(ctx, o, "name");
   if (name !== undefined) {
-    if (name.trim().length === 0 || name.length > NAME_MAX) fail(ctx, "validation.bad_input", "Give the form a name.", { field: "name" });
+    if (name.trim().length === 0 || name.length > NAME_MAX)
+      fail(ctx, "validation.bad_input", "Give the form a name.", { field: "name" });
     sets.push(["name", name.trim()]);
   }
   if (o.matchRule !== undefined && o.matchRule !== null) {
     const m = o.matchRule;
-    if (!Array.isArray(m) || m.length === 0 || m.length > 5 || !m.every((x) => typeof x === "string" && FIELD_NAME.test(x))) {
+    if (
+      !Array.isArray(m) ||
+      m.length === 0 ||
+      m.length > 5 ||
+      !m.every((x) => typeof x === "string" && FIELD_NAME.test(x))
+    ) {
       fail(ctx, "validation.bad_input", "The match rule needs one to five field names.", { field: "matchRule" });
     }
     sets.push(["match_rule", JSON.stringify([...new Set(m as string[])])]);
   }
   const consent = optStr(ctx, o, "consentText");
   if (consent !== undefined) {
-    if (consent.length > 2000) fail(ctx, "validation.too_large", "The consent text is too long.", { field: "consentText" });
+    if (consent.length > 2000)
+      fail(ctx, "validation.too_large", "The consent text is too long.", { field: "consentText" });
     sets.push(["consent_text", consent.trim().length > 0 ? consent : null]);
   }
   const captcha = optBool(ctx, o, "captcha");
   if (captcha !== undefined) sets.push(["captcha", captcha ? 1 : 0]);
   if (o.uploadPolicy !== undefined && o.uploadPolicy !== null) {
-    if (!isRec(o.uploadPolicy)) fail(ctx, "validation.bad_input", "The upload policy is not valid.", { field: "uploadPolicy" });
-    if(o.uploadPolicy.folderId!==undefined){
-      if(typeof o.uploadPolicy.folderId!=='string'||!/^fld_[a-zA-Z0-9_-]+$/.test(o.uploadPolicy.folderId))fail(ctx,'validation.bad_input','Choose a valid upload folder.',{field:'uploadPolicy.folderId'});
-      if(ctx.authorize({perm:'files.write',level:'edit'},{type:'folder',id:o.uploadPolicy.folderId}).effect!=='allow')fail(ctx,'permission.no_grant','You need write access to the upload folder.',{field:'uploadPolicy.folderId'});
+    if (!isRec(o.uploadPolicy))
+      fail(ctx, "validation.bad_input", "The upload policy is not valid.", { field: "uploadPolicy" });
+    if (o.uploadPolicy.folderId !== undefined) {
+      if (typeof o.uploadPolicy.folderId !== "string" || !/^fld_[a-zA-Z0-9_-]+$/.test(o.uploadPolicy.folderId))
+        fail(ctx, "validation.bad_input", "Choose a valid upload folder.", { field: "uploadPolicy.folderId" });
+      if (
+        ctx.authorize({ perm: "files.write", level: "edit" }, { type: "folder", id: o.uploadPolicy.folderId })
+          .effect !== "allow"
+      )
+        fail(ctx, "permission.no_grant", "You need write access to the upload folder.", {
+          field: "uploadPolicy.folderId",
+        });
     }
     sets.push(["upload_policy", JSON.stringify(o.uploadPolicy)]);
   }
@@ -119,7 +170,11 @@ async function update(ctx: Ctx, input: unknown) {
   if (rate !== undefined) sets.push(["rate_limit", rate]);
   if (sets.length > 0) {
     sets.push(["updated_at", ctx.now()]);
-    ctx.db.run(`UPDATE forms_form SET ${sets.map(([c]) => `${c} = ?`).join(", ")} WHERE id = ?`, ...sets.map(([, v]) => v), str(form.id));
+    ctx.db.run(
+      `UPDATE forms_form SET ${sets.map(([c]) => `${c} = ?`).join(", ")} WHERE id = ?`,
+      ...sets.map(([, v]) => v),
+      str(form.id),
+    );
   }
   return { form: formOut(ctx, mustForm(ctx, str(form.id))) };
 }
@@ -128,27 +183,36 @@ async function fieldsSet(ctx: Ctx, input: unknown) {
   const o = rec(ctx, input);
   const form = mustForm(ctx, reqStr(ctx, o, "formId"));
   const fields = o.fields;
-  if (!Array.isArray(fields) || fields.length > 200) fail(ctx, "validation.bad_input", "The fields are not valid.", { field: "fields" });
+  if (!Array.isArray(fields) || fields.length > 200)
+    fail(ctx, "validation.bad_input", "The fields are not valid.", { field: "fields" });
   const seen = new Set<string>();
   const keys = new Set<string>();
   const rows = fields.map((f, i) => {
     if (!isRec(f)) fail(ctx, "validation.bad_input", "The fields are not valid.", { field: `fields.${i}` });
     const field = typeof f.field === "string" ? f.field : "";
     const mode = f.mode as FieldMode;
-    if (!FIELD_NAME.test(field) || seen.has(field)) fail(ctx, "validation.bad_input", "Each field needs its own valid name.", { field: `fields.${i}.field` });
-    if (!MODES.includes(mode)) fail(ctx, "validation.bad_input", "A field is Ask, Show or Hide.", { field: `fields.${i}.mode` });
+    if (!FIELD_NAME.test(field) || seen.has(field))
+      fail(ctx, "validation.bad_input", "Each field needs its own valid name.", { field: `fields.${i}.field` });
+    if (!MODES.includes(mode))
+      fail(ctx, "validation.bad_input", "A field is Ask, Show or Hide.", { field: `fields.${i}.mode` });
     seen.add(field);
     let prefill: string | null = null;
     if (f.prefillKey !== undefined && f.prefillKey !== null) {
       if (typeof f.prefillKey !== "string" || !PREFILL_KEY.test(f.prefillKey) || keys.has(f.prefillKey)) {
-        fail(ctx, "validation.bad_input", "A prefill key is lower case letters, digits and underscores, and used once.", { field: `fields.${i}.prefillKey` });
+        fail(
+          ctx,
+          "validation.bad_input",
+          "A prefill key is lower case letters, digits and underscores, and used once.",
+          { field: `fields.${i}.prefillKey` },
+        );
       }
       keys.add(f.prefillKey);
       prefill = f.prefillKey;
     }
     let step: number | null = null;
     if (f.step !== undefined && f.step !== null) {
-      if (typeof f.step !== "number" || !Number.isInteger(f.step) || f.step < 0 || f.step > 100) fail(ctx, "validation.bad_input", "The step is not valid.", { field: `fields.${i}.step` });
+      if (typeof f.step !== "number" || !Number.isInteger(f.step) || f.step < 0 || f.step > 100)
+        fail(ctx, "validation.bad_input", "The step is not valid.", { field: `fields.${i}.step` });
       step = f.step;
     }
     return { field, mode, prefill, step, position: i };
@@ -158,7 +222,15 @@ async function fieldsSet(ctx: Ctx, input: unknown) {
   }
   ctx.db.run("DELETE FROM forms_field WHERE form_id = ?", str(form.id));
   for (const r of rows) {
-    ctx.db.run("INSERT INTO forms_field (form_id, field, mode, prefill_key, step, position) VALUES (?, ?, ?, ?, ?, ?)", str(form.id), r.field, r.mode, r.prefill, r.step, r.position);
+    ctx.db.run(
+      "INSERT INTO forms_field (form_id, field, mode, prefill_key, step, position) VALUES (?, ?, ?, ?, ?, ?)",
+      str(form.id),
+      r.field,
+      r.mode,
+      r.prefill,
+      r.step,
+      r.position,
+    );
   }
   ctx.db.run("UPDATE forms_form SET updated_at = ? WHERE id = ?", ctx.now(), str(form.id));
   return { ok: true };
@@ -198,15 +270,25 @@ async function designSet(ctx: Ctx, input: unknown) {
     if (!isRec(t)) fail(ctx, "validation.bad_input", "The thank-you page is not valid.", { field: "thankYou" });
     const text = t.text;
     const redirect = t.redirect;
-    if (text !== undefined && (typeof text !== "string" || text.length > 5000)) fail(ctx, "validation.bad_input", "The thank-you text is not valid.", { field: "thankYou.text" });
+    if (text !== undefined && (typeof text !== "string" || text.length > 5000))
+      fail(ctx, "validation.bad_input", "The thank-you text is not valid.", { field: "thankYou.text" });
     if (redirect !== undefined && (typeof redirect !== "string" || !safeTarget(redirect))) {
-      fail(ctx, "validation.bad_input", "A redirect is a full https address or a path on this site.", { field: "thankYou.redirect" });
+      fail(ctx, "validation.bad_input", "A redirect is a full https address or a path on this site.", {
+        field: "thankYou.redirect",
+      });
     }
-    sets.push(["thank_you", JSON.stringify({ ...(text !== undefined ? { text } : {}), ...(redirect !== undefined ? { redirect } : {}) })]);
+    sets.push([
+      "thank_you",
+      JSON.stringify({ ...(text !== undefined ? { text } : {}), ...(redirect !== undefined ? { redirect } : {}) }),
+    ]);
   }
   if (sets.length > 0) {
     sets.push(["updated_at", ctx.now()]);
-    ctx.db.run(`UPDATE forms_form SET ${sets.map(([c]) => `${c} = ?`).join(", ")} WHERE id = ?`, ...sets.map(([, v]) => v), str(form.id));
+    ctx.db.run(
+      `UPDATE forms_form SET ${sets.map(([c]) => `${c} = ?`).join(", ")} WHERE id = ?`,
+      ...sets.map(([, v]) => v),
+      str(form.id),
+    );
   }
   return { ok: true };
 }
@@ -214,15 +296,30 @@ async function designSet(ctx: Ctx, input: unknown) {
 async function publish(ctx: Ctx, input: unknown) {
   const o = rec(ctx, input);
   const form = mustForm(ctx, reqStr(ctx, o, "formId"));
-  const schemaReader=formsConfig().schemaFields;
-  if(schemaReader){
-    const schema=await schemaReader(str(form.record_type)),modes=fieldsOf(ctx,str(form.id)),logic=parseJson(form.logic);
-    const rules=isRec(logic)&&Array.isArray(logic.rules)?logic.rules:[];
-    for(const field of schema)if((field.required||rules.some((rule)=>isRec(rule)&&Array.isArray(rule.require)&&rule.require.includes(field.key)))&&(field.type==='relation'||field.type==='person')&&modes.some((mode)=>mode.field===field.key&&mode.mode==='ask'))
-      if(choicesOf(ctx,str(form.id),field.key).length===0)fail(ctx,'validation.precondition_failed',`${field.title} needs publisher-approved choices before the form can go public. Choose which ${field.type==='person'?'people':'records'} visitors may pick, or hide this question.`,{field:`fields.${field.key}`});
+  const schemaReader = formsConfig().schemaFields;
+  if (schemaReader) {
+    const schema = await schemaReader(str(form.record_type)),
+      modes = fieldsOf(ctx, str(form.id)),
+      logic = parseJson(form.logic);
+    const rules = isRec(logic) && Array.isArray(logic.rules) ? logic.rules : [];
+    for (const field of schema)
+      if (
+        (field.required ||
+          rules.some((rule) => isRec(rule) && Array.isArray(rule.require) && rule.require.includes(field.key))) &&
+        (field.type === "relation" || field.type === "person") &&
+        modes.some((mode) => mode.field === field.key && mode.mode === "ask")
+      )
+        if (choicesOf(ctx, str(form.id), field.key).length === 0)
+          fail(
+            ctx,
+            "validation.precondition_failed",
+            `${field.title} needs publisher-approved choices before the form can go public. Choose which ${field.type === "person" ? "people" : "records"} visitors may pick, or hide this question.`,
+            { field: `fields.${field.key}` },
+          );
   }
   if (form.kind === "booking") {
-    if (!one(ctx, "SELECT * FROM forms_booking_page WHERE form_id = ?", str(form.id))) fail(ctx, "validation.precondition_failed", "This booking page has no hosts yet.");
+    if (!one(ctx, "SELECT * FROM forms_booking_page WHERE form_id = ?", str(form.id)))
+      fail(ctx, "validation.precondition_failed", "This booking page has no hosts yet.");
   } else if (!fieldsOf(ctx, str(form.id)).some((f) => f.mode === "ask")) {
     fail(ctx, "validation.precondition_failed", "Ask for at least one field before publishing.");
   }
@@ -231,20 +328,30 @@ async function publish(ctx: Ctx, input: unknown) {
     ctx.emit("form.published", `form/${str(form.id)}`, { formId: str(form.id), slug: str(form.slug) });
   }
   const url = publicUrl(form);
-  return { url, embed: `<iframe src="${esc(url)}" title="${esc(str(form.name))}" style="width:100%;border:0" loading="lazy"></iframe>` };
+  return {
+    url,
+    embed: `<iframe src="${esc(url)}" title="${esc(str(form.name))}" style="width:100%;border:0" loading="lazy"></iframe>`,
+  };
 }
 
 async function unpublish(ctx: Ctx, input: unknown) {
   const o = rec(ctx, input);
   const form = mustForm(ctx, reqStr(ctx, o, "formId"));
-  if (form.state === "published") ctx.db.run("UPDATE forms_form SET state = ?, updated_at = ? WHERE id = ?", "closed", ctx.now(), str(form.id));
+  if (form.state === "published")
+    ctx.db.run("UPDATE forms_form SET state = ?, updated_at = ? WHERE id = ?", "closed", ctx.now(), str(form.id));
   return { ok: true };
 }
 
 async function remove(ctx: Ctx, input: unknown) {
   const o = rec(ctx, input);
   const form = mustForm(ctx, reqStr(ctx, o, "formId"));
-  ctx.db.run("UPDATE forms_form SET state = ?, deleted_at = ?, updated_at = ? WHERE id = ?", "closed", ctx.now(), ctx.now(), str(form.id));
+  ctx.db.run(
+    "UPDATE forms_form SET state = ?, deleted_at = ?, updated_at = ? WHERE id = ?",
+    "closed",
+    ctx.now(),
+    ctx.now(),
+    str(form.id),
+  );
   return { deleted: true };
 }
 

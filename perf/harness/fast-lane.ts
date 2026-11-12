@@ -33,7 +33,12 @@ function runAll(changed: readonly string[]): boolean {
  * `full` returns every row. `fast` returns the rows whose probe the changed paths touch.
  * Paths are repo-relative. A screen id `console.speed` matches `ui/src/console/speed.tsx`.
  */
-export function rowsForLane(lane: "fast" | "full", changed: readonly string[], budgets: readonly Budget[], probes: readonly Probe[]): Budget[] {
+export function rowsForLane(
+  lane: "fast" | "full",
+  changed: readonly string[],
+  budgets: readonly Budget[],
+  probes: readonly Probe[],
+): Budget[] {
   if (lane === "full" || runAll(changed)) return [...budgets];
   const hit = new Set(probes.filter((probe) => probeHit(probe, changed)).map((probe) => probe.id));
   return budgets.filter((budget) => hit.has(budget.probe));

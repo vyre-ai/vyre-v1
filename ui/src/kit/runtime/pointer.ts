@@ -81,7 +81,9 @@ function evalTerm(term: string, scope: Scope): boolean {
   const cmp = /^(\/\S*)\s*(==|!=)\s*(.+)$/.exec(t);
   if (cmp) {
     const left = resolvePointer(scope, cmp[1]!);
-    const same = left === parseLiteral(cmp[3]!) || (left !== undefined && left !== null && String(left) === String(parseLiteral(cmp[3]!)));
+    const same =
+      left === parseLiteral(cmp[3]!) ||
+      (left !== undefined && left !== null && String(left) === String(parseLiteral(cmp[3]!)));
     return cmp[2] === "==" ? same : !same;
   }
   if (t.startsWith("/")) return truthy(resolvePointer(scope, t));

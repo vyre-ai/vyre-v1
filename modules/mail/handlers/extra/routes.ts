@@ -11,10 +11,19 @@ import type { PageIn } from "./common.ts";
 type Provider = "resend" | "mailgun";
 const LOCAL = /^(\*|[a-z0-9]([a-z0-9._+-]{0,62}[a-z0-9])?)$/;
 
-export interface RouteOut { id: string; domainId: string; localPart: string; mailboxId: string; provider: Provider }
+export interface RouteOut {
+  id: string;
+  domainId: string;
+  localPart: string;
+  mailboxId: string;
+  provider: Provider;
+}
 
 const routeOut = (row: Row): RouteOut => ({
-  id: str(row, "id"), domainId: str(row, "domainId"), localPart: str(row, "localPart"), mailboxId: str(row, "mailboxId"),
+  id: str(row, "id"),
+  domainId: str(row, "domainId"),
+  localPart: str(row, "localPart"),
+  mailboxId: str(row, "mailboxId"),
   provider: str(row, "provider") === "mailgun" ? "mailgun" : "resend",
 });
 
@@ -27,7 +36,10 @@ function domainOf(ctx: MailCtx, id: string): Row {
 
 const providerOf = (domain: Row): Provider => (str(domain, "provider") === "mailgun" ? "mailgun" : "resend");
 
-export async function routeList(ctx: MailCtx, input: PageIn & { domainId?: string }): Promise<{ routes: RouteOut[]; next?: string; total: number }> {
+export async function routeList(
+  ctx: MailCtx,
+  input: PageIn & { domainId?: string },
+): Promise<{ routes: RouteOut[]; next?: string; total: number }> {
   ensureAll(ctx);
   if (input.domainId !== undefined && !isId("dom", input.domainId)) bad(ctx, "Domain id is not valid.");
   const { offset, limit } = parsePage(ctx, input);
@@ -40,14 +52,19 @@ export async function routeList(ctx: MailCtx, input: PageIn & { domainId?: strin
     return ka < kb ? -1 : ka > kb ? 1 : 0;
   });
   const page = pageOf(rows, offset, limit);
-  const out: { routes: RouteOut[]; next?: string; total: number } = { routes: page.items.map(routeOut), total: page.total };
+  const out: { routes: RouteOut[]; next?: string; total: number } = {
+    routes: page.items.map(routeOut),
+    total: page.total,
+  };
   if (page.next) out.next = page.next;
   return out;
 }
 
 /** Mailgun's match expression for one address, or every address on the domain for the catch-all. */
 export function mailgunExpression(localPart: string, domain: string): string {
-  return localPart === "*" ? `match_recipient(".*@${domain.replaceAll(".", "\\.")}")` : `match_recipient("${localPart}@${domain}")`;
+  return localPart === "*"
+    ? `match_recipient(".*@${domain.replaceAll(".", "\\.")}")`
+    : `match_recipient("${localPart}@${domain}")`;
 }
 
 export async function routeSet(
@@ -62,42 +79,78 @@ export async function routeSet(
   }
   const domain = domainOf(ctx, input.domainId);
   const localPart = typeof input.localPart === "string" ? input.localPart.trim().toLowerCase() : "";
-  if (!LOCAL.test(localPart)) bad(ctx, "The address part must be letters, digits, dots, plus or dashes, or * for the catch-all.");
+  if (!LOCAL.test(localPart))
+    bad(ctx, "The address part must be letters, digits, dots, plus or dashes, or * for the catch-all.");
   if (!isId("mbx", input.mailboxId)) bad(ctx, "Mailbox id is not valid.");
   if (!liveMailbox(ctx, input.mailboxId)) missing(ctx, "Mailbox does not exist.");
   const provider = providerOf(domain);
-  const existing = first(ctx.db.all(`SELECT * FROM mail_route WHERE "domainId" = ? AND "localPart" = ? AND deleted_at IS NULL`, input.domainId, localPart));
+  const existing = first(
+    ctx.db.all(
+      `SELECT * FROM mail_route WHERE "domainId" = ? AND "localPart" = ? AND deleted_at IS NULL`,
+      input.domainId,
+      localPart,
+    ),
+  );
   const now = ctx.now();
   let routeId: string;
   if (existing) {
     routeId = str(existing, "id");
     if (str(existing, "mailboxId") !== input.mailboxId) {
-      ctx.db.run(`UPDATE mail_route SET "mailboxId" = ?, version = ?, updated_at = ? WHERE id = ?`, input.mailboxId, num(existing, "version") + 1, now, routeId);
+      ctx.db.run(
+        `UPDATE mail_route SET "mailboxId" = ?, version = ?, updated_at = ? WHERE id = ?`,
+        input.mailboxId,
+        num(existing, "version") + 1,
+        now,
+        routeId,
+      );
     }
   } else {
     let providerRouteId: string | null = null;
     if (provider === "mailgun") {
       const made = (await ctx.call("mailgun.routes.create", {
-        idempotencyKey: `${input.idempotencyKey}:mailgun.routes.create`, expression: mailgunExpression(localPart, str(domain, "name")), description: `Vyre inbound route for ${localPart}@${str(domain, "name")}`,
+        idempotencyKey: `${input.idempotencyKey}:mailgun.routes.create`,
+        expression: mailgunExpression(localPart, str(domain, "name")),
+        description: `Vyre inbound route for ${localPart}@${str(domain, "name")}`,
       })) as { route?: { routeId?: unknown } } | null;
       providerRouteId = typeof made?.route?.routeId === "string" ? made.route.routeId : null;
-      if (!providerRouteId) throw fail("provider.bad_response", ctx.trace.traceId, { message: "Mailgun did not return the route." });
+      if (!providerRouteId)
+        throw fail("provider.bad_response", ctx.trace.traceId, { message: "Mailgun did not return the route." });
     }
     routeId = newId("rte", now);
     ctx.db.run(
       `INSERT INTO mail_route (id, "domainId", "localPart", "mailboxId", provider, version, updated_at, deleted_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      routeId, input.domainId, localPart, input.mailboxId, provider, 1, now, null,
+      routeId,
+      input.domainId,
+      localPart,
+      input.mailboxId,
+      provider,
+      1,
+      now,
+      null,
     );
-    if (providerRouteId) ctx.db.run(`INSERT OR IGNORE INTO mail_route_ext ("routeId", "providerRouteId") VALUES (?, ?)`, routeId, providerRouteId);
+    if (providerRouteId)
+      ctx.db.run(
+        `INSERT OR IGNORE INTO mail_route_ext ("routeId", "providerRouteId") VALUES (?, ?)`,
+        routeId,
+        providerRouteId,
+      );
   }
   rememberIdem(ctx, input.idempotencyKey, "routeset", routeId);
-  ctx.emit("inbound_route.saved", `domain/${input.domainId}`, { routeId, domainId: input.domainId, localPart, mailboxId: input.mailboxId });
+  ctx.emit("inbound_route.saved", `domain/${input.domainId}`, {
+    routeId,
+    domainId: input.domainId,
+    localPart,
+    mailboxId: input.mailboxId,
+  });
   const row = first(ctx.db.all(`SELECT * FROM mail_route WHERE id = ?`, routeId));
   if (!row) missing(ctx, "Route does not exist.");
   return { route: routeOut(row) };
 }
 
-export async function routeRemove(ctx: MailCtx, input: { routeId: string; domainId: string }): Promise<{ removed: boolean }> {
+export async function routeRemove(
+  ctx: MailCtx,
+  input: { routeId: string; domainId: string },
+): Promise<{ removed: boolean }> {
   ensureAll(ctx);
   if (!isId("rte", input.routeId)) bad(ctx, "Route id is not valid.");
   if (!isId("dom", input.domainId)) bad(ctx, "Domain id is not valid.");
@@ -108,14 +161,23 @@ export async function routeRemove(ctx: MailCtx, input: { routeId: string; domain
   const providerRoute = ext ? str(ext, "providerRouteId") : "";
   if (providerRoute) {
     try {
-      await ctx.call("mailgun.routes.delete", { idempotencyKey: `mail.routes.remove:${input.routeId}`, routeId: providerRoute });
+      await ctx.call("mailgun.routes.delete", {
+        idempotencyKey: `mail.routes.remove:${input.routeId}`,
+        routeId: providerRoute,
+      });
     } catch (e) {
-      const c = ((e as { error?: { code?: unknown } } | null)?.error?.code) ?? "";
+      const c = (e as { error?: { code?: unknown } } | null)?.error?.code ?? "";
       if (c !== "validation.not_found") throw e;
     }
   }
   const now = ctx.now();
-  ctx.db.run(`UPDATE mail_route SET deleted_at = ?, version = ?, updated_at = ? WHERE id = ?`, now, num(row, "version") + 1, now, input.routeId);
+  ctx.db.run(
+    `UPDATE mail_route SET deleted_at = ?, version = ?, updated_at = ? WHERE id = ?`,
+    now,
+    num(row, "version") + 1,
+    now,
+    input.routeId,
+  );
   ctx.emit("inbound_route.removed", `domain/${input.domainId}`, { routeId: input.routeId, domainId: input.domainId });
   return { removed: true };
 }

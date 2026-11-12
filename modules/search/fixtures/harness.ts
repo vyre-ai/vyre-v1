@@ -12,8 +12,15 @@ export const NOW = 1_760_000_000_000;
 export const DAY = 86_400_000;
 export const TRACE = "0123456789abcdef0123456789abcdef";
 
-export interface Emitted { name: string; subject: string; payload: Record<string, unknown> }
-export interface Called { cap: string; input: Record<string, unknown> }
+export interface Emitted {
+  name: string;
+  subject: string;
+  payload: Record<string, unknown>;
+}
+export interface Called {
+  cap: string;
+  input: Record<string, unknown>;
+}
 export type Responder = (input: Record<string, unknown>) => unknown;
 
 export interface HarnessOptions {
@@ -70,20 +77,43 @@ export function harness(o: HarnessOptions = {}) {
     log: { warn() {} },
   };
   return {
-    ctx, raw, db, space, emitted, called, clock, respond,
-    advance(ms: number) { clock.t += ms; },
-    deny(key: string) { deny.add(key); },
-    allow(key: string) { deny.delete(key); },
-    rows(sql: string, ...args: unknown[]): Record<string, unknown>[] { return db.all(sql, ...args) as Record<string, unknown>[]; },
-    named(name: string): Emitted[] { return emitted.filter((e) => e.name === name); },
-    calls(cap: string): Called[] { return called.filter((c) => c.cap === cap); },
+    ctx,
+    raw,
+    db,
+    space,
+    emitted,
+    called,
+    clock,
+    respond,
+    advance(ms: number) {
+      clock.t += ms;
+    },
+    deny(key: string) {
+      deny.add(key);
+    },
+    allow(key: string) {
+      deny.delete(key);
+    },
+    rows(sql: string, ...args: unknown[]): Record<string, unknown>[] {
+      return db.all(sql, ...args) as Record<string, unknown>[];
+    },
+    named(name: string): Emitted[] {
+      return emitted.filter((e) => e.name === name);
+    },
+    calls(cap: string): Called[] {
+      return called.filter((c) => c.cap === cap);
+    },
   };
 }
 
 export type Harness = ReturnType<typeof harness>;
 
 /** The same database and clock as another caller (a second person on one Space). */
-export function asPerson(h: Harness, principal: SearchCtx["principal"], extra: Omit<HarnessOptions, "raw" | "principal" | "clock" | "space"> = {}): Harness {
+export function asPerson(
+  h: Harness,
+  principal: SearchCtx["principal"],
+  extra: Omit<HarnessOptions, "raw" | "principal" | "clock" | "space"> = {},
+): Harness {
   return harness({ ...extra, raw: h.raw, principal, clock: h.clock, space: h.space });
 }
 
@@ -93,15 +123,30 @@ export function seed(h: Harness, d: Partial<IndexDoc> & { id: string; title: str
   const kind = d.kind ?? "record";
   const entity = d.entity ?? (kind === "chat" ? "thread" : kind);
   const doc: IndexDoc = {
-    entity, id: d.id, kind, title: d.title, body: d.body ?? "", link: d.link ?? `vyre://${entity}/${d.id}`, label: d.label ?? 0,
+    entity,
+    id: d.id,
+    kind,
+    title: d.title,
+    body: d.body ?? "",
+    link: d.link ?? `vyre://${entity}/${d.id}`,
+    label: d.label ?? 0,
     resource: d.resource ?? { type: kind === "chat" ? "thread" : kind, id: d.id },
-    ...(d.path ? { path: d.path } : {}), ...(d.folderId ? { folderId: d.folderId } : {}), ...(d.recordType ? { recordType: d.recordType } : {}), ...(d.updatedAt !== undefined ? { updatedAt: d.updatedAt } : {}), ...(d.agent ? { agent: d.agent } : {}),
+    ...(d.path ? { path: d.path } : {}),
+    ...(d.folderId ? { folderId: d.folderId } : {}),
+    ...(d.recordType ? { recordType: d.recordType } : {}),
+    ...(d.updatedAt !== undefined ? { updatedAt: d.updatedAt } : {}),
+    ...(d.agent ? { agent: d.agent } : {}),
   };
   return putDoc(h.db, h.space, doc, h.clock.t);
 }
 
 /** Insert many documents quickly (multi-row statements on the raw handle): the perf seeds. `make(i)` gives title, body, kind and entity of document i. */
-export function bulk(h: Harness, count: number, make: (i: number) => { title: string; body: string; kind: string; entity: string; recordType?: string }, o: { updatedAt?: (i: number) => number } = {}): void {
+export function bulk(
+  h: Harness,
+  count: number,
+  make: (i: number) => { title: string; body: string; kind: string; entity: string; recordType?: string },
+  o: { updatedAt?: (i: number) => number } = {},
+): void {
   ensure(h.db);
   const STEP = 400;
   const start = Number((h.raw.all("SELECT COALESCE(MAX(n), 0) AS m FROM search_docs")[0] as { m: number }).m);
@@ -115,11 +160,26 @@ export function bulk(h: Harness, count: number, make: (i: number) => { title: st
       const id = `${d.entity}_${j}`;
       const n = start + j + 1;
       docs.push("(?, ?, ?, ?, ?, ?, NULL, ?, 0, ?, ?, NULL, ?, ?, 0)");
-      dArgs.push(n, d.entity, id, d.kind, d.title, d.body, `vyre://${d.entity}/${id}`, d.kind === "chat" ? "thread" : d.kind, id, d.recordType ?? null, o.updatedAt ? o.updatedAt(j) : NOW - j * 1000);
+      dArgs.push(
+        n,
+        d.entity,
+        id,
+        d.kind,
+        d.title,
+        d.body,
+        `vyre://${d.entity}/${id}`,
+        d.kind === "chat" ? "thread" : d.kind,
+        id,
+        d.recordType ?? null,
+        o.updatedAt ? o.updatedAt(j) : NOW - j * 1000,
+      );
       fts.push("(?, ?, ?, ?, ?, ?)");
       fArgs.push(n, d.title, d.body, d.kind, d.recordType ?? "", "");
     }
-    h.raw.run(`INSERT INTO search_docs (n, entity, id, kind, title, body, path, link, label, res_type, res_id, folder_id, record_type, updated_at, embedded) VALUES ${docs.join(", ")}`, ...dArgs);
+    h.raw.run(
+      `INSERT INTO search_docs (n, entity, id, kind, title, body, path, link, label, res_type, res_id, folder_id, record_type, updated_at, embedded) VALUES ${docs.join(", ")}`,
+      ...dArgs,
+    );
     h.raw.run(`INSERT INTO search_fts (rowid, title, body, kind, rtype, folder) VALUES ${fts.join(", ")}`, ...fArgs);
   }
 }
@@ -129,7 +189,11 @@ export function randomUnit(seed: number, into?: Float32Array): Float32Array {
   const v = into ?? new Float32Array(DIM);
   let x = (seed * 2654435761) >>> 0 || 1;
   for (let i = 0; i < DIM; i++) {
-    x ^= x << 13; x >>>= 0; x ^= x >>> 17; x ^= x << 5; x >>>= 0;
+    x ^= x << 13;
+    x >>>= 0;
+    x ^= x >>> 17;
+    x ^= x << 5;
+    x >>>= 0;
     v[i] = (x / 0xffffffff) * 2 - 1;
   }
   return normalise(v);
@@ -154,5 +218,7 @@ export function assertEventsConform(h: Harness): string[] {
 }
 
 /** The error a capability call throws, in the shape the host's own errors have. */
-export const notFound = (): never => { throw Object.assign(new Error("not found"), { error: { code: "validation.not_found" } }); };
+export const notFound = (): never => {
+  throw Object.assign(new Error("not found"), { error: { code: "validation.not_found" } });
+};
 export const codeOf = (err: unknown): string => (err as { error?: { code?: string } } | null)?.error?.code ?? "";

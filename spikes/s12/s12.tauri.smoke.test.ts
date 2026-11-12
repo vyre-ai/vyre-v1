@@ -42,7 +42,11 @@ function pngSize(buf: Buffer): { w: number; h: number } {
   return { w: buf.readUInt32BE(16), h: buf.readUInt32BE(20) };
 }
 
-function runFile(script: string, args: string[], env: Record<string, string>): Promise<{ code: number; stderr: string }> {
+function runFile(
+  script: string,
+  args: string[],
+  env: Record<string, string>,
+): Promise<{ code: number; stderr: string }> {
   return new Promise((resolve) => {
     const child = spawn(process.execPath, [script, ...args], { env: { ...process.env, ...env } });
     let stderr = "";

@@ -39,10 +39,20 @@ export const isOutside = (a: Pick<AgentRow, "runtime">): boolean => a.runtime ==
 /* ---------- status ---------- */
 
 // The agent's own state (a turn in the last two minutes, or not), worded apart from its workspace's sleep, which the Computer tab says as Asleep (owner walk, 12 Nov: "Awake" over "Asleep" on one screen)
-export const STATUS_WORDS: Record<AgentRow["status"], string> = { awake: "Active", working: "Working", asleep: "Idle", paused: "Paused" };
+export const STATUS_WORDS: Record<AgentRow["status"], string> = {
+  awake: "Active",
+  working: "Working",
+  asleep: "Idle",
+  paused: "Paused",
+};
 
 /** An outside agent is not asleep: it is somewhere else, and may be off. */
-const OUTSIDE_WORDS: Record<AgentRow["status"], string> = { awake: "Online", working: "Working", asleep: "Offline", paused: "Paused" };
+const OUTSIDE_WORDS: Record<AgentRow["status"], string> = {
+  awake: "Online",
+  working: "Working",
+  asleep: "Offline",
+  paused: "Paused",
+};
 
 /** "Working", "Idle", or "Paused by Maya Chen: Waiting for the new retainer terms". */
 export function statusLine(a: AgentRow, nameOf: (id: string) => string): string {
@@ -53,14 +63,20 @@ export function statusLine(a: AgentRow, nameOf: (id: string) => string): string 
 }
 
 /** The plain line under the name of an outside agent. */
-export const OUTSIDE_LINE = "Runs outside Vyre, on its own computer. Only you can use it. Vyre sees what it does here, not what it does there.";
+export const OUTSIDE_LINE =
+  "Runs outside Vyre, on its own computer. Only you can use it. Vyre sees what it does here, not what it does there.";
 /** Said where a person might wait for it. */
-export const offlineLine = (name: string): string => `${name} is offline. It will see new tasks and mentions the next time it checks in.`;
+export const offlineLine = (name: string): string =>
+  `${name} is offline. It will see new tasks and mentions the next time it checks in.`;
 
 /* ---------- activity ---------- */
 
 export type Activity = CapMap["mcp.activity.list"]["out"]["rows"][number];
-export const OUTCOME_WORDS: Record<Activity["outcome"], string> = { ok: "Done", error: "Failed", held: "Waiting for your yes" };
+export const OUTCOME_WORDS: Record<Activity["outcome"], string> = {
+  ok: "Done",
+  error: "Failed",
+  held: "Waiting for your yes",
+};
 /** "records_query" reads "records query": a tool name is the only name a call has. */
 export const toolWords = (tool: string): string => tool.replace(/_/g, " ");
 
@@ -80,7 +96,11 @@ export const LOCKED_NOTE = "Only people who can change this agent can edit this 
 
 /* ---------- the strip ---------- */
 
-export interface Stat { key: string; value: string; label: string }
+export interface Stat {
+  key: string;
+  value: string;
+  label: string;
+}
 
 /** Dollars from micros: "$0.42", "$5", "$12", "$1.5k". Whole amounts drop the cents; nothing spent is "$0.00". */
 export function dollars(micros: number): string {
@@ -92,22 +112,41 @@ export function dollars(micros: number): string {
 
 /** "$0.42 of $5 today", or just the spend when no daily limit is set. */
 export function spendLine(s: Summary): string {
-  return s.spendLimitMicros !== undefined && s.spendLimitMicros > 0 ? `${dollars(s.spendTodayMicros)} of ${dollars(s.spendLimitMicros)} today` : `${dollars(s.spendTodayMicros)} today`;
+  return s.spendLimitMicros !== undefined && s.spendLimitMicros > 0
+    ? `${dollars(s.spendTodayMicros)} of ${dollars(s.spendLimitMicros)} today`
+    : `${dollars(s.spendTodayMicros)} today`;
 }
 
 export function spendRatio(s: Summary): number {
-  return s.spendLimitMicros !== undefined && s.spendLimitMicros > 0 ? Math.min(1, s.spendTodayMicros / s.spendLimitMicros) : 0;
+  return s.spendLimitMicros !== undefined && s.spendLimitMicros > 0
+    ? Math.min(1, s.spendTodayMicros / s.spendLimitMicros)
+    : 0;
 }
 
 /** The numbers under the name: chats this week, open tasks, runs today, spend against limit, memory facts, proposed facts. */
 export function stripOf(s: Summary): Stat[] {
   return [
-    { key: "chats", value: String(s.chatsThisWeek), label: s.chatsThisWeek === 1 ? "chat this week" : "chats this week" },
+    {
+      key: "chats",
+      value: String(s.chatsThisWeek),
+      label: s.chatsThisWeek === 1 ? "chat this week" : "chats this week",
+    },
     { key: "tasks", value: String(s.openTasks), label: s.openTasks === 1 ? "open task" : "open tasks" },
     { key: "runs", value: String(s.runsToday), label: s.runsToday === 1 ? "run today" : "runs today" },
-    { key: "spend", value: dollars(s.spendTodayMicros), label: s.spendLimitMicros !== undefined && s.spendLimitMicros > 0 ? `of ${dollars(s.spendLimitMicros)} today` : "spent today" },
+    {
+      key: "spend",
+      value: dollars(s.spendTodayMicros),
+      label:
+        s.spendLimitMicros !== undefined && s.spendLimitMicros > 0
+          ? `of ${dollars(s.spendLimitMicros)} today`
+          : "spent today",
+    },
     { key: "facts", value: String(s.memoryFacts), label: s.memoryFacts === 1 ? "memory fact" : "memory facts" },
-    { key: "proposed", value: String(s.proposedFacts), label: s.proposedFacts === 1 ? "proposed fact" : "proposed facts" },
+    {
+      key: "proposed",
+      value: String(s.proposedFacts),
+      label: s.proposedFacts === 1 ? "proposed fact" : "proposed facts",
+    },
   ];
 }
 
@@ -140,7 +179,11 @@ export const AGENT_MD_LIMIT = 150;
 
 /** "93 of 150 lines"; over 130 it says so. */
 export function instructionsLine(lines: number): string {
-  return lines > AGENT_MD_LIMIT ? `${lines} of ${AGENT_MD_LIMIT} lines, over the limit` : lines > 130 ? `${lines} of ${AGENT_MD_LIMIT} lines, nearly full` : `${lines} of ${AGENT_MD_LIMIT} lines`;
+  return lines > AGENT_MD_LIMIT
+    ? `${lines} of ${AGENT_MD_LIMIT} lines, over the limit`
+    : lines > 130
+      ? `${lines} of ${AGENT_MD_LIMIT} lines, nearly full`
+      : `${lines} of ${AGENT_MD_LIMIT} lines`;
 }
 
 export const CAPTURE_WORDS: Record<AgentRow["captureMode"], string> = {
@@ -151,7 +194,9 @@ export const CAPTURE_WORDS: Record<AgentRow["captureMode"], string> = {
 };
 
 export function accountLine(a: AgentRow): string {
-  return a.accountPolicy === "key" ? `Runs on the key ${a.accountKey ?? "set for it"}` : "Runs on the account of whoever asks";
+  return a.accountPolicy === "key"
+    ? `Runs on the key ${a.accountKey ?? "set for it"}`
+    : "Runs on the account of whoever asks";
 }
 
 /* ---------- AI accounts: the chat key, the ordered fallback list and the memory key ---------- */
@@ -169,7 +214,12 @@ export function accountOptions(accounts: readonly AccountChoice[], taken: readon
   return accounts.filter((a) => !taken.includes(a.ref));
 }
 
-export const STATUS_NOTE: Readonly<Record<AccountChoice["status"], string>> = { ok: "", untested: "", expired: "Sign in again", failed: "Failing" };
+export const STATUS_NOTE: Readonly<Record<AccountChoice["status"], string>> = {
+  ok: "",
+  untested: "",
+  expired: "Sign in again",
+  failed: "Failing",
+};
 
 /** One step in the ordered fallback list: move the entry at `i` up (-1) or down (+1). Out of range leaves the list as it was. */
 export function moveRef(list: readonly string[], i: number, by: -1 | 1): string[] {
@@ -182,31 +232,47 @@ export function moveRef(list: readonly string[], i: number, by: -1 | 1): string[
   return out;
 }
 
-export function chatKeyNote(a: Pick<AgentRow, "accountPolicy" | "accountKey">, accounts: readonly AccountChoice[]): string {
-  return a.accountPolicy === "key" && a.accountKey ? `Always ${accountName(accounts, a.accountKey)}` : "The account of whoever asks, then the fallbacks below";
+export function chatKeyNote(
+  a: Pick<AgentRow, "accountPolicy" | "accountKey">,
+  accounts: readonly AccountChoice[],
+): string {
+  return a.accountPolicy === "key" && a.accountKey
+    ? `Always ${accountName(accounts, a.accountKey)}`
+    : "The account of whoever asks, then the fallbacks below";
 }
 
 export function memoryKeyNote(a: Pick<AgentRow, "memoryKey">, accounts: readonly AccountChoice[]): string {
-  return a.memoryKey ? `${accountName(accounts, a.memoryKey)} pays for this agent's memory upkeep` : "The Space memory key; with none, upkeep follows rules only";
+  return a.memoryKey
+    ? `${accountName(accounts, a.memoryKey)} pays for this agent's memory upkeep`
+    : "The Space memory key; with none, upkeep follows rules only";
 }
 
-export interface LimitRow { key: string; label: string; value: string }
+export interface LimitRow {
+  key: string;
+  label: string;
+  value: string;
+}
 
 /** Only the limits that are set. Money caps apply to API keys; subscriptions are capped in turns, time and tokens. */
 export function limitRows(l: AgentRow["limits"]): LimitRow[] {
   const out: LimitRow[] = [];
   if (l.runCostMicros !== undefined) out.push({ key: "run", label: "Spend per run", value: dollars(l.runCostMicros) });
   if (l.dayCostMicros !== undefined) out.push({ key: "day", label: "Spend per day", value: dollars(l.dayCostMicros) });
-  if (l.monthCostMicros !== undefined) out.push({ key: "month", label: "Spend per month", value: dollars(l.monthCostMicros) });
+  if (l.monthCostMicros !== undefined)
+    out.push({ key: "month", label: "Spend per month", value: dollars(l.monthCostMicros) });
   if (l.turnsPerDay !== undefined) out.push({ key: "turns", label: "Turns per day", value: String(l.turnsPerDay) });
-  if (l.minutesPerRun !== undefined) out.push({ key: "mins", label: "Minutes per run", value: String(l.minutesPerRun) });
-  if (l.tokensPerDay !== undefined) out.push({ key: "tokens", label: "Tokens per day", value: l.tokensPerDay.toLocaleString("en-US") });
+  if (l.minutesPerRun !== undefined)
+    out.push({ key: "mins", label: "Minutes per run", value: String(l.minutesPerRun) });
+  if (l.tokensPerDay !== undefined)
+    out.push({ key: "tokens", label: "Tokens per day", value: l.tokensPerDay.toLocaleString("en-US") });
   return out;
 }
 
 /** The agent's chats: threads it leads or listens in, newest first. */
 export function chatsOf(agentId: string, threads: readonly Thread[]): Thread[] {
-  return threads.filter((t) => (t.kind === "chat" || t.kind === "channel") && t.agents.some((a) => a.agentId === agentId)).sort((a, b) => b.createdAt - a.createdAt);
+  return threads
+    .filter((t) => (t.kind === "chat" || t.kind === "channel") && t.agents.some((a) => a.agentId === agentId))
+    .sort((a, b) => b.createdAt - a.createdAt);
 }
 
 export function chatNote(t: Thread, c: Clock): string {
@@ -217,7 +283,11 @@ export function chatNote(t: Thread, c: Clock): string {
 export function suggestionTitle(s: Suggestion): string {
   const first = s.diff.split("\n").find((l) => l.startsWith("+") && !l.startsWith("+++"));
   const added = first ? first.slice(1).trim() : "";
-  return s.kind === "template" ? `Template change to ${s.file}` : added !== "" ? `${s.file}: ${added}` : `Change to ${s.file}`;
+  return s.kind === "template"
+    ? `Template change to ${s.file}`
+    : added !== ""
+      ? `${s.file}: ${added}`
+      : `Change to ${s.file}`;
 }
 
 /** Builds a list from a list. Written as a function (not `.map`) so a list of JSX is plainly the composition of its parts. */
@@ -229,7 +299,9 @@ export function collect<T, U>(list: readonly T[], fn: (item: T, index: number) =
 
 /** The AI account for the agent's own work (routines, watchers, helpers), in a line: Automatic, or the Space AI account by name. */
 export function workKeyNote(a: Pick<AgentRow, "workKey">, accounts: readonly AccountChoice[]): string {
-  return a.workKey ? `Its own work runs on ${accountName(accounts, a.workKey)}, where the Space keeps it for this agent` : "Its own work runs on the cheapest Space AI account kept for it. In a chat, the person's own account comes first";
+  return a.workKey
+    ? `Its own work runs on ${accountName(accounts, a.workKey)}, where the Space keeps it for this agent`
+    : "Its own work runs on the cheapest Space AI account kept for it. In a chat, the person's own account comes first";
 }
 
 /** The Settings row for an agent's computer: what the Computer tab knows. A bound workspace and Space browser say so; an older desktop alone is named as it is; when neither is known here the row is neutral, never a claim. */

@@ -13,7 +13,11 @@ const out = args.find((a) => !a.startsWith("--")) || "/root/wt/tmp-l-menus/shots
 const tag = args.filter((a) => !a.startsWith("--"))[1] || "after";
 if (!args.includes("--skip-export")) {
   fs.rmSync(path.join(appDir, "dist"), { recursive: true, force: true });
-  execSync((await import(path.join(REPO, "scripts/shots/expo-cmd.mjs"))).exportCmd(REPO), { cwd: appDir, stdio: "inherit", env: exportEnv() });
+  execSync((await import(path.join(REPO, "scripts/shots/expo-cmd.mjs"))).exportCmd(REPO), {
+    cwd: appDir,
+    stdio: "inherit",
+    env: exportEnv(),
+  });
 }
 fs.mkdirSync(out, { recursive: true });
 const real = await serve(path.join(appDir, "dist"), { spa: true });
@@ -22,16 +26,32 @@ const { chromium } = createRequire(path.join(REPO, "package.json"))("playwright-
 const browser = await chromium.launch({ args: ["--no-sandbox"] });
 const vp = { width: 1440, height: 900 };
 for (const skin of ["paper", "graphite"]) {
-  const ctx = await browser.newContext({ viewport: vp, deviceScaleFactor: 1, colorScheme: skin === "graphite" ? "dark" : "light", reducedMotion: "reduce" });
+  const ctx = await browser.newContext({
+    viewport: vp,
+    deviceScaleFactor: 1,
+    colorScheme: skin === "graphite" ? "dark" : "light",
+    reducedMotion: "reduce",
+  });
   const page = await ctx.newPage();
   const errs = [];
   page.on("pageerror", (e) => errs.push(String(e)));
-  const snap = async (name) => { const f = path.join(out, `${name}-${tag}-${skin}.png`); await page.screenshot({ path: f }); console.log("shot", path.basename(f), errs.length ? "errors=" + errs.join(" | ").slice(0, 300) : ""); };
-  const go = async (route) => { const url = routeUrl(real.origin, route, skin); await page.goto(url, { waitUntil: "load", timeout: 60000 }).catch(() => page.goto(url, { waitUntil: "load", timeout: 60000 })); await page.waitForTimeout(700); };
+  const snap = async (name) => {
+    const f = path.join(out, `${name}-${tag}-${skin}.png`);
+    await page.screenshot({ path: f });
+    console.log("shot", path.basename(f), errs.length ? "errors=" + errs.join(" | ").slice(0, 300) : "");
+  };
+  const go = async (route) => {
+    const url = routeUrl(real.origin, route, skin);
+    await page
+      .goto(url, { waitUntil: "load", timeout: 60000 })
+      .catch(() => page.goto(url, { waitUntil: "load", timeout: 60000 }));
+    await page.waitForTimeout(700);
+  };
 
   // 1. the reaction chip: react through the message's "..." (Add Reaction), press the chip (removes yours), then react again and press the chip of someone else's reaction
   const react = async () => {
-    await msg.hover(); await page.waitForTimeout(250);
+    await msg.hover();
+    await page.waitForTimeout(250);
     await page.locator("[data-testid^='act-more-']").first().click({ timeout: 4000 });
     await page.getByText("Add Reaction", { exact: true }).first().click({ timeout: 4000 });
     await page.waitForTimeout(250);
@@ -40,7 +60,10 @@ for (const skin of ["paper", "graphite"]) {
   };
   await go("/m/P-L9b_04");
   await page.waitForSelector("[data-testid^='msg-']", { timeout: 15000 });
-  const msg = page.locator("[data-testid^='msg-']").filter({ has: page.locator("[data-testid^='who-']") }).first();
+  const msg = page
+    .locator("[data-testid^='msg-']")
+    .filter({ has: page.locator("[data-testid^='who-']") })
+    .first();
   await react().catch((e) => console.log("react failed", String(e).slice(0, 100)));
   await snap("react-1-added");
   const chip = page.locator("[data-testid^='reactions-'] [role='button']").first();
@@ -54,25 +77,41 @@ for (const skin of ["paper", "graphite"]) {
   // 2. a person's name on a message
   await go("/m/P-L9b_04");
   await page.waitForSelector("[data-testid^='who-']", { timeout: 15000 });
-  const ids = await page.$$eval("[data-testid^='who-']", (n) => n.map((x) => x.getAttribute("aria-label") + "|" + x.getAttribute("data-testid")));
+  const ids = await page.$$eval("[data-testid^='who-']", (n) =>
+    n.map((x) => x.getAttribute("aria-label") + "|" + x.getAttribute("data-testid")),
+  );
   console.log("who rows", JSON.stringify(ids.slice(0, 6)));
-  await page.locator("[data-testid^='who-']").first().hover(); await page.waitForTimeout(500);
+  await page.locator("[data-testid^='who-']").first().hover();
+  await page.waitForTimeout(500);
   await snap("name-hover");
 
   // 3. the chat header "..."
   await go("/m/P-L9b_04");
   await page.waitForSelector("[data-testid='more-button']", { timeout: 15000 });
-  await page.click("[data-testid='more-button']"); await page.waitForTimeout(700);
-  console.log("header menu", JSON.stringify(await page.$$eval("[data-testid^='menu-item-']", (n) => n.map((x) => x.getAttribute("data-testid").slice(10)))));
+  await page.click("[data-testid='more-button']");
+  await page.waitForTimeout(700);
+  console.log(
+    "header menu",
+    JSON.stringify(
+      await page.$$eval("[data-testid^='menu-item-']", (n) => n.map((x) => x.getAttribute("data-testid").slice(10))),
+    ),
+  );
   await snap("header-more");
 
   // 4. one project row menu in the sidebar
   await go("/m/CTXMENU_01?kind=chat");
   await page.waitForSelector("[data-testid^='row-pj:']", { timeout: 15000 });
-  await page.click("[data-testid^='row-pj:']", { button: "right" }); await page.waitForTimeout(900);
-  console.log("project menu", JSON.stringify(await page.$$eval("[data-testid^='menu-item-']", (n) => n.map((x) => x.getAttribute("data-testid").slice(10)))));
+  await page.click("[data-testid^='row-pj:']", { button: "right" });
+  await page.waitForTimeout(900);
+  console.log(
+    "project menu",
+    JSON.stringify(
+      await page.$$eval("[data-testid^='menu-item-']", (n) => n.map((x) => x.getAttribute("data-testid").slice(10))),
+    ),
+  );
   await snap("project-row-menu");
   await ctx.close();
 }
-await browser.close(); real.close();
+await browser.close();
+real.close();
 process.exit(0);

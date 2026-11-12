@@ -1,8 +1,14 @@
 // Plan mode (spec "Vyre is the agent's native environment"): a per-thread switch. The agent may read and plan; it changes nothing until a person approves the plan.
 // Approved steps then run and tick off. A rejected plan stays in plan mode. An agent never approves its own plan.
-export interface PlanStep { text: string; done: boolean }
+export interface PlanStep {
+  text: string;
+  done: boolean;
+}
 export type PlanState = "none" | "proposed" | "approved" | "rejected";
-export interface PlanActor { kind: "person" | "agent"; id: string }
+export interface PlanActor {
+  kind: "person" | "agent";
+  id: string;
+}
 
 export type PlanEvent =
   | { type: "plan.proposed"; threadId: string; planId: string; steps: number }
@@ -12,7 +18,11 @@ export type PlanEvent =
 
 export class PlanError extends Error {
   readonly code: "not_a_person" | "no_plan" | "wrong_state" | "bad_step";
-  constructor(code: PlanError["code"], message: string) { super(message); this.name = "PlanError"; this.code = code; }
+  constructor(code: PlanError["code"], message: string) {
+    super(message);
+    this.name = "PlanError";
+    this.code = code;
+  }
 }
 
 export interface PlanMode {
@@ -33,24 +43,38 @@ export interface PlanMode {
   stepDone(index: number): void;
 }
 
-export function createPlanMode(threadId: string, opts: { initial?: boolean; emit?: (e: PlanEvent) => void } = {}): PlanMode {
+export function createPlanMode(
+  threadId: string,
+  opts: { initial?: boolean; emit?: (e: PlanEvent) => void } = {},
+): PlanMode {
   let on = opts.initial === true;
   let state: PlanState = "none";
   let steps: PlanStep[] = [];
   let planId = "";
   let n = 0;
   const emit = opts.emit ?? ((): void => {});
-  const person = (by: PlanActor): void => { if (by.kind !== "person") throw new PlanError("not_a_person", "only a person approves a plan or changes plan mode"); };
+  const person = (by: PlanActor): void => {
+    if (by.kind !== "person") throw new PlanError("not_a_person", "only a person approves a plan or changes plan mode");
+  };
   const clean = (list: readonly string[]): PlanStep[] => {
-    const out = list.map((t) => t.trim()).filter((t) => t !== "").map((text) => ({ text, done: false }));
+    const out = list
+      .map((t) => t.trim())
+      .filter((t) => t !== "")
+      .map((text) => ({ text, done: false }));
     if (out.length === 0) throw new PlanError("bad_step", "a plan needs at least one step");
     return out;
   };
 
   return {
-    get planMode() { return on; },
-    get state() { return state; },
-    get steps() { return steps.map((s) => ({ ...s })); },
+    get planMode() {
+      return on;
+    },
+    get state() {
+      return state;
+    },
+    get steps() {
+      return steps.map((s) => ({ ...s }));
+    },
     setPlanMode(next, by) {
       person(by);
       on = next;

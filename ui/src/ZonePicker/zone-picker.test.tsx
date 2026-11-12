@@ -5,7 +5,7 @@ import { createRoot } from "test-renderer";
 import { find, flush, installDom, mount, press, textOf, typeInto } from "../testing/dom.ts";
 import { ZonePicker, zoneLine } from "./index.tsx";
 
-const NOW = Date.parse("2026-11-04T22:28:00Z");   // 2:28 PM Pacific
+const NOW = Date.parse("2026-11-04T22:28:00Z"); // 2:28 PM Pacific
 
 test("the button reads like the row: name, city, time now", () => {
   assert.equal(zoneLine("America/Los_Angeles", NOW), "Pacific Time, Los Angeles, 2:28 PM");
@@ -16,7 +16,16 @@ test("the button reads like the row: name, city, time now", () => {
 test("pressing it opens a sheet with city, UTC offset and the time there, ticks the current zone, finds by city, and choosing another calls onChange with its id", async () => {
   installDom();
   const got: string[] = [];
-  const root = await mount(createRoot, <ZonePicker value="America/Los_Angeles" now={NOW} onChange={(z) => got.push(z)} testID="zp" extra={{ label: "Use this computer's time zone", onSelect: () => got.push("device") }} />);
+  const root = await mount(
+    createRoot,
+    <ZonePicker
+      value="America/Los_Angeles"
+      now={NOW}
+      onChange={(z) => got.push(z)}
+      testID="zp"
+      extra={{ label: "Use this computer's time zone", onSelect: () => got.push("device") }}
+    />,
+  );
   assert.match(textOf(find(root, "zp")), /Pacific Time, Los Angeles, 2:28 PM/);
   assert.equal(find(root, "zone-sheet"), null);
   await press(find(root, "zp"));

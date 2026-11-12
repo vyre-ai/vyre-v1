@@ -4,16 +4,39 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { ADAPTERS, DriverError, createApiDriver } from "../src/drivers/api/index.ts";
 import type { ApiDriverDeps } from "../src/drivers/api/index.ts";
-import { KEY, MODELS, authorize, chunked, ctx, fakeClock, fakeFetch, fixture, gate, spec, turnInput } from "../src/drivers/api/testing.ts";
+import {
+  KEY,
+  MODELS,
+  authorize,
+  chunked,
+  ctx,
+  fakeClock,
+  fakeFetch,
+  fixture,
+  gate,
+  spec,
+  turnInput,
+} from "../src/drivers/api/testing.ts";
 import type { Script } from "../src/drivers/api/testing.ts";
 import type { DriverEvent } from "../src/turn-engine/types.ts";
 
 const OK = (): Script => ({ chunks: chunked(fixture("openai-text"), 64) });
 
-async function run(handler: Parameters<typeof fakeFetch>[0], extra: Partial<ApiDriverDeps> = {}, provider: "openai" | "anthropic" = "openai") {
+async function run(
+  handler: Parameters<typeof fakeFetch>[0],
+  extra: Partial<ApiDriverDeps> = {},
+  provider: "openai" | "anthropic" = "openai",
+) {
   const f = fakeFetch(handler);
   const clock = fakeClock();
-  const driver = createApiDriver(ADAPTERS[provider], { authorize, context: () => ctx(), fetch: f.fetch, clock, random: () => 1, ...extra });
+  const driver = createApiDriver(ADAPTERS[provider], {
+    authorize,
+    context: () => ctx(),
+    fetch: f.fetch,
+    clock,
+    random: () => 1,
+    ...extra,
+  });
   const session = await driver.open(spec(MODELS[provider]));
   const events: DriverEvent[] = [];
   for await (const e of session.send(turnInput(MODELS[provider]))) events.push(e);
@@ -28,7 +51,10 @@ const errorOf = (events: DriverEvent[]): { code: string; message: string } => {
 
 test("401 and 403 are provider.auth_failed and are not retried", async () => {
   for (const status of [401, 403]) {
-    const { events, f } = await run(() => ({ status, text: `{"error":{"message":"Incorrect API key provided: ${KEY}"}}` }));
+    const { events, f } = await run(() => ({
+      status,
+      text: `{"error":{"message":"Incorrect API key provided: ${KEY}"}}`,
+    }));
     assert.equal(errorOf(events).code, "provider.auth_failed");
     assert.equal(f.requests.length, 1);
     assert.equal(events.length, 1);
@@ -44,7 +70,11 @@ test("the key never appears in an error, even when the provider or the network e
 });
 
 test("a filler that cannot produce a key is provider.auth_failed and no request is made", async () => {
-  const { events, f } = await run(OK, { authorize: async () => { throw new Error("vault locked"); } });
+  const { events, f } = await run(OK, {
+    authorize: async () => {
+      throw new Error("vault locked");
+    },
+  });
   assert.equal(errorOf(events).code, "provider.auth_failed");
   assert.equal(f.requests.length, 0);
 });
@@ -53,7 +83,10 @@ test("500 twice then success: retried with exponential backoff, the answer strea
   const { events, f, clock, session } = await run((_r, n) => (n < 2 ? { status: 500, text: "oops" } : OK()));
   assert.equal(f.requests.length, 3);
   assert.deepEqual(clock.sleeps, [250, 500]);
-  assert.equal(events.some((e) => e.type === "error"), false);
+  assert.equal(
+    events.some((e) => e.type === "error"),
+    false,
+  );
   assert.equal(events.at(-1)?.type, "done");
   assert.equal(session.stats().retries, 2);
 });
@@ -65,7 +98,10 @@ test("503 three times: after the retries the turn fails with provider.unavailabl
 });
 
 test("529 overloaded is provider.overloaded and the session leaves the one retry to the engine (owner ruling, 3 Nov)", async () => {
-  const { events, f } = await run(() => ({ status: 529, text: '{"type":"error","error":{"type":"overloaded_error","message":"Overloaded"}}' }));
+  const { events, f } = await run(() => ({
+    status: 529,
+    text: '{"type":"error","error":{"type":"overloaded_error","message":"Overloaded"}}',
+  }));
   assert.equal(f.requests.length, 1);
   assert.equal(errorOf(events).code, "provider.overloaded");
 });
@@ -77,7 +113,9 @@ test("a dropped connection is retried like a 5xx", async () => {
 });
 
 test("429 with a short Retry-After waits that long and retries", async () => {
-  const { events, clock } = await run((_r, n) => (n === 0 ? { status: 429, headers: { "retry-after": "1" }, text: "slow down" } : OK()));
+  const { events, clock } = await run((_r, n) =>
+    n === 0 ? { status: 429, headers: { "retry-after": "1" }, text: "slow down" } : OK(),
+  );
   assert.deepEqual(clock.sleeps, [1000]);
   assert.equal(events.at(-1)?.type, "done");
 });
@@ -98,7 +136,10 @@ test("402 (credits) is provider.rate_limited and not retried", async () => {
 });
 
 test("a prompt over the context window is provider.context_too_long, never retried", async () => {
-  const { events, f } = await run(() => ({ status: 400, text: '{"error":{"message":"This model\'s maximum context length is 128000 tokens"}}' }));
+  const { events, f } = await run(() => ({
+    status: 400,
+    text: '{"error":{"message":"This model\'s maximum context length is 128000 tokens"}}',
+  }));
   assert.equal(errorOf(events).code, "provider.context_too_long");
   assert.equal(f.requests.length, 1);
 });
@@ -122,8 +163,15 @@ test("an error event before the first delta is retried; one after a delta is sur
   ].join("");
   const b = await run(() => ({ chunks: chunked(late, 40) }), {}, "anthropic");
   assert.equal(b.f.requests.length, 1, "bytes were streamed, so nothing is replayed");
-  assert.deepEqual(b.events.map((e) => e.type), ["text", "error"]);
-  assert.equal(errorOf(b.events).code, "provider.overloaded", "overloaded is its own code, not a limit and not a generic outage");
+  assert.deepEqual(
+    b.events.map((e) => e.type),
+    ["text", "error"],
+  );
+  assert.equal(
+    errorOf(b.events).code,
+    "provider.overloaded",
+    "overloaded is its own code, not a limit and not a generic outage",
+  );
 });
 
 test("a stream that goes quiet after it began answering is cut after the idle time and reported", async () => {
@@ -132,7 +180,10 @@ test("a stream that goes quiet after it began answering is cut after the idle ti
   const wire = fixture("openai-text");
   g.push(wire.slice(0, wire.indexOf("\n\n", wire.indexOf("Hello")) + 2));
   const { events, f } = await run(() => ({ body: g.body }), { idleMs: 30, retry: { max: 0 } });
-  assert.ok(events.some((x) => x.type === "text"), "it began answering");
+  assert.ok(
+    events.some((x) => x.type === "text"),
+    "it began answering",
+  );
   assert.equal(f.requests.length, 1);
   const e = errorOf(events);
   assert.equal(e.code, "provider.unavailable");
@@ -142,7 +193,11 @@ test("a stream that goes quiet after it began answering is cut after the idle ti
 
 test("a provider that takes the request and never answers ends the turn with one plain line, and the connection is released", async () => {
   const seen: Array<{ provider: string; model: string; account: string }> = [];
-  const { events, f } = await run(() => ({ latencyMs: 60_000, chunks: [] }), { firstTokenMs: 30, retry: { max: 3 }, onNoFirstToken: (e) => seen.push(e) });
+  const { events, f } = await run(() => ({ latencyMs: 60_000, chunks: [] }), {
+    firstTokenMs: 30,
+    retry: { max: 3 },
+    onNoFirstToken: (e) => seen.push(e),
+  });
   assert.equal(f.requests.length, 1, "no retry of a request the provider took");
   const e = errorOf(events);
   assert.equal(e.code, "engine.no_first_token");
@@ -156,7 +211,12 @@ test("a provider that takes the request and never answers ends the turn with one
 test("a stream that opens and sends only pings is cut at the first-token deadline, not kept alive by the pings", async () => {
   const seen: unknown[] = [];
   const pings = Array.from({ length: 400 }, () => new TextEncoder().encode(": ping\n\n"));
-  const { events, f } = await run(() => ({ chunks: pings, gapMs: 10 }), { firstTokenMs: 80, idleMs: 5_000, retry: { max: 3 }, onNoFirstToken: (e) => seen.push(e) });
+  const { events, f } = await run(() => ({ chunks: pings, gapMs: 10 }), {
+    firstTokenMs: 80,
+    idleMs: 5_000,
+    retry: { max: 3 },
+    onNoFirstToken: (e) => seen.push(e),
+  });
   assert.equal(f.requests.length, 1, "no retry");
   assert.equal(errorOf(events).code, "engine.no_first_token");
   assert.equal(seen.length, 1);
@@ -171,7 +231,16 @@ test("a stream that opens and then says nothing hears the first-token line even 
   const held = realNow();
   Date.now = () => held;
   let r: Awaited<ReturnType<typeof run>>;
-  try { r = await run(() => ({ body: g.body }), { firstTokenMs: 80, idleMs: 5_000, retry: { max: 0 }, onNoFirstToken: (e) => seen.push(e) }); } finally { Date.now = realNow; }
+  try {
+    r = await run(() => ({ body: g.body }), {
+      firstTokenMs: 80,
+      idleMs: 5_000,
+      retry: { max: 0 },
+      onNoFirstToken: (e) => seen.push(e),
+    });
+  } finally {
+    Date.now = realNow;
+  }
   assert.equal(errorOf(r.events).code, "engine.no_first_token");
   assert.equal(seen.length, 1);
 });
@@ -180,7 +249,12 @@ test("with the driver's own limits (idle shorter than first token), a stream tha
   // the defaults are IDLE_MS 60 s and FIRST_TOKEN_API_MS 90 s; scaled down in the same ratio. Before the first text, thinking or tool event the idle limit does not apply (review W3, 12 Nov)
   const g = gate();
   const seen: unknown[] = [];
-  const r = await run(() => ({ body: g.body }), { firstTokenMs: 900, idleMs: 600, retry: { max: 2 }, onNoFirstToken: (e) => seen.push(e) });
+  const r = await run(() => ({ body: g.body }), {
+    firstTokenMs: 900,
+    idleMs: 600,
+    retry: { max: 2 },
+    onNoFirstToken: (e) => seen.push(e),
+  });
   assert.equal(errorOf(r.events).code, "engine.no_first_token");
   assert.equal(r.f.requests.length, 1, "a silent provider is not retried");
   assert.equal(seen.length, 1);
@@ -190,7 +264,12 @@ test("cancel mid-stream ends the send quietly and releases the connection", asyn
   const g = gate();
   const wire = fixture("openai-text");
   const f = fakeFetch(() => ({ body: g.body }));
-  const driver = createApiDriver(ADAPTERS.openai, { authorize, context: () => ctx(), fetch: f.fetch, clock: fakeClock() });
+  const driver = createApiDriver(ADAPTERS.openai, {
+    authorize,
+    context: () => ctx(),
+    fetch: f.fetch,
+    clock: fakeClock(),
+  });
   const session = await driver.open(spec(MODELS.openai));
   const it = session.send(turnInput(MODELS.openai))[Symbol.asyncIterator]();
   const first = it.next();
@@ -199,17 +278,36 @@ test("cancel mid-stream ends the send quietly and releases the connection", asyn
   assert.deepEqual(r1.value, { type: "text", text: "Hello" });
   const next = it.next();
   await session.cancel();
-  const end = await Promise.race([next, new Promise<never>((_, rej) => setTimeout(() => rej(new Error("cancel did not end the send")), 2_000))]);
+  const end = await Promise.race([
+    next,
+    new Promise<never>((_, rej) => setTimeout(() => rej(new Error("cancel did not end the send")), 2_000)),
+  ]);
   assert.equal(end.done, true, "no error event, no done event: the engine already knows it cancelled");
   assert.equal(f.requests[0]?.signal.aborted, true);
 });
 
 test("an account may name its own address, but only https or this machine", async () => {
   const f = fakeFetch(() => OK());
-  const mk = (base: string) => createApiDriver(ADAPTERS.openai, { authorize, context: () => ctx(), fetch: f.fetch, clock: fakeClock(), accountOf: () => ({ ref: "#K", base }) });
-  await assert.rejects(() => mk("http://evil.example/v1").open(spec(MODELS.openai)), (e: unknown) => e instanceof DriverError && e.code === "provider.bad_address");
-  await assert.rejects(() => mk("ftp://x/v1").open(spec(MODELS.openai)), (e: unknown) => e instanceof DriverError && e.code === "provider.bad_address");
-  await assert.rejects(() => mk("not a url").open(spec(MODELS.openai)), (e: unknown) => e instanceof DriverError);
+  const mk = (base: string) =>
+    createApiDriver(ADAPTERS.openai, {
+      authorize,
+      context: () => ctx(),
+      fetch: f.fetch,
+      clock: fakeClock(),
+      accountOf: () => ({ ref: "#K", base }),
+    });
+  await assert.rejects(
+    () => mk("http://evil.example/v1").open(spec(MODELS.openai)),
+    (e: unknown) => e instanceof DriverError && e.code === "provider.bad_address",
+  );
+  await assert.rejects(
+    () => mk("ftp://x/v1").open(spec(MODELS.openai)),
+    (e: unknown) => e instanceof DriverError && e.code === "provider.bad_address",
+  );
+  await assert.rejects(
+    () => mk("not a url").open(spec(MODELS.openai)),
+    (e: unknown) => e instanceof DriverError,
+  );
   assert.equal(f.requests.length, 0, "a key is never sent to a refused address");
 
   for (const base of ["https://models.example.com/v1/", "http://127.0.0.1:11434/v1", "http://localhost:8080/v1"]) {
@@ -226,8 +324,12 @@ test("a provider that is content-filtered with no output is reported, not an emp
 });
 
 test("an unreadable tool call is an error, not a call with empty arguments", async () => {
-  const wire = 'data: {"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"c","type":"function","function":{"name":"records_list","arguments":"{\\"ty"}}]}}]}\n\ndata: {"choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}]}\n\ndata: [DONE]\n\n';
+  const wire =
+    'data: {"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"c","type":"function","function":{"name":"records_list","arguments":"{\\"ty"}}]}}]}\n\ndata: {"choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}]}\n\ndata: [DONE]\n\n';
   const { events } = await run(() => ({ chunks: chunked(wire, 80) }));
-  assert.equal(events.some((e) => e.type === "tool_call"), false);
+  assert.equal(
+    events.some((e) => e.type === "tool_call"),
+    false,
+  );
   assert.equal(errorOf(events).code, "provider.bad_response");
 });

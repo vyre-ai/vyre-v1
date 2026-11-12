@@ -25,7 +25,12 @@ export interface Scope {
 }
 
 type Code = Parameters<typeof fail>[0];
-export function raise(ctx: { trace: { traceId: string } }, code: Code, message?: string, details?: Record<string, unknown>): never {
+export function raise(
+  ctx: { trace: { traceId: string } },
+  code: Code,
+  message?: string,
+  details?: Record<string, unknown>,
+): never {
   throw fail(code, ctx.trace.traceId, { ...(message ? { message } : {}), ...(details ? { details } : {}) });
 }
 /** A failure a step reports to the Run engine: a code, words for a person, and whether trying again could help. The engine reads `.error` the way it reads a HostError. */
@@ -74,25 +79,55 @@ function lex(src: string): Tok[] {
   let i = 0;
   while (i < src.length) {
     const c = src[i]!;
-    if (/\s/.test(c)) { i++; continue; }
+    if (/\s/.test(c)) {
+      i++;
+      continue;
+    }
     if (/[0-9]/.test(c) || (c === "." && /[0-9]/.test(src[i + 1] ?? ""))) {
       const m = /^[0-9]*\.?[0-9]+(?:[eE][+-]?[0-9]+)?/.exec(src.slice(i))!;
-      out.push({ t: "num", v: Number(m[0]) }); i += m[0].length; continue;
+      out.push({ t: "num", v: Number(m[0]) });
+      i += m[0].length;
+      continue;
     }
-    if (c === "'" || c === "\"") {
-      let j = i + 1, s = "";
-      while (j < src.length && src[j] !== c) { if (src[j] === "\\" && j + 1 < src.length) { s += src[j + 1]; j += 2; } else { s += src[j]; j++; } }
+    if (c === "'" || c === '"') {
+      let j = i + 1,
+        s = "";
+      while (j < src.length && src[j] !== c) {
+        if (src[j] === "\\" && j + 1 < src.length) {
+          s += src[j + 1];
+          j += 2;
+        } else {
+          s += src[j];
+          j++;
+        }
+      }
       if (j >= src.length) throw stepError("validation.bad_input", "A quoted text is not closed.");
-      out.push({ t: "str", v: s }); i = j + 1; continue;
+      out.push({ t: "str", v: s });
+      i = j + 1;
+      continue;
     }
     if (/[A-Za-z_]/.test(c)) {
       const m = /^[A-Za-z_][A-Za-z0-9_]*/.exec(src.slice(i))!;
-      out.push({ t: "id", v: m[0] }); i += m[0].length; continue;
+      out.push({ t: "id", v: m[0] });
+      i += m[0].length;
+      continue;
     }
     const two = src.slice(i, i + 2);
-    if (TWO.has(two)) { out.push({ t: "op", v: two }); i += 2; continue; }
-    if (ONE.has(c)) { out.push({ t: "op", v: c }); i++; continue; }
-    if ("()[].,".includes(c)) { out.push({ t: "p", v: c }); i++; continue; }
+    if (TWO.has(two)) {
+      out.push({ t: "op", v: two });
+      i += 2;
+      continue;
+    }
+    if (ONE.has(c)) {
+      out.push({ t: "op", v: c });
+      i++;
+      continue;
+    }
+    if ("()[].,".includes(c)) {
+      out.push({ t: "p", v: c });
+      i++;
+      continue;
+    }
     throw stepError("validation.bad_input", `Unexpected "${c}" in the expression.`);
   }
   return out;
@@ -110,15 +145,28 @@ function parse(src: string): Ast {
   const toks = lex(src);
   let pos = 0;
   const peek = (): Tok | undefined => toks[pos];
-  const isOp = (v: string): boolean => { const t = peek(); return !!t && t.t === "op" && t.v === v; };
-  const isP = (v: string): boolean => { const t = peek(); return !!t && t.t === "p" && t.v === v; };
-  const bad = (m: string): never => { throw stepError("validation.bad_input", m); };
+  const isOp = (v: string): boolean => {
+    const t = peek();
+    return !!t && t.t === "op" && t.v === v;
+  };
+  const isP = (v: string): boolean => {
+    const t = peek();
+    return !!t && t.t === "p" && t.v === v;
+  };
+  const bad = (m: string): never => {
+    throw stepError("validation.bad_input", m);
+  };
 
   const primary = (): Ast => {
     const t = toks[pos++];
     if (!t) return bad("The expression ends too soon.");
     if (t.t === "num" || t.t === "str") return { k: "lit", v: t.v };
-    if (t.t === "p" && t.v === "(") { const e = or(); if (!isP(")")) bad("A bracket is not closed."); pos++; return e; }
+    if (t.t === "p" && t.v === "(") {
+      const e = or();
+      if (!isP(")")) bad("A bracket is not closed.");
+      pos++;
+      return e;
+    }
     if (t.t === "id") {
       const name = String(t.v);
       if (name === "true") return { k: "lit", v: true };
@@ -127,23 +175,43 @@ function parse(src: string): Ast {
       if (isP("(")) {
         pos++;
         const args: Ast[] = [];
-        if (!isP(")")) { do { args.push(or()); if (isP(",")) pos++; else break; } while (true); }
+        if (!isP(")")) {
+          do {
+            args.push(or());
+            if (isP(",")) pos++;
+            else break;
+          } while (true);
+        }
         if (!isP(")")) bad("A bracket is not closed.");
         pos++;
         return { k: "call", name, args };
       }
       const segs: (string | number | Ast)[] = [];
       while (true) {
-        if (isP(".")) { pos++; const n = toks[pos++]; if (!n || n.t !== "id") return bad("A name must follow a dot."); segs.push(String(n.v)); }
-        else if (isP("[")) { pos++; const e = or(); if (!isP("]")) bad("A square bracket is not closed."); pos++; segs.push(e.k === "lit" && (typeof e.v === "string" || typeof e.v === "number") ? (e.v as string | number) : e); }
-        else break;
+        if (isP(".")) {
+          pos++;
+          const n = toks[pos++];
+          if (!n || n.t !== "id") return bad("A name must follow a dot.");
+          segs.push(String(n.v));
+        } else if (isP("[")) {
+          pos++;
+          const e = or();
+          if (!isP("]")) bad("A square bracket is not closed.");
+          pos++;
+          segs.push(
+            e.k === "lit" && (typeof e.v === "string" || typeof e.v === "number") ? (e.v as string | number) : e,
+          );
+        } else break;
       }
       return { k: "path", root: name, segs };
     }
     return bad(`Unexpected "${String(t.v)}" in the expression.`);
   };
   const unary = (): Ast => {
-    if (isOp("!") || isOp("-")) { const op = String(toks[pos++]!.v); return { k: "un", op, x: unary() }; }
+    if (isOp("!") || isOp("-")) {
+      const op = String(toks[pos++]!.v);
+      return { k: "un", op, x: unary() };
+    }
     return primary();
   };
   const level = (ops: string[], next: () => Ast, words: string[] = []): Ast => {
@@ -173,9 +241,14 @@ function readPath(root: unknown, segs: readonly (string | number)[]): unknown {
   for (const s of segs) {
     if (cur === null || cur === undefined) return undefined;
     if (typeof s === "string" && FORBIDDEN.has(s)) return undefined;
-    if (Array.isArray(cur)) { if (typeof s === "number") cur = cur[s]; else if (s === "length") cur = cur.length; else return undefined; }
-    else if (typeof cur === "object") { if (!Object.hasOwn(cur as object, String(s))) return undefined; cur = (cur as Record<string, unknown>)[String(s)]; }
-    else if (typeof cur === "string" && s === "length") cur = cur.length;
+    if (Array.isArray(cur)) {
+      if (typeof s === "number") cur = cur[s];
+      else if (s === "length") cur = cur.length;
+      else return undefined;
+    } else if (typeof cur === "object") {
+      if (!Object.hasOwn(cur as object, String(s))) return undefined;
+      cur = (cur as Record<string, unknown>)[String(s)];
+    } else if (typeof cur === "string" && s === "length") cur = cur.length;
     else return undefined;
   }
   return cur;
@@ -186,17 +259,33 @@ export function truthy(v: unknown): boolean {
   if (Array.isArray(v)) return v.length > 0;
   return !!v;
 }
-const num = (v: unknown): number => (typeof v === "number" ? v : typeof v === "string" && v.trim() !== "" ? Number(v) : typeof v === "boolean" ? Number(v) : NaN);
+const num = (v: unknown): number =>
+  typeof v === "number"
+    ? v
+    : typeof v === "string" && v.trim() !== ""
+      ? Number(v)
+      : typeof v === "boolean"
+        ? Number(v)
+        : NaN;
 const same = (a: unknown, b: unknown): boolean => {
   if (a === b) return true;
   if ((a === null || a === undefined) && (b === null || b === undefined)) return true;
-  if (typeof a === "object" && a !== null && typeof b === "object" && b !== null) return JSON.stringify(a) === JSON.stringify(b);
+  if (typeof a === "object" && a !== null && typeof b === "object" && b !== null)
+    return JSON.stringify(a) === JSON.stringify(b);
   return false;
 };
-const text = (v: unknown): string => (v === null || v === undefined ? "" : typeof v === "string" ? v : typeof v === "object" ? JSON.stringify(v) : String(v));
+const text = (v: unknown): string =>
+  v === null || v === undefined
+    ? ""
+    : typeof v === "string"
+      ? v
+      : typeof v === "object"
+        ? JSON.stringify(v)
+        : String(v);
 
 const FUNCS: Record<string, (args: unknown[], scope: Scope) => unknown> = {
-  len: ([v]) => (typeof v === "string" || Array.isArray(v) ? v.length : v && typeof v === "object" ? Object.keys(v).length : 0),
+  len: ([v]) =>
+    typeof v === "string" || Array.isArray(v) ? v.length : v && typeof v === "object" ? Object.keys(v).length : 0,
   lower: ([v]) => text(v).toLowerCase(),
   upper: ([v]) => text(v).toUpperCase(),
   trim: ([v]) => text(v).trim(),
@@ -218,10 +307,19 @@ const FUNCS: Record<string, (args: unknown[], scope: Scope) => unknown> = {
 
 function ev(a: Ast, scope: Scope): unknown {
   switch (a.k) {
-    case "lit": return a.v;
+    case "lit":
+      return a.v;
     case "path": {
       const segs = a.segs.map((s) => (typeof s === "object" ? (ev(s, scope) as string | number) : s));
-      const base: Record<string, unknown> = { trigger: scope.trigger, steps: scope.steps ?? {}, item: scope.item, index: scope.index, vars: scope.vars ?? {}, run: scope.run, input: scope.trigger };
+      const base: Record<string, unknown> = {
+        trigger: scope.trigger,
+        steps: scope.steps ?? {},
+        item: scope.item,
+        index: scope.index,
+        vars: scope.vars ?? {},
+        run: scope.run,
+        input: scope.trigger,
+      };
       if (!Object.hasOwn(base, a.root) || FORBIDDEN.has(a.root)) return undefined;
       return readPath(base[a.root], segs);
     }
@@ -232,38 +330,80 @@ function ev(a: Ast, scope: Scope): unknown {
     case "call": {
       const f = Object.hasOwn(FUNCS, a.name) ? FUNCS[a.name] : undefined;
       if (!f) throw stepError("validation.bad_input", `There is no function called ${a.name}.`);
-      return f(a.args.map((x) => ev(x, scope)), scope);
+      return f(
+        a.args.map((x) => ev(x, scope)),
+        scope,
+      );
     }
     case "bin": {
-      if (a.op === "&&") { const l = ev(a.l, scope); return truthy(l) ? ev(a.r, scope) : l; }
-      if (a.op === "||") { const l = ev(a.l, scope); return truthy(l) ? l : ev(a.r, scope); }
-      const l = ev(a.l, scope), r = ev(a.r, scope);
+      if (a.op === "&&") {
+        const l = ev(a.l, scope);
+        return truthy(l) ? ev(a.r, scope) : l;
+      }
+      if (a.op === "||") {
+        const l = ev(a.l, scope);
+        return truthy(l) ? l : ev(a.r, scope);
+      }
+      const l = ev(a.l, scope),
+        r = ev(a.r, scope);
       switch (a.op) {
-        case "==": return same(l, r);
-        case "!=": return !same(l, r);
-        case "<": case "<=": case ">": case ">=": {
+        case "==":
+          return same(l, r);
+        case "!=":
+          return !same(l, r);
+        case "<":
+        case "<=":
+        case ">":
+        case ">=": {
           // text compares as text, anything that reads as a number compares as numbers; a value that is neither is never less or more
           const asText = typeof l === "string" && typeof r === "string" && Number.isNaN(num(l)) && Number.isNaN(num(r));
-          if (asText) { const x = l as string, y = r as string; return a.op === "<" ? x < y : a.op === "<=" ? x <= y : a.op === ">" ? x > y : x >= y; }
-          const x = num(l), y = num(r);
+          if (asText) {
+            const x = l as string,
+              y = r as string;
+            return a.op === "<" ? x < y : a.op === "<=" ? x <= y : a.op === ">" ? x > y : x >= y;
+          }
+          const x = num(l),
+            y = num(r);
           if (Number.isNaN(x) || Number.isNaN(y)) return false;
           return a.op === "<" ? x < y : a.op === "<=" ? x <= y : a.op === ">" ? x > y : x >= y;
         }
-        case "in": return Array.isArray(r) ? r.some((x) => same(x, l)) : typeof r === "string" ? r.includes(text(l)) : r && typeof r === "object" ? Object.hasOwn(r, text(l)) : false;
-        case "contains": return Array.isArray(l) ? l.some((x) => same(x, r)) : typeof l === "string" ? l.includes(text(r)) : false;
-        case "+": return typeof l === "string" || typeof r === "string" ? text(l) + text(r) : num(l) + num(r);
-        case "-": return num(l) - num(r);
-        case "*": return num(l) * num(r);
-        case "/": { const d = num(r); if (d === 0) throw stepError("validation.bad_input", "The expression divides by zero."); return num(l) / d; }
-        case "%": { const d = num(r); if (d === 0) throw stepError("validation.bad_input", "The expression divides by zero."); return num(l) % d; }
-        default: throw stepError("validation.bad_input", `Unknown operator ${a.op}.`);
+        case "in":
+          return Array.isArray(r)
+            ? r.some((x) => same(x, l))
+            : typeof r === "string"
+              ? r.includes(text(l))
+              : r && typeof r === "object"
+                ? Object.hasOwn(r, text(l))
+                : false;
+        case "contains":
+          return Array.isArray(l) ? l.some((x) => same(x, r)) : typeof l === "string" ? l.includes(text(r)) : false;
+        case "+":
+          return typeof l === "string" || typeof r === "string" ? text(l) + text(r) : num(l) + num(r);
+        case "-":
+          return num(l) - num(r);
+        case "*":
+          return num(l) * num(r);
+        case "/": {
+          const d = num(r);
+          if (d === 0) throw stepError("validation.bad_input", "The expression divides by zero.");
+          return num(l) / d;
+        }
+        case "%": {
+          const d = num(r);
+          if (d === 0) throw stepError("validation.bad_input", "The expression divides by zero.");
+          return num(l) % d;
+        }
+        default:
+          throw stepError("validation.bad_input", `Unknown operator ${a.op}.`);
       }
     }
   }
 }
 
 /** Evaluate one expression over the scope. */
-export function evalExpr(src: string, scope: Scope): unknown { return ev(parse(src), scope); }
+export function evalExpr(src: string, scope: Scope): unknown {
+  return ev(parse(src), scope);
+}
 
 const TEMPLATE = /\{\{([\s\S]*?)\}\}/g;
 /** Fill `{{ expr }}` in a text. A text that is only one `{{ }}` keeps the type of the value; otherwise the values are written into the text. */
@@ -276,6 +416,7 @@ export function renderText(s: string, scope: Scope): unknown {
 export function render(v: unknown, scope: Scope): unknown {
   if (typeof v === "string") return v.includes("{{") ? renderText(v, scope) : v;
   if (Array.isArray(v)) return v.map((x) => render(x, scope));
-  if (v && typeof v === "object") return Object.fromEntries(Object.entries(v as Record<string, unknown>).map(([k, x]) => [k, render(x, scope)]));
+  if (v && typeof v === "object")
+    return Object.fromEntries(Object.entries(v as Record<string, unknown>).map(([k, x]) => [k, render(x, scope)]));
   return v;
 }

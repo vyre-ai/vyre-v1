@@ -11,10 +11,24 @@ import { fileURLToPath } from "node:url";
 export type Verdict = "copy" | "rewrite" | "drop" | "idea";
 export type Row = { source: string; verdict: Verdict; verdictText: string; dest: string; notes: string };
 export type Planned = { row: Row; sources: string[]; dests: string[] };
-export type LogLine = { kind: "imported" | "headerless" | "exists" | "missing" | "rewrite" | "drop" | "idea" | "nodest"; row: number; text: string };
+export type LogLine = {
+  kind: "imported" | "headerless" | "exists" | "missing" | "rewrite" | "drop" | "idea" | "nodest";
+  row: number;
+  text: string;
+};
 
 const BACKTICK = /`([^`]+)`/g;
-const HEADER_EXT: Record<string, string> = { ".js": "//", ".mjs": "//", ".cjs": "//", ".ts": "//", ".tsx": "//", ".jsx": "//", ".mts": "//", ".sh": "#", ".py": "#" };
+const HEADER_EXT: Record<string, string> = {
+  ".js": "//",
+  ".mjs": "//",
+  ".cjs": "//",
+  ".ts": "//",
+  ".tsx": "//",
+  ".jsx": "//",
+  ".mts": "//",
+  ".sh": "#",
+  ".py": "#",
+};
 const SKIP_DIRS = new Set(["node_modules", ".git", "dist", "build", ".next", "coverage"]);
 
 export function classify(text: string): Verdict {
@@ -29,10 +43,14 @@ export function classify(text: string): Verdict {
 /** Splits a table line on pipes that sit outside backticks. */
 export function splitCells(line: string): string[] {
   const cells: string[] = [];
-  let cur = "", tick = false;
+  let cur = "",
+    tick = false;
   for (const ch of line.replace(/^\|/, "").replace(/\|\s*$/, "")) {
     if (ch === "`") tick = !tick;
-    if (ch === "|" && !tick) { cells.push(cur.trim()); cur = ""; } else cur += ch;
+    if (ch === "|" && !tick) {
+      cells.push(cur.trim());
+      cur = "";
+    } else cur += ch;
   }
   cells.push(cur.trim());
   return cells;
@@ -49,7 +67,13 @@ export function parseRows(md: string): Row[] {
     if (!line.startsWith("|") || /^\|[\s|:-]+\|?$/.test(line) || /^\|\s*0\.6 path/.test(line)) continue;
     const cells = splitCells(line);
     if (cells.length < 4) continue;
-    rows.push({ source: cells[0], verdictText: cells[1], verdict: classify(cells[1]), dest: cells[2], notes: cells.slice(3).join(" | ") });
+    rows.push({
+      source: cells[0],
+      verdictText: cells[1],
+      verdict: classify(cells[1]),
+      dest: cells[2],
+      notes: cells.slice(3).join(" | "),
+    });
   }
   return rows;
 }
@@ -74,7 +98,10 @@ export function sourcePaths(cell: string): string[] {
 export function destPaths(cell: string): string[] {
   const out: string[] = [];
   for (const m of cell.matchAll(BACKTICK)) {
-    let t = m[1].trim().replace(/\/\*+$/, "").replace(/\/+$/, "");
+    let t = m[1]
+      .trim()
+      .replace(/\/\*+$/, "")
+      .replace(/\/+$/, "");
     if (!t || /[(){}\s]/.test(t)) continue;
     if (!t.includes("/") && !/\.[a-z0-9]+$/i.test(t) && !/^[a-z-]+$/.test(t)) continue;
     if (t.includes("|")) {
@@ -93,9 +120,15 @@ export function plan(rows: Row[]): Planned[] {
 type Lane = { id: string; owns: string[] };
 /** Lane whose longest owns prefix matches the destination; "unowned" when none does. */
 export function laneOf(dest: string, lanes: Lane[]): string {
-  let best = "unowned", len = -1;
+  let best = "unowned",
+    len = -1;
   const d = dest.replace(/\/+$/, "") + "/";
-  for (const l of lanes) for (const o of l.owns) if (d.startsWith(o.endsWith("/") ? o : o + "/") && o.length > len) { best = l.id; len = o.length; }
+  for (const l of lanes)
+    for (const o of l.owns)
+      if (d.startsWith(o.endsWith("/") ? o : o + "/") && o.length > len) {
+        best = l.id;
+        len = o.length;
+      }
   return best;
 }
 
@@ -123,19 +156,34 @@ export function run(planned: Planned[], o: RunOpts): RunResult {
   planned.forEach((p, i) => {
     const n = i + 1;
     const name = p.row.source.replace(/\s+/g, " ").slice(0, 70);
-    if (p.row.verdict !== "copy") return void log.push({ kind: p.row.verdict as "rewrite" | "drop" | "idea", row: n, text: `${p.row.verdictText}: ${name}` });
+    if (p.row.verdict !== "copy")
+      return void log.push({
+        kind: p.row.verdict as "rewrite" | "drop" | "idea",
+        row: n,
+        text: `${p.row.verdictText}: ${name}`,
+      });
     const dest = p.dests[0];
     if (!dest) return void log.push({ kind: "nodest", row: n, text: `no destination folder named: ${name}` });
     const lane = laneOf(dest, o.lanes);
     for (const s of p.sources) {
       const abs = path.join(o.src, s);
-      if (!fs.existsSync(abs)) { log.push({ kind: "missing", row: n, text: `${s} not found in the source tree` }); continue; }
+      if (!fs.existsSync(abs)) {
+        log.push({ kind: "missing", row: n, text: `${s} not found in the source tree` });
+        continue;
+      }
       const isFile = fs.statSync(abs).isFile();
       for (const f of walk(abs)) {
         const rel = path.relative(o.src, f).split(path.sep).join("/");
-        const destRel = isFile ? (/\.[a-z0-9]+$/i.test(dest) ? dest : path.posix.join(dest, path.basename(f))) : path.posix.join(dest, path.relative(abs, f).split(path.sep).join("/"));
+        const destRel = isFile
+          ? /\.[a-z0-9]+$/i.test(dest)
+            ? dest
+            : path.posix.join(dest, path.basename(f))
+          : path.posix.join(dest, path.relative(abs, f).split(path.sep).join("/"));
         const target = path.join(o.out, destRel);
-        if (fs.existsSync(target)) { log.push({ kind: "exists", row: n, text: `${destRel} left alone` }); continue; }
+        if (fs.existsSync(target)) {
+          log.push({ kind: "exists", row: n, text: `${destRel} left alone` });
+          continue;
+        }
         const head = headerFor(f, rel, o.sha);
         if (o.apply) {
           fs.mkdirSync(path.dirname(target), { recursive: true });
@@ -164,7 +212,14 @@ export function commitPerLane(out: string, byLane: Map<string, string[]>): strin
   const made: string[] = [];
   for (const [lane, files] of [...byLane].sort()) {
     git(out, ["add", "--", ...files]);
-    git(out, ["commit", "-q", "-m", `chore(import): ${lane} sources from vyre 0.6.9 (${files.length} files)`, "--", ...files]);
+    git(out, [
+      "commit",
+      "-q",
+      "-m",
+      `chore(import): ${lane} sources from vyre 0.6.9 (${files.length} files)`,
+      "--",
+      ...files,
+    ]);
     made.push(lane);
   }
   return made;
@@ -176,19 +231,36 @@ export function formatLog(log: LogLine[]): string {
 
 const self = fileURLToPath(import.meta.url);
 if (process.argv[1] && path.resolve(process.argv[1]) === self) {
-  const arg = (n: string) => { const i = process.argv.indexOf(n); return i >= 0 ? process.argv[i + 1] : undefined; };
+  const arg = (n: string) => {
+    const i = process.argv.indexOf(n);
+    return i >= 0 ? process.argv[i + 1] : undefined;
+  };
   const has = (n: string) => process.argv.includes(n);
   const root = path.join(path.dirname(self), "..");
-  const archFile = arg("--arch"), src = arg("--src");
-  if (!archFile || !src) { console.error("usage: import-0.6.ts --arch <ARCHITECTURE-V1.md> --src <0.6.9 tree> [--apply] [--commit] [--log file]"); process.exit(2); }
+  const archFile = arg("--arch"),
+    src = arg("--src");
+  if (!archFile || !src) {
+    console.error(
+      "usage: import-0.6.ts --arch <ARCHITECTURE-V1.md> --src <0.6.9 tree> [--apply] [--commit] [--log file]",
+    );
+    process.exit(2);
+  }
   const lanes = JSON.parse(fs.readFileSync(path.join(root, "scripts", "lanes.json"), "utf8")).lanes as Lane[];
   const sha = git(src, ["rev-parse", "--short=9", "HEAD"]);
-  const res = run(plan(parseRows(fs.readFileSync(archFile, "utf8"))), { src, out: root, sha, apply: has("--apply"), lanes });
+  const res = run(plan(parseRows(fs.readFileSync(archFile, "utf8"))), {
+    src,
+    out: root,
+    sha,
+    apply: has("--apply"),
+    lanes,
+  });
   const text = formatLog(res.log);
   if (arg("--log")) fs.writeFileSync(arg("--log")!, text + "\n");
   console.log(text);
   if (has("--apply") && has("--commit")) console.log("committed lanes: " + commitPerLane(root, res.byLane).join(", "));
   const count = (k: string) => res.log.filter((l) => l.kind === k).length;
-  console.log(`import-0.6: ${count("imported") + count("headerless")} files, ${count("rewrite")} rewrite, ${count("drop")} drop, ${count("idea")} idea, ${count("missing")} missing`);
+  console.log(
+    `import-0.6: ${count("imported") + count("headerless")} files, ${count("rewrite")} rewrite, ${count("drop")} drop, ${count("idea")} idea, ${count("missing")} missing`,
+  );
   process.exit(count("missing") || count("nodest") ? 1 : 0);
 }

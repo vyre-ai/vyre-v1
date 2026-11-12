@@ -8,7 +8,14 @@ import type { ImportedRow } from "../imported/model.ts";
 import { chatMenu } from "../menus/kinds.ts";
 
 export interface ChatMenuDo {
-  open(): void; star(): void; markRead(): void; markUnread(): void; archive(): void; unarchive(): void; leaveChat(): void; deleteChat(): void;
+  open(): void;
+  star(): void;
+  markRead(): void;
+  markUnread(): void;
+  archive(): void;
+  unarchive(): void;
+  leaveChat(): void;
+  deleteChat(): void;
   rename?: (() => void) | undefined;
   openTab?: (() => void) | undefined;
   muted?: boolean | undefined;
@@ -21,13 +28,43 @@ export interface ChatMenuDo {
 
 /** The chat row's menu is the Chats menu of kinds.ts (open, change, archive, then leave or delete); the sidebar gives it what each item does. A part the sidebar does not give (Rename, Mute, a new tab) is left out. */
 export function chatMenuEntries(r: ChatRow, d: ChatMenuDo): MenuEntry[] {
-  return chatMenu({ starred: r.starred, unread: r.unread > 0, local: r.local, archived: r.archived === true, withPeople: r.withPeople === true, muted: d.muted === true }, {
-    open: d.open, openTab: d.openTab, rename: d.rename ?? (() => undefined), star: () => d.star(), markRead: d.markRead, markUnread: d.markUnread, mute: d.mute ?? (() => undefined),
-    archive: d.archive, unarchive: d.unarchive, leave: d.leaveChat, remove: d.deleteChat, addPeople: d.addPeople, copyLink: d.copyLink, notifications: d.notifications, moveToProject: d.moveToProject,
-  }, { rename: d.rename !== undefined, mute: d.mute !== undefined });
+  return chatMenu(
+    {
+      starred: r.starred,
+      unread: r.unread > 0,
+      local: r.local,
+      archived: r.archived === true,
+      withPeople: r.withPeople === true,
+      muted: d.muted === true,
+    },
+    {
+      open: d.open,
+      openTab: d.openTab,
+      rename: d.rename ?? (() => undefined),
+      star: () => d.star(),
+      markRead: d.markRead,
+      markUnread: d.markUnread,
+      mute: d.mute ?? (() => undefined),
+      archive: d.archive,
+      unarchive: d.unarchive,
+      leave: d.leaveChat,
+      remove: d.deleteChat,
+      addPeople: d.addPeople,
+      copyLink: d.copyLink,
+      notifications: d.notifications,
+      moveToProject: d.moveToProject,
+    },
+    { rename: d.rename !== undefined, mute: d.mute !== undefined },
+  );
 }
 
-export interface ImportedMenuDo { open(): void; rename(): void; archive(): void; unarchive(): void; deleteSession(): void }
+export interface ImportedMenuDo {
+  open(): void;
+  rename(): void;
+  archive(): void;
+  unarchive(): void;
+  deleteSession(): void;
+}
 
 /** The menu of an imported session's row: Open, then Rename (the title shown; the transcript never changes), Archive or Unarchive, and Delete session, which asks first. */
 export function importedMenuEntries(r: ImportedRow, d: ImportedMenuDo): MenuEntry[] {

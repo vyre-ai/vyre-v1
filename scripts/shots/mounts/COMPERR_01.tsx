@@ -9,24 +9,65 @@ import { statusView } from "../../../apps/app/src/places/chats/conversation/stat
 
 export const title = "Agent computer setup and the engine error card";
 
-const stub = { showMenu: () => undefined, copy: () => undefined, retryTurn: () => undefined, errorNext: () => undefined } as never;
+const stub = {
+  showMenu: () => undefined,
+  copy: () => undefined,
+  retryTurn: () => undefined,
+  errorNext: () => undefined,
+} as never;
 
 export default function Mount(): ReactNode {
   const [part, setPart] = useState<string | null>(null);
-  useEffect(() => setPart(new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? "").get("part") ?? "setup-chrome"), []);
+  useEffect(
+    () =>
+      setPart(
+        new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? "").get("part") ??
+          "setup-chrome",
+      ),
+    [],
+  );
   const { height, width } = useWindowDimensions();
   if (part === null) return <View style={{ flex: 1, backgroundColor: "var(--win)" as string }} />;
   const frame = (n: ReactNode): ReactNode => (
     <View style={{ height, backgroundColor: "var(--win)" as string, alignItems: "center", paddingTop: 40 }}>
-      <View style={{ width: Math.min(420, width - 24), borderWidth: 1, borderColor: "var(--line)" as string, borderRadius: 12, backgroundColor: "var(--side)" as string, padding: 12 }}>{n}</View>
+      <View
+        style={{
+          width: Math.min(420, width - 24),
+          borderWidth: 1,
+          borderColor: "var(--line)" as string,
+          borderRadius: 12,
+          backgroundColor: "var(--side)" as string,
+          padding: 12,
+        }}
+      >
+        {n}
+      </View>
     </View>
   );
   if (part === "setup-chrome") return frame(<SettingUp name="Dex" step={2} where="the Northwind server" />);
   const admin = part.endsWith("admin");
-  const data = part.startsWith("err-sandbox") ? { why: "sandbox" } : part === "err-no-model" || part === "err-policy-model" ? {} : { exit: "1" };
+  const data = part.startsWith("err-sandbox")
+    ? { why: "sandbox" }
+    : part === "err-no-model" || part === "err-policy-model"
+      ? {}
+      : { exit: "1" };
   // err-no-model: a chat with no model set (release gate, 12 Nov 2026: the provider's 400 read as "Your AI provider refused this request")
-  const code = part === "err-no-model" ? "engine.no_model" : part === "err-policy-model" ? "engine.policy_model" : "engine.cli_error";
-  const v = statusView({ id: "b1", type: "turn_status", v: 1, traceId: "", data: { state: "failed", turnId: "trn_1", code, ...data } } as never, { admin });
+  const code =
+    part === "err-no-model"
+      ? "engine.no_model"
+      : part === "err-policy-model"
+        ? "engine.policy_model"
+        : "engine.cli_error";
+  const v = statusView(
+    {
+      id: "b1",
+      type: "turn_status",
+      v: 1,
+      traceId: "",
+      data: { state: "failed", turnId: "trn_1", code, ...data },
+    } as never,
+    { admin },
+  );
   if (v.kind !== "error") return frame(null);
   return frame(<ErrorRowView block={v.block} actions={stub} />);
 }

@@ -46,7 +46,14 @@ export interface PlaceDevice {
 }
 
 /** One of the asker's own servers in this Space (approved). `online`: connected to the Space now. */
-export interface PlaceServer { serverId: string; name: string; online: boolean; engines?: readonly string[]; busy?: boolean; busyWhy?: string }
+export interface PlaceServer {
+  serverId: string;
+  name: string;
+  online: boolean;
+  engines?: readonly string[];
+  busy?: boolean;
+  busyWhy?: string;
+}
 
 export interface PlaceInput {
   thread: PlaceThread;
@@ -67,15 +74,34 @@ export interface PlaceInput {
     /** The machine this agent is pinned to (Console, Machines), when it is one of this person's own or the Space's: Automatic tries it first. A chat's own pin still wins; a pinned machine with no room, or off, passes the turn on, and the line says why. */
     agentPin?: { kind: "device" | "server" | "space"; id: string; name: string };
     /** Where this person pinned this chat. A device or server is one of theirs; `online` and `name` are what the Space knows of it. */
-    chosen?: { target: "device" | "space" | "server"; deviceId?: string; serverId?: string; online?: boolean; name?: string };
+    chosen?: {
+      target: "device" | "space" | "server";
+      deviceId?: string;
+      serverId?: string;
+      online?: boolean;
+      name?: string;
+    };
   };
   /** The Space: whether it has a shared server that may run members' turns (step 4). Absent: a Team Space that allows it, the default. A Personal Space passes { shared: false, hostIsAsker: true }. */
   space?: { shared: boolean; hostIsAsker?: boolean; busy?: boolean; busyWhy?: string };
 }
 
 export type PlaceReason =
-  | "shared_thread" | "routine" | "agent_computer" /* no longer produced: an agent's workspace is reached over the Space from wherever the turn runs (6 Nov) */ | "wake_shared" | "crew"
-  | "device" | "other_device" | "own_server" | "space" | "own_host" | "device_off" | "chosen_device" | "chosen_space" | "chosen_server" | "server_off";
+  | "shared_thread"
+  | "routine"
+  | "agent_computer" /* no longer produced: an agent's workspace is reached over the Space from wherever the turn runs (6 Nov) */
+  | "wake_shared"
+  | "crew"
+  | "device"
+  | "other_device"
+  | "own_server"
+  | "space"
+  | "own_host"
+  | "device_off"
+  | "chosen_device"
+  | "chosen_space"
+  | "chosen_server"
+  | "server_off";
 
 export interface Placement {
   placement: "host" | "device" | "wait";
@@ -109,14 +135,20 @@ const able = (d: PlaceDevice, engine: string): boolean => d.role === "daemon" &&
 export function placeTurn(i: PlaceInput): Placement {
   const origin: Origin = i.item.origin ?? "message";
   if (i.thread.crew === true) return { placement: "host", reason: "crew" };
-  if (!isPrivate(i.thread)) return { placement: "host", reason: i.item.kind === "wake" ? "wake_shared" : "shared_thread" };
+  if (!isPrivate(i.thread))
+    return { placement: "host", reason: i.item.kind === "wake" ? "wake_shared" : "shared_thread" };
   if (SHARED_BY_ORIGIN.has(origin)) return { placement: "host", reason: "routine" };
   const space = i.space ?? { shared: true };
   const pick = i.asker.chosen;
   if (pick?.target === "space") return { placement: "host", reason: "chosen_space" };
   if (pick?.target === "server" && pick.serverId !== undefined) {
     if (pick.online === true) return { placement: "host", reason: "chosen_server", nodeId: pick.serverId };
-    return { placement: "wait", reason: "server_off", nodeId: pick.serverId, wakeLine: `${pick.name ?? "Your server"} is off` };
+    return {
+      placement: "wait",
+      reason: "server_off",
+      nodeId: pick.serverId,
+      wakeLine: `${pick.name ?? "Your server"} is off`,
+    };
   }
   if (pick?.target === "device") {
     // pinned to a computer: that one (or, for an old pin that names none, the one in use, then any of theirs); off, it waits for it
@@ -124,7 +156,12 @@ export function placeTurn(i: PlaceInput): Placement {
     const on = named.find((d) => able(d, i.engine));
     if (on) return { placement: "device", reason: "chosen_device", deviceId: on.id };
     if (pick.deviceId === undefined && space.hostIsAsker === true) return { placement: "host", reason: "own_host" };
-    return { placement: "wait", reason: "device_off", ...(pick.deviceId !== undefined ? { deviceId: pick.deviceId } : {}), wakeLine: DEVICE_OFF_LINE };
+    return {
+      placement: "wait",
+      reason: "device_off",
+      ...(pick.deviceId !== undefined ? { deviceId: pick.deviceId } : {}),
+      wakeLine: DEVICE_OFF_LINE,
+    };
   }
 
   // Automatic: the one order, each step skipped for the next when its machine is busy
@@ -132,18 +169,45 @@ export function placeTurn(i: PlaceInput): Placement {
   type Step = { p: Placement; busy: boolean; name: string; why: string };
   const steps: Step[] = [];
   if (localRuns) {
-    for (const d of ordered(i).filter((x) => able(x, i.engine))) steps.push({ p: { placement: "device", reason: d.id === i.asker.current ? "device" : "other_device", deviceId: d.id }, busy: d.busy === true, name: d.name ?? "your computer", why: d.busyWhy ?? "it was busy" });
+    for (const d of ordered(i).filter((x) => able(x, i.engine)))
+      steps.push({
+        p: { placement: "device", reason: d.id === i.asker.current ? "device" : "other_device", deviceId: d.id },
+        busy: d.busy === true,
+        name: d.name ?? "your computer",
+        why: d.busyWhy ?? "it was busy",
+      });
     // a Personal Space lives on the person's own computer: the host is one of their computers
     if (!steps.length && space.hostIsAsker === true) return { placement: "host", reason: "own_host" };
   }
-  for (const s of (i.asker.servers ?? []).filter((x) => x.online && (x.engines === undefined || x.engines.includes(i.engine))).sort((a, b) => (a.serverId < b.serverId ? -1 : 1))) steps.push({ p: { placement: "host", reason: "own_server", nodeId: s.serverId }, busy: s.busy === true, name: s.name, why: s.busyWhy ?? "it was busy" });
-  if (space.shared && i.asker.runtimeOptIn) steps.push({ p: { placement: "host", reason: "space" }, busy: space.busy === true, name: "the Space server", why: space.busyWhy ?? "it was busy" });
-  if (!steps.length) return { placement: "wait", reason: "device_off", wakeLine: localRuns ? DEVICE_OFF_LINE : LOCAL_RUNS_OFF_LINE };
+  for (const s of (i.asker.servers ?? [])
+    .filter((x) => x.online && (x.engines === undefined || x.engines.includes(i.engine)))
+    .sort((a, b) => (a.serverId < b.serverId ? -1 : 1)))
+    steps.push({
+      p: { placement: "host", reason: "own_server", nodeId: s.serverId },
+      busy: s.busy === true,
+      name: s.name,
+      why: s.busyWhy ?? "it was busy",
+    });
+  if (space.shared && i.asker.runtimeOptIn)
+    steps.push({
+      p: { placement: "host", reason: "space" },
+      busy: space.busy === true,
+      name: "the Space server",
+      why: space.busyWhy ?? "it was busy",
+    });
+  if (!steps.length)
+    return { placement: "wait", reason: "device_off", wakeLine: localRuns ? DEVICE_OFF_LINE : LOCAL_RUNS_OFF_LINE };
   // the agent's pinned machine goes first; if it is not among the places that can take the turn at all, the turn goes on from it
   const pin = i.asker.agentPin;
   let away: { from: string; why: string } | undefined;
   if (pin) {
-    const at0 = steps.findIndex((x) => (pin.kind === "device" ? x.p.deviceId === pin.id : pin.kind === "server" ? x.p.nodeId === pin.id : x.p.reason === "space"));
+    const at0 = steps.findIndex((x) =>
+      pin.kind === "device"
+        ? x.p.deviceId === pin.id
+        : pin.kind === "server"
+          ? x.p.nodeId === pin.id
+          : x.p.reason === "space",
+    );
     if (at0 > 0) steps.unshift(...steps.splice(at0, 1));
     else if (at0 < 0) away = { from: pin.name, why: "it is offline" };
   }
@@ -156,7 +220,8 @@ export function placeTurn(i: PlaceInput): Placement {
 /** The person's computers in the order steps 1 and 2 take them: the one in use first, then the most recently seen (ties by id). */
 function ordered(i: PlaceInput): PlaceDevice[] {
   return [...i.asker.devices].sort((a, b) => {
-    const ca = a.id === i.asker.current ? 1 : 0, cb = b.id === i.asker.current ? 1 : 0;
+    const ca = a.id === i.asker.current ? 1 : 0,
+      cb = b.id === i.asker.current ? 1 : 0;
     return cb - ca || (b.lastSeen ?? 0) - (a.lastSeen ?? 0) || (a.id < b.id ? -1 : 1);
   });
 }

@@ -10,10 +10,21 @@ export function pictureOf(dataUrl: string): { base64: string; mime: string } | n
 }
 
 /** Writes the picture into the folder and answers the face text that names it, or null when it could not be kept. */
-export async function saveFaceFile(call: Call, folderId: string, dataUrl: string, key: () => string): Promise<string | null> {
+export async function saveFaceFile(
+  call: Call,
+  folderId: string,
+  dataUrl: string,
+  key: () => string,
+): Promise<string | null> {
   const pic = pictureOf(dataUrl);
   if (pic === null || folderId === "") return null;
-  const out = (await call("files.create", { folderId, name: `face-${key().slice(-8)}.${pic.mime.slice(6) === "jpeg" ? "jpg" : pic.mime.slice(6)}`, content: { base64: pic.base64 }, mime: pic.mime, idempotencyKey: key() })) as { file?: { fileId?: string } };
+  const out = (await call("files.create", {
+    folderId,
+    name: `face-${key().slice(-8)}.${pic.mime.slice(6) === "jpeg" ? "jpg" : pic.mime.slice(6)}`,
+    content: { base64: pic.base64 },
+    mime: pic.mime,
+    idempotencyKey: key(),
+  })) as { file?: { fileId?: string } };
   const id = out.file?.fileId;
   const face = id ? `av1:file:${id}` : null;
   return face !== null && parseFace(face) !== null ? face : null;

@@ -30,7 +30,12 @@ test("a mount that never appears is a breach, not a pass", () => {
 
 test("runOpenProbe mounts the screen `runs` times through the fake mount: fast passes, slow fails", async () => {
   let calls = 0;
-  const fast = await runOpenProbe(target({ kind: "open", budgetMs: 100, runs: 6 }), { time: async () => { calls += 1; return calls === 1 ? 500 : 60; } });
+  const fast = await runOpenProbe(target({ kind: "open", budgetMs: 100, runs: 6 }), {
+    time: async () => {
+      calls += 1;
+      return calls === 1 ? 500 : 60;
+    },
+  });
   assert.equal(calls, 6);
   assert.equal(fast.ok, true);
   assert.equal(fast.median_ms, 60);

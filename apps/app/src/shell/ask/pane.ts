@@ -9,7 +9,11 @@ import type { ScreenContext } from "./screen.ts";
 export const ASK_SIDE: "right" | "left" = "right";
 
 /** What the pane is about: one object (a record, a file, an automation, a Vault item, a Settings page, an Inbox conversation, a task), as its kind, id and name. */
-export interface AskThing { kind: string; id: string; title?: string }
+export interface AskThing {
+  kind: string;
+  id: string;
+  title?: string;
+}
 
 /** What a door asks for. Only `thing` (or null, the place itself) is needed. */
 export interface AskRequest {
@@ -41,9 +45,20 @@ export interface AskPaneState extends AskRequest {
 const FOCUS = new Set(["records", "files", "automations", "vault", "inbox", "apps", "console"]);
 
 const PLACE_TITLE: Readonly<Record<string, string>> = {
-  home: "Home", records: "Records", files: "Files", automations: "Automations", vault: "Vault", inbox: "Inbox", settings: "Settings", console: "Console", apps: "Apps", tasks: "Tasks", chats: "Chats",
+  home: "Home",
+  records: "Records",
+  files: "Files",
+  automations: "Automations",
+  vault: "Vault",
+  inbox: "Inbox",
+  settings: "Settings",
+  console: "Console",
+  apps: "Apps",
+  tasks: "Tasks",
+  chats: "Chats",
 };
-export const placeTitle = (place: string): string => PLACE_TITLE[place] ?? place.charAt(0).toUpperCase() + place.slice(1);
+export const placeTitle = (place: string): string =>
+  PLACE_TITLE[place] ?? place.charAt(0).toUpperCase() + place.slice(1);
 
 /** The width of the pane is remembered per place (ui/SidePane keeps it under this key). */
 export const askPaneKey = (place: string): string => `ask-${place}`;
@@ -75,7 +90,9 @@ export function askLine(s: Pick<AskPaneState, "place" | "thing" | "hint">): stri
 /** What the agent is told with every message sent in the pane: the place, the thing as the open object, and what the door added. Removing the chip drops the thing and what came with it. */
 export function askScreen(s: Pick<AskPaneState, "place" | "thing" | "context">): ScreenContext {
   const extra = s.context ?? {};
-  const open = s.thing ? [{ type: s.thing.kind, id: s.thing.id, ...(s.thing.title ? { title: s.thing.title } : {}) }] : undefined;
+  const open = s.thing
+    ? [{ type: s.thing.kind, id: s.thing.id, ...(s.thing.title ? { title: s.thing.title } : {}) }]
+    : undefined;
   return {
     place: s.place,
     title: s.thing?.title ? `${placeTitle(s.place)}, ${s.thing.title}` : placeTitle(s.place),
@@ -96,7 +113,9 @@ export function threadKey(s: Pick<AskPaneState, "place" | "thing" | "agentId" | 
 const panes = new Map<string, AskPaneState>();
 const listeners = new Set<() => void>();
 let seq = 0;
-const tell = (): void => { for (const l of listeners) l(); };
+const tell = (): void => {
+  for (const l of listeners) l();
+};
 
 /** The place the person is in: the one the shell last told the screen context about. */
 export function activePlace(): string | null {
@@ -108,7 +127,11 @@ export function openAskPane(req: AskRequest, place: string | null = activePlace(
   if (place === null) return null;
   const was = panes.get(place);
   const agentId = req.agentId ?? "assistant";
-  const same = was !== undefined && was.agentId === agentId && sameThing(was.thing, req.thing) && (was.first ?? "") === (req.first ?? "");
+  const same =
+    was !== undefined &&
+    was.agentId === agentId &&
+    sameThing(was.thing, req.thing) &&
+    (was.first ?? "") === (req.first ?? "");
   const next: AskPaneState = { ...req, place, agentId, fresh: same ? was.fresh : 0, seq: ++seq };
   panes.set(place, next);
   tell();
@@ -152,7 +175,9 @@ export function askPaneOf(place: string): AskPaneState | null {
 
 export function subscribeAskPane(fn: () => void): () => void {
   listeners.add(fn);
-  return () => { listeners.delete(fn); };
+  return () => {
+    listeners.delete(fn);
+  };
 }
 
 /** Tests start from no panes. */

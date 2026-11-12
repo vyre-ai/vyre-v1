@@ -8,9 +8,17 @@ import { flag, json, num, optNum, optStr, page, principalRef, put, rows, str } f
 const CHAT_ENTITIES = ["thread", "thread_agent", "thread_member", "message"] as const;
 
 function agentsOf(db: LocalDb, thread: string): Array<Record<string, unknown>> {
-  return rows(db, `SELECT * FROM "chat_thread_agent" WHERE "thread" = ? AND deleted_at IS NULL ORDER BY rowid`, [thread]).map((r) => {
-    const o: Record<string, unknown> = { agentId: str(r["agentId"]), mode: str(r["mode"]) === "lead" ? "lead" : "listen" };
-    put(o, "model", optStr(r["model"])); put(o, "provider", optStr(r["provider"])); put(o, "effort", optStr(r["effort"])); put(o, "accountRef", optStr(r["accountRef"]));
+  return rows(db, `SELECT * FROM "chat_thread_agent" WHERE "thread" = ? AND deleted_at IS NULL ORDER BY rowid`, [
+    thread,
+  ]).map((r) => {
+    const o: Record<string, unknown> = {
+      agentId: str(r["agentId"]),
+      mode: str(r["mode"]) === "lead" ? "lead" : "listen",
+    };
+    put(o, "model", optStr(r["model"]));
+    put(o, "provider", optStr(r["provider"]));
+    put(o, "effort", optStr(r["effort"]));
+    put(o, "accountRef", optStr(r["accountRef"]));
     if (flag(r["watches"])) o["watches"] = true;
     return o;
   });
@@ -19,14 +27,34 @@ function agentsOf(db: LocalDb, thread: string): Array<Record<string, unknown>> {
 function threadOut(db: LocalDb, r: SqlRow): Record<string, unknown> {
   const id = str(r["id"]);
   const o: Record<string, unknown> = {
-    threadId: id, kind: str(r["kind"]), listed: flag(r["listed"]), planMode: Number(r["modePlan"]) === 1, mode: Number(r["modePlan"]) === 1 ? "plan" : Number(r["modePlan"]) === 2 ? "auto" : "ask",
-    members: rows(db, `SELECT "principal" FROM "chat_thread_member" WHERE "thread" = ? AND deleted_at IS NULL ORDER BY rowid`, [id]).map((m) => principalRef(str(m["principal"]))),
-    agents: agentsOf(db, id), createdAt: num(r["createdAt"]),
+    threadId: id,
+    kind: str(r["kind"]),
+    listed: flag(r["listed"]),
+    planMode: Number(r["modePlan"]) === 1,
+    mode: Number(r["modePlan"]) === 1 ? "plan" : Number(r["modePlan"]) === 2 ? "auto" : "ask",
+    members: rows(
+      db,
+      `SELECT "principal" FROM "chat_thread_member" WHERE "thread" = ? AND deleted_at IS NULL ORDER BY rowid`,
+      [id],
+    ).map((m) => principalRef(str(m["principal"]))),
+    agents: agentsOf(db, id),
+    createdAt: num(r["createdAt"]),
   };
-  put(o, "title", optStr(r["title"])); put(o, "starter", optStr(r["starter"])); put(o, "channelId", optStr(r["channelId"]));
-  put(o, "parentThreadId", optStr(r["parentThreadId"])); put(o, "parentMessageId", optStr(r["parentMessageId"])); put(o, "recordId", optStr(r["recordId"])); put(o, "folderId", optStr(r["folderId"]));
-  put(o, "scopeType", optStr(r["scopeType"])); put(o, "scopeId", optStr(r["scopeId"])); put(o, "closedAt", optNum(r["closedAt"]));
-  const stat = rows(db, `SELECT COUNT(*) AS n, MAX("createdAt") AS last FROM "chat_message" WHERE "thread" = ? AND deleted_at IS NULL`, [id])[0];
+  put(o, "title", optStr(r["title"]));
+  put(o, "starter", optStr(r["starter"]));
+  put(o, "channelId", optStr(r["channelId"]));
+  put(o, "parentThreadId", optStr(r["parentThreadId"]));
+  put(o, "parentMessageId", optStr(r["parentMessageId"]));
+  put(o, "recordId", optStr(r["recordId"]));
+  put(o, "folderId", optStr(r["folderId"]));
+  put(o, "scopeType", optStr(r["scopeType"]));
+  put(o, "scopeId", optStr(r["scopeId"]));
+  put(o, "closedAt", optNum(r["closedAt"]));
+  const stat = rows(
+    db,
+    `SELECT COUNT(*) AS n, MAX("createdAt") AS last FROM "chat_message" WHERE "thread" = ? AND deleted_at IS NULL`,
+    [id],
+  )[0];
   o["replyCount"] = num(stat?.["n"]);
   put(o, "lastMessageAt", optNum(stat?.["last"]));
   if (str(r["kind"]) === "helper") {
@@ -43,24 +71,48 @@ function threadOut(db: LocalDb, r: SqlRow): Record<string, unknown> {
 }
 
 export const threadsGet = resolver<{ threadId: string }, { thread: Record<string, unknown> }>({
-  cap: "threads.get", entities: CHAT_ENTITIES,
+  cap: "threads.get",
+  entities: CHAT_ENTITIES,
   run(db, input) {
     const r = rows(db, `SELECT * FROM "chat_thread" WHERE "id" = ? AND deleted_at IS NULL`, [input.threadId])[0];
     return r ? { thread: threadOut(db, r) } : MISS;
   },
 });
 
-interface ThreadsListIn { kind?: string[]; folderId?: string; recordId?: string; parentThreadId?: string; cursor?: string; limit?: number }
+interface ThreadsListIn {
+  kind?: string[];
+  folderId?: string;
+  recordId?: string;
+  parentThreadId?: string;
+  cursor?: string;
+  limit?: number;
+}
 
-export const threadsList = resolver<ThreadsListIn, { threads: Array<Record<string, unknown>>; next?: string; total?: number }>({
-  cap: "threads.list", entities: CHAT_ENTITIES,
+export const threadsList = resolver<
+  ThreadsListIn,
+  { threads: Array<Record<string, unknown>>; next?: string; total?: number }
+>({
+  cap: "threads.list",
+  entities: CHAT_ENTITIES,
   run(db, input) {
     const where = [`t.deleted_at IS NULL`, `t."listed" = 1`];
     const args: Array<string | number> = [];
-    if (input.kind?.length) { where.push(`t."kind" IN (${input.kind.map(() => "?").join(",")})`); args.push(...input.kind); }
-    if (input.folderId !== undefined) { where.push(`t."folderId" = ?`); args.push(input.folderId); }
-    if (input.recordId !== undefined) { where.push(`t."recordId" = ?`); args.push(input.recordId); }
-    if (input.parentThreadId !== undefined) { where.push(`t."parentThreadId" = ?`); args.push(input.parentThreadId); }
+    if (input.kind?.length) {
+      where.push(`t."kind" IN (${input.kind.map(() => "?").join(",")})`);
+      args.push(...input.kind);
+    }
+    if (input.folderId !== undefined) {
+      where.push(`t."folderId" = ?`);
+      args.push(input.folderId);
+    }
+    if (input.recordId !== undefined) {
+      where.push(`t."recordId" = ?`);
+      args.push(input.recordId);
+    }
+    if (input.parentThreadId !== undefined) {
+      where.push(`t."parentThreadId" = ?`);
+      args.push(input.parentThreadId);
+    }
     const clause = where.join(" AND ");
     const total = num(rows(db, `SELECT COUNT(*) AS n FROM "chat_thread" t WHERE ${clause}`, args)[0]?.["n"]);
     const { offset, limit } = page(input.cursor, input.limit);
@@ -71,19 +123,29 @@ export const threadsList = resolver<ThreadsListIn, { threads: Array<Record<strin
          FROM "chat_thread" t WHERE ${clause} ORDER BY "activity" DESC, t."id" LIMIT ? OFFSET ?`,
       [...args, limit, offset],
     );
-    const out: { threads: Array<Record<string, unknown>>; next?: string; total?: number } = { threads: list.map((r) => threadOut(db, r)), total };
+    const out: { threads: Array<Record<string, unknown>>; next?: string; total?: number } = {
+      threads: list.map((r) => threadOut(db, r)),
+      total,
+    };
     if (offset + list.length < total) out.next = String(offset + list.length);
     return out;
   },
 });
 
-interface MessagesIn { threadId: string; before?: number; after?: number; limit?: number }
+interface MessagesIn {
+  threadId: string;
+  before?: number;
+  after?: number;
+  limit?: number;
+}
 
 /** enc is 2 for a private chat or Ask pane and anything under one (the device holds the key), 0 elsewhere. */
 function encOf(db: LocalDb, threadId: string): number {
   let id: string | undefined = threadId;
   for (let i = 0; id && i < 4; i++) {
-    const t: SqlRow | undefined = rows(db, `SELECT "kind", "parentThreadId" FROM "chat_thread" WHERE "id" = ?`, [id])[0];
+    const t: SqlRow | undefined = rows(db, `SELECT "kind", "parentThreadId" FROM "chat_thread" WHERE "id" = ?`, [
+      id,
+    ])[0];
     if (!t) return 0;
     if (str(t["kind"]) === "chat" || str(t["kind"]) === "ask") return 2;
     id = optStr(t["parentThreadId"]);
@@ -92,22 +154,43 @@ function encOf(db: LocalDb, threadId: string): number {
 }
 
 export const messagesList = resolver<MessagesIn, { messages: Array<Record<string, unknown>>; hasMore: boolean }>({
-  cap: "chat.messages.list", entities: ["message", "thread"],
+  cap: "chat.messages.list",
+  entities: ["message", "thread"],
   run(db, input) {
-    if (!rows(db, `SELECT 1 AS x FROM "chat_thread" WHERE "id" = ? AND deleted_at IS NULL`, [input.threadId]).length) return MISS;
+    if (!rows(db, `SELECT 1 AS x FROM "chat_thread" WHERE "id" = ? AND deleted_at IS NULL`, [input.threadId]).length)
+      return MISS;
     const limit = Math.min(Math.max(input.limit ?? 50, 1), 200);
     const forward = input.after !== undefined;
     const cond = forward ? `AND "threadSeq" > ?` : input.before !== undefined ? `AND "threadSeq" < ?` : "";
-    const args: Array<string | number> = [input.threadId, ...(forward ? [input.after as number] : input.before !== undefined ? [input.before] : []), limit + 1];
-    const got = rows(db, `SELECT * FROM "chat_message" WHERE "thread" = ? AND deleted_at IS NULL ${cond} ORDER BY "threadSeq" ${forward ? "ASC" : "DESC"} LIMIT ?`, args);
+    const args: Array<string | number> = [
+      input.threadId,
+      ...(forward ? [input.after as number] : input.before !== undefined ? [input.before] : []),
+      limit + 1,
+    ];
+    const got = rows(
+      db,
+      `SELECT * FROM "chat_message" WHERE "thread" = ? AND deleted_at IS NULL ${cond} ORDER BY "threadSeq" ${forward ? "ASC" : "DESC"} LIMIT ?`,
+      args,
+    );
     const hasMore = got.length > limit;
     const window = got.slice(0, limit);
-    if (!forward) window.reverse();   // the last 50 first, shown oldest first
+    if (!forward) window.reverse(); // the last 50 first, shown oldest first
     const enc = encOf(db, input.threadId);
     const messages = window.map((r) => {
       const o: Record<string, unknown> = {
-        messageId: str(r["id"]), threadId: str(r["thread"]), threadSeq: num(r["threadSeq"]), author: principalRef(str(r["author"])), kind: str(r["kind"]), body: str(r["body"]),
-        blocks: json(r["blocks"], []), depth: num(r["depth"]), attachments: json(r["attachments"], []), reactions: json(r["reactions"], []), pinned: flag(r["pinned"]), createdAt: num(r["createdAt"]), enc,
+        messageId: str(r["id"]),
+        threadId: str(r["thread"]),
+        threadSeq: num(r["threadSeq"]),
+        author: principalRef(str(r["author"])),
+        kind: str(r["kind"]),
+        body: str(r["body"]),
+        blocks: json(r["blocks"], []),
+        depth: num(r["depth"]),
+        attachments: json(r["attachments"], []),
+        reactions: json(r["reactions"], []),
+        pinned: flag(r["pinned"]),
+        createdAt: num(r["createdAt"]),
+        enc,
       };
       put(o, "replyTo", optStr(r["replyTo"]));
       const via = json<{ routineOwner?: string } | null>(r["via"], null);

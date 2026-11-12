@@ -13,10 +13,28 @@ import { appendRow } from "../projections.ts";
 import type { AuditCtx } from "../projections.ts";
 import { handlers } from "../impl.ts";
 
-interface RegCap { name: string; module: string; v: number; input: JsonSchema; output: JsonSchema; emits: string[]; examples: { name: string; input: unknown; output: unknown }[] }
-interface RegEvent { name: string; module: string; payload: JsonSchema }
-interface Registry { $defs: Record<string, JsonSchema>; capabilities: RegCap[]; events: RegEvent[] }
-const registry = JSON.parse(readFileSync(new URL("../../../generated/registry.json", import.meta.url), "utf8")) as Registry;
+interface RegCap {
+  name: string;
+  module: string;
+  v: number;
+  input: JsonSchema;
+  output: JsonSchema;
+  emits: string[];
+  examples: { name: string; input: unknown; output: unknown }[];
+}
+interface RegEvent {
+  name: string;
+  module: string;
+  payload: JsonSchema;
+}
+interface Registry {
+  $defs: Record<string, JsonSchema>;
+  capabilities: RegCap[];
+  events: RegEvent[];
+}
+const registry = JSON.parse(
+  readFileSync(new URL("../../../generated/registry.json", import.meta.url), "utf8"),
+) as Registry;
 const defs = registry.$defs;
 const caps = registry.capabilities.filter((c) => c.module === "audit");
 const eventSchemas = new Map(registry.events.filter((e) => e.module === "audit").map((e) => [e.name, e.payload]));
@@ -35,14 +53,40 @@ async function populated() {
   const h = harness(NOW - 10_000);
   const seams = {
     signer: { keyId: "key_space_1", sign: ed25519Signer(keys.privateKey), publicKey: keys.publicKey },
-    archive: { async write(year: number, lines: string[]) { return { file: `audit-archive/${year}.jsonl.zst`, sizeBytes: lines.join("\n").length }; } },
-    exports: { async save(_name: string, _csv: string) { return "fil_a1b2c3"; } },
+    archive: {
+      async write(year: number, lines: string[]) {
+        return { file: `audit-archive/${year}.jsonl.zst`, sizeBytes: lines.join("\n").length };
+      },
+    },
+    exports: {
+      async save(_name: string, _csv: string) {
+        return "fil_a1b2c3";
+      },
+    },
   };
   // audit.export packs rows into a file and needs authorize to decide per row (P-SEC_07): the host wires it, so this Space has one that allows.
-  const ctx = { ...h.as("usr_a1b2c3", seams), authorize: () => ({ effect: "allow", reason: "test", decisionId: "dec_t" }) } as unknown as AuditCtx;
-  appendRow(ctx, { actor: { kind: "person", id: "usr_a1b2c3" }, action: "grant.created", class: "change", resource: { type: "space", id: "spc_test" }, after: { level: "view" } }, "aud_a1b2c3");
+  const ctx = {
+    ...h.as("usr_a1b2c3", seams),
+    authorize: () => ({ effect: "allow", reason: "test", decisionId: "dec_t" }),
+  } as unknown as AuditCtx;
+  appendRow(
+    ctx,
+    {
+      actor: { kind: "person", id: "usr_a1b2c3" },
+      action: "grant.created",
+      class: "change",
+      resource: { type: "space", id: "spc_test" },
+      after: { level: "view" },
+    },
+    "aud_a1b2c3",
+  );
   h.advance(1000);
-  appendRow(ctx, { actor: { kind: "person", id: "usr_a1b2c3" }, onBehalfOf: { kind: "person", id: "usr_boss" }, action: "role.assigned", class: "admin" });
+  appendRow(ctx, {
+    actor: { kind: "person", id: "usr_a1b2c3" },
+    onBehalfOf: { kind: "person", id: "usr_boss" },
+    action: "role.assigned",
+    class: "admin",
+  });
   h.advance(1000);
   appendRow(ctx, { actor: { kind: "agent", id: "agt_a1b2c3" }, action: "vault.revealed", class: "sensitive" });
   await handlers["audit.checkpoint"](ctx, {});

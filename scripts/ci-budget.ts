@@ -17,7 +17,8 @@ const fmt = (s: number) => `${Math.floor(s / 60)}m${String(Math.round(s % 60)).p
 
 /** Wall seconds between two ISO timestamps. */
 export function wallSec(startIso: string, nowIso: string): number {
-  const a = Date.parse(startIso), b = Date.parse(nowIso);
+  const a = Date.parse(startIso),
+    b = Date.parse(nowIso);
   if (!Number.isFinite(a) || !Number.isFinite(b)) throw new Error(`bad timestamp: ${startIso} / ${nowIso}`);
   return Math.max(0, (b - a) / 1000);
 }
@@ -26,7 +27,13 @@ export function wallSec(startIso: string, nowIso: string): number {
 export function checkBudget(kind: Kind, wall: number): Verdict {
   const limitSec = LIMIT_MIN[kind] * 60;
   const ok = wall <= limitSec;
-  return { kind, wallSec: wall, limitSec, ok, line: `${ok ? "ok  " : "FAIL"} ${kind} budget: ${fmt(wall)} of ${LIMIT_MIN[kind]}m` };
+  return {
+    kind,
+    wallSec: wall,
+    limitSec,
+    ok,
+    line: `${ok ? "ok  " : "FAIL"} ${kind} budget: ${fmt(wall)} of ${LIMIT_MIN[kind]}m`,
+  };
 }
 
 export const QUEUE_ALERT_SEC = 120;
@@ -34,7 +41,10 @@ export type JobTiming = { name?: string; started_at: string | null; completed_at
 
 /** First job start, ignoring jobs that never started. */
 export function firstStart(jobs: JobTiming[]): string | null {
-  const t = jobs.map((j) => j.started_at).filter((x): x is string => !!x).sort((a, b) => Date.parse(a) - Date.parse(b));
+  const t = jobs
+    .map((j) => j.started_at)
+    .filter((x): x is string => !!x)
+    .sort((a, b) => Date.parse(a) - Date.parse(b));
   return t[0] ?? null;
 }
 
@@ -48,22 +58,30 @@ export function split(runStartedAt: string, jobs: JobTiming[], nowIso: string): 
 export function budgetLines(kind: Kind, queueSec: number, execSec: number): { ok: boolean; lines: string[] } {
   const v = checkBudget(kind, execSec);
   const lines = [v.line.replace("budget:", "budget (execution):"), `queue wait: ${fmt(queueSec)} (not counted)`];
-  if (queueSec > QUEUE_ALERT_SEC) lines.push(`ALERT queue wait ${fmt(queueSec)} is over ${QUEUE_ALERT_SEC / 60}m: runners are saturated or offline`);
+  if (queueSec > QUEUE_ALERT_SEC)
+    lines.push(`ALERT queue wait ${fmt(queueSec)} is over ${QUEUE_ALERT_SEC / 60}m: runners are saturated or offline`);
   return { ok: v.ok, lines };
 }
 
 const self = fileURLToPath(import.meta.url);
 if (process.argv[1] && path.resolve(process.argv[1]) === self) {
-  const val = (n: string) => { const i = process.argv.indexOf(n); return i >= 0 ? process.argv[i + 1] : undefined; };
+  const val = (n: string) => {
+    const i = process.argv.indexOf(n);
+    return i >= 0 ? process.argv[i + 1] : undefined;
+  };
   const kind = val("--kind") as Kind;
-  if (!(kind in LIMIT_MIN)) { console.error("usage: ci-budget.ts --kind push|main|tag (--run-id N --repo owner/name | --start ISO)"); process.exit(2); }
+  if (!(kind in LIMIT_MIN)) {
+    console.error("usage: ci-budget.ts --kind push|main|tag (--run-id N --repo owner/name | --start ISO)");
+    process.exit(2);
+  }
   const now = val("--now") ?? new Date().toISOString();
   if (val("--start")) {
     const v = checkBudget(kind, wallSec(val("--start")!, now));
     console.log(v.line);
     process.exit(v.ok ? 0 : 1);
   }
-  const repo = val("--repo"), runId = val("--run-id");
+  const repo = val("--repo"),
+    runId = val("--run-id");
   const base = `${API}/repos/${repo}/actions/runs/${runId}`;
   const token = process.env.GH_TOKEN ?? "";
   try {
@@ -77,7 +95,10 @@ if (process.argv[1] && path.resolve(process.argv[1]) === self) {
   } catch (e) {
     // The API did not answer after its retries. With --fallback-start the budget is still measured, as wall time from that start (the longer measure, queue wait included, so it can only be stricter).
     const fb = val("--fallback-start");
-    if (!fb) { console.error(e instanceof Error ? e.message : "github api failed"); process.exit(2); }
+    if (!fb) {
+      console.error(e instanceof Error ? e.message : "github api failed");
+      process.exit(2);
+    }
     console.log(`${e instanceof Error ? e.message : "github api failed"}; measuring from ${fb} instead`);
     const v = checkBudget(kind, wallSec(fb, now));
     console.log(v.line);

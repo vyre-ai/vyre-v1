@@ -59,7 +59,9 @@ const Ctx = createContext<AppsData | null>(null);
 export function AppsDataProvider({ value, children }: { value: AppsData; children: ReactNode }): ReactElement {
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
-export function useOptionalAppsData(): AppsData | null { return useContext(Ctx); }
+export function useOptionalAppsData(): AppsData | null {
+  return useContext(Ctx);
+}
 export function useAppsData(): AppsData {
   const v = useContext(Ctx);
   if (!v) throw new Error("Apps needs an AppsDataProvider above it");
@@ -67,10 +69,21 @@ export function useAppsData(): AppsData {
 }
 
 /** A live screen query. Re-subscribes only when the screen, query or state changes. */
-export function useScreenQuery<T>(screenId: string, name: string, state: Record<string, unknown> = {}, enabled = true): QueryState<T> {
+export function useScreenQuery<T>(
+  screenId: string,
+  name: string,
+  state: Record<string, unknown> = {},
+  enabled = true,
+): QueryState<T> {
   const { screens } = useAppsData();
   const key = JSON.stringify(state);
-  const q = useMemo(() => enabled ? screens.query(screenId, name, JSON.parse(key) as Record<string, unknown>) as LiveQuery<T> : { subscribe: () => () => undefined, getSnapshot: () => EMPTY as QueryState<T> }, [screens, screenId, name, key, enabled]);
+  const q = useMemo(
+    () =>
+      enabled
+        ? (screens.query(screenId, name, JSON.parse(key) as Record<string, unknown>) as LiveQuery<T>)
+        : { subscribe: () => () => undefined, getSnapshot: () => EMPTY as QueryState<T> },
+    [screens, screenId, name, key, enabled],
+  );
   return useSyncExternalStore(q.subscribe, q.getSnapshot, q.getSnapshot);
 }
 

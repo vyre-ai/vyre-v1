@@ -62,7 +62,8 @@ export function loadShell(root = SPIKE_ROOT): ShellContract {
     schemes,
     externalBin,
     shortcut: lib.includes("CommandOrControl+Shift+V") && caps.includes("global-shortcut"),
-    deepLink: schemes.includes("vyre") && lib.includes("tauri_plugin_deep_link") && cargo.includes("tauri-plugin-deep-link"),
+    deepLink:
+      schemes.includes("vyre") && lib.includes("tauri_plugin_deep_link") && cargo.includes("tauri-plugin-deep-link"),
     sidecar:
       externalBin.includes("binaries/vyred") &&
       lib.includes('sidecar("vyred")') &&

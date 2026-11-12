@@ -14,15 +14,24 @@ import { createSampleRecords, northwind } from "../table/sample.ts";
 const clean = (s: string): string => s.replaceAll("<!-- -->", "");
 const has = (s: string, n: string): boolean => s.includes(n);
 
-
-
-
 // ---------------------------------------------------------------- Records with only Contacts
 
 const side = (opts: { canEdit: boolean; ask: boolean; contactsOnly?: boolean }): string => {
   const s = createSampleRecords(opts.contactsOnly ? { ...northwind, types: northwind.types.slice(0, 1) } : northwind);
-  const only = { ...s.data, ...(opts.canEdit ? { canEditSchema: true } : {}), ...(opts.ask ? { askVyre: () => undefined } : {}) };
-  return clean(renderToStaticMarkup(<RecordsDataProvider value={only}><RecordsStateProvider><RecordsSidebar /></RecordsStateProvider></RecordsDataProvider>));
+  const only = {
+    ...s.data,
+    ...(opts.canEdit ? { canEditSchema: true } : {}),
+    ...(opts.ask ? { askVyre: () => undefined } : {}),
+  };
+  return clean(
+    renderToStaticMarkup(
+      <RecordsDataProvider value={only}>
+        <RecordsStateProvider>
+          <RecordsSidebar />
+        </RecordsStateProvider>
+      </RecordsDataProvider>,
+    ),
+  );
 };
 
 test("the sidebar of a full Space has no invitation; Ask Vyre is a Manage row only where the shell has an assistant", () => {
@@ -39,24 +48,88 @@ test("Records with only Contacts shows Contacts, then New record type with a one
   assert.ok(has(out, "Ask Vyre to set it up"));
   assert.ok(out.indexOf('data-testid="records-invite"') > out.indexOf('data-testid="count-'), "Contacts come first");
   const readOnly = side({ canEdit: false, ask: true, contactsOnly: true });
-  assert.ok(!has(readOnly, 'data-testid="records-invite"'), "without the schema permission there is nothing to invite to");
+  assert.ok(
+    !has(readOnly, 'data-testid="records-invite"'),
+    "without the schema permission there is nothing to invite to",
+  );
 });
 
 // ---------------------------------------------------------------- Connect it to, starter fields: through the real schema module
 
-
-
-
 test("one sheet holds the name, the starter chips, the link chips and Ask Vyre; a rename shows none of them", () => {
   // a new Space as the sidebar sees it: Contacts in use, the seeded types the modules need still empty (the real registry is checked in test/records.contacts-only.test.ts)
-  const row = (key: string, rowCount: number, system = false): TypeRow => ({ key, title: key, plural: `${key}s`, icon: "table", label: "internal", system, rowCount, fieldCount: 3 }) as TypeRow;
-  const connectTo = connectChoices([row("contact", 1), row("company", 0), row("meeting", 0), row("project", 0), row("task", 0, true), row("agent", 0, true)], worthShowing);
-  assert.deepEqual(connectTo.map((c) => c.key), ["contact"], "only what the person sees can be linked, Contacts first");
-  const sheet = clean(renderToStaticMarkup(<TypeSheet call={async () => ({})} takenKeys={[]} connectTo={connectTo} onAsk={() => undefined} onClose={() => undefined} onDone={() => undefined} />));
-  for (const id of ["type-starter-email", "type-starter-stage", "type-starter-owner", "type-starter-date", "type-starter-amount", "type-starter-notes", "type-starters-more", "type-connect-contact", "type-sheet-ask"]) assert.ok(has(sheet, `data-testid="${id}"`), id);
-  const plain = clean(renderToStaticMarkup(<TypeSheet call={async () => ({})} takenKeys={[]} onClose={() => undefined} onDone={() => undefined} />));
-  assert.ok(!has(plain, "Connect it to") && !has(plain, 'data-testid="type-sheet-ask"'), "no targets and no assistant: neither is drawn");
-  const rename = clean(renderToStaticMarkup(<TypeSheet call={async () => ({})} takenKeys={[]} connectTo={connectTo} rename={{ key: "client", title: "Client", plural: "Clients", icon: "table" }} onClose={() => undefined} onDone={() => undefined} />));
+  const row = (key: string, rowCount: number, system = false): TypeRow =>
+    ({
+      key,
+      title: key,
+      plural: `${key}s`,
+      icon: "table",
+      label: "internal",
+      system,
+      rowCount,
+      fieldCount: 3,
+    }) as TypeRow;
+  const connectTo = connectChoices(
+    [
+      row("contact", 1),
+      row("company", 0),
+      row("meeting", 0),
+      row("project", 0),
+      row("task", 0, true),
+      row("agent", 0, true),
+    ],
+    worthShowing,
+  );
+  assert.deepEqual(
+    connectTo.map((c) => c.key),
+    ["contact"],
+    "only what the person sees can be linked, Contacts first",
+  );
+  const sheet = clean(
+    renderToStaticMarkup(
+      <TypeSheet
+        call={async () => ({})}
+        takenKeys={[]}
+        connectTo={connectTo}
+        onAsk={() => undefined}
+        onClose={() => undefined}
+        onDone={() => undefined}
+      />,
+    ),
+  );
+  for (const id of [
+    "type-starter-email",
+    "type-starter-stage",
+    "type-starter-owner",
+    "type-starter-date",
+    "type-starter-amount",
+    "type-starter-notes",
+    "type-starters-more",
+    "type-connect-contact",
+    "type-sheet-ask",
+  ])
+    assert.ok(has(sheet, `data-testid="${id}"`), id);
+  const plain = clean(
+    renderToStaticMarkup(
+      <TypeSheet call={async () => ({})} takenKeys={[]} onClose={() => undefined} onDone={() => undefined} />,
+    ),
+  );
+  assert.ok(
+    !has(plain, "Connect it to") && !has(plain, 'data-testid="type-sheet-ask"'),
+    "no targets and no assistant: neither is drawn",
+  );
+  const rename = clean(
+    renderToStaticMarkup(
+      <TypeSheet
+        call={async () => ({})}
+        takenKeys={[]}
+        connectTo={connectTo}
+        rename={{ key: "client", title: "Client", plural: "Clients", icon: "table" }}
+        onClose={() => undefined}
+        onDone={() => undefined}
+      />,
+    ),
+  );
   assert.ok(!has(rename, "type-starters") && !has(rename, "type-connect"));
 });
 
@@ -65,8 +138,14 @@ test("one sheet holds the name, the starter chips, the link chips and Ask Vyre; 
 test("Ask in Records opens a pane in the tab with the Records context and never navigates", () => {
   const log: unknown[] = [];
   let state = ASK_CLOSED;
-  const navigated: string[] = [];   // the only things that could navigate are not reachable from makeAskVyre: it takes a dispatch and nothing else
-  const ask = makeAskVyre((a) => { log.push(a); state = askPaneReduce(state, a); }, { type: "client", screen: undefined });
+  const navigated: string[] = []; // the only things that could navigate are not reachable from makeAskVyre: it takes a dispatch and nothing else
+  const ask = makeAskVyre(
+    (a) => {
+      log.push(a);
+      state = askPaneReduce(state, a);
+    },
+    { type: "client", screen: undefined },
+  );
   ask({});
   assert.equal(state.open, true, "the pane opens");
   assert.deepEqual(state.about, { type: "client" });
@@ -75,7 +154,12 @@ test("Ask in Records opens a pane in the tab with the Records context and never 
   assert.equal(c.focus, "focus-records");
   assert.deepEqual(c.open, [{ type: "record_type", id: "client", title: "Client" }]);
   assert.match(c.title, /Records/);
-  makeAskVyre((a) => { state = askPaneReduce(state, a); }, { screen: "records.types" })({ making: "Deal" });
+  makeAskVyre(
+    (a) => {
+      state = askPaneReduce(state, a);
+    },
+    { screen: "records.types" },
+  )({ making: "Deal" });
   assert.deepEqual(state.about, { page: "types", making: "Deal" });
   assert.equal(askContext(state.about).title, "Making the record type Deal");
   assert.equal(askScopeId(state.about), "types");
@@ -87,16 +171,36 @@ test("the pane is the shared Ask pane of the shell, on the shared side pane, wit
   const { AskPane } = await import("../../../shell/ask/AskPane.tsx");
   const { sampleRuntime } = await import("../../../shell/providers/misc-test-runtime.tsx");
   const rt = sampleRuntime({ screens: {} as never, call: async () => ({}) });
-  const state = { place: "records", thing: { kind: "records", id: "types", title: "New type Deal" }, agentId: "assistant", hint: askHint({ making: "Deal" }), fresh: 0, seq: 1 };
+  const state = {
+    place: "records",
+    thing: { kind: "records", id: "types", title: "New type Deal" },
+    agentId: "assistant",
+    hint: askHint({ making: "Deal" }),
+    fresh: 0,
+    seq: 1,
+  };
   const out = clean(renderToStaticMarkup(<AskPane rt={rt} state={state} />));
-  assert.ok(has(out, 'data-testid="side-pane"') && has(out, 'data-testid="ask-pane"') && has(out, 'data-testid="ask-pane-chip"'));
+  assert.ok(
+    has(out, 'data-testid="side-pane"') &&
+      has(out, 'data-testid="ask-pane"') &&
+      has(out, 'data-testid="ask-pane-chip"'),
+  );
   assert.ok(has(out, askHint({ making: "Deal" })) && has(out, "Ask Vyre") && has(out, "New type Deal"));
 });
 
 test("the assistant can reach schema.diff, schema.apply and the change card, and a plan-mode turn cannot apply", () => {
-  const caps = (JSON.parse(readFileSync(new URL("../../../../../../generated/registry.json", import.meta.url), "utf8")) as { capabilities: { name: string; surfaces?: { mcp?: { toolset?: string }; agent?: { planMode?: string } } }[] }).capabilities;
+  const caps = (
+    JSON.parse(readFileSync(new URL("../../../../../../generated/registry.json", import.meta.url), "utf8")) as {
+      capabilities: { name: string; surfaces?: { mcp?: { toolset?: string }; agent?: { planMode?: string } } }[];
+    }
+  ).capabilities;
   const by = (n: string) => caps.find((c) => c.name === n);
-  for (const n of ["schema.diff", "schema.apply", "console.diff_propose"]) assert.equal(by(n)?.surfaces?.mcp?.toolset, "engineer", `${n} is an engineer tool the assistant calls as the person`);
+  for (const n of ["schema.diff", "schema.apply", "console.diff_propose"])
+    assert.equal(
+      by(n)?.surfaces?.mcp?.toolset,
+      "engineer",
+      `${n} is an engineer tool the assistant calls as the person`,
+    );
   assert.equal(by("schema.apply")?.surfaces?.agent?.planMode, "blocked");
 });
 
@@ -105,7 +209,16 @@ test("a proposed change shows Apply and Discard, and the change card is what car
   assert.equal(typeof diffCardData, "function");
   const { renderToStaticMarkup: render } = await import("react-dom/server");
   const { DiffCardBlock } = await import("../../../../../../ui/src/blocks/impl-b/index.tsx");
-  const block = { id: "blk_s1", type: "diff_card", data: { diffId: "dif_1", kind: "schema", title: "Add Client", changes: [{ path: "client", before: null, after: "new type" }] } };
+  const block = {
+    id: "blk_s1",
+    type: "diff_card",
+    data: {
+      diffId: "dif_1",
+      kind: "schema",
+      title: "Add Client",
+      changes: [{ path: "client", before: null, after: "new type" }],
+    },
+  };
   const out = clean(render(<DiffCardBlock block={block as never} host={{} as never} />));
   assert.ok(has(out, ">Apply<") && has(out, ">Discard<") && !has(out, ">Reject<"));
 });

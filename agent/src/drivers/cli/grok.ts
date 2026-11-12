@@ -16,24 +16,35 @@ import type { CliAdapter, CommandOptions } from "./types.ts";
  * (alias `--effort`) takes a free value. Ask first is default, Auto is acceptEdits, Plan is plan. Vyre never passes --always-approve or bypassPermissions: Auto here is the CLI's accept-edits mode, and
  * whatever leaves Vyre is held by the Gate behind the MCP tools in every mode. Max maps to high, the highest effort named in the CLI's strings; an unknown value is the CLI's to refuse.
  */
-export function grokPermission(o: Pick<CommandOptions, "mode" | "planMode">): "default" | "acceptEdits" | "plan" | null {
+export function grokPermission(
+  o: Pick<CommandOptions, "mode" | "planMode">,
+): "default" | "acceptEdits" | "plan" | null {
   const mode = o.mode ?? (o.planMode ? "plan" : undefined);
   return mode === undefined ? null : mode === "plan" ? "plan" : mode === "auto" ? "acceptEdits" : "default";
 }
-export const grokEffort = (e: Effort | null | undefined): string | null => (e === undefined || e === null ? null : e === "max" ? "high" : e);
+export const grokEffort = (e: Effort | null | undefined): string | null =>
+  e === undefined || e === null ? null : e === "max" ? "high" : e;
 
 export const grok: CliAdapter = {
   id: "grok",
   bin: "grok",
   persistent: false,
   // the default the pinned CLI names; the account's own list comes from the CLI itself (models.ts, `grok models`)
-  models: [{ id: "grok-4.6", label: "Grok 4.6" }, { id: "grok-4.5", label: "Grok 4.5" }],
+  models: [
+    { id: "grok-4.6", label: "Grok 4.6" },
+    { id: "grok-4.5", label: "Grok 4.5" },
+  ],
   systemFlag: false,
   env: () => ({ GROK_CLAUDE_MCPS_ENABLED: "0", GROK_CURSOR_MCPS_ENABLED: "0" }),
   command(o: CommandOptions) {
     return [
-      "grok", "-p", "--output-format", "streaming-json", "--no-auto-update",
-      "--mcp-config", mcpConfigJson(o.mcpUrl, o.mcpStdio),
+      "grok",
+      "-p",
+      "--output-format",
+      "streaming-json",
+      "--no-auto-update",
+      "--mcp-config",
+      mcpConfigJson(o.mcpUrl, o.mcpStdio),
       ...(grokPermission(o) !== null ? ["--permission-mode", grokPermission(o)!] : []),
       ...(o.model !== null ? ["-m", o.model] : []),
       ...(grokEffort(o.effort) !== null ? ["--reasoning-effort", grokEffort(o.effort)!] : []),

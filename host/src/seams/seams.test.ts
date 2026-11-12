@@ -12,47 +12,91 @@ import type { SeamCtx, SeamFetch, VaultPort } from "./ports.ts";
 const NOW = 1_760_000_000_000;
 const TRACE = "c".repeat(32);
 const dec = new TextDecoder();
-const code = (c: string) => (e: unknown): boolean => e instanceof HostError && e.error.code === c;
+const code =
+  (c: string) =>
+  (e: unknown): boolean =>
+    e instanceof HostError && e.error.code === c;
 
-const SA = JSON.stringify({ type: "service_account", client_id: "1234567890", client_email: "vyre@proj.iam.gserviceaccount.com", private_key: "-----BEGIN PRIVATE KEY-----\nSECRETKEYMATERIAL\n-----END PRIVATE KEY-----\n" }); // secret-scan: fake
+const SA = JSON.stringify({
+  type: "service_account",
+  client_id: "1234567890",
+  client_email: "vyre@proj.iam.gserviceaccount.com",
+  private_key: "-----BEGIN PRIVATE KEY-----\nSECRETKEYMATERIAL\n-----END PRIVATE KEY-----\n",
+}); // secret-scan: fake
 const MSAPP = JSON.stringify({ clientId: "app-1", clientSecret: "s3cr3t-value", tenantId: "contoso.onmicrosoft.com" });
 
-interface Sent { url: string; method: string | undefined; headers: Record<string, string>; body: string | Uint8Array | undefined }
+interface Sent {
+  url: string;
+  method: string | undefined;
+  headers: Record<string, string>;
+  body: string | Uint8Array | undefined;
+}
 
 function net(replies: { status: number; body?: string; bytes?: Uint8Array }[]) {
   const sent: Sent[] = [];
   const fetch: SeamFetch = async (url, init) => {
     sent.push({ url, method: init?.method, headers: init?.headers ?? {}, body: init?.body });
     const r = replies.shift() ?? { status: 200, body: "{}" };
-    return { status: r.status, text: async () => r.body ?? "", arrayBuffer: async () => (r.bytes ?? new TextEncoder().encode(r.body ?? "")).slice().buffer as ArrayBuffer };
+    return {
+      status: r.status,
+      text: async () => r.body ?? "",
+      arrayBuffer: async () => (r.bytes ?? new TextEncoder().encode(r.body ?? "")).slice().buffer as ArrayBuffer,
+    };
   };
   return { fetch, sent };
 }
 
-function world(o: { secret?: string; rows?: unknown[]; replies?: { status: number; body?: string; bytes?: Uint8Array }[] } = {}) {
+function world(
+  o: { secret?: string; rows?: unknown[]; replies?: { status: number; body?: string; bytes?: Uint8Array }[] } = {},
+) {
   const n = net(o.replies ?? []);
   const asked: { handle: string; space: string }[] = [];
   const blobs: { space: string; size: number; mime: string }[] = [];
   const vault: VaultPort = {
-    secret: async (handle, space) => { asked.push({ handle, space }); return o.secret ?? SA; },
+    secret: async (handle, space) => {
+      asked.push({ handle, space });
+      return o.secret ?? SA;
+    },
     signRs256: async (_h, _s, data) => `SIG(${data.length})`,
   };
   const deps = {
-    vault, fetch: n.fetch,
-    files: { read: async (_s: string, id: string) => ({ name: `${id}.txt`, mime: "text/plain", bytes: new TextEncoder().encode("file body") }) },
-    blobs: { put: async (space: string, bytes: Uint8Array, mime: string) => { blobs.push({ space, size: bytes.byteLength, mime }); return `blb_${bytes.byteLength}`; } },
+    vault,
+    fetch: n.fetch,
+    files: {
+      read: async (_s: string, id: string) => ({
+        name: `${id}.txt`,
+        mime: "text/plain",
+        bytes: new TextEncoder().encode("file body"),
+      }),
+    },
+    blobs: {
+      put: async (space: string, bytes: Uint8Array, mime: string) => {
+        blobs.push({ space, size: bytes.byteLength, mime });
+        return `blb_${bytes.byteLength}`;
+      },
+    },
     members: { emails: async (space: string) => [{ userId: "usr_maya", email: `maya@${space}.test` }] },
     space: "spc_1",
   };
-  const ctx: SeamCtx = { space: "spc_1", trace: { traceId: TRACE }, now: () => NOW, db: { all: () => o.rows ?? [{ h: "#Google_DWD" }] } };
+  const ctx: SeamCtx = {
+    space: "spc_1",
+    trace: { traceId: TRACE },
+    now: () => NOW,
+    db: { all: () => o.rows ?? [{ h: "#Google_DWD" }] },
+  };
   return { ...n, asked, blobs, deps, ctx };
 }
 
 const claimsOf = (jwt: string): { header: Record<string, unknown>; claims: Record<string, unknown>; sig: string } => {
   const [h, c, s] = jwt.split(".") as [string, string, string];
-  return { header: JSON.parse(Buffer.from(h, "base64url").toString()), claims: JSON.parse(Buffer.from(c, "base64url").toString()), sig: s };
+  return {
+    header: JSON.parse(Buffer.from(h, "base64url").toString()),
+    claims: JSON.parse(Buffer.from(c, "base64url").toString()),
+    sig: s,
+  };
 };
-const form = (body: string | Uint8Array | undefined): URLSearchParams => new URLSearchParams(typeof body === "string" ? body : "");
+const form = (body: string | Uint8Array | undefined): URLSearchParams =>
+  new URLSearchParams(typeof body === "string" ? body : "");
 
 // ---- Google
 
@@ -68,15 +112,32 @@ test("google: serviceAccount refuses a bad handle and an item that is not a serv
   const w = world();
   await assert.rejects(createGoogleHost(w.deps).serviceAccount(w.ctx, "Google_DWD"), code("validation.bad_input"));
   assert.equal(w.asked.length, 0, "a bad handle never reaches the Vault");
-  for (const secret of ["not json", "{}", JSON.stringify({ type: "authorized_user" }), JSON.stringify({ type: "service_account", client_id: "1" })]) {
+  for (const secret of [
+    "not json",
+    "{}",
+    JSON.stringify({ type: "authorized_user" }),
+    JSON.stringify({ type: "service_account", client_id: "1" }),
+  ]) {
     const x = world({ secret });
-    await assert.rejects(createGoogleHost(x.deps).serviceAccount(x.ctx, "#Google_DWD"), code("validation.bad_input"), secret);
+    await assert.rejects(
+      createGoogleHost(x.deps).serviceAccount(x.ctx, "#Google_DWD"),
+      code("validation.bad_input"),
+      secret,
+    );
   }
 });
 
 test("google: mintToken signs a delegated JWT in the Vault and trades it for a token", async () => {
-  const w = world({ replies: [{ status: 200, body: JSON.stringify({ access_token: "ya29.tok", expires_in: 1800, token_type: "Bearer" }) }] });
-  const t = await createGoogleHost(w.deps).mintToken(w.ctx, { connectionId: "con_1", sub: "maya@vyre.test", scopes: ["https://www.googleapis.com/auth/gmail.modify", "https://www.googleapis.com/auth/calendar"] });
+  const w = world({
+    replies: [
+      { status: 200, body: JSON.stringify({ access_token: "ya29.tok", expires_in: 1800, token_type: "Bearer" }) },
+    ],
+  });
+  const t = await createGoogleHost(w.deps).mintToken(w.ctx, {
+    connectionId: "con_1",
+    sub: "maya@vyre.test",
+    scopes: ["https://www.googleapis.com/auth/gmail.modify", "https://www.googleapis.com/auth/calendar"],
+  });
   assert.deepEqual(t, { token: "ya29.tok", expiresAt: NOW + 1_800_000 });
   assert.equal(w.sent.length, 1);
   const req = w.sent[0]!;
@@ -89,7 +150,10 @@ test("google: mintToken signs a delegated JWT in the Vault and trades it for a t
   assert.deepEqual(jwt.header, { alg: "RS256", typ: "JWT" });
   assert.equal(jwt.claims["iss"], "vyre@proj.iam.gserviceaccount.com");
   assert.equal(jwt.claims["sub"], "maya@vyre.test");
-  assert.equal(jwt.claims["scope"], "https://www.googleapis.com/auth/gmail.modify https://www.googleapis.com/auth/calendar");
+  assert.equal(
+    jwt.claims["scope"],
+    "https://www.googleapis.com/auth/gmail.modify https://www.googleapis.com/auth/calendar",
+  );
   assert.equal(jwt.claims["aud"], GOOGLE_TOKEN_URL);
   assert.equal(jwt.claims["iat"], NOW / 1000);
   assert.equal(jwt.claims["exp"], NOW / 1000 + 3600);
@@ -108,26 +172,49 @@ test("google: mintToken maps Google's answers to provider errors", async () => {
   ];
   for (const [status, body, want] of cases) {
     const w = world({ replies: [{ status, body }] });
-    await assert.rejects(createGoogleHost(w.deps).mintToken(w.ctx, { connectionId: "con_1", sub: "a@b.test", scopes: ["s"] }), code(want), `${status} ${body}`);
+    await assert.rejects(
+      createGoogleHost(w.deps).mintToken(w.ctx, { connectionId: "con_1", sub: "a@b.test", scopes: ["s"] }),
+      code(want),
+      `${status} ${body}`,
+    );
   }
-  const w = world({ replies: [{ status: 400, body: '{"error":"unauthorized_client","error_description":"Client is unauthorized"}' }] });
-  await assert.rejects(createGoogleHost(w.deps).mintToken(w.ctx, { connectionId: "con_1", sub: "a@b.test", scopes: ["s"] }), (e: unknown) => {
-    const d = (e as HostError).error.details as { why?: string };
-    return d.why === "unauthorized_client: Client is unauthorized";
+  const w = world({
+    replies: [{ status: 400, body: '{"error":"unauthorized_client","error_description":"Client is unauthorized"}' }],
   });
+  await assert.rejects(
+    createGoogleHost(w.deps).mintToken(w.ctx, { connectionId: "con_1", sub: "a@b.test", scopes: ["s"] }),
+    (e: unknown) => {
+      const d = (e as HostError).error.details as { why?: string };
+      return d.why === "unauthorized_client: Client is unauthorized";
+    },
+  );
   // the words say what to do: a client not allowed yet, or an admin address Google does not know
   const said = async (body: string): Promise<string> => {
     const x = world({ replies: [{ status: 400, body }] });
-    try { await createGoogleHost(x.deps).mintToken(x.ctx, { connectionId: "con_1", sub: "nobody@b.test", scopes: ["s"] }); return ""; } catch (e) { return (e as HostError).error.message ?? ""; }
+    try {
+      await createGoogleHost(x.deps).mintToken(x.ctx, { connectionId: "con_1", sub: "nobody@b.test", scopes: ["s"] });
+      return "";
+    } catch (e) {
+      return (e as HostError).error.message ?? "";
+    }
   };
-  assert.match(await said('{"error":"unauthorized_client","error_description":"Client is unauthorized"}'), /numeric client ID.*24 hours/);
-  assert.match(await said('{"error":"invalid_grant","error_description":"Invalid email or User ID"}'), /no Workspace user nobody@b\.test/);
+  assert.match(
+    await said('{"error":"unauthorized_client","error_description":"Client is unauthorized"}'),
+    /numeric client ID.*24 hours/,
+  );
+  assert.match(
+    await said('{"error":"invalid_grant","error_description":"Invalid email or User ID"}'),
+    /no Workspace user nobody@b\.test/,
+  );
 });
 
 test("google: mintToken with no configured connection fails as auth, before any network", async () => {
   for (const rows of [[], [{ h: "not a handle" }], [{ h: 5 }]]) {
     const w = world({ rows });
-    await assert.rejects(createGoogleHost(w.deps).mintToken(w.ctx, { connectionId: "con_x", sub: "a@b.test", scopes: ["s"] }), code("provider.auth_failed"));
+    await assert.rejects(
+      createGoogleHost(w.deps).mintToken(w.ctx, { connectionId: "con_x", sub: "a@b.test", scopes: ["s"] }),
+      code("provider.auth_failed"),
+    );
     assert.equal(w.sent.length, 0);
     assert.equal(w.asked.length, 0);
   }
@@ -146,7 +233,11 @@ test("google: memberEmails, fileBytes and putBlob go to the Space's own stores",
 
 test("google: download fetches with the bearer token and stores a blob", async () => {
   const w = world({ replies: [{ status: 200, bytes: new Uint8Array([1, 2, 3, 4]) }] });
-  const got = await createGoogleHost(w.deps).download(w.ctx, { url: "https://www.googleapis.com/drive/v3/files/f1?alt=media", token: "tok", mime: "application/pdf" });
+  const got = await createGoogleHost(w.deps).download(w.ctx, {
+    url: "https://www.googleapis.com/drive/v3/files/f1?alt=media",
+    token: "tok",
+    mime: "application/pdf",
+  });
   assert.deepEqual(got, { blobId: "blb_4", size: 4, mime: "application/pdf" });
   assert.equal(w.sent[0]!.headers["authorization"], "Bearer tok");
   assert.deepEqual(w.blobs, [{ space: "spc_1", size: 4, mime: "application/pdf" }]);
@@ -155,9 +246,24 @@ test("google: download fetches with the bearer token and stores a blob", async (
 test("google: a token only goes to a listed https host", async () => {
   const w = world();
   const h = createGoogleHost(w.deps);
-  for (const url of ["http://www.googleapis.com/x", "https://evil.test/x", "https://googleapis.com.evil.test/x", "https://user:pw@www.googleapis.com/x", "nonsense"]) {
-    await assert.rejects(h.download(w.ctx, { url, token: "tok" }), (e: unknown) => e instanceof HostError && (e.error.code === "permission.no_grant" || e.error.code === "validation.bad_input"), url);
-    await assert.rejects(h.upload(w.ctx, { url, token: "tok", fileId: "f", metadata: {} }), (e: unknown) => e instanceof HostError, url);
+  for (const url of [
+    "http://www.googleapis.com/x",
+    "https://evil.test/x",
+    "https://googleapis.com.evil.test/x",
+    "https://user:pw@www.googleapis.com/x",
+    "nonsense",
+  ]) {
+    await assert.rejects(
+      h.download(w.ctx, { url, token: "tok" }),
+      (e: unknown) =>
+        e instanceof HostError && (e.error.code === "permission.no_grant" || e.error.code === "validation.bad_input"),
+      url,
+    );
+    await assert.rejects(
+      h.upload(w.ctx, { url, token: "tok", fileId: "f", metadata: {} }),
+      (e: unknown) => e instanceof HostError,
+      url,
+    );
   }
   assert.equal(w.sent.length, 0, "nothing was sent");
 });
@@ -165,13 +271,24 @@ test("google: a token only goes to a listed https host", async () => {
 test("google: download maps a failing status", async () => {
   const w = world({ replies: [{ status: 404 }, { status: 403 }] });
   const h = createGoogleHost(w.deps);
-  await assert.rejects(h.download(w.ctx, { url: "https://www.googleapis.com/drive/v3/files/f1?alt=media", token: "t" }), code("provider.bad_response"));
-  await assert.rejects(h.download(w.ctx, { url: "https://www.googleapis.com/drive/v3/files/f1?alt=media", token: "t" }), code("provider.auth_failed"));
+  await assert.rejects(
+    h.download(w.ctx, { url: "https://www.googleapis.com/drive/v3/files/f1?alt=media", token: "t" }),
+    code("provider.bad_response"),
+  );
+  await assert.rejects(
+    h.download(w.ctx, { url: "https://www.googleapis.com/drive/v3/files/f1?alt=media", token: "t" }),
+    code("provider.auth_failed"),
+  );
 });
 
 test("google: upload sends metadata and the Space file as multipart and returns Google's answer", async () => {
   const w = world({ replies: [{ status: 200, body: '{"id":"up1","name":"a.txt"}' }] });
-  const out = await createGoogleHost(w.deps).upload(w.ctx, { url: "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart", token: "tok", fileId: "fil_9", metadata: { name: "a.txt" } });
+  const out = await createGoogleHost(w.deps).upload(w.ctx, {
+    url: "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart",
+    token: "tok",
+    fileId: "fil_9",
+    metadata: { name: "a.txt" },
+  });
   assert.deepEqual(out, { id: "up1", name: "a.txt" });
   const req = w.sent[0]!;
   assert.equal(req.method, "POST");
@@ -179,13 +296,21 @@ test("google: upload sends metadata and the Space file as multipart and returns 
   const ct = req.headers["content-type"]!;
   const boundary = /^multipart\/related; boundary=(.+)$/.exec(ct)![1]!;
   const body = dec.decode(req.body as Uint8Array);
-  assert.ok(body.startsWith(`--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n{"name":"a.txt"}\r\n--${boundary}\r\nContent-Type: text/plain\r\n\r\nfile body\r\n--${boundary}--`));
+  assert.ok(
+    body.startsWith(
+      `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n{"name":"a.txt"}\r\n--${boundary}\r\nContent-Type: text/plain\r\n\r\nfile body\r\n--${boundary}--`,
+    ),
+  );
 });
 
 // ---- Microsoft
 
 test("microsoft: mintToken uses client credentials on the tenant's endpoint", async () => {
-  const w = world({ secret: MSAPP, rows: [{ h: "#Microsoft_App" }], replies: [{ status: 200, body: '{"access_token":"eyJ.graph","expires_in":3599}' }] });
+  const w = world({
+    secret: MSAPP,
+    rows: [{ h: "#Microsoft_App" }],
+    replies: [{ status: 200, body: '{"access_token":"eyJ.graph","expires_in":3599}' }],
+  });
   const t = await createMsHost(w.deps).mintToken(w.ctx, { connectionId: "con_ms" });
   assert.deepEqual(t, { token: "eyJ.graph", expiresAt: NOW + 3_599_000 });
   const req = w.sent[0]!;
@@ -199,15 +324,36 @@ test("microsoft: mintToken uses client credentials on the tenant's endpoint", as
 });
 
 test("microsoft: refusals and a handle supplied by the module's own lookup", async () => {
-  const w = world({ secret: MSAPP, replies: [{ status: 401, body: '{"error":"invalid_client","error_description":"AADSTS7000215: Invalid client secret.\\r\\nTrace ID: x"}' }] });
-  await assert.rejects(createMsHost({ ...w.deps, handleFor: () => "#Microsoft_App" }).mintToken(w.ctx, { connectionId: "c" }), (e: unknown) => {
-    const d = e instanceof HostError ? (e.error.details as { why?: string }) : {};
-    return e instanceof HostError && e.error.code === "provider.auth_failed" && d.why === "invalid_client: AADSTS7000215: Invalid client secret.";
+  const w = world({
+    secret: MSAPP,
+    replies: [
+      {
+        status: 401,
+        body: '{"error":"invalid_client","error_description":"AADSTS7000215: Invalid client secret.\\r\\nTrace ID: x"}',
+      },
+    ],
   });
+  await assert.rejects(
+    createMsHost({ ...w.deps, handleFor: () => "#Microsoft_App" }).mintToken(w.ctx, { connectionId: "c" }),
+    (e: unknown) => {
+      const d = e instanceof HostError ? (e.error.details as { why?: string }) : {};
+      return (
+        e instanceof HostError &&
+        e.error.code === "provider.auth_failed" &&
+        d.why === "invalid_client: AADSTS7000215: Invalid client secret."
+      );
+    },
+  );
   const none = world({ secret: MSAPP, rows: [] });
-  await assert.rejects(createMsHost(none.deps).mintToken(none.ctx, { connectionId: "c" }), code("provider.auth_failed"));
+  await assert.rejects(
+    createMsHost(none.deps).mintToken(none.ctx, { connectionId: "c" }),
+    code("provider.auth_failed"),
+  );
   const wrong = world({ secret: SA, rows: [{ h: "#Microsoft_App" }] });
-  await assert.rejects(createMsHost(wrong.deps).mintToken(wrong.ctx, { connectionId: "c" }), code("validation.bad_input"));
+  await assert.rejects(
+    createMsHost(wrong.deps).mintToken(wrong.ctx, { connectionId: "c" }),
+    code("validation.bad_input"),
+  );
 });
 
 test("microsoft: appRegistration shows the client and tenant, never the secret", async () => {
@@ -220,7 +366,10 @@ test("microsoft: appRegistration shows the client and tenant, never the secret",
 test("microsoft: downloads are limited to Microsoft hosts", async () => {
   const w = world({ replies: [{ status: 200, bytes: new Uint8Array(3) }] });
   const h = createMsHost(w.deps);
-  await assert.rejects(h.download(w.ctx, { url: "https://www.googleapis.com/x", token: "t" }), code("permission.no_grant"));
+  await assert.rejects(
+    h.download(w.ctx, { url: "https://www.googleapis.com/x", token: "t" }),
+    code("permission.no_grant"),
+  );
   const got = await h.download(w.ctx, { url: "https://graph.microsoft.com/v1.0/me/drive/items/1/content", token: "t" });
   assert.equal(got.size, 3);
 });
@@ -228,22 +377,41 @@ test("microsoft: downloads are limited to Microsoft hosts", async () => {
 test("microsoft: upload PUTs the Space file's bytes as the body, to a Microsoft host only, and returns Graph's answer", async () => {
   const w = world({ replies: [{ status: 201, body: '{"id":"item1","name":"a.txt"}' }, { status: 403 }] });
   const h = createMsHost(w.deps);
-  await assert.rejects(h.upload(w.ctx, { url: "https://www.googleapis.com/x", token: "t", fileId: "f" }), code("permission.no_grant"));
-  const out = await h.upload(w.ctx, { url: "https://graph.microsoft.com/v1.0/me/drive/root:/a.txt:/content", token: "tok", fileId: "fil_9" });
+  await assert.rejects(
+    h.upload(w.ctx, { url: "https://www.googleapis.com/x", token: "t", fileId: "f" }),
+    code("permission.no_grant"),
+  );
+  const out = await h.upload(w.ctx, {
+    url: "https://graph.microsoft.com/v1.0/me/drive/root:/a.txt:/content",
+    token: "tok",
+    fileId: "fil_9",
+  });
   assert.deepEqual(out, { id: "item1", name: "a.txt" });
   const req = w.sent[0]!;
   assert.equal(req.method, "PUT");
   assert.equal(req.headers["authorization"], "Bearer tok");
   assert.equal(req.headers["content-type"], "text/plain");
   assert.equal(dec.decode(req.body as Uint8Array), "file body");
-  await assert.rejects(h.upload(w.ctx, { url: "https://graph.microsoft.com/v1.0/me/drive/root:/a.txt:/content", token: "tok", fileId: "fil_9" }), code("provider.auth_failed"));
+  await assert.rejects(
+    h.upload(w.ctx, {
+      url: "https://graph.microsoft.com/v1.0/me/drive/root:/a.txt:/content",
+      token: "tok",
+      fileId: "fil_9",
+    }),
+    code("provider.auth_failed"),
+  );
 });
 
 // ---- IMAP
 
 test("imap: the Vault releases the password for a handle, nothing else", async () => {
   const asked: string[] = [];
-  const resolve = createImapSecretResolver({ secret: async (h, s) => { asked.push(`${h}@${s}`); return "pa55"; } });
+  const resolve = createImapSecretResolver({
+    secret: async (h, s) => {
+      asked.push(`${h}@${s}`);
+      return "pa55";
+    },
+  });
   const ctx = { space: "spc_1", trace: { traceId: TRACE } };
   assert.equal(await resolve("#Mail_Pw", ctx), "pa55");
   assert.deepEqual(asked, ["#Mail_Pw@spc_1"]);
@@ -253,8 +421,16 @@ test("imap: the Vault releases the password for a handle, nothing else", async (
 
 test("imap: a Vault failure or an empty value is an auth failure with no detail leaked", async () => {
   const ctx = { space: "spc_1", trace: { traceId: TRACE } };
-  const boom = createImapSecretResolver({ secret: async () => { throw new Error("vault locked: key=XYZ"); } });
-  await assert.rejects(boom("#Mail_Pw", ctx), (e: unknown) => e instanceof HostError && e.error.code === "provider.auth_failed" && !JSON.stringify(e.error).includes("XYZ"));
+  const boom = createImapSecretResolver({
+    secret: async () => {
+      throw new Error("vault locked: key=XYZ");
+    },
+  });
+  await assert.rejects(
+    boom("#Mail_Pw", ctx),
+    (e: unknown) =>
+      e instanceof HostError && e.error.code === "provider.auth_failed" && !JSON.stringify(e.error).includes("XYZ"),
+  );
   const empty = createImapSecretResolver({ secret: async () => "" });
   await assert.rejects(empty("#Mail_Pw", ctx), code("provider.auth_failed"));
 });
@@ -262,12 +438,29 @@ test("imap: a Vault failure or an empty value is an auth failure with no detail 
 test("imap: the person asking is passed to the Vault, so their own Mine password opens; a locked or missing item says so in fixed words", async () => {
   const askers: Array<string | undefined> = [];
   const ctx = { space: "spc_1", trace: { traceId: TRACE } };
-  const mine = createImapSecretResolver({ secret: async (_h, _s, asker) => { askers.push(asker); if (!asker) throw new Error("The Vault has no shared item #Mail_Pw."); return "pa55"; } });
+  const mine = createImapSecretResolver({
+    secret: async (_h, _s, asker) => {
+      askers.push(asker);
+      if (!asker) throw new Error("The Vault has no shared item #Mail_Pw.");
+      return "pa55";
+    },
+  });
   assert.equal(await mine("#Mail_Pw", ctx, "usr_pia"), "pa55");
   assert.deepEqual(askers, ["usr_pia"]);
-  await assert.rejects(mine("#Mail_Pw", ctx), (e: unknown) => e instanceof HostError && e.error.message === "The Vault has no item for that mailbox password.", "no asker: the Mine item is missing, and it says so");
-  const locked = createImapSecretResolver({ secret: async () => { throw new Error("Your Vault key is not on this server, so your sign-in cannot be opened."); } });
-  await assert.rejects(locked("#Mail_Pw", ctx, "usr_pia"), (e: unknown) => e instanceof HostError && /Vault key is not on this server/.test(e.error.message));
+  await assert.rejects(
+    mine("#Mail_Pw", ctx),
+    (e: unknown) => e instanceof HostError && e.error.message === "The Vault has no item for that mailbox password.",
+    "no asker: the Mine item is missing, and it says so",
+  );
+  const locked = createImapSecretResolver({
+    secret: async () => {
+      throw new Error("Your Vault key is not on this server, so your sign-in cannot be opened.");
+    },
+  });
+  await assert.rejects(
+    locked("#Mail_Pw", ctx, "usr_pia"),
+    (e: unknown) => e instanceof HostError && /Vault key is not on this server/.test(e.error.message),
+  );
 });
 
 // ---- wiring
@@ -277,11 +470,27 @@ test("wireSeams registers what it is given and reports what is absent, then take
   let google: GoogleHostSeam | null = null;
   let imap: ImapSecretResolver | null = null;
   const w = world();
-  const wired = wireSeams({
-    setGoogleHost: (h) => { calls.push(h ? "google+" : "google-"); google = h; },
-    setImapSecretResolver: (f) => { calls.push(f ? "imap+" : "imap-"); imap = f; },
-  }, w.deps);
-  assert.deepEqual(wired.state, { google: "wired", microsoft: "absent", imap: "wired", sources: "absent", resend: "absent", mailgun: "absent" });
+  const wired = wireSeams(
+    {
+      setGoogleHost: (h) => {
+        calls.push(h ? "google+" : "google-");
+        google = h;
+      },
+      setImapSecretResolver: (f) => {
+        calls.push(f ? "imap+" : "imap-");
+        imap = f;
+      },
+    },
+    w.deps,
+  );
+  assert.deepEqual(wired.state, {
+    google: "wired",
+    microsoft: "absent",
+    imap: "wired",
+    sources: "absent",
+    resend: "absent",
+    mailgun: "absent",
+  });
   assert.equal(typeof (google as GoogleHostSeam | null)?.mintToken, "function");
   assert.equal(typeof imap, "function");
   wired.unwire();
@@ -293,7 +502,14 @@ test("wireSeams registers what it is given and reports what is absent, then take
 test("wireSeams wires Microsoft when its setter exists", () => {
   let ms: MsHostSeam | null = null;
   const w = world();
-  const wired = wireSeams({ setMsHost: (h) => { ms = h; } }, w.deps);
+  const wired = wireSeams(
+    {
+      setMsHost: (h) => {
+        ms = h;
+      },
+    },
+    w.deps,
+  );
   assert.equal(wired.state.microsoft, "wired");
   assert.equal(typeof (ms as MsHostSeam | null)?.mintToken, "function");
   assert.deepEqual([wired.state.google, wired.state.imap, wired.state.sources], ["absent", "absent", "absent"]);
@@ -302,11 +518,21 @@ test("wireSeams wires Microsoft when its setter exists", () => {
 test("sources: wireSeams hands the sources module a resolver that reads the Space's Vault item by name, and takes it out again", async () => {
   let resolve: SourcesSecretResolver | null = null;
   const w = world({ secret: "whsec_live_123" });
-  const wired = wireSeams({ setSourcesSecretResolver: (f) => { resolve = f; } }, w.deps);
+  const wired = wireSeams(
+    {
+      setSourcesSecretResolver: (f) => {
+        resolve = f;
+      },
+    },
+    w.deps,
+  );
   assert.equal(wired.state.sources, "wired");
   assert.equal(await (resolve as SourcesSecretResolver | null)?.("Stripe_Webhook"), "whsec_live_123");
   assert.equal(await (resolve as SourcesSecretResolver | null)?.("#Stripe_Webhook"), "whsec_live_123");
-  assert.deepEqual(w.asked, [{ handle: "#Stripe_Webhook", space: "spc_1" }, { handle: "#Stripe_Webhook", space: "spc_1" }]);
+  assert.deepEqual(w.asked, [
+    { handle: "#Stripe_Webhook", space: "spc_1" },
+    { handle: "#Stripe_Webhook", space: "spc_1" },
+  ]);
   wired.unwire();
   assert.equal(resolve, null);
 });
@@ -316,7 +542,17 @@ test("sources: a name that is not a Vault handle, an empty value and a Vault fai
   assert.equal(await bad("has spaces"), undefined);
   assert.equal(await bad(""), undefined);
   assert.equal(await createSourcesSecretResolver({ secret: async () => "" }, "spc_1")("Stripe_Webhook"), undefined);
-  assert.equal(await createSourcesSecretResolver({ secret: async () => { throw new Error("vault down"); } }, "spc_1")("Stripe_Webhook"), undefined);
+  assert.equal(
+    await createSourcesSecretResolver(
+      {
+        secret: async () => {
+          throw new Error("vault down");
+        },
+      },
+      "spc_1",
+    )("Stripe_Webhook"),
+    undefined,
+  );
 });
 
 // P-H_01 final run: each named test shows its own ok line in the run on the last commit.

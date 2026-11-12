@@ -3,16 +3,47 @@
 import { applyCascade, cascade } from "./cascade.ts";
 import { linkTasks, openTaskThread, plan, reschedule, stagesSet, unlinkTasks } from "./plan.ts";
 import {
-  archive, create, fileChat, fromChannel, get, list, rolesOf, unarchive, membersList, membersRemove, membersSet, overview, pinFile, postUpdate, shareOut, sharedView, unshareOut, templatesList, unpinFile,
+  archive,
+  create,
+  fileChat,
+  fromChannel,
+  get,
+  list,
+  rolesOf,
+  unarchive,
+  membersList,
+  membersRemove,
+  membersSet,
+  overview,
+  pinFile,
+  postUpdate,
+  shareOut,
+  sharedView,
+  unshareOut,
+  templatesList,
+  unpinFile,
 } from "./project.ts";
 import { recordFilesFolder } from "./folders.ts";
 import { link, linksList, rulesSet, unlink } from "./attach.ts";
-import { docGet, docSave, edit as overviewEdit, history as overviewHistory, liveQuery, overviewGet, restore as overviewRestore, templateApply, templateSave, templatesList as pageTemplatesList, undo as overviewUndo } from "./overview.ts";
+import {
+  docGet,
+  docSave,
+  edit as overviewEdit,
+  history as overviewHistory,
+  liveQuery,
+  overviewGet,
+  restore as overviewRestore,
+  templateApply,
+  templateSave,
+  templatesList as pageTemplatesList,
+  undo as overviewUndo,
+} from "./overview.ts";
 import { crew, forChannel, set, updateDraft, updateEdit } from "./upkeep.ts";
 import { teammatesCreate, teammatesList, teammatesRemove } from "./teammates.ts";
 
 export const handlers = {
-  "projects.files_folder": (ctx: never, input: { type?: string; recordId: string; create?: boolean }) => recordFilesFolder(ctx, input),
+  "projects.files_folder": (ctx: never, input: { type?: string; recordId: string; create?: boolean }) =>
+    recordFilesFolder(ctx, input),
   "projects.teammates.create": teammatesCreate,
   "projects.teammates.list": teammatesList,
   "projects.teammates.remove": teammatesRemove,

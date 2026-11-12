@@ -6,10 +6,19 @@
 // The agent is never above the person who made it: its role is Member only when its maker may edit the Space, else Guest, and its Space grant is the maker's own level (edit, view, or none).
 import type { EventEnvelope } from "../../../packages/contracts/src/envelope.ts";
 
-export interface PrincipalEvent { type: "principal.created" | "principal.role_set" | "grant.created" | "principal.suspended" | "principal.reactivated"; entity: string; id: string; payload: Record<string, unknown> }
+export interface PrincipalEvent {
+  type: "principal.created" | "principal.role_set" | "grant.created" | "principal.suspended" | "principal.reactivated";
+  entity: string;
+  id: string;
+  payload: Record<string, unknown>;
+}
 export interface PrincipalRegistrar {
   /** The access events to add to this commit for the agents the handler's events brought into being. `maker` is the person the call acts for. */
-  register(a: { events: readonly Pick<EventEnvelope, "type" | "payload">[]; space: string; maker: string }): PrincipalEvent[];
+  register(a: {
+    events: readonly Pick<EventEnvelope, "type" | "payload">[];
+    space: string;
+    maker: string;
+  }): PrincipalEvent[];
 }
 
 /** The roles an agent may hold, as the seeded Spaces name them. */
@@ -18,46 +27,83 @@ export const AGENT_ROLE_LOW = "rol_guest";
 export type SpaceLevel = "edit" | "view" | "none";
 
 /** Contract-valid, deterministic ids for grants synthesized from an agent birth. */
-export const agentGrantId = (agentId: string, purpose: "space" | "home" | "owner" | "grown" | "own"): string => `gnt_${agentId.slice(4)}${purpose}`;
+export const agentGrantId = (agentId: string, purpose: "space" | "home" | "owner" | "grown" | "own"): string =>
+  `gnt_${agentId.slice(4)}${purpose}`;
 
 /**
  * Local changes just happen: a person's Assistant holds Edit on that person's own Files, in any Space, and in a Personal Space so does every agent the person made there. A Team Space agent keeps its Can reach grants.
  * The grant is the agent's reach, so a call still stops at what the asker has (ARCH 4.5 rule 5), and it is granted by the owner of the folder. The event id is made from the agent and the folder, so a boot pass
  * repeats nothing and a grant the person revoked stays revoked.
  */
-export function ownPlaceGrant(a: { agentId: string; ownerId: string; agentKind: string; spaceKind: "personal" | "team"; rootId: string }): { eventId: string; grantId: string; payload: Record<string, unknown> } | null {
-  if (!/^agt_[a-z0-9]+$/.test(a.agentId) || !/^usr_[a-z0-9]+$/.test(a.ownerId) || !/^fld_[a-z0-9]+$/.test(a.rootId)) return null;
+export function ownPlaceGrant(a: {
+  agentId: string;
+  ownerId: string;
+  agentKind: string;
+  spaceKind: "personal" | "team";
+  rootId: string;
+}): { eventId: string; grantId: string; payload: Record<string, unknown> } | null {
+  if (!/^agt_[a-z0-9]+$/.test(a.agentId) || !/^usr_[a-z0-9]+$/.test(a.ownerId) || !/^fld_[a-z0-9]+$/.test(a.rootId))
+    return null;
   if (a.agentKind === "outside") return null;
   if (a.agentKind !== "assistant" && a.spaceKind !== "personal") return null;
   const grantId = agentGrantId(a.agentId, "own");
-  return { eventId: `evt_own_${a.agentId.slice(4)}${a.rootId.slice(4)}`, grantId, payload: { id: grantId, subject_kind: "actor", subject_id: a.agentId, resource_type: "folder", resource_id: a.rootId, level: "edit", by: a.ownerId } };
+  return {
+    eventId: `evt_own_${a.agentId.slice(4)}${a.rootId.slice(4)}`,
+    grantId,
+    payload: {
+      id: grantId,
+      subject_kind: "actor",
+      subject_id: a.agentId,
+      resource_type: "folder",
+      resource_id: a.rootId,
+      level: "edit",
+      by: a.ownerId,
+    },
+  };
 }
 
 type EventLike = Pick<EventEnvelope, "type" | "payload">;
 const recordOf = (value: unknown): Record<string, unknown> => {
   if (value instanceof Uint8Array) {
-    try { return JSON.parse(new TextDecoder().decode(value)) as Record<string, unknown>; } catch { return {}; }
+    try {
+      return JSON.parse(new TextDecoder().decode(value)) as Record<string, unknown>;
+    } catch {
+      return {};
+    }
   }
-  return value !== null && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+  return value !== null && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
 };
 
-interface AgentBirth { id: string; owner: string; name: string }
+interface AgentBirth {
+  id: string;
+  owner: string;
+  name: string;
+}
 
-interface GrantShape { subject: string; resource: string; level?: string }
+interface GrantShape {
+  subject: string;
+  resource: string;
+  level?: string;
+}
 const grantShape = (p: Record<string, unknown>): GrantShape | null => {
-  const subject = p["subject_kind"] === "actor" && typeof p["subject_id"] === "string"
-    ? p["subject_id"]
-    : recordOf(p["subject"])["kind"] === "agent" && typeof recordOf(p["subject"])["id"] === "string"
-      ? recordOf(p["subject"])["id"] as string
-      : "";
-  const resource = typeof p["resource_type"] === "string" && typeof p["resource_id"] === "string"
-    ? `${p["resource_type"]}:${p["resource_id"]}`
-    : typeof recordOf(p["resource"])["type"] === "string" && typeof recordOf(p["resource"])["id"] === "string"
-      ? `${recordOf(p["resource"])["type"]}:${recordOf(p["resource"])["id"]}`
-      : "";
-  return subject !== "" && resource !== "" ? { subject, resource, ...(typeof p["level"] === "string" ? { level: p["level"] } : {}) } : null;
+  const subject =
+    p["subject_kind"] === "actor" && typeof p["subject_id"] === "string"
+      ? p["subject_id"]
+      : recordOf(p["subject"])["kind"] === "agent" && typeof recordOf(p["subject"])["id"] === "string"
+        ? (recordOf(p["subject"])["id"] as string)
+        : "";
+  const resource =
+    typeof p["resource_type"] === "string" && typeof p["resource_id"] === "string"
+      ? `${p["resource_type"]}:${p["resource_id"]}`
+      : typeof recordOf(p["resource"])["type"] === "string" && typeof recordOf(p["resource"])["id"] === "string"
+        ? `${recordOf(p["resource"])["type"]}:${recordOf(p["resource"])["id"]}`
+        : "";
+  return subject !== "" && resource !== ""
+    ? { subject, resource, ...(typeof p["level"] === "string" ? { level: p["level"] } : {}) }
+    : null;
 };
-const sameSubjectResource = (a: GrantShape, b: GrantShape): boolean => a.subject === b.subject && a.resource === b.resource;
+const sameSubjectResource = (a: GrantShape, b: GrantShape): boolean =>
+  a.subject === b.subject && a.resource === b.resource;
 
 /**
  * Reconstruct missing access effects for prototype/import-era `agent.created` events.
@@ -65,7 +111,11 @@ const sameSubjectResource = (a: GrantShape, b: GrantShape): boolean => a.subject
  * boot never attributes access to svc_host or widens it. Folder ids are not trusted:
  * the agents module later proves and grants the actual agent home.
  */
-export function missingAgentPrincipalEvents(a: { space: string; events: readonly EventLike[]; levelOf(person: string, space: string): SpaceLevel }): PrincipalEvent[] {
+export function missingAgentPrincipalEvents(a: {
+  space: string;
+  events: readonly EventLike[];
+  levelOf(person: string, space: string): SpaceLevel;
+}): PrincipalEvent[] {
   const births = new Map<string, AgentBirth>();
   const principals = new Set<string>();
   const roles = new Set<string>();
@@ -75,19 +125,31 @@ export function missingAgentPrincipalEvents(a: { space: string; events: readonly
   const deleted = new Set<string>();
   for (const event of a.events) {
     const p = recordOf(event.payload);
-    if (event.type === "principal.created" && typeof p["id"] === "string") { principals.add(p["id"]); continue; }
-    if (event.type === "principal.role_set" && typeof p["holder"] === "string") { roles.add(p["holder"]); continue; }
+    if (event.type === "principal.created" && typeof p["id"] === "string") {
+      principals.add(p["id"]);
+      continue;
+    }
+    if (event.type === "principal.role_set" && typeof p["holder"] === "string") {
+      roles.add(p["holder"]);
+      continue;
+    }
     if (event.type === "grant.created") {
       const id = typeof p["id"] === "string" ? p["id"] : typeof p["grantId"] === "string" ? p["grantId"] : "";
       const shape = grantShape(p);
-      if (id !== "" && shape) { liveGrants.set(id, shape); revokedGrantIds.delete(id); }
+      if (id !== "" && shape) {
+        liveGrants.set(id, shape);
+        revokedGrantIds.delete(id);
+      }
       continue;
     }
     if (event.type === "grant.revoked") {
       const id = typeof p["grantId"] === "string" ? p["grantId"] : "";
       const created = id === "" ? undefined : liveGrants.get(id);
       const shape = grantShape(p) ?? created;
-      if (id !== "") { revokedGrantIds.add(id); liveGrants.delete(id); }
+      if (id !== "") {
+        revokedGrantIds.add(id);
+        liveGrants.delete(id);
+      }
       if (shape) revokedGrantShapes.push(shape);
       continue;
     }
@@ -104,9 +166,21 @@ export function missingAgentPrincipalEvents(a: { space: string; events: readonly
   const out: PrincipalEvent[] = [];
   for (const birth of births.values()) {
     if (deleted.has(birth.id)) continue;
-    if (!principals.has(birth.id)) out.push({ type: "principal.created", entity: "principal", id: birth.id, payload: { id: birth.id, kind: "agent", owner: birth.owner, status: "active", name: birth.name } });
+    if (!principals.has(birth.id))
+      out.push({
+        type: "principal.created",
+        entity: "principal",
+        id: birth.id,
+        payload: { id: birth.id, kind: "agent", owner: birth.owner, status: "active", name: birth.name },
+      });
     const level = a.levelOf(birth.owner, a.space);
-    if (!roles.has(birth.id)) out.push({ type: "principal.role_set", entity: "principal", id: birth.id, payload: { holder: birth.id, role: level === "edit" ? AGENT_ROLE : AGENT_ROLE_LOW } });
+    if (!roles.has(birth.id))
+      out.push({
+        type: "principal.role_set",
+        entity: "principal",
+        id: birth.id,
+        payload: { holder: birth.id, role: level === "edit" ? AGENT_ROLE : AGENT_ROLE_LOW },
+      });
     const addGrant = (purpose: "space", payload: Record<string, unknown>): void => {
       const id = agentGrantId(birth.id, purpose);
       const intended = grantShape({ id, ...payload });
@@ -114,10 +188,20 @@ export function missingAgentPrincipalEvents(a: { space: string; events: readonly
       // A different level is deliberate state until an explicit level-change policy
       // exists; boot must never add a second grant that widens a legacy restriction.
       const hasLiveEquivalent = [...liveGrants.values()].some((grant) => sameSubjectResource(grant, intended));
-      const wasRevoked = revokedGrantIds.has(id) || revokedGrantShapes.some((grant) => sameSubjectResource(grant, intended));
-      if (!hasLiveEquivalent && !wasRevoked) out.push({ type: "grant.created", entity: "grant", id, payload: { id, ...payload } });
+      const wasRevoked =
+        revokedGrantIds.has(id) || revokedGrantShapes.some((grant) => sameSubjectResource(grant, intended));
+      if (!hasLiveEquivalent && !wasRevoked)
+        out.push({ type: "grant.created", entity: "grant", id, payload: { id, ...payload } });
     };
-    if (level !== "none") addGrant("space", { subject_kind: "actor", subject_id: birth.id, resource_type: "space", resource_id: a.space, level, by: birth.owner });
+    if (level !== "none")
+      addGrant("space", {
+        subject_kind: "actor",
+        subject_id: birth.id,
+        resource_type: "space",
+        resource_id: a.space,
+        level,
+        by: birth.owner,
+      });
   }
   return out;
 }
@@ -128,7 +212,10 @@ export function missingAgentPrincipalEvents(a: { space: string; events: readonly
  * The folder comes from the agents module's own record (`agents_agent.folderId`), never from an event payload. A grant that exists for the same subject and folder (whatever its level or id) is
  * left as it is, and one that was ever revoked is never written again, so a person who lowers or removes these grants on purpose is not overruled. The grantor is the agent's owner, as at birth.
  */
-export function missingAgentHomeEvents(a: { events: readonly EventLike[]; agents: readonly { id: string; ownerId: string; folderId: string | null }[] }): PrincipalEvent[] {
+export function missingAgentHomeEvents(a: {
+  events: readonly EventLike[];
+  agents: readonly { id: string; ownerId: string; folderId: string | null }[];
+}): PrincipalEvent[] {
   const live: GrantShape[] = [];
   const liveById = new Map<string, GrantShape>();
   const revokedIds = new Set<string>();
@@ -138,28 +225,58 @@ export function missingAgentHomeEvents(a: { events: readonly EventLike[]; agents
     if (event.type === "grant.created") {
       const id = typeof p["id"] === "string" ? p["id"] : typeof p["grantId"] === "string" ? p["grantId"] : "";
       const shape = grantShape(p);
-      if (id !== "" && shape) { liveById.set(id, shape); revokedIds.delete(id); }
+      if (id !== "" && shape) {
+        liveById.set(id, shape);
+        revokedIds.delete(id);
+      }
     } else if (event.type === "grant.revoked") {
       const id = typeof p["grantId"] === "string" ? p["grantId"] : "";
       const shape = grantShape(p) ?? (id === "" ? undefined : liveById.get(id));
-      if (id !== "") { revokedIds.add(id); liveById.delete(id); }
+      if (id !== "") {
+        revokedIds.add(id);
+        liveById.delete(id);
+      }
       if (shape) revoked.push(shape);
     }
   }
   live.push(...liveById.values());
   const out: PrincipalEvent[] = [];
   for (const agent of a.agents) {
-    if (!/^agt_[a-z0-9]+$/.test(agent.id) || !/^usr_[a-z0-9]+$/.test(agent.ownerId) || agent.folderId === null || !/^fld_[a-z0-9]+$/.test(agent.folderId)) continue;
+    if (
+      !/^agt_[a-z0-9]+$/.test(agent.id) ||
+      !/^usr_[a-z0-9]+$/.test(agent.ownerId) ||
+      agent.folderId === null ||
+      !/^fld_[a-z0-9]+$/.test(agent.folderId)
+    )
+      continue;
     const want: Array<{ id: string; subject: string; level: "edit" | "manage" }> = [
       { id: agentGrantId(agent.id, "home"), subject: agent.id, level: "edit" },
       { id: agentGrantId(agent.id, "owner"), subject: agent.ownerId, level: "manage" },
     ];
     for (const w of want) {
       const shape: GrantShape = { subject: w.subject, resource: `folder:${agent.folderId}` };
-      if (live.some((g) => sameSubjectResource(g, shape)) || revokedIds.has(w.id) || revoked.some((g) => sameSubjectResource(g, shape))) continue;
+      if (
+        live.some((g) => sameSubjectResource(g, shape)) ||
+        revokedIds.has(w.id) ||
+        revoked.some((g) => sameSubjectResource(g, shape))
+      )
+        continue;
       // the id names the agent; a second home (a new folder) keeps the id of the first only if that one is gone, so it never shadows a live grant
       const id = liveById.has(w.id) ? `${w.id}${agent.folderId.slice(4, 12)}` : w.id;
-      out.push({ type: "grant.created", entity: "grant", id, payload: { id, subject_kind: "actor", subject_id: w.subject, resource_type: "folder", resource_id: agent.folderId, level: w.level, by: agent.ownerId } });
+      out.push({
+        type: "grant.created",
+        entity: "grant",
+        id,
+        payload: {
+          id,
+          subject_kind: "actor",
+          subject_id: w.subject,
+          resource_type: "folder",
+          resource_id: agent.folderId,
+          level: w.level,
+          by: agent.ownerId,
+        },
+      });
     }
   }
   return out;
@@ -170,19 +287,45 @@ export function missingAgentHomeEvents(a: { events: readonly EventLike[]; agents
  * "active" has run) is born Guest with no Space grant, and then cannot read the maker's AI key or post a word. Once the maker may edit the Space, the agent gets what a Member agent gets: the
  * role and the edit grant, under ids made from the agent so running this again changes nothing. An agent the maker cannot edit for is left as it is (never above its person).
  */
-export function lowAgentUpgradeEvents(a: { space: string; agents: readonly { id: string; owner: string; roleNames: string }[]; levelOf(person: string, space: string): SpaceLevel }): PrincipalEvent[] {
+export function lowAgentUpgradeEvents(a: {
+  space: string;
+  agents: readonly { id: string; owner: string; roleNames: string }[];
+  levelOf(person: string, space: string): SpaceLevel;
+}): PrincipalEvent[] {
   const out: PrincipalEvent[] = [];
   for (const agent of a.agents) {
-    if (agent.roleNames !== "Guest" || !/^agt_[a-z0-9]+$/.test(agent.id) || !/^usr_[a-z0-9]+$/.test(agent.owner)) continue;
+    if (agent.roleNames !== "Guest" || !/^agt_[a-z0-9]+$/.test(agent.id) || !/^usr_[a-z0-9]+$/.test(agent.owner))
+      continue;
     if (a.levelOf(agent.owner, a.space) !== "edit") continue;
     const gid = agentGrantId(agent.id, "grown");
-    out.push({ type: "principal.role_set", entity: "principal", id: agent.id, payload: { holder: agent.id, role: AGENT_ROLE } });
-    out.push({ type: "grant.created", entity: "grant", id: gid, payload: { id: gid, subject_kind: "actor", subject_id: agent.id, resource_type: "space", resource_id: a.space, level: "edit", by: agent.owner } });
+    out.push({
+      type: "principal.role_set",
+      entity: "principal",
+      id: agent.id,
+      payload: { holder: agent.id, role: AGENT_ROLE },
+    });
+    out.push({
+      type: "grant.created",
+      entity: "grant",
+      id: gid,
+      payload: {
+        id: gid,
+        subject_kind: "actor",
+        subject_id: agent.id,
+        resource_type: "space",
+        resource_id: a.space,
+        level: "edit",
+        by: agent.owner,
+      },
+    });
   }
   return out;
 }
 
-export function createPrincipalRegistrar(deps: { exists(id: string): boolean; /** what the person may do on the Space itself */ levelOf(person: string, space: string): SpaceLevel }): PrincipalRegistrar {
+export function createPrincipalRegistrar(deps: {
+  exists(id: string): boolean;
+  /** what the person may do on the Space itself */ levelOf(person: string, space: string): SpaceLevel;
+}): PrincipalRegistrar {
   return {
     register(a) {
       const out: PrincipalEvent[] = [];
@@ -197,7 +340,12 @@ export function createPrincipalRegistrar(deps: { exists(id: string): boolean; /*
           const serviceId = `svc_${automationId.slice(4)}`;
           if (seen.has(serviceId) || deps.exists(serviceId)) continue;
           seen.add(serviceId);
-          out.push({ type: "principal.created", entity: "principal", id: serviceId, payload: { id: serviceId, kind: "service", owner: ownerId, status: "active", name: serviceId } });
+          out.push({
+            type: "principal.created",
+            entity: "principal",
+            id: serviceId,
+            payload: { id: serviceId, kind: "service", owner: ownerId, status: "active", name: serviceId },
+          });
           continue;
         }
         // Deleting a Space automation stops its service, so every grant it holds stops with it. Restoring the automation starts the service again.
@@ -220,16 +368,66 @@ export function createPrincipalRegistrar(deps: { exists(id: string): boolean; /*
         seen.add(id);
         const name = typeof p?.name === "string" && p.name !== "" ? p.name : id;
         const level = deps.levelOf(a.maker, a.space);
-        out.push({ type: "principal.created", entity: "principal", id, payload: { id, kind: "agent", owner, status: "active", name } });
-        out.push({ type: "principal.role_set", entity: "principal", id, payload: { holder: id, role: level === "edit" ? AGENT_ROLE : AGENT_ROLE_LOW } });
+        out.push({
+          type: "principal.created",
+          entity: "principal",
+          id,
+          payload: { id, kind: "agent", owner, status: "active", name },
+        });
+        out.push({
+          type: "principal.role_set",
+          entity: "principal",
+          id,
+          payload: { holder: id, role: level === "edit" ? AGENT_ROLE : AGENT_ROLE_LOW },
+        });
         if (level !== "none") {
           const gid = agentGrantId(id, "space");
-          out.push({ type: "grant.created", entity: "grant", id: gid, payload: { id: gid, subject_kind: "actor", subject_id: id, resource_type: "space", resource_id: a.space, level, by: a.maker } });
+          out.push({
+            type: "grant.created",
+            entity: "grant",
+            id: gid,
+            payload: {
+              id: gid,
+              subject_kind: "actor",
+              subject_id: id,
+              resource_type: "space",
+              resource_id: a.space,
+              level,
+              by: a.maker,
+            },
+          });
         }
         if (typeof p?.folderId === "string" && /^fld_[a-z0-9]+$/.test(p.folderId)) {
-          const home = agentGrantId(id, "home"), ownerGrant = agentGrantId(id, "owner");
-          out.push({ type: "grant.created", entity: "grant", id: home, payload: { id: home, subject_kind: "actor", subject_id: id, resource_type: "folder", resource_id: p.folderId, level: "edit", by: a.maker } });
-          out.push({ type: "grant.created", entity: "grant", id: ownerGrant, payload: { id: ownerGrant, subject_kind: "actor", subject_id: owner, resource_type: "folder", resource_id: p.folderId, level: "manage", by: a.maker } });
+          const home = agentGrantId(id, "home"),
+            ownerGrant = agentGrantId(id, "owner");
+          out.push({
+            type: "grant.created",
+            entity: "grant",
+            id: home,
+            payload: {
+              id: home,
+              subject_kind: "actor",
+              subject_id: id,
+              resource_type: "folder",
+              resource_id: p.folderId,
+              level: "edit",
+              by: a.maker,
+            },
+          });
+          out.push({
+            type: "grant.created",
+            entity: "grant",
+            id: ownerGrant,
+            payload: {
+              id: ownerGrant,
+              subject_kind: "actor",
+              subject_id: owner,
+              resource_type: "folder",
+              resource_id: p.folderId,
+              level: "manage",
+              by: a.maker,
+            },
+          });
         }
       }
       return out;

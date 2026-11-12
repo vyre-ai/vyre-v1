@@ -16,7 +16,10 @@ export type TurnState = "running" | "waiting" | "completed" | "failed" | "cancel
 export type AccountReason = "starter" | "steerer";
 export type Placement = "host" | "device";
 
-export interface Author { kind: "person" | "agent"; id: string }
+export interface Author {
+  kind: "person" | "agent";
+  id: string;
+}
 
 export interface EngineAgent {
   id: string;
@@ -38,7 +41,10 @@ export interface EngineAgent {
   /** Listening: never answers, not even tagged. Only a poke makes it speak. */
   quiet?: boolean;
   /** When it answers a message nobody tagged it in (lib/route.ts mayAnswerUntagged). */
-  when?: "always" | "topics" | "hours"; topics?: string; hoursFrom?: string; hoursTo?: string;
+  when?: "always" | "topics" | "hours";
+  topics?: string;
+  hoursFrom?: string;
+  hoursTo?: string;
   /** One line the turn is told about how long the reply is: "Keep replies short." or "Give full detail." Per agent, per chat. */
   style?: "short" | "full";
 }
@@ -137,9 +143,22 @@ export interface TurnRow {
 }
 
 /** A tool call of one turn, as the engine saw it: when it started and ended, whether it worked, and whether it was held for a person's yes. */
-export interface ToolTrace { id: string; name: string; detail?: string; startedAt: number; endedAt?: number; ok?: boolean; held?: string }
+export interface ToolTrace {
+  id: string;
+  name: string;
+  detail?: string;
+  startedAt: number;
+  endedAt?: number;
+  ok?: boolean;
+  held?: string;
+}
 /** The turn left one account for another (or tried the same one again when the vendor was busy): from and to are account refs. */
-export interface TurnSwitch { at: number; from: string; to: string; why: string }
+export interface TurnSwitch {
+  at: number;
+  from: string;
+  to: string;
+  why: string;
+}
 /** The parts of a turn the turn record keeps for its Details. A count that is absent was not reported by the provider. */
 export interface TurnInfo {
   effort?: Effort;
@@ -162,27 +181,78 @@ export interface TurnInfo {
   switches: TurnSwitch[];
 }
 
-export interface SpendRow { agentId: string; turnId: string; payer: string; tokensIn: number; tokensOut: number }
+export interface SpendRow {
+  agentId: string;
+  turnId: string;
+  payer: string;
+  tokensIn: number;
+  tokensOut: number;
+}
 
 export type EngineEvent =
   | { type: "message.received"; threadId: string; messageId: string; threadSeq: number; authorId: string }
   /** A message is for an outside agent. Nothing runs here; it picks the message up when it next asks. */
   | { type: "agent.outside_asked"; threadId: string; messageId: string; agentId: string; asker: string; body: string }
   /** a routine's turn was folded into a parked turn: it did not run, and its run ends the way the parked turn failed (the routine counts it, so one that cannot run ever pauses itself) */
-  | { type: "routine.folded"; threadId: string; agentId: string; qseq: number; code: string; asker: string; message?: string }
-  | { type: "turn.queued"; threadId: string; qseq: number; agentId: string; kind: QueueKind; priority: number; routine: boolean; steer: boolean }
+  | {
+      type: "routine.folded";
+      threadId: string;
+      agentId: string;
+      qseq: number;
+      code: string;
+      asker: string;
+      message?: string;
+    }
+  | {
+      type: "turn.queued";
+      threadId: string;
+      qseq: number;
+      agentId: string;
+      kind: QueueKind;
+      priority: number;
+      routine: boolean;
+      steer: boolean;
+    }
   | { type: "turn.started"; threadId: string; turnId: string; agentId: string; qseq: number; asker: string }
   | { type: "turn.block"; threadId: string; turnId: string; idx: number; kind: string }
   | { type: "turn.waiting"; threadId: string; reason: "hop_limit"; messageId: string; depth?: number }
   /** A tool call was held at the Gate (ARCH 6.7): the turn parks on the approval task and a wake continues it once the task is answered. */
-  | { type: "turn.waiting"; threadId: string; reason: "approval"; turnId: string; agentId: string; taskId: string; runId?: string }
+  | {
+      type: "turn.waiting";
+      threadId: string;
+      reason: "approval";
+      turnId: string;
+      agentId: string;
+      taskId: string;
+      runId?: string;
+    }
   /** A parked turn is over: its wake started as a turn of its own. */
   | { type: "turn.resumed"; threadId: string; turnId: string; agentId: string }
   | { type: "turn.completed"; threadId: string; turnId: string; agentId: string }
-  | { type: "turn.failed"; threadId: string; turnId: string; agentId: string; code: string; /** the account the turn ran on (its reference and engine), so the chat can say which sign-in needs doing */ account?: { ref: string; driver: string }; /** a turn a dead host left (code host_lost): its queue row and whom it ran for */ qseq?: number; asker?: string; /** what the engine knows of the failure, for the log only: never stored in an event, never shown to the person, scrubbed by the bridge before it is written */ message?: string; /** a usage-limit failure that said when the account is usable again (epoch ms) */ resetsAt?: number }
-  | { type: "turn.cancelled"; threadId: string; turnId: string; agentId: string; /** why it was stopped: interrupt, stop, limit, left, moved, lease */ reason?: string;
+  | {
+      type: "turn.failed";
+      threadId: string;
+      turnId: string;
+      agentId: string;
+      code: string;
+      /** the account the turn ran on (its reference and engine), so the chat can say which sign-in needs doing */ account?: {
+        ref: string;
+        driver: string;
+      };
+      /** a turn a dead host left (code host_lost): its queue row and whom it ran for */ qseq?: number;
+      asker?: string;
+      /** what the engine knows of the failure, for the log only: never stored in an event, never shown to the person, scrubbed by the bridge before it is written */ message?: string;
+      /** a usage-limit failure that said when the account is usable again (epoch ms) */ resetsAt?: number;
+    }
+  | {
+      type: "turn.cancelled";
+      threadId: string;
+      turnId: string;
+      agentId: string;
+      /** why it was stopped: interrupt, stop, limit, left, moved, lease */ reason?: string;
       /** set on a stopped turn a dead host left (recover): who it ran for, so the agent can still say in the chat that it stopped */ asker?: string;
-      /** set with asker by recover: the queue row, so the dead turn's record is closed */ qseq?: number }
+      /** set with asker by recover: the queue row, so the dead turn's record is closed */ qseq?: number;
+    }
   | { type: "agent.handoff"; threadId: string; to: Placement }
   | { type: "queue.consumed"; threadId: string; qseq: number; messageId: string | null };
 
@@ -198,18 +268,36 @@ export type DriverEvent =
    * inputTokens counts every input token, cache reads and writes included. The optional fields are present only when the provider reported them: cache reads and writes, reasoning tokens
    * (already inside outputTokens), and the provider's own price for the call in dollars (Claude Code's total_cost_usd, OpenRouter's usage.cost). Absent means not reported, never zero.
    */
-  | { type: "usage"; inputTokens: number; outputTokens: number; model?: string; contextTokens?: number; /** The model's own window, when the engine said it. */ contextWindow?: number; cacheReadTokens?: number; cacheWriteTokens?: number; reasoningTokens?: number; costUsd?: number }
+  | {
+      type: "usage";
+      inputTokens: number;
+      outputTokens: number;
+      model?: string;
+      contextTokens?: number;
+      /** The model's own window, when the engine said it. */ contextWindow?: number;
+      cacheReadTokens?: number;
+      cacheWriteTokens?: number;
+      reasoningTokens?: number;
+      costUsd?: number;
+    }
   /** A subscription limit window as the engine reported it (percent used 0 to 100, reset time in epoch ms). Kept per account; shown only when reported. */
   | { type: "limits"; window: "session" | "week"; pct: number; resetsAt?: number }
   | { type: "done"; mentions?: readonly RouteMention[] }
   /** resetsAt: a limit refusal that said when the account or model is usable again (epoch ms). */
   | { type: "error"; code: string; message: string; resetsAt?: number };
 
-export interface ToolResult { ok: boolean; content: unknown }
+export interface ToolResult {
+  ok: boolean;
+  content: unknown;
+}
 
 /** One line the memory module recalled for a message: a fact (or note title) with where it is kept and the link to the chat, task or record it came from. */
 export interface RecallLine {
-  title: string; fact?: string; trueSince?: number; path: string; sourceLink?: string;
+  title: string;
+  fact?: string;
+  trueSince?: number;
+  path: string;
+  sourceLink?: string;
   /** "quote" is the exact words of a past chat message or run step (title = where it was said); anything else is a fact or note. */
   kind?: "fact" | "quote";
   /** The source id: a fact id for a fact, a message id or <thread>#<index> for a quote. A model passes it to memory_quote or memory_forget. */
@@ -253,7 +341,13 @@ export interface TurnInput {
   notice?: string;
 }
 
-export interface ResumedCall { taskId: string; callId: string; toolName: string; approved: boolean; result: ToolResult }
+export interface ResumedCall {
+  taskId: string;
+  callId: string;
+  toolName: string;
+  approved: boolean;
+  result: ToolResult;
+}
 
 export interface EngineSession {
   send(input: TurnInput): AsyncIterable<DriverEvent>;
@@ -274,8 +368,17 @@ export interface EngineSession {
  * `itemId` is the Vault item behind the handle, so usage can be metered against it. `payer` is the person who pays.
  */
 /** What a session can say about itself beyond running turns. */
-export interface SessionModel { /** The model that really runs. */ readonly model?: string }
-export interface ResolvedAccount { ref: string; driver: string; provider: string; kind: AccountKind; payer: string; reason: ResolveReason; itemId?: string;
+export interface SessionModel {
+  /** The model that really runs. */ readonly model?: string;
+}
+export interface ResolvedAccount {
+  ref: string;
+  driver: string;
+  provider: string;
+  kind: AccountKind;
+  payer: string;
+  reason: ResolveReason;
+  itemId?: string;
   /** The account's name as its owner sees it (Details: Paid by). */
   name?: string;
   /** Which rule chose it (the Chat key, the chat's pick, an own-work account, a step's account, a Space account, a backup); absent for the asker's own. */
@@ -293,18 +396,35 @@ export interface ResolvedAccount { ref: string; driver: string; provider: string
   /** The model the resolver chose for this turn (the chat's pick, else the agent's own model): what an agent the thread names no model for runs on, so no opener's view can leave it empty. */
   model?: string;
   /** An OpenAI-compatible endpoint names its own address (custom, local); `keyless` is a local server with no key. */
-  base?: string; keyless?: boolean }
+  base?: string;
+  keyless?: boolean;
+}
 export interface AccountQuery {
-  threadId: string; agentId: string; askerId: string; stepKey?: string; /** Accounts that already failed this turn: the answer skips them and follows the agent's order. */ unavailable?: readonly string[];
+  threadId: string;
+  agentId: string;
+  askerId: string;
+  stepKey?: string;
+  /** Accounts that already failed this turn: the answer skips them and follows the agent's order. */ unavailable?: readonly string[];
   /** What caused the turn, so the right Space AI accounts may pay (owner ruling 9): a chat message, a wake-up, or an agent acting unasked (a watcher: agent work). Absent: a chat. */
   kind?: "chat" | "wake" | "agent_work";
   /** Why the last account was left: "overloaded" is the vendor being busy, not a limit, so it is not set aside to rest and the chat says it was busy. */
   why?: "overloaded";
 }
 /** A turn whose model the engine said is not available: who asked, on which account, and the engine's own words (Details only). */
-export interface ModelQuery { threadId: string; agentId: string; askerId: string; account: ResolvedAccount; message: string }
+export interface ModelQuery {
+  threadId: string;
+  agentId: string;
+  askerId: string;
+  account: ResolvedAccount;
+  message: string;
+}
 export interface SessionSpec {
-  threadId: string; agent: EngineAgent; asker: string; turnId: string; traceId: string; account?: ResolvedAccount;
+  threadId: string;
+  agent: EngineAgent;
+  asker: string;
+  turnId: string;
+  traceId: string;
+  account?: ResolvedAccount;
   /** The chat's mode for this turn. Absent: the driver's older behaviour (a session of a step or a one-shot job has no chat mode). */
   mode?: ChatMode;
   /** "none": the session has no Vyre tools and no tools of its own (an automation's AI step answers in words and sends nothing). Absent: the agent's tools. */
@@ -320,8 +440,16 @@ export interface SessionSpec {
 export type OpenSession = (spec: SessionSpec) => Promise<EngineSession>;
 
 export interface ReceiveResult {
-  responders: string[]; reason: RouteReason; qseqs: number[]; messageId: string;
+  responders: string[];
+  reason: RouteReason;
+  qseqs: number[];
+  messageId: string;
   /** An agent handed the chat to others with an @mention: who asked whom, for the chat's one-line chain ("Intake asked Docs"). */
   chain?: { from: string; to: string[] };
 }
-export interface PreviewResult { responders: string[]; reason: RouteReason; listeners: string[]; line: string }
+export interface PreviewResult {
+  responders: string[];
+  reason: RouteReason;
+  listeners: string[];
+  line: string;
+}

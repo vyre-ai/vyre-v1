@@ -5,7 +5,10 @@ import { explicitSkin, rememberLook, startupPlan } from "./settings-look.ts";
 import { DEFAULT_LOOK } from "../../places/settings/look.ts";
 
 const mem = new Map<string, string>();
-(globalThis as Record<string, unknown>)["localStorage"] = { getItem: (k: string) => mem.get(k) ?? null, setItem: (k: string, v: string) => void mem.set(k, v) };
+(globalThis as Record<string, unknown>)["localStorage"] = {
+  getItem: (k: string) => mem.get(k) ?? null,
+  setItem: (k: string, v: string) => void mem.set(k, v),
+};
 
 test("?skin= is read from the address", () => {
   assert.equal(explicitSkin("?skin=graphite"), "graphite");

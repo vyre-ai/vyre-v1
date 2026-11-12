@@ -9,7 +9,10 @@ import { OPENCODE_SESSION, vyreUserAgent } from "../../../lib/user-agent.ts";
 export type VaultInvoke = (cap: string, input: unknown, seed: CtxSeed) => Promise<InvokeResult>;
 
 /** What holds a value for one use (host/src/seams/filler.ts): a GitHub installation token is held behind a `#fill_` handle that is no Vault item. */
-export interface HeldValues { fill(handle: string, into: { kind: string; ref: string }, now: number): boolean; now(): number }
+export interface HeldValues {
+  fill(handle: string, into: { kind: string; ref: string }, now: number): boolean;
+  now(): number;
+}
 
 export function createVaultService(invoke: VaultInvoke, space: string, seed: CtxSeed, held?: HeldValues): Ctx["vault"] {
   return {
@@ -17,37 +20,76 @@ export function createVaultService(invoke: VaultInvoke, space: string, seed: Ctx
     async fill(handle, into) {
       // a held value (an installation token) is delivered by the filler that holds it, once, to the place named; it was never a Vault item
       if (held && handle.startsWith("#fill_")) {
-        if (!held.fill(handle, { kind: into.kind, ref: into.ref }, held.now())) throw fail("provider.auth_failed", seed.trace?.traceId ?? "0".repeat(32), { message: "The token for this call is no longer held. Try again." });
+        if (!held.fill(handle, { kind: into.kind, ref: into.ref }, held.now()))
+          throw fail("provider.auth_failed", seed.trace?.traceId ?? "0".repeat(32), {
+            message: "The token for this call is no longer held. Try again.",
+          });
         return;
       }
-      const r = await invoke("vault.fill", { handle, target: { kind: into.kind, ref: into.ref } }, {
-        space, principal: seed.principal, actingFor: seed.actingFor, run: seed.run, thread: seed.thread, device: seed.device, origin: seed.origin ?? "module", depth: (seed.depth ?? 0) + 1,
-        ...(seed.trace ? { trace: seed.trace } : {}),
-      });
-      if (r.status === "held") throw fail("internal.unavailable", r.traceId, { message: "Filling this needs approval first." });
+      const r = await invoke(
+        "vault.fill",
+        { handle, target: { kind: into.kind, ref: into.ref } },
+        {
+          space,
+          principal: seed.principal,
+          actingFor: seed.actingFor,
+          run: seed.run,
+          thread: seed.thread,
+          device: seed.device,
+          origin: seed.origin ?? "module",
+          depth: (seed.depth ?? 0) + 1,
+          ...(seed.trace ? { trace: seed.trace } : {}),
+        },
+      );
+      if (r.status === "held")
+        throw fail("internal.unavailable", r.traceId, { message: "Filling this needs approval first." });
     },
   };
 }
 
-const HANDLE_FORM = (name: string): string => `#${name.trim().replace(/[^A-Za-z0-9]+/g, "_").replace(/^_+|_+$/g, "") || "item"}`;
+const HANDLE_FORM = (name: string): string =>
+  `#${
+    name
+      .trim()
+      .replace(/[^A-Za-z0-9]+/g, "_")
+      .replace(/^_+|_+$/g, "") || "item"
+  }`;
 
 /**
  * The invoke pipeline's `resolveItem` (a vault name or handle becomes the item id before authorize). Handles are unique across the vault, so a handle (or the handle a name makes) is tried first; a name
  * that is not a handle falls back to a shared item of that name. A handle may carry `.field`, which is not part of the lookup. Authorize then decides whether the caller may use what was found.
  */
-export function resolveVaultItem(db: { all(sql: string, ...a: unknown[]): unknown[] }, type: string, kind: "name" | "handle", value: string, person?: string): string | null {
+export function resolveVaultItem(
+  db: { all(sql: string, ...a: unknown[]): unknown[] },
+  type: string,
+  kind: "name" | "handle",
+  value: string,
+  person?: string,
+): string | null {
   if (type !== "vault_item") return null;
   if (/^vit_[a-z0-9]+$/.test(value)) return value;
   const bare = kind === "handle" ? value.replace(/\.[A-Za-z][A-Za-z0-9_]*$/, "") : value;
   const handle = (bare.startsWith("#") ? bare : kind === "handle" ? `#${bare}` : HANDLE_FORM(bare)).toLowerCase();
   try {
-    const live = db.all("SELECT id, name, handle, scope, owner FROM vault_meta WHERE deleted_at IS NULL") as { id: string; name: string; handle: string; scope: string; owner: string }[];
+    const live = db.all("SELECT id, name, handle, scope, owner FROM vault_meta WHERE deleted_at IS NULL") as {
+      id: string;
+      name: string;
+      handle: string;
+      scope: string;
+      owner: string;
+    }[];
     // the person's own items first, then shared ones, then anyone else's (which the decision then hides): a hidden item never shadows one the person may use
-    const rank = (r: { scope: string; owner: string }): number => (r.scope === "mine" && person !== undefined && r.owner === person ? 0 : r.scope === "shared" ? 1 : 2);
+    const rank = (r: { scope: string; owner: string }): number =>
+      r.scope === "mine" && person !== undefined && r.owner === person ? 0 : r.scope === "shared" ? 1 : 2;
     const byHandle = live.filter((r) => String(r.handle).toLowerCase() === handle).sort((a, b) => rank(a) - rank(b))[0];
     if (byHandle) return byHandle.id;
-    if (kind === "name") return live.find((r) => r.scope === "shared" && String(r.name).toLowerCase() === bare.trim().toLowerCase())?.id ?? null;
-  } catch { /* the vault has no tables yet: nothing to find */ }
+    if (kind === "name")
+      return (
+        live.find((r) => r.scope === "shared" && String(r.name).toLowerCase() === bare.trim().toLowerCase())?.id ?? null
+      );
+  } catch {
+    /* the vault has no tables yet: nothing to find */
+  }
   return null;
 }
 
@@ -63,28 +105,83 @@ import type { PinnedRequest } from "../../../lib/net-guard.ts";
  * (DNS rebinding) changes nothing. Redirects are not followed.
  */
 /** Tests only (accept mode): one model of the kind each provider's real list holds, a chat model the provider's own filter keeps (OpenAI's list is filtered to gpt, o and chatgpt ids). */
-const TEST_KEY_MODEL: Readonly<Record<string, string>> = { openai: "gpt-4o-mini", codex: "gpt-4o-mini", anthropic: "claude-sonnet-4-5", google: "gemini-2.5-flash", xai: "grok-4" };
+const TEST_KEY_MODEL: Readonly<Record<string, string>> = {
+  openai: "gpt-4o-mini",
+  codex: "gpt-4o-mini",
+  anthropic: "claude-sonnet-4-5",
+  google: "gemini-2.5-flash",
+  xai: "grok-4",
+};
 
-export function createProviderProbe(o: { fetch?: typeof globalThis.fetch; own?: (personId: string) => boolean; resolve?: (host: string) => Promise<string[]>; request?: PinnedRequest } = {}) {
+export function createProviderProbe(
+  o: {
+    fetch?: typeof globalThis.fetch;
+    own?: (personId: string) => boolean;
+    resolve?: (host: string) => Promise<string[]>;
+    request?: PinnedRequest;
+  } = {},
+) {
   const fetchFn = o.fetch ?? globalThis.fetch;
-  const LISTS: Record<string, (key: string) => { url: string; headers: Record<string, string>; pick: (j: unknown) => string[] }> = {
-    anthropic: (k) => ({ url: "https://api.anthropic.com/v1/models", headers: { "x-api-key": k, "anthropic-version": "2023-06-01" }, pick: ids("data", "id") }),
-    openai: (k) => ({ url: "https://api.openai.com/v1/models", headers: { authorization: `Bearer ${k}` }, pick: ids("data", "id") }),
+  const LISTS: Record<
+    string,
+    (key: string) => { url: string; headers: Record<string, string>; pick: (j: unknown) => string[] }
+  > = {
+    anthropic: (k) => ({
+      url: "https://api.anthropic.com/v1/models",
+      headers: { "x-api-key": k, "anthropic-version": "2023-06-01" },
+      pick: ids("data", "id"),
+    }),
+    openai: (k) => ({
+      url: "https://api.openai.com/v1/models",
+      headers: { authorization: `Bearer ${k}` },
+      pick: ids("data", "id"),
+    }),
     // Codex on an OpenAI API key: the same key, checked with the same one cheap call; the Codex engine then runs on it
-    codex: (k) => ({ url: "https://api.openai.com/v1/models", headers: { authorization: `Bearer ${k}` }, pick: ids("data", "id") }),
-    openrouter: (k) => ({ url: "https://openrouter.ai/api/v1/auth/key", headers: { authorization: `Bearer ${k}` }, pick: () => [] }),
-    xai: (k) => ({ url: "https://api.x.ai/v1/models", headers: { authorization: `Bearer ${k}` }, pick: ids("data", "id") }),
-    "opencode-go": (k) => ({ url: "https://opencode.ai/inference/go/v1/models", headers: { authorization: `Bearer ${k}`, "user-agent": vyreUserAgent() }, pick: ids("data", "id") }),
-    google: (k) => ({ url: `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(k)}`, headers: {}, pick: ids("models", "name") }),
+    codex: (k) => ({
+      url: "https://api.openai.com/v1/models",
+      headers: { authorization: `Bearer ${k}` },
+      pick: ids("data", "id"),
+    }),
+    openrouter: (k) => ({
+      url: "https://openrouter.ai/api/v1/auth/key",
+      headers: { authorization: `Bearer ${k}` },
+      pick: () => [],
+    }),
+    xai: (k) => ({
+      url: "https://api.x.ai/v1/models",
+      headers: { authorization: `Bearer ${k}` },
+      pick: ids("data", "id"),
+    }),
+    "opencode-go": (k) => ({
+      url: "https://opencode.ai/inference/go/v1/models",
+      headers: { authorization: `Bearer ${k}`, "user-agent": vyreUserAgent() },
+      pick: ids("data", "id"),
+    }),
+    google: (k) => ({
+      url: `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(k)}`,
+      headers: {},
+      pick: ids("models", "name"),
+    }),
   };
   function ids(list: string, key: string) {
     return (j: unknown): string[] => {
       const rows = (j as Record<string, unknown> | null)?.[list];
-      return Array.isArray(rows) ? rows.map((r) => String((r as Record<string, unknown>)[key] ?? "")).filter(Boolean) : [];
+      return Array.isArray(rows)
+        ? rows.map((r) => String((r as Record<string, unknown>)[key] ?? "")).filter(Boolean)
+        : [];
     };
   }
-  return async (p: { providerKey: string; connection: string; caller: string; apiKey?: string; address?: string; engine?: string }): Promise<{ ok: boolean; models: string[]; detail?: string; refused?: boolean }> => {
-    let url: string, headers: Record<string, string> = {}, pick: (j: unknown) => string[] = ids("data", "id");
+  return async (p: {
+    providerKey: string;
+    connection: string;
+    caller: string;
+    apiKey?: string;
+    address?: string;
+    engine?: string;
+  }): Promise<{ ok: boolean; models: string[]; detail?: string; refused?: boolean }> => {
+    let url: string,
+      headers: Record<string, string> = {},
+      pick: (j: unknown) => string[] = ids("data", "id");
     if (p.connection === "local_model" || (p.address && !LISTS[p.providerKey])) {
       if (!p.address) return { ok: false, models: [], detail: "This local model has no address." };
       const checked = await checkModelAddress(p.address, o.own ? o.own(p.caller) : false, o.resolve);
@@ -95,7 +192,8 @@ export function createProviderProbe(o: { fetch?: typeof globalThis.fetch; own?: 
         const tail = p.engine === "custom" || /\/v1\/?$/.test(checked.url.pathname) ? "/models" : "/v1/models";
         const base = new URL(`${checked.url.pathname.replace(/\/$/, "")}${tail}`, checked.url);
         const r = await (o.request ?? pinnedGet)(base, { headers, ips: checked.ips });
-        if (r.status === 401 || r.status === 403) return { ok: false, models: [], detail: "The model did not accept this key.", refused: true };
+        if (r.status === 401 || r.status === 403)
+          return { ok: false, models: [], detail: "The model did not accept this key.", refused: true };
         if (!r.ok) return { ok: false, models: [], detail: `The model answered ${r.status}.` };
         return { ok: true, models: ids("data", "id")(await r.json()) };
       } catch {
@@ -110,12 +208,20 @@ export function createProviderProbe(o: { fetch?: typeof globalThis.fetch; own?: 
       // lists none. Tests only. Every key's probe models become its account row's models, which the resolver reads (whether a named model fits, the strict no_model refusal, modelFallback.to):
       // so in tests a shared non-OpenRouter key serves only "<provider>-test-model", and a team turn that names another model on such a key takes the fallback path to it. The Space AI key's
       // fitModel reads the same list. It is test-only and the suites are green on it.
-      if (process.env["VYRE_TEST_KEY_CHECK"] === "accept") return /invalid/i.test(p.apiKey) ? { ok: false, models: [], detail: "The provider did not accept this key.", refused: true } : { ok: true, models: p.providerKey === "openrouter" ? [] : [TEST_KEY_MODEL[p.providerKey] ?? `${p.providerKey}-test-model`] };
+      if (process.env["VYRE_TEST_KEY_CHECK"] === "accept")
+        return /invalid/i.test(p.apiKey)
+          ? { ok: false, models: [], detail: "The provider did not accept this key.", refused: true }
+          : {
+              ok: true,
+              models:
+                p.providerKey === "openrouter" ? [] : [TEST_KEY_MODEL[p.providerKey] ?? `${p.providerKey}-test-model`],
+            };
       ({ url, headers, pick } = make(p.apiKey));
     }
     try {
       const r = await fetchFn(url, { headers, redirect: "error", signal: AbortSignal.timeout(10_000) });
-      if (r.status === 401 || r.status === 403) return { ok: false, models: [], detail: "The provider did not accept this key.", refused: true };
+      if (r.status === 401 || r.status === 403)
+        return { ok: false, models: [], detail: "The provider did not accept this key.", refused: true };
       if (!r.ok) return { ok: false, models: [], detail: `The provider answered ${r.status}.` };
       const models = pick(await r.json());
       // OpenCode Go answers its model list to a request its chat refuses (rc.16 on MLA: every chat 400 MissingSessionID while the list passed): the check is a real one-token chat
@@ -134,16 +240,29 @@ export const OPENCODE_CHAT_URL = "https://opencode.ai/inference/go/openai/v1/cha
  * One chat completion of one token on OpenCode Go, sent the way a turn sends it (Vyre's user agent and a session id), on the first models the list names until one answers: ok when one does,
  * refused when the key is refused. A model this endpoint does not serve is tried past; nothing is kept.
  */
-async function opencodeChat(fetchFn: typeof globalThis.fetch, key: string, models: readonly string[]): Promise<{ ok: boolean; detail?: string; refused?: boolean }> {
-  if (models.length === 0) return { ok: false, detail: "OpenCode Go listed no models for this key, so no chat could be tried." };
+async function opencodeChat(
+  fetchFn: typeof globalThis.fetch,
+  key: string,
+  models: readonly string[],
+): Promise<{ ok: boolean; detail?: string; refused?: boolean }> {
+  if (models.length === 0)
+    return { ok: false, detail: "OpenCode Go listed no models for this key, so no chat could be tried." };
   let detail = "OpenCode Go did not answer a chat.";
   for (const model of models.slice(0, 3)) {
     const r = await fetchFn(OPENCODE_CHAT_URL, {
-      method: "POST", redirect: "error", signal: AbortSignal.timeout(20_000),
-      headers: { authorization: `Bearer ${key}`, "content-type": "application/json", "user-agent": vyreUserAgent(), [OPENCODE_SESSION]: "vyre-provider-check" },
+      method: "POST",
+      redirect: "error",
+      signal: AbortSignal.timeout(20_000),
+      headers: {
+        authorization: `Bearer ${key}`,
+        "content-type": "application/json",
+        "user-agent": vyreUserAgent(),
+        [OPENCODE_SESSION]: "vyre-provider-check",
+      },
       body: JSON.stringify({ model, max_tokens: 1, stream: false, messages: [{ role: "user", content: "Say ok." }] }),
     });
-    if (r.status === 401 || r.status === 403) return { ok: false, detail: "OpenCode Go did not accept this key for a chat.", refused: true };
+    if (r.status === 401 || r.status === 403)
+      return { ok: false, detail: "OpenCode Go did not accept this key for a chat.", refused: true };
     if (r.ok) return { ok: true };
     const text = (await r.text().catch(() => "")).slice(0, 300);
     detail = /MissingSessionID|missing x-opencode-session/i.test(text)

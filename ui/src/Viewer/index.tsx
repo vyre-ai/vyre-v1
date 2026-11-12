@@ -18,7 +18,17 @@ import type { MarkupTool, ViewerPin, ViewerProps } from "./props.ts";
 export type { MarkupTool, ViewerKind, ViewerPane, ViewerPin, ViewerProps } from "./props.ts";
 import { FileLinkText, withFileLinks } from "./FileLinkText.tsx";
 import { splitRefs } from "./links.ts";
-import { LAYER_ICON, LayerText, MarkCard, PreviewText, SelectionBar, layerRuns, layerSpans, occurrences, useLayerCss } from "./layer.tsx";
+import {
+  LAYER_ICON,
+  LayerText,
+  MarkCard,
+  PreviewText,
+  SelectionBar,
+  layerRuns,
+  layerSpans,
+  occurrences,
+  useLayerCss,
+} from "./layer.tsx";
 import type { LayerAct, Span, ViewerLayer, ViewerMark } from "./layer.tsx";
 export { LAYER_CSS, layerRuns, layerSpans, previewRuns, REDACTED } from "./layer.tsx";
 export type { LayerAct, ViewerLayer, ViewerMark } from "./layer.tsx";
@@ -31,38 +41,82 @@ export { MARKUP_TOOLS, VIEWER_KINDS, viewerLabel } from "./props.ts";
 /* ---------- pure logic ---------- */
 
 /** A pin or box anchor in unit coordinates of the image (0..1). Zoom never changes it. */
-export interface Anchor { x: number; y: number; w: number; h: number }
-export interface Stroke { points: readonly (readonly [number, number])[] }
-export interface MarkupBox extends Anchor { id: string; text: string }
+export interface Anchor {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+export interface Stroke {
+  points: readonly (readonly [number, number])[];
+}
+export interface MarkupBox extends Anchor {
+  id: string;
+  text: string;
+}
 /**
  * One block of a document. An Office file adds a table's rows (`hrow` its header, `row` the rest, cells split by a tab), a picture's place (`fig`, its alt text), a slide's heading (`slide`, its
  * title, `n` its number) and its speaker notes (`note`). `level` nests a list item.
  */
-export interface DocBlock { id: string; tag: "h1" | "h2" | "p" | "li" | "code" | "meta" | "hrow" | "row" | "fig" | "slide" | "note"; text: string; level?: number; n?: number }
+export interface DocBlock {
+  id: string;
+  tag: "h1" | "h2" | "p" | "li" | "code" | "meta" | "hrow" | "row" | "fig" | "slide" | "note";
+  text: string;
+  level?: number;
+  n?: number;
+}
 export interface ViewerDetails {
   rows: readonly (readonly [string, string])[];
-  sections?: readonly { title: string; count?: number; items: readonly { id: string; title: string; note?: string }[] }[];
+  sections?: readonly {
+    title: string;
+    count?: number;
+    items: readonly { id: string; title: string; note?: string }[];
+  }[];
 }
 /** The memory graph the Viewer reads links from: the nodes and edges `memory.graph` returns, as the viewer may see them. */
-export interface GraphNode { nodeId: string; title: string; kind?: string; link?: string }
-export interface GraphEdge { from: string; to: string; kind: "link" | "relation" | "came_from" }
-export interface ViewerGraph { nodes: readonly GraphNode[]; edges: readonly GraphEdge[] }
-export interface LinkRow { id: string; title: string; note?: string }
+export interface GraphNode {
+  nodeId: string;
+  title: string;
+  kind?: string;
+  link?: string;
+}
+export interface GraphEdge {
+  from: string;
+  to: string;
+  kind: "link" | "relation" | "came_from";
+}
+export interface ViewerGraph {
+  nodes: readonly GraphNode[];
+  edges: readonly GraphEdge[];
+}
+export interface LinkRow {
+  id: string;
+  title: string;
+  note?: string;
+}
 
 /** What a note links to ("Links to") and what links to it ("Linked from"), from the graph's `link` edges. Each node once, in graph order; nodes the viewer cannot see are not in the graph, so they never show. */
 export function linksOf(graph: ViewerGraph, nodeId: string): { to: readonly LinkRow[]; from: readonly LinkRow[] } {
   const byId = new Map<string, GraphNode>();
   for (const n of graph.nodes) byId.set(n.nodeId, n);
-  const row = (id: string): LinkRow | null => { const n = byId.get(id); return n === undefined || id === nodeId ? null : { id: n.nodeId, title: n.title, ...(n.link !== undefined ? { note: n.link } : {}) }; };
+  const row = (id: string): LinkRow | null => {
+    const n = byId.get(id);
+    return n === undefined || id === nodeId
+      ? null
+      : { id: n.nodeId, title: n.title, ...(n.link !== undefined ? { note: n.link } : {}) };
+  };
   const pick = (want: "to" | "from"): LinkRow[] => {
     const seen = new Set<string>();
     const out: LinkRow[] = [];
     for (const e of graph.edges) {
       if (e.kind !== "link") continue;
-      const other = want === "to" ? (e.from === nodeId ? e.to : null) : (e.to === nodeId ? e.from : null);
+      const other = want === "to" ? (e.from === nodeId ? e.to : null) : e.to === nodeId ? e.from : null;
       if (other === null || seen.has(other)) continue;
       const r = row(other);
-      if (r !== null) { seen.add(other); out.push(r); }
+      if (r !== null) {
+        seen.add(other);
+        out.push(r);
+      }
     }
     return out;
   };
@@ -70,7 +124,15 @@ export function linksOf(graph: ViewerGraph, nodeId: string): { to: readonly Link
 }
 
 /** A comment on a passage of a document or plan (files.comments.list): the quoted text, who and when, the words, replies, and whether it is resolved. */
-export interface DocComment { id: string; quote: string; by: string; at: string; text: string; replies?: readonly { by: string; text: string }[]; resolved?: boolean }
+export interface DocComment {
+  id: string;
+  quote: string;
+  by: string;
+  at: string;
+  text: string;
+  replies?: readonly { by: string; text: string }[];
+  resolved?: boolean;
+}
 
 /** The comments whose quote is on screen, open ones only, in document order. A comment whose quote is gone from the text stays listed but marks nothing. */
 export function openComments(comments: readonly DocComment[]): DocComment[] {
@@ -80,7 +142,10 @@ export function openComments(comments: readonly DocComment[]): DocComment[] {
 }
 
 /** Splits one block's text into plain runs and the runs a comment quotes, so the quoted words can be highlighted. */
-export function commentRuns(text: string, comments: readonly DocComment[]): readonly { text: string; comment?: string }[] {
+export function commentRuns(
+  text: string,
+  comments: readonly DocComment[],
+): readonly { text: string; comment?: string }[] {
   const hits: { at: number; len: number; id: string }[] = [];
   for (const c of comments) {
     if (c.quote === "") continue;
@@ -107,19 +172,34 @@ export function lineNumbers(count: number): string {
   return out;
 }
 
-export interface Sheet { cols: readonly string[]; rows: readonly (readonly string[])[] }
+export interface Sheet {
+  cols: readonly string[];
+  rows: readonly (readonly string[])[];
+}
 
 /** ***bold italic***, **bold**, *italic* (a single star next to a word, so "5 * 3" and "a*b" stay as they are), [[link]] and [text](target). */
-const INLINE = /\*\*\*(\S(?:.*?\S)?)\*\*\*|\*\*(.+?)\*\*|(?<![*\w])\*(?![\s*])([^*\n]*?[^\s*])\*(?![*\w])|\[\[(.+?)\]\]|\[([^\]\n]+)\]\(([^)\s]+)\)/g;
+const INLINE =
+  /\*\*\*(\S(?:.*?\S)?)\*\*\*|\*\*(.+?)\*\*|(?<![*\w])\*(?![\s*])([^*\n]*?[^\s*])\*(?![*\w])|\[\[(.+?)\]\]|\[([^\]\n]+)\]\(([^)\s]+)\)/g;
 /** A link's words without the marks a Word file puts inside them ("[**Terms**](https://...)"). */
 const unmark = (t: string): string => t.replace(/\*{1,3}([^*]+)\*{1,3}/g, "$1");
 
 /** The text a person sees: **bold**, *italic* and [[link]] markers removed. Find reads this, so a match is always something on screen. */
 export function stripInline(s: string): string {
-  return s.replace(INLINE, (_m, bi?: string, b?: string, i?: string, wiki?: string, label?: string) => bi ?? b ?? i ?? wiki ?? unmark(label ?? ""));
+  return s.replace(
+    INLINE,
+    (_m, bi?: string, b?: string, i?: string, wiki?: string, label?: string) =>
+      bi ?? b ?? i ?? wiki ?? unmark(label ?? ""),
+  );
 }
 /** A run of a line: plain, bold, italic, or a link. `ref` is what a link points at (the name in [[Name]], the path in [text](path)). */
-export interface InlineRun { text: string; bold?: boolean; italic?: boolean; link?: boolean; ref?: string; kind?: "wiki" | "md" }
+export interface InlineRun {
+  text: string;
+  bold?: boolean;
+  italic?: boolean;
+  link?: boolean;
+  ref?: string;
+  kind?: "wiki" | "md";
+}
 /** Splits ***bold italic***, **bold**, *italic*, [[link]] and [text](target) into runs; the runs' text joins to stripInline(s). */
 export function inlineRuns(s: string): readonly InlineRun[] {
   const out: InlineRun[] = [];
@@ -131,7 +211,15 @@ export function inlineRuns(s: string): readonly InlineRun[] {
     else if (m[2] !== undefined) out.push({ text: m[2], bold: true });
     else if (m[3] !== undefined) out.push({ text: m[3], italic: true });
     else if (m[4] !== undefined) out.push({ text: m[4], link: true, ref: m[4].trim(), kind: "wiki" });
-    else out.push({ text: unmark(m[5] ?? ""), link: true, ref: decodeURI(m[6] ?? "").replace(/#.*$/, "").replace(/^\.\//, ""), kind: "md" });
+    else
+      out.push({
+        text: unmark(m[5] ?? ""),
+        link: true,
+        ref: decodeURI(m[6] ?? "")
+          .replace(/#.*$/, "")
+          .replace(/^\.\//, ""),
+        kind: "md",
+      });
     at = i + m[0].length;
   }
   if (at < s.length) out.push({ text: s.slice(at) });
@@ -139,7 +227,9 @@ export function inlineRuns(s: string): readonly InlineRun[] {
 }
 
 /** Blocks grouped under the slide heading before them: a deck draws each slide as a card. Blocks before the first slide (none, for a deck) form a group with no heading. */
-export function slideGroups(blocks: readonly DocBlock[]): readonly { head: DocBlock | null; items: readonly { b: DocBlock; at: number }[] }[] {
+export function slideGroups(
+  blocks: readonly DocBlock[],
+): readonly { head: DocBlock | null; items: readonly { b: DocBlock; at: number }[] }[] {
   const out: { head: DocBlock | null; items: { b: DocBlock; at: number }[] }[] = [];
   blocks.forEach((b, at) => {
     if (b.tag === "slide") out.push({ head: b, items: [] });
@@ -175,7 +265,11 @@ export function boxFrom(a: readonly [number, number], b: readonly [number, numbe
   return { x: Math.min(a[0], b[0]), y: Math.min(a[1], b[1]), w, h };
 }
 
-export interface FindHit { block: number; at: number; len: number }
+export interface FindHit {
+  block: number;
+  at: number;
+  len: number;
+}
 
 /** Every case-insensitive match of the query, in reading order. */
 export function findMatches(texts: readonly string[], query: string): readonly FindHit[] {
@@ -190,7 +284,13 @@ export function findMatches(texts: readonly string[], query: string): readonly F
 }
 
 /** Splits one block's text into plain and marked runs; `current` marks the run that is the active match. */
-export function markRuns(text: string, hits: readonly FindHit[], block: number, current: number, all: readonly FindHit[]): readonly { text: string; hit?: boolean; on?: boolean }[] {
+export function markRuns(
+  text: string,
+  hits: readonly FindHit[],
+  block: number,
+  current: number,
+  all: readonly FindHit[],
+): readonly { text: string; hit?: boolean; on?: boolean }[] {
   const mine = hits.filter((h) => h.block === block);
   const runs: { text: string; hit?: boolean; on?: boolean }[] = [];
   let at = 0;
@@ -207,7 +307,11 @@ const num = (v: string): number => Number.parseFloat(v.replace(/[^0-9.-]/g, ""))
 const isNum = (v: string): boolean => v !== "" && /^[$\d.,-]+$/.test(v);
 
 /** Rows sorted by one column; numbers by value, the rest by text. Direction 1 up, -1 down. */
-export function sortRows(rows: readonly (readonly string[])[], col: number, dir: 1 | -1): readonly (readonly string[])[] {
+export function sortRows(
+  rows: readonly (readonly string[])[],
+  col: number,
+  dir: 1 | -1,
+): readonly (readonly string[])[] {
   return [...rows].sort((a, b) => {
     const x = a[col] ?? "";
     const y = b[col] ?? "";
@@ -350,8 +454,19 @@ function each<T, R>(items: readonly T[], make: (item: T, index: number) => R): R
 
 function Tool(p: { label: string; icon: string; on?: boolean; onPress: () => void; testID: string }): ReactElement {
   return (
-    <Pressable accessibilityRole="button" accessibilityLabel={p.label} aria-selected={p.on === true} accessibilityState={{ selected: p.on === true }} testID={p.testID} onPress={p.onPress}
-      style={({ hovered }: { hovered?: boolean }) => [s.tool, p.on === true && s.toolOn, hovered === true && s.toolOver]}>
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={p.label}
+      aria-selected={p.on === true}
+      accessibilityState={{ selected: p.on === true }}
+      testID={p.testID}
+      onPress={p.onPress}
+      style={({ hovered }: { hovered?: boolean }) => [
+        s.tool,
+        p.on === true && s.toolOn,
+        hovered === true && s.toolOver,
+      ]}
+    >
       <MenuIcon icon={p.icon} />
       <Text style={s.toolText}>{p.label}</Text>
     </Pressable>
@@ -395,92 +510,263 @@ export function Viewer(props: ViewerViewProps): ReactElement {
   const texts = useMemo(() => each(blocks, (b) => stripInline(b.text)), [blocks]);
   const layerMarks = props.layer?.marks;
   const spansBy = useMemo<Span[][]>(() => layerSpans(texts, layerMarks ?? []), [texts, layerMarks]);
-  const markById = useMemo(() => new Map<string, ViewerMark>(each(layerMarks ?? [], (m) => [m.id, m] as const)), [layerMarks]);
+  const markById = useMemo(
+    () => new Map<string, ViewerMark>(each(layerMarks ?? [], (m) => [m.id, m] as const)),
+    [layerMarks],
+  );
   const onLayer = props.onLayer;
   // a selection in the words offers Highlight, Redact, Comment and Ask; a redaction or highlight shows its card on hover or focus (web: the browser's own selection and pointer)
   useEffect(() => {
     if (Platform.OS !== "web" || onLayer === undefined) return undefined;
     const root = docRoot.current as unknown as HTMLElement | null;
     if (!root || typeof root.addEventListener !== "function") return undefined;
-    const place = (r: DOMRect): { x: number; y: number } => { const c = root.getBoundingClientRect(); return { x: Math.max(8, Math.min(c.width - 368, r.left - c.left + r.width / 2 - 180)), y: Math.max(4, r.top - c.top - 42) }; };
-    const up = (): void => { setTimeout(() => {
-      const sl = window.getSelection();
-      if (!sl || sl.isCollapsed || sl.rangeCount === 0) { setSel(null); return; }
-      const range = sl.getRangeAt(0);
-      const start = (range.startContainer.nodeType === 1 ? range.startContainer : range.startContainer.parentElement) as HTMLElement | null;
-      const blockEl = start?.closest("[data-testid^='vw-block-']") as HTMLElement | null;
-      if (!blockEl || !root.contains(blockEl)) { setSel(null); return; }
-      const bi = blocks.findIndex((b) => `vw-block-${b.id}` === blockEl.getAttribute("data-testid"));
-      const quote = (sl.toString().split("\n")[0] ?? "").trim();
-      if (bi < 0 || quote === "") { setSel(null); return; }
-      const pre = document.createRange(); pre.setStart(blockEl, 0); pre.setEnd(range.startContainer, range.startOffset);
-      let earlier = 0; for (let i = 0; i < bi; i++) earlier += occurrences(texts[i] ?? "", quote).length;
-      setSel({ quote, occurrence: earlier + occurrences(pre.toString(), quote).length, ...place(range.getBoundingClientRect()) });
-    }, 0); };
+    const place = (r: DOMRect): { x: number; y: number } => {
+      const c = root.getBoundingClientRect();
+      return {
+        x: Math.max(8, Math.min(c.width - 368, r.left - c.left + r.width / 2 - 180)),
+        y: Math.max(4, r.top - c.top - 42),
+      };
+    };
+    const up = (): void => {
+      setTimeout(() => {
+        const sl = window.getSelection();
+        if (!sl || sl.isCollapsed || sl.rangeCount === 0) {
+          setSel(null);
+          return;
+        }
+        const range = sl.getRangeAt(0);
+        const start = (
+          range.startContainer.nodeType === 1 ? range.startContainer : range.startContainer.parentElement
+        ) as HTMLElement | null;
+        const blockEl = start?.closest("[data-testid^='vw-block-']") as HTMLElement | null;
+        if (!blockEl || !root.contains(blockEl)) {
+          setSel(null);
+          return;
+        }
+        const bi = blocks.findIndex((b) => `vw-block-${b.id}` === blockEl.getAttribute("data-testid"));
+        const quote = (sl.toString().split("\n")[0] ?? "").trim();
+        if (bi < 0 || quote === "") {
+          setSel(null);
+          return;
+        }
+        const pre = document.createRange();
+        pre.setStart(blockEl, 0);
+        pre.setEnd(range.startContainer, range.startOffset);
+        let earlier = 0;
+        for (let i = 0; i < bi; i++) earlier += occurrences(texts[i] ?? "", quote).length;
+        setSel({
+          quote,
+          occurrence: earlier + occurrences(pre.toString(), quote).length,
+          ...place(range.getBoundingClientRect()),
+        });
+      }, 0);
+    };
     const over = (e: Event): void => {
       const el = (e.target as HTMLElement | null)?.closest?.("[data-mark]") as HTMLElement | null;
       if (!el || !root.contains(el)) return;
       const id = el.getAttribute("data-mark") ?? "";
       if (hoverT.current) clearTimeout(hoverT.current);
-      hoverT.current = setTimeout(() => { const r = el.getBoundingClientRect(), c = root.getBoundingClientRect(); setHover({ id, x: Math.max(8, Math.min(c.width - 280, r.left - c.left)), y: r.bottom - c.top + 6 }); }, e.type === "focusin" ? 0 : 260);
+      hoverT.current = setTimeout(
+        () => {
+          const r = el.getBoundingClientRect(),
+            c = root.getBoundingClientRect();
+          setHover({ id, x: Math.max(8, Math.min(c.width - 280, r.left - c.left)), y: r.bottom - c.top + 6 });
+        },
+        e.type === "focusin" ? 0 : 260,
+      );
     };
-    const out = (e: Event): void => { const el = (e.target as HTMLElement | null)?.closest?.("[data-mark]"); if (!el) return; if (hoverT.current) clearTimeout(hoverT.current); hoverT.current = setTimeout(() => setHover(null), 220); };
-    const key = (e: KeyboardEvent): void => { if (e.key === "Escape") { setSel(null); setHover(null); } };
-    root.addEventListener("mouseup", up); root.addEventListener("mouseover", over); root.addEventListener("focusin", over); root.addEventListener("mouseout", out); root.addEventListener("keydown", key);
-    return () => { root.removeEventListener("mouseup", up); root.removeEventListener("mouseover", over); root.removeEventListener("focusin", over); root.removeEventListener("mouseout", out); root.removeEventListener("keydown", key); };
+    const out = (e: Event): void => {
+      const el = (e.target as HTMLElement | null)?.closest?.("[data-mark]");
+      if (!el) return;
+      if (hoverT.current) clearTimeout(hoverT.current);
+      hoverT.current = setTimeout(() => setHover(null), 220);
+    };
+    const key = (e: KeyboardEvent): void => {
+      if (e.key === "Escape") {
+        setSel(null);
+        setHover(null);
+      }
+    };
+    root.addEventListener("mouseup", up);
+    root.addEventListener("mouseover", over);
+    root.addEventListener("focusin", over);
+    root.addEventListener("mouseout", out);
+    root.addEventListener("keydown", key);
+    return () => {
+      root.removeEventListener("mouseup", up);
+      root.removeEventListener("mouseover", over);
+      root.removeEventListener("focusin", over);
+      root.removeEventListener("mouseout", out);
+      root.removeEventListener("keydown", key);
+    };
   }, [onLayer, blocks, texts]);
   const hits = useMemo(() => findMatches(texts, find), [texts, find]);
   const at = hits.length === 0 ? 0 : cur % hits.length;
   const pins: readonly ViewerPin[] = props.pins ?? each(boxes, (b, i) => ({ id: b.id, n: i + 1, text: b.text }));
-  const links = useMemo(() => (props.graph !== undefined && props.nodeId !== undefined ? linksOf(props.graph, props.nodeId) : { to: [] as readonly LinkRow[], from: [] as readonly LinkRow[] }), [props.graph, props.nodeId]);
+  const links = useMemo(
+    () =>
+      props.graph !== undefined && props.nodeId !== undefined
+        ? linksOf(props.graph, props.nodeId)
+        : { to: [] as readonly LinkRow[], from: [] as readonly LinkRow[] },
+    [props.graph, props.nodeId],
+  );
   const editing = props.editing === true || (props.kind === "document" && editMode);
 
-  const setZ = (z: number): void => { setZoom(z); props.onZoom?.(z); };
-  const changeBoxes = (next: readonly MarkupBox[]): void => { setBoxes(next); props.onBoxes?.(next); };
-  const changeStrokes = (next: readonly Stroke[]): void => { setStrokes(next); props.onStrokes?.(next); };
-  const changeBlocks = (next: readonly DocBlock[]): void => { setBlocks(next); props.onEdit?.(next); };
+  const setZ = (z: number): void => {
+    setZoom(z);
+    props.onZoom?.(z);
+  };
+  const changeBoxes = (next: readonly MarkupBox[]): void => {
+    setBoxes(next);
+    props.onBoxes?.(next);
+  };
+  const changeStrokes = (next: readonly Stroke[]): void => {
+    setStrokes(next);
+    props.onStrokes?.(next);
+  };
+  const changeBlocks = (next: readonly DocBlock[]): void => {
+    setBlocks(next);
+    props.onEdit?.(next);
+  };
   const pick = (t: MarkupTool): void => setTool((x) => (x === t ? null : t));
 
-  const iconBtn = (label: string, icon: string, testID: string, onPress?: (e?: unknown) => void, on = false, disabled = false): ReactElement => (
-    <Pressable accessibilityRole="button" accessibilityLabel={label} aria-selected={on} accessibilityState={{ selected: on, disabled }} disabled={disabled} testID={testID} onPress={onPress}
-      style={({ hovered }: { hovered?: boolean }) => [s.iconBtn, on && s.toolOn, hovered === true && !disabled && s.toolOver, disabled && { opacity: 0.4 }]}><MenuIcon icon={icon} /></Pressable>
+  const iconBtn = (
+    label: string,
+    icon: string,
+    testID: string,
+    onPress?: (e?: unknown) => void,
+    on = false,
+    disabled = false,
+  ): ReactElement => (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      aria-selected={on}
+      accessibilityState={{ selected: on, disabled }}
+      disabled={disabled}
+      testID={testID}
+      onPress={onPress}
+      style={({ hovered }: { hovered?: boolean }) => [
+        s.iconBtn,
+        on && s.toolOn,
+        hovered === true && !disabled && s.toolOver,
+        disabled && { opacity: 0.4 },
+      ]}
+    >
+      <MenuIcon icon={icon} />
+    </Pressable>
   );
   const bar = (
     <View style={s.bar} testID="vw-bar">
-      {props.kindMark !== undefined ? <View testID="vw-mark">{props.kindMark}</View> : props.kindLabel !== undefined ? <View style={s.tile} testID="vw-tile"><Text style={s.tileText}>{props.kindLabel}</Text></View> : null}
+      {props.kindMark !== undefined ? (
+        <View testID="vw-mark">{props.kindMark}</View>
+      ) : props.kindLabel !== undefined ? (
+        <View style={s.tile} testID="vw-tile">
+          <Text style={s.tileText}>{props.kindLabel}</Text>
+        </View>
+      ) : null}
       <View style={s.titleCol}>
-        <Text style={s.title} numberOfLines={1}>{viewerLabel(props)}</Text>
-        {props.subtitle !== undefined ? <Text style={s.sub} numberOfLines={1} testID="vw-sub">{props.subtitle}</Text> : null}
+        <Text style={s.title} numberOfLines={1}>
+          {viewerLabel(props)}
+        </Text>
+        {props.subtitle !== undefined ? (
+          <Text style={s.sub} numberOfLines={1} testID="vw-sub">
+            {props.subtitle}
+          </Text>
+        ) : null}
       </View>
       <View style={s.grow} />
       {findOpen ? (
         <View style={s.findBox} testID="vw-find">
           <MenuIcon icon={ICON.find} />
-          <TextInput autoFocus={props.find === undefined} accessibilityLabel="Find in file" testID="vw-find-input" value={find} placeholder="Find in file" placeholderTextColor="var(--ink-4)" style={s.findInput}
-            onChangeText={(t) => { setFind(t); setCur(0); props.onFind?.(t); }} onSubmitEditing={() => setCur((c) => c + 1)} />
-          {find !== "" ? <Text style={s.count} testID="vw-count">{hits.length === 0 ? "No matches" : `${at + 1} of ${hits.length}`}</Text> : null}
+          <TextInput
+            autoFocus={props.find === undefined}
+            accessibilityLabel="Find in file"
+            testID="vw-find-input"
+            value={find}
+            placeholder="Find in file"
+            placeholderTextColor="var(--ink-4)"
+            style={s.findInput}
+            onChangeText={(t) => {
+              setFind(t);
+              setCur(0);
+              props.onFind?.(t);
+            }}
+            onSubmitEditing={() => setCur((c) => c + 1)}
+          />
+          {find !== "" ? (
+            <Text style={s.count} testID="vw-count">
+              {hits.length === 0 ? "No matches" : `${at + 1} of ${hits.length}`}
+            </Text>
+          ) : null}
           {hits.length > 1 ? (
             <>
-              <Pressable accessibilityRole="button" accessibilityLabel="Previous match" testID="vw-prev" onPress={() => setCur((c) => (c - 1 + hits.length) % hits.length)}><MenuIcon icon={ICON.up} /></Pressable>
-              <Pressable accessibilityRole="button" accessibilityLabel="Next match" testID="vw-next" onPress={() => setCur((c) => c + 1)}><MenuIcon icon={ICON.down} /></Pressable>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Previous match"
+                testID="vw-prev"
+                onPress={() => setCur((c) => (c - 1 + hits.length) % hits.length)}
+              >
+                <MenuIcon icon={ICON.up} />
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Next match"
+                testID="vw-next"
+                onPress={() => setCur((c) => c + 1)}
+              >
+                <MenuIcon icon={ICON.down} />
+              </Pressable>
             </>
           ) : null}
         </View>
       ) : null}
       {props.kind === "image" ? (
         <View style={s.zoom} testID="vw-zoom">
-          <Pressable accessibilityRole="button" accessibilityLabel="Zoom out" testID="vw-zoom-out" onPress={() => setZ(stepZoom(zoom, -1))}><Text style={s.zoomText}>{"−"}</Text></Pressable>
-          <Pressable accessibilityRole="button" accessibilityLabel="Reset zoom" testID="vw-zoom-reset" onPress={() => setZ(stepZoom(zoom, 0))}><Text style={s.zoomText}>{`${Math.round(zoom * 100)}%`}</Text></Pressable>
-          <Pressable accessibilityRole="button" accessibilityLabel="Zoom in" testID="vw-zoom-in" onPress={() => setZ(stepZoom(zoom, 1))}><Text style={s.zoomText}>{"+"}</Text></Pressable>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Zoom out"
+            testID="vw-zoom-out"
+            onPress={() => setZ(stepZoom(zoom, -1))}
+          >
+            <Text style={s.zoomText}>{"−"}</Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Reset zoom"
+            testID="vw-zoom-reset"
+            onPress={() => setZ(stepZoom(zoom, 0))}
+          >
+            <Text style={s.zoomText}>{`${Math.round(zoom * 100)}%`}</Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Zoom in"
+            testID="vw-zoom-in"
+            onPress={() => setZ(stepZoom(zoom, 1))}
+          >
+            <Text style={s.zoomText}>{"+"}</Text>
+          </Pressable>
         </View>
       ) : null}
-      {props.readOnly !== true && (props.kind === "csv" || (props.kind === "document" && blocks.some((b) => b.tag !== "code"))) ? (
+      {props.readOnly !== true &&
+      (props.kind === "csv" || (props.kind === "document" && blocks.some((b) => b.tag !== "code"))) ? (
         <View style={s.modeRow} testID="vw-mode">
           {props.saved !== undefined ? <Text style={s.saved} testID="vw-saved">{`✓ v${props.saved}`}</Text> : null}
           <View style={s.seg} accessibilityRole="tablist">
             {each(["View", "Edit"] as const, (m) => (
-              <Pressable key={m} accessibilityRole="tab" aria-selected={(m === "Edit") === editMode} accessibilityState={{ selected: (m === "Edit") === editMode }} testID={`vw-mode-${m.toLowerCase()}`}
-                onPress={() => { setEditMode(m === "Edit"); props.onEditMode?.(m === "Edit"); }} style={[s.segBtn, (m === "Edit") === editMode && s.segOn]}>
+              <Pressable
+                key={m}
+                accessibilityRole="tab"
+                aria-selected={(m === "Edit") === editMode}
+                accessibilityState={{ selected: (m === "Edit") === editMode }}
+                testID={`vw-mode-${m.toLowerCase()}`}
+                onPress={() => {
+                  setEditMode(m === "Edit");
+                  props.onEditMode?.(m === "Edit");
+                }}
+                style={[s.segBtn, (m === "Edit") === editMode && s.segOn]}
+              >
                 <Text style={[s.segText, (m === "Edit") === editMode && s.segTextOn]}>{m}</Text>
               </Pressable>
             ))}
@@ -488,150 +774,479 @@ export function Viewer(props: ViewerViewProps): ReactElement {
         </View>
       ) : null}
       {props.openIn !== undefined ? (
-        <Pressable accessibilityRole="button" accessibilityLabel={props.openIn.label} testID="vw-open-in" onPress={props.openIn.onOpen}
-          style={({ hovered }: { hovered?: boolean }) => [s.openIn, hovered === true && s.toolOver]}><Text style={s.openInText} numberOfLines={1}>{props.openIn.label}</Text></Pressable>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={props.openIn.label}
+          testID="vw-open-in"
+          onPress={props.openIn.onOpen}
+          style={({ hovered }: { hovered?: boolean }) => [s.openIn, hovered === true && s.toolOver]}
+        >
+          <Text style={s.openInText} numberOfLines={1}>
+            {props.openIn.label}
+          </Text>
+        </Pressable>
       ) : null}
       {props.tools}
       {iconBtn("Find in file", ICON.find, "vw-find-btn", () => setFindOpen((o) => !o), findOpen)}
-      {iconBtn("Details", ICON.info, "vw-info", () => { setDetailsOpen((o) => !o); props.onInfo?.(); }, detailsOpen)}
-      {props.onHistory ? iconBtn("History", ICON.history, "vw-history", (e) => { const q = pressPoint(e); props.onHistory?.(q.x, q.y); }) : null}
+      {iconBtn(
+        "Details",
+        ICON.info,
+        "vw-info",
+        () => {
+          setDetailsOpen((o) => !o);
+          props.onInfo?.();
+        },
+        detailsOpen,
+      )}
+      {props.onHistory
+        ? iconBtn("History", ICON.history, "vw-history", (e) => {
+            const q = pressPoint(e);
+            props.onHistory?.(q.x, q.y);
+          })
+        : null}
       {props.ask !== undefined ? <AskButton {...props.ask} compact /> : null}
-      {props.onMore ? iconBtn("More", ICON.more, "vw-more", (e) => { const q = pressPoint(e); props.onMore?.(q.x, q.y); }) : null}
+      {props.onMore
+        ? iconBtn("More", ICON.more, "vw-more", (e) => {
+            const q = pressPoint(e);
+            props.onMore?.(q.x, q.y);
+          })
+        : null}
     </View>
   );
 
-  const markBar = props.kind === "image" ? (
-    <View style={s.mark} testID="vw-markup" accessibilityRole="toolbar" accessibilityLabel="Mark up">
-      <Tool label="Draw" icon={ICON.draw} on={tool === "draw"} onPress={() => pick("draw")} testID="vw-tool-draw" />
-      <Tool label="Comment on an area" icon={ICON.area} on={tool === "comment"} onPress={() => { setRtool(false); pick("comment"); }} testID="vw-tool-comment" />
-      {onLayer !== undefined && props.layer?.preview !== true ? <Tool label="Redact an area" icon={LAYER_ICON.eyeoff} on={rtool} onPress={() => { setTool(null); setRtool((r) => !r); }} testID="vw-tool-redact" /> : null}
-      <View style={s.grow} />
-      {boxes.length + strokes.length > 0 ? <Pressable accessibilityRole="button" accessibilityLabel="Clear markup" testID="vw-clear" onPress={() => { changeBoxes([]); changeStrokes([]); setNote(null); }}><Text style={s.toolText}>Clear</Text></Pressable> : null}
-      {boxes.length + strokes.length > 0 ? (
-        <Pressable accessibilityRole="button" accessibilityLabel={`Ask ${props.agentName ?? "the agent"}`} testID="vw-ask-markup" onPress={() => props.onAskMarkup?.(boxes)} style={s.askMark}>
-          <Text style={s.askMarkText}>{`Ask ${props.agentName ?? "the agent"}`}</Text>
-        </Pressable>
-      ) : null}
-    </View>
-  ) : null;
+  const markBar =
+    props.kind === "image" ? (
+      <View style={s.mark} testID="vw-markup" accessibilityRole="toolbar" accessibilityLabel="Mark up">
+        <Tool label="Draw" icon={ICON.draw} on={tool === "draw"} onPress={() => pick("draw")} testID="vw-tool-draw" />
+        <Tool
+          label="Comment on an area"
+          icon={ICON.area}
+          on={tool === "comment"}
+          onPress={() => {
+            setRtool(false);
+            pick("comment");
+          }}
+          testID="vw-tool-comment"
+        />
+        {onLayer !== undefined && props.layer?.preview !== true ? (
+          <Tool
+            label="Redact an area"
+            icon={LAYER_ICON.eyeoff}
+            on={rtool}
+            onPress={() => {
+              setTool(null);
+              setRtool((r) => !r);
+            }}
+            testID="vw-tool-redact"
+          />
+        ) : null}
+        <View style={s.grow} />
+        {boxes.length + strokes.length > 0 ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Clear markup"
+            testID="vw-clear"
+            onPress={() => {
+              changeBoxes([]);
+              changeStrokes([]);
+              setNote(null);
+            }}
+          >
+            <Text style={s.toolText}>Clear</Text>
+          </Pressable>
+        ) : null}
+        {boxes.length + strokes.length > 0 ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Ask ${props.agentName ?? "the agent"}`}
+            testID="vw-ask-markup"
+            onPress={() => props.onAskMarkup?.(boxes)}
+            style={s.askMark}
+          >
+            <Text style={s.askMarkText}>{`Ask ${props.agentName ?? "the agent"}`}</Text>
+          </Pressable>
+        ) : null}
+      </View>
+    ) : null;
 
-  const pointer = (phase: "down" | "move" | "up", e: { nativeEvent: { locationX: number; locationY: number } }): void => {
+  const pointer = (
+    phase: "down" | "move" | "up",
+    e: { nativeEvent: { locationX: number; locationY: number } },
+  ): void => {
     if (tool === null && !rtool) return;
     const p = toUnit(e.nativeEvent.locationX, e.nativeEvent.locationY, stage.current.w * zoom, stage.current.h * zoom);
     if (rtool) {
-      if (phase === "down") { setDrag({ a: p, b: p }); return; }
-      if (phase === "move") { setDrag((d) => (d === null ? d : { a: d.a, b: p })); return; }
+      if (phase === "down") {
+        setDrag({ a: p, b: p });
+        return;
+      }
+      if (phase === "move") {
+        setDrag((d) => (d === null ? d : { a: d.a, b: p }));
+        return;
+      }
       const rb = drag === null ? null : boxFrom(drag.a, drag.b);
       setDrag(null);
       if (rb !== null) onLayer?.({ kind: "redact", shape: "box", box: { x: rb.x, y: rb.y, w: rb.w, h: rb.h } });
       return;
     }
-    if (phase === "down") { if (tool === "draw") setLine([p]); else setDrag({ a: p, b: p }); return; }
-    if (phase === "move") { if (tool === "draw") setLine((l) => (l === null ? l : [...l, p])); else setDrag((d) => (d === null ? d : { a: d.a, b: p })); return; }
-    if (tool === "draw") { if (line !== null && line.length > 1) changeStrokes([...strokes, { points: line }]); setLine(null); return; }
+    if (phase === "down") {
+      if (tool === "draw") setLine([p]);
+      else setDrag({ a: p, b: p });
+      return;
+    }
+    if (phase === "move") {
+      if (tool === "draw") setLine((l) => (l === null ? l : [...l, p]));
+      else setDrag((d) => (d === null ? d : { a: d.a, b: p }));
+      return;
+    }
+    if (tool === "draw") {
+      if (line !== null && line.length > 1) changeStrokes([...strokes, { points: line }]);
+      setLine(null);
+      return;
+    }
     const box = drag === null ? null : boxFrom(drag.a, drag.b);
     setDrag(null);
-    if (box !== null) { const id = `bx${boxes.length + 1}-${Date.now().toString(36)}`; changeBoxes([...boxes, { id, text: "", ...box }]); setNote(id); }
+    if (box !== null) {
+      const id = `bx${boxes.length + 1}-${Date.now().toString(36)}`;
+      changeBoxes([...boxes, { id, text: "", ...box }]);
+      setNote(id);
+    }
   };
 
   const image = (
     <ScrollView style={s.scroll} contentContainerStyle={s.imgWrap} testID="vw-image">
-      <View style={[s.stageBox, { width: `${Math.min(100, 100 * zoom)}%`, aspectRatio: IMAGE_W / IMAGE_H }]} testID="vw-stage"
-        onLayout={(e) => { stage.current = { w: e.nativeEvent.layout.width / zoom, h: e.nativeEvent.layout.height / zoom }; }}
-        onStartShouldSetResponder={() => tool !== null || rtool} onResponderGrant={(e) => pointer("down", e)} onResponderMove={(e) => pointer("move", e)} onResponderRelease={(e) => pointer("up", e)}>
-        {props.src !== undefined
-          ? <Image accessibilityIgnoresInvertColors accessibilityLabel={props.title} source={{ uri: props.src }} resizeMode="cover" style={s.pictureImg} testID="vw-picture" />
-          : <View style={s.picture}><Text style={s.pictureText}>{props.title}</Text></View>}
-        {Platform.OS === "web" && (strokes.length > 0 || (line !== null && line.length > 1)) ? createElement("svg", { viewBox: "0 0 1 1", preserveAspectRatio: "none", "data-testid": "vw-strokes", style: { position: "absolute", left: 0, top: 0, width: "100%", height: "100%", pointerEvents: "none", zIndex: 2 } },
-          ...each([...each(strokes, (st) => st.points), ...(line !== null ? [line] : [])], (pts, i) => createElement("polyline", { key: i, points: each(pts, (q) => `${q[0]},${q[1]}`).join(" "), fill: "none", stroke: "#E5483A", strokeWidth: 3, strokeLinecap: "round", strokeLinejoin: "round", vectorEffect: "non-scaling-stroke" }))) : null}
-        {each(strokes, (st, i) => <View key={i} testID={`vw-stroke-${i}`} style={s.strokeMark} {...web({ "data-points": each(st.points, (q) => `${q[0].toFixed(3)},${q[1].toFixed(3)}`).join(" ") })} />)}
+      <View
+        style={[s.stageBox, { width: `${Math.min(100, 100 * zoom)}%`, aspectRatio: IMAGE_W / IMAGE_H }]}
+        testID="vw-stage"
+        onLayout={(e) => {
+          stage.current = { w: e.nativeEvent.layout.width / zoom, h: e.nativeEvent.layout.height / zoom };
+        }}
+        onStartShouldSetResponder={() => tool !== null || rtool}
+        onResponderGrant={(e) => pointer("down", e)}
+        onResponderMove={(e) => pointer("move", e)}
+        onResponderRelease={(e) => pointer("up", e)}
+      >
+        {props.src !== undefined ? (
+          <Image
+            accessibilityIgnoresInvertColors
+            accessibilityLabel={props.title}
+            source={{ uri: props.src }}
+            resizeMode="cover"
+            style={s.pictureImg}
+            testID="vw-picture"
+          />
+        ) : (
+          <View style={s.picture}>
+            <Text style={s.pictureText}>{props.title}</Text>
+          </View>
+        )}
+        {Platform.OS === "web" && (strokes.length > 0 || (line !== null && line.length > 1))
+          ? createElement(
+              "svg",
+              {
+                viewBox: "0 0 1 1",
+                preserveAspectRatio: "none",
+                "data-testid": "vw-strokes",
+                style: {
+                  position: "absolute",
+                  left: 0,
+                  top: 0,
+                  width: "100%",
+                  height: "100%",
+                  pointerEvents: "none",
+                  zIndex: 2,
+                },
+              },
+              ...each([...each(strokes, (st) => st.points), ...(line !== null ? [line] : [])], (pts, i) =>
+                createElement("polyline", {
+                  key: i,
+                  points: each(pts, (q) => `${q[0]},${q[1]}`).join(" "),
+                  fill: "none",
+                  stroke: "#E5483A",
+                  strokeWidth: 3,
+                  strokeLinecap: "round",
+                  strokeLinejoin: "round",
+                  vectorEffect: "non-scaling-stroke",
+                }),
+              ),
+            )
+          : null}
+        {each(strokes, (st, i) => (
+          <View
+            key={i}
+            testID={`vw-stroke-${i}`}
+            style={s.strokeMark}
+            {...web({ "data-points": each(st.points, (q) => `${q[0].toFixed(3)},${q[1].toFixed(3)}`).join(" ") })}
+          />
+        ))}
         {each(boxes, (b, i) => (
-          <View key={b.id} testID={`vw-box-${b.id}`} pointerEvents="none" style={[s.box, { left: `${b.x * 100}%`, top: `${b.y * 100}%`, width: `${b.w * 100}%`, height: `${b.h * 100}%` }]}>
+          <View
+            key={b.id}
+            testID={`vw-box-${b.id}`}
+            pointerEvents="none"
+            style={[
+              s.box,
+              { left: `${b.x * 100}%`, top: `${b.y * 100}%`, width: `${b.w * 100}%`, height: `${b.h * 100}%` },
+            ]}
+          >
             <View style={s.handle} testID={`vw-handle-${i + 1}`} />
-            <View style={s.pin} testID={`vw-pin-${i + 1}`} {...web({ "data-anchor": `${b.x.toFixed(3)},${b.y.toFixed(3)}` })}><Text style={s.pinText}>{i + 1}</Text></View>
-            {b.text !== "" ? <View style={s.bubble} testID={`vw-bubble-${i + 1}`}><Text style={s.bubbleText} numberOfLines={1}>{b.text}</Text></View> : null}
+            <View
+              style={s.pin}
+              testID={`vw-pin-${i + 1}`}
+              {...web({ "data-anchor": `${b.x.toFixed(3)},${b.y.toFixed(3)}` })}
+            >
+              <Text style={s.pinText}>{i + 1}</Text>
+            </View>
+            {b.text !== "" ? (
+              <View style={s.bubble} testID={`vw-bubble-${i + 1}`}>
+                <Text style={s.bubbleText} numberOfLines={1}>
+                  {b.text}
+                </Text>
+              </View>
+            ) : null}
           </View>
         ))}
-        {each((props.layer?.marks ?? []).filter((m) => m.shape === "box" && m.box !== undefined), (m) => (
-          <View key={m.id} testID={`vw-rbox-${m.id}`} focusable accessibilityLabel={props.layer?.preview === true ? "REDACTED" : `Hidden from AI: ${m.label ?? "an area"}`}
-            style={[s.rbox, { left: `${m.box!.x * 100}%`, top: `${m.box!.y * 100}%`, width: `${m.box!.w * 100}%`, height: `${m.box!.h * 100}%` }]}
-            {...web({ "data-rxbox": props.layer?.preview === true ? "ai" : "1", "data-mark": m.id })}>
-            {props.layer?.preview === true ? <Text style={s.rboxText}>REDACTED</Text> : null}
-          </View>
-        ))}
-        {drag !== null ? (() => { const d = boxFrom(drag.a, drag.b); return d === null ? null : <View pointerEvents="none" style={[s.box, s.boxLive, { left: `${d.x * 100}%`, top: `${d.y * 100}%`, width: `${d.w * 100}%`, height: `${d.h * 100}%` }]} />; })() : null}
+        {each(
+          (props.layer?.marks ?? []).filter((m) => m.shape === "box" && m.box !== undefined),
+          (m) => (
+            <View
+              key={m.id}
+              testID={`vw-rbox-${m.id}`}
+              focusable
+              accessibilityLabel={
+                props.layer?.preview === true ? "REDACTED" : `Hidden from AI: ${m.label ?? "an area"}`
+              }
+              style={[
+                s.rbox,
+                {
+                  left: `${m.box!.x * 100}%`,
+                  top: `${m.box!.y * 100}%`,
+                  width: `${m.box!.w * 100}%`,
+                  height: `${m.box!.h * 100}%`,
+                },
+              ]}
+              {...web({ "data-rxbox": props.layer?.preview === true ? "ai" : "1", "data-mark": m.id })}
+            >
+              {props.layer?.preview === true ? <Text style={s.rboxText}>REDACTED</Text> : null}
+            </View>
+          ),
+        )}
+        {drag !== null
+          ? (() => {
+              const d = boxFrom(drag.a, drag.b);
+              return d === null ? null : (
+                <View
+                  pointerEvents="none"
+                  style={[
+                    s.box,
+                    s.boxLive,
+                    { left: `${d.x * 100}%`, top: `${d.y * 100}%`, width: `${d.w * 100}%`, height: `${d.h * 100}%` },
+                  ]}
+                />
+              );
+            })()
+          : null}
       </View>
       {note !== null ? (
         <View style={s.noteBox} testID="vw-note">
-          <TextInput autoFocus accessibilityLabel="Note for this area" placeholder="What should change here?" placeholderTextColor="var(--ink-4)" style={s.noteInput}
-            onSubmitEditing={(e) => { const text = e.nativeEvent.text.trim(); changeBoxes(each(boxes, (b) => (b.id === note ? { ...b, text } : b))); setNote(null); }} />
+          <TextInput
+            autoFocus
+            accessibilityLabel="Note for this area"
+            placeholder="What should change here?"
+            placeholderTextColor="var(--ink-4)"
+            style={s.noteInput}
+            onSubmitEditing={(e) => {
+              const text = e.nativeEvent.text.trim();
+              changeBoxes(each(boxes, (b) => (b.id === note ? { ...b, text } : b)));
+              setNote(null);
+            }}
+          />
         </View>
       ) : null}
       {pins.length > 0 ? (
         <View style={s.pinList} testID="vw-pins">
-          {each(pins, (p) => <Text key={p.id} style={s.pinRow} testID={`vw-pinrow-${p.n}`}>{`${p.n}  ${p.text === "" ? "No note yet" : p.text}`}</Text>)}
+          {each(pins, (p) => (
+            <Text
+              key={p.id}
+              style={s.pinRow}
+              testID={`vw-pinrow-${p.n}`}
+            >{`${p.n}  ${p.text === "" ? "No note yet" : p.text}`}</Text>
+          ))}
         </View>
       ) : null}
     </ScrollView>
   );
-  const strip = props.kind === "image" && (props.siblings?.length ?? 0) > 0 ? (
-    <View style={s.strip} testID="vw-siblings">
-      {each(props.siblings ?? [], (sb) => (
-        <Pressable key={sb.id} accessibilityRole="button" accessibilityLabel={sb.title} aria-selected={sb.id === props.current} accessibilityState={{ selected: sb.id === props.current }} testID={`vw-sib-${sb.id}`}
-          onPress={() => props.onSibling?.(sb.id)} style={[s.thumb, sb.id === props.current && s.thumbOn]}><Text style={s.thumbText} numberOfLines={1}>{sb.title}</Text></Pressable>
-      ))}
-    </View>
-  ) : null;
+  const strip =
+    props.kind === "image" && (props.siblings?.length ?? 0) > 0 ? (
+      <View style={s.strip} testID="vw-siblings">
+        {each(props.siblings ?? [], (sb) => (
+          <Pressable
+            key={sb.id}
+            accessibilityRole="button"
+            accessibilityLabel={sb.title}
+            aria-selected={sb.id === props.current}
+            accessibilityState={{ selected: sb.id === props.current }}
+            testID={`vw-sib-${sb.id}`}
+            onPress={() => props.onSibling?.(sb.id)}
+            style={[s.thumb, sb.id === props.current && s.thumbOn]}
+          >
+            <Text style={s.thumbText} numberOfLines={1}>
+              {sb.title}
+            </Text>
+          </Pressable>
+        ))}
+      </View>
+    ) : null;
 
   const shownComments = openComments(props.comments ?? []);
   const isCode = blocks.length > 0 && blocks.every((b) => b.tag === "code");
   const deck = blocks.some((b) => b.tag === "slide");
   /** A short line's words with find marks (a table cell, a slide title); the whole-block path below keeps comments and links as well. */
-  const inlineText = (text: string, runs: readonly { text: string; hit?: boolean; on?: boolean }[]): ReactNode => (find !== "" && runs.length > 0
-    ? each(runs, (r, i) => (r.hit === true ? <Text key={i} style={s.mark1}>{r.text}</Text> : r.text))
-    : each(inlineRuns(text), (r, i) => (r.bold === true || r.italic === true ? <Text key={i} style={[r.bold === true && s.bold, r.italic === true && s.italic]}>{r.text}</Text> : r.text)));
-  const slideFind = (b: DocBlock): readonly { text: string; hit?: boolean; on?: boolean }[] => (find === "" ? [] : markRuns(stripInline(b.text), findMatches([stripInline(b.text)], find), 0, -1, []));
+  const inlineText = (text: string, runs: readonly { text: string; hit?: boolean; on?: boolean }[]): ReactNode =>
+    find !== "" && runs.length > 0
+      ? each(runs, (r, i) =>
+          r.hit === true ? (
+            <Text key={i} style={s.mark1}>
+              {r.text}
+            </Text>
+          ) : (
+            r.text
+          ),
+        )
+      : each(inlineRuns(text), (r, i) =>
+          r.bold === true || r.italic === true ? (
+            <Text key={i} style={[r.bold === true && s.bold, r.italic === true && s.italic]}>
+              {r.text}
+            </Text>
+          ) : (
+            r.text
+          ),
+        );
+  const slideFind = (b: DocBlock): readonly { text: string; hit?: boolean; on?: boolean }[] =>
+    find === "" ? [] : markRuns(stripInline(b.text), findMatches([stripInline(b.text)], find), 0, -1, []);
   const renderBlock = (b: DocBlock, bi: number): ReactElement => {
     if (b.tag === "hrow" || b.tag === "row") {
       const cells = b.text.split("\t");
       return (
-        <View key={b.id} style={[s.cellRow, b.tag === "hrow" && s.cellHead]} testID={`vw-block-${b.id}`} accessibilityRole={b.tag === "hrow" ? "header" : undefined} {...web({ "data-tag": b.tag })}>
-          {each(cells, (c, ci) => <Text key={ci} style={[s.cellText, b.tag === "hrow" && s.bold]}>{inlineText(c, find === "" ? [] : markRuns(stripInline(c), findMatches([stripInline(c)], find), 0, -1, []))}</Text>)}
+        <View
+          key={b.id}
+          style={[s.cellRow, b.tag === "hrow" && s.cellHead]}
+          testID={`vw-block-${b.id}`}
+          accessibilityRole={b.tag === "hrow" ? "header" : undefined}
+          {...web({ "data-tag": b.tag })}
+        >
+          {each(cells, (c, ci) => (
+            <Text key={ci} style={[s.cellText, b.tag === "hrow" && s.bold]}>
+              {inlineText(
+                c,
+                find === "" ? [] : markRuns(stripInline(c), findMatches([stripInline(c)], find), 0, -1, []),
+              )}
+            </Text>
+          ))}
         </View>
       );
     }
     if (b.tag === "fig") {
       return (
-        <View key={b.id} style={s.fig} testID={`vw-block-${b.id}`} accessibilityLabel={b.text === "" ? "A picture" : `A picture: ${b.text}`} {...web({ "data-tag": "fig" })}>
-          <Text style={s.figText} numberOfLines={2}>{b.text === "" ? "Picture" : `Picture: ${b.text}`}</Text>
+        <View
+          key={b.id}
+          style={s.fig}
+          testID={`vw-block-${b.id}`}
+          accessibilityLabel={b.text === "" ? "A picture" : `A picture: ${b.text}`}
+          {...web({ "data-tag": "fig" })}
+        >
+          <Text style={s.figText} numberOfLines={2}>
+            {b.text === "" ? "Picture" : `Picture: ${b.text}`}
+          </Text>
         </View>
       );
     }
     if (b.tag === "meta") {
       return (
         <View key={b.id} style={s.meta} testID={`vw-block-${b.id}`}>
-          {each(b.text.split("\n"), (ln, li) => { const [k, ...v] = ln.split("\t"); return <View key={li} style={s.metaRow}><Text style={s.metaKey}>{k}</Text><Text style={s.metaVal}>{v.join(" ")}</Text></View>; })}
+          {each(b.text.split("\n"), (ln, li) => {
+            const [k, ...v] = ln.split("\t");
+            return (
+              <View key={li} style={s.metaRow}>
+                <Text style={s.metaKey}>{k}</Text>
+                <Text style={s.metaVal}>{v.join(" ")}</Text>
+              </View>
+            );
+          })}
         </View>
       );
     }
     if ((editing || (props.kind === "plan" && editId === b.id)) && find === "") {
-      return <TextInput key={b.id} multiline autoFocus={props.kind === "plan"} onBlur={() => setEditId((e) => (e === b.id ? null : e))} value={b.text} accessibilityLabel={`${b.tag} block`} testID={`vw-block-${b.id}`} style={[s.block, s[b.tag]]}
-        onSelectionChange={(e) => { const { start, end } = e.nativeEvent.selection; setQuoted(end > start ? { id: b.id, quote: b.text.slice(start, end) } : null); }}
-        onChangeText={(t) => changeBlocks(each(blocks, (x) => (x.id === b.id ? { ...x, text: t } : x)))} />;
+      return (
+        <TextInput
+          key={b.id}
+          multiline
+          autoFocus={props.kind === "plan"}
+          onBlur={() => setEditId((e) => (e === b.id ? null : e))}
+          value={b.text}
+          accessibilityLabel={`${b.tag} block`}
+          testID={`vw-block-${b.id}`}
+          style={[s.block, s[b.tag]]}
+          onSelectionChange={(e) => {
+            const { start, end } = e.nativeEvent.selection;
+            setQuoted(end > start ? { id: b.id, quote: b.text.slice(start, end) } : null);
+          }}
+          onChangeText={(t) => changeBlocks(each(blocks, (x) => (x.id === b.id ? { ...x, text: t } : x)))}
+        />
+      );
     }
     const lead = b.tag === "li" ? "•  " : "";
-    const nest = (b.level ?? 0) > 0 ? { paddingLeft: (b.tag === "li" ? 6 : 0) + 20 * Math.min(6, b.level ?? 0) } : b.tag === "note" && blocks[bi - 1]?.tag !== "note" ? s.noteFirst : null;
+    const nest =
+      (b.level ?? 0) > 0
+        ? { paddingLeft: (b.tag === "li" ? 6 : 0) + 20 * Math.min(6, b.level ?? 0) }
+        : b.tag === "note" && blocks[bi - 1]?.tag !== "note"
+          ? s.noteFirst
+          : null;
     const marks = commentRuns(b.text, shownComments);
     // Redaction for AI: the block's words with its redactions and highlights (comments as dotted underlines), or in Preview as agent the agent's own words
     if (props.layer !== undefined && find === "") {
       const sp = spansBy[bi] ?? [];
-      if (props.layer.preview === true) return <Text key={b.id} testID={`vw-block-${b.id}`} style={[s.block, s[b.tag], nest]} {...web({ "data-tag": b.tag })}>{lead}<PreviewText text={stripInline(b.text)} /></Text>;
+      if (props.layer.preview === true)
+        return (
+          <Text
+            key={b.id}
+            testID={`vw-block-${b.id}`}
+            style={[s.block, s[b.tag], nest]}
+            {...web({ "data-tag": b.tag })}
+          >
+            {lead}
+            <PreviewText text={stripInline(b.text)} />
+          </Text>
+        );
       if (sp.length > 0) {
         const t = texts[bi] ?? "";
         const cs: Span[] = [];
-        for (const c of shownComments) for (const at of occurrences(t, c.quote)) cs.push({ s: at, e: at + c.quote.length, mark: { id: c.id, kind: "comment" as never, shape: "span", by: c.by, when: c.at } });
-        const runs = each(layerRuns(t, [...sp, ...cs]), (r) => { const cm = r.marks.find((m) => (m.kind as string) === "comment"); return { text: r.text, marks: r.marks.filter((m) => (m.kind as string) !== "comment"), ...(cm ? { comment: cm.id } : {}) }; });
-        return <Text key={b.id} testID={`vw-block-${b.id}`} style={[s.block, s[b.tag], nest]} {...web({ "data-tag": b.tag, "data-layer": "1" })}>{lead}<LayerText runs={runs} /></Text>;
+        for (const c of shownComments)
+          for (const at of occurrences(t, c.quote))
+            cs.push({
+              s: at,
+              e: at + c.quote.length,
+              mark: { id: c.id, kind: "comment" as never, shape: "span", by: c.by, when: c.at },
+            });
+        const runs = each(layerRuns(t, [...sp, ...cs]), (r) => {
+          const cm = r.marks.find((m) => (m.kind as string) === "comment");
+          return {
+            text: r.text,
+            marks: r.marks.filter((m) => (m.kind as string) !== "comment"),
+            ...(cm ? { comment: cm.id } : {}),
+          };
+        });
+        return (
+          <Text
+            key={b.id}
+            testID={`vw-block-${b.id}`}
+            style={[s.block, s[b.tag], nest]}
+            {...web({ "data-tag": b.tag, "data-layer": "1" })}
+          >
+            {lead}
+            <LayerText runs={runs} />
+          </Text>
+        );
       }
     }
     if (find !== "") {
@@ -639,64 +1254,179 @@ export function Viewer(props: ViewerViewProps): ReactElement {
       return (
         <Text key={b.id} testID={`vw-block-${b.id}`} style={[s.block, s[b.tag], nest]} {...web({ "data-tag": b.tag })}>
           {lead}
-          {each(runs, (r, i) => (r.hit === true ? <Text key={i} style={[s.mark1, r.on === true && s.markOn]} {...web({ "data-find": r.on === true ? "current" : "match" })}>{r.text}</Text> : r.text))}
+          {each(runs, (r, i) =>
+            r.hit === true ? (
+              <Text
+                key={i}
+                style={[s.mark1, r.on === true && s.markOn]}
+                {...web({ "data-find": r.on === true ? "current" : "match" })}
+              >
+                {r.text}
+              </Text>
+            ) : (
+              r.text
+            ),
+          )}
         </Text>
       );
     }
     return (
-      <Text key={b.id} testID={`vw-block-${b.id}`} style={[s.block, s[b.tag], nest]} onPress={props.kind === "plan" ? () => setEditId(b.id) : undefined} {...web({ "data-tag": b.tag })}>
+      <Text
+        key={b.id}
+        testID={`vw-block-${b.id}`}
+        style={[s.block, s[b.tag], nest]}
+        onPress={props.kind === "plan" ? () => setEditId(b.id) : undefined}
+        {...web({ "data-tag": b.tag })}
+      >
         {b.tag === "note" && blocks[bi - 1]?.tag !== "note" ? <Text style={s.noteLabel}>{"Notes  "}</Text> : null}
         {lead}
         {shownComments.length > 0 && marks.some((m) => m.comment !== undefined)
-          ? each(marks, (m, i) => (m.comment !== undefined ? <Text key={i} style={s.commented} {...web({ "data-comment": m.comment })}>{m.text}</Text> : m.text))
-          : each(inlineRuns(b.text), (r, i) => (r.bold === true || r.italic === true
-            ? <Text key={i} style={[r.bold === true && s.bold, r.italic === true && s.italic]}>{r.text}</Text>
-            : r.link === true
-              ? (props.fileLinks && r.ref !== undefined && r.kind !== undefined && !/^(https?:|mailto:)/.test(r.ref)
-                ? <FileLinkText key={i} r={{ start: 0, end: 0, label: r.text, ref: r.ref, kind: r.kind }} links={props.fileLinks} />
-                : <Text key={i} style={s.link} {...web({ "data-link": "true" })}>{r.text}</Text>)
-              : props.fileLinks ? <Text key={i}>{withFileLinks(splitRefs(r.text), props.fileLinks)}</Text> : r.text))}
+          ? each(marks, (m, i) =>
+              m.comment !== undefined ? (
+                <Text key={i} style={s.commented} {...web({ "data-comment": m.comment })}>
+                  {m.text}
+                </Text>
+              ) : (
+                m.text
+              ),
+            )
+          : each(inlineRuns(b.text), (r, i) =>
+              r.bold === true || r.italic === true ? (
+                <Text key={i} style={[r.bold === true && s.bold, r.italic === true && s.italic]}>
+                  {r.text}
+                </Text>
+              ) : r.link === true ? (
+                props.fileLinks && r.ref !== undefined && r.kind !== undefined && !/^(https?:|mailto:)/.test(r.ref) ? (
+                  <FileLinkText
+                    key={i}
+                    r={{ start: 0, end: 0, label: r.text, ref: r.ref, kind: r.kind }}
+                    links={props.fileLinks}
+                  />
+                ) : (
+                  <Text key={i} style={s.link} {...web({ "data-link": "true" })}>
+                    {r.text}
+                  </Text>
+                )
+              ) : props.fileLinks ? (
+                <Text key={i}>{withFileLinks(splitRefs(r.text), props.fileLinks)}</Text>
+              ) : (
+                r.text
+              ),
+            )}
       </Text>
     );
   };
 
-  const plainRead = props.markdown !== undefined && !editing && find === "" && props.kind === "document" && (props.layer?.marks ?? []).length === 0 && props.layer?.preview !== true && (props.comments ?? []).length === 0 && quoted === null;
+  const plainRead =
+    props.markdown !== undefined &&
+    !editing &&
+    find === "" &&
+    props.kind === "document" &&
+    (props.layer?.marks ?? []).length === 0 &&
+    props.layer?.preview !== true &&
+    (props.comments ?? []).length === 0 &&
+    quoted === null;
   const docBody = plainRead ? (
-    <ScrollView style={s.scroll} contentContainerStyle={s.docWrap} testID="vw-doc"><View style={s.doc} testID="vw-markdown"><MarkdownText text={props.markdown ?? ""} {...(props.fileLinks ? { renderText: (t: string) => withFileLinks(splitRefs(t), props.fileLinks as FileLinks) } : {})} /></View></ScrollView>
+    <ScrollView style={s.scroll} contentContainerStyle={s.docWrap} testID="vw-doc">
+      <View style={s.doc} testID="vw-markdown">
+        <MarkdownText
+          text={props.markdown ?? ""}
+          {...(props.fileLinks
+            ? { renderText: (t: string) => withFileLinks(splitRefs(t), props.fileLinks as FileLinks) }
+            : {})}
+        />
+      </View>
+    </ScrollView>
   ) : props.docEditor !== undefined && editing ? (
-    <View style={s.scroll} testID="vw-doc-editor">{props.docEditor}</View>
+    <View style={s.scroll} testID="vw-doc-editor">
+      {props.docEditor}
+    </View>
   ) : (
     <ScrollView style={s.scroll} contentContainerStyle={s.docWrap} testID="vw-doc">
       {quoted !== null && (props.kind === "document" || props.kind === "plan") ? (
         <View style={s.pickBar} testID="vw-pick">
           <Text style={s.pickQuote} numberOfLines={1}>{`“${quoted.quote}”`}</Text>
-          <TextInput accessibilityLabel="Comment on the selection" testID="vw-pick-input" value={draft} onChangeText={setDraft} placeholder="Comment on this" placeholderTextColor="var(--ink-4)" style={s.pickInput}
-            onSubmitEditing={() => { if (draft.trim() !== "") { props.onComment?.(quoted.quote, draft.trim()); setDraft(""); setQuoted(null); } }} />
-          <Pressable accessibilityRole="button" accessibilityLabel="Post comment" testID="vw-pick-post" onPress={() => { if (draft.trim() !== "") { props.onComment?.(quoted.quote, draft.trim()); setDraft(""); setQuoted(null); } }}><Text style={s.link}>Comment</Text></Pressable>
+          <TextInput
+            accessibilityLabel="Comment on the selection"
+            testID="vw-pick-input"
+            value={draft}
+            onChangeText={setDraft}
+            placeholder="Comment on this"
+            placeholderTextColor="var(--ink-4)"
+            style={s.pickInput}
+            onSubmitEditing={() => {
+              if (draft.trim() !== "") {
+                props.onComment?.(quoted.quote, draft.trim());
+                setDraft("");
+                setQuoted(null);
+              }
+            }}
+          />
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Post comment"
+            testID="vw-pick-post"
+            onPress={() => {
+              if (draft.trim() !== "") {
+                props.onComment?.(quoted.quote, draft.trim());
+                setDraft("");
+                setQuoted(null);
+              }
+            }}
+          >
+            <Text style={s.link}>Comment</Text>
+          </Pressable>
         </View>
       ) : null}
       <View style={[s.doc, isCode && s.codeDoc]}>
-        {isCode ? <Text style={s.lineNums} selectable={false} testID="vw-lines">{lineNumbers(blocks.length)}</Text> : null}
+        {isCode ? (
+          <Text style={s.lineNums} selectable={false} testID="vw-lines">
+            {lineNumbers(blocks.length)}
+          </Text>
+        ) : null}
         <View style={isCode ? s.codeCol : undefined}>
-        {deck
-          ? each(slideGroups(blocks), (g, gi) => (
-            <View key={g.head?.id ?? `g${gi}`} style={s.slideCard} testID={`vw-slide-${g.head?.n ?? gi + 1}`} {...web({ "data-slide": String(g.head?.n ?? gi + 1) })}>
-              {g.head !== null ? (
-                <View style={s.slideHead}>
-                  <Text style={s.slideNum} selectable={false}>{String(g.head.n ?? gi + 1)}</Text>
-                  {g.head.text !== "" ? <Text style={[s.block, s.h2, s.slideTitle]} testID={`vw-block-${g.head.id}`} {...web({ "data-tag": "slide" })}>{inlineText(g.head.text, slideFind(g.head))}</Text> : null}
+          {deck
+            ? each(slideGroups(blocks), (g, gi) => (
+                <View
+                  key={g.head?.id ?? `g${gi}`}
+                  style={s.slideCard}
+                  testID={`vw-slide-${g.head?.n ?? gi + 1}`}
+                  {...web({ "data-slide": String(g.head?.n ?? gi + 1) })}
+                >
+                  {g.head !== null ? (
+                    <View style={s.slideHead}>
+                      <Text style={s.slideNum} selectable={false}>
+                        {String(g.head.n ?? gi + 1)}
+                      </Text>
+                      {g.head.text !== "" ? (
+                        <Text
+                          style={[s.block, s.h2, s.slideTitle]}
+                          testID={`vw-block-${g.head.id}`}
+                          {...web({ "data-tag": "slide" })}
+                        >
+                          {inlineText(g.head.text, slideFind(g.head))}
+                        </Text>
+                      ) : null}
+                    </View>
+                  ) : null}
+                  {each(g.items, ({ b, at: bi }) => renderBlock(b, bi))}
                 </View>
-              ) : null}
-              {each(g.items, ({ b, at: bi }) => renderBlock(b, bi))}
-            </View>
-          ))
-          : each(blocks, (b, bi) => renderBlock(b, bi))}
+              ))
+            : each(blocks, (b, bi) => renderBlock(b, bi))}
         </View>
         {blocks.length === 0 ? <Text style={s.empty}>This file is empty.</Text> : null}
         {links.from.length > 0 ? (
           <View style={s.linked} testID="vw-linkedfrom">
             <Text style={s.detailSec}>{`Linked from · ${links.from.length}`}</Text>
-            {each(links.from, (l) => <Row key={l.id} id={`lf-${l.id}`} title={l.title} {...(l.note !== undefined ? { note: l.note } : {})} onPress={() => props.onOpenLink?.(l.id)} />)}
+            {each(links.from, (l) => (
+              <Row
+                key={l.id}
+                id={`lf-${l.id}`}
+                title={l.title}
+                {...(l.note !== undefined ? { note: l.note } : {})}
+                onPress={() => props.onOpenLink?.(l.id)}
+              />
+            ))}
           </View>
         ) : null}
       </View>
@@ -705,52 +1435,122 @@ export function Viewer(props: ViewerViewProps): ReactElement {
 
   const [edits, setEdits] = useState<Record<string, string>>({});
   const base = props.sheet;
-  const sheet = useMemo<Sheet | undefined>(() => (base === undefined ? undefined : { cols: base.cols, rows: each(base.rows, (r, ri) => each(r, (v, ci) => edits[`${ri}:${ci}`] ?? v)) }), [base, edits]);
-  const rows = useMemo(() => (sheet === undefined ? [] : sort === null ? sheet.rows : sortRows(sheet.rows, sort.col, sort.dir)), [sheet, sort]);
-  const table = sheet === undefined ? null : (
-    <View style={s.fill}>
-      <ScrollView style={s.scroll} horizontal contentContainerStyle={s.sheetWrap} testID="vw-sheet">
-        <View style={s.fill}>
-          <View style={s.tr}>
-            <Text style={[s.th, s.rn]}>{""}</Text>
-            {each(sheet.cols, (c, ci) => (
-              <Pressable key={c} accessibilityRole="button" accessibilityLabel={`Sort by ${c}`} testID={`vw-sort-${ci}`} style={s.thCell}
-                onPress={() => setSort((x) => (x !== null && x.col === ci ? { col: ci, dir: x.dir === 1 ? -1 : 1 } : { col: ci, dir: 1 }))}>
-                <Text style={s.th}>{`${c}${sort !== null && sort.col === ci ? (sort.dir === 1 ? " ↑" : " ↓") : ""}`}</Text>
-              </Pressable>
+  const sheet = useMemo<Sheet | undefined>(
+    () =>
+      base === undefined
+        ? undefined
+        : { cols: base.cols, rows: each(base.rows, (r, ri) => each(r, (v, ci) => edits[`${ri}:${ci}`] ?? v)) },
+    [base, edits],
+  );
+  const rows = useMemo(
+    () => (sheet === undefined ? [] : sort === null ? sheet.rows : sortRows(sheet.rows, sort.col, sort.dir)),
+    [sheet, sort],
+  );
+  const table =
+    sheet === undefined ? null : (
+      <View style={s.fill}>
+        <ScrollView style={s.scroll} horizontal contentContainerStyle={s.sheetWrap} testID="vw-sheet">
+          <View style={s.fill}>
+            <View style={s.tr}>
+              <Text style={[s.th, s.rn]}>{""}</Text>
+              {each(sheet.cols, (c, ci) => (
+                <Pressable
+                  key={c}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Sort by ${c}`}
+                  testID={`vw-sort-${ci}`}
+                  style={s.thCell}
+                  onPress={() =>
+                    setSort((x) =>
+                      x !== null && x.col === ci ? { col: ci, dir: x.dir === 1 ? -1 : 1 } : { col: ci, dir: 1 },
+                    )
+                  }
+                >
+                  <Text
+                    style={s.th}
+                  >{`${c}${sort !== null && sort.col === ci ? (sort.dir === 1 ? " ↑" : " ↓") : ""}`}</Text>
+                </Pressable>
+              ))}
+            </View>
+            {each(rows, (r, ri) => (
+              <View key={ri} style={s.tr}>
+                <Text style={[s.td, s.rn]}>{ri + 1}</Text>
+                {each(r, (v, ci) => {
+                  const on = cell !== null && cell.r === ri && cell.c === ci;
+                  const m = find !== "" && v.toLowerCase().includes(find.trim().toLowerCase());
+                  return (
+                    <Pressable
+                      key={ci}
+                      accessibilityRole="button"
+                      aria-selected={on}
+                      accessibilityState={{ selected: on }}
+                      testID={`vw-cell-${ri}-${ci}`}
+                      onPress={() => setCell({ r: ri, c: ci })}
+                      style={[s.tdCell, on && s.tdOn, m && s.mark1]}
+                    >
+                      {on && editMode ? (
+                        <TextInput
+                          autoFocus
+                          accessibilityLabel={`Edit cell ${ri + 1}, ${sheet.cols[ci] ?? ""}`}
+                          testID="vw-cell-input"
+                          value={v}
+                          style={[s.td, s.cellInput, isNum(v) && s.numCell]}
+                          onChangeText={(x) => setEdits((e) => ({ ...e, [`${ri}:${ci}`]: x }))}
+                        />
+                      ) : (
+                        <Text style={[s.td, isNum(v) && s.numCell]}>{v}</Text>
+                      )}
+                    </Pressable>
+                  );
+                })}
+              </View>
             ))}
           </View>
-          {each(rows, (r, ri) => (
-            <View key={ri} style={s.tr}>
-              <Text style={[s.td, s.rn]}>{ri + 1}</Text>
-              {each(r, (v, ci) => {
-                const on = cell !== null && cell.r === ri && cell.c === ci;
-                const m = find !== "" && v.toLowerCase().includes(find.trim().toLowerCase());
-                return (
-                  <Pressable key={ci} accessibilityRole="button" aria-selected={on} accessibilityState={{ selected: on }} testID={`vw-cell-${ri}-${ci}`} onPress={() => setCell({ r: ri, c: ci })}
-                    style={[s.tdCell, on && s.tdOn, m && s.mark1]}>
-                    {on && editMode ? <TextInput autoFocus accessibilityLabel={`Edit cell ${ri + 1}, ${sheet.cols[ci] ?? ""}`} testID="vw-cell-input" value={v} style={[s.td, s.cellInput, isNum(v) && s.numCell]}
-                      onChangeText={(x) => setEdits((e) => ({ ...e, [`${ri}:${ci}`]: x }))} />
-                      : <Text style={[s.td, isNum(v) && s.numCell]}>{v}</Text>}
-                  </Pressable>
-                );
-              })}
-            </View>
-          ))}
+        </ScrollView>
+        <View style={s.footRow}>
+          <Text style={s.footText} testID="vw-foot">
+            {sheetFoot(sheet, cell === null ? null : cell.c)}
+          </Text>
+          {editMode ? (
+            <Text style={s.footText} testID="vw-hint">
+              Click a cell, then type or press Enter to edit · Tab moves right
+            </Text>
+          ) : null}
         </View>
-      </ScrollView>
-      <View style={s.footRow}><Text style={s.footText} testID="vw-foot">{sheetFoot(sheet, cell === null ? null : cell.c)}</Text>{editMode ? <Text style={s.footText} testID="vw-hint">Click a cell, then type or press Enter to edit · Tab moves right</Text> : null}</View>
-    </View>
-  );
+      </View>
+    );
 
-  const body = props.kind === "image" ? image
-    : props.kind === "csv" ? table
-    : props.kind === "document" || props.kind === "plan" ? docBody
-    : <View style={s.emptyBox} testID="vw-other"><Text style={s.empty}>{props.openIn !== undefined ? `No preview of this file here. ${props.openIn.label} to see it.` : props.noPreview ?? "No preview for this file. Open it in its own app."}</Text></View>;
+  const body =
+    props.kind === "image" ? (
+      image
+    ) : props.kind === "csv" ? (
+      table
+    ) : props.kind === "document" || props.kind === "plan" ? (
+      docBody
+    ) : (
+      <View style={s.emptyBox} testID="vw-other">
+        <Text style={s.empty}>
+          {props.openIn !== undefined
+            ? `No preview of this file here. ${props.openIn.label} to see it.`
+            : (props.noPreview ?? "No preview for this file. Open it in its own app.")}
+        </Text>
+      </View>
+    );
 
   return (
-    <View accessibilityLabel={viewerLabel(props)} style={s.root} testID="viewer"
-      {...web({ "data-testid": "viewer", "data-kind": props.kind, "data-pane": props.pane ?? "side", "data-tool": tool ?? "none", "data-zoom": String(zoom), "data-density": props.density ?? "regular" })}>
+    <View
+      accessibilityLabel={viewerLabel(props)}
+      style={s.root}
+      testID="viewer"
+      {...web({
+        "data-testid": "viewer",
+        "data-kind": props.kind,
+        "data-pane": props.pane ?? "side",
+        "data-tool": tool ?? "none",
+        "data-zoom": String(zoom),
+        "data-density": props.density ?? "regular",
+      })}
+    >
       {bar}
       {props.banner}
       {markBar}
@@ -758,17 +1558,58 @@ export function Viewer(props: ViewerViewProps): ReactElement {
         <View style={s.fill} ref={docRoot}>
           {body}
           {sel !== null && onLayer !== undefined && props.layer?.preview !== true ? (
-            <SelectionBar at={{ x: sel.x, y: sel.y }} agentName={props.agentName ?? "the agent"}
-              onHighlight={() => { onLayer({ kind: "highlight", shape: "span", text: sel.quote, occurrence: sel.occurrence }); setSel(null); clearSelection(); }}
-              onRedact={() => { onLayer({ kind: "redact", shape: "span", text: sel.quote, occurrence: sel.occurrence }); setSel(null); clearSelection(); }}
-              onComment={() => { setQuoted({ id: "", quote: sel.quote }); setSel(null); }}
-              {...(props.onAskQuote ? { onAsk: () => { props.onAskQuote?.(sel.quote); setSel(null); } } : {})} />
+            <SelectionBar
+              at={{ x: sel.x, y: sel.y }}
+              agentName={props.agentName ?? "the agent"}
+              onHighlight={() => {
+                onLayer({ kind: "highlight", shape: "span", text: sel.quote, occurrence: sel.occurrence });
+                setSel(null);
+                clearSelection();
+              }}
+              onRedact={() => {
+                onLayer({ kind: "redact", shape: "span", text: sel.quote, occurrence: sel.occurrence });
+                setSel(null);
+                clearSelection();
+              }}
+              onComment={() => {
+                setQuoted({ id: "", quote: sel.quote });
+                setSel(null);
+              }}
+              {...(props.onAskQuote
+                ? {
+                    onAsk: () => {
+                      props.onAskQuote?.(sel.quote);
+                      setSel(null);
+                    },
+                  }
+                : {})}
+            />
           ) : null}
           {hover !== null && markById.get(hover.id) !== undefined ? (
-            <MarkCard mark={markById.get(hover.id)!} at={{ x: hover.x, y: hover.y }} canUnmark={props.onUnmark !== undefined}
-              onEnter={() => { if (hoverT.current) clearTimeout(hoverT.current); }} onLeave={() => { hoverT.current = setTimeout(() => setHover(null), 220); }}
-              onUnmark={() => { props.onUnmark?.(hover.id); setHover(null); }} onComment={() => { const m = markById.get(hover.id); if (m?.text) setQuoted({ id: "", quote: m.text }); setHover(null); }}
-              onActivity={() => { props.onMarkActivity?.(hover.id); setHover(null); }} />
+            <MarkCard
+              mark={markById.get(hover.id)!}
+              at={{ x: hover.x, y: hover.y }}
+              canUnmark={props.onUnmark !== undefined}
+              onEnter={() => {
+                if (hoverT.current) clearTimeout(hoverT.current);
+              }}
+              onLeave={() => {
+                hoverT.current = setTimeout(() => setHover(null), 220);
+              }}
+              onUnmark={() => {
+                props.onUnmark?.(hover.id);
+                setHover(null);
+              }}
+              onComment={() => {
+                const m = markById.get(hover.id);
+                if (m?.text) setQuoted({ id: "", quote: m.text });
+                setHover(null);
+              }}
+              onActivity={() => {
+                props.onMarkActivity?.(hover.id);
+                setHover(null);
+              }}
+            />
           ) : null}
         </View>
         {(props.kind === "document" || props.kind === "plan") && shownComments.length > 0 ? (
@@ -779,12 +1620,34 @@ export function Viewer(props: ViewerViewProps): ReactElement {
                 <Text style={s.commentQuote} numberOfLines={2}>{`“${c.quote}”`}</Text>
                 <Text style={s.commentBy}>{`${c.by}  ${c.at}`}</Text>
                 <Text style={s.commentText}>{c.text}</Text>
-                {each(c.replies ?? [], (r, i) => <Text key={i} style={s.commentText}>{`${r.by}: ${r.text}`}</Text>)}
+                {each(c.replies ?? [], (r, i) => (
+                  <Text key={i} style={s.commentText}>{`${r.by}: ${r.text}`}</Text>
+                ))}
                 <View style={s.commentActs}>
-                  <TextInput accessibilityLabel="Reply" testID={`vw-reply-${c.id}`} value={replying[c.id] ?? ""} placeholder="Reply..." placeholderTextColor="var(--ink-4)" style={s.replyInput}
+                  <TextInput
+                    accessibilityLabel="Reply"
+                    testID={`vw-reply-${c.id}`}
+                    value={replying[c.id] ?? ""}
+                    placeholder="Reply..."
+                    placeholderTextColor="var(--ink-4)"
+                    style={s.replyInput}
                     onChangeText={(v) => setReplying((r) => ({ ...r, [c.id]: v }))}
-                    onSubmitEditing={() => { const v = (replying[c.id] ?? "").trim(); if (v !== "") { props.onReply?.(c.id, v); setReplying((r) => ({ ...r, [c.id]: "" })); } }} />
-                  <Pressable accessibilityRole="button" accessibilityLabel="Resolve" testID={`vw-resolve-${c.id}`} onPress={() => props.onResolve?.(c.id)}><Text style={s.link}>Resolve</Text></Pressable>
+                    onSubmitEditing={() => {
+                      const v = (replying[c.id] ?? "").trim();
+                      if (v !== "") {
+                        props.onReply?.(c.id, v);
+                        setReplying((r) => ({ ...r, [c.id]: "" }));
+                      }
+                    }}
+                  />
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Resolve"
+                    testID={`vw-resolve-${c.id}`}
+                    onPress={() => props.onResolve?.(c.id)}
+                  >
+                    <Text style={s.link}>Resolve</Text>
+                  </Pressable>
                 </View>
               </View>
             ))}
@@ -794,16 +1657,47 @@ export function Viewer(props: ViewerViewProps): ReactElement {
           <View style={s.details} testID="vw-details">
             <View style={s.detailsHead}>
               <Text style={s.detailsTitle}>Details</Text>
-              <Pressable accessibilityRole="button" accessibilityLabel="Close details" testID="vw-details-close" onPress={() => setDetailsOpen(false)}><Text style={s.zoomText}>{"×"}</Text></Pressable>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Close details"
+                testID="vw-details-close"
+                onPress={() => setDetailsOpen(false)}
+              >
+                <Text style={s.zoomText}>{"×"}</Text>
+              </Pressable>
             </View>
             <ScrollView style={s.scroll} contentContainerStyle={s.detailsBody}>
-              {each(props.details?.rows ?? [], ([k, v]) => <View key={k} style={s.metaRow} testID={`vw-detail-${k}`}><Text style={s.metaKey}>{k}</Text><Text style={s.metaVal}>{v}</Text></View>)}
-              {each([...(props.details?.sections ?? []), ...(links.to.length > 0 ? [{ title: "Links to", count: links.to.length, items: links.to }] : []), ...(links.from.length > 0 ? [{ title: "Linked from", count: links.from.length, items: links.from }] : [])], (sec) => (
-                <View key={sec.title} testID={`vw-detail-section-${sec.title}`}>
-                  <Text style={s.detailSec}>{sec.count !== undefined ? `${sec.title}  ${sec.count}` : sec.title}</Text>
-                  {each(sec.items, (it) => <Row key={it.id} id={`d-${it.id}`} title={it.title} {...(it.note !== undefined ? { note: it.note } : {})} onPress={() => props.onOpenLink?.(it.id)} />)}
+              {each(props.details?.rows ?? [], ([k, v]) => (
+                <View key={k} style={s.metaRow} testID={`vw-detail-${k}`}>
+                  <Text style={s.metaKey}>{k}</Text>
+                  <Text style={s.metaVal}>{v}</Text>
                 </View>
               ))}
+              {each(
+                [
+                  ...(props.details?.sections ?? []),
+                  ...(links.to.length > 0 ? [{ title: "Links to", count: links.to.length, items: links.to }] : []),
+                  ...(links.from.length > 0
+                    ? [{ title: "Linked from", count: links.from.length, items: links.from }]
+                    : []),
+                ],
+                (sec) => (
+                  <View key={sec.title} testID={`vw-detail-section-${sec.title}`}>
+                    <Text style={s.detailSec}>
+                      {sec.count !== undefined ? `${sec.title}  ${sec.count}` : sec.title}
+                    </Text>
+                    {each(sec.items, (it) => (
+                      <Row
+                        key={it.id}
+                        id={`d-${it.id}`}
+                        title={it.title}
+                        {...(it.note !== undefined ? { note: it.note } : {})}
+                        onPress={() => props.onOpenLink?.(it.id)}
+                      />
+                    ))}
+                  </View>
+                ),
+              )}
             </ScrollView>
           </View>
         ) : null}
@@ -815,21 +1709,47 @@ export function Viewer(props: ViewerViewProps): ReactElement {
 }
 
 /** The browser's selection, once acted on, goes away (web). */
-function clearSelection(): void { if (Platform.OS === "web" && typeof window !== "undefined") window.getSelection()?.removeAllRanges(); }
+function clearSelection(): void {
+  if (Platform.OS === "web" && typeof window !== "undefined") window.getSelection()?.removeAllRanges();
+}
 
 const s = StyleSheet.create({
   root: { flex: 1, minHeight: 0, minWidth: 0, backgroundColor: "var(--win)" as string },
   fill: { flex: 1, minHeight: 0 },
   grow: { flex: 1 },
   scroll: { flex: 1 },
-  bar: { height: 44, flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
+  bar: {
+    height: 44,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingHorizontal: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: "var(--line)" as string,
+  },
   title: { color: "var(--ink)" as string, fontSize: 13.5, fontWeight: "600", flexShrink: 1 },
   titleCol: { minWidth: 0, flexShrink: 1 },
   sub: { color: "var(--ink-3)" as string, fontSize: 11.5 },
-  tile: { width: 28, height: 28, borderRadius: 6, backgroundColor: "var(--sunk)" as string, alignItems: "center", justifyContent: "center" },
+  tile: {
+    width: 28,
+    height: 28,
+    borderRadius: 6,
+    backgroundColor: "var(--sunk)" as string,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   tileText: { color: "var(--ink-3)" as string, fontSize: 8.5, fontWeight: "700" },
   iconBtn: { width: 28, height: 28, borderRadius: 7, alignItems: "center", justifyContent: "center" },
-  openIn: { height: 28, paddingHorizontal: 10, borderRadius: 7, borderWidth: 1, borderColor: "var(--line)" as string, alignItems: "center", justifyContent: "center", flexShrink: 1 },
+  openIn: {
+    height: 28,
+    paddingHorizontal: 10,
+    borderRadius: 7,
+    borderWidth: 1,
+    borderColor: "var(--line)" as string,
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 1,
+  },
   openInText: { color: "var(--ink-2)" as string, fontSize: 12.5, fontWeight: "500" },
   modeRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   saved: { color: "var(--ok)" as string, fontSize: 12 },
@@ -838,45 +1758,146 @@ const s = StyleSheet.create({
   segOn: { backgroundColor: "var(--win)" as string, borderWidth: 1, borderColor: "var(--line)" as string },
   segText: { color: "var(--ink-3)" as string, fontSize: 12.5, fontWeight: "500" },
   segTextOn: { color: "var(--ink)" as string },
-  askMark: { height: 28, paddingHorizontal: 12, borderRadius: 8, backgroundColor: "var(--ink)" as string, alignItems: "center", justifyContent: "center" },
+  askMark: {
+    height: 28,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    backgroundColor: "var(--ink)" as string,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   askMarkText: { color: "var(--win)" as string, fontSize: 12.5, fontWeight: "600" },
-  bubble: { position: "absolute", top: -12, right: -4, transform: [{ translateX: "100%" as unknown as number }], backgroundColor: "var(--win)" as string, borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3, borderWidth: 1, borderColor: "var(--line)" as string, maxWidth: 220 },
+  bubble: {
+    position: "absolute",
+    top: -12,
+    right: -4,
+    transform: [{ translateX: "100%" as unknown as number }],
+    backgroundColor: "var(--win)" as string,
+    borderRadius: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderWidth: 1,
+    borderColor: "var(--line)" as string,
+    maxWidth: 220,
+  },
   bubbleText: { color: "var(--ink)" as string, fontSize: 12 },
   strip: { flexDirection: "row", gap: 8, padding: 8, borderTopWidth: 1, borderTopColor: "var(--line)" as string },
-  thumb: { width: 64, height: 40, borderRadius: 6, borderWidth: 1, borderColor: "var(--line)" as string, backgroundColor: "var(--sunk)" as string, alignItems: "center", justifyContent: "center", padding: 3 },
+  thumb: {
+    width: 64,
+    height: 40,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: "var(--line)" as string,
+    backgroundColor: "var(--sunk)" as string,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 3,
+  },
   thumbOn: { borderColor: "var(--accent)" as string, borderWidth: 2 },
   thumbText: { color: "var(--ink-3)" as string, fontSize: 9 },
   cellInput: { padding: 0, margin: 0 },
-  footRow: { flexDirection: "row", justifyContent: "space-between", paddingHorizontal: 14, paddingVertical: 8, borderTopWidth: 1, borderTopColor: "var(--line)" as string },
+  footRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderTopWidth: 1,
+    borderTopColor: "var(--line)" as string,
+  },
   footText: { color: "var(--ink-3)" as string, fontSize: 12 },
-  findBox: { flexDirection: "row", alignItems: "center", gap: 6, height: 30, paddingHorizontal: 8, borderRadius: 8, borderWidth: 1, borderColor: "var(--field-line)", backgroundColor: "var(--field)" as string },
+  findBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    height: 30,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "var(--field-line)",
+    backgroundColor: "var(--field)" as string,
+  },
   findInput: { width: 140, color: "var(--ink)" as string, fontSize: 13, padding: 0 },
   count: { color: "var(--ink-3)" as string, fontSize: 11.5 },
   zoom: { flexDirection: "row", alignItems: "center", gap: 10 },
   zoomText: { color: "var(--ink-3)" as string, fontSize: 13 },
-  mark: { height: 40, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
+  mark: {
+    height: 40,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "var(--line)" as string,
+  },
   tool: { flexDirection: "row", alignItems: "center", gap: 6, height: 28, paddingHorizontal: 10, borderRadius: 8 },
   toolOn: { backgroundColor: "var(--accent-wash)" as string },
   toolOver: { backgroundColor: "var(--hover)" as string },
   toolText: { color: "var(--ink-3)" as string, fontSize: 12.5, fontWeight: "500" },
   imgWrap: { padding: 24, alignItems: "center", gap: 14 },
-  stageBox: { borderRadius: 10, overflow: "hidden", backgroundColor: "var(--sunk)" as string, ...(Platform.OS === "web" ? ({ backgroundImage: "conic-gradient(var(--sunk) 25%, var(--raised) 0 50%, var(--sunk) 0 75%, var(--raised) 0)", backgroundSize: "16px 16px" } as object) : {}), borderWidth: 1, borderColor: "var(--line)" as string },
+  stageBox: {
+    borderRadius: 10,
+    overflow: "hidden",
+    backgroundColor: "var(--sunk)" as string,
+    ...(Platform.OS === "web"
+      ? ({
+          backgroundImage: "conic-gradient(var(--sunk) 25%, var(--raised) 0 50%, var(--sunk) 0 75%, var(--raised) 0)",
+          backgroundSize: "16px 16px",
+        } as object)
+      : {}),
+    borderWidth: 1,
+    borderColor: "var(--line)" as string,
+  },
   pictureImg: { ...StyleSheet.absoluteFillObject, width: "100%", height: "100%" },
-  picture: { ...StyleSheet.absoluteFillObject, alignItems: "center", justifyContent: "center", backgroundColor: "var(--raised)" as string },
+  picture: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "var(--raised)" as string,
+  },
   pictureText: { color: "var(--ink-4)" as string, fontSize: 13 },
   strokeMark: { position: "absolute", left: 0, top: 0, width: 1, height: 1 },
-  box: { position: "absolute", borderWidth: 2, borderColor: "#E5483A", backgroundColor: "rgba(229,72,58,0.12)", borderRadius: 6 },
+  box: {
+    position: "absolute",
+    borderWidth: 2,
+    borderColor: "#E5483A",
+    backgroundColor: "rgba(229,72,58,0.12)",
+    borderRadius: 6,
+  },
   boxLive: { borderStyle: "dashed" },
-  pin: { position: "absolute", left: -12, top: -12, width: 24, height: 24, borderRadius: 12, backgroundColor: "var(--accent)" as string, alignItems: "center", justifyContent: "center" },
+  pin: {
+    position: "absolute",
+    left: -12,
+    top: -12,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: "var(--accent)" as string,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   pinText: { color: "#FFFFFF", fontSize: 12, fontWeight: "700" },
-  noteBox: { width: "100%", maxWidth: 480, borderRadius: 10, backgroundColor: "var(--raised)" as string, borderWidth: 1, borderColor: "var(--line-2)" as string, padding: 10 },
+  noteBox: {
+    width: "100%",
+    maxWidth: 480,
+    borderRadius: 10,
+    backgroundColor: "var(--raised)" as string,
+    borderWidth: 1,
+    borderColor: "var(--line-2)" as string,
+    padding: 10,
+  },
   noteInput: { color: "var(--ink)" as string, fontSize: 13, padding: 0 },
   pinList: { width: "100%", maxWidth: 480, gap: 6 },
   pinRow: { color: "var(--ink-2)" as string, fontSize: 13 },
   docWrap: { padding: 24, alignItems: "center" },
   main: { flex: 1, flexDirection: "row", minHeight: 0 },
   details: { width: 300, borderLeftWidth: 1, borderLeftColor: "var(--line)" as string },
-  detailsHead: { height: 40, flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 14 },
+  detailsHead: {
+    height: 40,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 14,
+  },
   detailsTitle: { color: "var(--ink)" as string, fontSize: 13, fontWeight: "600" },
   detailsBody: { paddingHorizontal: 14, paddingBottom: 20, gap: 8 },
   detailSec: { color: "var(--ink-3)" as string, fontSize: 12, fontWeight: "600", marginTop: 14, marginBottom: 4 },
@@ -888,10 +1909,39 @@ const s = StyleSheet.create({
   italic: { fontStyle: "italic" },
   cellRow: { flexDirection: "row", borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
   cellHead: { backgroundColor: "var(--sunk)" as string, borderTopLeftRadius: 6, borderTopRightRadius: 6 },
-  cellText: { flex: 1, minWidth: 0, color: "var(--ink)" as string, fontSize: 13.5, lineHeight: 19, paddingHorizontal: 10, paddingVertical: 7 },
-  fig: { alignSelf: "flex-start", minWidth: 180, maxWidth: "100%", borderWidth: 1, borderStyle: "dashed", borderColor: "var(--line-2)" as string, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 14, backgroundColor: "var(--sunk)" as string },
+  cellText: {
+    flex: 1,
+    minWidth: 0,
+    color: "var(--ink)" as string,
+    fontSize: 13.5,
+    lineHeight: 19,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+  },
+  fig: {
+    alignSelf: "flex-start",
+    minWidth: 180,
+    maxWidth: "100%",
+    borderWidth: 1,
+    borderStyle: "dashed",
+    borderColor: "var(--line-2)" as string,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 14,
+    backgroundColor: "var(--sunk)" as string,
+  },
   figText: { color: "var(--ink-3)" as string, fontSize: 12.5 },
-  slideCard: { borderWidth: 1, borderColor: "var(--line)" as string, borderRadius: 12, backgroundColor: "var(--raised)" as string, paddingHorizontal: 22, paddingTop: 16, paddingBottom: 18, gap: 8, marginBottom: 8 },
+  slideCard: {
+    borderWidth: 1,
+    borderColor: "var(--line)" as string,
+    borderRadius: 12,
+    backgroundColor: "var(--raised)" as string,
+    paddingHorizontal: 22,
+    paddingTop: 16,
+    paddingBottom: 18,
+    gap: 8,
+    marginBottom: 8,
+  },
   slideHead: { flexDirection: "row", alignItems: "baseline", gap: 12 },
   slideNum: { color: "var(--ink-4)" as string, fontSize: 12, fontWeight: "600", minWidth: 14 },
   slideTitle: { flex: 1 },
@@ -902,9 +1952,28 @@ const s = StyleSheet.create({
   noteFirst: { borderTopWidth: 1, borderTopColor: "var(--line)" as string, paddingTop: 8, marginTop: 2 },
   noteLabel: { color: "var(--ink-3)" as string, fontSize: 11.5, fontWeight: "600" },
   link: { color: "var(--accent)" as string },
-  handle: { position: "absolute", right: -7, top: -7, width: 14, height: 14, borderRadius: 7, backgroundColor: "#E5483A", borderWidth: 2, borderColor: "#FFFFFF" },
-  commented: { textDecorationLine: "underline", textDecorationStyle: "dotted", textDecorationColor: "var(--accent)" as string },
-  rbox: { position: "absolute", alignItems: "center", justifyContent: "center", backgroundColor: Platform.OS === "web" ? "transparent" : "rgba(77,66,54,0.25)" },
+  handle: {
+    position: "absolute",
+    right: -7,
+    top: -7,
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    backgroundColor: "#E5483A",
+    borderWidth: 2,
+    borderColor: "#FFFFFF",
+  },
+  commented: {
+    textDecorationLine: "underline",
+    textDecorationStyle: "dotted",
+    textDecorationColor: "var(--accent)" as string,
+  },
+  rbox: {
+    position: "absolute",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: Platform.OS === "web" ? "transparent" : "rgba(77,66,54,0.25)",
+  },
   rboxText: { color: "#FFFFFF", fontSize: 10.5, fontWeight: "700", letterSpacing: 1 },
   commentsPane: { width: 240, borderLeftWidth: 1, borderLeftColor: "var(--line)" as string, padding: 12, gap: 10 },
   commentCard: { borderWidth: 1, borderColor: "var(--warn)" as string, borderRadius: 10, padding: 10, gap: 4 },
@@ -912,12 +1981,42 @@ const s = StyleSheet.create({
   commentBy: { color: "var(--ink-3)" as string, fontSize: 11.5, fontWeight: "600" },
   commentText: { color: "var(--ink)" as string, fontSize: 12.5, lineHeight: 18 },
   commentActs: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8, marginTop: 4 },
-  replyInput: { flex: 1, minWidth: 0, height: 26, color: "var(--ink)" as string, fontSize: 12.5, paddingHorizontal: 6, borderRadius: 6, borderWidth: 1, borderColor: "var(--field-line)", backgroundColor: "var(--field)" as string },
+  replyInput: {
+    flex: 1,
+    minWidth: 0,
+    height: 26,
+    color: "var(--ink)" as string,
+    fontSize: 12.5,
+    paddingHorizontal: 6,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: "var(--field-line)",
+    backgroundColor: "var(--field)" as string,
+  },
   pickBar: { flexDirection: "row", alignItems: "center", gap: 10, width: "100%", maxWidth: 720, paddingVertical: 8 },
   pickQuote: { color: "var(--ink-3)" as string, fontSize: 12, maxWidth: 200 },
-  pickInput: { flex: 1, minWidth: 0, height: 28, color: "var(--ink)" as string, fontSize: 13, paddingHorizontal: 8, borderRadius: 6, borderWidth: 1, borderColor: "var(--field-line)", backgroundColor: "var(--field)" as string },
+  pickInput: {
+    flex: 1,
+    minWidth: 0,
+    height: 28,
+    color: "var(--ink)" as string,
+    fontSize: 13,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: "var(--field-line)",
+    backgroundColor: "var(--field)" as string,
+  },
   codeDoc: { flexDirection: "row", maxWidth: 900, gap: 0 },
-  lineNums: { width: 36, textAlign: "right", paddingRight: 12, color: "var(--ink-4)" as string, fontFamily: MONO_VAR, fontSize: 12.5, lineHeight: 19 },
+  lineNums: {
+    width: 36,
+    textAlign: "right",
+    paddingRight: 12,
+    color: "var(--ink-4)" as string,
+    fontFamily: MONO_VAR,
+    fontSize: 12.5,
+    lineHeight: 19,
+  },
   codeCol: { flex: 1, minWidth: 0 },
   linked: { marginTop: 22, paddingTop: 6, borderTopWidth: 1, borderTopColor: "var(--line)" as string },
   doc: { width: "100%", maxWidth: 720, gap: 10 },
@@ -932,13 +2031,37 @@ const s = StyleSheet.create({
   sheetWrap: { padding: 14, flexGrow: 1 },
   tr: { flexDirection: "row" },
   th: { color: "var(--ink-3)" as string, fontSize: 12, fontWeight: "600", paddingVertical: 6 },
-  thCell: { flex: 1, minWidth: 150, paddingHorizontal: 8, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string, borderRightWidth: 1, borderRightColor: "var(--line)" as string, backgroundColor: "var(--sunk)" as string },
+  thCell: {
+    flex: 1,
+    minWidth: 150,
+    paddingHorizontal: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: "var(--line)" as string,
+    borderRightWidth: 1,
+    borderRightColor: "var(--line)" as string,
+    backgroundColor: "var(--sunk)" as string,
+  },
   rn: { width: 36, textAlign: "right", paddingRight: 8, color: "var(--ink-4)" as string },
   td: { color: "var(--ink)" as string, fontSize: 13, paddingVertical: 7 },
-  tdCell: { flex: 1, minWidth: 150, paddingHorizontal: 8, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string, borderRightWidth: 1, borderRightColor: "var(--line)" as string },
+  tdCell: {
+    flex: 1,
+    minWidth: 150,
+    paddingHorizontal: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: "var(--line)" as string,
+    borderRightWidth: 1,
+    borderRightColor: "var(--line)" as string,
+  },
   tdOn: { borderWidth: 2, borderColor: "var(--accent)" as string },
   numCell: { textAlign: "right" },
-  foot: { color: "var(--ink-3)" as string, fontSize: 12, paddingHorizontal: 14, paddingVertical: 8, borderTopWidth: 1, borderTopColor: "var(--line)" as string },
+  foot: {
+    color: "var(--ink-3)" as string,
+    fontSize: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderTopWidth: 1,
+    borderTopColor: "var(--line)" as string,
+  },
   emptyBox: { flex: 1, alignItems: "center", justifyContent: "center" },
   empty: { color: "var(--ink-3)" as string, fontSize: 13, textAlign: "center", paddingVertical: 40 },
 });

@@ -16,18 +16,29 @@ test("an edge asked for a port someone else holds fails with an error to catch, 
   const port = (taken.address() as { port: number }).port;
   try {
     await assert.rejects(edge(dist, "http://127.0.0.1:1", undefined, port), /EADDRINUSE/);
-  } finally { taken.close(); }
+  } finally {
+    taken.close();
+  }
 });
 
 test("an edge listens before its daemon exists: the app is served at once, the gateway answers 'still starting' until the daemon's address is known, then passes through", async () => {
   let daemonUrl = "";
   const e = await edge(dist, () => daemonUrl);
-  const daemon = http.createServer((_req, res) => { res.writeHead(200, { "content-type": "application/json" }); res.end('{"data":"from the daemon"}'); });
+  const daemon = http.createServer((_req, res) => {
+    res.writeHead(200, { "content-type": "application/json" });
+    res.end('{"data":"from the daemon"}');
+  });
   try {
     assert.match(await (await fetch(`${e.origin}/`)).text(), /<title>app<\/title>/);
     assert.equal((await fetch(`${e.origin}/v1/spaces/get`, { method: "POST" })).status, 503);
     await new Promise<void>((r) => daemon.listen(0, "127.0.0.1", () => r()));
     daemonUrl = `http://127.0.0.1:${(daemon.address() as { port: number }).port}`;
-    assert.equal(await (await fetch(`${e.origin}/v1/spaces/get`, { method: "POST" })).text(), '{"data":"from the daemon"}');
-  } finally { e.close(); daemon.close(); }
+    assert.equal(
+      await (await fetch(`${e.origin}/v1/spaces/get`, { method: "POST" })).text(),
+      '{"data":"from the daemon"}',
+    );
+  } finally {
+    e.close();
+    daemon.close();
+  }
 });

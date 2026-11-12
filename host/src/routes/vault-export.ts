@@ -19,17 +19,29 @@ const PATH = /^(?:\/spaces\/[^/]+)?\/exports\/(vex_[a-z0-9_]+)$/;
 const TRACE = "0".repeat(32);
 
 function refuse(res: http.ServerResponse, status: number, headers: Record<string, string> = {}): void {
-  const body = JSON.stringify({ error: makeError("validation.not_found", TRACE, { message: "This link is closed or has expired." }) });
-  res.writeHead(status, { "content-type": "application/json; charset=utf-8", "content-length": Buffer.byteLength(body), "cache-control": "no-store", ...headers });
+  const body = JSON.stringify({
+    error: makeError("validation.not_found", TRACE, { message: "This link is closed or has expired." }),
+  });
+  res.writeHead(status, {
+    "content-type": "application/json; charset=utf-8",
+    "content-length": Buffer.byteLength(body),
+    "cache-control": "no-store",
+    ...headers,
+  });
   res.end(body);
 }
 
 /** The route as a request hook, like the blob route: true when the request was for an export path and has been answered, false when the daemon should carry on. */
-export function createVaultExportRoute(deps: VaultExportRouteDeps): { handle(req: http.IncomingMessage, res: http.ServerResponse): boolean } {
-  const claimed = new Set<string>();   // ids pulled, or being pulled, by this process
+export function createVaultExportRoute(deps: VaultExportRouteDeps): {
+  handle(req: http.IncomingMessage, res: http.ServerResponse): boolean;
+} {
+  const claimed = new Set<string>(); // ids pulled, or being pulled, by this process
 
   async function serve(res: http.ServerResponse, exportId: string, token: string): Promise<void> {
-    if (token === "" || claimed.has(exportId)) { deps.log?.({ exportId, outcome: "refused" }); return refuse(res, 404); }
+    if (token === "" || claimed.has(exportId)) {
+      deps.log?.({ exportId, outcome: "refused" });
+      return refuse(res, 404);
+    }
     claimed.add(exportId);
     let text: string;
     try {
@@ -42,8 +54,13 @@ export function createVaultExportRoute(deps: VaultExportRouteDeps): { handle(req
     deps.log?.({ exportId, outcome: "pulled" });
     const bytes = Buffer.from(text, "utf8");
     res.writeHead(200, {
-      "content-type": "text/plain; charset=utf-8", "content-length": bytes.byteLength, "cache-control": "no-store", pragma: "no-cache",
-      "content-disposition": 'attachment; filename=".env"', "x-content-type-options": "nosniff", "referrer-policy": "no-referrer",
+      "content-type": "text/plain; charset=utf-8",
+      "content-length": bytes.byteLength,
+      "cache-control": "no-store",
+      pragma: "no-cache",
+      "content-disposition": 'attachment; filename=".env"',
+      "x-content-type-options": "nosniff",
+      "referrer-policy": "no-referrer",
     });
     res.end(bytes);
   }
@@ -53,8 +70,14 @@ export function createVaultExportRoute(deps: VaultExportRouteDeps): { handle(req
       const url = new URL(req.url ?? "/", "http://vyred");
       const m = PATH.exec(url.pathname);
       if (!m) return false;
-      if ((req.method ?? "GET").toUpperCase() !== "GET") { refuse(res, 405, { allow: "GET" }); return true; }
-      void serve(res, m[1] as string, url.searchParams.get("token") ?? "").catch(() => { if (!res.headersSent) refuse(res, 404); else res.end(); });
+      if ((req.method ?? "GET").toUpperCase() !== "GET") {
+        refuse(res, 405, { allow: "GET" });
+        return true;
+      }
+      void serve(res, m[1] as string, url.searchParams.get("token") ?? "").catch(() => {
+        if (!res.headersSent) refuse(res, 404);
+        else res.end();
+      });
       return true;
     },
   };

@@ -21,15 +21,26 @@ import type { ErrorCode, NextStep, VyreError } from "../../../packages/contracts
 type Row = Record<string, unknown>;
 
 const NEXT: Record<NextStep["kind"], string> = {
-  retry: "Try again", switch_model: "Switch model", use_backup_key: "Use the backup key", ask_access: "Ask for access", open_settings: "Open settings",
-  reconnect: "Reconnect", edit_input: "Fix the input", wait: "Wait a moment", contact_admin: "Contact an admin", report: "Report a problem",
+  retry: "Try again",
+  switch_model: "Switch model",
+  use_backup_key: "Use the backup key",
+  ask_access: "Ask for access",
+  open_settings: "Open settings",
+  reconnect: "Reconnect",
+  edit_input: "Fix the input",
+  wait: "Wait a moment",
+  contact_admin: "Contact an admin",
+  report: "Report a problem",
 };
 
 function fail(ctx: Ctx, code: ErrorCode, message?: string, details?: Record<string, unknown>): never {
   const def = ERROR_CODES.find((e) => e.code === code) ?? ERROR_CODES.find((e) => e.code === "internal.unexpected");
   if (!def) throw new Error("error catalogue is empty");
   const error: VyreError = {
-    code: def.code, message: message ?? def.what, retryable: def.retryable, traceId: ctx.trace.traceId,
+    code: def.code,
+    message: message ?? def.what,
+    retryable: def.retryable,
+    traceId: ctx.trace.traceId,
     next: def.next.map((kind) => ({ kind, label: NEXT[kind] })),
   };
   if (details) error.details = details;
@@ -52,14 +63,20 @@ export function configureDocuments(drivers: DocumentsDrivers | null): void {
 
 // ---- the Word libraries, loaded on the first fill or read of a template (idle heap budget) ----
 
-interface ZipEntry { asText(): string; date: Date; _data?: { uncompressedSize?: number } }
+interface ZipEntry {
+  asText(): string;
+  date: Date;
+  _data?: { uncompressedSize?: number };
+}
 interface Zip {
   files: Record<string, ZipEntry>;
   file(name: string): ZipEntry | null;
   generate(o: { type: "nodebuffer"; compression?: string; compressionOptions?: { level: number } }): Buffer;
 }
 type ZipCtor = new (data?: Uint8Array) => Zip;
-interface TagTree { [name: string]: TagTree }
+interface TagTree {
+  [name: string]: TagTree;
+}
 interface Templater {
   render(values: unknown): void;
   getZip(): Zip;
@@ -99,10 +116,17 @@ function lookup(scopes: unknown[], path: string): unknown {
   const parts = path.split(".");
   for (let i = scopes.length - 1; i >= 0; i--) {
     const s = scopes[i];
-    if (s === null || s === undefined || typeof s !== "object" || !Object.prototype.hasOwnProperty.call(s, parts[0] as string)) continue;
+    if (
+      s === null ||
+      s === undefined ||
+      typeof s !== "object" ||
+      !Object.prototype.hasOwnProperty.call(s, parts[0] as string)
+    )
+      continue;
     let v: unknown = s;
     for (const p of parts) {
-      if (v === null || v === undefined || typeof v !== "object" || !Object.prototype.hasOwnProperty.call(v, p)) return undefined;
+      if (v === null || v === undefined || typeof v !== "object" || !Object.prototype.hasOwnProperty.call(v, p))
+        return undefined;
       v = (v as Record<string, unknown>)[p];
     }
     return v;
@@ -110,7 +134,20 @@ function lookup(scopes: unknown[], path: string): unknown {
   return undefined;
 }
 
-const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+const MONTHS = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+];
 
 export type TagKind = "text" | "date" | "money";
 
@@ -142,7 +179,9 @@ const MID = "";
 const CLOSE = "";
 
 /** The parser docxtemplater asks for: dotted paths, `.` for the current item of a loop, formats from the tag name; with `marks` every shown value is wrapped so a preview can find it. */
-function parserFor(marks: string[] | null): (tag: string) => { get(scope: unknown, ctx?: { scopeList?: unknown[] }): unknown } {
+function parserFor(
+  marks: string[] | null,
+): (tag: string) => { get(scope: unknown, ctx?: { scopeList?: unknown[] }): unknown } {
   return (tag: string) => {
     const t = tag.trim();
     return {
@@ -162,7 +201,8 @@ function parserFor(marks: string[] | null): (tag: string) => { get(scope: unknow
 /** Open a .docx safely. */
 function open(buf: Buffer): Zip {
   if (!Buffer.isBuffer(buf) || buf.length === 0) throw new FillError("bad_input", "the template is empty");
-  if (buf.length > MAX_BYTES) throw new FillError("too_big", `the template is ${buf.length} bytes; the most is ${MAX_BYTES}`);
+  if (buf.length > MAX_BYTES)
+    throw new FillError("too_big", `the template is ${buf.length} bytes; the most is ${MAX_BYTES}`);
   let zip: Zip;
   try {
     zip = new (zipLib())(buf);
@@ -171,7 +211,8 @@ function open(buf: Buffer): Zip {
   }
   const names = Object.keys(zip.files);
   if (names.length > MAX_ENTRIES) throw new FillError("bad_template", "that .docx holds too many parts");
-  if (!zip.file("word/document.xml")) throw new FillError("bad_input", "that is not a Word (.docx) file: it has no word/document.xml");
+  if (!zip.file("word/document.xml"))
+    throw new FillError("bad_input", "that is not a Word (.docx) file: it has no word/document.xml");
   let total = 0;
   for (const n of names) total += zip.files[n]?._data?.uncompressedSize ?? 0;
   if (total > MAX_UNPACKED) throw new FillError("too_big", "that .docx unpacks to more than it may");
@@ -182,21 +223,38 @@ function open(buf: Buffer): Zip {
 function plainText(zip: Zip): string {
   return Object.keys(zip.files)
     .filter((n) => /^word\/(document|header\d*|footer\d*|footnotes|endnotes)\.xml$/.test(n))
-    .map((n) => String(zip.file(n)?.asText() ?? "").replace(/<w:p[ >]/g, "\n<w:p ").replace(/<[^>]+>/g, ""))
+    .map((n) =>
+      String(zip.file(n)?.asText() ?? "")
+        .replace(/<w:p[ >]/g, "\n<w:p ")
+        .replace(/<[^>]+>/g, ""),
+    )
     .join("\n");
 }
 
 /** A template that will not compile, said in plain words: where Word split a tag, the tag. */
 function templateError(e: unknown): FillError {
   const errs = (e as { properties?: { errors?: unknown } } | null)?.properties?.errors;
-  const list = Array.isArray(errs) ? (errs as { message?: unknown; properties?: { explanation?: unknown; id?: unknown } }[]) : [];
-  const said = list.map((x) => String(x.properties?.explanation ?? x.properties?.id ?? x.message ?? "").slice(0, 200)).filter(Boolean).slice(0, 4);
-  return new FillError("bad_template", `the template has a placeholder that cannot be read${said.length > 0 ? `: ${said.join("; ")}` : ""}`);
+  const list = Array.isArray(errs)
+    ? (errs as { message?: unknown; properties?: { explanation?: unknown; id?: unknown } }[])
+    : [];
+  const said = list
+    .map((x) => String(x.properties?.explanation ?? x.properties?.id ?? x.message ?? "").slice(0, 200))
+    .filter(Boolean)
+    .slice(0, 4);
+  return new FillError(
+    "bad_template",
+    `the template has a placeholder that cannot be read${said.length > 0 ? `: ${said.join("; ")}` : ""}`,
+  );
 }
 
 function compile(zip: Zip, options: Record<string, unknown>): Templater {
   try {
-    return new (templaterLib())(zip, { paragraphLoop: true, linebreaks: true, delimiters: { start: "{", end: "}" }, ...options });
+    return new (templaterLib())(zip, {
+      paragraphLoop: true,
+      linebreaks: true,
+      delimiters: { start: "{", end: "}" },
+      ...options,
+    });
   } catch (e) {
     throw templateError(e);
   }
@@ -308,16 +366,27 @@ export function signingValues(iso: string): Record<string, unknown> {
   const mo = Number(m[2]);
   const d = Number(m[3]);
   const check = new Date(Date.UTC(y, mo - 1, d));
-  if (check.getUTCFullYear() !== y || check.getUTCMonth() !== mo - 1 || check.getUTCDate() !== d) throw new FillError("bad_date", "the signing date is not a real date");
+  if (check.getUTCFullYear() !== y || check.getUTCMonth() !== mo - 1 || check.getUTCDate() !== d)
+    throw new FillError("bad_date", "the signing date is not a real date");
   return {
-    signing_date: iso, signing_date_iso: iso, signing_day: String(d), signing_day_ordinal: ordinal(d),
-    signing_month: MONTHS[mo - 1], signing_month_number: String(mo), signing_year: String(y),
+    signing_date: iso,
+    signing_date_iso: iso,
+    signing_day: String(d),
+    signing_day_ordinal: ordinal(d),
+    signing_month: MONTHS[mo - 1],
+    signing_month_number: String(mo),
+    signing_year: String(y),
   };
 }
 
 // ---- rendering ----
 
-interface Rendered { zip: Zip; used: string[]; missing: string[]; marks: string[] }
+interface Rendered {
+  zip: Zip;
+  used: string[];
+  missing: string[];
+  marks: string[];
+}
 
 /** Render with the values. Never throws for a missing value: the caller decides (fill refuses, preview lists). */
 function render(buf: Buffer, values: Record<string, unknown>, mark: boolean): Rendered {
@@ -357,17 +426,32 @@ function render(buf: Buffer, values: Record<string, unknown>, mark: boolean): Re
 export function fill(buf: Buffer, values: Record<string, unknown>): { buffer: Buffer; used: string[] } {
   const r = render(buf, values, false);
   if (r.missing.length > 0) {
-    throw new FillError("missing_values", `the document was not made: ${r.missing.length === 1 ? "this value is" : "these values are"} missing: ${r.missing.join(", ")}`, r.missing);
+    throw new FillError(
+      "missing_values",
+      `the document was not made: ${r.missing.length === 1 ? "this value is" : "these values are"} missing: ${r.missing.join(", ")}`,
+      r.missing,
+    );
   }
-  return { buffer: r.zip.generate({ type: "nodebuffer", compression: "DEFLATE", compressionOptions: { level: 6 } }), used: r.used };
+  return {
+    buffer: r.zip.generate({ type: "nodebuffer", compression: "DEFLATE", compressionOptions: { level: 6 } }),
+    used: r.used,
+  };
 }
 
-export interface Excerpt { text: string; filled: { from: number; to: number; field: string }[] }
+export interface Excerpt {
+  text: string;
+  filled: { from: number; to: number; field: string }[];
+}
 
 const unescapeXml = (s: string): string =>
-  s.replace(/&#x([0-9a-f]+);/gi, (_, h: string) => String.fromCodePoint(parseInt(h, 16)))
+  s
+    .replace(/&#x([0-9a-f]+);/gi, (_, h: string) => String.fromCodePoint(parseInt(h, 16)))
     .replace(/&#(\d+);/g, (_, d: string) => String.fromCodePoint(Number(d)))
-    .replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&amp;/g, "&");
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&amp;/g, "&");
 
 const MAX_EXCERPT = 200;
 
@@ -377,7 +461,10 @@ function excerptOf(zip: Zip, marks: string[]): Excerpt[] {
   const out: Excerpt[] = [];
   for (const p of xml.matchAll(/<w:p[ >][\s\S]*?<\/w:p>/g)) {
     if (out.length >= MAX_EXCERPT) break;
-    const stripped = p[0].replace(/<w:tab\s*\/>/g, "\t").replace(/<w:br\s*\/>/g, "\n").replace(/<[^>]+>/g, "");
+    const stripped = p[0]
+      .replace(/<w:tab\s*\/>/g, "\t")
+      .replace(/<w:br\s*\/>/g, "\n")
+      .replace(/<[^>]+>/g, "");
     let text = "";
     const filled: Excerpt["filled"] = [];
     let last = 0;
@@ -394,7 +481,11 @@ function excerptOf(zip: Zip, marks: string[]): Excerpt[] {
   return out;
 }
 
-export function preview(buf: Buffer, values: Record<string, unknown>, given: string[]): { excerpt: Excerpt[]; missing: string[]; unused: string[] } {
+export function preview(
+  buf: Buffer,
+  values: Record<string, unknown>,
+  given: string[],
+): { excerpt: Excerpt[]; missing: string[]; unused: string[] } {
   const r = render(buf, values, true);
   return { excerpt: excerptOf(r.zip, r.marks), missing: r.missing, unused: unusedOf(buf, given) };
 }
@@ -403,8 +494,11 @@ export function preview(buf: Buffer, values: Record<string, unknown>, given: str
 function unusedOf(buf: Buffer, given: string[]): string[] {
   const info = placeholders(buf);
   const read = (k: string): boolean =>
-    info.names.includes(k) || info.loops.includes(k) || info.conditions.includes(k)
-    || info.loops.some((l) => k.startsWith(`${l}.`)) || info.names.some((n) => n.startsWith(`${k}.`));
+    info.names.includes(k) ||
+    info.loops.includes(k) ||
+    info.conditions.includes(k) ||
+    info.loops.some((l) => k.startsWith(`${l}.`)) ||
+    info.names.some((n) => n.startsWith(`${k}.`));
   return [...new Set(given)].filter((k) => !read(k)).sort();
 }
 
@@ -420,14 +514,16 @@ function rec(ctx: Ctx, input: unknown): Record<string, unknown> {
 
 function reqStr(ctx: Ctx, o: Record<string, unknown>, key: string): string {
   const v = o[key];
-  if (typeof v !== "string" || v.length === 0) fail(ctx, "validation.bad_input", "The input is not valid.", { field: key });
+  if (typeof v !== "string" || v.length === 0)
+    fail(ctx, "validation.bad_input", "The input is not valid.", { field: key });
   return v;
 }
 
 function optStr(ctx: Ctx, o: Record<string, unknown>, key: string): string | undefined {
   const v = o[key];
   if (v === undefined || v === null) return undefined;
-  if (typeof v !== "string" || v.length === 0) fail(ctx, "validation.bad_input", "The input is not valid.", { field: key });
+  if (typeof v !== "string" || v.length === 0)
+    fail(ctx, "validation.bad_input", "The input is not valid.", { field: key });
   return v;
 }
 
@@ -442,11 +538,16 @@ function optRec(ctx: Ctx, o: Record<string, unknown>, key: string): Record<strin
 function refuse(ctx: Ctx, e: unknown): never {
   if (!(e instanceof FillError)) throw e;
   switch (e.code) {
-    case "bad_input": return fail(ctx, "validation.unsupported", `${e.message}.`);
-    case "bad_date": return fail(ctx, "validation.bad_input", `${e.message}.`, { field: "signingDate" });
-    case "too_big": return fail(ctx, "validation.too_large", `${e.message}.`);
-    case "bad_template": return fail(ctx, "validation.precondition_failed", `${e.message}.`);
-    case "missing_values": return fail(ctx, "validation.precondition_failed", `${e.message}.`, { missing: e.missing });
+    case "bad_input":
+      return fail(ctx, "validation.unsupported", `${e.message}.`);
+    case "bad_date":
+      return fail(ctx, "validation.bad_input", `${e.message}.`, { field: "signingDate" });
+    case "too_big":
+      return fail(ctx, "validation.too_large", `${e.message}.`);
+    case "bad_template":
+      return fail(ctx, "validation.precondition_failed", `${e.message}.`);
+    case "missing_values":
+      return fail(ctx, "validation.precondition_failed", `${e.message}.`, { missing: e.missing });
   }
 }
 
@@ -458,7 +559,8 @@ function mayView(ctx: Ctx, fileId: string): void {
 async function templateBytes(ctx: Ctx, fileId: string): Promise<Buffer> {
   mayView(ctx, fileId);
   const got = (await ctx.call("files.read", { fileId, as: "base64" })) as { base64?: unknown; truncated?: unknown };
-  if (typeof got.base64 !== "string" || got.truncated === true) fail(ctx, "internal.unexpected", "The template could not be read whole.", { fileId });
+  if (typeof got.base64 !== "string" || got.truncated === true)
+    fail(ctx, "internal.unexpected", "The template could not be read whole.", { fileId });
   return Buffer.from(got.base64, "base64");
 }
 
@@ -480,28 +582,40 @@ async function fieldCount(ctx: Ctx, fileId: string, version: number): Promise<nu
   return n;
 }
 
-async function fieldsOf(ctx: Ctx, input: unknown): Promise<{ fields: { name: string; kind: string; required: boolean; loop?: string }[]; loops: string[]; problems: { message: string; tag?: string }[] }> {
+async function fieldsOf(
+  ctx: Ctx,
+  input: unknown,
+): Promise<{
+  fields: { name: string; kind: string; required: boolean; loop?: string }[];
+  loops: string[];
+  problems: { message: string; tag?: string }[];
+}> {
   const o = rec(ctx, input);
   const bytes = await templateBytes(ctx, reqStr(ctx, o, "templateFileId"));
   let info: Placeholders;
   try {
     info = placeholders(bytes);
   } catch (e) {
-    if (e instanceof FillError && e.code === "bad_template") return { fields: [], loops: [], problems: [{ message: `${e.message}.` }] };
+    if (e instanceof FillError && e.code === "bad_template")
+      return { fields: [], loops: [], problems: [{ message: `${e.message}.` }] };
     return refuse(ctx, e);
   }
   const fields: { name: string; kind: string; required: boolean; loop?: string }[] = [];
   for (const name of info.names) fields.push({ name, kind: kindOf(name), required: true });
   for (const loop of info.loops) {
     fields.push({ name: loop, kind: "loop", required: true });
-    for (const leaf of info.loopLeaves[loop] ?? []) fields.push({ name: leaf, kind: kindOf(leaf), required: true, loop });
+    for (const leaf of info.loopLeaves[loop] ?? [])
+      fields.push({ name: leaf, kind: kindOf(leaf), required: true, loop });
   }
   for (const c of info.conditions) fields.push({ name: c, kind: "condition", required: false });
   return { fields, loops: info.loops, problems: [] };
 }
 
 /** The values to render with, the keys the caller gave itself, and the record they came from. */
-async function valuesOf(ctx: Ctx, o: Record<string, unknown>): Promise<{ values: Record<string, unknown>; given: string[] }> {
+async function valuesOf(
+  ctx: Ctx,
+  o: Record<string, unknown>,
+): Promise<{ values: Record<string, unknown>; given: string[] }> {
   const explicit = optRec(ctx, o, "values") ?? {};
   const mapping = optRec(ctx, o, "mapping");
   const recordId = optStr(ctx, o, "recordId");
@@ -511,7 +625,10 @@ async function valuesOf(ctx: Ctx, o: Record<string, unknown>): Promise<{ values:
     // records.get reads a record by type and id: the type comes from values.recordType, or is looked up from the id (the read that finds it is the read)
     const typeGiven = typeof explicit.recordType === "string" ? explicit.recordType : undefined;
     const call = (cap: string, input: unknown): Promise<unknown> => ctx.call(cap as never, input as never);
-    const got = typeGiven !== undefined ? (await call("records.get", { type: typeGiven, recordId })) as { record?: { fields?: unknown } } : { record: (await findRecord(call, recordId))?.record };
+    const got =
+      typeGiven !== undefined
+        ? ((await call("records.get", { type: typeGiven, recordId })) as { record?: { fields?: unknown } })
+        : { record: (await findRecord(call, recordId))?.record };
     if (!got.record) fail(ctx, "validation.not_found", "That record does not exist.");
     const rawFields = got.record?.fields;
     const fields = isPlain(rawFields) ? rawFields : {};
@@ -538,7 +655,10 @@ async function valuesOf(ctx: Ctx, o: Record<string, unknown>): Promise<{ values:
   return { values, given: given.filter((k) => k !== "recordType") };
 }
 
-async function previewFill(ctx: Ctx, input: unknown): Promise<{ excerpt: Excerpt[]; missing: string[]; unused: string[] }> {
+async function previewFill(
+  ctx: Ctx,
+  input: unknown,
+): Promise<{ excerpt: Excerpt[]; missing: string[]; unused: string[] }> {
   const o = rec(ctx, input);
   const bytes = await templateBytes(ctx, reqStr(ctx, o, "templateFileId"));
   const { values, given } = await valuesOf(ctx, o);
@@ -554,14 +674,22 @@ const baseName = (name: string): string => {
   return i > 0 ? name.slice(0, i) : name;
 };
 
-async function documentsFill(ctx: Ctx, input: unknown): Promise<{ file: { fileId: string; name: string; versionId: string }; missing: string[]; unused: string[] }> {
+async function documentsFill(
+  ctx: Ctx,
+  input: unknown,
+): Promise<{ file: { fileId: string; name: string; versionId: string }; missing: string[]; unused: string[] }> {
   const o = rec(ctx, input);
   const templateFileId = reqStr(ctx, o, "templateFileId");
   const intoFolderId = reqStr(ctx, o, "intoFolderId");
   const format = optStr(ctx, o, "format") ?? "docx";
-  if (format !== "docx" && format !== "pdf") fail(ctx, "validation.bad_input", "The format is docx or pdf.", { field: "format" });
+  if (format !== "docx" && format !== "pdf")
+    fail(ctx, "validation.bad_input", "The format is docx or pdf.", { field: "format" });
   if (format === "pdf" && !configured?.pdf) {
-    fail(ctx, "validation.unsupported", "PDF needs a converter: install the PDF converter app from Apps. The Word file works anywhere: ask for that instead.");
+    fail(
+      ctx,
+      "validation.unsupported",
+      "PDF needs a converter: install the PDF converter app from Apps. The Word file works anywhere: ask for that instead.",
+    );
   }
   const template = (await ctx.call("files.get", { fileId: templateFileId })) as { file?: { name?: unknown } };
   const templateName = typeof template.file?.name === "string" ? template.file.name : "document.docx";
@@ -579,14 +707,19 @@ async function documentsFill(ctx: Ctx, input: unknown): Promise<{ file: { fileId
   if (format === "pdf" && configured?.pdf) out = await configured.pdf(made.buffer);
   const ext = format === "pdf" ? "pdf" : "docx";
   const wanted = optStr(ctx, o, "name");
-  const stem = wanted !== undefined ? wanted.replace(new RegExp(`\\.${ext}$`, "i"), "") : `${baseName(templateName)} (filled)`;
+  const stem =
+    wanted !== undefined ? wanted.replace(new RegExp(`\\.${ext}$`, "i"), "") : `${baseName(templateName)} (filled)`;
   let created: { file?: { fileId?: unknown; name?: unknown } } | undefined;
   let name = "";
   for (let n = 1; n <= 50 && created === undefined; n++) {
     name = `${n === 1 ? stem : `${stem} ${n}`}.${ext}`;
     try {
       created = (await ctx.call("files.create", {
-        folderId: intoFolderId, name, content: { base64: Buffer.from(out).toString("base64") }, mime: format === "pdf" ? "application/pdf" : DOCX_MIME, kind: format === "pdf" ? "pdf" : "document",
+        folderId: intoFolderId,
+        name,
+        content: { base64: Buffer.from(out).toString("base64") },
+        mime: format === "pdf" ? "application/pdf" : DOCX_MIME,
+        kind: format === "pdf" ? "pdf" : "document",
         // the caller's own key and the name tried, so a retry of this fill creates the same file once
         idempotencyKey: `docfill:${optStr(ctx, o, "idempotencyKey") ?? templateFileId}:${name}`,
       })) as { file?: { fileId?: unknown; name?: unknown } };
@@ -596,8 +729,11 @@ async function documentsFill(ctx: Ctx, input: unknown): Promise<{ file: { fileId
     }
   }
   const fileId = created?.file?.fileId;
-  if (typeof fileId !== "string") return fail(ctx, "validation.duplicate", "Too many files with that name are already in the folder.", { name });
-  const versions = (await ctx.call("files.versions", { fileId })) as { versions?: { versionId?: unknown; n?: unknown }[] };
+  if (typeof fileId !== "string")
+    return fail(ctx, "validation.duplicate", "Too many files with that name are already in the folder.", { name });
+  const versions = (await ctx.call("files.versions", { fileId })) as {
+    versions?: { versionId?: unknown; n?: unknown }[];
+  };
   const newest = [...(versions.versions ?? [])].sort((a, b) => Number(b.n) - Number(a.n))[0];
   const versionId = typeof newest?.versionId === "string" ? newest.versionId : "";
   const payload: Record<string, unknown> = { fileId, templateFileId, fields: made.used.length, missing: 0 };
@@ -605,14 +741,26 @@ async function documentsFill(ctx: Ctx, input: unknown): Promise<{ file: { fileId
   if (recordId !== undefined) payload.recordId = recordId;
   ctx.emit("document.filled", `file/${fileId}`, payload);
   ctx.log.info("documents.fill", { fileId, templateFileId, fields: made.used.length, format });
-  return { file: { fileId, name: typeof created?.file?.name === "string" ? created.file.name : name, versionId }, missing: [], unused };
+  return {
+    file: { fileId, name: typeof created?.file?.name === "string" ? created.file.name : name, versionId },
+    missing: [],
+    unused,
+  };
 }
 
-async function templatesList(ctx: Ctx, input: unknown): Promise<{ templates: { fileId: string; name: string; folderId: string; fields: number; updatedAt: number }[]; next?: string; total: number }> {
+async function templatesList(
+  ctx: Ctx,
+  input: unknown,
+): Promise<{
+  templates: { fileId: string; name: string; folderId: string; fields: number; updatedAt: number }[];
+  next?: string;
+  total: number;
+}> {
   const o = rec(ctx, input);
   const folder = optStr(ctx, o, "folder");
   const limit = typeof o.limit === "number" ? o.limit : 100;
-  if (!Number.isInteger(limit) || limit < 1 || limit > PAGE_MAX) fail(ctx, "validation.bad_input", "The input is not valid.", { field: "limit" });
+  if (!Number.isInteger(limit) || limit < 1 || limit > PAGE_MAX)
+    fail(ctx, "validation.bad_input", "The input is not valid.", { field: "limit" });
   // A cursor is the offset the previous page named; one that is not a number starts again from the top.
   const cursor = optStr(ctx, o, "cursor");
   const offset = cursor !== undefined && /^[0-9]+$/.test(cursor) ? Number(cursor) : 0;
@@ -621,11 +769,19 @@ async function templatesList(ctx: Ctx, input: unknown): Promise<{ templates: { f
   for (const m of marked) {
     const fileId = String(m.file_id);
     try {
-      const got = (await ctx.call("files.get", { fileId })) as { file?: { name?: unknown; folderId?: unknown; version?: unknown; updatedAt?: unknown; deletedAt?: unknown } };
+      const got = (await ctx.call("files.get", { fileId })) as {
+        file?: { name?: unknown; folderId?: unknown; version?: unknown; updatedAt?: unknown; deletedAt?: unknown };
+      };
       const f = got.file;
       if (!f || (f.deletedAt !== undefined && f.deletedAt !== null)) continue;
       if (folder !== undefined && f.folderId !== folder) continue;
-      rows.push({ fileId, name: String(f.name), folderId: String(f.folderId), version: Number(f.version) || 1, updatedAt: Number(f.updatedAt) || 0 });
+      rows.push({
+        fileId,
+        name: String(f.name),
+        folderId: String(f.folderId),
+        version: Number(f.version) || 1,
+        updatedAt: Number(f.updatedAt) || 0,
+      });
     } catch (e) {
       // not visible to the caller or gone: not in their list
       if (!(e instanceof VyreErr)) throw e;
@@ -634,7 +790,14 @@ async function templatesList(ctx: Ctx, input: unknown): Promise<{ templates: { f
   rows.sort((a, b) => a.name.localeCompare(b.name) || a.fileId.localeCompare(b.fileId));
   const page = rows.slice(offset, offset + limit);
   const templates = [];
-  for (const r of page) templates.push({ fileId: r.fileId, name: r.name, folderId: r.folderId, fields: await fieldCount(ctx, r.fileId, r.version), updatedAt: r.updatedAt });
+  for (const r of page)
+    templates.push({
+      fileId: r.fileId,
+      name: r.name,
+      folderId: r.folderId,
+      fields: await fieldCount(ctx, r.fileId, r.version),
+      updatedAt: r.updatedAt,
+    });
   const out: { templates: typeof templates; next?: string; total: number } = { templates, total: rows.length };
   if (offset + limit < rows.length) out.next = String(offset + limit);
   return out;
@@ -643,13 +806,21 @@ async function templatesList(ctx: Ctx, input: unknown): Promise<{ templates: { f
 async function markTemplate(ctx: Ctx, input: unknown): Promise<{ ok: boolean }> {
   const o = rec(ctx, input);
   const fileId = reqStr(ctx, o, "fileId");
-  if (typeof o.isTemplate !== "boolean") fail(ctx, "validation.bad_input", "The input is not valid.", { field: "isTemplate" });
+  if (typeof o.isTemplate !== "boolean")
+    fail(ctx, "validation.bad_input", "The input is not valid.", { field: "isTemplate" });
   const isTemplate = o.isTemplate;
   const got = (await ctx.call("files.get", { fileId })) as { file?: { name?: unknown } };
   const name = typeof got.file?.name === "string" ? got.file.name : "";
-  if (isTemplate && !/\.docx$/i.test(name)) fail(ctx, "validation.unsupported", "Only a Word (.docx) file can be a template.", { fileId });
+  if (isTemplate && !/\.docx$/i.test(name))
+    fail(ctx, "validation.unsupported", "Only a Word (.docx) file can be a template.", { fileId });
   const row = (ctx.db.all("SELECT * FROM documents_template WHERE file_id = ?", fileId) as Row[])[0];
-  if (isTemplate && !row) ctx.db.run("INSERT INTO documents_template (file_id, marked_by, marked_at) VALUES (?, ?, ?)", fileId, ctx.principal.id, ctx.now());
+  if (isTemplate && !row)
+    ctx.db.run(
+      "INSERT INTO documents_template (file_id, marked_by, marked_at) VALUES (?, ?, ?)",
+      fileId,
+      ctx.principal.id,
+      ctx.now(),
+    );
   else if (!isTemplate && row) ctx.db.run("DELETE FROM documents_template WHERE file_id = ?", fileId);
   else return { ok: true };
   ctx.emit("document.template_marked", `file/${fileId}`, { fileId, isTemplate });

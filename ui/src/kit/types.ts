@@ -47,13 +47,7 @@ export const KIT_SLOTS = ["main", "side", "sidebar", "sheet", "tab", "popover"] 
 export type KitSlot = (typeof KIT_SLOTS)[number];
 
 /** JSON value. The manifest compiler owns the TypeBox form. The kit runtime only carries it. */
-export type Json =
-  | null
-  | boolean
-  | number
-  | string
-  | readonly Json[]
-  | { readonly [key: string]: Json };
+export type Json = null | boolean | number | string | readonly Json[] | { readonly [key: string]: Json };
 
 export type Schema = Json;
 

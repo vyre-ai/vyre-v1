@@ -1,12 +1,34 @@
 // WebCrypto subset the device layer uses. Typed here so sync needs no DOM lib; Node 20+, browsers and Hermes (with a polyfill) all fit.
-export interface CryptoKeyLike { readonly extractable: boolean; readonly type: string; readonly algorithm: { name: string } }
+export interface CryptoKeyLike {
+  readonly extractable: boolean;
+  readonly type: string;
+  readonly algorithm: { name: string };
+}
 
 export interface SubtleLike {
   generateKey(alg: { name: string; length: number }, extractable: boolean, usages: string[]): Promise<CryptoKeyLike>;
-  importKey(format: "raw", data: Uint8Array, alg: string | { name: string }, extractable: boolean, usages: string[]): Promise<CryptoKeyLike>;
-  encrypt(alg: { name: string; iv: Uint8Array; additionalData?: Uint8Array }, key: CryptoKeyLike, data: Uint8Array): Promise<ArrayBuffer>;
-  decrypt(alg: { name: string; iv: Uint8Array; additionalData?: Uint8Array }, key: CryptoKeyLike, data: Uint8Array): Promise<ArrayBuffer>;
-  deriveBits(alg: { name: string; hash: string; salt: Uint8Array; info: Uint8Array }, key: CryptoKeyLike, bits: number): Promise<ArrayBuffer>;
+  importKey(
+    format: "raw",
+    data: Uint8Array,
+    alg: string | { name: string },
+    extractable: boolean,
+    usages: string[],
+  ): Promise<CryptoKeyLike>;
+  encrypt(
+    alg: { name: string; iv: Uint8Array; additionalData?: Uint8Array },
+    key: CryptoKeyLike,
+    data: Uint8Array,
+  ): Promise<ArrayBuffer>;
+  decrypt(
+    alg: { name: string; iv: Uint8Array; additionalData?: Uint8Array },
+    key: CryptoKeyLike,
+    data: Uint8Array,
+  ): Promise<ArrayBuffer>;
+  deriveBits(
+    alg: { name: string; hash: string; salt: Uint8Array; info: Uint8Array },
+    key: CryptoKeyLike,
+    bits: number,
+  ): Promise<ArrayBuffer>;
 }
 
 export interface CryptoLike {

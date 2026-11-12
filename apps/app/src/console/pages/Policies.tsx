@@ -1,93 +1,653 @@
-import {useEffect,useState} from "react";
+import { useEffect, useState } from "react";
 import { capPhrase } from "../shell/format.ts";
-import type {ReactElement} from "react";
-import {View} from "react-native";
-import type {AccessPoliciesListOut,AuditListOut,MembersSignInGithubGetOut,MembersSignInPolicyGetOut} from "../../../../../generated/types.ts";
-import {ObjectPage,ObjectSection,withBaseTabs} from "../../../../../ui/src/ObjectPage/index.tsx";
-import {Row} from "../../../../../ui/src/Row/index.tsx";
-import {ObjectList} from "../objects/ObjectList.tsx";
-import {useConsoleData} from "../shell/data.tsx";
-import { Empty,Group} from "../shell/ui.tsx";
-import {SecuritySheet} from "../../places/settings/SecuritySheet.tsx";
-import { Help, Actions,Button,Field,Note,ReadState,Select,useAction,useRead} from "./shared.tsx";
-import {SsoSections} from "./SsoSections.tsx";
-type SignIn=MembersSignInPolicyGetOut;
-type GithubApp=MembersSignInGithubGetOut["github"];
-type PolicyRow={id:string;title:string;note:string;area:string;page?:string};
+import type { ReactElement } from "react";
+import { View } from "react-native";
+import type {
+  AccessPoliciesListOut,
+  AuditListOut,
+  MembersSignInGithubGetOut,
+  MembersSignInPolicyGetOut,
+} from "../../../../../generated/types.ts";
+import { ObjectPage, ObjectSection, withBaseTabs } from "../../../../../ui/src/ObjectPage/index.tsx";
+import { Row } from "../../../../../ui/src/Row/index.tsx";
+import { ObjectList } from "../objects/ObjectList.tsx";
+import { useConsoleData } from "../shell/data.tsx";
+import { Empty, Group } from "../shell/ui.tsx";
+import { SecuritySheet } from "../../places/settings/SecuritySheet.tsx";
+import { Help, Actions, Button, Field, Note, ReadState, Select, useAction, useRead } from "./shared.tsx";
+import { SsoSections } from "./SsoSections.tsx";
+type SignIn = MembersSignInPolicyGetOut;
+type GithubApp = MembersSignInGithubGetOut["github"];
+type PolicyRow = { id: string; title: string; note: string; area: string; page?: string };
 // Approvals, Keep and delete defaults and Spend have their own tabs (AI > Approvals, Data > Keep and delete, AI > Spend and limits); these two settings live on the page that holds them.
-const OWNED:readonly PolicyRow[]=[{id:"mailcal",title:"Mail and calendar",note:"Connect members' mail and calendar when Google Workspace or Microsoft 365 is set up.",area:"People",page:"domains"},{id:"reports",title:"Problem reports",note:"Where problem reports go and what is left out of them.",area:"Everyone",page:"space"}];
-export function mfaPrerequisite(out:SignIn):string{
- if(!out.capabilities)return "This server has not reported the prerequisites for required authenticators.";
- if(!out.capabilities.ownerHasSecondFactor)return "The Space owner must set up an authenticator first.";
- if(!out.capabilities.currentHasSecondFactor)return "Set up your own authenticator before requiring it for everyone.";
- if(!out.capabilities.newMemberMfaEnrollment)return "This server cannot enroll new members under a required-authenticator policy yet. Keep enrollment optional so invited people can join.";
- return "";
+const OWNED: readonly PolicyRow[] = [
+  {
+    id: "mailcal",
+    title: "Mail and calendar",
+    note: "Connect members' mail and calendar when Google Workspace or Microsoft 365 is set up.",
+    area: "People",
+    page: "domains",
+  },
+  {
+    id: "reports",
+    title: "Problem reports",
+    note: "Where problem reports go and what is left out of them.",
+    area: "Everyone",
+    page: "space",
+  },
+];
+export function mfaPrerequisite(out: SignIn): string {
+  if (!out.capabilities) return "This server has not reported the prerequisites for required authenticators.";
+  if (!out.capabilities.ownerHasSecondFactor) return "The Space owner must set up an authenticator first.";
+  if (!out.capabilities.currentHasSecondFactor)
+    return "Set up your own authenticator before requiring it for everyone.";
+  if (!out.capabilities.newMemberMfaEnrollment)
+    return "This server cannot enroll new members under a required-authenticator policy yet. Keep enrollment optional so invited people can join.";
+  return "";
 }
-export function Policies({initialId}:{initialId?:string}):ReactElement{
- const data=useConsoleData();const[selected,setSelected]=useState(initialId??"");const[search,setSearch]=useState("");const[filters,setFilters]=useState<ReadonlySet<string>>(new Set());
- useEffect(()=>setSelected(initialId??""),[initialId]);
- const open=(id:string)=>{setSelected(id);data.nav.openPage("policies",{policyId:id});};
- if(selected)return <PolicyObject key={selected} id={selected} onBack={()=>{setSelected("");data.nav.openPage("policies");}}/>;
- const rows:PolicyRow[]=[{id:"sign_in",title:"Sign-in",note:"Two-step sign-in, single sign-on and who can sign in how.",area:"People"},{id:"vault",title:"Vault",note:"Use, view, edit and manage keep secrets apart.",area:"Everyone"},{id:"sharing.public_links",title:"Sharing outside the Space",note:"Who may create new public links.",area:"Everyone"},...OWNED];
- return <View testID="console-policies"><ObjectList rows={rows.map(row=>({...row,filters:[row.area],actions:[{label:"Open",onSelect:()=>open(row.id)}]}))} selectedId={null} onOpen={row=>open(row.id)} search={{value:search,onSearch:setSearch}} filters={[{id:"People",label:"People"},{id:"Everyone",label:"Everyone"}]} activeFilters={filters} onFilters={setFilters} empty="No sign-in rules match." testID="policies-list"/></View>;
+export function Policies({ initialId }: { initialId?: string }): ReactElement {
+  const data = useConsoleData();
+  const [selected, setSelected] = useState(initialId ?? "");
+  const [search, setSearch] = useState("");
+  const [filters, setFilters] = useState<ReadonlySet<string>>(new Set());
+  useEffect(() => setSelected(initialId ?? ""), [initialId]);
+  const open = (id: string) => {
+    setSelected(id);
+    data.nav.openPage("policies", { policyId: id });
+  };
+  if (selected)
+    return (
+      <PolicyObject
+        key={selected}
+        id={selected}
+        onBack={() => {
+          setSelected("");
+          data.nav.openPage("policies");
+        }}
+      />
+    );
+  const rows: PolicyRow[] = [
+    {
+      id: "sign_in",
+      title: "Sign-in",
+      note: "Two-step sign-in, single sign-on and who can sign in how.",
+      area: "People",
+    },
+    { id: "vault", title: "Vault", note: "Use, view, edit and manage keep secrets apart.", area: "Everyone" },
+    {
+      id: "sharing.public_links",
+      title: "Sharing outside the Space",
+      note: "Who may create new public links.",
+      area: "Everyone",
+    },
+    ...OWNED,
+  ];
+  return (
+    <View testID="console-policies">
+      <ObjectList
+        rows={rows.map((row) => ({
+          ...row,
+          filters: [row.area],
+          actions: [{ label: "Open", onSelect: () => open(row.id) }],
+        }))}
+        selectedId={null}
+        onOpen={(row) => open(row.id)}
+        search={{ value: search, onSearch: setSearch }}
+        filters={[
+          { id: "People", label: "People" },
+          { id: "Everyone", label: "Everyone" },
+        ]}
+        activeFilters={filters}
+        onFilters={setFilters}
+        empty="No sign-in rules match."
+        testID="policies-list"
+      />
+    </View>
+  );
 }
-function PolicyObject({id,onBack}:{id:string;onBack:()=>void}):ReactElement{
- const data=useConsoleData();const[tab,setTab]=useState("overview");const[sheet,setSheet]=useState(false);const owned=OWNED.find(row=>row.id===id);const title=owned?.title??(id==="sign_in"?"Sign-in":id==="sharing.public_links"?"Sharing outside the Space":"Vault");
- return <View testID="policy-object"><ObjectPage id={id} name={title} kind="Rule" owner={data.space.name} status="Applies to this Space" density="regular" actions={id==="sign_in"||id==="sharing.public_links"?[{id:"edit",label:"Edit rule",destructive:false}]:owned?[{id:"open",label:"Open controls",destructive:false}]:[]} tabs={withBaseTabs([])} activeTabId={tab} onTab={setTab} parent="Sign-in rules" onBack={onBack} sheetOpen={sheet} sheetTitle={`Edit ${title.toLowerCase()}`} onCloseSheet={()=>setSheet(false)} onAction={action=>{if(action==="edit")setSheet(true);else if(owned?.page)data.nav.openPage(owned.page);}} sheet={id==="sign_in"?<SignInPolicy editing onSaved={()=>setSheet(false)}/>:id==="sharing.public_links"?<PublicLinks editing onSaved={()=>setSheet(false)}/>:null}>
- {tab==="activity"?<PolicyActivity id={id}/>:tab==="access"?<ObjectSection title="Who can change this policy"><Help>Only the Space owner can lower sign-in requirements.</Help></ObjectSection>:id==="sign_in"?<SignInPolicy/>:id==="sharing.public_links"?<PublicLinks/>:owned?<ObjectSection title={owned.title}><Note>{owned.note}</Note><Button label={`Open ${owned.title.toLowerCase()}`} onPress={()=>data.nav.openPage(owned.page!)}/></ObjectSection>:<ObjectSection title="Vault access levels"><Group>{[{title:"Use",note:"An approved action can use a secret without showing its value."},{title:"View",note:"Read a secret value when authorized."},{title:"Edit",note:"Change the stored secret."},{title:"Manage",note:"Manage access and ownership."}].map(row=><Row key={row.title} title={row.title} note={row.note}/>)}</Group><Help>The access ladder is a fixed security boundary. Set each item’s access in Vault.</Help></ObjectSection>}
- </ObjectPage></View>;
+function PolicyObject({ id, onBack }: { id: string; onBack: () => void }): ReactElement {
+  const data = useConsoleData();
+  const [tab, setTab] = useState("overview");
+  const [sheet, setSheet] = useState(false);
+  const owned = OWNED.find((row) => row.id === id);
+  const title =
+    owned?.title ??
+    (id === "sign_in" ? "Sign-in" : id === "sharing.public_links" ? "Sharing outside the Space" : "Vault");
+  return (
+    <View testID="policy-object">
+      <ObjectPage
+        id={id}
+        name={title}
+        kind="Rule"
+        owner={data.space.name}
+        status="Applies to this Space"
+        density="regular"
+        actions={
+          id === "sign_in" || id === "sharing.public_links"
+            ? [{ id: "edit", label: "Edit rule", destructive: false }]
+            : owned
+              ? [{ id: "open", label: "Open controls", destructive: false }]
+              : []
+        }
+        tabs={withBaseTabs([])}
+        activeTabId={tab}
+        onTab={setTab}
+        parent="Sign-in rules"
+        onBack={onBack}
+        sheetOpen={sheet}
+        sheetTitle={`Edit ${title.toLowerCase()}`}
+        onCloseSheet={() => setSheet(false)}
+        onAction={(action) => {
+          if (action === "edit") setSheet(true);
+          else if (owned?.page) data.nav.openPage(owned.page);
+        }}
+        sheet={
+          id === "sign_in" ? (
+            <SignInPolicy editing onSaved={() => setSheet(false)} />
+          ) : id === "sharing.public_links" ? (
+            <PublicLinks editing onSaved={() => setSheet(false)} />
+          ) : null
+        }
+      >
+        {tab === "activity" ? (
+          <PolicyActivity id={id} />
+        ) : tab === "access" ? (
+          <ObjectSection title="Who can change this policy">
+            <Help>Only the Space owner can lower sign-in requirements.</Help>
+          </ObjectSection>
+        ) : id === "sign_in" ? (
+          <SignInPolicy />
+        ) : id === "sharing.public_links" ? (
+          <PublicLinks />
+        ) : owned ? (
+          <ObjectSection title={owned.title}>
+            <Note>{owned.note}</Note>
+            <Button label={`Open ${owned.title.toLowerCase()}`} onPress={() => data.nav.openPage(owned.page!)} />
+          </ObjectSection>
+        ) : (
+          <ObjectSection title="Vault access levels">
+            <Group>
+              {[
+                { title: "Use", note: "An approved action can use a secret without showing its value." },
+                { title: "View", note: "Read a secret value when authorized." },
+                { title: "Edit", note: "Change the stored secret." },
+                { title: "Manage", note: "Manage access and ownership." },
+              ].map((row) => (
+                <Row key={row.title} title={row.title} note={row.note} />
+              ))}
+            </Group>
+            <Help>The access ladder is a fixed security boundary. Set each item’s access in Vault.</Help>
+          </ObjectSection>
+        )}
+      </ObjectPage>
+    </View>
+  );
 }
 // The GitHub app behind "Sign in with GitHub": an admin pastes the client id and secret. The secret goes to the Vault as a Space item and is never shown again; this page only learns "set".
-export function GithubAppView({github,editing=false,busy=false,note="",onSave,onClear}:{github:GithubApp;editing?:boolean;busy?:boolean;note?:string;onSave?:(input:{clientId:string;clientSecret?:string})=>void;onClear?:()=>void}):ReactElement{
- const[clientId,setClientId]=useState(github.clientId??"");const[secret,setSecret]=useState("");const[copied,setCopied]=useState(false);
- const copy=()=>{void (globalThis as {navigator?:{clipboard?:{writeText(text:string):Promise<void>}}}).navigator?.clipboard?.writeText(github.callbackUrl).then(()=>setCopied(true),()=>setCopied(false));};
- const create=()=>{(globalThis as {open?:(url:string,target:string,features:string)=>unknown}).open?.(github.createUrl,"_blank","noopener,noreferrer");};
- return <ObjectSection title="GitHub app"><Group><Row title="Client ID" note={github.clientId??"Not set"}/><Row title="Client secret" note={github.secretSet?"Set, kept in the Vault":"Not set"}/><Row title="Callback address" note={github.callbackUrl}/></Group>
- {github.source==="env"?<Help>The server's environment sets the GitHub app and takes priority over what is saved here.</Help>:null}
- <Actions><Button label={copied?"Copied":"Copy callback address"} testID="github-copy-callback" onPress={copy}/><Button label="Create the GitHub app" testID="github-create-app" onPress={create}/></Actions>
- <Help>Register this callback at GitHub, then paste the Client ID and a new secret.</Help>
- {editing?<><Field label="GitHub client ID" value={clientId} onChange={setClientId} testID="github-client-id"/><Field label={github.secretSet?"New client secret (leave empty to keep the saved one)":"GitHub client secret"} value={secret} onChange={setSecret} secure testID="github-client-secret"/>
- <Actions><Button label="Save GitHub app" testID="github-save" disabled={busy||!clientId.trim()||(!secret.trim()&&!github.secretSet)} why={!clientId.trim()?"Add the client ID":(!secret.trim()&&!github.secretSet)?"Add the secret":undefined} onPress={()=>{onSave?.({clientId,...(secret.trim()?{clientSecret:secret}:{})});setSecret("");}}/>{github.source==="space"?<Button label="Forget the GitHub app" testID="github-clear" danger disabled={busy} onPress={()=>onClear?.()}/>:null}</Actions></>:null}
- {note?<Note>{note}</Note>:null}</ObjectSection>;
+export function GithubAppView({
+  github,
+  editing = false,
+  busy = false,
+  note = "",
+  onSave,
+  onClear,
+}: {
+  github: GithubApp;
+  editing?: boolean;
+  busy?: boolean;
+  note?: string;
+  onSave?: (input: { clientId: string; clientSecret?: string }) => void;
+  onClear?: () => void;
+}): ReactElement {
+  const [clientId, setClientId] = useState(github.clientId ?? "");
+  const [secret, setSecret] = useState("");
+  const [copied, setCopied] = useState(false);
+  const copy = () => {
+    void (globalThis as { navigator?: { clipboard?: { writeText(text: string): Promise<void> } } }).navigator?.clipboard
+      ?.writeText(github.callbackUrl)
+      .then(
+        () => setCopied(true),
+        () => setCopied(false),
+      );
+  };
+  const create = () => {
+    (globalThis as { open?: (url: string, target: string, features: string) => unknown }).open?.(
+      github.createUrl,
+      "_blank",
+      "noopener,noreferrer",
+    );
+  };
+  return (
+    <ObjectSection title="GitHub app">
+      <Group>
+        <Row title="Client ID" note={github.clientId ?? "Not set"} />
+        <Row title="Client secret" note={github.secretSet ? "Set, kept in the Vault" : "Not set"} />
+        <Row title="Callback address" note={github.callbackUrl} />
+      </Group>
+      {github.source === "env" ? (
+        <Help>The server's environment sets the GitHub app and takes priority over what is saved here.</Help>
+      ) : null}
+      <Actions>
+        <Button label={copied ? "Copied" : "Copy callback address"} testID="github-copy-callback" onPress={copy} />
+        <Button label="Create the GitHub app" testID="github-create-app" onPress={create} />
+      </Actions>
+      <Help>Register this callback at GitHub, then paste the Client ID and a new secret.</Help>
+      {editing ? (
+        <>
+          <Field label="GitHub client ID" value={clientId} onChange={setClientId} testID="github-client-id" />
+          <Field
+            label={github.secretSet ? "New client secret (leave empty to keep the saved one)" : "GitHub client secret"}
+            value={secret}
+            onChange={setSecret}
+            secure
+            testID="github-client-secret"
+          />
+          <Actions>
+            <Button
+              label="Save GitHub app"
+              testID="github-save"
+              disabled={busy || !clientId.trim() || (!secret.trim() && !github.secretSet)}
+              why={
+                !clientId.trim()
+                  ? "Add the client ID"
+                  : !secret.trim() && !github.secretSet
+                    ? "Add the secret"
+                    : undefined
+              }
+              onPress={() => {
+                onSave?.({ clientId, ...(secret.trim() ? { clientSecret: secret } : {}) });
+                setSecret("");
+              }}
+            />
+            {github.source === "space" ? (
+              <Button
+                label="Forget the GitHub app"
+                testID="github-clear"
+                danger
+                disabled={busy}
+                onPress={() => onClear?.()}
+              />
+            ) : null}
+          </Actions>
+        </>
+      ) : null}
+      {note ? <Note>{note}</Note> : null}
+    </ObjectSection>
+  );
 }
-function GithubAppSection({editing,onChanged}:{editing:boolean;onChanged:()=>void}):ReactElement|null{
- const query=useRead<MembersSignInGithubGetOut>("members.sign_in_github.get",{});const action=useAction(()=>{query.refresh();onChanged();});
- if(!query.data)return query.error?<ReadState error={query.error} retry={query.refresh}/>:null;
- return <GithubAppView github={query.data.github} editing={editing} busy={action.busy} note={action.note} onSave={input=>void action.run("members.sign_in_github.set",input,"GitHub app saved")} onClear={()=>void action.run("members.sign_in_github.clear",{},"GitHub app forgotten")}/>;
+function GithubAppSection({ editing, onChanged }: { editing: boolean; onChanged: () => void }): ReactElement | null {
+  const query = useRead<MembersSignInGithubGetOut>("members.sign_in_github.get", {});
+  const action = useAction(() => {
+    query.refresh();
+    onChanged();
+  });
+  if (!query.data) return query.error ? <ReadState error={query.error} retry={query.refresh} /> : null;
+  return (
+    <GithubAppView
+      github={query.data.github}
+      editing={editing}
+      busy={action.busy}
+      note={action.note}
+      onSave={(input) => void action.run("members.sign_in_github.set", input, "GitHub app saved")}
+      onClear={() => void action.run("members.sign_in_github.clear", {}, "GitHub app forgotten")}
+    />
+  );
 }
-function SignInPolicy({editing=false,onSaved}:{editing?:boolean;onSaved?:()=>void}):ReactElement{
- const data=useConsoleData();const query=useRead<SignIn>("members.sign_in_policy.get",{});const[draft,setDraft]=useState<SignIn["policy"]|null>(null);const[confirm,setConfirm]=useState(false);const[enroll,setEnroll]=useState(false);const action=useAction(query.refresh);
- if(!query.data)return <ReadState error={query.error} retry={query.refresh}/>;
- const out=query.data;const policy=draft??out.policy;const prerequisite=mfaPrerequisite(out);const methods=out.capabilities;const alternate=!!methods?.github||!!methods?.sso.length;
- return <ObjectSection title="Sign-in"><Group><Row title="Password sign-in" note={out.policy.allowPassword&&!out.policy.requireSso?"Allowed":"Disabled by Space policy"}/><Row title="GitHub sign-in" note={methods?.github?(out.policy.allowGithub?"Configured and allowed":"Configured, disabled by policy"):"Unavailable: this server has no GitHub authorization integration"}/><Row title="Single sign-on" note={methods?.sso.length?methods.sso.join(", "):"Unavailable: this server has no supported SSO sign-in flow"}/><Row title="Authenticator requirement" note={out.policy.secondFactor==="required"?"Required":"Optional; each person can enroll now"}/></Group>
- <GithubAppSection editing={editing} onChanged={query.refresh}/>
- <SsoSections/>
- <ProviderVaultOpen editing={editing}/>
- {prerequisite?<Note>{prerequisite}</Note>:null}{!methods?.currentHasSecondFactor?<Button label="Set up your authenticator" testID="policy-enroll" onPress={()=>setEnroll(true)}/>:null}
- {editing?<><Select label="Password sign-in" value={String(policy.allowPassword)} options={[{key:"true",title:"Allowed"},...(alternate?[{key:"false",title:"Disabled"}]:[])]} onChange={value=>{setDraft({...policy,allowPassword:value==="true"});setConfirm(false);}}/>{methods?.github?<Select label="GitHub sign-in" value={String(policy.allowGithub)} options={[{key:"true",title:"Allowed"},{key:"false",title:"Disabled"}]} onChange={value=>{setDraft({...policy,allowGithub:value==="true"});setConfirm(false);}}/>:null}<Select label="Authenticator requirement" value={policy.secondFactor} options={[{key:"off",title:"Optional"},...(!prerequisite||out.policy.secondFactor==="required"?[{key:"required",title:"Required"}]:[])]} onChange={value=>{setDraft({...policy,secondFactor:value as "off"|"required"});setConfirm(false);}}/>{methods?.sso.length?<Select label="Require single sign-on" value={String(policy.requireSso)} options={[{key:"false",title:"No"},{key:"true",title:"Yes"}]} onChange={value=>{setDraft({...policy,requireSso:value==="true"});setConfirm(false);}}/>:out.policy.requireSso?<Button label="Restore password sign-in" onPress={()=>setDraft({...policy,allowPassword:true,requireSso:false})}/>:null}
- {confirm?<><Note>Save these sign-in requirements? They apply to the next account creation and sign-in. Current sessions stay available; only the Owner can lower an existing requirement.</Note><Actions><Button label="Cancel review" onPress={()=>setConfirm(false)}/><Button label="Confirm sign-in policy" testID="policy-signin-confirm" disabled={action.busy} onPress={()=>void action.run("members.sign_in_policy.set",{policy},"Sign-in policy saved").then(result=>{if(result){setDraft(null);setConfirm(false);onSaved?.();}})}/></Actions></>:<Button label="Review sign-in changes" testID="policy-signin-review" disabled={action.busy||!draft} onPress={()=>setConfirm(true)}/>}</>:null}
- {action.note?<Note>{action.note}</Note>:null}{enroll?<SecuritySheet action="totp-on" call={data.call} onClose={()=>{setEnroll(false);query.refresh();}}/>:null}</ObjectSection>;
+function SignInPolicy({ editing = false, onSaved }: { editing?: boolean; onSaved?: () => void }): ReactElement {
+  const data = useConsoleData();
+  const query = useRead<SignIn>("members.sign_in_policy.get", {});
+  const [draft, setDraft] = useState<SignIn["policy"] | null>(null);
+  const [confirm, setConfirm] = useState(false);
+  const [enroll, setEnroll] = useState(false);
+  const action = useAction(query.refresh);
+  if (!query.data) return <ReadState error={query.error} retry={query.refresh} />;
+  const out = query.data;
+  const policy = draft ?? out.policy;
+  const prerequisite = mfaPrerequisite(out);
+  const methods = out.capabilities;
+  const alternate = !!methods?.github || !!methods?.sso.length;
+  return (
+    <ObjectSection title="Sign-in">
+      <Group>
+        <Row
+          title="Password sign-in"
+          note={out.policy.allowPassword && !out.policy.requireSso ? "Allowed" : "Disabled by Space policy"}
+        />
+        <Row
+          title="GitHub sign-in"
+          note={
+            methods?.github
+              ? out.policy.allowGithub
+                ? "Configured and allowed"
+                : "Configured, disabled by policy"
+              : "Unavailable: this server has no GitHub authorization integration"
+          }
+        />
+        <Row
+          title="Single sign-on"
+          note={
+            methods?.sso.length ? methods.sso.join(", ") : "Unavailable: this server has no supported SSO sign-in flow"
+          }
+        />
+        <Row
+          title="Authenticator requirement"
+          note={out.policy.secondFactor === "required" ? "Required" : "Optional; each person can enroll now"}
+        />
+      </Group>
+      <GithubAppSection editing={editing} onChanged={query.refresh} />
+      <SsoSections />
+      <ProviderVaultOpen editing={editing} />
+      {prerequisite ? <Note>{prerequisite}</Note> : null}
+      {!methods?.currentHasSecondFactor ? (
+        <Button label="Set up your authenticator" testID="policy-enroll" onPress={() => setEnroll(true)} />
+      ) : null}
+      {editing ? (
+        <>
+          <Select
+            label="Password sign-in"
+            value={String(policy.allowPassword)}
+            options={[{ key: "true", title: "Allowed" }, ...(alternate ? [{ key: "false", title: "Disabled" }] : [])]}
+            onChange={(value) => {
+              setDraft({ ...policy, allowPassword: value === "true" });
+              setConfirm(false);
+            }}
+          />
+          {methods?.github ? (
+            <Select
+              label="GitHub sign-in"
+              value={String(policy.allowGithub)}
+              options={[
+                { key: "true", title: "Allowed" },
+                { key: "false", title: "Disabled" },
+              ]}
+              onChange={(value) => {
+                setDraft({ ...policy, allowGithub: value === "true" });
+                setConfirm(false);
+              }}
+            />
+          ) : null}
+          <Select
+            label="Authenticator requirement"
+            value={policy.secondFactor}
+            options={[
+              { key: "off", title: "Optional" },
+              ...(!prerequisite || out.policy.secondFactor === "required"
+                ? [{ key: "required", title: "Required" }]
+                : []),
+            ]}
+            onChange={(value) => {
+              setDraft({ ...policy, secondFactor: value as "off" | "required" });
+              setConfirm(false);
+            }}
+          />
+          {methods?.sso.length ? (
+            <Select
+              label="Require single sign-on"
+              value={String(policy.requireSso)}
+              options={[
+                { key: "false", title: "No" },
+                { key: "true", title: "Yes" },
+              ]}
+              onChange={(value) => {
+                setDraft({ ...policy, requireSso: value === "true" });
+                setConfirm(false);
+              }}
+            />
+          ) : out.policy.requireSso ? (
+            <Button
+              label="Restore password sign-in"
+              onPress={() => setDraft({ ...policy, allowPassword: true, requireSso: false })}
+            />
+          ) : null}
+          {confirm ? (
+            <>
+              <Note>
+                Save these sign-in requirements? They apply to the next account creation and sign-in. Current sessions
+                stay available; only the Owner can lower an existing requirement.
+              </Note>
+              <Actions>
+                <Button label="Cancel review" onPress={() => setConfirm(false)} />
+                <Button
+                  label="Confirm sign-in policy"
+                  testID="policy-signin-confirm"
+                  disabled={action.busy}
+                  onPress={() =>
+                    void action.run("members.sign_in_policy.set", { policy }, "Sign-in policy saved").then((result) => {
+                      if (result) {
+                        setDraft(null);
+                        setConfirm(false);
+                        onSaved?.();
+                      }
+                    })
+                  }
+                />
+              </Actions>
+            </>
+          ) : (
+            <Button
+              label="Review sign-in changes"
+              testID="policy-signin-review"
+              disabled={action.busy || !draft}
+              onPress={() => setConfirm(true)}
+            />
+          )}
+        </>
+      ) : null}
+      {action.note ? <Note>{action.note}</Note> : null}
+      {enroll ? (
+        <SecuritySheet
+          action="totp-on"
+          call={data.call}
+          onClose={() => {
+            setEnroll(false);
+            query.refresh();
+          }}
+        />
+      ) : null}
+    </ObjectSection>
+  );
 }
 // Owner ruling 3 Nov (R62 amended): the server keeps a wrap of a member's key that opens after their Google, Microsoft or GitHub sign-in, so their own AI accounts work with nothing to type. On unless turned
 // off; off drops every wrap (host/src/seams/key-wraps.ts) and members type their password once per device instead.
-export const PROVIDER_VAULT_POLICY="vault.open_after_provider_sign_in";
-const OPEN_OPTIONS=[{key:"on",title:"On"},{key:"off",title:"Off"}];
-function ProviderVaultOpen({editing=false}:{editing?:boolean}):ReactElement{
- const query=useRead<AccessPoliciesListOut>("access.policies.list",{kind:"vault"});const[draft,setDraft]=useState<string|null>(null);const[confirm,setConfirm]=useState(false);const action=useAction(query.refresh);
- if(!query.data)return <ReadState error={query.error} retry={query.refresh}/>;
- const value=query.data.policies.find(row=>row.key===PROVIDER_VAULT_POLICY&&row.scope==="space")?.value===false?"off":"on";const next=draft??value;
- return <ObjectSection title="Members' AI sign-ins" testID="policy-provider-vault"><Row title="Open after Google or GitHub sign-in" note={value==="on"?"On":"Off"}/>
- <Note>On: a member who signs in with Google, Microsoft or GitHub can use their own Claude, ChatGPT or Grok here without typing their password. This server keeps their key sealed under its own secret, so whoever holds this server's disk, or that member's Google or GitHub account, could open it. Off: members type their password once per device.</Note>
- {editing?<><Select label="Open after Google or GitHub sign-in" value={next} options={OPEN_OPTIONS} onChange={v=>{setDraft(v);setConfirm(false);}}/>{confirm?<><Note>{next==="off"?"Turn this off? Every member's saved key on this server is deleted, and each types their password once per device to use their own AI accounts.":"Turn this on? Each member's key is kept the next time they sign in with their password."}</Note><Actions><Button label="Cancel review" onPress={()=>setConfirm(false)}/><Button label="Confirm" testID="policy-provider-vault-confirm" disabled={action.busy} onPress={()=>void action.run("access.policies.set",{key:PROVIDER_VAULT_POLICY,scope:"space",value:next==="on"},next==="on"?"Turned on":"Turned off").then(result=>{if(result){setDraft(null);setConfirm(false);}})}/></Actions></>:<Button label="Review this change" testID="policy-provider-vault-review" disabled={action.busy||next===value} onPress={()=>setConfirm(true)}/>}</>:null}
- {action.note?<Note>{action.note}</Note>:null}</ObjectSection>;
+export const PROVIDER_VAULT_POLICY = "vault.open_after_provider_sign_in";
+const OPEN_OPTIONS = [
+  { key: "on", title: "On" },
+  { key: "off", title: "Off" },
+];
+function ProviderVaultOpen({ editing = false }: { editing?: boolean }): ReactElement {
+  const query = useRead<AccessPoliciesListOut>("access.policies.list", { kind: "vault" });
+  const [draft, setDraft] = useState<string | null>(null);
+  const [confirm, setConfirm] = useState(false);
+  const action = useAction(query.refresh);
+  if (!query.data) return <ReadState error={query.error} retry={query.refresh} />;
+  const value =
+    query.data.policies.find((row) => row.key === PROVIDER_VAULT_POLICY && row.scope === "space")?.value === false
+      ? "off"
+      : "on";
+  const next = draft ?? value;
+  return (
+    <ObjectSection title="Members' AI sign-ins" testID="policy-provider-vault">
+      <Row title="Open after Google or GitHub sign-in" note={value === "on" ? "On" : "Off"} />
+      <Note>
+        On: a member who signs in with Google, Microsoft or GitHub can use their own Claude, ChatGPT or Grok here
+        without typing their password. This server keeps their key sealed under its own secret, so whoever holds this
+        server's disk, or that member's Google or GitHub account, could open it. Off: members type their password once
+        per device.
+      </Note>
+      {editing ? (
+        <>
+          <Select
+            label="Open after Google or GitHub sign-in"
+            value={next}
+            options={OPEN_OPTIONS}
+            onChange={(v) => {
+              setDraft(v);
+              setConfirm(false);
+            }}
+          />
+          {confirm ? (
+            <>
+              <Note>
+                {next === "off"
+                  ? "Turn this off? Every member's saved key on this server is deleted, and each types their password once per device to use their own AI accounts."
+                  : "Turn this on? Each member's key is kept the next time they sign in with their password."}
+              </Note>
+              <Actions>
+                <Button label="Cancel review" onPress={() => setConfirm(false)} />
+                <Button
+                  label="Confirm"
+                  testID="policy-provider-vault-confirm"
+                  disabled={action.busy}
+                  onPress={() =>
+                    void action
+                      .run(
+                        "access.policies.set",
+                        { key: PROVIDER_VAULT_POLICY, scope: "space", value: next === "on" },
+                        next === "on" ? "Turned on" : "Turned off",
+                      )
+                      .then((result) => {
+                        if (result) {
+                          setDraft(null);
+                          setConfirm(false);
+                        }
+                      })
+                  }
+                />
+              </Actions>
+            </>
+          ) : (
+            <Button
+              label="Review this change"
+              testID="policy-provider-vault-review"
+              disabled={action.busy || next === value}
+              onPress={() => setConfirm(true)}
+            />
+          )}
+        </>
+      ) : null}
+      {action.note ? <Note>{action.note}</Note> : null}
+    </ObjectSection>
+  );
 }
-const LINK_OPTIONS=[{key:"off",title:"Nobody"},{key:"admins",title:"Administrators"},{key:"members",title:"Members with edit access"}];
-function PublicLinks({editing=false,onSaved}:{editing?:boolean;onSaved?:()=>void}):ReactElement{
- const query=useRead<AccessPoliciesListOut>("access.policies.list",{kind:"sharing"});const[draft,setDraft]=useState<string|null>(null);const[confirm,setConfirm]=useState(false);const action=useAction(query.refresh);
- if(!query.data)return <ReadState error={query.error} retry={query.refresh}/>;const stored=query.data.policies.find(row=>row.key==="sharing.public_links"&&row.scope==="space")?.value;const value=typeof stored==="string"?stored:"admins";
- return <ObjectSection title="Sharing outside the Space"><Row title="Who can create new links" note={LINK_OPTIONS.find(item=>item.key===value)?.title??"Unrecognized saved policy; choose a supported option"}/><Help>New links only. It does not revoke links that already exist. Review extra access to end them.</Help>{editing?<><Select label="Who can create new public links" value={draft??value} options={LINK_OPTIONS} onChange={value=>{setDraft(value);setConfirm(false);}}/>{confirm?<><Note>Allow {LINK_OPTIONS.find(item=>item.key===draft)?.title.toLowerCase()} to create new public links? Existing links remain unchanged.</Note><Actions><Button label="Cancel review" onPress={()=>setConfirm(false)}/><Button label="Confirm public-link policy" testID="policy-links-confirm" disabled={action.busy} onPress={()=>void action.run("access.policies.set",{key:"sharing.public_links",scope:"space",value:draft},"Public-link policy saved").then(result=>{if(result){setDraft(null);setConfirm(false);onSaved?.();}})}/></Actions></>:<Button label="Review public-link changes" testID="policy-links-review" disabled={action.busy||draft===null||draft===value} onPress={()=>setConfirm(true)}/>}</>:null}{action.note?<Note>{action.note}</Note>:null}</ObjectSection>;
+const LINK_OPTIONS = [
+  { key: "off", title: "Nobody" },
+  { key: "admins", title: "Administrators" },
+  { key: "members", title: "Members with edit access" },
+];
+function PublicLinks({ editing = false, onSaved }: { editing?: boolean; onSaved?: () => void }): ReactElement {
+  const query = useRead<AccessPoliciesListOut>("access.policies.list", { kind: "sharing" });
+  const [draft, setDraft] = useState<string | null>(null);
+  const [confirm, setConfirm] = useState(false);
+  const action = useAction(query.refresh);
+  if (!query.data) return <ReadState error={query.error} retry={query.refresh} />;
+  const stored = query.data.policies.find((row) => row.key === "sharing.public_links" && row.scope === "space")?.value;
+  const value = typeof stored === "string" ? stored : "admins";
+  return (
+    <ObjectSection title="Sharing outside the Space">
+      <Row
+        title="Who can create new links"
+        note={
+          LINK_OPTIONS.find((item) => item.key === value)?.title ??
+          "Unrecognized saved policy; choose a supported option"
+        }
+      />
+      <Help>New links only. It does not revoke links that already exist. Review extra access to end them.</Help>
+      {editing ? (
+        <>
+          <Select
+            label="Who can create new public links"
+            value={draft ?? value}
+            options={LINK_OPTIONS}
+            onChange={(value) => {
+              setDraft(value);
+              setConfirm(false);
+            }}
+          />
+          {confirm ? (
+            <>
+              <Note>
+                Allow {LINK_OPTIONS.find((item) => item.key === draft)?.title.toLowerCase()} to create new public links?
+                Existing links remain unchanged.
+              </Note>
+              <Actions>
+                <Button label="Cancel review" onPress={() => setConfirm(false)} />
+                <Button
+                  label="Confirm public-link policy"
+                  testID="policy-links-confirm"
+                  disabled={action.busy}
+                  onPress={() =>
+                    void action
+                      .run(
+                        "access.policies.set",
+                        { key: "sharing.public_links", scope: "space", value: draft },
+                        "Public-link policy saved",
+                      )
+                      .then((result) => {
+                        if (result) {
+                          setDraft(null);
+                          setConfirm(false);
+                          onSaved?.();
+                        }
+                      })
+                  }
+                />
+              </Actions>
+            </>
+          ) : (
+            <Button
+              label="Review public-link changes"
+              testID="policy-links-review"
+              disabled={action.busy || draft === null || draft === value}
+              onPress={() => setConfirm(true)}
+            />
+          )}
+        </>
+      ) : null}
+      {action.note ? <Note>{action.note}</Note> : null}
+    </ObjectSection>
+  );
 }
-function PolicyActivity({id}:{id:string}):ReactElement{
- const data=useConsoleData();const query=useRead<AuditListOut>("audit.list",{target:{kind:"policy",id},limit:50});const[more,setMore]=useState<AuditListOut|null>(null);const[busy,setBusy]=useState(false);const[error,setError]=useState("");if(!query.data)return <ReadState error={query.error} retry={query.refresh}/>;const rows=[...query.data.rows,...(more?.rows??[])];const next=more?more.next:query.data.next;
- return <ObjectSection title="Activity"><Group>{rows.map(row=><Row key={row.id} title={capPhrase(row.action)} note={`${data.name(row.actor.id)===row.actor.id?"Policy manager":data.name(row.actor.id)} · ${new Date(row.at).toLocaleString()}`}/>)}</Group>{!rows.length?<Empty icon="doc">No recorded changes to this policy</Empty>:null}{next?<Button label="Load earlier activity" disabled={busy} onPress={()=>{setBusy(true);void data.call("audit.list",{target:{kind:"policy",id},cursor:next,limit:50}).then(value=>{const out=value as AuditListOut;setMore({...out,rows:[...(more?.rows??[]),...out.rows]});},()=>setError("Couldn’t load earlier activity.")).finally(()=>setBusy(false));}}/>:null}{error?<Note>{error}</Note>:null}</ObjectSection>;
+function PolicyActivity({ id }: { id: string }): ReactElement {
+  const data = useConsoleData();
+  const query = useRead<AuditListOut>("audit.list", { target: { kind: "policy", id }, limit: 50 });
+  const [more, setMore] = useState<AuditListOut | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  if (!query.data) return <ReadState error={query.error} retry={query.refresh} />;
+  const rows = [...query.data.rows, ...(more?.rows ?? [])];
+  const next = more ? more.next : query.data.next;
+  return (
+    <ObjectSection title="Activity">
+      <Group>
+        {rows.map((row) => (
+          <Row
+            key={row.id}
+            title={capPhrase(row.action)}
+            note={`${data.name(row.actor.id) === row.actor.id ? "Policy manager" : data.name(row.actor.id)} · ${new Date(row.at).toLocaleString()}`}
+          />
+        ))}
+      </Group>
+      {!rows.length ? <Empty icon="doc">No recorded changes to this policy</Empty> : null}
+      {next ? (
+        <Button
+          label="Load earlier activity"
+          disabled={busy}
+          onPress={() => {
+            setBusy(true);
+            void data
+              .call("audit.list", { target: { kind: "policy", id }, cursor: next, limit: 50 })
+              .then(
+                (value) => {
+                  const out = value as AuditListOut;
+                  setMore({ ...out, rows: [...(more?.rows ?? []), ...out.rows] });
+                },
+                () => setError("Couldn’t load earlier activity."),
+              )
+              .finally(() => setBusy(false));
+          }}
+        />
+      ) : null}
+      {error ? <Note>{error}</Note> : null}
+    </ObjectSection>
+  );
 }

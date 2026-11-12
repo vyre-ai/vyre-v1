@@ -16,13 +16,39 @@ export const handlers: Record<string, Handler> = {
   "ci.runs.get": (ctx, i) => runsGet(ctx as unknown as CiCtx, i as never),
   "ci.cost.month": (ctx, i) => costMonth(ctx as unknown as CiCtx, i as never),
   // the two below are the host's own: the consumer and the sweeper run them, so the events they emit are declared; a person or an agent calling them is refused
-  "ci.job.intake": async (ctx, i) => { hostOnly(ctx, "ci.job.intake"); return intake(ctx as unknown as CiCtx, i as never); },
-  "ci.sweep": async (ctx) => { hostOnly(ctx, "ci.sweep"); return sweep(ctx as unknown as CiCtx); },
+  "ci.job.intake": async (ctx, i) => {
+    hostOnly(ctx, "ci.job.intake");
+    return intake(ctx as unknown as CiCtx, i as never);
+  },
+  "ci.sweep": async (ctx) => {
+    hostOnly(ctx, "ci.sweep");
+    return sweep(ctx as unknown as CiCtx);
+  },
   "ci.project.get": (ctx, i) => projectGet(ctx as unknown as CiCtx, i as never),
 };
 
-interface JobEvent { name: string; payload: { repo: string; jobId: number; runId: number; name?: string; labels?: string[]; fork?: "no" | "yes" | "unknown"; conclusion?: string } }
-const asJob = (e: JobEvent): JobIn => ({ action: e.name === "workflow_job.queued" ? "queued" : "completed", repo: e.payload.repo, jobId: e.payload.jobId, runId: e.payload.runId, name: e.payload.name, labels: e.payload.labels ?? [], fork: e.payload.fork, conclusion: e.payload.conclusion });
+interface JobEvent {
+  name: string;
+  payload: {
+    repo: string;
+    jobId: number;
+    runId: number;
+    name?: string;
+    labels?: string[];
+    fork?: "no" | "yes" | "unknown";
+    conclusion?: string;
+  };
+}
+const asJob = (e: JobEvent): JobIn => ({
+  action: e.name === "workflow_job.queued" ? "queued" : "completed",
+  repo: e.payload.repo,
+  jobId: e.payload.jobId,
+  runId: e.payload.runId,
+  name: e.payload.name,
+  labels: e.payload.labels ?? [],
+  fork: e.payload.fork,
+  conclusion: e.payload.conclusion,
+});
 
 export const consumers = {
   /** A job is waiting for a runner, or ended: start or delete its machine. At least once, so each is safe to repeat (a job is one row). */
@@ -35,7 +61,13 @@ export const projections = { inline: {}, consumers };
 
 /** Every 2 minutes: the sweeper. */
 export const periodic = {
-  "ci.sweep": { everyMs: 120_000, run: async (ctx: CiCtx): Promise<string[]> => { const r = await sweep(ctx); return r.deleted || r.started ? [`deleted ${r.deleted}, started ${r.started}`] : []; } },
+  "ci.sweep": {
+    everyMs: 120_000,
+    run: async (ctx: CiCtx): Promise<string[]> => {
+      const r = await sweep(ctx);
+      return r.deleted || r.started ? [`deleted ${r.deleted}, started ${r.started}`] : [];
+    },
+  },
 };
 
 /** The host's half: the cloud key's Vault read and the provider's API (host/src/seams/ci.ts). */

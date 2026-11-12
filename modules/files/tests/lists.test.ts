@@ -37,20 +37,41 @@ interface Access {
   sharedAt: Record<string, number>;
 }
 
-function accessScript(a: Access, extra: (cap: string, input: unknown) => unknown = () => undefined): (cap: string, input: unknown) => unknown {
-  const row = (type: string, id: string): Row => ({ type, id, title: id, via: "grant", level: "view", starred: false, following: false });
+function accessScript(
+  a: Access,
+  extra: (cap: string, input: unknown) => unknown = () => undefined,
+): (cap: string, input: unknown) => unknown {
+  const row = (type: string, id: string): Row => ({
+    type,
+    id,
+    title: id,
+    via: "grant",
+    level: "view",
+    starred: false,
+    following: false,
+  });
   return (cap, input) => {
     const i = (input ?? {}) as Row;
     if (cap === "access.lists") {
-      const ids = i["section"] === "shared"
-        ? (i["type"] === "file" ? a.sharedFiles : a.sharedFolders)
-        : (i["type"] === "file" ? a.readableFiles : a.readableFolders);
+      const ids =
+        i["section"] === "shared"
+          ? i["type"] === "file"
+            ? a.sharedFiles
+            : a.sharedFolders
+          : i["type"] === "file"
+            ? a.readableFiles
+            : a.readableFolders;
       return { rows: ids.map((id) => row(String(i["type"]), id)), counts: {}, total: ids.length };
     }
     if (cap === "access.shares_of") {
       const res = i["resource"] as { id: string };
       const at = a.sharedAt[res.id] ?? 0;
-      return { shares: [{ grant: { createdAt: 0 }, through: "owner" }, ...(at > 0 ? [{ grant: { createdAt: at }, through: "direct" }] : [])] };
+      return {
+        shares: [
+          { grant: { createdAt: 0 }, through: "owner" },
+          ...(at > 0 ? [{ grant: { createdAt: at }, through: "direct" }] : []),
+        ],
+      };
     }
     const other = extra(cap, input);
     if (other === undefined) throw new Error(`unscripted call ${cap}`);
@@ -67,7 +88,8 @@ test("Shared with me lists only granted items, newest share first, and not what 
   const clients = (await handlers["files.folder.create"](ctx, { parentId: personal, name: "Clients" })).folder.folderId;
   const sub = (await handlers["files.folder.create"](ctx, { parentId: clients, name: "Sub" })).folder.folderId;
   const other = (await handlers["files.folder.create"](ctx, { parentId: personal, name: "Other" })).folder.folderId;
-  const make = async (folderId: string, name: string): Promise<string> => (await handlers["files.create"](ctx, { folderId, name, content: { text: name } })).file.fileId;
+  const make = async (folderId: string, name: string): Promise<string> =>
+    (await handlers["files.create"](ctx, { folderId, name, content: { text: name } })).file.fileId;
   const inside = await make(clients, "inside.txt");
   const deep = await make(sub, "deep.txt");
   const oldest = await make(personal, "oldest.md");
@@ -79,27 +101,55 @@ test("Shared with me lists only granted items, newest share first, and not what 
 
   // access: the grants, the flow-down rows of the shared folder, a trashed file, an id this module does not hold; "mine" is the caller's own, so it is not in the shared section
   // everything here was made by the caller; what is shared with them was made by someone else, so those rows are handed to another person (the caller's own, even shared on to others, is never "shared with me")
-  const owned = (await handlers["files.folder.create"](ctx, { parentId: personal, name: "Mine shared on" })).folder.folderId;
-  const spaceHeld = (await handlers["files.folder.create"](ctx, { parentId: personal, name: "Held by the Space" })).folder.folderId;
+  const owned = (await handlers["files.folder.create"](ctx, { parentId: personal, name: "Mine shared on" })).folder
+    .folderId;
+  const spaceHeld = (await handlers["files.folder.create"](ctx, { parentId: personal, name: "Held by the Space" }))
+    .folder.folderId;
   ctx.db.run("UPDATE files_folder SET owner = ? WHERE id = ?", ctx.space, spaceHeld);
-  const agentHome = (await handlers["files.folder.create"](ctx, { parentId: personal, name: "Agent home" })).folder.folderId;
+  const agentHome = (await handlers["files.folder.create"](ctx, { parentId: personal, name: "Agent home" })).folder
+    .folderId;
   ctx.db.run("UPDATE files_folder SET owner = ? WHERE id = ?", "usr_other", agentHome);
   ctx.db.run("UPDATE files_folder SET system_key = ? WHERE id = ?", "agent:agt_desk", agentHome);
-  for (const id of [inside, deep, oldest, loose, newest, gone]) ctx.db.run("UPDATE files_file SET owner = ? WHERE id = ?", "usr_other", id);
+  for (const id of [inside, deep, oldest, loose, newest, gone])
+    ctx.db.run("UPDATE files_file SET owner = ? WHERE id = ?", "usr_other", id);
   for (const id of [clients, sub, other]) ctx.db.run("UPDATE files_folder SET owner = ? WHERE id = ?", "usr_other", id);
   access.sharedFiles = [inside, deep, oldest, loose, newest, gone, mine, "fil_notinfiles"];
   access.sharedFolders = [clients, sub, other, owned, spaceHeld, agentHome, "fld_notinfiles"];
   access.sharedAt = { [clients]: 100, [other]: 200, [oldest]: 100, [loose]: 300, [newest]: 500, [inside]: 50 };
 
   const out = await handlers["files.shared_with_me"](ctx, {});
-  assert.deepEqual(out.files.map((f) => f.name), ["newest.md", "loose.md", "oldest.md"], "newest share first; flow-down rows, the trashed file and the unknown id are left out");
-  assert.deepEqual(out.folders.map((f) => f.name), ["Other", "Clients"], "folders newest share first; Sub opens from Clients");
+  assert.deepEqual(
+    out.files.map((f) => f.name),
+    ["newest.md", "loose.md", "oldest.md"],
+    "newest share first; flow-down rows, the trashed file and the unknown id are left out",
+  );
+  assert.deepEqual(
+    out.folders.map((f) => f.name),
+    ["Other", "Clients"],
+    "folders newest share first; Sub opens from Clients",
+  );
   assert.equal(out.total, 5);
   assert.equal(out.next, undefined);
-  assert.ok(!out.files.some((f) => f.fileId === mine), "what the caller owns is not shared with them, though access lists it with a grant on it");
-  assert.ok(!out.folders.some((f) => f.name === "Mine shared on" || f.name === "Held by the Space" || f.name === "Agent home"), "nor is a folder the caller owns, one the Space itself holds, or an agent's home");
-  assert.ok(calls.some((c) => c.cap === "access.lists" && (c.input as Row)["section"] === "shared" && (c.input as Row)["type"] === "file"));
-  assert.ok(calls.some((c) => c.cap === "access.lists" && (c.input as Row)["section"] === "shared" && (c.input as Row)["type"] === "folder"));
+  assert.ok(
+    !out.files.some((f) => f.fileId === mine),
+    "what the caller owns is not shared with them, though access lists it with a grant on it",
+  );
+  assert.ok(
+    !out.folders.some((f) => f.name === "Mine shared on" || f.name === "Held by the Space" || f.name === "Agent home"),
+    "nor is a folder the caller owns, one the Space itself holds, or an agent's home",
+  );
+  assert.ok(
+    calls.some(
+      (c) =>
+        c.cap === "access.lists" && (c.input as Row)["section"] === "shared" && (c.input as Row)["type"] === "file",
+    ),
+  );
+  assert.ok(
+    calls.some(
+      (c) =>
+        c.cap === "access.lists" && (c.input as Row)["section"] === "shared" && (c.input as Row)["type"] === "folder",
+    ),
+  );
 
   // pages cover the same rows once, in the same order
   const first = await handlers["files.shared_with_me"](ctx, { limit: 2 });
@@ -110,11 +160,18 @@ test("Shared with me lists only granted items, newest share first, and not what 
   const names = [first, second, third].flatMap((p) => [...p.folders.map((f) => f.name), ...p.files.map((f) => f.name)]);
   assert.deepEqual([...names].sort(), ["Clients", "Other", "loose.md", "newest.md", "oldest.md"]);
   assert.equal(third.next, undefined);
-  assert.deepEqual(first.files.map((f) => f.name).concat(first.folders.map((f) => f.name)), ["newest.md", "loose.md"], "newest.md (500) and loose.md (300) come first");
+  assert.deepEqual(
+    first.files.map((f) => f.name).concat(first.folders.map((f) => f.name)),
+    ["newest.md", "loose.md"],
+    "newest.md (500) and loose.md (300) come first",
+  );
 
   // a kind filter returns files of that kind only
   const md = await handlers["files.shared_with_me"](ctx, { kind: "markdown" });
-  assert.deepEqual(md.files.map((f) => f.name), ["newest.md", "loose.md", "oldest.md"]);
+  assert.deepEqual(
+    md.files.map((f) => f.name),
+    ["newest.md", "loose.md", "oldest.md"],
+  );
   assert.deepEqual(md.folders, []);
   const text = await handlers["files.shared_with_me"](ctx, { kind: "text" });
   assert.deepEqual(text.files, [], "inside.txt and deep.txt sit in a shared folder, so they are not repeated");
@@ -133,7 +190,11 @@ test("Shared with me for a caller with no grants is empty, and bad input is refu
   const personal = idOf(tree.roots.find((r) => r.key === "personal")?.folderId, "personal");
   await handlers["files.create"](ctx, { folderId: personal, name: "private.txt", content: { text: "x" } });
   const out = await handlers["files.shared_with_me"](ctx, {});
-  assert.deepEqual([out.files, out.folders, out.total], [[], [], 0], "no grant, nothing listed, even with files in the Space");
+  assert.deepEqual(
+    [out.files, out.folders, out.total],
+    [[], [], 0],
+    "no grant, nothing listed, even with files in the Space",
+  );
   await expectCode("validation.bad_input", () => handlers["files.shared_with_me"](ctx, { kind: "not_a_kind" }));
   await expectCode("validation.bad_input", () => handlers["files.shared_with_me"](ctx, { limit: 0 }));
   await expectCode("validation.bad_input", () => handlers["files.shared_with_me"](ctx, { cursor: "abc" }));
@@ -150,45 +211,81 @@ test("Shared with me follows access across pages of its answer", async () => {
       seen.push(input as Row);
       const cursor = (input as Row)["cursor"];
       return cursor === undefined
-        ? { rows: ids.slice(0, 1).map((id) => ({ type: "file", id, title: id, via: "grant", level: "view" })), next: "1" }
+        ? {
+            rows: ids.slice(0, 1).map((id) => ({ type: "file", id, title: id, via: "grant", level: "view" })),
+            next: "1",
+          }
         : { rows: ids.slice(1).map((id) => ({ type: "file", id, title: id, via: "grant", level: "view" })) };
     }
     return script(cap, input);
   });
   const tree = await handlers["files.tree"](ctx, {});
-  seen.length = 0;   // the tree's own Shared with me count asks access too; this test is about the pages of files.shared_with_me
+  seen.length = 0; // the tree's own Shared with me count asks access too; this test is about the pages of files.shared_with_me
   const personal = idOf(tree.roots.find((r) => r.key === "personal")?.folderId, "personal");
-  for (const name of ["a.txt", "b.txt"]) ids.push((await handlers["files.create"](ctx, { folderId: personal, name, content: { text: name } })).file.fileId);
-  for (const id of ids) ctx.db.run("UPDATE files_file SET owner = ? WHERE id = ?", "usr_other", id);   // made by someone else: it is theirs, shared with the caller
+  for (const name of ["a.txt", "b.txt"])
+    ids.push((await handlers["files.create"](ctx, { folderId: personal, name, content: { text: name } })).file.fileId);
+  for (const id of ids) ctx.db.run("UPDATE files_file SET owner = ? WHERE id = ?", "usr_other", id); // made by someone else: it is theirs, shared with the caller
   const out = await handlers["files.shared_with_me"](ctx, {});
-  assert.deepEqual(out.files.map((f) => f.name), ["a.txt", "b.txt"]);
-  assert.deepEqual(seen.map((s) => s["cursor"]), [undefined, "1"], "the second page is asked for with the cursor access gave");
+  assert.deepEqual(
+    out.files.map((f) => f.name),
+    ["a.txt", "b.txt"],
+  );
+  assert.deepEqual(
+    seen.map((s) => s["cursor"]),
+    [undefined, "1"],
+    "the second page is asked for with the cursor access gave",
+  );
 });
 
 test("Knowledge shows the readable shared knowledge and the Memory and Graph entries with their counts", async () => {
   const access: Access = { sharedFiles: [], sharedFolders: [], readableFiles: [], readableFolders: [], sharedAt: {} };
-  const { ctx, calls } = open(accessScript(access, (cap) => {
-    if (cap === "memory.notes.list") return { notes: [], total: 7 };
-    if (cap === "memory.graph") return { nodes: Array.from({ length: 12 }, (_v, n) => ({ nodeId: `n${n}` })), edges: [], clusters: [] };
-    return undefined;
-  }));
+  const { ctx, calls } = open(
+    accessScript(access, (cap) => {
+      if (cap === "memory.notes.list") return { notes: [], total: 7 };
+      if (cap === "memory.graph")
+        return { nodes: Array.from({ length: 12 }, (_v, n) => ({ nodeId: `n${n}` })), edges: [], clusters: [] };
+      return undefined;
+    }),
+  );
   const tree = await handlers["files.tree"](ctx, {});
   const root = idOf(tree.roots.find((r) => r.key === "shared_knowledge")?.folderId, "shared_knowledge");
   const playbooks = (await handlers["files.folder.create"](ctx, { parentId: root, name: "Playbooks" })).folder.folderId;
   const secret = (await handlers["files.folder.create"](ctx, { parentId: root, name: "Secret" })).folder.folderId;
-  const guide = (await handlers["files.create"](ctx, { folderId: root, name: "guide.md", content: { text: "g" } })).file.fileId;
-  const hidden = (await handlers["files.create"](ctx, { folderId: root, name: "hidden.md", content: { text: "h" } })).file.fileId;
-  const nested = (await handlers["files.create"](ctx, { folderId: playbooks, name: "nested.md", content: { text: "n" } })).file.fileId;
+  const guide = (await handlers["files.create"](ctx, { folderId: root, name: "guide.md", content: { text: "g" } })).file
+    .fileId;
+  const hidden = (await handlers["files.create"](ctx, { folderId: root, name: "hidden.md", content: { text: "h" } }))
+    .file.fileId;
+  const nested = (
+    await handlers["files.create"](ctx, { folderId: playbooks, name: "nested.md", content: { text: "n" } })
+  ).file.fileId;
   access.readableFolders = [playbooks];
   access.readableFiles = [guide, nested];
-  void secret; void hidden;
+  void secret;
+  void hidden;
 
   const out = await handlers["files.knowledge"](ctx, {});
-  assert.deepEqual(out.folders.map((f) => f.name), ["Playbooks"], "the folder the caller may not read is not listed, and neither are the Memory and Graph system folders");
-  assert.deepEqual(out.files.map((f) => f.name), ["guide.md"], "only the top of the knowledge folder: nested.md opens from Playbooks");
-  assert.deepEqual(out.views, [{ key: "memory", title: "Memory", count: 7 }, { key: "graph", title: "Graph", count: 12 }]);
+  assert.deepEqual(
+    out.folders.map((f) => f.name),
+    ["Playbooks"],
+    "the folder the caller may not read is not listed, and neither are the Memory and Graph system folders",
+  );
+  assert.deepEqual(
+    out.files.map((f) => f.name),
+    ["guide.md"],
+    "only the top of the knowledge folder: nested.md opens from Playbooks",
+  );
+  assert.deepEqual(out.views, [
+    { key: "memory", title: "Memory", count: 7 },
+    { key: "graph", title: "Graph", count: 12 },
+  ]);
   assert.equal(out.total, 2);
-  assert.deepEqual(calls.filter((c) => c.cap.startsWith("memory.")).map((c) => [c.cap, c.input]), [["memory.notes.list", { layer: "space", limit: 1 }], ["memory.graph", { scope: "space" }]]);
+  assert.deepEqual(
+    calls.filter((c) => c.cap.startsWith("memory.")).map((c) => [c.cap, c.input]),
+    [
+      ["memory.notes.list", { layer: "space", limit: 1 }],
+      ["memory.graph", { scope: "space" }],
+    ],
+  );
 
   const paged = await handlers["files.knowledge"](ctx, { limit: 1 });
   assert.deepEqual([paged.folders.length, paged.files.length, paged.next], [1, 0, "1"], "folders come before files");
@@ -198,13 +295,25 @@ test("Knowledge shows the readable shared knowledge and the Memory and Graph ent
 
 test("Knowledge for a caller who may read nothing lists nothing but still names Memory and Graph; a failing memory module is not hidden", async () => {
   const none: Access = { sharedFiles: [], sharedFolders: [], readableFiles: [], readableFolders: [], sharedAt: {} };
-  const { ctx } = open(accessScript(none, (cap) => (cap === "memory.notes.list" ? { notes: [{}, {}], total: 2 } : cap === "memory.graph" ? { nodes: [], edges: [], clusters: [] } : undefined)), "per_guest");
+  const { ctx } = open(
+    accessScript(none, (cap) =>
+      cap === "memory.notes.list"
+        ? { notes: [{}, {}], total: 2 }
+        : cap === "memory.graph"
+          ? { nodes: [], edges: [], clusters: [] }
+          : undefined,
+    ),
+    "per_guest",
+  );
   const tree = await handlers["files.tree"](ctx, {});
   const root = idOf(tree.roots.find((r) => r.key === "shared_knowledge")?.folderId, "shared_knowledge");
   await handlers["files.create"](ctx, { folderId: root, name: "closed.md", content: { text: "c" } });
   const out = await handlers["files.knowledge"](ctx, {});
   assert.deepEqual([out.files, out.folders, out.total], [[], [], 0]);
-  assert.deepEqual(out.views, [{ key: "memory", title: "Memory", count: 2 }, { key: "graph", title: "Graph", count: 0 }]);
+  assert.deepEqual(out.views, [
+    { key: "memory", title: "Memory", count: 2 },
+    { key: "graph", title: "Graph", count: 0 },
+  ]);
   await expectCode("validation.bad_input", () => handlers["files.knowledge"](ctx, { limit: 501 }));
 
   const broken = open((cap, input) => {
@@ -219,30 +328,57 @@ test("Recent and its count leave out an agent's home: an agent's AGENT.md is wri
   const tree = await handlers["files.tree"](ctx, {});
   const personal = idOf(tree.roots.find((r) => r.key === "personal")?.folderId, "personal");
   const agents = idOf(tree.roots.find((r) => r.key === "agents")?.folderId, "agents");
-  const mine = (await handlers["files.create"](ctx, { folderId: personal, name: "mine.txt", content: { text: "a" } })).file.fileId;
+  const mine = (await handlers["files.create"](ctx, { folderId: personal, name: "mine.txt", content: { text: "a" } }))
+    .file.fileId;
   await handlers["files.create"](ctx, { folderId: agents, name: "AGENT.md", content: { text: "b" } });
-  assert.deepEqual((await handlers["files.recent"](ctx, {})).files.map((f) => f.fileId), [mine]);
-  assert.equal((await handlers["files.tree"](ctx, {})).roots.find((r) => r.key === "recent")?.count, 1, "the sidebar's number is the list's");
+  assert.deepEqual(
+    (await handlers["files.recent"](ctx, {})).files.map((f) => f.fileId),
+    [mine],
+  );
+  assert.equal(
+    (await handlers["files.tree"](ctx, {})).roots.find((r) => r.key === "recent")?.count,
+    1,
+    "the sidebar's number is the list's",
+  );
 });
 
 test("Recent lists the newest opened first and Trash lists deleted roots, folders and files", async () => {
   const { ctx } = open();
   const tree = await handlers["files.tree"](ctx, {});
   const personal = idOf(tree.roots.find((r) => r.key === "personal")?.folderId, "personal");
-  const a = (await handlers["files.create"](ctx, { folderId: personal, name: "a.txt", content: { text: "a" } })).file.fileId;
-  const b = (await handlers["files.create"](ctx, { folderId: personal, name: "b.txt", content: { text: "b" } })).file.fileId;
+  const a = (await handlers["files.create"](ctx, { folderId: personal, name: "a.txt", content: { text: "a" } })).file
+    .fileId;
+  const b = (await handlers["files.create"](ctx, { folderId: personal, name: "b.txt", content: { text: "b" } })).file
+    .fileId;
   await handlers["files.read"](ctx, { fileId: a });
   const recent = await handlers["files.recent"](ctx, {});
-  assert.deepEqual(recent.files.map((f) => f.fileId), [a, b], "a was opened after b was made");
-  assert.deepEqual((await handlers["files.recent"](ctx, { limit: 1 })).files.map((f) => f.fileId), [a]);
+  assert.deepEqual(
+    recent.files.map((f) => f.fileId),
+    [a, b],
+    "a was opened after b was made",
+  );
+  assert.deepEqual(
+    (await handlers["files.recent"](ctx, { limit: 1 })).files.map((f) => f.fileId),
+    [a],
+  );
   await expectCode("validation.bad_input", () => handlers["files.recent"](ctx, { limit: 201 }));
 
   const box = (await handlers["files.folder.create"](ctx, { parentId: personal, name: "Box" })).folder.folderId;
   await handlers["files.delete"](ctx, { fileId: b });
   await handlers["files.folder.delete"](ctx, { folderId: box });
   const trash = await handlers["files.trash.list"](ctx, {});
-  assert.deepEqual(trash.files.map((f) => f.name), ["b.txt"]);
-  assert.deepEqual(trash.folders.map((f) => f.name), ["Box"]);
+  assert.deepEqual(
+    trash.files.map((f) => f.name),
+    ["b.txt"],
+  );
+  assert.deepEqual(
+    trash.folders.map((f) => f.name),
+    ["Box"],
+  );
   assert.equal(trash.total, 2);
-  assert.equal((await handlers["files.recent"](ctx, {})).files.some((f) => f.fileId === b), false, "a trashed file leaves Recent");
+  assert.equal(
+    (await handlers["files.recent"](ctx, {})).files.some((f) => f.fileId === b),
+    false,
+    "a trashed file leaves Recent",
+  );
 });

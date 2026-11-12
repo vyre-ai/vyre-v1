@@ -8,7 +8,21 @@ import type { FlowKind } from "./flow.ts";
 import { StepTile } from "./StepGlyph.tsx";
 import { CARD } from "./card-style.ts";
 
-export function OpenCard({ text, action, onOpen, onDone, step, gate }: { text: string; action: string; onOpen(): void; onDone(): void; step?: { flow: FlowKind; key: string }; gate?(save: (() => Promise<boolean>) | null): void }): ReactElement {
+export function OpenCard({
+  text,
+  action,
+  onOpen,
+  onDone,
+  step,
+  gate,
+}: {
+  text: string;
+  action: string;
+  onOpen(): void;
+  onDone(): void;
+  step?: { flow: FlowKind; key: string };
+  gate?(save: (() => Promise<boolean>) | null): void;
+}): ReactElement {
   useEffect(() => {
     if (!gate) return undefined;
     gate(async () => true);
@@ -16,10 +30,21 @@ export function OpenCard({ text, action, onOpen, onDone, step, gate }: { text: s
   }, [gate]);
   return (
     <View testID="open-card" style={s.col}>
-      {text ? <View style={s.head}>{step ? <StepTile flow={step.flow} k={step.key} size={40} /> : null}<Text style={s.line}>{text}</Text></View> : null}
+      {text ? (
+        <View style={s.head}>
+          {step ? <StepTile flow={step.flow} k={step.key} size={40} /> : null}
+          <Text style={s.line}>{text}</Text>
+        </View>
+      ) : null}
       <View style={s.row}>
-        <Pressable testID="open-card-go" accessibilityRole="button" onPress={onOpen} style={gate ? s.ghost : s.primary}><Text style={gate ? s.ghostText : s.primaryText}>{action}</Text></Pressable>
-        {gate ? null : <Pressable testID="open-card-done" accessibilityRole="button" onPress={onDone} style={s.ghost}><Text style={s.ghostText}>Done</Text></Pressable>}
+        <Pressable testID="open-card-go" accessibilityRole="button" onPress={onOpen} style={gate ? s.ghost : s.primary}>
+          <Text style={gate ? s.ghostText : s.primaryText}>{action}</Text>
+        </Pressable>
+        {gate ? null : (
+          <Pressable testID="open-card-done" accessibilityRole="button" onPress={onDone} style={s.ghost}>
+            <Text style={s.ghostText}>Done</Text>
+          </Pressable>
+        )}
       </View>
     </View>
   );

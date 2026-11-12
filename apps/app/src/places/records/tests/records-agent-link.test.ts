@@ -4,7 +4,10 @@ import assert from "node:assert/strict";
 import { NOT_SET_UP, SET_UP, agentFor, agentsRows, nameKey } from "../recordpage/agentlink.ts";
 import { madeKind, makeRecord } from "../table/make.ts";
 
-const AGENTS = [{ agentId: "agt_1", name: "Intake" }, { agentId: "agt_2", name: "Docs Writer" }];
+const AGENTS = [
+  { agentId: "agt_1", name: "Intake" },
+  { agentId: "agt_2", name: "Docs Writer" },
+];
 
 test("an Agents row finds its agent by name: case, spacing and edges do not matter", () => {
   assert.equal(agentFor("  intake ", AGENTS)?.agentId, "agt_1");
@@ -33,20 +36,34 @@ test("New agent makes a real agent and no second row beside it", async () => {
   const r = recorder();
   assert.equal(madeKind({ key: "agent" }), "agent");
   const id = await makeRecord(r.call, { key: "agent", titleField: "name" }, "Scout", "k1");
-  assert.deepEqual(r.calls.map((c) => c[0]), ["agents.create"]);
+  assert.deepEqual(
+    r.calls.map((c) => c[0]),
+    ["agents.create"],
+  );
   assert.equal(r.calls[0]![1]["name"], "Scout");
   assert.equal(id, undefined);
 });
 
 test("the Agents view lists the agents themselves, and only the rows with no agent behind them after", () => {
-  const rows = [{ id: "rec_1", fields: { name: "  intake " } }, { id: "rec_2", fields: { name: "Test" } }, { id: "rec_3", fields: { name: "" } }];
-  assert.deepEqual(agentsRows(AGENTS, rows, "name"), [{ kind: "agent", agent: AGENTS[0] }, { kind: "agent", agent: AGENTS[1] }, { kind: "old", recordId: "rec_2", name: "Test" }]);
+  const rows = [
+    { id: "rec_1", fields: { name: "  intake " } },
+    { id: "rec_2", fields: { name: "Test" } },
+    { id: "rec_3", fields: { name: "" } },
+  ];
+  assert.deepEqual(agentsRows(AGENTS, rows, "name"), [
+    { kind: "agent", agent: AGENTS[0] },
+    { kind: "agent", agent: AGENTS[1] },
+    { kind: "old", recordId: "rec_2", name: "Test" },
+  ]);
   assert.deepEqual(agentsRows([], [], "name"), []);
 });
 
 test("a refused agents.create makes no row", async () => {
   const calls: string[] = [];
-  const call = async (cap: string): Promise<unknown> => { calls.push(cap); throw { error: { code: "validation.duplicate", message: "An agent with that name already exists." } }; };
+  const call = async (cap: string): Promise<unknown> => {
+    calls.push(cap);
+    throw { error: { code: "validation.duplicate", message: "An agent with that name already exists." } };
+  };
   await assert.rejects(makeRecord(call, { key: "agent", titleField: "name" }, "Scout", "k2"));
   assert.deepEqual(calls, ["agents.create"]);
 });
@@ -54,11 +71,20 @@ test("a refused agents.create makes no row", async () => {
 test("New project makes a real project (projects.create) and opens its record; New contact is a plain record", async () => {
   const p = recorder();
   assert.equal(madeKind({ key: "projects", template: "project" }), "project");
-  assert.equal(await makeRecord(p.call, { key: "projects", titleField: "title", template: "project" }, "Launch", "k3"), "rec_p");
-  assert.deepEqual(p.calls.map((c) => c[0]), ["projects.create"]);
+  assert.equal(
+    await makeRecord(p.call, { key: "projects", titleField: "title", template: "project" }, "Launch", "k3"),
+    "rec_p",
+  );
+  assert.deepEqual(
+    p.calls.map((c) => c[0]),
+    ["projects.create"],
+  );
   assert.deepEqual([p.calls[0]![1]["type"], p.calls[0]![1]["title"]], ["projects", "Launch"]);
   const c = recorder();
   assert.equal(madeKind({ key: "contact" }), "record");
   assert.equal(await makeRecord(c.call, { key: "contact", titleField: "name" }, "Ann", "k4"), "rec_1");
-  assert.deepEqual(c.calls.map((x) => x[0]), ["records.create"]);
+  assert.deepEqual(
+    c.calls.map((x) => x[0]),
+    ["records.create"],
+  );
 });

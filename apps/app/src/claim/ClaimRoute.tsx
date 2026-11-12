@@ -6,7 +6,11 @@ import { holdKeyOnOwnNode } from "../../../../client/src/gateway/local-key.ts";
 import { keepKey } from "../../../../client/src/gateway/key-keeper.ts";
 
 /** The key goes to this computer's node and is kept sealed on this device, so the next launch opens with no password. */
-const holdAndKeep = async (baseUrl: string, token: string, key: Uint8Array): Promise<boolean> => { const held = await holdKeyOnOwnNode(baseUrl, token, key); if (held) await keepKey(key, token); return held; };
+const holdAndKeep = async (baseUrl: string, token: string, key: Uint8Array): Promise<boolean> => {
+  const held = await holdKeyOnOwnNode(baseUrl, token, key);
+  if (held) await keepKey(key, token);
+  return held;
+};
 import { loadCryptoKeys } from "../../../../client/src/crypto/load.ts";
 import { makeRecoveryCode } from "../join/JoinFlow.tsx";
 import { createCapCaller } from "../shell/session/caps.ts";
@@ -35,38 +39,101 @@ function onComputer(): boolean {
  * `local`: the Space is this computer's own Personal Space, so there is no server whose printed fingerprint to compare with and none is shown.
  * `identity`: the account to offer as "Continue as" (rc.14); by default the one this device is signed in to elsewhere, and none for a Space it is already in.
  */
-export function ClaimRoute({ token, onDone, onSignIn, onBack, address, fragment, deviceClass="web", local=false, identity }: { token: string; onDone(): void; onSignIn(): void; onBack?():void; address?:string; fragment?:string;deviceClass?:"web"|"desktop";local?:boolean; identity?: KnownIdentity | null }): ReactElement | null {
+export function ClaimRoute({
+  token,
+  onDone,
+  onSignIn,
+  onBack,
+  address,
+  fragment,
+  deviceClass = "web",
+  local = false,
+  identity,
+}: {
+  token: string;
+  onDone(): void;
+  onSignIn(): void;
+  onBack?(): void;
+  address?: string;
+  fragment?: string;
+  deviceClass?: "web" | "desktop";
+  local?: boolean;
+  identity?: KnownIdentity | null;
+}): ReactElement | null {
   const baseUrl = address ?? spaceAddress();
   const call = useMemo(() => (baseUrl ? createCapCaller({ baseUrl, token: () => null }) : null), [baseUrl]);
   const hash = fragment ?? (globalThis as { location?: { hash?: string } }).location?.hash ?? "";
   const spaceId = spaceIdOf(hash);
   // Read once: the claim below stores its own session just before it finishes, and that must not turn this screen into "already used".
   const [spent] = useState(() => !!spaceId && readStoredSpace(spaceId) !== null);
-  const [known] = useState(() => identity !== undefined ? identity : knownIdentity(readStoredSessions(), { spaceId, baseUrl }));
+  const [known] = useState(() =>
+    identity !== undefined ? identity : knownIdentity(readStoredSessions(), { spaceId, baseUrl }),
+  );
   const relay = useRelayAddress(baseUrl, deviceClass === "web" && !local);
   // rc.17: "I already have a Vyre account", for an account this device has no session for
   const [have, setHave] = useState(false);
 
   if (!call || !baseUrl) return null;
   // A link without the Space id (#s=) is not the link the server printed.
-  if (!spaceId) return <ClaimOwner space={spaceNameOf(hash)} newCode={makeRecoveryCode} onClaim={async () => undefined} dead="invalid" onSignIn={onSignIn} />;
-  if (spent) return <ClaimOwner space={spaceNameOf(hash)} newCode={makeRecoveryCode} onClaim={async () => undefined} dead="used" onSignIn={onSignIn} signInLabel="Open" />;
+  if (!spaceId)
+    return (
+      <ClaimOwner
+        space={spaceNameOf(hash)}
+        newCode={makeRecoveryCode}
+        onClaim={async () => undefined}
+        dead="invalid"
+        onSignIn={onSignIn}
+      />
+    );
+  if (spent)
+    return (
+      <ClaimOwner
+        space={spaceNameOf(hash)}
+        newCode={makeRecoveryCode}
+        onClaim={async () => undefined}
+        dead="used"
+        onSignIn={onSignIn}
+        signInLabel="Open"
+      />
+    );
   const finish = async (claimed: { token: string }, username: string): Promise<void> => {
     const authenticated = createCapCaller({ baseUrl, token: () => claimed.token });
-    await storeClaimedOwnerSession({ baseUrl, token: claimed.token, spaceId, username: username.trim().toLowerCase() }, {
-      open: () => openRealSession({ baseUrl, token: claimed.token }),
-      getSpace: async () => {
-        const current = ((await authenticated("spaces.get", {})) as { space: { id: string; fingerprint: string } }).space;
-        return { id: current.id, marker: current.fingerprint };
+    await storeClaimedOwnerSession(
+      { baseUrl, token: claimed.token, spaceId, username: username.trim().toLowerCase() },
+      {
+        open: () => openRealSession({ baseUrl, token: claimed.token }),
+        getSpace: async () => {
+          const current = ((await authenticated("spaces.get", {})) as { space: { id: string; fingerprint: string } })
+            .space;
+          return { id: current.id, marker: current.fingerprint };
+        },
+        persist: writeStored,
       },
-      persist: writeStored,
-    });
+    );
   };
-  const claim = async (v: { name: string; username: string; password: string; recoveryCode: string }): Promise<void> => {
+  const claim = async (v: {
+    name: string;
+    username: string;
+    password: string;
+    recoveryCode: string;
+  }): Promise<void> => {
     const { makeBundle, wipe } = await loadCryptoKeys();
     const claimed = await claimOwner(
-      { call, makeBundle: (password, recoveryCode, id) => makeBundle(password, recoveryCode, { spaceId: id }), holdKey: (t, key) => holdAndKeep(baseUrl, t, key), wipe },
-      { token, spaceId, name: v.name, username: v.username, password: v.password, recoveryCode: v.recoveryCode, ...deviceFor(deviceClass) },
+      {
+        call,
+        makeBundle: (password, recoveryCode, id) => makeBundle(password, recoveryCode, { spaceId: id }),
+        holdKey: (t, key) => holdAndKeep(baseUrl, t, key),
+        wipe,
+      },
+      {
+        token,
+        spaceId,
+        name: v.name,
+        username: v.username,
+        password: v.password,
+        recoveryCode: v.recoveryCode,
+        ...deviceFor(deviceClass),
+      },
     );
     await finish(claimed, v.username);
     rememberClaimed({ name: v.name, username: v.username, address: baseUrl });
@@ -77,18 +144,71 @@ export function ClaimRoute({ token, onDone, onSignIn, onBack, address, fragment,
     const { wipe } = await loadCryptoKeys();
     const claimed = await claimOwner(
       { call, makeBundle: (_pw, _code, id) => c.carry(id), holdKey: (t, key) => holdAndKeep(baseUrl, t, key), wipe },
-      { token, spaceId, name: c.name, username: c.username, password: c.password, recoveryCode: "", ...deviceFor(deviceClass) },
+      {
+        token,
+        spaceId,
+        name: c.name,
+        username: c.username,
+        password: c.password,
+        recoveryCode: "",
+        ...deviceFor(deviceClass),
+      },
     );
     await finish(claimed, c.username);
     if (from?.provider && c.viaPassword) rememberAccount(from, c.username);
     onDone();
   };
-  const claimAs = known ? async (password: string): Promise<void> => claimWith(await carried(await knownProof(known, { password })), known) : undefined;
-  if (have) return <HaveAccount prefix="claim-have" space={spaceNameOf(hash)} working={spaceNameOf(hash) ? `Setting up ${spaceNameOf(hash)}` : "Setting up your Space"} deps={haveAccountDeps(deviceFor(deviceClass))} onProof={async (proof) => claimWith(await carried(proof))} onBack={() => setHave(false)} />;
+  const claimAs = known
+    ? async (password: string): Promise<void> => claimWith(await carried(await knownProof(known, { password })), known)
+    : undefined;
+  if (have)
+    return (
+      <HaveAccount
+        prefix="claim-have"
+        space={spaceNameOf(hash)}
+        working={spaceNameOf(hash) ? `Setting up ${spaceNameOf(hash)}` : "Setting up your Space"}
+        deps={haveAccountDeps(deviceFor(deviceClass))}
+        onProof={async (proof) => claimWith(await carried(proof))}
+        onBack={() => setHave(false)}
+      />
+    );
   const appLink = deviceClass === "web" && !local && onComputer() ? claimAppLink(baseUrl, token, hash, relay) : null;
-  return <ClaimOwner space={spaceNameOf(hash)} newCode={makeRecoveryCode} onClaim={claim} onSignIn={onSignIn} {...(onBack ? { onBack } : {})} fingerprint={local ? null : fingerprintOf(hash)} prefill={prefillFor(baseUrl)}
-    {...(known && claimAs ? { known: { username: known.username ?? known.name, name: known.name, ...(known.provider ? { provider: true as const } : {}) }, onClaimAs: claimAs } : {})}
-    {...(known?.provider ? { either: { onCheckCode: (code: string) => checkKnownCode(known, code), onRecovery: async (code: string, newPassword: string) => claimWith(await carried(await knownProof(known, { code, newPassword })), known) } } : {})}
-    onHaveAccount={() => setHave(true)}
-    {...(appLink ? { onOpenApp: () => { (globalThis as { location?: { assign(url: string): void } }).location?.assign(appLink); } } : {})} />;
+  return (
+    <ClaimOwner
+      space={spaceNameOf(hash)}
+      newCode={makeRecoveryCode}
+      onClaim={claim}
+      onSignIn={onSignIn}
+      {...(onBack ? { onBack } : {})}
+      fingerprint={local ? null : fingerprintOf(hash)}
+      prefill={prefillFor(baseUrl)}
+      {...(known && claimAs
+        ? {
+            known: {
+              username: known.username ?? known.name,
+              name: known.name,
+              ...(known.provider ? { provider: true as const } : {}),
+            },
+            onClaimAs: claimAs,
+          }
+        : {})}
+      {...(known?.provider
+        ? {
+            either: {
+              onCheckCode: (code: string) => checkKnownCode(known, code),
+              onRecovery: async (code: string, newPassword: string) =>
+                claimWith(await carried(await knownProof(known, { code, newPassword })), known),
+            },
+          }
+        : {})}
+      onHaveAccount={() => setHave(true)}
+      {...(appLink
+        ? {
+            onOpenApp: () => {
+              (globalThis as { location?: { assign(url: string): void } }).location?.assign(appLink);
+            },
+          }
+        : {})}
+    />
+  );
 }

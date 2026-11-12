@@ -15,7 +15,13 @@ test("a write and a read go through the entry the host loads and answer in the f
   const h = harness();
   seedCalendar(h, "cld_work01");
   const ctx = h.ctx as never;
-  const made = await handlers["calendar.create_event"]!(ctx, { calendarId: "cld_work01", title: "Call", startsAt: at(1, 10), endsAt: at(1, 11), idempotencyKey: "idem_1" });
+  const made = await handlers["calendar.create_event"]!(ctx, {
+    calendarId: "cld_work01",
+    title: "Call",
+    startsAt: at(1, 10),
+    endsAt: at(1, 11),
+    idempotencyKey: "idem_1",
+  });
   assert.deepEqual(contractErrors("calendar.create_event", "out", made), []);
   const listed = await handlers["calendar.list_events"]!(ctx, { from: at(1, 0), to: at(2, 0) });
   assert.deepEqual(contractErrors("calendar.list_events", "out", listed), []);

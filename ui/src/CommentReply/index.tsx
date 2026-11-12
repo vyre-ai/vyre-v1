@@ -43,7 +43,9 @@ const webProps = (props: Record<string, unknown>): Record<string, unknown> => (P
 const FIELD_STYLE = { outlineStyle: "none", outlineWidth: 0, backgroundColor: "transparent" } as unknown as TextStyle;
 // the same pill as the composer (DESIGN-SYSTEM-221): a hairline and a soft shadow, focus on the pill only
 const RING = { boxShadow: "var(--sh-2), inset 0 0 0 1px var(--line)" } as unknown as ViewStyle;
-const RING_FOCUS = { boxShadow: "var(--sh-2), inset 0 0 0 1px var(--accent-line), 0 0 0 4px var(--accent-wash)" } as unknown as ViewStyle;
+const RING_FOCUS = {
+  boxShadow: "var(--sh-2), inset 0 0 0 1px var(--accent-line), 0 0 0 4px var(--accent-wash)",
+} as unknown as ViewStyle;
 
 export function CommentReply(props: CommentReplyViewProps): ReactElement {
   const { min, max } = fieldHeights(props.density);
@@ -87,7 +89,8 @@ export function CommentReply(props: CommentReplyViewProps): ReactElement {
       label: "Paste as Plain Text",
       icon: "copy",
       onSelect: () => {
-        const clip = (globalThis as { navigator?: { clipboard?: { readText?: () => Promise<string> } } }).navigator?.clipboard;
+        const clip = (globalThis as { navigator?: { clipboard?: { readText?: () => Promise<string> } } }).navigator
+          ?.clipboard;
         void clip?.readText?.().then((raw) => change(textRef.current + plainText(raw)));
       },
     },
@@ -110,7 +113,11 @@ export function CommentReply(props: CommentReplyViewProps): ReactElement {
         value={text}
         onChangeText={change}
         onKeyPress={onKeyPress as never}
-        onContentSizeChange={(e) => setHeight(textRef.current === "" ? min : Math.max(min, Math.min(max, Math.ceil(e.nativeEvent.contentSize.height))))}
+        onContentSizeChange={(e) =>
+          setHeight(
+            textRef.current === "" ? min : Math.max(min, Math.min(max, Math.ceil(e.nativeEvent.contentSize.height))),
+          )
+        }
         onFocus={() => setFocused(true)}
         onBlur={() => setFocused(false)}
         placeholder={props.placeholder}
@@ -137,10 +144,38 @@ export function CommentReply(props: CommentReplyViewProps): ReactElement {
 }
 
 const styles = StyleSheet.create({
-  box: { width: "100%", flexDirection: "row", alignItems: "flex-end", borderRadius: 12, backgroundColor: "var(--raised)" as string, paddingLeft: 12, paddingRight: 6, paddingVertical: 6 },
+  box: {
+    width: "100%",
+    flexDirection: "row",
+    alignItems: "flex-end",
+    borderRadius: 12,
+    backgroundColor: "var(--raised)" as string,
+    paddingLeft: 12,
+    paddingRight: 6,
+    paddingVertical: 6,
+  },
   boxCompact: { borderRadius: 12, paddingLeft: 12, paddingVertical: 6 },
-  field: { flex: 1, minWidth: 0, color: "var(--ink)" as string, fontSize: 14, lineHeight: 22, paddingVertical: 6, paddingHorizontal: 0, margin: 0, borderWidth: 0 },
-  send: { width: 32, height: 32, borderRadius: 16, marginBottom: 1, marginLeft: 6, alignItems: "center", justifyContent: "center", backgroundColor: "var(--accent)" as string },
+  field: {
+    flex: 1,
+    minWidth: 0,
+    color: "var(--ink)" as string,
+    fontSize: 14,
+    lineHeight: 22,
+    paddingVertical: 6,
+    paddingHorizontal: 0,
+    margin: 0,
+    borderWidth: 0,
+  },
+  send: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    marginBottom: 1,
+    marginLeft: 6,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "var(--accent)" as string,
+  },
   // the 44 px touch field: one line of 22 px sits in the middle of it, and the 32 px send with it
   fieldCompact: { paddingVertical: 11 },
   sendCompact: { marginBottom: 6 },

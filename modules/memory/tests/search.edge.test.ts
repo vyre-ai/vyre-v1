@@ -9,14 +9,34 @@ const AGENT = "agt_dex";
 const seed = (h: ReturnType<typeof harness>, id: string, layer: string, title: string, body: string): void => {
   h.db.run(
     "INSERT INTO memory_notes (note_id, file_id, path, title, sealed_title, layer, owner_ref, agent_id, project_id, area, body, updated_at) VALUES (?, ?, ?, ?, NULL, ?, ?, ?, NULL, 'notes', ?, ?)",
-    id, `fil_${id}`, `Agents/Dex/memory/${id}.md`, title, layer, layer === "space" ? "spc_memorytest" : "usr_dana", layer === "agent" ? AGENT : null, body, NOW,
+    id,
+    `fil_${id}`,
+    `Agents/Dex/memory/${id}.md`,
+    title,
+    layer,
+    layer === "space" ? "spc_memorytest" : "usr_dana",
+    layer === "agent" ? AGENT : null,
+    body,
+    NOW,
   );
 };
 for (const mode of ["keyword", "semantic", "hybrid"] as const) {
   for (const [name, notes] of [
     ["one empty note", [["not_n1", "agent", "memory", ""]]],
-    ["empty notes only", [["not_n1", "agent", "memory", ""], ["not_n2", "agent", "AGENT", ""]]],
-    ["empty and full notes", [["not_n1", "agent", "memory", ""], ["not_n2", "agent", "clients", "Sara Whitfield likes short notes"]]],
+    [
+      "empty notes only",
+      [
+        ["not_n1", "agent", "memory", ""],
+        ["not_n2", "agent", "AGENT", ""],
+      ],
+    ],
+    [
+      "empty and full notes",
+      [
+        ["not_n1", "agent", "memory", ""],
+        ["not_n2", "agent", "clients", "Sara Whitfield likes short notes"],
+      ],
+    ],
     ["a space note with no title", [["not_n1", "space", "", "Office closes at five"]]],
   ] as const) {
     test(`${mode}: ${name}`, async () => {

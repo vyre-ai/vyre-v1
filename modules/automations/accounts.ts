@@ -10,9 +10,7 @@ export interface AccountOption {
   state: string;
 }
 
-export type AccountChoice =
-  | { id: string; chosen: "stored" | "only" | "sibling" | "last" }
-  | { chosen: "none" };
+export type AccountChoice = { id: string; chosen: "stored" | "only" | "sibling" | "last" } | { chosen: "none" };
 
 export interface ChooseAccountInput {
   input: Record<string, unknown>;
@@ -36,7 +34,7 @@ function isUnusable(state: string): boolean {
 }
 
 function inputRecord(input: unknown): Record<string, unknown> {
-  return input && typeof input === "object" && !Array.isArray(input) ? input as Record<string, unknown> : {};
+  return input && typeof input === "object" && !Array.isArray(input) ? (input as Record<string, unknown>) : {};
 }
 
 /** The id this input already stores for `app`, if any. Mail reads mailboxId. A connection reads connectionId when the connector matches. */
@@ -54,7 +52,11 @@ function usableAccounts(accounts: readonly AccountOption[], app: string): Accoun
 }
 
 /** One stored id for this app on another step. Disagreeing ids are not a guess. A known unusable id is not a new default. */
-function siblingId(nodes: readonly { input: Record<string, unknown> }[], app: string, accounts: readonly AccountOption[]): string | undefined {
+function siblingId(
+  nodes: readonly { input: Record<string, unknown> }[],
+  app: string,
+  accounts: readonly AccountOption[],
+): string | undefined {
   const ids: string[] = [];
   for (const node of nodes) {
     const id = storedIdForApp(inputRecord(node.input), app);
@@ -85,7 +87,8 @@ export function chooseAccount(spec: ChooseAccountInput): AccountChoice {
   return { chosen: "none" };
 }
 
-const REMEMBER = "INSERT OR REPLACE INTO automations_account_pick (principal_id, app, account_id, updated_at) VALUES (?, ?, ?, ?)";
+const REMEMBER =
+  "INSERT OR REPLACE INTO automations_account_pick (principal_id, app, account_id, updated_at) VALUES (?, ?, ?, ?)";
 
 /** Write one row per app for each stored connectionId or mailboxId. Later nodes in the definition win for the same app. */
 export function rememberAccountPicks(db: Db, principalId: string, definition: Definition, now: number): void {
@@ -104,7 +107,10 @@ export function rememberAccountPicks(db: Db, principalId: string, definition: De
 }
 
 export function lastPicks(db: Db, principalId: string): Record<string, string> {
-  const rows = db.all("SELECT app, account_id FROM automations_account_pick WHERE principal_id = ?", principalId) as { app: string; account_id: string }[];
+  const rows = db.all("SELECT app, account_id FROM automations_account_pick WHERE principal_id = ?", principalId) as {
+    app: string;
+    account_id: string;
+  }[];
   const out: Record<string, string> = {};
   for (const row of rows) out[row.app] = row.account_id;
   return out;

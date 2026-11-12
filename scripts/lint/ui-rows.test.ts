@@ -69,15 +69,18 @@ test("ui-rows lint: hover and selection are full width", () => {
 });
 
 test("lint checks changed files only and finishes within 10 s", () => {
-  assert.deepEqual(rules.map((rule) => rule.id), [
-    "ui-rows",
-    "menu-icons",
-    "no-raw-context-menu",
-    "textinput-keys",
-    "list-sections",
-    "no-content-in-logs",
-    "no-em-dash-or-section-sign",
-  ]);
+  assert.deepEqual(
+    rules.map((rule) => rule.id),
+    [
+      "ui-rows",
+      "menu-icons",
+      "no-raw-context-menu",
+      "textinput-keys",
+      "list-sections",
+      "no-content-in-logs",
+      "no-em-dash-or-section-sign",
+    ],
+  );
   const bad = `export const view = items.map((item) => <View>{item.name}</View>);\n`;
   const files = [];
   for (let i = 0; i < 200; i++) files.push({ file: `apps/app/src/row-${i}.tsx`, source: bad });
@@ -134,14 +137,32 @@ test("ui-rows lint: a callback that returns JSX is checked, in every shape it ca
 
 test("ui-rows lint: returns inside a nested function or a string belong to someone else; the first top-level JSX return decides; hover rules still apply to Row callbacks", () => {
   // the inner function returns JSX but the map's own callback returns a string
-  assert.deepEqual(hitsOf(`const labels = items.map((item) => {\n  const make = () => { return <View />; };\n  return String(item.id) + make.name;\n});`), []);
+  assert.deepEqual(
+    hitsOf(
+      `const labels = items.map((item) => {\n  const make = () => { return <View />; };\n  return String(item.id) + make.name;\n});`,
+    ),
+    [],
+  );
   // a string that contains the word return and a tag
-  assert.deepEqual(hitsOf('const notes = items.map((item) => { const s = "return <View />"; return s + item.id; });'), []);
+  assert.deepEqual(
+    hitsOf('const notes = items.map((item) => { const s = "return <View />"; return s + item.id; });'),
+    [],
+  );
   // a comment that contains return <View
-  assert.deepEqual(hitsOf(`const ids = items.map((item) => {\n  // return <View /> would be a list\n  return item.id;\n});`), []);
+  assert.deepEqual(
+    hitsOf(`const ids = items.map((item) => {\n  // return <View /> would be a list\n  return item.id;\n});`),
+    [],
+  );
   // an early return of null, then a JSX return: the JSX return decides
-  assert.equal(hitsOf(`const v = items.map((item) => {\n  if (!item) return null;\n  return <View key={item.id} />;\n});`).length, 1, "the early null return is skipped; the JSX return after it is the list item");
-  assert.equal(hitsOf(`const v = items.map((item) => {\n  const x = 1;\n  return <View key={item.id}>{x}</View>;\n});`).length, 1);
+  assert.equal(
+    hitsOf(`const v = items.map((item) => {\n  if (!item) return null;\n  return <View key={item.id} />;\n});`).length,
+    1,
+    "the early null return is skipped; the JSX return after it is the list item",
+  );
+  assert.equal(
+    hitsOf(`const v = items.map((item) => {\n  const x = 1;\n  return <View key={item.id}>{x}</View>;\n});`).length,
+    1,
+  );
   // a Row callback is still held to full-width hover and selection
   const narrow = `const v = items.map((item) => {\n  return <Row style={{ width: 280, backgroundColor: item.selected ? "#eef" : "#fff" }}>{item.name}</Row>;\n});`;
   const hits = hitsOf(narrow);
@@ -156,15 +177,32 @@ test("ui-rows lint: the rest of the file is not read as the callback: a map by r
 });
 
 test("ui-rows lint: `ui-rows-lint: not a list (<reason>)` on the line above a .map exempts it, and a reason is required", () => {
-  const tiles = (comment: string) => `export const view = (\n  <Grid>\n    ${comment}\n    {stats.map((s) => <View key={s.id}>{s.label}</View>)}\n  </Grid>\n);`;
+  const tiles = (comment: string) =>
+    `export const view = (\n  <Grid>\n    ${comment}\n    {stats.map((s) => <View key={s.id}>{s.label}</View>)}\n  </Grid>\n);`;
   assert.equal(hitsOf(tiles("{/* nothing here */}")).length, 1, "without the comment a JSX map is a list item");
   assert.deepEqual(hitsOf(tiles("{/* ui-rows-lint: not a list (Overview stat tiles) */}")), []);
-  assert.deepEqual(hitsOf(`// ui-rows-lint: not a list (a card grid)\nexport const a = items.map((item) => <View key={item.id} />);`), []);
+  assert.deepEqual(
+    hitsOf(`// ui-rows-lint: not a list (a card grid)\nexport const a = items.map((item) => <View key={item.id} />);`),
+    [],
+  );
   const noReason = hitsOf(`// ui-rows-lint: not a list\nexport const a = items.map((item) => <View key={item.id} />);`);
   assert.equal(noReason.length, 1);
   assert.equal(noReason[0]!.message, "ui-rows-lint: not a list needs a reason in parentheses");
-  assert.equal(hitsOf(`// ui-rows-lint: not a list ()\nexport const a = items.map((item) => <View key={item.id} />);`).length, 1, "an empty reason is no reason");
+  assert.equal(
+    hitsOf(`// ui-rows-lint: not a list ()\nexport const a = items.map((item) => <View key={item.id} />);`).length,
+    1,
+    "an empty reason is no reason",
+  );
   // only the line just above counts, and it exempts only the map below it
-  assert.equal(hitsOf(`// ui-rows-lint: not a list (tiles)\n\nexport const a = items.map((item) => <View key={item.id} />);`).length, 1);
-  assert.equal(hitsOf(`// ui-rows-lint: not a list (tiles)\nexport const a = items.map((i) => <View key={i.id} />);\nexport const b = items.map((i) => <View key={i.id} />);`).length, 1);
+  assert.equal(
+    hitsOf(`// ui-rows-lint: not a list (tiles)\n\nexport const a = items.map((item) => <View key={item.id} />);`)
+      .length,
+    1,
+  );
+  assert.equal(
+    hitsOf(
+      `// ui-rows-lint: not a list (tiles)\nexport const a = items.map((i) => <View key={i.id} />);\nexport const b = items.map((i) => <View key={i.id} />);`,
+    ).length,
+    1,
+  );
 });

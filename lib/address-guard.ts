@@ -21,13 +21,13 @@ function parseV4(ip: string): [number, number, number, number] | null {
 
 export function blockedV4(first: number, second: number, third = 0): boolean {
   if (first === 0 || first === 10 || first === 127) return true;
-  if (first === 100 && second >= 64 && second <= 127) return true;   // shared address space, where the tailnet lives
+  if (first === 100 && second >= 64 && second <= 127) return true; // shared address space, where the tailnet lives
   if (first === 169 && second === 254) return true;
   if (first === 172 && second >= 16 && second <= 31) return true;
   if (first === 192 && second === 168) return true;
-  if (first === 192 && second === 0 && third === 0) return true;     // protocol assignments
+  if (first === 192 && second === 0 && third === 0) return true; // protocol assignments
   if (first === 198 && (second === 18 || second === 19)) return true; // benchmarking
-  if (first >= 224) return true;                                      // multicast, reserved, broadcast
+  if (first >= 224) return true; // multicast, reserved, broadcast
   return false;
 }
 
@@ -79,9 +79,9 @@ function blockedV6(words: number[]): boolean {
   const w5 = words[5] ?? 0;
   const w6 = words[6] ?? 0;
   const w7 = words[7] ?? 0;
-  if (words.every((w) => w === 0)) return true;                     // "::" dials localhost on Linux
-  if (w0 === 0x0064 && w1 === 0xff9b && w2 === 1) return true;      // 64:ff9b:1::/48, local-use NAT64
-  if ((w0 & 0xff00) === 0xff00) return true;                        // multicast
+  if (words.every((w) => w === 0)) return true; // "::" dials localhost on Linux
+  if (w0 === 0x0064 && w1 === 0xff9b && w2 === 1) return true; // 64:ff9b:1::/48, local-use NAT64
+  if ((w0 & 0xff00) === 0xff00) return true; // multicast
   if ((w0 & 0xfe00) === 0xfc00) return true;
   if ((w0 & 0xffc0) === 0xfe80) return true;
   if (w0 === 0 && w1 === 0 && w2 === 0 && w3 === 0 && w4 === 0 && w5 === 0 && w6 === 0 && w7 === 1) return true;
@@ -107,11 +107,11 @@ export function refusesAddress(raw: string): boolean {
   return blockedV6(words);
 }
 
-
 /** The addresses that are wrong for anyone to dial, even a caller's own computer: multicast, reserved, broadcast, benchmarking, protocol assignments, local-use NAT64. */
 export function reservedAddress(raw: string): boolean {
   const host = normalizedHost(raw);
-  const v4 = (a: number, b: number, c: number): boolean => a >= 224 || (a === 198 && (b === 18 || b === 19)) || (a === 192 && b === 0 && c === 0);
+  const v4 = (a: number, b: number, c: number): boolean =>
+    a >= 224 || (a === 198 && (b === 18 || b === 19)) || (a === 192 && b === 0 && c === 0);
   if (isIP(host) === 4) {
     const parts = parseV4(host);
     return parts ? v4(parts[0], parts[1], parts[2]) : true;

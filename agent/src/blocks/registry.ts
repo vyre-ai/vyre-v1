@@ -4,7 +4,10 @@ import { readFileSync } from "node:fs";
 import type { JsonSchema } from "../../../packages/contracts/src/types.ts";
 import type { BlockDef } from "./types.ts";
 
-export interface BlockRegistry { defs: BlockDef[]; schemas: Record<string, JsonSchema> }
+export interface BlockRegistry {
+  defs: BlockDef[];
+  schemas: Record<string, JsonSchema>;
+}
 
 export function loadBlockRegistry(file = new URL("../../../generated/registry.json", import.meta.url)): BlockRegistry {
   const reg = JSON.parse(readFileSync(file, "utf8")) as { blocks: BlockDef[]; $defs: Record<string, JsonSchema> };

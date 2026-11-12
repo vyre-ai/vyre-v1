@@ -24,8 +24,20 @@ function query(): URLSearchParams {
 
 /** What step 3 shows for a source: the thing the prototype's screenshot has picked. */
 function picked(src: SourceId, ref: string | null): BrowseItem | null {
-  if (src === "local") return { ref: ref ?? "~/Projects/vyre-site", name: (ref ?? "vyre-site").split("/").pop() ?? "vyre-site", isFolder: true, kind: "local" };
-  if (src === "github") return { ref: ref ?? "northwind/billing-scripts", name: ref ?? "northwind/billing-scripts", isFolder: false, kind: "github" };
+  if (src === "local")
+    return {
+      ref: ref ?? "~/Projects/vyre-site",
+      name: (ref ?? "vyre-site").split("/").pop() ?? "vyre-site",
+      isFolder: true,
+      kind: "local",
+    };
+  if (src === "github")
+    return {
+      ref: ref ?? "northwind/billing-scripts",
+      name: ref ?? "northwind/billing-scripts",
+      isFolder: false,
+      kind: "github",
+    };
   if (src === "microsoft") return { ref: ref ?? "sp:Proposals", name: "Proposals", isFolder: true, kind: "sharepoint" };
   return { ref: ref ?? "gd:Sales", name: "Sales", isFolder: true, kind: "google_drive" };
 }
@@ -66,7 +78,10 @@ function Runbook(): ReactNode {
   const sample = useMemo(() => createSampleRunbook(v, { autoplay: true }), [v]);
   return (
     <RunbookDataProvider value={sample.data}>
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ alignItems: "center", paddingVertical: 24, paddingHorizontal: 16 }}>
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={{ alignItems: "center", paddingVertical: 24, paddingHorizontal: 16 }}
+      >
         <RunbookViewer fileId={sample.fileId} text={sample.text} />
       </ScrollView>
     </RunbookDataProvider>

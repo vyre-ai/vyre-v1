@@ -19,10 +19,17 @@ export interface UpdateCheck {
 }
 
 /** The release's What's new, as the build carries it. */
-export interface WhatsNew { version: string; lines: string[] }
+export interface WhatsNew {
+  version: string;
+  lines: string[];
+}
 
 /** A small key-value store: localStorage in the app, a Map in tests. */
-export interface Store { getItem(k: string): string | null; setItem(k: string, v: string): void; removeItem(k: string): void }
+export interface Store {
+  getItem(k: string): string | null;
+  setItem(k: string, v: string): void;
+  removeItem(k: string): void;
+}
 
 export const AUTO_KEY = "vyre.update.auto";
 export const SEEN_KEY = "vyre.whatsNew.seen";
@@ -34,10 +41,19 @@ export const STARTUP_WAIT_MS = 2500;
 
 /** On by default: only an explicit "off" turns it off. */
 export function autoUpdateOn(store: Store | null): boolean {
-  try { return store?.getItem(AUTO_KEY) !== "0"; } catch { return true; }
+  try {
+    return store?.getItem(AUTO_KEY) !== "0";
+  } catch {
+    return true;
+  }
 }
 export function setAutoUpdate(store: Store | null, on: boolean): void {
-  try { if (on) store?.removeItem(AUTO_KEY); else store?.setItem(AUTO_KEY, "0"); } catch { /* a store that refuses keeps the default */ }
+  try {
+    if (on) store?.removeItem(AUTO_KEY);
+    else store?.setItem(AUTO_KEY, "0");
+  } catch {
+    /* a store that refuses keeps the default */
+  }
 }
 
 /** What the start does with a check. Only a newer version updates; an equal or older one is nothing, whatever the shell said. */
@@ -50,19 +66,31 @@ const SEMVER = /^v?(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?(?:\+.*)?$/;
 
 /** semver order: is `remote` newer than `current`? A prerelease sorts below its release, and its parts compare numerically when both are numbers. Anything unreadable is not newer. */
 export function isNewer(current: string, remote: string): boolean {
-  const a = SEMVER.exec(current.trim()), b = SEMVER.exec(remote.trim());
+  const a = SEMVER.exec(current.trim()),
+    b = SEMVER.exec(remote.trim());
   if (!a || !b) return false;
-  for (let i = 1; i <= 3; i++) { const d = Number(b[i]) - Number(a[i]); if (d !== 0) return d > 0; }
-  const pa = a[4], pb = b[4];
+  for (let i = 1; i <= 3; i++) {
+    const d = Number(b[i]) - Number(a[i]);
+    if (d !== 0) return d > 0;
+  }
+  const pa = a[4],
+    pb = b[4];
   if (pa === undefined || pb === undefined) return pa !== undefined && pb === undefined;
-  const xa = pa.split("."), xb = pb.split(".");
+  const xa = pa.split("."),
+    xb = pb.split(".");
   for (let i = 0; i < Math.max(xa.length, xb.length); i++) {
-    const p = xa[i], q = xb[i];
+    const p = xa[i],
+      q = xb[i];
     if (p === undefined) return true;
     if (q === undefined) return false;
-    const np = /^\d+$/.test(p), nq = /^\d+$/.test(q);
-    if (np && nq) { const d = Number(q) - Number(p); if (d !== 0) return d > 0; continue; }
-    if (np !== nq) return np;   // a number sorts below a word
+    const np = /^\d+$/.test(p),
+      nq = /^\d+$/.test(q);
+    if (np && nq) {
+      const d = Number(q) - Number(p);
+      if (d !== 0) return d > 0;
+      continue;
+    }
+    if (np !== nq) return np; // a number sorts below a word
     if (p !== q) return q > p;
   }
   return false;
@@ -108,7 +136,8 @@ export function bytes(n: number): string {
 export function fraction(p: Progress | null): number | null {
   if (!p) return 0;
   // while it waits for a reply the bar is the time that is left, draining; it is never full (full reads as done), and without the cap it is the quiet indeterminate bar
-  if (p.phase === "waiting") return p.left !== undefined && p.of !== undefined && p.of > 0 ? Math.max(0, Math.min(1, p.left / p.of)) : null;
+  if (p.phase === "waiting")
+    return p.left !== undefined && p.of !== undefined && p.of > 0 ? Math.max(0, Math.min(1, p.left / p.of)) : null;
   if (p.phase !== "download") return 1;
   if (!p.total || p.total <= 0) return null;
   return Math.max(0, Math.min(1, p.downloaded / p.total));
@@ -120,20 +149,36 @@ export function progressLine(p: Progress | null): string {
   switch (p.phase) {
     case "download": {
       const f = fraction(p);
-      return f === null ? `${bytes(p.downloaded)} downloaded` : `${bytes(p.downloaded)} of ${bytes(p.total ?? 0)}, ${Math.floor(f * 100)}%`;
+      return f === null
+        ? `${bytes(p.downloaded)} downloaded`
+        : `${bytes(p.downloaded)} of ${bytes(p.total ?? 0)}, ${Math.floor(f * 100)}%`;
     }
-    case "verify": return "Checking the release signature";
-    case "waiting": return p.chats && p.chats.length > 0 ? `Waiting for ${chatsWords(p.chats, p.turns)} to finish` : p.turns && p.turns > 1 ? `Waiting for ${p.turns} replies on this computer to finish` : "Waiting for a reply on this computer to finish";
-    case "stopping": return p.turns && p.turns > 0 ? `Stopped ${p.turns === 1 ? "the reply" : "the replies"} cleanly. Getting ready to install` : "Getting ready to install";
-    case "installing": return "Installing";
-    case "restarting": return "Opening the new Vyre";
+    case "verify":
+      return "Checking the release signature";
+    case "waiting":
+      return p.chats && p.chats.length > 0
+        ? `Waiting for ${chatsWords(p.chats, p.turns)} to finish`
+        : p.turns && p.turns > 1
+          ? `Waiting for ${p.turns} replies on this computer to finish`
+          : "Waiting for a reply on this computer to finish";
+    case "stopping":
+      return p.turns && p.turns > 0
+        ? `Stopped ${p.turns === 1 ? "the reply" : "the replies"} cleanly. Getting ready to install`
+        : "Getting ready to install";
+    case "installing":
+      return "Installing";
+    case "restarting":
+      return "Opening the new Vyre";
   }
 }
 
 /** The feed's notes as lines for the Settings row: one per line, without list marks, and nothing when they only name the version. */
 export function noteLines(notes: string | null | undefined): string[] {
   if (!notes) return [];
-  const lines = notes.split("\n").map((l) => l.replace(/^\s*[-*]\s+/, "").trim()).filter((l) => l !== "");
+  const lines = notes
+    .split("\n")
+    .map((l) => l.replace(/^\s*[-*]\s+/, "").trim())
+    .filter((l) => l !== "");
   if (lines.length === 1 && /^Vyre \S+$/.test(lines[0]!)) return [];
   return lines.slice(0, 6);
 }
@@ -142,7 +187,13 @@ export function noteLines(notes: string | null | undefined): string[] {
 export function parseWhatsNew(v: unknown): WhatsNew | null {
   const o = v as { version?: unknown; lines?: unknown } | null;
   if (!o || typeof o.version !== "string" || o.version === "" || !Array.isArray(o.lines)) return null;
-  return { version: o.version, lines: o.lines.filter((l): l is string => typeof l === "string" && l.trim() !== "").map((l) => l.trim()).slice(0, 6) };
+  return {
+    version: o.version,
+    lines: o.lines
+      .filter((l): l is string => typeof l === "string" && l.trim() !== "")
+      .map((l) => l.trim())
+      .slice(0, 6),
+  };
 }
 
 /**
@@ -151,21 +202,43 @@ export function parseWhatsNew(v: unknown): WhatsNew | null {
  */
 export function whatsNewToShow(store: Store | null, notes: WhatsNew | null): WhatsNew | null {
   if (!store || !notes) return null;
-  let seen: string | null = null, from: string | null = null;
-  try { seen = store.getItem(SEEN_KEY); from = store.getItem(FROM_KEY); } catch { return null; }
+  let seen: string | null = null,
+    from: string | null = null;
+  try {
+    seen = store.getItem(SEEN_KEY);
+    from = store.getItem(FROM_KEY);
+  } catch {
+    return null;
+  }
   if (seen === notes.version) return null;
-  if (seen === null && (from === null || from === notes.version)) { markSeen(store, notes.version); return null; }
-  if (notes.lines.length === 0) { markSeen(store, notes.version); return null; }
+  if (seen === null && (from === null || from === notes.version)) {
+    markSeen(store, notes.version);
+    return null;
+  }
+  if (notes.lines.length === 0) {
+    markSeen(store, notes.version);
+    return null;
+  }
   return notes;
 }
 
 export function markSeen(store: Store | null, version: string): void {
-  try { store?.setItem(SEEN_KEY, version); store?.removeItem(FROM_KEY); } catch { /* nothing to remember with */ }
+  try {
+    store?.setItem(SEEN_KEY, version);
+    store?.removeItem(FROM_KEY);
+  } catch {
+    /* nothing to remember with */
+  }
 }
 
 /** Just before the shell installs: remember where the app came from, and that the version it runs now was seen, so the next open knows it was an update. */
 export function noteUpdateFrom(store: Store | null, current: string): void {
-  try { store?.setItem(FROM_KEY, current); if (store?.getItem(SEEN_KEY) === null) store.setItem(SEEN_KEY, current); } catch { /* the sheet just will not show */ }
+  try {
+    store?.setItem(FROM_KEY, current);
+    if (store?.getItem(SEEN_KEY) === null) store.setItem(SEEN_KEY, current);
+  } catch {
+    /* the sheet just will not show */
+  }
 }
 
 /** The words for when the last check answered. */
@@ -181,7 +254,8 @@ export function checkedLabel(at: number | null, now: number): string {
 }
 
 /** The channel as a person reads it. */
-export const channelLabel = (channel: string): string => (channel === "beta" ? "Beta" : channel === "stable" ? "Stable" : channel);
+export const channelLabel = (channel: string): string =>
+  channel === "beta" ? "Beta" : channel === "stable" ? "Stable" : channel;
 
 /** What a Mac needs free to update: the bundle is about 180 MB packed and about four times that unpacked. */
 export const NEEDS_SPACE = "Your Mac needs about 1 GB free to update. Free some space and press Update now.";

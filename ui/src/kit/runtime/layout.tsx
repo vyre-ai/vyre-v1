@@ -62,8 +62,13 @@ function moveFocus(e: { key: string; target: unknown; preventDefault(): void }):
   if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
   const row = (e.target as DomEl | null)?.closest?.(ROW_SELECTOR);
   const cell = row?.parentElement;
-  const next = (e.key === "ArrowDown" ? cell?.nextElementSibling : cell?.previousElementSibling)?.querySelector(ROW_SELECTOR);
-  if (next) { e.preventDefault(); next.focus(); }
+  const next = (e.key === "ArrowDown" ? cell?.nextElementSibling : cell?.previousElementSibling)?.querySelector(
+    ROW_SELECTOR,
+  );
+  if (next) {
+    e.preventDefault();
+    next.focus();
+  }
 }
 
 type Handler = (e: never) => void;
@@ -71,7 +76,10 @@ type Handler = (e: never) => void;
 /** Calls the host's handler for an event and then ours. */
 function chain(host: Record<string, unknown>, name: string, ours: (e: never) => void): Handler {
   const theirs = host[name] as Handler | undefined;
-  return (e) => { ours(e); theirs?.(e); };
+  return (e) => {
+    ours(e);
+    theirs?.(e);
+  };
 }
 
 type ListNode = Extract<LayoutNode, { t: "list" | "table" | "board" }>;
@@ -85,7 +93,11 @@ function ListView({ node, scope, rt }: { node: ListNode; scope: Scope; rt: Layou
   const shown: RowPresentation[] = [];
   for (let i = 0; i < rows.length; i++) shown.push(presentRow(node.row, rowScope(rows[i], i)));
   if (rows.length === 0) {
-    return node.empty ? <Text style={[styles.muted, styles.pad]} testID="kit-list-empty">{node.empty}</Text> : null;
+    return node.empty ? (
+      <Text style={[styles.muted, styles.pad]} testID="kit-list-empty">
+        {node.empty}
+      </Text>
+    ) : null;
   }
   const press = (i: number) => {
     const action = shown[i]?.action;
@@ -100,11 +112,16 @@ function ListView({ node, scope, rt }: { node: ListNode; scope: Scope; rt: Layou
     screen.env.openMenu({ target: node.bind, items, point: { x, y }, run: (a) => screen.run(a, rows[i]) });
   };
   const host = menus && screen.env.menuTrigger ? screen.env.menuTrigger(open) : {};
-  const record = (e: { target: unknown }) => { target.current = rowIndexOf(e.target); };
+  const record = (e: { target: unknown }) => {
+    target.current = rowIndexOf(e.target);
+  };
   const web = {
     ...host,
     onMouseDown: chain(host, "onMouseDown", record as (e: never) => void),
-    onKeyDown: chain(host, "onKeyDown", ((e: { key: string; target: unknown; preventDefault(): void }) => { record(e); moveFocus(e); }) as (e: never) => void),
+    onKeyDown: chain(host, "onKeyDown", ((e: { key: string; target: unknown; preventDefault(): void }) => {
+      record(e);
+      moveFocus(e);
+    }) as (e: never) => void),
   } as object;
   const height = shown.some((r) => r.note) ? ROW_HEIGHT_WITH_NOTE : ROW_HEIGHT;
   if (node.t === "board") {
@@ -112,7 +129,13 @@ function ListView({ node, scope, rt }: { node: ListNode; scope: Scope; rt: Layou
       <View style={styles.board} testID="kit-board" {...web}>
         {each(shown, (r, i) => (
           <View key={i} style={styles.boardItem}>
-            <Row id={String(i)} title={r.title} {...(r.note ? { note: r.note } : {})} selected={selected === i} onPress={() => press(i)} />
+            <Row
+              id={String(i)}
+              title={r.title}
+              {...(r.note ? { note: r.note } : {})}
+              selected={selected === i}
+              onPress={() => press(i)}
+            />
           </View>
         ))}
       </View>
@@ -124,46 +147,97 @@ function ListView({ node, scope, rt }: { node: ListNode; scope: Scope; rt: Layou
         data={shown}
         rowHeight={height}
         keyOf={(_r, i) => String(i)}
-        renderItem={(r, i) => <Row id={String(i)} title={r.title} {...(r.note ? { note: r.note } : {})} selected={selected === i} onPress={() => press(i)} />}
+        renderItem={(r, i) => (
+          <Row
+            id={String(i)}
+            title={r.title}
+            {...(r.note ? { note: r.note } : {})}
+            selected={selected === i}
+            onPress={() => press(i)}
+          />
+        )}
       />
     </View>
   );
 }
 
-export function Layout({ node, scope, rt }: { node: LayoutNode; scope: Scope; rt: LayoutRuntime }): ReactElement | null {
+export function Layout({
+  node,
+  scope,
+  rt,
+}: {
+  node: LayoutNode;
+  scope: Scope;
+  rt: LayoutRuntime;
+}): ReactElement | null {
   switch (node.t) {
     case "stack":
-      return <View style={{ gap: node.gap ?? 0, flexShrink: 1, flex: 1, minHeight: 0 }}>{each(node.children, (c, i) => <Layout key={i} node={c} scope={scope} rt={rt} />)}</View>;
+      return (
+        <View style={{ gap: node.gap ?? 0, flexShrink: 1, flex: 1, minHeight: 0 }}>
+          {each(node.children, (c, i) => (
+            <Layout key={i} node={c} scope={scope} rt={rt} />
+          ))}
+        </View>
+      );
     case "row":
-      return <View style={{ flexDirection: "row", alignItems: "center", gap: node.gap ?? 8 }}>{each(node.children, (c, i) => <Layout key={i} node={c} scope={scope} rt={rt} />)}</View>;
-    case "list": case "table": case "board":
+      return (
+        <View style={{ flexDirection: "row", alignItems: "center", gap: node.gap ?? 8 }}>
+          {each(node.children, (c, i) => (
+            <Layout key={i} node={c} scope={scope} rt={rt} />
+          ))}
+        </View>
+      );
+    case "list":
+    case "table":
+    case "board":
       return <ListView node={node} scope={scope} rt={rt} />;
     case "text":
-      return <Text style={TEXT_STYLES[node.style ?? "body"] ?? BODY} numberOfLines={1}>{interpolate(node.value, scope)}</Text>;
+      return (
+        <Text style={TEXT_STYLES[node.style ?? "body"] ?? BODY} numberOfLines={1}>
+          {interpolate(node.value, scope)}
+        </Text>
+      );
     case "field": {
       const base = resolvePointer(scope, node.bind);
       const value = base && typeof base === "object" ? (base as Record<string, unknown>)[node.field] : undefined;
-      return <Text style={BODY} numberOfLines={1}>{value === undefined || value === null || typeof value === "object" ? "" : String(value)}</Text>;
+      return (
+        <Text style={BODY} numberOfLines={1}>
+          {value === undefined || value === null || typeof value === "object" ? "" : String(value)}
+        </Text>
+      );
     }
     case "button":
       return (
         <Pressable
           accessibilityRole="button"
           onPress={() => rt.screen.run(node.action, scope.row)}
-          style={({ hovered, pressed }: { hovered?: boolean; pressed: boolean }) => [styles.button, (hovered || pressed) && styles.buttonOn]}
+          style={({ hovered, pressed }: { hovered?: boolean; pressed: boolean }) => [
+            styles.button,
+            (hovered || pressed) && styles.buttonOn,
+          ]}
         >
           <Text style={styles.buttonText}>{interpolate(node.label, scope)}</Text>
         </Pressable>
       );
     case "use": {
       const Component = rt.builtins.resolve(node.component);
-      if (!Component) return <Text style={[styles.muted, styles.pad]} testID="kit-missing-component">{`${node.component} is not available in this build`}</Text>;
+      if (!Component)
+        return (
+          <Text
+            style={[styles.muted, styles.pad]}
+            testID="kit-missing-component"
+          >{`${node.component} is not available in this build`}</Text>
+        );
       const props: Record<string, unknown> = {};
       for (const [k, pointer] of Object.entries(node.props ?? {})) props[k] = resolvePointer(scope, pointer);
       return <Component screen={{ ...rt.screen, scope }} props={props} />;
     }
     case "when":
-      return evalExpr(node.expr, scope) ? <Layout node={node.then} scope={scope} rt={rt} /> : node.else ? <Layout node={node.else} scope={scope} rt={rt} /> : null;
+      return evalExpr(node.expr, scope) ? (
+        <Layout node={node.then} scope={scope} rt={rt} />
+      ) : node.else ? (
+        <Layout node={node.else} scope={scope} rt={rt} />
+      ) : null;
   }
 }
 

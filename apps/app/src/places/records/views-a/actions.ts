@@ -5,7 +5,13 @@ import { laneOfRow, lanesOf, movePatch } from "./model.ts";
 import type { FieldDef, Lane, RecordRow } from "./model.ts";
 
 /** Moves a card to a lane. Does nothing when it is already there. Resolves with whether a write was made. */
-export async function moveCard(data: RecordsData, type: string, field: FieldDef, row: RecordRow, to: Lane): Promise<boolean> {
+export async function moveCard(
+  data: RecordsData,
+  type: string,
+  field: FieldDef,
+  row: RecordRow,
+  to: Lane,
+): Promise<boolean> {
   if (laneOfRow(field, row, lanesOf(field)).key === to.key) return false;
   await data.call("records.update", { type, recordId: row.id, patch: movePatch(field, to), baseVersion: row.version });
   return true;

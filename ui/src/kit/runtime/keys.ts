@@ -18,8 +18,14 @@ export interface KeyLike {
 }
 
 const NAMES: Readonly<Record<string, string>> = {
-  up: "arrowup", down: "arrowdown", left: "arrowleft", right: "arrowright",
-  esc: "escape", del: "delete", space: " ", return: "enter",
+  up: "arrowup",
+  down: "arrowdown",
+  left: "arrowleft",
+  right: "arrowright",
+  esc: "escape",
+  del: "delete",
+  space: " ",
+  return: "enter",
 };
 
 export function parseCombo(text: string): Combo {

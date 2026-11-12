@@ -26,19 +26,43 @@ export interface LocalSigninDeps {
 }
 
 const CLAUDE_KEYCHAIN = "Claude Code-credentials";
-const rec = (v: unknown): Record<string, unknown> | null => (v !== null && typeof v === "object" && !Array.isArray(v) ? v as Record<string, unknown> : null);
+const rec = (v: unknown): Record<string, unknown> | null =>
+  v !== null && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : null;
 const str = (v: unknown): string => (typeof v === "string" ? v.trim() : "");
-const parse = (t: string): unknown => { try { return JSON.parse(t) as unknown; } catch { return undefined; } };
+const parse = (t: string): unknown => {
+  try {
+    return JSON.parse(t) as unknown;
+  } catch {
+    return undefined;
+  }
+};
 
 function readText(p: string): string | null {
-  try { return fs.readFileSync(p, "utf8"); } catch { return null; }
+  try {
+    return fs.readFileSync(p, "utf8");
+  } catch {
+    return null;
+  }
 }
 
 function macKeychain(service: string): string | null {
-  try { return execFileSync("/usr/bin/security", ["find-generic-password", "-s", service, "-w"], { encoding: "utf8", timeout: 10_000, stdio: ["ignore", "pipe", "ignore"] }).trim() || null; } catch { return null; }
+  try {
+    return (
+      execFileSync("/usr/bin/security", ["find-generic-password", "-s", service, "-w"], {
+        encoding: "utf8",
+        timeout: 10_000,
+        stdio: ["ignore", "pipe", "ignore"],
+      }).trim() || null
+    );
+  } catch {
+    return null;
+  }
 }
 
-const none = (who: string): SigninStep => ({ state: "failed", message: `There is no ${who} sign-in on this computer. Sign in instead.` });
+const none = (who: string): SigninStep => ({
+  state: "failed",
+  message: `There is no ${who} sign-in on this computer. Sign in instead.`,
+});
 
 /** The sign-in already on this computer, as the fields a sign-in saves. A failed step names what is missing in plain words. */
 export function readLocalSignin(provider: SigninProvider, deps: LocalSigninDeps = {}): SigninStep {
@@ -50,17 +74,29 @@ export function readLocalSignin(provider: SigninProvider, deps: LocalSigninDeps 
     const text = read(path.join(dir, "auth.json"));
     const j = text === null ? null : rec(parse(text));
     const tokens = rec(j?.["tokens"]);
-    if (!j || str(tokens?.["access_token"]) === "" || str(tokens?.["refresh_token"]) === "") return none("ChatGPT (Codex)");
+    if (!j || str(tokens?.["access_token"]) === "" || str(tokens?.["refresh_token"]) === "")
+      return none("ChatGPT (Codex)");
     const who = codexIdentity(str(tokens?.["id_token"]));
-    return { state: "done", fields: [{ key: "credentials", value: JSON.stringify({ ".codex/auth.json": text }), secret: true }], ...(who ? { identity: who } : {}) };
+    return {
+      state: "done",
+      fields: [{ key: "credentials", value: JSON.stringify({ ".codex/auth.json": text }), secret: true }],
+      ...(who ? { identity: who } : {}),
+    };
   }
   if (provider === "claude-code") {
     const dir = str(env["CLAUDE_CONFIG_DIR"]) || path.join(home, ".claude");
     let text = read(path.join(dir, ".credentials.json"));
-    if (text === null && (deps.platform ?? process.platform) === "darwin") text = (deps.keychain ?? macKeychain)(CLAUDE_KEYCHAIN);
+    if (text === null && (deps.platform ?? process.platform) === "darwin")
+      text = (deps.keychain ?? macKeychain)(CLAUDE_KEYCHAIN);
     const oauth = text === null ? null : rec(rec(parse(text))?.["claudeAiOauth"]);
     if (!oauth || str(oauth["accessToken"]) === "" || str(oauth["refreshToken"]) === "") return none("Claude Code");
-    return { state: "done", fields: [{ key: "credentials", value: JSON.stringify({ ".claude/.credentials.json": text }), secret: true }] };
+    return {
+      state: "done",
+      fields: [{ key: "credentials", value: JSON.stringify({ ".claude/.credentials.json": text }), secret: true }],
+    };
   }
-  return { state: "failed", message: "Only a Claude Code or Codex sign-in on this computer can be used. Sign in instead." };
+  return {
+    state: "failed",
+    message: "Only a Claude Code or Codex sign-in on this computer can be used. Sign in instead.",
+  };
 }

@@ -14,7 +14,12 @@ import type { CalEvent, Star, TerminalRow } from "./types.ts";
 
 /** The screen the contract steward registers for the lower sections (packet comment). The samples register the same shape so the sections read it the way they will in the app. */
 export const TODAY_SCREEN_ENTRY: ScreenIndexEntry = {
-  id: TODAY_SCREEN, module: "home", place: "home", slot: "main", builtin: "ui:TodayStarredAsk", caller: "principal",
+  id: TODAY_SCREEN,
+  module: "home",
+  place: "home",
+  slot: "main",
+  builtin: "ui:TodayStarredAsk",
+  caller: "principal",
   queries: {
     events: { cap: "calendar.list_events", input: { from: "/state/from", to: "/state/to" }, live: true },
     stars: { cap: "stars.list", input: {}, live: true },
@@ -22,9 +27,18 @@ export const TODAY_SCREEN_ENTRY: ScreenIndexEntry = {
   },
   actions: {
     unstar: { cap: "stars.toggle", input: { resource: "/state/resource", on: "/state/on" } },
-    ask: { cap: "chat.start", input: { kind: "/state/kind", agentIds: "/state/agentIds", first: "/state/first", idempotencyKey: "/state/idempotencyKey" } },
+    ask: {
+      cap: "chat.start",
+      input: {
+        kind: "/state/kind",
+        agentIds: "/state/agentIds",
+        first: "/state/first",
+        idempotencyKey: "/state/idempotencyKey",
+      },
+    },
   },
-  needs: [], perf: { firstPaintMs: 50, completeMs: 100 },
+  needs: [],
+  perf: { firstPaintMs: 50, completeMs: 100 },
 };
 
 const at = (h: number, m = 0): number => Date.UTC(2025, 9, 24, h, m, 0);
@@ -32,18 +46,35 @@ const MIN = 60_000;
 const row = (x: object): Row => x as unknown as Row;
 
 const ev = (id: string, title: string, start: number, mins: number, o: Partial<CalEvent> = {}): CalEvent => ({
-  id, calendarId: "cal_work", title, startsAt: start, endsAt: start + mins * MIN, allDay: false, joinProvider: "none", attendees: [], recordIds: [], status: "confirmed", ...o,
+  id,
+  calendarId: "cal_work",
+  title,
+  startsAt: start,
+  endsAt: start + mins * MIN,
+  allDay: false,
+  joinProvider: "none",
+  attendees: [],
+  recordIds: [],
+  status: "confirmed",
+  ...o,
 });
 
 export const northwindEvents: CalEvent[] = [
   ev("evt_stand", "Team standup", at(9), 15, { joinProvider: "zoom", joinUrl: "https://zoom.example/j/standup" }),
   ev("evt_pruitt", "Pruitt retainer check-in", at(9, 45), 45, { location: "Room 2" }),
-  ev("evt_rivera", "Rivera intake call", at(11, 30), 30, { joinProvider: "zoom", joinUrl: "https://zoom.example/j/rivera" }),
+  ev("evt_rivera", "Rivera intake call", at(11, 30), 30, {
+    joinProvider: "zoom",
+    joinUrl: "https://zoom.example/j/rivera",
+  }),
   ev("evt_bill", "Review Q4 billing", at(14, 30), 45, { joinProvider: "meet", joinUrl: "https://meet.example/q4" }),
   ev("evt_plan", "Weekly planning", at(16), 60, { location: "Studio" }),
 ];
 
-const star = (type: Star["resource"]["type"], id: string, title: string, minutesAgo: number): Star => ({ resource: { type, id }, title, at: SAMPLE_NOW - minutesAgo * MIN });
+const star = (type: Star["resource"]["type"], id: string, title: string, minutesAgo: number): Star => ({
+  resource: { type, id },
+  title,
+  at: SAMPLE_NOW - minutesAgo * MIN,
+});
 
 export const northwindStars: Star[] = [
   star("terminal", "trm_dev", "Dev server", 20),
@@ -66,17 +97,31 @@ const harborEvents: CalEvent[] = [
   ev("evt_hkick", "Moreno kickoff", at(11), 45, { joinProvider: "zoom", joinUrl: "https://zoom.example/j/moreno" }),
   ev("evt_hvisit", "Studio visit with Abel", at(14), 60, { location: "Harbor Studio" }),
 ];
-const harborStars: Star[] = [star("project", "rec_moreno", "Moreno rebrand", 40), star("thread", "thr_sched", "Scheduler", 200)];
+const harborStars: Star[] = [
+  star("project", "rec_moreno", "Moreno rebrand", 40),
+  star("thread", "thr_sched", "Scheduler", 200),
+];
 
 export type Variant = "northwind" | "harbor" | "personal" | "firstrun";
 
 const personalSpace: SampleSpace = {
-  ...northwind, name: "Personal", tasks: [], needs: [], risk: [], routines: [],
+  ...northwind,
+  name: "Personal",
+  tasks: [],
+  needs: [],
+  risk: [],
+  routines: [],
   digest: { ...northwind.digest, id: "dgs_p0", headline: [], items: [] },
 };
 const newcomerSpace: SampleSpace = {
-  ...northwind, me: { id: "usr_dana", name: "Dana Whitfield", kind: "person" }, principals: [...northwind.principals, { id: "usr_dana", name: "Dana Whitfield", kind: "person" }],
-  tasks: [], needs: [], risk: [], routines: [], digest: { ...northwind.digest, id: "dgs_d0", person: "usr_dana", headline: [], items: [] },
+  ...northwind,
+  me: { id: "usr_dana", name: "Dana Whitfield", kind: "person" },
+  principals: [...northwind.principals, { id: "usr_dana", name: "Dana Whitfield", kind: "person" }],
+  tasks: [],
+  needs: [],
+  risk: [],
+  routines: [],
+  digest: { ...northwind.digest, id: "dgs_d0", person: "usr_dana", headline: [], items: [] },
 };
 
 export interface SampleHomeB extends SampleHome {
@@ -89,8 +134,25 @@ export interface SampleHomeB extends SampleHome {
   setAi(connected: boolean): void;
 }
 
-export function createSampleHomeB(variant: Variant = "northwind", o: { online?: boolean; aiConnected?: boolean; calendarConnected?: boolean; stars?: Star[]; terminals?: TerminalRow[]; events?: CalEvent[] } = {}): SampleHomeB {
-  const space = variant === "harbor" ? harbor : variant === "personal" ? personalSpace : variant === "firstrun" ? newcomerSpace : northwind;
+export function createSampleHomeB(
+  variant: Variant = "northwind",
+  o: {
+    online?: boolean;
+    aiConnected?: boolean;
+    calendarConnected?: boolean;
+    stars?: Star[];
+    terminals?: TerminalRow[];
+    events?: CalEvent[];
+  } = {},
+): SampleHomeB {
+  const space =
+    variant === "harbor"
+      ? harbor
+      : variant === "personal"
+        ? personalSpace
+        : variant === "firstrun"
+          ? newcomerSpace
+          : northwind;
   const base = createSampleHome(space, o.online === undefined ? {} : { online: o.online });
   const { replica } = base;
   const personal = variant === "personal";
@@ -101,29 +163,77 @@ export function createSampleHomeB(variant: Variant = "northwind", o: { online?: 
   const events = o.events ?? (variant === "harbor" ? harborEvents : fresh ? [] : northwindEvents);
   const stars = o.stars ?? (variant === "harbor" ? harborStars : fresh ? [] : northwindStars);
   const terminals = o.terminals ?? (fresh ? [] : variant === "harbor" ? [] : northwindTerminals);
-  replica.put("events", events.map((e) => row({ ...e })));
-  replica.put("stars", stars.map((s) => row({ id: `${s.resource.type}:${s.resource.id}`, ...s })));
-  replica.put("terminals", terminals.map((t) => row({ id: t.terminalId, ...t })));
-  const doneAtStart: Record<string, boolean> = fresh ? {} : { photo_and_title: true, connect_mailbox_and_calendar: true, meet_assistant: true, open_first_project: true, import: true };
-  const keys = ["photo_and_title", "connect_mailbox_and_calendar", "meet_assistant", "open_first_project", "import"] as const;
+  replica.put(
+    "events",
+    events.map((e) => row({ ...e })),
+  );
+  replica.put(
+    "stars",
+    stars.map((s) => row({ id: `${s.resource.type}:${s.resource.id}`, ...s })),
+  );
+  replica.put(
+    "terminals",
+    terminals.map((t) => row({ id: t.terminalId, ...t })),
+  );
+  const doneAtStart: Record<string, boolean> = fresh
+    ? {}
+    : {
+        photo_and_title: true,
+        connect_mailbox_and_calendar: true,
+        meet_assistant: true,
+        open_first_project: true,
+        import: true,
+      };
+  const keys = [
+    "photo_and_title",
+    "connect_mailbox_and_calendar",
+    "meet_assistant",
+    "open_first_project",
+    "import",
+  ] as const;
   const titles: Record<(typeof keys)[number], string> = {
-    photo_and_title: "Add a photo and title", connect_mailbox_and_calendar: "Connect your mailbox and calendar", meet_assistant: "Meet your assistant",
-    open_first_project: "Open your first project", import: "Import your data",
+    photo_and_title: "Add a photo and title",
+    connect_mailbox_and_calendar: "Connect your mailbox and calendar",
+    meet_assistant: "Meet your assistant",
+    open_first_project: "Open your first project",
+    import: "Import your data",
   };
-  replica.put("checklist", keys.map((k) => row({ id: k, key: k, title: titles[k], done: doneAtStart[k] === true })));
+  replica.put(
+    "checklist",
+    keys.map((k) => row({ id: k, key: k, title: titles[k], done: doneAtStart[k] === true })),
+  );
   replica.put("checklist_state", [{ id: "state", dismissed: false }]);
 
-  replica.resolve("calendar.list_events", (_t, input) => ({ events: (replica.rows("events") as unknown as CalEvent[]).filter((e) => e.startsAt < input.to && e.endsAt > input.from) }) as CapMap["calendar.list_events"]["out"]);
+  replica.resolve(
+    "calendar.list_events",
+    (_t, input) =>
+      ({
+        events: (replica.rows("events") as unknown as CalEvent[]).filter(
+          (e) => e.startsAt < input.to && e.endsAt > input.from,
+        ),
+      }) as CapMap["calendar.list_events"]["out"],
+  );
   replica.resolve("stars.list", () => {
     const rows = (replica.rows("stars") as unknown as Star[]).slice().sort((a, b) => b.at - a.at);
     return { stars: rows.map(({ resource, title, at: when }) => ({ resource, title, at: when })) };
   });
   replica.resolve("terminal.status", (_t, input) => {
     const want = new Set(input.terminalIds);
-    return { rows: (replica.rows("terminals") as unknown as TerminalRow[]).filter((t) => want.has(t.terminalId)).map(({ terminalId, state, lastLine, exitCode }) => ({ terminalId, state, ...(lastLine ? { lastLine } : {}), exitCode })) };
+    return {
+      rows: (replica.rows("terminals") as unknown as TerminalRow[])
+        .filter((t) => want.has(t.terminalId))
+        .map(({ terminalId, state, lastLine, exitCode }) => ({
+          terminalId,
+          state,
+          ...(lastLine ? { lastLine } : {}),
+          exitCode,
+        })),
+    };
   });
   replica.resolve("home.checklist", () => {
-    const items = (replica.rows("checklist") as unknown as { key: (typeof keys)[number]; title: string; done: boolean }[]).map(({ key, title, done }) => ({ key, title, done }));
+    const items = (
+      replica.rows("checklist") as unknown as { key: (typeof keys)[number]; title: string; done: boolean }[]
+    ).map(({ key, title, done }) => ({ key, title, done }));
     const dismissed = (replica.rows("checklist_state")[0] as unknown as { dismissed: boolean }).dismissed;
     return { visible: !dismissed && items.some((i) => !i.done), items };
   });
@@ -133,7 +243,9 @@ export function createSampleHomeB(variant: Variant = "northwind", o: { online?: 
   const extras: HomeBExtras = {
     space: { kind: personal ? "personal" : "team", name: space.name },
     assistant: { id: "agt_assistant", name: "Assistant" },
-    get aiConnected() { return ai; },
+    get aiConnected() {
+      return ai;
+    },
     calendarConnected: connectedCal,
     go: (target: GoTarget) => void went.push(target),
     openUrl: (u) => void urls.push(u),
@@ -143,7 +255,10 @@ export function createSampleHomeB(variant: Variant = "northwind", o: { online?: 
   let chats = 0;
   const data = {
     ...base.data,
-    screens: createScreenHooks(replica, new Map<string, ScreenIndexEntry>([...screensById, [TODAY_SCREEN, TODAY_SCREEN_ENTRY]])),
+    screens: createScreenHooks(
+      replica,
+      new Map<string, ScreenIndexEntry>([...screensById, [TODAY_SCREEN, TODAY_SCREEN_ENTRY]]),
+    ),
     async call(cap: string, input: unknown): Promise<unknown> {
       if (cap === "stars.toggle") {
         base.calls.push({ cap, input });
@@ -169,8 +284,18 @@ export function createSampleHomeB(variant: Variant = "northwind", o: { online?: 
     },
   };
   return {
-    ...base, data, extras, went, urls,
-    setDone(key, done) { const r = replica.rows("checklist").find((x) => x.id === key); if (r) replica.put("checklist", [{ ...r, done }]); },
-    setAi(v) { ai = v; replica.put("checklist_state", [{ id: "state", dismissed: false }]); },
+    ...base,
+    data,
+    extras,
+    went,
+    urls,
+    setDone(key, done) {
+      const r = replica.rows("checklist").find((x) => x.id === key);
+      if (r) replica.put("checklist", [{ ...r, done }]);
+    },
+    setAi(v) {
+      ai = v;
+      replica.put("checklist_state", [{ id: "state", dismissed: false }]);
+    },
   };
 }

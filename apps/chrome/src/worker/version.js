@@ -11,7 +11,8 @@ export function compareVersions(a, b) {
   const pa = parse(a);
   const pb = parse(b);
   if (!pa || !pb) return null;
-  for (let i = 0; i < 3; i++) if (pa.core[i] !== pb.core[i]) return /** @type {number} */ (pa.core[i]) - /** @type {number} */ (pb.core[i]);
+  for (let i = 0; i < 3; i++)
+    if (pa.core[i] !== pb.core[i]) return /** @type {number} */ (pa.core[i]) - /** @type {number} */ (pb.core[i]);
   return pa.rc - pb.rc;
 }
 
@@ -19,7 +20,10 @@ export function compareVersions(a, b) {
 function parse(v) {
   const m = /^(\d+)\.(\d+)\.(\d+)(?:-rc\.(\d+))?$/.exec(String(v ?? "").trim());
   if (!m) return null;
-  return { core: [Number(m[1]), Number(m[2]), Number(m[3])], rc: m[4] === undefined ? Number.MAX_SAFE_INTEGER : Number(m[4]) };
+  return {
+    core: [Number(m[1]), Number(m[2]), Number(m[3])],
+    rc: m[4] === undefined ? Number.MAX_SAFE_INTEGER : Number(m[4]),
+  };
 }
 
 /**

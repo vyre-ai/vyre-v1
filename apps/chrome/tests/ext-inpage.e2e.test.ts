@@ -6,18 +6,35 @@ import { AGENTS, LAB, lab, openPanelFor } from "./e2e/show-watch.ts";
 
 const found = await findChromium();
 
-for (const [scheme, tone] of [["light", "paper"], ["dark", "graphite"]] as const) {
+for (const [scheme, tone] of [
+  ["light", "paper"],
+  ["dark", "graphite"],
+] as const) {
   test(`the step bar and the part picker drawn in the page, ${tone}`, { skip: !found, timeout: 40_000 }, async () => {
     lab.going = "3,412 going";
     const s = await site({ "/lab": () => LAB() });
-    const r = await launch(found!, { colorScheme: scheme, ops: { "agents.list": AGENTS }, caps: { "automations.watches.list": () => ({ watches: [] }) } });
+    const r = await launch(found!, {
+      colorScheme: scheme,
+      ops: { "agents.list": AGENTS },
+      caps: { "automations.watches.list": () => ({ watches: [] }) },
+    });
     try {
       const page = await r.context.newPage();
       await page.goto(`${s.url}/lab`);
       await page.bringToFront();
       const panel = await openPanelFor(r, s.url);
       await panel.waitForSelector(".ch.pg .t", { timeout: 10_000 });
-      const send = (type: string, extra: Record<string, unknown> = {}) => panel.evaluate(async ({ type, extra }: any) => new Promise((resolve) => (globalThis as any).chrome.runtime.sendMessage({ type, windowId: Number(new URLSearchParams(location.search).get("window")), ...extra }, (x: any) => resolve(x))), { type, extra });
+      const send = (type: string, extra: Record<string, unknown> = {}) =>
+        panel.evaluate(
+          async ({ type, extra }: any) =>
+            new Promise((resolve) =>
+              (globalThis as any).chrome.runtime.sendMessage(
+                { type, windowId: Number(new URLSearchParams(location.search).get("window")), ...extra },
+                (x: any) => resolve(x),
+              ),
+            ),
+          { type, extra },
+        );
       await send("panel.watch.pick");
       await page.waitForSelector("[data-vyre-pick]", { state: "attached" });
       await page.setViewportSize({ width: 1440, height: 900 });
@@ -35,7 +52,14 @@ for (const [scheme, tone] of [["light", "paper"], ["dark", "graphite"]] as const
       await page.waitForSelector("[data-vyre-recbar]", { state: "attached" });
       await page.click("h1");
       await new Promise((x) => setTimeout(x, 400));
-      for (const [w, h] of [[1440, 900], [390, 760]] as const) { await page.setViewportSize({ width: w, height: h }); await new Promise((x) => setTimeout(x, 150)); await r.shot(page, `chrome2b-step-bar-${w}-${tone}`); }
+      for (const [w, h] of [
+        [1440, 900],
+        [390, 760],
+      ] as const) {
+        await page.setViewportSize({ width: w, height: h });
+        await new Promise((x) => setTimeout(x, 150));
+        await r.shot(page, `chrome2b-step-bar-${w}-${tone}`);
+      }
       await send("panel.rec.control", { op: "pause" });
       await page.waitForFunction(() => true);
       await new Promise((x) => setTimeout(x, 300));
@@ -43,7 +67,9 @@ for (const [scheme, tone] of [["light", "paper"], ["dark", "graphite"]] as const
       await r.shot(page, `chrome2b-step-bar-paused-1440-${tone}`);
       await send("panel.rec.control", { op: "resume" });
       assert.equal(((await send("panel.rec.state")) as any).data.running, true);
-    } finally { await r.close(); await s.close(); }
+    } finally {
+      await r.close();
+      await s.close();
+    }
   });
 }
-

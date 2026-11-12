@@ -51,7 +51,14 @@ const OPEN_MS = 12_000;
 const INPUT_CHECK_MS = 500;
 
 /** A person's own computer linked to the Space: its node id, whose it is, what it calls itself and the engines it runs. */
-export interface DeviceLink { nodeId: string; deviceId: string; person: string; name?: string; engines: string[]; since: number }
+export interface DeviceLink {
+  nodeId: string;
+  deviceId: string;
+  person: string;
+  name?: string;
+  engines: string[];
+  since: number;
+}
 
 /** The node id of a person's own computer: never the shape of a server id (srv_...). */
 export const deviceNode = (deviceId: string): string => `device:${deviceId}`;
@@ -68,7 +75,10 @@ export interface ComputeStreamDeps {
   /** A computer's report of its load, specs and what it runs, every 30 s (machines: host/src/machines/report.ts). `serverId` is set for a node that joined with a credential (`owner` is who added it); `device` for a person's own computer; `latencyMs` is the Space's own measure of the round trip. The host hands it to the Machines module. */
   /** The number of engine processes on a node changed (one started, ended or was lost): the Machines module re-reads who has room. */
   procsChanged?(nodeId: string): void;
-  report?(from: { nodeId: string; serverId?: string; owner?: string; device?: DeviceLink; latencyMs?: number }, report: unknown): void;
+  report?(
+    from: { nodeId: string; serverId?: string; owner?: string; device?: DeviceLink; latencyMs?: number },
+    report: unknown,
+  ): void;
   now?: () => number;
   /** How often a connected node's credential is checked again. Default 2 s. */
   recheckMs?: number;
@@ -80,7 +90,8 @@ export interface ComputeStreamDeps {
   secure?: (req: http.IncomingMessage) => boolean;
 }
 
-const isLoopback = (a: string | undefined): boolean => !!a && (a === "::1" || a.startsWith("127.") || a.startsWith("::ffff:127."));
+const isLoopback = (a: string | undefined): boolean =>
+  !!a && (a === "::1" || a.startsWith("127.") || a.startsWith("::ffff:127."));
 
 /**
  * Whether a node's connection is private enough to send it a person's account key: TLS straight to this server, or a peer on this machine. Behind a proxy on this machine (Caddy) the
@@ -95,7 +106,10 @@ export function linkIsSecure(req: Pick<http.IncomingMessage, "socket" | "headers
 }
 
 /** How a relayed process ended (the same shape the local launcher reports). */
-export interface RelayExit { code: number | null; signal: string | null }
+export interface RelayExit {
+  code: number | null;
+  signal: string | null;
+}
 
 /** A CLI process running on a node, as the engine's launcher wants it (agent/src/drivers/cli/types.ts CliProcess, structural here). */
 export interface RelayProc {
@@ -111,14 +125,21 @@ export interface RelayProc {
 /** Why a process could not be started on a node: the node is not connected, or it refused. `code` is an engine error code. */
 export class RelayError extends Error {
   readonly code: string;
-  constructor(code: string, message: string) { super(message); this.name = "RelayError"; this.code = code; }
+  constructor(code: string, message: string) {
+    super(message);
+    this.name = "RelayError";
+    this.code = code;
+  }
 }
 
 export interface ComputeStream {
   /** Is this node's link private (see linkIsSecure)? False for one that is not connected. */
   secure(nodeId: string): boolean;
   /** Start a process on a node, over its socket. Rejects with RelayError (engine.server_off) when the node is not connected, or with the node's own refusal. */
-  spawnProc(nodeId: string, spec: { argv: readonly string[]; cwd?: string; env: Readonly<Record<string, string>> }): Promise<RelayProc>;
+  spawnProc(
+    nodeId: string,
+    spec: { argv: readonly string[]; cwd?: string; env: Readonly<Record<string, string>> },
+  ): Promise<RelayProc>;
   /** Does this upgrade request belong here? The live hub leaves such a request alone. */
   claims(req: http.IncomingMessage): boolean;
   upgrade(req: http.IncomingMessage, socket: Duplex, head: Buffer): void;
@@ -149,15 +170,38 @@ export interface ComputeStream {
   close(): void;
 }
 
-interface NodeConn { nodeId: string; credential: string; /** a person's own computer: the device session its token belongs to */ sessionId?: string; peer: Peer; views: Set<string>; procs: Set<string>; lastSeen: number; secure: boolean; address: string; device?: DeviceLink; pingAt?: number; rtt?: number; pinger?: ReturnType<typeof setInterval> }
+interface NodeConn {
+  nodeId: string;
+  credential: string;
+  /** a person's own computer: the device session its token belongs to */ sessionId?: string;
+  peer: Peer;
+  views: Set<string>;
+  procs: Set<string>;
+  lastSeen: number;
+  secure: boolean;
+  address: string;
+  device?: DeviceLink;
+  pingAt?: number;
+  rtt?: number;
+  pinger?: ReturnType<typeof setInterval>;
+}
 interface ProcState {
-  id: string; nodeId: string; started(pid: number | undefined): void; failed(e: RelayError): void; out(bytes: Buffer, err: boolean): void; exit(x: RelayExit): void;
+  id: string;
+  nodeId: string;
+  started(pid: number | undefined): void;
+  failed(e: RelayError): void;
+  out(bytes: Buffer, err: boolean): void;
+  exit(x: RelayExit): void;
 }
 const PROC_START_MS = 15_000;
 const MAX_PROCS_PER_NODE = 16;
 const STDERR_TAIL = 4096;
 interface View {
-  id: string; nodeId: string; computerId: string; personId: string; input: boolean;
+  id: string;
+  nodeId: string;
+  computerId: string;
+  personId: string;
+  input: boolean;
   frame(jpeg: Buffer): void;
   text(data: string): void;
   opened(): void;
@@ -174,23 +218,48 @@ export function createComputeStream(deps: ComputeStreamDeps): ComputeStream {
   const hits = new Map<string, number[]>();
   /** requests to a port and questions in flight, by id; each belongs to one node */
   const ports = new Map<string, { nodeId: string; sink: PortSink; timer: ReturnType<typeof setTimeout> }>();
-  const asks = new Map<string, { nodeId: string; ok(v: unknown): void; no(e: Error): void; timer: ReturnType<typeof setTimeout> }>();
+  const asks = new Map<
+    string,
+    { nodeId: string; ok(v: unknown): void; no(e: Error): void; timer: ReturnType<typeof setTimeout> }
+  >();
   const PORT_MS = 30_000;
-  const newId = (): string => Array.from(globalThis.crypto.getRandomValues(new Uint8Array(9)), (b) => b.toString(16).padStart(2, "0")).join("");
-  const portDone = (id: string): void => { const p = ports.get(id); if (p) { clearTimeout(p.timer); ports.delete(id); } };
+  const newId = (): string =>
+    Array.from(globalThis.crypto.getRandomValues(new Uint8Array(9)), (b) => b.toString(16).padStart(2, "0")).join("");
+  const portDone = (id: string): void => {
+    const p = ports.get(id);
+    if (p) {
+      clearTimeout(p.timer);
+      ports.delete(id);
+    }
+  };
   const limited = (key: string, max: number): boolean => {
-    const at = now(), list = (hits.get(key) ?? []).filter((t) => at - t < 60_000);
-    list.push(at); hits.delete(key); hits.set(key, list);
+    const at = now(),
+      list = (hits.get(key) ?? []).filter((t) => at - t < 60_000);
+    list.push(at);
+    hits.delete(key);
+    hits.set(key, list);
     if (hits.size > 5_000) hits.delete(hits.keys().next().value as string);
     return list.length > max;
   };
   const plain = (res: http.ServerResponse, status: number, code: string, message: string): void => {
     const text = JSON.stringify({ error: makeError(code as never, TRACE, { message }) });
-    res.writeHead(status, { "content-type": "application/json; charset=utf-8", "content-length": Buffer.byteLength(text), "cache-control": "no-store" });
+    res.writeHead(status, {
+      "content-type": "application/json; charset=utf-8",
+      "content-length": Buffer.byteLength(text),
+      "cache-control": "no-store",
+    });
     res.end(text);
   };
-  const refuseUpgrade = (socket: Duplex, status: string): void => { socket.end(`HTTP/1.1 ${status}\r\nconnection: close\r\ncache-control: no-store\r\n\r\n`); };
-  const sourceFor = (req: http.IncomingMessage): string => sourceOf({ "x-vyre-remote": req.socket.remoteAddress ?? "", ...(typeof req.headers["x-forwarded-for"] === "string" ? { "x-forwarded-for": req.headers["x-forwarded-for"] } : {}) });
+  const refuseUpgrade = (socket: Duplex, status: string): void => {
+    socket.end(`HTTP/1.1 ${status}\r\nconnection: close\r\ncache-control: no-store\r\n\r\n`);
+  };
+  const sourceFor = (req: http.IncomingMessage): string =>
+    sourceOf({
+      "x-vyre-remote": req.socket.remoteAddress ?? "",
+      ...(typeof req.headers["x-forwarded-for"] === "string"
+        ? { "x-forwarded-for": req.headers["x-forwarded-for"] }
+        : {}),
+    });
 
   function dropView(id: string, tell: boolean): void {
     const v = views.get(id);
@@ -202,20 +271,43 @@ export function createComputeStream(deps: ComputeStreamDeps): ComputeStream {
     v.end();
   }
   const deviceListeners = new Set<(link: DeviceLink, up: boolean) => void>();
-  const tellDevice = (link: DeviceLink, up: boolean): void => { for (const f of [...deviceListeners]) { try { f(link, up); } catch { /* a listener never stops the link */ } } };
+  const tellDevice = (link: DeviceLink, up: boolean): void => {
+    for (const f of [...deviceListeners]) {
+      try {
+        f(link, up);
+      } catch {
+        /* a listener never stops the link */
+      }
+    }
+  };
   /** The node went away with processes running: each one ends as killed, so the turn fails and says so. */
   function dropProcs(n: NodeConn): void {
     for (const id of [...n.procs]) {
       const p = procs.get(id);
       procs.delete(id);
       n.procs.delete(id);
-      p?.failed(n.device ? new RelayError("engine.device_gone", "The computer went away.") : new RelayError("engine.server_off", "The server went away."));
+      p?.failed(
+        n.device
+          ? new RelayError("engine.device_gone", "The computer went away.")
+          : new RelayError("engine.server_off", "The server went away."),
+      );
       p?.exit({ code: null, signal: "SIGKILL" });
     }
     changed(n.nodeId);
   }
-  const changed = (nodeId: string): void => { try { deps.procsChanged?.(nodeId); } catch { /* a listener never stops a turn */ } };
-  const stopPing = (n: NodeConn): void => { if (n.pinger) { clearInterval(n.pinger); delete n.pinger; } };
+  const changed = (nodeId: string): void => {
+    try {
+      deps.procsChanged?.(nodeId);
+    } catch {
+      /* a listener never stops a turn */
+    }
+  };
+  const stopPing = (n: NodeConn): void => {
+    if (n.pinger) {
+      clearInterval(n.pinger);
+      delete n.pinger;
+    }
+  };
   function dropNode(n: NodeConn, code: number): void {
     stopPing(n);
     const was = nodes.get(n.nodeId) === n;
@@ -230,26 +322,63 @@ export function createComputeStream(deps: ComputeStreamDeps): ComputeStream {
 
   function onNode(req: http.IncomingMessage, socket: Duplex, head: Buffer): void {
     void (async () => {
-      if (limited(`node:${sourceFor(req)}`, 30)) { refuseUpgrade(socket, "429 Too Many Requests"); return; }
+      if (limited(`node:${sourceFor(req)}`, 30)) {
+        refuseUpgrade(socket, "429 Too Many Requests");
+        return;
+      }
       const auth = req.headers["authorization"];
       const credential = typeof auth === "string" && auth.startsWith("Bearer ") ? auth.slice(7).trim() : "";
       const who = credential.startsWith("vcc_") ? await deps.poll(credential).catch(() => null) : null;
       // a person's own computer: their signed-in session, never a node credential
-      const mine = !who && credential !== "" && !credential.startsWith("vcc_") && deps.device ? await deps.device(credential).catch(() => null) : null;
-      if (!who && !mine) { refuseUpgrade(socket, "401 Unauthorized"); return; }
+      const mine =
+        !who && credential !== "" && !credential.startsWith("vcc_") && deps.device
+          ? await deps.device(credential).catch(() => null)
+          : null;
+      if (!who && !mine) {
+        refuseUpgrade(socket, "401 Unauthorized");
+        return;
+      }
       const peer = accept(req, socket, head, MAX_NODE_FRAME);
       if (!peer) return;
       const nodeId = who ? who.serverId : deviceNode(mine!.device);
-      const device: DeviceLink | undefined = mine ? { nodeId, deviceId: mine.device, person: mine.person, ...(mine.name ? { name: mine.name } : {}), engines: [], since: now() } : undefined;
-      const conn: NodeConn = { nodeId, credential, ...(mine?.sessionId ? { sessionId: mine.sessionId } : {}), peer, views: new Set(), procs: new Set(), lastSeen: now(), secure: (deps.secure ?? linkIsSecure)(req), address: sourceFor(req), ...(device ? { device } : {}) };
+      const device: DeviceLink | undefined = mine
+        ? {
+            nodeId,
+            deviceId: mine.device,
+            person: mine.person,
+            ...(mine.name ? { name: mine.name } : {}),
+            engines: [],
+            since: now(),
+          }
+        : undefined;
+      const conn: NodeConn = {
+        nodeId,
+        credential,
+        ...(mine?.sessionId ? { sessionId: mine.sessionId } : {}),
+        peer,
+        views: new Set(),
+        procs: new Set(),
+        lastSeen: now(),
+        secure: (deps.secure ?? linkIsSecure)(req),
+        address: sourceFor(req),
+        ...(device ? { device } : {}),
+      };
       const old = nodes.get(conn.nodeId);
       if (old) dropNode(old, 4000);
       nodes.set(conn.nodeId, conn);
-      peer.send(JSON.stringify(device ? { t: "ready", person: device.person, device: device.deviceId } : { t: "ready" }));
+      peer.send(
+        JSON.stringify(device ? { t: "ready", person: device.person, device: device.deviceId } : { t: "ready" }),
+      );
       // the Space measures the round trip to each machine with a ping every 30 s; the answer comes back as a pong
       if (deps.report) {
-        const ping = (): void => { if (peer.open) { conn.pingAt = now(); peer.send(JSON.stringify({ t: "ping", at: conn.pingAt })); } };
-        conn.pinger = setInterval(ping, 30_000); conn.pinger.unref?.();
+        const ping = (): void => {
+          if (peer.open) {
+            conn.pingAt = now();
+            peer.send(JSON.stringify({ t: "ping", at: conn.pingAt }));
+          }
+        };
+        conn.pinger = setInterval(ping, 30_000);
+        conn.pinger.unref?.();
         ping();
       }
       peer.onClose(() => {
@@ -266,10 +395,16 @@ export function createComputeStream(deps: ComputeStreamDeps): ComputeStream {
         conn.lastSeen = now();
         if (conn.device && !binary && !hello) {
           let h: { t?: unknown; engines?: unknown; name?: unknown } = {};
-          try { h = JSON.parse(data.toString("utf8")) as typeof h; } catch { /* not a hello */ }
+          try {
+            h = JSON.parse(data.toString("utf8")) as typeof h;
+          } catch {
+            /* not a hello */
+          }
           if (h.t === "hello") {
             hello = true;
-            conn.device.engines = Array.isArray(h.engines) ? h.engines.filter((x): x is string => typeof x === "string" && /^[a-z_]{1,32}$/.test(x)).slice(0, 16) : [];
+            conn.device.engines = Array.isArray(h.engines)
+              ? h.engines.filter((x): x is string => typeof x === "string" && /^[a-z_]{1,32}$/.test(x)).slice(0, 16)
+              : [];
             if (typeof h.name === "string" && h.name.trim() !== "") conn.device.name = h.name.trim().slice(0, 60);
             if (nodes.get(conn.nodeId) === conn) tellDevice(conn.device, true);
             return;
@@ -282,29 +417,77 @@ export function createComputeStream(deps: ComputeStreamDeps): ComputeStream {
           if (v && v.nodeId === conn.nodeId && conn.views.has(id)) v.frame(data.subarray(1 + n));
           return;
         }
-        let m: { t?: unknown; view?: unknown; reason?: unknown; data?: unknown; proc?: unknown; pid?: unknown; err?: unknown; code?: unknown; signal?: unknown };
-        try { m = JSON.parse(data.toString("utf8")) as typeof m; } catch { return; }
+        let m: {
+          t?: unknown;
+          view?: unknown;
+          reason?: unknown;
+          data?: unknown;
+          proc?: unknown;
+          pid?: unknown;
+          err?: unknown;
+          code?: unknown;
+          signal?: unknown;
+        };
+        try {
+          m = JSON.parse(data.toString("utf8")) as typeof m;
+        } catch {
+          return;
+        }
         if (m.t === "hb") return;
-        if (m.t === "pong") { const at = (m as { at?: unknown }).at; if (typeof at === "number" && at === conn.pingAt) conn.rtt = Math.max(0, now() - at); return; }
+        if (m.t === "pong") {
+          const at = (m as { at?: unknown }).at;
+          if (typeof at === "number" && at === conn.pingAt) conn.rtt = Math.max(0, now() - at);
+          return;
+        }
         if (m.t === "report") {
           // the load of this computer, reported by it (made safe by parseReport in the Machines module), only from the socket it belongs to
-          try { deps.report?.({ nodeId: conn.nodeId, ...(who ? { serverId: who.serverId, ...(who.owner ? { owner: who.owner } : {}) } : {}), ...(conn.device ? { device: conn.device } : {}), ...(conn.rtt !== undefined ? { latencyMs: conn.rtt } : {}) }, (m as unknown as { report?: unknown }).report); } catch { /* a report that cannot be stored is dropped; the next one comes in 30 s */ }
+          try {
+            deps.report?.(
+              {
+                nodeId: conn.nodeId,
+                ...(who ? { serverId: who.serverId, ...(who.owner ? { owner: who.owner } : {}) } : {}),
+                ...(conn.device ? { device: conn.device } : {}),
+                ...(conn.rtt !== undefined ? { latencyMs: conn.rtt } : {}),
+              },
+              (m as unknown as { report?: unknown }).report,
+            );
+          } catch {
+            /* a report that cannot be stored is dropped; the next one comes in 30 s */
+          }
           return;
         }
         if (typeof m.t === "string" && m.t.startsWith("port_")) {
-          const r = m as unknown as { id?: unknown; status?: unknown; headers?: unknown; b?: unknown; reason?: unknown };
+          const r = m as unknown as {
+            id?: unknown;
+            status?: unknown;
+            headers?: unknown;
+            b?: unknown;
+            reason?: unknown;
+          };
           const id = typeof r.id === "string" ? r.id : "";
           const p = ports.get(id);
-          if (!p || p.nodeId !== conn.nodeId) return;   // not this socket's request: ignored
-          if (m.t === "port_res") p.sink.head(typeof r.status === "number" ? r.status : 502, (r.headers ?? {}) as Record<string, string>);
+          if (!p || p.nodeId !== conn.nodeId) return; // not this socket's request: ignored
+          if (m.t === "port_res")
+            p.sink.head(typeof r.status === "number" ? r.status : 502, (r.headers ?? {}) as Record<string, string>);
           else if (m.t === "port_data" && typeof r.b === "string") p.sink.data(Buffer.from(r.b, "base64"));
-          else if (m.t === "port_end") { portDone(id); p.sink.end(); }
-          else if (m.t === "port_fail") { portDone(id); p.sink.fail(typeof r.reason === "string" ? r.reason.slice(0, 200) : "The computer did not answer."); }
+          else if (m.t === "port_end") {
+            portDone(id);
+            p.sink.end();
+          } else if (m.t === "port_fail") {
+            portDone(id);
+            p.sink.fail(typeof r.reason === "string" ? r.reason.slice(0, 200) : "The computer did not answer.");
+          }
           return;
         }
         if (m.t === "chrome_event") {
           const ev = (m as { event?: unknown }).event;
-          if (conn.device && ev && typeof ev === "object" && !Array.isArray(ev)) { try { deps.chromeEvent?.(conn.device, ev as Record<string, unknown>); } catch { /* an event never stops the link */ } }
+          if (conn.device && ev && typeof ev === "object" && !Array.isArray(ev)) {
+            try {
+              deps.chromeEvent?.(conn.device, ev as Record<string, unknown>);
+            } catch {
+              /* an event never stops the link */
+            }
+          }
           return;
         }
         if (m.t === "ask_res") {
@@ -314,25 +497,53 @@ export function createComputeStream(deps: ComputeStreamDeps): ComputeStream {
           if (!a || a.nodeId !== conn.nodeId) return;
           clearTimeout(a.timer);
           asks.delete(id);
-          if (r.ok === true) a.ok(r.result); else a.no(Object.assign(new Error(typeof r.reason === "string" ? r.reason.slice(0, 200) : "The computer could not say."), typeof r.code === "string" ? { code: r.code } : {}));
+          if (r.ok === true) a.ok(r.result);
+          else
+            a.no(
+              Object.assign(
+                new Error(typeof r.reason === "string" ? r.reason.slice(0, 200) : "The computer could not say."),
+                typeof r.code === "string" ? { code: r.code } : {},
+              ),
+            );
           return;
         }
         if (typeof m.t === "string" && m.t.startsWith("cli_")) {
           const pid = typeof m.proc === "string" ? m.proc : "";
           const p = procs.get(pid);
-          if (!p || p.nodeId !== conn.nodeId || !conn.procs.has(pid)) return;   // not one of this socket's processes: ignored
+          if (!p || p.nodeId !== conn.nodeId || !conn.procs.has(pid)) return; // not one of this socket's processes: ignored
           if (m.t === "cli_started") p.started(typeof m.pid === "number" ? m.pid : undefined);
-          else if (m.t === "cli_out" && typeof m.data === "string") p.out(Buffer.from(m.data, "base64"), m.err === true);
-          else if (m.t === "cli_failed") { procs.delete(pid); conn.procs.delete(pid); changed(conn.nodeId); p.failed(new RelayError(typeof m.code === "string" ? m.code : "engine.cli_failed", typeof m.reason === "string" ? m.reason.slice(0, 300) : "The server could not start it.")); p.exit({ code: null, signal: null }); }
-          else if (m.t === "cli_exit") { procs.delete(pid); conn.procs.delete(pid); changed(conn.nodeId); p.exit({ code: typeof m.code === "number" ? m.code : null, signal: typeof m.signal === "string" ? m.signal : null }); }
+          else if (m.t === "cli_out" && typeof m.data === "string")
+            p.out(Buffer.from(m.data, "base64"), m.err === true);
+          else if (m.t === "cli_failed") {
+            procs.delete(pid);
+            conn.procs.delete(pid);
+            changed(conn.nodeId);
+            p.failed(
+              new RelayError(
+                typeof m.code === "string" ? m.code : "engine.cli_failed",
+                typeof m.reason === "string" ? m.reason.slice(0, 300) : "The server could not start it.",
+              ),
+            );
+            p.exit({ code: null, signal: null });
+          } else if (m.t === "cli_exit") {
+            procs.delete(pid);
+            conn.procs.delete(pid);
+            changed(conn.nodeId);
+            p.exit({
+              code: typeof m.code === "number" ? m.code : null,
+              signal: typeof m.signal === "string" ? m.signal : null,
+            });
+          }
           return;
         }
         const id = typeof m.view === "string" ? m.view : "";
         const v = views.get(id);
-        if (!v || v.nodeId !== conn.nodeId || !conn.views.has(id)) return;   // not one of this socket's views: ignored
+        if (!v || v.nodeId !== conn.nodeId || !conn.views.has(id)) return; // not one of this socket's views: ignored
         if (m.t === "opened") v.opened();
-        else if (m.t === "failed") { v.fail(typeof m.reason === "string" ? m.reason.slice(0, 200) : "The computer could not open its view."); dropView(id, false); }
-        else if (m.t === "ended") dropView(id, false);
+        else if (m.t === "failed") {
+          v.fail(typeof m.reason === "string" ? m.reason.slice(0, 200) : "The computer could not open its view.");
+          dropView(id, false);
+        } else if (m.t === "ended") dropView(id, false);
         else if (m.t === "msg" && typeof m.data === "string") v.text(m.data);
       });
     })().catch(() => refuseUpgrade(socket, "500 Internal Server Error"));
@@ -341,14 +552,31 @@ export function createComputeStream(deps: ComputeStreamDeps): ComputeStream {
   // ---- a viewer
 
   /** Spend the ticket and ask the node to open the view. Resolves once the node says it has, or with why not. */
-  async function attach(computerId: string, ticket: string, make: (id: string, opened: { nodeId: string; personId: string; input: boolean }) => Omit<View, "id" | "nodeId" | "computerId" | "personId" | "input" | "inputOk">): Promise<{ ok: true; view: View } | { ok: false; status: number; message: string }> {
+  async function attach(
+    computerId: string,
+    ticket: string,
+    make: (
+      id: string,
+      opened: { nodeId: string; personId: string; input: boolean },
+    ) => Omit<View, "id" | "nodeId" | "computerId" | "personId" | "input" | "inputOk">,
+  ): Promise<{ ok: true; view: View } | { ok: false; status: number; message: string }> {
     const opened = ticket ? await deps.open(ticket, computerId).catch(() => null) : null;
     if (!opened) return { ok: false, status: 403, message: "This view needs a live ticket for this computer." };
     const node = nodes.get(opened.nodeId);
-    if (!node?.peer.open) return { ok: false, status: 503, message: "The computer is not connected to the Space right now." };
-    if (node.views.size >= MAX_VIEWS_PER_NODE) return { ok: false, status: 429, message: "This computer already has as many viewers as it can serve." };
+    if (!node?.peer.open)
+      return { ok: false, status: 503, message: "The computer is not connected to the Space right now." };
+    if (node.views.size >= MAX_VIEWS_PER_NODE)
+      return { ok: false, status: 429, message: "This computer already has as many viewers as it can serve." };
     const id = `viw_${Array.from(globalThis.crypto.getRandomValues(new Uint8Array(16)), (x) => x.toString(16).padStart(2, "0")).join("")}`;
-    const view: View = { id, nodeId: opened.nodeId, computerId, personId: opened.personId, input: opened.input, inputOk: { at: 0, ok: false }, ...make(id, opened) };
+    const view: View = {
+      id,
+      nodeId: opened.nodeId,
+      computerId,
+      personId: opened.personId,
+      input: opened.input,
+      inputOk: { at: 0, ok: false },
+      ...make(id, opened),
+    };
     views.set(id, view);
     node.views.add(id);
     node.peer.send(JSON.stringify({ t: "open", view: id, computerId }));
@@ -356,11 +584,16 @@ export function createComputeStream(deps: ComputeStreamDeps): ComputeStream {
   }
 
   function handleMjpeg(req: http.IncomingMessage, res: http.ServerResponse, computerId: string): void {
-    if (limited(`view:${sourceFor(req)}`, 60)) { res.setHeader("retry-after", "60"); return plain(res, 429, "rate_limit.exceeded", "Too many requests from this address."); }
+    if (limited(`view:${sourceFor(req)}`, 60)) {
+      res.setHeader("retry-after", "60");
+      return plain(res, 429, "rate_limit.exceeded", "Too many requests from this address.");
+    }
     const ticket = new URL(req.url ?? "/", "http://x").searchParams.get("ticket") ?? "";
     let started = false;
     let settle: (v: { status: number; message: string } | null) => void = () => undefined;
-    const answered = new Promise<{ status: number; message: string } | null>((r) => { settle = r; });
+    const answered = new Promise<{ status: number; message: string } | null>((r) => {
+      settle = r;
+    });
     void (async () => {
       const got = await attach(computerId, ticket, () => ({
         frame(jpeg) {
@@ -369,60 +602,137 @@ export function createComputeStream(deps: ComputeStreamDeps): ComputeStream {
           res.write(jpeg);
           res.write("\r\n");
         },
-        text() { /* an MJPEG viewer has no input channel */ },
-        opened() { settle(null); },
-        fail(reason) { settle({ status: 502, message: reason }); },
-        end() { settle({ status: 502, message: "The computer closed its view." }); if (started) res.end(); },
+        text() {
+          /* an MJPEG viewer has no input channel */
+        },
+        opened() {
+          settle(null);
+        },
+        fail(reason) {
+          settle({ status: 502, message: reason });
+        },
+        end() {
+          settle({ status: 502, message: "The computer closed its view." });
+          if (started) res.end();
+        },
       }));
-      if (!got.ok) return plain(res, got.status, got.status === 403 ? "permission.no_grant" : "validation.precondition_failed", got.message);
-      const timer = setTimeout(() => { settle({ status: 504, message: "The computer did not open its view in time." }); dropView(got.view.id, true); }, OPEN_MS);
-      res.once("close", () => { clearTimeout(timer); dropView(got.view.id, true); });
+      if (!got.ok)
+        return plain(
+          res,
+          got.status,
+          got.status === 403 ? "permission.no_grant" : "validation.precondition_failed",
+          got.message,
+        );
+      const timer = setTimeout(() => {
+        settle({ status: 504, message: "The computer did not open its view in time." });
+        dropView(got.view.id, true);
+      }, OPEN_MS);
+      res.once("close", () => {
+        clearTimeout(timer);
+        dropView(got.view.id, true);
+      });
       const failed = await answered;
       clearTimeout(timer);
-      if (failed) { dropView(got.view.id, true); return plain(res, failed.status, "validation.precondition_failed", failed.message); }
+      if (failed) {
+        dropView(got.view.id, true);
+        return plain(res, failed.status, "validation.precondition_failed", failed.message);
+      }
       if (res.destroyed) return;
       started = true;
-      res.writeHead(200, { "content-type": `multipart/x-mixed-replace; boundary=${BOUNDARY}`, "cache-control": "no-store", connection: "close" });
-    })().catch(() => { if (!res.headersSent) plain(res, 500, "internal.unexpected", "The live view could not be opened."); });
+      res.writeHead(200, {
+        "content-type": `multipart/x-mixed-replace; boundary=${BOUNDARY}`,
+        "cache-control": "no-store",
+        connection: "close",
+      });
+    })().catch(() => {
+      if (!res.headersSent) plain(res, 500, "internal.unexpected", "The live view could not be opened.");
+    });
   }
 
   function onViewer(req: http.IncomingMessage, socket: Duplex, head: Buffer, computerId: string): void {
     void (async () => {
-      if (limited(`view:${sourceFor(req)}`, 60)) { refuseUpgrade(socket, "429 Too Many Requests"); return; }
+      if (limited(`view:${sourceFor(req)}`, 60)) {
+        refuseUpgrade(socket, "429 Too Many Requests");
+        return;
+      }
       const ticket = new URL(req.url ?? "/", "http://x").searchParams.get("ticket") ?? "";
       let peer: Peer | null = null;
       let gotOpened: () => void = () => undefined;
       let gotFailed: (reason: string) => void = () => undefined;
-      const answered = new Promise<string | null>((resolve) => { gotOpened = () => resolve(null); gotFailed = resolve; });
+      const answered = new Promise<string | null>((resolve) => {
+        gotOpened = () => resolve(null);
+        gotFailed = resolve;
+      });
       const got = await attach(computerId, ticket, () => ({
-        frame(jpeg) { peer?.send(jpeg); },
-        text(data) { peer?.send(data); },
-        opened() { gotOpened(); },
-        fail(reason) { gotFailed(reason); },
-        end() { gotFailed("The computer closed its view."); peer?.close(1000); },
+        frame(jpeg) {
+          peer?.send(jpeg);
+        },
+        text(data) {
+          peer?.send(data);
+        },
+        opened() {
+          gotOpened();
+        },
+        fail(reason) {
+          gotFailed(reason);
+        },
+        end() {
+          gotFailed("The computer closed its view.");
+          peer?.close(1000);
+        },
       }));
-      if (!got.ok) { refuseUpgrade(socket, got.status === 403 ? "403 Forbidden" : got.status === 429 ? "429 Too Many Requests" : "503 Service Unavailable"); return; }
+      if (!got.ok) {
+        refuseUpgrade(
+          socket,
+          got.status === 403
+            ? "403 Forbidden"
+            : got.status === 429
+              ? "429 Too Many Requests"
+              : "503 Service Unavailable",
+        );
+        return;
+      }
       const view = got.view;
       const timer = setTimeout(() => gotFailed("The computer did not open its view in time."), OPEN_MS);
       const failed = await answered;
       clearTimeout(timer);
-      if (failed) { dropView(view.id, true); refuseUpgrade(socket, "502 Bad Gateway"); return; }
+      if (failed) {
+        dropView(view.id, true);
+        refuseUpgrade(socket, "502 Bad Gateway");
+        return;
+      }
       peer = accept(req, socket, head, MAX_VIEWER_MESSAGE);
-      if (!peer) { dropView(view.id, true); return; }
+      if (!peer) {
+        dropView(view.id, true);
+        return;
+      }
       const viewer = peer;
       viewer.onClose(() => dropView(view.id, true));
       viewer.onMessage((data, binary) => {
         if (binary || !views.has(view.id)) return;
         const text = data.toString("utf8");
         let m: { t?: unknown; seq?: unknown };
-        try { m = JSON.parse(text) as typeof m; } catch { return; }
+        try {
+          m = JSON.parse(text) as typeof m;
+        } catch {
+          return;
+        }
         const seq = typeof m.seq === "number" ? m.seq : 0;
-        if (m.t === "ping") { viewer.send(JSON.stringify({ t: "pong", seq })); return; }
+        if (m.t === "ping") {
+          viewer.send(JSON.stringify({ t: "pong", seq }));
+          return;
+        }
         void (async () => {
           const at = now();
           // The person may act only with a take-over ticket and only while they still hold the controls; the module is asked again (not more than twice a second) so a give-back stops it.
-          if (view.input && at - view.inputOk.at >= INPUT_CHECK_MS) view.inputOk = { at, ok: await deps.mayInput(computerId, view.personId).catch(() => false) };
-          if (!view.input || !view.inputOk.ok) { viewer.send(JSON.stringify({ t: "refused", seq, reason: "A person has to take over before the view takes input." })); return; }
+          if (view.input && at - view.inputOk.at >= INPUT_CHECK_MS)
+            view.inputOk = { at, ok: await deps.mayInput(computerId, view.personId).catch(() => false) };
+          if (!view.input || !view.inputOk.ok) {
+            viewer.send(
+              JSON.stringify({ t: "refused", seq, reason: "A person has to take over before the view takes input." }),
+            );
+            return;
+          }
           const n = nodes.get(view.nodeId);
           if (!views.has(view.id) || !n?.peer.open) return;
           n.peer.send(JSON.stringify({ t: "input", view: view.id, data: text }));
@@ -436,23 +746,50 @@ export function createComputeStream(deps: ComputeStreamDeps): ComputeStream {
   const deadMs = deps.deadMs ?? 60_000;
   const timer = setInterval(() => {
     for (const n of [...nodes.values()]) {
-      if (now() - n.lastSeen > deadMs) { dropNode(n, 4001); continue; }
+      if (now() - n.lastSeen > deadMs) {
+        dropNode(n, 4001);
+        continue;
+      }
       const dev = n.device;
-      if (dev) { void (deps.device?.(n.credential) ?? Promise.resolve(null)).then((who) => { if (!who || who.device !== dev.deviceId || who.person !== dev.person) dropNode(n, 4003); }).catch(() => undefined); continue; }
-      void deps.poll(n.credential).then((who) => { if (!who || who.serverId !== n.nodeId) dropNode(n, 4003); }).catch(() => undefined);
+      if (dev) {
+        void (deps.device?.(n.credential) ?? Promise.resolve(null))
+          .then((who) => {
+            if (!who || who.device !== dev.deviceId || who.person !== dev.person) dropNode(n, 4003);
+          })
+          .catch(() => undefined);
+        continue;
+      }
+      void deps
+        .poll(n.credential)
+        .then((who) => {
+          if (!who || who.serverId !== n.nodeId) dropNode(n, 4003);
+        })
+        .catch(() => undefined);
     }
   }, deps.recheckMs ?? 2_000);
   timer.unref();
 
   /** One process on one node. Output is queued until the engine reads it; the end waits until the output is drained. */
-  async function spawnProc(nodeId: string, spec: { argv: readonly string[]; cwd?: string; env: Readonly<Record<string, string>>; person?: string }): Promise<RelayProc> {
+  async function spawnProc(
+    nodeId: string,
+    spec: { argv: readonly string[]; cwd?: string; env: Readonly<Record<string, string>>; person?: string },
+  ): Promise<RelayProc> {
     const node = nodes.get(nodeId);
-    if (!node?.peer.open) throw node?.device || nodeId.startsWith("device:") ? new RelayError("engine.device_off", "Your computer is not connected to the Space right now.") : new RelayError("engine.server_off", "The server is not connected to the Space right now.");
+    if (!node?.peer.open)
+      throw node?.device || nodeId.startsWith("device:")
+        ? new RelayError("engine.device_off", "Your computer is not connected to the Space right now.")
+        : new RelayError("engine.server_off", "The server is not connected to the Space right now.");
     // a person's computer runs that person's turns and nobody else's
-    if (node.device && spec.person !== node.device.person) throw new RelayError("permission.no_grant", "That computer runs only its own person's chats.");
+    if (node.device && spec.person !== node.device.person)
+      throw new RelayError("permission.no_grant", "That computer runs only its own person's chats.");
     // the engine's environment holds the person's own account key: it goes only over a private link
-    if (!node.secure) throw new RelayError("engine.link_insecure", "This server is connected over a link that is not private. Use an https address for the Space.");
-    if (node.procs.size >= MAX_PROCS_PER_NODE) throw new RelayError("engine.server_busy", "The server is already running as many engines as it can.");
+    if (!node.secure)
+      throw new RelayError(
+        "engine.link_insecure",
+        "This server is connected over a link that is not private. Use an https address for the Space.",
+      );
+    if (node.procs.size >= MAX_PROCS_PER_NODE)
+      throw new RelayError("engine.server_busy", "The server is already running as many engines as it can.");
     const id = `prc_${Array.from(globalThis.crypto.getRandomValues(new Uint8Array(12)), (x) => x.toString(16).padStart(2, "0")).join("")}`;
     const chunks: Buffer[] = [];
     let wake: (() => void) | null = null;
@@ -460,39 +797,86 @@ export function createComputeStream(deps: ComputeStreamDeps): ComputeStream {
     let tail = "";
     let pidSeen: number | undefined;
     let resolveExit: (x: RelayExit) => void = () => undefined;
-    const exited = new Promise<RelayExit>((r) => { resolveExit = r; });
+    const exited = new Promise<RelayExit>((r) => {
+      resolveExit = r;
+    });
     let settleStart: { ok(): void; fail(e: RelayError): void } = { ok() {}, fail() {} };
-    const startup = new Promise<void>((ok, fail) => { settleStart = { ok, fail }; });
+    const startup = new Promise<void>((ok, fail) => {
+      settleStart = { ok, fail };
+    });
     const state: ProcState = {
-      id, nodeId,
-      started(pid) { pidSeen = pid; settleStart.ok(); },
-      failed(e) { settleStart.fail(e); },
-      out(bytes, err) {
-        if (err) { tail = (tail + bytes.toString("utf8")).slice(-STDERR_TAIL); return; }
-        chunks.push(bytes); wake?.();
+      id,
+      nodeId,
+      started(pid) {
+        pidSeen = pid;
+        settleStart.ok();
       },
-      exit(x) { ended = true; wake?.(); resolveExit(x); },
+      failed(e) {
+        settleStart.fail(e);
+      },
+      out(bytes, err) {
+        if (err) {
+          tail = (tail + bytes.toString("utf8")).slice(-STDERR_TAIL);
+          return;
+        }
+        chunks.push(bytes);
+        wake?.();
+      },
+      exit(x) {
+        ended = true;
+        wake?.();
+        resolveExit(x);
+      },
     };
     procs.set(id, state);
     node.procs.add(id);
     changed(nodeId);
-    const send = (m: Record<string, unknown>): void => { const n = nodes.get(nodeId); if (n?.peer.open) n.peer.send(JSON.stringify({ ...m, proc: id })); };
-    send({ t: "cli_spawn", argv: [...spec.argv], ...(spec.cwd !== undefined ? { cwd: spec.cwd } : {}), env: { ...spec.env }, ...(node.device ? { person: node.device.person } : {}) });
-    const timer = setTimeout(() => { settleStart.fail(new RelayError("engine.server_off", "The server did not start the engine in time.")); procs.delete(id); node.procs.delete(id); send({ t: "cli_kill", signal: "SIGKILL" }); }, PROC_START_MS);
-    try { await startup; } finally { clearTimeout(timer); }
+    const send = (m: Record<string, unknown>): void => {
+      const n = nodes.get(nodeId);
+      if (n?.peer.open) n.peer.send(JSON.stringify({ ...m, proc: id }));
+    };
+    send({
+      t: "cli_spawn",
+      argv: [...spec.argv],
+      ...(spec.cwd !== undefined ? { cwd: spec.cwd } : {}),
+      env: { ...spec.env },
+      ...(node.device ? { person: node.device.person } : {}),
+    });
+    const timer = setTimeout(() => {
+      settleStart.fail(new RelayError("engine.server_off", "The server did not start the engine in time."));
+      procs.delete(id);
+      node.procs.delete(id);
+      send({ t: "cli_kill", signal: "SIGKILL" });
+    }, PROC_START_MS);
+    try {
+      await startup;
+    } finally {
+      clearTimeout(timer);
+    }
     async function* stdout(): AsyncGenerator<Uint8Array> {
       for (;;) {
         const next = chunks.shift();
-        if (next) { yield next; continue; }
+        if (next) {
+          yield next;
+          continue;
+        }
         if (ended) return;
-        await new Promise<void>((r) => { wake = r; });
+        await new Promise<void>((r) => {
+          wake = r;
+        });
         wake = null;
       }
     }
     return {
-      get pid() { return pidSeen; },
+      get pid() {
+        return pidSeen;
+      },
       stdout: stdout(),
-      write: (data) => { if (ended) return Promise.reject(new Error("stdin is closed")); send({ t: "cli_in", data: Buffer.from(data, "utf8").toString("base64") }); return Promise.resolve(); },
+      write: (data) => {
+        if (ended) return Promise.reject(new Error("stdin is closed"));
+        send({ t: "cli_in", data: Buffer.from(data, "utf8").toString("base64") });
+        return Promise.resolve();
+      },
       endInput: () => send({ t: "cli_end" }),
       exited,
       stderrTail: () => tail,
@@ -504,26 +888,69 @@ export function createComputeStream(deps: ComputeStreamDeps): ComputeStream {
     spawnProc,
     portFetch(nodeId, a, sink) {
       const n = nodes.get(nodeId);
-      if (!n?.peer.open) { sink.fail("The computer it runs on is not connected."); return; }
+      if (!n?.peer.open) {
+        sink.fail("The computer it runs on is not connected.");
+        return;
+      }
       const id = newId();
-      const timer = setTimeout(() => { portDone(id); sink.fail("The port did not answer in time."); }, PORT_MS);
+      const timer = setTimeout(() => {
+        portDone(id);
+        sink.fail("The port did not answer in time.");
+      }, PORT_MS);
       timer.unref?.();
       ports.set(id, { nodeId, sink, timer });
-      n.peer.send(JSON.stringify({ t: "port_req", id, computerId: a.computerId, port: a.port, method: a.request.method, path: a.request.path, headers: a.request.headers, ...(a.request.body?.length ? { body: Buffer.from(a.request.body).toString("base64") } : {}) }));
+      n.peer.send(
+        JSON.stringify({
+          t: "port_req",
+          id,
+          computerId: a.computerId,
+          port: a.port,
+          method: a.request.method,
+          path: a.request.path,
+          headers: a.request.headers,
+          ...(a.request.body?.length ? { body: Buffer.from(a.request.body).toString("base64") } : {}),
+        }),
+      );
     },
-    running(nodeId) { return nodeId === undefined ? [...nodes.values()].reduce((n, c) => n + c.procs.size, 0) : (nodes.get(nodeId)?.procs.size ?? 0); },
-    running(nodeId) { return nodeId === undefined ? [...nodes.values()].reduce((n, c) => n + c.procs.size, 0) : (nodes.get(nodeId)?.procs.size ?? 0); },
-    peerAddress(nodeId) { return nodes.get(nodeId)?.address ?? null; },
+    running(nodeId) {
+      return nodeId === undefined
+        ? [...nodes.values()].reduce((n, c) => n + c.procs.size, 0)
+        : (nodes.get(nodeId)?.procs.size ?? 0);
+    },
+    running(nodeId) {
+      return nodeId === undefined
+        ? [...nodes.values()].reduce((n, c) => n + c.procs.size, 0)
+        : (nodes.get(nodeId)?.procs.size ?? 0);
+    },
+    peerAddress(nodeId) {
+      return nodes.get(nodeId)?.address ?? null;
+    },
     devices(person) {
-      return [...nodes.values()].filter((n) => n.device && n.peer.open && (person === undefined || n.device.person === person)).map((n) => ({ ...n.device!, engines: [...n.device!.engines] }));
+      return [...nodes.values()]
+        .filter((n) => n.device && n.peer.open && (person === undefined || n.device.person === person))
+        .map((n) => ({ ...n.device!, engines: [...n.device!.engines] }));
     },
-    onDevice(fn) { deviceListeners.add(fn); return () => { deviceListeners.delete(fn); }; },
+    onDevice(fn) {
+      deviceListeners.add(fn);
+      return () => {
+        deviceListeners.delete(fn);
+      };
+    },
     ask(nodeId, kind, input, timeoutMs = 20_000) {
       return new Promise((ok, no) => {
         const n = nodes.get(nodeId);
-        if (!n?.peer.open) { no(new Error("The computer it runs on is not connected.")); return; }
+        if (!n?.peer.open) {
+          no(new Error("The computer it runs on is not connected."));
+          return;
+        }
         const id = newId();
-        const timer = setTimeout(() => { asks.delete(id); no(new Error("The computer did not answer in time.")); }, Math.min(Math.max(timeoutMs, 1_000), 150_000));
+        const timer = setTimeout(
+          () => {
+            asks.delete(id);
+            no(new Error("The computer did not answer in time."));
+          },
+          Math.min(Math.max(timeoutMs, 1_000), 150_000),
+        );
         timer.unref?.();
         asks.set(id, { nodeId, ok, no, timer });
         n.peer.send(JSON.stringify({ t: "ask", id, kind, input }));
@@ -546,7 +973,10 @@ export function createComputeStream(deps: ComputeStreamDeps): ComputeStream {
       const url = new URL(req.url ?? "/", "http://x");
       const m = VIEW_PATH.exec(url.pathname);
       if (!m || m[2] !== "stream") return false;
-      if (req.method !== "GET") { plain(res, 405, "validation.bad_input", "Use GET."); return true; }
+      if (req.method !== "GET") {
+        plain(res, 405, "validation.bad_input", "Use GET.");
+        return true;
+      }
       handleMjpeg(req, res, m[1]!);
       return true;
     },
@@ -554,10 +984,21 @@ export function createComputeStream(deps: ComputeStreamDeps): ComputeStream {
       let n = 0;
       for (const c of [...nodes.values()]) {
         if (!c.device) continue;
-        if ((m.sessionId !== undefined && c.sessionId === m.sessionId) || (m.person !== undefined && c.device.person === m.person)) { dropNode(c, 4003); n++; }
+        if (
+          (m.sessionId !== undefined && c.sessionId === m.sessionId) ||
+          (m.person !== undefined && c.device.person === m.person)
+        ) {
+          dropNode(c, 4003);
+          n++;
+        }
       }
       const who = viewer ?? m.person;
-      if (who !== undefined) for (const v of [...views.values()]) if (v.personId === who) { dropView(v.id, true); n++; }
+      if (who !== undefined)
+        for (const v of [...views.values()])
+          if (v.personId === who) {
+            dropView(v.id, true);
+            n++;
+          }
       return n;
     },
     closeNode(nodeId) {
@@ -568,6 +1009,9 @@ export function createComputeStream(deps: ComputeStreamDeps): ComputeStream {
     },
     connected: (nodeId) => nodes.get(nodeId)?.peer.open === true,
     secure: (nodeId) => nodes.get(nodeId)?.secure === true,
-    close() { clearInterval(timer); for (const n of [...nodes.values()]) dropNode(n, 1001); },
+    close() {
+      clearInterval(timer);
+      for (const n of [...nodes.values()]) dropNode(n, 1001);
+    },
   };
 }

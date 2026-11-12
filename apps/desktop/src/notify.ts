@@ -31,7 +31,10 @@ export type NotificationInput = {
 export type OsNotification = { title: string; body: string; link: string; tag: string };
 export type Banner = { key: string; title: string; body: string; link: string; count: number; at: number };
 
-const clean = (s: string, max: number): string => Array.from(s.replace(/[\u0000-\u001f\u007f]/g, " ").trim()).slice(0, max).join("");
+const clean = (s: string, max: number): string =>
+  Array.from(s.replace(/[\u0000-\u001f\u007f]/g, " ").trim())
+    .slice(0, max)
+    .join("");
 
 /** vyre://open?space=...&thread=... The page's router reads it; the shell only checks that it is ours and well formed. */
 export function openLink(target: { space: string; thread?: string; record?: string; task?: string }): string {
@@ -56,7 +59,11 @@ export function parseOpenLink(url: string): OpenTarget | null {
     const i = pair.indexOf("=");
     const k = i < 0 ? pair : pair.slice(0, i);
     let v = "";
-    try { v = decodeURIComponent((i < 0 ? "" : pair.slice(i + 1)).replace(/\+/g, " ")); } catch { return null; }
+    try {
+      v = decodeURIComponent((i < 0 ? "" : pair.slice(i + 1)).replace(/\+/g, " "));
+    } catch {
+      return null;
+    }
     if (!k || Object.keys(out).length >= 16) return null;
     out[k] = v;
   }
@@ -72,7 +79,10 @@ export function parseOpenLink(url: string): OpenTarget | null {
  * What goes to the operating system for one notification, or null when it must not interrupt: only Interrupt level does, and never while the
  * window is in front (the page shows its own banner then). `showContent` is off by default: the banner says who needs you and nothing else.
  */
-export function osNotification(n: NotificationInput, opts: { windowFocused: boolean; showContent?: boolean }): OsNotification | null {
+export function osNotification(
+  n: NotificationInput,
+  opts: { windowFocused: boolean; showContent?: boolean },
+): OsNotification | null {
   if (n.level !== "interrupt" || opts.windowFocused) return null;
   if (!n.key || !n.space) return null;
   const who = clean(n.title, MAX_TITLE) || "Vyre";
@@ -87,7 +97,14 @@ export function pushBanner(list: readonly Banner[], n: NotificationInput, max = 
   if (n.level !== "interrupt" || !n.key || !n.space) return [...list];
   const link = openLink({ space: n.space, thread: n.thread, record: n.record, task: n.task });
   const prev = list.find((b) => b.key === n.key);
-  const next: Banner = { key: n.key, title: clean(n.title, MAX_TITLE), body: clean(n.body ?? "", MAX_BODY), link, count: (prev?.count ?? 0) + 1, at: n.at };
+  const next: Banner = {
+    key: n.key,
+    title: clean(n.title, MAX_TITLE),
+    body: clean(n.body ?? "", MAX_BODY),
+    link,
+    count: (prev?.count ?? 0) + 1,
+    at: n.at,
+  };
   return [next, ...list.filter((b) => b.key !== n.key)].slice(0, max);
 }
 

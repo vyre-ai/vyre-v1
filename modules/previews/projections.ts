@@ -25,8 +25,12 @@ function payloadOf(payload: Uint8Array): Row {
 
 export function queueVersion(tx: ProjTx, fileId: string, version: number, at: number): void {
   if (fileId === "" || !Number.isInteger(version) || version < 1) return;
-  const have = (tx.all("SELECT * FROM previews_queue WHERE file_id = ?", fileId) as Row[]).some((r) => r["version"] === version);
-  const done = (tx.all("SELECT * FROM previews_file WHERE file_id = ?", fileId) as Row[]).some((r) => r["version"] === version && r["state"] === "ready");
+  const have = (tx.all("SELECT * FROM previews_queue WHERE file_id = ?", fileId) as Row[]).some(
+    (r) => r["version"] === version,
+  );
+  const done = (tx.all("SELECT * FROM previews_file WHERE file_id = ?", fileId) as Row[]).some(
+    (r) => r["version"] === version && r["state"] === "ready",
+  );
   if (have || done) return;
   tx.run("INSERT INTO previews_queue (file_id, version, queued_at) VALUES (?, ?, ?)", fileId, version, at);
 }
@@ -44,7 +48,8 @@ function onPurged(tx: ProjTx, e: ProjEvent): void {
   for (const r of tx.all("SELECT * FROM previews_image WHERE file_id = ?", fileId) as Row[]) {
     const id = r["blob_id"];
     if (typeof id !== "string" || id === "") continue;
-    if ((tx.all("SELECT * FROM previews_gc WHERE blob_id = ?", id) as Row[]).length === 0) tx.run("INSERT INTO previews_gc (blob_id, queued_at) VALUES (?, ?)", id, e.at);
+    if ((tx.all("SELECT * FROM previews_gc WHERE blob_id = ?", id) as Row[]).length === 0)
+      tx.run("INSERT INTO previews_gc (blob_id, queued_at) VALUES (?, ?)", id, e.at);
   }
   tx.run("DELETE FROM previews_image WHERE file_id = ?", fileId);
   tx.run("DELETE FROM previews_file WHERE file_id = ?", fileId);
@@ -55,7 +60,10 @@ export const versionConsumer = {
   version: 1,
   mode: "async" as const,
   rebuild: "replay" as const,
-  on: { "file.version_added": onVersionAdded, "file.purged": onPurged } as Record<string, (tx: ProjTx, e: ProjEvent) => void>,
+  on: { "file.version_added": onVersionAdded, "file.purged": onPurged } as Record<
+    string,
+    (tx: ProjTx, e: ProjEvent) => void
+  >,
 };
 
 export const inline = {};

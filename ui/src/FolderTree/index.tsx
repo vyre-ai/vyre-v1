@@ -35,7 +35,10 @@ export interface VisibleSection {
 }
 
 /** Sections in the fixed order. Children follow their parent; a closed folder hides its children. A node whose parent is not in the list is a root. */
-export function visibleSections(nodes: readonly FolderNode[], openOverride: Readonly<Record<string, boolean>> = {}): VisibleSection[] {
+export function visibleSections(
+  nodes: readonly FolderNode[],
+  openOverride: Readonly<Record<string, boolean>> = {},
+): VisibleSection[] {
   const ids = new Set(nodes.map((n) => n.id));
   const kids = new Map<string | null, FolderNode[]>();
   for (const n of nodes) {
@@ -66,7 +69,12 @@ export function visibleSections(nodes: readonly FolderNode[], openOverride: Read
       const childCount = (kids.get(n.id) ?? []).length;
       rows.push({ node: n, depth: 0, hasChildren: childCount > 0, open: isOpen(n) });
     }
-    out.push({ id: section.id, label: section.label, rows, total: nodes.filter((n) => n.section === section.id).length });
+    out.push({
+      id: section.id,
+      label: section.label,
+      rows,
+      total: nodes.filter((n) => n.section === section.id).length,
+    });
   }
   return out;
 }
@@ -74,7 +82,11 @@ export function visibleSections(nodes: readonly FolderNode[], openOverride: Read
 export type TreeKey = "ArrowDown" | "ArrowUp" | "ArrowRight" | "ArrowLeft" | "Home" | "End";
 
 /** The folder the cursor lands on for a key, and whether a folder opens or closes. */
-export function moveCursor(rows: readonly VisibleFolder[], from: string | null, key: TreeKey): { id: string | null; open?: boolean } {
+export function moveCursor(
+  rows: readonly VisibleFolder[],
+  from: string | null,
+  key: TreeKey,
+): { id: string | null; open?: boolean } {
   if (rows.length === 0) return { id: null };
   const at = rows.findIndex((r) => r.node.id === from);
   const cur = at < 0 ? undefined : rows[at];
@@ -118,9 +130,16 @@ export function canManageFolder(node: FolderNode): boolean {
 /** The folder menu. Items you cannot use are left out, so icons stay all or none. ui/Menu appends Report a problem. */
 export function folderMenu(node: FolderNode, open: boolean, hasChildren: boolean, h: FolderHandlers): MenuEntry[] {
   const items: MenuEntry[] = [];
-  if (hasChildren) items.push({ label: open ? "Close" : "Open", icon: "open", ...(h.onToggle === undefined ? {} : { onSelect: () => h.onToggle?.(node.id, !open) }) });
-  if (canManageFolder(node)) items.push({ label: "New Folder…", icon: "plus", onSelect: () => h.onNewFolder?.(node.scope, node.id) });
-  if (canManageFolder(node) && h.onMount) items.push({ label: "Connect a Folder…", icon: "link", onSelect: () => h.onMount?.(node) });
+  if (hasChildren)
+    items.push({
+      label: open ? "Close" : "Open",
+      icon: "open",
+      ...(h.onToggle === undefined ? {} : { onSelect: () => h.onToggle?.(node.id, !open) }),
+    });
+  if (canManageFolder(node))
+    items.push({ label: "New Folder…", icon: "plus", onSelect: () => h.onNewFolder?.(node.scope, node.id) });
+  if (canManageFolder(node) && h.onMount)
+    items.push({ label: "Connect a Folder…", icon: "link", onSelect: () => h.onMount?.(node) });
   if (items.length > 0) items.push({ separator: true });
   if (h.onShare) items.push({ label: "Share…", icon: "link", onSelect: () => h.onShare?.(node) });
   if (canManageFolder(node)) {
@@ -159,13 +178,11 @@ const OVER = { backgroundColor: "var(--accent-wash)" };
 /** A ui/Row using its leading and trailing slots (ruling 36). The wrapper only carries the right-click menu, the drop handlers and the drop highlight; ShareSheet reuses it. */
 export function SlotRow(props: SlotRowProps): ReactElement {
   const menu = props.onMenu === undefined ? {} : menuTrigger(props.onMenu);
-  const lead = props.lead ? <View style={{ width: props.leadWidth, flexDirection: "row", alignItems: "center" }}>{props.lead}</View> : undefined;
+  const lead = props.lead ? (
+    <View style={{ width: props.leadWidth, flexDirection: "row", alignItems: "center" }}>{props.lead}</View>
+  ) : undefined;
   return (
-    <View
-      style={[styles.slot, props.over === true && OVER]}
-      {...menu}
-      {...webProps(props.dom ?? {})}
-    >
+    <View style={[styles.slot, props.over === true && OVER]} {...menu} {...webProps(props.dom ?? {})}>
       <Row
         id={props.id}
         title={props.title}
@@ -186,11 +203,20 @@ export interface FolderTreeViewProps extends FolderTreeProps, FolderHandlers {
   testID?: string;
 }
 
-const CHEVRON = '<svg viewBox="0 0 16 16" width="10" height="10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3.500l4.500 4.500L6 12.500"/></svg>';
+const CHEVRON =
+  '<svg viewBox="0 0 16 16" width="10" height="10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3.500l4.500 4.500L6 12.500"/></svg>';
 
 function Chevron({ open }: { open: boolean }): ReactElement {
   if (Platform.OS !== "web") return <Text style={styles.nativeChevron}>{open ? "▾" : "▸"}</Text>;
-  return createElement("span", { style: { display: "inline-flex", color: "var(--ink-4)", transform: open ? "rotate(90deg)" : "none", transition: "transform 140ms" }, dangerouslySetInnerHTML: { __html: CHEVRON } });
+  return createElement("span", {
+    style: {
+      display: "inline-flex",
+      color: "var(--ink-4)",
+      transform: open ? "rotate(90deg)" : "none",
+      transition: "transform 140ms",
+    },
+    dangerouslySetInnerHTML: { __html: CHEVRON },
+  });
 }
 
 const DEPTH_PX = 14;
@@ -198,11 +224,15 @@ const CHEVRON_PX = 18;
 const ICON_PX = 16;
 /** Chevron, a gap, the folder icon, a gap: the title starts after this much. */
 const LEAD_PX = CHEVRON_PX + 5 + ICON_PX + 7;
-const FOLDER = '<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.500 4.500a1 1 0 011-1h3l1.500 1.500h4.500a1 1 0 011 1v6a1 1 0 01-1 1h-9a1 1 0 01-1-1z"/></svg>';
+const FOLDER =
+  '<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.500 4.500a1 1 0 011-1h3l1.500 1.500h4.500a1 1 0 011 1v6a1 1 0 01-1 1h-9a1 1 0 01-1-1z"/></svg>';
 
 function FolderIcon(): ReactElement {
   if (Platform.OS !== "web") return <Text style={styles.nativeChevron}>{"\u25a4"}</Text>;
-  return createElement("span", { style: { display: "inline-flex", color: "var(--ink-3)" }, dangerouslySetInnerHTML: { __html: FOLDER } });
+  return createElement("span", {
+    style: { display: "inline-flex", color: "var(--ink-3)" },
+    dangerouslySetInnerHTML: { __html: FOLDER },
+  });
 }
 
 export function FolderTree(props: FolderTreeViewProps): ReactElement {
@@ -223,7 +253,14 @@ export function FolderTree(props: FolderTreeViewProps): ReactElement {
 
   const onKeyDown = (event: { key: string; preventDefault?: () => void }): void => {
     const k = event.key;
-    if (k === "ArrowDown" || k === "ArrowUp" || k === "ArrowRight" || k === "ArrowLeft" || k === "Home" || k === "End") {
+    if (
+      k === "ArrowDown" ||
+      k === "ArrowUp" ||
+      k === "ArrowRight" ||
+      k === "ArrowLeft" ||
+      k === "Home" ||
+      k === "End"
+    ) {
       event.preventDefault?.();
       const step = moveCursor(flat, cursor ?? props.selectedId, k);
       if (step.id !== null) setCursor(step.id);
@@ -269,14 +306,28 @@ export function FolderTree(props: FolderTreeViewProps): ReactElement {
       const lead = (
         <View style={{ flexDirection: "row", alignItems: "center", paddingLeft: r.depth * DEPTH_PX }}>
           {r.hasChildren ? (
-            <Pressable accessibilityRole="button" accessibilityLabel={`${r.open ? "Close" : "Open"} ${n.name}`} onPress={() => toggle(n.id, !r.open)} testID={`folder-toggle-${n.id}`} style={({ hovered }: { hovered?: boolean }) => [styles.chev, hovered === true && styles.chevHover]}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`${r.open ? "Close" : "Open"} ${n.name}`}
+              onPress={() => toggle(n.id, !r.open)}
+              testID={`folder-toggle-${n.id}`}
+              style={({ hovered }: { hovered?: boolean }) => [styles.chev, hovered === true && styles.chevHover]}
+            >
               <Chevron open={r.open} />
             </Pressable>
-          ) : <View style={styles.chev} />}
-          <View style={styles.folderIcon}><FolderIcon /></View>
+          ) : (
+            <View style={styles.chev} />
+          )}
+          <View style={styles.folderIcon}>
+            <FolderIcon />
+          </View>
         </View>
       );
-      const trail = <Text style={styles.count} testID={`folder-count-${n.id}`}>{n.count}</Text>;
+      const trail = (
+        <Text style={styles.count} testID={`folder-count-${n.id}`}>
+          {n.count}
+        </Text>
+      );
       rowNodes.push(
         <SlotRow
           key={n.id}
@@ -292,13 +343,22 @@ export function FolderTree(props: FolderTreeViewProps): ReactElement {
             setCursor(n.id);
             props.onSelect?.(n.id);
           }}
-          onMenu={(x, y) => menu.show(folderMenu(n, r.open, r.hasChildren, handlers), x, y, "context", { label: `Folder ${n.name}` })}
+          onMenu={(x, y) =>
+            menu.show(folderMenu(n, r.open, r.hasChildren, handlers), x, y, "context", { label: `Folder ${n.name}` })
+          }
           dom={dropProps(n.id, n.scope, n.id)}
         />,
       );
     }
     parts.push(
-      <View key={section.id} testID={`folders-${section.id}`} accessibilityRole="list" accessibilityLabel={section.label} {...webProps({ ...dropProps(null, scope, `sec:${section.id}`) })} style={[styles.section, over === `sec:${section.id}` && OVER]}>
+      <View
+        key={section.id}
+        testID={`folders-${section.id}`}
+        accessibilityRole="list"
+        accessibilityLabel={section.label}
+        {...webProps({ ...dropProps(null, scope, `sec:${section.id}`) })}
+        style={[styles.section, over === `sec:${section.id}` && OVER]}
+      >
         <View style={styles.head}>
           <Pressable
             accessibilityRole="button"
@@ -309,18 +369,29 @@ export function FolderTree(props: FolderTreeViewProps): ReactElement {
             style={({ hovered }: { hovered?: boolean }) => [styles.headButton, hovered === true && styles.addHover]}
           >
             <Chevron open={!closed} />
-            <Text accessibilityRole="header" style={styles.headText}>{section.label}</Text>
+            <Text accessibilityRole="header" style={styles.headText}>
+              {section.label}
+            </Text>
             <Text style={styles.headCount}>{section.total}</Text>
           </Pressable>
           <View style={styles.grow} />
           {mayCreate ? (
-            <Pressable accessibilityRole="button" accessibilityLabel={`New folder in ${section.label}`} onPress={() => props.onNewFolder?.(scope, null)} testID={`folders-new-${section.id}`} {...webProps({ title: "New Folder" })} style={({ hovered }: { hovered?: boolean }) => [styles.add, hovered === true && styles.addHover]}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`New folder in ${section.label}`}
+              onPress={() => props.onNewFolder?.(scope, null)}
+              testID={`folders-new-${section.id}`}
+              {...webProps({ title: "New Folder" })}
+              style={({ hovered }: { hovered?: boolean }) => [styles.add, hovered === true && styles.addHover]}
+            >
               <Text style={styles.addText}>+</Text>
             </Pressable>
           ) : null}
         </View>
         {rowNodes}
-        {rowNodes.length === 0 && !closed ? <Text style={styles.none}>{section.id === "shared" ? "Nothing shared with you yet" : "No folders yet"}</Text> : null}
+        {rowNodes.length === 0 && !closed ? (
+          <Text style={styles.none}>{section.id === "shared" ? "Nothing shared with you yet" : "No folders yet"}</Text>
+        ) : null}
       </View>,
     );
   }

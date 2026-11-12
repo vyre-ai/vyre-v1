@@ -6,12 +6,44 @@ import type { TaskRowDo } from "./row-menu.ts";
 import type { MenuEntry, MenuItem } from "../../../../../../ui/src/Menu/index.tsx";
 
 const calls: string[] = [];
-const d = Object.fromEntries(["open", "toggleSelect", "markDone", "reopen", "status", "assign", "due", "priority", "labels", "moveToProject", "snooze", "duplicate", "remove"].map((k) => [k, () => calls.push(k)])) as unknown as TaskRowDo;
-const shape = (e: readonly MenuEntry[]): string[] => e.map((x) => ("separator" in x ? "-" : "head" in x ? "#" : x.label));
+const d = Object.fromEntries(
+  [
+    "open",
+    "toggleSelect",
+    "markDone",
+    "reopen",
+    "status",
+    "assign",
+    "due",
+    "priority",
+    "labels",
+    "moveToProject",
+    "snooze",
+    "duplicate",
+    "remove",
+  ].map((k) => [k, () => calls.push(k)]),
+) as unknown as TaskRowDo;
+const shape = (e: readonly MenuEntry[]): string[] =>
+  e.map((x) => ("separator" in x ? "-" : "head" in x ? "#" : x.label));
 
 test("an open task: Open, Select, Mark Done, then Status, Assign, Due, Priority, Labels, Move, Snooze, then Duplicate and Delete last", () => {
   const e = taskRowEntries({ done: false, selected: false }, d);
-  assert.deepEqual(shape(e), ["Open", "Select", "-", "Mark Done", "Status…", "Assign…", "Due…", "Priority…", "Labels…", "Move to a project…", "Snooze…", "-", "Duplicate", "Delete"]);
+  assert.deepEqual(shape(e), [
+    "Open",
+    "Select",
+    "-",
+    "Mark Done",
+    "Status…",
+    "Assign…",
+    "Due…",
+    "Priority…",
+    "Labels…",
+    "Move to a project…",
+    "Snooze…",
+    "-",
+    "Duplicate",
+    "Delete",
+  ]);
   const last = e.at(-1) as MenuItem;
   assert.equal(last.danger, true);
   assert.equal(e.filter((x) => "danger" in x && x.danger).length, 1);
@@ -25,17 +57,37 @@ test("a done task offers Reopen, a selected row Deselect", () => {
 test("every item calls its own action", () => {
   calls.length = 0;
   for (const x of taskRowEntries({ done: false, selected: false }, d)) if ("onSelect" in x) x.onSelect?.();
-  assert.deepEqual(calls, ["open", "toggleSelect", "markDone", "status", "assign", "due", "priority", "labels", "moveToProject", "snooze", "duplicate", "remove"]);
+  assert.deepEqual(calls, [
+    "open",
+    "toggleSelect",
+    "markDone",
+    "status",
+    "assign",
+    "due",
+    "priority",
+    "labels",
+    "moveToProject",
+    "snooze",
+    "duplicate",
+    "remove",
+  ]);
   calls.length = 0;
-  for (const x of taskRowEntries({ done: true, selected: false }, d)) if ("onSelect" in x && x.label === "Reopen") x.onSelect?.();
+  for (const x of taskRowEntries({ done: true, selected: false }, d))
+    if ("onSelect" in x && x.label === "Reopen") x.onSelect?.();
   assert.deepEqual(calls, ["reopen"]);
 });
 
 test("a task with a thread to follow and a link to copy shows Follow and Copy Link, and each runs its own door", () => {
   const did: string[] = [];
-  const e = taskRowEntries({ done: false, selected: false }, { ...d, follow: () => did.push("follow"), copyLink: () => did.push("link") });
+  const e = taskRowEntries(
+    { done: false, selected: false },
+    { ...d, follow: () => did.push("follow"), copyLink: () => did.push("link") },
+  );
   const items = e.filter((x): x is Extract<typeof x, { label: string }> => "label" in x);
-  assert.deepEqual(items.map((x) => x.label).filter((l) => l === "Follow" || l === "Copy Link"), ["Follow", "Copy Link"]);
+  assert.deepEqual(
+    items.map((x) => x.label).filter((l) => l === "Follow" || l === "Copy Link"),
+    ["Follow", "Copy Link"],
+  );
   for (const x of items) if (x.label === "Follow" || x.label === "Copy Link") x.onSelect?.();
   assert.deepEqual(did, ["follow", "link"]);
 });

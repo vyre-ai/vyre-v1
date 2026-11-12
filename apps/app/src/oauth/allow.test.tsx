@@ -30,11 +30,29 @@ test("inside a frame nothing is offered", () => {
 
 test("a deep link opens Allow only with a well-formed request, and never from a sign-in link", () => {
   const base = { address: "https://northwind.vyre.run", allow: "oar_abc123" };
-  assert.deepEqual(routeDesktopLink({ action: "open", params: base }), { kind: "allow", address: "https://northwind.vyre.run", request: "oar_abc123" });
-  assert.deepEqual(routeDesktopLink({ action: "open", params: { ...base, allow: "javascript:alert(1)" } }), { kind: "signin", address: "https://northwind.vyre.run" });
-  assert.deepEqual(routeDesktopLink({ action: "signin", params: base }), { kind: "signin", address: "https://northwind.vyre.run" });
-  assert.equal(routeDesktopLink({ action: "open", params: { address: "http://evil.example", allow: "oar_abc123" } }), null, "an address that is neither https nor loopback goes nowhere");
-  assert.deepEqual(routeDesktopLink({ action: "open", params: { address: "http://127.0.0.1:41800", allow: "oar_abc123" } }), { kind: "allow", address: "http://127.0.0.1:41800", request: "oar_abc123" }, "a Personal Space lives on loopback");
+  assert.deepEqual(routeDesktopLink({ action: "open", params: base }), {
+    kind: "allow",
+    address: "https://northwind.vyre.run",
+    request: "oar_abc123",
+  });
+  assert.deepEqual(routeDesktopLink({ action: "open", params: { ...base, allow: "javascript:alert(1)" } }), {
+    kind: "signin",
+    address: "https://northwind.vyre.run",
+  });
+  assert.deepEqual(routeDesktopLink({ action: "signin", params: base }), {
+    kind: "signin",
+    address: "https://northwind.vyre.run",
+  });
+  assert.equal(
+    routeDesktopLink({ action: "open", params: { address: "http://evil.example", allow: "oar_abc123" } }),
+    null,
+    "an address that is neither https nor loopback goes nowhere",
+  );
+  assert.deepEqual(
+    routeDesktopLink({ action: "open", params: { address: "http://127.0.0.1:41800", allow: "oar_abc123" } }),
+    { kind: "allow", address: "http://127.0.0.1:41800", request: "oar_abc123" },
+    "a Personal Space lives on loopback",
+  );
 });
 
 test("the web route reads one well-formed request id", () => {
@@ -49,9 +67,22 @@ import { ASK_LINE, SETUP_LINE, SETUP_TITLE } from "./AllowScreen.tsx";
 
 test("an owner or admin chooses what it may do: Act for me, including setup is the default and says what it means in one line; Ask me first sends no grant; a member sees no choice", async () => {
   installDom();
-  const request = (canSetup: boolean) => ({ request: { requestId: "oar_1", clientName: "Claude Code", spaceName: "Northwind", match: "4821", expiresAt: 1, rejoins: false, ...(canSetup ? { canSetup: true } : {}) } });
+  const request = (canSetup: boolean) => ({
+    request: {
+      requestId: "oar_1",
+      clientName: "Claude Code",
+      spaceName: "Northwind",
+      match: "4821",
+      expiresAt: 1,
+      rejoins: false,
+      ...(canSetup ? { canSetup: true } : {}),
+    },
+  });
   const calls: { cap: string; input: unknown }[] = [];
-  const fake = (canSetup: boolean) => async (cap: string, input: unknown) => { calls.push({ cap, input }); return cap === "mcp.oauth.request" ? request(canSetup) : { agentId: "agt_1", name: "Claude Code" }; };
+  const fake = (canSetup: boolean) => async (cap: string, input: unknown) => {
+    calls.push({ cap, input });
+    return cap === "mcp.oauth.request" ? request(canSetup) : { agentId: "agt_1", name: "Claude Code" };
+  };
   const owner = await mount(createRoot, <AllowScreen call={fake(true)} requestId="oar_1" me="Olivia" />);
   await flush();
   assert.match(textOf(owner), new RegExp(SETUP_TITLE));

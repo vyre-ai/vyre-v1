@@ -9,7 +9,16 @@ import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import { AddAnything, EditSheet, ItemEnv, NoItem } from "../itemenv/index.ts";
-import { VaultDataProvider, copyText, retryVaultQueries, useOnline, useOptionalVaultData, usePrincipals, useScreenQuery, useVaultData } from "./data.tsx";
+import {
+  VaultDataProvider,
+  copyText,
+  retryVaultQueries,
+  useOnline,
+  useOptionalVaultData,
+  usePrincipals,
+  useScreenQuery,
+  useVaultData,
+} from "./data.tsx";
 import type { VaultData } from "./data.tsx";
 import { ItemList } from "./ItemList.tsx";
 import { ALL, EXPIRY_CHOICES, countItems, expiryLabel, sameSelection, visibleItems } from "./model.ts";
@@ -25,7 +34,13 @@ import { Sheet } from "./Sheet.tsx";
 import { VaultShareSheet } from "../share/VaultShareSheet.tsx";
 import { PolicyView } from "./PolicyView.tsx";
 import { ChromeSheet } from "./ChromeSheet.tsx";
-import { declineVaultRequest, exportVaultFolder, fulfilVaultRequest, requestFields, revokeVaultExport } from "./routed-actions.ts";
+import {
+  declineVaultRequest,
+  exportVaultFolder,
+  fulfilVaultRequest,
+  requestFields,
+  revokeVaultExport,
+} from "./routed-actions.ts";
 import { HealthView } from "../health/index.ts";
 import { ImportSheet } from "../import/index.ts";
 import type { Source } from "../import/index.ts";
@@ -54,16 +69,43 @@ type ExportsOut = CapMap["vault.exports.list"]["out"];
 export const WIDE = 900;
 export const TWO_PANE = 720;
 
-const TITLES: Record<Exclude<Selection["kind"], "folder">, string> = { all: "All", providers: "AI accounts", google: "Google and Microsoft", connections: "Connections", keys: "Keys", logins: "Logins", cards: "Cards", health: "Health", requested: "Requested", mine: "Mine" };
+const TITLES: Record<Exclude<Selection["kind"], "folder">, string> = {
+  all: "All",
+  providers: "AI accounts",
+  google: "Google and Microsoft",
+  connections: "Connections",
+  keys: "Keys",
+  logins: "Logins",
+  cards: "Cards",
+  health: "Health",
+  requested: "Requested",
+  mine: "Mine",
+};
 
 function titleOf(sel: Selection, folders: readonly Folder[]): string {
   return sel.kind === "folder" ? (folders.find((f) => f.id === sel.folderId)?.name ?? "Folder") : TITLES[sel.kind];
 }
 
-const ADD_LABEL: Record<Section | "ask", string> = { ask: "Add", ai: "Add an AI account", google: "Add Google or Microsoft", connections: "Add a connection", other: "Add a key, login or card" };
-const EMPTY_TITLE: Partial<Record<Selection["kind"], string>> = { keys: "No keys yet", logins: "No logins yet", cards: "No cards yet", mine: "Nothing of yours yet", folder: "This folder is empty" };
+const ADD_LABEL: Record<Section | "ask", string> = {
+  ask: "Add",
+  ai: "Add an AI account",
+  google: "Add Google or Microsoft",
+  connections: "Add a connection",
+  other: "Add a key, login or card",
+};
+const EMPTY_TITLE: Partial<Record<Selection["kind"], string>> = {
+  keys: "No keys yet",
+  logins: "No logins yet",
+  cards: "No cards yet",
+  mine: "Nothing of yours yet",
+  folder: "This folder is empty",
+};
 
-interface QuietNote { id: number; text: string; undo: (() => Promise<void> | void) | undefined }
+interface QuietNote {
+  id: number;
+  text: string;
+  undo: (() => Promise<void> | void) | undefined;
+}
 const LINE_MS = 9000;
 
 export type VaultRoute =
@@ -75,10 +117,28 @@ export type VaultRoute =
   | { surface: "requests" }
   | { surface: "connections"; add?: true };
 
-function Page({ initial, sheet, view, route, onRouteClose, connectionsInitial, connectionsAdd, connectionsSite }: { initial?: Selection | undefined; sheet?: InitialSheet | undefined; view?: "env" | "fields" | undefined; route: VaultRoute; onRouteClose(): void; connectionsInitial?: ConnectionsData | undefined; connectionsAdd?: AddInitial | undefined; connectionsSite?: boolean | undefined }): ReactElement {
+function Page({
+  initial,
+  sheet,
+  view,
+  route,
+  onRouteClose,
+  connectionsInitial,
+  connectionsAdd,
+  connectionsSite,
+}: {
+  initial?: Selection | undefined;
+  sheet?: InitialSheet | undefined;
+  view?: "env" | "fields" | undefined;
+  route: VaultRoute;
+  onRouteClose(): void;
+  connectionsInitial?: ConnectionsData | undefined;
+  connectionsAdd?: AddInitial | undefined;
+  connectionsSite?: boolean | undefined;
+}): ReactElement {
   const data = useVaultData();
   const online = useOnline();
-  const canShare = allows(useOptionalShellRuntime(), GATE.sharedVault);   // a guest keeps nothing in the Vault: no New shared folder to press
+  const canShare = allows(useOptionalShellRuntime(), GATE.sharedVault); // a guest keeps nothing in the Vault: no New shared folder to press
   const { width } = useWindowDimensions();
   const wide = width >= WIDE;
   const twoPane = width >= TWO_PANE;
@@ -88,7 +148,12 @@ function Page({ initial, sheet, view, route, onRouteClose, connectionsInitial, c
   const health = useScreenQuery<Health>("vault.health", "health", {});
   const requests = useScreenQuery<RequestsOut>("vault_requests.list", "requests", { state: "waiting" });
   const menu = useMenu();
-  const routeSelection: Selection | undefined = route.surface === "requests" ? { kind: "requested" } : route.surface === "export" ? { kind: "folder", folderId: route.folderId } : undefined;
+  const routeSelection: Selection | undefined =
+    route.surface === "requests"
+      ? { kind: "requested" }
+      : route.surface === "export"
+        ? { kind: "folder", folderId: route.folderId }
+        : undefined;
   const [selection, setSelection] = useState<Selection>(routeSelection ?? initial ?? ALL);
   const [query, setQuery] = useState("");
   const [sharingFolder, setSharingFolder] = useState<Folder | null>(null);
@@ -103,15 +168,27 @@ function Page({ initial, sheet, view, route, onRouteClose, connectionsInitial, c
   // AI accounts in a Team Space: My AI accounts and Space AI accounts (the ones the Space pays with); a Personal Space has one list
   const [aiTab, setAiTab] = useState<"my" | "space">("my");
   const [mayManageAi, setMayManageAi] = useState(false);
-  useEffect(() => { if (data.personal === true) return; void (data.call("providers.space_key.get", {}) as Promise<{ mayManage?: boolean }>).then((k) => setMayManageAi(k.mayManage === true), () => undefined); }, [data]);
+  useEffect(() => {
+    if (data.personal === true) return;
+    void (data.call("providers.space_key.get", {}) as Promise<{ mayManage?: boolean }>).then(
+      (k) => setMayManageAi(k.mayManage === true),
+      () => undefined,
+    );
+  }, [data]);
   const spaceAi = selection.kind === "providers" && data.personal !== true && aiTab === "space";
-  const [addingProvider, setAddingProvider] = useState<boolean | { providerKey: string; connection: ConnectionKind }>(typeof sheet?.addProvider === "object" ? sheet.addProvider : sheet?.addProvider !== undefined);
+  const [addingProvider, setAddingProvider] = useState<boolean | { providerKey: string; connection: ConnectionKind }>(
+    typeof sheet?.addProvider === "object" ? sheet.addProvider : sheet?.addProvider !== undefined,
+  );
   // A link that asks for the sign-in (an agent with no AI account) opens the sheet even when the Vault is already showing.
   const routedAdd = route.surface === "layout" && route.addProvider === true;
-  useEffect(() => { if (routedAdd) setAddingProvider(true); }, [routedAdd]);
+  useEffect(() => {
+    if (routedAdd) setAddingProvider(true);
+  }, [routedAdd]);
   // The Inbox's Twilio tile asks for the Add form on that app's template.
   const routedApp = route.surface === "layout" ? route.addApp : undefined;
-  useEffect(() => { if (routedApp) setAdding({ app: routedApp }); }, [routedApp]);
+  useEffect(() => {
+    if (routedApp) setAdding({ app: routedApp });
+  }, [routedApp]);
   const [importing, setImporting] = useState<boolean>(sheet?.importFrom !== undefined);
   const [addField, setAddField] = useState(false);
   const [lastFolder, setLastFolder] = useState<string | undefined>(undefined);
@@ -129,23 +206,47 @@ function Page({ initial, sheet, view, route, onRouteClose, connectionsInitial, c
   const providerOf = useMemo(() => new Map(providerList.map((p) => [p.itemId, p] as const)), [providerList]);
   const providerIds = useMemo(() => new Set(providerOf.keys()), [providerOf]);
   /** Providers the person signed in to with a plan: the section's Connect row for each is left out. */
-  const signedIn = useMemo(() => new Set(providerList.filter((p) => p.connection === "subscription").map((p) => p.providerKey)), [providerList]);
-  const healthIds = useMemo(() => new Set(health.status === "ready" ? health.data.items.map((i) => i.itemId) : []), [health]);
+  const signedIn = useMemo(
+    () => new Set(providerList.filter((p) => p.connection === "subscription").map((p) => p.providerKey)),
+    [providerList],
+  );
+  const healthIds = useMemo(
+    () => new Set(health.status === "ready" ? health.data.items.map((i) => i.itemId) : []),
+    [health],
+  );
   const requested = requests.status === "ready" ? requests.data.requests.length : 0;
   // each item is shown in its one primary section: the folder it is in is part of that (the company connection's, connections' tokens)
-  const folderName = useCallback((id: string): string | undefined => folderList.find((f) => f.id === id)?.name, [folderList]);
-  const counts = useMemo(() => countItems(all, providerIds, health.status === "ready" ? health.data : null, requested, folderName), [all, providerIds, health, requested, folderName]);
+  const folderName = useCallback(
+    (id: string): string | undefined => folderList.find((f) => f.id === id)?.name,
+    [folderList],
+  );
+  const counts = useMemo(
+    () => countItems(all, providerIds, health.status === "ready" ? health.data : null, requested, folderName),
+    [all, providerIds, health, requested, folderName],
+  );
   const visible = useMemo(() => {
     const v = visibleItems(all, selection, query, providerIds, healthIds, folderName);
     // My AI accounts (a Team Space): the person's own; the Space's are on the other tab
-    return selection.kind === "providers" && data.personal !== true && aiTab === "my" && !query ? v.filter((it) => it.scope === "mine") : v;
+    return selection.kind === "providers" && data.personal !== true && aiTab === "my" && !query
+      ? v.filter((it) => it.scope === "mine")
+      : v;
   }, [all, selection, query, providerIds, healthIds, folderName, data.personal, aiTab]);
   const clock = data.clock();
 
   useEffect(() => {
-    if (route.surface === "share") { setSelection(ALL); setSelectedId(route.itemId); setDetailOpen(true); }
-    else if (route.surface === "requests") { setSelection({ kind: "requested" }); setSelectedId(null); setDetailOpen(false); }
-    else if (route.surface === "export") { setSelection({ kind: "folder", folderId: route.folderId }); setSelectedId(null); setDetailOpen(false); }
+    if (route.surface === "share") {
+      setSelection(ALL);
+      setSelectedId(route.itemId);
+      setDetailOpen(true);
+    } else if (route.surface === "requests") {
+      setSelection({ kind: "requested" });
+      setSelectedId(null);
+      setDetailOpen(false);
+    } else if (route.surface === "export") {
+      setSelection({ kind: "folder", folderId: route.folderId });
+      setSelectedId(null);
+      setDetailOpen(false);
+    }
   }, [route]);
 
   const showNote = useCallback((text: string, undo?: () => Promise<void> | void) => {
@@ -154,94 +255,240 @@ function Page({ initial, sheet, view, route, onRouteClose, connectionsInitial, c
     setNote({ id, text, undo });
     timer.current = setTimeout(() => setNote((cur) => (cur && cur.id === id ? null : cur)), LINE_MS);
   }, []);
-  const undoNote = useCallback(() => { const cur = note; if (!cur) return; if (timer.current) clearTimeout(timer.current); setNote(null); void cur.undo?.(); }, [note]);
-  useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
+  const undoNote = useCallback(() => {
+    const cur = note;
+    if (!cur) return;
+    if (timer.current) clearTimeout(timer.current);
+    setNote(null);
+    void cur.undo?.();
+  }, [note]);
+  useEffect(
+    () => () => {
+      if (timer.current) clearTimeout(timer.current);
+    },
+    [],
+  );
 
   // on a wide window the first row is open, as in the prototype; on a phone nothing is open until a row is chosen
-  const effectiveId = selectedId && visible.some((i) => i.id === selectedId) ? selectedId : twoPane ? (visible[0]?.id ?? null) : null;
+  const effectiveId =
+    selectedId && visible.some((i) => i.id === selectedId) ? selectedId : twoPane ? (visible[0]?.id ?? null) : null;
   // the first row, once shown, is the open item: a list that re-sorts (another item was just used) never swaps what the person is looking at
-  useEffect(() => { if (twoPane && effectiveId !== null && effectiveId !== selectedId) setSelectedId(effectiveId); }, [twoPane, effectiveId, selectedId]);
+  useEffect(() => {
+    if (twoPane && effectiveId !== null && effectiveId !== selectedId) setSelectedId(effectiveId);
+  }, [twoPane, effectiveId, selectedId]);
   const showDetail = twoPane || (detailOpen && effectiveId !== null);
 
-  const select = useCallback((s: Selection) => {
-    if (s.kind === "requested") { data.nav.openRequests(); return; }
-    setSelection(s); setSelectedId(null); setDetailOpen(false);
-    if (route.surface === "connections") onRouteClose();
-  }, [data.nav, route.surface, onRouteClose]);
-  const open = useCallback((id: string) => { setSelectedId(id); setDetailOpen(true); }, []);
+  const select = useCallback(
+    (s: Selection) => {
+      if (s.kind === "requested") {
+        data.nav.openRequests();
+        return;
+      }
+      setSelection(s);
+      setSelectedId(null);
+      setDetailOpen(false);
+      if (route.surface === "connections") onRouteClose();
+    },
+    [data.nav, route.surface, onRouteClose],
+  );
+  const open = useCallback((id: string) => {
+    setSelectedId(id);
+    setDetailOpen(true);
+  }, []);
 
-  const moveSelection = useCallback((dir: 1 | -1) => {
-    if (visible.length === 0) return;
-    const cur = visible.findIndex((i) => i.id === effectiveId);
-    const next = cur < 0 ? (dir === 1 ? 0 : visible.length - 1) : Math.max(0, Math.min(visible.length - 1, cur + dir));
-    setSelectedId(visible[next]!.id);
-  }, [visible, effectiveId]);
+  const moveSelection = useCallback(
+    (dir: 1 | -1) => {
+      if (visible.length === 0) return;
+      const cur = visible.findIndex((i) => i.id === effectiveId);
+      const next =
+        cur < 0 ? (dir === 1 ? 0 : visible.length - 1) : Math.max(0, Math.min(visible.length - 1, cur + dir));
+      setSelectedId(visible[next]!.id);
+    },
+    [visible, effectiveId],
+  );
 
   const overlay = adding !== null || editing !== null;
   useEffect(() => {
-    const doc = (globalThis as { document?: { addEventListener(t: string, f: (e: KeyboardEvent) => void): void; removeEventListener(t: string, f: (e: KeyboardEvent) => void): void } }).document;
+    const doc = (
+      globalThis as {
+        document?: {
+          addEventListener(t: string, f: (e: KeyboardEvent) => void): void;
+          removeEventListener(t: string, f: (e: KeyboardEvent) => void): void;
+        };
+      }
+    ).document;
     if (!doc) return;
     const onKey = (e: KeyboardEvent): void => {
       if (overlay) return;
       const t = e.target as { tagName?: string; isContentEditable?: boolean } | null;
       const typing = t?.tagName === "INPUT" || t?.tagName === "TEXTAREA" || t?.isContentEditable === true;
       const mod = e.metaKey || e.ctrlKey;
-      if (mod && e.key.toLowerCase() === "n") { e.preventDefault(); setAdding({}); return; }
-      if (mod && e.key.toLowerCase() === "f") { e.preventDefault(); searchRef.current?.focus?.(); return; }
-      if (typing) { if (e.key === "Escape" && query) setQuery(""); return; }
-      if (e.key === "/") { e.preventDefault(); searchRef.current?.focus?.(); }
-      else if (e.key === "ArrowDown") { e.preventDefault(); moveSelection(1); }
-      else if (e.key === "ArrowUp") { e.preventDefault(); moveSelection(-1); }
-      else if (e.key === "Enter" && effectiveId) { e.preventDefault(); setEditing(effectiveId); }
-      else if ((e.key === "Delete" || e.key === "Backspace") && effectiveId) { e.preventDefault(); setAskDelete((n) => n + 1); if (!twoPane) setDetailOpen(true); }
-      else if (e.key === "Escape") { if (detailOpen && !twoPane) setDetailOpen(false); else if (query) setQuery(""); }
+      if (mod && e.key.toLowerCase() === "n") {
+        e.preventDefault();
+        setAdding({});
+        return;
+      }
+      if (mod && e.key.toLowerCase() === "f") {
+        e.preventDefault();
+        searchRef.current?.focus?.();
+        return;
+      }
+      if (typing) {
+        if (e.key === "Escape" && query) setQuery("");
+        return;
+      }
+      if (e.key === "/") {
+        e.preventDefault();
+        searchRef.current?.focus?.();
+      } else if (e.key === "ArrowDown") {
+        e.preventDefault();
+        moveSelection(1);
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        moveSelection(-1);
+      } else if (e.key === "Enter" && effectiveId) {
+        e.preventDefault();
+        setEditing(effectiveId);
+      } else if ((e.key === "Delete" || e.key === "Backspace") && effectiveId) {
+        e.preventDefault();
+        setAskDelete((n) => n + 1);
+        if (!twoPane) setDetailOpen(true);
+      } else if (e.key === "Escape") {
+        if (detailOpen && !twoPane) setDetailOpen(false);
+        else if (query) setQuery("");
+      }
     };
     doc.addEventListener("keydown", onKey);
     return () => doc.removeEventListener("keydown", onKey);
   }, [overlay, moveSelection, effectiveId, query, detailOpen, twoPane]);
 
-  const createFolder = useCallback(async (name: string) => {
-    try { await data.call("vault.folders.create", { name, scope: "shared", idempotencyKey: `vault-folder-${name}-${Date.now()}` }); showNote(`Made the folder ${name}`); }
-    catch (e) { const x = e as { error?: { message?: string }; message?: string }; showNote(x?.error?.message ?? x?.message ?? `Could not make the folder ${name}.`); }
-  }, [data, showNote]);
+  const createFolder = useCallback(
+    async (name: string) => {
+      try {
+        await data.call("vault.folders.create", {
+          name,
+          scope: "shared",
+          idempotencyKey: `vault-folder-${name}-${Date.now()}`,
+        });
+        showNote(`Made the folder ${name}`);
+      } catch (e) {
+        const x = e as { error?: { message?: string }; message?: string };
+        showNote(x?.error?.message ?? x?.message ?? `Could not make the folder ${name}.`);
+      }
+    },
+    [data, showNote],
+  );
 
   const sectionEntries = (): MenuEntry[] => {
-    const entry = (s: Selection, label: string, n?: number): MenuEntry => ({ label: n === undefined ? label : `${label}  ${n}`, checked: sameSelection(s, selection), onSelect: () => select(s) });
+    const entry = (s: Selection, label: string, n?: number): MenuEntry => ({
+      label: n === undefined ? label : `${label}  ${n}`,
+      checked: sameSelection(s, selection),
+      onSelect: () => select(s),
+    });
     return [
       ...(counts.requested > 0 ? [entry({ kind: "requested" }, "Requested", counts.requested)] : []),
-      entry({ kind: "all" }, "All", counts.all), entry({ kind: "providers" }, "AI providers", counts.providers), entry({ kind: "keys" }, "Keys", counts.keys),
-      entry({ kind: "logins" }, "Logins", counts.logins), entry({ kind: "cards" }, "Cards", counts.cards), ...(counts.health > 0 ? [entry({ kind: "health" }, "Health", counts.health)] : []),
+      entry({ kind: "all" }, "All", counts.all),
+      entry({ kind: "providers" }, "AI providers", counts.providers),
+      entry({ kind: "keys" }, "Keys", counts.keys),
+      entry({ kind: "logins" }, "Logins", counts.logins),
+      entry({ kind: "cards" }, "Cards", counts.cards),
+      ...(counts.health > 0 ? [entry({ kind: "health" }, "Health", counts.health)] : []),
       { separator: true },
-      ...folderList.filter((f) => f.scope === "shared").map((f): MenuEntry => entry({ kind: "folder", folderId: f.id }, f.name, counts.folders.get(f.id) ?? f.itemCount)),
+      ...folderList
+        .filter((f) => f.scope === "shared")
+        .map(
+          (f): MenuEntry => entry({ kind: "folder", folderId: f.id }, f.name, counts.folders.get(f.id) ?? f.itemCount),
+        ),
       entry({ kind: "mine" }, "Mine", counts.mine),
-      ...(data.nav.openConnections ? [{ separator: true } as MenuEntry, { label: "Connections", checked: route.surface === "connections", onSelect: () => data.nav.openConnections?.() } as MenuEntry] : []),
+      ...(data.nav.openConnections
+        ? [
+            { separator: true } as MenuEntry,
+            {
+              label: "Connections",
+              checked: route.surface === "connections",
+              onSelect: () => data.nav.openConnections?.(),
+            } as MenuEntry,
+          ]
+        : []),
     ];
   };
 
   const itemMenu = (item: Item, x: number, y: number): void => {
     setSelectedId(item.id);
-    const moveTo = folderList.filter((f) => f.id !== item.folderId && (f.yourLevel === "edit" || f.yourLevel === "manage") && f.scope === "shared").map((f) => ({ id: f.id, name: f.name }));
+    const moveTo = folderList
+      .filter(
+        (f) => f.id !== item.folderId && (f.yourLevel === "edit" || f.yourLevel === "manage") && f.scope === "shared",
+      )
+      .map((f) => ({ id: f.id, name: f.name }));
     // the row's own menu (chats/menus/kinds-b.ts): what the level allows, the words of each state, Move to Trash last. Reveal, Share and Usage are on the open item, which they open.
-    menu.show(vaultItemMenu(
-      { name: item.name, kind: item.kind, level: item.yourLevel, rotates: item.rotateEveryDays !== undefined, moveTo },
-      {
-        open: () => open(item.id), edit: () => setEditing(item.id),
-        reveal: () => { open(item.id); setRevealAll((n) => n + 1); },
-        copyHandle: () => { void copyHandle(data, item.handle); }, copyName: () => { void copyText(data, item.name); },
-        move: (folderId) => { const from = item.folderId; void menuApi.vaultMove(item.id, folderId).then(() => showNote(`Moved ${item.name}`, () => menuApi.vaultMove(item.id, from))); },
-        share: () => open(item.id), usage: () => open(item.id),
-        markRotated: () => { void menuApi.vaultMarkRotated(item.id).then(() => showNote(`Marked ${item.name} rotated`)); },
-        trash: () => { open(item.id); setAskDelete((n) => n + 1); },
-      },
-    ), x, y);
+    menu.show(
+      vaultItemMenu(
+        {
+          name: item.name,
+          kind: item.kind,
+          level: item.yourLevel,
+          rotates: item.rotateEveryDays !== undefined,
+          moveTo,
+        },
+        {
+          open: () => open(item.id),
+          edit: () => setEditing(item.id),
+          reveal: () => {
+            open(item.id);
+            setRevealAll((n) => n + 1);
+          },
+          copyHandle: () => {
+            void copyHandle(data, item.handle);
+          },
+          copyName: () => {
+            void copyText(data, item.name);
+          },
+          move: (folderId) => {
+            const from = item.folderId;
+            void menuApi
+              .vaultMove(item.id, folderId)
+              .then(() => showNote(`Moved ${item.name}`, () => menuApi.vaultMove(item.id, from)));
+          },
+          share: () => open(item.id),
+          usage: () => open(item.id),
+          markRotated: () => {
+            void menuApi.vaultMarkRotated(item.id).then(() => showNote(`Marked ${item.name} rotated`));
+          },
+          trash: () => {
+            open(item.id);
+            setAskDelete((n) => n + 1);
+          },
+        },
+      ),
+      x,
+      y,
+    );
   };
 
   const folderMenu = (f: Folder, x: number, y: number): void => {
-    menu.show([
-      ...(f.yourLevel === "edit" || f.yourLevel === "manage" ? [{ label: "Add an item here", onSelect: () => { setLastFolder(f.id); setAdding({}); } } as MenuEntry] : []),
-      ...(f.yourLevel === "manage" && f.scope === "shared" && data.personal !== true ? [{ label: "Share…", onSelect: () => setSharingFolder(f) } as MenuEntry] : []),
-      ...(f.yourLevel === "manage" ? [{ label: "Export .env…", onSelect: () => data.nav.openExport(f.id) } as MenuEntry] : []),
-    ], x, y);
+    menu.show(
+      [
+        ...(f.yourLevel === "edit" || f.yourLevel === "manage"
+          ? [
+              {
+                label: "Add an item here",
+                onSelect: () => {
+                  setLastFolder(f.id);
+                  setAdding({});
+                },
+              } as MenuEntry,
+            ]
+          : []),
+        ...(f.yourLevel === "manage" && f.scope === "shared" && data.personal !== true
+          ? [{ label: "Share…", onSelect: () => setSharingFolder(f) } as MenuEntry]
+          : []),
+        ...(f.yourLevel === "manage"
+          ? [{ label: "Export .env…", onSelect: () => data.nav.openExport(f.id) } as MenuEntry]
+          : []),
+      ],
+      x,
+      y,
+    );
   };
 
   const loading = items.status !== "ready";
@@ -249,16 +496,56 @@ function Page({ initial, sheet, view, route, onRouteClose, connectionsInitial, c
   const header = (
     <View style={s.listHead}>
       {wide ? (
-        <Text accessibilityRole="header" style={s.listTitle} testID="list-title">{title}<Text style={s.listCount}>{`  ${visible.length}`}</Text></Text>
+        <Text accessibilityRole="header" style={s.listTitle} testID="list-title">
+          {title}
+          <Text style={s.listCount}>{`  ${visible.length}`}</Text>
+        </Text>
       ) : (
-        <Pressable accessibilityRole="button" accessibilityLabel={`Section: ${title}`} testID="section-menu" onPress={(e) => { const r = rectOf(e); menu.show(sectionEntries(), r.x, r.y, "other"); }} style={s.titleBtn}>
-          <Text accessibilityRole="header" style={s.listTitle} testID="list-title">{title}<Text style={s.listCount}>{`  ${visible.length}`}</Text></Text>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Section: ${title}`}
+          testID="section-menu"
+          onPress={(e) => {
+            const r = rectOf(e);
+            menu.show(sectionEntries(), r.x, r.y, "other");
+          }}
+          style={s.titleBtn}
+        >
+          <Text accessibilityRole="header" style={s.listTitle} testID="list-title">
+            {title}
+            <Text style={s.listCount}>{`  ${visible.length}`}</Text>
+          </Text>
           <Glyph name="chevron" size={12} />
         </Pressable>
       )}
       <View style={{ flex: 1 }} />
-      <IconBtn icon="more" label="More" onPress={(e) => { const r = rectOf(e); menu.show([{ label: "Add an AI provider…", onSelect: () => setAddingProvider(true) }, { label: "Import from another manager…", onSelect: () => setImporting(true) }], r.x - 160, r.y, "other"); }} testID="vault-more" color="var(--ink-2)" />
-      {addTarget(selection) === "connections" ? null : <IconBtn icon="plus" label={ADD_LABEL[addTarget(selection)]} onPress={() => addThe(addTarget(selection))} testID="add-item" color="var(--ink-2)" />}
+      <IconBtn
+        icon="more"
+        label="More"
+        onPress={(e) => {
+          const r = rectOf(e);
+          menu.show(
+            [
+              { label: "Add an AI provider…", onSelect: () => setAddingProvider(true) },
+              { label: "Import from another manager…", onSelect: () => setImporting(true) },
+            ],
+            r.x - 160,
+            r.y,
+            "other",
+          );
+        }}
+        testID="vault-more"
+        color="var(--ink-2)"
+      />
+      {addTarget(selection) === "connections" ? null : (
+        <IconBtn
+          icon="plus"
+          label={ADD_LABEL[addTarget(selection)]}
+          onPress={() => addThe(addTarget(selection))}
+          testID="add-item"
+          color="var(--ink-2)"
+        />
+      )}
     </View>
   );
 
@@ -266,26 +553,68 @@ function Page({ initial, sheet, view, route, onRouteClose, connectionsInitial, c
   function addThe(t: Section | "ask"): void {
     setChoosing(false);
     if (t === "ask") setChoosing(true);
-    else if (t === "ai") { if (spaceAi && !mayManageAi) return; setAddingProvider(true); }
-    else if (t === "google") { if (data.nav.openCompany) data.nav.openCompany(); else select({ kind: "google" }); }
-    else if (t === "connections") { if (data.nav.openConnections) data.nav.openConnections(); else select({ kind: "connections" }); }
-    else setAdding({});
+    else if (t === "ai") {
+      if (spaceAi && !mayManageAi) return;
+      setAddingProvider(true);
+    } else if (t === "google") {
+      if (data.nav.openCompany) data.nav.openCompany();
+      else select({ kind: "google" });
+    } else if (t === "connections") {
+      if (data.nav.openConnections) data.nav.openConnections();
+      else select({ kind: "connections" });
+    } else setAdding({});
   }
-  const sectionPage = selection.kind === "connections"
-    ? <ConnectionsPage tab={connTab} onTab={setConnTab} />
-    : selection.kind === "google"
-      ? <GoogleMicrosoftPage {...(data.nav.openCompany ? { onOpenCompany: data.nav.openCompany } : {})} keys={visible.length ? <ItemList items={visible} selectedId={effectiveId} providerOf={providerOf} healthIds={healthIds} clock={clock} onSelect={(id) => { setSelectedId(id); if (!twoPane) setDetailOpen(true); }} onOpen={(id) => { setSelectedId(id); setEditing(id); }} onMenu={itemMenu} /> : null} />
-      : null;
-  const aiTabs = selection.kind === "providers" && data.personal !== true ? (
-    <View style={s.aiTabs} accessibilityRole="tablist" testID="ai-tabs">
-      {/* ui-rows-lint: not a list (two tabs) */}
-      {([["my", "My AI accounts"], ["space", "Space AI accounts"]] as const).map(([k, label]) => (
-        <Pressable key={k} accessibilityRole="tab" accessibilityState={{ selected: aiTab === k }} onPress={() => setAiTab(k)} style={[s.aiTab, aiTab === k ? s.aiTabOn : null]} testID={`ai-tab-${k}`}>
-          <Text style={[s.aiTabText, aiTab === k ? s.aiTabTextOn : null]}>{label}</Text>
-        </Pressable>
-      ))}
-    </View>
-  ) : null;
+  const sectionPage =
+    selection.kind === "connections" ? (
+      <ConnectionsPage tab={connTab} onTab={setConnTab} />
+    ) : selection.kind === "google" ? (
+      <GoogleMicrosoftPage
+        {...(data.nav.openCompany ? { onOpenCompany: data.nav.openCompany } : {})}
+        keys={
+          visible.length ? (
+            <ItemList
+              items={visible}
+              selectedId={effectiveId}
+              providerOf={providerOf}
+              healthIds={healthIds}
+              clock={clock}
+              onSelect={(id) => {
+                setSelectedId(id);
+                if (!twoPane) setDetailOpen(true);
+              }}
+              onOpen={(id) => {
+                setSelectedId(id);
+                setEditing(id);
+              }}
+              onMenu={itemMenu}
+            />
+          ) : null
+        }
+      />
+    ) : null;
+  const aiTabs =
+    selection.kind === "providers" && data.personal !== true ? (
+      <View style={s.aiTabs} accessibilityRole="tablist" testID="ai-tabs">
+        {/* ui-rows-lint: not a list (two tabs) */}
+        {(
+          [
+            ["my", "My AI accounts"],
+            ["space", "Space AI accounts"],
+          ] as const
+        ).map(([k, label]) => (
+          <Pressable
+            key={k}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: aiTab === k }}
+            onPress={() => setAiTab(k)}
+            style={[s.aiTab, aiTab === k ? s.aiTabOn : null]}
+            testID={`ai-tab-${k}`}
+          >
+            <Text style={[s.aiTabText, aiTab === k ? s.aiTabTextOn : null]}>{label}</Text>
+          </Pressable>
+        ))}
+      </View>
+    ) : null;
   const listBody = spaceAi ? (
     <>
       {header}
@@ -299,106 +628,364 @@ function Page({ initial, sheet, view, route, onRouteClose, connectionsInitial, c
       <View style={s.searchWrap}>
         <View style={s.search}>
           <Glyph name="search" size={14} />
-          <TextInput ref={(r) => { searchRef.current = r as unknown as { focus?: () => void } | null; }} value={query} onChangeText={setQuery} placeholder="Search" accessibilityLabel="Search the Vault" style={s.searchInput} testID="vault-search" />
+          <TextInput
+            ref={(r) => {
+              searchRef.current = r as unknown as { focus?: () => void } | null;
+            }}
+            value={query}
+            onChangeText={setQuery}
+            placeholder="Search"
+            accessibilityLabel="Search the Vault"
+            style={s.searchInput}
+            testID="vault-search"
+          />
           {twoPane ? <Text style={s.kbd}>⌘F</Text> : null}
         </View>
       </View>
       {!loading && selection.kind === "health" && health.status === "ready" && visible.length > 0 ? (
-        <HealthView health={health.data} selectedId={effectiveId} onSelect={(id) => { setSelectedId(id); if (!twoPane) setDetailOpen(true); }} />
+        <HealthView
+          health={health.data}
+          selectedId={effectiveId}
+          onSelect={(id) => {
+            setSelectedId(id);
+            if (!twoPane) setDetailOpen(true);
+          }}
+        />
       ) : loading ? (
         // a list the Space did not answer says so, with its reason, instead of loading for ever
-        items.status === "loading" && items.error
-          ? <View style={s.empty} testID="vault-load-failed"><States kind="error" message="Couldn't load your Vault" cause={items.error.message} {...(items.error.code ? { code: items.error.code } : {})} {...(items.error.traceId ? { traceId: items.error.traceId } : {})} retryable onRetry={() => { retryVaultQueries(data.screens); }} /></View>
-          : <ListSkeleton />
+        items.status === "loading" && items.error ? (
+          <View style={s.empty} testID="vault-load-failed">
+            <States
+              kind="error"
+              message="Couldn't load your Vault"
+              cause={items.error.message}
+              {...(items.error.code ? { code: items.error.code } : {})}
+              {...(items.error.traceId ? { traceId: items.error.traceId } : {})}
+              retryable
+              onRetry={() => {
+                retryVaultQueries(data.screens);
+              }}
+            />
+          </View>
+        ) : (
+          <ListSkeleton />
+        )
       ) : visible.length === 0 ? (
         // each section says what it is about, even in an empty Vault (it used to say "Your vault is empty" on every section, so a click looked dead): AI providers offers the way to connect
-        selection.kind === "providers" && !query ? <ConnectHere connected={signedIn} onPick={(pick) => setAddingProvider(pick ?? true)} /> : (
-        <View style={s.empty} testID="vault-empty">
-          {query ? <States kind="empty" title={`Nothing matches ${query}`} icon="search" action={{ label: "Clear search", onPress: () => setQuery("") }} />
-            : selection.kind === "all" && all.length === 0 ? <States kind="empty" title="Your vault is empty" icon="files" action={{ label: "Add an item", onPress: () => setAdding({}) }} />
-            : selection.kind === "health" ? <States kind="empty" title="Nothing needs attention" icon="done" />
-            : <States kind="empty" title={EMPTY_TITLE[selection.kind] ?? "Nothing here yet"} icon="files" action={{ label: "Add an item", onPress: () => setAdding({}) }} />}
-        </View>
+        selection.kind === "providers" && !query ? (
+          <ConnectHere connected={signedIn} onPick={(pick) => setAddingProvider(pick ?? true)} />
+        ) : (
+          <View style={s.empty} testID="vault-empty">
+            {query ? (
+              <States
+                kind="empty"
+                title={`Nothing matches ${query}`}
+                icon="search"
+                action={{ label: "Clear search", onPress: () => setQuery("") }}
+              />
+            ) : selection.kind === "all" && all.length === 0 ? (
+              <States
+                kind="empty"
+                title="Your vault is empty"
+                icon="files"
+                action={{ label: "Add an item", onPress: () => setAdding({}) }}
+              />
+            ) : selection.kind === "health" ? (
+              <States kind="empty" title="Nothing needs attention" icon="done" />
+            ) : (
+              <States
+                kind="empty"
+                title={EMPTY_TITLE[selection.kind] ?? "Nothing here yet"}
+                icon="files"
+                action={{ label: "Add an item", onPress: () => setAdding({}) }}
+              />
+            )}
+          </View>
         )
       ) : (
         <>
-          <ItemList sections={selection.kind === "all" || query.trim() !== ""} items={visible} selectedId={effectiveId} providerOf={providerOf} healthIds={healthIds} clock={clock} onSelect={(id) => { setSelectedId(id); if (!twoPane) setDetailOpen(true); }} onOpen={(id) => { setSelectedId(id); setEditing(id); }} onMenu={itemMenu} />
-          {selection.kind === "providers" && !query ? <ConnectHere connected={signedIn} onPick={(pick) => setAddingProvider(pick ?? true)} /> : null}
+          <ItemList
+            sections={selection.kind === "all" || query.trim() !== ""}
+            items={visible}
+            selectedId={effectiveId}
+            providerOf={providerOf}
+            healthIds={healthIds}
+            clock={clock}
+            onSelect={(id) => {
+              setSelectedId(id);
+              if (!twoPane) setDetailOpen(true);
+            }}
+            onOpen={(id) => {
+              setSelectedId(id);
+              setEditing(id);
+            }}
+            onMenu={itemMenu}
+          />
+          {selection.kind === "providers" && !query ? (
+            <ConnectHere connected={signedIn} onPick={(pick) => setAddingProvider(pick ?? true)} />
+          ) : null}
         </>
       )}
-      <View style={s.lineSlot}>{note ? <QuietLine text={note.text} onUndo={note.undo ? undoNote : undefined} testID="vault-line" /> : null}</View>
-      {!online ? <Text style={s.offline} testID="vault-offline">Offline, showing your saved copy</Text> : null}
+      <View style={s.lineSlot}>
+        {note ? <QuietLine text={note.text} onUndo={note.undo ? undoNote : undefined} testID="vault-line" /> : null}
+      </View>
+      {!online ? (
+        <Text style={s.offline} testID="vault-offline">
+          Offline, showing your saved copy
+        </Text>
+      ) : null}
     </>
   );
-  const listPane = twoPane
-    ? <ResizableColumn paneKey="vault-list" defaultWidth={380} grow="right" min={260} maxFraction={0.6} style={[s.listPane, s.listPaneTwo] as never} testID="vault-list-pane">{listBody}</ResizableColumn>
-    : <View style={[s.listPane, { flex: 1 }]} testID="vault-list-pane">{listBody}</View>;
+  const listPane = twoPane ? (
+    <ResizableColumn
+      paneKey="vault-list"
+      defaultWidth={380}
+      grow="right"
+      min={260}
+      maxFraction={0.6}
+      style={[s.listPane, s.listPaneTwo] as never}
+      testID="vault-list-pane"
+    >
+      {listBody}
+    </ResizableColumn>
+  ) : (
+    <View style={[s.listPane, { flex: 1 }]} testID="vault-list-pane">
+      {listBody}
+    </View>
+  );
 
   const providerHere = effectiveId ? providerOf.get(effectiveId) : undefined;
   const detail = effectiveId ? (
     <View style={{ flex: 1, minHeight: 0 }}>
-      {providerHere?.connection === "subscription" ? <ProviderPage key={providerHere.id} provider={providerHere} handle={all.find((i) => i.id === providerHere.itemId)?.handle ?? ""} onNote={showNote} askDelete={askDelete} onGone={() => { setSelectedId(null); setDetailOpen(false); }} /> : null}
-      {providerHere && providerHere.connection !== "subscription" ? <ProviderPanel key={providerHere.id} provider={providerHere} onNote={showNote} onRemoved={() => { setSelectedId(null); setDetailOpen(false); }} /> : null}
-      {providerHere?.connection === "subscription" ? null : <ItemEnv key={effectiveId} itemId={effectiveId} askDelete={askDelete} revealAll={revealAll} initialMode={view} onEdit={() => { setAddField(false); setEditing(effectiveId); }} onAddField={() => { setAddField(true); setEditing(effectiveId); }} onGone={() => { setSelectedId(null); setDetailOpen(false); }} onNote={showNote} onBack={twoPane ? undefined : () => setDetailOpen(false)} />}
+      {providerHere?.connection === "subscription" ? (
+        <ProviderPage
+          key={providerHere.id}
+          provider={providerHere}
+          handle={all.find((i) => i.id === providerHere.itemId)?.handle ?? ""}
+          onNote={showNote}
+          askDelete={askDelete}
+          onGone={() => {
+            setSelectedId(null);
+            setDetailOpen(false);
+          }}
+        />
+      ) : null}
+      {providerHere && providerHere.connection !== "subscription" ? (
+        <ProviderPanel
+          key={providerHere.id}
+          provider={providerHere}
+          onNote={showNote}
+          onRemoved={() => {
+            setSelectedId(null);
+            setDetailOpen(false);
+          }}
+        />
+      ) : null}
+      {providerHere?.connection === "subscription" ? null : (
+        <ItemEnv
+          key={effectiveId}
+          itemId={effectiveId}
+          askDelete={askDelete}
+          revealAll={revealAll}
+          initialMode={view}
+          onEdit={() => {
+            setAddField(false);
+            setEditing(effectiveId);
+          }}
+          onAddField={() => {
+            setAddField(true);
+            setEditing(effectiveId);
+          }}
+          onGone={() => {
+            setSelectedId(null);
+            setDetailOpen(false);
+          }}
+          onNote={showNote}
+          onBack={twoPane ? undefined : () => setDetailOpen(false)}
+        />
+      )}
     </View>
-  ) : <NoItem text={loading ? "" : visible.length === 0 ? "" : "Select an item to see its fields"} />;
+  ) : (
+    <NoItem text={loading ? "" : visible.length === 0 ? "" : "Select an item to see its fields"} />
+  );
 
-  const routed = route.surface === "advanced"
-    ? <AdvancedView onClose={onRouteClose} />
-    : route.surface === "policy"
-      ? <PolicyView onClose={onRouteClose} />
-    : route.surface === "requests"
-      ? <RequestsView requests={requests} items={all} onClose={onRouteClose} />
-    : route.surface === "connections"
-      ? <ConnectionsView initialAdd={connectionsAdd ?? route.add === true} {...(connectionsSite ? { initialSite: true } : {})} {...(wide ? {} : { onClose: onRouteClose })} {...(connectionsInitial ? { initialData: connectionsInitial } : {})} />
-      : null;
+  const routed =
+    route.surface === "advanced" ? (
+      <AdvancedView onClose={onRouteClose} />
+    ) : route.surface === "policy" ? (
+      <PolicyView onClose={onRouteClose} />
+    ) : route.surface === "requests" ? (
+      <RequestsView requests={requests} items={all} onClose={onRouteClose} />
+    ) : route.surface === "connections" ? (
+      <ConnectionsView
+        initialAdd={connectionsAdd ?? route.add === true}
+        {...(connectionsSite ? { initialSite: true } : {})}
+        {...(wide ? {} : { onClose: onRouteClose })}
+        {...(connectionsInitial ? { initialData: connectionsInitial } : {})}
+      />
+    ) : null;
 
   return (
     <View style={s.page} testID="vault-place">
       {menu.element}
-      {sharingFolder ? <VaultShareSheet kind="vault_folder" id={sharingFolder.id} name={sharingFolder.name} onClose={() => setSharingFolder(null)} /> : null}
-      {wide ? <Sidebar counts={counts} folders={folderList} selection={selection} onSelect={select} onAdvanced={data.nav.openAdvanced} advanced={route.surface === "advanced" || route.surface === "policy"} {...(data.nav.openConnections ? { onConnections: data.nav.openConnections, connections: route.surface === "connections" } : {})} onNewFolder={createFolder} onFolderMenu={folderMenu} canCreateShared={canShare} hideShared={data.personal === true} /> : null}
-      {routed ?? (sectionPage ? <View style={[s.listPane, { flex: 1 }]} testID="vault-section-page">{header}{sectionPage}</View> : <>{twoPane || !showDetail ? listPane : null}{showDetail ? <View style={s.detail}>{detail}</View> : null}</>)}
+      {sharingFolder ? (
+        <VaultShareSheet
+          kind="vault_folder"
+          id={sharingFolder.id}
+          name={sharingFolder.name}
+          onClose={() => setSharingFolder(null)}
+        />
+      ) : null}
+      {wide ? (
+        <Sidebar
+          counts={counts}
+          folders={folderList}
+          selection={selection}
+          onSelect={select}
+          onAdvanced={data.nav.openAdvanced}
+          advanced={route.surface === "advanced" || route.surface === "policy"}
+          {...(data.nav.openConnections
+            ? { onConnections: data.nav.openConnections, connections: route.surface === "connections" }
+            : {})}
+          onNewFolder={createFolder}
+          onFolderMenu={folderMenu}
+          canCreateShared={canShare}
+          hideShared={data.personal === true}
+        />
+      ) : null}
+      {routed ??
+        (sectionPage ? (
+          <View style={[s.listPane, { flex: 1 }]} testID="vault-section-page">
+            {header}
+            {sectionPage}
+          </View>
+        ) : (
+          <>
+            {twoPane || !showDetail ? listPane : null}
+            {showDetail ? <View style={s.detail}>{detail}</View> : null}
+          </>
+        ))}
       {choosing ? <AddChooser onClose={() => setChoosing(false)} onPick={(t) => addThe(t)} /> : null}
-      {route.surface === "export" ? <ExportSheet folderId={route.folderId} folderName={folderList.find((f) => f.id === route.folderId)?.name ?? "folder"} onClose={onRouteClose} /> : null}
+      {route.surface === "export" ? (
+        <ExportSheet
+          folderId={route.folderId}
+          folderName={folderList.find((f) => f.id === route.folderId)?.name ?? "folder"}
+          onClose={onRouteClose}
+        />
+      ) : null}
       {adding ? (
         <AddAnything
-          lastFolderId={lastFolder} initialPaste={adding.paste} initialApp={adding.app} onClose={() => setAdding(null)}
+          lastFolderId={lastFolder}
+          initialPaste={adding.paste}
+          initialApp={adding.app}
+          onClose={() => setAdding(null)}
           onAdded={(id, name, folderId) => {
-            setAdding(null); setLastFolder(folderId); setSelectedId(id); setDetailOpen(true);
+            setAdding(null);
+            setLastFolder(folderId);
+            setSelectedId(id);
+            setDetailOpen(true);
             setQuery("");
-            if (selection.kind !== "all" && !(selection.kind === "folder" && selection.folderId === folderId)) setSelection(ALL);
-            showNote(`Added ${name}`, async () => { await data.call("vault.item.delete", { itemId: id }); });
+            if (selection.kind !== "all" && !(selection.kind === "folder" && selection.folderId === folderId))
+              setSelection(ALL);
+            showNote(`Added ${name}`, async () => {
+              await data.call("vault.item.delete", { itemId: id });
+            });
           }}
         />
       ) : null}
       {addingProvider ? (
         <AddProvider
-          {...(typeof addingProvider === "object" ? { initial: addingProvider } : {})} {...(spaceAi ? { initialScope: "shared" as const } : {})} onClose={() => setAddingProvider(false)}
-          onAdded={(p) => { setSelection({ kind: "providers" }); setSelectedId(p.itemId); showNote(`Connected ${p.name}`); }}
+          {...(typeof addingProvider === "object" ? { initial: addingProvider } : {})}
+          {...(spaceAi ? { initialScope: "shared" as const } : {})}
+          onClose={() => setAddingProvider(false)}
+          onAdded={(p) => {
+            setSelection({ kind: "providers" });
+            setSelectedId(p.itemId);
+            showNote(`Connected ${p.name}`);
+          }}
         />
       ) : null}
-      {importing ? <ImportSheet folders={folderList.filter((f) => f.yourLevel === "edit" || f.yourLevel === "manage")} {...(typeof sheet?.importFrom === "string" ? { initialSource: sheet.importFrom } : {})} onClose={() => setImporting(false)} onDone={(t) => showNote(t)} /> : null}
-      {editing ? <EditSheet itemId={editing} addField={addField} onClose={() => { setEditing(null); setAddField(false); }} onSaved={(text) => showNote(text)} /> : null}
+      {importing ? (
+        <ImportSheet
+          folders={folderList.filter((f) => f.yourLevel === "edit" || f.yourLevel === "manage")}
+          {...(typeof sheet?.importFrom === "string" ? { initialSource: sheet.importFrom } : {})}
+          onClose={() => setImporting(false)}
+          onDone={(t) => showNote(t)}
+        />
+      ) : null}
+      {editing ? (
+        <EditSheet
+          itemId={editing}
+          addField={addField}
+          onClose={() => {
+            setEditing(null);
+            setAddField(false);
+          }}
+          onSaved={(text) => showNote(text)}
+        />
+      ) : null}
     </View>
   );
 }
 
-function RequestsView({ requests, items, onClose }: { requests: import("../../../../../../client/src/index.ts").QueryState<RequestsOut>; items: readonly Item[]; onClose(): void }): ReactElement {
+function RequestsView({
+  requests,
+  items,
+  onClose,
+}: {
+  requests: import("../../../../../../client/src/index.ts").QueryState<RequestsOut>;
+  items: readonly Item[];
+  onClose(): void;
+}): ReactElement {
   const data = useVaultData();
   const names = usePrincipals();
   const cards: ReactElement[] = [];
-  if (requests.status === "ready") for (const request of requests.data.requests) cards.push(<RequestCard key={request.id} request={request} items={items} requester={names.name(request.requester.id)} />);
+  if (requests.status === "ready")
+    for (const request of requests.data.requests)
+      cards.push(
+        <RequestCard key={request.id} request={request} items={items} requester={names.name(request.requester.id)} />,
+      );
   return (
     <View style={s.routed} testID="vault-requests">
-      <View style={s.routedHead}><Btn label="Back" icon="back" onPress={onClose} /><Text accessibilityRole="header" style={s.routedTitle}>Requested</Text></View>
+      <View style={s.routedHead}>
+        <Btn label="Back" icon="back" onPress={onClose} />
+        <Text accessibilityRole="header" style={s.routedTitle}>
+          Requested
+        </Text>
+      </View>
       <Text style={s.routedIntro}>Keys and fields that an Automation or agent is waiting for.</Text>
-      {requests.status === "loading" && requests.error ? <States kind="error" message="Couldn't load Vault requests" cause={requests.error.message} {...(requests.error.code ? { code: requests.error.code } : {})} {...(requests.error.traceId ? { traceId: requests.error.traceId } : {})} retryable onRetry={() => { retryVaultQueries(data.screens); }} /> : requests.status !== "ready" ? <Text style={s.routedSub}>Loading</Text> : cards.length === 0 ? <States kind="empty" title="Nothing is waiting" icon="search" /> : cards}
+      {requests.status === "loading" && requests.error ? (
+        <States
+          kind="error"
+          message="Couldn't load Vault requests"
+          cause={requests.error.message}
+          {...(requests.error.code ? { code: requests.error.code } : {})}
+          {...(requests.error.traceId ? { traceId: requests.error.traceId } : {})}
+          retryable
+          onRetry={() => {
+            retryVaultQueries(data.screens);
+          }}
+        />
+      ) : requests.status !== "ready" ? (
+        <Text style={s.routedSub}>Loading</Text>
+      ) : cards.length === 0 ? (
+        <States kind="empty" title="Nothing is waiting" icon="search" />
+      ) : (
+        cards
+      )}
     </View>
   );
 }
 
-function RequestCard({ request, items, requester }: { request: RequestsOut["requests"][number]; items: readonly Item[]; requester: string }): ReactElement {
+function RequestCard({
+  request,
+  items,
+  requester,
+}: {
+  request: RequestsOut["requests"][number];
+  items: readonly Item[];
+  requester: string;
+}): ReactElement {
   const data = useVaultData();
   const [draft, setDraft] = useState<Record<string, string>>({});
   const [note, setNote] = useState("");
@@ -406,34 +993,85 @@ function RequestCard({ request, items, requester }: { request: RequestsOut["requ
   const [failure, setFailure] = useState("");
   const candidates = items.filter((item) => request.fields.every((field) => item.fieldKeys.includes(field)));
   const run = (action: () => Promise<void>): void => {
-    setBusy(true); setFailure("");
-    void action().catch((error) => setFailure(error instanceof Error ? error.message : "That did not work")).finally(() => setBusy(false));
+    setBusy(true);
+    setFailure("");
+    void action()
+      .catch((error) => setFailure(error instanceof Error ? error.message : "That did not work"))
+      .finally(() => setBusy(false));
   };
   const fieldsReady = request.fields.length > 0 && request.fields.every((field) => (draft[field] ?? "").trim() !== "");
   const candidateButtons: ReactElement[] = [];
-  for (const item of candidates) candidateButtons.push(<Btn key={item.id} label={`Use ${item.name}`} disabled={busy} onPress={() => run(() => fulfilVaultRequest(data, request.id, { itemId: item.id }))} testID={`vault-request-use-${request.id}-${item.id}`} />);
+  for (const item of candidates)
+    candidateButtons.push(
+      <Btn
+        key={item.id}
+        label={`Use ${item.name}`}
+        disabled={busy}
+        onPress={() => run(() => fulfilVaultRequest(data, request.id, { itemId: item.id }))}
+        testID={`vault-request-use-${request.id}-${item.id}`}
+      />,
+    );
   const fieldInputs: ReactElement[] = [];
-  for (const field of request.fields) fieldInputs.push(<TextInput key={field} value={draft[field] ?? ""} onChangeText={(value) => setDraft((cur) => ({ ...cur, [field]: value }))} placeholder={field} accessibilityLabel={field} secureTextEntry style={s.requestInput} testID={`vault-request-field-${request.id}-${field}`} />);
+  for (const field of request.fields)
+    fieldInputs.push(
+      <TextInput
+        key={field}
+        value={draft[field] ?? ""}
+        onChangeText={(value) => setDraft((cur) => ({ ...cur, [field]: value }))}
+        placeholder={field}
+        accessibilityLabel={field}
+        secureTextEntry
+        style={s.requestInput}
+        testID={`vault-request-field-${request.id}-${field}`}
+      />,
+    );
   return (
     <View style={s.requestCard} testID={`vault-request-${request.id}`}>
       <Text style={s.routedName}>{request.name}</Text>
       <Text style={s.routedSub}>{`${requester} · ${request.reason}`}</Text>
       {candidates.length ? (
-        <View style={s.requestActions}>
-          {candidateButtons}
-        </View>
+        <View style={s.requestActions}>{candidateButtons}</View>
       ) : (
         <View style={{ gap: 8 }}>
           <Text style={s.routedSub}>Save the requested fields as a new Vault item</Text>
           {fieldInputs}
-          <Btn label="Save and fulfil" primary disabled={busy || !fieldsReady} onPress={() => run(() => fulfilVaultRequest(data, request.id, { fields: requestFields(request.fields, draft), ...(request.folderId ? { folderId: request.folderId } : {}) }))} testID={`vault-request-fulfil-${request.id}`} />
+          <Btn
+            label="Save and fulfil"
+            primary
+            disabled={busy || !fieldsReady}
+            onPress={() =>
+              run(() =>
+                fulfilVaultRequest(data, request.id, {
+                  fields: requestFields(request.fields, draft),
+                  ...(request.folderId ? { folderId: request.folderId } : {}),
+                }),
+              )
+            }
+            testID={`vault-request-fulfil-${request.id}`}
+          />
         </View>
       )}
       <View style={s.requestActions}>
-        <TextInput value={note} onChangeText={setNote} placeholder="Note for requester (optional)" accessibilityLabel="Deny note" style={[s.requestInput, { flex: 1 }]} />
-        <Btn label="Deny" danger disabled={busy} onPress={() => run(() => declineVaultRequest(data, request.id, note))} testID={`vault-request-decline-${request.id}`} />
+        <TextInput
+          value={note}
+          onChangeText={setNote}
+          placeholder="Note for requester (optional)"
+          accessibilityLabel="Deny note"
+          style={[s.requestInput, { flex: 1 }]}
+        />
+        <Btn
+          label="Deny"
+          danger
+          disabled={busy}
+          onPress={() => run(() => declineVaultRequest(data, request.id, note))}
+          testID={`vault-request-decline-${request.id}`}
+        />
       </View>
-      {failure ? <Text style={s.error} accessibilityRole="alert">{failure}</Text> : null}
+      {failure ? (
+        <Text style={s.error} accessibilityRole="alert">
+          {failure}
+        </Text>
+      ) : null}
     </View>
   );
 }
@@ -444,20 +1082,49 @@ function AdvancedView({ onClose }: { onClose(): void }): ReactElement {
   const rows = [
     ...(nav.openBackups ? [["Backups", "Verify, restore or run backups", nav.openBackups, "clock"] as const] : []),
     ["Devices", "Computers that can open the Vault", nav.openDevices, "lock"],
-    ...(nav.openOutsideActors ? [["Outside agents", "Claude Code, Codex and other tools", nav.openOutsideActors, "braces"] as const] : []),
+    ...(nav.openOutsideActors
+      ? [["Outside agents", "Claude Code, Codex and other tools", nav.openOutsideActors, "braces"] as const]
+      : []),
     ["Policy", "Exports, link length, reveal reasons", nav.openPolicy, "health"],
     ...(browsers ? [["Browsers", "Fill logins in Chrome", () => setChrome(true), "globe"] as const] : []),
   ] as const;
   return (
     <View style={s.routed} testID="vault-advanced">
-      <View style={s.routedHead}><Btn label="Back" icon="back" onPress={onClose} /><Text accessibilityRole="header" style={s.routedTitle}>Advanced</Text></View>
-      {rows.map(([title, sub, open, icon]) => <Row key={title} id={`vault-advanced-${title.toLowerCase().replace(/\s+/g, "-")}`} title={title} note={sub} onPress={open} leading={<View style={{ marginRight: 12 }}><Glyph name={icon} size={16} color="var(--ink-2)" /></View>} trailing={<Glyph name="chevron" />} />)}
+      <View style={s.routedHead}>
+        <Btn label="Back" icon="back" onPress={onClose} />
+        <Text accessibilityRole="header" style={s.routedTitle}>
+          Advanced
+        </Text>
+      </View>
+      {rows.map(([title, sub, open, icon]) => (
+        <Row
+          key={title}
+          id={`vault-advanced-${title.toLowerCase().replace(/\s+/g, "-")}`}
+          title={title}
+          note={sub}
+          onPress={open}
+          leading={
+            <View style={{ marginRight: 12 }}>
+              <Glyph name={icon} size={16} color="var(--ink-2)" />
+            </View>
+          }
+          trailing={<Glyph name="chevron" />}
+        />
+      ))}
       {chrome && browsers ? <ChromeSheet browsers={browsers} onClose={() => setChrome(false)} /> : null}
     </View>
   );
 }
 
-function ExportSheet({ folderId, folderName, onClose }: { folderId: string; folderName: string; onClose(): void }): ReactElement {
+function ExportSheet({
+  folderId,
+  folderName,
+  onClose,
+}: {
+  folderId: string;
+  folderName: string;
+  onClose(): void;
+}): ReactElement {
   const data = useVaultData();
   const exports = useScreenQuery<ExportsOut>("vault.export", "open", { folderId });
   const [busy, setBusy] = useState(false);
@@ -466,31 +1133,125 @@ function ExportSheet({ folderId, folderName, onClose }: { folderId: string; fold
   const [expiry, setExpiry] = useState<Expiry>("1h");
   const menu = useMenu();
   const chooseExpiry = (e: unknown): void => {
-    const t = (e as { currentTarget?: { getBoundingClientRect?: () => { left: number; bottom: number } } }).currentTarget;
+    const t = (e as { currentTarget?: { getBoundingClientRect?: () => { left: number; bottom: number } } })
+      .currentTarget;
     const r = t?.getBoundingClientRect?.();
-    menu.show(EXPIRY_CHOICES.map((c) => ({ label: c.label, checked: expiry === c.key, onSelect: () => { setExpiry(c.key); setResult(null); } })), r ? r.left : 0, r ? r.bottom + 4 : 0);
+    menu.show(
+      EXPIRY_CHOICES.map((c) => ({
+        label: c.label,
+        checked: expiry === c.key,
+        onSelect: () => {
+          setExpiry(c.key);
+          setResult(null);
+        },
+      })),
+      r ? r.left : 0,
+      r ? r.bottom + 4 : 0,
+    );
   };
   const exportFolder = async (): Promise<void> => {
-    setBusy(true); setFailure("");
+    setBusy(true);
+    setFailure("");
     try {
       const out = await exportVaultFolder(data, folderId, expiry, `vault-export:${folderId}:${expiry}:${Date.now()}`);
       setResult(out);
-    } catch (error) { setFailure(error instanceof Error ? error.message : "Couldn't export this folder"); }
-    finally { setBusy(false); }
+    } catch (error) {
+      setFailure(error instanceof Error ? error.message : "Couldn't export this folder");
+    } finally {
+      setBusy(false);
+    }
   };
   return (
-    <Sheet title={`Export ${folderName} as .env`} onClose={onClose} testID="vault-export-sheet" footer={<><View style={{ flex: 1 }} /><Btn label="Cancel" onPress={onClose} /><Btn label={busy ? "Exporting…" : "Create export"} primary disabled={busy} onPress={() => { void exportFolder(); }} testID="vault-export-create" /></>}>
+    <Sheet
+      title={`Export ${folderName} as .env`}
+      onClose={onClose}
+      testID="vault-export-sheet"
+      footer={
+        <>
+          <View style={{ flex: 1 }} />
+          <Btn label="Cancel" onPress={onClose} />
+          <Btn
+            label={busy ? "Exporting…" : "Create export"}
+            primary
+            disabled={busy}
+            onPress={() => {
+              void exportFolder();
+            }}
+            testID="vault-export-create"
+          />
+        </>
+      }
+    >
       {menu.element}
-      <Text style={s.routedIntro}>{`Creates a ${EXPIRY_CHOICES.find((c) => c.key === expiry)?.sentence ?? "one-hour"}, logged download. Values stay hidden in the Vault.`}</Text>
-      <Row id="vault-export-expiry" title="Link lasts" note={`${expiryLabel(expiry)}, up to the longest your Space's policy allows`} onPress={chooseExpiry} trailing={<Text style={s.routedSub}>Change</Text>} />
-      {result ? <View style={{ gap: 8 }}><Text style={s.routedName}>Export ready</Text><Btn label="Copy download link" icon="copy" onPress={() => { void copyText(data, result.pullUrl); }} testID="vault-export-copy" /></View> : null}
+      <Text
+        style={s.routedIntro}
+      >{`Creates a ${EXPIRY_CHOICES.find((c) => c.key === expiry)?.sentence ?? "one-hour"}, logged download. Values stay hidden in the Vault.`}</Text>
+      <Row
+        id="vault-export-expiry"
+        title="Link lasts"
+        note={`${expiryLabel(expiry)}, up to the longest your Space's policy allows`}
+        onPress={chooseExpiry}
+        trailing={<Text style={s.routedSub}>Change</Text>}
+      />
+      {result ? (
+        <View style={{ gap: 8 }}>
+          <Text style={s.routedName}>Export ready</Text>
+          <Btn
+            label="Copy download link"
+            icon="copy"
+            onPress={() => {
+              void copyText(data, result.pullUrl);
+            }}
+            testID="vault-export-copy"
+          />
+        </View>
+      ) : null}
       <View style={{ gap: 6 }} testID="vault-active-exports">
         <Text style={s.routedName}>Active exports</Text>
-        {exports.status === "loading" && exports.error ? <States kind="error" message="Couldn't load active exports" cause={exports.error.message} {...(exports.error.code ? { code: exports.error.code } : {})} {...(exports.error.traceId ? { traceId: exports.error.traceId } : {})} retryable onRetry={() => { retryVaultQueries(data.screens); }} /> : exports.status !== "ready" ? <Text style={s.routedSub}>Loading</Text> : exports.data.exports.length === 0 ? <Text style={s.routedSub}>No open download links</Text> : exports.data.exports.map((item) => (
-          <Row key={item.id} id={`vault-export-${item.id}`} title={item.pulled ? "Downloaded" : "Not downloaded"} note={`Expires ${new Date(item.expiresAt).toLocaleString()}`} trailing={<Btn label="Revoke" danger onPress={() => { void revokeVaultExport(data, item.id).catch((error) => setFailure(error instanceof Error ? error.message : "Could not revoke export")); }} testID={`vault-export-revoke-${item.id}`} />} />
-        ))}
+        {exports.status === "loading" && exports.error ? (
+          <States
+            kind="error"
+            message="Couldn't load active exports"
+            cause={exports.error.message}
+            {...(exports.error.code ? { code: exports.error.code } : {})}
+            {...(exports.error.traceId ? { traceId: exports.error.traceId } : {})}
+            retryable
+            onRetry={() => {
+              retryVaultQueries(data.screens);
+            }}
+          />
+        ) : exports.status !== "ready" ? (
+          <Text style={s.routedSub}>Loading</Text>
+        ) : exports.data.exports.length === 0 ? (
+          <Text style={s.routedSub}>No open download links</Text>
+        ) : (
+          exports.data.exports.map((item) => (
+            <Row
+              key={item.id}
+              id={`vault-export-${item.id}`}
+              title={item.pulled ? "Downloaded" : "Not downloaded"}
+              note={`Expires ${new Date(item.expiresAt).toLocaleString()}`}
+              trailing={
+                <Btn
+                  label="Revoke"
+                  danger
+                  onPress={() => {
+                    void revokeVaultExport(data, item.id).catch((error) =>
+                      setFailure(error instanceof Error ? error.message : "Could not revoke export"),
+                    );
+                  }}
+                  testID={`vault-export-revoke-${item.id}`}
+                />
+              }
+            />
+          ))
+        )}
       </View>
-      {failure ? <Text style={s.error} accessibilityRole="alert">{failure}</Text> : null}
+      {failure ? (
+        <Text style={s.error} accessibilityRole="alert">
+          {failure}
+        </Text>
+      ) : null}
     </Sheet>
   );
 }
@@ -502,7 +1263,10 @@ const EMPTY_PROVIDERS: readonly Provider[] = [];
 const copyHandle = (data: VaultData, handle: string): Promise<void> => copyText(data, handle);
 
 function rectOf(e: unknown): { x: number; y: number } {
-  const ev = e as { currentTarget?: { getBoundingClientRect?: () => { left: number; bottom: number } }; nativeEvent?: { pageX?: number; pageY?: number } };
+  const ev = e as {
+    currentTarget?: { getBoundingClientRect?: () => { left: number; bottom: number } };
+    nativeEvent?: { pageX?: number; pageY?: number };
+  };
   const box = ev.currentTarget?.getBoundingClientRect?.();
   return box ? { x: box.left, y: box.bottom } : { x: ev.nativeEvent?.pageX ?? 0, y: ev.nativeEvent?.pageY ?? 0 };
 }
@@ -510,23 +1274,40 @@ function rectOf(e: unknown): { x: number; y: number } {
 /** Rows the size of the real ones, so nothing moves when the data arrives. */
 function ListSkeleton(): ReactElement {
   const rows: ReactElement[] = [];
-  for (let i = 0; i < 8; i++) rows.push(
-    <View key={i} style={s.skRow}><View style={s.skLogo} /><View style={{ flex: 1, gap: 6 }}><View style={[s.skBar, { width: `${40 + ((i * 11) % 30)}%` }]} /><View style={[s.skBar, { width: `${25 + ((i * 7) % 25)}%`, height: 9 }]} /></View></View>,
+  for (let i = 0; i < 8; i++)
+    rows.push(
+      <View key={i} style={s.skRow}>
+        <View style={s.skLogo} />
+        <View style={{ flex: 1, gap: 6 }}>
+          <View style={[s.skBar, { width: `${40 + ((i * 11) % 30)}%` }]} />
+          <View style={[s.skBar, { width: `${25 + ((i * 7) % 25)}%`, height: 9 }]} />
+        </View>
+      </View>,
+    );
+  return (
+    <View style={{ flex: 1, paddingHorizontal: 8 }} testID="vault-loading" accessibilityLabel="Loading">
+      {rows}
+    </View>
   );
-  return <View style={{ flex: 1, paddingHorizontal: 8 }} testID="vault-loading" accessibilityLabel="Loading">{rows}</View>;
 }
 
 /** The place before data arrives: the same three columns with skeleton rows. */
 export function VaultLoading(): ReactElement {
   return (
     <View style={s.page} testID="vault-loading-frame">
-      <View style={[s.listPane, s.listPaneTwo, { flex: 1 }]}><View style={s.listHead}><Text style={s.listTitle}>Vault</Text></View><ListSkeleton /></View>
+      <View style={[s.listPane, s.listPaneTwo, { flex: 1 }]}>
+        <View style={s.listHead}>
+          <Text style={s.listTitle}>Vault</Text>
+        </View>
+        <ListSkeleton />
+      </View>
     </View>
   );
 }
 
 export interface InitialSheet {
-  add?: { paste?: string; app?: string }; edit?: string;
+  add?: { paste?: string; app?: string };
+  edit?: string;
   /** The Add an AI provider sheet is open; with a pick it starts on that provider and way of connecting. */
   addProvider?: { providerKey: string; connection: ConnectionKind } | true;
   /** The Import sheet is open; with a source it starts on that one. */
@@ -554,20 +1335,51 @@ export interface VaultProps {
   connectionsSite?: boolean | undefined;
 }
 
-export default function VaultLayout({ data, initial, sheet, view, route = { surface: "layout" }, onRouteClose = () => undefined, connectionsInitial, connectionsAdd, connectionsSite }: VaultProps): ReactElement {
+export default function VaultLayout({
+  data,
+  initial,
+  sheet,
+  view,
+  route = { surface: "layout" },
+  onRouteClose = () => undefined,
+  connectionsInitial,
+  connectionsAdd,
+  connectionsSite,
+}: VaultProps): ReactElement {
   const provided = useOptionalVaultData();
   const d = data ?? provided;
   if (!d) return <VaultLoading />;
   return (
     <VaultDataProvider value={d}>
-      <Page initial={initial} sheet={sheet} view={view} route={route} onRouteClose={onRouteClose} connectionsInitial={connectionsInitial} connectionsAdd={connectionsAdd} connectionsSite={connectionsSite} />
+      <Page
+        initial={initial}
+        sheet={sheet}
+        view={view}
+        route={route}
+        onRouteClose={onRouteClose}
+        connectionsInitial={connectionsInitial}
+        connectionsAdd={connectionsAdd}
+        connectionsSite={connectionsSite}
+      />
     </VaultDataProvider>
   );
 }
 
 const s = StyleSheet.create({
-  aiTabs: { flexDirection: "row", gap: 18, marginHorizontal: 12, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
-  aiTab: { height: 34, justifyContent: "center", borderBottomWidth: 2, borderBottomColor: "transparent", marginBottom: -1 },
+  aiTabs: {
+    flexDirection: "row",
+    gap: 18,
+    marginHorizontal: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "var(--line)" as string,
+  },
+  aiTab: {
+    height: 34,
+    justifyContent: "center",
+    borderBottomWidth: 2,
+    borderBottomColor: "transparent",
+    marginBottom: -1,
+  },
   aiTabOn: { borderBottomColor: "var(--ink)" as string },
   aiTabText: { fontSize: 13, fontWeight: "500", color: "var(--ink-3)" as string },
   aiTabTextOn: { color: "var(--ink)" as string },
@@ -580,7 +1392,15 @@ const s = StyleSheet.create({
   listTitle: { fontSize: 17, fontWeight: "600", letterSpacing: -0.2, color: "var(--ink)" as string },
   listCount: { fontSize: 13, fontWeight: "400", color: "var(--ink-3)" as string },
   searchWrap: { paddingHorizontal: 12, paddingBottom: 8 },
-  search: { flexDirection: "row", alignItems: "center", gap: 8, height: 32, paddingHorizontal: 10, borderRadius: 8, backgroundColor: "var(--sel)" as string },
+  search: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    height: 32,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    backgroundColor: "var(--sel)" as string,
+  },
   searchInput: { flex: 1, minWidth: 0, height: 30, color: "var(--ink)" as string, fontSize: 13.5 },
   kbd: { fontSize: 11.5, color: "var(--ink-3)" as string },
   empty: { flex: 1, alignItems: "center", justifyContent: "center" },
@@ -592,9 +1412,24 @@ const s = StyleSheet.create({
   routedIntro: { fontSize: 13, color: "var(--ink-3)" as string },
   routedName: { fontSize: 14, fontWeight: "600", color: "var(--ink)" as string },
   routedSub: { fontSize: 12.5, color: "var(--ink-3)" as string },
-  requestCard: { gap: 10, padding: 14, borderWidth: 1, borderColor: "var(--line)" as string, borderRadius: 10, backgroundColor: "var(--raised)" as string },
+  requestCard: {
+    gap: 10,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: "var(--line)" as string,
+    borderRadius: 10,
+    backgroundColor: "var(--raised)" as string,
+  },
   requestActions: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 8 },
-  requestInput: { minHeight: 34, borderWidth: 1, borderColor: "var(--line)" as string, borderRadius: 7, paddingHorizontal: 10, color: "var(--ink)" as string, backgroundColor: "var(--win)" as string },
+  requestInput: {
+    minHeight: 34,
+    borderWidth: 1,
+    borderColor: "var(--line)" as string,
+    borderRadius: 7,
+    paddingHorizontal: 10,
+    color: "var(--ink)" as string,
+    backgroundColor: "var(--win)" as string,
+  },
   error: { fontSize: 12.5, color: "var(--danger)" as string },
   skRow: { height: 44, flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 8 },
   skLogo: { width: 30, height: 30, borderRadius: 8, backgroundColor: "var(--sel)" as string },

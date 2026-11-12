@@ -22,8 +22,14 @@ export interface GatewayRes {
   body: { data: unknown } | { error: VyreError };
 }
 export interface SessionInfo {
-  space: string; principal: PrincipalSeed; actingFor?: string | undefined; device?: string | undefined; provider?: string | undefined;
-  run?: string | undefined; thread?: string | undefined; origin?: string | undefined;
+  space: string;
+  principal: PrincipalSeed;
+  actingFor?: string | undefined;
+  device?: string | undefined;
+  provider?: string | undefined;
+  run?: string | undefined;
+  thread?: string | undefined;
+  origin?: string | undefined;
   sessionId?: string | undefined;
   previewToken?: string | undefined;
 }
@@ -34,7 +40,11 @@ export interface GatewayDeps {
   /** verify the session token and resolve who acts and for whom; null = not signed in */
   session(headers: GatewayReq["headers"]): SessionInfo | null | Promise<SessionInfo | null>;
   /** callers before sign-in (`caller: 'anonymous'`) or invited but not yet members (`'pending'`): a principal id for rate limits and audit, or null to refuse */
-  preAuth?(caller: "anonymous" | "pending", headers: GatewayReq["headers"], req: GatewayReq): SessionInfo | null | Promise<SessionInfo | null>;
+  preAuth?(
+    caller: "anonymous" | "pending",
+    headers: GatewayReq["headers"],
+    req: GatewayReq,
+  ): SessionInfo | null | Promise<SessionInfo | null>;
 }
 
 const TRACE = /^([0-9a-f]{32})-([0-9a-f]{16})(?:-([0-9a-f]{16}))?$/;
@@ -47,47 +57,91 @@ export function parseTrace(h: string | undefined): TraceContext | undefined {
 const errRes = (error: VyreError, status = httpOf(error.code)): GatewayRes => {
   const headers: Record<string, string> = { "x-vyre-trace": error.traceId };
   const per = error.details?.["perSeconds"];
-  if (error.code === "rate_limit.exceeded") headers["retry-after"] = String(typeof per === "number" ? Math.max(1, Math.ceil(per)) : 1);
+  if (error.code === "rate_limit.exceeded")
+    headers["retry-after"] = String(typeof per === "number" ? Math.max(1, Math.ceil(per)) : 1);
   return { status, headers, body: { error } };
 };
 
 export function createGateway(deps: GatewayDeps): (req: GatewayReq) => Promise<GatewayRes> {
   const match = indexRoutes(deps.routes);
-  const hex = (n: number): string => Array.from(globalThis.crypto.getRandomValues(new Uint8Array(n)), (b) => b.toString(16).padStart(2, "0")).join("");
+  const hex = (n: number): string =>
+    Array.from(globalThis.crypto.getRandomValues(new Uint8Array(n)), (b) => b.toString(16).padStart(2, "0")).join("");
 
   return async function handle(req) {
     const incoming = parseTrace(req.headers["x-vyre-trace"]);
     const traceId = incoming?.traceId ?? hex(16);
     try {
       const route = match(req.method, req.path);
-      if (!route) return errRes(makeError("validation.unknown_capability", traceId, { message: "There is no such endpoint.", details: { method: req.method, path: req.path } }), 404);
+      if (!route)
+        return errRes(
+          makeError("validation.unknown_capability", traceId, {
+            message: "There is no such endpoint.",
+            details: { method: req.method, path: req.path },
+          }),
+          404,
+        );
       const cap: CapabilityDef | undefined = deps.caps.get(route.cap, route.v);
-      if (!cap) return errRes(makeError("validation.unknown_capability", traceId, { details: { cap: route.cap, v: route.v } }), 404);
+      if (!cap)
+        return errRes(
+          makeError("validation.unknown_capability", traceId, { details: { cap: route.cap, v: route.v } }),
+          404,
+        );
 
       const caller = cap.caller ?? "principal";
       // Preview credentials never authorize anonymous/pending entry points.
-      if (caller !== "principal" && /^Bearer vas_/i.test(req.headers["authorization"] ?? "")) return errRes(makeError("permission.no_grant", traceId));
-      const session = caller === "principal" ? await deps.session(req.headers) : ((await deps.preAuth?.(caller, req.headers, req)) ?? null);
+      if (caller !== "principal" && /^Bearer vas_/i.test(req.headers["authorization"] ?? ""))
+        return errRes(makeError("permission.no_grant", traceId));
+      const session =
+        caller === "principal"
+          ? await deps.session(req.headers)
+          : ((await deps.preAuth?.(caller, req.headers, req)) ?? null);
       if (!session) return errRes(makeError("auth.unauthenticated", traceId));
 
       let input: unknown = req.method.toUpperCase() === "GET" ? { ...(req.query ?? {}) } : (req.body ?? {});
       const idemHeader = req.headers["idempotency-key"];
-      if (idemHeader && cap.idempotency === "key" && input !== null && typeof input === "object" && !Array.isArray(input) && (input as Record<string, unknown>)["idempotencyKey"] === undefined) {
+      if (
+        idemHeader &&
+        cap.idempotency === "key" &&
+        input !== null &&
+        typeof input === "object" &&
+        !Array.isArray(input) &&
+        (input as Record<string, unknown>)["idempotencyKey"] === undefined
+      ) {
         input = { ...(input as Record<string, unknown>), idempotencyKey: idemHeader };
       }
       const seed: CtxSeed = {
-        space: session.space, principal: session.principal, actingFor: session.actingFor, device: session.device, provider: session.provider,
-        run: session.run, thread: session.thread, origin: session.origin === "mcp" ? "mcp" : "user", v: route.v, preAuth: caller !== "principal",
-        sessionId: session.sessionId, previewToken: session.previewToken,
+        space: session.space,
+        principal: session.principal,
+        actingFor: session.actingFor,
+        device: session.device,
+        provider: session.provider,
+        run: session.run,
+        thread: session.thread,
+        origin: session.origin === "mcp" ? "mcp" : "user",
+        v: route.v,
+        preAuth: caller !== "principal",
+        sessionId: session.sessionId,
+        previewToken: session.previewToken,
         ...(incoming ? { trace: incoming } : {}),
       };
       const r = await deps.invoke(route.cap, input, seed);
       const headers = { "x-vyre-trace": r.traceId };
-      if (r.status === "held") return { status: 202, headers, body: { data: { status: "held", taskId: r.taskId, ...(r.runId ? { runId: r.runId } : {}) } } };
+      if (r.status === "held")
+        return {
+          status: 202,
+          headers,
+          body: { data: { status: "held", taskId: r.taskId, ...(r.runId ? { runId: r.runId } : {}) } },
+        };
       return { status: 200, headers, body: { data: r.output } };
     } catch (e) {
       if (e instanceof HostError) return errRes(e.error, e.http);
-      return errRes(makeError("internal.unexpected", traceId, { message: "Something went wrong on our side.", details: { traceId } }), 500);
+      return errRes(
+        makeError("internal.unexpected", traceId, {
+          message: "Something went wrong on our side.",
+          details: { traceId },
+        }),
+        500,
+      );
     }
   };
 }

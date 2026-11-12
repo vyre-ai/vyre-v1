@@ -30,7 +30,11 @@ test("a mode alone cannot loosen the Gate: every outward tool is a single invoke
       const gate = loaded.caps.get(t.cap)?.gate as { act?: string } | undefined;
       if (gate && gate.act !== "none") {
         assert.equal(out.kind, "held", `${t.name} in ${mode} must wait at the Gate`);
-        if (out.kind === "held") { assert.ok(out.taskId.startsWith("task_")); assert.equal(out.result.ok, false); held++; }
+        if (out.kind === "held") {
+          assert.ok(out.taskId.startsWith("task_"));
+          assert.equal(out.result.ok, false);
+          held++;
+        }
       } else assert.equal(out.kind, "result", t.name);
     }
   }
@@ -62,7 +66,13 @@ test("local tools fail closed: no policy means refused, and invoke is never reac
 test("Ask mode prompts for each local call; Allow and Auto run without a prompt; the owner's floor holds everyone to its strictness", async () => {
   const run = async (mode: SecurityMode, floor: SecurityMode, answer: boolean, facts: LocalFacts = {}) => {
     let asked = 0;
-    const { session, calls } = makeSession({ localPolicy: (t) => decideLocal(t, mode, floor, facts), prompt: async () => { asked++; return answer; } });
+    const { session, calls } = makeSession({
+      localPolicy: (t) => decideLocal(t, mode, floor, facts),
+      prompt: async () => {
+        asked++;
+        return answer;
+      },
+    });
     const out = await session.call(ctx(), "terminal_run", { command: "ls" });
     return { out, asked, calls: calls.length };
   };
@@ -70,7 +80,10 @@ test("Ask mode prompts for each local call; Allow and Auto run without a prompt;
   const ask = await run("ask", "auto", true);
   assert.deepEqual([ask.out.kind, ask.asked, ask.calls], ["held", 1, 1]);
   const denied = await run("ask", "auto", false);
-  assert.deepEqual([denied.out.kind === "error" && denied.out.error.code, denied.asked, denied.calls], ["permission.needs_approval", 1, 0]);
+  assert.deepEqual(
+    [denied.out.kind === "error" && denied.out.error.code, denied.asked, denied.calls],
+    ["permission.needs_approval", 1, 0],
+  );
   for (const m of ["allow", "auto"] as const) {
     const r = await run(m, "auto", false);
     assert.deepEqual([r.out.kind, r.asked, r.calls], ["held", 0, 1], m);
@@ -89,7 +102,8 @@ test("Auto still asks for the always-ask list and keeps the work-folder wall", a
   ];
   const terminal = loadGenerated().catalog.byName("terminal_run");
   assert.ok(terminal);
-  for (const [facts, want] of cases) assert.equal(decideLocal(terminal, "auto", "auto", facts).action, want, JSON.stringify(facts));
+  for (const [facts, want] of cases)
+    assert.equal(decideLocal(terminal, "auto", "auto", facts).action, want, JSON.stringify(facts));
   assert.equal(decideLocal(terminal, "auto", "auto").action, "run");
   assert.equal(decideLocal(terminal, "allow", "auto").action, "run");
   assert.equal(decideLocal(terminal, "allow", "ask").action, "prompt");
@@ -103,6 +117,13 @@ test("modes never apply to capability tools, and effectiveMode is the stricter o
   assert.equal(effectiveMode("ask", "auto"), "ask");
   assert.equal(effectiveMode("allow", "auto"), "allow");
   assert.equal(effectiveMode("auto", "allow"), "allow");
-  assert.ok(catalog.all.filter((t) => t.local !== "none").every((t) => t.local === "terminal" || t.local === "chrome" || t.local === "screen" || t.local === "files"));
-  assert.ok(catalog.all.some((t) => t.local === "terminal"), "terminal_run is a local tool");
+  assert.ok(
+    catalog.all
+      .filter((t) => t.local !== "none")
+      .every((t) => t.local === "terminal" || t.local === "chrome" || t.local === "screen" || t.local === "files"),
+  );
+  assert.ok(
+    catalog.all.some((t) => t.local === "terminal"),
+    "terminal_run is a local tool",
+  );
 });

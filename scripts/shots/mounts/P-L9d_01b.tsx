@@ -5,7 +5,11 @@
 import { createElement, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { Text, View, useWindowDimensions } from "react-native";
-import { RecordsDataProvider, RecordsSidebar, RecordsStateProvider } from "../../../apps/app/src/places/records/sidebar/index.ts";
+import {
+  RecordsDataProvider,
+  RecordsSidebar,
+  RecordsStateProvider,
+} from "../../../apps/app/src/places/records/sidebar/index.ts";
 import { RecordViews } from "../../../apps/app/src/places/records/views-a/index.ts";
 import { createViewsSample, harbor, northwind } from "../../../apps/app/src/places/records/views-a/sample.ts";
 
@@ -13,28 +17,67 @@ export const title = "Records: the table with the kind switch";
 
 // layout shifts from the first moment the module runs, so the ones before the table is drawn are in the list too
 const shifts: string[] = [];
-interface ShiftEntry { startTime: number; value: number; hadRecentInput?: boolean; sources?: { node?: { getAttribute?(n: string): string | null; nodeName?: string }; previousRect: { y: number; height: number }; currentRect: { y: number; height: number } }[] }
-const g = globalThis as { PerformanceObserver?: new (cb: (l: { getEntries(): unknown[] }) => void) => { observe(o: object): void } };
+interface ShiftEntry {
+  startTime: number;
+  value: number;
+  hadRecentInput?: boolean;
+  sources?: {
+    node?: { getAttribute?(n: string): string | null; nodeName?: string };
+    previousRect: { y: number; height: number };
+    currentRect: { y: number; height: number };
+  }[];
+}
+const g = globalThis as {
+  PerformanceObserver?: new (cb: (l: { getEntries(): unknown[] }) => void) => { observe(o: object): void };
+};
 if (typeof g.PerformanceObserver === "function") {
   try {
     new g.PerformanceObserver((list) => {
       for (const raw of list.getEntries()) {
         const e = raw as ShiftEntry;
-        const who = (e.sources ?? []).slice(0, 3).map((s) => `${s.node?.getAttribute?.("data-testid") ?? s.node?.nodeName ?? "?"} y ${Math.round(s.previousRect.y)}>${Math.round(s.currentRect.y)} h ${Math.round(s.previousRect.height)}>${Math.round(s.currentRect.height)}`).join(" | ");
+        const who = (e.sources ?? [])
+          .slice(0, 3)
+          .map(
+            (s) =>
+              `${s.node?.getAttribute?.("data-testid") ?? s.node?.nodeName ?? "?"} y ${Math.round(s.previousRect.y)}>${Math.round(s.currentRect.y)} h ${Math.round(s.previousRect.height)}>${Math.round(s.currentRect.height)}`,
+          )
+          .join(" | ");
         shifts.push(`${Math.round(e.startTime)}ms ${e.value.toFixed(3)} ${who}`);
       }
     }).observe({ type: "layout-shift", buffered: true });
-  } catch { /* not supported */ }
+  } catch {
+    /* not supported */
+  }
 }
 
 function Shifts(): ReactNode {
   const [, tick] = useState(0);
-  useEffect(() => { const t = setInterval(() => tick((n) => n + 1), 300); return () => clearInterval(t); }, []);
+  useEffect(() => {
+    const t = setInterval(() => tick((n) => n + 1), 300);
+    return () => clearInterval(t);
+  }, []);
   const total = shifts.reduce((n, l) => n + Number(l.split(" ")[1] ?? 0), 0);
   return (
-    <View style={{ position: "absolute", left: 8, bottom: 8, right: 8, padding: 6, backgroundColor: "rgba(255,255,255,0.92)" as string, zIndex: 99999 }} pointerEvents="none">
-      <Text style={{ fontSize: 10, color: "#000" }}>{`layout shift total ${total.toFixed(3)} in ${shifts.length} shifts`}</Text>
-      {shifts.slice(0, 9).map((l, i) => <Text key={i} style={{ fontSize: 10, color: "#000" }}>{l}</Text>)}
+    <View
+      style={{
+        position: "absolute",
+        left: 8,
+        bottom: 8,
+        right: 8,
+        padding: 6,
+        backgroundColor: "rgba(255,255,255,0.92)" as string,
+        zIndex: 99999,
+      }}
+      pointerEvents="none"
+    >
+      <Text
+        style={{ fontSize: 10, color: "#000" }}
+      >{`layout shift total ${total.toFixed(3)} in ${shifts.length} shifts`}</Text>
+      {shifts.slice(0, 9).map((l, i) => (
+        <Text key={i} style={{ fontSize: 10, color: "#000" }}>
+          {l}
+        </Text>
+      ))}
     </View>
   );
 }
@@ -43,19 +86,58 @@ function Shifts(): ReactNode {
 // If this scrolls no faster than the table, the runner's own painting is the floor.
 function PlainList(): ReactNode {
   const [top, setTop] = useState(0);
-  const ROW = 34, N = 100_000, BLOCK = 8;
-  const first = Math.max(0, Math.floor(top / ROW) - 12), last = Math.min(N, Math.ceil((top + 700) / ROW) + 12);
+  const ROW = 34,
+    N = 100_000,
+    BLOCK = 8;
+  const first = Math.max(0, Math.floor(top / ROW) - 12),
+    last = Math.min(N, Math.ceil((top + 700) / ROW) + 12);
   const rows = [];
-  for (let i = first; i < last; i++) rows.push(createElement("div", { key: i, style: { position: "absolute", top: i * ROW, left: 0, right: 0, height: ROW, boxSizing: "border-box", padding: "0 10px", display: "flex", alignItems: "center", borderBottom: "1px solid var(--line)", fontSize: 13, color: "var(--ink)" } }, `Row number ${i + 1}`));
-  return createElement("div", { "data-testid": "plain-scroll", style: { flex: 1, overflow: "auto", position: "relative" }, onScroll: (e: { currentTarget: { scrollTop: number } }) => { const t = Math.floor(e.currentTarget.scrollTop / (ROW * BLOCK)) * ROW * BLOCK; setTop((c) => (c === t ? c : t)); } },
-    createElement("div", { style: { height: N * ROW, position: "relative" } }, ...rows));
+  for (let i = first; i < last; i++)
+    rows.push(
+      createElement(
+        "div",
+        {
+          key: i,
+          style: {
+            position: "absolute",
+            top: i * ROW,
+            left: 0,
+            right: 0,
+            height: ROW,
+            boxSizing: "border-box",
+            padding: "0 10px",
+            display: "flex",
+            alignItems: "center",
+            borderBottom: "1px solid var(--line)",
+            fontSize: 13,
+            color: "var(--ink)",
+          },
+        },
+        `Row number ${i + 1}`,
+      ),
+    );
+  return createElement(
+    "div",
+    {
+      "data-testid": "plain-scroll",
+      style: { flex: 1, overflow: "auto", position: "relative" },
+      onScroll: (e: { currentTarget: { scrollTop: number } }) => {
+        const t = Math.floor(e.currentTarget.scrollTop / (ROW * BLOCK)) * ROW * BLOCK;
+        setTop((c) => (c === t ? c : t));
+      },
+    },
+    createElement("div", { style: { height: N * ROW, position: "relative" } }, ...rows),
+  );
 }
 
 function Page({ q }: { q: URLSearchParams }): ReactNode {
   const bulk = Math.min(200_000, Number(q.get("rows") ?? 0) || 0);
   const space = q.get("space") === "harbor" ? harbor : northwind;
   // ?only=name hides every field but the title (the control that draws one column)
-  const only = q.get("only") === "name" ? { hidden: (space.types.find((t) => t.key === (q.get("type") ?? "clients"))?.fields ?? []).map((f) => f.key) } : null;
+  const only =
+    q.get("only") === "name"
+      ? { hidden: (space.types.find((t) => t.key === (q.get("type") ?? "clients"))?.fields ?? []).map((f) => f.key) }
+      : null;
   const sample = useMemo(() => createViewsSample(space, { bulk }), [space, bulk]);
   const initial = useMemo(() => ({ type: q.get("type") ?? "clients" }), [q]);
   const width = useWindowDimensions().width;
@@ -71,8 +153,16 @@ function Page({ q }: { q: URLSearchParams }): ReactNode {
     <RecordsDataProvider value={sample.data}>
       <RecordsStateProvider initial={initial}>
         <View style={{ flex: 1, flexDirection: "row", minHeight: 0 }}>
-          {phone ? null : <View style={{ width: 240 }}><RecordsSidebar /></View>}
-          {q.get("plain") === "1" ? <PlainList /> : <RecordViews kind={q.get("kind") ?? "table"} {...(only ? { view: only } : {})} />}
+          {phone ? null : (
+            <View style={{ width: 240 }}>
+              <RecordsSidebar />
+            </View>
+          )}
+          {q.get("plain") === "1" ? (
+            <PlainList />
+          ) : (
+            <RecordViews kind={q.get("kind") ?? "table"} {...(only ? { view: only } : {})} />
+          )}
         </View>
         {q.get("ls") === "1" ? <Shifts /> : null}
       </RecordsStateProvider>
@@ -82,6 +172,8 @@ function Page({ q }: { q: URLSearchParams }): ReactNode {
 
 export default function Mount(): ReactNode {
   const [q, setQ] = useState<URLSearchParams | null>(null);
-  useEffect(() => { setQ(new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? "")); }, []);
+  useEffect(() => {
+    setQ(new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? ""));
+  }, []);
   return q ? <Page q={q} /> : null;
 }

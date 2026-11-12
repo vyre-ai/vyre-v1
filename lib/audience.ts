@@ -50,13 +50,30 @@ export function audienceFrom(text: unknown): Audience | null {
   if (typeof text !== "string" || text === "") return null;
   try {
     const v = JSON.parse(text) as { people?: unknown; live?: unknown; at?: unknown };
-    if (typeof v.live === "string" && v.live !== "") return { space: false, people: Array.isArray(v.people) ? v.people.filter((p): p is string => typeof p === "string") : [], live: v.live, ...(typeof v.at === "number" ? { at: v.at } : {}) };
-    return Array.isArray(v.people) ? { space: false, people: v.people.filter((p): p is string => typeof p === "string") } : null;
-  } catch { return { space: false, people: [] } }   // a row that cannot be read is kept for nobody
+    if (typeof v.live === "string" && v.live !== "")
+      return {
+        space: false,
+        people: Array.isArray(v.people) ? v.people.filter((p): p is string => typeof p === "string") : [],
+        live: v.live,
+        ...(typeof v.at === "number" ? { at: v.at } : {}),
+      };
+    return Array.isArray(v.people)
+      ? { space: false, people: v.people.filter((p): p is string => typeof p === "string") }
+      : null;
+  } catch {
+    return { space: false, people: [] };
+  } // a row that cannot be read is kept for nobody
 }
 
 type Call = (cap: string, input: unknown) => Promise<unknown>;
-interface ThreadOut { kind?: string; starter?: string; channelId?: string; parentThreadId?: string; recordId?: string; members?: Array<{ kind?: string; id?: string }> }
+interface ThreadOut {
+  kind?: string;
+  starter?: string;
+  channelId?: string;
+  parentThreadId?: string;
+  recordId?: string;
+  members?: Array<{ kind?: string; id?: string }>;
+}
 
 /**
  * An Ask whose answer posts into a shared place: a record comment's Ask (records.comments starts it with recordId set) answers with a comment on the record. Its one member is the person who was
@@ -64,7 +81,10 @@ interface ThreadOut { kind?: string; starter?: string; channelId?: string; paren
  */
 const postsShared = (t: ThreadOut): boolean => t.kind === "ask" && typeof t.recordId === "string" && t.recordId !== "";
 
-const people = (t: ThreadOut): string[] => [...(t.starter?.startsWith("usr_") ? [t.starter] : []), ...(t.members ?? []).filter((m) => m.kind === "person" && typeof m.id === "string").map((m) => m.id as string)];
+const people = (t: ThreadOut): string[] => [
+  ...(t.starter?.startsWith("usr_") ? [t.starter] : []),
+  ...(t.members ?? []).filter((m) => m.kind === "person" && typeof m.id === "string").map((m) => m.id as string),
+];
 
 /** The audience of a chat, read as the caller (who is in it, so may read it). Anything that cannot be read makes it Space-wide. */
 export async function chatAudience(call: Call, threadId: string): Promise<Audience> {
@@ -75,7 +95,9 @@ export async function chatAudience(call: Call, threadId: string): Promise<Audien
     for (const p of people(t)) seen.add(p);
     if (postsShared(t)) return { space: true, people: [...seen] };
     for (let i = 0; i < 8 && t.parentThreadId && !t.channelId; i++) {
-      const up: ThreadOut | undefined = ((await call("threads.get", { threadId: t.parentThreadId })) as { thread?: ThreadOut }).thread;
+      const up: ThreadOut | undefined = (
+        (await call("threads.get", { threadId: t.parentThreadId })) as { thread?: ThreadOut }
+      ).thread;
       if (!up) return SPACE_WIDE;
       t = up;
       for (const p of people(t)) seen.add(p);
@@ -83,13 +105,19 @@ export async function chatAudience(call: Call, threadId: string): Promise<Audien
     }
     if (t.channelId || t.kind === "channel") {
       if (!t.channelId) return { space: true, people: [...seen] };
-      const ch = ((await call("channels.get", { channelId: t.channelId })) as { channel?: { visibility?: string; members?: Array<{ kind?: string; id?: string }> } }).channel;
+      const ch = (
+        (await call("channels.get", { channelId: t.channelId })) as {
+          channel?: { visibility?: string; members?: Array<{ kind?: string; id?: string }> };
+        }
+      ).channel;
       if (!ch) return SPACE_WIDE;
       for (const m of ch.members ?? []) if (m.kind === "person" && typeof m.id === "string") seen.add(m.id);
       return { space: ch.visibility !== "invite", people: [...seen] };
     }
     return { space: false, people: [...seen] };
-  } catch { return SPACE_WIDE; }
+  } catch {
+    return SPACE_WIDE;
+  }
 }
 
 /**
@@ -99,10 +127,21 @@ export async function chatAudience(call: Call, threadId: string): Promise<Audien
 export async function placeAudience(call: Call, threadId: string): Promise<Audience | null> {
   let t: (ThreadOut & { threadId?: string; kind?: string; sharedAt?: number }) | undefined;
   try {
-    t = ((await call("threads.get", { threadId })) as { thread?: ThreadOut & { threadId?: string; kind?: string; sharedAt?: number } }).thread;
+    t = (
+      (await call("threads.get", { threadId })) as {
+        thread?: ThreadOut & { threadId?: string; kind?: string; sharedAt?: number };
+      }
+    ).thread;
     // the answer must be about the place asked for: a lookup that came back as some other chat is no proof the caller may open this one
     if (!t || t.threadId !== threadId) return null;
-  } catch { return null; }
+  } catch {
+    return null;
+  }
   const a = await chatAudience(call, threadId);
-  return { ...a, ...(t.kind ? { kind: t.kind } : {}), ...(t.starter ? { starter: t.starter } : {}), ...(typeof t.sharedAt === "number" ? { sharedAt: t.sharedAt } : {}) };
+  return {
+    ...a,
+    ...(t.kind ? { kind: t.kind } : {}),
+    ...(t.starter ? { starter: t.starter } : {}),
+    ...(typeof t.sharedAt === "number" ? { sharedAt: t.sharedAt } : {}),
+  };
 }

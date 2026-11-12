@@ -4,7 +4,10 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 
-export type ApiFetch = (url: string, init: { method: string; headers: Record<string, string>; body?: string | Uint8Array }) => Promise<{ status: number; json(): Promise<unknown> }>;
+export type ApiFetch = (
+  url: string,
+  init: { method: string; headers: Record<string, string>; body?: string | Uint8Array },
+) => Promise<{ status: number; json(): Promise<unknown> }>;
 
 export interface PublishOptions {
   repo: string;
@@ -16,8 +19,19 @@ export interface PublishOptions {
   fetch?: ApiFetch;
 }
 
-export interface Asset { id: number; name: string; size?: number; state?: string; digest?: string }
-export interface Release { id: number; assets: Asset[]; tag?: string; prerelease?: boolean }
+export interface Asset {
+  id: number;
+  name: string;
+  size?: number;
+  state?: string;
+  digest?: string;
+}
+export interface Release {
+  id: number;
+  assets: Asset[];
+  tag?: string;
+  prerelease?: boolean;
+}
 
 const API = "https://api.github.com";
 const UPLOADS = "https://uploads.github.com";
@@ -32,15 +46,40 @@ export class GithubReleases {
   private readonly repo: string;
   private readonly token: string;
   private readonly f: ApiFetch;
-  constructor(repo: string, token: string, f?: ApiFetch) { this.repo = repo; this.token = token; this.f = f ?? realFetch; }
+  constructor(repo: string, token: string, f?: ApiFetch) {
+    this.repo = repo;
+    this.token = token;
+    this.f = f ?? realFetch;
+  }
 
   private headers(extra: Record<string, string> = {}): Record<string, string> {
-    return { authorization: `Bearer ${this.token}`, accept: "application/vnd.github+json", "x-github-api-version": "2022-11-28", ...extra };
+    return {
+      authorization: `Bearer ${this.token}`,
+      accept: "application/vnd.github+json",
+      "x-github-api-version": "2022-11-28",
+      ...extra,
+    };
   }
-  private async call(method: string, url: string, body?: unknown, extra: Record<string, string> = {}): Promise<{ status: number; data: any }> {   // eslint-disable-line @typescript-eslint/no-explicit-any
-    const r = await this.f(url, { method, headers: this.headers(extra), ...(body === undefined ? {} : { body: typeof body === "string" || body instanceof Uint8Array ? body : JSON.stringify(body) }) });
+  private async call(
+    method: string,
+    url: string,
+    body?: unknown,
+    extra: Record<string, string> = {},
+  ): Promise<{ status: number; data: any }> {
+    // eslint-disable-line @typescript-eslint/no-explicit-any
+    const r = await this.f(url, {
+      method,
+      headers: this.headers(extra),
+      ...(body === undefined
+        ? {}
+        : { body: typeof body === "string" || body instanceof Uint8Array ? body : JSON.stringify(body) }),
+    });
     let data: unknown = null;
-    try { data = await r.json(); } catch { /* no body */ }
+    try {
+      data = await r.json();
+    } catch {
+      /* no body */
+    }
     return { status: r.status, data };
   }
 
@@ -51,7 +90,13 @@ export class GithubReleases {
   }
 
   async create(o: { tag: string; prerelease: boolean; notes: string }): Promise<Release> {
-    const r = await this.call("POST", `${API}/repos/${this.repo}/releases`, { tag_name: o.tag, name: o.tag, body: o.notes, prerelease: o.prerelease, draft: false });
+    const r = await this.call("POST", `${API}/repos/${this.repo}/releases`, {
+      tag_name: o.tag,
+      name: o.tag,
+      body: o.notes,
+      prerelease: o.prerelease,
+      draft: false,
+    });
     if (r.status !== 201) throw new Error(`could not create the release ${o.tag} (${r.status})`);
     return { id: r.data.id, assets: [] };
   }
@@ -71,10 +116,20 @@ export class GithubReleases {
       if (known) await this.call("DELETE", `${API}/repos/${this.repo}/releases/assets/${known.id}`);
       let status = 0;
       try {
-        status = (await this.call("POST", `${UPLOADS}/repos/${this.repo}/releases/${rel.id}/assets?name=${encodeURIComponent(name)}`, fs.readFileSync(file), { "content-type": "application/octet-stream" })).status;
-      } catch { /* the connection broke: handled like a 5xx */ }
+        status = (
+          await this.call(
+            "POST",
+            `${UPLOADS}/repos/${this.repo}/releases/${rel.id}/assets?name=${encodeURIComponent(name)}`,
+            fs.readFileSync(file),
+            { "content-type": "application/octet-stream" },
+          )
+        ).status;
+      } catch {
+        /* the connection broke: handled like a 5xx */
+      }
       if (status === 201) return;
-      if (n >= attempts || (status > 0 && status < 500 && status !== 422)) throw new Error(`could not attach ${name} (${status || "no answer"})`);
+      if (n >= attempts || (status > 0 && status < 500 && status !== 422))
+        throw new Error(`could not attach ${name} (${status || "no answer"})`);
       await new Promise((r) => setTimeout(r, (o.pauseMs ?? 2000) * n));
       // a cut upload can leave the asset behind half written: look it up again and replace it
       known = (await this.byTag(rel.tag ?? ""))?.assets.find((a) => a.name === name);
@@ -98,7 +153,9 @@ const isManifest = (file: string): boolean => /^[a-z]+\.json(\.sig)?$/.test(path
 function plan(files: string[]): { bulk: string[]; tail: string[] } {
   const size = (f: string) => fs.statSync(f).size;
   const bulk = files.filter((f) => !isManifest(f)).sort((a, b) => size(b) - size(a) || a.localeCompare(b));
-  const tail = files.filter(isManifest).sort((a, b) => Number(a.endsWith(".json")) - Number(b.endsWith(".json")) || a.localeCompare(b));
+  const tail = files
+    .filter(isManifest)
+    .sort((a, b) => Number(a.endsWith(".json")) - Number(b.endsWith(".json")) || a.localeCompare(b));
   return { bulk, tail };
 }
 
@@ -109,24 +166,46 @@ export function assetIsDone(a: Asset | undefined, file: string): boolean {
   return true;
 }
 
-const filesIn = (dir: string): string[] => fs.readdirSync(dir).filter((n) => fs.statSync(path.join(dir, n)).isFile()).filter((n) => n !== "feed.json" && n !== "releases.json").sort().map((n) => path.join(dir, n));
+const filesIn = (dir: string): string[] =>
+  fs
+    .readdirSync(dir)
+    .filter((n) => fs.statSync(path.join(dir, n)).isFile())
+    .filter((n) => n !== "feed.json" && n !== "releases.json")
+    .sort()
+    .map((n) => path.join(dir, n));
 
 /** Runs the uploads: up to `parallel` bulk files at once, then the manifest files one at a time, last. Files already on the release with the right size and checksum are skipped. */
-async function attach(gh: GithubReleases, rel: Release, files: string[], o: { parallel?: number; pauseMs?: number; replaceUploaded: boolean; tag: string }): Promise<{ attached: string[]; skipped: string[] }> {
+async function attach(
+  gh: GithubReleases,
+  rel: Release,
+  files: string[],
+  o: { parallel?: number; pauseMs?: number; replaceUploaded: boolean; tag: string },
+): Promise<{ attached: string[]; skipped: string[] }> {
   const { bulk, tail } = plan(files);
   const skipped: string[] = [];
   const work = (f: string): "skip" | "send" => {
     const have = rel.assets.find((a) => a.name === path.basename(f));
-    if (assetIsDone(have, f)) { skipped.push(path.basename(f)); return "skip"; }
+    if (assetIsDone(have, f)) {
+      skipped.push(path.basename(f));
+      return "skip";
+    }
     // a finished asset with other content on a release that is already published is never overwritten; a half-written one (state not "uploaded") always is
-    if (have && !o.replaceUploaded && (have.state === undefined || have.state === "uploaded")) throw new Error(`${o.tag} already has a release with a different ${path.basename(f)}; a published release is not replaced`);
+    if (have && !o.replaceUploaded && (have.state === undefined || have.state === "uploaded"))
+      throw new Error(
+        `${o.tag} already has a release with a different ${path.basename(f)}; a published release is not replaced`,
+      );
     return "send";
   };
   const up = o.pauseMs === undefined ? {} : { pauseMs: o.pauseMs };
   const todo = bulk.filter((f) => work(f) === "send");
   const tailTodo = tail.filter((f) => work(f) === "send");
   let i = 0;
-  const lane = async () => { while (i < todo.length) { const f = todo[i++]!; await gh.upload(rel, f, up); } };
+  const lane = async () => {
+    while (i < todo.length) {
+      const f = todo[i++]!;
+      await gh.upload(rel, f, up);
+    }
+  };
   await Promise.all(Array.from({ length: Math.max(1, Math.min(o.parallel ?? 4, todo.length)) }, lane));
   for (const f of tailTodo) await gh.upload(rel, f, up);
   return { attached: files.map((f) => path.basename(f)), skipped: skipped.sort() };
@@ -134,21 +213,38 @@ async function attach(gh: GithubReleases, rel: Release, files: string[], o: { pa
 
 /** A new release for the tag with every signed file attached. Safe to run again after a cut run: files already on the release with the right size and checksum are skipped, the rest are uploaded.
  * A finished asset with different content is an error: a published release is never overwritten. */
-export async function publishRelease(o: PublishOptions & { parallel?: number; pauseMs?: number }): Promise<{ attached: string[]; skipped: string[] }> {
+export async function publishRelease(
+  o: PublishOptions & { parallel?: number; pauseMs?: number },
+): Promise<{ attached: string[]; skipped: string[] }> {
   const gh = new GithubReleases(o.repo, o.token, o.fetch);
   const found = await gh.byTag(o.tag);
   const rel: Release = found ?? (await gh.create({ tag: o.tag, prerelease: o.prerelease, notes: o.notes }));
   rel.tag = o.tag;
   // a beta or rc is a pre-release and a stable release is not, whoever made the release first (a cut earlier run, or a person)
-  if (found && found.prerelease !== undefined && found.prerelease !== o.prerelease) await gh.setPrerelease(found.id, o.prerelease);
-  return attach(gh, rel, filesIn(o.dir), { ...(o.parallel === undefined ? {} : { parallel: o.parallel }), ...(o.pauseMs === undefined ? {} : { pauseMs: o.pauseMs }), replaceUploaded: false, tag: o.tag });
+  if (found && found.prerelease !== undefined && found.prerelease !== o.prerelease)
+    await gh.setPrerelease(found.id, o.prerelease);
+  return attach(gh, rel, filesIn(o.dir), {
+    ...(o.parallel === undefined ? {} : { parallel: o.parallel }),
+    ...(o.pauseMs === undefined ? {} : { pauseMs: o.pauseMs }),
+    replaceUploaded: false,
+    tag: o.tag,
+  });
 }
 
 /** The rolling release a prerelease channel is read from (`channel-beta`): created on first use, its assets replaced each time, the manifest (beta.json) refreshed last. Unchanged files are left alone. */
-export async function updateRolling(o: Omit<PublishOptions, "tag" | "prerelease" | "notes"> & { channel: string; parallel?: number; pauseMs?: number }): Promise<{ attached: string[]; skipped: string[] }> {
+export async function updateRolling(
+  o: Omit<PublishOptions, "tag" | "prerelease" | "notes"> & { channel: string; parallel?: number; pauseMs?: number },
+): Promise<{ attached: string[]; skipped: string[] }> {
   const gh = new GithubReleases(o.repo, o.token, o.fetch);
   const tag = `channel-${o.channel}`;
-  const rel = (await gh.byTag(tag)) ?? (await gh.create({ tag, prerelease: true, notes: `Rolling release the ${o.channel} channel is read from.` }));
+  const rel =
+    (await gh.byTag(tag)) ??
+    (await gh.create({ tag, prerelease: true, notes: `Rolling release the ${o.channel} channel is read from.` }));
   rel.tag = tag;
-  return attach(gh, rel, filesIn(o.dir), { ...(o.parallel === undefined ? {} : { parallel: o.parallel }), ...(o.pauseMs === undefined ? {} : { pauseMs: o.pauseMs }), replaceUploaded: true, tag });
+  return attach(gh, rel, filesIn(o.dir), {
+    ...(o.parallel === undefined ? {} : { parallel: o.parallel }),
+    ...(o.pauseMs === undefined ? {} : { pauseMs: o.pauseMs }),
+    replaceUploaded: true,
+    tag,
+  });
 }

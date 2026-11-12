@@ -10,7 +10,12 @@ export type Made = NonNullable<Item["made"]>[number];
 
 export const SCREEN = "meetings.closeout";
 
-export const STATE_LABEL: Readonly<Record<CloseState, string>> = { ready: "Ready to close", closed: "Closed", nothing: "Nothing to do", preparing: "Preparing" };
+export const STATE_LABEL: Readonly<Record<CloseState, string>> = {
+  ready: "Ready to close",
+  closed: "Closed",
+  nothing: "Nothing to do",
+  preparing: "Preparing",
+};
 
 /** The sections of a package, in the order a person reads it, and what each is called. */
 export const SECTIONS: ReadonlyArray<{ kind: Item["kind"]; title: string }> = [
@@ -79,15 +84,25 @@ export function handledLine(i: Item): string {
   const m = i.made ?? [];
   if (m.some((x) => x.type === "approval")) return "Waiting for approval before it sends";
   if (i.kind === "task") return "Task created";
-  if (i.kind === "record") return m.some((x) => x.type === "record") ? (m.some((x) => x.type === "comment") ? "Updated, note added" : "Updated") : "Note added";
+  if (i.kind === "record")
+    return m.some((x) => x.type === "record")
+      ? m.some((x) => x.type === "comment")
+        ? "Updated, note added"
+        : "Updated"
+      : "Note added";
   if (i.kind === "email") return m.some((x) => x.type === "draft") ? "Saved as a draft" : "Sent";
   return "Added to your calendar";
 }
 
 /** Where a made thing opens: a task, a record, the conversation with whoever the email went to, a calendar event (the Inbox's Calendar). */
-export function openTarget(m: Made, i: Item, attendees: Package["attendees"]): { subject: { type: string; id: string } } | { contactId: string } | { calendar: true } | null {
+export function openTarget(
+  m: Made,
+  i: Item,
+  attendees: Package["attendees"],
+): { subject: { type: string; id: string } } | { contactId: string } | { calendar: true } | null {
   if (m.type === "task" || m.type === "approval") return { subject: { type: "task", id: m.id } };
-  if (m.type === "record" || m.type === "comment") return i.recordId ? { subject: { type: "record", id: i.recordId } } : null;
+  if (m.type === "record" || m.type === "comment")
+    return i.recordId ? { subject: { type: "record", id: i.recordId } } : null;
   if (m.type === "email" || m.type === "draft") {
     const who = attendees.find((a) => a.recordId && a.email && (i.to ?? []).some((t) => t.address === a.email));
     return who?.recordId ? { contactId: who.recordId } : null;
@@ -120,5 +135,7 @@ export function taskMeta(i: Item, nameOf: (id: string) => string, offsetMin: num
 export function saidBy(i: Item, nameOf: (id: string) => string): string {
   if (!i.ownerName || !i.assignee) return "";
   const n = nameOf(i.assignee);
-  return n.toLowerCase().startsWith(i.ownerName.toLowerCase().split(" ")[0] ?? "") ? "" : `${i.ownerName} said they would`;
+  return n.toLowerCase().startsWith(i.ownerName.toLowerCase().split(" ")[0] ?? "")
+    ? ""
+    : `${i.ownerName} said they would`;
 }

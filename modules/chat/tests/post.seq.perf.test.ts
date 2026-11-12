@@ -14,7 +14,8 @@ async function chat(hn: Harness): Promise<string> {
   return (await h["chat.start"]!(hn.ctx, { kind: "chat", agentIds: [INTAKE], idempotencyKey: "k" })).thread.threadId;
 }
 let n = 0;
-const say = (hn: Harness, threadId: string, body = "hello", extra: Record<string, unknown> = {}) => h["chat.post"]!(hn.ctx, { threadId, body, idempotencyKey: `p${++n}`, ...extra });
+const say = (hn: Harness, threadId: string, body = "hello", extra: Record<string, unknown> = {}) =>
+  h["chat.post"]!(hn.ctx, { threadId, body, idempotencyKey: `p${++n}`, ...extra });
 
 test("opening a chat with 20,000 messages reads the last 50 in well under 50 ms", async () => {
   const hn = harness();
@@ -22,7 +23,10 @@ test("opening a chat with 20,000 messages reads the last 50 in well under 50 ms"
   hn.raw.run("DELETE FROM chat_thread_seq WHERE thread = ?", t);
   for (let i = 1; i <= 20_000; i++) {
     hn.raw.run(
-      "INSERT INTO chat_message (id, thread, threadSeq, author, kind, body, blocks, depth, pinned, reactions, createdAt, version) VALUES (?, ?, ?, 'usr_dana', 'text', 'filler', '[]', 0, 0, '[]', 1, 0)", `msg_f${i}`, t, i,
+      "INSERT INTO chat_message (id, thread, threadSeq, author, kind, body, blocks, depth, pinned, reactions, createdAt, version) VALUES (?, ?, ?, 'usr_dana', 'text', 'filler', '[]', 0, 0, '[]', 1, 0)",
+      `msg_f${i}`,
+      t,
+      i,
     );
   }
   hn.raw.run("INSERT INTO chat_thread_seq (thread, last) VALUES (?, 20000)", t);

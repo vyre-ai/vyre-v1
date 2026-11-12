@@ -7,26 +7,70 @@ function stand() {
   const on = new Map<string, Set<(e: never) => void>>();
   const node = {
     captured: 0,
-    addEventListener(t: string, l: (e: never) => void) { (on.get(t) ?? on.set(t, new Set()).get(t)!).add(l); },
-    removeEventListener(t: string, l: (e: never) => void) { on.get(t)?.delete(l); },
-    setPointerCapture(id: number) { this.captured = id; },
+    addEventListener(t: string, l: (e: never) => void) {
+      (on.get(t) ?? on.set(t, new Set()).get(t)!).add(l);
+    },
+    removeEventListener(t: string, l: (e: never) => void) {
+      on.get(t)?.delete(l);
+    },
+    setPointerCapture(id: number) {
+      this.captured = id;
+    },
   };
-  const fire = (t: string, x = 0, button = 0): { stopped: boolean } => { const box = { stopped: false }; for (const l of [...(on.get(t) ?? [])]) l({ button, clientX: x, pointerId: 7, preventDefault: () => { box.stopped = true; } } as never); return box; };
+  const fire = (t: string, x = 0, button = 0): { stopped: boolean } => {
+    const box = { stopped: false };
+    for (const l of [...(on.get(t) ?? [])])
+      l({
+        button,
+        clientX: x,
+        pointerId: 7,
+        preventDefault: () => {
+          box.stopped = true;
+        },
+      } as never);
+    return box;
+  };
   return { node, fire, on };
 }
 function page() {
   const attrs = new Map<string, string>();
   let cleared = 0;
-  return { attrs, cleared: () => cleared, documentElement: { setAttribute: (k: string, v: string) => { attrs.set(k, v); }, removeAttribute: (k: string) => { attrs.delete(k); } }, getSelection: () => ({ removeAllRanges: () => { cleared++; } }) };
+  return {
+    attrs,
+    cleared: () => cleared,
+    documentElement: {
+      setAttribute: (k: string, v: string) => {
+        attrs.set(k, v);
+      },
+      removeAttribute: (k: string) => {
+        attrs.delete(k);
+      },
+    },
+    getSelection: () => ({
+      removeAllRanges: () => {
+        cleared++;
+      },
+    }),
+  };
 }
 
 test("a drag reports the pointer's exact distance from the press, every step, to the last", () => {
   const { node, fire } = stand();
   const seen: Array<string | number> = [];
-  bindEdge(node as never, () => ({ onStart: () => seen.push("start"), onMove: (d) => seen.push(d), onEnd: (d) => seen.push(`end ${d}`), onCancel: () => seen.push("cancel") }), page());
+  bindEdge(
+    node as never,
+    () => ({
+      onStart: () => seen.push("start"),
+      onMove: (d) => seen.push(d),
+      onEnd: (d) => seen.push(`end ${d}`),
+      onCancel: () => seen.push("cancel"),
+    }),
+    page(),
+  );
   fire("pointerdown", 500);
   assert.equal(node.captured, 7, "the edge holds the pointer, so it keeps the drag over an iframe or a terminal");
-  fire("pointermove", 437); fire("pointermove", 400);
+  fire("pointermove", 437);
+  fire("pointermove", 400);
   fire("pointerup", 400);
   assert.deepEqual(seen, ["start", -63, -100, "end -100"]);
   fire("pointermove", 300);
@@ -36,7 +80,11 @@ test("a drag reports the pointer's exact distance from the press, every step, to
 test("a press never starts a text selection, and the page is held until the release", () => {
   const { node, fire } = stand();
   const p = page();
-  bindEdge(node as never, () => ({ onStart: () => undefined, onMove: () => undefined, onEnd: () => undefined, onCancel: () => undefined }), p);
+  bindEdge(
+    node as never,
+    () => ({ onStart: () => undefined, onMove: () => undefined, onEnd: () => undefined, onCancel: () => undefined }),
+    p,
+  );
   assert.equal(fire("mousedown", 10).stopped, true, "the mouse press is what starts a selection");
   assert.equal(fire("pointerdown", 10).stopped, true);
   assert.equal(p.attrs.get(RESIZING_ATTR), "1");
@@ -49,7 +97,16 @@ test("only the main button drags, and a cancelled drag lets go too", () => {
   const { node, fire } = stand();
   const p = page();
   const seen: string[] = [];
-  bindEdge(node as never, () => ({ onStart: () => seen.push("start"), onMove: () => seen.push("move"), onEnd: () => seen.push("end"), onCancel: () => seen.push("cancel") }), p);
+  bindEdge(
+    node as never,
+    () => ({
+      onStart: () => seen.push("start"),
+      onMove: () => seen.push("move"),
+      onEnd: () => seen.push("end"),
+      onCancel: () => seen.push("cancel"),
+    }),
+    p,
+  );
   fire("pointerdown", 10, 2);
   fire("pointermove", 20);
   assert.deepEqual(seen, [], "a right press is the menu's");

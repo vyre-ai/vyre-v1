@@ -27,11 +27,17 @@ export function createFakeReplica(spaceId: string): FakeReplica {
   const resolvers = new Map<string, Resolver<keyof CapMap>>();
   const listeners = new Set<() => void>();
   let version = 0;
-  const bump = () => { version++; for (const l of [...listeners]) l(); };
+  const bump = () => {
+    version++;
+    for (const l of [...listeners]) l();
+  };
   return {
     spaceId,
     version: () => version,
-    subscribe(l) { listeners.add(l); return () => void listeners.delete(l); },
+    subscribe(l) {
+      listeners.add(l);
+      return () => void listeners.delete(l);
+    },
     put(table, rows) {
       let t = tables.get(table);
       if (!t) tables.set(table, (t = new Map()));
@@ -46,7 +52,10 @@ export function createFakeReplica(spaceId: string): FakeReplica {
       if (changed) bump();
     },
     rows: (table) => structuredClone([...(tables.get(table)?.values() ?? [])]),
-    resolve(cap, resolver) { resolvers.set(cap, resolver as unknown as Resolver<keyof CapMap>); bump(); },
+    resolve(cap, resolver) {
+      resolvers.set(cap, resolver as unknown as Resolver<keyof CapMap>);
+      bump();
+    },
     run(cap, input) {
       const r = resolvers.get(cap);
       return r ? { data: structuredClone(r(tables, input as never)) as never } : null;
@@ -55,7 +64,10 @@ export function createFakeReplica(spaceId: string): FakeReplica {
 }
 
 /** Replicas by spaceId: opening the same id twice gives the same replica; different ids never share rows. */
-export interface FakeReplicaSet { open(spaceId: string): FakeReplica; spaceIds(): string[] }
+export interface FakeReplicaSet {
+  open(spaceId: string): FakeReplica;
+  spaceIds(): string[];
+}
 export function createFakeReplicaSet(): FakeReplicaSet {
   const spaces = new Map<string, FakeReplica>();
   return {

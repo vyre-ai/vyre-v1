@@ -23,8 +23,17 @@ test("access handlers and the migration tables are wired", () => {
   assert.equal(EVERYONE_GROUP, "grp_everyone");
   const sql = readFileSync(new URL("../migrations/0001_access_core.sql", import.meta.url), "utf8");
   for (const table of [
-    "access_roles", "access_groups", "access_principals", "access_grants", "access_meta",
-    "access_assignments", "access_resources", "access_policies", "access_actors", "access_fields", "access_acl",
+    "access_roles",
+    "access_groups",
+    "access_principals",
+    "access_grants",
+    "access_meta",
+    "access_assignments",
+    "access_resources",
+    "access_policies",
+    "access_actors",
+    "access_fields",
+    "access_acl",
   ]) {
     assert.match(sql, new RegExp(`CREATE TABLE IF NOT EXISTS "${table}"`));
   }

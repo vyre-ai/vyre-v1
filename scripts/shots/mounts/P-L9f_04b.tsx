@@ -9,7 +9,10 @@ import { createSampleVault, harbor, northwind } from "../../../apps/app/src/plac
 export const title = "Vault";
 
 export default function Mount(): ReactNode {
-  const q = useMemo(() => new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? ""), []);
+  const q = useMemo(
+    () => new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? ""),
+    [],
+  );
   const space = q.get("space") === "harbor" ? harbor : northwind;
   const rows = Number(q.get("rows") ?? "0") || 0;
   const sample = useMemo(() => createSampleVault(space, { extraItems: rows }), [space, rows]);

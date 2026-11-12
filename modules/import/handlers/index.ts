@@ -4,7 +4,15 @@ import { commit } from "./commit.ts";
 import { parseAirtable, parseCsv, parseExcel, parseGoogleSheets, parseNotion, suggestMapping } from "./parse.ts";
 import { preview } from "./preview.ts";
 import { discard, get, list, template } from "./session.ts";
-import { sessionsArchive, sessionsContinue, sessionsDelete, sessionsGet, sessionsImport, sessionsList, sessionsRename } from "./sessions.ts";
+import {
+  sessionsArchive,
+  sessionsContinue,
+  sessionsDelete,
+  sessionsGet,
+  sessionsImport,
+  sessionsList,
+  sessionsRename,
+} from "./sessions.ts";
 
 export const handlers = {
   "import.commit": commit,

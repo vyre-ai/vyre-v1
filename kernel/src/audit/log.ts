@@ -3,7 +3,14 @@
 import type { LogStore } from "../log/store.ts";
 import type { NewEvent, StoredEvent } from "../log/types.ts";
 
-export interface AuditEvent { seq: number; hash: string; type: string; prev: string; data: unknown; [k: string]: unknown }
+export interface AuditEvent {
+  seq: number;
+  hash: string;
+  type: string;
+  prev: string;
+  data: unknown;
+  [k: string]: unknown;
+}
 export interface AuditLog {
   latestSeq(): number;
   head(): string;
@@ -16,27 +23,37 @@ export interface AuditLog {
 /** What the checks need to read a log (the device's copy, or a view of an older one). */
 export type AuditReader = Pick<AuditLog, "latestSeq" | "head" | "get" | "read" | "verify">;
 
-const TRACE = (): string => Array.from(globalThis.crypto.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, "0")).join("");
+const TRACE = (): string =>
+  Array.from(globalThis.crypto.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, "0")).join("");
 const asAudit = (e: StoredEvent): AuditEvent => {
   let data: unknown = null;
-  try { data = JSON.parse(new TextDecoder().decode(e.payload)); } catch { /* an erased or encrypted payload has no data */ }
+  try {
+    data = JSON.parse(new TextDecoder().decode(e.payload));
+  } catch {
+    /* an erased or encrypted payload has no data */
+  }
   return { ...e, data } as unknown as AuditEvent;
 };
 
 /** `append` defaults to a one-event batch on the store; pass `host.append` to run inline projections too. */
 export function auditLogOf(store: LogStore, append?: (ev: NewEvent) => StoredEvent): AuditLog {
-  const put = append ?? ((ev: NewEvent): StoredEvent => {
-    const r = store.appendBatch([ev])[0]!;
-    if (!r.ok) throw new Error(r.message);
-    return r.event;
-  });
+  const put =
+    append ??
+    ((ev: NewEvent): StoredEvent => {
+      const r = store.appendBatch([ev])[0]!;
+      if (!r.ok) throw new Error(r.message);
+      return r.event;
+    });
   return {
     latestSeq: () => store.head.seq,
     head: () => store.head.hash,
-    get: (seq) => { const e = store.get(seq); return e ? asAudit(e) : null; },
+    get: (seq) => {
+      const e = store.get(seq);
+      return e ? asAudit(e) : null;
+    },
     read: (f = {}) => {
       const out: AuditEvent[] = [];
-      for (let after = 0; ;) {
+      for (let after = 0; ; ) {
         const page = store.read({ after, limit: 5000, ...(f.type ? { type: f.type } : {}) });
         out.push(...page.map(asAudit));
         if (page.length < 5000) return out;
@@ -44,6 +61,16 @@ export function auditLogOf(store: LogStore, append?: (ev: NewEvent) => StoredEve
       }
     },
     verify: (o) => store.verify(o),
-    append: (ev) => put({ type: ev.type, sv: ev.sv, trace_id: TRACE(), actor: "svc_audit", vis: "space", entity: "audit", entity_id: ev.subject, payload: ev.data }),
+    append: (ev) =>
+      put({
+        type: ev.type,
+        sv: ev.sv,
+        trace_id: TRACE(),
+        actor: "svc_audit",
+        vis: "space",
+        entity: "audit",
+        entity_id: ev.subject,
+        payload: ev.data,
+      }),
   };
 }

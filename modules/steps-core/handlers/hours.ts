@@ -21,11 +21,25 @@ function clock(text: string): { h: number; m: number } | undefined {
 
 function zoneOffsetMs(utcMs: number, timeZone: string): number {
   const fmt = new Intl.DateTimeFormat("en-US", {
-    timeZone, hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit",
+    timeZone,
+    hourCycle: "h23",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
   });
   const parts = Object.fromEntries(fmt.formatToParts(new Date(utcMs)).map((p) => [p.type, p.value]));
   const hour = Number(parts.hour) === 24 ? 0 : Number(parts.hour);
-  const asUtc = Date.UTC(Number(parts.year), Number(parts.month) - 1, Number(parts.day), hour, Number(parts.minute), Number(parts.second));
+  const asUtc = Date.UTC(
+    Number(parts.year),
+    Number(parts.month) - 1,
+    Number(parts.day),
+    hour,
+    Number(parts.minute),
+    Number(parts.second),
+  );
   return asUtc - utcMs;
 }
 
@@ -38,11 +52,19 @@ function zoned(year: number, month: number, day: number, hour: number, minute: n
 
 function local(ms: number, timeZone: string): { year: number; month: number; day: number; weekday: number } {
   const fmt = new Intl.DateTimeFormat("en-US", {
-    timeZone, hourCycle: "h23", weekday: "short", year: "numeric", month: "2-digit", day: "2-digit",
+    timeZone,
+    hourCycle: "h23",
+    weekday: "short",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
   });
   const parts = Object.fromEntries(fmt.formatToParts(new Date(ms)).map((p) => [p.type, p.value]));
   return {
-    year: Number(parts.year), month: Number(parts.month), day: Number(parts.day), weekday: WEEK.indexOf(String(parts.weekday)),
+    year: Number(parts.year),
+    month: Number(parts.month),
+    day: Number(parts.day),
+    weekday: WEEK.indexOf(String(parts.weekday)),
   };
 }
 

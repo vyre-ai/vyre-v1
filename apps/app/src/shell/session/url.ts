@@ -8,7 +8,8 @@ export function readUrlIntoHub(hub: ShellHub, location: { pathname: string; hash
   const at = segment(location.pathname);
   const place = (SHELL_PLACES.find((p) => p.id === at) ?? SHELL_PLACES.find((p) => p.screens === at))?.screens;
   const hash = location.hash.replace(/^#/, "");
-  if (place && (place !== hub.state().place || hash !== hub.state().hash)) hub.go(place as Parameters<ShellHub["go"]>[0], hash);
+  if (place && (place !== hub.state().place || hash !== hub.state().hash))
+    hub.go(place as Parameters<ShellHub["go"]>[0], hash);
 }
 
 export function hubUrl(hub: ShellHub, search = ""): string | null {
@@ -16,4 +17,3 @@ export function hubUrl(hub: ShellHub, search = ""): string | null {
   const route = SHELL_PLACES.find((p) => p.screens === state.place)?.id;
   return route ? `/${route}${search}${state.hash ? `#${state.hash}` : ""}` : null;
 }
-

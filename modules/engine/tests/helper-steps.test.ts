@@ -10,14 +10,30 @@ import type { EngineCtx } from "../projections.ts";
 test("a held call shows its waiting state, not a running step", async () => {
   const h = harness();
   ensureExtra(h.ctx.db);
-  h.ctx.db.run(`INSERT INTO engine_turns (turn_id, thread_id, agent_id, asker, account_ref, engine, model, placement, state, trace_id, run_id, qseq, started_at, ended_at, tokens_in, tokens_out, cost_micros, error, retry_of)
+  h.ctx.db
+    .run(`INSERT INTO engine_turns (turn_id, thread_id, agent_id, asker, account_ref, engine, model, placement, state, trace_id, run_id, qseq, started_at, ended_at, tokens_in, tokens_out, cost_micros, error, retry_of)
     VALUES ('trn_1', 'thr_help', 'agt_x', 'usr_dana', NULL, 'api', 'm', 'space', 'waiting', 'tr', NULL, 1, 1, NULL, 0, 0, 0, NULL, NULL)`);
   const ctx: EngineCtx = {
     ...h.ctx,
     async call(cap: string) {
-      if (cap === "chat.helpers.list") return { helpers: [{ threadId: "thr_help", title: "Check the site", status: "running", agentId: "agt_x", startedAt: 1 }] };
-      if (cap === "chat.messages.list") return { messages: [{ author: { kind: "agent", id: "agt_x" }, body: "", blocks: [{ type: "turn_status", data: { state: "waiting", taskId: "tsk_1" } }] }] };
-      if (cap === "tasks.get") return { task: { title: "Check the site wants to run sleep 120 && echo finished-long" } };
+      if (cap === "chat.helpers.list")
+        return {
+          helpers: [
+            { threadId: "thr_help", title: "Check the site", status: "running", agentId: "agt_x", startedAt: 1 },
+          ],
+        };
+      if (cap === "chat.messages.list")
+        return {
+          messages: [
+            {
+              author: { kind: "agent", id: "agt_x" },
+              body: "",
+              blocks: [{ type: "turn_status", data: { state: "waiting", taskId: "tsk_1" } }],
+            },
+          ],
+        };
+      if (cap === "tasks.get")
+        return { task: { title: "Check the site wants to run sleep 120 && echo finished-long" } };
       return {};
     },
   } as EngineCtx;

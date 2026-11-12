@@ -16,7 +16,8 @@ import qrcode from "./vendor/qrcode-generator.js";
  * @returns {boolean[][]} rows of modules, true for dark
  */
 export function qrMatrix(text) {
-  if (typeof text !== "string" || !text || !/^[\x20-\x7e]+$/.test(text)) throw new Error("a QR payload is printable ASCII");
+  if (typeof text !== "string" || !text || !/^[\x20-\x7e]+$/.test(text))
+    throw new Error("a QR payload is printable ASCII");
   if (text.length > 200) throw new Error("a QR payload here is at most 200 characters");
   const q = qrcode(0, "M");
   q.addData(text, "Byte");
@@ -34,13 +35,18 @@ export function qrLines(text, o = {}) {
   const quiet = o.quiet ?? 2;
   const m = qrMatrix(text);
   const n = m.length + 2 * quiet;
-  const dark = (/** @type {number} */ r, /** @type {number} */ c) => { const rr = r - quiet, cc = c - quiet; return rr >= 0 && cc >= 0 && rr < m.length && cc < m.length && m[rr][cc]; };
+  const dark = (/** @type {number} */ r, /** @type {number} */ c) => {
+    const rr = r - quiet,
+      cc = c - quiet;
+    return rr >= 0 && cc >= 0 && rr < m.length && cc < m.length && m[rr][cc];
+  };
   const out = [];
   for (let r = 0; r < n; r += 2) {
     let line = "";
     for (let c = 0; c < n; c++) {
-      const t = dark(r, c), b = r + 1 < n && dark(r + 1, c);
-      line += t ? (b ? "\u2588" : "\u2580") : (b ? "\u2584" : " ");
+      const t = dark(r, c),
+        b = r + 1 < n && dark(r + 1, c);
+      line += t ? (b ? "\u2588" : "\u2580") : b ? "\u2584" : " ";
     }
     out.push(line);
   }

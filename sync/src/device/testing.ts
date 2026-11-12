@@ -33,7 +33,11 @@ function fastFile(path: string): DatabaseSync {
 const isQuery = (sql: string): boolean => /^\s*(select|pragma|with)\b/i.test(sql);
 const params = (p: readonly SqlValue[]): SqlValue[] => [...p];
 
-interface Session { key: string | null; checked: boolean; file: string }
+interface Session {
+  key: string | null;
+  checked: boolean;
+  file: string;
+}
 
 function guard(files: KeyedFiles, s: Session): void {
   if (s.checked) return;
@@ -61,15 +65,31 @@ export function createFakeSqlCipher(dir: string): FakeSqlCipher {
       return {
         execSync(sql) {
           const k = /^\s*PRAGMA\s+key\s*=\s*(.+)$/i.exec(sql);
-          if (k) { s.key = k[1] ?? null; return; }
+          if (k) {
+            s.key = k[1] ?? null;
+            return;
+          }
           const r = /^\s*PRAGMA\s+rekey\s*=\s*(.+)$/i.exec(sql);
-          if (r) { guard(files, s); files.rekey(s.file, r[1] ?? ""); s.key = r[1] ?? null; return; }
+          if (r) {
+            guard(files, s);
+            files.rekey(s.file, r[1] ?? "");
+            s.key = r[1] ?? null;
+            return;
+          }
           guard(files, s);
           db.exec(sql);
         },
         prepareSync(sql): ExpoStatement {
           if (/^\s*PRAGMA\s+cipher_version\b/i.test(sql)) {
-            return { executeSync: (): ExpoRunResult => ({ getFirstSync: () => (fake.withoutCipher ? null : { cipher_version: "4.5.6 community" }), getAllSync: () => [], changes: 0, lastInsertRowid: 0 }), finalizeSync() {} };
+            return {
+              executeSync: (): ExpoRunResult => ({
+                getFirstSync: () => (fake.withoutCipher ? null : { cipher_version: "4.5.6 community" }),
+                getAllSync: () => [],
+                changes: 0,
+                lastInsertRowid: 0,
+              }),
+              finalizeSync() {},
+            };
           }
           guard(files, s);
           const stmt = db.prepare(sql);
@@ -81,15 +101,28 @@ export function createFakeSqlCipher(dir: string): FakeSqlCipher {
                 return { getFirstSync: () => rows[0] ?? null, getAllSync: () => rows, changes: 0, lastInsertRowid: 0 };
               }
               const info = stmt.run(...params(p)) as { changes?: number; lastInsertRowid?: number | bigint };
-              return { getFirstSync: () => null, getAllSync: () => [], changes: Number(info.changes ?? 0), lastInsertRowid: Number(info.lastInsertRowid ?? 0) };
+              return {
+                getFirstSync: () => null,
+                getAllSync: () => [],
+                changes: Number(info.changes ?? 0),
+                lastInsertRowid: Number(info.lastInsertRowid ?? 0),
+              };
             },
             finalizeSync() {},
           };
         },
-        closeSync() { db.close(); },
+        closeSync() {
+          db.close();
+        },
         withTransactionSync(fn) {
           db.exec("BEGIN IMMEDIATE");
-          try { fn(); db.exec("COMMIT"); } catch (e) { db.exec("ROLLBACK"); throw e; }
+          try {
+            fn();
+            db.exec("COMMIT");
+          } catch (e) {
+            db.exec("ROLLBACK");
+            throw e;
+          }
         },
       };
     },
@@ -119,10 +152,18 @@ export function createFakeMc(dir: string): FakeMc {
     }
     exec(sql: string): unknown {
       const k = /^\s*PRAGMA\s+key\s*=\s*(.+)$/i.exec(sql);
-      if (k) { this.s.key = k[1] ?? null; return undefined; }
+      if (k) {
+        this.s.key = k[1] ?? null;
+        return undefined;
+      }
       if (/^\s*PRAGMA\s+cipher\s*=/i.test(sql)) return undefined;
       const r = /^\s*PRAGMA\s+rekey\s*=\s*(.+)$/i.exec(sql);
-      if (r) { guard(files, this.s); files.rekey(this.s.file, r[1] ?? ""); this.s.key = r[1] ?? null; return undefined; }
+      if (r) {
+        guard(files, this.s);
+        files.rekey(this.s.file, r[1] ?? "");
+        this.s.key = r[1] ?? null;
+        return undefined;
+      }
       guard(files, this.s);
       this.db.exec(sql);
       return undefined;
@@ -135,25 +176,45 @@ export function createFakeMc(dir: string): FakeMc {
       let rows: Record<string, unknown>[] | null = null;
       let at = 0;
       const self: McStatement = {
-        bind(p) { bound = params(p); return self; },
+        bind(p) {
+          bound = params(p);
+          return self;
+        },
         step() {
-          if (!query) { stmt.run(...bound); return false; }
+          if (!query) {
+            stmt.run(...bound);
+            return false;
+          }
           rows ??= stmt.all(...bound) as Record<string, unknown>[];
           return at++ < rows.length;
         },
-        get(target) { return Object.assign(target, rows?.[at - 1] ?? {}); },
-        reset() { rows = null; at = 0; bound = []; return self; },
+        get(target) {
+          return Object.assign(target, rows?.[at - 1] ?? {});
+        },
+        reset() {
+          rows = null;
+          at = 0;
+          bound = [];
+          return self;
+        },
         finalize() {},
       };
       return self;
     }
-    close(): void { this.db.close(); }
+    close(): void {
+      this.db.close();
+    }
   }
   return {
     files,
     vfsCreated,
     mod: {
-      capi: { sqlite3mc_vfs_create(name) { vfsCreated.push(name); return 0; } },
+      capi: {
+        sqlite3mc_vfs_create(name) {
+          vfsCreated.push(name);
+          return 0;
+        },
+      },
       oo1: { DB },
     },
   };

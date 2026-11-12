@@ -1,5 +1,19 @@
 // The thirteen spaces capabilities without a packet of their own (P-L7_07b). The host maps these over the `later` entries of ../index.ts when spaces goes live.
-import { deleteCancel, deleteDue, deleteSpace, exportAll, exportLatest, get, image, leave, matrix, setTimezone, switchAddress, transferOwnership, update } from "./core.ts";
+import {
+  deleteCancel,
+  deleteDue,
+  deleteSpace,
+  exportAll,
+  exportLatest,
+  get,
+  image,
+  leave,
+  matrix,
+  setTimezone,
+  switchAddress,
+  transferOwnership,
+  update,
+} from "./core.ts";
 
 export { configureSpaceAdmin } from "./core.ts";
 export type { ExtraCtx, SpaceAdminDrivers } from "./core.ts";

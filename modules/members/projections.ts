@@ -1,4 +1,4 @@
-import type {SignInMethods} from "../../lib/sign-in-policy.ts";
+import type { SignInMethods } from "../../lib/sign-in-policy.ts";
 // Members projections (spec 3.13, 3.10, 2.1, ARCH 7.13, 7.10): invites, the join effects, suspend and remove state, sign-in policy and SSO rows.
 // Durable tables: migrations/0001_members.sql. Handlers reach them only through ctx.db (members_* only, ARCH B2).
 // Other modules are reached through ctx.call (access, devices, spaces, projects, channels) or through the optional seams below,
@@ -12,10 +12,22 @@ export interface Db {
 }
 
 export type RemovalKind =
-  | "routines" | "automations" | "agents" | "records" | "files" | "channels" | "projects"
-  | "mailbox_connections" | "vault_mine" | "private_chats" | "memory_from_you";
+  | "routines"
+  | "automations"
+  | "agents"
+  | "records"
+  | "files"
+  | "channels"
+  | "projects"
+  | "mailbox_connections"
+  | "vault_mine"
+  | "private_chats"
+  | "memory_from_you";
 export type RemovalAction = "pause" | "reassign" | "revoke" | "export" | "retain" | "keep" | "delete";
-export interface OwnedItem { count: number; sample: { type: string; id: string; title: string }[] }
+export interface OwnedItem {
+  count: number;
+  sample: { type: string; id: string; title: string }[];
+}
 
 export interface MembersCtx {
   signInMethods?: Readonly<SignInMethods>;
@@ -44,7 +56,10 @@ export interface MembersCtx {
   /** The host's capability call (ctx.call). */
   call(cap: string, input: unknown): Promise<unknown>;
   /** ctx.http, used only by sso.test (egress is the issuer's domain). */
-  http?: (url: string, init?: { method?: string; headers?: Record<string, string> }) => Promise<{ status: number; text(): Promise<string> }>;
+  http?: (
+    url: string,
+    init?: { method?: string; headers?: Record<string, string> },
+  ) => Promise<{ status: number; text(): Promise<string> }>;
   /** What a person owns across modules, for the removal wizard; supplied by the host from files, records, agents, routines, mailboxes, vault and chat. */
   owned?: {
     of(personId: string): Partial<Record<RemovalKind, OwnedItem>> | Promise<Partial<Record<RemovalKind, OwnedItem>>>;
@@ -91,7 +106,13 @@ export interface InviteView {
   createdAt: number;
 }
 /** The shape identity's ctx.invites speaks. */
-export interface SeamInvite { inviteId: string; role: string; groups: string[]; invitedBy: string; email?: string }
+export interface SeamInvite {
+  inviteId: string;
+  role: string;
+  groups: string[];
+  invitedBy: string;
+  email?: string;
+}
 
 export const EVERYONE = "grp_everyone";
 export const OWNER_ROLE = "rol_owner";
@@ -118,8 +139,15 @@ export function newCode(): string {
   for (let i = 0; i < 8; i++) s += CODE_ALPHABET[b[i]! % CODE_ALPHABET.length];
   return `${s.slice(0, 4)}-${s.slice(4)}`;
 }
-export function normCode(code: string): string { return code.trim().toUpperCase().replace(/[\s-]+/g, ""); }
-export function hashCode(code: string): string { return sha256b64(`invite:${normCode(code)}`); }
+export function normCode(code: string): string {
+  return code
+    .trim()
+    .toUpperCase()
+    .replace(/[\s-]+/g, "");
+}
+export function hashCode(code: string): string {
+  return sha256b64(`invite:${normCode(code)}`);
+}
 
 export function me(ctx: MembersCtx): { kind: string; id: string } {
   if (!ctx.principal) raise(ctx.trace.traceId, "auth.unauthenticated");
@@ -127,7 +155,12 @@ export function me(ctx: MembersCtx): { kind: string; id: string } {
 }
 
 function list(json: string): string[] {
-  try { const v = JSON.parse(json) as unknown; return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : []; } catch { return []; }
+  try {
+    const v = JSON.parse(json) as unknown;
+    return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [];
+  } catch {
+    return [];
+  }
 }
 
 export function invitesAll(ctx: MembersCtx): InviteRow[] {
@@ -146,8 +179,12 @@ export function inviteByCode(ctx: MembersCtx, code: string): InviteRow | undefin
   const r = ctx.db.all(`SELECT * FROM members_invites WHERE code_hash = ?`, h)[0] as InviteRow | undefined;
   if (r) return r;
   // a code handed out before a replayed create gave the invite a fresh one: it still opens the same invite until that invite is used, revoked or expires (12 Nov 2026)
-  const was = ctx.db.all(`SELECT invite FROM members_invite_codes WHERE code_hash = ?`, h)[0] as { invite?: string } | undefined;
-  return was?.invite ? (ctx.db.all(`SELECT * FROM members_invites WHERE id = ?`, was.invite)[0] as InviteRow | undefined) : undefined;
+  const was = ctx.db.all(`SELECT invite FROM members_invite_codes WHERE code_hash = ?`, h)[0] as
+    | { invite?: string }
+    | undefined;
+  return was?.invite
+    ? (ctx.db.all(`SELECT * FROM members_invites WHERE id = ?`, was.invite)[0] as InviteRow | undefined)
+    : undefined;
 }
 /** open past its expiry reads as expired; accepted and revoked stay as they are. */
 export function stateOf(r: InviteRow, now: number): InviteView["state"] {
@@ -155,8 +192,16 @@ export function stateOf(r: InviteRow, now: number): InviteView["state"] {
 }
 export function inviteView(r: InviteRow, now: number): InviteView {
   const v: InviteView = {
-    id: r.id, role: r.role, groups: list(r.groups), agents: list(r.agents), projects: list(r.projects), channels: list(r.channels),
-    expiresAt: r.expires_at, createdBy: r.created_by, state: stateOf(r, now), createdAt: r.created_at,
+    id: r.id,
+    role: r.role,
+    groups: list(r.groups),
+    agents: list(r.agents),
+    projects: list(r.projects),
+    channels: list(r.channels),
+    expiresAt: r.expires_at,
+    createdBy: r.created_by,
+    state: stateOf(r, now),
+    createdAt: r.created_at,
   };
   if (r.email) v.email = r.email;
   if (r.ai_key_handle) v.aiKeyHandle = r.ai_key_handle;
@@ -165,7 +210,11 @@ export function inviteView(r: InviteRow, now: number): InviteView {
 }
 export const listOf = list;
 
-export function page<T>(all: readonly T[], cursor?: string, limit?: number): { rows: T[]; next?: string; total: number } {
+export function page<T>(
+  all: readonly T[],
+  cursor?: string,
+  limit?: number,
+): { rows: T[]; next?: string; total: number } {
   const lim = Math.min(500, Math.max(1, limit ?? 50));
   const start = cursor && /^\d+$/.test(cursor) ? Number(cursor) : 0;
   const rows = all.slice(start, start + lim);
@@ -177,7 +226,14 @@ export function page<T>(all: readonly T[], cursor?: string, limit?: number): { r
 // ---- lifecycle after the join
 
 export interface StatusRow {
-  person_id: string; status: "suspended" | "removed"; reason: string | null; by: string; at: number; plan: string | null; export_until: number | null; key_rotation_pending: number;
+  person_id: string;
+  status: "suspended" | "removed";
+  reason: string | null;
+  by: string;
+  at: number;
+  plan: string | null;
+  export_until: number | null;
+  key_rotation_pending: number;
 }
 export function statusOf(ctx: MembersCtx, personId: string): StatusRow | undefined {
   return ctx.db.all(`SELECT * FROM members_status WHERE person_id = ?`, personId)[0] as StatusRow | undefined;
@@ -191,7 +247,13 @@ export function policyGet<T>(ctx: MembersCtx, key: string): T | undefined {
 }
 export function policyPut(ctx: MembersCtx, key: string, value: unknown): void {
   const by = ctx.principal?.id ?? "system";
-  ctx.db.run(`INSERT OR REPLACE INTO members_policy (key, value, updated_at, updated_by) VALUES (?, ?, ?, ?)`, key, JSON.stringify(value), ctx.now(), by);
+  ctx.db.run(
+    `INSERT OR REPLACE INTO members_policy (key, value, updated_at, updated_by) VALUES (?, ?, ?, ?)`,
+    key,
+    JSON.stringify(value),
+    ctx.now(),
+    by,
+  );
 }
 export function policyDrop(ctx: MembersCtx, key: string): number {
   return ctx.db.run(`DELETE FROM members_policy WHERE key = ?`, key).changes;

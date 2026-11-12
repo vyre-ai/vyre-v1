@@ -2,7 +2,9 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { durationWords } from "./duration.ts";
 
-const MIN = 60_000, H = 60 * MIN, D = 24 * H;
+const MIN = 60_000,
+  H = 60 * MIN,
+  D = 24 * H;
 
 test("a duration reads now, minutes, hours and minutes, then days", () => {
   assert.equal(durationWords(0), "now");

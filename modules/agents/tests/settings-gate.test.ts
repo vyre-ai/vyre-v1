@@ -6,14 +6,23 @@ import { handlers } from "../impl.ts";
 import { DANA, MAYA, contractErrors, harness } from "../fixtures/harness.ts";
 import type { Harness } from "../fixtures/harness.ts";
 
-const h = handlers as unknown as Record<string, (ctx: Harness["ctx"], input: any) => Promise<any>>;   // eslint-disable-line @typescript-eslint/no-explicit-any
-const maySave = async (ctx: Harness["ctx"], fileId: string): Promise<{ agentId: string | null; allowed: boolean; reason?: string; message?: string }> => {
+const h = handlers as unknown as Record<string, (ctx: Harness["ctx"], input: any) => Promise<any>>; // eslint-disable-line @typescript-eslint/no-explicit-any
+const maySave = async (
+  ctx: Harness["ctx"],
+  fileId: string,
+): Promise<{ agentId: string | null; allowed: boolean; reason?: string; message?: string }> => {
   const out = await h["agents.config.may_save"]!(ctx, { fileId });
   assert.deepEqual(contractErrors("agents.config.may_save", "out", out), [], "the answer keeps to the contract");
   return out;
 };
-const refusal = async (p: Promise<unknown>): Promise<{ code: string; message: string; details?: Record<string, unknown> }> => {
-  try { await p; } catch (e) { return (e as { error: { code: string; message: string; details?: Record<string, unknown> } }).error; }
+const refusal = async (
+  p: Promise<unknown>,
+): Promise<{ code: string; message: string; details?: Record<string, unknown> }> => {
+  try {
+    await p;
+  } catch (e) {
+    return (e as { error: { code: string; message: string; details?: Record<string, unknown> } }).error;
+  }
   assert.fail("the call was accepted");
 };
 
@@ -22,7 +31,9 @@ async function world() {
   const hn = harness({ allow: () => true });
   const agent = (await h["agents.create"]!(hn.ctx, { name: "Intake", idempotencyKey: "c1" })).agent;
   const toml = hn.world.fileIn(hn.world.folderNamed("Intake", hn.world.root)!.folderId, "agent.toml")!;
-  const outside = (await h["agents.outside.connect"]!({ ...hn.ctx, depth: 1 }, { clientName: "Claude Code" })) as { agentId: string };
+  const outside = (await h["agents.outside.connect"]!({ ...hn.ctx, depth: 1 }, { clientName: "Claude Code" })) as {
+    agentId: string;
+  };
   return { hn, agentId: agent.agentId as string, tomlId: toml.fileId as string, outsideId: outside.agentId };
 }
 
@@ -55,7 +66,17 @@ test("another agent, or a person, without Edit on the agent may not; with Edit t
   const { hn, tomlId, agentId } = await world();
   const helper = (await h["agents.create"]!(hn.ctx, { name: "Helper", idempotencyKey: "c2" })).agent.agentId as string;
   // the helper (acting for Maya) and Maya hold no Edit on Intake
-  const asHelper = { ...hn.as({ kind: "agent", id: helper }, MAYA), authorize: (action: { level: string }, resource: { type: string; id: string | null }) => ({ effect: resource.type === "agent" && resource.id === agentId && action.level === "edit" ? "deny" as const : "allow" as const, reason: "", decisionId: "d" }) };
+  const asHelper = {
+    ...hn.as({ kind: "agent", id: helper }, MAYA),
+    authorize: (action: { level: string }, resource: { type: string; id: string | null }) => ({
+      effect:
+        resource.type === "agent" && resource.id === agentId && action.level === "edit"
+          ? ("deny" as const)
+          : ("allow" as const),
+      reason: "",
+      decisionId: "d",
+    }),
+  };
   const r = await maySave(asHelper as Harness["ctx"], tomlId);
   assert.equal(r.allowed, false);
   assert.equal(r.reason, "no_edit");
@@ -72,7 +93,10 @@ test("an agent in Trash keeps its agent.toml guarded, and who it belongs to is s
   const { hn, tomlId, agentId, outsideId } = await world();
   await h["agents.delete"]!(hn.ctx, { agentId });
   assert.equal((await maySave(hn.as({ kind: "agent", id: outsideId }, DANA), tomlId)).allowed, false);
-  const stranger = { ...hn.person("usr_stranger"), authorize: () => ({ effect: "deny" as const, reason: "no_grant", decisionId: "d" }) };
+  const stranger = {
+    ...hn.person("usr_stranger"),
+    authorize: () => ({ effect: "deny" as const, reason: "no_grant", decisionId: "d" }),
+  };
   await h["agents.restore"]!(hn.ctx, { agentId });
   const r = await maySave(stranger as Harness["ctx"], tomlId);
   assert.equal(r.allowed, false);

@@ -32,9 +32,15 @@ test("a send with the senderId of a shared mailbox goes out through the Space do
 test("a senderId that names another mailbox than mailboxId, or is not a mailbox, is refused before anything is read or sent", async () => {
   const r = rig();
   const clash = await refusal(send(r.ctx, sendIn({ mailboxId: "mbx_hello", senderId: "mbx_maya" })));
-  assert.deepEqual([clash.code, clash.message], ["validation.bad_input", "The sender and the mailbox name different senders. Pass the same id for both."]);
+  assert.deepEqual(
+    [clash.code, clash.message],
+    ["validation.bad_input", "The sender and the mailbox name different senders. Pass the same id for both."],
+  );
   const number = await refusal(send(r.ctx, sendIn({ senderId: "num_line" })));
-  assert.deepEqual([number.code, number.message], ["validation.bad_input", "That sender is not an email sender. Pick one from the list of senders for email."]);
+  assert.deepEqual(
+    [number.code, number.message],
+    ["validation.bad_input", "That sender is not an email sender. Pick one from the list of senders for email."],
+  );
   assert.equal(r.sent().length, 0);
 });
 
@@ -59,7 +65,10 @@ test("a chosen sender that was disconnected, paused or in error is refused with 
 
 test("a chosen sender the caller may no longer use is refused as not allowed", async () => {
   const r = rig({ denied: new Set(["mbx_maya"]) });
-  assert.equal((await refusal(send(r.ctx, sendIn({ mailboxId: "mbx_maya", senderId: "mbx_maya" })))).code, "permission.no_grant");
+  assert.equal(
+    (await refusal(send(r.ctx, sendIn({ mailboxId: "mbx_maya", senderId: "mbx_maya" })))).code,
+    "permission.no_grant",
+  );
   const shared = rig({ deniedPerms: ["comms.shared_send"] });
   assert.equal((await refusal(send(shared.ctx, sendIn({ senderId: "mbx_hello" })))).code, "permission.no_grant");
   assert.equal(r.sent().length + shared.sent().length, 0);
@@ -67,19 +76,51 @@ test("a chosen sender the caller may no longer use is refused as not allowed", a
 
 test("a sender that was deleted since the list was read is not found", async () => {
   const r = rig();
-  assert.equal((await refusal(send(r.ctx, sendIn({ mailboxId: "mbx_gone", senderId: "mbx_gone" })))).code, "validation.not_found");
+  assert.equal(
+    (await refusal(send(r.ctx, sendIn({ mailboxId: "mbx_gone", senderId: "mbx_gone" })))).code,
+    "validation.not_found",
+  );
 });
 
 test("send_as and the preview take a senderId the same way", async () => {
   const r = rig();
-  const sent = await sendAs(r.ctx, { mailboxId: "mbx_maya", senderId: "mbx_maya", to: [{ address: "pat@acme.test" }], subject: "Hi", text: "Hello", idempotencyKey: "as-1" });
+  const sent = await sendAs(r.ctx, {
+    mailboxId: "mbx_maya",
+    senderId: "mbx_maya",
+    to: [{ address: "pat@acme.test" }],
+    subject: "Hi",
+    text: "Hello",
+    idempotencyKey: "as-1",
+  });
   assert.ok(sent.messageId);
-  const preview = await sendPreview(r.ctx, { mailboxId: "mbx_maya", senderId: "mbx_maya", to: [{ address: "pat@acme.test" }] });
+  const preview = await sendPreview(r.ctx, {
+    mailboxId: "mbx_maya",
+    senderId: "mbx_maya",
+    to: [{ address: "pat@acme.test" }],
+  });
   assert.equal(preview.providerRoute, "mailbox");
-  const clash = await refusal(sendAs(r.ctx, { mailboxId: "mbx_maya", senderId: "mbx_omar", to: [{ address: "pat@acme.test" }], subject: "Hi", text: "Hello", idempotencyKey: "as-2" }));
+  const clash = await refusal(
+    sendAs(r.ctx, {
+      mailboxId: "mbx_maya",
+      senderId: "mbx_omar",
+      to: [{ address: "pat@acme.test" }],
+      subject: "Hi",
+      text: "Hello",
+      idempotencyKey: "as-2",
+    }),
+  );
   assert.equal(clash.code, "validation.bad_input");
   r.ctx.db.run(`UPDATE mail_mailbox SET state = ? WHERE id = ?`, "error", "mbx_maya");
-  const down = await refusal(sendAs(r.ctx, { mailboxId: "mbx_maya", senderId: "mbx_maya", to: [{ address: "pat@acme.test" }], subject: "Hi", text: "Hello", idempotencyKey: "as-3" }));
+  const down = await refusal(
+    sendAs(r.ctx, {
+      mailboxId: "mbx_maya",
+      senderId: "mbx_maya",
+      to: [{ address: "pat@acme.test" }],
+      subject: "Hi",
+      text: "Hello",
+      idempotencyKey: "as-3",
+    }),
+  );
   assert.equal(down.code, "validation.bad_input", "send_as answers with its declared code; the message is the same");
   assert.match(down.message, /needs to be reconnected/);
 });

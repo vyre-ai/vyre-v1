@@ -1,4 +1,4 @@
-import {DEFAULT_SIGN_IN_POLICY,parseSignInPolicy} from "../../../lib/sign-in-policy.ts";
+import { DEFAULT_SIGN_IN_POLICY, parseSignInPolicy } from "../../../lib/sign-in-policy.ts";
 // The extras identity, members and spaces expect on their ctx besides what the invoke pipeline builds (ruling 31/32): the host reads them from the access projection and the module tables, or hands the work to the
 // module that owns it. Each is a plain object on the ctx of that module's capabilities; a module without the extra answers the way its handler says (empty directory, no invites wired).
 //   identity.membership whether the access projection has the person active; issueSession refuses a suspended, removed or unknown person, and answers unavailable while the snapshot is stale
@@ -20,14 +20,18 @@ import type { GithubTickets } from "./github-tickets.ts";
 import type { KeyWraps } from "./key-wraps.ts";
 import type { SsoTickets } from "../routes/sso-signin.ts";
 import type { SsoProvider } from "./oidc.ts";
-import type {RecoveryCommit} from "../../../packages/contracts/src/identity-recovery.ts";
+import type { RecoveryCommit } from "../../../packages/contracts/src/identity-recovery.ts";
 
 export interface PeopleDeps {
-  recoveryCommit?:RecoveryCommit;
+  recoveryCommit?: RecoveryCommit;
   access(): AccessSnapshot;
   db: { all(sql: string, ...args: unknown[]): unknown[]; run?(sql: string, ...args: unknown[]): unknown };
   /** run a module's host call as that module */
-  call(name: string, input: unknown, as?: { principal: { kind: "person" | "agent" | "service"; id: string } }): Promise<unknown>;
+  call(
+    name: string,
+    input: unknown,
+    as?: { principal: { kind: "person" | "agent" | "service"; id: string } },
+  ): Promise<unknown>;
   /** GitHub sign-in; omitted: identity answers that it is not set up on this server */
   github?: GithubOAuth | null | (() => GithubOAuth | null);
   /** what connecting GitHub and signing in with GitHub hand each other (seams/github-tickets.ts) */
@@ -52,37 +56,83 @@ export interface PeopleDeps {
 }
 
 const count = (db: PeopleDeps["db"], sql: string, ...args: unknown[]): number => {
-  try { return Number((db.all(sql, ...args)[0] as { n?: number } | undefined)?.n ?? 0); } catch { return 0; }
+  try {
+    return Number((db.all(sql, ...args)[0] as { n?: number } | undefined)?.n ?? 0);
+  } catch {
+    return 0;
+  }
 };
 
 /** The GitHub OAuth app of this server (VYRE_GH_OAUTH_CLIENT_ID and VYRE_GH_OAUTH_CLIENT_SECRET, set by the installer from the owner's vault); both or neither. */
-export interface GithubOAuth { clientId: string; clientSecret: string; fetch?: typeof globalThis.fetch; /** the GitHub endpoints; only a test points these at a stand-in server */ authorizeUrl?: string; tokenUrl?: string; userUrl?: string }
+export interface GithubOAuth {
+  clientId: string;
+  clientSecret: string;
+  fetch?: typeof globalThis.fetch;
+  /** the GitHub endpoints; only a test points these at a stand-in server */ authorizeUrl?: string;
+  tokenUrl?: string;
+  userUrl?: string;
+}
 export function githubOAuthFromEnv(env: NodeJS.ProcessEnv): GithubOAuth | null {
-  const clientId = env["VYRE_GH_OAUTH_CLIENT_ID"], clientSecret = env["VYRE_GH_OAUTH_CLIENT_SECRET"];
+  const clientId = env["VYRE_GH_OAUTH_CLIENT_ID"],
+    clientSecret = env["VYRE_GH_OAUTH_CLIENT_SECRET"];
   return clientId && clientSecret ? { clientId, clientSecret } : null;
 }
 
 /** Trade a sign-in code for who it belongs to: the code goes to GitHub with the app's secret, the token that comes back is used once to read the user, then dropped. */
-export function createGithub(o: GithubOAuth, tickets?: GithubTickets, adopt?: (githubId: string, person: string) => Promise<unknown>): {
-  resolve(code: string): Promise<{ id: string; login: string }>; redeem?(ticket: string): { id: string; login: string } | null; signedIn?(githubId: string, person: string): Promise<void>;
+export function createGithub(
+  o: GithubOAuth,
+  tickets?: GithubTickets,
+  adopt?: (githubId: string, person: string) => Promise<unknown>,
+): {
+  resolve(code: string): Promise<{ id: string; login: string }>;
+  redeem?(ticket: string): { id: string; login: string } | null;
+  signedIn?(githubId: string, person: string): Promise<void>;
 } {
   const f = o.fetch ?? globalThis.fetch;
   return {
     ...(tickets ? { redeem: (ticket: string) => tickets.takeLink(ticket) } : {}),
     // a sign-in finished for this person: tokens GitHub gave with it (an app with expiring tokens) connect their GitHub too. Best effort: the sign-in never waits on it or fails by it.
-    ...(tickets && adopt ? { async signedIn(githubId: string, person: string) { try { await adopt(githubId, person); } catch { /* the sign-in stands */ } } } : {}),
+    ...(tickets && adopt
+      ? {
+          async signedIn(githubId: string, person: string) {
+            try {
+              await adopt(githubId, person);
+            } catch {
+              /* the sign-in stands */
+            }
+          },
+        }
+      : {}),
     async resolve(code) {
       const t = await f(o.tokenUrl ?? "https://github.com/login/oauth/access_token", {
-        method: "POST", headers: { accept: "application/json", "content-type": "application/json" }, body: JSON.stringify({ client_id: o.clientId, client_secret: o.clientSecret, code }), redirect: "error",
+        method: "POST",
+        headers: { accept: "application/json", "content-type": "application/json" },
+        body: JSON.stringify({ client_id: o.clientId, client_secret: o.clientSecret, code }),
+        redirect: "error",
       });
       const tj = (await t.json()) as { access_token?: unknown; refresh_token?: unknown; expires_in?: unknown };
       const token = tj.access_token;
       if (typeof token !== "string" || token === "") throw new Error("GitHub did not accept the code");
-      const u = await f(o.userUrl ?? "https://api.github.com/user", { headers: { authorization: `Bearer ${token}`, accept: "application/vnd.github+json", "user-agent": "vyre-server" }, redirect: "error" });
+      const u = await f(o.userUrl ?? "https://api.github.com/user", {
+        headers: {
+          authorization: `Bearer ${token}`,
+          accept: "application/vnd.github+json",
+          "user-agent": "vyre-server",
+        },
+        redirect: "error",
+      });
       const user = (await u.json()) as { id?: unknown; login?: unknown };
-      if ((typeof user.id !== "number" && typeof user.id !== "string") || typeof user.login !== "string") throw new Error("GitHub did not say who this is");
+      if ((typeof user.id !== "number" && typeof user.id !== "string") || typeof user.login !== "string")
+        throw new Error("GitHub did not say who this is");
       if (tickets && typeof tj.refresh_token === "string" && tj.refresh_token) {
-        tickets.holdPending({ id: String(user.id), login: user.login }, { accessToken: token, refreshToken: tj.refresh_token, expiresAt: Date.now() + (typeof tj.expires_in === "number" ? tj.expires_in : 28_800) * 1000 });
+        tickets.holdPending(
+          { id: String(user.id), login: user.login },
+          {
+            accessToken: token,
+            refreshToken: tj.refresh_token,
+            expiresAt: Date.now() + (typeof tj.expires_in === "number" ? tj.expires_in : 28_800) * 1000,
+          },
+        );
       }
       return { id: String(user.id), login: user.login };
     },
@@ -94,10 +144,14 @@ export function ssoProvidersIn(db: PeopleDeps["db"]): SsoProvider[] {
   const out: SsoProvider[] = [];
   for (const key of ["google", "microsoft", "okta"]) {
     let row: { value: string } | undefined;
-    try { row = db.all("SELECT value FROM members_policy WHERE key = ?", `sso:${key}`)[0] as { value: string } | undefined; } catch { return out; }
+    try {
+      row = db.all("SELECT value FROM members_policy WHERE key = ?", `sso:${key}`)[0] as { value: string } | undefined;
+    } catch {
+      return out;
+    }
     if (!row) continue;
     const p = JSON.parse(row.value) as SsoProvider;
-    const pin = pinIssuer(key, p.issuer);   // the issuer is fixed by the code for Google and Microsoft, whatever an old row says
+    const pin = pinIssuer(key, p.issuer); // the issuer is fixed by the code for Google and Microsoft, whatever an old row says
     if ("error" in pin) continue;
     p.issuer = pin.issuer;
     if (p.enabled && p.clientId && p.clientSecretHandle && p.domainHint) out.push(p);
@@ -109,29 +163,68 @@ export function ssoProvidersIn(db: PeopleDeps["db"]): SsoProvider[] {
  * The person a finished sign-in is. A provider's address can change hands and a Microsoft email claim is not even verified, so a person is known by the organization and the provider's immutable id. Their first sign-in links
  * that id to the person their address matches (the invitation, or the address matched by hand); after that the id alone is who they are, and an id that is not linked can never take over a linked person.
  */
-export function personForSso(db: PeopleDeps["db"], active: (id: string) => boolean, key: string, t: { email: string; link?: { tenant: string; subject: string } }): string | null {
+export function personForSso(
+  db: PeopleDeps["db"],
+  active: (id: string) => boolean,
+  key: string,
+  t: { email: string; link?: { tenant: string; subject: string } },
+): string | null {
   if (!t.link) return null;
   const row = `sso_link:${key}:${t.link.tenant}:${t.link.subject}`;
   let linked: string | undefined;
-  try { linked = (db.all("SELECT value FROM members_policy WHERE key = ?", row)[0] as { value?: string } | undefined)?.value; } catch { return null; }
+  try {
+    linked = (db.all("SELECT value FROM members_policy WHERE key = ?", row)[0] as { value?: string } | undefined)
+      ?.value;
+  } catch {
+    return null;
+  }
   if (linked) return active(linked) ? linked : null;
   const person = personForEmail(db, active, t.email);
   if (!person || !db.run) return null;
   // one person, one id per organization: someone else's id with the same address does not get in
-  const mine = db.all("SELECT key FROM members_policy WHERE key LIKE ? AND value = ?", `sso_link:${key}:${t.link.tenant}:%`, person);
+  const mine = db.all(
+    "SELECT key FROM members_policy WHERE key LIKE ? AND value = ?",
+    `sso_link:${key}:${t.link.tenant}:%`,
+    person,
+  );
   if (mine.length > 0) return null;
-  db.run("INSERT OR IGNORE INTO members_policy (key, value, updated_at, updated_by) VALUES (?, ?, ?, ?)", row, person, Date.now(), person);
+  db.run(
+    "INSERT OR IGNORE INTO members_policy (key, value, updated_at, updated_by) VALUES (?, ?, ?, ?)",
+    row,
+    person,
+    Date.now(),
+    person,
+  );
   return person;
 }
 
 /** A signed-in person proves the provider identity is theirs by finishing a sign-in with it. An id already linked to someone else stays theirs. */
-export function linkSso(db: PeopleDeps["db"], key: string, t: { email: string; link?: { tenant: string; subject: string } }, person: string): boolean {
+export function linkSso(
+  db: PeopleDeps["db"],
+  key: string,
+  t: { email: string; link?: { tenant: string; subject: string } },
+  person: string,
+): boolean {
   if (!t.link || !db.run) return false;
   const row = `sso_link:${key}:${t.link.tenant}:${t.link.subject}`;
-  const linked = (db.all("SELECT value FROM members_policy WHERE key = ?", row)[0] as { value?: string } | undefined)?.value;
+  const linked = (db.all("SELECT value FROM members_policy WHERE key = ?", row)[0] as { value?: string } | undefined)
+    ?.value;
   if (linked) return linked === person;
-  if (db.all("SELECT key FROM members_policy WHERE key LIKE ? AND value = ?", `sso_link:${key}:${t.link.tenant}:%`, person).length > 0) return false;
-  db.run("INSERT OR IGNORE INTO members_policy (key, value, updated_at, updated_by) VALUES (?, ?, ?, ?)", row, person, Date.now(), person);
+  if (
+    db.all(
+      "SELECT key FROM members_policy WHERE key LIKE ? AND value = ?",
+      `sso_link:${key}:${t.link.tenant}:%`,
+      person,
+    ).length > 0
+  )
+    return false;
+  db.run(
+    "INSERT OR IGNORE INTO members_policy (key, value, updated_at, updated_by) VALUES (?, ?, ?, ?)",
+    row,
+    person,
+    Date.now(),
+    person,
+  );
   return true;
 }
 
@@ -139,71 +232,138 @@ export function linkSso(db: PeopleDeps["db"], key: string, t: { email: string; l
  * A finished sign-in proved this work address is this person's (Google: a verified account of the firm's hosted domain; Microsoft: the firm's tenant). The company connection matches them to it, so
  * their own mail, calendar and files come in with no admin step; the owner, who has no invitation, gets theirs this way. Run as the host; the connector refuses an address held by someone else.
  */
-export function matchProvenAddress(call: PeopleDeps["call"], key: string, t: { email: string; link?: { tenant: string; subject: string } }, person: string): void {
+export function matchProvenAddress(
+  call: PeopleDeps["call"],
+  key: string,
+  t: { email: string; link?: { tenant: string; subject: string } },
+  person: string,
+): void {
   const name = key === "google" ? "google.match_proven" : key === "microsoft" ? "microsoft.match_proven" : null;
   if (!name || !t.link) return;
-  void call(name, { person, email: t.email, ...(key === "microsoft" ? { tenant: t.link.tenant } : {}) }).catch(() => undefined);   // the connector is not set up, or not live: nothing to match
+  void call(name, { person, email: t.email, ...(key === "microsoft" ? { tenant: t.link.tenant } : {}) }).catch(
+    () => undefined,
+  ); // the connector is not set up, or not live: nothing to match
 }
 
 /** Has this person a provider identity linked: the proof they will still get in once everyone must use it. */
 export function hasSsoLink(db: PeopleDeps["db"], person: string): boolean {
-  try { return db.all("SELECT key FROM members_policy WHERE key LIKE 'sso_link:%' AND value = ?", person).length > 0; } catch { return false; }
+  try {
+    return db.all("SELECT key FROM members_policy WHERE key LIKE 'sso_link:%' AND value = ?", person).length > 0;
+  } catch {
+    return false;
+  }
 }
 
 /** Has this person saved a recovery key: the break-glass way in when the provider is down. */
 export function hasRecovery(db: PeopleDeps["db"], person: string): boolean {
   try {
-    const row = db.all("SELECT keys_json FROM identity_accounts WHERE person_id = ?", person)[0] as { keys_json?: string | null } | undefined;
-    return !!row?.keys_json && typeof (JSON.parse(row.keys_json) as { personKeyByRecovery?: unknown }).personKeyByRecovery === "string";
-  } catch { return false; }
+    const row = db.all("SELECT keys_json FROM identity_accounts WHERE person_id = ?", person)[0] as
+      | { keys_json?: string | null }
+      | undefined;
+    return (
+      !!row?.keys_json &&
+      typeof (JSON.parse(row.keys_json) as { personKeyByRecovery?: unknown }).personKeyByRecovery === "string"
+    );
+  } catch {
+    return false;
+  }
 }
 
 /** The person a verified work address belongs to: the invitation it went to, or a Google or Microsoft address matched by hand, and only when they are active. */
 export function personForEmail(db: PeopleDeps["db"], active: (id: string) => boolean, email: string): string | null {
   const queries = [
     "SELECT accepted_by AS id FROM members_invites WHERE state = 'accepted' AND lower(email) = ? AND accepted_by IS NOT NULL",
-    "SELECT \"userId\" AS id FROM google_member WHERE email = ? AND mapped = 1 AND excluded = 0 AND \"userId\" IS NOT NULL",
-    "SELECT \"userId\" AS id FROM microsoft_member WHERE email = ? AND mapped = 1 AND excluded = 0 AND \"userId\" IS NOT NULL",
+    'SELECT "userId" AS id FROM google_member WHERE email = ? AND mapped = 1 AND excluded = 0 AND "userId" IS NOT NULL',
+    'SELECT "userId" AS id FROM microsoft_member WHERE email = ? AND mapped = 1 AND excluded = 0 AND "userId" IS NOT NULL',
   ];
   const found = new Set<string>();
   for (const q of queries) {
-    try { for (const r of db.all(q, email.toLowerCase()) as { id?: unknown }[]) if (typeof r.id === "string" && active(r.id)) found.add(r.id); } catch { /* that module has no table yet */ }
+    try {
+      for (const r of db.all(q, email.toLowerCase()) as { id?: unknown }[])
+        if (typeof r.id === "string" && active(r.id)) found.add(r.id);
+    } catch {
+      /* that module has no table yet */
+    }
   }
-  return found.size === 1 ? [...found][0]! : null;   // an address that points at two people signs no one in
+  return found.size === 1 ? [...found][0]! : null; // an address that points at two people signs no one in
 }
 
-export function createPeopleExtras(d: PeopleDeps): (module: string, ctx: { device?: string; principal?: { kind: string; id: string } }) => Record<string, unknown> | null {
-  const spaceOwner=():string|null=>{const roots=[...d.access().allResources()].filter(row=>row.type==='space');return roots.length===1?roots[0]!.owner_id:null;};
-  const githubNow=():GithubOAuth|null=>(typeof d.github==='function'?d.github():d.github)??null;
-  const signInMethods={get github(){return githubNow()!==null;},get sso():readonly string[]{return d.sso?ssoProvidersIn(d.db).map(x=>x.key):[];},newMemberMfaEnrollment:false};
-  const currentSignInPolicy=()=>{
-    let row:{value:string}|undefined;
-    try {row=d.db.all('SELECT value FROM members_policy WHERE key = ?','sign_in')[0] as {value:string}|undefined;} catch(error){if(!String(error).includes('no such table: members_policy'))throw error;}
-    if(row)return parseSignInPolicy(JSON.parse(row.value));
-    const legacy=d.db.all('SELECT second_factor_required FROM identity_space LIMIT 1')[0] as {second_factor_required:number}|undefined;
-    return {...DEFAULT_SIGN_IN_POLICY,secondFactor:legacy?.second_factor_required===1?'required' as const:'off' as const};
+export function createPeopleExtras(
+  d: PeopleDeps,
+): (
+  module: string,
+  ctx: { device?: string; principal?: { kind: string; id: string } },
+) => Record<string, unknown> | null {
+  const spaceOwner = (): string | null => {
+    const roots = [...d.access().allResources()].filter((row) => row.type === "space");
+    return roots.length === 1 ? roots[0]!.owner_id : null;
+  };
+  const githubNow = (): GithubOAuth | null => (typeof d.github === "function" ? d.github() : d.github) ?? null;
+  const signInMethods = {
+    get github() {
+      return githubNow() !== null;
+    },
+    get sso(): readonly string[] {
+      return d.sso ? ssoProvidersIn(d.db).map((x) => x.key) : [];
+    },
+    newMemberMfaEnrollment: false,
+  };
+  const currentSignInPolicy = () => {
+    let row: { value: string } | undefined;
+    try {
+      row = d.db.all("SELECT value FROM members_policy WHERE key = ?", "sign_in")[0] as { value: string } | undefined;
+    } catch (error) {
+      if (!String(error).includes("no such table: members_policy")) throw error;
+    }
+    if (row) return parseSignInPolicy(JSON.parse(row.value));
+    const legacy = d.db.all("SELECT second_factor_required FROM identity_space LIMIT 1")[0] as
+      | { second_factor_required: number }
+      | undefined;
+    return {
+      ...DEFAULT_SIGN_IN_POLICY,
+      secondFactor: legacy?.second_factor_required === 1 ? ("required" as const) : ("off" as const),
+    };
   };
 
   const directory = {
     of(personId: string) {
       const info = d.access().info(personId);
-      return { roles: info && info.roleNames !== "no role" ? info.roleNames.split(", ") : [], groups: d.access().groupsOf(personId), permissions: info ? [...info.perms].sort() : [] };
+      return {
+        roles: info && info.roleNames !== "no role" ? info.roleNames.split(", ") : [],
+        groups: d.access().groupsOf(personId),
+        permissions: info ? [...info.perms].sort() : [],
+      };
     },
-    roleName(personId: string) { return d.access().info(personId)?.roleNames.split(", ")[0] ?? "member"; },
+    roleName(personId: string) {
+      return d.access().info(personId)?.roleNames.split(", ")[0] ?? "member";
+    },
   };
   // the removal wizard: each owning module answers for its own kinds through its host calls (<module>.owned_by, <module>.reassign_owned), run as the admin doing the removal; a module that is not live has
   // no host call and owns nothing here. HOOK for a module that joins (files, channels, private chats, memory): export `hostCalls` with "<module>.owned_by" answering { <kind>: { count, sample, ids } } and
   // "<module>.reassign_owned" taking { person, kind, action, to? } and answering how many it touched, then add the kind to OWNERS below.
   const OWNERS: Record<string, string> = {
-    routines: "agents", agents: "agents", automations: "automations", vault_mine: "vault", records: "records", projects: "projects",
-    files: "files", channels: "chat", private_chats: "chat", memory_from_you: "memory", mailbox_connections: "mail",
+    routines: "agents",
+    agents: "agents",
+    automations: "automations",
+    vault_mine: "vault",
+    records: "records",
+    projects: "projects",
+    files: "files",
+    channels: "chat",
+    private_chats: "chat",
+    memory_from_you: "memory",
+    mailbox_connections: "mail",
   };
   const ALSO: Record<string, string[]> = { mailbox_connections: ["google", "microsoft"] };
   const ownedFor = (as: { principal: { kind: "person" | "agent" | "service"; id: string } } | undefined) => {
     const gather = async (personId: string) => {
       const out: Record<string, { count: number; sample: unknown[]; ids?: string[] }> = {};
       for (const module of new Set(Object.values(OWNERS))) {
-        try { Object.assign(out, (await d.call(`${module}.owned_by`, { person: personId }, as)) as object); } catch { /* module not live */ }
+        try {
+          Object.assign(out, (await d.call(`${module}.owned_by`, { person: personId }, as)) as object);
+        } catch {
+          /* module not live */
+        }
       }
       return out;
     };
@@ -215,7 +375,11 @@ export function createPeopleExtras(d: PeopleDeps): (module: string, ctx: { devic
       /** items the person owns that are on legal hold (governance answers; a hold on the person counts) */
       async holds(personId: string) {
         const ids = Object.values(await gather(personId)).flatMap((v) => v.ids ?? []);
-        try { return Number(await d.call("governance.held_among", { person: personId, ids }, as)); } catch { return 0; }
+        try {
+          return Number(await d.call("governance.held_among", { person: personId, ids }, as));
+        } catch {
+          return 0;
+        }
       },
       async apply(personId: string, kind: string, action: string, to?: string) {
         const module = OWNERS[kind];
@@ -223,15 +387,41 @@ export function createPeopleExtras(d: PeopleDeps): (module: string, ctx: { devic
         // ruling 88: an agent's folder follows its owner. The folders are read before the reassign (the rows still name the old owner), then ownership of each moves and the old owner keeps nothing on it.
         let owned: { agentId: string; folderId: string }[] = [];
         if (kind === "agents" && action === "reassign" && to) {
-          try { owned = (await d.call("agents.folders_of", { person: personId }, as)) as { agentId: string; folderId: string }[]; } catch { owned = []; }
+          try {
+            owned = (await d.call("agents.folders_of", { person: personId }, as)) as {
+              agentId: string;
+              folderId: string;
+            }[];
+          } catch {
+            owned = [];
+          }
         }
         let moved = 0;
-        try { moved = Number(await d.call(`${module}.reassign_owned`, { person: personId, kind, action, ...(to ? { to } : {}) }, as)); } catch { return 0; }
+        try {
+          moved = Number(
+            await d.call(`${module}.reassign_owned`, { person: personId, kind, action, ...(to ? { to } : {}) }, as),
+          );
+        } catch {
+          return 0;
+        }
         // modules that hold the sign-ins behind a kind end them with it (a mailbox connection made by a person's own Google or Microsoft sign-in keeps a sealed token there)
-        for (const other of ALSO[kind] ?? []) { try { await d.call(`${other}.reassign_owned`, { person: personId, kind, action, ...(to ? { to } : {}) }, as); } catch { /* module not live */ } }
+        for (const other of ALSO[kind] ?? []) {
+          try {
+            await d.call(`${other}.reassign_owned`, { person: personId, kind, action, ...(to ? { to } : {}) }, as);
+          } catch {
+            /* module not live */
+          }
+        }
         for (const a of owned) {
-          for (const resource of [{ type: "folder", id: a.folderId }, { type: "agent", id: a.agentId }]) {
-            try { await d.call("access.transfer_ownership", { resource, from: personId, to }, as); } catch { /* the resource is gone or access is not live: the reassign itself stands */ }
+          for (const resource of [
+            { type: "folder", id: a.folderId },
+            { type: "agent", id: a.agentId },
+          ]) {
+            try {
+              await d.call("access.transfer_ownership", { resource, from: personId, to }, as);
+            } catch {
+              /* the resource is gone or access is not live: the reassign itself stands */
+            }
           }
         }
         return moved;
@@ -240,57 +430,105 @@ export function createPeopleExtras(d: PeopleDeps): (module: string, ctx: { devic
   };
   const extras: Record<string, Record<string, unknown>> = {
     identity: {
-      ...(d.recoveryCommit?{recoveryCommit:d.recoveryCommit}:{}),
-      signInPolicy:{current:currentSignInPolicy,methods:signInMethods},spaceOwner,
+      ...(d.recoveryCommit ? { recoveryCommit: d.recoveryCommit } : {}),
+      signInPolicy: { current: currentSignInPolicy, methods: signInMethods },
+      spaceOwner,
       directory,
       // a person the access projection does not know as active gets no session, whatever proves who they are; the one exception is the call that creates the person (the account comes first, the principal event commits with the call)
       membership: {
         check: (personId: string, o?: { joining?: boolean }): "ok" | "refused" | "unavailable" => {
           if (d.stale?.(personId)) return "unavailable";
           const p = d.access().principal(personId);
-          if (p === undefined) return o?.joining ? "ok" : "refused";   // only the call that creates the person may meet an unknown one
+          if (p === undefined) return o?.joining ? "ok" : "refused"; // only the call that creates the person may meet an unknown one
           return p.status === "active" ? "ok" : "refused";
         },
       },
-      ...(d.sso ? { sso: {
-        providers: () => ssoProvidersIn(d.db).map((x) => ({ key: x.key, title: x.title })),
-        // spend a ticket from a finished sign-in: the person it names, or null
-        resolve: (key: string, ticket: string): string | null => {
-          const t = d.sso!.tickets.take(key, ticket);
-          const person = t ? personForSso(d.db, (id) => d.access().principal(id)?.status === "active", key, t) : null;
-          if (t && person) matchProvenAddress(d.call, key, t, person);
-          return person;
-        },
-        // a signed-in person is about to prove a provider identity is theirs
-        offer: (person: string): string => d.sso!.tickets.offer(person),
-        // the address a finished sign-in proved, for joining by invitation when everyone must use it; the link is written once the person exists
-        prove: (key: string, invite: string): { email: string; bind(person: string): void } | null => {
-          const t = d.sso!.tickets.held(invite, key);
-          return t ? { email: t.email, bind: (person: string) => { if (linkSso(d.db, key, t, person)) matchProvenAddress(d.call, key, t, person); } } : null;
-        },
-      } } : {}),
-      ...(d.keyring ? { keyring: {
-        clear: (personId: string) => d.keyring!.clear(personId),
-        ...(d.wraps ? {
-          // a provider sign-in that proved who this is: the wrap opens into the keyring for that new session only, and the key is wiped here
-          openWrap: (personId: string, sessionId: string): boolean => {
-            const key = d.wraps!.open(personId);
-            if (!key) return false;
-            try { return d.keyring!.hold(personId, key, sessionId); } finally { key.fill(0); }
-          },
-          dropWrap: (personId: string) => d.wraps!.drop(personId),
-        } : {}),
-      } } : {}),
+      ...(d.sso
+        ? {
+            sso: {
+              providers: () => ssoProvidersIn(d.db).map((x) => ({ key: x.key, title: x.title })),
+              // spend a ticket from a finished sign-in: the person it names, or null
+              resolve: (key: string, ticket: string): string | null => {
+                const t = d.sso!.tickets.take(key, ticket);
+                const person = t
+                  ? personForSso(d.db, (id) => d.access().principal(id)?.status === "active", key, t)
+                  : null;
+                if (t && person) matchProvenAddress(d.call, key, t, person);
+                return person;
+              },
+              // a signed-in person is about to prove a provider identity is theirs
+              offer: (person: string): string => d.sso!.tickets.offer(person),
+              // the address a finished sign-in proved, for joining by invitation when everyone must use it; the link is written once the person exists
+              prove: (key: string, invite: string): { email: string; bind(person: string): void } | null => {
+                const t = d.sso!.tickets.held(invite, key);
+                return t
+                  ? {
+                      email: t.email,
+                      bind: (person: string) => {
+                        if (linkSso(d.db, key, t, person)) matchProvenAddress(d.call, key, t, person);
+                      },
+                    }
+                  : null;
+              },
+            },
+          }
+        : {}),
+      ...(d.keyring
+        ? {
+            keyring: {
+              clear: (personId: string) => d.keyring!.clear(personId),
+              ...(d.wraps
+                ? {
+                    // a provider sign-in that proved who this is: the wrap opens into the keyring for that new session only, and the key is wiped here
+                    openWrap: (personId: string, sessionId: string): boolean => {
+                      const key = d.wraps!.open(personId);
+                      if (!key) return false;
+                      try {
+                        return d.keyring!.hold(personId, key, sessionId);
+                      } finally {
+                        key.fill(0);
+                      }
+                    },
+                    dropWrap: (personId: string) => d.wraps!.drop(personId),
+                  }
+                : {}),
+            },
+          }
+        : {}),
       invites: {
         peek: (code: string) => d.call("members.invite_peek", { code }),
-        accept: (inviteId: string, personId: string) => d.call("members.invite_accept", { inviteId, personId }).then(() => undefined),
+        accept: (inviteId: string, personId: string) =>
+          d.call("members.invite_accept", { inviteId, personId }).then(() => undefined),
       },
-      losses: { of: (personId: string) => ({ vault_mine: count(d.db, `SELECT count(*) AS n FROM vault_meta WHERE owner = ? AND scope = 'mine' AND deleted_at IS NULL`, personId), private_chats: 0, personal_memory: 0 }) },
+      losses: {
+        of: (personId: string) => ({
+          vault_mine: count(
+            d.db,
+            `SELECT count(*) AS n FROM vault_meta WHERE owner = ? AND scope = 'mine' AND deleted_at IS NULL`,
+            personId,
+          ),
+          private_chats: 0,
+          personal_memory: 0,
+        }),
+      },
     },
     members: {
-      signInMethods,spaceOwner,
-      breakGlass: { ssoLinked: (personId: string) => hasSsoLink(d.db, personId), hasRecovery: (personId: string) => hasRecovery(d.db, personId) },
-      factors: { of: (personId: string) => (count(d.db, `SELECT count(*) AS n FROM identity_accounts WHERE person_id = ? AND totp_secret IS NOT NULL`, personId) > 0 ? ["totp"] : []) },
+      signInMethods,
+      spaceOwner,
+      breakGlass: {
+        ssoLinked: (personId: string) => hasSsoLink(d.db, personId),
+        hasRecovery: (personId: string) => hasRecovery(d.db, personId),
+      },
+      factors: {
+        of: (personId: string) =>
+          count(
+            d.db,
+            `SELECT count(*) AS n FROM identity_accounts WHERE person_id = ? AND totp_secret IS NOT NULL`,
+            personId,
+          ) > 0
+            ? ["totp"]
+            : [],
+      },
       owned: ownedFor(undefined),
       ...(d.phoneInvite ? { phoneInvite: d.phoneInvite } : {}),
     },
@@ -300,7 +538,13 @@ export function createPeopleExtras(d: PeopleDeps): (module: string, ctx: { devic
       attention: {
         async of(personId: string) {
           const as = { principal: { kind: "person" as const, id: personId } };
-          const n = async (name: string): Promise<number> => { try { return Math.max(0, Math.trunc(Number(await d.call(name, {}, as)) || 0)); } catch { return 0; } };
+          const n = async (name: string): Promise<number> => {
+            try {
+              return Math.max(0, Math.trunc(Number(await d.call(name, {}, as)) || 0));
+            } catch {
+              return 0;
+            }
+          };
           return { needsYou: await n("tasks.attention"), unread: await n("chat.attention") };
         },
       },
@@ -313,14 +557,39 @@ export function createPeopleExtras(d: PeopleDeps): (module: string, ctx: { devic
     if (!base) return null;
     // the device the call came from, for whoami (the session row itself is the devices module's)
     if (module === "members") {
-      const as = ctx.principal && ctx.principal.kind !== undefined ? { kind: ctx.principal.kind as "person" | "agent" | "service", id: ctx.principal.id } : undefined;
+      const as =
+        ctx.principal && ctx.principal.kind !== undefined
+          ? { kind: ctx.principal.kind as "person" | "agent" | "service", id: ctx.principal.id }
+          : undefined;
       const app = d.githubApp;
-      return { ...base, owned: ownedFor(as ? { principal: as } : undefined),
-        ...(app && as ? { githubApp: { envClientId: app.envClientId, callbackUrl: app.callbackUrl, storeSecret: (secret: string) => app.storeSecret(secret, as), reload: app.reload } } : {}) };
+      return {
+        ...base,
+        owned: ownedFor(as ? { principal: as } : undefined),
+        ...(app && as
+          ? {
+              githubApp: {
+                envClientId: app.envClientId,
+                callbackUrl: app.callbackUrl,
+                storeSecret: (secret: string) => app.storeSecret(secret, as),
+                reload: app.reload,
+              },
+            }
+          : {}),
+      };
     }
     if (module !== "identity") return base;
     // GitHub sign-in is read per call: the app an admin saves takes effect without a restart
     const gh = githubNow();
-    return { ...base, ...(gh ? { github: createGithub(gh, d.githubTickets, (githubId, person) => d.call("github.adopt_sign_in", { githubId, person })) } : {}), ...(ctx.device ? { session: { deviceId: ctx.device } } : {}) };
+    return {
+      ...base,
+      ...(gh
+        ? {
+            github: createGithub(gh, d.githubTickets, (githubId, person) =>
+              d.call("github.adopt_sign_in", { githubId, person }),
+            ),
+          }
+        : {}),
+      ...(ctx.device ? { session: { deviceId: ctx.device } } : {}),
+    };
   };
 }

@@ -5,14 +5,26 @@
 import { holdTitle } from "../../../lib/hold-words.ts";
 /** The link_card block fields a work card fills (the agent layer cannot import ui; the shape is the link_card block's). */
 export interface WorkCard {
-  icon: string; lead: string; title: string; target: { type: string; id: string }; via?: string; /** one card per thing: a record changed twice is one card */ key: string;
+  icon: string;
+  lead: string;
+  title: string;
+  target: { type: string; id: string };
+  via?: string;
+  /** one card per thing: a record changed twice is one card */ key: string;
   /** A card that carries what it shows and the calls its buttons make (an email draft kept at Gmail or Outlook). */
-  to?: string; body?: string; actions?: { key: string; label: string; cap: string; input: Record<string, unknown> }[];
+  to?: string;
+  body?: string;
+  actions?: { key: string; label: string; cap: string; input: Record<string, unknown> }[];
 }
 
-const rec = (v: unknown): Record<string, unknown> => (v !== null && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {});
+const rec = (v: unknown): Record<string, unknown> =>
+  v !== null && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {};
 const s = (v: unknown): string => (typeof v === "string" ? v : "");
-const first = (...v: unknown[]): string => v.map(s).find((x) => x.trim() !== "")?.trim() ?? "";
+const first = (...v: unknown[]): string =>
+  v
+    .map(s)
+    .find((x) => x.trim() !== "")
+    ?.trim() ?? "";
 const clip = (x: string, n = 80): string => (x.length > n ? `${x.slice(0, n - 1)}…` : x);
 
 /** A name for a record from the fields a person would call its name. */
@@ -23,33 +35,85 @@ function recordName(r: Record<string, unknown>): string {
 
 /** The card for one finished tool call, or null when the call made nothing worth a card. `output` is the capability's answer. */
 export function workCardOf(cap: string, input: unknown, output: unknown): WorkCard | null {
-  const i = rec(input), o = rec(output);
+  const i = rec(input),
+    o = rec(output);
   switch (cap) {
     case "tasks.create": {
       const t = rec(o["task"]);
-      return s(t["id"]) ? { key: `task:${s(t["id"])}`, icon: "task", lead: "Task", title: clip(first(t["title"], i["title"], "A task")), target: { type: "task", id: s(t["id"]) } } : null;
+      return s(t["id"])
+        ? {
+            key: `task:${s(t["id"])}`,
+            icon: "task",
+            lead: "Task",
+            title: clip(first(t["title"], i["title"], "A task")),
+            target: { type: "task", id: s(t["id"]) },
+          }
+        : null;
     }
-    case "automations.run": case "automations.test": {
+    case "automations.run":
+    case "automations.test": {
       const id = s(o["runId"]);
-      return id ? { key: `run:${id}`, icon: "run", lead: cap === "automations.test" ? "Test" : "Run", title: clip(first(i["name"], "A Flow")), target: { type: "run", id } } : null;
+      return id
+        ? {
+            key: `run:${id}`,
+            icon: "run",
+            lead: cap === "automations.test" ? "Test" : "Run",
+            title: clip(first(i["name"], "A Flow")),
+            target: { type: "run", id },
+          }
+        : null;
     }
-    case "records.create": case "records.update": {
+    case "records.create":
+    case "records.update": {
       const r = rec(o["record"]);
       const id = s(r["id"]);
-      return id ? { key: `record:${id}`, icon: "record", lead: "Record", title: clip(recordName(r) || "A record"), target: { type: "record", id }, via: s(r["type"]) || s(i["type"]) } : null;
+      return id
+        ? {
+            key: `record:${id}`,
+            icon: "record",
+            lead: "Record",
+            title: clip(recordName(r) || "A record"),
+            target: { type: "record", id },
+            via: s(r["type"]) || s(i["type"]),
+          }
+        : null;
     }
     case "files.create": {
       const f = rec(o["file"]);
-      return s(f["fileId"]) ? { key: `file:${s(f["fileId"])}`, icon: "file", lead: "File", title: clip(first(f["name"], i["name"], "A file")), target: { type: "file", id: s(f["fileId"]) } } : null;
+      return s(f["fileId"])
+        ? {
+            key: `file:${s(f["fileId"])}`,
+            icon: "file",
+            lead: "File",
+            title: clip(first(f["name"], i["name"], "A file")),
+            target: { type: "file", id: s(f["fileId"]) },
+          }
+        : null;
     }
     case "agents.routine.save": {
       const r = rec(o["routine"]);
-      return s(r["routineId"]) ? { key: `routine:${s(r["routineId"])}`, icon: "routine", lead: "Routine", title: clip(first(r["title"], i["title"], "A Routine")), ...(s(i["agentId"]) ? { target: { type: "agent", id: s(i["agentId"]) } } : {}) } : null;
+      return s(r["routineId"])
+        ? {
+            key: `routine:${s(r["routineId"])}`,
+            icon: "routine",
+            lead: "Routine",
+            title: clip(first(r["title"], i["title"], "A Routine")),
+            ...(s(i["agentId"]) ? { target: { type: "agent", id: s(i["agentId"]) } } : {}),
+          }
+        : null;
     }
     case "chat.handoff": {
       const t = rec(rec(o["thread"])["thread"] ?? o["thread"]);
       const id = s(t["threadId"]);
-      return id ? { key: `thread:${id}`, icon: "thread", lead: "Handoff", title: clip(first(t["title"], "A linked thread")), target: { type: "thread", id } } : null;
+      return id
+        ? {
+            key: `thread:${id}`,
+            icon: "thread",
+            lead: "Handoff",
+            title: clip(first(t["title"], "A linked thread")),
+            target: { type: "thread", id },
+          }
+        : null;
     }
     case "chat.message_person": {
       // a message to a teammate for the person (lane l-agentdm): sent, or scheduled for later; the card opens the direct chat it went to
@@ -58,33 +122,83 @@ export function workCardOf(cap: string, input: unknown, output: unknown): WorkCa
       // an agent writing as itself has its own chat with the teammate, which the person who asked cannot open: the line in the chat says where it went, so no card that opens it
       if (o["as"] === "self") return null;
       const later = o["state"] === "scheduled";
-      return { key: `dm:${s(o["messageId"]) || id}:${clip(s(i["body"]), 40)}`, icon: "thread", lead: later ? "Scheduled" : "Sent", title: clip(first(i["body"], rec(i["card"])["title"], "A message")), target: { type: "thread", id } };
+      return {
+        key: `dm:${s(o["messageId"]) || id}:${clip(s(i["body"]), 40)}`,
+        icon: "thread",
+        lead: later ? "Scheduled" : "Sent",
+        title: clip(first(i["body"], rec(i["card"])["title"], "A message")),
+        target: { type: "thread", id },
+      };
     }
     case "mail.draft": {
       // an email an agent drafted waits for its person's Send, Edit or Discard: the card in the chat where it was asked is the held email card
       const id = s(o["draftId"]);
-      return id ? { key: `draft:${id}`, icon: "draft", lead: "Draft", title: clip(first(i["subject"], "An email draft")), target: { type: "draft", id } } : null;
+      return id
+        ? {
+            key: `draft:${id}`,
+            icon: "draft",
+            lead: "Draft",
+            title: clip(first(i["subject"], "An email draft")),
+            target: { type: "draft", id },
+          }
+        : null;
     }
-    case "google.gmail.create_draft": case "ms.mail.create_draft": {
+    case "google.gmail.create_draft":
+    case "ms.mail.create_draft": {
       // a draft kept at Gmail or Outlook: the card carries its words and the two calls its buttons make (send it, or delete it there). Nothing is sent from here.
       const id = s(o["draftId"]);
       if (!id) return null;
       const gmail = cap.startsWith("google.");
       const to = (Array.isArray(i["to"]) ? i["to"] : []).map(s).filter(Boolean);
-      const base = { ...(s(i["connectionId"]) ? { connectionId: s(i["connectionId"]) } : {}), ...(s(i["as"]) ? { as: s(i["as"]) } : {}) };
+      const base = {
+        ...(s(i["connectionId"]) ? { connectionId: s(i["connectionId"]) } : {}),
+        ...(s(i["as"]) ? { as: s(i["as"]) } : {}),
+      };
       return {
-        key: `draft:${id}`, icon: "draft", lead: "Draft", title: clip(first(i["subject"], "An email draft")), to: to.join(", "), via: gmail ? "Gmail" : "Outlook", body: s(i["text"]), target: { type: "provider_draft", id },
+        key: `draft:${id}`,
+        icon: "draft",
+        lead: "Draft",
+        title: clip(first(i["subject"], "An email draft")),
+        to: to.join(", "),
+        via: gmail ? "Gmail" : "Outlook",
+        body: s(i["text"]),
+        target: { type: "provider_draft", id },
         actions: [
-          { key: "send", label: "Send", cap: gmail ? "google.gmail.send_message" : "ms.mail.send_message", input: { ...base, to, subject: s(i["subject"]), text: s(i["text"]), ...(gmail && s(i["threadId"]) ? { threadId: s(i["threadId"]) } : {}) } },
-          { key: "discard", label: "Deny", cap: gmail ? "google.gmail.delete_draft" : "ms.mail.delete_message", input: gmail ? { ...base, draftId: id } : { ...base, messageId: id } },
+          {
+            key: "send",
+            label: "Send",
+            cap: gmail ? "google.gmail.send_message" : "ms.mail.send_message",
+            input: {
+              ...base,
+              to,
+              subject: s(i["subject"]),
+              text: s(i["text"]),
+              ...(gmail && s(i["threadId"]) ? { threadId: s(i["threadId"]) } : {}),
+            },
+          },
+          {
+            key: "discard",
+            label: "Deny",
+            cap: gmail ? "google.gmail.delete_draft" : "ms.mail.delete_message",
+            input: gmail ? { ...base, draftId: id } : { ...base, messageId: id },
+          },
         ],
       };
     }
     case "computers.provision": {
       const c = rec(o["computer"]);
-      return s(c["computerId"]) ? { key: `computer:${s(c["computerId"])}`, icon: "computer", lead: "Computer", title: clip(first(c["name"], "Agent computer")), target: { type: "computer", id: s(c["computerId"]) } } : null;
+      return s(c["computerId"])
+        ? {
+            key: `computer:${s(c["computerId"])}`,
+            icon: "computer",
+            lead: "Computer",
+            title: clip(first(c["name"], "Agent computer")),
+            target: { type: "computer", id: s(c["computerId"]) },
+          }
+        : null;
     }
-    default: return null;
+    default:
+      return null;
   }
 }
 
@@ -94,8 +208,16 @@ export function heldCard(cap: string, taskId: string, input?: unknown): WorkCard
   const send = /(^|\.)send($|_)/.test(cap) || cap.startsWith("mail.") || cap === "chat.message_person";
   const to = Array.isArray(i["to"]) ? s(rec((i["to"] as unknown[])[0])["address"]) : "";
   // anything else reads in the held act's own words, as the task and the card say it ("Open harborquotes.com"), never the capability's name (lane f-gate, 12 Nov: "automations read link")
-  const title = send ? clip(first(i["subject"], to ? `To ${to}` : "", i["body"], "Message to send")) : clip(holdTitle(cap, input));
-  return { key: `task:${taskId}`, icon: "approval", lead: send ? "Message" : "Approval", title, target: { type: "task", id: taskId } };
+  const title = send
+    ? clip(first(i["subject"], to ? `To ${to}` : "", i["body"], "Message to send"))
+    : clip(holdTitle(cap, input));
+  return {
+    key: `task:${taskId}`,
+    icon: "approval",
+    lead: send ? "Message" : "Approval",
+    title,
+    target: { type: "task", id: taskId },
+  };
 }
 
 const WORK = new Map<string, Map<string, WorkCard>>();
@@ -117,5 +239,7 @@ export function takeWork(turnId: string): WorkCard[] {
 export const sessionWorkKey = (threadId: string, agentId: string): string => `session:${threadId}:${agentId}`;
 /** The link_card blocks for a turn's cards (the key stays out of the block). */
 export function workBlocks(turnId: string): { type: string; v: number; data: unknown }[] {
-  return takeWork(turnId).slice(0, 12).map(({ key: _k, ...card }) => ({ type: "link_card", v: 1, data: card }));
+  return takeWork(turnId)
+    .slice(0, 12)
+    .map(({ key: _k, ...card }) => ({ type: "link_card", v: 1, data: card }));
 }

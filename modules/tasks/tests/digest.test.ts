@@ -8,14 +8,26 @@ import { DIGEST_CHARS, hashOf, renderDigest } from "../handlers/digest.ts";
 const me = { id: alice.id };
 const service = { id: "svc_host", kind: "service" as const };
 const ai = (id: string) => ({ kind: "agent" as const, id });
-const digest = (h: ReturnType<typeof harness>, input: Record<string, unknown>, who: { id: string; kind?: "service" | "person" | "agent" } = service) => h.call("tasks.digest", input, who);
+const digest = (
+  h: ReturnType<typeof harness>,
+  input: Record<string, unknown>,
+  who: { id: string; kind?: "service" | "person" | "agent" } = service,
+) => h.call("tasks.digest", input, who);
 
 async function planned(h: ReturnType<typeof harness>) {
-  const out = await h.call("tasks.plan", {
-    parent: { title: "Ship uploads", assigned: ai(bot.id) },
-    children: [{ key: "a", title: "Flow", assigned: ai(bot.id) }, { key: "b", title: "Tests", assigned: ai(bot2.id), dependsOn: ["a"] }, { key: "c", title: "Links", assigned: ai(bot2.id) }],
-    idempotencyKey: "plan",
-  }, me);
+  const out = await h.call(
+    "tasks.plan",
+    {
+      parent: { title: "Ship uploads", assigned: ai(bot.id) },
+      children: [
+        { key: "a", title: "Flow", assigned: ai(bot.id) },
+        { key: "b", title: "Tests", assigned: ai(bot2.id), dependsOn: ["a"] },
+        { key: "c", title: "Links", assigned: ai(bot2.id) },
+      ],
+      idempotencyKey: "plan",
+    },
+    me,
+  );
   return { parent: out.parent.id as string, a: out.children[0].taskId as string, b: out.children[1].taskId as string };
 }
 
@@ -43,8 +55,20 @@ test("on the task's own thread it hears the task, the parent and the siblings, a
 });
 
 test("the cap holds at any size and the count says what was left out", () => {
-  const many = Array.from({ length: 500 }, (_, i) => ({ id: `tsk_${i}`, key: `VY-${i}`, title: "A very long title that goes on ".repeat(6), state: "doing" })) as never[];
-  const text = renderDigest({ bound: many[0], parent: many[1], siblings: many, children: many, mine: many.slice(0, 5), mineTotal: 500 });
+  const many = Array.from({ length: 500 }, (_, i) => ({
+    id: `tsk_${i}`,
+    key: `VY-${i}`,
+    title: "A very long title that goes on ".repeat(6),
+    state: "doing",
+  })) as never[];
+  const text = renderDigest({
+    bound: many[0],
+    parent: many[1],
+    siblings: many,
+    children: many,
+    mine: many.slice(0, 5),
+    mineTotal: 500,
+  });
   assert.ok(text.length <= DIGEST_CHARS, `${text.length}`);
   assert.ok(text.includes("On this chat:"));
 });

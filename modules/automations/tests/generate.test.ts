@@ -17,7 +17,12 @@ function acme(): OpenApiDocument {
     servers: [{ url: "https://api.acme.test/v1" }],
     components: {
       securitySchemes: {
-        oauth: { type: "oauth2", flows: { authorizationCode: { scopes: { "contacts.read": "Read contacts", "contacts.write": "Write contacts" } } } },
+        oauth: {
+          type: "oauth2",
+          flows: {
+            authorizationCode: { scopes: { "contacts.read": "Read contacts", "contacts.write": "Write contacts" } },
+          },
+        },
       },
     },
     security: [{ oauth: ["contacts.read"] }],
@@ -34,7 +39,15 @@ function acme(): OpenApiDocument {
           responses: {
             "200": {
               description: "ok",
-              content: { "application/json": { schema: { type: "object", properties: { id: { type: "string" }, name: { type: "string" } }, required: ["id"] } } },
+              content: {
+                "application/json": {
+                  schema: {
+                    type: "object",
+                    properties: { id: { type: "string" }, name: { type: "string" } },
+                    required: ["id"],
+                  },
+                },
+              },
             },
             "401": { description: "unauthorized" },
             "404": { description: "missing" },
@@ -68,7 +81,11 @@ function acme(): OpenApiDocument {
           responses: {
             "201": {
               description: "created",
-              content: { "application/json": { schema: { type: "object", properties: { id: { type: "string" } }, required: ["id"] } } },
+              content: {
+                "application/json": {
+                  schema: { type: "object", properties: { id: { type: "string" } }, required: ["id"] },
+                },
+              },
             },
             "400": { description: "bad" },
             "429": { description: "slow down" },
@@ -84,8 +101,14 @@ test("one GET and one POST become two draft actions", () => {
   assert.equal(out.ok, true);
   if (!out.ok) return;
   assert.equal(out.actions.length, 2);
-  assert.deepEqual(out.actions.map((action) => action.level), ["draft", "draft"]);
-  assert.deepEqual(out.actions.map((action) => action.tested), [false, false]);
+  assert.deepEqual(
+    out.actions.map((action) => action.level),
+    ["draft", "draft"],
+  );
+  assert.deepEqual(
+    out.actions.map((action) => action.tested),
+    [false, false],
+  );
   assert.equal(JSON.stringify(out).includes("private_verified"), false);
 
   const get = out.actions.find((action) => action.method === "GET");
@@ -97,10 +120,17 @@ test("one GET and one POST become two draft actions", () => {
   assert.deepEqual(get.scopes, ["contacts.read"]);
   assert.deepEqual(get.servers, ["https://api.acme.test/v1"]);
   assert.deepEqual(get.domains, ["api.acme.test"]);
-  assert.deepEqual(get.fields.map((field) => field.name), ["id", "expand", "note"]);
+  assert.deepEqual(
+    get.fields.map((field) => field.name),
+    ["id", "expand", "note"],
+  );
   assert.equal(get.fields.find((field) => field.name === "id")?.in, "path");
   assert.equal(get.fields.find((field) => field.name === "expand")?.schema.example, "notes");
-  assert.deepEqual(get.outputSchema, { type: "object", properties: { id: { type: "string" }, name: { type: "string" } }, required: ["id"] });
+  assert.deepEqual(get.outputSchema, {
+    type: "object",
+    properties: { id: { type: "string" }, name: { type: "string" } },
+    required: ["id"],
+  });
   assert.deepEqual(get.errors, [
     { status: "401", code: "provider.auth_failed" },
     { status: "404", code: "validation.not_found" },
@@ -116,7 +146,10 @@ test("one GET and one POST become two draft actions", () => {
     { status: "400", code: "validation.bad_input" },
     { status: "429", code: "provider.rate_limited" },
   ]);
-  assert.equal(post.fields.some((field) => field.name === "name" && field.in === "body" && field.required), true);
+  assert.equal(
+    post.fields.some((field) => field.name === "name" && field.in === "body" && field.required),
+    true,
+  );
   assert.deepEqual(post.body?.properties?.name, { type: "string", example: "Ada" });
 
   assert.equal(out.draft.level, "draft");
@@ -130,7 +163,11 @@ test("one GET and one POST become two draft actions", () => {
   assert.deepEqual(out.request?.query.dry_run, { type: "boolean" });
   assert.deepEqual(out.request?.headers["X-Request-Id"], { type: "string" });
   assert.equal(out.request?.body?.properties?.name?.type, "string");
-  assert.deepEqual(out.request?.outputSchema, { type: "object", properties: { id: { type: "string" } }, required: ["id"] });
+  assert.deepEqual(out.request?.outputSchema, {
+    type: "object",
+    properties: { id: { type: "string" } },
+    required: ["id"],
+  });
   assert.deepEqual(out.request?.allowedDomains, ["api.acme.test"]);
   assert.deepEqual(authenticatedRequest(acme()), out.request);
 });
@@ -180,7 +217,10 @@ test("a host outside the servers list is rejected", () => {
   assert.equal(rejectForeignHost("https://api.acme.test.evil.test/v1/contacts", domains).ok, false);
   assert.equal(rejectForeignHost("//evil.test/v1/contacts", domains).ok, false);
   assert.equal(rejectForeignHost("https://user:pw@api.acme.test/v1/contacts", domains).ok, false);
-  assert.deepEqual(rejectForeignHost("https://api.acme.test/v1/contacts/1", domains), { ok: true, host: "api.acme.test" });
+  assert.deepEqual(rejectForeignHost("https://api.acme.test/v1/contacts/1", domains), {
+    ok: true,
+    host: "api.acme.test",
+  });
   assert.deepEqual(rejectForeignHost("/contacts/1", domains), { ok: true, host: null });
   assert.equal(rejectForeignHost("https://api.acme.test/v1/contacts", []).ok, false);
 });
@@ -196,9 +236,18 @@ test("a secret example is not copied into the draft", () => {
   assert.equal(blob.includes(SECRET_MAP), false);
   assert.equal(blob.includes("api_key"), false);
   const post = out.actions.find((action) => action.method === "POST");
-  assert.equal(post?.fields.some((field) => field.name === "note"), true);
-  assert.equal(post?.fields.some((field) => field.name === "hint"), true);
-  assert.equal(post?.fields.some((field) => field.name === "api_key"), false);
+  assert.equal(
+    post?.fields.some((field) => field.name === "note"),
+    true,
+  );
+  assert.equal(
+    post?.fields.some((field) => field.name === "hint"),
+    true,
+  );
+  assert.equal(
+    post?.fields.some((field) => field.name === "api_key"),
+    false,
+  );
   assert.equal(blob.includes("Ada"), true);
   assert.equal(blob.includes("notes"), true);
 });

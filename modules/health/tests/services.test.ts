@@ -18,7 +18,13 @@ import { bundle, serviceRestart, services } from "../handlers/index.ts";
 function withServices(o: Parameters<typeof harness>[0] = {}): Harness {
   const h = harness(o);
   for (const row of seed.rows) {
-    h.raw.run("INSERT INTO health_service (name, state, started_at, restarts) VALUES (?, ?, ?, ?)", row.name, row.state, row.started_at, row.restarts);
+    h.raw.run(
+      "INSERT INTO health_service (name, state, started_at, restarts) VALUES (?, ?, ?, ?)",
+      row.name,
+      row.state,
+      row.started_at,
+      row.restarts,
+    );
   }
   return h;
 }
@@ -40,7 +46,11 @@ test("restart service updates status", async () => {
   h.setNow(at);
   assert.deepEqual(await serviceRestart(h.ctx, { service: "scheduler" }), { state: "healthy" });
   const row = h.raw.rows("health_service").find((r) => r["name"] === "scheduler")!;
-  assert.deepEqual([row["state"], row["started_at"], row["restarts"]], ["healthy", at, 1], "a new start time and one more restart");
+  assert.deepEqual(
+    [row["state"], row["started_at"], row["restarts"]],
+    ["healthy", at, 1],
+    "a new start time and one more restart",
+  );
   const after = (await services(h.ctx, {})).services.find((s) => s.name === "scheduler")!;
   assert.deepEqual([after.uptimeSeconds, after.restarts], [0, 1]);
   const other = (await services(h.ctx, {})).services.find((s) => s.name === "gateway")!;
@@ -48,9 +58,15 @@ test("restart service updates status", async () => {
 
   const queue = h.raw.rows("health_restart");
   assert.equal(queue.length, 1, "the supervisor finds the ask in the queue");
-  assert.deepEqual([queue[0]!["service"], queue[0]!["by_principal"], queue[0]!["on_behalf"], queue[0]!["at"], queue[0]!["done_at"]], ["scheduler", "usr_admin", "usr_ana", at, null]);
+  assert.deepEqual(
+    [queue[0]!["service"], queue[0]!["by_principal"], queue[0]!["on_behalf"], queue[0]!["at"], queue[0]!["done_at"]],
+    ["scheduler", "usr_admin", "usr_ana", at, null],
+  );
   assert.match(String(queue[0]!["id"]), /^rst_[a-z0-9]+$/);
-  assert.deepEqual(h.events.map((e) => [e.name, e.subject, e.payload]), [["service.restarted", "entity/scheduler", { service: "scheduler" }]]);
+  assert.deepEqual(
+    h.events.map((e) => [e.name, e.subject, e.payload]),
+    [["service.restarted", "entity/scheduler", { service: "scheduler" }]],
+  );
 
   h.setNow(at + 10_000);
   await serviceRestart(h.ctx, { service: "scheduler" });
@@ -62,11 +78,18 @@ test("restarting a service the server does not have is a typed not_found and cha
   const h = withServices();
   await assert.rejects(
     () => serviceRestart(h.ctx, { service: "nope" }),
-    (e: unknown) => e instanceof VyreErr && e.error.code === "validation.not_found" && e.error.traceId === TRACE && e.error.next.length > 0,
+    (e: unknown) =>
+      e instanceof VyreErr &&
+      e.error.code === "validation.not_found" &&
+      e.error.traceId === TRACE &&
+      e.error.next.length > 0,
   );
   assert.equal(h.raw.rows("health_restart").length, 0);
   assert.deepEqual(h.events, []);
-  assert.deepEqual(h.raw.rows("health_service").map((r) => r["restarts"]), [0, 0, 0]);
+  assert.deepEqual(
+    h.raw.rows("health_service").map((r) => r["restarts"]),
+    [0, 0, 0],
+  );
 });
 
 test("the supervisor's report keeps the start time and restart count it was not given", () => {
@@ -75,15 +98,25 @@ test("the supervisor's report keeps the start time and restart count it was not 
   assert.deepEqual(h.raw.rows("health_service"), [{ name: "gateway", state: "healthy", started_at: NOW, restarts: 0 }]);
   h.setNow(NOW + 1000);
   reportService(h.ctx, "gateway", { state: "degraded" });
-  assert.deepEqual(h.raw.rows("health_service"), [{ name: "gateway", state: "degraded", started_at: NOW, restarts: 0 }]);
+  assert.deepEqual(h.raw.rows("health_service"), [
+    { name: "gateway", state: "degraded", started_at: NOW, restarts: 0 },
+  ]);
   reportService(h.ctx, "gateway", { state: "healthy", startedAt: NOW + 500, restarts: 4 });
-  assert.deepEqual(h.raw.rows("health_service"), [{ name: "gateway", state: "healthy", started_at: NOW + 500, restarts: 4 }]);
+  assert.deepEqual(h.raw.rows("health_service"), [
+    { name: "gateway", state: "healthy", started_at: NOW + 500, restarts: 4 },
+  ]);
   assert.equal(listServices(h.ctx)[0]!.uptimeSeconds, 0);
 });
 
 test("a service row with a state the contract does not know is not listed", () => {
   const h = harness();
-  h.raw.run("INSERT INTO health_service (name, state, started_at, restarts) VALUES (?, ?, ?, ?)", "odd", "booting", NOW, 0);
+  h.raw.run(
+    "INSERT INTO health_service (name, state, started_at, restarts) VALUES (?, ?, ?, ?)",
+    "odd",
+    "booting",
+    NOW,
+    0,
+  );
   assert.deepEqual(listServices(h.ctx), []);
 });
 
@@ -93,7 +126,19 @@ const traceB = "22222222222222222222222222222222";
 test("the support bundle holds versions, health, services and log metadata, and tells what it could not read", async () => {
   const h = withServices({ principal: "usr_admin" });
   h.answer("health.docker", { state: "down", detail: "no socket" });
-  await runChecks(h.ctx, [{ key: "host.docker", title: "Docker running", cap: "health.docker", module: "host", intervalSec: 60, timeoutMs: 100, states: {}, next: "Start Docker or Colima; sites need it.", pauses: ["automations"] }]);
+  await runChecks(h.ctx, [
+    {
+      key: "host.docker",
+      title: "Docker running",
+      cap: "health.docker",
+      module: "host",
+      intervalSec: 60,
+      timeoutMs: 100,
+      states: {},
+      next: "Start Docker or Colima; sites need it.",
+      pauses: ["automations"],
+    },
+  ]);
   h.answer("updates.status", { current: "1.0.0", channel: "stable" });
   h.answer("logs.query", { rows: [{ id: 1, at: NOW, level: "warn", msg: "mail.held" }], total: 1 });
   h.answer("logs.trace", (input) => {
@@ -107,10 +152,16 @@ test("the support bundle holds versions, health, services and log metadata, and 
   assert.match(out.fileId, /^fil_[a-z0-9]+$/);
 
   const row = h.raw.rows("health_bundle")[0]!;
-  assert.deepEqual([row["id"], row["file_id"], row["by_principal"], row["at"]], [out.bundleId, out.fileId, "usr_admin", NOW + 1000]);
+  assert.deepEqual(
+    [row["id"], row["file_id"], row["by_principal"], row["at"]],
+    [out.bundleId, out.fileId, "usr_admin", NOW + 1000],
+  );
   const body = JSON.parse(String(row["body"])) as Record<string, unknown>;
   assert.equal(row["size_bytes"], new TextEncoder().encode(String(row["body"])).length);
-  assert.deepEqual([body["bundleId"], body["space"], body["by"], body["createdAt"]], [out.bundleId, "spc_test", "usr_admin", NOW + 1000]);
+  assert.deepEqual(
+    [body["bundleId"], body["space"], body["by"], body["createdAt"]],
+    [out.bundleId, "spc_test", "usr_admin", NOW + 1000],
+  );
   assert.equal((body["health"] as { overall: string }).overall, "down");
   assert.equal((body["paused"] as unknown[]).length, 1);
   assert.equal((body["services"] as unknown[]).length, 3);
@@ -119,17 +170,28 @@ test("the support bundle holds versions, health, services and log metadata, and 
   assert.deepEqual(parts["versions"], { current: "1.0.0", channel: "stable" });
   assert.deepEqual(parts["trace:" + traceB], { error: "permission.no_grant" });
   assert.deepEqual(body["missing"], ["trace:" + traceB]);
-  assert.deepEqual(h.calls.slice(1).map((c) => c.cap), ["updates.status", "logs.query", "logs.trace", "logs.trace"], "the first call was the health check itself");
+  assert.deepEqual(
+    h.calls.slice(1).map((c) => c.cap),
+    ["updates.status", "logs.query", "logs.trace", "logs.trace"],
+    "the first call was the health check itself",
+  );
   assert.deepEqual(h.calls.find((c) => c.cap === "logs.query")!.input, { level: "warn", limit: 100 });
 
-  assert.deepEqual(h.events.map((e) => [e.name, e.subject]), [["support_bundle.created", `entity/${out.bundleId}`]]);
+  assert.deepEqual(
+    h.events.map((e) => [e.name, e.subject]),
+    [["support_bundle.created", `entity/${out.bundleId}`]],
+  );
   assert.deepEqual(h.events[0]!.payload, { bundleId: out.bundleId, sizeBytes: row["size_bytes"] });
 });
 
 test("a support bundle is still made when nothing else answers", async () => {
   const h = harness();
   const out = await bundle(h.ctx, {});
-  const body = JSON.parse(String(h.raw.rows("health_bundle")[0]!["body"])) as { missing: string[]; health: { overall: string; checks: unknown[] }; services: unknown[] };
+  const body = JSON.parse(String(h.raw.rows("health_bundle")[0]!["body"])) as {
+    missing: string[];
+    health: { overall: string; checks: unknown[] };
+    services: unknown[];
+  };
   assert.deepEqual(body.missing, ["versions", "recent"]);
   assert.deepEqual(body.health, { overall: "healthy", checks: [] });
   assert.deepEqual(body.services, []);

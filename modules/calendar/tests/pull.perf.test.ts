@@ -9,14 +9,22 @@ import { startLoopLag } from "../../../host/src/scheduler/looplag.ts";
 
 const GOOG = "cld_goog01";
 const iso = (ts: number): string => new Date(ts).toISOString();
-const gev = (id: string, s: number) => ({ id, status: "confirmed", summary: id, start: { dateTime: iso(s) }, end: { dateTime: iso(s + 3_600_000) }, attendees: [{ email: `${id}@acme.test`, responseStatus: "accepted" }] });
+const gev = (id: string, s: number) => ({
+  id,
+  status: "confirmed",
+  summary: id,
+  start: { dateTime: iso(s) },
+  end: { dateTime: iso(s + 3_600_000) },
+  attendees: [{ email: `${id}@acme.test`, responseStatus: "accepted" }],
+});
 const world = () => {
   const h = harness();
   seedCalendar(h, GOOG, { provider: "google", title: "Work Google", connectionId: "con_g01", remoteId: "primary" });
   return h;
 };
 const svc = (h: ReturnType<typeof world>) => h.as({ kind: "service", id: "svc_host" });
-const cursorOf = (h: ReturnType<typeof world>): string | null => h.rows(`SELECT cursor FROM calendar_sync WHERE "calendarId" = ?`, GOOG)[0]!.cursor as string | null;
+const cursorOf = (h: ReturnType<typeof world>): string | null =>
+  h.rows(`SELECT cursor FROM calendar_sync WHERE "calendarId" = ?`, GOOG)[0]!.cursor as string | null;
 
 test("a window pull keeps a cursor, and the next pass asks only for what changed, with the deleted ones", async () => {
   const h = world();
@@ -55,8 +63,14 @@ test("an event that did not change costs no meetings call and no row write", asy
 });
 
 test("the pull's lookup by calendar and provider id has an index in the schema", () => {
-  const sql = readFileSync(fileURLToPath(new URL("../migrations/0006_calendar_event_provider_index.sql", import.meta.url)), "utf8");
-  assert.match(sql, /CREATE INDEX IF NOT EXISTS calendar_event__provider ON calendar_event \("calendarId", "providerId"\)/);
+  const sql = readFileSync(
+    fileURLToPath(new URL("../migrations/0006_calendar_event_provider_index.sql", import.meta.url)),
+    "utf8",
+  );
+  assert.match(
+    sql,
+    /CREATE INDEX IF NOT EXISTS calendar_event__provider ON calendar_event \("calendarId", "providerId"\)/,
+  );
 });
 
 test("a 5,000 event calendar lands without holding the event loop (budget 200 ms) and a second pass is quick", async (t) => {
@@ -75,15 +89,26 @@ test("a 5,000 event calendar lands without holding the event loop (budget 200 ms
   assert.ok(first.maxMs <= 200, `the first pull held the loop ${first.maxMs} ms`);
   h.advance(120_000);
   pages();
-  const writesBefore = h.rows(`SELECT sum(version) AS v, count(*) AS n FROM calendar_event WHERE "calendarId" = ?`, GOOG)[0]!;
+  const writesBefore = h.rows(
+    `SELECT sum(version) AS v, count(*) AS n FROM calendar_event WHERE "calendarId" = ?`,
+    GOOG,
+  )[0]!;
   const t0 = performance.now();
   await pullProviderCalendars(svc(h));
-  const ms = performance.now() - t0, second = lag.take();
+  const ms = performance.now() - t0,
+    second = lag.take();
   lag.stop();
   t.diagnostic(`first pull max lag ${first.maxMs} ms; second pull ${Math.round(ms)} ms, max lag ${second.maxMs} ms`);
   assert.ok(second.maxMs <= 200, `the second pull held the loop ${second.maxMs} ms`);
   assert.ok(ms < 5000, `the second pull took ${Math.round(ms)} ms`);
   // 5,000 unchanged events are read in batches and none of them is written again: no row's version moved, and none was added
-  const writesAfter = h.rows(`SELECT sum(version) AS v, count(*) AS n FROM calendar_event WHERE "calendarId" = ?`, GOOG)[0]!;
-  assert.deepEqual([writesAfter.v, writesAfter.n], [writesBefore.v, writesBefore.n], "the second pass wrote nothing for unchanged events");
+  const writesAfter = h.rows(
+    `SELECT sum(version) AS v, count(*) AS n FROM calendar_event WHERE "calendarId" = ?`,
+    GOOG,
+  )[0]!;
+  assert.deepEqual(
+    [writesAfter.v, writesAfter.n],
+    [writesBefore.v, writesBefore.n],
+    "the second pass wrote nothing for unchanged events",
+  );
 });

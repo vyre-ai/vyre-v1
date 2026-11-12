@@ -6,7 +6,13 @@ import { Quiet } from "../../../../../ui/src/States/Quiet.tsx";
 
 export function SpaceSkeleton(): ReactElement {
   return (
-    <View testID="shell-skeleton" aria-busy accessibilityLabel="Loading" accessibilityRole="progressbar" style={styles.root}>
+    <View
+      testID="shell-skeleton"
+      aria-busy
+      accessibilityLabel="Loading"
+      accessibilityRole="progressbar"
+      style={styles.root}
+    >
       <Quiet testID="shell-skeleton-quiet" />
     </View>
   );

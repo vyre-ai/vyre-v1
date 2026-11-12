@@ -8,7 +8,11 @@ export type ReleaseImage = "agent-workspace" | "vyre-browser" | "agent-computer"
 
 export const OWN_REGISTRY = "ghcr.io/vyre-ai";
 /** The names a local build has (images/*: `docker build -t ...`). Never fetched. */
-export const LOCAL_IMAGE: Record<ReleaseImage, string> = { "agent-workspace": "vyre/agent-workspace:1", "vyre-browser": "vyre/space-browser:1", "agent-computer": "vyre/agent-computer:1" };
+export const LOCAL_IMAGE: Record<ReleaseImage, string> = {
+  "agent-workspace": "vyre/agent-workspace:1",
+  "vyre-browser": "vyre/space-browser:1",
+  "agent-computer": "vyre/agent-computer:1",
+};
 
 // a Docker tag: letters, digits, underscore, dot and dash, at most 128, not starting with a dot or dash. A version with build metadata (`+...`) is not one.
 const TAG = /^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$/;

@@ -20,9 +20,14 @@ export function rank(level: TrustLevel): number {
 }
 
 /** A person can promote one step up after the evidence for that step exists. Built-in is not a self-serve step. */
-export function promote(draft: ConnectorDraft, to: TrustLevel): { ok: true; level: TrustLevel } | { ok: false; reason: string } {
-  if (to === "built_in") return { ok: false, reason: "Built-in connectors ship with Vyre. A Space cannot promote itself there." };
-  if (rank(to) !== rank(draft.level) + 1) return { ok: false, reason: "Promote one step at a time so the last known-good version stays live." };
+export function promote(
+  draft: ConnectorDraft,
+  to: TrustLevel,
+): { ok: true; level: TrustLevel } | { ok: false; reason: string } {
+  if (to === "built_in")
+    return { ok: false, reason: "Built-in connectors ship with Vyre. A Space cannot promote itself there." };
+  if (rank(to) !== rank(draft.level) + 1)
+    return { ok: false, reason: "Promote one step at a time so the last known-good version stays live." };
   if (to === "private_verified" && (!draft.tested || draft.auth === "unknown")) {
     return { ok: false, reason: "Private verification needs a recorded test and a known authentication method." };
   }
@@ -47,5 +52,7 @@ export function containsSecret(value: unknown): boolean {
   if (typeof value === "string") return SECRET_VALUE.test(value.trim());
   if (!value || typeof value !== "object") return false;
   if (Array.isArray(value)) return value.some((item) => containsSecret(item));
-  return Object.entries(value as Record<string, unknown>).some(([key, item]) => SECRET_KEY.test(key) || containsSecret(item));
+  return Object.entries(value as Record<string, unknown>).some(
+    ([key, item]) => SECRET_KEY.test(key) || containsSecret(item),
+  );
 }

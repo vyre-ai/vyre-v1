@@ -27,21 +27,26 @@ export async function recentWithUnread(ctx: ChatCtx, input: { filter?: "all" | "
   const asker = askerOf(ctx);
   const filter = input.filter ?? "all";
   // The group's function knows the listing rules; the unread filter is applied here on the counts it cannot see.
-  const base = (await recent(ctx, { filter: filter === "unread" ? "all" : filter })) as Record<Section, Row[]> & { nextUnread: string | null };
+  const base = (await recent(ctx, { filter: filter === "unread" ? "all" : filter })) as Record<Section, Row[]> & {
+    nextUnread: string | null;
+  };
   // what is new in the replies to messages I follow (the inline threads I am in: a reply or a mention joins me), counted by the same read cursor. A task's replies are the task's (Tasks shows
   // them, and its status lines are not conversation), and replies I muted stay quiet. The total is `threadsUnread`; each chat also carries the count of its own, for its bold row.
   let threadsUnread = 0;
   const muted = mutedOf(ctx, asker);
   const mine = ctx.db.all(
     `SELECT id, parentThreadId FROM chat_thread WHERE kind = 'thread' AND deleted_at IS NULL AND (scopeType IS NULL OR scopeType <> 'task')
-       AND id IN (SELECT thread FROM chat_thread_member WHERE principal = ? AND deleted_at IS NULL) ORDER BY rowid DESC LIMIT ?`, asker, THREADS_MAX,
+       AND id IN (SELECT thread FROM chat_thread_member WHERE principal = ? AND deleted_at IS NULL) ORDER BY rowid DESC LIMIT ?`,
+    asker,
+    THREADS_MAX,
   ) as Row[];
   const repliesIn = new Map<string, number>();
   for (const r of mine) {
     if (muted.has(String(r["id"]))) continue;
     const n = unreadOf(ctx, String(r["id"]), asker);
     threadsUnread += n;
-    if (n > 0 && r["parentThreadId"]) repliesIn.set(String(r["parentThreadId"]), (repliesIn.get(String(r["parentThreadId"])) ?? 0) + n);
+    if (n > 0 && r["parentThreadId"])
+      repliesIn.set(String(r["parentThreadId"]), (repliesIn.get(String(r["parentThreadId"])) ?? 0) + n);
   }
   const out: Record<Section, Row[]> = { starred: [], today: [], yesterday: [], earlier: [], archived: [] };
   let nextUnread: string | null = null;
@@ -62,12 +67,28 @@ export async function recentWithUnread(ctx: ChatCtx, input: { filter?: "all" | "
 // ---- composer ---------------------------------------------------------------------------------------------------------------------------------------
 
 /** The commands the composer offers: the one list in lib/chat-commands.ts, which the app runs. Skills and plugin commands belong to other modules and are added by the app. */
-const COMMANDS: ReadonlyArray<{ id: string; title: string; detail: string }> = CHAT_COMMANDS.map((c) => ({ id: c.id, title: `/${c.id}`, detail: c.detail }));
+const COMMANDS: ReadonlyArray<{ id: string; title: string; detail: string }> = CHAT_COMMANDS.map((c) => ({
+  id: c.id,
+  title: `/${c.id}`,
+  detail: c.detail,
+}));
 
-export async function composerWithCommands(ctx: ChatCtx, input: { symbol: "@" | "#" | "/"; q: string; threadId?: string }) {
+export async function composerWithCommands(
+  ctx: ChatCtx,
+  input: { symbol: "@" | "#" | "/"; q: string; threadId?: string },
+) {
   if (input.symbol !== "/") return composerSuggest(ctx, input);
-  const q = input.q.trim().replace(/^[@#/]+/, "").toLowerCase();
-  const items = COMMANDS.filter((c) => q === "" || c.id.includes(q)).map((c) => ({ group: "Commands", kind: "command", id: c.id, title: c.title, detail: c.detail }));
+  const q = input.q
+    .trim()
+    .replace(/^[@#/]+/, "")
+    .toLowerCase();
+  const items = COMMANDS.filter((c) => q === "" || c.id.includes(q)).map((c) => ({
+    group: "Commands",
+    kind: "command",
+    id: c.id,
+    title: c.title,
+    detail: c.detail,
+  }));
   return { items };
 }
 
@@ -76,20 +97,34 @@ export async function composerWithCommands(ctx: ChatCtx, input: { symbol: "@" | 
 /** A device counts as online when the server heard from it in the last two minutes (the same rule engine placement uses). */
 const ONLINE_MS = 120_000;
 
-export async function openTabChecked(ctx: ChatCtx, input: { threadId: string; targetType: string; targetId: string; title?: string }) {
+export async function openTabChecked(
+  ctx: ChatCtx,
+  input: { threadId: string; targetType: string; targetId: string; title?: string },
+) {
   if (ctx.principal.kind === "agent") {
     // The person's tab setting. A setting that cannot be read is the default, which is on.
     try {
       const s = (await ctx.call("settings.get", { key: "chat.agent_tabs" })) as { row?: { value?: unknown } } | null;
       if (s?.row?.value === false) return { opened: false, reason: "disabled_by_person" as const };
-    } catch { /* the default is on */ }
+    } catch {
+      /* the default is on */
+    }
     // A tab opens on a screen: at least one of the person's devices must be there.
     try {
-      const d = (await ctx.call("devices.mine", {})) as { devices?: Array<{ lastSeenAt?: number; revokedAt?: number }> } | null;
-      if (d?.devices !== undefined && !d.devices.some((x) => x.revokedAt === undefined && x.lastSeenAt !== undefined && ctx.now() - x.lastSeenAt <= ONLINE_MS)) {
+      const d = (await ctx.call("devices.mine", {})) as {
+        devices?: Array<{ lastSeenAt?: number; revokedAt?: number }>;
+      } | null;
+      if (
+        d?.devices !== undefined &&
+        !d.devices.some(
+          (x) => x.revokedAt === undefined && x.lastSeenAt !== undefined && ctx.now() - x.lastSeenAt <= ONLINE_MS,
+        )
+      ) {
         return { opened: false, reason: "no_device" as const };
       }
-    } catch { /* devices cannot be read: do not turn a tab away on a guess */ }
+    } catch {
+      /* devices cannot be read: do not turn a tab away on a guess */
+    }
   }
   return openTab(ctx, input);
 }
@@ -107,10 +142,17 @@ export function sealedThread(ctx: ChatCtx, threadId: string): boolean {
 }
 
 /** The server writes these messages in plain text, so in a sealed thread they are refused (a client or a runtime that holds the key posts them sealed through chat.post). */
-export function refuseWhenSealed<I extends { threadId: string }, O>(inner: (ctx: ChatCtx, input: I) => Promise<O>): (ctx: ChatCtx, input: I) => Promise<O> {
+export function refuseWhenSealed<I extends { threadId: string }, O>(
+  inner: (ctx: ChatCtx, input: I) => Promise<O>,
+): (ctx: ChatCtx, input: I) => Promise<O> {
   return async (ctx, input) => {
     if (sealedThread(ctx, input.threadId)) {
-      raise(ctx, "validation.bad_input", "This chat is sealed under your key, so the server cannot write this message in it. Post it from a device that holds the key.", { reason: "sealed_thread" });
+      raise(
+        ctx,
+        "validation.bad_input",
+        "This chat is sealed under your key, so the server cannot write this message in it. Post it from a device that holds the key.",
+        { reason: "sealed_thread" },
+      );
     }
     return inner(ctx, input);
   };

@@ -8,5 +8,8 @@ import Mount, { title } from "./mounts/P-L9_17.tsx";
 test("the phone shell mount draws a blank first frame, then reads ?tab, ?space and ?empty after mount", () => {
   assert.equal(title, "Phone shell");
   const html = renderToStaticMarkup(<Mount />);
-  assert.ok(!html.includes('data-testid="mobile-tabs"'), "the tab bar appears after mount, so server and client draw the same first frame");
+  assert.ok(
+    !html.includes('data-testid="mobile-tabs"'),
+    "the tab bar appears after mount, so server and client draw the same first frame",
+  );
 });

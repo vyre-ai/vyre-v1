@@ -24,64 +24,209 @@ export interface FormGroup {
   always?: boolean;
 }
 
-const pick = (...pairs: readonly (readonly [string, string])[]): Choice[] => pairs.map(([id, label]) => ({ id, label }));
+const pick = (...pairs: readonly (readonly [string, string])[]): Choice[] =>
+  pairs.map(([id, label]) => ({ id, label }));
 const text = (key: string, label: string): FormField => ({ key, label, kind: "text" });
 const num = (key: string, label: string): FormField => ({ key, label, kind: "number" });
 const list = (key: string, label: string): FormField => ({ key, label, kind: "list" });
 const flag = (key: string, label: string): FormField => ({ key, label, kind: "bool" });
-const choose = (key: string, label: string, choices: readonly Choice[]): FormField => ({ key, label, kind: "enum", choices });
+const choose = (key: string, label: string, choices: readonly Choice[]): FormField => ({
+  key,
+  label,
+  kind: "enum",
+  choices,
+});
 
 const WHOSE = pick(["owner", "The owner"], ["person", "A named person"], ["space_key", "A shared key"]);
 
 export const FORM_GROUPS: readonly FormGroup[] = [
-  { title: "Identity", section: "identity", always: true, fields: [
-    text("id", "ID"), text("name", "Name"), text("handle", "Handle"), text("description", "Description"),
-    { key: "owner", label: "Owner", kind: "owner" },
-    choose("status", "Status", pick(["active", "Active"], ["paused", "Paused"], ["archived", "Archived"])),
-  ] },
-  { title: "Model", section: "model", always: true, fields: [
-    { key: "primary", label: "Primary", kind: "model" }, { key: "fallback", label: "Fallback", kind: "models" },
-    choose("effort", "Effort", pick(["low", "Quick"], ["medium", "Balanced"], ["high", "Thorough"])), num("max_output_tokens", "Max output tokens"),
-  ] },
-  { title: "Whose AI account", section: "runs_on", always: true, fields: [
-    choose("mode", "Mode", pick(["asker", "Whoever asks"], ["person", "A named person"], ["space_key", "A shared key"])),
-    choose("scheduled_runs_as", "Scheduled runs pay as", WHOSE),
-    choose("on_account_missing", "If the account is missing", pick(["pause_and_notify", "Pause and tell the owner"], ["fail", "Fail the run"])),
-  ] },
-  { title: "Tools", section: "tools", fields: [list("allow", "Allowed"), list("deny", "Denied"), list("mcp", "Tool servers")] },
-  { title: "Permissions", section: "permissions", fields: [
-    choose("default", "Anything not listed", pick(["ask", "Ask first"], ["allow_listed", "Only what is listed"], ["deny", "Refuse"])),
-    list("file_scope", "May read"), list("write_scope", "May write"),
-    choose("network", "Network", pick(["none", "None"], ["allow_listed", "Listed sites only"], ["open", "Anywhere"])),
-  ] },
-  { title: "Approvals", section: "approvals.rule", multi: true, fields: [
-    text("action", "Action"), choose("require", "Needs", pick(["none", "Nothing"], ["reviewer", "A reviewer"], ["approver", "An approver"], ["both", "Reviewer and approver"])),
-    text("approver", "Approver"), text("reviewer", "Reviewer"), num("timeout_hours", "Timeout (hours)"),
-    choose("on_timeout", "On timeout", pick(["hold", "Hold it"], ["cancel", "Cancel it"], ["escalate", "Ask someone else"])),
-  ] },
-  { title: "Vault", section: "vault", fields: [list("keys", "Key names"), choose("request_new", "New key requests", pick(["ask_owner", "Ask the owner"], ["deny", "Refuse"]))] },
-  { title: "Limits", section: "limits", fields: [
-    num("max_turns_per_run", "Turns per run"), num("max_run_minutes", "Minutes per run"), num("spend_per_run_usd", "Spend per run (USD)"), num("spend_per_day_usd", "Spend per day (USD)"),
-    num("spend_per_month_usd", "Spend per month (USD)"), num("max_concurrent_runs", "Runs at once"),
-    choose("on_limit", "At a limit", pick(["stop_and_notify", "Stop and tell the owner"], ["pause_agent", "Pause the agent"])),
-  ] },
-  { title: "Memory", section: "memory", fields: [
-    flag("enabled", "On"), choose("auto_capture", "New facts", pick(["off", "Off"], ["propose", "Propose them"], ["write", "Write directly"])),
-    choose("review", "Review", pick(["never", "Never"], ["weekly", "Weekly"], ["monthly", "Monthly"])), num("retention_days", "Keep for (days)"), list("share_read", "Shared with"),
-  ] },
-  { title: "Computer", section: "computer", fields: [
-    flag("enabled", "On"), choose("size", "Size", pick(["small", "Small"], ["medium", "Medium"], ["large", "Large"])), flag("persistent", "Keeps its disk"), flag("browser", "Browser"),
-    num("idle_stop_minutes", "Stops when idle (min)"), choose("screen_share", "Screen share", pick(["off", "Off"], ["ask", "Ask each time"], ["allow", "Allowed"])), list("allowed_apps", "Apps"),
-  ] },
-  { title: "Routines", section: "routines", multi: true, fields: [
-    text("id", "ID"), text("prompt", "Prompt file"), text("cron", "Schedule"), text("timezone", "Time zone"), flag("enabled", "On"),
-  ] },
-  { title: "Watchers", section: "watchers", multi: true, fields: [
-    text("id", "ID"), choose("on", "On", pick(["event", "An event"], ["file", "A file"], ["webhook", "A webhook"], ["interval", "On a timer"])), text("source", "Source"), text("prompt", "Prompt file"),
-    num("debounce_seconds", "Wait (s)"), flag("enabled", "On"),
-  ] },
-  { title: "Handoff", section: "handoff", fields: [list("can_message", "May message"), list("can_delegate", "May delegate to"), list("accepts_from", "Accepts from")] },
-  { title: "Logging", section: "logging", fields: [choose("level", "Level", pick(["error", "Errors only"], ["info", "Normal"], ["debug", "Detailed"])), num("keep_days", "Keep (days)"), list("redact", "Mask")] },
+  {
+    title: "Identity",
+    section: "identity",
+    always: true,
+    fields: [
+      text("id", "ID"),
+      text("name", "Name"),
+      text("handle", "Handle"),
+      text("description", "Description"),
+      { key: "owner", label: "Owner", kind: "owner" },
+      choose("status", "Status", pick(["active", "Active"], ["paused", "Paused"], ["archived", "Archived"])),
+    ],
+  },
+  {
+    title: "Model",
+    section: "model",
+    always: true,
+    fields: [
+      { key: "primary", label: "Primary", kind: "model" },
+      { key: "fallback", label: "Fallback", kind: "models" },
+      choose("effort", "Effort", pick(["low", "Quick"], ["medium", "Balanced"], ["high", "Thorough"])),
+      num("max_output_tokens", "Max output tokens"),
+    ],
+  },
+  {
+    title: "Whose AI account",
+    section: "runs_on",
+    always: true,
+    fields: [
+      choose(
+        "mode",
+        "Mode",
+        pick(["asker", "Whoever asks"], ["person", "A named person"], ["space_key", "A shared key"]),
+      ),
+      choose("scheduled_runs_as", "Scheduled runs pay as", WHOSE),
+      choose(
+        "on_account_missing",
+        "If the account is missing",
+        pick(["pause_and_notify", "Pause and tell the owner"], ["fail", "Fail the run"]),
+      ),
+    ],
+  },
+  {
+    title: "Tools",
+    section: "tools",
+    fields: [list("allow", "Allowed"), list("deny", "Denied"), list("mcp", "Tool servers")],
+  },
+  {
+    title: "Permissions",
+    section: "permissions",
+    fields: [
+      choose(
+        "default",
+        "Anything not listed",
+        pick(["ask", "Ask first"], ["allow_listed", "Only what is listed"], ["deny", "Refuse"]),
+      ),
+      list("file_scope", "May read"),
+      list("write_scope", "May write"),
+      choose("network", "Network", pick(["none", "None"], ["allow_listed", "Listed sites only"], ["open", "Anywhere"])),
+    ],
+  },
+  {
+    title: "Approvals",
+    section: "approvals.rule",
+    multi: true,
+    fields: [
+      text("action", "Action"),
+      choose(
+        "require",
+        "Needs",
+        pick(
+          ["none", "Nothing"],
+          ["reviewer", "A reviewer"],
+          ["approver", "An approver"],
+          ["both", "Reviewer and approver"],
+        ),
+      ),
+      text("approver", "Approver"),
+      text("reviewer", "Reviewer"),
+      num("timeout_hours", "Timeout (hours)"),
+      choose(
+        "on_timeout",
+        "On timeout",
+        pick(["hold", "Hold it"], ["cancel", "Cancel it"], ["escalate", "Ask someone else"]),
+      ),
+    ],
+  },
+  {
+    title: "Vault",
+    section: "vault",
+    fields: [
+      list("keys", "Key names"),
+      choose("request_new", "New key requests", pick(["ask_owner", "Ask the owner"], ["deny", "Refuse"])),
+    ],
+  },
+  {
+    title: "Limits",
+    section: "limits",
+    fields: [
+      num("max_turns_per_run", "Turns per run"),
+      num("max_run_minutes", "Minutes per run"),
+      num("spend_per_run_usd", "Spend per run (USD)"),
+      num("spend_per_day_usd", "Spend per day (USD)"),
+      num("spend_per_month_usd", "Spend per month (USD)"),
+      num("max_concurrent_runs", "Runs at once"),
+      choose(
+        "on_limit",
+        "At a limit",
+        pick(["stop_and_notify", "Stop and tell the owner"], ["pause_agent", "Pause the agent"]),
+      ),
+    ],
+  },
+  {
+    title: "Memory",
+    section: "memory",
+    fields: [
+      flag("enabled", "On"),
+      choose(
+        "auto_capture",
+        "New facts",
+        pick(["off", "Off"], ["propose", "Propose them"], ["write", "Write directly"]),
+      ),
+      choose("review", "Review", pick(["never", "Never"], ["weekly", "Weekly"], ["monthly", "Monthly"])),
+      num("retention_days", "Keep for (days)"),
+      list("share_read", "Shared with"),
+    ],
+  },
+  {
+    title: "Computer",
+    section: "computer",
+    fields: [
+      flag("enabled", "On"),
+      choose("size", "Size", pick(["small", "Small"], ["medium", "Medium"], ["large", "Large"])),
+      flag("persistent", "Keeps its disk"),
+      flag("browser", "Browser"),
+      num("idle_stop_minutes", "Stops when idle (min)"),
+      choose("screen_share", "Screen share", pick(["off", "Off"], ["ask", "Ask each time"], ["allow", "Allowed"])),
+      list("allowed_apps", "Apps"),
+    ],
+  },
+  {
+    title: "Routines",
+    section: "routines",
+    multi: true,
+    fields: [
+      text("id", "ID"),
+      text("prompt", "Prompt file"),
+      text("cron", "Schedule"),
+      text("timezone", "Time zone"),
+      flag("enabled", "On"),
+    ],
+  },
+  {
+    title: "Watchers",
+    section: "watchers",
+    multi: true,
+    fields: [
+      text("id", "ID"),
+      choose(
+        "on",
+        "On",
+        pick(["event", "An event"], ["file", "A file"], ["webhook", "A webhook"], ["interval", "On a timer"]),
+      ),
+      text("source", "Source"),
+      text("prompt", "Prompt file"),
+      num("debounce_seconds", "Wait (s)"),
+      flag("enabled", "On"),
+    ],
+  },
+  {
+    title: "Handoff",
+    section: "handoff",
+    fields: [
+      list("can_message", "May message"),
+      list("can_delegate", "May delegate to"),
+      list("accepts_from", "Accepts from"),
+    ],
+  },
+  {
+    title: "Logging",
+    section: "logging",
+    fields: [
+      choose("level", "Level", pick(["error", "Errors only"], ["info", "Normal"], ["debug", "Detailed"])),
+      num("keep_days", "Keep (days)"),
+      list("redact", "Mask"),
+    ],
+  },
 ];
 
 /** A table of the file: [name] or one of the [[name]] blocks, with the line its header is on and the keys under it. */
@@ -147,7 +292,10 @@ export function listText(raw: string): string {
 
 /** What a typed comma line becomes: the items, trimmed, none empty. */
 export function listFromText(value: string): string[] {
-  return value.split(",").map((x) => x.trim()).filter((x) => x.length > 0);
+  return value
+    .split(",")
+    .map((x) => x.trim())
+    .filter((x) => x.length > 0);
 }
 
 /** What a number field accepts. */
@@ -186,7 +334,13 @@ export function modelLabel(id: string): string {
  * Write a key that is not in the file yet: under the last key of its table (or right under the header of an empty one), or, when the file has no such table, as a new table at the end.
  * A key in a [[x]] block goes into the block at `table`, so the others stay as they are.
  */
-export function addTomlKey(source: string, table: TomlTable | undefined, section: string, key: string, raw: string): string {
+export function addTomlKey(
+  source: string,
+  table: TomlTable | undefined,
+  section: string,
+  key: string,
+  raw: string,
+): string {
   const lines = source.split("\n");
   const row = `${key} = ${raw}`;
   if (table) {
@@ -200,6 +354,13 @@ export function addTomlKey(source: string, table: TomlTable | undefined, section
 }
 
 /** The text after a field gets a value: its own line is rewritten, or, when the key is not in the file yet, it is added to its table. Nothing else in the file changes. */
-export function writeField(source: string, field: FormField, entry: TomlEntry | undefined, table: TomlTable | undefined, section: string, raw: string): string {
+export function writeField(
+  source: string,
+  field: FormField,
+  entry: TomlEntry | undefined,
+  table: TomlTable | undefined,
+  section: string,
+  raw: string,
+): string {
   return entry ? setTomlValue(source, entry, raw) : addTomlKey(source, table, section, field.key, raw);
 }

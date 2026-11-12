@@ -10,13 +10,24 @@ const KNOWN_FAILING = new Set<string>([]);
 test("chat benchmark, with the turn context: all 30 tasks are done", { timeout: 120_000 }, async () => {
   assert.equal(TASKS.length, 30);
   assert.equal(new Set(TASKS.map((t) => t.id)).size, 30);
-  assert.deepEqual([...new Set(TASKS.map((t) => t.area))].sort(), ["automations", "computer", "files", "records", "routines", "vault", "where"]);
+  assert.deepEqual([...new Set(TASKS.map((t) => t.area))].sort(), [
+    "automations",
+    "computer",
+    "files",
+    "records",
+    "routines",
+    "vault",
+    "where",
+  ]);
   const after = await runMode("after");
-  assert.deepEqual(after.filter((r) => !r.pass && !KNOWN_FAILING.has(r.id)).map((r) => `${r.id}: ${r.why}`), []);
+  assert.deepEqual(
+    after.filter((r) => !r.pass && !KNOWN_FAILING.has(r.id)).map((r) => `${r.id}: ${r.why}`),
+    [],
+  );
   const s = score(after);
   assert.equal(s.pass, 30, `${s.pass} of ${s.total} passed`);
   assert.ok(s.calls <= 70, `${s.calls} tool calls`);
-  const table = report(after, after);   // the table the runner prints
+  const table = report(after, after); // the table the runner prints
   assert.match(table, /^task +before +after +tool calls b\/a\n/);
   assert.match(table, new RegExp(`TOTAL +before ${s.pass}/30 `));
 });

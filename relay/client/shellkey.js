@@ -40,7 +40,9 @@ export function shellDeviceKey(invoke, o = {}) {
         if (pub.length !== 32) throw new Error("the shell gave no device key");
         return { privateKey: MARKER, publicKey: pub };
       },
-      async set() { /* the shell made it and keeps it */ },
+      async set() {
+        /* the shell made it and keeps it */
+      },
     },
   };
 }

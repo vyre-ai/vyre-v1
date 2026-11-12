@@ -7,7 +7,8 @@ import { fileURLToPath } from "node:url";
 // Node runs .ts files by stripping types but has no loader for .tsx. The placeholders hold no JSX, so load them as TypeScript.
 registerHooks({
   load(url, context, nextLoad) {
-    if (url.endsWith(".tsx")) return { format: "module-typescript", source: readFileSync(fileURLToPath(url)), shortCircuit: true };
+    if (url.endsWith(".tsx"))
+      return { format: "module-typescript", source: readFileSync(fileURLToPath(url)), shortCircuit: true };
     return nextLoad(url, context);
   },
 });
@@ -44,8 +45,18 @@ test("FolderTree renders its labelled placeholder from frozen props, both densit
 
 test("LockedState renders its labelled placeholder and the request status", () => {
   check(LockedStatePlaceholder(frozenLockedStateProps), "LockedState", "compact", "Clients, Ask for access");
-  check(LockedStatePlaceholder({ ...frozenLockedStateProps, status: "waiting", density: "regular" }), "LockedState", "regular", "Waiting");
-  check(LockedStatePlaceholder({ ...frozenLockedStateProps, status: "declined" }), "LockedState", "compact", "Declined");
+  check(
+    LockedStatePlaceholder({ ...frozenLockedStateProps, status: "waiting", density: "regular" }),
+    "LockedState",
+    "regular",
+    "Waiting",
+  );
+  check(
+    LockedStatePlaceholder({ ...frozenLockedStateProps, status: "declined" }),
+    "LockedState",
+    "compact",
+    "Declined",
+  );
 });
 
 test("NeedsTeamSpace renders its labelled placeholder with the fixed sentence", () => {
@@ -57,32 +68,66 @@ test("NeedsTeamSpace renders its labelled placeholder with the fixed sentence", 
 
 test("ObjectPage renders its labelled placeholder with the active tab", () => {
   check(ObjectPagePlaceholder(frozenObjectPageProps), "ObjectPage", "compact", "Omar, Overview");
-  check(ObjectPagePlaceholder({ ...frozenObjectPageProps, activeTabId: "access", density: "regular" }), "ObjectPage", "regular", "Omar, Access");
+  check(
+    ObjectPagePlaceholder({ ...frozenObjectPageProps, activeTabId: "access", density: "regular" }),
+    "ObjectPage",
+    "regular",
+    "Omar, Access",
+  );
 });
 
 test("RichEditor renders its labelled placeholder for every mode", () => {
   check(RichEditorPlaceholder(frozenRichEditorProps), "RichEditor", "compact", "doc_agent_md, edit");
-  check(RichEditorPlaceholder({ ...frozenRichEditorProps, mode: "suggest", density: "regular" }), "RichEditor", "regular", "suggest");
+  check(
+    RichEditorPlaceholder({ ...frozenRichEditorProps, mode: "suggest", density: "regular" }),
+    "RichEditor",
+    "regular",
+    "suggest",
+  );
   check(RichEditorPlaceholder({ ...frozenRichEditorProps, mode: "read" }), "RichEditor", "compact", "read");
 });
 
 test("HistoryTab renders its labelled placeholder with the version count", () => {
   check(HistoryTabPlaceholder(frozenHistoryTabProps), "HistoryTab", "compact", "file, 2 versions");
-  check(HistoryTabPlaceholder({ ...frozenHistoryTabProps, versions: [], density: "regular" }), "HistoryTab", "regular", "0 versions");
+  check(
+    HistoryTabPlaceholder({ ...frozenHistoryTabProps, versions: [], density: "regular" }),
+    "HistoryTab",
+    "regular",
+    "0 versions",
+  );
 });
 
 test("DiffTab renders its labelled placeholder with files and layout", () => {
   check(DiffTabPlaceholder(frozenDiffTabProps), "DiffTab", "compact", "AGENT.md, 1 files, unified");
-  check(DiffTabPlaceholder({ ...frozenDiffTabProps, layout: "split", density: "regular" }), "DiffTab", "regular", "split");
+  check(
+    DiffTabPlaceholder({ ...frozenDiffTabProps, layout: "split", density: "regular" }),
+    "DiffTab",
+    "regular",
+    "split",
+  );
 });
 
 test("CommentReply renders full width with the up arrow send control", () => {
   check(CommentReplyPlaceholder(frozenCommentReplyProps), "CommentReply", "compact", "full, up");
-  check(CommentReplyPlaceholder({ ...frozenCommentReplyProps, density: "regular" }), "CommentReply", "regular", "full, up");
+  check(
+    CommentReplyPlaceholder({ ...frozenCommentReplyProps, density: "regular" }),
+    "CommentReply",
+    "regular",
+    "full, up",
+  );
 });
 
 test("every component takes a density flag of regular or compact", () => {
-  const all = [frozenFolderTreeProps, frozenLockedStateProps, frozenNeedsTeamSpaceProps, frozenObjectPageProps, frozenRichEditorProps, frozenHistoryTabProps, frozenDiffTabProps, frozenCommentReplyProps];
+  const all = [
+    frozenFolderTreeProps,
+    frozenLockedStateProps,
+    frozenNeedsTeamSpaceProps,
+    frozenObjectPageProps,
+    frozenRichEditorProps,
+    frozenHistoryTabProps,
+    frozenDiffTabProps,
+    frozenCommentReplyProps,
+  ];
   assert.equal(all.length, 8);
   for (const props of all) assert.ok(props.density === "compact" || props.density === "regular");
 });

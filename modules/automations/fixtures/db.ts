@@ -13,15 +13,37 @@ import type { Caller } from "./seed.ts";
 // Boundary B2 keeps the node:sqlite module out of the import lines of modules: only the host builds a ctx and opens databases.
 const { DatabaseSync } = process.getBuiltinModule("node:sqlite");
 const migrationDir = new URL("../migrations/", import.meta.url);
-const migration = readdirSync(migrationDir).filter((name) => name.endsWith(".sql")).sort()
-  .map((name) => readFileSync(new URL(name, migrationDir), "utf8")).join("\n");
+const migration = readdirSync(migrationDir)
+  .filter((name) => name.endsWith(".sql"))
+  .sort()
+  .map((name) => readFileSync(new URL(name, migrationDir), "utf8"))
+  .join("\n");
 export const TRACE = "0123456789abcdef0123456789abcdef";
-const IDEM_KEYED = new Set(["automations.create", "automations.make_personal_copy", "automations.run", "automations.fire", "automations.groups.create", "automations.templates.use"]);
+const IDEM_KEYED = new Set([
+  "automations.create",
+  "automations.make_personal_copy",
+  "automations.run",
+  "automations.fire",
+  "automations.groups.create",
+  "automations.templates.use",
+]);
 
-export interface Ev { name: string; subject: string; payload: Record<string, unknown>; id: string }
-export interface CallLog { cap: string; input: any }   // eslint-disable-line @typescript-eslint/no-explicit-any
-type Authorize = (who: { id: string }, action: { perm: string | null; level: string }, resource: { type: string; id: string | null }) => boolean;
-type Callee = (input: any, who: { id: string }) => unknown;   // eslint-disable-line @typescript-eslint/no-explicit-any
+export interface Ev {
+  name: string;
+  subject: string;
+  payload: Record<string, unknown>;
+  id: string;
+}
+export interface CallLog {
+  cap: string;
+  input: any;
+} // eslint-disable-line @typescript-eslint/no-explicit-any
+type Authorize = (
+  who: { id: string },
+  action: { perm: string | null; level: string },
+  resource: { type: string; id: string | null },
+) => boolean;
+type Callee = (input: any, who: { id: string }) => unknown; // eslint-disable-line @typescript-eslint/no-explicit-any
 
 export interface HarnessOptions {
   now?: number;
@@ -30,7 +52,16 @@ export interface HarnessOptions {
   calls?: Record<string, Callee>;
 }
 
-export interface FakeRun { id: string; kind: string; status: string; owner: string; subject?: { type: string; id: string }; definitionVersion?: number; parentRun?: string; startedAt: number }
+export interface FakeRun {
+  id: string;
+  kind: string;
+  status: string;
+  owner: string;
+  subject?: { type: string; id: string };
+  definitionVersion?: number;
+  parentRun?: string;
+  startedAt: number;
+}
 
 const norm = (a: unknown): unknown => (a === undefined ? null : a);
 
@@ -51,14 +82,21 @@ export function harness(o: HarnessOptions = {}) {
   /** Every Vault handle a test has sent in an input (the item part, #Name). */
   const named = new Set<string>();
   const nameHandles = (v: unknown): void => {
-    if (typeof v === "string") { for (const m of v.match(/#[A-Za-z_][A-Za-z0-9_]*/g) ?? []) named.add(m); return; }
-    if (Array.isArray(v)) { for (const x of v) nameHandles(x); return; }
+    if (typeof v === "string") {
+      for (const m of v.match(/#[A-Za-z_][A-Za-z0-9_]*/g) ?? []) named.add(m);
+      return;
+    }
+    if (Array.isArray(v)) {
+      for (const x of v) nameHandles(x);
+      return;
+    }
     if (v && typeof v === "object") for (const x of Object.values(v)) nameHandles(x);
   };
   const authorize: Authorize = o.authorize ?? (() => false);
-  const emitsOf = (cap: string | null): Set<string> => (cap === null
-    ? new Set(registry.events.filter((e) => e.name.startsWith("automation.")).map((e) => e.name))
-    : new Set(registry.capabilities.find((c) => c.name === cap)?.emits ?? []));
+  const emitsOf = (cap: string | null): Set<string> =>
+    cap === null
+      ? new Set(registry.events.filter((e) => e.name.startsWith("automation.")).map((e) => e.name))
+      : new Set(registry.capabilities.find((c) => c.name === cap)?.emits ?? []);
 
   // the part of the runs module Automations use: start (idempotent by key), list by subject, stop, retry
   const fakeRuns: Record<string, Callee> = {
@@ -66,15 +104,38 @@ export function harness(o: HarnessOptions = {}) {
       const have = byKey.get(i.idempotencyKey);
       if (have) return { runId: have };
       const id = `run_t${runs.length + 1}`;
-      runs.push({ id, kind: i.kind, status: "queued", owner: i.owner, subject: i.subject, definitionVersion: i.definitionVersion, parentRun: i.parentRun, startedAt: clock });
+      runs.push({
+        id,
+        kind: i.kind,
+        status: "queued",
+        owner: i.owner,
+        subject: i.subject,
+        definitionVersion: i.definitionVersion,
+        parentRun: i.parentRun,
+        startedAt: clock,
+      });
       byKey.set(i.idempotencyKey, id);
       return { runId: id };
     },
     "runs.list": (i) => {
-      const rows = runs.filter((r) => (!i.subject || (r.subject?.type === i.subject.type && r.subject.id === i.subject.id)) && (!i.statuses || i.statuses.includes(r.status)));
-      return { runs: rows.slice().reverse().slice(0, i.limit ?? 50), total: rows.length };
+      const rows = runs.filter(
+        (r) =>
+          (!i.subject || (r.subject?.type === i.subject.type && r.subject.id === i.subject.id)) &&
+          (!i.statuses || i.statuses.includes(r.status)),
+      );
+      return {
+        runs: rows
+          .slice()
+          .reverse()
+          .slice(0, i.limit ?? 50),
+        total: rows.length,
+      };
     },
-    "runs.stop": (i) => { const r = runs.find((x) => x.id === i.runId); if (r) r.status = "stopped"; return { run: r }; },
+    "runs.stop": (i) => {
+      const r = runs.find((x) => x.id === i.runId);
+      if (r) r.status = "stopped";
+      return { run: r };
+    },
     "runs.retry": (i) => {
       const old = runs.find((x) => x.id === i.runId)!;
       const id = `run_t${runs.length + 1}`;
@@ -86,8 +147,14 @@ export function harness(o: HarnessOptions = {}) {
   function ctxFor(cap: string | null, who: Caller): AutoCtx {
     const allowed = emitsOf(cap);
     return {
-      space: "spc_test", principal: { kind: who.kind ?? "person", id: who.id }, ...(who.actingFor ? { actingFor: who.actingFor } : {}), origin: (who as { origin?: string }).origin ?? "user",   // a call as from the app, as the gateway makes it
-      trace: { traceId: TRACE }, now: () => clock, db: scopedDb("automations", raw, TRACE), baseUrl: "https://acme.example.com",
+      space: "spc_test",
+      principal: { kind: who.kind ?? "person", id: who.id },
+      ...(who.actingFor ? { actingFor: who.actingFor } : {}),
+      origin: (who as { origin?: string }).origin ?? "user", // a call as from the app, as the gateway makes it
+      trace: { traceId: TRACE },
+      now: () => clock,
+      db: scopedDb("automations", raw, TRACE),
+      baseUrl: "https://acme.example.com",
       emit(name, subject, payload) {
         if (!allowed.has(name)) throw new Error(`${cap ?? "the consumer"} emitted ${name}, which it does not declare`);
         const bad = validateEvent(name, payload);
@@ -101,7 +168,12 @@ export function harness(o: HarnessOptions = {}) {
         // the Vault, unless a test brings its own: the people of a unit test may use the keys that test names (a test about refusing a key passes its own vault.items.list)
         if (c === "vault.items.list" && !calleeMap[c]) {
           const kind = (input as { kind?: unknown } | null)?.kind;
-          return { items: kind !== undefined && kind !== "api_key" ? [] : [...named].map((h, i) => ({ id: `vit_named${i}`, handle: h, kind: "api_key", yourLevel: "use" })) };
+          return {
+            items:
+              kind !== undefined && kind !== "api_key"
+                ? []
+                : [...named].map((h, i) => ({ id: `vit_named${i}`, handle: h, kind: "api_key", yourLevel: "use" })),
+          };
         }
         const f = calleeMap[c] ?? fakeRuns[c];
         if (!f) throw new Error(`unexpected call to ${c}`);
@@ -112,9 +184,13 @@ export function harness(o: HarnessOptions = {}) {
   }
 
   let keys = 0;
-  async function call(cap: string, raw0: unknown, who: Caller): Promise<any> {   // eslint-disable-line @typescript-eslint/no-explicit-any
+  async function call(cap: string, raw0: unknown, who: Caller): Promise<any> {
+    // eslint-disable-line @typescript-eslint/no-explicit-any
     nameHandles(raw0);
-    const input = IDEM_KEYED.has(cap) && !(raw0 as { idempotencyKey?: unknown }).idempotencyKey ? { ...(raw0 as object), idempotencyKey: `key_${++keys}` } : raw0;
+    const input =
+      IDEM_KEYED.has(cap) && !(raw0 as { idempotencyKey?: unknown }).idempotencyKey
+        ? { ...(raw0 as object), idempotencyKey: `key_${++keys}` }
+        : raw0;
     const bad = validateInput(cap, 1, input);
     if (bad.length) throw new Error(`${cap} input is invalid: ${bad.join("; ")}`);
     const h = (handlers as Record<string, (ctx: AutoCtx, input: unknown) => Promise<unknown>>)[cap];
@@ -136,14 +212,33 @@ export function harness(o: HarnessOptions = {}) {
   }
 
   return {
-    db: raw, call, ctxFor, consumer, runs,
-    get events(): Ev[] { return events; },
-    allEvents: all, calls,
-    callee(cap: string, f: Callee): void { calleeMap[cap] = f; },
-    setNow(n: number): void { clock = n; },
-    advance(ms: number): void { clock += ms; },
+    db: raw,
+    call,
+    ctxFor,
+    consumer,
+    runs,
+    get events(): Ev[] {
+      return events;
+    },
+    allEvents: all,
+    calls,
+    callee(cap: string, f: Callee): void {
+      calleeMap[cap] = f;
+    },
+    setNow(n: number): void {
+      clock = n;
+    },
+    advance(ms: number): void {
+      clock += ms;
+    },
     now: (): number => clock,
-    policy(key: string, value: unknown): void { raw.run("INSERT OR REPLACE INTO automations_policy (policy_key, policy_value) VALUES (?, ?)", key, JSON.stringify(value)); },
+    policy(key: string, value: unknown): void {
+      raw.run(
+        "INSERT OR REPLACE INTO automations_policy (policy_key, policy_value) VALUES (?, ?)",
+        key,
+        JSON.stringify(value),
+      );
+    },
   };
 }
 export type Harness = ReturnType<typeof harness>;

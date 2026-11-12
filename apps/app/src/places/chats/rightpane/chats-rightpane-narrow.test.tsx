@@ -15,8 +15,21 @@ import { createSample } from "./sample.ts";
 import type { Sample } from "./sample.ts";
 
 const ALL = { start: 0, end: 500 };
-const clean = (s: string): string => s.replaceAll("<!-- -->", "").replaceAll("&#x27;", "'").replaceAll("&quot;", '"').replaceAll("&amp;", "&");
-const pane = (s: Sample, tab: TabKey, paneWidth?: number): string => clean(renderToStaticMarkup(<ChatRightPane data={s.data} open onToggle={() => undefined} tab={tab} window={ALL} {...(paneWidth ? { paneWidth } : {})} />));
+const clean = (s: string): string =>
+  s.replaceAll("<!-- -->", "").replaceAll("&#x27;", "'").replaceAll("&quot;", '"').replaceAll("&amp;", "&");
+const pane = (s: Sample, tab: TabKey, paneWidth?: number): string =>
+  clean(
+    renderToStaticMarkup(
+      <ChatRightPane
+        data={s.data}
+        open
+        onToggle={() => undefined}
+        tab={tab}
+        window={ALL}
+        {...(paneWidth ? { paneWidth } : {})}
+      />,
+    ),
+  );
 const has = (s: string, needle: string): boolean => s.includes(needle);
 const deps = (s: Sample): { d: PaneDeps; notes: { text: string; undo?: () => Promise<void> | void }[] } => {
   const notes: { text: string; undo?: () => Promise<void> | void }[] = [];
@@ -25,7 +38,13 @@ const deps = (s: Sample): { d: PaneDeps; notes: { text: string; undo?: () => Pro
 const routinesNow = (s: Sample): Routine[] => s.replica.rows("routines") as unknown as Routine[];
 const routineView = (s: Sample, routineId: string, mode: "view" | "delegate"): string => {
   const { d } = deps(s);
-  return clean(renderToStaticMarkup(<RightPaneDataProvider value={s.data}><RoutinesTab deps={d} window={ALL} initial={{ routineId, mode }} /></RightPaneDataProvider>));
+  return clean(
+    renderToStaticMarkup(
+      <RightPaneDataProvider value={s.data}>
+        <RoutinesTab deps={d} window={ALL} initial={{ routineId, mode }} />
+      </RightPaneDataProvider>,
+    ),
+  );
 };
 
 /* ---------- the strip at 340 px ---------- */
@@ -46,9 +65,19 @@ test("every layout keeps the strip inside the room the header leaves", () => {
     for (const active of TABS) {
       const { shown, hidden } = fitTabs(TABS, active.key, width);
       const used = shown.reduce((n, t) => n + tabWidth(t.title), 0) + (hidden.length > 0 ? tabWidth("More") + 2 : 0);
-      assert.ok(used <= width - HEADER_CHROME || shown.length === 1, `${width} px, ${active.key}: ${used} fits ${width - HEADER_CHROME}`);
-      assert.ok(shown.some((t) => t.key === active.key), "the open tab is always drawn");
-      assert.deepEqual([...shown, ...hidden].map((t) => t.key).sort(), TABS.map((t) => t.key).sort(), "nothing is lost");
+      assert.ok(
+        used <= width - HEADER_CHROME || shown.length === 1,
+        `${width} px, ${active.key}: ${used} fits ${width - HEADER_CHROME}`,
+      );
+      assert.ok(
+        shown.some((t) => t.key === active.key),
+        "the open tab is always drawn",
+      );
+      assert.deepEqual(
+        [...shown, ...hidden].map((t) => t.key).sort(),
+        TABS.map((t) => t.key).sort(),
+        "nothing is lost",
+      );
     }
   }
 });
@@ -57,8 +86,14 @@ test("the open tab is drawn even when it is the last one; the others keep their 
   const out = pane(createSample(), "routines");
   assert.ok(has(out, ">Routines<") && has(out, 'aria-label="More tabs"'));
   assert.ok(out.indexOf(">Computer<") < out.indexOf(">Routines<"), "tabs keep their order");
-  assert.deepEqual(fitTabs(TABS, "routines", 340).shown.map((t) => t.key), ["about", "computer", "routines"]);
-  assert.deepEqual(fitTabs(TABS, "routines", 340).hidden.map((t) => t.key), ["threads", "files", "memory"]);
+  assert.deepEqual(
+    fitTabs(TABS, "routines", 340).shown.map((t) => t.key),
+    ["about", "computer", "routines"],
+  );
+  assert.deepEqual(
+    fitTabs(TABS, "routines", 340).hidden.map((t) => t.key),
+    ["threads", "files", "memory"],
+  );
 });
 
 test("wide enough, all five tabs show and there is no More", () => {
@@ -76,7 +111,10 @@ test("Run now calls the routine's run capability once and says so; a failure is 
   const { d, notes } = deps(s);
   const r = routinesNow(s).find((x) => x.routineId === "r3")!;
   assert.equal(await runNow(d, r), true);
-  assert.deepEqual(s.calls.map((c) => c.cap), ["agents.routine.run_now"]);
+  assert.deepEqual(
+    s.calls.map((c) => c.cap),
+    ["agents.routine.run_now"],
+  );
   const input = s.calls[0]!.input as { agentId: string; routineId: string; idempotencyKey: string };
   assert.equal(input.routineId, "r3");
   assert.equal(input.agentId, r.agentId);
@@ -109,7 +147,13 @@ test("Delegate with no directory says it is loading", () => {
   const s = createSample();
   const rest: ChatRightPaneData = { ...s.data };
   delete rest.people;
-  const out = clean(renderToStaticMarkup(<RightPaneDataProvider value={rest}><RoutinesTab deps={deps(s).d} window={ALL} initial={{ routineId: "r3", mode: "delegate" }} /></RightPaneDataProvider>));
+  const out = clean(
+    renderToStaticMarkup(
+      <RightPaneDataProvider value={rest}>
+        <RoutinesTab deps={deps(s).d} window={ALL} initial={{ routineId: "r3", mode: "delegate" }} />
+      </RightPaneDataProvider>,
+    ),
+  );
   assert.ok(has(out, 'data-testid="delegate-empty"') && has(out, "The directory is still loading."));
 });
 

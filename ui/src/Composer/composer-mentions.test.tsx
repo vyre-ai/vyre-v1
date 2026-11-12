@@ -9,7 +9,14 @@ import type { Node } from "../testing/dom.ts";
 import { Composer, scrollTopOf, tokenRanges } from "./index.tsx";
 import type { ComposerLists } from "./index.tsx";
 
-const lists: ComposerLists = { agents: [{ t: "Aliza Cohen", ref: "agt_aliza", kind: "Agent" }, { t: "Rubab Khan", ref: "agt_rubab", kind: "Agent" }, { t: "Sol", ref: "agt_sol", kind: "Agent" }], people: [] };
+const lists: ComposerLists = {
+  agents: [
+    { t: "Aliza Cohen", ref: "agt_aliza", kind: "Agent" },
+    { t: "Rubab Khan", ref: "agt_rubab", kind: "Agent" },
+    { t: "Sol", ref: "agt_sol", kind: "Agent" },
+  ],
+  people: [],
+};
 const NAMES = ["Aliza Cohen", "Rubab Khan", "Sol"];
 
 /** Ten lines, three mentions, each line long enough to wrap in a narrow field. */
@@ -29,23 +36,38 @@ const DRAFT = LINES.join("\n");
 
 test("a draft with 3 mentions over 10 lines: each range names its own word, at its own line", () => {
   const ranges = tokenRanges(DRAFT, [], NAMES).filter((r) => r.kind === "mention");
-  assert.deepEqual(ranges.map((r) => DRAFT.slice(r.start, r.end)), ["@Aliza", "@Rubab", "@Sol"]);
+  assert.deepEqual(
+    ranges.map((r) => DRAFT.slice(r.start, r.end)),
+    ["@Aliza", "@Rubab", "@Sol"],
+  );
   const lineOf = (at: number): number => DRAFT.slice(0, at).split("\n").length;
-  assert.deepEqual(ranges.map((r) => lineOf(r.start)), [2, 5, 9]);
+  assert.deepEqual(
+    ranges.map((r) => lineOf(r.start)),
+    [2, 5, 9],
+  );
   // wrapping never moves an offset: a range is a place in the text, not on the screen
   const wrapped = DRAFT.replace(/ /g, "  ");
   const again = tokenRanges(wrapped, [], NAMES).filter((r) => r.kind === "mention");
-  assert.deepEqual(again.map((r) => wrapped.slice(r.start, r.end)), ["@Aliza", "@Rubab", "@Sol"]);
+  assert.deepEqual(
+    again.map((r) => wrapped.slice(r.start, r.end)),
+    ["@Aliza", "@Rubab", "@Sol"],
+  );
 });
 
 test("the wash holds exactly the field's text, so a box sits on the word it names however the lines wrap", () => {
-  const html = renderToStaticMarkup(<Composer whoWillAnswer="" lists={lists} value={DRAFT} sendsOutside recipients={null} />);
-  const clean = (s: string): string => s.replaceAll("<!-- -->", "").replaceAll("&#x27;", "'").replaceAll("&quot;", '"').replaceAll("&amp;", "&");
+  const html = renderToStaticMarkup(
+    <Composer whoWillAnswer="" lists={lists} value={DRAFT} sendsOutside recipients={null} />,
+  );
+  const clean = (s: string): string =>
+    s.replaceAll("<!-- -->", "").replaceAll("&#x27;", "'").replaceAll("&quot;", '"').replaceAll("&amp;", "&");
   const marks = [...clean(html).matchAll(/data-testid="composer-token-mention"[^>]*>([^<]*)</g)].map((m) => m[1]);
   assert.deepEqual(marks, ["@Aliza", "@Rubab", "@Sol"], "three boxes, on the three names");
   // the wash's whole text, boxes and the plain text between them, is the draft
   const wash = clean(html.slice(html.indexOf('data-testid="composer-tokens"')));
-  const text = wash.slice(wash.indexOf(">") + 1, wash.indexOf("</div></div>")).replace(/<[^>]*>/g, "").replace(/​/g, "");
+  const text = wash
+    .slice(wash.indexOf(">") + 1, wash.indexOf("</div></div>"))
+    .replace(/<[^>]*>/g, "")
+    .replace(/​/g, "");
   assert.equal(text, DRAFT);
 });
 
@@ -63,16 +85,35 @@ test("after the field scrolls, the wash scrolls with it", async () => {
   const restore = installDom();
   try {
     const { act } = await import("react");
-    const root = await mount(createRoot, <Composer whoWillAnswer="" lists={lists} value={DRAFT} sendsOutside recipients={null} />);
-    const washY = (): string => { const p = (find(root, "composer-tokens") as Node).props; return JSON.stringify({ s: p.style, c: p.className, k: Object.keys(p) }); };
+    const root = await mount(
+      createRoot,
+      <Composer whoWillAnswer="" lists={lists} value={DRAFT} sendsOutside recipients={null} />,
+    );
+    const washY = (): string => {
+      const p = (find(root, "composer-tokens") as Node).props;
+      return JSON.stringify({ s: p.style, c: p.className, k: Object.keys(p) });
+    };
     assert.ok(find(root, "composer-tokens"), "the wash is drawn");
     const before = washY();
     const field = find(root, "composer-field")!;
-    await act(async () => { (field.props.onScroll as (e: unknown) => void)({ nativeEvent: { target: { scrollTop: 66 } }, target: { scrollTop: 66 }, currentTarget: { scrollTop: 66 } }); });
+    await act(async () => {
+      (field.props.onScroll as (e: unknown) => void)({
+        nativeEvent: { target: { scrollTop: 66 } },
+        target: { scrollTop: 66 },
+        currentTarget: { scrollTop: 66 },
+      });
+    });
     const after = washY();
     assert.notEqual(after, before, "the wash moved");
     assert.match(after, /-66/, "by the field's scrollTop");
-    await act(async () => { (field.props.onScroll as (e: unknown) => void)({ nativeEvent: { target: { scrollTop: 0 } }, target: { scrollTop: 0 } }); });
+    await act(async () => {
+      (field.props.onScroll as (e: unknown) => void)({
+        nativeEvent: { target: { scrollTop: 0 } },
+        target: { scrollTop: 0 },
+      });
+    });
     assert.equal(washY(), before, "and back");
-  } finally { restore(); }
+  } finally {
+    restore();
+  }
 });

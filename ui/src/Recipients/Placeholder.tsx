@@ -20,7 +20,9 @@ export function RecipientsPlaceholder(props: RecipientsProps): string {
   const first = to[0];
   const label = first ? recipientLabel(first) : "Recipients";
   const rows = RECIPIENT_ROWS.map((row) => {
-    const people = rowOf(props, row).map((value) => `<span data-recipient="true">${esc(recipientLabel(value))}</span>`).join("");
+    const people = rowOf(props, row)
+      .map((value) => `<span data-recipient="true">${esc(recipientLabel(value))}</span>`)
+      .join("");
     return `<div data-row="${row}" data-width="100%"><span data-field="${row}">${row}</span>${people}</div>`;
   }).join("");
   return labelledBox("Recipients", label, rows);

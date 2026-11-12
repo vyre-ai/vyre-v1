@@ -2,7 +2,11 @@
 // ms is written as 12 hex digits and counter as 4, so plain string comparison of two hlcs with the same device id agrees with compare().
 // Client clock is max(local wall, lastSeenServerHlc + 1). The server clamps any client hlc whose ms is greater than server now + 5 minutes to server now and records skew_ms.
 
-export interface Hlc { ms: number; counter: number; deviceId: string }
+export interface Hlc {
+  ms: number;
+  counter: number;
+  deviceId: string;
+}
 
 /** Largest ms a client hlc may carry ahead of the server's wall clock before the server clamps it. */
 export const MAX_SKEW_MS = 5 * 60 * 1000;
@@ -35,7 +39,7 @@ export function tickHlc(deviceId: string, wallMs: number, lastSeen?: Hlc | null)
   const last = lastSeen ?? null;
   if (!last || wallMs > last.ms) return { ms: wallMs, counter: 0, deviceId };
   if (last.counter < MAX_COUNTER) return { ms: last.ms, counter: last.counter + 1, deviceId };
-  return { ms: last.ms + 1, counter: 0, deviceId };   // counter exhausted: move to the next millisecond
+  return { ms: last.ms + 1, counter: 0, deviceId }; // counter exhausted: move to the next millisecond
 }
 
 /** Merge a received hlc into local state (the receive rule): the result is after both `local` and `remote`. */
@@ -44,7 +48,11 @@ export function receiveHlc(deviceId: string, wallMs: number, local: Hlc | null, 
   return tickHlc(deviceId, wallMs, top);
 }
 
-export interface ClampResult { hlc: Hlc; clamped: boolean; skewMs: number }
+export interface ClampResult {
+  hlc: Hlc;
+  clamped: boolean;
+  skewMs: number;
+}
 
 /**
  * Server rule: a client hlc whose ms is greater than serverNow + 5 minutes becomes serverNow (counter 0, same device id), and the excess is reported as skewMs.
@@ -52,6 +60,7 @@ export interface ClampResult { hlc: Hlc; clamped: boolean; skewMs: number }
  */
 export function clampHlc(h: Hlc, serverNowMs: number): ClampResult {
   const ahead = h.ms - serverNowMs;
-  if (ahead > MAX_SKEW_MS) return { hlc: { ms: serverNowMs, counter: 0, deviceId: h.deviceId }, clamped: true, skewMs: ahead };
+  if (ahead > MAX_SKEW_MS)
+    return { hlc: { ms: serverNowMs, counter: 0, deviceId: h.deviceId }, clamped: true, skewMs: ahead };
   return { hlc: h, clamped: false, skewMs: ahead > 0 ? ahead : 0 };
 }

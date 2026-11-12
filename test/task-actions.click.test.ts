@@ -5,11 +5,12 @@ import assert from "node:assert/strict";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
 
-const walk = (dir: string): string[] => readdirSync(dir).flatMap((f) => {
-  const p = path.join(dir, f);
-  if (f === "tests" || f === "fixtures" || f === "node_modules") return [];
-  return statSync(p).isDirectory() ? walk(p) : /\.ts$/.test(f) && !/\.test\./.test(f) ? [p] : [];
-});
+const walk = (dir: string): string[] =>
+  readdirSync(dir).flatMap((f) => {
+    const p = path.join(dir, f);
+    if (f === "tests" || f === "fixtures" || f === "node_modules") return [];
+    return statSync(p).isDirectory() ? walk(p) : /\.ts$/.test(f) && !/\.test\./.test(f) ? [p] : [];
+  });
 
 const REVIEWED: Record<string, string> = {
   "modules/google/handlers/personal.ts": "Sign in again: Needs you shows its own Sign in again button (mailFix)",
@@ -19,6 +20,8 @@ const REVIEWED: Record<string, string> = {
 
 test("only reviewed tasks offer a bare resolved action", () => {
   const root = path.resolve(import.meta.dirname, "..");
-  const found = walk(path.join(root, "modules")).filter((f) => /actions: \[\{ key: "resolved"/.test(readFileSync(f, "utf8"))).map((f) => path.relative(root, f));
+  const found = walk(path.join(root, "modules"))
+    .filter((f) => /actions: \[\{ key: "resolved"/.test(readFileSync(f, "utf8")))
+    .map((f) => path.relative(root, f));
   assert.deepEqual(found.sort(), Object.keys(REVIEWED).sort());
 });

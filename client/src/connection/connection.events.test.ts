@@ -1,22 +1,66 @@
 // Events and heartbeat (ARCH 5.9): batches apply in order and are acked after they apply, a replay is not applied twice, a failed batch restarts from the cursor, silence fails over. Runs against the in-memory live hub.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { BACKOFF_BASE_MS, HEARTBEAT_DEAD_MS, HEARTBEAT_MS, createConnection, endpoint, manualScheduler } from "./index.ts";
+import {
+  BACKOFF_BASE_MS,
+  HEARTBEAT_DEAD_MS,
+  HEARTBEAT_MS,
+  createConnection,
+  endpoint,
+  manualScheduler,
+} from "./index.ts";
 import type { EventBatch, Mode } from "./index.ts";
 import { fakeServer, settle } from "./testing.ts";
 
-const change = (seq: number, id = `r${seq}`) => ({ seq, entity: "contact", id, op: "upsert" as const, fields: { name: { v: `n${seq}`, hlc: "000000000001-0000-srv", actor: "usr_a" } } });
-const ev = (seq: number, ids: number[] = [seq], hide: { entity: string; id: string; seq: number }[] = []) => ({ t: "ev", seq, items: ids.map((i) => change(i)), ...(hide.length ? { hide } : {}) });
+const change = (seq: number, id = `r${seq}`) => ({
+  seq,
+  entity: "contact",
+  id,
+  op: "upsert" as const,
+  fields: { name: { v: `n${seq}`, hlc: "000000000001-0000-srv", actor: "usr_a" } },
+});
+const ev = (seq: number, ids: number[] = [seq], hide: { entity: string; id: string; seq: number }[] = []) => ({
+  t: "ev",
+  seq,
+  items: ids.map((i) => change(i)),
+  ...(hide.length ? { hide } : {}),
+});
 
-function make(over: { apply?: (b: EventBatch) => void | Promise<void>; on?: Parameters<typeof createConnection>[0]["on"]; eps?: ReturnType<typeof endpoint>[] } = {}) {
+function make(
+  over: {
+    apply?: (b: EventBatch) => void | Promise<void>;
+    on?: Parameters<typeof createConnection>[0]["on"];
+    eps?: ReturnType<typeof endpoint>[];
+  } = {},
+) {
   const srv = fakeServer();
   const sched = manualScheduler(1_000_000);
   const state = { cursor: 0, applied: [] as EventBatch[], sets: [] as number[] };
   const conn = createConnection({
-    space: "sp1", endpoints: over.eps ?? [endpoint("direct", "wss://a"), endpoint("relay", "wss://b")], dial: srv.dial, scheduler: sched,
-    hello: () => ({ deviceId: "dev1", deviceClass: "desktop", appVersion: "1.0.0", registryHash: "h1", epoch: 0, replica: { entities: {} } }),
-    cursor: { get: () => state.cursor, set: (n) => { state.cursor = n; state.sets.push(n); } },
-    apply: over.apply ?? ((b) => { state.applied.push(b); }),
+    space: "sp1",
+    endpoints: over.eps ?? [endpoint("direct", "wss://a"), endpoint("relay", "wss://b")],
+    dial: srv.dial,
+    scheduler: sched,
+    hello: () => ({
+      deviceId: "dev1",
+      deviceClass: "desktop",
+      appVersion: "1.0.0",
+      registryHash: "h1",
+      epoch: 0,
+      replica: { entities: {} },
+    }),
+    cursor: {
+      get: () => state.cursor,
+      set: (n) => {
+        state.cursor = n;
+        state.sets.push(n);
+      },
+    },
+    apply:
+      over.apply ??
+      ((b) => {
+        state.applied.push(b);
+      }),
     ...(over.on ? { on: over.on } : {}),
   });
   return { srv, sched, conn, state };
@@ -28,16 +72,26 @@ test("hello carries the cursor the replica has applied", async () => {
   state.cursor = 41;
   conn.start();
   await settle();
-  assert.deepEqual(srv.sockets.flatMap((s) => s.hellos.map((h) => h.cursor)), [41, 41]);
+  assert.deepEqual(
+    srv.sockets.flatMap((s) => s.hellos.map((h) => h.cursor)),
+    [41, 41],
+  );
   assert.equal(srv.sockets[0]!.hellos[0]!.deviceId, "dev1");
   conn.stop();
 });
 
 test("batches apply in order and are acked after they apply, never before", async () => {
   let release: () => void = () => undefined;
-  const gate = new Promise<void>((r) => { release = r; });
+  const gate = new Promise<void>((r) => {
+    release = r;
+  });
   const order: number[] = [];
-  const { srv, conn, state } = make({ apply: async (b) => { await gate; order.push(b.seq); } });
+  const { srv, conn, state } = make({
+    apply: async (b) => {
+      await gate;
+      order.push(b.seq);
+    },
+  });
   conn.start();
   await settle();
   srv.broadcast(ev(3, [1, 2, 3]));
@@ -73,7 +127,14 @@ test("a replayed batch is acked but not applied twice", async () => {
   srv.broadcast(ev(4, [1, 2, 3, 4]));
   srv.broadcast(ev(6, [4, 5, 6]));
   await settle();
-  assert.deepEqual(state.applied.map((b) => b.items.map((c) => c.seq)), [[1, 2, 3, 4], [5, 6]], "the replay is dropped and the overlap trimmed");
+  assert.deepEqual(
+    state.applied.map((b) => b.items.map((c) => c.seq)),
+    [
+      [1, 2, 3, 4],
+      [5, 6],
+    ],
+    "the replay is dropped and the overlap trimmed",
+  );
   assert.deepEqual(acks(srv), [4, 4, 6]);
   assert.equal(state.cursor, 6);
   conn.stop();
@@ -81,7 +142,12 @@ test("a replayed batch is acked but not applied twice", async () => {
 
 test("a batch that will not apply is not acked: the connection restarts from the cursor after a backoff", async () => {
   let fail = true;
-  const { srv, sched, conn, state } = make({ apply: (b) => { if (fail) throw new Error("disk full"); state.applied.push(b); } });
+  const { srv, sched, conn, state } = make({
+    apply: (b) => {
+      if (fail) throw new Error("disk full");
+      state.applied.push(b);
+    },
+  });
   state.cursor = 2;
   conn.start();
   await settle();
@@ -93,7 +159,8 @@ test("a batch that will not apply is not acked: the connection restarts from the
   assert.equal(first.link.isOpen(), false, "that link was dropped");
   assert.equal(conn.status(), "reconnecting");
   fail = false;
-  sched.advance(BACKOFF_BASE_MS); await settle();
+  sched.advance(BACKOFF_BASE_MS);
+  await settle();
   assert.equal(conn.status(), "live");
   const hellos = srv.sockets.flatMap((s) => s.hellos.map((h) => h.cursor));
   assert.equal(hellos.at(-1), 2, "the new hello resumes from the cursor");
@@ -104,8 +171,20 @@ test("a batch that will not apply is not acked: the connection restarts from the
 });
 
 test("pull_hint, other frames, purge and a read-only answer reach the callbacks", async () => {
-  const seen: { hints: number[]; frames: unknown[]; purges: number[]; modes: Mode[] } = { hints: [], frames: [], purges: [], modes: [] };
-  const { srv, conn } = make({ on: { pullHint: (s) => seen.hints.push(s), frame: (f) => seen.frames.push(f), purge: (e) => seen.purges.push(e), mode: (m) => seen.modes.push(m) } });
+  const seen: { hints: number[]; frames: unknown[]; purges: number[]; modes: Mode[] } = {
+    hints: [],
+    frames: [],
+    purges: [],
+    modes: [],
+  };
+  const { srv, conn } = make({
+    on: {
+      pullHint: (s) => seen.hints.push(s),
+      frame: (f) => seen.frames.push(f),
+      purge: (e) => seen.purges.push(e),
+      mode: (m) => seen.modes.push(m),
+    },
+  });
   conn.start();
   await settle();
   srv.broadcast({ t: "pull_hint", seq: 77 });
@@ -134,7 +213,10 @@ test("heartbeat: a hb with the cursor goes out every 15 s while the server answe
   state.cursor = 12;
   conn.start();
   await settle();
-  for (let i = 0; i < 4; i++) { sched.advance(HEARTBEAT_MS); await settle(); }
+  for (let i = 0; i < 4; i++) {
+    sched.advance(HEARTBEAT_MS);
+    await settle();
+  }
   const hb = srv.got("hb") as { seq: number }[];
   assert.equal(hb.length, 4);
   assert.ok(hb.every((h) => h.seq === 12));
@@ -152,7 +234,10 @@ test("silence for 40 s marks the endpoint down and fails over to the other, resu
   const first = conn.endpoint()!.url;
   const other = first === "wss://a" ? "wss://b" : "wss://a";
   srv.blackhole(first);
-  for (let t = 0; t < HEARTBEAT_DEAD_MS + HEARTBEAT_MS; t += HEARTBEAT_MS) { sched.advance(HEARTBEAT_MS); await settle(); }
+  for (let t = 0; t < HEARTBEAT_DEAD_MS + HEARTBEAT_MS; t += HEARTBEAT_MS) {
+    sched.advance(HEARTBEAT_MS);
+    await settle();
+  }
   assert.equal(conn.status(), "live");
   assert.equal(conn.endpoint()?.url, other);
   assert.equal(conn.stats().failovers, 1);

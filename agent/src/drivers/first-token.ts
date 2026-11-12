@@ -10,10 +10,21 @@ export const NO_FIRST_TOKEN_CODE = "engine.no_first_token";
 export const NO_FIRST_TOKEN_LINE = "Your AI didn't answer in time";
 
 /** What the log line carries. */
-export interface NoFirstToken { provider: string; model: string; account: string; waitedMs: number }
+export interface NoFirstToken {
+  provider: string;
+  model: string;
+  account: string;
+  waitedMs: number;
+}
 export type NoFirstTokenLog = (e: NoFirstToken) => void;
 
 /** The default log: one structured line on stderr, no content and no key. */
 export const logNoFirstToken: NoFirstTokenLog = (e) => {
-  try { console.warn(`[engine] no first token provider=${e.provider} model=${e.model || "default"} account=${e.account || "none"} waited_ms=${e.waitedMs}`); } catch { /* a log never fails a turn */ }
+  try {
+    console.warn(
+      `[engine] no first token provider=${e.provider} model=${e.model || "default"} account=${e.account || "none"} waited_ms=${e.waitedMs}`,
+    );
+  } catch {
+    /* a log never fails a turn */
+  }
 };

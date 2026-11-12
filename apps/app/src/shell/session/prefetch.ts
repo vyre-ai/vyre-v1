@@ -3,7 +3,11 @@
 // the queries with nobody watching; the answer stays in the session's cache, so the place draws it on its first frame and a revisit does not read again.
 import type { PlaceId } from "../rail/kits.ts";
 
-export interface Warm { screen: string; query: string; state?: Record<string, unknown> }
+export interface Warm {
+  screen: string;
+  query: string;
+  state?: Record<string, unknown>;
+}
 
 export const PLACE_QUERIES: Readonly<Partial<Record<PlaceId, readonly Warm[]>>> = {
   chats: [{ screen: "chats.sidebar", query: "recent", state: { filter: "all" } }],
@@ -16,4 +20,12 @@ export const PLACE_QUERIES: Readonly<Partial<Record<PlaceId, readonly Warm[]>>> 
 };
 
 /** The order places are warmed in when idle: the ones people open most first. */
-export const WARM_ORDER: readonly PlaceId[] = ["chats", "inbox", "records", "files", "settings", "vault", "automations"];
+export const WARM_ORDER: readonly PlaceId[] = [
+  "chats",
+  "inbox",
+  "records",
+  "files",
+  "settings",
+  "vault",
+  "automations",
+];

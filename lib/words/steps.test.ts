@@ -5,7 +5,9 @@ import { readFileSync } from "node:fs";
 import { durationWords, idLike, plainKindTitle, stepWords } from "./steps.ts";
 import { leaksCode } from "./audit.ts";
 
-const registry = JSON.parse(readFileSync(new URL("../../generated/registry.json", import.meta.url), "utf8")) as { steps: { key: string; title?: string }[] };
+const registry = JSON.parse(readFileSync(new URL("../../generated/registry.json", import.meta.url), "utf8")) as {
+  steps: { key: string; title?: string }[];
+};
 
 test("the author's title wins; an id-like title does not count", () => {
   assert.equal(stepWords({ id: "step_1", key: "send_email", title: "Email the client" }), "Email the client");
@@ -16,7 +18,10 @@ test("the author's title wins; an id-like title does not count", () => {
 test("a step with no title says what its kind does, and a wait says how long", () => {
   assert.equal(stepWords({ id: "a", key: "send_email" }), "Send an email");
   assert.equal(stepWords({ id: "a", key: "records.update" }, "Update a record"), "Update a record");
-  assert.equal(stepWords({ id: "a", key: "google.calendar.create_event" }, "Google · Create a calendar event"), "Create a calendar event in Google");
+  assert.equal(
+    stepWords({ id: "a", key: "google.calendar.create_event" }, "Google · Create a calendar event"),
+    "Create a calendar event in Google",
+  );
   assert.equal(stepWords({ id: "a", key: "files.move" }, "Files · Move a file"), "Move a file");
   assert.equal(stepWords({ id: "a", key: "wait", input: { forDuration: "2d" } }), "Wait 2 days");
   assert.equal(stepWords({ id: "a", key: "wait", input: { timeout: "90m" } }), "Wait 90 minutes");

@@ -6,26 +6,55 @@ import { createSessions, groupColor, groupTitle, GROUP_COLORS } from "../src/age
 import { composeFacts } from "../src/agent/page.js";
 
 function world() {
-  const w: any = { events: [] as any[], groups: new Map<number, any>(), tabs: new Map<number, any>(), overlay: [] as any[], nextGroup: 100, now: 1_000, ungrouped: [] as number[] };
+  const w: any = {
+    events: [] as any[],
+    groups: new Map<number, any>(),
+    tabs: new Map<number, any>(),
+    overlay: [] as any[],
+    nextGroup: 100,
+    now: 1_000,
+    ungrouped: [] as number[],
+  };
   for (const id of [1, 2, 3]) w.tabs.set(id, { id, groupId: -1 });
   w.ext = {
-    scripting: { executeScript: async ({ func, args }: any) => { if (func.name === "overlayShow") w.overlay.push(args[0]); return [{ frameId: 0, result: true }]; } },
+    scripting: {
+      executeScript: async ({ func, args }: any) => {
+        if (func.name === "overlayShow") w.overlay.push(args[0]);
+        return [{ frameId: 0, result: true }];
+      },
+    },
     tabs: {
-      get: async (id: number) => { const t = w.tabs.get(id); if (!t) throw new Error("no tab"); return { ...t }; },
+      get: async (id: number) => {
+        const t = w.tabs.get(id);
+        if (!t) throw new Error("no tab");
+        return { ...t };
+      },
       group: async ({ tabIds, groupId }: any) => {
         let g = groupId;
         if (g !== undefined && !w.groups.has(g)) throw new Error("No group with id: " + g);
-        if (g === undefined) { g = w.nextGroup++; w.groups.set(g, {}); }
+        if (g === undefined) {
+          g = w.nextGroup++;
+          w.groups.set(g, {});
+        }
         for (const id of tabIds) w.tabs.get(id).groupId = g;
         return g;
       },
     },
-    tabGroups: { update: async (g: number, props: any) => { Object.assign(w.groups.get(g), props); } },
+    tabGroups: {
+      update: async (g: number, props: any) => {
+        Object.assign(w.groups.get(g), props);
+      },
+    },
     action: { setBadgeText: async () => {}, setBadgeBackgroundColor: async () => {}, setTitle: async () => {} },
   };
   const s = createSessions({
-    ext: w.ext, cdp: { detach: async () => {} }, traffic: { forget() {} }, emit: (e: any) => w.events.push(e), now: () => w.now,
-    setTimer: () => 0, clearTimer: () => {},
+    ext: w.ext,
+    cdp: { detach: async () => {} },
+    traffic: { forget() {} },
+    emit: (e: any) => w.events.push(e),
+    now: () => w.now,
+    setTimer: () => 0,
+    clearTimer: () => {},
   } as any);
   w.s = s;
   return w;
@@ -64,7 +93,15 @@ test("a group the person closed is made again; a tab that is already in the grou
 
 test("in an agent computer there is nobody to look at tab groups", async () => {
   const w = world();
-  const s = createSessions({ ext: w.ext, cdp: { detach: async () => {} }, traffic: { forget() {} }, emit: () => {}, grouping: () => false, setTimer: () => 0, clearTimer: () => {} } as any);
+  const s = createSessions({
+    ext: w.ext,
+    cdp: { detach: async () => {} },
+    traffic: { forget() {} },
+    emit: () => {},
+    grouping: () => false,
+    setTimer: () => 0,
+    clearTimer: () => {},
+  } as any);
   await s.begin(call(), 1);
   assert.equal(w.groups.size, 0);
 });
@@ -72,7 +109,14 @@ test("in an agent computer there is nobody to look at tab groups", async () => {
 test("a held send turns the bar to Waiting for you in Vyre, carries the card, and Don't send forgets it", async () => {
   const w = world();
   await w.s.begin(call(), 1);
-  const id = w.s.hold(call(), 1, { kind: "send", why: "looks like a send", summary: "send: Send on mail.test", card: { to: "dana@firm.test", subject: "Hello", message: "Hi Dana" }, selector: null, action: { type: "press", key: "Enter" } });
+  const id = w.s.hold(call(), 1, {
+    kind: "send",
+    why: "looks like a send",
+    summary: "send: Send on mail.test",
+    card: { to: "dana@firm.test", subject: "Hello", message: "Hi Dana" },
+    selector: null,
+    action: { type: "press", key: "Enter" },
+  });
   await new Promise((r) => setImmediate(r));
   const held = w.events.find((e: any) => e.event === "held");
   assert.equal(held.id, id);
@@ -99,7 +143,14 @@ test("Take over gives the tab back, keeps it in the group, and the agent waits u
 });
 
 test("composeFacts reads To, From, Subject and the message beside the control, never a secret", () => {
-  const field = (o: any) => ({ tagName: o.tag ?? "INPUT", value: o.value, innerText: o.value, getAttribute: (n: string) => o.attrs?.[n] ?? null, id: o.id ?? "", labels: o.labels ?? [] });
+  const field = (o: any) => ({
+    tagName: o.tag ?? "INPUT",
+    value: o.value,
+    innerText: o.value,
+    getAttribute: (n: string) => o.attrs?.[n] ?? null,
+    id: o.id ?? "",
+    labels: o.labels ?? [],
+  });
   const els = [
     field({ attrs: { "aria-label": "To" }, value: "dana@firm.test" }),
     field({ attrs: { name: "from" }, value: "me@mine.test" }),

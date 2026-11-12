@@ -20,9 +20,17 @@
   /** @type {any} */
   let timer = null;
 
-  const send = (/** @type {any} */ m) => new Promise((resolve) => {
-    try { g.chrome.runtime.sendMessage(m, (/** @type {any} */ r) => { void g.chrome.runtime.lastError; resolve(r); }); } catch { resolve(null); }
-  });
+  const send = (/** @type {any} */ m) =>
+    new Promise((resolve) => {
+      try {
+        g.chrome.runtime.sendMessage(m, (/** @type {any} */ r) => {
+          void g.chrome.runtime.lastError;
+          resolve(r);
+        });
+      } catch {
+        resolve(null);
+      }
+    });
 
   /** The selection's text, or "" when it sits in a field. */
   function selectedText() {
@@ -30,7 +38,9 @@
     if (a && (a.tagName === "INPUT" || a.tagName === "TEXTAREA" || a.isContentEditable)) return "";
     const s = g.getSelection ? g.getSelection() : null;
     if (!s || s.isCollapsed || s.rangeCount === 0) return "";
-    return String(s.toString() || "").trim().slice(0, 4000);
+    return String(s.toString() || "")
+      .trim()
+      .slice(0, 4000);
   }
 
   function build() {
@@ -56,10 +66,23 @@
       s.setAttribute("viewBox", "0 0 16 16");
       s.setAttribute("aria-hidden", "true");
       if (cls) s.setAttribute("class", cls);
-      for (const d of paths) { const p = doc.createElementNS(NS, "path"); p.setAttribute("d", d); if (stroke) { p.setAttribute("stroke", stroke); p.setAttribute("stroke-width", "2"); } s.append(p); }
+      for (const d of paths) {
+        const p = doc.createElementNS(NS, "path");
+        p.setAttribute("d", d);
+        if (stroke) {
+          p.setAttribute("stroke", stroke);
+          p.setAttribute("stroke-width", "2");
+        }
+        s.append(p);
+      }
       return s;
     };
-    const button = (/** @type {string} */ k, /** @type {any} */ ic, /** @type {string} */ label, /** @type {string} */ aria = "") => {
+    const button = (
+      /** @type {string} */ k,
+      /** @type {any} */ ic,
+      /** @type {string} */ label,
+      /** @type {string} */ aria = "",
+    ) => {
       const b = doc.createElement("button");
       b.dataset.k = k;
       b.append(ic);
@@ -82,7 +105,10 @@
       if (!b || !e.isTrusted) return;
       const text = selectedText();
       hide();
-      if (b.dataset.k === "x") { hidden = true; return; }
+      if (b.dataset.k === "x") {
+        hidden = true;
+        return;
+      }
       if (!text) return;
       await send({ type: b.dataset.k === "save" ? "vyre.clip" : "vyre.ask", selection: text });
     });
@@ -90,7 +116,9 @@
     doc.documentElement.append(host);
   }
 
-  function hide() { if (host) host.style.display = "none"; }
+  function hide() {
+    if (host) host.style.display = "none";
+  }
 
   function place() {
     const s = g.getSelection();
@@ -111,26 +139,50 @@
     if (text === lastSent) return;
     lastSent = text;
     const r = await send({ type: "vyre.selection", text });
-    if (r && r.data && r.data.off) { off = true; hide(); }
+    if (r && r.data && r.data.off) {
+      off = true;
+      hide();
+    }
   }
 
-  doc.addEventListener("mouseup", (/** @type {any} */ e) => {
-    if (off || !e.isTrusted || (host && e.composedPath && e.composedPath().includes(host))) return;
-    g.setTimeout(async () => {
-      const text = selectedText();
-      if (!text) { hide(); return; }
-      await report();
-      if (!off && !hidden) place();
-    }, 0);
-  }, true);
+  doc.addEventListener(
+    "mouseup",
+    (/** @type {any} */ e) => {
+      if (off || !e.isTrusted || (host && e.composedPath && e.composedPath().includes(host))) return;
+      g.setTimeout(async () => {
+        const text = selectedText();
+        if (!text) {
+          hide();
+          return;
+        }
+        await report();
+        if (!off && !hidden) place();
+      }, 0);
+    },
+    true,
+  );
   doc.addEventListener("selectionchange", () => {
     if (off) return;
     if (!selectedText()) hide();
     g.clearTimeout(timer);
-    timer = g.setTimeout(() => { void report(); }, 250);
+    timer = g.setTimeout(() => {
+      void report();
+    }, 250);
   });
-  doc.addEventListener("keydown", (/** @type {any} */ e) => { if (e.key === "Escape") hide(); }, true);
+  doc.addEventListener(
+    "keydown",
+    (/** @type {any} */ e) => {
+      if (e.key === "Escape") hide();
+    },
+    true,
+  );
   g.addEventListener("scroll", () => hide(), { passive: true, capture: true });
 
-  ns.select = { selectedText, hide, get off() { return off; } };
+  ns.select = {
+    selectedText,
+    hide,
+    get off() {
+      return off;
+    },
+  };
 })();

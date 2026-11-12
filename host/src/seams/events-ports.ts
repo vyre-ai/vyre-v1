@@ -35,8 +35,13 @@ function hexBytes(hex: string): Uint8Array {
 export function hmacSha256Hex(key: Uint8Array | string, text: string | Uint8Array): string {
   let k = typeof key === "string" ? enc.encode(key) : key;
   if (k.length > BLOCK) k = hexBytes(sha256Hex(k));
-  const ipad = new Uint8Array(BLOCK), opad = new Uint8Array(BLOCK);
-  for (let i = 0; i < BLOCK; i++) { const b = k[i] ?? 0; ipad[i] = b ^ 0x36; opad[i] = b ^ 0x5c; }
+  const ipad = new Uint8Array(BLOCK),
+    opad = new Uint8Array(BLOCK);
+  for (let i = 0; i < BLOCK; i++) {
+    const b = k[i] ?? 0;
+    ipad[i] = b ^ 0x36;
+    opad[i] = b ^ 0x5c;
+  }
   return sha256Hex(opad, hexBytes(sha256Hex(ipad, text)));
 }
 
@@ -67,11 +72,24 @@ export interface EventReaderDeps {
   maxScan?: number;
 }
 
-export interface EventCaller { principal: string; actingFor?: string | undefined }
+export interface EventCaller {
+  principal: string;
+  actingFor?: string | undefined;
+}
 
 export interface EventRow {
-  seq: number; id: string; type: string; sv: number; at: number; traceId: string; actor: string;
-  onBehalf?: string; runId?: string; cause?: string; origin?: string; depth: number;
+  seq: number;
+  id: string;
+  type: string;
+  sv: number;
+  at: number;
+  traceId: string;
+  actor: string;
+  onBehalf?: string;
+  runId?: string;
+  cause?: string;
+  origin?: string;
+  depth: number;
   subject?: { type: string; id: string };
   payload: unknown;
   /** true when the payload is ciphertext this port does not open */
@@ -92,7 +110,12 @@ export interface EventListQuery {
   after?: number;
   limit?: number;
 }
-export interface EventPage { events: EventRow[]; next: number; head: number; more: boolean }
+export interface EventPage {
+  events: EventRow[];
+  next: number;
+  head: number;
+  more: boolean;
+}
 
 export interface EventLogPort {
   list(caller: EventCaller, q?: EventListQuery): Promise<EventPage>;
@@ -104,109 +127,193 @@ export interface EventLogPort {
   head(): Promise<number>;
 }
 
-const DEFAULT_LIMIT = 100, MAX_LIMIT = 1000, DEFAULT_SCAN = 20_000;
+const DEFAULT_LIMIT = 100,
+  MAX_LIMIT = 1000,
+  DEFAULT_SCAN = 20_000;
 
 function typeMatcher(types: readonly string[] | undefined): (t: string) => boolean {
   if (!types || types.length === 0) return () => true;
-  const exact = new Set<string>(), prefix: string[] = [];
+  const exact = new Set<string>(),
+    prefix: string[] = [];
   for (const p of types) {
     if (p === "*") return () => true;
-    if (p.endsWith(".*")) prefix.push(p.slice(0, -1)); else exact.add(p);
+    if (p.endsWith(".*")) prefix.push(p.slice(0, -1));
+    else exact.add(p);
   }
   return (t) => exact.has(t) || prefix.some((p) => t.startsWith(p));
 }
 
 function decode(e: StoredEvent): { payload: unknown; sealed: boolean } {
   if (e.enc > 0) return { payload: null, sealed: true };
-  try { return { payload: JSON.parse(new TextDecoder().decode(e.payload)) as unknown, sealed: false }; } catch { return { payload: null, sealed: false }; }
+  try {
+    return { payload: JSON.parse(new TextDecoder().decode(e.payload)) as unknown, sealed: false };
+  } catch {
+    return { payload: null, sealed: false };
+  }
 }
 
 function toRow(e: StoredEvent): EventRow {
   const { payload, sealed } = decode(e);
   return {
-    seq: e.seq, id: e.id, type: e.type, sv: e.sv, at: e.at, traceId: e.trace_id, actor: e.actor,
-    ...(e.on_behalf !== undefined ? { onBehalf: e.on_behalf } : {}), ...(e.run_id !== undefined ? { runId: e.run_id } : {}),
-    ...(e.cause !== undefined ? { cause: e.cause } : {}), ...(e.origin !== undefined ? { origin: e.origin } : {}), depth: e.depth,
+    seq: e.seq,
+    id: e.id,
+    type: e.type,
+    sv: e.sv,
+    at: e.at,
+    traceId: e.trace_id,
+    actor: e.actor,
+    ...(e.on_behalf !== undefined ? { onBehalf: e.on_behalf } : {}),
+    ...(e.run_id !== undefined ? { runId: e.run_id } : {}),
+    ...(e.cause !== undefined ? { cause: e.cause } : {}),
+    ...(e.origin !== undefined ? { origin: e.origin } : {}),
+    depth: e.depth,
     ...(e.entity !== undefined && e.entity_id !== undefined ? { subject: { type: e.entity, id: e.entity_id } } : {}),
-    payload, ...(sealed ? { sealed: true } : {}),
+    payload,
+    ...(sealed ? { sealed: true } : {}),
   };
 }
 
-interface Reader { person: string; clearance: number }
+interface Reader {
+  person: string;
+  clearance: number;
+}
 
 /** Who the call reads as. An agent reads for the person it acts for, a service for its owner; a missing or inactive member reads nothing. */
 function readerOf(snap: AccessSnapshot, c: EventCaller): Reader | null {
   const me = snap.info(c.principal);
   if (!me || me.p.status !== "active") return null;
-  let person = c.principal, clearance = me.clearance;
-  const other = me.p.kind === "agent" ? c.actingFor : me.p.kind === "svc" ? me.p.owner ?? undefined : c.actingFor && c.actingFor !== c.principal ? c.actingFor : undefined;
+  let person = c.principal,
+    clearance = me.clearance;
+  const other =
+    me.p.kind === "agent"
+      ? c.actingFor
+      : me.p.kind === "svc"
+        ? (me.p.owner ?? undefined)
+        : c.actingFor && c.actingFor !== c.principal
+          ? c.actingFor
+          : undefined;
   if (other) {
     const o = snap.info(other);
     if (!o || o.p.status !== "active") return null;
     if (me.p.kind === "agent" && o.p.kind !== "person") return null;
-    person = other; clearance = Math.min(clearance, o.clearance);
+    person = other;
+    clearance = Math.min(clearance, o.clearance);
   } else if (me.p.kind === "agent" || me.p.kind === "svc") return null;
   return { person, clearance };
 }
 
-function visible(snap: AccessSnapshot, ownerId: string | null, r: Reader, c: EventCaller, e: StoredEvent, now: number): boolean {
+function visible(
+  snap: AccessSnapshot,
+  ownerId: string | null,
+  r: Reader,
+  c: EventCaller,
+  e: StoredEvent,
+  now: number,
+): boolean {
   if (e.label > r.clearance) return false;
   const mine = e.actor === r.person || e.actor === c.principal || e.on_behalf === r.person;
   switch (e.vis) {
-    case "space": return true;
-    case "private": return mine;
-    case "owner": return mine || (ownerId !== null && r.person === ownerId);
+    case "space":
+      return true;
+    case "private":
+      return mine;
+    case "owner":
+      return mine || (ownerId !== null && r.person === ownerId);
     case "participants": {
       if (mine) return true;
       if (e.entity === undefined || e.entity_id === undefined) return false;
-      return authorize(snap, { principal: c.principal, actingFor: c.actingFor, action: { perm: null, level: "view" }, resource: { type: e.entity, id: e.entity_id }, now }).effect === "allow";
+      return (
+        authorize(snap, {
+          principal: c.principal,
+          actingFor: c.actingFor,
+          action: { perm: null, level: "view" },
+          resource: { type: e.entity, id: e.entity_id },
+          now,
+        }).effect === "allow"
+      );
     }
-    default: return false;
+    default:
+      return false;
   }
 }
 
 export function createEventLogPort(deps: EventReaderDeps): EventLogPort {
   const maxScan = deps.maxScan ?? DEFAULT_SCAN;
 
-  async function scan(c: EventCaller, a: { after: number; limit: number; types?: readonly string[] | undefined; read?: Partial<ReadQuery>; keep?: (e: StoredEvent) => boolean }): Promise<EventPage> {
+  async function scan(
+    c: EventCaller,
+    a: {
+      after: number;
+      limit: number;
+      types?: readonly string[] | undefined;
+      read?: Partial<ReadQuery>;
+      keep?: (e: StoredEvent) => boolean;
+    },
+  ): Promise<EventPage> {
     const head = await deps.source.head();
     const snap = deps.access();
     const reader = readerOf(snap, c);
     if (!reader) return { events: [], next: a.after, head, more: false };
-    const owner = deps.owner(), now = deps.now(), match = typeMatcher(a.types);
+    const owner = deps.owner(),
+      now = deps.now(),
+      match = typeMatcher(a.types);
     // a single exact name or `noun.*` goes to the indexed column; several are filtered here
     const single = a.types && a.types.length === 1 ? a.types[0] : undefined;
     const events: EventRow[] = [];
-    let cursor = a.after, scanned = 0, more = false;
+    let cursor = a.after,
+      scanned = 0,
+      more = false;
     const batch = Math.min(Math.max(a.limit * 2, 200), 1000);
     for (;;) {
-      const rows = await deps.source.read({ ...a.read, after: cursor, limit: batch, ...(single !== undefined ? { type: single } : {}) });
+      const rows = await deps.source.read({
+        ...a.read,
+        after: cursor,
+        limit: batch,
+        ...(single !== undefined ? { type: single } : {}),
+      });
       if (rows.length === 0) break;
       for (const e of rows) {
-        if (events.length >= a.limit) { more = true; break; }
-        cursor = e.seq; scanned++;
+        if (events.length >= a.limit) {
+          more = true;
+          break;
+        }
+        cursor = e.seq;
+        scanned++;
         if (!match(e.type) || (a.keep && !a.keep(e)) || !visible(snap, owner, reader, c, e, now)) continue;
         events.push(toRow(e));
       }
       if (more) break;
       if (rows.length < batch) break;
-      if (scanned >= maxScan) { more = true; break; }
+      if (scanned >= maxScan) {
+        more = true;
+        break;
+      }
     }
     return { events, next: cursor, head, more };
   }
 
-  const clampLimit = (n: number | undefined): number => Math.min(Math.max(Math.trunc(n ?? DEFAULT_LIMIT), 1), MAX_LIMIT);
+  const clampLimit = (n: number | undefined): number =>
+    Math.min(Math.max(Math.trunc(n ?? DEFAULT_LIMIT), 1), MAX_LIMIT);
 
   return {
     head: async () => deps.source.head(),
     list(c, q = {}) {
       const read: Partial<ReadQuery> = {};
-      if (q.subject) { read.entity = q.subject.type; read.entity_id = q.subject.id; }
+      if (q.subject) {
+        read.entity = q.subject.type;
+        read.entity_id = q.subject.id;
+      }
       if (q.runId !== undefined) read.run_id = q.runId;
       if (q.traceId !== undefined) read.trace_id = q.traceId;
       return scan(c, {
-        after: Math.max(0, q.after ?? 0), limit: clampLimit(q.limit), types: q.types, read,
-        keep: (e) => (q.actor === undefined || e.actor === q.actor) && (q.fromAt === undefined || e.at >= q.fromAt) && (q.toAt === undefined || e.at <= q.toAt),
+        after: Math.max(0, q.after ?? 0),
+        limit: clampLimit(q.limit),
+        types: q.types,
+        read,
+        keep: (e) =>
+          (q.actor === undefined || e.actor === q.actor) &&
+          (q.fromAt === undefined || e.at >= q.fromAt) &&
+          (q.toAt === undefined || e.at <= q.toAt),
       });
     },
     since: (c, after, o = {}) => scan(c, { after: Math.max(0, after), limit: clampLimit(o.limit), types: o.types }),
@@ -217,12 +324,14 @@ export function createEventLogPort(deps: EventReaderDeps): EventLogPort {
       let found: StoredEvent | null = null;
       if (deps.source.byId) found = (await deps.source.byId(eventId)) ?? null;
       else {
-        let cursor = 0, scanned = 0;
+        let cursor = 0,
+          scanned = 0;
         while (!found && scanned < maxScan) {
           const rows = await deps.source.read({ after: cursor, limit: 1000 });
           if (rows.length === 0) break;
           found = rows.find((e) => e.id === eventId) ?? null;
-          cursor = rows[rows.length - 1]!.seq; scanned += rows.length;
+          cursor = rows[rows.length - 1]!.seq;
+          scanned += rows.length;
         }
       }
       return found && visible(snap, deps.owner(), reader, c, found, deps.now()) ? toRow(found) : null;
@@ -232,8 +341,18 @@ export function createEventLogPort(deps: EventReaderDeps): EventLogPort {
 
 // ---------------------------------------------------------------- POST port
 
-export interface PostResponse { status: number; headers: { get(n: string): string | null }; text(): Promise<string> }
-export interface PostInit { method: "POST"; headers: Record<string, string>; body: string; redirect: "manual"; signal: AbortSignal }
+export interface PostResponse {
+  status: number;
+  headers: { get(n: string): string | null };
+  text(): Promise<string>;
+}
+export interface PostInit {
+  method: "POST";
+  headers: Record<string, string>;
+  body: string;
+  redirect: "manual";
+  signal: AbortSignal;
+}
 export type PostFetch = (url: string, init: PostInit) => Promise<PostResponse>;
 
 export interface WebhookPostDeps {
@@ -274,7 +393,9 @@ export interface WebhookPostResult {
   signatureTimestamp: number;
 }
 
-export interface WebhookPostPort { post(a: WebhookPost): Promise<WebhookPostResult> }
+export interface WebhookPostPort {
+  post(a: WebhookPost): Promise<WebhookPostResult>;
+}
 
 export const DEFAULT_POST_TIMEOUT_MS = 10_000;
 export const DEFAULT_POST_BODY_CAP = 1024 * 1024;
@@ -284,27 +405,55 @@ const IPV4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/;
 /** Hosts a webhook must never reach: loopback, private, link-local, unspecified, carrier-grade NAT, internal names and IPv6 literals (a public address is written as a name). */
 export function isPrivateHost(host: string): boolean {
   const h = host.toLowerCase().replace(/\.$/, "");
-  if (h === "localhost" || h.endsWith(".localhost") || h.endsWith(".local") || h.endsWith(".internal") || h.endsWith(".lan") || h.endsWith(".home.arpa") || !h.includes(".")) return true;
+  if (
+    h === "localhost" ||
+    h.endsWith(".localhost") ||
+    h.endsWith(".local") ||
+    h.endsWith(".internal") ||
+    h.endsWith(".lan") ||
+    h.endsWith(".home.arpa") ||
+    !h.includes(".")
+  )
+    return true;
   if (h.startsWith("[") || h.includes(":")) return true;
   const m = IPV4.exec(h);
   if (m) {
     const [a, b] = [Number(m[1]), Number(m[2])];
-    return a === 0 || a === 10 || a === 127 || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 100 && b >= 64 && b <= 127) || a >= 224;
+    return (
+      a === 0 ||
+      a === 10 ||
+      a === 127 ||
+      (a === 169 && b === 254) ||
+      (a === 172 && b >= 16 && b <= 31) ||
+      (a === 192 && b === 168) ||
+      (a === 100 && b >= 64 && b <= 127) ||
+      a >= 224
+    );
   }
   // a numeric host that is not dotted quad (decimal, hex, octal forms) can still resolve to a private address
   return /^[0-9x.]+$/i.test(h);
 }
 
 export function createWebhookPostPort(deps: WebhookPostDeps): WebhookPostPort {
-  const doFetch: PostFetch = deps.fetch ?? ((url, init) => globalThis.fetch(url, init) as unknown as Promise<PostResponse>);
+  const doFetch: PostFetch =
+    deps.fetch ?? ((url, init) => globalThis.fetch(url, init) as unknown as Promise<PostResponse>);
   const timeoutMs = deps.timeoutMs ?? DEFAULT_POST_TIMEOUT_MS;
   const bodyCap = deps.maxBodyBytes ?? DEFAULT_POST_BODY_CAP;
   const excerptCap = deps.maxResponseChars ?? 2000;
 
   function check(url: string, traceId: string): URL {
     let u: URL;
-    try { u = new URL(url); } catch { throw fail("validation.bad_input", traceId, { details: { errors: ["url: not a URL"] } }); }
-    const refuse = (why: string): never => { throw fail("permission.no_grant", traceId, { message: "A webhook may not reach that address.", details: { host: u.hostname, why } }); };
+    try {
+      u = new URL(url);
+    } catch {
+      throw fail("validation.bad_input", traceId, { details: { errors: ["url: not a URL"] } });
+    }
+    const refuse = (why: string): never => {
+      throw fail("permission.no_grant", traceId, {
+        message: "A webhook may not reach that address.",
+        details: { host: u.hostname, why },
+      });
+    };
     if (u.protocol !== "https:") refuse("https only");
     if (u.username || u.password) refuse("no credentials in the address");
     if (isPrivateHost(u.hostname)) refuse("private or local address");
@@ -317,31 +466,67 @@ export function createWebhookPostPort(deps: WebhookPostDeps): WebhookPostPort {
     async post(a) {
       const u = check(a.url, a.traceId);
       const size = enc.encode(a.body).byteLength;
-      if (size > bodyCap) throw fail("validation.too_large", a.traceId, { message: "That event is too large to deliver.", details: { bytes: size, cap: bodyCap } });
+      if (size > bodyCap)
+        throw fail("validation.too_large", a.traceId, {
+          message: "That event is too large to deliver.",
+          details: { bytes: size, cap: bodyCap },
+        });
       const at = a.at ?? deps.now();
       const ts = Math.floor(at / 1000);
       const headers: Record<string, string> = {
-        "content-type": "application/json", "user-agent": "Vyre-Webhooks/1",
-        "x-vyre-signature": signWebhook(a.secret, ts, a.body), "x-vyre-trace": a.traceId, "x-vyre-event": a.eventType, "x-vyre-event-id": a.eventId,
+        "content-type": "application/json",
+        "user-agent": "Vyre-Webhooks/1",
+        "x-vyre-signature": signWebhook(a.secret, ts, a.body),
+        "x-vyre-trace": a.traceId,
+        "x-vyre-event": a.eventType,
+        "x-vyre-event-id": a.eventId,
       };
       const ctl = new AbortController();
       const t0 = deps.now();
       let timer: ReturnType<typeof setTimeout> | undefined;
-      const timeout = new Promise<never>((_, reject) => { timer = setTimeout(() => { ctl.abort(); reject(new Error("timeout")); }, timeoutMs); });
+      const timeout = new Promise<never>((_, reject) => {
+        timer = setTimeout(() => {
+          ctl.abort();
+          reject(new Error("timeout"));
+        }, timeoutMs);
+      });
       try {
         const run = (async (): Promise<WebhookPostResult> => {
-          const r = await doFetch(u.toString(), { method: "POST", headers, body: a.body, redirect: "manual", signal: ctl.signal });
+          const r = await doFetch(u.toString(), {
+            method: "POST",
+            headers,
+            body: a.body,
+            redirect: "manual",
+            signal: ctl.signal,
+          });
           const text = await r.text();
           const excerpt = text.length > excerptCap ? text.slice(0, excerptCap) : text;
           const durationMs = Math.max(0, deps.now() - t0);
-          if (r.status >= 300 && r.status < 400) return { ok: false, status: r.status, durationMs, excerpt, error: "The endpoint answered with a redirect; redirects are not followed.", signatureTimestamp: ts };
-          return { ok: r.status >= 200 && r.status < 300, status: r.status, durationMs, excerpt, signatureTimestamp: ts };
+          if (r.status >= 300 && r.status < 400)
+            return {
+              ok: false,
+              status: r.status,
+              durationMs,
+              excerpt,
+              error: "The endpoint answered with a redirect; redirects are not followed.",
+              signatureTimestamp: ts,
+            };
+          return {
+            ok: r.status >= 200 && r.status < 300,
+            status: r.status,
+            durationMs,
+            excerpt,
+            signatureTimestamp: ts,
+          };
         })();
-        run.catch(() => {});   // if the timeout wins, a late failure of the fetch is not an unhandled rejection
+        run.catch(() => {}); // if the timeout wins, a late failure of the fetch is not an unhandled rejection
         return await Promise.race([run, timeout]);
       } catch (e) {
         const durationMs = Math.max(0, deps.now() - t0);
-        const message = e instanceof Error && e.message === "timeout" ? `No answer within ${Math.round(timeoutMs / 1000)} seconds.` : "The endpoint could not be reached.";
+        const message =
+          e instanceof Error && e.message === "timeout"
+            ? `No answer within ${Math.round(timeoutMs / 1000)} seconds.`
+            : "The endpoint could not be reached.";
         return { ok: false, durationMs, error: message, signatureTimestamp: ts };
       } finally {
         if (timer !== undefined) clearTimeout(timer);
@@ -353,19 +538,35 @@ export function createWebhookPostPort(deps: WebhookPostDeps): WebhookPostPort {
 // ---------------------------------------------------------------- seam
 
 /** What the events module receives through its `setEventsHost` setter. */
-export interface EventsHostSeam { events: EventLogPort; webhooks: WebhookPostPort }
+export interface EventsHostSeam {
+  events: EventLogPort;
+  webhooks: WebhookPostPort;
+}
 
-export interface EventsSeamSetters { setEventsHost?: ((h: EventsHostSeam | null) => void) | undefined }
+export interface EventsSeamSetters {
+  setEventsHost?: ((h: EventsHostSeam | null) => void) | undefined;
+}
 
-export interface EventsSeamDeps { reader: EventReaderDeps; post: WebhookPostDeps }
+export interface EventsSeamDeps {
+  reader: EventReaderDeps;
+  post: WebhookPostDeps;
+}
 
 export function createEventsHost(deps: EventsSeamDeps): EventsHostSeam {
   return { events: createEventLogPort(deps.reader), webhooks: createWebhookPostPort(deps.post) };
 }
 
 /** Wire the seam through the setter the events module exported as `hostSeams`. Returns "absent" when the module offers none. */
-export function wireEventsSeam(setters: EventsSeamSetters, deps: EventsSeamDeps): { state: "wired" | "absent"; unwire(): void } {
+export function wireEventsSeam(
+  setters: EventsSeamSetters,
+  deps: EventsSeamDeps,
+): { state: "wired" | "absent"; unwire(): void } {
   if (!setters.setEventsHost) return { state: "absent", unwire() {} };
   setters.setEventsHost(createEventsHost(deps));
-  return { state: "wired", unwire() { setters.setEventsHost?.(null); } };
+  return {
+    state: "wired",
+    unwire() {
+      setters.setEventsHost?.(null);
+    },
+  };
 }

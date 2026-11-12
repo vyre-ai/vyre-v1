@@ -15,9 +15,15 @@ const CVV = "737";
 class FakeForm {
   inputs: FakeInput[] = [];
   submitted = 0;
-  requestSubmit() { this.submitted++; }
-  querySelectorAll() { return this.inputs; }
-  querySelector() { return null; }
+  requestSubmit() {
+    this.submitted++;
+  }
+  querySelectorAll() {
+    return this.inputs;
+  }
+  querySelector() {
+    return null;
+  }
 }
 
 class FakeInput {
@@ -30,23 +36,49 @@ class FakeInput {
   events: string[] = [];
   sets: string[] = [];
   private v = "";
-  constructor(attrs: Record<string, string>) { this.attrs = attrs; }
-  getAttribute(n: string) { return n in this.attrs ? this.attrs[n] : null; }
-  getClientRects() { return this.visible ? [{}] : []; }
-  get value() { return this.v; }
-  set value(x: string) { this.v = x; this.sets.push("native"); }
-  focus() { this.focused = true; }
-  dispatchEvent(e: { type: string }) { this.events.push(e.type); return true; }
-  closest() { return null; }
+  constructor(attrs: Record<string, string>) {
+    this.attrs = attrs;
+  }
+  getAttribute(n: string) {
+    return n in this.attrs ? this.attrs[n] : null;
+  }
+  getClientRects() {
+    return this.visible ? [{}] : [];
+  }
+  get value() {
+    return this.v;
+  }
+  set value(x: string) {
+    this.v = x;
+    this.sets.push("native");
+  }
+  focus() {
+    this.focused = true;
+  }
+  dispatchEvent(e: { type: string }) {
+    this.events.push(e.type);
+    return true;
+  }
+  closest() {
+    return null;
+  }
 }
 
 class FakeDocument {
   inputs: FakeInput[] = [];
   listeners: Record<string, ((e: unknown) => void)[]> = {};
-  querySelectorAll(sel: string) { return sel === "input" ? this.inputs : []; }
-  addEventListener(type: string, fn: (e: unknown) => void) { (this.listeners[type] ??= []).push(fn); }
-  fire(type: string, e: Record<string, unknown>) { for (const fn of this.listeners[type] ?? []) fn(e); }
-  page(...inputs: FakeInput[]) { this.inputs = inputs; }
+  querySelectorAll(sel: string) {
+    return sel === "input" ? this.inputs : [];
+  }
+  addEventListener(type: string, fn: (e: unknown) => void) {
+    (this.listeners[type] ??= []).push(fn);
+  }
+  fire(type: string, e: Record<string, unknown>) {
+    for (const fn of this.listeners[type] ?? []) fn(e);
+  }
+  page(...inputs: FakeInput[]) {
+    this.inputs = inputs;
+  }
 }
 
 function loginPage(doc: FakeDocument, extra: Record<string, string> = {}) {
@@ -72,71 +104,179 @@ class FakeApp {
   puts: Msg[] = [];
   private listeners: ((m: Msg) => void)[] = [];
   private disconnect: (() => void)[] = [];
-  onMessage = { addListener: (f: (m: Msg) => void) => { this.listeners.push(f); } };
-  onDisconnect = { addListener: (f: () => void) => { this.disconnect.push(f); } };
-  private send(m: Msg) { queueMicrotask(() => { for (const l of this.listeners) l(m); }); }
+  onMessage = {
+    addListener: (f: (m: Msg) => void) => {
+      this.listeners.push(f);
+    },
+  };
+  onDisconnect = {
+    addListener: (f: () => void) => {
+      this.disconnect.push(f);
+    },
+  };
+  private send(m: Msg) {
+    queueMicrotask(() => {
+      for (const l of this.listeners) l(m);
+    });
+  }
   postMessage(m: Msg) {
     this.received.push(JSON.parse(JSON.stringify(m)));
     const reply = (output: unknown) => this.send({ id: m["id"], ok: true, output });
     if (m["type"] === "bridge") {
-      if (m["op"] === "hello") return reply({ spaces: [{ id: "spc_a", name: "Acme Law", webUrl: "https://acme.vyre.run" }, { id: "spc_p", name: "Personal", webUrl: "http://localhost:8420" }], active: "spc_a", locked: this.locked });
+      if (m["op"] === "hello")
+        return reply({
+          spaces: [
+            { id: "spc_a", name: "Acme Law", webUrl: "https://acme.vyre.run" },
+            { id: "spc_p", name: "Personal", webUrl: "http://localhost:8420" },
+          ],
+          active: "spc_a",
+          locked: this.locked,
+        });
       if (m["op"] === "login.check") return reply(this.login);
-      if (m["op"] === "agents.list") return reply({ agents: [{ id: "agt_intake", name: "Intake" }], suggested: { id: "agt_intake", name: "Intake" } });
+      if (m["op"] === "agents.list")
+        return reply({
+          agents: [{ id: "agt_intake", name: "Intake" }],
+          suggested: { id: "agt_intake", name: "Intake" },
+        });
       return reply({});
     }
     const input = m["input"] as Msg;
     switch (m["capability"]) {
       case "vault.items.match":
-        return reply({ items: [{ item: { id: "vit_acme", name: "Acme Portal", kind: "login", handle: "#Acme_Portal", fieldKeys: ["username", "password", "totp"] }, usernameField: "username" }] });
-      case "vault.items.list": return reply({ items: [{ id: "vit_card", name: "Firm Amex", kind: "card" }] });
-      case "vault.use": return reply(input["item"] === "vit_card" ? { handle: "#Firm_Amex", itemId: "vit_card", fields: ["number", "name", "expiry", "cvv"] } : { handle: "#Acme_Portal", itemId: input["item"], fields: ["username", "password", "totp"] });
+        return reply({
+          items: [
+            {
+              item: {
+                id: "vit_acme",
+                name: "Acme Portal",
+                kind: "login",
+                handle: "#Acme_Portal",
+                fieldKeys: ["username", "password", "totp"],
+              },
+              usernameField: "username",
+            },
+          ],
+        });
+      case "vault.items.list":
+        return reply({ items: [{ id: "vit_card", name: "Firm Amex", kind: "card" }] });
+      case "vault.use":
+        return reply(
+          input["item"] === "vit_card"
+            ? { handle: "#Firm_Amex", itemId: "vit_card", fields: ["number", "name", "expiry", "cvv"] }
+            : { handle: "#Acme_Portal", itemId: input["item"], fields: ["username", "password", "totp"] },
+        );
       case "vault.fill": {
         const field = String(input["handle"]).split(".")[1];
-        const value = field === "username" ? USERNAME : field === "password" ? PASSWORD : field === "number" ? CARD : field === "expiry" ? "04/29" : field === "cvv" ? CVV : field === "name" ? "Dana Acme" : CODE;
+        const value =
+          field === "username"
+            ? USERNAME
+            : field === "password"
+              ? PASSWORD
+              : field === "number"
+                ? CARD
+                : field === "expiry"
+                  ? "04/29"
+                  : field === "cvv"
+                    ? CVV
+                    : field === "name"
+                      ? "Dana Acme"
+                      : CODE;
         this.pushedValues++;
         this.send({ type: "fill", ref: (input["target"] as Msg)["ref"], value });
         return reply({ filled: true, field, where: "device" });
       }
-      case "vault.site_rules.list": return reply({ sites: this.rules.map((r) => ({ ...r, at: 0 })) });
+      case "vault.site_rules.list":
+        return reply({ sites: this.rules.map((r) => ({ ...r, at: 0 })) });
       case "vault.site_rules.set": {
-        this.rules = [...this.rules.filter((r) => r.host !== input["host"]), { host: String(input["host"]), neverFill: Boolean(input["neverFill"]), neverSave: Boolean(input["neverSave"]) }];
+        this.rules = [
+          ...this.rules.filter((r) => r.host !== input["host"]),
+          {
+            host: String(input["host"]),
+            neverFill: Boolean(input["neverFill"]),
+            neverSave: Boolean(input["neverSave"]),
+          },
+        ];
         return reply(input);
       }
-      case "vault.folders.list": return reply({ folders: input["scope"] === "shared" ? [{ id: "vfo_team", name: "Team logins", yourLevel: "edit" }, { id: "vfo_ro", name: "Read only", yourLevel: "view" }] : [{ id: "vfo_mine", name: "Mine", yourLevel: "manage" }] });
-      case "vault.item.put": this.puts.push(input); return reply({ item: { id: "vit_new" } });
-      case "vault.item.update": this.puts.push(input); return reply({ item: { id: String(input["itemId"]) } });
-      case "vault.share": return reply({ granted: true });
-      default: return reply({});
+      case "vault.folders.list":
+        return reply({
+          folders:
+            input["scope"] === "shared"
+              ? [
+                  { id: "vfo_team", name: "Team logins", yourLevel: "edit" },
+                  { id: "vfo_ro", name: "Read only", yourLevel: "view" },
+                ]
+              : [{ id: "vfo_mine", name: "Mine", yourLevel: "manage" }],
+        });
+      case "vault.item.put":
+        this.puts.push(input);
+        return reply({ item: { id: "vit_new" } });
+      case "vault.item.update":
+        this.puts.push(input);
+        return reply({ item: { id: String(input["itemId"]) } });
+      case "vault.share":
+        return reply({ granted: true });
+      default:
+        return reply({});
     }
   }
-  disconnectPort() { for (const f of this.disconnect) f(); }
+  disconnectPort() {
+    for (const f of this.disconnect) f();
+  }
 }
 
 function area() {
   const data: Record<string, unknown> = {};
   const writes: string[] = [];
   return {
-    data, writes,
+    data,
+    writes,
     api: {
-      async get(keys: string[]) { const out: Record<string, unknown> = {}; for (const k of keys) if (k in data) out[k] = data[k]; return out; },
-      async set(items: Record<string, unknown>) { Object.assign(data, items); writes.push(JSON.stringify(items)); },
-      async remove(keys: string[]) { for (const k of keys) delete data[k]; },
+      async get(keys: string[]) {
+        const out: Record<string, unknown> = {};
+        for (const k of keys) if (k in data) out[k] = data[k];
+        return out;
+      },
+      async set(items: Record<string, unknown>) {
+        Object.assign(data, items);
+        writes.push(JSON.stringify(items));
+      },
+      async remove(keys: string[]) {
+        for (const k of keys) delete data[k];
+      },
     },
   };
 }
 
 function makeBrowser(app: FakeApp, tab: { id: number; url: string; title?: string }) {
-  const local = area(), session = area(), sync = area();
+  const local = area(),
+    session = area(),
+    sync = area();
   const badges: { text: string }[] = [];
   const created: { url: string }[] = [];
   const shown: Record<string, any>[] = [];
   const ext = {
     runtime: { id: "ext_vyre", lastError: undefined, connectNative: () => app },
     storage: { local: local.api, session: session.api, sync: sync.api },
-    tabs: { query: async () => [tab], get: async () => tab, create: async (o: { url: string }) => { created.push(o); } },
-    action: { setBadgeText: async (o: { text: string }) => { badges.push(o); }, setBadgeBackgroundColor: async () => {} },
+    tabs: {
+      query: async () => [tab],
+      get: async () => tab,
+      create: async (o: { url: string }) => {
+        created.push(o);
+      },
+    },
+    action: {
+      setBadgeText: async (o: { text: string }) => {
+        badges.push(o);
+      },
+      setBadgeBackgroundColor: async () => {},
+    },
     scripting: {
-      async executeScript(o: { target: { tabId: number; allFrames?: boolean; frameIds?: number[] }; func: (...a: any[]) => any; args: any[] }) {
+      async executeScript(o: {
+        target: { tabId: number; allFrames?: boolean; frameIds?: number[] };
+        func: (...a: any[]) => any;
+        args: any[];
+      }) {
         const result = o.func(...o.args);
         return [{ frameId: o.target.frameIds ? o.target.frameIds[0] : 0, result }];
       },
@@ -149,14 +289,26 @@ function makeBrowser(app: FakeApp, tab: { id: number; url: string; title?: strin
 
 const doc = new FakeDocument();
 const logged: string[] = [];
-const realConsole = { log: console.log, info: console.info, warn: console.warn, error: console.error, debug: console.debug };
+const realConsole = {
+  log: console.log,
+  info: console.info,
+  warn: console.warn,
+  error: console.error,
+  debug: console.debug,
+};
 let ns: any;
 let realPrompt: any;
 const sent: Msg[] = [];
 
 before(async () => {
   (globalThis as any).document = doc;
-  (globalThis as any).chrome = { runtime: { sendMessage: (m: Msg) => { sent.push(m); } } };
+  (globalThis as any).chrome = {
+    runtime: {
+      sendMessage: (m: Msg) => {
+        sent.push(m);
+      },
+    },
+  };
   await import("../src/content/finder.js");
   await import("../src/content/autofill.js");
   await import("../src/content/capture.js");
@@ -168,7 +320,10 @@ before(async () => {
 beforeEach(() => {
   logged.length = 0;
   sent.length = 0;
-  for (const k of Object.keys(realConsole) as (keyof typeof realConsole)[]) (console as any)[k] = (...a: unknown[]) => { logged.push(a.map(String).join(" ")); };
+  for (const k of Object.keys(realConsole) as (keyof typeof realConsole)[])
+    (console as any)[k] = (...a: unknown[]) => {
+      logged.push(a.map(String).join(" "));
+    };
 });
 
 afterEach(() => {
@@ -191,14 +346,30 @@ const popup = (w: any, msg: Msg) => w.onMessage(msg, sender);
  */
 function secretsIn(received: unknown, values: string[]): string[] {
   const strings: string[] = [];
-  const walk = (x: unknown): void => { if (typeof x === "string") strings.push(x); else if (typeof x === "number") strings.push(String(x)); else if (Array.isArray(x)) x.forEach(walk); else if (x !== null && typeof x === "object") Object.values(x).forEach(walk); };
+  const walk = (x: unknown): void => {
+    if (typeof x === "string") strings.push(x);
+    else if (typeof x === "number") strings.push(String(x));
+    else if (Array.isArray(x)) x.forEach(walk);
+    else if (x !== null && typeof x === "object") Object.values(x).forEach(walk);
+  };
   walk(received);
-  const holds = (h: string, v: string): boolean => (v.length >= 8 ? h.includes(v) : h === v || new RegExp(`(?<![A-Za-z0-9])${v.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![A-Za-z0-9])`).test(h));
+  const holds = (h: string, v: string): boolean =>
+    v.length >= 8
+      ? h.includes(v)
+      : h === v || new RegExp(`(?<![A-Za-z0-9])${v.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![A-Za-z0-9])`).test(h);
   return values.filter((v) => strings.some((h) => holds(h, v)));
 }
 
-function assertNoValueAnywhere(b: { areas: Record<string, { writes: string[]; data: object }> }, app: FakeApp, values: string[]) {
-  const hay = [JSON.stringify(Object.values(b.areas).map((a) => a.data)), ...Object.values(b.areas).flatMap((a) => a.writes), ...logged];
+function assertNoValueAnywhere(
+  b: { areas: Record<string, { writes: string[]; data: object }> },
+  app: FakeApp,
+  values: string[],
+) {
+  const hay = [
+    JSON.stringify(Object.values(b.areas).map((a) => a.data)),
+    ...Object.values(b.areas).flatMap((a) => a.writes),
+    ...logged,
+  ];
   for (const v of values) {
     for (const h of hay) assert.ok(!h.includes(v), `a stored or logged string contains a secret value`);
   }
@@ -214,7 +385,10 @@ test("popup state lists logins for the page by item name, and the badge counts t
   const r = await popup(w, { type: "popup.state" });
   assert.equal(r.data.status, "online");
   assert.equal(r.data.page.host, "login.acme.test");
-  assert.deepEqual(r.data.rows.map((x: any) => x.name), ["Acme Portal"]);
+  assert.deepEqual(
+    r.data.rows.map((x: any) => x.name),
+    ["Acme Portal"],
+  );
   assert.ok(!JSON.stringify(r.data).includes(USERNAME), "the popup is never given a username");
   assert.equal(badges.at(-1)?.text, "1");
   // only the page's origin went out to find matches, not its path
@@ -226,7 +400,13 @@ test("fill sends the fill command for each field and the value lands in the fiel
   const app = new FakeApp();
   const { user, pass } = loginPage(doc);
   const b = await worker(app);
-  const r = await popup(b.w, { type: "popup.fill", itemId: "vit_acme", usernameField: "username", kind: "login", signIn: false });
+  const r = await popup(b.w, {
+    type: "popup.fill",
+    itemId: "vit_acme",
+    usernameField: "username",
+    kind: "login",
+    signIn: false,
+  });
   assert.deepEqual(r.data, { filled: ["username", "password"], signedIn: false });
   assert.equal(user.value, USERNAME);
   assert.equal(pass.value, PASSWORD);
@@ -235,7 +415,10 @@ test("fill sends the fill command for each field and the value lands in the fiel
 
   const fills = app.received.filter((m) => m["capability"] === "vault.fill");
   assert.equal(fills.length, 2);
-  assert.deepEqual(fills.map((m) => m["input"].handle), ["#Acme_Portal.username", "#Acme_Portal.password"]);
+  assert.deepEqual(
+    fills.map((m) => m["input"].handle),
+    ["#Acme_Portal.username", "#Acme_Portal.password"],
+  );
   for (const f of fills) {
     assert.equal(f["input"].target.kind, "browser");
     assert.match(f["input"].target.ref, /^w\d+-[0-9a-f]{24}$/);
@@ -267,17 +450,28 @@ test("a ref that expired before the filler answered is dropped", async () => {
   let release: (v: unknown) => void = () => {};
   const f = createFill({
     bridge: {
-      onPush: (h: (m: Msg) => void) => { pushes.push(h); return () => {}; },
+      onPush: (h: (m: Msg) => void) => {
+        pushes.push(h);
+        return () => {};
+      },
       invoke: async (c: string, i: Msg) => {
         if (c === "vault.use") return { handle: "#X", fields: ["password"] };
         mintedRef = i["target"].ref;
-        return new Promise((r) => { release = r; });
+        return new Promise((r) => {
+          release = r;
+        });
       },
     },
     scripting: {
       executeScript: async (o: any) => {
         if (o.func.name === "applyInPage") applied.push(o.args);
-        return [{ frameId: 0, result: o.func.name === "prepareInPage" ? { fields: [{ ref: "p1", role: "password" }], signup: false } : true }];
+        return [
+          {
+            frameId: 0,
+            result:
+              o.func.name === "prepareInPage" ? { fields: [{ ref: "p1", role: "password" }], signup: false } : true,
+          },
+        ];
       },
     },
     rules: { forHost: async () => null },
@@ -335,7 +529,13 @@ test("Fill and Sign In presses sign in after the password is in", async () => {
   const app = new FakeApp();
   const { form, pass } = loginPage(doc);
   const b = await worker(app);
-  const r = await popup(b.w, { type: "popup.fill", itemId: "vit_acme", usernameField: "username", kind: "login", signIn: true });
+  const r = await popup(b.w, {
+    type: "popup.fill",
+    itemId: "vit_acme",
+    usernameField: "username",
+    kind: "login",
+    signIn: true,
+  });
   assert.equal(r.data.signedIn, true);
   assert.equal(form.submitted, 1);
   assert.equal(pass.value, PASSWORD);
@@ -379,8 +579,16 @@ test("only the extension's own pages may send popup messages, and only content s
   loginPage(doc);
   const b = await worker(app);
   assert.equal((await b.w.onMessage({ type: "popup.state" }, { id: "someone_else" })).error.code, "not_allowed");
-  assert.equal((await b.w.onMessage({ type: "popup.fill", itemId: "x" }, { id: "ext_vyre", tab: { id: 1 } })).error.code, "not_allowed", "a page cannot drive a fill");
-  assert.equal((await b.w.onMessage({ type: "vyre.save", password: "x" }, { id: "ext_vyre" })).error.code, "not_allowed", "the popup cannot save for a page");
+  assert.equal(
+    (await b.w.onMessage({ type: "popup.fill", itemId: "x" }, { id: "ext_vyre", tab: { id: 1 } })).error.code,
+    "not_allowed",
+    "a page cannot drive a fill",
+  );
+  assert.equal(
+    (await b.w.onMessage({ type: "vyre.save", password: "x" }, { id: "ext_vyre" })).error.code,
+    "not_allowed",
+    "the popup cannot save for a page",
+  );
   assert.equal((await b.w.onMessage({ type: "nonsense" }, { id: "ext_vyre" })).error.code, "not_allowed");
   assert.equal(app.received.length, 0, "refused messages never reach the app");
 });
@@ -403,7 +611,9 @@ test("with no app, the popup says so and the web app opens for the Space", async
   const b = await worker(app);
   await popup(b.w, { type: "popup.state" }); // learns the Spaces
   const down = makeBrowser(app, { id: 7, url: "https://login.acme.test/" });
-  (down.ext.runtime as any).connectNative = () => { throw new Error("Specified native messaging host not found."); };
+  (down.ext.runtime as any).connectNative = () => {
+    throw new Error("Specified native messaging host not found.");
+  };
   Object.assign(down.areas.local.data, b.areas.local.data);
   const { createWorker } = await import("../src/worker/index.js");
   const w2 = createWorker(down.ext);
@@ -448,12 +658,26 @@ test("a new login is offered once the page settles, and Save puts it in the pers
   const p = loginPage(doc);
   const b = await worker(app);
   const shown: Record<string, any>[] = [];
-  ns.prompt = { show: (card: Record<string, any>) => { shown.push({ ...card }); return true; }, hide() {} };
+  ns.prompt = {
+    show: (card: Record<string, any>) => {
+      shown.push({ ...card });
+      return true;
+    },
+    hide() {},
+  };
 
-  const r = await b.w.onMessage({ type: "vyre.submit", username: USERNAME, password: PASSWORD, kind: "signin" }, { id: "ext_vyre", tab: { id: 7 }, origin: "https://login.acme.test" });
+  const r = await b.w.onMessage(
+    { type: "vyre.submit", username: USERNAME, password: PASSWORD, kind: "signin" },
+    { id: "ext_vyre", tab: { id: 7 }, origin: "https://login.acme.test" },
+  );
   assert.deepEqual(r.data, { prompt: true });
   const check = app.received.find((m) => m["op"] === "login.check")!;
-  assert.deepEqual(check["input"], { origin: "https://login.acme.test", username: USERNAME, password: PASSWORD, kind: "signin" });
+  assert.deepEqual(check["input"], {
+    origin: "https://login.acme.test",
+    username: USERNAME,
+    password: PASSWORD,
+    kind: "signin",
+  });
 
   // the sign-in navigates: loading, then complete
   await b.w.onTabUpdated(7, { status: "loading" }, undefined);
@@ -467,16 +691,28 @@ test("a new login is offered once the page settles, and Save puts it in the pers
 
   // Mine is the default: a private item in a Mine folder, with a key made from the card, and nothing shared (a Mine item cannot be)
   const ctx7 = { id: "ext_vyre", tab: { id: 7 }, origin: "https://login.acme.test" };
-  const saved = await b.w.onMessage({ type: "vyre.save", name: "Acme Portal", username: USERNAME, password: PASSWORD, cardId: "c1", mode: "save" }, ctx7);
+  const saved = await b.w.onMessage(
+    { type: "vyre.save", name: "Acme Portal", username: USERNAME, password: PASSWORD, cardId: "c1", mode: "save" },
+    ctx7,
+  );
   assert.deepEqual(saved.data, { saved: true, itemId: "vit_new", scope: "mine", allowed: [], refused: [] });
   const put = app.puts[0]!;
   assert.equal(put["folderId"], "vfo_mine");
   assert.equal(put["kind"], "login");
   assert.equal(put["idempotencyKey"], "chr_card_c1_put");
-  assert.deepEqual(put["fields"], [{ key: "url", value: "https://login.acme.test" }, { key: "username", value: USERNAME }, { key: "password", value: PASSWORD, secret: true }]);
+  assert.deepEqual(put["fields"], [
+    { key: "url", value: "https://login.acme.test" },
+    { key: "username", value: USERNAME },
+    { key: "password", value: PASSWORD, secret: true },
+  ]);
   assert.equal(app.received.filter((m) => m["capability"] === "vault.share").length, 0, "a Mine item is never shared");
-  assert.deepEqual(Object.keys(b.areas.local.data).filter((k) => !["activeSpace", "spaces", "siteRules"].includes(k)), []);
-  assert.ok(!JSON.stringify([b.areas.local.writes, b.areas.session.writes, b.areas.sync.writes, logged]).includes(PASSWORD));
+  assert.deepEqual(
+    Object.keys(b.areas.local.data).filter((k) => !["activeSpace", "spaces", "siteRules"].includes(k)),
+    [],
+  );
+  assert.ok(
+    !JSON.stringify([b.areas.local.writes, b.areas.session.writes, b.areas.sync.writes, logged]).includes(PASSWORD),
+  );
   void p;
 });
 
@@ -496,21 +732,61 @@ test("Shared lists only the folders the person may add to and the agents; the sa
   const app = new FakeApp();
   const { b, ctx } = await cardFor(app);
   const choices = await b.w.onMessage({ type: "vyre.choices" }, ctx);
-  assert.deepEqual(choices.data, { folders: [{ id: "vfo_team", name: "Team logins" }], agents: [{ id: "agt_intake", name: "Intake", suggested: true }] });
-  const saved = await b.w.onMessage({ type: "vyre.save", name: "Acme Portal", username: USERNAME, password: PASSWORD, scope: "shared", folderId: "vfo_team", agentIds: ["agt_intake", "agt_nobody"], cardId: "c2", mode: "save" }, ctx);
-  assert.deepEqual(saved.data, { saved: true, itemId: "vit_new", scope: "shared", allowed: ["agt_intake"], refused: ["agt_nobody"] });
+  assert.deepEqual(choices.data, {
+    folders: [{ id: "vfo_team", name: "Team logins" }],
+    agents: [{ id: "agt_intake", name: "Intake", suggested: true }],
+  });
+  const saved = await b.w.onMessage(
+    {
+      type: "vyre.save",
+      name: "Acme Portal",
+      username: USERNAME,
+      password: PASSWORD,
+      scope: "shared",
+      folderId: "vfo_team",
+      agentIds: ["agt_intake", "agt_nobody"],
+      cardId: "c2",
+      mode: "save",
+    },
+    ctx,
+  );
+  assert.deepEqual(saved.data, {
+    saved: true,
+    itemId: "vit_new",
+    scope: "shared",
+    allowed: ["agt_intake"],
+    refused: ["agt_nobody"],
+  });
   assert.equal(app.puts[0]!["folderId"], "vfo_team");
   assert.equal(app.puts[0]!["idempotencyKey"], "chr_card_c2_put");
   const shares = app.received.filter((m) => m["capability"] === "vault.share");
   assert.equal(shares.length, 1, "an agent the Space does not list is not asked for");
-  assert.deepEqual(shares[0]!["input"], { idempotencyKey: "chr_card_c2_use_agt_intake", resource: { type: "vault_item", id: "vit_new" }, subject: { kind: "agent", id: "agt_intake" }, level: "use" });
+  assert.deepEqual(shares[0]!["input"], {
+    idempotencyKey: "chr_card_c2_use_agt_intake",
+    resource: { type: "vault_item", id: "vit_new" },
+    subject: { kind: "agent", id: "agt_intake" },
+    level: "use",
+  });
 });
 
 test("a folder the page names but the Space did not list for this person is refused, and nothing is saved", async () => {
   const app = new FakeApp();
   const { b, ctx } = await cardFor(app);
   for (const folderId of ["vfo_ro", "vfo_elsewhere", undefined]) {
-    const r = await b.w.onMessage({ type: "vyre.save", name: "x", username: USERNAME, password: PASSWORD, scope: "shared", folderId, agentIds: [], cardId: "c3", mode: "save" }, ctx);
+    const r = await b.w.onMessage(
+      {
+        type: "vyre.save",
+        name: "x",
+        username: USERNAME,
+        password: PASSWORD,
+        scope: "shared",
+        folderId,
+        agentIds: [],
+        cardId: "c3",
+        mode: "save",
+      },
+      ctx,
+    );
     assert.equal(r.error?.code, "no_folder", String(folderId));
   }
   assert.equal(app.puts.length, 0);
@@ -521,14 +797,32 @@ test("a single-page app that never navigates still gets the card after a short s
   loginPage(doc);
   const b = await worker(app);
   const shown: Record<string, any>[] = [];
-  ns.prompt = { show: (card: Record<string, any>) => { shown.push({ ...card }); return true; }, hide() {} };
+  ns.prompt = {
+    show: (card: Record<string, any>) => {
+      shown.push({ ...card });
+      return true;
+    },
+    hide() {},
+  };
   const { createSave } = await import("../src/worker/save.js");
   const timers: (() => void)[] = [];
   const save = createSave({
-    bridge: { invoke: (c: string, i: Record<string, any>) => b.w.bridge.invoke(c, i), op: (o: string, i: Record<string, any>) => b.w.bridge.op(o, i) },
-    scripting: b.ext.scripting, rules: b.w.rules, setTimer: (f: () => void) => { timers.push(f); return timers.length; }, clearTimer: () => {},
+    bridge: {
+      invoke: (c: string, i: Record<string, any>) => b.w.bridge.invoke(c, i),
+      op: (o: string, i: Record<string, any>) => b.w.bridge.op(o, i),
+    },
+    scripting: b.ext.scripting,
+    rules: b.w.rules,
+    setTimer: (f: () => void) => {
+      timers.push(f);
+      return timers.length;
+    },
+    clearTimer: () => {},
   });
-  await save.submitted({ tabId: 7, origin: "https://login.acme.test" }, { username: USERNAME, password: PASSWORD, kind: "signin" });
+  await save.submitted(
+    { tabId: 7, origin: "https://login.acme.test" },
+    { username: USERNAME, password: PASSWORD, kind: "signin" },
+  );
   assert.equal(shown.length, 0);
   timers[0]!();
   await new Promise((r) => setTimeout(r, 0));
@@ -541,15 +835,27 @@ test("a known login is not offered; a changed password is offered as an update",
   const b = await worker(app);
   const ctx = { id: "ext_vyre", tab: { id: 7 }, origin: "https://login.acme.test" };
   app.login = { state: "known", itemId: "vit_acme", name: "Acme Portal" };
-  assert.deepEqual((await b.w.onMessage({ type: "vyre.submit", username: USERNAME, password: PASSWORD, kind: "signin" }, ctx)).data, { prompt: false, why: "known" });
+  assert.deepEqual(
+    (await b.w.onMessage({ type: "vyre.submit", username: USERNAME, password: PASSWORD, kind: "signin" }, ctx)).data,
+    { prompt: false, why: "known" },
+  );
   app.login = { state: "changed", itemId: "vit_acme", name: "Acme Portal" };
   ns.prompt = { show: () => true, hide() {} };
-  assert.deepEqual((await b.w.onMessage({ type: "vyre.submit", username: USERNAME, password: PASSWORD, kind: "signin" }, ctx)).data, { prompt: true });
+  assert.deepEqual(
+    (await b.w.onMessage({ type: "vyre.submit", username: USERNAME, password: PASSWORD, kind: "signin" }, ctx)).data,
+    { prompt: true },
+  );
   await b.w.onTabUpdated(7, { status: "loading" }, undefined);
   await b.w.onTabUpdated(7, { status: "complete" }, undefined);
-  const r = await b.w.onMessage({ type: "vyre.save", name: "Acme Portal", username: USERNAME, password: PASSWORD, mode: "update" }, ctx);
+  const r = await b.w.onMessage(
+    { type: "vyre.save", name: "Acme Portal", username: USERNAME, password: PASSWORD, mode: "update" },
+    ctx,
+  );
   assert.deepEqual(r.data, { saved: true, itemId: "vit_acme", scope: "mine", allowed: [], refused: [] });
-  assert.deepEqual(app.puts[0], { itemId: "vit_acme", fieldsSet: [{ key: "password", value: PASSWORD, secret: true }] });
+  assert.deepEqual(app.puts[0], {
+    itemId: "vit_acme",
+    fieldsSet: [{ key: "password", value: PASSWORD, secret: true }],
+  });
 });
 
 test("Never Save on a site skips the check entirely; Never for this site sets the rule", async () => {
@@ -558,8 +864,15 @@ test("Never Save on a site skips the check entirely; Never for this site sets th
   loginPage(doc);
   const b = await worker(app);
   const ctx = { id: "ext_vyre", tab: { id: 7 }, origin: "https://login.acme.test" };
-  assert.deepEqual((await b.w.onMessage({ type: "vyre.submit", username: USERNAME, password: PASSWORD, kind: "signin" }, ctx)).data, { prompt: false, why: "never_save" });
-  assert.equal(app.received.filter((m) => m["op"] === "login.check").length, 0, "the password is not even sent to the app");
+  assert.deepEqual(
+    (await b.w.onMessage({ type: "vyre.submit", username: USERNAME, password: PASSWORD, kind: "signin" }, ctx)).data,
+    { prompt: false, why: "never_save" },
+  );
+  assert.equal(
+    app.received.filter((m) => m["op"] === "login.check").length,
+    0,
+    "the password is not even sent to the app",
+  );
 
   const app2 = new FakeApp();
   const b2 = await worker(app2);
@@ -572,7 +885,10 @@ test("Never Save on a site skips the check entirely; Never for this site sets th
 test("an http page's sign-in is never offered", async () => {
   const app = new FakeApp();
   const b = await worker(app, "http://login.acme.test/signin");
-  const r = await b.w.onMessage({ type: "vyre.submit", username: USERNAME, password: PASSWORD, kind: "signin" }, { id: "ext_vyre", tab: { id: 7 }, origin: "http://login.acme.test" });
+  const r = await b.w.onMessage(
+    { type: "vyre.submit", username: USERNAME, password: PASSWORD, kind: "signin" },
+    { id: "ext_vyre", tab: { id: 7 }, origin: "http://login.acme.test" },
+  );
   assert.deepEqual(r.data, { prompt: false, why: "page" });
   assert.equal(app.received.length, 0);
 });
@@ -587,19 +903,60 @@ class El {
   style: Record<string, string> = {};
   parent: El | null = null;
   shadow: El | null = null;
-  constructor(tag: string) { this.tag = tag; }
-  set textContent(v: string) { this.props["text"] = v; this.children = []; }
-  get textContent() { return String(this.props["text"] ?? "") + this.children.map((c) => c.textContent).join(""); }
-  append(...xs: El[]) { for (const x of xs) { x.parent = this; this.children.push(x); } }
-  appendChild(x: El) { this.append(x); return x; }
-  attachShadow() { this.shadow = new El("#shadow"); return this.shadow; }
-  setAttribute(k: string, v: string) { this.props[k] = v; }
-  addEventListener(t: string, f: (e: any) => void) { (this.listeners[t] ??= []).push(f); }
-  click() { for (const f of this.listeners["click"] ?? []) f({}); }
-  focus() { this.props["focused"] = true; }
-  remove() { this.props["removed"] = true; }
-  find(pred: (e: El) => boolean): El | null { if (pred(this)) return this; for (const c of [...this.children, ...(this.shadow ? [this.shadow] : [])]) { const f = c.find(pred); if (f) return f; } return null; }
-  all(pred: (e: El) => boolean): El[] { return [...(pred(this) ? [this] : []), ...this.children.flatMap((c) => c.all(pred)), ...(this.shadow ? this.shadow.all(pred) : [])]; }
+  constructor(tag: string) {
+    this.tag = tag;
+  }
+  set textContent(v: string) {
+    this.props["text"] = v;
+    this.children = [];
+  }
+  get textContent() {
+    return String(this.props["text"] ?? "") + this.children.map((c) => c.textContent).join("");
+  }
+  append(...xs: El[]) {
+    for (const x of xs) {
+      x.parent = this;
+      this.children.push(x);
+    }
+  }
+  appendChild(x: El) {
+    this.append(x);
+    return x;
+  }
+  attachShadow() {
+    this.shadow = new El("#shadow");
+    return this.shadow;
+  }
+  setAttribute(k: string, v: string) {
+    this.props[k] = v;
+  }
+  addEventListener(t: string, f: (e: any) => void) {
+    (this.listeners[t] ??= []).push(f);
+  }
+  click() {
+    for (const f of this.listeners["click"] ?? []) f({});
+  }
+  focus() {
+    this.props["focused"] = true;
+  }
+  remove() {
+    this.props["removed"] = true;
+  }
+  find(pred: (e: El) => boolean): El | null {
+    if (pred(this)) return this;
+    for (const c of [...this.children, ...(this.shadow ? [this.shadow] : [])]) {
+      const f = c.find(pred);
+      if (f) return f;
+    }
+    return null;
+  }
+  all(pred: (e: El) => boolean): El[] {
+    return [
+      ...(pred(this) ? [this] : []),
+      ...this.children.flatMap((c) => c.all(pred)),
+      ...(this.shadow ? this.shadow.all(pred) : []),
+    ];
+  }
 }
 const byText = (root: El, text: string) => root.find((e) => e.tag === "button" && e.textContent === text);
 
@@ -608,11 +965,22 @@ test("the card masks the password, peeks for five seconds, and clears it on ever
   const fake: any = { createElement: (t: string) => new El(t), documentElement: body, body };
   (globalThis as any).document = fake;
   const timers: { f: () => void; ms: number }[] = [];
-  const realSet = globalThis.setTimeout, realClear = globalThis.clearTimeout;
-  (globalThis as any).setTimeout = (f: () => void, ms: number) => { timers.push({ f, ms }); return timers.length; };
+  const realSet = globalThis.setTimeout,
+    realClear = globalThis.clearTimeout;
+  (globalThis as any).setTimeout = (f: () => void, ms: number) => {
+    timers.push({ f, ms });
+    return timers.length;
+  };
   (globalThis as any).clearTimeout = () => {};
   try {
-    realPrompt.show({ host: "login.acme.test", username: USERNAME, password: PASSWORD, mode: "save", name: "Acme Portal", agent: { id: "agt_intake", name: "Intake" } });
+    realPrompt.show({
+      host: "login.acme.test",
+      username: USERNAME,
+      password: PASSWORD,
+      mode: "save",
+      name: "Acme Portal",
+      agent: { id: "agt_intake", name: "Intake" },
+    });
     const host = body.children[0]!;
     const out = host.shadow!.find((e) => e.tag === "output")!;
     assert.match(out.textContent, /^•+$/, "masked");
@@ -655,12 +1023,22 @@ test("the field badge's picker: accounts for this address by name, and a click's
   const app = new FakeApp();
   const { user, pass } = loginPage(doc);
   const b = await worker(app);
-  const ctx = { id: "ext_vyre", tab: { id: 7, url: "https://login.acme.test/signin" }, origin: "https://login.acme.test" };
+  const ctx = {
+    id: "ext_vyre",
+    tab: { id: 7, url: "https://login.acme.test/signin" },
+    origin: "https://login.acme.test",
+  };
   const list = await b.w.onMessage({ type: "vyre.accounts", kind: "login" }, ctx);
-  assert.deepEqual(list.data.rows.map((x: any) => x.name), ["Acme Portal"]);
+  assert.deepEqual(
+    list.data.rows.map((x: any) => x.name),
+    ["Acme Portal"],
+  );
   assert.equal(list.data.blocked, null);
   assert.ok(!JSON.stringify(list).includes(USERNAME), "names only");
-  const r = await b.w.onMessage({ type: "vyre.fill", itemId: "vit_acme", kind: "login", usernameField: "username" }, ctx);
+  const r = await b.w.onMessage(
+    { type: "vyre.fill", itemId: "vit_acme", kind: "login", usernameField: "username" },
+    ctx,
+  );
   assert.deepEqual(r.data, { filled: ["username", "password"], signedIn: false });
   assert.equal(user.value, USERNAME);
   assert.equal(pass.value, PASSWORD);
@@ -671,10 +1049,20 @@ test("in a private window the badge still lists and fills (a click), while savin
   const app = new FakeApp();
   loginPage(doc);
   const b = await worker(app);
-  const ctx = { id: "ext_vyre", tab: { id: 7, url: "https://login.acme.test/signin", incognito: true }, origin: "https://login.acme.test" };
+  const ctx = {
+    id: "ext_vyre",
+    tab: { id: 7, url: "https://login.acme.test/signin", incognito: true },
+    origin: "https://login.acme.test",
+  };
   assert.equal((await b.w.onMessage({ type: "vyre.accounts", kind: "login" }, ctx)).data.rows.length, 1);
-  assert.deepEqual((await b.w.onMessage({ type: "vyre.fill", itemId: "vit_acme", kind: "login" }, ctx)).data.filled, ["username", "password"]);
-  assert.equal((await b.w.onMessage({ type: "vyre.save", name: "x", username: "u", password: "p" }, ctx)).error.code, "incognito");
+  assert.deepEqual((await b.w.onMessage({ type: "vyre.fill", itemId: "vit_acme", kind: "login" }, ctx)).data.filled, [
+    "username",
+    "password",
+  ]);
+  assert.equal(
+    (await b.w.onMessage({ type: "vyre.save", name: "x", username: "u", password: "p" }, ctx)).error.code,
+    "incognito",
+  );
 });
 
 test("a Never Fill site shows the badge's picker as off", async () => {
@@ -682,7 +1070,10 @@ test("a Never Fill site shows the badge's picker as off", async () => {
   app.rules = [{ host: "login.acme.test", neverFill: true, neverSave: false }];
   loginPage(doc);
   const b = await worker(app);
-  const r = await b.w.onMessage({ type: "vyre.accounts", kind: "login" }, { id: "ext_vyre", tab: { id: 7, url: "https://login.acme.test/signin" }, origin: "https://login.acme.test" });
+  const r = await b.w.onMessage(
+    { type: "vyre.accounts", kind: "login" },
+    { id: "ext_vyre", tab: { id: 7, url: "https://login.acme.test/signin" }, origin: "https://login.acme.test" },
+  );
   assert.deepEqual(r.data, { blocked: "never_fill", rows: [] });
 });
 
@@ -725,8 +1116,20 @@ test("a page with no card field does not list cards", async () => {
 
 test("the secret check fires: a short code as its own value, as a whole token in a ref, and a card number inside a longer string are all caught; a hex id that only contains the digits is not", () => {
   assert.deepEqual(secretsIn({ type: "x", code: "737" }, [CVV]), [CVV], "the code as a value of its own");
-  assert.deepEqual(secretsIn({ target: { kind: "browser", ref: "w1-737" } }, [CVV]), [CVV], "the code as a whole token in a ref field");
-  assert.deepEqual(secretsIn({ note: `paid with ${CARD} today` }, [CARD]), [CARD], "the full card number inside a longer string");
+  assert.deepEqual(
+    secretsIn({ target: { kind: "browser", ref: "w1-737" } }, [CVV]),
+    [CVV],
+    "the code as a whole token in a ref field",
+  );
+  assert.deepEqual(
+    secretsIn({ note: `paid with ${CARD} today` }, [CARD]),
+    [CARD],
+    "the full card number inside a longer string",
+  );
   assert.deepEqual(secretsIn({ code: 737 }, [CVV]), [CVV], "the code as a number");
-  assert.deepEqual(secretsIn({ target: { ref: "w1-7376d7a86a6ef3c9dd170826" } }, [CVV, CARD]), [], "a random id that merely contains the digits is not a leak");
+  assert.deepEqual(
+    secretsIn({ target: { ref: "w1-7376d7a86a6ef3c9dd170826" } }, [CVV, CARD]),
+    [],
+    "a random id that merely contains the digits is not a leak",
+  );
 });

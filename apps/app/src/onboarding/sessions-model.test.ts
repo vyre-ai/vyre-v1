@@ -1,6 +1,17 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { folderChoices, folderName, importedNote, modifiedAt, rememberImported, rememberedImported, newestFirst, relativeDate, selectState, sessionName } from "./sessions-model.ts";
+import {
+  folderChoices,
+  folderName,
+  importedNote,
+  modifiedAt,
+  rememberImported,
+  rememberedImported,
+  newestFirst,
+  relativeDate,
+  selectState,
+  sessionName,
+} from "./sessions-model.ts";
 
 const NOW = new Date(2026, 9, 31, 15, 0, 0).getTime();
 const at = (y: number, m: number, d: number, h = 12, min = 0): number => new Date(y, m, d, h, min, 0).getTime();
@@ -25,8 +36,14 @@ test("relative dates: minutes, hours, Yesterday, days, then 12 Oct style with th
 });
 
 test("the name is the title on one line, else a short id; the folder is the last path segment", () => {
-  assert.equal(sessionName({ provider: "claude", sessionId: "abcdef12-3456", sessionKey: "k", title: "  Fix the\nlogin   bug " }), "Fix the login bug");
-  assert.equal(sessionName({ provider: "codex", sessionId: "abcdef12-3456", sessionKey: "k" }), "Untitled session abcdef12");
+  assert.equal(
+    sessionName({ provider: "claude", sessionId: "abcdef12-3456", sessionKey: "k", title: "  Fix the\nlogin   bug " }),
+    "Fix the login bug",
+  );
+  assert.equal(
+    sessionName({ provider: "codex", sessionId: "abcdef12-3456", sessionKey: "k" }),
+    "Untitled session abcdef12",
+  );
   assert.equal(folderName("/Users/maya/code/site/"), "site");
   assert.equal(folderName("C:\\work\\app"), "app");
   assert.equal(folderName(null), "");
@@ -38,8 +55,14 @@ test("sessions sort newest first, undated last, and the folder choices count eac
     { provider: "codex", sessionId: "b", sessionKey: "codex:b", cwd: "/x/site", updatedAt: "2000000000000" },
     { provider: "claude", sessionId: "c", sessionKey: "claude:c", cwd: "/y/app" },
   ];
-  assert.deepEqual(newestFirst(rows).map((r) => r.sessionId), ["b", "a", "c"]);
-  assert.deepEqual(folderChoices(rows), [{ name: "site", count: 2 }, { name: "app", count: 1 }]);
+  assert.deepEqual(
+    newestFirst(rows).map((r) => r.sessionId),
+    ["b", "a", "c"],
+  );
+  assert.deepEqual(folderChoices(rows), [
+    { name: "site", count: 2 },
+    { name: "app", count: 1 },
+  ]);
 });
 
 test("Select all is none, some (indeterminate) or all for the rows in view", () => {

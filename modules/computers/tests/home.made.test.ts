@@ -9,23 +9,36 @@ import type { HomeFs } from "../handlers/home-fs.ts";
 
 function rig() {
   const disk = new Map<string, { bytes: Buffer; mtimeMs: number }>();
-  const calls: Array<{ cap: string; input: any }> = [];   // eslint-disable-line @typescript-eslint/no-explicit-any
+  const calls: Array<{ cap: string; input: any }> = []; // eslint-disable-line @typescript-eslint/no-explicit-any
   let n = 0;
   const hfs: HomeFs = {
-    async snapshot() { return { files: new Map(disk), dirs: new Set<string>(), refused: [], complete: true }; },
-    async put() { /* nothing comes down in these tests */ },
-    async remove() { /* none */ },
+    async snapshot() {
+      return { files: new Map(disk), dirs: new Set<string>(), refused: [], complete: true };
+    },
+    async put() {
+      /* nothing comes down in these tests */
+    },
+    async remove() {
+      /* none */
+    },
   };
-  const callAs = async (_a: string, cap: string, input: any): Promise<any> => {   // eslint-disable-line @typescript-eslint/no-explicit-any
+  const callAs = async (_a: string, cap: string, input: any): Promise<any> => {
+    // eslint-disable-line @typescript-eslint/no-explicit-any
     calls.push({ cap, input });
     if (cap === "agents.get") return { agent: { folderId: "fld_home", ownerId: "usr_a" } };
     if (cap === "files.list") return { files: [], folders: [] };
-    if (cap === "files.create") return { file: { fileId: `fil_${++n}`, version: 1, kind: input.name.endsWith(".png") ? "image" : "pdf", size: 3 } };
+    if (cap === "files.create")
+      return {
+        file: { fileId: `fil_${++n}`, version: 1, kind: input.name.endsWith(".png") ? "image" : "pdf", size: 3 },
+      };
     if (cap === "files.folder.create") return { folder: { folderId: "fld_sub" } };
     throw new Error(`unexpected ${cap}`);
   };
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-made-"));
-  const sync = createHomeSync({ agentId: "agt_a", computerId: "cmt_a", fs: hfs, manifest: path.join(dir, "m.json") }, { callAs, putBytes: async () => undefined, now: () => 10_000, log: () => undefined });
+  const sync = createHomeSync(
+    { agentId: "agt_a", computerId: "cmt_a", fs: hfs, manifest: path.join(dir, "m.json") },
+    { callAs, putBytes: async () => undefined, now: () => 10_000, log: () => undefined },
+  );
   return { disk, sync, calls };
 }
 
@@ -52,5 +65,8 @@ test("a file made in a new folder is reported by its own name", async () => {
   const r = rig();
   r.disk.set("reports/chart.png", { bytes: Buffer.from("png"), mtimeMs: 1 });
   const out = await r.sync.pass();
-  assert.deepEqual(out.made.map((f) => [f.name, f.kind]), [["chart.png", "image"]]);
+  assert.deepEqual(
+    out.made.map((f) => [f.name, f.kind]),
+    [["chart.png", "image"]],
+  );
 });

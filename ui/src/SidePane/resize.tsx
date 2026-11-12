@@ -8,7 +8,17 @@ import { PanResponder, Platform, StyleSheet, View, useWindowDimensions } from "r
 import type { ViewStyle } from "react-native";
 import { SIDE_PANE_MAX, SIDE_PANE_MIN } from "./props.ts";
 import { clampPaneWidth, paneWidths } from "./index.tsx";
-import { RAIL_OVERLAY, SHEET, SHEET_GAP, intoSheet, sq, useRailOverlay, useSheetHost, useShellLayout, usePanelPresence } from "./host.tsx";
+import {
+  RAIL_OVERLAY,
+  SHEET,
+  SHEET_GAP,
+  intoSheet,
+  sq,
+  useRailOverlay,
+  useSheetHost,
+  useShellLayout,
+  usePanelPresence,
+} from "./host.tsx";
 import { SIDEBAR, bandKey } from "./layout.ts";
 import { useEdgeDrag } from "./drag.ts";
 
@@ -18,7 +28,14 @@ export type GrowDirection = "left" | "right";
 export const KEY_STEP = 24;
 
 /** Arrow keys move the edge the way it points: a right-hand pane grows on ArrowLeft, a left sidebar on ArrowRight. Home resets. */
-export function keyWidth(current: number, key: string, grow: GrowDirection, windowWidth: number, min: number, maxFraction: number): number | "reset" | null {
+export function keyWidth(
+  current: number,
+  key: string,
+  grow: GrowDirection,
+  windowWidth: number,
+  min: number,
+  maxFraction: number,
+): number | "reset" | null {
   if (key === "Home") return "reset";
   const more = grow === "left" ? "ArrowLeft" : "ArrowRight";
   const less = grow === "left" ? "ArrowRight" : "ArrowLeft";
@@ -61,7 +78,12 @@ export function useResizable(o: ResizeOptions): Resizable {
   const { paneKey, defaultWidth, grow, onWidthChange } = o;
   const shell = useShellLayout();
   const kind = shell !== null ? o.kind : undefined;
-  const model = shell !== null && kind !== undefined ? (kind === "pane" ? shell.layout.pane : (shell.layout.sidebar.panels.find((x) => x.id === paneKey) ?? null)) : null;
+  const model =
+    shell !== null && kind !== undefined
+      ? kind === "pane"
+        ? shell.layout.pane
+        : (shell.layout.sidebar.panels.find((x) => x.id === paneKey) ?? null)
+      : null;
   const band = shell?.layout.band ?? "wide";
   const key = model !== null ? bandKey(paneKey, band) : paneKey;
   const min = model !== null ? model.min : (o.min ?? SIDE_PANE_MIN);
@@ -74,8 +96,16 @@ export function useResizable(o: ResizeOptions): Resizable {
   // limits the drag holds to: the model's (main keeps 480, the pane keeps its floor), else the caller's own
   const limitsRef = useRef({ min, max: model !== null ? model.max : Infinity });
   limitsRef.current = { min, max: model !== null ? model.max : Infinity };
-  const hold = (w: number, windowWidth: number): number => (model !== null ? Math.round(Math.min(Math.max(limitsRef.current.min, w), Math.max(limitsRef.current.min, limitsRef.current.max))) : cap(clampPaneWidth(w, windowWidth, min, maxFraction)));
-  const width = model !== null ? (live !== null ? hold(live, win.width) : model.width) : cap(clampPaneWidth(stored ?? defaultWidth, win.width, min, maxFraction));
+  const hold = (w: number, windowWidth: number): number =>
+    model !== null
+      ? Math.round(Math.min(Math.max(limitsRef.current.min, w), Math.max(limitsRef.current.min, limitsRef.current.max)))
+      : cap(clampPaneWidth(w, windowWidth, min, maxFraction));
+  const width =
+    model !== null
+      ? live !== null
+        ? hold(live, win.width)
+        : model.width
+      : cap(clampPaneWidth(stored ?? defaultWidth, win.width, min, maxFraction));
   const widthRef = useRef(width);
   widthRef.current = width;
   const windowRef = useRef(win.width);
@@ -83,66 +113,124 @@ export function useResizable(o: ResizeOptions): Resizable {
   const start = useRef(width);
   const lastTap = useRef(0);
 
-  useEffect(() => { setStored(paneWidths.get(key)); }, [key]);
+  useEffect(() => {
+    setStored(paneWidths.get(key));
+  }, [key]);
 
-  const apply = useCallback((next: number, remember: boolean) => {
-    const clamped = hold(next, windowRef.current);
-    widthRef.current = clamped;
-    if (model !== null && shell !== null) {
-      if (remember) { setLive(null); shell.commit(paneKey, clamped); } else setLive(clamped);
-    } else {
-      setStored(clamped);
-      if (remember) paneWidths.set(paneKey, clamped);
-    }
-    if (onWidthChange) onWidthChange(clamped);
-  }, [paneKey, min, maxFraction, o.maxWidth, onWidthChange, model !== null, shell]);
+  const apply = useCallback(
+    (next: number, remember: boolean) => {
+      const clamped = hold(next, windowRef.current);
+      widthRef.current = clamped;
+      if (model !== null && shell !== null) {
+        if (remember) {
+          setLive(null);
+          shell.commit(paneKey, clamped);
+        } else setLive(clamped);
+      } else {
+        setStored(clamped);
+        if (remember) paneWidths.set(paneKey, clamped);
+      }
+      if (onWidthChange) onWidthChange(clamped);
+    },
+    [paneKey, min, maxFraction, o.maxWidth, onWidthChange, model !== null, shell],
+  );
 
   const reset = useCallback(() => {
-    if (model !== null && shell !== null) { setLive(null); shell.commit(paneKey, null); return; }
+    if (model !== null && shell !== null) {
+      setLive(null);
+      shell.commit(paneKey, null);
+      return;
+    }
     paneWidths.reset(paneKey);
     setStored(null);
     if (onWidthChange) onWidthChange(clampPaneWidth(defaultWidth, windowRef.current, min, maxFraction));
   }, [paneKey, defaultWidth, min, maxFraction, onWidthChange, model !== null, shell]);
 
   const sign = grow === "left" ? -1 : 1;
-  const begin = (): void => { start.current = widthRef.current; setDragging(true); };
+  const begin = (): void => {
+    start.current = widthRef.current;
+    setDragging(true);
+  };
   const finish = (dx: number): void => {
     setDragging(false);
     if (Math.abs(dx) < 2) {
       const now = Date.now();
-      if (now - lastTap.current < 450) { lastTap.current = 0; reset(); } else lastTap.current = now;
+      if (now - lastTap.current < 450) {
+        lastTap.current = 0;
+        reset();
+      } else lastTap.current = now;
       return;
     }
     apply(start.current + sign * dx, true);
   };
-  const edgeRef = useEdgeDrag({ onStart: begin, onMove: (dx) => apply(start.current + sign * dx, false), onEnd: finish, onCancel: () => setDragging(false) });
-  const responder = useMemo(() => PanResponder.create({
-    onStartShouldSetPanResponder: () => true,
-    onPanResponderGrant: begin,
-    onPanResponderMove: (_e, g) => apply(start.current + sign * g.dx, false),
-    onPanResponderRelease: (_e, g) => finish(g.dx),
-    onPanResponderTerminate: () => setDragging(false),
-  }), [apply, reset, sign]); // eslint-disable-line react-hooks/exhaustive-deps -- begin and finish read only refs and these
+  const edgeRef = useEdgeDrag({
+    onStart: begin,
+    onMove: (dx) => apply(start.current + sign * dx, false),
+    onEnd: finish,
+    onCancel: () => setDragging(false),
+  });
+  const responder = useMemo(
+    () =>
+      PanResponder.create({
+        onStartShouldSetPanResponder: () => true,
+        onPanResponderGrant: begin,
+        onPanResponderMove: (_e, g) => apply(start.current + sign * g.dx, false),
+        onPanResponderRelease: (_e, g) => finish(g.dx),
+        onPanResponderTerminate: () => setDragging(false),
+      }),
+    [apply, reset, sign],
+  ); // eslint-disable-line react-hooks/exhaustive-deps -- begin and finish read only refs and these
 
   const onKey = (event: { key: string; preventDefault?: () => void }): void => {
     const next = keyWidth(widthRef.current, event.key, grow, windowRef.current, min, maxFraction);
     if (next === null) return;
     event.preventDefault?.();
-    if (next === "reset") reset(); else apply(next, true);
+    if (next === "reset") reset();
+    else apply(next, true);
   };
 
-  return { width, dragging, min, max: model !== null ? model.max : Infinity, maxFraction, windowWidth: win.width, panHandlers: (Platform.OS === "web" ? {} : responder.panHandlers) as unknown as Record<string, unknown>, edgeRef, onKey, setWidth: (n) => apply(n, true), reset };
+  return {
+    width,
+    dragging,
+    min,
+    max: model !== null ? model.max : Infinity,
+    maxFraction,
+    windowWidth: win.width,
+    panHandlers: (Platform.OS === "web" ? {} : responder.panHandlers) as unknown as Record<string, unknown>,
+    edgeRef,
+    onKey,
+    setWidth: (n) => apply(n, true),
+    reset,
+  };
 }
 
 const COL_RESIZE = (Platform.OS === "web" ? "col-resize" : undefined) as unknown as ViewStyle["cursor"];
 const LINE_ON = { backgroundColor: "var(--accent-line)", width: 2 };
 
 /** The drag edge. Place it as a child of a position-relative pane; `at` is the pane edge it sits on. */
-export function ResizeHandle({ r, at, label = "Resize the pane", testID = "side-pane-resize" }: { r: Resizable; at: "left" | "right"; label?: string; testID?: string }): ReactElement {
+export function ResizeHandle({
+  r,
+  at,
+  label = "Resize the pane",
+  testID = "side-pane-resize",
+}: {
+  r: Resizable;
+  at: "left" | "right";
+  label?: string;
+  testID?: string;
+}): ReactElement {
   const [lit, setLit] = useState(false);
-  const web: Record<string, unknown> = Platform.OS === "web"
-    ? { tabIndex: 0, title: "Drag to resize, double-click to reset", onKeyDown: r.onKey, onFocus: () => setLit(true), onBlur: () => setLit(false), onDoubleClick: () => r.reset() }
-    : {};
+  const web: Record<string, unknown> =
+    Platform.OS === "web"
+      ? {
+          tabIndex: 0,
+          title: "Drag to resize, double-click to reset",
+          onKeyDown: r.onKey,
+          onFocus: () => setLit(true),
+          onBlur: () => setLit(false),
+          onDoubleClick: () => r.reset(),
+        }
+      : {};
   return (
     <View
       ref={r.edgeRef as never}
@@ -189,23 +277,62 @@ export function ResizableColumn(p: ResizableColumnProps): ReactElement | null {
   const shell = useShellLayout();
   const overlay = useRailOverlay();
   const managed = host !== null && p.inline !== true;
-  const meta = useMemo(() => ({ def: p.defaultWidth, min: p.min ?? SIDEBAR.min, max: p.maxWidth ?? 480 }), [p.defaultWidth, p.min, p.maxWidth]);
-  const here = usePanelPresence(p.grow === "left" ? "pane" : "sidebar", p.paneKey, managed, undefined, p.grow === "right" ? meta : undefined);
-  const r = useResizable({ ...(managed ? { kind: p.grow === "left" ? "pane" as const : "sidebar" as const } : {}), paneKey: p.paneKey, defaultWidth: p.defaultWidth, grow: p.grow, ...(p.min === undefined ? {} : { min: p.min }), ...(p.maxFraction === undefined ? {} : { maxFraction: p.maxFraction }), ...(p.maxWidth === undefined ? {} : { maxWidth: p.maxWidth }) });
+  const meta = useMemo(
+    () => ({ def: p.defaultWidth, min: p.min ?? SIDEBAR.min, max: p.maxWidth ?? 480 }),
+    [p.defaultWidth, p.min, p.maxWidth],
+  );
+  const here = usePanelPresence(
+    p.grow === "left" ? "pane" : "sidebar",
+    p.paneKey,
+    managed,
+    undefined,
+    p.grow === "right" ? meta : undefined,
+  );
+  const r = useResizable({
+    ...(managed ? { kind: p.grow === "left" ? ("pane" as const) : ("sidebar" as const) } : {}),
+    paneKey: p.paneKey,
+    defaultWidth: p.defaultWidth,
+    grow: p.grow,
+    ...(p.min === undefined ? {} : { min: p.min }),
+    ...(p.maxFraction === undefined ? {} : { maxFraction: p.maxFraction }),
+    ...(p.maxWidth === undefined ? {} : { maxWidth: p.maxWidth }),
+  });
   const handle = <ResizeHandle r={r} at={p.grow === "left" ? "left" : "right"} />;
-  const a11y = { ...(p.onLayout === undefined ? {} : { onLayout: p.onLayout as never }), ...(p.label === undefined ? {} : { accessibilityLabel: p.label }), ...(p.role === undefined ? {} : { accessibilityRole: p.role }) };
+  const a11y = {
+    ...(p.onLayout === undefined ? {} : { onLayout: p.onLayout as never }),
+    ...(p.label === undefined ? {} : { accessibilityLabel: p.label }),
+    ...(p.role === undefined ? {} : { accessibilityRole: p.role }),
+  };
   const target = host === null || p.inline === true ? null : p.grow === "right" ? host.left : host.right;
   if (managed && !here) return null;
   if (host !== null && p.inline !== true) {
     const right = p.grow === "left";
     // a left panel that follows another one (the shell's sidebar, then a list) keeps the one gutter between them
     const after = !right && shell !== null && shell.layout.sidebar.panels.findIndex((x) => x.id === p.paneKey) > 0;
-    return <>{intoSheet(target, (
-      <View style={[rel, { width: r.width, minWidth: 0, flexShrink: 0 }, right || after ? { marginLeft: SHEET_GAP } : null, right && overlay ? RAIL_OVERLAY : null]} testID={p.testID} {...a11y} {...(right && Platform.OS === "web" ? { dataSet: { panelIn: "1" } } : {})}>
-        <View style={[SHEET, p.style, SHEET_RESET]} {...sq("sheet")}>{p.children}{p.paneKey === "place-sidebar" ? host.hide : null}</View>
-        {right && overlay ? null : handle}
-      </View>
-    ))}</>;
+    return (
+      <>
+        {intoSheet(
+          target,
+          <View
+            style={[
+              rel,
+              { width: r.width, minWidth: 0, flexShrink: 0 },
+              right || after ? { marginLeft: SHEET_GAP } : null,
+              right && overlay ? RAIL_OVERLAY : null,
+            ]}
+            testID={p.testID}
+            {...a11y}
+            {...(right && Platform.OS === "web" ? { dataSet: { panelIn: "1" } } : {})}
+          >
+            <View style={[SHEET, p.style, SHEET_RESET]} {...sq("sheet")}>
+              {p.children}
+              {p.paneKey === "place-sidebar" ? host.hide : null}
+            </View>
+            {right && overlay ? null : handle}
+          </View>,
+        )}
+      </>
+    );
   }
   return (
     <View style={[p.style, { width: r.width, minWidth: 0, maxWidth: "100%" }, rel]} testID={p.testID} {...a11y}>
@@ -221,7 +348,16 @@ const SHEET_RESET = { width: "auto", borderLeftWidth: 0, borderRightWidth: 0, fl
 const rel = { position: "relative" } as ViewStyle;
 
 const h = StyleSheet.create({
-  edge: { position: "absolute", top: 0, bottom: 0, width: 7, zIndex: 6, alignItems: "center", cursor: COL_RESIZE, ...(Platform.OS === "web" ? ({ userSelect: "none", touchAction: "none" } as object) : {}) },
+  edge: {
+    position: "absolute",
+    top: 0,
+    bottom: 0,
+    width: 7,
+    zIndex: 6,
+    alignItems: "center",
+    cursor: COL_RESIZE,
+    ...(Platform.OS === "web" ? ({ userSelect: "none", touchAction: "none" } as object) : {}),
+  },
   atLeft: { left: -4 },
   atRight: { right: -4 },
   line: { height: "100%", width: 1, backgroundColor: "transparent" },

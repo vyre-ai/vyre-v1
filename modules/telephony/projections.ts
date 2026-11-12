@@ -18,13 +18,24 @@ export interface TelCtx {
   trace: { traceId: string };
   /** where the call came from: 'user' for a person at a screen, anything else for automations and other engines */
   origin?: string;
-  authorize?(action: { perm: string | null; level: "view" | "use" | "edit" | "manage" }, resource: { type: string; id: string | null }): { effect: string };
+  authorize?(
+    action: { perm: string | null; level: "view" | "use" | "edit" | "manage" },
+    resource: { type: string; id: string | null },
+  ): { effect: string };
   now(): number;
   db: TelDb;
-  emit(name: string, subject: string, payload: unknown, opts?: { vis?: "space" | "participants" | "owner" | "private" }): unknown;
+  emit(
+    name: string,
+    subject: string,
+    payload: unknown,
+    opts?: { vis?: "space" | "participants" | "owner" | "private" },
+  ): unknown;
   call(cap: string, input: unknown, opts?: { traceId?: string }): Promise<unknown>;
   schedule?(at: number, cap: string, input: unknown): Promise<string>;
-  log: { info(msg: string, attrs?: Record<string, unknown>): void; warn(msg: string, attrs?: Record<string, unknown>): void };
+  log: {
+    info(msg: string, attrs?: Record<string, unknown>): void;
+    warn(msg: string, attrs?: Record<string, unknown>): void;
+  };
 }
 
 export type Val = string | number | null;
@@ -43,11 +54,13 @@ export const list = (v: unknown): unknown[] => (Array.isArray(v) ? v : []);
 export const text = (v: unknown): string => (typeof v === "string" ? v : "");
 export const strOrUndef = (v: unknown): string | undefined => (typeof v === "string" && v !== "" ? v : undefined);
 export const str = (r: Row | null, k: string): string => (r && typeof r[k] === "string" ? (r[k] as string) : "");
-export const strOrNull = (r: Row | null, k: string): string | null => (r && typeof r[k] === "string" && r[k] !== "" ? (r[k] as string) : null);
+export const strOrNull = (r: Row | null, k: string): string | null =>
+  r && typeof r[k] === "string" && r[k] !== "" ? (r[k] as string) : null;
 export const num = (r: Row | null, k: string): number => (r && typeof r[k] === "number" ? (r[k] as number) : 0);
-export const numOrNull = (r: Row | null, k: string): number | null => (r && typeof r[k] === "number" ? (r[k] as number) : null);
+export const numOrNull = (r: Row | null, k: string): number | null =>
+  r && typeof r[k] === "number" ? (r[k] as number) : null;
 export const isInt = (v: unknown): v is number => typeof v === "number" && Number.isSafeInteger(v);
-export const codeOf = (err: unknown): string => ((err as { error?: { code?: string } } | null)?.error?.code ?? "");
+export const codeOf = (err: unknown): string => (err as { error?: { code?: string } } | null)?.error?.code ?? "";
 
 export function parseJson<T>(v: Val | undefined, fallback: T): T {
   if (typeof v !== "string" || v === "") return fallback;
@@ -79,28 +92,43 @@ export function keyOf(ctx: Pick<TelCtx, "trace">, input: unknown): string {
 // ---- ids and shapes
 
 export const newId = (prefix: string, now: number): string => `${prefix}_${mintUuid(now).replaceAll("-", "")}`;
-export const isId = (prefix: string, v: unknown): v is string => typeof v === "string" && new RegExp(`^${prefix}_[a-z0-9]+$`).test(v);
+export const isId = (prefix: string, v: unknown): v is string =>
+  typeof v === "string" && new RegExp(`^${prefix}_[a-z0-9]+$`).test(v);
 export const E164 = /^\+[1-9][0-9]{6,14}$/;
 export function phone(ctx: Pick<TelCtx, "trace">, v: unknown, what: string): string {
-  return typeof v === "string" && E164.test(v) ? v : bad(ctx, `${what} must be a phone number with country code, like +14155550123.`);
+  return typeof v === "string" && E164.test(v)
+    ? v
+    : bad(ctx, `${what} must be a phone number with country code, like +14155550123.`);
 }
 export function need(ctx: Pick<TelCtx, "trace">, id: unknown, prefix: string, what: string): string {
   return isId(prefix, id) ? id : bad(ctx, `${what} id is not valid.`);
 }
 
-export interface Party { kind: "person" | "agent" | "group"; id: string }
+export interface Party {
+  kind: "person" | "agent" | "group";
+  id: string;
+}
 
-export function pageOf<T>(items: readonly T[], cursor: string | undefined, limit: number | undefined): { page: T[]; next?: string; total: number } {
+export function pageOf<T>(
+  items: readonly T[],
+  cursor: string | undefined,
+  limit: number | undefined,
+): { page: T[]; next?: string; total: number } {
   const start = cursor && /^\d+$/.test(cursor) ? Number(cursor) : 0;
   const size = limit ?? 100;
-  return { page: items.slice(start, start + size), ...(start + size < items.length ? { next: String(start + size) } : {}), total: items.length };
+  return {
+    page: items.slice(start, start + size),
+    ...(start + size < items.length ? { next: String(start + size) } : {}),
+    total: items.length,
+  };
 }
 
 /** page arguments, validated: a bad cursor or limit is a bad input, not a crash */
 export function paging(ctx: Pick<TelCtx, "trace">, o: Json): { cursor: string | undefined; limit: number | undefined } {
   const cursor = o["cursor"];
   const limit = o["limit"];
-  if (cursor !== undefined && (typeof cursor !== "string" || !/^\d+$/.test(cursor))) bad(ctx, "The cursor is not valid.");
+  if (cursor !== undefined && (typeof cursor !== "string" || !/^\d+$/.test(cursor)))
+    bad(ctx, "The cursor is not valid.");
   if (limit !== undefined && (!isInt(limit) || limit < 1 || limit > 500)) bad(ctx, "The limit is 1 to 500.");
   return { cursor: cursor as string | undefined, limit: limit as number | undefined };
 }
@@ -146,7 +174,8 @@ export function getState(ctx: Pick<TelCtx, "db">, key: string): string | null {
   return row && typeof row.value === "string" ? row.value : null;
 }
 export function setState(ctx: Pick<TelCtx, "db">, key: string, value: string): void {
-  if (getState(ctx, key) === null) ctx.db.run(`INSERT OR IGNORE INTO telephony_state ("key", "value") VALUES (?, ?)`, key, value);
+  if (getState(ctx, key) === null)
+    ctx.db.run(`INSERT OR IGNORE INTO telephony_state ("key", "value") VALUES (?, ?)`, key, value);
   else ctx.db.run(`UPDATE telephony_state SET "value" = ? WHERE "key" = ?`, value, key);
 }
 
@@ -166,7 +195,9 @@ export async function setting<T>(ctx: TelCtx, key: string, fallback: T, ok: (v: 
 export async function agentsMaySend(ctx: TelCtx): Promise<void> {
   if (ctx.principal.kind !== "agent") return;
   if (await setting(ctx, "comms.agents_may_send", true, (v): v is boolean => typeof v === "boolean")) return;
-  throw fail("validation.precondition_failed", ctx.trace.traceId, { message: "Agent sending is off in this Space. An admin can turn it on in Console." });
+  throw fail("validation.precondition_failed", ctx.trace.traceId, {
+    message: "Agent sending is off in this Space. An admin can turn it on in Console.",
+  });
 }
 
 // ---- who is acting (the same rule as the single send API)
@@ -180,7 +211,8 @@ export function actorOf(ctx: Pick<TelCtx, "principal" | "origin">): Actor {
 }
 /** The party a call or text is handled by: a person or an agent; anything else cannot hold a call. */
 export function partyOf(ctx: Pick<TelCtx, "principal" | "trace">): Party {
-  if (ctx.principal.kind === "person" || ctx.principal.kind === "agent") return { kind: ctx.principal.kind, id: ctx.principal.id };
+  if (ctx.principal.kind === "person" || ctx.principal.kind === "agent")
+    return { kind: ctx.principal.kind, id: ctx.principal.id };
   return refuse(ctx, "Only a person or an agent can take part in a call.");
 }
 
@@ -203,7 +235,13 @@ export function validZone(zone: unknown): zone is string {
 export function localTime(ms: number, zone: string): { day: number; hour: number; minute: number } {
   let f = formatters.get(zone);
   if (!f) {
-    f = new Intl.DateTimeFormat("en-US", { timeZone: zone, weekday: "short", hour: "numeric", minute: "numeric", hourCycle: "h23" });
+    f = new Intl.DateTimeFormat("en-US", {
+      timeZone: zone,
+      weekday: "short",
+      hour: "numeric",
+      minute: "numeric",
+      hourCycle: "h23",
+    });
     formatters.set(zone, f);
   }
   let day = 0;
@@ -219,8 +257,17 @@ export function localTime(ms: number, zone: string): { day: number; hour: number
 
 // ---- numbers
 
-export interface RouteCfg { ring: Party[]; ringSeconds: number; voicemail: boolean; voicemailTranscript: boolean }
-export interface HoursCfg { zone: string; weekly: { day: number; start: string; end: string }[]; outsideHours: "voicemail" | "ring" | "reject" }
+export interface RouteCfg {
+  ring: Party[];
+  ringSeconds: number;
+  voicemail: boolean;
+  voicemailTranscript: boolean;
+}
+export interface HoursCfg {
+  zone: string;
+  weekly: { day: number; start: string; end: string }[];
+  outsideHours: "voicemail" | "ring" | "reject";
+}
 
 export const DEFAULT_ROUTE: RouteCfg = { ring: [], ringSeconds: 20, voicemail: true, voicemailTranscript: true };
 export const DEFAULT_HOURS: HoursCfg = { zone: "UTC", weekly: [], outsideHours: "voicemail" };
@@ -232,10 +279,17 @@ export function formatNumber(e164: string): string {
 
 export function numberOut(r: Row): Json {
   const out: Json = {
-    id: str(r, "id"), e164: str(r, "e164"), title: str(r, "title"), displayName: str(r, "title") || formatNumber(str(r, "e164")),
-    capabilities: parseJson<string[]>(r["capabilities"], ["voice", "sms"]), assigneeKind: str(r, "assigneeKind") || "inbox",
-    route: { ...DEFAULT_ROUTE, ...parseJson<Partial<RouteCfg>>(r["route"], {}) }, hours: { ...DEFAULT_HOURS, ...parseJson<Partial<HoursCfg>>(r["hours"], {}) },
-    recording: str(r, "recording") || "off", a2p: str(r, "a2p") || "none", state: str(r, "state") || "active",
+    id: str(r, "id"),
+    e164: str(r, "e164"),
+    title: str(r, "title"),
+    displayName: str(r, "title") || formatNumber(str(r, "e164")),
+    capabilities: parseJson<string[]>(r["capabilities"], ["voice", "sms"]),
+    assigneeKind: str(r, "assigneeKind") || "inbox",
+    route: { ...DEFAULT_ROUTE, ...parseJson<Partial<RouteCfg>>(r["route"], {}) },
+    hours: { ...DEFAULT_HOURS, ...parseJson<Partial<HoursCfg>>(r["hours"], {}) },
+    recording: str(r, "recording") || "off",
+    a2p: str(r, "a2p") || "none",
+    state: str(r, "state") || "active",
   };
   if (str(r, "assigneeId")) out.assigneeId = str(r, "assigneeId");
   return out;
@@ -243,20 +297,32 @@ export function numberOut(r: Row): Json {
 
 export function liveNumber(ctx: TelCtx, id: string): Row {
   const row = first(ctx.db.all(`SELECT * FROM telephony_number WHERE id = ?`, id));
-  if (!row || (row.deleted_at !== null && row.deleted_at !== undefined)) return missing(ctx, "That number is not in this Space.");
+  if (!row || (row.deleted_at !== null && row.deleted_at !== undefined))
+    return missing(ctx, "That number is not in this Space.");
   return row;
 }
 
 export function numberByE164(ctx: TelCtx, e164: string): Row | null {
-  return rowsOf(ctx.db.all(`SELECT * FROM telephony_number WHERE "e164" = ?`, e164)).find((r) => r.deleted_at === null || r.deleted_at === undefined) ?? null;
+  return (
+    rowsOf(ctx.db.all(`SELECT * FROM telephony_number WHERE "e164" = ?`, e164)).find(
+      (r) => r.deleted_at === null || r.deleted_at === undefined,
+    ) ?? null
+  );
 }
 
 // ---- calls and texts
 
 export function callOut(r: Row): Json {
   const out: Json = {
-    id: str(r, "id"), numberId: str(r, "numberId"), direction: str(r, "direction"), from: str(r, "from"), to: str(r, "to"), state: str(r, "state"),
-    startedAt: num(r, "startedAt"), hasTranscript: strOrNull(r, "transcript") !== null, consentLogged: num(r, "consentLogged") === 1,
+    id: str(r, "id"),
+    numberId: str(r, "numberId"),
+    direction: str(r, "direction"),
+    from: str(r, "from"),
+    to: str(r, "to"),
+    state: str(r, "state"),
+    startedAt: num(r, "startedAt"),
+    hasTranscript: strOrNull(r, "transcript") !== null,
+    consentLogged: num(r, "consentLogged") === 1,
   };
   if (strOrNull(r, "contactId")) out.contactId = str(r, "contactId");
   if (numOrNull(r, "answeredAt") !== null) out.answeredAt = num(r, "answeredAt");
@@ -271,8 +337,15 @@ export function callOut(r: Row): Json {
 
 export function smsOut(r: Row): Json {
   const out: Json = {
-    id: str(r, "id"), numberId: str(r, "numberId"), direction: str(r, "direction"), from: str(r, "from"), to: str(r, "to"), body: str(r, "body"), status: str(r, "status"),
-    mediaFileIds: parseJson<string[]>(r["mediaFileIds"], []), at: num(r, "at"),
+    id: str(r, "id"),
+    numberId: str(r, "numberId"),
+    direction: str(r, "direction"),
+    from: str(r, "from"),
+    to: str(r, "to"),
+    body: str(r, "body"),
+    status: str(r, "status"),
+    mediaFileIds: parseJson<string[]>(r["mediaFileIds"], []),
+    at: num(r, "at"),
   };
   if (strOrNull(r, "contactId")) out.contactId = str(r, "contactId");
   return out;
@@ -309,20 +382,44 @@ export function seenCall(ctx: TelCtx, id: string): Row {
 export function callMeta(ctx: TelCtx, callId: string): Row {
   const row = first(ctx.db.all(`SELECT * FROM telephony_call_meta WHERE "callId" = ?`, callId));
   if (row) return row;
-  ctx.db.run(`INSERT OR IGNORE INTO telephony_call_meta ("callId", "hold", "recording") VALUES (?, ?, ?)`, callId, 0, 0);
-  return { callId, hold: 0, recording: 0, recordingSid: null, consent: null, ringing: null, declined: null, ingestedSid: null };
+  ctx.db.run(
+    `INSERT OR IGNORE INTO telephony_call_meta ("callId", "hold", "recording") VALUES (?, ?, ?)`,
+    callId,
+    0,
+    0,
+  );
+  return {
+    callId,
+    hold: 0,
+    recording: 0,
+    recordingSid: null,
+    consent: null,
+    ringing: null,
+    declined: null,
+    ingestedSid: null,
+  };
 }
 
 export function setMeta(ctx: TelCtx, callId: string, fields: Record<string, Val>): void {
   callMeta(ctx, callId);
   const keys = Object.keys(fields);
   if (keys.length === 0) return;
-  ctx.db.run(`UPDATE telephony_call_meta SET ${keys.map((k) => `"${k}" = ?`).join(", ")} WHERE "callId" = ?`, ...keys.map((k) => fields[k] ?? null), callId);
+  ctx.db.run(
+    `UPDATE telephony_call_meta SET ${keys.map((k) => `"${k}" = ?`).join(", ")} WHERE "callId" = ?`,
+    ...keys.map((k) => fields[k] ?? null),
+    callId,
+  );
 }
 
 /** Update columns of a row by id and bump its version and time. */
 export function patch(ctx: TelCtx, table: string, id: string, fields: Record<string, Val>): void {
   const row = first(ctx.db.all(`SELECT * FROM ${table} WHERE id = ?`, id));
   const keys = Object.keys(fields);
-  ctx.db.run(`UPDATE ${table} SET ${[...keys, "version", "updated_at"].map((k) => `"${k}" = ?`).join(", ")} WHERE id = ?`, ...keys.map((k) => fields[k] ?? null), num(row, "version") + 1, ctx.now(), id);
+  ctx.db.run(
+    `UPDATE ${table} SET ${[...keys, "version", "updated_at"].map((k) => `"${k}" = ?`).join(", ")} WHERE id = ?`,
+    ...keys.map((k) => fields[k] ?? null),
+    num(row, "version") + 1,
+    ctx.now(),
+    id,
+  );
 }

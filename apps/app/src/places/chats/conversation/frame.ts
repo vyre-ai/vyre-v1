@@ -35,13 +35,21 @@ export function createFrameStore(): FrameStore {
       cur = c;
       const next = c === null ? "" : JSON.stringify([c.find.active, c.helpers?.label, c.helpers?.badge, c.stop?.label]);
       if (next === sig) return;
-      sig = next; v += 1;
+      sig = next;
+      v += 1;
       for (const l of [...ls]) l();
     },
-    subscribe(l) { ls.add(l); return () => { ls.delete(l); }; },
+    subscribe(l) {
+      ls.add(l);
+      return () => {
+        ls.delete(l);
+      };
+    },
     version: () => v,
     placeholder: () => ph,
-    setPlaceholder(p) { ph = p; },
+    setPlaceholder(p) {
+      ph = p;
+    },
   };
 }
 

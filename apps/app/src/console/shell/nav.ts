@@ -15,7 +15,15 @@ export interface PageDef {
   built: boolean;
 }
 
-const p = (id: string, title: string, group: string, icon: string, needs: string, screen: string, built = false): PageDef => ({ id, title, group, icon, needs, screen, built });
+const p = (
+  id: string,
+  title: string,
+  group: string,
+  icon: string,
+  needs: string,
+  screen: string,
+  built = false,
+): PageDef => ({ id, title, group, icon, needs, screen, built });
 
 export const PAGES: readonly PageDef[] = [
   p("overview", "Home", "", "overview", "console.access", "console.overview", true),
@@ -94,7 +102,16 @@ export const PAGES: readonly PageDef[] = [
   p("def-advanced", "Advanced", "Space defaults", "download", "policy.manage", "access.policies"),
 ];
 
-export const GROUPS: readonly string[] = ["Space defaults", "Access", "Agents and actors", "Data", "AI", "Comms", "Integrations", "Infrastructure"];
+export const GROUPS: readonly string[] = [
+  "Space defaults",
+  "Access",
+  "Agents and actors",
+  "Data",
+  "AI",
+  "Comms",
+  "Integrations",
+  "Infrastructure",
+];
 
 export function pageById(id: string): PageDef | undefined {
   return PAGES.find((x) => x.id === id);
@@ -102,7 +119,7 @@ export function pageById(id: string): PageDef | undefined {
 
 /** The pages this person sees, in nav order. */
 export function visiblePages(can: (perm: string) => boolean, allowed?: ReadonlySet<string>): PageDef[] {
-  return PAGES.filter((x) => allowed ? allowed.has(x.screen) : can(x.needs));
+  return PAGES.filter((x) => (allowed ? allowed.has(x.screen) : can(x.needs)));
 }
 
 export const DEFAULT_PAGE = "overview";

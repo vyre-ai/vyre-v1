@@ -8,7 +8,16 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { validateInput } from "./validators.support.ts";
 import { Terminal, TerminalFeed, hostMenu, keyToData } from "../../../ui/src/Terminal/index.tsx";
 import type { TerminalFrame } from "../../../ui/src/Terminal/index.tsx";
-import { PEOPLE, CHANNEL, COMPUTER, HELPER, RECORDING, SERVER_TERMINAL, TERMINAL, createMountSample } from "../src/places/chats/mounts/sample.ts";
+import {
+  PEOPLE,
+  CHANNEL,
+  COMPUTER,
+  HELPER,
+  RECORDING,
+  SERVER_TERMINAL,
+  TERMINAL,
+  createMountSample,
+} from "../src/places/chats/mounts/sample.ts";
 import type { MountSample } from "../src/places/chats/mounts/sample.ts";
 import ChatsPlace from "../src/shell/providers/chats.tsx";
 import { ShellRuntimeProvider } from "../src/shell/providers/runtime.tsx";
@@ -19,9 +28,21 @@ import { SidebarContent } from "../src/shell/sidebar/index.ts";
 import type { SidebarSlotApi } from "../src/shell/sidebar/index.ts";
 import { AllAgents, pickAgents } from "../src/places/chats/mounts/AllAgents.tsx";
 import type { AgentRow } from "../src/places/chats/mounts/AllAgents.tsx";
-import { CONNECT_SUB, ConnectOutsideAgent, LOGIN_LINE, UNPROVEN } from "../src/places/chats/mounts/ConnectOutsideAgent.tsx";
+import {
+  CONNECT_SUB,
+  ConnectOutsideAgent,
+  LOGIN_LINE,
+  UNPROVEN,
+} from "../src/places/chats/mounts/ConnectOutsideAgent.tsx";
 import type { ConnectProps } from "../src/places/chats/mounts/ConnectOutsideAgent.tsx";
-import { createGo, newKey, terminalData, wireConversation, wirePane, wireSidebar } from "../src/places/chats/mounts/data.ts";
+import {
+  createGo,
+  newKey,
+  terminalData,
+  wireConversation,
+  wirePane,
+  wireSidebar,
+} from "../src/places/chats/mounts/data.ts";
 import { START, fromHash, step } from "../src/places/chats/mounts/route.ts";
 import type { Act, Shown } from "../src/places/chats/mounts/route.ts";
 import { waitingWords, waitsOf } from "../src/places/chats/mounts/WaitingOn.tsx";
@@ -29,35 +50,88 @@ import { connectEntries } from "../src/places/chats/conversation/Conversation.ts
 import { TerminalList } from "../src/places/chats/terminal/TerminalList.tsx";
 import { TerminalRules } from "../src/places/chats/terminal/TerminalRules.tsx";
 import { sessionProps } from "../src/places/chats/terminal/TerminalTab.tsx";
-import { REDRAW_LINE, RULE_LISTS, ago, linesText, openCall, ordered, parseLines, pollSource, rulesProblem, sameRules, uiHost, uiState } from "../src/places/chats/terminal/model.ts";
+import {
+  REDRAW_LINE,
+  RULE_LISTS,
+  ago,
+  linesText,
+  openCall,
+  ordered,
+  parseLines,
+  pollSource,
+  rulesProblem,
+  sameRules,
+  uiHost,
+  uiState,
+} from "../src/places/chats/terminal/model.ts";
 import type { Rules, TerminalRow } from "../src/places/chats/terminal/model.ts";
-import { askServerAccess, attach, createSender, openSession, saveRules, toggleStar } from "../src/places/chats/terminal/session.ts";
+import {
+  askServerAccess,
+  attach,
+  createSender,
+  openSession,
+  saveRules,
+  toggleStar,
+} from "../src/places/chats/terminal/session.ts";
 import { errorCode, isRefusal } from "../src/places/chats/mounts/live.ts";
 
 const WINDOW = { start: 0, end: 500 };
-const clean = (s: string): string => s.replaceAll("<!-- -->", "").replaceAll("&#x27;", "'").replaceAll("&quot;", '"').replaceAll("&amp;", "&");
+const clean = (s: string): string =>
+  s.replaceAll("<!-- -->", "").replaceAll("&#x27;", "'").replaceAll("&quot;", '"').replaceAll("&amp;", "&");
 const has = (s: string, needle: string): boolean => s.includes(needle);
 const settle = (ms = 0): Promise<void> => new Promise((r) => setTimeout(r, ms));
 const nameOf = (id: string): string => PEOPLE.find((p) => p.id === id)?.name ?? id;
 
 /** The place drawn on what has been shown so far. */
 const html = (s: MountSample, shown?: Shown, hash = ""): string =>
-  clean(renderToStaticMarkup(<ChatsMounted rt={s.rt} {...(shown ? { initial: shown } : {})} {...(hash === "" ? {} : { hash })} window={WINDOW} />));
+  clean(
+    renderToStaticMarkup(
+      <ChatsMounted
+        rt={s.rt}
+        {...(shown ? { initial: shown } : {})}
+        {...(hash === "" ? {} : { hash })}
+        window={WINDOW}
+      />,
+    ),
+  );
 
 /** What the place registers in the shell's shared sidebar slot (P-L9b_22): the SidebarContent's title and search placeholder, and the content its render prop draws, over this runtime's live screens. */
 function inSlot(s: MountSample, query = ""): { title: string; placeholder: string | undefined; out: string } {
   const { go } = doors(s);
-  const slot: SidebarSlotApi = { query, collapsed: false, setCollapsed: () => undefined, hasSidebar: true, compact: false, openBody: () => undefined, back: () => undefined, view: "body", title: "Chats" };
-  const el = ChatsSidebarSlot({ data: wireSidebar(s.rt, go), window: WINDOW }) as ReactElement<{ title: string; searchPlaceholder?: string; children: (q: string, slot: SidebarSlotApi) => ReactElement }>;
+  const slot: SidebarSlotApi = {
+    query,
+    collapsed: false,
+    setCollapsed: () => undefined,
+    hasSidebar: true,
+    compact: false,
+    openBody: () => undefined,
+    back: () => undefined,
+    view: "body",
+    title: "Chats",
+  };
+  const el = ChatsSidebarSlot({ data: wireSidebar(s.rt, go), window: WINDOW }) as ReactElement<{
+    title: string;
+    searchPlaceholder?: string;
+    children: (q: string, slot: SidebarSlotApi) => ReactElement;
+  }>;
   assert.equal(el.type, SidebarContent, "the sidebar goes into the shared slot");
-  return { title: el.props.title, placeholder: el.props.searchPlaceholder, out: clean(renderToStaticMarkup(el.props.children(query, slot))) };
+  return {
+    title: el.props.title,
+    placeholder: el.props.searchPlaceholder,
+    out: clean(renderToStaticMarkup(el.props.children(query, slot))),
+  };
 }
 
 /** The place's doors over a recorder: every `act` the doors make, in order, and the lines the place would have said. */
 function doors(s: MountSample): { go: ReturnType<typeof createGo>; acts: Act[]; said: string[]; shown: () => Shown } {
   const acts: Act[] = [];
   const said: string[] = [];
-  const go = createGo(s.rt, (a) => void acts.push(a), nameOf, (t) => void said.push(t));
+  const go = createGo(
+    s.rt,
+    (a) => void acts.push(a),
+    nameOf,
+    (t) => void said.push(t),
+  );
   return { go, acts, said, shown: () => acts.reduce(step, START) };
 }
 
@@ -67,7 +141,8 @@ const conversation = (s: MountSample, go: ReturnType<typeof createGo>, threadId 
 const caps = (s: MountSample): string[] => s.calls.map((c) => c.cap);
 const contractErrors = (s: MountSample, only: (cap: string) => boolean): string[] => {
   const out: string[] = [];
-  for (const c of s.calls) if (only(c.cap)) for (const e of validateInput(c.cap, 1, c.input)) out.push(`${c.cap}: ${e}`);
+  for (const c of s.calls)
+    if (only(c.cap)) for (const e of validateInput(c.cap, 1, c.input)) out.push(`${c.cap}: ${e}`);
   return out;
 };
 
@@ -90,9 +165,14 @@ test("the face: the lead's face is in the header and its menu's Open Page shows 
 test("the face: the agent page can be opened on a tab, as the pane and the sidebar do", () => {
   const s = createMountSample({ who: "owner" });
   const { go, acts, shown } = doors(s);
-  wirePane(s.rt, go, "c1", { agentId: "agt_intake", name: "Intake", computerId: COMPUTER }).nav.openAgentPage("agt_intake");
+  wirePane(s.rt, go, "c1", { agentId: "agt_intake", name: "Intake", computerId: COMPUTER }).nav.openAgentPage(
+    "agt_intake",
+  );
   go.agent("agt_intake", "memory");
-  assert.deepEqual(acts, [{ t: "agent", agentId: "agt_intake" }, { t: "agent", agentId: "agt_intake", tab: "memory" }]);
+  assert.deepEqual(acts, [
+    { t: "agent", agentId: "agt_intake" },
+    { t: "agent", agentId: "agt_intake", tab: "memory" },
+  ]);
   const out = html(s, shown());
   assert.ok(has(out, 'data-testid="agent-page"'));
   assert.deepEqual(shown().route, { view: "agent", agentId: "agt_intake", tab: "memory" });
@@ -105,10 +185,17 @@ test("the helper icon: the header shows the running helpers and a helper from it
   const { go, acts, shown } = doors(s);
   conversation(s, go).nav.openThread(HELPER);
   await settle();
-  assert.deepEqual(caps(s).filter((c) => c === "threads.get"), ["threads.get"], "the place asks what kind of thread it is");
+  assert.deepEqual(
+    caps(s).filter((c) => c === "threads.get"),
+    ["threads.get"],
+    "the place asks what kind of thread it is",
+  );
   assert.deepEqual(acts, [{ t: "helper", threadId: HELPER }]);
   const out = html(s, shown());
-  assert.ok(has(out, 'data-testid="helper-chat"') && has(out, 'data-testid="helper-address"'), "the helper chat with its address bar");
+  assert.ok(
+    has(out, 'data-testid="helper-chat"') && has(out, 'data-testid="helper-address"'),
+    "the helper chat with its address bar",
+  );
   assert.ok(has(out, "Firms 1"), "the helper's own title");
   // a thread that is not a helper stays a chat
   const other = doors(s);
@@ -122,14 +209,21 @@ test("the channel menu: Connect an Outside Agent is on a channel's menu only, an
   const { go, acts, shown } = doors(s);
   const nav = conversation(s, go).nav;
   const entries = connectEntries({ kind: "channel", channelId: CHANNEL, threadId: "t_rivera" }, nav);
-  assert.deepEqual(entries.map((e) => ("label" in e ? e.label : "")), ["Connect an Outside Agent"]);
+  assert.deepEqual(
+    entries.map((e) => ("label" in e ? e.label : "")),
+    ["Connect an Outside Agent"],
+  );
   const first = entries[0];
   assert.ok(first && "onSelect" in first);
   first.onSelect?.();
   assert.deepEqual(acts, [{ t: "layer", layer: { kind: "connect", channelId: CHANNEL } }]);
   assert.deepEqual(connectEntries({ kind: "chat", threadId: "c1" }, nav), [], "a chat has no such entry");
   const { openConnectOutsideAgent: _gone, ...bare } = nav;
-  assert.deepEqual(connectEntries({ kind: "channel", channelId: CHANNEL, threadId: "t_rivera" }, bare), [], "nor where the shell has no sheet");
+  assert.deepEqual(
+    connectEntries({ kind: "channel", channelId: CHANNEL, threadId: "t_rivera" }, bare),
+    [],
+    "nor where the shell has no sheet",
+  );
   const out = html(s, shown());
   assert.ok(has(out, 'data-testid="connect-outside-agent"') && has(out, CONNECT_SUB));
 });
@@ -140,24 +234,46 @@ test("the agent's computer: the pane's door opens the agent's Computer tab, with
   const { go, acts, shown, said } = doors(s);
   conversation(s, go).nav.openBeside("computer", "agt_intake");
   await settle();
-  assert.deepEqual(acts, [{ t: "agent", agentId: "agt_intake", tab: "computer" }], "the door is the agent's page on its Computer tab");
+  assert.deepEqual(
+    acts,
+    [{ t: "agent", agentId: "agt_intake", tab: "computer" }],
+    "the door is the agent's page on its Computer tab",
+  );
   assert.deepEqual(shown().route, { view: "agent", agentId: "agt_intake", tab: "computer" });
   assert.equal(shown().layer, null, "no layer goes up over the chat");
   const out = html(s, shown());
-  assert.ok(has(out, 'data-testid="agent-page"') && has(out, 'data-testid="tab-computer-selected"'), "the agent page, with its Computer tab the selected one");
+  assert.ok(
+    has(out, 'data-testid="agent-page"') && has(out, 'data-testid="tab-computer-selected"'),
+    "the agent page, with its Computer tab the selected one",
+  );
   assert.ok(has(out, 'data-testid="page-body-computer"'), "the tab's body");
-  assert.ok(has(out, 'data-testid="label-l-terminal"') && has(out, 'data-testid="label-l-browser"'), "Terminal and Browser, the two halves of the computer");
-  assert.ok(has(out, 'data-testid="terminal-loading"') && has(out, 'data-testid="browser-loading"'), "each half draws its card once its source answers");
-  for (const gone of ["computer-popup", "rail-take", "rail-close", "popup-loading"]) assert.ok(!has(out, `data-testid="${gone}"`), `no ${gone}`);
+  assert.ok(
+    has(out, 'data-testid="label-l-terminal"') && has(out, 'data-testid="label-l-browser"'),
+    "Terminal and Browser, the two halves of the computer",
+  );
+  assert.ok(
+    has(out, 'data-testid="terminal-loading"') && has(out, 'data-testid="browser-loading"'),
+    "each half draws its card once its source answers",
+  );
+  for (const gone of ["computer-popup", "rail-take", "rail-close", "popup-loading"])
+    assert.ok(!has(out, `data-testid="${gone}"`), `no ${gone}`);
   assert.ok(!has(out, 'data-testid="conversation"'), "the page replaces the chat in the middle");
   assert.deepEqual(said, [], "nothing is said");
-  assert.deepEqual(caps(s).filter((c) => c.startsWith("computers.")), [], "the door asks the server nothing");
+  assert.deepEqual(
+    caps(s).filter((c) => c.startsWith("computers.")),
+    [],
+    "the door asks the server nothing",
+  );
   // an agent with no computer gets the same tab, which explains itself; no toast says "has no computer yet"
   conversation(s, go).nav.openBeside("computer", "agt_docs");
   await settle();
   assert.deepEqual(acts[acts.length - 1], { t: "agent", agentId: "agt_docs", tab: "computer" });
   assert.deepEqual(said, [], "no toast for an agent with nothing to run on");
-  assert.deepEqual(caps(s).filter((c) => c.startsWith("computers.")), [], "and still no question to the server");
+  assert.deepEqual(
+    caps(s).filter((c) => c.startsWith("computers.")),
+    [],
+    "and still no question to the server",
+  );
   // any other card still opens beside the chat through the shell
   conversation(s, go).nav.openBeside("file", "fil_1");
   assert.deepEqual(s.opened, [{ subject: { type: "file", id: "fil_1" } }]);
@@ -168,7 +284,10 @@ test("a link that names a computer still lands on its agent's Computer tab, neve
   const s = createMountSample();
   const out = html(s, undefined, "screen=chats.computer-popup&computerId=" + COMPUTER);
   assert.ok(!has(out, 'data-testid="computer-popup"'), "no popup");
-  assert.ok(has(out, 'data-testid="popup-loading"'), "the layer only waits for the computer's agent, then hands over to the tab");
+  assert.ok(
+    has(out, 'data-testid="popup-loading"'),
+    "the layer only waits for the computer's agent, then hands over to the tab",
+  );
 });
 
 /* ---------- the pages and layers ---------- */
@@ -192,24 +311,82 @@ test("All agents: the picker lists every agent under the control that opened it,
   wireSidebar(s.rt, go).nav.openAllAgents();
   assert.equal(acts.length, 1);
   const act = acts[0];
-  assert.ok(act && act.t === "layer" && act.layer.kind === "all-agents" && typeof act.layer.x === "number" && typeof act.layer.y === "number", "it opens at a point under the control");
+  assert.ok(
+    act &&
+      act.t === "layer" &&
+      act.layer.kind === "all-agents" &&
+      typeof act.layer.x === "number" &&
+      typeof act.layer.y === "number",
+    "it opens at a point under the control",
+  );
   const out = html(s, acts.reduce(step, START));
   assert.ok(has(out, 'data-testid="all-agents"') && has(out, 'aria-label="All agents"'));
-  for (const n of ["Intake", "Docs", "Billing", "Research"]) assert.ok(has(out, `>${n}<`) || has(out, `aria-label="${n}"`), `${n} is listed`);
+  for (const n of ["Intake", "Docs", "Billing", "Research"])
+    assert.ok(has(out, `>${n}<`) || has(out, `aria-label="${n}"`), `${n} is listed`);
   assert.ok(has(out, 'data-testid="all-agents-search"'));
-  const agent = (id: string, name: string, status: AgentRow["status"], role?: string): AgentRow => ({ agentId: id, name, face: name[0] ?? "", ...(role ? { role } : {}), status, ownerId: "usr_omar", folderId: "f", accountPolicy: "asker", toolsAllowed: [], toolsDenied: [], vaultKeys: [], limits: {}, captureMode: "propose", hasComputer: false, templateVersion: 1, createdAt: 1 });
-  const all = [agent("a", "Docs", "awake", "Drafts letters"), agent("b", "Intake", "working", "Books consults"), agent("c", "Billing", "paused"), agent("d", "Archive", "asleep")];
-  assert.deepEqual(pickAgents(all, "").map((a) => a.name), ["Intake", "Archive", "Docs", "Billing"], "working first, paused last, then by name");
-  assert.deepEqual(pickAgents(all, "letters docs").map((a) => a.name), ["Docs"], "every word must match the name or the role");
+  const agent = (id: string, name: string, status: AgentRow["status"], role?: string): AgentRow => ({
+    agentId: id,
+    name,
+    face: name[0] ?? "",
+    ...(role ? { role } : {}),
+    status,
+    ownerId: "usr_omar",
+    folderId: "f",
+    accountPolicy: "asker",
+    toolsAllowed: [],
+    toolsDenied: [],
+    vaultKeys: [],
+    limits: {},
+    captureMode: "propose",
+    hasComputer: false,
+    templateVersion: 1,
+    createdAt: 1,
+  });
+  const all = [
+    agent("a", "Docs", "awake", "Drafts letters"),
+    agent("b", "Intake", "working", "Books consults"),
+    agent("c", "Billing", "paused"),
+    agent("d", "Archive", "asleep"),
+  ];
+  assert.deepEqual(
+    pickAgents(all, "").map((a) => a.name),
+    ["Intake", "Archive", "Docs", "Billing"],
+    "working first, paused last, then by name",
+  );
+  assert.deepEqual(
+    pickAgents(all, "letters docs").map((a) => a.name),
+    ["Docs"],
+    "every word must match the name or the role",
+  );
   assert.deepEqual(pickAgents(all, "zzz"), []);
   // a press: the newest open chat the agent leads, else a new one
   go.agentChat("agt_docs");
   await settle(120);
-  assert.deepEqual(caps(s).filter((c) => c === "threads.list" || c === "chat.start"), ["threads.list", "chat.start"]);
+  assert.deepEqual(
+    caps(s).filter((c) => c === "threads.list" || c === "chat.start"),
+    ["threads.list", "chat.start"],
+  );
   const last = acts[acts.length - 1];
   assert.ok(last && last.t === "chat" && last.threadId.length > 0, "the chat that chat.start returned");
-  assert.deepEqual(contractErrors(s, (c) => c === "chat.start" || c === "threads.list"), []);
-  const picker = clean(renderToStaticMarkup(<AllAgents screens={s.rt.screens} space={{ name: "Northwind" }} x={8} y={48} onChat={() => undefined} onOpenPage={() => undefined} onCreate={() => Promise.resolve("agt_new")} onClose={() => undefined} window={WINDOW} />));
+  assert.deepEqual(
+    contractErrors(s, (c) => c === "chat.start" || c === "threads.list"),
+    [],
+  );
+  const picker = clean(
+    renderToStaticMarkup(
+      <AllAgents
+        screens={s.rt.screens}
+        space={{ name: "Northwind" }}
+        x={8}
+        y={48}
+        onChat={() => undefined}
+        onOpenPage={() => undefined}
+        onCreate={() => Promise.resolve("agt_new")}
+        onClose={() => undefined}
+        window={WINDOW}
+      />,
+    ),
+  );
   assert.ok(has(picker, 'data-testid="all-agents-new"'), "New agent");
 });
 
@@ -222,8 +399,12 @@ test("the recording sheet: a stopped recording opens the sheet that asks what th
   assert.ok(has(out, 'data-testid="record-sheet"'), "the sheet");
   assert.ok(has(out, "Send to Intake") && has(out, "Save Only") && has(out, "Discard"));
   assert.ok(has(out, "Recording · 0:23") || has(out, "0:23"), "the length the recording holds");
-  for (const key of ["make_skill", "learn_routine", "work_out_backend_calls", "learn_workflow"]) assert.ok(has(out, `data-testid="opt-${key}"`), key);
-  assert.deepEqual(contractErrors(s, () => true), []);
+  for (const key of ["make_skill", "learn_routine", "work_out_backend_calls", "learn_workflow"])
+    assert.ok(has(out, `data-testid="opt-${key}"`), key);
+  assert.deepEqual(
+    contractErrors(s, () => true),
+    [],
+  );
 });
 
 test("Waiting on: an agent that waits on background work says so in the thread and wakes there; the line leaves when the wait ends", () => {
@@ -238,21 +419,36 @@ test("Waiting on: an agent that waits on background work says so in the thread a
   assert.equal(waitingWords(run, "Docs"), "Waiting on: deploy to staging. Docs wakes here when it is done.");
   const base = { owner: "agt_intake", startedBy: "agt_intake", costMicros: 0, traceId: "t" } as const;
   const runs = [
-    { ...base, id: "a", kind: "wait", status: "waiting", startedAt: 1 }, { ...base, id: "b", kind: "wait", status: "succeeded", startedAt: 2 },
-    { ...base, id: "c", kind: "automation", status: "running", startedAt: 3 }, { ...base, id: "d", kind: "wait", status: "running", startedAt: 4 },
+    { ...base, id: "a", kind: "wait", status: "waiting", startedAt: 1 },
+    { ...base, id: "b", kind: "wait", status: "succeeded", startedAt: 2 },
+    { ...base, id: "c", kind: "automation", status: "running", startedAt: 3 },
+    { ...base, id: "d", kind: "wait", status: "running", startedAt: 4 },
   ] as const;
-  assert.deepEqual(waitsOf(runs).map((r) => r.id), ["d", "a"], "only waits that have not ended, newest first");
+  assert.deepEqual(
+    waitsOf(runs).map((r) => r.id),
+    ["d", "a"],
+    "only waits that have not ended, newest first",
+  );
 });
 
 test("Connect an outside agent: one link to copy, a line for Claude Code, and nothing to fill in", async () => {
   const s = createMountSample();
-  const sheet = clean(renderToStaticMarkup(<ConnectOutsideAgent call={s.rt.call as ConnectProps["call"]} onClose={() => undefined} />));
+  const sheet = clean(
+    renderToStaticMarkup(<ConnectOutsideAgent call={s.rt.call as ConnectProps["call"]} onClose={() => undefined} />),
+  );
   assert.ok(has(sheet, 'role="dialog"') && has(sheet, "Connect an outside agent") && has(sheet, CONNECT_SUB));
   assert.ok(!has(sheet, "token") && !has(sheet, "Reveal") && !has(sheet, "scope"), "no token and no scope list");
   assert.ok(has(sheet, 'data-testid="connect-done"'));
-  const link = await s.rt.call("mcp.connected.link", {}) as { url: string; claudeCode: string };
-  assert.match(link.claudeCode, /^claude mcp add --transport http vyre https?:\/\/\S+\/mcp$/, "the line the CLI test proves");
-  assert.deepEqual(contractErrors(s, () => true), []);
+  const link = (await s.rt.call("mcp.connected.link", {})) as { url: string; claudeCode: string };
+  assert.match(
+    link.claudeCode,
+    /^claude mcp add --transport http vyre https?:\/\/\S+\/mcp$/,
+    "the line the CLI test proves",
+  );
+  assert.deepEqual(
+    contractErrors(s, () => true),
+    [],
+  );
   assert.match(UNPROVEN, /have not been tested yet/);
   assert.equal(LOGIN_LINE, "claude mcp login vyre");
 });
@@ -269,9 +465,19 @@ test("terminal golden step: open, attach, input, resize and live output drive ui
 
   const att = await attach(deps, row.terminalId, 5);
   assert.ok(att.replay.includes("Welcome to Intake's computer"), "attach returns the scrollback");
-  const screen = clean(renderToStaticMarkup(<Terminal {...sessionProps(row, { replay: att.replay, source: att.source, starred: false })} onStar={() => undefined} />));
+  const screen = clean(
+    renderToStaticMarkup(
+      <Terminal
+        {...sessionProps(row, { replay: att.replay, source: att.source, starred: false })}
+        onStar={() => undefined}
+      />,
+    ),
+  );
   assert.ok(has(screen, "Welcome to Intake's computer"), "ui/Terminal draws the replay");
-  assert.ok(has(screen, "Intake's computer · running") && has(screen, 'aria-label="Star"'), "the session line and the star");
+  assert.ok(
+    has(screen, "Intake's computer · running") && has(screen, 'aria-label="Star"'),
+    "the session line and the star",
+  );
 
   const failed: string[] = [];
   const sender = createSender(deps, row.terminalId, (w) => void failed.push(w));
@@ -283,7 +489,14 @@ test("terminal golden step: open, attach, input, resize and live output drive ui
   await sender.resize(120, 40);
   await sender.resize(5, 1);
   const sizes = s.calls.filter((c) => c.cap === "terminal.resize").map((c) => c.input);
-  assert.deepEqual(sizes, [{ terminalId: row.terminalId, cols: 120, rows: 40 }, { terminalId: row.terminalId, cols: 20, rows: 5 }], "the same size is not sent twice, and a size is clamped to what the module takes");
+  assert.deepEqual(
+    sizes,
+    [
+      { terminalId: row.terminalId, cols: 120, rows: 40 },
+      { terminalId: row.terminalId, cols: 20, rows: 5 },
+    ],
+    "the same size is not sent twice, and a size is clamped to what the module takes",
+  );
   await sender.input("\x03");
   assert.deepEqual(s.typed, ["l", "s", "\r"], "Ctrl-C goes as terminal.interrupt, not as a second byte");
   await sender.interrupt();
@@ -301,19 +514,32 @@ test("terminal golden step: open, attach, input, resize and live output drive ui
   assert.ok(feed.engine.text().includes("site  notes.md"), "the frame lands after the replay");
   assert.deepEqual(failed, []);
 
-  assert.deepEqual(contractErrors(s, (c) => c.startsWith("terminal.")), [], "every terminal call is inside the frozen contract");
+  assert.deepEqual(
+    contractErrors(s, (c) => c.startsWith("terminal.")),
+    [],
+    "every terminal call is inside the frozen contract",
+  );
   assert.deepEqual(caps(s).slice(0, 3), ["terminal.open", "terminal.attach", "terminal.read"]);
 });
 
 test("terminal: a host is chosen in the shared host menu, and each host maps to the call that opens it", () => {
   const picked: string[] = [];
   const entries = hostMenu("agent", false, (h) => void picked.push(h));
-  assert.deepEqual(entries.map((e) => ("label" in e ? `${e.label}${e.checked ? " *" : ""}` : "")), ["Agent computer *", "Space server", "This computer"]);
+  assert.deepEqual(
+    entries.map((e) => ("label" in e ? `${e.label}${e.checked ? " *" : ""}` : "")),
+    ["Agent computer *", "Space server", "This computer"],
+  );
   for (const e of entries) if ("onSelect" in e) e.onSelect?.();
   assert.deepEqual(picked, ["agent", "server", "device"]);
   assert.deepEqual(openCall("server", {}, "k"), { cap: "terminal.open_server", input: { idempotencyKey: "k" } });
-  assert.deepEqual(openCall("device", {}, "k"), { cap: "terminal.open", input: { host: "device", idempotencyKey: "k" } });
-  assert.deepEqual(openCall("agent", { agentId: "agt_intake", computerId: COMPUTER }, "k"), { cap: "terminal.open", input: { host: "agent_computer", agentId: "agt_intake", computerId: COMPUTER, idempotencyKey: "k" } });
+  assert.deepEqual(openCall("device", {}, "k"), {
+    cap: "terminal.open",
+    input: { host: "device", idempotencyKey: "k" },
+  });
+  assert.deepEqual(openCall("agent", { agentId: "agt_intake", computerId: COMPUTER }, "k"), {
+    cap: "terminal.open",
+    input: { host: "agent_computer", agentId: "agt_intake", computerId: COMPUTER, idempotencyKey: "k" },
+  });
   for (const h of ["agent", "server", "device"] as const) {
     const c = openCall(h, { agentId: "agt_intake" }, "k");
     assert.deepEqual(validateInput(c.cap, 1, c.input), [], h);
@@ -324,14 +550,36 @@ test("terminal: the Space server is locked without server.services and asks for 
   const s = createMountSample();
   s.refuseServer(true);
   const deps = { call: s.rt.call, newKey };
-  await assert.rejects(() => openSession(deps, "server", {}), (e: unknown) => isRefusal(e) && errorCode(e) === "permission.role_lacks_permission");
-  await assert.rejects(() => attach(deps, SERVER_TERMINAL), (e: unknown) => isRefusal(e));
+  await assert.rejects(
+    () => openSession(deps, "server", {}),
+    (e: unknown) => isRefusal(e) && errorCode(e) === "permission.role_lacks_permission",
+  );
+  await assert.rejects(
+    () => attach(deps, SERVER_TERMINAL),
+    (e: unknown) => isRefusal(e),
+  );
   assert.equal(isRefusal(new Error("boom")), false, "only a refusal locks the shell");
   assert.equal(await askServerAccess(deps, "northwind"), true);
   const ask = s.calls.find((c) => c.cap === "access.request");
   assert.ok(ask && validateInput("access.request", 1, ask.input).length === 0, "the request is inside the contract");
-  const locked = clean(renderToStaticMarkup(<Terminal sessionId={SERVER_TERMINAL} title="" host="server" hostLabel="Space server" locked owner="Maya Chen" fallbackLabel="Intake's computer" />));
-  assert.ok(has(locked, 'data-testid="terminal-locked"') && has(locked, "Ask Maya Chen for access") && has(locked, "Open Intake's computer instead"));
+  const locked = clean(
+    renderToStaticMarkup(
+      <Terminal
+        sessionId={SERVER_TERMINAL}
+        title=""
+        host="server"
+        hostLabel="Space server"
+        locked
+        owner="Maya Chen"
+        fallbackLabel="Intake's computer"
+      />,
+    ),
+  );
+  assert.ok(
+    has(locked, 'data-testid="terminal-locked"') &&
+      has(locked, "Ask Maya Chen for access") &&
+      has(locked, "Open Intake's computer instead"),
+  );
   const device = await openSession(deps, "device", {});
   assert.equal(device.host, "device");
   s.refuseServer(false);
@@ -346,10 +594,16 @@ test("terminal: the tab is a side column beside the chat, and a link from Home r
   assert.equal(shown.terminalId, TERMINAL);
   const out = html(s, shown);
   assert.ok(has(out, 'data-testid="chats-terminal"'), "the terminal column");
-  assert.ok(has(out, 'data-testid="chats-landing"') || has(out, 'data-testid="conversation"'), "what was open stays beside it");
+  assert.ok(
+    has(out, 'data-testid="chats-landing"') || has(out, 'data-testid="conversation"'),
+    "what was open stays beside it",
+  );
   const linked = fromHash(`screen=chats.terminal-tab&terminalId=${TERMINAL}`);
   assert.equal(linked.terminalId, TERMINAL);
-  assert.ok(has(html(s, undefined, `screen=chats.terminal-tab&terminalId=${TERMINAL}`), 'data-testid="chats-terminal"'), "the link is the first thing shown");
+  assert.ok(
+    has(html(s, undefined, `screen=chats.terminal-tab&terminalId=${TERMINAL}`), 'data-testid="chats-terminal"'),
+    "the link is the first thing shown",
+  );
   // the pane button closes the terminal first, then opens and closes the pane
   const closed = step(shown, { t: "pane" });
   assert.equal(closed.terminalId, null);
@@ -367,17 +621,31 @@ test("terminal list: sessions with where they run, running ones first, the star 
   const s = createMountSample();
   const { go } = doors(s);
   const td = terminalData(s.rt, go, { agent: { agentId: "agt_intake", name: "Intake", computerId: COMPUTER }, newKey });
-  const out = clean(renderToStaticMarkup(<TerminalList data={td} x={8} y={48} onClose={() => undefined} window={WINDOW} />));
+  const out = clean(
+    renderToStaticMarkup(<TerminalList data={td} x={8} y={48} onClose={() => undefined} window={WINDOW} />),
+  );
   assert.ok(has(out, 'data-testid="terminal-list"') && has(out, "Terminals") && has(out, "3 in Northwind"));
-  const at = (needle: string): number => { const i = out.indexOf(needle); assert.ok(i >= 0, needle); return i; };
-  assert.ok(at("Rivera dev server") < at("Space server") && at("Space server") < at("Invoice export"), "running, idle, then exited");
+  const at = (needle: string): number => {
+    const i = out.indexOf(needle);
+    assert.ok(i >= 0, needle);
+    return i;
+  };
+  assert.ok(
+    at("Rivera dev server") < at("Space server") && at("Space server") < at("Invoice export"),
+    "running, idle, then exited",
+  );
   assert.ok(has(out, 'data-testid="star-trm_rivera"'), "the starred session shows its star");
   assert.ok(!has(out, 'data-testid="star-trm_server"'), "an unstarred one shows it on hover");
   assert.ok(has(out, 'data-testid="terminal-new"') && has(out, 'data-testid="terminal-rules-open"'));
   const rows = [
-    { terminalId: "x", state: "exited", lastActiveAt: 9 }, { terminalId: "y", state: "idle", lastActiveAt: 1 }, { terminalId: "z", state: "running", lastActiveAt: 5 },
+    { terminalId: "x", state: "exited", lastActiveAt: 9 },
+    { terminalId: "y", state: "idle", lastActiveAt: 1 },
+    { terminalId: "z", state: "running", lastActiveAt: 5 },
   ] as unknown as TerminalRow[];
-  assert.deepEqual(ordered(rows).map((r) => r.terminalId), ["z", "y", "x"]);
+  assert.deepEqual(
+    ordered(rows).map((r) => r.terminalId),
+    ["z", "y", "x"],
+  );
   assert.equal(ago(1_000_000, 1_000_000 - 30_000), "just now");
   assert.equal(ago(1_000_000, 1_000_000 - 5 * 60_000), "5 min ago");
   assert.equal(ago(1_000_000_000, 1_000_000_000 - 3 * 3_600_000), "3 h ago");
@@ -386,11 +654,22 @@ test("terminal list: sessions with where they run, running ones first, the star 
   // star and unstar through stars.toggle
   const deps = { call: s.rt.call, newKey };
   assert.equal(await toggleStar(deps, "trm_server", true), true);
-  assert.ok(has(clean(renderToStaticMarkup(<TerminalList data={td} x={8} y={48} onClose={() => undefined} window={WINDOW} />)), 'data-testid="star-trm_server"'));
+  assert.ok(
+    has(
+      clean(renderToStaticMarkup(<TerminalList data={td} x={8} y={48} onClose={() => undefined} window={WINDOW} />)),
+      'data-testid="star-trm_server"',
+    ),
+  );
   assert.equal(await toggleStar(deps, TERMINAL, false), true);
   const starCalls = s.calls.filter((c) => c.cap === "stars.toggle").map((c) => c.input);
-  assert.deepEqual(starCalls, [{ resource: { type: "terminal", id: "trm_server" }, on: true }, { resource: { type: "terminal", id: TERMINAL }, on: false }]);
-  assert.deepEqual(contractErrors(s, (c) => c === "stars.toggle"), []);
+  assert.deepEqual(starCalls, [
+    { resource: { type: "terminal", id: "trm_server" }, on: true },
+    { resource: { type: "terminal", id: TERMINAL }, on: false },
+  ]);
+  assert.deepEqual(
+    contractErrors(s, (c) => c === "stars.toggle"),
+    [],
+  );
 });
 
 test("terminal rules: the allow, ask and deny lists and the folders, one entry per line, saved through terminal.rules.set", async () => {
@@ -406,8 +685,14 @@ test("terminal rules: the allow, ask and deny lists and the folders, one entry p
   assert.equal(linesText(["a", "b"]), "a\nb");
   const rules: Rules = { allow: ["git push", "ls"], ask: ["git push"], deny: [], folders: ["fld_work"] };
   assert.equal(rulesProblem(rules), null);
-  assert.match(rulesProblem({ allow: Array.from({ length: 201 }, (_, i) => `c${i}`), ask: [], deny: [], folders: [] }) ?? "", /Up to 200 rules/);
-  assert.match(rulesProblem({ allow: ["x".repeat(201)], ask: [], deny: [], folders: [] }) ?? "", /at most 200 characters/);
+  assert.match(
+    rulesProblem({ allow: Array.from({ length: 201 }, (_, i) => `c${i}`), ask: [], deny: [], folders: [] }) ?? "",
+    /Up to 200 rules/,
+  );
+  assert.match(
+    rulesProblem({ allow: ["x".repeat(201)], ask: [], deny: [], folders: [] }) ?? "",
+    /at most 200 characters/,
+  );
   const kept = await saveRules({ call: s.rt.call, newKey }, rules);
   assert.deepEqual(kept.allow, ["ls"], "an entry on two lists stays on the stronger one");
   assert.equal(sameRules(kept, rules), false);
@@ -415,13 +700,25 @@ test("terminal rules: the allow, ask and deny lists and the folders, one entry p
   assert.deepEqual(RULE_LISTS, ["allow", "ask", "deny", "folders"]);
   const again = clean(renderToStaticMarkup(<TerminalRules data={td} onClose={() => undefined} />));
   assert.ok(has(again, "fld_work") && !has(again, "git diff"), "the sheet shows what was kept");
-  assert.deepEqual(contractErrors(s, (c) => c === "terminal.rules.set"), []);
+  assert.deepEqual(
+    contractErrors(s, (c) => c === "terminal.rules.set"),
+    [],
+  );
 });
 
 test("terminal: the polled source delivers each answer as the next frame and survives a failed read", async () => {
   let n = 0;
   const answers = ["a", "", "b"];
-  const src = pollSource(async () => { n += 1; if (n === 2) throw new Error("offline"); const text = answers.shift() ?? ""; return { text, next: n }; }, 0, 2);
+  const src = pollSource(
+    async () => {
+      n += 1;
+      if (n === 2) throw new Error("offline");
+      const text = answers.shift() ?? "";
+      return { text, next: n };
+    },
+    0,
+    2,
+  );
   const frames: TerminalFrame[] = [];
   const stop = src.subscribe((f) => void frames.push(f));
   await settle(60);
@@ -430,21 +727,46 @@ test("terminal: the polled source delivers each answer as the next frame and sur
   const seen = frames.length;
   await settle(20);
   assert.equal(frames.length, seen, "no frames after the subscription ends");
-  assert.deepEqual(frames.map((f) => f.seq), frames.map((_, i) => i + 1), "sequence numbers count up from one");
-  assert.ok(frames.length >= 1 && frames[0]?.data === `${REDRAW_LINE}a`, "the answer redraws the line the screen ends on, then writes what follows");
+  assert.deepEqual(
+    frames.map((f) => f.seq),
+    frames.map((_, i) => i + 1),
+    "sequence numbers count up from one",
+  );
+  assert.ok(
+    frames.length >= 1 && frames[0]?.data === `${REDRAW_LINE}a`,
+    "the answer redraws the line the screen ends on, then writes what follows",
+  );
 });
 
 /* ---------- links and the whole place ---------- */
 
 test("a link from another place opens the screen it names, and an unknown link opens the start", () => {
-  assert.deepEqual(fromHash("screen=chats.agent-page&agentId=agt_intake&tab=memory").route, { view: "agent", agentId: "agt_intake", tab: "memory" });
-  assert.deepEqual(fromHash("screen=chats.agent-page&agentId=agt_intake&tab=nope").route, { view: "agent", agentId: "agt_intake", tab: null });
-  assert.deepEqual(fromHash("screen=tasks.needs-you&taskId=n1").route, { view: "task", taskId: "n1" });   // the old Needs you link opens the task (l-tasks)
+  assert.deepEqual(fromHash("screen=chats.agent-page&agentId=agt_intake&tab=memory").route, {
+    view: "agent",
+    agentId: "agt_intake",
+    tab: "memory",
+  });
+  assert.deepEqual(fromHash("screen=chats.agent-page&agentId=agt_intake&tab=nope").route, {
+    view: "agent",
+    agentId: "agt_intake",
+    tab: null,
+  });
+  assert.deepEqual(fromHash("screen=tasks.needs-you&taskId=n1").route, { view: "task", taskId: "n1" }); // the old Needs you link opens the task (l-tasks)
   assert.deepEqual(fromHash("screen=chats.helper-chat&threadId=h1").route, { view: "helper", threadId: "h1" });
   assert.deepEqual(fromHash("screen=chats.conversation&threadId=c2").route, { view: "chat", threadId: "c2" });
-  assert.deepEqual(fromHash("screen=chats.computer-popup&computerId=cmp_1").layer, { kind: "computer", computerId: "cmp_1", chat: false });
-  assert.deepEqual(fromHash("screen=chats.recording-sheet&recordingId=rec_1").layer, { kind: "recording", recordingId: "rec_1" });
-  assert.deepEqual(fromHash("screen=chats.connect-outside-agent&channelId=ch_1").layer, { kind: "connect", channelId: "ch_1" });
+  assert.deepEqual(fromHash("screen=chats.computer-popup&computerId=cmp_1").layer, {
+    kind: "computer",
+    computerId: "cmp_1",
+    chat: false,
+  });
+  assert.deepEqual(fromHash("screen=chats.recording-sheet&recordingId=rec_1").layer, {
+    kind: "recording",
+    recordingId: "rec_1",
+  });
+  assert.deepEqual(fromHash("screen=chats.connect-outside-agent&channelId=ch_1").layer, {
+    kind: "connect",
+    channelId: "ch_1",
+  });
   assert.equal(fromHash("screen=chats.all-agents").layer?.kind, "all-agents");
   assert.equal(fromHash("screen=chats.terminal-list").layer?.kind, "terminals");
   assert.deepEqual(fromHash("screen=chats.terminal-rules").layer, { kind: "rules" });
@@ -452,8 +774,14 @@ test("a link from another place opens the screen it names, and an unknown link o
   assert.deepEqual(fromHash("screen=home.checklist"), START);
   assert.deepEqual(fromHash(""), START);
   const s = createMountSample();
-  assert.ok(has(html(s, undefined, "screen=chats.agent-page&agentId=agt_intake"), 'data-testid="agent-page"'), "the hash is the first thing shown");
-  assert.ok(has(html(s, undefined, "screen=tasks.needs-you"), 'data-testid="tasks-page"'), "an old Needs you link with no request opens Tasks (l-tasks)");
+  assert.ok(
+    has(html(s, undefined, "screen=chats.agent-page&agentId=agt_intake"), 'data-testid="agent-page"'),
+    "the hash is the first thing shown",
+  );
+  assert.ok(
+    has(html(s, undefined, "screen=tasks.needs-you"), 'data-testid="tasks-page"'),
+    "an old Needs you link with no request opens Tasks (l-tasks)",
+  );
 });
 
 test("every step changes only what it names: a page closes the layer, a layer keeps the page, the local row is never opened", () => {
@@ -461,8 +789,15 @@ test("every step changes only what it names: a page closes the layer, a layer ke
   assert.deepEqual(step(withLayer, { t: "layer-close" }), START);
   assert.equal(step(withLayer, { t: "agent", agentId: "a" }).layer, null);
   assert.equal(step(withLayer, { t: "chat", threadId: "c2" }).layer, null);
-  assert.deepEqual(step(START, { t: "chat", threadId: "local_1" }), START, "a row that chat.start has not answered for is not a thread");
-  assert.deepEqual(step(step(START, { t: "chat", threadId: "c2" }), { t: "layer", layer: { kind: "rules" } }).route, { view: "chat", threadId: "c2" });
+  assert.deepEqual(
+    step(START, { t: "chat", threadId: "local_1" }),
+    START,
+    "a row that chat.start has not answered for is not a thread",
+  );
+  assert.deepEqual(step(step(START, { t: "chat", threadId: "c2" }), { t: "layer", layer: { kind: "rules" } }).route, {
+    view: "chat",
+    threadId: "c2",
+  });
   assert.deepEqual(step(START, { t: "chat", threadId: "" }).route, { view: "new" });
   assert.equal(step(step(START, { t: "terminal", terminalId: "t" }), { t: "terminal-close" }).terminalId, null);
 });
@@ -473,17 +808,35 @@ test("the whole place with a runtime draws the sidebar and the open chat, and ev
   assert.ok(has(out, 'data-testid="chats-place"') && has(out, 'data-testid="conversation"'));
   const side = inSlot(s);
   assert.ok(has(side.out, 'data-testid="chats-sidebar"'), "the sidebar is drawn in the shell's slot");
-  for (const own of ["sidebar-head", "sidebar-toggle", "sidebar-collapsed", "sidebar-show", "chats-back", "chats-sidebar"]) assert.ok(!has(out, `data-testid="${own}"`), `${own}: the place draws no sidebar frame of its own`);
-  for (const id of ["helpers-button", "participants-button", "pane-button", "more-button"]) assert.ok(has(out, `data-testid="${id}"`), id);
+  for (const own of [
+    "sidebar-head",
+    "sidebar-toggle",
+    "sidebar-collapsed",
+    "sidebar-show",
+    "chats-back",
+    "chats-sidebar",
+  ])
+    assert.ok(!has(out, `data-testid="${own}"`), `${own}: the place draws no sidebar frame of its own`);
+  for (const id of ["helpers-button", "participants-button", "pane-button", "more-button"])
+    assert.ok(has(out, `data-testid="${id}"`), id);
   assert.ok(!has(out, "-loading"), "no loading frame once the Space is open");
 });
 
 test("the shipped place, through the shell provider and the runtime's live screens, draws Tasks with its count and the agents that wait on you", () => {
   const s = createMountSample();
-  const out = clean(renderToStaticMarkup(<ShellRuntimeProvider value={s.rt}><ChatsPlace /></ShellRuntimeProvider>));
+  const out = clean(
+    renderToStaticMarkup(
+      <ShellRuntimeProvider value={s.rt}>
+        <ChatsPlace />
+      </ShellRuntimeProvider>,
+    ),
+  );
   assert.ok(has(out, 'data-testid="chats-place"'), "the place itself draws");
   const side = inSlot(s).out;
-  assert.ok(has(side, 'data-testid="row-nav:tasks"') && has(side, 'data-testid="count-tasks"'), "the Tasks entry with its count, read through rt.screens");
+  assert.ok(
+    has(side, 'data-testid="row-nav:tasks"') && has(side, 'data-testid="count-tasks"'),
+    "the Tasks entry with its count, read through rt.screens",
+  );
   assert.ok(has(side, "vyre-waiting"), "an agent with a request wears the amber ring");
 });
 
@@ -496,12 +849,28 @@ test("a click on an agent opens its chat with the agent's pane beside it; the pa
   assert.ok(last && last.t === "chat" && last.pane === true, "the chat opens with the pane");
   assert.equal(shown().pane, true);
   const out = html(s, shown());
-  assert.ok(has(out, 'data-testid="chats-right-pane"') && has(out, 'data-testid="conversation"'), "the shared side pane beside the chat");
-  for (const tab of ["Computer", "Chats"]) assert.ok(has(out, tab), `${tab}: the pane fits its other tabs behind a menu when it is narrow (the Threads tab is called Chats: no chat is called a thread)`);
+  assert.ok(
+    has(out, 'data-testid="chats-right-pane"') && has(out, 'data-testid="conversation"'),
+    "the shared side pane beside the chat",
+  );
+  for (const tab of ["Computer", "Chats"])
+    assert.ok(
+      has(out, tab),
+      `${tab}: the pane fits its other tabs behind a menu when it is narrow (the Threads tab is called Chats: no chat is called a thread)`,
+    );
   const side = inSlot(s);
-  assert.ok(side.title === "Chats" && has(side.out, 'data-testid="sidebar-head"') && !has(side.out, "switch Space"), "the sidebar header reads Chats (the slot's title)");
-  assert.ok(has(side.out, 'data-testid="new-menu"') && !has(side.out, 'data-testid="sidebar-toggle"'), "New stays; the panel toggle is the slot's hide button");
-  assert.ok(has(inSlot(s, "docs").out, "Docs") && !has(inSlot(s, "docs").out, "Rivera intake"), "the slot's search narrows the rows");
+  assert.ok(
+    side.title === "Chats" && has(side.out, 'data-testid="sidebar-head"') && !has(side.out, "switch Space"),
+    "the sidebar header reads Chats (the slot's title)",
+  );
+  assert.ok(
+    has(side.out, 'data-testid="new-menu"') && !has(side.out, 'data-testid="sidebar-toggle"'),
+    "New stays; the panel toggle is the slot's hide button",
+  );
+  assert.ok(
+    has(inSlot(s, "docs").out, "Docs") && !has(inSlot(s, "docs").out, "Rivera intake"),
+    "the slot's search narrows the rows",
+  );
   // the pane's menu opens the full page
   wirePane(s.rt, go, "c1", { agentId: "agt_docs", name: "Docs" }).nav.openAgentPage("agt_docs");
   assert.deepEqual(acts[acts.length - 1], { t: "agent", agentId: "agt_docs" });
@@ -509,12 +878,18 @@ test("a click on an agent opens its chat with the agent's pane beside it; the pa
 
 test("terminal (release gate, 12 Nov): a refused attach locks only the Space server's shell; an agent's workspace shows its own words, and one that cannot be found says so", async () => {
   const { attachRefusal } = await import("../src/places/chats/terminal/TerminalTab.tsx");
-  const refused = (code: string, message: string): unknown => Object.assign(new Error(message), { code });   // as the app's call() throws it
+  const refused = (code: string, message: string): unknown => Object.assign(new Error(message), { code }); // as the app's call() throws it
   assert.deepEqual(attachRefusal(refused("permission.role_lacks_permission", "x"), "space_server"), { kind: "locked" });
-  const ws = attachRefusal(refused("permission.not_found", "We could not find that, or you cannot see it."), "agent_computer");
+  const ws = attachRefusal(
+    refused("permission.not_found", "We could not find that, or you cannot see it."),
+    "agent_computer",
+  );
   assert.equal(ws.kind, "error");
   assert.doesNotMatch((ws as { message: string }).message, /server\.services|server shell/);
   assert.match((ws as { message: string }).message, /no longer available/);
-  const priv = attachRefusal(refused("permission.role_lacks_permission", "That workspace is not yours to open."), "agent_computer");
+  const priv = attachRefusal(
+    refused("permission.role_lacks_permission", "That workspace is not yours to open."),
+    "agent_computer",
+  );
   assert.deepEqual(priv, { kind: "error", message: "That workspace is not yours to open." });
 });

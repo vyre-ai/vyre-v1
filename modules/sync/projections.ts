@@ -9,15 +9,32 @@ import type { OwnerFieldOf } from "../../sync/src/server/pull/fold.ts";
 export const PULL_SCHEMA = readFileSync(new URL("./migrations/0001_pull.sql", import.meta.url), "utf8");
 
 /** The events the sync lane reads. Record events come from the kernel store; `sync.row` and `sync.row_rescan` are for any module's own entities. */
-export const SYNC_EVENTS = ["record.created", "record.updated", "record.removed", "record.restored", "sync.row", "sync.row_rescan"] as const;
+export const SYNC_EVENTS = [
+  "record.created",
+  "record.updated",
+  "record.removed",
+  "record.restored",
+  "sync.row",
+  "sync.row_rescan",
+] as const;
 
 export function syncChanges(ownerFieldOf: OwnerFieldOf): InlineProjection {
   const on: InlineProjection["on"] = {};
-  for (const type of SYNC_EVENTS) on[type] = (tx, e) => { foldEvent(tx, e, ownerFieldOf); };
+  for (const type of SYNC_EVENTS)
+    on[type] = (tx, e) => {
+      foldEvent(tx, e, ownerFieldOf);
+    };
   return {
-    name: "sync.changes", version: 1, mode: "inline", rebuild: "replay",
-    init(tx) { tx.exec(PULL_SCHEMA); },
-    reset(tx) { tx.exec("DELETE FROM sync_changes; DELETE FROM sync_rows;"); },
+    name: "sync.changes",
+    version: 1,
+    mode: "inline",
+    rebuild: "replay",
+    init(tx) {
+      tx.exec(PULL_SCHEMA);
+    },
+    reset(tx) {
+      tx.exec("DELETE FROM sync_changes; DELETE FROM sync_rows;");
+    },
     on,
   };
 }

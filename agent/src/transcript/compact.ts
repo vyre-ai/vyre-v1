@@ -33,7 +33,9 @@ export function extractiveSummary(previous: string, turns: readonly Turn[]): str
     if (t.role === "person") lines.push(`Asked (turn ${t.n}): ${cutTo(words, 200)}`);
     else {
       const calls = t.parts.filter((p) => p.kind === "tool_call").length;
-      lines.push(`Answered (turn ${t.n})${calls ? `, ${calls} tool call${calls === 1 ? "" : "s"}` : ""}: ${cutTo(words, 200) || "no words"}${t.error ? ` (failed: ${t.error.code})` : ""}`);
+      lines.push(
+        `Answered (turn ${t.n})${calls ? `, ${calls} tool call${calls === 1 ? "" : "s"}` : ""}: ${cutTo(words, 200) || "no words"}${t.error ? ` (failed: ${t.error.code})` : ""}`,
+      );
     }
   }
   return lines.join("\n");
@@ -75,7 +77,11 @@ export interface RefreshOptions {
  * Bring the rolling summary up to date: everything but the last `keep` turns. Returns the summary after the call (unchanged when too few turns are waiting).
  * A summarizer that throws or answers nothing is replaced by the extract; the switch that asked for the summary goes on.
  */
-export async function refreshSummary(t: Transcript, summarize: Summarizer | undefined, o: RefreshOptions): Promise<Summary | null> {
+export async function refreshSummary(
+  t: Transcript,
+  summarize: Summarizer | undefined,
+  o: RefreshOptions,
+): Promise<Summary | null> {
   const keep = o.keep ?? HANDOFF.turns;
   const every = o.every ?? SUMMARY_EVERY;
   const count = t.count(o.threadId);
@@ -89,33 +95,82 @@ export async function refreshSummary(t: Transcript, summarize: Summarizer | unde
   let by = o.by ?? "summarizer";
   if (summarize) {
     try {
-      text = (await summarize({
-        threadId: o.threadId, previous, maxChars: SUMMARY_CHARS,
-        turns: waiting.map((x) => ({ n: x.n, role: x.role, who: x.authorId, text: plain(x, { tools: true }) })),
-      })).trim();
-    } catch { text = ""; }
+      text = (
+        await summarize({
+          threadId: o.threadId,
+          previous,
+          maxChars: SUMMARY_CHARS,
+          turns: waiting.map((x) => ({ n: x.n, role: x.role, who: x.authorId, text: plain(x, { tools: true }) })),
+        })
+      ).trim();
+    } catch {
+      text = "";
+    }
   }
-  if (text === "") { text = extractiveSummary(previous, waiting); by = "extract"; }
+  if (text === "") {
+    text = extractiveSummary(previous, waiting);
+    by = "extract";
+  }
   const next: Summary = { threadId: o.threadId, text: fit(text), upTo, by, at: (o.now ?? Date.now)() };
   t.setSummary(next);
   return t.summary(o.threadId);
 }
 
-export interface RolloverCheck extends RollDecision { ctx: Context }
+export interface RolloverCheck extends RollDecision {
+  ctx: Context;
+}
 
 /** Whether this thread's window is full enough to roll now, from the engine's report (`used`) or an estimate from the characters said since `fromTurn`. */
 export function rolloverCheck(
   t: Pick<Transcript, "turns">,
-  o: { threadId: string; used?: number; /** The characters said so far, when the caller has no transcript rows to count (the engine module counts the chat's messages). */ chars?: number; window?: number; model?: string | null; provider?: string | null; fromTurn?: number; blocked?: string | null; jobs?: number; waited?: number; sinceRoll?: number | null; limits?: RollLimits },
+  o: {
+    threadId: string;
+    used?: number;
+    /** The characters said so far, when the caller has no transcript rows to count (the engine module counts the chat's messages). */ chars?: number;
+    window?: number;
+    model?: string | null;
+    provider?: string | null;
+    fromTurn?: number;
+    blocked?: string | null;
+    jobs?: number;
+    waited?: number;
+    sinceRoll?: number | null;
+    limits?: RollLimits;
+  },
 ): RolloverCheck {
   const chars = o.chars ?? t.turns(o.threadId, o.fromTurn ?? 1).reduce((n, x) => n + plain(x).length, 0);
-  const ctx = contextOf({ ...(o.used === undefined ? {} : { used: o.used }), ...(o.window === undefined ? {} : { window: o.window }), chars, model: o.model ?? null, provider: o.provider ?? null });
-  return { ...decide({ ctx, ...(o.blocked === undefined ? {} : { blocked: o.blocked }), ...(o.jobs === undefined ? {} : { jobs: o.jobs }), ...(o.waited === undefined ? {} : { waited: o.waited }), ...(o.sinceRoll === undefined ? {} : { sinceRoll: o.sinceRoll }), ...(o.limits ? { limits: o.limits } : {}) }), ctx };
+  const ctx = contextOf({
+    ...(o.used === undefined ? {} : { used: o.used }),
+    ...(o.window === undefined ? {} : { window: o.window }),
+    chars,
+    model: o.model ?? null,
+    provider: o.provider ?? null,
+  });
+  return {
+    ...decide({
+      ctx,
+      ...(o.blocked === undefined ? {} : { blocked: o.blocked }),
+      ...(o.jobs === undefined ? {} : { jobs: o.jobs }),
+      ...(o.waited === undefined ? {} : { waited: o.waited }),
+      ...(o.sinceRoll === undefined ? {} : { sinceRoll: o.sinceRoll }),
+      ...(o.limits ? { limits: o.limits } : {}),
+    }),
+    ctx,
+  };
 }
 
 /** The seed for a rolled session: the summary, the pointers and the last turns, built from the transcript. */
-export async function rollSeed(t: Transcript, summarize: Summarizer | undefined, o: HandoffOptions & { now?: () => number }): Promise<Seed> {
-  await refreshSummary(t, summarize, { threadId: o.threadId, ...(o.turns === undefined ? {} : { keep: o.turns }), ...(o.now ? { now: o.now } : {}), every: 1 });
+export async function rollSeed(
+  t: Transcript,
+  summarize: Summarizer | undefined,
+  o: HandoffOptions & { now?: () => number },
+): Promise<Seed> {
+  await refreshSummary(t, summarize, {
+    threadId: o.threadId,
+    ...(o.turns === undefined ? {} : { keep: o.turns }),
+    ...(o.now ? { now: o.now } : {}),
+    every: 1,
+  });
   return renderHandoff(buildHandoff(t, o), { kind: "roll", ...(o.limits ? { limits: o.limits } : {}) });
 }
 

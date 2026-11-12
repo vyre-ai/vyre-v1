@@ -18,14 +18,28 @@ export { cacheDir, ensureTemplate, templateKey } from "./cache.ts";
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 export const REPO = path.resolve(HERE, "../../..");
 /** The files whose content defines the seed. */
-export const CORE_SOURCES: readonly string[] = [path.join(HERE, "recipe.ts"), path.join(HERE, "access.ts"), path.join(REPO, "kernel/src/grants/roles.ts"), path.join(REPO, "kernel/src/authorize/roles.ts"), path.join(REPO, "manifests/permissions.ts")];
+export const CORE_SOURCES: readonly string[] = [
+  path.join(HERE, "recipe.ts"),
+  path.join(HERE, "access.ts"),
+  path.join(REPO, "kernel/src/grants/roles.ts"),
+  path.join(REPO, "kernel/src/authorize/roles.ts"),
+  path.join(REPO, "manifests/permissions.ts"),
+];
 let memo: string | undefined;
-export const registryHash = (): string => (memo ??= createHash("sha256").update(fs.readFileSync(path.join(REPO, "generated/registry.json"))).digest("hex"));
+export const registryHash = (): string =>
+  (memo ??= createHash("sha256")
+    .update(fs.readFileSync(path.join(REPO, "generated/registry.json")))
+    .digest("hex"));
 
 /** The wall time the template is built at, so the same recipe makes the same envelopes. */
 const TEMPLATE_TIME = 1_790_000_000_000;
 
-export interface BootOptions { cache?: string; scratch?: string; sources?: readonly string[]; registry?: string }
+export interface BootOptions {
+  cache?: string;
+  scratch?: string;
+  sources?: readonly string[];
+  registry?: string;
+}
 export interface CoreSpace {
   space: string;
   store: LogStore;
@@ -49,5 +63,18 @@ export function bootCore(o: BootOptions = {}): CoreSpace {
   const file = copyTemplate(tpl, scratch);
   const store = new LogStore({ db: new DatabaseSync(file), space: CORE_SPACE });
   const snapshot = buildSnapshot(store.read({ limit: 5000 }));
-  return { space: CORE_SPACE, store, snapshot, hit: tpl.hit, key, file, close: () => { store.close(); fs.rmSync(file, { force: true }); fs.rmSync(`${file}-wal`, { force: true }); fs.rmSync(`${file}-shm`, { force: true }); } };
+  return {
+    space: CORE_SPACE,
+    store,
+    snapshot,
+    hit: tpl.hit,
+    key,
+    file,
+    close: () => {
+      store.close();
+      fs.rmSync(file, { force: true });
+      fs.rmSync(`${file}-wal`, { force: true });
+      fs.rmSync(`${file}-shm`, { force: true });
+    },
+  };
 }

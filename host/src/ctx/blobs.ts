@@ -14,7 +14,8 @@ const SALT = "vyre/ctx.blobs/v1";
 const ID = /^blb_[a-f0-9]{32}$/;
 const MODULE = /^[a-z][a-z0-9_-]{0,63}$/i;
 const ZERO_TRACE = "0".repeat(32);
-const IV = 12, TAG = 16;
+const IV = 12,
+  TAG = 16;
 
 export const BLOB_LIMITS = { blobBytes: 256 * 1024 * 1024, moduleBytes: 8 * 1024 * 1024 * 1024 } as const;
 
@@ -28,10 +29,17 @@ export interface BlobStoreOptions {
   maxModuleBytes?: number;
 }
 
-export interface BlobResource { type: string; id: string }
-export interface PutOptions { /** the resource this blob belongs to; read access to it decides who may fetch the blob over HTTP */ resource?: BlobResource }
+export interface BlobResource {
+  type: string;
+  id: string;
+}
+export interface PutOptions {
+  /** the resource this blob belongs to; read access to it decides who may fetch the blob over HTTP */ resource?: BlobResource;
+}
 /** What the module's handle offers: the contract's Blobs, with put taking the resource it belongs to. */
-export interface ModuleBlobs extends Blobs { put(bytes: Uint8Array, contentType: string, opts?: PutOptions): Promise<BlobMeta> }
+export interface ModuleBlobs extends Blobs {
+  put(bytes: Uint8Array, contentType: string, opts?: PutOptions): Promise<BlobMeta>;
+}
 
 export interface BlobStore {
   /** The blobs handle for one module. traceId names errors raised for the call. */
@@ -42,7 +50,10 @@ export interface BlobStore {
   usage(moduleId: string): number;
 }
 
-interface Stored extends BlobMeta { module: string; resource?: BlobResource }
+interface Stored extends BlobMeta {
+  module: string;
+  resource?: BlobResource;
+}
 
 const RESOURCE_TYPE = /^[a-z][a-z0-9_]{0,31}$/;
 
@@ -57,13 +68,21 @@ export function createBlobStore(o: BlobStoreOptions): BlobStore {
   const metaFile = (id: string): string => path.join(o.dir, `${id}.json`);
 
   function readMeta(id: string): Stored | null {
-    try { return JSON.parse(fs.readFileSync(metaFile(id), "utf8")) as Stored; } catch { return null; }
+    try {
+      return JSON.parse(fs.readFileSync(metaFile(id), "utf8")) as Stored;
+    } catch {
+      return null;
+    }
   }
   function scan(): void {
     if (scanned) return;
     scanned = true;
     let names: string[] = [];
-    try { names = fs.readdirSync(o.dir); } catch { return; }
+    try {
+      names = fs.readdirSync(o.dir);
+    } catch {
+      return;
+    }
     for (const n of names) {
       if (!n.endsWith(".json")) continue;
       const m = readMeta(n.slice(0, -5));
@@ -74,7 +93,10 @@ export function createBlobStore(o: BlobStoreOptions): BlobStore {
   const strip = ({ module: _m, resource: _r, ...meta }: Stored): BlobMeta => meta;
 
   return {
-    usage(moduleId) { scan(); return used.get(moduleId) ?? 0; },
+    usage(moduleId) {
+      scan();
+      return used.get(moduleId) ?? 0;
+    },
     ownerOf(id) {
       if (typeof id !== "string" || !ID.test(id)) return null;
       const m = readMeta(id);
@@ -87,28 +109,63 @@ export function createBlobStore(o: BlobStoreOptions): BlobStore {
         if (typeof id !== "string" || !ID.test(id)) return null;
         const m = readMeta(id);
         if (!m) return null;
-        if (m.module !== moduleId) throw fail("permission.no_grant", traceId, { message: "A module may only use its own blobs.", details: { module: moduleId } });
+        if (m.module !== moduleId)
+          throw fail("permission.no_grant", traceId, {
+            message: "A module may only use its own blobs.",
+            details: { module: moduleId },
+          });
         return m;
       };
       return {
         async put(bytes, contentType, opts) {
-          if (!(bytes instanceof Uint8Array)) throw fail("validation.bad_input", traceId, { message: "A blob is bytes." });
-          if (typeof contentType !== "string" || !contentType || contentType.length > 255) throw fail("validation.bad_input", traceId, { message: "A blob needs a content type." });
-          if (bytes.byteLength > maxBlob) throw fail("validation.too_large", traceId, { message: "That blob is too large.", details: { bytes: bytes.byteLength, cap: maxBlob } });
+          if (!(bytes instanceof Uint8Array))
+            throw fail("validation.bad_input", traceId, { message: "A blob is bytes." });
+          if (typeof contentType !== "string" || !contentType || contentType.length > 255)
+            throw fail("validation.bad_input", traceId, { message: "A blob needs a content type." });
+          if (bytes.byteLength > maxBlob)
+            throw fail("validation.too_large", traceId, {
+              message: "That blob is too large.",
+              details: { bytes: bytes.byteLength, cap: maxBlob },
+            });
           const r = opts?.resource;
-          if (r !== undefined && (typeof r !== "object" || r === null || typeof r.type !== "string" || !RESOURCE_TYPE.test(r.type) || typeof r.id !== "string" || r.id.length === 0 || r.id.length > 200)) {
+          if (
+            r !== undefined &&
+            (typeof r !== "object" ||
+              r === null ||
+              typeof r.type !== "string" ||
+              !RESOURCE_TYPE.test(r.type) ||
+              typeof r.id !== "string" ||
+              r.id.length === 0 ||
+              r.id.length > 200)
+          ) {
             throw fail("validation.bad_input", traceId, { message: "A blob's resource is { type, id }." });
           }
           scan();
           const total = used.get(moduleId) ?? 0;
-          if (total + bytes.byteLength > maxModule) throw fail("validation.too_large", traceId, { message: "This module has used all its blob storage.", details: { used: total, cap: maxModule } });
+          if (total + bytes.byteLength > maxModule)
+            throw fail("validation.too_large", traceId, {
+              message: "This module has used all its blob storage.",
+              details: { used: total, cap: maxModule },
+            });
           const id = `blb_${mintUuid(now()).replaceAll("-", "")}`;
           const box = aesWrap(keyFor(moduleId), bytes, id);
-          const sealed = Buffer.concat([Buffer.from(box.iv, "base64url"), Buffer.from(box.tag, "base64url"), Buffer.from(box.ct, "base64url")]);
-          const meta: Stored = { id, module: moduleId, contentType, size: bytes.byteLength, sha256: Buffer.from(sha256b64(bytes), "base64url").toString("hex"), createdAt: now(), ...(r ? { resource: { type: r.type, id: r.id } } : {}) };
+          const sealed = Buffer.concat([
+            Buffer.from(box.iv, "base64url"),
+            Buffer.from(box.tag, "base64url"),
+            Buffer.from(box.ct, "base64url"),
+          ]);
+          const meta: Stored = {
+            id,
+            module: moduleId,
+            contentType,
+            size: bytes.byteLength,
+            sha256: Buffer.from(sha256b64(bytes), "base64url").toString("hex"),
+            createdAt: now(),
+            ...(r ? { resource: { type: r.type, id: r.id } } : {}),
+          };
           fs.mkdirSync(o.dir, { recursive: true, mode: 0o700 });
           fs.writeFileSync(bin(id), sealed, { mode: 0o600 });
-          fs.writeFileSync(metaFile(id), JSON.stringify(meta), { mode: 0o600 });   // the metadata lands last: a blob without it does not exist
+          fs.writeFileSync(metaFile(id), JSON.stringify(meta), { mode: 0o600 }); // the metadata lands last: a blob without it does not exist
           used.set(moduleId, total + bytes.byteLength);
           return strip(meta);
         },
@@ -116,11 +173,30 @@ export function createBlobStore(o: BlobStoreOptions): BlobStore {
           const m = own(id);
           if (!m) return null;
           let file: Buffer;
-          try { file = fs.readFileSync(bin(id)); } catch { return null; }
-          if (file.length < IV + TAG) throw fail("internal.unexpected", traceId, { message: "Something went wrong on our side.", details: { why: "blob file is truncated" } });
-          const box = { iv: file.subarray(0, IV).toString("base64url"), tag: file.subarray(IV, IV + TAG).toString("base64url"), ct: file.subarray(IV + TAG).toString("base64url") };
+          try {
+            file = fs.readFileSync(bin(id));
+          } catch {
+            return null;
+          }
+          if (file.length < IV + TAG)
+            throw fail("internal.unexpected", traceId, {
+              message: "Something went wrong on our side.",
+              details: { why: "blob file is truncated" },
+            });
+          const box = {
+            iv: file.subarray(0, IV).toString("base64url"),
+            tag: file.subarray(IV, IV + TAG).toString("base64url"),
+            ct: file.subarray(IV + TAG).toString("base64url"),
+          };
           let plain: Buffer;
-          try { plain = aesUnwrap(keyFor(moduleId), box, id); } catch { throw fail("internal.unexpected", traceId, { message: "Something went wrong on our side.", details: { why: "blob does not open" } }); }
+          try {
+            plain = aesUnwrap(keyFor(moduleId), box, id);
+          } catch {
+            throw fail("internal.unexpected", traceId, {
+              message: "Something went wrong on our side.",
+              details: { why: "blob does not open" },
+            });
+          }
           return { meta: strip(m), bytes: new Uint8Array(plain) };
         },
         async stat(id) {
@@ -131,7 +207,7 @@ export function createBlobStore(o: BlobStoreOptions): BlobStore {
           const m = own(id);
           if (!m) return false;
           scan();
-          fs.rmSync(metaFile(id), { force: true });   // metadata first: the blob stops existing before its bytes go
+          fs.rmSync(metaFile(id), { force: true }); // metadata first: the blob stops existing before its bytes go
           fs.rmSync(bin(id), { force: true });
           used.set(moduleId, Math.max(0, (used.get(moduleId) ?? 0) - m.size));
           return true;

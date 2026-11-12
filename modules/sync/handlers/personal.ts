@@ -1,7 +1,13 @@
 // The sync module's side of a Personal Space (ARCH 5.13, spec 2.1): the host device's role. `createPersonalHost` holds the Space kind, the capabilities the Personal matrix refuses and the host's
 // presence; it gates a call before the handler runs, guards a handler table, and gives devices the relay's view of the host. The host's invoke pipeline calls `gate` for every capability of a
 // Personal Space (that wiring is the lead's: host/src/invoke.ts is frozen), and the relay endpoint of the daemon uses `relay` so a device sees "Your computer is off" while it is.
-import { guardDeviceEpoch, placeAgentTurn, refuseTeamOnly, relayTo, teamOnlySet } from "../../../sync/src/personal/index.ts";
+import {
+  guardDeviceEpoch,
+  placeAgentTurn,
+  refuseTeamOnly,
+  relayTo,
+  teamOnlySet,
+} from "../../../sync/src/personal/index.ts";
 import type { CapabilityRow, DeviceEpoch, Presence, Relay, SpaceKind } from "../../../sync/src/personal/index.ts";
 
 type Handler = (ctx: never, input: never) => Promise<unknown>;
@@ -38,8 +44,14 @@ export interface PersonalHost {
 
 export function createPersonalHost(o: PersonalHostOpts): PersonalHost {
   const teamOnly = teamOnlySet(o.caps);
-  const traceOf = o.traceOf ?? ((c: unknown) => (c as { trace?: { traceId?: string } } | null)?.trace?.traceId ?? "0".repeat(32));
-  const whoOf = o.whoOf ?? ((c: unknown) => { const x = c as { principal?: string; deviceId?: string } | null; return { person: x?.principal ?? "", device: x?.deviceId ?? "" }; });
+  const traceOf =
+    o.traceOf ?? ((c: unknown) => (c as { trace?: { traceId?: string } } | null)?.trace?.traceId ?? "0".repeat(32));
+  const whoOf =
+    o.whoOf ??
+    ((c: unknown) => {
+      const x = c as { principal?: string; deviceId?: string } | null;
+      return { person: x?.principal ?? "", device: x?.deviceId ?? "" };
+    });
   const state = { on: true };
   const presence = (): Presence => (state.on ? "present" : "absent");
   const host: PersonalHost = {
@@ -56,9 +68,15 @@ export function createPersonalHost(o: PersonalHostOpts): PersonalHost {
       }
       return out as unknown as typeof handlers;
     },
-    relay: (handlers) => relayTo(o.deviceEpoch ? guardDeviceEpoch(handlers, { epoch: o.deviceEpoch, whoOf, traceOf }) : handlers, { traceOf, state }),
+    relay: (handlers) =>
+      relayTo(o.deviceEpoch ? guardDeviceEpoch(handlers, { epoch: o.deviceEpoch, whoOf, traceOf }) : handlers, {
+        traceOf,
+        state,
+      }),
     presence,
-    setPresence(p) { state.on = p === "present"; },
+    setPresence(p) {
+      state.on = p === "present";
+    },
     placeTurn: () => placeAgentTurn(o.kind(), presence()),
   };
   return host;

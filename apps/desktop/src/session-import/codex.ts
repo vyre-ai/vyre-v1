@@ -7,16 +7,35 @@ export async function readCodexSession(source: SessionSource): Promise<ImportedS
   const messages: VisibleMessage[] = [];
   for (const line of await completeJsonLines(source.transcriptPath, warnings)) {
     if (!isRecord(line) || line.type !== "response_item" || !isRecord(line.payload)) {
-      if (isRecord(line) && line.type === "event_msg") warnings.push("Ignored duplicate/non-canonical response_item event.");
+      if (isRecord(line) && line.type === "event_msg")
+        warnings.push("Ignored duplicate/non-canonical response_item event.");
       continue;
     }
     const payload = line.payload;
-    if (payload.type !== "message" || (payload.role !== "user" && payload.role !== "assistant") || typeof payload.id !== "string") continue;
+    if (
+      payload.type !== "message" ||
+      (payload.role !== "user" && payload.role !== "assistant") ||
+      typeof payload.id !== "string"
+    )
+      continue;
     const text = textContent(payload.content);
     if (!text) continue;
-    messages.push({ id: payload.id, role: payload.role, text, ...(typeof line.timestamp === "string" ? { at: line.timestamp } : {}) });
+    messages.push({
+      id: payload.id,
+      role: payload.role,
+      text,
+      ...(typeof line.timestamp === "string" ? { at: line.timestamp } : {}),
+    });
   }
-  return { provider: "codex", sessionId: source.sessionId, sessionKey: source.sessionKey, projectKey: source.projectKey, ...(source.cwd ? { cwd: source.cwd } : {}), messages, warnings };
+  return {
+    provider: "codex",
+    sessionId: source.sessionId,
+    sessionKey: source.sessionKey,
+    projectKey: source.projectKey,
+    ...(source.cwd ? { cwd: source.cwd } : {}),
+    messages,
+    warnings,
+  };
 }
 
 export async function completeJsonLines(file: string, warnings: string[]): Promise<unknown[]> {
@@ -26,8 +45,14 @@ export async function completeJsonLines(file: string, warnings: string[]): Promi
   const out: unknown[] = [];
   for (const [index, line] of lines.entries()) {
     if (!line.trim()) continue;
-    try { out.push(JSON.parse(line)); } catch {
-      warnings.push(index === lines.length - 1 ? "Ignored corrupt final JSONL record (possibly partial)." : "Ignored corrupt JSONL record.");
+    try {
+      out.push(JSON.parse(line));
+    } catch {
+      warnings.push(
+        index === lines.length - 1
+          ? "Ignored corrupt final JSONL record (possibly partial)."
+          : "Ignored corrupt JSONL record.",
+      );
     }
   }
   return out;
@@ -35,5 +60,12 @@ export async function completeJsonLines(file: string, warnings: string[]): Promi
 
 function textContent(value: unknown): string {
   if (!Array.isArray(value)) return "";
-  return value.flatMap((part) => isRecord(part) && (part.type === "input_text" || part.type === "output_text") && typeof part.text === "string" ? [part.text] : []).join("\n").trim();
+  return value
+    .flatMap((part) =>
+      isRecord(part) && (part.type === "input_text" || part.type === "output_text") && typeof part.text === "string"
+        ? [part.text]
+        : [],
+    )
+    .join("\n")
+    .trim();
 }

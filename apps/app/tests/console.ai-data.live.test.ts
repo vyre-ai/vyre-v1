@@ -4,13 +4,16 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import { createCapCaller } from "../../../client/src/gateway/index.ts";
 import { routes } from "../../../generated/routes.ts";
-import { bootFreshSpace, claimOnEdge, edge, dismissOnboarding} from "./real-app-harness.test.ts";
+import { bootFreshSpace, claimOnEdge, edge, dismissOnboarding } from "./real-app-harness.test.ts";
 import { openConsole, openConsolePage } from "./console-nav.ts";
 import { guardCrashes } from "./crash-guard.ts";
 
 test("production Console AI/Data: policies, spend, Gate, review, incidents, holds, export and typed schema persist", async (t) => {
   const dist = process.env["VYRE_APP_DIST"];
-  if (!dist) { t.skip("VYRE_APP_DIST is required for production browser evidence"); return; }
+  if (!dist) {
+    t.skip("VYRE_APP_DIST is required for production browser evidence");
+    return;
+  }
   const { chromium } = await import("playwright-core");
   const exe = process.env["CHROME_BIN"] || chromium.executablePath();
   if (!fs.existsSync(exe)) assert.fail(`Chromium is required at ${exe}`);
@@ -21,125 +24,305 @@ test("production Console AI/Data: policies, spend, Gate, review, incidents, hold
   const page = await context.newPage();
   const guard = guardCrashes(page);
   const captureDir = process.env["VYRE_TEST_CAPTURE_DIR"];
-  const capture = async (name: string): Promise<void> => { await guard.check(`before screenshot ${name}`); if (captureDir) { fs.mkdirSync(captureDir, { recursive: true }); await page.screenshot({ path: `${captureDir}/${name}.png`, fullPage: true }); } };
-  const errors: string[] = [], refused: string[] = [];
+  const capture = async (name: string): Promise<void> => {
+    await guard.check(`before screenshot ${name}`);
+    if (captureDir) {
+      fs.mkdirSync(captureDir, { recursive: true });
+      await page.screenshot({ path: `${captureDir}/${name}.png`, fullPage: true });
+    }
+  };
+  const errors: string[] = [],
+    refused: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
-  page.on("response", (response) => { if (response.url().includes("/v1/") && response.status() >= 400) void response.text().then((body) => refused.push(`${response.status()} ${new URL(response.url()).pathname}: ${body.slice(0, 180)}`)); });
+  page.on("response", (response) => {
+    if (response.url().includes("/v1/") && response.status() >= 400)
+      void response
+        .text()
+        .then((body) =>
+          refused.push(`${response.status()} ${new URL(response.url()).pathname}: ${body.slice(0, 180)}`),
+        );
+  });
   try {
     await page.goto(claimOnEdge(space.claim!, web.origin), { waitUntil: "load" });
-    await page.getByTestId("claim-name").fill("AI Data Owner"); await page.getByTestId("claim-username").fill("aidata");
-    await page.getByTestId("claim-password").fill("fixture password 123"); await page.getByTestId("claim-confirm").fill("fixture password 123");
-    await page.getByTestId("claim-next").click(); await page.getByTestId("claim-saved").click(); await page.getByTestId("claim-create").click();await dismissOnboarding(page);
+    await page.getByTestId("claim-name").fill("AI Data Owner");
+    await page.getByTestId("claim-username").fill("aidata");
+    await page.getByTestId("claim-password").fill("fixture password 123");
+    await page.getByTestId("claim-confirm").fill("fixture password 123");
+    await page.getByTestId("claim-next").click();
+    await page.getByTestId("claim-saved").click();
+    await page.getByTestId("claim-create").click();
+    await dismissOnboarding(page);
     await page.getByTestId("shell").waitFor({ timeout: 30_000 });
-    const token = await page.evaluate(() => { const saved = JSON.parse(localStorage.getItem("vyre.session.v1")!); const origin = (globalThis as unknown as { location: { origin: string } }).location.origin; return saved.sessions?.[origin]?.token ?? saved.token; });
+    const token = await page.evaluate(() => {
+      const saved = JSON.parse(localStorage.getItem("vyre.session.v1")!);
+      const origin = (globalThis as unknown as { location: { origin: string } }).location.origin;
+      return saved.sessions?.[origin]?.token ?? saved.token;
+    });
     const api = createCapCaller({ baseUrl: web.origin, token: () => token, routes: async () => routes });
     /** Open a Console page the way a person does: the place, its tab, the view, then wait for the page's own marker. */
     const open = async (pageId: string, marker: string): Promise<void> => {
-      await openConsole(page, web.origin); await openConsolePage(page, pageId);
-      await page.locator(marker).waitFor({ timeout: 20_000 }); await guard.check(`after opening ${pageId}`);
+      await openConsole(page, web.origin);
+      await openConsolePage(page, pageId);
+      await page.locator(marker).waitFor({ timeout: 20_000 });
+      await guard.check(`after opening ${pageId}`);
     };
 
     await open("aiaccounts", '[data-testid="console-ai-accounts"]');
     // the one switch: People can use their own AI sign-ins; off, everyone uses the Space's accounts ("company"), read back from the server
-    await page.getByTestId("ai-own-switch").click(); await page.getByText("Everyone uses the Space's AI accounts", { exact: true }).first().waitFor();
-    assert.equal((await api("engine.policy.get", {}) as { allowedAccounts: string }).allowedAccounts, "company");
+    await page.getByTestId("ai-own-switch").click();
+    await page.getByText("Everyone uses the Space's AI accounts", { exact: true }).first().waitFor();
+    assert.equal(((await api("engine.policy.get", {})) as { allowedAccounts: string }).allowedAccounts, "company");
     await capture("models-policy");
-    t.diagnostic("PASS Models policy mutation and readback"); await guard.check("after Models policy mutation and readback");
+    t.diagnostic("PASS Models policy mutation and readback");
+    await guard.check("after Models policy mutation and readback");
 
     await open("spend", '[data-testid="console-ai-spend"]');
-    await page.getByRole("button", { name: "Edit limits", exact: true }).click(); await page.getByLabel("Per day ($)", { exact: true }).fill("3.5");
-    await page.getByRole("button", { name: "Review limit changes", exact: true }).click(); await page.getByRole("button", { name: "Apply limits", exact: true }).click(); await page.getByText("Limits updated", { exact: true }).waitFor();
-    assert.equal((await api("engine.spend.get", { scope: "space" }) as { caps: { dayMicros?: number } }).caps.dayMicros, 3_500_000);
-    t.diagnostic("PASS Spend cap mutation and readback"); await guard.check("after Spend cap mutation and readback");
+    await page.getByRole("button", { name: "Edit limits", exact: true }).click();
+    await page.getByLabel("Per day ($)", { exact: true }).fill("3.5");
+    await page.getByRole("button", { name: "Review limit changes", exact: true }).click();
+    await page.getByRole("button", { name: "Apply limits", exact: true }).click();
+    await page.getByText("Limits updated", { exact: true }).waitFor();
+    assert.equal(
+      ((await api("engine.spend.get", { scope: "space" })) as { caps: { dayMicros?: number } }).caps.dayMicros,
+      3_500_000,
+    );
+    t.diagnostic("PASS Spend cap mutation and readback");
+    await guard.check("after Spend cap mutation and readback");
 
     await open("gate", '[data-testid="console"]');
-    await page.getByText(/Send a message · medium risk/i).click(); await page.getByRole("button", { name: "Decision", exact: true }).click(); await page.getByRole("menuitem", { name: "Require approval", exact: true }).click();
-    await page.getByTestId("gate-rule-review").click(); await page.getByTestId("gate-rule-apply").click(); await page.getByText("Approval rule saved", { exact: true }).waitFor();
-    assert.equal((await api("gate.rules.list", { scope: "space" }) as { rules: { act: string; mode: string }[] }).rules.find((rule) => rule.act === "send")?.mode, "hold");
-    t.diagnostic("PASS Gate mutation and readback"); await guard.check("after Gate mutation and readback");
+    await page.getByText(/Send a message · medium risk/i).click();
+    await page.getByRole("button", { name: "Decision", exact: true }).click();
+    await page.getByRole("menuitem", { name: "Require approval", exact: true }).click();
+    await page.getByTestId("gate-rule-review").click();
+    await page.getByTestId("gate-rule-apply").click();
+    await page.getByText("Approval rule saved", { exact: true }).waitFor();
+    assert.equal(
+      ((await api("gate.rules.list", { scope: "space" })) as { rules: { act: string; mode: string }[] }).rules.find(
+        (rule) => rule.act === "send",
+      )?.mode,
+      "hold",
+    );
+    t.diagnostic("PASS Gate mutation and readback");
+    await guard.check("after Gate mutation and readback");
 
     await open("review", '[data-testid="console-ai-review"]');
-    await page.getByLabel("Percent of turns", { exact: true }).fill("25"); await page.getByRole("button", { name: "Review sampling change", exact: true }).click(); await page.getByRole("button", { name: "Apply sampling", exact: true }).click(); await page.getByText("Review sampling updated", { exact: true }).waitFor();
-    assert.equal((await api("settings.get", { key: "engine.review_sampling" }) as { row: { value: { percent: number } } }).row.value.percent, 25);
-    t.diagnostic("PASS Review sampling mutation and readback"); await guard.check("after Review sampling mutation and readback");
+    await page.getByLabel("Percent of turns", { exact: true }).fill("25");
+    await page.getByRole("button", { name: "Review sampling change", exact: true }).click();
+    await page.getByRole("button", { name: "Apply sampling", exact: true }).click();
+    await page.getByText("Review sampling updated", { exact: true }).waitFor();
+    assert.equal(
+      ((await api("settings.get", { key: "engine.review_sampling" })) as { row: { value: { percent: number } } }).row
+        .value.percent,
+      25,
+    );
+    t.diagnostic("PASS Review sampling mutation and readback");
+    await guard.check("after Review sampling mutation and readback");
 
     await open("incidents", '[data-testid="console-ai-incidents"]');
-    await page.getByTestId("incident-open").click(); await page.getByTestId("incident-sheet").waitFor(); await page.getByLabel("Title", { exact: true }).fill("Browser AI incident"); await page.getByLabel("Opening note", { exact: true }).fill("Opened by production proof"); await page.getByRole("button", { name: "Open incident", exact: true }).click();
+    await page.getByTestId("incident-open").click();
+    await page.getByTestId("incident-sheet").waitFor();
+    await page.getByLabel("Title", { exact: true }).fill("Browser AI incident");
+    await page.getByLabel("Opening note", { exact: true }).fill("Opened by production proof");
+    await page.getByRole("button", { name: "Open incident", exact: true }).click();
     await page.getByText("Browser AI incident", { exact: true }).first().waitFor();
-    const incident = (await api("engine.incidents.list", { state: ["open"], limit: 100 }) as { incidents: { incidentId: string; title: string }[] }).incidents.find((row) => row.title === "Browser AI incident"); assert.ok(incident);
-    await page.getByTestId("object-action-assign").click(); await page.getByRole("button", { name: "Owner", exact: true }).click();
-    const principals = (await api("access.principals.list", { kind: "person", limit: 100 }) as { principals: { id: string; name: string }[] }).principals; const owner = principals[0]; assert.ok(owner, "the claimed Space exposes its owner principal");
-    const ownerMenu = await page.getByRole("menuitem").allTextContents(); t.diagnostic(`Incident owner evidence: principals=${JSON.stringify(principals.map((person) => `${person.id}:${person.name}`))} menu=${JSON.stringify(ownerMenu)}`); assert.ok(ownerMenu.includes(owner.name), "the assignment menu names the live owner principal");
-    await page.getByRole("menuitem", { name: owner.name, exact: true }).click(); await page.getByTestId("object-sheet").getByRole("button", { name: "Assign owner", exact: true }).click(); await page.getByText("Incident assigned", { exact: true }).waitFor();
-    await page.getByLabel("Resolution or note", { exact: true }).fill("Verified note"); await page.getByRole("button", { name: "Add note", exact: true }).click(); await page.getByText("Note added", { exact: true }).waitFor();
-    await page.getByTestId("object-more").click(); await page.getByRole("menuitem", { name: "Resolve incident", exact: true }).click(); await page.getByTestId("object-confirm-go").click(); await page.getByText("Incident resolved", { exact: true }).waitFor();
-    const resolved = await api("engine.incident.get", { incidentId: incident.incidentId }) as { incident: { state: string; ownerId?: string; notes: { text: string }[] } };
-    assert.equal(resolved.incident.state, "resolved"); assert.equal(resolved.incident.ownerId, owner.id); assert.ok(resolved.incident.notes.some((note) => note.text === "Verified note"));
+    const incident = (
+      (await api("engine.incidents.list", { state: ["open"], limit: 100 })) as {
+        incidents: { incidentId: string; title: string }[];
+      }
+    ).incidents.find((row) => row.title === "Browser AI incident");
+    assert.ok(incident);
+    await page.getByTestId("object-action-assign").click();
+    await page.getByRole("button", { name: "Owner", exact: true }).click();
+    const principals = (
+      (await api("access.principals.list", { kind: "person", limit: 100 })) as {
+        principals: { id: string; name: string }[];
+      }
+    ).principals;
+    const owner = principals[0];
+    assert.ok(owner, "the claimed Space exposes its owner principal");
+    const ownerMenu = await page.getByRole("menuitem").allTextContents();
+    t.diagnostic(
+      `Incident owner evidence: principals=${JSON.stringify(principals.map((person) => `${person.id}:${person.name}`))} menu=${JSON.stringify(ownerMenu)}`,
+    );
+    assert.ok(ownerMenu.includes(owner.name), "the assignment menu names the live owner principal");
+    await page.getByRole("menuitem", { name: owner.name, exact: true }).click();
+    await page.getByTestId("object-sheet").getByRole("button", { name: "Assign owner", exact: true }).click();
+    await page.getByText("Incident assigned", { exact: true }).waitFor();
+    await page.getByLabel("Resolution or note", { exact: true }).fill("Verified note");
+    await page.getByRole("button", { name: "Add note", exact: true }).click();
+    await page.getByText("Note added", { exact: true }).waitFor();
+    await page.getByTestId("object-more").click();
+    await page.getByRole("menuitem", { name: "Resolve incident", exact: true }).click();
+    await page.getByTestId("object-confirm-go").click();
+    await page.getByText("Incident resolved", { exact: true }).waitFor();
+    const resolved = (await api("engine.incident.get", { incidentId: incident.incidentId })) as {
+      incident: { state: string; ownerId?: string; notes: { text: string }[] };
+    };
+    assert.equal(resolved.incident.state, "resolved");
+    assert.equal(resolved.incident.ownerId, owner.id);
+    assert.ok(resolved.incident.notes.some((note) => note.text === "Verified note"));
     await capture("incidents-resolved");
-    t.diagnostic("PASS Incident open, named assignment, note, resolve and readback"); await guard.check("after Incident open, named assignment, note, resolve and readback");
+    t.diagnostic("PASS Incident open, named assignment, note, resolve and readback");
+    await guard.check("after Incident open, named assignment, note, resolve and readback");
 
     await open("holds", '[data-testid="hold-new"]');
-    await page.getByTestId("hold-new").click(); const holdSheet = page.getByTestId("hold-sheet"); await holdSheet.waitFor();
+    await page.getByTestId("hold-new").click();
+    const holdSheet = page.getByTestId("hold-sheet");
+    await holdSheet.waitFor();
     await holdSheet.getByLabel("Find a person, file, folder, channel or chat", { exact: true }).fill(owner.name);
     await holdSheet.getByText(owner.name, { exact: true }).first().click();
-    await holdSheet.getByLabel("Reason", { exact: true }).fill("Production browser release proof"); await holdSheet.getByRole("button", { name: "Review legal hold", exact: true }).click(); await holdSheet.getByRole("button", { name: "Place legal hold", exact: true }).click(); await page.getByText("Legal hold placed", { exact: true }).waitFor();
-    const held = (await api("governance.holds.list", { kind: "person", limit: 100 }) as { holds: { target: { id: string }; reason: string }[] }).holds.find((hold) => hold.reason === "Production browser release proof"); assert.ok(held);
+    await holdSheet.getByLabel("Reason", { exact: true }).fill("Production browser release proof");
+    await holdSheet.getByRole("button", { name: "Review legal hold", exact: true }).click();
+    await holdSheet.getByRole("button", { name: "Place legal hold", exact: true }).click();
+    await page.getByText("Legal hold placed", { exact: true }).waitFor();
+    const held = (
+      (await api("governance.holds.list", { kind: "person", limit: 100 })) as {
+        holds: { target: { id: string }; reason: string }[];
+      }
+    ).holds.find((hold) => hold.reason === "Production browser release proof");
+    assert.ok(held);
     await capture("person-hold-placed");
-    await page.getByText(owner.name, { exact: true }).first().click(); const release = page.getByRole("button", { name: "Release legal hold", exact: true }); await release.first().click(); if (await release.count() > 1) await release.last().click();   // the row asks, then the confirm releases await page.getByText("Legal hold released", { exact: true }).waitFor();
-    assert.ok(!(await api("governance.holds.list", { kind: "person", limit: 100 }) as { holds: { target: { id: string } }[] }).holds.some((hold) => hold.target.id === held.target.id));
-    t.diagnostic("PASS Person hold place, readback, release and readback"); await guard.check("after Person hold place, readback, release and readback");
+    await page.getByText(owner.name, { exact: true }).first().click();
+    const release = page.getByRole("button", { name: "Release legal hold", exact: true });
+    await release.first().click();
+    if ((await release.count()) > 1) await release.last().click(); // the row asks, then the confirm releases await page.getByText("Legal hold released", { exact: true }).waitFor();
+    assert.ok(
+      !(
+        (await api("governance.holds.list", { kind: "person", limit: 100 })) as { holds: { target: { id: string } }[] }
+      ).holds.some((hold) => hold.target.id === held.target.id),
+    );
+    t.diagnostic("PASS Person hold place, readback, release and readback");
+    await guard.check("after Person hold place, readback, release and readback");
 
     await open("erase", 'text="Find a person"');
-    await page.getByLabel("Name", { exact: true }).fill(owner.name); await page.getByRole("button", { name: "Find data", exact: true }).click(); await page.getByText("Erase preview", { exact: true }).waitFor(); await page.getByText("Preview expires", { exact: true }).waitFor();
-    assert.equal((await api("governance.erase.list", { limit: 100 }) as { erasures: unknown[] }).erasures.length, 0, "previewing a real person must not start erasure");
-    await capture("erase-person-preview"); t.diagnostic("PASS Erase real-Person finding without apply"); await guard.check("after Erase real-Person finding without apply");
+    await page.getByLabel("Name", { exact: true }).fill(owner.name);
+    await page.getByRole("button", { name: "Find data", exact: true }).click();
+    await page.getByText("Erase preview", { exact: true }).waitFor();
+    await page.getByText("Preview expires", { exact: true }).waitFor();
+    assert.equal(
+      ((await api("governance.erase.list", { limit: 100 })) as { erasures: unknown[] }).erasures.length,
+      0,
+      "previewing a real person must not start erasure",
+    );
+    await capture("erase-person-preview");
+    t.diagnostic("PASS Erase real-Person finding without apply");
+    await guard.check("after Erase real-Person finding without apply");
 
     await open("aipolicy", '[data-testid="ai-policy-export"]');
-    const exportResponse = page.waitForResponse((response) => response.url().includes("/v1/engine/use_policy/export") && response.status() === 200);
+    const exportResponse = page.waitForResponse(
+      (response) => response.url().includes("/v1/engine/use_policy/export") && response.status() === 200,
+    );
     await page.getByTestId("ai-policy-export").click();
-    const exportBody = await (await exportResponse).json() as { data: { fileId: string } };
+    const exportBody = (await (await exportResponse).json()) as { data: { fileId: string } };
     const exported = exportBody.data;
     await page.getByTestId("file-viewer").waitFor({ timeout: 20_000 });
-    const file = await api("files.viewer_data", { fileId: exported.fileId }) as { file: { name: string; mime: string }; text?: string };
-    assert.match(file.file.name, /^AI use policy .*\.md$/); assert.equal(file.file.mime, "text/markdown"); assert.match(file.text ?? "", /^# AI use policy/m); assert.match(file.text ?? "", /Allowed accounts: company accounts only/i);
+    const file = (await api("files.viewer_data", { fileId: exported.fileId })) as {
+      file: { name: string; mime: string };
+      text?: string;
+    };
+    assert.match(file.file.name, /^AI use policy .*\.md$/);
+    assert.equal(file.file.mime, "text/markdown");
+    assert.match(file.text ?? "", /^# AI use policy/m);
+    assert.match(file.text ?? "", /Allowed accounts: company accounts only/i);
     await capture("ai-policy-export");
 
     await open("schema", '[data-testid="console-schema"]');
-    await page.getByTestId("schema-new-type").click(); await page.getByLabel("Type key", { exact: true }).fill("browser_ai_data"); await page.getByLabel("Singular title", { exact: true }).fill("Browser AI datum"); await page.getByLabel("Plural title", { exact: true }).fill("Browser AI data");
-    await page.getByTestId("schema-preview").click(); await page.getByRole("button", { name: "Apply exact preview", exact: true }).click(); await page.getByText("Record type updated", { exact: true }).waitFor(); await page.getByTestId("sheet-cancel").click(); await page.getByTestId("sheet-cancel").waitFor({ state: "detached" });
-    assert.ok((await api("schema.describe", {}) as { types: { key: string }[] }).types.some((type) => type.key === "browser_ai_data"));
-    await page.getByText("Browser AI datum", { exact: true }).first().click(); await page.getByRole("button", { name: "Add field", exact: true }).click();
-    await page.getByLabel("Field key", { exact: true }).fill("risk_score"); await page.getByLabel("Field title", { exact: true }).fill("Risk score"); await page.getByRole("button", { name: "Field type", exact: true }).click(); await page.getByRole("menuitem", { name: "Number", exact: true }).click();
-    await page.getByTestId("schema-preview").click(); await page.getByRole("button", { name: "Apply exact preview", exact: true }).click(); await page.getByText("Record type updated", { exact: true }).waitFor(); await page.getByTestId("sheet-cancel").click(); await page.getByTestId("sheet-cancel").waitFor({ state: "detached" });
-    const typed = (await api("schema.describe", {}) as { types: { key: string; fields: { key: string; type: string }[] }[] }).types.find((type) => type.key === "browser_ai_data"); assert.equal(typed?.fields.find((field) => field.key === "risk_score")?.type, "number");
+    await page.getByTestId("schema-new-type").click();
+    await page.getByLabel("Type key", { exact: true }).fill("browser_ai_data");
+    await page.getByLabel("Singular title", { exact: true }).fill("Browser AI datum");
+    await page.getByLabel("Plural title", { exact: true }).fill("Browser AI data");
+    await page.getByTestId("schema-preview").click();
+    await page.getByRole("button", { name: "Apply exact preview", exact: true }).click();
+    await page.getByText("Record type updated", { exact: true }).waitFor();
+    await page.getByTestId("sheet-cancel").click();
+    await page.getByTestId("sheet-cancel").waitFor({ state: "detached" });
+    assert.ok(
+      ((await api("schema.describe", {})) as { types: { key: string }[] }).types.some(
+        (type) => type.key === "browser_ai_data",
+      ),
+    );
+    await page.getByText("Browser AI datum", { exact: true }).first().click();
+    await page.getByRole("button", { name: "Add field", exact: true }).click();
+    await page.getByLabel("Field key", { exact: true }).fill("risk_score");
+    await page.getByLabel("Field title", { exact: true }).fill("Risk score");
+    await page.getByRole("button", { name: "Field type", exact: true }).click();
+    await page.getByRole("menuitem", { name: "Number", exact: true }).click();
+    await page.getByTestId("schema-preview").click();
+    await page.getByRole("button", { name: "Apply exact preview", exact: true }).click();
+    await page.getByText("Record type updated", { exact: true }).waitFor();
+    await page.getByTestId("sheet-cancel").click();
+    await page.getByTestId("sheet-cancel").waitFor({ state: "detached" });
+    const typed = (
+      (await api("schema.describe", {})) as { types: { key: string; fields: { key: string; type: string }[] }[] }
+    ).types.find((type) => type.key === "browser_ai_data");
+    assert.equal(typed?.fields.find((field) => field.key === "risk_score")?.type, "number");
     await capture("schema-typed-field");
 
     await open("labels", '[data-testid="console-labels"]');
-    await page.getByText("Restricted", { exact: true }).click(); await page.getByTestId("label-new").click(); await page.getByRole("button", { name: "Resource", exact: true }).click(); await page.getByRole("menuitem", { name: "Browser AI datum", exact: true }).click(); await page.getByTestId("label-set").click(); await page.getByText("Label updated", { exact: true }).waitFor(); await page.getByTestId("sheet-cancel").click(); await page.getByTestId("sheet-cancel").waitFor({ state: "detached" });
-    assert.equal((await api("schema.describe", {}) as { types: { key: string; label: string }[] }).types.find((type) => type.key === "browser_ai_data")?.label, "restricted");
+    await page.getByText("Restricted", { exact: true }).click();
+    await page.getByTestId("label-new").click();
+    await page.getByRole("button", { name: "Resource", exact: true }).click();
+    await page.getByRole("menuitem", { name: "Browser AI datum", exact: true }).click();
+    await page.getByTestId("label-set").click();
+    await page.getByText("Label updated", { exact: true }).waitFor();
+    await page.getByTestId("sheet-cancel").click();
+    await page.getByTestId("sheet-cancel").waitFor({ state: "detached" });
+    assert.equal(
+      ((await api("schema.describe", {})) as { types: { key: string; label: string }[] }).types.find(
+        (type) => type.key === "browser_ai_data",
+      )?.label,
+      "restricted",
+    );
     await capture("sensitivity-label");
 
-    const retention = await api("governance.retention.get", {}) as { kinds: { key: string; title: string; value: string; default: string }[] };
-    const recordRetention = retention.kinds.find((row) => row.key === "records"); assert.ok(recordRetention);
+    const retention = (await api("governance.retention.get", {})) as {
+      kinds: { key: string; title: string; value: string; default: string }[];
+    };
+    const recordRetention = retention.kinds.find((row) => row.key === "records");
+    assert.ok(recordRetention);
     await open("retention", 'text="How long things are kept"');
     await page.getByText(recordRetention.title, { exact: true }).first().click();
     await page.getByLabel("Keep for", { exact: true }).fill("90d");
     await page.getByRole("button", { name: "Review change", exact: true }).click();
     await page.getByRole("button", { name: "Apply rule", exact: true }).click();
     await page.getByText("Keep-for time updated", { exact: true }).waitFor();
-    assert.equal((await api("governance.retention.get", {}) as typeof retention).kinds.find((row) => row.key === "records")?.value, "90d");
+    assert.equal(
+      ((await api("governance.retention.get", {})) as typeof retention).kinds.find((row) => row.key === "records")
+        ?.value,
+      "90d",
+    );
     await capture("retention-policy");
     await page.getByRole("button", { name: "Reset to default…", exact: true }).click();
     await page.getByRole("button", { name: "Confirm reset", exact: true }).click();
     await page.getByText("Keep-for time reset", { exact: true }).waitFor();
-    assert.equal((await api("governance.retention.get", {}) as typeof retention).kinds.find((row) => row.key === "records")?.value, recordRetention.default);
-    t.diagnostic("PASS Retention mutation, reset and readback"); await guard.check("after Retention mutation, reset and readback");
+    assert.equal(
+      ((await api("governance.retention.get", {})) as typeof retention).kinds.find((row) => row.key === "records")
+        ?.value,
+      recordRetention.default,
+    );
+    t.diagnostic("PASS Retention mutation, reset and readback");
+    await guard.check("after Retention mutation, reset and readback");
 
-    assert.deepEqual(errors, []); assert.deepEqual(refused, []); await guard.check("at the end");
+    assert.deepEqual(errors, []);
+    assert.deepEqual(refused, []);
+    await guard.check("at the end");
   } catch (error) {
-    const failureDir = captureDir ?? "/tmp/vyre-console-ai-lifecycle"; fs.mkdirSync(failureDir, { recursive: true });
+    const failureDir = captureDir ?? "/tmp/vyre-console-ai-lifecycle";
+    fs.mkdirSync(failureDir, { recursive: true });
     await page.screenshot({ path: `${failureDir}/failure.png`, fullPage: true }).catch(() => undefined);
-    fs.writeFileSync(`${failureDir}/failure.txt`, `${await page.locator("body").innerText().catch(() => "No DOM text")}${refused.length ? `\n\nRefused:\n${refused.join("\n")}` : ""}`);
+    fs.writeFileSync(
+      `${failureDir}/failure.txt`,
+      `${await page
+        .locator("body")
+        .innerText()
+        .catch(() => "No DOM text")}${refused.length ? `\n\nRefused:\n${refused.join("\n")}` : ""}`,
+    );
     throw error;
-  } finally { await context.close(); await browser.close(); web.close(); await space.stop(); fs.rmSync(space.dir, { recursive: true, force: true }); }
+  } finally {
+    await context.close();
+    await browser.close();
+    web.close();
+    await space.stop();
+    fs.rmSync(space.dir, { recursive: true, force: true });
+  }
 });

@@ -12,11 +12,20 @@ export function docMismatches(doc: string, set: ReadonlySet<string>): string[] {
   const whole = new Map<string, number>();
   let inTable = false;
   for (const line of doc.split("\n")) {
-    if (!line.startsWith("|")) { inTable = false; continue; }
-    if (/^\|\s*Module\s*\|\s*Capability\s*\|/.test(line)) { inTable = true; continue; }
-    if (!inTable) continue;   // the other tables of the doc (Space administration gaps) are not capability lists
+    if (!line.startsWith("|")) {
+      inTable = false;
+      continue;
+    }
+    if (/^\|\s*Module\s*\|\s*Capability\s*\|/.test(line)) {
+      inTable = true;
+      continue;
+    }
+    if (!inTable) continue; // the other tables of the doc (Space administration gaps) are not capability lists
     const all = /all (\d+) ([a-z][a-z0-9_]*)\.\* capabilities/.exec(line);
-    if (all) { whole.set(all[2]!, Number(all[1])); continue; }
+    if (all) {
+      whole.set(all[2]!, Number(all[1]));
+      continue;
+    }
     const cells = line.split("|").map((c) => c.trim());
     if (cells.length < 4 || /^-+$/.test(cells[1] ?? "")) continue;
     for (const m of (cells[2] ?? "").matchAll(CAP)) named.add(m[0]);
@@ -26,10 +35,12 @@ export function docMismatches(doc: string, set: ReadonlySet<string>): string[] {
     const module = c.slice(0, c.indexOf("."));
     if (!named.has(c) && !whole.has(module)) out.push(`${c} is deferred in the host but not in docs/deferred.md`);
   }
-  for (const c of [...named].sort()) if (!set.has(c)) out.push(`${c} is in docs/deferred.md but not deferred in the host`);
+  for (const c of [...named].sort())
+    if (!set.has(c)) out.push(`${c} is in docs/deferred.md but not deferred in the host`);
   for (const [module, n] of whole) {
     const have = [...set].filter((c) => c.startsWith(`${module}.`)).length;
-    if (have !== n) out.push(`docs/deferred.md says all ${n} ${module}.* capabilities are deferred; the host defers ${have}`);
+    if (have !== n)
+      out.push(`docs/deferred.md says all ${n} ${module}.* capabilities are deferred; the host defers ${have}`);
   }
   return out;
 }

@@ -6,7 +6,9 @@ let loader: Loader | null = null;
 const pictures = new Map<string, string>();
 const asked = new Set<string>();
 const listeners = new Set<() => void>();
-const emit = (): void => { for (const l of [...listeners]) l(); };
+const emit = (): void => {
+  for (const l of [...listeners]) l();
+};
 
 /** The shell says how to read a picture: a file id to a data URL. */
 export function setFaceImageLoader(next: Loader | null): void {
@@ -28,9 +30,29 @@ export function primeFaceImage(fileId: string, dataUrl: string): void {
 export function requestFaceImage(fileId: string): void {
   if (loader === null || pictures.has(fileId) || asked.has(fileId)) return;
   asked.add(fileId);
-  void loader(fileId).then((url) => { if (/^data:image\/(png|jpeg|webp);base64,/.test(url)) { pictures.set(fileId, url); emit(); } }, () => { asked.delete(fileId); });
+  void loader(fileId).then(
+    (url) => {
+      if (/^data:image\/(png|jpeg|webp);base64,/.test(url)) {
+        pictures.set(fileId, url);
+        emit();
+      }
+    },
+    () => {
+      asked.delete(fileId);
+    },
+  );
 }
 
-export function subscribeFaceImages(l: () => void): () => void { listeners.add(l); return () => { listeners.delete(l); }; }
+export function subscribeFaceImages(l: () => void): () => void {
+  listeners.add(l);
+  return () => {
+    listeners.delete(l);
+  };
+}
 /** Test seam. */
-export function resetFaceImages(): void { pictures.clear(); asked.clear(); loader = null; emit(); }
+export function resetFaceImages(): void {
+  pictures.clear();
+  asked.clear();
+  loader = null;
+  emit();
+}

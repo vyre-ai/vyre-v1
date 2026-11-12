@@ -8,22 +8,45 @@ import type { EngineAgent, OpenThread, ResolvedAccount } from "../src/turn-engin
 const person = { kind: "person" as const, id: "dana" };
 const agents = (): EngineAgent[] => [{ id: "intake", mode: "lead" }];
 const thread = (): OpenThread => ({ id: "T", kind: "chat", starter: "dana", agents: agents() });
-const account = (over: Partial<ResolvedAccount> = {}): ResolvedAccount => ({ ref: "#Dana_Anthropic", driver: "anthropic", provider: "anthropic", kind: "api_key", payer: "dana", reason: "starter", itemId: "vit_1", ...over });
-const say = [{ type: "text" as const, text: "Hi." }, { type: "usage" as const, inputTokens: 10, outputTokens: 4 }, { type: "done" as const }];
+const account = (over: Partial<ResolvedAccount> = {}): ResolvedAccount => ({
+  ref: "#Dana_Anthropic",
+  driver: "anthropic",
+  provider: "anthropic",
+  kind: "api_key",
+  payer: "dana",
+  reason: "starter",
+  itemId: "vit_1",
+  ...over,
+});
+const say = [
+  { type: "text" as const, text: "Hi." },
+  { type: "usage" as const, inputTokens: 10, outputTokens: 4 },
+  { type: "done" as const },
+];
 
 test("the resolved account goes into the session spec, its payer is the asker, and onTurnEnd gets the turn with that account", async () => {
   const p = scriptedProvider({ script: () => say });
   const asked: unknown[] = [];
   const ended: Array<{ id: string; asker: string; tokens: number; ref: string | null }> = [];
   const engine = createTurnEngine({
-    holder: "host:s", openSession: p.openSession,
-    resolveAccount: async (q) => { asked.push(q); return account({ payer: "sam", reason: "steerer" }); },
-    onTurnEnd: (turn, acct) => { ended.push({ id: turn.id, asker: turn.asker, tokens: turn.tokensIn + turn.tokensOut, ref: acct?.ref ?? null }); },
+    holder: "host:s",
+    openSession: p.openSession,
+    resolveAccount: async (q) => {
+      asked.push(q);
+      return account({ payer: "sam", reason: "steerer" });
+    },
+    onTurnEnd: (turn, acct) => {
+      ended.push({ id: turn.id, asker: turn.asker, tokens: turn.tokensIn + turn.tokensOut, ref: acct?.ref ?? null });
+    },
   });
   engine.openThread(thread());
   engine.receive({ threadId: "T", author: person, body: "hello" });
   await engine.idle("T");
-  assert.deepEqual(asked, [{ threadId: "T", agentId: "intake", askerId: "dana" }], "asked once, for the person who wrote");
+  assert.deepEqual(
+    asked,
+    [{ threadId: "T", agentId: "intake", askerId: "dana" }],
+    "asked once, for the person who wrote",
+  );
   const turn = engine.turns("T")[0]!;
   assert.equal(turn.asker, "sam", "the account's payer pays");
   assert.deepEqual(ended, [{ id: turn.id, asker: "sam", tokens: 14, ref: "#Dana_Anthropic" }]);
@@ -35,22 +58,31 @@ test("no account: no session is opened, the Unblock is raised once, the turn fai
   let have = false;
   const unblocks: string[] = [];
   const engine = createTurnEngine({
-    holder: "host:s", openSession: p.openSession,
+    holder: "host:s",
+    openSession: p.openSession,
     resolveAccount: async () => (have ? account() : null),
-    onNoAccount: (info) => { unblocks.push(`${info.agentId}:${info.asker}`); },
+    onNoAccount: (info) => {
+      unblocks.push(`${info.agentId}:${info.asker}`);
+    },
   });
   engine.openThread(thread());
   engine.receive({ threadId: "T", author: person, body: "hello" });
   await engine.idle("T");
   assert.equal(p.sessions.length, 0, "nothing ran");
-  assert.deepEqual(engine.turns("T").map((t) => [t.state, t.error?.code]), [["failed", "no_account"]]);
+  assert.deepEqual(
+    engine.turns("T").map((t) => [t.state, t.error?.code]),
+    [["failed", "no_account"]],
+  );
   assert.deepEqual(unblocks, ["intake:dana"]);
   assert.equal(engine.messages("T").filter((m) => m.author.kind === "agent").length, 0, "no reply was invented");
   // the person adds a key and the host wakes the agent: the same thread now runs
   have = true;
   engine.wake("T", "intake");
   await engine.idle("T");
-  assert.deepEqual(engine.turns("T").map((t) => t.state), ["failed", "completed"]);
+  assert.deepEqual(
+    engine.turns("T").map((t) => t.state),
+    ["failed", "completed"],
+  );
   assert.equal(p.sessions.length, 1);
 });
 
@@ -59,15 +91,26 @@ test("a resolver that is down is not 'no key': the turn fails with account_unava
   const unblocks: string[] = [];
   let down = true;
   const engine = createTurnEngine({
-    holder: "host:s", openSession: p.openSession,
-    resolveAccount: async () => { if (down) throw new Error("engine is restarting"); return account(); },
-    onNoAccount: () => { unblocks.push("x"); },
-    onTurnEnd: () => { throw new Error("metering is down"); },
+    holder: "host:s",
+    openSession: p.openSession,
+    resolveAccount: async () => {
+      if (down) throw new Error("engine is restarting");
+      return account();
+    },
+    onNoAccount: () => {
+      unblocks.push("x");
+    },
+    onTurnEnd: () => {
+      throw new Error("metering is down");
+    },
   });
   engine.openThread(thread());
   engine.receive({ threadId: "T", author: person, body: "hello" });
   await engine.idle("T");
-  assert.deepEqual(engine.turns("T").map((t) => [t.state, t.error?.code]), [["failed", "account_unavailable"]]);
+  assert.deepEqual(
+    engine.turns("T").map((t) => [t.state, t.error?.code]),
+    [["failed", "account_unavailable"]],
+  );
   assert.deepEqual(unblocks, []);
   down = false;
   engine.wake("T", "intake");
@@ -91,21 +134,40 @@ test("without resolveAccount the engine keeps its own starter and steerer choice
 test("an account that is refused before the turn said anything hands the turn to the next account in order, the failed ones are skipped, and the one that served is metered; nothing left fails the turn as before", async () => {
   const order = ["#A", "#B", "#C"];
   const refuse = new Set(["#A", "#B"]);
-  const p = scriptedProvider({ script: (_i, spec) => (refuse.has(spec.account?.ref ?? "") ? [{ type: "error" as const, code: "provider.rate_limited", message: "slow down" }] : say) });
+  const p = scriptedProvider({
+    script: (_i, spec) =>
+      refuse.has(spec.account?.ref ?? "")
+        ? [{ type: "error" as const, code: "provider.rate_limited", message: "slow down" }]
+        : say,
+  });
   const asked: Array<readonly string[] | undefined> = [];
   const ended: Array<string | null> = [];
   const engine = createTurnEngine({
-    holder: "host:s", openSession: p.openSession,
+    holder: "host:s",
+    openSession: p.openSession,
     resolveAccount: async () => account({ ref: order[0]! }),
-    nextAccount: async (q) => { asked.push(q.unavailable); const next = order.find((r) => !(q.unavailable ?? []).includes(r)); return next ? account({ ref: next, reason: "backup_key" }) : null; },
-    onTurnEnd: (_t, acct) => { ended.push(acct?.ref ?? null); },
+    nextAccount: async (q) => {
+      asked.push(q.unavailable);
+      const next = order.find((r) => !(q.unavailable ?? []).includes(r));
+      return next ? account({ ref: next, reason: "backup_key" }) : null;
+    },
+    onTurnEnd: (_t, acct) => {
+      ended.push(acct?.ref ?? null);
+    },
   });
   engine.openThread(thread());
   engine.receive({ threadId: "T", author: person, body: "hello" });
   await engine.idle("T");
-  assert.deepEqual(p.specs.map((s) => s.account?.ref), ["#A", "#B", "#C"], "tried in the agent's order");
+  assert.deepEqual(
+    p.specs.map((s) => s.account?.ref),
+    ["#A", "#B", "#C"],
+    "tried in the agent's order",
+  );
   assert.deepEqual(asked, [["#A"], ["#A", "#B"]]);
-  assert.deepEqual(engine.turns("T").map((t) => t.state), ["completed"]);
+  assert.deepEqual(
+    engine.turns("T").map((t) => t.state),
+    ["completed"],
+  );
   assert.deepEqual(ended, ["#C"], "usage is metered against the account that served");
   assert.equal(p.sessions.filter((s) => !s.closed).length, 0, "every session was closed");
 
@@ -113,17 +175,38 @@ test("an account that is refused before the turn said anything hands the turn to
   refuse.add("#C");
   engine.receive({ threadId: "T", author: person, body: "again" });
   await engine.idle("T");
-  assert.deepEqual(engine.turns("T").map((t) => [t.state, t.error?.code]).at(-1), ["failed", "provider.rate_limited"]);
+  assert.deepEqual(
+    engine
+      .turns("T")
+      .map((t) => [t.state, t.error?.code])
+      .at(-1),
+    ["failed", "provider.rate_limited"],
+  );
 
   // a failure that is not about the account (a bad request) is surfaced at once, and a refusal after output is never retried
   const q = scriptedProvider({ script: [{ type: "error" as const, code: "provider.bad_request", message: "no" }] });
-  const e2 = createTurnEngine({ holder: "host:s", openSession: q.openSession, resolveAccount: async () => account(), nextAccount: async () => account({ ref: "#Z" }) });
+  const e2 = createTurnEngine({
+    holder: "host:s",
+    openSession: q.openSession,
+    resolveAccount: async () => account(),
+    nextAccount: async () => account({ ref: "#Z" }),
+  });
   e2.openThread(thread());
   e2.receive({ threadId: "T", author: person, body: "x" });
   await e2.idle("T");
   assert.equal(q.sessions.length, 1);
-  const r = scriptedProvider({ script: [{ type: "text" as const, text: "Half an ans" }, { type: "error" as const, code: "provider.rate_limited", message: "x" }] });
-  const e3 = createTurnEngine({ holder: "host:s", openSession: r.openSession, resolveAccount: async () => account(), nextAccount: async () => account({ ref: "#Z" }) });
+  const r = scriptedProvider({
+    script: [
+      { type: "text" as const, text: "Half an ans" },
+      { type: "error" as const, code: "provider.rate_limited", message: "x" },
+    ],
+  });
+  const e3 = createTurnEngine({
+    holder: "host:s",
+    openSession: r.openSession,
+    resolveAccount: async () => account(),
+    nextAccount: async () => account({ ref: "#Z" }),
+  });
   e3.openThread(thread());
   e3.receive({ threadId: "T", author: person, body: "x" });
   await e3.idle("T");
@@ -133,41 +216,98 @@ test("an account that is refused before the turn said anything hands the turn to
 test("overloaded is not a limit (owner ruling, 3 Nov): the same account is tried once more, and only then the backup takes the turn, told why", async () => {
   // busy once, then fine: the same account serves and no other account is looked for
   let busy = 1;
-  const once = scriptedProvider({ script: () => (busy-- > 0 ? [{ type: "error" as const, code: "provider.overloaded", message: "Overloaded" }] : say) });
+  const once = scriptedProvider({
+    script: () => (busy-- > 0 ? [{ type: "error" as const, code: "provider.overloaded", message: "Overloaded" }] : say),
+  });
   const asked: unknown[] = [];
-  const e1 = createTurnEngine({ holder: "host:s", openSession: once.openSession, resolveAccount: async () => account({ ref: "#A" }), nextAccount: async (q) => { asked.push(q); return account({ ref: "#B" }); } });
+  const e1 = createTurnEngine({
+    holder: "host:s",
+    openSession: once.openSession,
+    resolveAccount: async () => account({ ref: "#A" }),
+    nextAccount: async (q) => {
+      asked.push(q);
+      return account({ ref: "#B" });
+    },
+  });
   e1.openThread(thread());
   e1.receive({ threadId: "T", author: person, body: "hello" });
   await e1.idle("T");
-  assert.deepEqual(once.specs.map((s) => s.account?.ref), ["#A", "#A"]);
+  assert.deepEqual(
+    once.specs.map((s) => s.account?.ref),
+    ["#A", "#A"],
+  );
   assert.deepEqual(asked, []);
-  assert.deepEqual(e1.turns("T").map((t) => t.state), ["completed"]);
+  assert.deepEqual(
+    e1.turns("T").map((t) => t.state),
+    ["completed"],
+  );
 
   // busy twice on the same account: the backup takes it, and the query says it was overloaded
-  const always = scriptedProvider({ script: (_i, spec) => (spec.account?.ref === "#A" ? [{ type: "error" as const, code: "provider.overloaded", message: "Overloaded" }] : say) });
+  const always = scriptedProvider({
+    script: (_i, spec) =>
+      spec.account?.ref === "#A"
+        ? [{ type: "error" as const, code: "provider.overloaded", message: "Overloaded" }]
+        : say,
+  });
   const queries: Array<{ unavailable?: readonly string[]; why?: string }> = [];
-  const e2 = createTurnEngine({ holder: "host:s", openSession: always.openSession, resolveAccount: async () => account({ ref: "#A" }), nextAccount: async (q) => { queries.push(q); return account({ ref: "#B", reason: "backup_key" }); } });
+  const e2 = createTurnEngine({
+    holder: "host:s",
+    openSession: always.openSession,
+    resolveAccount: async () => account({ ref: "#A" }),
+    nextAccount: async (q) => {
+      queries.push(q);
+      return account({ ref: "#B", reason: "backup_key" });
+    },
+  });
   e2.openThread(thread());
   e2.receive({ threadId: "T", author: person, body: "hello" });
   await e2.idle("T");
-  assert.deepEqual(always.specs.map((s) => s.account?.ref), ["#A", "#A", "#B"], "one retry on the same account, then the backup");
-  assert.deepEqual(queries.map((q) => [q.unavailable, q.why]), [[["#A"], "overloaded"]]);
-  assert.deepEqual(e2.turns("T").map((t) => t.state), ["completed"]);
+  assert.deepEqual(
+    always.specs.map((s) => s.account?.ref),
+    ["#A", "#A", "#B"],
+    "one retry on the same account, then the backup",
+  );
+  assert.deepEqual(
+    queries.map((q) => [q.unavailable, q.why]),
+    [[["#A"], "overloaded"]],
+  );
+  assert.deepEqual(
+    e2.turns("T").map((t) => t.state),
+    ["completed"],
+  );
 
   // a rate limit still moves at once
-  const limited = scriptedProvider({ script: (_i, spec) => (spec.account?.ref === "#A" ? [{ type: "error" as const, code: "provider.rate_limited", message: "limit" }] : say) });
-  const e3 = createTurnEngine({ holder: "host:s", openSession: limited.openSession, resolveAccount: async () => account({ ref: "#A" }), nextAccount: async () => account({ ref: "#B" }) });
+  const limited = scriptedProvider({
+    script: (_i, spec) =>
+      spec.account?.ref === "#A" ? [{ type: "error" as const, code: "provider.rate_limited", message: "limit" }] : say,
+  });
+  const e3 = createTurnEngine({
+    holder: "host:s",
+    openSession: limited.openSession,
+    resolveAccount: async () => account({ ref: "#A" }),
+    nextAccount: async () => account({ ref: "#B" }),
+  });
   e3.openThread(thread());
   e3.receive({ threadId: "T", author: person, body: "hello" });
   await e3.idle("T");
-  assert.deepEqual(limited.specs.map((s) => s.account?.ref), ["#A", "#B"]);
+  assert.deepEqual(
+    limited.specs.map((s) => s.account?.ref),
+    ["#A", "#B"],
+  );
 });
 
 test("a Routine's wake runs for the person who set the Routine, never for the starter of the chat it posts in (lead 12 Nov sweep)", async () => {
   const p = scriptedProvider({ script: () => say });
   const asked: Array<{ askerId?: string }> = [];
-  const engine = createTurnEngine({ holder: "host:s", openSession: p.openSession, resolveAccount: async (q) => { asked.push(q as { askerId?: string }); return account({ payer: (q as { askerId: string }).askerId, reason: "steerer" }); } });
-  engine.openThread(thread());   // a channel dana started
+  const engine = createTurnEngine({
+    holder: "host:s",
+    openSession: p.openSession,
+    resolveAccount: async (q) => {
+      asked.push(q as { askerId?: string });
+      return account({ payer: (q as { askerId: string }).askerId, reason: "steerer" });
+    },
+  });
+  engine.openThread(thread()); // a channel dana started
   engine.wake("T", "intake", { routine: true, from: "usr_sam" });
   await engine.idle("T");
   assert.equal(asked[0]?.askerId, "usr_sam", "the account is the Routine owner's");

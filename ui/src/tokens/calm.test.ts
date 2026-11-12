@@ -1,6 +1,21 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { BODY_LEAD, BODY_PX, COLUMN, FACE, GAP_BETWEEN, GAP_WITHIN, GUTTER, GUTTER_MIN_WIDTH, RADIUS, ROW, countLabel, gapAbove, gutterFits, headerOf } from "./calm.ts";
+import {
+  BODY_LEAD,
+  BODY_PX,
+  COLUMN,
+  FACE,
+  GAP_BETWEEN,
+  GAP_WITHIN,
+  GUTTER,
+  GUTTER_MIN_WIDTH,
+  RADIUS,
+  ROW,
+  countLabel,
+  gapAbove,
+  gutterFits,
+  headerOf,
+} from "./calm.ts";
 
 describe("calm tokens", () => {
   test("the numbers are the design system's", () => {

@@ -11,9 +11,24 @@ import type { NodeLauncher, NodeProc } from "../src/compute/node.ts";
 function slowProc(): { proc: NodeProc; killed: string[] } {
   const killed: string[] = [];
   let exit: (v: { code: number | null; signal: string | null }) => void = () => undefined;
-  const exited = new Promise<{ code: number | null; signal: string | null }>((r) => { exit = r; });
+  const exited = new Promise<{ code: number | null; signal: string | null }>((r) => {
+    exit = r;
+  });
   // ends a little after it is killed, as a process tree does
-  const proc: NodeProc = { pid: 1, stdout: (async function* () { await exited; })(), write: async () => undefined, endInput: () => undefined, exited, stderrTail: () => "", kill: (s) => { killed.push(s ?? "SIGTERM"); setTimeout(() => exit({ code: null, signal: "SIGKILL" }), 150); } };
+  const proc: NodeProc = {
+    pid: 1,
+    stdout: (async function* () {
+      await exited;
+    })(),
+    write: async () => undefined,
+    endInput: () => undefined,
+    exited,
+    stderrTail: () => "",
+    kill: (s) => {
+      killed.push(s ?? "SIGTERM");
+      setTimeout(() => exit({ code: null, signal: "SIGKILL" }), 150);
+    },
+  };
   return { proc, killed };
 }
 
@@ -22,21 +37,39 @@ test("stopAll ends every engine, waits for each to exit and its folder to be rem
   const made: string[] = [];
   const procs: Array<ReturnType<typeof slowProc>> = [];
   const launcher: NodeLauncher = {
-    workFolder: (who, proc) => { const d = path.join(dataDir, "w", who, proc); fs.mkdirSync(d, { recursive: true }); made.push(d); return d; },
-    spawn: async () => { const p = slowProc(); procs.push(p); return p.proc; },
+    workFolder: (who, proc) => {
+      const d = path.join(dataDir, "w", who, proc);
+      fs.mkdirSync(d, { recursive: true });
+      made.push(d);
+      return d;
+    },
+    spawn: async () => {
+      const p = slowProc();
+      procs.push(p);
+      return p.proc;
+    },
   };
   const said: Array<Record<string, unknown>> = [];
   const r = cliRelay({ launcher, dataDir, server: "http://space.test", log: () => undefined });
-  r.frame({ t: "cli_spawn", proc: `prc_${"a".repeat(24)}`, argv: ["claude", "-p"], env: {}, person: "usr_a" }, (m) => said.push(m));
-  r.frame({ t: "cli_spawn", proc: `prc_${"b".repeat(24)}`, argv: ["claude", "-p"], env: {}, person: "usr_a" }, (m) => said.push(m));
+  r.frame({ t: "cli_spawn", proc: `prc_${"a".repeat(24)}`, argv: ["claude", "-p"], env: {}, person: "usr_a" }, (m) =>
+    said.push(m),
+  );
+  r.frame({ t: "cli_spawn", proc: `prc_${"b".repeat(24)}`, argv: ["claude", "-p"], env: {}, person: "usr_a" }, (m) =>
+    said.push(m),
+  );
   await new Promise((res) => setTimeout(res, 50));
   assert.equal(r.running(), 2);
   await r.stopAll();
   assert.equal(r.running(), 0);
-  assert.deepEqual(procs.map((p) => p.killed), [["SIGKILL"], ["SIGKILL"]]);
+  assert.deepEqual(
+    procs.map((p) => p.killed),
+    [["SIGKILL"], ["SIGKILL"]],
+  );
   for (const d of made) assert.equal(fs.existsSync(d), false, `${d} is removed before stopAll returns`);
   assert.equal(said.filter((m) => m["t"] === "cli_exit").length, 2);
-  r.frame({ t: "cli_spawn", proc: `prc_${"c".repeat(24)}`, argv: ["claude", "-p"], env: {}, person: "usr_a" }, (m) => said.push(m));
+  r.frame({ t: "cli_spawn", proc: `prc_${"c".repeat(24)}`, argv: ["claude", "-p"], env: {}, person: "usr_a" }, (m) =>
+    said.push(m),
+  );
   assert.equal(said.at(-1)?.["t"], "cli_failed", "a stopped computer starts no engine");
   assert.equal(procs.length, 2);
   fs.rmSync(dataDir, { recursive: true, force: true });

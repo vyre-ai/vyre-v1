@@ -6,13 +6,26 @@ import { bootScreens, browserOrSkip, open, seat } from "./support/mail-browser.t
 
 test("60 agent faces: mount time and scroll frames", async (t) => {
   const env = await browserOrSkip();
-  if (typeof env === "string") { t.skip(env); return; }
+  if (typeof env === "string") {
+    t.skip(env);
+    return;
+  }
   const s = await bootScreens({ kind: "team" }, env);
   try {
     const w = s.world;
     const ids: string[] = [];
-    for (let n = 0; n < 60; n++) ids.push((await w.owner.ok("agents.create", { name: `Agent ${String(n).padStart(3, "0")}`, role: "You help.", idempotencyKey: `sc-a${n}` })).agent.agentId as string);
-    const threadId = (await w.owner.ok("chat.start", { kind: "chat", agentIds: [ids[0]], idempotencyKey: "sc-chat" })).thread.threadId as string;
+    for (let n = 0; n < 60; n++)
+      ids.push(
+        (
+          await w.owner.ok("agents.create", {
+            name: `Agent ${String(n).padStart(3, "0")}`,
+            role: "You help.",
+            idempotencyKey: `sc-a${n}`,
+          })
+        ).agent.agentId as string,
+      );
+    const threadId = (await w.owner.ok("chat.start", { kind: "chat", agentIds: [ids[0]], idempotencyKey: "sc-chat" }))
+      .thread.threadId as string;
     const me = await seat(s, w.owner, "Owner");
     const t0 = Date.now();
     await open(me, s, `/chat#screen=chats.conversation&threadId=${threadId}`);
@@ -22,7 +35,11 @@ test("60 agent faces: mount time and scroll frames", async (t) => {
     await page.getByTestId("participants-button").click();
     await page.getByTestId("people-footer").click();
     await page.getByTestId("add-sheet").waitFor();
-    await page.waitForFunction("document.querySelectorAll('[data-testid=add-sheet] [data-avatar=agent]').length >= 20", undefined, { timeout: 30_000 });
+    await page.waitForFunction(
+      "document.querySelectorAll('[data-testid=add-sheet] [data-avatar=agent]').length >= 20",
+      undefined,
+      { timeout: 30_000 },
+    );
     const openMs = Date.now() - tOpen;
     const probe = `(async function () {
       var faces = function () { return document.querySelectorAll('[data-testid=add-sheet] [data-avatar=agent]').length; };
@@ -42,8 +59,10 @@ test("60 agent faces: mount time and scroll frames", async (t) => {
       var q = function (p) { return frames.length ? Math.round(frames[Math.min(frames.length - 1, Math.floor(frames.length * p))] * 10) / 10 : null; };
       return { faces: faces(), settleMs: settleMs, scrollable: !!sc, frames: frames.length, p50: q(0.5), p95: q(0.95), max: q(1) };
     })()`;
-    const r = await page.evaluate(probe) as Record<string, unknown>;
+    const r = (await page.evaluate(probe)) as Record<string, unknown>;
     console.log("AVATAR_SCROLL " + JSON.stringify({ ...r, openToFacesMs: openMs, totalMs: Date.now() - tOpen }));
     assert.ok(Number(r["faces"]) >= 20, "agent faces are on screen");
-  } finally { await s.close(); }
+  } finally {
+    await s.close();
+  }
 });

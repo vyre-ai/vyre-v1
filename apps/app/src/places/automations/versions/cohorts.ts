@@ -26,7 +26,11 @@ export interface Cohort {
   runs: CohortMember[];
 }
 
-export function cohortsOf(currentVersion: number, runs: readonly CohortRun[], stepsByRun: Readonly<Record<string, readonly CohortStep[]>>): Cohort[] {
+export function cohortsOf(
+  currentVersion: number,
+  runs: readonly CohortRun[],
+  stepsByRun: Readonly<Record<string, readonly CohortStep[]>>,
+): Cohort[] {
   const by = new Map<number, Cohort>();
   for (const run of runs) {
     const version = typeof run.definitionVersion === "number" ? run.definitionVersion : currentVersion;
@@ -36,7 +40,13 @@ export function cohortsOf(currentVersion: number, runs: readonly CohortRun[], st
       by.set(version, cohort);
     }
     const steps = stepsByRun[run.id] ?? [];
-    const current = [...steps].reverse().find((step) => step.state === "running" || step.state === "waiting" || step.state === "failed" || step.state === "pending") ?? steps[steps.length - 1];
+    const current =
+      [...steps]
+        .reverse()
+        .find(
+          (step) =>
+            step.state === "running" || step.state === "waiting" || step.state === "failed" || step.state === "pending",
+        ) ?? steps[steps.length - 1];
     cohort.runs.push({
       id: run.id,
       status: run.status,
@@ -99,7 +109,10 @@ export function previewGroups(preview: unknown): PreviewGroup[] {
 }
 
 export function cohortGroupLabel(currentVersion: number, group: PreviewGroup): string {
-  const where = group.definitionVersion === currentVersion ? `version ${group.definitionVersion}, current definition` : `version ${group.definitionVersion}, pinned`;
+  const where =
+    group.definitionVersion === currentVersion
+      ? `version ${group.definitionVersion}, current definition`
+      : `version ${group.definitionVersion}, pinned`;
   if (group.disposition === "safe") return `Safe group, ${where}`;
   if (group.disposition === "ambiguous") return `Ambiguous group, ${where}`;
   return `Finished group, ${where}`;

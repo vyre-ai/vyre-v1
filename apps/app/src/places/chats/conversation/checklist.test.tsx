@@ -4,10 +4,24 @@ import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
 import { ChecklistCard, checklistOf, isChecklist } from "./checklist.tsx";
 
-const data = { title: "Read tests", items: [{ text: "List meetings: 200", done: true }, { text: "List teams: 401", done: false }, { text: "", done: true }, { nope: 1 }] };
+const data = {
+  title: "Read tests",
+  items: [
+    { text: "List meetings: 200", done: true },
+    { text: "List teams: 401", done: false },
+    { text: "", done: true },
+    { nope: 1 },
+  ],
+};
 
 test("rows come out of the block data and rows without words are dropped", () => {
-  assert.deepEqual(checklistOf(data), { title: "Read tests", rows: [{ text: "List meetings: 200", done: true }, { text: "List teams: 401", done: false }] });
+  assert.deepEqual(checklistOf(data), {
+    title: "Read tests",
+    rows: [
+      { text: "List meetings: 200", done: true },
+      { text: "List teams: 401", done: false },
+    ],
+  });
   assert.deepEqual(checklistOf(null), { title: "", rows: [] });
   assert.equal(isChecklist("checklist"), true);
   assert.equal(isChecklist("plan"), false);

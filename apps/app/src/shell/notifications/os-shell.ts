@@ -15,8 +15,17 @@ let refused = false;
 /** The shell said a banner could not be shown (the system refused it). Read by Settings, Notifications. */
 export const bannersRefused = {
   get: (): boolean => refused,
-  set(v: boolean): void { if (v === refused) return; refused = v; for (const l of [...listeners]) l(); },
-  subscribe(l: Listener): () => void { listeners.add(l); return () => { listeners.delete(l); }; },
+  set(v: boolean): void {
+    if (v === refused) return;
+    refused = v;
+    for (const l of [...listeners]) l();
+  },
+  subscribe(l: Listener): () => void {
+    listeners.add(l);
+    return () => {
+      listeners.delete(l);
+    };
+  },
 };
 
 /** How the notification plugin words a refusal by the system (permission denied, not allowed, disabled). */
@@ -29,7 +38,12 @@ export function osShell(g: unknown = globalThis): OsShell | null {
   return {
     notify(b) {
       // only the system refusing banners says they are off; any other error (a bad link, a plugin hiccup) is not a refusal
-      void Promise.resolve(invoke("notify", { title: b.title, body: b.body, link: b.link })).then(() => bannersRefused.set(false), (e: unknown) => { if (REFUSED.test(String((e as { message?: unknown })?.message ?? e))) bannersRefused.set(true); });
+      void Promise.resolve(invoke("notify", { title: b.title, body: b.body, link: b.link })).then(
+        () => bannersRefused.set(false),
+        (e: unknown) => {
+          if (REFUSED.test(String((e as { message?: unknown })?.message ?? e))) bannersRefused.set(true);
+        },
+      );
     },
     badge(count) {
       const n = Math.max(0, Math.floor(Number.isFinite(count) ? count : 0));

@@ -23,7 +23,13 @@ export const GATE = {
 export type Gate = keyof typeof GATE;
 
 /** May the person do what this permission covers? True when nobody said (no list: a server that does not send one) and in a Personal Space, which is the person's own. */
-export function allows(rt: { readonly permissions?: ReadonlySet<string> | undefined; readonly space: { readonly kind: string } } | null | undefined, perm: string): boolean {
+export function allows(
+  rt:
+    | { readonly permissions?: ReadonlySet<string> | undefined; readonly space: { readonly kind: string } }
+    | null
+    | undefined,
+  perm: string,
+): boolean {
   if (!rt?.permissions || rt.space.kind === "personal") return true;
   return rt.permissions.has(perm);
 }
@@ -31,7 +37,9 @@ export function allows(rt: { readonly permissions?: ReadonlySet<string> | undefi
 /** Places a role without their first permission cannot use, so they are off the rail: Automations needs Mine automations, the Vault keeping items of one's own. */
 export const PLACE_GATE = { automations: "automations.personal", vault: "vault.shared_create" } as const;
 export function hiddenPlaces(permissions: readonly string[]): Array<keyof typeof PLACE_GATE> {
-  return (Object.keys(PLACE_GATE) as Array<keyof typeof PLACE_GATE>).filter((p) => !permissions.includes(PLACE_GATE[p]));
+  return (Object.keys(PLACE_GATE) as Array<keyof typeof PLACE_GATE>).filter(
+    (p) => !permissions.includes(PLACE_GATE[p]),
+  );
 }
 
 /** The controls a person with these permissions sees, in a Team Space. */

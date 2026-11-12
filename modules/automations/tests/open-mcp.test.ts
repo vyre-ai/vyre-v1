@@ -34,7 +34,10 @@ test("a public mcp document becomes one draft action", async () => {
   assert.equal(blob.includes("delete everything"), false);
   const actions = (out as { actions: { title: string }[] }).actions;
   assert.equal(actions.length, 1);
-  assert.equal(actions.some((action) => action.title === INJECTION), false);
+  assert.equal(
+    actions.some((action) => action.title === INJECTION),
+    false,
+  );
 });
 
 test("a loopback mcp address is refused before fetch", async () => {

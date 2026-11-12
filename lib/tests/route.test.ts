@@ -5,7 +5,13 @@ import type { RouteThread, RouteMessage } from "../route.ts";
 
 const person = (id: string) => ({ kind: "person" as const, id });
 const agent = (id: string) => ({ kind: "agent" as const, id });
-const thread: RouteThread = { agents: [{ id: "intake", mode: "lead" }, { id: "docs", mode: "listen" }, { id: "billing", mode: "listen" }] };
+const thread: RouteThread = {
+  agents: [
+    { id: "intake", mode: "lead" },
+    { id: "docs", mode: "listen" },
+    { id: "billing", mode: "listen" },
+  ],
+};
 const say = (over: Partial<RouteMessage> = {}): RouteMessage => ({ author: person("dana"), mentions: [], ...over });
 
 test("a plain person message goes to the lead only", () => {
@@ -38,7 +44,15 @@ test("an agent mention beats a person mention in the same message", () => {
 });
 
 test("no lead: nobody answers an unaddressed message when several agents only listen", () => {
-  const r = route({ agents: [{ id: "docs", mode: "listen" }, { id: "ops", mode: "listen" }] }, say());
+  const r = route(
+    {
+      agents: [
+        { id: "docs", mode: "listen" },
+        { id: "ops", mode: "listen" },
+      ],
+    },
+    say(),
+  );
   assert.deepEqual(r.responders, []);
   assert.equal(r.reason, "no_lead");
 });
@@ -58,24 +72,59 @@ test("hop limit: an agent message at depth 4 starts nothing, at depth 3 it still
 });
 
 test("hop limit is configurable and a person message is never limited", () => {
-  assert.deepEqual(route(thread, say({ author: agent("docs"), mentions: [agent("billing")], depth: 1 }), { agentHops: 1 }).responders, []);
+  assert.deepEqual(
+    route(thread, say({ author: agent("docs"), mentions: [agent("billing")], depth: 1 }), { agentHops: 1 }).responders,
+    [],
+  );
   assert.deepEqual(route(thread, say({ depth: 99 })).responders, ["intake"]);
 });
 
 test("an agent never answers its own message", () => {
-  assert.deepEqual(route(thread, say({ author: agent("intake"), mentions: [agent("intake")], depth: 0 })).responders, []);
+  assert.deepEqual(
+    route(thread, say({ author: agent("intake"), mentions: [agent("intake")], depth: 0 })).responders,
+    [],
+  );
   assert.deepEqual(route(thread, say({ author: agent("intake"), depth: 0 })).responders, []);
-  assert.deepEqual(route(thread, say({ author: agent("docs"), depth: 0 })).responders, ["intake"], "another agent's plain message goes to the lead");
+  assert.deepEqual(
+    route(thread, say({ author: agent("docs"), depth: 0 })).responders,
+    ["intake"],
+    "another agent's plain message goes to the lead",
+  );
 });
 
 test("a Job's own line reaches the lead even when the lead wrote it, and it counts against the budget (owner ruling, 3 Nov)", () => {
   assert.equal(DEFAULT_AGENT_HOPS, 8, "8 agent turns, helpers and teammates counted");
   assert.deepEqual(route(thread, say({ author: agent("intake"), depth: 0, job: true })).responders, ["intake"]);
-  assert.deepEqual(route(thread, say({ author: agent("intake"), mentions: [agent("intake")], depth: 0, job: true })).responders, ["intake"], "a crew card names the lead");
-  assert.deepEqual(route(thread, say({ author: agent("docs"), depth: DEFAULT_AGENT_HOPS - 1, job: true })).responders, ["intake"]);
-  assert.deepEqual(route(thread, say({ author: agent("docs"), depth: DEFAULT_AGENT_HOPS, job: true })), { responders: [], reason: "hop_limit", listeners: route(thread, say({ author: agent("docs"), depth: DEFAULT_AGENT_HOPS, job: true })).listeners }, "a helper's result at the limit parks the chat");
-  assert.deepEqual(route(thread, say({ author: agent("intake"), depth: 0, job: false })).responders, [], "without the mark nothing changes");
-  assert.deepEqual(route({ kind: "chat", agents: [{ id: "solo", mode: "listen" }] }, say({ author: agent("solo"), depth: 0, job: true })).responders, ["solo"], "the only agent in a person's chat");
+  assert.deepEqual(
+    route(thread, say({ author: agent("intake"), mentions: [agent("intake")], depth: 0, job: true })).responders,
+    ["intake"],
+    "a crew card names the lead",
+  );
+  assert.deepEqual(route(thread, say({ author: agent("docs"), depth: DEFAULT_AGENT_HOPS - 1, job: true })).responders, [
+    "intake",
+  ]);
+  assert.deepEqual(
+    route(thread, say({ author: agent("docs"), depth: DEFAULT_AGENT_HOPS, job: true })),
+    {
+      responders: [],
+      reason: "hop_limit",
+      listeners: route(thread, say({ author: agent("docs"), depth: DEFAULT_AGENT_HOPS, job: true })).listeners,
+    },
+    "a helper's result at the limit parks the chat",
+  );
+  assert.deepEqual(
+    route(thread, say({ author: agent("intake"), depth: 0, job: false })).responders,
+    [],
+    "without the mark nothing changes",
+  );
+  assert.deepEqual(
+    route(
+      { kind: "chat", agents: [{ id: "solo", mode: "listen" }] },
+      say({ author: agent("solo"), depth: 0, job: true }),
+    ).responders,
+    ["solo"],
+    "the only agent in a person's chat",
+  );
 });
 
 test("nextDepth: agents add a hop, persons reset", () => {
@@ -88,22 +137,33 @@ test("nextDepth: agents add a hop, persons reset", () => {
 test("listener never infers: 50 scripted messages give turns only to the lead and to explicit mentions", () => {
   const table: RouteMessage[] = [];
   for (let i = 0; i < 50; i++) {
-    const m: RouteMessage = { author: i % 7 === 0 ? agent("intake") : person("dana"), mentions: [], depth: i % 7 === 0 ? 1 : 0 };
+    const m: RouteMessage = {
+      author: i % 7 === 0 ? agent("intake") : person("dana"),
+      mentions: [],
+      depth: i % 7 === 0 ? 1 : 0,
+    };
     if (i % 5 === 0) m.mentions = [agent("docs")];
     else if (i % 5 === 1) m.mentions = [person("sam")];
     else if (i % 5 === 2) m.mentions = [agent("billing"), person("sam")];
     table.push(m);
   }
   const listenerIds = new Set(["docs", "billing"]);
-  let leadTurns = 0, mentionTurns = 0;
+  let leadTurns = 0,
+    mentionTurns = 0;
   for (const m of table) {
     const r = route(thread, m);
     const mentioned = new Set(m.mentions.filter((x) => x.kind === "agent").map((x) => x.id));
     for (const id of r.responders) {
-      if (listenerIds.has(id)) { assert.ok(mentioned.has(id), `listener ${id} ran without an @mention`); mentionTurns++; }
-      else { assert.equal(id, "intake"); leadTurns++; }
+      if (listenerIds.has(id)) {
+        assert.ok(mentioned.has(id), `listener ${id} ran without an @mention`);
+        mentionTurns++;
+      } else {
+        assert.equal(id, "intake");
+        leadTurns++;
+      }
     }
-    if (m.mentions.some((x) => x.kind === "person") && !mentioned.size) assert.deepEqual(r.responders, [], "lead never answers a message addressed to a person");
+    if (m.mentions.some((x) => x.kind === "person") && !mentioned.size)
+      assert.deepEqual(r.responders, [], "lead never answers a message addressed to a person");
   }
   assert.ok(leadTurns > 0 && mentionTurns > 0);
 });
@@ -114,7 +174,19 @@ test("the lone-agent rule is for a person's message in a person's chat: not the 
   assert.deepEqual(route({ ...lone, kind: "run" }, say()).responders, [], "a run's thread");
   assert.deepEqual(route({ ...lone, kind: "channel" }, say()).responders, [], "a channel");
   assert.deepEqual(route({ ...lone, kind: "thread" }, say()).responders, [], "a task or message thread");
-  assert.deepEqual(route(lone, { author: { kind: "person", id: "svc_host" }, mentions: [] }).responders, [], "a line the host posts");
-  assert.deepEqual(route(lone, { author: { kind: "agent", id: "ops" }, mentions: [] }).responders, [], "an agent's message");
-  assert.deepEqual(route({ agents: [{ id: "docs", mode: "listen", watching: true }] }, say()).responders, [], "a watcher");
+  assert.deepEqual(
+    route(lone, { author: { kind: "person", id: "svc_host" }, mentions: [] }).responders,
+    [],
+    "a line the host posts",
+  );
+  assert.deepEqual(
+    route(lone, { author: { kind: "agent", id: "ops" }, mentions: [] }).responders,
+    [],
+    "an agent's message",
+  );
+  assert.deepEqual(
+    route({ agents: [{ id: "docs", mode: "listen", watching: true }] }, say()).responders,
+    [],
+    "a watcher",
+  );
 });

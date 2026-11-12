@@ -5,14 +5,29 @@ import { DANA, NOW, codeOf, harness } from "../fixtures/harness.ts";
 import { MAPPING, run, stage } from "../fixtures/seed.ts";
 
 async function refused(p: Promise<unknown>, code: string): Promise<void> {
-  await assert.rejects(p, (e) => { assert.equal(codeOf(e), code); return true; });
+  await assert.rejects(p, (e) => {
+    assert.equal(codeOf(e), code);
+    return true;
+  });
 }
 
 test("a staged import reads as staged with no type yet; after a preview it has its type", async () => {
   const h = harness();
   const id = await stage(h);
   const fresh = (await run(h, "import.get", { importId: id })).import;
-  assert.deepEqual(fresh, { importId: id, source: "csv", type: "pending", state: "staged", by: DANA, at: NOW, created: 0, updated: 0, skipped: 0, failed: 0, ranAutomations: false });
+  assert.deepEqual(fresh, {
+    importId: id,
+    source: "csv",
+    type: "pending",
+    state: "staged",
+    by: DANA,
+    at: NOW,
+    created: 0,
+    updated: 0,
+    skipped: 0,
+    failed: 0,
+    ranAutomations: false,
+  });
   await run(h, "import.preview", { importId: id, type: "contact", mapping: MAPPING });
   assert.equal((await run(h, "import.get", { importId: id })).import.type, "contact");
   await refused(run(h, "import.get", { importId: "imp_none" }), "validation.bad_input");
@@ -28,13 +43,24 @@ test("the history lists imports newest first, by type, in pages", async () => {
   const p = await run(h, "import.preview", { importId: b, type: "contact", mapping: MAPPING });
   await run(h, "import.commit", { importId: b, previewToken: p.previewToken });
   const all = await run(h, "import.list", {});
-  assert.deepEqual(all.imports.map((i: { importId: string }) => i.importId), [c, b, a]);
+  assert.deepEqual(
+    all.imports.map((i: { importId: string }) => i.importId),
+    [c, b, a],
+  );
   assert.equal(all.total, 3);
-  assert.deepEqual((await run(h, "import.list", { type: "contact" })).imports.map((i: { importId: string }) => i.importId), [b]);
+  assert.deepEqual(
+    (await run(h, "import.list", { type: "contact" })).imports.map((i: { importId: string }) => i.importId),
+    [b],
+  );
   const first = await run(h, "import.list", { limit: 2 });
   assert.equal(first.imports.length, 2);
   assert.equal(first.next, "2");
-  assert.deepEqual((await run(h, "import.list", { limit: 2, cursor: first.next })).imports.map((i: { importId: string }) => i.importId), [a]);
+  assert.deepEqual(
+    (await run(h, "import.list", { limit: 2, cursor: first.next })).imports.map(
+      (i: { importId: string }) => i.importId,
+    ),
+    [a],
+  );
 });
 
 test("discard drops a staged import; one that was written stays as the record of what happened", async () => {
@@ -54,9 +80,14 @@ test("discard drops a staged import; one that was written stays as the record of
 test("the template is a header row and one example row, and it imports cleanly", async () => {
   const h = harness();
   const out = await run(h, "import.template", { type: "contact" });
-  assert.equal(out.text, "Name,Email,Phone,Company,Joined,VIP,Amount,Stage\nExample,name@example.com,+1 555 010 0100,Example,2026-01-31,yes,42,Lead\n");
+  assert.equal(
+    out.text,
+    "Name,Email,Phone,Company,Joined,VIP,Amount,Stage\nExample,name@example.com,+1 555 010 0100,Example,2026-01-31,yes,42,Lead\n",
+  );
   const staged = await run(h, "import.parse_csv", { text: out.text });
-  const mapping = (await run(h, "import.suggest_mapping", { importId: staged.importId, type: "contact" })).mapping.map((m: { column: string; field: string }) => ({ column: m.column, field: m.field }));
+  const mapping = (await run(h, "import.suggest_mapping", { importId: staged.importId, type: "contact" })).mapping.map(
+    (m: { column: string; field: string }) => ({ column: m.column, field: m.field }),
+  );
   assert.equal(mapping.length, 8);
   const pv = await run(h, "import.preview", { importId: staged.importId, type: "contact", mapping });
   assert.deepEqual([pv.creates, pv.errorCount], [1, 0]);

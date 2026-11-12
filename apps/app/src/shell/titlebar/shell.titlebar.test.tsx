@@ -15,7 +15,16 @@ import { skins } from "../../../../../ui/src/tokens/skins.ts";
 import { SYSTEM_SKIN, skinMenuEntries, skinName, syncLabel, reconnectingNow } from "./model.ts";
 
 const props = (over: Partial<TitleBarProps> = {}): TitleBarProps => ({
-  title: "Vyre · Northwind · Chats", status: null, onUndo: () => undefined, online: true, waiting: 0, onOpenWaiting: () => undefined, onSearch: () => undefined, skin: "paper", onSkin: () => undefined, ...over,
+  title: "Vyre · Northwind · Chats",
+  status: null,
+  onUndo: () => undefined,
+  online: true,
+  waiting: 0,
+  onOpenWaiting: () => undefined,
+  onSearch: () => undefined,
+  skin: "paper",
+  onSkin: () => undefined,
+  ...over,
 });
 const html = (p: TitleBarProps): string => renderToStaticMarkup(<TitleBar {...p} />).replaceAll("<!-- -->", "");
 
@@ -32,7 +41,10 @@ test("a calm bar is one search field; the connection shows only when it is broke
   const out = html(props());
   assert.ok(out.includes('aria-label="Vyre · Northwind · Chats"'));
   assert.ok(out.includes("Search or run a command") && out.includes("⌘K"));
-  assert.ok(!out.includes("Connected") && !out.includes('data-testid="notice-slot"'), "nothing is said while it is fine");
+  assert.ok(
+    !out.includes("Connected") && !out.includes('data-testid="notice-slot"'),
+    "nothing is said while it is fine",
+  );
   assert.ok(!out.includes('data-testid="title-skin"'), "the skin lives in Settings and Cmd-K");
   assert.ok(out.includes('data-testid="title-notices"'), "the notifications slot is right of the search field");
 });
@@ -41,8 +53,14 @@ test("a confirmation is a passing notice in the top bar, with Undo when it can b
   const store = createNoticeStore();
   store.pass("Task moved to Friday", { label: "Undo", run: () => undefined });
   const out = renderToStaticMarkup(<NoticeSlot store={store} />).replaceAll("<!-- -->", "");
-  assert.ok(out.includes("Task moved to Friday") && out.includes('data-testid="notice-action"') && out.includes(">Undo<"));
-  assert.equal(renderToStaticMarkup(<NoticeSlot store={createNoticeStore()} />).includes('data-testid="notice-slot"'), false, "nothing to say: nothing drawn");
+  assert.ok(
+    out.includes("Task moved to Friday") && out.includes('data-testid="notice-action"') && out.includes(">Undo<"),
+  );
+  assert.equal(
+    renderToStaticMarkup(<NoticeSlot store={createNoticeStore()} />).includes('data-testid="notice-slot"'),
+    false,
+    "nothing to say: nothing drawn",
+  );
 });
 
 test("a phone-width window keeps the icon and drops the words", () => {
@@ -53,14 +71,22 @@ test("a phone-width window keeps the icon and drops the words", () => {
 
 test("the skin menu lists Vyre, eight dark skins, seven light skins, checks the open one and applies a choice", () => {
   const chosen: string[] = [];
-  const entries = skinMenuEntries("graphite", (id) => chosen.push(id), { space: "Northwind", onMore: () => chosen.push("more") });
+  const entries = skinMenuEntries("graphite", (id) => chosen.push(id), {
+    space: "Northwind",
+    onMore: () => chosen.push("more"),
+  });
   const heads = entries.filter(isHead).map((e) => e.head);
   assert.deepEqual(heads, ["Your skin in Northwind", "Dark", "Light"]);
   const items = entries.filter(isItem);
   assert.equal(items.length, 17, "Vyre, fifteen skins and More in Appearance");
   assert.equal(items[16]?.label, "More in Appearance");
   assert.equal(items[0]?.label, "Vyre");
-  assert.equal(entries.findIndex((e) => isHead(e) && e.head === "Dark") < entries.findIndex((e) => isHead(e) && e.head === "Light"), true, "dark skins first");
+  assert.equal(
+    entries.findIndex((e) => isHead(e) && e.head === "Dark") <
+      entries.findIndex((e) => isHead(e) && e.head === "Light"),
+    true,
+    "dark skins first",
+  );
   const dark = items.slice(1, 9).map((e) => e.label);
   const light = items.slice(9, 16).map((e) => e.label);
   assert.equal(dark.length, 8);
@@ -68,11 +94,20 @@ test("the skin menu lists Vyre, eight dark skins, seven light skins, checks the 
   assert.equal(light[0], "Vyre Light");
   assert.equal(light.length, 7);
   assert.ok(dark.includes("Graphite") && light.includes("Paper"));
-  assert.deepEqual(items.filter((e) => e.checked === true).map((e) => e.label), ["Graphite"]);
-  assert.ok(items.every((e) => typeof e.icon === "string" && e.icon.startsWith("<svg")), "every row has an icon, System included");
+  assert.deepEqual(
+    items.filter((e) => e.checked === true).map((e) => e.label),
+    ["Graphite"],
+  );
+  assert.ok(
+    items.every((e) => typeof e.icon === "string" && e.icon.startsWith("<svg")),
+    "every row has an icon, System included",
+  );
   assert.ok(items[0]?.icon?.includes("M8 2.5v11"), "System is the half-filled circle");
   const graphite = items.find((e) => e.label === "Graphite")?.icon ?? "";
-  assert.ok(graphite.includes(skins.find((k) => k.id === "graphite")!.palette.accent) && !/<style|style=/.test(graphite), "a swatch carries the skin's colours as attributes only");
+  assert.ok(
+    graphite.includes(skins.find((k) => k.id === "graphite")!.palette.accent) && !/<style|style=/.test(graphite),
+    "a swatch carries the skin's colours as attributes only",
+  );
   items.find((e) => e.label === "Paper")?.onSelect?.();
   assert.deepEqual(chosen, ["paper"]);
   assert.equal(skinName("graphite"), "Graphite");
@@ -86,9 +121,21 @@ test("the title names the Space and the place, and Away when you set yourself aw
 
 test("the hub keeps a confirmation for a moment, undo takes the action back, offline carries the count", () => {
   const timers: (() => void)[] = [];
-  const hub = createShellHub({ spaces: SEED_DEFS, openId: "nw", personId: "irfad", deviceId: "mac", storage: null, later: (fn) => { timers.push(fn); return () => undefined; } });
+  const hub = createShellHub({
+    spaces: SEED_DEFS,
+    openId: "nw",
+    personId: "irfad",
+    deviceId: "mac",
+    storage: null,
+    later: (fn) => {
+      timers.push(fn);
+      return () => undefined;
+    },
+  });
   let undone = 0;
-  hub.flash("Task moved to Friday", () => { undone += 1; });
+  hub.flash("Task moved to Friday", () => {
+    undone += 1;
+  });
   assert.deepEqual(hub.state().status, { id: 1, text: "Task moved to Friday", undo: true });
   hub.undoStatus();
   assert.equal(undone, 1);
@@ -105,27 +152,59 @@ test("the hub keeps a confirmation for a moment, undo takes the action back, off
 });
 
 test("unfinished setup is a pill in the title bar, not a floating chip over the rail: it sits in the bar's flow and never takes a position", () => {
-  const pill = <ResumeChip flow="personal" progress={{ ai: "done" }} device="mac" compact={false} onOpen={() => undefined} />;
-  const withSetup = renderToStaticMarkup(<ResumeContext.Provider value={{ done: 1, total: 6, open: () => undefined, pill }}><TitleBar {...props()} /></ResumeContext.Provider>).replaceAll("<!-- -->", "");
-  assert.ok(withSetup.includes('data-testid="title-setup"') && withSetup.includes("Finish setup, 1 of"), "the bar carries the entry");
+  const pill = (
+    <ResumeChip flow="personal" progress={{ ai: "done" }} device="mac" compact={false} onOpen={() => undefined} />
+  );
+  const withSetup = renderToStaticMarkup(
+    <ResumeContext.Provider value={{ done: 1, total: 6, open: () => undefined, pill }}>
+      <TitleBar {...props()} />
+    </ResumeContext.Provider>,
+  ).replaceAll("<!-- -->", "");
+  assert.ok(
+    withSetup.includes('data-testid="title-setup"') && withSetup.includes("Finish setup, 1 of"),
+    "the bar carries the entry",
+  );
   const bar = withSetup.slice(withSetup.indexOf('data-testid="shell-titlebar"'));
-  assert.ok(bar.indexOf('data-testid="title-setup"') < bar.indexOf('data-testid="title-search"'), "it sits left of the search, inside the bar");
-  assert.ok(!/position:\s*absolute/.test(withSetup.slice(withSetup.indexOf('data-testid="title-setup"'), withSetup.indexOf('data-testid="title-search"'))), "nothing in it is positioned over the page");
+  assert.ok(
+    bar.indexOf('data-testid="title-setup"') < bar.indexOf('data-testid="title-search"'),
+    "it sits left of the search, inside the bar",
+  );
+  assert.ok(
+    !/position:\s*absolute/.test(
+      withSetup.slice(withSetup.indexOf('data-testid="title-setup"'), withSetup.indexOf('data-testid="title-search"')),
+    ),
+    "nothing in it is positioned over the page",
+  );
   assert.ok(!html(props()).includes("title-setup"), "no unfinished setup, no entry");
 });
 
 test("the sync chip says Reconnecting when the device has a network but the Space does not answer, with the count appended", () => {
   assert.deepEqual(syncLabel(false, 0, true), { text: "Reconnecting…", tone: "offline", opens: false });
-  assert.deepEqual(syncLabel(false, 2, true), { text: "Reconnecting…, 2 changes waiting", tone: "offline", opens: true });
-  assert.deepEqual(syncLabel(false, 0), { text: "Offline", tone: "offline", opens: false }, "no network on the device keeps the old word");
+  assert.deepEqual(syncLabel(false, 2, true), {
+    text: "Reconnecting…, 2 changes waiting",
+    tone: "offline",
+    opens: true,
+  });
+  assert.deepEqual(
+    syncLabel(false, 0),
+    { text: "Offline", tone: "offline", opens: false },
+    "no network on the device keeps the old word",
+  );
 });
 
 test("a shell that cannot tell whether the device has a network says Reconnecting, and Offline only when the device positively has none", () => {
   const had = Object.getOwnPropertyDescriptor(globalThis, "navigator");
   try {
-    for (const [onLine, want] of [[undefined, true], [true, true], [false, false]] as const) {
+    for (const [onLine, want] of [
+      [undefined, true],
+      [true, true],
+      [false, false],
+    ] as const) {
       Object.defineProperty(globalThis, "navigator", { value: { onLine }, configurable: true });
       assert.equal(reconnectingNow(), want, `onLine ${String(onLine)}`);
     }
-  } finally { if (had) Object.defineProperty(globalThis, "navigator", had); else delete (globalThis as { navigator?: unknown }).navigator; }
+  } finally {
+    if (had) Object.defineProperty(globalThis, "navigator", had);
+    else delete (globalThis as { navigator?: unknown }).navigator;
+  }
 });

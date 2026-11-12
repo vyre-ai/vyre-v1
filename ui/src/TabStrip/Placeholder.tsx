@@ -14,11 +14,13 @@ function labelledBox(name: string, label: string, body: string): string {
 export function TabStripPlaceholder(props: TabStripProps): string {
   const current = activeTab(props);
   const label = current?.title ?? "TabStrip";
-  const tabs = props.tabs.map((tab) => {
-    const on = tab.key === props.active;
-    const pinned = tab.pinned ? ` data-pinned="true"` : "";
-    return `<div role="tab" data-tab="${esc(tab.key)}" aria-selected="${on ? "true" : "false"}"${pinned}>${esc(tab.title)}</div>`;
-  }).join("");
+  const tabs = props.tabs
+    .map((tab) => {
+      const on = tab.key === props.active;
+      const pinned = tab.pinned ? ` data-pinned="true"` : "";
+      return `<div role="tab" data-tab="${esc(tab.key)}" aria-selected="${on ? "true" : "false"}"${pinned}>${esc(tab.title)}</div>`;
+    })
+    .join("");
   const plus = props.onPlus ? `<button type="button" data-plus="true">${esc(props.plusTitle ?? "Open")}</button>` : "";
   return labelledBox("TabStrip", label, `<div role="tablist">${tabs}${plus}</div>`);
 }

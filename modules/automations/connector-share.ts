@@ -33,7 +33,11 @@ export function saveSharedConnector(db: LevelDb, shared: SharedConnector, now: n
   for (const action of shared.actions) {
     db.run(
       `INSERT OR REPLACE INTO automations_shared_connectors (action_key, app_name, title, level, updated_at) VALUES (?, ?, ?, ?, ?)`,
-      action.key, shared.appName, action.title, action.level, now,
+      action.key,
+      shared.appName,
+      action.title,
+      action.level,
+      now,
     );
   }
 }
@@ -44,7 +48,8 @@ export function listSharedConnectors(db: LevelDb): SharedConnector[] {
   ) as { app_name?: unknown; action_key?: unknown; title?: unknown; level?: unknown }[];
   const byApp = new Map<string, NamedAction[]>();
   for (const row of rows) {
-    if (typeof row.app_name !== "string" || typeof row.action_key !== "string" || typeof row.title !== "string") continue;
+    if (typeof row.app_name !== "string" || typeof row.action_key !== "string" || typeof row.title !== "string")
+      continue;
     if (row.level !== "tested" && row.level !== "draft") continue;
     const actions = byApp.get(row.app_name) ?? [];
     actions.push({ key: row.action_key, title: row.title, level: row.level });
@@ -53,7 +58,13 @@ export function listSharedConnectors(db: LevelDb): SharedConnector[] {
   return [...byApp.entries()].map(([appName, actions]) => shareWithoutKeys({ appName, actions }));
 }
 
-export function shareTested(db: LevelDb, appName: string, actions: readonly { key: string; title: string }[], tested: (key: string) => boolean, now: number): SharedConnector {
+export function shareTested(
+  db: LevelDb,
+  appName: string,
+  actions: readonly { key: string; title: string }[],
+  tested: (key: string) => boolean,
+  now: number,
+): SharedConnector {
   const kept: NamedAction[] = [];
   for (const action of actions) {
     if (!tested(action.key)) continue;

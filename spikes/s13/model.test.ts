@@ -12,8 +12,17 @@ import { basicWords, encode, vocabOf, wordpiece } from "./tokenizer.ts";
 
 const tmp = (): string => fs.mkdtempSync(path.join(os.tmpdir(), "vyre-s13-"));
 const bytesOf = (s: string): Uint8Array => new TextEncoder().encode(s);
-const fileFor = (content: string): ModelFile => ({ path: "x/file.bin", sha256: sha256Hex(bytesOf(content)), bytes: content.length });
-const serve = (content: string, hits: string[]): Fetch => async (url) => { hits.push(url); return { ok: true, status: 200, arrayBuffer: async () => bytesOf(content).buffer as ArrayBuffer }; };
+const fileFor = (content: string): ModelFile => ({
+  path: "x/file.bin",
+  sha256: sha256Hex(bytesOf(content)),
+  bytes: content.length,
+});
+const serve =
+  (content: string, hits: string[]): Fetch =>
+  async (url) => {
+    hits.push(url);
+    return { ok: true, status: 200, arrayBuffer: async () => bytesOf(content).buffer as ArrayBuffer };
+  };
 
 test("the model is pinned to one revision and three sha256 values, in the URL and in the table", () => {
   assert.match(MODEL_REVISION, /^[0-9a-f]{40}$/);
@@ -29,14 +38,27 @@ test("a download is hashed before it is stored; a wrong hash is refused and leav
   const dir = tmp();
   const hits: string[] = [];
   const good = fileFor("the real bytes");
-  assert.deepEqual([...(await fetchModelFile(good, { dir, fetch: serve("the real bytes", hits) }))], [...bytesOf("the real bytes")]);
+  assert.deepEqual(
+    [...(await fetchModelFile(good, { dir, fetch: serve("the real bytes", hits) }))],
+    [...bytesOf("the real bytes")],
+  );
   assert.equal(hits.length, 1);
   await fetchModelFile(good, { dir, fetch: serve("never asked", hits) });
   assert.equal(hits.length, 1, "the second call is served from the cache");
   const dir2 = tmp();
-  await assert.rejects(() => fetchModelFile(good, { dir: dir2, fetch: serve("tampered bytes", []) }), (e: unknown) => e instanceof ModelError && e.code === "hash_mismatch");
+  await assert.rejects(
+    () => fetchModelFile(good, { dir: dir2, fetch: serve("tampered bytes", []) }),
+    (e: unknown) => e instanceof ModelError && e.code === "hash_mismatch",
+  );
   assert.equal(fs.existsSync(path.join(dir2, good.path)), false, "nothing stored");
-  await assert.rejects(() => fetchModelFile(good, { dir: tmp(), fetch: async () => ({ ok: false, status: 503, arrayBuffer: async () => new ArrayBuffer(0) }) }), (e: unknown) => e instanceof ModelError && e.code === "download_failed");
+  await assert.rejects(
+    () =>
+      fetchModelFile(good, {
+        dir: tmp(),
+        fetch: async () => ({ ok: false, status: 503, arrayBuffer: async () => new ArrayBuffer(0) }),
+      }),
+    (e: unknown) => e instanceof ModelError && e.code === "download_failed",
+  );
 });
 
 test("a damaged cache entry is replaced, not trusted", async () => {
@@ -50,7 +72,17 @@ test("a damaged cache entry is replaced, not trusted", async () => {
   assert.equal(fs.readFileSync(path.join(dir, f.path), "utf8"), "good");
 });
 
-const VOCAB = vocabOf(JSON.stringify({ model: { vocab: Object.fromEntries(["[PAD]", "[UNK]", "[CLS]", "[SEP]", "harbor", "lease", "un", "##aff", "##able", ",", "cafe", "the"].map((t, i) => [t, i])) } }));
+const VOCAB = vocabOf(
+  JSON.stringify({
+    model: {
+      vocab: Object.fromEntries(
+        ["[PAD]", "[UNK]", "[CLS]", "[SEP]", "harbor", "lease", "un", "##aff", "##able", ",", "cafe", "the"].map(
+          (t, i) => [t, i],
+        ),
+      ),
+    },
+  }),
+);
 
 test("WordPiece: lowercase, accents off, punctuation apart, longest piece first, unknown words are [UNK]", () => {
   assert.deepEqual(basicWords("The Harbor, Lease!"), ["the", "harbor", ",", "lease", "!"]);
@@ -67,10 +99,16 @@ test("WordPiece: lowercase, accents off, punctuation apart, longest piece first,
 test("blank chunks are skipped before the embedder: zero vectors, the runtime never sees them, order is kept", async () => {
   assert.ok(isBlank("") && isBlank("  \n\t") && !isBlank(" a "));
   const seen: string[][] = [];
-  const fake = async (t: readonly string[]): Promise<Float32Array[]> => { seen.push([...t]); return t.map((x) => new Float32Array(DIM).fill(x.length)); };
+  const fake = async (t: readonly string[]): Promise<Float32Array[]> => {
+    seen.push([...t]);
+    return t.map((x) => new Float32Array(DIM).fill(x.length));
+  };
   const out = await embedSkippingBlanks(["abc", "", "de", "   ", "f"], fake);
   assert.deepEqual(seen, [["abc", "de", "f"]], "only the real texts reached the model");
-  assert.deepEqual(out.map((v) => v[0]), [3, 0, 2, 0, 1]);
+  assert.deepEqual(
+    out.map((v) => v[0]),
+    [3, 0, 2, 0, 1],
+  );
   assert.ok(out.every((v) => v.length === DIM));
   seen.length = 0;
   const none = await embedSkippingBlanks(["", " "], fake);

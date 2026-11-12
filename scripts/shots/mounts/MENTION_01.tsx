@@ -15,27 +15,67 @@ export const title = "The @ menu: Assistant, the Space's agents, people";
 const ME = "usr_irfad";
 const MY_ASSISTANT = { id: "agt_irfad_assistant", name: "Assistant" };
 const PRINCIPALS = [
-  { id: ME, name: "Irfad Imtiaz", kind: "person" as const }, { id: "usr_maya", name: "Maya Lin", kind: "person" as const }, { id: "usr_sara", name: "Sara Khan", kind: "person" as const },
+  { id: ME, name: "Irfad Imtiaz", kind: "person" as const },
+  { id: "usr_maya", name: "Maya Lin", kind: "person" as const },
+  { id: "usr_sara", name: "Sara Khan", kind: "person" as const },
   { id: MY_ASSISTANT.id, name: "Assistant", kind: "agent" as const, owner: ME, private: true },
-  { id: "agt_intake", name: "Intake", kind: "agent" as const }, { id: "agt_docs", name: "Docs", kind: "agent" as const }, { id: "agt_scout", name: "Scout", kind: "agent" as const },
+  { id: "agt_intake", name: "Intake", kind: "agent" as const },
+  { id: "agt_docs", name: "Docs", kind: "agent" as const },
+  { id: "agt_scout", name: "Scout", kind: "agent" as const },
   { id: "agt_maya_assistant", name: "Maya Lin (Agent)", kind: "agent" as const, owner: "usr_maya", private: true },
   { id: "agt_irfad_cc", name: "Irfad Imtiaz (Agent)", kind: "agent" as const, owner: ME },
 ];
-interface RootLike { setAttribute(name: string, value: string): void; style: { setProperty(name: string, value: string): void; removeProperty(name: string): void } }
-type Pick1 = { click?: () => void; focus?: () => void; value?: string; setSelectionRange?: (a: number, b: number) => void; dispatchEvent?: (e: unknown) => boolean };
-type Doc = { execCommand?(cmd: string, ui?: boolean, value?: string): boolean; querySelector(s: string): Pick1 | null; documentElement?: RootLike };
+interface RootLike {
+  setAttribute(name: string, value: string): void;
+  style: { setProperty(name: string, value: string): void; removeProperty(name: string): void };
+}
+type Pick1 = {
+  click?: () => void;
+  focus?: () => void;
+  value?: string;
+  setSelectionRange?: (a: number, b: number) => void;
+  dispatchEvent?: (e: unknown) => boolean;
+};
+type Doc = {
+  execCommand?(cmd: string, ui?: boolean, value?: string): boolean;
+  querySelector(s: string): Pick1 | null;
+  documentElement?: RootLike;
+};
 
 export default function Mount(): ReactNode {
   const [q, setQ] = useState<URLSearchParams | null>(null);
-  useEffect(() => { setQ(new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? "")); }, []);
-  return q ? <Page who={q.get("who") ?? "owner"} view={q.get("view") ?? "at"} skin={q.get("skin") ?? "paper"} /> : <View testID="mention-wait" style={{ flex: 1 }} />;
+  useEffect(() => {
+    setQ(new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? ""));
+  }, []);
+  return q ? (
+    <Page who={q.get("who") ?? "owner"} view={q.get("view") ?? "at"} skin={q.get("skin") ?? "paper"} />
+  ) : (
+    <View testID="mention-wait" style={{ flex: 1 }} />
+  );
 }
 
 function Page({ who, view, skin }: { who: string; view: string; skin: string }): ReactNode {
   useMemo(() => {
     const root = (globalThis as { document?: Doc }).document?.documentElement;
-    const themeRoot: ThemeRoot = { setAttribute: (n, v) => { root?.setAttribute(n, v); }, setProperty: (n, v) => { root?.style.setProperty(n, v); }, removeProperty: (n) => { root?.style.removeProperty(n); } };
-    return createThemeController({ personId: "irfad", spaceId: "nw", spaceSkin: { nw: skin }, prefersDark: skin === "graphite", root: themeRoot, storage: null });
+    const themeRoot: ThemeRoot = {
+      setAttribute: (n, v) => {
+        root?.setAttribute(n, v);
+      },
+      setProperty: (n, v) => {
+        root?.style.setProperty(n, v);
+      },
+      removeProperty: (n) => {
+        root?.style.removeProperty(n);
+      },
+    };
+    return createThemeController({
+      personId: "irfad",
+      spaceId: "nw",
+      spaceSkin: { nw: skin },
+      prefersDark: skin === "graphite",
+      root: themeRoot,
+      storage: null,
+    });
   }, [skin]);
   const guest = who === "guest";
   const ask = view === "ask";
@@ -43,18 +83,37 @@ function Page({ who, view, skin }: { who: string; view: string; skin: string }):
     // the @ menu opens in a shared channel (a one-to-one chat with an agent has none), so both views are the channel
     const s = createSample("channel");
     const me = guest ? "usr_gus" : ME;
-    const list = guest ? [...PRINCIPALS, { id: "usr_gus", name: "Gus Guest", kind: "person" as const, guest: true }] : PRINCIPALS;
+    const list = guest
+      ? [...PRINCIPALS, { id: "usr_gus", name: "Gus Guest", kind: "person" as const, guest: true }]
+      : PRINCIPALS;
     const own = guest ? { id: "agt_gus_assistant", name: "Assistant" } : MY_ASSISTANT;
     const call: typeof s.data.call = async (cap, input) => {
-      if (cap === "agents.list") return { agents: [{ agentId: "agt_docs", name: "Docs", kind: "agent" }, { agentId: "agt_intake", name: "Assistant", ownerId: ME, kind: "assistant" }, { agentId: "agt_maya_assistant", name: "Assistant", ownerId: "usr_maya", kind: "assistant" }] };
+      if (cap === "agents.list")
+        return {
+          agents: [
+            { agentId: "agt_docs", name: "Docs", kind: "agent" },
+            { agentId: "agt_intake", name: "Assistant", ownerId: ME, kind: "assistant" },
+            { agentId: "agt_maya_assistant", name: "Assistant", ownerId: "usr_maya", kind: "assistant" },
+          ],
+        };
       return s.data.call(cap, input);
     };
-    return { ...s.data, ...(ask ? { call } : {}), assistantId: own.id, me: { id: me, name: guest ? "Gus Guest" : "Irfad Imtiaz", ...(guest ? { guest: true } : {}) }, lists: composerLists(list, me, own), directory: candidates(list, me, own) };
+    return {
+      ...s.data,
+      ...(ask ? { call } : {}),
+      assistantId: own.id,
+      me: { id: me, name: guest ? "Gus Guest" : "Irfad Imtiaz", ...(guest ? { guest: true } : {}) },
+      lists: composerLists(list, me, own),
+      directory: candidates(list, me, own),
+    };
   }, [guest, ask]);
   // type the @ a person would, once the page has drawn
   useEffect(() => {
     if (ask) {
-      const t = setTimeout(() => (globalThis as { document?: Doc }).document?.querySelector("[data-testid='no-agent-ask']")?.click?.(), 800);
+      const t = setTimeout(
+        () => (globalThis as { document?: Doc }).document?.querySelector("[data-testid='no-agent-ask']")?.click?.(),
+        800,
+      );
       return () => clearTimeout(t);
     }
     const t = setTimeout(() => {
@@ -67,5 +126,9 @@ function Page({ who, view, skin }: { who: string; view: string; skin: string }):
     }, 800);
     return () => clearTimeout(t);
   }, [ask]);
-  return <View testID="mention-mount" style={{ flex: 1, backgroundColor: "var(--win)" as string }}><Conversation data={sample} /></View>;
+  return (
+    <View testID="mention-mount" style={{ flex: 1, backgroundColor: "var(--win)" as string }}>
+      <Conversation data={sample} />
+    </View>
+  );
 }

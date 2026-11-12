@@ -17,20 +17,32 @@ import type { World } from "../fixtures/world.ts";
 import { code, openForm, run } from "../fixtures/seed.ts";
 import type { OpenForm } from "../fixtures/seed.ts";
 
-interface SubmitOut { recordId: string; thankYou?: string }
-const submit = (f: { slug: string; public: Ctx }, input: Record<string, unknown>) => run<SubmitOut>(f.public, "forms.submit", { slug: f.slug, ...input });
+interface SubmitOut {
+  recordId: string;
+  thankYou?: string;
+}
+const submit = (f: { slug: string; public: Ctx }, input: Record<string, unknown>) =>
+  run<SubmitOut>(f.public, "forms.submit", { slug: f.slug, ...input });
 
 const LOGIC = {
   rules: [
     { when: { field: "kind", op: "eq", value: "company" }, show: ["company_name"], require: ["company_name"] },
     { when: { field: "kind", op: "eq", value: "person" }, hide: ["phone"] },
-    { when: { all: [{ field: "budget", op: "gte", value: 1000 }, { not: { field: "kind", op: "eq", value: "person" } }] }, require: ["notes"] },
+    {
+      when: {
+        all: [{ field: "budget", op: "gte", value: 1000 }, { not: { field: "kind", op: "eq", value: "person" } }],
+      },
+      require: ["notes"],
+    },
   ],
 };
 
 async function logicForm(w: World): Promise<OpenForm> {
   const f = await openForm(w, {
-    fields: ["kind", "company_name", "phone", "budget", "notes", "email"].map((field) => ({ field, mode: "ask" as const })),
+    fields: ["kind", "company_name", "phone", "budget", "notes", "email"].map((field) => ({
+      field,
+      mode: "ask" as const,
+    })),
   });
   await run(w.ctx, "forms.design_set", { formId: f.formId, logic: LOGIC });
   return f;
@@ -45,7 +57,11 @@ test("logic: a question named in a show rule is hidden until its rule matches, a
   assert.deepEqual(w.records.get(hiddenOut.recordId)?.fields, { kind: "person", email: "a@x.example" });
   w.advance(120_000);
   const shownOut = await submit(f, { answers: { kind: "company", company_name: "Acme", email: "b@x.example" } });
-  assert.deepEqual(w.records.get(shownOut.recordId)?.fields, { kind: "company", company_name: "Acme", email: "b@x.example" });
+  assert.deepEqual(w.records.get(shownOut.recordId)?.fields, {
+    kind: "company",
+    company_name: "Acme",
+    email: "b@x.example",
+  });
 });
 
 test("logic: a hide rule drops the answer to the question it hides", async () => {
@@ -60,7 +76,10 @@ test("logic: a require rule makes a visible question mandatory, and names it in 
   const f = await logicForm(w);
   const refused = submit(f, { answers: { kind: "company", email: "d@x.example" } });
   assert.equal(await code(refused), "validation.bad_input");
-  await assert.rejects(submit(f, { answers: { kind: "company", company_name: "  ", email: "d@x.example" } }), (e: unknown) => e instanceof VyreErr && (e.error.details as { field?: string }).field === "answers.company_name");
+  await assert.rejects(
+    submit(f, { answers: { kind: "company", company_name: "  ", email: "d@x.example" } }),
+    (e: unknown) => e instanceof VyreErr && (e.error.details as { field?: string }).field === "answers.company_name",
+  );
   assert.equal(w.records.size, 0, "a refused call writes nothing");
   const out = await submit(f, { answers: { kind: "company", company_name: "Acme", email: "d@x.example" } });
   assert.match(out.recordId, /^rec_/);
@@ -73,13 +92,25 @@ test("logic: rules combine with all and not, and a number compares as a number",
   assert.equal(await code(submit(f, { answers: { ...company, budget: "2500" } })), "validation.bad_input");
   assert.equal(await code(submit(f, { answers: { ...company, budget: "999" } })), "none");
   w.advance(120_000);
-  assert.equal(await code(submit(f, { answers: { ...company, email: "f@x.example", budget: "2500", notes: "Big job" } })), "none");
+  assert.equal(
+    await code(submit(f, { answers: { ...company, email: "f@x.example", budget: "2500", notes: "Big job" } })),
+    "none",
+  );
   w.advance(120_000);
-  assert.equal(await code(submit(f, { answers: { kind: "person", budget: "2500", email: "g@x.example" } })), "none", "not person is false for a person");
+  assert.equal(
+    await code(submit(f, { answers: { kind: "person", budget: "2500", email: "g@x.example" } })),
+    "none",
+    "not person is false for a person",
+  );
 });
 
 test("logic: a hidden question is never required, and an answer to a hidden question does not feed a rule", () => {
-  const rules = { rules: [{ when: { field: "a", op: "eq", value: "x" }, show: ["b"] }, { when: { field: "b", op: "eq", value: "y" }, show: ["c"], require: ["c"] }] };
+  const rules = {
+    rules: [
+      { when: { field: "a", op: "eq", value: "x" }, show: ["b"] },
+      { when: { field: "b", op: "eq", value: "y" }, show: ["c"], require: ["c"] },
+    ],
+  };
   const s = logicState(rules, { a: "no", b: "y", c: "" });
   assert.deepEqual([...s.hidden].sort(), ["b", "c"]);
   assert.deepEqual([...s.required], []);
@@ -92,7 +123,12 @@ test("logic: a hidden question is never required, and an answer to a hidden ques
 // A file answer is an upload id the form issued (recordUpload, called by the upload route after it stored the file as the host), never a Space file id.
 
 async function uploadForm(w: World, policy: Record<string, unknown>): Promise<OpenForm> {
-  const f = await openForm(w, { fields: [{ field: "email", mode: "ask" }, { field: "resume", mode: "ask" }] });
+  const f = await openForm(w, {
+    fields: [
+      { field: "email", mode: "ask" },
+      { field: "resume", mode: "ask" },
+    ],
+  });
   await run(w.ctx, "forms.update", { formId: f.formId, uploadPolicy: { folderId: "fld_up", ...policy } });
   return f;
 }
@@ -103,9 +139,15 @@ const FILES = {
   png: { fileId: "fil_real_png", size: 10_000, mime: "image/png", name: "me.png" },
 };
 /** What the upload route does for a visitor: record the stored file against the form and the visitor, and hand back the id for the answer. */
-const upload = (f: OpenForm, file: (typeof FILES)[keyof typeof FILES], token?: string, ctx: Ctx = f.public) => recordUpload(ctx, { slug: f.slug, ...file, token });
-const answerWith = (f: OpenForm, email: string, uploadId: string, extra: Record<string, unknown> = {}, ctx: Ctx = f.public) =>
-  run<SubmitOut>(ctx, "forms.submit", { slug: f.slug, ...extra, answers: { email, resume: { fileId: uploadId } } });
+const upload = (f: OpenForm, file: (typeof FILES)[keyof typeof FILES], token?: string, ctx: Ctx = f.public) =>
+  recordUpload(ctx, { slug: f.slug, ...file, token });
+const answerWith = (
+  f: OpenForm,
+  email: string,
+  uploadId: string,
+  extra: Record<string, unknown> = {},
+  ctx: Ctx = f.public,
+) => run<SubmitOut>(ctx, "forms.submit", { slug: f.slug, ...extra, answers: { email, resume: { fileId: uploadId } } });
 
 test("upload policy: a file over the size limit is refused as too large and nothing is written", async () => {
   const w = harness();
@@ -120,7 +162,11 @@ test("upload policy: a file of a type that is not listed is refused, a family an
   assert.equal(await code(answerWith(f, "a@x.example", await upload(f, FILES.exe))), "validation.bad_input");
   const pdfUpload = await upload(f, FILES.small_pdf);
   const out = await answerWith(f, "b@x.example", pdfUpload);
-  assert.deepEqual(w.records.get(out.recordId)?.fields.resume, { fileId: "fil_real_pdf" }, "the record names the Space file, not the upload id");
+  assert.deepEqual(
+    w.records.get(out.recordId)?.fields.resume,
+    { fileId: "fil_real_pdf" },
+    "the record names the Space file, not the upload id",
+  );
   assert.equal(await code(answerWith(f, "c@x.example", await upload(f, FILES.png))), "none");
   assert.equal(typeAllowed([".pdf"], "application/octet-stream", "CV.PDF"), true);
   assert.equal(typeAllowed([], "anything/at-all", "x"), true);
@@ -132,12 +178,28 @@ test("uploads are bound to the form and the visitor: a Space file id, another vi
   const f = await uploadForm(w, { fields: ["resume"] });
   const other = await uploadForm(w, { fields: ["resume"] });
   const mine = await upload(f, FILES.small_pdf);
-  assert.equal(await code(answerWith(f, "a@x.example", "fil_real_pdf")), "validation.bad_input", "a bare Space file id is not an upload id");
+  assert.equal(
+    await code(answerWith(f, "a@x.example", "fil_real_pdf")),
+    "validation.bad_input",
+    "a bare Space file id is not an upload id",
+  );
   assert.equal(await code(answerWith(f, "a@x.example", "fil_somebody_elses")), "validation.bad_input");
   const stranger = w.as({ kind: "actor", id: "act_anon_0123456789abcdef" });
-  assert.equal(await code(answerWith(f, "a@x.example", mine, {}, stranger)), "validation.bad_input", "another visitor cannot use it");
-  assert.equal(await code(answerWith(other, "a@x.example", mine)), "validation.bad_input", "another form cannot use it");
-  assert.equal(await code(answerWith(f, "a@x.example", mine, { token: "x.y" })), "auth.invalid_code", "a signed link that does not exist is refused before the upload is looked at");
+  assert.equal(
+    await code(answerWith(f, "a@x.example", mine, {}, stranger)),
+    "validation.bad_input",
+    "another visitor cannot use it",
+  );
+  assert.equal(
+    await code(answerWith(other, "a@x.example", mine)),
+    "validation.bad_input",
+    "another form cannot use it",
+  );
+  assert.equal(
+    await code(answerWith(f, "a@x.example", mine, { token: "x.y" })),
+    "auth.invalid_code",
+    "a signed link that does not exist is refused before the upload is looked at",
+  );
   assert.equal(w.records.size, 0);
   const ok = await answerWith(f, "a@x.example", mine);
   assert.match(ok.recordId, /^rec_/);
@@ -155,11 +217,31 @@ test("uploads: when the host submits for a signed-out visitor it names the visit
   const asVisitor = w.as({ kind: "actor", id: visitor });
   const host = w.as({ kind: "service", id: "svc_host" });
   const mine = await upload(f, FILES.small_pdf, undefined, asVisitor);
-  const send = (ctx: Ctx, who: string, email: string, id = mine) => run<SubmitOut>(ctx, "forms.submit", { slug: f.slug, visitor: who, answers: { email, resume: { fileId: id } } });
-  assert.equal(await code(send(host, "act_anon_ffffffffffffffff", "a@x.example")), "validation.bad_input", "the host names another visitor: not theirs");
-  assert.equal(await code(send(w.as({ kind: "person", id: "usr_x" }), visitor, "b@x.example")), "validation.bad_input", "a person cannot name a visitor");
+  const send = (ctx: Ctx, who: string, email: string, id = mine) =>
+    run<SubmitOut>(ctx, "forms.submit", { slug: f.slug, visitor: who, answers: { email, resume: { fileId: id } } });
+  assert.equal(
+    await code(send(host, "act_anon_ffffffffffffffff", "a@x.example")),
+    "validation.bad_input",
+    "the host names another visitor: not theirs",
+  );
+  assert.equal(
+    await code(send(w.as({ kind: "person", id: "usr_x" }), visitor, "b@x.example")),
+    "validation.bad_input",
+    "a person cannot name a visitor",
+  );
   assert.equal(await code(send(host, visitor, "d@x.example")), "none", "the host names the right visitor");
-  assert.equal(await code(send(asVisitor, "act_anon_ffffffffffffffff", "c@x.example", await upload(f, FILES.small_pdf, undefined, asVisitor))), "none", "a visitor submits as themselves, whatever the field says");
+  assert.equal(
+    await code(
+      send(
+        asVisitor,
+        "act_anon_ffffffffffffffff",
+        "c@x.example",
+        await upload(f, FILES.small_pdf, undefined, asVisitor),
+      ),
+    ),
+    "none",
+    "a visitor submits as themselves, whatever the field says",
+  );
 });
 
 test("uploads: a signed-link upload is usable only on that link, and a link-free upload only without one", async () => {
@@ -170,17 +252,33 @@ test("uploads: a signed-link upload is usable only on that link, and a link-free
   const rows = w.db.rows("forms_upload");
   assert.equal(rows.find((r) => r.id === plain)?.token_hash, null);
   assert.match(String(rows.find((r) => r.id === linked)?.token_hash), /^[0-9a-f]{64}$/);
-  assert.notEqual(String(rows.find((r) => r.id === linked)?.token_hash), "rec_x.sig", "the link itself is never stored");
+  assert.notEqual(
+    String(rows.find((r) => r.id === linked)?.token_hash),
+    "rec_x.sig",
+    "the link itself is never stored",
+  );
 });
 
 test("uploads: a form with no upload folder takes no uploads, and a form's daily cap stops the upload before any file is made", async () => {
   const w = harness();
-  const none = await openForm(w, { fields: [{ field: "email", mode: "ask" }, { field: "resume", mode: "ask" }] });
+  const none = await openForm(w, {
+    fields: [
+      { field: "email", mode: "ask" },
+      { field: "resume", mode: "ask" },
+    ],
+  });
   assert.throws(() => reserveUpload(none.public, none.slug), VyreErr);
-  assert.equal(await code(answerWith(none, "a@x.example", await upload(none, FILES.small_pdf))), "validation.bad_input", "no policy, no uploads");
+  assert.equal(
+    await code(answerWith(none, "a@x.example", await upload(none, FILES.small_pdf))),
+    "validation.bad_input",
+    "no policy, no uploads",
+  );
   const f = await uploadForm(w, { fields: ["resume"] });
   for (let i = 0; i < 200; i++) await upload(f, FILES.small_pdf);
-  assert.throws(() => reserveUpload(f.public, f.slug), (e: unknown) => e instanceof VyreErr && e.error.code === "rate_limit.exceeded");
+  assert.throws(
+    () => reserveUpload(f.public, f.slug),
+    (e: unknown) => e instanceof VyreErr && e.error.code === "rate_limit.exceeded",
+  );
   w.advance(25 * 60 * 60_000);
   assert.deepEqual(reserveUpload(f.public, f.slug), { formId: f.formId, folderId: "fld_up" });
 });
@@ -193,7 +291,11 @@ test("consent: a form with a consent statement refuses a submit that does not ac
   assert.equal(await code(submit(f, { answers: { email: "a@x.example" } })), "validation.bad_input");
   assert.equal(w.records.size, 0);
   const out = await submit(f, { answers: { email: "a@x.example", consent: true } });
-  assert.deepEqual(w.records.get(out.recordId)?.fields, { email: "a@x.example" }, "the consent flag is never written to the record");
+  assert.deepEqual(
+    w.records.get(out.recordId)?.fields,
+    { email: "a@x.example" },
+    "the consent flag is never written to the record",
+  );
 });
 
 test("captcha: a missing or failed token is refused before any write, a good one passes", async () => {
@@ -207,15 +309,39 @@ test("captcha: a missing or failed token is refused before any write, a good one
 
 // ---- the page view and its snapshot -------------------------------------------------------------------------------
 
-const quiet = (html: string): string => html.split("\n").filter((l) => l.trim() !== "").join("\n");
-const between = (html: string, from: string, to: string): string => html.slice(html.indexOf(from), html.indexOf(to) + to.length);
+const quiet = (html: string): string =>
+  html
+    .split("\n")
+    .filter((l) => l.trim() !== "")
+    .join("\n");
+const between = (html: string, from: string, to: string): string =>
+  html.slice(html.indexOf(from), html.indexOf(to) + to.length);
 
 test("publicFormView: only a published form of the right kind, with the questions a visitor sees", async () => {
   const w = harness();
-  const f = await openForm(w, { fields: [{ field: "email", mode: "ask" }, { field: "plan", mode: "show" }, { field: "src", mode: "hide", prefillKey: "src" }, { field: "secret", mode: "hide" }, { field: "name", mode: "ask", step: 1 }], consentText: "OK?" });
-  await run(w.ctx, "forms.design_set", { formId: f.formId, css: ".x{color:red}", theme: { accent: "#123456" }, thankYou: { text: "Thanks" }, logic: LOGIC });
+  const f = await openForm(w, {
+    fields: [
+      { field: "email", mode: "ask" },
+      { field: "plan", mode: "show" },
+      { field: "src", mode: "hide", prefillKey: "src" },
+      { field: "secret", mode: "hide" },
+      { field: "name", mode: "ask", step: 1 },
+    ],
+    consentText: "OK?",
+  });
+  await run(w.ctx, "forms.design_set", {
+    formId: f.formId,
+    css: ".x{color:red}",
+    theme: { accent: "#123456" },
+    thankYou: { text: "Thanks" },
+    logic: LOGIC,
+  });
   const v = publicFormView(f.public, f.slug, "form");
-  assert.deepEqual(v.fields, [{ field: "email", hidden: false, step: 0 }, { field: "src", hidden: true, prefillKey: "src", step: 0 }, { field: "name", hidden: false, step: 1 }]);
+  assert.deepEqual(v.fields, [
+    { field: "email", hidden: false, step: 0 },
+    { field: "src", hidden: true, prefillKey: "src", step: 0 },
+    { field: "name", hidden: false, step: 1 },
+  ]);
   assert.equal(v.consentText, "OK?");
   assert.equal(v.css, ".x{color:red}");
   assert.deepEqual(v.thankYou, { text: "Thanks" });
@@ -227,8 +353,15 @@ test("publicFormView: only a published form of the right kind, with the question
 
 test("rendered page snapshot: a plain form with a consent statement", () => {
   const view: PublicFormView = {
-    slug: "intake", kind: "public", name: "Intake", captcha: false, consentText: "I agree to be contacted.",
-    fields: [{ field: "email", hidden: false, step: 0 }, { field: "name", hidden: false, step: 0 }],
+    slug: "intake",
+    kind: "public",
+    name: "Intake",
+    captcha: false,
+    consentText: "I agree to be contacted.",
+    fields: [
+      { field: "email", hidden: false, step: 0 },
+      { field: "name", hidden: false, step: 0 },
+    ],
   };
   const html = quiet(renderFormPage({ view, page: "form", nonce: "N0NCE", uploads: false }));
   assert.equal(
@@ -246,21 +379,42 @@ test("rendered page snapshot: a plain form with a consent statement", () => {
       "</main>",
     ].join("\n"),
   );
-  assert.match(html, /<script type="application\/json" id="vf-data">\{"slug":"intake","kind":"public","captcha":false\}<\/script>/);
+  assert.match(
+    html,
+    /<script type="application\/json" id="vf-data">\{"slug":"intake","kind":"public","captcha":false\}<\/script>/,
+  );
   assert.match(html, /<script nonce="N0NCE">/);
   assert.match(html, /<title>Intake<\/title>/);
 });
 
 test("rendered page: steps, captcha widget, file chooser, hidden prefill, theme and custom CSS", () => {
   const view: PublicFormView = {
-    slug: "apply", kind: "public", name: "Apply <now>", captcha: true,
-    fields: [{ field: "email", hidden: false, step: 0 }, { field: "src", hidden: true, prefillKey: "utm_x", step: 0 }, { field: "resume", hidden: false, step: 1 }],
-    theme: { accent: "#123456", font: "url(http://evil.example/x)", radius: "4px;background:red", cover: "https://cdn.example/c.png" },
+    slug: "apply",
+    kind: "public",
+    name: "Apply <now>",
+    captcha: true,
+    fields: [
+      { field: "email", hidden: false, step: 0 },
+      { field: "src", hidden: true, prefillKey: "utm_x", step: 0 },
+      { field: "resume", hidden: false, step: 1 },
+    ],
+    theme: {
+      accent: "#123456",
+      font: "url(http://evil.example/x)",
+      radius: "4px;background:red",
+      cover: "https://cdn.example/c.png",
+    },
     css: "h1{color:red}</style><script>alert(1)</script>",
     upload: { fields: ["resume"], folderId: "fld_up", maxBytes: 1000, types: ["application/pdf"] },
     thankYou: { redirect: "/thanks" },
   };
-  const html = renderFormPage({ view, page: "form", nonce: "N", uploads: true, captcha: { siteKey: "SITE", scriptUrl: "https://captcha.example/api.js", className: "cf-turnstile" } });
+  const html = renderFormPage({
+    view,
+    page: "form",
+    nonce: "N",
+    uploads: true,
+    captcha: { siteKey: "SITE", scriptUrl: "https://captcha.example/api.js", className: "cf-turnstile" },
+  });
   assert.match(html, /<title>Apply &lt;now&gt;<\/title>/);
   assert.match(html, /<fieldset data-step="1" style="[^"]*" hidden>/, "a second step starts hidden");
   assert.match(html, /<input id="vf-resume" type="file" data-field="resume" accept="application\/pdf">/);
@@ -278,28 +432,77 @@ test("rendered page: steps, captcha widget, file chooser, hidden prefill, theme 
 
 // ---- the routes ---------------------------------------------------------------------------------------------------
 
-interface Served { base: string; callers: PageCaller[]; uploads: { slug: string; token: string | undefined; caller: PageCaller }[]; close(): Promise<void> }
+interface Served {
+  base: string;
+  callers: PageCaller[];
+  uploads: { slug: string; token: string | undefined; caller: PageCaller }[];
+  close(): Promise<void>;
+}
 
 type CallFn = NonNullable<Parameters<typeof createFormsPageRoute>[0]["call"]>;
-async function serve(w: World, o: { perMinute?: number; uploadsPerMinute?: number; submitsPerMinute?: number; uploads?: boolean; clock?: () => number; call?: CallFn } = {}): Promise<Served> {
+async function serve(
+  w: World,
+  o: {
+    perMinute?: number;
+    uploadsPerMinute?: number;
+    submitsPerMinute?: number;
+    uploads?: boolean;
+    clock?: () => number;
+    call?: CallFn;
+  } = {},
+): Promise<Served> {
   const callers: PageCaller[] = [];
   const uploads: Served["uploads"] = [];
   const route = createFormsPageRoute({
     async read(slug, page, caller) {
       callers.push(caller);
-      try { return publicFormView(w.ctx, slug, page); } catch (e) { if (e instanceof VyreErr) return null; throw e; }
+      try {
+        return publicFormView(w.ctx, slug, page);
+      } catch (e) {
+        if (e instanceof VyreErr) return null;
+        throw e;
+      }
     },
-    async link(slug, token) { return token === "good" ? { fields: [{ field: "name", step: 0 }] } : null; },
-    ...(o.uploads ? { async upload(slug: string, file: { name: string; type: string; bytes: Uint8Array; folderId: string }, caller: PageCaller, token?: string) { assert.equal(file.folderId, "fld_up", "a file goes only to the policy's folder"); uploads.push({ slug, token, caller }); return "upl_1"; } } : {}),
+    async link(slug, token) {
+      return token === "good" ? { fields: [{ field: "name", step: 0 }] } : null;
+    },
+    ...(o.uploads
+      ? {
+          async upload(
+            slug: string,
+            file: { name: string; type: string; bytes: Uint8Array; folderId: string },
+            caller: PageCaller,
+            token?: string,
+          ) {
+            assert.equal(file.folderId, "fld_up", "a file goes only to the policy's folder");
+            uploads.push({ slug, token, caller });
+            return "upl_1";
+          },
+        }
+      : {}),
     ...(o.perMinute !== undefined ? { perMinute: o.perMinute } : {}),
     ...(o.uploadsPerMinute !== undefined ? { uploadsPerMinute: o.uploadsPerMinute } : {}),
     ...(o.submitsPerMinute !== undefined ? { submitsPerMinute: o.submitsPerMinute } : {}),
     ...(o.call ? { call: o.call } : {}),
     ...(o.clock ? { now: o.clock } : {}),
   });
-  const server = http.createServer((req, res) => { if (!route.handle(req, res)) { res.writeHead(418); res.end(); } });
+  const server = http.createServer((req, res) => {
+    if (!route.handle(req, res)) {
+      res.writeHead(418);
+      res.end();
+    }
+  });
   await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
-  return { base: `http://127.0.0.1:${(server.address() as AddressInfo).port}`, callers, uploads, close: () => new Promise<void>((r) => { server.closeAllConnections(); server.close(() => r()); }) };
+  return {
+    base: `http://127.0.0.1:${(server.address() as AddressInfo).port}`,
+    callers,
+    uploads,
+    close: () =>
+      new Promise<void>((r) => {
+        server.closeAllConnections();
+        server.close(() => r());
+      }),
+  };
 }
 
 test("GET /f/<slug> serves the page to a signed-out visitor as an actor, with a nonce policy and no caching", async () => {
@@ -331,7 +534,9 @@ test("GET /f/<slug> serves the page to a signed-out visitor as an actor, with a 
     }
     assert.equal(s.callers[0]?.id, s.callers[1]?.id, "the same source is the same actor");
     assert.notEqual(s.callers[0]?.id, formPrincipal(f.formId));
-  } finally { await s.close(); }
+  } finally {
+    await s.close();
+  }
 });
 
 test("a draft, closed or unknown form, or the wrong address for its kind, is the same 404", async () => {
@@ -348,7 +553,9 @@ test("a draft, closed or unknown form, or the wrong address for its kind, is the
     }
     await run(w.ctx, "forms.unpublish", { formId: open.formId });
     assert.equal((await fetch(`${s.base}/f/${open.slug}`)).status, 404);
-  } finally { await s.close(); }
+  } finally {
+    await s.close();
+  }
 });
 
 test("only GET and HEAD read a page, the capability addresses are left to the gateway, and other paths are not this route's", async () => {
@@ -358,8 +565,11 @@ test("only GET and HEAD read a page, the capability addresses are left to the ga
   try {
     assert.equal((await fetch(`${s.base}/f/${f.slug}`, { method: "POST", body: "{}" })).status, 405);
     assert.equal((await fetch(`${s.base}/f/${f.slug}`, { method: "DELETE" })).status, 405);
-    for (const p of ["/book/availability", "/book/create", "/f/submit", "/f/partial", "/f/", "/other"]) assert.equal((await fetch(`${s.base}${p}`)).status, 418, p);
-  } finally { await s.close(); }
+    for (const p of ["/book/availability", "/book/create", "/f/submit", "/f/partial", "/f/", "/other"])
+      assert.equal((await fetch(`${s.base}${p}`)).status, 418, p);
+  } finally {
+    await s.close();
+  }
 });
 
 test("page views are limited per source address, and a refusal says when to come back", async () => {
@@ -379,7 +589,9 @@ test("page views are limited per source address, and a refusal says when to come
     assert.notEqual(s.callers[s.callers.length - 1]?.id, s.callers[0]?.id);
     t += 61_000;
     assert.equal((await fetch(`${s.base}/f/${f.slug}`)).status, 200);
-  } finally { await s.close(); }
+  } finally {
+    await s.close();
+  }
 });
 
 test("a one-use form opens only from its link, and the link narrows the questions", async () => {
@@ -395,12 +607,19 @@ test("a one-use form opens only from its link, and the link narrows the question
     assert.match(html, /data-field="name"/);
     assert.doesNotMatch(html, /data-field="email"/);
     assert.match(html, /"token":"good"/);
-  } finally { await s.close(); }
+  } finally {
+    await s.close();
+  }
 });
 
 test("GET /book/<slug> serves a booking page with the day and time pickers", async () => {
   const w = harness();
-  const made = await run<{ form: { formId: string; slug: string } }>(w.ctx, "bookings.page_create", { name: "Call", hostIds: ["usr_host1"], lengthMinutes: 30, recordType: "contact" });
+  const made = await run<{ form: { formId: string; slug: string } }>(w.ctx, "bookings.page_create", {
+    name: "Call",
+    hostIds: ["usr_host1"],
+    lengthMinutes: 30,
+    recordType: "contact",
+  });
   await run(w.ctx, "forms.publish", { formId: made.form.formId });
   const s = await serve(w);
   try {
@@ -413,7 +632,9 @@ test("GET /book/<slug> serves a booking page with the day and time pickers", asy
     assert.match(html, /"kind":"booking"/);
     assert.match(html, />Book<\/button>/);
     assert.equal((await fetch(`${s.base}/f/${made.form.slug}`)).status, 404);
-  } finally { await s.close(); }
+  } finally {
+    await s.close();
+  }
 });
 
 test("POST /f/upload/<slug> applies the form's size and type policy before it stores anything", async () => {
@@ -421,7 +642,12 @@ test("POST /f/upload/<slug> applies the form's size and type policy before it st
   const f = await uploadForm(w, { fields: ["resume"], maxBytes: 100, types: ["application/pdf"] });
   const s = await serve(w, { uploads: true });
   try {
-    const post = (body: string, type: string, name = "cv.pdf") => fetch(`${s.base}/f/upload/${f.slug}`, { method: "POST", headers: { "content-type": type, "x-file-name": encodeURIComponent(name) }, body });
+    const post = (body: string, type: string, name = "cv.pdf") =>
+      fetch(`${s.base}/f/upload/${f.slug}`, {
+        method: "POST",
+        headers: { "content-type": type, "x-file-name": encodeURIComponent(name) },
+        body,
+      });
     const page = await (await fetch(`${s.base}/f/${f.slug}`)).text();
     assert.match(page, /type="file" data-field="resume" accept="application\/pdf"/);
     const big = await post("x".repeat(101), "application/pdf");
@@ -436,7 +662,9 @@ test("POST /f/upload/<slug> applies the form's size and type policy before it st
     assert.equal(s.uploads.length, 1, "only the accepted file reached the store");
     assert.match(s.uploads[0]?.caller.id ?? "", /^act_anon_[0-9a-f]{16}$/, "the store is told which visitor sent it");
     assert.equal((await fetch(`${s.base}/f/upload/${f.slug}`)).status, 405);
-  } finally { await s.close(); }
+  } finally {
+    await s.close();
+  }
 });
 
 test("without an upload store the page draws no file chooser and the upload address is a 404", async () => {
@@ -446,7 +674,9 @@ test("without an upload store the page draws no file chooser and the upload addr
   try {
     assert.doesNotMatch(await (await fetch(`${s.base}/f/${f.slug}`)).text(), /type="file"/);
     assert.equal((await fetch(`${s.base}/f/upload/${f.slug}`, { method: "POST", body: "x" })).status, 404);
-  } finally { await s.close(); }
+  } finally {
+    await s.close();
+  }
 });
 
 test("uploads have their own per-source budget, carry the link token to the store, and a refusal from the forms module keeps its code", async () => {
@@ -454,49 +684,106 @@ test("uploads have their own per-source budget, carry the link token to the stor
   const f = await uploadForm(w, { fields: ["resume"] });
   const s = await serve(w, { uploads: true, uploadsPerMinute: 2 });
   try {
-    const post = (q = "") => fetch(`${s.base}/f/upload/${f.slug}${q}`, { method: "POST", headers: { "content-type": "application/pdf", "x-file-name": "cv.pdf" }, body: "%PDF" });
+    const post = (q = "") =>
+      fetch(`${s.base}/f/upload/${f.slug}${q}`, {
+        method: "POST",
+        headers: { "content-type": "application/pdf", "x-file-name": "cv.pdf" },
+        body: "%PDF",
+      });
     assert.equal((await post()).status, 200);
     assert.equal((await post("?t=abc.def")).status, 200);
-    assert.deepEqual(s.uploads.map((u) => u.token), [undefined, "abc.def"]);
+    assert.deepEqual(
+      s.uploads.map((u) => u.token),
+      [undefined, "abc.def"],
+    );
     const over = await post();
     assert.equal(over.status, 429);
     assert.ok(Number(over.headers.get("retry-after")) >= 1);
     assert.equal(s.uploads.length, 2);
     assert.equal((await fetch(`${s.base}/f/${f.slug}`)).status, 200, "pages still have their own budget");
-  } finally { await s.close(); }
+  } finally {
+    await s.close();
+  }
 });
 
 test("a signed-out visitor submits, books and reads availability through the route: the visitor is named from the socket, never from the request", async () => {
   const w = harness();
-  const seen: { cap: string; input: Record<string, unknown>; caller: PageCaller; trace?: { traceId: string; spanId: string } | undefined }[] = [];
+  const seen: {
+    cap: string;
+    input: Record<string, unknown>;
+    caller: PageCaller;
+    trace?: { traceId: string; spanId: string } | undefined;
+  }[] = [];
   const s = await serve(w, {
     submitsPerMinute: 12,
     call: async (cap, input, caller, trace) => {
       seen.push({ cap, input, caller, trace });
-      if (input["slug"] === "refused") throw { error: { code: "validation.duplicate", message: "This was already sent.", retryable: false, traceId: "t", next: [] } };
+      if (input["slug"] === "refused")
+        throw {
+          error: {
+            code: "validation.duplicate",
+            message: "This was already sent.",
+            retryable: false,
+            traceId: "t",
+            next: [],
+          },
+        };
       return cap === "bookings.availability" ? { slots: [], available: true } : { recordId: "rec_1" };
     },
   });
   try {
-    const post = (p: string, body: unknown) => fetch(`${s.base}${p}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
-    const ok = await post("/f/submit", { slug: "intake", answers: { email: "a@x.example" }, visitor: "act_anon_ffffffffffffffff" });
+    const post = (p: string, body: unknown) =>
+      fetch(`${s.base}${p}`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body),
+      });
+    const ok = await post("/f/submit", {
+      slug: "intake",
+      answers: { email: "a@x.example" },
+      visitor: "act_anon_ffffffffffffffff",
+    });
     assert.equal(ok.status, 200);
     assert.deepEqual(await ok.json(), { data: { recordId: "rec_1" } });
     const sent = seen[0];
     assert.equal(sent?.cap, "forms.submit");
-    assert.equal(sent?.input["visitor"], sent?.caller.id, "the visitor is the socket's actor, not what the client wrote");
+    assert.equal(
+      sent?.input["visitor"],
+      sent?.caller.id,
+      "the visitor is the socket's actor, not what the client wrote",
+    );
     assert.notEqual(sent?.input["visitor"], "act_anon_ffffffffffffffff");
     assert.equal(typeof sent?.input["idempotencyKey"], "string");
     assert.equal(sent?.trace, undefined, "no trace header, no trace");
-    const traced = await fetch(`${s.base}/f/submit`, { method: "POST", headers: { "content-type": "application/json", "x-vyre-trace": `${"ab".repeat(16)}-${"cd".repeat(8)}` }, body: JSON.stringify({ slug: "intake", answers: {} }) });
+    const traced = await fetch(`${s.base}/f/submit`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-vyre-trace": `${"ab".repeat(16)}-${"cd".repeat(8)}` },
+      body: JSON.stringify({ slug: "intake", answers: {} }),
+    });
     assert.equal(traced.status, 200);
-    assert.deepEqual(seen[1]?.trace, { traceId: "ab".repeat(16), spanId: "cd".repeat(8) }, "the client's trace id travels with the call");
+    assert.deepEqual(
+      seen[1]?.trace,
+      { traceId: "ab".repeat(16), spanId: "cd".repeat(8) },
+      "the client's trace id travels with the call",
+    );
     assert.equal(traced.headers.get("x-vyre-trace"), `${"ab".repeat(16)}-${"cd".repeat(8)}`);
     seen.splice(1, 1);
-    const bad = ["AB".repeat(16) + "-" + "cd".repeat(8), "ab".repeat(15), "0".repeat(32) + "-" + "cd".repeat(8), "ab".repeat(16) + "-" + "0".repeat(16), "zz".repeat(16) + "-" + "cd".repeat(8), "ab".repeat(16) + "-" + "cd".repeat(8) + "-extra", "ab".repeat(17)];
+    const bad = [
+      "AB".repeat(16) + "-" + "cd".repeat(8),
+      "ab".repeat(15),
+      "0".repeat(32) + "-" + "cd".repeat(8),
+      "ab".repeat(16) + "-" + "0".repeat(16),
+      "zz".repeat(16) + "-" + "cd".repeat(8),
+      "ab".repeat(16) + "-" + "cd".repeat(8) + "-extra",
+      "ab".repeat(17),
+    ];
     for (const value of bad) {
       const before = seen.length;
-      const r = await fetch(`${s.base}/f/submit`, { method: "POST", headers: { "content-type": "application/json", "x-vyre-trace": value }, body: JSON.stringify({ slug: "intake", answers: {} }) });
+      const r = await fetch(`${s.base}/f/submit`, {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-vyre-trace": value },
+        body: JSON.stringify({ slug: "intake", answers: {} }),
+      });
       assert.equal(r.status, 200, value);
       assert.equal(seen[before]?.trace, undefined, `a trace id of "${value}" is not passed on`);
       assert.equal(r.headers.get("x-vyre-trace"), null, "a rejected value is never echoed");
@@ -514,19 +801,32 @@ test("a signed-out visitor submits, books and reads availability through the rou
     assert.equal(over.status, 429, "submits have a per-source budget");
     assert.equal((await fetch(`${s.base}/f/submit`)).status, 405);
     assert.equal((await post("/book/availability", {})).status, 405);
-  } finally { await s.close(); }
+  } finally {
+    await s.close();
+  }
 });
 
 test("a body that is not a JSON object is refused before any capability runs", async () => {
   const w = harness();
   let ran = 0;
-  const s = await serve(w, { call: async () => { ran += 1; return {}; } });
+  const s = await serve(w, {
+    call: async () => {
+      ran += 1;
+      return {};
+    },
+  });
   try {
     assert.equal((await fetch(`${s.base}/f/submit`, { method: "POST", body: "not json" })).status, 400);
     assert.equal((await fetch(`${s.base}/f/submit`, { method: "POST", body: "[1]" })).status, 400);
-    assert.equal((await fetch(`${s.base}/f/submit`, { method: "POST", body: JSON.stringify({ pad: "x".repeat(300_000) }) })).status, 413);
+    assert.equal(
+      (await fetch(`${s.base}/f/submit`, { method: "POST", body: JSON.stringify({ pad: "x".repeat(300_000) }) }))
+        .status,
+      413,
+    );
     assert.equal(ran, 0);
-  } finally { await s.close(); }
+  } finally {
+    await s.close();
+  }
 });
 
 test("on a phone address a form's link lives under /p/forms, whole; on an own domain it stays where it was", async () => {
@@ -538,5 +838,7 @@ test("on a phone address a form's link lives under /p/forms, whole; on an own do
     configureForms({ publicBase: "https://team.example.com" });
     assert.equal(publicUrl({ kind: "public", slug: "quote" }), "https://team.example.com/f/quote");
     assert.equal(publicUrl({ kind: "booking", slug: "meet" }), "https://team.example.com/book/meet");
-  } finally { configureForms(null); }
+  } finally {
+    configureForms(null);
+  }
 });

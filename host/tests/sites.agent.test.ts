@@ -12,15 +12,36 @@ import { loadConfig } from "../src/daemon/config.ts";
 import { startDaemon } from "../src/daemon/daemon.ts";
 
 /** One GET to the daemon as another host name (the artifact host shares the daemon's port). */
-function ask(base: string, p: string, headers: Record<string, string>, host: string): Promise<{ status: number; headers: http.IncomingHttpHeaders; body: string }> {
+function ask(
+  base: string,
+  p: string,
+  headers: Record<string, string>,
+  host: string,
+): Promise<{ status: number; headers: http.IncomingHttpHeaders; body: string }> {
   return new Promise((resolve, reject) => {
     const u = new URL(base);
-    const r = http.request({ host: u.hostname, port: u.port, path: p, method: "GET", headers: { host, ...headers } }, (res) => { const c: Buffer[] = []; res.on("data", (x: Buffer) => c.push(x)); res.on("end", () => resolve({ status: res.statusCode ?? 0, headers: res.headers, body: Buffer.concat(c).toString("utf8") })); });
-    r.on("error", reject); r.end();
+    const r = http.request(
+      { host: u.hostname, port: u.port, path: p, method: "GET", headers: { host, ...headers } },
+      (res) => {
+        const c: Buffer[] = [];
+        res.on("data", (x: Buffer) => c.push(x));
+        res.on("end", () =>
+          resolve({ status: res.statusCode ?? 0, headers: res.headers, body: Buffer.concat(c).toString("utf8") }),
+        );
+      },
+    );
+    r.on("error", reject);
+    r.end();
   });
 }
 
-const caddyFetch: FetchFn = () => Promise.resolve({ ok: true, status: 200, headers: { get: () => null }, text: () => Promise.resolve('{"apps":{"http":{}}}') });
+const caddyFetch: FetchFn = () =>
+  Promise.resolve({
+    ok: true,
+    status: 200,
+    headers: { get: () => null },
+    text: () => Promise.resolve('{"apps":{"http":{}}}'),
+  });
 
 test("an agent publishes an artifact for its person, and its going public is held", async () => {
   const core = bootCore();
@@ -32,26 +53,43 @@ test("an agent publishes an artifact for its person, and its going public is hel
   const d = await startDaemon({
     config: loadConfig(["--data-dir", dir, "--port", "0", "--address", "team.example.com"], {}, "1.2.3"),
     platform: fakePlatform({
-      os: "linux", hostname: "sites-agent", free: 80e9,
-      commands: { [`findmnt -n -o SOURCE --target ${dir}`]: { stdout: "/dev/mapper/vyre\n" }, "lsblk -s -n -o TYPE /dev/mapper/vyre": { stdout: "crypt\ndisk\n" }, "docker info --format {{.ServerVersion}}": { stdout: "27.1.1\n" } },
+      os: "linux",
+      hostname: "sites-agent",
+      free: 80e9,
+      commands: {
+        [`findmnt -n -o SOURCE --target ${dir}`]: { stdout: "/dev/mapper/vyre\n" },
+        "lsblk -s -n -o TYPE /dev/mapper/vyre": { stdout: "crypt\ndisk\n" },
+        "docker info --format {{.ServerVersion}}": { stdout: "27.1.1\n" },
+      },
     }),
     fetch: caddyFetch,
     session: (h) => {
       const t = /^Bearer (.+)$/.exec(String(h["authorization"] ?? ""))?.[1];
-      if (t === "olivia") return { space: "spc_core", principal: { kind: "person", id: "usr_olivia" }, device: "dev_x" };
+      if (t === "olivia")
+        return { space: "spc_core", principal: { kind: "person", id: "usr_olivia" }, device: "dev_x" };
       if (t === "agent") return { space: "spc_core", principal: { kind: "agent", id: agent }, actingFor: "usr_olivia" };
       return null;
     },
     intervals: { fast: 3_600_000, slow: 3_600_000, encryption: 3_600_000, commands: 3_600_000, hooks: 3_600_000 },
   });
   try {
-    agent = (d.db!.all("SELECT id FROM agents_agent WHERE deletedAt IS NULL LIMIT 1")[0] as { id?: string } | undefined)?.id ?? "";
+    agent =
+      (d.db!.all("SELECT id FROM agents_agent WHERE deletedAt IS NULL LIMIT 1")[0] as { id?: string } | undefined)
+        ?.id ?? "";
     assert.ok(agent, "the seed has an agent");
     const call = async (token: string, p: string, body: unknown): Promise<{ status: number; json: any }> => {
-      const r = await fetch(`${d.url}${p}`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${token}` }, body: JSON.stringify(body) });
+      const r = await fetch(`${d.url}${p}`, {
+        method: "POST",
+        headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+        body: JSON.stringify(body),
+      });
       return { status: r.status, json: await r.json() };
     };
-    const pub = await call("agent", "/v1/sites/artifact_publish", { idempotencyKey: "a1", title: "Numbers", html: "<p>42</p>" });
+    const pub = await call("agent", "/v1/sites/artifact_publish", {
+      idempotencyKey: "a1",
+      title: "Numbers",
+      html: "<p>42</p>",
+    });
     assert.equal(pub.status, 200, JSON.stringify(pub.json));
     const id = pub.json.data.artifactId as string;
     assert.equal(pub.json.data.url, `https://team.example.com/a/${id}`);
@@ -75,8 +113,16 @@ test("an agent publishes an artifact for its person, and its going public is hel
     const after = await call("olivia", "/v1/sites/get", { siteId: made.json.data.site.siteId });
     assert.equal(after.json.data.site.live, false);
     // a Space with no address of its own takes its public origin from the name it claimed, on the same call (the relay case)
-    d.db!.run("INSERT OR REPLACE INTO network_phone (id, name, nickname, state, detail, box_key, reported_at) VALUES (1, 'harbor', NULL, 'claimed', NULL, NULL, 1)");
-    const claimed = await call("agent", "/v1/sites/artifact_publish", { idempotencyKey: "a2", title: "Numbers", html: "<p>43</p>" });
+    d.db!.run(
+      "INSERT OR REPLACE INTO network_phone (id, name, nickname, state, detail, box_key, reported_at) VALUES (1, 'harbor', NULL, 'claimed', NULL, NULL, 1)",
+    );
+    const claimed = await call("agent", "/v1/sites/artifact_publish", {
+      idempotencyKey: "a2",
+      title: "Numbers",
+      html: "<p>43</p>",
+    });
     assert.equal(claimed.json.data.url, `https://team.example.com/a/${id}`, "a given address still wins");
-  } finally { await d.stop(); }
+  } finally {
+    await d.stop();
+  }
 });

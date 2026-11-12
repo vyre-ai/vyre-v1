@@ -3,7 +3,18 @@ import test from "node:test";
 import { readFileSync } from "node:fs";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
-import { Avatar, FACE_STATE_CSS, faceKey, faceTint, hash, hueOf, kindOf, marbleInner, marbleSpec, initialsOf } from "./index.tsx";
+import {
+  Avatar,
+  FACE_STATE_CSS,
+  faceKey,
+  faceTint,
+  hash,
+  hueOf,
+  kindOf,
+  marbleInner,
+  marbleSpec,
+  initialsOf,
+} from "./index.tsx";
 import { notionistsSvg } from "./notionists.ts";
 import { marbleGradient } from "./faces.ts";
 import { hslHex } from "./faces.ts";
@@ -16,7 +27,8 @@ test("the hash is the prototype's, so a name seeds the same face as the prototyp
 test("a person's marble takes the Vyre palette and turns for the name", () => {
   const m = marbleSpec("Maya Chen");
   assert.deepEqual([m.base, m.c1, m.c2], ["#FF8A66", "#A092FF", "#FF8A66"]);
-  for (const c of [m.base, m.c1, m.c2]) assert.ok(["#3B2CA6", "#6E4BD8", "#A092FF", "#F4BE62", "#FF8A66"].includes(c), "the Vyre palette");
+  for (const c of [m.base, m.c1, m.c2])
+    assert.ok(["#3B2CA6", "#6E4BD8", "#A092FF", "#F4BE62", "#FF8A66"].includes(c), "the Vyre palette");
   assert.deepEqual([m.t1.x, m.t1.y, m.t2.x, m.t2.y, m.t1.rot, m.t2.rot], [-1, 3, -2, 1, 299, 189]);
   const html = renderToStaticMarkup(<Avatar name="Maya Chen" size={24} />);
   assert.match(html, /data-testid="avatar-Maya Chen"/);
@@ -43,7 +55,11 @@ test("an agent paints a tinted SVG fallback before its deferred Notionists face,
   assert.match(faceTint("Scheduler"), /^[0-9a-f]{6}$/);
   const html = renderToStaticMarkup(<Avatar name="Scheduler" kind="agent" size={20} />);
   assert.match(html, /data-avatar="agent"/);
-  assert.match(html, /<svg/, "the lightweight first paint has a face-shaped mark without evaluating the portrait catalog");
+  assert.match(
+    html,
+    /<svg/,
+    "the lightweight first paint has a face-shaped mark without evaluating the portrait catalog",
+  );
   assert.doesNotMatch(html, />S</, "the shared face never regresses to a letter tile");
   assert.match(html, /background-color:/, "the tint fills the ground");
   assert.match(html, /border-top-left-radius:30%/);
@@ -122,16 +138,27 @@ test("the letters used when a face cannot draw: two for a person from 24 px, els
 
 test("the face cache keys a face by seed, kind, size and skin, and caches nothing where there is no browser", async () => {
   const { faceKey, cachedFace, cachedFaceCount, clearFaceCache, requestFace, wrapSvg } = await import("./cache.ts");
-  const keys = new Set([faceKey("Maya", "person", 18, "paper"), faceKey("Maya", "person", 18, "graphite"), faceKey("Maya", "person", 24, "paper"), faceKey("Maya", "agent", 18, "paper"), faceKey("Omar", "person", 18, "paper")]);
+  const keys = new Set([
+    faceKey("Maya", "person", 18, "paper"),
+    faceKey("Maya", "person", 18, "graphite"),
+    faceKey("Maya", "person", 24, "paper"),
+    faceKey("Maya", "agent", 18, "paper"),
+    faceKey("Omar", "person", 18, "paper"),
+  ]);
   assert.equal(keys.size, 5, "seed, kind, size and skin each change the key");
   assert.equal(faceKey("Maya", "person", 18, "paper"), faceKey("Maya", "person", 18, "paper"));
   clearFaceCache();
   let called = 0;
-  requestFace(faceKey("Maya", "person", 18, "paper"), wrapSvg("<g/>", "0 0 80 80", 18), 18, () => { called += 1; });
+  requestFace(faceKey("Maya", "person", 18, "paper"), wrapSvg("<g/>", "0 0 80 80", 18), 18, () => {
+    called += 1;
+  });
   assert.equal(called, 0, "no document, no draw");
   assert.equal(cachedFace(faceKey("Maya", "person", 18, "paper")), undefined);
   assert.equal(cachedFaceCount(), 0);
-  assert.match(wrapSvg("<g/>", "0 0 80 80", 18), /^<svg xmlns="http:\/\/www.w3.org\/2000\/svg" viewBox="0 0 80 80" width="18" height="18"><g\/><\/svg>$/);
+  assert.match(
+    wrapSvg("<g/>", "0 0 80 80", 18),
+    /^<svg xmlns="http:\/\/www.w3.org\/2000\/svg" viewBox="0 0 80 80" width="18" height="18"><g\/><\/svg>$/,
+  );
 });
 
 test("the marble as CSS is seeded like the svg: same name same string, different names differ, colours from marbleSpec, no filter or svg", () => {
@@ -164,7 +191,10 @@ test("the same seedId with different names draws the same face", () => {
   const b = renderToStaticMarkup(<Avatar name="Maya C." seedId="usr_1" />);
   assert.notEqual(faceOf(a), "");
   assert.equal(faceOf(a), faceOf(b));
-  assert.ok(faceOf(a).includes(marbleInner("usr_1")), "the marble is the one the id seeds, the same function the Records table draws with");
+  assert.ok(
+    faceOf(a).includes(marbleInner("usr_1")),
+    "the marble is the one the id seeds, the same function the Records table draws with",
+  );
   assert.match(a, /aria-label="Maya Chen"/, "the label still reads the name");
   const x = renderToStaticMarkup(<Avatar name="Scheduler" kind="agent" seedId="agt_1" />);
   const y = renderToStaticMarkup(<Avatar name="Scheduler 2" kind="agent" seedId="agt_1" />);
@@ -182,7 +212,11 @@ test("with no seedId, or an empty one, the name seeds the face as before", () =>
   const plain = renderToStaticMarkup(<Avatar name="Maya Chen" />);
   assert.equal(faceOf(plain), faceOf(renderToStaticMarkup(<Avatar name="Maya Chen" seedId="" />)));
   assert.ok(faceOf(plain).includes(marbleInner("Maya Chen")));
-  assert.equal(faceKey("usr_1", "person", 18, ""), "person|18||usr_1", "kind, size, skin (empty here) and seed, joined by bars");
+  assert.equal(
+    faceKey("usr_1", "person", 18, ""),
+    "person|18||usr_1",
+    "kind, size, skin (empty here) and seed, joined by bars",
+  );
 });
 
 test("the table's cell face and the Avatar are one function of one seed", () => {
@@ -199,10 +233,14 @@ test("a person's face in the browser paints: the gradient goes in `background`, 
     const html = renderToStaticMarkup(<Avatar name="Lena Ortiz" seedId="usr_lena" kind="person" size={18} />);
     assert.match(html, /data-face="gradient"/, "the browser path draws the gradient span");
     assert.ok(/background:radial-gradient/.test(html), "the gradient and its base colour are one `background` value");
-    assert.ok(!/background-image:radial-gradient[^;"]*,\s*#[0-9a-fA-F]{3,8}/.test(html), "no colour inside background-image (the browser drops the whole declaration)");
+    assert.ok(
+      !/background-image:radial-gradient[^;"]*,\s*#[0-9a-fA-F]{3,8}/.test(html),
+      "no colour inside background-image (the browser drops the whole declaration)",
+    );
     assert.ok(html.includes(marbleSpec("usr_lena").base), "the base colour of the id's marble is in the value");
   } finally {
-    if (had === undefined) delete g.document; else g.document = had;
+    if (had === undefined) delete g.document;
+    else g.document = had;
   }
 });
 

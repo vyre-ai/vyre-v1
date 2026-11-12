@@ -9,8 +9,22 @@ import { admit, fieldsAboveCeiling, labelRankOf, rowTime } from "./profile.ts";
 import { quoteIdent } from "./sql.ts";
 import { BLOB_BUDGET_BYTES, ReplicaError } from "./types.ts";
 import type {
-  DeviceClass, EntityInfo, HideRow, LabelName, OpenReplicaOptions, PendingOp, RebuildTarget, ReplicaStore, ReplicaWrite,
-  ReplicaWriteResult, SqlDriver, SqlRow, SqlStatement, SqlValue, SubscribeMatch, WriteOrigin,
+  DeviceClass,
+  EntityInfo,
+  HideRow,
+  LabelName,
+  OpenReplicaOptions,
+  PendingOp,
+  RebuildTarget,
+  ReplicaStore,
+  ReplicaWrite,
+  ReplicaWriteResult,
+  SqlDriver,
+  SqlRow,
+  SqlStatement,
+  SqlValue,
+  SubscribeMatch,
+  WriteOrigin,
 } from "./types.ts";
 
 const HASH_KEY = "registry_hash";
@@ -121,7 +135,16 @@ function readHash(driver: SqlDriver): string | null {
 }
 
 /** Client-only tables that hold the person's own work or device state. A schema rebuild never drops them (unsynced edits must survive). */
-const KEEP_ON_REBUILD: ReadonlySet<string> = new Set(["pending_ops", "rejected", "conflicts_local", "doc_local", "blob_cache", "replica_keep", "sync_state", "sqlite_sequence"]);
+const KEEP_ON_REBUILD: ReadonlySet<string> = new Set([
+  "pending_ops",
+  "rejected",
+  "conflicts_local",
+  "doc_local",
+  "blob_cache",
+  "replica_keep",
+  "sync_state",
+  "sqlite_sequence",
+]);
 
 function dropTargets(driver: SqlDriver, all: readonly RebuildTarget[]): void {
   const targets = all.filter((t) => !KEEP_ON_REBUILD.has(t.name));
@@ -177,7 +200,12 @@ function prepareAll(driver: SqlDriver, tables: readonly TableInfo[]): Prepared {
       names,
       select: prep(`SELECT * FROM ${q} WHERE id = ?`),
       delete: prep(`DELETE FROM ${q} WHERE id = ?`),
-      upsert: prep(upsertSql(t.name, t.columns.map((c) => c.name))),
+      upsert: prep(
+        upsertSql(
+          t.name,
+          t.columns.map((c) => c.name),
+        ),
+      ),
       count: order ? prep(`SELECT count(*) AS n FROM ${q}${where}`) : null,
       ids: order ? prep(`SELECT id FROM ${q}${where} ORDER BY ${quoteIdent(order)} DESC`) : null,
     });
@@ -186,7 +214,9 @@ function prepareAll(driver: SqlDriver, tables: readonly TableInfo[]): Prepared {
     const fq = quoteIdent(meta.name);
     fm.set(t.name, {
       select: prep(`SELECT field, hlc FROM ${fq} WHERE id = ?`),
-      upsert: prep(`INSERT INTO ${fq} (id, field, hlc, actor, seq, pending) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(id, field) DO UPDATE SET hlc = excluded.hlc, actor = excluded.actor, seq = excluded.seq, pending = excluded.pending`),
+      upsert: prep(
+        `INSERT INTO ${fq} (id, field, hlc, actor, seq, pending) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(id, field) DO UPDATE SET hlc = excluded.hlc, actor = excluded.actor, seq = excluded.seq, pending = excluded.pending`,
+      ),
       clear: prep(`DELETE FROM ${fq} WHERE id = ?`),
     });
   }
@@ -198,18 +228,26 @@ function prepareAll(driver: SqlDriver, tables: readonly TableInfo[]): Prepared {
     ftsDelete: prep("DELETE FROM fts WHERE entity = ? AND id = ?"),
     ftsInsert: prep("INSERT INTO fts (entity, id, title, body) VALUES (?, ?, ?, ?)"),
     ftsSelect: prep("SELECT title, body FROM fts WHERE entity = ? AND id = ?"),
-    blobUpsert: prep("INSERT INTO blob_cache (hash, bytes, size, last_used) VALUES (?, ?, ?, ?) ON CONFLICT(hash) DO UPDATE SET bytes = excluded.bytes, size = excluded.size, last_used = excluded.last_used"),
+    blobUpsert: prep(
+      "INSERT INTO blob_cache (hash, bytes, size, last_used) VALUES (?, ?, ?, ?) ON CONFLICT(hash) DO UPDATE SET bytes = excluded.bytes, size = excluded.size, last_used = excluded.last_used",
+    ),
     blobGet: prep("SELECT bytes FROM blob_cache WHERE hash = ?"),
     blobSum: prep("SELECT coalesce(sum(size), 0) AS total FROM blob_cache"),
     blobOldest: prep("SELECT hash, size FROM blob_cache ORDER BY last_used ASC, hash ASC LIMIT 1"),
     blobDelete: prep("DELETE FROM blob_cache WHERE hash = ?"),
     blobTouch: prep("UPDATE blob_cache SET last_used = ? WHERE hash = ?"),
-    keepUpsert: prep("INSERT INTO replica_keep (entity, id, starred, follows) VALUES (?, ?, ?, ?) ON CONFLICT(entity, id) DO UPDATE SET starred = excluded.starred, follows = excluded.follows"),
+    keepUpsert: prep(
+      "INSERT INTO replica_keep (entity, id, starred, follows) VALUES (?, ?, ?, ?) ON CONFLICT(entity, id) DO UPDATE SET starred = excluded.starred, follows = excluded.follows",
+    ),
     keepDelete: prep("DELETE FROM replica_keep WHERE entity = ? AND id = ?"),
     keepAll: prep("SELECT entity, id, starred, follows FROM replica_keep"),
-    hideUpsert: prep("INSERT INTO hide_seq (entity, id, seq) VALUES (?, ?, ?) ON CONFLICT(entity, id) DO UPDATE SET seq = excluded.seq"),
+    hideUpsert: prep(
+      "INSERT INTO hide_seq (entity, id, seq) VALUES (?, ?, ?) ON CONFLICT(entity, id) DO UPDATE SET seq = excluded.seq",
+    ),
     hideAll: prep("SELECT entity, id, seq FROM hide_seq"),
-    pendingInsert: prep("INSERT INTO pending_ops (op_id, trace_id, hlc, cap, v, entity, id, input, base_seq, state, tries, last_error, at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'queued', 0, NULL, ?) ON CONFLICT(op_id) DO NOTHING"),
+    pendingInsert: prep(
+      "INSERT INTO pending_ops (op_id, trace_id, hlc, cap, v, entity, id, input, base_seq, state, tries, last_error, at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'queued', 0, NULL, ?) ON CONFLICT(op_id) DO NOTHING",
+    ),
     pendingCount: prep("SELECT count(*) AS n FROM pending_ops WHERE state = 'queued'"),
     tableExists: prep("SELECT 1 AS x FROM sqlite_master WHERE name = ?"),
     count,
@@ -329,7 +367,18 @@ class Replica implements ReplicaStore {
   }
 
   private insertOp(input: ReplicaWrite, op: PendingOp): void {
-    this.sql.pendingInsert.run([op.opId, op.traceId, input.hlc, op.cap, op.v, input.entity, input.id, op.input, op.baseSeq, this.clock()]);
+    this.sql.pendingInsert.run([
+      op.opId,
+      op.traceId,
+      input.hlc,
+      op.cap,
+      op.v,
+      input.entity,
+      input.id,
+      op.input,
+      op.baseSeq,
+      this.clock(),
+    ]);
   }
 
   write(input: ReplicaWrite): ReplicaWriteResult {
@@ -343,7 +392,8 @@ class Replica implements ReplicaStore {
     const origin: WriteOrigin = input.origin ?? "local";
     const key = pair(input.entity, input.id);
     const hidden = this.hides.get(key);
-    if (hidden !== undefined && (input.seq === undefined || input.seq <= hidden)) return { applied: false, reason: "hidden" };
+    if (hidden !== undefined && (input.seq === undefined || input.seq <= hidden))
+      return { applied: false, reason: "hidden" };
 
     const stripped = new Set(fieldsAboveCeiling(entity, this.deviceClass, this.phoneCeiling));
     const fields = copyFields(input.fields);
@@ -356,7 +406,8 @@ class Replica implements ReplicaStore {
       if (row.names.has("version") && !Object.prototype.hasOwnProperty.call(fields, "version")) {
         fields.version = (existing && typeof existing.version === "number" ? existing.version : 0) + 1;
       }
-      if (row.names.has("updated_at") && !Object.prototype.hasOwnProperty.call(fields, "updated_at")) fields.updated_at = this.clock();
+      if (row.names.has("updated_at") && !Object.prototype.hasOwnProperty.call(fields, "updated_at"))
+        fields.updated_at = this.clock();
     }
     for (const k of Object.keys(fields)) {
       if (k !== "id" && !row.names.has(k)) throw new ReplicaError("bad_field", `${input.entity}.${k} is not a column`);
@@ -364,7 +415,8 @@ class Replica implements ReplicaStore {
 
     const base: SqlRow = {};
     for (const col of row.columns) {
-      if (existing && Object.prototype.hasOwnProperty.call(existing, col.name)) base[col.name] = existing[col.name] ?? null;
+      if (existing && Object.prototype.hasOwnProperty.call(existing, col.name))
+        base[col.name] = existing[col.name] ?? null;
       else if (col.hasDefault) base[col.name] = col.defaultValue;
       else base[col.name] = null;
     }
@@ -460,7 +512,8 @@ class Replica implements ReplicaStore {
     if (flags.follows === true) this.follows.add(key);
     else if (flags.follows === false) this.follows.delete(key);
     if (flags.starred === undefined && flags.follows === undefined) return;
-    const s = this.starred.has(key) ? 1 : 0, f = this.follows.has(key) ? 1 : 0;
+    const s = this.starred.has(key) ? 1 : 0,
+      f = this.follows.has(key) ? 1 : 0;
     if (s === 0 && f === 0) this.sql.keepDelete.run([entity, id]);
     else this.sql.keepUpsert.run([entity, id, s, f]);
   }
@@ -574,15 +627,18 @@ class Replica implements ReplicaStore {
     const row = info ? this.sql.rows.get(info.table) : undefined;
     if (!info || !row) return Promise.resolve(null);
     const sql = `SELECT * FROM ${quoteIdent(info.table)} WHERE id = ?`;
-    return this.driver.flush().then(() => this.driver.query(sql, [id])).then((found) => {
-      const key = pair(entity, id);
-      if (!found) {
-        this.overlay.set(key, null);
-        return null;
-      }
-      this.overlay.set(key, found);
-      return found;
-    });
+    return this.driver
+      .flush()
+      .then(() => this.driver.query(sql, [id]))
+      .then((found) => {
+        const key = pair(entity, id);
+        if (!found) {
+          this.overlay.set(key, null);
+          return null;
+        }
+        this.overlay.set(key, found);
+        return found;
+      });
   }
 
   flush(): Promise<void> {
@@ -611,7 +667,8 @@ export function openReplica(opts: OpenReplicaOptions): ReplicaStore {
   driver.exec("PRAGMA foreign_keys = OFF");
   const stored = "storedRegistryHash" in opts ? (opts.storedRegistryHash ?? null) : readHash(driver);
   const upgraded = stored !== null && stored !== opts.registryHash;
-  if (upgraded) dropTargets(driver, "rebuildTargets" in opts && opts.rebuildTargets ? opts.rebuildTargets : listTargets(driver));
+  if (upgraded)
+    dropTargets(driver, "rebuildTargets" in opts && opts.rebuildTargets ? opts.rebuildTargets : listTargets(driver));
   // a driver that answers at once can check each table for its pending column, so a new replica gets it in the CREATE TABLE (no ALTER per table)
   driver.exec(driver.sync ? ddl.withPending : ddl.sql);
   driver.exec(CLIENT_SQL);

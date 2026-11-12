@@ -4,14 +4,26 @@ import assert from "node:assert/strict";
 import { cardKey, layerKey, nearest, pageKey, topLayer } from "./keys.ts";
 import type { Box } from "./keys.ts";
 
-const k = (key: string, o: { shiftKey?: boolean; metaKey?: boolean; ctrlKey?: boolean; altKey?: boolean } = {}) => ({ key, ...o });
+const k = (key: string, o: { shiftKey?: boolean; metaKey?: boolean; ctrlKey?: boolean; altKey?: boolean } = {}) => ({
+  key,
+  ...o,
+});
 
 test("a selected card: arrows move, Enter or Space opens, P L S A T R act, Delete deletes, Shift F10 opens the menu", () => {
   assert.deepEqual(cardKey(k("ArrowRight")), { t: "move", dir: "right" });
   assert.deepEqual(cardKey(k("ArrowUp")), { t: "move", dir: "up" });
   assert.deepEqual(cardKey(k("Enter")), { t: "open" });
   assert.deepEqual(cardKey(k(" ")), { t: "open" });
-  for (const [key, t] of [["p", "pin"], ["l", "labels"], ["s", "share"], ["a", "ask"], ["t", "task"], ["r", "record"], ["P", "pin"]] as const) assert.deepEqual(cardKey(k(key)), { t }, key);
+  for (const [key, t] of [
+    ["p", "pin"],
+    ["l", "labels"],
+    ["s", "share"],
+    ["a", "ask"],
+    ["t", "task"],
+    ["r", "record"],
+    ["P", "pin"],
+  ] as const)
+    assert.deepEqual(cardKey(k(key)), { t }, key);
   assert.deepEqual(cardKey(k("Delete")), { t: "delete" });
   assert.deepEqual(cardKey(k("Backspace")), { t: "delete" });
   assert.deepEqual(cardKey(k("F10", { shiftKey: true })), { t: "menu" });
@@ -51,7 +63,11 @@ test("Esc peels the layers in order: a sheet, the share sheet, the note, the bar
   assert.equal(topLayer({ ...none, take: true, ask: true }, false, true), "take");
   assert.equal(topLayer({ ...none, take: true }, false, false), null, "Esc outside the open bar leaves it");
   assert.equal(topLayer({ ...none, ask: true, bar: true }, true, false), "ask");
-  assert.equal(topLayer({ ...none, ask: true, bar: true }, false, false), "bar", "Esc in the grid with the pane open dismisses the line, not the pane");
+  assert.equal(
+    topLayer({ ...none, ask: true, bar: true }, false, false),
+    "bar",
+    "Esc in the grid with the pane open dismisses the line, not the pane",
+  );
   assert.equal(topLayer(none, false, false), null);
 });
 

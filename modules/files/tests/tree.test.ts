@@ -70,7 +70,9 @@ function memoryDb(): Ctx["db"] & { rows(table: string): Row[] } {
     const at = { i: 0 };
     const pred = compile(sel[2], args, at);
     if (at.i !== args.length) throw new Error(`unused sql values: ${text}`);
-    return bag(name).filter(pred).map((row) => ({ ...row }));
+    return bag(name)
+      .filter(pred)
+      .map((row) => ({ ...row }));
   };
   const run = (sql: string, ...args: unknown[]): { changes: number } => {
     const text = sql.replace(/\s+/g, " ").trim();
@@ -80,10 +82,12 @@ function memoryDb(): Ctx["db"] & { rows(table: string): Row[] } {
       const name = insert[1];
       const colSql = insert[2];
       const valSql = insert[3];
-      if (name === undefined || colSql === undefined || valSql === undefined) throw new Error(`unsupported sql: ${text}`);
+      if (name === undefined || colSql === undefined || valSql === undefined)
+        throw new Error(`unsupported sql: ${text}`);
       const cols = colSql.split(",").map((col) => col.trim());
       const marks = valSql.split(",").map((mark) => mark.trim());
-      if (marks.some((mark) => mark !== "?") || marks.length !== cols.length) throw new Error(`unsupported sql: ${text}`);
+      if (marks.some((mark) => mark !== "?") || marks.length !== cols.length)
+        throw new Error(`unsupported sql: ${text}`);
       const row: Row = {};
       for (const col of cols) row[col] = take(args, at);
       if (at.i !== args.length) throw new Error(`unused sql values: ${text}`);
@@ -95,7 +99,8 @@ function memoryDb(): Ctx["db"] & { rows(table: string): Row[] } {
       const name = update[1];
       const setSql = update[2];
       const where = update[3];
-      if (name === undefined || setSql === undefined || where === undefined) throw new Error(`unsupported sql: ${text}`);
+      if (name === undefined || setSql === undefined || where === undefined)
+        throw new Error(`unsupported sql: ${text}`);
       const assigns: { col: string; val: unknown }[] = [];
       for (const part of setSql.split(", ")) {
         const m = /^(\w+) = \?$/.exec(part);
@@ -140,7 +145,8 @@ function spaceSeal(key: Uint8Array): Ctx["seal"] {
       const parsed: unknown = JSON.parse(sealed.bytes);
       if (parsed === null || typeof parsed !== "object") throw new Error("bad box");
       const box = parsed as { ct?: unknown; tag?: unknown; aad?: unknown };
-      if (typeof box.ct !== "string" || typeof box.tag !== "string" || typeof box.aad !== "string") throw new Error("bad box");
+      if (typeof box.ct !== "string" || typeof box.tag !== "string" || typeof box.aad !== "string")
+        throw new Error("bad box");
       return aesUnwrap(key, { iv: sealed.nonce, ct: box.ct, tag: box.tag }, box.aad);
     },
   };
@@ -228,8 +234,17 @@ test("the migration and the entity schema are the tables the tree writes", () =>
   assert.equal(seed.rows.length, 0);
   assert.equal(seed.knowledge.length, 2);
   const db = memoryDb();
-  db.run("INSERT INTO files_folder (id, parent_id, name, deleted_at) VALUES (?, ?, ?, ?)", "fld_1", null, "Personal", null);
-  assert.equal(db.all("SELECT * FROM files_folder WHERE parent_id IS NULL AND name = ? AND deleted_at IS NULL", "Personal").length, 1);
+  db.run(
+    "INSERT INTO files_folder (id, parent_id, name, deleted_at) VALUES (?, ?, ?, ?)",
+    "fld_1",
+    null,
+    "Personal",
+    null,
+  );
+  assert.equal(
+    db.all("SELECT * FROM files_folder WHERE parent_id IS NULL AND name = ? AND deleted_at IS NULL", "Personal").length,
+    1,
+  );
   assert.equal(db.all("SELECT * FROM files_folder WHERE parent_id = ? AND deleted_at IS NULL", "fld_x").length, 0);
   db.run("UPDATE files_folder SET name = ? WHERE id = ?", "Library", "fld_1");
   const renamed = db.all("SELECT * FROM files_folder WHERE id = ?", "fld_1")[0] as Row;
@@ -246,40 +261,88 @@ test("folder sensitivity reaches Access while lists, counts and Recent omit chil
     const personalId = idOf(roots.roots.find((root) => root.key === "personal")?.folderId, "personal");
     const secret = await handlers["files.folder.create"](ctx, { parentId: personalId, name: "Secret" });
     const nested = await handlers["files.folder.create"](ctx, { parentId: secret.folder.folderId, name: "Nested" });
-    const note = await handlers["files.create"](ctx, { folderId: secret.folder.folderId, name: "private.txt", content: { text: "private" } });
+    const note = await handlers["files.create"](ctx, {
+      folderId: secret.folder.folderId,
+      name: "private.txt",
+      content: { text: "private" },
+    });
     const trashedFolder = await handlers["files.folder.create"](ctx, { parentId: personalId, name: "Trashed secret" });
-    const trashedFile = await handlers["files.create"](ctx, { folderId: personalId, name: "trashed-private.txt", content: { text: "private" } });
+    const trashedFile = await handlers["files.create"](ctx, {
+      folderId: personalId,
+      name: "trashed-private.txt",
+      content: { text: "private" },
+    });
     await handlers["files.folder.delete"](ctx, { folderId: trashedFolder.folder.folderId });
     await handlers["files.delete"](ctx, { fileId: trashedFile.file.fileId });
 
-    configureFilesHost({ resources: { ensure: async () => {}, setLabel: async (r) => { labels.push(r); } } });
+    configureFilesHost({
+      resources: {
+        ensure: async () => {},
+        setLabel: async (r) => {
+          labels.push(r);
+        },
+      },
+    });
     // The memory DB intentionally implements only the SQL under test; roots were already
     // initialized above, so bypass their host registration query for this focused call.
-    await handlers["files.folder.settings"]({ ...ctx, db: { ...ctx.db, all: (sql, ...args) => sql.startsWith("SELECT id, parent_id") ? [] : ctx.db.all(sql, ...args) } }, { folderId: secret.folder.folderId, label: "restricted" });
+    await handlers["files.folder.settings"](
+      {
+        ...ctx,
+        db: {
+          ...ctx.db,
+          all: (sql, ...args) => (sql.startsWith("SELECT id, parent_id") ? [] : ctx.db.all(sql, ...args)),
+        },
+      },
+      { folderId: secret.folder.folderId, label: "restricted" },
+    );
     assert.deepEqual(labels, [{ id: secret.folder.folderId, type: "folder", label: "restricted" }]);
     configureFilesHost(null);
 
-    const hidden = new Set([secret.folder.folderId, nested.folder.folderId, note.file.fileId, trashedFolder.folder.folderId, trashedFile.file.fileId]);
-    ctx.authorize = (_action, resource) => hidden.has(resource.id)
-      ? { effect: "deny", reason: "test", decisionId: "dec_deny" }
-      : { effect: "allow", reason: "test", decisionId: "dec_allow" };
+    const hidden = new Set([
+      secret.folder.folderId,
+      nested.folder.folderId,
+      note.file.fileId,
+      trashedFolder.folder.folderId,
+      trashedFile.file.fileId,
+    ]);
+    ctx.authorize = (_action, resource) =>
+      hidden.has(resource.id)
+        ? { effect: "deny", reason: "test", decisionId: "dec_deny" }
+        : { effect: "allow", reason: "test", decisionId: "dec_allow" };
     const listed = await handlers["files.list"](ctx, { folder: personalId });
     assert.deepEqual(listed.folders, []);
     assert.deepEqual(listed.files, []);
     assert.equal(listed.total, 0);
     assert.deepEqual((await handlers["files.recent"](ctx, {})).files, [], "Recent does not reveal a denied child");
     const tree = await handlers["files.tree"](ctx, {});
-    assert.equal(tree.roots.find((root) => root.key === "personal")?.count, 0, "the root count includes only visible children");
-    assert.equal(tree.roots.find((root) => root.key === "trash")?.count, 0, "the Trash badge includes only visible children");
-    assert.deepEqual(await handlers["files.trash.list"](ctx, {}), { files: [], folders: [], total: 0 }, "Trash does not reveal denied roots");
+    assert.equal(
+      tree.roots.find((root) => root.key === "personal")?.count,
+      0,
+      "the root count includes only visible children",
+    );
+    assert.equal(
+      tree.roots.find((root) => root.key === "trash")?.count,
+      0,
+      "the Trash badge includes only visible children",
+    );
+    assert.deepEqual(
+      await handlers["files.trash.list"](ctx, {}),
+      { files: [], folders: [], total: 0 },
+      "Trash does not reveal denied roots",
+    );
     const ownerView: Ctx = { ...ctx, authorize: () => ({ effect: "allow", reason: "test", decisionId: "dec_allow" }) };
     const folder = await handlers["files.folder.get"](ownerView, { folderId: secret.folder.folderId });
-    ctx.authorize = (_action, resource) => resource.id === nested.folder.folderId || resource.id === note.file.fileId
-      ? { effect: "deny", reason: "test", decisionId: "dec_deny" }
-      : { effect: "allow", reason: "test", decisionId: "dec_allow" };
+    ctx.authorize = (_action, resource) =>
+      resource.id === nested.folder.folderId || resource.id === note.file.fileId
+        ? { effect: "deny", reason: "test", decisionId: "dec_deny" }
+        : { effect: "allow", reason: "test", decisionId: "dec_allow" };
     const callerView = await handlers["files.folder.get"](ctx, { folderId: secret.folder.folderId });
     assert.deepEqual([folder.folder.folderCount, folder.folder.fileCount], [1, 1]);
-    assert.deepEqual([callerView.folder.folderCount, callerView.folder.fileCount], [0, 0], "folder counts exclude denied grandchildren");
+    assert.deepEqual(
+      [callerView.folder.folderCount, callerView.folder.fileCount],
+      [0, 0],
+      "folder counts exclude denied grandchildren",
+    );
   } finally {
     configureFilesHost(null);
   }
@@ -288,7 +351,10 @@ test("folder sensitivity reaches Access while lists, counts and Recent omit chil
 test("tree roots, create, move, versions and path rewrite", async () => {
   const { ctx, events } = open();
   const tree = await handlers["files.tree"](ctx, {});
-  assert.deepEqual(tree.roots.map((root) => root.key), seed.roots.map((root) => root.key));
+  assert.deepEqual(
+    tree.roots.map((root) => root.key),
+    seed.roots.map((root) => root.key),
+  );
   const knowledge = tree.roots.find((root) => root.key === "knowledge");
   assert.equal(knowledge?.kind, "folder");
   assert.equal(knowledge?.count, 2);
@@ -307,17 +373,27 @@ test("tree roots, create, move, versions and path rewrite", async () => {
   const fileId = created.file.fileId;
 
   const listed = await handlers["files.list"](ctx, { folder: inner.folder.folderId });
-  assert.deepEqual(listed.files.map((file) => file.name), ["plan.md"]);
+  assert.deepEqual(
+    listed.files.map((file) => file.name),
+    ["plan.md"],
+  );
   assert.equal(listed.total, 1);
   const first = await handlers["files.read"](ctx, { fileId });
   assert.equal(first.text, "v1");
   assert.equal(first.truncated, false);
 
-  const written = await handlers["files.write"](ctx, { fileId, content: { text: "v2" }, baseVersion: 1, reason: "edit" });
+  const written = await handlers["files.write"](ctx, {
+    fileId,
+    content: { text: "v2" },
+    baseVersion: 1,
+    reason: "edit",
+  });
   assert.equal(written.file.version, 2);
   const second = await handlers["files.read"](ctx, { fileId });
   assert.equal(second.text, "v2");
-  await expectCode("validation.version_conflict", () => handlers["files.write"](ctx, { fileId, content: { text: "stale" }, baseVersion: 1 }));
+  await expectCode("validation.version_conflict", () =>
+    handlers["files.write"](ctx, { fileId, content: { text: "stale" }, baseVersion: 1 }),
+  );
 
   const versions = await handlers["files.versions"](ctx, { fileId });
   assert.equal(versions.versions.length, 2);
@@ -337,8 +413,14 @@ test("tree roots, create, move, versions and path rewrite", async () => {
   assert.equal(movedInner.folder.path, "Personal/Docs/Inner");
   await handlers["files.move"](ctx, { fileId, toFolderId: notes.folder.folderId });
   const docs = await handlers["files.list"](ctx, { folder: notes.folder.folderId });
-  assert.deepEqual(docs.folders.map((folder) => folder.name), ["Inner"]);
-  assert.deepEqual(docs.files.map((file) => file.name), ["plan.md"]);
+  assert.deepEqual(
+    docs.folders.map((folder) => folder.name),
+    ["Inner"],
+  );
+  assert.deepEqual(
+    docs.files.map((file) => file.name),
+    ["plan.md"],
+  );
   const empty = await handlers["files.list"](ctx, { folder: inner.folder.folderId });
   assert.equal(empty.files.length, 0);
   const resolved = await handlers["files.resolve"](ctx, { path: "Personal/Docs/plan.md" });
@@ -360,7 +442,10 @@ test("a folder is deleted to Trash, restored, and moved to the top of its tree w
   const outer = await handlers["files.folder.create"](ctx, { parentId: personalId, name: "Outer" });
   const inner = await handlers["files.folder.create"](ctx, { parentId: outer.folder.folderId, name: "Inner" });
   await handlers["files.folder.delete"](ctx, { folderId: inner.folder.folderId });
-  assert.deepEqual((await handlers["files.trash.list"](ctx, {})).folders.map((f) => f.name), ["Inner"]);
+  assert.deepEqual(
+    (await handlers["files.trash.list"](ctx, {})).folders.map((f) => f.name),
+    ["Inner"],
+  );
   const back = await handlers["files.folder.restore"](ctx, { folderId: inner.folder.folderId });
   assert.equal(back.folder.parentId, outer.folder.folderId);
   const top = await handlers["files.folder.move"](ctx, { folderId: inner.folder.folderId });
@@ -368,7 +453,9 @@ test("a folder is deleted to Trash, restored, and moved to the top of its tree w
   assert.equal(top.folder.path, "Personal/Inner");
   const topList = await handlers["files.list"](ctx, { folder: personalId });
   assert.ok(topList.folders.some((f) => f.name === "Inner") && topList.folders.some((f) => f.name === "Outer"));
-  await expectCode("validation.precondition_failed", () => handlers["files.folder.move"](ctx, { folderId: personalId }));
+  await expectCode("validation.precondition_failed", () =>
+    handlers["files.folder.move"](ctx, { folderId: personalId }),
+  );
 });
 
 test("trash restore brings back a file and a folder with its children", async () => {
@@ -376,18 +463,33 @@ test("trash restore brings back a file and a folder with its children", async ()
   const tree = await handlers["files.tree"](ctx, {});
   const personalId = idOf(tree.roots.find((root) => root.key === "personal")?.folderId, "personal");
   const box = await handlers["files.folder.create"](ctx, { parentId: personalId, name: "Box" });
-  const made = await handlers["files.create"](ctx, { folderId: box.folder.folderId, name: "a.txt", content: { text: "keep" } });
-  const beside = await handlers["files.create"](ctx, { folderId: personalId, name: "beside.txt", content: { text: "side" } });
+  const made = await handlers["files.create"](ctx, {
+    folderId: box.folder.folderId,
+    name: "a.txt",
+    content: { text: "keep" },
+  });
+  const beside = await handlers["files.create"](ctx, {
+    folderId: personalId,
+    name: "beside.txt",
+    content: { text: "side" },
+  });
   const fileId = made.file.fileId;
 
   await handlers["files.folder.delete"](ctx, { folderId: box.folder.folderId });
-  await expectCode("validation.precondition_failed", () => handlers["files.list"](ctx, { folder: box.folder.folderId }));
-  await expectCode("validation.precondition_failed", () => handlers["files.write"](ctx, { fileId, content: { text: "no" } }));
+  await expectCode("validation.precondition_failed", () =>
+    handlers["files.list"](ctx, { folder: box.folder.folderId }),
+  );
+  await expectCode("validation.precondition_failed", () =>
+    handlers["files.write"](ctx, { fileId, content: { text: "no" } }),
+  );
   await expectCode("validation.precondition_failed", () => handlers["files.restore"](ctx, { fileId }));
   const held = await handlers["files.read"](ctx, { fileId });
   assert.equal(held.text, "keep");
   const trashed = await handlers["files.trash.list"](ctx, {});
-  assert.deepEqual(trashed.folders.map((folder) => folder.name), ["Box"]);
+  assert.deepEqual(
+    trashed.folders.map((folder) => folder.name),
+    ["Box"],
+  );
   assert.equal(trashed.files.length, 0);
   assert.equal(trashed.total, 1);
   const during = await handlers["files.tree"](ctx, {});
@@ -398,15 +500,24 @@ test("trash restore brings back a file and a folder with its children", async ()
   const again = await handlers["files.read"](ctx, { fileId });
   assert.equal(again.text, "keep");
   const kids = await handlers["files.list"](ctx, { folder: box.folder.folderId });
-  assert.deepEqual(kids.files.map((file) => file.name), ["a.txt"]);
+  assert.deepEqual(
+    kids.files.map((file) => file.name),
+    ["a.txt"],
+  );
   const cleared = await handlers["files.trash.list"](ctx, {});
   assert.equal(cleared.total, 0);
 
   await handlers["files.delete"](ctx, { fileId: beside.file.fileId });
   const recent = await handlers["files.recent"](ctx, {});
-  assert.equal(recent.files.some((file) => file.fileId === beside.file.fileId), false);
+  assert.equal(
+    recent.files.some((file) => file.fileId === beside.file.fileId),
+    false,
+  );
   const fileTrash = await handlers["files.trash.list"](ctx, {});
-  assert.deepEqual(fileTrash.files.map((file) => file.name), ["beside.txt"]);
+  assert.deepEqual(
+    fileTrash.files.map((file) => file.name),
+    ["beside.txt"],
+  );
   const restored = await handlers["files.restore"](ctx, { fileId: beside.file.fileId });
   assert.equal(restored.file.deletedAt, undefined);
   const side = await handlers["files.read"](ctx, { fileId: beside.file.fileId });
@@ -420,8 +531,16 @@ test("blobs are sealed, deduped, rejected when tampered, and kept while a versio
   const tree = await handlers["files.tree"](ctx, {});
   const personalId = idOf(tree.roots.find((root) => root.key === "personal")?.folderId, "personal");
   const plain = new TextEncoder().encode("sealed notes");
-  const first = await handlers["files.create"](ctx, { folderId: personalId, name: "a.txt", content: { text: "sealed notes" } });
-  const second = await handlers["files.create"](ctx, { folderId: personalId, name: "b.txt", content: { text: "sealed notes" } });
+  const first = await handlers["files.create"](ctx, {
+    folderId: personalId,
+    name: "a.txt",
+    content: { text: "sealed notes" },
+  });
+  const second = await handlers["files.create"](ctx, {
+    folderId: personalId,
+    name: "b.txt",
+    content: { text: "sealed notes" },
+  });
   const blobs = db.rows("files_blob");
   assert.equal(blobs.length, 1);
   const blob = blobs[0];
@@ -429,7 +548,11 @@ test("blobs are sealed, deduped, rejected when tampered, and kept while a versio
   assert.equal(blob.refs, 2);
   assert.equal(blob.hash, await sha256(plain));
   assert.equal(String(blob.bytes).includes("sealed notes"), false);
-  assert.equal(blob.scope, boundedScope("files.blob", ctx.space, String(blob.id)), "bound to the Space and the blob through a digest, so it stays a short name");
+  assert.equal(
+    blob.scope,
+    boundedScope("files.blob", ctx.space, String(blob.id)),
+    "bound to the Space and the blob through a digest, so it stays a short name",
+  );
   const readA = await handlers["files.read"](ctx, { fileId: first.file.fileId });
   const readB = await handlers["files.read"](ctx, { fileId: second.file.fileId });
   assert.equal(readA.text, "sealed notes");
@@ -442,8 +565,16 @@ test("blobs are sealed, deduped, rejected when tampered, and kept while a versio
   const shared = open();
   const sharedTree = await handlers["files.tree"](shared.ctx, {});
   const sharedPersonal = idOf(sharedTree.roots.find((root) => root.key === "personal")?.folderId, "personal");
-  const left = await handlers["files.create"](shared.ctx, { folderId: sharedPersonal, name: "left.txt", content: { text: "same" } });
-  const right = await handlers["files.create"](shared.ctx, { folderId: sharedPersonal, name: "right.txt", content: { text: "same" } });
+  const left = await handlers["files.create"](shared.ctx, {
+    folderId: sharedPersonal,
+    name: "left.txt",
+    content: { text: "same" },
+  });
+  const right = await handlers["files.create"](shared.ctx, {
+    folderId: sharedPersonal,
+    name: "right.txt",
+    content: { text: "same" },
+  });
   assert.equal(shared.db.rows("files_blob")[0]?.refs, 2);
   await handlers["files.delete"](shared.ctx, { fileId: left.file.fileId });
   const emptied = await handlers["files.trash.empty"](shared.ctx, {});
@@ -484,7 +615,11 @@ test("recent projection keeps the newest open and drops a deleted file", async (
   assert.equal(recent?.mode, "inline");
   assert.ok(recent);
   const enc = new TextEncoder();
-  const event = (at: number, fileId: string) => ({ at, actor: "per_maya", payload: enc.encode(JSON.stringify({ fileId })) });
+  const event = (at: number, fileId: string) => ({
+    at,
+    actor: "per_maya",
+    payload: enc.encode(JSON.stringify({ fileId })),
+  });
   recent.reset(db);
   recent.on["file.created"](db, event(10, "fil_a"));
   recent.on["file.created"](db, event(5, "fil_a"));
@@ -500,17 +635,31 @@ test("recent projection keeps the newest open and drops a deleted file", async (
 
   const tree = await handlers["files.tree"](ctx, {});
   const personalId = idOf(tree.roots.find((root) => root.key === "personal")?.folderId, "personal");
-  const first = await handlers["files.create"](ctx, { folderId: personalId, name: "one.txt", content: { text: "one" } });
-  const second = await handlers["files.create"](ctx, { folderId: personalId, name: "two.txt", content: { text: "two" } });
+  const first = await handlers["files.create"](ctx, {
+    folderId: personalId,
+    name: "one.txt",
+    content: { text: "one" },
+  });
+  const second = await handlers["files.create"](ctx, {
+    folderId: personalId,
+    name: "two.txt",
+    content: { text: "two" },
+  });
   const list = await handlers["files.recent"](ctx, {});
-  assert.deepEqual(list.files.map((file) => file.fileId), [second.file.fileId, first.file.fileId]);
+  assert.deepEqual(
+    list.files.map((file) => file.fileId),
+    [second.file.fileId, first.file.fileId],
+  );
   const counted = await handlers["files.tree"](ctx, {});
   assert.equal(counted.roots.find((root) => root.key === "recent")?.count, 2);
 });
 
 test("files.star is mine alone, shows on the file rows, and says so once", async () => {
   const { ctx, events } = open();
-  const personalId = idOf((await handlers["files.tree"](ctx, {})).roots.find((root) => root.key === "personal")?.folderId, "personal");
+  const personalId = idOf(
+    (await handlers["files.tree"](ctx, {})).roots.find((root) => root.key === "personal")?.folderId,
+    "personal",
+  );
   const made = await handlers["files.create"](ctx, { folderId: personalId, name: "a.md", content: { text: "x" } });
   const fileId = made.file.fileId;
   assert.equal(made.file.starred, false);
@@ -530,15 +679,28 @@ test("files.star is mine alone, shows on the file rows, and says so once", async
 
 test("a file with a collided staged change in an open changeset carries the conflict flag", async () => {
   const { ctx, db } = open();
-  const personalId = idOf((await handlers["files.tree"](ctx, {})).roots.find((root) => root.key === "personal")?.folderId, "personal");
+  const personalId = idOf(
+    (await handlers["files.tree"](ctx, {})).roots.find((root) => root.key === "personal")?.folderId,
+    "personal",
+  );
   const made = await handlers["files.create"](ctx, { folderId: personalId, name: "c.md", content: { text: "x" } });
   const fileId = made.file.fileId;
   db.run("INSERT INTO files_changeset (id, state) VALUES (?, ?)", "chg_1", "open");
-  db.run("INSERT INTO files_changeset_file (changeset_id, path, file_id, conflict) VALUES (?, ?, ?, ?)", "chg_1", "c.md", fileId, 1);
+  db.run(
+    "INSERT INTO files_changeset_file (changeset_id, path, file_id, conflict) VALUES (?, ?, ?, ?)",
+    "chg_1",
+    "c.md",
+    fileId,
+    1,
+  );
   // each call has its own ctx in the host (flags are read once per call), so the test asks with a fresh one
   assert.equal((await handlers["files.get"]({ ...ctx }, { fileId })).file.conflict, true);
   db.run("UPDATE files_changeset SET state = ? WHERE id = ?", "approved", "chg_1");
-  assert.equal((await handlers["files.get"]({ ...ctx }, { fileId })).file.conflict, false, "a settled changeset holds no conflict");
+  assert.equal(
+    (await handlers["files.get"]({ ...ctx }, { fileId })).file.conflict,
+    false,
+    "a settled changeset holds no conflict",
+  );
 });
 
 test("folders and tree roots say whether they belong to an agent, a project or the Space, with the id", async () => {
@@ -548,13 +710,26 @@ test("folders and tree roots say whether they belong to an agent, a project or t
   assert.deepEqual(tree.roots.find((r) => r.key === "projects")?.subject, { kind: "project" });
   assert.deepEqual(tree.roots.find((r) => r.key === "channels")?.subject, { kind: "space" });
   const agentsId = idOf(tree.roots.find((r) => r.key === "agents")?.folderId, "agents");
-  const mine = await handlers["files.folder.create"](ctx, { parentId: agentsId, name: "Scout", subject: { kind: "agent", id: "agt_scout1" } });
+  const mine = await handlers["files.folder.create"](ctx, {
+    parentId: agentsId,
+    name: "Scout",
+    subject: { kind: "agent", id: "agt_scout1" },
+  });
   assert.deepEqual(mine.folder.subject, { kind: "agent", id: "agt_scout1" });
   const inner = await handlers["files.folder.create"](ctx, { parentId: mine.folder.folderId, name: "Notes" });
-  assert.deepEqual(inner.folder.subject, { kind: "agent", id: "agt_scout1" }, "a folder below it belongs to the same agent");
-  const plain = await handlers["files.folder.create"](ctx, { parentId: idOf(tree.roots.find((r) => r.key === "channels")?.folderId, "channels"), name: "General" });
+  assert.deepEqual(
+    inner.folder.subject,
+    { kind: "agent", id: "agt_scout1" },
+    "a folder below it belongs to the same agent",
+  );
+  const plain = await handlers["files.folder.create"](ctx, {
+    parentId: idOf(tree.roots.find((r) => r.key === "channels")?.folderId, "channels"),
+    name: "General",
+  });
   assert.deepEqual(plain.folder.subject, { kind: "space" });
-  await expectCode("validation.bad_input", () => handlers["files.folder.create"](ctx, { parentId: agentsId, name: "Bad", subject: { kind: "space", id: "x" } }));
+  await expectCode("validation.bad_input", () =>
+    handlers["files.folder.create"](ctx, { parentId: agentsId, name: "Bad", subject: { kind: "space", id: "x" } }),
+  );
 });
 // run on the final commit of P-CC_27
 
@@ -563,12 +738,34 @@ test("an upload slot takes its bytes once: a used slot, a wrong token, a wrong s
   const body = new TextEncoder().encode("one time");
   const slot = await handlers["files.upload_url"](ctx, { size: body.byteLength });
   const token = slot.url.split("token=")[1] ?? "";
-  await assert.rejects(() => putUploadedBytes(ctx, slot.blobId, "not-the-token", body), (e: unknown) => e instanceof VyreErr && e.error.code === "validation.not_found");
-  await assert.rejects(() => putUploadedBytes(ctx, slot.blobId, token, new TextEncoder().encode("different size!")), (e: unknown) => e instanceof VyreErr && e.error.code === "validation.bad_input");
+  await assert.rejects(
+    () => putUploadedBytes(ctx, slot.blobId, "not-the-token", body),
+    (e: unknown) => e instanceof VyreErr && e.error.code === "validation.not_found",
+  );
+  await assert.rejects(
+    () => putUploadedBytes(ctx, slot.blobId, token, new TextEncoder().encode("different size!")),
+    (e: unknown) => e instanceof VyreErr && e.error.code === "validation.bad_input",
+  );
   await putUploadedBytes(ctx, slot.blobId, token, body);
-  await assert.rejects(() => putUploadedBytes(ctx, slot.blobId, token, body), (e: unknown) => e instanceof VyreErr && e.error.code === "validation.not_found", "the slot is gone after one use");
-  await assert.rejects(() => putUploadedBytes(ctx, "blb_00000000000000000000000000000000", token, body), (e: unknown) => e instanceof VyreErr && e.error.code === "validation.not_found", "a slot this Space never made");
+  await assert.rejects(
+    () => putUploadedBytes(ctx, slot.blobId, token, body),
+    (e: unknown) => e instanceof VyreErr && e.error.code === "validation.not_found",
+    "the slot is gone after one use",
+  );
+  await assert.rejects(
+    () => putUploadedBytes(ctx, "blb_00000000000000000000000000000000", token, body),
+    (e: unknown) => e instanceof VyreErr && e.error.code === "validation.not_found",
+    "a slot this Space never made",
+  );
   const late = await handlers["files.upload_url"](ctx, { size: body.byteLength });
-  assert.equal(db.run("UPDATE files_upload SET expires_at = ? WHERE id = ?", 1, late.blobId).changes, 1, "the slot's stored expiry is moved into the past");
-  await assert.rejects(() => putUploadedBytes(ctx, late.blobId, late.url.split("token=")[1] ?? "", body), (e: unknown) => e instanceof VyreErr && e.error.code === "validation.precondition_failed", "an expired slot");
+  assert.equal(
+    db.run("UPDATE files_upload SET expires_at = ? WHERE id = ?", 1, late.blobId).changes,
+    1,
+    "the slot's stored expiry is moved into the past",
+  );
+  await assert.rejects(
+    () => putUploadedBytes(ctx, late.blobId, late.url.split("token=")[1] ?? "", body),
+    (e: unknown) => e instanceof VyreErr && e.error.code === "validation.precondition_failed",
+    "an expired slot",
+  );
 });

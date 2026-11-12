@@ -7,30 +7,80 @@ import { AutomationsSidebar } from "./AutomationsSidebar.tsx";
 import { StudioNav } from "./AutomationsSidebarSlot.tsx";
 import type { SidebarProps } from "./AutomationsSidebar.tsx";
 import { AutomationsDataProvider } from "../canvas/data.tsx";
-import { allGroupKeys, failedTotal, journeyNote, matches, needsYou, nextId, noteOf, sectionsOf, visibleOrder } from "./model.ts";
+import {
+  allGroupKeys,
+  failedTotal,
+  journeyNote,
+  matches,
+  needsYou,
+  nextId,
+  noteOf,
+  sectionsOf,
+  visibleOrder,
+} from "./model.ts";
 import type { AutoRow, GroupRow } from "./model.ts";
 import { createSampleAutomations, harbor, northwind } from "./sample.ts";
 import type { SampleAutomations } from "./sample.ts";
 
 const html = (s: SampleAutomations, props: SidebarProps = {}): string =>
-  renderToStaticMarkup(<AutomationsDataProvider value={s.data}><AutomationsSidebar shared={s.shared} reasons={s.space.reasons} {...props} /></AutomationsDataProvider>).replaceAll("<!-- -->", "");
+  renderToStaticMarkup(
+    <AutomationsDataProvider value={s.data}>
+      <AutomationsSidebar shared={s.shared} reasons={s.space.reasons} {...props} />
+    </AutomationsDataProvider>,
+  ).replaceAll("<!-- -->", "");
 const has = (s: string, needle: string): boolean => s.includes(needle);
-const at = (s: string, needle: string): number => { const i = s.indexOf(needle); assert.ok(i >= 0, `expected ${needle}`); return i; };
+const at = (s: string, needle: string): number => {
+  const i = s.indexOf(needle);
+  assert.ok(i >= 0, `expected ${needle}`);
+  return i;
+};
 const lists = (s: SampleAutomations): { autos: AutoRow[]; groups: GroupRow[] } => ({
-  autos: (s.data.screens.query("automations.sidebar", "automations", {}).getSnapshot() as { data: { automations: AutoRow[] } }).data.automations,
-  groups: (s.data.screens.query("automations.sidebar", "groups", {}).getSnapshot() as { data: { groups: GroupRow[] } }).data.groups,
+  autos: (
+    s.data.screens.query("automations.sidebar", "automations", {}).getSnapshot() as { data: { automations: AutoRow[] } }
+  ).data.automations,
+  groups: (s.data.screens.query("automations.sidebar", "groups", {}).getSnapshot() as { data: { groups: GroupRow[] } })
+    .data.groups,
 });
-const sections = (s: SampleAutomations, q = "") => { const l = lists(s); return sectionsOf(l.autos, l.groups, { me: s.space.me.id, q, shared: s.shared, reasons: s.space.reasons }); };
+const sections = (s: SampleAutomations, q = "") => {
+  const l = lists(s);
+  return sectionsOf(l.autos, l.groups, { me: s.space.me.id, q, shared: s.shared, reasons: s.space.reasons });
+};
 
 test("sections come in the order Needs you, Personal, Shared with me, Space, Running, with the prototype's counts", () => {
   const sec = sections(createSampleAutomations(northwind));
-  assert.deepEqual(sec.map((x) => x.key), ["needs", "personal", "shared", "space", "running"]);
-  assert.deepEqual(sec.map((x) => x.count), [3, 2, 1, 12, 1]);
-  assert.deepEqual(sec.find((x) => x.key === "personal")!.groups.map((g) => g.name), ["Daily", "Money"]);
-  assert.deepEqual(sec.find((x) => x.key === "space")!.groups.map((g) => [g.name, g.rows.length]), [["Sales", 5], ["Billing", 1], ["Intake", 5]]);
-  assert.deepEqual(sec.find((x) => x.key === "space")!.loose.map((a) => a.name), ["Weekly backup check"], "an Automation with no group is listed directly");
-  assert.deepEqual(sec.find((x) => x.key === "needs")!.loose.map((a) => a.name), ["Flag invoices over $5k to me", "New lead follow-up", "Invoice reminders"]);
-  assert.deepEqual(sec.find((x) => x.key === "running")!.loose.map((a) => a.name), ["Meeting transcript to tasks"]);
+  assert.deepEqual(
+    sec.map((x) => x.key),
+    ["needs", "personal", "shared", "space", "running"],
+  );
+  assert.deepEqual(
+    sec.map((x) => x.count),
+    [3, 2, 1, 12, 1],
+  );
+  assert.deepEqual(
+    sec.find((x) => x.key === "personal")!.groups.map((g) => g.name),
+    ["Daily", "Money"],
+  );
+  assert.deepEqual(
+    sec.find((x) => x.key === "space")!.groups.map((g) => [g.name, g.rows.length]),
+    [
+      ["Sales", 5],
+      ["Billing", 1],
+      ["Intake", 5],
+    ],
+  );
+  assert.deepEqual(
+    sec.find((x) => x.key === "space")!.loose.map((a) => a.name),
+    ["Weekly backup check"],
+    "an Automation with no group is listed directly",
+  );
+  assert.deepEqual(
+    sec.find((x) => x.key === "needs")!.loose.map((a) => a.name),
+    ["Flag invoices over $5k to me", "New lead follow-up", "Invoice reminders"],
+  );
+  assert.deepEqual(
+    sec.find((x) => x.key === "running")!.loose.map((a) => a.name),
+    ["Meeting transcript to tasks"],
+  );
 });
 
 test("what needs you: paused, a failed run, or a last run that failed; and the short reason beside it", () => {
@@ -48,10 +98,20 @@ test("what needs you: paused, a failed run, or a last run that failed; and the s
 test("search keeps the Automations whose name matches, drops empty Groups and opens the rest", () => {
   const s = createSampleAutomations(northwind);
   const sec = sections(s, "invoice");
-  assert.deepEqual(sec.map((x) => x.key), ["needs", "personal", "space"], "Shared with me goes when nothing in it matches");
-  assert.deepEqual(sec.find((x) => x.key === "space")!.groups.map((g) => g.name), ["Billing"]);
+  assert.deepEqual(
+    sec.map((x) => x.key),
+    ["needs", "personal", "space"],
+    "Shared with me goes when nothing in it matches",
+  );
+  assert.deepEqual(
+    sec.find((x) => x.key === "space")!.groups.map((g) => g.name),
+    ["Billing"],
+  );
   assert.ok(matches(lists(s).autos[0]!, "  MORNING "));
-  assert.equal(sections(s, "zzz").every((x) => x.count === 0), true);
+  assert.equal(
+    sections(s, "zzz").every((x) => x.count === 0),
+    true,
+  );
   assert.deepEqual([...allGroupKeys(sec)].sort(), ["personal:agr_money", "space:agr_billing"]);
 });
 
@@ -62,7 +122,11 @@ test("the arrow keys walk the rows on screen; a closed Group hides its rows and 
   const open = visibleOrder(sec, new Set(["space:agr_sales"]), new Set());
   assert.ok(open.includes("space:aut_score"));
   assert.ok(open.indexOf("group:space:agr_sales") < open.indexOf("space:aut_score"));
-  assert.ok(!visibleOrder(sec, new Set(), new Set(["space"])).some((id) => id.startsWith("space:") || id.startsWith("group:space:")));
+  assert.ok(
+    !visibleOrder(sec, new Set(), new Set(["space"])).some(
+      (id) => id.startsWith("space:") || id.startsWith("group:space:"),
+    ),
+  );
   assert.equal(nextId(["a", "b", "c"], null, 1), "a");
   assert.equal(nextId(["a", "b", "c"], null, -1), "c");
   assert.equal(nextId(["a", "b", "c"], "b", 1), "c");
@@ -76,19 +140,46 @@ test("the sidebar draws the tabs, search, Failed runs and each section with its 
   assert.ok(has(out, "Automations") && has(out, "Journeys") && has(out, ">15<"), "tab names and the total");
   assert.ok(has(out, 'aria-label="Search Automations"') && has(out, 'placeholder="Search"'));
   assert.ok(has(out, "Failed runs") && has(out, 'data-testid="failed-count"'));
-  const order = ["Needs you", "Personal", "Shared with me", "Space", "Running"].map((t) => at(out, `aria-label="${t}"`));
-  assert.deepEqual([...order].sort((x, y) => x - y), order, "sections in order");
-  for (const t of ["New lead follow-up", "Needs the Twilio key", "Invoice reminders", "Waiting for Maya to approve", "Flag invoices over $5k to me", "Daily", "Money", "Maya&#x27;s reports", "Sales", "Billing", "Intake", "Meeting transcript to tasks"]) assert.ok(has(out, t), t);
+  const order = ["Needs you", "Personal", "Shared with me", "Space", "Running"].map((t) =>
+    at(out, `aria-label="${t}"`),
+  );
+  assert.deepEqual(
+    [...order].sort((x, y) => x - y),
+    order,
+    "sections in order",
+  );
+  for (const t of [
+    "New lead follow-up",
+    "Needs the Twilio key",
+    "Invoice reminders",
+    "Waiting for Maya to approve",
+    "Flag invoices over $5k to me",
+    "Daily",
+    "Money",
+    "Maya&#x27;s reports",
+    "Sales",
+    "Billing",
+    "Intake",
+    "Meeting transcript to tasks",
+  ])
+    assert.ok(has(out, t), t);
   assert.ok(has(out, 'data-testid="row-auto-needs:aut_lead"'));
 });
 
 test("the selected Automation's row is marked and Groups start closed", () => {
   const out = html(createSampleAutomations(northwind), { selectedId: "aut_lead" });
-  assert.match(out.match(/<[^>]*data-testid="row-auto-needs:aut_lead"[^>]*>/)![0], /var\(--sel\)/, "the shared Row paints the selection token");
+  assert.match(
+    out.match(/<[^>]*data-testid="row-auto-needs:aut_lead"[^>]*>/)![0],
+    /var\(--sel\)/,
+    "the shared Row paints the selection token",
+  );
   assert.ok(!has(out, 'data-testid="row-auto-space:aut_score"'), "Lead scoring is inside the closed Sales Group");
   const open = html(createSampleAutomations(northwind), { initialOpen: ["space:agr_sales"] });
   assert.ok(has(open, 'data-testid="row-auto-space:aut_score"') && has(open, "Hot lead alert"));
-  assert.ok(has(open, 'data-testid="row-auto-space:aut_lead"'), "the Automation shows under its Group as well as in Needs you");
+  assert.ok(
+    has(open, 'data-testid="row-auto-space:aut_lead"'),
+    "the Automation shows under its Group as well as in Needs you",
+  );
 });
 
 test("a failed run counts beside its Group, and the Group's count is its rows", () => {
@@ -96,36 +187,86 @@ test("a failed run counts beside its Group, and the Group's count is its rows", 
   const by = (n: string) => space.groups.find((g) => g.name === n)!;
   assert.deepEqual([by("Sales").failed, by("Billing").failed, by("Intake").failed], [1, 1, 0]);
   assert.deepEqual([by("Sales").rows.length, by("Billing").rows.length, by("Intake").rows.length], [5, 1, 5]);
-  assert.equal(sections(createSampleAutomations(northwind)).find((x) => x.key === "personal")!.groups.find((g) => g.name === "Money")!.failed, 1);
+  assert.equal(
+    sections(createSampleAutomations(northwind))
+      .find((x) => x.key === "personal")!
+      .groups.find((g) => g.name === "Money")!.failed,
+    1,
+  );
 });
 
 test("the Journeys tab lists Journeys with their stages and records", () => {
   const out = html(createSampleAutomations(northwind), { initialTab: "journeys" });
-  assert.ok(has(out, "Client onboarding") && has(out, 'data-testid="journey-count-jrn_onboard"') && has(out, ">4<"), "the count of what is in flight is the badge");
+  assert.ok(
+    has(out, "Client onboarding") && has(out, 'data-testid="journey-count-jrn_onboard"') && has(out, ">4<"),
+    "the count of what is in flight is the badge",
+  );
   assert.ok(has(out, "Matter intake") && has(out, 'data-testid="journey-count-jrn_matter"') && has(out, ">7<"));
-  assert.equal(journeyNote({ id: "j", name: "n", subjectType: "x", recordType: "y", version: 1, stages: 5, inFlight: 4, updatedAt: 0 }), "5 stages, 4 records");
+  assert.equal(
+    journeyNote({
+      id: "j",
+      name: "n",
+      subjectType: "x",
+      recordType: "y",
+      version: 1,
+      stages: 5,
+      inFlight: 4,
+      updatedAt: 0,
+    }),
+    "5 stages, 4 records",
+  );
   assert.ok(!has(out, "New lead follow-up"), "the Automations list is not shown");
-  assert.equal(journeyNote({ id: "j", name: "n", subjectType: "x", recordType: "y", version: 1, stages: 1, inFlight: 0, updatedAt: 0 }), "1 stage, 0 records");
+  assert.equal(
+    journeyNote({
+      id: "j",
+      name: "n",
+      subjectType: "x",
+      recordType: "y",
+      version: 1,
+      stages: 1,
+      inFlight: 0,
+      updatedAt: 0,
+    }),
+    "1 stage, 0 records",
+  );
   assert.match(out.match(/<[^>]*data-testid="subtab-journeys"[^>]*>/)![0], /aria-selected="true"/);
 });
 
 test("Harbor Studio draws its own Space: one Group open, a Personal Automation, no Needs you and no Running", () => {
   const h = createSampleAutomations(harbor);
   const sec = sections(h);
-  assert.deepEqual(sec.map((x) => x.key), ["personal", "shared", "space"]);
-  assert.deepEqual(sec.map((x) => x.count), [1, 0, 2]);
+  assert.deepEqual(
+    sec.map((x) => x.key),
+    ["personal", "shared", "space"],
+  );
+  assert.deepEqual(
+    sec.map((x) => x.count),
+    [1, 0, 2],
+  );
   const out = html(h, { initialOpen: ["space:agr_studio"] });
   assert.ok(has(out, "Brief to project") && has(out, "Friday wrap-up") && has(out, "My reading list"));
   assert.ok(!has(out, 'aria-label="Needs you"') && !has(out, 'aria-label="Running"'));
-  assert.ok(!has(out, "data-testid=\"failed-count\""), "no failed runs, no badge");
+  assert.ok(!has(out, 'data-testid="failed-count"'), "no failed runs, no badge");
 });
 
 test("creating, moving and deleting change what the next render shows", async () => {
   const s = createSampleAutomations(northwind);
-  const made = (await s.data.call("automations.create", { name: "New automation", groupId: "agr_daily" })) as { automation: { id: string } };
-  assert.equal(sections(s).find((x) => x.key === "personal")!.groups.find((g) => g.id === "agr_daily")!.rows.length, 2);
+  const made = (await s.data.call("automations.create", { name: "New automation", groupId: "agr_daily" })) as {
+    automation: { id: string };
+  };
+  assert.equal(
+    sections(s)
+      .find((x) => x.key === "personal")!
+      .groups.find((g) => g.id === "agr_daily")!.rows.length,
+    2,
+  );
   await s.data.call("automations.move", { automationId: made.automation.id, groupId: "agr_money" });
-  assert.equal(sections(s).find((x) => x.key === "personal")!.groups.find((g) => g.id === "agr_money")!.rows.length, 2);
+  assert.equal(
+    sections(s)
+      .find((x) => x.key === "personal")!
+      .groups.find((g) => g.id === "agr_money")!.rows.length,
+    2,
+  );
   await s.data.call("automations.move", { automationId: made.automation.id });
   assert.equal(sections(s).find((x) => x.key === "personal")!.loose.length, 1, "no group puts it back in the list");
   await s.data.call("automations.delete", { automationId: made.automation.id });
@@ -136,13 +277,23 @@ test("Group edits: a new Group is empty and shows under Space; rename and delete
   const s = createSampleAutomations(northwind);
   await s.data.call("automations.groups.create", { name: "Legal" });
   const space = () => sections(s).find((x) => x.key === "space")!;
-  assert.ok(space().groups.some((g) => g.name === "Legal" && g.rows.length === 0), "empty Groups sit under Space");
-  assert.ok(!sections(s).find((x) => x.key === "personal")!.groups.some((g) => g.name === "Legal"));
+  assert.ok(
+    space().groups.some((g) => g.name === "Legal" && g.rows.length === 0),
+    "empty Groups sit under Space",
+  );
+  assert.ok(
+    !sections(s)
+      .find((x) => x.key === "personal")!
+      .groups.some((g) => g.name === "Legal"),
+  );
   await s.data.call("automations.groups.rename", { groupId: "agr_sales", name: "Revenue" });
   assert.ok(space().groups.some((g) => g.name === "Revenue" && g.rows.length === 5));
   await s.data.call("automations.groups.delete", { groupId: "agr_sales" });
   assert.equal(lists(s).autos.length, 15, "the Automations stay");
-  assert.ok(space().loose.some((a) => a.name === "New lead follow-up"), "and are listed directly");
+  assert.ok(
+    space().loose.some((a) => a.name === "New lead follow-up"),
+    "and are listed directly",
+  );
 });
 
 test("a failed write says so in a sentence and leaves the list as it was", async () => {
@@ -154,7 +305,14 @@ test("a failed write says so in a sentence and leaves the list as it was", async
 
 test("the studio nav marks the selected item as the current page, and only that one", () => {
   const s = createSampleAutomations(northwind);
-  const out = renderToStaticMarkup(<AutomationsDataProvider value={s.data}><StudioNav view="automations" onView={() => undefined} /></AutomationsDataProvider>);
+  const out = renderToStaticMarkup(
+    <AutomationsDataProvider value={s.data}>
+      <StudioNav view="automations" onView={() => undefined} />
+    </AutomationsDataProvider>,
+  );
   assert.equal((out.match(/aria-current="page"/g) ?? []).length, 1, "exactly one nav item is current");
-  assert.match(out, /aria-current="page"[^>]*data-testid="nav-automations"|data-testid="nav-automations"[^>]*aria-current="page"/);
+  assert.match(
+    out,
+    /aria-current="page"[^>]*data-testid="nav-automations"|data-testid="nav-automations"[^>]*aria-current="page"/,
+  );
 });

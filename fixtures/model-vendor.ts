@@ -12,8 +12,14 @@ export async function vendor() {
   const server = http.createServer((req, res) => {
     // a key check (the Vault asks the provider for its models before it saves a key) is not a turn: it answers at once and never takes a scripted answer. A key with "invalid" in it is refused, as a real provider refuses a bad one.
     if (req.method === "GET" && /\/models\/?$/.test(String(req.url))) {
-      if (/invalid/i.test(String(req.headers.authorization ?? ""))) { res.writeHead(401, { "content-type": "application/json" }); res.end(JSON.stringify({ error: { message: "Incorrect API key provided", type: "invalid_request_error" } })); return; }
-      res.writeHead(200, { "content-type": "application/json" }); res.end(JSON.stringify({ data: models.map((id) => ({ id })) })); return;
+      if (/invalid/i.test(String(req.headers.authorization ?? ""))) {
+        res.writeHead(401, { "content-type": "application/json" });
+        res.end(JSON.stringify({ error: { message: "Incorrect API key provided", type: "invalid_request_error" } }));
+        return;
+      }
+      res.writeHead(200, { "content-type": "application/json" });
+      res.end(JSON.stringify({ data: models.map((id) => ({ id })) }));
+      return;
     }
     let body = "";
     req.on("data", (c) => (body += c));
@@ -22,20 +28,53 @@ export async function vendor() {
       auth.push(String(req.headers.authorization ?? ""));
       // as a real vendor: a request with no model, or an empty one, is refused before anything is scripted
       let model: unknown;
-      try { model = (JSON.parse(body) as { model?: unknown }).model; } catch { model = undefined; }
-      if (typeof model !== "string" || model.trim() === "") { res.writeHead(400, { "content-type": "application/json" }); res.end(JSON.stringify({ error: { message: "you must provide a model parameter", type: "invalid_request_error" } })); return; }
+      try {
+        model = (JSON.parse(body) as { model?: unknown }).model;
+      } catch {
+        model = undefined;
+      }
+      if (typeof model !== "string" || model.trim() === "") {
+        res.writeHead(400, { "content-type": "application/json" });
+        res.end(
+          JSON.stringify({ error: { message: "you must provide a model parameter", type: "invalid_request_error" } }),
+        );
+        return;
+      }
       const next = script.shift() ?? { text: "{}" };
-      if (next.status && next.status !== 200) { res.writeHead(next.status, { "content-type": "application/json" }); res.end(JSON.stringify({ error: { message: "vendor says no", type: "invalid_request_error" } })); return; }
+      if (next.status && next.status !== 200) {
+        res.writeHead(next.status, { "content-type": "application/json" });
+        res.end(JSON.stringify({ error: { message: "vendor says no", type: "invalid_request_error" } }));
+        return;
+      }
       res.writeHead(200, { "content-type": "text/event-stream" });
-      const chunk = (o: unknown): void => { res.write(`data: ${JSON.stringify(o)}\n\n`); };
+      const chunk = (o: unknown): void => {
+        res.write(`data: ${JSON.stringify(o)}\n\n`);
+      };
       // held: the stream stays open until the client hangs up (the turn is stopped). It must not end on the REQUEST closing: that event fires as soon as the request body has been read, which would end the "held" answer at once and let the Ask finish before the test can cancel it.
-      if (next.hold) { chunk({ id: "1", choices: [{ index: 0, delta: { role: "assistant", content: "thinking" } }] }); return; }
+      if (next.hold) {
+        chunk({ id: "1", choices: [{ index: 0, delta: { role: "assistant", content: "thinking" } }] });
+        return;
+      }
       chunk({ id: "1", choices: [{ index: 0, delta: { role: "assistant", content: next.text ?? "" } }] });
-      chunk({ id: "1", choices: [{ index: 0, delta: {}, finish_reason: "stop" }], usage: { prompt_tokens: 50, completion_tokens: 20, total_tokens: 70 } });
-      res.write("data: [DONE]\n\n"); res.end();
+      chunk({
+        id: "1",
+        choices: [{ index: 0, delta: {}, finish_reason: "stop" }],
+        usage: { prompt_tokens: 50, completion_tokens: 20, total_tokens: 70 },
+      });
+      res.write("data: [DONE]\n\n");
+      res.end();
     });
   });
   await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
-  return { script, requests, auth, models, base: `http://127.0.0.1:${(server.address() as { port: number }).port}`, close: () => { server.close(); server.closeAllConnections(); } };
+  return {
+    script,
+    requests,
+    auth,
+    models,
+    base: `http://127.0.0.1:${(server.address() as { port: number }).port}`,
+    close: () => {
+      server.close();
+      server.closeAllConnections();
+    },
+  };
 }
-

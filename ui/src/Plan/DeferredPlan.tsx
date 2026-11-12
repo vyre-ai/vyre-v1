@@ -10,7 +10,15 @@ const FullPlan = lazy(() => import("./index.tsx").then((m) => ({ default: m.Plan
 
 export function DeferredPlan(props: PlanProps): ReactElement {
   return (
-    <Suspense fallback={<View testID="plan-loading" accessibilityLabel="Loading the plan" style={{ height: props.height ?? 340, backgroundColor: "var(--sunk)" as string }} />}>
+    <Suspense
+      fallback={
+        <View
+          testID="plan-loading"
+          accessibilityLabel="Loading the plan"
+          style={{ height: props.height ?? 340, backgroundColor: "var(--sunk)" as string }}
+        />
+      }
+    >
       <FullPlan {...props} />
     </Suspense>
   );

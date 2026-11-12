@@ -10,8 +10,21 @@ import type { Roots, SandboxSpec } from "./types.ts";
 
 /** Folders every program needs to start and run. Read only. */
 export const SYSTEM_READ: readonly string[] = [
-  "/usr/lib", "/usr/bin", "/usr/sbin", "/usr/share", "/usr/libexec", "/bin", "/sbin", "/System/Library", "/Library/Frameworks", "/Library/Preferences/Logging",
-  "/private/var/db/dyld", "/private/var/db/timezone", "/private/etc/ssl", "/private/etc/ssl", "/Library/Apple/System",
+  "/usr/lib",
+  "/usr/bin",
+  "/usr/sbin",
+  "/usr/share",
+  "/usr/libexec",
+  "/bin",
+  "/sbin",
+  "/System/Library",
+  "/Library/Frameworks",
+  "/Library/Preferences/Logging",
+  "/private/var/db/dyld",
+  "/private/var/db/timezone",
+  "/private/etc/ssl",
+  "/private/etc/ssl",
+  "/Library/Apple/System",
 ];
 /** The one directory opened as a literal, not as a tree: macOS 26 aborts every process at startup (SIGABRT) unless it can open `/`. What is under `/` stays closed. */
 export const ROOT_DIR_LITERAL = "/";
@@ -19,7 +32,8 @@ const DEVICES_READ = ["/dev/null", "/dev/zero", "/dev/random", "/dev/urandom", "
 
 /** A string for a profile. A control character or a line break is refused; a backslash and a quote are escaped. */
 export function sbplString(s: string): string {
-  if (/[\u0000-\u001f\u007f]/u.test(s)) throw new SandboxError("sandbox.policy", "a profile string may not hold a control character");
+  if (/[\u0000-\u001f\u007f]/u.test(s))
+    throw new SandboxError("sandbox.policy", "a profile string may not hold a control character");
   return `"${s.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
 }
 
@@ -33,7 +47,8 @@ export interface SeatbeltOptions {
 }
 
 export function seatbeltProfile(checked: Checked, o: SeatbeltOptions): string {
-  if (!Number.isInteger(o.proxyPort) || o.proxyPort < 1 || o.proxyPort > 65535) throw new SandboxError("sandbox.policy", "the proxy port is not a port");
+  if (!Number.isInteger(o.proxyPort) || o.proxyPort < 1 || o.proxyPort > 65535)
+    throw new SandboxError("sandbox.policy", "the proxy port is not a port");
   const lines: string[] = [
     "(version 1)",
     "(deny default)",
@@ -43,27 +58,53 @@ export function seatbeltProfile(checked: Checked, o: SeatbeltOptions): string {
     "(allow signal (target self))",
     "(allow sysctl-read)",
     "(allow file-read-metadata)",
-    "(allow mach-lookup (global-name \"com.apple.system.opendirectoryd.libinfo\") (global-name \"com.apple.logd\") (global-name \"com.apple.system.notification_center\") (global-name \"com.apple.trustd.agent\"))",
+    '(allow mach-lookup (global-name "com.apple.system.opendirectoryd.libinfo") (global-name "com.apple.logd") (global-name "com.apple.system.notification_center") (global-name "com.apple.trustd.agent"))',
     ";; the root directory itself, not what is under it (macOS 26 aborts every process at startup without it)",
     `(allow file-read* (literal ${sbplString(ROOT_DIR_LITERAL)}))`,
     ";; the system, read only",
     `(allow file-read* ${[...new Set([...SYSTEM_READ, ...(o.programRead ?? [])])].map((p) => `(subpath ${sbplString(p)})`).join(" ")})`,
     `(allow file-read* ${DEVICES_READ.map((p) => `(literal ${sbplString(p)})`).join(" ")})`,
-    "(allow file-write* (literal \"/dev/null\") (literal \"/dev/tty\"))",
+    '(allow file-write* (literal "/dev/null") (literal "/dev/tty"))',
   ];
   const a = o.access;
   if (a) {
     // later rules win: the folders and package locations open, then what stays closed inside them, then the configs read inside a closed folder (known_hosts), then the turn's own folders below
-    if (a.rw.length > 0) lines.push(";; the person's added folders and package locations", `(allow file-read* file-write* ${a.rw.map((p) => `(subpath ${sbplString(p)})`).join(" ")})`);
-    if (a.deny.length > 0) lines.push(";; closed whatever else is open: Vyre's data folder, key stores, credential stores, browser profiles", `(deny file-read* file-write* ${a.deny.map((p) => `(subpath ${sbplString(p)})`).join(" ")})`);
-    if (a.roFiles.length > 0) lines.push(";; configs, read only", `(allow file-read* ${a.roFiles.map((p) => `(subpath ${sbplString(p)})`).join(" ")})`);
-    if (a.sshAuthSock) lines.push(";; the SSH agent: git over SSH signs with the person's keys, which stay with the agent", `(allow network-outbound (remote unix-socket (subpath ${sbplString(a.sshAuthSock)})))`);
+    if (a.rw.length > 0)
+      lines.push(
+        ";; the person's added folders and package locations",
+        `(allow file-read* file-write* ${a.rw.map((p) => `(subpath ${sbplString(p)})`).join(" ")})`,
+      );
+    if (a.deny.length > 0)
+      lines.push(
+        ";; closed whatever else is open: Vyre's data folder, key stores, credential stores, browser profiles",
+        `(deny file-read* file-write* ${a.deny.map((p) => `(subpath ${sbplString(p)})`).join(" ")})`,
+      );
+    if (a.roFiles.length > 0)
+      lines.push(
+        ";; configs, read only",
+        `(allow file-read* ${a.roFiles.map((p) => `(subpath ${sbplString(p)})`).join(" ")})`,
+      );
+    if (a.sshAuthSock)
+      lines.push(
+        ";; the SSH agent: git over SSH signs with the person's keys, which stay with the agent",
+        `(allow network-outbound (remote unix-socket (subpath ${sbplString(a.sshAuthSock)})))`,
+      );
   }
   lines.push(";; the person's folders");
-  for (const m of checked.mounts) lines.push(m.mode === "rw" ? `(allow file-read* file-write* (subpath ${sbplString(m.host)}))` : `(allow file-read* (subpath ${sbplString(m.host)}))`);
-  if (checked.scratch !== undefined) lines.push(`(allow file-read* file-write* (subpath ${sbplString(checked.scratch)}))`);
+  for (const m of checked.mounts)
+    lines.push(
+      m.mode === "rw"
+        ? `(allow file-read* file-write* (subpath ${sbplString(m.host)}))`
+        : `(allow file-read* (subpath ${sbplString(m.host)}))`,
+    );
+  if (checked.scratch !== undefined)
+    lines.push(`(allow file-read* file-write* (subpath ${sbplString(checked.scratch)}))`);
   // A unix socket in the scratch folder is how the engine reaches Vyre's MCP endpoint from inside (ruling 61): no network hole, one path.
-  if (checked.scratch !== undefined) lines.push(";; unix sockets in the scratch folder only", `(allow network-outbound (remote unix-socket (subpath ${sbplString(checked.scratch)})))`);
+  if (checked.scratch !== undefined)
+    lines.push(
+      ";; unix sockets in the scratch folder only",
+      `(allow network-outbound (remote unix-socket (subpath ${sbplString(checked.scratch)})))`,
+    );
   lines.push(
     ";; the only way out: the egress proxy, on loopback",
     `(allow network-outbound (remote ip ${sbplString(`localhost:${o.proxyPort}`)}))`,
@@ -79,10 +120,21 @@ export function seatbeltProfile(checked: Checked, o: SeatbeltOptions): string {
 /** What the profile hides (a deny, never an allow): the sandbox-exec a tool would try to nest a sandbox with. */
 export const HIDDEN_SANDBOX_EXEC = "/usr/bin/sandbox-exec";
 
-export interface WrappedCommand { cmd: string; args: string[]; env: Record<string, string>; enforcement: { files: "kernel"; network: "kernel" } }
+export interface WrappedCommand {
+  cmd: string;
+  args: string[];
+  env: Record<string, string>;
+  enforcement: { files: "kernel"; network: "kernel" };
+}
 
 /** `sandbox-exec -p <profile> -- argv`, with the proxy variables set. */
-export function seatbeltCommand(spec: SandboxSpec, roots: Roots, argv: readonly string[], o: SeatbeltOptions, policy?: PolicyOptions): WrappedCommand {
+export function seatbeltCommand(
+  spec: SandboxSpec,
+  roots: Roots,
+  argv: readonly string[],
+  o: SeatbeltOptions,
+  policy?: PolicyOptions,
+): WrappedCommand {
   if (argv.length === 0) throw new SandboxError("sandbox.policy", "nothing to run");
   const checked = validateSpec(spec, roots, policy);
   const proxy = `http://127.0.0.1:${o.proxyPort}`;

@@ -11,14 +11,26 @@ const rows: Record<string, { id: string; label: number; fields: Record<string, u
   rec_long: { id: "rec_long", label: 0, fields: { name: "x".repeat(300) } },
   rec_ctl: { id: "rec_ctl", label: 0, fields: { name: "Line\nbreak\u0000" } },
 };
-let titleLabel: string | undefined; let typeLabel: string | undefined;
+let titleLabel: string | undefined;
+let typeLabel: string | undefined;
 const src = createChoiceSource({
   async as(person, cap, input) {
     calls.push(`${person}:${cap}`);
     const i = input as { type: string; recordId?: string };
     if (person === "usr_blind") throw new Error("denied");
-    if (cap === "schema.types.get") return { type: { titleField: "name", ...(typeLabel ? { label: typeLabel } : {}), fields: [{ key: "name", ...(titleLabel ? { label: titleLabel } : {}) }] } };
-    if (cap === "records.get") { const r = rows[i.recordId!]; if (!r) throw new Error("not found"); return { record: r }; }
+    if (cap === "schema.types.get")
+      return {
+        type: {
+          titleField: "name",
+          ...(typeLabel ? { label: typeLabel } : {}),
+          fields: [{ key: "name", ...(titleLabel ? { label: titleLabel } : {}) }],
+        },
+      };
+    if (cap === "records.get") {
+      const r = rows[i.recordId!];
+      if (!r) throw new Error("not found");
+      return { record: r };
+    }
     return { rows: Object.values(rows) };
   },
   people: () => [{ id: "usr_maya", name: "Maya" }],
@@ -28,7 +40,8 @@ const owner = { key: "owner", title: "Owner", type: "person" };
 
 test("a record is offered by its title only, at or below internal", async () => {
   assert.deepEqual(await src.describe("usr_a", company, "rec_ok"), { ok: true, label: "Acme" });
-  for (const id of ["rec_conf", "rec_trash", "rec_blank", "rec_missing"]) assert.equal((await src.describe("usr_a", company, id)).ok, false, id);
+  for (const id of ["rec_conf", "rec_trash", "rec_blank", "rec_missing"])
+    assert.equal((await src.describe("usr_a", company, id)).ok, false, id);
   const long = await src.describe("usr_a", company, "rec_long");
   assert.ok(long.ok && long.label.length === 120);
   const ctl = await src.describe("usr_a", company, "rec_ctl");
@@ -58,7 +71,11 @@ test("everything runs as the publisher, and a publisher who cannot see the type 
   assert.deepEqual(await src.candidates("usr_blind", company, undefined), []);
 });
 test("candidates exclude refused records, and people are active members by display name", async () => {
-  assert.deepEqual((await src.candidates("usr_a", company, undefined)).map((c) => c.refId).sort(), ["rec_ctl", "rec_long", "rec_ok"]);
+  assert.deepEqual((await src.candidates("usr_a", company, undefined)).map((c) => c.refId).sort(), [
+    "rec_ctl",
+    "rec_long",
+    "rec_ok",
+  ]);
   assert.deepEqual(await src.describe("usr_a", owner, "usr_maya"), { ok: true, label: "Maya" });
   assert.equal((await src.describe("usr_a", owner, "agt_bot")).ok, false);
   assert.deepEqual(await src.candidates("usr_a", owner, "may"), [{ refId: "usr_maya", label: "Maya" }]);

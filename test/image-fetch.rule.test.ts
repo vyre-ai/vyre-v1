@@ -16,13 +16,31 @@ test("what falls back is always fetchable from Vyre's own registry, and a local 
 
 test("the modules' rule and the runner's rule are one rule", () => {
   const names = [
-    "vyre/agent-workspace:1", "vyre/space-browser:1", "vyre/agent-computer:1", "vyre/anything:latest", `vyre/agent-workspace@sha256:${"a".repeat(64)}`,
-    "docker.io/vyre/agent-workspace:1", "index.docker.io/vyre/space-browser:1",
-    "ghcr.io/vyre-ai/agent-workspace:1.0.0", `ghcr.io/vyre-ai/vyre-browser@sha256:${"b".repeat(64)}`, "ghcr.io/vyre-ai/agent-computer:1.0.0-rc.24",
-    "postgres:16-alpine", "registry.example.com/vyre/agent-workspace:1", "myvyre/agent-workspace:1", "ghcr.io/vyre/agent-workspace:1",
+    "vyre/agent-workspace:1",
+    "vyre/space-browser:1",
+    "vyre/agent-computer:1",
+    "vyre/anything:latest",
+    `vyre/agent-workspace@sha256:${"a".repeat(64)}`,
+    "docker.io/vyre/agent-workspace:1",
+    "index.docker.io/vyre/space-browser:1",
+    "ghcr.io/vyre-ai/agent-workspace:1.0.0",
+    `ghcr.io/vyre-ai/vyre-browser@sha256:${"b".repeat(64)}`,
+    "ghcr.io/vyre-ai/agent-computer:1.0.0-rc.24",
+    "postgres:16-alpine",
+    "registry.example.com/vyre/agent-workspace:1",
+    "myvyre/agent-workspace:1",
+    "ghcr.io/vyre/agent-workspace:1",
   ];
   for (const n of names) assert.equal(LOCAL_ONLY.test(n), !fetchableImage(n), n);
   assert.equal(fetchableImage("vyre/agent-workspace:1"), false);
-  assert.equal(fetchableImage("registry.example.com/vyre/agent-workspace:1"), true, "a registry a person named is theirs to trust");
-  assert.equal(fetchableImage("myvyre/agent-workspace:1"), true, "another namespace is not this rule's business (the runner's image list refuses it)");
+  assert.equal(
+    fetchableImage("registry.example.com/vyre/agent-workspace:1"),
+    true,
+    "a registry a person named is theirs to trust",
+  );
+  assert.equal(
+    fetchableImage("myvyre/agent-workspace:1"),
+    true,
+    "another namespace is not this rule's business (the runner's image list refuses it)",
+  );
 });

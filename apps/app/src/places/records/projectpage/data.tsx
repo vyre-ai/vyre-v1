@@ -13,13 +13,16 @@ export interface ProjectImports {
   continue(conversationId: string): Promise<string>;
 }
 
-export async function listProjectImports(call: ProjectPageData["call"], projectId: string): Promise<ImportedSessionArchive[]> {
+export async function listProjectImports(
+  call: ProjectPageData["call"],
+  projectId: string,
+): Promise<ImportedSessionArchive[]> {
   const found: ImportedSessionArchive[] = [];
   let cursor: string | undefined;
   const seen = new Set<string>();
   do {
     const input = { limit: 100, ...(cursor ? { cursor } : {}) };
-    const out = await call("sessions.list", input) as CapMap["sessions.list"]["out"];
+    const out = (await call("sessions.list", input)) as CapMap["sessions.list"]["out"];
     found.push(...out.sessions.filter((session) => session.projectId === projectId));
     if (!out.next || seen.has(out.next)) break;
     seen.add(out.next);
@@ -74,7 +77,13 @@ export interface ProjectPageData {
 }
 
 const Ctx = createContext<ProjectPageData | null>(null);
-export function ProjectPageDataProvider({ value, children }: { value: ProjectPageData; children: ReactNode }): ReactElement {
+export function ProjectPageDataProvider({
+  value,
+  children,
+}: {
+  value: ProjectPageData;
+  children: ReactNode;
+}): ReactElement {
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 export function useProjectPageData(): ProjectPageData {

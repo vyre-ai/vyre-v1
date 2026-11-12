@@ -10,8 +10,19 @@ const CURSOR_NAME = /(next|cursor|after|token|start_?after|page_?token)/i;
 const TOTAL_NAME = /^(total|total_?count|count|total_?records|total_?items|total_?results|records_?total|matches?)$/i;
 const MAX_DEPTH = 3;
 
-export interface FieldShape { path: string; type: SpecFieldType; seen: number; example?: string }
-export interface ListShape { itemsAt: string; count: number; idAt?: string; updatedAtGuess?: string; fields: FieldShape[] }
+export interface FieldShape {
+  path: string;
+  type: SpecFieldType;
+  seen: number;
+  example?: string;
+}
+export interface ListShape {
+  itemsAt: string;
+  count: number;
+  idAt?: string;
+  updatedAtGuess?: string;
+  fields: FieldShape[];
+}
 export interface BodyShape {
   kind: "object" | "array" | "empty" | "text";
   lists: ListShape[];
@@ -42,13 +53,24 @@ const short = (v: unknown): string => {
   return s.length > 40 ? `${s.slice(0, 37)}...` : s;
 };
 
-function flat(item: unknown, prefix: string, depth: number, out: Map<string, { type: SpecFieldType; seen: number; example?: string }>): void {
+function flat(
+  item: unknown,
+  prefix: string,
+  depth: number,
+  out: Map<string, { type: SpecFieldType; seen: number; example?: string }>,
+): void {
   if (!isObj(item)) return;
   for (const [k, v] of Object.entries(item)) {
     const path = `${prefix}/${k.replaceAll("~", "~0").replaceAll("/", "~1")}`;
-    if (isObj(v) && depth < MAX_DEPTH && Object.keys(v).length > 0) { flat(v, path, depth + 1, out); continue; }
+    if (isObj(v) && depth < MAX_DEPTH && Object.keys(v).length > 0) {
+      flat(v, path, depth + 1, out);
+      continue;
+    }
     const cur = out.get(path);
-    if (v === null || v === undefined) { if (!cur) out.set(path, { type: "text", seen: 0 }); continue; }
+    if (v === null || v === undefined) {
+      if (!cur) out.set(path, { type: "text", seen: 0 });
+      continue;
+    }
     if (!cur || cur.seen === 0) out.set(path, { type: guessType(v), seen: 1, example: short(v) });
     else cur.seen++;
   }
@@ -58,13 +80,32 @@ function listShape(itemsAt: string, items: unknown[]): ListShape {
   const merged = new Map<string, { type: SpecFieldType; seen: number; example?: string }>();
   for (const it of items.slice(0, 8)) flat(it, "", 1, merged);
   const sample = items.slice(0, 8);
-  const scalar = (p: string): boolean => sample.every((it) => { const v = pointerGet(it, p); return typeof v === "string" || typeof v === "number"; });
+  const scalar = (p: string): boolean =>
+    sample.every((it) => {
+      const v = pointerGet(it, p);
+      return typeof v === "string" || typeof v === "number";
+    });
   const unique = (p: string): boolean => new Set(sample.map((it) => String(pointerGet(it, p)))).size === sample.length;
-  const idAt = items.length ? (ID_GUESS.find(scalar) ?? [...merged.keys()].find((p) => p.split("/").length === 2 && ID_NAME.test(p.slice(1)) && scalar(p) && unique(p))) : undefined;
-  const updated = [...merged.keys()].find((p) => /(updated|modified|changed)_?(at|on|date|time)?$/i.test(p.split("/").pop() ?? "") && merged.get(p)?.type === "date");
+  const idAt = items.length
+    ? (ID_GUESS.find(scalar) ??
+      [...merged.keys()].find((p) => p.split("/").length === 2 && ID_NAME.test(p.slice(1)) && scalar(p) && unique(p)))
+    : undefined;
+  const updated = [...merged.keys()].find(
+    (p) =>
+      /(updated|modified|changed)_?(at|on|date|time)?$/i.test(p.split("/").pop() ?? "") &&
+      merged.get(p)?.type === "date",
+  );
   return {
-    itemsAt, count: items.length, ...(idAt ? { idAt } : {}), ...(updated ? { updatedAtGuess: updated } : {}),
-    fields: [...merged.entries()].map(([path, f]) => ({ path, type: f.type, seen: f.seen, ...(f.example !== undefined ? { example: f.example } : {}) })),
+    itemsAt,
+    count: items.length,
+    ...(idAt ? { idAt } : {}),
+    ...(updated ? { updatedAtGuess: updated } : {}),
+    fields: [...merged.entries()].map(([path, f]) => ({
+      path,
+      type: f.type,
+      seen: f.seen,
+      ...(f.example !== undefined ? { example: f.example } : {}),
+    })),
   };
 }
 
@@ -89,5 +130,11 @@ export function analyzeBody(body: unknown): BodyShape {
   };
   walk(body, "", 0);
   lists.sort((a, b) => b.count - a.count);
-  return { kind: Array.isArray(body) ? "array" : "object", lists, cursors, totals, ...(isObj(body) && lists.length === 0 ? { keys: Object.keys(body).slice(0, 40) } : {}) };
+  return {
+    kind: Array.isArray(body) ? "array" : "object",
+    lists,
+    cursors,
+    totals,
+    ...(isObj(body) && lists.length === 0 ? { keys: Object.keys(body).slice(0, 40) } : {}),
+  };
 }

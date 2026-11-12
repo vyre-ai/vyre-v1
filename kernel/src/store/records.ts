@@ -14,7 +14,20 @@ import { ProjectionHost, payloadOf } from "./projection.ts";
 import type { InlineProjection, Tx } from "./projection.ts";
 import { StoreError } from "./types.ts";
 import type {
-  AggregateRow, AggregateSpec, ChangeEntry, DefineDiff, DefineResult, ExportChunk, FieldDef, Page, QuerySpec, SearchHit, SearchSpec, Store, StoredRecord, TypeDef,
+  AggregateRow,
+  AggregateSpec,
+  ChangeEntry,
+  DefineDiff,
+  DefineResult,
+  ExportChunk,
+  FieldDef,
+  Page,
+  QuerySpec,
+  SearchHit,
+  SearchSpec,
+  Store,
+  StoredRecord,
+  TypeDef,
 } from "./types.ts";
 import { checkValue } from "./values.ts";
 import { AsyncLocalStorage } from "node:async_hooks";
@@ -24,29 +37,64 @@ export const CONFORMANCE_REVISION = 7;
 
 const NAME = /^[a-z][a-z0-9_]{0,62}$/;
 const table = (type: string): string => {
-  if (!NAME.test(type)) throw new StoreError("invalid", `record type names are lowercase letters, digits and underscores: ${type}`);
+  if (!NAME.test(type))
+    throw new StoreError("invalid", `record type names are lowercase letters, digits and underscores: ${type}`);
   return `rt_${type}`;
 };
 
-interface Row { id: string; version: number; created_at: number; updated_at: number; deleted_at: number | null; data: string }
+interface Row {
+  id: string;
+  version: number;
+  created_at: number;
+  updated_at: number;
+  deleted_at: number | null;
+  data: string;
+}
 
 // ---- the projection ----
 
-const rowTable = (t: string): string => `CREATE TABLE IF NOT EXISTS ${table(t)} (id TEXT PRIMARY KEY, version INTEGER NOT NULL, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, deleted_at INTEGER, data TEXT NOT NULL)`;
+const rowTable = (t: string): string =>
+  `CREATE TABLE IF NOT EXISTS ${table(t)} (id TEXT PRIMARY KEY, version INTEGER NOT NULL, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, deleted_at INTEGER, data TEXT NOT NULL)`;
 
-function note(tx: Tx, kind: string, type: string, id: string, version: number, at: number, before: unknown, after: unknown): void {
-  tx.run("INSERT INTO rs_changes (type, id, kind, version, at, before, after) VALUES (?, ?, ?, ?, ?, ?, ?)", type, id, kind, version, at, before === undefined ? null : JSON.stringify(before), JSON.stringify(after ?? {}));
+function note(
+  tx: Tx,
+  kind: string,
+  type: string,
+  id: string,
+  version: number,
+  at: number,
+  before: unknown,
+  after: unknown,
+): void {
+  tx.run(
+    "INSERT INTO rs_changes (type, id, kind, version, at, before, after) VALUES (?, ?, ?, ?, ?, ?, ?)",
+    type,
+    id,
+    kind,
+    version,
+    at,
+    before === undefined ? null : JSON.stringify(before),
+    JSON.stringify(after ?? {}),
+  );
 }
 
 /** `records.rows`: schema.applied, record.created, record.updated, record.removed, record.restored. Bump `version` to rebuild every rt_ table from the log on the next open. */
 export const recordsRows: InlineProjection = {
-  name: "records.rows", version: 1, mode: "inline", rebuild: "replay",
+  name: "records.rows",
+  version: 1,
+  mode: "inline",
+  rebuild: "replay",
   init(tx) {
     tx.exec("CREATE TABLE IF NOT EXISTS rs_types (name TEXT PRIMARY KEY, def TEXT NOT NULL)");
-    tx.exec("CREATE TABLE IF NOT EXISTS rs_changes (cursor INTEGER PRIMARY KEY AUTOINCREMENT, type TEXT NOT NULL, id TEXT NOT NULL, kind TEXT NOT NULL, version INTEGER NOT NULL, at INTEGER NOT NULL, before TEXT, after TEXT)");
+    tx.exec(
+      "CREATE TABLE IF NOT EXISTS rs_changes (cursor INTEGER PRIMARY KEY AUTOINCREMENT, type TEXT NOT NULL, id TEXT NOT NULL, kind TEXT NOT NULL, version INTEGER NOT NULL, at INTEGER NOT NULL, before TEXT, after TEXT)",
+    );
   },
   reset(tx) {
-    for (const t of tx.all<{ name: string }>("SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE 'rt\\_%' ESCAPE '\\'")) tx.exec(`DROP TABLE IF EXISTS "${t.name}"`);
+    for (const t of tx.all<{ name: string }>(
+      "SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE 'rt\\_%' ESCAPE '\\'",
+    ))
+      tx.exec(`DROP TABLE IF EXISTS "${t.name}"`);
     tx.exec("DELETE FROM rs_types");
     tx.exec("DELETE FROM rs_changes");
     tx.exec("DELETE FROM sqlite_sequence WHERE name = 'rs_changes'");
@@ -56,50 +104,118 @@ export const recordsRows: InlineProjection = {
       const p = payloadOf<{ set?: TypeDef[]; removed?: string[] }>(e);
       for (const d of p.set ?? []) {
         tx.exec(rowTable(d.name));
-        tx.run("INSERT INTO rs_types (name, def) VALUES (?, ?) ON CONFLICT(name) DO UPDATE SET def = excluded.def", d.name, JSON.stringify(d));
+        tx.run(
+          "INSERT INTO rs_types (name, def) VALUES (?, ?) ON CONFLICT(name) DO UPDATE SET def = excluded.def",
+          d.name,
+          JSON.stringify(d),
+        );
       }
-      for (const n of p.removed ?? []) { tx.exec(`DROP TABLE IF EXISTS ${table(n)}`); tx.run("DELETE FROM rs_types WHERE name = ?", n); }
+      for (const n of p.removed ?? []) {
+        tx.exec(`DROP TABLE IF EXISTS ${table(n)}`);
+        tx.run("DELETE FROM rs_types WHERE name = ?", n);
+      }
     },
     "record.created"(tx, e) {
       const p = payloadOf<{ type: string; id: string; data: object; at: number }>(e);
-      tx.run(`INSERT INTO ${table(p.type)} (id, version, created_at, updated_at, deleted_at, data) VALUES (?, 1, ?, ?, NULL, ?)`, p.id, p.at, p.at, JSON.stringify(p.data));
+      tx.run(
+        `INSERT INTO ${table(p.type)} (id, version, created_at, updated_at, deleted_at, data) VALUES (?, 1, ?, ?, NULL, ?)`,
+        p.id,
+        p.at,
+        p.at,
+        JSON.stringify(p.data),
+      );
       note(tx, "created", p.type, p.id, 1, p.at, undefined, p.data);
     },
     "record.updated"(tx, e) {
       const p = payloadOf<{ type: string; id: string; data: object; before: object; version: number; at: number }>(e);
-      tx.run(`UPDATE ${table(p.type)} SET data = ?, version = ?, updated_at = ? WHERE id = ?`, JSON.stringify(p.data), p.version, p.at, p.id);
+      tx.run(
+        `UPDATE ${table(p.type)} SET data = ?, version = ?, updated_at = ? WHERE id = ?`,
+        JSON.stringify(p.data),
+        p.version,
+        p.at,
+        p.id,
+      );
       note(tx, "updated", p.type, p.id, p.version, p.at, p.before, p.data);
     },
     /** A row's whole state again, written after the payloads of its older events were erased (a field was sealed): a rebuild skips those events and this puts the row back, refs only. */
     "record.rebased"(tx, e) {
-      const p = payloadOf<{ type: string; id: string; data: object; version: number; created_at: number; updated_at: number; deleted_at: number | null }>(e);
+      const p = payloadOf<{
+        type: string;
+        id: string;
+        data: object;
+        version: number;
+        created_at: number;
+        updated_at: number;
+        deleted_at: number | null;
+      }>(e);
       tx.exec(rowTable(p.type));
       tx.run(
         `INSERT INTO ${table(p.type)} (id, version, created_at, updated_at, deleted_at, data) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET version = excluded.version, updated_at = excluded.updated_at, deleted_at = excluded.deleted_at, data = excluded.data`,
-        p.id, p.version, p.created_at, p.updated_at, p.deleted_at, JSON.stringify(p.data),
+        p.id,
+        p.version,
+        p.created_at,
+        p.updated_at,
+        p.deleted_at,
+        JSON.stringify(p.data),
       );
     },
     "record.removed"(tx, e) {
       const p = payloadOf<{ type: string; id: string; version: number; at: number }>(e);
-      tx.run(`UPDATE ${table(p.type)} SET version = ?, deleted_at = ?, updated_at = ? WHERE id = ?`, p.version, p.at, p.at, p.id);
-      note(tx, "removed", p.type, p.id, p.version, p.at, undefined, JSON.parse(tx.get<Row>(`SELECT data FROM ${table(p.type)} WHERE id = ?`, p.id)!.data));
+      tx.run(
+        `UPDATE ${table(p.type)} SET version = ?, deleted_at = ?, updated_at = ? WHERE id = ?`,
+        p.version,
+        p.at,
+        p.at,
+        p.id,
+      );
+      note(
+        tx,
+        "removed",
+        p.type,
+        p.id,
+        p.version,
+        p.at,
+        undefined,
+        JSON.parse(tx.get<Row>(`SELECT data FROM ${table(p.type)} WHERE id = ?`, p.id)!.data),
+      );
     },
     "record.restored"(tx, e) {
       const p = payloadOf<{ type: string; id: string; version: number; at: number }>(e);
-      tx.run(`UPDATE ${table(p.type)} SET version = ?, deleted_at = NULL, updated_at = ? WHERE id = ?`, p.version, p.at, p.id);
-      note(tx, "restored", p.type, p.id, p.version, p.at, undefined, JSON.parse(tx.get<Row>(`SELECT data FROM ${table(p.type)} WHERE id = ?`, p.id)!.data));
+      tx.run(
+        `UPDATE ${table(p.type)} SET version = ?, deleted_at = NULL, updated_at = ? WHERE id = ?`,
+        p.version,
+        p.at,
+        p.id,
+      );
+      note(
+        tx,
+        "restored",
+        p.type,
+        p.id,
+        p.version,
+        p.at,
+        undefined,
+        JSON.parse(tx.get<Row>(`SELECT data FROM ${table(p.type)} WHERE id = ?`, p.id)!.data),
+      );
     },
   },
 };
 
 // ---- the facade ----
 
-const clone = <T,>(v: T): T => structuredClone(v);
-const fail = (code: ConstructorParameters<typeof StoreError>[0], message: string): StoreError => new StoreError(code, message);
-const TRACE = (): string => Array.from(globalThis.crypto.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, "0")).join("");
+const clone = <T>(v: T): T => structuredClone(v);
+const fail = (code: ConstructorParameters<typeof StoreError>[0], message: string): StoreError =>
+  new StoreError(code, message);
+const TRACE = (): string =>
+  Array.from(globalThis.crypto.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, "0")).join("");
 
 /** Who a record write is for, for the length of one call: the records module runs each handler inside `recordWriter.run`, so every event the store appends names the real actor. */
-export interface RecordWriter { actor: string; onBehalf?: string | undefined; traceId?: string | undefined; runId?: string | undefined }
+export interface RecordWriter {
+  actor: string;
+  onBehalf?: string | undefined;
+  traceId?: string | undefined;
+  runId?: string | undefined;
+}
 export const recordWriter = new AsyncLocalStorage<RecordWriter>();
 
 export interface RecordStoreOptions {
@@ -116,24 +232,53 @@ export function createRecordStore(host: ProjectionHost, o: RecordStoreOptions = 
   const emit = (type: string, entity: string, entityId: string | undefined, payload: object): void => {
     // whoever made the call this write is part of (recordWriter.run): the person or agent, the person an agent acts for, the trace and the run; the store's own actor only when nobody is
     const w = recordWriter.getStore();
-    const who = w ? { actor: w.actor, ...(w.onBehalf !== undefined && w.onBehalf !== w.actor ? { on_behalf: w.onBehalf } : {}), ...(w.runId !== undefined ? { run_id: w.runId } : {}) } : { actor };
+    const who = w
+      ? {
+          actor: w.actor,
+          ...(w.onBehalf !== undefined && w.onBehalf !== w.actor ? { on_behalf: w.onBehalf } : {}),
+          ...(w.runId !== undefined ? { run_id: w.runId } : {}),
+        }
+      : { actor };
     const trace = w?.traceId !== undefined && /^[0-9a-f]{32}$/.test(w.traceId) ? w.traceId : TRACE();
     try {
-      host.append({ type, sv: 1, trace_id: trace, ...who, vis: "space", entity, ...(entityId ? { entity_id: entityId } : {}), payload });
-    } catch (e) { throw fail("unavailable", e instanceof Error ? e.message : String(e)); }
+      host.append({
+        type,
+        sv: 1,
+        trace_id: trace,
+        ...who,
+        vis: "space",
+        entity,
+        ...(entityId ? { entity_id: entityId } : {}),
+        payload,
+      });
+    } catch (e) {
+      throw fail("unavailable", e instanceof Error ? e.message : String(e));
+    }
   };
 
   const defOf = (type: string): TypeDef | undefined => {
     const r = tx.get<{ def: string }>("SELECT def FROM rs_types WHERE name = ?", type);
     return r ? (JSON.parse(r.def) as TypeDef) : undefined;
   };
-  const needType = (type: string): TypeDef => { const d = defOf(type); if (!d) throw fail("unknown_type", `no type ${type}`); return d; };
+  const needType = (type: string): TypeDef => {
+    const d = defOf(type);
+    if (!d) throw fail("unknown_type", `no type ${type}`);
+    return d;
+  };
   const record = (type: string, r: Row): StoredRecord => ({
-    type, id: r.id, version: r.version, data: JSON.parse(r.data), created_at: r.created_at, updated_at: r.updated_at, ...(r.deleted_at !== null ? { deleted_at: r.deleted_at } : {}),
+    type,
+    id: r.id,
+    version: r.version,
+    data: JSON.parse(r.data),
+    created_at: r.created_at,
+    updated_at: r.updated_at,
+    ...(r.deleted_at !== null ? { deleted_at: r.deleted_at } : {}),
   });
-  const rowOf = (type: string, id: string): Row | undefined => tx.get<Row>(`SELECT * FROM ${table(type)} WHERE id = ?`, id);
+  const rowOf = (type: string, id: string): Row | undefined =>
+    tx.get<Row>(`SELECT * FROM ${table(type)} WHERE id = ?`, id);
   function* rows(type: string, live: boolean): Generator<StoredRecord> {
-    for (const r of tx.all<Row>(`SELECT * FROM ${table(type)}${live ? " WHERE deleted_at IS NULL" : ""}`)) yield record(type, r);
+    for (const r of tx.all<Row>(`SELECT * FROM ${table(type)}${live ? " WHERE deleted_at IS NULL" : ""}`))
+      yield record(type, r);
   }
 
   function validate(def: TypeDef, data: Record<string, unknown>): void {
@@ -141,7 +286,8 @@ export function createRecordStore(host: ProjectionHost, o: RecordStoreOptions = 
     for (const k of Object.keys(data)) if (!known.has(k)) throw fail("unknown_field", `${def.name} has no field ${k}`);
     for (const f of def.fields) {
       const err = checkValue(f, data[f.name]);
-      if (err === "sealed_value_refused") throw fail("sealed_value_refused", `${f.name} is sealed: a value is never stored, only a reference`);
+      if (err === "sealed_value_refused")
+        throw fail("sealed_value_refused", `${f.name} is sealed: a value is never stored, only a reference`);
       if (err) throw fail("invalid", err);
     }
   }
@@ -153,12 +299,25 @@ export function createRecordStore(host: ProjectionHost, o: RecordStoreOptions = 
       if (v === undefined || v === null) continue;
       let holder: string | undefined;
       if (typeof v === "string" || typeof v === "number") {
-        holder = tx.get<{ id: string }>(`SELECT id FROM ${table(def.name)} WHERE deleted_at IS NULL AND json_extract(data, ?) = ? AND id IS NOT ? LIMIT 1`, `$."${f.name}"`, v, selfId)?.id;
+        holder = tx.get<{ id: string }>(
+          `SELECT id FROM ${table(def.name)} WHERE deleted_at IS NULL AND json_extract(data, ?) = ? AND id IS NOT ? LIMIT 1`,
+          `$."${f.name}"`,
+          v,
+          selfId,
+        )?.id;
       } else {
         const want = canonical(v);
-        for (const r of rows(def.name, true)) if (r.id !== selfId && r.data[f.name] !== undefined && canonical(r.data[f.name]) === want) { holder = r.id; break; }
+        for (const r of rows(def.name, true))
+          if (r.id !== selfId && r.data[f.name] !== undefined && canonical(r.data[f.name]) === want) {
+            holder = r.id;
+            break;
+          }
       }
-      if (holder) throw Object.assign(fail("unique_violation", `${f.name} must be unique: another ${def.name} already has that value`), { field: f.name, value: v });
+      if (holder)
+        throw Object.assign(
+          fail("unique_violation", `${f.name} must be unique: another ${def.name} already has that value`),
+          { field: f.name, value: v },
+        );
     }
   }
   function checkNoDuplicates(def: TypeDef): void {
@@ -168,25 +327,33 @@ export function createRecordStore(host: ProjectionHost, o: RecordStoreOptions = 
         const v = r.data[f.name];
         if (v === undefined || v === null) continue;
         const k = canonical(v);
-        if (seen.has(k)) throw fail("unique_violation", `${f.name} of ${def.name} already has duplicate values, so it cannot be made unique`);
+        if (seen.has(k))
+          throw fail(
+            "unique_violation",
+            `${f.name} of ${def.name} already has duplicate values, so it cannot be made unique`,
+          );
         seen.add(k);
       }
     }
   }
   const checkDef = (t: TypeDef): void => {
-    if (!t || typeof t.name !== "string" || !Array.isArray(t.fields)) throw fail("invalid", "a type needs a name and fields");
+    if (!t || typeof t.name !== "string" || !Array.isArray(t.fields))
+      throw fail("invalid", "a type needs a name and fields");
     table(t.name);
   };
 
   const store: Store = {
     async define(diff: DefineDiff): Promise<DefineResult> {
-      const set: TypeDef[] = [], removed: string[] = [], changes: string[] = [];
+      const set: TypeDef[] = [],
+        removed: string[] = [],
+        changes: string[] = [];
       for (const t of diff.add_types ?? []) {
         checkDef(t);
         const had = defOf(t.name);
         if (had && canonical(had) === canonical(t)) continue;
         if (had) checkNoDuplicates(t);
-        set.push(clone(t) as TypeDef); changes.push(had ? `changed type ${t.name}` : `added type ${t.name}`);
+        set.push(clone(t) as TypeDef);
+        changes.push(had ? `changed type ${t.name}` : `added type ${t.name}`);
       }
       for (const t of diff.change_types ?? []) {
         checkDef(t);
@@ -194,18 +361,29 @@ export function createRecordStore(host: ProjectionHost, o: RecordStoreOptions = 
         if (!had) throw fail("unknown_type", `no type ${t.name}`);
         if (canonical(had) === canonical(t)) continue;
         checkNoDuplicates(t);
-        set.push(clone(t) as TypeDef); changes.push(`changed type ${t.name}`);
+        set.push(clone(t) as TypeDef);
+        changes.push(`changed type ${t.name}`);
       }
       for (const name of diff.remove_types ?? []) {
         if (!defOf(name)) continue;
-        if (tx.get(`SELECT 1 AS x FROM ${table(name)} WHERE deleted_at IS NULL LIMIT 1`)) throw fail("invalid", `type ${name} still has records`);
-        removed.push(name); changes.push(`removed type ${name}`);
+        if (tx.get(`SELECT 1 AS x FROM ${table(name)} WHERE deleted_at IS NULL LIMIT 1`))
+          throw fail("invalid", `type ${name} still has records`);
+        removed.push(name);
+        changes.push(`removed type ${name}`);
       }
       if (changes.length) emit("schema.applied", "schema", undefined, { set, removed });
       return { applied: changes.length > 0, changes };
     },
-    async types() { return tx.all<{ def: string }>("SELECT def FROM rs_types ORDER BY rowid").map((r) => JSON.parse(r.def) as TypeDef); },
-    typesSnapshot() { return tx.all<{ def: string }>("SELECT def FROM rs_types ORDER BY rowid").map((r) => JSON.parse(r.def) as TypeDef); },
+    async types() {
+      return tx
+        .all<{ def: string }>("SELECT def FROM rs_types ORDER BY rowid")
+        .map((r) => JSON.parse(r.def) as TypeDef);
+    },
+    typesSnapshot() {
+      return tx
+        .all<{ def: string }>("SELECT def FROM rs_types ORDER BY rowid")
+        .map((r) => JSON.parse(r.def) as TypeDef);
+    },
     async describe(type) {
       const t = defOf(type);
       return t ? { name: t.name, fields: t.fields.map((f) => ({ name: f.name, kind: f.kind })) } : null;
@@ -223,9 +401,12 @@ export function createRecordStore(host: ProjectionHost, o: RecordStoreOptions = 
     },
     async aggregate(type, spec: AggregateSpec): Promise<AggregateRow[]> {
       const def = needType(type);
-      const sealed = (f: unknown): boolean => typeof f === "string" && def.fields.some((d) => d.name === f && d.kind === "sealed");
-      for (const g of spec.group_by ?? []) if (sealed(g)) throw fail("invalid", `${g} is sealed: it cannot be grouped by`);
-      for (const m of spec.measures ?? []) if (m && sealed(m.field)) throw fail("invalid", `${m.field} is sealed: it cannot be measured`);
+      const sealed = (f: unknown): boolean =>
+        typeof f === "string" && def.fields.some((d) => d.name === f && d.kind === "sealed");
+      for (const g of spec.group_by ?? [])
+        if (sealed(g)) throw fail("invalid", `${g} is sealed: it cannot be grouped by`);
+      for (const m of spec.measures ?? [])
+        if (m && sealed(m.field)) throw fail("invalid", `${m.field} is sealed: it cannot be measured`);
       return agg(rows(type, true), spec);
     },
     async create(type, id, data) {
@@ -243,8 +424,12 @@ export function createRecordStore(host: ProjectionHost, o: RecordStoreOptions = 
       const r = rowOf(type, id);
       if (!r || r.deleted_at !== null) throw fail("not_found", `no ${type} ${id}`);
       if (r.version !== base) throw fail("version_conflict", `${type} ${id} is at version ${r.version}, not ${base}`);
-      const before = JSON.parse(r.data) as Record<string, unknown>, merged = { ...before };
-      for (const [k, v] of Object.entries(patch)) { if (v === null) delete merged[k]; else merged[k] = clone(v); }
+      const before = JSON.parse(r.data) as Record<string, unknown>,
+        merged = { ...before };
+      for (const [k, v] of Object.entries(patch)) {
+        if (v === null) delete merged[k];
+        else merged[k] = clone(v);
+      }
       validate(def, merged);
       checkUnique(def, merged, id);
       // an update that changes nothing is not a write: no event, no new version (a writer that repeats itself every pass must not grow the log)
@@ -274,39 +459,75 @@ export function createRecordStore(host: ProjectionHost, o: RecordStoreOptions = 
       for (const def of await store.types()) {
         if (spec.types && !spec.types.includes(def.name)) continue;
         for (const r of rows(def.name, true)) {
-          let score = 0, snippet: string | undefined;
+          let score = 0,
+            snippet: string | undefined;
           for (const f of def.fields) {
             if (f.kind === "sealed") continue;
             const v = fieldOf(r, f.name);
-            const text = typeof v === "string" ? v : Array.isArray(v) && v.every((x) => typeof x === "string") ? v.join(" ") : "";
+            const text =
+              typeof v === "string" ? v : Array.isArray(v) && v.every((x) => typeof x === "string") ? v.join(" ") : "";
             const low = text.toLowerCase();
-            for (const w of words) if (low.includes(w)) { score += 1; snippet = snippet ?? text.slice(0, 80); }
+            for (const w of words)
+              if (low.includes(w)) {
+                score += 1;
+                snippet = snippet ?? text.slice(0, 80);
+              }
           }
           if (score) hits.push({ type: def.name, id: r.id, score, ...(snippet ? { snippet } : {}) });
         }
       }
       hits.sort((a, b) => b.score - a.score || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
       let start = 0;
-      if (spec.page.cursor) { const i = hits.findIndex((h) => h.id === spec.page.cursor); start = i === -1 ? hits.length : i + 1; }
+      if (spec.page.cursor) {
+        const i = hits.findIndex((h) => h.id === spec.page.cursor);
+        start = i === -1 ? hits.length : i + 1;
+      }
       const slice = hits.slice(start, start + spec.page.limit);
-      return { rows: slice, ...(start + spec.page.limit < hits.length && slice.length ? { next_cursor: slice[slice.length - 1]!.id } : {}) };
+      return {
+        rows: slice,
+        ...(start + spec.page.limit < hits.length && slice.length ? { next_cursor: slice[slice.length - 1]!.id } : {}),
+      };
     },
     async changes(since, limit) {
       if (since !== null && !/^c\d+$/.test(since)) throw fail("invalid", "bad changes cursor");
       const from = since ? Number(since.slice(1)) : 0;
-      const rs = tx.all<{ cursor: number; type: string; id: string; kind: ChangeEntry["kind"]; version: number; at: number; before: string | null; after: string | null }>(
-        "SELECT * FROM rs_changes WHERE cursor > ? ORDER BY cursor LIMIT ?", from, limit);
+      const rs = tx.all<{
+        cursor: number;
+        type: string;
+        id: string;
+        kind: ChangeEntry["kind"];
+        version: number;
+        at: number;
+        before: string | null;
+        after: string | null;
+      }>("SELECT * FROM rs_changes WHERE cursor > ? ORDER BY cursor LIMIT ?", from, limit);
       const entries: ChangeEntry[] = rs.map((r) => ({
-        cursor: `c${r.cursor}`, type: r.type, id: r.id, kind: r.kind, version: r.version, at: r.at,
-        ...(r.before ? { before: JSON.parse(r.before) } : {}), ...(r.after ? { after: JSON.parse(r.after) } : {}),
+        cursor: `c${r.cursor}`,
+        type: r.type,
+        id: r.id,
+        kind: r.kind,
+        version: r.version,
+        at: r.at,
+        ...(r.before ? { before: JSON.parse(r.before) } : {}),
+        ...(r.after ? { after: JSON.parse(r.after) } : {}),
       }));
       return { entries, cursor: `c${rs.length ? rs[rs.length - 1]!.cursor : from}` };
     },
-    async health() { try { tx.get("SELECT 1"); return { ok: true, checked_at: clock() }; } catch (e) { return { ok: false, detail: String(e), checked_at: clock() }; } },
-    async version() { return { store: "recordstore", version: "1", conformance: CONFORMANCE_REVISION }; },
+    async health() {
+      try {
+        tx.get("SELECT 1");
+        return { ok: true, checked_at: clock() };
+      } catch (e) {
+        return { ok: false, detail: String(e), checked_at: clock() };
+      }
+    },
+    async version() {
+      return { store: "recordstore", version: "1", conformance: CONFORMANCE_REVISION };
+    },
     async *export(since?: string): AsyncGenerator<ExportChunk> {
       const all: StoredRecord[] = [];
-      for (const def of await store.types()) for (const r of rows(def.name, false)) if (!since || r.updated_at >= Number(since)) all.push(r);
+      for (const def of await store.types())
+        for (const r of rows(def.name, false)) if (!since || r.updated_at >= Number(since)) all.push(r);
       all.sort((a, b) => (a.id < b.id ? -1 : 1));
       let seq = 0;
       for (let i = 0; i < Math.max(1, all.length); i += 100) {
@@ -314,18 +535,33 @@ export function createRecordStore(host: ProjectionHost, o: RecordStoreOptions = 
         yield { seq: seq++, records, done: i + 100 >= all.length, checksum: sha256Hex(canonical(records)) };
       }
     },
-    features() { return { aggregate: true, search: true, changes: true, cursor_paging: true as const }; },
+    features() {
+      return { aggregate: true, search: true, changes: true, cursor_paging: true as const };
+    },
   };
   return store;
 }
 
 /** A host with `records.rows` registered, and the RecordStore over it. `path` is a file, or ":memory:" for tests. */
-export function openRecordStore(o: { path: string; space: string; actor?: string; clock?: () => number; extra?: InlineProjection[] }): { host: ProjectionHost; store: Store } {
+export function openRecordStore(o: {
+  path: string;
+  space: string;
+  actor?: string;
+  clock?: () => number;
+  extra?: InlineProjection[];
+}): { host: ProjectionHost; store: Store } {
   const db = new DatabaseSync(o.path);
-  const host = new ProjectionHost({ db, space: o.space, projections: [recordsRows, ...(o.extra ?? [])], ...(o.clock ? { clock: o.clock } : {}) });
-  return { host, store: createRecordStore(host, { ...(o.actor ? { actor: o.actor } : {}), ...(o.clock ? { clock: o.clock } : {}) }) };
+  const host = new ProjectionHost({
+    db,
+    space: o.space,
+    projections: [recordsRows, ...(o.extra ?? [])],
+    ...(o.clock ? { clock: o.clock } : {}),
+  });
+  return {
+    host,
+    store: createRecordStore(host, { ...(o.actor ? { actor: o.actor } : {}), ...(o.clock ? { clock: o.clock } : {}) }),
+  };
 }
-
 
 /** Structural equality of two JSON values (object key order does not matter). */
 export function sameValue(a: unknown, b: unknown): boolean {
@@ -333,6 +569,14 @@ export function sameValue(a: unknown, b: unknown): boolean {
   if (typeof a !== "object" || typeof b !== "object" || a === null || b === null) return false;
   if (Array.isArray(a) !== Array.isArray(b)) return false;
   if (Array.isArray(a) && Array.isArray(b)) return a.length === b.length && a.every((x, i) => sameValue(x, b[i]));
-  const ka = Object.keys(a as object), kb = Object.keys(b as object);
-  return ka.length === kb.length && ka.every((k) => Object.prototype.hasOwnProperty.call(b, k) && sameValue((a as Record<string, unknown>)[k], (b as Record<string, unknown>)[k]));
+  const ka = Object.keys(a as object),
+    kb = Object.keys(b as object);
+  return (
+    ka.length === kb.length &&
+    ka.every(
+      (k) =>
+        Object.prototype.hasOwnProperty.call(b, k) &&
+        sameValue((a as Record<string, unknown>)[k], (b as Record<string, unknown>)[k]),
+    )
+  );
 }

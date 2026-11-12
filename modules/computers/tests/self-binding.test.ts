@@ -11,7 +11,10 @@ test("an admin's deny on the agent's computer refuses the call that leaves the i
   // the screen tools have no Space browser path: leaving the id out means the agent's own computer
   assert.ok(await tool["computers.screen.screenshot"]!(agent.ctx, {}), "allowed before the deny");
   agent.deny(`computer:${w.id}`);
-  await assert.rejects(tool["computers.screen.screenshot"]!(agent.ctx, {}), (e: unknown) => codeOf(e) === "permission.no_grant");
+  await assert.rejects(
+    tool["computers.screen.screenshot"]!(agent.ctx, {}),
+    (e: unknown) => codeOf(e) === "permission.no_grant",
+  );
 });
 
 // review A2: the gateway notes a chrome call with no computer named as the agent's own Space browser; when the browser is not usable the call goes to the agent's computer, and the note follows it
@@ -20,7 +23,12 @@ test("a chrome call that falls back from an unusable Space browser to the agent'
   const w = await world();
   const agent = w.agent();
   const ctx = { ...agent.ctx, thread: "thr_fb", actingFor: "usr_maya", trace: { traceId: "trc_fallback" } };
-  noteRead({ thread: "thr_fb", agent: ctx.principal.id, asker: "usr_maya", resource: { type: "browser_profile", id: ctx.principal.id } });
+  noteRead({
+    thread: "thr_fb",
+    agent: ctx.principal.id,
+    asker: "usr_maya",
+    resource: { type: "browser_profile", id: ctx.principal.id },
+  });
   await tool["computers.chrome.snapshot"]!(ctx, {});
   assert.deepEqual(takeReads("thr_fb", ctx.principal.id, "usr_maya"), [{ type: "computer", id: w.id }]);
   assert.equal(takeFallback("trc_fallback"), w.id, "the audit row of this call names the computer");

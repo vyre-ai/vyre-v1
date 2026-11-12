@@ -6,16 +6,23 @@ import { bad, first, pushToken } from "../projections.ts";
 import type { GoogleCtx } from "../projections.ts";
 import { receivePush } from "./workspace.ts";
 
-export interface HookIn { headers: Readonly<Record<string, string | undefined>>; body: string; url: string; kind?: string }
+export interface HookIn {
+  headers: Readonly<Record<string, string | undefined>>;
+  body: string;
+  url: string;
+  kind?: string;
+}
 
 const KINDS = ["gmail", "calendar", "drive", "meet"] as const;
 type Kind = (typeof KINDS)[number];
 const EMAIL = /^[^\s@]+@[^\s@]+$/;
 
-const digest = async (s: string): Promise<Uint8Array> => new Uint8Array(await globalThis.crypto.subtle.digest("SHA-256", new TextEncoder().encode(s)));
+const digest = async (s: string): Promise<Uint8Array> =>
+  new Uint8Array(await globalThis.crypto.subtle.digest("SHA-256", new TextEncoder().encode(s)));
 /** Equal secrets without a timing signal: both are hashed to the same length and compared in full. */
 export async function sameSecret(a: string, b: string): Promise<boolean> {
-  const x = await digest(a), y = await digest(b);
+  const x = await digest(a),
+    y = await digest(b);
   let diff = 0;
   for (let i = 0; i < x.length; i++) diff |= x[i]! ^ y[i]!;
   return diff === 0;
@@ -29,7 +36,11 @@ function refuse(ctx: GoogleCtx): never {
 function sent(h: HookIn): string {
   const header = h.headers["x-goog-channel-token"];
   if (header) return header;
-  try { return new URL(h.url).searchParams.get("token") ?? ""; } catch { return ""; }
+  try {
+    return new URL(h.url).searchParams.get("token") ?? "";
+  } catch {
+    return "";
+  }
 }
 
 export async function acceptHook(ctx: GoogleCtx, h: HookIn): Promise<{ accepted: boolean }> {
@@ -39,28 +50,51 @@ export async function acceptHook(ctx: GoogleCtx, h: HookIn): Promise<{ accepted:
   // No secret yet means nothing was ever watched: refuse the same way as a wrong one, so a caller learns nothing.
   const haveRow = first(ctx.db.all(`SELECT token FROM google_push_secret WHERE id = ?`, "google"));
   if (!given || !haveRow || !(await sameSecret(given, pushToken(ctx)))) refuse(ctx);
-  return kind === "calendar" || kind === "drive" ? channelNotice(ctx, kind, h) : pubsubNotice(ctx, kind as "gmail" | "meet", h);
+  return kind === "calendar" || kind === "drive"
+    ? channelNotice(ctx, kind, h)
+    : pubsubNotice(ctx, kind as "gmail" | "meet", h);
 }
 
 function channelNotice(ctx: GoogleCtx, kind: "calendar" | "drive", h: HookIn) {
-  const channelId = h.headers["x-goog-channel-id"], number = h.headers["x-goog-message-number"];
+  const channelId = h.headers["x-goog-channel-id"],
+    number = h.headers["x-goog-message-number"];
   if (!channelId || !number) bad(ctx, "That is not a Google channel notice.");
-  const resourceState = h.headers["x-goog-resource-state"], resourceId = h.headers["x-goog-resource-id"];
+  const resourceState = h.headers["x-goog-resource-state"],
+    resourceId = h.headers["x-goog-resource-id"];
   return receivePush(ctx, {
-    kind, messageId: `${channelId}:${number}`, channelId, ...(resourceState ? { resourceState } : {}), ...(resourceId ? { resourceId } : {}),
+    kind,
+    messageId: `${channelId}:${number}`,
+    channelId,
+    ...(resourceState ? { resourceState } : {}),
+    ...(resourceId ? { resourceId } : {}),
   });
 }
 
 function pubsubNotice(ctx: GoogleCtx, kind: "gmail" | "meet", h: HookIn) {
   let message: { messageId?: unknown; data?: unknown } | undefined;
-  try { message = (JSON.parse(h.body) as { message?: { messageId?: unknown; data?: unknown } }).message; } catch { /* refused below */ }
+  try {
+    message = (JSON.parse(h.body) as { message?: { messageId?: unknown; data?: unknown } }).message;
+  } catch {
+    /* refused below */
+  }
   if (!message || typeof message.messageId !== "string" || !message.messageId) bad(ctx, "That is not a Pub/Sub push.");
   let data: { emailAddress?: unknown; historyId?: unknown } = {};
   if (typeof message.data === "string") {
-    try { data = JSON.parse(Buffer.from(message.data, "base64").toString("utf8")) as typeof data; } catch { bad(ctx, "That Pub/Sub message has no readable data."); }
+    try {
+      data = JSON.parse(Buffer.from(message.data, "base64").toString("utf8")) as typeof data;
+    } catch {
+      bad(ctx, "That Pub/Sub message has no readable data.");
+    }
   }
-  const mailbox = typeof data.emailAddress === "string" && EMAIL.test(data.emailAddress) ? data.emailAddress : undefined;
+  const mailbox =
+    typeof data.emailAddress === "string" && EMAIL.test(data.emailAddress) ? data.emailAddress : undefined;
   if (kind === "gmail" && !mailbox) bad(ctx, "That Gmail push names no mailbox.");
-  const historyId = typeof data.historyId === "string" || typeof data.historyId === "number" ? String(data.historyId) : undefined;
-  return receivePush(ctx, { kind, messageId: message.messageId, ...(mailbox ? { mailbox } : {}), ...(historyId ? { historyId } : {}) });
+  const historyId =
+    typeof data.historyId === "string" || typeof data.historyId === "number" ? String(data.historyId) : undefined;
+  return receivePush(ctx, {
+    kind,
+    messageId: message.messageId,
+    ...(mailbox ? { mailbox } : {}),
+    ...(historyId ? { historyId } : {}),
+  });
 }

@@ -13,7 +13,13 @@ import { startDaemon } from "../src/daemon/daemon.ts";
 import type { DaemonOptions } from "../src/daemon/daemon.ts";
 import type { SeamFetch } from "../src/seams/ports.ts";
 
-const caddyFetch: FetchFn = () => Promise.resolve({ ok: true, status: 200, headers: { get: () => null }, text: () => Promise.resolve('{"apps":{"http":{}}}') });
+const caddyFetch: FetchFn = () =>
+  Promise.resolve({
+    ok: true,
+    status: 200,
+    headers: { get: () => null },
+    text: () => Promise.resolve('{"apps":{"http":{}}}'),
+  });
 const OWNER = "tok-usr_olivia";
 const SECRET = "fake_notely_key_77";
 const APP = "api.notely.test";
@@ -34,9 +40,12 @@ test("a connector's safe read: private addresses are refused before sending, and
     seen.push({ url, headers: { ...(init?.headers ?? {}) } });
     const u = new URL(url);
     if (u.hostname !== APP) throw new Error("connect refused");
-    if (u.pathname === "/v1/notes") return { status: 200, text: async () => '{"notes":[]}', arrayBuffer: async () => new ArrayBuffer(0) };
-    if (u.pathname === "/v1/private") return { status: 401, text: async () => "unauthorized", arrayBuffer: async () => new ArrayBuffer(0) };
-    if (u.pathname === "/v1/busy") return { status: 503, text: async () => "busy", arrayBuffer: async () => new ArrayBuffer(0) };
+    if (u.pathname === "/v1/notes")
+      return { status: 200, text: async () => '{"notes":[]}', arrayBuffer: async () => new ArrayBuffer(0) };
+    if (u.pathname === "/v1/private")
+      return { status: 401, text: async () => "unauthorized", arrayBuffer: async () => new ArrayBuffer(0) };
+    if (u.pathname === "/v1/busy")
+      return { status: 503, text: async () => "busy", arrayBuffer: async () => new ArrayBuffer(0) };
     if (u.pathname === "/v1/slow") throw new Error("timeout");
     return { status: 404, text: async () => "not found", arrayBuffer: async () => new ArrayBuffer(0) };
   };
@@ -44,7 +53,9 @@ test("a connector's safe read: private addresses are refused before sending, and
   const daemon = await startDaemon({
     config: loadConfig(["--data-dir", dir, "--port", "0"], {}, "1.2.3"),
     platform: fakePlatform({
-      os: "linux", hostname: "try-read-lines", free: 80e9,
+      os: "linux",
+      hostname: "try-read-lines",
+      free: 80e9,
       commands: {
         [`findmnt -n -o SOURCE --target ${dir}`]: { stdout: "/dev/mapper/vyre\n" },
         "lsblk -s -n -o TYPE /dev/mapper/vyre": { stdout: "crypt\ndisk\n" },
@@ -53,37 +64,74 @@ test("a connector's safe read: private addresses are refused before sending, and
     }),
     fetch: caddyFetch,
     seams: {
-      vaultSinks: { env: () => undefined }, fetch: seamFetch,
+      vaultSinks: { env: () => undefined },
+      fetch: seamFetch,
       drivers: {
         // names resolve without the outside DNS: the app to a public address, rebind.notely.test to a private one
         setDocumentNetwork: () => ({
           lookup: async (host: string) => (host === "rebind.notely.test" ? ["10.0.0.7"] : ["93.184.216.34"]),
-          fetch: async () => { throw new Error("not used"); },
+          fetch: async () => {
+            throw new Error("not used");
+          },
         }),
       },
     },
     session: (h) => {
       const token = /^Bearer (.+)$/.exec(String(h["authorization"] ?? ""))?.[1];
-      return token === OWNER ? { space: "spc_core", principal: { kind: "person", id: "usr_olivia" }, device: "try-read-lines" } : null;
+      return token === OWNER
+        ? { space: "spc_core", principal: { kind: "person", id: "usr_olivia" }, device: "try-read-lines" }
+        : null;
     },
-    intervals: { fast: 3_600_000, slow: 3_600_000, encryption: 3_600_000, commands: 3_600_000, hooks: 3_600_000, tick: 200 },
+    intervals: {
+      fast: 3_600_000,
+      slow: 3_600_000,
+      encryption: 3_600_000,
+      commands: 3_600_000,
+      hooks: 3_600_000,
+      tick: 200,
+    },
   } satisfies DaemonOptions);
   const post = async (route: string, body: unknown) => {
     const response = await fetch(`${daemon.url}${route}`, {
-      method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${OWNER}` }, body: JSON.stringify(body), signal: AbortSignal.timeout(8_000),
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${OWNER}` },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(8_000),
     });
     const text = await response.text();
     let json: Record<string, unknown> = {};
-    try { json = JSON.parse(text) as Record<string, unknown>; } catch { /* not JSON */ }
+    try {
+      json = JSON.parse(text) as Record<string, unknown>;
+    } catch {
+      /* not JSON */
+    }
     return { status: response.status, data: (json["data"] as Record<string, unknown> | undefined) ?? {}, text };
   };
   try {
-    const folder = await post("/v1/vault/folders/create", { name: "Keys", scope: "shared", idempotencyKey: "lines-folder" });
+    const folder = await post("/v1/vault/folders/create", {
+      name: "Keys",
+      scope: "shared",
+      idempotencyKey: "lines-folder",
+    });
     const folderId = String((folder.data["folder"] as { id?: string } | undefined)?.id ?? "");
-    const put = await post("/v1/vault/item/put", { folderId, name: "Notely", kind: "api_key", fields: [{ key: "api_key", value: SECRET }], idempotencyKey: "lines-notely" });
+    const put = await post("/v1/vault/item/put", {
+      folderId,
+      name: "Notely",
+      kind: "api_key",
+      fields: [{ key: "api_key", value: SECRET }],
+      idempotencyKey: "lines-notely",
+    });
     assert.equal(put.status, 200, put.text);
     const handle = String((put.data["item"] as { handle?: string } | undefined)?.handle ?? "");
-    const read = (p: string, domains: string[], item = `${handle}.api_key`) => post("/v1/automations/try_read", { method: "GET", path: p, domains, vaultItemId: item, header: "X-Api-Key", prefix: "" });
+    const read = (p: string, domains: string[], item = `${handle}.api_key`) =>
+      post("/v1/automations/try_read", {
+        method: "GET",
+        path: p,
+        domains,
+        vaultItemId: item,
+        header: "X-Api-Key",
+        prefix: "",
+      });
 
     const ok = await read("/v1/notes", [APP]);
     assert.equal(ok.data["level"], "tested", ok.text);
@@ -96,7 +144,11 @@ test("a connector's safe read: private addresses are refused before sending, and
       assert.match(String(r.data["reason"]), /not a public/i, `${host}: ${r.text}`);
       assert.equal(seen.length, before, `${host}: nothing is sent to a private address`);
     }
-    assert.equal(seen.some((s) => Object.values(s.headers).includes(SECRET) && new URL(s.url).hostname !== APP), false, "the key went only to the app");
+    assert.equal(
+      seen.some((s) => Object.values(s.headers).includes(SECRET) && new URL(s.url).hostname !== APP),
+      false,
+      "the key went only to the app",
+    );
 
     const lines: [string, RegExp][] = [
       ["/v1/private", /refused the key.*401/i],
@@ -126,13 +178,23 @@ test("the safe read dials only the addresses it checked, follows no redirect, an
   const dir = seededDir();
   const daemon = await startDaemon({
     config: loadConfig(["--data-dir", dir, "--port", "0"], {}, "1.2.3"),
-    platform: fakePlatform({ os: "linux", hostname: "try-read-pin", free: 80e9, commands: {
-      [`findmnt -n -o SOURCE --target ${dir}`]: { stdout: "/dev/mapper/vyre\n" }, "lsblk -s -n -o TYPE /dev/mapper/vyre": { stdout: "crypt\ndisk\n" }, "docker info --format {{.ServerVersion}}": { stdout: "27.1.1\n" },
-    } }),
+    platform: fakePlatform({
+      os: "linux",
+      hostname: "try-read-pin",
+      free: 80e9,
+      commands: {
+        [`findmnt -n -o SOURCE --target ${dir}`]: { stdout: "/dev/mapper/vyre\n" },
+        "lsblk -s -n -o TYPE /dev/mapper/vyre": { stdout: "crypt\ndisk\n" },
+        "docker info --format {{.ServerVersion}}": { stdout: "27.1.1\n" },
+      },
+    }),
     fetch: caddyFetch,
     seams: {
       vaultSinks: { env: () => undefined },
-      fetch: async () => { plainFetch++; throw new Error("the pinned connect is used"); },
+      fetch: async () => {
+        plainFetch++;
+        throw new Error("the pinned connect is used");
+      },
       drivers: {
         setDocumentNetwork: () => ({
           // rebind.notely.test answers public the first time it is asked and private after that; private.notely.test is private
@@ -142,31 +204,79 @@ test("the safe read dials only the addresses it checked, follows no redirect, an
             if (host === "rebind.notely.test") return lookups[host] === 1 ? ["93.184.216.34"] : ["127.0.0.1"];
             return ["93.184.216.34"];
           },
-          fetch: async () => { throw new Error("not used"); },
-          connect: async (r: { url: URL; addresses: readonly string[]; headers?: Readonly<Record<string, string>> }) => {
-            dialled.push({ host: r.url.hostname, addresses: [...r.addresses], key: Object.values(r.headers ?? {}).some((v) => v.includes(SECRET)) });
-            if (r.url.pathname === "/v1/moved") return new Response("", { status: 302, headers: { location: "https://elsewhere.example/v1/notes" } });
+          fetch: async () => {
+            throw new Error("not used");
+          },
+          connect: async (r: {
+            url: URL;
+            addresses: readonly string[];
+            headers?: Readonly<Record<string, string>>;
+          }) => {
+            dialled.push({
+              host: r.url.hostname,
+              addresses: [...r.addresses],
+              key: Object.values(r.headers ?? {}).some((v) => v.includes(SECRET)),
+            });
+            if (r.url.pathname === "/v1/moved")
+              return new Response("", { status: 302, headers: { location: "https://elsewhere.example/v1/notes" } });
             return new Response("{}", { status: 200, headers: { "content-type": "application/json" } });
           },
         }),
       },
     },
-    session: (h) => (/^Bearer (.+)$/.exec(String(h["authorization"] ?? ""))?.[1] === OWNER ? { space: "spc_core", principal: { kind: "person", id: "usr_olivia" }, device: "try-read-pin" } : null),
-    intervals: { fast: 3_600_000, slow: 3_600_000, encryption: 3_600_000, commands: 3_600_000, hooks: 3_600_000, tick: 200 },
+    session: (h) =>
+      /^Bearer (.+)$/.exec(String(h["authorization"] ?? ""))?.[1] === OWNER
+        ? { space: "spc_core", principal: { kind: "person", id: "usr_olivia" }, device: "try-read-pin" }
+        : null,
+    intervals: {
+      fast: 3_600_000,
+      slow: 3_600_000,
+      encryption: 3_600_000,
+      commands: 3_600_000,
+      hooks: 3_600_000,
+      tick: 200,
+    },
   } satisfies DaemonOptions);
   const post = async (route: string, body: unknown) => {
-    const response = await fetch(`${daemon.url}${route}`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${OWNER}` }, body: JSON.stringify(body), signal: AbortSignal.timeout(8_000) });
+    const response = await fetch(`${daemon.url}${route}`, {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${OWNER}` },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(8_000),
+    });
     const text = await response.text();
     let json: Record<string, unknown> = {};
-    try { json = JSON.parse(text) as Record<string, unknown>; } catch { /* not JSON */ }
+    try {
+      json = JSON.parse(text) as Record<string, unknown>;
+    } catch {
+      /* not JSON */
+    }
     return { status: response.status, data: (json["data"] as Record<string, unknown> | undefined) ?? {}, text };
   };
   try {
-    const folder = await post("/v1/vault/folders/create", { name: "Keys", scope: "shared", idempotencyKey: "pin-folder" });
+    const folder = await post("/v1/vault/folders/create", {
+      name: "Keys",
+      scope: "shared",
+      idempotencyKey: "pin-folder",
+    });
     const folderId = String((folder.data["folder"] as { id?: string } | undefined)?.id ?? "");
-    const put = await post("/v1/vault/item/put", { folderId, name: "Notely", kind: "api_key", fields: [{ key: "api_key", value: SECRET }], idempotencyKey: "pin-notely" });
+    const put = await post("/v1/vault/item/put", {
+      folderId,
+      name: "Notely",
+      kind: "api_key",
+      fields: [{ key: "api_key", value: SECRET }],
+      idempotencyKey: "pin-notely",
+    });
     const handle = String((put.data["item"] as { handle?: string } | undefined)?.handle ?? "");
-    const read = (p: string, host: string, item = `${handle}.api_key`) => post("/v1/automations/try_read", { method: "GET", path: p, domains: [host], vaultItemId: item, header: "X-Api-Key", prefix: "" });
+    const read = (p: string, host: string, item = `${handle}.api_key`) =>
+      post("/v1/automations/try_read", {
+        method: "GET",
+        path: p,
+        domains: [host],
+        vaultItemId: item,
+        header: "X-Api-Key",
+        prefix: "",
+      });
 
     // rebinding: one lookup, and the dial goes to exactly that answer
     const first = await read("/v1/notes", "rebind.notely.test");
@@ -187,7 +297,11 @@ test("the safe read dials only the addresses it checked, follows no redirect, an
     const moved = await read("/v1/moved", "api.notely.test");
     assert.equal(moved.data["level"], "draft", moved.text);
     assert.match(String(moved.data["reason"]), /somewhere else \(302\)/, moved.text);
-    assert.deepEqual(dialled.filter((x) => x.host === "elsewhere.example"), [], "the key never follows a redirect");
+    assert.deepEqual(
+      dialled.filter((x) => x.host === "elsewhere.example"),
+      [],
+      "the key never follows a redirect",
+    );
     assert.equal(plainFetch, 0, "nothing went through the unpinned fetch");
 
     // text the caller put where the key's name goes is not echoed into a line the agent reads

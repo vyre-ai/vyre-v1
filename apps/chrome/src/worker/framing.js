@@ -8,7 +8,8 @@ export const MAX_MESSAGE = 1024 * 1024;
 /** @param {unknown} message @returns {Buffer} */
 export function encode(message) {
   const body = Buffer.from(JSON.stringify(message), "utf8");
-  if (body.length > MAX_MESSAGE) throw new RangeError(`message of ${body.length} bytes is over the ${MAX_MESSAGE} byte limit`);
+  if (body.length > MAX_MESSAGE)
+    throw new RangeError(`message of ${body.length} bytes is over the ${MAX_MESSAGE} byte limit`);
   const head = Buffer.alloc(4);
   head.writeUInt32LE(body.length, 0);
   return Buffer.concat([head, body]);
@@ -38,6 +39,8 @@ export function createDecoder() {
       }
       return out;
     },
-    get buffered() { return pending.length; },
+    get buffered() {
+      return pending.length;
+    },
   };
 }

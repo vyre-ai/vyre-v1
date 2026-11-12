@@ -25,7 +25,11 @@ export default function Mount(): ReactNode {
   if (search === null) return <View style={{ flex: 1, backgroundColor: "var(--win)" as string }} />;
   return (
     <View style={{ flex: 1, backgroundColor: "var(--win)" as string }}>
-      {helper ? <HelperChat data={helperSample.data} /> : <NeedsYou data={needs.data} window={{ start: 0, end: 500 }} {...(sel ? { initialSelected: sel } : {})} />}
+      {helper ? (
+        <HelperChat data={helperSample.data} />
+      ) : (
+        <NeedsYou data={needs.data} window={{ start: 0, end: 500 }} {...(sel ? { initialSelected: sel } : {})} />
+      )}
     </View>
   );
 }

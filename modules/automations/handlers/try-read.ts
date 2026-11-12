@@ -14,7 +14,11 @@ import type { AutoCtx } from "../projections.ts";
 /** `failed` says which side a status 0 came from: the Vault did not give the key, or the app never answered. */
 type Failed = "vault" | "network" | "private";
 /** `net` is the pinned network docs and the HTTP step use: the host dials only the addresses it checked. */
-type ReadSender = (plan: { method: string; url: string; vaultItemId: string; header?: string; prefix?: string }, asker?: string, net?: FetchDeps | null) => Promise<{ status: number; failed?: Failed }>;
+type ReadSender = (
+  plan: { method: string; url: string; vaultItemId: string; header?: string; prefix?: string },
+  asker?: string,
+  net?: FetchDeps | null,
+) => Promise<{ status: number; failed?: Failed }>;
 
 const HEADER = /^[A-Za-z0-9-]{1,40}$/;
 const PREFIX = /^[\x20-\x7e]{0,20}$/;
@@ -32,13 +36,16 @@ export function readFailureLine(status: number | undefined, failed: Failed | und
   const base = vaultItemId.trim().replace(/\.[A-Za-z][A-Za-z0-9_]*$/, "");
   const item = /^#[A-Za-z0-9_]{1,80}$/.test(base) || /^vit_[a-z0-9]{1,64}$/.test(base) ? `the key ${base}` : "the key";
   if (failed === "private") return "That address is not a public host.";
-  if (failed === "vault") return `The Vault did not give this read ${item}. Check the item is there and that you can use it.`;
+  if (failed === "vault")
+    return `The Vault did not give this read ${item}. Check the item is there and that you can use it.`;
   if (status === undefined || status <= 0) return "The app did not answer. Check the base address, then try again.";
-  if (status === 401 || status === 403) return `The app refused the key (${status}). Check the key in the Vault, and how it is sent (header and prefix).`;
+  if (status === 401 || status === 403)
+    return `The app refused the key (${status}). Check the key in the Vault, and how it is sent (header and prefix).`;
   if (status === 404) return `Nothing at that address (${status}). Check the base address and the path.`;
   if (status === 429) return `The app asked to slow down (${status}). Try again in a minute.`;
   if (status >= 500) return `The app had a problem (${status}). Try again later.`;
-  if (status >= 300 && status < 400) return `The app sent the read somewhere else (${status}). Use the address it moved to.`;
+  if (status >= 300 && status < 400)
+    return `The app sent the read somewhere else (${status}). Use the address it moved to.`;
   return `The read did not pass (${status}). Check the path and what the app expects.`;
 }
 
@@ -65,11 +72,26 @@ function domainsOf(value: unknown): string[] | undefined {
 }
 
 // Only these fields are copied. A key value on the input is ignored.
-function fieldsOf(input: unknown): { method: string; path: string; domains: string[]; markedSafe?: true; vaultItemId: string; header?: string; prefix?: string } | undefined {
+function fieldsOf(input: unknown):
+  | {
+      method: string;
+      path: string;
+      domains: string[];
+      markedSafe?: true;
+      vaultItemId: string;
+      header?: string;
+      prefix?: string;
+    }
+  | undefined {
   if (typeof input !== "object" || input === null || Array.isArray(input)) return undefined;
   const row = input as Record<string, unknown>;
   const domains = domainsOf(row.domains);
-  if (typeof row.method !== "string" || typeof row.path !== "string" || typeof row.vaultItemId !== "string" || domains === undefined) {
+  if (
+    typeof row.method !== "string" ||
+    typeof row.path !== "string" ||
+    typeof row.vaultItemId !== "string" ||
+    domains === undefined
+  ) {
     return undefined;
   }
   return {
@@ -84,7 +106,10 @@ function fieldsOf(input: unknown): { method: string; path: string; domains: stri
   };
 }
 
-export async function tryConnectorRead(ctx: AutoCtx, input: unknown): Promise<{ level: "tested" | "draft"; reason?: string; status?: number }> {
+export async function tryConnectorRead(
+  ctx: AutoCtx,
+  input: unknown,
+): Promise<{ level: "tested" | "draft"; reason?: string; status?: number }> {
   const fields = fieldsOf(input);
   if (fields === undefined) return { level: "draft", reason: NO_SUCCESS };
 
@@ -102,15 +127,34 @@ export async function tryConnectorRead(ctx: AutoCtx, input: unknown): Promise<{ 
   // the key is about to go on this request: a private, loopback or metadata address (or a name that resolves to one) is refused first, as the docs fetcher and the HTTP step refuse it
   // with the pinned network the host looks the name up once, checks it and dials those addresses (one lookup, no rebinding); without it the name is checked here before the key goes out
   const net = documentNetwork();
-  const vetted = net?.connect ? vetShape(planned.plan.url) : await vetPublic(planned.plan.url, net?.lookup ?? lookupHost);
+  const vetted = net?.connect
+    ? vetShape(planned.plan.url)
+    : await vetPublic(planned.plan.url, net?.lookup ?? lookupHost);
   if (!vetted.ok) return { level: "draft", reason: vetted.reason };
 
   let status: number | undefined;
   let failed: Failed | undefined;
   const sender = readSender;
   // the same asker the Gate's hold used (key_host_unapproved): the person an agent acts for, or the person themselves; an agent acting for no one reads Shared only, at the hold and at the send
-  const asker = ctx.actingFor?.startsWith("usr_") ? ctx.actingFor : ctx.principal?.kind === "person" ? ctx.principal.id : undefined;
-  const outcome = await runSafeTest(planned.plan, async (plan) => { const r = await sender({ ...plan, ...(fields.header ? { header: fields.header } : {}), ...(fields.prefix !== undefined ? { prefix: fields.prefix } : {}) }, asker, documentNetwork()); status = r.status; failed = r.failed; return r; });
+  const asker = ctx.actingFor?.startsWith("usr_")
+    ? ctx.actingFor
+    : ctx.principal?.kind === "person"
+      ? ctx.principal.id
+      : undefined;
+  const outcome = await runSafeTest(planned.plan, async (plan) => {
+    const r = await sender(
+      {
+        ...plan,
+        ...(fields.header ? { header: fields.header } : {}),
+        ...(fields.prefix !== undefined ? { prefix: fields.prefix } : {}),
+      },
+      asker,
+      documentNetwork(),
+    );
+    status = r.status;
+    failed = r.failed;
+    return r;
+  });
   // the status the app answered, so the person sees "401" and not only "did not succeed"; 0 means the request never got an answer
   const answered = status !== undefined && status > 0 ? { status } : {};
   if (outcome.level === "tested") {

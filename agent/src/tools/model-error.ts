@@ -9,16 +9,28 @@ const ID = new RegExp(ID_SRC, "gi");
 const IS_ID = new RegExp(ID_SRC, "i");
 
 /** The words of a message with every id and trace taken out. */
-export const withoutIds = (s: string): string => peopleWords(s.replace(ID, "that item")).replace(/\s{2,}/g, " ").trim();
+export const withoutIds = (s: string): string =>
+  peopleWords(s.replace(ID, "that item"))
+    .replace(/\s{2,}/g, " ")
+    .trim();
 
 /** The error as a model may read it: code, a scrubbed message, whether to retry, and the labels of what to do next. */
-export function modelError(error: VyreError): { code: string; message: string; retryable?: boolean; next?: Array<{ label: string }>; details?: { reason?: string; tool?: string } } {
-  const next = (error.next ?? []).map((n) => ({ label: withoutIds(String((n as { label?: unknown }).label ?? "")) })).filter((n) => n.label !== "");
+export function modelError(error: VyreError): {
+  code: string;
+  message: string;
+  retryable?: boolean;
+  next?: Array<{ label: string }>;
+  details?: { reason?: string; tool?: string };
+} {
+  const next = (error.next ?? [])
+    .map((n) => ({ label: withoutIds(String((n as { label?: unknown }).label ?? "")) }))
+    .filter((n) => n.label !== "");
   const d = error.details as { reason?: unknown; tool?: unknown } | undefined;
   const reason = typeof d?.reason === "string" && !IS_ID.test(d.reason) ? d.reason : undefined;
   const tool = typeof d?.tool === "string" && /^[a-z][a-z0-9_]*$/.test(d.tool) ? d.tool : undefined;
   return {
-    code: error.code, message: withoutIds(error.message ?? ""),
+    code: error.code,
+    message: withoutIds(error.message ?? ""),
     ...(reason || tool ? { details: { ...(reason ? { reason } : {}), ...(tool ? { tool } : {}) } } : {}),
     ...(error.retryable === true ? { retryable: true } : {}),
     ...(next.length ? { next } : {}),
@@ -29,5 +41,7 @@ export function modelError(error: VyreError): { code: string; message: string; r
 export function safeContent(content: unknown): unknown {
   if (content === null || typeof content !== "object") return content;
   const o = content as { error?: VyreError };
-  return o.error && typeof o.error === "object" && typeof o.error.code === "string" ? { ...o, error: modelError(o.error) } : content;
+  return o.error && typeof o.error === "object" && typeof o.error.code === "string"
+    ? { ...o, error: modelError(o.error) }
+    : content;
 }

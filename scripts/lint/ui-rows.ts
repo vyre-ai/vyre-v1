@@ -82,8 +82,10 @@ function returnedJsx(source: string, start: number): { tag: string; index: numbe
   for (let k = 0; k < stop; k++) {
     const c = head[k];
     if (c === "(") depth++;
-    else if (c === ")") { depth--; if (depth < floor) return null; }
-    else if (c === ";") return null;
+    else if (c === ")") {
+      depth--;
+      if (depth < floor) return null;
+    } else if (c === ";") return null;
   }
   let bodyAt: number;
   if (arrowAt >= 0 && (fnAt < 0 || arrowAt < fnAt)) bodyAt = start + arrowAt + 2;
@@ -116,12 +118,31 @@ function jsxReturnIn(source: string, open: number): { tag: string; index: number
       else if (c === quote) quote = "";
       continue;
     }
-    if (c === "'" || c === "\"" || c === "`") { quote = c; continue; }
-    if (c === "/" && source[i + 1] === "/") { i = source.indexOf("\n", i); if (i < 0) return null; continue; }
-    if (c === "/" && source[i + 1] === "*") { i = source.indexOf("*/", i + 2); if (i < 0) return null; i++; continue; }
+    if (c === "'" || c === '"' || c === "`") {
+      quote = c;
+      continue;
+    }
+    if (c === "/" && source[i + 1] === "/") {
+      i = source.indexOf("\n", i);
+      if (i < 0) return null;
+      continue;
+    }
+    if (c === "/" && source[i + 1] === "*") {
+      i = source.indexOf("*/", i + 2);
+      if (i < 0) return null;
+      i++;
+      continue;
+    }
     if (c === "{") depth++;
-    else if (c === "}") { depth--; if (depth === 0) return null; }
-    else if (depth === 1 && source.startsWith("return", i) && !/[\w$]/.test(source[i - 1] ?? "") && !/[\w$]/.test(source[i + 6] ?? "")) {
+    else if (c === "}") {
+      depth--;
+      if (depth === 0) return null;
+    } else if (
+      depth === 1 &&
+      source.startsWith("return", i) &&
+      !/[\w$]/.test(source[i - 1] ?? "") &&
+      !/[\w$]/.test(source[i + 6] ?? "")
+    ) {
       let j = i + 6;
       while (j < source.length && /[\s(]/.test(source[j] as string)) j++;
       const hit = jsxAt(source, j);
@@ -146,7 +167,8 @@ function hasHorizontalMargin(text: string): boolean {
 function hasPartialWidth(text: string): boolean {
   for (const hit of text.matchAll(/\bwidth\s*:\s*([^,}\n]+)/g)) {
     const v = hit[1].trim().replace(/;$/, "");
-    if (v === '"100%"' || v === "'100%'" || v === "`100%`" || v === '"full"' || v === "'full'" || v === "`full`") continue;
+    if (v === '"100%"' || v === "'100%'" || v === "`100%`" || v === '"full"' || v === "'full'" || v === "`full`")
+      continue;
     return true;
   }
   const align = /\balignSelf\s*:\s*([^,}\n]+)/.exec(text);
@@ -170,7 +192,7 @@ function openingTagEnd(source: string, start: number): number {
       if (c === quote) quote = "";
       continue;
     }
-    if (c === "'" || c === "\"" || c === "`") {
+    if (c === "'" || c === '"' || c === "`") {
       quote = c;
       continue;
     }
@@ -219,7 +241,7 @@ function nextTag(source: string, tag: string, from: number): { index: number; cl
       if (c === quote) quote = "";
       continue;
     }
-    if (c === "'" || c === "\"" || c === "`") {
+    if (c === "'" || c === '"' || c === "`") {
       quote = c;
       continue;
     }

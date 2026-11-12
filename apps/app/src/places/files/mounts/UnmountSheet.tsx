@@ -27,12 +27,27 @@ export function UnmountSheet({ mount, onClose, onRemoved }: UnmountSheetProps): 
     setError(null);
     void removeMount(data.call, mount.mountId, keep).then((r) => {
       setBusy(false);
-      if (r.ok) onRemoved(mount.mountId); else setError(r.error);
+      if (r.ok) onRemoved(mount.mountId);
+      else setError(r.error);
     });
   };
   return (
-    <Sheet label={words.title} onClose={onClose} onKey={(e) => { if (e.key === "Enter") { go(); return true; } return false; }} testID="unmount-sheet"
-      actions={[{ label: "Cancel", onPress: onClose, testID: "unmount-cancel" }, { label: busy ? "Unmounting…" : "Unmount", danger: true, disabled: busy, onPress: go, testID: "unmount-go" }]}>
+    <Sheet
+      label={words.title}
+      onClose={onClose}
+      onKey={(e) => {
+        if (e.key === "Enter") {
+          go();
+          return true;
+        }
+        return false;
+      }}
+      testID="unmount-sheet"
+      actions={[
+        { label: "Cancel", onPress: onClose, testID: "unmount-cancel" },
+        { label: busy ? "Unmounting…" : "Unmount", danger: true, disabled: busy, onPress: go, testID: "unmount-go" },
+      ]}
+    >
       <Text style={st.body}>{words.body}</Text>
       <View>
         <Field label="Keep a copy of the files in Vyre" first>

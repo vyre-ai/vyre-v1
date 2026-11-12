@@ -9,8 +9,14 @@ export interface Scheduler {
 
 export const realScheduler: Scheduler = {
   now: () => Date.now(),
-  every(ms, fn) { const h = setInterval(fn, ms); return () => clearInterval(h); },
-  after(ms, fn) { const h = setTimeout(fn, ms); return () => clearTimeout(h); },
+  every(ms, fn) {
+    const h = setInterval(fn, ms);
+    return () => clearInterval(h);
+  },
+  after(ms, fn) {
+    const h = setTimeout(fn, ms);
+    return () => clearTimeout(h);
+  },
 };
 
 export interface ManualScheduler extends Scheduler {
@@ -28,7 +34,9 @@ export function manualScheduler(start = 0): ManualScheduler {
   const add = (ms: number, every: number | null, fn: () => void): (() => void) => {
     const id = nextId++;
     timers.set(id, { at: t + ms, every, fn });
-    return () => { timers.delete(id); };
+    return () => {
+      timers.delete(id);
+    };
   };
   return {
     now: () => t,
@@ -43,7 +51,8 @@ export function manualScheduler(start = 0): ManualScheduler {
         if (!best) break;
         const [id, tm] = best;
         t = Math.max(t, tm.at);
-        if (tm.every === null) timers.delete(id); else tm.at += tm.every;
+        if (tm.every === null) timers.delete(id);
+        else tm.at += tm.every;
         tm.fn();
       }
       t = end;

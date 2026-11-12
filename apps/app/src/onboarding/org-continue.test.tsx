@@ -15,15 +15,35 @@ function setup(opts: { failUpdate?: boolean } = {}) {
   const steps: string[] = [];
   const call = (async (cap: string, input?: unknown) => {
     calls.push({ cap, input });
-    if (cap === "kits.list") return { kits: [{ kitId: "kit_a", key: "studio", title: "Studio", installed: true }, { kitId: "kit_h", key: "harbor-studio", title: "Harbor Studio", installed: false }] };
-    if (cap === "kits.install_sheet") return { sheet: { tools: [], recordTypes: [], networkDomains: [], vaultNames: [], scripts: 0, problems: [] } };
+    if (cap === "kits.list")
+      return {
+        kits: [
+          { kitId: "kit_a", key: "studio", title: "Studio", installed: true },
+          { kitId: "kit_h", key: "harbor-studio", title: "Harbor Studio", installed: false },
+        ],
+      };
+    if (cap === "kits.install_sheet")
+      return { sheet: { tools: [], recordTypes: [], networkDomains: [], vaultNames: [], scripts: 0, problems: [] } };
     if (cap === "spaces.update" && opts.failUpdate) throw new Error("no");
     return {};
   }) as unknown as CapCall;
   const screen = (progress: Record<string, "done" | "later">): ReactElement => (
-    <OnboardingScreen flow="team" spaceName="Northwind" progress={progress} stepKey="org" device="mac"
-      onStep={(k, st) => { steps.push(`${k}:${st}`); }} onClose={() => undefined}
-      renderCard={(card, ctx) => card === "org" ? <KitPickCard call={call} spaceName="Northwind" gate={ctx.gate} onInstalled={() => undefined} /> : null} />
+    <OnboardingScreen
+      flow="team"
+      spaceName="Northwind"
+      progress={progress}
+      stepKey="org"
+      device="mac"
+      onStep={(k, st) => {
+        steps.push(`${k}:${st}`);
+      }}
+      onClose={() => undefined}
+      renderCard={(card, ctx) =>
+        card === "org" ? (
+          <KitPickCard call={call} spaceName="Northwind" gate={ctx.gate} onInstalled={() => undefined} />
+        ) : null
+      }
+    />
   );
   return { calls, steps, screen };
 }
@@ -33,11 +53,19 @@ async function open(opts: { failUpdate?: boolean } = {}) {
   installDom();
   const t = setup(opts);
   const r = createRoot();
-  await act(async () => { r.render(t.screen({})); });
+  await act(async () => {
+    r.render(t.screen({}));
+  });
   await flush();
   return { t, root: r.container as unknown as Node };
 }
-const caps = (t: ReturnType<typeof setup>): string[] => t.calls.map((c) => c.cap).filter((c) => c === "spaces.update" || c.startsWith("kits.install") && c !== "kits.install_sheet" || c === "kits.choose");
+const caps = (t: ReturnType<typeof setup>): string[] =>
+  t.calls
+    .map((c) => c.cap)
+    .filter(
+      (c) =>
+        c === "spaces.update" || (c.startsWith("kits.install") && c !== "kits.install_sheet") || c === "kits.choose",
+    );
 
 test("Continue saves the changed name, installs nothing on Start blank, and moves the step on", async () => {
   const { t, root } = await open();
@@ -86,12 +114,28 @@ test("the preview names the Space as it is typed, and never shows a raw Space id
   const call = (async (cap: string) => (cap === "kits.list" ? { kits: [] } : {})) as unknown as CapCall;
   function Host(): ReactElement {
     const [typed, setTyped] = useState<string | null>(null);
-    return <OnboardingScreen flow="team" spaceName={typed ?? "spc_2a7c98c337e1dfd2e05e1aab"} progress={{}} stepKey="org" device="mac" onStep={() => undefined} onClose={() => undefined}
-      renderCard={(card, ctx) => card === "org" ? <KitPickCard call={call} spaceName="" onName={setTyped} gate={ctx.gate} onInstalled={() => undefined} /> : null} />;
+    return (
+      <OnboardingScreen
+        flow="team"
+        spaceName={typed ?? "spc_2a7c98c337e1dfd2e05e1aab"}
+        progress={{}}
+        stepKey="org"
+        device="mac"
+        onStep={() => undefined}
+        onClose={() => undefined}
+        renderCard={(card, ctx) =>
+          card === "org" ? (
+            <KitPickCard call={call} spaceName="" onName={setTyped} gate={ctx.gate} onInstalled={() => undefined} />
+          ) : null
+        }
+      />
+    );
   }
   void t;
   const r = createRoot();
-  await act(async () => { r.render(<Host />); });
+  await act(async () => {
+    r.render(<Host />);
+  });
   await flush();
   const root = r.container as unknown as Node;
   assert.equal(textOf(find(root, "preview-space-name")).trim(), "Your Space");

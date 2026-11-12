@@ -10,7 +10,10 @@ import path from "node:path";
 
 const repo = path.resolve(import.meta.dirname, "../..");
 
-interface Rule { negate: boolean; re: RegExp }
+interface Rule {
+  negate: boolean;
+  re: RegExp;
+}
 
 /** One .dockerignore pattern as a regex over a slash path relative to the context. `*` and `?` stay inside one path segment; `**` crosses any number of them, none included. */
 function patternRegex(pattern: string): RegExp {
@@ -18,7 +21,13 @@ function patternRegex(pattern: string): RegExp {
   for (let i = 0; i < pattern.length; i++) {
     const c = pattern[i]!;
     if (c === "*" && pattern[i + 1] === "*") {
-      if (pattern[i + 2] === "/") { re += "(?:.*/)?"; i += 2; } else { re += ".*"; i += 1; }
+      if (pattern[i + 2] === "/") {
+        re += "(?:.*/)?";
+        i += 2;
+      } else {
+        re += ".*";
+        i += 1;
+      }
     } else if (c === "*") re += "[^/]*";
     else if (c === "?") re += "[^/]";
     else re += c.replace(/[.+^${}()|[\]\\]/g, "\\$&");
@@ -53,20 +62,29 @@ function excluded(rules: readonly Rule[], file: string): boolean {
 const SKIP_DIRS = new Set(["node_modules", "dist", ".expo", ".turbo", "coverage", "target", ".git"]);
 function walk(dir: string, out: string[] = []): string[] {
   for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
-    if (e.isDirectory()) { if (!SKIP_DIRS.has(e.name)) walk(path.join(dir, e.name), out); }
-    else if (/\.(ts|tsx|mts|mjs|js)$/.test(e.name)) out.push(path.join(dir, e.name));
+    if (e.isDirectory()) {
+      if (!SKIP_DIRS.has(e.name)) walk(path.join(dir, e.name), out);
+    } else if (/\.(ts|tsx|mts|mjs|js)$/.test(e.name)) out.push(path.join(dir, e.name));
   }
   return out;
 }
 const rel = (abs: string): string => path.relative(repo, abs).split(path.sep).join("/");
-const isFile = (p: string): boolean => { try { return fs.statSync(path.join(repo, p)).isFile(); } catch { return false; } };
+const isFile = (p: string): boolean => {
+  try {
+    return fs.statSync(path.join(repo, p)).isFile();
+  } catch {
+    return false;
+  }
+};
 const isTest = (p: string): boolean => /\.test\.[a-z]+$|(^|\/)(tests?|fixtures|__fixtures__)\//.test(p);
 
 const rules = parseDockerignore(fs.readFileSync(path.join(repo, "images/vyred/Dockerfile.dockerignore"), "utf8"));
 const sources = ["modules", "host", "agent"].flatMap((d) => walk(path.join(repo, d)));
 
 test("the ignore-file reader follows BuildKit: last match wins, ! re-includes under an excluded folder, ** spans folders, a folder rule covers what is inside it", () => {
-  const r = parseDockerignore("# comment\n\ndocs\n!docs/frozen\n**/*.pem\n/spikes/\napps/app/dist/**/.env\n!keep.pem\n");
+  const r = parseDockerignore(
+    "# comment\n\ndocs\n!docs/frozen\n**/*.pem\n/spikes/\napps/app/dist/**/.env\n!keep.pem\n",
+  );
   assert.equal(excluded(r, "docs/spec/a.md"), true);
   assert.equal(excluded(r, "docs/frozen/agent-tools.md"), false);
   assert.equal(excluded(r, "docs"), true);
@@ -90,7 +108,10 @@ test("every file an @reads line names under modules/, host/ and agent/ is in the
     }
   }
   assert.ok(named.has("docs/frozen/agent-tools.md"), "the file that crash-looped rc.14 is named");
-  assert.ok([...named.keys()].some((t) => t.startsWith("generated/")), "generated files are named too");
+  assert.ok(
+    [...named.keys()].some((t) => t.startsWith("generated/")),
+    "generated files are named too",
+  );
   const missing = [...named].filter(([t]) => isFile(t) && excluded(rules, t)).map(([t, by]) => `${t} (read by ${by})`);
   assert.deepEqual(missing, [], "Dockerfile.dockerignore leaves out files the code reads");
 });
@@ -100,12 +121,19 @@ test("every repo path a run-time source file names as a string is in the build c
   for (const f of sources) {
     const r = rel(f);
     if (isTest(r)) continue;
-    for (const m of fs.readFileSync(f, "utf8").matchAll(/["'`]((?:docs|generated|perf|images|kernel|modules|host|agent|sandbox|fixtures)\/[A-Za-z0-9_./-]+\.[A-Za-z0-9]+)["'`]/g)) {
+    for (const m of fs
+      .readFileSync(f, "utf8")
+      .matchAll(
+        /["'`]((?:docs|generated|perf|images|kernel|modules|host|agent|sandbox|fixtures)\/[A-Za-z0-9_./-]+\.[A-Za-z0-9]+)["'`]/g,
+      )) {
       const target = m[1]!;
       if (isFile(target) && !named.has(target)) named.set(target, r);
     }
   }
-  assert.ok(named.has("docs/frozen/agent-tools.md") && named.has("generated/registry.json"), "the scan sees the reads that matter");
+  assert.ok(
+    named.has("docs/frozen/agent-tools.md") && named.has("generated/registry.json"),
+    "the scan sees the reads that matter",
+  );
   const missing = [...named].filter(([t]) => excluded(rules, t)).map(([t, by]) => `${t} (named in ${by})`);
   assert.deepEqual(missing, [], "Dockerfile.dockerignore leaves out files the code names");
 });
@@ -118,7 +146,11 @@ test("the files the desktop bundle check needs for an agent are in the server im
   const need = [...list.matchAll(/"([^"]+)"/g)].map((m) => m[1]!).filter((p) => p !== "node_modules");
   assert.ok(need.includes("docs/frozen/agent-tools.md"));
   for (const p of need) assert.ok(isFile(p), `${p} is in the repository`);
-  assert.deepEqual(need.filter((p) => excluded(rules, p)), [], "Dockerfile.dockerignore leaves out files the bundle check needs");
+  assert.deepEqual(
+    need.filter((p) => excluded(rules, p)),
+    [],
+    "Dockerfile.dockerignore leaves out files the bundle check needs",
+  );
 });
 
 test("the image carries the release's own version: the bake passes the tag as VYRE_VERSION, the Dockerfile sets it in the environment the daemon reads, and the release bakes with its version", () => {
@@ -126,9 +158,20 @@ test("the image carries the release's own version: the bake passes the tag as VY
   const bake = fs.readFileSync(path.join(repo, "images/vyred/docker-bake.hcl"), "utf8");
   const release = fs.readFileSync(path.join(repo, ".github/workflows/release.yml"), "utf8");
   assert.match(dockerfile, /^ARG VYRE_VERSION=\S+$/m, "the build takes the version");
-  assert.match(dockerfile, /^ENV VYRE_VERSION=\$\{VYRE_VERSION\}/m, "and sets it where host/src/daemon/main.ts and lib/user-agent.ts read it");
-  assert.ok(dockerfile.indexOf("ARG VYRE_VERSION") < dockerfile.indexOf("ENV VYRE_VERSION"), "declared before it is used");
+  assert.match(
+    dockerfile,
+    /^ENV VYRE_VERSION=\$\{VYRE_VERSION\}/m,
+    "and sets it where host/src/daemon/main.ts and lib/user-agent.ts read it",
+  );
+  assert.ok(
+    dockerfile.indexOf("ARG VYRE_VERSION") < dockerfile.indexOf("ENV VYRE_VERSION"),
+    "declared before it is used",
+  );
   assert.match(bake, /args\s*=\s*\{\s*VYRE_VERSION\s*=\s*"\$\{TAG\}"\s*\}/, "the bake passes the tag it builds");
   // the bake may run through scripts/release/retry.sh (a dropped registry connection is tried again); the tag it is given is still the release's own version
-  assert.match(release, /TAG="\$VERSION" (?:bash scripts\/release\/retry\.sh \d+ \d+ )?docker buildx bake -f images\/vyred\/docker-bake\.hcl/, "the release bakes with its own version as the tag");
+  assert.match(
+    release,
+    /TAG="\$VERSION" (?:bash scripts\/release\/retry\.sh \d+ \d+ )?docker buildx bake -f images\/vyred\/docker-bake\.hcl/,
+    "the release bakes with its own version as the tag",
+  );
 });

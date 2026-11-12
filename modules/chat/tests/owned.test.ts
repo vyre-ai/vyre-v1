@@ -6,15 +6,26 @@ import { hostCalls } from "../impl.ts";
 import { DANA, INTAKE, LEO, MAYA, harness } from "../fixtures/harness.ts";
 import type { Harness } from "../fixtures/harness.ts";
 
-const h = handlers as unknown as Record<string, (ctx: Harness["ctx"], input: any) => Promise<any>>;   // eslint-disable-line @typescript-eslint/no-explicit-any
+const h = handlers as unknown as Record<string, (ctx: Harness["ctx"], input: any) => Promise<any>>; // eslint-disable-line @typescript-eslint/no-explicit-any
 let n = 0;
 const key = (): string => `own${++n}`;
 
 async function world() {
   const hn = harness();
-  const channel = (await h["channels.create"]!(hn.ctx, { name: "intake", visibility: "public", memberIds: [MAYA], agentIds: [INTAKE], idempotencyKey: key() })).channel;
-  const solo = (await h["chat.start"]!(hn.ctx, { kind: "chat", agentIds: [INTAKE], title: "Ideas", idempotencyKey: key() })).thread.threadId as string;
-  const dm = (await h["chat.start"]!(hn.ctx, { kind: "chat", personId: MAYA, idempotencyKey: key() })).thread.threadId as string;
+  const channel = (
+    await h["channels.create"]!(hn.ctx, {
+      name: "intake",
+      visibility: "public",
+      memberIds: [MAYA],
+      agentIds: [INTAKE],
+      idempotencyKey: key(),
+    })
+  ).channel;
+  const solo = (
+    await h["chat.start"]!(hn.ctx, { kind: "chat", agentIds: [INTAKE], title: "Ideas", idempotencyKey: key() })
+  ).thread.threadId as string;
+  const dm = (await h["chat.start"]!(hn.ctx, { kind: "chat", personId: MAYA, idempotencyKey: key() })).thread
+    .threadId as string;
   return { hn, channel, solo, dm };
 }
 
@@ -26,16 +37,25 @@ test("owned_by lists the channels the person made and the chats only they are in
   assert.deepEqual(out.private_chats.ids, [solo]);
   assert.ok(!out.private_chats.ids.includes(dm), "a chat with another person is theirs together");
   assert.deepEqual(out.private_chats.sample, [{ type: "chat", id: solo, title: "Ideas" }]);
-  assert.deepEqual(hostCalls["chat.owned_by"](hn.ctx, { person: LEO }), { channels: { count: 0, sample: [], ids: [] }, private_chats: { count: 0, sample: [], ids: [] } });
+  assert.deepEqual(hostCalls["chat.owned_by"](hn.ctx, { person: LEO }), {
+    channels: { count: 0, sample: [], ids: [] },
+    private_chats: { count: 0, sample: [], ids: [] },
+  });
 });
 
 test("reassigning channels makes the other person its owner; deleting private chats removes them and their messages; retain touches nothing", async () => {
   const { hn, channel, solo } = await world();
   assert.equal(hostCalls["chat.reassign_owned"](hn.ctx, { person: DANA, kind: "channels", action: "retain" }), 0);
-  assert.equal(hostCalls["chat.reassign_owned"](hn.ctx, { person: DANA, kind: "channels", action: "reassign", to: MAYA }), 1);
+  assert.equal(
+    hostCalls["chat.reassign_owned"](hn.ctx, { person: DANA, kind: "channels", action: "reassign", to: MAYA }),
+    1,
+  );
   assert.deepEqual(hostCalls["chat.owned_by"](hn.ctx, { person: DANA }).channels.ids, []);
   assert.deepEqual(hostCalls["chat.owned_by"](hn.ctx, { person: MAYA }).channels.ids, [channel.channelId]);
-  const roles = hn.rows(`SELECT principal, role FROM chat_thread_member WHERE thread = ? AND deleted_at IS NULL ORDER BY principal`, channel.mainThreadId);
+  const roles = hn.rows(
+    `SELECT principal, role FROM chat_thread_member WHERE thread = ? AND deleted_at IS NULL ORDER BY principal`,
+    channel.mainThreadId,
+  );
   assert.equal(roles.find((r) => r["principal"] === MAYA)!["role"], "owner");
   assert.equal(roles.find((r) => r["principal"] === DANA)!["role"], "member");
 

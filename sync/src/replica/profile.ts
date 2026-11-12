@@ -19,10 +19,22 @@ export interface AdmitRequest {
   exists: boolean;
 }
 
-export type AdmitDecision = { ok: true } | { ok: false; reason: "profile_none" | "restricted" | "above_label" | "outside_window" | "not_owned" };
+export type AdmitDecision =
+  | { ok: true }
+  | { ok: false; reason: "profile_none" | "restricted" | "above_label" | "outside_window" | "not_owned" };
 
 const DAY_MS = 86_400_000;
-const TIME_FIELDS = ["createdAt", "created_at", "at", "sentAt", "startsAt", "learnedAt", "updated_at", "updatedAt", "editedAt"];
+const TIME_FIELDS = [
+  "createdAt",
+  "created_at",
+  "at",
+  "sentAt",
+  "startsAt",
+  "learnedAt",
+  "updated_at",
+  "updatedAt",
+  "editedAt",
+];
 
 export function labelRankOf(v: unknown): number | null {
   if (typeof v === "number" && Number.isInteger(v) && v >= 0 && v <= RESTRICTED_RANK) return v;
@@ -38,7 +50,11 @@ export function ceilingRank(deviceClass: DeviceClass, phoneCeiling: LabelName, m
   return cap;
 }
 
-export function rowTime(columnNames: ReadonlySet<string>, datetimeFields: readonly string[], row: SqlRow): number | null {
+export function rowTime(
+  columnNames: ReadonlySet<string>,
+  datetimeFields: readonly string[],
+  row: SqlRow,
+): number | null {
   const seen = new Set<string>();
   const names = [...TIME_FIELDS, ...datetimeFields];
   for (const name of names) {
@@ -68,7 +84,12 @@ export function admit(req: AdmitRequest): AdmitDecision {
         return { ok: false, reason: "outside_window" };
       }
     }
-    if (req.deviceClass === "phone" && req.entity.kind === "record_type" && req.personId && !(req.origin === "local" && req.exists)) {
+    if (
+      req.deviceClass === "phone" &&
+      req.entity.kind === "record_type" &&
+      req.personId &&
+      !(req.origin === "local" && req.exists)
+    ) {
       const owned = req.owner !== null && req.owner === req.personId;
       if (!owned && !req.follows && !req.starred) return { ok: false, reason: "not_owned" };
     }

@@ -37,7 +37,12 @@
 
   /** @param {any} [only] one field's badge, else all of them */
   function hide(only) {
-    for (const [f, u] of [...uis]) { if (only && f !== only) continue; u.off(); u.host.remove(); uis.delete(f); }
+    for (const [f, u] of [...uis]) {
+      if (only && f !== only) continue;
+      u.off();
+      u.host.remove();
+      uis.delete(f);
+    }
   }
 
   /** @param {any} field */
@@ -45,15 +50,24 @@
     const ui = uis.get(field);
     if (!ui) return;
     const r = field.getBoundingClientRect();
-    if (r.width < 60 || r.height < 18 || !field.isConnected) { hide(field); return; }
+    if (r.width < 60 || r.height < 18 || !field.isConnected) {
+      hide(field);
+      return;
+    }
     ui.badge.style.left = Math.round(r.right - SIZE - 6) + "px";
     ui.badge.style.top = Math.round(r.top + (r.height - SIZE) / 2) + "px";
-    if (ui.pick.isConnected) { ui.pick.style.left = Math.max(8, Math.round(r.right - 240)) + "px"; ui.pick.style.top = Math.round(r.bottom + 6) + "px"; }
+    if (ui.pick.isConnected) {
+      ui.pick.style.left = Math.max(8, Math.round(r.right - 240)) + "px";
+      ui.pick.style.top = Math.round(r.bottom + 6) + "px";
+    }
   }
 
   /** @param {any} field @param {"login"|"card"} kind */
   function show(field, kind) {
-    if (uis.has(field)) { place(field); return; }
+    if (uis.has(field)) {
+      place(field);
+      return;
+    }
     const d = g.document;
     const host = d.createElement("div");
     const root = host.attachShadow({ mode: "closed" });
@@ -72,14 +86,20 @@
     const onMove = () => place(field);
     g.addEventListener("scroll", onMove, true);
     g.addEventListener("resize", onMove);
-    const off = () => { g.removeEventListener("scroll", onMove, true); g.removeEventListener("resize", onMove); };
+    const off = () => {
+      g.removeEventListener("scroll", onMove, true);
+      g.removeEventListener("resize", onMove);
+    };
     uis.set(field, { host, root, badge, pick, field, off });
     place(field);
 
     badge.addEventListener("mousedown", (/** @type {any} */ e) => e.preventDefault()); // keep the field focused
     badge.addEventListener("click", (/** @type {any} */ e) => {
       if (!e.isTrusted) return;
-      if (pick.isConnected) { pick.remove(); return; }
+      if (pick.isConnected) {
+        pick.remove();
+        return;
+      }
       pick.textContent = "";
       const note = d.createElement("div");
       note.className = "note";
@@ -95,45 +115,93 @@
           head.className = "head";
           head.textContent = kind === "card" ? "Cards in your Vault" : "Sign in with Vault";
           pick.append(head);
-          if (!r || !r.data) { note.textContent = r && r.error ? r.error.message : "Vyre did not answer."; pick.append(note); return; }
-          if (r.data.blocked) { note.textContent = "Filling is turned off for this site."; pick.append(note); return; }
-          if (!rows.length) { note.textContent = kind === "card" ? "No saved card." : "No saved login for this site."; pick.append(note); return; }
+          if (!r || !r.data) {
+            note.textContent = r && r.error ? r.error.message : "Vyre did not answer.";
+            pick.append(note);
+            return;
+          }
+          if (r.data.blocked) {
+            note.textContent = "Filling is turned off for this site.";
+            pick.append(note);
+            return;
+          }
+          if (!rows.length) {
+            note.textContent = kind === "card" ? "No saved card." : "No saved login for this site.";
+            pick.append(note);
+            return;
+          }
           for (const row of rows) {
             const b = d.createElement("button");
             b.type = "button";
             b.className = "row";
             b.setAttribute("role", "menuitem");
             b.append(row.name);
-            if (row.username) { const u = d.createElement("span"); u.className = "who"; u.textContent = row.username; b.append(u); }
+            if (row.username) {
+              const u = d.createElement("span");
+              u.className = "who";
+              u.textContent = row.username;
+              b.append(u);
+            }
             b.addEventListener("click", (/** @type {any} */ ev) => {
               if (!ev.isTrusted) return;
-              try { g.chrome.runtime.sendMessage({ type: "vyre.fill", itemId: row.id, kind: row.kind === "card" ? "card" : row.kind === "totp" ? "otp" : "login", usernameField: row.usernameField }); } catch { /* reloaded */ }
+              try {
+                g.chrome.runtime.sendMessage({
+                  type: "vyre.fill",
+                  itemId: row.id,
+                  kind: row.kind === "card" ? "card" : row.kind === "totp" ? "otp" : "login",
+                  usernameField: row.usernameField,
+                });
+              } catch {
+                /* reloaded */
+              }
               pick.remove();
             });
             pick.append(b);
           }
           if (pick.firstChild && pick.children && pick.children[1]) pick.children[1].focus?.();
         });
-      } catch { note.textContent = "Vyre did not answer."; }
+      } catch {
+        note.textContent = "Vyre did not answer.";
+      }
     });
-    pick.addEventListener("keydown", (/** @type {any} */ e) => { if (e.key === "Escape") { pick.remove(); field.focus?.(); } });
+    pick.addEventListener("keydown", (/** @type {any} */ e) => {
+      if (e.key === "Escape") {
+        pick.remove();
+        field.focus?.();
+      }
+    });
   }
 
   // The badge sits in every sign-in field (and the card number) as soon as the page has them, as the prototype shows, not only in the one with focus.
   function scan() {
     if (!ns.finder) return;
     const found = ns.finder.findLoginFields(g.document);
-    for (const el of [found.username, found.password, found.otp]) if (el && el.tagName === "INPUT" && !uis.has(el)) show(el, "login");
+    for (const el of [found.username, found.password, found.otp])
+      if (el && el.tagName === "INPUT" && !uis.has(el)) show(el, "login");
     const card = ns.finder.findCardFields(g.document);
     if (card.number && !uis.has(card.number)) show(card.number, "card");
     for (const [f] of [...uis]) place(f);
   }
-  g.document.addEventListener("focusin", (/** @type {any} */ e) => { const kind = wanted(e.target); if (kind) show(e.target, /** @type {"login"|"card"} */ (kind)); }, true);
+  g.document.addEventListener(
+    "focusin",
+    (/** @type {any} */ e) => {
+      const kind = wanted(e.target);
+      if (kind) show(e.target, /** @type {"login"|"card"} */ (kind));
+    },
+    true,
+  );
   /** @type {any} */
   let later = null;
-  const soon = () => { if (later) return; later = g.setTimeout(() => { later = null; scan(); }, 250); };
+  const soon = () => {
+    if (later) return;
+    later = g.setTimeout(() => {
+      later = null;
+      scan();
+    }, 250);
+  };
   scan();
-  if (typeof g.MutationObserver === "function") new g.MutationObserver(soon).observe(g.document.documentElement || g.document, { childList: true, subtree: true });
+  if (typeof g.MutationObserver === "function")
+    new g.MutationObserver(soon).observe(g.document.documentElement || g.document, { childList: true, subtree: true });
   g.addEventListener("load", soon);
 
   ns.badge = { hide };

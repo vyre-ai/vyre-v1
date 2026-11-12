@@ -7,7 +7,13 @@ import { openRecordStore } from "../../kernel/src/store/records.ts";
 import type { ProjectionHost } from "../../kernel/src/store/projection.ts";
 import type { Store } from "../../kernel/src/store/types.ts";
 
-import { LABEL_RANKS, ScopeCache, classifiedCatalog, deviceRevoked, loadCatalog } from "../../sync/src/server/pull/index.ts";
+import {
+  LABEL_RANKS,
+  ScopeCache,
+  classifiedCatalog,
+  deviceRevoked,
+  loadCatalog,
+} from "../../sync/src/server/pull/index.ts";
 import type { Catalog, PullDeps } from "../../sync/src/server/pull/index.ts";
 import { VyreErr } from "../../packages/contracts/src/errors.ts";
 import type { Ctx } from "../../packages/contracts/src/ctx.ts";
@@ -62,12 +68,15 @@ export interface SyncHandle {
 export function openSync(o: SyncOpts): SyncHandle {
   const baseCatalog = o.catalog ?? loadCatalog();
   const clock = o.clock ?? Date.now;
-  const opened = o.store ?? openRecordStore({
-    path: o.path ?? ":memory:", space: o.space ?? "sp_sync",
-    extra: [syncChanges((entity) => baseCatalog.get(entity).ownerField)],
-    ...(o.actor !== undefined ? { actor: o.actor } : {}),
-    clock,
-  });
+  const opened =
+    o.store ??
+    openRecordStore({
+      path: o.path ?? ":memory:",
+      space: o.space ?? "sp_sync",
+      extra: [syncChanges((entity) => baseCatalog.get(entity).ownerField)],
+      ...(o.actor !== undefined ? { actor: o.actor } : {}),
+      clock,
+    });
   const host = opened.host;
   // The Space's own schema classifies its types' fields; sync reads it through the typed store's synchronous metadata port, never another module's tables. Without it nothing is classified, so there is no sync.
   const metadata = opened.store.typesSnapshot;
@@ -79,14 +88,27 @@ export function openSync(o: SyncOpts): SyncHandle {
     catalog,
     cache: new ScopeCache(o.access),
     now: clock,
-    hlc: () => { last = tickHlc("srv", clock(), last); return formatHlc(last); },
+    hlc: () => {
+      last = tickHlc("srv", clock(), last);
+      return formatHlc(last);
+    },
     phoneCeiling: () => LABEL_RANKS[o.phoneCeiling?.() ?? "confidential"],
     keep: o.keep ?? (() => false),
     append: (ev) => host.append(ev),
   };
   return {
-    host, store: opened.store, handlers: createPullHandlers(deps), deps, catalog,
-    setEpoch(person, epoch) { host.tx.run("INSERT INTO sync_epoch (person, epoch) VALUES (?, ?) ON CONFLICT(person) DO UPDATE SET epoch = excluded.epoch", person, epoch); },
+    host,
+    store: opened.store,
+    handlers: createPullHandlers(deps),
+    deps,
+    catalog,
+    setEpoch(person, epoch) {
+      host.tx.run(
+        "INSERT INTO sync_epoch (person, epoch) VALUES (?, ?) ON CONFLICT(person) DO UPDATE SET epoch = excluded.epoch",
+        person,
+        epoch,
+      );
+    },
   };
 }
 
@@ -96,14 +118,20 @@ type SessionCtx = Pick<Ctx, "trace" | "principal"> & { device?: string; emit?: C
 let shared: SyncHandle | null = null;
 let pushDeps: PushDeps | null = null;
 /** The host gives the module the server's own sync handle (its access snapshot and record store); null puts the default back. */
-export function useSync(h: SyncHandle | null): void { shared = h; }
+export function useSync(h: SyncHandle | null): void {
+  shared = h;
+}
 /** The host gives sync.push what only it can supply: invoke as the person, the epoch, the field clocks, history, conflicts, idempotency. */
-export function setPushDeps(d: PushDeps | null): void { pushDeps = d; }
+export function setPushDeps(d: PushDeps | null): void {
+  pushDeps = d;
+}
 
 type Hub = Pick<LiveHub, "purge"> & { purgeDevice?: (person: string, device: string, epoch: number) => number };
 let hub: Hub = { purge: () => 0 };
 /** The host gives the module its live hub, so a purge also closes the sockets it concerns; until then a purge only raises the epoch (the next pull or hello answers purge). */
-export function setLiveHub(h: Hub | null): void { hub = h ?? { purge: () => 0 }; }
+export function setLiveHub(h: Hub | null): void {
+  hub = h ?? { purge: () => 0 };
+}
 
 let seam: SyncHostSeam | null = null;
 let docs: DocHandlers | null = null;
@@ -113,13 +141,26 @@ let info: ReturnType<typeof createInfoHandlers> | null = null;
  * Space store here, before it is first opened, puts every record the Space writes into the feed. Null takes it all back out.
  */
 export function configureSync(s: SyncHostSeam | null): void {
-  seam = s; shared = null; pushDeps = null; docs = null; info = null;
+  seam = s;
+  shared = null;
+  pushDeps = null;
+  docs = null;
+  info = null;
   if (s) s.store.declare([syncChanges((entity) => loadCatalog().get(entity).ownerField)]);
   if (s?.liveHub) {
     const host = s.liveHub;
     // the hub is built on the first connection, from the same handle, clock and registry hash as every other sync call; a purge goes to the host socket hub, which frames and closes the sockets it concerns
-    host.provide(() => createSyncLiveHub(live().deps, { clock: systemClock, registryHash: s.registryHash, ...(s.serverVersion !== undefined ? { serverVersion: s.serverVersion } : {}) }));
-    setLiveHub({ purge: (person, epoch) => host.host()?.purge(person, epoch) ?? 0, purgeDevice: (person, device, epoch) => host.host()?.purgeDevice(person, device, epoch) ?? 0 });
+    host.provide(() =>
+      createSyncLiveHub(live().deps, {
+        clock: systemClock,
+        registryHash: s.registryHash,
+        ...(s.serverVersion !== undefined ? { serverVersion: s.serverVersion } : {}),
+      }),
+    );
+    setLiveHub({
+      purge: (person, epoch) => host.host()?.purge(person, epoch) ?? 0,
+      purgeDevice: (person, device, epoch) => host.host()?.purgeDevice(person, device, epoch) ?? 0,
+    });
   } else setLiveHub(null);
 }
 export const hostSeams: SeamSetters = { configureSync };
@@ -128,7 +169,11 @@ function live(): SyncHandle {
   if (!shared) {
     shared = seam
       ? openSync({ access: seam.access, clock: seam.now, store: seam.store.open() })
-      : openSync({ access: () => { throw new Error("sync has no access snapshot: the host calls useSync first"); } });
+      : openSync({
+          access: () => {
+            throw new Error("sync has no access snapshot: the host calls useSync first");
+          },
+        });
   }
   return shared;
 }
@@ -141,7 +186,20 @@ async function docHandlers(): Promise<DocHandlers> {
   if (!docs) {
     const m = await import("./handlers/docs.ts");
     const h = live();
-    docs = m.createDocHandlers(m.docServerOf(h, { access: m.snapshotDocAccess({ snapshot: seam ? seam.access : () => { throw new Error("sync has no access snapshot: the host calls configureSync first"); }, rowOf: docRowOf(h.deps), now: h.deps.now }), now: h.deps.now }));
+    docs = m.createDocHandlers(
+      m.docServerOf(h, {
+        access: m.snapshotDocAccess({
+          snapshot: seam
+            ? seam.access
+            : () => {
+                throw new Error("sync has no access snapshot: the host calls configureSync first");
+              },
+          rowOf: docRowOf(h.deps),
+          now: h.deps.now,
+        }),
+        now: h.deps.now,
+      }),
+    );
   }
   return docs;
 }
@@ -155,40 +213,94 @@ function infoHandlers() {
 
 export const handlers = {
   "sync.pull": async (ctx: SessionCtx, input: PullReq) => {
-    const res = await live().handlers["sync.pull"]({
-      ...toPullCtx(ctx),
-      // names the entity and a count, never a row; private, so no reader of the log learns what changed hands
-      ...(ctx.emit ? { scopeChanged: (entity: string, rows: number) => { ctx.emit!("sync.scope_changed", `entity/${entity}`, { entity, personId: ctx.principal.id, rows }, { vis: "private" }); } } : {}),
-    }, input);
-    if (ctx.device) noteCursor(live().deps.db, ctx.principal.id, ctx.device, "desktop", (res as { next?: number }).next ?? input.cursor, live().deps.now());
+    const res = await live().handlers["sync.pull"](
+      {
+        ...toPullCtx(ctx),
+        // names the entity and a count, never a row; private, so no reader of the log learns what changed hands
+        ...(ctx.emit
+          ? {
+              scopeChanged: (entity: string, rows: number) => {
+                ctx.emit!(
+                  "sync.scope_changed",
+                  `entity/${entity}`,
+                  { entity, personId: ctx.principal.id, rows },
+                  { vis: "private" },
+                );
+              },
+            }
+          : {}),
+      },
+      input,
+    );
+    if (ctx.device)
+      noteCursor(
+        live().deps.db,
+        ctx.principal.id,
+        ctx.device,
+        "desktop",
+        (res as { next?: number }).next ?? input.cursor,
+        live().deps.now(),
+      );
     return res;
   },
-  "sync.snapshot.begin": (ctx: SessionCtx, input: { entities?: string[]; deviceClass: DeviceClass }) => live().handlers["sync.snapshot.begin"](toPullCtx(ctx, input.deviceClass), input),
-  "sync.snapshot.page": (ctx: SessionCtx, input: { entity: string; after?: string; asOf: number }) => live().handlers["sync.snapshot.page"](toPullCtx(ctx), input),
+  "sync.snapshot.begin": (ctx: SessionCtx, input: { entities?: string[]; deviceClass: DeviceClass }) =>
+    live().handlers["sync.snapshot.begin"](toPullCtx(ctx, input.deviceClass), input),
+  "sync.snapshot.page": (ctx: SessionCtx, input: { entity: string; after?: string; asOf: number }) =>
+    live().handlers["sync.snapshot.page"](toPullCtx(ctx), input),
   "sync.push": (ctx: SessionCtx, input: PushReq) => {
     const pd = pushOf();
     if (!pd) {
-      throw new VyreErr({ code: "internal.unavailable", message: "This server is not taking pushes yet.", retryable: true, traceId: ctx.trace.traceId, next: [{ kind: "retry", label: "Try again in a moment" }] });
+      throw new VyreErr({
+        code: "internal.unavailable",
+        message: "This server is not taking pushes yet.",
+        retryable: true,
+        traceId: ctx.trace.traceId,
+        next: [{ kind: "retry", label: "Try again in a moment" }],
+      });
     }
     // the host gives push what it knows; a device's own epoch row is in the sync store, so push reads revocation from there
-    return createPushHandlers({ deviceRevoked: (person, device) => deviceRevoked(live().deps.db, person, device), ...pd,
+    return createPushHandlers({
+      deviceRevoked: (person, device) => deviceRevoked(live().deps.db, person, device),
+      ...pd,
       // a collision parked in the conflicts module is announced, so the module can route it to the assistant or to Needs you
-      ...(seam?.conflicts && ctx.emit ? {
-        async openConflict(c: ConflictOpen) {
-          const id = await pd.openConflict(c);
-          ctx.emit!("conflict.opened", `entity/${id}`, { conflictId: id, entity: c.entity, recordId: c.id, field: c.field, actor: c.theirsActor, plainChoice: c.plainChoice, traceId: c.traceId });
-          return id;
-        },
-      } : {}) })["sync.push"](toPullCtx(ctx), input);
+      ...(seam?.conflicts && ctx.emit
+        ? {
+            async openConflict(c: ConflictOpen) {
+              const id = await pd.openConflict(c);
+              ctx.emit!("conflict.opened", `entity/${id}`, {
+                conflictId: id,
+                entity: c.entity,
+                recordId: c.id,
+                field: c.field,
+                actor: c.theirsActor,
+                plainChoice: c.plainChoice,
+                traceId: c.traceId,
+              });
+              return id;
+            },
+          }
+        : {}),
+    })["sync.push"](toPullCtx(ctx), input);
   },
   // admin calls (ARCH 5.7): the devices and access modules invoke them after a revoke, a removal or a label change
   "sync.epoch.bump": async (ctx: SessionCtx, input: BumpInput) => {
     const res = await createPurgeHandlers(purgeDepsOf(live(), hub))["sync.epoch.bump"](toPurgeCtx(ctx), input);
     // the Space log carries the announcement (the sync store keeps its own copy): the person, the epoch and why, never a row
-    ctx.emit?.("sync.epoch_bumped", `entity/${input.personId}`, { personId: input.personId, epoch: res.epoch, reason: input.reason, ...(input.deviceId !== undefined ? { deviceId: input.deviceId } : {}) }, { vis: "owner" });
+    ctx.emit?.(
+      "sync.epoch_bumped",
+      `entity/${input.personId}`,
+      {
+        personId: input.personId,
+        epoch: res.epoch,
+        reason: input.reason,
+        ...(input.deviceId !== undefined ? { deviceId: input.deviceId } : {}),
+      },
+      { vis: "owner" },
+    );
     return res;
   },
-  "sync.acl.reindex": (ctx: SessionCtx, input: ReindexInput) => createPurgeHandlers(purgeDepsOf(live(), hub))["sync.acl.reindex"](toPurgeCtx(ctx), input),
+  "sync.acl.reindex": (ctx: SessionCtx, input: ReindexInput) =>
+    createPurgeHandlers(purgeDepsOf(live(), hub))["sync.acl.reindex"](toPurgeCtx(ctx), input),
   // the device-facing questions about sync itself, and the documents (ARCH 5.2, 5.6)
   "sync.hello": (ctx: SessionCtx, input: never) => infoHandlers()["sync.hello"](ctx, input),
   "sync.status": (ctx: SessionCtx, input: never) => infoHandlers()["sync.status"](ctx, input),
@@ -196,8 +308,19 @@ export const handlers = {
   "sync.endpoints": (_ctx: SessionCtx) => infoHandlers()["sync.endpoints"](),
   "sync.entities": (ctx: SessionCtx, input: never) => infoHandlers()["sync.entities"](ctx, input),
   "sync.devices.lag": (ctx: SessionCtx, input: never) => infoHandlers()["sync.devices.lag"](ctx, input),
-  "sync.doc.open": async (ctx: SessionCtx, input: never) => (await docHandlers())["sync.doc.open"]({ trace: ctx.trace, principal: ctx.principal.id }, input),
-  "sync.doc.update": async (ctx: SessionCtx, input: never) => (await docHandlers())["sync.doc.update"]({ trace: ctx.trace, principal: ctx.principal.id, emit: ctx.emit ? (n, s, p) => ctx.emit!(n as never, s, p as never) : undefined }, input),
-  "sync.doc.close": async (ctx: SessionCtx, input: never) => (await docHandlers())["sync.doc.close"]({ trace: ctx.trace, principal: ctx.principal.id }, input),
-  "sync.doc.compact": async (ctx: SessionCtx, input: never) => (await docHandlers())["sync.doc.compact"]({ trace: ctx.trace, principal: ctx.principal.id }, input),
+  "sync.doc.open": async (ctx: SessionCtx, input: never) =>
+    (await docHandlers())["sync.doc.open"]({ trace: ctx.trace, principal: ctx.principal.id }, input),
+  "sync.doc.update": async (ctx: SessionCtx, input: never) =>
+    (await docHandlers())["sync.doc.update"](
+      {
+        trace: ctx.trace,
+        principal: ctx.principal.id,
+        emit: ctx.emit ? (n, s, p) => ctx.emit!(n as never, s, p as never) : undefined,
+      },
+      input,
+    ),
+  "sync.doc.close": async (ctx: SessionCtx, input: never) =>
+    (await docHandlers())["sync.doc.close"]({ trace: ctx.trace, principal: ctx.principal.id }, input),
+  "sync.doc.compact": async (ctx: SessionCtx, input: never) =>
+    (await docHandlers())["sync.doc.compact"]({ trace: ctx.trace, principal: ctx.principal.id }, input),
 };

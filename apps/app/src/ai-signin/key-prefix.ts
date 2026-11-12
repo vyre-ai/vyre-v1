@@ -19,7 +19,10 @@ export function providerOfKey(value: string): string | null {
 /** "an OpenRouter", "an xAI", "a Google": the article as the name is said. */
 const an = (name: string): string => `${/^[aeiouxAEIOU]/.test(name) ? "an" : "a"} ${name}`;
 
-export interface KeyCheck { line: string; suggest: string | null }
+export interface KeyCheck {
+  line: string;
+  suggest: string | null;
+}
 
 /** Null when the key fits the chosen provider (or nothing is typed); else the line to show and the provider to switch to, if one is offered. */
 export function checkKey(chosen: string, value: string, titleOf: (key: string) => string | null): KeyCheck | null {
@@ -32,11 +35,19 @@ export function checkKey(chosen: string, value: string, titleOf: (key: string) =
     // a plain sk- key under OpenCode Go may well be its own: only a more specific prefix is a mismatch there
     if (chosen === "opencode-go" && guess === "openai") return null;
     const other = titleOf(guess);
-    return other ? { line: `This looks like ${an(other)} key (it starts with ${PREFIX.find((p) => p.key === guess)!.prefix}), not ${name}.`, suggest: guess } : { line: `This does not look like ${an(name)} key.`, suggest: null };
+    return other
+      ? {
+          line: `This looks like ${an(other)} key (it starts with ${PREFIX.find((p) => p.key === guess)!.prefix}), not ${name}.`,
+          suggest: guess,
+        }
+      : { line: `This does not look like ${an(name)} key.`, suggest: null };
   }
   if (want && !guess) {
     const oc = titleOf("opencode-go");
-    return { line: `${name} keys start with ${want}.${oc ? ` Is this ${an(oc)} key?` : ""}`, suggest: oc ? "opencode-go" : null };
+    return {
+      line: `${name} keys start with ${want}.${oc ? ` Is this ${an(oc)} key?` : ""}`,
+      suggest: oc ? "opencode-go" : null,
+    };
   }
   return null;
 }

@@ -32,18 +32,36 @@ function Body({ q }: { q: URLSearchParams }): ReactNode {
   const slot = useSidebarSlot();
   // Rule 25: the query is already read after mount (Mount below); opening the body is an effect too.
   // The slot resets to the list when it registers its sidebar, so the body opens once the sidebar is there.
-  useEffect(() => { if (q.get("file") === "1" && slot.hasSidebar) slot.openBody(); }, [slot.hasSidebar]);
+  useEffect(() => {
+    if (q.get("file") === "1" && slot.hasSidebar) slot.openBody();
+  }, [slot.hasSidebar]);
   return (
     <FilesDataProvider value={files.data}>
       <FilesStateProvider initial={{ where: { kind: "folder", id: "fld_pj_rivera" } }}>
         <View testID="files-place" style={{ flex: 1, flexDirection: "row", minHeight: 0 }}>
-          <SidebarContent title="Files" searchPlaceholder="Search files">{(query, slot) => <FilesTree query={query} slot={slot} />}</SidebarContent>
+          <SidebarContent title="Files" searchPlaceholder="Search files">
+            {(query, slot) => <FilesTree query={query} slot={slot} />}
+          </SidebarContent>
           <View style={{ flex: 1, minWidth: 0, minHeight: 0 }}>
             <ReviewDataProvider value={sample.data}>
               <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 24 }}>
                 <AgentFilePage
-                  fileId={sample.fileIds.toml} name="agent.toml" path="Agents / Intake" agentId="agt_intake" saved={AGENT_TOML_INTAKE} version={3} density={phone ? "compact" : "regular"}
-                  start={{ view: q.get("view") === "text" ? "text" : "form", ...(diff ? { draft: AGENT_TOML_INTAKE.replace("max_output_tokens = 3000", "max_output_tokens = 4000"), review: true } : {}) }}
+                  fileId={sample.fileIds.toml}
+                  name="agent.toml"
+                  path="Agents / Intake"
+                  agentId="agt_intake"
+                  saved={AGENT_TOML_INTAKE}
+                  version={3}
+                  density={phone ? "compact" : "regular"}
+                  start={{
+                    view: q.get("view") === "text" ? "text" : "form",
+                    ...(diff
+                      ? {
+                          draft: AGENT_TOML_INTAKE.replace("max_output_tokens = 3000", "max_output_tokens = 4000"),
+                          review: true,
+                        }
+                      : {}),
+                  }}
                 />
               </ScrollView>
             </ReviewDataProvider>
@@ -60,16 +78,30 @@ function Framed({ q }: { q: URLSearchParams }): ReactNode {
     const skin = q.get("skin") ?? "paper";
     const root = g.document?.documentElement;
     const themeRoot: ThemeRoot = {
-      setAttribute: (n, v) => { root?.setAttribute(n, v); },
-      setProperty: (n, v) => { root?.style.setProperty(n, v); },
-      removeProperty: (n) => { root?.style.removeProperty(n); },
+      setAttribute: (n, v) => {
+        root?.setAttribute(n, v);
+      },
+      setProperty: (n, v) => {
+        root?.style.setProperty(n, v);
+      },
+      removeProperty: (n) => {
+        root?.style.removeProperty(n);
+      },
     };
-    const theme = createThemeController({ personId: "irfad", spaceId: "nw", spaceSkin: { nw: skin, hb: skin, me: skin }, prefersDark: skin === "graphite", root: themeRoot, storage: null });
+    const theme = createThemeController({
+      personId: "irfad",
+      spaceId: "nw",
+      spaceSkin: { nw: skin, hb: skin, me: skin },
+      prefersDark: skin === "graphite",
+      root: themeRoot,
+      storage: null,
+    });
     const hub = createSampleShell({ openId: "nw", theme });
     hub.go("files");
     return { hub, theme };
   }, [q]);
-  const renderPlace = (ctx: PlaceContext): ReactNode => (ctx.place === "files" ? <Body key={ctx.spaceId} q={q} /> : samplePlace(ctx));
+  const renderPlace = (ctx: PlaceContext): ReactNode =>
+    ctx.place === "files" ? <Body key={ctx.spaceId} q={q} /> : samplePlace(ctx);
   return (
     <View style={{ flex: 1, minHeight: 0 }}>
       <Shell hub={made.hub} theme={made.theme} renderPlace={renderPlace} />
@@ -79,6 +111,8 @@ function Framed({ q }: { q: URLSearchParams }): ReactNode {
 
 export default function Mount(): ReactNode {
   const [q, setQ] = useState<URLSearchParams | null>(null);
-  useEffect(() => { setQ(new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? "")); }, []);
+  useEffect(() => {
+    setQ(new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? ""));
+  }, []);
   return q ? <Framed q={q} /> : <View style={{ flex: 1 }} />;
 }

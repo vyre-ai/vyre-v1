@@ -12,8 +12,15 @@ import type { ConflictOpen } from "../../../sync/src/server/push/types.ts";
 export const NOW = 1_760_000_000_000;
 export const TRACE = "0123456789abcdef0123456789abcdef";
 
-export interface Emitted { name: string; subject: string; payload: Record<string, unknown> }
-export interface Called { cap: string; input: Record<string, unknown> }
+export interface Emitted {
+  name: string;
+  subject: string;
+  payload: Record<string, unknown>;
+}
+export interface Called {
+  cap: string;
+  input: Record<string, unknown>;
+}
 
 export interface HarnessOptions {
   raw?: RawDb;
@@ -94,29 +101,64 @@ export function harness(o: HarnessOptions = {}) {
       if (hold.has(key) && _action.level !== "view") return { effect: "hold" };
       return { effect: "allow" };
     },
-    log: { warn(msg) { logs.push(msg); } },
+    log: {
+      warn(msg) {
+        logs.push(msg);
+      },
+    },
   };
   return {
-    ctx, raw, db, emitted, called, clock, records, logs, throws,
-    advance(ms: number) { clock.t += ms; },
-    rows(sql: string, ...args: unknown[]): Record<string, unknown>[] { return db.all(sql, ...args) as Record<string, unknown>[]; },
-    named(name: string): Emitted[] { return emitted.filter((e) => e.name === name); },
-    calls(cap: string): Called[] { return called.filter((c) => c.cap === cap); },
+    ctx,
+    raw,
+    db,
+    emitted,
+    called,
+    clock,
+    records,
+    logs,
+    throws,
+    advance(ms: number) {
+      clock.t += ms;
+    },
+    rows(sql: string, ...args: unknown[]): Record<string, unknown>[] {
+      return db.all(sql, ...args) as Record<string, unknown>[];
+    },
+    named(name: string): Emitted[] {
+      return emitted.filter((e) => e.name === name);
+    },
+    calls(cap: string): Called[] {
+      return called.filter((c) => c.cap === cap);
+    },
   };
 }
 
 export type Harness = ReturnType<typeof harness>;
 
 /** The same database, clock and records as another caller. */
-export function asPerson(h: Harness, principal: CfCtx["principal"], extra: Omit<HarnessOptions, "raw" | "principal" | "clock" | "records"> = {}): Harness {
+export function asPerson(
+  h: Harness,
+  principal: CfCtx["principal"],
+  extra: Omit<HarnessOptions, "raw" | "principal" | "clock" | "records"> = {},
+): Harness {
   return harness({ ...extra, raw: h.raw, principal, clock: h.clock, records: h.records });
 }
 
 /** A collision as sync.push reports it. Dana's edit (theirs) was parked against Bea's current value (ours). */
 export function collision(over: Partial<ConflictOpen> = {}): ConflictOpen {
   return {
-    entity: "client_plan", id: "rec_acme", field: "status", ours: "Active", theirs: "Paused", base: 12, oursActor: "usr_bea", theirsActor: "usr_dana",
-    opId: "op_1", traceId: TRACE, deviceId: "dev_phone", plainChoice: false, ...over,
+    entity: "client_plan",
+    id: "rec_acme",
+    field: "status",
+    ours: "Active",
+    theirs: "Paused",
+    base: 12,
+    oursActor: "usr_bea",
+    theirsActor: "usr_dana",
+    opId: "op_1",
+    traceId: TRACE,
+    deviceId: "dev_phone",
+    plainChoice: false,
+    ...over,
   };
 }
 
@@ -126,16 +168,33 @@ export function seedRecord(h: Harness, id: string, fields: Record<string, unknow
 }
 
 /** Mint-and-insert a conflict row directly, for tests of the reads. */
-export function seedConflict(h: Harness, over: { id?: string; person?: string; state?: string; entity?: string; field?: string; openedAt?: number } = {}): string {
+export function seedConflict(
+  h: Harness,
+  over: { id?: string; person?: string; state?: string; entity?: string; field?: string; openedAt?: number } = {},
+): string {
   ensure(h.db);
   const id = over.id ?? mintId("cfl", NOW);
   h.db.run(
-    'INSERT INTO conflicts_conflict (id, entity, recordId, field, ours, theirs, base, state, plainChoice, summary, openedAt, person, version, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, NULL, ?, ?, 0, ?)',
-    id, over.entity ?? "client_plan", "rec_acme", over.field ?? "note", toJson("a"), toJson("b"), toJson(1), over.state ?? "open", over.openedAt ?? NOW, over.person ?? "usr_dana", NOW,
+    "INSERT INTO conflicts_conflict (id, entity, recordId, field, ours, theirs, base, state, plainChoice, summary, openedAt, person, version, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, NULL, ?, ?, 0, ?)",
+    id,
+    over.entity ?? "client_plan",
+    "rec_acme",
+    over.field ?? "note",
+    toJson("a"),
+    toJson("b"),
+    toJson(1),
+    over.state ?? "open",
+    over.openedAt ?? NOW,
+    over.person ?? "usr_dana",
+    NOW,
   );
   h.db.run(
     "INSERT INTO conflicts_detail (conflict_id, op_id, field, kind, protected, ours_actor, theirs_actor, trace_id) VALUES (?, ?, ?, 'field', 0, 'usr_bea', ?, ?)",
-    id, `op_${id}`, over.field ?? "note", over.person ?? "usr_dana", TRACE,
+    id,
+    `op_${id}`,
+    over.field ?? "note",
+    over.person ?? "usr_dana",
+    TRACE,
   );
   return id;
 }

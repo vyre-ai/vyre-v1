@@ -36,7 +36,8 @@ const ago = (ms: number): string => {
 };
 
 /** Whether a failing mount is failing because the sign-in no longer works: the fix is Reconnect, not Sync now. */
-export const needsReconnect = (m: Pick<MountRow, "state" | "error">): boolean => m.state === "failing" && /sign in|reconnect|auth|expired|consent|permission/i.test(m.error ?? "");
+export const needsReconnect = (m: Pick<MountRow, "state" | "error">): boolean =>
+  m.state === "failing" && /sign in|reconnect|auth|expired|consent|permission/i.test(m.error ?? "");
 
 export function whoWords(shares: readonly Share[] | null): string {
   if (shares === null) return "";
@@ -56,24 +57,54 @@ export function liveRow(m: MountRow, shares: readonly Share[] | null, now: numbe
   const bits: string[] = [];
   if (m.pendingChanges > 0) bits.push(`${m.pendingChanges} ${m.pendingChanges === 1 ? "change" : "changes"} waiting`);
   if (m.conflicts > 0) bits.push(`${m.conflicts} ${m.conflicts === 1 ? "conflict" : "conflicts"}`);
-  let state: string; let tone: LiveTone; let actions: LiveAction[];
+  let state: string;
+  let tone: LiveTone;
+  let actions: LiveAction[];
   if (m.state === "failing") {
-    state = "Needs attention"; tone = "bad"; if (m.error) bits.unshift(m.error);
+    state = "Needs attention";
+    tone = "bad";
+    if (m.error) bits.unshift(m.error);
     actions = needsReconnect(m) ? ["reconnect", "sync", "pause", "open"] : ["sync", "pause", "open"];
-  } else if (m.state === "paused") { state = "Paused"; tone = "quiet"; actions = ["resume", "open"]; }
-  else if (m.state === "device_offline") { state = "Computer offline"; tone = "warn"; actions = ["open"]; }
-  else if (m.state === "syncing") { state = "Syncing"; tone = "ok"; actions = ["pause", "open"]; }
-  else {
+  } else if (m.state === "paused") {
+    state = "Paused";
+    tone = "quiet";
+    actions = ["resume", "open"];
+  } else if (m.state === "device_offline") {
+    state = "Computer offline";
+    tone = "warn";
+    actions = ["open"];
+  } else if (m.state === "syncing") {
+    state = "Syncing";
+    tone = "ok";
+    actions = ["pause", "open"];
+  } else {
     const live = synced !== null && synced <= LIVE_WITHIN_MS && behind === "" && m.kind !== "local";
     state = live ? "Live" : synced !== null ? `Synced ${ago(synced)}` : "Not synced yet";
     tone = m.conflicts > 0 ? "warn" : "ok";
     actions = m.kind === "local" ? ["pause", "open"] : ["sync", "pause", "open"];
   }
   if (behind) bits.unshift(behind);
-  return { mountId: m.mountId, folderId: m.folderId, name: m.name, kind: m.kind, provider: m.provider, state, tone, detail: bits.join(" · "), who: whoWords(shares), actions };
+  return {
+    mountId: m.mountId,
+    folderId: m.folderId,
+    name: m.name,
+    kind: m.kind,
+    provider: m.provider,
+    state,
+    tone,
+    detail: bits.join(" · "),
+    who: whoWords(shares),
+    actions,
+  };
 }
 
-export const ACTION_LABEL: Record<LiveAction, string> = { reconnect: "Reconnect", sync: "Sync now", pause: "Pause", resume: "Resume", open: "Open" };
+export const ACTION_LABEL: Record<LiveAction, string> = {
+  reconnect: "Reconnect",
+  sync: "Sync now",
+  pause: "Pause",
+  resume: "Resume",
+  open: "Open",
+};
 
 /** Needs attention first, then paused and offline, then the rest by name. */
 export function orderRows(rows: readonly LiveRow[]): LiveRow[] {

@@ -18,9 +18,10 @@ export function SoftphonePlaceholder(props: SoftphoneProps): string {
     ? `<div data-caller="${esc(caller.number)}">${esc(caller.name && caller.name.length > 0 ? caller.name : caller.number)}</div>`
     : "";
   const record = caller?.recordId ? `<div data-record="${esc(caller.recordId)}"></div>` : "";
-  const consent = props.recording === true
-    ? `<div data-recording="true" data-consent="${props.consent === true ? "true" : "false"}"></div>`
-    : "";
+  const consent =
+    props.recording === true
+      ? `<div data-recording="true" data-consent="${props.consent === true ? "true" : "false"}"></div>`
+      : "";
   const body = [
     `<div data-mode="${esc(props.mode)}" data-density="${esc(props.density ?? "regular")}" data-open="${props.open ? "true" : "false"}" data-keys="Cmd-Shift-K"></div>`,
     who,

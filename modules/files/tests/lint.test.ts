@@ -62,7 +62,9 @@ function memoryDb(): Ctx["db"] & { rows(table: string): Row[] } {
     const at = { i: 0 };
     const pred = compile(sel[2], args, at);
     if (at.i !== args.length) throw new Error(`unused sql values: ${text}`);
-    return bag(name).filter(pred).map((row) => ({ ...row }));
+    return bag(name)
+      .filter(pred)
+      .map((row) => ({ ...row }));
   };
   const run = (sql: string, ...args: unknown[]): { changes: number } => {
     const text = sql.replace(/\s+/g, " ").trim();
@@ -72,10 +74,12 @@ function memoryDb(): Ctx["db"] & { rows(table: string): Row[] } {
       const name = insert[1];
       const colSql = insert[2];
       const valSql = insert[3];
-      if (name === undefined || colSql === undefined || valSql === undefined) throw new Error(`unsupported sql: ${text}`);
+      if (name === undefined || colSql === undefined || valSql === undefined)
+        throw new Error(`unsupported sql: ${text}`);
       const cols = colSql.split(",").map((col) => col.trim());
       const marks = valSql.split(",").map((mark) => mark.trim());
-      if (marks.some((mark) => mark !== "?") || marks.length !== cols.length) throw new Error(`unsupported sql: ${text}`);
+      if (marks.some((mark) => mark !== "?") || marks.length !== cols.length)
+        throw new Error(`unsupported sql: ${text}`);
       const row: Row = {};
       for (const col of cols) row[col] = take(args, at);
       if (at.i !== args.length) throw new Error(`unused sql values: ${text}`);
@@ -87,7 +91,8 @@ function memoryDb(): Ctx["db"] & { rows(table: string): Row[] } {
       const name = update[1];
       const setSql = update[2];
       const where = update[3];
-      if (name === undefined || setSql === undefined || where === undefined) throw new Error(`unsupported sql: ${text}`);
+      if (name === undefined || setSql === undefined || where === undefined)
+        throw new Error(`unsupported sql: ${text}`);
       const assigns: { col: string; val: unknown }[] = [];
       for (const part of setSql.split(", ")) {
         const m = /^(\w+) = \?$/.exec(part);
@@ -132,13 +137,19 @@ function spaceSeal(key: Uint8Array): Ctx["seal"] {
       const parsed: unknown = JSON.parse(sealed.bytes);
       if (parsed === null || typeof parsed !== "object") throw new Error("bad box");
       const box = parsed as { ct?: unknown; tag?: unknown; aad?: unknown };
-      if (typeof box.ct !== "string" || typeof box.tag !== "string" || typeof box.aad !== "string") throw new Error("bad box");
+      if (typeof box.ct !== "string" || typeof box.tag !== "string" || typeof box.aad !== "string")
+        throw new Error("bad box");
       return aesUnwrap(key, { iv: sealed.nonce, ct: box.ct, tag: box.tag }, box.aad);
     },
   };
 }
 
-function open(answers: Record<string, unknown> = {}): { ctx: Ctx; events: { name: string; payload: unknown }[]; db: ReturnType<typeof memoryDb>; calls: { cap: string; input: unknown }[] } {
+function open(answers: Record<string, unknown> = {}): {
+  ctx: Ctx;
+  events: { name: string; payload: unknown }[];
+  db: ReturnType<typeof memoryDb>;
+  calls: { cap: string; input: unknown }[];
+} {
   const db = memoryDb();
   const calls: { cap: string; input: unknown }[] = [];
   const events: { name: string; payload: unknown }[] = [];
@@ -191,7 +202,6 @@ function open(answers: Record<string, unknown> = {}): { ctx: Ctx; events: { name
   return { ctx, events, db, calls };
 }
 
-
 async function expectCode(code: string, run: () => Promise<unknown>): Promise<void> {
   try {
     await run();
@@ -212,7 +222,13 @@ const aws = (): string => `AKIA${"IOSFODNN7EXAMPLE"}`;
 const ghp = (): string => `ghp_${"a1B2c3D4e5F6g7H8i9J0k1L2m3N4o5P6q7R8"}`;
 const rule = (r: { problems: { rule: string }[] }, name: string): boolean => r.problems.some((p) => p.rule === name);
 
-const AGENT_MD = ["# Intake agent", "Inherits: VYRE.md", "", "Use the intake form before anything else.", "Override: may email clients without a second look"].join("\n");
+const AGENT_MD = [
+  "# Intake agent",
+  "Inherits: VYRE.md",
+  "",
+  "Use the intake form before anything else.",
+  "Override: may email clients without a second look",
+].join("\n");
 const TOML_OK = [
   'name = "Intake"',
   'description = "Use me when a new lead arrives."',
@@ -254,24 +270,60 @@ test("lint: Inherits and Override lines, hard rules, repeated facts", () => {
 
   const nine = ["# Hard rules", ...Array.from({ length: 9 }, (_, i) => `- rule number ${i}`)].join("\n");
   assert.ok(rule(lintText("vyre_md", nine), "vyre.hard_rules"));
-  const eight = ["# Hard rules", ...Array.from({ length: 8 }, (_, i) => `- rule number ${i}`), "# Notes", "- one", "- two"].join("\n");
+  const eight = [
+    "# Hard rules",
+    ...Array.from({ length: 8 }, (_, i) => `- rule number ${i}`),
+    "# Notes",
+    "- one",
+    "- two",
+  ].join("\n");
   assert.ok(!rule(lintText("vyre_md", eight), "vyre.hard_rules"));
 
-  const dup = ["Always check the client's conflict status before replying.", "Something else.", "- Always check the client's conflict status before replying."].join("\n");
+  const dup = [
+    "Always check the client's conflict status before replying.",
+    "Something else.",
+    "- Always check the client's conflict status before replying.",
+  ].join("\n");
   const d = lintText("agent_md", dup);
-  assert.deepEqual(d.problems.filter((p) => p.rule === "repeated.fact").map((p) => p.line), [3]);
-  const v = lintText("agent_md", dup, undefined, { vyreText: "Something else entirely here, long enough.\nAlways check the client's conflict status before replying." });
+  assert.deepEqual(
+    d.problems.filter((p) => p.rule === "repeated.fact").map((p) => p.line),
+    [3],
+  );
+  const v = lintText("agent_md", dup, undefined, {
+    vyreText: "Something else entirely here, long enough.\nAlways check the client's conflict status before replying.",
+  });
   assert.ok(rule(v, "repeated.vyre"));
 });
 
 test("secret scan: keys are found by line and kind, values never come back, vault names pass", () => {
-  const text = ["Plain text.", `aws key ${aws()}`, `token ${ghp()}`, "-----BEGIN RSA PRIVATE KEY-----", "api_key = #Team_Key", "api_key: vault:stripe", 'password = "hunter2hunter2hunter2"', "see https://user:pa55word@example.com/x"].join("\n"); // secret-scan: fake
+  const text = [
+    "Plain text.",
+    `aws key ${aws()}`,
+    `token ${ghp()}`,
+    "-----BEGIN RSA PRIVATE KEY-----",
+    "api_key = #Team_Key",
+    "api_key: vault:stripe",
+    'password = "hunter2hunter2hunter2"',
+    "see https://user:pa55word@example.com/x",
+  ].join("\n"); // secret-scan: fake
   const found = scanSecrets(text);
-  assert.deepEqual(found.map((f) => [f.line, f.kind]), [[2, "aws_access_key"], [3, "github_token"], [4, "private_key"], [7, "generic_assignment"], [8, "url_credentials"]]);
+  assert.deepEqual(
+    found.map((f) => [f.line, f.kind]),
+    [
+      [2, "aws_access_key"],
+      [3, "github_token"],
+      [4, "private_key"],
+      [7, "generic_assignment"],
+      [8, "url_credentials"],
+    ],
+  );
   const r = lintText("agent_md", text);
   assert.equal(r.secrets.length, 5);
   assert.ok(r.problems.filter((p) => p.rule === "secret").every((p) => p.severity === "error"));
-  assert.ok(!JSON.stringify(r).includes("IOSFODNN7EXAMPLE") && !JSON.stringify(r).includes("a1B2c3D4e5F6"), "a finding never carries the value");
+  assert.ok(
+    !JSON.stringify(r).includes("IOSFODNN7EXAMPLE") && !JSON.stringify(r).includes("a1B2c3D4e5F6"),
+    "a finding never carries the value",
+  );
   assert.equal(scanSecrets("Use the token from the Vault, never paste it.").length, 0);
 });
 
@@ -280,23 +332,62 @@ test("agent.toml: the reader and the form checks", () => {
   assert.equal(parsed.error, undefined);
   assert.deepEqual((parsed.value["routines"] as unknown[]).length, 1);
   assert.equal(parseToml('a = [1, 2,\n 3]\nb = { x = "y" }').error, undefined);
-  assert.deepEqual(parseToml("a = 1\nb = nope").error, { line: 2, message: '"nope" is not a value; text needs quotes.' });
+  assert.deepEqual(parseToml("a = 1\nb = nope").error, {
+    line: 2,
+    message: '"nope" is not a value; text needs quotes.',
+  });
   assert.equal(parseToml("a = 1\na = 2").error?.line, 2);
   assert.equal(parseToml('a = "open').error?.message, "A string is not closed.");
 
-  const ok = lintText("agent_toml", TOML_OK, undefined, { agentNames: ["Billing"], fileExists: (p) => p === "routines/morning.md" });
+  const ok = lintText("agent_toml", TOML_OK, undefined, {
+    agentNames: ["Billing"],
+    fileExists: (p) => p === "routines/morning.md",
+  });
   assert.deepEqual(ok.problems, []);
   assert.equal(ok.inherits, undefined);
 
   const bad = lintText("agent_toml", "name = Intake");
-  assert.deepEqual(bad.problems.map((p) => [p.rule, p.line, p.severity]), [["toml.syntax", 1, "error"]]);
+  assert.deepEqual(
+    bad.problems.map((p) => [p.rule, p.line, p.severity]),
+    [["toml.syntax", 1, "error"]],
+  );
 
-  const form = lintText("agent_toml", [
-    'name = 5', 'colour = "red"', 'handoffs = ["Ghost"]', "[limits]", "per_day = -1", "per_week = 3",
-    "[[routines]]", 'cron = "daily"', 'prompt_file = "routines/gone.md"', "[[routines]]", 'cron = "0 9 * * *"', 'prompt_file = "../secrets.md"', "[[routines]]", 'cron = "0 9 * * *"',
-  ].join("\n"), undefined, { agentNames: ["Billing"], fileExists: () => false });
+  const form = lintText(
+    "agent_toml",
+    [
+      "name = 5",
+      'colour = "red"',
+      'handoffs = ["Ghost"]',
+      "[limits]",
+      "per_day = -1",
+      "per_week = 3",
+      "[[routines]]",
+      'cron = "daily"',
+      'prompt_file = "routines/gone.md"',
+      "[[routines]]",
+      'cron = "0 9 * * *"',
+      'prompt_file = "../secrets.md"',
+      "[[routines]]",
+      'cron = "0 9 * * *"',
+    ].join("\n"),
+    undefined,
+    { agentNames: ["Billing"], fileExists: () => false },
+  );
   const got = form.problems.map((p) => p.rule).sort();
-  assert.deepEqual(got, ["handoff.unknown", "routine.cron", "routine.prompt", "routine.prompt_missing", "routine.prompt_path", "toml.type", "toml.type", "toml.unknown_key", "toml.unknown_key"].sort());
+  assert.deepEqual(
+    got,
+    [
+      "handoff.unknown",
+      "routine.cron",
+      "routine.prompt",
+      "routine.prompt_missing",
+      "routine.prompt_path",
+      "toml.type",
+      "toml.type",
+      "toml.unknown_key",
+      "toml.unknown_key",
+    ].sort(),
+  );
   assert.equal(form.problems.find((p) => p.rule === "handoff.unknown")?.line, 3);
   assert.equal(lintText("agent_toml", "[tools]\nallow = []\ncount = 1").problems.length, 0);
 });
@@ -317,7 +408,12 @@ test("line diff counts what a save adds and removes", () => {
   assert.deepEqual(lineDiff("same", "same"), { added: 0, removed: 0 });
 });
 
-async function agentFolder(): Promise<{ k: ReturnType<typeof open>; agentId: string; routinesId: string; folderId: string }> {
+async function agentFolder(): Promise<{
+  k: ReturnType<typeof open>;
+  agentId: string;
+  routinesId: string;
+  folderId: string;
+}> {
   const k = open({
     "settings.get": { row: { value: { amber: 150, red: 200 } } },
     "agents.list": { agents: [{ name: "Billing" }] },
@@ -326,24 +422,41 @@ async function agentFolder(): Promise<{ k: ReturnType<typeof open>; agentId: str
   });
   const tree = await handlers["files.tree"](k.ctx, {});
   const personal = tree.roots.find((r) => r.key === "personal")?.folderId;
-  const agentId = (await handlers["files.folder.create"](k.ctx, { parentId: idOf(personal, "personal"), name: "Intake" })).folder.folderId;
-  const routinesId = (await handlers["files.folder.create"](k.ctx, { parentId: agentId, name: "routines" })).folder.folderId;
+  const agentId = (
+    await handlers["files.folder.create"](k.ctx, { parentId: idOf(personal, "personal"), name: "Intake" })
+  ).folder.folderId;
+  const routinesId = (await handlers["files.folder.create"](k.ctx, { parentId: agentId, name: "routines" })).folder
+    .folderId;
   return { k, agentId, routinesId, folderId: agentId };
 }
 
 test("files.lint: reads the stored file or the draft text, and settings set the limits", async () => {
   const { k, agentId, routinesId } = await agentFolder();
-  const md = (await handlers["files.create"](k.ctx, { folderId: agentId, name: "AGENT.md", content: { text: AGENT_MD } })).file.fileId;
-  const toml = (await handlers["files.create"](k.ctx, { folderId: agentId, name: "agent.toml", content: { text: TOML_OK } })).file.fileId;
-  const plain = (await handlers["files.create"](k.ctx, { folderId: agentId, name: "notes.md", content: { text: "x" } })).file.fileId;
-  const prompt = (await handlers["files.create"](k.ctx, { folderId: routinesId, name: "morning.md", content: { text: "Check the inbox." } })).file.fileId;
+  const md = (
+    await handlers["files.create"](k.ctx, { folderId: agentId, name: "AGENT.md", content: { text: AGENT_MD } })
+  ).file.fileId;
+  const toml = (
+    await handlers["files.create"](k.ctx, { folderId: agentId, name: "agent.toml", content: { text: TOML_OK } })
+  ).file.fileId;
+  const plain = (await handlers["files.create"](k.ctx, { folderId: agentId, name: "notes.md", content: { text: "x" } }))
+    .file.fileId;
+  const prompt = (
+    await handlers["files.create"](k.ctx, {
+      folderId: routinesId,
+      name: "morning.md",
+      content: { text: "Check the inbox." },
+    })
+  ).file.fileId;
 
   const a = await handlers["files.lint"](k.ctx, { fileId: md });
   assert.deepEqual([a.file, a.inherits, a.overrides.length, a.state], ["agent_md", true, 1, "ok"]);
   const t = await handlers["files.lint"](k.ctx, { fileId: toml });
   assert.equal(t.file, "agent_toml");
   assert.deepEqual(t.problems, [], "the routine prompt exists, the handoff is a known agent");
-  const draft = await handlers["files.lint"](k.ctx, { fileId: toml, text: TOML_OK.replace("routines/morning.md", "routines/none.md") });
+  const draft = await handlers["files.lint"](k.ctx, {
+    fileId: toml,
+    text: TOML_OK.replace("routines/morning.md", "routines/none.md"),
+  });
   assert.ok(rule(draft, "routine.prompt_missing"));
   assert.equal((await handlers["files.lint"](k.ctx, { fileId: md, text: `${"x\n".repeat(160)}` })).state, "amber");
   assert.equal((await handlers["files.lint"](k.ctx, { fileId: plain })).file, "other");
@@ -356,17 +469,26 @@ test("files.lint: reads the stored file or the draft text, and settings set the 
   const tight = open({ "settings.get": { row: { value: { amber: 2, red: 4 } } } });
   const tree = await handlers["files.tree"](tight.ctx, {});
   const folderId = idOf(tree.roots.find((r) => r.key === "personal")?.folderId, "personal");
-  const f = (await handlers["files.create"](tight.ctx, { folderId, name: "AGENT.md", content: { text: "a\nb\nc" } })).file.fileId;
+  const f = (await handlers["files.create"](tight.ctx, { folderId, name: "AGENT.md", content: { text: "a\nb\nc" } }))
+    .file.fileId;
   assert.equal((await handlers["files.lint"](tight.ctx, { fileId: f })).state, "amber");
   const none = open();
   const tree2 = await handlers["files.tree"](none.ctx, {});
-  const f2 = (await handlers["files.create"](none.ctx, { folderId: idOf(tree2.roots.find((r) => r.key === "personal")?.folderId, "personal"), name: "AGENT.md", content: { text: "a\nb\nc" } })).file.fileId;
+  const f2 = (
+    await handlers["files.create"](none.ctx, {
+      folderId: idOf(tree2.roots.find((r) => r.key === "personal")?.folderId, "personal"),
+      name: "AGENT.md",
+      content: { text: "a\nb\nc" },
+    })
+  ).file.fileId;
   assert.equal((await handlers["files.lint"](none.ctx, { fileId: f2 })).state, "ok");
 });
 
 test("files.save: lint first, errors and warnings stop it, a clean save commits one version", async () => {
   const { k, agentId } = await agentFolder();
-  const id = (await handlers["files.create"](k.ctx, { folderId: agentId, name: "AGENT.md", content: { text: AGENT_MD } })).file.fileId;
+  const id = (
+    await handlers["files.create"](k.ctx, { folderId: agentId, name: "AGENT.md", content: { text: AGENT_MD } })
+  ).file.fileId;
 
   // a secret is an error: nothing is saved, and the answer carries the lint and the diff but not the value
   try {
@@ -385,7 +507,13 @@ test("files.save: lint first, errors and warnings stop it, a clean save commits 
   // a warning (amber) needs it accepted
   const long = `${AGENT_MD}\n${Array.from({ length: 150 }, (_, i) => `rule ${i}`).join("\n")}`;
   await expectCode("validation.precondition_failed", () => handlers["files.save"](k.ctx, { fileId: id, text: long }));
-  const accepted = await handlers["files.save"](k.ctx, { fileId: id, text: long, acceptWarnings: true, baseVersion: 1, reason: "grow" });
+  const accepted = await handlers["files.save"](k.ctx, {
+    fileId: id,
+    text: long,
+    acceptWarnings: true,
+    baseVersion: 1,
+    reason: "grow",
+  });
   assert.equal(accepted.n, 2);
   assert.equal(accepted.lint.state, "amber");
   assert.equal(accepted.added, 150);
@@ -393,41 +521,70 @@ test("files.save: lint first, errors and warnings stop it, a clean save commits 
   assert.ok(k.events.some((e) => e.name === "file.version_added" && (e.payload as { n?: number }).n === 2));
 
   // a stale base version is the usual conflict; a clean save is one version
-  await expectCode("validation.version_conflict", () => handlers["files.save"](k.ctx, { fileId: id, text: AGENT_MD, baseVersion: 1 }));
+  await expectCode("validation.version_conflict", () =>
+    handlers["files.save"](k.ctx, { fileId: id, text: AGENT_MD, baseVersion: 1 }),
+  );
   const clean = await handlers["files.save"](k.ctx, { fileId: id, text: AGENT_MD, baseVersion: 2 });
-  assert.deepEqual([clean.n, clean.added, clean.removed, clean.lint.state, clean.lint.problems.length], [3, 0, 150, "ok", 0]);
+  assert.deepEqual(
+    [clean.n, clean.added, clean.removed, clean.lint.state, clean.lint.problems.length],
+    [3, 0, 150, "ok", 0],
+  );
   const versions = await handlers["files.versions"](k.ctx, { fileId: id });
   assert.equal(versions.versions.length, 3);
   assert.equal((await handlers["files.read"](k.ctx, { fileId: id })).text, AGENT_MD);
 
   // a broken agent.toml is refused, the stored version stays
-  const toml = (await handlers["files.create"](k.ctx, { folderId: agentId, name: "agent.toml", content: { text: 'name = "A"' } })).file.fileId;
-  await expectCode("validation.precondition_failed", () => handlers["files.save"](k.ctx, { fileId: toml, text: "name = A" }));
+  const toml = (
+    await handlers["files.create"](k.ctx, { folderId: agentId, name: "agent.toml", content: { text: 'name = "A"' } })
+  ).file.fileId;
+  await expectCode("validation.precondition_failed", () =>
+    handlers["files.save"](k.ctx, { fileId: toml, text: "name = A" }),
+  );
   assert.equal((await handlers["files.read"](k.ctx, { fileId: toml })).text, 'name = "A"');
   // the role line edit goes through the same save
-  const role = await handlers["files.save"](k.ctx, { fileId: toml, text: 'name = "A"\ndescription = "Use me for intake."', reason: "role line" });
+  const role = await handlers["files.save"](k.ctx, {
+    fileId: toml,
+    text: 'name = "A"\ndescription = "Use me for intake."',
+    reason: "role line",
+  });
   assert.equal(role.n, 2);
 
   // other files and bad input
-  const other = (await handlers["files.create"](k.ctx, { folderId: agentId, name: "notes.txt", content: { text: "x" } })).file.fileId;
+  const other = (
+    await handlers["files.create"](k.ctx, { folderId: agentId, name: "notes.txt", content: { text: "x" } })
+  ).file.fileId;
   await expectCode("validation.precondition_failed", () => handlers["files.save"](k.ctx, { fileId: other, text: "y" }));
   await expectCode("validation.bad_input", () => handlers["files.save"](k.ctx, { fileId: id }));
-  await expectCode("validation.bad_input", () => handlers["files.save"](k.ctx, { fileId: id, text: "x", baseVersion: 0 }));
+  await expectCode("validation.bad_input", () =>
+    handlers["files.save"](k.ctx, { fileId: id, text: "x", baseVersion: 0 }),
+  );
 });
 
 test("files.share: the grant is access.share, once, with the file as the resource", async () => {
   const kit = open({ "access.share": { grant: { grantId: "grt_1" } } });
   const tree = await handlers["files.tree"](kit.ctx, {});
   const folderId = idOf(tree.roots.find((r) => r.key === "personal")?.folderId, "personal");
-  const fid = (await handlers["files.create"](kit.ctx, { folderId, name: "a.txt", content: { text: "x" } })).file.fileId;
-  const res = await handlers["files.share"](kit.ctx, { fileId: fid, subject: { kind: "person", id: "per_sam" }, level: "edit" });
+  const fid = (await handlers["files.create"](kit.ctx, { folderId, name: "a.txt", content: { text: "x" } })).file
+    .fileId;
+  const res = await handlers["files.share"](kit.ctx, {
+    fileId: fid,
+    subject: { kind: "person", id: "per_sam" },
+    level: "edit",
+  });
   assert.deepEqual(res, { ok: true });
   // once, with the file as the resource; the key names this one request (the file, the person, the level and a fresh part), so sharing again after an unshare is written again
   assert.equal(kit.calls.length, 1);
-  const { idempotencyKey: shareKey, ...shared } = (kit.calls[0] as { cap: string; input: { idempotencyKey: string } }).input;
+  const { idempotencyKey: shareKey, ...shared } = (kit.calls[0] as { cap: string; input: { idempotencyKey: string } })
+    .input;
   assert.equal(kit.calls[0]!.cap, "access.share");
   assert.match(shareKey, new RegExp(`^files\\.share:${fid}:person:per_sam:edit:[0-9a-f-]{36}$`));
-  assert.deepEqual(shared, { resource: { type: "file", id: fid }, subject: { kind: "person", id: "per_sam" }, level: "edit" }, "no source: a person's direct share, so a later share at another level updates it");
-  await expectCode("validation.not_found", () => handlers["files.share"](kit.ctx, { fileId: "fil_none", subject: { kind: "person", id: "per_sam" }, level: "view" }));
+  assert.deepEqual(
+    shared,
+    { resource: { type: "file", id: fid }, subject: { kind: "person", id: "per_sam" }, level: "edit" },
+    "no source: a person's direct share, so a later share at another level updates it",
+  );
+  await expectCode("validation.not_found", () =>
+    handlers["files.share"](kit.ctx, { fileId: "fil_none", subject: { kind: "person", id: "per_sam" }, level: "view" }),
+  );
   await expectCode("validation.bad_input", () => handlers["files.share"](kit.ctx, { fileId: fid, level: "view" }));
 });

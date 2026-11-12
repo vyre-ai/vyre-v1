@@ -5,11 +5,24 @@
 import { GOOGLE_APP_NAME, googleAppOf } from "./google.ts";
 
 /** What mounts.file_link answers for a file that has a provider address. */
-export interface FileLink { openIn: string; webUrl: string; type: string; edit: readonly string[] }
+export interface FileLink {
+  openIn: string;
+  webUrl: string;
+  type: string;
+  edit: readonly string[];
+}
 
 type Call = (cap: string, input: unknown) => Promise<unknown>;
 
-const OFFICE: Readonly<Record<string, string>> = { doc: "Word", docx: "Word", xls: "Excel", xlsx: "Excel", xlsm: "Excel", ppt: "PowerPoint", pptx: "PowerPoint" };
+const OFFICE: Readonly<Record<string, string>> = {
+  doc: "Word",
+  docx: "Word",
+  xls: "Excel",
+  xlsx: "Excel",
+  xlsm: "Excel",
+  ppt: "PowerPoint",
+  pptx: "PowerPoint",
+};
 
 const extOf = (name: string): string => (name.includes(".") ? name.slice(name.lastIndexOf(".") + 1).toLowerCase() : "");
 
@@ -25,7 +38,8 @@ export function openInLabel(file: { source: string | null; name: string; kind: s
     const app = googleAppOf(file);
     return app === null ? "Google Drive" : GOOGLE_APP_NAME[app];
   }
-  if (/sharepoint|onedrive|microsoft/i.test(provider)) return OFFICE[extOf(file.name)] ?? (/onedrive/i.test(provider) ? "OneDrive" : "SharePoint");
+  if (/sharepoint|onedrive|microsoft/i.test(provider))
+    return OFFICE[extOf(file.name)] ?? (/onedrive/i.test(provider) ? "OneDrive" : "SharePoint");
   return null;
 }
 

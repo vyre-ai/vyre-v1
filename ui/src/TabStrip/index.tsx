@@ -44,7 +44,11 @@ export function reorderKeys(tabs: readonly TabSpec[], from: string, to: string):
 }
 
 /** The tab one step left or right of `key`, or the last or first one. Does not wrap. */
-export function stepKey(tabs: readonly TabSpec[], key: string, step: "left" | "right" | "first" | "last"): string | undefined {
+export function stepKey(
+  tabs: readonly TabSpec[],
+  key: string,
+  step: "left" | "right" | "first" | "last",
+): string | undefined {
   const at = tabs.findIndex((tab) => tab.key === key);
   if (tabs.length === 0) return undefined;
   if (step === "first") return tabs[0]?.key;
@@ -103,7 +107,8 @@ export function tabMenuEntries(
     });
   }
   if (extras.length > 0 && std.length > 0) out.push({ separator: true });
-  for (const item of std) out.push({ label: item.label, ...(icons ? { icon: item.icon } : {}), onSelect: () => run(item.op, key) });
+  for (const item of std)
+    out.push({ label: item.label, ...(icons ? { icon: item.icon } : {}), onSelect: () => run(item.op, key) });
   return out;
 }
 
@@ -191,27 +196,44 @@ export function TabStrip(props: TabStripViewProps): ReactElement {
   const [fade, setFade] = useState<"none" | "left" | "right" | "both">("none");
   const [drag, setDrag] = useState<{ from: string; over: string | null } | null>(null);
 
-  const extrasFor = useCallback((key: string | undefined): TabMenuExtra[] => {
-    if (menu === undefined || key === undefined) return [];
-    const got: readonly TabMenuExtra[] = menu(key);
-    return got.slice();
-  }, [menu]);
+  const extrasFor = useCallback(
+    (key: string | undefined): TabMenuExtra[] => {
+      if (menu === undefined || key === undefined) return [];
+      const got: readonly TabMenuExtra[] = menu(key);
+      return got.slice();
+    },
+    [menu],
+  );
 
-  const run = useCallback((op: TabOp, key: string | undefined) => {
-    if (onClose === undefined) return;
-    for (const k of closableKeys(tabs, op, key)) onClose(k);
-  }, [tabs, onClose]);
+  const run = useCallback(
+    (op: TabOp, key: string | undefined) => {
+      if (onClose === undefined) return;
+      for (const k of closableKeys(tabs, op, key)) onClose(k);
+    },
+    [tabs, onClose],
+  );
 
-  const openFor = useCallback((key: string | undefined, x: number, y: number) => {
-    const list = entries !== undefined && key !== undefined ? entries(key) : tabMenuEntries(tabs, key, extrasFor(key), run, onClose !== undefined);
-    if (list.length === 0) return;
-    show(list, x, y, "context", { label: key === undefined ? "Tabs" : (tabs.find((t) => t.key === key)?.title ?? key) });
-  }, [tabs, extrasFor, run, show, entries, onClose]);
+  const openFor = useCallback(
+    (key: string | undefined, x: number, y: number) => {
+      const list =
+        entries !== undefined && key !== undefined
+          ? entries(key)
+          : tabMenuEntries(tabs, key, extrasFor(key), run, onClose !== undefined);
+      if (list.length === 0) return;
+      show(list, x, y, "context", {
+        label: key === undefined ? "Tabs" : (tabs.find((t) => t.key === key)?.title ?? key),
+      });
+    },
+    [tabs, extrasFor, run, show, entries, onClose],
+  );
 
-  const select = useCallback((key: string) => {
-    if (onSelect) onSelect(key);
-    focusNode(nodes.current[key]);
-  }, [onSelect]);
+  const select = useCallback(
+    (key: string) => {
+      if (onSelect) onSelect(key);
+      focusNode(nodes.current[key]);
+    },
+    [onSelect],
+  );
 
   // The open tab is always in view: measured again when it is laid out, because a new tab's place is not known when it is chosen.
   const reveal = useCallback(() => {
@@ -219,18 +241,29 @@ export function TabStrip(props: TabStripViewProps): ReactElement {
     const box = scroller.current;
     if (span === undefined || box === null || typeof box.scrollTo !== "function") return;
     // everything fits: the strip rests at its start, so the first tab is never left cut at the left edge
-    if (content.current > 0 && view.current.w > 0 && content.current <= view.current.w + 2) { if (view.current.x > 0) box.scrollTo({ x: 0, animated: false }); return; }
-    const x = span.x + 8;   // spans are inside the tab row, which sits after the strip's padding
+    if (content.current > 0 && view.current.w > 0 && content.current <= view.current.w + 2) {
+      if (view.current.x > 0) box.scrollTo({ x: 0, animated: false });
+      return;
+    }
+    const x = span.x + 8; // spans are inside the tab row, which sits after the strip's padding
     if (x < view.current.x + 24) box.scrollTo({ x: x - 24 < 40 ? 0 : x - 24, animated: false });
-    else if (x + span.w > view.current.x + view.current.w - 24 && view.current.w > 0) box.scrollTo({ x: x + span.w - view.current.w + 24, animated: false });
+    else if (x + span.w > view.current.x + view.current.w - 24 && view.current.w > 0)
+      box.scrollTo({ x: x + span.w - view.current.w + 24, animated: false });
   }, [active]);
-  useEffect(() => { reveal(); }, [reveal, tabs.length, room]);
+  useEffect(() => {
+    reveal();
+  }, [reveal, tabs.length, room]);
   const edges = useCallback(() => {
-    const { x, w } = view.current, more = content.current - (x + w);
-    const left = x > 2, right = more > 2;
+    const { x, w } = view.current,
+      more = content.current - (x + w);
+    const left = x > 2,
+      right = more > 2;
     setFade(left && right ? "both" : left ? "left" : right ? "right" : "none");
   }, []);
-  useEffect(() => { if (Platform.OS === "web") injectCss((globalThis as { document?: Parameters<typeof injectCss>[0] }).document, "vyre-ui-tabfade", FADE_CSS); }, []);
+  useEffect(() => {
+    if (Platform.OS === "web")
+      injectCss((globalThis as { document?: Parameters<typeof injectCss>[0] }).document, "vyre-ui-tabfade", FADE_CSS);
+  }, []);
 
   const onKeyDown = (key: string, event: EventLike): void => {
     const k = event.key ?? "";
@@ -243,14 +276,18 @@ export function TabStrip(props: TabStripViewProps): ReactElement {
       }
       return;
     }
-    const step = k === "ArrowLeft" ? "left" : k === "ArrowRight" ? "right" : k === "Home" ? "first" : k === "End" ? "last" : null;
+    const step =
+      k === "ArrowLeft" ? "left" : k === "ArrowRight" ? "right" : k === "Home" ? "first" : k === "End" ? "last" : null;
     if (step !== null) {
       const to = stepKey(tabs, key, step);
       event.preventDefault?.();
       if (to !== undefined && to !== key) select(to);
       return;
     }
-    const closing = k === "Delete" || k === "Backspace" || ((event.metaKey === true || event.ctrlKey === true) && k.toLowerCase() === "w");
+    const closing =
+      k === "Delete" ||
+      k === "Backspace" ||
+      ((event.metaKey === true || event.ctrlKey === true) && k.toLowerCase() === "w");
     if (closing && tab !== undefined && tab.pinned !== true && onClose) {
       event.preventDefault?.();
       const to = afterClose(tabs, key, active);
@@ -260,7 +297,8 @@ export function TabStrip(props: TabStripViewProps): ReactElement {
   };
 
   const finishDrag = (): void => {
-    if (drag !== null && drag.over !== null && drag.over !== drag.from && onReorder) onReorder(reorderKeys(tabs, drag.from, drag.over));
+    if (drag !== null && drag.over !== null && drag.over !== drag.from && onReorder)
+      onReorder(reorderKeys(tabs, drag.from, drag.over));
     setDrag(null);
   };
 
@@ -279,7 +317,9 @@ export function TabStrip(props: TabStripViewProps): ReactElement {
         dropTarget={drag !== null && drag.over === tab.key && drag.from !== tab.key}
         canClose={onClose !== undefined}
         only={(props.hideLoneClose === true && tabs.length === 1) || props.noClose === true}
-        nodeRef={(node) => { nodes.current[tab.key] = node; }}
+        nodeRef={(node) => {
+          nodes.current[tab.key] = node;
+        }}
         onPress={() => select(tab.key)}
         onClose={() => {
           const to = afterClose(tabs, tab.key, active);
@@ -288,10 +328,17 @@ export function TabStrip(props: TabStripViewProps): ReactElement {
         }}
         trigger={menuTrigger((x, y) => openFor(tab.key, x, y))}
         onKeyDown={(event) => onKeyDown(tab.key, event)}
-        onDragStart={() => { if (tab.pinned !== true && onReorder) setDrag({ from: tab.key, over: null }); }}
-        onDragOver={() => { if (drag !== null && drag.over !== tab.key) setDrag({ from: drag.from, over: tab.key }); }}
+        onDragStart={() => {
+          if (tab.pinned !== true && onReorder) setDrag({ from: tab.key, over: null });
+        }}
+        onDragOver={() => {
+          if (drag !== null && drag.over !== tab.key) setDrag({ from: drag.from, over: tab.key });
+        }}
         onDragEnd={finishDrag}
-        onLayout={(x, w) => { spans.current[tab.key] = { x, w }; if (on) reveal(); }}
+        onLayout={(x, w) => {
+          spans.current[tab.key] = { x, w };
+          if (on) reveal();
+        }}
       />,
     );
   }
@@ -299,38 +346,53 @@ export function TabStrip(props: TabStripViewProps): ReactElement {
   const current = activeTab(props);
   return (
     <View
-      style={[styles.strip, props.bare === true ? styles.stripBare : null]} testID="tab-strip"
+      style={[styles.strip, props.bare === true ? styles.stripBare : null]}
+      testID="tab-strip"
       onLayout={(event) => setRoom(event.nativeEvent.layout.width)}
       {...webProps({ onPointerLeave: () => setDrag(null), onPointerUp: finishDrag })}
     >
       <ScrollView
-        ref={(node) => { scroller.current = node as unknown as typeof scroller.current; }}
+        ref={(node) => {
+          scroller.current = node as unknown as typeof scroller.current;
+        }}
         horizontal
         showsHorizontalScrollIndicator={false}
         style={styles.scroll}
         contentContainerStyle={styles.content}
-        onScroll={(event) => { view.current = { x: event.nativeEvent.contentOffset.x, w: event.nativeEvent.layoutMeasurement.width }; edges(); }}
-        onContentSizeChange={(w) => { content.current = w; edges(); reveal(); }}
+        onScroll={(event) => {
+          view.current = { x: event.nativeEvent.contentOffset.x, w: event.nativeEvent.layoutMeasurement.width };
+          edges();
+        }}
+        onContentSizeChange={(w) => {
+          content.current = w;
+          edges();
+          reveal();
+        }}
         scrollEventThrottle={64}
-        onLayout={(event) => { view.current = { x: view.current.x, w: event.nativeEvent.layout.width }; edges(); reveal(); }}
+        onLayout={(event) => {
+          view.current = { x: view.current.x, w: event.nativeEvent.layout.width };
+          edges();
+          reveal();
+        }}
         {...webProps({ dataSet: { tabfade: fade } })}
       >
         <View role="tablist" aria-label={props.label ?? current?.title ?? "Tabs"} style={styles.tabs}>
           {tabNodes}
         </View>
       </ScrollView>
-      {onPlus === undefined ? null : (
-        <IconButton name="plus" label={plusTitle ?? "Open"} onPress={() => onPlus()} />
-      )}
+      {onPlus === undefined ? null : <IconButton name="plus" label={plusTitle ?? "Open"} onPress={() => onPlus()} />}
       <View style={styles.spacer} />
       {props.noOptions === true ? null : (
         <IconButton
           name="more"
           label="Tab options"
-          nodeRef={(node) => { moreNode.current = node; }}
+          nodeRef={(node) => {
+            moreNode.current = node;
+          }}
           onPress={() => {
             const box = moreNode.current as Focusable | null;
-            if (box !== null && typeof box.measureInWindow === "function") box.measureInWindow((x, y, w, h) => openFor(active, x + w - 230, y + h + 4));
+            if (box !== null && typeof box.measureInWindow === "function")
+              box.measureInWindow((x, y, w, h) => openFor(active, x + w - 230, y + h + 4));
             else openFor(active, 0, TAB_STRIP_HEIGHT);
           }}
         />
@@ -340,7 +402,17 @@ export function TabStrip(props: TabStripViewProps): ReactElement {
   );
 }
 
-function IconButton({ name, label, onPress: press, nodeRef }: { name: string; label: string; onPress: () => void; nodeRef?: (node: unknown) => void }): ReactElement {
+function IconButton({
+  name,
+  label,
+  onPress: press,
+  nodeRef,
+}: {
+  name: string;
+  label: string;
+  onPress: () => void;
+  nodeRef?: (node: unknown) => void;
+}): ReactElement {
   const [over, setOver] = useState(false);
   return (
     <Pressable
@@ -359,7 +431,25 @@ function IconButton({ name, label, onPress: press, nodeRef }: { name: string; la
   );
 }
 
-function TabItem({ tab, on, tight, underline, widest, dropTarget, canClose, only, nodeRef, onPress: press, onClose, trigger, onKeyDown, onDragStart, onDragOver, onDragEnd, onLayout }: {
+function TabItem({
+  tab,
+  on,
+  tight,
+  underline,
+  widest,
+  dropTarget,
+  canClose,
+  only,
+  nodeRef,
+  onPress: press,
+  onClose,
+  trigger,
+  onKeyDown,
+  onDragStart,
+  onDragOver,
+  onDragEnd,
+  onLayout,
+}: {
   tab: TabSpec;
   on: boolean;
   tight: boolean;
@@ -398,14 +488,32 @@ function TabItem({ tab, on, tight, underline, widest, dropTarget, canClose, only
       // (and the x hid itself) right as you reached for it; enter and leave do not fire for a move into a child
       {...(Platform.OS === "web" ? {} : { onHoverIn: () => setOver(true), onHoverOut: () => setOver(false) })}
       onLayout={(event) => onLayout(event.nativeEvent.layout.x, event.nativeEvent.layout.width)}
-      style={[styles.tab, { maxWidth: widest }, !on && !pinned ? styles.tabIdle : null, pinned ? styles.tabPinned : null, pinned && tight ? styles.tabTight : null, underline ? LINE_TAB : null, over && !on ? (underline ? HOVER_LINE : HOVER) : null, on ? (underline ? ACTIVE_LINE : ACTIVE) : null, dropTarget ? DROP : null]}
+      style={[
+        styles.tab,
+        { maxWidth: widest },
+        !on && !pinned ? styles.tabIdle : null,
+        pinned ? styles.tabPinned : null,
+        pinned && tight ? styles.tabTight : null,
+        underline ? LINE_TAB : null,
+        over && !on ? (underline ? HOVER_LINE : HOVER) : null,
+        on ? (underline ? ACTIVE_LINE : ACTIVE) : null,
+        dropTarget ? DROP : null,
+      ]}
       {...trigger}
       {...webProps({
         title: name,
         tabIndex: on ? 0 : -1,
-        onKeyDown: (event: EventLike) => { onKeyDown(event); (trigger["onKeyDown"] as ((e: unknown) => void) | undefined)?.(event); },
-        onPointerDown: (event: EventLike) => { if (event.button === undefined || event.button === 0) onDragStart(); },
-        onPointerEnter: () => { setOver(true); onDragOver(); },
+        onKeyDown: (event: EventLike) => {
+          onKeyDown(event);
+          (trigger["onKeyDown"] as ((e: unknown) => void) | undefined)?.(event);
+        },
+        onPointerDown: (event: EventLike) => {
+          if (event.button === undefined || event.button === 0) onDragStart();
+        },
+        onPointerEnter: () => {
+          setOver(true);
+          onDragOver();
+        },
         onPointerLeave: () => setOver(false),
         onPointerUp: onDragEnd,
         onAuxClick: (event: EventLike) => {
@@ -418,7 +526,11 @@ function TabItem({ tab, on, tight, underline, widest, dropTarget, canClose, only
     >
       {extraTab.lead !== undefined ? extraTab.lead : null}
       {tab.icon !== undefined && tab.icon.length > 0 ? <MenuIcon icon={tab.icon} color={ink} size={14} /> : null}
-      {extraTab.iconOnly === true ? null : <Text numberOfLines={1} style={[styles.title, { color: ink }]}>{tab.title}</Text>}
+      {extraTab.iconOnly === true ? null : (
+        <Text numberOfLines={1} style={[styles.title, { color: ink }]}>
+          {tab.title}
+        </Text>
+      )}
       {pinned || only ? null : (
         <Pressable
           role="button"
@@ -427,7 +539,12 @@ function TabItem({ tab, on, tight, underline, widest, dropTarget, canClose, only
           testID={`tab-close-${tab.key}`}
           onPress={onClose}
           // hidden, it takes no clicks: a press on the right edge of a short tab (Plan) selects the tab, it does not land on an invisible close
-          style={[styles.close, on ? null : styles.closeOver, showClose ? null : HIDDEN, showClose ? null : { pointerEvents: "none" } as object]}
+          style={[
+            styles.close,
+            on ? null : styles.closeOver,
+            showClose ? null : HIDDEN,
+            showClose ? null : ({ pointerEvents: "none" } as object),
+          ]}
           {...webProps({ title: "Close" })}
         >
           <MenuIcon icon="x" color={ink} size={12} />
@@ -454,7 +571,15 @@ const styles = StyleSheet.create({
   content: { alignItems: "center", paddingLeft: 8, paddingRight: 4 },
   tabs: { flexDirection: "row", alignItems: "center", gap: 2 },
   spacer: { flexGrow: 1 },
-  tab: { height: TAB_HEIGHT, flexDirection: "row", alignItems: "center", gap: 7, paddingLeft: 10, paddingRight: 5, borderRadius: RADIUS },
+  tab: {
+    height: TAB_HEIGHT,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+    paddingLeft: 10,
+    paddingRight: 5,
+    borderRadius: RADIUS,
+  },
   tabPinned: { paddingRight: 10 },
   // a tab that is not selected holds no room for its Close: the button sits over the right padding when the pointer is on the tab, so every tab is the same distance from the next
   tabIdle: { paddingRight: 10 },

@@ -5,7 +5,17 @@ import { onConflictOpened, openConflict } from "../handlers/detect.ts";
 import { handlers } from "../handlers/index.ts";
 import { confirm, redo, resolve, undo } from "../handlers/resolve.ts";
 import { setPorts } from "../projections.ts";
-import { assertEventsConform, asPerson, codeOf, collision, contractErrors, harness, resetPorts, seedConflict, seedRecord } from "../fixtures/harness.ts";
+import {
+  assertEventsConform,
+  asPerson,
+  codeOf,
+  collision,
+  contractErrors,
+  harness,
+  resetPorts,
+  seedConflict,
+  seedRecord,
+} from "../fixtures/harness.ts";
 import type { Harness } from "../fixtures/harness.ts";
 
 function setup(over: Parameters<typeof harness>[0] = {}): Harness {
@@ -16,10 +26,14 @@ function setup(over: Parameters<typeof harness>[0] = {}): Harness {
   return h;
 }
 
-const park = (h: Harness, over: Parameters<typeof collision>[0] = {}): string => openConflict(h.ctx, collision({ field: "note", ours: "Call Bea", theirs: "Call Dana", ...over }));
+const park = (h: Harness, over: Parameters<typeof collision>[0] = {}): string =>
+  openConflict(h.ctx, collision({ field: "note", ours: "Call Bea", theirs: "Call Dana", ...over }));
 const fieldOf = (h: Harness, f = "note"): unknown => h.records.get("rec_acme")?.[f];
 const rejects = (p: Promise<unknown> | (() => unknown), code: string): Promise<void> =>
-  assert.rejects(typeof p === "function" ? Promise.resolve().then(p) : p, (e: unknown) => { assert.equal(codeOf(e), code); return true; });
+  assert.rejects(typeof p === "function" ? Promise.resolve().then(p) : p, (e: unknown) => {
+    assert.equal(codeOf(e), code);
+    return true;
+  });
 
 test("resolve applies the chosen value as the person, keeps what it replaced, and says so in one line", async () => {
   const h = setup();
@@ -29,9 +43,19 @@ test("resolve applies the chosen value as the person, keeps what it replaced, an
   assert.match(out.resolutionId, /^res_[a-z0-9]+$/);
   assert.deepEqual(contractErrors("conflicts.resolve", "out", out), []);
   assert.equal(fieldOf(h), "Call Dana");
-  assert.deepEqual(h.calls("records.update")[0]?.input, { type: "client_plan", recordId: "rec_acme", patch: { note: "Call Dana" } });
+  assert.deepEqual(h.calls("records.update")[0]?.input, {
+    type: "client_plan",
+    recordId: "rec_acme",
+    patch: { note: "Call Dana" },
+  });
   const kept = h.rows("SELECT value, reason FROM conflicts_history WHERE field = 'note' ORDER BY reason");
-  assert.deepEqual(kept.map((r) => [r["value"], r["reason"]]), [[JSON.stringify("Call Bea"), "resolved"], [JSON.stringify("Call Bea"), "superseded"]]);
+  assert.deepEqual(
+    kept.map((r) => [r["value"], r["reason"]]),
+    [
+      [JSON.stringify("Call Bea"), "resolved"],
+      [JSON.stringify("Call Bea"), "superseded"],
+    ],
+  );
   const ev = h.named("conflict.resolved")[0]?.payload;
   assert.deepEqual([ev?.["choice"], ev?.["by"], ev?.["summary"]], ["theirs", "usr_dana", "Used my edit"]);
   assert.deepEqual(assertEventsConform(h), []);
@@ -46,7 +70,12 @@ test("choosing the current value writes nothing; merged and custom write the val
 
   const b = park(h, { opId: "op_b", ours: "Call Bea", theirs: "Call Dana" });
   await rejects(resolve(h.ctx, { conflictId: b, choice: "merged", summary: "m" }), "validation.bad_input");
-  const m = await resolve(h.ctx, { conflictId: b, choice: "merged", value: "Call Bea and Dana", summary: "Kept both names" });
+  const m = await resolve(h.ctx, {
+    conflictId: b,
+    choice: "merged",
+    value: "Call Bea and Dana",
+    summary: "Kept both names",
+  });
   assert.equal(m.state, "resolved");
   assert.equal(fieldOf(h), "Call Bea and Dana");
 
@@ -74,12 +103,21 @@ test("a write the person may not make is refused and leaves the conflict open", 
   const held = setup({ hold: ["record:rec_acme"] });
   const hid = park(held);
   await rejects(resolve(held.ctx, { conflictId: hid, choice: "theirs", summary: "x" }), "permission.on_hold");
-  const locked = setup({ throws: { "records.update": Object.assign(new Error("locked"), { error: { code: "validation.field_locked" } }) } });
+  const locked = setup({
+    throws: { "records.update": Object.assign(new Error("locked"), { error: { code: "validation.field_locked" } }) },
+  });
   const lid = park(locked);
-  await assert.rejects(resolve(locked.ctx, { conflictId: lid, choice: "theirs", summary: "x" }), (e: unknown) => codeOf(e) === "validation.field_locked");
+  await assert.rejects(
+    resolve(locked.ctx, { conflictId: lid, choice: "theirs", summary: "x" }),
+    (e: unknown) => codeOf(e) === "validation.field_locked",
+  );
   for (const x of [h, held, locked]) {
     assert.equal(x.rows("SELECT state FROM conflicts_conflict")[0]?.["state"], "open");
-    assert.equal(x.rows("SELECT * FROM conflicts_resolution").length, 0, "no resolution is recorded for a write that did not happen");
+    assert.equal(
+      x.rows("SELECT * FROM conflicts_resolution").length,
+      0,
+      "no resolution is recorded for a write that did not happen",
+    );
   }
 });
 
@@ -93,9 +131,18 @@ test("Undo restores the loser as a normal op and Redo restores the choice", asyn
   assert.deepEqual(u, { state: "undone" });
   assert.deepEqual(contractErrors("conflicts.undo", "out", u), []);
   assert.equal(fieldOf(h), "Call Bea", "the replaced value is back");
-  assert.deepEqual(h.calls("records.update").at(-1)?.input, { type: "client_plan", recordId: "rec_acme", patch: { note: "Call Bea" } });
-  const afterUndo = (await handlers["conflicts.get"](h.ctx, { conflictId: id })) as { conflict: { state: string; resolution: { canUndo: boolean; canRedo: boolean } } };
-  assert.deepEqual([afterUndo.conflict.state, afterUndo.conflict.resolution.canUndo, afterUndo.conflict.resolution.canRedo], ["undone", false, true]);
+  assert.deepEqual(h.calls("records.update").at(-1)?.input, {
+    type: "client_plan",
+    recordId: "rec_acme",
+    patch: { note: "Call Bea" },
+  });
+  const afterUndo = (await handlers["conflicts.get"](h.ctx, { conflictId: id })) as {
+    conflict: { state: string; resolution: { canUndo: boolean; canRedo: boolean } };
+  };
+  assert.deepEqual(
+    [afterUndo.conflict.state, afterUndo.conflict.resolution.canUndo, afterUndo.conflict.resolution.canRedo],
+    ["undone", false, true],
+  );
   await rejects(undo(h.ctx, { resolutionId }), "validation.precondition_failed");
 
   const r = await redo(h.ctx, { resolutionId });
@@ -103,8 +150,14 @@ test("Undo restores the loser as a normal op and Redo restores the choice", asyn
   assert.deepEqual(contractErrors("conflicts.redo", "out", r), []);
   assert.equal(fieldOf(h), "Call Dana");
   await rejects(redo(h.ctx, { resolutionId }), "validation.precondition_failed");
-  assert.deepEqual(h.named("conflict.undone").map((e) => e.payload["resolutionId"]), [resolutionId]);
-  assert.deepEqual(h.named("conflict.redone").map((e) => e.payload["resolutionId"]), [resolutionId]);
+  assert.deepEqual(
+    h.named("conflict.undone").map((e) => e.payload["resolutionId"]),
+    [resolutionId],
+  );
+  assert.deepEqual(
+    h.named("conflict.redone").map((e) => e.payload["resolutionId"]),
+    [resolutionId],
+  );
   assert.deepEqual(assertEventsConform(h), []);
 });
 
@@ -133,7 +186,10 @@ test("after Undo the person can choose again; the older resolution can no longer
   await undo(h.ctx, { resolutionId: second.resolutionId });
   assert.equal(fieldOf(h), "Call Bea");
   await rejects(undo(h.ctx, { resolutionId: "res_missing" }), "validation.not_found");
-  await rejects(undo(asPerson(h, { kind: "person", id: "usr_bea" }).ctx, { resolutionId: second.resolutionId }), "permission.not_found");
+  await rejects(
+    undo(asPerson(h, { kind: "person", id: "usr_bea" }).ctx, { resolutionId: second.resolutionId }),
+    "permission.not_found",
+  );
 });
 
 test("a resolution that changed nothing still has Undo and Redo, and they change nothing", async () => {
@@ -173,9 +229,15 @@ test("a task that cannot be closed does not undo the resolution", async () => {
 
 test("a Restricted conflict takes one of the two values as they are", async () => {
   const h = setup();
-  const id = openConflict(h.ctx, collision({ field: "taxId", ours: "11-111", theirs: "22-222", plainChoice: true, opId: "op_tax" }));
+  const id = openConflict(
+    h.ctx,
+    collision({ field: "taxId", ours: "11-111", theirs: "22-222", plainChoice: true, opId: "op_tax" }),
+  );
   seedRecord(h, "rec_acme", { taxId: "11-111" });
-  await rejects(resolve(h.ctx, { conflictId: id, choice: "merged", value: "33-333", summary: "x" }), "validation.bad_input");
+  await rejects(
+    resolve(h.ctx, { conflictId: id, choice: "merged", value: "33-333", summary: "x" }),
+    "validation.bad_input",
+  );
   await resolve(h.ctx, { conflictId: id, choice: "theirs", summary: "Used my number" });
   assert.equal(fieldOf(h, "taxId"), "22-222");
 });
@@ -187,18 +249,38 @@ test("list, get and counts show a person only their own conflicts", async () => 
   const c = seedConflict(h, { state: "resolved", openedAt: 1_760_000_002_000 });
   seedConflict(h, { person: "usr_bea", state: "open" });
 
-  const all = (await handlers["conflicts.list"](h.ctx, {})) as { conflicts: Array<{ conflictId: string }>; total?: number };
-  assert.deepEqual(all.conflicts.map((x) => x.conflictId), [c, b, a], "newest first");
+  const all = (await handlers["conflicts.list"](h.ctx, {})) as {
+    conflicts: Array<{ conflictId: string }>;
+    total?: number;
+  };
+  assert.deepEqual(
+    all.conflicts.map((x) => x.conflictId),
+    [c, b, a],
+    "newest first",
+  );
   assert.equal(all.total, 3);
   assert.deepEqual(contractErrors("conflicts.list", "out", all), []);
-  const needs = (await handlers["conflicts.list"](h.ctx, { state: ["needs_you"] })) as { conflicts: Array<{ conflictId: string }> };
-  assert.deepEqual(needs.conflicts.map((x) => x.conflictId), [b]);
-  const since = (await handlers["conflicts.list"](h.ctx, { since: 1_760_000_001_500 })) as { conflicts: Array<{ conflictId: string }> };
-  assert.deepEqual(since.conflicts.map((x) => x.conflictId), [c]);
+  const needs = (await handlers["conflicts.list"](h.ctx, { state: ["needs_you"] })) as {
+    conflicts: Array<{ conflictId: string }>;
+  };
+  assert.deepEqual(
+    needs.conflicts.map((x) => x.conflictId),
+    [b],
+  );
+  const since = (await handlers["conflicts.list"](h.ctx, { since: 1_760_000_001_500 })) as {
+    conflicts: Array<{ conflictId: string }>;
+  };
+  assert.deepEqual(
+    since.conflicts.map((x) => x.conflictId),
+    [c],
+  );
   const page = (await handlers["conflicts.list"](h.ctx, { limit: 2 })) as { conflicts: unknown[]; next?: string };
   assert.equal(page.conflicts.length, 2);
   assert.equal(page.next, "2");
-  const rest = (await handlers["conflicts.list"](h.ctx, { limit: 2, cursor: page.next })) as { conflicts: unknown[]; next?: string };
+  const rest = (await handlers["conflicts.list"](h.ctx, { limit: 2, cursor: page.next })) as {
+    conflicts: unknown[];
+    next?: string;
+  };
   assert.deepEqual([rest.conflicts.length, rest.next], [1, undefined]);
 
   const n = await handlers["conflicts.counts"](h.ctx);

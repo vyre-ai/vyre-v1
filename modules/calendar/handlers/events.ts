@@ -15,14 +15,65 @@
 // DECISION: Find a time uses the caller's own working hours and time zone (settings profile.working_hours, profile.timezone) when workingHoursOnly is not false;
 // UTC, Monday to Friday, 09:00 to 17:00 when the settings cannot be read.
 import {
-  allow, bad, can, cleanAttendees, codeOf, DAY_MS, DEFAULT_HOURS, ensure, first, freeSlots, googleTime, graphTime, isId, list, mergeSpans, MINUTE_MS, missing,
-  newId, normalizeEmail, num, obj, readAttendees, readStrings, refuse, rowsOf, str, strOrNull, text, toCalendar, toEvent, EMAIL,
+  allow,
+  bad,
+  can,
+  cleanAttendees,
+  codeOf,
+  DAY_MS,
+  DEFAULT_HOURS,
+  ensure,
+  first,
+  freeSlots,
+  googleTime,
+  graphTime,
+  isId,
+  list,
+  mergeSpans,
+  MINUTE_MS,
+  missing,
+  newId,
+  normalizeEmail,
+  num,
+  obj,
+  readAttendees,
+  readStrings,
+  refuse,
+  rowsOf,
+  str,
+  strOrNull,
+  text,
+  toCalendar,
+  toEvent,
+  EMAIL,
 } from "../projections.ts";
 import { isTrustedService } from "../../../lib/trust.ts";
-import { conferenceLines, fieldsOf, fromConferenceData, fromOnlineMeeting, pushCreate, pushDelete, pushRead, pushUpdate, remoteOf, zoomFor } from "./push.ts";
+import {
+  conferenceLines,
+  fieldsOf,
+  fromConferenceData,
+  fromOnlineMeeting,
+  pushCreate,
+  pushDelete,
+  pushRead,
+  pushUpdate,
+  remoteOf,
+  zoomFor,
+} from "./push.ts";
 import type { PushFields, Remote, Video } from "./push.ts";
 import type { Conference } from "../projections.ts";
-import type { Attendee, CalCtx, CalendarOut, EventOut, Hours, JoinProvider, Json, Response, Row, Span } from "../projections.ts";
+import type {
+  Attendee,
+  CalCtx,
+  CalendarOut,
+  EventOut,
+  Hours,
+  JoinProvider,
+  Json,
+  Response,
+  Row,
+  Span,
+} from "../projections.ts";
 
 const MAX_SPAN = 366 * DAY_MS;
 const MAX_RANGE = 62 * DAY_MS;
@@ -47,10 +98,12 @@ const ownerOnly = (ctx: CalCtx, row: Row): boolean => strOrNull(row, "ownerId") 
 
 function calendarRow(ctx: CalCtx, id: string, level: "view" | "use" | "edit" | "manage"): Row {
   if (!isId("cld", id)) bad(ctx, "That is not a calendar id.");
-  const row = first(ctx.db.all(`SELECT * FROM calendar_list WHERE id = ? AND deleted_at IS NULL`, id)) ?? missing(ctx, "There is no such calendar.");
+  const row =
+    first(ctx.db.all(`SELECT * FROM calendar_list WHERE id = ? AND deleted_at IS NULL`, id)) ??
+    missing(ctx, "There is no such calendar.");
   if (ownerOnly(ctx, row)) return row;
   if (!can(ctx, level, { type: "calendar", id })) {
-    if (level === "view") missing(ctx, "There is no such calendar.");   // a private calendar does not say it exists
+    if (level === "view") missing(ctx, "There is no such calendar."); // a private calendar does not say it exists
     allow(ctx, level, { type: "calendar", id });
   }
   return row;
@@ -63,8 +116,10 @@ function canView(ctx: CalCtx, row: Row): boolean {
 /** A live event the caller may see (and `level` on its calendar). */
 function eventRow(ctx: CalCtx, id: string, level: "view" | "edit" = "view", deleted = false): Row {
   if (!isId("cev", id)) bad(ctx, "That is not an event id.");
-  const row = first(ctx.db.all(`SELECT * FROM calendar_event WHERE id = ?`, id)) ?? missing(ctx, "There is no such event.");
-  if ((num(row, "deleted_at") > 0) !== deleted) missing(ctx, deleted ? "That event is not deleted." : "There is no such event.");
+  const row =
+    first(ctx.db.all(`SELECT * FROM calendar_event WHERE id = ?`, id)) ?? missing(ctx, "There is no such event.");
+  if (num(row, "deleted_at") > 0 !== deleted)
+    missing(ctx, deleted ? "That event is not deleted." : "There is no such event.");
   calendarRow(ctx, str(row, "calendarId"), level);
   return row;
 }
@@ -84,7 +139,13 @@ function clean(ctx: CalCtx, value: unknown, what: string, max: number, required 
 }
 
 function checkTimes(ctx: CalCtx, startsAt: unknown, endsAt: unknown): { startsAt: number; endsAt: number } {
-  if (!Number.isSafeInteger(startsAt) || !Number.isSafeInteger(endsAt) || (startsAt as number) < 0 || (endsAt as number) < 0) bad(ctx, "Times are milliseconds since the epoch.");
+  if (
+    !Number.isSafeInteger(startsAt) ||
+    !Number.isSafeInteger(endsAt) ||
+    (startsAt as number) < 0 ||
+    (endsAt as number) < 0
+  )
+    bad(ctx, "Times are milliseconds since the epoch.");
   const s = startsAt as number;
   const e = endsAt as number;
   if (e <= s) bad(ctx, "An event ends after it starts.");
@@ -93,14 +154,16 @@ function checkTimes(ctx: CalCtx, startsAt: unknown, endsAt: unknown): { startsAt
 }
 
 function checkRange(ctx: CalCtx, from: unknown, to: unknown): { startsAt: number; endsAt: number } {
-  if (!Number.isSafeInteger(from) || !Number.isSafeInteger(to) || (from as number) < 0) bad(ctx, "Times are milliseconds since the epoch.");
+  if (!Number.isSafeInteger(from) || !Number.isSafeInteger(to) || (from as number) < 0)
+    bad(ctx, "Times are milliseconds since the epoch.");
   if ((to as number) <= (from as number)) bad(ctx, "The range ends after it starts.");
   return { startsAt: from as number, endsAt: to as number };
 }
 
 function checkJoin(ctx: CalCtx, value: unknown): JoinProvider {
   if (value === undefined) return "none";
-  if (value !== "zoom" && value !== "meet" && value !== "teams" && value !== "none") bad(ctx, "The meeting link is zoom, meet, teams or none.");
+  if (value !== "zoom" && value !== "meet" && value !== "teams" && value !== "none")
+    bad(ctx, "The meeting link is zoom, meet, teams or none.");
   return value;
 }
 
@@ -132,76 +195,148 @@ async function visibleCalendars(ctx: CalCtx): Promise<Row[]> {
   const me = ctx.actingFor ?? ctx.principal.id;
   const out: Row[] = [];
   for (const r of rowsOf(ctx.db.all(`SELECT * FROM calendar_list WHERE deleted_at IS NULL`))) {
-    if (ownerOnly(ctx, r)) { out.push(r); continue; }
+    if (ownerOnly(ctx, r)) {
+      out.push(r);
+      continue;
+    }
     if (!canView(ctx, r)) continue;
     try {
       const res = obj(await ctx.call("access.shares_of", { resource: { type: "calendar", id: str(r, "id") } }));
-      const explicit = list(res["shares"]).map(obj).some((sh) => {
-        const through = text(sh["through"]);
-        return (through === "direct" && text(obj(obj(sh["grant"])["subject"])["id"]) === me) || through === "group" || through === "folder";
-      });
+      const explicit = list(res["shares"])
+        .map(obj)
+        .some((sh) => {
+          const through = text(sh["through"]);
+          return (
+            (through === "direct" && text(obj(obj(sh["grant"])["subject"])["id"]) === me) ||
+            through === "group" ||
+            through === "folder"
+          );
+        });
       if (explicit) out.push(r);
-    } catch { /* shares are read when the access module answers; a calendar whose shares cannot be read stays out of the default view */ }
+    } catch {
+      /* shares are read when the access module answers; a calendar whose shares cannot be read stays out of the default view */
+    }
   }
   return out;
 }
 
-export async function listCalendars(ctx: CalCtx, input: { scope?: "mine" | "shared" | "all" }): Promise<{ calendars: CalendarOut[] }> {
+export async function listCalendars(
+  ctx: CalCtx,
+  input: { scope?: "mine" | "shared" | "all" },
+): Promise<{ calendars: CalendarOut[] }> {
   ensure(ctx);
   const scope = input.scope ?? "all";
   if (scope !== "mine" && scope !== "shared" && scope !== "all") bad(ctx, "The scope is mine, shared or all.");
   const rows = await visibleCalendars(ctx);
   const out = rows
     .filter((r) => (ownerOnly(ctx, r) ? scope !== "shared" : scope !== "mine"))
-    .sort((a, b) => Number(ownerOnly(ctx, b)) - Number(ownerOnly(ctx, a)) || str(a, "title").localeCompare(str(b, "title")) || str(a, "id").localeCompare(str(b, "id")));
+    .sort(
+      (a, b) =>
+        Number(ownerOnly(ctx, b)) - Number(ownerOnly(ctx, a)) ||
+        str(a, "title").localeCompare(str(b, "title")) ||
+        str(a, "id").localeCompare(str(b, "id")),
+    );
   return { calendars: out.map(toCalendar) };
 }
 
-export async function createCalendar(ctx: CalCtx, input: { title: string; color?: string; personal?: boolean }): Promise<{ calendar: CalendarOut }> {
+export async function createCalendar(
+  ctx: CalCtx,
+  input: { title: string; color?: string; personal?: boolean },
+): Promise<{ calendar: CalendarOut }> {
   ensure(ctx);
   const owner = personOf(ctx);
   const title = clean(ctx, input.title, "The title", 100, true) ?? "";
-  const color = input.color ?? COLORS[rowsOf(ctx.db.all(`SELECT id FROM calendar_list WHERE "ownerId" = ?`, owner)).length % COLORS.length] ?? "#4f6bed";
+  const color =
+    input.color ??
+    COLORS[rowsOf(ctx.db.all(`SELECT id FROM calendar_list WHERE "ownerId" = ?`, owner)).length % COLORS.length] ??
+    "#4f6bed";
   if (!/^#[0-9a-fA-F]{6}$/.test(color)) bad(ctx, "A colour is a hex value such as #4f6bed.");
   if (input.personal !== undefined && typeof input.personal !== "boolean") bad(ctx, "Personal is true or false.");
   const id = newId("cld", ctx.now());
   const personal = input.personal === true;
   ctx.db.run(
     `INSERT INTO calendar_list (id, title, color, provider, "connectionId", "remoteId", "ownerId", personal, state, version, updated_at, deleted_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    id, title, color, "local", null, null, owner, personal ? 1 : 0, "syncing", 1, ctx.now(), null,
+    id,
+    title,
+    color,
+    "local",
+    null,
+    null,
+    owner,
+    personal ? 1 : 0,
+    "syncing",
+    1,
+    ctx.now(),
+    null,
   );
-  ctx.emit("calendar.created", `calendar/${id}`, { calendarId: id, provider: "local", ownerId: owner, private: personal });
+  ctx.emit("calendar.created", `calendar/${id}`, {
+    calendarId: id,
+    provider: "local",
+    ownerId: owner,
+    private: personal,
+  });
   return { calendar: toCalendar(calendarRow(ctx, id, "view")) };
 }
 
-export async function updateCalendar(ctx: CalCtx, input: { calendarId: string; title?: string; color?: string }): Promise<{ calendar: CalendarOut }> {
+export async function updateCalendar(
+  ctx: CalCtx,
+  input: { calendarId: string; title?: string; color?: string },
+): Promise<{ calendar: CalendarOut }> {
   ensure(ctx);
   const row = calendarRow(ctx, input.calendarId, "edit");
   const title = clean(ctx, input.title, "The title", 100, false);
   if (title === "") bad(ctx, "The title is required.");
-  if (input.color !== undefined && !/^#[0-9a-fA-F]{6}$/.test(input.color)) bad(ctx, "A colour is a hex value such as #4f6bed.");
+  if (input.color !== undefined && !/^#[0-9a-fA-F]{6}$/.test(input.color))
+    bad(ctx, "A colour is a hex value such as #4f6bed.");
   if (title === undefined && input.color === undefined) bad(ctx, "Give a new title or colour.");
-  ctx.db.run(`UPDATE calendar_list SET title = ?, color = ?, version = ?, updated_at = ? WHERE id = ?`, title ?? str(row, "title"), input.color ?? str(row, "color"), num(row, "version") + 1, ctx.now(), input.calendarId);
+  ctx.db.run(
+    `UPDATE calendar_list SET title = ?, color = ?, version = ?, updated_at = ? WHERE id = ?`,
+    title ?? str(row, "title"),
+    input.color ?? str(row, "color"),
+    num(row, "version") + 1,
+    ctx.now(),
+    input.calendarId,
+  );
   return { calendar: toCalendar(calendarRow(ctx, input.calendarId, "view")) };
 }
 
 export async function deleteCalendar(ctx: CalCtx, input: { calendarId: string }): Promise<{ deleted: boolean }> {
   ensure(ctx);
   const row = calendarRow(ctx, input.calendarId, "manage");
-  if (str(row, "provider") !== "local") refuse(ctx, "A Google or Microsoft calendar is disconnected in Settings, Connections, not deleted here.");
+  if (str(row, "provider") !== "local")
+    refuse(ctx, "A Google or Microsoft calendar is disconnected in Settings, Connections, not deleted here.");
   const now = ctx.now();
-  for (const e of rowsOf(ctx.db.all(`SELECT * FROM calendar_event WHERE "calendarId" = ? AND deleted_at IS NULL`, input.calendarId))) {
-    ctx.db.run(`UPDATE calendar_event SET "deletedAt" = ?, deleted_at = ?, version = ?, updated_at = ? WHERE id = ?`, now, now, num(e, "version") + 1, now, str(e, "id"));
-    ctx.emit("calendar_event.deleted", `entity/${str(e, "id")}`, { eventId: str(e, "id"), calendarId: input.calendarId });
+  for (const e of rowsOf(
+    ctx.db.all(`SELECT * FROM calendar_event WHERE "calendarId" = ? AND deleted_at IS NULL`, input.calendarId),
+  )) {
+    ctx.db.run(
+      `UPDATE calendar_event SET "deletedAt" = ?, deleted_at = ?, version = ?, updated_at = ? WHERE id = ?`,
+      now,
+      now,
+      num(e, "version") + 1,
+      now,
+      str(e, "id"),
+    );
+    ctx.emit("calendar_event.deleted", `entity/${str(e, "id")}`, {
+      eventId: str(e, "id"),
+      calendarId: input.calendarId,
+    });
   }
-  ctx.db.run(`UPDATE calendar_list SET deleted_at = ?, version = ?, updated_at = ? WHERE id = ?`, now, num(row, "version") + 1, now, input.calendarId);
+  ctx.db.run(
+    `UPDATE calendar_list SET deleted_at = ?, version = ?, updated_at = ? WHERE id = ?`,
+    now,
+    num(row, "version") + 1,
+    now,
+    input.calendarId,
+  );
   return { deleted: true };
 }
 
 // ---- reading events
 
 export async function listEvents(
-  ctx: CalCtx, input: { from: number; to: number; calendarIds?: string[]; query?: string; cursor?: string; limit?: number },
+  ctx: CalCtx,
+  input: { from: number; to: number; calendarIds?: string[]; query?: string; cursor?: string; limit?: number },
 ): Promise<{ events: EventOut[]; next?: string; total: number }> {
   ensure(ctx);
   const { startsAt: from, endsAt: to } = checkRange(ctx, input.from, input.to);
@@ -216,44 +351,87 @@ export async function listEvents(
     if (!Array.isArray(input.calendarIds)) bad(ctx, "Calendars are a list of calendar ids.");
     calendars = [...new Set(input.calendarIds)].map((id) => calendarRow(ctx, id, "view"));
   } else {
-    calendars = await visibleCalendars(ctx);   // the viewer's own and the ones shared with them, not every calendar an admin may open
+    calendars = await visibleCalendars(ctx); // the viewer's own and the ones shared with them, not every calendar an admin may open
   }
   const q = input.query?.trim().toLowerCase();
   const found: Row[] = [];
   for (const c of calendars) {
-    for (const e of rowsOf(ctx.db.all(`SELECT * FROM calendar_event WHERE "calendarId" = ? AND "startsAt" < ? AND "endsAt" > ? AND deleted_at IS NULL`, str(c, "id"), to, from))) {
-      if (q && ![str(e, "title"), str(e, "location"), str(e, "description")].some((s) => s.toLowerCase().includes(q))) continue;
+    for (const e of rowsOf(
+      ctx.db.all(
+        `SELECT * FROM calendar_event WHERE "calendarId" = ? AND "startsAt" < ? AND "endsAt" > ? AND deleted_at IS NULL`,
+        str(c, "id"),
+        to,
+        from,
+      ),
+    )) {
+      if (q && ![str(e, "title"), str(e, "location"), str(e, "description")].some((s) => s.toLowerCase().includes(q)))
+        continue;
       found.push(e);
     }
   }
   // One meeting in several calendars (each attendee's own copy carries the provider's same event id) is listed once: the copy on the caller's own calendar, else the first viewable one.
   const own = new Set(calendars.filter((c) => ownerOnly(ctx, c)).map((c) => str(c, "id")));
   const best = new Map<string, Row>();
-  const keyOf = (e: Row): string | null => { const pid = strOrNull(e, "providerId"); return pid === null ? null : `${pid}|${num(e, "startsAt")}`; };
+  const keyOf = (e: Row): string | null => {
+    const pid = strOrNull(e, "providerId");
+    return pid === null ? null : `${pid}|${num(e, "startsAt")}`;
+  };
   for (const e of found) {
     const k = keyOf(e);
     if (k === null) continue;
     const have = best.get(k);
     if (!have || (!own.has(str(have, "calendarId")) && own.has(str(e, "calendarId")))) best.set(k, e);
   }
-  const listed = found.filter((e) => { const k = keyOf(e); return k === null || best.get(k) === e; });
+  const listed = found.filter((e) => {
+    const k = keyOf(e);
+    return k === null || best.get(k) === e;
+  });
   found.length = 0;
   found.push(...listed);
-  found.sort((a, b) => num(a, "startsAt") - num(b, "startsAt") || num(a, "endsAt") - num(b, "endsAt") || str(a, "id").localeCompare(str(b, "id")));
+  found.sort(
+    (a, b) =>
+      num(a, "startsAt") - num(b, "startsAt") ||
+      num(a, "endsAt") - num(b, "endsAt") ||
+      str(a, "id").localeCompare(str(b, "id")),
+  );
   const page = found.slice(offset, offset + limit).map(toEvent);
   const end = offset + page.length;
-  return end < found.length ? { events: page, next: String(end), total: found.length } : { events: page, total: found.length };
+  return end < found.length
+    ? { events: page, next: String(end), total: found.length }
+    : { events: page, total: found.length };
 }
 
-export async function getEvent(ctx: CalCtx, input: { eventId: string }): Promise<{ event: EventOut; mine?: { email: string; response: Response }; repeats?: Repeats }> {
+export async function getEvent(
+  ctx: CalCtx,
+  input: { eventId: string },
+): Promise<{ event: EventOut; mine?: { email: string; response: Response }; repeats?: Repeats }> {
   ensure(ctx);
   const event = toEvent(eventRow(ctx, input.eventId));
   const me = ctx.actingFor ?? ctx.principal.id;
   // the caller's own answer, when one of their addresses is on the guest list (the Going? buttons of the event pane)
-  const mine = isId("usr", me) && event.attendees.length ? new Set((await addressesOf(ctx)).filter((a) => a.owner === me).map((a) => a.address)) : new Set<string>();
+  const mine =
+    isId("usr", me) && event.attendees.length
+      ? new Set((await addressesOf(ctx)).filter((a) => a.owner === me).map((a) => a.address))
+      : new Set<string>();
   const guest = event.attendees.find((a) => mine.has(normalizeEmail(a.email)));
-  const repeats = event.seriesId ? repeatsOf(rowsOf(ctx.db.all(`SELECT * FROM calendar_event WHERE "calendarId" = ? AND "seriesId" = ?`, event.calendarId, event.seriesId)).filter((r) => num(r, "deleted_at") === 0).map((r) => num(r, "startsAt"))) : undefined;
-  return { event, ...(guest ? { mine: { email: normalizeEmail(guest.email), response: guest.response ?? "needs_action" } } : {}), ...(repeats ? { repeats } : {}) };
+  const repeats = event.seriesId
+    ? repeatsOf(
+        rowsOf(
+          ctx.db.all(
+            `SELECT * FROM calendar_event WHERE "calendarId" = ? AND "seriesId" = ?`,
+            event.calendarId,
+            event.seriesId,
+          ),
+        )
+          .filter((r) => num(r, "deleted_at") === 0)
+          .map((r) => num(r, "startsAt")),
+      )
+    : undefined;
+  return {
+    event,
+    ...(guest ? { mine: { email: normalizeEmail(guest.email), response: guest.response ?? "needs_action" } } : {}),
+    ...(repeats ? { repeats } : {}),
+  };
 }
 
 export type Repeats = "day" | "weekday" | "week" | "two_weeks" | "month" | "other";
@@ -305,21 +483,64 @@ function insertEvent(ctx: CalCtx, e: NewEvent): string {
   ctx.db.run(
     `INSERT INTO calendar_event (id, "calendarId", title, "startsAt", "endsAt", "allDay", location, "joinUrl", "joinProvider", description, agenda, attendees, organizer, "recordIds", "meetingId", "providerId", status, "bookedByAgentId", "fromBookingPage", "deletedAt", version, updated_at, deleted_at, "seriesId", conference)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    id, e.calendarId, e.title, e.startsAt, e.endsAt, e.allDay ? 1 : 0, e.location, e.joinUrl, e.joinProvider, e.description, e.agenda, JSON.stringify(e.attendees), e.organizer,
-    JSON.stringify(e.recordIds), e.meetingId, e.providerId, e.status, e.bookedByAgentId, e.fromBookingPage, null, 1, ctx.now(), null, e.seriesId ?? null, e.conference ? JSON.stringify(e.conference) : null,
+    id,
+    e.calendarId,
+    e.title,
+    e.startsAt,
+    e.endsAt,
+    e.allDay ? 1 : 0,
+    e.location,
+    e.joinUrl,
+    e.joinProvider,
+    e.description,
+    e.agenda,
+    JSON.stringify(e.attendees),
+    e.organizer,
+    JSON.stringify(e.recordIds),
+    e.meetingId,
+    e.providerId,
+    e.status,
+    e.bookedByAgentId,
+    e.fromBookingPage,
+    null,
+    1,
+    ctx.now(),
+    null,
+    e.seriesId ?? null,
+    e.conference ? JSON.stringify(e.conference) : null,
   );
   return id;
 }
 
-function created(ctx: CalCtx, id: string, calendarId: string, startsAt: number, attendeeCount: number, source: "vyre" | "google" | "microsoft" | "booking"): void {
+function created(
+  ctx: CalCtx,
+  id: string,
+  calendarId: string,
+  startsAt: number,
+  attendeeCount: number,
+  source: "vyre" | "google" | "microsoft" | "booking",
+): void {
   ctx.emit("calendar_event.created", `entity/${id}`, { eventId: id, calendarId, startsAt, attendeeCount, source });
 }
 
 export async function createEvent(
   ctx: CalCtx,
   input: {
-    calendarId: string; title: string; startsAt: number; endsAt: number; allDay?: boolean; location?: string; description?: string; agenda?: string; attendees?: unknown[];
-    recordIds?: string[]; joinProvider?: JoinProvider; bookedByAgentId?: string; fromBookingPage?: string; video?: Video; idempotencyKey?: string;
+    calendarId: string;
+    title: string;
+    startsAt: number;
+    endsAt: number;
+    allDay?: boolean;
+    location?: string;
+    description?: string;
+    agenda?: string;
+    attendees?: unknown[];
+    recordIds?: string[];
+    joinProvider?: JoinProvider;
+    bookedByAgentId?: string;
+    fromBookingPage?: string;
+    video?: Video;
+    idempotencyKey?: string;
   },
 ): Promise<{ event: EventOut }> {
   ensure(ctx);
@@ -342,11 +563,36 @@ export async function createEvent(
   const zoom = video === "zoom" ? await zoomFor(ctx, title, startsAt, endsAt, key) : undefined;
   if (zoom) description = [description, conferenceLines(zoom)].filter(Boolean).join("\n\n");
   // then the event goes to its provider calendar, which invites the guests (and makes the Meet or Teams call)
-  const answer = remote ? await pushCreate(ctx, remote, { title, startsAt, endsAt, allDay: input.allDay === true, location, description, attendees }, video, key) : null;
+  const answer = remote
+    ? await pushCreate(
+        ctx,
+        remote,
+        { title, startsAt, endsAt, allDay: input.allDay === true, location, description, attendees },
+        video,
+        key,
+      )
+    : null;
   const providerId = answer ? text(answer["id"]) || null : null;
   const row: NewEvent = {
-    calendarId: input.calendarId, title, startsAt, endsAt, allDay: input.allDay === true, location, joinUrl: zoom?.url ?? null, joinProvider, description, agenda, attendees, organizer: null,
-    recordIds, meetingId: null, providerId, status: "confirmed", bookedByAgentId: bookedBy ?? null, fromBookingPage: booking ?? null, conference: zoom ?? null,
+    calendarId: input.calendarId,
+    title,
+    startsAt,
+    endsAt,
+    allDay: input.allDay === true,
+    location,
+    joinUrl: zoom?.url ?? null,
+    joinProvider,
+    description,
+    agenda,
+    attendees,
+    organizer: null,
+    recordIds,
+    meetingId: null,
+    providerId,
+    status: "confirmed",
+    bookedByAgentId: bookedBy ?? null,
+    fromBookingPage: booking ?? null,
+    conference: zoom ?? null,
   };
   const id = insertEvent(ctx, row);
   created(ctx, id, input.calendarId, startsAt, attendees.length, booking ? "booking" : "vyre");
@@ -362,13 +608,24 @@ const MEETING_FIELDS = new Set(["title", "startsAt", "endsAt", "allDay", "attend
 export async function updateEvent(
   ctx: CalCtx,
   input: {
-    eventId: string; title?: string; startsAt?: number; endsAt?: number; allDay?: boolean; location?: string; description?: string; agenda?: string; attendees?: unknown[];
-    joinProvider?: JoinProvider; scope?: "this" | "all"; video?: Video;
+    eventId: string;
+    title?: string;
+    startsAt?: number;
+    endsAt?: number;
+    allDay?: boolean;
+    location?: string;
+    description?: string;
+    agenda?: string;
+    attendees?: unknown[];
+    joinProvider?: JoinProvider;
+    scope?: "this" | "all";
+    video?: Video;
   },
   opts: { push?: boolean } = {},
 ): Promise<{ event: EventOut; changed?: number; notice?: string }> {
   ensure(ctx);
-  if (input.scope !== undefined && input.scope !== "this" && input.scope !== "all") bad(ctx, "The scope is this or all.");
+  if (input.scope !== undefined && input.scope !== "this" && input.scope !== "all")
+    bad(ctx, "The scope is this or all.");
   const row = eventRow(ctx, input.eventId, "edit");
   const remote = remoteOf(ctx, str(row, "calendarId"));
   const providerId = strOrNull(row, "providerId");
@@ -391,18 +648,32 @@ export async function updateEvent(
     if (typeof input.allDay !== "boolean") bad(ctx, "All day is true or false.");
     put("allDay", input.allDay ? 1 : 0, num(row, "allDay"));
   }
-  if (input.location !== undefined) put("location", clean(ctx, input.location, "The location", 500) || null, strOrNull(row, "location"));
-  if (input.description !== undefined) put("description", clean(ctx, input.description, "The description", 20_000) || null, strOrNull(row, "description"));
-  if (input.agenda !== undefined) put("agenda", clean(ctx, input.agenda, "The agenda", 20_000) || null, strOrNull(row, "agenda"));
-  if (input.joinProvider !== undefined) put("joinProvider", checkJoin(ctx, input.joinProvider), str(row, "joinProvider") || "none");
+  if (input.location !== undefined)
+    put("location", clean(ctx, input.location, "The location", 500) || null, strOrNull(row, "location"));
+  if (input.description !== undefined)
+    put("description", clean(ctx, input.description, "The description", 20_000) || null, strOrNull(row, "description"));
+  if (input.agenda !== undefined)
+    put("agenda", clean(ctx, input.agenda, "The agenda", 20_000) || null, strOrNull(row, "agenda"));
+  if (input.joinProvider !== undefined)
+    put("joinProvider", checkJoin(ctx, input.joinProvider), str(row, "joinProvider") || "none");
   if (input.attendees !== undefined) {
     const next = JSON.stringify(cleanAttendees(ctx, input.attendees, readAttendees(row.attendees)));
     put("attendees", next, JSON.stringify(readAttendees(row.attendees)));
   }
   // Add a video call: a Zoom meeting is made and its lines join the description; Meet and Teams are asked of the provider with the change
   if (video === "zoom") {
-    const zoom = await zoomFor(ctx, str(row, "title"), num(row, "startsAt"), num(row, "endsAt"), `cal:video:${input.eventId}:${num(row, "version")}`);
-    put("description", [strOrNull(row, "description"), conferenceLines(zoom)].filter(Boolean).join("\n\n"), strOrNull(row, "description"));
+    const zoom = await zoomFor(
+      ctx,
+      str(row, "title"),
+      num(row, "startsAt"),
+      num(row, "endsAt"),
+      `cal:video:${input.eventId}:${num(row, "version")}`,
+    );
+    put(
+      "description",
+      [strOrNull(row, "description"), conferenceLines(zoom)].filter(Boolean).join("\n\n"),
+      strOrNull(row, "description"),
+    );
     put("joinUrl", zoom.url ?? null, strOrNull(row, "joinUrl"));
     put("joinProvider", "zoom", str(row, "joinProvider") || "none");
     put("conference", JSON.stringify(zoom), strOrNull(row, "conference"));
@@ -410,7 +681,9 @@ export async function updateEvent(
   if (!changed.length && video === "none") return { event: toEvent(row) };
   // the change goes to the provider first; a provider whose copy moved on keeps its version, and Vyre takes it
   let answer: Json | null = null;
-  const pushed = (["title", "startsAt", "endsAt", "allDay", "location", "description", "attendees"] as const).filter((f) => set.has(f));
+  const pushed = (["title", "startsAt", "endsAt", "allDay", "location", "description", "attendees"] as const).filter(
+    (f) => set.has(f),
+  );
   if (remote && providerId && opts.push !== false && (pushed.length || video !== "none")) {
     const was = fieldsOf(row);
     const fields: PushFields = {};
@@ -424,18 +697,38 @@ export async function updateEvent(
       fields.allDay = set.has("allDay") ? set.get("allDay") === 1 : was.allDay === true;
     }
     try {
-      answer = await pushUpdate(ctx, remote, providerId, fields, video === "zoom" ? "none" : video, `cal:update:${input.eventId}:${num(row, "version")}`);
+      answer = await pushUpdate(
+        ctx,
+        remote,
+        providerId,
+        fields,
+        video === "zoom" ? "none" : video,
+        `cal:update:${input.eventId}:${num(row, "version")}`,
+      );
     } catch (e) {
       if (codeOf(e) !== "validation.precondition_failed") throw e;
       // provider wins: its copy comes back into Vyre's and the change is not forced
       await takeAnswer(ctx, remote, str(row, "calendarId"), await pushRead(ctx, remote, providerId));
-      return { event: toEvent(eventRow(ctx, input.eventId)), notice: `This event changed in ${remote.provider === "google" ? "Google Calendar" : "Outlook"} meanwhile, so Vyre kept that version.` };
+      return {
+        event: toEvent(eventRow(ctx, input.eventId)),
+        notice: `This event changed in ${remote.provider === "google" ? "Google Calendar" : "Outlook"} meanwhile, so Vyre kept that version.`,
+      };
     }
   }
   const names = [...set.keys()];
   if (names.length) {
-    ctx.db.run(`UPDATE calendar_event SET ${names.map((n) => `${quoted(n)} = ?`).join(", ")}, version = ?, updated_at = ? WHERE id = ?`, ...names.map((n) => set.get(n) ?? null), num(row, "version") + 1, ctx.now(), input.eventId);
-    ctx.emit("calendar_event.updated", `entity/${input.eventId}`, { eventId: input.eventId, calendarId: str(row, "calendarId"), fields: changed });
+    ctx.db.run(
+      `UPDATE calendar_event SET ${names.map((n) => `${quoted(n)} = ?`).join(", ")}, version = ?, updated_at = ? WHERE id = ?`,
+      ...names.map((n) => set.get(n) ?? null),
+      num(row, "version") + 1,
+      ctx.now(),
+      input.eventId,
+    );
+    ctx.emit("calendar_event.updated", `entity/${input.eventId}`, {
+      eventId: input.eventId,
+      calendarId: str(row, "calendarId"),
+      fields: changed,
+    });
   }
   if (answer && remote) await takeAnswer(ctx, remote, str(row, "calendarId"), answer);
   if (changed.some((f) => MEETING_FIELDS.has(f))) await joinMeeting(ctx, input.eventId);
@@ -446,20 +739,52 @@ export async function updateEvent(
  * "All events" of a repeating event: the instances of the series that have not ended, and this one, take the new title, place, description, agenda, guests and link, and move by the
  * same change of time of day and length (each keeps its own date). Ended instances stay as they happened. Each changed instance says so once, as a single update would.
  */
-async function updateSeries(ctx: CalCtx, row: Row, input: { eventId: string; title?: string; startsAt?: number; endsAt?: number; allDay?: boolean; location?: string; description?: string; agenda?: string; attendees?: unknown[]; joinProvider?: JoinProvider }, remote: Remote | null): Promise<{ event: EventOut; changed: number }> {
-  const s0 = num(row, "startsAt"), e0 = num(row, "endsAt");
-  const t = input.startsAt !== undefined || input.endsAt !== undefined ? checkTimes(ctx, input.startsAt ?? s0, input.endsAt ?? e0) : { startsAt: s0, endsAt: e0 };
-  const shift = t.startsAt - s0, length = t.endsAt - t.startsAt;
+async function updateSeries(
+  ctx: CalCtx,
+  row: Row,
+  input: {
+    eventId: string;
+    title?: string;
+    startsAt?: number;
+    endsAt?: number;
+    allDay?: boolean;
+    location?: string;
+    description?: string;
+    agenda?: string;
+    attendees?: unknown[];
+    joinProvider?: JoinProvider;
+  },
+  remote: Remote | null,
+): Promise<{ event: EventOut; changed: number }> {
+  const s0 = num(row, "startsAt"),
+    e0 = num(row, "endsAt");
+  const t =
+    input.startsAt !== undefined || input.endsAt !== undefined
+      ? checkTimes(ctx, input.startsAt ?? s0, input.endsAt ?? e0)
+      : { startsAt: s0, endsAt: e0 };
+  const shift = t.startsAt - s0,
+    length = t.endsAt - t.startsAt;
   const now = ctx.now();
-  const series = rowsOf(ctx.db.all(`SELECT * FROM calendar_event WHERE "calendarId" = ? AND "seriesId" = ?`, str(row, "calendarId"), str(row, "seriesId")))
-    .filter((r) => num(r, "deleted_at") === 0 && (str(r, "id") === str(row, "id") || num(r, "endsAt") > now)).sort((a, b) => num(a, "startsAt") - num(b, "startsAt"));
+  const series = rowsOf(
+    ctx.db.all(
+      `SELECT * FROM calendar_event WHERE "calendarId" = ? AND "seriesId" = ?`,
+      str(row, "calendarId"),
+      str(row, "seriesId"),
+    ),
+  )
+    .filter((r) => num(r, "deleted_at") === 0 && (str(r, "id") === str(row, "id") || num(r, "endsAt") > now))
+    .sort((a, b) => num(a, "startsAt") - num(b, "startsAt"));
   let changed = 0;
   for (const r of series) {
     const id = str(r, "id");
     // this instance takes the times it was given; the others keep their date and move by the same amount, with the new length
     const startsAt = id === input.eventId ? t.startsAt : num(r, "startsAt") + shift;
     const { scope: _s, eventId: _e, ...rest } = input as typeof input & { scope?: string };
-    const out = await updateEvent(ctx, { ...rest, eventId: id, ...(shift !== 0 || length !== e0 - s0 ? { startsAt, endsAt: startsAt + length } : {}) }, { push: false });
+    const out = await updateEvent(
+      ctx,
+      { ...rest, eventId: id, ...(shift !== 0 || length !== e0 - s0 ? { startsAt, endsAt: startsAt + length } : {}) },
+      { push: false },
+    );
     if (out.event) changed++;
   }
   // the provider gets one change, on the series itself: its master takes the new fields and moves by the same amount; the next pull brings every instance back from it
@@ -471,8 +796,13 @@ async function updateSeries(ctx: CalCtx, row: Row, input: { eventId: string; tit
     if (input.title !== undefined) fields.title = input.title;
     if (input.location !== undefined) fields.location = input.location;
     if (input.description !== undefined) fields.description = input.description;
-    if (input.attendees !== undefined) fields.attendees = cleanAttendees(ctx, input.attendees, readAttendees(row.attendees));
-    if ((shift !== 0 || length !== e0 - s0) && ms !== undefined) { fields.startsAt = ms + shift; fields.endsAt = ms + shift + length; fields.allDay = num(row, "allDay") === 1; }
+    if (input.attendees !== undefined)
+      fields.attendees = cleanAttendees(ctx, input.attendees, readAttendees(row.attendees));
+    if ((shift !== 0 || length !== e0 - s0) && ms !== undefined) {
+      fields.startsAt = ms + shift;
+      fields.endsAt = ms + shift + length;
+      fields.allDay = num(row, "allDay") === 1;
+    }
     await pushUpdate(ctx, remote, master, fields, "none", `cal:series:${master}:${num(row, "version")}`);
   }
   return { event: toEvent(eventRow(ctx, input.eventId)), changed };
@@ -482,8 +812,10 @@ async function updateSeries(ctx: CalCtx, row: Row, input: { eventId: string; tit
 function checkVideo(ctx: CalCtx, v: unknown, remote: Remote | null): Video {
   if (v === undefined || v === "none") return "none";
   if (v !== "meet" && v !== "zoom" && v !== "teams") bad(ctx, "The video call is meet, zoom, teams or none.");
-  if (v === "meet" && remote?.provider !== "google") refuse(ctx, "A Google Meet link comes with a Google calendar. Put the event on one, or pick Zoom.");
-  if (v === "teams" && remote?.provider !== "microsoft") refuse(ctx, "A Teams meeting comes with a Microsoft calendar. Put the event on one, or pick Zoom.");
+  if (v === "meet" && remote?.provider !== "google")
+    refuse(ctx, "A Google Meet link comes with a Google calendar. Put the event on one, or pick Zoom.");
+  if (v === "teams" && remote?.provider !== "microsoft")
+    refuse(ctx, "A Teams meeting comes with a Microsoft calendar. Put the event on one, or pick Zoom.");
   return v as Video;
 }
 
@@ -499,69 +831,135 @@ const quoted = (name: string): string => (/^[a-z]+$/.test(name) ? name : `"${nam
 export async function deleteEvent(ctx: CalCtx, input: { eventId: string }): Promise<{ deleted: boolean }> {
   ensure(ctx);
   if (!isId("cev", input.eventId)) bad(ctx, "That is not an event id.");
-  const row = first(ctx.db.all(`SELECT * FROM calendar_event WHERE id = ?`, input.eventId)) ?? missing(ctx, "There is no such event.");
+  const row =
+    first(ctx.db.all(`SELECT * FROM calendar_event WHERE id = ?`, input.eventId)) ??
+    missing(ctx, "There is no such event.");
   calendarRow(ctx, str(row, "calendarId"), "edit");
-  if (num(row, "deleted_at") > 0) return { deleted: true };   // Delete twice is one delete
+  if (num(row, "deleted_at") > 0) return { deleted: true }; // Delete twice is one delete
   // the provider deletes it first and tells the guests
   const remote = remoteOf(ctx, str(row, "calendarId"));
-  if (remote && strOrNull(row, "providerId")) await pushDelete(ctx, remote, str(row, "providerId"), `cal:delete:${input.eventId}:${num(row, "version")}`);
+  if (remote && strOrNull(row, "providerId"))
+    await pushDelete(ctx, remote, str(row, "providerId"), `cal:delete:${input.eventId}:${num(row, "version")}`);
   const now = ctx.now();
-  ctx.db.run(`UPDATE calendar_event SET "deletedAt" = ?, deleted_at = ?, version = ?, updated_at = ? WHERE id = ?`, now, now, num(row, "version") + 1, now, input.eventId);
-  ctx.emit("calendar_event.deleted", `entity/${input.eventId}`, { eventId: input.eventId, calendarId: str(row, "calendarId") });
+  ctx.db.run(
+    `UPDATE calendar_event SET "deletedAt" = ?, deleted_at = ?, version = ?, updated_at = ? WHERE id = ?`,
+    now,
+    now,
+    num(row, "version") + 1,
+    now,
+    input.eventId,
+  );
+  ctx.emit("calendar_event.deleted", `entity/${input.eventId}`, {
+    eventId: input.eventId,
+    calendarId: str(row, "calendarId"),
+  });
   return { deleted: true };
 }
 
 export async function restoreEvent(ctx: CalCtx, input: { eventId: string }): Promise<{ event: EventOut }> {
   ensure(ctx);
   if (!isId("cev", input.eventId)) bad(ctx, "That is not an event id.");
-  const row = first(ctx.db.all(`SELECT * FROM calendar_event WHERE id = ?`, input.eventId)) ?? missing(ctx, "There is no such event.");
+  const row =
+    first(ctx.db.all(`SELECT * FROM calendar_event WHERE id = ?`, input.eventId)) ??
+    missing(ctx, "There is no such event.");
   calendarRow(ctx, str(row, "calendarId"), "edit");
   if (num(row, "deleted_at") > 0) {
     // a provider event was deleted there too: Undo makes it again, and the new one is this event
     const remote = remoteOf(ctx, str(row, "calendarId"));
-    const answer = remote && strOrNull(row, "providerId") ? await pushCreate(ctx, remote, fieldsOf(row), "none", `cal:restore:${input.eventId}:${num(row, "version")}`) : null;
-    ctx.db.run(`UPDATE calendar_event SET "deletedAt" = ?, deleted_at = ?, version = ?, updated_at = ?${answer ? `, "providerId" = ?` : ""} WHERE id = ?`, null, null, num(row, "version") + 1, ctx.now(), ...(answer ? [text(answer["id"])] : []), input.eventId);
-    ctx.emit("calendar_event.restored", `entity/${input.eventId}`, { eventId: input.eventId, calendarId: str(row, "calendarId") });
+    const answer =
+      remote && strOrNull(row, "providerId")
+        ? await pushCreate(ctx, remote, fieldsOf(row), "none", `cal:restore:${input.eventId}:${num(row, "version")}`)
+        : null;
+    ctx.db.run(
+      `UPDATE calendar_event SET "deletedAt" = ?, deleted_at = ?, version = ?, updated_at = ?${answer ? `, "providerId" = ?` : ""} WHERE id = ?`,
+      null,
+      null,
+      num(row, "version") + 1,
+      ctx.now(),
+      ...(answer ? [text(answer["id"])] : []),
+      input.eventId,
+    );
+    ctx.emit("calendar_event.restored", `entity/${input.eventId}`, {
+      eventId: input.eventId,
+      calendarId: str(row, "calendarId"),
+    });
     if (answer && remote) await takeAnswer(ctx, remote, str(row, "calendarId"), answer);
   }
   return { event: toEvent(eventRow(ctx, input.eventId)) };
 }
 
-export async function duplicateEvent(ctx: CalCtx, input: { eventId: string; startsAt?: number }): Promise<{ event: EventOut }> {
+export async function duplicateEvent(
+  ctx: CalCtx,
+  input: { eventId: string; startsAt?: number },
+): Promise<{ event: EventOut }> {
   ensure(ctx);
   const row = eventRow(ctx, input.eventId, "edit");
   const length = num(row, "endsAt") - num(row, "startsAt");
   let startsAt = num(row, "startsAt");
   if (input.startsAt !== undefined) {
-    if (!Number.isSafeInteger(input.startsAt) || input.startsAt < 0) bad(ctx, "Times are milliseconds since the epoch.");
+    if (!Number.isSafeInteger(input.startsAt) || input.startsAt < 0)
+      bad(ctx, "Times are milliseconds since the epoch.");
     startsAt = input.startsAt;
   }
   const attendees = readAttendees(row.attendees).map((a) => ({ ...a, response: "needs_action" as Response }));
   const id = insertEvent(ctx, {
-    calendarId: str(row, "calendarId"), title: str(row, "title"), startsAt, endsAt: startsAt + length, allDay: num(row, "allDay") === 1, location: strOrNull(row, "location"), joinUrl: null,
-    joinProvider: toEvent(row).joinProvider, description: strOrNull(row, "description"), agenda: strOrNull(row, "agenda"), attendees, organizer: null, recordIds: readStrings(row.recordIds),
-    meetingId: null, providerId: null, status: "confirmed", bookedByAgentId: null, fromBookingPage: null,
+    calendarId: str(row, "calendarId"),
+    title: str(row, "title"),
+    startsAt,
+    endsAt: startsAt + length,
+    allDay: num(row, "allDay") === 1,
+    location: strOrNull(row, "location"),
+    joinUrl: null,
+    joinProvider: toEvent(row).joinProvider,
+    description: strOrNull(row, "description"),
+    agenda: strOrNull(row, "agenda"),
+    attendees,
+    organizer: null,
+    recordIds: readStrings(row.recordIds),
+    meetingId: null,
+    providerId: null,
+    status: "confirmed",
+    bookedByAgentId: null,
+    fromBookingPage: null,
   });
   created(ctx, id, str(row, "calendarId"), startsAt, attendees.length, "vyre");
   await joinMeeting(ctx, id);
   return { event: toEvent(eventRow(ctx, id)) };
 }
 
-export async function moveToCalendar(ctx: CalCtx, input: { eventId: string; calendarId: string }): Promise<{ event: EventOut }> {
+export async function moveToCalendar(
+  ctx: CalCtx,
+  input: { eventId: string; calendarId: string },
+): Promise<{ event: EventOut }> {
   ensure(ctx);
   const row = eventRow(ctx, input.eventId, "edit");
   const target = calendarRow(ctx, input.calendarId, "edit");
   if (str(row, "calendarId") === input.calendarId) return { event: toEvent(row) };
   // The provider knows the event under the old calendar; on the new one it is a new event, so the old provider id goes.
-  ctx.db.run(`UPDATE calendar_event SET "calendarId" = ?, "providerId" = ?, version = ?, updated_at = ? WHERE id = ?`, str(target, "id"), null, num(row, "version") + 1, ctx.now(), input.eventId);
-  ctx.emit("calendar_event.updated", `entity/${input.eventId}`, { eventId: input.eventId, calendarId: input.calendarId, fields: ["calendarId"] });
+  ctx.db.run(
+    `UPDATE calendar_event SET "calendarId" = ?, "providerId" = ?, version = ?, updated_at = ? WHERE id = ?`,
+    str(target, "id"),
+    null,
+    num(row, "version") + 1,
+    ctx.now(),
+    input.eventId,
+  );
+  ctx.emit("calendar_event.updated", `entity/${input.eventId}`, {
+    eventId: input.eventId,
+    calendarId: input.calendarId,
+    fields: ["calendarId"],
+  });
   return { event: toEvent(eventRow(ctx, input.eventId)) };
 }
 
-export async function respond(ctx: CalCtx, input: { eventId: string; response: "accepted" | "declined" | "tentative"; comment?: string }): Promise<{ event: EventOut }> {
+export async function respond(
+  ctx: CalCtx,
+  input: { eventId: string; response: "accepted" | "declined" | "tentative"; comment?: string },
+): Promise<{ event: EventOut }> {
   ensure(ctx);
   const row = eventRow(ctx, input.eventId, "view");
-  if (input.response !== "accepted" && input.response !== "declined" && input.response !== "tentative") bad(ctx, "Answer accepted, declined or tentative.");
+  if (input.response !== "accepted" && input.response !== "declined" && input.response !== "tentative")
+    bad(ctx, "Answer accepted, declined or tentative.");
   if (input.comment !== undefined && typeof input.comment !== "string") bad(ctx, "The comment must be text.");
   const mine = new Set((await addressesOf(ctx)).filter((a) => a.owner === personOf(ctx)).map((a) => a.address));
   const attendees = readAttendees(row.attendees);
@@ -570,23 +968,49 @@ export async function respond(ctx: CalCtx, input: { eventId: string; response: "
   const guest = attendees[at] as Attendee;
   if (guest.response !== input.response) {
     attendees[at] = { ...guest, response: input.response };
-    ctx.db.run(`UPDATE calendar_event SET attendees = ?, version = ?, updated_at = ? WHERE id = ?`, JSON.stringify(attendees), num(row, "version") + 1, ctx.now(), input.eventId);
-    ctx.emit("calendar_event.response_changed", `entity/${input.eventId}`, { eventId: input.eventId, email: normalizeEmail(guest.email), response: input.response });
+    ctx.db.run(
+      `UPDATE calendar_event SET attendees = ?, version = ?, updated_at = ? WHERE id = ?`,
+      JSON.stringify(attendees),
+      num(row, "version") + 1,
+      ctx.now(),
+      input.eventId,
+    );
+    ctx.emit("calendar_event.response_changed", `entity/${input.eventId}`, {
+      eventId: input.eventId,
+      email: normalizeEmail(guest.email),
+      response: input.response,
+    });
   }
   return { event: toEvent(eventRow(ctx, input.eventId)) };
 }
 
-export async function linkRecord(ctx: CalCtx, input: { eventId: string; recordIds: string[]; unlink?: boolean }): Promise<{ event: EventOut }> {
+export async function linkRecord(
+  ctx: CalCtx,
+  input: { eventId: string; recordIds: string[]; unlink?: boolean },
+): Promise<{ event: EventOut }> {
   ensure(ctx);
   const row = eventRow(ctx, input.eventId, "edit");
   const ids = checkRecords(ctx, input.recordIds);
   if (!ids.length) bad(ctx, "Give at least one record.");
   const have = readStrings(row.recordIds);
-  const next = input.unlink === true ? have.filter((id) => !ids.includes(id)) : [...have, ...ids.filter((id) => !have.includes(id))];
+  const next =
+    input.unlink === true
+      ? have.filter((id) => !ids.includes(id))
+      : [...have, ...ids.filter((id) => !have.includes(id))];
   if (next.length > 100) bad(ctx, "An event links at most 100 records.");
   if (JSON.stringify(next) !== JSON.stringify(have)) {
-    ctx.db.run(`UPDATE calendar_event SET "recordIds" = ?, version = ?, updated_at = ? WHERE id = ?`, JSON.stringify(next), num(row, "version") + 1, ctx.now(), input.eventId);
-    ctx.emit("calendar_event.updated", `entity/${input.eventId}`, { eventId: input.eventId, calendarId: str(row, "calendarId"), fields: ["recordIds"] });
+    ctx.db.run(
+      `UPDATE calendar_event SET "recordIds" = ?, version = ?, updated_at = ? WHERE id = ?`,
+      JSON.stringify(next),
+      num(row, "version") + 1,
+      ctx.now(),
+      input.eventId,
+    );
+    ctx.emit("calendar_event.updated", `entity/${input.eventId}`, {
+      eventId: input.eventId,
+      calendarId: str(row, "calendarId"),
+      fields: ["recordIds"],
+    });
   }
   return { event: toEvent(eventRow(ctx, input.eventId)) };
 }
@@ -597,12 +1021,18 @@ export async function linkRecord(ctx: CalCtx, input: { eventId: string; recordId
 export const JOIN_ATTEMPTS = 5;
 export const JOIN_BACKOFF_MS = 30_000;
 const JOIN_BACKOFF_MAX_MS = 3_600_000;
-interface JoinMiss { n: number; next: number }
+interface JoinMiss {
+  n: number;
+  next: number;
+}
 /** Failed joins per event, per Space database (kept in memory: a restart gives each event its attempts again). */
 const joinMisses = new WeakMap<object, Map<string, JoinMiss>>();
 const missesOf = (ctx: CalCtx): Map<string, JoinMiss> => {
   let m = joinMisses.get(ctx.db);
-  if (!m) { m = new Map(); joinMisses.set(ctx.db, m); }
+  if (!m) {
+    m = new Map();
+    joinMisses.set(ctx.db, m);
+  }
   return m;
 };
 
@@ -612,34 +1042,63 @@ async function joinMeeting(ctx: CalCtx, eventId: string): Promise<{ meetingId?: 
   if (!row) return { merged: false };
   const ev = toEvent(row);
   const known = ev.meetingId;
-  if (ev.status === "canceled" || ev.allDay || !ev.attendees.length || num(row, "deleted_at") > 0) return known ? { meetingId: known, merged: false } : { merged: false };
+  if (ev.status === "canceled" || ev.allDay || !ev.attendees.length || num(row, "deleted_at") > 0)
+    return known ? { meetingId: known, merged: false } : { merged: false };
   const misses = missesOf(ctx);
   const missed = misses.get(eventId);
-  if (missed && (missed.n >= JOIN_ATTEMPTS || ctx.now() < missed.next)) return known ? { meetingId: known, merged: false } : { merged: false };
+  if (missed && (missed.n >= JOIN_ATTEMPTS || ctx.now() < missed.next))
+    return known ? { meetingId: known, merged: false } : { merged: false };
   const body: Json = {
-    source: "calendar", providerRef: strOrNull(row, "providerId") ?? eventId, calendarEventId: eventId, title: ev.title, startsAt: ev.startsAt, endsAt: ev.endsAt,
-    attendees: ev.attendees.map((a) => ({ email: a.email, ...(a.name ? { name: a.name } : {}), ...(a.contactId ? { contactId: a.contactId } : {}) })),
+    source: "calendar",
+    providerRef: strOrNull(row, "providerId") ?? eventId,
+    calendarEventId: eventId,
+    title: ev.title,
+    startsAt: ev.startsAt,
+    endsAt: ev.endsAt,
+    attendees: ev.attendees.map((a) => ({
+      email: a.email,
+      ...(a.name ? { name: a.name } : {}),
+      ...(a.contactId ? { contactId: a.contactId } : {}),
+    })),
   };
   if (ev.joinUrl) body.joinUrl = ev.joinUrl;
   try {
     const res = obj(await ctx.call("meetings.ingest", body));
     const meetingId = text(res.meetingId);
-    if (meetingId && meetingId !== known) ctx.db.run(`UPDATE calendar_event SET "meetingId" = ?, version = ?, updated_at = ? WHERE id = ?`, meetingId, num(row, "version") + 1, ctx.now(), eventId);
+    if (meetingId && meetingId !== known)
+      ctx.db.run(
+        `UPDATE calendar_event SET "meetingId" = ?, version = ?, updated_at = ? WHERE id = ?`,
+        meetingId,
+        num(row, "version") + 1,
+        ctx.now(),
+        eventId,
+      );
     misses.delete(eventId);
     return meetingId ? { meetingId, merged: res.merged === true } : { merged: false };
   } catch (e) {
     const n = (missed?.n ?? 0) + 1;
     misses.set(eventId, { n, next: ctx.now() + Math.min(JOIN_BACKOFF_MS * 2 ** (n - 1), JOIN_BACKOFF_MAX_MS) });
     // one warning when it gives up; the tries before it are quiet
-    if (n >= JOIN_ATTEMPTS) ctx.log.warn("calendar: could not join the event to a meeting; not trying again until the daemon restarts", { code: codeOf(e), attempts: n });
-    else ctx.log.info("calendar: could not join the event to a meeting; trying again later", { code: codeOf(e), attempt: n });
+    if (n >= JOIN_ATTEMPTS)
+      ctx.log.warn("calendar: could not join the event to a meeting; not trying again until the daemon restarts", {
+        code: codeOf(e),
+        attempts: n,
+      });
+    else
+      ctx.log.info("calendar: could not join the event to a meeting; trying again later", {
+        code: codeOf(e),
+        attempt: n,
+      });
     return known ? { meetingId: known, merged: false } : { merged: false };
   }
 }
 
 // ---- people, availability and Find a time
 
-interface Address { owner: string; address: string }
+interface Address {
+  owner: string;
+  address: string;
+}
 
 /** Every member's personal mailbox address: the way to go from a member to an email and back. A mail module that is down gives an empty answer. */
 async function addressesOf(ctx: CalCtx): Promise<Address[]> {
@@ -658,19 +1117,30 @@ async function addressesOf(ctx: CalCtx): Promise<Address[]> {
   }
 }
 
-interface Busy { who: string; startsAt: number; endsAt: number }
+interface Busy {
+  who: string;
+  startsAt: number;
+  endsAt: number;
+}
 
-async function busyOf(ctx: CalCtx, people: unknown, from: number, to: number): Promise<{ busy: Busy[]; unknown: string[] }> {
+async function busyOf(
+  ctx: CalCtx,
+  people: unknown,
+  from: number,
+  to: number,
+): Promise<{ busy: Busy[]; unknown: string[] }> {
   if (!Array.isArray(people) || people.length < 1 || people.length > 50) bad(ctx, "Ask about 1 to 50 people.");
-  if (!Number.isSafeInteger(from) || !Number.isSafeInteger(to) || to <= from) bad(ctx, "The range ends after it starts.");
+  if (!Number.isSafeInteger(from) || !Number.isSafeInteger(to) || to <= from)
+    bad(ctx, "The range ends after it starts.");
   if (to - from > MAX_RANGE) bad(ctx, "Ask for at most two months at a time.");
   const who = [...new Set(people)].map((p) => {
     if (typeof p !== "string") bad(ctx, "A person is a member id or an email address.");
     return p.trim();
   });
   const addresses = await addressesOf(ctx);
-  const events = rowsOf(ctx.db.all(`SELECT * FROM calendar_event WHERE "startsAt" < ? AND "endsAt" > ? AND deleted_at IS NULL`, to, from))
-    .filter((e) => num(e, "allDay") !== 1 && str(e, "status") !== "canceled");
+  const events = rowsOf(
+    ctx.db.all(`SELECT * FROM calendar_event WHERE "startsAt" < ? AND "endsAt" > ? AND deleted_at IS NULL`, to, from),
+  ).filter((e) => num(e, "allDay") !== 1 && str(e, "status") !== "canceled");
   const calendars = rowsOf(ctx.db.all(`SELECT id, "ownerId" FROM calendar_list WHERE deleted_at IS NULL`));
   const busy: Busy[] = [];
   const unknown: string[] = [];
@@ -705,7 +1175,10 @@ async function busyOf(ctx: CalCtx, people: unknown, from: number, to: number): P
   return { busy, unknown };
 }
 
-export async function availability(ctx: CalCtx, input: { people: string[]; from: number; to: number }): Promise<{ busy: Busy[]; unknown: string[] }> {
+export async function availability(
+  ctx: CalCtx,
+  input: { people: string[]; from: number; to: number },
+): Promise<{ busy: Busy[]; unknown: string[] }> {
   ensure(ctx);
   return busyOf(ctx, input.people, input.from, input.to);
 }
@@ -722,7 +1195,9 @@ async function hoursOf(ctx: CalCtx): Promise<Hours> {
     }
   };
   const wh = obj(await read("profile.working_hours"));
-  const days = list(wh.days).filter((d): d is number => Number.isInteger(d) && (d as number) >= 0 && (d as number) <= 6);
+  const days = list(wh.days).filter(
+    (d): d is number => Number.isInteger(d) && (d as number) >= 0 && (d as number) <= 6,
+  );
   if (days.length) hours.days = days;
   if (/^[0-2]\d:[0-5]\d$/.test(text(wh.from))) hours.from = text(wh.from);
   if (/^[0-2]\d:[0-5]\d$/.test(text(wh.to))) hours.to = text(wh.to);
@@ -732,16 +1207,33 @@ async function hoursOf(ctx: CalCtx): Promise<Hours> {
 }
 
 export async function findTime(
-  ctx: CalCtx, input: { people: string[]; durationMinutes: number; from: number; to: number; workingHoursOnly?: boolean; limit?: number },
+  ctx: CalCtx,
+  input: {
+    people: string[];
+    durationMinutes: number;
+    from: number;
+    to: number;
+    workingHoursOnly?: boolean;
+    limit?: number;
+  },
 ): Promise<{ slots: { startsAt: number; endsAt: number }[] }> {
   ensure(ctx);
-  if (!Number.isSafeInteger(input.durationMinutes) || input.durationMinutes < 5 || input.durationMinutes > 600) bad(ctx, "A meeting is 5 to 600 minutes long.");
+  if (!Number.isSafeInteger(input.durationMinutes) || input.durationMinutes < 5 || input.durationMinutes > 600)
+    bad(ctx, "A meeting is 5 to 600 minutes long.");
   const limit = input.limit ?? 5;
   if (!Number.isSafeInteger(limit) || limit < 1 || limit > 20) bad(ctx, "The limit is 1 to 20.");
-  if (input.workingHoursOnly !== undefined && typeof input.workingHoursOnly !== "boolean") bad(ctx, "Working hours only is true or false.");
+  if (input.workingHoursOnly !== undefined && typeof input.workingHoursOnly !== "boolean")
+    bad(ctx, "Working hours only is true or false.");
   const { busy } = await busyOf(ctx, input.people, input.from, input.to);
   const hours = input.workingHoursOnly === false ? null : await hoursOf(ctx);
-  const slots = freeSlots(mergeSpans(busy.map((b) => ({ s: b.startsAt, e: b.endsAt }))), input.from, input.to, input.durationMinutes * MINUTE_MS, limit, hours);
+  const slots = freeSlots(
+    mergeSpans(busy.map((b) => ({ s: b.startsAt, e: b.endsAt }))),
+    input.from,
+    input.to,
+    input.durationMinutes * MINUTE_MS,
+    limit,
+    hours,
+  );
   return { slots: slots.map((s) => ({ startsAt: s.s, endsAt: s.e })) };
 }
 
@@ -766,14 +1258,28 @@ export interface IngestIn {
 }
 
 /** Land one provider event: upsert by provider id, then merge with a meeting on time plus guests or on the join link. */
-export async function ingestEvent(ctx: CalCtx, input: IngestIn, prefetched?: Row | null): Promise<{ eventId: string; meetingId?: string; merged: boolean }> {
+export async function ingestEvent(
+  ctx: CalCtx,
+  input: IngestIn,
+  prefetched?: Row | null,
+): Promise<{ eventId: string; meetingId?: string; merged: boolean }> {
   ensure(ctx);
   if (input.source !== "google" && input.source !== "microsoft") bad(ctx, "The source is google or microsoft.");
   if (!isId("cld", input.calendarId)) bad(ctx, "That is not a calendar id.");
   const providerId = clean(ctx, input.providerId, "The provider id", 1000, true) ?? "";
-  if (!first(ctx.db.all(`SELECT id FROM calendar_list WHERE id = ? AND deleted_at IS NULL`, input.calendarId))) missing(ctx, "There is no such calendar.");
+  if (!first(ctx.db.all(`SELECT id FROM calendar_list WHERE id = ? AND deleted_at IS NULL`, input.calendarId)))
+    missing(ctx, "There is no such calendar.");
   // a pull reads the events of a whole page in one query and passes each one in (null: known to be absent); a lone ingest looks its event up
-  const have = prefetched !== undefined ? (prefetched ?? undefined) : first(ctx.db.all(`SELECT * FROM calendar_event WHERE "calendarId" = ? AND "providerId" = ?`, input.calendarId, providerId));
+  const have =
+    prefetched !== undefined
+      ? (prefetched ?? undefined)
+      : first(
+          ctx.db.all(
+            `SELECT * FROM calendar_event WHERE "calendarId" = ? AND "providerId" = ?`,
+            input.calendarId,
+            providerId,
+          ),
+        );
   const now = ctx.now();
   if (input.deleted === true) {
     if (!have) {
@@ -783,24 +1289,61 @@ export async function ingestEvent(ctx: CalCtx, input: IngestIn, prefetched?: Row
       return { eventId: id, merged: false };
     }
     if (num(have, "deleted_at") === 0) {
-      ctx.db.run(`UPDATE calendar_event SET "deletedAt" = ?, deleted_at = ?, version = ?, updated_at = ? WHERE id = ?`, now, now, num(have, "version") + 1, now, str(have, "id"));
-      ctx.emit("calendar_event.deleted", `entity/${str(have, "id")}`, { eventId: str(have, "id"), calendarId: input.calendarId });
+      ctx.db.run(
+        `UPDATE calendar_event SET "deletedAt" = ?, deleted_at = ?, version = ?, updated_at = ? WHERE id = ?`,
+        now,
+        now,
+        num(have, "version") + 1,
+        now,
+        str(have, "id"),
+      );
+      ctx.emit("calendar_event.deleted", `entity/${str(have, "id")}`, {
+        eventId: str(have, "id"),
+        calendarId: input.calendarId,
+      });
     }
-    return { eventId: str(have, "id"), ...(strOrNull(have, "meetingId") ? { meetingId: str(have, "meetingId") } : {}), merged: false };
+    return {
+      eventId: str(have, "id"),
+      ...(strOrNull(have, "meetingId") ? { meetingId: str(have, "meetingId") } : {}),
+      merged: false,
+    };
   }
-  const title = input.title === undefined ? undefined : (clean(ctx, input.title, "The title", 500) ?? "") || "(No title)";
-  const times = input.startsAt !== undefined || input.endsAt !== undefined || !have ? checkTimes(ctx, input.startsAt ?? (have ? num(have, "startsAt") : undefined), input.endsAt ?? (have ? num(have, "endsAt") : undefined)) : undefined;
-  const organizer = typeof input.organizer === "string" && EMAIL.test(normalizeEmail(input.organizer)) ? normalizeEmail(input.organizer) : undefined;
-  const attendees = input.attendees === undefined ? undefined : cleanAttendees(ctx, input.attendees, have ? readAttendees(have.attendees) : []);
+  const title =
+    input.title === undefined ? undefined : (clean(ctx, input.title, "The title", 500) ?? "") || "(No title)";
+  const times =
+    input.startsAt !== undefined || input.endsAt !== undefined || !have
+      ? checkTimes(
+          ctx,
+          input.startsAt ?? (have ? num(have, "startsAt") : undefined),
+          input.endsAt ?? (have ? num(have, "endsAt") : undefined),
+        )
+      : undefined;
+  const organizer =
+    typeof input.organizer === "string" && EMAIL.test(normalizeEmail(input.organizer))
+      ? normalizeEmail(input.organizer)
+      : undefined;
+  const attendees =
+    input.attendees === undefined
+      ? undefined
+      : cleanAttendees(ctx, input.attendees, have ? readAttendees(have.attendees) : []);
   let eventId: string;
   // An event the person deleted here stays deleted: their delete is on its way to the provider, and a pull that still shows it must not bring it back.
   if (have && num(have, "deleted_at") > 0) return { eventId: str(have, "id"), merged: false };
   if (!have) {
     eventId = insertEvent(ctx, {
-      ...blank(input.calendarId, providerId), title: title ?? "(No title)", startsAt: times?.startsAt ?? 0, endsAt: times?.endsAt ?? 0, allDay: input.allDay === true,
-      location: clean(ctx, input.location, "The location", 500) || null, joinUrl: clean(ctx, input.joinUrl, "The join link", 2000) || null,
-      description: clean(ctx, input.description, "The description", 20_000) || null, attendees: attendees ?? [], organizer: organizer ?? null,
-      joinProvider: joinKind(input.joinUrl, input.source), seriesId: clean(ctx, input.seriesId, "The series id", 1000) || null, conference: input.conference ?? null,
+      ...blank(input.calendarId, providerId),
+      title: title ?? "(No title)",
+      startsAt: times?.startsAt ?? 0,
+      endsAt: times?.endsAt ?? 0,
+      allDay: input.allDay === true,
+      location: clean(ctx, input.location, "The location", 500) || null,
+      joinUrl: clean(ctx, input.joinUrl, "The join link", 2000) || null,
+      description: clean(ctx, input.description, "The description", 20_000) || null,
+      attendees: attendees ?? [],
+      organizer: organizer ?? null,
+      joinProvider: joinKind(input.joinUrl, input.source),
+      seriesId: clean(ctx, input.seriesId, "The series id", 1000) || null,
+      conference: input.conference ?? null,
     });
     created(ctx, eventId, input.calendarId, times?.startsAt ?? 0, (attendees ?? []).length, input.source);
   } else {
@@ -818,23 +1361,44 @@ export async function ingestEvent(ctx: CalCtx, input: IngestIn, prefetched?: Row
       put("endsAt", times.endsAt, num(have, "endsAt"));
     }
     if (input.allDay !== undefined) put("allDay", input.allDay ? 1 : 0, num(have, "allDay"));
-    if (input.location !== undefined) put("location", clean(ctx, input.location, "The location", 500) || null, strOrNull(have, "location"));
+    if (input.location !== undefined)
+      put("location", clean(ctx, input.location, "The location", 500) || null, strOrNull(have, "location"));
     if (input.joinUrl !== undefined) {
       put("joinUrl", clean(ctx, input.joinUrl, "The join link", 2000) || null, strOrNull(have, "joinUrl"));
       put("joinProvider", joinKind(input.joinUrl, input.source), str(have, "joinProvider") || "none");
     }
-    if (input.description !== undefined) put("description", clean(ctx, input.description, "The description", 20_000) || null, strOrNull(have, "description"));
+    if (input.description !== undefined)
+      put(
+        "description",
+        clean(ctx, input.description, "The description", 20_000) || null,
+        strOrNull(have, "description"),
+      );
     if (organizer !== undefined) put("organizer", organizer, strOrNull(have, "organizer"));
-    if (attendees !== undefined) put("attendees", JSON.stringify(attendees), JSON.stringify(readAttendees(have.attendees)));
-    if (input.seriesId !== undefined) put("seriesId", clean(ctx, input.seriesId, "The series id", 1000) || null, strOrNull(have, "seriesId"));
-    if (input.conference !== undefined) put("conference", JSON.stringify(input.conference), strOrNull(have, "conference"));
+    if (attendees !== undefined)
+      put("attendees", JSON.stringify(attendees), JSON.stringify(readAttendees(have.attendees)));
+    if (input.seriesId !== undefined)
+      put("seriesId", clean(ctx, input.seriesId, "The series id", 1000) || null, strOrNull(have, "seriesId"));
+    if (input.conference !== undefined)
+      put("conference", JSON.stringify(input.conference), strOrNull(have, "conference"));
     if (set.size) {
       const names = [...set.keys()];
-      ctx.db.run(`UPDATE calendar_event SET ${names.map((n) => `${quoted(n)} = ?`).join(", ")}, version = ?, updated_at = ? WHERE id = ?`, ...names.map((n) => set.get(n) ?? null), num(have, "version") + 1, now, eventId);
+      ctx.db.run(
+        `UPDATE calendar_event SET ${names.map((n) => `${quoted(n)} = ?`).join(", ")}, version = ?, updated_at = ? WHERE id = ?`,
+        ...names.map((n) => set.get(n) ?? null),
+        num(have, "version") + 1,
+        now,
+        eventId,
+      );
     }
-    if (changed.length) ctx.emit("calendar_event.updated", `entity/${eventId}`, { eventId, calendarId: input.calendarId, fields: changed });
+    if (changed.length)
+      ctx.emit("calendar_event.updated", `entity/${eventId}`, {
+        eventId,
+        calendarId: input.calendarId,
+        fields: changed,
+      });
     // nothing changed and the event already has its meeting: the pull of an unchanged event costs one lookup, not a meetings.ingest call
-    if (!changed.length && strOrNull(have, "meetingId") !== null) return { eventId, meetingId: str(have, "meetingId"), merged: false };
+    if (!changed.length && strOrNull(have, "meetingId") !== null)
+      return { eventId, meetingId: str(have, "meetingId"), merged: false };
   }
   const meeting = await joinMeeting(ctx, eventId);
   return { eventId, ...(meeting.meetingId ? { meetingId: meeting.meetingId } : {}), merged: meeting.merged };
@@ -842,8 +1406,24 @@ export async function ingestEvent(ctx: CalCtx, input: IngestIn, prefetched?: Row
 
 function blank(calendarId: string, providerId: string): NewEvent {
   return {
-    calendarId, title: "(No title)", startsAt: 0, endsAt: 0, allDay: false, location: null, joinUrl: null, joinProvider: "none", description: null, agenda: null, attendees: [],
-    organizer: null, recordIds: [], meetingId: null, providerId, status: "confirmed", bookedByAgentId: null, fromBookingPage: null,
+    calendarId,
+    title: "(No title)",
+    startsAt: 0,
+    endsAt: 0,
+    allDay: false,
+    location: null,
+    joinUrl: null,
+    joinProvider: "none",
+    description: null,
+    agenda: null,
+    attendees: [],
+    organizer: null,
+    recordIds: [],
+    meetingId: null,
+    providerId,
+    status: "confirmed",
+    bookedByAgentId: null,
+    fromBookingPage: null,
   };
 }
 
@@ -865,8 +1445,20 @@ function joinKind(link: string | undefined, source: "google" | "microsoft"): Joi
 
 // ---- provider pull (calendar.sync_now)
 
-const GOOGLE_RESPONSE: Record<string, Response> = { accepted: "accepted", declined: "declined", tentative: "tentative", needsAction: "needs_action" };
-const GRAPH_RESPONSE: Record<string, Response> = { accepted: "accepted", organizer: "accepted", declined: "declined", tentativelyAccepted: "tentative", notResponded: "needs_action", none: "needs_action" };
+const GOOGLE_RESPONSE: Record<string, Response> = {
+  accepted: "accepted",
+  declined: "declined",
+  tentative: "tentative",
+  needsAction: "needs_action",
+};
+const GRAPH_RESPONSE: Record<string, Response> = {
+  accepted: "accepted",
+  organizer: "accepted",
+  declined: "declined",
+  tentativelyAccepted: "tentative",
+  notResponded: "needs_action",
+  none: "needs_action",
+};
 
 /** A Google Calendar event as the ingest input, or null when it has no usable id or times. */
 export function fromGoogle(calendarId: string, e: Json): IngestIn | null {
@@ -877,7 +1469,13 @@ export function fromGoogle(calendarId: string, e: Json): IngestIn | null {
   const s = googleTime(e.start);
   const en = googleTime(e.end);
   if (!s || !en) return null;
-  const out: IngestIn = { ...base, title: text(e.summary) || "(No title)", startsAt: s.ts, endsAt: en.ts, allDay: s.allDay };
+  const out: IngestIn = {
+    ...base,
+    title: text(e.summary) || "(No title)",
+    startsAt: s.ts,
+    endsAt: en.ts,
+    allDay: s.allDay,
+  };
   if (text(e.location)) out.location = text(e.location);
   if (text(e.hangoutLink)) out.joinUrl = text(e.hangoutLink);
   if (text(e.description)) out.description = text(e.description);
@@ -887,9 +1485,14 @@ export function fromGoogle(calendarId: string, e: Json): IngestIn | null {
   const organizer = text(obj(e.organizer).email);
   if (organizer) out.organizer = organizer;
   if (Array.isArray(e.attendees)) {
-    out.attendees = e.attendees.map(obj).filter((a) => text(a.email)).map((a) => ({
-      email: text(a.email), response: GOOGLE_RESPONSE[text(a.responseStatus)] ?? "needs_action", ...(a.optional === true ? { optional: true } : {}),
-    }));
+    out.attendees = e.attendees
+      .map(obj)
+      .filter((a) => text(a.email))
+      .map((a) => ({
+        email: text(a.email),
+        response: GOOGLE_RESPONSE[text(a.responseStatus)] ?? "needs_action",
+        ...(a.optional === true ? { optional: true } : {}),
+      }));
   }
   return out;
 }
@@ -915,14 +1518,23 @@ export function fromGraph(calendarId: string, e: Json): IngestIn | null {
   const organizer = text(obj(obj(e.organizer).emailAddress).address) || text(obj(e.organizer).email);
   if (organizer) out.organizer = organizer;
   if (Array.isArray(e.attendees)) {
-    out.attendees = e.attendees.map(obj).filter((a) => text(a.email)).map((a) => ({
-      email: text(a.email), response: GRAPH_RESPONSE[text(a.response)] ?? "needs_action", ...(text(a.type) === "optional" ? { optional: true } : {}),
-    }));
+    out.attendees = e.attendees
+      .map(obj)
+      .filter((a) => text(a.email))
+      .map((a) => ({
+        email: text(a.email),
+        response: GRAPH_RESPONSE[text(a.response)] ?? "needs_action",
+        ...(text(a.type) === "optional" ? { optional: true } : {}),
+      }));
   }
   return out;
 }
 
-interface Pulled { upserted: number; removed: number; cursor: string | null }
+interface Pulled {
+  upserted: number;
+  removed: number;
+  cursor: string | null;
+}
 
 export async function syncNow(ctx: CalCtx, input: { calendarId: string }): Promise<{ runId: string }> {
   ensure(ctx);
@@ -944,11 +1556,18 @@ export async function syncNow(ctx: CalCtx, input: { calendarId: string }): Promi
  * provider event the newest version wins (a newer delete wins too); records and the meeting the event became are carried over; the duplicate calendars are removed; the direct grants on them
  * are given again on the kept calendar. One audit row says what was folded. Answers the number of calendars folded away.
  */
-export async function mergeDuplicateCalendars(ctx: CalCtx): Promise<{ merged: number; events: number; grants: number }> {
+export async function mergeDuplicateCalendars(
+  ctx: CalCtx,
+): Promise<{ merged: number; events: number; grants: number }> {
   ensure(ctx);
-  const accountOf = new Map(rowsOf(ctx.db.all(`SELECT * FROM calendar_account`)).map((r) => [str(r, "calendarId"), normalizeEmail(str(r, "account"))] as const));
+  const accountOf = new Map(
+    rowsOf(ctx.db.all(`SELECT * FROM calendar_account`)).map(
+      (r) => [str(r, "calendarId"), normalizeEmail(str(r, "account"))] as const,
+    ),
+  );
   const rows = rowsOf(ctx.db.all(`SELECT * FROM calendar_list WHERE deleted_at IS NULL`))
-    .filter((l) => strOrNull(l, "provider") !== null && str(l, "provider") !== "local").map((l) => ({ ...l, account: accountOf.get(str(l, "id")) ?? null }) as Row)
+    .filter((l) => strOrNull(l, "provider") !== null && str(l, "provider") !== "local")
+    .map((l) => ({ ...l, account: accountOf.get(str(l, "id")) ?? null }) as Row)
     .sort((x, y) => str(x, "id").localeCompare(str(y, "id")));
   const groups = new Map<string, Row[]>();
   for (const r of rows) {
@@ -959,27 +1578,47 @@ export async function mergeDuplicateCalendars(ctx: CalCtx): Promise<{ merged: nu
   }
   const KEEP = new Set(["id", "calendarId", "providerId", "version", "updated_at", "meetingId", "recordIds"]);
   const now = ctx.now();
-  let merged = 0, moved = 0, grants = 0;
+  let merged = 0,
+    moved = 0,
+    grants = 0;
   const detail: Array<{ kept: string; folded: string[]; events: number }> = [];
   for (const group of groups.values()) {
     if (group.length < 2) continue;
-    const keeper = group[0]!, kid = str(keeper, "id");
+    const keeper = group[0]!,
+      kid = str(keeper, "id");
     let eventsHere = 0;
     for (const dup of group.slice(1)) {
       const did = str(dup, "id");
       for (const e of rowsOf(ctx.db.all(`SELECT * FROM calendar_event WHERE "calendarId" = ?`, did))) {
         const pid = strOrNull(e, "providerId");
-        const twin = pid === null ? undefined : first(ctx.db.all(`SELECT * FROM calendar_event WHERE "calendarId" = ? AND "providerId" = ?`, kid, pid));
-        if (!twin) { ctx.db.run(`UPDATE calendar_event SET "calendarId" = ? WHERE id = ?`, kid, str(e, "id")); eventsHere++; continue; }
-        const newer = num(e, "updated_at") > num(twin, "updated_at") || (num(e, "updated_at") === num(twin, "updated_at") && num(e, "version") > num(twin, "version"));
+        const twin =
+          pid === null
+            ? undefined
+            : first(ctx.db.all(`SELECT * FROM calendar_event WHERE "calendarId" = ? AND "providerId" = ?`, kid, pid));
+        if (!twin) {
+          ctx.db.run(`UPDATE calendar_event SET "calendarId" = ? WHERE id = ?`, kid, str(e, "id"));
+          eventsHere++;
+          continue;
+        }
+        const newer =
+          num(e, "updated_at") > num(twin, "updated_at") ||
+          (num(e, "updated_at") === num(twin, "updated_at") && num(e, "version") > num(twin, "version"));
         const set = new Map<string, string | number | null>();
         if (newer) for (const [k, v] of Object.entries(e)) if (!KEEP.has(k)) set.set(k, v);
         const ids = [...new Set([...readStrings(twin.recordIds), ...readStrings(e.recordIds)])];
-        if (ids.length && JSON.stringify(ids) !== JSON.stringify(readStrings(twin.recordIds))) set.set("recordIds", JSON.stringify(ids));
-        if (strOrNull(twin, "meetingId") === null && strOrNull(e, "meetingId") !== null) set.set("meetingId", strOrNull(e, "meetingId"));
+        if (ids.length && JSON.stringify(ids) !== JSON.stringify(readStrings(twin.recordIds)))
+          set.set("recordIds", JSON.stringify(ids));
+        if (strOrNull(twin, "meetingId") === null && strOrNull(e, "meetingId") !== null)
+          set.set("meetingId", strOrNull(e, "meetingId"));
         if (set.size) {
           const names = [...set.keys()];
-          ctx.db.run(`UPDATE calendar_event SET ${names.map((n) => `"${n}" = ?`).join(", ")}, version = ?, updated_at = ? WHERE id = ?`, ...names.map((n) => set.get(n) ?? null), num(twin, "version") + 1, newer ? num(e, "updated_at") : num(twin, "updated_at"), str(twin, "id"));
+          ctx.db.run(
+            `UPDATE calendar_event SET ${names.map((n) => `"${n}" = ?`).join(", ")}, version = ?, updated_at = ? WHERE id = ?`,
+            ...names.map((n) => set.get(n) ?? null),
+            num(twin, "version") + 1,
+            newer ? num(e, "updated_at") : num(twin, "updated_at"),
+            str(twin, "id"),
+          );
         }
         ctx.db.run(`DELETE FROM calendar_event WHERE id = ?`, str(e, "id"));
         eventsHere++;
@@ -988,25 +1627,54 @@ export async function mergeDuplicateCalendars(ctx: CalCtx): Promise<{ merged: nu
       try {
         const out = obj(await ctx.call("access.shares_of", { resource: { type: "calendar", id: did } }));
         for (const sh of Array.isArray(out["shares"]) ? out["shares"] : []) {
-          const row = obj(sh), g = obj(row["grant"]);
+          const row = obj(sh),
+            g = obj(row["grant"]);
           if (row["through"] !== "direct" || typeof g["id"] !== "string") continue;
           try {
-            await ctx.call("access.share", { resource: { type: "calendar", id: kid }, subject: g["subject"], level: g["level"], idempotencyKey: `calmerge-${did}-${g["id"]}` });
+            await ctx.call("access.share", {
+              resource: { type: "calendar", id: kid },
+              subject: g["subject"],
+              level: g["level"],
+              idempotencyKey: `calmerge-${did}-${g["id"]}`,
+            });
             grants++;
-          } catch { /* a grant that cannot be given again stays on the removed calendar's record in the audit row */ }
+          } catch {
+            /* a grant that cannot be given again stays on the removed calendar's record in the audit row */
+          }
         }
-      } catch { /* shares are read when the access module answers; the calendars are folded either way */ }
-      ctx.db.run(`UPDATE calendar_list SET deleted_at = ?, version = ?, updated_at = ? WHERE id = ?`, now, num(dup, "version") + 1, now, did);
+      } catch {
+        /* shares are read when the access module answers; the calendars are folded either way */
+      }
+      ctx.db.run(
+        `UPDATE calendar_list SET deleted_at = ?, version = ?, updated_at = ? WHERE id = ?`,
+        now,
+        num(dup, "version") + 1,
+        now,
+        did,
+      );
       ctx.db.run(`DELETE FROM calendar_sync WHERE "calendarId" = ?`, did);
       ctx.db.run(`DELETE FROM calendar_account WHERE "calendarId" = ?`, did);
       merged++;
     }
     moved += eventsHere;
     detail.push({ kept: kid, folded: group.slice(1).map((d) => str(d, "id")), events: eventsHere });
-    ctx.db.run(`UPDATE calendar_list SET version = ?, updated_at = ? WHERE id = ?`, num(keeper, "version") + 1, now, kid);
+    ctx.db.run(
+      `UPDATE calendar_list SET version = ?, updated_at = ? WHERE id = ?`,
+      num(keeper, "version") + 1,
+      now,
+      kid,
+    );
   }
   if (merged > 0) {
-    try { await ctx.call("audit.append", { action: "calendar.duplicates_merged", class: "admin", detail: { calendars: detail, merged, events: moved, grants } }); } catch { ctx.log.warn("calendar duplicates were merged; the audit row could not be written", { merged }); }
+    try {
+      await ctx.call("audit.append", {
+        action: "calendar.duplicates_merged",
+        class: "admin",
+        detail: { calendars: detail, merged, events: moved, grants },
+      });
+    } catch {
+      ctx.log.warn("calendar duplicates were merged; the audit row could not be written", { merged });
+    }
     ctx.log.info("calendar duplicates merged", { merged, events: moved, grants });
   }
   return { merged, events: moved, grants };
@@ -1016,8 +1684,18 @@ export async function pullProviderCalendars(ctx: CalCtx): Promise<{ pulled: numb
   ensure(ctx);
   if (!isTrustedService(ctx.principal)) bad(ctx, "The scheduled calendar pull is the server's own job.");
   // duplicates an earlier reconnect left are folded before anything is pulled (a no-op once there are none)
-  await mergeDuplicateCalendars(ctx).catch((e: unknown) => ctx.log.warn("calendar duplicate merge failed", { error: e instanceof Error ? e.message.slice(0, 200) : String(e) }));
-  const due = rowsOf(ctx.db.all(`SELECT * FROM calendar_list WHERE deleted_at IS NULL AND provider != ? AND state != ? ORDER BY id ASC`, "local", "paused"));
+  await mergeDuplicateCalendars(ctx).catch((e: unknown) =>
+    ctx.log.warn("calendar duplicate merge failed", {
+      error: e instanceof Error ? e.message.slice(0, 200) : String(e),
+    }),
+  );
+  const due = rowsOf(
+    ctx.db.all(
+      `SELECT * FROM calendar_list WHERE deleted_at IS NULL AND provider != ? AND state != ? ORDER BY id ASC`,
+      "local",
+      "paused",
+    ),
+  );
   for (const cal of due) await pullCalendar(ctx, cal);
   return { pulled: due.length };
 }
@@ -1028,36 +1706,86 @@ async function pullCalendar(ctx: CalCtx, cal: Row): Promise<void> {
   const provider = str(cal, "provider");
   const now = ctx.now();
   if (provider === "local") {
-    ctx.emit("calendar.synced", `entity/${calendarId}`, { calendarId, upserted: 0, removed: 0 }, { vis: "participants" });
+    ctx.emit(
+      "calendar.synced",
+      `entity/${calendarId}`,
+      { calendarId, upserted: 0, removed: 0 },
+      { vis: "participants" },
+    );
     return;
   }
-  if (str(cal, "state") === "paused") return;   // paused means paused: no pull, no failure
+  if (str(cal, "state") === "paused") return; // paused means paused: no pull, no failure
   const connectionId = strOrNull(cal, "connectionId");
   const remoteId = strOrNull(cal, "remoteId");
   const sync = first(ctx.db.all(`SELECT * FROM calendar_sync WHERE "calendarId" = ?`, calendarId));
   // the attempt is recorded whatever happens next: after the connection check on the way through, or in the catch when that check refuses, so nothing is written before a refusal
   let tried = false;
   const recordTry = (): void => {
-    if (!sync) ctx.db.run(`INSERT INTO calendar_sync ("calendarId", cursor, "lastTryAt", "lastOkAt", "lastError") VALUES (?, ?, ?, ?, ?)`, calendarId, null, now, null, null);
+    if (!sync)
+      ctx.db.run(
+        `INSERT INTO calendar_sync ("calendarId", cursor, "lastTryAt", "lastOkAt", "lastError") VALUES (?, ?, ?, ?, ?)`,
+        calendarId,
+        null,
+        now,
+        null,
+        null,
+      );
     ctx.db.run(`UPDATE calendar_sync SET "lastTryAt" = ? WHERE "calendarId" = ?`, now, calendarId);
     tried = true;
   };
   try {
-    if (!connectionId || !remoteId) refuse(ctx, "This calendar has no connection to pull from. Reconnect it in Settings, Connections.");
+    if (!connectionId || !remoteId)
+      refuse(ctx, "This calendar has no connection to pull from. Reconnect it in Settings, Connections.");
     recordTry();
     const cursor = strOrNull(sync, "cursor");
-    const account = strOrNull(first(ctx.db.all(`SELECT account FROM calendar_account WHERE "calendarId" = ?`, calendarId)), "account") ?? undefined;
-    const pulled = provider === "google" ? await pullGoogle(ctx, calendarId, connectionId, remoteId, cursor, account) : await pullGraph(ctx, calendarId, connectionId, remoteId, cursor, account);
-    ctx.db.run(`UPDATE calendar_sync SET cursor = ?, "lastOkAt" = ?, "lastError" = ? WHERE "calendarId" = ?`, pulled.cursor, ctx.now(), null, calendarId);
-    ctx.db.run(`UPDATE calendar_list SET state = ?, "lastSyncAt" = ?, version = ?, updated_at = ? WHERE id = ?`, "syncing", ctx.now(), num(cal, "version") + 1, ctx.now(), calendarId);
-    ctx.emit("calendar.synced", `entity/${calendarId}`, { calendarId, upserted: pulled.upserted, removed: pulled.removed }, { vis: "participants" });
+    const account =
+      strOrNull(
+        first(ctx.db.all(`SELECT account FROM calendar_account WHERE "calendarId" = ?`, calendarId)),
+        "account",
+      ) ?? undefined;
+    const pulled =
+      provider === "google"
+        ? await pullGoogle(ctx, calendarId, connectionId, remoteId, cursor, account)
+        : await pullGraph(ctx, calendarId, connectionId, remoteId, cursor, account);
+    ctx.db.run(
+      `UPDATE calendar_sync SET cursor = ?, "lastOkAt" = ?, "lastError" = ? WHERE "calendarId" = ?`,
+      pulled.cursor,
+      ctx.now(),
+      null,
+      calendarId,
+    );
+    ctx.db.run(
+      `UPDATE calendar_list SET state = ?, "lastSyncAt" = ?, version = ?, updated_at = ? WHERE id = ?`,
+      "syncing",
+      ctx.now(),
+      num(cal, "version") + 1,
+      ctx.now(),
+      calendarId,
+    );
+    ctx.emit(
+      "calendar.synced",
+      `entity/${calendarId}`,
+      { calendarId, upserted: pulled.upserted, removed: pulled.removed },
+      { vis: "participants" },
+    );
   } catch (e) {
     const code = codeOf(e);
     if (!tried) recordTry();
     ctx.db.run(`UPDATE calendar_sync SET "lastError" = ? WHERE "calendarId" = ?`, code || "sync_failed", calendarId);
-    ctx.db.run(`UPDATE calendar_list SET state = ?, version = ?, updated_at = ? WHERE id = ?`, "error", num(cal, "version") + 1, ctx.now(), calendarId);
+    ctx.db.run(
+      `UPDATE calendar_list SET state = ?, version = ?, updated_at = ? WHERE id = ?`,
+      "error",
+      num(cal, "version") + 1,
+      ctx.now(),
+      calendarId,
+    );
     // the scheduled pull tries again every two minutes: the same failure as last time is already in the log and on the calendar, so it is said once, not on every pass
-    if (strOrNull(sync, "lastError") !== (code || "sync_failed")) ctx.log.warn("calendar sync failed", { calendarId, code, ...(e instanceof Error ? { error: e.message.slice(0, 200) } : {}) });
+    if (strOrNull(sync, "lastError") !== (code || "sync_failed"))
+      ctx.log.warn("calendar sync failed", {
+        calendarId,
+        code,
+        ...(e instanceof Error ? { error: e.message.slice(0, 200) } : {}),
+      });
   }
 }
 
@@ -1078,12 +1806,23 @@ const parseCursor = (c: string | null): { updatedMin: number; fullAt: number } |
  * The rows already held for one batch of provider events, read in one query instead of one per event. `rowFor` answers the stored row, null when the event is certainly new, and undefined when it
  * cannot know (the same provider id came twice in the batch, so the ingest looks it up itself).
  */
-function preloadEvents(ctx: CalCtx, calendarId: string, providerIds: readonly string[]): (providerId: string) => Row | null | undefined {
+function preloadEvents(
+  ctx: CalCtx,
+  calendarId: string,
+  providerIds: readonly string[],
+): (providerId: string) => Row | null | undefined {
   const held = new Map<string, Row>();
   for (let i = 0; i < providerIds.length; i += 400) {
     const part = providerIds.slice(i, i + 400);
     if (part.length === 0) continue;
-    for (const row of rowsOf(ctx.db.all(`SELECT * FROM calendar_event WHERE "calendarId" = ? AND "providerId" IN (${part.map(() => "?").join(", ")})`, calendarId, ...part))) held.set(str(row, "providerId"), row);
+    for (const row of rowsOf(
+      ctx.db.all(
+        `SELECT * FROM calendar_event WHERE "calendarId" = ? AND "providerId" IN (${part.map(() => "?").join(", ")})`,
+        calendarId,
+        ...part,
+      ),
+    ))
+      held.set(str(row, "providerId"), row);
   }
   const seen = new Set<string>();
   return (providerId) => {
@@ -1098,9 +1837,24 @@ function preloadEvents(ctx: CalCtx, calendarId: string, providerIds: readonly st
 const YIELD_EVERY_MS = 20;
 const yieldLoop = (): Promise<void> => new Promise((r) => setImmediate(r));
 /** A yielder for one pull: after every event it steps aside once YIELD_EVERY_MS have passed since it last did, so no stretch of work holds the loop longer than about that. */
-const makeYielder = (): (() => Promise<void>) => { let since = performance.now(); return async () => { if (performance.now() - since >= YIELD_EVERY_MS) { await yieldLoop(); since = performance.now(); } }; };
+const makeYielder = (): (() => Promise<void>) => {
+  let since = performance.now();
+  return async () => {
+    if (performance.now() - since >= YIELD_EVERY_MS) {
+      await yieldLoop();
+      since = performance.now();
+    }
+  };
+};
 
-async function pullGoogle(ctx: CalCtx, calendarId: string, connectionId: string, remoteId: string, cursor: string | null, account?: string): Promise<Pulled> {
+async function pullGoogle(
+  ctx: CalCtx,
+  calendarId: string,
+  connectionId: string,
+  remoteId: string,
+  cursor: string | null,
+  account?: string,
+): Promise<Pulled> {
   const run = async (token: string | null, since: number | null, fullAt: number): Promise<Pulled> => {
     let upserted = 0;
     let removed = 0;
@@ -1109,10 +1863,31 @@ async function pullGoogle(ctx: CalCtx, calendarId: string, connectionId: string,
     const now = ctx.now();
     const step = makeYielder();
     for (let page = 0; page < MAX_PAGES; page++) {
-      const query: Json = token ? { syncToken: token } : { timeMin: isoOf(now - PULL_BEHIND), timeMax: isoOf(now + PULL_AHEAD), ...(since !== null ? { updatedMin: isoOf(since) } : {}) };
-      const res = obj(await ctx.call("google.calendar.list_events", { connectionId, calendarId: remoteId, ...(account ? { as: account } : {}), ...query, ...(pageToken ? { pageToken } : {}) }));
-      const items = list(res.events).map(obj).map((raw) => fromGoogle(calendarId, raw)).filter((x): x is NonNullable<typeof x> => x !== null);
-      const rowFor = preloadEvents(ctx, calendarId, items.map((x) => x.providerId.trim()));
+      const query: Json = token
+        ? { syncToken: token }
+        : {
+            timeMin: isoOf(now - PULL_BEHIND),
+            timeMax: isoOf(now + PULL_AHEAD),
+            ...(since !== null ? { updatedMin: isoOf(since) } : {}),
+          };
+      const res = obj(
+        await ctx.call("google.calendar.list_events", {
+          connectionId,
+          calendarId: remoteId,
+          ...(account ? { as: account } : {}),
+          ...query,
+          ...(pageToken ? { pageToken } : {}),
+        }),
+      );
+      const items = list(res.events)
+        .map(obj)
+        .map((raw) => fromGoogle(calendarId, raw))
+        .filter((x): x is NonNullable<typeof x> => x !== null);
+      const rowFor = preloadEvents(
+        ctx,
+        calendarId,
+        items.map((x) => x.providerId.trim()),
+      );
       for (const ing of items) {
         await ingestEvent(ctx, ing, rowFor(ing.providerId.trim()));
         if (ing.deleted) removed++;
@@ -1133,7 +1908,10 @@ async function pullGoogle(ctx: CalCtx, calendarId: string, connectionId: string,
     try {
       return await run(null, mine.updatedMin, mine.fullAt);
     } catch (e) {
-      ctx.log.warn("calendar: the changes since the last pass were refused, reading the window again", { calendarId, code: codeOf(e) });
+      ctx.log.warn("calendar: the changes since the last pass were refused, reading the window again", {
+        calendarId,
+        code: codeOf(e),
+      });
       return full();
     }
   }
@@ -1141,19 +1919,42 @@ async function pullGoogle(ctx: CalCtx, calendarId: string, connectionId: string,
     return await run(cursor, null, ctx.now());
   } catch (e) {
     ctx.log.warn("calendar: sync token refused, reading the window again", { calendarId, code: codeOf(e) });
-    return full();   // an expired token means read everything in the window once; ingest is idempotent
+    return full(); // an expired token means read everything in the window once; ingest is idempotent
   }
 }
 
-async function pullGraph(ctx: CalCtx, calendarId: string, connectionId: string, remoteId: string, cursor: string | null, account?: string): Promise<Pulled> {
+async function pullGraph(
+  ctx: CalCtx,
+  calendarId: string,
+  connectionId: string,
+  remoteId: string,
+  cursor: string | null,
+  account?: string,
+): Promise<Pulled> {
   const run = async (link: string | null): Promise<Pulled> => {
     const now = ctx.now();
-    const res = obj(await ctx.call("ms.calendar.delta", { connectionId, ...(remoteId === GRAPH_DEFAULT ? {} : { calendarId: remoteId }), ...(account ? { as: account } : {}), start: isoOf(now - PULL_BEHIND), end: isoOf(now + PULL_AHEAD), ...(link ? { deltaLink: link } : {}) }));
+    const res = obj(
+      await ctx.call("ms.calendar.delta", {
+        connectionId,
+        ...(remoteId === GRAPH_DEFAULT ? {} : { calendarId: remoteId }),
+        ...(account ? { as: account } : {}),
+        start: isoOf(now - PULL_BEHIND),
+        end: isoOf(now + PULL_AHEAD),
+        ...(link ? { deltaLink: link } : {}),
+      }),
+    );
     let upserted = 0;
     let removed = 0;
     const step = makeYielder();
-    const changed = list(res.changed).map(obj).map((raw) => fromGraph(calendarId, raw)).filter((x): x is NonNullable<typeof x> => x !== null);
-    const rowFor = preloadEvents(ctx, calendarId, changed.map((x) => x.providerId.trim()));
+    const changed = list(res.changed)
+      .map(obj)
+      .map((raw) => fromGraph(calendarId, raw))
+      .filter((x): x is NonNullable<typeof x> => x !== null);
+    const rowFor = preloadEvents(
+      ctx,
+      calendarId,
+      changed.map((x) => x.providerId.trim()),
+    );
     for (const ing of changed) {
       await ingestEvent(ctx, ing, rowFor(ing.providerId.trim()));
       if (ing.deleted) removed++;
@@ -1181,7 +1982,9 @@ async function pullGraph(ctx: CalCtx, calendarId: string, connectionId: string, 
 export async function health(ctx: CalCtx): Promise<{ state: "healthy" | "degraded" | "down"; detail?: string }> {
   ensure(ctx);
   const now = ctx.now();
-  const provider = rowsOf(ctx.db.all(`SELECT * FROM calendar_list WHERE deleted_at IS NULL`)).filter((c) => str(c, "provider") !== "local" && str(c, "state") !== "paused");
+  const provider = rowsOf(ctx.db.all(`SELECT * FROM calendar_list WHERE deleted_at IS NULL`)).filter(
+    (c) => str(c, "provider") !== "local" && str(c, "state") !== "paused",
+  );
   if (!provider.length) return { state: "healthy", detail: "No Google or Microsoft calendar is connected." };
   const problems: string[] = [];
   for (const c of provider) {
@@ -1189,7 +1992,8 @@ export async function health(ctx: CalCtx): Promise<{ state: "healthy" | "degrade
     const ok = sync ? num(sync, "lastOkAt") : 0;
     const title = str(c, "title") || str(c, "id");
     if (str(c, "state") === "error") problems.push(`${title} could not sync`);
-    else if (ok === 0) continue;   // connected and never pulled yet: nothing to age
+    else if (ok === 0)
+      continue; // connected and never pulled yet: nothing to age
     else if (now - ok > STALE_MS) problems.push(`${title} last synced ${ageOf(now - ok)} ago`);
   }
   if (!problems.length) return { state: "healthy" };
@@ -1201,31 +2005,56 @@ function ageOf(ms: number): string {
   return hours >= 48 ? `${Math.floor(hours / 24)} days` : `${hours} hours`;
 }
 
-
 // ---- provider calendars (calendar.connect_provider)
 
 /** What a provider calendar was called before it was named for its account. */
 const GENERIC_TITLES: ReadonlySet<string> = new Set(["Google Calendar", "Outlook Calendar"]);
 
-export interface ConnectProviderIn { provider: "google" | "microsoft"; ownerId: string; account: string; connectionId: string; remoteId?: string; title?: string; connected?: boolean }
+export interface ConnectProviderIn {
+  provider: "google" | "microsoft";
+  ownerId: string;
+  account: string;
+  connectionId: string;
+  remoteId?: string;
+  title?: string;
+  connected?: boolean;
+}
 
 /**
  * Put a member's Google or Microsoft calendar in Calendar, owned by them (private until they share it), read as their account. Called when delegation or consent connects or includes a
  * member. The same call again answers the same calendar; `connected: false` (a member who was excluded) removes the calendar and its events from Calendar, and including them again makes a new one.
  */
-export async function connectProvider(ctx: CalCtx, input: ConnectProviderIn): Promise<{ calendarId?: string; created: boolean }> {
+export async function connectProvider(
+  ctx: CalCtx,
+  input: ConnectProviderIn,
+): Promise<{ calendarId?: string; created: boolean }> {
   ensure(ctx);
   if (input.provider !== "google" && input.provider !== "microsoft") bad(ctx, "The provider is google or microsoft.");
   if (!isId("usr", input.ownerId)) bad(ctx, "The owner is a member id.");
   if (!isId("con", input.connectionId)) bad(ctx, "The connection is not valid.");
   const account = normalizeEmail(input.account ?? "");
   if (!EMAIL.test(account)) bad(ctx, "The account is an email address.");
-  const remoteId = input.remoteId === undefined ? (input.provider === "google" ? "primary" : GRAPH_DEFAULT) : (clean(ctx, input.remoteId, "The remote id", 500, true) ?? "");
+  const remoteId =
+    input.remoteId === undefined
+      ? input.provider === "google"
+        ? "primary"
+        : GRAPH_DEFAULT
+      : (clean(ctx, input.remoteId, "The remote id", 500, true) ?? "");
   // One calendar per account and provider calendar: a reconnect (a new connection id for the same Google account) answers the calendar that is already here instead of making another one and
   // importing every event again. The oldest row is the one kept; its connection becomes the new one.
-  const accounts = new Map(rowsOf(ctx.db.all(`SELECT * FROM calendar_account`)).map((r) => [str(r, "calendarId"), normalizeEmail(str(r, "account"))] as const));
+  const accounts = new Map(
+    rowsOf(ctx.db.all(`SELECT * FROM calendar_account`)).map(
+      (r) => [str(r, "calendarId"), normalizeEmail(str(r, "account"))] as const,
+    ),
+  );
   const matches = rowsOf(ctx.db.all(`SELECT * FROM calendar_list WHERE deleted_at IS NULL`))
-    .filter((l) => str(l, "provider") === input.provider && strOrNull(l, "ownerId") === input.ownerId && strOrNull(l, "remoteId") === remoteId && (strOrNull(l, "connectionId") === input.connectionId || accounts.get(str(l, "id")) === account))
+    .filter(
+      (l) =>
+        str(l, "provider") === input.provider &&
+        strOrNull(l, "ownerId") === input.ownerId &&
+        strOrNull(l, "remoteId") === remoteId &&
+        (strOrNull(l, "connectionId") === input.connectionId || accounts.get(str(l, "id")) === account),
+    )
     .sort((x, y) => str(x, "id").localeCompare(str(y, "id")));
   const have = matches[0];
   const now = ctx.now();
@@ -1234,11 +2063,26 @@ export async function connectProvider(ctx: CalCtx, input: ConnectProviderIn): Pr
     // every copy of this account's calendar goes (older duplicates included)
     for (const cal of matches) {
       const id = str(cal, "id");
-      for (const e of rowsOf(ctx.db.all(`SELECT * FROM calendar_event WHERE "calendarId" = ? AND deleted_at IS NULL`, id))) {
-        ctx.db.run(`UPDATE calendar_event SET "deletedAt" = ?, deleted_at = ?, version = ?, updated_at = ? WHERE id = ?`, now, now, num(e, "version") + 1, now, str(e, "id"));
+      for (const e of rowsOf(
+        ctx.db.all(`SELECT * FROM calendar_event WHERE "calendarId" = ? AND deleted_at IS NULL`, id),
+      )) {
+        ctx.db.run(
+          `UPDATE calendar_event SET "deletedAt" = ?, deleted_at = ?, version = ?, updated_at = ? WHERE id = ?`,
+          now,
+          now,
+          num(e, "version") + 1,
+          now,
+          str(e, "id"),
+        );
         ctx.emit("calendar_event.deleted", `entity/${str(e, "id")}`, { eventId: str(e, "id"), calendarId: id });
       }
-      ctx.db.run(`UPDATE calendar_list SET deleted_at = ?, version = ?, updated_at = ? WHERE id = ?`, now, num(cal, "version") + 1, now, id);
+      ctx.db.run(
+        `UPDATE calendar_list SET deleted_at = ?, version = ?, updated_at = ? WHERE id = ?`,
+        now,
+        num(cal, "version") + 1,
+        now,
+        id,
+      );
       ctx.db.run(`DELETE FROM calendar_sync WHERE "calendarId" = ?`, id);
     }
     return { calendarId: str(have, "id"), created: false };
@@ -1246,22 +2090,56 @@ export async function connectProvider(ctx: CalCtx, input: ConnectProviderIn): Pr
   // a calendar is named for the account it is read as (maya@firm.test), not "Google Calendar": a member with two connected accounts can tell them apart
   const given = clean(ctx, input.title, "The title", 100, false);
   if (have) {
-    if (first(ctx.db.all(`SELECT "calendarId" FROM calendar_account WHERE "calendarId" = ?`, str(have, "id")))) ctx.db.run(`UPDATE calendar_account SET account = ? WHERE "calendarId" = ?`, account, str(have, "id"));
+    if (first(ctx.db.all(`SELECT "calendarId" FROM calendar_account WHERE "calendarId" = ?`, str(have, "id"))))
+      ctx.db.run(`UPDATE calendar_account SET account = ? WHERE "calendarId" = ?`, account, str(have, "id"));
     else ctx.db.run(`INSERT INTO calendar_account ("calendarId", account) VALUES (?, ?)`, str(have, "id"), account);
     // a reconnect brings a new connection: the pull reads through it from now on
-    if (str(have, "connectionId") !== input.connectionId) ctx.db.run(`UPDATE calendar_list SET "connectionId" = ?, version = ?, updated_at = ? WHERE id = ?`, input.connectionId, num(have, "version") + 1, now, str(have, "id"));
+    if (str(have, "connectionId") !== input.connectionId)
+      ctx.db.run(
+        `UPDATE calendar_list SET "connectionId" = ?, version = ?, updated_at = ? WHERE id = ?`,
+        input.connectionId,
+        num(have, "version") + 1,
+        now,
+        str(have, "id"),
+      );
     // one connected before it was named for its account takes the account's name the next time it is connected (a title the person gave it stays)
-    if (!given && GENERIC_TITLES.has(str(have, "title"))) ctx.db.run(`UPDATE calendar_list SET title = ?, version = ?, updated_at = ? WHERE id = ?`, account, num(have, "version") + 1, now, str(have, "id"));
+    if (!given && GENERIC_TITLES.has(str(have, "title")))
+      ctx.db.run(
+        `UPDATE calendar_list SET title = ?, version = ?, updated_at = ? WHERE id = ?`,
+        account,
+        num(have, "version") + 1,
+        now,
+        str(have, "id"),
+      );
     return { calendarId: str(have, "id"), created: false };
   }
   const id = newId("cld", now);
   const title = given || account;
-  const color = COLORS[rowsOf(ctx.db.all(`SELECT id FROM calendar_list WHERE "ownerId" = ?`, input.ownerId)).length % COLORS.length] ?? "#4f6bed";
+  const color =
+    COLORS[
+      rowsOf(ctx.db.all(`SELECT id FROM calendar_list WHERE "ownerId" = ?`, input.ownerId)).length % COLORS.length
+    ] ?? "#4f6bed";
   ctx.db.run(
     `INSERT INTO calendar_list (id, title, color, provider, "connectionId", "remoteId", "ownerId", personal, state, version, updated_at, deleted_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    id, title, color, input.provider, input.connectionId, remoteId, input.ownerId, 0, "syncing", 1, now, null,
+    id,
+    title,
+    color,
+    input.provider,
+    input.connectionId,
+    remoteId,
+    input.ownerId,
+    0,
+    "syncing",
+    1,
+    now,
+    null,
   );
   ctx.db.run(`INSERT INTO calendar_account ("calendarId", account) VALUES (?, ?)`, id, account);
-  ctx.emit("calendar.created", `calendar/${id}`, { calendarId: id, provider: input.provider, ownerId: input.ownerId, private: true });
+  ctx.emit("calendar.created", `calendar/${id}`, {
+    calendarId: id,
+    provider: input.provider,
+    ownerId: input.ownerId,
+    private: true,
+  });
   return { calendarId: id, created: true };
 }

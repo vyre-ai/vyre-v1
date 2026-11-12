@@ -19,10 +19,22 @@ export type SubjectKind = PKind | "group" | "role" | "link";
 export type PolicyKind = "gate" | "spend" | "limit" | "provider_label" | "retention" | "sign_in" | "sharing" | "vault";
 export type Status = "invited" | "active" | "suspended" | "removed";
 
-export interface Ref { kind: PKind; id: string }
-export interface RoleHolder { kind: PKind | "group"; id: string }
-export interface SubjectRef { kind: SubjectKind; id: string }
-export interface ResourceRef { type: string; id: string }
+export interface Ref {
+  kind: PKind;
+  id: string;
+}
+export interface RoleHolder {
+  kind: PKind | "group";
+  id: string;
+}
+export interface SubjectRef {
+  kind: SubjectKind;
+  id: string;
+}
+export interface ResourceRef {
+  type: string;
+  id: string;
+}
 export interface Cond {
   rowFilter?: unknown;
   hiddenFields?: string[];
@@ -34,7 +46,14 @@ export interface Cond {
   /** The holder may share it further, up to their own level, without Manage. */
   reshare?: boolean;
   /** A permission exception (handlers/exceptions.ts): not a grant on a resource; it changes which permissions the subject holds. */
-  exception?: { perms: string[]; effect: "allow" | "deny" | "own" | "ask"; own?: string[]; at?: number; area?: string; why?: string };
+  exception?: {
+    perms: string[];
+    effect: "allow" | "deny" | "own" | "ask";
+    own?: string[];
+    at?: number;
+    area?: string;
+    why?: string;
+  };
 }
 export interface RoleRec {
   id: string;
@@ -44,8 +63,19 @@ export interface RoleRec {
   assignableToAgents: boolean;
   permissions: string[];
 }
-export interface RoleChangeRec { before: string[]; after: string[]; by: Ref; at: number }
-export interface GroupRec { id: string; name: string; builtIn: boolean; members: Ref[]; managers: Ref[] }
+export interface RoleChangeRec {
+  before: string[];
+  after: string[];
+  by: Ref;
+  at: number;
+}
+export interface GroupRec {
+  id: string;
+  name: string;
+  builtIn: boolean;
+  members: Ref[];
+  managers: Ref[];
+}
 export interface PrincipalRec {
   id: string;
   kind: PKind;
@@ -74,7 +104,13 @@ export interface ResourceRec {
   holds: number;
   row?: Record<string, unknown>;
 }
-export interface PolicyRec { key: string; scope: string; kind: PolicyKind; value: unknown; updatedAt: number }
+export interface PolicyRec {
+  key: string;
+  scope: string;
+  kind: PolicyKind;
+  value: unknown;
+  updatedAt: number;
+}
 export interface ActorRec {
   id: string;
   provider: string;
@@ -113,24 +149,66 @@ export const EVERYONE = "grp_everyone";
 export const ROLE_IDS = ["rol_owner", "rol_admin", "rol_developer", "rol_member", "rol_guest"] as const;
 const ROLE_NAMES = ["owner", "admin", "developer", "member", "guest"] as const;
 const CLEARANCE: Record<(typeof ROLE_NAMES)[number], Label> = {
-  owner: "restricted", admin: "restricted", developer: "confidential", member: "internal", guest: "public",
+  owner: "restricted",
+  admin: "restricted",
+  developer: "confidential",
+  member: "internal",
+  guest: "public",
 };
 const AGENT_OK: Record<(typeof ROLE_NAMES)[number], boolean> = {
-  owner: false, admin: false, developer: true, member: true, guest: true,
+  owner: false,
+  admin: false,
+  developer: true,
+  member: true,
+  guest: true,
 };
 const OPS = new Set(["eq", "ne", "lt", "lte", "gt", "gte", "in", "owner_me", "and", "or"]);
 /** The columns and primary key of each table the store persists, in the order `rows()` writes them. */
 const SHAPES: Readonly<Record<string, { pk: string[]; cols: string[] }>> = {
   access_meta: { pk: ["id"], cols: ["id", "epoch"] },
-  access_roles: { pk: ["id"], cols: ["id", "name", "builtIn", "clearance", "assignableToAgents", "permissions", "version"] },
+  access_roles: {
+    pk: ["id"],
+    cols: ["id", "name", "builtIn", "clearance", "assignableToAgents", "permissions", "version"],
+  },
   access_role_changes: { pk: ["role_id"], cols: ["role_id", "before_json", "after_json", "by_kind", "by_id", "at"] },
   access_groups: { pk: ["id"], cols: ["id", "name", "members", "managers", "builtIn", "version"] },
-  access_principals: { pk: ["id"], cols: ["id", "name", "kind", "owner", "status", "roles", "groups", "title", "createdAt", "version"] },
+  access_principals: {
+    pk: ["id"],
+    cols: ["id", "name", "kind", "owner", "status", "roles", "groups", "title", "createdAt", "version"],
+  },
   access_assignments: { pk: ["holder", "role_id"], cols: ["holder", "role_id"] },
-  access_grants: { pk: ["id"], cols: ["id", "subjectKind", "subjectId", "resourceType", "resourceId", "level", "conditions", "expiresAt", "by", "source", "version"] },
+  access_grants: {
+    pk: ["id"],
+    cols: [
+      "id",
+      "subjectKind",
+      "subjectId",
+      "resourceType",
+      "resourceId",
+      "level",
+      "conditions",
+      "expiresAt",
+      "by",
+      "source",
+      "version",
+    ],
+  },
   access_resources: { pk: ["id"], cols: ["id", "type", "parent_id", "label", "owner_id", "holds", "row_json"] },
   access_policies: { pk: ["key", "scope"], cols: ["key", "scope", "kind", "value", "updated_at"] },
-  access_actors: { pk: ["id"], cols: ["id", "provider", "status", "engineer", "token_hash", "token_expires", "token_used", "cred_hash", "last_seen"] },
+  access_actors: {
+    pk: ["id"],
+    cols: [
+      "id",
+      "provider",
+      "status",
+      "engineer",
+      "token_hash",
+      "token_expires",
+      "token_used",
+      "cred_hash",
+      "last_seen",
+    ],
+  },
   access_fields: { pk: ["k"], cols: ["k", "rank"] },
   access_local_cursor: { pk: ["id"], cols: ["id", "seq"] },
 };
@@ -138,9 +216,12 @@ const SHAPES: Readonly<Record<string, { pk: string[]; cols: string[] }>> = {
 /** The field row that holds the cursor of the events folded into the store (modules/access/consumers.ts). */
 export const CURSOR_KEY = "seed_cursor";
 
-
-export function labelRank(l: Label): number { return LABEL_RANK[l]; }
-export function labelOf(n: number): Label { return LABEL_OF[Math.max(0, Math.min(3, n))] ?? "public"; }
+export function labelRank(l: Label): number {
+  return LABEL_RANK[l];
+}
+export function labelOf(n: number): Label {
+  return LABEL_OF[Math.max(0, Math.min(3, n))] ?? "public";
+}
 
 /** Permission keys per built-in role, from manifests/permissions.ts (the catalogue the generator seeds). */
 export function parseCatalogue(src: string): Map<string, string[]> {
@@ -178,15 +259,24 @@ export function nid(prefix: string): string {
 
 export function fnv(s: string): string {
   let h = 0x811c9dc5;
-  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193); }
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
   return (h >>> 0).toString(16).padStart(8, "0");
 }
 
 export function isExpr(x: unknown): x is Expr {
-  return !!x && typeof x === "object" && typeof (x as { op?: unknown }).op === "string" && OPS.has((x as { op: string }).op);
+  return (
+    !!x && typeof x === "object" && typeof (x as { op?: unknown }).op === "string" && OPS.has((x as { op: string }).op)
+  );
 }
 
-export function page<T>(all: readonly T[], cursor?: string, limit?: number): { rows: T[]; next?: string; total: number } {
+export function page<T>(
+  all: readonly T[],
+  cursor?: string,
+  limit?: number,
+): { rows: T[]; next?: string; total: number } {
   const lim = Math.min(500, Math.max(1, limit ?? 50));
   const start = cursor && /^\d+$/.test(cursor) ? Number(cursor) : 0;
   const rows = all.slice(start, start + lim);
@@ -213,9 +303,9 @@ function subjectKind(k: SubjectKind): "actor" | "group" | "role" {
 
 function policyOf(p: PolicyRec): Policy | null {
   const v = p.value;
-  const o = v && typeof v === "object" ? v as Record<string, unknown> : {};
+  const o = v && typeof v === "object" ? (v as Record<string, unknown>) : {};
   if (p.kind === "provider_label") {
-    const allow = o.allow && typeof o.allow === "object" ? o.allow as Record<string, number> : {};
+    const allow = o.allow && typeof o.allow === "object" ? (o.allow as Record<string, number>) : {};
     const out: ProviderPolicy = { key: p.key, kind: "provider_label", allow: { ...allow } };
     if (typeof o.defaultMax === "number") out.defaultMax = o.defaultMax;
     return out;
@@ -225,11 +315,23 @@ function policyOf(p: PolicyRec): Policy | null {
     const kinds = Array.isArray(o.principalKinds)
       ? o.principalKinds.filter((k): k is "person" | "agent" | "svc" => k === "person" || k === "agent" || k === "svc")
       : undefined;
-    return { key: p.key, kind: "spend", meter: o.meter, limitMicros: o.limitMicros, ...(kinds && kinds.length ? { principalKinds: kinds } : {}) };
+    return {
+      key: p.key,
+      kind: "spend",
+      meter: o.meter,
+      limitMicros: o.limitMicros,
+      ...(kinds && kinds.length ? { principalKinds: kinds } : {}),
+    };
   }
   if (p.kind === "gate") {
     if (typeof o.act !== "string" || typeof o.approver !== "string" || !Array.isArray(o.caps)) return null;
-    const out: GatePolicy = { key: p.key, kind: "gate", act: o.act, approver: o.approver, caps: o.caps.filter((c): c is string => typeof c === "string") };
+    const out: GatePolicy = {
+      key: p.key,
+      kind: "gate",
+      act: o.act,
+      approver: o.approver,
+      caps: o.caps.filter((c): c is string => typeof c === "string"),
+    };
     if (o.humanToo === true) out.humanToo = true;
     if (typeof o.checker_must_be_person === "boolean") out.checker_must_be_person = o.checker_must_be_person;
     return out;
@@ -256,10 +358,18 @@ export class AccessStore {
   private snap: AccessSnapshot | null = null;
   private snapEpoch = -1;
 
-  bump(): void { this.epoch++; this.snap = null; }
-  invalidate(): void { this.snap = null; }
+  bump(): void {
+    this.epoch++;
+    this.snap = null;
+  }
+  invalidate(): void {
+    this.snap = null;
+  }
   /** Take `snap` as this store's snapshot at the current epoch (the kept store of access.sync, after it changed the snapshot in place). */
-  adoptSnapshot(snap: AccessSnapshot): void { this.snap = snap; this.snapEpoch = this.epoch; }
+  adoptSnapshot(snap: AccessSnapshot): void {
+    this.snap = snap;
+    this.snapEpoch = this.epoch;
+  }
 
   seed(): void {
     const parsed = parseCatalogue(catalogueSource());
@@ -268,27 +378,50 @@ export class AccessStore {
       const permissions = parsed.get(name) ?? [];
       for (const k of permissions) this.catalogue.add(k);
       this.roles.set(id, {
-        id, name: name.charAt(0).toUpperCase() + name.slice(1), builtIn: true,
-        clearance: CLEARANCE[name], assignableToAgents: AGENT_OK[name], permissions: [...permissions],
+        id,
+        name: name.charAt(0).toUpperCase() + name.slice(1),
+        builtIn: true,
+        clearance: CLEARANCE[name],
+        assignableToAgents: AGENT_OK[name],
+        permissions: [...permissions],
       });
     }
     this.groups.set(EVERYONE, { id: EVERYONE, name: "Everyone", builtIn: true, members: [], managers: [] });
     const t = 1_700_000_000_000;
     this.policies.set(pkey("labels.provider", "space"), {
-      key: "labels.provider", scope: "space", kind: "provider_label", updatedAt: t,
+      key: "labels.provider",
+      scope: "space",
+      kind: "provider_label",
+      updatedAt: t,
       value: { allow: { local: 3 }, defaultMax: 1 },
     });
     this.policies.set(pkey("sharing.public_links", "space"), {
-      key: "sharing.public_links", scope: "space", kind: "sharing", value: "admins", updatedAt: t,
+      key: "sharing.public_links",
+      scope: "space",
+      kind: "sharing",
+      value: "admins",
+      updatedAt: t,
     });
     this.policies.set(pkey("sign_in.second_factor", "space"), {
-      key: "sign_in.second_factor", scope: "space", kind: "sign_in", value: { floor: "optional" }, updatedAt: t,
+      key: "sign_in.second_factor",
+      scope: "space",
+      kind: "sign_in",
+      value: { floor: "optional" },
+      updatedAt: t,
     });
     this.policies.set(pkey("retention.default", "space"), {
-      key: "retention.default", scope: "space", kind: "retention", value: { days: 0 }, updatedAt: t,
+      key: "retention.default",
+      scope: "space",
+      kind: "retention",
+      value: { days: 0 },
+      updatedAt: t,
     });
     this.policies.set(pkey("vault.ladder", "space"), {
-      key: "vault.ladder", scope: "space", kind: "vault", value: { order: ["use", "view", "edit", "manage"] }, updatedAt: t,
+      key: "vault.ladder",
+      scope: "space",
+      kind: "vault",
+      value: { order: ["use", "view", "edit", "manage"] },
+      updatedAt: t,
     });
     this.epoch = 1;
     this.snap = null;
@@ -314,7 +447,13 @@ export class AccessStore {
     const snap = new AccessSnapshot();
     snap.labelNames = ["Public", "Internal", "Confidential", "Restricted"];
     for (const r of this.roles.values()) {
-      snap.putRole({ id: r.id, clearance: labelRank(r.clearance), perms: [...r.permissions], name: r.name, assignableToAgents: r.assignableToAgents });
+      snap.putRole({
+        id: r.id,
+        clearance: labelRank(r.clearance),
+        perms: [...r.permissions],
+        name: r.name,
+        assignableToAgents: r.assignableToAgents,
+      });
     }
     snap.putRole({ id: "rol_engineer_mcp", clearance: 0, perms: ["engineer.mcp"], name: "Engineer MCP" });
     for (const p of this.principals.values()) {
@@ -331,32 +470,42 @@ export class AccessStore {
         snap.addPrincipalRole({ holder, role: roleId });
       }
     }
-    for (const a of this.actors.values()) if (a.engineerMcp && a.status === "active") snap.addPrincipalRole({ holder: a.id, role: "rol_engineer_mcp" });
+    for (const a of this.actors.values())
+      if (a.engineerMcp && a.status === "active") snap.addPrincipalRole({ holder: a.id, role: "rol_engineer_mcp" });
     for (const g of this.groups.values()) for (const m of g.members) snap.addMember({ group: g.id, member: m.id });
     for (const r of this.resources.values()) snap.putResource(kernelResource(r));
-    for (const k of this.fieldLabels.keys()) if (k.startsWith("assistant:")) snap.setAssistant(k.slice("assistant:".length), true);
+    for (const k of this.fieldLabels.keys())
+      if (k.startsWith("assistant:")) snap.setAssistant(k.slice("assistant:".length), true);
     for (const g of this.grants.values()) snap.putGrant(kernelGrant(g));
     for (const [k, n] of this.fieldLabels) {
       const dot = k.indexOf(".");
       if (dot > 0) snap.setFieldLabel(k.slice(0, dot), k.slice(dot + 1), n);
     }
     const policies: Policy[] = [];
-    for (const p of this.policies.values()) { const k = policyOf(p); if (k) policies.push(k); }
+    for (const p of this.policies.values()) {
+      const k = policyOf(p);
+      if (k) policies.push(k);
+    }
     snap.setPolicies(policies);
     snap.rowSource = (id) => this.resourceRow(id);
     return snap;
   }
 
-  rolesOf(holder: string): string[] { return this.assignments.get(holder) ?? []; }
-  setRoles(holder: string, roles: string[]): void { this.assignments.set(holder, [...new Set(roles)]); }
+  rolesOf(holder: string): string[] {
+    return this.assignments.get(holder) ?? [];
+  }
+  setRoles(holder: string, roles: string[]): void {
+    this.assignments.set(holder, [...new Set(roles)]);
+  }
 
   directHoldersOf(roleId: string): RoleHolder[] {
     const out: RoleHolder[] = [];
-    for (const [holder, roles] of this.assignments) if (roles.includes(roleId)) {
-      const person = this.principals.get(holder);
-      if (person) out.push({ kind: person.kind, id: person.id });
-      else if (this.groups.has(holder)) out.push({ kind: "group", id: holder });
-    }
+    for (const [holder, roles] of this.assignments)
+      if (roles.includes(roleId)) {
+        const person = this.principals.get(holder);
+        if (person) out.push({ kind: person.kind, id: person.id });
+        else if (this.groups.has(holder)) out.push({ kind: "group", id: holder });
+      }
     return out;
   }
 
@@ -373,11 +522,12 @@ export class AccessStore {
       seen.add(id);
       out.push({ kind: p.kind, id: p.id });
     };
-    for (const [holder, roles] of this.assignments) if (roles.includes(roleId)) {
-      if (this.principals.has(holder)) push(holder);
-      const g = this.groups.get(holder);
-      if (g && !isOwnerRole(roleId, this.roles.get(roleId)?.name)) for (const m of g.members) push(m.id);
-    }
+    for (const [holder, roles] of this.assignments)
+      if (roles.includes(roleId)) {
+        if (this.principals.has(holder)) push(holder);
+        const g = this.groups.get(holder);
+        if (g && !isOwnerRole(roleId, this.roles.get(roleId)?.name)) for (const m of g.members) push(m.id);
+      }
     return out;
   }
 
@@ -385,7 +535,11 @@ export class AccessStore {
   permsExcept(id: string, skip: string): Set<string> {
     const p = this.principals.get(id);
     const roleIds = new Set<string>(this.rolesOf(id));
-    for (const g of this.groups.values()) if (g.members.some((m) => m.id === id)) for (const r of this.rolesOf(g.id)) { if (!isOwnerRole(r, this.roles.get(r)?.name)) roleIds.add(r); }
+    for (const g of this.groups.values())
+      if (g.members.some((m) => m.id === id))
+        for (const r of this.rolesOf(g.id)) {
+          if (!isOwnerRole(r, this.roles.get(r)?.name)) roleIds.add(r);
+        }
     const out = new Set<string>();
     for (const rid of roleIds) {
       if (rid === skip) continue;
@@ -400,7 +554,9 @@ export class AccessStore {
 
   /** The grants a subject holds; a permission exception is not one (handlers/exceptions.ts lists those). */
   grantsFor(subject: SubjectRef): GrantRec[] {
-    return [...this.grants.values()].filter((g) => g.subject.kind === subject.kind && g.subject.id === subject.id && g.conditions.exception === undefined);
+    return [...this.grants.values()].filter(
+      (g) => g.subject.kind === subject.kind && g.subject.id === subject.id && g.conditions.exception === undefined,
+    );
   }
 
   /**
@@ -409,20 +565,116 @@ export class AccessStore {
    */
   private rows(): Array<{ table: string; pk: string[]; cols: string[]; vals: unknown[] }> {
     const out: Array<{ table: string; pk: string[]; cols: string[]; vals: unknown[] }> = [];
-    const add = (table: string, pk: string[], cols: string[], vals: unknown[]): void => { out.push({ table, pk, cols, vals }); };
+    const add = (table: string, pk: string[], cols: string[], vals: unknown[]): void => {
+      out.push({ table, pk, cols, vals });
+    };
     add("access_meta", ["id"], ["id", "epoch"], ["space", this.epoch]);
-    for (const r of this.roles.values()) add("access_roles", ["id"], ["id", "name", "builtIn", "clearance", "assignableToAgents", "permissions", "version"], [r.id, r.name, r.builtIn ? 1 : 0, r.clearance, r.assignableToAgents ? 1 : 0, JSON.stringify(r.permissions), 1]);
-    for (const [roleId, change] of this.roleChanges) add("access_role_changes", ["role_id"], ["role_id", "before_json", "after_json", "by_kind", "by_id", "at"], [roleId, JSON.stringify(change.before), JSON.stringify(change.after), change.by.kind, change.by.id, change.at]);
-    for (const g of this.groups.values()) add("access_groups", ["id"], ["id", "name", "members", "managers", "builtIn", "version"], [g.id, g.name, JSON.stringify(g.members), JSON.stringify(g.managers), g.builtIn ? 1 : 0, 1]);
+    for (const r of this.roles.values())
+      add(
+        "access_roles",
+        ["id"],
+        ["id", "name", "builtIn", "clearance", "assignableToAgents", "permissions", "version"],
+        [r.id, r.name, r.builtIn ? 1 : 0, r.clearance, r.assignableToAgents ? 1 : 0, JSON.stringify(r.permissions), 1],
+      );
+    for (const [roleId, change] of this.roleChanges)
+      add(
+        "access_role_changes",
+        ["role_id"],
+        ["role_id", "before_json", "after_json", "by_kind", "by_id", "at"],
+        [roleId, JSON.stringify(change.before), JSON.stringify(change.after), change.by.kind, change.by.id, change.at],
+      );
+    for (const g of this.groups.values())
+      add(
+        "access_groups",
+        ["id"],
+        ["id", "name", "members", "managers", "builtIn", "version"],
+        [g.id, g.name, JSON.stringify(g.members), JSON.stringify(g.managers), g.builtIn ? 1 : 0, 1],
+      );
     for (const p of this.principals.values()) {
       const groups = [...this.groups.values()].filter((g) => g.members.some((m) => m.id === p.id)).map((g) => g.id);
-      add("access_principals", ["id"], ["id", "name", "kind", "owner", "status", "roles", "groups", "title", "createdAt", "version"], [p.id, p.name, p.kind, p.owner ?? null, p.status, JSON.stringify(this.rolesOf(p.id)), JSON.stringify(groups), p.title ?? null, p.createdAt, 1]);
+      add(
+        "access_principals",
+        ["id"],
+        ["id", "name", "kind", "owner", "status", "roles", "groups", "title", "createdAt", "version"],
+        [
+          p.id,
+          p.name,
+          p.kind,
+          p.owner ?? null,
+          p.status,
+          JSON.stringify(this.rolesOf(p.id)),
+          JSON.stringify(groups),
+          p.title ?? null,
+          p.createdAt,
+          1,
+        ],
+      );
     }
-    for (const [holder, roles] of this.assignments) for (const roleId of roles) add("access_assignments", ["holder", "role_id"], ["holder", "role_id"], [holder, roleId]);
-    for (const g of this.grants.values()) add("access_grants", ["id"], ["id", "subjectKind", "subjectId", "resourceType", "resourceId", "level", "conditions", "expiresAt", "by", "source", "version"], [g.id, g.subject.kind, g.subject.id, g.resource.type, g.resource.id, g.level, JSON.stringify(g.conditions), g.conditions.expiresAt ?? null, g.by, g.source ?? null, 1]);
-    for (const r of this.resources.values()) add("access_resources", ["id"], ["id", "type", "parent_id", "label", "owner_id", "holds", "row_json"], [r.id, r.type, r.parentId, r.label, r.ownerId, r.holds, r.row ? JSON.stringify(r.row) : null]);
-    for (const p of this.policies.values()) add("access_policies", ["key", "scope"], ["key", "scope", "kind", "value", "updated_at"], [p.key, p.scope, p.kind, JSON.stringify(p.value), p.updatedAt]);
-    for (const a of this.actors.values()) add("access_actors", ["id"], ["id", "provider", "status", "engineer", "token_hash", "token_expires", "token_used", "cred_hash", "last_seen"], [a.id, a.provider, a.status, a.engineerMcp ? 1 : 0, a.tokenHash ?? null, a.tokenExpires ?? null, a.tokenUsed ? 1 : 0, a.credHash ?? null, a.lastSeenAt ?? null]);
+    for (const [holder, roles] of this.assignments)
+      for (const roleId of roles)
+        add("access_assignments", ["holder", "role_id"], ["holder", "role_id"], [holder, roleId]);
+    for (const g of this.grants.values())
+      add(
+        "access_grants",
+        ["id"],
+        [
+          "id",
+          "subjectKind",
+          "subjectId",
+          "resourceType",
+          "resourceId",
+          "level",
+          "conditions",
+          "expiresAt",
+          "by",
+          "source",
+          "version",
+        ],
+        [
+          g.id,
+          g.subject.kind,
+          g.subject.id,
+          g.resource.type,
+          g.resource.id,
+          g.level,
+          JSON.stringify(g.conditions),
+          g.conditions.expiresAt ?? null,
+          g.by,
+          g.source ?? null,
+          1,
+        ],
+      );
+    for (const r of this.resources.values())
+      add(
+        "access_resources",
+        ["id"],
+        ["id", "type", "parent_id", "label", "owner_id", "holds", "row_json"],
+        [r.id, r.type, r.parentId, r.label, r.ownerId, r.holds, r.row ? JSON.stringify(r.row) : null],
+      );
+    for (const p of this.policies.values())
+      add(
+        "access_policies",
+        ["key", "scope"],
+        ["key", "scope", "kind", "value", "updated_at"],
+        [p.key, p.scope, p.kind, JSON.stringify(p.value), p.updatedAt],
+      );
+    for (const a of this.actors.values())
+      add(
+        "access_actors",
+        ["id"],
+        ["id", "provider", "status", "engineer", "token_hash", "token_expires", "token_used", "cred_hash", "last_seen"],
+        [
+          a.id,
+          a.provider,
+          a.status,
+          a.engineerMcp ? 1 : 0,
+          a.tokenHash ?? null,
+          a.tokenExpires ?? null,
+          a.tokenUsed ? 1 : 0,
+          a.credHash ?? null,
+          a.lastSeenAt ?? null,
+        ],
+      );
     // the cursor of the folded log events is this computer's own (migrations/0004_local_cursor.sql): kept in access_local_cursor, which never travels, where that table exists
     for (const [k, n] of this.fieldLabels) {
       if (k === CURSOR_KEY && this.localCursor) add("access_local_cursor", ["id"], ["id", "seq"], [k, n]);
@@ -436,7 +688,10 @@ export class AccessStore {
     const by = new Map<string, { pk: string[]; cols: string[]; vals: Map<string, unknown[]> }>();
     for (const r of this.rows()) {
       let t = by.get(r.table);
-      if (!t) { t = { pk: r.pk, cols: r.cols, vals: new Map() }; by.set(r.table, t); }
+      if (!t) {
+        t = { pk: r.pk, cols: r.cols, vals: new Map() };
+        by.set(r.table, t);
+      }
       t.vals.set(JSON.stringify(r.pk.map((c) => r.vals[r.cols.indexOf(c)])), r.vals);
     }
     return by;
@@ -453,7 +708,11 @@ export class AccessStore {
       const shape = SHAPES[table];
       if (!shape) continue;
       const vals = new Map<string, unknown[]>();
-      for (const row of rows) vals.set(JSON.stringify(shape.pk.map((c) => row[c] ?? null)), shape.cols.map((c) => row[c] ?? null));
+      for (const row of rows)
+        vals.set(
+          JSON.stringify(shape.pk.map((c) => row[c] ?? null)),
+          shape.cols.map((c) => row[c] ?? null),
+        );
       by.set(table, { pk: shape.pk, cols: shape.cols, vals });
     }
     return by;
@@ -470,9 +729,21 @@ export class AccessStore {
         const cols = t.cols.map((c) => `"${c}"`).join(",");
         const marks = t.cols.map(() => "?").join(",");
         // a counter only moves forward, whichever store writes last: the epoch, and the cursor of the events folded in
-        if (table === "access_meta") db.run(`INSERT INTO access_meta (id,epoch) VALUES (?,?) ON CONFLICT(id) DO UPDATE SET epoch = max(epoch, excluded.epoch)`, ...vals);
-        else if (table === "access_fields" && vals[0] === CURSOR_KEY) db.run(`INSERT INTO access_fields (k,rank) VALUES (?,?) ON CONFLICT(k) DO UPDATE SET rank = max(rank, excluded.rank)`, ...vals);
-        else if (table === "access_local_cursor") db.run(`INSERT INTO access_local_cursor (id,seq) VALUES (?,?) ON CONFLICT(id) DO UPDATE SET seq = max(seq, excluded.seq)`, ...vals);
+        if (table === "access_meta")
+          db.run(
+            `INSERT INTO access_meta (id,epoch) VALUES (?,?) ON CONFLICT(id) DO UPDATE SET epoch = max(epoch, excluded.epoch)`,
+            ...vals,
+          );
+        else if (table === "access_fields" && vals[0] === CURSOR_KEY)
+          db.run(
+            `INSERT INTO access_fields (k,rank) VALUES (?,?) ON CONFLICT(k) DO UPDATE SET rank = max(rank, excluded.rank)`,
+            ...vals,
+          );
+        else if (table === "access_local_cursor")
+          db.run(
+            `INSERT INTO access_local_cursor (id,seq) VALUES (?,?) ON CONFLICT(id) DO UPDATE SET seq = max(seq, excluded.seq)`,
+            ...vals,
+          );
         else db.run(`INSERT OR REPLACE INTO ${table} (${cols}) VALUES (${marks})`, ...vals);
       }
     }
@@ -493,12 +764,18 @@ export class AccessStore {
    * every row `persist` makes. What was written is noted in that comparison, so a later `persist` of this store neither writes these rows again nor misses one.
    */
   persistResources(db: Db, ids: Iterable<string>, cursorMoved: boolean): void {
-    if (!this.base && this.raw) { this.base = this.fromRaw(); this.raw = null; }
+    if (!this.base && this.raw) {
+      this.base = this.fromRaw();
+      this.raw = null;
+    }
     const note = (table: string, key: unknown[], vals: unknown[]): void => {
       if (!this.base) return;
       let t = this.base.get(table);
       const shape = SHAPES[table]!;
-      if (!t) { t = { pk: shape.pk, cols: shape.cols, vals: new Map() }; this.base.set(table, t); }
+      if (!t) {
+        t = { pk: shape.pk, cols: shape.cols, vals: new Map() };
+        this.base.set(table, t);
+      }
       t.vals.set(JSON.stringify(key), vals);
     };
     for (const id of ids) {
@@ -506,17 +783,28 @@ export class AccessStore {
       if (!r) continue;
       const vals = [r.id, r.type, r.parentId, r.label, r.ownerId, r.holds, r.row ? JSON.stringify(r.row) : null];
       db.run("DELETE FROM access_resources WHERE id = ?", id);
-      db.run("INSERT INTO access_resources (id,type,parent_id,label,owner_id,holds,row_json) VALUES (?,?,?,?,?,?,?)", ...vals);
+      db.run(
+        "INSERT INTO access_resources (id,type,parent_id,label,owner_id,holds,row_json) VALUES (?,?,?,?,?,?,?)",
+        ...vals,
+      );
       note("access_resources", [r.id], vals);
     }
     if (!cursorMoved) return;
     const n = this.fieldLabels.get(CURSOR_KEY) ?? 0;
     // the cursor is this computer's own (migrations/0004_local_cursor.sql): where access_local_cursor exists it is kept there, as `persist` keeps it, and never in access_fields, which travels
     if (this.localCursor) {
-      db.run("INSERT INTO access_local_cursor (id,seq) VALUES (?,?) ON CONFLICT(id) DO UPDATE SET seq = max(seq, excluded.seq)", CURSOR_KEY, n);
+      db.run(
+        "INSERT INTO access_local_cursor (id,seq) VALUES (?,?) ON CONFLICT(id) DO UPDATE SET seq = max(seq, excluded.seq)",
+        CURSOR_KEY,
+        n,
+      );
       note("access_local_cursor", [CURSOR_KEY], [CURSOR_KEY, n]);
     } else {
-      db.run("INSERT INTO access_fields (k,rank) VALUES (?,?) ON CONFLICT(k) DO UPDATE SET rank = max(rank, excluded.rank)", CURSOR_KEY, n);
+      db.run(
+        "INSERT INTO access_fields (k,rank) VALUES (?,?) ON CONFLICT(k) DO UPDATE SET rank = max(rank, excluded.rank)",
+        CURSOR_KEY,
+        n,
+      );
       note("access_fields", [CURSOR_KEY], [CURSOR_KEY, n]);
     }
   }
@@ -524,30 +812,66 @@ export class AccessStore {
   hydrate(db: Db): void {
     // the rows as read are kept: they are what the next persist compares against, and keeping them costs nothing here
     const raw = new Map<string, Record<string, unknown>[]>();
-    const read = (table: string): unknown[] => { const rows = db.all(`SELECT * FROM ${table}`) as Record<string, unknown>[]; raw.set(table, rows); return rows; };
-    this.roles.clear(); this.roleChanges.clear(); this.groups.clear(); this.principals.clear(); this.grants.clear();
-    this.resources.clear(); this.policies.clear(); this.actors.clear(); this.assignments.clear(); this.fieldLabels.clear();
+    const read = (table: string): unknown[] => {
+      const rows = db.all(`SELECT * FROM ${table}`) as Record<string, unknown>[];
+      raw.set(table, rows);
+      return rows;
+    };
+    this.roles.clear();
+    this.roleChanges.clear();
+    this.groups.clear();
+    this.principals.clear();
+    this.grants.clear();
+    this.resources.clear();
+    this.policies.clear();
+    this.actors.clear();
+    this.assignments.clear();
+    this.fieldLabels.clear();
     this.catalogue.clear();
     const meta = read("access_meta") as { epoch: number }[];
     for (const r of read("access_roles") as Record<string, unknown>[]) {
       const permissions = JSON.parse(String(r.permissions)) as string[];
       const rec: RoleRec = {
-        id: String(r.id), name: String(r.name), builtIn: !!r.builtIn, clearance: r.clearance as Label,
-        assignableToAgents: !!r.assignableToAgents, permissions,
+        id: String(r.id),
+        name: String(r.name),
+        builtIn: !!r.builtIn,
+        clearance: r.clearance as Label,
+        assignableToAgents: !!r.assignableToAgents,
+        permissions,
       };
       this.roles.set(rec.id, rec);
       if (rec.builtIn) for (const k of permissions) this.catalogue.add(k);
     }
-    for (const change of read("access_role_changes") as { role_id: string; before_json: string; after_json: string; by_kind: PKind; by_id: string; at: number }[]) this.roleChanges.set(change.role_id, { before: JSON.parse(change.before_json), after: JSON.parse(change.after_json), by: {kind:change.by_kind,id:change.by_id}, at:change.at });
+    for (const change of read("access_role_changes") as {
+      role_id: string;
+      before_json: string;
+      after_json: string;
+      by_kind: PKind;
+      by_id: string;
+      at: number;
+    }[])
+      this.roleChanges.set(change.role_id, {
+        before: JSON.parse(change.before_json),
+        after: JSON.parse(change.after_json),
+        by: { kind: change.by_kind, id: change.by_id },
+        at: change.at,
+      });
     for (const g of read("access_groups") as Record<string, unknown>[]) {
       this.groups.set(String(g.id), {
-        id: String(g.id), name: String(g.name), builtIn: !!g.builtIn,
-        members: JSON.parse(String(g.members)) as Ref[], managers: JSON.parse(String(g.managers)) as Ref[],
+        id: String(g.id),
+        name: String(g.name),
+        builtIn: !!g.builtIn,
+        members: JSON.parse(String(g.members)) as Ref[],
+        managers: JSON.parse(String(g.managers)) as Ref[],
       });
     }
     for (const p of read("access_principals") as Record<string, unknown>[]) {
       const rec: PrincipalRec = {
-        id: String(p.id), kind: p.kind as PKind, name: String(p.name), status: p.status as Status, createdAt: Number(p.createdAt),
+        id: String(p.id),
+        kind: p.kind as PKind,
+        name: String(p.name),
+        status: p.status as Status,
+        createdAt: Number(p.createdAt),
       };
       if (p.owner) rec.owner = String(p.owner);
       if (p.title) rec.title = String(p.title);
@@ -575,22 +899,32 @@ export class AccessStore {
     }
     for (const r of read("access_resources") as Record<string, unknown>[]) {
       const rec: ResourceRec = {
-        id: String(r.id), type: String(r.type), parentId: r.parent_id == null ? null : String(r.parent_id),
-        label: r.label as Label, ownerId: r.owner_id == null ? null : String(r.owner_id), holds: Number(r.holds),
+        id: String(r.id),
+        type: String(r.type),
+        parentId: r.parent_id == null ? null : String(r.parent_id),
+        label: r.label as Label,
+        ownerId: r.owner_id == null ? null : String(r.owner_id),
+        holds: Number(r.holds),
       };
       if (r.row_json) rec.row = JSON.parse(String(r.row_json)) as Record<string, unknown>;
       this.resources.set(rec.id, rec);
     }
     for (const p of read("access_policies") as Record<string, unknown>[]) {
       const rec: PolicyRec = {
-        key: String(p.key), scope: String(p.scope), kind: p.kind as PolicyKind,
-        value: JSON.parse(String(p.value)), updatedAt: Number(p.updated_at),
+        key: String(p.key),
+        scope: String(p.scope),
+        kind: p.kind as PolicyKind,
+        value: JSON.parse(String(p.value)),
+        updatedAt: Number(p.updated_at),
       };
       this.policies.set(pkey(rec.key, rec.scope), rec);
     }
     for (const a of read("access_actors") as Record<string, unknown>[]) {
       const rec: ActorRec = {
-        id: String(a.id), provider: String(a.provider), status: a.status as ActorRec["status"], engineerMcp: !!a.engineer,
+        id: String(a.id),
+        provider: String(a.provider),
+        status: a.status as ActorRec["status"],
+        engineerMcp: !!a.engineer,
       };
       if (a.token_hash) rec.tokenHash = String(a.token_hash);
       if (a.token_expires != null) rec.tokenExpires = Number(a.token_expires);
@@ -601,9 +935,14 @@ export class AccessStore {
     }
     // the cursor: this computer's own row; one in access_fields (a Space from before 0004, or a copy from another computer) counts only where the local table does not exist yet
     let local: { id: string; seq: number }[] | null = null;
-    try { local = read("access_local_cursor") as { id: string; seq: number }[]; } catch { local = null; }
+    try {
+      local = read("access_local_cursor") as { id: string; seq: number }[];
+    } catch {
+      local = null;
+    }
     this.localCursor = local !== null;
-    for (const f of read("access_fields") as { k: string; rank: number }[]) if (f.k !== CURSOR_KEY || !this.localCursor) this.fieldLabels.set(f.k, Number(f.rank));
+    for (const f of read("access_fields") as { k: string; rank: number }[])
+      if (f.k !== CURSOR_KEY || !this.localCursor) this.fieldLabels.set(f.k, Number(f.rank));
     for (const c of local ?? []) if (c.id === CURSOR_KEY) this.fieldLabels.set(CURSOR_KEY, Number(c.seq));
     this.epoch = meta[0]?.epoch ?? 1;
     this.snap = null;
@@ -618,8 +957,14 @@ export function kernelResource(r: ResourceRec): ResourceRow {
   // Only people added and Only me cut a resource off from its container (the record from its type, the type from the Space); the row keeps the natural parent, so a seed that re-registers it cannot undo the cut
   const cut = (r.row?.["audience"] === "added" || r.row?.["audience"] === "me") && r.parentId !== null;
   return {
-    id: r.id, type: r.type, parent_id: cut ? null : r.parentId, label: labelRank(r.label), owner_id: r.ownerId, holds: r.holds,
-    ...(cut && r.parentId !== null ? { home: r.parentId } : {}), ...(r.row?.["exportViewers"] === true ? { export_viewers: true } : {}),
+    id: r.id,
+    type: r.type,
+    parent_id: cut ? null : r.parentId,
+    label: labelRank(r.label),
+    owner_id: r.ownerId,
+    holds: r.holds,
+    ...(cut && r.parentId !== null ? { home: r.parentId } : {}),
+    ...(r.row?.["exportViewers"] === true ? { export_viewers: true } : {}),
   };
 }
 
@@ -636,7 +981,10 @@ function kernelGrant(g: GrantRec): GrantRow {
   if (isExpr(c.rowFilter)) conditions.rowFilter = structuredClone(c.rowFilter);
   if (c.labelCeiling !== undefined) conditions.labelCeiling = labelRank(c.labelCeiling);
   if (c.hiddenFields?.length) conditions.hiddenFields = [...c.hiddenFields];
-  if (c.window) { conditions.notBefore = c.window.from; conditions.notAfter = c.window.to; }
+  if (c.window) {
+    conditions.notBefore = c.window.from;
+    conditions.notAfter = c.window.to;
+  }
   if (c.export) conditions.export = true;
   if (c.reshare) conditions.reshare = true;
   const row: GrantRow = {
@@ -651,17 +999,27 @@ function kernelGrant(g: GrantRec): GrantRow {
     by: g.by,
   };
   if (g.source?.startsWith(THROUGH_AGENT)) row.source = g.source;
-  if (c.exception) row.exception = { perms: [...c.exception.perms], effect: c.exception.effect, ...(c.exception.own ? { own: [...c.exception.own] } : {}) };
+  if (c.exception)
+    row.exception = {
+      perms: [...c.exception.perms],
+      effect: c.exception.effect,
+      ...(c.exception.own ? { own: [...c.exception.own] } : {}),
+    };
   return row;
 }
 
-export function pkey(key: string, scope: string): string { return `${scope}\n${key}`; }
+export function pkey(key: string, scope: string): string {
+  return `${scope}\n${key}`;
+}
 
 const STORES = new WeakMap<Db, AccessStore>();
 
 export function storeOf(ctx: AccessCtx): AccessStore {
   // a read-only capability (handlers/index.ts readOnly) reads the kept view of access.sync: no read of the tables, and no way to change it
-  if (READERS.has(ctx) && readView) { const v = readView(ctx); if (v) return v; }
+  if (READERS.has(ctx) && readView) {
+    const v = readView(ctx);
+    if (v) return v;
+  }
   let s = STORES.get(ctx.db);
   if (s) return s;
   s = loadStore(ctx.db);
@@ -673,18 +1031,33 @@ export function storeOf(ctx: AccessCtx): AccessStore {
 export function loadStore(db: Db, written?: (ok: boolean) => void): AccessStore {
   const s = new AccessStore();
   let rows: unknown[] = [];
-  try { rows = db.all("SELECT * FROM access_roles"); } catch { rows = []; }
+  try {
+    rows = db.all("SELECT * FROM access_roles");
+  } catch {
+    rows = [];
+  }
   if (rows.length) s.hydrate(db);
   else {
-    try { db.all("SELECT id FROM access_local_cursor LIMIT 1"); s.localCursor = true; } catch { /* a Space from before migration 0004 */ }
+    try {
+      db.all("SELECT id FROM access_local_cursor LIMIT 1");
+      s.localCursor = true;
+    } catch {
+      /* a Space from before migration 0004 */
+    }
     s.seed();
     // a db that cannot take the tables still serves the memory snapshot; `written` says the seed did not reach them, so nobody keeps this store as if it had
-    try { s.persist(db); } catch { written?.(false); }
+    try {
+      s.persist(db);
+    } catch {
+      written?.(false);
+    }
   }
   return s;
 }
 
-export function dropStore(db: Db): void { STORES.delete(db); }
+export function dropStore(db: Db): void {
+  STORES.delete(db);
+}
 
 // ---- the read view -------------------------------------------------------------------------------------------------------
 // access.sync keeps one store per daemon database (consumers.ts). A capability that only reads is handed that store instead of reading every access table again. It is sealed: outside the
@@ -694,18 +1067,34 @@ export function dropStore(db: Db): void { STORES.delete(db); }
 const READERS = new WeakSet<object>();
 let readView: ((ctx: AccessCtx) => AccessStore | null) | null = null;
 /** consumers.ts hands over how to find the kept view of a ctx's database. */
-export function setReadView(f: (ctx: AccessCtx) => AccessStore | null): void { readView = f; }
+export function setReadView(f: (ctx: AccessCtx) => AccessStore | null): void {
+  readView = f;
+}
 
 /** Wrap a capability that never changes the access store: its calls to storeOf get the kept read view when there is one (else a store of their own, as before). */
-export function readOnly<C extends AccessCtx, I, R>(h: (ctx: C, input: I) => Promise<R>): (ctx: C, input: I) => Promise<R> {
-  return (ctx, input) => { READERS.add(ctx); return h(ctx, input); };
+export function readOnly<C extends AccessCtx, I, R>(
+  h: (ctx: C, input: I) => Promise<R>,
+): (ctx: C, input: I) => Promise<R> {
+  return (ctx, input) => {
+    READERS.add(ctx);
+    return h(ctx, input);
+  };
 }
 
 let writing = 0;
 /** Run `f` as the writer of sealed stores and snapshots (access.sync only). */
-export function asKeptWriter<T>(f: () => T): T { writing++; try { return f(); } finally { writing--; } }
+export function asKeptWriter<T>(f: () => T): T {
+  writing++;
+  try {
+    return f();
+  } finally {
+    writing--;
+  }
+}
 export const READ_VIEW_REFUSAL = "The access read view cannot be changed by a capability that reads.";
-function mustWrite(): void { if (writing === 0) throw new Error(READ_VIEW_REFUSAL); }
+function mustWrite(): void {
+  if (writing === 0) throw new Error(READ_VIEW_REFUSAL);
+}
 
 function deepFreeze<T>(v: T): T {
   if (v === null || typeof v !== "object" || Object.isFrozen(v)) return v;
@@ -714,26 +1103,63 @@ function deepFreeze<T>(v: T): T {
 }
 class SealedMap<K, V> extends Map<K, V> {
   sealed = false;
-  override set(k: K, v: V): this { if (this.sealed) { mustWrite(); deepFreeze(v); } return super.set(k, v); }
-  override delete(k: K): boolean { if (this.sealed) mustWrite(); return super.delete(k); }
-  override clear(): void { if (this.sealed) mustWrite(); super.clear(); }
+  override set(k: K, v: V): this {
+    if (this.sealed) {
+      mustWrite();
+      deepFreeze(v);
+    }
+    return super.set(k, v);
+  }
+  override delete(k: K): boolean {
+    if (this.sealed) mustWrite();
+    return super.delete(k);
+  }
+  override clear(): void {
+    if (this.sealed) mustWrite();
+    super.clear();
+  }
 }
 class SealedSet<T> extends Set<T> {
   sealed = false;
-  override add(v: T): this { if (this.sealed) mustWrite(); return super.add(v); }
-  override delete(v: T): boolean { if (this.sealed) mustWrite(); return super.delete(v); }
-  override clear(): void { if (this.sealed) mustWrite(); super.clear(); }
+  override add(v: T): this {
+    if (this.sealed) mustWrite();
+    return super.add(v);
+  }
+  override delete(v: T): boolean {
+    if (this.sealed) mustWrite();
+    return super.delete(v);
+  }
+  override clear(): void {
+    if (this.sealed) mustWrite();
+    super.clear();
+  }
 }
 /** Every own field becomes an accessor whose setter refuses outside the writer; `methods` refuse outside the writer too; nothing new can be added. */
 function sealFields(o: object, methods: readonly string[]): void {
   const rec = o as Record<string, unknown>;
   for (const k of Object.keys(rec)) {
     let v = rec[k];
-    Object.defineProperty(o, k, { get: () => v, set: (x: unknown) => { mustWrite(); v = x; }, enumerable: true, configurable: false });
+    Object.defineProperty(o, k, {
+      get: () => v,
+      set: (x: unknown) => {
+        mustWrite();
+        v = x;
+      },
+      enumerable: true,
+      configurable: false,
+    });
   }
   for (const m of methods) {
     const f = rec[m] as (...a: unknown[]) => unknown;
-    Object.defineProperty(o, m, { value: (...a: unknown[]) => { mustWrite(); return f.apply(o, a); }, writable: false, enumerable: false, configurable: false });
+    Object.defineProperty(o, m, {
+      value: (...a: unknown[]) => {
+        mustWrite();
+        return f.apply(o, a);
+      },
+      writable: false,
+      enumerable: false,
+      configurable: false,
+    });
   }
   Object.preventExtensions(o);
 }
@@ -744,55 +1170,143 @@ export function sealStore(store: AccessStore): AccessStore {
   READ_VIEWS.add(store);
   const rec = store as unknown as Record<string, unknown>;
   for (const [k, v] of Object.entries(rec)) {
-    if (k === "base" || k === "raw") continue;   // what persist compares against: the store's own, never read by a capability
-    if (v instanceof Map) { const m = new SealedMap(v); for (const x of m.values()) deepFreeze(x); m.sealed = true; rec[k] = m; }
-    else if (v instanceof Set) { const m = new SealedSet(v); m.sealed = true; rec[k] = m; }
+    if (k === "base" || k === "raw") continue; // what persist compares against: the store's own, never read by a capability
+    if (v instanceof Map) {
+      const m = new SealedMap(v);
+      for (const x of m.values()) deepFreeze(x);
+      m.sealed = true;
+      rec[k] = m;
+    } else if (v instanceof Set) {
+      const m = new SealedSet(v);
+      m.sealed = true;
+      rec[k] = m;
+    }
   }
-  sealFields(store, ["bump", "invalidate", "seed", "hydrate", "persist", "persistResources", "setRoles", "adoptSnapshot"]);
+  sealFields(store, [
+    "bump",
+    "invalidate",
+    "seed",
+    "hydrate",
+    "persist",
+    "persistResources",
+    "setRoles",
+    "adoptSnapshot",
+  ]);
   return store;
 }
 
-const SNAP_MUTATORS = ["putPrincipal", "setAssistant", "putRole", "addPrincipalRole", "removePrincipalRole", "addMember", "removeMember", "putGrant", "revokeGrant", "putResource", "setFieldLabel", "setPolicies", "changed"] as const;
+const SNAP_MUTATORS = [
+  "putPrincipal",
+  "setAssistant",
+  "putRole",
+  "addPrincipalRole",
+  "removePrincipalRole",
+  "addMember",
+  "removeMember",
+  "putGrant",
+  "revokeGrant",
+  "putResource",
+  "setFieldLabel",
+  "setPolicies",
+  "changed",
+] as const;
 /** Seal a snapshot of the read view: every mutator and every public field refuses outside the writer. Its derived caches (filled by reading) are private and still fill. */
 export function sealSnapshot(snap: AccessSnapshot): AccessSnapshot {
   const rec = snap as unknown as Record<string, unknown>;
   for (const k of ["epoch", "labelNames", "rowSource", "clock"]) {
     let v = rec[k];
     if (k === "labelNames") v = Object.freeze([...(v as string[])]);
-    Object.defineProperty(snap, k, { get: () => v, set: (x: unknown) => { mustWrite(); v = x; }, enumerable: true, configurable: false });
+    Object.defineProperty(snap, k, {
+      get: () => v,
+      set: (x: unknown) => {
+        mustWrite();
+        v = x;
+      },
+      enumerable: true,
+      configurable: false,
+    });
   }
   for (const m of SNAP_MUTATORS) {
     const f = (Object.getPrototypeOf(snap) as Record<string, (...a: unknown[]) => unknown>)[m]!;
-    Object.defineProperty(snap, m, { value: (...a: unknown[]) => { mustWrite(); return f.apply(snap, a); }, writable: false, enumerable: false, configurable: false });
+    Object.defineProperty(snap, m, {
+      value: (...a: unknown[]) => {
+        mustWrite();
+        return f.apply(snap, a);
+      },
+      writable: false,
+      enumerable: false,
+      configurable: false,
+    });
   }
   return snap;
 }
 
-export function changed(ctx: AccessCtx, store: AccessStore, what: "role" | "group" | "membership" | "label" | "actor" | "assignment"): void {
+export function changed(
+  ctx: AccessCtx,
+  store: AccessStore,
+  what: "role" | "group" | "membership" | "label" | "actor" | "assignment",
+): void {
   store.bump();
   ctx.emit("access.changed", String(store.epoch), { epoch: store.epoch, what, by: ctx.principal.id });
-  try { store.persist(ctx.db); } catch (e) { store.bump(); throw e; }
+  try {
+    store.persist(ctx.db);
+  } catch (e) {
+    store.bump();
+    throw e;
+  }
 }
 
 /** Inline reducers drop the snapshot. Row changes live in the tables the handler writes in the same turn. */
 export const inline = {
-  "access.changed": (store: AccessStore): void => { store.invalidate(); },
-  "grant.created": (store: AccessStore): void => { store.invalidate(); },
-  "grant.updated": (store: AccessStore): void => { store.invalidate(); },
-  "grant.revoked": (store: AccessStore): void => { store.invalidate(); },
-  "policy.changed": (store: AccessStore): void => { store.invalidate(); },
+  "access.changed": (store: AccessStore): void => {
+    store.invalidate();
+  },
+  "grant.created": (store: AccessStore): void => {
+    store.invalidate();
+  },
+  "grant.updated": (store: AccessStore): void => {
+    store.invalidate();
+  },
+  "grant.revoked": (store: AccessStore): void => {
+    store.invalidate();
+  },
+  "policy.changed": (store: AccessStore): void => {
+    store.invalidate();
+  },
 };
 export const consumers = {};
 
-export function roleView(store: AccessStore, r: RoleRec): { id: string; name: string; builtIn: boolean; clearance: Label; assignableToAgents: boolean; permissions: string[]; holders: number } {
+export function roleView(
+  store: AccessStore,
+  r: RoleRec,
+): {
+  id: string;
+  name: string;
+  builtIn: boolean;
+  clearance: Label;
+  assignableToAgents: boolean;
+  permissions: string[];
+  holders: number;
+} {
   return {
-    id: r.id, name: r.name, builtIn: r.builtIn, clearance: r.clearance, assignableToAgents: r.assignableToAgents,
-    permissions: r.permissions, holders: store.holdersOf(r.id).length,
+    id: r.id,
+    name: r.name,
+    builtIn: r.builtIn,
+    clearance: r.clearance,
+    assignableToAgents: r.assignableToAgents,
+    permissions: r.permissions,
+    holders: store.holdersOf(r.id).length,
   };
 }
 
 export function groupView(g: GroupRec): GroupRec {
-  return { id: g.id, name: g.name, builtIn: g.builtIn, members: g.members.map((m) => ({ kind: m.kind, id: m.id })), managers: g.managers.map((m) => ({ kind: m.kind, id: m.id })) };
+  return {
+    id: g.id,
+    name: g.name,
+    builtIn: g.builtIn,
+    members: g.members.map((m) => ({ kind: m.kind, id: m.id })),
+    managers: g.managers.map((m) => ({ kind: m.kind, id: m.id })),
+  };
 }
 
 /**
@@ -813,14 +1327,32 @@ export function grantView(g: GrantRec): GrantRec {
   if (g.conditions.export) conditions.export = true;
   if (g.conditions.reshare) conditions.reshare = true;
   const out: GrantRec = {
-    id: g.id, subject: { kind: g.subject.kind, id: g.subject.id }, resource: { type: g.resource.type, id: g.resource.id },
-    level: g.level, conditions, by: g.by, createdAt: g.createdAt,
+    id: g.id,
+    subject: { kind: g.subject.kind, id: g.subject.id },
+    resource: { type: g.resource.type, id: g.resource.id },
+    level: g.level,
+    conditions,
+    by: g.by,
+    createdAt: g.createdAt,
   };
   if (g.source) out.source = g.source;
   return out;
 }
 
-type PrincipalOut = { id: string; kind: PKind; name: string; owner?: string; private?: boolean; assistant?: boolean; agentName?: string; status: Status; roles: string[]; groups: string[]; title?: string; createdAt: number };
+type PrincipalOut = {
+  id: string;
+  kind: PKind;
+  name: string;
+  owner?: string;
+  private?: boolean;
+  assistant?: boolean;
+  agentName?: string;
+  status: Status;
+  roles: string[];
+  groups: string[];
+  title?: string;
+  createdAt: number;
+};
 
 /** The access_fields key that marks an agent private to its person (no dot: never a field label). */
 const PRIVATE_KEY = (id: string): string => `private:${id}`;
@@ -830,28 +1362,47 @@ export function setPrivate(store: AccessStore, id: string, on: boolean, assistan
   const wasAssistant = store.fieldLabels.has(ASSISTANT_KEY(id));
   const isAssistant = on && assistant;
   if (had === on && wasAssistant === isAssistant) return false;
-  if (on) store.fieldLabels.set(PRIVATE_KEY(id), 1); else store.fieldLabels.delete(PRIVATE_KEY(id));
-  if (isAssistant) store.fieldLabels.set(ASSISTANT_KEY(id), 1); else store.fieldLabels.delete(ASSISTANT_KEY(id));
+  if (on) store.fieldLabels.set(PRIVATE_KEY(id), 1);
+  else store.fieldLabels.delete(PRIVATE_KEY(id));
+  if (isAssistant) store.fieldLabels.set(ASSISTANT_KEY(id), 1);
+  else store.fieldLabels.delete(ASSISTANT_KEY(id));
   return true;
 }
 /** The access_fields key that marks an agent as its person's own Assistant (their hands on what they own; see kernel authorize). */
 const ASSISTANT_KEY = (id: string): string => `assistant:${id}`;
 export const isPrivateAgent = (store: AccessStore, id: string): boolean => store.fieldLabels.has(PRIVATE_KEY(id));
 /** How someone else's private agent is named (lib/words/agent-name, lead 12 Nov): their Assistant as "Maya’s Assistant", an outside agent they connected as "Maya Lin (Agent)". */
-export const asAgentOf = (personName: string, assistant = false): string => agentOfName(personName, assistant ? "assistant" : "outside");
+export const asAgentOf = (personName: string, assistant = false): string =>
+  agentOfName(personName, assistant ? "assistant" : "outside");
 
 /**
  * A principal as `viewer` sees it. Someone else's private agent (their assistant, an outside agent they connected) is named as its person, "Irfad Imtiaz (Agent)", wears its person's face (`owner`),
  * and never carries its own name, except for an owner or admin (`agentName`, for the audit details line). Its person sees it as it is. No viewer (the server's own reads) sees it as it is.
  */
-export function principalView(store: AccessStore, p: PrincipalRec, viewer?: { id: string; admin: boolean }): PrincipalOut {
+export function principalView(
+  store: AccessStore,
+  p: PrincipalRec,
+  viewer?: { id: string; admin: boolean },
+): PrincipalOut {
   const groups = [...store.groups.values()].filter((g) => g.members.some((m) => m.id === p.id)).map((g) => g.id);
   const out: PrincipalOut = {
-    id: p.id, kind: p.kind, name: p.name, status: p.status, roles: store.rolesOf(p.id), groups, createdAt: p.createdAt,
+    id: p.id,
+    kind: p.kind,
+    name: p.name,
+    status: p.status,
+    roles: store.rolesOf(p.id),
+    groups,
+    createdAt: p.createdAt,
   };
   if (p.owner) out.owner = p.owner;
   if (p.title) out.title = p.title;
-  if (viewer !== undefined && p.kind === "agent" && p.owner !== undefined && p.owner !== viewer.id && isPrivateAgent(store, p.id)) {
+  if (
+    viewer !== undefined &&
+    p.kind === "agent" &&
+    p.owner !== undefined &&
+    p.owner !== viewer.id &&
+    isPrivateAgent(store, p.id)
+  ) {
     out.private = true;
     const assistant = store.fieldLabels.has(ASSISTANT_KEY(p.id));
     out.name = asAgentOf(store.principals.get(p.owner)?.name ?? "Someone", assistant);
@@ -868,8 +1419,16 @@ export const LABELS: { label: Label; rank: number; providers: "any" | "approved"
   { label: "restricted", rank: 3, providers: "none", syncToLaptop: false },
 ];
 
-const DEFAULT_KEYS = new Set(["labels.provider", "sharing.public_links", "sign_in.second_factor", "retention.default", "vault.ladder"]);
-export function isDefaultPolicy(key: string): boolean { return DEFAULT_KEYS.has(key); }
+const DEFAULT_KEYS = new Set([
+  "labels.provider",
+  "sharing.public_links",
+  "sign_in.second_factor",
+  "retention.default",
+  "vault.ladder",
+]);
+export function isDefaultPolicy(key: string): boolean {
+  return DEFAULT_KEYS.has(key);
+}
 
 export function kindFor(key: string): PolicyKind {
   if (key === "labels.provider" || key.startsWith("label.") || key.startsWith("provider.")) return "provider_label";

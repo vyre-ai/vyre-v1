@@ -19,10 +19,13 @@ import { claimOnEdge, dismissOnboarding, edge } from "../apps/app/tests/real-app
 const PASSWORD = "fixture password 123";
 const SHOTS = process.env["VYRE_WALK_SHOTS"] ?? "shots-evidence/personal-walk";
 
-
 test("a fresh Personal Space: the first hour works end to end in the real app", async (t) => {
   const dist = process.env["VYRE_APP_DIST"];
-  if (!dist) { if (process.env["VYRE_REQUIRE_CHROME"] === "1") assert.fail("VYRE_APP_DIST required"); t.skip("VYRE_APP_DIST required for production browser evidence"); return; }
+  if (!dist) {
+    if (process.env["VYRE_REQUIRE_CHROME"] === "1") assert.fail("VYRE_APP_DIST required");
+    t.skip("VYRE_APP_DIST required for production browser evidence");
+    return;
+  }
   const { chromium } = await import("playwright-core");
   const exe = process.env["CHROME_BIN"] || chromium.executablePath();
   assert.ok(fs.existsSync(exe), `Chromium is required at ${exe}`);
@@ -32,43 +35,111 @@ test("a fresh Personal Space: the first hour works end to end in the real app", 
   let daemonUrl = "";
   const web = await edge(dist, () => daemonUrl);
   const daemon = await startDaemon({
-    config: loadConfig(["--role", "space", "--data-dir", dir, "--port", "0", "--space", "spc_walk", "--space-name", "Personal", "--space-kind", "personal", "--address", web.origin], {}, "1.2.3"),
+    config: loadConfig(
+      [
+        "--role",
+        "space",
+        "--data-dir",
+        dir,
+        "--port",
+        "0",
+        "--space",
+        "spc_walk",
+        "--space-name",
+        "Personal",
+        "--space-kind",
+        "personal",
+        "--address",
+        web.origin,
+      ],
+      {},
+      "1.2.3",
+    ),
     codeRoot: CODE_ROOT,
-    platform: fakePlatform({ os: "linux", hostname: "walk", free: 80e9, commands: { [`findmnt -n -o SOURCE --target ${dir}`]: { stdout: "/dev/mapper/vyre\n" }, "lsblk -s -n -o TYPE /dev/mapper/vyre": { stdout: "crypt\ndisk\n" }, "docker info --format {{.ServerVersion}}": { stdout: "27.1.1\n" } } }),
-    fetch: () => Promise.resolve({ ok: true, status: 200, headers: { get: () => null }, text: () => Promise.resolve('{"apps":{"http":{}}}') }),
+    platform: fakePlatform({
+      os: "linux",
+      hostname: "walk",
+      free: 80e9,
+      commands: {
+        [`findmnt -n -o SOURCE --target ${dir}`]: { stdout: "/dev/mapper/vyre\n" },
+        "lsblk -s -n -o TYPE /dev/mapper/vyre": { stdout: "crypt\ndisk\n" },
+        "docker info --format {{.ServerVersion}}": { stdout: "27.1.1\n" },
+      },
+    }),
+    fetch: () =>
+      Promise.resolve({
+        ok: true,
+        status: 200,
+        headers: { get: () => null },
+        text: () => Promise.resolve('{"apps":{"http":{}}}'),
+      }),
     intervals: { fast: 3_600_000, slow: 3_600_000, encryption: 3_600_000, commands: 3_600_000, hooks: 3_600_000 },
     engineOpenSession: standIn,
-  }).catch((e: unknown) => { web.close(); throw e; });   // a daemon that does not start must not leave the edge listening
+  }).catch((e: unknown) => {
+    web.close();
+    throw e;
+  }); // a daemon that does not start must not leave the edge listening
   daemonUrl = daemon.url;
   assert.ok(daemon.claim, "a fresh Personal Space prints a claim link");
-  const browser = await chromium.launch({ executablePath: exe, args: ["--no-sandbox"] }).catch(async (e: unknown) => { web.close(); await daemon.stop(); fs.rmSync(dir, { recursive: true, force: true }); throw e; });
+  const browser = await chromium.launch({ executablePath: exe, args: ["--no-sandbox"] }).catch(async (e: unknown) => {
+    web.close();
+    await daemon.stop();
+    fs.rmSync(dir, { recursive: true, force: true });
+    throw e;
+  });
   const context = await browser.newContext({ viewport: { width: 1280, height: 860 } });
   const page = await context.newPage();
   const errors: string[] = [];
   const refused: string[] = [];
-  page.on("pageerror", (e) => errors.push(`${new URL(page.url()).pathname}${new URL(page.url()).hash.slice(0, 40)}: ${e.message.slice(0, 120)}`));
-  page.on("response", (r) => { const u = new URL(r.url()); if (u.pathname.startsWith("/v1/") && r.status() >= 400) void r.text().then((b) => refused.push(`${r.status()} ${u.pathname} ${b.slice(0, 160)}`)).catch(() => undefined); });
+  page.on("pageerror", (e) =>
+    errors.push(`${new URL(page.url()).pathname}${new URL(page.url()).hash.slice(0, 40)}: ${e.message.slice(0, 120)}`),
+  );
+  page.on("response", (r) => {
+    const u = new URL(r.url());
+    if (u.pathname.startsWith("/v1/") && r.status() >= 400)
+      void r
+        .text()
+        .then((b) => refused.push(`${r.status()} ${u.pathname} ${b.slice(0, 160)}`))
+        .catch(() => undefined);
+  });
   fs.mkdirSync(SHOTS, { recursive: true });
   const failures: string[] = [];
   let token = "";
   let n = 0;
-  const api = async (cap: string, data: unknown = {}): Promise<{ status: number; data: any }> => {   // eslint-disable-line @typescript-eslint/no-explicit-any
-    const r = await context.request.post(`${web.origin}/v1/${cap.replaceAll(".", "/")}`, { headers: { authorization: `Bearer ${token}` }, data });
+  const api = async (cap: string, data: unknown = {}): Promise<{ status: number; data: any }> => {
+    // eslint-disable-line @typescript-eslint/no-explicit-any
+    const r = await context.request.post(`${web.origin}/v1/${cap.replaceAll(".", "/")}`, {
+      headers: { authorization: `Bearer ${token}` },
+      data,
+    });
     const body = (await r.json()) as { data?: unknown };
     return { status: r.status(), data: body.data ?? body };
   };
   /** One step: runs, takes its picture, and on failure records the error and goes on. */
   const step = async (label: string, body: () => Promise<void>): Promise<void> => {
     const seenBefore = refused.length;
-    await t.test(label, async () => {
-      try { await body(); } catch (e) {
-        const msg = e instanceof Error ? e.message.split("\n")[0]! : String(e);
-        failures.push(`${label}: ${msg.slice(0, 300)}${refused.length > seenBefore ? ` | refused: ${refused.slice(seenBefore).join(" ; ").slice(0, 400)}` : ""}`);
-        throw e;
-      } finally {
-        await page.screenshot({ path: path.join(SHOTS, `${String(++n).padStart(2, "0")}-${label.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}.png`) }).catch(() => undefined);
-      }
-    }).catch(() => undefined);
+    await t
+      .test(label, async () => {
+        try {
+          await body();
+        } catch (e) {
+          const msg = e instanceof Error ? e.message.split("\n")[0]! : String(e);
+          failures.push(
+            `${label}: ${msg.slice(0, 300)}${refused.length > seenBefore ? ` | refused: ${refused.slice(seenBefore).join(" ; ").slice(0, 400)}` : ""}`,
+          );
+          throw e;
+        } finally {
+          await page
+            .screenshot({
+              path: path.join(
+                SHOTS,
+                `${String(++n).padStart(2, "0")}-${label.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}.png`,
+              ),
+            })
+            .catch(() => undefined);
+        }
+      })
+      .catch(() => undefined);
   };
   const go = async (route: string, ready: string): Promise<void> => {
     await page.goto(`${web.origin}/${route}`, { waitUntil: "load" });
@@ -78,28 +149,45 @@ test("a fresh Personal Space: the first hour works end to end in the real app", 
   try {
     await step("claim a Personal Space", async () => {
       await page.goto(claimOnEdge(daemon.claim!.url, web.origin), { waitUntil: "load" });
-      await page.getByTestId("claim-name").fill("Olivia Owner"); await page.getByTestId("claim-username").fill("olivia");
-      await page.getByTestId("claim-password").fill(PASSWORD); await page.getByTestId("claim-confirm").fill(PASSWORD);
-      await page.getByTestId("claim-next").click(); await page.getByTestId("claim-saved").click(); await page.getByTestId("claim-create").click();
+      await page.getByTestId("claim-name").fill("Olivia Owner");
+      await page.getByTestId("claim-username").fill("olivia");
+      await page.getByTestId("claim-password").fill(PASSWORD);
+      await page.getByTestId("claim-confirm").fill(PASSWORD);
+      await page.getByTestId("claim-next").click();
+      await page.getByTestId("claim-saved").click();
+      await page.getByTestId("claim-create").click();
       await dismissOnboarding(page);
       await page.getByTestId("shell").waitFor({ timeout: 30_000 });
-      token = await page.evaluate(() => JSON.parse(localStorage.getItem("vyre.session.v1")!).sessions[location.origin].token as string);
+      token = await page.evaluate(
+        () => JSON.parse(localStorage.getItem("vyre.session.v1")!).sessions[location.origin].token as string,
+      );
       assert.equal((await api("spaces.get")).data.space.kind, "personal");
     });
 
     await step("add an AI subscription and get a reply in a new chat", async () => {
       // the account the way the Add an AI provider sheet makes it: a Mine sign-in item, completed, and the Space allowed to use it
-      const folder = (await api("vault.folders.create", { name: "Accounts", scope: "mine", idempotencyKey: "w-f1" })).data.folder.id as string;
+      const folder = (await api("vault.folders.create", { name: "Accounts", scope: "mine", idempotencyKey: "w-f1" }))
+        .data.folder.id as string;
       const flow = await api("providers.subscription_start", { providerKey: "claude-code", idempotencyKey: "w-flow" });
       assert.equal(flow.status, 200, `subscription_start ${JSON.stringify(flow.data).slice(0, 200)}`);
       // secret-scan: fake
-      const put = await api("vault.item.put", { folderId: folder, name: "Olivia_Claude", kind: "ai_subscription", fields: [{ key: "setup_token", value: "sk-ant-oat01-TESTsecretVALUE0123456789abcdefXYZ", secret: true }], idempotencyKey: "w-i1" });
+      const put = await api("vault.item.put", {
+        folderId: folder,
+        name: "Olivia_Claude",
+        kind: "ai_subscription",
+        fields: [{ key: "setup_token", value: "sk-ant-oat01-TESTsecretVALUE0123456789abcdefXYZ", secret: true }],
+        idempotencyKey: "w-i1",
+      });
       assert.equal(put.status, 200, `vault.item.put ai_subscription ${JSON.stringify(put.data).slice(0, 200)}`);
       const done = await api("providers.subscription_complete", { flowId: flow.data.flowId });
       assert.equal(done.status, 200, `subscription_complete ${JSON.stringify(done.data).slice(0, 200)}`);
       await go("chat", "chats-place");
       // a Space with no chats lands on "What are we working on?" with the composer open: the new chat starts with the first message
-      const composer = page.getByTestId("composer-field").or(page.locator('[data-testid="composer"] textarea')).or(page.locator('[data-testid="composer"] [contenteditable="true"]')).first();
+      const composer = page
+        .getByTestId("composer-field")
+        .or(page.locator('[data-testid="composer"] textarea'))
+        .or(page.locator('[data-testid="composer"] [contenteditable="true"]'))
+        .first();
       await composer.waitFor({ timeout: 15_000 });
       const text = `hello from the walk ${Date.now()}`;
       await composer.fill(text);
@@ -108,19 +196,58 @@ test("a fresh Personal Space: the first hour works end to end in the real app", 
       // the stand-in answers with the prompt it was sent, which contains the message: a second copy of it on screen is the reply
       // a plain greeting must not raise memory cards in the conversation
       assert.equal(await page.getByTestId("memory-card").count(), 0, "no memory card after a greeting");
-      await page.waitForFunction((x) => (document.body.innerText.match(new RegExp(x.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g")) ?? []).length >= 2, text, { timeout: 45_000 });
+      await page.waitForFunction(
+        (x) =>
+          (document.body.innerText.match(new RegExp(x.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g")) ?? []).length >= 2,
+        text,
+        { timeout: 45_000 },
+      );
     });
 
     // every Vault kind, through the Add sheet as a person uses it: the pickers for the app templates, a paste for the rest
     const kinds: [string, string, (p: Page) => Promise<void>][] = [
-      ["API key", "Walk API key", async (p) => { await p.getByTestId("add-search").fill("WALK_API_KEY=abc123secretvalue"); }],
-      ["env", "Walk env", async (p) => {
-        // a real paste: the sheet listens for paste events (a typed fill would strip the newline)
-        await p.getByTestId("add-search").evaluate((el) => { const d = new DataTransfer(); d.setData("text", "DB_HOST=localhost\nDB_PASSWORD=hunter2hunter2"); el.dispatchEvent(new ClipboardEvent("paste", { clipboardData: d, bubbles: true, cancelable: true })); });
-      }],
-      ["Twilio template", "Twilio", async (p) => { await p.getByTestId("add-app-twilio").click(); await p.getByTestId("add-value-0").fill("AC0123456789abcdef0123456789abcdef"); await p.getByTestId("add-value-1").fill("authtokenvalue1234567890"); }],
-      ["login", "Walk login", async (p) => { await p.getByTestId("add-app-login").click(); }],
-      ["card", "Walk card", async (p) => { await p.getByTestId("add-app-card").click(); }],
+      [
+        "API key",
+        "Walk API key",
+        async (p) => {
+          await p.getByTestId("add-search").fill("WALK_API_KEY=abc123secretvalue");
+        },
+      ],
+      [
+        "env",
+        "Walk env",
+        async (p) => {
+          // a real paste: the sheet listens for paste events (a typed fill would strip the newline)
+          await p.getByTestId("add-search").evaluate((el) => {
+            const d = new DataTransfer();
+            d.setData("text", "DB_HOST=localhost\nDB_PASSWORD=hunter2hunter2");
+            el.dispatchEvent(new ClipboardEvent("paste", { clipboardData: d, bubbles: true, cancelable: true }));
+          });
+        },
+      ],
+      [
+        "Twilio template",
+        "Twilio",
+        async (p) => {
+          await p.getByTestId("add-app-twilio").click();
+          await p.getByTestId("add-value-0").fill("AC0123456789abcdef0123456789abcdef");
+          await p.getByTestId("add-value-1").fill("authtokenvalue1234567890");
+        },
+      ],
+      [
+        "login",
+        "Walk login",
+        async (p) => {
+          await p.getByTestId("add-app-login").click();
+        },
+      ],
+      [
+        "card",
+        "Walk card",
+        async (p) => {
+          await p.getByTestId("add-app-card").click();
+        },
+      ],
     ];
     for (const [kind, name, fill] of kinds) {
       await step(`Vault: add ${kind} to Mine`, async () => {
@@ -134,26 +261,47 @@ test("a fresh Personal Space: the first hour works end to end in the real app", 
         await nameField.waitFor({ timeout: 10_000 });
         await nameField.fill(name);
         // login and card templates have rows to fill before Add is live
-        for (const i of [0, 1, 2]) { const v = page.getByTestId(`add-value-${i}`); if (await v.count() && (await v.inputValue()) === "") await v.fill(`value-${i}-walk-1234`); }
-        await page.waitForFunction(() => document.querySelector('[data-testid="add-save"]')?.getAttribute("aria-disabled") !== "true", null, { timeout: 15_000 });
+        for (const i of [0, 1, 2]) {
+          const v = page.getByTestId(`add-value-${i}`);
+          if ((await v.count()) && (await v.inputValue()) === "") await v.fill(`value-${i}-walk-1234`);
+        }
+        await page.waitForFunction(
+          () => document.querySelector('[data-testid="add-save"]')?.getAttribute("aria-disabled") !== "true",
+          null,
+          { timeout: 15_000 },
+        );
         const put = page.waitForResponse((r) => r.url().endsWith("/v1/vault/item/put"), { timeout: 15_000 });
         await page.getByTestId("add-save").click();
         const res = await put;
         assert.equal(res.status(), 200, `vault.item.put answered ${res.status()}: ${(await res.text()).slice(0, 200)}`);
         await page.getByText(name, { exact: true }).first().waitFor({ timeout: 15_000 });
         const items = (await api("vault.items.list")).data.items as { name: string; scope: string }[];
-        assert.ok(items.some((i) => i.name === name && i.scope === "mine"), `${name} is in Mine`);
+        assert.ok(
+          items.some((i) => i.name === name && i.scope === "mine"),
+          `${name} is in Mine`,
+        );
       });
     }
 
-    for (const [tile, sheet] of [["gmail", "connect-connector"], ["outlook", "connect-connector"], ["imap", "connect-mailbox"], ["twilio", "add-sheet"]] as const) {
+    for (const [tile, sheet] of [
+      ["gmail", "connect-connector"],
+      ["outlook", "connect-connector"],
+      ["imap", "connect-mailbox"],
+      ["twilio", "add-sheet"],
+    ] as const) {
       await step(`Inbox: the ${tile} Connect tile opens its sheet`, async () => {
         await go("mail", "inbox-place");
         const tileEl = page.getByTestId(`connect-${tile}`);
-        if (await tileEl.count() === 0) await page.getByTestId("inbox-connect").click({ timeout: 10_000 });
+        if ((await tileEl.count()) === 0) await page.getByTestId("inbox-connect").click({ timeout: 10_000 });
         await page.getByTestId(`connect-${tile}`).first().click({ timeout: 10_000 });
         // Gmail and Outlook open the generic connect sheet or the mail connections page; Other email opens the mailbox sheet; Twilio opens the Vault's Add sheet
-        const seen = page.getByTestId(sheet).or(page.getByTestId("connect-mailbox")).or(page.getByTestId("connect-connector")).or(page.getByTestId("mail-connections")).or(page.getByTestId("add-sheet")).first();
+        const seen = page
+          .getByTestId(sheet)
+          .or(page.getByTestId("connect-mailbox"))
+          .or(page.getByTestId("connect-connector"))
+          .or(page.getByTestId("mail-connections"))
+          .or(page.getByTestId("add-sheet"))
+          .first();
         await seen.waitFor({ timeout: 10_000 });
       });
     }
@@ -172,16 +320,38 @@ test("a fresh Personal Space: the first hour works end to end in the real app", 
       await page.getByText("Add files", { exact: true }).first().click({ timeout: 10_000 });
       await (await emptyChooser).setFiles({ name: "first.txt", mimeType: "text/plain", buffer: Buffer.from("first") });
       await page.getByText("first.txt", { exact: true }).first().waitFor({ timeout: 20_000 });
-      await make("Walk folder 1", async () => { await page.getByText("New", { exact: true }).first().click(); await page.getByText("New Folder", { exact: true }).first().click({ timeout: 10_000 }); });
-      await make("Walk folder 2", async () => { await page.getByText("New", { exact: true }).first().click(); await page.getByText("New Folder", { exact: true }).first().click({ timeout: 10_000 }); });
-      await make("Walk folder 3", async () => { await page.getByRole("button", { name: /new folder|add a folder|^\+$/i }).or(page.locator('[aria-label="New folder"]')).first().click({ timeout: 10_000 }); });
+      await make("Walk folder 1", async () => {
+        await page.getByText("New", { exact: true }).first().click();
+        await page.getByText("New Folder", { exact: true }).first().click({ timeout: 10_000 });
+      });
+      await make("Walk folder 2", async () => {
+        await page.getByText("New", { exact: true }).first().click();
+        await page.getByText("New Folder", { exact: true }).first().click({ timeout: 10_000 });
+      });
+      await make("Walk folder 3", async () => {
+        await page
+          .getByRole("button", { name: /new folder|add a folder|^\+$/i })
+          .or(page.locator('[aria-label="New folder"]'))
+          .first()
+          .click({ timeout: 10_000 });
+      });
       const folders = (await api("files.list")).data.folders as { name: string }[];
-      assert.deepEqual(folders.map((f) => f.name).filter((n) => n.startsWith("Walk folder")).sort(), ["Walk folder 1", "Walk folder 2", "Walk folder 3"], "three real folders exist in the Space");
+      assert.deepEqual(
+        folders
+          .map((f) => f.name)
+          .filter((n) => n.startsWith("Walk folder"))
+          .sort(),
+        ["Walk folder 1", "Walk folder 2", "Walk folder 3"],
+        "three real folders exist in the Space",
+      );
       // upload from the New menu: the page's file chooser, the file lands in the open folder
       await page.getByText("Walk folder 1", { exact: true }).first().dblclick();
       const chooser = page.waitForEvent("filechooser", { timeout: 10_000 });
       await page.getByText("New", { exact: true }).first().click();
-      await page.getByText(/^Upload/).first().click({ timeout: 10_000 });
+      await page
+        .getByText(/^Upload/)
+        .first()
+        .click({ timeout: 10_000 });
       await (await chooser).setFiles({ name: "walk.txt", mimeType: "text/plain", buffer: Buffer.from("hello") });
       await page.getByText("walk.txt", { exact: true }).first().waitFor({ timeout: 20_000 });
     });
@@ -191,7 +361,10 @@ test("a fresh Personal Space: the first hour works end to end in the real app", 
       const row = page.getByText("Walk folder 2", { exact: true }).first();
       await row.waitFor({ timeout: 15_000 });
       await row.click({ button: "right", timeout: 10_000 });
-      await page.getByText(/^(Open|Rename)/).first().waitFor({ timeout: 10_000 });   // the menu is up
+      await page
+        .getByText(/^(Open|Rename)/)
+        .first()
+        .waitFor({ timeout: 10_000 }); // the menu is up
       assert.equal(await page.getByText(/^Share/).count(), 0, "no Share item in the folder menu");
       await page.keyboard.press("Escape");
     });
@@ -205,15 +378,32 @@ test("a fresh Personal Space: the first hour works end to end in the real app", 
       await adding.press("Enter");
       // the new record opens in its own tab, with its history beside it
       await page.getByText("Olivia created it").first().waitFor({ timeout: 15_000 });
-      await page.getByRole("tab", { name: "Activity", exact: true }).or(page.getByRole("button", { name: "Activity", exact: true })).or(page.getByText("Activity", { exact: true })).last().click({ timeout: 10_000, force: true }).catch(() => { throw new Error("could not press the Activity tab of the record"); });
+      await page
+        .getByRole("tab", { name: "Activity", exact: true })
+        .or(page.getByRole("button", { name: "Activity", exact: true }))
+        .or(page.getByText("Activity", { exact: true }))
+        .last()
+        .click({ timeout: 10_000, force: true })
+        .catch(() => {
+          throw new Error("could not press the Activity tab of the record");
+        });
       await page.getByText("Olivia created it").first().waitFor({ timeout: 10_000 });
       // edit a field: show the empty ones, give the contact a job title, and see it saved
-      await page.getByText(/Show \d+ empty fields/).first().click({ timeout: 10_000 }).catch(() => { throw new Error("could not press Show empty fields"); });
+      await page
+        .getByText(/Show \d+ empty fields/)
+        .first()
+        .click({ timeout: 10_000 })
+        .catch(() => {
+          throw new Error("could not press Show empty fields");
+        });
       // fields are click-to-edit cells: the first Empty is Job title
       await page.getByText("Empty", { exact: true }).first().click({ timeout: 10_000 });
       await page.keyboard.type("Counsel");
       await page.keyboard.press("Enter");
-      await page.getByText(/Counsel/).first().waitFor({ timeout: 10_000 });
+      await page
+        .getByText(/Counsel/)
+        .first()
+        .waitFor({ timeout: 10_000 });
     });
 
     await step("Records: the Fields panel opens", async () => {
@@ -232,15 +422,33 @@ test("a fresh Personal Space: the first hour works end to end in the real app", 
     await step("Settings: change the theme", async () => {
       await go("settings", "settings-place");
       await page.getByText("Appearance", { exact: true }).first().click({ timeout: 15_000 });
-      await page.getByTestId("look-all").click({ timeout: 15_000 });   // the gallery shows the skins of the slot's own base until Show all
+      await page.getByTestId("look-all").click({ timeout: 15_000 }); // the gallery shows the skins of the slot's own base until Show all
       await page.getByTestId("skin-graphite").click({ timeout: 15_000 });
-      const marks = async (): Promise<string> => page.evaluate(() => `data-mode=${document.documentElement.getAttribute("data-mode")} data-theme=${document.documentElement.getAttribute("data-theme")}`);
-      await page.waitForFunction(() => document.documentElement.getAttribute("data-mode") === "dark", null, { timeout: 10_000 }).catch(async () => { throw new Error(`picked Graphite, the preview went dark but the app did not: ${await marks()}`); });
-      assert.equal(await page.evaluate(() => document.documentElement.getAttribute("data-mode")), "dark", "data-mode follows the chosen skin (the preview reads it)");
-      assert.notEqual(await page.evaluate(() => document.documentElement.getAttribute("data-theme")), null, "data-theme is set");
+      const marks = async (): Promise<string> =>
+        page.evaluate(
+          () =>
+            `data-mode=${document.documentElement.getAttribute("data-mode")} data-theme=${document.documentElement.getAttribute("data-theme")}`,
+        );
+      await page
+        .waitForFunction(() => document.documentElement.getAttribute("data-mode") === "dark", null, { timeout: 10_000 })
+        .catch(async () => {
+          throw new Error(`picked Graphite, the preview went dark but the app did not: ${await marks()}`);
+        });
+      assert.equal(
+        await page.evaluate(() => document.documentElement.getAttribute("data-mode")),
+        "dark",
+        "data-mode follows the chosen skin (the preview reads it)",
+      );
+      assert.notEqual(
+        await page.evaluate(() => document.documentElement.getAttribute("data-theme")),
+        null,
+        "data-theme is set",
+      );
       // choosing a light skin again follows the mode back
       await page.getByTestId("skin-paper").click({ timeout: 10_000 });
-      await page.waitForFunction(() => document.documentElement.getAttribute("data-mode") === "light", null, { timeout: 10_000 });
+      await page.waitForFunction(() => document.documentElement.getAttribute("data-mode") === "light", null, {
+        timeout: 10_000,
+      });
     });
 
     await step("Chats: New agent works in a Personal Space", async () => {
@@ -253,8 +461,14 @@ test("a fresh Personal Space: the first hour works end to end in the real app", 
       // a real agent exists, and a chat with it is open
       // Create agent saves, then opens a chat with it: the agent is in the Space and in the sidebar
       let agents: { name: string }[] = [];
-      for (let i = 0; i < 40 && !agents.some((x) => x.name === "Walk Agent"); i++) { agents = (await api("agents.list")).data.agents as { name: string }[]; if (!agents.some((x) => x.name === "Walk Agent")) await page.waitForTimeout(500); }
-      assert.ok(agents.some((x) => x.name === "Walk Agent"), "the agent exists in the Space");
+      for (let i = 0; i < 40 && !agents.some((x) => x.name === "Walk Agent"); i++) {
+        agents = (await api("agents.list")).data.agents as { name: string }[];
+        if (!agents.some((x) => x.name === "Walk Agent")) await page.waitForTimeout(500);
+      }
+      assert.ok(
+        agents.some((x) => x.name === "Walk Agent"),
+        "the agent exists in the Space",
+      );
       // the form's tab closes when the agent is made: the Chats place lists the agent, and its face opens a chat with it
       await go("chat", "chats-place");
       await page.getByText("Walk Agent", { exact: true }).first().click({ timeout: 20_000 });
@@ -266,7 +480,11 @@ test("a fresh Personal Space: the first hour works end to end in the real app", 
       // a tab list saved with the Console as the open tab (what an older build or a stale link left), then the app reopened at its own address
       const rewrote = await page.evaluate(() => {
         const keys = Object.keys(localStorage).filter((k) => k.startsWith("vyre.tabs.v1:"));
-        for (const k of keys) localStorage.setItem(k, JSON.stringify({ v: 1, active: "console", tabs: [{ key: "console", title: "Console", place: "console" }] }));
+        for (const k of keys)
+          localStorage.setItem(
+            k,
+            JSON.stringify({ v: 1, active: "console", tabs: [{ key: "console", title: "Console", place: "console" }] }),
+          );
         return keys.length;
       });
       assert.ok(rewrote > 0, "the Space had saved its tabs on this device");
@@ -279,7 +497,7 @@ test("a fresh Personal Space: the first hour works end to end in the real app", 
       await page.getByTestId("space-tile").waitFor({ timeout: 20_000 });
       assert.equal(await page.getByText("Needs a Team Space").count(), 0, "no dead page after the relaunch");
       await page.keyboard.press("Meta+k");
-      await page.getByTestId("cmdk-input").waitFor({ timeout: 10_000 });   // Search works from there
+      await page.getByTestId("cmdk-input").waitFor({ timeout: 10_000 }); // Search works from there
       await page.keyboard.press("Escape");
       // and it stays usable: a place opens
       await go("chat", "chats-place");
@@ -304,12 +522,27 @@ test("a fresh Personal Space: the first hour works end to end in the real app", 
       await openFromMenu();
       // a browser has no computer a terminal can open on: the list says where one can, and New offers no row that does nothing
       await page.getByTestId("terminals-empty").waitFor({ timeout: 10_000 });
-      await page.getByText(/Vyre desktop app/).first().waitFor({ timeout: 10_000 });
+      await page
+        .getByText(/Vyre desktop app/)
+        .first()
+        .waitFor({ timeout: 10_000 });
       await page.getByTestId("terminal-new").first().click({ timeout: 10_000 });
       await page.getByText("No computer here", { exact: true }).waitFor({ timeout: 10_000 });
-      assert.equal(await page.getByRole("menuitem", { name: "This computer", exact: true }).count(), 0, "no This computer row without a desktop device");
-      assert.equal(await page.getByRole("menuitem", { name: "Space server", exact: true }).count(), 0, "no Space server row in a Personal Space");
-      assert.equal(await page.getByRole("menuitem", { name: "Agent computer", exact: true }).count(), 0, "no Agent computer row without one");
+      assert.equal(
+        await page.getByRole("menuitem", { name: "This computer", exact: true }).count(),
+        0,
+        "no This computer row without a desktop device",
+      );
+      assert.equal(
+        await page.getByRole("menuitem", { name: "Space server", exact: true }).count(),
+        0,
+        "no Space server row in a Personal Space",
+      );
+      assert.equal(
+        await page.getByRole("menuitem", { name: "Agent computer", exact: true }).count(),
+        0,
+        "no Agent computer row without one",
+      );
       // one Escape closes one layer: the New menu first, the terminal list under it on the next
       await page.keyboard.press("Escape");
       await page.getByText("No computer here", { exact: true }).waitFor({ state: "detached", timeout: 10_000 });
@@ -331,17 +564,21 @@ test("a fresh Personal Space: the first hour works end to end in the real app", 
     await step("Terminal: the chat pane's tab opens and says where a terminal can open from", async () => {
       await go("chat", "chats-place");
       // the pane is a chat's: open the chat from the first step (Chats lands on a new chat)
-      await page.getByText(/^hello from the walk/).first().click({ timeout: 15_000 });
+      await page
+        .getByText(/^hello from the walk/)
+        .first()
+        .click({ timeout: 15_000 });
       const tab = page.getByTestId("tab-terminal").or(page.getByTestId("tab-terminal-selected")).first();
       // Chats opens on the new-chat landing: the pane belongs to a chat, so open the one the walk had earlier
       const earlier = page.locator('[data-testid^="row-c:"]').first();
       await earlier.click({ timeout: 15_000 });
-      if (!(await tab.isVisible().catch(() => false))) await page.getByRole("button", { name: /pane/i }).first().click({ timeout: 10_000 });
+      if (!(await tab.isVisible().catch(() => false)))
+        await page.getByRole("button", { name: /pane/i }).first().click({ timeout: 10_000 });
       await tab.waitFor({ timeout: 15_000 });
       await tab.click({ timeout: 10_000 });
       await page.getByTestId("pane-body-terminal").waitFor({ timeout: 15_000 });
       await page.getByTestId("terminal-pane-open").click({ timeout: 10_000 });
-      await page.getByText(/No computer to open a terminal on/).waitFor({ timeout: 15_000 });   // a plain line, not a dead button
+      await page.getByText(/No computer to open a terminal on/).waitFor({ timeout: 15_000 }); // a plain line, not a dead button
     });
   } finally {
     if (failures.length) {
@@ -349,11 +586,20 @@ test("a fresh Personal Space: the first hour works end to end in the real app", 
       try {
         daemon.sink.flush();
         const { DatabaseSync } = await import("node:sqlite");
-        const rows = new DatabaseSync(daemon.paths.logs, { readOnly: true }).prepare("SELECT level, cap, msg, attrs FROM logs WHERE level >= 40 ORDER BY rowid DESC LIMIT 8").all() as { level: number; cap: string | null; msg: string; attrs: string | null }[];
-        console.log(`host log (errors): ${JSON.stringify(rows.map((r) => `${r.cap ?? ""} ${r.msg} ${String(r.attrs ?? "").slice(0, 400)}`))}`);
-      } catch (e) { console.log(`host log unreadable: ${String(e)}`); }
+        const rows = new DatabaseSync(daemon.paths.logs, { readOnly: true })
+          .prepare("SELECT level, cap, msg, attrs FROM logs WHERE level >= 40 ORDER BY rowid DESC LIMIT 8")
+          .all() as { level: number; cap: string | null; msg: string; attrs: string | null }[];
+        console.log(
+          `host log (errors): ${JSON.stringify(rows.map((r) => `${r.cap ?? ""} ${r.msg} ${String(r.attrs ?? "").slice(0, 400)}`))}`,
+        );
+      } catch (e) {
+        console.log(`host log unreadable: ${String(e)}`);
+      }
     }
-    await browser.close(); web.close(); await daemon.stop(); fs.rmSync(dir, { recursive: true, force: true });
+    await browser.close();
+    web.close();
+    await daemon.stop();
+    fs.rmSync(dir, { recursive: true, force: true });
   }
   assert.deepEqual(errors, [], "no page errors");
   assert.deepEqual(failures, [], `${failures.length} step(s) of the Personal first hour fail`);

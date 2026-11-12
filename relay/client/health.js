@@ -33,15 +33,25 @@ export function health(source, o = {}) {
 
   if (kind === "direct") {
     // Current is the best path that answered; good === false is a failure not yet moved off.
-    if (cur.good === false) return { reach: "none", why: "Your server does not answer on its direct address.", fix: retry, since };
-    return { reach: "direct", why: "Connected to your server directly.", since,
-      ...(rtt !== null ? { tailnet: { path: "direct", latencyMs: rtt } } : {}) };
+    if (cur.good === false)
+      return { reach: "none", why: "Your server does not answer on its direct address.", fix: retry, since };
+    return {
+      reach: "direct",
+      why: "Connected to your server directly.",
+      since,
+      ...(rtt !== null ? { tailnet: { path: "direct", latencyMs: rtt } } : {}),
+    };
   }
   if (kind === "relay") {
     const state = conn ? conn.state : "connecting";
     if (state === "open") return { reach: "relay", why: "Connected to your server through Vyre's relay.", since };
     if (state === "connecting") return { reach: "none", why: "Connecting to your server through Vyre's relay.", since };
-    return { reach: "none", why: "Cannot reach your server. Check this device's internet connection.", fix: retry, since };
+    return {
+      reach: "none",
+      why: "Cannot reach your server. Check this device's internet connection.",
+      fix: retry,
+      since,
+    };
   }
   return { reach: "none", why: "The app is not connected to your server.", fix: retry, since };
 }
@@ -58,7 +68,11 @@ export function watch(paths, o = {}) {
   let at = now();
   const read = () => {
     const h = health(paths, { since: at, rtt: o.rtt ? o.rtt() : null });
-    if (h.reach !== last) { if (last) at = now(); last = h.reach; return { ...h, since: at }; }
+    if (h.reach !== last) {
+      if (last) at = now();
+      last = h.reach;
+      return { ...h, since: at };
+    }
     return h;
   };
   read();

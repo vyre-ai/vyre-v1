@@ -22,41 +22,169 @@ const NOW = Date.UTC(2026, 10, 3, 9, 30);
 const DAY = 86_400_000;
 const ME = "usr_irfad";
 const PEOPLE = [
-  { id: ME, name: "Irfad Imtiaz", kind: "person" }, { id: "usr_maya", name: "Maya Lin", kind: "person" }, { id: "usr_sara", name: "Sara Khan", kind: "person" },
-  { id: "usr_omar", name: "Omar Reyes", kind: "person" }, { id: "agt_scout", name: "Scout", kind: "agent" },
+  { id: ME, name: "Irfad Imtiaz", kind: "person" },
+  { id: "usr_maya", name: "Maya Lin", kind: "person" },
+  { id: "usr_sara", name: "Sara Khan", kind: "person" },
+  { id: "usr_omar", name: "Omar Reyes", kind: "person" },
+  { id: "agt_scout", name: "Scout", kind: "agent" },
   // someone else's private agent: the server already names it as its person
   { id: "agt_omar_cc", name: "Omar Reyes (Agent)", kind: "agent", owner: "usr_omar", private: true },
   // holds only the Guest role: the shell marks the principal `guest`
   { id: "usr_gus", name: "Gus Guest", kind: "person", guest: true },
 ];
-const TEAMS = { groups: [{ id: "grp_intake", name: "Intake team", members: [], managers: [], builtIn: false }], roles: [{ id: "rol_billing", name: "Billing", builtIn: false, clearance: "internal", assignableToAgents: false, permissions: [], holders: 2 }] };
-const who = (id: string): { kind: "person" | "agent" | "group" | "role"; id: string } => ({ kind: id.startsWith("agt_") ? "agent" : id.startsWith("grp_") ? "group" : id.startsWith("rol_") ? "role" : "person", id });
+const TEAMS = {
+  groups: [{ id: "grp_intake", name: "Intake team", members: [], managers: [], builtIn: false }],
+  roles: [
+    {
+      id: "rol_billing",
+      name: "Billing",
+      builtIn: false,
+      clearance: "internal",
+      assignableToAgents: false,
+      permissions: [],
+      holders: 2,
+    },
+  ],
+};
+const who = (id: string): { kind: "person" | "agent" | "group" | "role"; id: string } => ({
+  kind: id.startsWith("agt_") ? "agent" : id.startsWith("grp_") ? "group" : id.startsWith("rol_") ? "role" : "person",
+  id,
+});
 
 type Row = Record<string, unknown>;
 const base = (o: Row): Row => ({
-  kind: "work", state: "todo", blocked: false, blocks: [], actions: [], labels: [], dependsOn: [], fileIds: [], followers: [], workingNotes: {}, reviewLoops: 0,
-  createdAt: NOW - 2 * DAY, updatedAt: NOW - 3_600_000, ...o,
+  kind: "work",
+  state: "todo",
+  blocked: false,
+  blocks: [],
+  actions: [],
+  labels: [],
+  dependsOn: [],
+  fileIds: [],
+  followers: [],
+  workingNotes: {},
+  reviewLoops: 0,
+  createdAt: NOW - 2 * DAY,
+  updatedAt: NOW - 3_600_000,
+  ...o,
 });
 const TASKS: Row[] = [
-  base({ id: "tsk_review", key: "NW-41", title: "Draft the engagement letter", state: "in_review", assigned: who("usr_maya"), reviewer: who(ME), approver: who("usr_sara"), createdBy: "usr_sara", yourTurn: true, updatedAt: NOW - 20 * 60_000,
-    workingNotes: { brief: "Engagement letter for the Rivera estate: scope, fees and the retainer.", summary: "Drafted it with the flat fee and the two filing dates", outputs: JSON.stringify({ letter: "Dear Ms Rivera, thank you for choosing Northwind Law..." }) } }),
-  base({ id: "tsk_back", key: "NW-38", title: "Update the intake checklist", state: "doing", assigned: who(ME), reviewer: who("agt_omar_cc"), createdBy: ME, yourTurn: true, updatedAt: NOW - 45 * 60_000,
-    workingNotes: { fixes: JSON.stringify(["Add the conflict check before the retainer"]) } }),
-  base({ id: "tsk_team", key: "NW-44", title: "Call the new client back", assigned: who("grp_intake"), createdBy: "usr_sara", yourTurn: true, due: NOW + 5 * 3_600_000, updatedAt: NOW - 10 * 60_000,
-    workingNotes: { brief: "Ms Patel left a voicemail about a probate matter. Whoever takes it calls her back today." } }),
-  base({ id: "tsk_q", key: "NW-45", kind: "answer", title: "Which filing date is right: 14 or 21 November?", assigned: who(ME), createdBy: "agt_scout", yourTurn: true, updatedAt: NOW - 5 * 60_000,
-    actions: [{ key: "answer", label: "Answer" }, { key: "dismiss", label: "Dismiss" }] }),
-  base({ id: "tsk_now", key: "NW-30", title: "Send the Rivera invoice", state: "doing", assigned: who(ME), createdBy: ME, due: NOW + 6 * 3_600_000, priority: "high" }),
-  base({ id: "tsk_next", key: "NW-33", title: "Book the mediation room", assigned: who(ME), createdBy: ME, due: NOW + 3 * DAY, labels: ["rivera"] }),
-  base({ id: "tsk_taken", key: "NW-36", title: "Collect the signed retainer", assigned: who("grp_intake"), takenBy: "usr_sara", state: "doing", createdBy: ME, due: NOW + DAY }),
-  base({ id: "tsk_wait", key: "NW-31", title: "Review the court filing", state: "in_review", assigned: who(ME), reviewer: who("usr_maya"), createdBy: ME, updatedAt: NOW - DAY }),
+  base({
+    id: "tsk_review",
+    key: "NW-41",
+    title: "Draft the engagement letter",
+    state: "in_review",
+    assigned: who("usr_maya"),
+    reviewer: who(ME),
+    approver: who("usr_sara"),
+    createdBy: "usr_sara",
+    yourTurn: true,
+    updatedAt: NOW - 20 * 60_000,
+    workingNotes: {
+      brief: "Engagement letter for the Rivera estate: scope, fees and the retainer.",
+      summary: "Drafted it with the flat fee and the two filing dates",
+      outputs: JSON.stringify({ letter: "Dear Ms Rivera, thank you for choosing Northwind Law..." }),
+    },
+  }),
+  base({
+    id: "tsk_back",
+    key: "NW-38",
+    title: "Update the intake checklist",
+    state: "doing",
+    assigned: who(ME),
+    reviewer: who("agt_omar_cc"),
+    createdBy: ME,
+    yourTurn: true,
+    updatedAt: NOW - 45 * 60_000,
+    workingNotes: { fixes: JSON.stringify(["Add the conflict check before the retainer"]) },
+  }),
+  base({
+    id: "tsk_team",
+    key: "NW-44",
+    title: "Call the new client back",
+    assigned: who("grp_intake"),
+    createdBy: "usr_sara",
+    yourTurn: true,
+    due: NOW + 5 * 3_600_000,
+    updatedAt: NOW - 10 * 60_000,
+    workingNotes: { brief: "Ms Patel left a voicemail about a probate matter. Whoever takes it calls her back today." },
+  }),
+  base({
+    id: "tsk_q",
+    key: "NW-45",
+    kind: "answer",
+    title: "Which filing date is right: 14 or 21 November?",
+    assigned: who(ME),
+    createdBy: "agt_scout",
+    yourTurn: true,
+    updatedAt: NOW - 5 * 60_000,
+    actions: [
+      { key: "answer", label: "Answer" },
+      { key: "dismiss", label: "Dismiss" },
+    ],
+  }),
+  base({
+    id: "tsk_now",
+    key: "NW-30",
+    title: "Send the Rivera invoice",
+    state: "doing",
+    assigned: who(ME),
+    createdBy: ME,
+    due: NOW + 6 * 3_600_000,
+    priority: "high",
+  }),
+  base({
+    id: "tsk_next",
+    key: "NW-33",
+    title: "Book the mediation room",
+    assigned: who(ME),
+    createdBy: ME,
+    due: NOW + 3 * DAY,
+    labels: ["rivera"],
+  }),
+  base({
+    id: "tsk_taken",
+    key: "NW-36",
+    title: "Collect the signed retainer",
+    assigned: who("grp_intake"),
+    takenBy: "usr_sara",
+    state: "doing",
+    createdBy: ME,
+    due: NOW + DAY,
+  }),
+  base({
+    id: "tsk_wait",
+    key: "NW-31",
+    title: "Review the court filing",
+    state: "in_review",
+    assigned: who(ME),
+    reviewer: who("usr_maya"),
+    createdBy: ME,
+    updatedAt: NOW - DAY,
+  }),
 ];
 const byId = new Map(TASKS.map((t) => [t.id as string, t] as const));
-const NEEDS = ["tsk_review", "tsk_back", "tsk_team", "tsk_q"].map((id) => ({ task: byId.get(id)!, reason: id === "tsk_team" ? "due_today" : "ready", yourTurn: true }));
+const NEEDS = ["tsk_review", "tsk_back", "tsk_team", "tsk_q"].map((id) => ({
+  task: byId.get(id)!,
+  reason: id === "tsk_team" ? "due_today" : "ready",
+  yourTurn: true,
+}));
 const DIGEST = {
-  id: "dgs_1", person: ME, periodStart: NOW - 3 * DAY, periodEnd: NOW, builtBy: "agt_assistant",
+  id: "dgs_1",
+  person: ME,
+  periodStart: NOW - 3 * DAY,
+  periodEnd: NOW,
+  builtBy: "agt_assistant",
   headline: ["Maya handed in the engagement letter for your review.", "Scout asks which filing date is right."],
-  items: [{ kind: "finished", title: "Rivera retainer signed", line: "Sara collected it Monday" }, { kind: "waiting", title: "Draft the engagement letter", line: "Waiting on your review", subject: { type: "task", id: "tsk_review" } }],
+  items: [
+    { kind: "finished", title: "Rivera retainer signed", line: "Sara collected it Monday" },
+    {
+      kind: "waiting",
+      title: "Draft the engagement letter",
+      line: "Waiting on your review",
+      subject: { type: "task", id: "tsk_review" },
+    },
+  ],
 };
 
 function answer(cap: string, input: Row): unknown {
@@ -64,17 +192,31 @@ function answer(cap: string, input: Row): unknown {
     case "tasks.index": {
       const q = String(input.q ?? "").toLowerCase();
       // a task's breakdown asks for its children: none in this sample
-      const rows = input.parentTaskId !== undefined ? [] : TASKS.filter((t) => (q === "" || String(t.title).toLowerCase().includes(q)) && input.done !== true);
+      const rows =
+        input.parentTaskId !== undefined
+          ? []
+          : TASKS.filter((t) => (q === "" || String(t.title).toLowerCase().includes(q)) && input.done !== true);
       return { rev: "r1", unchanged: false, rows, doneThisWeek: 6, total: rows.length };
     }
-    case "tasks.get": { const t = byId.get(String(input.taskId)); if (!t) throw new Error("That task is not available."); return { task: t }; }
-    case "access.groups.list": return { groups: TEAMS.groups };
-    case "access.roles.list": return { roles: TEAMS.roles };
-    case "home.digest": return { digest: DIGEST };
-    case "projects.list": return { projects: [] };
-    case "views.list": return { views: [] };
-    case "schema.types.get": return { type: { fields: [] } };
-    default: throw new Error(`${cap} is not in this sample`);
+    case "tasks.get": {
+      const t = byId.get(String(input.taskId));
+      if (!t) throw new Error("That task is not available.");
+      return { task: t };
+    }
+    case "access.groups.list":
+      return { groups: TEAMS.groups };
+    case "access.roles.list":
+      return { roles: TEAMS.roles };
+    case "home.digest":
+      return { digest: DIGEST };
+    case "projects.list":
+      return { projects: [] };
+    case "views.list":
+      return { views: [] };
+    case "schema.types.get":
+      return { type: { fields: [] } };
+    default:
+      throw new Error(`${cap} is not in this sample`);
   }
 }
 
@@ -83,7 +225,10 @@ function runtime(): unknown {
   const kept = new Map<string, unknown>();
   const live = (data: unknown, key = JSON.stringify(data)) => {
     let snap = kept.get(key);
-    if (!snap) { snap = { status: "ready", data }; kept.set(key, snap); }
+    if (!snap) {
+      snap = { status: "ready", data };
+      kept.set(key, snap);
+    }
     return { subscribe: () => () => undefined, getSnapshot: () => snap };
   };
   const screens = {
@@ -91,52 +236,115 @@ function runtime(): unknown {
       if (screen === "tasks.my-work" && name === "rev") return live({ rev: "r1" });
       if (screen === "tasks.my-work" && name === "needs") return live({ items: NEEDS, total: NEEDS.length });
       if (screen === "tasks.my-work" && name === "count") return live({ count: NEEDS.length });
-      if (screen === "tasks.page" && name === "task") { const id = (state?.route as Row | undefined)?.taskId; return live({ task: byId.get(String(id)) }); }
+      if (screen === "tasks.page" && name === "task") {
+        const id = (state?.route as Row | undefined)?.taskId;
+        return live({ task: byId.get(String(id)) });
+      }
       if (screen === "tasks.page" && name === "activity") return live({ entries: [], total: 0 });
       return live({});
     },
   };
   return {
-    screens, call: async (cap: string, input: Row) => answer(cap, input),
-    principals: live(PEOPLE), me: { id: ME, name: "Irfad Imtiaz" }, assistant: { id: "agt_assistant", name: "Assistant" },
-    clock: () => ({ now: NOW, offsetMin: 300 }), recordTitle: () => undefined, open: () => undefined, openUrl: () => undefined,
-    space: { id: "northwind", kind: "team", name: "Northwind" }, aiConnected: true, calendarConnected: true, deferredModules: new Set<string>(), isDeferred: () => false,
+    screens,
+    call: async (cap: string, input: Row) => answer(cap, input),
+    principals: live(PEOPLE),
+    me: { id: ME, name: "Irfad Imtiaz" },
+    assistant: { id: "agt_assistant", name: "Assistant" },
+    clock: () => ({ now: NOW, offsetMin: 300 }),
+    recordTitle: () => undefined,
+    open: () => undefined,
+    openUrl: () => undefined,
+    space: { id: "northwind", kind: "team", name: "Northwind" },
+    aiConnected: true,
+    calendarConnected: true,
+    deferredModules: new Set<string>(),
+    isDeferred: () => false,
   };
 }
 
-interface RootLike { setAttribute(name: string, value: string): void; style: { setProperty(name: string, value: string): void; removeProperty(name: string): void } }
-type Pick1 = { click?: () => void; focus?: () => void; textContent?: string | null; dispatchEvent?: (e: unknown) => boolean };
-type Doc = { querySelector(s: string): Pick1 | null; querySelectorAll(s: string): ArrayLike<Pick1>; documentElement?: RootLike; dispatchEvent?: (e: unknown) => boolean };
-const keyEv = (key: string): unknown => new (globalThis as unknown as { KeyboardEvent: new (t: string, i: object) => unknown }).KeyboardEvent("keydown", { key, bubbles: true, cancelable: true });
+interface RootLike {
+  setAttribute(name: string, value: string): void;
+  style: { setProperty(name: string, value: string): void; removeProperty(name: string): void };
+}
+type Pick1 = {
+  click?: () => void;
+  focus?: () => void;
+  textContent?: string | null;
+  dispatchEvent?: (e: unknown) => boolean;
+};
+type Doc = {
+  querySelector(s: string): Pick1 | null;
+  querySelectorAll(s: string): ArrayLike<Pick1>;
+  documentElement?: RootLike;
+  dispatchEvent?: (e: unknown) => boolean;
+};
+const keyEv = (key: string): unknown =>
+  new (globalThis as unknown as { KeyboardEvent: new (t: string, i: object) => unknown }).KeyboardEvent("keydown", {
+    key,
+    bubbles: true,
+    cancelable: true,
+  });
 
 export default function Mount(): ReactNode {
   // the address is read after mount (rule 25), so the static first frame and the page agree
   const [q, setQ] = useState<URLSearchParams | null>(null);
-  useEffect(() => { setQ(new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? "")); }, []);
-  return q ? <Page view={q.get("view") ?? "list"} skin={q.get("skin") ?? "paper"} /> : <View testID="tasks-mount-wait" style={StyleSheet.absoluteFill} />;
+  useEffect(() => {
+    setQ(new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? ""));
+  }, []);
+  return q ? (
+    <Page view={q.get("view") ?? "list"} skin={q.get("skin") ?? "paper"} />
+  ) : (
+    <View testID="tasks-mount-wait" style={StyleSheet.absoluteFill} />
+  );
 }
 
 function Page({ view, skin }: { view: string; skin: string }): ReactNode {
   useMemo(() => {
     const root = (globalThis as { document?: Doc }).document?.documentElement;
-    const themeRoot: ThemeRoot = { setAttribute: (n, v) => { root?.setAttribute(n, v); }, setProperty: (n, v) => { root?.style.setProperty(n, v); }, removeProperty: (n) => { root?.style.removeProperty(n); } };
-    return createThemeController({ personId: "irfad", spaceId: "nw", spaceSkin: { nw: skin }, prefersDark: skin === "graphite", root: themeRoot, storage: null });
+    const themeRoot: ThemeRoot = {
+      setAttribute: (n, v) => {
+        root?.setAttribute(n, v);
+      },
+      setProperty: (n, v) => {
+        root?.style.setProperty(n, v);
+      },
+      removeProperty: (n) => {
+        root?.style.removeProperty(n);
+      },
+    };
+    return createThemeController({
+      personId: "irfad",
+      spaceId: "nw",
+      spaceSkin: { nw: skin },
+      prefersDark: skin === "graphite",
+      root: themeRoot,
+      storage: null,
+    });
   }, [skin]);
   const rt = useMemo(() => runtime() as never, []);
   // the status menu opens after the page has drawn, as a press would open it
   useEffect(() => {
     if (view !== "menu") return undefined;
-    const t = setTimeout(() => (globalThis as { document?: Doc }).document?.querySelector("[data-testid='task-status']")?.click?.(), 400);
+    const t = setTimeout(
+      () => (globalThis as { document?: Doc }).document?.querySelector("[data-testid='task-status']")?.click?.(),
+      400,
+    );
     return () => clearTimeout(t);
   }, [view]);
   // views that need a press or a key after the page has drawn, as a person would make them
   useEffect(() => {
     const d = (globalThis as { document?: Doc }).document;
-    if (!d || !["board", "board-keys", "board-status", "timeline", "timeline-keys", "guest"].includes(view)) return undefined;
+    if (!d || !["board", "board-keys", "board-status", "timeline", "timeline-keys", "guest"].includes(view))
+      return undefined;
     const timers: ReturnType<typeof setTimeout>[] = [];
-    const at = (ms: number, f: () => void): void => { timers.push(setTimeout(f, ms)); };
-    const item = (text: string): Pick1 | undefined => Array.from(d.querySelectorAll("[role='menuitem']")).find((e) => e.textContent?.includes(text));
-    const key = (el: Pick1 | null | undefined, k: string): void => { el?.dispatchEvent?.(keyEv(k)); };
+    const at = (ms: number, f: () => void): void => {
+      timers.push(setTimeout(f, ms));
+    };
+    const item = (text: string): Pick1 | undefined =>
+      Array.from(d.querySelectorAll("[role='menuitem']")).find((e) => e.textContent?.includes(text));
+    const key = (el: Pick1 | null | undefined, k: string): void => {
+      el?.dispatchEvent?.(keyEv(k));
+    };
     if (view === "guest") {
       at(500, () => key(d as unknown as Pick1, "j"));
       at(700, () => key(d as unknown as Pick1, "a"));
@@ -144,21 +352,57 @@ function Page({ view, skin }: { view: string; skin: string }): ReactNode {
       return () => timers.forEach(clearTimeout);
     }
     const want = view.startsWith("board") ? "board" : "timeline";
-    at(400, () => { const seg = d.querySelector(`[data-testid='tasks-view-${want}']`); if (seg) seg.click?.(); else { d.querySelector("[data-testid='tasks-view-menu']")?.click?.(); at(250, () => item(want === "board" ? "Board" : "Timeline")?.click?.()); } });
+    at(400, () => {
+      const seg = d.querySelector(`[data-testid='tasks-view-${want}']`);
+      if (seg) seg.click?.();
+      else {
+        d.querySelector("[data-testid='tasks-view-menu']")?.click?.();
+        at(250, () => item(want === "board" ? "Board" : "Timeline")?.click?.());
+      }
+    });
     if (view.endsWith("-keys") || view === "board-status") {
       at(1500, () => d.querySelector("[data-tkcard]")?.focus?.());
-      at(1700, () => key(d.querySelector("[data-tkcard]:focus") ?? d.querySelector("[data-tkcard]"), want === "board" ? "ArrowRight" : "ArrowDown"));
+      at(1700, () =>
+        key(
+          d.querySelector("[data-tkcard]:focus") ?? d.querySelector("[data-tkcard]"),
+          want === "board" ? "ArrowRight" : "ArrowDown",
+        ),
+      );
     }
     if (view === "board-status") at(2200, () => key(d.querySelector("[data-tkcard]:focus"), " "));
     return () => timers.forEach(clearTimeout);
   }, [view]);
   const none = (): void => undefined;
-  const detail = (taskId: string, pane = false): ReactNode => <TaskDetail rt={rt} taskId={taskId} conversationFor={() => { throw new Error("no thread in this sample"); }} openTask={none} openAgent={none} openChat={none} {...(pane ? { rail: false, openFull: none } : { back: none })} />;
+  const detail = (taskId: string, pane = false): ReactNode => (
+    <TaskDetail
+      rt={rt}
+      taskId={taskId}
+      conversationFor={() => {
+        throw new Error("no thread in this sample");
+      }}
+      openTask={none}
+      openAgent={none}
+      openChat={none}
+      {...(pane ? { rail: false, openFull: none } : { back: none })}
+    />
+  );
   return (
     <View testID="tasks-mount" style={[StyleSheet.absoluteFill, { backgroundColor: "var(--win)" as string }]}>
-      {view === "list" || view === "guest" || view.startsWith("board") || view.startsWith("timeline") ? <TasksPage rt={rt} openTask={none} openAgent={none} openChat={none} />
-        : view === "pane" ? <View style={{ flex: 1, flexDirection: "row" }}><View style={{ flex: 1, backgroundColor: "var(--sunk)" as string }} /><View testID="chats-task-pane" style={{ width: 460, borderLeftWidth: 1, borderLeftColor: "var(--line)" as string }}>{detail("tsk_review", true)}</View></View>
-        : detail(view === "team" ? "tsk_team" : "tsk_review")}
+      {view === "list" || view === "guest" || view.startsWith("board") || view.startsWith("timeline") ? (
+        <TasksPage rt={rt} openTask={none} openAgent={none} openChat={none} />
+      ) : view === "pane" ? (
+        <View style={{ flex: 1, flexDirection: "row" }}>
+          <View style={{ flex: 1, backgroundColor: "var(--sunk)" as string }} />
+          <View
+            testID="chats-task-pane"
+            style={{ width: 460, borderLeftWidth: 1, borderLeftColor: "var(--line)" as string }}
+          >
+            {detail("tsk_review", true)}
+          </View>
+        </View>
+      ) : (
+        detail(view === "team" ? "tsk_team" : "tsk_review")
+      )}
     </View>
   );
 }

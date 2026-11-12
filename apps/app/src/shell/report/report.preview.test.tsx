@@ -52,7 +52,18 @@ test("What is sent lists exactly the bundle's fields, one line each, plus the fi
   for (const key of Object.keys(bundle)) assert.ok(shown.has(key as never), `bundle field ${key} has a line`);
   for (const f of shown) assert.ok(f === "left_out" || f in bundle, `line for ${f} has a bundle field`);
   const labels = ctl.getState().rows.map((r) => r.label);
-  assert.deepEqual(labels, ["Where", "Last 20 trace ids", "Recent events", "Recent errors", "Versions", "Device", "Screenshot", "Local log", "What went wrong", "Left out"]);
+  assert.deepEqual(labels, [
+    "Where",
+    "Last 20 trace ids",
+    "Recent events",
+    "Recent errors",
+    "Versions",
+    "Device",
+    "Screenshot",
+    "Local log",
+    "What went wrong",
+    "Left out",
+  ]);
   assert.equal(ctl.getState().rows.at(-1)?.value, LEFT_OUT);
 });
 
@@ -76,9 +87,18 @@ test("Send submits the bundle that was previewed, with the note, and an idempote
 
 test("secrets never leave and Restricted values appear as [Restricted: code]", () => {
   const caps = sampleCaptures();
-  caps.noteError({ code: "record.save_failed", message: "Save failed for token=abc123supersecretvalue on rec_9", at: 5 });
+  caps.noteError({
+    code: "record.save_failed",
+    message: "Save failed for token=abc123supersecretvalue on rec_9",
+    at: 5,
+  });
   caps.noteError({ code: "field.restricted", message: "Fee was 41,500 for Maya Chen", at: 6, restricted: true });
-  const built = buildBundle({ context: ctx, snapshot: caps.snapshot(), versions: { app: "1", server: "1", device: "d" }, note: "key is sk-abcdefghijklmnopqrstuv12345 and Bearer abcdefghijklmnop" });
+  const built = buildBundle({
+    context: ctx,
+    snapshot: caps.snapshot(),
+    versions: { app: "1", server: "1", device: "d" },
+    note: "key is sk-abcdefghijklmnopqrstuv12345 and Bearer abcdefghijklmnop",
+  });
   const text = JSON.stringify(built.bundle);
   assert.ok(!text.includes("abc123supersecretvalue"));
   assert.ok(!text.includes("sk-abcdefghij"));
@@ -107,14 +127,31 @@ test("Cmd-Shift-/ opens the sheet; Cmd and Ctrl are told apart by platform", () 
 
   const listeners: Record<string, ((e: never) => void)[]> = {};
   const target = {
-    addEventListener: (t: string, f: (e: never) => void) => { (listeners[t] ??= []).push(f); },
-    removeEventListener: (t: string, f: (e: never) => void) => { listeners[t] = (listeners[t] ?? []).filter((x) => x !== f); },
+    addEventListener: (t: string, f: (e: never) => void) => {
+      (listeners[t] ??= []).push(f);
+    },
+    removeEventListener: (t: string, f: (e: never) => void) => {
+      listeners[t] = (listeners[t] ?? []).filter((x) => x !== f);
+    },
   };
   const run = createSampleDeps();
   const ctl = new ReportController(run.deps);
-  const off = installReport(ctl, { currentPlace: () => "files", platform: "mac", keyTarget: target, eventTarget: target });
+  const off = installReport(ctl, {
+    currentPlace: () => "files",
+    platform: "mac",
+    keyTarget: target,
+    eventTarget: target,
+  });
   let prevented = false;
-  for (const f of listeners["keydown"] ?? []) f({ key: "/", metaKey: true, shiftKey: true, preventDefault: () => { prevented = true; } } as never);
+  for (const f of listeners["keydown"] ?? [])
+    f({
+      key: "/",
+      metaKey: true,
+      shiftKey: true,
+      preventDefault: () => {
+        prevented = true;
+      },
+    } as never);
   assert.ok(prevented);
   assert.equal(ctl.getState().open, true);
   assert.equal(ctl.getState().context.place, "files");
@@ -125,7 +162,8 @@ test("Cmd-Shift-/ opens the sheet; Cmd and Ctrl are told apart by platform", () 
   assert.equal(ctl.getState().context.itemId, "Referral fee log");
   ctl.close();
 
-  for (const f of listeners[REPORT_PROBLEM_EVENT] ?? []) f({ detail: { traceId: "tr_err1", code: "records.load", message: "Couldn't load Records" } } as never);
+  for (const f of listeners[REPORT_PROBLEM_EVENT] ?? [])
+    f({ detail: { traceId: "tr_err1", code: "records.load", message: "Couldn't load Records" } } as never);
   assert.equal(ctl.getState().open, true, "an error state's Report a problem opens it");
   assert.equal(ctl.getState().context.itemId, "tr_err1");
   off();
@@ -143,7 +181,8 @@ test("the sheet shows the one optional line, the expandable list, Cancel and Sen
   assert.ok(!closed.includes('data-testid="report-facts"'), "the list is collapsed until asked for");
   ctl.toggleExpanded();
   const open = renderToStaticMarkup(<ReportSheet controller={ctl} autoFocus={false} />);
-  for (const label of ["Where", "Last 20 trace ids", "Versions", "Device", "Screenshot", "Local log", "Left out"]) assert.ok(open.includes(`>${label}<`), label);
+  for (const label of ["Where", "Last 20 trace ids", "Versions", "Device", "Screenshot", "Local log", "Left out"])
+    assert.ok(open.includes(`>${label}<`), label);
   assert.ok(open.includes("tr_7a3f00"));
   assert.ok(open.includes("Records · rec_9 · #table"));
   assert.ok(open.includes("window 1280×800"));
@@ -180,7 +219,9 @@ test("policy Ask: the sheet asks, and only a yes sends to the Vyre team", async 
   const off = createSampleDeps({ policy: "off" });
   const o = new ReportController(off.deps);
   o.open(ctx);
-  assert.ok(!renderToStaticMarkup(<ReportSheet controller={o} autoFocus={false} />).includes("Also send to the Vyre team"));
+  assert.ok(
+    !renderToStaticMarkup(<ReportSheet controller={o} autoFocus={false} />).includes("Also send to the Vyre team"),
+  );
 });
 
 test("a failed send says so and can be tried again", async () => {
@@ -189,11 +230,17 @@ test("a failed send says so and can be tried again", async () => {
   ctl.open(ctx);
   await ctl.send();
   assert.equal(ctl.getState().status, "error");
-  assert.match(renderToStaticMarkup(<ReportSheet controller={ctl} autoFocus={false} />), /It did not send: server unavailable/);
+  assert.match(
+    renderToStaticMarkup(<ReportSheet controller={ctl} autoFocus={false} />),
+    /It did not send: server unavailable/,
+  );
 });
 
 test("previewRows without screenshot or log say Not attached, with no note line", () => {
-  const rows = previewRows({ context: { place: "home" }, traceIds: [], events: [], versions: { app: "1", server: "1", device: "d" } }, "Home");
+  const rows = previewRows(
+    { context: { place: "home" }, traceIds: [], events: [], versions: { app: "1", server: "1", device: "d" } },
+    "Home",
+  );
   assert.equal(rows.find((r) => r.label === "Screenshot")?.value, "Not attached");
   assert.equal(rows.find((r) => r.label === "Last 20 trace ids")?.value, "None yet");
   assert.ok(!rows.some((r) => r.label === "What went wrong"));
@@ -202,7 +249,13 @@ test("previewRows without screenshot or log say Not attached, with no note line"
 test("nothing leaves until Send: opening the sheet, typing, expanding the list and ticking the Ask box submit and send nothing, and closing sends nothing either", async () => {
   const run = createSampleDeps();
   let sentToVyre = 0;
-  const ctl = new ReportController({ ...run.deps, sendToVyre: async () => { sentToVyre++; return {}; } });
+  const ctl = new ReportController({
+    ...run.deps,
+    sendToVyre: async () => {
+      sentToVyre++;
+      return {};
+    },
+  });
   ctl.open(ctx);
   ctl.setNote("It broke");
   ctl.toggleExpanded();
@@ -220,7 +273,25 @@ test("the bundle holds names only: its keys are the fixed list, an event is a ty
   ctl.open(ctx);
   await new Promise((r) => setTimeout(r, 0));
   const b = ctl.getState().bundle as unknown as Record<string, unknown>;
-  const allowed = new Set(["context", "traceIds", "events", "versions", "errors", "note", "screenshotFileId", "clientLogFileId"]);
-  assert.deepEqual(Object.keys(b).filter((k) => !allowed.has(k)), [], "no field outside the previewed list");
-  for (const e of (b["events"] as Array<Record<string, unknown>>)) assert.deepEqual(Object.keys(e).filter((k) => !["type", "at", "traceId"].includes(k)), [], "an event carries no content");
+  const allowed = new Set([
+    "context",
+    "traceIds",
+    "events",
+    "versions",
+    "errors",
+    "note",
+    "screenshotFileId",
+    "clientLogFileId",
+  ]);
+  assert.deepEqual(
+    Object.keys(b).filter((k) => !allowed.has(k)),
+    [],
+    "no field outside the previewed list",
+  );
+  for (const e of b["events"] as Array<Record<string, unknown>>)
+    assert.deepEqual(
+      Object.keys(e).filter((k) => !["type", "at", "traceId"].includes(k)),
+      [],
+      "an event carries no content",
+    );
 });

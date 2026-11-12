@@ -3,17 +3,36 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { AccessSnapshot, authorize } from "../../../kernel/src/authorize/index.ts";
 import { foldEvent } from "../daemon/access.ts";
-import { createPrincipalRegistrar, missingAgentHomeEvents, missingAgentPrincipalEvents, ownPlaceGrant } from "./principals.ts";
+import {
+  createPrincipalRegistrar,
+  missingAgentHomeEvents,
+  missingAgentPrincipalEvents,
+  ownPlaceGrant,
+} from "./principals.ts";
 import type { SpaceLevel } from "./principals.ts";
 
-const created = (agentId: string, ownerId = "usr_a") => [{ type: "agent.created", payload: { agentId, name: "Helper", ownerId } }];
-const createdWithFolder = (folderId: unknown) => [{ type: "agent.created", payload: { agentId: "agt_folder", name: "Helper", ownerId: "usr_a", folderId } }];
-const reg = (level: SpaceLevel, known: string[] = []) => createPrincipalRegistrar({ exists: (id) => known.includes(id), levelOf: () => level });
+const created = (agentId: string, ownerId = "usr_a") => [
+  { type: "agent.created", payload: { agentId, name: "Helper", ownerId } },
+];
+const createdWithFolder = (folderId: unknown) => [
+  { type: "agent.created", payload: { agentId: "agt_folder", name: "Helper", ownerId: "usr_a", folderId } },
+];
+const reg = (level: SpaceLevel, known: string[] = []) =>
+  createPrincipalRegistrar({ exists: (id) => known.includes(id), levelOf: () => level });
 
 test("an agent made by someone who may edit the Space is a Member with an edit grant, owned by its owner", () => {
   const out = reg("edit").register({ events: created("agt_1abc"), space: "spc_core", maker: "usr_a" });
-  assert.deepEqual(out.map((e) => e.type), ["principal.created", "principal.role_set", "grant.created"]);
-  assert.deepEqual(out[0]!.payload, { id: "agt_1abc", kind: "agent", owner: "usr_a", status: "active", name: "Helper" });
+  assert.deepEqual(
+    out.map((e) => e.type),
+    ["principal.created", "principal.role_set", "grant.created"],
+  );
+  assert.deepEqual(out[0]!.payload, {
+    id: "agt_1abc",
+    kind: "agent",
+    owner: "usr_a",
+    status: "active",
+    name: "Helper",
+  });
   assert.deepEqual(out[1]!.payload, { holder: "agt_1abc", role: "rol_member" });
   assert.equal(out[2]!.payload["level"], "edit");
   assert.equal(out[2]!.payload["by"], "usr_a");
@@ -25,49 +44,116 @@ test("an agent is never above its maker: a maker who may only view gets a Guest 
   assert.equal(view[1]!.payload["role"], "rol_guest");
   assert.equal(view[2]!.payload["level"], "view");
   const none = reg("none").register({ events: created("agt_3abc"), space: "spc_core", maker: "usr_g" });
-  assert.deepEqual(none.map((e) => e.type), ["principal.created", "principal.role_set"]);
+  assert.deepEqual(
+    none.map((e) => e.type),
+    ["principal.created", "principal.role_set"],
+  );
   assert.equal(none[1]!.payload["role"], "rol_guest");
 });
 
 test("an agent that is already a principal, a repeated event, and an event that is not agent.created add nothing", () => {
   assert.deepEqual(reg("edit", ["agt_1abc"]).register({ events: created("agt_1abc"), space: "s", maker: "usr_a" }), []);
-  assert.equal(reg("edit").register({ events: [...created("agt_4abc"), ...created("agt_4abc")], space: "s", maker: "usr_a" }).filter((e) => e.type === "principal.created").length, 1);
-  assert.deepEqual(reg("edit").register({ events: [{ type: "agent.updated", payload: { agentId: "agt_5abc" } }], space: "s", maker: "usr_a" }), []);
+  assert.equal(
+    reg("edit")
+      .register({ events: [...created("agt_4abc"), ...created("agt_4abc")], space: "s", maker: "usr_a" })
+      .filter((e) => e.type === "principal.created").length,
+    1,
+  );
+  assert.deepEqual(
+    reg("edit").register({
+      events: [{ type: "agent.updated", payload: { agentId: "agt_5abc" } }],
+      space: "s",
+      maker: "usr_a",
+    }),
+    [],
+  );
   assert.deepEqual(reg("edit").register({ events: created("not-an-agent-id"), space: "s", maker: "usr_a" }), []);
 });
 
 test("a well-formed home folder gets deterministic agent and owner grants, while malformed folders do not", () => {
   const out = reg("edit").register({ events: createdWithFolder("fld_home1"), space: "spc_core", maker: "usr_a" });
-  assert.deepEqual(out.slice(-2).map((e) => [e.id, e.payload["subject_id"], e.payload["resource_id"], e.payload["level"]]), [
-    ["gnt_folderhome", "agt_folder", "fld_home1", "edit"],
-    ["gnt_folderowner", "usr_a", "fld_home1", "manage"],
-  ]);
-  assert.equal(reg("edit").register({ events: createdWithFolder("folder_bad"), space: "spc_core", maker: "usr_a" }).length, 3);
-  assert.equal(reg("edit").register({ events: [...createdWithFolder("fld_home1"), ...createdWithFolder("fld_home1")], space: "spc_core", maker: "usr_a" }).filter((e) => e.id === "gnt_folderhome").length, 1);
+  assert.deepEqual(
+    out.slice(-2).map((e) => [e.id, e.payload["subject_id"], e.payload["resource_id"], e.payload["level"]]),
+    [
+      ["gnt_folderhome", "agt_folder", "fld_home1", "edit"],
+      ["gnt_folderowner", "usr_a", "fld_home1", "manage"],
+    ],
+  );
+  assert.equal(
+    reg("edit").register({ events: createdWithFolder("folder_bad"), space: "spc_core", maker: "usr_a" }).length,
+    3,
+  );
+  assert.equal(
+    reg("edit")
+      .register({
+        events: [...createdWithFolder("fld_home1"), ...createdWithFolder("fld_home1")],
+        space: "spc_core",
+        maker: "usr_a",
+      })
+      .filter((e) => e.id === "gnt_folderhome").length,
+    1,
+  );
 });
 
 test("legacy agent births reconcile the principal and bounded Space grant from their owner without using host authority", () => {
   const out = missingAgentPrincipalEvents({
     space: "spc_core",
-    levelOf: (person) => person === "usr_owner" ? "edit" : "none",
-    events: [{ type: "agent.created", payload: { agentId: "agt_legacy1", name: "Imported helper", ownerId: "usr_owner", folderId: "fld_home1" } }],
+    levelOf: (person) => (person === "usr_owner" ? "edit" : "none"),
+    events: [
+      {
+        type: "agent.created",
+        payload: { agentId: "agt_legacy1", name: "Imported helper", ownerId: "usr_owner", folderId: "fld_home1" },
+      },
+    ],
   });
-  assert.deepEqual(out.map((e) => e.type), ["principal.created", "principal.role_set", "grant.created"]);
-  assert.deepEqual(out[0]!.payload, { id: "agt_legacy1", kind: "agent", owner: "usr_owner", status: "active", name: "Imported helper" });
+  assert.deepEqual(
+    out.map((e) => e.type),
+    ["principal.created", "principal.role_set", "grant.created"],
+  );
+  assert.deepEqual(out[0]!.payload, {
+    id: "agt_legacy1",
+    kind: "agent",
+    owner: "usr_owner",
+    status: "active",
+    name: "Imported helper",
+  });
   assert.deepEqual(out[1]!.payload, { holder: "agt_legacy1", role: "rol_member" });
-  assert.deepEqual(out.slice(2).map((e) => [e.id, e.payload["by"]]), [["gnt_legacy1space", "usr_owner"]]);
+  assert.deepEqual(
+    out.slice(2).map((e) => [e.id, e.payload["by"]]),
+    [["gnt_legacy1space", "usr_owner"]],
+  );
   const access = new AccessSnapshot();
   access.putResource({ id: "spc_core", type: "space", parent_id: null, label: 0, owner_id: "usr_owner", holds: 0 });
   access.putPrincipal({ id: "usr_owner", kind: "person", status: "active", name: "Owner" });
-  access.putGrant({ id: "g_owner", subject_kind: "actor", subject_id: "usr_owner", resource_type: "space", resource_id: "spc_core", level: "manage", by: "usr_owner" });
+  access.putGrant({
+    id: "g_owner",
+    subject_kind: "actor",
+    subject_id: "usr_owner",
+    resource_type: "space",
+    resource_id: "spc_core",
+    level: "manage",
+    by: "usr_owner",
+  });
   for (const event of out) foldEvent(access, event);
-  assert.equal(authorize(access, { principal: "agt_legacy1", actingFor: "usr_owner", action: { perm: null, level: "edit" }, resource: { type: "space", id: "spc_core" } }).effect, "allow", "a seeded/imported agent is authorizable after reconciliation");
+  assert.equal(
+    authorize(access, {
+      principal: "agt_legacy1",
+      actingFor: "usr_owner",
+      action: { perm: null, level: "edit" },
+      resource: { type: "space", id: "spc_core" },
+    }).effect,
+    "allow",
+    "a seeded/imported agent is authorizable after reconciliation",
+  );
 });
 
 test("legacy birth folderId is untrusted and cannot create grants on a shared folder", () => {
   const out = missingAgentPrincipalEvents({
-    space: "spc_core", levelOf: () => "edit",
-    events: [{ type: "agent.created", payload: { agentId: "agt_legacy3", ownerId: "usr_owner", folderId: "fld_shared" } }],
+    space: "spc_core",
+    levelOf: () => "edit",
+    events: [
+      { type: "agent.created", payload: { agentId: "agt_legacy3", ownerId: "usr_owner", folderId: "fld_shared" } },
+    ],
   });
   assert.equal(out.filter((e) => e.type === "grant.created").length, 1);
   assert.equal(out.find((e) => e.type === "grant.created")!.payload["resource_type"], "space");
@@ -75,48 +161,149 @@ test("legacy birth folderId is untrusted and cannot create grants on a shared fo
 
 test("legacy semantic grants and their revocations prevent duplicate or resurrected Space grants", () => {
   const birth = { type: "agent.created", payload: { agentId: "agt_legacy4", ownerId: "usr_owner" } };
-  const old = { type: "grant.created", payload: { id: "gr_legacy_space", subject_kind: "actor", subject_id: "agt_legacy4", resource_type: "space", resource_id: "spc_core", level: "edit" } };
+  const old = {
+    type: "grant.created",
+    payload: {
+      id: "gr_legacy_space",
+      subject_kind: "actor",
+      subject_id: "agt_legacy4",
+      resource_type: "space",
+      resource_id: "spc_core",
+      level: "edit",
+    },
+  };
   const existing = missingAgentPrincipalEvents({ space: "spc_core", levelOf: () => "edit", events: [birth, old] });
-  assert.equal(existing.filter((e) => e.type === "grant.created").length, 0, "an old semantic grant has the intended reach");
+  assert.equal(
+    existing.filter((e) => e.type === "grant.created").length,
+    0,
+    "an old semantic grant has the intended reach",
+  );
   const revoked = missingAgentPrincipalEvents({
-    space: "spc_core", levelOf: () => "edit",
-    events: [birth, old, { type: "grant.revoked", payload: { grantId: "gr_legacy_space", subject: { kind: "agent", id: "agt_legacy4" }, resource: { type: "space", id: "spc_core" } } }],
+    space: "spc_core",
+    levelOf: () => "edit",
+    events: [
+      birth,
+      old,
+      {
+        type: "grant.revoked",
+        payload: {
+          grantId: "gr_legacy_space",
+          subject: { kind: "agent", id: "agt_legacy4" },
+          resource: { type: "space", id: "spc_core" },
+        },
+      },
+    ],
   });
-  assert.equal(revoked.filter((e) => e.type === "grant.created").length, 0, "a revoked semantic grant is not recreated under a new id");
+  assert.equal(
+    revoked.filter((e) => e.type === "grant.created").length,
+    0,
+    "a revoked semantic grant is not recreated under a new id",
+  );
 });
 
 test("a live lower-level legacy Space grant is preserved rather than widened by reconciliation", () => {
   const birth = { type: "agent.created", payload: { agentId: "agt_legacy5", ownerId: "usr_owner" } };
-  const limited = { type: "grant.created", payload: { id: "gr_legacy_view", subject_kind: "actor", subject_id: "agt_legacy5", resource_type: "space", resource_id: "spc_core", level: "view" } };
+  const limited = {
+    type: "grant.created",
+    payload: {
+      id: "gr_legacy_view",
+      subject_kind: "actor",
+      subject_id: "agt_legacy5",
+      resource_type: "space",
+      resource_id: "spc_core",
+      level: "view",
+    },
+  };
   const out = missingAgentPrincipalEvents({ space: "spc_core", levelOf: () => "edit", events: [birth, limited] });
-  assert.equal(out.filter((e) => e.type === "grant.created").length, 0, "boot preserves an intentional lower grant without an explicit level-change policy");
+  assert.equal(
+    out.filter((e) => e.type === "grant.created").length,
+    0,
+    "boot preserves an intentional lower grant without an explicit level-change policy",
+  );
 });
 
 test("a replay of the same repaired agent access events appends nothing", () => {
   const birth = { type: "agent.created", payload: { agentId: "agt_replay1", ownerId: "usr_owner" } };
   const repaired = missingAgentPrincipalEvents({ space: "spc_core", levelOf: () => "edit", events: [birth] });
-  assert.deepEqual(missingAgentPrincipalEvents({ space: "spc_core", levelOf: () => "edit", events: [birth, ...repaired] }), []);
+  assert.deepEqual(
+    missingAgentPrincipalEvents({ space: "spc_core", levelOf: () => "edit", events: [birth, ...repaired] }),
+    [],
+  );
 });
 
 test("legacy principal reconciliation fills only missing parts and waits until a deleted agent is restored", () => {
-  const birth = { type: "agent.created", payload: { agentId: "agt_legacy2", ownerId: "usr_owner", folderId: "fld_home2" } };
-  const principal = { type: "principal.created", payload: { id: "agt_legacy2", kind: "agent", owner: "usr_owner", status: "active", name: "agt_legacy2" } };
+  const birth = {
+    type: "agent.created",
+    payload: { agentId: "agt_legacy2", ownerId: "usr_owner", folderId: "fld_home2" },
+  };
+  const principal = {
+    type: "principal.created",
+    payload: { id: "agt_legacy2", kind: "agent", owner: "usr_owner", status: "active", name: "agt_legacy2" },
+  };
   const role = { type: "principal.role_set", payload: { holder: "agt_legacy2", role: "rol_member" } };
-  const grants = [{ type: "grant.created", payload: { id: "gnt_legacy2space", subject_kind: "actor", subject_id: "agt_legacy2", resource_type: "space", resource_id: "spc_core", level: "edit" } }];
-  assert.deepEqual(missingAgentPrincipalEvents({ space: "spc_core", levelOf: () => "edit", events: [birth, principal, role, ...grants] }), []);
-  assert.deepEqual(missingAgentPrincipalEvents({ space: "spc_core", levelOf: () => "edit", events: [birth, { type: "agent.deleted", payload: { agentId: "agt_legacy2" } }] }), []);
-  const restored = missingAgentPrincipalEvents({ space: "spc_core", levelOf: () => "edit", events: [birth, { type: "agent.deleted", payload: { agentId: "agt_legacy2" } }, { type: "agent.restored", payload: { agentId: "agt_legacy2" } }] });
+  const grants = [
+    {
+      type: "grant.created",
+      payload: {
+        id: "gnt_legacy2space",
+        subject_kind: "actor",
+        subject_id: "agt_legacy2",
+        resource_type: "space",
+        resource_id: "spc_core",
+        level: "edit",
+      },
+    },
+  ];
+  assert.deepEqual(
+    missingAgentPrincipalEvents({
+      space: "spc_core",
+      levelOf: () => "edit",
+      events: [birth, principal, role, ...grants],
+    }),
+    [],
+  );
+  assert.deepEqual(
+    missingAgentPrincipalEvents({
+      space: "spc_core",
+      levelOf: () => "edit",
+      events: [birth, { type: "agent.deleted", payload: { agentId: "agt_legacy2" } }],
+    }),
+    [],
+  );
+  const restored = missingAgentPrincipalEvents({
+    space: "spc_core",
+    levelOf: () => "edit",
+    events: [
+      birth,
+      { type: "agent.deleted", payload: { agentId: "agt_legacy2" } },
+      { type: "agent.restored", payload: { agentId: "agt_legacy2" } },
+    ],
+  });
   assert.equal(restored[0]!.type, "principal.created");
 });
 
 test("a deleted Space automation suspends its service and a restore reactivates it; an automation with no service is left alone", () => {
   const r = reg("edit", ["svc_abc1"]);
   const ev = (type: string, automationId: string) => ({ type, payload: { automationId } });
-  assert.deepEqual(r.register({ events: [ev("automation.deleted", "aut_abc1"), ev("automation.deleted", "aut_abc1")], space: "s", maker: "usr_a" }),
-    [{ type: "principal.suspended", entity: "principal", id: "svc_abc1", payload: { principalId: "svc_abc1" } }]);
-  assert.deepEqual(r.register({ events: [ev("automation.restored", "aut_abc1")], space: "s", maker: "usr_a" }),
-    [{ type: "principal.reactivated", entity: "principal", id: "svc_abc1", payload: { principalId: "svc_abc1" } }]);
-  assert.deepEqual(r.register({ events: [ev("automation.deleted", "aut_other"), ev("automation.deleted", "not-an-id")], space: "s", maker: "usr_a" }), []);
+  assert.deepEqual(
+    r.register({
+      events: [ev("automation.deleted", "aut_abc1"), ev("automation.deleted", "aut_abc1")],
+      space: "s",
+      maker: "usr_a",
+    }),
+    [{ type: "principal.suspended", entity: "principal", id: "svc_abc1", payload: { principalId: "svc_abc1" } }],
+  );
+  assert.deepEqual(r.register({ events: [ev("automation.restored", "aut_abc1")], space: "s", maker: "usr_a" }), [
+    { type: "principal.reactivated", entity: "principal", id: "svc_abc1", payload: { principalId: "svc_abc1" } },
+  ]);
+  assert.deepEqual(
+    r.register({
+      events: [ev("automation.deleted", "aut_other"), ev("automation.deleted", "not-an-id")],
+      space: "s",
+      maker: "usr_a",
+    }),
+    [],
+  );
 });
 
 test("own place: the Assistant gets its person's folder in any Space, a made agent only in a Personal Space, an outside agent never", () => {
@@ -127,23 +314,66 @@ test("own place: the Assistant gets its person's folder in any Space, a made age
   assert.equal(ownPlaceGrant({ ...base, agentKind: "agent", spaceKind: "team" }), null);
   assert.equal(ownPlaceGrant({ ...base, agentKind: "outside", spaceKind: "personal" }), null);
   assert.equal(ownPlaceGrant({ ...base, ownerId: "svc_host", agentKind: "assistant", spaceKind: "team" }), null);
-  const long = ownPlaceGrant({ agentId: `agt_${"a".repeat(32)}`, ownerId: "usr_a1", rootId: `fld_${"b".repeat(32)}`, agentKind: "assistant", spaceKind: "team" });
+  const long = ownPlaceGrant({
+    agentId: `agt_${"a".repeat(32)}`,
+    ownerId: "usr_a1",
+    rootId: `fld_${"b".repeat(32)}`,
+    agentKind: "assistant",
+    spaceKind: "team",
+  });
   assert.ok(long !== null && long.eventId.length <= 80, "the log takes event ids of 8 to 80 characters");
-  assert.equal(ownPlaceGrant({ ...base, agentKind: "assistant", spaceKind: "team" })?.eventId, ownPlaceGrant({ ...base, agentKind: "assistant", spaceKind: "team" })?.eventId, "the same grant is one event, so a revoked one stays revoked");
+  assert.equal(
+    ownPlaceGrant({ ...base, agentKind: "assistant", spaceKind: "team" })?.eventId,
+    ownPlaceGrant({ ...base, agentKind: "assistant", spaceKind: "team" })?.eventId,
+    "the same grant is one event, so a revoked one stays revoked",
+  );
 });
 
 test("the home repair writes the two ruling 99 grants only for an agent whose home lacks them, granted by its owner, and never one a person revoked", () => {
-  const agents = [{ id: "agt_old", ownerId: "usr_a", folderId: "fld_oldhome" }, { id: "agt_new", ownerId: "usr_b", folderId: "fld_newhome" }];
+  const agents = [
+    { id: "agt_old", ownerId: "usr_a", folderId: "fld_oldhome" },
+    { id: "agt_new", ownerId: "usr_b", folderId: "fld_newhome" },
+  ];
   // agt_new was born with both (the gateway wrote them at agent.created); agt_old was born before that
-  const born = createPrincipalRegistrar({ exists: () => false, levelOf: () => "edit" }).register({ events: [{ type: "agent.created", payload: { agentId: "agt_new", name: "New", ownerId: "usr_b", folderId: "fld_newhome" } }], space: "spc_x", maker: "usr_b" })
-    .filter((e) => e.type === "grant.created").map((e) => ({ type: e.type, payload: e.payload }));
+  const born = createPrincipalRegistrar({ exists: () => false, levelOf: () => "edit" })
+    .register({
+      events: [
+        {
+          type: "agent.created",
+          payload: { agentId: "agt_new", name: "New", ownerId: "usr_b", folderId: "fld_newhome" },
+        },
+      ],
+      space: "spc_x",
+      maker: "usr_b",
+    })
+    .filter((e) => e.type === "grant.created")
+    .map((e) => ({ type: e.type, payload: e.payload }));
   const out = missingAgentHomeEvents({ events: born, agents });
-  assert.deepEqual(out.map((e) => [e.payload["subject_id"], e.payload["resource_id"], e.payload["level"], e.payload["by"]]), [["agt_old", "fld_oldhome", "edit", "usr_a"], ["usr_a", "fld_oldhome", "manage", "usr_a"]]);
+  assert.deepEqual(
+    out.map((e) => [e.payload["subject_id"], e.payload["resource_id"], e.payload["level"], e.payload["by"]]),
+    [
+      ["agt_old", "fld_oldhome", "edit", "usr_a"],
+      ["usr_a", "fld_oldhome", "manage", "usr_a"],
+    ],
+  );
   // a repair that ran is not written again, and a grant a person revoked on purpose stays revoked
   const applied = out.map((e) => ({ type: e.type, payload: e.payload }));
   assert.deepEqual(missingAgentHomeEvents({ events: [...born, ...applied], agents }), []);
   const revoked = [...born, ...applied, { type: "grant.revoked", payload: { grantId: out[0]!.id } }];
-  assert.deepEqual(missingAgentHomeEvents({ events: revoked, agents }), [], "the agent's grant removed by a person is not put back");
+  assert.deepEqual(
+    missingAgentHomeEvents({ events: revoked, agents }),
+    [],
+    "the agent's grant removed by a person is not put back",
+  );
   // an agent with no folder, or an owner that is not a person, is left alone
-  assert.deepEqual(missingAgentHomeEvents({ events: [], agents: [{ id: "agt_x", ownerId: "usr_a", folderId: null }, { id: "agt_y", ownerId: "svc_host", folderId: "fld_y" }] }), []);
+  assert.deepEqual(
+    missingAgentHomeEvents({
+      events: [],
+      agents: [
+        { id: "agt_x", ownerId: "usr_a", folderId: null },
+        { id: "agt_y", ownerId: "svc_host", folderId: "fld_y" },
+      ],
+    }),
+    [],
+  );
 });

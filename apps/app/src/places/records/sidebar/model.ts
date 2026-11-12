@@ -14,7 +14,18 @@ export const SITES_GROUP = "Sites";
  * Meetings, Projects and Tasks hold the work) but stay out of the sidebar and the Record types page while they are empty, and show as soon as they hold a record (the first project or
  * task made from anywhere makes Projects and Tasks appear). Envelopes wait for e-sign, Issues and Pull requests for GitHub, Problem reports for a report.
  */
-export const HIDDEN_WHEN_EMPTY: ReadonlySet<string> = new Set(["envelope", "issue", "pull_request", "report", "company", "meeting", "note_board", "project", "task", "agent"]);
+export const HIDDEN_WHEN_EMPTY: ReadonlySet<string> = new Set([
+  "envelope",
+  "issue",
+  "pull_request",
+  "report",
+  "company",
+  "meeting",
+  "note_board",
+  "project",
+  "task",
+  "agent",
+]);
 
 /** Agents live in Chats; their record type is a Manage row of the sidebar (next to Record types and Schema map), never a type group. */
 export const MANAGE_TYPE = "agent";
@@ -25,8 +36,20 @@ export function worthShowing(t: Pick<TypeRow, "key" | "rowCount" | "syncedFrom">
   return (t.key === "issue" || t.key === "pull_request") && t.syncedFrom === "github";
 }
 
-export interface TypeGroup { key: string; label: string; items: TypeItem[] }
-export interface TypeItem { key: string; label: string; icon: string; count: number; synced: boolean; syncedFrom?: string; system: boolean }
+export interface TypeGroup {
+  key: string;
+  label: string;
+  items: TypeItem[];
+}
+export interface TypeItem {
+  key: string;
+  label: string;
+  icon: string;
+  count: number;
+  synced: boolean;
+  syncedFrom?: string;
+  system: boolean;
+}
 
 /** A site table belongs to its site: the scope names it ("site:northwind"). */
 export function isSiteTable(t: TypeRow): boolean {
@@ -49,23 +72,38 @@ export function typeGroups(types: readonly TypeRow[]): TypeGroup[] {
   for (const t of types) {
     if (t.key === MANAGE_TYPE || !worthShowing(t)) continue;
     const site = isSiteTable(t);
-    put(site ? SITES_GROUP : t.group ?? DEFAULT_GROUP, {
-      key: t.key, label: site && t.scope ? `${siteName(t.scope)} › ${t.plural}` : t.plural, icon: t.icon, count: t.rowCount, synced: t.syncedFrom !== undefined, ...(t.syncedFrom !== undefined ? { syncedFrom: t.syncedFrom } : {}), system: t.system,
+    put(site ? SITES_GROUP : (t.group ?? DEFAULT_GROUP), {
+      key: t.key,
+      label: site && t.scope ? `${siteName(t.scope)} › ${t.plural}` : t.plural,
+      icon: t.icon,
+      count: t.rowCount,
+      synced: t.syncedFrom !== undefined,
+      ...(t.syncedFrom !== undefined ? { syncedFrom: t.syncedFrom } : {}),
+      system: t.system,
     });
   }
   const order = [...groups.values()];
   const rank = (g: TypeGroup): number => (g.label === DEFAULT_GROUP ? 0 : g.label === SITES_GROUP ? 2 : 1);
-  return order.map((g, i) => ({ g, i })).sort((a, b) => rank(a.g) - rank(b.g) || a.i - b.i).map((x) => x.g);
+  return order
+    .map((g, i) => ({ g, i }))
+    .sort((a, b) => rank(a.g) - rank(b.g) || a.i - b.i)
+    .map((x) => x.g);
 }
 
 /** The saved views of a type: yours first, then the shared ones, each alphabetically. */
 export function sortedViews(views: readonly ViewRow[], me: string | null): ViewRow[] {
-  return views.slice().sort((a, b) => Number(b.ownerId === me) - Number(a.ownerId === me) || a.title.localeCompare(b.title));
+  return views
+    .slice()
+    .sort((a, b) => Number(b.ownerId === me) - Number(a.ownerId === me) || a.title.localeCompare(b.title));
 }
 
 /** A count in the sidebar: whole numbers up to 10,000 ("1,240", as the prototype draws them), then 12k and 2.5M. */
 export function compact(n: number): string {
-  return n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1).replace(/\.0$/, "")}M` : n >= 10_000 ? `${Math.round(n / 1000)}k` : n.toLocaleString("en-US");
+  return n >= 1_000_000
+    ? `${(n / 1_000_000).toFixed(1).replace(/\.0$/, "")}M`
+    : n >= 10_000
+      ? `${Math.round(n / 1000)}k`
+      : n.toLocaleString("en-US");
 }
 
 // ---------------------------------------------------------------- state
@@ -88,9 +126,12 @@ export type Action =
 
 export function reduce(s: RecordsState, a: Action): RecordsState {
   switch (a.type) {
-    case "open": return { ...s, type: a.key, viewId: a.viewId ?? null };
-    case "view": return { ...s, viewId: a.viewId };
-    case "section": return { ...s, closed: s.closed.includes(a.key) ? s.closed.filter((k) => k !== a.key) : [...s.closed, a.key] };
+    case "open":
+      return { ...s, type: a.key, viewId: a.viewId ?? null };
+    case "view":
+      return { ...s, viewId: a.viewId };
+    case "section":
+      return { ...s, closed: s.closed.includes(a.key) ? s.closed.filter((k) => k !== a.key) : [...s.closed, a.key] };
   }
 }
 
@@ -103,10 +144,15 @@ export function effectiveType(s: RecordsState, groups: readonly TypeGroup[]): st
 }
 
 /** A phone has no sidebar beside the table: the type name in the header opens this menu to switch record types. Every shown type, then Agents when it is not already in a group. */
-export function typeMenuEntries(types: readonly TypeRow[], current: string, open: (key: string) => void): { label: string; checked: boolean; onSelect: () => void }[] {
+export function typeMenuEntries(
+  types: readonly TypeRow[],
+  current: string,
+  open: (key: string) => void,
+): { label: string; checked: boolean; onSelect: () => void }[] {
   const all = typeGroups(types).flatMap((g) => g.items);
   const out = all.map((t) => ({ label: t.label, checked: t.key === current, onSelect: () => open(t.key) }));
   const agent = types.find((t) => t.key === "agent");
-  if (agent !== undefined && !all.some((t) => t.key === "agent")) out.push({ label: agent.plural, checked: current === "agent", onSelect: () => open("agent") });
+  if (agent !== undefined && !all.some((t) => t.key === "agent"))
+    out.push({ label: agent.plural, checked: current === "agent", onSelect: () => open("agent") });
   return out;
 }

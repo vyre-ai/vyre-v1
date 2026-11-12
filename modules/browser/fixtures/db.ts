@@ -10,15 +10,25 @@ export const MIGRATION = fileURLToPath(new URL("../migrations/0001_browser.sql",
 export const ADDED: string[] = [];
 type Cell = string | number | null;
 type Row = Record<string, Cell>;
-interface Col { name: string; notNull: boolean }
+interface Col {
+  name: string;
+  notNull: boolean;
+}
 
 export function columns(sql: string): Map<string, { cols: Col[]; pk: string }> {
   const out = new Map<string, { cols: Col[]; pk: string }>();
-  const text = sql.split("\n").map((l) => l.replace(/--.*$/, "")).join("\n").replace(/"/g, "");
+  const text = sql
+    .split("\n")
+    .map((l) => l.replace(/--.*$/, ""))
+    .join("\n")
+    .replace(/"/g, "");
   for (const m of text.matchAll(/CREATE TABLE IF NOT EXISTS (\w+)\s*\(([\s\S]*?)\n\);/g)) {
     const cols: Col[] = [];
     let pk = "id";
-    for (const part of m[2]!.split(",").map((p) => p.trim()).filter(Boolean)) {
+    for (const part of m[2]!
+      .split(",")
+      .map((p) => p.trim())
+      .filter(Boolean)) {
       const name = /^(\w+)/.exec(part)![1]!;
       if (/PRIMARY KEY/i.test(part)) pk = name;
       cols.push({ name, notNull: /NOT NULL/i.test(part) || /PRIMARY KEY/i.test(part) });
@@ -26,7 +36,8 @@ export function columns(sql: string): Map<string, { cols: Col[]; pk: string }> {
     out.set(m[1]!, { cols, pk });
   }
   // a later migration's added columns
-  for (const m of text.matchAll(/ALTER TABLE (\w+) ADD COLUMN (\w+)([^;]*);/g)) out.get(m[1]!)?.cols.push({ name: m[2]!, notNull: /NOT NULL/i.test(m[3]!) && !/DEFAULT/i.test(m[3]!) });
+  for (const m of text.matchAll(/ALTER TABLE (\w+) ADD COLUMN (\w+)([^;]*);/g))
+    out.get(m[1]!)?.cols.push({ name: m[2]!, notNull: /NOT NULL/i.test(m[3]!) && !/DEFAULT/i.test(m[3]!) });
   return out;
 }
 
@@ -61,14 +72,16 @@ export class MemoryDb implements Db {
     if (ins) {
       const cols = ins[1]!.split(",").map((c) => c.trim());
       const marks = ins[2]!.split(",").length;
-      if (marks !== cols.length || args.length !== cols.length) throw new Error(`${cols.length} columns, ${marks} marks, ${args.length} values`);
+      if (marks !== cols.length || args.length !== cols.length)
+        throw new Error(`${cols.length} columns, ${marks} marks, ${args.length} values`);
       const row: Row = {};
       for (const c of t.cols) row[c.name] = null;
       cols.forEach((c, i) => {
         if (!t.cols.some((x) => x.name === c)) throw new Error(`no column ${c}`);
         row[c] = args[i] as Cell;
       });
-      for (const c of t.cols) if (c.notNull && row[c.name] === null) throw new Error(`NOT NULL constraint failed: ${name}.${c.name}`);
+      for (const c of t.cols)
+        if (c.notNull && row[c.name] === null) throw new Error(`NOT NULL constraint failed: ${name}.${c.name}`);
       const rows = this.tables.get(name) ?? [];
       if (rows.some((r) => r[t.pk] === row[t.pk])) throw new Error(`UNIQUE constraint failed: ${name}.${t.pk}`);
       rows.push(row);
@@ -84,8 +97,11 @@ export class MemoryDb implements Db {
       let changes = 0;
       for (const r of rows) {
         if (r[upd[2]!] !== (args[sets.length] as Cell)) continue;
-        sets.forEach((s, i) => { r[s] = args[i] as Cell; });
-        for (const c of t.cols) if (c.notNull && r[c.name] === null) throw new Error(`NOT NULL constraint failed: ${name}.${c.name}`);
+        sets.forEach((s, i) => {
+          r[s] = args[i] as Cell;
+        });
+        for (const c of t.cols)
+          if (c.notNull && r[c.name] === null) throw new Error(`NOT NULL constraint failed: ${name}.${c.name}`);
         changes++;
       }
       return { changes };
@@ -94,5 +110,7 @@ export class MemoryDb implements Db {
   }
 
   /** every stored cell as one string, for "no value anywhere" checks */
-  dump(): string { return JSON.stringify([...this.tables.entries()]); }
+  dump(): string {
+    return JSON.stringify([...this.tables.entries()]);
+  }
 }

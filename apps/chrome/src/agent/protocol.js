@@ -40,12 +40,39 @@ export const TOOLS = Object.freeze({
 });
 
 /** Tools that may run inside chrome_batch: nothing that the Gate must see on its own (send, non-GET api) and nothing that stops or resumes. */
-export const BATCHABLE = Object.freeze(new Set([
-  "chrome_snapshot", "chrome_act", "chrome_click", "chrome_type", "chrome_fill", "chrome_open", "chrome_tabs", "chrome_wait",
-  "chrome_screenshot", "chrome_console", "chrome_net", "chrome_inspect", "chrome_state", "chrome_status", "chrome_plan", "chrome_api", "chrome_sources",
-]));
+export const BATCHABLE = Object.freeze(
+  new Set([
+    "chrome_snapshot",
+    "chrome_act",
+    "chrome_click",
+    "chrome_type",
+    "chrome_fill",
+    "chrome_open",
+    "chrome_tabs",
+    "chrome_wait",
+    "chrome_screenshot",
+    "chrome_console",
+    "chrome_net",
+    "chrome_inspect",
+    "chrome_state",
+    "chrome_status",
+    "chrome_plan",
+    "chrome_api",
+    "chrome_sources",
+  ]),
+);
 
-export const ACTIONS = Object.freeze(["click", "double_click", "hover", "press", "select", "scroll", "check", "uncheck", "focus"]);
+export const ACTIONS = Object.freeze([
+  "click",
+  "double_click",
+  "hover",
+  "press",
+  "select",
+  "scroll",
+  "check",
+  "uncheck",
+  "focus",
+]);
 export const WAITS = Object.freeze(["load", "text", "selector", "network_idle", "time"]);
 export const METHODS = Object.freeze(["GET", "POST", "PUT", "PATCH", "DELETE"]);
 
@@ -108,15 +135,31 @@ export function checkInput(tool, input) {
     const v = value[key];
     if (Array.isArray(kind)) {
       const optional = kind.includes("?");
-      if (v === undefined || v === null) { if (optional) continue; throw new AgentFailure("bad_input", `${tool} needs ${key}`); }
-      if (!kind.includes(v)) throw new AgentFailure("bad_input", `${key} must be one of ${kind.filter((k) => k !== "?").join(", ")}`);
+      if (v === undefined || v === null) {
+        if (optional) continue;
+        throw new AgentFailure("bad_input", `${tool} needs ${key}`);
+      }
+      if (!kind.includes(v))
+        throw new AgentFailure("bad_input", `${key} must be one of ${kind.filter((k) => k !== "?").join(", ")}`);
       continue;
     }
     if (kind === "?") continue;
     const optional = kind.endsWith("?");
-    if (v === undefined || v === null) { if (optional) continue; throw new AgentFailure("bad_input", `${tool} needs ${key}`); }
+    if (v === undefined || v === null) {
+      if (optional) continue;
+      throw new AgentFailure("bad_input", `${tool} needs ${key}`);
+    }
     const t = kind[0];
-    const ok = t === "s" ? typeof v === "string" : t === "n" ? typeof v === "number" && Number.isFinite(v) : t === "b" ? typeof v === "boolean" : t === "o" ? isObject(v) : Array.isArray(v);
+    const ok =
+      t === "s"
+        ? typeof v === "string"
+        : t === "n"
+          ? typeof v === "number" && Number.isFinite(v)
+          : t === "b"
+            ? typeof v === "boolean"
+            : t === "o"
+              ? isObject(v)
+              : Array.isArray(v);
     if (!ok) throw new AgentFailure("bad_input", `${key} has the wrong type`);
   }
   return value;
@@ -129,20 +172,44 @@ export function checkInput(tool, input) {
  */
 export function parseCommand(m) {
   if (!isObject(m)) return null;
-  if (m["type"] === "agent.optin" && Array.isArray(m["spaces"])) return { type: "agent.optin", spaces: m["spaces"].filter((/** @type {unknown} */ s) => typeof s === "string").slice(0, 100), mode: m["mode"] === "computer" ? "computer" : "personal" };
-  if (m["type"] === "agent.held.drop" && typeof m["id"] === "string" && /^hld_[0-9a-f]+$/.test(m["id"])) return { type: "agent.held.drop", id: m["id"] };
-  if ((m["type"] === "agent.takeover" || m["type"] === "agent.watch") && typeof m["agent"] === "string" && m["agent"]) return { type: m["type"], agent: m["agent"].slice(0, 80) };
+  if (m["type"] === "agent.optin" && Array.isArray(m["spaces"]))
+    return {
+      type: "agent.optin",
+      spaces: m["spaces"].filter((/** @type {unknown} */ s) => typeof s === "string").slice(0, 100),
+      mode: m["mode"] === "computer" ? "computer" : "personal",
+    };
+  if (m["type"] === "agent.held.drop" && typeof m["id"] === "string" && /^hld_[0-9a-f]+$/.test(m["id"]))
+    return { type: "agent.held.drop", id: m["id"] };
+  if ((m["type"] === "agent.takeover" || m["type"] === "agent.watch") && typeof m["agent"] === "string" && m["agent"])
+    return { type: m["type"], agent: m["agent"].slice(0, 80) };
   if (m["type"] !== "agent.call") return null;
   const agent = m["agent"];
-  if (typeof m["id"] !== "string" || typeof m["tool"] !== "string" || !isObject(agent) || typeof agent["id"] !== "string" || typeof agent["name"] !== "string" || typeof m["space"] !== "string") return null;
-  return { type: "agent.call", id: m["id"], tool: m["tool"], input: isObject(m["input"]) ? m["input"] : {}, agent: { id: agent["id"], name: String(agent["name"]).slice(0, 40) }, space: m["space"], ...(typeof m["thread"] === "string" && m["thread"] ? { thread: m["thread"].slice(0, 80) } : {}) };
+  if (
+    typeof m["id"] !== "string" ||
+    typeof m["tool"] !== "string" ||
+    !isObject(agent) ||
+    typeof agent["id"] !== "string" ||
+    typeof agent["name"] !== "string" ||
+    typeof m["space"] !== "string"
+  )
+    return null;
+  return {
+    type: "agent.call",
+    id: m["id"],
+    tool: m["tool"],
+    input: isObject(m["input"]) ? m["input"] : {},
+    agent: { id: agent["id"], name: String(agent["name"]).slice(0, 40) },
+    space: m["space"],
+    ...(typeof m["thread"] === "string" && m["thread"] ? { thread: m["thread"].slice(0, 80) } : {}),
+  };
 }
 
 /** The words an agent reads for each failure code (the person reads them in the run log too). */
 export const WORDS = Object.freeze({
   not_opted_in: "This Chrome has not been opened to agents for that Space. The person turns it on in Vyre for Chrome.",
   wrong_space: "That agent belongs to a Space that is not the active Space in this Chrome.",
-  paused: "The person stopped the agent in this Chrome, or took over the tab. Wait until they say to go on, then call chrome_resume.",
+  paused:
+    "The person stopped the agent in this Chrome, or took over the tab. Wait until they say to go on, then call chrome_resume.",
   busy: "Another agent is using that tab.",
   no_tab: "There is no tab to work in. Open a page with chrome_open first.",
   no_page: "That tab is not a web page the agent may drive.",
@@ -152,11 +219,13 @@ export const WORDS = Object.freeze({
   no_element: "Nothing on the page matches that.",
   held_gone: "That held item is not waiting any more. Ask again.",
   not_public: "Agents browse the public web only. That address is on this computer or a private network.",
-  read_only: "This agent may read this site but not act on it. The person gives it the Act right in Vyre, Vault, Connections, Browser.",
+  read_only:
+    "This agent may read this site but not act on it. The person gives it the Act right in Vyre, Vault, Connections, Browser.",
   not_in_batch: "That step cannot run inside a batch because it needs its own approval.",
   secret_field: "That field holds a secret. Fill it with a #Handle.field reference from the Vault, not with text.",
   fill_failed: "The Vault could not fill that handle into the field.",
-  handle_unsupported: "chrome_api cannot carry a Vault handle. Sign in on the page first: the call uses the page's session.",
+  handle_unsupported:
+    "chrome_api cannot carry a Vault handle. Sign in on the page first: the call uses the page's session.",
   cross_origin: "chrome_api calls the site the tab is on. Open that site first.",
   debugger_denied: "Chrome would not let the extension control that tab.",
   bad_input: "That input is not valid.",
@@ -167,7 +236,11 @@ export const WORDS = Object.freeze({
 
 /** @param {unknown} e @returns {{ code: string, message: string }} */
 export function errorOf(e) {
-  if (e instanceof AgentFailure) return { code: e.code, message: e.message || /** @type {Record<string,string>} */ (WORDS)[e.code] || "Something went wrong." };
+  if (e instanceof AgentFailure)
+    return {
+      code: e.code,
+      message: e.message || /** @type {Record<string,string>} */ (WORDS)[e.code] || "Something went wrong.",
+    };
   if (e instanceof BridgeFailure) return { code: e.code, message: e.message || "Something went wrong." };
   return { code: "error", message: "Something went wrong in the page. Take a new snapshot and try again." };
 }

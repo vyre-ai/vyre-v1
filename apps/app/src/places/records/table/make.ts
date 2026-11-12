@@ -7,7 +7,8 @@ type Kind = Pick<TypeDef, "key"> & { template?: string };
 
 export type MadeKind = "record" | "agent" | "project";
 
-export const madeKind = (def: Kind): MadeKind => (def.key === "agent" ? "agent" : def.template === "project" ? "project" : "record");
+export const madeKind = (def: Kind): MadeKind =>
+  def.key === "agent" ? "agent" : def.template === "project" ? "project" : "record";
 
 const idOf = (out: unknown, ...path: string[]): string | undefined => {
   let v: unknown = out;
@@ -16,9 +17,22 @@ const idOf = (out: unknown, ...path: string[]): string | undefined => {
 };
 
 /** Makes what New asks for and answers the id of the record to open. A refusal from the module passes through, so the bar says why. */
-export async function makeRecord(call: Call, def: Kind & Pick<TypeDef, "titleField">, name: string, key: string): Promise<string | undefined> {
+export async function makeRecord(
+  call: Call,
+  def: Kind & Pick<TypeDef, "titleField">,
+  name: string,
+  key: string,
+): Promise<string | undefined> {
   const kind = madeKind(def);
-  if (kind === "project") return idOf(await call("projects.create", { type: def.key, title: name, idempotencyKey: key }), "recordId");
-  if (kind === "agent") { await call("agents.create", { name, idempotencyKey: `${key}:agent` }); return undefined; }
-  return idOf(await call("records.create", { type: def.key, fields: { [def.titleField]: name }, idempotencyKey: key }), "record", "id");
+  if (kind === "project")
+    return idOf(await call("projects.create", { type: def.key, title: name, idempotencyKey: key }), "recordId");
+  if (kind === "agent") {
+    await call("agents.create", { name, idempotencyKey: `${key}:agent` });
+    return undefined;
+  }
+  return idOf(
+    await call("records.create", { type: def.key, fields: { [def.titleField]: name }, idempotencyKey: key }),
+    "record",
+    "id",
+  );
 }

@@ -12,7 +12,11 @@ import type { SnapshotRegistry } from "../lib/snapshot.ts";
 
 type Cap = { name: string; v: number; module: string; input: unknown; summary: string };
 type Ev = { name: string; module: string; payload: unknown };
-interface Reg extends SnapshotRegistry { $defs: Record<string, unknown>; capabilities: Cap[]; events: Ev[] }
+interface Reg extends SnapshotRegistry {
+  $defs: Record<string, unknown>;
+  capabilities: Cap[];
+  events: Ev[];
+}
 
 const str = { type: "string" };
 const base = (): Reg => ({
@@ -25,15 +29,31 @@ const base = (): Reg => ({
   ],
   events: [{ name: "gamma.made", module: "gamma", payload: { type: "object", properties: { id: str } } }],
 });
-const withCap = (r: Reg, module: string, name: string): Reg => ({ ...r, capabilities: [...r.capabilities, { name, v: 1, module, input: { type: "object", properties: { x: str } }, summary: name }] });
-const withEvent = (r: Reg, module: string, name: string): Reg => ({ ...r, events: [...r.events, { name, module, payload: { type: "object", properties: { y: str } } }] });
+const withCap = (r: Reg, module: string, name: string): Reg => ({
+  ...r,
+  capabilities: [
+    ...r.capabilities,
+    { name, v: 1, module, input: { type: "object", properties: { x: str } }, summary: name },
+  ],
+});
+const withEvent = (r: Reg, module: string, name: string): Reg => ({
+  ...r,
+  events: [...r.events, { name, module, payload: { type: "object", properties: { y: str } } }],
+});
 
 function git(dir: string, ...args: string[]): { status: number; out: string } {
-  const r = spawnSync("git", ["-c", "user.name=t", "-c", "user.email=t@example.test", "-c", "commit.gpgsign=false", ...args], { cwd: dir, encoding: "utf8" });
+  const r = spawnSync(
+    "git",
+    ["-c", "user.name=t", "-c", "user.email=t@example.test", "-c", "commit.gpgsign=false", ...args],
+    { cwd: dir, encoding: "utf8" },
+  );
   return { status: r.status ?? 1, out: `${r.stdout}${r.stderr}` };
 }
 function write(dir: string, reg: Reg): void {
-  for (const [p, text] of snapshotFiles(reg)) { mkdirSync(dirname(join(dir, p)), { recursive: true }); writeFileSync(join(dir, p), text); }
+  for (const [p, text] of snapshotFiles(reg)) {
+    mkdirSync(dirname(join(dir, p)), { recursive: true });
+    writeFileSync(join(dir, p), text);
+  }
 }
 function onDisk(dir: string, reg: Reg): Map<string, string> {
   const have = new Map<string, string>();
@@ -59,7 +79,10 @@ test("a capability added to one manifest and an event added to another merge in 
   const a = withCap(base(), "alpha", "alpha.list");
   const b = withEvent(base(), "beta", "beta.changed");
   const both = withEvent(withCap(base(), "alpha", "alpha.list"), "beta", "beta.changed");
-  for (const order of [["pr-a", "pr-b"], ["pr-b", "pr-a"]] as const) {
+  for (const order of [
+    ["pr-a", "pr-b"],
+    ["pr-b", "pr-a"],
+  ] as const) {
     const dir = repo();
     branch(dir, "pr-a", a);
     branch(dir, "pr-b", b);
@@ -89,7 +112,9 @@ test("a change to one capability moves one line of one file and no other file", 
   const moved = [...after.keys()].filter((p) => after.get(p) !== before.get(p));
   assert.deepEqual(moved, [`${SNAPSHOT_DIR}/beta.json`]);
   const lines = (t: string): string[] => t.split("\n");
-  const diff = lines(after.get(`${SNAPSHOT_DIR}/beta.json`) as string).filter((l, i) => l !== lines(before.get(`${SNAPSHOT_DIR}/beta.json`) as string)[i]);
+  const diff = lines(after.get(`${SNAPSHOT_DIR}/beta.json`) as string).filter(
+    (l, i) => l !== lines(before.get(`${SNAPSHOT_DIR}/beta.json`) as string)[i],
+  );
   assert.equal(diff.length, 1);
   assert.match(diff[0] as string, /"beta.get@1"/);
 });
@@ -97,8 +122,12 @@ test("a change to one capability moves one line of one file and no other file", 
 test("how the registry shares schemas does not move a snapshot: a $ref to a shared schema hashes like the schema written out", () => {
   const inline = base();
   const shared: Reg = { ...base(), $defs: { s_1: { type: "object", properties: { id: str } } } };
-  (shared.capabilities as Cap[]).forEach((c) => { c.input = { $ref: "#/$defs/s_1" }; });
-  (shared.events as Ev[]).forEach((e) => { e.payload = { $ref: "#/$defs/s_1" }; });
+  (shared.capabilities as Cap[]).forEach((c) => {
+    c.input = { $ref: "#/$defs/s_1" };
+  });
+  (shared.events as Ev[]).forEach((e) => {
+    e.payload = { $ref: "#/$defs/s_1" };
+  });
   assert.deepEqual([...snapshotFiles(shared)], [...snapshotFiles(inline)]);
 });
 
@@ -108,7 +137,16 @@ test("drift is named: a missing file, a changed capability and a stray file", ()
   have.delete(`${SNAPSHOT_DIR}/gamma.json`);
   have.set(`${SNAPSHOT_DIR}/old.json`, "{}\n");
   const drift = snapshotDrift(reg, have);
-  assert.ok(drift.some((d) => d === `missing  ${SNAPSHOT_DIR}/gamma.json`), drift.join("; "));
-  assert.ok(drift.some((d) => d.startsWith(`changed  ${SNAPSHOT_DIR}/alpha.json`) && d.includes("alpha.list@1")), drift.join("; "));
-  assert.ok(drift.some((d) => d === `stray    ${SNAPSHOT_DIR}/old.json`), drift.join("; "));
+  assert.ok(
+    drift.some((d) => d === `missing  ${SNAPSHOT_DIR}/gamma.json`),
+    drift.join("; "),
+  );
+  assert.ok(
+    drift.some((d) => d.startsWith(`changed  ${SNAPSHOT_DIR}/alpha.json`) && d.includes("alpha.list@1")),
+    drift.join("; "),
+  );
+  assert.ok(
+    drift.some((d) => d === `stray    ${SNAPSHOT_DIR}/old.json`),
+    drift.join("; "),
+  );
 });

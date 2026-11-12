@@ -53,7 +53,10 @@ function walk(s0: Schema, v: unknown, p: string, out: string[], defs: Defs): voi
   const got = typeOf(v);
   if (s.type) {
     const want = Array.isArray(s.type) ? s.type : [s.type];
-    if (!want.some((w) => typeOk(w, got))) { out.push(`${at}: expected ${want.join("|")} got ${got}`); return; }
+    if (!want.some((w) => typeOk(w, got))) {
+      out.push(`${at}: expected ${want.join("|")} got ${got}`);
+      return;
+    }
   }
   if (typeof v === "string") {
     if (s.minLength !== undefined && v.length < s.minLength) out.push(`${at}: too short`);
@@ -98,7 +101,9 @@ interface Registry {
 
 let cached: Registry | null = null;
 const registry = (): Registry => {
-  cached ??= JSON.parse(readFileSync(new URL("../../../../generated/registry.json", import.meta.url), "utf8")) as Registry;
+  cached ??= JSON.parse(
+    readFileSync(new URL("../../../../generated/registry.json", import.meta.url), "utf8"),
+  ) as Registry;
   return cached;
 };
 

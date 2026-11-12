@@ -13,7 +13,12 @@ export interface OutboxRow {
   at: number;
 }
 
-export interface RejectedRow { opId: string; error: unknown; copyOut: unknown; at: number }
+export interface RejectedRow {
+  opId: string;
+  error: unknown;
+  copyOut: unknown;
+  at: number;
+}
 
 /** Storage of the outbox. The SQL form is the replica's tables; the memory form is for tests and the web fallback. */
 export interface OutboxStore {

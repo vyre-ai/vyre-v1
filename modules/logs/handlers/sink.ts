@@ -23,7 +23,15 @@ export type LevelName = keyof typeof LEVELS;
 
 /** Keys the log lint forbids in attrs. The sink drops them as a second line of defence. */
 export const CONTENT_KEYS: readonly string[] = Object.freeze([
-  "body", "text", "subject", "value", "secret", "password", "token", "content", "message",
+  "body",
+  "text",
+  "subject",
+  "value",
+  "secret",
+  "password",
+  "token",
+  "content",
+  "message",
 ]);
 const CONTENT_RE = new RegExp(`^(${CONTENT_KEYS.join("|")})$`, "i");
 const MSG_KEY = /^[a-z][a-z0-9_.]{0,79}$/;
@@ -113,7 +121,11 @@ function scrub(v: unknown, secrets: readonly string[], depth: number): unknown {
 }
 
 /** The attrs a row may keep, or null. A Restricted row keeps none. */
-export function scrubAttrs(attrs: unknown, secrets: readonly string[], restrictedRow = false): Record<string, unknown> | null {
+export function scrubAttrs(
+  attrs: unknown,
+  secrets: readonly string[],
+  restrictedRow = false,
+): Record<string, unknown> | null {
   if (restrictedRow || isSealed(attrs) || isRestricted(attrs)) return null;
   const y = scrub(attrs, secrets, 0);
   if (!isObj(y) || Object.keys(y).length === 0) return null;
@@ -158,19 +170,59 @@ function pick(o: Record<string, unknown>, ...keys: string[]): unknown {
 }
 
 export const ROW_COLS = [
-  "at", "level", "trace_id", "span_id", "space", "actor", "on_behalf", "run_id", "thread_id", "device", "place",
-  "cap", "entity", "entity_id", "result", "dur_ms", "cost_micros", "tokens_in", "tokens_out", "label",
-  "app_version", "server_version", "machine", "msg", "attrs",
+  "at",
+  "level",
+  "trace_id",
+  "span_id",
+  "space",
+  "actor",
+  "on_behalf",
+  "run_id",
+  "thread_id",
+  "device",
+  "place",
+  "cap",
+  "entity",
+  "entity_id",
+  "result",
+  "dur_ms",
+  "cost_micros",
+  "tokens_in",
+  "tokens_out",
+  "label",
+  "app_version",
+  "server_version",
+  "machine",
+  "msg",
+  "attrs",
 ] as const;
 export type RowCol = (typeof ROW_COLS)[number];
 export type RowData = Record<RowCol, string | number | null>;
 
 const ROW_SQL = `INSERT INTO logs_row (${ROW_COLS.join(", ")}) VALUES (${ROW_COLS.map(() => "?").join(", ")})`;
-const SPAN_SQL = "INSERT OR REPLACE INTO logs_span (space, trace_id, span_id, parent, name, at, dur_us, attrs) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
-const EVENT_SQL = "INSERT OR REPLACE INTO logs_event (seq, trace_id, type, at, actor, entity) VALUES (?, ?, ?, ?, ?, ?)";
+const SPAN_SQL =
+  "INSERT OR REPLACE INTO logs_span (space, trace_id, span_id, parent, name, at, dur_us, attrs) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
+const EVENT_SQL =
+  "INSERT OR REPLACE INTO logs_event (seq, trace_id, type, at, actor, entity) VALUES (?, ?, ?, ?, ?, ?)";
 
-export interface SpanData { space: string; trace_id: string; span_id: string; parent: string | null; name: string; at: number; dur_us: number; attrs: string | null }
-export interface EventData { seq: number; trace_id: string; type: string; at: number; actor: string; entity: string | null }
+export interface SpanData {
+  space: string;
+  trace_id: string;
+  span_id: string;
+  parent: string | null;
+  name: string;
+  at: number;
+  dur_us: number;
+  attrs: string | null;
+}
+export interface EventData {
+  seq: number;
+  trace_id: string;
+  type: string;
+  at: number;
+  actor: string;
+  entity: string | null;
+}
 
 export function normalizeRow(space: string, line: unknown, now: number, secrets: readonly string[]): RowData | null {
   if (!isObj(line)) return null;
@@ -276,8 +328,12 @@ export class LogWriter {
     this.min = typeof o.minLevel === "number" ? o.minLevel : LEVELS[o.minLevel ?? "info"];
   }
 
-  setMinLevel(level: LevelName | number): void { this.min = typeof level === "number" ? level : LEVELS[level]; }
-  pending(): number { return this.rows.length + this.spans.length + this.events.length; }
+  setMinLevel(level: LevelName | number): void {
+    this.min = typeof level === "number" ? level : LEVELS[level];
+  }
+  pending(): number {
+    return this.rows.length + this.spans.length + this.events.length;
+  }
 
   /** Queue one log line. False when it was not an object, or was below the Space's level. */
   write(line: unknown): boolean {
@@ -310,7 +366,11 @@ export class LogWriter {
   /** One JSON line from the sink worker: `kind` is span, event, or absent for a log row. */
   acceptLine(text: string): boolean {
     let parsed: unknown;
-    try { parsed = JSON.parse(text); } catch { return false; }
+    try {
+      parsed = JSON.parse(text);
+    } catch {
+      return false;
+    }
     if (!isObj(parsed)) return false;
     if (parsed["kind"] === "span") return this.span(parsed);
     if (parsed["kind"] === "event") return this.event(parsed);
@@ -319,10 +379,19 @@ export class LogWriter {
 
   /** Write everything queued. A failing statement leaves it and the rest queued, and throws. */
   flush(): void {
-    if (this.timer) { clearTimeout(this.timer); this.timer = null; }
-    const rows = this.rows, spans = this.spans, events = this.events;
-    this.rows = []; this.spans = []; this.events = [];
-    let i = 0, j = 0, k = 0;
+    if (this.timer) {
+      clearTimeout(this.timer);
+      this.timer = null;
+    }
+    const rows = this.rows,
+      spans = this.spans,
+      events = this.events;
+    this.rows = [];
+    this.spans = [];
+    this.events = [];
+    let i = 0,
+      j = 0,
+      k = 0;
     try {
       for (; i < rows.length; i++) this.db.run(ROW_SQL, ...ROW_COLS.map((c) => rows[i]![c]));
       for (; j < spans.length; j++) {
@@ -342,19 +411,33 @@ export class LogWriter {
     }
   }
 
-  close(): void { this.flush(); }
+  close(): void {
+    this.flush();
+  }
 
   private trim(): void {
     const over = this.rows.length - MAX_QUEUE;
-    if (over > 0) { this.rows.splice(0, over); this.dropped += over; }
+    if (over > 0) {
+      this.rows.splice(0, over);
+      this.dropped += over;
+    }
   }
 
   private schedule(): void {
-    if (this.batchMs <= 0) { this.flush(); return; }
+    if (this.batchMs <= 0) {
+      this.flush();
+      return;
+    }
     if (this.timer) return;
     const timer = setTimeout(() => {
       this.timer = null;
-      try { this.flush(); this.lastError = null; } catch (e) { this.lastError = e; this.schedule(); }
+      try {
+        this.flush();
+        this.lastError = null;
+      } catch (e) {
+        this.lastError = e;
+        this.schedule();
+      }
     }, this.batchMs);
     this.timer = timer;
     (timer as unknown as { unref?: () => void }).unref?.();
@@ -363,12 +446,17 @@ export class LogWriter {
 
 // ---- settings, holds, tombstones
 
-export interface Settings { level: LevelName; fullDays: number; aggregateDays: number }
+export interface Settings {
+  level: LevelName;
+  fullDays: number;
+  aggregateDays: number;
+}
 
 export function readSettings(db: Db, space: string): Settings {
   const r = db.all("SELECT level, full_days, aggregate_days FROM logs_settings WHERE space = ?", space)[0];
   if (!isObj(r)) return { level: "info", fullDays: DEFAULT_FULL_DAYS, aggregateDays: DEFAULT_AGGREGATE_DAYS };
-  const full = int(r["full_days"]), agg = int(r["aggregate_days"]);
+  const full = int(r["full_days"]),
+    agg = int(r["aggregate_days"]);
   return {
     level: levelName(levelNumber(r["level"])),
     fullDays: full !== null && full >= 1 ? full : DEFAULT_FULL_DAYS,
@@ -377,7 +465,13 @@ export function readSettings(db: Db, space: string): Settings {
 }
 
 export function writeSettings(db: Db, space: string, s: Settings): void {
-  db.run("INSERT OR REPLACE INTO logs_settings (space, level, full_days, aggregate_days) VALUES (?, ?, ?, ?)", space, LEVELS[s.level], s.fullDays, s.aggregateDays);
+  db.run(
+    "INSERT OR REPLACE INTO logs_settings (space, level, full_days, aggregate_days) VALUES (?, ?, ?, ?)",
+    space,
+    LEVELS[s.level],
+    s.fullDays,
+    s.aggregateDays,
+  );
 }
 
 export function placeHold(db: Db, space: string, id: string, untilMs: number | null = null): void {
@@ -413,9 +507,21 @@ export function erasedActors(db: Db): Set<string> {
 
 // ---- retention (ARCH 4.11): full rows for fullDays, per-day aggregates for aggregateDays, then gone
 
-export interface RetentionResult { held: boolean; folded: number; deleted: number }
+export interface RetentionResult {
+  held: boolean;
+  folded: number;
+  deleted: number;
+}
 
-interface Fold { day: number; level: number; cap: string; result: string; n: number; cost: number; dur: number }
+interface Fold {
+  day: number;
+  level: number;
+  cap: string;
+  result: string;
+  n: number;
+  cost: number;
+  dur: number;
+}
 
 function foldInto(map: Map<string, Fold>, r: Record<string, unknown>): void {
   const at = num(r["at"]) ?? 0;
@@ -433,24 +539,46 @@ function foldInto(map: Map<string, Fold>, r: Record<string, unknown>): void {
 
 function saveFold(db: Db, space: string, f: Fold): void {
   const key = [space, f.day, f.level, f.cap, f.result];
-  const found = db.all("SELECT n_rows, cost_micros, dur_ms FROM logs_aggregate WHERE space = ? AND day = ? AND level = ? AND cap = ? AND result = ?", ...key)[0];
+  const found = db.all(
+    "SELECT n_rows, cost_micros, dur_ms FROM logs_aggregate WHERE space = ? AND day = ? AND level = ? AND cap = ? AND result = ?",
+    ...key,
+  )[0];
   if (isObj(found)) {
     db.run(
       "UPDATE logs_aggregate SET n_rows = ?, cost_micros = ?, dur_ms = ? WHERE space = ? AND day = ? AND level = ? AND cap = ? AND result = ?",
-      (int(found["n_rows"]) ?? 0) + f.n, (int(found["cost_micros"]) ?? 0) + f.cost, (num(found["dur_ms"]) ?? 0) + f.dur, ...key,
+      (int(found["n_rows"]) ?? 0) + f.n,
+      (int(found["cost_micros"]) ?? 0) + f.cost,
+      (num(found["dur_ms"]) ?? 0) + f.dur,
+      ...key,
     );
     return;
   }
-  db.run("INSERT INTO logs_aggregate (space, day, level, cap, result, n_rows, cost_micros, dur_ms) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", ...key, f.n, f.cost, f.dur);
+  db.run(
+    "INSERT INTO logs_aggregate (space, day, level, cap, result, n_rows, cost_micros, dur_ms) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+    ...key,
+    f.n,
+    f.cost,
+    f.dur,
+  );
 }
 
 /**
  * One batch of full rows into the per-day aggregates: the oldest rows (by id) older than `before`, at most `limit` of them, folded and deleted together. Returns how many were read and deleted.
  * `before` Infinity folds the oldest rows whatever their age (the row cap).
  */
-export function foldRows(db: Db, space: string, before: number, limit: number = FOLD_BATCH): { folded: number; deleted: number } {
+export function foldRows(
+  db: Db,
+  space: string,
+  before: number,
+  limit: number = FOLD_BATCH,
+): { folded: number; deleted: number } {
   const cut = Number.isFinite(before) ? before : Number.MAX_SAFE_INTEGER;
-  const batch = db.all("SELECT id, at, level, cap, result, cost_micros, dur_ms FROM logs_row WHERE space = ? AND at < ? ORDER BY id LIMIT ?", space, cut, limit);
+  const batch = db.all(
+    "SELECT id, at, level, cap, result, cost_micros, dur_ms FROM logs_row WHERE space = ? AND at < ? ORDER BY id LIMIT ?",
+    space,
+    cut,
+    limit,
+  );
   if (batch.length === 0) return { folded: 0, deleted: 0 };
   const map = new Map<string, Fold>();
   let maxId = 0;
@@ -460,7 +588,10 @@ export function foldRows(db: Db, space: string, before: number, limit: number = 
     maxId = Math.max(maxId, int(r["id"]) ?? 0);
   }
   for (const f of map.values()) saveFold(db, space, f);
-  return { folded: batch.length, deleted: db.run("DELETE FROM logs_row WHERE space = ? AND at < ? AND id <= ?", space, cut, maxId).changes };
+  return {
+    folded: batch.length,
+    deleted: db.run("DELETE FROM logs_row WHERE space = ? AND at < ? AND id <= ?", space, cut, maxId).changes,
+  };
 }
 
 /** The daily retention job. A hold skips it. Safe to run twice: folded rows are deleted in the same pass. */
@@ -469,10 +600,12 @@ export function runRetention(db: Db, space: string, now: number): RetentionResul
   const s = readSettings(db, space);
   const fullBefore = now - s.fullDays * DAY_MS;
   const aggBefore = now - s.aggregateDays * DAY_MS;
-  let folded = 0, deleted = 0;
+  let folded = 0,
+    deleted = 0;
   for (;;) {
     const r = foldRows(db, space, fullBefore);
-    folded += r.folded; deleted += r.deleted;
+    folded += r.folded;
+    deleted += r.deleted;
     if (r.folded < FOLD_BATCH) break;
   }
   db.run("DELETE FROM logs_span WHERE space = ? AND at < ?", space, fullBefore);

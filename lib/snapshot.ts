@@ -29,7 +29,7 @@ function resolve(v: unknown, defs: Record<string, unknown>, stack: readonly stri
     const ref = o["$ref"];
     if (typeof ref === "string" && ref.startsWith("#/$defs/")) {
       const key = ref.slice("#/$defs/".length);
-      if (stack.includes(key) || defs[key] === undefined) return v;   // a cycle or an unknown name stays as written
+      if (stack.includes(key) || defs[key] === undefined) return v; // a cycle or an unknown name stays as written
       return resolve(defs[key], defs, [...stack, key]);
     }
     return Object.fromEntries(Object.entries(o).map(([k, x]) => [k, resolve(x, defs, stack)]));
@@ -37,23 +37,37 @@ function resolve(v: unknown, defs: Record<string, unknown>, stack: readonly stri
   return v;
 }
 
-const sha = (v: unknown, defs: Record<string, unknown>): string => createHash("sha256").update(canonical(resolve(v, defs))).digest("hex");
+const sha = (v: unknown, defs: Record<string, unknown>): string =>
+  createHash("sha256")
+    .update(canonical(resolve(v, defs)))
+    .digest("hex");
 
 /** The snapshot files of a registry: path (relative to the repo root) to text. Sorted keys and one entry per line, so a change to one capability is a one line diff. */
 export function snapshotFiles(reg: SnapshotRegistry): Map<string, string> {
   const out = new Map<string, string>();
   const defs = reg.$defs ?? {};
   for (const m of reg.modules) {
-    const caps = reg.capabilities.filter((c) => c.module === m.id).sort((a, b) => (a.name === b.name ? a.v - b.v : a.name < b.name ? -1 : 1));
-    const events = reg.events.filter((e) => e.module === m.id).sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
-    const section = (name: string, rows: string[]): string => (rows.length ? `  "${name}": {\n${rows.join(",\n")}\n  }` : `  "${name}": {}`);
+    const caps = reg.capabilities
+      .filter((c) => c.module === m.id)
+      .sort((a, b) => (a.name === b.name ? a.v - b.v : a.name < b.name ? -1 : 1));
+    const events = reg.events
+      .filter((e) => e.module === m.id)
+      .sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
+    const section = (name: string, rows: string[]): string =>
+      rows.length ? `  "${name}": {\n${rows.join(",\n")}\n  }` : `  "${name}": {}`;
     out.set(
       `${SNAPSHOT_DIR}/${m.id}.json`,
       [
         "{",
         `  "module": ${JSON.stringify(m.id)},`,
-        `${section("capabilities", caps.map((c) => `    ${JSON.stringify(`${c.name}@${c.v}`)}: ${JSON.stringify(sha(c, defs))}`))},`,
-        section("events", events.map((e) => `    ${JSON.stringify(e.name)}: ${JSON.stringify(sha(e, defs))}`)),
+        `${section(
+          "capabilities",
+          caps.map((c) => `    ${JSON.stringify(`${c.name}@${c.v}`)}: ${JSON.stringify(sha(c, defs))}`),
+        )},`,
+        section(
+          "events",
+          events.map((e) => `    ${JSON.stringify(e.name)}: ${JSON.stringify(sha(e, defs))}`),
+        ),
         "}",
         "",
       ].join("\n"),
@@ -77,9 +91,18 @@ export function snapshotDrift(reg: SnapshotRegistry, have: ReadonlyMap<string, s
 
 /** The capability or event names whose line differs, so a failure says what changed, not only which file. */
 function changedKeys(had: string, want: string): string {
-  const lines = (t: string): Map<string, string> => new Map(t.split("\n").filter((l) => l.startsWith('    "')).map((l) => [l.split('":')[0] as string, l]));
-  const a = lines(had), b = lines(want);
+  const lines = (t: string): Map<string, string> =>
+    new Map(
+      t
+        .split("\n")
+        .filter((l) => l.startsWith('    "'))
+        .map((l) => [l.split('":')[0] as string, l]),
+    );
+  const a = lines(had),
+    b = lines(want);
   const keys = new Set<string>([...a.keys(), ...b.keys()]);
   const diff = [...keys].filter((k) => a.get(k) !== b.get(k)).map((k) => k.trim().slice(1));
-  return diff.length ? ` (${diff.slice(0, 8).join(", ")}${diff.length > 8 ? `, and ${diff.length - 8} more` : ""})` : "";
+  return diff.length
+    ? ` (${diff.slice(0, 8).join(", ")}${diff.length > 8 ? `, and ${diff.length - 8} more` : ""})`
+    : "";
 }

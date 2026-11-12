@@ -7,34 +7,78 @@ import { OWNER_ROLE, me, page, policyDrop, policyGet, policyPut, raise } from ".
 
 const ok = { ok: true } as const;
 type SsoKey = "google" | "microsoft" | "okta";
-export interface Policy { secondFactor: "off" | "required"; requireSso: boolean; allowPassword: boolean; allowGithub: boolean }
-export interface Sso { key: SsoKey; title: string; issuer: string; clientId: string; clientSecretHandle: string; enabled: boolean; domainHint?: string }
+export interface Policy {
+  secondFactor: "off" | "required";
+  requireSso: boolean;
+  allowPassword: boolean;
+  allowGithub: boolean;
+}
+export interface Sso {
+  key: SsoKey;
+  title: string;
+  issuer: string;
+  clientId: string;
+  clientSecretHandle: string;
+  enabled: boolean;
+  domainHint?: string;
+}
 
-export const DEFAULT_POLICY: Policy = { secondFactor: "off", requireSso: false, allowPassword: true, allowGithub: true };
+export const DEFAULT_POLICY: Policy = {
+  secondFactor: "off",
+  requireSso: false,
+  allowPassword: true,
+  allowGithub: true,
+};
 const SSO_KEYS: readonly SsoKey[] = ["google", "microsoft", "okta"];
 const POLICY_KEYS: Record<keyof Policy, string> = {
-  secondFactor: "sign_in.second_factor", requireSso: "sign_in.require_sso", allowPassword: "sign_in.allow_password", allowGithub: "sign_in.allow_github",
+  secondFactor: "sign_in.second_factor",
+  requireSso: "sign_in.require_sso",
+  allowPassword: "sign_in.allow_password",
+  allowGithub: "sign_in.allow_github",
 };
 
-export function currentPolicy(ctx: MembersCtx): Policy { return { ...DEFAULT_POLICY, ...(policyGet<Partial<Policy>>(ctx, "sign_in") ?? {}) }; }
+export function currentPolicy(ctx: MembersCtx): Policy {
+  return { ...DEFAULT_POLICY, ...(policyGet<Partial<Policy>>(ctx, "sign_in") ?? {}) };
+}
 function providers(ctx: MembersCtx): Sso[] {
   const out: Sso[] = [];
-  for (const k of SSO_KEYS) { const p = policyGet<Sso>(ctx, `sso:${k}`); if (p) out.push(p); }
+  for (const k of SSO_KEYS) {
+    const p = policyGet<Sso>(ctx, `sso:${k}`);
+    if (p) out.push(p);
+  }
   return out;
 }
 
 /** What a person can sign in with when everyone must use single sign-on: names only, for the join page. */
-export const enabledProviders = (ctx: MembersCtx): { key: string; title: string }[] => providers(ctx).filter((p) => p.enabled).map((p) => ({ key: p.key, title: p.title }));
+export const enabledProviders = (ctx: MembersCtx): { key: string; title: string }[] =>
+  providers(ctx)
+    .filter((p) => p.enabled)
+    .map((p) => ({ key: p.key, title: p.title }));
 
 async function isOwner(ctx: MembersCtx, personId: string): Promise<boolean> {
-  if(ctx.spaceOwner)return ctx.principal?.kind === "person" && ctx.spaceOwner() === personId;
-  const out = (await ctx.call("access.principals.get", { principal: { kind: "person", id: personId } })) as { principal: { roles: string[] } };
+  if (ctx.spaceOwner) return ctx.principal?.kind === "person" && ctx.spaceOwner() === personId;
+  const out = (await ctx.call("access.principals.get", { principal: { kind: "person", id: personId } })) as {
+    principal: { roles: string[] };
+  };
   return out.principal.roles.includes(OWNER_ROLE);
 }
 
 export async function policyGetH(ctx: MembersCtx, _input: Record<string, never>) {
- const owner=ctx.spaceOwner?.();const who=ctx.principal?.id;
- return { policy: currentPolicy(ctx),capabilities:{password:true,github:ctx.signInMethods?.github??false,sso:[...(ctx.signInMethods?.sso??[])],newMemberMfaEnrollment:ctx.signInMethods?.newMemberMfaEnrollment??false,ownerHasSecondFactor:!!owner&&!!ctx.factors?.of(owner).length,currentHasSecondFactor:!!who&&!!ctx.factors?.of(who).length,ownerSsoLinked:!!owner&&!!ctx.breakGlass?.ssoLinked(owner),ownerHasRecovery:!!owner&&!!ctx.breakGlass?.hasRecovery(owner)} };
+  const owner = ctx.spaceOwner?.();
+  const who = ctx.principal?.id;
+  return {
+    policy: currentPolicy(ctx),
+    capabilities: {
+      password: true,
+      github: ctx.signInMethods?.github ?? false,
+      sso: [...(ctx.signInMethods?.sso ?? [])],
+      newMemberMfaEnrollment: ctx.signInMethods?.newMemberMfaEnrollment ?? false,
+      ownerHasSecondFactor: !!owner && !!ctx.factors?.of(owner).length,
+      currentHasSecondFactor: !!who && !!ctx.factors?.of(who).length,
+      ownerSsoLinked: !!owner && !!ctx.breakGlass?.ssoLinked(owner),
+      ownerHasRecovery: !!owner && !!ctx.breakGlass?.hasRecovery(owner),
+    },
+  };
 }
 
 export async function policySet(ctx: MembersCtx, input: { policy: Policy }) {
@@ -42,34 +86,74 @@ export async function policySet(ctx: MembersCtx, input: { policy: Policy }) {
   const who = me(ctx);
   const next = input.policy;
   const cur = currentPolicy(ctx);
-  if (!next.allowPassword && !next.allowGithub && !next.requireSso) raise(tid, "validation.precondition_failed", "at least one way to sign in has to stay on");
-  const methods=ctx.signInMethods;
-  if(next.requireSso&&(!methods||!methods.sso.length))raise(tid,"validation.unsupported","Single sign-on is not implemented by this server. Keep a supported sign-in method enabled.");
-  if(!next.allowPassword&&!(next.allowGithub&&methods?.github)&&!(next.requireSso&&methods?.sso.length))raise(tid,"validation.precondition_failed","Password sign-in cannot be disabled without another working sign-in method.");
-  if (next.requireSso && !providers(ctx).some((p) => p.enabled && methods?.sso.includes(p.key))) raise(tid, "validation.precondition_failed", "turn on a single sign-on provider before requiring it");
+  if (!next.allowPassword && !next.allowGithub && !next.requireSso)
+    raise(tid, "validation.precondition_failed", "at least one way to sign in has to stay on");
+  const methods = ctx.signInMethods;
+  if (next.requireSso && (!methods || !methods.sso.length))
+    raise(
+      tid,
+      "validation.unsupported",
+      "Single sign-on is not implemented by this server. Keep a supported sign-in method enabled.",
+    );
+  if (!next.allowPassword && !(next.allowGithub && methods?.github) && !(next.requireSso && methods?.sso.length))
+    raise(
+      tid,
+      "validation.precondition_failed",
+      "Password sign-in cannot be disabled without another working sign-in method.",
+    );
+  if (next.requireSso && !providers(ctx).some((p) => p.enabled && methods?.sso.includes(p.key)))
+    raise(tid, "validation.precondition_failed", "turn on a single sign-on provider before requiring it");
   // nobody turns this on and locks the owner out: the owner has signed in with the provider once, and holds the recovery key that is the way in when the provider is down
   if (next.requireSso && !cur.requireSso) {
     const owner = ctx.spaceOwner?.();
     if (!owner) raise(tid, "internal.unavailable", "The server cannot verify the Space owner for this policy change.");
-    if (!ctx.breakGlass?.ssoLinked(owner)) raise(tid, "validation.precondition_failed", "The Space owner has to sign in with this provider once first, or requiring it would lock them out.");
-    if (!ctx.breakGlass?.hasRecovery(owner)) raise(tid, "validation.precondition_failed", "The Space owner has to save a recovery key first. It is the way in if the provider is down.");
+    if (!ctx.breakGlass?.ssoLinked(owner))
+      raise(
+        tid,
+        "validation.precondition_failed",
+        "The Space owner has to sign in with this provider once first, or requiring it would lock them out.",
+      );
+    if (!ctx.breakGlass?.hasRecovery(owner))
+      raise(
+        tid,
+        "validation.precondition_failed",
+        "The Space owner has to save a recovery key first. It is the way in if the provider is down.",
+      );
   }
   // the owner floor: only the owner may take a requirement away
-  const lowers = (cur.secondFactor === "required" && next.secondFactor === "off") || (cur.requireSso && !next.requireSso);
-  if (lowers && !(await isOwner(ctx, who.id))) raise(tid, "permission.role_lacks_permission", "only the owner can lower a sign-in requirement");
-  if(next.secondFactor === "required" && cur.secondFactor !== "required") {
-    const owner=ctx.spaceOwner?.();
-    if(!owner)raise(tid,"internal.unavailable","The server cannot verify the Space owner for this policy change.");
-    if(!ctx.factors?.of(owner).length)raise(tid,"validation.precondition_failed","The Space owner must set up an authenticator before requiring it for everyone.");
-    if(!methods?.newMemberMfaEnrollment)raise(tid,"validation.precondition_failed","Required MFA needs a supported new-member authenticator enrollment flow before it can be enabled on this server.");
+  const lowers =
+    (cur.secondFactor === "required" && next.secondFactor === "off") || (cur.requireSso && !next.requireSso);
+  if (lowers && !(await isOwner(ctx, who.id)))
+    raise(tid, "permission.role_lacks_permission", "only the owner can lower a sign-in requirement");
+  if (next.secondFactor === "required" && cur.secondFactor !== "required") {
+    const owner = ctx.spaceOwner?.();
+    if (!owner) raise(tid, "internal.unavailable", "The server cannot verify the Space owner for this policy change.");
+    if (!ctx.factors?.of(owner).length)
+      raise(
+        tid,
+        "validation.precondition_failed",
+        "The Space owner must set up an authenticator before requiring it for everyone.",
+      );
+    if (!methods?.newMemberMfaEnrollment)
+      raise(
+        tid,
+        "validation.precondition_failed",
+        "Required MFA needs a supported new-member authenticator enrollment flow before it can be enabled on this server.",
+      );
   }
   // do not lock yourself out
-  if (next.secondFactor === "required" && cur.secondFactor !== "required" && ctx.factors && ctx.factors.of(who.id).length === 0) {
+  if (
+    next.secondFactor === "required" &&
+    cur.secondFactor !== "required" &&
+    ctx.factors &&
+    ctx.factors.of(who.id).length === 0
+  ) {
     raise(tid, "validation.precondition_failed", "set up your own second factor first, or you would be locked out");
   }
   policyPut(ctx, "sign_in", next);
   for (const k of Object.keys(POLICY_KEYS) as (keyof Policy)[]) {
-    if (cur[k] !== next[k]) ctx.emit("policy.changed", POLICY_KEYS[k], { key: POLICY_KEYS[k], scope: "space", kind: "sign_in", by: who.id });
+    if (cur[k] !== next[k])
+      ctx.emit("policy.changed", POLICY_KEYS[k], { key: POLICY_KEYS[k], scope: "space", kind: "sign_in", by: who.id });
   }
   return { policy: next };
 }
@@ -78,35 +162,64 @@ export async function secondFactorReport(ctx: MembersCtx, input: { cursor?: stri
   const all: { person: { kind: "person"; id: string }; name: string; factors: "totp"[] }[] = [];
   let cursor: string | undefined;
   do {
-    const out = (await ctx.call("access.principals.list", { kind: "person", status: "active", limit: 500, ...(cursor ? { cursor } : {}) })) as
-      { principals: { id: string; name: string }[]; next?: string };
-    for (const p of out.principals) all.push({ person: { kind: "person", id: p.id }, name: p.name, factors: ctx.factors?.of(p.id) ?? [] });
+    const out = (await ctx.call("access.principals.list", {
+      kind: "person",
+      status: "active",
+      limit: 500,
+      ...(cursor ? { cursor } : {}),
+    })) as { principals: { id: string; name: string }[]; next?: string };
+    for (const p of out.principals)
+      all.push({ person: { kind: "person", id: p.id }, name: p.name, factors: ctx.factors?.of(p.id) ?? [] });
     cursor = out.next;
   } while (cursor);
   // the ones without a factor come first: they are who the floor locks out
-  all.sort((a, b) => a.factors.length - b.factors.length || (a.name.toLowerCase() < b.name.toLowerCase() ? -1 : a.name.toLowerCase() > b.name.toLowerCase() ? 1 : 0));
+  all.sort(
+    (a, b) =>
+      a.factors.length - b.factors.length ||
+      (a.name.toLowerCase() < b.name.toLowerCase() ? -1 : a.name.toLowerCase() > b.name.toLowerCase() ? 1 : 0),
+  );
   const p = page(all, input.cursor, input.limit);
   return { people: p.rows, total: p.total, ...(p.next ? { next: p.next } : {}) };
 }
 
-export async function ssoList(ctx: MembersCtx, _input: Record<string, never>) { return { providers: providers(ctx) }; }
+export async function ssoList(ctx: MembersCtx, _input: Record<string, never>) {
+  return { providers: providers(ctx) };
+}
 
 export async function ssoSet(ctx: MembersCtx, input: { provider: Sso }) {
   const tid = ctx.trace.traceId;
   const p = input.provider;
   if (!SSO_KEYS.includes(p.key)) raise(tid, "validation.bad_input", "unknown provider");
-  if (!p.title.trim() || !p.clientId.trim()) raise(tid, "validation.bad_input", "a provider needs a title and a client id");
+  if (!p.title.trim() || !p.clientId.trim())
+    raise(tid, "validation.bad_input", "a provider needs a title and a client id");
   const pin = pinIssuer(p.key, p.issuer);
   if ("error" in pin) raise(tid, "validation.bad_input", pin.error);
-  if (!/^#[A-Za-z0-9_]+(\.[A-Za-z0-9_]+)?$/.test(p.clientSecretHandle)) raise(tid, "validation.bad_input", "the client secret is a Vault handle such as #Okta_Secret, never the value");
+  if (!/^#[A-Za-z0-9_]+(\.[A-Za-z0-9_]+)?$/.test(p.clientSecretHandle))
+    raise(tid, "validation.bad_input", "the client secret is a Vault handle such as #Okta_Secret, never the value");
   // The server signs people in with this secret later, as itself: whoever sets the provider must have Use on the item now (lib/vault-check.ts). The Vault answers a name that is not there
   // the same as one the caller may not use, so the item is put in the Vault first (the Console does that before it saves the provider).
-  await mustUse((cap, i) => ctx.call(cap, i), p.clientSecretHandle, (m) => raise(tid, "permission.no_grant", m));
+  await mustUse(
+    (cap, i) => ctx.call(cap, i),
+    p.clientSecretHandle,
+    (m) => raise(tid, "permission.no_grant", m),
+  );
   const prev = providers(ctx).find((x) => x.key === p.key);
-  if (prev?.enabled && !p.enabled && currentPolicy(ctx).requireSso && providers(ctx).filter((x) => x.enabled).length === 1) {
+  if (
+    prev?.enabled &&
+    !p.enabled &&
+    currentPolicy(ctx).requireSso &&
+    providers(ctx).filter((x) => x.enabled).length === 1
+  ) {
     raise(tid, "validation.precondition_failed", "single sign-on is required and this is the only provider that is on");
   }
-  const row: Sso = { key: p.key, title: p.title.trim(), issuer: (pin as { issuer: string }).issuer, clientId: p.clientId.trim(), clientSecretHandle: p.clientSecretHandle, enabled: p.enabled };
+  const row: Sso = {
+    key: p.key,
+    title: p.title.trim(),
+    issuer: (pin as { issuer: string }).issuer,
+    clientId: p.clientId.trim(),
+    clientSecretHandle: p.clientSecretHandle,
+    enabled: p.enabled,
+  };
   if (p.domainHint?.trim()) row.domainHint = p.domainHint.trim().toLowerCase();
   policyPut(ctx, `sso:${p.key}`, row);
   ctx.emit("policy.changed", `sso.${p.key}`, { key: `sso.${p.key}`, scope: "space", kind: "sign_in", by: me(ctx).id });
@@ -121,11 +234,21 @@ export async function ssoRemove(ctx: MembersCtx, input: { key: SsoKey }) {
     raise(tid, "validation.precondition_failed", "single sign-on is required and this is the only provider that is on");
   }
   policyDrop(ctx, `sso:${input.key}`);
-  ctx.emit("policy.changed", `sso.${input.key}`, { key: `sso.${input.key}`, scope: "space", kind: "sign_in", by: me(ctx).id });
+  ctx.emit("policy.changed", `sso.${input.key}`, {
+    key: `sso.${input.key}`,
+    scope: "space",
+    kind: "sign_in",
+    by: me(ctx).id,
+  });
   return ok;
 }
 
-interface Discovery { issuer?: unknown; authorization_endpoint?: unknown; token_endpoint?: unknown; jwks_uri?: unknown }
+interface Discovery {
+  issuer?: unknown;
+  authorization_endpoint?: unknown;
+  token_endpoint?: unknown;
+  jwks_uri?: unknown;
+}
 const https = (v: unknown): v is string => typeof v === "string" && v.startsWith("https://");
 
 export async function ssoTest(ctx: MembersCtx, input: { key: SsoKey }) {
@@ -136,12 +259,18 @@ export async function ssoTest(ctx: MembersCtx, input: { key: SsoKey }) {
     const d = await ctx.http(`${p.issuer}/.well-known/openid-configuration`);
     if (d.status !== 200) return { ok: false, detail: `the discovery document answered ${d.status}` };
     const doc = JSON.parse(await d.text()) as Discovery;
-    if (typeof doc.issuer !== "string" || doc.issuer.replace(/\/+$/, "") !== p.issuer) return { ok: false, detail: "the discovery document names a different issuer" };
-    if (!https(doc.authorization_endpoint) || !https(doc.token_endpoint) || !https(doc.jwks_uri)) return { ok: false, detail: "the discovery document is missing an https endpoint" };
+    if (typeof doc.issuer !== "string" || doc.issuer.replace(/\/+$/, "") !== p.issuer)
+      return { ok: false, detail: "the discovery document names a different issuer" };
+    if (!https(doc.authorization_endpoint) || !https(doc.token_endpoint) || !https(doc.jwks_uri))
+      return { ok: false, detail: "the discovery document is missing an https endpoint" };
     const k = await ctx.http(doc.jwks_uri);
     const keys = k.status === 200 ? (JSON.parse(await k.text()) as { keys?: unknown }).keys : undefined;
-    if (!Array.isArray(keys) || keys.length === 0) return { ok: false, detail: "the provider published no signing keys" };
-    return { ok: true, detail: `${keys.length} signing key${keys.length === 1 ? "" : "s"} found; the callback to register with the provider is /auth/sso/${p.key}/callback` };
+    if (!Array.isArray(keys) || keys.length === 0)
+      return { ok: false, detail: "the provider published no signing keys" };
+    return {
+      ok: true,
+      detail: `${keys.length} signing key${keys.length === 1 ? "" : "s"} found; the callback to register with the provider is /auth/sso/${p.key}/callback`,
+    };
   } catch (e) {
     return { ok: false, detail: `could not read the provider: ${String(e).slice(0, 100)}` };
   }

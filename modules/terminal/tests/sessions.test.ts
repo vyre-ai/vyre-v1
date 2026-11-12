@@ -5,7 +5,15 @@ import assert from "node:assert/strict";
 import { handlers } from "../impl.ts";
 import { openFrames, partialSpellingAt } from "../impl.ts";
 import { bindHost, bindKit, bindTeam, bindValues, commandsOf, redeemTicket } from "../projections.ts";
-import { assertEventsConform, codeOf, contractErrors, fakeHost, fakeValues, harness, reset } from "../fixtures/harness.ts";
+import {
+  assertEventsConform,
+  codeOf,
+  contractErrors,
+  fakeHost,
+  fakeValues,
+  harness,
+  reset,
+} from "../fixtures/harness.ts";
 import type { FakeHost, Harness } from "../fixtures/harness.ts";
 
 const h = handlers as unknown as Record<string, (ctx: Harness["ctx"], input: any) => Promise<any> | any>;
@@ -15,7 +23,14 @@ const call = async (hn: Harness, cap: string, input: unknown, ctx: Harness["ctx"
   assert.deepEqual(contractErrors(cap, "out", out), [], `${cap} output`);
   return out;
 };
-const rejects = async (f: () => unknown): Promise<string> => { try { await f(); } catch (e) { return codeOf(e); } return "no error"; };
+const rejects = async (f: () => unknown): Promise<string> => {
+  try {
+    await f();
+  } catch (e) {
+    return codeOf(e);
+  }
+  return "no error";
+};
 
 const AGENT = { kind: "agent" as const, id: "agt_intake" };
 let keys = 0;
@@ -28,7 +43,8 @@ function setup(scripts: Parameters<typeof fakeHost>[0] = {}): { hn: Harness; hos
   bindHost(host.host);
   return { hn, host };
 }
-const openAgent = (hn: Harness, over: Record<string, unknown> = {}): Promise<any> => call(hn, "terminal.open", { host: "agent_computer", agentId: "agt_intake", idempotencyKey: idem(), ...over });
+const openAgent = (hn: Harness, over: Record<string, unknown> = {}): Promise<any> =>
+  call(hn, "terminal.open", { host: "agent_computer", agentId: "agt_intake", idempotencyKey: idem(), ...over });
 
 // ---- open and close
 
@@ -37,10 +53,50 @@ test("open: an agent computer session is started on the machine, recorded, and a
   const out = await openAgent(hn, { name: "build", cwd: "/work/site", cols: 100, rows: 30 });
   const t = out.terminal;
   assert.match(t.terminalId, /^trm_[a-z0-9]+$/);
-  assert.deepEqual({ name: t.name, host: t.host, hostTitle: t.hostTitle, agentId: t.agentId, cwd: t.cwd, state: t.state, exitCode: t.exitCode, named: t.named, cols: t.cols, rows: t.rows },
-    { name: "build", host: "agent_computer", hostTitle: "agt_intake's computer", agentId: "agt_intake", cwd: "/work/site", state: "idle", exitCode: null, named: true, cols: 100, rows: 30 });
-  assert.deepEqual(host.calls[0], { op: "open", terminalId: t.terminalId, args: { target: { host: "agent_computer", agentId: "agt_intake" }, name: "build", cwd: "/work/site", cols: 100, rows: 30, folders: [] } });
-  assert.deepEqual(hn.named("terminal.opened")[0]?.payload, { terminalId: t.terminalId, host: "agent_computer", agentId: "agt_intake", by: "usr_dana" });
+  assert.deepEqual(
+    {
+      name: t.name,
+      host: t.host,
+      hostTitle: t.hostTitle,
+      agentId: t.agentId,
+      cwd: t.cwd,
+      state: t.state,
+      exitCode: t.exitCode,
+      named: t.named,
+      cols: t.cols,
+      rows: t.rows,
+    },
+    {
+      name: "build",
+      host: "agent_computer",
+      hostTitle: "agt_intake's computer",
+      agentId: "agt_intake",
+      cwd: "/work/site",
+      state: "idle",
+      exitCode: null,
+      named: true,
+      cols: 100,
+      rows: 30,
+    },
+  );
+  assert.deepEqual(host.calls[0], {
+    op: "open",
+    terminalId: t.terminalId,
+    args: {
+      target: { host: "agent_computer", agentId: "agt_intake" },
+      name: "build",
+      cwd: "/work/site",
+      cols: 100,
+      rows: 30,
+      folders: [],
+    },
+  });
+  assert.deepEqual(hn.named("terminal.opened")[0]?.payload, {
+    terminalId: t.terminalId,
+    host: "agent_computer",
+    agentId: "agt_intake",
+    by: "usr_dana",
+  });
   assert.deepEqual(assertEventsConform(hn), []);
   const dflt = await openAgent(hn);
   assert.equal(dflt.terminal.name, "Terminal 2");
@@ -59,24 +115,39 @@ test("open: refused in a Personal Space, without something to open it on, when t
   const { hn, host } = setup();
   bindTeam(() => false);
   // 12 Nov: a Personal Space is told why its workspace cannot run now and what would fix it, not that it needs a Team Space
-  assert.equal(await rejects(() => h["terminal.open"]!(hn.ctx, { host: "agent_computer", agentId: "agt_intake" })), "provider.unavailable");
+  assert.equal(
+    await rejects(() => h["terminal.open"]!(hn.ctx, { host: "agent_computer", agentId: "agt_intake" })),
+    "provider.unavailable",
+  );
   bindTeam(null);
   assert.equal(await rejects(() => h["terminal.open"]!(hn.ctx, { host: "agent_computer" })), "validation.bad_input");
   assert.equal(await rejects(() => h["terminal.open"]!(hn.ctx, { host: "device" })), "validation.bad_input");
   host.failOpenWith(true);
-  assert.equal(await rejects(() => h["terminal.open"]!(hn.ctx, { host: "agent_computer", agentId: "agt_intake" })), "provider.unavailable");
+  assert.equal(
+    await rejects(() => h["terminal.open"]!(hn.ctx, { host: "agent_computer", agentId: "agt_intake" })),
+    "provider.unavailable",
+  );
   assert.equal(hn.rows("SELECT * FROM terminal_sessions").length, 0, "a session that never started is not recorded");
   bindHost(null);
-  assert.equal(await rejects(() => h["terminal.open"]!(hn.ctx, { host: "agent_computer", agentId: "agt_intake" })), "provider.unavailable");
+  assert.equal(
+    await rejects(() => h["terminal.open"]!(hn.ctx, { host: "agent_computer", agentId: "agt_intake" })),
+    "provider.unavailable",
+  );
 });
 
 test("open on a device and open_server: the machine they name, and the server's own failure is an internal one", async () => {
   const { hn, host } = setup();
   const d = await call(hn, "terminal.open", { host: "device", deviceId: "dev_mac", idempotencyKey: idem() });
-  assert.deepEqual([d.terminal.host, d.terminal.deviceId, d.terminal.hostTitle], ["device", "dev_mac", "This computer"]);
+  assert.deepEqual(
+    [d.terminal.host, d.terminal.deviceId, d.terminal.hostTitle],
+    ["device", "dev_mac", "This computer"],
+  );
   const s = await call(hn, "terminal.open_server", { name: "ops", idempotencyKey: idem() });
   assert.deepEqual([s.terminal.host, s.terminal.hostTitle, s.terminal.name], ["space_server", "Space server", "ops"]);
-  assert.deepEqual(host.calls.filter((c) => c.op === "open").map((c) => (c.args as { target: unknown }).target), [{ host: "device", deviceId: "dev_mac" }, { host: "space_server" }]);
+  assert.deepEqual(
+    host.calls.filter((c) => c.op === "open").map((c) => (c.args as { target: unknown }).target),
+    [{ host: "device", deviceId: "dev_mac" }, { host: "space_server" }],
+  );
   host.failOpenWith(true);
   assert.equal(await rejects(() => h["terminal.open_server"]!(hn.ctx, {})), "internal.unexpected");
 });
@@ -87,10 +158,24 @@ test("close kills the session, is safe to repeat, and leaves the row readable; e
   assert.deepEqual(await call(hn, "terminal.close", { terminalId: t.terminalId }), { closed: true });
   assert.deepEqual(await call(hn, "terminal.close", { terminalId: t.terminalId }), { closed: true });
   assert.equal(host.count("close"), 1);
-  assert.deepEqual(hn.named("terminal.closed").map((e) => e.payload), [{ terminalId: t.terminalId, by: "usr_dana" }]);
+  assert.deepEqual(
+    hn.named("terminal.closed").map((e) => e.payload),
+    [{ terminalId: t.terminalId, by: "usr_dana" }],
+  );
   assert.equal((await call(hn, "terminal.get", { terminalId: t.terminalId })).terminal.state, "exited");
-  for (const [cap, input] of [["terminal.input", { data: "ls" }], ["terminal.interrupt", {}], ["terminal.resize", { cols: 80, rows: 24 }], ["terminal.read", {}], ["terminal.attach", {}], ["terminal.rename", { name: "x" }]] as const) {
-    assert.equal(await rejects(() => h[cap]!(hn.ctx, { terminalId: t.terminalId, ...input })), "validation.not_found", cap);
+  for (const [cap, input] of [
+    ["terminal.input", { data: "ls" }],
+    ["terminal.interrupt", {}],
+    ["terminal.resize", { cols: 80, rows: 24 }],
+    ["terminal.read", {}],
+    ["terminal.attach", {}],
+    ["terminal.rename", { name: "x" }],
+  ] as const) {
+    assert.equal(
+      await rejects(() => h[cap]!(hn.ctx, { terminalId: t.terminalId, ...input })),
+      "validation.not_found",
+      cap,
+    );
   }
   assert.equal(await rejects(() => h["terminal.close"]!(hn.ctx, { terminalId: "trm_none" })), "validation.not_found");
   assert.equal(await rejects(() => h["terminal.get"]!(hn.ctx, { terminalId: "trm_none" })), "validation.not_found");
@@ -100,7 +185,9 @@ test("close kills the session, is safe to repeat, and leaves the row readable; e
 test("close still closes the row when the machine cannot be reached", async () => {
   const { hn, host } = setup();
   const t = (await openAgent(hn)).terminal;
-  host.host.close = async () => { throw new Error("agentd is gone"); };
+  host.host.close = async () => {
+    throw new Error("agentd is gone");
+  };
   assert.deepEqual(await call(hn, "terminal.close", { terminalId: t.terminalId }), { closed: true });
   assert.ok(hn.logged.some((l) => l.msg.includes("could not kill")));
 });
@@ -116,22 +203,45 @@ test("input, interrupt, resize and rename act on the session and keep its row cu
   assert.deepEqual(await call(hn, "terminal.resize", { terminalId: t.terminalId, cols: 90, rows: 20 }), { ok: true });
   const r = await call(hn, "terminal.rename", { terminalId: t.terminalId, name: "  deploy  " });
   assert.deepEqual([r.terminal.name, r.terminal.named, r.terminal.cols, r.terminal.rows], ["deploy", true, 90, 20]);
-  assert.deepEqual(host.calls.slice(1).map((c) => [c.op, c.args]), [["input", "ls -la\r"], ["interrupt", undefined], ["resize", { cols: 90, rows: 20 }]]);
+  assert.deepEqual(
+    host.calls.slice(1).map((c) => [c.op, c.args]),
+    [
+      ["input", "ls -la\r"],
+      ["interrupt", undefined],
+      ["resize", { cols: 90, rows: 20 }],
+    ],
+  );
   const row = (await call(hn, "terminal.get", { terminalId: t.terminalId })).terminal;
   assert.equal(row.lastActiveAt, t.createdAt + 5_000);
   assert.deepEqual(hn.named("terminal.renamed")[0]?.payload, { terminalId: t.terminalId, name: "deploy" });
-  assert.equal(await rejects(() => h["terminal.rename"]!(hn.ctx, { terminalId: t.terminalId, name: "   " })), "validation.bad_input");
-  assert.equal(await rejects(() => h["terminal.rename"]!(hn.ctx, { terminalId: t.terminalId, name: "x".repeat(81) })), "validation.bad_input");
-  assert.equal(await rejects(() => h["terminal.input"]!(hn.ctx, { terminalId: t.terminalId, data: "" })), "validation.bad_input");
+  assert.equal(
+    await rejects(() => h["terminal.rename"]!(hn.ctx, { terminalId: t.terminalId, name: "   " })),
+    "validation.bad_input",
+  );
+  assert.equal(
+    await rejects(() => h["terminal.rename"]!(hn.ctx, { terminalId: t.terminalId, name: "x".repeat(81) })),
+    "validation.bad_input",
+  );
+  assert.equal(
+    await rejects(() => h["terminal.input"]!(hn.ctx, { terminalId: t.terminalId, data: "" })),
+    "validation.bad_input",
+  );
   assert.deepEqual(assertEventsConform(hn), []);
 });
 
 test("a machine that fails while typing is an internal error, not a silent success", async () => {
   const { hn, host } = setup();
   const t = (await openAgent(hn)).terminal;
-  host.host.input = async () => { throw new Error("tmux: no server running"); };
-  assert.equal(await rejects(() => h["terminal.input"]!(hn.ctx, { terminalId: t.terminalId, data: "x" })), "internal.unexpected");
-  host.host.read = async () => { throw new Error("boom"); };
+  host.host.input = async () => {
+    throw new Error("tmux: no server running");
+  };
+  assert.equal(
+    await rejects(() => h["terminal.input"]!(hn.ctx, { terminalId: t.terminalId, data: "x" })),
+    "internal.unexpected",
+  );
+  host.host.read = async () => {
+    throw new Error("boom");
+  };
   assert.equal(await rejects(() => h["terminal.read"]!(hn.ctx, { terminalId: t.terminalId })), "internal.unexpected");
 });
 
@@ -149,13 +259,33 @@ test("an agent's commands are one step in one session, and Open terminal attache
   // One session for the agent on that machine, opened once, announced once.
   assert.equal(a.terminalId, b.terminalId);
   assert.equal(host.count("open"), 1);
-  assert.deepEqual(host.calls[0], { op: "open", terminalId: a.terminalId, args: { target: { host: "agent_computer", agentId: "agt_intake" }, name: "agent", cols: 120, rows: 32, folders: [], cwd: undefined } });
+  assert.deepEqual(host.calls[0], {
+    op: "open",
+    terminalId: a.terminalId,
+    args: {
+      target: { host: "agent_computer", agentId: "agt_intake" },
+      name: "agent",
+      cols: 120,
+      rows: 32,
+      folders: [],
+      cwd: undefined,
+    },
+  });
   assert.equal(hn.named("terminal.opened").length, 1);
-  assert.deepEqual([a.exitCode, a.output, b.exitCode, b.output], [0, "On branch main\nnothing to commit", 1, "FAIL 2 tests"]);
+  assert.deepEqual(
+    [a.exitCode, a.output, b.exitCode, b.output],
+    [0, "On branch main\nnothing to commit", 1, "FAIL 2 tests"],
+  );
 
   // The chat block is built from this: "Ran 2 commands on the agent computer".
   const cmds = commandsOf(hn.db, a.terminalId);
-  assert.deepEqual(cmds.map((c) => [c.command, c.exitCode, c.durationMs]), [["git status", 0, 12], ["npm test", 1, 12]]);
+  assert.deepEqual(
+    cmds.map((c) => [c.command, c.exitCode, c.durationMs]),
+    [
+      ["git status", 0, 12],
+      ["npm test", 1, 12],
+    ],
+  );
   const finished = hn.named("terminal.command_finished").map((e) => e.payload);
   assert.deepEqual(finished, [
     { terminalId: a.terminalId, exitCode: 0, durationMs: 12, by: "usr_dana", runId: "run_7" },
@@ -167,7 +297,10 @@ test("an agent's commands are one step in one session, and Open terminal attache
 
   // The person opens the terminal: the same session, with what the agent did on its screen.
   const dana = (await call(hn, "terminal.list", { section: "personal" })).terminals;
-  assert.deepEqual(dana.map((t: any) => [t.terminalId, t.name, t.named, t.state]), [[a.terminalId, "agent", false, "idle"]]);
+  assert.deepEqual(
+    dana.map((t: any) => [t.terminalId, t.name, t.named, t.state]),
+    [[a.terminalId, "agent", false, "idle"]],
+  );
   const att = await call(hn, "terminal.attach", { terminalId: a.terminalId });
   assert.match(att.replay, /\$ git status/);
   assert.match(att.replay, /On branch main/);
@@ -177,18 +310,30 @@ test("an agent's commands are one step in one session, and Open terminal attache
   assert.equal(att.expiresAt, hn.clock.t + 60_000);
 
   // The ticket opens the live connection to that session, once.
-  assert.deepEqual(await redeemTicket(hn.db, att.ticket, hn.clock.t), { terminalId: a.terminalId, personId: "usr_dana" });
+  assert.deepEqual(await redeemTicket(hn.db, att.ticket, hn.clock.t), {
+    terminalId: a.terminalId,
+    personId: "usr_dana",
+  });
   assert.equal(await redeemTicket(hn.db, att.ticket, hn.clock.t), null, "spent");
   const att2 = await call(hn, "terminal.attach", { terminalId: a.terminalId });
   assert.equal(await redeemTicket(hn.db, att2.ticket, att2.expiresAt), null, "expired");
   assert.equal(await redeemTicket(hn.db, "trt_nope", hn.clock.t), null);
-  assert.equal(JSON.stringify(hn.rows("SELECT * FROM terminal_tickets")).includes(att.ticket), false, "only the hash is kept");
+  assert.equal(
+    JSON.stringify(hn.rows("SELECT * FROM terminal_tickets")).includes(att.ticket),
+    false,
+    "only the hash is kept",
+  );
 });
 
 test("a second agent, or the same agent for another person, gets its own session", async () => {
   const { hn, host } = setup({ pwd: { exitCode: 0, output: "/home/agent" } });
   const a = await call(hn, "terminal.run", { command: "pwd", idempotencyKey: idem() }, hn.as(AGENT, "usr_dana"));
-  const b = await call(hn, "terminal.run", { command: "pwd", idempotencyKey: idem() }, hn.as({ kind: "agent", id: "agt_docs" }, "usr_dana"));
+  const b = await call(
+    hn,
+    "terminal.run",
+    { command: "pwd", idempotencyKey: idem() },
+    hn.as({ kind: "agent", id: "agt_docs" }, "usr_dana"),
+  );
   const c = await call(hn, "terminal.run", { command: "pwd", idempotencyKey: idem() }, hn.as(AGENT, "usr_ravi"));
   assert.equal(new Set([a.terminalId, b.terminalId, c.terminalId]).size, 3);
   assert.equal(host.count("open"), 3);
@@ -199,23 +344,45 @@ test("a second agent, or the same agent for another person, gets its own session
 test("run in a named session goes to that session; a command that fails to start, times out or is empty is reported as such", async () => {
   const { hn, host } = setup({ ls: { exitCode: 0, output: "a\nb" } });
   const t = (await openAgent(hn)).terminal;
-  const r = await call(hn, "terminal.run", { command: "ls", terminalId: t.terminalId, cwd: "/work", timeoutSec: 30, idempotencyKey: idem() });
+  const r = await call(hn, "terminal.run", {
+    command: "ls",
+    terminalId: t.terminalId,
+    cwd: "/work",
+    timeoutSec: 30,
+    idempotencyKey: idem(),
+  });
   assert.equal(r.terminalId, t.terminalId);
   assert.deepEqual(host.calls.at(-1)?.args, { command: "ls", env: {}, cwd: "/work", timeoutMs: 30_000 });
 
   host.failRunWith(Object.assign(new Error("did not finish"), { code: "timeout" }));
-  assert.equal(await rejects(() => h["terminal.run"]!(hn.ctx, { command: "sleep 999", terminalId: t.terminalId })), "timeout.deadline");
+  assert.equal(
+    await rejects(() => h["terminal.run"]!(hn.ctx, { command: "sleep 999", terminalId: t.terminalId })),
+    "timeout.deadline",
+  );
   const last = commandsOf(hn.db, t.terminalId).at(-1)!;
   assert.deepEqual([last.command, last.exitCode], ["sleep 999", null]);
   assert.equal(hn.named("terminal.command_finished").at(-1)?.payload["exitCode"], null);
-  assert.equal((await call(hn, "terminal.get", { terminalId: t.terminalId })).terminal.state, "idle", "the session is free again");
+  assert.equal(
+    (await call(hn, "terminal.get", { terminalId: t.terminalId })).terminal.state,
+    "idle",
+    "the session is free again",
+  );
 
   host.failRunWith(new Error("tmux: server exited"));
-  assert.equal(await rejects(() => h["terminal.run"]!(hn.ctx, { command: "ls", terminalId: t.terminalId })), "provider.unavailable");
+  assert.equal(
+    await rejects(() => h["terminal.run"]!(hn.ctx, { command: "ls", terminalId: t.terminalId })),
+    "provider.unavailable",
+  );
   host.failRunWith(null);
   assert.equal(await rejects(() => h["terminal.run"]!(hn.ctx, { command: "   " })), "validation.bad_input");
-  assert.equal(await rejects(() => h["terminal.run"]!(hn.ctx, { command: "x".repeat(20_001), terminalId: t.terminalId })), "validation.bad_input");
-  assert.equal(await rejects(() => h["terminal.run"]!(hn.ctx, { command: "ls", terminalId: "trm_none" })), "validation.not_found");
+  assert.equal(
+    await rejects(() => h["terminal.run"]!(hn.ctx, { command: "x".repeat(20_001), terminalId: t.terminalId })),
+    "validation.bad_input",
+  );
+  assert.equal(
+    await rejects(() => h["terminal.run"]!(hn.ctx, { command: "ls", terminalId: "trm_none" })),
+    "validation.not_found",
+  );
 });
 
 // ---- Vault values
@@ -229,13 +396,22 @@ test("a Vault value filled into a command never comes back: not in the answer, t
   });
   bindValues(fakeValues({ "#Dana_Lawmatics.api_key": KEY }));
   const agent = hn.as(AGENT, "usr_dana");
-  const r = await call(hn, "terminal.run", { command: "curl -H 'Authorization: #Dana_Lawmatics.api_key' https://api.example.com", idempotencyKey: idem() }, agent);
+  const r = await call(
+    hn,
+    "terminal.run",
+    { command: "curl -H 'Authorization: #Dana_Lawmatics.api_key' https://api.example.com", idempotencyKey: idem() },
+    agent,
+  );
   const sent = host.calls.at(-1)?.args as { command: string; env: Record<string, string> };
   assert.equal(sent.command, LINE, "the command line never holds the value");
   assert.deepEqual(sent.env, { VYRE_H_1: KEY }, "the machine got the value, as env of this command");
   assert.equal(r.output.includes(KEY), false);
   assert.match(r.output, /\[#Dana_Lawmatics\.api_key\]/);
-  assert.equal(JSON.stringify(commandsOf(hn.db, r.terminalId)).includes(KEY), false, "the record keeps the handle as written");
+  assert.equal(
+    JSON.stringify(commandsOf(hn.db, r.terminalId)).includes(KEY),
+    false,
+    "the record keeps the handle as written",
+  );
   assert.match(commandsOf(hn.db, r.terminalId)[0]!.command, /#Dana_Lawmatics\.api_key/);
   assert.equal(JSON.stringify(hn.emitted).includes(KEY), false);
 
@@ -252,9 +428,16 @@ test("a handle the person may not use stops the command before it reaches the ma
   const { hn, host } = setup({ "echo #general": { exitCode: 0, output: "#general" } });
   bindValues(fakeValues({}, new Set(["#Team_Secret.token"])));
   const agent = hn.as(AGENT, "usr_dana");
-  assert.equal(await rejects(() => h["terminal.run"]!(agent, { command: "deploy --token #Team_Secret.token" })), "permission.no_grant");
+  assert.equal(
+    await rejects(() => h["terminal.run"]!(agent, { command: "deploy --token #Team_Secret.token" })),
+    "permission.no_grant",
+  );
   assert.equal(host.count("run"), 0);
-  assert.equal(hn.rows("SELECT * FROM terminal_commands").length, 0, "a command that never reached the machine is not a step");
+  assert.equal(
+    hn.rows("SELECT * FROM terminal_commands").length,
+    0,
+    "a command that never reached the machine is not a step",
+  );
   assert.equal(hn.named("terminal.command_finished").length, 0);
   const ok = await call(hn, "terminal.run", { command: "echo #general", idempotencyKey: idem() }, agent);
   assert.equal(ok.output, "#general");
@@ -268,7 +451,12 @@ test("a value too short to filter safely is refused, and the environment is fill
   bindValues(fakeValues({ "#Short.pin": "12", "#Dana_Api.token": "tok_0123456789" }));
   const agent = hn.as(AGENT, "usr_dana");
   assert.equal(await rejects(() => h["terminal.run"]!(agent, { command: "login #Short.pin" })), "validation.bad_input");
-  const r = await call(hn, "terminal.run", { command: "printenv TOKEN", env: { TOKEN: "#Dana_Api.token" }, idempotencyKey: idem() }, agent);
+  const r = await call(
+    hn,
+    "terminal.run",
+    { command: "printenv TOKEN", env: { TOKEN: "#Dana_Api.token" }, idempotencyKey: idem() },
+    agent,
+  );
   assert.deepEqual((host.calls.at(-1)?.args as { env: unknown }).env, { TOKEN: "tok_0123456789" });
   assert.equal(r.output.includes("tok_0123456789"), false);
 });
@@ -283,29 +471,46 @@ test("W6: a handle in the command line is never pasted in as its value; a value 
     [`echo "pw=#Db.password"`, `echo "pw=\${VYRE_H_1}"`],
     [`echo 'pw=#Db.password!'`, `echo 'pw='"\${VYRE_H_1}"'!'`],
     [`cat <<EOF\nuser=#Db.password\nEOF`, `cat <<EOF\nuser=\${VYRE_H_1}\nEOF`],
-    [`x=$(echo #Db.password) && curl -H "k: #Api.key" #Db.password`, `x=$(echo "\${VYRE_H_1}") && curl -H "k: \${VYRE_H_2}" "\${VYRE_H_1}"`],
+    [
+      `x=$(echo #Db.password) && curl -H "k: #Api.key" #Db.password`,
+      `x=$(echo "\${VYRE_H_1}") && curl -H "k: \${VYRE_H_2}" "\${VYRE_H_1}"`,
+    ],
     ["echo tag#general #Db.password", `echo tag#general "\${VYRE_H_1}"`],
   ];
   for (const [command, line] of lines) {
     await call(hn, "terminal.run", { command, idempotencyKey: idem() }, agent);
     const sent = host.calls.at(-1)?.args as { command: string; env: Record<string, string> };
     assert.equal(sent.command, line, `the line for ${JSON.stringify(command)}`);
-    assert.equal(sent.command.includes(EVIL) || sent.command.includes("touch /tmp"), false, "the value is not in the line");
+    assert.equal(
+      sent.command.includes(EVIL) || sent.command.includes("touch /tmp"),
+      false,
+      "the value is not in the line",
+    );
     assert.equal(sent.env["VYRE_H_1"], EVIL, "it is the command's environment");
   }
   // a quoted here-document expands nothing: the value could only be pasted in, so the command is refused before it runs
   const before = host.count("run");
-  assert.equal(await rejects(() => h["terminal.run"]!(agent, { command: `cat <<'EOF'\n#Db.password\nEOF` })), "validation.bad_input");
+  assert.equal(
+    await rejects(() => h["terminal.run"]!(agent, { command: `cat <<'EOF'\n#Db.password\nEOF` })),
+    "validation.bad_input",
+  );
   assert.equal(host.count("run"), before);
   assert.equal(JSON.stringify(hn.logged).includes(EVIL) || JSON.stringify(hn.emitted).includes(EVIL), false);
 });
 
 test("with no kit bound, as a daemon binds none, a handle is still filled and the real scrubber takes the value out of what comes back", async () => {
   const KEY = "sk-live-REALKIT-0123456789";
-  const { hn, host } = setup({ "printenv K": (_c, env) => ({ exitCode: 0, output: `${env["K"]} ${Buffer.from(env["K"] ?? "").toString("hex")}` }) });
+  const { hn, host } = setup({
+    "printenv K": (_c, env) => ({ exitCode: 0, output: `${env["K"]} ${Buffer.from(env["K"] ?? "").toString("hex")}` }),
+  });
   bindKit(null);
   bindValues(fakeValues({ "#Dana_Api.key": KEY }));
-  const r = await call(hn, "terminal.run", { command: "printenv K", env: { K: "#Dana_Api.key" }, idempotencyKey: idem() }, hn.as(AGENT, "usr_dana"));
+  const r = await call(
+    hn,
+    "terminal.run",
+    { command: "printenv K", env: { K: "#Dana_Api.key" }, idempotencyKey: idem() },
+    hn.as(AGENT, "usr_dana"),
+  );
   assert.deepEqual((host.calls.at(-1)?.args as { env: unknown }).env, { K: KEY }, "filled");
   assert.equal(r.output, "[#Dana_Api.key] [#Dana_Api.key]", "the value and its hex spelling are out");
   assert.equal((await call(hn, "terminal.read", { terminalId: r.terminalId })).text.includes(KEY), false);
@@ -322,18 +527,37 @@ test("W6: a value used through a team agent for one person is scrubbed from ever
   bindValues(fakeValues({ "#Dana_Api.key": KEY }));
   const dana = hn.as(AGENT, "usr_dana");
   const omar = hn.as(AGENT, "usr_omar");
-  const a = await call(hn, "terminal.run", { command: "use key", session: "dana", env: { K: "#Dana_Api.key" }, idempotencyKey: idem() }, dana);
-  const b = await call(hn, "terminal.run", { command: "tmux capture-pane -p -t vyre-dana", session: "omar", idempotencyKey: idem() }, omar);
+  const a = await call(
+    hn,
+    "terminal.run",
+    { command: "use key", session: "dana", env: { K: "#Dana_Api.key" }, idempotencyKey: idem() },
+    dana,
+  );
+  const b = await call(
+    hn,
+    "terminal.run",
+    { command: "tmux capture-pane -p -t vyre-dana", session: "omar", idempotencyKey: idem() },
+    omar,
+  );
   assert.notEqual(a.terminalId, b.terminalId, "two tabs of one workspace");
   assert.equal(b.output.includes(KEY), false, `Omar's command output: ${b.output.replaceAll(KEY, "<KEY>")}`);
   assert.match(b.output, /KEY=\[#Dana_Api\.key\]/);
-  const env = await call(hn, "terminal.run", { command: "cat /proc/*/environ", session: "omar", idempotencyKey: idem() }, omar);
+  const env = await call(
+    hn,
+    "terminal.run",
+    { command: "cat /proc/*/environ", session: "omar", idempotencyKey: idem() },
+    omar,
+  );
   assert.equal(env.output.includes(Buffer.from(KEY).toString("base64")), false, "nor an encoding of it");
   const read = await call(hn, "terminal.read", { terminalId: b.terminalId });
   assert.equal(read.text.includes(KEY), false, "Omar's own tab's screen");
   const st = await call(hn, "terminal.status", { terminalIds: [b.terminalId] });
   assert.equal(JSON.stringify(st).includes(KEY), false, "its status line");
-  assert.equal(JSON.stringify(host.calls).split(KEY).length - 1, 1, "the value reached the machine once, as Dana's command's env");
+  assert.equal(
+    JSON.stringify(host.calls).split(KEY).length - 1,
+    1,
+    "the value reached the machine once, as Dana's command's env",
+  );
 });
 
 // ---- reading
@@ -351,9 +575,19 @@ test("read returns the screen or only what is new since a cursor; status merges 
   assert.equal((await call(hn, "terminal.read", { terminalId: t.terminalId, lines: 1 })).text, "more");
 
   const st = await call(hn, "terminal.status", { terminalIds: [t.terminalId, "trm_unknown"] });
-  assert.deepEqual(st.rows, [{ terminalId: t.terminalId, state: "idle", lastLine: "more", exitCode: 0 }], "the last exit code Vyre recorded stays: tmux does not know one");
-  host.host.status = async () => { throw new Error("agentd is down"); };
-  assert.equal((await call(hn, "terminal.status", { terminalIds: [t.terminalId] })).rows[0].state, "idle", "falls back to the recorded state");
+  assert.deepEqual(
+    st.rows,
+    [{ terminalId: t.terminalId, state: "idle", lastLine: "more", exitCode: 0 }],
+    "the last exit code Vyre recorded stays: tmux does not know one",
+  );
+  host.host.status = async () => {
+    throw new Error("agentd is down");
+  };
+  assert.equal(
+    (await call(hn, "terminal.status", { terminalIds: [t.terminalId] })).rows[0].state,
+    "idle",
+    "falls back to the recorded state",
+  );
   bindHost(null);
   assert.equal((await call(hn, "terminal.status", { terminalIds: [t.terminalId] })).rows[0].terminalId, t.terminalId);
 });
@@ -364,16 +598,27 @@ test("list: personal, shared and space sections, host and state filters, what th
   const { hn } = setup();
   const mine1 = (await openAgent(hn)).terminal;
   hn.advance(1000);
-  const mine2 = (await call(hn, "terminal.open", { host: "device", deviceId: "dev_mac", idempotencyKey: idem() })).terminal;
+  const mine2 = (await call(hn, "terminal.open", { host: "device", deviceId: "dev_mac", idempotencyKey: idem() }))
+    .terminal;
   hn.advance(1000);
   const server = (await call(hn, "terminal.open_server", { idempotencyKey: idem() })).terminal;
   hn.advance(1000);
   const ravi = hn.as({ kind: "person", id: "usr_ravi" });
-  const theirs = (await call(hn, "terminal.open", { host: "agent_computer", agentId: "agt_docs", idempotencyKey: idem() }, ravi)).terminal;
+  const theirs = (
+    await call(hn, "terminal.open", { host: "agent_computer", agentId: "agt_docs", idempotencyKey: idem() }, ravi)
+  ).terminal;
 
   const ids = (r: any): string[] => r.terminals.map((t: any) => t.terminalId);
-  assert.deepEqual(ids(await call(hn, "terminal.list", {})), [theirs.terminalId, server.terminalId, mine2.terminalId, mine1.terminalId], "newest activity first");
-  assert.deepEqual(ids(await call(hn, "terminal.list", { section: "personal" })), [server.terminalId, mine2.terminalId, mine1.terminalId]);
+  assert.deepEqual(
+    ids(await call(hn, "terminal.list", {})),
+    [theirs.terminalId, server.terminalId, mine2.terminalId, mine1.terminalId],
+    "newest activity first",
+  );
+  assert.deepEqual(ids(await call(hn, "terminal.list", { section: "personal" })), [
+    server.terminalId,
+    mine2.terminalId,
+    mine1.terminalId,
+  ]);
   assert.deepEqual(ids(await call(hn, "terminal.list", { section: "shared" })), [theirs.terminalId]);
   assert.deepEqual(ids(await call(hn, "terminal.list", { section: "space" })), [server.terminalId]);
   assert.deepEqual(ids(await call(hn, "terminal.list", { host: "device" })), [mine2.terminalId]);
@@ -402,7 +647,9 @@ test("health: healthy with a hint when no terminals run on the host, degraded wh
   host.setInstalled(false);
   const missing = await call(hn, "terminal.health", {});
   assert.deepEqual([missing.state, missing.detail], ["degraded", "tmux is not installed on this host"]);
-  host.host.health = async () => { throw new Error("socket closed"); };
+  host.host.health = async () => {
+    throw new Error("socket closed");
+  };
   assert.equal((await call(hn, "terminal.health", {})).state, "down");
 });
 
@@ -413,17 +660,30 @@ test("live frames: a value that a frame ends exactly on is removed even when its
     const KEY = `sk-live-ABCDEF12345${last}`;
     const { hn, host } = setup({ "use key": { exitCode: 0, output: "ok" } });
     bindValues(fakeValues({ "#Dana_Api.key": KEY }));
-    const r = await call(hn, "terminal.run", { command: "use key", env: { K: "#Dana_Api.key" }, idempotencyKey: idem() }, hn.as(AGENT, "usr_dana"));
+    const r = await call(
+      hn,
+      "terminal.run",
+      { command: "use key", env: { K: "#Dana_Api.key" }, idempotencyKey: idem() },
+      hn.as(AGENT, "usr_dana"),
+    );
     const att = await call(hn, "terminal.attach", { terminalId: r.terminalId });
     const got: string[] = [];
     const live = await openFrames(hn.db, att.ticket, hn.clock.t, (t) => got.push(t));
     assert.ok(live);
     host.emitFrame(r.terminalId, `sk-live-ABC`);
-    host.emitFrame(r.terminalId, `DEF12345${last}`);   // ends exactly on the value
+    host.emitFrame(r.terminalId, `DEF12345${last}`); // ends exactly on the value
     host.emitFrame(r.terminalId, "\r\nnext\r\n");
     const seen = got.join("");
-    assert.equal(seen.includes(KEY), false, `value ending in ${last}: the stream never shows it (${JSON.stringify(got)})`);
-    assert.equal(seen.includes("sk-live-ABCDEF12345"), false, `value ending in ${last}: nor all but its last character`);
+    assert.equal(
+      seen.includes(KEY),
+      false,
+      `value ending in ${last}: the stream never shows it (${JSON.stringify(got)})`,
+    );
+    assert.equal(
+      seen.includes("sk-live-ABCDEF12345"),
+      false,
+      `value ending in ${last}: nor all but its last character`,
+    );
     assert.match(seen, /\[#Dana_Api\.key\]\r\nnext/);
     live.close();
   }
@@ -433,7 +693,12 @@ test("live frames: a spent ticket streams the session's output as it arrives, wi
   const KEY = "sk-live-ABCDEF123456";
   const { hn, host } = setup({ "use key": { exitCode: 0, output: "ok" } });
   bindValues(fakeValues({ "#Dana_Api.key": KEY }));
-  const r = await call(hn, "terminal.run", { command: "use key", env: { K: "#Dana_Api.key" }, idempotencyKey: idem() }, hn.as(AGENT, "usr_dana"));
+  const r = await call(
+    hn,
+    "terminal.run",
+    { command: "use key", env: { K: "#Dana_Api.key" }, idempotencyKey: idem() },
+    hn.as(AGENT, "usr_dana"),
+  );
   const att = await call(hn, "terminal.attach", { terminalId: r.terminalId });
   const got: string[] = [];
   const live = await openFrames(hn.db, att.ticket, hn.clock.t, (t) => got.push(t));
@@ -455,7 +720,11 @@ test("live frames: a spent ticket streams the session's output as it arrives, wi
 
   host.emitFrame(r.terminalId, "tail sk-live-AB");
   live.close();
-  assert.equal(got.join("").includes("sk-live-AB"), false, "a held fragment is dropped, not flushed, when the tab closes");
+  assert.equal(
+    got.join("").includes("sk-live-AB"),
+    false,
+    "a held fragment is dropped, not flushed, when the tab closes",
+  );
   assert.equal(host.listeners(r.terminalId), 0);
   assert.equal(await openFrames(hn.db, att.ticket, hn.clock.t, () => {}), null, "a ticket opens one connection");
   bindHost(null);
@@ -474,10 +743,19 @@ test("review finding 1, terminal side: the error of a failed run and the status 
   const KEY = "sk-live-DANA-ERR-0123456789";
   const { hn, host } = setup({ "use key": { exitCode: 0, output: "done" } });
   bindValues(fakeValues({ "#Dana_Api.key": KEY }));
-  await call(hn, "terminal.run", { command: "use key", session: "dana", env: { K: "#Dana_Api.key" }, idempotencyKey: idem() }, hn.as(AGENT, "usr_dana"));
+  await call(
+    hn,
+    "terminal.run",
+    { command: "use key", session: "dana", env: { K: "#Dana_Api.key" }, idempotencyKey: idem() },
+    hn.as(AGENT, "usr_dana"),
+  );
   host.failRunWith(new Error(`tmux: pane said ${KEY}`));
   let said = "";
-  try { await h["terminal.run"]!(hn.as(AGENT, "usr_omar"), { command: "anything", session: "omar" }); } catch (e) { said = JSON.stringify(e) + String((e as Error).message); }
+  try {
+    await h["terminal.run"]!(hn.as(AGENT, "usr_omar"), { command: "anything", session: "omar" });
+  } catch (e) {
+    said = JSON.stringify(e) + String((e as Error).message);
+  }
   assert.ok(said !== "" && !said.includes(KEY), said.replaceAll(KEY, "<KEY>"));
   assert.equal(JSON.stringify(hn.logged).includes(KEY), false, "nor the log");
 });
@@ -506,18 +784,34 @@ test("review finding 10: forms the reader cannot be sure of are refused with a l
   for (const command of unsure) {
     const before = host.count("run");
     let err: unknown = null;
-    try { await h["terminal.run"]!(agent, { command }); } catch (e) { err = e; }
+    try {
+      await h["terminal.run"]!(agent, { command });
+    } catch (e) {
+      err = e;
+    }
     assert.equal(codeOf(err), "validation.bad_input", command);
-    assert.match(JSON.stringify(err), /#Db\.password stands where Vyre cannot tell how the shell will read it.*Pass it with env/, command);
+    assert.match(
+      JSON.stringify(err),
+      /#Db\.password stands where Vyre cannot tell how the shell will read it.*Pass it with env/,
+      command,
+    );
     assert.equal(host.count("run"), before, `${command}: nothing ran`);
   }
 });
 
 test("review finding 9: a handle in a # comment is never looked up, so it is neither read nor audited, and the command runs as written", async () => {
-  const { hn, host } = setup({ "echo hi # set to #Db.password": { exitCode: 0, output: "hi" }, "echo #nottag then #Db.password": { exitCode: 0, output: "" } });
+  const { hn, host } = setup({
+    "echo hi # set to #Db.password": { exitCode: 0, output: "hi" },
+    "echo #nottag then #Db.password": { exitCode: 0, output: "" },
+  });
   const asked: string[] = [];
   const table = fakeValues({ "#Db.password": "pw-0123456789" });
-  bindValues({ lookup: async (handle, who) => { asked.push(handle); return table.lookup(handle, who); } });
+  bindValues({
+    lookup: async (handle, who) => {
+      asked.push(handle);
+      return table.lookup(handle, who);
+    },
+  });
   const agent = hn.as(AGENT, "usr_dana");
   const r = await call(hn, "terminal.run", { command: "echo hi # set to #Db.password", idempotencyKey: idem() }, agent);
   assert.equal(r.output, "hi");
@@ -531,11 +825,20 @@ test("review finding 3a: a command with values is refused while the session row 
   const { hn, host } = setup({ "use key": { exitCode: 0, output: "ok" } });
   bindValues(fakeValues({ "#Dana_Api.key": "sk-live-ROW-0123456789" }));
   const agent = hn.as(AGENT, "usr_dana");
-  const r = await call(hn, "terminal.run", { command: "use key", env: { K: "#Dana_Api.key" }, idempotencyKey: idem() }, agent);
+  const r = await call(
+    hn,
+    "terminal.run",
+    { command: "use key", env: { K: "#Dana_Api.key" }, idempotencyKey: idem() },
+    agent,
+  );
   hn.db.run("UPDATE terminal_sessions SET state = 'running' WHERE terminal_id = ?", r.terminalId);
   const before = host.count("run");
   let err: unknown = null;
-  try { await h["terminal.run"]!(agent, { terminalId: r.terminalId, command: "use key", env: { K: "#Dana_Api.key" } }); } catch (e) { err = e; }
+  try {
+    await h["terminal.run"]!(agent, { terminalId: r.terminalId, command: "use key", env: { K: "#Dana_Api.key" } });
+  } catch (e) {
+    err = e;
+  }
   assert.equal(codeOf(err), "provider.unavailable");
   assert.match(JSON.stringify(err), /still running something/);
   assert.equal(host.count("run"), before, "nothing was typed");
@@ -543,11 +846,28 @@ test("review finding 3a: a command with values is refused while the session row 
 
 test("rule 7 and finding 9: a refusal for a team agent's shared computer, or for an item that needs approval, reaches the agent in plain words, and nothing runs or is retried", async () => {
   const { hn, host } = setup();
-  bindKit(null);   // the real kit: its refusal lines are what an agent reads
-  bindValues({ async lookup(handle) { return { kind: "denied", reason: handle === "#Dana_Private.key" ? "team_agent" : "needs_approval" }; } });
+  bindKit(null); // the real kit: its refusal lines are what an agent reads
+  bindValues({
+    async lookup(handle) {
+      return { kind: "denied", reason: handle === "#Dana_Private.key" ? "team_agent" : "needs_approval" };
+    },
+  });
   const agent = hn.as(AGENT, "usr_dana");
-  const said = async (command: string): Promise<string> => { try { await h["terminal.run"]!(agent, { command }); return "ran"; } catch (e) { return JSON.stringify(e); } };
-  assert.match(await said("deploy --token #Dana_Private.key"), /#Dana_Private\.key is your own item, and this is a team agent: everyone who can ask it shares its computer\. Share the item with the agent, or ask your own Assistant\./);
-  assert.match(await said("deploy --token #Needs_Ok.key"), /#Needs_Ok\.key needs approval before it can be used, and approval from the terminal or the agent's browser is not built yet\./);
+  const said = async (command: string): Promise<string> => {
+    try {
+      await h["terminal.run"]!(agent, { command });
+      return "ran";
+    } catch (e) {
+      return JSON.stringify(e);
+    }
+  };
+  assert.match(
+    await said("deploy --token #Dana_Private.key"),
+    /#Dana_Private\.key is your own item, and this is a team agent: everyone who can ask it shares its computer\. Share the item with the agent, or ask your own Assistant\./,
+  );
+  assert.match(
+    await said("deploy --token #Needs_Ok.key"),
+    /#Needs_Ok\.key needs approval before it can be used, and approval from the terminal or the agent's browser is not built yet\./,
+  );
   assert.equal(host.count("run"), 0, "nothing ran");
 });

@@ -20,20 +20,36 @@ import { SAMPLE_ROWS, createSampleShell, samplePlace } from "./sample.tsx";
 function rig(openId = "nw", extra: Partial<Omit<HubOptions, "spaces">> = {}) {
   const attrs: Record<string, string> = {};
   const root: ThemeRoot = {
-    setAttribute: (n, v) => { attrs[n] = v; },
+    setAttribute: (n, v) => {
+      attrs[n] = v;
+    },
     setProperty: () => undefined,
     removeProperty: () => undefined,
   };
-  const theme = createThemeController({ personId: "irfad", spaceId: openId, spaceSkin: seedSpaceSkin(), prefersDark: false, root, storage: null });
+  const theme = createThemeController({
+    personId: "irfad",
+    spaceId: openId,
+    spaceSkin: seedSpaceSkin(),
+    prefersDark: false,
+    root,
+    storage: null,
+  });
   const hub = createSampleShell({ openId, theme, skeletonMs: 0, ...extra });
   return { hub, theme, attrs };
 }
 
-const html = (hub: ShellHub): string => renderToStaticMarkup(createElement(Shell, { hub, renderPlace: samplePlace })).replaceAll("<!-- -->", "");
+const html = (hub: ShellHub): string =>
+  renderToStaticMarkup(createElement(Shell, { hub, renderPlace: samplePlace })).replaceAll("<!-- -->", "");
 const text = (markup: string): string => markup.replace(/<[^>]*>/g, "");
 
 test("perf space_switch: under 500 ms with the skeleton, pre-opened and cold", async () => {
-  const { hub } = rig("nw", { openReplica: () => new Promise<void>((resolve) => { setTimeout(resolve, 25); }), skeletonMs: 120 });
+  const { hub } = rig("nw", {
+    openReplica: () =>
+      new Promise<void>((resolve) => {
+        setTimeout(resolve, 25);
+      }),
+    skeletonMs: 120,
+  });
   const ran: string[] = [];
   for (const to of ["hb", "me", "nw"]) {
     hub.switchTo(to);

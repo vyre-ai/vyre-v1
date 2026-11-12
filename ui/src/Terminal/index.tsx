@@ -32,15 +32,35 @@ export function inputPayload(terminalId: string, data: string): { terminalId: st
 }
 
 /** Input of terminal.resize. The manifest accepts 20 to 500 columns and 5 to 200 rows. */
-export function resizePayload(terminalId: string, cols: number, rows: number): { terminalId: string; cols: number; rows: number } {
-  return { terminalId, cols: Math.min(500, Math.max(20, Math.floor(cols))), rows: Math.min(200, Math.max(5, Math.floor(rows))) };
+export function resizePayload(
+  terminalId: string,
+  cols: number,
+  rows: number,
+): { terminalId: string; cols: number; rows: number } {
+  return {
+    terminalId,
+    cols: Math.min(500, Math.max(20, Math.floor(cols))),
+    rows: Math.min(200, Math.max(5, Math.floor(rows))),
+  };
 }
 
-export const HOST_NAMES: Readonly<Record<TerminalHost, string>> = { agent: "Agent computer", server: "Space server", device: "This computer" };
+export const HOST_NAMES: Readonly<Record<TerminalHost, string>> = {
+  agent: "Agent computer",
+  server: "Space server",
+  device: "This computer",
+};
 
 /** Characters per row and rows that fit a pane at the terminal font (12.5 px mono, 20 px line). */
-export function gridSize(width: number, height: number, charWidth = 7.6, lineHeight = 20): { cols: number; rows: number } {
-  return { cols: Math.max(20, Math.floor((width - 32) / charWidth)), rows: Math.max(5, Math.floor((height - 28) / lineHeight)) };
+export function gridSize(
+  width: number,
+  height: number,
+  charWidth = 7.6,
+  lineHeight = 20,
+): { cols: number; rows: number } {
+  return {
+    cols: Math.max(20, Math.floor((width - 32) / charWidth)),
+    rows: Math.max(5, Math.floor((height - 28) / lineHeight)),
+  };
 }
 
 /* ---------- the VT engine ---------- */
@@ -74,8 +94,22 @@ interface Cell {
 }
 
 const SGR_COLORS: Readonly<Record<number, string>> = {
-  30: "ink-3", 31: "danger", 32: "ok", 33: "warn", 34: "accent", 35: "accent", 36: "accent", 37: "ink",
-  90: "ink-3", 91: "danger", 92: "ok", 93: "warn", 94: "accent", 95: "accent", 96: "accent", 97: "ink",
+  30: "ink-3",
+  31: "danger",
+  32: "ok",
+  33: "warn",
+  34: "accent",
+  35: "accent",
+  36: "accent",
+  37: "ink",
+  90: "ink-3",
+  91: "danger",
+  92: "ok",
+  93: "warn",
+  94: "accent",
+  95: "accent",
+  96: "accent",
+  97: "ink",
 };
 
 export const SCROLLBACK_LINES = 2000;
@@ -114,7 +148,10 @@ export class TerminalBuffer implements TerminalEngine {
       const ch = input.charAt(i);
       if (ch === "\x1b") {
         const end = this.escapeEnd(input, i);
-        if (end < 0) { this.pending = input.slice(i); return; }
+        if (end < 0) {
+          this.pending = input.slice(i);
+          return;
+        }
         this.escape(input.slice(i, end));
         i = end;
         continue;
@@ -204,8 +241,15 @@ export class TerminalBuffer implements TerminalEngine {
     for (const a of seq.slice(2, -1).split(";")) args.push(a === "" ? 0 : Number.parseInt(a, 10));
     const first = args[0] ?? 0;
     switch (final) {
-      case "m": this.sgr(args); break;
-      case "J": if (first === 2 || first === 3) { this.rows = [[]]; this.col = 0; } break;
+      case "m":
+        this.sgr(args);
+        break;
+      case "J":
+        if (first === 2 || first === 3) {
+          this.rows = [[]];
+          this.col = 0;
+        }
+        break;
       case "K": {
         const row = this.current();
         if (first === 2) row.length = 0;
@@ -213,11 +257,21 @@ export class TerminalBuffer implements TerminalEngine {
         else for (let c = 0; c < Math.min(this.col, row.length); c++) row[c] = { ch: " ", style: {} };
         break;
       }
-      case "H": case "f": this.col = Math.max(0, (args[1] ?? 1) - 1); break;
-      case "G": this.col = Math.max(0, first - 1); break;
-      case "C": this.col += Math.max(1, first); break;
-      case "D": this.col = Math.max(0, this.col - Math.max(1, first)); break;
-      default: break;
+      case "H":
+      case "f":
+        this.col = Math.max(0, (args[1] ?? 1) - 1);
+        break;
+      case "G":
+        this.col = Math.max(0, first - 1);
+        break;
+      case "C":
+        this.col += Math.max(1, first);
+        break;
+      case "D":
+        this.col = Math.max(0, this.col - Math.max(1, first));
+        break;
+      default:
+        break;
     }
   }
 
@@ -226,9 +280,13 @@ export class TerminalBuffer implements TerminalEngine {
       if (a === 0) this.style = {};
       else if (a === 1) this.style = { ...this.style, bold: true };
       else if (a === 2) this.style = { ...this.style, dim: true };
-      else if (a === 22) { const { bold: _b, dim: _d, ...rest } = this.style; this.style = rest; }
-      else if (a === 39) { const { fg: _f, ...rest } = this.style; this.style = rest; }
-      else if (SGR_COLORS[a] !== undefined) this.style = { ...this.style, fg: SGR_COLORS[a] as string };
+      else if (a === 22) {
+        const { bold: _b, dim: _d, ...rest } = this.style;
+        this.style = rest;
+      } else if (a === 39) {
+        const { fg: _f, ...rest } = this.style;
+        this.style = rest;
+      } else if (SGR_COLORS[a] !== undefined) this.style = { ...this.style, fg: SGR_COLORS[a] as string };
     }
   }
 }
@@ -282,7 +340,19 @@ export interface KeyLike {
 }
 
 const KEY_BYTES: Readonly<Record<string, string>> = {
-  Enter: "\r", Backspace: "\x7f", Tab: "\t", Escape: "\x1b", ArrowUp: "\x1b[A", ArrowDown: "\x1b[B", ArrowRight: "\x1b[C", ArrowLeft: "\x1b[D", Home: "\x1b[H", End: "\x1b[F", Delete: "\x1b[3~", PageUp: "\x1b[5~", PageDown: "\x1b[6~",
+  Enter: "\r",
+  Backspace: "\x7f",
+  Tab: "\t",
+  Escape: "\x1b",
+  ArrowUp: "\x1b[A",
+  ArrowDown: "\x1b[B",
+  ArrowRight: "\x1b[C",
+  ArrowLeft: "\x1b[D",
+  Home: "\x1b[H",
+  End: "\x1b[F",
+  Delete: "\x1b[3~",
+  PageUp: "\x1b[5~",
+  PageDown: "\x1b[6~",
 };
 
 /** What the shell sees for a key press, or null when the key is not for the shell (Cmd shortcuts, bare modifiers). */
@@ -319,7 +389,10 @@ export function selectionToCopy(selection: string): string | null {
 }
 
 /** Copy on select: writes the selection with the given writer. Returns the copied text, or null when nothing was selected. */
-export async function copySelection(selection: string, write: (text: string) => Promise<void> | void): Promise<string | null> {
+export async function copySelection(
+  selection: string,
+  write: (text: string) => Promise<void> | void,
+): Promise<string | null> {
   const text = selectionToCopy(selection);
   if (text === null) return null;
   await write(text);
@@ -330,23 +403,49 @@ const RISK_TEXT = { read: "Only reads", change: "Changes something", danger: "De
 const RISK_COLOR = { read: "var(--ok)", change: "var(--warn)", danger: "var(--danger)" } as const;
 
 /** One place a terminal can open. An offline one is shown but not choosable, and says why on hover. */
-export interface TerminalHostChoice { key: string; label: string; kind: TerminalHost; online: boolean; why?: string }
+export interface TerminalHostChoice {
+  key: string;
+  label: string;
+  kind: TerminalHost;
+  online: boolean;
+  why?: string;
+}
 
 /** The host menu over a list of every computer: the entries of the list, the current one checked, an offline one disabled with its reason. */
-export function hostChoiceMenu(hosts: readonly TerminalHostChoice[], current: string | undefined, onPick: (key: string) => void): MenuEntry[] {
-  return hosts.map((h): MenuEntry => ({ label: h.label, checked: h.key === current, ...(h.online ? { onSelect: () => onPick(h.key) } : { disabled: true, reason: h.why ?? "Offline" }) }));
+export function hostChoiceMenu(
+  hosts: readonly TerminalHostChoice[],
+  current: string | undefined,
+  onPick: (key: string) => void,
+): MenuEntry[] {
+  return hosts.map(
+    (h): MenuEntry => ({
+      label: h.label,
+      checked: h.key === current,
+      ...(h.online ? { onSelect: () => onPick(h.key) } : { disabled: true, reason: h.why ?? "Offline" }),
+    }),
+  );
 }
 
 /** The host switcher menu. The server entry says locked until server.services is granted, and still opens so the locked state can ask. */
-export function hostMenu(current: TerminalHost, serverLocked: boolean, onHost: (host: TerminalHost) => void): MenuEntry[] {
+export function hostMenu(
+  current: TerminalHost,
+  serverLocked: boolean,
+  onHost: (host: TerminalHost) => void,
+): MenuEntry[] {
   const out: MenuEntry[] = [];
-  for (const h of TERMINAL_HOSTS) out.push({ label: `${HOST_NAMES[h]}${h === "server" && serverLocked ? " (locked)" : ""}`, checked: h === current, onSelect: () => onHost(h) });
+  for (const h of TERMINAL_HOSTS)
+    out.push({
+      label: `${HOST_NAMES[h]}${h === "server" && serverLocked ? " (locked)" : ""}`,
+      checked: h === current,
+      onSelect: () => onHost(h),
+    });
   return out;
 }
 
 /* ---------- web glue ---------- */
 
-const webProps = (props: Record<string, unknown>): Record<string, unknown> => (Platform.OS === "web" ? props : {}) as Record<string, unknown>;
+const webProps = (props: Record<string, unknown>): Record<string, unknown> =>
+  (Platform.OS === "web" ? props : {}) as Record<string, unknown>;
 
 interface DomGlobals {
   getSelection?: () => { toString(): string } | null;
@@ -365,15 +464,23 @@ const ICON = {
   terminal: '<rect x="2" y="3" width="12" height="10" rx="2"/><path d="M5 6.5l2 1.8-2 1.8M8.8 10.2H11"/>',
   lock: '<rect x="3.5" y="7" width="9" height="6.5" rx="1.8"/><path d="M5.5 7V5.3a2.5 2.5 0 015 0V7"/>',
   agent: '<rect x="3" y="5" width="10" height="7.500" rx="2"/><path d="M8 5V3M6 8.500v.5M10 8.500v.5"/>',
-  server: '<rect x="2.500" y="3" width="11" height="4" rx="1.200"/><rect x="2.500" y="9" width="11" height="4" rx="1.200"/><path d="M5 5h.01M5 11h.01"/>',
+  server:
+    '<rect x="2.500" y="3" width="11" height="4" rx="1.200"/><rect x="2.500" y="9" width="11" height="4" rx="1.200"/><path d="M5 5h.01M5 11h.01"/>',
   device: '<rect x="3" y="4" width="10" height="6.500" rx="1.200"/><path d="M1.800 12.500h12.400"/>',
 } as const;
 
 function Icon({ name, size = 13, color }: { name: keyof typeof ICON; size?: number; color?: string }): ReactElement {
-  return <MenuIcon icon={`<svg viewBox="0 0 16 16" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON[name]}</svg>`} size={size} {...(color === undefined ? {} : { color })} />;
+  return (
+    <MenuIcon
+      icon={`<svg viewBox="0 0 16 16" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON[name]}</svg>`}
+      size={size}
+      {...(color === undefined ? {} : { color })}
+    />
+  );
 }
 
-const hostIcon = (h: TerminalHost): keyof typeof ICON => (h === "agent" ? "agent" : h === "server" ? "server" : "device");
+const hostIcon = (h: TerminalHost): keyof typeof ICON =>
+  h === "agent" ? "agent" : h === "server" ? "server" : "device";
 
 /* ---------- the view ---------- */
 
@@ -409,7 +516,14 @@ export interface TerminalViewProps extends TerminalProps {
   testID?: string;
 }
 
-const TOKEN: Readonly<Record<string, string>> = { ok: "var(--ok)", danger: "var(--danger)", warn: "var(--warn)", accent: "var(--accent)", "ink-3": "var(--ink-3)", ink: "var(--ink)" };
+const TOKEN: Readonly<Record<string, string>> = {
+  ok: "var(--ok)",
+  danger: "var(--danger)",
+  warn: "var(--warn)",
+  accent: "var(--accent)",
+  "ink-3": "var(--ink-3)",
+  ink: "var(--ink)",
+};
 
 function spanStyle(style: TermStyle): { color?: string; fontWeight?: "600"; opacity?: number } {
   const out: { color?: string; fontWeight?: "600"; opacity?: number } = {};
@@ -425,12 +539,21 @@ function Lines({ lines, cursor }: { lines: readonly TermLine[]; cursor: boolean 
   for (let i = from; i < lines.length; i++) {
     const line = lines[i] ?? [];
     const spans: ReactElement[] = [];
-    for (const [j, span] of line.entries()) spans.push(<Text key={j} style={spanStyle(span.style)}>{span.text}</Text>);
+    for (const [j, span] of line.entries())
+      spans.push(
+        <Text key={j} style={spanStyle(span.style)}>
+          {span.text}
+        </Text>,
+      );
     const last = i === lines.length - 1;
     nodes.push(
       <Text key={i} selectable style={styles.ln}>
         {spans}
-        {last && cursor ? <Text style={styles.cursor} testID="terminal-cursor">{" "}</Text> : null}
+        {last && cursor ? (
+          <Text style={styles.cursor} testID="terminal-cursor">
+            {" "}
+          </Text>
+        ) : null}
         {spans.length === 0 && !(last && cursor) ? " " : null}
       </Text>,
     );
@@ -446,14 +569,19 @@ export function Terminal(props: TerminalViewProps): ReactElement {
   const atEnd = useRef(true);
   /** When the person last scrolled by hand (wheel, touch, drag). A scroll the browser makes itself (keeping content in place while old rows go) never takes the view off the end. */
   const gestureAt = useRef(0);
-  const gesture = (): void => { gestureAt.current = Date.now(); };
+  const gesture = (): void => {
+    gestureAt.current = Date.now();
+  };
   const [copied, setCopied] = useState<string | null>(null);
   const exited = props.state === "exited";
   const session = props.state !== undefined;
   const locked = props.locked === true;
   const interactive = !locked && props.readonly !== true && !exited;
 
-  const feed = useMemo(() => new TerminalFeed(props.output ?? "", props.engine ?? new TerminalBuffer(), props.replaySeq ?? 0), [props.output, props.engine, props.replaySeq]);
+  const feed = useMemo(
+    () => new TerminalFeed(props.output ?? "", props.engine ?? new TerminalBuffer(), props.replaySeq ?? 0),
+    [props.output, props.engine, props.replaySeq],
+  );
 
   useEffect(() => {
     if (props.source === undefined || locked) return undefined;
@@ -484,8 +612,18 @@ export function Terminal(props: TerminalViewProps): ReactElement {
   };
 
   const onKey = (e: KeyLike & { preventDefault?: () => void; stopPropagation?: () => void }): void => {
-    if (isClearKey(e)) { e.preventDefault?.(); e.stopPropagation?.(); clear(); return; }
-    if (isStarKey(e) && session && props.onStar !== undefined) { e.preventDefault?.(); e.stopPropagation?.(); props.onStar(props.sessionId); return; }
+    if (isClearKey(e)) {
+      e.preventDefault?.();
+      e.stopPropagation?.();
+      clear();
+      return;
+    }
+    if (isStarKey(e) && session && props.onStar !== undefined) {
+      e.preventDefault?.();
+      e.stopPropagation?.();
+      props.onStar(props.sessionId);
+      return;
+    }
     if (!interactive) return;
     const data = keyToData(e);
     if (data === null) return;
@@ -510,20 +648,42 @@ export function Terminal(props: TerminalViewProps): ReactElement {
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={`Host: ${props.hostLabel}`}
-      onPress={(e: { nativeEvent?: { pageX?: number; pageY?: number } }) => menu.show(props.hosts && props.hosts.length > 0 ? hostChoiceMenu(props.hosts, props.hostKey, (k) => props.onPickHost?.(k)) : props.hosts ? [{ label: "No other computer here", disabled: true, reason: "Open Vyre on a computer to use a terminal here" }] : hostMenu(props.host, locked && props.host === "server", (h) => props.onHost?.(h)), e.nativeEvent?.pageX ?? 0, e.nativeEvent?.pageY ?? 0, "context", { label: "Terminal host" })}
+      onPress={(e: { nativeEvent?: { pageX?: number; pageY?: number } }) =>
+        menu.show(
+          props.hosts && props.hosts.length > 0
+            ? hostChoiceMenu(props.hosts, props.hostKey, (k) => props.onPickHost?.(k))
+            : props.hosts
+              ? [
+                  {
+                    label: "No other computer here",
+                    disabled: true,
+                    reason: "Open Vyre on a computer to use a terminal here",
+                  },
+                ]
+              : hostMenu(props.host, locked && props.host === "server", (h) => props.onHost?.(h)),
+          e.nativeEvent?.pageX ?? 0,
+          e.nativeEvent?.pageY ?? 0,
+          "context",
+          { label: "Terminal host" },
+        )
+      }
       testID="terminal-host"
       style={({ hovered }: { hovered?: boolean }) => [styles.chip, hovered === true && styles.chipHover]}
     >
       <View style={[styles.statusDot, locked && styles.statusLocked]} />
       <Icon name={hostIcon(props.host)} color="var(--ink-3)" />
-      <Text style={styles.chipText} numberOfLines={1}>{props.hostLabel}</Text>
+      <Text style={styles.chipText} numberOfLines={1}>
+        {props.hostLabel}
+      </Text>
       <Text style={styles.chev}>{"▾"}</Text>
     </Pressable>
   );
   const sessionChip = (
     <View style={styles.chip} testID="terminal-state">
       <View style={[styles.statusDot, exited && styles.statusExited]} />
-      <Text style={styles.chipText} numberOfLines={1}>{terminalLabel(props)}</Text>
+      <Text style={styles.chipText} numberOfLines={1}>
+        {terminalLabel(props)}
+      </Text>
     </View>
   );
   const sub = session
@@ -539,17 +699,52 @@ export function Terminal(props: TerminalViewProps): ReactElement {
     >
       <View style={styles.bar}>
         {session ? sessionChip : hostChip}
-        {session ? <Text style={styles.sub} numberOfLines={1} testID="terminal-sub">{sub}</Text> : null}
+        {session ? (
+          <Text style={styles.sub} numberOfLines={1} testID="terminal-sub">
+            {sub}
+          </Text>
+        ) : null}
         <View style={styles.grow} />
-        {props.risk ? <View testID={`terminal-risk-${props.risk}`} accessibilityRole="image" accessibilityLabel={RISK_TEXT[props.risk]} {...webProps({ title: RISK_TEXT[props.risk] })} style={[styles.riskDot, { backgroundColor: RISK_COLOR[props.risk] }]} /> : null}
-        {text.length > 0 ? <Text style={styles.note} testID="terminal-note">{text}</Text> : null}
+        {props.risk ? (
+          <View
+            testID={`terminal-risk-${props.risk}`}
+            accessibilityRole="image"
+            accessibilityLabel={RISK_TEXT[props.risk]}
+            {...webProps({ title: RISK_TEXT[props.risk] })}
+            style={[styles.riskDot, { backgroundColor: RISK_COLOR[props.risk] }]}
+          />
+        ) : null}
+        {text.length > 0 ? (
+          <Text style={styles.note} testID="terminal-note">
+            {text}
+          </Text>
+        ) : null}
         {session && props.onStar !== undefined ? (
-          <Pressable accessibilityRole="button" accessibilityLabel={props.starred === true ? "Remove star" : "Star"} accessibilityState={{ selected: props.starred === true }} onPress={() => props.onStar?.(props.sessionId)} testID="terminal-star" {...webProps({ title: "Star  ⌘D" })} style={({ hovered }: { hovered?: boolean }) => [styles.btn, hovered === true && styles.btnHover]}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={props.starred === true ? "Remove star" : "Star"}
+            accessibilityState={{ selected: props.starred === true }}
+            onPress={() => props.onStar?.(props.sessionId)}
+            testID="terminal-star"
+            {...webProps({ title: "Star  ⌘D" })}
+            style={({ hovered }: { hovered?: boolean }) => [styles.btn, hovered === true && styles.btnHover]}
+          >
             <MenuIcon icon="star" size={14} color={props.starred === true ? "var(--warn)" : "var(--ink-3)"} />
           </Pressable>
         ) : null}
         {!locked ? (
-          <Pressable accessibilityRole="button" accessibilityLabel="Clear" onPress={clear} testID="terminal-clear" {...webProps({ title: "Clear  ⌘K" })} style={({ hovered }: { hovered?: boolean }) => [styles.btn, styles.btnWide, hovered === true && styles.btnHover]}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Clear"
+            onPress={clear}
+            testID="terminal-clear"
+            {...webProps({ title: "Clear  ⌘K" })}
+            style={({ hovered }: { hovered?: boolean }) => [
+              styles.btn,
+              styles.btnWide,
+              hovered === true && styles.btnHover,
+            ]}
+          >
             <Text style={styles.btnText}>Clear</Text>
             <Text style={styles.kbd}>{"⌘K"}</Text>
           </Pressable>
@@ -558,30 +753,72 @@ export function Terminal(props: TerminalViewProps): ReactElement {
       {locked ? (
         <View style={styles.lock} testID="terminal-locked">
           <View style={styles.lockIn}>
-            <View style={styles.lockIcon}><Icon name="lock" size={18} color="var(--ink-3)" /></View>
+            <View style={styles.lockIcon}>
+              <Icon name="lock" size={18} color="var(--ink-3)" />
+            </View>
             <Text style={styles.lockTitle}>The server shell is locked</Text>
-            <Text style={styles.lockText}>{"It needs the server.services permission. Owners and Developers have it."}</Text>
-            <Pressable accessibilityRole="button" accessibilityLabel={props.owner !== undefined ? `Ask ${props.owner} for access` : "Ask for access"} accessibilityState={{ disabled: props.asked === true }} disabled={props.asked === true} onPress={props.onAskAccess} testID="terminal-ask" style={({ hovered }: { hovered?: boolean }) => [styles.go, props.asked === true && styles.goOff, hovered === true && styles.goHover]}>
-              <Text style={[styles.goText, props.asked === true && styles.goTextOff]}>{props.asked === true ? (props.owner !== undefined ? `Asked ${props.owner}` : "Asked") : props.owner !== undefined ? `Ask ${props.owner} for access` : "Ask for access"}</Text>
+            <Text style={styles.lockText}>
+              {"It needs the server.services permission. Owners and Developers have it."}
+            </Text>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={props.owner !== undefined ? `Ask ${props.owner} for access` : "Ask for access"}
+              accessibilityState={{ disabled: props.asked === true }}
+              disabled={props.asked === true}
+              onPress={props.onAskAccess}
+              testID="terminal-ask"
+              style={({ hovered }: { hovered?: boolean }) => [
+                styles.go,
+                props.asked === true && styles.goOff,
+                hovered === true && styles.goHover,
+              ]}
+            >
+              <Text style={[styles.goText, props.asked === true && styles.goTextOff]}>
+                {props.asked === true
+                  ? props.owner !== undefined
+                    ? `Asked ${props.owner}`
+                    : "Asked"
+                  : props.owner !== undefined
+                    ? `Ask ${props.owner} for access`
+                    : "Ask for access"}
+              </Text>
             </Pressable>
             {props.fallbackLabel !== undefined ? (
-              <Pressable accessibilityRole="button" accessibilityLabel={`Open ${props.fallbackLabel} instead`} onPress={props.onBack} testID="terminal-back" style={({ hovered }: { hovered?: boolean }) => [styles.back, hovered === true && styles.btnHover]}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`Open ${props.fallbackLabel} instead`}
+                onPress={props.onBack}
+                testID="terminal-back"
+                style={({ hovered }: { hovered?: boolean }) => [styles.back, hovered === true && styles.btnHover]}
+              >
                 <Text style={styles.backText}>{`Open ${props.fallbackLabel} instead`}</Text>
               </Pressable>
             ) : null}
           </View>
         </View>
       ) : (
-        <View style={[styles.scroll, NO_OUTLINE]} testID="terminal-screen" {...webProps({ tabIndex: 0, onKeyDown: onKey, onMouseUp, onWheel: gesture, onTouchMove: gesture })}>
+        <View
+          style={[styles.scroll, NO_OUTLINE]}
+          testID="terminal-screen"
+          {...webProps({ tabIndex: 0, onKeyDown: onKey, onMouseUp, onWheel: gesture, onTouchMove: gesture })}
+        >
           <ScrollView
             ref={scroller}
             testID="terminal-scroll"
             accessibilityLabel={`Output on ${props.hostLabel}`}
             style={styles.scroll}
             contentContainerStyle={styles.scrollIn}
-            onContentSizeChange={() => { if (atEnd.current) scroller.current?.scrollToEnd({ animated: false }); }}
+            onContentSizeChange={() => {
+              if (atEnd.current) scroller.current?.scrollToEnd({ animated: false });
+            }}
             scrollEventThrottle={100}
-            onScroll={(e: { nativeEvent?: { contentOffset?: { y: number }; layoutMeasurement?: { height: number }; contentSize?: { height: number } } }) => {
+            onScroll={(e: {
+              nativeEvent?: {
+                contentOffset?: { y: number };
+                layoutMeasurement?: { height: number };
+                contentSize?: { height: number };
+              };
+            }) => {
               const n = e.nativeEvent;
               if (!(n?.contentOffset && n.layoutMeasurement && n.contentSize)) return;
               const end = n.contentOffset.y + n.layoutMeasurement.height >= n.contentSize.height - 40;
@@ -591,12 +828,22 @@ export function Terminal(props: TerminalViewProps): ReactElement {
             onScrollBeginDrag={gesture}
             onLayout={(e: { nativeEvent?: { layout?: { width: number; height: number } } }) => {
               const box = e.nativeEvent?.layout;
-              if (box !== undefined && props.onResize !== undefined) { const g = gridSize(box.width, box.height); props.onResize(g.cols, g.rows); }
+              if (box !== undefined && props.onResize !== undefined) {
+                const g = gridSize(box.width, box.height);
+                props.onResize(g.cols, g.rows);
+              }
             }}
           >
             <Lines lines={lines} cursor={interactive} />
             {Platform.OS !== "web" && interactive ? (
-              <TextInput accessibilityLabel={`Terminal input on ${props.hostLabel}`} autoCapitalize="none" autoCorrect={false} onSubmitEditing={(e: { nativeEvent: { text: string } }) => props.onInput?.(`${e.nativeEvent.text}\r`)} style={styles.nativeIn} testID="terminal-input" />
+              <TextInput
+                accessibilityLabel={`Terminal input on ${props.hostLabel}`}
+                autoCapitalize="none"
+                autoCorrect={false}
+                onSubmitEditing={(e: { nativeEvent: { text: string } }) => props.onInput?.(`${e.nativeEvent.text}\r`)}
+                style={styles.nativeIn}
+                testID="terminal-input"
+              />
             ) : null}
           </ScrollView>
         </View>
@@ -613,9 +860,27 @@ const NO_OUTLINE = { outlineStyle: "none" } as unknown as ViewStyle;
 
 const styles = StyleSheet.create({
   root: { flex: 1, minHeight: 220, minWidth: 0, backgroundColor: "var(--sunk)" as string },
-  bar: { flexDirection: "row", alignItems: "center", gap: 8, height: 38, paddingLeft: 12, paddingRight: 10, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string, backgroundColor: "var(--win)" as string },
+  bar: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    height: 38,
+    paddingLeft: 12,
+    paddingRight: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "var(--line)" as string,
+    backgroundColor: "var(--win)" as string,
+  },
   grow: { flex: 1 },
-  chip: { flexDirection: "row", alignItems: "center", gap: 7, height: 26, paddingLeft: 9, paddingRight: 8, borderRadius: 6 },
+  chip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+    height: 26,
+    paddingLeft: 9,
+    paddingRight: 8,
+    borderRadius: 6,
+  },
   chipHover: { backgroundColor: "var(--hover)" as string },
   chipText: { color: "var(--ink)" as string, fontSize: 12.5, fontWeight: "500" },
   chev: { color: "var(--ink-3)" as string, fontSize: 10 },
@@ -625,11 +890,27 @@ const styles = StyleSheet.create({
   statusExited: { backgroundColor: "var(--ink-4)" as string },
   sub: { flexShrink: 1, color: "var(--ink-3)" as string, fontSize: 12 },
   note: { color: "var(--ok)" as string, fontSize: 12 },
-  btn: { height: 26, minWidth: 26, paddingHorizontal: 6, borderRadius: 6, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6 },
+  btn: {
+    height: 26,
+    minWidth: 26,
+    paddingHorizontal: 6,
+    borderRadius: 6,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+  },
   btnWide: { paddingHorizontal: 8 },
   btnHover: { backgroundColor: "var(--hover)" as string },
   btnText: { color: "var(--ink-3)" as string, fontSize: 12.5 },
-  kbd: { color: "var(--ink-3)" as string, fontSize: 11, paddingHorizontal: 4, borderRadius: 4, borderWidth: 1, borderColor: "var(--line-2)" as string },
+  kbd: {
+    color: "var(--ink-3)" as string,
+    fontSize: 11,
+    paddingHorizontal: 4,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: "var(--line-2)" as string,
+  },
   scroll: { flex: 1, minHeight: 0 },
   scrollIn: { paddingTop: 12, paddingHorizontal: 16, paddingBottom: 16 },
   ln: { color: "var(--ink)" as string, fontFamily: MONO, fontSize: 12.5, lineHeight: 20, minHeight: 20 },
@@ -637,10 +918,27 @@ const styles = StyleSheet.create({
   nativeIn: { height: 36, marginTop: 8, color: "var(--ink)" as string, fontFamily: MONO, fontSize: 12.5 },
   lock: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24 },
   lockIn: { maxWidth: 340, alignItems: "center" },
-  lockIcon: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center", marginBottom: 12, backgroundColor: "var(--win)" as string, borderWidth: 1, borderColor: "var(--line)" as string },
+  lockIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 12,
+    backgroundColor: "var(--win)" as string,
+    borderWidth: 1,
+    borderColor: "var(--line)" as string,
+  },
   lockTitle: { color: "var(--ink)" as string, fontSize: 14, fontWeight: "600", marginBottom: 4, textAlign: "center" },
   lockText: { color: "var(--ink-3)" as string, fontSize: 13, lineHeight: 19, textAlign: "center", marginBottom: 14 },
-  go: { height: 32, paddingHorizontal: 14, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: "var(--accent)" as string },
+  go: {
+    height: 32,
+    paddingHorizontal: 14,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "var(--accent)" as string,
+  },
   goOff: { backgroundColor: "var(--sunk)" as string, borderWidth: 1, borderColor: "var(--line-2)" as string },
   goHover: { opacity: 0.92 },
   goText: { color: "var(--accent-ink)" as string, fontSize: 13, fontWeight: "500" },

@@ -25,7 +25,10 @@ function notes(): Record<string, unknown> {
 
 test("paste fields name the secret and leave the value out", () => {
   const { fields, scopes } = pasteFields(notes());
-  assert.deepEqual(fields.map((field) => field.name), ["X-Api-Key", "Client id", "Client secret"]);
+  assert.deepEqual(
+    fields.map((field) => field.name),
+    ["X-Api-Key", "Client id", "Client secret"],
+  );
   assert.equal(fields[0]?.secret, true);
   assert.equal(fields[0]?.in, "header");
   assert.equal(fields[0]?.headerName, "X-Api-Key");
@@ -59,7 +62,7 @@ test("Ask Vyre gets the field shape and a webhook stays a draft", () => {
   assert.equal(setup.ask.docs?.[0], "https://docs.notes.test/api");
   const blob = JSON.stringify(setup.ask);
   assert.equal(blob.includes(SECRET), false);
-  assert.equal(JSON.stringify(setup.ask.fields?.[0]).includes("\"value\""), false);
+  assert.equal(JSON.stringify(setup.ask.fields?.[0]).includes('"value"'), false);
 });
 
 test("a document with no sign-in scheme asks for nothing", () => {

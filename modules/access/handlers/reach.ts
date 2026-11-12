@@ -24,7 +24,14 @@ export async function reachBatch(ctx: AskCtx & AccessCtx, input: { items: Resour
       // a registered thing of another type is not this thing; one the store has not registered is judged by the same rules as any other (a role that reaches every file reaches it)
       if (known !== undefined && known.type !== it.type) return { type: it.type, id: it.id, level: "none" as const };
       for (const level of LADDER) {
-        const d = authorize(store.snapshot(), toReq(ctx, { principal: { kind: "person", id: me }, action: { level }, resource: { type: it.type, id: it.id } }));
+        const d = authorize(
+          store.snapshot(),
+          toReq(ctx, {
+            principal: { kind: "person", id: me },
+            action: { level },
+            resource: { type: it.type, id: it.id },
+          }),
+        );
         if (d.effect === "allow") {
           const title = strOf(known?.row?.["name"]) ?? strOf(known?.row?.["title"]);
           return { type: it.type, id: it.id, level, ...(title !== undefined ? { title } : {}) };

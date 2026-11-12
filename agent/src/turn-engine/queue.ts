@@ -28,11 +28,17 @@ export function createMemoryQueue(): QueueStore {
   const seq = new Map<string, number>();
   const of = (t: string): QueueItem[] => {
     let r = rows.get(t);
-    if (!r) { r = []; rows.set(t, r); }
+    if (!r) {
+      r = [];
+      rows.set(t, r);
+    }
     return r;
   };
   const order = (a: QueueItem, b: QueueItem): number => b.priority - a.priority || a.qseq - b.qseq;
-  const queued = (t: string): QueueItem[] => of(t).filter((r) => r.state === "queued").sort(order);
+  const queued = (t: string): QueueItem[] =>
+    of(t)
+      .filter((r) => r.state === "queued")
+      .sort(order);
 
   return {
     enqueue(item) {
@@ -49,10 +55,16 @@ export function createMemoryQueue(): QueueStore {
       next.state = "running";
       return next;
     },
-    steerable: (t, agentId) => queued(t).filter((r) => r.steer && r.kind === "message" && r.agentId === agentId).sort((a, b) => a.qseq - b.qseq),
+    steerable: (t, agentId) =>
+      queued(t)
+        .filter((r) => r.steer && r.kind === "message" && r.agentId === agentId)
+        .sort((a, b) => a.qseq - b.qseq),
     setState(t, qseq, state, stopReason) {
       const row = of(t).find((r) => r.qseq === qseq);
-      if (row) { row.state = state; if (stopReason !== undefined) row.stopReason = stopReason; }
+      if (row) {
+        row.state = state;
+        if (stopReason !== undefined) row.stopReason = stopReason;
+      }
     },
     touch(t, qseq) {
       const row = of(t).find((r) => r.qseq === qseq);
@@ -67,4 +79,3 @@ export function createMemoryQueue(): QueueStore {
     list: (t) => of(t).slice(),
   };
 }
-

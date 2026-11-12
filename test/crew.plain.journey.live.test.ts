@@ -15,7 +15,17 @@ import { loadConfig } from "../host/src/daemon/config.ts";
 import { boot, hostLog, scriptedModel, stop, waitFor, KEY } from "./support/eco-live.ts";
 
 const git = (cwd: string, ...args: string[]): string => {
-  const r = spawnSync("git", args, { cwd, encoding: "utf8", env: { ...process.env, GIT_AUTHOR_NAME: "t", GIT_AUTHOR_EMAIL: "t@t", GIT_COMMITTER_NAME: "t", GIT_COMMITTER_EMAIL: "t@t" } });
+  const r = spawnSync("git", args, {
+    cwd,
+    encoding: "utf8",
+    env: {
+      ...process.env,
+      GIT_AUTHOR_NAME: "t",
+      GIT_AUTHOR_EMAIL: "t@t",
+      GIT_COMMITTER_NAME: "t",
+      GIT_COMMITTER_EMAIL: "t@t",
+    },
+  });
   assert.equal(r.status, 0, `git ${args.join(" ")}: ${r.stderr}`);
   return r.stdout;
 };
@@ -23,7 +33,11 @@ const PASSWORD = "crew journey password 7731";
 
 test("a person watches a crew build in a plain chat in the real app: the Crew tab, one result card, and Merge", async (t) => {
   const dist = process.env["VYRE_APP_DIST"];
-  if (!dist) { if (process.env["VYRE_REQUIRE_CHROME"] === "1") assert.fail("VYRE_APP_DIST required"); t.skip("VYRE_APP_DIST required for browser evidence"); return; }
+  if (!dist) {
+    if (process.env["VYRE_REQUIRE_CHROME"] === "1") assert.fail("VYRE_APP_DIST required");
+    t.skip("VYRE_APP_DIST required for browser evidence");
+    return;
+  }
   const pw = await import("playwright-core");
   const engine = process.env["VYRE_BROWSER"] === "webkit" ? pw.webkit : pw.chromium;
   const exe = process.env["CHROME_BIN"] || (engine === pw.chromium ? pw.chromium.executablePath() : undefined);
@@ -31,7 +45,9 @@ test("a person watches a crew build in a plain chat in the real app: the Crew ta
   const shots = process.env["VYRE_CREW_SHOTS"] ?? fs.mkdtempSync(path.join(os.tmpdir(), "vyre-crew-shots-"));
   fs.mkdirSync(shots, { recursive: true });
 
-  let dir = ""; let owner = ""; let lead = "";
+  let dir = "";
+  let owner = "";
+  let lead = "";
   const model = scriptedModel(async function* (input, run) {
     if (input.agent.id !== lead) {
       const work = workFolder(dir, owner, input.threadId, input.agent.id);
@@ -44,14 +60,25 @@ test("a person watches a crew build in a plain chat in the real app: the Crew ta
     const ask = input.trigger?.body ?? "";
     if (/build dark mode/.test(ask)) {
       yield* run("tool_search", { query: "crew teammate" });
-      yield* run("crew_start", { threadId: input.threadId, idempotencyKey: "plain-start", title: "Dark mode", brief: "Add a dark mode toggle and a test." });
+      yield* run("crew_start", {
+        threadId: input.threadId,
+        idempotencyKey: "plain-start",
+        title: "Dark mode",
+        brief: "Add a dark mode toggle and a test.",
+      });
       yield { type: "text", text: "I started Ember on the dark mode toggle." };
     } else if (input.trigger?.author.kind === "agent") {
       yield { type: "text", text: "Ember is done." };
     }
   });
   const fresh = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "vyre-crew-plain-")));
-  const d = await boot(fresh, model, { config: loadConfig(["--data-dir", fresh, "--port", "0", "--space", "spc_fresh", "--space-name", "Crew Co"], {}, "1.2.3") });
+  const d = await boot(fresh, model, {
+    config: loadConfig(
+      ["--data-dir", fresh, "--port", "0", "--space", "spc_fresh", "--space-name", "Crew Co"],
+      {},
+      "1.2.3",
+    ),
+  });
   dir = d.paths.root;
   const web = await edge(dist, d.url);
   const browser = await engine.launch(exe ? { executablePath: exe, args: ["--no-sandbox"] } : {});
@@ -61,59 +88,173 @@ test("a person watches a crew build in a plain chat in the real app: the Crew ta
     const code = /claim\/([^#]+)/.exec(d.claim!.url)![1]!;
     const spaceId = /s=([^&]+)/.exec(d.claim!.url)![1]!;
     const made = await makeBundle(PASSWORD, "crew-plain-recovery-code-1", { spaceId });
-    const claimed = await fetch(`${d.url}/v1/identity/claim_owner`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ code, spaceId, displayName: "Maya Chen", username: "maya", password: PASSWORD, deviceName: "journey", deviceClass: "desktop", keys: { personKeyByPassword: made.personKeyByPassword, personKeyByRecovery: made.personKeyByRecovery, publicKey: made.publicKey, privateKeyWrapped: made.privateKeyWrapped, spaceKeys: made.spaceKeys ?? [] } }) });
+    const claimed = await fetch(`${d.url}/v1/identity/claim_owner`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        code,
+        spaceId,
+        displayName: "Maya Chen",
+        username: "maya",
+        password: PASSWORD,
+        deviceName: "journey",
+        deviceClass: "desktop",
+        keys: {
+          personKeyByPassword: made.personKeyByPassword,
+          personKeyByRecovery: made.personKeyByRecovery,
+          publicKey: made.publicKey,
+          privateKeyWrapped: made.privateKeyWrapped,
+          spaceKeys: made.spaceKeys ?? [],
+        },
+      }),
+    });
     assert.equal(claimed.status, 200, await claimed.clone().text());
     const token = ((await claimed.json()) as { data: { session: { token: string } } }).data.session.token;
     assert.equal(await holdKeyOnOwnNode(d.url, token, made.personKey), true);
-    const api = async (cap: string, input: unknown): Promise<any> => {   // eslint-disable-line @typescript-eslint/no-explicit-any
-      const r = await fetch(`${d.url}/v1/${cap.replaceAll(".", "/")}`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${token}` }, body: JSON.stringify(input) });
+    const api = async (cap: string, input: unknown): Promise<any> => {
+      // eslint-disable-line @typescript-eslint/no-explicit-any
+      const r = await fetch(`${d.url}/v1/${cap.replaceAll(".", "/")}`, {
+        method: "POST",
+        headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+        body: JSON.stringify(input),
+      });
       const body = (await r.json()) as { data?: unknown };
       assert.equal(r.status, 200, `${cap}: ${r.status} ${JSON.stringify(body)}`);
       return body.data;
     };
     // her Claude account, as a person connects it
-    const folder = (await api("vault.folders.create", { idempotencyKey: "j-folder", name: "Accounts", scope: "mine" })).folder.id as string;
+    const folder = (await api("vault.folders.create", { idempotencyKey: "j-folder", name: "Accounts", scope: "mine" }))
+      .folder.id as string;
     const flow = await api("providers.subscription_start", { idempotencyKey: "j-flow", providerKey: "claude-code" });
-    await api("vault.item.put", { idempotencyKey: "j-item", folderId: folder, name: "Maya_Claude", kind: "ai_subscription", fields: [{ key: "setup_token", value: KEY, secret: true }] });
+    await api("vault.item.put", {
+      idempotencyKey: "j-item",
+      folderId: folder,
+      name: "Maya_Claude",
+      kind: "ai_subscription",
+      fields: [{ key: "setup_token", value: KEY, secret: true }],
+    });
     const provider = (await api("providers.subscription_complete", { flowId: flow.flowId })).provider.id as string;
     await api("providers.set_space_use", { idempotencyKey: "j-spaceuse", providerId: provider, allow: true });
     await api("engine.pool.status", {});
 
-    lead = await waitFor(async () => { await d.hooks?.pump?.(); const r = await api("agents.assistant_of", { personId: (await api("identity.whoami", {})).principal.id }); return typeof r.agentId === "string" ? (r.agentId as string) : null; }, 40_000);
+    lead = await waitFor(async () => {
+      await d.hooks?.pump?.();
+      const r = await api("agents.assistant_of", { personId: (await api("identity.whoami", {})).principal.id });
+      return typeof r.agentId === "string" ? (r.agentId as string) : null;
+    }, 40_000);
     owner = (await api("agents.get", { agentId: lead })).agent.ownerId as string;
-    const chat = (await api("chat.start", { kind: "chat", agentIds: [lead], title: "Build the site", idempotencyKey: "j-chat" })).thread.threadId as string;
+    const chat = (
+      await api("chat.start", { kind: "chat", agentIds: [lead], title: "Build the site", idempotencyKey: "j-chat" })
+    ).thread.threadId as string;
 
     // the first-run screen has been seen: a person who is already working does not meet it
-    for (const flow of ["team", "personal", "member"]) await api("spaces.onboarding.seen", { flow }).catch(() => undefined);
+    for (const flow of ["team", "personal", "member"])
+      await api("spaces.onboarding.seen", { flow }).catch(() => undefined);
     const me = (await api("identity.whoami", {})).principal.id as string;
     const marker = (await api("spaces.get", {})).space.fingerprint as string;
-    const session = { baseUrl: web.origin, token, personId: me, marker, def: { spaceId, name: "Crew Co", kind: "team", address: web.origin, role: "Owner", tint: ["#6E5CF0", "#9B6BE8"], kit: "northwind", skinDefault: "system", starred: true, needsYou: false, console: true, terminal: false, counts: {}, dots: {} } };
-    const shoot = async (page: import("playwright-core").Page, name: string): Promise<void> => { await page.screenshot({ path: path.join(shots, `${name}.png`) }); };
+    const session = {
+      baseUrl: web.origin,
+      token,
+      personId: me,
+      marker,
+      def: {
+        spaceId,
+        name: "Crew Co",
+        kind: "team",
+        address: web.origin,
+        role: "Owner",
+        tint: ["#6E5CF0", "#9B6BE8"],
+        kit: "northwind",
+        skinDefault: "system",
+        starred: true,
+        needsYou: false,
+        console: true,
+        terminal: false,
+        counts: {},
+        dots: {},
+      },
+    };
+    const shoot = async (page: import("playwright-core").Page, name: string): Promise<void> => {
+      await page.screenshot({ path: path.join(shots, `${name}.png`) });
+    };
 
-    for (const [skin, mode] of [["paper", "light"], ["graphite", "dark"]] as const) {
-      const ctx = await browser.newContext({ viewport: process.env["VYRE_CREW_PHONE"] === "1" ? { width: 390, height: 844 } : { width: 1440, height: 900 } });
-      await ctx.addInitScript((s: unknown) => { try { localStorage.setItem("vyre.session.v1", JSON.stringify({ sessions: { [(s as { baseUrl: string }).baseUrl]: s } })); } catch { /* blocked */ } }, session);
+    for (const [skin, mode] of [
+      ["paper", "light"],
+      ["graphite", "dark"],
+    ] as const) {
+      const ctx = await browser.newContext({
+        viewport: process.env["VYRE_CREW_PHONE"] === "1" ? { width: 390, height: 844 } : { width: 1440, height: 900 },
+      });
+      await ctx.addInitScript((s: unknown) => {
+        try {
+          localStorage.setItem(
+            "vyre.session.v1",
+            JSON.stringify({ sessions: { [(s as { baseUrl: string }).baseUrl]: s } }),
+          );
+        } catch {
+          /* blocked */
+        }
+      }, session);
       const page = await ctx.newPage();
       const errors: string[] = [];
       page.on("pageerror", (e) => errors.push(e.message));
-      page.on("console", (c) => { if (c.type() === "error") console.error("CONSOLE", c.text().slice(0, 600)); });
+      page.on("console", (c) => {
+        if (c.type() === "error") console.error("CONSOLE", c.text().slice(0, 600));
+      });
       await page.goto(`${web.origin}/chats?skin=${skin}`, { waitUntil: "load" });
       const phone = process.env["VYRE_CREW_PHONE"] === "1";
-      await (phone ? page.getByText("Build the site", { exact: false }).first() : page.getByTestId("shell")).waitFor({ timeout: 40_000 }).catch(async (e) => { await shoot(page, `${mode}-FAILED-shell`); throw e; });
+      await (phone ? page.getByText("Build the site", { exact: false }).first() : page.getByTestId("shell"))
+        .waitFor({ timeout: 40_000 })
+        .catch(async (e) => {
+          await shoot(page, `${mode}-FAILED-shell`);
+          throw e;
+        });
       if (mode === "light") {
         // the lead is asked in the chat the way a person asks: the message is posted into the thread
-        await api("chat.post", { threadId: chat, body: "build dark mode", mentions: [{ kind: "agent", id: lead }], idempotencyKey: "j-ask" });
-        await waitFor(async () => {
-          const jobs = (await api("engine.crew.list", { threadId: chat })).jobs as Array<{ state: string }>;
-          return jobs[0] && jobs[0].state !== "working" ? true : null;
-        }, 60_000, () => hostLog(d));
+        await api("chat.post", {
+          threadId: chat,
+          body: "build dark mode",
+          mentions: [{ kind: "agent", id: lead }],
+          idempotencyKey: "j-ask",
+        });
+        await waitFor(
+          async () => {
+            const jobs = (await api("engine.crew.list", { threadId: chat })).jobs as Array<{ state: string }>;
+            return jobs[0] && jobs[0].state !== "working" ? true : null;
+          },
+          60_000,
+          () => hostLog(d),
+        );
       }
       const later = page.getByText("Finish later", { exact: true });
-      if (await later.count()) await later.first().click().catch(() => undefined);
-      await page.getByText("Build the site", { exact: false }).first().click({ timeout: 30_000 }).catch(async (e) => { await shoot(page, `${mode}-FAILED-open-chat`); await page.getByText("Details", { exact: true }).click().catch(() => undefined); console.error("DETAILS", (await page.locator("body").innerText()).slice(0, 1500), errors.join(" | ")); throw e; });
+      if (await later.count())
+        await later
+          .first()
+          .click()
+          .catch(() => undefined);
+      await page
+        .getByText("Build the site", { exact: false })
+        .first()
+        .click({ timeout: 30_000 })
+        .catch(async (e) => {
+          await shoot(page, `${mode}-FAILED-open-chat`);
+          await page
+            .getByText("Details", { exact: true })
+            .click()
+            .catch(() => undefined);
+          console.error("DETAILS", (await page.locator("body").innerText()).slice(0, 1500), errors.join(" | "));
+          throw e;
+        });
       const jobId = ((await api("engine.crew.list", { threadId: chat })).jobs as Array<{ jobId: string }>)[0]!.jobId;
       // nothing is posted per coder: the strip holds Ember, with Merge in its header; no result card, no "Ember is on ..." line (owner, 5 Nov 2026)
-      await page.getByTestId("crew-strip").first().waitFor({ timeout: 40_000 }).catch(async (e) => { await shoot(page, `${mode}-FAILED-strip`); throw e; });
+      await page
+        .getByTestId("crew-strip")
+        .first()
+        .waitFor({ timeout: 40_000 })
+        .catch(async (e) => {
+          await shoot(page, `${mode}-FAILED-strip`);
+          throw e;
+        });
       assert.equal(await page.getByTestId(`crew-card-${jobId}`).count(), 0, "no result card in the chat");
       assert.equal(await page.getByText("Ember is on Dark mode").count(), 0, "no line that says it started");
       assert.equal(await page.getByText(/Started a helper/).count(), 0);
@@ -130,8 +271,16 @@ test("a person watches a crew build in a plain chat in the real app: the Crew ta
       } else {
         await page.getByTestId("crew-strip-merged").waitFor({ timeout: 20_000 });
       }
-      assert.deepEqual(errors.filter((e) => !/#418/.test(e)), [], "no page error");
+      assert.deepEqual(
+        errors.filter((e) => !/#418/.test(e)),
+        [],
+        "no page error",
+      );
       await ctx.close();
     }
-  } finally { await browser.close(); web.close(); await stop(d); }
+  } finally {
+    await browser.close();
+    web.close();
+    await stop(d);
+  }
 });

@@ -6,19 +6,26 @@ import type { KitEnv } from "../runtime/env.ts";
 export function fakeHooks(data: Record<string, unknown>, loading: readonly string[] = []): ScreenHooks {
   return {
     query(_screenId, name): LiveQuery<unknown> {
-      const snap = loading.includes(name) || !(name in data) ? { status: "loading" as const } : { status: "ready" as const, data: data[name] };
+      const snap =
+        loading.includes(name) || !(name in data)
+          ? { status: "loading" as const }
+          : { status: "ready" as const, data: data[name] };
       return { subscribe: () => () => {}, getSnapshot: () => snap };
     },
   };
 }
 
-export function fakeEnv(over: Partial<KitEnv> & { data?: Record<string, unknown>; loading?: readonly string[] } = {}): KitEnv & { invoked: { action: unknown; input: unknown }[] } {
+export function fakeEnv(
+  over: Partial<KitEnv> & { data?: Record<string, unknown>; loading?: readonly string[] } = {},
+): KitEnv & { invoked: { action: unknown; input: unknown }[] } {
   const invoked: { action: unknown; input: unknown }[] = [];
   const { data = {}, loading = [], ...rest } = over;
   return {
     hooks: fakeHooks(data, loading),
     online: true,
-    invoke: (action, input) => { invoked.push({ action, input }); },
+    invoke: (action, input) => {
+      invoked.push({ action, input });
+    },
     ...rest,
     invoked,
   };
@@ -46,11 +53,26 @@ export const listDef: KitScreenDef = {
         t: "list",
         bind: "/queries/people",
         empty: "No matches",
-        row: { t: "row", children: [{ t: "text", value: "{/row/name}" }, { t: "text", value: "{/row/company}", style: "muted" }, { t: "button", label: "Open", action: "open" }] },
+        row: {
+          t: "row",
+          children: [
+            { t: "text", value: "{/row/name}" },
+            { t: "text", value: "{/row/company}", style: "muted" },
+            { t: "button", label: "Open", action: "open" },
+          ],
+        },
       },
     ],
   },
-  menus: [{ target: "/queries/people", items: [{ label: "Open", icon: "open", action: "open" }, { label: "Delete", icon: "trash", action: "remove", when: "/row/id" }] }],
+  menus: [
+    {
+      target: "/queries/people",
+      items: [
+        { label: "Open", icon: "open", action: "open" },
+        { label: "Delete", icon: "trash", action: "remove", when: "/row/id" },
+      ],
+    },
+  ],
   keys: [{ combo: "mod+backspace", action: "remove" }],
   perf: { firstPaintMs: 50, completeMs: 100 },
 };

@@ -6,14 +6,20 @@ import path from "node:path";
 
 const ROOT = path.resolve(import.meta.dirname, "..");
 const CLAIM = /end[- ]to[- ]end|e2e encrypted|e2ee/i;
-const walk = (dir: string): string[] => fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
-  const p = path.join(dir, e.name);
-  if (e.isDirectory()) return e.name === "node_modules" || e.name === "tests" || e.name === "fixtures" ? [] : walk(p);
-  return /\.tsx?$/.test(e.name) && !/\.test\.tsx?$/.test(e.name) ? [p] : [];
-});
+const walk = (dir: string): string[] =>
+  fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
+    const p = path.join(dir, e.name);
+    if (e.isDirectory()) return e.name === "node_modules" || e.name === "tests" || e.name === "fixtures" ? [] : walk(p);
+    return /\.tsx?$/.test(e.name) && !/\.test\.tsx?$/.test(e.name) ? [p] : [];
+  });
 
 test("no string a person can read says a chat is end to end", () => {
-  const sources = [...walk(path.join(ROOT, "apps/app/src")), ...walk(path.join(ROOT, "ui/src")), ...walk(path.join(ROOT, "modules/chat")), ...walk(path.join(ROOT, "modules/search"))];
+  const sources = [
+    ...walk(path.join(ROOT, "apps/app/src")),
+    ...walk(path.join(ROOT, "ui/src")),
+    ...walk(path.join(ROOT, "modules/chat")),
+    ...walk(path.join(ROOT, "modules/search")),
+  ];
   const found: string[] = [];
   for (const file of sources) {
     const lines = fs.readFileSync(file, "utf8").split("\n");

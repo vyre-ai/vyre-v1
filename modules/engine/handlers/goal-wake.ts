@@ -11,32 +11,56 @@ import type { BatonHost } from "./task-baton.ts";
 
 type Obj = Record<string, unknown>;
 const str = (v: unknown): string => (typeof v === "string" ? v : "");
-export interface GoalEvent { name: string; id?: string; payload: Obj }
+export interface GoalEvent {
+  name: string;
+  id?: string;
+  payload: Obj;
+}
 
-export async function onGoalEvent(ctx: Pick<EngineCtx, "db">, host: BatonHost, engine: TurnEngine | null, event: GoalEvent): Promise<string[]> {
+export async function onGoalEvent(
+  ctx: Pick<EngineCtx, "db">,
+  host: BatonHost,
+  engine: TurnEngine | null,
+  event: GoalEvent,
+): Promise<string[]> {
   if (!engine) return [];
   const p = event.payload;
   const goalId = str(p["goalId"]);
   if (event.name === "goal.resumed") {
     const woken: string[] = [];
-    for (const taskId of Array.isArray(p["taskIds"]) ? (p["taskIds"] as unknown[]).map(str).filter((x) => x !== "") : []) {
+    for (const taskId of Array.isArray(p["taskIds"])
+      ? (p["taskIds"] as unknown[]).map(str).filter((x) => x !== "")
+      : []) {
       woken.push(...(await onTaskEvent(ctx, host, engine, { name: "task.ready", payload: { taskId } })));
     }
     return woken;
   }
   if (event.name !== "goal.woken") return [];
-  const claim = (await host.call("goals.wake_claim", { goalId, wakeId: str(p["wakeId"]), attempt: Number(p["attempt"] ?? 1) }).catch((e: unknown) => {
-    host.log?.("a goal wake-up could not be claimed", { goalId, error: e instanceof Error ? e.message : String(e) });
-    return null;
-  })) as { claimed?: boolean; threadId?: string; leadAgentId?: string; owner?: string } | null;
+  const claim = (await host
+    .call("goals.wake_claim", { goalId, wakeId: str(p["wakeId"]), attempt: Number(p["attempt"] ?? 1) })
+    .catch((e: unknown) => {
+      host.log?.("a goal wake-up could not be claimed", { goalId, error: e instanceof Error ? e.message : String(e) });
+      return null;
+    })) as { claimed?: boolean; threadId?: string; leadAgentId?: string; owner?: string } | null;
   if (claim?.claimed !== true || !claim.threadId || !claim.leadAgentId || !claim.owner) return [];
   const { threadId, leadAgentId: agentId, owner } = claim as { threadId: string; leadAgentId: string; owner: string };
   let busy = false;
-  try { busy = engine.turns(threadId).some((t) => (t.state === "running" || t.state === "waiting") && t.agentId === agentId); } catch { /* not open on this host yet */ }
+  try {
+    busy = engine
+      .turns(threadId)
+      .some((t) => (t.state === "running" || t.state === "waiting") && t.agentId === agentId);
+  } catch {
+    /* not open on this host yet */
+  }
   if (busy) return [];
   // the goal's owner must still be able to give its lead agent work (an agent handed to someone else, or a share taken back, stops it): not found or no is not a wake (review 12 Nov, should-fix)
-  const usable = (await host.call("agents.outside.usable", { agentId }, owner).catch(() => null)) as { usable?: boolean } | null;
-  if (usable?.usable !== true) { host.log?.("a goal's lead agent is no longer the owner's to give work, so it was not woken", { goalId, agentId }); return []; }
+  const usable = (await host.call("agents.outside.usable", { agentId }, owner).catch(() => null)) as {
+    usable?: boolean;
+  } | null;
+  if (usable?.usable !== true) {
+    host.log?.("a goal's lead agent is no longer the owner's to give work, so it was not woken", { goalId, agentId });
+    return [];
+  }
   if (!(await openThread(ctx.db as never, host, engine, threadId, agentId, owner, owner))) return [];
   engine.wake(threadId, agentId);
   return [agentId];

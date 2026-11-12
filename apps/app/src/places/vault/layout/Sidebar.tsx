@@ -36,44 +36,135 @@ export interface SidebarProps {
 
 const Count = ({ n }: { n: number }): ReactElement => <Text style={s.count}>{n}</Text>;
 
-export function Sidebar({ counts, folders, selection, onSelect, onAdvanced, onNewFolder, onFolderMenu, canCreateShared, hideShared = false, advanced = false, onConnections, connections = false, connectionsNeedYou = 0, connectionCount }: SidebarProps): ReactElement {
+export function Sidebar({
+  counts,
+  folders,
+  selection,
+  onSelect,
+  onAdvanced,
+  onNewFolder,
+  onFolderMenu,
+  canCreateShared,
+  hideShared = false,
+  advanced = false,
+  onConnections,
+  connections = false,
+  connectionsNeedYou = 0,
+  connectionCount,
+}: SidebarProps): ReactElement {
   const routed = advanced || connections;
   const [naming, setNaming] = useState<string | null>(null);
   const [folderError, setFolderError] = useState<string | null>(null);
   const item = (sel: Selection, key: string, label: string, icon: IconName, n?: number): ReactElement => (
-    <Row key={key} id={`nav-${key}`} title={label} selected={!routed && sameSelection(sel, selection)} leading={<View style={s.lead}><Glyph name={icon} size={16} color={sameSelection(sel, selection) ? "var(--ink)" : "var(--ink-2)"} /></View>} trailing={n !== undefined ? <Count n={n} /> : undefined} onPress={() => onSelect(sel)} />
+    <Row
+      key={key}
+      id={`nav-${key}`}
+      title={label}
+      selected={!routed && sameSelection(sel, selection)}
+      leading={
+        <View style={s.lead}>
+          <Glyph name={icon} size={16} color={sameSelection(sel, selection) ? "var(--ink)" : "var(--ink-2)"} />
+        </View>
+      }
+      trailing={n !== undefined ? <Count n={n} /> : undefined}
+      onPress={() => onSelect(sel)}
+    />
   );
   const shared = folders.filter((f) => f.scope === "shared");
-  const depthOf = (f: Folder): number => { let d = 0; let cur: Folder | undefined = f; while (cur?.parentId && d < 4) { cur = shared.find((x) => x.id === cur!.parentId); d++; } return d; };
+  const depthOf = (f: Folder): number => {
+    let d = 0;
+    let cur: Folder | undefined = f;
+    while (cur?.parentId && d < 4) {
+      cur = shared.find((x) => x.id === cur!.parentId);
+      d++;
+    }
+    return d;
+  };
   const submit = async (): Promise<void> => {
     const name = (naming ?? "").trim();
-    if (!name) { setNaming(null); return; }
-    try { await onNewFolder(name); setNaming(null); setFolderError(null); } catch { setFolderError("Could not make that folder."); }
+    if (!name) {
+      setNaming(null);
+      return;
+    }
+    try {
+      await onNewFolder(name);
+      setNaming(null);
+      setFolderError(null);
+    } catch {
+      setFolderError("Could not make that folder.");
+    }
   };
   const folderRows: ReactElement[] = [];
   for (const f of shared) {
     folderRows.push(
-          <View key={f.id} {...menuTrigger((x, y) => onFolderMenu(f, x, y))}>
-            <Row id={`nav-folder-${f.id}`} title={f.name} selected={!routed && selection.kind === "folder" && selection.folderId === f.id}
-              leading={<View style={[s.lead, { marginLeft: depthOf(f) * 12 }]}><Glyph name="folder" size={16} color="var(--ink-2)" /></View>} trailing={<Count n={counts.folders.get(f.id) ?? f.itemCount} />}
-              onPress={() => onSelect({ kind: "folder", folderId: f.id })} />
-          </View>
+      <View key={f.id} {...menuTrigger((x, y) => onFolderMenu(f, x, y))}>
+        <Row
+          id={`nav-folder-${f.id}`}
+          title={f.name}
+          selected={!routed && selection.kind === "folder" && selection.folderId === f.id}
+          leading={
+            <View style={[s.lead, { marginLeft: depthOf(f) * 12 }]}>
+              <Glyph name="folder" size={16} color="var(--ink-2)" />
+            </View>
+          }
+          trailing={<Count n={counts.folders.get(f.id) ?? f.itemCount} />}
+          onPress={() => onSelect({ kind: "folder", folderId: f.id })}
+        />
+      </View>,
     );
   }
   return (
-    <ResizableColumn paneKey="place-sidebar" defaultWidth={244} grow="right" min={200} maxFraction={0.5} maxWidth={380} style={s.side as never} testID="vault-sidebar" role="menu" label="Vault sections">
-      <View style={s.title}><Text accessibilityRole="header" style={s.titleText}>Vault</Text></View>
+    <ResizableColumn
+      paneKey="place-sidebar"
+      defaultWidth={244}
+      grow="right"
+      min={200}
+      maxFraction={0.5}
+      maxWidth={380}
+      style={s.side as never}
+      testID="vault-sidebar"
+      role="menu"
+      label="Vault sections"
+    >
+      <View style={s.title}>
+        <Text accessibilityRole="header" style={s.titleText}>
+          Vault
+        </Text>
+      </View>
       <View style={s.group}>
-        {counts.requested > 0 ? item({ kind: "requested" }, "requested", "Requested", "requested", counts.requested) : null}
+        {counts.requested > 0
+          ? item({ kind: "requested" }, "requested", "Requested", "requested", counts.requested)
+          : null}
         {item({ kind: "all" }, "all", "All", "all", counts.all)}
         {item({ kind: "providers" }, "providers", "AI accounts", "providers", counts.providers)}
         {item({ kind: "google" }, "google", "Google and Microsoft", "google", counts.google)}
         {/* one Connections row: the Connections page where the Space has it (l-connections), else the Vault's own section */}
-        {onConnections
-          ? <Row id="nav-connections" title="Connections" selected={connections} leading={<View style={s.lead}><Glyph name="link" size={16} color={connections ? "var(--ink)" : "var(--ink-2)"} /></View>} trailing={connectionsNeedYou > 0 ? <Count n={connectionsNeedYou} /> : undefined} onPress={onConnections} />
-          : item({ kind: "connections" }, "connections", "Connections", "connections", connectionCount ?? counts.connections)}
+        {onConnections ? (
+          <Row
+            id="nav-connections"
+            title="Connections"
+            selected={connections}
+            leading={
+              <View style={s.lead}>
+                <Glyph name="link" size={16} color={connections ? "var(--ink)" : "var(--ink-2)"} />
+              </View>
+            }
+            trailing={connectionsNeedYou > 0 ? <Count n={connectionsNeedYou} /> : undefined}
+            onPress={onConnections}
+          />
+        ) : (
+          item(
+            { kind: "connections" },
+            "connections",
+            "Connections",
+            "connections",
+            connectionCount ?? counts.connections,
+          )
+        )}
       </View>
-      <View style={s.head}><Text style={s.headText}>Everything else</Text></View>
+      <View style={s.head}>
+        <Text style={s.headText}>Everything else</Text>
+      </View>
       <View style={s.group}>
         {item({ kind: "keys" }, "keys", "Keys", "keys", counts.keys)}
         {item({ kind: "logins" }, "logins", "Logins", "logins", counts.logins)}
@@ -82,33 +173,71 @@ export function Sidebar({ counts, folders, selection, onSelect, onAdvanced, onNe
       </View>
       {hideShared ? null : (
         <>
-      <View style={s.head}>
-        <Text style={s.headText}>Shared</Text>
-        <View style={{ flex: 1 }} />
-        {canCreateShared ? <IconBtn icon="plus" label="New shared folder" onPress={() => setNaming("")} testID="new-folder" /> : null}
-      </View>
-      <View style={s.group} testID="vault-folders">
-        {folderRows}
-        {naming !== null ? (
-          <View style={s.naming}>
-            <Glyph name="folder" size={16} color="var(--ink-2)" />
-            <TextInput autoFocus value={naming} onChangeText={setNaming} placeholder="Folder name" accessibilityLabel="Folder name" onSubmitEditing={() => { void submit(); }} onBlur={() => { void submit(); }} style={s.nameInput} testID="new-folder-name" />
+          <View style={s.head}>
+            <Text style={s.headText}>Shared</Text>
+            <View style={{ flex: 1 }} />
+            {canCreateShared ? (
+              <IconBtn icon="plus" label="New shared folder" onPress={() => setNaming("")} testID="new-folder" />
+            ) : null}
           </View>
-        ) : null}
-        {folderError ? <Text style={s.error} accessibilityRole="alert">{folderError}</Text> : null}
-      </View>
+          <View style={s.group} testID="vault-folders">
+            {folderRows}
+            {naming !== null ? (
+              <View style={s.naming}>
+                <Glyph name="folder" size={16} color="var(--ink-2)" />
+                <TextInput
+                  autoFocus
+                  value={naming}
+                  onChangeText={setNaming}
+                  placeholder="Folder name"
+                  accessibilityLabel="Folder name"
+                  onSubmitEditing={() => {
+                    void submit();
+                  }}
+                  onBlur={() => {
+                    void submit();
+                  }}
+                  style={s.nameInput}
+                  testID="new-folder-name"
+                />
+              </View>
+            ) : null}
+            {folderError ? (
+              <Text style={s.error} accessibilityRole="alert">
+                {folderError}
+              </Text>
+            ) : null}
+          </View>
         </>
       )}
       <View style={[s.group, { marginTop: 8 }]}>
         {hideShared ? null : item({ kind: "mine" }, "mine", "Mine", "mine", counts.mine)}
-        <Row id="nav-advanced" title="Advanced" selected={advanced} leading={<View style={s.lead}><Glyph name="advanced" size={16} color="var(--ink-2)" /></View>} onPress={onAdvanced} />
+        <Row
+          id="nav-advanced"
+          title="Advanced"
+          selected={advanced}
+          leading={
+            <View style={s.lead}>
+              <Glyph name="advanced" size={16} color="var(--ink-2)" />
+            </View>
+          }
+          onPress={onAdvanced}
+        />
       </View>
     </ResizableColumn>
   );
 }
 
 const s = StyleSheet.create({
-  side: { width: 240, flexShrink: 0, paddingHorizontal: 8, paddingBottom: 12, backgroundColor: "var(--side)" as string, borderRightWidth: 1, borderRightColor: "var(--line)" as string },
+  side: {
+    width: 240,
+    flexShrink: 0,
+    paddingHorizontal: 8,
+    paddingBottom: 12,
+    backgroundColor: "var(--side)" as string,
+    borderRightWidth: 1,
+    borderRightColor: "var(--line)" as string,
+  },
   title: { height: 48, justifyContent: "center", paddingHorizontal: 10 },
   titleText: { fontSize: 18, fontWeight: "600", letterSpacing: -0.2, color: "var(--ink)" as string },
   group: { gap: 1 },

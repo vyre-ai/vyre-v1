@@ -11,7 +11,16 @@ const OWNER = { entity: "note", id: "n1" };
 
 function caller() {
   const log: { name: string; subject: string; payload: Record<string, unknown> }[] = [];
-  return { log, ctx: { trace: { traceId: TRACE }, principal: ADA, emit: (name: string, subject: string, payload: unknown) => { log.push({ name, subject, payload: payload as Record<string, unknown> }); } } };
+  return {
+    log,
+    ctx: {
+      trace: { traceId: TRACE },
+      principal: ADA,
+      emit: (name: string, subject: string, payload: unknown) => {
+        log.push({ name, subject, payload: payload as Record<string, unknown> });
+      },
+    },
+  };
 }
 
 test("an accepted update emits one doc.updated with the doc id, the size, the actor and the seq it answered", async () => {
@@ -23,11 +32,19 @@ test("an accepted update emits one doc.updated with the doc id, the size, the ac
   const out = await h["sync.doc.update"](ctx, { doc: "not_a", update: toB64(bytes) });
   assert.deepEqual(out, { seq: 1 });
   assert.equal(log.length, 1);
-  assert.deepEqual(log[0], { name: "doc.updated", subject: "not_a", payload: { doc: "not_a", bytes: bytes.length, actor: ADA, seq: 1 } });
+  assert.deepEqual(log[0], {
+    name: "doc.updated",
+    subject: "not_a",
+    payload: { doc: "not_a", bytes: bytes.length, actor: ADA, seq: 1 },
+  });
   assert.ok(!JSON.stringify(log).includes("secret"), "no content in the event");
   const second = await h["sync.doc.update"](ctx, { doc: "not_a", update: toB64(edit([bytes], 0, "beta ")) });
   assert.equal(second.seq, 2);
-  assert.deepEqual(log.map((e) => e.payload["seq"]), [1, 2], "one event per accepted update, seq in step with the answer");
+  assert.deepEqual(
+    log.map((e) => e.payload["seq"]),
+    [1, 2],
+    "one event per accepted update, seq in step with the answer",
+  );
 });
 
 test("an empty update and a refused update emit nothing", async () => {
@@ -45,6 +62,12 @@ test("a caller with no emit still works (the server's own store keeps its copy)"
   const rig = docRig();
   rig.allow("not_a", [ADA], { owner: OWNER });
   const h = createDocHandlers(rig.server);
-  assert.deepEqual(await h["sync.doc.update"]({ trace: { traceId: TRACE }, principal: ADA }, { doc: "not_a", update: toB64(edit([], 0, "alpha")) }), { seq: 1 });
+  assert.deepEqual(
+    await h["sync.doc.update"](
+      { trace: { traceId: TRACE }, principal: ADA },
+      { doc: "not_a", update: toB64(edit([], 0, "alpha")) },
+    ),
+    { seq: 1 },
+  );
   assert.equal(rig.events.filter((e) => e.type === "doc.updated").length, 1);
 });

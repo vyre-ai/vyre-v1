@@ -14,9 +14,11 @@ function labelledBox(name: string, label: string, body: string): string {
 
 export function ViewerPlaceholder(props: ViewerProps): string {
   const label = viewerLabel(props);
-  const pins = (props.pins ?? []).map((pin) => {
-    return `<div data-pin="${esc(pin.id)}" data-n="${pin.n}">${esc(pin.text)}</div>`;
-  }).join("");
+  const pins = (props.pins ?? [])
+    .map((pin) => {
+      return `<div data-pin="${esc(pin.id)}" data-n="${pin.n}">${esc(pin.text)}</div>`;
+    })
+    .join("");
   const find = props.find ? `<div data-find>${esc(props.find)}</div>` : "";
   const tool = props.tool ? ` data-tool="${esc(props.tool)}"` : "";
   const editing = props.editing === true ? ` data-editing="true"` : "";

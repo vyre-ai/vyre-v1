@@ -29,23 +29,58 @@ export interface Contact {
   /** a draft reply waits for this contact */
   draft?: boolean;
 }
-export interface Emitted { name: string; subject: string; payload: Record<string, unknown>; vis?: string | undefined }
-export interface Called { cap: string; input: Record<string, unknown> }
-export interface Mailbox { id: string; kind: "personal" | "shared" | "agent" | "service"; address: string; title: string; provider: "google" | "microsoft" | "imap" | "inbound_only"; privacy: "private" | "space" | "people"; state: "pending" | "syncing" | "paused" | "error" | "disconnected" }
-export interface Mail { id: string; threadId: string; subject: string; from: string; to: string[]; cc?: string[]; attachments?: { attachmentId: string; name: string; mime: string; size: number; fileId?: string }[]; body?: string; at?: number; mailboxId?: string; role?: "started" | "to" | "cc" | "added_later" | "none" }
+export interface Emitted {
+  name: string;
+  subject: string;
+  payload: Record<string, unknown>;
+  vis?: string | undefined;
+}
+export interface Called {
+  cap: string;
+  input: Record<string, unknown>;
+}
+export interface Mailbox {
+  id: string;
+  kind: "personal" | "shared" | "agent" | "service";
+  address: string;
+  title: string;
+  provider: "google" | "microsoft" | "imap" | "inbound_only";
+  privacy: "private" | "space" | "people";
+  state: "pending" | "syncing" | "paused" | "error" | "disconnected";
+}
+export interface Mail {
+  id: string;
+  threadId: string;
+  subject: string;
+  from: string;
+  to: string[];
+  cc?: string[];
+  attachments?: { attachmentId: string; name: string; mime: string; size: number; fileId?: string }[];
+  body?: string;
+  at?: number;
+  mailboxId?: string;
+  role?: "started" | "to" | "cc" | "added_later" | "none";
+}
 
 export interface HarnessOptions {
   principal?: InboxCtx["principal"];
   contacts?: Contact[];
   mailboxes?: Mailbox[];
-  numbers?: { id: string; e164: string; state: "pending" | "active" | "released"; capabilities: ("voice" | "sms" | "mms")[] }[];
+  numbers?: {
+    id: string;
+    e164: string;
+    state: "pending" | "active" | "released";
+    capabilities: ("voice" | "sms" | "mms")[];
+  }[];
   mail?: Mail[];
 }
 
 export function harness(opts: HarnessOptions = {}) {
   const emitted: Emitted[] = [];
   const called: Called[] = [];
-  const contacts = new Map<string, Contact>((opts.contacts ?? []).map((c) => [c.id, { ...c, emails: [...c.emails], phones: [...c.phones] }]));
+  const contacts = new Map<string, Contact>(
+    (opts.contacts ?? []).map((c) => [c.id, { ...c, emails: [...c.emails], phones: [...c.phones] }]),
+  );
   const mailboxOwners = new Map<string, string>();
   const mail = new Map<string, Mail>((opts.mail ?? []).map((m) => [m.id, m]));
   const added = new Map<string, { contactId: string; value: string }>();
@@ -62,11 +97,29 @@ export function harness(opts: HarnessOptions = {}) {
   let meetingsFail = false;
 
   const record = (c: Contact) => ({
-    id: c.id, type: c.type, version: 1, label: 0, fields: { name: c.name, ...(c.emails[0] ? { email: c.emails[0] } : {}), ...(c.phones[0] ? { phone: c.phones[0] } : {}),
-      ...(c.company ? { company: c.company } : {}), ...(c.dnd ? { pref_do_not_contact: true } : {}), ...(c.deliverability ? { deliverability: c.deliverability } : {}) },
-    createdAt: NOW, updatedAt: NOW, holds: 0,
+    id: c.id,
+    type: c.type,
+    version: 1,
+    label: 0,
+    fields: {
+      name: c.name,
+      ...(c.emails[0] ? { email: c.emails[0] } : {}),
+      ...(c.phones[0] ? { phone: c.phones[0] } : {}),
+      ...(c.company ? { company: c.company } : {}),
+      ...(c.dnd ? { pref_do_not_contact: true } : {}),
+      ...(c.deliverability ? { deliverability: c.deliverability } : {}),
+    },
+    createdAt: NOW,
+    updatedAt: NOW,
+    holds: 0,
   });
-  const candidate = (c: Contact, via: "address" | "phone" | "name", score: number) => ({ recordId: c.id, type: c.type, name: c.name, via, score });
+  const candidate = (c: Contact, via: "address" | "phone" | "name", score: number) => ({
+    recordId: c.id,
+    type: c.type,
+    name: c.name,
+    via,
+    score,
+  });
 
   const ctx: InboxCtx = {
     space: "spc_inbox",
@@ -80,7 +133,8 @@ export function harness(opts: HarnessOptions = {}) {
     },
     authorize(_action, resource) {
       // the real kernel knows nothing of a conversation with no record above it: not_found, and the Inbox's own reasons decide (views.ts canSee)
-      if (state.conversationsUnknown && resource.type === "conversation") return { effect: "deny", reason: "not_found", decisionId: "dec_test" };
+      if (state.conversationsUnknown && resource.type === "conversation")
+        return { effect: "deny", reason: "not_found", decisionId: "dec_test" };
       const effect = denied.has(`${resource.type}:${resource.id}`) ? "deny" : "allow";
       return { effect, reason: effect, decisionId: "dec_test" };
     },
@@ -94,10 +148,17 @@ export function harness(opts: HarnessOptions = {}) {
         case "contacts.resolve": {
           const email = typeof body.email === "string" ? body.email : undefined;
           const phone = typeof body.phone === "string" ? body.phone : undefined;
-          const sure = [...contacts.values()].filter((c) => (email && c.emails.includes(email)) || (phone && c.phones.includes(phone))).map((c) => candidate(c, email ? "address" : "phone", 1));
+          const sure = [...contacts.values()]
+            .filter((c) => (email && c.emails.includes(email)) || (phone && c.phones.includes(phone)))
+            .map((c) => candidate(c, email ? "address" : "phone", 1));
           const domain = email?.split("@")[1];
           const unsure = [...contacts.values()]
-            .filter((c) => !sure.some((s) => s.recordId === c.id) && ((domain && c.domain === domain) || (typeof body.name === "string" && c.name.toLowerCase() === body.name.toLowerCase())))
+            .filter(
+              (c) =>
+                !sure.some((s) => s.recordId === c.id) &&
+                ((domain && c.domain === domain) ||
+                  (typeof body.name === "string" && c.name.toLowerCase() === body.name.toLowerCase())),
+            )
             .map((c) => candidate(c, domain && c.domain === domain ? "address" : "name", 0.5));
           return { sure, unsure };
         }
@@ -105,7 +166,9 @@ export function harness(opts: HarnessOptions = {}) {
           const c = typeof body.contactId === "string" ? contacts.get(body.contactId) : undefined;
           if (c?.owner) return { ownerId: c.owner, via: "owner" };
           const boxOwner = typeof body.mailboxId === "string" ? mailboxOwners.get(body.mailboxId) : undefined;
-          return boxOwner ? { ownerId: boxOwner, via: "shared_inbox", mailboxId: body.mailboxId } : { via: "shared_inbox" };
+          return boxOwner
+            ? { ownerId: boxOwner, via: "shared_inbox", mailboxId: body.mailboxId }
+            : { via: "shared_inbox" };
         }
         case "contacts.address.add": {
           const c = contacts.get(String(body.contactId));
@@ -129,7 +192,12 @@ export function harness(opts: HarnessOptions = {}) {
         }
         case "contacts.address.list": {
           const c = contacts.get(String(body.contactId));
-          return { addresses: [...(c?.emails ?? []).map((v) => ({ kind: "email", value: v })), ...(c?.phones ?? []).map((v) => ({ kind: "phone", value: v }))].map((a, i) => ({ id: `adr_x${i}`, contactId: c?.id, primary: i === 0, verified: true, ...a })) };
+          return {
+            addresses: [
+              ...(c?.emails ?? []).map((v) => ({ kind: "email", value: v })),
+              ...(c?.phones ?? []).map((v) => ({ kind: "phone", value: v })),
+            ].map((a, i) => ({ id: `adr_x${i}`, contactId: c?.id, primary: i === 0, verified: true, ...a })),
+          };
         }
         case "records.get": {
           const c = contacts.get(String(body.recordId));
@@ -138,19 +206,49 @@ export function harness(opts: HarnessOptions = {}) {
         }
         case "records.create": {
           const f = (body.fields ?? {}) as Record<string, unknown>;
-          const c: Contact = { id: `rec_new${++serial}`, type: body.type === "company" ? "company" : "contact", name: String(f.name), emails: typeof f.email === "string" ? [f.email] : [], phones: typeof f.phone === "string" ? [f.phone] : [] };
+          const c: Contact = {
+            id: `rec_new${++serial}`,
+            type: body.type === "company" ? "company" : "contact",
+            name: String(f.name),
+            emails: typeof f.email === "string" ? [f.email] : [],
+            phones: typeof f.phone === "string" ? [f.phone] : [],
+          };
           contacts.set(c.id, c);
           return { record: record(c) };
         }
         case "records.search": {
           const q = String(body.q).toLowerCase();
-          return { rows: [...contacts.values()].filter((c) => c.type === body.type && c.name.toLowerCase().includes(q)).map(record) };
+          return {
+            rows: [...contacts.values()]
+              .filter((c) => c.type === body.type && c.name.toLowerCase().includes(q))
+              .map(record),
+          };
         }
         case "tasks.create": {
           if (taskFails) throw fail("internal.unavailable", trace);
-          return { task: { id: `tsk_${++serial}`, kind: "work", title: body.title, state: "todo", blocked: false, blocks: [], actions: [], assigned: body.assigned, fileIds: [], dependsOn: [], followers: [], workingNotes: {}, reviewLoops: 0, createdBy: ctx.principal.id, createdAt: NOW, updatedAt: NOW } };
+          return {
+            task: {
+              id: `tsk_${++serial}`,
+              kind: "work",
+              title: body.title,
+              state: "todo",
+              blocked: false,
+              blocks: [],
+              actions: [],
+              assigned: body.assigned,
+              fileIds: [],
+              dependsOn: [],
+              followers: [],
+              workingNotes: {},
+              reviewLoops: 0,
+              createdBy: ctx.principal.id,
+              createdAt: NOW,
+              updatedAt: NOW,
+            },
+          };
         }
-        case "projects.files_folder": return { folderId: `fld_${String(body.recordId).replace(/^rec_/, "")}` };
+        case "projects.files_folder":
+          return { folderId: `fld_${String(body.recordId).replace(/^rec_/, "")}` };
         case "files.copy": {
           if (String(body.fileId) === "fil_secret") throw fail("permission.no_grant", trace);
           return { file: { fileId: `fil_copy${++serial}`, folderId: body.toFolderId, name: body.name ?? "copy" } };
@@ -159,22 +257,51 @@ export function harness(opts: HarnessOptions = {}) {
           if (String(body.attachmentId) === "a_secret") throw fail("permission.no_grant", trace);
           return { fileId: `fil_saved${++serial}` };
         }
-        case "follows.toggle": return { following: body.on === true };
+        case "follows.toggle":
+          return { following: body.on === true };
         case "mail.message.get": {
           const m = mail.get(String(body.messageId));
           if (!m || mailGetFails) throw fail("validation.not_found", trace);
-          return { message: { id: m.id, threadId: m.threadId, subject: m.subject, from: { address: m.from }, to: m.to.map((address) => ({ address })), cc: (m.cc ?? []).map((address) => ({ address })) }, attachments: m.attachments ?? [] };
+          return {
+            message: {
+              id: m.id,
+              threadId: m.threadId,
+              subject: m.subject,
+              from: { address: m.from },
+              to: m.to.map((address) => ({ address })),
+              cc: (m.cc ?? []).map((address) => ({ address })),
+            },
+            attachments: m.attachments ?? [],
+          };
         }
         case "mail.thread.get": {
           // mail reads a thread whole, whichever contact each message was filed under
-          const ms = [...mail.values()].filter((m) => m.threadId === body.threadId).sort((a, b) => (a.at ?? NOW) - (b.at ?? NOW));
+          const ms = [...mail.values()]
+            .filter((m) => m.threadId === body.threadId)
+            .sort((a, b) => (a.at ?? NOW) - (b.at ?? NOW));
           if (!ms.length || mailGetFails) throw fail("validation.not_found", trace);
-          const people = [...new Set(ms.flatMap((m) => [m.from, ...m.to, ...(m.cc ?? [])]))].map((address) => ({ address }));
+          const people = [...new Set(ms.flatMap((m) => [m.from, ...m.to, ...(m.cc ?? [])]))].map((address) => ({
+            address,
+          }));
           return {
-            threadId: body.threadId, subject: (ms[0]?.subject ?? "").replace(/^(re|fwd?):\s*/i, ""), role: ms[0]?.role ?? "none", participants: people,
+            threadId: body.threadId,
+            subject: (ms[0]?.subject ?? "").replace(/^(re|fwd?):\s*/i, ""),
+            role: ms[0]?.role ?? "none",
+            participants: people,
             messages: ms.map((m) => ({
-              id: m.id, at: m.at ?? NOW, direction: "in", mailboxId: m.mailboxId ?? "mbx_work", mailboxIds: [m.mailboxId ?? "mbx_work"], from: { address: m.from },
-              to: m.to.map((address) => ({ address })), cc: (m.cc ?? []).map((address) => ({ address })), subject: m.subject, body: m.body ?? "", reactions: [], attachments: [], isPrivate: false,
+              id: m.id,
+              at: m.at ?? NOW,
+              direction: "in",
+              mailboxId: m.mailboxId ?? "mbx_work",
+              mailboxIds: [m.mailboxId ?? "mbx_work"],
+              from: { address: m.from },
+              to: m.to.map((address) => ({ address })),
+              cc: (m.cc ?? []).map((address) => ({ address })),
+              subject: m.subject,
+              body: m.body ?? "",
+              reactions: [],
+              attachments: [],
+              isPrivate: false,
             })),
           };
         }
@@ -182,39 +309,96 @@ export function harness(opts: HarnessOptions = {}) {
           const c = typeof body.contactId === "string" ? contacts.get(body.contactId) : undefined;
           return { drafts: c?.draft ? [{ id: "eml_draft1", status: "draft" }] : [] };
         }
-        case "mail.mailbox.list": return { mailboxes };
-        case "telephony.number.list": return { numbers };
+        case "mail.mailbox.list":
+          return { mailboxes };
+        case "telephony.number.list":
+          return { numbers };
         case "meetings.list": {
           if (meetingsFail) throw fail("internal.unavailable", trace);
           return { meetings };
         }
-        case "access.groups.list": return { groups: groups.filter((g) => g.name.toLowerCase().includes(String(body.q ?? "").toLowerCase())).map((g) => ({ ...g, members: [], managers: [], builtIn: false })) };
-        default: throw new Error(`unexpected capability ${cap}`);
+        case "access.groups.list":
+          return {
+            groups: groups
+              .filter((g) => g.name.toLowerCase().includes(String(body.q ?? "").toLowerCase()))
+              .map((g) => ({ ...g, members: [], managers: [], builtIn: false })),
+          };
+        default:
+          throw new Error(`unexpected capability ${cap}`);
       }
     },
-    log: { info() {}, warn(m, a) { if (process.env.INBOX_DEBUG) console.log(m, a); } },
+    log: {
+      info() {},
+      warn(m, a) {
+        if (process.env.INBOX_DEBUG) console.log(m, a);
+      },
+    },
   };
   ensure(ctx);
 
   return {
-    ctx, emitted, called, contacts, mailboxOwners, mail, denied, meetings, groups, state,
-    advance(ms: number) { clock += ms; },
-    setMailboxes(m: Mailbox[]) { mailboxes = m; },
-    setNumbers(n: NonNullable<HarnessOptions["numbers"]>) { numbers = n; },
-    failTasks(on: boolean) { taskFails = on; },
-    failMailGet(on: boolean) { mailGetFails = on; },
-    failMeetings(on: boolean) { meetingsFail = on; },
-    as(principal: InboxCtx["principal"]): InboxCtx { return Object.assign(Object.create(ctx) as InboxCtx, { principal }); },
-    rows(sql: string, ...args: unknown[]) { return ctx.db.all(sql, ...args) as Record<string, string | number | null>[]; },
-    named(name: string): Emitted[] { return emitted.filter((e) => e.name === name); },
-    calls(cap: string): Called[] { return called.filter((c) => c.cap === cap); },
+    ctx,
+    emitted,
+    called,
+    contacts,
+    mailboxOwners,
+    mail,
+    denied,
+    meetings,
+    groups,
+    state,
+    advance(ms: number) {
+      clock += ms;
+    },
+    setMailboxes(m: Mailbox[]) {
+      mailboxes = m;
+    },
+    setNumbers(n: NonNullable<HarnessOptions["numbers"]>) {
+      numbers = n;
+    },
+    failTasks(on: boolean) {
+      taskFails = on;
+    },
+    failMailGet(on: boolean) {
+      mailGetFails = on;
+    },
+    failMeetings(on: boolean) {
+      meetingsFail = on;
+    },
+    as(principal: InboxCtx["principal"]): InboxCtx {
+      return Object.assign(Object.create(ctx) as InboxCtx, { principal });
+    },
+    rows(sql: string, ...args: unknown[]) {
+      return ctx.db.all(sql, ...args) as Record<string, string | number | null>[];
+    },
+    named(name: string): Emitted[] {
+      return emitted.filter((e) => e.name === name);
+    },
+    calls(cap: string): Called[] {
+      return called.filter((c) => c.cap === cap);
+    },
   };
 }
 
 export type Harness = ReturnType<typeof harness>;
 
-export const LEE: Contact = { id: "rec_lee01", type: "contact", name: "Pat Lee", emails: ["pat@acme.test"], phones: ["+14155550177"], domain: "acme.test", owner: "usr_maya01" };
-export const DANA: Contact = { id: "rec_dana1", type: "contact", name: "Dana Fox", emails: ["dana@fox.test"], phones: [], domain: "fox.test" };
+export const LEE: Contact = {
+  id: "rec_lee01",
+  type: "contact",
+  name: "Pat Lee",
+  emails: ["pat@acme.test"],
+  phones: ["+14155550177"],
+  domain: "acme.test",
+  owner: "usr_maya01",
+};
+export const DANA: Contact = {
+  id: "rec_dana1",
+  type: "contact",
+  name: "Dana Fox",
+  emails: ["dana@fox.test"],
+  phones: [],
+  domain: "fox.test",
+};
 
 export interface Link {
   channel?: "email" | "sms" | "call";
@@ -233,8 +417,14 @@ export function link(o: Link) {
   const n = ++seq;
   const prefix = channel === "email" ? "eml" : channel === "sms" ? "sms" : "cal";
   return {
-    channel, ref: { kind: channel === "email" ? ("mail_message" as const) : channel, id: o.id ?? `${prefix}_t${n}` }, address: o.address, direction: o.direction ?? ("in" as const), at: o.at ?? NOW + n * 1000,
-    ...(o.mailboxId ? { mailboxId: o.mailboxId } : {}), ...(o.numberId ? { numberId: o.numberId } : {}), ...(o.preview !== undefined ? { preview: o.preview } : {}),
+    channel,
+    ref: { kind: channel === "email" ? ("mail_message" as const) : channel, id: o.id ?? `${prefix}_t${n}` },
+    address: o.address,
+    direction: o.direction ?? ("in" as const),
+    at: o.at ?? NOW + n * 1000,
+    ...(o.mailboxId ? { mailboxId: o.mailboxId } : {}),
+    ...(o.numberId ? { numberId: o.numberId } : {}),
+    ...(o.preview !== undefined ? { preview: o.preview } : {}),
   };
 }
 

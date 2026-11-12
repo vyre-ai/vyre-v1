@@ -23,7 +23,8 @@ export function chooseSandbox(w: Where): Choice {
   }
   if (w.platform === "darwin") return { kind: "seatbelt" };
   if (w.platform === "linux") {
-    if (!w.hasBwrap) throw new SandboxError("sandbox.unavailable", "bubblewrap (bwrap) is not installed on this computer");
+    if (!w.hasBwrap)
+      throw new SandboxError("sandbox.unavailable", "bubblewrap (bwrap) is not installed on this computer");
     return { kind: "bwrap" };
   }
   return w.wsl === true ? { kind: "bwrap", via: "wsl" } : { kind: "server" };

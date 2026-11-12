@@ -10,7 +10,12 @@ export function sha256Hex(...parts: (string | Uint8Array)[]): string {
 /** sha-256 fed a piece at a time (a download checked as it streams), lowercase hex at the end. */
 export function sha256Stream(): { update(b: Uint8Array): void; hex(): string } {
   const h = createHash("sha256");
-  return { update: (b) => { h.update(b); }, hex: () => h.digest("hex") };
+  return {
+    update: (b) => {
+      h.update(b);
+    },
+    hex: () => h.digest("hex"),
+  };
 }
 
 /** `n` random bytes as lowercase hex (a temporary name nobody can guess). */

@@ -12,4 +12,5 @@ export interface PoolKey {
   mcpProfile: string | null;
 }
 
-export const keyString = (k: PoolKey): string => JSON.stringify([k.driver, k.accountRef, k.model, k.sandboxId, k.mcpProfile]);
+export const keyString = (k: PoolKey): string =>
+  JSON.stringify([k.driver, k.accountRef, k.model, k.sandboxId, k.mcpProfile]);

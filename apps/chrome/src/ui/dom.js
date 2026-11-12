@@ -13,8 +13,9 @@ export function h(tag, props, ...children) {
   if (props) {
     for (const [k, v] of Object.entries(props)) {
       if (v === undefined || v === null || v === false) continue;
-      if (k === "data") { for (const [dk, dv] of Object.entries(v)) if (dv !== undefined && dv !== null) el.dataset[dk] = String(dv); }
-      else if (k === "css") Object.assign(el.style, v);
+      if (k === "data") {
+        for (const [dk, dv] of Object.entries(v)) if (dv !== undefined && dv !== null) el.dataset[dk] = String(dv);
+      } else if (k === "css") Object.assign(el.style, v);
       else if (k === "class") el.className = [el.className, v].filter(Boolean).join(" ");
       else if (k.startsWith("on") && typeof v === "function") el.addEventListener(k.slice(2), v);
       else if (k === "value") /** @type {any} */ (el).value = v;

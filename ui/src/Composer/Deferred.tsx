@@ -10,13 +10,16 @@ import type { ComposerComponent } from "./load.ts";
 
 export { loadComposer } from "./load.ts";
 
-const lazyComposer = (): ReturnType<typeof lazy> => lazy(() => loadComposer().then(
-  (component) => ({ default: component }),
-  (error: unknown) => {
-    LazyComposer = lazyComposer();
-    throw error;
-  },
-));
+const lazyComposer = (): ReturnType<typeof lazy> =>
+  lazy(() =>
+    loadComposer().then(
+      (component) => ({ default: component }),
+      (error: unknown) => {
+        LazyComposer = lazyComposer();
+        throw error;
+      },
+    ),
+  );
 let LazyComposer = lazyComposer();
 
 export function DeferredComposer(props: ComposerProps): ReactElement {
@@ -24,7 +27,11 @@ export function DeferredComposer(props: ComposerProps): ReactElement {
   if (loaded) return createElement(loaded, props);
   const symbols = props.symbols ?? ["plus", "at", "hash", "slash"];
   const fallback = (
-    <View testID={props.testID} accessibilityLabel={props.label ?? props.placeholder} style={{ minHeight: props.density === "compact" ? 40 : 44 }}>
+    <View
+      testID={props.testID}
+      accessibilityLabel={props.label ?? props.placeholder}
+      style={{ minHeight: props.density === "compact" ? 40 : 44 }}
+    >
       <Text>{props.placeholder}</Text>
       {symbols.includes("plus") ? <Text>Attach a file</Text> : null}
       {symbols.includes("at") ? <Text>(@)</Text> : null}
@@ -32,7 +39,11 @@ export function DeferredComposer(props: ComposerProps): ReactElement {
       {symbols.includes("slash") ? <Text>snippets (/)</Text> : null}
     </View>
   );
-  return <Suspense fallback={fallback}><LazyComposer {...props} /></Suspense>;
+  return (
+    <Suspense fallback={fallback}>
+      <LazyComposer {...props} />
+    </Suspense>
+  );
 }
 
 /** Server-render unit tests install the same real component synchronously. */

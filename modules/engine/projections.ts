@@ -15,7 +15,15 @@ import { LEASE_TTL_MS } from "../../agent/src/turn-engine/lease.ts";
 import type { LeaseRow, LeaseStore } from "../../agent/src/turn-engine/lease.ts";
 import type { NewItem, QueueStore } from "../../agent/src/turn-engine/queue.ts";
 import type { MessageStore, WaitRow, WaitStore } from "../../agent/src/turn-engine/stores.ts";
-import type { Author, EngineSession, QueueItem, QueueKind, QueueState, SessionSpec, StoredMessage } from "../../agent/src/turn-engine/types.ts";
+import type {
+  Author,
+  EngineSession,
+  QueueItem,
+  QueueKind,
+  QueueState,
+  SessionSpec,
+  StoredMessage,
+} from "../../agent/src/turn-engine/types.ts";
 import type { RouteMention } from "../../lib/route.ts";
 
 /** What the module needs of ctx.db (the host's ScopedDb has this shape). */
@@ -36,12 +44,20 @@ export interface EngineCtx {
   db: Db;
   emit(name: `${string}.${string}`, subject: string, payload: unknown): unknown;
   call(cap: string, input: unknown): Promise<unknown>;
-  authorize(action: { perm: string | null; level: "view" | "use" | "edit" | "manage" }, resource: { type: string; id: string | null }): { effect: "allow" | "deny" | "hold" };
+  authorize(
+    action: { perm: string | null; level: "view" | "use" | "edit" | "manage" },
+    resource: { type: string; id: string | null },
+  ): { effect: "allow" | "deny" | "hold" };
   log: { warn(msg: string, attrs?: Record<string, unknown>): void };
 }
 
 /** Throw the catalogue error for this call. */
-export function raise(ctx: Pick<EngineCtx, "trace">, code: ErrorCode, message: string, details?: Record<string, unknown>): never {
+export function raise(
+  ctx: Pick<EngineCtx, "trace">,
+  code: ErrorCode,
+  message: string,
+  details?: Record<string, unknown>,
+): never {
   throw fail(code, ctx.trace.traceId, { message, ...(details ? { details } : {}) });
 }
 
@@ -50,12 +66,17 @@ export const actorOf = (ctx: Pick<EngineCtx, "principal" | "actingFor">): string
 
 // The engine that runs on this host. The host binds it at boot (impl.ts); handlers reach it through boundEngine().
 let bound: TurnEngine | null = null;
-export function bindEngine(engine: TurnEngine | null): void { bound = engine; }
+export function bindEngine(engine: TurnEngine | null): void {
+  bound = engine;
+}
 
 // Holds a parked turn waited on, kept after its wait row is gone (lane f-wire, 12 Nov): the wake that continues the turn removes the row when it starts, and engine.hold_answered, which hears the same
 // gate.approved, must still know the hold was a parked turn's, or it wakes the agent a second time with the person's newest message as its trigger, before that message's ask is read.
 const parkedHolds = new Set<string>();
-const noteParked = (taskId: string): void => { parkedHolds.add(taskId); if (parkedHolds.size > 2_000) parkedHolds.delete(parkedHolds.values().next().value as string); };
+const noteParked = (taskId: string): void => {
+  parkedHolds.add(taskId);
+  if (parkedHolds.size > 2_000) parkedHolds.delete(parkedHolds.values().next().value as string);
+};
 /** Did a parked turn wait on this hold (its row may be gone already)? */
 export const wasParked = (taskId: string): boolean => parkedHolds.has(taskId);
 /**
@@ -66,7 +87,10 @@ export const wasParked = (taskId: string): boolean => parkedHolds.has(taskId);
 let stopping = false;
 /** Whose databases the stopping engine served (EngineHostSeam.ours): where two daemons share the process, the one that keeps running is not held up by the other's stop. */
 let stoppingOurs: ((db: unknown) => boolean) | null = null;
-export const setEngineStopping = (v: boolean, ours?: (db: unknown) => boolean): void => { stopping = v; stoppingOurs = v ? ours ?? null : null; };
+export const setEngineStopping = (v: boolean, ours?: (db: unknown) => boolean): void => {
+  stopping = v;
+  stoppingOurs = v ? (ours ?? null) : null;
+};
 export const engineStopping = (): boolean => stopping;
 /**
  * Called by an engine consumer before it does anything, and again where it finds no engine: while the server is stopping the event must be kept for the next start, never skipped. It throws the
@@ -74,30 +98,67 @@ export const engineStopping = (): boolean => stopping;
  * Call it before the consumer's first side effect (a claim, a post, a deleted row): the event is delivered again in full.
  */
 export function keepForRestart(ctx?: Pick<EngineCtx, "trace"> & Partial<Pick<EngineCtx, "db">>): void {
-  if (stopping && !(stoppingOurs && ctx?.db && !stoppingOurs(ctx.db))) throw keptForRestart(ctx?.trace.traceId ?? "0".repeat(32), "The engine is stopping, so this event is kept and delivered again when the server is back.");
+  if (stopping && !(stoppingOurs && ctx?.db && !stoppingOurs(ctx.db)))
+    throw keptForRestart(
+      ctx?.trace.traceId ?? "0".repeat(32),
+      "The engine is stopping, so this event is kept and delivered again when the server is back.",
+    );
 }
 /** The engine on this host, or null where none runs. */
 export const engineIfBound = (): TurnEngine | null => bound;
 
 /** The session opener of this host (its pool and its warm hint), bound with the engine; null where the engine runs on a scripted provider. */
-export interface BoundOpener { warm(spec: SessionSpec): void; pool: { status(): { sessions: Array<{ driver: string; warm: number; max: number; hits: number; misses: number }>; totalWarm: number } } }
+export interface BoundOpener {
+  warm(spec: SessionSpec): void;
+  pool: {
+    status(): {
+      sessions: Array<{ driver: string; warm: number; max: number; hits: number; misses: number }>;
+      totalWarm: number;
+    };
+  };
+}
 let boundOpener: BoundOpener | null = null;
-export function bindOpener(o: BoundOpener | null): void { boundOpener = o; }
+export function bindOpener(o: BoundOpener | null): void {
+  boundOpener = o;
+}
 export const openerOf = (): BoundOpener | null => boundOpener;
 
 /** The way an automation's AI step opens a session: the same opener the chat engine uses (null where the engine has none). */
 export type StepOpen = (spec: SessionSpec) => Promise<EngineSession>;
 let boundStepOpen: StepOpen | null = null;
-export function bindStepOpen(o: StepOpen | null): void { boundStepOpen = o; }
+export function bindStepOpen(o: StepOpen | null): void {
+  boundStepOpen = o;
+}
 export const stepOpenOf = (): StepOpen | null => boundStepOpen;
 export function boundEngine(ctx: Pick<EngineCtx, "trace">): TurnEngine {
   if (!bound) raise(ctx, "internal.unavailable", "The engine is not running on this host.");
   return bound;
 }
 
-const SCHEMA = ["0001_init.sql", "0002_usage_item.sql", "0003_unblock.sql", "0004_capture_state.sql", "0005_step_turns.sql", "0006_task_baton.sql", "0007_mcp_oauth.sql", "0008_crew.sql", "0009_crew_wait.sql", "0010_queue_touched.sql", "0011_paid_fallback.sql", "0012_model_cache.sql", "0013_tool_use.sql", "0014_queue_stop_reason.sql"].map((f) => readFileSync(new URL(`./migrations/${f}`, import.meta.url), "utf8")).join("\n")
-  .split("\n").filter((l) => !l.trimStart().startsWith("--")).join("\n")
-  .split(";").map((s) => s.trim()).filter((s) => s.length > 0);
+const SCHEMA = [
+  "0001_init.sql",
+  "0002_usage_item.sql",
+  "0003_unblock.sql",
+  "0004_capture_state.sql",
+  "0005_step_turns.sql",
+  "0006_task_baton.sql",
+  "0007_mcp_oauth.sql",
+  "0008_crew.sql",
+  "0009_crew_wait.sql",
+  "0010_queue_touched.sql",
+  "0011_paid_fallback.sql",
+  "0012_model_cache.sql",
+  "0013_tool_use.sql",
+  "0014_queue_stop_reason.sql",
+]
+  .map((f) => readFileSync(new URL(`./migrations/${f}`, import.meta.url), "utf8"))
+  .join("\n")
+  .split("\n")
+  .filter((l) => !l.trimStart().startsWith("--"))
+  .join("\n")
+  .split(";")
+  .map((s) => s.trim())
+  .filter((s) => s.length > 0);
 
 const ready = new WeakSet<object>();
 
@@ -140,7 +201,8 @@ export function mintEngineId(prefix: string, now: number = Date.now()): string {
   return `${map[prefix] ?? prefix}_${compact}`;
 }
 
-export const mintId = (prefix: string, now: number = Date.now()): string => `${prefix}_${mintUuid(now).replaceAll("-", "")}`;
+export const mintId = (prefix: string, now: number = Date.now()): string =>
+  `${prefix}_${mintUuid(now).replaceAll("-", "")}`;
 
 // ---- periods (UTC)
 
@@ -153,9 +215,13 @@ export const monthStart = (at: number): number => Date.parse(`${monthKey(at)}-01
 
 function messageOf(r: Row): StoredMessage {
   return {
-    id: str(r["id"]), threadId: str(r["thread_id"]), threadSeq: num(r["thread_seq"]),
+    id: str(r["id"]),
+    threadId: str(r["thread_id"]),
+    threadSeq: num(r["thread_seq"]),
     author: { kind: str(r["author_kind"]) === "agent" ? "agent" : "person", id: str(r["author_id"]) } satisfies Author,
-    mentions: JSON.parse(str(r["mentions"])) as RouteMention[], depth: num(r["depth"]), body: str(r["body"]),
+    mentions: JSON.parse(str(r["mentions"])) as RouteMention[],
+    depth: num(r["depth"]),
+    body: str(r["body"]),
   };
 }
 
@@ -163,7 +229,11 @@ function messageOf(r: Row): StoredMessage {
 let forcedId: string | null = null;
 export function withMessageId<T>(id: string, fn: () => T): T {
   forcedId = id;
-  try { return fn(); } finally { forcedId = null; }
+  try {
+    return fn();
+  } finally {
+    forcedId = null;
+  }
 }
 
 export function sqlMessages(db: Db, now: () => number = Date.now): MessageStore {
@@ -178,7 +248,15 @@ export function sqlMessages(db: Db, now: () => number = Date.now): MessageStore 
           db.run(
             `INSERT INTO engine_messages (id, thread_id, thread_seq, author_kind, author_id, mentions, depth, body, at)
              VALUES (?, ?, (SELECT COALESCE(MAX(thread_seq), 0) + 1 FROM engine_messages WHERE thread_id = ?), ?, ?, ?, ?, ?, ?)`,
-            msg.id, msg.threadId, msg.threadId, msg.author.kind, msg.author.id, JSON.stringify(msg.mentions), msg.depth, msg.body, now(),
+            msg.id,
+            msg.threadId,
+            msg.threadId,
+            msg.author.kind,
+            msg.author.id,
+            JSON.stringify(msg.mentions),
+            msg.depth,
+            msg.body,
+            now(),
           );
           break;
         } catch (e) {
@@ -194,7 +272,14 @@ export function sqlMessages(db: Db, now: () => number = Date.now): MessageStore 
       return r ? messageOf(r) : null;
     },
     recent(threadId, limit) {
-      return rows(db, "SELECT * FROM engine_messages WHERE thread_id = ? ORDER BY thread_seq DESC LIMIT ?", threadId, limit).map(messageOf).reverse();
+      return rows(
+        db,
+        "SELECT * FROM engine_messages WHERE thread_id = ? ORDER BY thread_seq DESC LIMIT ?",
+        threadId,
+        limit,
+      )
+        .map(messageOf)
+        .reverse();
     },
   };
 }
@@ -203,9 +288,21 @@ export function sqlMessages(db: Db, now: () => number = Date.now): MessageStore 
 
 function itemOf(r: Row): QueueItem {
   return {
-    threadId: str(r["thread_id"]), qseq: num(r["qseq"]), kind: str(r["kind"]) as QueueKind, messageId: orNull(r["message_id"]), agentId: str(r["agent_id"]),
-    from: str(r["from_principal"]), priority: num(r["priority"]), state: str(r["state"]) as QueueState, enqueuedAt: num(r["enqueued_at"]),
-    routine: num(r["routine"]) === 1, steer: num(r["steer"]) === 1, ...(num(r["touched"]) === 1 ? { touched: true } : {}), ...(typeof r["stop_reason"] === "string" && r["stop_reason"] !== "" ? { stopReason: r["stop_reason"] as string } : {}),
+    threadId: str(r["thread_id"]),
+    qseq: num(r["qseq"]),
+    kind: str(r["kind"]) as QueueKind,
+    messageId: orNull(r["message_id"]),
+    agentId: str(r["agent_id"]),
+    from: str(r["from_principal"]),
+    priority: num(r["priority"]),
+    state: str(r["state"]) as QueueState,
+    enqueuedAt: num(r["enqueued_at"]),
+    routine: num(r["routine"]) === 1,
+    steer: num(r["steer"]) === 1,
+    ...(num(r["touched"]) === 1 ? { touched: true } : {}),
+    ...(typeof r["stop_reason"] === "string" && r["stop_reason"] !== ""
+      ? { stopReason: r["stop_reason"] as string }
+      : {}),
   };
 }
 
@@ -213,16 +310,34 @@ const ORDER = "ORDER BY priority DESC, qseq ASC";
 
 export function sqlQueue(db: Db): QueueStore {
   ensure(db);
-  const queued = (threadId: string): QueueItem[] => rows(db, `SELECT * FROM engine_thread_queue WHERE thread_id = ? AND state = 'queued' ${ORDER}`, threadId).map(itemOf);
+  const queued = (threadId: string): QueueItem[] =>
+    rows(db, `SELECT * FROM engine_thread_queue WHERE thread_id = ? AND state = 'queued' ${ORDER}`, threadId).map(
+      itemOf,
+    );
   return {
     enqueue(item: NewItem) {
       for (let attempt = 0; ; attempt++) {
-        const next = num(rows(db, "SELECT COALESCE(MAX(qseq), 0) + 1 AS n FROM engine_thread_queue WHERE thread_id = ?", item.threadId)[0]?.["n"]);
+        const next = num(
+          rows(
+            db,
+            "SELECT COALESCE(MAX(qseq), 0) + 1 AS n FROM engine_thread_queue WHERE thread_id = ?",
+            item.threadId,
+          )[0]?.["n"],
+        );
         try {
           db.run(
             `INSERT INTO engine_thread_queue (thread_id, qseq, kind, message_id, agent_id, from_principal, priority, state, enqueued_at, routine, steer)
              VALUES (?, ?, ?, ?, ?, ?, ?, 'queued', ?, ?, ?)`,
-            item.threadId, next, item.kind, item.messageId, item.agentId, item.from, item.priority, item.enqueuedAt, item.routine ? 1 : 0, item.steer ? 1 : 0,
+            item.threadId,
+            next,
+            item.kind,
+            item.messageId,
+            item.agentId,
+            item.from,
+            item.priority,
+            item.enqueuedAt,
+            item.routine ? 1 : 0,
+            item.steer ? 1 : 0,
           );
           return { ...item, qseq: next, state: "queued" };
         } catch (e) {
@@ -237,34 +352,60 @@ export function sqlQueue(db: Db): QueueStore {
       db.run("UPDATE engine_thread_queue SET state = 'running' WHERE thread_id = ? AND qseq = ?", threadId, next.qseq);
       return { ...next, state: "running" };
     },
-    steerable: (threadId, agentId) => queued(threadId).filter((r) => r.steer && r.kind === "message" && r.agentId === agentId).sort((a, b) => a.qseq - b.qseq),
+    steerable: (threadId, agentId) =>
+      queued(threadId)
+        .filter((r) => r.steer && r.kind === "message" && r.agentId === agentId)
+        .sort((a, b) => a.qseq - b.qseq),
     setState(threadId, qseq, state, stopReason) {
-      if (stopReason === undefined) db.run("UPDATE engine_thread_queue SET state = ? WHERE thread_id = ? AND qseq = ?", state, threadId, qseq);
-      else db.run("UPDATE engine_thread_queue SET state = ?, stop_reason = ? WHERE thread_id = ? AND qseq = ?", state, stopReason, threadId, qseq);
+      if (stopReason === undefined)
+        db.run("UPDATE engine_thread_queue SET state = ? WHERE thread_id = ? AND qseq = ?", state, threadId, qseq);
+      else
+        db.run(
+          "UPDATE engine_thread_queue SET state = ?, stop_reason = ? WHERE thread_id = ? AND qseq = ?",
+          state,
+          stopReason,
+          threadId,
+          qseq,
+        );
     },
     touch(threadId, qseq) {
       db.run("UPDATE engine_thread_queue SET touched = 1 WHERE thread_id = ? AND qseq = ?", threadId, qseq);
     },
     cancelQueued(threadId, agentId) {
       const out = queued(threadId).filter((r) => agentId === undefined || r.agentId === agentId);
-      for (const r of out) db.run("UPDATE engine_thread_queue SET state = 'cancelled' WHERE thread_id = ? AND qseq = ?", threadId, r.qseq);
+      for (const r of out)
+        db.run("UPDATE engine_thread_queue SET state = 'cancelled' WHERE thread_id = ? AND qseq = ?", threadId, r.qseq);
       return out.map((r) => ({ ...r, state: "cancelled" as const }));
     },
-    running: (threadId) => rows(db, `SELECT * FROM engine_thread_queue WHERE thread_id = ? AND state = 'running' ${ORDER}`, threadId).map(itemOf),
-    list: (threadId) => rows(db, "SELECT * FROM engine_thread_queue WHERE thread_id = ? ORDER BY qseq ASC", threadId).map(itemOf),
+    running: (threadId) =>
+      rows(db, `SELECT * FROM engine_thread_queue WHERE thread_id = ? AND state = 'running' ${ORDER}`, threadId).map(
+        itemOf,
+      ),
+    list: (threadId) =>
+      rows(db, "SELECT * FROM engine_thread_queue WHERE thread_id = ? ORDER BY qseq ASC", threadId).map(itemOf),
   };
 }
 
 // ---- thread lease
 
 function leaseOf(r: Row): LeaseRow {
-  return { threadId: str(r["thread_id"]), holder: str(r["holder"]), expiresAt: num(r["expires_at"]), turnId: orNull(r["turn_id"]) };
+  return {
+    threadId: str(r["thread_id"]),
+    holder: str(r["holder"]),
+    expiresAt: num(r["expires_at"]),
+    turnId: orNull(r["turn_id"]),
+  };
 }
 
 /** The host closed its database under a turn that was still ending (the daemon stopped): no lease is held any more, and nothing is written. */
 const isClosedDb = (e: unknown): boolean => e instanceof Error && /database is not open/i.test(e.message);
 function closedAs<T>(f: () => T, closed: T): T {
-  try { return f(); } catch (e) { if (isClosedDb(e)) return closed; throw e; }
+  try {
+    return f();
+  } catch (e) {
+    if (isClosedDb(e)) return closed;
+    throw e;
+  }
 }
 
 export function sqlLeases(db: Db, ttlMs: number = LEASE_TTL_MS): LeaseStore {
@@ -296,16 +437,29 @@ function sqlLeaseStore(db: Db, ttlMs: number): LeaseStore {
            expires_at = excluded.expires_at,
            turn_id = CASE WHEN engine_thread_lease.expires_at > ? THEN COALESCE(excluded.turn_id, engine_thread_lease.turn_id) ELSE excluded.turn_id END
          WHERE engine_thread_lease.holder = excluded.holder OR engine_thread_lease.expires_at <= ?`,
-        threadId, holder, now + ttlMs, turnId, now, now,
+        threadId,
+        holder,
+        now + ttlMs,
+        turnId,
+        now,
+        now,
       );
       const cur = read(threadId);
       return cur && cur.holder === holder ? cur : null;
     },
-    renew: (threadId, holder, now) => db.run("UPDATE engine_thread_lease SET expires_at = ? WHERE thread_id = ? AND holder = ? AND expires_at > ?", now + ttlMs, threadId, holder, now).changes > 0,
+    renew: (threadId, holder, now) =>
+      db.run(
+        "UPDATE engine_thread_lease SET expires_at = ? WHERE thread_id = ? AND holder = ? AND expires_at > ?",
+        now + ttlMs,
+        threadId,
+        holder,
+        now,
+      ).changes > 0,
     setTurn(threadId, holder, turnId) {
       db.run("UPDATE engine_thread_lease SET turn_id = ? WHERE thread_id = ? AND holder = ?", turnId, threadId, holder);
     },
-    release: (threadId, holder) => db.run("DELETE FROM engine_thread_lease WHERE thread_id = ? AND holder = ?", threadId, holder).changes > 0,
+    release: (threadId, holder) =>
+      db.run("DELETE FROM engine_thread_lease WHERE thread_id = ? AND holder = ?", threadId, holder).changes > 0,
     get(threadId, now) {
       const cur = read(threadId);
       return cur && cur.expiresAt > now ? cur : null;
@@ -318,8 +472,16 @@ function sqlLeaseStore(db: Db, ttlMs: number): LeaseStore {
 function waitOf(r: Row): WaitRow {
   const res = orNull(r["resolution"]);
   return {
-    taskId: str(r["task_id"]), threadId: str(r["thread_id"]), turnId: str(r["turn_id"]), agentId: str(r["agent_id"]), callId: str(r["call_id"]), toolName: str(r["tool_name"]),
-    asker: str(r["asker"]), runId: orNull(r["run_id"]), at: num(r["at"]), resolution: res === null ? null : (JSON.parse(res) as WaitRow["resolution"]),
+    taskId: str(r["task_id"]),
+    threadId: str(r["thread_id"]),
+    turnId: str(r["turn_id"]),
+    agentId: str(r["agent_id"]),
+    callId: str(r["call_id"]),
+    toolName: str(r["tool_name"]),
+    asker: str(r["asker"]),
+    runId: orNull(r["run_id"]),
+    at: num(r["at"]),
+    resolution: res === null ? null : (JSON.parse(res) as WaitRow["resolution"]),
     wakeQseq: r["wake_qseq"] === null || r["wake_qseq"] === undefined ? null : num(r["wake_qseq"]),
   };
 }
@@ -331,7 +493,17 @@ export function sqlWaits(db: Db): WaitStore {
       db.run(
         `INSERT OR REPLACE INTO engine_waits (task_id, thread_id, turn_id, agent_id, call_id, tool_name, asker, run_id, at, resolution, wake_qseq)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        w.taskId, w.threadId, w.turnId, w.agentId, w.callId, w.toolName, w.asker, w.runId, w.at, w.resolution === null ? null : JSON.stringify(w.resolution), w.wakeQseq,
+        w.taskId,
+        w.threadId,
+        w.turnId,
+        w.agentId,
+        w.callId,
+        w.toolName,
+        w.asker,
+        w.runId,
+        w.at,
+        w.resolution === null ? null : JSON.stringify(w.resolution),
+        w.wakeQseq,
       );
     },
     get(taskId) {
@@ -339,7 +511,13 @@ export function sqlWaits(db: Db): WaitStore {
       return r ? waitOf(r) : null;
     },
     resolve: (taskId, resolution, wakeQseq) => {
-      const done = db.run("UPDATE engine_waits SET resolution = ?, wake_qseq = ? WHERE task_id = ? AND resolution IS NULL", JSON.stringify(resolution), wakeQseq, taskId).changes > 0;
+      const done =
+        db.run(
+          "UPDATE engine_waits SET resolution = ?, wake_qseq = ? WHERE task_id = ? AND resolution IS NULL",
+          JSON.stringify(resolution),
+          wakeQseq,
+          taskId,
+        ).changes > 0;
       if (done) noteParked(taskId);
       return done;
     },
@@ -351,6 +529,7 @@ export function sqlWaits(db: Db): WaitStore {
       noteParked(taskId);
       db.run("DELETE FROM engine_waits WHERE task_id = ?", taskId);
     },
-    open: (threadId) => rows(db, "SELECT * FROM engine_waits WHERE thread_id = ? ORDER BY at ASC", threadId).map(waitOf),
+    open: (threadId) =>
+      rows(db, "SELECT * FROM engine_waits WHERE thread_id = ? ORDER BY at ASC", threadId).map(waitOf),
   };
 }

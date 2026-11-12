@@ -8,11 +8,21 @@ export const LEASE_MS = 90_000;
 export const RENEW_MS = 30_000;
 export const LEASE_ID = "scheduled";
 
-export interface Lease { peer_id: string; kind: string; since: number; expires_at: number }
+export interface Lease {
+  peer_id: string;
+  kind: string;
+  since: number;
+  expires_at: number;
+}
 export type RunnerMove = "renew" | "take" | "wait";
 
 /** What this computer does about the lease now. `serverAwake`: a server of the Space other than this one was heard from lately. */
-export function decide(me: { id: string; kind: string }, lease: Lease | null, now: number, serverAwake: boolean): RunnerMove {
+export function decide(
+  me: { id: string; kind: string },
+  lease: Lease | null,
+  now: number,
+  serverAwake: boolean,
+): RunnerMove {
   if (lease && lease.peer_id === me.id) return "renew";
   if (me.kind === "server" && (!lease || lease.kind !== "server" || lease.expires_at <= now)) return "take";
   if (lease && lease.expires_at > now) return "wait";

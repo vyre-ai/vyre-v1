@@ -11,7 +11,9 @@ export const EMAIL_CONSENT = "The builder keeps an unsubscribe line unless the b
 
 const TOKEN = /\{\{\s*([\w.]+)\s*(?:\|([^}]*))?\}\}/g;
 const GSM = new Set(
-  `${"@£$¥èéùìòÇ\nØø\rÅåΔ_ΦΓΛΩΠΨΣΘΞ ÆæßÉ !\"#¤%&'()*+,-./0123456789:;<=>?¡ABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÑÜ"}${String.fromCharCode(167)}${"¿abcdefghijklmnopqrstuvwxyzäöñüà"}`.split(""),
+  `${"@£$¥èéùìòÇ\nØø\rÅåΔ_ΦΓΛΩΠΨΣΘΞ ÆæßÉ !\"#¤%&'()*+,-./0123456789:;<=>?¡ABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÑÜ"}${String.fromCharCode(167)}${"¿abcdefghijklmnopqrstuvwxyzäöñüà"}`.split(
+    "",
+  ),
 );
 
 export type EmailMode = "visual" | "html" | "plain";
@@ -72,7 +74,9 @@ export function smsCount(body: string): SmsCount {
 
 function messageRecord(input: Readonly<Record<string, unknown>>): Record<string, unknown> | undefined {
   const message = input.message;
-  return message && typeof message === "object" && !Array.isArray(message) ? message as Record<string, unknown> : undefined;
+  return message && typeof message === "object" && !Array.isArray(message)
+    ? (message as Record<string, unknown>)
+    : undefined;
 }
 
 export function toEmailBlock(raw: unknown, id: string): EmailBlock | undefined {
@@ -80,7 +84,10 @@ export function toEmailBlock(raw: unknown, id: string): EmailBlock | undefined {
   const rec = raw as Record<string, unknown>;
   const kindRaw = typeof rec.kind === "string" ? rec.kind : typeof rec.type === "string" ? rec.type : "";
   if (!isKind(kindRaw)) return undefined;
-  const props = rec.props && typeof rec.props === "object" && !Array.isArray(rec.props) ? rec.props as Record<string, unknown> : rec;
+  const props =
+    rec.props && typeof rec.props === "object" && !Array.isArray(rec.props)
+      ? (rec.props as Record<string, unknown>)
+      : rec;
   const block: EmailBlock = { id, kind: kindRaw };
   if (typeof props.text === "string") block.text = props.text;
   if (typeof props.field === "string") block.field = props.field;
@@ -143,13 +150,21 @@ export function savedFromList(rows: unknown): { id: string; name: string; block:
 export function readMessage(input: Readonly<Record<string, unknown>>): MessageDraft {
   const rec = messageRecord(input);
   const body = str(input.body);
-  const blocks = Array.isArray(rec?.blocks) ? rec.blocks.flatMap((item, index) => {
-    const block = toEmailBlock(item, typeof (item as { id?: unknown } | null)?.id === "string" ? (item as { id: string }).id : `b${index}`);
-    return block ? [block] : [];
-  }) : [];
-  const mode: EmailMode = rec?.mode === "html" || rec?.mode === "plain" || rec?.mode === "visual"
-    ? rec.mode
-    : looksHtml(body) ? "html" : "plain";
+  const blocks = Array.isArray(rec?.blocks)
+    ? rec.blocks.flatMap((item, index) => {
+        const block = toEmailBlock(
+          item,
+          typeof (item as { id?: unknown } | null)?.id === "string" ? (item as { id: string }).id : `b${index}`,
+        );
+        return block ? [block] : [];
+      })
+    : [];
+  const mode: EmailMode =
+    rec?.mode === "html" || rec?.mode === "plain" || rec?.mode === "visual"
+      ? rec.mode
+      : looksHtml(body)
+        ? "html"
+        : "plain";
   const html = typeof rec?.html === "string" ? rec.html : mode === "html" ? body : "";
   const plain = typeof rec?.plain === "string" ? rec.plain : mode === "plain" ? body : "";
   const consent = rec?.consent === "unsubscribe" || /unsubscribe/i.test(body) ? "unsubscribe" : "none";
@@ -181,16 +196,17 @@ export interface EmailWrite {
 export function writeEmail(input: Readonly<Record<string, unknown>>, patch: EmailWrite): Record<string, unknown> {
   const prev = readMessage(input);
   const consent = /unsubscribe/i.test(patch.body) || /unsubscribe/i.test(patch.plain) ? "unsubscribe" : "none";
-  const same = str(input.subject) === patch.subject
-    && prev.previewText === patch.previewText
-    && str(input.body) === patch.body
-    && prev.mode === patch.mode
-    && prev.replyTo === patch.replyTo
-    && prev.fromName === patch.fromName
-    && prev.html === patch.html
-    && prev.plain === patch.plain
-    && JSON.stringify(prev.blocks) === JSON.stringify(patch.blocks)
-    && prev.consent === consent;
+  const same =
+    str(input.subject) === patch.subject &&
+    prev.previewText === patch.previewText &&
+    str(input.body) === patch.body &&
+    prev.mode === patch.mode &&
+    prev.replyTo === patch.replyTo &&
+    prev.fromName === patch.fromName &&
+    prev.html === patch.html &&
+    prev.plain === patch.plain &&
+    JSON.stringify(prev.blocks) === JSON.stringify(patch.blocks) &&
+    prev.consent === consent;
   const version = same ? Math.max(prev.version, 1) : prev.version + 1;
   return {
     ...input,
@@ -212,15 +228,22 @@ export function writeEmail(input: Readonly<Record<string, unknown>>, patch: Emai
 
 export function readSms(input: Readonly<Record<string, unknown>>): SmsDraft {
   const rec = messageRecord(input);
-  const fromInput = Array.isArray(input.mediaFileIds) ? input.mediaFileIds.filter((id): id is string => typeof id === "string" && id.length > 0) : [];
-  const fromMessage = Array.isArray(rec?.mediaFileIds) ? rec.mediaFileIds.filter((id): id is string => typeof id === "string" && id.length > 0) : [];
+  const fromInput = Array.isArray(input.mediaFileIds)
+    ? input.mediaFileIds.filter((id): id is string => typeof id === "string" && id.length > 0)
+    : [];
+  const fromMessage = Array.isArray(rec?.mediaFileIds)
+    ? rec.mediaFileIds.filter((id): id is string => typeof id === "string" && id.length > 0)
+    : [];
   return {
     version: typeof rec?.version === "number" && rec.version >= 1 ? rec.version : 0,
     mediaFileIds: fromInput.length > 0 ? fromInput : fromMessage,
   };
 }
 
-export function writeSms(input: Readonly<Record<string, unknown>>, patch: { body: string; mediaFileIds: readonly string[] }): Record<string, unknown> {
+export function writeSms(
+  input: Readonly<Record<string, unknown>>,
+  patch: { body: string; mediaFileIds: readonly string[] },
+): Record<string, unknown> {
   const prev = readSms(input);
   const media = patch.mediaFileIds.map((id) => id.trim()).filter((id) => id.length > 0);
   const same = str(input.body) === patch.body && JSON.stringify(prev.mediaFileIds) === JSON.stringify(media);
@@ -236,12 +259,20 @@ export function writeSms(input: Readonly<Record<string, unknown>>, patch: { body
 
 export function recipientText(value: unknown): string {
   if (typeof value === "string") return value;
-  if (Array.isArray(value)) return value.filter((item): item is string => typeof item === "string" && item.length > 0).join(", ");
+  if (Array.isArray(value))
+    return value.filter((item): item is string => typeof item === "string" && item.length > 0).join(", ");
   return "";
 }
 
-export function writeList(input: Readonly<Record<string, unknown>>, key: string, text: string): Record<string, unknown> {
-  const parts = text.split(",").map((part) => part.trim()).filter((part) => part.length > 0);
+export function writeList(
+  input: Readonly<Record<string, unknown>>,
+  key: string,
+  text: string,
+): Record<string, unknown> {
+  const parts = text
+    .split(",")
+    .map((part) => part.trim())
+    .filter((part) => part.length > 0);
   const next: Record<string, unknown> = { ...input };
   if (parts.length === 0) delete next[key];
   else next[key] = parts;
@@ -282,14 +313,20 @@ export function messageSummary(key: string, input: Readonly<Record<string, unkno
 }
 
 /** The message a test shows after fixture values fill the tokens. */
-export function renderMessage(key: string, input: Readonly<Record<string, unknown>>, values: Readonly<Record<string, string>>): string | undefined {
+export function renderMessage(
+  key: string,
+  input: Readonly<Record<string, unknown>>,
+  values: Readonly<Record<string, string>>,
+): string | undefined {
   if (key === "send_email") {
     const draft = readMessage(input);
     const subject = fillTokens(str(input.subject), values);
     const preview = fillTokens(draft.previewText, values);
     const body = fillTokens(str(input.body), values);
     if (!subject && !body && !preview) return undefined;
-    return [`Subject: ${subject || "(none)"}`, preview ? `Preview: ${preview}` : "", body].filter((line) => line.length > 0).join("\n");
+    return [`Subject: ${subject || "(none)"}`, preview ? `Preview: ${preview}` : "", body]
+      .filter((line) => line.length > 0)
+      .join("\n");
   }
   if (key === "send_sms") {
     const body = fillTokens(str(input.body), values);

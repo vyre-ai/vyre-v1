@@ -5,7 +5,9 @@
 
 import { sha256hex } from "../accounts.ts";
 
-export interface PeekDb { all(sql: string, ...args: unknown[]): unknown[] }
+export interface PeekDb {
+  all(sql: string, ...args: unknown[]): unknown[];
+}
 
 export interface PeekedLink {
   accountId: string;
@@ -30,17 +32,41 @@ const str = (v: unknown): string => (typeof v === "string" ? v : "");
 const num = (v: unknown): number => (typeof v === "number" && Number.isFinite(v) ? v : 0);
 const PURPOSES = new Set(["invite", "sign_in", "reset"]);
 
-export async function peekLink(ctx: { db: PeekDb }, now: number, siteId: string, token: string): Promise<PeekedLink | null> {
+export async function peekLink(
+  ctx: { db: PeekDb },
+  now: number,
+  siteId: string,
+  token: string,
+): Promise<PeekedLink | null> {
   if (token.length === 0 || token.length > 200 || siteId.length === 0 || siteId.length > 100) return null;
   const m = (ctx.db.all("SELECT * FROM portal_magic WHERE token_hash = ?", await sha256hex(token)) as Row[])[0];
-  if (!m || !PURPOSES.has(str(m["purpose"])) || m["used_at"] !== null && m["used_at"] !== undefined || num(m["expires_at"]) <= now) return null;
+  if (
+    !m ||
+    !PURPOSES.has(str(m["purpose"])) ||
+    (m["used_at"] !== null && m["used_at"] !== undefined) ||
+    num(m["expires_at"]) <= now
+  )
+    return null;
   const a = (ctx.db.all("SELECT * FROM portal_account WHERE id = ?", str(m["account_id"])) as Row[])[0];
   if (!a || str(a["site_id"]) !== siteId || (a["state"] !== "invited" && a["state"] !== "active")) return null;
-  const rules = (ctx.db.all("SELECT * FROM portal_link WHERE account_id = ?", str(a["id"])) as Row[]).sort((x, y) => (str(x["record_type"]) < str(y["record_type"]) ? -1 : 1));
-  const files = (ctx.db.all("SELECT * FROM portal_magic WHERE account_id = ?", str(a["id"])) as Row[]).filter((r) => str(r["purpose"]).startsWith("file:") && num(r["expires_at"]) > now);
+  const rules = (ctx.db.all("SELECT * FROM portal_link WHERE account_id = ?", str(a["id"])) as Row[]).sort((x, y) =>
+    str(x["record_type"]) < str(y["record_type"]) ? -1 : 1,
+  );
+  const files = (ctx.db.all("SELECT * FROM portal_magic WHERE account_id = ?", str(a["id"])) as Row[]).filter(
+    (r) => str(r["purpose"]).startsWith("file:") && num(r["expires_at"]) > now,
+  );
   return {
-    accountId: str(a["id"]), siteId, email: str(a["email"]), method: a["method"] === "password" ? "password" : "magic_link", state: a["state"] === "active" ? "active" : "invited",
-    purpose: str(m["purpose"]) as PeekedLink["purpose"], expiresAt: num(m["expires_at"]),
-    shared: { linked: a["record_id"] !== null && a["record_id"] !== undefined, recordTypes: rules.map((r) => str(r["record_type"])), fileLinks: files.length },
+    accountId: str(a["id"]),
+    siteId,
+    email: str(a["email"]),
+    method: a["method"] === "password" ? "password" : "magic_link",
+    state: a["state"] === "active" ? "active" : "invited",
+    purpose: str(m["purpose"]) as PeekedLink["purpose"],
+    expiresAt: num(m["expires_at"]),
+    shared: {
+      linked: a["record_id"] !== null && a["record_id"] !== undefined,
+      recordTypes: rules.map((r) => str(r["record_type"])),
+      fileLinks: files.length,
+    },
   };
 }

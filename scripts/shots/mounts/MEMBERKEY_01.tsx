@@ -15,36 +15,104 @@ import { createSampleVault, northwind } from "../../../apps/app/src/places/vault
 export const title = "A member's own AI account on a Space server";
 
 const policy = { secondFactor: "off" as const, requireSso: false, allowPassword: true, allowGithub: true };
-const capabilities = { password: true, github: true, sso: [{ key: "google", title: "Google" }], newMemberMfaEnrollment: true, ownerHasSecondFactor: true, currentHasSecondFactor: true };
+const capabilities = {
+  password: true,
+  github: true,
+  sso: [{ key: "google", title: "Google" }],
+  newMemberMfaEnrollment: true,
+  ownerHasSecondFactor: true,
+  currentHasSecondFactor: true,
+};
 
 function consoleFor(on: boolean): ConsoleData {
   const base = createSampleConsole().data;
   const rows: Record<string, unknown> = {
     "members.sign_in_policy.get": { policy, capabilities },
-    "members.sign_in_github.get": { github: { clientId: "Iv1.8a61f9b3a7aba766", secretSet: true, source: "space", callbackUrl: "https://mla.vyre.run/auth/github/callback", createUrl: "https://github.com/settings/applications/new" } },
-    "members.sso.list": { providers: [{ key: "google", title: "Google", issuer: "https://accounts.google.com", clientId: "8812-mla.apps.googleusercontent.com", clientSecretHandle: "#Google_Client_Secret", enabled: true, domainHint: "mylegalacademy.com" }] },
-    "access.policies.list": { policies: on ? [] : [{ key: "vault.open_after_provider_sign_in", scope: "space", value: false, kind: "vault" }] },
+    "members.sign_in_github.get": {
+      github: {
+        clientId: "Iv1.8a61f9b3a7aba766",
+        secretSet: true,
+        source: "space",
+        callbackUrl: "https://mla.vyre.run/auth/github/callback",
+        createUrl: "https://github.com/settings/applications/new",
+      },
+    },
+    "members.sso.list": {
+      providers: [
+        {
+          key: "google",
+          title: "Google",
+          issuer: "https://accounts.google.com",
+          clientId: "8812-mla.apps.googleusercontent.com",
+          clientSecretHandle: "#Google_Client_Secret",
+          enabled: true,
+          domainHint: "mylegalacademy.com",
+        },
+      ],
+    },
+    "access.policies.list": {
+      policies: on ? [] : [{ key: "vault.open_after_provider_sign_in", scope: "space", value: false, kind: "vault" }],
+    },
   };
-  return { ...base, call: async () => ({}), screens: { ...base.screens, capQuery: (cap: string) => { const state = rows[cap] === undefined ? { status: "loading" } : { status: "ready", data: rows[cap] }; return { subscribe: () => () => undefined, getSnapshot: () => state }; } } as never };
+  return {
+    ...base,
+    call: async () => ({}),
+    screens: {
+      ...base.screens,
+      capQuery: (cap: string) => {
+        const state = rows[cap] === undefined ? { status: "loading" } : { status: "ready", data: rows[cap] };
+        return { subscribe: () => () => undefined, getSnapshot: () => state };
+      },
+    } as never,
+  };
 }
 
 function vaultFor(forgotten: boolean): VaultData {
   // a member's own Vault: their Claude sign-in (Mine) and nothing shared
-  const v = createSampleVault({ ...northwind, providers: northwind.providers.filter((p) => p.scope === "mine" && p.key === "claude-code") });
+  const v = createSampleVault({
+    ...northwind,
+    providers: northwind.providers.filter((p) => p.scope === "mine" && p.key === "claude-code"),
+  });
   let state = { held: true, remembered: !forgotten, forgotten };
-  return { ...v.data, serverKey: { state: async () => state, keep: async (keep) => { state = { held: true, remembered: keep, forgotten: !keep }; return true; } } };
+  return {
+    ...v.data,
+    serverKey: {
+      state: async () => state,
+      keep: async (keep) => {
+        state = { held: true, remembered: keep, forgotten: !keep };
+        return true;
+      },
+    },
+  };
 }
 
 export default function Mount(): ReactNode {
   const [part, setPart] = useState<string | null>(null);
-  useEffect(() => setPart(new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? "").get("part") ?? "policy-on"), []);
+  useEffect(
+    () =>
+      setPart(
+        new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? "").get("part") ??
+          "policy-on",
+      ),
+    [],
+  );
   const on = useMemo(() => consoleFor(true), []);
   const off = useMemo(() => consoleFor(false), []);
   const kept = useMemo(() => vaultFor(false), []);
   const forgot = useMemo(() => vaultFor(true), []);
   if (part === null) return <View style={{ flex: 1, backgroundColor: "var(--win)" as string }} />;
   if (part === "policy-on" || part === "policy-off") {
-    return <ConsoleDataProvider value={part === "policy-on" ? on : off}><View style={{ flex: 1, minHeight: 760 }}><Policies initialId="sign_in" /></View></ConsoleDataProvider>;
+    return (
+      <ConsoleDataProvider value={part === "policy-on" ? on : off}>
+        <View style={{ flex: 1, minHeight: 760 }}>
+          <Policies initialId="sign_in" />
+        </View>
+      </ConsoleDataProvider>
+    );
   }
-  return <View style={{ flex: 1, minHeight: 760 }}><Vault data={part === "vault-forgotten" ? forgot : kept} initial={{ kind: "providers" }} /></View>;
+  return (
+    <View style={{ flex: 1, minHeight: 760 }}>
+      <Vault data={part === "vault-forgotten" ? forgot : kept} initial={{ kind: "providers" }} />
+    </View>
+  );
 }

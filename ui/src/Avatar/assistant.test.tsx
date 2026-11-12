@@ -2,13 +2,22 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
-import { pickedFace, setAgentFaces, Avatar, avatarOf, resetAssistant, setAssistantId, setAssistantLook } from "./index.tsx";
+import {
+  pickedFace,
+  setAgentFaces,
+  Avatar,
+  avatarOf,
+  resetAssistant,
+  setAssistantId,
+  setAssistantLook,
+} from "./index.tsx";
 import { agentName, assistantName } from "./assistant.ts";
 
 const html = (p: Parameters<typeof Avatar>[0]): string => renderToStaticMarkup(<Avatar {...p} />);
 
 test("the assistant is the Vyre mark by id, even after a rename", () => {
-  resetAssistant(); setAssistantId("agt_a");
+  resetAssistant();
+  setAssistantId("agt_a");
   for (const name of ["Assistant", "Irfad Assistant", "Irfad’s Assistant"]) {
     const h = html({ ...avatarOf({ id: "agt_a", name, kind: "agent" }), size: 20 });
     assert.match(h, /data-avatar="assistant"/, name);
@@ -17,7 +26,8 @@ test("the assistant is the Vyre mark by id, even after a rename", () => {
 });
 
 test("an agent keeps one face by id across renames; another id draws another face", () => {
-  resetAssistant(); setAssistantId("agt_a");
+  resetAssistant();
+  setAssistantId("agt_a");
   const a = avatarOf({ id: "agt_scout", name: "Scout", kind: "agent" });
   const b = avatarOf({ id: "agt_scout", name: "Scout Prime", kind: "agent" });
   assert.equal(a.kind, "agent");
@@ -27,7 +37,8 @@ test("an agent keeps one face by id across renames; another id draws another fac
 });
 
 test("a person keeps their own avatar and photo", () => {
-  resetAssistant(); setAssistantId("agt_a");
+  resetAssistant();
+  setAssistantId("agt_a");
   const p = avatarOf({ id: "usr_1", name: "Maya Chen", kind: "person", photo: "https://x.test/m.png" });
   assert.equal(p.kind, "person");
   assert.match(html({ ...p, size: 20 }), /m\.png/);
@@ -35,7 +46,10 @@ test("a person keeps their own avatar and photo", () => {
 });
 
 test("a face picked on an agent's page wins over its id everywhere; a stored slug does not", () => {
-  setAgentFaces([{ id: "agt_a", face: "pick-abc" }, { id: "agt_b", face: "intake" }]);
+  setAgentFaces([
+    { id: "agt_a", face: "pick-abc" },
+    { id: "agt_b", face: "intake" },
+  ]);
   assert.equal(pickedFace("agt_a"), "pick-abc");
   assert.equal(pickedFace("agt_b"), "");
   assert.equal(pickedFace(undefined), "");
@@ -44,7 +58,10 @@ test("a face picked on an agent's page wins over its id everywhere; a stored slu
 });
 
 test("a face picked on an agent's page wins over its id everywhere; a stored slug does not", () => {
-  setAgentFaces([{ id: "agt_a", face: "pick-abc" }, { id: "agt_b", face: "intake" }]);
+  setAgentFaces([
+    { id: "agt_a", face: "pick-abc" },
+    { id: "agt_b", face: "intake" },
+  ]);
   assert.equal(pickedFace("agt_a"), "pick-abc");
   assert.equal(pickedFace("agt_b"), "");
   assert.equal(pickedFace(undefined), "");
@@ -53,18 +70,33 @@ test("a face picked on an agent's page wins over its id everywhere; a stored slu
 });
 
 test("a look set in Settings replaces the mark, and clearing it brings the mark back", () => {
-  resetAssistant(); setAssistantId("agt_a");
+  resetAssistant();
+  setAssistantId("agt_a");
   setAssistantLook("look-tide");
   const looked = html({ ...avatarOf({ id: "agt_a", name: "Irfad’s Assistant", kind: "agent" }), size: 20 });
   assert.doesNotMatch(looked, /class="vmark"/);
   setAssistantLook(null);
-  assert.match(html({ ...avatarOf({ id: "agt_a", name: "Irfad’s Assistant", kind: "agent" }), size: 20 }), /class="vmark"/);
+  assert.match(
+    html({ ...avatarOf({ id: "agt_a", name: "Irfad’s Assistant", kind: "agent" }), size: 20 }),
+    /class="vmark"/,
+  );
 });
 
 test("the assistant has one name: Assistant until its person renames it, whatever the server filed it under", () => {
-  for (const filed of ["Assistant", "Assistant 3f9a2b", "My Assistant", "Nadia\u2019s Assistant", "Nadia's Assistant", "nadia\u2019s assistant", "Nadia\u2019s Assistant 3f9a", "Nadia Assistant"]) assert.equal(assistantName(filed, "Nadia Noor"), "Assistant", filed);
+  for (const filed of [
+    "Assistant",
+    "Assistant 3f9a2b",
+    "My Assistant",
+    "Nadia\u2019s Assistant",
+    "Nadia's Assistant",
+    "nadia\u2019s assistant",
+    "Nadia\u2019s Assistant 3f9a",
+    "Nadia Assistant",
+  ])
+    assert.equal(assistantName(filed, "Nadia Noor"), "Assistant", filed);
   assert.equal(assistantName("James\u2019 Assistant", "James Cross"), "Assistant");
-  for (const chosen of ["Jarvis", "Billing Assistant", "Sam\u2019s Assistant", "Assistant to the regional manager"]) assert.equal(assistantName(chosen, "Nadia Noor"), chosen, chosen);
+  for (const chosen of ["Jarvis", "Billing Assistant", "Sam\u2019s Assistant", "Assistant to the regional manager"])
+    assert.equal(assistantName(chosen, "Nadia Noor"), chosen, chosen);
   assert.equal(assistantName("Assistant", ""), "Assistant", "a person with no name yet");
 });
 

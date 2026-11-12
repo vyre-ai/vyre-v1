@@ -2,16 +2,39 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { route } from "../../lib/route.ts";
 import type { RouteMessage, RouteMention } from "../../lib/route.ts";
-import { createTurnEngine, createMemoryLeases, createMemoryMessages, createMemoryQueue, scriptedProvider, assignDefaults, withMode, defaultMode } from "../src/turn-engine/index.ts";
+import {
+  createTurnEngine,
+  createMemoryLeases,
+  createMemoryMessages,
+  createMemoryQueue,
+  scriptedProvider,
+  assignDefaults,
+  withMode,
+  defaultMode,
+} from "../src/turn-engine/index.ts";
 import type { DriverEvent, EngineAgent, OpenThread } from "../src/turn-engine/index.ts";
 import { gate, manualClock, until } from "../src/turn-engine/harness.ts";
 
 const person = (id: string) => ({ kind: "person" as const, id });
 const agent = (id: string) => ({ kind: "agent" as const, id });
-const ok: DriverEvent[] = [{ type: "text", text: "ok" }, { type: "usage", inputTokens: 10, outputTokens: 2 }, { type: "done" }];
+const ok: DriverEvent[] = [
+  { type: "text", text: "ok" },
+  { type: "usage", inputTokens: 10, outputTokens: 2 },
+  { type: "done" },
+];
 const quiet: DriverEvent[] = [{ type: "usage", inputTokens: 10, outputTokens: 2 }, { type: "done" }];
-const agents = (): EngineAgent[] => [{ id: "intake", mode: "lead" }, { id: "docs", mode: "listen" }, { id: "billing", mode: "listen" }];
-const thread = (id: string, over: Partial<OpenThread> = {}): OpenThread => ({ id, kind: "chat", starter: "dana", agents: agents(), ...over });
+const agents = (): EngineAgent[] => [
+  { id: "intake", mode: "lead" },
+  { id: "docs", mode: "listen" },
+  { id: "billing", mode: "listen" },
+];
+const thread = (id: string, over: Partial<OpenThread> = {}): OpenThread => ({
+  id,
+  kind: "chat",
+  starter: "dana",
+  agents: agents(),
+  ...over,
+});
 
 test("route decisions in the engine match lib route() for the whole table", async () => {
   const p = scriptedProvider({ script: quiet });
@@ -30,7 +53,12 @@ test("route decisions in the engine match lib route() for the whole table", asyn
   ];
   for (const m of table) {
     const want = route({ agents: agents() }, m);
-    const got = engine.receive({ threadId: "T", author: m.author, mentions: m.mentions, ...(m.depth === undefined ? {} : { depth: m.depth }) });
+    const got = engine.receive({
+      threadId: "T",
+      author: m.author,
+      mentions: m.mentions,
+      ...(m.depth === undefined ? {} : { depth: m.depth }),
+    });
     assert.deepEqual(got.responders, want.responders);
     assert.equal(got.reason, want.reason);
     assert.equal(got.qseqs.length, want.responders.length);
@@ -39,12 +67,19 @@ test("route decisions in the engine match lib route() for the whole table", asyn
 });
 
 test("one turn at a time per thread, in queue order", async () => {
-  let live = 0, peak = 0;
+  let live = 0,
+    peak = 0;
   const order: string[] = [];
   const p = scriptedProvider({
     script: quiet,
     beforeEvent: async (i, _ev, spec) => {
-      if (i === 0) { live++; peak = Math.max(peak, live); order.push(spec.agent.id); await new Promise<void>((r) => setImmediate(r)); live--; }
+      if (i === 0) {
+        live++;
+        peak = Math.max(peak, live);
+        order.push(spec.agent.id);
+        await new Promise<void>((r) => setImmediate(r));
+        live--;
+      }
     },
   });
   const engine = createTurnEngine({ holder: "host:s", openSession: p.openSession });
@@ -55,13 +90,24 @@ test("one turn at a time per thread, in queue order", async () => {
   await engine.idle("T");
   assert.equal(peak, 1);
   assert.deepEqual(order, ["intake", "docs", "billing"]);
-  assert.deepEqual(engine.turns("T").map((t) => t.state), ["completed", "completed", "completed"]);
-  assert.deepEqual(engine.turns("T").map((t) => t.qseq), [1, 2, 3]);
+  assert.deepEqual(
+    engine.turns("T").map((t) => t.state),
+    ["completed", "completed", "completed"],
+  );
+  assert.deepEqual(
+    engine.turns("T").map((t) => t.qseq),
+    [1, 2, 3],
+  );
 });
 
 test("different threads run at the same time", async () => {
   const hold = gate();
-  const p = scriptedProvider({ script: ok, beforeEvent: async (i) => { if (i === 0) await hold.wait; } });
+  const p = scriptedProvider({
+    script: ok,
+    beforeEvent: async (i) => {
+      if (i === 0) await hold.wait;
+    },
+  });
   const engine = createTurnEngine({ holder: "host:s", openSession: p.openSession });
   engine.openThread(thread("A"));
   engine.openThread(thread("B"));
@@ -77,10 +123,23 @@ test("steering: a message during a turn is injected at the next step boundary, n
   const hold = gate();
   const seen: string[] = [];
   const p = scriptedProvider({
-    script: [{ type: "tool_call", id: "c1", name: "files.read", input: {} }, { type: "text", text: "done" }, { type: "done" }],
-    beforeEvent: async (i) => { if (i === 0) await hold.wait; },
+    script: [
+      { type: "tool_call", id: "c1", name: "files.read", input: {} },
+      { type: "text", text: "done" },
+      { type: "done" },
+    ],
+    beforeEvent: async (i) => {
+      if (i === 0) await hold.wait;
+    },
   });
-  const engine = createTurnEngine({ holder: "host:s", openSession: p.openSession, callTool: async (c) => { seen.push(c.name); return { ok: true, content: "x" }; } });
+  const engine = createTurnEngine({
+    holder: "host:s",
+    openSession: p.openSession,
+    callTool: async (c) => {
+      seen.push(c.name);
+      return { ok: true, content: "x" };
+    },
+  });
   engine.openThread(thread("T"));
   engine.receive({ threadId: "T", author: person("dana"), body: "start" });
   await until(() => p.sessions.length === 1);
@@ -89,7 +148,10 @@ test("steering: a message during a turn is injected at the next step boundary, n
   hold.open();
   await engine.idle("T");
   assert.equal(p.sends(), 1, "steering is not a second provider call");
-  assert.deepEqual(p.sessions[0]?.injected.map((m) => m.body), ["also this"]);
+  assert.deepEqual(
+    p.sessions[0]?.injected.map((m) => m.body),
+    ["also this"],
+  );
   assert.deepEqual(seen, ["files.read"]);
   assert.equal(engine.turns("T").length, 1);
   assert.equal(engine.turns("T")[0]?.injected, 1);
@@ -99,7 +161,12 @@ test("steering: a message during a turn is injected at the next step boundary, n
 
 test("a waiting message that no step boundary reached runs as its own turn afterwards", async () => {
   const hold = gate();
-  const p = scriptedProvider({ script: ok, beforeEvent: async (i) => { if (i === 0) await hold.wait; } });
+  const p = scriptedProvider({
+    script: ok,
+    beforeEvent: async (i) => {
+      if (i === 0) await hold.wait;
+    },
+  });
   const engine = createTurnEngine({ holder: "host:s", openSession: p.openSession });
   engine.openThread(thread("T"));
   engine.receive({ threadId: "T", author: person("dana"), body: "first" });
@@ -117,17 +184,32 @@ test("interrupt cancels the running turn now and runs first, ahead of earlier qu
   const started: string[] = [];
   const p = scriptedProvider({
     script: quiet,
-    beforeEvent: async (i, _e, spec) => { if (i === 0) { started.push(spec.agent.id); if (started.length === 1) await hold.wait; } },
+    beforeEvent: async (i, _e, spec) => {
+      if (i === 0) {
+        started.push(spec.agent.id);
+        if (started.length === 1) await hold.wait;
+      }
+    },
   });
   const engine = createTurnEngine({ holder: "host:s", openSession: p.openSession });
   engine.openThread(thread("T"));
   engine.receive({ threadId: "T", author: person("dana"), body: "long job" });
   await until(() => p.sessions.length === 1);
   engine.receive({ threadId: "T", author: person("dana"), mentions: [agent("billing")], body: "queued behind" });
-  engine.receive({ threadId: "T", author: person("dana"), mentions: [agent("docs")], body: "stop and send" }, { interrupt: true });
+  engine.receive(
+    { threadId: "T", author: person("dana"), mentions: [agent("docs")], body: "stop and send" },
+    { interrupt: true },
+  );
   await engine.idle("T");
   const turns = engine.turns("T");
-  assert.deepEqual(turns.map((t) => [t.agentId, t.state]), [["intake", "cancelled"], ["docs", "completed"], ["billing", "completed"]]);
+  assert.deepEqual(
+    turns.map((t) => [t.agentId, t.state]),
+    [
+      ["intake", "cancelled"],
+      ["docs", "completed"],
+      ["billing", "completed"],
+    ],
+  );
   assert.equal(turns[1]?.kind, "interrupt");
   assert.equal(p.sessions[0]?.cancelled, true);
   assert.ok(engine.events("T").some((e) => e.type === "turn.cancelled"));
@@ -135,7 +217,12 @@ test("interrupt cancels the running turn now and runs first, ahead of earlier qu
 
 test("stop cancels the running turn; clearQueue also drops what waits", async () => {
   const hold = gate();
-  const p = scriptedProvider({ script: ok, beforeEvent: async (i) => { if (i === 0) await hold.wait; } });
+  const p = scriptedProvider({
+    script: ok,
+    beforeEvent: async (i) => {
+      if (i === 0) await hold.wait;
+    },
+  });
   const engine = createTurnEngine({ holder: "host:s", openSession: p.openSession });
   engine.openThread(thread("T"));
   engine.receive({ threadId: "T", author: person("dana"), body: "a" });
@@ -143,7 +230,10 @@ test("stop cancels the running turn; clearQueue also drops what waits", async ()
   engine.receive({ threadId: "T", author: person("dana"), mentions: [agent("docs")], body: "b" });
   await engine.stop("T", { clearQueue: true });
   await engine.idle("T");
-  assert.deepEqual(engine.turns("T").map((t) => t.state), ["cancelled"]);
+  assert.deepEqual(
+    engine.turns("T").map((t) => t.state),
+    ["cancelled"],
+  );
   assert.equal(engine.queue("T").filter((r) => r.state === "cancelled").length, 2);
   // the thread is not stuck: the next message runs fresh
   hold.open();
@@ -154,13 +244,27 @@ test("stop cancels the running turn; clearQueue also drops what waits", async ()
 
 test("hop limit: two agents mentioning each other stop after the same pair has passed it twice (owner ruling, 4 Nov; at most 3 hand-offs in all) and wait for a person", async () => {
   const p = scriptedProvider({
-    script: (_in, spec) => [{ type: "text", text: "your turn" }, { type: "done", mentions: [agent(spec.agent.id === "a" ? "b" : "a")] as RouteMention[] }],
+    script: (_in, spec) => [
+      { type: "text", text: "your turn" },
+      { type: "done", mentions: [agent(spec.agent.id === "a" ? "b" : "a")] as RouteMention[] },
+    ],
   });
   const engine = createTurnEngine({ holder: "host:s", openSession: p.openSession });
-  engine.openThread({ id: "C", kind: "channel", starter: "dana", agents: [{ id: "a", mode: "listen" }, { id: "b", mode: "listen" }] });
+  engine.openThread({
+    id: "C",
+    kind: "channel",
+    starter: "dana",
+    agents: [
+      { id: "a", mode: "listen" },
+      { id: "b", mode: "listen" },
+    ],
+  });
   engine.receive({ threadId: "C", author: person("dana"), mentions: [agent("a")] });
   await engine.idle("C");
-  assert.deepEqual(engine.turns("C").map((t) => t.agentId), ["a", "b", "a"]);
+  assert.deepEqual(
+    engine.turns("C").map((t) => t.agentId),
+    ["a", "b", "a"],
+  );
   assert.equal(engine.events("C").filter((e) => e.type === "turn.waiting").length, 1);
   // a person reply resets the count
   engine.receive({ threadId: "C", author: person("dana"), mentions: [agent("b")] });
@@ -169,19 +273,34 @@ test("hop limit: two agents mentioning each other stop after the same pair has p
 });
 
 test("hop limit is configurable through policy", async () => {
-  const p = scriptedProvider({ script: (_in, spec) => [{ type: "done", mentions: [agent(spec.agent.id === "a" ? "b" : "a")] as RouteMention[] }] });
+  const p = scriptedProvider({
+    script: (_in, spec) => [{ type: "done", mentions: [agent(spec.agent.id === "a" ? "b" : "a")] as RouteMention[] }],
+  });
   const engine = createTurnEngine({ holder: "host:s", openSession: p.openSession, policy: { agentHops: 1 } });
-  engine.openThread({ id: "C", kind: "channel", starter: "dana", agents: [{ id: "a", mode: "listen" }, { id: "b", mode: "listen" }] });
+  engine.openThread({
+    id: "C",
+    kind: "channel",
+    starter: "dana",
+    agents: [
+      { id: "a", mode: "listen" },
+      { id: "b", mode: "listen" },
+    ],
+  });
   engine.receive({ threadId: "C", author: person("dana"), mentions: [agent("a")] });
   await engine.idle("C");
-  assert.deepEqual(engine.turns("C").map((t) => t.agentId), ["a", "b"]);
+  assert.deepEqual(
+    engine.turns("C").map((t) => t.agentId),
+    ["a", "b"],
+  );
 });
 
 test("a failed turn writes turn.failed, frees the lease, and the next message runs fresh", async () => {
   let n = 0;
   const leases = createMemoryLeases();
   const clock = manualClock();
-  const p = scriptedProvider({ script: () => (++n === 1 ? [{ type: "error", code: "provider_down", message: "503" }] : ok) });
+  const p = scriptedProvider({
+    script: () => (++n === 1 ? [{ type: "error", code: "provider_down", message: "503" }] : ok),
+  });
   const engine = createTurnEngine({ holder: "host:s", openSession: p.openSession, leases, now: clock.now });
   engine.openThread(thread("T"));
   engine.receive({ threadId: "T", author: person("dana") });
@@ -195,7 +314,12 @@ test("a failed turn writes turn.failed, frees the lease, and the next message ru
 });
 
 test("a driver that throws is a failed turn, not a stuck thread", async () => {
-  const engine = createTurnEngine({ holder: "host:s", openSession: async () => { throw new Error("no sandbox"); } });
+  const engine = createTurnEngine({
+    holder: "host:s",
+    openSession: async () => {
+      throw new Error("no sandbox");
+    },
+  });
   engine.openThread(thread("T"));
   engine.receive({ threadId: "T", author: person("dana") });
   await engine.idle("T");
@@ -206,10 +330,20 @@ test("a driver that throws is a failed turn, not a stuck thread", async () => {
 test("steering: only the person whose turn it is steers; anyone else, or another agent, waits for a turn of their own on their own access", async () => {
   const hold = gate();
   const p = scriptedProvider({
-    script: [{ type: "tool_call", id: "c1", name: "files.read", input: {} }, { type: "text", text: "done" }, { type: "done" }],
-    beforeEvent: async (i) => { if (i === 0) await hold.wait; },
+    script: [
+      { type: "tool_call", id: "c1", name: "files.read", input: {} },
+      { type: "text", text: "done" },
+      { type: "done" },
+    ],
+    beforeEvent: async (i) => {
+      if (i === 0) await hold.wait;
+    },
   });
-  const engine = createTurnEngine({ holder: "host:s", openSession: p.openSession, callTool: async () => ({ ok: true, content: "x" }) });
+  const engine = createTurnEngine({
+    holder: "host:s",
+    openSession: p.openSession,
+    callTool: async () => ({ ok: true, content: "x" }),
+  });
   engine.openThread(thread("T", { starter: "dana" }));
   engine.receive({ threadId: "T", author: person("dana"), body: "start" });
   await until(() => p.sessions.length === 1);
@@ -219,8 +353,18 @@ test("steering: only the person whose turn it is steers; anyone else, or another
   assert.deepEqual([steerOf(sam.qseqs[0]), steerOf(mine.qseqs[0])], [false, true]);
   hold.open();
   await engine.idle("T");
-  assert.deepEqual(p.sessions[0]?.injected.map((m) => m.body), ["from dana"], "the running session read only its owner's words");
-  assert.deepEqual(engine.turns("T").map((t) => [t.asker, t.payerReason]), [["dana", "starter"], ["sam", "steerer"]]);
+  assert.deepEqual(
+    p.sessions[0]?.injected.map((m) => m.body),
+    ["from dana"],
+    "the running session read only its owner's words",
+  );
+  assert.deepEqual(
+    engine.turns("T").map((t) => [t.asker, t.payerReason]),
+    [
+      ["dana", "starter"],
+      ["sam", "steerer"],
+    ],
+  );
   assert.equal(p.sessions.length, 2, "the other person's turn opened a session of its own");
 });
 
@@ -228,14 +372,33 @@ test("account: a Job's line wakes the lead that wrote it, stays the agent's word
   const p = scriptedProvider({ script: ok });
   const engine = createTurnEngine({ holder: "host:s", openSession: p.openSession });
   engine.openThread(thread("T", { starter: "dana" }));
-  assert.deepEqual(engine.receive({ threadId: "T", author: agent("intake"), body: "plain", depth: 0 }).responders, [], "an agent's own line wakes nothing");
-  assert.deepEqual(engine.receive({ threadId: "T", author: agent("intake"), body: "Helper found", depth: 0, job: "sam" }).responders, ["intake"]);
+  assert.deepEqual(
+    engine.receive({ threadId: "T", author: agent("intake"), body: "plain", depth: 0 }).responders,
+    [],
+    "an agent's own line wakes nothing",
+  );
+  assert.deepEqual(
+    engine.receive({ threadId: "T", author: agent("intake"), body: "Helper found", depth: 0, job: "sam" }).responders,
+    ["intake"],
+  );
   await engine.idle("T");
-  assert.deepEqual(engine.turns("T").map((t) => [t.asker, t.payerReason, t.kind]), [["sam", "steerer", "message"]]);
-  assert.deepEqual(engine.spend().map((s) => s.payer), ["sam"]);
+  assert.deepEqual(
+    engine.turns("T").map((t) => [t.asker, t.payerReason, t.kind]),
+    [["sam", "steerer", "message"]],
+  );
+  assert.deepEqual(
+    engine.spend().map((s) => s.payer),
+    ["sam"],
+  );
   engine.receive({ threadId: "T", author: agent("intake"), body: "Helper found again", depth: 0, job: "dana" });
   await engine.idle("T");
-  assert.deepEqual(engine.turns("T").map((t) => [t.asker, t.payerReason]), [["sam", "steerer"], ["dana", "starter"]]);
+  assert.deepEqual(
+    engine.turns("T").map((t) => [t.asker, t.payerReason]),
+    [
+      ["sam", "steerer"],
+      ["dana", "starter"],
+    ],
+  );
 });
 
 test("account: the starter pays by default, whoever steers pays for the turn their message causes, a wake runs on the starter", async () => {
@@ -246,8 +409,18 @@ test("account: the starter pays by default, whoever steers pays for the turn the
   engine.receive({ threadId: "T", author: person("sam") });
   engine.wake("T", "intake");
   await engine.idle("T");
-  assert.deepEqual(engine.turns("T").map((t) => [t.asker, t.payerReason]), [["dana", "starter"], ["sam", "steerer"], ["dana", "starter"]]);
-  assert.deepEqual(engine.spend().map((s) => s.payer), ["dana", "sam", "dana"]);
+  assert.deepEqual(
+    engine.turns("T").map((t) => [t.asker, t.payerReason]),
+    [
+      ["dana", "starter"],
+      ["sam", "steerer"],
+      ["dana", "starter"],
+    ],
+  );
+  assert.deepEqual(
+    engine.spend().map((s) => s.payer),
+    ["dana", "sam", "dana"],
+  );
   assert.equal(engine.turns("T")[2]?.kind, "wake");
 });
 
@@ -274,12 +447,26 @@ test("heartbeat: a holder that lost its lease stops its turn and leaves the queu
   const leases = createMemoryLeases();
   const beats: Array<() => void> = [];
   const hold = gate();
-  const p = scriptedProvider({ script: ok, beforeEvent: async (i) => { if (i === 0) await hold.wait; } });
-  const engine = createTurnEngine({ holder: "host:a", openSession: p.openSession, leases, now: clock.now, schedule: (fn) => { beats.push(fn); return () => {}; } });
+  const p = scriptedProvider({
+    script: ok,
+    beforeEvent: async (i) => {
+      if (i === 0) await hold.wait;
+    },
+  });
+  const engine = createTurnEngine({
+    holder: "host:a",
+    openSession: p.openSession,
+    leases,
+    now: clock.now,
+    schedule: (fn) => {
+      beats.push(fn);
+      return () => {};
+    },
+  });
   engine.openThread(thread("T"));
   engine.receive({ threadId: "T", author: person("dana") });
   await until(() => p.sessions.length === 1 && beats.length === 1);
-  beats[0]?.();   // healthy beat
+  beats[0]?.(); // healthy beat
   assert.equal(engine.turns("T")[0]?.state, "running");
   clock.advance(21_000);
   assert.ok(leases.acquire("T", "host:b", clock.now()), "another host takes the expired lease");
@@ -296,7 +483,12 @@ test("crash: a turn that had called no tool runs again on the next host, and nob
   const queue = createMemoryQueue();
   const leases = createMemoryLeases();
   const hold = gate();
-  const pa = scriptedProvider({ script: ok, beforeEvent: async (i) => { if (i === 0) await hold.wait; } });
+  const pa = scriptedProvider({
+    script: ok,
+    beforeEvent: async (i) => {
+      if (i === 0) await hold.wait;
+    },
+  });
   const a = createTurnEngine({ holder: "host:a", openSession: pa.openSession, queue, leases, now: clock.now });
   const pb = scriptedProvider({ script: ok });
   const b = createTurnEngine({ holder: "host:b", openSession: pb.openSession, queue, leases, now: clock.now });
@@ -323,9 +515,26 @@ test("crash: a turn that had started a tool is never replayed: it ends as lost a
   const hold = gate();
   const script: DriverEvent[] = [{ type: "tool_call", id: "c1", name: "send_email", input: {} }, { type: "done" }];
   const pa = scriptedProvider({ script });
-  const a = createTurnEngine({ holder: "host:a", openSession: pa.openSession, queue, leases, now: clock.now, callTool: async () => { await hold.wait; return { ok: true, content: {} }; } });
+  const a = createTurnEngine({
+    holder: "host:a",
+    openSession: pa.openSession,
+    queue,
+    leases,
+    now: clock.now,
+    callTool: async () => {
+      await hold.wait;
+      return { ok: true, content: {} };
+    },
+  });
   const pb = scriptedProvider({ script: ok });
-  const b = createTurnEngine({ holder: "host:b", openSession: pb.openSession, queue, leases, now: clock.now, lostTurn: (row) => `trn_row${row.qseq}` });
+  const b = createTurnEngine({
+    holder: "host:b",
+    openSession: pb.openSession,
+    queue,
+    leases,
+    now: clock.now,
+    lostTurn: (row) => `trn_row${row.qseq}`,
+  });
   a.openThread(thread("T"));
   b.openThread(thread("T"));
   a.receive({ threadId: "T", author: person("dana") });
@@ -335,7 +544,11 @@ test("crash: a turn that had started a tool is never replayed: it ends as lost a
   await b.idle("T");
   assert.equal(pb.sessions.length, 0, "the send is not run a second time");
   const lost = b.events("T").find((e) => e.type === "turn.failed");
-  assert.deepEqual(lost && lost.type === "turn.failed" ? [lost.code, lost.turnId, lost.asker] : [], ["host_lost", "trn_row1", "dana"]);
+  assert.deepEqual(lost && lost.type === "turn.failed" ? [lost.code, lost.turnId, lost.asker] : [], [
+    "host_lost",
+    "trn_row1",
+    "dana",
+  ]);
   assert.equal(queue.list("T")[0]?.state, "done");
   hold.open();
   await a.stop("T");
@@ -344,7 +557,13 @@ test("crash: a turn that had started a tool is never replayed: it ends as lost a
 
 test("an engine that runs its own tools crosses the same line: a tool block marks the row", async () => {
   const queue = createMemoryQueue();
-  const p = scriptedProvider({ script: [{ type: "block", kind: "tool_call", payload: { id: "c1", name: "Bash" } }, { type: "text", text: "ok" }, { type: "done" }] });
+  const p = scriptedProvider({
+    script: [
+      { type: "block", kind: "tool_call", payload: { id: "c1", name: "Bash" } },
+      { type: "text", text: "ok" },
+      { type: "done" },
+    ],
+  });
   const engine = createTurnEngine({ holder: "host:s", openSession: p.openSession, queue });
   engine.openThread(thread("T"));
   engine.receive({ threadId: "T", author: person("dana") });
@@ -357,7 +576,12 @@ test("a wake that was running when the host died is not replayed either: its ans
   const queue = createMemoryQueue();
   const leases = createMemoryLeases();
   const hold = gate();
-  const pa = scriptedProvider({ script: ok, beforeEvent: async (i) => { if (i === 0) await hold.wait; } });
+  const pa = scriptedProvider({
+    script: ok,
+    beforeEvent: async (i) => {
+      if (i === 0) await hold.wait;
+    },
+  });
   const a = createTurnEngine({ holder: "host:a", openSession: pa.openSession, queue, leases, now: clock.now });
   const pb = scriptedProvider({ script: ok });
   const b = createTurnEngine({ holder: "host:b", openSession: pb.openSession, queue, leases, now: clock.now });
@@ -379,8 +603,13 @@ test("an agent that is paused or gone takes no turn: nothing is opened and nothi
   const p = scriptedProvider({ script: ok });
   let resolved = 0;
   const engine = createTurnEngine({
-    holder: "host:s", openSession: p.openSession, admit: async () => ({ code: "agent_paused", message: "Paused for the audit" }),
-    resolveAccount: async () => { resolved += 1; return null; },
+    holder: "host:s",
+    openSession: p.openSession,
+    admit: async () => ({ code: "agent_paused", message: "Paused for the audit" }),
+    resolveAccount: async () => {
+      resolved += 1;
+      return null;
+    },
   });
   engine.openThread(thread("T"));
   engine.receive({ threadId: "T", author: person("dana") });
@@ -392,7 +621,13 @@ test("an agent that is paused or gone takes no turn: nothing is opened and nothi
 
 test("a check that cannot answer lets the turn through", async () => {
   const p = scriptedProvider({ script: ok });
-  const engine = createTurnEngine({ holder: "host:s", openSession: p.openSession, admit: async () => { throw new Error("down"); } });
+  const engine = createTurnEngine({
+    holder: "host:s",
+    openSession: p.openSession,
+    admit: async () => {
+      throw new Error("down");
+    },
+  });
   engine.openThread(thread("T"));
   engine.receive({ threadId: "T", author: person("dana") });
   await engine.idle("T");
@@ -403,12 +638,34 @@ test("heartbeat: a lease store that is gone ends the beat quietly instead of thr
   const clock = manualClock();
   const real = createMemoryLeases();
   let closed = false;
-  const leases = { ...real, renew: (...a: Parameters<typeof real.renew>) => { if (closed) throw new Error("database is not open"); return real.renew(...a); } };
+  const leases = {
+    ...real,
+    renew: (...a: Parameters<typeof real.renew>) => {
+      if (closed) throw new Error("database is not open");
+      return real.renew(...a);
+    },
+  };
   const beats: Array<() => void> = [];
   const stopped: number[] = [];
   const hold = gate();
-  const p = scriptedProvider({ script: ok, beforeEvent: async (i) => { if (i === 0) await hold.wait; } });
-  const engine = createTurnEngine({ holder: "host:a", openSession: p.openSession, leases, now: clock.now, schedule: (fn) => { beats.push(fn); return () => { stopped.push(1); }; } });
+  const p = scriptedProvider({
+    script: ok,
+    beforeEvent: async (i) => {
+      if (i === 0) await hold.wait;
+    },
+  });
+  const engine = createTurnEngine({
+    holder: "host:a",
+    openSession: p.openSession,
+    leases,
+    now: clock.now,
+    schedule: (fn) => {
+      beats.push(fn);
+      return () => {
+        stopped.push(1);
+      };
+    },
+  });
   engine.openThread(thread("T"));
   engine.receive({ threadId: "T", author: person("dana") });
   await until(() => p.sessions.length === 1 && beats.length === 1);
@@ -426,10 +683,29 @@ test("crash after the reply: a turn that posted its answer and died before the r
   const leases = createMemoryLeases();
   const messages = createMemoryMessages();
   const hold = gate();
-  const pa = scriptedProvider({ script: ok, beforeEvent: async (i) => { if (i === 0) await hold.wait; } });
-  const a = createTurnEngine({ holder: "host:a", openSession: pa.openSession, queue, leases, messages, now: clock.now });
+  const pa = scriptedProvider({
+    script: ok,
+    beforeEvent: async (i) => {
+      if (i === 0) await hold.wait;
+    },
+  });
+  const a = createTurnEngine({
+    holder: "host:a",
+    openSession: pa.openSession,
+    queue,
+    leases,
+    messages,
+    now: clock.now,
+  });
   const pb = scriptedProvider({ script: ok });
-  const b = createTurnEngine({ holder: "host:b", openSession: pb.openSession, queue, leases, messages, now: clock.now });
+  const b = createTurnEngine({
+    holder: "host:b",
+    openSession: pb.openSession,
+    queue,
+    leases,
+    messages,
+    now: clock.now,
+  });
   a.openThread(thread("T"));
   b.openThread(thread("T"));
   a.receive({ threadId: "T", author: person("dana") });
@@ -440,7 +716,10 @@ test("crash after the reply: a turn that posted its answer and died before the r
   assert.equal(b.recover("T"), true);
   await b.idle("T");
   assert.equal(pb.sessions.length, 0, "no second session is opened for the same message");
-  assert.deepEqual(queue.list("T").map((r) => r.state), ["done"]);
+  assert.deepEqual(
+    queue.list("T").map((r) => r.state),
+    ["done"],
+  );
   hold.open();
   await a.stop("T");
 });
@@ -448,7 +727,13 @@ test("crash after the reply: a turn that posted its answer and died before the r
 test("placement: an item that belongs on a device is handed off, and the device engine runs it", async () => {
   const queue = createMemoryQueue();
   const leases = createMemoryLeases();
-  const host = createTurnEngine({ holder: "host:s", openSession: scriptedProvider({ script: ok }).openSession, queue, leases, place: () => "device" });
+  const host = createTurnEngine({
+    holder: "host:s",
+    openSession: scriptedProvider({ script: ok }).openSession,
+    queue,
+    leases,
+    place: () => "device",
+  });
   const pd = scriptedProvider({ script: ok });
   const device = createTurnEngine({ holder: "device:laptop", openSession: pd.openSession, queue, leases });
   host.openThread(thread("T"));
@@ -456,7 +741,13 @@ test("placement: an item that belongs on a device is handed off, and the device 
   host.receive({ threadId: "T", author: person("dana") });
   await host.idle("T");
   assert.equal(host.turns("T").length, 0);
-  assert.deepEqual(host.events("T").filter((e) => e.type === "agent.handoff").map((e) => e.type === "agent.handoff" && e.to), ["device"]);
+  assert.deepEqual(
+    host
+      .events("T")
+      .filter((e) => e.type === "agent.handoff")
+      .map((e) => e.type === "agent.handoff" && e.to),
+    ["device"],
+  );
   assert.equal(leases.get("T", Date.now()), null);
   device.recover("T");
   await device.idle("T");
@@ -467,11 +758,22 @@ test("placement: an item that belongs on a device is handed off, and the device 
 test("watches this channel: with no lead a watching agent acts unmentioned, logged as a routine", async () => {
   const p = scriptedProvider({ script: quiet });
   const engine = createTurnEngine({ holder: "host:s", openSession: p.openSession });
-  engine.openThread({ id: "C", kind: "channel", starter: "dana", agents: [{ id: "scout", mode: "listen", watching: true }, { id: "docs", mode: "listen" }] });
+  engine.openThread({
+    id: "C",
+    kind: "channel",
+    starter: "dana",
+    agents: [
+      { id: "scout", mode: "listen", watching: true },
+      { id: "docs", mode: "listen" },
+    ],
+  });
   engine.receive({ threadId: "C", author: person("dana"), body: "new lead came in" });
   engine.receive({ threadId: "C", author: person("dana"), mentions: [person("sam")], body: "@sam ok?" });
   await engine.idle("C");
-  assert.deepEqual(engine.turns("C").map((t) => [t.agentId, t.routine]), [["scout", true]]);
+  assert.deepEqual(
+    engine.turns("C").map((t) => [t.agentId, t.routine]),
+    [["scout", true]],
+  );
 });
 
 test("modes: defaults, one lead per thread, and the composer line comes from route()", () => {
@@ -480,14 +782,46 @@ test("modes: defaults, one lead per thread, and the composer line comes from rou
   assert.equal(defaultMode("channel"), "listen");
   assert.equal(defaultMode("thread"), "listen");
   assert.equal(defaultMode("thread", { startedByAgent: true }), "lead");
-  assert.deepEqual(assignDefaults("channel", ["a", "b"]).map((a) => a.mode), ["listen", "listen"]);
-  assert.deepEqual(assignDefaults("chat", ["a", "b"]).map((a) => a.mode), ["lead", "listen"]);
+  assert.deepEqual(
+    assignDefaults("channel", ["a", "b"]).map((a) => a.mode),
+    ["listen", "listen"],
+  );
+  assert.deepEqual(
+    assignDefaults("chat", ["a", "b"]).map((a) => a.mode),
+    ["lead", "listen"],
+  );
   const swapped = withMode(agents(), "docs", "lead");
-  assert.deepEqual(swapped.map((a) => [a.id, a.mode]), [["intake", "listen"], ["docs", "lead"], ["billing", "listen"]]);
+  assert.deepEqual(
+    swapped.map((a) => [a.id, a.mode]),
+    [
+      ["intake", "listen"],
+      ["docs", "lead"],
+      ["billing", "listen"],
+    ],
+  );
   assert.throws(() => withMode(agents(), "nobody", "lead"), RangeError);
   const engine = createTurnEngine({ holder: "host:s", openSession: scriptedProvider({ script: quiet }).openSession });
-  assert.throws(() => engine.openThread({ id: "X", kind: "chat", starter: "d", agents: [{ id: "a", mode: "lead" }, { id: "b", mode: "lead" }] }), RangeError);
-  engine.openThread(thread("T", { agents: [{ id: "intake", name: "Intake", mode: "lead" }, { id: "docs", name: "Docs", mode: "listen" }] }));
+  assert.throws(
+    () =>
+      engine.openThread({
+        id: "X",
+        kind: "chat",
+        starter: "d",
+        agents: [
+          { id: "a", mode: "lead" },
+          { id: "b", mode: "lead" },
+        ],
+      }),
+    RangeError,
+  );
+  engine.openThread(
+    thread("T", {
+      agents: [
+        { id: "intake", name: "Intake", mode: "lead" },
+        { id: "docs", name: "Docs", mode: "listen" },
+      ],
+    }),
+  );
   assert.equal(engine.preview("T", { author: person("dana") }).line, "Intake will reply");
   assert.equal(engine.preview("T", { author: person("dana"), mentions: [agent("docs")] }).line, "Docs will reply");
   assert.equal(engine.preview("T", { author: person("dana"), mentions: [person("sam")] }).line, "");
@@ -497,7 +831,12 @@ test("modes: defaults, one lead per thread, and the composer line comes from rou
 
 test("a queued message can be taken out of the queue (to edit it) and is then never answered; a message whose turn has started cannot", async () => {
   const hold = gate();
-  const p = scriptedProvider({ script: ok, beforeEvent: async (i) => { if (i === 0 && p.sessions.length === 1) await hold.wait; } });
+  const p = scriptedProvider({
+    script: ok,
+    beforeEvent: async (i) => {
+      if (i === 0 && p.sessions.length === 1) await hold.wait;
+    },
+  });
   const engine = createTurnEngine({ holder: "host:s", openSession: p.openSession });
   engine.openThread(thread("T"));
   const first = engine.receive({ threadId: "T", author: person("dana"), body: "long job" });
@@ -513,7 +852,12 @@ test("a queued message can be taken out of the queue (to edit it) and is then ne
 
 test("interrupt for a message that is already waiting runs it once, first, not twice", async () => {
   const hold = gate();
-  const p = scriptedProvider({ script: quiet, beforeEvent: async (i) => { if (i === 0 && p.sessions.length === 1) await hold.wait; } });
+  const p = scriptedProvider({
+    script: quiet,
+    beforeEvent: async (i) => {
+      if (i === 0 && p.sessions.length === 1) await hold.wait;
+    },
+  });
   const engine = createTurnEngine({ holder: "host:s", openSession: p.openSession });
   engine.openThread(thread("T"));
   engine.receive({ threadId: "T", author: person("dana"), body: "long job" });
@@ -530,10 +874,22 @@ test("crash after a Stop on a running turn: the row says stopping before the Sto
   const queue = createMemoryQueue();
   const leases = createMemoryLeases();
   const hold = gate();
-  const pa = scriptedProvider({ script: ok, beforeEvent: async (i) => { if (i === 0) await hold.wait; } });
+  const pa = scriptedProvider({
+    script: ok,
+    beforeEvent: async (i) => {
+      if (i === 0) await hold.wait;
+    },
+  });
   const a = createTurnEngine({ holder: "host:a", openSession: pa.openSession, queue, leases, now: clock.now });
   const pb = scriptedProvider({ script: ok });
-  const b = createTurnEngine({ holder: "host:b", openSession: pb.openSession, queue, leases, now: clock.now, lostTurn: (row) => `trn_row${row.qseq}` });
+  const b = createTurnEngine({
+    holder: "host:b",
+    openSession: pb.openSession,
+    queue,
+    leases,
+    now: clock.now,
+    lostTurn: (row) => `trn_row${row.qseq}`,
+  });
   a.openThread(thread("T"));
   b.openThread(thread("T"));
   a.receive({ threadId: "T", author: person("dana") });
@@ -546,7 +902,14 @@ test("crash after a Stop on a running turn: the row says stopping before the Sto
   await b.idle("T");
   assert.equal(pb.sessions.length, 0, "it never runs again");
   assert.equal(queue.list("T")[0]?.state, "cancelled");
-  assert.deepEqual(b.events("T").filter((e) => e.type === "turn.cancelled").map((e) => (e as { turnId: string; asker?: string }).turnId + ":" + (e as { asker?: string }).asker), ["trn_row1:dana"], "the chat hears it stopped once, for the person it ran for");
+  assert.deepEqual(
+    b
+      .events("T")
+      .filter((e) => e.type === "turn.cancelled")
+      .map((e) => (e as { turnId: string; asker?: string }).turnId + ":" + (e as { asker?: string }).asker),
+    ["trn_row1:dana"],
+    "the chat hears it stopped once, for the person it ran for",
+  );
   hold.open();
 });
 
@@ -555,9 +918,23 @@ test("crash after a Stop on a starting turn: the row says stopping, and the next
   const queue = createMemoryQueue();
   const leases = createMemoryLeases();
   const pa = scriptedProvider({ script: ok });
-  const a = createTurnEngine({ holder: "host:a", openSession: pa.openSession, queue, leases, now: clock.now, resolveAccount: () => new Promise(() => undefined) });
+  const a = createTurnEngine({
+    holder: "host:a",
+    openSession: pa.openSession,
+    queue,
+    leases,
+    now: clock.now,
+    resolveAccount: () => new Promise(() => undefined),
+  });
   const pb = scriptedProvider({ script: ok });
-  const b = createTurnEngine({ holder: "host:b", openSession: pb.openSession, queue, leases, now: clock.now, lostTurn: (row) => `trn_row${row.qseq}` });
+  const b = createTurnEngine({
+    holder: "host:b",
+    openSession: pb.openSession,
+    queue,
+    leases,
+    now: clock.now,
+    lostTurn: (row) => `trn_row${row.qseq}`,
+  });
   a.openThread(thread("T"));
   b.openThread(thread("T"));
   a.receive({ threadId: "T", author: person("dana") });
@@ -578,20 +955,36 @@ test("crash after a Stop: the stopped turn is closed once, and the message queue
   const queue = createMemoryQueue();
   const leases = createMemoryLeases();
   const hold = gate();
-  const pa = scriptedProvider({ script: ok, beforeEvent: async (i) => { if (i === 0) await hold.wait; } });
+  const pa = scriptedProvider({
+    script: ok,
+    beforeEvent: async (i) => {
+      if (i === 0) await hold.wait;
+    },
+  });
   const a = createTurnEngine({ holder: "host:a", openSession: pa.openSession, queue, leases, now: clock.now });
   const pb = scriptedProvider({ script: ok });
-  const b = createTurnEngine({ holder: "host:b", openSession: pb.openSession, queue, leases, now: clock.now, lostTurn: (row) => `trn_row${row.qseq}` });
+  const b = createTurnEngine({
+    holder: "host:b",
+    openSession: pb.openSession,
+    queue,
+    leases,
+    now: clock.now,
+    lostTurn: (row) => `trn_row${row.qseq}`,
+  });
   a.openThread(thread("T"));
   b.openThread(thread("T"));
   a.receive({ threadId: "T", author: person("dana") });
   await until(() => pa.sessions.length === 1);
-  a.receive({ threadId: "T", author: person("dana") });   // the next message waits behind it
+  a.receive({ threadId: "T", author: person("dana") }); // the next message waits behind it
   await a.stop("T");
   clock.advance(21_000);
   assert.equal(b.recover("T"), true);
   await b.idle("T");
-  assert.deepEqual(queue.list("T").map((r) => r.state), ["cancelled", "done"], "the stopped one closed, the next one ran");
+  assert.deepEqual(
+    queue.list("T").map((r) => r.state),
+    ["cancelled", "done"],
+    "the stopped one closed, the next one ran",
+  );
   assert.equal(pb.sessions.length, 1);
   assert.equal(b.events("T").filter((e) => e.type === "turn.cancelled").length, 1);
   hold.open();
@@ -600,7 +993,12 @@ test("crash after a Stop: the stopped turn is closed once, and the message queue
 test("stopTurn stops one turn by its queue row: a queued row is cancelled on the row, a running one is stopped and marked stopping first, another turn is untouched", async () => {
   const queue = createMemoryQueue();
   const hold = gate();
-  const p = scriptedProvider({ script: ok, beforeEvent: async (i) => { if (i === 0) await hold.wait; } });
+  const p = scriptedProvider({
+    script: ok,
+    beforeEvent: async (i) => {
+      if (i === 0) await hold.wait;
+    },
+  });
   const e = createTurnEngine({ holder: "host:a", openSession: p.openSession, queue });
   e.openThread(thread("T"));
   e.receive({ threadId: "T", author: person("dana") });
@@ -615,7 +1013,10 @@ test("stopTurn stops one turn by its queue row: a queued row is cancelled on the
   assert.equal(queue.list("T")[0]?.state, "stopping");
   hold.open();
   await e.idle("T");
-  assert.deepEqual(queue.list("T").map((r) => r.state), ["cancelled", "cancelled"]);
+  assert.deepEqual(
+    queue.list("T").map((r) => r.state),
+    ["cancelled", "cancelled"],
+  );
 });
 
 test("a Stop during redelivery itself: the turn the next host brought back is stopped as it starts, and a further crash still does not run it", async () => {
@@ -623,22 +1024,41 @@ test("a Stop during redelivery itself: the turn the next host brought back is st
   const queue = createMemoryQueue();
   const leases = createMemoryLeases();
   const holdA = gate();
-  const pa = scriptedProvider({ script: ok, beforeEvent: async (i) => { if (i === 0) await holdA.wait; } });
+  const pa = scriptedProvider({
+    script: ok,
+    beforeEvent: async (i) => {
+      if (i === 0) await holdA.wait;
+    },
+  });
   const a = createTurnEngine({ holder: "host:a", openSession: pa.openSession, queue, leases, now: clock.now });
   const pb = scriptedProvider({ script: ok });
-  const b = createTurnEngine({ holder: "host:b", openSession: pb.openSession, queue, leases, now: clock.now, resolveAccount: () => new Promise(() => undefined) });   // b dies while its redelivered turn reads its account
+  const b = createTurnEngine({
+    holder: "host:b",
+    openSession: pb.openSession,
+    queue,
+    leases,
+    now: clock.now,
+    resolveAccount: () => new Promise(() => undefined),
+  }); // b dies while its redelivered turn reads its account
   const pc = scriptedProvider({ script: ok });
-  const c = createTurnEngine({ holder: "host:c", openSession: pc.openSession, queue, leases, now: clock.now, lostTurn: (row) => `trn_row${row.qseq}` });
+  const c = createTurnEngine({
+    holder: "host:c",
+    openSession: pc.openSession,
+    queue,
+    leases,
+    now: clock.now,
+    lostTurn: (row) => `trn_row${row.qseq}`,
+  });
   for (const e of [a, b, c]) e.openThread(thread("T"));
   a.receive({ threadId: "T", author: person("dana") });
   await until(() => pa.sessions.length === 1);
-  clock.advance(21_000);   // a died with its turn running and untouched: b brings it back
+  clock.advance(21_000); // a died with its turn running and untouched: b brings it back
   assert.equal(b.recover("T"), true);
   await until(() => queue.list("T")[0]?.state === "running");
   const r = await b.stop("T");
   assert.equal(r.starting, 1, "the Stop found the redelivered turn starting");
   assert.equal(queue.list("T")[0]?.state, "stopping");
-  clock.advance(21_000);   // b dies too
+  clock.advance(21_000); // b dies too
   assert.equal(c.recover("T"), true);
   await c.idle("T");
   assert.equal(pc.sessions.length + pb.sessions.length, 0, "it never runs");
@@ -651,9 +1071,21 @@ test("the reason a turn was stopped (limit, interrupt, left, moved) is kept on i
   const queue = createMemoryQueue();
   const leases = createMemoryLeases();
   const hold = gate();
-  const pa = scriptedProvider({ script: ok, beforeEvent: async (i) => { if (i === 0) await hold.wait; } });
+  const pa = scriptedProvider({
+    script: ok,
+    beforeEvent: async (i) => {
+      if (i === 0) await hold.wait;
+    },
+  });
   const a = createTurnEngine({ holder: "host:a", openSession: pa.openSession, queue, leases, now: clock.now });
-  const b = createTurnEngine({ holder: "host:b", openSession: scriptedProvider({ script: ok }).openSession, queue, leases, now: clock.now, lostTurn: (row) => `trn_row${row.qseq}` });
+  const b = createTurnEngine({
+    holder: "host:b",
+    openSession: scriptedProvider({ script: ok }).openSession,
+    queue,
+    leases,
+    now: clock.now,
+    lostTurn: (row) => `trn_row${row.qseq}`,
+  });
   a.openThread(thread("T"));
   b.openThread(thread("T"));
   a.receive({ threadId: "T", author: person("dana") });
@@ -662,17 +1094,41 @@ test("the reason a turn was stopped (limit, interrupt, left, moved) is kept on i
   clock.advance(21_000);
   b.recover("T");
   await b.idle("T");
-  assert.deepEqual(b.events("T").filter((e) => e.type === "turn.cancelled").map((e) => [(e as { reason?: string }).reason, (e as { qseq?: number }).qseq]), [["limit", 1]]);
+  assert.deepEqual(
+    b
+      .events("T")
+      .filter((e) => e.type === "turn.cancelled")
+      .map((e) => [(e as { reason?: string }).reason, (e as { qseq?: number }).qseq]),
+    [["limit", 1]],
+  );
   hold.open();
 });
 
 test("a Stop always answers, even when its row cannot be written (the turn still stops here)", async () => {
   const queue = createMemoryQueue();
-  const broken = { ...queue, setState: (...args: Parameters<typeof queue.setState>) => { if (args[2] === "stopping") throw new Error("database is locked"); queue.setState(...args); } };
+  const broken = {
+    ...queue,
+    setState: (...args: Parameters<typeof queue.setState>) => {
+      if (args[2] === "stopping") throw new Error("database is locked");
+      queue.setState(...args);
+    },
+  };
   const hold = gate();
-  const p = scriptedProvider({ script: ok, beforeEvent: async (i) => { if (i === 0) await hold.wait; } });
+  const p = scriptedProvider({
+    script: ok,
+    beforeEvent: async (i) => {
+      if (i === 0) await hold.wait;
+    },
+  });
   const logged: string[] = [];
-  const e = createTurnEngine({ holder: "host:a", openSession: p.openSession, queue: broken, log: (m) => { logged.push(m); } });
+  const e = createTurnEngine({
+    holder: "host:a",
+    openSession: p.openSession,
+    queue: broken,
+    log: (m) => {
+      logged.push(m);
+    },
+  });
   e.openThread(thread("T"));
   e.receive({ threadId: "T", author: person("dana") });
   await until(() => p.sessions.length === 1);

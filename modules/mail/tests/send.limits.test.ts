@@ -9,11 +9,23 @@ import { NOW, rig, row, sendIn } from "./send.rig.test.ts";
 
 const DAY = 86_400_000;
 const AUTO = { origin: "automation:aut_news", principal: { kind: "service" as const, id: "svc_automations" } };
-const SATURDAY_3AM = 1_760_151_600_000;   // 2025-10-11 03:00 UTC
+const SATURDAY_3AM = 1_760_151_600_000; // 2025-10-11 03:00 UTC
 const SATURDAY_8AM = SATURDAY_3AM + 5 * 3_600_000;
 
-const refusal = async (p: Promise<unknown>): Promise<{ code: string; message: string; details: Record<string, unknown> }> => {
-  try { await p; } catch (e) { if (e instanceof HostError) return { code: e.error.code, message: e.error.message, details: (e.error.details ?? {}) as Record<string, unknown> }; throw e; }
+const refusal = async (
+  p: Promise<unknown>,
+): Promise<{ code: string; message: string; details: Record<string, unknown> }> => {
+  try {
+    await p;
+  } catch (e) {
+    if (e instanceof HostError)
+      return {
+        code: e.error.code,
+        message: e.error.message,
+        details: (e.error.details ?? {}) as Record<string, unknown>,
+      };
+    throw e;
+  }
   throw new Error("expected a refusal");
 };
 const to = (i: number): Partial<SendIn> => ({ to: [{ address: `reader${i}@acme.test` }] });
@@ -37,15 +49,34 @@ test("a person is not made to wait for the window but counts toward the limit, a
   const r = rig({ settings: { "send.cap": 2, "send.window": "9-17" } });
   r.goto(SATURDAY_3AM);
   assert.equal((await send(r.ctx, sendIn(to(1)))).status, "sent", "a person's email goes inside a closed window");
-  const reply = await sendAs(r.ctx, { mailboxId: "mbx_maya", to: [{ address: "pat@acme.test" }], subject: "Re", text: "ok", idempotencyKey: "idem-reply-1" });
+  const reply = await sendAs(r.ctx, {
+    mailboxId: "mbx_maya",
+    to: [{ address: "pat@acme.test" }],
+    subject: "Re",
+    text: "ok",
+    idempotencyKey: "idem-reply-1",
+  });
   assert.ok(reply.messageId);
   assert.equal(r.sent().length, 2);
   assert.equal((await refusal(send(r.ctx, sendIn(to(2))))).details.reason, "send_cap_reached");
-  assert.match((await refusal(sendAs(r.ctx, { mailboxId: "mbx_maya", to: [{ address: "pat@acme.test" }], subject: "Re", text: "again", idempotencyKey: "idem-reply-2" }))).message, /limit of 2 messages a day/);
+  assert.match(
+    (
+      await refusal(
+        sendAs(r.ctx, {
+          mailboxId: "mbx_maya",
+          to: [{ address: "pat@acme.test" }],
+          subject: "Re",
+          text: "again",
+          idempotencyKey: "idem-reply-2",
+        }),
+      )
+    ).message,
+    /limit of 2 messages a day/,
+  );
 });
 
 test("outside the window an automation's email is held, says so, and goes when the window opens", async () => {
-  const r = rig({ ...AUTO });   // the default window is 8:00 to 20:00
+  const r = rig({ ...AUTO }); // the default window is 8:00 to 20:00
   r.goto(SATURDAY_3AM);
   const held = await send(r.ctx, sendIn(to(1)));
   assert.equal(held.status, "queued");
@@ -63,7 +94,7 @@ test("outside the window an automation's email is held, says so, and goes when t
 test("the window follows the Space time zone, and 'any' never holds", async () => {
   const shifted = rig({ ...AUTO, settings: { "profile.timezone": "Asia/Karachi", "send.window": "8-20" } });
   assert.equal((await send(shifted.ctx, sendIn(to(1)))).status, "sent", "08:53 UTC is 13:53 in Karachi");
-  shifted.goto(Date.UTC(2025, 9, 9, 16, 0, 0));   // 21:00 in Karachi
+  shifted.goto(Date.UTC(2025, 9, 9, 16, 0, 0)); // 21:00 in Karachi
   const late = await send(shifted.ctx, sendIn(to(2)));
   assert.equal(late.status, "queued");
   assert.equal(shifted.scheduled[0]!.at, Date.UTC(2025, 9, 10, 3, 0, 0), "08:00 the next morning in Karachi");

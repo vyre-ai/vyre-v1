@@ -20,7 +20,14 @@ test("parseRoles names the allowed values when it refuses", () => {
 test("a device-only daemon reports four probes, serves nothing and connects outward", () => {
   const p = planFor(["device"]);
   assert.deepEqual(p.probes, ["disk_encrypted", "scheduler", "disk_space", "time_skew"]);
-  assert.deepEqual(p.services, ["connection-manager", "vault-filler", "local-turns", "terminal", "chrome-bridge", "device-replica"]);
+  assert.deepEqual(p.services, [
+    "connection-manager",
+    "vault-filler",
+    "local-turns",
+    "terminal",
+    "chrome-bridge",
+    "device-replica",
+  ]);
   assert.deepEqual([p.needsSpace, p.serves, p.connectsOut], [false, false, true]);
 });
 

@@ -10,7 +10,13 @@ export class LanguageError extends Error {
    * @param {{ line?: number, col?: number, path?: string }} [where]
    */
   constructor(code, message, where = {}) {
-    super(where.line ? `${message} (line ${where.line}, column ${where.col ?? 1})` : where.path ? `${message} (at ${where.path})` : message);
+    super(
+      where.line
+        ? `${message} (line ${where.line}, column ${where.col ?? 1})`
+        : where.path
+          ? `${message} (at ${where.path})`
+          : message,
+    );
     this.name = "LanguageError";
     this.code = code;
     this.line = where.line;

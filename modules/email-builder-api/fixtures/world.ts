@@ -9,7 +9,11 @@ import { MemoryDb } from "./db.ts";
 export const NOW = 1_760_000_000_000;
 export const TRACE = "0123456789abcdef0123456789abcdef";
 
-export interface Emitted { name: string; subject: string; payload: unknown }
+export interface Emitted {
+  name: string;
+  subject: string;
+  payload: unknown;
+}
 
 export function harness(o: { principal?: string; now?: number } = {}) {
   const db = new MemoryDb();
@@ -42,12 +46,19 @@ export function harness(o: { principal?: string; now?: number } = {}) {
       if (cap === "mail.mailbox.list") return { mailboxes: scripts.mailboxes };
       if (cap === "mail.send") return { status: scripts.sendStatus };
       // the contracts of the real capabilities: records.get reads a record by type AND id (an id alone is refused), and schema.types.list names the types there are
-      if (cap === "schema.types.list") return { types: [...new Set(Object.keys(scripts.records).map((id) => scripts.recordTypes[id] ?? "contact"))].map((key) => ({ key })) };
+      if (cap === "schema.types.list")
+        return {
+          types: [...new Set(Object.keys(scripts.records).map((id) => scripts.recordTypes[id] ?? "contact"))].map(
+            (key) => ({ key }),
+          ),
+        };
       if (cap === "records.get") {
         const { type, recordId } = input as { type?: unknown; recordId?: unknown };
-        if (typeof type !== "string" || typeof recordId !== "string") throw Object.assign(new Error("/type: required"), { error: { code: "validation.bad_input" } });
+        if (typeof type !== "string" || typeof recordId !== "string")
+          throw Object.assign(new Error("/type: required"), { error: { code: "validation.bad_input" } });
         const fields = scripts.records[recordId];
-        if (!fields || (scripts.recordTypes[recordId] ?? "contact") !== type) throw Object.assign(new Error("no such record"), { error: { code: "validation.not_found" } });
+        if (!fields || (scripts.recordTypes[recordId] ?? "contact") !== type)
+          throw Object.assign(new Error("no such record"), { error: { code: "validation.not_found" } });
         return { record: { id: recordId, type, fields } };
       }
       if (cap === "schema.types.get") {
@@ -65,10 +76,20 @@ export function harness(o: { principal?: string; now?: number } = {}) {
     seal: { seal: () => ({ keyId: "k", nonce: "n", bytes: "b" }), unseal: () => new Uint8Array() },
   };
   return {
-    ctx, db, events, calls, scripts,
-    advance(ms: number) { clock += ms; },
-    names(): string[] { return events.map((e) => e.name); },
-    as(principal: string): Ctx { return { ...ctx, principal: { kind: "person", id: principal } }; },
+    ctx,
+    db,
+    events,
+    calls,
+    scripts,
+    advance(ms: number) {
+      clock += ms;
+    },
+    names(): string[] {
+      return events.map((e) => e.name);
+    },
+    as(principal: string): Ctx {
+      return { ...ctx, principal: { kind: "person", id: principal } };
+    },
   };
 }
 

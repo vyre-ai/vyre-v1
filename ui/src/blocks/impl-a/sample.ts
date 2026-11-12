@@ -110,5 +110,14 @@ export const SAMPLE_RECORD = block("record_card", "blk_rec1", {
 
 /** The seven types in the order a chat shows them. */
 export function sampleBlocksA(): Block[] {
-  return [SAMPLE_PLAN, SAMPLE_QUESTION, SAMPLE_TERMINAL, SAMPLE_CHANGESET, SAMPLE_MOUNT, SAMPLE_DEPLOY, SAMPLE_RECORD, SAMPLE_ARTIFACT];
+  return [
+    SAMPLE_PLAN,
+    SAMPLE_QUESTION,
+    SAMPLE_TERMINAL,
+    SAMPLE_CHANGESET,
+    SAMPLE_MOUNT,
+    SAMPLE_DEPLOY,
+    SAMPLE_RECORD,
+    SAMPLE_ARTIFACT,
+  ];
 }

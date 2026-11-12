@@ -1,6 +1,25 @@
 // Handler table of the mcp module: all the capabilities of manifests/mcp.ts.
-import { activityList, connectedLink, connectedList, connectedRemove, oauthAllow, oauthDecline, oauthReplayed, oauthRequest, setupSet } from "./oauth.ts";
-import { health, sessionClose, sessionMint, sessionsList, toolDescribe, toolSearch, toolsList, toolsetsList } from "./server.ts";
+import {
+  activityList,
+  connectedLink,
+  connectedList,
+  connectedRemove,
+  oauthAllow,
+  oauthDecline,
+  oauthReplayed,
+  oauthRequest,
+  setupSet,
+} from "./oauth.ts";
+import {
+  health,
+  sessionClose,
+  sessionMint,
+  sessionsList,
+  toolDescribe,
+  toolSearch,
+  toolsList,
+  toolsetsList,
+} from "./server.ts";
 
 export const handlers = {
   "mcp.oauth.request": oauthRequest,

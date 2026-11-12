@@ -40,15 +40,25 @@ export function startStreamServer(d: StreamDeps): StreamServer {
     if (!t) return false;
     const exp = tokens.get(t);
     if (exp === undefined) return false;
-    if (exp < Date.now()) { tokens.delete(t); return false; }
+    if (exp < Date.now()) {
+      tokens.delete(t);
+      return false;
+    }
     return true;
   };
 
   const server: Server = createServer((req, res) => {
     const url = new URL(req.url ?? "/", "http://agentd");
     if (url.pathname === "/stream") {
-      if (!valid(url.searchParams.get("t"))) { res.writeHead(401, { "content-type": "text/plain" }).end("This view needs a ticket.\n"); return; }
-      res.writeHead(200, { "content-type": `multipart/x-mixed-replace; boundary=${BOUNDARY}`, "cache-control": "no-store", connection: "close" });
+      if (!valid(url.searchParams.get("t"))) {
+        res.writeHead(401, { "content-type": "text/plain" }).end("This view needs a ticket.\n");
+        return;
+      }
+      res.writeHead(200, {
+        "content-type": `multipart/x-mixed-replace; boundary=${BOUNDARY}`,
+        "cache-control": "no-store",
+        connection: "close",
+      });
       viewers += 1;
       const stop = d.hub.watch((jpeg) => {
         if (res.writableLength > 2 * 1024 * 1024) return;
@@ -56,45 +66,97 @@ export function startStreamServer(d: StreamDeps): StreamServer {
         res.write(jpeg);
         res.write("\r\n");
       });
-      const done = (): void => { stop(); viewers -= 1; };
+      const done = (): void => {
+        stop();
+        viewers -= 1;
+      };
       res.once("close", done);
       return;
     }
-    if (url.pathname === "/health") { res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify({ ok: true })); return; }
+    if (url.pathname === "/health") {
+      res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify({ ok: true }));
+      return;
+    }
     res.writeHead(404, { "content-type": "text/plain" }).end("Not found.\n");
   });
 
   server.on("upgrade", (req, socket, head) => {
     const url = new URL(req.url ?? "/", "http://agentd");
-    if (url.pathname !== "/ws" || !valid(url.searchParams.get("t"))) { socket.end("HTTP/1.1 401 Unauthorized\r\nconnection: close\r\n\r\n"); return; }
+    if (url.pathname !== "/ws" || !valid(url.searchParams.get("t"))) {
+      socket.end("HTTP/1.1 401 Unauthorized\r\nconnection: close\r\n\r\n");
+      return;
+    }
     const ws = acceptWebSocket(req, socket, head);
     if (!ws) return;
     viewers += 1;
-    const stop = d.hub.watch((jpeg) => { ws.send(jpeg); });
-    ws.onClose(() => { stop(); viewers -= 1; });
+    const stop = d.hub.watch((jpeg) => {
+      ws.send(jpeg);
+    });
+    ws.onClose(() => {
+      stop();
+      viewers -= 1;
+    });
     ws.onMessage((data, binary) => {
       if (binary || typeof data !== "string") return;
       const t0 = performance.now();
-      let m: { t?: string; seq?: number; x?: number; y?: number; n?: number; name?: string; down?: boolean; dx?: number; dy?: number; text?: string };
-      try { m = JSON.parse(data); } catch { return; }
+      let m: {
+        t?: string;
+        seq?: number;
+        x?: number;
+        y?: number;
+        n?: number;
+        name?: string;
+        down?: boolean;
+        dx?: number;
+        dy?: number;
+        text?: string;
+      };
+      try {
+        m = JSON.parse(data);
+      } catch {
+        return;
+      }
       const seq = m.seq ?? 0;
-      if (m.t === "ping") { ws.send(JSON.stringify({ t: "pong", seq })); return; }
-      if (!d.takenOver()) { ws.send(JSON.stringify({ t: "refused", seq, reason: "A person has to take over before the view takes input." })); return; }
+      if (m.t === "ping") {
+        ws.send(JSON.stringify({ t: "pong", seq }));
+        return;
+      }
+      if (!d.takenOver()) {
+        ws.send(
+          JSON.stringify({ t: "refused", seq, reason: "A person has to take over before the view takes input." }),
+        );
+        return;
+      }
       let req2: Record<string, unknown> | null = null;
       if (m.t === "move" && Number.isInteger(m.x) && Number.isInteger(m.y)) req2 = { op: "move", x: m.x, y: m.y };
-      else if ((m.t === "down" || m.t === "up") && Number.isInteger(m.n)) req2 = { op: "button", n: m.n, down: m.t === "down" };
-      else if (m.t === "key" && typeof m.name === "string" && m.name.length <= 32) req2 = { op: "key", name: m.name, down: m.down === true };
+      else if ((m.t === "down" || m.t === "up") && Number.isInteger(m.n))
+        req2 = { op: "button", n: m.n, down: m.t === "down" };
+      else if (m.t === "key" && typeof m.name === "string" && m.name.length <= 32)
+        req2 = { op: "key", name: m.name, down: m.down === true };
       else if (m.t === "scroll") req2 = { op: "scroll", dx: Number(m.dx ?? 0), dy: Number(m.dy ?? 0) };
-      else if (m.t === "type" && typeof m.text === "string" && m.text.length <= 2000) req2 = { op: "type", text: m.text };
-      if (!req2) { ws.send(JSON.stringify({ t: "refused", seq, reason: "I do not know that input." })); return; }
+      else if (m.t === "type" && typeof m.text === "string" && m.text.length <= 2000)
+        req2 = { op: "type", text: m.text };
+      if (!req2) {
+        ws.send(JSON.stringify({ t: "refused", seq, reason: "I do not know that input." }));
+        return;
+      }
       d.input.call(req2).then(
         (p) => {
           // What the person typed is not written down: a count for text, and a key's name only when it is a named key (Enter, Tab), never a letter.
-          const what = m.t === "type" ? { chars: m.text?.length } : m.t === "key" ? { down: m.down === true, ...(String(m.name).length > 1 ? { name: m.name } : {}) } : (req2 ?? {});
+          const what =
+            m.t === "type"
+              ? { chars: m.text?.length }
+              : m.t === "key"
+                ? { down: m.down === true, ...(String(m.name).length > 1 ? { name: m.name } : {}) }
+                : (req2 ?? {});
           d.onInput({ type: String(m.t), by: "person", ...what });
-          ws.send(JSON.stringify({ t: "ack", seq, x: p.x, y: p.y, ms: Math.round((performance.now() - t0) * 100) / 100 }));
+          ws.send(
+            JSON.stringify({ t: "ack", seq, x: p.x, y: p.y, ms: Math.round((performance.now() - t0) * 100) / 100 }),
+          );
         },
-        (e: unknown) => { ws.send(JSON.stringify({ t: "refused", seq, reason: e instanceof Error ? e.message : "The input failed." })); },
+        (e: unknown) => {
+          ws.send(JSON.stringify({ t: "refused", seq, reason: e instanceof Error ? e.message : "The input failed." }));
+        },
       );
     });
   });
@@ -108,8 +170,13 @@ export function startStreamServer(d: StreamDeps): StreamServer {
       tokens.set(t, Date.now() + TOKEN_TTL_MS);
       return t;
     },
-    url: (token, transport) => (transport === "ws" ? `ws://${d.address()}:${d.port}/ws?t=${token}` : `http://${d.address()}:${d.port}/stream?t=${token}`),
-    close() { server.close(); },
+    url: (token, transport) =>
+      transport === "ws"
+        ? `ws://${d.address()}:${d.port}/ws?t=${token}`
+        : `http://${d.address()}:${d.port}/stream?t=${token}`,
+    close() {
+      server.close();
+    },
     viewers: () => viewers,
   };
 }

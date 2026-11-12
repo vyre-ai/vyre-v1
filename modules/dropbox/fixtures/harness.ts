@@ -11,7 +11,10 @@ import type { DropboxCtx, DropboxHost } from "../projections.ts";
 import { memoryDb } from "./memory-db.ts";
 
 /** The part of manifests/dropbox.ts the harness checks against. A fixture may not import a manifest (B7: only a test may), so each test file hands it over with useContract(). */
-export interface Contract { events?: { name: string; payload: JsonSchema }[]; capabilities?: { name: string; input: JsonSchema; output: JsonSchema }[] }
+export interface Contract {
+  events?: { name: string; payload: JsonSchema }[];
+  capabilities?: { name: string; input: JsonSchema; output: JsonSchema }[];
+}
 let contract: Contract | null = null;
 let others: Contract[] = [];
 /** `also`: manifests of other modules the handlers call whose frozen contract has moved on in the manifest but not yet in generated/ (until the next regeneration). */
@@ -20,7 +23,10 @@ export function useContract(m: Contract, also: Contract[] = []): void {
   others = also;
 }
 const frozen = (): Contract => {
-  if (!contract) throw new Error("call useContract(manifest) first: the harness checks events and answers against the dropbox manifest");
+  if (!contract)
+    throw new Error(
+      "call useContract(manifest) first: the harness checks events and answers against the dropbox manifest",
+    );
   return contract;
 };
 
@@ -36,18 +42,61 @@ export const ACCESS = "sl.access_not_real";
 export const RECORDED = {
   account: { account_id: "dbid:AAH4f99T0taONIb", name: { display_name: "Maya Rivera" }, email: "maya@firm.example" },
   folder: { ".tag": "folder", name: "Sales", path_lower: "/sales", path_display: "/Sales", id: "id:fold1" },
-  file: { ".tag": "file", name: "Report.docx", path_lower: "/sales/report.docx", path_display: "/Sales/Report.docx", id: "id:file1", rev: "015ab0c1d2e3f4a5", size: 1200, server_modified: "2026-10-20T10:00:00Z", content_hash: "h1" },
+  file: {
+    ".tag": "file",
+    name: "Report.docx",
+    path_lower: "/sales/report.docx",
+    path_display: "/Sales/Report.docx",
+    id: "id:file1",
+    rev: "015ab0c1d2e3f4a5",
+    size: 1200,
+    server_modified: "2026-10-20T10:00:00Z",
+    content_hash: "h1",
+  },
   sub: { ".tag": "folder", name: "Q4", path_lower: "/sales/q4", path_display: "/Sales/Q4", id: "id:fold2" },
-  deep: { ".tag": "file", name: "Deck é.pptx", path_lower: "/sales/q4/deck é.pptx", path_display: "/Sales/Q4/Deck é.pptx", id: "id:file2", rev: "015ab0c1d2e3f4b6", size: 90, server_modified: "2026-10-21T10:00:00Z" },
+  deep: {
+    ".tag": "file",
+    name: "Deck é.pptx",
+    path_lower: "/sales/q4/deck é.pptx",
+    path_display: "/Sales/Q4/Deck é.pptx",
+    id: "id:file2",
+    rev: "015ab0c1d2e3f4b6",
+    size: 90,
+    server_modified: "2026-10-21T10:00:00Z",
+  },
 } as const;
 
-export interface Reply { status?: number; body?: unknown; throws?: boolean }
-export interface Seen { method: string; url: string; host: string; path: string; headers: Record<string, string>; body: unknown }
-export interface Called { cap: string; input: Record<string, unknown> }
-export interface Emitted { name: string; subject: string; payload: Record<string, unknown> }
+export interface Reply {
+  status?: number;
+  body?: unknown;
+  throws?: boolean;
+}
+export interface Seen {
+  method: string;
+  url: string;
+  host: string;
+  path: string;
+  headers: Record<string, string>;
+  body: unknown;
+}
+export interface Called {
+  cap: string;
+  input: Record<string, unknown>;
+}
+export interface Emitted {
+  name: string;
+  subject: string;
+  payload: Record<string, unknown>;
+}
 type Script = (input: Record<string, unknown>) => unknown;
 
-interface Options { noHost?: boolean; principal?: DropboxCtx["principal"]; actingFor?: string; allow?: boolean; publicUrl?: string }
+interface Options {
+  noHost?: boolean;
+  principal?: DropboxCtx["principal"];
+  actingFor?: string;
+  allow?: boolean;
+  publicUrl?: string;
+}
 
 export function harness(o: Options = {}) {
   const emitted: Emitted[] = [];
@@ -58,7 +107,10 @@ export function harness(o: Options = {}) {
   const tokenAsks: { cacheKey: string; refreshToken: string; fresh?: boolean }[] = [];
   const uploads: { token: string; arg: Record<string, unknown>; fileId: string }[] = [];
   const downloads: { token: string; arg: Record<string, unknown>; mime?: string }[] = [];
-  const transfer: { upload: { status: number; json: Record<string, unknown> }[]; download: { status: number; json: Record<string, unknown>; size?: number }[] } = { upload: [], download: [] };
+  const transfer: {
+    upload: { status: number; json: Record<string, unknown> }[];
+    download: { status: number; json: Record<string, unknown>; size?: number }[];
+  } = { upload: [], download: [] };
   let clock = NOW;
   let seq = 0;
   let tokenSeq = 0;
@@ -68,12 +120,28 @@ export function harness(o: Options = {}) {
       if (handle === "#Dropbox_Missing") throw fail("provider.auth_failed", TRACE);
       return { appKey: APP_KEY, hasSecret: handle !== "#Dropbox_NoSecret" };
     },
-    async appSecret() { return APP_SECRET; },
-    async publicUrl() { return o.publicUrl ?? "https://space.vyre.test"; },
+    async appSecret() {
+      return APP_SECRET;
+    },
+    async publicUrl() {
+      return o.publicUrl ?? "https://space.vyre.test";
+    },
     async exchange(_ctx, a) {
-      requests.push({ method: "EXCHANGE", url: "exchange", host: "exchange", path: a.code, headers: {}, body: { verifier: a.verifier, redirectUri: a.redirectUri } });
+      requests.push({
+        method: "EXCHANGE",
+        url: "exchange",
+        host: "exchange",
+        path: a.code,
+        headers: {},
+        body: { verifier: a.verifier, redirectUri: a.redirectUri },
+      });
       if (a.code === "bad-code") throw fail("provider.auth_failed", TRACE);
-      return { refreshToken: REFRESH, accessToken: ACCESS, expiresAt: clock + 14_400_000, accountId: RECORDED.account.account_id };
+      return {
+        refreshToken: REFRESH,
+        accessToken: ACCESS,
+        expiresAt: clock + 14_400_000,
+        accountId: RECORDED.account.account_id,
+      };
     },
     async token(_ctx, a) {
       tokenAsks.push({ cacheKey: a.cacheKey, refreshToken: a.refreshToken, ...(a.fresh ? { fresh: true } : {}) });
@@ -86,24 +154,68 @@ export function harness(o: Options = {}) {
     async download(_ctx, a) {
       downloads.push(a);
       const r = transfer.download.shift() ?? { status: 200, json: {}, size: 1200 };
-      return r.status < 300 ? { status: r.status, json: {}, blob: { blobId: `blb_${"0".repeat(31)}${downloads.length}`, size: r.size ?? 1200, mime: a.mime ?? "application/octet-stream" } } : { status: r.status, json: r.json };
+      return r.status < 300
+        ? {
+            status: r.status,
+            json: {},
+            blob: {
+              blobId: `blb_${"0".repeat(31)}${downloads.length}`,
+              size: r.size ?? 1200,
+              mime: a.mime ?? "application/octet-stream",
+            },
+          }
+        : { status: r.status, json: r.json };
     },
   };
   setDropboxHost(o.noHost ? null : host);
 
   const defaults: Record<string, Script> = {
     "vault.folders.list": () => ({ folders: [] }),
-    "vault.folders.create": (i) => ({ folder: { id: "vfd_conn0001", name: i["name"], scope: i["scope"], owner: MAYA, itemCount: 0, whoCanExport: [], yourLevel: "manage" } }),
+    "vault.folders.create": (i) => ({
+      folder: {
+        id: "vfd_conn0001",
+        name: i["name"],
+        scope: i["scope"],
+        owner: MAYA,
+        itemCount: 0,
+        whoCanExport: [],
+        yourLevel: "manage",
+      },
+    }),
     "vault.item.put": (i) => ({
       item: {
-        id: `vit_dbx${++seq}`, name: i["name"], kind: "other", folderId: i["folderId"], owner: MAYA, scope: "mine", fieldKeys: ["token"], handle: `#Dropbox_tok${seq}`, spaceOnly: false, injectIntoDeployments: false,
-        yourLevel: "manage", label: 0, createdAt: NOW, updatedAt: NOW,
+        id: `vit_dbx${++seq}`,
+        name: i["name"],
+        kind: "other",
+        folderId: i["folderId"],
+        owner: MAYA,
+        scope: "mine",
+        fieldKeys: ["token"],
+        handle: `#Dropbox_tok${seq}`,
+        spaceOnly: false,
+        injectIntoDeployments: false,
+        yourLevel: "manage",
+        label: 0,
+        createdAt: NOW,
+        updatedAt: NOW,
       },
     }),
     "vault.item.update": (i) => ({
       item: {
-        id: i["itemId"], name: "Dropbox", kind: "other", folderId: "vfd_conn0001", owner: MAYA, scope: "mine", fieldKeys: ["token"], handle: "#Dropbox_tok1", spaceOnly: false, injectIntoDeployments: false,
-        yourLevel: "manage", label: 0, createdAt: NOW, updatedAt: NOW,
+        id: i["itemId"],
+        name: "Dropbox",
+        kind: "other",
+        folderId: "vfd_conn0001",
+        owner: MAYA,
+        scope: "mine",
+        fieldKeys: ["token"],
+        handle: "#Dropbox_tok1",
+        spaceOnly: false,
+        injectIntoDeployments: false,
+        yourLevel: "manage",
+        label: 0,
+        createdAt: NOW,
+        updatedAt: NOW,
       },
     }),
     "vault.item.delete": () => ({ ok: true }),
@@ -119,7 +231,11 @@ export function harness(o: Options = {}) {
     db: memoryDb(),
     // a stand-in for the Space seal: not readable as text, and bound to its scope
     seal: {
-      seal: (v, scope) => ({ keyId: "k1", nonce: scope, bytes: Buffer.from(Uint8Array.from(v, (b) => b ^ 0x5a)).toString("base64") }),
+      seal: (v, scope) => ({
+        keyId: "k1",
+        nonce: scope,
+        bytes: Buffer.from(Uint8Array.from(v, (b) => b ^ 0x5a)).toString("base64"),
+      }),
       unseal: (x) => Uint8Array.from(Buffer.from(x.bytes, "base64"), (b) => b ^ 0x5a),
     },
     authorize: () => ({ effect: o.allow === false ? "deny" : "allow", reason: "test", decisionId: "dec_1" }),
@@ -127,14 +243,17 @@ export function harness(o: Options = {}) {
       const e = frozen().events?.find((x) => x.name === name);
       if (!e) throw new Error(`${name} is not in the dropbox manifest`);
       const misfit = validate(e.payload, payload, "", registry.$defs);
-      if (misfit.length) throw new Error(`${name} was emitted with a payload its contract refuses: ${misfit.join("; ")}`);
+      if (misfit.length)
+        throw new Error(`${name} was emitted with a payload its contract refuses: ${misfit.join("; ")}`);
       emitted.push({ name, subject, payload: payload as Record<string, unknown> });
       return null;
     },
     async call(cap, input) {
       const body = (input ?? {}) as Record<string, unknown>;
       called.push({ cap, input: body });
-      const d = others.flatMap((o) => o.capabilities ?? []).find((c) => c.name === cap) ?? registry.capabilities.filter((c) => c.name === cap).sort((a, b) => b.v - a.v)[0];
+      const d =
+        others.flatMap((o) => o.capabilities ?? []).find((c) => c.name === cap) ??
+        registry.capabilities.filter((c) => c.name === cap).sort((a, b) => b.v - a.v)[0];
       if (!d) throw new Error(`${cap} is not in the registry`);
       const misfit = validate(d.input, body, "", registry.$defs);
       if (misfit.length) throw new Error(`${cap} was called with input its contract refuses: ${misfit.join("; ")}`);
@@ -142,48 +261,97 @@ export function harness(o: Options = {}) {
       if (!script) throw new Error(`unscripted capability ${cap}`);
       const out = script(body);
       const bad = validate(d.output, out, "", registry.$defs);
-      if (bad.length) throw new Error(`the script for ${cap} answered something its contract refuses: ${bad.join("; ")}`);
+      if (bad.length)
+        throw new Error(`the script for ${cap} answered something its contract refuses: ${bad.join("; ")}`);
       return out;
     },
     async http(url, init) {
       const method = init?.method ?? "GET";
       const u = new URL(url);
-      requests.push({ method, url, host: u.host, path: u.pathname, headers: init?.headers ?? {}, body: init?.body ? safeJson(init.body) : null });
+      requests.push({
+        method,
+        url,
+        host: u.host,
+        path: u.pathname,
+        headers: init?.headers ?? {},
+        body: init?.body ? safeJson(init.body) : null,
+      });
       const queue = scripted.get(`${method} ${u.host}${u.pathname}`);
       if (!queue || queue.length === 0) throw new Error(`unscripted request ${method} ${u.host}${u.pathname}`);
       const reply = queue.length > 1 ? (queue.shift() as Reply) : (queue[0] as Reply);
       if (reply.throws) throw new Error("socket hang up");
-      const text = reply.body === undefined ? "" : typeof reply.body === "string" ? reply.body : JSON.stringify(reply.body);
+      const text =
+        reply.body === undefined ? "" : typeof reply.body === "string" ? reply.body : JSON.stringify(reply.body);
       return { status: reply.status ?? 200, text: async () => text };
     },
     log: { info() {}, warn() {} },
   };
 
   return {
-    ctx, emitted, called, requests, tokenAsks, uploads, downloads,
+    ctx,
+    emitted,
+    called,
+    requests,
+    tokenAsks,
+    uploads,
+    downloads,
     /** Script what Dropbox answers to `POST host/path`; several replies are answered in order, the last one repeatedly. */
-    on(request: string, ...replies: Reply[]): void { scripted.set(request, replies); },
+    on(request: string, ...replies: Reply[]): void {
+      scripted.set(request, replies);
+    },
     /** Replace what another module answers. A thrown HostError is that module refusing. */
-    script(cap: string, fn: Script): void { scripts.set(cap, fn); },
+    script(cap: string, fn: Script): void {
+      scripts.set(cap, fn);
+    },
     /** What the host's upload and download answer next, in order. */
-    nextUpload(...r: { status: number; json: Record<string, unknown> }[]): void { transfer.upload.push(...r); },
-    nextDownload(...r: { status: number; json: Record<string, unknown>; size?: number }[]): void { transfer.download.push(...r); },
-    advance(ms: number) { clock += ms; },
-    rows(sql: string, ...args: unknown[]) { return ctx.db.all(sql, ...args) as Record<string, string | number | null>[]; },
-    named(name: string): Emitted[] { return emitted.filter((e) => e.name === name); },
+    nextUpload(...r: { status: number; json: Record<string, unknown> }[]): void {
+      transfer.upload.push(...r);
+    },
+    nextDownload(...r: { status: number; json: Record<string, unknown>; size?: number }[]): void {
+      transfer.download.push(...r);
+    },
+    advance(ms: number) {
+      clock += ms;
+    },
+    rows(sql: string, ...args: unknown[]) {
+      return ctx.db.all(sql, ...args) as Record<string, string | number | null>[];
+    },
+    named(name: string): Emitted[] {
+      return emitted.filter((e) => e.name === name);
+    },
     /** A refusal as another module would throw it. */
-    err(code: string, message: string): Error { return fail(code as never, TRACE, { message }); },
-    calls(cap: string): Called[] { return called.filter((c) => c.cap === cap); },
-    api(): Seen[] { return requests.filter((r) => r.host.endsWith("dropboxapi.com")); },
+    err(code: string, message: string): Error {
+      return fail(code as never, TRACE, { message });
+    },
+    calls(cap: string): Called[] {
+      return called.filter((c) => c.cap === cap);
+    },
+    api(): Seen[] {
+      return requests.filter((r) => r.host.endsWith("dropboxapi.com"));
+    },
     /** The app set up and an account connected, as app.set and connect.complete would have left them. */
     connect(over: { connectionId?: string; ownerKind?: "person" | "space"; ownerId?: string } = {}): string {
       ensure(ctx);
-      if (!ctx.db.all(`SELECT "id" FROM dropbox_config WHERE "id" = ?`, "dropbox").length) ctx.db.run(`INSERT INTO dropbox_config ("id", "vaultItem", "appKey", "updated_at") VALUES (?, ?, ?, ?)`, "dropbox", "#Dropbox_App", APP_KEY, NOW);
+      if (!ctx.db.all(`SELECT "id" FROM dropbox_config WHERE "id" = ?`, "dropbox").length)
+        ctx.db.run(
+          `INSERT INTO dropbox_config ("id", "vaultItem", "appKey", "updated_at") VALUES (?, ?, ?, ?)`,
+          "dropbox",
+          "#Dropbox_App",
+          APP_KEY,
+          NOW,
+        );
       const connectionId = over.connectionId ?? "con_dbx0001";
       const ownerKind = over.ownerKind ?? "person";
       ctx.db.run(
         `INSERT INTO dropbox_account ("connectionId", "ownerKind", "ownerId", "accountId", "email", "name", "refreshSealed", "created_at") VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        connectionId, ownerKind, over.ownerId ?? (ownerKind === "space" ? "space" : MAYA), RECORDED.account.account_id, RECORDED.account.email, "Maya Rivera", JSON.stringify(ctx.seal.seal(new TextEncoder().encode(REFRESH), "dropbox.refresh")), NOW,
+        connectionId,
+        ownerKind,
+        over.ownerId ?? (ownerKind === "space" ? "space" : MAYA),
+        RECORDED.account.account_id,
+        RECORDED.account.email,
+        "Maya Rivera",
+        JSON.stringify(ctx.seal.seal(new TextEncoder().encode(REFRESH), "dropbox.refresh")),
+        NOW,
       );
       return connectionId;
     },
@@ -191,7 +359,11 @@ export function harness(o: Options = {}) {
 }
 
 function safeJson(s: string): unknown {
-  try { return JSON.parse(s); } catch { return s; }
+  try {
+    return JSON.parse(s);
+  } catch {
+    return s;
+  }
 }
 
 export type Harness = ReturnType<typeof harness>;

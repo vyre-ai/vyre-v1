@@ -25,9 +25,11 @@ export interface InstallOptions {
 export function installReport(ctl: ReportController, o: InstallOptions): () => void {
   const platform = o.platform ?? "mac";
   const g = globalThis as { document?: Target; window?: Target };
-  const keys = o.keyTarget === undefined ? g.document ?? null : o.keyTarget;
-  const events = o.eventTarget === undefined ? g.window ?? null : o.eventTarget;
-  const offMenu = setReportProblemHandler((c) => ctl.open({ place: o.currentPlace(), ...(c.label ? { itemId: c.label } : {}) }));
+  const keys = o.keyTarget === undefined ? (g.document ?? null) : o.keyTarget;
+  const events = o.eventTarget === undefined ? (g.window ?? null) : o.eventTarget;
+  const offMenu = setReportProblemHandler((c) =>
+    ctl.open({ place: o.currentPlace(), ...(c.label ? { itemId: c.label } : {}) }),
+  );
   const onKey = (e: ReportKeyEvent & { preventDefault?: () => void }): void => {
     if (!isReportKey(e, platform)) return;
     e.preventDefault?.();
@@ -35,7 +37,13 @@ export function installReport(ctl: ReportController, o: InstallOptions): () => v
   };
   const onError = (e: { detail?: { traceId?: string; code?: string; message?: string } }): void => {
     const d = e.detail ?? {};
-    if (d.message) captures.noteError({ code: d.code ?? "error", message: d.message, at: Date.now(), ...(d.traceId ? { traceId: d.traceId } : {}) });
+    if (d.message)
+      captures.noteError({
+        code: d.code ?? "error",
+        message: d.message,
+        at: Date.now(),
+        ...(d.traceId ? { traceId: d.traceId } : {}),
+      });
     ctl.open({ place: o.currentPlace(), ...(d.traceId ? { itemId: d.traceId } : {}) });
   };
   keys?.addEventListener("keydown", onKey as never);

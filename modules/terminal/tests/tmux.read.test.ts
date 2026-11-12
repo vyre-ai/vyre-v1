@@ -19,7 +19,13 @@ function tab(read: (since: number) => Promise<{ text: string; next: number }>, s
   return {
     text: (): string => rows.join("\n"),
     async poll(n = 1): Promise<void> {
-      for (let i = 0; i < n; i++) { const r = await read(cursor); cursor = r.next; if (r.text === "") continue; rows.pop(); rows.push(...r.text.split("\n")); }
+      for (let i = 0; i < n; i++) {
+        const r = await read(cursor);
+        cursor = r.next;
+        if (r.text === "") continue;
+        rows.pop();
+        rows.push(...r.text.split("\n"));
+      }
     },
   };
 }
@@ -70,7 +76,16 @@ test("a line that changes between two reads (a prompt, then what is typed on it)
 test("a plain session on a computer without tmux reads the same way: past its 5,000 kept lines, with the unfinished line sent again", async () => {
   let print: ((t: string) => void) | null = null;
   let finish: (() => void) | null = null;
-  const host = createShellHost({ home: "/h", run: async (a) => { print = a.onData; await new Promise<void>((r) => { finish = r; }); return { exitCode: 0 }; } });
+  const host = createShellHost({
+    home: "/h",
+    run: async (a) => {
+      print = a.onData;
+      await new Promise<void>((r) => {
+        finish = r;
+      });
+      return { exitCode: 0 };
+    },
+  });
   await host.open({ terminalId: "p1", target, name: "x", cols: 80, rows: 24, folders: [] });
   const running = host.run("p1", { command: "seq", env: {}, timeoutMs: 60_000 });
   await new Promise((r) => setTimeout(r, 5));
@@ -87,21 +102,39 @@ test("a plain session on a computer without tmux reads the same way: past its 5,
   }
   finish!();
   await running;
-  assert.deepEqual(seen, Array.from({ length: n }, (_, i) => `n${i + 1}`));
+  assert.deepEqual(
+    seen,
+    Array.from({ length: n }, (_, i) => `n${i + 1}`),
+  );
 });
 
 test("a tab left open neither wakes a sleeping workspace nor keeps it awake: its reads are not use", async () => {
   const dk = fakeDocker({ tmux: { scripts: { "echo hi": { out: "hi", code: 0 } } } });
   const clock = { t: 1_000_000 };
-  const m = createWorkspaceManager({ api: createDockerApi(dk.http), http: dk.http, idleMs: 600_000, now: () => clock.t });
+  const m = createWorkspaceManager({
+    api: createDockerApi(dk.http),
+    http: dk.http,
+    idleMs: 600_000,
+    now: () => clock.t,
+  });
   const h = createWorkspaceTerminalHost({ manager: m, sleep: async () => undefined });
-  await h.open({ terminalId: "w1", target: { host: "agent_computer", agentId: "agt_dex" }, name: "agent", cols: 80, rows: 24, folders: [] });
+  await h.open({
+    terminalId: "w1",
+    target: { host: "agent_computer", agentId: "agt_dex" },
+    name: "agent",
+    cols: 80,
+    rows: 24,
+    folders: [],
+  });
   await h.run("w1", { command: "echo hi", env: {}, timeoutMs: 5000 });
   const at = await h.read("w1", { lines: 50 });
   assert.match(at.text, /^hi$/m);
   let cursor = at.next;
   // the person watches for eleven minutes, a read every 400 ms
-  for (let i = 0; i < (11 * 60_000) / 400; i += 25) { clock.t += 400 * 25; cursor = (await h.read("w1", { lines: 200, since: cursor })).next; }
+  for (let i = 0; i < (11 * 60_000) / 400; i += 25) {
+    clock.t += 400 * 25;
+    cursor = (await h.read("w1", { lines: 200, since: cursor })).next;
+  }
   assert.deepEqual(await m.sweep(), ["agt_dex"], "watching is not working: it sleeps after its idle time");
   const name = workspaceName("agt_dex");
   const execs = dk.ops("exec").length;
@@ -129,13 +162,24 @@ test("keys typed one at a time reach the shell as typed, a lone semicolon and a 
 });
 
 test("review 3: a command is never typed into a tab that runs something: it waits for the prompt within its time, runs once the program ends, and otherwise says what runs there", async () => {
-  const tm = fakeTmux({ scripts: { "build": { hang: true }, "echo hi": { out: "hi", code: 0 } } });
-  const host = createTmuxHost({ exec: tm.exec, pollMs: 10, sleep: async (ms) => { await new Promise((x) => setTimeout(x, Math.min(ms, 20))); } });
+  const tm = fakeTmux({ scripts: { build: { hang: true }, "echo hi": { out: "hi", code: 0 } } });
+  const host = createTmuxHost({
+    exec: tm.exec,
+    pollMs: 10,
+    sleep: async (ms) => {
+      await new Promise((x) => setTimeout(x, Math.min(ms, 20)));
+    },
+  });
   await host.open({ terminalId: "b1", target, name: "x", cols: 80, rows: 24, folders: [] });
   // a person's own program in the tab (no run of this process knows of it: a restart, or typed by hand)
   tm.sessions.get("vyre-b1")!.hung = true;
-  const typedRuns = (): number => tm.calls.filter((c) => c[1] === "send-keys" && String(c.at(-1)).includes("__VYRE_BEG_")).length;
-  await assert.rejects(() => host.run("b1", { command: "echo hi", env: {}, timeoutMs: 300 }), (e: Error) => /still running something \(sleep\)[\s\S]*another tab/.test(e.message) && (e as { code?: string }).code === "busy");
+  const typedRuns = (): number =>
+    tm.calls.filter((c) => c[1] === "send-keys" && String(c.at(-1)).includes("__VYRE_BEG_")).length;
+  await assert.rejects(
+    () => host.run("b1", { command: "echo hi", env: {}, timeoutMs: 300 }),
+    (e: Error) =>
+      /still running something \(sleep\)[\s\S]*another tab/.test(e.message) && (e as { code?: string }).code === "busy",
+  );
   assert.equal(typedRuns(), 0, "nothing was typed into the program");
   // the program ends while a command waits: the command runs then
   const waiting = host.run("b1", { command: "echo hi", env: {}, timeoutMs: 5000 });
@@ -165,8 +209,14 @@ test("review 7: when a program moves the cursor up (an editor, tput), the live r
 });
 
 test("a run whose program drew over the end marker's row (tput, a progress bar) still ends at once with its exit code, from the code the line stores in a tmux option", async () => {
-  const tm = fakeTmux({ scripts: { "draw": { out: "50%", code: 3 } }, overwriteEnd: ["50%"] });
-  const host = createTmuxHost({ exec: tm.exec, pollMs: 5, sleep: async () => { await new Promise((x) => setTimeout(x, 2)); } });
+  const tm = fakeTmux({ scripts: { draw: { out: "50%", code: 3 } }, overwriteEnd: ["50%"] });
+  const host = createTmuxHost({
+    exec: tm.exec,
+    pollMs: 5,
+    sleep: async () => {
+      await new Promise((x) => setTimeout(x, 2));
+    },
+  });
   await host.open({ terminalId: "e1", target, name: "x", cols: 80, rows: 24, folders: [] });
   const t0 = Date.now();
   const r = await host.run("e1", { command: "draw", env: {}, timeoutMs: 10_000 });

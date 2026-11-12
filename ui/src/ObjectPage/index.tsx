@@ -68,7 +68,9 @@ export function doneLine(action: ObjectAction, name: string): string {
 }
 
 export type ObjectActionResult = { ok: true } | { ok: false; error: string };
-export async function settleObjectAction(run: () => void | boolean | Promise<void | boolean>): Promise<ObjectActionResult> {
+export async function settleObjectAction(
+  run: () => void | boolean | Promise<void | boolean>,
+): Promise<ObjectActionResult> {
   try {
     const result = await run();
     return result === false ? { ok: false, error: "The action did not complete." } : { ok: true };
@@ -131,7 +133,8 @@ interface Pending {
 }
 
 export function ObjectPage(props: ObjectPageViewProps): ReactElement {
-  const { name, kind, owner, status, actions, tabs, density, sheetOpen, impacts, onAction, onUndo, onTab, onBack } = props;
+  const { name, kind, owner, status, actions, tabs, density, sheetOpen, impacts, onAction, onUndo, onTab, onBack } =
+    props;
   const measuredWidth = useWindowDimensions().width;
   const compact = density === "compact" || isPhoneWidth(measuredWidth);
   const [active, setActive] = useState(props.activeTabId);
@@ -147,40 +150,65 @@ export function ObjectPage(props: ObjectPageViewProps): ReactElement {
   const tone = statusTone(status);
 
   useEffect(() => {
-    if (activeProp.current !== props.activeTabId) { activeProp.current = props.activeTabId; setActive(props.activeTabId); }
+    if (activeProp.current !== props.activeTabId) {
+      activeProp.current = props.activeTabId;
+      setActive(props.activeTabId);
+    }
   }, [props.activeTabId]);
   useEffect(() => {
-    if (sheetProp.current !== props.sheetOpen) { sheetProp.current = props.sheetOpen; setSheet(props.sheetOpen); }
+    if (sheetProp.current !== props.sheetOpen) {
+      sheetProp.current = props.sheetOpen;
+      setSheet(props.sheetOpen);
+    }
   }, [props.sheetOpen]);
 
-  const select = useCallback((id: string) => {
-    setActive(id);
-    if (onTab) onTab(id);
-  }, [onTab]);
+  const select = useCallback(
+    (id: string) => {
+      setActive(id);
+      if (onTab) onTab(id);
+    },
+    [onTab],
+  );
 
-  const choose = useCallback((action: ObjectAction) => {
-    if (busyAction !== null) return;
-    if (action.destructive) {
-      setPending({ actionId: action.id });
-      setDone(null);
+  const choose = useCallback(
+    (action: ObjectAction) => {
+      if (busyAction !== null) return;
+      if (action.destructive) {
+        setPending({ actionId: action.id });
+        setDone(null);
+        setActionError(null);
+        return;
+      }
+      if (!onAction) return;
+      setBusyAction(action.id);
       setActionError(null);
-      return;
-    }
-    if (!onAction) return;
-    setBusyAction(action.id); setActionError(null);
-    void settleObjectAction(() => onAction(action.id)).then((result) => { if (!result.ok) setActionError(result.error); }).finally(() => setBusyAction(null));
-  }, [busyAction, onAction]);
+      void settleObjectAction(() => onAction(action.id))
+        .then((result) => {
+          if (!result.ok) setActionError(result.error);
+        })
+        .finally(() => setBusyAction(null));
+    },
+    [busyAction, onAction],
+  );
 
   const confirm = useCallback(async () => {
     if (pending === null || busyAction !== null) return;
     const action = actions.find((a) => a.id === pending.actionId);
     if (action === undefined) return;
-    if (!onAction) { setPending(null); return; }
-    setBusyAction(action.id); setActionError(null);
+    if (!onAction) {
+      setPending(null);
+      return;
+    }
+    setBusyAction(action.id);
+    setActionError(null);
     const result = await settleObjectAction(() => onAction(action.id));
     setBusyAction(null);
-    if (!result.ok) { setActionError(result.error); return; }
-    setPending(null); setDone(action.id);
+    if (!result.ok) {
+      setActionError(result.error);
+      return;
+    }
+    setPending(null);
+    setDone(action.id);
   }, [pending, busyAction, actions, onAction]);
 
   const closeSheet = useCallback(() => {
@@ -220,11 +248,21 @@ export function ObjectPage(props: ObjectPageViewProps): ReactElement {
     }
   };
 
-  const pendingAction = pending === null ? null : actions.find((a) => a.id === pending.actionId) ?? null;
-  const doneAction = done === null ? null : actions.find((a) => a.id === done) ?? null;
+  const pendingAction = pending === null ? null : (actions.find((a) => a.id === pending.actionId) ?? null);
+  const doneAction = done === null ? null : (actions.find((a) => a.id === done) ?? null);
   const more = menuFor(compact);
   const secondaryButtons: ReactNode[] = [];
-  if (!compact) for (const a of split.secondary) secondaryButtons.push(<HeadButton key={a.id} label={a.label} testID={`object-action-${a.id}`} disabled={busyAction !== null} onPress={() => choose(a)} />);
+  if (!compact)
+    for (const a of split.secondary)
+      secondaryButtons.push(
+        <HeadButton
+          key={a.id}
+          label={a.label}
+          testID={`object-action-${a.id}`}
+          disabled={busyAction !== null}
+          onPress={() => choose(a)}
+        />,
+      );
   const tabNodes: ReactNode[] = [];
   for (const tab of tabs) {
     const on = tab.id === active;
@@ -255,11 +293,21 @@ export function ObjectPage(props: ObjectPageViewProps): ReactElement {
       <View style={styles.main}>
         {props.parent !== undefined ? (
           <View style={styles.crumbs} testID="object-crumbs">
-            <Pressable role="link" aria-label={`Back to ${props.parent}`} onPress={onBack} testID="object-parent" style={styles.crumbBtn}>
+            <Pressable
+              role="link"
+              aria-label={`Back to ${props.parent}`}
+              onPress={onBack}
+              testID="object-parent"
+              style={styles.crumbBtn}
+            >
               <Text style={styles.crumb}>{props.parent}</Text>
             </Pressable>
-            <Text style={styles.crumbSep} aria-hidden>{"›"}</Text>
-            <Text style={styles.crumbHere} numberOfLines={1}>{name}</Text>
+            <Text style={styles.crumbSep} aria-hidden>
+              {"›"}
+            </Text>
+            <Text style={styles.crumbHere} numberOfLines={1}>
+              {name}
+            </Text>
           </View>
         ) : null}
 
@@ -271,16 +319,30 @@ export function ObjectPage(props: ObjectPageViewProps): ReactElement {
           {props.avatar !== undefined ? <View style={styles.avatar}>{props.avatar}</View> : null}
           <View style={styles.titles}>
             <View style={styles.nameRow}>
-              <Text style={styles.name} numberOfLines={1} role="heading" aria-level={1}>{name}</Text>
+              <Text style={styles.name} numberOfLines={1} role="heading" aria-level={1}>
+                {name}
+              </Text>
               <View style={styles.status} testID="object-status">
-                <View style={[styles.dot, tone === "ok" ? styles.dotOk : tone === "warn" ? styles.dotWarn : styles.dotOff]} />
+                <View
+                  style={[styles.dot, tone === "ok" ? styles.dotOk : tone === "warn" ? styles.dotWarn : styles.dotOff]}
+                />
                 <Text style={styles.statusText}>{status}</Text>
               </View>
             </View>
-            <Text style={styles.sub} numberOfLines={1} testID="object-subtitle">{props.subtitle ?? subtitle(kind, owner)}</Text>
+            <Text style={styles.sub} numberOfLines={1} testID="object-subtitle">
+              {props.subtitle ?? subtitle(kind, owner)}
+            </Text>
           </View>
           <View style={styles.actions}>
-            {!compact && split.primary !== null ? <HeadButton label={split.primary.label} outlined testID={`object-action-${split.primary.id}`} disabled={busyAction !== null} onPress={() => choose(split.primary as ObjectAction)} /> : null}
+            {!compact && split.primary !== null ? (
+              <HeadButton
+                label={split.primary.label}
+                outlined
+                testID={`object-action-${split.primary.id}`}
+                disabled={busyAction !== null}
+                onPress={() => choose(split.primary as ObjectAction)}
+              />
+            ) : null}
             {secondaryButtons}
             {more.length > 0 ? (
               <Pressable
@@ -288,7 +350,9 @@ export function ObjectPage(props: ObjectPageViewProps): ReactElement {
                 aria-label="More"
                 aria-haspopup="menu"
                 testID="object-more"
-                onPress={(e) => show(more, e.nativeEvent.pageX ?? 0, e.nativeEvent.pageY ?? 0, "context", { label: name })}
+                onPress={(e) =>
+                  show(more, e.nativeEvent.pageX ?? 0, e.nativeEvent.pageY ?? 0, "context", { label: name })
+                }
                 style={styles.more}
               >
                 <MenuIcon icon="more" color="var(--ink-2)" size={16} />
@@ -298,27 +362,65 @@ export function ObjectPage(props: ObjectPageViewProps): ReactElement {
         </View>
 
         <View style={styles.tabsBox}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabs} role="tablist" aria-label={`${name} tabs`} testID="object-tabs">
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.tabs}
+            role="tablist"
+            aria-label={`${name} tabs`}
+            testID="object-tabs"
+          >
             {tabNodes}
           </ScrollView>
         </View>
 
         {pendingAction !== null ? (
-          <View style={styles.confirm} testID="object-confirm" role="alertdialog" aria-label={confirmLine(pendingAction, name, impacts?.[pendingAction.id])}>
+          <View
+            style={styles.confirm}
+            testID="object-confirm"
+            role="alertdialog"
+            aria-label={confirmLine(pendingAction, name, impacts?.[pendingAction.id])}
+          >
             <Text style={styles.confirmText}>{confirmLine(pendingAction, name, impacts?.[pendingAction.id])}</Text>
             <View style={styles.confirmBtns}>
-              <HeadButton label="Cancel" testID="object-cancel" disabled={busyAction !== null} onPress={() => setPending(null)} />
-              <HeadButton label={busyAction === pendingAction.id ? `${pendingAction.label}…` : pendingAction.label} danger testID="object-confirm-go" disabled={busyAction !== null} onPress={() => { void confirm(); }} />
+              <HeadButton
+                label="Cancel"
+                testID="object-cancel"
+                disabled={busyAction !== null}
+                onPress={() => setPending(null)}
+              />
+              <HeadButton
+                label={busyAction === pendingAction.id ? `${pendingAction.label}…` : pendingAction.label}
+                danger
+                testID="object-confirm-go"
+                disabled={busyAction !== null}
+                onPress={() => {
+                  void confirm();
+                }}
+              />
             </View>
           </View>
         ) : null}
 
-        {actionError !== null ? <View style={styles.error} role="alert" testID="object-action-error"><Text style={styles.errorText}>{actionError}</Text></View> : null}
+        {actionError !== null ? (
+          <View style={styles.error} role="alert" testID="object-action-error">
+            <Text style={styles.errorText}>{actionError}</Text>
+          </View>
+        ) : null}
 
         {doneAction !== null ? (
           <View style={styles.done} testID="object-done" role="status">
             <Text style={styles.doneText}>{doneLine(doneAction, name)}</Text>
-            {onUndo ? <HeadButton label="Undo" testID="object-undo" onPress={() => { onUndo(doneAction.id); setDone(null); }} /> : null}
+            {onUndo ? (
+              <HeadButton
+                label="Undo"
+                testID="object-undo"
+                onPress={() => {
+                  onUndo(doneAction.id);
+                  setDone(null);
+                }}
+              />
+            ) : null}
           </View>
         ) : null}
 
@@ -328,11 +430,24 @@ export function ObjectPage(props: ObjectPageViewProps): ReactElement {
       </View>
 
       {sheet ? (
-        <View style={[styles.sheet, compact && styles.sheetCompact]} testID="object-sheet" role="complementary" aria-label={props.sheetTitle ?? "Details"}>
+        <View
+          style={[styles.sheet, compact && styles.sheetCompact]}
+          testID="object-sheet"
+          role="complementary"
+          aria-label={props.sheetTitle ?? "Details"}
+        >
           <View style={styles.sheetHead}>
-            <Text style={styles.sheetTitle} numberOfLines={1}>{props.sheetTitle ?? "Details"}</Text>
+            <Text style={styles.sheetTitle} numberOfLines={1}>
+              {props.sheetTitle ?? "Details"}
+            </Text>
             <View style={styles.grow} />
-            <Pressable role="button" aria-label="Close" testID="object-sheet-close" onPress={closeSheet} style={styles.more}>
+            <Pressable
+              role="button"
+              aria-label="Close"
+              testID="object-sheet-close"
+              onPress={closeSheet}
+              style={styles.more}
+            >
               <MenuIcon icon="x" color="var(--ink-3)" size={15} />
             </Pressable>
           </View>
@@ -344,7 +459,8 @@ export function ObjectPage(props: ObjectPageViewProps): ReactElement {
   );
 }
 
-const CHEVRON_RIGHT = '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3.500L10.500 8 6 12.500"/></svg>';
+const CHEVRON_RIGHT =
+  '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3.500L10.500 8 6 12.500"/></svg>';
 
 /** The small arrow at the end of a row that opens something. */
 export function ObjectChevron(): ReactElement {
@@ -352,11 +468,23 @@ export function ObjectChevron(): ReactElement {
 }
 
 /** A titled group on an object page: "Owns 3" over a card of rows. Pass shared Rows as children. */
-export function ObjectSection({ title, count, children, testID }: { title: string; count?: number; children: ReactNode; testID?: string }): ReactElement {
+export function ObjectSection({
+  title,
+  count,
+  children,
+  testID,
+}: {
+  title: string;
+  count?: number;
+  children: ReactNode;
+  testID?: string;
+}): ReactElement {
   return (
     <View testID={testID ?? `object-section-${title.toLowerCase().replace(/\s+/g, "-")}`} style={sectionStyles.section}>
       <View style={sectionStyles.head}>
-        <Text style={sectionStyles.title} role="heading" aria-level={2}>{title}</Text>
+        <Text style={sectionStyles.title} role="heading" aria-level={2}>
+          {title}
+        </Text>
         {count === undefined ? null : <Text style={sectionStyles.count}>{count}</Text>}
       </View>
       <View style={sectionStyles.card}>{children}</View>
@@ -369,10 +497,29 @@ const sectionStyles = StyleSheet.create({
   head: { flexDirection: "row", alignItems: "baseline", gap: 7, paddingHorizontal: 2 },
   title: { color: "var(--ink)" as string, fontSize: 13.5, fontWeight: "600" },
   count: { color: "var(--ink-3)" as string, fontSize: 12.5 },
-  card: { borderRadius: 10, boxShadow: "0 0 0 1px var(--line)" as string, backgroundColor: "var(--raised)" as string, padding: 4 },
+  card: {
+    borderRadius: 10,
+    boxShadow: "0 0 0 1px var(--line)" as string,
+    backgroundColor: "var(--raised)" as string,
+    padding: 4,
+  },
 });
 
-function HeadButton({ label, onPress, testID, outlined = false, danger = false, disabled = false }: { label: string; onPress: () => void; testID: string; outlined?: boolean; danger?: boolean; disabled?: boolean }): ReactElement {
+function HeadButton({
+  label,
+  onPress,
+  testID,
+  outlined = false,
+  danger = false,
+  disabled = false,
+}: {
+  label: string;
+  onPress: () => void;
+  testID: string;
+  outlined?: boolean;
+  danger?: boolean;
+  disabled?: boolean;
+}): ReactElement {
   const [over, setOver] = useState(false);
   return (
     <Pressable
@@ -383,7 +530,13 @@ function HeadButton({ label, onPress, testID, outlined = false, danger = false, 
       onPress={onPress}
       onHoverIn={() => setOver(true)}
       onHoverOut={() => setOver(false)}
-      style={[styles.btn, outlined && styles.btnOutlined, danger && styles.btnDanger, over && !danger && styles.btnOver, disabled && styles.disabled]}
+      style={[
+        styles.btn,
+        outlined && styles.btnOutlined,
+        danger && styles.btnDanger,
+        over && !danger && styles.btnOver,
+        disabled && styles.disabled,
+      ]}
     >
       <Text style={[styles.btnText, danger && styles.btnTextDanger]}>{label}</Text>
     </Pressable>
@@ -393,12 +546,27 @@ function HeadButton({ label, onPress, testID, outlined = false, danger = false, 
 const styles = StyleSheet.create({
   root: { flex: 1, flexDirection: "row", minHeight: 0, backgroundColor: "var(--win)" as string },
   main: { flex: 1, minWidth: 0 },
-  crumbs: { flexDirection: "row", alignItems: "center", gap: 8, height: 48, paddingHorizontal: 18, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
+  crumbs: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    height: 48,
+    paddingHorizontal: 18,
+    borderBottomWidth: 1,
+    borderBottomColor: "var(--line)" as string,
+  },
   crumbBtn: { paddingVertical: 4 },
   crumb: { color: "var(--ink-3)" as string, fontSize: 13.5, fontWeight: "500" },
   crumbSep: { color: "var(--ink-4)" as string, fontSize: 13 },
   crumbHere: { color: "var(--ink)" as string, fontSize: 13.5, fontWeight: "600", flexShrink: 1 },
-  head: { flexDirection: "row", alignItems: "center", gap: 14, paddingHorizontal: 18, paddingTop: 20, paddingBottom: 6 },
+  head: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    paddingHorizontal: 18,
+    paddingTop: 20,
+    paddingBottom: 6,
+  },
   headCompact: { paddingTop: 14, gap: 10 },
   avatar: { width: 44, height: 44, borderRadius: 22, overflow: "hidden" },
   titles: { flex: 1, minWidth: 0, gap: 3 },
@@ -422,23 +590,78 @@ const styles = StyleSheet.create({
   disabled: { opacity: 0.5 },
   tabsBox: { borderBottomWidth: 1, borderBottomColor: "var(--line)" as string, marginHorizontal: 18 },
   tabs: { gap: 20 },
-  tab: { flexDirection: "row", alignItems: "center", gap: 6, height: 38, borderBottomWidth: 2, borderBottomColor: "transparent" },
+  tab: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    height: 38,
+    borderBottomWidth: 2,
+    borderBottomColor: "transparent",
+  },
   tabOn: { borderBottomColor: "var(--ink)" as string },
   tabText: { color: "var(--ink-3)" as string, fontSize: 13.5, fontWeight: "500" },
   tabTextOn: { color: "var(--ink)" as string },
   tabCount: { color: "var(--ink-3)" as string, fontSize: 12 },
-  confirm: { margin: 18, marginBottom: 0, padding: 12, borderRadius: 10, backgroundColor: "var(--sunk)" as string, gap: 10 },
+  confirm: {
+    margin: 18,
+    marginBottom: 0,
+    padding: 12,
+    borderRadius: 10,
+    backgroundColor: "var(--sunk)" as string,
+    gap: 10,
+  },
   confirmText: { color: "var(--ink)" as string, fontSize: 13, lineHeight: 19 },
   confirmBtns: { flexDirection: "row", gap: 8, justifyContent: "flex-end" },
-  done: { margin: 18, marginBottom: 0, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 10, backgroundColor: "var(--sunk)" as string, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  done: {
+    margin: 18,
+    marginBottom: 0,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    backgroundColor: "var(--sunk)" as string,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
   doneText: { color: "var(--ink-2)" as string, fontSize: 12.5 },
-  error: { marginHorizontal: 18, marginTop: 8, paddingHorizontal: 12, paddingVertical: 9, borderRadius: 8, backgroundColor: "var(--sunk)" as string },
+  error: {
+    marginHorizontal: 18,
+    marginTop: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    borderRadius: 8,
+    backgroundColor: "var(--sunk)" as string,
+  },
   errorText: { color: "var(--danger)" as string, fontSize: 12.5 },
   body: { flex: 1 },
   bodyInner: { padding: 18, gap: 18 },
-  sheet: { width: 340, borderLeftWidth: 1, borderLeftColor: "var(--line)" as string, backgroundColor: "var(--side)" as string },
-  sheetCompact: { position: "absolute", left: 0, right: 0, bottom: 0, top: 80, width: "auto", borderLeftWidth: 0, borderTopWidth: 1, borderTopColor: "var(--line)" as string, borderTopLeftRadius: 14, borderTopRightRadius: 14 },
-  sheetHead: { flexDirection: "row", alignItems: "center", height: 44, paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
+  sheet: {
+    width: 340,
+    borderLeftWidth: 1,
+    borderLeftColor: "var(--line)" as string,
+    backgroundColor: "var(--side)" as string,
+  },
+  sheetCompact: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    top: 80,
+    width: "auto",
+    borderLeftWidth: 0,
+    borderTopWidth: 1,
+    borderTopColor: "var(--line)" as string,
+    borderTopLeftRadius: 14,
+    borderTopRightRadius: 14,
+  },
+  sheetHead: {
+    flexDirection: "row",
+    alignItems: "center",
+    height: 44,
+    paddingHorizontal: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: "var(--line)" as string,
+  },
   sheetTitle: { color: "var(--ink)" as string, fontSize: 13.5, fontWeight: "600" },
   sheetBody: { padding: 14, gap: 12 },
   grow: { flex: 1 },

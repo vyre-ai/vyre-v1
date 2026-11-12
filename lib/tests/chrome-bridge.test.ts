@@ -13,10 +13,26 @@ test("sameToken accepts only the exact token: a wrong token of the same length, 
   assert.equal(sameToken("", "tok-abcdef"), false);
 });
 
-function call(bridge: ReturnType<typeof createChromeBridge>, authorization: string | undefined): { handled: boolean; status: number } {
-  const req: BridgeRequest = { url: "/chrome-bridge/v1/rpc", method: "POST", headers: authorization === undefined ? {} : { authorization }, on: () => undefined, destroy: () => undefined };
+function call(
+  bridge: ReturnType<typeof createChromeBridge>,
+  authorization: string | undefined,
+): { handled: boolean; status: number } {
+  const req: BridgeRequest = {
+    url: "/chrome-bridge/v1/rpc",
+    method: "POST",
+    headers: authorization === undefined ? {} : { authorization },
+    on: () => undefined,
+    destroy: () => undefined,
+  };
   let status = 0;
-  const res: BridgeResponse = { writeHead: (s) => { status = s; }, write: () => undefined, end: () => undefined, flushHeaders: () => undefined };
+  const res: BridgeResponse = {
+    writeHead: (s) => {
+      status = s;
+    },
+    write: () => undefined,
+    end: () => undefined,
+    flushHeaders: () => undefined,
+  };
   return { handled: bridge.handle(req, res), status };
 }
 
@@ -26,6 +42,14 @@ test("the bridge answers 401 to a wrong token of the same length and to no token
   assert.deepEqual(call(bridge, "Bearer tok-secret"), { handled: true, status: 401 });
   assert.deepEqual(call(bridge, undefined), { handled: true, status: 401 });
   const other = createChromeBridge({ token: "t" });
-  const res: BridgeResponse = { writeHead: () => undefined, write: () => undefined, end: () => undefined, flushHeaders: () => undefined };
-  assert.equal(other.handle({ url: "/healthz", method: "GET", headers: {}, on: () => undefined, destroy: () => undefined }, res), false);
+  const res: BridgeResponse = {
+    writeHead: () => undefined,
+    write: () => undefined,
+    end: () => undefined,
+    flushHeaders: () => undefined,
+  };
+  assert.equal(
+    other.handle({ url: "/healthz", method: "GET", headers: {}, on: () => undefined, destroy: () => undefined }, res),
+    false,
+  );
 });

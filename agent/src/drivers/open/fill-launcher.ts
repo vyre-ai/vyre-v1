@@ -15,17 +15,33 @@ export function credentialLeaves(json: string): string[] {
   const out = new Set<string>();
   const walk = (v: unknown): void => {
     if (typeof v === "string") {
-      try { const inner = JSON.parse(v) as unknown; if (inner !== null && typeof inner === "object") { walk(inner); return; } } catch { /* plain text */ }
+      try {
+        const inner = JSON.parse(v) as unknown;
+        if (inner !== null && typeof inner === "object") {
+          walk(inner);
+          return;
+        }
+      } catch {
+        /* plain text */
+      }
       if (v.length >= 12 && !/[{}"\s]/.test(v)) out.add(v);
-    }
-    else if (Array.isArray(v)) v.forEach(walk);
+    } else if (Array.isArray(v)) v.forEach(walk);
     else if (v !== null && typeof v === "object") Object.values(v as Record<string, unknown>).forEach(walk);
   };
-  try { walk(JSON.parse(json)); } catch { /* not a file map */ }
+  try {
+    walk(JSON.parse(json));
+  } catch {
+    /* not a file map */
+  }
   return [...out];
 }
 
-export interface FillWho { agentId: string; asker: string; where: Where; traceId: string }
+export interface FillWho {
+  agentId: string;
+  asker: string;
+  where: Where;
+  traceId: string;
+}
 
 export interface FillLauncherDeps {
   inner: Launcher;
@@ -40,7 +56,12 @@ export interface FillLauncherDeps {
    * Sign-in files the CLI rewrote (a refreshed token), with the item they were filled from, the person the turn ran for and the value the fill gave: the host saves them back if they are still a
    * sign-in of that account and newer than what the item holds (host/src/seams/signin-refresh.ts). Omitted: a refresh is lost when the files are removed.
    */
-  saveSignin?(r: { itemId: string; asker: string; filled: string; files: Readonly<Record<string, string | null>> }): Promise<unknown>;
+  saveSignin?(r: {
+    itemId: string;
+    asker: string;
+    filled: string;
+    files: Readonly<Record<string, string | null>>;
+  }): Promise<unknown>;
 }
 
 /** What a refusal from the Vault is called to the engine: the Vault's own permission codes pass through, the rest is the account being unusable. */
@@ -52,11 +73,19 @@ export function fillErrorCode(code: string): string {
  * The engine's output line by line, each line scrubbed on its own. The protocol is one JSON object per line, so a value never spans two lines; scrubbing per line adds no delay, where
  * the Vault's stream scrubber holds back the tail of a stream until more arrives (right for a command's output, wrong for an engine that stays up between turns).
  */
-async function* scrubbedLines(source: AsyncIterable<Uint8Array | string>, scrubber: Scrubber, onMiss: (hit: readonly Secret[]) => void): AsyncGenerator<string> {
+async function* scrubbedLines(
+  source: AsyncIterable<Uint8Array | string>,
+  scrubber: Scrubber,
+  onMiss: (hit: readonly Secret[]) => void,
+): AsyncGenerator<string> {
   for await (const line of lines(source)) {
     const clean = scrubber.scrub(line);
     const hit = scrubber.residual(clean);
-    if (hit.length > 0) { onMiss(hit); yield `${WITHHELD}\n`; continue; }
+    if (hit.length > 0) {
+      onMiss(hit);
+      yield `${WITHHELD}\n`;
+      continue;
+    }
     yield `${clean}\n`;
   }
 }
@@ -69,20 +98,30 @@ export function createFillLauncher(d: FillLauncherDeps): Launcher {
       // The item the sign-in files came from is known once the fill has answered; a process that ends before that waits for it. Null when the start failed: nothing is saved then.
       const credHandle = d.env[CRED_FILES_ENV];
       let itemIs: (id: string | null) => void = () => undefined;
-      const item = new Promise<string | null>((r) => { itemIs = r; });
+      const item = new Promise<string | null>((r) => {
+        itemIs = r;
+      });
       const save = d.saveSignin;
-      const signinBack = credHandle !== undefined && save
-        ? async (files: Readonly<Record<string, string | null>>): Promise<void> => {
-          const itemId = await item;
-          const filled = got.filled[CRED_FILES_ENV];
-          if (itemId !== null && filled !== undefined) await save({ itemId, asker: d.who.asker, filled, files });
-        }
-        : undefined;
+      const signinBack =
+        credHandle !== undefined && save
+          ? async (files: Readonly<Record<string, string | null>>): Promise<void> => {
+              const itemId = await item;
+              const filled = got.filled[CRED_FILES_ENV];
+              if (itemId !== null && filled !== undefined) await save({ itemId, asker: d.who.asker, filled, files });
+            }
+          : undefined;
       let run: Awaited<ReturnType<typeof runWithVault>>;
       try {
         run = await runWithVault(
           { source: d.source, reportMiss: d.reportMiss },
-          { tool: "engine_launch", args: { env: d.env }, traceId: d.who.traceId, agentId: d.who.agentId, asker: d.who.asker, where: d.who.where },
+          {
+            tool: "engine_launch",
+            args: { env: d.env },
+            traceId: d.who.traceId,
+            agentId: d.who.agentId,
+            asker: d.who.asker,
+            where: d.who.where,
+          },
           async (args) => {
             got.filled = (args as { env: Record<string, string> }).env;
             // The Vault leaves a handle it does not know as text; a process must not start with that in place of a key.
@@ -91,17 +130,34 @@ export function createFillLauncher(d: FillLauncherDeps): Launcher {
               throw got.failure;
             }
             let p: CliProcess;
-            try { p = await d.inner.spawn({ ...spec, env: { ...spec.env, ...got.filled }, ...(signinBack ? { signinBack } : {}) }); }
-            catch (e) { got.failure = e; throw e; }
+            try {
+              p = await d.inner.spawn({
+                ...spec,
+                env: { ...spec.env, ...got.filled },
+                ...(signinBack ? { signinBack } : {}),
+              });
+            } catch (e) {
+              got.failure = e;
+              throw e;
+            }
             got.proc = p;
             // Nothing the vault scrubber would see: the engine's output is scrubbed below, line by line.
             return "";
           },
         );
-      } catch (e) { itemIs(null); throw e; }
+      } catch (e) {
+        itemIs(null);
+        throw e;
+      }
       // A start that failed for its own reasons (the program is not installed) keeps its own code.
-      if (got.failure instanceof LaunchError) { itemIs(null); throw got.failure; }
-      if (!run.ok) { itemIs(null); throw new LaunchError(fillErrorCode(run.error.code), run.error.message); }
+      if (got.failure instanceof LaunchError) {
+        itemIs(null);
+        throw got.failure;
+      }
+      if (!run.ok) {
+        itemIs(null);
+        throw new LaunchError(fillErrorCode(run.error.code), run.error.message);
+      }
       const started = got.proc;
       const named = Object.values(d.env);
       if (started === undefined || run.used.length !== new Set(named).size) {
@@ -110,17 +166,24 @@ export function createFillLauncher(d: FillLauncherDeps): Launcher {
         started?.kill("SIGKILL");
         throw new LaunchError("engine.account_unavailable", "The account's key is not in the Vault.");
       }
-      itemIs(credHandle !== undefined ? run.used.find((u) => u.handle === credHandle)?.itemId ?? null : null);
+      itemIs(credHandle !== undefined ? (run.used.find((u) => u.handle === credHandle)?.itemId ?? null) : null);
       d.onUsed?.(run.used);
       const secrets: Secret[] = Object.entries(d.env).flatMap(([name, handle]) => {
         const itemId = run.used.find((u) => u.handle === handle)?.itemId ?? handle;
         const value = got.filled[name] ?? "";
-        return name === CRED_FILES_ENV ? credentialLeaves(value).map((leaf) => ({ handle, itemId, value: leaf })) : [{ handle, itemId, value }];
+        return name === CRED_FILES_ENV
+          ? credentialLeaves(value).map((leaf) => ({ handle, itemId, value: leaf }))
+          : [{ handle, itemId, value }];
       });
       const scrubber = createScrubber(secrets);
       return {
         pid: started.pid,
-        stdout: scrubbedLines(started.stdout, scrubber, (hit) => { for (const h of hit) void Promise.resolve(d.reportMiss({ itemId: h.itemId, place: "terminal", traceId: d.who.traceId })).catch(() => undefined); }),
+        stdout: scrubbedLines(started.stdout, scrubber, (hit) => {
+          for (const h of hit)
+            void Promise.resolve(d.reportMiss({ itemId: h.itemId, place: "terminal", traceId: d.who.traceId })).catch(
+              () => undefined,
+            );
+        }),
         write: (data) => started.write(data),
         endInput: () => started.endInput(),
         exited: started.exited,
