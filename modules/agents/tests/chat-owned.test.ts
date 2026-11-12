@@ -100,3 +100,15 @@ test("a person's own Assistant is theirs alone: nobody else can see it, open it 
   assert.deepEqual(await h["agents.outside.usable"]!(hn.person(DANA), { agentId: id }), { usable: true });
   assert.equal(hn.named("agent.privacy_set").length, 1, "access is told it is private, which is how access.share refuses it");
 });
+
+test("agents.outside.usable: an agent a private chat made, asked by someone who may not see it, answers exactly as an agent that is not there", async () => {
+  const none = harness({ allow: (_a, r) => r.type !== "agent" });   // Leo holds nothing on any agent: the chat's agent is cut off from him
+  const owner = harness({ raw: none.raw, clock: none.clock, files: none.world });
+  const made = (await call(owner, owner.ctx, "agents.create", { name: "Rivera helper" })).agent as { agentId: string };
+  // made by a chat: a teammate of that thread (what agents.create with a threadId writes)
+  owner.raw.run("UPDATE agents_agent SET kind = 'teammate', threadId = 'thr_private1' WHERE id = ?", made.agentId);
+  const hidden = await h["agents.outside.usable"]!(none.person(LEO), { agentId: made.agentId });
+  const missing = await h["agents.outside.usable"]!(none.person(LEO), { agentId: "agt_unknown" });
+  assert.deepEqual(hidden, missing, "the same answer: a task, a hand-off or an Add for it reads as one for a missing agent");
+  assert.deepEqual(hidden, { usable: false });
+});
