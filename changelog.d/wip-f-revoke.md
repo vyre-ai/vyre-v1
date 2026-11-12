@@ -31,3 +31,4 @@
 - Asking Vyre to change who can open an agent, folder or record that you cannot see now answers as if it did not exist, even when nothing would change.
 - Leaving a private chat also takes away the notes its agent wrote for you in its own folder; they stay with the agent for the chat's other people.
 - If you lose access to an agent made in a private chat, a chat you already had with it no longer gets answers. It says "This agent is no longer available to you.", the same words it shows for a deleted agent.
+- An access review no longer lists the grants Vyre keeps for an agent (its own folder, and its owner's access there), so a reviewer cannot remove them by mistake and break an agent or a person's Assistant.
