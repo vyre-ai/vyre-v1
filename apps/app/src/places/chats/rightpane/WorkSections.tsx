@@ -14,7 +14,6 @@ import { dayMonth, stepRows, stepsLine } from "./model.ts";
 import type { Step } from "./model.ts";
 import { stepEntries } from "./ComputerTab.tsx";
 import { Icon, LeadIcon, PaneList, TextButton } from "./parts.tsx";
-import { GATE, allows, useOptionalShellRuntime } from "../../../shell/providers/runtime.tsx";
 import type { Entry } from "./parts.tsx";
 import { olderDesktopMenu, olderDesktopNote, attachedNote, browserAction, browserWords, orderSessions, sessionsLine, sharedWait, terminalAction, workspaceWords } from "./work-model.ts";
 import type { BrowserData, BrowserView, Tone, WorkspaceData, WorkspaceView } from "./work-model.ts";
