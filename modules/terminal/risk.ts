@@ -33,7 +33,7 @@ const DANGER: ReadonlyArray<RegExp> = [
   /\b(chmod|chown|chgrp)\s+[^|;&]*-[a-zA-Z]*R/, /\bchmod\s+(-\w+\s+)?[0-7]*777\b/,
   /\bgit\s+push\b[^|;&]*(--force\b|--force-with-lease\b|\s-f\b)/, /\bgit\s+reset\s+--hard\b/, /\bgit\s+clean\s+-[a-zA-Z]*f/, /\bgit\s+(checkout|restore)\s+(--\s+)?\.(\s|$)/,
   /\b(drop\s+(database|table|schema)|truncate\s+table)\b/i,
-  /\bdocker\s+(system\s+prune|volume\s+(rm|prune))\b/, /\b(docker|podman)\s+((container|image|compose)\s+)?(rm|rmi)\s+[^|;&]*(-[a-zA-Z]*f[a-zA-Z]*|--force)\b/, /\bkubectl\s+(delete|drain|cordon)\b/,
+  /\bdocker\s+(system\s+prune|volume\s+(rm|prune))\b/, /\b(docker|podman)\s+((container|image|compose)\s+)?(rm|rmi)(\s+[^|;&]*)?\s(-[a-zA-Z]*f[a-zA-Z]*|--force)\b/, /\bkubectl\s+(delete|drain|cordon)\b/,
   /\b(curl|wget)\b[^|;&]*\|\s*(sudo\s+)?(ba|z|da)?sh\b/, /:\(\)\s*\{/,
   />\s*\/dev\/(sd|nvme|disk|hd)/, /\b(iptables|ufw|nft)\b/, /\bcrontab\s+-r\b/, /\bpasswd\b|\bvisudo\b|\buserdel\b|\bdeluser\b/,
   /\bkill\s+-9\s+(-1|1)\b|\bkillall\b|\bpkill\s+-9\b/, /\bsystemctl\s+(stop|disable|mask)\b/,
