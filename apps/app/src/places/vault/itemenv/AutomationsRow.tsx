@@ -158,22 +158,24 @@ export function AutomationsRow({ item }: AutomationsRowProps): ReactElement | nu
         <View style={s.sent} testID="item-sent-to">
           <Text style={s.sentLabel}>Sent to</Text>
           {sentTo.map((h) => (
-            <View key={h.host}>
-              <View style={s.sentRow}>
-                <Glyph name="globe" size={13} />
-                <Text numberOfLines={1} style={s.sentHost}>{h.host}</Text>
-                {h.usedBy.length > 0 ? <Text numberOfLines={1} style={s.useSteps}>{h.usedBy.length === 1 ? h.usedBy[0] : `${h.usedBy.length} Automations`}</Text> : null}
-                {mayUse ? <IconBtn icon="x" label={`Stop sending this key to ${h.host}`} onPress={() => askForget(h)} testID={`item-sent-to-remove-${h.host}`} /> : null}
-              </View>
-              {confirming === h.host ? (
-                <View style={s.notice} accessibilityRole="alert" testID="item-sent-to-confirm">
-                  <Text style={s.noticeText}>{`${named(h)} ${h.usedBy.length + h.hidden === 1 ? "sends" : "send"} this key there. Their next Run stops until you allow it again.`}</Text>
-                  <Btn label="Remove" onPress={() => forget(h.host)} testID="item-sent-to-confirm-yes" />
-                  <Btn label="Cancel" onPress={() => setConfirming(null)} testID="item-sent-to-confirm-no" />
-                </View>
-              ) : null}
-            </View>
+            <Row
+              key={h.host} id={`sent-to-${h.host}`} title={h.host} inert
+              leading={<Glyph name="globe" size={13} />}
+              {...(h.usedBy.length > 0 ? { note: h.usedBy.length === 1 ? h.usedBy[0]! : `${h.usedBy.length} Automations` } : {})}
+              {...(mayUse ? { trailing: <IconBtn icon="x" label={`Stop sending this key to ${h.host}`} onPress={() => askForget(h)} testID={`item-sent-to-remove-${h.host}`} /> } : {})}
+            />
           ))}
+          {(() => {
+            // the removal's confirm, under the list: it names who sends the key to that host
+            const h = sentTo.find((x) => x.host === confirming);
+            return h ? (
+              <View style={s.notice} accessibilityRole="alert" testID="item-sent-to-confirm">
+                <Text style={s.noticeText}>{`${named(h)} ${h.usedBy.length + h.hidden === 1 ? "sends" : "send"} this key there. Their next Run stops until you allow it again.`}</Text>
+                <Btn label="Remove" onPress={() => forget(h.host)} testID="item-sent-to-confirm-yes" />
+                <Btn label="Cancel" onPress={() => setConfirming(null)} testID="item-sent-to-confirm-no" />
+              </View>
+            ) : null;
+          })()}
           {adding ? (
             <View style={s.sentRow}>
               <TextField value={newHost} onChangeText={setNewHost} placeholder="api.example.com" autoCapitalize="none" autoCorrect={false} onSubmitEditing={allowHost} style={{ flex: 1 }} testID="item-sent-to-host" />
@@ -201,6 +203,5 @@ const s = StyleSheet.create({
   sent: { marginTop: 8, paddingHorizontal: 4, gap: 2 },
   sentLabel: { fontSize: 12, color: "var(--ink-3)" as string, marginBottom: 2 },
   sentRow: { flexDirection: "row", alignItems: "center", gap: 8, minHeight: 28 },
-  sentHost: { flex: 1, fontSize: 13, color: "var(--ink-2)" as string },
   useSteps: { maxWidth: 160, fontSize: 12.5, color: "var(--ink-3)" as string },
 });
