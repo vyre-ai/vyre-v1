@@ -40,6 +40,8 @@ export { nodeCliLauncher, nodeCliReport } from "./node-cli.ts";
 export const hostSeams = { setEngineHost };
 /** The warm pool the Machines page can empty (host/src/daemon/machine-fix.ts). */
 export { openerOf } from "./projections.ts";
+// the host binds how a person's sessions on this server stop when they turn subscription sharing off (host/src/daemon/module-ports.ts)
+export { bindSandboxStopper } from "./handlers/extra/config.ts";
 
 /** The runtime is built at boot, not at the first message, and recovers threads a dead host left mid-turn. */
 export const periodic = {

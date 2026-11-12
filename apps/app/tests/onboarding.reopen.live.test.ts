@@ -47,6 +47,13 @@ for (const SIZE of ["wide", "phone"] as const) test(`a fresh install (${SIZE}): 
   const home = freshHome();
   const realHome = process.env["HOME"];
   process.env["HOME"] = home; delete process.env["CODEX_HOME"]; delete process.env["CLAUDE_CONFIG_DIR"];
+  // the walk needs a computer with the Codex sign-in and no Codex program; a box that has one installed (/opt/node24/bin/codex on the lane boxes) hides it for this run: PATH keeps every folder
+  // without a codex, and node is reached through a folder of its own
+  const realPath = process.env["PATH"];
+  const nodeOnly = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-node-only-"));
+  fs.symlinkSync(process.execPath, path.join(nodeOnly, "node"));
+  process.env["PATH"] = [nodeOnly, ...(realPath ?? "").split(path.delimiter).filter((d) => d !== "" && !fs.existsSync(path.join(d, "codex")))].join(path.delimiter);
+  t.after(() => { process.env["PATH"] = realPath; fs.rmSync(nodeOnly, { recursive: true, force: true }); });
   const space = await bootFreshSpace("personal");
   process.env["HOME"] = realHome;
   const web = await edge(dist, space.url);
@@ -87,7 +94,8 @@ for (const SIZE of ["wide", "phone"] as const) test(`a fresh install (${SIZE}): 
       const row = (k: string) => p.getByTestId(`row-step-${k}`);
       await p.goto(`${web.origin}/chat`, { waitUntil: "load" });
       // it opened by itself once, in the claim browser, and was left; here it is reopened from "Finish setup", as a person does
-      if (size === "wide") { await p.getByTestId("resume-open").waitFor({ timeout: 40_000 }); await p.getByTestId("resume-open").click(); }
+      // wide: a Space where no step is done or put off has no Finish setup entry in the title bar (rc.22, ResumeChip startedSetup); the Chats landing carries the setup rows, so it reopens from there
+      if (size === "wide") { await p.getByTestId("landing-setup-ai").waitFor({ timeout: 40_000 }); await p.getByTestId("landing-setup-ai").click(); }
       else { await p.getByTestId("tab-you").waitFor({ timeout: 40_000 }); await p.getByTestId("tab-you").click(); await p.getByTestId("row-you-finish-setup").click(); }   // the phone has no title bar: You carries a Finish setup row
       await p.getByTestId("onboarding").waitFor({ timeout: 20_000 });
       await ok("onboarding opens");

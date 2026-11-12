@@ -297,7 +297,7 @@ test("the fanout consumer files a row for the events that name a kind and ignore
   const h = harness();
   const ctx = h.ctxFor(null, sender);
   const fan = consumers["notifications.fanout"];
-  assert.deepEqual(fan.on, ["task.requested", "task.assigned", "task.completed", "task.due", "task.nudged", "run.failed", "run.succeeded", "member.joined", "member.join_requested", "access.granted", "access.declined", "machine.alert", "access.shared_with", "space.deletion_scheduled", "space.deletion_cancelled", "ci.paused", "ci.blocked", "hook.admin_asked"]);
+  assert.deepEqual(fan.on, ["task.requested", "task.assigned", "task.completed", "task.due", "task.nudged", "run.failed", "run.succeeded", "member.joined", "member.join_requested", "access.granted", "access.declined", "machine.alert", "access.shared_with", "space.deletion_scheduled", "space.deletion_cancelled", "ci.paused", "ci.blocked", "hook.admin_asked", "health.changed", "backup.failed", "update.failed", "network.certificate_failed", "incident.opened", "incident.assigned", "import.failed", "site.build_failed", "connection.needs_reconnect", "connector.publish_failed", "mount.failed", "mount.conflict", "source.mapping_failed", "source.link_pending", "sync.deletes_paused", "sync.push_failed", "sync.schema_changed", "sync.op_rejected"]);
   const shared = await fan.run(ctx, { name: "access.shared_with", payload: { to: alice.id, resource: { type: "agent", id: "agt_dex" }, level: "use", byName: "Irfad", title: "Dex", message: "Take a look" } });
   assert.equal(shared.length, 1);
   assert.equal(row(h, shared[0]!).kind, "item.shared");
