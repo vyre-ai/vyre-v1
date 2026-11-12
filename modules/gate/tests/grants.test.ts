@@ -264,6 +264,7 @@ test("a composed link is free in an unmarked chain, held once the chain is marke
   assert.equal(await known(h, "https://other.test/x"), true, "the person spoke in the chat: its next composed link is free");
   assert.equal(await known(h, "https://other.test/x", ["thr_helper", "thr_chat"]), false, "the helper's own thread keeps its mark until its content is behind a person's word there");
   await assert.rejects(known(h, "https://other.test/x", []), "no thread to judge is refused by the contract (and the hook counts it as composed before asking)");
+});
 
 test("in the task thread of an Automation's outside-started Run only the person the work acts for clears the outside-content mark by speaking; anyone else's message leaves it (pass 2)", async () => {
   const h = harness();
