@@ -82,7 +82,7 @@ import { CONNECT_YOURS, NO_AI_LINE, SET_SPACE_KEY, aiReady } from "./ai-ready.ts
 import type { AiReady } from "./ai-ready.ts";
 import { useOpenConnect } from "../../../shell/connect/context.ts";
 import {
-  WINDOW, beforeCursor, byOrder, collect, keyAlreadyUsed, ghostMessages, findMatches, isClosed, lastMessages, leadOf, matchLine, mentionsIn, mergePages, modelLabel, pendingMessage, placeholderFor, queueNote, queuedCount, queuedIds, sendKind, stillPending, stopLabel,
+  WINDOW, beforeCursor, byOrder, collect, keyAlreadyUsed, withUploaded, ghostMessages, findMatches, isClosed, lastMessages, leadOf, matchLine, mentionsIn, mergePages, modelLabel, pendingMessage, placeholderFor, queueNote, queuedCount, queuedIds, sendKind, stillPending, stopLabel,
   directWith, mentionable, muteOfferFor, onBehalfOf, threadKindNote, timeLabel, timeline, titleOf, whoLine, workingAgents, withoutAnswered, faceDoor } from "./model.ts";
 import type { Message, Pending, SendKind, Thread } from "./model.ts";
 import { LoadFailed, failureOf } from "../../../../../../ui/src/States/Loads.tsx";
@@ -351,7 +351,10 @@ function ConversationView(): ReactElement {
       // files first: each is stored in Files under a key derived from this send, so a retry finds the same files and attaches them again
       const kept = (p.files ?? []).flatMap((f) => (f.fileId !== undefined ? [f.fileId] : []));
       const fresh = (p.files ?? []).filter((f) => f.fileId === undefined);
-      const attachments = [...(fresh.length > 0 ? await act.uploadAttachments(data, fresh, `chat-attach:${p.key}`) : []), ...kept];
+      const uploaded = fresh.length > 0 ? await act.uploadAttachments(data, fresh, `chat-attach:${p.key}`) : [];
+      // the stored files stay with the send: if the post fails, Retry attaches these and uploads nothing again (a new upload of a large file is a new blob, which the same key refuses)
+      if (uploaded.length > 0) setPending((cur) => collect(cur, (x) => (x.key === p.key ? { ...x, files: withUploaded(x.files, uploaded) } : x)));
+      const attachments = [...uploaded, ...kept];
       return act.sendMessage(data, { text: p.body, mentions: p.mentions, key: p.key, kind: p.kind, working: p.working, ...(p.refs && p.refs.length > 0 ? { refs: p.refs } : {}), attachments, ...(p.alsoToChat === true ? { alsoToChat: true } : {}) });
     })().then(
       (r) => setPending((cur) => collect(cur, (x) => (x.key === p.key ? { ...x, messageId: r.messageId, state: "sending" as const } : x))),
