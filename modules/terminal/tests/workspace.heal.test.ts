@@ -1274,3 +1274,38 @@ test("V3: in a workspace at the quick pace a command does not wait for a mirror 
   assert.ok(inPass > before && after >= 250, `after a change in its folder the command waited for a pass (${after} ms)`);
   m.close();
 });
+
+// ---- release gate, 12 Nov: Stop reaches the command its turn started ------------------------------------------------------------------------------------------
+
+test("turn.cancelled interrupts the command that turn started (its agent and thread), and run.stopped the one its run started; another chat's command keeps running", async () => {
+  const { consumers } = await import("../impl.ts");
+  const { agent, hn } = setup();
+  const fh = fakeHost();
+  const waits = new Map<string, () => void>();
+  const host = {
+    ...fh.host,
+    async run(id: string, r: { command: string; signal?: AbortSignal }) {
+      // a long command: it ends only when its signal is aborted
+      return await new Promise<{ exitCode: number; output: string; truncated: boolean; durationMs: number }>((resolve) => {
+        const done = (): void => resolve({ exitCode: 130, output: "^C Interrupted: the turn that started this command was stopped.", truncated: false, durationMs: 1 });
+        if (r.signal?.aborted) done(); else r.signal?.addEventListener("abort", done, { once: true });
+        waits.set(r.command, done);
+      });
+    },
+  };
+  bindHost(host as never);
+  const other: TermCtx = { ...agent, thread: "thr_other" };
+  const mine = h["terminal.run"]!(agent, { command: "sleep 120", idempotencyKey: idem() });
+  const theirs = h["terminal.run"]!(other, { command: "sleep 121", session: "other", idempotencyKey: idem() });
+  await until(() => waits.size === 2, "both commands running");
+  const stop = consumers["terminal.turn_stopped"]!.run(hn.ctx, { payload: { agentId: AGENT, threadId: "thr_chat", turnId: "trn_1", by: "usr_dana" } });
+  assert.deepEqual(stop, ["1"], "one command interrupted");
+  const r = await mine;
+  assert.equal(r.exitCode, 130);
+  let settled = false;
+  void theirs.then(() => { settled = true; });
+  await new Promise((x) => setTimeout(x, 50));
+  assert.equal(settled, false, "the other chat's command keeps running");
+  waits.get("sleep 121")?.();
+  await theirs;
+});

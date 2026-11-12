@@ -57,7 +57,8 @@ export interface TerminalHost {
   resize(terminalId: string, cols: number, rows: number): Promise<void>;
   read(terminalId: string, o: { lines: number; since?: number }): Promise<{ text: string; next: number }>;
   /** Run to completion in the session. Rejects with `code: "timeout"` when the command does not finish in time (the host sends Ctrl-C). */
-  run(terminalId: string, o: { command: string; cwd?: string; env: Readonly<Record<string, string>>; timeoutMs: number }): Promise<{ exitCode: number | null; output: string; truncated: boolean; durationMs: number }>;
+  /** `signal`: the turn that started the command was stopped: the command is interrupted and the run answers at once (release gate, 12 Nov). */
+  run(terminalId: string, o: { command: string; cwd?: string; env: Readonly<Record<string, string>>; timeoutMs: number; signal?: AbortSignal }): Promise<{ exitCode: number | null; output: string; truncated: boolean; durationMs: number }>;
   status(terminalIds: readonly string[]): Promise<Array<{ terminalId: string; state: TermState; lastLine?: string; exitCode: number | null }>>;
   /** Live frames: what the session prints, as it prints it (tmux control mode). Returns the function that stops it. */
   stream?(terminalId: string, onFrame: (text: string) => void): () => void;

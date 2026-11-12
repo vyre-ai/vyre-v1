@@ -52,3 +52,4 @@
 - A file dropped into an agent's Files while its workspace is quiet is there for the agent's next command, and appears within seconds without one.
 - A workspace whose network went while it slept is set up again on a network that exists instead of failing every command.
 - Making room puts a workspace to sleep 10 seconds after its agent's last command when no turn is running (90 seconds only when that cannot be told), and never one that was given room in the last minute.
+- Stopping a turn now stops the command it started in the agent's terminal at once, so the next command runs right away; the terminal pane shows a refusal in its own words instead of a server-shell lock for a workspace.

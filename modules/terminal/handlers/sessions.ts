@@ -610,14 +610,19 @@ export async function run(ctx: TermCtx, a: RunInput) {
     ctx.db.run("INSERT INTO terminal_commands (terminal_id, command, exit_code, started_at, duration_ms, by_principal) VALUES (?, ?, NULL, ?, NULL, ?)", s.terminalId, command, at, ctx.principal.id);
     started = { at, rowId: Number((ctx.db.all("SELECT MAX(seq) AS m FROM terminal_commands WHERE terminal_id = ?", s.terminalId) as Row[])[0]?.["m"]) };
     ctx.db.run("UPDATE terminal_sessions SET state = 'running', last_active_at = ? WHERE terminal_id = ?", at, s.terminalId);
+    // the turn that started it can be stopped while it runs: its command is interrupted then (stopRuns, the consumer on turn.cancelled and run.stopped)
+    const ac = new AbortController();
+    const mark = { ac, ...(ctx.principal.kind === "agent" ? { agentId: ctx.principal.id } : {}), ...(ctx.thread !== undefined ? { threadId: ctx.thread } : {}), ...(ctx.run !== undefined ? { runId: ctx.run } : {}) };
+    inflight.set(s.terminalId, mark);
     try {
-      const r = await host.run(s.terminalId, { command: line, ...(a.cwd === undefined ? {} : { cwd: a.cwd }), env: f.env ?? {}, timeoutMs: leftMs });
+      const r = await host.run(s.terminalId, { command: line, ...(a.cwd === undefined ? {} : { cwd: a.cwd }), env: f.env ?? {}, timeoutMs: leftMs, signal: ac.signal });
       result = { exitCode: r.exitCode, truncated: r.truncated, durationMs: r.durationMs };
       return r.output;
     } catch (e) {
       if (e && typeof e === "object" && (e as { code?: unknown }).code === "timeout") timedOut = true;
       throw e;
     } finally {
+      if (inflight.get(s.terminalId) === mark) inflight.delete(s.terminalId);
       // the tab is free again before the queue lets the next command in, so a command right behind this one does not read it as running (review S3)
       ctx.db.run("UPDATE terminal_sessions SET state = 'idle', exit_code = ? WHERE terminal_id = ?", result?.exitCode ?? null, s.terminalId);
     }
@@ -796,6 +801,23 @@ export async function onAgentGone(ctx: TermCtx, event: { payload: { agentId?: un
   ctx.db.run("INSERT INTO terminal_workspace_gone (agent_id, deleted_at) VALUES (?, ?) ON CONFLICT (agent_id) DO NOTHING", agentId, ctx.now());
   if (remove) await remove(agentId);
   return open;
+}
+
+/** Commands running now, by tab, with the turn that started them. */
+const inflight = new Map<string, { ac: AbortController; agentId?: string; threadId?: string; runId?: string }>();
+
+/**
+ * A turn was stopped (turn.cancelled: its agent and thread; run.stopped: its run): the commands it started are interrupted now, so the next command finds a shell at its prompt instead of
+ * waiting behind them (release gate, 12 Nov). Returns how many were interrupted.
+ */
+export function stopRuns(match: { agentId?: string; threadId?: string; runId?: string }): number {
+  let n = 0;
+  for (const [, x] of inflight) {
+    const byRun = match.runId !== undefined && x.runId === match.runId;
+    const byTurn = match.threadId !== undefined && x.threadId === match.threadId && (match.agentId === undefined || x.agentId === match.agentId);
+    if ((byRun || byTurn) && !x.ac.signal.aborted) { x.ac.abort(); n++; }
+  }
+  return n;
 }
 
 /** agent.restored: back from Trash, so its volumes stay. */

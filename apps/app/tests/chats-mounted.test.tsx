@@ -506,3 +506,15 @@ test("a click on an agent opens its chat with the agent's pane beside it; the pa
   wirePane(s.rt, go, "c1", { agentId: "agt_docs", name: "Docs" }).nav.openAgentPage("agt_docs");
   assert.deepEqual(acts[acts.length - 1], { t: "agent", agentId: "agt_docs" });
 });
+
+test("terminal (release gate, 12 Nov): a refused attach locks only the Space server's shell; an agent's workspace shows its own words, and one that cannot be found says so", async () => {
+  const { attachRefusal } = await import("../src/places/chats/terminal/TerminalTab.tsx");
+  const refused = (code: string, message: string): unknown => Object.assign(new Error(message), { code });   // as the app's call() throws it
+  assert.deepEqual(attachRefusal(refused("permission.role_lacks_permission", "x"), "space_server"), { kind: "locked" });
+  const ws = attachRefusal(refused("permission.not_found", "We could not find that, or you cannot see it."), "agent_computer");
+  assert.equal(ws.kind, "error");
+  assert.doesNotMatch((ws as { message: string }).message, /server\.services|server shell/);
+  assert.match((ws as { message: string }).message, /no longer available/);
+  const priv = attachRefusal(refused("permission.role_lacks_permission", "That workspace is not yours to open."), "agent_computer");
+  assert.deepEqual(priv, { kind: "error", message: "That workspace is not yours to open." });
+});

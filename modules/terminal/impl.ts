@@ -4,7 +4,7 @@
 // is read back with capture-pane. Live frames come from a tmux control-mode client (`%output` lines, decoded here).
 import type { Handler } from "../../host/src/invoke.ts";
 import { handlers as table } from "./handlers/index.ts";
-import { forgetExpiredWorkspaces, onAgentGone, onAgentRestored } from "./handlers/sessions.ts";
+import { forgetExpiredWorkspaces, onAgentGone, onAgentRestored, stopRuns } from "./handlers/sessions.ts";
 import { bindWorkspaceStatus, bindHost, bindKit, bindMachineHost, bindMachinePlace, bindMachineValues, bindPlace, bindTeam, bindValues, bindWorkspaces, boundHost, redeemTicket, scopeOfId, scrubberFor, spellingsFor } from "./projections.ts";
 import { unixSocketHttp } from "../../sandbox/src/docker.ts";
 import { buildWorkspaceManager, createWorkspaceTerminalHost } from "./workspace.ts";
@@ -14,6 +14,9 @@ import type { WorkspaceFleet } from "./fleet.ts";
 import type { AdoptArgs, Db, PlaceOf, Target, TermCtx, TermState, TerminalHost, ValueSource } from "./projections.ts";
 import { networkRoom, networkRoomFinding, siteRoom } from "./netroom.ts";
 import type { RoomFinding } from "./netroom.ts";
+
+/** What a command whose turn was stopped answers, and what its tab shows (release gate, 12 Nov). */
+export const STOPPED_LINE = "^C Interrupted: the turn that started this command was stopped.";
 
 export const handlers: Record<string, Handler> = table as unknown as Record<string, Handler>;
 export { fetchesOutside, isDangerCall, outwardOf } from "./handlers/index.ts";
@@ -237,7 +240,21 @@ export function createTmuxHost(o: TmuxOptions): TmuxHost {
    * option of the session (rcOption), which no program can overwrite. A command that moved the cursor up, cleared the screen or drew a progress bar can write over the marker's row; the option still says
    * it ended, so the run never waits out its time for nothing (12 Nov).
    */
-  async function runLine(session: string, line: string, beg: string, end: string, timeoutMs: number, rcOption: string): Promise<{ exitCode: number | null; output: string; truncated: boolean; durationMs: number }> {
+  /**
+   * The turn that started a command was stopped (release gate, 12 Nov): Ctrl-C to its pane; if the shell is not back at its prompt within 3 s, Ctrl-C again and the pane's foreground process
+   * group is killed; then the run answers at once, exit 130, with what the command printed and one line saying it was stopped. The next command finds a shell at its prompt.
+   */
+  async function stopIn(session: string): Promise<void> {
+    await tmux(["send-keys", "-t", session, "C-c"]).catch(() => undefined);
+    const back = async (ms: number): Promise<boolean> => { const t1 = now(); while (now() - t1 < ms) { if (await shellAtPrompt(o.exec, session).catch(() => false)) return true; await sleep(Math.max(pollMs, 100)); } return false; };
+    if (await back(3000)) return;
+    await tmux(["send-keys", "-t", session, "C-c"]).catch(() => undefined);
+    const pid = tidy(await tmux(["display-message", "-p", "-t", session, "#{pane_pid}"]).catch(() => ""));
+    if (/^\d+$/.test(pid)) await o.exec(["sh", "-c", `g=$(ps -o tpgid= -p ${pid} | tr -d ' '); [ -n "$g" ] && [ "$g" != "${pid}" ] && [ "$g" -gt 1 ] && kill -KILL -"$g"`]).catch(() => undefined);
+    await back(2000);
+  }
+
+  async function runLine(session: string, line: string, beg: string, end: string, timeoutMs: number, rcOption: string, signal?: AbortSignal): Promise<{ exitCode: number | null; output: string; truncated: boolean; durationMs: number }> {
     const t0 = now();
     await tmux(["send-keys", "-t", session, "-l", "--", line]);
     await tmux(["send-keys", "-t", session, "Enter"]);
@@ -261,6 +278,12 @@ export function createTmuxHost(o: TmuxOptions): TmuxHost {
       const m = endRe.exec(screen);
       if (m && m.index !== undefined) { await forget(); return cut(screen.slice(0, m.index).split("\n"), Number(m[1])); }
       if (/^\d+$/.test(rc)) { await forget(); return cut(screen.split("\n"), Number(rc)); }
+      if (signal?.aborted) {
+        await stopIn(session);
+        await forget();
+        const r = cut(screen.split("\n"), 130);
+        return { ...r, output: `${r.output}\n${STOPPED_LINE}`.trim() };
+      }
       if (now() - t0 >= timeoutMs) {
         await tmux(["send-keys", "-t", session, "C-c"]).catch(() => undefined);
         throw Object.assign(new Error("the command did not finish in time"), { code: "timeout" });
@@ -305,6 +328,8 @@ export function createTmuxHost(o: TmuxOptions): TmuxHost {
       // person's own program (npm run dev) in the tab would take the line as its input. It waits within the command's own time, then answers what runs there and what to do instead.
       const t0 = now();
       while (!(await shellAtPrompt(o.exec, session))) {
+        // stopped before it was typed: nothing is typed
+        if (r.signal?.aborted) throw Object.assign(new Error(STOPPED_LINE), { code: "stopped" });
         if (now() - t0 >= r.timeoutMs) {
           const what = (await o.exec(["tmux", "display-message", "-p", "-t", session, "#{pane_current_command}"]).catch(() => null))?.stdout.trim() ?? "";
           throw Object.assign(new Error(busyLine(what)), { code: "busy" });
@@ -339,7 +364,7 @@ export function createTmuxHost(o: TmuxOptions): TmuxHost {
         // the exit code also goes into a tmux option of the session, which nothing on the screen can overwrite (runLine)
         const rcOption = `@vyre_rc_${nonce}`;
         const line = ` printf '%s\\n' ${shQuote(beg)}; ${cd}${body}; __vyre_rc=$?; ${tm} set-option -q -t ${shQuote(session)} ${rcOption} "$__vyre_rc" 2>/dev/null; printf '\\n%s:%d\\n' ${shQuote(end)} "$__vyre_rc"; unset __vyre_rc`;
-        return await runLine(session, line, beg, end, leftMs, rcOption);
+        return await runLine(session, line, beg, end, leftMs, rcOption, r.signal);
       } finally {
         running.delete(session);
         if (buffer !== null) { await o.exec(["tmux", "delete-buffer", "-b", buffer]).catch(() => undefined); mine.delete(buffer); }
@@ -483,10 +508,15 @@ export function createShellHost(o: ShellOptions): TerminalHost {
     let timedOut = false;
     const t0 = now();
     const timer = setTimeout(() => { timedOut = true; ac.abort(); }, r.timeoutMs);
+    // the turn that started it was stopped: the command stops as a Ctrl-C would stop it
+    let stopped = false;
+    const onStop = (): void => { stopped = true; ac.abort(); };
+    if (r.signal?.aborted) onStop(); else r.signal?.addEventListener("abort", onStop, { once: true });
     let res: { exitCode: number | null };
     try { res = await o.run({ command: r.command, cwd: r.cwd ?? s.cwd, env: r.env, signal: ac.signal, onData: (t) => { out += t; if (out.length > maxOutput * 2) out = out.slice(out.length - maxOutput); show(s, t); } }); }
-    finally { clearTimeout(timer); s.running = null; }
+    finally { clearTimeout(timer); s.running = null; r.signal?.removeEventListener("abort", onStop); }
     if (s.partial !== "") show(s, "\n");
+    if (stopped && !timedOut) { show(s, `${STOPPED_LINE}\n`); return { exitCode: 130, output: `${tidy(out)}\n${STOPPED_LINE}`.trim(), truncated: false, durationMs: now() - t0 }; }
     s.exitCode = res.exitCode;
     if (timedOut) throw Object.assign(new Error("the command did not finish in time"), { code: "timeout" });
     let output = tidy(out);
@@ -772,6 +802,16 @@ export const consumers = {
       const folderIds = ["folderId", "fromFolderId", "toFolderId", "parentId"].map((k) => p[k]).filter((v): v is string => typeof v === "string");
       workspaceManager?.filesChanged({ folderIds, ...(typeof p["fileId"] === "string" ? { fileId: p["fileId"] } : {}) });
       return [];
+    },
+  },
+  /** A turn was stopped: the commands it started in a terminal are interrupted at once (release gate, 12 Nov). */
+  "terminal.turn_stopped": {
+    on: ["turn.cancelled", "run.stopped"],
+    run: (_ctx: TermCtx, event: { payload: Record<string, unknown> }): string[] => {
+      const p = event.payload ?? {};
+      const str = (k: string): string | undefined => (typeof p[k] === "string" ? (p[k] as string) : undefined);
+      const n = stopRuns({ ...(str("agentId") ? { agentId: str("agentId") as string } : {}), ...(str("threadId") ? { threadId: str("threadId") as string } : {}), ...(str("runId") ? { runId: str("runId") as string } : {}) });
+      return n > 0 ? [String(n)] : [];
     },
   },
   /** An agent came back from Trash: its workspace may be made again, over the volumes it kept. */

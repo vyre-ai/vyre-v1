@@ -545,3 +545,30 @@ test("tmux (third look F2): shellAtPrompt says no for a program a shell exec'd i
     await host.close(id);
   }
 });
+
+test("real tmux (release gate, 12 Nov): a command whose turn was stopped is interrupted at once, and the next command runs in a usable shell right away", { skip }, async () => {
+  await open("trm_heavy_stop");
+  const ac = new AbortController();
+  const t0 = Date.now();
+  const long = host.run("trm_heavy_stop", { command: "sleep 120", env: {}, timeoutMs: 150_000, signal: ac.signal });
+  await sleep(1500);
+  ac.abort();
+  const r = await long;
+  assert.equal(r.exitCode, 130, "interrupted");
+  assert.ok(Date.now() - t0 < 8000, `the stopped run answered in ${Date.now() - t0} ms, not after the sleep`);
+  assert.match(r.output, /Interrupted: the turn that started this command was stopped/);
+  const t1 = Date.now();
+  const next = await host.run("trm_heavy_stop", { command: "echo next-ok", env: {}, timeoutMs: 20_000 });
+  assert.deepEqual([next.exitCode, next.output], [0, "next-ok"]);
+  assert.ok(Date.now() - t1 < 4000, `the next command ran at once (${Date.now() - t1} ms)`);
+  // one that ignores Ctrl-C is killed after the grace
+  const stubborn = new AbortController();
+  const t2 = Date.now();
+  const trap = host.run("trm_heavy_stop", { command: "sh -c 'trap \"\" INT; sleep 120'", env: {}, timeoutMs: 150_000, signal: stubborn.signal });
+  await sleep(1500);
+  stubborn.abort();
+  assert.equal((await trap).exitCode, 130);
+  assert.ok(Date.now() - t2 < 12_000, `a command that ignores Ctrl-C is ended within the grace (${Date.now() - t2} ms)`);
+  assert.deepEqual((await host.run("trm_heavy_stop", { command: "echo after-trap", env: {}, timeoutMs: 20_000 })).output, "after-trap");
+  await host.close("trm_heavy_stop");
+});
