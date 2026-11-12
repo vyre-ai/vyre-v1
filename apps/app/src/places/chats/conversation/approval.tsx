@@ -129,9 +129,6 @@ export function ApprovalCard({ taskId, agent, agentId, data, face, faceSeed, edi
   }
   // a change held only because the chat is in Ask first is a person's to always allow; any other act needs an admin, so the card does not offer it
   const allowable = held.act === "approve";
-  // a link the agent put together, held as a send: "Always allow <agent> to open <host>" is the rule the Gate keeps for one agent and one recipient (the host), in every chat, so the next look-up on
-  // that site never asks (lead, 12 Nov); the same rule a held message to one person offers
-  const site = (held.cap === "automations.read_link" || held.cap === "automations.read_docs") && held.act === "send" ? linkHost(held.input["url"]) : "";
   const ended = outcome ?? outcomeOf(task.state);
   if (ended) {
     return (
@@ -144,14 +141,6 @@ export function ApprovalCard({ taskId, agent, agentId, data, face, faceSeed, edi
       () => setOutcome(key === "approve" ? "allowed" : "denied"),
       (e: unknown) => { setLine(isDecided(e) ? DECIDED_LINE : e instanceof Error && e.message ? `Failed. ${e.message}` : "Failed. Try again."); if (isDecided(e)) void load(); },
     ).finally(() => setBusy(false));
-  };
-  /** Allow this agent to open links on this site, in any chat: one agent, one recipient (the host), the act the link was held as. */
-  const alwaysSite = (host: string): void => {
-    setBusy(true); setLine(null);
-    void Promise.resolve(data.call("gate.allow.set", { act: held.act, target: host, agentId, recipient: true })).then(
-      () => act("approve"),
-      () => { setBusy(false); setLine("Could not keep that rule. Try Allow."); },
-    );
   };
   /** Allow this and every call like it from this agent in this chat, for 30 days. The rule is the Gate's; /permissions lists it and takes it back. */
   const always = (): void => {
@@ -192,7 +181,7 @@ export function ApprovalCard({ taskId, agent, agentId, data, face, faceSeed, edi
       ) : (
         <CardActions
           busy={busy}
-          secondary={[...(allowable ? [{ label: "Always allow", onPress: always, testID: `approval-always-${taskId}` }] : []), ...(site ? [{ label: `Always allow ${agent} to open ${site.replace(/^www\./, "")}`, onPress: () => alwaysSite(site), testID: `approval-always-${taskId}` }] : []), { label: "Deny", onPress: () => setDenying(true), testID: `approval-deny-${taskId}` }]}
+          secondary={[...(allowable ? [{ label: "Always allow", onPress: always, testID: `approval-always-${taskId}` }] : []), { label: "Deny", onPress: () => setDenying(true), testID: `approval-deny-${taskId}` }]}
           primary={{ label: "Allow", onPress: () => act("approve"), testID: `approval-allow-${taskId}` }}
           error={line}
         />
@@ -211,9 +200,3 @@ const st = StyleSheet.create({
   mark: { width: 12, fontSize: 13, fontWeight: "600" },
   del: { color: "var(--ink-3)" as string, textDecorationLine: "line-through" },
 });
-
-/** The host of a link, lower case; empty when it is not a web address. */
-export function linkHost(url: unknown): string {
-  if (typeof url !== "string") return "";
-  try { const u = new URL(url); return u.protocol === "https:" || u.protocol === "http:" ? u.hostname.toLowerCase() : ""; } catch { return ""; }
-}

@@ -207,26 +207,3 @@ test("a held install draws as a card: what it is, what it does, what it needs, t
   ]);
   assert.equal(excerptLines({ planId: "ins_1", for: "me", card: { name: "tasks-mcp", kind: "mcp_remote", summary: "x", commit: "", needs: { domains: [], vaultKeys: [], files: [] } } }, 5, "install.apply")[3]!.text, "Not pinned. It is their server.");
 });
-
-// lead, 12 Nov: a link the agent put together, held as a send, offers "Always allow <agent> to open <host>": one agent, one recipient (the host), kept by the Gate for every chat
-test("a held link offers Always allow for its site, which keeps the rule for that agent and host and allows this one", async () => {
-  const calls: { cap: string; input: unknown }[] = [];
-  const d = {
-    call: async (cap: string, input: unknown) => {
-      calls.push({ cap, input });
-      if (cap === "tasks.get") return { task: { id: "tsk_l", kind: "approve", title: "Scout wants to open harborquotes.com", state: "awaiting_approval", blocks: [{ type: "doc_excerpt", v: 1, data: { act: "send", cap: "automations.read_link", input: { url: "https://www.harborquotes.com/rates" } } }] } };
-      return {};
-    },
-    nav: { openBeside: () => undefined },
-  } as never;
-  const root = await mount(createRoot, <ApprovalCard taskId="tsk_l" agent="Scout" agentId="agt_scout" data={d} />);
-  await flush();
-  const always = find(root, "approval-always-tsk_l");
-  assert.ok(always, textOf(root));
-  assert.match(textOf(always), /Always allow Scout to open harborquotes\.com/);
-  await press(always);
-  await flush();
-  const rule = calls.find((c) => c.cap === "gate.allow.set")?.input as Record<string, unknown> | undefined;
-  assert.deepEqual(rule, { act: "send", target: "www.harborquotes.com", agentId: "agt_scout", recipient: true });
-  assert.ok(calls.some((c) => c.cap === "tasks.act" && (c.input as { action?: string }).action === "approve"), "and this one is allowed");
-});
