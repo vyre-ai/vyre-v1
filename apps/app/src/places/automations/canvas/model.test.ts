@@ -321,3 +321,14 @@ test("a Space AI step with no account of its own is fine when the automation has
   assert.equal(asks(check({ ...d, ai: { backupKeyId: "#Backup" } })), true, "a backup alone is not a main");
   assert.equal(asks(check(d, "personal")), false);
 });
+
+test("a web request trigger on a Personal Automation offers Move to Space only in a Team Space, to someone who may make Space Automations", async () => {
+  const { offersMoveToSpace } = await import("./model.ts");
+  const def = { triggers: [{ key: "webhook" }], nodes: [] };
+  const first = check(def, "personal")[0];
+  assert.match(String(first?.message), /web request/);
+  assert.equal(offersMoveToSpace("personal", def, first, {}), true);
+  assert.equal(offersMoveToSpace("personal", def, first, { personalSpace: true }), false, "no Space Automations in a Personal Space");
+  assert.equal(offersMoveToSpace("personal", def, first, { canSpace: false }), false, "never a door the person cannot use");
+  assert.equal(offersMoveToSpace("space", def, first, {}), false);
+});

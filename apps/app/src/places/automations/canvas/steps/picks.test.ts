@@ -33,3 +33,14 @@ test("a task's agent picker: a Space Automation offers nobody's Assistant; a Per
   assert.deepEqual(taskAgents(list, "space", "usr_olivia").map((a) => a.id), ["agt_intake"]);
   assert.deepEqual(taskAgents(list, "personal", "usr_olivia").map((a) => a.id), ["agt_intake", "agt_olivia_asst"]);
 });
+
+test("an agent on someone's own computer is offered only in its owner's Personal Automation, never in a Space one", async () => {
+  const { taskAgents } = await import("./picks.ts");
+  const list = agentPicks({ agents: [
+    { agentId: "agt_desk", name: "Desk helper", kind: "agent", runtime: "outside", ownerId: "usr_olivia" },
+    { agentId: "agt_other_desk", name: "Noah's desk", kind: "agent", runtime: "outside", ownerId: "usr_noah" },
+    { agentId: "agt_team", name: "Team", kind: "teammate", runtime: "vyre", ownerId: "usr_noah" },
+  ] });
+  assert.deepEqual(taskAgents(list, "space", "usr_olivia").map((a) => a.id), ["agt_team"]);
+  assert.deepEqual(taskAgents(list, "personal", "usr_olivia").map((a) => a.id), ["agt_desk", "agt_team"]);
+});

@@ -206,13 +206,23 @@ function WebhookAddress({ automationId }: { automationId: string }): ReactElemen
     return () => { live = false; };
   }, [data, automationId]);
   if (!url) return null;
+  // without a public address the server can only name a path, which no app outside can call: say so, and give the way forward to whoever can act
+  if (!/^https?:\/\//i.test(url)) {
+    const open = data?.nav.openAddress;
+    return (
+      <View style={s.hook} testID="trigger-webhook">
+        <Text style={s.hookUrl}>{open ? "This Space has no public address yet, so no app can reach it." : "This Space has no public address yet, so no app can reach it. Ask an admin to give this Space a public address."}</Text>
+        {open ? <View style={s.hookCopy}><TextButton label="Set the address" onPress={open} testID="trigger-webhook-set-address" /></View> : null}
+      </View>
+    );
+  }
   const copy = (): void => {
     const clip = (globalThis as { navigator?: { clipboard?: { writeText?: (t: string) => Promise<void> } } }).navigator?.clipboard;
     void clip?.writeText?.(url)?.then(() => setCopied(true), () => undefined);
   };
   return (
     <View style={s.hook} testID="trigger-webhook">
-      <Text selectable numberOfLines={2} style={s.hookUrl}>{url}</Text>
+      <Text selectable style={s.hookUrl} testID="trigger-webhook-url">{url}</Text>
       <View style={s.hookCopy}><TextButton label={copied ? "Copied" : "Copy"} onPress={copy} testID="trigger-webhook-copy" /></View>
     </View>
   );

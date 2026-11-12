@@ -3,9 +3,10 @@
 // editor from pointing a key they cannot use at their own server. The host a key goes to is fixed in the step: an address whose host is filled in at run time cannot carry a key.
 import { isTrustedService } from "../../lib/trust.ts";
 import { hostOfUrl } from "../../lib/key-target.ts";
-import { keyHostApproved } from "./key-hosts.ts";
+import { allowKeyHost, keyHostApproved } from "./key-hosts.ts";
 import type { KeyHostDb } from "./key-hosts.ts";
-import { raise } from "./projections.ts";
+import { keyRefResolver } from "./key-ref-port.ts";
+import { allAutomations, raise } from "./projections.ts";
 import type { AutoCtx, Definition } from "./projections.ts";
 
 const HANDLE = /#[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z0-9_]+)?/g;
@@ -83,7 +84,35 @@ export async function guardKeySteps(ctx: AutoCtx, before: Definition | undefined
   // an agent (anything but a person) writing a step that sends a key: the host must be one a person approved for that key, as for the test read. A test run would otherwise send it there at once.
   if (ctx.principal.kind !== "person") {
     for (const c of changed) await agentHostApproved(ctx, c.index, c.node, ids);
+    return;
   }
+  // a person who may use the key saved a step that sends it to a host: that host is approved for the key by them ("Sent to" on the key lists it, and removing it stops the step)
+  recordStepHosts(ctx, changed.map((c) => c.node), ids);
+}
+
+/** The literal host each key-bearing HTTP step sends to, recorded as approved for its key by the person saving (`ids`: their usable keys, handle to item id). */
+export function recordStepHosts(ctx: AutoCtx, nodes: readonly Node[], ids: ReadonlyMap<string, string>, by = ctx.principal.id, marker = true): void {
+  for (const n of nodes) {
+    const input = n.input as Record<string, unknown> | undefined;
+    const auth = input?.["auth"] as { handle?: unknown } | undefined;
+    if (n.key !== "http_request" || !input || typeof input["url"] !== "string" || !auth || typeof auth.handle !== "string") continue;
+    const host = hostOfUrl(input["url"]);
+    const itemId = ids.get(itemOf(auth.handle));
+    if (host === null || itemId === undefined) continue;
+    if (marker) allowKeyHost(ctx.db as unknown as KeyHostDb, itemId, host, by, ctx.now());
+    else (ctx.db as unknown as KeyHostDb).run(`INSERT OR IGNORE INTO automations_key_hosts (item_id, host, by, at) VALUES (?, ?, ?, ?)`, itemId, host, by, ctx.now());
+  }
+}
+
+/** The keys the caller may use, handle (lower case, #Name) to item id. */
+export async function usableKeyIds(ctx: AutoCtx): Promise<Map<string, string>> {
+  const ids = new Map<string, string>();
+  if (!ctx.call) return ids;
+  try {
+    const out = (await ctx.call("vault.items.list", { limit: 500 })) as { items?: { id?: unknown; handle?: unknown; yourLevel?: unknown }[] } | null;
+    for (const i of out?.items ?? []) if (typeof i.handle === "string" && typeof i.id === "string" && typeof i.yourLevel === "string" && USE.has(i.yourLevel)) ids.set(i.handle.toLowerCase(), i.id);
+  } catch { /* nothing usable */ }
+  return ids;
 }
 
 async function agentHostApproved(ctx: AutoCtx, index: number, n: Node, ids: ReadonlyMap<string, string>): Promise<void> {
@@ -109,4 +138,33 @@ async function agentHostApproved(ctx: AutoCtx, index: number, n: Node, ids: Read
   }
   const named = auth.handle.split(".")[0] ?? "";
   raise(ctx, "permission.no_grant", `Step ${index + 1} sends ${/^#[A-Za-z0-9_]{1,80}$/.test(named) ? named : "a key"} to ${host ?? "an address"}, which nobody approved for this key. A person allows the host on the key first.`, { reason: "key_host_unapproved", step: n.id, ...(host ? { host } : {}) });
+}
+
+const BACKFILLED = "automations.key_hosts_backfilled";
+
+/**
+ * Once, after the update that made keys go only to approved hosts: every key-bearing HTTP step in every Automation records its host as approved for its key, attributed to the person who saved that
+ * version (else the owner), so nothing that worked before stops. These rows do not mark the key's list as kept by people, so a connector bound before the update is still adopted on first use.
+ */
+export async function backfillStepHosts(ctx: AutoCtx): Promise<number> {
+  if (ctx.db.all("SELECT 1 AS x FROM automations_policy WHERE policy_key = ?", BACKFILLED).length > 0) return 0;
+  const resolve = keyRefResolver();
+  if (!resolve) return 0;   // the host's reading of keys is not wired yet: the next tick tries again
+  let done = 0;
+  for (const a of allAutomations(ctx.db)) {
+    const by = (ctx.db.all("SELECT by_who FROM automations_versions WHERE automation_id = ? AND n = ?", a.id, a.version) as { by_who?: unknown }[])[0]?.by_who;
+    const who = typeof by === "string" && by.startsWith("usr_") ? by : a.ownerId;
+    const ids = new Map<string, string>();
+    for (const n of a.definition.nodes) {
+      const handle = ((n.input as Record<string, unknown> | undefined)?.["auth"] as { handle?: unknown } | undefined)?.handle;
+      if (typeof handle !== "string") continue;
+      const ref = resolve(handle, who);
+      if (ref) ids.set(itemOf(handle), ref.id);
+    }
+    if (ids.size === 0) continue;
+    recordStepHosts(ctx, a.definition.nodes, ids, who, false);
+    done += 1;
+  }
+  ctx.db.run("INSERT OR REPLACE INTO automations_policy (policy_key, policy_value) VALUES (?, ?)", BACKFILLED, "true");
+  return done;
 }

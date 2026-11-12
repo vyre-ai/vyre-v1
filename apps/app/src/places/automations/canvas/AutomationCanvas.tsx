@@ -50,7 +50,7 @@ import { usePersonZone } from "./TriggerForm.tsx";
 import { Glyph } from "./icons.tsx";
 import { CANVAS, CONFIG, useAutomationsData, useScreenOrRead, useScreenQuery } from "./data.tsx";
 import {
-  addAfter, addInto, addTrigger, check, clampZoom, describeTrigger, duplicateStep, fitScale, kindOfKey, layout, liveBlockerStep, moveStep, neighbour, removeStep, removeTrigger, sortedIssues, updateStep,
+  addAfter, addInto, addTrigger, check, offersMoveToSpace, clampZoom, describeTrigger, duplicateStep, fitScale, kindOfKey, layout, liveBlockerStep, moveStep, neighbour, removeStep, removeTrigger, sortedIssues, updateStep,
   startsByHand, withPreset,
 } from "./model.ts";
 import type { CardNode, DefTrigger, Definition, Issue, RunState } from "./model.ts";
@@ -171,6 +171,7 @@ function CanvasBody({ a, canEdit, tab, setTab, failedRuns, versions, tabBodies, 
   }, [data, a.id, a.version, a.status]);
   const sendsFrom = sendsFromLine(senders);
   const [promoteOpen, setPromoteOpen] = useState(initialPromote);
+  // a web request trigger on a Personal Automation in a Team Space: the way forward is the move, right on the banner (the mover must be able to use every key its steps use)
   const [catalog, setCatalog] = useState<CatalogPhase>({ phase: "loading" });
   const [samples, setSamples] = useState<Record<string, unknown>>({});
   const [openKeys, setOpenKeys] = useState<string[]>(initialPanel && initialSelected ? [normalKey(initialSelected)] : []);
@@ -224,6 +225,7 @@ function CanvasBody({ a, canEdit, tab, setTab, failedRuns, versions, tabBodies, 
   }, [catalog]);
   const lay = useMemo(() => layout(def, { issues, tested, required, ...(shownRun ? { run: shownRun.states } : {}), keyName: (id) => data.keys.find((k) => k.id === id)?.name ?? data.name(id) }), [def, issues, shownRun, data, tested, required]);
   const errors = issues.filter((i) => i.severity === "error");
+  const moveToSpace = offersMoveToSpace(a.kind === "space" ? "space" : "personal", def, errors[0], { ...(data.personalSpace !== undefined ? { personalSpace: data.personalSpace } : {}), ...(data.canSpace !== undefined ? { canSpace: data.canSpace } : {}) });
   const agentOf = (n: CardNode): string | undefined => (n.node?.ai?.agentId ? data.name(n.node.ai.agentId) : n.node?.ai ? "Assistant" : undefined);
 
   const edit = useCallback((next: Definition): void => {
@@ -362,7 +364,8 @@ function CanvasBody({ a, canEdit, tab, setTab, failedRuns, versions, tabBodies, 
     if (catalog.phase === "loading") entries.push({ label: "Loading the trigger catalog", onSelect: () => undefined });
     else if (catalog.phase === "unavailable") entries.push({ label: catalog.message, onSelect: () => undefined });
     else if (triggers.length === 0) entries.push({ label: "The trigger catalog is empty", onSelect: () => undefined });
-    for (const t of triggers) entries.push({ label: t.availability === "preview" ? `${t.title} (Preview)` : t.title, onSelect: () => { edit(addTrigger(def, t.key, zone)); openPanel("trigger", def.triggers.length); } });
+    // a Personal Space has no Space Automations, and a web request trigger works only on one: it is not offered there at all
+    for (const t of triggers) if (!(data.personalSpace === true && t.key === "webhook")) entries.push({ label: t.availability === "preview" ? `${t.title} (Preview)` : t.title, onSelect: () => { edit(addTrigger(def, t.key, zone)); openPanel("trigger", def.triggers.length); } });
     show(entries, p.x, p.y, "other");
   };
   const openTriggerMenu = (index: number, x: number, y: number): void => {
@@ -617,6 +620,7 @@ function CanvasBody({ a, canEdit, tab, setTab, failedRuns, versions, tabBodies, 
                 <Text style={s.problemsLink}>{errors[0]?.message ?? ""}</Text>
               </Pressable>
               {fixable ? <Pressable accessibilityRole="button" accessibilityLabel={connectLabel(fixable.need, true)} testID="problem-connect" onPress={connectFix} style={pointer}><Text style={s.problemsLink}>{connectLabel(fixable.need, true)}</Text></Pressable> : null}
+              {moveToSpace ? <Pressable accessibilityRole="button" accessibilityLabel="Move to Space" testID="problem-move-space" onPress={() => setPromoteOpen(true)} style={pointer}><Text style={s.problemsLink}>Move to Space</Text></Pressable> : null}
               {errors[0] ? <AskVyre bundle={askBundle(errors[0])} onOpen={(safe) => data.nav.ask(a.id, safe)} /> : null}
             </View>
           ) : null}

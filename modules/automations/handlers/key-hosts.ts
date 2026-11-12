@@ -3,7 +3,9 @@
 import { allowKeyHost, keyHostsOf, normalHost, plannedHost, removeKeyHost } from "../key-hosts.ts";
 import { keyRefResolver } from "../key-ref-port.ts";
 import type { KeyHostDb } from "../key-hosts.ts";
-import { raise } from "../projections.ts";
+import { allAutomations, raise } from "../projections.ts";
+import { hostOfUrl } from "../../../lib/key-target.ts";
+import { canView } from "./defs.ts";
 import type { AutoCtx } from "../projections.ts";
 
 interface SeenItem { id: string; handle: string; yourLevel: string }
@@ -32,10 +34,27 @@ const personOnly = (ctx: AutoCtx): void => {
   if (ctx.principal.kind !== "person") raise(ctx, "permission.role_lacks_permission", "Only a person chooses where a key is sent.", { reason: "people_only" });
 };
 
-export async function keyHostsList(ctx: AutoCtx, input: { itemId?: unknown }): Promise<{ hosts: { host: string; by: string; at: number }[] }> {
+/** The Automations (the caller can open) whose HTTP steps send this key to `host`, by name; and how many more the caller cannot open. */
+function usersOf(ctx: AutoCtx, handle: string, host: string): { usedBy: string[]; hidden: number } {
+  const usedBy: string[] = [];
+  let hidden = 0;
+  const want = handle.toLowerCase();
+  for (const a of allAutomations(ctx.db)) {
+    const uses = a.definition.nodes.some((n) => {
+      const input = n.input as Record<string, unknown> | undefined;
+      const h = (input?.["auth"] as { handle?: unknown } | undefined)?.handle;
+      return n.key === "http_request" && typeof h === "string" && h.split(".")[0]!.toLowerCase() === want && typeof input?.["url"] === "string" && hostOfUrl(input["url"]) === host;
+    });
+    if (!uses) continue;
+    if (canView(ctx, a)) usedBy.push(a.name); else hidden += 1;
+  }
+  return { usedBy: usedBy.sort(), hidden };
+}
+
+export async function keyHostsList(ctx: AutoCtx, input: { itemId?: unknown }): Promise<{ hosts: { host: string; by: string; at: number; usedBy: string[]; hidden?: number }[] }> {
   const item = await seenItem(ctx, input.itemId);
   if (!item) return { hosts: [] };
-  return { hosts: keyHostsOf(ctx.db as unknown as KeyHostDb, item.id) };
+  return { hosts: keyHostsOf(ctx.db as unknown as KeyHostDb, item.id).map((h) => { const u = usersOf(ctx, item.handle, h.host); return { ...h, usedBy: u.usedBy, ...(u.hidden > 0 ? { hidden: u.hidden } : {}) }; }) };
 }
 
 export async function keyHostsAllow(ctx: AutoCtx, input: { vaultItemId?: unknown; host?: unknown }): Promise<{ hosts: { host: string; by: string; at: number }[] }> {

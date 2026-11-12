@@ -41,8 +41,8 @@ export function armState(db: Db, automationId: string, now: number): { state: Sc
   const have = readState(db, automationId);
   if (have) return { state: have, armed: false };
   db.run(
-    `INSERT INTO "automations_schedule_state" ("automation_id", "cursor_ms", "paused", "paused_reason", "request_open", "updated_at") VALUES (?, ?, 0, NULL, 0, ?)`,
-    automationId, now, now,
+    `INSERT INTO "automations_schedule_state" ("automation_id", "cursor_ms", "paused", "paused_reason", "request_open", "updated_at", "armed_at") VALUES (?, ?, 0, NULL, 0, ?, ?)`,
+    automationId, now, now, now,
   );
   return { state: { automationId, cursor: now, paused: false, requestOpen: false }, armed: true };
 }
@@ -88,4 +88,13 @@ export function claimStarted(db: Db, tick: { tickId: string; automationId: strin
     `INSERT OR IGNORE INTO "automations_schedule_claims" ("tick_id", "automation_id", "fire_at", "run_id", "claimed_at") VALUES (?, ?, ?, ?, ?)`,
     tick.tickId, tick.automationId, tick.fireAt, tick.runId, tick.at,
   );
+}
+
+/** The time a scheduled Run reads as "previous": the last tick that started, else when the schedule was armed (turned on), else its cursor. Never earlier than the schedule's own start. */
+export function previousTickAt(db: Db, automationId: string): number | undefined {
+  const last = db.all(`SELECT MAX("fire_at") AS "at" FROM "automations_schedule_claims" WHERE "automation_id" = ?`, automationId) as { at: number | null }[];
+  if (typeof last[0]?.at === "number") return last[0].at;
+  const row = db.all(`SELECT "armed_at", "cursor_ms" FROM "automations_schedule_state" WHERE "automation_id" = ?`, automationId) as { armed_at: number | null; cursor_ms: number }[];
+  if (!row[0]) return undefined;
+  return typeof row[0].armed_at === "number" ? row[0].armed_at : row[0].cursor_ms;
 }

@@ -16,3 +16,8 @@
 - A held test read names the key the server resolved, with its name ("Scout wants to send #Notely (Notely API key) to api.notely.com"), and a read whose host or key cannot be named waits for a person instead of going out.
 - Binding a Vault key to a connector by an agent waits for a person when the connector's hosts are not approved for that key; the card names every host. A connector request carrying a key goes only to hosts approved for it, and says which key and host when it is refused.
 - A key's own saved address approves its exact host only, not other sites under the same domain.
+- A key-bearing HTTP request step sends only to a host approved for its key: saving or turning on such a step as someone who may use the key approves its host, an update approves the hosts of steps saved before it, and a step whose host was removed stops with "#Key is no longer allowed to go to <host>. Allow it again on the key's page, or change this step."
+- Vault, Sent to: removing a host that Automations use names them first; "Allow a host" adds one back.
+- A scheduled Run now says when the previous one was (the first: when the schedule was turned on), so a list step can ask only for what is new.
+- Automations: the web request trigger is called that everywhere; its address shows in full; with no public address the card says so and gives an admin the way to set one; a Personal Automation with one gets "Move to Space" on its banner; a Personal Space does not offer it.
+- A task step's agent picker also leaves out agents on someone's own computer in a Space Automation.

@@ -3222,6 +3222,8 @@ export type AutomationsKeyHostsListOut = {
       host: string;
       by: string;
       at: number;
+      usedBy: Array<string>;
+      hidden?: number;
     }>;
 };
 export type AutomationsKeyHostsPendingIn = {

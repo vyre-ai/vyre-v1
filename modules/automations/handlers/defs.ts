@@ -13,7 +13,7 @@ import {
 } from "../projections.ts";
 import { rememberAccountPicks } from "../accounts.ts";
 import { regrant, sendersOf, shareSenders } from "../grants.ts";
-import { guardKeySteps } from "../key-steps.ts";
+import { guardKeySteps, recordStepHosts, usableKeyIds } from "../key-steps.ts";
 import { publishAllowed } from "../connector-breadth.ts";
 import { storedLevel } from "../connector-level.ts";
 import { admit, contractOf } from "../val.ts";
@@ -601,6 +601,8 @@ export async function setEnabled(ctx: AutoCtx, input: In): Promise<unknown> {
     }
     a.status = "on";
     delete a.pausedReason;
+    // turning it on is publishing it: a person who may use a step's key approves that step's host for it
+    if (ctx.principal.kind === "person") recordStepHosts(ctx, a.definition.nodes, await usableKeyIds(ctx));
     touch(ctx, a);
     await regrant(ctx, a, "on");
     emitAuto(ctx, "automation.enabled", a.id, {});

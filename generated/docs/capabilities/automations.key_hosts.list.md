@@ -37,6 +37,8 @@ type Out = {
       host: string;
       by: string;
       at: number;
+      usedBy: Array<string>;
+      hidden?: number;
     }>;
 };
 ```
@@ -61,7 +63,11 @@ type Out = {
       {
         "at": 1,
         "by": "example",
-        "host": "example"
+        "hidden": 1,
+        "host": "example",
+        "usedBy": [
+          "example"
+        ]
       }
     ]
   }

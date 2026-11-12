@@ -209,5 +209,35 @@ test("Sent to lists the hosts approved for the key, and removing one asks the se
   await press(find(root, "item-sent-to-remove-api.gohighlevel.example"));
   await settle();
   assert.deepEqual(removed, [{ itemId: "vit_ghl", host: "api.gohighlevel.example" }]);
-  assert.equal(find(root, "item-sent-to"), null, "nothing listed once the last host is gone");
+  assert.equal(find(root, "item-sent-to-remove-api.gohighlevel.example"), null, "the host is no longer listed once it is removed");
+});
+
+test("removing a host an Automation uses warns first, naming it; a host can be allowed again from the key's page", async () => {
+  const v = createSampleVault();
+  const base = v.data.call.bind(v.data);
+  const calls: { cap: string; input: unknown }[] = [];
+  let hosts: { host: string; by: string; at: number; usedBy: string[]; hidden?: number }[] = [{ host: "api.gohighlevel.example", by: "usr_irfad", at: 1, usedBy: ["New lead to GoHighLevel"], hidden: 1 }];
+  v.data = { ...v.data, call: async (cap, input) => {
+    calls.push({ cap, input });
+    if (cap === "automations.key_hosts.list") return { hosts };
+    if (cap === "automations.key_hosts.remove") { hosts = []; return { removed: true }; }
+    if (cap === "automations.key_hosts.allow") { hosts = [{ host: String((input as { host: string }).host), by: "me", at: 2, usedBy: [] }]; return { hosts }; }
+    return base(cap, input);
+  } };
+  const root = await open(v, "vit_ghl");
+  await settle();
+  assert.match(textOf(find(root, "item-sent-to")), /Removing one stops/);
+  await press(find(root, "item-sent-to-remove-api.gohighlevel.example"));
+  await settle();
+  assert.equal(calls.some((c) => c.cap === "automations.key_hosts.remove"), false, "a host in use asks first");
+  assert.match(textOf(find(root, "item-sent-to-confirm")), /New lead to GoHighLevel and 1 you cannot open send this key there/);
+  await press(find(root, "item-sent-to-confirm-yes"));
+  await settle();
+  assert.ok(calls.some((c) => c.cap === "automations.key_hosts.remove"));
+  await press(find(root, "item-sent-to-add"));
+  await settle();
+  await typeInto(find(root, "item-sent-to-host"), "api.gohighlevel.example");
+  await press(find(root, "item-sent-to-allow"));
+  await settle();
+  assert.deepEqual(calls.find((c) => c.cap === "automations.key_hosts.allow")?.input, { vaultItemId: "vit_ghl", host: "api.gohighlevel.example" });
 });

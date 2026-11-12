@@ -4,6 +4,7 @@
 // it is not in the input, the output or the error, and a response that echoes it is scrubbed before the step sees it.
 import { lookup } from "node:dns/promises";
 import { documentNetwork } from "../document-network.ts";
+import { assertKeyMayGo } from "../key-run.ts";
 import { requestPublic } from "../public-fetch.ts";
 import type { FetchDeps } from "../public-fetch.ts";
 import { raise } from "../projections.ts";
@@ -119,6 +120,9 @@ async function request(ctx: AutoCtx, input: Row, allowed: ReadonlySet<string>, k
   if (body !== undefined && Buffer.byteLength(body) > MAX_BODY) raise(ctx, "validation.too_large", "The request body is over 1 MB.");
   if (key && !READ.has(method)) headers["idempotency-key"] = key;
   const secrets: string[] = [];
+  // the key goes only to a host approved for it, whoever saved the step (checked before the Vault is asked)
+  const authIn = input["auth"] as { handle?: unknown } | undefined;
+  if (authIn && typeof authIn === "object" && typeof authIn.handle === "string") await assertKeyMayGo(ctx, authIn.handle, url);
   const auth = await authHeader(ctx, input["auth"]);
   if (auth) { headers[auth.name] = auth.value; secrets.push(auth.secret, auth.value); }
   const deps: FetchDeps = documentNetwork() ?? { fetch: globalThis.fetch, lookup: lookupHost };

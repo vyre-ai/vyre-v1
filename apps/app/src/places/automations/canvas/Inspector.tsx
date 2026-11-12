@@ -28,7 +28,7 @@ import { Glyph } from "./icons.tsx";
 import { ERROR_MODES, groupOfKey, iconOfKey, kindOfKey, setBranch, subtitleOf, titleOfKey, updateStep, triggerMeta } from "./model.ts";
 import { SchemaForm } from "./SchemaForm.tsx";
 import { TriggerForm, usePersonZone } from "./TriggerForm.tsx";
-import { controlsFor, humanize } from "./form-model.ts";
+import { controlsFor, humanize, specOf } from "./form-model.ts";
 import type { IconKey } from "./model.ts";
 import type { DefNode, DefTrigger, Definition, Issue, KeyChoice } from "./model.ts";
 import { LiveStepForm } from "./steps/LiveStepForm.tsx";
@@ -168,7 +168,7 @@ export function Inspector({ automationId, def, node, trigger, triggerIndex, issu
                 />
               ) : null}
               {jsonError ? <Text style={i.hint}>{jsonError}</Text> : null}
-              <Text testID="plain-language" style={i.hint}>{trigger ? (def.triggers.length > 1 ? `This is trigger ${(triggerIndex ?? 0) + 1} of ${def.triggers.length}. Any one of them starts a run.` : "This starts a run.") : "Every trigger is listed on the card. Any one starts a run."}</Text>
+              <Text testID="plain-language" style={i.hint}>{trigger ? (def.triggers.length > 1 ? `This is trigger ${(triggerIndex ?? 0) + 1} of ${def.triggers.length}. Any one of them starts a run.` : specOf(trigger.key).note ? "" : "This starts a run.") : "Every trigger is listed on the card. Any one starts a run."}</Text>
               <Problems list={mine} />
               {trigger && triggerIndex !== null && onRemoveTrigger ? (
                 <Pressable accessibilityRole="button" accessibilityLabel="Remove this trigger" testID="remove-trigger" onPress={() => onRemoveTrigger(triggerIndex)} style={[i.del, pointer]}>
