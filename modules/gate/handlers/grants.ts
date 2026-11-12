@@ -182,7 +182,9 @@ export async function linksKnown(ctx: GateCtx, input: In): Promise<unknown> {
 export async function taintMark(ctx: GateCtx, input: In): Promise<unknown> {
   if (!isHostService(ctx.principal) && !((ctx.origin === "gate" || ctx.origin === "engine") && (ctx.depth ?? 0) === 0)) raise(ctx, "permission.role_lacks_permission", "Only the server marks this.", { reason: "system_only" });
   for (const t of input.threads as string[]) {
-    ctx.db.run("INSERT INTO gate_taint (thread_id, source, at) VALUES (?, ?, ?) ON CONFLICT (thread_id) DO UPDATE SET source = excluded.source, at = excluded.at, cleared_at = NULL", t, input.source, ctx.now());
+    // an uncleared Automation mark is never replaced by a later read's: a stranger's "first open this link" must not lift the holds the mark carries (runs-as review pass 4); the read's links
+    // are still kept below, and the mark stays uncleared
+    ctx.db.run("INSERT INTO gate_taint (thread_id, source, at) VALUES (?, ?, ?) ON CONFLICT (thread_id) DO UPDATE SET source = CASE WHEN gate_taint.cleared_at IS NULL AND gate_taint.source LIKE 'automation:%' THEN gate_taint.source ELSE excluded.source END, at = excluded.at, cleared_at = NULL", t, input.source, ctx.now());
     await keepLinks(ctx, t, (input.links ?? []) as string[]);
   }
   return { ok: true };

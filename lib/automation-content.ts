@@ -11,6 +11,7 @@ export const isOutsideTrigger = (trigger: string | undefined): boolean => !INTER
 const TRIGGER_WORDS: Readonly<Record<string, string>> = {
   email_received: "email", form_submit: "form", webhook: "webhook", chat_message: "chat message", record_change: "record change", spreadsheet_row: "spreadsheet row",
   meeting_transcript_ready: "meeting transcript", ci_check: "CI check", journey_stage_entered: "journey stage", journey_stage_left: "journey stage",
+  agent_run: "started by an agent",
 };
 export const triggerWords = (trigger: string | undefined): string => TRIGGER_WORDS[trigger ?? ""] ?? "outside trigger";
 
@@ -30,12 +31,14 @@ export function readAutomationMark(source: string | undefined): { automationId: 
 export const HELD_FROM_AUTOMATION_CONTENT: readonly string[] = [
   // giving someone access
   "access.share", "access.grants.update", "access.groups.add_member", "access.audience_set", "access.requests.approve", "access.roles.assign", "access.actors.create",
-  "access.groups.create", "access.groups.defaults_set", "vault.share", "files.share", "files.move", "files.folder.move", "chat.share", "notes.share",
+  "access.groups.create", "access.groups.defaults_set", "vault.share", "files.share", "chat.share", "notes.share",
   "members.invites.create", "members.invites.extend", "members.join_link.create", "members.join_requests.approve", "members.reactivate", "projects.members.set",
   "skills.share", "skills.grant", "portal.account_create", "portal.file_link", "portal.post", "webhooks.create", "webhooks.update", "memory.page.set_visibility",
   "sites.publish", "sites.artifact_publish",
   // the outer call, so nothing is half done before the card (a nested share inside these is not held on its own)
-  "threads.members.add", "channels.members.add", "changesets.review_externally",
+  "threads.members.add", "channels.members.add", "threads.add_agent", "changesets.review_externally",
+  // starting another Automation's Run with the stranger's text as its payload
+  "automations.run",
   // keeping the stranger's words for later turns
   "automations.create", "automations.update", "automations.set_enabled", "automations.restore_version", "automations.templates.use", "automations.packages.import",
   "automations.make_personal_copy", "agents.create", "agents.update", "agents.instruction.append", "agents.routine.save", "agents.routine.delegate", "channels.agent_watch.set",

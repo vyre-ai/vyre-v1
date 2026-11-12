@@ -470,3 +470,13 @@ test("an agent's press on a live Space automation clears whom it runs as, and it
   assert.equal(after.runsAs, undefined, "an agent's change carries nobody's yes");
   assert.deepEqual(told.filter((t) => t.to === bob.id).map((t) => t.title), [`${after.name} now runs as nobody, since a change no person pressed. Its agent work waits until someone turns it on again.`], "the accountable owner is told, once");
 });
+
+test("a Run an agent starts by hand is marked as started by an agent, so its steps treat it as from outside; a person's is not (runs-as review pass 4)", async () => {
+  const h = harness();
+  const id = await makeLive(h);
+  const mine = await h.call("automations.run", { automationId: id }, alice);
+  assert.equal(loadRunPlan({ db: h.db }, mine.runId)!.link.origin, undefined, "a person's press");
+  const byAgent = await h.call("automations.run", { automationId: id, payload: { note: "from a stranger" } }, { kind: "agent", id: "agt_helper", actingFor: alice.id } as never).catch((e: unknown) => ({ error: e }));
+  if ("runId" in (byAgent as object)) assert.equal(loadRunPlan({ db: h.db }, (byAgent as { runId: string }).runId)!.link.origin, "agent:agt_helper");
+  else assert.fail(`an agent working for the owner may start it: ${JSON.stringify(byAgent)}`);
+});
