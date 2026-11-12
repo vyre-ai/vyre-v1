@@ -1317,10 +1317,10 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         vaultHidden: (itemId, person) => {
           try {
             const r = db!.all(`SELECT "scope", "owner" FROM vault_meta WHERE "id" = ? AND "deleted_at" IS NULL`, itemId)[0] as { scope?: string; owner?: string } | undefined;
-            if (!r) return true;
-            if (r.scope === "mine") return r.owner !== person;
-            return authorize(access.snap, { principal: person, action: { perm: null, level: "use" }, resource: { type: "vault_item", id: itemId }, now: now() }).effect !== "allow";
-          } catch { return true; }
+            if (!r) return "other";
+            if (r.scope === "mine") return r.owner !== person ? "mine" : false;
+            return authorize(access.snap, { principal: person, action: { perm: null, level: "use" }, resource: { type: "vault_item", id: itemId }, now: now() }).effect !== "allow" ? "other" : false;
+          } catch { return "other"; }
         },
         ensureResource: async (r) => {
           if ((r.type === "conversation" || r.type === "mail_message") && r.id !== null) { await ensureRow(r.type, r.id); return; }

@@ -1,7 +1,7 @@
 // Tasks state machine and the capabilities that change or read a task (ARCH 4.7, spec 2.8, 4.1, 4.2).
 // `tasks.transition` is the only writer of the status field; `tasks.act` (handlers/act.ts) and the Gate reach the same applyMove. The table of 4.7 lives in planMove.
 // Group and role slots: the pipeline authorizes the call at level use on the task, so holders pass; the first Take locks the task to one person (tasks.take).
-import { isPersonPress, isSystemCall, isTrustedService } from "../../../lib/trust.ts";
+import { isOwnPress, isSystemCall, isTrustedService } from "../../../lib/trust.ts";
 import {
   actionableByMe, allTasks, clean, emitTask, ensurePrefix, findTask, getTask, historyOf, holds, isOpen, isRequest, listTasks, myWork, needsYou, newTaskId, openIndex,
   out, outFor, page, raise, readPolicy, sameAssignee, touch, visibleTo, whoIs,
@@ -434,6 +434,7 @@ export async function transition(ctx: TasksCtx, input: In): Promise<unknown> {
   if (t.source?.kind === "gate" && !isTrustedService(who) && t.state === "awaiting_approval" && (input.to === "done" || input.to === "doing")) {
     raise(ctx, "validation.precondition_failed", "Approve or send back a held act from the request itself.", { reason: "use_act" });
   }
+  if (input.to === "doing") await mayStartWaiting(ctx, t);
   const applied = applyMove(ctx, t, input.to as TaskState, { note: input.note, expectedFrom: input.expectedFrom });
   if (applied.took) await syncThread(ctx, t);
   return { task: out(ctx, t) };
@@ -590,11 +591,16 @@ export function mayNameBatonOwner(ctx: TasksCtx, value: string): boolean {
 export function stampStarter(ctx: TasksCtx, t: Task): void {
   if (t.kind !== "work" || t.assigned.kind !== "agent") return;
   if (isPersonId(t.createdBy) || isPersonId(t.workingNotes[BATON_OWNER])) return;
-  if (!isPersonPress(ctx as { principal: { kind: string; id: string }; origin?: string })) return;
-  if (ctx.actingFor !== undefined) return;
+  if (!isOwnPress(ctx as { principal: { kind: string; id: string }; origin?: string; actingFor?: string })) return;
   const notes: Record<string, string> = { ...t.workingNotes, [BATON_OWNER]: ctx.principal.id };
   delete notes[BATON_WAITING];   // the line that said it waits for a person
   t.workingNotes = notes;
+}
+
+/** A person who starts a waiting task becomes whom the agent acts for: they must be able to give that agent work (Can use), as for assigning it to them (review 12 Nov, 5). */
+export async function mayStartWaiting(ctx: TasksCtx, t: Task): Promise<void> {
+  if (t.workingNotes[BATON_WAITING] === undefined || t.assigned.kind !== "agent") return;
+  await checkOutside(ctx, [t.assigned]);
 }
 
 /**
@@ -661,6 +667,10 @@ export async function notesDelete(ctx: TasksCtx, input: In): Promise<unknown> {
   const t = getTask(ctx, input.taskId);
   const key = String(input.key ?? "");
   if (key in RESERVED_NOTES || key.startsWith("gate.")) raise(ctx, "validation.field_locked", "That value is never removed.", { field: key });
+  // whom an agent's turns act for, and the line that says nobody yet, are guarded as their writes are: an agent cannot drop its starter to fall back to someone else (review 12 Nov, 6)
+  if (key === BATON_ACTING_FOR) raise(ctx, "validation.field_locked", "That is set when the task is made, and never changed.", { field: key });
+  if (key === BATON_OWNER && !isTrustedService(ctx.principal) && !(ctx.principal.kind === "person" && ctx.actingFor === undefined && t.workingNotes[BATON_OWNER] === ctx.principal.id)) raise(ctx, "validation.field_locked", "Only the person it names, or the server, removes that.", { field: key });
+  if (key === BATON_WAITING && !isTrustedService(ctx.principal)) raise(ctx, "validation.field_locked", "Only the server removes that.", { field: key });
   if (key in t.workingNotes) {
     const rest = { ...t.workingNotes }; delete rest[key];
     t.workingNotes = rest;

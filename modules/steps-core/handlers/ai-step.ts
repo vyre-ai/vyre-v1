@@ -8,8 +8,11 @@
 import { validate } from "../../../packages/contracts/src/jsonschema.ts";
 import type { JsonSchema } from "../../../packages/contracts/src/types.ts";
 import { stepError } from "../projections.ts";
-import { buildBrief, MAX_BRIEF_INPUT } from "./brief.ts";
+import { buildBrief, MAX_BRIEF_INPUT, OUTSIDE_TRIGGERS } from "./brief.ts";
 import type { StepCall, StepEnv, StepNode, StepResult } from "./control.ts";
+
+/** A Run a stranger could start (an email, a form, a webhook): its trigger and inputs go in the brief as outside content. */
+const outsideOf = (env: StepEnv): { from: string } | undefined => (env.run.trigger !== undefined && OUTSIDE_TRIGGERS.has(env.run.trigger) ? { from: env.run.trigger } : undefined);
 
 type Rec = Record<string, unknown>;
 const rec = (v: unknown): v is Rec => typeof v === "object" && v !== null && !Array.isArray(v);
@@ -53,7 +56,7 @@ function promptOf(env: StepEnv, cfg: Rec, call: StepCall, title: string): string
   if (!prompt) throw stepError("validation.bad_input", `The AI step "${title}" needs a prompt.`, false);
   try {
     return buildBrief({
-      kind: "answer", goal: prompt, automation: env.run.automation ?? env.run.label, trigger: call.trigger, outputs: call.outputs, also: [call.item],
+      kind: "answer", goal: prompt, automation: env.run.automation ?? env.run.label, trigger: call.trigger, outside: outsideOf(env), outputs: call.outputs, also: [call.item],
       inputs: cfg["inputs"], schema: rec(cfg["outputSchema"]) ? (cfg["outputSchema"] as JsonSchema) : undefined, doneMeans: stringsOf(cfg["doneMeans"]), timeoutMinutes: typeof cfg["timeoutMinutes"] === "number" ? cfg["timeoutMinutes"] : undefined,
     });
   } catch (e) {
@@ -167,7 +170,7 @@ async function taskStep(env: StepEnv, node: StepNode, cfg: Rec, call: StepCall, 
   let brief: string;
   try {
     brief = buildBrief({
-      kind: "task", goal, automation: env.run.automation ?? env.run.label, trigger: call.trigger, outputs: call.outputs, also: [call.item], inputs: cfg["inputs"], schema, doneMeans,
+      kind: "task", goal, automation: env.run.automation ?? env.run.label, trigger: call.trigger, outside: outsideOf(env), outputs: call.outputs, also: [call.item], inputs: cfg["inputs"], schema, doneMeans,
       reviewer: reviewer ? names[reviewer.id] ?? `The ${reviewer.kind === "agent" ? "reviewing agent" : "reviewer"}` : undefined, approver: approver ? names[approver.id] ?? `The ${approver.kind === "agent" ? "approving agent" : "approver"}` : undefined,
       timeoutMinutes: minutes,
     });
@@ -191,7 +194,8 @@ async function taskStep(env: StepEnv, node: StepNode, cfg: Rec, call: StepCall, 
     // the brief is the first thing in the task's thread, and an unattended task works without asking first (anything that leaves Vyre is still held)
     const threadId = made?.task?.threadId;
     if (threadId) {
-      await soft(() => env.ctx.call!("threads.set_mode", { threadId, mode: "auto", idempotencyKey: `${call.key}:mode` }));
+      // a Run a stranger could start stays in Ask first: the words in the brief are theirs (review 12 Nov, 3)
+      await soft(() => env.ctx.call!("threads.set_mode", { threadId, mode: outsideOf(env) ? "ask" : "auto", idempotencyKey: `${call.key}:mode` }));
       await soft(() => env.ctx.call!("chat.post", { threadId, body: brief, idempotencyKey: `${call.key}:brief` }));
     }
     return waiting;

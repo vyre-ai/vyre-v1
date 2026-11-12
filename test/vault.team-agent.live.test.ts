@@ -73,6 +73,14 @@ test("team agent: private and asker-only items are refused; shared with the agen
       assert.equal(await askAs(asker, "#Olivia_Private.key", team), await askAs(asker, "#No_Such_Item_Here.key", team), `${asker}: a hidden item reads as a missing one`);
       assert.equal(await askAs(asker, "#Olivia_Private.key", own!.agentId), await askAs(asker, "#No_Such_Item_Here.key", own!.agentId), `${asker}: the same through another agent`);
     }
+    // review 1 (12 Nov): a key approved for the agent through a key request "for anyone who asks this agent" works for an asker with no grant of their own (kernel throughAgent): the probe
+    // fix hides an item only when the real decision (the agent, acting for that person) is no, never because the person alone has no grant
+    const approved = await put(shared, "Approved Stripe");
+    assert.equal(JSON.parse(await askAs("usr_tess", "#Approved_Stripe.key", team)).kind, "unknown", "before the approval Tess cannot use it, and it reads as missing");
+    await share(approved, { kind: "agent", id: team });
+    const through = await write(d, "access.share", { resource: { type: "vault_item", id: approved }, subject: { kind: "agent", id: team }, level: "use", source: "through-agent:anyone" });
+    assert.equal(through.status, 200, JSON.stringify(through.data));
+    assert.equal(JSON.parse(await askAs("usr_tess", "#Approved_Stripe.key", team)).kind, "value", "approved for anyone who asks the agent: Tess, with no grant of her own, uses it through the agent");
     // the answer a Routine gets that runs as the agent with no person behind it: no person's item, whatever is shared
     assert.notEqual(JSON.parse(await askAs(team, "#For_Everyone.key", team)).kind, "value", "a turn with no person asker gets no Vault value");
     // fifth look 2: two items can carry the same handle; the value is used only when it is of the item that was judged

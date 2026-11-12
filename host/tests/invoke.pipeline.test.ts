@@ -316,10 +316,12 @@ test("a Vault name or handle for an item the person cannot see answers exactly a
     r.snap.putGrant({ id: "g_all", subject_kind: "actor", subject_id: "usr_dana", resource_type: "vault_item", resource_id: "vit_hidden", level: "use" });
     try { await r.invoke("vault.use", { item }, seed()); return "ran"; } catch (e) { const x = (e as HostError).error; return JSON.stringify({ code: x.code, message: x.message, details: x.details }); }
   };
-  const deps: Partial<InvokeDeps> = { resolveItem: (_t, _k, v) => (v === "Hidden" ? "vit_hidden" : null), vaultHidden: (id) => id === "vit_hidden" };
+  const deps: Partial<InvokeDeps> = { resolveItem: (_t, _k, v) => (v === "Hidden" ? "vit_hidden" : null), vaultHidden: (id) => (id === "vit_hidden" ? "mine" : false) };
   const hidden = await answer(deps, "Hidden");
   const missing = await answer(deps, "Nothing_Here");
   assert.equal(hidden, missing, "the same code, words and details");
   assert.match(missing, /There is no Vault item by that name that you can use/);
   assert.equal(await answer({ ...deps, vaultHidden: () => false }, "Hidden"), "ran", "an item the person may see runs as before");
+  // review 1: an item the person alone may not use, but the real decision allows (a key approved for an agent through a key request), runs
+  assert.equal(await answer({ ...deps, vaultHidden: () => "other" }, "Hidden"), "ran", "the real decision allowed it: not hidden");
 });

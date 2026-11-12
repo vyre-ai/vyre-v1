@@ -3,6 +3,7 @@
 // Durable tables: migrations/0001_automations.sql. Every statement names only automations_* tables (ctx.db refuses anything else, ARCH B2).
 import { fail } from "../../host/src/routes/errors.ts";
 import { mintUuid } from "../../lib/ids.ts";
+import { isOwnPress } from "../../lib/trust.ts";
 
 export type Kind = "personal" | "space";
 export type Status = "on" | "off" | "draft" | "paused";
@@ -194,8 +195,7 @@ export function out(a: Automation): Record<string, unknown> {
  */
 export function noteRunsAs(ctx: AutoCtx, a: Automation): void {
   if (a.kind !== "space") return;
-  const press = ctx.principal.kind === "person" && ctx.actingFor === undefined && ctx.origin !== "mcp";
-  if (press) a.runsAs = ctx.principal.id; else delete a.runsAs;
+  if (isOwnPress(ctx)) a.runsAs = ctx.principal.id; else delete a.runsAs;
 }
 
 // ---- versions ----

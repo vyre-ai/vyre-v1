@@ -33,6 +33,8 @@ async function askerOf(ctx: GateCtx, p: PrincipalRef, actingFor: string | undefi
   return undefined;
 }
 
+/** The taint source the engine's task baton writes for an Automation turn from outside: "automation:<name> (<trigger>)". */
+export const AUTOMATION_TAINT = "automation:";
 /** Open asks one agent may have waiting for one person (lead ruling, 3 Nov). */
 export const MAX_OPEN_ASKS = 5;
 
@@ -106,6 +108,14 @@ export async function park(ctx: GateCtx, input: In): Promise<unknown> {
   const names = agentSays ? await holdNamesOf(ctx, input.capName, input.input) : {};
   const sentence = agentSays ? cut(holdSentence(agentSays, input.capName, input.input, names), 120) : "";
   const summary = ask ? cut(`${agentName} asks you to: ${ask.what}`, 120) : sentence || summaryLine(a, input.capName, input.input);
+  // a turn an Automation started from outside (its task thread is marked by the engine's task baton): the card says which Automation and what set it off (review 12 Nov, 3)
+  let startedBy = "";
+  if (typeof input.threadId === "string") {
+    try {
+      const src = (ctx.db.all("SELECT source FROM gate_taint WHERE thread_id = ? AND cleared_at IS NULL", input.threadId)[0] as { source?: string } | undefined)?.source ?? "";
+      if (src.startsWith(AUTOMATION_TAINT)) startedBy = `Started by the automation ${src.slice(AUTOMATION_TAINT.length)}`;
+    } catch { /* no mark: nothing to add */ }
+  }
 
   const hold: Hold = {
     id, act: a.key, capName: input.capName, capVersion: input.capVersion, input: input.input ?? null, inputHash: await sha(input.input ?? null), payloadHash: input.payloadHash,
@@ -122,7 +132,7 @@ export async function park(ctx: GateCtx, input: In): Promise<unknown> {
   let taskId: string;
   try {
     const r = (await ctx.call("tasks.create", clean({
-      kind: "approve", title: ask ? cut(`${agentName} asks: ${ask.what}`, 120) : sentence || `Approve: ${holdTitle(input.capName, input.input, a.title)}`, summary, why: ask ? "Only you can do this here. Approve runs it as you, once, exactly as shown." : rule.reason, assigned: approver,
+      kind: "approve", title: ask ? cut(`${agentName} asks: ${ask.what}`, 120) : sentence || `Approve: ${holdTitle(input.capName, input.input, a.title)}`, summary, why: ask ? "Only you can do this here. Approve runs it as you, once, exactly as shown." : startedBy ? `${startedBy}. ${rule.reason}` : rule.reason, assigned: approver,
       blocks: ask ? askBlocks({ act: a.key, what: ask.what, agentName, capName: input.capName, input: input.input }) : previewBlocks(a, input.capName, input.input, undefined, id, names),
       source: { kind: "gate", id }, expiresAt, idempotencyKey: `gate:${id}`,
     }))) as { task: { id: string } };

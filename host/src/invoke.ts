@@ -188,7 +188,8 @@ export interface InvokeDeps {
   /** vault name or handle to item id, for `resolve` bindings; `person`: whose items come first (their own, then the ones they may see), so a hidden item never shadows a visible one */
   resolveItem?(type: string, kind: "name" | "handle", value: string, person?: string): string | null;
   /** Is this Vault item hidden from this person (another person's Mine item, or one they may not use)? A name or handle that resolves to one reads as one that does not exist. */
-  vaultHidden?(itemId: string, person: string): boolean;
+  /** Why a Vault item is not this person's to see: "mine" (another person's Mine item, hidden always), "other" (the person alone may not use it), or false. */
+  vaultHidden?(itemId: string, person: string): "mine" | "other" | false;
   /** spend so far per meter, for the spend policies */
   spend?(principal: string): Record<string, number> | undefined;
   /** module services for the handler context: db, vault, http, schedule, seal */
@@ -447,7 +448,10 @@ export function createInvoke(deps: InvokeDeps): Invoke {
       // a Vault item named by name or handle that the person cannot see answers exactly as a name that names nothing, whatever authorize said (an admin's yes on another person's Mine item
       // included: the Vault hides those too), so nobody can probe which items exist. The refusal is in the audit, for admins; nothing more comes back.
       const named = c.resource !== undefined && "resolve" in c.resource && Boolean((c.resource as { resolve?: unknown }).resolve) && resource !== null && resource.type === "vault_item" && resource.id !== null;
-      if (named && vaultPerson !== undefined && deps.vaultHidden?.(resource!.id as string, vaultPerson) === true) {
+      // another person's Mine item is hidden always; any other item only when the real decision (the agent and whom it acts for) is no, since a key approved for an agent through a key
+      // request needs no access of the person's own (kernel throughAgent; review 12 Nov, 1)
+      const hidden = named && vaultPerson !== undefined ? deps.vaultHidden?.(resource!.id as string, vaultPerson) : undefined;
+      if (hidden === "mine" || (hidden === "other" && d.effect === "deny")) {
         await deps.audit?.(audit("deny", "vault_item_hidden"));
         throw fail("validation.bad_input", traceId, { message: NO_SUCH_ITEM, details: { errors: [`${(c.resource as { id: string }).id}: no such item`], cap: c.name } });
       }

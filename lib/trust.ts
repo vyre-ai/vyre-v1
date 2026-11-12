@@ -28,3 +28,12 @@ export const isSystemCall = (ctx: { depth?: number; principal?: PrincipalLike | 
  * it never writes what only a press may write, such as an automation's standing permission to send (docs/ask-the-person.md).
  */
 export const isPersonPress = (ctx: { principal?: PrincipalLike | undefined; origin?: string | undefined }): boolean => !!ctx.principal && ctx.principal.kind === "person" && ctx.origin !== "mcp";
+
+/**
+ * A person's own direct call with their session: the app or the API ("user"), or their own offline writes ("sync"), and never on someone's behalf. An allowlist, not a denylist: a call the
+ * engine, a hook, a schedule or any other part of the server makes as a person is not their press (review 12 Nov, 7). What an Automation runs as, and who starts an agent's waiting task, count
+ * only this.
+ */
+export const OWN_PRESS_ORIGINS: ReadonlySet<string> = new Set(["user", "sync"]);
+export const isOwnPress = (ctx: { principal?: PrincipalLike | undefined; origin?: string | undefined; actingFor?: string | undefined }): boolean =>
+  !!ctx.principal && ctx.principal.kind === "person" && ctx.actingFor === undefined && typeof ctx.origin === "string" && OWN_PRESS_ORIGINS.has(ctx.origin);
