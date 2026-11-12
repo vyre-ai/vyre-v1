@@ -232,6 +232,7 @@ import type { ChromeBridge } from "../bridge/chrome.ts";
 import { coerceQuery } from "./query.ts";
 import type { PropSchema } from "./query.ts";
 import { openDb, readLogMeta } from "./sqlite.ts";
+import { openInviteHashes } from "./invite-hashes.ts";
 import { bindSpacePorts, unbindSpacePorts } from "./module-ports.ts";
 import type { HostDb } from "./sqlite.ts";
 
@@ -582,7 +583,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   const unsubscribeRoute = createUnsubscribeRoute({ unsubscribe: (token) => leaveMailing(token) });
   // the invites open now, newest first: a device hello under one of their keys opens an invite channel (seams/relay.ts)
   const openInvites = (): string[] => {
-    try { return (db?.all("SELECT code_hash FROM members_invites WHERE state = 'open' AND expires_at > ? ORDER BY created_at DESC LIMIT ?", now(), INVITE_TRIES) as { code_hash: string }[] ?? []).map((r) => r.code_hash); } catch { return []; }
+    // the earlier code of a replayed invite too, so the first link opens on a phone address as it does on a computer (daemon/invite-hashes.ts)
+    return openInviteHashes(db, now(), INVITE_TRIES);
   };
   const phoneClaimed = (): boolean => {
     try { return (db?.all("SELECT state FROM network_phone WHERE id = 1")[0] as { state?: string } | undefined)?.state === "claimed"; } catch { return false; }

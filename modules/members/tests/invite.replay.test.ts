@@ -38,3 +38,18 @@ function seamId(h: ReturnType<typeof harness>, code: string): string {
   assert.ok(typeof p === "object");
   return p.inviteId;
 }
+
+test("a replay of a used, revoked or expired invite says so plainly and mints no code; both codes of a used invite are spent (review Pass 7)", async () => {
+  const h = harness();
+  const code1 = await create(h, "k3");
+  const code2 = await create(h, "k3");
+  await handlers["members.accept"](h.anon, { code: code2, ...JOIN });
+  await assert.rejects(handlers["members.invites.create"](h.as("usr_admin"), { role: "rol_member", idempotencyKey: "k3" }), (e: unknown) => codeOf(e) === "validation.precondition_failed" && /already used/.test(String((e as { message?: string }).message ?? JSON.stringify(e))));
+  for (const c of [code1, code2]) await assert.rejects(handlers["members.invites.preview"](h.anon, { code: c }), (e) => codeOf(e) === "auth.invalid_code");
+  const rows = h.raw.rows("members_invites").length;
+  const late = await create(h, "k4");
+  h.advance(8 * 24 * 3_600_000);
+  await assert.rejects(handlers["members.invites.create"](h.as("usr_admin"), { role: "rol_member", idempotencyKey: "k4" }), (e: unknown) => /expired/.test(String((e as { message?: string }).message ?? JSON.stringify(e))));
+  await assert.rejects(handlers["members.invites.preview"](h.anon, { code: late }), (e) => codeOf(e) === "auth.expired");
+  assert.equal(h.raw.rows("members_invites").length, rows + 1, "nothing new was made");
+});
