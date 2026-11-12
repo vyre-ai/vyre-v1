@@ -75,7 +75,7 @@ Requires: chat, files, forms, github, journeys, mail, meetings, records, runs, t
 - [automations.webhook_url.get](../capabilities/automations.webhook_url.get.md): The inbound webhook URL of an Automation that has a webhook trigger
 - [automations.webhook_url.rotate](../capabilities/automations.webhook_url.rotate.md): Rotate the secret in the webhook URL; the old URL stops working
 
-## Events (21)
+## Events (22)
 
 - [automation.alerts_changed](../events/automation.alerts_changed.md): Error alerts and the escalation chain changed
 - [automation.copied](../events/automation.copied.md): A Space Automation was copied to a Personal Automation
@@ -92,6 +92,7 @@ Requires: chat, files, forms, github, journeys, mail, meetings, records, runs, t
 - [automation.promoted](../events/automation.promoted.md): A Personal Automation became a Space Automation with access granted to the automation itself
 - [automation.restored](../events/automation.restored.md): An Automation came back from Trash
 - [automation.run_started](../events/automation.run_started.md): An Automation run started from a trigger, by hand or in test mode
+- [automation.runs_as_changed](../events/automation.runs_as_changed.md): The person a Space Automation runs as changed: someone turned it on, published a change, restored a version or put it on the Space; or nobody, after a change no person pressed
 - [automation.runs_migrated](../events/automation.runs_migrated.md): Active runs moved to a later definition version without replaying finished steps
 - [automation.trigger_dropped](../events/automation.trigger_dropped.md): A trigger event was ignored: self-trigger, chain depth 8 or paused
 - [automation.updated](../events/automation.updated.md): An Automation definition or settings changed; a definition change saves a version

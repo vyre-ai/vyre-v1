@@ -29,3 +29,8 @@
 - A task an agent makes now works for the person that agent was working for at the time, never for whoever owns the agent; an older task with nobody on record waits with a line until someone starts it.
 - When you hand an agent to someone else, Needs you tells you once which of your routines on it are now off, for example "Scout now belongs to Noah, so your routine 'Morning digest' on it is off."
 - A team agent's computer no longer lists or takes your own Vault items through its browser's fill, and offers a shared item only when it is shared with the agent: the same rule as for commands.
+- A key an admin approved for an agent "for anyone who asks this agent" works again for someone with no access of their own to it; only another person's own items read as missing.
+- An automation's agent work is checked again every time it wakes (after a restart, a reminder or a hand-over to a person), so a suspended person or a change of who it runs as is never ignored.
+- What a stranger sends to an automation (an email, a form, a webhook) reaches the agent marked as outside content, not instructions; that work runs in Ask first, and its approval card says "Started by the automation <name> (webhook)".
+- When an automation starts running as someone else, the audit log records who, from whom and why, and the person it no longer runs as is told once in Needs you.
+- Starting a waiting agent task needs Can use on that agent; an agent cannot remove the person its task works for; only a person's own press in the app or the API counts as turning an automation on; a goal's agent is not woken for someone who can no longer give it work.

@@ -95,7 +95,7 @@ test("a task made by a service acts for nobody: owning its agent or its run is n
   // before 12 Nov this woke the doer for the agent's owner (OWNER) and, for a run, for the run's owner: the rule changed, so this asserts the new behaviour in their place
   for (const over of [{ createdBy: "svc_host" }, { createdBy: "svc_0123456789abcdef0123456789abcdef", source: { kind: "run", id: "run_1" } }] as Partial<BatonTask>[]) {
     const t = task(over);
-    const s = scene({ tsk_t1: t }, { "runs.get": () => ({ run: { owner: "usr_runner", startedBy: "usr_runner" } }) });
+    const s = scene({ tsk_t1: t }, { "runs.get": () => ({ run: { owner: "usr_runner", startedBy: "usr_runner" } }), "agents.outside.usable": () => ({ usable: true }) });
     assert.deepEqual(await s.run("task.created", "tsk_t1"), [], `${JSON.stringify(over)}: nobody is woken`);
     assert.equal(s.provider.specs.length, 0, "no turn for the agent's owner or the run's owner");
     const line = s.h.called.find((c) => c.cap === "tasks.working_notes.set");

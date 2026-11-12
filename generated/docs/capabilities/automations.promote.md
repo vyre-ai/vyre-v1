@@ -19,7 +19,7 @@ Promote a Personal Automation to the Space: keeps history and versions, runs on 
 | HTTP | POST /v1/automations/promote |
 | MCP tool | automations_promote (automations) |
 | CLI | none |
-| Emits | automation.promoted |
+| Emits | automation.promoted, automation.runs_as_changed |
 
 ## Input
 

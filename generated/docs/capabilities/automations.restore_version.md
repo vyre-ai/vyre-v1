@@ -19,7 +19,7 @@ Restore an Automation to an earlier version (saved as a new version)
 | HTTP | POST /v1/automations/restore_version |
 | MCP tool | automations_restore_version (automations) |
 | CLI | none |
-| Emits | automation.version_restored, automation.updated |
+| Emits | automation.version_restored, automation.updated, automation.runs_as_changed |
 
 ## Input
 

@@ -377,7 +377,7 @@ test("Promote refuses until the subscription keys are replaced, then makes a Spa
   const ask = r.automation.definition.nodes.find((n: { id: string }) => n.id === "ask");
   assert.deepEqual(ask.ai, { keyId: "vit_shared1", backupKeyId: "vit_api9" }, "only the subscription key is replaced");
   assert.equal(r.diff.grants.length, 3);
-  assert.deepEqual(h.events.map((e) => e.name), ["automation.promoted"]);
+  assert.deepEqual(h.events.map((e) => e.name), ["automation.promoted", "automation.runs_as_changed"], "putting it on the Space makes the presser its runs-as person, and says so (review 12 Nov, 4)");
   assert.deepEqual(h.events[0]!.payload, { automationId: id, ownerId: bob.id, grants: 3, keysReplaced: 1 });
   const versions = (await h.call("automations.versions", { automationId: id }, alice)).versions;
   assert.deepEqual(versions.map((v: { n: number }) => v.n), [2, 1], "history and versions are kept");

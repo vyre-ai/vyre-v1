@@ -19,7 +19,7 @@ Turn an Automation on or off
 | HTTP | POST /v1/automations/set_enabled |
 | MCP tool | automations_set_enabled (automations) |
 | CLI | none |
-| Emits | automation.enabled, automation.disabled |
+| Emits | automation.enabled, automation.disabled, automation.runs_as_changed |
 
 ## Input
 

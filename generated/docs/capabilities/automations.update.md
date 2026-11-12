@@ -19,7 +19,7 @@ Change the name, description or definition; a definition change saves a new vers
 | HTTP | POST /v1/automations/update |
 | MCP tool | automations_update (automations) |
 | CLI | none |
-| Emits | automation.updated |
+| Emits | automation.updated, automation.runs_as_changed |
 
 ## Input
 

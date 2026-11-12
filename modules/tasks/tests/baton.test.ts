@@ -258,3 +258,22 @@ test("a task an agent makes records the person it was acting for, from the sessi
   const none = (await h.call("tasks.create", newTask({ assigned: bot2 }), doer)).task.id as string;
   assert.equal(notes(h, none)["baton.acting_for"], undefined, "an agent acting for nobody records nobody");
 });
+
+test("an agent cannot remove the person its task acts for, and a person who starts a waiting task must be able to give the agent work (review 12 Nov, 5 and 6)", async () => {
+  const h = withThreads();
+  const auto = { id: "svc_0123456789abcdef0123456789abcdef", kind: "service" as const };
+  const id = (await h.call("tasks.create", newTask({ assigned: bot, reviewer: cara, notes: { brief: "Triage it" } }), auto)).task.id as string;
+  await h.call("tasks.working_notes.set", { taskId: id, key: "baton.waiting", value: "This came from an automation and has nobody's permission to act yet. Open it to run it as yourself." }, svc);
+  // Cara may not give the agent work: her Start is refused, and nothing is written
+  h.callee("agents.outside.usable", () => ({ usable: false }));
+  await refused(h.call("tasks.act", { taskId: id, action: "start" }, boss), "validation.precondition_failed");
+  assert.equal(notes(h, id)["baton.owner"], undefined);
+  h.callee("agents.outside.usable", () => ({ usable: true }));
+  await h.call("tasks.act", { taskId: id, action: "start" }, boss);
+  assert.equal(notes(h, id)["baton.owner"], cara.id);
+  // the doing agent cannot drop her to fall back to someone else; nor the waiting line; she may remove her own
+  await refused(h.call("tasks.working_notes.delete", { taskId: id, key: "baton.owner" }, doer), "validation.field_locked");
+  await refused(h.call("tasks.working_notes.delete", { taskId: id, key: "baton.acting_for" }, boss), "validation.field_locked");
+  await h.call("tasks.working_notes.delete", { taskId: id, key: "baton.owner" }, boss);
+  assert.equal(notes(h, id)["baton.owner"], undefined);
+});
