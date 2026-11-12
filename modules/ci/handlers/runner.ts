@@ -105,7 +105,8 @@ export async function intake(ctx: CiCtx, a: JobIn): Promise<{ handled: Handled }
   if (a.action === "completed") return finish(ctx, s, a);
   if (!s.enabled) return { handled: "ignored" };
   if (!s.labels.every((l) => a.labels.includes(l))) return { handled: "ignored" };   // not a job for this Space's runners
-  if (runBy(ctx, "job_id", a.jobId)) return { handled: "ignored" };                  // delivered twice
+  const had = runBy(ctx, "job_id", a.jobId);
+  if (had) return { handled: had.state === "starting" ? await resumeStart(ctx, s, had) : "ignored" };   // delivered twice; a start the last server was cut off in goes on
   const projectId = await projectOfRepo(ctx, a.repo);
   if (!projectId) return { handled: "ignored" };                                      // a repository no project of this Space is linked to
   const runId = newRunId();
@@ -179,6 +180,26 @@ async function start(ctx: CiCtx, s: Settings, run: Run, price: number): Promise<
   }
 }
 
+/**
+ * The job is delivered again while its run is still "starting": the server stopped (or crashed) in the middle of start(), after the run row was written and before it was told the machine. The
+ * cloud says whether the machine was made (its name is the run's): made, the run goes on on it, so the job's end deletes it (before, it stayed "starting" and the machine was billed until the
+ * sweeper deleted it); not made, the start runs again, asking GitHub for the runner with the same idempotency key. The cloud cannot be listed: left as it is, for the next delivery or the sweeper.
+ */
+async function resumeStart(ctx: CiCtx, s: Settings, run: Run): Promise<Handled> {
+  let droplets: Droplet[];
+  try { droplets = await listTagged(ctx, s); } catch (e) { ctx.log.warn("ci: a cut off start could not be checked", { code: code(e) }); return "ignored"; }
+  const name = `vyre-ci-${run.runId.slice(4)}`;
+  const made = droplets.find((d) => d.name === name && d.tags.includes(`vyre-space-${ctx.space}`));
+  if (made) {
+    patchRun(ctx, run.runId, { state: "running", droplet_id: made.id, started_at: made.createdAt || ctx.now() });
+    ctx.emit("ci.run_started", `entity/${run.runId}`, { runId: run.runId, repo: run.repo, jobId: run.jobId, dropletId: made.id, size: run.size ?? s.size });
+    await linkRun(ctx, run.runId);
+    return "started";
+  }
+  patchRun(ctx, run.runId, { state: "queued", note: null });
+  return begin(ctx, s, runBy(ctx, "run_id", run.runId)!);
+}
+
 // ---- teardown
 
 async function destroy(ctx: CiCtx, s: Settings, dropletId: string): Promise<boolean> {
@@ -214,7 +235,7 @@ export async function drain(ctx: CiCtx, s: Settings): Promise<number> {
 
 // ---- the sweeper
 
-interface Droplet { id: string; createdAt: number; tags: string[] }
+interface Droplet { id: string; name: string; createdAt: number; tags: string[] }
 
 async function listTagged(ctx: CiCtx, s: Settings): Promise<Droplet[]> {
   const out: Droplet[] = [];
@@ -222,7 +243,7 @@ async function listTagged(ctx: CiCtx, s: Settings): Promise<Droplet[]> {
     const r = await cloud(ctx, s, { method: "GET", path: "/v2/droplets", query: { tag_name: "vyre-ci", per_page: 200, page } });
     if (r.status >= 300) throw Object.assign(new Error("list"), { error: { code: "provider.unavailable" } });
     const items = Array.isArray(r.json["droplets"]) ? (r.json["droplets"] as Row[]) : [];
-    for (const d of items) out.push({ id: String(d["id"]), createdAt: Date.parse(String(d["created_at"])) || 0, tags: Array.isArray(d["tags"]) ? (d["tags"] as unknown[]).map(String) : [] });
+    for (const d of items) out.push({ id: String(d["id"]), name: String(d["name"] ?? ""), createdAt: Date.parse(String(d["created_at"])) || 0, tags: Array.isArray(d["tags"]) ? (d["tags"] as unknown[]).map(String) : [] });
     if (items.length < 200) break;
   }
   return out;

@@ -2,7 +2,7 @@
 // setPushPort is the host's door for the APNs/FCM transport and the computer's idle time (call it at boot); the fanout consumer turns events that name a notification kind into rows.
 import { handlers } from "./handlers/index.ts";
 import { setPushPort } from "./handlers/push.ts";
-import { clearForSubject, send } from "./handlers/rules.ts";
+import { clearForSubject, resendKindEmail, send, sendOne } from "./handlers/rules.ts";
 import { readSettings, syncSetting } from "./handlers/deliver.ts";
 import type { NotifCtx } from "./projections.ts";
 import { registry } from "../../generated/registry.ts";
@@ -16,7 +16,7 @@ export { buildPush } from "./handlers/push.ts";
 export type { PushMessage, PushPort } from "./handlers/push.ts";
 
 type Assignee = { kind: string; id: string } | null | undefined;
-interface Ev { name: string; subject?: string; payload: Record<string, unknown>; actor?: string }
+interface Ev { name: string; subject?: string; payload: Record<string, unknown>; actor?: string; /** the event's id (the host's HookEvent has one): the fanout remembers who it reached for it */ id?: string }
 type SendIn = Parameters<typeof send>[1];
 
 /** The name a person reads for whoever acted: the server's one resolver, so someone's private agent reads "Irfad Imtiaz (Agent)", never a raw id. */
@@ -227,6 +227,9 @@ export function plan(ctx: NotifCtx, e: Ev): Promise<SendIn | SendIn[] | undefine
   return undefined;
 }
 
+/** How long the fanout remembers who it reached for an event (a redelivery after a stop or a crash comes at the next start). */
+const FANOUT_KEEP_MS = 30 * 86_400_000;
+
 /** Async consumers by name: the events each one reads and what it does with one. */
 export const consumers = {
   "notifications.fanout": {
@@ -236,10 +239,42 @@ export const consumers = {
     async run(ctx: NotifCtx, event: Ev): Promise<string[]> {
       const planned = await plan(ctx, event);
       const out: string[] = [];
+      if (event.id) ctx.db.run("DELETE FROM notifications_fanout_sent WHERE at < ?", ctx.now() - FANOUT_KEEP_MS);   // a redelivery comes within minutes; a month is far past any
+      let unsent = 0;
       for (const input of planned === undefined ? [] : Array.isArray(planned) ? planned : [planned]) {
-        const r = await send(ctx, input);
+        // The host hands a consumer the same event again after a crash, after a stop let it go mid-run, or when it throws (it is at least once). Each recipient is written down before it is sent
+        // to, and the notification it got is written once the send answered:
+        //   mark with a notification   reached: not sent again (an email that failed for a kind where the email is the point is sent again, alone)
+        //   mark with none            cut off before the send answered (a crash or a stop): sent again, the kind's email included even when the row collapses into the one filed
+        //   no mark                   not reached yet: sent
+        // A send that throws takes its mark back. One mark covers the row, the push and the email: a failed push is not tried again (it never was). An event with no id is not remembered.
+        const target = `${input.to}|${input.kind}|${input.subject ? `${input.subject.type}:${input.subject.id}` : ""}|${input.collapseKey ?? ""}`;
+        let redo = false;
+        if (event.id) {
+          const fresh = ctx.db.run("INSERT OR IGNORE INTO notifications_fanout_sent (event_id, target, notification_id, email_pending, at) VALUES (?, ?, NULL, 0, ?)", event.id, target, ctx.now()).changes > 0;
+          if (!fresh) {
+            const had = ctx.db.all("SELECT notification_id, email_pending FROM notifications_fanout_sent WHERE event_id = ? AND target = ?", event.id, target)[0] as { notification_id?: string | null; email_pending?: number } | undefined;
+            if (had?.notification_id) {
+              if (Number(had.email_pending) === 1) {
+                if (await resendKindEmail(ctx, input.to, had.notification_id)) ctx.db.run("UPDATE notifications_fanout_sent SET email_pending = 0 WHERE event_id = ? AND target = ?", event.id, target);
+                else unsent++;
+              }
+              out.push(had.notification_id);
+              continue;
+            }
+            redo = true;
+          }
+        }
+        let r: Awaited<ReturnType<typeof sendOne>>;
+        try { r = await sendOne(ctx, input, false, redo); }
+        catch (e) { if (event.id) ctx.db.run("DELETE FROM notifications_fanout_sent WHERE event_id = ? AND target = ?", event.id, target); throw e; }
+        if (event.id && r.notificationId) ctx.db.run("UPDATE notifications_fanout_sent SET notification_id = ?, email_pending = ? WHERE event_id = ? AND target = ?", r.notificationId, r.emailFailed ? 1 : 0, event.id, target);
+        if (r.emailFailed) unsent++;
         if (r.notificationId) out.push(r.notificationId);
       }
+      // an email that is the point of its kind did not go out after its tries (rules.ts emailWithRetry): its mark keeps email_pending, so the next delivery of this event (a restart, a crash)
+      // sends it again, alone; nobody waiting on it is ever marked reached
+      if (unsent > 0) ctx.log?.warn("the fanout could not send every email; the ones left are sent on the next delivery of the event", { unsent });
       return out;
     },
   },
