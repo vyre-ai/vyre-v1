@@ -40,7 +40,7 @@ function load(ctx: ChatCtx, channelId: string, o: { anyone?: boolean; govern?: b
 /** A channel that still takes changes. */
 function loadLive(ctx: ChatCtx, channelId: string, o: { anyone?: boolean } = {}): ChannelRec {
   const ch = load(ctx, channelId, o);
-  if (ch.archived) raise(ctx, "validation.bad_input", "This channel is archived. Bring it back first.");
+  if (ch.archived) raise(ctx, "validation.bad_input", "This channel is archived. Bring it back first.", { reason: "archived" });
   return ch;
 }
 

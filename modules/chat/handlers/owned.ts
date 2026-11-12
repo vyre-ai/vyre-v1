@@ -66,11 +66,15 @@ function readsChat(ctx: ChatCtx, threadId: string, person: string): boolean {
   return canSpeak(reader, t);
 }
 
-async function grant(ctx: ChatCtx, threadId: string, agentId: string, subject: Subject): Promise<void> {
+/** What this chat's source already gives this agent's readers, as keys: "agent:<subject>" on the agent (the agent's own hold on itself is "agent:<agent id>"), "folder:<folder>:<subject>". */
+type Held = ReadonlySet<string>;
+
+async function grant(ctx: ChatCtx, threadId: string, agentId: string, subject: Subject, held?: Held): Promise<void> {
   if (!ctx.call) return;
   // checked again where it is written, in the person's queue: a reader read before a removal that ran first in this queue is no longer one, and gets nothing (review S7-1)
   if (subject.kind === "person" && !readsChat(ctx, threadId, subject.id)) return;
-  try {
+  // a sweep that finds the grant already there writes nothing: a quiet day is no audit row and no access sync (review, rounds eleven and twelve)
+  if (!held?.has(`agent:${subject.id}`)) try {
     // a fresh part per real add: a key names this one request, so the same pair shared again after a removal is written again (a key of ids alone replayed the first answer)
     const add = globalThis.crypto.randomUUID();
     await ctx.call("access.share", { resource: { type: "agent", id: agentId }, subject, level: "view", source: sourceOf(threadId), idempotencyKey: `own:${threadId}:${agentId}:${subject.id}:${add}` }, { idempotencyKey: `own:${threadId}:${agentId}:${subject.id}:${add}` });
@@ -79,7 +83,7 @@ async function grant(ctx: ChatCtx, threadId: string, agentId: string, subject: S
   // before: the agent writes its notes there in a turn a reader asked for, and an agent's write is capped by the asker's own access
   if (!homeIsClosed(ctx, threadId)) return;
   const folderId = await folderOf(ctx, agentId);
-  if (!folderId) return;
+  if (!folderId || held?.has(`folder:${folderId}:${subject.id}`)) return;
   try {
     const add = globalThis.crypto.randomUUID();
     await ctx.call("access.share", { resource: { type: "folder", id: folderId }, subject, level: "edit", source: sourceOf(threadId), idempotencyKey: `ownf:${threadId}:${agentId}:${subject.id}:${add}` }, { idempotencyKey: `ownf:${threadId}:${agentId}:${subject.id}:${add}` });
@@ -115,13 +119,13 @@ export function homesOf(ctx: ChatCtx, agentId: string): string[] {
  * Set the agent's folder to follow its chat now: closed to the Space when the chat is, open to the Space when it is not. With more than one home the folder is as private as its most private
  * home: closed when any of them is. Throws when it cannot: a folder left open would be a leak.
  */
-export async function followHome(ctx: ChatCtx, threadId: string, agentId: string): Promise<void> {
+export async function followHome(ctx: ChatCtx, threadId: string, agentId: string, held?: Held): Promise<void> {
   if (!ctx.call) return;
   const folderId = await folderOf(ctx, agentId);
   const closed = closedFor(ctx, threadId, agentId);
   // the agent itself follows the chat the same way (owner decision, 12 Nov 2026: reachable only by the chat's readers, those it was shared with, and those who manage it). Cut off from the Space,
   // it keeps its own hold on itself (its routines, its own record) by a grant of the chat's source, written before the cut
-  if (closed) await ctx.call("access.share", { resource: { type: "agent", id: agentId }, subject: { kind: "agent", id: agentId }, level: "edit", source: sourceOf(threadId), idempotencyKey: `ownself:${threadId}:${agentId}:${globalThis.crypto.randomUUID()}` });
+  if (closed && !held?.has(`agent:${agentId}`)) await ctx.call("access.share", { resource: { type: "agent", id: agentId }, subject: { kind: "agent", id: agentId }, level: "edit", source: sourceOf(threadId), idempotencyKey: `ownself:${threadId}:${agentId}:${globalThis.crypto.randomUUID()}` });
   if (folderId) await ctx.call("access.audience_set", { resource: { type: "folder", id: folderId }, audience: closed ? "added" : "space" });
   await ctx.call("access.audience_set", { resource: { type: "agent", id: agentId }, audience: closed ? "added" : "space" });
 }
@@ -166,31 +170,55 @@ export async function convergeAgent(ctx: ChatCtx, threadId: string, agentId: str
     // the readers' grants first, then the cut: a sweep stopped half way leaves the folder as it was or closed with its readers in, never closed with them out. Run twice, it writes the same
     // grants again (a grant of the same subject, resource and source is updated in place) and sets the same audience
     const readers = [...new Set([...(root.starter?.startsWith("usr_") ? [root.starter] : []), ...membersOf(ctx.db, root.id).filter((p) => p.startsWith("usr_"))])];
-    for (const person of readers) await oneAtATime(queueOf(ctx, person), async () => { await grant(ctx, threadId, agentId, { kind: "person", id: person }); }, limits(ctx));
+    const given = await givenBy(ctx, threadId, agentId);
+    for (const person of readers) await oneAtATime(queueOf(ctx, person), async () => { await grant(ctx, threadId, agentId, { kind: "person", id: person }, given.held); }, limits(ctx));
     // what this chat gave someone who no longer reads it (a race, or an older version) goes: the sweep heals, not only adds (review S7-1)
-    await dropStale(ctx, threadId);
-    await followHome(ctx, threadId, agentId);
-    // a chat that was open gave the whole Space its agent: that goes now
-    try { await ctx.call("access.unshare", { resource: { type: "agent", id: agentId }, subject: { kind: "group", id: "space" }, source: sourceOf(threadId) }); }
+    await dropStale(ctx, threadId, given.people);
+    await followHome(ctx, threadId, agentId, given.held);
+    // a chat that was open gave the whole Space its agent: that goes now (when it is there)
+    if (given.held.has("agent:space")) try { await ctx.call("access.unshare", { resource: { type: "agent", id: agentId }, subject: { kind: "group", id: "space" }, source: sourceOf(threadId) }); }
     catch (e) { warn(ctx, "an agent a chat made stayed shown to the whole Space after the chat was closed", e, { threadId, agentId }); throw e; }
   } else if (closedFor(ctx, threadId, agentId)) {
     // an open home of an agent another, closed home made private: the open chat gives the Space nothing (the most private home wins)
-    await followHome(ctx, threadId, agentId);
-    try { await ctx.call("access.unshare", { resource: { type: "agent", id: agentId }, subject: { kind: "group", id: "space" }, source: sourceOf(threadId) }); }
+    const given = await givenBy(ctx, threadId, agentId);
+    await followHome(ctx, threadId, agentId, given.held);
+    if (given.held.has("agent:space")) try { await ctx.call("access.unshare", { resource: { type: "agent", id: agentId }, subject: { kind: "group", id: "space" }, source: sourceOf(threadId) }); }
     catch (e) { warn(ctx, "an agent with a closed home stayed shown to the whole Space", e, { threadId, agentId }); throw e; }
   } else {
-    await followHome(ctx, threadId, agentId);
-    await grant(ctx, threadId, agentId, { kind: "group", id: "space" });
+    const given = await givenBy(ctx, threadId, agentId);
+    await followHome(ctx, threadId, agentId, given.held);
+    await grant(ctx, threadId, agentId, { kind: "group", id: "space" }, given.held);
   }
 }
 
+/** The page limit, and how many pages one pass reads: a chat given to more people than this is finished by the next pass (the sweep is daily, and every leave and join keeps it in step). */
+const GRANT_PAGE = 500, GRANT_PAGES = 20;
+
+/** Every grant of this chat's source, paged and bounded: what it already gives (held, for this agent and its folder) and to which people. */
+async function givenBy(ctx: ChatCtx, threadId: string, agentId: string): Promise<{ held: Set<string>; people: Set<string> }> {
+  const held = new Set<string>(), people = new Set<string>();
+  if (!ctx.call) return { held, people };
+  let cursor: string | undefined;
+  for (let page = 0; page < GRANT_PAGES; page++) {
+    let out: { grants?: Array<{ subject?: { kind?: string; id?: string }; resource?: { type?: string; id?: string } }>; next?: string };
+    try { out = (await ctx.call("access.grants.list", { source: sourceOf(threadId), limit: GRANT_PAGE, ...(cursor ? { cursor } : {}) })) as typeof out; }
+    catch (e) { warn(ctx, "who a chat gave its agent to could not be read", e, { threadId }); throw e; }
+    for (const g of out.grants ?? []) {
+      const sid = g.subject?.id, rid = g.resource?.id;
+      if (!sid || !rid) continue;
+      if (g.subject?.kind === "person") people.add(sid);
+      if (g.resource?.type === "agent" && rid === agentId) held.add(`agent:${sid}`);
+      if (g.resource?.type === "folder") held.add(`folder:${rid}:${sid}`);
+    }
+    if (!out.next) break;
+    cursor = out.next;
+  }
+  return { held, people };
+}
+
 /** The person grants of this chat's source held by someone who no longer reads the chat, taken back, each in that person's queue and checked again there. */
-async function dropStale(ctx: ChatCtx, threadId: string): Promise<void> {
+async function dropStale(ctx: ChatCtx, threadId: string, people: ReadonlySet<string>): Promise<void> {
   if (!ctx.call) return;
-  let rows: Array<{ subject?: { kind?: string; id?: string } }> = [];
-  try { rows = ((await ctx.call("access.grants.list", { source: sourceOf(threadId), limit: 500 })) as { grants?: typeof rows }).grants ?? []; }
-  catch (e) { warn(ctx, "who a chat gave its agent to could not be read", e, { threadId }); throw e; }
-  const people = [...new Set(rows.filter((g) => g.subject?.kind === "person" && typeof g.subject.id === "string").map((g) => g.subject!.id!))];
   for (const person of people) {
     if (readsChat(ctx, threadId, person)) continue;
     await oneAtATime(queueOf(ctx, person), async () => {

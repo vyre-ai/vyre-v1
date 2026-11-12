@@ -38,7 +38,12 @@ function world(o: { audienceFails?: boolean } = {}) {
         audience.set(r.id, String(i["audience"]));
         return { audience: i["audience"] };
       },
-      "access.grants.list": (i) => ({ grants: grants.filter((g) => i["source"] === undefined || g.source === i["source"]) }),
+      // paged as the access module pages (limit, and a cursor that is the offset)
+      "access.grants.list": (i) => {
+        const all = grants.filter((g) => i["source"] === undefined || g.source === i["source"]);
+        const from = Number(i["cursor"] ?? 0), limit = Number(i["limit"] ?? 100);
+        return { grants: all.slice(from, from + limit), ...(from + limit < all.length ? { next: String(from + limit) } : {}) };
+      },
       "access.share": async (i) => {
         const g = { resource: i["resource"], subject: i["subject"], level: String(i["level"]), ...(i["source"] ? { source: String(i["source"]) } : {}) } as G;
         if (hold && hold.match(g)) { const x = hold; hold = null; x.reached(); await x.gate; }
@@ -265,4 +270,25 @@ test("the agent itself is cut off with its chat, and keeps its own hold on itsel
   const open = (await h["channels.create"]!(w.hn.ctx, { name: "open", visibility: "public", idempotencyKey: key() })).channel as { channelId: string; mainThreadId: string };
   const b = (await h["threads.agent.create"]!(w.hn.ctx, { threadId: open.mainThreadId, name: "Open helper", idempotencyKey: key() })).agentId as string;
   assert.equal(w.audience.get(b) ?? "space", "space", "an open channel's agent stays open to the Space");
+});
+
+test("a quiet day: the daily sweep over agents already in line writes nothing", async () => {
+  const w = world();
+  await inviteThread(w);
+  const run = (periodic as unknown as Record<string, { run: (ctx: Harness["ctx"]) => Promise<void> }>)["chat.agent_homes"]!.run;
+  await run(w.hn.ctx);
+  const writes = () => w.hn.callLog.filter((c) => c.cap === "access.share" || c.cap === "access.unshare").length;
+  const before = writes();
+  await run(w.hn.ctx);
+  assert.equal(writes(), before, "no share and no unshare on a day nothing changed");
+});
+
+test("the sweep reads every page of what a chat gave, so a stale grant past the first page still goes", async () => {
+  const w = world();
+  const { t, a } = await inviteThread(w);
+  // 600 grants of the chat's source, the stale one last
+  for (let i = 0; i < 599; i++) w.grants.push({ resource: { type: "agent", id: `agt_other${i}` }, subject: { kind: "group", id: `grp_${i}` }, level: "use", source: `chat:${t.id}` });
+  w.grants.push({ resource: { type: "agent", id: a }, subject: { kind: "person", id: MIA }, level: "use", source: `chat:${t.id}` });
+  await (periodic as unknown as Record<string, { run: (ctx: Harness["ctx"]) => Promise<void> }>)["chat.agent_homes"]!.run(w.hn.ctx);
+  assert.equal(w.grants.some((g) => g.subject.id === MIA), false, "Mia's stale grant, on the second page, is gone");
 });
