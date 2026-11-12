@@ -432,7 +432,7 @@ export default defineManifest({
     }),
     read('automations.vault_usage', 'Which Automation steps use which Vault item, by handle. Optionally one item. Only Automations the caller can see. A Vault value is never included.', {
       in: { handle: t.opt(id.handle) },
-      out: { uses: t.arr(t.obj({ handle: id.handle, automations: t.arr(t.obj({ automationId: id.automation, name: t.str(), status: t.str(), steps: t.arr(t.obj({ nodeId: t.str(), title: t.str(), blocked: t.opt(t.str({ description: 'The step sends the key to a host no longer allowed for it: the line its next Run would fail with' })) })) })), hidden: t.opt(t.int({ description: 'Asked about one item the caller can see: how many Automations they cannot open also use it (a count, never names)' })) })) },
+      out: { uses: t.arr(t.obj({ handle: id.handle, automations: t.arr(t.obj({ automationId: id.automation, name: t.str(), status: t.str(), steps: t.arr(t.obj({ nodeId: t.str(), title: t.str(), blocked: t.opt(t.str({ description: 'The step sends the key to a host not allowed for it: the line its next Run would fail with' })) })) })), hidden: t.opt(t.int({ description: 'Asked about one item the caller can see: how many Automations they cannot open also use it (a count, never names)' })) })) },
       tool: 'automations',
     }),
     read('automations.connector_offers', 'Open connector setup offers. Each one names an app. A Vault value is not included.', {

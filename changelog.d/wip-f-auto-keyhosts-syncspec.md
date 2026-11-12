@@ -1,0 +1,1 @@
+- For builders: a sync spec (bringing a CRM into Records) still sends its key to the spec's own domain with no per-key host check, as in rc.25; every other path keeps the rule. The first-use card for this flow is rc.27.

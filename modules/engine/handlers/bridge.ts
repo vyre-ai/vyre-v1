@@ -321,6 +321,13 @@ export function createBridge(o: BridgeOptions): Bridge {
   };
 
   function wrap(s: EngineSession): EngineSession {
+    // the API model's calls of this session that are running, so their end is said when the engine hands the result back
+    const calls = new Map<string, { threadId: string; turnId: string; agentId: string; name: string }>();
+    const sendToolResult = (id: string, result: { ok: boolean; content: unknown }): unknown => {
+      const c = calls.get(id);
+      if (c) { calls.delete(id); emit({ kind: "step", threadId: c.threadId, turnId: c.turnId, agentId: c.agentId, phase: "result", id, ...(c.name ? { name: c.name } : {}), ok: result.ok }); }
+      return s.sendToolResult(id, result as never);
+    };
     const send = (input: TurnInput): AsyncIterable<DriverEvent> => (async function* () {
       const seg: Segment = { blocks: [], text: "", mentions: 0, t0: (o.now ?? Date.now)(), calls: new Map() };
       let afterBlock = false;
@@ -335,6 +342,17 @@ export function createBridge(o: BridgeOptions): Bridge {
           if (hasReads(input.threadId, input.agent.id, input.asker)) seg.private = true;
           if (ev.text !== "") emit({ kind: "delta", threadId: input.threadId, turnId: input.turnId, agentId: input.agent.id, text: t, at, ...(seg.private ? { asker: input.asker, privately: true } : {}) });
           if (t !== ev.text) { yield { ...ev, text: t }; continue; }
+        }
+        else if (ev.type === "tool_call") {
+          // an API model's call is an event of its own, not a block (the engine runs it and hands the result back through sendToolResult): it is the row's step all the same, in plain
+          // words (stepWords at read time), and its end is said when the result goes back (lead, 12 Nov 2026: a running helper showed only "Working")
+          const name = typeof ev.name === "string" ? ev.name : "";
+          if (ev.id !== "") {
+            seg.calls?.set(ev.id, { name, at: (o.now ?? Date.now)() });
+            seg.step = { id: ev.id, name };
+            calls.set(ev.id, { threadId: input.threadId, turnId: input.turnId, agentId: input.agent.id, name });
+            emit({ kind: "step", threadId: input.threadId, turnId: input.turnId, agentId: input.agent.id, phase: "call", id: ev.id, ...(name ? { name } : {}) });
+          }
         }
         else if (ev.type === "thinking") { if (ev.text !== "") emit({ kind: "thinking", threadId: input.threadId, turnId: input.turnId, agentId: input.agent.id, text: ev.text, asker: input.asker }); }
         else if (ev.type === "block" && ev.kind === "tool_input") {
@@ -389,6 +407,7 @@ export function createBridge(o: BridgeOptions): Bridge {
     return new Proxy(s, {
       get(target, prop) {
         if (prop === "send") return send;
+        if (prop === "sendToolResult") return sendToolResult;
         const v = Reflect.get(target, prop, target) as unknown;
         return typeof v === "function" ? (v as (...a: unknown[]) => unknown).bind(target) : v;
       },
