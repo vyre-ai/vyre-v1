@@ -15,6 +15,8 @@ import { CODE_ROOT, startDaemon } from "../src/daemon/daemon.ts";
 import type { Daemon } from "../src/daemon/daemon.ts";
 
 const caddyFetch: FetchFn = () => Promise.resolve({ ok: true, status: 200, headers: { get: () => null }, text: () => Promise.resolve('{"apps":{"http":{}}}') });
+// the key check asks the stand-in vendor for real (the runner's "accept" check lists no models): a step with no model of its own runs on the first model the key lists
+delete process.env["VYRE_TEST_KEY_CHECK"];
 const KEY = "sk-test-aistep-0123456789abcdef"; // secret-scan: fake
 
 function seededDir(): string {
@@ -106,6 +108,7 @@ test("a Personal AI step answers on its owner's own key, with no tools, and the 
     assert.match(JSON.stringify(sent.messages), /Say hello to the person in the input\./);
     assert.match(JSON.stringify(sent.messages), /Dana/, "the mapped input is in the prompt");
     assert.ok(!sent.tools || sent.tools.length === 0, "the model was offered no tools");
+    assert.equal((sent as { model?: string }).model, "gpt-4o-mini", "a step with no agent runs on the paying account's default model (the first it lists)");
     assert.equal(w.v.auth[0], `Bearer ${KEY}`, "the key reached the vendor");
     noKey(await everything(w.d, runId, id), "the run, step log, definition, kept turn or usage");
     const usage = await ok(w.d, "engine.usage.query", { by: "agent" });
@@ -254,5 +257,47 @@ test("a restricted record read by records.find follows the chat label rule into 
     assert.match(w.v.requests[0]!, /Lunch order/);
     assert.equal(w.v.requests[0]!.includes("settlement"), false);
     void plain;
+  } finally { await w.stop(); }
+});
+
+test("a step that runs as an agent uses that agent's model on the owner's key", async () => {
+  const w = await world();
+  try {
+    await unlock(w.d);
+    await ok(w.d, "providers.add", { idempotencyKey: "ai-mine-agent", providerKey: "openai", connection: "api_key", apiKey: KEY, scope: "mine" });
+    const agentId = String((await ok(w.d, "agents.create", { idempotencyKey: "ai-agent-model", name: "Writer", role: "You write short answers.", model: "openai/gpt-4o" })).agent.agentId);
+    const made = await ok(w.d, "automations.create", { idempotencyKey: "ai-as-agent", name: "As agent", definition: { triggers: [{ key: "manual" }], nodes: [{ id: "ask", key: "ai", input: { prompt: "Say hi.", agentId } }] } });
+    const id = String(made.automation.id);
+    assert.equal((await call(w.d, "automations.set_enabled", { automationId: id, enabled: true })).status, 200);
+    w.v.script.push({ text: "Hi." });
+    const runId = String((await ok(w.d, "automations.run", { automationId: id, idempotencyKey: "ai-as-agent-run" })).runId);
+    await finished(w.d, runId, "succeeded");
+    assert.equal((JSON.parse(w.v.requests.at(-1)!) as { model?: string }).model, "gpt-4o", "the agent's own model");
+  } finally { await w.stop(); }
+});
+
+test("a step with no model to run on fails in its own words, which the failed-Run notice carries, and nothing goes to the vendor", async () => {
+  const w = await world();
+  try {
+    await unlock(w.d);
+    // a key whose models were never listed: the vendor's list answers nothing
+    w.v.noModels = true;
+    await ok(w.d, "providers.add", { idempotencyKey: "ai-mine-nomodel", providerKey: "openai", connection: "api_key", apiKey: KEY, scope: "mine" });
+    w.d.db!.run("DELETE FROM engine_model_cache");
+    const made = await ok(w.d, "automations.create", { idempotencyKey: "ai-nomodel", name: "No model", definition: { triggers: [{ key: "manual" }], nodes: [{ id: "ask", key: "ai", input: { prompt: "Say hi." } }] } });
+    const id = String(made.automation.id);
+    assert.equal((await call(w.d, "automations.set_enabled", { automationId: id, enabled: true })).status, 200);
+    const before = w.v.requests.length;
+    const runId = String((await ok(w.d, "automations.run", { automationId: id, idempotencyKey: "ai-nomodel-run" })).runId);
+    const done = await finished(w.d, runId, "failed");
+    const failed = JSON.stringify(done.steps);
+    assert.match(failed, /This AI step has no model to run on\. Set a model on the agent this step runs as, or test the AI account in AI settings so its models are listed\./, failed);
+    assert.doesNotMatch(failed, /could not answer this step/);
+    assert.equal(w.v.requests.length, before, "nothing was sent");
+    const notes = await until("the failed-Run notice", 10_000, async () => {
+      const n = ((await ok(w.d, "notifications.list", { limit: 50 })).notifications as { kind?: string; title?: string; subject?: { id?: string } }[]).filter((x) => x.kind === "run.failed" && x.subject?.id === runId);
+      return n.length > 0 ? n : undefined;
+    });
+    assert.match(String(notes[0]?.title), /This AI step has no model to run on/);
   } finally { await w.stop(); }
 });

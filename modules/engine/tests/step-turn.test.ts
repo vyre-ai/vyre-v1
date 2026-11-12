@@ -16,7 +16,7 @@ const team = (over: Partial<Prov> = {}): Prov => key({ id: "prv_t", handle: "#Te
 const sub = (over: Partial<Prov> = {}): Prov => key({ id: "prv_s", handle: "#My_Claude", itemId: "vit_c", name: "My Claude", providerKey: "claude-code", connection: "subscription", engine: "claude-code", spaceMayUse: true, ...over });
 const answer: DriverEvent[] = [{ type: "text", text: "Hello " }, { type: "text", text: "there." }, { type: "usage", inputTokens: 40, outputTokens: 7 }, { type: "done" }];
 
-function scene(o: { principal?: Harness["ctx"]["principal"]; providers?: Prov[]; script?: readonly DriverEvent[]; agent?: Record<string, unknown>; facts?: string[]; policy?: "any" | "company" } = {}) {
+function scene(o: { principal?: Harness["ctx"]["principal"]; providers?: Prov[]; script?: readonly DriverEvent[]; agent?: Record<string, unknown>; facts?: string[]; policy?: "any" | "company"; listed?: string[] } = {}) {
   const h = harness({ principal: o.principal ?? { kind: "person", id: "usr_dana" } });
   const provider = scriptedProvider({ script: o.script ?? answer });
   bindStepOpen(provider.openSession);
@@ -26,6 +26,8 @@ function scene(o: { principal?: Harness["ctx"]["principal"]; providers?: Prov[];
     seen.push(cap);
     if (cap === "providers.list") return { providers: o.providers ?? [key()] };
     if (cap === "engine.policy.get") return { allowedAccounts: o.policy ?? "any" };
+    // the Vault's key test: the models the key serves, in the vendor's order
+    if (cap === "providers.test") return { ok: true, models: o.listed ?? ["claude-sonnet-5-5", "claude-haiku-5-5"] };
     if (cap === "agents.get") return { agent: { agentId: "agt_intake", name: "Intake", role: "You answer intake questions.", model: "claude-sonnet-5-5", accountPolicy: "asker", status: "awake", ...(o.agent ?? {}) } };
     if (cap === "memory.facts.list") return { facts: (o.facts ?? []).map((text) => ({ text })) };
     return base(cap, input);
@@ -38,7 +40,8 @@ afterEach(() => { bindStepOpen(null); setMinuteForTests(60_000); });
 test("a Personal turn runs on the owner's own key with no tools, and returns the answer, the key by handle and the model", async () => {
   const { h, provider } = scene();
   const out = await run(h);
-  assert.deepEqual(out, { text: "Hello there.", keyUsed: "#Mine_Anthropic", modelUsed: "anthropic", tokensIn: 40, tokensOut: 7 });
+  assert.deepEqual(out, { text: "Hello there.", keyUsed: "#Mine_Anthropic", modelUsed: "claude-sonnet-5-5", tokensIn: 40, tokensOut: 7 });
+  assert.equal(provider.specs[0]!.agent.model, "claude-sonnet-5-5", "no agent: the paying key's first listed model, never an empty one");
   const spec = provider.specs[0]!;
   assert.equal(spec.tools, "none");
   assert.equal(spec.asker, "usr_dana");
@@ -227,4 +230,15 @@ test("an automation's AI account pays only when the Space kept it for automation
   // a key named on the step itself (no keyFrom) keeps the old rule: it pays even where uses would not reach
   const g = scene({ principal: svc, providers: [chatsOnly, credits] });
   assert.equal((await run(g.h, { keyId: "prv_o", idempotencyKey: "g1" })).keyUsed, "#Chats_Only");
+});
+
+test("a step with no model to run on fails in its own words before any turn opens", async () => {
+  const { h, provider } = scene({ listed: [] });
+  await assert.rejects(run(h), (e: unknown) => {
+    const err = (e as { error?: { code?: string; message?: string } }).error;
+    assert.equal(err?.code, "validation.precondition_failed");
+    assert.match(String(err?.message), /^This AI step has no model to run on\./);
+    return true;
+  });
+  assert.equal(provider.specs.length, 0, "nothing opened");
 });

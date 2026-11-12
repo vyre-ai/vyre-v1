@@ -117,3 +117,9 @@ The hashes in `docs/frozen/snapshots/automations.json` were written again at the
 `previews.get@1`, `previews.pages@1` and `previews.text@1` now declare `emits: ['preview.ready', 'preview.failed']`. The first read of a file version whose preview was never made renders it inline and announces the result, as `previews.render` does; an undeclared event was refused at run time, so that first read answered 500 "event not declared in emits". Nothing else in their contracts changed: same input, output, level, permission and errors; the events carry their own declared payloads.
 
 Signed: lead, 12 Nov 2026
+
+## 13 Nov 2026: engine.step_turn may fail with validation.precondition_failed when the step has no model (lane f-auto)
+
+`engine.step_turn@1` now lists `validation.precondition_failed` among its errors, with reason `no_model`. An AI step runs on its agent's model, else on the paying key's first listed model (the key's own list, the list the engine saved, else the Vault's key test). When none can be found, the step fails before any turn opens with "This AI step has no model to run on. Set a model on the agent this step runs as, or test the AI account in AI settings so its models are listed." It used to send an empty model, which a provider refuses, and the step then read "The AI provider could not answer this step." Additive: one more declared error. No input or output field changes.
+
+Signed: lead, 13 Nov 2026

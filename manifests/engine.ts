@@ -315,7 +315,7 @@ export default defineManifest({
       },
       out: { text: t.str(), keyUsed: accountRef, modelUsed: t.str(), tokensIn: t.int({ minimum: 0 }), tokensOut: t.int({ minimum: 0 }), agentName: t.opt(t.str()) },
       level: 'view', idem: 'key', risk: 'medium', audit: 'sensitive', agent: false,
-      errors: ['provider.auth_failed', 'provider.rate_limited', 'provider.unavailable', 'provider.overloaded', 'permission.limit', 'permission.provider_label', 'timeout.deadline', 'internal.unavailable'],
+      errors: ['provider.auth_failed', 'provider.rate_limited', 'provider.unavailable', 'provider.overloaded', 'permission.limit', 'permission.provider_label', 'timeout.deadline', 'internal.unavailable', 'validation.precondition_failed'],
     }),
     // ---- accounts and models
     read('engine.accounts.list', 'Accounts the caller can run on: API keys by handle and subscription sign-ins (Mine), with status. With a place (chat, automation, agent, space) each says whether it can run there and why not', {

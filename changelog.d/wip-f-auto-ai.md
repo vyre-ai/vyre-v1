@@ -1,0 +1,2 @@
+- An AI step with no agent model runs on the first model its paying key lists, and never sends an empty model; when no model can be found it fails with "This AI step has no model to run on" and says what to set.
+- A fresh Space with no connectors yet no longer logs a failed host adoption at boot.

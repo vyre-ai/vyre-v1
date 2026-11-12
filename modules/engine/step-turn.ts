@@ -15,6 +15,7 @@ import { ensure, raise, stepOpenOf } from "./projections.ts";
 import type { EngineCtx } from "./projections.ts";
 import { providerOfDriver } from "./runtime.ts";
 import { fitModel } from "./space-key-turns.ts";
+import { savedTested, saveTested } from "./live-models.ts";
 
 export interface StepTurnIn {
   prompt: string;
@@ -63,6 +64,21 @@ const WHY: Readonly<Record<string, string>> = {
   "timeout.deadline": "The AI step did not answer in time.",
 };
 const whyOf = (code: string): string => WHY[code] ?? "The AI provider could not answer this step.";
+/** The step's own words when it has no model to run on: what to set, and where. */
+export const NO_MODEL_STEP = "This AI step has no model to run on. Set a model on the agent this step runs as, or test the AI account in AI settings so its models are listed.";
+
+/** The paying account's default model: the one its list marks as default, else the first it lists. Asks the vendor only when nothing is kept. */
+async function accountDefaultModel(ctx: EngineCtx, row: AccountRow, providerId: string | undefined): Promise<string | undefined> {
+  const kept = row.models?.[0] ?? savedTested(ctx.db as never, row.ref)[0];
+  if (kept || !providerId) return kept;
+  try {
+    // the Vault's own key test: it asks the vendor which models the key serves (a list, no turn) and the engine keeps that list, in the vendor's order, for the next step
+    const r = (await ctx.call("providers.test", { providerId })) as { ok?: boolean; models?: string[] } | null;
+    const models = r?.ok === true ? (r.models ?? []).filter((m) => typeof m === "string" && m !== "") : [];
+    if (models.length > 0) saveTested(ctx.db as never, row.ref, row.driver, ctx.now(), models);
+    return models[0];
+  } catch { return undefined; }
+}
 
 const hex = (s: string): string => {
   let h = 0x811c9dc5;
@@ -88,7 +104,7 @@ async function agentContext(ctx: EngineCtx, agentId: string): Promise<{ agent: A
 }
 
 /** The account that pays, by the same rules as a chat (agent/src/accounts/resolve.ts), narrowed for a Space automation to the keys the Space shares. */
-async function accountFor(ctx: EngineCtx, i: StepTurnIn, asker: string, service: boolean, agent: AgentOut["agent"] | undefined): Promise<{ row: AccountRow; itemId?: string; payer: string }> {
+async function accountFor(ctx: EngineCtx, i: StepTurnIn, asker: string, service: boolean, agent: AgentOut["agent"] | undefined): Promise<{ row: AccountRow; itemId?: string; payer: string; providerId?: string }> {
   const { rows, itemByRef, idByRef } = await load(ctx as never);
   // The step names its key the way the place shows it: the provider id, the Vault item id, the handle or the name. The accounts are matched by handle, so the name is turned into the handle first.
   const refFor = (key: string | undefined): string | undefined => {
@@ -132,7 +148,8 @@ async function accountFor(ctx: EngineCtx, i: StepTurnIn, asker: string, service:
     raise(ctx, "provider.auth_failed", why, { reason: "no_account", next: [{ kind: "open_settings", label: "Open AI settings" }] });
   }
   const itemId = itemByRef.get(row.ref);
-  return { row, ...(itemId ? { itemId } : {}), payer: res.payer };
+  const providerId = idByRef.get(row.ref);
+  return { row, ...(itemId ? { itemId } : {}), payer: res.payer, ...(providerId ? { providerId } : {}) };
 }
 
 export async function stepTurn(ctx: EngineCtx, input: StepTurnIn): Promise<StepTurnOut> {
@@ -167,10 +184,13 @@ export async function stepTurn(ctx: EngineCtx, input: StepTurnIn): Promise<StepT
       raise(ctx, "permission.provider_label", `This AI step has ${label ? `${label} ` : "labelled "}records in its input, and this Space does not let them go to that AI provider. The step did not run.`, { reason: "label_provider", count: blocked.length });
     }
   }
-  // on the Space AI key the step runs on a model the key unlocks: the agent's when the key serves it, else the first one
+  // on the Space AI key the step runs on a model the key unlocks: the agent's when the key serves it, else the first one. Otherwise the agent's model, else the paying account's own default:
+  // the model its list marks as default, else the first it lists (the list the account keeps, else the one the engine saved from its last test, else the engine's list for it).
+  // A step never goes out with no model: a provider refuses one, and the step says what to set instead.
   const stepModel = paid.row.spaceKey === true
     ? fitModel(withAgent?.agent.model, await (ctx.call("providers.space_key.get", {}) as Promise<{ models?: string[] }>).then((r) => r.models ?? [], () => [] as string[]))
-    : withAgent?.agent.model;
+    : withAgent?.agent.model || await accountDefaultModel(ctx, paid.row, paid.providerId);
+  if (!stepModel) raise(ctx, "validation.precondition_failed", NO_MODEL_STEP, { reason: "no_model" });
   const agent: EngineAgent = { id: agentKey, ...(withAgent ? { name: withAgent.agent.name } : {}), mode: "lead", ...(stepModel ? { model: stepModel } : {}) };
   const slug = hex(input.idempotencyKey);
   const threadId = `thr_step${slug}`;
@@ -211,6 +231,8 @@ export async function stepTurn(ctx: EngineCtx, input: StepTurnIn): Promise<StepT
   recordStepUsage(ctx, { turnId, agentId: agentKey, asker, model, tokensIn, tokensOut, ...(paid.itemId ? { itemId: paid.itemId } : {}) });
   if (timedOut) raise(ctx, "timeout.deadline", `The AI step did not answer within ${minutes} minutes.`, { reason: "timeout" });
   if (failure) {
+    // a turn that reached the driver with no model (it never should: the step resolves one above) says so in its own words
+    if (failure.code === "engine.no_model") raise(ctx, "validation.precondition_failed", NO_MODEL_STEP, { reason: "no_model" });
     const mapped = codeOfDriver(failure.code);
     raise(ctx, mapped.code as never, whyOf(mapped.code), { reason: "engine" });
   }
