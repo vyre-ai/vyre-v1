@@ -32,7 +32,7 @@ export function createAuditRecorder(options: { space: string; db: RawDb & { tx?<
       action: row.cap,
       class: classify(row.class, row.risk),
       ...(row.resource?.id ? { resource: { type: row.resource.type, id: row.resource.id } } : {}),
-      after: { decisionId: row.decisionId, reason: row.reason, capabilityVersion: row.v, risk: row.risk, outcome: row.class, ...(row.targets ? { targets: row.targets } : {}) },
+      after: { decisionId: row.decisionId, reason: row.reason, capabilityVersion: row.v, risk: row.risk, outcome: row.class, ...(row.targets ? { targets: row.targets } : {}), ...(row.where ? { where: row.where } : {}) },
     });
     if (options.db.tx) options.db.tx(write); else write();
   };

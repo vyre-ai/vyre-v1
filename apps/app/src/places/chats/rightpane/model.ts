@@ -179,8 +179,30 @@ export function stepRows(steps: readonly Step[]): Step[] {
   return steps.slice().sort((a, b) => a.idx - b.idx);
 }
 
-export function stepWho(s: Step): string {
-  return s.by === "person" ? "You" : s.tool;
+/** The tool a step used, in a word: a step keeps the tool's own name (chrome_open, screen_click, computer_files_write), which is never shown as it is (f-wire, 12 Nov). */
+/** Where a step or a card's work happened: an agent's computer, its own profile in the Space browser, or the person's own Chrome through Vyre for Chrome. */
+export type WorkPlace = "computer" | "browser" | "my-chrome";
+
+/**
+ * The one word for where a step happened (review, 12 Nov): the chat card, the Steps list and the Computer tab all use it. The agent's Space browser is "Browser", the person's own Chrome is
+ * "Your Chrome", and on an agent's computer the app that did it (Chrome, Screen, Files, Terminal).
+ */
+export function placeWord(tool: string | null, where: WorkPlace = "computer"): string {
+  if (where === "browser") return "Browser";
+  if (where === "my-chrome") return "Your Chrome";
+  return tool === null ? "Computer" : toolWord(tool);
+}
+
+export function toolWord(tool: string): string {
+  if (/^chrome_/.test(tool)) return "Chrome";
+  if (/^screen_/.test(tool)) return "Screen";
+  if (/^computer_files_/.test(tool)) return "Files";
+  if (/^terminal/i.test(tool)) return "Terminal";
+  return tool;
+}
+
+export function stepWho(s: Step, where: WorkPlace = "computer"): string {
+  return s.by === "person" ? "You" : placeWord(s.tool, where);
 }
 
 /* ---------- threads ---------- */

@@ -229,7 +229,7 @@ test("export writes a CSV through the file seam, keeps formulas inert, and says 
   assert.deepEqual(out, { fileId: "fil_export1", rows: 2 });
   assert.match(saved[0]!.name, /^audit-2025-10-\d\d-\d\d-\d\d-\d\d\.csv$/);
   const lines = saved[0]!.csv.trimEnd().split("\n");
-  assert.equal(lines[0], "at,actor,on_behalf_of,action,resource,class,trace_id,seq");
+  assert.equal(lines[0], "at,actor,on_behalf_of,action,resource,class,trace_id,seq,where");
   assert.equal(lines.length, 3);
   assert.ok(lines[1]!.includes(",grant.created,folder:fld_1,change,"), "oldest first");
   assert.ok(lines[2]!.includes(`"'=HYPERLINK(""http://x"")"`), "a leading = is quoted as text");

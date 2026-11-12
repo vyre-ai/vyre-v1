@@ -90,3 +90,20 @@ test("every port a module exports is bound by production code, or is listed with
   for (const key of Object.keys(TEST_ONLY)) assert.ok(seen.has(key), `${key} is listed as test-only but no longer exists: take it off the list`);
   assert.deepEqual(unbound, [], "ports only a test binds; bind them in production, or list them here with the reason");
 });
+
+/**
+ * Setters left unbound on purpose, each with the reason and the decision (f-wire, 12 Nov). The test fails when one becomes bound while it is still listed, so binding it is a decision taken here.
+ */
+const DELIBERATELY_UNBOUND: Readonly<Record<string, string>> = {
+  "modules/memory:setCaptureExtractor": "the model pass it was made for runs already: memory.capture after each turn goes through learnTurn (modules/memory/handlers/learn.ts) on the asker's own account inside their quota; a bound extractor would pay twice for the idle and room capture. Lead, 12 Nov: leave unbound; BACKLOG After v1.0.0 retires the seam",
+};
+
+test("a setter left unbound on purpose stays unbound, and exists", () => {
+  const prod = [...files(path.join(ROOT, "modules")), ...files(path.join(ROOT, "host", "src"))].map((p) => ({ rel: path.relative(ROOT, p).split(path.sep).join("/"), p })).filter((f) => !testy(f.rel));
+  const text = new Map(prod.map((f) => [f.rel, fs.readFileSync(f.p, "utf8")] as const));
+  for (const [key, why] of Object.entries(DELIBERATELY_UNBOUND)) {
+    const [mod, name] = key.split(":") as [string, string];
+    assert.ok([...text].some(([r, s]) => r.startsWith(`${mod}/`) && new RegExp(`^export (?:function|const) ${name}\\b`, "m").test(s)), `${key} no longer exists: take it off the list`);
+    assert.equal(isBound(name, mod, text), false, `${key} is bound now, but it was left unbound on purpose (${why.slice(0, 60)}...): take it off the list with the decision`);
+  }
+});

@@ -3,9 +3,15 @@
 import type { Handler } from "../../host/src/invoke.ts";
 import { handlers as table } from "./handlers/index.ts";
 import { setHost } from "./projections.ts";
-import type { ImportHost } from "./projections.ts";
+import type { ImportCtx, ImportHost } from "./projections.ts";
+import { interrupted } from "./handlers/commit.ts";
 
 export const handlers: Record<string, Handler> = table as unknown as Record<string, Handler>;
+
+/** At boot and every minute: an import a restart cut off ends failed, and its Run's owner is told (handlers/commit.ts interrupted). */
+export const periodic = {
+  "import.interrupted": { everyMs: 60_000, immediate: true, run: (ctx: ImportCtx): Promise<string[]> => interrupted(ctx) },
+};
 
 export { setHost } from "./projections.ts";
 

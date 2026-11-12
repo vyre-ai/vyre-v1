@@ -34,6 +34,12 @@ Nothing blocks the freeze. The sample read cleanly: summaries match the declared
 
 `threads.remove_agent@1` now has `audit: 'always'`, as `threads.outside_agent.remove` has. Nothing else in its contract changed: same input, output, level, permission, events and errors. Why: since the f-revoke round, taking an agent out of a chat also takes back, as the host, every grant that chat gave it, whoever gave it; the Console's audit log must show who took that access away, as it already does for an outside agent. Snapshot: docs/frozen/snapshots/chat.json, regenerated with `node tools/gen/src/cli.ts --snapshots`.
 
+## 12 Nov 2026: the computer tools bind to the calling agent when the id is left out
+
+- What changed: the resource binding of the 22 `computers.chrome.*` tools, the 8 `computers.screen.*` tools and the 5 `computers.files.*` tools on an agent's computer gains `self: 'agent'` (`local()` in `manifests/computers.ts`, `orSelf: true`). An agent that leaves `computerId` out is bound to its own computer or Space browser. No input, output, permission, level or error changed; only `docs/frozen/snapshots/computers.json` moved.
+- Why: every real agent call that left the optional id out was refused before its handler ("/computerId: the id is missing") in rc.24 and rc.25, so an agent could not use its own browser or computer without naming it.
+- What the gateway does with such a call (`host/src/routes/resource.ts`): the chat answer check and the audit row name what it reaches (the asker's own Chrome, the agent's browser profile, or the agent's own computer), the handler asks `computers.use` on the agent's computer, and a person who leaves the id out is told to pass it.
+
 Signed: lead, 12 Nov 2026
 
 ## 12 Nov 2026: access.grants.update may emit grant.revoked, and access.unshare may emit grant.updated (lane f-revoke)

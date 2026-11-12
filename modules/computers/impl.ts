@@ -556,7 +556,7 @@ export interface ComputersHostConfig {
   /** The Space browser image (images/space-browser). Default vyre/space-browser:1. */
   browserImage?: string;
   /** How many browsers the Space browser holds at once and how long a quiet one stays (minutes). */
-  browser?: { maxRunning?: number; idleMinutes?: number };
+  browser?: { maxRunning?: number; idleMinutes?: number; name?: string };
   filesRoot?: (agentId: string) => string | null;
   startTimeoutMs?: number;
   /** What the host says it can hold instead of the machine's own figures: a test of room, so it does not depend on what else runs on the runner. */
@@ -598,6 +598,8 @@ export function buildSpaceBrowser(c: ComputersHostConfig): SpaceBrowser {
     ...(c.runner ? { runner: { ...(c.runner.ingress ? { ingress: c.runner.ingress } : {}), ...(c.runner.alias ? { alias: c.runner.alias } : {}) } } : {}),
     ...(c.browser?.maxRunning !== undefined ? { maxRunning: c.browser.maxRunning } : {}),
     ...(c.browser?.idleMinutes !== undefined ? { idleMinutes: c.browser.idleMinutes } : {}),
+    // a container of its own (and so a volume of its own) for a test on a machine that may run a real Space browser; behind the runner the name stays vyre-sbrowser, the only one it allows
+    ...(c.browser?.name !== undefined && !c.runner ? { name: c.browser.name } : {}),
     ...(c.startTimeoutMs !== undefined ? { startTimeoutMs: c.startTimeoutMs } : {}),
   });
 }

@@ -79,7 +79,7 @@ function Frame({ dim, caption, children }: { dim: boolean; caption?: string | un
 }
 
 /** The Browser section's card: the live view (or its picture), the state, and Take over or Give back. */
-export function BrowserCard({ view, name, live, busy = false, onTake, onGive, onOpen, quietWait = false }: { view: BrowserView; name: string; live?: ReactElement | undefined; busy?: boolean; onTake(): void; onGive(): void; onOpen(): void; quietWait?: boolean }): ReactElement {
+export function BrowserCard({ view, name, live, busy = false, onTake, onGive, onOpen, quietWait = false, page }: { view: BrowserView; name: string; live?: ReactElement | undefined; busy?: boolean; page?: string | undefined; onTake(): void; onGive(): void; onOpen(): void; quietWait?: boolean }): ReactElement {
   const w = browserWords(view);
   const action = browserAction(view);
   const dim = view.state === "closed" || view.state === "starting" || view.state === "waiting" || view.state === "error";
@@ -93,7 +93,16 @@ export function BrowserCard({ view, name, live, busy = false, onTake, onGive, on
       </View>
       {view.canTakeOver
         ? (live && (view.state === "open" || view.state === "takeover")
-          ? <View testID="browser-live" style={st.liveBox}>{live}</View>
+          ? (
+            // under the live view, until its first frame: what it is on and a quiet line, never an empty dark box (review, 12 Nov)
+            <View testID="browser-live" style={st.liveBox}>
+              <View testID="browser-live-waiting" style={st.liveWait}>
+                {view.caption ?? page ?? view.host ? <Text numberOfLines={1} style={st.liveWaitPage}>{view.caption ?? page ?? view.host}</Text> : null}
+                <Text style={st.liveWaitLine}>Opening…</Text>
+              </View>
+              <View style={st.liveOver}>{live}</View>
+            </View>
+          )
           : (
             <Frame dim={dim} caption={view.state === "open" ? view.caption : undefined}>
               {view.state === "closed" ? <View style={st.center}><Pressable accessibilityRole="button" accessibilityLabel={`Open ${name}'s browser`} testID="browser-open" onPress={onOpen} style={st.pill}><Icon name="globe" size={13} color="var(--ink-2)" /><Text style={st.pillText}>Open</Text></Pressable></View> : null}
@@ -194,13 +203,13 @@ export function WorkSections({ deps, window }: { deps: PaneDeps; window?: Virtua
     entries.push({
       key: "browser-card", type: "block",
       // a step picked in the list below shows its picture where the live view is; Live goes back
-      node: <BrowserCard view={v} name={name} quietWait={wait !== null} busy={!online || busy !== null} live={picture !== null ? <Pressable accessibilityRole="button" accessibilityLabel="Back to live" testID="browser-step-picture" onPress={() => setSel(null)} style={st.fill}><Image source={{ uri: picture }} resizeMode="contain" style={st.fill} /></Pressable> : data.browser?.renderLive?.(agentId, { state: v.state, control: v.state === "takeover" && v.mine === true })}
+      node: <BrowserCard view={v} name={name} page={steps[steps.length - 1]?.caption} quietWait={wait !== null} busy={!online || busy !== null} live={picture !== null ? <Pressable accessibilityRole="button" accessibilityLabel="Back to live" testID="browser-step-picture" onPress={() => setSel(null)} style={st.fill}><Image source={{ uri: picture }} resizeMode="contain" style={st.fill} /></Pressable> : data.browser?.renderLive?.(agentId, { state: v.state, control: v.state === "takeover" && v.mine === true })}
         onOpen={() => run("open", () => data.browser!.open(agentId))} onTake={() => run("take", () => data.browser!.takeOver(agentId))} onGive={() => run("give", () => data.browser!.giveBack(agentId))} />,
     });
     // what the agent did in its browser, step by step: the same list a computer's session has (computers.browser.timeline, f-wire 12 Nov)
     entries.push({ key: "l-browser-steps", type: "label", text: "Steps", right: stepsLine(steps.length) });
     if (steps.length === 0) entries.push({ key: "no-browser-steps", type: "empty", text: "Nothing yet. Steps appear as it works." });
-    entries.push(...stepEntries({ steps, live: v.state === "open" && v.caption !== undefined, asleep: v.state === "closed", clock, sel, onSelect: setSel, onCopy: (text) => void copyText(deps, text), key: "browser-step" }));
+    entries.push(...stepEntries({ steps, live: v.state === "open" && v.caption !== undefined, asleep: v.state === "closed", clock, sel, onSelect: setSel, onCopy: (text) => void copyText(deps, text), key: "browser-step", where: "browser" }));
     // the logins its profile keeps are for the people who may see and take over the browser
     if (v.canTakeOver) entries.push({ key: "l-sites", type: "label", text: "Signed in on its browser" });
     if (v.canTakeOver && v.sites.length === 0) entries.push({ key: "no-sites", type: "empty", text: "Not signed in anywhere yet." });
@@ -239,6 +248,10 @@ const st = StyleSheet.create({
   sub: { fontSize: 11.5, lineHeight: 16, color: "var(--ink-3)" as string },
   sk: { height: 90, marginHorizontal: 24, borderRadius: 10, backgroundColor: "var(--sunk)" as string },
   liveBox: { height: 180, borderRadius: 14, overflow: "hidden", backgroundColor: "#17161f" as string },
+  liveWait: { flex: 1, alignItems: "center", justifyContent: "center", gap: 4, paddingHorizontal: 16 },
+  liveWaitPage: { fontSize: 13, color: "rgba(255,255,255,0.85)" as string, maxWidth: "100%" as unknown as number },
+  liveWaitLine: { fontSize: 12, color: "rgba(255,255,255,0.6)" as string },
+  liveOver: { position: "absolute", left: 0, top: 0, right: 0, bottom: 0 },
   frame: { height: 180, borderRadius: 14, backgroundColor: "#17161f" as string, backgroundImage: "radial-gradient(120% 120% at 20% 10%, #3a3468, #17161f 70%)", overflow: "hidden" } as object,
   window: { position: "absolute", left: "8%", right: "8%", top: 34, bottom: 12, borderRadius: 8, backgroundColor: "#f8f8fb" as string, overflow: "hidden" },
   bar: { height: 18, flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, backgroundColor: "#e9e8ef" as string },

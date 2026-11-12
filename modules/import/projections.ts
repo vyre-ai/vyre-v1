@@ -32,7 +32,7 @@ export interface ImportCtx {
   /** The host decision for the caller on one thing (the preview uses it to say which rows the importer may not change). */
   authorize?(action: { perm: string | null; level: "view" | "use" | "edit" | "manage"; cap?: string }, resource: { type: string; id: string | null }): { effect: string };
   http?(url: string, init?: { method?: string; headers?: Record<string, string>; body?: string }): Promise<{ status: number; text(): Promise<string> }>;
-  log: { warn(msg: string, attrs?: Record<string, unknown>): void };
+  log: { warn(msg: string, attrs?: Record<string, unknown>): void; error?(msg: string, attrs?: Record<string, unknown>): void };
 }
 
 type Row = Record<string, unknown>;
@@ -65,6 +65,9 @@ const SCHEMA = readFileSync(new URL("./migrations/0001_import.sql", import.meta.
 const TOOLS = readFileSync(new URL("./migrations/0002_tools.sql", import.meta.url), "utf8")
   .split("\n").filter((l) => !l.trimStart().startsWith("--")).join("\n")
   .split(";").map((s) => s.trim()).filter((s) => s.length > 0);
+const UNFINISHED = readFileSync(new URL("./migrations/0004_unfinished.sql", import.meta.url), "utf8")
+  .split("\n").filter((l) => !l.trimStart().startsWith("--")).join("\n")
+  .split(";").map((s) => s.trim()).filter((s) => s.length > 0);
 const MANAGE = readFileSync(new URL("./migrations/0003_manage.sql", import.meta.url), "utf8")
   .split("\n").filter((l) => !l.trimStart().startsWith("--")).join("\n")
   .split(";").map((s) => s.trim()).filter((s) => s.length > 0);
@@ -76,6 +79,7 @@ export function ensure(db: Db): void {
   try { db.all("SELECT key FROM import_key WHERE key = ?", "probe"); } catch { for (const stmt of SCHEMA) db.run(stmt); }
   try { db.all("SELECT messageId FROM import_message_tool WHERE messageId = ?", "probe"); } catch { for (const stmt of TOOLS) db.run(stmt); }
   try { db.all("SELECT deletedAt FROM import_conversation WHERE conversationId = ?", "probe"); } catch { for (const stmt of MANAGE) db.run(stmt); }
+  try { db.all("SELECT runId FROM import_unfinished WHERE runId = ?", "probe"); } catch { for (const stmt of UNFINISHED) db.run(stmt); }
   ready.add(db);
 }
 

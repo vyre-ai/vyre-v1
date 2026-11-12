@@ -61,6 +61,12 @@ export const KINDS: readonly KindDef[] = [
 export const kindOf = (k: string): KindDef | undefined => KINDS.find((x) => x.key === k);
 
 /** Kinds the rail counts as Needs you (it shows a count only for these and for direct conversations); everything else is a quiet dot on its place. */
+/**
+ * Kinds nothing in Vyre files (f-wire, 12 Nov; review W4): Settings shows no switch for them (apps/app/src/places/settings/pages-a.tsx UNSENT_KINDS, kept equal by modules/notifications/tests/wiring.test.ts),
+ * so the notifications.send capability refuses them too: an agent's notifications_send would otherwise reach a person who has no way to turn that kind down. Each is Vyre's own news (a problem report,
+ * an edit conflict, a thread mention), never an agent's to make up. Take a kind off when something files it, and its switch comes back.
+ */
+export const NOT_SENT_KINDS: ReadonlySet<string> = new Set(["conflict.needs_you", "mention.thread", "problem.report"]);
 export const NEEDS_YOU_KINDS: ReadonlySet<string> = new Set(["approval.requested", "answer.requested", "unblock.requested", "approval.backstop", "task.turn", "task.returned", "agent.blocked", "limit.hit", "conflict.needs_you", "access.requested"]);
 export const DIRECT_KINDS: ReadonlySet<string> = new Set(["dm", "mention"]);
 /** A mute silences a sender; these two carry a clock the person cannot choose to miss. */

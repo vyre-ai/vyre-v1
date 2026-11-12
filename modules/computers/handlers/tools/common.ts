@@ -8,6 +8,7 @@
 //   recording and every answer can be scrubbed; `frame` is the screen after the step (the timeline's picture); `caption` is its words.
 // Errors are only ones the capabilities declare: a person at the controls, a held item and a bad argument are validation.bad_input; Esc, a computer still starting and a silent agentd are provider.unavailable.
 // Handles are never resolved here: "agent computer logins stay on that computer" (ARCH 6.11), agentd substitutes them at the last moment and scrubs its own output. This module scrubs again.
+import { retargetRead } from "../../../../host/src/seams/answer-reads.ts";
 import { actorOf, addStep, agentFolder, boundFill, clean, hostFor, nodeOf, ensure, mintId, needComputer, needTeam, filledTabsOf, givenCount, handedSince, markFilledTab, raise, rememberSecrets, tabsOpen, rowsOf, setComputer } from "../../projections.ts";
 import { personalChrome } from "../../projections.ts";
 import type { CompCtx, ComputerHost, ComputerRow, PersonalChrome, Secret } from "../../projections.ts";
@@ -111,7 +112,10 @@ export function computerFor(ctx: CompCtx, computerId: string | undefined, tool?:
   if (ctx.principal.kind !== "agent") raise(ctx, "validation.bad_input", "Say which computer. Only an agent can leave it out.");
   const r = rowsOf(ctx.db, "SELECT computer_id FROM computers_computers WHERE agent_id = ?", ctx.principal.id)[0];
   if (!r) raise(ctx, "validation.not_found", noDesktopLine(tool), { agentId: ctx.principal.id });
-  return needComputer(ctx, String(r["computer_id"]));
+  // the id left out (the gateway bound the call to the Space): the same question the named spelling asks at the gateway is asked here, on this computer, so an admin's deny on it stops both ways in
+  const own = String(r["computer_id"]);
+  if (ctx.authorize({ perm: "computers.use", level: "use" }, { type: "computer", id: own }).effect !== "allow") raise(ctx, "permission.no_grant", "This agent may not use its computer right now.", { computerId: own });
+  return needComputer(ctx, own);
 }
 
 function mayUse(ctx: CompCtx, c: ComputerRow): void {
@@ -314,6 +318,10 @@ export async function prepare(ctx: CompCtx, computerId: string | undefined, spec
     raise(ctx, "validation.not_found", movedDesktopLine(spec.name), { agentId: ctx.principal.id });
   }
   mayUse(ctx, c);
+  // a chrome call the gateway took for the agent's Space browser goes to its computer (the browser is not usable): the answer check and the audit name that computer (review A2)
+  if (spec.name !== undefined && spec.name.startsWith("chrome_") && computerId === undefined && ctx.principal.kind === "agent") {
+    retargetRead({ thread: ctx.thread, agent: ctx.principal.id, asker: ctx.actingFor, traceId: ctx.trace.traceId, computerId: c.computerId });
+  }
   // The controls are the person's: the tools wait for an agent, never for the person at the controls (their own click or key through the live view is a tool call as them).
   const atTheControls = ctx.principal.kind === "person" && c.takeoverBy !== undefined && actorOf(ctx) === c.takeoverBy;
   if (c.state === "takeover" && !spec.duringTakeover && !atTheControls) raise(ctx, "validation.bad_input", "A person has the controls. The tools wait until they give them back.", { takeoverBy: c.takeoverBy });
@@ -630,6 +638,11 @@ export function defined(o: Record<string, unknown>): ToolArgs {
 export function siteOf(url: unknown): string {
   if (typeof url !== "string") return "a page";
   try { return new URL(url).host || url.slice(0, 60); } catch { return url.slice(0, 60); }
+}
+/** A page for a caption: its host and path (no query), so two steps on one site name different pages ("Opened harborquotes.com/pricing"). */
+export function pageOf(url: unknown): string {
+  if (typeof url !== "string") return "a page";
+  try { const u = new URL(url); const path = u.pathname === "/" ? "" : u.pathname.replace(/\/$/, ""); return clip(`${u.host}${path}`, 80) || url.slice(0, 60); } catch { return url.slice(0, 60); }
 }
 export const clip = (v: unknown, n = 50): string => { const s = String(v ?? "").replace(/\s+/g, " ").trim(); return s.length > n ? `${s.slice(0, n - 1)}…` : s; };
 
