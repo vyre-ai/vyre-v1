@@ -26,3 +26,4 @@
 - A browser call that waits for room no longer sends with an expired Vault token, and holds no Vault access while it waits; the access starts when the call is sent.
 - A move of an older desktop that stops to try again is now counted as waiting, and its row keeps the reason in words.
 - The Space browser image build now fails when its bridge module is a link instead of a real file, and a move that cannot start the Space browser says so in plain words.
+- The app now says "Reconnecting…" in the top bar within about 1.5 seconds of losing the server (and "Offline" only when this device has no network), and the line goes away by itself when the server is back.
