@@ -101,6 +101,28 @@ test("owner walk fixes: one Settings tab, Add a Space alone, the composer's word
       assert.ok(JSON.stringify(made).includes("Spring launch"), "a real project was made");
       await page.waitForTimeout(1500);
       assert.deepEqual(w.notes.slice(seen).filter((n) => /\/v1\/records\/get/.test(n)), [], "the new project opens as a project, never read as another type's record");
+      // the request is spent: the sidebar can switch to Contacts, and a reload starts no second row (review O2)
+      await w.go("records", "records-place");
+      await page.getByText("Contacts", { exact: true }).first().click({ timeout: 15_000 });
+      await page.getByText("No contacts yet.").first().waitFor({ timeout: 15_000 });
+      assert.equal(await page.getByTestId("records-adding-input").count(), 0, "no new row on Contacts");
+      await page.reload({ waitUntil: "load" }); await page.getByTestId("records-place").waitFor({ timeout: 25_000 }); await page.waitForTimeout(1500);
+      assert.equal(await page.getByTestId("records-adding-input").count(), 0, "a reload starts no second New project row");
+      // the phone: the same request opens Projects with a name row (review O3)
+      await page.setViewportSize({ width: 390, height: 844 });
+      const phoneRow = page.getByTestId("records-adding-input");
+      try {
+        await page.goto(`${w.web.origin}/chat`, { waitUntil: "load" });
+        await page.getByTestId("mobile-shell").waitFor({ timeout: 25_000 });
+        await page.getByTestId("new-project").first().click({ timeout: 15_000 });
+        await phoneRow.waitFor({ timeout: 25_000 });
+      } catch (e) { await page.setViewportSize({ width: 1280, height: 860 }); throw e; }
+      await w.shot("new-project-phone", { widths: [390] });
+      await phoneRow.fill("Phone launch"); await phoneRow.press("Enter");
+      await page.setViewportSize({ width: 1280, height: 860 });
+      let names = "";
+      for (let i = 0; i < 20 && !names.includes("Phone launch"); i++) { names = JSON.stringify((await w.api("projects.list", {})).data); if (!names.includes("Phone launch")) await page.waitForTimeout(500); }
+      assert.ok(names.includes("Phone launch"), "a project made at the phone width");
     });
 
     await w.step("7 Space Settings opens Console > Space for the owner", async () => {

@@ -1,13 +1,13 @@
 // The owner walk kit (lane f-ownerwalk, 12 Nov 2026): a Space booted the way a person starts it, the production web export in Chromium, the owner claiming it through the real claim screens, and a
 // picture of each step in light and dark at the widths a person uses. Every step records what broke (an error page, a script error, a refused call) and the walk goes on, so one run lists everything.
 // The model is a stand-in that streams a short plain reply word by word (and, for `TOOL <name> <json>`, calls that tool as a model would); nothing else inside the daemon is faked.
-import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import type { Browser, BrowserContext, Page } from "playwright-core";
-import type { DriverEvent, EngineSession, OpenSession, TurnInput } from "../agent/src/turn-engine/types.ts";
+import { walkModel } from "./support/ownerwalk-model.ts";
+export { replyFor, walkModel } from "./support/ownerwalk-model.ts";
 import { fakePlatform } from "../host/src/platform/index.ts";
 import { loadConfig } from "../host/src/daemon/config.ts";
 import { CODE_ROOT, startDaemon } from "../host/src/daemon/daemon.ts";
@@ -17,46 +17,6 @@ import type { Edge } from "../apps/app/tests/real-app-harness.test.ts";
 
 export const PASSWORD = "fixture password 123";
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
-
-/** The reply a person reads: one short sentence that names what was asked, streamed a word at a time. "LONG" in the message makes a reply of about ten seconds, for Stop. */
-export function replyFor(body: string): string {
-  const asked = body.replace(/\s+/g, " ").trim().slice(0, 80);
-  if (/LONG/.test(body)) return Array.from({ length: 60 }, (_, i) => `Step ${i + 1} of the plan is written out here in plain words.`).join(" ");
-  return `Sure. Here is what I found about "${asked}": the three items are ready, and I put a short summary in the project notes.`;
-}
-
-/** The stand-in model: plain streamed text, or a tool call for `TOOL <name> <json>` (found with tool_search first, as a model must). */
-export const walkModel: OpenSession = async () => {
-  const waiting = new Map<string, (r: { ok: boolean; content: unknown }) => void>();
-  let stopped = false;
-  return {
-    warm: true,
-    async *send(input: TurnInput): AsyncGenerator<DriverEvent> {
-      stopped = false;
-      const body = String(input.trigger?.body ?? "");
-      const m = /TOOL (\w+) (\{.*\})/.exec(body);
-      if (!m && body.startsWith("The request:")) { yield { type: "text", text: "Launch week plan" }; yield { type: "done" }; return; }
-      if (!m) {
-        for (const w of replyFor(body).split(" ")) { if (stopped) break; yield { type: "text", text: `${w} ` }; await sleep(/LONG/.test(body) ? 40 : 25); }
-        yield { type: "usage", inputTokens: 900, outputTokens: 60 };
-        yield { type: "done" };
-        return;
-      }
-      const first = `call_${waiting.size + 1}`;
-      const found = new Promise<{ ok: boolean; content: unknown }>((resolve) => waiting.set(first, resolve));
-      yield { type: "tool_call", id: first, name: "tool_search", input: { query: m[1]! } };
-      await found;
-      const id = `call_${waiting.size + 1}`;
-      const result = new Promise<{ ok: boolean; content: unknown }>((resolve) => waiting.set(id, resolve));
-      yield { type: "tool_call", id, name: m[1]!, input: JSON.parse(m[2]!) };
-      const r = await result;
-      yield { type: "text", text: r.ok ? "Done. It worked." : `That did not work: ${JSON.stringify(r.content).slice(0, 120)}` };
-      yield { type: "done" };
-    },
-    sendToolResult(callId: string, result: { ok: boolean; content: unknown }) { waiting.get(callId)?.(result); },
-    inject() {}, async cancel() { stopped = true; }, async close() {},
-  } as EngineSession;
-};
 
 export interface Walk {
   web: Edge; daemon: Daemon; browser: Browser; context: Context; page: Page; dir: string;
@@ -203,8 +163,3 @@ export async function connectAi(w: Walk): Promise<void> {
 
 /** The composer of the open chat. */
 export const composer = (p: Page) => p.getByTestId("composer-field").or(p.locator('[data-testid="composer"] textarea')).or(p.locator('[data-testid="composer"] [contenteditable="true"]')).first();
-
-test("owner walk kit: the stand-in names what was asked and a LONG ask runs long", () => {
-  assert.match(replyFor("plan the launch"), /plan the launch/);
-  assert.ok(replyFor("LONG please").split(" ").length > 300);
-});

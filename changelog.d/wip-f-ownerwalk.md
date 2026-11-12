@@ -16,3 +16,4 @@
 - A setup step with nothing to preview shows no preview card.
 - Stopping a reply and an unsent message are each said once, under the message.
 - What needs you no longer repeats a row's title as its second line; the health tile says Computer alerts.
+- After New project, the Records sidebar switches types again and a reload starts no second new row; New project works at the phone width.

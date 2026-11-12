@@ -39,9 +39,11 @@ export interface RecordViewsProps {
   extraKinds?: readonly ExtraKind[];
   /** New project (Cmd-K, the Projects +): the type opens on its table with the new row started. */
   startNew?: boolean;
+  /** Told once the new row is started. */
+  onStarted?: () => void;
 }
 
-function TypeViews({ type, kind, view, extraKinds, startNew = false }: RecordViewsProps & { type: string }): ReactElement {
+function TypeViews({ type, kind, view, extraKinds, startNew = false, onStarted }: RecordViewsProps & { type: string }): ReactElement {
   const data = useRecordsData();
   const { state } = useRecordsState();
   const describe = useLive("schema.describe", { type });
@@ -64,8 +66,8 @@ function TypeViews({ type, kind, view, extraKinds, startNew = false }: RecordVie
   const base: TableViewState = { ...fromSaved(saved), ...view };
   const ctx: ViewCtx = { type, def, views: list, saved, base, kind: active, kinds, onKind: (k) => setPicked({ key, kind: k }) };
   // On the phone the table is its list: a face or icon, the title and one line, in the shared Row (no columns to scroll sideways).
-  if (active === "table" && phone) return <ListView key={key} ctx={ctx} />;
-  if (active === "table") return <TableView key={key} type={type} {...(view ? { view } : {})} headerExtra={<KindSwitch ctx={ctx} />} startNew={startNew} />;
+  if (active === "table" && phone) return <ListView key={key} ctx={ctx} startNew={startNew} {...(onStarted ? { onStarted } : {})} />;
+  if (active === "table") return <TableView key={key} type={type} {...(view ? { view } : {})} headerExtra={<KindSwitch ctx={ctx} />} startNew={startNew} {...(onStarted ? { onStarted } : {})} />;
   const extra = (extraKinds ?? []).find((k) => k.kind === active);
   if (extra) return <Fragment key={`${key}:${active}`}>{extra.render(ctx)}</Fragment>;
   if (active === "board" && journey) return <JourneyBoard key={key} ctx={ctx} />;
