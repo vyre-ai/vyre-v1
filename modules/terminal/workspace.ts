@@ -80,6 +80,8 @@ export interface WorkspaceOptions {
   http: DockerHttp;
   image?: string;
   limits?: Partial<{ cpus: number; memoryMb: number; pids: number; reserveMb: number }>;
+  /** Does this agent have a turn running now (the engine's turns)? A workspace is never put to sleep to make room while it does (lead, 12 Nov). */
+  inTurn?: (agentId: string) => boolean;
   /** The longest a mirror waits between passes when nothing happens in the workspace. Default 60 s. */
   mirrorMaxMs?: number;
   /** How long after a command the project folders it may have changed are mirrored (a file must sit unchanged for a second first). Default 1200 ms. */
@@ -183,6 +185,8 @@ export interface WorkspaceManager {
   hostSubnets(): Promise<string[] | null>;
   /** Is its container running now: one look at that container only (a tab's 400 ms read asks this, so it must not list every workspace). */
   awake(agentId: string): Promise<boolean>;
+  /** A person's open tab read the workspace's screen: it counts as attached for a short while (making room passes it over). */
+  viewed(agentId: string): void;
   /** The line a workspace put to sleep at the 12-hour ceiling owes its next command, once (then null). */
   takeNote(agentId: string): string | null;
   /** The agent came back from Trash: its workspace may be made again (over the volumes it kept). */
@@ -329,6 +333,9 @@ export const NOT_PRIVATE = "This workspace is on a server whose link to the Spac
 const wsError = (message: string, code = "unavailable"): Error => Object.assign(new Error(message), { code, workspace: true });
 
 export const IMAGE_MISSING_LINE = "This server can't start agent workspaces yet.";
+/** What an agent's next command says after its workspace was put to sleep to make room for another (lead, 12 Nov). */
+export const SLEPT_FOR_ROOM_LINE = "Your workspace was asleep and has been started again. Programs that were running are gone; your files are as you left them.";
+
 /** What a deleted agent's commands answer (the daemon's admit check says the same, host/src/daemon/daemon.ts). */
 export const AGENT_GONE_LINE = "That agent is in Trash, so it has no workspace. Restore it to use its terminal again.";
 /** What a command cut off by a project removal answers. */
@@ -415,6 +422,11 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
   /** When each workspace was last given room to start: for a minute, until its first command, it is not put to sleep to make room for another. */
   const wokenAt = new Map<string, number>();
   const JUST_WOKEN_MS = 60_000;
+  /** When a person's open tab last read each workspace's screen: attached while that is recent. */
+  const viewedAt = new Map<string, number>();
+  /** Making room never takes a workspace used in the last 90 s (an agent between two commands of one task), nor one a person has a tab attached to (read in the last 15 s). */
+  const ROOM_QUIET_MS = 90_000;
+  const ATTACHED_MS = 15_000;
   /** Workspaces a newcomer is putting to sleep for room right now: other newcomers pass them over. */
   const forRoom = new Set<string>();
   /** The last command or keystroke in each workspace (a run, typed keys, any exec that counts as use): what the 12-hour ceiling counts from. */
@@ -923,7 +935,10 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
     try { live = await running(); } catch { return false; }
     // one that was given room in the last minute and has had no command since is a newcomer still starting: never the one put to sleep
     const starting = (id: string): boolean => { const w = wokenAt.get(id); return w !== undefined && now() - w < JUST_WOKEN_MS && (lastTouch.get(id) ?? 0) < w; };
-    const quiet = live.filter((id) => id !== forAgent && (holds.get(id) ?? 0) === 0 && !starting(id))
+    // never one with a turn or a run in progress, used in the last 90 s, or with a person's tab attached: "nothing running this instant" is not enough (lead, 12 Nov)
+    const mayTake = (id: string): boolean => (holds.get(id) ?? 0) === 0 && !starting(id) && now() - (lastTouch.get(id) ?? 0) >= ROOM_QUIET_MS
+      && now() - (viewedAt.get(id) ?? -Infinity) >= ATTACHED_MS && !(o.inTurn?.(id) ?? false);
+    const quiet = live.filter((id) => id !== forAgent && mayTake(id))
       .sort((a, b) => (lastTouch.get(a) ?? 0) - (lastTouch.get(b) ?? 0));
     // at most a few awake ones are asked whether they are busy; ones another newcomer already put to sleep (newcomers at once share one list) are passed over without counting
     let asked = 0;
@@ -934,7 +949,12 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
       try {
         if (!(await api.containerRunning(workspaceName(id)).catch(() => false))) continue;
         asked++;
-        if (await sleepNow(id, false, true)) { log("info", "workspace.slept_for_room", { agent: id, for: forAgent }); return true; }
+        if (await sleepNow(id, false, true)) {
+        // its agent's next command says so, once
+        sleptNote.set(id, SLEPT_FOR_ROOM_LINE);
+        log("info", "workspace.slept_for_room", { agent: id, for: forAgent });
+        return true;
+      }
       } finally { forRoom.delete(id); }
     }
     return false;
@@ -1087,6 +1107,7 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
       try { return (JSON.parse(dec.decode(r.body)) as Array<{ IPAM?: { Config?: Array<{ Subnet?: string }> } }>).flatMap((n) => (n.IPAM?.Config ?? []).map((c) => c.Subnet ?? "")).filter(Boolean); } catch { return null; }
     },
     awake: (agentId) => (AGENT_ID.test(agentId) ? api.containerRunning(workspaceName(agentId)).catch(() => false) : Promise.resolve(false)),
+    viewed(agentId) { viewedAt.set(agentId, now()); },
     takeNote(agentId) { const n = sleptNote.get(agentId) ?? null; sleptNote.delete(agentId); return n; },
     async cut(agentId, projectId) {
       if (!AGENT_ID.test(agentId) || !PROJECT_ID.test(projectId)) return;
@@ -1363,6 +1384,7 @@ export function createWorkspaceTerminalHost(w: WorkspaceTerminalOptions): Worksp
       const why = m.restartLine(x.agentId, x.gen);
       if (why !== null && x.told !== x.gen) { x.told = x.gen; return { text: `\n${why}\n`, next: r.since }; }   // the pane writes \n as \r\n
       // the live read of an open tab: an asleep workspace has nothing new to show, and is left asleep until someone types or the agent runs something
+      m.viewed(x.agentId);
       const up = await m.awake(x.agentId).catch(() => false);
       if (!up) return { text: "", next: r.since };
       if (x.gen !== m.generation(x.agentId)) {

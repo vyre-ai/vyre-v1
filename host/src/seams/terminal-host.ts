@@ -54,6 +54,8 @@ export interface WorkspacesConfig {
   admit?: (a: { agentId: string; state: "create" | "wake" }) => Promise<void> | void;
   /** Is this agent in Trash now (agents_agent.deletedAt)? undefined when it cannot be told (third look T2). */
   inTrash?: (agentId: string) => boolean | undefined;
+  /** Does this agent have a turn running now? Making room never puts its workspace to sleep while it does. */
+  inTurn?: (agentId: string) => boolean;
   /** The mirror of each agent's folder in Files onto ~/Vyre in its workspace: the computers module's home sync and tar reader, made by the daemon as the agent principal. Omitted: no mirror. */
   home?: {
     sync(o: { agentId: string; computerId: string; fs: never; manifest: string }): { pass(): Promise<{ failed: number }> };

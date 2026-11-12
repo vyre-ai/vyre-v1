@@ -892,8 +892,10 @@ test("many newcomers at once on a full host each get room: one taking another's 
     async claim(id: string) { if (slots.has(id) || slots.size < 4) { slots.add(id); return { state: "running" as const }; } return { state: "waiting" as const, line: "Waiting for room on the Space server." }; },
     async release(id: string) { slots.delete(id); },
   };
-  const m = manager(dk, { capacity });
+  const clock = { t: 3_000_000 };
+  const m = manager(dk, { capacity, now: () => clock.t });
   for (const id of ["agt_q0", "agt_q1", "agt_q2", "agt_q3"]) await m.exec(id, ["tmux", "-V"]);
+  clock.t += 120_000;   // quiet for longer than the 90 s making room waits
   const outcomes = await Promise.allSettled(["agt_n0", "agt_n1", "agt_n2", "agt_n3"].map((id) => m.ensure(id)));
   assert.deepEqual(outcomes.map((x) => x.status), ["fulfilled", "fulfilled", "fulfilled", "fulfilled"], JSON.stringify(outcomes.map((x) => (x.status === "rejected" ? String((x.reason as Error).message) : "ok"))));
   m.close();
@@ -1070,5 +1072,38 @@ test("T6: a person with the agent's tab open sees why it went blank when the age
   assert.match(told.text, /The agent was removed from a project, so its workspace restarted without that project's folder\. What was running in it stopped\./);
   const again = await host.read("trm_live", { lines: 30, since: told.next });
   assert.doesNotMatch(again.text, /removed from a project/, "said once");
+  m.close();
+});
+
+test("making room never takes a workspace whose agent has a turn running, that was used in the last 90 s, or that a person has a tab attached to; the newcomer then waits; one slept for room tells its agent's next command", async () => {
+  const clock = { t: 9_000_000 };
+  const dk = engine();
+  const slots = new Set<string>();
+  const capacity = {
+    async claim(id: string) { if (slots.has(id) || slots.size < 4) { slots.add(id); return { state: "running" as const }; } return { state: "waiting" as const, line: "Waiting for room on the Space server." }; },
+    async release(id: string) { slots.delete(id); },
+  };
+  const turns = new Set<string>(["agt_turn"]);
+  const m = manager(dk, { capacity, now: () => clock.t, inTurn: (id) => turns.has(id) });
+  const host = createWorkspaceTerminalHost({ manager: m, sleep: fast });
+  for (const id of ["agt_turn", "agt_recent", "agt_watched", "agt_idle"]) await m.exec(id, ["tmux", "-V"]);
+  await host.open({ terminalId: "trm_watch", target: { host: "agent_computer", agentId: "agt_watched" }, name: "agent", cols: 80, rows: 24, folders: [] });
+  clock.t += 120_000;
+  await m.exec("agt_recent", ["tmux", "-V"]);             // used 0 s ago: between two commands of one task
+  await host.read("trm_watch", { lines: 30, since: 0 });  // a person's tab is attached
+  // the newcomer takes the room of the one that is truly idle
+  assert.equal(await m.ensure("agt_new1"), "created");
+  assert.equal(dk.box(workspaceName("agt_idle")).running, false, "the idle one slept");
+  for (const id of ["agt_turn", "agt_recent", "agt_watched"]) assert.equal(dk.box(workspaceName(id)).running, true, `${id} kept`);
+  // nothing more may be taken: the next newcomer waits with the plain line
+  await assert.rejects(() => m.ensure("agt_new2"), /^Error: Waiting for room on the Space server\./);
+  for (const id of ["agt_turn", "agt_recent", "agt_watched"]) assert.equal(dk.box(workspaceName(id)).running, true, `${id} still kept`);
+  // the slept one's next command says what happened, once
+  clock.t += 200_000;
+  turns.clear();
+  const r = await host.open({ terminalId: "trm_idle", target: { host: "agent_computer", agentId: "agt_idle" }, name: "agent", cols: 80, rows: 24, folders: [] }).then(() => host.run("trm_idle", { command: "echo hi", env: {}, timeoutMs: 5000 }));
+  assert.match(r.output, /^Your workspace was asleep and has been started again\. Programs that were running are gone; your files are as you left them\.\n/);
+  const again = await host.run("trm_idle", { command: "echo hi", env: {}, timeoutMs: 5000 });
+  assert.doesNotMatch(again.output, /was asleep/, "once");
   m.close();
 });

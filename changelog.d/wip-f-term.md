@@ -47,3 +47,4 @@
 - When agent workspaces have to use Docker's default network, server health says so and what to do; Vyre tries the shared network again once a minute instead of on every command.
 - A person with an agent's tab open sees why it went blank when the agent was taken off a project.
 - Opening an agent's terminal with no computer to run it on says "No computer can run <agent>'s commands right now" and how to fix it.
+- Making room on a full server never puts a workspace to sleep while its agent has a turn running, within 90 seconds of its last command, or while someone has its tab open; an agent whose workspace was put to sleep for room is told so on its next command.

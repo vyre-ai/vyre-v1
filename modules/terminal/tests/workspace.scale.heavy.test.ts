@@ -46,7 +46,9 @@ test("100 workspaces on one host: all made, 40 woken at once and the rest in wav
     manifest: (id) => `/tmp/${id}.json`,
   });
   const managers: WorkspaceManager[] = [];
-  const make = (o: Partial<WorkspaceOptions> = {}): WorkspaceManager => { const m = buildWorkspaceManager({ http, image: IMAGE, idleMs: 3_600_000, owner: OWNER, capacity, home: home(), ...o }); managers.push(m); return m; };
+  // the managers' clock, which the test moves on to make workspaces quiet for longer than making room waits (90 s) without waiting that long
+  let skew = 0;
+  const make = (o: Partial<WorkspaceOptions> = {}): WorkspaceManager => { const m = buildWorkspaceManager({ http, image: IMAGE, idleMs: 3_600_000, owner: OWNER, capacity, home: home(), now: () => Date.now() + skew, ...o }); managers.push(m); return m; };
   t.after(async () => {
     for (const m of managers) m.close();
     for (let i = 0; i < N; i += 20) await Promise.all(ids.slice(i, i + 20).map(async (id) => { await docker(["rm", "-f", workspaceName(id)]); await docker(["volume", "rm", "-f", `${workspaceName(id)}-home`, `${workspaceName(id)}-files`]); }));
@@ -96,9 +98,20 @@ test("100 workspaces on one host: all made, 40 woken at once and the rest in wav
   await new Promise((r) => setTimeout(r, 70_000));   // past the minute after the last command, when pacing starts
   numbers["40 idle awake, paced mirror (after)"] = await idle();
 
-  // ---- the other 60 in waves of 20: the host has room for 60 awake, so later waves put the longest-quiet to sleep to start at once
+  // ---- the other 60 in waves of 20: the host has room for 60 awake, so later waves put the longest-quiet to sleep to start at once. The first 40 stay mid-task the whole time (a command
+  // every wave, as an agent between two commands of one task): none of them is ever put to sleep for room (lead, 12 Nov)
+  const startedAt = async (id: string): Promise<string> => (await docker(["inspect", "-f", "{{.State.StartedAt}}", workspaceName(id)])).trim();
+  const midTask = ids.slice(0, FIRST);
+  const before = await Promise.all(midTask.map(startedAt));
   const waves: number[] = [];
-  for (let i = FIRST; i < N; i += 20) waves.push(...(await Promise.all(ids.slice(i, i + 20).map((id) => run(m, id)))));
+  for (let i = FIRST; i < N; i += 20) {
+    skew += 120_000;   // everyone not touched below is now quiet for longer than 90 s
+    await Promise.all(midTask.map((id) => m.exec(id, ["true"])));
+    waves.push(...(await Promise.all(ids.slice(i, i + 20).map((id) => run(m, id)))));
+  }
+  const after = await Promise.all(midTask.map(startedAt));
+  assert.deepEqual(after, before, "none of the 40 mid-task workspaces was put to sleep (each was started once, before the waves)");
+  numbers["mid-task workspaces slept for room"] = after.filter((x, i) => x !== before[i]).length;
   numbers["waves of 20 past the room, time to first output p50 (ms)"] = pct(waves, 50);
   numbers["waves of 20 past the room, time to first output p95 (ms)"] = pct(waves, 95);
   numbers["awake at the end of the waves"] = awake.size;
