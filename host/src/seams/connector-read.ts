@@ -19,7 +19,7 @@ type Plan = { method: string; url: string; vaultItemId: string; header?: string;
 type Sent = { status: number; failed?: "vault" | "network" | "private" };
 
 /** `resolve` is the one reading of a key reference (seams/key-ref.ts) the Gate's hold used: the key read is the item it named, asked for by its canonical handle. */
-export function connectorReadSender(d: Pick<SeamDriverDeps, "vault" | "fetch" | "space">, resolve?: (ref: string, asker?: string) => KeyRef | null): (plan: Plan, asker?: string, net?: PinnedNet | null) => Promise<Sent> {
+export function connectorReadSender(d: Pick<SeamDriverDeps, "vault" | "fetch" | "space">, resolve?: (ref: string, asker?: string) => KeyRef | null, mayUse?: (itemId: string, asker?: string) => boolean): (plan: Plan, asker?: string, net?: PinnedNet | null) => Promise<Sent> {
   return async (plan, asker, net) => {
     let url: URL;
     try { url = new URL(plan.url); } catch { return { status: 0, failed: "network" }; }
@@ -29,7 +29,9 @@ export function connectorReadSender(d: Pick<SeamDriverDeps, "vault" | "fetch" | 
     if (resolve) {
       const r = resolve(plan.vaultItemId, asker);
       if (r === null) return { status: 0, failed: "vault" };
-      ref = `${r.handle}${r.field ? `.${r.field}` : ""}`;
+      // the Vault is asked for that item by id, never by handle again: the key that goes is the one resolved (and, for a held read, the one approved), or none
+      ref = `${r.id}${r.field ? `.${r.field}` : ""}`;
+      if (mayUse && !mayUse(r.id, asker)) return { status: 0, failed: "vault" };
     }
     // the addresses this read may dial, checked before the key is opened
     let addresses: string[] | null = null;

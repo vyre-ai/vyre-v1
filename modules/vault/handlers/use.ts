@@ -77,16 +77,25 @@ export function configureVault(h: VaultHost | null): void {
 export function secretPort(db: VaultDb): SecretPort {
   const read = async (handle: string, asker?: string): Promise<string> => {
     ensure({ db });
-    const m = HANDLE.exec(handle.startsWith("#") ? handle : `#${handle}`);
+    // by item id (vit_<id> or vit_<id>.<field>): exactly that item, for a send a person approved for that item (a held key read). The same rule as a handle: a Mine item only for its owner.
+    const byId = /^(vit_[a-z0-9]+)(?:\.([A-Za-z][A-Za-z0-9_]*))?$/.exec(handle);
+    const m = byId ? ["", "", byId[2]] as const : HANDLE.exec(handle.startsWith("#") ? handle : `#${handle}`);
     if (!m) throw new Error("A handle looks like #Name or #Name.field.");
-    const byHandle = (h: string): Row[] => rowsOf(db.all(`SELECT * FROM vault_meta`)).filter((r) => r["deleted_at"] == null && str(r, "handle").toLowerCase() === h.toLowerCase());
-    let named = byHandle(`#${m[1]!}`);
-    // a handle of a sign-in that was folded into another row of the same account leads to that row's item (signins.ts)
-    if (named.length === 0) { const to = aliasTarget(db, m[1]!); if (to) named = byHandle(to); }
-    // the asker's own Mine item wins: a Shared item that takes the same handle must never shadow it (that would send the person's turns to whoever made the Shared item). Shared only when they have no Mine item of that name.
-    // The caller has already passed vault.use, and a Mine item opens only for its owner with the key they unlocked on this node.
-    const meta = (asker ? named.find((r) => str(r, "scope") === "mine" && str(r, "owner") === asker) : undefined) ?? named.find((r) => str(r, "scope") === "shared");
-    if (!meta) throw new Error(`The Vault has no shared item ${handle}.`);
+    let meta: Row | undefined;
+    if (byId) {
+      meta = rowsOf(db.all(`SELECT * FROM vault_meta WHERE "id" = ?`, byId[1])).find((r) => r["deleted_at"] == null);
+      if (meta && str(meta, "scope") === "mine" && str(meta, "owner") !== asker) meta = undefined;
+      if (!meta) throw new Error("That Vault item is gone, or it is not one this read may open.");
+    } else {
+      const byHandle = (h: string): Row[] => rowsOf(db.all(`SELECT * FROM vault_meta`)).filter((r) => r["deleted_at"] == null && str(r, "handle").toLowerCase() === h.toLowerCase());
+      let named = byHandle(`#${m[1]!}`);
+      // a handle of a sign-in that was folded into another row of the same account leads to that row's item (signins.ts)
+      if (named.length === 0) { const to = aliasTarget(db, m[1]!); if (to) named = byHandle(to); }
+      // the asker's own Mine item wins: a Shared item that takes the same handle must never shadow it (that would send the person's turns to whoever made the Shared item). Shared only when they have no Mine item of that name.
+      // The caller has already passed vault.use, and a Mine item opens only for its owner with the key they unlocked on this node.
+      meta = (asker ? named.find((r) => str(r, "scope") === "mine" && str(r, "owner") === asker) : undefined) ?? named.find((r) => str(r, "scope") === "shared");
+      if (!meta) throw new Error(`The Vault has no shared item ${handle}.`);
+    }
     const row = first(db.all(`SELECT * FROM vault_secret WHERE "itemId" = ?`, str(meta, "id")));
     if (!row) throw new Error("The vault service is not running.");
     const box = parseJson(row["box"], { iv: "", ct: "", tag: "" });

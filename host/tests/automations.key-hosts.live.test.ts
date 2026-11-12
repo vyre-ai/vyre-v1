@@ -17,6 +17,7 @@ const caddyFetch: FetchFn = () => Promise.resolve({ ok: true, status: 200, heade
 const OWNER = "tok-usr_olivia";
 const AGENT = "tok-agent";
 const SECRET = "fake_notely_hosts_42";
+const SECRET2 = "fake_mine_shadow_77";
 
 function seededDir(): string {
   const core = bootCore();
@@ -28,9 +29,9 @@ function seededDir(): string {
 }
 
 test("an agent's test read sends a Vault key only to a host a person approved for that item", async () => {
-  const seen: { host: string; key: boolean }[] = [];
+  const seen: { host: string; key: boolean; other?: boolean }[] = [];
   const seamFetch: SeamFetch = async (url, init) => {
-    seen.push({ host: new URL(url).hostname, key: Object.values(init?.headers ?? {}).some((v) => String(v).includes(SECRET)) });
+    seen.push({ host: new URL(url).hostname, key: Object.values(init?.headers ?? {}).some((v) => String(v).includes(SECRET)), other: Object.values(init?.headers ?? {}).some((v) => String(v).includes(SECRET2)) });
     return { status: 200, text: async () => "{}", arrayBuffer: async () => new ArrayBuffer(0) };
   };
   const dir = seededDir();
@@ -132,7 +133,19 @@ test("an agent's test read sends a Vault key only to a host a person approved fo
     const sibling = await read(AGENT, "#Notely", "evil.notely.example");
     assert.notEqual(sibling.data["level"], "tested", sibling.text);
 
-    assert.deepEqual(seen.filter((s) => s.key).map((s) => s.host).sort(), ["api.notely.example", "api.plainkey.example", "status.elsewhere.example"], "the key went only to approved hosts and the person's own read");
+    // 9. the item a person approves is the item whose key goes: hold, then a Mine item takes the same handle, then approve. The approved item's key goes, or nothing; never the other one's.
+    const held9 = await read(AGENT, "#Plainkey", "approve.plainkey.example");
+    assert.equal(held9.data["status"], "held", held9.text);
+    const mineFolder = await post(OWNER, "/v1/vault/folders/create", { name: "My keys", scope: "mine" });
+    const shadow = await post(OWNER, "/v1/vault/item/put", { folderId: String((mineFolder.data["folder"] as { id?: string } | undefined)?.id ?? ""), name: "Plainkey", kind: "api_key", fields: [{ key: "api_key", value: SECRET2 }] });
+    console.log(`SHADOW ${shadow.status} ${String((shadow.data["item"] as { handle?: string } | undefined)?.handle)}`);
+    const approved9 = await post(OWNER, "/v1/tasks/act", { taskId: String(held9.data["taskId"]), action: "approve" });
+    assert.equal(approved9.status, 200, approved9.text);
+    await new Promise((r) => setTimeout(r, 1500));
+    assert.equal(seen.filter((x) => x.other).length, 0, `the other item's key never went: ${JSON.stringify(seen.filter((x) => x.other))}`);
+    assert.ok(seen.filter((x) => x.host === "approve.plainkey.example").every((x) => x.key), "whatever went there carried the approved item's key");
+
+    assert.deepEqual(seen.filter((s) => s.key && s.host !== "approve.plainkey.example").map((s) => s.host).sort(), ["api.notely.example", "api.plainkey.example", "status.elsewhere.example"], "the key went only to approved hosts and the person's own read");
   } finally {
     await d.stop();
     fs.rmSync(dir, { recursive: true, force: true });

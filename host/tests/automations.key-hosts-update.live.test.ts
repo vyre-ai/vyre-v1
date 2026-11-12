@@ -64,15 +64,24 @@ test("on update, a step a person saved keeps its host; a step only an agent save
     try { json = JSON.parse(text) as Record<string, unknown>; } catch { /* not JSON */ }
     return { status: r.status, data: (json["data"] as Record<string, unknown> | undefined) ?? {}, text };
   };
-  const runAndWait = async (automationId: string): Promise<{ status: string; steps: string }> => {
-    const run = await post(OWNER, "automations.run", { automationId });
-    const runId = String(run.data["runId"] ?? "");
+  const waitRun = async (runId: string): Promise<{ status: string; steps: string; runId: string }> => {
     let status = "";
     for (let i = 0; i < 80 && !["succeeded", "failed", "stopped"].includes(status); i++) {
       status = String(((await post(OWNER, "runs.get", { runId })).data["run"] as { status?: string } | undefined)?.status ?? "");
       if (!["succeeded", "failed", "stopped"].includes(status)) await new Promise((r) => setTimeout(r, 150));
     }
-    return { status, steps: (await post(OWNER, "runs.steps", { runId })).text };
+    return { status, steps: (await post(OWNER, "runs.steps", { runId })).text, runId };
+  };
+  const runAndWait = async (automationId: string): Promise<{ status: string; steps: string; runId: string }> => {
+    const run = await post(OWNER, "automations.run", { automationId });
+    const runId = String(run.data["runId"] ?? "");
+    if (runId) return await waitRun(runId);
+    let status = "";
+    for (let i = 0; i < 80 && !["succeeded", "failed", "stopped"].includes(status); i++) {
+      status = String(((await post(OWNER, "runs.get", { runId })).data["run"] as { status?: string } | undefined)?.status ?? "");
+      if (!["succeeded", "failed", "stopped"].includes(status)) await new Promise((r) => setTimeout(r, 150));
+    }
+    return { status, steps: (await post(OWNER, "runs.steps", { runId })).text, runId };
   };
   try {
     const folder = await post(OWNER, "vault.folders.create", { name: "Keys", scope: "shared" });
@@ -125,8 +134,17 @@ test("on update, a step a person saved keeps its host; a step only an agent save
     assert.match(stopped.steps, /is no longer allowed to go to agent\.notely\.example\. Allow it again on the key's page, or change this step\./);
     assert.equal(sent.filter((s) => s.key && s.host === "agent.notely.example").length, 0, "the key never went to the host nobody chose");
 
-    // a person allows it again: it runs
+    // the person who can fix it is told once, with the line
+    const notes = ((await post(OWNER, "notifications.list", { limit: 50 })).data["notifications"] as { kind?: string; runId?: string; data?: { message?: string } }[] | undefined) ?? [];
+    const told = notes.filter((n) => n.kind === "run.failed" && n.runId === stopped.runId);
+    assert.equal(told.length, 1, `one failed-Run notice: ${JSON.stringify(notes).slice(0, 600)}`);
+    assert.match(String(told[0]?.data?.message), /is no longer allowed to go to agent\.notely\.example\. Allow it again on the key's page, or change this step\./, JSON.stringify(told[0]));
+    // a person allows it again: Retry on the stopped Run works, then a new Run works
     assert.equal((await post(OWNER, "automations.key_hosts.allow", { vaultItemId: handle, host: "agent.notely.example" })).status, 200);
+    const retried = await post(OWNER, "runs.retry", { runId: stopped.runId });
+    assert.equal(retried.status, 200, retried.text);
+    const again2 = await waitRun(String(retried.data["runId"] ?? ""));
+    assert.equal(again2.status, "succeeded", `Retry after the host is allowed: ${again2.steps.slice(0, 300)}`);
     const resumed = await runAndWait(theirsId);
     assert.equal(resumed.status, "succeeded", resumed.steps.slice(0, 300));
   } finally {
