@@ -83,9 +83,10 @@ export async function screenAnswer(d: AnswerAudienceDeps, q: { threadId: string;
     closed = [];
     for (const r of reads) {
       if (r.type === "*") closed.push(r);
-      // an agent's own Space browser profile (a chrome tool with no computer named): the browser's own rule for who may watch that profile decides (computers.browser.profiles lists, for each
-      // person, the browsers they may watch: the agent's owner; an admin for a team agent; a person a shared agent was shared with; nobody else for a private or personal agent)
-      else if (r.type === "browser_profile") { if (!(await allWatch(d, others, String(r.id ?? "")))) closed.push(r); }
+      // a read in an agent's own Space browser profile (a chrome tool with no computer named): shared with the readers who could have got the same by asking the agent themselves (lead, 12 Nov;
+      // the rule the Vault set for a team agent's shared computer). Who may ask an agent is who may see it (view on the agent, the check that lets a person address it), asked of the kernel in one
+      // pass for every reader. A private agent or an Assistant (personal) is asked by its person alone, so its answers stay private. Watching the live view is a different question (sbrowser/policy.ts).
+      else if (r.type === "browser_profile") { if (!(await allMayAsk(d, others, q.asker, String(r.id ?? "")))) closed.push(r); }
       else if (!d.mayAll!(others, { perm: null, level: "view" }, r)) closed.push(r);
     }
   }
@@ -94,16 +95,13 @@ export async function screenAnswer(d: AnswerAudienceDeps, q: { threadId: string;
   return { body: PRIVATELY, withheld: true, closed };
 }
 
-/** May every one of these people watch this agent's Space browser profile? Asked as each of them; an answer that cannot be had never shares. */
-async function allWatch(d: AnswerAudienceDeps, people: readonly string[], agentId: string): Promise<boolean> {
-  if (agentId === "") return false;
-  for (const p of people) {
-    try {
-      const out = (await d.call("computers.browser.profiles", {}, p)) as { profiles?: Array<{ agentId?: string }> };
-      if (!(out.profiles ?? []).some((x) => x.agentId === agentId)) return false;
-    } catch { return false; }
-  }
-  return true;
+/** May every one of these people ask this agent themselves? Fails closed: an agent whose class cannot be read, a private or personal one, or a reader the kernel does not allow. */
+async function allMayAsk(d: AnswerAudienceDeps, people: readonly string[], asker: string, agentId: string): Promise<boolean> {
+  if (agentId === "" || !d.mayAll) return false;
+  let cls: string | undefined;
+  try { cls = ((await d.call("agents.share_class", { agentId }, asker)) as { class?: string }).class; } catch { return false; }
+  if (cls !== "shared" && cls !== "space") return false;
+  return d.mayAll(people, { perm: null, level: "view" }, { type: "agent", id: agentId });
 }
 
 /** The whole answer, in the asker's own chat with the agent (made once per chat it came from, and kept). */

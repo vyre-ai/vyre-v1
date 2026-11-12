@@ -8,6 +8,7 @@
 //   recording and every answer can be scrubbed; `frame` is the screen after the step (the timeline's picture); `caption` is its words.
 // Errors are only ones the capabilities declare: a person at the controls, a held item and a bad argument are validation.bad_input; Esc, a computer still starting and a silent agentd are provider.unavailable.
 // Handles are never resolved here: "agent computer logins stay on that computer" (ARCH 6.11), agentd substitutes them at the last moment and scrubs its own output. This module scrubs again.
+import { retargetRead } from "../../../../host/src/seams/answer-reads.ts";
 import { actorOf, addStep, agentFolder, boundFill, clean, hostFor, ensure, mintId, needComputer, needTeam, filledTabsOf, givenCount, handedSince, markFilledTab, raise, rememberSecrets, tabsOpen, rowsOf, setComputer } from "../../projections.ts";
 import { personalChrome } from "../../projections.ts";
 import type { CompCtx, ComputerHost, ComputerRow, PersonalChrome, Secret } from "../../projections.ts";
@@ -267,6 +268,10 @@ export async function prepare(ctx: CompCtx, computerId: string | undefined, spec
   }
   let c = computerFor(ctx, computerId);
   mayUse(ctx, c);
+  // a chrome call the gateway took for the agent's Space browser goes to its computer (the browser is not usable): the answer check and the audit name that computer (review A2)
+  if (spec.name !== undefined && spec.name.startsWith("chrome_") && computerId === undefined && ctx.principal.kind === "agent") {
+    retargetRead({ thread: ctx.thread, agent: ctx.principal.id, asker: ctx.actingFor, traceId: ctx.trace.traceId, computerId: c.computerId });
+  }
   // The controls are the person's: the tools wait for an agent, never for the person at the controls (their own click or key through the live view is a tool call as them).
   const atTheControls = ctx.principal.kind === "person" && c.takeoverBy !== undefined && actorOf(ctx) === c.takeoverBy;
   if (c.state === "takeover" && !spec.duringTakeover && !atTheControls) raise(ctx, "validation.bad_input", "A person has the controls. The tools wait until they give them back.", { takeoverBy: c.takeoverBy });

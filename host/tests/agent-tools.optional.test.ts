@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import { createInvoke, indexCapabilities } from "../src/invoke.ts";
 import type { CtxSeed, InvokeDeps } from "../src/invoke.ts";
 import { HostError } from "../src/routes/errors.ts";
-import { SELF_BINDING_LINE } from "../src/routes/resource.ts";
+import { OUTSIDE_AGENT_LINE, SELF_BINDING_LINE } from "../src/routes/resource.ts";
 import { registry } from "../../generated/registry.ts";
 import type { CapabilityDef } from "../../packages/contracts/src/types.ts";
 
@@ -48,7 +48,7 @@ test("every agent tool reaches its handler with only its required inputs: no ref
     catch (e) {
       const details = e instanceof HostError ? (e.error.details as { errors?: string[] } | undefined) : undefined;
       // the plain line that says what to pass is an answer a caller can act on; a bare missing-field refusal is not
-      if (e instanceof HostError && e.error.message === SELF_BINDING_LINE) continue;
+      if (e instanceof HostError && (e.error.message === SELF_BINDING_LINE || e.error.message === OUTSIDE_AGENT_LINE)) continue;
       for (const line of details?.errors ?? []) {
         const field = /^\/([A-Za-z0-9_]+)/.exec(line)?.[1];
         if (field && !(resolve(c.input as Schema).required ?? []).includes(field)) bad.push(`${who}, ${c.name}: ${line}`);

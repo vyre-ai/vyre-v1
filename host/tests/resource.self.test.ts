@@ -35,7 +35,7 @@ import { createInvoke, indexCapabilities } from "../src/invoke.ts";
 import type { CtxSeed, InvokeDeps } from "../src/invoke.ts";
 import { HostError } from "../src/routes/errors.ts";
 import { takeReads } from "../src/seams/answer-reads.ts";
-import { SELF_BINDING_LINE } from "../src/routes/resource.ts";
+import { OUTSIDE_AGENT_LINE, SELF_BINDING_LINE } from "../src/routes/resource.ts";
 import type { CapabilityDef } from "../../packages/contracts/src/types.ts";
 
 function rig() {
@@ -65,22 +65,34 @@ test("S1: a self-bound read is noted as what it reaches, never as the Space: the
   assert.deepEqual(takeReads("thr_d", "agt_scout", "usr_maya"), [{ type: "computer", id: "cmt_7" }], "a named computer is noted as before");
 });
 
-test("S4: the audit row of a self-bound call names the computer or the browser it used, not the Space", async () => {
+test("A1: an admin's audit export keeps every self-bound act on the Space the kernel knows, and names whose browser, Chrome or computer it was", async () => {
   const { invoke, audits } = rig();
   const seed = { ...inChat("thr_e"), auditAll: true } as CtxSeed;
-  await invoke("computers.chrome.open", { url: "https://www.harborquotes.com/" }, seed).catch(() => undefined);
-  await invoke("computers.chrome.open", { url: "https://www.harborquotes.com/", inMyChrome: true }, seed).catch(() => undefined);
-  await invoke("computers.screen.click", { x: 1, y: 1 }, seed).catch(() => undefined);
-  const named = audits.map((a) => JSON.stringify(a.resource));
-  assert.ok(named.includes(JSON.stringify({ type: "browser_profile", id: "agt_scout" })), named.join(" | "));
-  assert.ok(named.includes(JSON.stringify({ type: "computer", id: "my-chrome" })), named.join(" | "));
-  assert.ok(named.includes(JSON.stringify({ type: "agent_computer", id: "agt_scout" })), named.join(" | "));
-  assert.ok(!named.some((r) => r.includes('"space"')), "no row says only the Space");
+  await invoke("computers.chrome.open", { url: "https://www.harborquotes.com/" }, seed);
+  await invoke("computers.chrome.snapshot", { inMyChrome: true }, seed);
+  await invoke("computers.screen.screenshot", {}, seed);
+  // the rows go through the live audit sink into the audit module, and out through audit.export as an admin, where a row stays only on a view allow for its resource
+  const { harness } = await import("../../modules/audit/fixtures/db.ts");
+  const audit = await import("../../modules/audit/impl.ts");
+  const { createAuditRecorder } = await import("../src/seams/audit.ts");
+  const h = harness();
+  const admin = h.as("usr_admin");
+  const record = createAuditRecorder({ space: "spc_1", db: admin.db as never, module: audit as unknown as Record<string, unknown>, principal: (id) => ({ kind: id.startsWith("agt_") ? "agent" : "person" }) });
+  for (const a of audits) record(a as never);
+  // the kernel's answer for an admin: the Space is theirs to see; anything it does not know is not found (as for browser_profile or agent_computer, which are no resources)
+  const saved: string[] = [];
+  const ctx = { ...admin, exports: { async save(_n: string, csv: string) { saved.push(csv); return "fil_x"; } }, authorize: (_a: unknown, r: { type: string }) => ({ effect: r.type === "space" ? "allow" : "deny", reason: "t", decisionId: "d" }) };
+  await (audit.handlers as Record<string, (c: unknown, i: unknown) => Promise<unknown>>)["audit.export"]!(ctx, {});
+  const lines = saved[0]!.trimEnd().split("\n");
+  const row = (cap: string): string => lines.find((l) => l.includes(`,${cap},`)) ?? "";
+  assert.match(row("computers.chrome.open"), /,space:spc_1,.*,browser:agt_scout$/, "the agent's own Space browser");
+  assert.match(row("computers.chrome.snapshot"), /,space:spc_1,.*,chrome:usr_maya$/, "the asker's own Chrome");
+  assert.match(row("computers.screen.screenshot"), /,space:spc_1,.*,computer:agt_scout$/, "the agent's own computer");
 });
 
 test("S3: a person (or an outside agent's call rerun as its person) who leaves the computer out is told plainly what to pass", async () => {
   const { invoke } = rig();
   await assert.rejects(invoke("computers.chrome.snapshot", {}, { space: "spc_1", principal: { kind: "person", id: "usr_maya" }, origin: "http" } as CtxSeed), (e: unknown) => e instanceof HostError && e.error.message === SELF_BINDING_LINE);
   // an outside agent with the setup grant runs as its person: the same plain line, never "/computerId: the id is missing" alone
-  await assert.rejects(invoke("computers.chrome.snapshot", {}, { space: "spc_1", principal: { kind: "agent", id: "agt_outside" }, actingFor: "usr_maya", askPerson: "always", setupGrant: true, origin: "mcp" } as CtxSeed), (e: unknown) => e instanceof HostError && e.error.message === SELF_BINDING_LINE);
+  await assert.rejects(invoke("computers.chrome.snapshot", {}, { space: "spc_1", principal: { kind: "agent", id: "agt_outside" }, actingFor: "usr_maya", askPerson: "always", setupGrant: true, origin: "mcp" } as CtxSeed), (e: unknown) => e instanceof HostError && e.error.message === OUTSIDE_AGENT_LINE);
 });

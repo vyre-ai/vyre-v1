@@ -12,6 +12,7 @@
 - A runbook set to run on an agent's computer now runs there; it was always refused because the agent was not named. When no computer can run it, the line says so instead of asking for a Team Space.
 - A provider that opens a reply and then says nothing now ends with "Your AI didn't answer in time" at the first-token deadline, instead of "The provider stopped answering" and a retry.
 - An agent can use its own browser again without being given a computer first: its pages, steps and pictures show in the chat and in its Computer tab.
-- When an agent works in your own Chrome or in its own browser, its answer in a shared chat is checked against who may see that browser; when not everyone may, the answer comes to you privately.
+- When an agent reads from your own Chrome, its answer in a shared chat comes to you privately. When it reads in its own browser, the answer is shared with the people there who may ask that agent themselves; an Assistant's or a private agent's answers stay private.
+- The audit export has a where column: an agent's own browser, a person's own Chrome or an agent's own computer, for acts that did not name a computer.
 - The chat card and the Steps list say Browser for an agent's own browser, name each page by its address, say "just now" for a recent step, and show the page with "Opening…" instead of an empty dark box; the card no longer says Live once the agent has stopped.
 - An import cut off by a server restart now ends as failed and its owner is told, instead of staying "running" for ever. Bringing in a CRM whose first pull cannot start now tells you why.

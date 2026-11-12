@@ -9,13 +9,13 @@ import type { Hlc } from "../../lib/hlc.ts";
 import { mintId } from "../../lib/ids.ts";
 import {isHostService} from "../../lib/trust.ts";
 import { mintEventId } from "./ids.ts";
-import { noteRead } from "./seams/answer-reads.ts";
+import { noteRead, takeFallback } from "./seams/answer-reads.ts";
 import type { Decision as KernelDecision, Req as AuthReq, ResourceRef } from "../../kernel/src/authorize/index.ts";
 import type { EventEnvelope } from "../../packages/contracts/src/envelope.ts";
 import type { CallOpts, Ctx, Decision, EmitOpts, Logger, StepRef } from "../../packages/contracts/src/ctx.ts";
 import type { CapabilityDef, CapName, ErrorCode, EventName, TraceContext } from "../../packages/contracts/src/types.ts";
 import type { AgentGate } from "./seams/agent-read.ts";
-import { BindingError, SELF_BINDING_LINE, auditResourceOf, isSelfBound, resolveResource, selfTarget } from "./routes/resource.ts";
+import { BindingError, OUTSIDE_AGENT_LINE, SELF_BINDING_LINE, isSelfBound, resolveResource, selfAuditNote, selfTarget } from "./routes/resource.ts";
 import { auditTargets } from "./routes/audit-targets.ts";
 import type { AuditTarget } from "./routes/audit-targets.ts";
 import { codeForReason, fail, HostError, toVyreError } from "./routes/errors.ts";
@@ -103,6 +103,8 @@ export interface AuditRow {
   resource: ResourceRef | null; traceId: string; spanId: string; at: number; risk: CapabilityDef["risk"];
   /** Whitelisted object identifiers for Activity views; never request/response bodies. */
   targets?: AuditTarget[];
+  /** A self-bound call: the place it really reached (routes/resource.ts selfAuditNote), kept beside the bound resource. */
+  where?: string;
 }
 /** One atomic commit: the events a handler emitted plus its audit row (ARCH 4.4 step 7). Returns the events as stored (seq set). */
 export interface CommitBatch { cap: string; v: number; principal: string; events: EventEnvelope[]; audit: AuditRow | null }
@@ -386,7 +388,7 @@ export function createInvoke(deps: InvokeDeps): Invoke {
       try { resource = resolveResource(c, input, seed.space, deps.resolveItem, seed.principal); }
       catch (e) {
         // a Vault name or handle that names nothing the caller may use reads the same as one that does not exist, in words a person or an agent can act on
-        if (e instanceof BindingError) throw fail("validation.bad_input", traceId, { ...((c.resource as { self?: string }).self === "agent" && e.message === "the id is missing" ? { message: SELF_BINDING_LINE } : {}), ...(e.message === "no such item" ? { message: "There is no Vault item by that name that you can use. Check the name, or ask for the key." } : {}), details: { errors: [`${e.pointer}: ${e.message}`], cap: c.name } });
+        if (e instanceof BindingError) throw fail("validation.bad_input", traceId, { ...((c.resource as { self?: string }).self === "agent" && e.message === "the id is missing" ? { message: seed.forAgent !== undefined ? OUTSIDE_AGENT_LINE : SELF_BINDING_LINE } : {}), ...(e.message === "no such item" ? { message: "There is no Vault item by that name that you can use. Check the name, or ask for the key." } : {}), details: { errors: [`${e.pointer}: ${e.message}`], cap: c.name } });
         throw e;
       }
       if (resource && deps.ensureResource) await deps.ensureResource(resource);
@@ -407,10 +409,10 @@ export function createInvoke(deps: InvokeDeps): Invoke {
       const self = resource !== null && isSelfBound(c, input, seed.principal);
       const target = self ? selfTarget(c, input, seed.principal.id) : resource;
       // the audit names whose computer or browser it was even when the gateway cannot tell the computer's id yet: the agent's own
-      const auditRes = auditResourceOf(c, input, seed.principal, resource);
+      const note = selfAuditNote(c, input, seed.principal, seed.actingFor);
       const audit = (cls: AuditRow["class"], reason: string): AuditRow => ({
         class: cls, cap: c.name, v: c.v, principal: seed.principal.id, actingFor: seed.actingFor, decisionId: d.decisionId, reason,
-        resource: auditRes as typeof resource, traceId, spanId: trace.spanId, at: t, risk: c.risk,
+        resource, traceId, spanId: trace.spanId, at: t, risk: c.risk, ...(note ? { where: note.where, targets: note.targets } : {}),
       });
       // Ask the person: an outside agent stopped at what only a person does, or at a role its person holds, asks that person instead of hitting a wall. The person's own access decides, alone,
       // as it will again when the call runs on their yes; nothing here lets the agent itself past anything.
@@ -528,7 +530,7 @@ export function createInvoke(deps: InvokeDeps): Invoke {
     const audited = shouldAudit(c) || seed.auditAll === true || (seed.principal.kind === "agent" && c.effects !== "read");
     const targets = audited ? auditTargets(c.name, input, output) : undefined;
     const auditRow: AuditRow | null = audited
-      ? { class: "allow", cap: c.name, v: c.v, principal: seed.principal.id, actingFor: seed.actingFor, decisionId: did(), reason: "ok", resource: auditResourceOf(c, input, seed.principal, resource) as typeof resource, traceId, spanId: trace.spanId, at: t, risk: c.risk, ...(targets ? { targets } : {}) }
+      ? { class: "allow", cap: c.name, v: c.v, principal: seed.principal.id, actingFor: seed.actingFor, decisionId: did(), reason: "ok", resource, traceId, spanId: trace.spanId, at: t, risk: c.risk, ...withNote(targets, fellBackNote(selfAuditNote(c, input, seed.principal, seed.actingFor), takeFallback(traceId))) }
       : null;
     let stored = events;
     if (events.length || auditRow) stored = await deps.commit({ cap: c.name, v: c.v, principal: seed.principal.id, events, audit: auditRow });
@@ -645,3 +647,14 @@ export function withoutPersonalWords(v: unknown): unknown {
   return out;
 }
 const isPersonPage = (p: unknown): boolean => p !== null && typeof p === "object" && (p as { layer?: unknown }).layer === "person";
+
+/** An audit row's targets and, for a self-bound call, where it went (the note's targets join the call's own). */
+function withNote(targets: AuditTarget[] | undefined, note: { where: string; targets: AuditTarget[] } | undefined): { targets?: AuditTarget[]; where?: string } {
+  const all = [...(targets ?? []), ...(note?.targets ?? []).filter((n) => !(targets ?? []).some((x) => x.kind === n.kind && x.id === n.id))];
+  return { ...(all.length ? { targets: all } : {}), ...(note ? { where: note.where } : {}) };
+}
+
+/** A self-bound chrome call its handler sent to the agent's computer (the Space browser was not usable) is audited as that computer. */
+function fellBackNote(note: { where: string; targets: AuditTarget[] } | undefined, computerId: string | undefined): { where: string; targets: AuditTarget[] } | undefined {
+  return note && computerId && note.where.startsWith("browser:") ? { ...note, where: `computer:${computerId}` } : note;
+}

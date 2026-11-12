@@ -77,10 +77,20 @@ export function selfTarget(cap: Pick<CapabilityDef, "name">, input: unknown, age
 
 /** The refusal a person gets for leaving the computer out: what to pass, in plain words. */
 export const SELF_BINDING_LINE = "Say which computer to use: pass its computerId. Leaving it out means an agent's own computer or browser, and only an agent has those.";
+/** The same refusal for an outside agent whose call runs as its person (review A3): it has no computer or browser of its own here. */
+export const OUTSIDE_AGENT_LINE = "Say which computer to use: pass its computerId. An outside agent has no computer or browser of its own here.";
 
-/** The resource an audit row names: for a self-bound call what it reached (the agent's own computer when the gateway cannot tell its id), else the bound resource itself. */
-export function auditResourceOf<R extends { type: string; id: string | null }>(cap: Pick<CapabilityDef, "resource" | "name">, input: unknown, caller: { kind: string; id: string }, resource: R | null): R | { type: string; id: string | null } | null {
-  if (resource === null || !isSelfBound(cap, input, caller)) return resource;
+/**
+ * What an audit row says about a self-bound call (review A1, 12 Nov). The row's resource stays the one the kernel bound and authorized (the Space), so an admin's export keeps it; the place the
+ * call really reached goes beside it: `where` ("browser:<agent>", the agent's own Space browser profile; "chrome:<person>", that person's own Chrome; "computer:<agent>", the agent's own computer)
+ * and the agent or person it belongs to as a target. Undefined for a call that named its resource.
+ */
+export function selfAuditNote(cap: Pick<CapabilityDef, "resource" | "name">, input: unknown, caller: { kind: string; id: string }, actingFor: string | undefined): { where: string; targets: Array<{ kind: "agent" | "person"; id: string }> } | undefined {
+  if (!isSelfBound(cap, input, caller)) return undefined;
   const t = selfTarget(cap, input, caller.id);
-  return t.type === "*" ? { type: "agent_computer", id: caller.id } : t;
+  if (t.type === "computer" && t.id === "my-chrome") {
+    const person = actingFor ?? caller.id;
+    return { where: `chrome:${person}`, targets: [{ kind: "agent", id: caller.id }, ...(person.startsWith("usr_") ? [{ kind: "person" as const, id: person }] : [])] };
+  }
+  return { where: `${t.type === "browser_profile" ? "browser" : "computer"}:${caller.id}`, targets: [{ kind: "agent", id: caller.id }] };
 }
