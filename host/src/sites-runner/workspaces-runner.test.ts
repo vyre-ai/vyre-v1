@@ -230,3 +230,28 @@ test("the project folder helper: the fixed chown on one volume, as root with CHO
   assert.equal((await w.call("POST", "/v1.47/containers/vyre-wsinit-prj_site/exec", { Cmd: ["id"] })).status, 403, "no exec into the helper");
   assert.equal((await w.call("DELETE", "/v1.47/containers/vyre-wsinit-prj_site")).status, 200);
 });
+
+test("the one workspaces' network (12 Nov): made only exactly, traffic between containers off and nothing else; a workspace may be made on it; it may be read, never removed or joined", async (t) => {
+  const w = await world();
+  t.after(w.close);
+  const mk = (body: unknown) => w.call("POST", "/v1.47/networks/create", body);
+  const shared = { Name: "vyre-workspaces", Driver: "bridge", CheckDuplicate: true, Options: { "com.docker.network.bridge.enable_icc": "false" }, Labels: { "vyre.workspaces": "shared" } };
+  assert.equal((await mk(shared)).status, 201);
+  const sent = JSON.parse(w.seen.filter((x) => x.url.includes("/networks/create")).at(-1)!.body) as Record<string, unknown>;
+  assert.deepEqual(sent, shared, "what reaches Docker is that body, no subnet named (Docker picks one: a firm's own network may use any fixed range)");
+  for (const [what, body] of [
+    ["traffic between containers on", { ...shared, Options: { "com.docker.network.bridge.enable_icc": "true" } }],
+    ["no option", { ...shared, Options: {} }],
+    ["another option", { ...shared, Options: { ...shared.Options, "com.docker.network.bridge.enable_ip_masquerade": "false" } }],
+    ["a subnet", { ...shared, IPAM: { Config: [{ Subnet: "10.0.0.0/8" }] } }],
+    ["another label", { ...shared, Labels: { "vyre.workspaces": "shared", x: "y" } }],
+    ["not ours", { ...shared, Labels: {} }],
+    ["host driver", { ...shared, Driver: "host" }],
+    ["attachable", { ...shared, Attachable: true }],
+  ] as Array<[string, unknown]>) assert.equal((await mk(body)).status, 403, what);
+  assert.equal((await w.call("POST", "/v1.47/containers/create?name=vyre-ws-agt_dex", good(A, {}, { NetworkMode: "vyre-workspaces" }))).status, 201, "a workspace on the shared network");
+  assert.equal((await w.call("GET", "/v1.47/networks/vyre-workspaces")).status, 200, "read (its subnet, for the daemon's guard)");
+  assert.equal((await w.call("DELETE", "/v1.47/networks/vyre-workspaces")).status, 403, "never removed through the runner");
+  for (const who of ["vyred", name(A), "site1"]) assert.equal((await w.call("POST", "/v1.47/networks/vyre-workspaces/connect", { Container: who })).status, 403, `${who} does not join it`);
+  assert.equal((await w.call("POST", "/v1.47/containers/create?name=vyre-ws-agt_dex", good(A, {}, { NetworkMode: "vyre-sbrowser" }))).status, 403, "and a workspace on no other network");
+});

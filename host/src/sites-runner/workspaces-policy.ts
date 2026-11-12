@@ -10,6 +10,12 @@ export const WS_AGENT = /^[A-Za-z0-9_-]{1,64}$/;
 export const WS_NAME = /^vyre-ws-[A-Za-z0-9_-]{1,64}$/;
 export const WS_INIT_NAME = /^vyre-wsinit-[A-Za-z0-9_-]{1,64}$/;
 export const WS_NET = /^vyre-wsnet-[a-f0-9]{16}$/;
+/**
+ * The one network every workspace on a host joins (12 Nov: a network each used up Docker's address pools at about 30): traffic between containers switched off, so a workspace reaches no other, and its
+ * subnet left to Docker. Made only with exactly this body; nothing joins it after a workspace's own create.
+ */
+export const WS_SHARED_NET = "vyre-workspaces";
+const WS_SHARED_OPTIONS = { "com.docker.network.bridge.enable_icc": "false" };
 export const WS_VOLUME = /^vyre-ws-[A-Za-z0-9_-]{1,64}-(home|files)$/;
 export const WS_PROJECT_VOLUME = /^vyre-wsproj-[A-Za-z0-9_-]{1,64}$/;
 export const wsAgentOf = (name: string): string => name.replace(/^vyre-ws-/, "");
@@ -125,9 +131,18 @@ export function workspaceInitBody(name: string, body: unknown): { body: Record<s
   return { body: { Image: body["Image"], User: "0:0", Entrypoint: ["sh", "-c", WS_INIT_SCRIPT], NetworkDisabled: true, Labels: { "vyre.workspace.helper": "project-init", "vyre.workspace.project": project }, HostConfig: { Binds: [`vyre-wsproj-${project}:/vol:rw`], CapDrop: ["ALL"], CapAdd: ["CHOWN"], SecurityOpt: ["no-new-privileges:true"], NetworkMode: "none", Privileged: false, AutoRemove: false, Memory: 128 * 1024 * 1024, PidsLimit: 32 } } };
 }
 
-/** A workspace's network: a plain bridge with its label. */
+/** A workspace's network: the shared one (WS_SHARED_NET) exactly, or (as before 12 Nov) a plain bridge of one workspace with its label. */
 export function workspaceNetworkBody(body: unknown): { body: Record<string, unknown> } | { why: string } {
   if (!isObj(body)) return { why: "the network config is not an object" };
+  if (body["Name"] === WS_SHARED_NET) {
+    for (const k of Object.keys(body)) if (!["Name", "Driver", "Labels", "CheckDuplicate", "Options"].includes(k)) return { why: `the workspaces' network may not set ${k}` };
+    const labels = isObj(body["Labels"]) ? body["Labels"] : {};
+    if (Object.keys(labels).length !== 1 || labels["vyre.workspaces"] !== "shared") return { why: "the workspaces' network carries vyre.workspaces=shared only" };
+    const opts = isObj(body["Options"]) ? body["Options"] : {};
+    if (Object.keys(opts).length !== 1 || opts["com.docker.network.bridge.enable_icc"] !== "false") return { why: "the workspaces' network has traffic between containers off, and no other option" };
+    if (body["Driver"] !== undefined && body["Driver"] !== "bridge") return { why: "the workspaces' network is a bridge" };
+    return { body: { Name: WS_SHARED_NET, Driver: "bridge", CheckDuplicate: true, Options: { ...WS_SHARED_OPTIONS }, Labels: { "vyre.workspaces": "shared" } } };
+  }
   for (const k of Object.keys(body)) if (!["Name", "Driver", "Labels", "CheckDuplicate"].includes(k)) return { why: `a workspace network may not set ${k}` };
   const labels = isObj(body["Labels"]) ? body["Labels"] : {};
   const agent = String(labels["vyre.workspace"] ?? "");

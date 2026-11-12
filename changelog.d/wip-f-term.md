@@ -38,3 +38,5 @@
 - Two Vyre servers on one computer (the desktop app's Personal Space and device ones) no longer put each other's workspaces to sleep or give away each other's room.
 - In a Space that cannot run agent workspaces yet, an agent's Computer tab says what would make it work, offers owners and admins Console > Computers, and no longer offers an Attach that cannot work.
 - An agent's own state reads Active or Idle, so it no longer says Awake while its workspace says Asleep on the same screen.
+- Agent workspaces on a Team server now share one network with traffic between them off, as on a computer's own Docker, so a server holds far more than 30 of them; workspaces on a network of their own move over when quiet and their old network goes.
+- When a server is full, the workspace that has been quiet longest goes to sleep so a new one starts at once; a new one waits only when every awake workspace is busy.

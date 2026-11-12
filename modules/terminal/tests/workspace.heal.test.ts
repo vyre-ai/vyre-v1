@@ -670,13 +670,14 @@ test("the terminal module registers the subnets its workspaces are on, for the d
   assert.deepEqual(m.subnets(), [], "no workspace yet, no network");
   await m.ensure(AGENT);
   assert.deepEqual(m.subnets(), ["172.31.0.0/24"], "the shared network's subnet");
+  // behind the runner the same shared network (12 Nov), read by its name
   const runner = manager(dk, { runner: true });
   await runner.ensure("agt_pam");
-  assert.equal(runner.subnets().length, 1, "behind the runner, the workspace's own network");
+  assert.deepEqual(runner.subnets(), ["172.31.0.0/24"], "behind the runner, the shared network");
   runner.close();
   const restarted = manager(dk, { runner: true });
   await restarted.sweep();
-  assert.equal(restarted.subnets().length, 1, "read again by name after a restart");
+  assert.deepEqual(restarted.subnets(), ["172.31.0.0/24"], "read again by name after a restart");
   const { agentSubnets } = await import("../impl.ts");
   assert.equal(typeof agentSubnets, "function", "exported as the registry asks (agentSubnets)");
   m.close(); restarted.close();
@@ -812,4 +813,31 @@ test("two daemons on one Docker engine each sleep, list and give back the room o
   assert.deepEqual(roomB.filter((x) => x.startsWith("release")), ["release agt_one_b"], "and gives back only its own room (A's stopped legacy workspace is not B's to release)");
   assert.deepEqual(await a.sweep(), ["agt_one_a"]);
   a.close(); b.close();
+});
+
+// ---- 12 Nov: room on a full host -----------------------------------------------------------------------------------------------------------------------------
+
+test("a full host puts its longest-quiet workspace to sleep and starts the newcomer at once; only when every awake one is busy does the newcomer wait with the plain line", async () => {
+  const clock = { t: 1_000_000 };
+  const busyBoxes = new Set<string>();
+  const dk = engine({ procs: (box) => (busyBoxes.has(box) ? "4711 npm run dev" : "") });
+  const slots = new Set<string>();
+  const capacity = {
+    async claim(id: string) { if (slots.has(id) || slots.size < 2) { slots.add(id); return { state: "running" as const }; } return { state: "waiting" as const, line: "Waiting for room on the Space server." }; },
+    async release(id: string) { slots.delete(id); },
+  };
+  const m = manager(dk, { now: () => clock.t, capacity });
+  await m.exec("agt_first", ["tmux", "-V"]);
+  clock.t += 60_000;
+  await m.exec("agt_second", ["tmux", "-V"]);
+  clock.t += 60_000;
+  assert.equal(await m.ensure("agt_third"), "created", "started at once");
+  assert.equal(dk.box(workspaceName("agt_first")).running, false, "the longest-quiet one slept for it");
+  assert.equal(dk.box(workspaceName("agt_second")).running, true);
+  // now both awake ones are busy: the next one waits
+  busyBoxes.add(workspaceName("agt_second")); busyBoxes.add(workspaceName("agt_third"));
+  await assert.rejects(() => m.ensure("agt_fourth"), (e: Error) => /^Waiting for room on the Space server\. The workspace starts by itself when there is room\.$/.test(e.message));
+  assert.equal(dk.box(workspaceName("agt_second")).running, true, "busy work is never put to sleep for room");
+  assert.equal(dk.box(workspaceName("agt_third")).running, true);
+  m.close();
 });

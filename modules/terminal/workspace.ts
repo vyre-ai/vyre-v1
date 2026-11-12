@@ -217,6 +217,8 @@ const stable = (m: MountSpec, net?: string): string => sha256Hex(JSON.stringify(
  * Docker out of pools at about thirty). Behind the runner each workspace has a network of its own.
  */
 export const SHARED_NETWORK = "vyre-workspaces";
+/** A workspace network of one workspace, as made before 12 Nov (and behind the runner as a fallback since). */
+const OLD_NET = /^vyre-wsnet-[a-f0-9]{16}$/;
 export const SHARED_NETWORK_BODY = { Name: SHARED_NETWORK, Driver: "bridge", CheckDuplicate: true, Options: { "com.docker.network.bridge.enable_icc": "false" }, Labels: { "vyre.workspaces": "shared" } };
 
 /**
@@ -362,7 +364,7 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
     type Net = { IPAM?: { Config?: Array<{ Subnet?: string }> } };
     let list: Net[] = [];
     if (o.runner) {
-      for (const name of madeNets) {
+      for (const name of [SHARED_NETWORK, ...madeNets]) {
         const r = await http({ method: "GET", path: `/networks/${name}` }).catch(() => null);
         if (r?.status === 200) list.push(JSON.parse(dec.decode(r.body)) as Net);
         else if (r?.status === 404) madeNets.delete(name);
@@ -400,14 +402,14 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
     return next;
   }
 
-  async function inspect(name: string): Promise<{ running: boolean; labels: Record<string, string>; projects: string[] } | null> {
+  async function inspect(name: string): Promise<{ running: boolean; labels: Record<string, string>; projects: string[]; network: string } | null> {
     const r = await http({ method: "GET", path: `/containers/${name}/json` });
     if (r.status === 404) return null;
     if (r.status !== 200) throw wsError(`Docker did not answer for the workspace (${r.status}: ${bodyText(r.body)}).`);
-    const j = JSON.parse(dec.decode(r.body)) as { State?: { Running?: boolean }; Config?: { Labels?: Record<string, string> }; HostConfig?: { Binds?: string[] } };
+    const j = JSON.parse(dec.decode(r.body)) as { State?: { Running?: boolean }; Config?: { Labels?: Record<string, string> }; HostConfig?: { Binds?: string[]; NetworkMode?: string } };
     // the project folders it was made with, from its binds: what it mounts until a change is applied
     const projects = (j.HostConfig?.Binds ?? []).flatMap((b) => { const src = b.split(":")[0] ?? ""; return src.startsWith(PROJECT_VOLUME_PREFIX) ? [src.slice(PROJECT_VOLUME_PREFIX.length)] : []; }).filter((p) => PROJECT_ID.test(p)).sort();
-    return { running: j.State?.Running === true, labels: j.Config?.Labels ?? {}, projects };
+    return { running: j.State?.Running === true, labels: j.Config?.Labels ?? {}, projects, network: j.HostConfig?.NetworkMode ?? "" };
   }
 
   async function ensureImage(): Promise<void> {
@@ -460,8 +462,14 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
   let sharedReady = false;
   async function sharedNetwork(): Promise<boolean> {
     if (sharedReady) return true;
-    let made: DockerResponse | null = null;
-    try { made = await http({ method: "POST", path: "/networks/create", json: SHARED_NETWORK_BODY }); } catch { made = null; }
+    const create = async (): Promise<DockerResponse | null> => { try { return await http({ method: "POST", path: "/networks/create", json: SHARED_NETWORK_BODY }); } catch { return null; } };
+    let made = await create();
+    // a host whose address pools are full of the old per-workspace networks: a pool is freed by removing the old network of a workspace that is not running (it moves to the shared one at its
+    // next wake), then the shared one is made; a few tries, never a running workspace's
+    for (let tries = 0; tries < 3 && made !== null && made.status !== 201 && made.status !== 409 && /address pools|subnetted|no available network/i.test(bodyText(made.body)); tries++) {
+      if (!(await freeOldNetwork())) break;
+      made = await create();
+    }
     if (made?.status === 201) { sharedReady = true; await readSubnets(); return true; }
     if (made?.status === 409) {
       const r = await http({ method: "GET", path: `/networks/${SHARED_NETWORK}` }).catch(() => null);
@@ -473,15 +481,30 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
     log("warn", "workspace.network_fallback", { network: SHARED_NETWORK, status: made?.status ?? 0, detail: made ? bodyText(made.body) : "no answer" });
     return false;
   }
-  /** The network a workspace is made on now: its own behind the runner; else the shared one, or the default bridge while the shared one cannot be had. */
+  /** Remove one old per-workspace network of a workspace that is not running (or of none), to free an address pool. True when one went. */
+  async function freeOldNetwork(): Promise<boolean> {
+    let rows: Array<{ State?: string; Labels?: Record<string, string>; HostConfig?: { NetworkMode?: string } }> = [];
+    try { const r = await http({ method: "GET", path: "/containers/json", query: { all: "true", filters: JSON.stringify({ label: ["vyre.workspace"] }) } }); if (r.status === 200) rows = JSON.parse(dec.decode(r.body)); } catch { rows = []; }
+    const busy = new Set(rows.filter((x) => x.State === "running").map((x) => x.HostConfig?.NetworkMode ?? ""));
+    const candidates = rows.filter((x) => x.State !== "running" && OLD_NET.test(x.HostConfig?.NetworkMode ?? "") && !busy.has(x.HostConfig?.NetworkMode ?? "") && mine(x.Labels, x.Labels?.["vyre.workspace"] ?? "")).map((x) => x.HostConfig!.NetworkMode!);
+    for (const net of candidates) {
+      const r = await http({ method: "DELETE", path: `/networks/${net}` }).catch(() => null);
+      if (r && (r.status === 204 || r.status === 200)) { madeNets.delete(net); log("info", "workspace.old_network_removed", { network: net, why: "pools" }); return true; }
+    }
+    return false;
+  }
+  /**
+   * The network a workspace is made on now: the shared one, with or without the runner (12 Nov: a network each ran Docker out of address pools at about 30). While it cannot be had: behind the runner
+   * the workspace's own network as before, else the default bridge, so a working workspace is never taken away for want of a network (review S1).
+   */
   async function networkFor(agentId: string): Promise<string> {
-    if (o.runner) return workspaceNetworkName(agentId);
-    return (await sharedNetwork()) ? SHARED_NETWORK : "bridge";
+    if (await sharedNetwork()) return SHARED_NETWORK;
+    return o.runner ? workspaceNetworkName(agentId) : "bridge";
   }
 
-  async function makeNetwork(agentId: string): Promise<void> {
-    // the shared network was made or checked by networkFor before the config was chosen; on the default bridge there is nothing to make
-    if (!o.runner) return;
+  async function makeNetwork(agentId: string, net: string): Promise<void> {
+    // the shared network was made or checked by networkFor before the config was chosen; on the default bridge there is nothing to make; behind the runner, the fallback is the workspace's own
+    if (!o.runner || net !== workspaceNetworkName(agentId)) return;
     const name = workspaceNetworkName(agentId);
     const r = await http({ method: "POST", path: "/networks/create", json: { Name: name, Driver: "bridge", CheckDuplicate: true, Labels: { "vyre.workspace": agentId } } });
     if (r.status !== 201 && r.status !== 409) throw wsError(`The workspace's network was not made (${r.status}: ${bodyText(r.body)}).`);
@@ -660,7 +683,7 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
     if (wrong.length > 0) throw wsError(`the workspace's container config is outside its profile: ${wrong.join(", ")}`);
     await ensureImage();
     for (const p of want.projects) await ensureProjectVolume(p);
-    await makeNetwork(agentId);
+    await makeNetwork(agentId, config.HostConfig.NetworkMode);
     await api.containerCreate(name, config);
   }
 
@@ -726,6 +749,11 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
         if (info.running) { await homePass(agentId); await finalProjectPasses(agentId); }
         // the room it holds stays held: the same workspace starts again at once, and the claim is asked again below
         await removeContainer(name);
+        // moved off a network of its own: that network goes (a failure to remove it never stops the start)
+        if (OLD_NET.test(info.network) && info.network !== config.HostConfig.NetworkMode) {
+          const gone = await http({ method: "DELETE", path: `/networks/${info.network}` }).catch(() => null);
+          if (gone && (gone.status === 204 || gone.status === 200 || gone.status === 404)) madeNets.delete(info.network);
+        }
         info = null;
         gens.set(agentId, (gens.get(agentId) ?? 0) + 1);
       }
@@ -744,7 +772,9 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
     await o.admit?.({ agentId, state: info ? "wake" : "create" });
     // room first: a host that is full queues it with a plain line and nothing is made or started
     if (o.capacity) {
-      const room = await o.capacity.claim(agentId);
+      let room = await o.capacity.claim(agentId);
+      // a full host first puts its longest-quiet workspace to sleep (nothing held, nothing running) and starts this one; only when every awake one is truly busy does this one wait (12 Nov)
+      if (room.state === "waiting" && (await makeRoom(agentId))) room = await o.capacity.claim(agentId);
       if (room.state === "waiting") { const line = workspaceWaitLine(room.line); waitingLine.set(agentId, line); throw wsError(line, "waiting"); }
       waitingLine.delete(agentId);
     }
@@ -795,9 +825,25 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
   }
 
   /** `ifIdle`: the sweep's sleep. Inside the workspace's turn it looks once more, so a command that began after the sweep looked (its wake came first) is never cut off. */
-  async function sleepNow(agentId: string, ifIdle = false): Promise<boolean> {
+  /**
+   * Room for `forAgent` on a full host: the awake workspaces of this Space, longest quiet first (the last command or keystroke), are looked at until one has nothing held and nothing running; that one
+   * sleeps (its volumes and files stay; it wakes on its next use). A few at most are looked at, so a host of busy workspaces is not asked about every one. True when one slept.
+   */
+  async function makeRoom(forAgent: string): Promise<boolean> {
+    let live: string[];
+    try { live = await running(); } catch { return false; }
+    const quiet = live.filter((id) => id !== forAgent && (holds.get(id) ?? 0) === 0).sort((a, b) => (lastTouch.get(a) ?? 0) - (lastTouch.get(b) ?? 0));
+    for (const id of quiet.slice(0, 8)) {
+      if (await sleepNow(id, false, true)) { log("info", "workspace.slept_for_room", { agent: id, for: forAgent }); return true; }
+    }
+    return false;
+  }
+
+  async function sleepNow(agentId: string, ifIdle = false, ifQuiet = false): Promise<boolean> {
     return serial(agentId, async () => {
       if (!(await api.containerRunning(workspaceName(agentId)))) return false;
+      // making room: only one with nothing held and nothing running, looked at in its own turn
+      if (ifQuiet && ((holds.get(agentId) ?? 0) > 0 || (await busy(agentId)))) return false;
       if (ifIdle) {
         const at = lastUsed.get(agentId);
         if (at !== undefined && now() - at < idleMs) return false;

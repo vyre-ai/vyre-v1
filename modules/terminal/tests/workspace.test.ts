@@ -81,12 +81,16 @@ test("an id that is not an agent's is refused before anything is made", async ()
   assert.equal(r.dk.boxes.size, 0);
 });
 
-test("behind the runner each workspace is on a network of its own, and only named volumes are bound", async () => {
+// 12 Nov (lead's decision, owner: "more than 30 workspaces ... smoothly"): a network each ran Docker out of address pools at about 30, so behind the runner too every workspace shares one network with
+// traffic between containers off; a network of its own is now only the fallback while the shared one cannot be made
+test("behind the runner workspaces share the one network with traffic between containers off, and only named volumes are bound", async () => {
   const r = rig({ runner: true });
   await r.mgr.ensure(AGENT);
-  assert.equal(r.dk.ops("network").length, 1);
+  await r.mgr.ensure("agt_pam");
+  assert.equal(r.dk.ops("network").length, 1, "one network for both");
   const net = r.dk.ops("network")[0]!.name!;
-  assert.match(net, /^vyre-wsnet-[0-9a-f]{16}$/);
+  assert.equal(net, "vyre-workspaces");
+  assert.equal((r.dk.ops("network")[0]!.detail as { Options?: Record<string, string> }).Options?.["com.docker.network.bridge.enable_icc"], "false");
   assert.equal(r.dk.box(NAME).config["HostConfig"]["NetworkMode"], net);
   assert.ok(r.dk.box(NAME).config["HostConfig"]["Binds"].every((b: string) => !b.startsWith("/")), "named volumes only");
 });

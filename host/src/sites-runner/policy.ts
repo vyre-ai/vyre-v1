@@ -4,7 +4,7 @@
 // every capability dropped, no new privileges, a CPU, memory and process cap, rotated logs, and no host path, device, port or namespace; start, stop, read, remove and log only containers
 // that carry vyre.site; exec only into those, as their own user; remove only vyre-site images, volumes and networks. So one site cannot reach another site or its database.
 import { COMPUTER_NAME, COMPUTER_NET, HELPER_NAME_RE, PROFILE_VOLUME, SBROWSER_NAME, SBROWSER_NET, SBROWSER_VOLUME, archiveOk, isComputerImage, isSbrowserImage } from "./computers-policy.ts";
-import { WS_INIT_NAME, WS_NAME, WS_NET, WS_PROJECT_VOLUME, WS_VOLUME, isWorkspaceImage, workspaceListOk } from "./workspaces-policy.ts";
+import { WS_INIT_NAME, WS_NAME, WS_NET, WS_SHARED_NET, WS_PROJECT_VOLUME, WS_VOLUME, isWorkspaceImage, workspaceListOk } from "./workspaces-policy.ts";
 
 
 /** A site's own network: its app, its Postgres and Redis, and the ingress. */
@@ -158,6 +158,8 @@ export function judge(r: Request): Verdict | { ok: true; kind: "container"; id: 
   if (e) return m === "POST" && e[2] === "start" ? { ok: true, kind: "exec-start", id: e[1] as string } : m === "GET" && e[2] === "json" ? { ok: true, kind: "exec-inspect", id: e[1] as string } : no("that exec call is refused");
   if (m === "POST" && p === "/networks/create") return { ok: true, kind: "network-create" };
   const net = /^\/networks\/([a-z0-9-]{1,40})(?:\/(connect))?$/.exec(p);
+  // the shared workspaces' network may be read (its subnet and options, for the daemon's guard and the module's check), never removed or joined here
+  if (net && net[1] === WS_SHARED_NET && m === "GET" && !net[2]) return { ok: true, kind: "plain" };
   if (net && (NET_NAME.test(net[1] as string) || COMPUTER_NET.test(net[1] as string) || WS_NET.test(net[1] as string) || net[1] === SBROWSER_NET)) {
     if (m === "GET" && !net[2]) return { ok: true, kind: "plain" };
     if (m === "DELETE" && !net[2]) return { ok: true, kind: "plain" };
