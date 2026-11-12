@@ -139,6 +139,12 @@ test("a connector request carries a Vault key only to hosts a person approved fo
     assert.equal(back.status, 200, back.text);
     const rolled = await post(OWNER, "connections.create", { connector: "rollapp", title: "Roll", ownerKind: "space", secrets: { api_key: `${handle4}.api_key` } });
     assert.equal(rolled.status, 200, rolled.text);
+    // a person's connection to a built-in connector (seeded live from the registry, never published by anyone here): the product's own domains, so the update keeps them
+    const key5 = await post(OWNER, "vault.item.put", { folderId: fid, name: "Stripekey", kind: "api_key", fields: [{ key: "api_key", value: SECRET }] });
+    const handle5 = String((key5.data["item"] as { handle?: string }).handle);
+    const builtin = await post(OWNER, "connections.create", { connector: "stripe", title: "Stripe", ownerKind: "space", secrets: { Stripe_Key: `${handle5}.api_key` } });
+    assert.equal(builtin.status, 200, builtin.text);
+    const builtinConn = String((builtin.data["connection"] as { connectionId?: string }).connectionId);
     await d.stop();
     // the data the last release left: no approved hosts for any key, and the one-time step never ran
     const modules = new DatabaseSync(path.join(dir, "modules.db"));
@@ -151,6 +157,10 @@ test("a connector request carries a Vault key only to hosts a person approved fo
     for (let i = 0; i < 60 && adopted.length === 0; i++) { adopted = await hostsOf(handle3); if (adopted.length === 0) await new Promise((r) => setTimeout(r, 150)); }
     assert.deepEqual(adopted, [["api.good.example", "usr_olivia"]], "a person's binding on a person's connector keeps its host, recorded as that person");
     assert.deepEqual(await hostsOf(handle2), [], "an agent's binding on an agent's connector is not adopted");
+    assert.deepEqual(await hostsOf(handle5), [["api.stripe.com", "usr_olivia"]], "a person's connection to a built-in connector keeps the product's domains after the update");
+    const builtinRun = await post(OWNER, "connectors.run", { key: "stripe", action: "stripe.customer.list", connectionId: builtinConn, input: {} });
+    console.log(`BUILTINRUN ${builtinRun.status} ${builtinRun.text.slice(0, 240)}`);
+    assert.doesNotMatch(builtinRun.text, /is not allowed to go to/, "the built-in connection is not refused by the key-host check");
     assert.deepEqual(await hostsOf(handle4), [], "a person's binding on a connector whose live version an agent published (put back by a rollback) is not adopted");
     assert.deepEqual(await hostsOf(handle), [], "a person's binding on an agent's connector is not adopted");
     const before2 = sent.filter((s) => s.key).length;

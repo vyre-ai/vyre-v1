@@ -30,3 +30,4 @@
 - An agent's held key read keeps the item it resolved; the send after a yes uses that item, or refuses if the handle now leads to another.
 - A relayed web request is counted by the visitor's address, so one stranger's wrong guesses no longer block a Space's hooks for a minute; the relay also takes at most 20 hook requests a minute from one address.
 - The update approves a connector's hosts only when the version that is live was published by a person and the last publish or rollback was a person's; a connector that is not live can never send a filled key.
+- The update keeps a built-in connector's hosts for a person's connection to it (built-ins are the product's own, seeded with no publish event). A relayed web request over its rate limit gets a 429 with Retry-After; the per-visitor limit counts each address per hook.

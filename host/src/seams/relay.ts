@@ -356,7 +356,8 @@ export const doorPath = (p: string): boolean => DOOR.test(p) && p.length <= 4096
 /**
  * A web request trigger through the relay: POST /hooks/automation/<id>/<secret>, that exact shape and nothing near it (no query, no other /hooks path). The same pattern as relay/worker/phone.js HOOK
  * and host/src/routes/webhooks.ts AUTOMATION_PATH. Limits on this side, before the daemon's own route: a body of 1 MB at most, 120 a minute for the Space and 30 a minute for one hook (the route then
- * holds its own 60 a minute per hook). Every refusal is the bare 404 the route gives for a hook that does not exist, and the path (it carries the secret) is never logged here.
+ * holds its own 60 a minute per hook). A rate limit is a 429 with Retry-After; every other refusal is the bare 404 the route gives for a hook that does not exist, and the path (it carries
+ * the secret) is never logged here.
  */
 const HOOK = /^\/hooks\/automation\/aut_[a-z0-9]{1,64}\/[A-Za-z0-9_-]{8,200}$/;
 export const hookPath = (p: string): boolean => HOOK.test(p);
@@ -426,7 +427,8 @@ function serveHook(send: (m: unknown) => void, m: { id: string; method: string; 
   const notFound = (): void => { send({ t: "p.res", id: m.id, status: 404, headers: {} }); send({ t: "p.end", id: m.id }); };
   if (m.method !== "POST" || !hookPath(m.path) || body.length > RELAY_HOOKS.maxBody) { notFound(); return; }
   const id = m.path.split("/")[3] as string;
-  if (!takeRelayHook(id)) { notFound(); return; }
+  // a rate limit is a 429 (the relay passes it on with Retry-After); it says nothing about whether the id or secret is valid
+  if (!takeRelayHook(id)) { send({ t: "p.res", id: m.id, status: 429, headers: { "retry-after": "60" } }); send({ t: "p.end", id: m.id }); return; }
   const given = (typeof m.headers === "object" && m.headers !== null ? m.headers : {}) as Record<string, unknown>;
   const headers: Record<string, string> = { "x-vyre-via": "relay", "content-length": String(body.length) };
   // the visitor's address as the relay saw it (cf-connecting-ip), as the one forwarded entry: the daemon's per-source limits then count each visitor, not the whole relay as 127.0.0.1, so one
@@ -441,6 +443,7 @@ function serveHook(send: (m: unknown) => void, m: { id: string; method: string; 
     let size = 0;
     res.on("data", (c: Buffer) => { size += c.length; if (size <= 4096) chunks.push(c); });
     res.on("end", () => {
+      if (res.statusCode === 429) { send({ t: "p.res", id: m.id, status: 429, headers: { "retry-after": "60" } }); send({ t: "p.end", id: m.id }); return; }
       if (res.statusCode !== 200) { notFound(); return; }
       send({ t: "p.res", id: m.id, status: 200, headers: { "content-type": "application/json" } });
       send({ t: "p.data", id: m.id, b: Buffer.from('{"accepted":true}').toString("base64") });

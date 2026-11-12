@@ -60,6 +60,8 @@ export async function adoptPersonBindings(o: {
   domainsOf(connector: string): Promise<unknown>;
   /** the connector's live version (cn_connectors.version), or null when it is not live */
   liveVersion(connector: string): string | null;
+  /** a built-in connector (seeded from the registry) */
+  isBuiltin(connector: string): boolean;
   usableBy(person: string): Promise<readonly { id?: unknown; handle?: unknown; yourLevel?: unknown }[]>;
   now: number;
 }): Promise<number> {
@@ -74,17 +76,22 @@ export async function adoptPersonBindings(o: {
     const live = o.liveVersion(c.connector);
     if (!live) continue;
     const published = await o.log.read({ type: "connector.published", entity: "connector", entity_id: c.connector, limit: 500 });
-    // the log hands the payload back as the JSON's bytes
-    const versionOf = (e: { payload?: unknown }): string | undefined => {
-      let p: unknown = e.payload;
-      try { if (p instanceof Uint8Array) p = JSON.parse(Buffer.from(p).toString("utf8")); else if (typeof p === "string") p = JSON.parse(p); } catch { return undefined; }
-      const v = (p as { version?: unknown } | null | undefined)?.version;
-      return typeof v === "string" ? v : undefined;
-    };
-    const publishedLive = published.filter((e) => versionOf(e) === live);
-    if (publishedLive.length === 0 || !publishedLive.every((e) => isPerson(e.actor))) continue;
-    const made = [...published, ...(await o.log.read({ type: "connector.rolled_back", entity: "connector", entity_id: c.connector, limit: 500 }))].sort((a, b) => (a.seq ?? 0) - (b.seq ?? 0));
-    if (!isPerson(made[made.length - 1]?.actor)) continue;
+    const rolled = await o.log.read({ type: "connector.rolled_back", entity: "connector", entity_id: c.connector, limit: 500 });
+    // a built-in connector nobody has published over or rolled back is the product's own, seeded live with no event: its domains come from the registry, not from an agent
+    const productOwn = o.isBuiltin(c.connector) && published.length === 0 && rolled.length === 0;
+    if (!productOwn) {
+      // the log hands the payload back as the JSON's bytes
+      const versionOf = (e: { payload?: unknown }): string | undefined => {
+        let p: unknown = e.payload;
+        try { if (p instanceof Uint8Array) p = JSON.parse(Buffer.from(p).toString("utf8")); else if (typeof p === "string") p = JSON.parse(p); } catch { return undefined; }
+        const v = (p as { version?: unknown } | null | undefined)?.version;
+        return typeof v === "string" ? v : undefined;
+      };
+      const publishedLive = published.filter((e) => versionOf(e) === live);
+      if (publishedLive.length === 0 || !publishedLive.every((e) => isPerson(e.actor))) continue;
+      const made = [...published, ...rolled].sort((a, b) => (a.seq ?? 0) - (b.seq ?? 0));
+      if (!isPerson(made[made.length - 1]?.actor)) continue;
+    }
     const domains = await o.domainsOf(c.connector);
     if (!Array.isArray(domains)) continue;
     const usable = await o.usableBy(binder);
