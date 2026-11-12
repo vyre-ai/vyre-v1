@@ -6,6 +6,7 @@ import { spawn } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import { fileURLToPath } from "node:url";
 import { holdMarker, markDamaged } from "../src/daemon/damaged-db.ts";
 import { STOP_BOUND_MS, reportArgs, watchStop } from "./stop-watch-kit.test.ts";
@@ -31,10 +32,11 @@ async function startUntilListening(dir: string): Promise<{ out: string; err: str
 test("a marked database that a restore made sound again: the next start checks it once, removes the marker and starts as usual", { timeout: 120_000 }, async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-damaged-restore-"));
   try {
-    const first = await startUntilListening(dir);
-    assert.match(first.out, /listening on/, first.err);
-    assert.ok(first.stopMs <= STOP_BOUND_MS, `the stop after SIGTERM took ${first.stopMs} ms\n${first.evidence}`);
-    // what the start that met a damaged modules.db leaves behind; the file itself is the sound one a restore put back
+    // the sound file a restore put back, written directly (a sound SQLite file with a table and rows; booting a Space first to make one doubled this file's time), and the
+    // marker the start that met the damaged one left behind
+    const sound = new DatabaseSync(path.join(dir, "modules.db"));
+    sound.exec("CREATE TABLE restored(v TEXT); INSERT INTO restored VALUES ('from the backup')");
+    sound.close();
     markDamaged(dir, "modules.db", "database disk image is malformed");
     assert.ok(fs.existsSync(holdMarker(dir)));
     const again = await startUntilListening(dir);
@@ -42,5 +44,8 @@ test("a marked database that a restore made sound again: the next start checks i
     assert.ok(again.stopMs <= STOP_BOUND_MS, `the stop after SIGTERM took ${again.stopMs} ms\n${again.evidence}`);
     assert.doesNotMatch(again.err, /is damaged/);
     assert.equal(fs.existsSync(holdMarker(dir)), false, "the marker is gone");
+    const kept = new DatabaseSync(path.join(dir, "modules.db"), { readOnly: true });
+    assert.equal((kept.prepare("SELECT v FROM restored").get() as { v: string }).v, "from the backup", "the restored file is the one the Space runs on");
+    kept.close();
   } finally { fs.rmSync(holdMarker(dir), { force: true }); fs.rmSync(dir, { recursive: true, force: true }); }
 });

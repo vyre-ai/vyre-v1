@@ -18,3 +18,4 @@
 - The files of an agent made in a private chat or in a thread of an invite-only channel are now only for the people who can read that chat, the agent's owner, and the Space's owners and admins. Other members no longer open, list or find them, and the agent cannot read them for someone who is not in that chat.
 - Leaving or being taken out of that chat takes its agent's files away at once. Making the channel public opens them to the Space, and making it invite-only again closes them. Someone added to the channel gets them.
 - Agents made in private chats before this update have their files closed the same way when the server starts.
+- When the server closes the files of an agent made in a private chat, the chat's people get them first, so an update stopped half way never locks them out.
