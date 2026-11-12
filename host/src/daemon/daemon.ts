@@ -1982,7 +1982,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
               owner: spaceId,
               ownsAgent: (agentId: string) => { try { return db!.all("SELECT 1 FROM agents_agent WHERE id = ?", agentId).length > 0; } catch { return false; } },
               // a turn of this agent running now (started in the last 12 hours, so a row a crash left does not hold a workspace awake forever): making room passes its workspace over (lead, 12 Nov)
-              inTurn: (agentId: string) => { try { return db!.all("SELECT 1 FROM engine_turns WHERE agent_id = ? AND state = 'running' AND started_at > ? LIMIT 1", agentId, Date.now() - 12 * 3_600_000).length > 0; } catch { return false; } },
+              inTurn: (agentId: string) => { try { return db!.all("SELECT 1 FROM engine_turns WHERE agent_id = ? AND state = 'running' AND started_at > ? LIMIT 1", agentId, Date.now() - 12 * 3_600_000).length > 0; } catch { return undefined; } },
               // in Trash now: a row with deletedAt, or no row (purged from Trash); undefined when the table cannot be read (third look T2)
               inTrash: (agentId: string) => {
                 try { const row = db!.all("SELECT deletedAt FROM agents_agent WHERE id = ?", agentId)[0] as { deletedAt?: unknown } | undefined; return row === undefined || (row.deletedAt !== null && row.deletedAt !== undefined); } catch { return undefined; }

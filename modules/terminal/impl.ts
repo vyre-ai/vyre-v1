@@ -754,6 +754,11 @@ export const consumers = {
     on: ["agent.deleted"],
     run: (ctx: TermCtx, event: { payload: { agentId?: unknown } }): Promise<string[]> => onAgentGone(ctx, event, workspaceManager ? (agentId) => (workspaceManager as WorkspaceManager).remove(agentId, { keepVolumes: true }) : null, inTrashCheck),
   },
+  /** Something changed in Files: awake workspaces whose Files mirror slowed down while quiet make their next pass within seconds, so a file a person drops appears without a command (fourth look U2). */
+  "terminal.files_changed": {
+    on: ["file.created", "file.version_added", "file.moved", "file.renamed", "file.deleted", "file.restored", "folder.created", "folder.moved", "folder.renamed", "folder.deleted"],
+    run: (): string[] => { workspaceManager?.filesChanged(); return []; },
+  },
   /** An agent came back from Trash: its workspace may be made again, over the volumes it kept. */
   "terminal.agent_restored": {
     on: ["agent.restored"],

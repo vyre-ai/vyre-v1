@@ -80,8 +80,8 @@ export interface WorkspaceOptions {
   http: DockerHttp;
   image?: string;
   limits?: Partial<{ cpus: number; memoryMb: number; pids: number; reserveMb: number }>;
-  /** Does this agent have a turn running now (the engine's turns)? A workspace is never put to sleep to make room while it does (lead, 12 Nov). */
-  inTurn?: (agentId: string) => boolean;
+  /** Does this agent have a turn running now (the engine's turns)? undefined when that cannot be read. A workspace is never put to sleep to make room while it does (lead, 12 Nov). */
+  inTurn?: (agentId: string) => boolean | undefined;
   /** The longest a mirror waits between passes when nothing happens in the workspace. Default 60 s. */
   mirrorMaxMs?: number;
   /** How long after a command the project folders it may have changed are mirrored (a file must sit unchanged for a second first). Default 1200 ms. */
@@ -185,6 +185,10 @@ export interface WorkspaceManager {
   hostSubnets(): Promise<string[] | null>;
   /** Is its container running now: one look at that container only (a tab's 400 ms read asks this, so it must not list every workspace). */
   awake(agentId: string): Promise<boolean>;
+  /** Before a command: one pass of the workspace's mirrors when they slowed down, at most `ms`; false when that did not finish in time. */
+  freshen(agentId: string, ms?: number): Promise<boolean>;
+  /** Something changed in Files: slowed mirrors make their next pass soon. */
+  filesChanged(): void;
   /** A person's open tab read the workspace's screen: it counts as attached for a short while (making room passes it over). */
   viewed(agentId: string): void;
   /** The line a workspace put to sleep at the 12-hour ceiling owes its next command, once (then null). */
@@ -333,6 +337,12 @@ export const NOT_PRIVATE = "This workspace is on a server whose link to the Spac
 const wsError = (message: string, code = "unavailable"): Error => Object.assign(new Error(message), { code, workspace: true });
 
 export const IMAGE_MISSING_LINE = "This server can't start agent workspaces yet.";
+/** A command run before the workspace's copy of Files caught up (it took longer than a few seconds): its first line. */
+export const FILES_LATE_LINE = "Files changed in the last few seconds may not be in the workspace yet: copying them from Files is taking longer than usual.";
+
+/** A workspace that cannot get a network because Docker's address pools are used up (fourth look U3): it starts by itself on a later command once there is room. */
+export const NO_ROOM_FOR_WORKSPACE_NETWORK = "This server has no room for another network for this workspace right now. Remove sites or networks you no longer use, or ask for help to make room; the workspace starts on the next command once there is room.";
+
 /** What an agent's next command says after its workspace was put to sleep to make room for another (lead, 12 Nov). */
 export const SLEPT_FOR_ROOM_LINE = "Your workspace was asleep and has been started again. Programs that were running are gone; your files are as you left them.";
 
@@ -366,7 +376,7 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
   const mounted = new Map<string, string[]>();
   const chain = new Map<string, Promise<unknown>>();
   let timer: ReturnType<typeof setInterval> | null = null;
-  type Paced = { timer: ReturnType<typeof setTimeout> | null; delay: number; stopped: boolean; tick?: () => void };
+  type Paced = { timer: ReturnType<typeof setTimeout> | null; delay: number; stopped: boolean; tick?: () => void; poked?: boolean };
   const homes = new Map<string, { sync: { pass(): Promise<{ failed: number }> } } & Paced>();
   // the projects each awake workspace mounts, who last worked in each project, and its mirror
   const agentProjects = new Map<string, string[]>();
@@ -424,8 +434,13 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
   const JUST_WOKEN_MS = 60_000;
   /** When a person's open tab last read each workspace's screen: attached while that is recent. */
   const viewedAt = new Map<string, number>();
-  /** Making room never takes a workspace used in the last 90 s (an agent between two commands of one task), nor one a person has a tab attached to (read in the last 15 s). */
-  const ROOM_QUIET_MS = 90_000;
+  /**
+   * Making room never takes a workspace whose agent has a turn running, one a person has a tab attached to (read in the last 15 s), or one running a command. One whose agent has no turn running
+   * may be taken 10 s after its last command or keystroke; only when the turn cannot be read is the wait 90 s, the guess at an agent between two commands of one task (lead, 12 Nov, as for the
+   * Space browser).
+   */
+  const ROOM_GRACE_MS = 10_000;
+  const ROOM_GRACE_UNKNOWN_MS = 90_000;
   const ATTACHED_MS = 15_000;
   /** Workspaces a newcomer is putting to sleep for room right now: other newcomers pass them over. */
   const forRoom = new Set<string>();
@@ -572,6 +587,7 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
     if (!o.runner || net !== workspaceNetworkName(agentId)) return;
     const name = workspaceNetworkName(agentId);
     const r = await http({ method: "POST", path: "/networks/create", json: { Name: name, Driver: "bridge", CheckDuplicate: true, Labels: { "vyre.workspace": agentId } } });
+    if (r.status !== 201 && r.status !== 409 && /address pools|subnetted|no available network/i.test(bodyText(r.body))) throw wsError(`${NO_ROOM_FOR_WORKSPACE_NETWORK} (${bodyText(r.body)})`, "unavailable");
     if (r.status !== 201 && r.status !== 409) throw wsError(`The workspace's network was not made (${r.status}: ${bodyText(r.body)}).`);
     madeNets.add(name);
     await readSubnets();
@@ -624,11 +640,47 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
     return h;
   }
   /** One round of the mirror; true when it finished with nothing left undone (or there is no mirror), so a caller about to stop the container knows nothing was lost. */
-  async function homePass(agentId: string): Promise<boolean> {
+  /** Passes in flight, shared: a pass asked for while one runs waits for that one (a run's freshen, the paced timer and a wake never run two at once on one mirror). When each mirror last finished one. */
+  const inflight = new Map<string, Promise<boolean>>();
+  const lastPass = new Map<string, number>();
+  function shared(key: string, f: () => Promise<boolean>): Promise<boolean> {
+    const have = inflight.get(key);
+    if (have) return have;
+    const p = f().finally(() => { inflight.delete(key); lastPass.set(key, now()); });
+    inflight.set(key, p);
+    return p;
+  }
+  function homePass(agentId: string): Promise<boolean> {
     const h = homeOf(agentId);
-    if (!h) return true;
-    try { return (await h.sync.pass()).failed === 0; }
-    catch (e) { log("warn", "workspace.home_pass_failed", { agent: agentId, error: e instanceof Error ? e.message.slice(0, 200) : "unknown" }); return false; }
+    if (!h) return Promise.resolve(true);
+    return shared(`h:${agentId}`, async () => {
+      try { return (await h.sync.pass()).failed === 0; }
+      catch (e) { log("warn", "workspace.home_pass_failed", { agent: agentId, error: e instanceof Error ? e.message.slice(0, 200) : "unknown" }); return false; }
+    });
+  }
+  /**
+   * Before a command in a workspace whose mirrors slowed down (fourth look U2): one pass of its Files mirror and of its projects' mirrors, so a file a person just dropped is there when the command
+   * runs. Only when the last pass is older than the quick pace; at most `ms`. False when it did not finish in time (the command then says so in its first line).
+   */
+  async function freshen(agentId: string, ms = 4000): Promise<boolean> {
+    if (!homes.has(agentId) && !(agentProjects.get(agentId) ?? []).length) return true;
+    // a slowed mirror always (its last pass may be a minute old), else one whose last pass is older than the quick pace
+    const slowed = (x: Paced | undefined): boolean => x !== undefined && x.delay > mirrorBase();
+    const stale = (key: string): boolean => slowed(key.startsWith("h:") ? homes.get(key.slice(2)) : projects.get(key.slice(2))) || now() - (lastPass.get(key) ?? 0) > mirrorBase();
+    // a pass already running may have read Files before the drop: it is waited for, then a new one runs
+    const after = async (key: string, f: () => Promise<boolean>): Promise<boolean> => { const have = inflight.get(key); if (have) await have.catch(() => false); return f(); };
+    const work: Array<Promise<boolean>> = [];
+    if (homes.has(agentId) && (stale(`h:${agentId}`) || inflight.has(`h:${agentId}`))) work.push(after(`h:${agentId}`, () => homePass(agentId)));
+    for (const pid of agentProjects.get(agentId) ?? []) if (stale(`p:${pid}`) || inflight.has(`p:${pid}`)) work.push(after(`p:${pid}`, () => projectPass(pid)));
+    if (work.length === 0) return true;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const late = new Promise<false>((r) => { timer = setTimeout(() => r(false), ms); timer.unref?.(); });
+    try { return await Promise.race([Promise.all(work).then(() => true), late]); } finally { clearTimeout(timer); }
+  }
+  /** Something changed in Files: every mirror that slowed down makes its next pass soon (once, at the quick pace), so a dropped file arrives within seconds with no command. */
+  function filesChanged(): void {
+    for (const h of homes.values()) poke(h, mirrorBase());
+    for (const p of projects.values()) poke(p, mirrorBase());
   }
   /** Before a workspace stops: the project folders it mounts, mirrored once more, when it is the last running workspace on them (while another runs, that one keeps mirroring). */
   async function finalProjectPasses(agentId: string): Promise<boolean> {
@@ -669,6 +721,14 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
     clearTimeout(x.timer);
     x.delay = base;
     x.timer = setTimeout(x.tick, base);
+    x.timer.unref?.();
+  }
+  /** The next pass soon, at the quick pace, without changing how slow the mirror is (a burst of Files events costs one pass per mirror, not one per event). */
+  function poke(x: Paced | undefined, base: number): void {
+    if (!x || x.stopped || !x.timer || !x.tick || x.delay <= base || x.poked) return;
+    clearTimeout(x.timer);
+    x.poked = true;
+    x.timer = setTimeout(() => { x.poked = false; x.tick?.(); }, base);
     x.timer.unref?.();
   }
   const mirrorBase = (): number => o.home?.intervalMs ?? 3000;
@@ -715,7 +775,8 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
     };
   }
   /** One round of a project's mirror, as the agent that last worked in it, through a workspace that is running and mounts it. True when nothing was left undone, or there is nothing to do. */
-  async function projectPass(projectId: string): Promise<boolean> {
+  function projectPass(projectId: string): Promise<boolean> { return shared(`p:${projectId}`, () => projectPassNow(projectId)); }
+  async function projectPassNow(projectId: string): Promise<boolean> {
     if (!o.home?.syncProject) return true;
     const via = await runningMounter(projectId);
     if (via === null) return true;
@@ -877,6 +938,17 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
       wokenAt.set(agentId, now());
     }
     try {
+      // its network is gone (removed to free a pool while it slept, and the shared one still could not be had): starting it would give a workspace where every command fails, so it is made
+      // again on what the rule gives now (fourth look U3); the volumes stay
+      if (info && !["bridge", "default", "host", "none", ""].includes(info.network)) {
+        const there = await http({ method: "GET", path: `/networks/${info.network}` }).catch(() => null);
+        if (there?.status === 404) {
+          log("warn", "workspace.network_missing", { agent: agentId, network: info.network, now: config.HostConfig.NetworkMode });
+          await removeContainer(name);
+          info = null;
+          gens.set(agentId, (gens.get(agentId) ?? 0) + 1);
+        }
+      }
       if (!info) await build(agentId, name, want, config);
       await api.containerStart(name);
     } catch (e) { await o.capacity?.release(agentId).catch(() => undefined); throw e; }
@@ -934,10 +1006,15 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
     let live: string[];
     try { live = await running(); } catch { return false; }
     // one that was given room in the last minute and has had no command since is a newcomer still starting: never the one put to sleep
-    const starting = (id: string): boolean => { const w = wokenAt.get(id); return w !== undefined && now() - w < JUST_WOKEN_MS && (lastTouch.get(id) ?? 0) < w; };
+    // and one given room in the last minute is never taken for another: two agents never put each other to sleep twice within a minute (fourth look U1)
+    const starting = (id: string): boolean => { const w = wokenAt.get(id); return w !== undefined && now() - w < JUST_WOKEN_MS; };
     // never one with a turn or a run in progress, used in the last 90 s, or with a person's tab attached: "nothing running this instant" is not enough (lead, 12 Nov)
-    const mayTake = (id: string): boolean => (holds.get(id) ?? 0) === 0 && !starting(id) && now() - (lastTouch.get(id) ?? 0) >= ROOM_QUIET_MS
-      && now() - (viewedAt.get(id) ?? -Infinity) >= ATTACHED_MS && !(o.inTurn?.(id) ?? false);
+    const mayTake = (id: string): boolean => {
+      if ((holds.get(id) ?? 0) > 0 || starting(id) || now() - (viewedAt.get(id) ?? -Infinity) < ATTACHED_MS) return false;
+      const turn = o.inTurn?.(id);
+      if (turn === true) return false;
+      return now() - (lastTouch.get(id) ?? 0) >= (turn === false ? ROOM_GRACE_MS : ROOM_GRACE_UNKNOWN_MS);
+    };
     const quiet = live.filter((id) => id !== forAgent && mayTake(id))
       .sort((a, b) => (lastTouch.get(a) ?? 0) - (lastTouch.get(b) ?? 0));
     // at most a few awake ones are asked whether they are busy; ones another newcomer already put to sleep (newcomers at once share one list) are passed over without counting
@@ -1108,6 +1185,8 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
     },
     awake: (agentId) => (AGENT_ID.test(agentId) ? api.containerRunning(workspaceName(agentId)).catch(() => false) : Promise.resolve(false)),
     viewed(agentId) { viewedAt.set(agentId, now()); },
+    freshen,
+    filesChanged,
     takeNote(agentId) { const n = sleptNote.get(agentId) ?? null; sleptNote.delete(agentId); return n; },
     async cut(agentId, projectId) {
       if (!AGENT_ID.test(agentId) || !PROJECT_ID.test(projectId)) return;
@@ -1401,8 +1480,11 @@ export function createWorkspaceTerminalHost(w: WorkspaceTerminalOptions): Worksp
         // a session tmux lost is made again before the line is typed; never after, so a command is never typed twice
         if ((await m.exec(t.agentId, ["tmux", "has-session", "-t", nameOf(id)])).code !== 0) t = await at(id, true);
         const g0 = m.generation(t.agentId);
+        // a file a person just dropped into Files is there before the command runs (fourth look U2); if the copy takes too long, the command runs anyway and says so
+        const fresh = await m.freshen(t.agentId).catch(() => false);
         // a workspace that slept at the 12-hour ceiling says so, once, in the answer of the command that woke it
-        const note = m.takeNote(t.agentId);
+        const slept = m.takeNote(t.agentId);
+        const note = fresh ? slept : [slept, FILES_LATE_LINE].filter((x): x is string => x !== null).join("\n");
         try { const out = await t.host.run(id, r); return note === null ? out : { ...out, output: `${note}\n${out.output}` }; }
         catch (e) {
           // the workspace was made again under the command (the agent left a project): say so instead of a tmux error

@@ -1107,3 +1107,110 @@ test("making room never takes a workspace whose agent has a turn running, that w
   assert.doesNotMatch(again.output, /was asleep/, "once");
   m.close();
 });
+
+// ---- fourth look U3: a workspace whose network went while it slept ---------------------------------------------------------------------------------------------
+
+test("U3: an asleep workspace whose old network was removed (to free a pool) while the shared one still cannot be made wakes on a network that exists, and its commands work", async () => {
+  let fails = false;
+  const dk = engine({ networkFails: () => fails });
+  const OLD = "agt_sleeper";
+  const oldNet = workspaceNetworkName(OLD);
+  // made before 12 Nov behind the runner, on its own network, asleep
+  await dk.http({ method: "POST", path: "/networks/create", json: { Name: oldNet, Driver: "bridge", CheckDuplicate: true, Labels: { "vyre.workspace": OLD } } });
+  await dk.http({ method: "POST", path: "/containers/create", query: { name: workspaceName(OLD) }, json: workspaceContainerConfig(OLD, "vyre/agent-workspace:1", { projects: [] }, {}, oldNet) });
+  // its network was removed to free a pool, and a site took the pool: the shared network cannot be made
+  await dk.http({ method: "DELETE", path: `/networks/${oldNet}` });
+  fails = true;
+  const clock = { t: 1_000_000 };
+  const m = manager(dk, { runner: true, now: () => clock.t });
+  // while no pool is free nothing can start, and it says so plainly (never a container started without its network)
+  await assert.rejects(() => m.exec(OLD, ["tmux", "-V"]), /^Error: This server has no room for another network for this workspace right now\./);
+  assert.equal(dk.boxes.get(workspaceName(OLD))?.running ?? false, false, "not started without a network");
+  // a pool frees up: the next command (past the minute's wait for the shared network) rebuilds it on a network that exists, and it works
+  fails = false;
+  clock.t += 61_000;
+  const r = await m.exec(OLD, ["tmux", "-V"]);
+  assert.equal(r.code, 0, "its command works");
+  const net = dk.box(workspaceName(OLD)).config["HostConfig"]["NetworkMode"] as string;
+  assert.equal(net, "vyre-workspaces");
+  assert.equal((await dk.http({ method: "GET", path: `/networks/${net}` })).status, 200, `the network it started on (${net}) exists`);
+  m.close();
+});
+
+// ---- fourth look U2: a file dropped while the workspace is quiet ------------------------------------------------------------------------------------------------
+
+test("U2: a file a person drops into the agent's Files while the workspace is quiet is there for a command run at once, and a Files change alone brings it within seconds", async () => {
+  // the stand-in mirror copies what is in "Files" into the workspace's ~/Vyre on each pass
+  const files = new Map<string, string>();
+  let copied = new Map<string, string>();
+  let passes = 0;
+  const dk = engine();
+  const home: NonNullable<WorkspaceOptions["home"]> = {
+    sync: () => ({ async pass() { passes++; copied = new Map(files); return { failed: 0 }; } }),
+    readTar: () => ({ files: new Map(), dirs: new Set(), refused: [], complete: true }),
+    manifest: (id) => `/m/${id}.json`,
+    intervalMs: 20,
+  };
+  const clock = { t: Date.now() };
+  const m = manager(dk, { home, mirrorMaxMs: 60_000, now: () => clock.t });
+  const host = createWorkspaceTerminalHost({ manager: m, sleep: fast });
+  await host.open({ terminalId: "trm_u2", target: { host: "agent_computer", agentId: AGENT }, name: "agent", cols: 80, rows: 24, folders: [] });
+  // quiet for minutes: the mirror has slowed to its most
+  clock.t += 10 * 60_000;
+  await new Promise((r) => setTimeout(r, 300));
+  clock.t += 30_000;   // the slowed mirror's last pass was half a minute ago when the person drops the file
+  const before = passes;
+  files.set("brief.md", "the brief");
+  const r = await host.run("trm_u2", { command: "echo hi", env: {}, timeoutMs: 5000 });
+  assert.equal(r.exitCode, 0);
+  assert.ok(passes > before, "a pass ran before the command");
+  assert.equal(copied.get("brief.md"), "the brief", "the dropped file was copied in before the command ran");
+  // and with no command: a Files event brings the next pass soon
+  const before2 = passes;
+  m.filesChanged();
+  await new Promise((r) => setTimeout(r, 200));
+  assert.ok(passes > before2, "a pass within a few ms of the Files change, not after the long wait");
+  m.close();
+});
+
+test("making room: with the turn state read, an agent with no turn running is sleepable 10 s after its last command; only when the turn cannot be read does it wait 90 s", async () => {
+  for (const [turnKnown, wait] of [[true, 10_000], [false, 90_000]] as const) {
+    const clock = { t: 20_000_000 };
+    const dk = engine();
+    const slots = new Set<string>();
+    const capacity = {
+      async claim(id: string) { if (slots.has(id) || slots.size < 1) { slots.add(id); return { state: "running" as const }; } return { state: "waiting" as const, line: "Waiting for room on the Space server." }; },
+      async release(id: string) { slots.delete(id); },
+    };
+    const m = manager(dk, { capacity, now: () => clock.t, inTurn: () => (turnKnown ? false : undefined) });
+    await m.exec("agt_idle", ["tmux", "-V"]);
+    clock.t += 120_000;                       // woken two minutes ago
+    await m.exec("agt_idle", ["tmux", "-V"]);  // its last command: the grace counts from here
+    clock.t += wait - 1000;
+    await assert.rejects(() => m.ensure("agt_new"), /Waiting for room/, `${turnKnown ? "known" : "unknown"}: still inside its grace`);
+    clock.t += 2000;
+    assert.equal(await m.ensure("agt_new"), "created", `${turnKnown ? "known" : "unknown"}: taken after ${wait / 1000} s`);
+    m.close();
+  }
+});
+
+test("two agents on a host with room for one never put each other to sleep twice within a minute: the second asks wait", async () => {
+  const clock = { t: 30_000_000 };
+  const dk = engine();
+  const slots = new Set<string>();
+  const capacity = {
+    async claim(id: string) { if (slots.has(id) || slots.size < 1) { slots.add(id); return { state: "running" as const }; } return { state: "waiting" as const, line: "Waiting for room on the Space server." }; },
+    async release(id: string) { slots.delete(id); },
+  };
+  const m = manager(dk, { capacity, now: () => clock.t, inTurn: () => false });
+  await m.exec("agt_a", ["tmux", "-V"]);
+  clock.t += 120_000;
+  await m.exec("agt_b", ["tmux", "-V"]);   // a slept for b
+  assert.equal(dk.box(workspaceName("agt_a")).running, false);
+  clock.t += 20_000;                         // b idle 20 s: past its 10 s grace, but it was given room 20 s ago
+  await assert.rejects(() => m.exec("agt_a", ["tmux", "-V"]), /Waiting for room/, "a waits rather than putting b to sleep again");
+  assert.equal(dk.box(workspaceName("agt_b")).running, true);
+  clock.t += 50_000;                         // over a minute since b was given room
+  assert.equal((await m.exec("agt_a", ["tmux", "-V"])).code, 0, "then a may take it");
+  m.close();
+});

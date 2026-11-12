@@ -105,6 +105,8 @@ export function createWorkspaceFleet(o: FleetOptions): WorkspaceFleet {
     // a hold is taken after the run's wake, so the agent's machine is known by then
     hold(agentId) { return homes.get(agentId)?.hold(agentId) ?? (() => undefined); },
     worked(agentId) { homes.get(agentId)?.worked(agentId); },
+    async freshen(agentId, ms) { const k = homes.get(agentId); return k ? k.freshen(agentId, ms) : true; },
+    filesChanged() { for (const m of all()) m.filesChanged(); },
     viewed(agentId) { const k = homes.get(agentId); for (const m of k ? [k] : all()) m.viewed(agentId); },
     async cut(agentId, projectId) { for (const m of await where(agentId)) await m.cut(agentId, projectId); },
     async revoke(agentId) { for (const m of await where(agentId)) await m.revoke(agentId); },
