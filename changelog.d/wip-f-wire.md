@@ -11,3 +11,4 @@
 - An agent's work in its Space browser now shows in the chat as the same live card as its computer (the live page while it works, the picture once done), and the Computer tab's Browser section lists its steps; picking one shows its picture.
 - A runbook set to run on an agent's computer now runs there; it was always refused because the agent was not named. When no computer can run it, the line says so instead of asking for a Team Space.
 - A provider that opens a reply and then says nothing now ends with "Your AI didn't answer in time" at the first-token deadline, instead of "The provider stopped answering" and a retry.
+- An agent can use its own browser again without being given a computer first: its pages, steps and pictures show in the chat and in its Computer tab.
