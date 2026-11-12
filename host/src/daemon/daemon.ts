@@ -1352,7 +1352,9 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           // run as the host, and only a grant that carries this project's own source (project:<id>); the access module then lets the host write it only on the project or on a resource already carrying that source.
           // The project's own channel follows its roles the same way: putting a person or an agent in it, or taking them out, runs as the host, and only for this project's own channel (read from
           // the projects table, never from the input), so a project remove takes away everything the project gave whoever presses it, provided they may change the project's roles.
-          if (h && (cap === "projects.members.set" || cap === "projects.members.remove" || cap === "projects.teammates.create" || cap === "projects.teammates.remove")) return ((ctx, input) => {
+          // projects.teammates.create is not wrapped: making a teammate shares the project's things with a new agent as the caller (who must manage the project, checked first), as it did before;
+          // run as the host, a share on a resource that carries no project grant yet is a delegation the host cannot make, and the owner's Assistant could no longer add a teammate
+          if (h && (cap === "projects.members.set" || cap === "projects.members.remove" || cap === "projects.teammates.remove")) return ((ctx, input) => {
             const projectId = String((input as { projectId?: unknown } | null)?.projectId ?? "");
             const source = `project:${projectId}`;
             const own = (): string | null => { try { return (db!.all(`SELECT "channelId" FROM projects_project WHERE "projectId" = ?`, projectId)[0] as { channelId?: string | null } | undefined)?.channelId ?? null; } catch { return null; } };
