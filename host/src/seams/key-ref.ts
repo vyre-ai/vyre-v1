@@ -45,7 +45,7 @@ export function keyHostListed(db: { all(sql: string, ...a: unknown[]): unknown[]
   try { return (db.all(`SELECT host FROM automations_key_hosts WHERE item_id = ? AND host != ''`, itemId) as { host: string }[]).some((r) => hostCovers(r.host, host)); } catch { return false; }
 }
 
-type Log = { read(q: { type?: string; entity?: string; entity_id?: string; limit?: number }): Promise<{ actor?: string }[]> } | null;
+type Log = { read(q: { type?: string; entity?: string; entity_id?: string; limit?: number }): Promise<{ actor?: string; seq?: number; payload?: unknown }[]> } | null;
 const isPerson = (a: unknown): a is string => typeof a === "string" && a.startsWith("usr_");
 
 /**
@@ -58,6 +58,8 @@ export async function adoptPersonBindings(o: {
   log: Log;
   connections: readonly { connectionId?: unknown; connector?: unknown; handles?: unknown }[];
   domainsOf(connector: string): Promise<unknown>;
+  /** the connector's live version (cn_connectors.version), or null when it is not live */
+  liveVersion(connector: string): string | null;
   usableBy(person: string): Promise<readonly { id?: unknown; handle?: unknown; yourLevel?: unknown }[]>;
   now: number;
 }): Promise<number> {
@@ -67,8 +69,22 @@ export async function adoptPersonBindings(o: {
     if (typeof c.connectionId !== "string" || typeof c.connector !== "string" || !Array.isArray(c.handles)) continue;
     const binder = (await o.log.read({ type: "connection.created", entity: "connection", entity_id: c.connectionId, limit: 10 })).map((e) => e.actor).find(isPerson);
     if (!binder) continue;
+    // the version that is live now was published by a person (its own connector.published event, matched by version: the event's actor is the agent when an agent did it, unlike the
+    // version row, which records whom it acted for), and the last act that made a version live (a publish or a rollback, whichever is newer) was a person's too
+    const live = o.liveVersion(c.connector);
+    if (!live) continue;
     const published = await o.log.read({ type: "connector.published", entity: "connector", entity_id: c.connector, limit: 500 });
-    if (!isPerson(published[published.length - 1]?.actor)) continue;
+    // the log hands the payload back as the JSON's bytes
+    const versionOf = (e: { payload?: unknown }): string | undefined => {
+      let p: unknown = e.payload;
+      try { if (p instanceof Uint8Array) p = JSON.parse(Buffer.from(p).toString("utf8")); else if (typeof p === "string") p = JSON.parse(p); } catch { return undefined; }
+      const v = (p as { version?: unknown } | null | undefined)?.version;
+      return typeof v === "string" ? v : undefined;
+    };
+    const publishedLive = published.filter((e) => versionOf(e) === live);
+    if (publishedLive.length === 0 || !publishedLive.every((e) => isPerson(e.actor))) continue;
+    const made = [...published, ...(await o.log.read({ type: "connector.rolled_back", entity: "connector", entity_id: c.connector, limit: 500 }))].sort((a, b) => (a.seq ?? 0) - (b.seq ?? 0));
+    if (!isPerson(made[made.length - 1]?.actor)) continue;
     const domains = await o.domainsOf(c.connector);
     if (!Array.isArray(domains)) continue;
     const usable = await o.usableBy(binder);

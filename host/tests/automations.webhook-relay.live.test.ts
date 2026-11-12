@@ -78,7 +78,7 @@ const countOf = async (d: Daemon, title: string): Promise<number> => {
 
 
 /** One request as the relay hands it over: the answer's status and body. */
-const viaRelay = (d: Daemon, method: string, p: string, body = "{}", headers: Record<string, string> = { "content-type": "application/json" }): Promise<{ status: number; body: string }> => new Promise((resolve) => {
+const viaRelay = (d: Daemon, method: string, p: string, body = "{}", headers: Record<string, string> = { "content-type": "application/json" }, ip = "203.0.113.5"): Promise<{ status: number; body: string }> => new Promise((resolve) => {
   let status = 0;
   let out = "";
   const port = Number(new URL(d.url).port);
@@ -87,7 +87,7 @@ const viaRelay = (d: Daemon, method: string, p: string, body = "{}", headers: Re
     if (x.t === "p.res") status = x.status ?? 0;
     if (x.t === "p.data") out += Buffer.from(x.b ?? "", "base64").toString();
     if (x.t === "p.end" || x.t === "p.err") resolve({ status, body: out });
-  }, { id: String(Math.random()), method, path: p, ip: "203.0.113.5", headers }, Buffer.from(body), port);
+  }, { id: String(Math.random()), method, path: p, ip, headers }, Buffer.from(body), port);
 });
 
 test("an outside POST through the relay starts exactly one Run; everything else is the same bare 404; the secret is logged nowhere", async () => {
@@ -116,6 +116,14 @@ test("an outside POST through the relay starts exactly one Run; everything else 
     assert.equal(await countOf(d, "From relay"), 1, "one outside POST (sent twice with one key) is one Run");
     assert.equal(((await ok(d, "/v1/runs/list", { scope: "subject", subject: { type: "automation", id }, limit: 20 }))["runs"] as unknown[]).length, 1);
 
+    // B1: one stranger's 20 wrong guesses do not block the hook for everyone else: the daemon counts each relayed visitor by the address the relay saw
+    resetRelayHooks();
+    for (let i = 0; i < 20; i++) assert.equal((await viaRelay(d, "POST", p.replace(/\/[^/]+$/, `/wrong-guess-${i}xxxx`), "{}", { "content-type": "application/json" }, "198.51.100.66")).status, 404);
+    const other = await viaRelay(d, "POST", p, JSON.stringify({ order: 2 }), { "content-type": "application/json", "idempotency-key": "relay-evt-b1" }, "192.0.2.10");
+    assert.deepEqual([other.status, other.body], [200, '{"accepted":true}'], "another visitor's good POST still starts its Run");
+    await until("the B1 note", 10_000, async () => (await countOf(d, "From relay")) >= 2 ? true : undefined);
+    resetRelayHooks();
+
     // the shapes the relay never passes on, and the daemon's own refusals, are all the same bare 404
     await bare("GET", p, "GET");
     await bare("PUT", p, "PUT");
@@ -141,7 +149,7 @@ test("an outside POST through the relay starts exactly one Run; everything else 
     await ok(d, "/v1/automations/delete", { automationId: id, idempotencyKey: "relay-hook-del" });
     await bare("POST", fresh, "deleted");
     await new Promise((r) => setTimeout(r, 500));
-    assert.equal(await countOf(d, "From relay"), 2, "only the two accepted POSTs ran");
+    assert.equal(await countOf(d, "From relay"), 3, "only the three accepted POSTs ran");
 
     // a flood: the hook's 30 and the Space's 120 a minute stop it before the daemon
     const seen: string[] = [];

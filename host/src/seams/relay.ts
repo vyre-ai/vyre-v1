@@ -422,13 +422,16 @@ export function servePublic(send: (m: unknown) => void, m: { id: string; method:
 
 /** A relayed web request trigger (see HOOK): only POST, only the exact shape, only content-type and an idempotency key go in, no visitor header of any kind; only a 200 comes back as it is,
  *  everything else is the same bare 404. */
-function serveHook(send: (m: unknown) => void, m: { id: string; method: string; path: string; headers: unknown }, body: Uint8Array, localPort: number): void {
+function serveHook(send: (m: unknown) => void, m: { id: string; method: string; path: string; ip?: string; headers: unknown }, body: Uint8Array, localPort: number): void {
   const notFound = (): void => { send({ t: "p.res", id: m.id, status: 404, headers: {} }); send({ t: "p.end", id: m.id }); };
   if (m.method !== "POST" || !hookPath(m.path) || body.length > RELAY_HOOKS.maxBody) { notFound(); return; }
   const id = m.path.split("/")[3] as string;
   if (!takeRelayHook(id)) { notFound(); return; }
   const given = (typeof m.headers === "object" && m.headers !== null ? m.headers : {}) as Record<string, unknown>;
   const headers: Record<string, string> = { "x-vyre-via": "relay", "content-length": String(body.length) };
+  // the visitor's address as the relay saw it (cf-connecting-ip), as the one forwarded entry: the daemon's per-source limits then count each visitor, not the whole relay as 127.0.0.1, so one
+  // stranger's wrong guesses cannot block every hook of the Space. sourceOf trusts the last forwarded entry only on a loopback connection, which this one is.
+  if (typeof (m as { ip?: unknown }).ip === "string" && /^[0-9A-Fa-f:.]{2,45}$/.test((m as { ip: string }).ip)) headers["x-forwarded-for"] = (m as { ip: string }).ip;
   const type = given["content-type"];
   if (typeof type === "string" && type.length <= 200) headers["content-type"] = type;
   const key = given["idempotency-key"];
