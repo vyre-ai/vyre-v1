@@ -23,7 +23,7 @@ function sbrowser(o: { running?: () => string[] } = {}) {
     async downloads() { return []; }, async downloadRead() { return new Uint8Array(); }, async downloadAck() {},
     async takeover() {}, async giveBack() {}, async screenshot() { return { bytes: new Uint8Array(), width: 1, height: 1 }; },
     async stream() { return { transport: "mjpeg", url: "http://x" }; },
-    async sessions() { return sessionsNow(); }, async signOut(_p, site) { signedOut.push(site); return true; }, async importChrome(profileId, tar) { imports.push({ profileId, bytes: tar.length }); return { bytes: tar.length }; },
+    async sessions() { return sessionsNow(); }, async signOut(_p, site) { signedOut.push(site); return true; }, async profileUsed() { return false; }, async importChrome(profileId, tar) { imports.push({ profileId, bytes: tar.length }); return { bytes: tar.length }; },
     async stop() {}, async forget() {},
     async profiles() { const rows: ProfileRow[] = (o.running?.() ?? []).map((id) => ({ profileId: id, running: true, tabs: 1, busy: false, takeover: false, viewers: 0, lastActiveAt: 1, held: 0, paused: false })); return { profiles: rows, maxRunning: 6 }; },
     async health() { return { ok: true }; },
@@ -74,6 +74,7 @@ test("Dex keeps his logins: the old computer's Chrome data goes into his profile
   const TAR = new Uint8Array([9, 8, 7, 6]);
   h.fake.host.chromeData = async () => ({ tar: TAR });
   bindMigrationPort("ensureWorkspace", async (_c, a) => ({ workspaceId: `wks_${a.agentId}` }));
+  bindMigrationPort("profileInUse", async () => false);
   try {
     await provision(h.ctx, { agentId: "agt_dex", idempotencyKey: "k-dex" });
     assert.deepEqual(await migrateComputers(h.ctx), { done: 1, partial: 0, failed: 0, waiting: 0 });
@@ -81,20 +82,22 @@ test("Dex keeps his logins: the old computer's Chrome data goes into his profile
     assert.equal(migrationRows(h.ctx)[0]?.profileId, "agt_dex");
     assert.deepEqual(await migrateComputers(h.ctx), { done: 0, partial: 0, failed: 0, waiting: 0 });
     assert.equal(sb.imports.length, 1);
-  } finally { bindSpaceBrowser(null); bindMigrationPort("ensureWorkspace", null); }
+  } finally { bindSpaceBrowser(null); bindMigrationPort("ensureWorkspace", null); bindMigrationPort("profileInUse", null); }
 });
 
-test("with no Space browser the move of the profile fails and is tried again, and a profile that is not the agent's is refused", async () => {
+test("with no Space browser the move of the profile fails with its reason and is tried again after its wait, and a profile that is not the agent's is refused", async () => {
   const h = harness();
   h.fake.host.chromeData = async () => ({ tar: new Uint8Array([1]) });
   bindMigrationPort("ensureWorkspace", async (_c, a) => ({ workspaceId: `wks_${a.agentId}` }));
+  bindMigrationPort("profileInUse", async () => false);
   bindSpaceBrowser(null);
   try {
     await provision(h.ctx, { agentId: "agt_dex", idempotencyKey: "k-dex" });
     await migrateComputers(h.ctx);
-    assert.equal(migrationRows(h.ctx)[0]?.state, "failed");
-    assert.match(String(migrationRows(h.ctx)[0]?.error), /Space browser is not running/);
+    assert.equal(migrationRows(h.ctx)[0]?.state, "failed", "a host with no Space browser is a permanent fault: it backs off like a failure and says why");
+    assert.match(String(migrationRows(h.ctx)[0]?.error), /not running on this host/);
     const sb = sbrowser();
+    h.advance(61_000);
     assert.deepEqual(await migrateComputers(h.ctx), { done: 1, partial: 0, failed: 0, waiting: 0 }, "the next pass moves it");
     assert.equal(sb.imports.length, 1);
   } finally { bindSpaceBrowser(null); bindMigrationPort("ensureWorkspace", null); }
@@ -565,4 +568,32 @@ test("taking over a browser reopened since the person last saw it: the pane says
     reopened = false;
     assert.equal((await tool["computers.browser.take_over"]!(h.ctx, { agentId: "agt_dex" }) as { note?: string }).note, undefined);
   } finally { bindSpaceBrowser(null); resetRoom(); }
+});
+
+test("a call that waits for room holds no Vault authority while it waits, and sends with a token issued when it sends", async () => {
+  const { bindFill } = await import("../projections.ts");
+  const { spaceBrowser } = await import("../sbrowser/port.ts");
+  sbrowser();
+  resetRoom();
+  setRoomWaitMs(3000);
+  const sb = spaceBrowser()!;
+  let issued = 0, revoked = 0;
+  const seen: Array<{ issued: number; revoked: number; token?: string }> = [];
+  const send = sb.tool.bind(sb);
+  sb.tool = async (a) => { seen.push({ issued, revoked, ...(a.fill ? { token: a.fill.token } : {}) }); return send(a); };
+  bindFill({ issue: async () => { issued++; return { fillToken: "t".repeat(48), revoke() { revoked++; }, extend() {} }; }, url: () => "http://vault.test/fill" } as never);
+  const waiter = agent("agt_wait");
+  waiter.fake.host.capacity = async () => ({ totalMb: 1600, freeMb: 100, cpus: 2, os: "linux" });
+  try {
+    const call = tool["computers.chrome.state"]!(waiter.ctx, {});
+    await new Promise((r) => setTimeout(r, 700));
+    assert.equal(issued, 0, "nothing is issued while the call only waits for room");
+    waiter.fake.host.capacity = async () => ({ totalMb: 8192, freeMb: 6000, cpus: 4, os: "linux" });
+    await call;
+    const sent = seen.filter((x) => x.token);
+    assert.equal(sent.length, 1, "the send carried the channel");
+    assert.equal(sent[0]!.issued, 1, "the token was issued after the room wait, right before the send");
+    assert.equal(sent[0]!.revoked, 0);
+    assert.equal(revoked, 1, "and revoked when the send ended");
+  } finally { bindFill(null); bindSpaceBrowser(null); resetRoom(); setRoomWaitMs(null); }
 });

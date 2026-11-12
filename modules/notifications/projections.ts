@@ -89,6 +89,10 @@ export interface NotifCtx {
   trace: { traceId: string };
   device?: string;
   run?: string;
+  /** how deep in a call chain (0: called by a person, an agent or the host itself; more: by another module's code) */
+  depth?: number;
+  /** where the call came from (user, mcp, agent, schedule, gate, hook, ...) */
+  origin?: string;
   now(): number;
   db: Db;
   emit(name: string, subject: string, payload: unknown, opts?: { vis?: string; idempotencyKey?: string }): { id: string };

@@ -1,7 +1,7 @@
 // How other places open the Console on a machine: console.page with page "machines~<id>" (the prototype's route), and the old ids still redirect.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { machinesTarget, parseConsolePage } from "../shell/route.ts";
+import { computersTarget, machinesTarget, parseConsolePage } from "../shell/route.ts";
 import { consolePageFor } from "../../shell/providers/console.tsx";
 
 test("machinesTarget builds console.page with machines~<id>, and the Space server when there is none", () => {
@@ -27,4 +27,9 @@ test("a plain page id and the old ids work in the same route, and nothing usable
   assert.deepEqual(parseConsolePage("computers"), { page: "machines", args: {} });
   assert.equal(parseConsolePage(undefined), null);
   assert.equal(parseConsolePage(""), null);
+});
+
+test("computersTarget opens Agent computers on that computer, and the route hands the computer to the page", () => {
+  assert.deepEqual(computersTarget("cmp_dex"), { screen: "console.page", args: { page: "agentcomputers~cmp_dex" } });
+  assert.deepEqual(parseConsolePage("agentcomputers~cmp_dex"), { page: "agentcomputers", args: { computerId: "cmp_dex" } });
 });

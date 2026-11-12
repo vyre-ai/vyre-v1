@@ -5,7 +5,8 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { CLICK_WINDOW_MS, MAX_BANNERS, activationLink, badgeText, openLink, osNotification, parseOpenLink, pushBanner } from "../src/notify.ts";
+import * as notifyRules from "../src/notify.ts";
+import { MAX_BANNERS, badgeText, openLink, osNotification, parseOpenLink, pushBanner } from "../src/notify.ts";
 import type { Banner, NotificationInput } from "../src/notify.ts";
 import { MAX_PICKED, checkPicked, cleanExtension, isAbsolutePath, pickOptions } from "../src/files.ts";
 import { trayAction, trayModel } from "../src/tray.ts";
@@ -77,14 +78,12 @@ test("the same key collapses to one banner (count goes up), newest first, at mos
   assert.deepEqual(pushBanner(list, note({ level: "badge", key: "z" })).map((b) => b.key), ["d", "c", "a"], "a badge-level item never makes a banner");
 });
 
-test("a window that comes forward within the click window opens the banner's thread, once", () => {
-  const shown = { link: openLink({ space: "s", thread: "t" }), at: 10_000 };
-  assert.equal(activationLink(shown, 10_000 + 5_000), shown.link);
-  assert.equal(activationLink(shown, 10_000 + CLICK_WINDOW_MS), shown.link);
-  assert.equal(activationLink(shown, 10_000 + CLICK_WINDOW_MS + 1), null, "too long after");
-  assert.equal(activationLink(shown, 9_999), null, "before the banner is never a click");
-  assert.equal(activationLink(null, 10_000), null);
-  assert.equal(activationLink({ link: "vyre://join?code=1", at: 10_000 }, 10_001), null, "only open links");
+test("a window that comes forward opens nothing: the notification plugin reports no press, and a focus is not one", () => {
+  // before 12 Nov 2026 a focus within 30 s of a banner was read as its click; switching back to Vyre for any reason then jumped to the banner's chat (NOTIFY-REVIEW must-fix 5)
+  assert.equal("activationLink" in notifyRules, false);
+  assert.equal("CLICK_WINDOW_MS" in notifyRules, false);
+  assert.doesNotMatch(read("src", "native.rs"), /on_focus|CLICK_WINDOW|commands::deliver/);
+  assert.doesNotMatch(read("src", "lib.rs"), /native::on_focus/);
 });
 
 test("badge text: none, a number, then 9+", () => {
@@ -351,7 +350,7 @@ test("the shell registers the tray, notification and dialog plugins and exposes 
   assert.match(lib, /tauri_plugin_notification::init\(\)/);
   assert.match(lib, /tauri_plugin_dialog::init\(\)/);
   assert.match(lib, /native::notify,\s*native::discover_codex_sessions,\s*native::discover_session_sources,\s*native::read_session_source,\s*native::pick_paths,\s*native::set_badge/);
-  assert.match(lib, /WindowEvent::Focused\(true\)[\s\S]*native::on_focus/);
+  assert.doesNotMatch(lib, /native::on_focus/, "a window coming forward opens nothing");
   assert.match(lib, /native::setup_tray/);
   for (const fn of ["notify", "discover_codex_sessions", "discover_session_sources", "pick_paths", "set_badge"]) assert.match(native, new RegExp(`#\\[tauri::command\\]\\s*pub (async )?fn ${fn}\\(`), fn);
   const bridge = fs.readFileSync(path.join(DESKTOP, "src", "bridge.ts"), "utf8");
@@ -365,13 +364,12 @@ test("the shell registers the tray, notification and dialog plugins and exposes 
   assert.match(read("Cargo.toml"), /tauri = \{ version = "2", features = \["tray-icon", "unstable"\] \}/);
 });
 
-test("the Rust side agrees with the TypeScript rules: click window, banner links, text caps, and no notification text in a log", () => {
+test("the Rust side agrees with the TypeScript rules: banner links, text caps, and no notification text in a log", () => {
   const native = read("src", "native.rs");
-  assert.match(native, new RegExp(`CLICK_WINDOW: Duration = Duration::from_secs\\(${CLICK_WINDOW_MS / 1000}\\)`));
   assert.match(native, /MAX_TITLE: usize = 120/);
   assert.match(native, /MAX_BODY: usize = 240/);
   assert.match(native, /l\.action == "open"/, "only open links ride on a banner");
-  assert.match(native, /commands::deliver\(app, link\)/, "the click goes through the same delivery as any deep link");
+  assert.doesNotMatch(native, /commands::deliver/, "a banner opens nothing on its own: no press is reported");
   assert.doesNotMatch(native, /println!\([^)]*(title|body|link)/, "banner text and links never reach a log");
   assert.match(native, /fn setup_tray/);
   assert.match(native, /"quit" => app\.exit\(0\)/);

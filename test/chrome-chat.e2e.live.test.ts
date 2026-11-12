@@ -3,7 +3,7 @@
 // chat (through browser.cards.post, as chat.post with no text and no mention); Send on the card sends once; Don't send is forgotten by the extension and the agent is told in the chat.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { findChromium, launch, site } from "../apps/chrome/tests/e2e/rig.ts";
+import { extensionChromeProblem, findChromium, launch, site } from "../apps/chrome/tests/e2e/rig.ts";
 import { createBridgePort } from "../lib/personal-chrome-bridge.ts";
 import { bindPersonalChrome } from "../lib/personal-chrome.ts";
 import { harness } from "../modules/computers/fixtures/harness.ts";
@@ -20,6 +20,9 @@ const MAIL = `<!doctype html><meta charset="utf-8"><title>Mail</title><main><for
 <label for="subject">Subject</label><input id="subject" name="subject" value="Your signed deed"><label for="body">Message</label><textarea id="body" name="body">Hi Dana, the deed is attached.</textarea><button type="submit">Send</button></form></main>`;
 
 test("a chat turn works in the person's Chrome: the held send is a card, Send sends once, Don't send is declined and the agent hears it", { skip: !found && "no Chromium on this machine", timeout: 90_000 }, async () => {
+  // a Chromium that cannot run the extension fails here, in one line, before anything is started that could keep this file alive
+  const why = extensionChromeProblem(found!);
+  assert.equal(why, null, why ?? "");
   const srv = await site({ "/": MAIL, "/send": () => "<!doctype html><title>Sent</title><p>Sent</p>" });
   const r = await launch(found!, { agent: true, caps: { "browser.sites.list": () => ({ sites: [{ id: "bsi_1", host: "127.0.0.1", runsIn: "chrome", rights: [{ agentId: AGENT, right: "act" }], at: 1, updatedAt: 1 }] }) } });
   const bw = browserWorld(SPACE);

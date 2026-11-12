@@ -1,60 +1,11 @@
 {
   "targets": [
     {
-      "id": "COMPUTERNONE_01-can",
-      "route": "/m/COMPUTERNONE_01?part=can",
+      "id": "COMPUTERNONE_01-none",
+      "route": "/m/COMPUTERNONE_01?part=none",
       "proto": "chats,{skin}",
-      "waitFor": "[data-testid='computer-provision']",
-      "note": "A host can run one: the button is there."
-    },
-    {
-      "id": "COMPUTERNONE_01-checking",
-      "route": "/m/COMPUTERNONE_01?part=checking",
-      "proto": "chats,{skin}",
-      "waitFor": "[data-testid='computer-checking']",
-      "note": "While the Space is asked where a computer can run, no button."
-    },
-    {
-      "id": "COMPUTERNONE_01-runner",
-      "route": "/m/COMPUTERNONE_01?part=runner",
-      "proto": "chats,{skin}",
-      "waitFor": "[data-testid='computer-cannot']",
-      "note": "The server's container runner is not running: the reason and the next step, no button."
-    },
-    {
-      "id": "COMPUTERNONE_01-mac",
-      "route": "/m/COMPUTERNONE_01?part=mac",
-      "proto": "chats,{skin}",
-      "waitFor": "[data-testid='computer-cannot']",
-      "note": "On a Mac with Docker stopped: start Docker Desktop or Colima."
-    },
-    {
-      "id": "COMPUTERNONE_01-space",
-      "route": "/m/COMPUTERNONE_01?part=space",
-      "proto": "chats,{skin}",
-      "waitFor": "[data-testid='computer-cannot']",
-      "note": "No machine can run one yet: add a server with Docker."
-    },
-    {
-      "id": "COMPUTERNONE_01-member",
-      "route": "/m/COMPUTERNONE_01?part=member",
-      "proto": "chats,{skin}",
-      "waitFor": "[data-testid='computer-provision-admin']",
-      "note": "A member is told who sets it up."
-    },
-    {
-      "id": "COMPUTERNONE_01-error",
-      "route": "/m/COMPUTERNONE_01?part=error",
-      "proto": "chats,{skin}",
-      "waitFor": "[data-testid='computer-cannot']",
-      "note": "The Space did not answer: the reason, no button."
-    },
-    {
-      "id": "COMPUTERNONE_01-picks",
-      "route": "/m/COMPUTERNONE_01?part=picks",
-      "proto": "chats,{skin}",
-      "waitFor": "[data-testid='computer-provision']",
-      "note": "Two machines: the one with the most room is preselected, each shows its room."
+      "waitFor": "[data-testid='computer-none']",
+      "note": "An agent with no old desktop: one plain pane, nothing to set up, whatever the host and the role."
     },
     {
       "id": "COMPUTERNONE_01-setup1",

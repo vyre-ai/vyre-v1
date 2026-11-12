@@ -2,7 +2,7 @@
 // with a Chrome folder to hand over.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { bindMigration, MAX_ATTEMPTS, migrateComputers, migrationRows } from "../migrate.ts";
+import { bindMigration, migrateComputers, migrationRows } from "../migrate.ts";
 import type { MigrationPorts } from "../migrate.ts";
 import { provision, sleepIdle, wake } from "../handlers/lifecycle.ts";
 import { harness, MIN } from "../fixtures/harness.ts";
@@ -17,6 +17,7 @@ function ports(log: string[], o: { failProfile?: () => boolean } = {}): Migratio
     async ensureWorkspace(_c, a) { log.push(`workspace ${a.agentId}`); return { workspaceId: `wks_${a.agentId}` }; },
     async ensureBrowserProfile(_c, a) { if (o.failProfile?.()) throw new Error("the browser is not ready"); log.push(`profile ${a.agentId}`); return { profileId: `brw_${a.agentId}` }; },
     async importChromeData(_c, a) { log.push(`import ${a.profileId} ${a.data.tar.length}`); return { bytes: a.data.tar.length }; },
+    async profileInUse() { return false; },
   };
 }
 const withChrome = (h: Harness): void => { h.fake.host.chromeData = async () => ({ tar: TAR }); };
@@ -105,7 +106,7 @@ test("a host that cannot hand over Chrome's folder (a joined server) gets a work
   } finally { bindMigration(null); }
 });
 
-test("a failed step is tried again on the next pass from where it stopped, and given up on after three, with the reason kept", async () => {
+test("a real failure backs off (a minute, an hour, a day) and is never final: it keeps trying once a day, with the reason and the attempts kept", async () => {
   const h = harness();
   withChrome(h);
   const log: string[] = [];
@@ -113,23 +114,26 @@ test("a failed step is tried again on the next pass from where it stopped, and g
   bindMigration(ports(log, { failProfile: () => broken }));
   try {
     await made(h, "agt_dex");
-    assert.deepEqual(await migrateComputers(h.ctx), { done: 0, partial: 0, failed: 0, waiting: 0 }, "first failure: tried again later, not yet final");
+    assert.deepEqual(await migrateComputers(h.ctx), { done: 0, partial: 0, failed: 1, waiting: 0 }, "first failure");
     assert.equal(migrationRows(h.ctx)[0]?.state, "failed");
     assert.match(migrationRows(h.ctx)[0]?.error ?? "", /browser is not ready/);
+    assert.deepEqual(await migrateComputers(h.ctx), { done: 0, partial: 0, failed: 0, waiting: 0 }, "not due yet: the next pass leaves it");
+    h.advance(61_000);
+    assert.equal((await migrateComputers(h.ctx)).failed, 1, "a minute later, the second try");
+    h.advance(61_000);
+    assert.equal((await migrateComputers(h.ctx)).failed, 0, "the next wait is an hour");
+    h.advance(3_600_000);
+    assert.equal((await migrateComputers(h.ctx)).failed, 1, "the third try");
+    h.advance(3_600_000);
+    assert.equal((await migrateComputers(h.ctx)).failed, 0, "then a day");
+    h.advance(24 * 3_600_000);
+    assert.equal((await migrateComputers(h.ctx)).failed, 1, "a fourth try: never final");
+    assert.equal(h.rows("SELECT attempts FROM computers_migration")[0]?.["attempts"], 4);
     broken = false;
-    assert.deepEqual(await migrateComputers(h.ctx), { done: 1, partial: 0, failed: 0, waiting: 0 }, "the second pass finishes it");
+    h.advance(25 * 3_600_000);
+    assert.deepEqual(await migrateComputers(h.ctx), { done: 1, partial: 0, failed: 0, waiting: 0 }, "and when the cause is gone it finishes");
     assert.equal(migrationRows(h.ctx)[0]?.state, "done");
     assert.equal(migrationRows(h.ctx)[0]?.error, undefined);
-  } finally { bindMigration(null); }
-  const g = harness();
-  withChrome(g);
-  bindMigration(ports([], { failProfile: () => true }));
-  try {
-    await made(g, "agt_dex");
-    const seen: number[] = [];
-    for (let i = 0; i < MAX_ATTEMPTS + 2; i++) seen.push((await migrateComputers(g.ctx)).failed);
-    assert.deepEqual(seen, [0, 0, 1, 0, 0], "the third failure is counted once and then the computer is left alone");
-    assert.equal(g.rows("SELECT attempts FROM computers_migration")[0]?.["attempts"], MAX_ATTEMPTS);
   } finally { bindMigration(null); }
 });
 
@@ -139,7 +143,7 @@ test("each computer is its own row: one that fails does not stop the others", as
   const log: string[] = [];
   bindMigration({
     ...ports(log),
-    async ensureWorkspace(_c, a) { if (a.agentId === "agt_a") throw new Error("no room"); log.push(`workspace ${a.agentId}`); return { workspaceId: `wks_${a.agentId}` }; },
+    async ensureWorkspace(_c, a) { if (a.agentId === "agt_a") throw new Error("the workspace broke"); log.push(`workspace ${a.agentId}`); return { workspaceId: `wks_${a.agentId}` }; },
   });
   try {
     await made(h, "agt_a"); await made(h, "agt_b");
