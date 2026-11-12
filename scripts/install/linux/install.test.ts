@@ -1056,7 +1056,7 @@ test("a live-backup update that fails to start rolls back and starts the previou
       + `cmd_update --yes --version 1.1.0 --sha256 ${"a".repeat(64)}`;
     const out = sh(SERVER, body, { VYRE_DIR: dir, VYRE_FIXTURE_DIR: dir, TMPDIR: dir });
     assert.equal(out.status, 4, out.stderr);
-    assert.deepEqual(read(path.join(dir, "order")).trim().split("\n"), ["backup pre-1.1.0 live", "dc stop", "switch 1.1.0", "start", "switch 1.0.0", "start"], "back on the previous release, started again");
+    assert.deepEqual(read(path.join(dir, "order")).trim().split("\n"), ["backup pre-1.1.0 live", "dc stop", "switch 1.1.0", "start", "dc logs --no-color --tail 80 vyred", "switch 1.0.0", "start"], "the new version's last log lines are kept, then back on the previous release, started again");
     assert.equal(fs.existsSync(path.join(dir, "state", "update.pending")), false);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });

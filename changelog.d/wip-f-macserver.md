@@ -1,0 +1,2 @@
+- A server on a Mac (or with Docker in any virtual machine) no longer damages its databases during an update or backup: they are read only from inside Docker's machine, through the running server, and a backup with no safe way to read them stops plainly and changes nothing.
+- An update is now finished by the new release's own updater, so a fix to the updater helps the update that delivers it; if that half stops early, the old version is started again.

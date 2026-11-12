@@ -406,30 +406,124 @@ space_id() {
   printf '%s' "$_s"
 }
 
-# space_serves_domain: 0 = the Space serves its own domain (network_config mode own_domain, set at install or later in the Console); 1 = it does not (the query ran, the table is there, no row says so);
-# 2 = cannot tell (no reader, a busy or missing database, any error or odd answer). Callers change the ports only on 0 or 1. Readers, in order: sqlite3, this host's node, the release image's own node
-# (docker run of the image already pulled, no network, the data folder mounted read-only).
-space_serves_domain() {
-  db=$DATA_DIR/space/modules.db
-  [ -f "$db" ] || return 2
-  q="SELECT count(*) AS n FROM network_config WHERE id = 1 AND mode = 'own_domain'"
-  to=${VYRE_TEST_SQLITE_TIMEOUT:-3000}
-  if command -v sqlite3 >/dev/null 2>&1; then
-    out=$(sqlite3 -readonly -cmd ".timeout $to" "$db" "$q" 2>/dev/null) || return 2
-    case "$out" in 1) return 0 ;; 0) return 1 ;; *) return 2 ;; esac
+# BEGIN spacedb
+# The Space's databases (the data folder's space/, SQLite in WAL mode) are open in vyred while it runs. A tool on this computer opens one only when the Docker engine runs on this
+# computer's own kernel: then its locks and its shared-memory index are the ones the server uses. On a Mac, and with any engine in a virtual machine (Docker Desktop, OrbStack,
+# Colima), the server runs on another kernel: a host sqlite3 or node that opens the file through the shared folder cannot see the server's locks, runs recovery and checkpoints
+# against a file the server is writing, and damages it (12 Nov 2026, a Mac mini: logs.db and modules.db, during an update's backup). There every read, snapshot and check goes into
+# the virtual machine: `docker exec` into the running vyred (the writer's own kernel), else `docker run` of the server's image with nothing else running. A copy the server never has
+# open (a staged backup, an unpacked one) may still use host tools. This block is the same text in vyre-server and in both installers (a test compares them).
+SPACEDB_SAME=""
+spacedb_os() { if [ "${VYRE_TEST_MODE:-0}" = 1 ] && [ -n "${VYRE_TEST_OS:-}" ]; then printf '%s' "$VYRE_TEST_OS"; else uname -s; fi; }
+# engine_same_kernel: 0 when the Docker engine shares this computer's kernel. A Mac: never (Docker always runs in a virtual machine there). Linux: the engine's kernel (docker info's
+# KernelVersion) is this one's (uname -r), and the engine is not Docker Desktop. An engine that does not answer on Linux counts as this kernel: no other kernel then has the files open.
+engine_same_kernel() {
+  if [ -z "$SPACEDB_SAME" ]; then
+    if [ "$(spacedb_os)" = Darwin ]; then SPACEDB_SAME=1
+    else
+      _sk=$(docker info --format '{{.KernelVersion}}|{{.OperatingSystem}}' 2>/dev/null | head -n 1) || _sk=""
+      case "$_sk" in
+        ""|"|"*) SPACEDB_SAME=0 ;;
+        *"Docker Desktop"*) SPACEDB_SAME=1 ;;
+        "$(uname -r)|"*) SPACEDB_SAME=0 ;;
+        *) SPACEDB_SAME=1 ;;
+      esac
+    fi
   fi
-  js="try{const {DatabaseSync}=require('node:sqlite');const d=new DatabaseSync(process.argv[1],{readOnly:true});d.exec('PRAGMA busy_timeout='+process.argv[3]);console.log(d.prepare(process.argv[2]).get().n)}catch(e){process.exit(2)}"
-  if command -v node >/dev/null 2>&1 && node --no-warnings -e "require('node:sqlite')" >/dev/null 2>&1; then
-    out=$(node --no-warnings -e "$js" "$db" "$q" "$to" 2>/dev/null) || return 2
-    case "$out" in 1) return 0 ;; 0) return 1 ;; *) return 2 ;; esac
-  fi
-  img=$(sed -n 's/^VYRE_IMAGE=//p' "$DIR/compose.env" 2>/dev/null | head -n 1)
-  if [ -n "$img" ] && command -v docker >/dev/null 2>&1; then
-    out=$(docker run --rm --network none --user 1000:1000 -v "$DATA_DIR/space:/in:ro" --entrypoint node "$img" --no-warnings -e "$js" /in/modules.db "$q" "$to" 2>/dev/null) || return 2
-    case "$out" in 1) return 0 ;; 0) return 1 ;; *) return 2 ;; esac
-  fi
-  return 2
+  return "$SPACEDB_SAME"
 }
+# spacedb_live FILE: the file is under the Space folder the server has open.
+spacedb_live() { case "$1" in "$DATA_DIR/space/"*) return 0 ;; esac; return 1; }
+# spacedb_vyred: the running vyred container whose /data is this install's Space folder (a bind of it, or a local volume bound to it), or nothing.
+spacedb_vyred() {
+  for _sc in $(docker ps -q --filter "label=com.docker.compose.service=vyred" 2>/dev/null); do
+    _sm=$(docker inspect -f '{{range .Mounts}}{{if eq .Destination "/data"}}{{.Type}} {{.Name}} {{.Source}}{{end}}{{end}}' "$_sc" 2>/dev/null) || continue
+    _st=${_sm%% *}; _sr=${_sm#* }; _sn=${_sr%% *}; _ss=${_sr#* }
+    case "$_st" in
+      bind) [ "$_ss" = "$DATA_DIR/space" ] || continue ;;
+      volume) [ "$(docker volume inspect -f '{{index .Options "device"}}' "$_sn" 2>/dev/null)" = "$DATA_DIR/space" ] || continue ;;
+      *) continue ;;
+    esac
+    [ "$(docker inspect -f '{{.State.Running}} {{.State.Restarting}}' "$_sc" 2>/dev/null)" = "true false" ] || continue
+    printf '%s' "$_sc"; return 0
+  done
+  return 1
+}
+# The node programs (argv[1] is the database). The snapshot is VACUUM INTO a private file in the container's own /tmp, checked with integrity_check, then streamed to stdout: the host
+# writes it where the backup wants it, under the host's own umask and owner, and no host folder is opened to the container for writing.
+SPACEDB_SNAP_JS='const{DatabaseSync}=require("node:sqlite"),fs=require("node:fs"),os=require("node:os"),p=require("node:path");const w=fs.mkdtempSync(p.join(os.tmpdir(),"vyre-snap-")),t=p.join(w,"s.db");let c=0;try{const d=new DatabaseSync(process.argv[1],{readOnly:true});d.exec("PRAGMA busy_timeout=30000");d.prepare("VACUUM INTO ?").run(t);d.close();const o=new DatabaseSync(t,{readOnly:true});const r=o.prepare("PRAGMA integrity_check").get();o.close();if(r.integrity_check!=="ok")throw new Error("integrity_check: "+r.integrity_check);const f=fs.openSync(t,"r"),b=Buffer.alloc(1048576);let n;while((n=fs.readSync(f,b,0,b.length,null))>0){let k=0;while(k<n){try{k+=fs.writeSync(1,b,k,n-k)}catch(e){if(e.code!=="EAGAIN")throw e;Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,5)}}}fs.closeSync(f)}catch(e){process.stderr.write(String(e&&e.message||e)+"\n");c=1}finally{fs.rmSync(w,{recursive:true,force:true})}process.exit(c)'
+# the host's own node writes the copy itself (the same program as before this block; a host folder is its own to write)
+SPACEDB_HOST_SNAP_JS='const{DatabaseSync}=require("node:sqlite");const d=new DatabaseSync(process.argv[1]);d.exec("PRAGMA busy_timeout=30000");d.prepare("VACUUM INTO ?").run(process.argv[2]);d.close();const o=new DatabaseSync(process.argv[2]);const r=o.prepare("PRAGMA integrity_check").get();o.close();if(r.integrity_check!=="ok"){console.error("integrity_check: "+r.integrity_check);process.exit(1)}'
+SPACEDB_CHECK_JS='const{DatabaseSync}=require("node:sqlite");const d=new DatabaseSync(process.argv[1],{readOnly:true});process.exit(d.prepare("PRAGMA integrity_check").get().integrity_check==="ok"?0:1)'
+SPACEDB_QUERY_JS="try{const {DatabaseSync}=require('node:sqlite');const d=new DatabaseSync(process.argv[1],{readOnly:true});d.exec('PRAGMA busy_timeout='+process.argv[3]);console.log(d.prepare(process.argv[2]).get().n)}catch(e){process.exit(2)}"
+# spacedb_node JS ARGS...: node in the virtual machine with /data = the Space folder: in the running vyred when there is one (SPACEDB_CID), else a one-shot container of the server's image.
+spacedb_node() {
+  if [ -n "$SPACEDB_CID" ]; then docker exec "$SPACEDB_CID" node --no-warnings -e "$@"
+  else docker run --rm --network none --user 1000:1000 -v "$DATA_DIR/space:/data" --entrypoint node "$SPACEDB_IMG" --no-warnings -e "$@"; fi
+}
+# spacedb_vm KIND DB [ARG]: as space_db, inside the virtual machine. 3 when there is no safe reader (no Docker, no running vyred and no server image named).
+spacedb_vm() {
+  command -v docker >/dev/null 2>&1 || return 3
+  SPACEDB_CID=$(spacedb_vyred) || SPACEDB_CID=""
+  SPACEDB_IMG=$(sed -n 's/^VYRE_IMAGE=//p' "$DIR/compose.env" 2>/dev/null | head -n 1)
+  [ -n "$SPACEDB_CID$SPACEDB_IMG" ] || return 3
+  _sp=/data/${2#"$DATA_DIR/space/"}
+  case "$1" in
+    snapshot)
+      rm -f "$3" "$3.part"
+      if spacedb_node "$SPACEDB_SNAP_JS" "$_sp" >"$3.part" && [ "$(head -c 15 "$3.part" 2>/dev/null)" = "SQLite format 3" ]; then mv -f "$3.part" "$3"; return 0; fi
+      rm -f "$3.part"; return 1 ;;
+    check) spacedb_node "$SPACEDB_CHECK_JS" "$_sp" ;;
+    query) spacedb_node "$SPACEDB_QUERY_JS" "$_sp" "$3" "${VYRE_TEST_SQLITE_TIMEOUT:-3000}" 2>/dev/null ;;
+    *) return 1 ;;
+  esac
+}
+# spacedb_host KIND DB [ARG]: the host's own tools, in order: sqlite3, node (22.5 or newer), else the server image with only that folder mounted.
+spacedb_host() {
+  _sd=$(dirname "$2"); _sb=$(basename "$2")
+  _simg=$(sed -n 's/^VYRE_IMAGE=//p' "$DIR/compose.env" 2>/dev/null | head -n 1)
+  _snode=0
+  if command -v node >/dev/null 2>&1 && node --no-warnings -e "require('node:sqlite')" >/dev/null 2>&1; then _snode=1; fi
+  case "$1" in
+    snapshot)
+      rm -f "$3"
+      if command -v sqlite3 >/dev/null 2>&1; then
+        sqlite3 -cmd ".timeout 30000" "$2" "VACUUM INTO '$(printf '%s' "$3" | sed "s/'/''/g")'" >/dev/null && [ "$(sqlite3 "$3" 'PRAGMA integrity_check')" = ok ] && return 0
+        rm -f "$3"
+      fi
+      if [ "$_snode" = 1 ]; then node --no-warnings -e "$SPACEDB_HOST_SNAP_JS" "$2" "$3" && return 0; rm -f "$3"; return 1; fi
+      [ -n "$_simg" ] && command -v docker >/dev/null 2>&1 || return 3
+      docker run --rm --network none --user 1000:1000 -v "$_sd:/in" --entrypoint node "$_simg" --no-warnings -e "$SPACEDB_SNAP_JS" "/in/$_sb" >"$3.part" && mv -f "$3.part" "$3" && return 0
+      rm -f "$3.part"; return 1 ;;
+    check)
+      if command -v sqlite3 >/dev/null 2>&1; then [ "$(sqlite3 "$2" 'PRAGMA integrity_check' 2>/dev/null)" = ok ]; return; fi
+      if [ "$_snode" = 1 ]; then node --no-warnings -e "$SPACEDB_CHECK_JS" "$2"; return; fi
+      [ -n "$_simg" ] && command -v docker >/dev/null 2>&1 || return 3
+      docker run --rm --network none --user 1000:1000 -v "$_sd:/in:ro" --entrypoint node "$_simg" --no-warnings -e "$SPACEDB_CHECK_JS" "/in/$_sb" ;;
+    query)
+      _sto=${VYRE_TEST_SQLITE_TIMEOUT:-3000}
+      if command -v sqlite3 >/dev/null 2>&1; then sqlite3 -readonly -cmd ".timeout $_sto" "$2" "$3" 2>/dev/null; return; fi
+      if [ "$_snode" = 1 ]; then node --no-warnings -e "$SPACEDB_QUERY_JS" "$2" "$3" "$_sto" 2>/dev/null; return; fi
+      [ -n "$_simg" ] && command -v docker >/dev/null 2>&1 || return 3
+      docker run --rm --network none --user 1000:1000 -v "$_sd:/in:ro" --entrypoint node "$_simg" --no-warnings -e "$SPACEDB_QUERY_JS" "/in/$_sb" "$3" "$_sto" 2>/dev/null ;;
+    *) return 1 ;;
+  esac
+}
+# space_db KIND DB [ARG]: the one way to open a database. KIND is snapshot (ARG = where the checked copy goes), check (integrity_check is ok) or query (ARG = SQL with one row and a
+# column n; n is printed). 0 = done, 1 = it failed (a damaged or busy database), 3 = no safe reader on this computer. Every caller in these scripts goes through here.
+space_db() {
+  if spacedb_live "$2" && ! engine_same_kernel; then spacedb_vm "$@" && return 0 || return $?; fi
+  spacedb_host "$@" && return 0 || return $?
+}
+
+# space_serves_domain: 0 = the Space serves its own domain (network_config mode own_domain, set at install or later in the Console); 1 = it does not (the query ran, the table is there,
+# no row says so); 2 = cannot tell (no reader, a busy or missing database, any error or odd answer). Callers change the ports only on 0 or 1.
+space_serves_domain() {
+  [ -f "$DATA_DIR/space/modules.db" ] || return 2
+  _so=$(space_db query "$DATA_DIR/space/modules.db" "SELECT count(*) AS n FROM network_config WHERE id = 1 AND mode = 'own_domain'") || return 2
+  case "$_so" in 1) return 0 ;; 0) return 1 ;; *) return 2 ;; esac
+}
+# END spacedb
 
 # access_words ADDRESS RELAY: how a server is reached, in a few plain words.
 access_words() { if [ -n "$1" ]; then printf 'your own name, https://%s' "$1"; elif [ -n "$2" ]; then printf "Vyre's relay (%s)" "$2"; else printf 'no way set yet'; fi; }
