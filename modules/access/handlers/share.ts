@@ -851,6 +851,8 @@ export async function audienceSet(ctx: ShareCtx, input: { resource: ResourceRef;
   const folder = res.type === "folder";
   if (!RECORDS.has(res.type) && !folder) raise(trace, "validation.bad_input", "who it is open to is set on a record type, a record or a folder");
   if (folder && (input.audience === "me" || input.exporters !== undefined || input.outside !== undefined)) raise(trace, "validation.bad_input", "a folder is open to the Space or only to people added");
+  // asking a folder to be what it already is changes nothing and needs nothing (an agent an open channel made: its folder is open to the Space from the start)
+  if (folder && input.audience !== undefined && input.audience === audienceOf(res)) return { audience: audienceOf(res), exporters: "admins" as Exporters, outside: false };
   // the host's own sweep brings old agent folders in line with their chats: without Manage only on the files folder of a chat's own agent (hostMayCloseFolder), never on any other folder
   if (!(folder && isHostService(ctx.principal) && hostMayCloseFolder(store, res))) must(ctx, store, res, "manage", "changing who it is open to");
   if ((input.exporters !== undefined || input.outside !== undefined) && res.type !== "record_type") raise(trace, "validation.bad_input", "who may export and links outside the Space are set on the record type");
