@@ -14,7 +14,7 @@ type Page = import("playwright-core").Page;
 const body = async (p: Page): Promise<string> => ((await p.evaluate("document.body.innerText").catch(() => "")) as string).replace(/\n+/g, " | ");
 
 for (const kind of ["personal", "team"] as const) {
-  test(`GATE lookup, ${kind} Space: a plain web lookup, no helpers`, { skip: gateSkip(), timeout: 900_000 }, async () => {
+  test(`GATE lookup, ${kind} Space: a plain web lookup, no helpers`, { skip: gateSkip() || (process.env["GATE_KIND"] && process.env["GATE_KIND"] !== kind ? "another kind is selected" : false), timeout: 900_000 }, async () => {
     const { chromium } = await import("playwright-core");
     const shots = path.join(process.env["VYRE_GATE_SHOTS"] ?? "/tmp/vyre-gate-shots", `lookup-${kind}`); fs.mkdirSync(shots, { recursive: true });
     const d = await bootGate(kind, "Lookup Space");

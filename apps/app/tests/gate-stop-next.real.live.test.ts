@@ -10,8 +10,8 @@ import { GATE_MODEL, REAL_KEY, bootGate, claimInBrowser, gateSkip, tokenOf } fro
 
 const dk = (...a: string[]): string => { try { return execFileSync("docker", a, { encoding: "utf8", timeout: 30_000 }); } catch (e) { return String((e as { stdout?: string }).stdout ?? ""); } };
 
-for (const variant of ["plain", "background-server"] as const) {
-  test(`GATE stop then next ask: ${variant}`, { skip: gateSkip(), timeout: 900_000 }, async () => {
+for (const variant of ["plain", "background-server", "unrelated-ask"] as const) {
+  test(`GATE stop then next ask: ${variant}`, { skip: gateSkip() || (process.env["GATE_VARIANT"] && process.env["GATE_VARIANT"] !== variant ? "another variant is selected" : false), timeout: 900_000 }, async () => {
     const { chromium } = await import("playwright-core");
     const d = await bootGate("personal", "Stop Probe");
     const web = await edge(process.env["VYRE_APP_DIST"]!, d.address);
@@ -33,7 +33,7 @@ for (const variant of ["plain", "background-server"] as const) {
       void replyAfter;
       const cid = (): string => dk("ps", "-q", "--filter", `label=vyre.workspace=${agentId}`).trim().split("\n")[0] ?? "";
       await post("Say OK."); await idle(120_000);
-      if (variant === "plain") await post("Run `sleep 120 && echo finished-long` in the terminal and tell me when it is done.");
+      if (variant === "plain" || variant === "unrelated-ask") await post("Run `sleep 120 && echo finished-long` in the terminal and tell me when it is done.");
       else await post("First start a web server in the background with `python3 -m http.server 8080 &` (in the terminal), then run `sleep 120 && echo finished-long` in the foreground, and tell me when it is done.");
       let tBusy = Date.now(); for (let i = 0; i < 100; i++) { if (dk("exec", cid() || "x", "sh", "-c", "ps -eo args | grep -c 'sleep 120' ").trim() > "1") break; await new Promise((r) => setTimeout(r, 300)); }
       await new Promise((r) => setTimeout(r, Math.max(0, 10_000 - (Date.now() - tBusy))));
@@ -53,7 +53,7 @@ for (const variant of ["plain", "background-server"] as const) {
       }
       await idle(60_000).catch(() => undefined);
       const tNext = Date.now();
-      await post("Run `echo next-ok` and tell me what it printed.");
+      await post(variant === "unrelated-ask" ? "What is 2 plus 2? Answer in one word." : "Run `echo next-ok` and tell me what it printed.");
       for (let k = 0; k < 40 && !(await turns()).some((x) => (x.startedAt ?? 0) >= tNext - 1000); k++) await new Promise((r) => setTimeout(r, 300));
       await idle(300_000);
       const answeredAfterStop = Date.now() - tStop; const answeredAfterAsk = Date.now() - tNext;
