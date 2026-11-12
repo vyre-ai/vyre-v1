@@ -5,7 +5,8 @@
 //   once       a row per task (engine_task_baton) keeps the signature of the baton last woken for: state, review loop, holder. The same signature is never woken twice, however many events say it.
 //   holder     an agent holder is woken. A group or role holder is offered to its agent members (the first tasks.take holds it and the rest stop). A person holder is left to their Needs you.
 //   answers    a child Answer or Unblock task that finished wakes the holder of its parent again, once, because the work was waiting on it.
-//   asker      the turn runs for a person: the one who asked for the work, else the owner of the agent, else the owner of the automation run. Without a person nothing is woken and the log says so.
+//   asker      the turn runs for a person: the one who asked for the work, the one who started it, the person an agent made it for, or a Space automation's runs-as person; never the owner of
+//              the agent merely for owning it. Without a person nothing is woken and the task says why.
 //   no silent stop  a woken agent whose turn ends with the baton where it was (no submit, ask, block, review or decide) is nudged once in the thread and woken again. If the baton still has not moved
 //                   after nudgeMinutes (the step's, default 30), a person gets a task in Needs you: the one the task escalates to, else the person who asked.
 //   no secret  nothing here reads or writes a Vault value; the turn's context names tools and ids only.
@@ -35,6 +36,7 @@ const isAgentId = (id: unknown): id is string => typeof id === "string" && id.st
 /** What a task that waits for a person says in its thread, once. */
 export const WAITING_NOTE = "baton.waiting";
 export const WAITING_LINE = "This came from an automation and has nobody's permission to act yet. Open it to run it as yourself.";
+export const WAITING_LINE_AGENT = "An agent made this task, and no person's permission to act on it is on record. Open it to run it as yourself.";
 export const WAITING_LINE_OTHER = "Nobody asked for this work, so it has nobody's permission to act yet. Open it to run it as yourself.";
 
 const ensureBaton = ensure;
@@ -72,18 +74,10 @@ export const signatureOf = (t: BatonTask, h: { role: string; who: Who }): string
 
 const runsOutside = (host: BatonHost, agentId: string): Promise<boolean> => host.call("agents.get", { agentId }).then((r) => (r as { agent?: { runtime?: string } } | null)?.agent?.runtime === "outside", () => false);
 
-/** The person responsible for an agent: its owner. */
-async function ownerOfAgent(host: BatonHost, agentId: string): Promise<string | undefined> {
-  try {
-    const owner = ((await host.call("access.principals.get", { principal: { kind: "agent", id: agentId } })) as { principal?: { owner?: unknown } } | null)?.principal?.owner;
-    return isPerson(owner) ? owner : undefined;
-  } catch { return undefined; }
-}
-
 /**
  * The person a turn runs for: who asked for the work (the task's creator, or the person who started it, baton.owner). A task a service made (an Automation's step, a form, a timer) has nobody else:
- * owning the agent it went to, owning the Automation's Run or being named its reviewer is not a yes to act now (owner ruling 2 Nov, lead 12 Nov), so it waits until a person starts it. A task an
- * agent made keeps the older fallbacks (the agent's owner, the run's person), which acted for the asker of the turn that made it.
+ * owning the agent it went to, owning the Automation's Run or being named its reviewer is not a yes to act now (owner ruling 2 Nov, lead 12 Nov): a Space automation's task runs for the
+ * person who turned it on, while they may, and anything else waits until a person starts it. A task an agent made runs for the person the agent was acting for when it made it.
  */
 export async function askerOf(host: BatonHost, t: BatonTask): Promise<string | undefined> {
   return (await askerFor(host, t)).asker;
@@ -98,7 +92,11 @@ export async function askerFor(host: BatonHost, t: BatonTask): Promise<{ asker?:
     if (auto?.asker) return { asker: auto.asker, automation: auto };
     return { line: auto?.line ?? (t.source?.kind === "run" ? WAITING_LINE : WAITING_LINE_OTHER) };
   }
-  return { asker: await agentTaskAsker(host, t) };
+  // a task an agent made acts for the person that agent was acting for when it made it (tasks.create records it from the session); an older task with none on record waits for a person,
+  // never falling back to the agent's owner (lead 12 Nov)
+  const actingFor = t.workingNotes["baton.acting_for"];
+  if (isPerson(actingFor)) return { asker: actingFor };
+  return { line: WAITING_LINE_AGENT };
 }
 
 export interface AutomationAsker { automationId: string; asker?: string; trigger?: string; line?: string }
@@ -125,23 +123,6 @@ async function automationAsker(host: BatonHost, t: BatonTask): Promise<Automatio
     }
   }
   return { ...base, asker: r.runsAs };
-}
-
-/** A task an agent made: the older fallbacks (the agent's owner, the run's person, a person reviewer or approver), which acted for the asker of the turn that made it. */
-async function agentTaskAsker(host: BatonHost, t: BatonTask): Promise<string | undefined> {
-  for (const w of [t.assigned, t.reviewer, t.approver]) {
-    if (w?.kind !== "agent") continue;
-    const owner = await ownerOfAgent(host, w.id);
-    if (owner) return owner;
-  }
-  if (t.source?.kind === "run") {
-    try {
-      const run = ((await host.call("runs.get", { runId: t.source.id })) as { run?: { owner?: string; startedBy?: string } }).run;
-      for (const id of [run?.owner, run?.startedBy]) if (isPerson(id)) return id;
-    } catch { /* the run is gone; the other ways were tried */ }
-  }
-  for (const w of [t.reviewer, t.approver]) if (w?.kind === "person" && isPerson(w.id)) return w.id;
-  return undefined;
 }
 
 async function agentMembers(host: BatonHost, who: Who): Promise<string[]> {

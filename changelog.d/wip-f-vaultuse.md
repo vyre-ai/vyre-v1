@@ -26,3 +26,6 @@
 - An automation cannot give work to a person's Assistant: a Space automation never, and a Personal one only to its owner's own Assistant. It is refused when you save it and again when it runs.
 - Nobody but you can say an agent's task runs for you: an agent or an automation can no longer name a person for it.
 - Handing an agent to someone else now moves everything at once: the new owner has the owner's rights on it, the previous owner keeps none, the previous owner's Routines and Watchers on it turn off, and an Assistant cannot be handed over.
+- A task an agent makes now works for the person that agent was working for at the time, never for whoever owns the agent; an older task with nobody on record waits with a line until someone starts it.
+- When you hand an agent to someone else, Needs you tells you once which of your routines on it are now off, for example "Scout now belongs to Noah, so your routine 'Morning digest' on it is off."
+- A team agent's computer no longer lists or takes your own Vault items through its browser's fill, and offers a shared item only when it is shared with the agent: the same rule as for commands.

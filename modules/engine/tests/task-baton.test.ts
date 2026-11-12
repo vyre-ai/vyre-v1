@@ -4,7 +4,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { harness } from "../fixtures/harness.ts";
 import type { Harness } from "../fixtures/harness.ts";
-import { batonRow, holderOf, onTaskEvent, signatureOf, WAITING_LINE, WAITING_LINE_OTHER } from "../handlers/task-baton.ts";
+import { batonRow, holderOf, onTaskEvent, signatureOf, WAITING_LINE, WAITING_LINE_AGENT, WAITING_LINE_OTHER } from "../handlers/task-baton.ts";
 import type { BatonTask } from "../handlers/task-baton.ts";
 import { scriptedProvider } from "../../../agent/src/turn-engine/scripted-session.ts";
 
@@ -169,4 +169,15 @@ test("a Space automation's task runs for the person who turned it on while they 
   const c = scene({ tsk_t1: { ...mk(), createdBy: "svc_ffffffffffffffffffffffffffffffff" } }, { "automations.runs_as.get": () => ({ kind: "space", runsAs: BOSS, ok: true }), "agents.outside.usable": () => ({ usable: true }) });
   assert.deepEqual(await c.run("task.created", "tsk_t1"), []);
   assert.equal(c.h.called.some((x) => x.cap === "automations.runs_as.get"), false);
+});
+
+test("a task an agent made runs for the person it was acting for; with nobody on record it waits, never for the agent's owner (lead 12 Nov)", async () => {
+  const a = scene({ tsk_t1: task({ createdBy: CHECK, workingNotes: { "baton.acting_for": BOSS } }) });
+  assert.deepEqual(await a.run("task.created", "tsk_t1"), [DOER]);
+  await a.engine.idle("thr_t1");
+  assert.equal(a.provider.specs[0]!.asker, BOSS);
+  const b = scene({ tsk_t1: task({ createdBy: CHECK }) });
+  assert.deepEqual(await b.run("task.created", "tsk_t1"), []);
+  assert.equal(b.provider.specs.length, 0, "not the agent's owner");
+  assert.equal(b.h.called.find((c) => c.cap === "tasks.working_notes.set")?.input.value, WAITING_LINE_AGENT);
 });

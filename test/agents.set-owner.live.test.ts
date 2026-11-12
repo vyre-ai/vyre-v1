@@ -44,6 +44,10 @@ test("set_owner: the access engine names the new owner, the previous owner loses
     // the Routine Noah set ran as Noah: it is off now, and nothing of it runs as Sana
     const row = d.db!.all(`SELECT "enabled", "ownerId" FROM agents_routine WHERE "id" = ?`, routine)[0] as { enabled: number; ownerId: string };
     assert.deepEqual({ ...row }, { enabled: 0, ownerId: "usr_noah" }, "the previous owner's Routine pauses and stays his");
+    // and Noah hears it once, in Needs you
+    const told = (await ok(d, "usr_noah", "tasks.needs_you", {})) as { tasks?: Array<{ title?: string }> };
+    const lines = JSON.stringify(told).match(/Noah Helper now belongs to Sana Iqbal, so your routine 'Morning' on it is off\./g) ?? [];
+    assert.equal(lines.length, 1, `the line once: ${JSON.stringify(told).slice(0, 600)}`);
 
     // the new owner has them: Sana hands it on, and the access engine follows again
     await ok(d, "usr_sana", "agents.set_owner", { agentId, ownerId: "usr_mia" });

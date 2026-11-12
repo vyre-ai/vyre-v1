@@ -286,9 +286,11 @@ export async function create(ctx: TasksCtx, input: In): Promise<unknown> {
   if (input.notes && typeof input.notes === "object") {
     // notes the task starts with: a brief, a checklist, a schema. The two reserved keys belong to a held act and are never taken from here.
     const notes: Record<string, string> = {};
-    for (const [k, v] of Object.entries(input.notes as Record<string, unknown>).slice(0, MAX_START_NOTES)) if (!(k in RESERVED_NOTES) && !k.startsWith("gate.") && typeof v === "string" && (k !== BATON_OWNER || mayNameBatonOwner(ctx, v)) && (k !== BATON_WAITING || isTrustedService(ctx.principal))) notes[k] = v.slice(0, MAX_NOTE_CHARS);
+    for (const [k, v] of Object.entries(input.notes as Record<string, unknown>).slice(0, MAX_START_NOTES)) if (!(k in RESERVED_NOTES) && !k.startsWith("gate.") && typeof v === "string" && (k !== BATON_OWNER || mayNameBatonOwner(ctx, v)) && (k !== BATON_WAITING || isTrustedService(ctx.principal)) && k !== BATON_ACTING_FOR) notes[k] = v.slice(0, MAX_NOTE_CHARS);
     t.workingNotes = notes;
   }
+  // an agent's task records the person the agent was acting for when it made it, from the session and never from the input: the turns this task wakes act for that person (lead 12 Nov)
+  if (ctx.principal.kind === "agent" && isPersonId(ctx.actingFor)) t.workingNotes = { ...t.workingNotes, [BATON_ACTING_FOR]: ctx.actingFor };
   // a request that came from a chat lives in that chat: its feed is the conversation that asked, never a second thread beside it
   if (isRequest(kind) && t.source?.kind === "chat") t.threadId = t.source.id;
   else if (ctx.call) await ensureThread(ctx, t, ctx.thread);
@@ -569,6 +571,8 @@ export const RESERVED_NOTES = { decision_id: "decisionId", payload_hash: "payloa
 
 /** The working note that names the person an agent's turns on a task act for (the engine's task baton reads it). */
 export const BATON_OWNER = "baton.owner";
+/** The person an agent was acting for when it made the task (set by tasks.create from the session only). */
+export const BATON_ACTING_FOR = "baton.acting_for";
 /** The server's line on a task that waits for a person's yes (the engine's task baton writes it). */
 export const BATON_WAITING = "baton.waiting";
 const isPersonId = (v: unknown): v is string => typeof v === "string" && v.startsWith("usr_");
@@ -613,6 +617,7 @@ export async function notesSet(ctx: TasksCtx, input: In): Promise<unknown> {
   // the person an agent's turns on this task act for: only that person names themselves (or the server does); an agent or an Automation never names anyone (lead 12 Nov)
   if (key === BATON_OWNER && !mayNameBatonOwner(ctx, value)) raise(ctx, "validation.field_locked", "Only a person can start this work as themselves.", { field: key });
   if (key === BATON_WAITING && !isTrustedService(ctx.principal)) raise(ctx, "validation.field_locked", "Only the server says that.", { field: key });
+  if (key === BATON_ACTING_FOR) raise(ctx, "validation.field_locked", "That is set when the task is made, and never changed.", { field: key });
   // a writer that names the value it started from is refused when someone changed the note meanwhile: nothing is overwritten, and the refusal says what the note holds now and who changed it.
   // An agent that names none may only append (the note was empty, or its new value starts with what it holds): anything else could erase what a person saved after the agent read it. A list note
   // (Done means, the ticks) an agent changed from a stale read is merged, as the page does for people: both changes stay.

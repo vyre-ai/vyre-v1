@@ -248,3 +248,13 @@ test("baton.owner (whom an agent's turns on a task act for) is written only by a
   const mine = (await h.call("tasks.create", newTask({ assigned: bot, notes: { "baton.owner": owner.id } }), me)).task.id as string;
   assert.equal(notes(h, mine)["baton.owner"], owner.id);
 });
+
+test("a task an agent makes records the person it was acting for, from the session and never from the input, and nobody can change it (lead 12 Nov)", async () => {
+  const h = withThreads();
+  const id = (await h.call("tasks.create", newTask({ assigned: bot2, notes: { brief: "Check it", "baton.acting_for": cara.id } }), { ...doer, actingFor: owner.id })).task.id as string;
+  assert.equal(notes(h, id)["baton.acting_for"], owner.id, "the session's person, not the input's");
+  await refused(h.call("tasks.working_notes.set", { taskId: id, key: "baton.acting_for", value: cara.id }, doer), "validation.field_locked");
+  await refused(h.call("tasks.working_notes.set", { taskId: id, key: "baton.acting_for", value: cara.id }, svc), "validation.field_locked");
+  const none = (await h.call("tasks.create", newTask({ assigned: bot2 }), doer)).task.id as string;
+  assert.equal(notes(h, none)["baton.acting_for"], undefined, "an agent acting for nobody records nobody");
+});
