@@ -573,6 +573,9 @@ export async function chatUse(rig: Rig, token: string, handle: string, pin?: { s
 export async function automationUse(rig: Rig, a: Actor, handle: string): Promise<Outcome> {
   const before = rig.p.seen.length;
   const input = { method: "GET", url: "https://api.hubapi.com/crm/v3/objects/contacts", auth: { kind: "bearer", handle } };
+  // a key goes only to a host approved for it: the person approves the provider's host on the key's page first, as they would (a person who may not use the key is refused
+  // here, and the cell then shows the Vault's own refusal on the step, as before)
+  await api(rig.d, a.token, "automations.key_hosts.allow", { vaultItemId: handle, host: "api.hubapi.com" });
   const o = a.mcp ? fromTool(await tool(a.mcp.c, "automations_http_read", input)) : outcome(await api(rig.d, a.token, "automations.http_read", input));
   const got = rig.p.seen.slice(before).find((s) => s.url.includes("hubapi"))?.key;
   return { ...o, ...(got ? { got } : {}) };
