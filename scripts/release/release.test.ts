@@ -289,6 +289,10 @@ test("the command line: tag checks the version against package.json, and pack ma
   const errors: string[] = [];
   console.error = (...a: unknown[]) => { errors.push(a.map(String).join(" ")); };
   const saved = process.env["VYRE_IMAGE"];
+  // the pack reads every image name from the environment; the test runner sets local build names (scripts/test-run.ts) that are not pinned by digest, so this test packs with only its own
+  const others = ["VYRE_AGENT_IMAGE", "VYRE_BROWSER_IMAGE", "VYRE_WORKSPACE_IMAGE", "VYRE_SANDBOX_IMAGE"] as const;
+  const savedOthers = others.map((k) => [k, process.env[k]] as const);
+  for (const k of others) delete process.env[k];
   try {
     assert.equal(main(["tag", "v1.2.3-dryrun.1"]), 1);
     assert.equal(main(["tag", "v9.9.9"]), 1, "package.json does not say 9.9.9");
@@ -303,6 +307,7 @@ test("the command line: tag checks the version against package.json, and pack ma
   } finally {
     console.log = log; console.error = err;
     if (saved === undefined) delete process.env["VYRE_IMAGE"]; else process.env["VYRE_IMAGE"] = saved;
+    for (const [k, v] of savedOthers) { if (v === undefined) delete process.env[k]; else process.env[k] = v; }
   }
 });
 
