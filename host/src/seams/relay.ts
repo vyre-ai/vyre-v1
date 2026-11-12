@@ -356,25 +356,36 @@ export const doorPath = (p: string): boolean => DOOR.test(p) && p.length <= 4096
 /**
  * A web request trigger through the relay: POST /hooks/automation/<id>/<secret>, that exact shape and nothing near it (no query, no other /hooks path). The same pattern as relay/worker/phone.js HOOK
  * and host/src/routes/webhooks.ts AUTOMATION_PATH. Limits on this side, before the daemon's own route: a body of 1 MB at most, 120 a minute for the Space and 30 a minute for one hook (the route then
- * holds its own 60 a minute per hook). A rate limit is a 429 with Retry-After; every other refusal is the bare 404 the route gives for a hook that does not exist, and the path (it carries
+ * holds its own 60 a minute per hook; see RELAY_HOOKS for the accepted and refused counts). A rate limit is a 429 with Retry-After; every other refusal is the bare 404 the route gives for a hook that does not exist, and the path (it carries
  * the secret) is never logged here.
  */
 const HOOK = /^\/hooks\/automation\/aut_[a-z0-9]{1,64}\/[A-Za-z0-9_-]{8,200}$/;
 export const hookPath = (p: string): boolean => HOOK.test(p);
-export const RELAY_HOOKS = Object.freeze({ maxBody: 1024 * 1024, perMinute: 120, perHookPerMinute: 30 });
-const hookWindow = { at: 0, n: 0, per: new Map<string, number>() };
-/** Count one relayed hook; false when the Space's or the hook's minute is used up. */
-export function takeRelayHook(id: string, now = Date.now()): boolean {
-  if (now - hookWindow.at >= 60_000) { hookWindow.at = now; hookWindow.n = 0; hookWindow.per.clear(); }
-  const one = hookWindow.per.get(id) ?? 0;
-  if (hookWindow.n >= RELAY_HOOKS.perMinute || one >= RELAY_HOOKS.perHookPerMinute) return false;
-  hookWindow.n += 1;
-  hookWindow.per.set(id, one + 1);
-  if (hookWindow.per.size > 10_000) hookWindow.per.delete(hookWindow.per.keys().next().value as string);
-  return true;
+export const RELAY_HOOKS = Object.freeze({ maxBody: 1024 * 1024, perMinute: 120, perHookPerMinute: 30, perVisitorPerMinute: 20, refusedPerVisitor: 10 });
+/**
+ * Two counts a minute, as on the relay: ACCEPTED (the daemon answered 200) for the Space, one hook, and one visitor on one hook; REFUSED (anything else) for one visitor across the Space, 10,
+ * below the daemon's own 20 failures a minute per source, so a stranger's spray stops here and the same address can still reach a hook accepted this minute. Every map is cleared each minute;
+ * accepted maps grow only on a 200 (at most 120 entries), refusal maps only on a request let through.
+ */
+const hookWindow = { at: 0, n: 0, per: new Map<string, number>(), pair: new Map<string, number>(), known: new Set<string>(), refused: new Map<string, number>(), refusedPair: new Map<string, number>() };
+const fresh = (now: number): typeof hookWindow => {
+  if (now - hookWindow.at >= 60_000) { hookWindow.at = now; hookWindow.n = 0; hookWindow.per.clear(); hookWindow.pair.clear(); hookWindow.known.clear(); hookWindow.refused.clear(); hookWindow.refusedPair.clear(); }
+  return hookWindow;
+};
+/** May this visitor post to this hook now. */
+export function relayHookOpen(id: string, ip: string, now = Date.now()): boolean {
+  const w = fresh(now), pk = `${ip}|${id}`;
+  if (w.n >= RELAY_HOOKS.perMinute || (w.per.get(id) ?? 0) >= RELAY_HOOKS.perHookPerMinute || (w.pair.get(pk) ?? 0) >= RELAY_HOOKS.perVisitorPerMinute) return false;
+  return w.known.has(id) ? (w.refusedPair.get(pk) ?? 0) < RELAY_HOOKS.refusedPerVisitor : (w.refused.get(ip) ?? 0) < RELAY_HOOKS.refusedPerVisitor;
+}
+/** Count one answered request: accepted (200) or refused (anything but a rate limit). */
+export function relayHookAnswered(id: string, ip: string, status: number, now = Date.now()): void {
+  const w = fresh(now), pk = `${ip}|${id}`;
+  if (status === 200) { w.n += 1; w.per.set(id, (w.per.get(id) ?? 0) + 1); w.pair.set(pk, (w.pair.get(pk) ?? 0) + 1); w.known.add(id); }
+  else if (status !== 429) { w.refused.set(ip, (w.refused.get(ip) ?? 0) + 1); w.refusedPair.set(pk, (w.refusedPair.get(pk) ?? 0) + 1); }
 }
 /** For tests: a fresh minute. */
-export function resetRelayHooks(): void { hookWindow.at = 0; hookWindow.n = 0; hookWindow.per.clear(); }
+export function resetRelayHooks(): void { hookWindow.at = 0; fresh(Date.now()); hookWindow.at = 0; }
 
 /** Only the public path and the door for outside agents, in plain form, ever leave this function for the gateway: never a session, and never another address on the daemon. */
 export function publicPathOk(p: string): boolean {
@@ -427,8 +438,9 @@ function serveHook(send: (m: unknown) => void, m: { id: string; method: string; 
   const notFound = (): void => { send({ t: "p.res", id: m.id, status: 404, headers: {} }); send({ t: "p.end", id: m.id }); };
   if (m.method !== "POST" || !hookPath(m.path) || body.length > RELAY_HOOKS.maxBody) { notFound(); return; }
   const id = m.path.split("/")[3] as string;
+  const ip = typeof m.ip === "string" ? m.ip : "";
   // a rate limit is a 429 (the relay passes it on with Retry-After); it says nothing about whether the id or secret is valid
-  if (!takeRelayHook(id)) { send({ t: "p.res", id: m.id, status: 429, headers: { "retry-after": "60" } }); send({ t: "p.end", id: m.id }); return; }
+  if (!relayHookOpen(id, ip)) { send({ t: "p.res", id: m.id, status: 429, headers: { "retry-after": "60" } }); send({ t: "p.end", id: m.id }); return; }
   const given = (typeof m.headers === "object" && m.headers !== null ? m.headers : {}) as Record<string, unknown>;
   const headers: Record<string, string> = { "x-vyre-via": "relay", "content-length": String(body.length) };
   // the visitor's address as the relay saw it (cf-connecting-ip), as the one forwarded entry: the daemon's per-source limits then count each visitor, not the whole relay as 127.0.0.1, so one
@@ -443,6 +455,7 @@ function serveHook(send: (m: unknown) => void, m: { id: string; method: string; 
     let size = 0;
     res.on("data", (c: Buffer) => { size += c.length; if (size <= 4096) chunks.push(c); });
     res.on("end", () => {
+      relayHookAnswered(id, ip, res.statusCode ?? 0);
       if (res.statusCode === 429) { send({ t: "p.res", id: m.id, status: 429, headers: { "retry-after": "60" } }); send({ t: "p.end", id: m.id }); return; }
       if (res.statusCode !== 200) { notFound(); return; }
       send({ t: "p.res", id: m.id, status: 200, headers: { "content-type": "application/json" } });
@@ -452,7 +465,7 @@ function serveHook(send: (m: unknown) => void, m: { id: string; method: string; 
     res.on("error", () => notFound());
   });
   req.on("timeout", () => req.destroy(new Error("timed out")));
-  req.on("error", () => notFound());
+  req.on("error", () => { relayHookAnswered(id, ip, 0); notFound(); });
   req.end(body.length ? Buffer.from(body) : undefined);
 }
 

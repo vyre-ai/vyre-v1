@@ -116,12 +116,17 @@ test("an outside POST through the relay starts exactly one Run; everything else 
     assert.equal(await countOf(d, "From relay"), 1, "one outside POST (sent twice with one key) is one Run");
     assert.equal(((await ok(d, "/v1/runs/list", { scope: "subject", subject: { type: "automation", id }, limit: 20 }))["runs"] as unknown[]).length, 1);
 
-    // B1: one stranger's 20 wrong guesses do not block the hook for everyone else: the daemon counts each relayed visitor by the address the relay saw
+    // B1 and the two counts: a stranger's guessed ids (refused) stop at 10 a minute here and are counted by the address the relay saw, so another visitor's good POST starts its Run, and so
+    // does the stranger's own address on a hook that was accepted this minute
     resetRelayHooks();
-    for (let i = 0; i < 20; i++) assert.equal((await viaRelay(d, "POST", p.replace(/\/[^/]+$/, `/wrong-guess-${i}xxxx`), "{}", { "content-type": "application/json" }, "198.51.100.66")).status, 404);
+    const guesses: number[] = [];
+    for (let i = 0; i < 20; i++) guesses.push((await viaRelay(d, "POST", `/hooks/automation/aut_guess${i}/wrongguessxxxx`, "{}", { "content-type": "application/json" }, "198.51.100.66")).status);
+    assert.deepEqual([guesses.filter((x) => x === 404).length, guesses.filter((x) => x === 429).length], [10, 10], `10 refusals, then 429: ${guesses.join(",")}`);
     const other = await viaRelay(d, "POST", p, JSON.stringify({ order: 2 }), { "content-type": "application/json", "idempotency-key": "relay-evt-b1" }, "192.0.2.10");
     assert.deepEqual([other.status, other.body], [200, '{"accepted":true}'], "another visitor's good POST still starts its Run");
-    await until("the B1 note", 10_000, async () => (await countOf(d, "From relay")) >= 2 ? true : undefined);
+    const same = await viaRelay(d, "POST", p, JSON.stringify({ order: 3 }), { "content-type": "application/json", "idempotency-key": "relay-evt-b1-same" }, "198.51.100.66");
+    assert.deepEqual([same.status, same.body], [200, '{"accepted":true}'], "the guesser's own address still reaches a hook accepted this minute");
+    await until("the B1 notes", 10_000, async () => (await countOf(d, "From relay")) >= 3 ? true : undefined);
     resetRelayHooks();
 
     // the shapes the relay never passes on, and the daemon's own refusals, are all the same bare 404
@@ -149,19 +154,31 @@ test("an outside POST through the relay starts exactly one Run; everything else 
     await ok(d, "/v1/automations/delete", { automationId: id, idempotencyKey: "relay-hook-del" });
     await bare("POST", fresh, "deleted");
     await new Promise((r) => setTimeout(r, 500));
-    assert.equal(await countOf(d, "From relay"), 3, "only the three accepted POSTs ran");
+    assert.equal(await countOf(d, "From relay"), 4, "only the four accepted POSTs ran");
 
-    // a flood: the hook's 30 and the Space's 120 a minute stop it before the daemon
+    // a flood, against a stand-in daemon that accepts only /aut_real/: refused and accepted are counted apart
     const seen: string[] = [];
-    const counter = (await import("node:http")).createServer((req, res) => { seen.push(req.url ?? ""); res.writeHead(404); res.end(); });
+    const counter = (await import("node:http")).createServer((req, res) => { seen.push(req.url ?? ""); res.writeHead(/\/aut_real\d*\//.test(req.url ?? "") ? 200 : 404); res.end(); });
     await new Promise<void>((r) => counter.listen(0, "127.0.0.1", r));
     const cport = (counter.address() as { port: number }).port;
+    const send = (n: number, at: string, ip: string): Promise<number> => new Promise((resolve) => { let st = 0; servePublic((m) => { const x = m as { t: string; status?: number }; if (x.t === "p.res") st = x.status ?? 0; if (x.t === "p.end") resolve(st); }, { id: String(n), method: "POST", path: at, ip, headers: {} }, Buffer.from("{}"), cport); });
     resetRelayHooks();
-    const send = (n: number, at: string): Promise<void> => new Promise((resolve) => servePublic((m) => { if ((m as { t: string }).t === "p.end") resolve(); }, { id: String(n), method: "POST", path: at, ip: "198.51.100.1", headers: {} }, Buffer.from("{}"), cport));
-    for (let i = 0; i < 40; i++) await send(i, "/hooks/automation/aut_one/abcdefghijk");
-    assert.equal(seen.length, RELAY_HOOKS.perHookPerMinute, "one hook: 30 a minute reach the daemon");
-    for (let i = 0; i < 200; i++) await send(1000 + i, `/hooks/automation/aut_h${i % 20}/abcdefghijk`);
-    assert.equal(seen.length, RELAY_HOOKS.perMinute, "the Space: 120 a minute reach the daemon");
+    // 200 random ids from one address: 10 reach the daemon, the rest are 429
+    let limited = 0;
+    for (let i = 0; i < 200; i++) if ((await send(i, `/hooks/automation/aut_r${i}/abcdefghijk`, "203.0.113.77")) === 429) limited++;
+    assert.deepEqual([seen.length, limited], [RELAY_HOOKS.refusedPerVisitor, 200 - RELAY_HOOKS.refusedPerVisitor]);
+    // a good POST from another address, then from the same address to that real hook: both go through
+    assert.equal(await send(1000, "/hooks/automation/aut_real/abcdefghijk", "203.0.113.88"), 200);
+    assert.equal(await send(1001, "/hooks/automation/aut_real/abcdefghijk", "203.0.113.77"), 200, "the sprayer's address on a hook accepted this minute");
+    // accepted: one address on one hook 20, one hook 30, the Space 120
+    resetRelayHooks();
+    seen.length = 0;
+    for (let i = 0; i < 25; i++) await send(2000 + i, "/hooks/automation/aut_real/abcdefghijk", "198.51.100.1");
+    assert.equal(seen.length, RELAY_HOOKS.perVisitorPerMinute, "one address on one hook: 20");
+    for (let i = 0; i < 20; i++) await send(3000 + i, "/hooks/automation/aut_real/abcdefghijk", `198.51.100.${10 + i}`);
+    assert.equal(seen.length, RELAY_HOOKS.perHookPerMinute, "one hook: 30");
+    for (let i = 0; i < 200; i++) await send(4000 + i, `/hooks/automation/aut_real${i % 40}/abcdefghijk`, `192.0.2.${i % 200}`);
+    assert.equal(seen.length, RELAY_HOOKS.perMinute, "the Space: 120 accepted");
     counter.close();
   } finally {
     await d.stop();
@@ -175,3 +192,4 @@ test("an outside POST through the relay starts exactly one Run; everything else 
   }
   fs.rmSync(dir, { recursive: true, force: true });
 });
+
