@@ -4,7 +4,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createDockerApi } from "../../../sandbox/src/docker.ts";
-import { createWorkspaceManager, createWorkspaceTerminalHost, workspaceContainerConfig, workspaceName } from "../workspace.ts";
+import { createWorkspaceManager, createWorkspaceTerminalHost, workspaceContainerConfig, workspaceName, workspaceNetworkName } from "../workspace.ts";
 import type { WorkspaceManager, WorkspaceOptions } from "../workspace.ts";
 import { createLocalHost, handlers } from "../impl.ts";
 import { bindHost, bindValues, bindWorkspaces } from "../projections.ts";
@@ -908,5 +908,27 @@ test("twenty newcomers at once on a full host all start: none puts another newco
   assert.equal(outcomes.filter((x) => x.status === "fulfilled").length, 20, JSON.stringify(outcomes.filter((x) => x.status === "rejected").map((x) => String((x as PromiseRejectedResult).reason))));
   for (const id of fresh) assert.equal(dk.box(workspaceName(id)).running, true, `${id} awake`);
   for (const id of old) assert.equal(dk.box(workspaceName(id)).running, false, `${id} slept for room`);
+  m.close();
+});
+
+test("pools used up by old networks of one workspace: the module removes one that only a sleeping workspace of its own used, makes the shared network, and that workspace wakes on it", async () => {
+  let creates = 0;
+  let full = false;
+  const dk = engine({ networkFails: () => full && creates++ === 0 });   // the first try at the shared network finds the pools full
+  const OLD = "agt_sleeper";
+  const oldNet = workspaceNetworkName(OLD);
+  // a workspace made before 12 Nov behind the runner: its own network, asleep
+  await dk.http({ method: "POST", path: "/networks/create", json: { Name: oldNet, Driver: "bridge", CheckDuplicate: true, Labels: { "vyre.workspace": OLD } } });
+  await dk.http({ method: "POST", path: "/containers/create", query: { name: workspaceName(OLD) }, json: workspaceContainerConfig(OLD, "vyre/agent-workspace:1", { projects: [] }, {}, oldNet) });
+  full = true;
+  const logs: string[] = [];
+  const m = manager(dk, { log: (_l, msg) => { logs.push(msg); } });
+  assert.equal(await m.ensure("agt_new"), "created");
+  assert.equal(dk.box(workspaceName("agt_new")).config["HostConfig"]["NetworkMode"], "vyre-workspaces", "on the shared network after the pools were freed");
+  assert.ok(logs.includes("workspace.old_network_removed"), "an old network was removed for room");
+  assert.equal((await dk.http({ method: "GET", path: `/networks/${oldNet}` })).status, 404, "the sleeper's old network is gone");
+  // the sleeper wakes on the shared network
+  assert.equal((await m.exec(OLD, ["tmux", "-V"])).code, 0);
+  assert.equal(dk.box(workspaceName(OLD)).config["HostConfig"]["NetworkMode"], "vyre-workspaces");
   m.close();
 });

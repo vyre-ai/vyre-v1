@@ -74,7 +74,7 @@ export function fakeDocker(o: FakeDockerOptions = {}) {
     if (p === "/images/create" && m === "POST") { note("pull", undefined, req.query); if (o.pullWorks === true) { image = true; return empty(200); } return json(404, { message: "pull access denied" }); }
     if (p === "/containers/json" && m === "GET") {
       const all = req.query?.["all"] === "true";
-      const rows = [...boxes.values()].filter((b) => (all || b.running) && b.config["Labels"]?.["vyre.workspace"] !== undefined).map((b) => ({ Names: [`/${b.name}`], State: b.running ? "running" : "exited", Labels: b.config["Labels"] }));
+      const rows = [...boxes.values()].filter((b) => (all || b.running) && b.config["Labels"]?.["vyre.workspace"] !== undefined).map((b) => ({ Names: [`/${b.name}`], State: b.running ? "running" : "exited", Labels: b.config["Labels"], HostConfig: { NetworkMode: b.config["HostConfig"]?.["NetworkMode"] ?? "default" } }));   // as Docker lists them
       return json(200, rows);
     }
     if (p === "/containers/create" && m === "POST") {
